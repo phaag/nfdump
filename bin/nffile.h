@@ -164,7 +164,7 @@ typedef struct data_block_header_s {
 	uint32_t NumRecords; // number of data records in data block
 	uint32_t size; // size of this block in bytes without this header
 	uint16_t id; // Block ID == DATA_BLOCK_TYPE_2
-	uint16_t flags; // 0 - kompatibility
+	uint16_t flags; // 0 - compatibility
 	// 1 - block uncompressed
 	// 2 - block compressed
 } data_block_header_t;
@@ -1186,7 +1186,7 @@ typedef struct tpl_ext_48_s {
  *
  * For each available extension record, the ids are recorded in the extension map in the order they appear.
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
+ * |  - |      0       |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
  * |  0 |       record type == 2      |             size            |            map id           |      extension size         |
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
