@@ -816,7 +816,7 @@ int main (int argc, char **argv)
 	extension_tags = DefaultExtensions;
 	dynsrcdir = NULL;
 
-	while ( (c = getopt (argc, argv, "46ef:whEVI:DB:b:j:l:M:n:p:P:R:S:s:T:t:x:Xru:g:z")) != EOF) {
+	while ( (c = getopt (argc, argv, "46ef:whEVI:DB:b:j:l:M:n:p:P:R:S:s:T:t:x:Xru:g:zZ")) != EOF) {
 		switch (c) {
 		case 'h':
 			usage (argv[0]);
@@ -985,6 +985,9 @@ int main (int argc, char **argv)
 			break;
 		case 'z':
 			compress = 1;
+			break;
+		case 'Z':
+			compress = 2;
 			break;
 		case '4':
 			if (family == AF_UNSPEC)

@@ -94,13 +94,15 @@ typedef struct file_header_s {
 #define LAYOUT_VERSION_1 1
 
 	uint32_t flags;
-#define NUM_FLAGS 3
-#define FLAG_COMPRESSED 0x1 // flow records are compressed
+#define NUM_FLAGS 4
+#define FLAG_COMPRESSED 0x1 // flow records are compressed using LZO1X-1
 #define FLAG_ANONYMIZED 0x2 // flow data are anonimized
 #define FLAG_CATALOG 0x4 // has a file catalog record after stat record
+#define FLAG_COMPRESSED_BZ2 0x8 // flow records are compressed using bz2
 
 	/*
 		0x1 File is compressed with LZO1X-1 compression
+		0x8 With bz2 compression
 	 */
 	uint32_t NumBlocks; // number of data blocks in file
 	char ident[IDENTLEN]; // string identifier for this file
@@ -2156,8 +2158,8 @@ typedef struct common_record_v1_s {
 
 
 // a few handy shortcuts
-#define FILE_IS_COMPRESSED(n) ((n)->file_header->flags & FLAG_COMPRESSED)
-#define BLOCK_IS_COMPRESSED(n) ((n)->flags == 2 )
+#define FILE_IS_COMPRESSED(n) ((n)->file_header->flags & (FLAG_COMPRESSED))
+#define FILE_IS_COMPRESSED_BZ2(n) ((n)->file_header->flags & (FLAG_COMPRESSED_BZ2))
 #define HAS_CATALOG(n) ((n)->file_header->flags & FLAG_CATALOG)
 #define IP_ANONYMIZED(n) ((n)->file_header->flags & FLAG_ANONYMIZED)
 

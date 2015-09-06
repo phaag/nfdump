@@ -133,6 +133,7 @@ void SumStatRecords (stat_record_t *s1, stat_record_t *s2)
 } // End of SumStatRecords
 
 
+//TODO BZ2 counterpart
 static int LZO_initialize (void)
 {
 
@@ -436,7 +437,7 @@ nffile_t *OpenNewFile (char *filename, nffile_t *nffile, int compressed, int ano
 		}
 	}
 
-	flags = compressed ? FLAG_COMPRESSED : 0;
+	flags = compressed ? (compressed==1?FLAG_COMPRESSED:FLAG_COMPRESSED_BZ2) : 0;
 	if (anonymized)
 		SetFlag (flags, FLAG_ANONYMIZED);
 
@@ -479,6 +480,8 @@ nffile_t *OpenNewFile (char *filename, nffile_t *nffile, int compressed, int ano
 			return NULL;
 		}
 	}
+
+	//TODO BZ2 HERE
 
 	nffile->file_header->NumBlocks = 0;
 	len = sizeof (file_header_t);
@@ -698,6 +701,13 @@ static int OpenRaw (char *filename, stat_record_t *stat_record, int *compressed)
 	}
 
 	*compressed = file_header.flags & FLAG_COMPRESSED ? 1 : 0;
+	if(file_header.flags & FLAG_COMPRESSED_BZ2) {
+		if(*compressed) {
+			//TODO BZ2 throw error
+			close(fd);
+			return -1;
+		} else *compressed=2;
+	}
 	return fd;
 
 } // End of OpenRaw
@@ -779,6 +789,7 @@ int ReadBlock (nffile_t *nffile)
 		return NF_CORRUPT;
 	}
 
+	//TODO BZ2
 	buff = FILE_IS_COMPRESSED (nffile) ? lzo_buff : nffile->buff_ptr;
 
 	ret = read (nffile->fd, buff, nffile->block_header->size);
@@ -841,6 +852,7 @@ int ReadBlock (nffile_t *nffile)
 		}
 	} while (request_size > 0);
 
+	//TODO BZ2
 	if (FILE_IS_COMPRESSED (nffile)) {
 		int r;
 		lzo_uint new_len;
@@ -886,6 +898,8 @@ int WriteBlock (nffile_t *nffile)
 		return ret;
 	}
 
+	//TODO BZ2 this is LZO compression, add another test for BZ2
+
 	out_block_header = (data_block_header_t *) lzo_buff;
 	*out_block_header = * (nffile->block_header);
 
@@ -929,6 +943,8 @@ int WriteExtraBlock (nffile_t *nffile, data_block_header_t *block_header)
 		}
 		return ret;
 	}
+
+	//TODO BZ2 this is LZO compression, add another test for BZ2
 
 	out_block_header = (data_block_header_t *) lzo_buff;
 	*out_block_header = * (block_header);
