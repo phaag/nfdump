@@ -115,7 +115,8 @@ static void usage (char *name)
 	        "-s\t\tprofile subdir.\n"
 	        "-Z\t\tCheck filter syntax and exit.\n"
 	        "-S subdir\tSub directory format. see nfcapd(1) for format\n"
-	        "-z\t\tCompress flows in output file.\n"
+	        "-z\t\tCompress flows in output file using LZO1X-1.\n"
+	        "-J\t\tCompress flows in output file using BZ2.\n"
 	        "-t <time>\ttime for RRD update\n", name);
 } // usage
 
@@ -562,7 +563,7 @@ int main (int argc, char **argv)
 	// default file names
 	ffile = "filter.txt";
 	rfile = NULL;
-	while ( (c = getopt (argc, argv, "D:HIL:p:P:hf:r:n:M:S:t:VzZ")) != EOF) {
+	while ( (c = getopt (argc, argv, "D:HIL:p:P:hf:r:n:M:S:t:VzJZ")) != EOF) {
 		switch (c) {
 		case 'h':
 			usage (argv[0]);
@@ -614,6 +615,9 @@ int main (int argc, char **argv)
 			break;
 		case 'z':
 			compress = 1;
+			break;
+		case 'J':
+			compress = 2;
 			break;
 		default:
 			usage (argv[0]);

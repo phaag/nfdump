@@ -259,7 +259,8 @@ static void usage (char *name)
 	        "-I Ident\tset the ident string for stat file. (default 'none')\n"
 	        "-P pidfile\tset the PID file\n"
 	        "-t time frame\tset the time window to rotate pcap/nfcapd file\n"
-	        "-z\t\tCompress flows in output file.\n"
+	        "-z\t\tCompress flows in output file using LZO1X-1.\n"
+	        "-J\t\tCompress flows in output file using BZ2.\n"
 	        "-E\t\tPrint extended format of netflow data. for debugging purpose only.\n"
 	        "-T\t\tInclude extension tags in records.\n"
 	        "-D\t\tdetach from terminal (daemonize)\n"
@@ -1230,7 +1231,7 @@ int main (int argc, char *argv[])
 	verbose = 0;
 	expire = 0;
 	cache_size = 0;
-	while ( (c = getopt (argc, argv, "B:DEI:g:hi:r:s:l:p:P:t:u:S:T:e:Vz")) != EOF) {
+	while ( (c = getopt (argc, argv, "B:DEI:g:hi:r:s:l:p:P:t:u:S:T:e:VzJ")) != EOF) {
 		switch (c) {
 			struct stat fstat;
 		case 'h':
@@ -1307,6 +1308,9 @@ int main (int argc, char *argv[])
 			break;
 		case 'z':
 			compress = 1;
+			break;
+		case 'J':
+			compress = 2;
 			break;
 		case 'P':
 			if (optarg[0] == '/') {   // absolute path given

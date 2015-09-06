@@ -151,7 +151,8 @@ static void usage (char *name)
 	        "-P pidfile\tset the PID file\n"
 	        "-R IP[/port]\tRepeat incoming packets to IP address/port\n"
 	        "-x process\tlaunch process after a new file becomes available\n"
-	        "-z\t\tCompress flows in output file.\n"
+	        "-z\t\tCompress flows in output file using LZO1X-1.\n"
+	        "-J\t\tCompress flows in output file using BZ2.\n"
 	        "-B bufflen\tSet socket buffer to bufflen bytes\n"
 	        "-e\t\tExpire data at each cycle.\n"
 	        "-D\t\tFork to background\n"
@@ -721,7 +722,7 @@ int main (int argc, char **argv)
 	extension_tags = DefaultExtensions;
 	pcap_file = NULL;
 
-	while ( (c = getopt (argc, argv, "46ewhEVI:DB:b:f:j:l:n:p:P:R:S:T:t:x:ru:g:z")) != EOF) {
+	while ( (c = getopt (argc, argv, "46ewhEVI:DB:b:f:j:l:n:p:P:R:S:T:t:x:ru:g:zJ")) != EOF) {
 		switch (c) {
 		case 'h':
 			usage (argv[0]);
@@ -775,6 +776,9 @@ int main (int argc, char **argv)
 			break;
 		case 'z':
 			compress = 1;
+			break;
+		case 'J':
+			compress = 2;
 			break;
 		case 'B':
 			bufflen = strtol (optarg, &checkptr, 10);

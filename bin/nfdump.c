@@ -283,7 +283,8 @@ static void usage (char *name)
 	        "-H Add xstat histogram data to flow file.(default 'no')\n"
 	        "-i <ident>\tChange Ident to <ident> in file given by -r.\n"
 	        "-j <file>\tCompress/Uncompress file.\n"
-	        "-z\t\tCompress flows in output file. Used in combination with -w.\n"
+	        "-z\t\tCompress flows in output file using LZO1X-1. Used in combination with -w.\n"
+	        "-J\t\tCompress flows in output file using BZ2. Used in combination with -w.\n"
 	        "-l <expr>\tSet limit on packets for line and packed output format.\n"
 	        "\t\tkey: 32 character string or 64 digit hex string starting with 0x.\n"
 	        "-L <expr>\tSet limit on bytes for line and packed output format.\n"
@@ -766,7 +767,7 @@ int main (int argc, char **argv)
 
 	Ident[0] = '\0';
 
-	while ( (c = getopt (argc, argv, "6aA:Bbc:D:E:s:hHn:i:j:f:qzr:v:w:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
+	while ( (c = getopt (argc, argv, "6aA:Bbc:D:E:s:hHn:i:j:f:qzJr:v:w:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
 		switch (c) {
 		case 'h':
 			usage (argv[0]);
@@ -816,6 +817,9 @@ int main (int argc, char **argv)
 			break;
 		case 'z':
 			compress = 1;
+			break;
+		case 'J':
+			compress = 2;
 			break;
 		case 'c':
 			limitflows = atoi (optarg);

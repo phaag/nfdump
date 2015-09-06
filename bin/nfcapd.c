@@ -176,7 +176,8 @@ static void usage (char *name)
 	        "-R IP[/port]\tRepeat incoming packets to IP address/port\n"
 	        "-s rate\tset default sampling rate (default 1)\n"
 	        "-x process\tlaunch process after a new file becomes available\n"
-	        "-z\t\tCompress flows in output file.\n"
+	        "-z\t\tCompress flows in output file using LZO1X-1.\n"
+	        "-J\t\tCompress flows in output file using BZ2.\n"
 	        "-B bufflen\tSet socket buffer to bufflen bytes\n"
 	        "-e\t\tExpire data at each cycle.\n"
 	        "-D\t\tFork to background\n"
@@ -816,7 +817,7 @@ int main (int argc, char **argv)
 	extension_tags = DefaultExtensions;
 	dynsrcdir = NULL;
 
-	while ( (c = getopt (argc, argv, "46ef:whEVI:DB:b:j:l:M:n:p:P:R:S:s:T:t:x:Xru:g:zZ")) != EOF) {
+	while ( (c = getopt (argc, argv, "46ef:whEVI:DB:b:j:l:M:n:p:P:R:S:s:T:t:x:Xru:g:zJ")) != EOF) {
 		switch (c) {
 		case 'h':
 			usage (argv[0]);
@@ -986,7 +987,7 @@ int main (int argc, char **argv)
 		case 'z':
 			compress = 1;
 			break;
-		case 'Z':
+		case 'J':
 			compress = 2;
 			break;
 		case '4':

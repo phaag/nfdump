@@ -317,6 +317,11 @@ AC_CHECK_LIB(socket, res_search, [
  ]) 
 ])
 
+AC_CHECK_LIB(bz2, BZ2_bzCompressInit, [
+ LIBS="$LIBS -lbz2"
+ ], [])
+
+
 # lzo compression requirements
 AC_CHECK_TYPE(ptrdiff_t, long)
 AC_TYPE_SIZE_T
