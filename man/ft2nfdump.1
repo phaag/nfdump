@@ -1,0 +1,52 @@
+.TH ft2nfdump 1 2009\-09\-09 "" ""
+.SH NAME
+ft2nfdump \- flow-tools data converter program
+.SH SYNOPSIS
+.HP 5
+.B ft2nfdump [options]
+.SH DESCRIPTION
+.B ft2nfdump
+is the flow-tools converter program to read, convert and store netflow
+data, created with the flow-tools package. It works either as a pipe filter
+or reads flow-tools data format directly from file and exports nfdump data format
+at stdout.
+
+.SH OPTIONS
+.TP 3
+.B -r <flow-tools-file>
+Read flow-tools formated netflow data from file \fIflow-tools-file.
+Default: Read from stdin.
+.TP 3
+.B -c \fInum
+Read only \fBnum\fR flows from input file.
+.TP 3
+.B -E
+Print raw netflow records to stdout. This option is for debugging purpose 
+only, to see any incoming netflow data. Compatible to option -E in nfcapd.
+.TP 3
+.B -V
+Print ft2nfdump version and exit.
+.TP 3
+.B -h
+Print help text on stdout with all options and exit.
+.SH "RETURN VALUE"
+Returns 
+.PD 0
+.RS 4 
+0   No error. \fn
+.P
+255 Conversion failed.
+.RE
+.PD
+.SH "EXAMPLES"
+.B flow-cat ft-v05.2001-05-01.* | ft2nfdump | nfdump -w nfcap.20010501
+Convert files into nfdump format.
+.P
+.B ft2nfdump -r ft-v05.2001-05-01 | nfdump -w nfcap.20010501
+Convert files into nfdump format.
+.P
+.SH NOTES
+.P
+.SH "SEE ALSO"
+nfcapd(1), nfdump(1), nfprofile(1), nfreplay(1)
+.SH BUGS

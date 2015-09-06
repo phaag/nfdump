@@ -1,0 +1,101 @@
+.TH nfexpire 1 2009\-09\-09 "" ""
+.SH NAME
+nfexpire \- data expiry program
+.SH SYNOPSIS
+.HP 5
+.B nfexpire [options]
+.SH DESCRIPTION
+.B nfexpire
+is used to manage the expiration of old netflow data files, created 
+by nfcapd(1) or other data collectors such as sfcapd(1). Data expiration 
+is done either by nfcapd(1) in auto expiry mode, or by nfexpire which 
+can by run at any time or any desired time interval by cron. nfexpire 
+can also be savely run while nfcapd auto expires files, for cleaning up 
+full disks etc. nfexpire is sub directory hierarchy aware, and handles 
+any format automatically.  For a fast and efficient expiration, nfexpire 
+creates and maintains a stat file named \fB.nfstat\fR in the data directory. 
+Any \fIdirectory\fR supplied with the options below corresponds to the 
+data directory supplied to nfcapd(1) using option \-l.
+
+.SH OPTIONS
+.TP 3
+.B -l \fIdirectory
+List current data statistics in directory \fIdatadir\fR.
+.TP 3
+.B -r \fIdirectory
+Rescan the specified directory to update the statfile. To be used only
+when explicit update is required. Usually nfexpire takes care itself about
+rescanning, when needed.
+.TP 3
+.B -e \fIdatadir
+Expire files in the specified \fIdirectory\fR. Expire limits are taken from
+statfile ( see \-u ) or from supplied options \-s \-t and \-w. Command line options
+overwrite stat file values, however the statfile limits are not changed.
+.TP 3
+.B -s \fImaxsize
+Set size limit for the directory. The specified \fIlimit\fR accepts values such
+as 100M, 100MB 1G 1.5G etc. Accpeted size factors are K, KB, M, MB, G, GB and T, TB. 
+If no factor is supplied bytes (B) is assumed. A value of 0 disables the max size limit.
+.TP 3
+.B -t \fImaxlife_time
+Sets the max life time for files in the directory. The supplied \fImaxlife_time\fR 
+accepts values such as 31d, 240H 1.5d etc. Accpeted time scales are w (weeks) d (days)
+H (hours). A value of 0 disables the max lifetime limit. If no scale is given, H (hours)
+are assumed.
+.TP 3
+.B -u \fIdatadir
+Updates the max size and lifetime limits, specified by \-s \-t and \-w and stores them
+in the statfile as default values. A running nfcapd(1) processs doing auto expiry
+will take these new values starting with the next expiry cycle. Running nfexpire
+next time doing file expiration will take these new limits unless \-s \-t or \-w are
+specified.
+.TP 3
+.B -w \fIwatermark
+Set the water mark in % for expiring data. If a limit is hit, files get expired 
+down to this level in % of that limit. If not set, the default is 95%.
+.TP 3
+.B -h
+Print help text on stdout with all options and exit.
+.TP 3
+.B -p
+Directories specified by \-e, \-l and \-r are interpreted as profile directories. Only NfSen will need this option.
+.TP 3
+.B -Y
+Print result in parseable format. Only NfSen will need this option. 
+.SH "RETURN VALUE"
+Returns 
+.PD 0
+.RS 4 
+0   No error. \fn
+.P
+255 Initialization failed.
+.P
+250 Internal error.
+.RE
+.PD
+.SH NOTES
+There are two ways to expire files: nfcapd in auto\-expire mode ( option \-e ) and 
+nfexpire running by hand or periodically as cron job. Both ways synchronize access 
+to the files, therefore both ways can be run in parallel if required.
+.TP 0
+.B Expiring by nfcapd in auto\-expire mode: option \-e
+If nfcapd is started with option \-e, the auto\-expire mode is enabled. After each 
+cycle ( typically 5min ) nfcapd expires files according to the limits set with nfexpire 
+using options \-u \-s \-t and \-w. If initially no limits are set, no files get expired.
+.TP 0
+.B Expiring by nfexpire
+nfexpire can be run at any time to expire files. It automatically syncs up with the 
+files created by nfcapd in the mean time since the last expire run, if a nfcapd 
+collector process is running for that directory in question and expires the files 
+according the limits set.
+.TP 0
+.B Limits
+Files are expired according to two limits: maximum disk space used by all files 
+in the directory and maximum lifetime of data files, whatever limit is reached first. 
+If one of the limit is hit the expire process will delete files down to the watermark 
+of that limit.
+.P
+.SH "SEE ALSO"
+nfcapd(1)
+.SH BUGS
+

@@ -1,0 +1,87 @@
+.TH nfexpire 1 2009\-09\-09 "" ""
+.SH NAME
+nfanon \- netflow anonymisation
+.SH SYNOPSIS
+.HP 5
+.B nfanon [options]
+.SH DESCRIPTION
+.B nfanon
+is used to anonymise all IP addresses ( src, dst, next hop, router IP etc. )
+in the netflow records using the CryptoPAn (Cryptography\-based  Prefix\-preserving 
+Anonymization) module. The key \fI-K\fR is used to initialize the Rijndael cipher. 
+The key is either a 32 character string, or a 64 hex digit string starting with 0x. 
+.P
+.RS 3
+See http://www.cc.gatech.edu/computing/Telecomm/cryptopan/ for 
+more information about CryptoPAn.
+.RE
+.PD
+.P
+nfanon has several modes of
+operation. 
+.P
+\fBo\fR nfanon reads a sequence of input files, specified by -r, -R and -M
+and anonymises the flows in the given files. The input file arguments
+have the same syntax and meaning as nfdump(1).
+.P
+\fBo\fR nfanon reads a sequence of input files, specified by -r, -R and -M.
+All anonymised flows are written to a single file specified by -w.
+.P
+\fBo\fR nfanon works as filter and reads flows from stding and writes the anonymised 
+flows to stdout.
+
+.SH OPTIONS
+.TP 3
+.B -r \fIinputfile
+Read input data from \fIinputfile\fR. Default is read from stdin.
+.TP 3
+.B -R \fIexpr
+Read input from a sequence of files in the same directory. \fIexpr\fR
+may be one of:
+.PD 0
+.RS 4
+/any/\fIdir\fR          Read recursively all files in directory \fIdir\fR.
+.P
+/dir/\fIfile\fR         Read all files beginning with \fIfile\fR.
+.P
+/dir/\fIfile1:file2\fR  Read all files from \fIfile1\fR to \fIfile2\fR.
+
+.P
+Note: files are read in alphabetical sequence.
+.RE
+.PD
+.TP 3
+.B -M \fIexpr
+Read input from multiple directories. \fIexpr\fR looks like:
+\fI/any/path/to/dir1:dir2:dir3\fR etc. and will be expanded to the
+directories: \fI/any/path/to/dir1\fR, \fI/any/path/to/dir2\fR and 
+\fI/any/path/to/dir3\fR Any number of colon separated directories may 
+be given. The files to read are specified by \-r or \-R and are expected 
+to exist in all the given directories.  The options \-r and \-R must 
+not contain any directory part when used in conjunction with \-M.
+.TP 3
+.B -w \fIoutputfile
+If specified writes anonymised netflow records to \fIoutputfile\fR.
+.TP 3
+.B -K \fIkey
+The key is used to initialize the Rijndael cipher. \fIkey\fR is either 
+a 32 character string, or a 64 hex digit string starting with 0x. 
+.P
+.SH "RETURN VALUE"
+Returns 
+.PD 0
+.RS 4 
+0   No error. \fn
+.P
+255 Initialization failed.
+.P
+250 Internal error.
+.RE
+.PD
+.SH NOTES
+None.
+.P
+.SH "SEE ALSO"
+nfdump(1)
+.SH BUGS
+
