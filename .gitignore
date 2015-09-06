@@ -46,3 +46,21 @@ Makefile.in
 /depcomp
 /ylwrap
 /test-driver
+/Makefile
+/bin/Makefile
+/man/Makefile
+/config.h
+/config.log
+/config.status
+/stamp-h1
+.deps/
+
+# compiled stuff
+/bin/grammar.c
+/bin/grammar.h
+/bin/nfanon
+/bin/nfcapd
+/bin/nfdump
+/bin/nfexpire
+/bin/nfreplay
+/bin/scanner.c
