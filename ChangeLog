@@ -1,0 +1,439 @@
+2014-11-16
+- Fix v1 extension size bug
+- Add htonll check for autoconf
+- Fix AddExtensionMap compare bug
+- Fix ipfix templare withdraw problems - free all maps correctly
+- Add minilzo 2.08 - fixes CVE-2014-4607
+- Cleanup some stat code. more needs to be done ..
+- Cleanup man pages for -O -n
+- Remove SunPro test in configure - no longer supported anyway
+- Cleanup NAT/NSEL filter differences
+
+2014-06-15 v1.6.12p1
+- Add pblock compare functions
+- Update extended filter: Allow modification left/right values
+
+2014-02-16 v1.6.12
+- Add NAT pool port allocation
+- Modify/fix NAT vrf tags. Add egress vrf ID
+- Modify common record due to exporter exhaustion. new common record
+  type 10 adds 4 extra bytes. Reads v1 common record transparently
+- Fix sflow potential crash
+
+2013-11-13 v1.6.11
+- Add ASA/NSEL 9.x protcol changes
+- Make it llvm compilable
+ 
+2013-08-12 v1.6.10p1
+- Fix -t +/- n timeslot option
+- Fix bug in nfanon - stat record update.
+- Fix bug in netflow v5 mudule: extension map size wrong.
+- Fix bug nfexport: In some cases could result in wrong flow counter. 
+- Fix nftrack - could coredump in some cases.
+
+2013-05-16 v1.6.10
+- Fix SPARC compile/optimise bug
+- Add output packet/bytes counter to global stat - importatnt for NSEL flows ASA > 8.5
+- Add NSEL filter options xnet
+- Modify extension descriptor code for nfdump1.7. Still use 1.6 extension map layout for compatibility
+- Add prototype for nfpcapd - pcap -> nfdump collector. Converts traffoc directly to nfdump files.
+- Fix bug in ipfix module: uninitialised variable
+- Cleanup syslog/LogError calls
+- Fix minor non critical bugs and compile issues
+
+2013-03-02 v1.6.9
+- Fix some bugs in beta 1.6.9 NSEL code
+- Fix bug statistics update with aggreagted flow records
+- Fix sflow bug sfcapd stores wrong (ghost) dump by past samples in same sflow datagram
+
+2012-12-31
+- Add time received in csv output
+- ICMP should handled better now - somewhat
+- Implement ASA NSEL records
+- Add definitions in nffile and nx for ASA NSEL extensions
+
+2012-11-09 v1.6.8p1
+- Add dynamic source directory tree for multiple exporters
+- Fix exporter bug: 'too many exporters' with large time windows
+- Fix uninitialised exporter sysid in default sampler record - v9
+- Fix v9/ipfix cache initialisation with no templates > 1 in same packet
+
+2012-10-26 v1.6.8
+- Add ip list option for 'next ip' in filter syntax
+- Accept v9 sampler_id in 2bytes
+- Fix IPFIX mac address bug - did not get collected
+- Add IPFIX packet/octet TotalCount fields 85/86
+- Add received timestamp to sflow collector
+- Fix long flow duration calculation - 32bit overflow
+- Fix v9 sampling ID: allow 2 byte ID
+- Add IPFIX options as rfc5101 section-6.2
+- Add exporter records for sflow collector
+- Fix bug for MAC address printing %idmc and %odmc.
+- Add received time stamp extension
+- Add recursive format parser. Allows to extend predefined formats.
+- Change flow record sorting to heapsort. remove limit 1000
+- Merge -m option to -O tstart. -m now depricated.
+- Add -O tend. Print order according to tend of flows ascending
+- Apply -O print order for printing flow cache. Applies to -A
+
+2012-07-31 v1.6.7-tc-1
+- Special version for TC
+- Print exporter and sampling records with nfdump -E
+- Added exporter and sampling records to file.
+
+2012-07-30 v1.6.7
+- Prepare for file catalog in current file format.
+- Fix bug in ReadBlock when reading flow from stdin pipe
+- Add new more flexible translation engine for v9
+- Add nprobe client/server delay fields
+- Prepare for NSEL merging
+- Fix memory corruption with double -A flags
+- Fix bug in nfreader with compat15 mode files
+
+2012-03-12 v1.6.6
+- Minor IPFIX bug.
+- IPFIX implement template withdraw
+- For IPFIX, check packet sequence per template and observation domain
+- Fix time window, when no flows collected or no flows matched
+  while processing
+- Fixed typos
+- Fix seg fault bug - test for EMPTY_LIST was missing at several places.
+
+2012-02-19 v1.6.6b1
+- Fix bps/pps. make it uint64_t, as bps/pps > 4Gb/s overflows.
+- In record raw print mode: decode ICMP instead of src/dst ports
+- sflow use announced exporter IP instead of sending IP for router ID
+- sflow: Ignore extra fill bytes. Do not complain.
+- sflow: fix packet length issue.
+- Add IPFIX protokoll support
+
+2011-12-31 v1.6.5
+- Fix 64bit bug when using byte/packet limits
+- for v5 and sampling use 64bit counters to prevent overflow for large sampled flows.
+- Fixed Ident printig bug
+
+2011-07-11 v1.6.4
+- some code restructuring - prepare for IPFIX module
+- Add netflow v1 module. Some routers still use that
+- Add %sn, %dn output tags for src/dst networks
+- Fix buffer length check in v5.
+- Fix export bug: include last flow cache bucket, when exporting
+- number in all filter expressions accept hex values
+- fix an sflow colletor bug. Missing extension maps in rotated files
+- implement extended statistics. Currently ports and bpp distribution
+  vectors can be collected automatically be nfcapd. Still experimental
+
+2011-02-26 v1.6.3p1
+- Fix timebug fix :(, make it a compile time option
+- fix v7 sequence errors
+
+2011-02-15
+- Zero out unused fields after aggregation
+
+2011-02-05
+- Fix SysUptime 32bit overflow in v5 header
+- Add fix for strange first/last swap reported by some users.
+
+2011-01-09 v1.6.3 
+- Fix extension size bug
+- Move IP anonymisation to separate binary nfanon
+- Fix initialise bug of -o fmt: and not available fields
+
+2010-09-09 v1.6.2 
+- released
+- fixes some sflow bugs in sfcapd
+
+2010-04-28 v1.6.1p0
+- Update flow tools converter to build with Google-Code version 0.68.5
+- Fix sflow bugs
+
+2010-03-05 v1.6.1
+- Fix bug in man page for -t
+- Test sampler infos before using them ( nfcapd startup )
+- Add sampling tags #34, #35 used by JunOS
+- nfexpire: Fix empty .nfsat, when setting limits on an empty directory
+- Fix coredump for -B -m (-w) combination
+- Optimise some extension map code
+
+2009-12-28 stable v1.6
+- Few bug fixes in release candidates rc1, rc2 and rc3
+
+2009-11-16 snapshot-1.6b-20091116
+- Update sflow collector with new tags
+- Add router IP extension
+- Add router ID (engine type/ID) extension
+
+2009-09-30 snapshot-1.6b-20090930
+- snapshot bugfix release
+
+2009-11-0801 snapshot-1.6b-20090806
+- Add srcmask and dstmask aggregation
+- Add csv output mode. -o csv
+- Fix some bugs of previous beta
+- Add bidirectional aggregation of flows ( -b, -B )
+- Add possibility to save aggregated flows into file ( -w )
+  Note: This results in a behaviour change for -w in combination
+  with aggragation )
+- Extend -N ( do not scale numbers ) to all text output not just summary
+- Make extension handling more robust for some moody IOSes.
+- Remove header lines of -s stat, when using -q ( quiet ) 
+  Note: This results in a behaviour change for -N
+- Remove -S option from nfdump ( legacy 1.4 compatibility )
+- Make use of log (syslog) functions for nfprofile.
+- Move log functions to util.c
+
+2009-06-19 snapshot-1.6b-20090717
+- Flow-tools converter updated - supports more common elements.
+- Sflow collector updated. Supports more common elements.
+- Add sampling to nfdump. Sampling is automatically recognised
+  in v5 undocumented header fields and in v9 option templates.
+  see nfcapd.1(1)
+- Add @include option for filter to include more filter files.
+- Add flexible aggregation comparable to Flexible Netflow (FNF)
+- All new tags can be selected in -o fmt:... see nfdump(1)
+- topN stat for all new tags is implemented
+- Integrate developer code to read from pcap files into stable
+- Update filter syntax for new tags
+- Added more v9 tags for netflow v9.
+  The detailed tags are listed in nfcapd(1)
+  Adding new tags also extended the binary file format with
+  data block format 2, which is extension based. File format 
+  for version <= 1.5.* ( Data block format 1 ) is read 
+  transparently. Data block 2 are skipped by nfdump 1.5.7.
+  32bit but AS and interface numbers are supported.
+- Add flexible storage option for nfcapd. To save disk space, the 
+  data extensions to be stored in the data file are user selectable.
+- Added option for multiple netflow stream to same port.
+  -n <Ident,IP,base_directory>
+  Example: -n router1,192.168.100.1,/var/nfdump/router1
+  So multiple -n options may be given at the command line
+  Old style syntax still works for compatibility, ( -I .. -l ... )
+  but then only one source is supported.
+- Move to automake for building nfdump
+- Switch scaling factor ( k, M, G ) from 1024 to 1000.
+- Make nfdump fully 64bit compliant. ( 8bit data alignments and access )
+
+2009-04-17 stable 1.5.8
+- Fix daylight summer time bug, when guessing sub dirs. file access ( -M, -r )
+- Bug fixes for 64bits CPUs
+
+2008-02-22 stable-1,5.7
+- Add icmp type/code decoding
+- Add proper icmp v9 decoding
+- Fix memory leaks in -e auto expire mode in nfcapd.
+- Fix somee potential dead locks with file locking, when expiring
+- Fix multicast bug in nfreplay
+- Add hostname lookup for IP addresses in filter.
+
+2007-10-15	stable-1.5.6
+- Fix odd CISCO behaviour for ICMP type/code in src port.
+- Add fast LZO1X-1 compression option (-z) for output file.
+- Add lists for port in syntax -> port in [ 135 137 445]
+- Add lists for AS syntax -> as in [ 1024 1025 ]
+- Bug fix in filter for syntax 'src as and dst as' 
+
+2007-08-24  stable-1.5.5
+- Fix nfprofile bug, nfprofile crashes when last opts line is not valid for 
+  some reason.
+- Fix potential hand for nfexpire, on empty flow directories.
+
+2007-08-08  snapshot-20070808
+- Idents may contain '-' in name.
+- Fixed install bugs in Makefile.in and configure.in
+- Installs now cleanly on Solaris
+- Handle 4byte interface numbers in v9. Quick fix: 4bytes reduced to 2bytes.
+- Fix aggregation bug in statistics.
+- ftok(3) C library call replaced by more reliable own implementation. 
+  Did result in error messages like "Another collector is already running" 
+- Fix minor bugs iin file range selction -R.
+- Add recursive behaviour for -R <directory>
+- New option -i can canche Ident descriptor in data files.
+
+2007-03-12  snapshot-20070312
+- Bug fix release of 20070306
+
+2007-03-06  snapshot-20070306
+- Fix bug in flist.c. Resulted in a coredump when using sub dirs and -R . ( all files )
+- Fix minor bug in nfcapd.c. 
+- Extend nfprofile for alerting system of nfsen - special version of profiles
+- Extend nfprofile for shadow profiles.
+
+2007-08-10  snapshot-20070110
+- Fix some compiler warnings, when compiled on a 64bit LINUX
+- Fixes an sflow bug: IP address was printed in wrong direction. ( lower bits first )
+- Add new IP addr taging option -T for easy parsing for nfsen lookups
+- Add new IP list for massive address filtering:
+  syntax: ip in [ 12345 23456 3456 ....]
+- Change nfprofile for channel based profiling. This breaks with old nfprofile 
+  functionality.
+- Remove space from ICMP type/code when followed by an IP address
+
+2006-07-21	snapshot-20060809
+- Make nfexpire ready for profile expiration
+- Fix bug in nfrpofile. sub dir hierarchy not handled correctly.
+
+2006-07-21	snapshot-20060721
+- Add -N option for plain number output in summary line
+
+2006-07-21	snapshot-20060721
+- Do recursive file selection when a directory is given by -R
+
+2006-06-14	snapshot-20060621
+- Add srcas/dstas/proto aggregation.
+  Note: This changes the default aggregation behaviour, but gives more flexibility
+- Add tos to element statistics list
+
+2006-06-14	snapshot-20060614
+- Add additional stat line at the end of output
+- Add new binary nfexpire. Manages data expiry on time and/or size based limits
+  Includes new bookkeeping records in nfcapd.  See nfexpire(1)
+- Add ICMP type/code decoding in flow listing instead of dst port
+- Add packet repeater in nfcapd/sfcapd. In addition, incoming UDP packets can 
+  be directly forwarded to another IP address/Port. See new option -R
+- Add sub directory hierarchies: Files can be stored into various sub dir levels
+  based on different time formats. see new option -S
+- Some minor bug fixes.
+- Code cleanup in nfcapd. better daemonize code and communication with launcher.
+
+2006-04-xx	v.1.5.1
+			Fix bug in nfdump.c: Writing anonymized flows to file did not work corretly
+			stdin input format now compatible with file format, therefore
+			'nfdump < file' works again as it did in nfdump 1.4.
+			Fix bug in nfcapd.c: Error handling not correct when receiving a non
+			recognized netflow packet. Resulted in an endless loop
+2006-03-27	snapshot 1.5-20060327
+			Make all element statistics -s transport layer protocol
+			independant by default. Add :p to stat name ( e.g. srcip:p ) to
+			enable transport layer dependant statistics on request.
+2006-03-20	snapshot 1.5-20060320
+            Fix bug in filter engine: 'not flags xyz' produces wrong results
+			when more than a single flag is specified.
+			Minor man page fixes.
+
+2006-03-06	v1.5
+			Fix bug nfcapd. Laucher signaled too early. File not yet properly
+			closed.
+2006-02-14	v1.5-beta-5
+			Add srcas, dstas, input and output interfaces in aggregated
+			output. 
+			Fix IPv6 bug in filter: accept 1234:: address.
+			rename nfcapd.curent tmp file to nfcapd.curren.<pid>. Poorly
+			configured nfcapd processes may mess up themselves otherwise.
+2006-02-02	v1.5-beta-4
+			Fix netflow v5 dPkts <-> dOctets collector bug.
+			Update pipe format to include more information
+			Allow AS number 0 in filter syntax.
+			Add some more boundary checking - netflow exporters aren't bug free either - sigh ..
+2006-01-11	v1.5-beta-3
+			Fix isnumber incompatibility in grammar.y
+			Add 'if' statistics
+2006-01-10	v1.5-beta-2
+nf_common.c	Fix bug in format parser.
+			Extended 'proto <protocol>' syntax to support all protocols
+			Change time format in summary line to ISO format
+2005-12-20	v1.5-beta-1
+*.*			A lot of internal changes, not mentioned here. :(
+
+nfdump		Add subnet aggregation for option -A
+			A new syntax e.g. srcip4/24, dstip6/64 is supported for subnet wise aggregation.
+			example: traffic of a whole subnet -A srcip4/24 -s srcip/bytes
+
+nfdump		Add more stat element option. -s <stat> now supports:
+			srcip, dstip, ip, srcport, dstport, port, srcas, dstas, as, inif, outif, proto
+
+nfdump		Add -z. Suppress writing flows to data files. Only stat information is written.
+nfprofile	Used only be nfsen for upcoming shadow profiles. If you don't understand this
+			simply ignore it.
+
+nfdump		Add -q option to suppress header as well as stat information at the bottom
+nfprofile	for easier post processing with external programms.
+
+nf_common.c	Output format processsing rewritting for more flexibility. Besides standard
+nfdump.c	output formats line, long extended etc., user defined output formats are now 
+			possible and can even be compiled into nfdump for easy access. See -o fmt:<format>
+			and nfdump.c around line 100.
+
+*.*			Integrate netflow v9 into nfdump. Only a subset of v9 is stored into
+			the data files, basically everything needed for nfdump to work as it did before.
+			This also includes IPv6 support for any nfdump options. CryptoPAN extended
+			to work with IPv6. IPv6 condensed output format for better readability.
+			Output formats available in long and condensed mode: e.g. line -> line6
+			extended -> extended6
+
+*.*			Replace binary data file format. Old format not flexible enough for
+			upcoming netflow v9/sflow data. *.stat files are gone. The same 
+			information is now available under nfdump -I
+			New format about 5% larger in size, but faster for reading and writing.
+			speed gain eaten up by more complex processing - sigh ..
+			compat14 mode enables transparent reading of old style format.
+			nffile.[ch] now handles all data file stuff.
+
+nfreplay	Multicast enabled:
+			Add -j <join group>. Joins the specified multicast group ( v4 or v6 )
+			sending flows to this group.
+
+nfreplay	IPv6 enabled:
+			Add option -4 and -6 to force a specific protocol, otherwise
+			protocol is automatically selected according the hostname to send flows to.
+			Add -K key, to send data anonymized, using CryptoPAn
+
+nfcapd		Multicast enabled:
+			Add -j <join group>. Joins the specified multicast group ( v4 or v6 )
+			for listening.
+
+nfcapd		IPv6 enabled:
+			Add option -4 and -6 for IPv4 and IPv6. By default, listen on IPv4.
+			Option -b <host/IP> to bind for a specific host/IP address automatically
+			selects appropriate protocol.
+
+nfnet.c		All functions to setup network sockets for listening/sending are 
+			put into this file.
+
+2005-08-22 v1.4
+- nfreplay:  Bug fix sending flows.
+- nfdump:    Add CryptoPAn code to anonymize IP addresses. New option -K
+- nfdump:    Change time format in output to ISO 8601 compatible: e.g. 1981-04-05 14:30:30.100
+- nfdump:    Add scaling factor k,m,g to number in filter syntax: e.g. bytes > 1m
+- nfdump:    Create new output format extended with additional fields pps, bps and bpp
+- nfdump:    Rename output format extended to raw
+- nfdump:    More than one single flow element statistic ( -s ) is now possible
+- nfdump:    Add user defined sort order in flow element statistic
+- nfdump:    Flow element statistic can be ordered by more than one order in the same run
+- nfdump:    Add pps, bps and bpp fields in flow element statistics
+- nfdump:    Add more symbolic protocols ESP, AH, GRP and RVSP to filter syntax
+- nfdump:    Add duration, pps, bps and bpp to filter syntax
+- nfdump:    Make nfdump miliseconds aware. Older versions skipped msecs.
+  Binary nfdump file format changed due to this.
+  output formats changed, due to this.
+- nfdump:    Add interface in/out if <num> syntax to filter
+- nfcapd:    Add flow_sequence check. Reports missing flows now.
+- nfcapd:    Report statistics to syslog LOG_INFO when data file is rotated.
+- ft2nfdump: Add ft2nfdump to read netflow data from flow-tools
+
+2005-04-21 v1.3
+- Add option -A for more flexible aggregation.
+- Correct spelling errors :(
+
+2005-03-04 v1.2.1
+Bug fix release
+- nfcapd: launcher subprocess may hang on Linux 2.6.x kernels.
+  Cleaned up interrupt handling. 
+- nfcapd: fix include order of socket.h and types.h in order to
+  compile cleanly under FreeBSD 4.x
+- nfcapd: clean up syslog logging.
+- nfdump: Multiple sources ( -M ) and sort flows ( -m ) with 
+  -c <limit> did not list the correct flows.
+- nfprofile: Profiling with multiple sources may produce incorrect
+  profiles. 
+
+2004-12-20 v1.2
+- nfcapd handles transparent v5 and v7 flows. v7 gets converted into v5
+- nfcapd can execute any command at the end of interval. New option -x
+- nfdump Extended filter syntax for flags, to, bytes and packets
+- Rearrange output formats in nfdump: new switch -o, remove switch -E
+  output formats: 'line', 'long', 'extended' and 'pipe'
+- More flexible statistic handling in nfdump: cleanup ugly -s -s -s
+  syntax. Replaced by -s <stat> option. New statistics for Port and AS.
+
+2004-09-20 v 1.1
+First public Version.

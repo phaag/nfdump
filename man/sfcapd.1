@@ -1,0 +1,254 @@
+.TH sfcapd 1 2009\-09\-09 "" ""
+.SH NAME
+sfcapd \- sflow capture daemon
+.SH SYNOPSIS
+.HP 5
+.B sfcapd [options]
+.SH DESCRIPTION
+.B sfcapd
+is the sflow capture daemon of the nfdump tools. It reads sflow
+data from the network and stores it into nfcapd compatible files. 
+The output file is automatically rotated and renamed every n 
+minutes - typically 5 min - according the timestamp YYYYMMddhhmm 
+of the interval e.g. nfcapd.200407110845 contains the data from 
+July 11th 2004 08:45 onward. sfcapd supports sFlow version 4 and 
+5 datagrams.
+.P
+Sflow is an industry standard developed by InMon Corporation.
+For more information see http://sflow.org.
+.SH OPTIONS
+.TP 3
+.B -p \fIportnum
+Specifies the port number to listen. Default port is 6343
+.TP 3
+.B -b \fIbindhost
+Specifies the hostname/IPv4/IPv6 address to bind for listening. Can be an IP
+address or a hostname, resolving to an IP address attached to an interface.
+Defaults to any available IPv4 interface, if not specified.
+.TP 3
+.B -4
+Forces sfcapd to listen on IPv4 addresses only. Can be used together with -b
+if a hostname has an IPv4 and IPv6 address record. Depending on the socket
+implementation \-6 also accepts IPv4 data.
+.TP 3
+.B -6
+Forces sfcapd to listen on IPv6 addresses only. Can be used together with -b
+if a hostname has an IPv4 and IPv6 address record.
+.TP 3
+.B -j \fIMulticastGroup
+Join the specified IPv6 or IPv6 multicast group for listening. 
+.TP 3
+.B -R \fIhost[/port}
+Enable packet repeater. Send all incoming packets to another \fIhost\fR and \fIport\fR.
+\fIhost\fR is either a valid IPv4/IPv6 address, or a valid simbolic hostname, which resolves to 
+a IPv6 or IPv4 address. \fIport\fR may be ommited and defaults to port 6343. Note: Due to IPv4/IPv6
+accepted addresses the port separator is '/'.
+.TP 3
+.B -I \fIIdentString ( capital letter i )
+Specifies an ident string, which describes the source e.g. the 
+name of the router. This string is put into the stat record to identify
+the source. Default is 'none'. This is for compatibility with nfdump 1.5.x
+and used to specify a single sflow source. See \fI\-n
+.TP 3
+.B -l \fIbase_directory ( letter ell )
+Specifies the base directory to store the output files. 
+If a sub hierarchy is specified with \-S the final directory is concatenated 
+to \fIbase_directory/sub_hierarchy\fR. This is for compatibility with nfdump 1.5.x
+and used to specify a single sflow source. See \fI\-n
+.TP 3
+.B -n \fI<Ident,IP,base_directory>
+Configures an sflow source named \fIIdent\fR and identified by source IP address \fIIP\fR.
+The base directory for the flow files is \fIbase_directory\fR. If a sub hierarchy is specified with \-S 
+the final directory is concatenated to \fIbase_directory/sub_hierarchy. Multiple netflow 
+sources can be specified. All data is sent to the same port specified by \fI\-p\fR.
+Note: You must not mix \-n option with \-I and \-l. Use either syntax.
+.TP 3
+.B -f \fI<pcap_file>
+Read sflow packets from a give \fIpcap_file\fR instead of the network. This 
+requires sfcapd to be compiled with the pcap option and is intended for debugging only.
+.TP 3
+.B -S \fI<num>
+Allows to specify an additional directory sub hierarchy to store 
+the data files. The default is 0, no sub hierarchy, which means the 
+files go directly in the base directory (-l). The base directory (-l) is
+concatenated with the specified sub hierarchy format to form the final 
+data directory.  The following hierarchies are defined:
+.PD 0
+.RS 4
+ 0 default     no hierarchy levels
+.P
+ 1 %Y/%m/%d    year/month/day
+.P
+ 2 %Y/%m/%d/%H year/month/day/hour
+.P
+ 3 %Y/%W/%u    year/week_of_year/day_of_week
+.P
+ 4 %Y/%W/%u/%H year/week_of_year/day_of_week/hour
+.P
+ 5 %Y/%W/%u    year/week_of_year/day_of_week
+.P
+ 6 %Y/%W/%u/%H year/week_of_year/day_of_week/hour
+.P
+ 7 %Y/%j       year/day-of-year
+.P
+ 8 %Y/%j/%H    year/day-of-year/hour
+.P
+ 9 %Y-%m-%d    year-month-day
+.P
+10 %Y-%m-%d/%H year-month-day/hour
+.RE
+.PD
+.TP 3
+.B -T \fI<extension list>
+Specifies the list of extensions, to be stored in the flow file. 
+Regardless of the extension list, the following sflow data is stored per record:
+first, last, fwd status, tcp flags, proto, (src)tos, src port, dst port, src 
+ipaddr, dst ipaddr, in(packets), in(bytes). In addition sfcapd recognises the 
+extensions as described below. 
+.TP 2
+   Extensions:
+.PD 0
+.RS 4
+sflow extensions:
+.P
+ 1 input/output interface SNMP numbers.
+.P
+ 2 src/dst AS numbers.
+.P
+ 3 src/dst mask, (dst)TOS, direction, 
+.P
+ 4 Next hop IP addr
+.P
+ 5 BGP next hop IP addr
+.P
+ 6 src/dst vlan id labels
+.P
+10 in_src/out_dst MAC address
+.P
+
+By default extension 1 and 2 are selected, which provides compatibility with 
+earlier nfdump version.  Extensions can be added/deleted by specifying a ',' 
+separated list of extension ids. Each id may be prepended by an optional 
+sign +/\- to add or remove a given id from the extension list. The string 'all'
+means all extensions. Extensions 7\-9 are not available for sfcapd.
+.P
+
+.P
+Examples: 
+.P
+\-T all       Enables all possible extensions.
+.P
+\-T +3,+4     Adds extensions 3 and 4 to the defaults 1 and 2.
+.P
+\-T all,\-5,\-6 Set all extensions but 5 and 6
+.P
+\-T \-1,4      Removes default extension 1 and adds extension 4
+.P
+
+.P
+Note: Extensions are shared with the netflow collector nfcapd. Sflow as well
+as netflow data is stored in the same type of extensions.
+.RE
+.PD
+.TP 3
+.B -t \fIinterval
+Specifies the time interval in seconds to rotate files. The default value 
+is 300s ( 5min ).
+.TP 3
+.B -w
+Align file rotation with next n minute ( specified by -t ) interval. 
+Example: If interval is 5 min, sync at 0,5,10... wall clock minutes 
+Default: no alignment.
+.TP 3
+.B -x \fIcmd
+Run command \fIcmd\fR at the end of every interval, when a new file
+becomes available. The following command expansion is available:
+.PD 0
+.RS 4
+%f	Replaced by the file name e.g nfcapd.200407110845 inluding any
+.P
+     sub hierarchy. ( 2004/07/11/nfcapd.200407110845 )
+.P
+%d	Replaced by the directory where the file is located.
+.P
+%t	Replaced by the time ISO format e.g. 200407110845.
+.P
+%u	Replaced by the UNIX time format.
+.P
+%i	Replaced ident string given by -I
+.RE
+.PD
+.TP 3
+.B -e 
+Auto expire files at every cycle. \fImax lifetime\fP and \fImax filesize\fP
+are defined using nfexpire(1)
+.TP 3
+.B -P \fIpidfile
+Specify name of pidfile. Default is no pidfile.
+.TP 3
+.B -D
+Daemon mode: fork to background and detach from terminal.
+Nfcapd terminates on signal TERM, INT and HUP.
+.TP 3
+.B -u \fIuserid
+Change to the user \fIuserid\fP as soon as possible. Only root is allowed
+to use this option.
+.TP 3
+.B -g \fIgroupid
+Change to the group \fIgroupid\fP as soon as possible. Only root is allowed 
+use this option.
+.TP 3
+.B -B \fIbufflen
+Specifies the socket input buffer length in bytes. For high volume traffic 
+( near GB traffic ) it is recommended to set this value as high as possible 
+( typically > 100k ), otherwise you risk to lose packets. The default 
+is OS ( and kernel )  dependent.
+.TP 3
+.B -E
+Print data records in nfdump raw format to stdout. This option is for 
+debugging purpose only, to see how incoming sflow data is processed and stored.
+.TP 3
+.B -z
+Compress flows. Use fast LZO1X-1 compression in output file.
+.TP 3
+.B -V
+Print sfcapd version and exit.
+.TP 3
+.B -h
+Print help text to stdout with all options and exit.
+.SH "RETURN VALUE"
+Returns 0 on success, or 255 if initialization failed.
+.SH "LOGGING"
+sfcapd logs to syslog with SYSLOG_FACILITY LOG_DAEMON
+For normal operation level 'warning' should be fine. 
+More information is reported at level 'info' and 'debug'.
+.P
+A small statistic about the collected flows, as well as errors
+are reported at the end of every interval to syslog with level 'info'.
+.SH "EXAMPLES"
+Compatible with old sfcapd 1.5.x:
+.RS
+\fBsfcapd -w -D -l /data/spool/router1 -p 6343 -B 128000 -I router1 -x '/path/some_app -r %d/%f'  -P /var/run/sfcapd/sfcapd.router1\fP
+.RE
+.P
+Selectively enabled sender:
+.RS
+\fBsfcapd -Tall -w -D -n router1,192.168.1.10,/data/spool/router1 -p 6343 -B 128000 -P /var/run/sfcapd/sfcapd.router1\fP
+.RE
+.P
+.SH NOTES
+sfcapd automatically scales the packets and bytes according the sampling rate.
+.P
+Even with sflow version 4 and 5 support, not all available sflow elements 
+are stored in the data files. As of this version, sfcpad supports the the same
+shared fields as extensions, as it's netflow companion nfcapd for netflow version 
+v9. See nfcapd(1). More fields will be supported in future.
+.P
+The format of the data files is version independent and compatible nfcapd collected data.
+.P
+Socket buffer: Setting the socket buffer size is system dependent. 
+When starting up, sfcapd returns the number of bytes the buffer was 
+actually set. This is done by reading back the buffer size and may 
+differ from what you requested. 
+.SH "SEE ALSO"
+nfcapd(1), nfdump(1), nfprofile(1), nfreplay(1)
