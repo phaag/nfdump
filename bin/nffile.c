@@ -263,6 +263,13 @@ nffile_t *OpenFile (char *filename, nffile_t *nffile)
 		}
 	}
 
+	if (FILE_IS_COMPRESSED_BZ2 (nffile) && !bz2_initialized && !BZ2_initialize()) {
+		if (allocated) {
+			DisposeFile (nffile);
+			return NULL;
+		}
+	}
+
 	return nffile;
 
 } // End of OpenFile
@@ -577,6 +584,15 @@ nffile_t *AppendFile (char *filename)
 	if (FILE_IS_COMPRESSED (nffile)) {
 		if (!lzo_initialized && !LZO_initialize()) {
 			LogError ("Failed to initialize compression");
+			close (nffile->fd);
+			DisposeFile (nffile);
+			return NULL;
+		}
+	}
+
+	if (FILE_IS_COMPRESSED_BZ2 (nffile)) {
+		if (!bz2_initialized && !BZ2_initialize()) {
+			LogError ("Failed to initialize bz2 compression");
 			close (nffile->fd);
 			DisposeFile (nffile);
 			return NULL;
