@@ -1,0 +1,6 @@
+- Add ASA support. 
+  Port CISCO code from nfdump-1.5.7-nsel to v1.6
+- Add packeteer code from wm.edu
+- Add BGP merge for AS filtering
+- Add index for fast IP lookup.
+- ... and endless new user ideas ... 

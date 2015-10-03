@@ -1,0 +1,8 @@
+#!/bin/sh
+
+autoreconf -fvi
+
+# aclocal \
+# && automake --add-missing \
+# && autoconf
+

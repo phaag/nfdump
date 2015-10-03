@@ -1,0 +1,15 @@
+#!/bin/sh
+
+VERSION=`perl -ne 'if ( m#nfdump_version\s+=\s+"(.+)"# ) { print "$1"; }' version.h`
+
+if [ "x${VERSION}" = "x" ]; then
+	echo "Can't extract version"
+	exit
+fi
+
+echo Creating Version $VERSION
+
+mkdir nfdump-${VERSION}
+/bin/cp `cat distfiles` nfdump-${VERSION}
+tar zcf nfdump-${VERSION}.tar.gz nfdump-${VERSION}
+rm -rf nfdump-${VERSION}

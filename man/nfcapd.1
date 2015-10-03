@@ -1,0 +1,478 @@
+.TH nfcapd 1 2009\-09\-09 "" ""
+.SH NAME
+nfcapd \- netflow capture daemon
+.SH SYNOPSIS
+.HP 5
+.B nfcapd [options]
+.SH DESCRIPTION
+.B nfcapd
+is the netflow capture daemon of the nfdump tools. It reads netflow
+data from the network and stores it into files. The output file
+is automatically rotated and renamed every n minutes \- typically
+5 min \- according the timestamp YYYYMMddhhmm of the interval e.g. 
+nfcapd.201107110845 contains the data from July 11th 2011 08:45 onward.
+.P
+Netflow version v1, v5, v7 and v9 and IPFIX are transparently supported.
+.P
+Extensions: nfcapd supports a large number of v9 tags. In order to optimise
+disk space and performance, v9 tags are grouped into a number of extensions
+which may or may not be stored into the data file. Therefore the v9 templates
+configured on the exporter may be tuned according the collector. Only those tags 
+common to both are stored into the data files.
+.P
+Sampling: By default, the sampling rate is set to 1 (unsampled) or to any
+given value specified by the \-s cmd line option. If sampling information 
+is found in the netflow stream, it overwrites the default value. Sampling 
+is automatically recognised when announced in v9 option templates 
+(tags #34, #35 or #48, #49, #50 ) or in the unofficial v5 header hack. 
+Note: Not all platforms (or IOS/JunOS versions) support exporting sampling 
+information in netflow data, even if sampling is configured. The number 
+of bytes/packets in each netflow record is automatically multiplied by the 
+sampling rate.  The total number of flows is not changed as this is not 
+accurate enough. (Small flows versus large flows) If the default sampling rate
+given by -s is negative, this will hard overwrite any device specific 
+announced sampling rates.
+.P
+NSEL/ASA Support: nfcapd can be compiled with NSEL/ASA support included. See
+notes on NSEL/ASA
+.P
+NEL (NAT Event logging): nfcapd can be compiled with CISCO NEL support included.
+See notes on NEL.
+.P
+.SH OPTIONS
+.TP 3
+.B -p \fIportnum
+Specifies the port number to listen. Default port is 9995
+.TP 3
+.B -b \fIbindhost
+Specifies the hostname/IPv4/IPv6 address to bind for listening. This can be 
+an IP address or a hostname, resolving to an IP address attached to an interface.
+Defaults to any available IPv4 interface, if not specified.
+.TP 3
+.B -4
+Forces nfcapd to listen on IPv4 addresses only. Can be used together with \-b
+if a hostname has an IPv4 and IPv6 address record.
+.TP 3
+.B -6
+Forces nfcapd to listen on IPv6 addresses only. Can be used together with \-b
+if a hostname has an IPv4 and IPv6 address record. Depending on the socket
+implementation \-6 also accepts IPv4 data.
+.TP 3
+.B -j \fIMulticastGroup
+Join the specified IPv4 or IPv6 multicast group for listening. 
+.TP 3
+.B -R \fIhost[/port}
+Enable packet repeater. Send all incoming packets to another \fIhost\fR and \fIport\fR.
+\fIhost\fR is either a valid IPv4/IPv6 address, or a valid symbolic hostname, which resolves to 
+a IPv6 or IPv4 address. \fIport\fR may be ommited and defaults to port 9995. Note: Due to IPv4/IPv6
+accepted addresses the port separator is '/'.
+.TP 3
+.B -I \fIIdentString ( capital letter i )
+Specifies an ident string, which describes the source e.g. the 
+name of the router. This string is put into the stat record to identify
+the source. Default is 'none'. This is for compatibility with nfdump 1.5.x
+and used to specify a single netflow source. See \fI\-n
+.TP 3
+.B -l \fIbase_directory ( letter ell )
+Specifies the base directory to store the output files. 
+If a sub hierarchy is specified with \-S the final directory is concatenated 
+to \fIbase_directory/sub_hierarchy\fR. This is for compatibility with nfdump 1.5.x
+and used to specify a single netflow source. See \fI\-n
+.TP 3
+.B -n \fI<Ident,IP,base_directory>
+Configures a netflow source named \fIIdent\fR and identified by source IP address \fIIP\fR.
+The base directory for the flow files is \fIbase_directory\fR. If a sub hierarchy is specified with \-S 
+the final directory is concatenated to \fIbase_directory/sub_hierarchy. Multiple netflow 
+sources can be specified. All data is sent to the same port specified by \fI\-p\fR.
+Note: You must not mix \-n option with \-I and \-l. Use either syntax.
+.TP 3
+.B -f \fI<pcap_file>
+Read netflow packets from a give \fIpcap_file\fR instead of the network. This 
+requires nfcapd to be compiled with the pcap option and is intended for debugging only.
+.TP 3
+.B -s \fI<rate>
+Apply default sampling rate \fIrate\fR to all netflow records, unless the sampling rate is 
+announced by the exporting device. In that case the announced sampling rate is applied. If 
+<rate> is negative, this will hard overwrite any device specific announced sampling rates.
+.TP 3
+.B -S \fI<num>
+Allows to specify an additional directory sub hierarchy to store 
+the data files. The default is 0, no sub hierarchy, which means the 
+files go directly in the base directory (\-l). The base directory (\-l) is
+concatenated with the specified sub hierarchy format to form the final 
+data directory.  The following hierarchies are defined:
+.PD 0
+.RS 4
+ 0 default     no hierarchy levels
+.P
+ 1 %Y/%m/%d    year/month/day
+.P
+ 2 %Y/%m/%d/%H year/month/day/hour
+.P
+ 3 %Y/%W/%u    year/week_of_year/day_of_week
+.P
+ 4 %Y/%W/%u/%H year/week_of_year/day_of_week/hour
+.P
+ 5 %Y/%j       year/day\-of\-year
+.P
+ 6 %Y/%j/%H    year/day\-of\-year/hour
+.P
+ 7 %Y\-%m\-%d    year\-month\-day
+.P
+ 8 %Y\-%m\-%d/%H year\-month\-day/hour
+.RE
+.PD
+.TP 3
+.B -T \fI<extension list>
+Specifies the list of extensions, to be stored in the netflow file. 
+Regardless of the extension list, the following netflow data is stored per record:
+first, last, fwd status, tcp flags, proto, (src)tos, src port, dst port, src 
+ipaddr, dst ipaddr, in(packets), in(bytes). In addition nfcapd recognises the 
+extensions as described below. Some are valid for v5/v7/v9, but most of them make
+only sense for v9. Any specified extensions which do not exist in the input netflow 
+records are ignored.
+.TP 2
+   Extensions:
+.PD 0
+.RS 4
+v5/v7/v9/IPFIX extensions:
+.P
+ 1 input/output interface SNMP numbers.
+.P
+ 2 src/dst AS numbers.
+.P
+ 3 src/dst mask, (dst)TOS, direction.
+.P
+ 4 line Next hop IP addr line
+.P
+ 5 line BGP next hop IP addr line
+.P
+ 6 src/dst vlan id labels
+.P
+ 7 counter output packets
+.P
+ 8 counter output bytes
+.P
+ 9 counter aggregated flows
+.P
+10 in_src/out_dst MAC address
+.P
+11 in_dst/out_src MAC address
+.P
+12 MPLS labels 1\-10
+.P
+13 Exporting router IPv4/IPv6 address
+.P
+14 Exporting router ID
+.P
+15 BGP adjacent prev/next AS
+.P
+16 time stamp flow received by the collector
+.P
+
+.P
+NSEL/ASA/NAT extensions
+.P
+26 NSEL     ASA event, xtended event, ICMP type/code
+.P
+27 NSEL/NAT xlate ports
+.P
+28 NSEL/NAT xlate IPv4/IPv6 addr
+.P
+29 NSEL     ASA ACL ingress/egress acl ID
+.P
+30 NSEL     ASA username
+.P
+
+.P
+NEL/NAT extensions
+.P
+31 NAT event, ingress egress vrfid
+.P
+32 NAT Block port allocation - block start, end step and size
+.P
+
+.P
+nprobe extensions
+.P
+64 nprobe client/server/application latency"},
+
+.B IMPORTANT: 
+By default only extension 1 and 2 are selected
+Extensions can be added/deleted by specifying a ',' separated 
+list of extension ids. Each id may be prepended by an optional 
+sign +/\- to add or remove a given id from the extension list. 
+Shortcuts: The string 'all' means all extensions. The strings
+ 'nsel' and 'nel' enable all NSEL or NEL extensions respectively.
+
+.P
+Examples: 
+.P
+\-T all       Enables all possible extensions.
+.P
+\-T +3,+4     Adds extensions 3 and 4 to the defaults 1 and 2.
+.P
+\-T all,\-8,\-9 Set all extensions but 8 and 9
+.P
+\-T \-1,4      Removes default extension 1 and adds extension 4
+.P
+\-T nsel      Enables all required ASA?NSEL extensions
+.P
+\-T nel       Enables all required nell extensions
+.P
+
+.P
+Note: Only those tags in common with the exporting device and enabled 
+extensions at the collector side are stored into the data files. A detailed 
+list which v9 tags are mapped into which extensions is given in the section 
+.B NOTES
+.RE
+.PD
+.TP 3
+.B -t \fIinterval
+Specifies the time interval in seconds to rotate files. The default value 
+is 300s ( 5min ).
+.TP 3
+.B -w
+Align file rotation with next n minute ( specified by \-t ) interval. 
+Example: If interval is 5 min, sync at 0,5,10... wall clock minutes 
+Default: no alignment.
+.TP 3
+.B -x \fIcmd
+Run command \fIcmd\fR at the end of every interval, when a new file
+becomes available. The following command expansion is available:
+.PD 0
+.RS 4
+%f	Replaced by the file name e.g nfcapd.200907110845 inluding any
+.P
+     sub hierarchy. ( 2009/07/11/nfcapd.200907110845 )
+.P
+%d	Replaced by the directory where the file is located.
+.P
+%t	Replaced by the time ISO format e.g. 200907110845.
+.P
+%u	Replaced by the UNIX time format.
+.P
+%i	Replaced ident string given by \-I
+.RE
+.PD
+.TP 3
+.B -X
+Collect and embed extended statistics. Currently a port and bpp histogram 
+is embeded. Mostly experimental for now
+.TP 3
+.B -e 
+Auto expire files at every cycle. \fImax lifetime\fP and \fImax filesize\fP
+are defined using nfexpire(1)
+.TP 3
+.B -P \fIpidfile
+Specify name of pidfile. Default is no pidfile.
+.TP 3
+.B -D
+Daemon mode: fork to background and detach from terminal.
+Nfcapd terminates on signal TERM, INT and HUP.
+.TP 3
+.B -u \fIuserid
+Change to the user \fIuserid\fP as soon as possible. Only root is allowed
+to use this option.
+.TP 3
+.B -g \fIgroupid
+Change to the group \fIgroupid\fP as soon as possible. Only root is allowed 
+use this option.
+.TP 3
+.B -B \fIbufflen
+Specifies the socket input buffer length in bytes. For high volume traffic 
+( near GB traffic ) it is recommended to set this value as high as possible 
+( typically > 100k ), otherwise you risk to lose packets. The default 
+is OS ( and kernel )  dependent.
+.TP 3
+.B -E
+Print netflow records in nfdump raw format to stdout. This option is for 
+debugging purpose only, to see how incoming netflow data is processed and stored.
+.TP 3
+.B -z
+Compress flows. Use fast LZO1X\-1 compression in output file.
+.TP 3
+.B -V
+Print nfcapd version and exit.
+.TP 3
+.B -h
+Print help text to stdout with all options and exit.
+.SH "RETURN VALUE"
+Returns 0 on success, or 255 if initialization failed.
+.SH "LOGGING"
+nfcapd logs to syslog with SYSLOG_FACILITY LOG_DAEMON
+For normal operation level 'warning' should be fine. 
+More information is reported at level 'info' and 'debug'.
+.P
+A small statistic about the collected flows, as well as errors
+are reported at the end of every interval to syslog with level 'info'.
+.SH "EXAMPLES"
+All flows are sent to port 9995 from all exporters and stored into a single file. All known v9 tags are taken.
+.RS
+\fBnfcapd \-z \-w \-D \-T all \-l /netflow/spool/allflows \-I any \-S 2 \-P /var/run/nfcapd.allflows.pid\fP
+.RE
+.LP
+All flows from 2 different exporters are sent to port 8877 and stored in separate directory trees. All known v9 tags are taken. Input buffer size is set to 128000 bytes
+.RS
+\fBnfcapd \-z \-w \-D \-T all \-p 8877 \-n upstream,192.168.1.1,/netflow/spool/upstream \-n peer,192.168.2.1,/netflow/spool/peer \-S 2 \-B 128000\fP
+.RE
+.LP
+Only accept from from a single exporter and only extension 3,4 and 5 are accepted. Run a given command when files are rotated and automatically expire flows:
+.RS
+\fBnfcapd \-w \-D \-T 3,4,5 \-n upstream,192.168.1.1,/netflow/spool/upstream \-p 23456 \-B 128000 \-s 100 \-x '/path/command \-r %d/%f'  \-P /var/run/nfcapd/nfcapd.pid \-e\fP
+.RE
+.LP
+.SH NOTES
+Multiple netflow sources:
+.P
+Netflow data may be sent from different exporters to a single nfcapd process. 
+Use the \-n option to separate each netflow source to a different data directory.
+For compatibility with nfdump 1.5.x, old style \-l/\-I options are still valid.
+In that case all flows from all sources are stored in a single file. For high
+volume netflow streams, it is still recommended to have a single nfcapd process
+per netflow source.
+.P
+
+.P
+The current v9 implementation of nfdump supports the following v9 elements:
+fields:
+.PD 0
+.RS 4
+.P
+\fBv9 element\fR          \fBv9 ID\fR     \fBExtension\fR
+.P
+NF9_LAST_SWITCHED      21       default
+.P
+NF9_FIRST_SWITCHED     22       default
+.P
+NF9_IN_BYTES            1       default
+.P
+NF9_IN_PACKETS          2       default
+.P
+NF9_IN_PROTOCOL         4       default
+.P
+NF9_SRC_TOS             5       default
+.P
+NF9_TCP_FLAGS           6       default
+.P
+NF9_FORWARDING_STATUS  89       default
+.P
+NF9_IPV4_SRC_ADDR       8       default
+.P
+NF9_IPV4_DST_ADDR      12       default
+.P
+NF9_IPV6_SRC_ADDR      27       default
+.P
+NF9_IPV6_DST_ADDR      28       default
+.P
+NF9_L4_SRC_PORT         7       default
+.P
+NF9_L4_DST_PORT        11       default
+.P
+NF9_ICMP_TYPE          32       default
+.P
+NF9_INPUT_SNMP         10             1
+.P
+NF9_OUTPUT_SNMP        14             1
+.P
+NF9_SRC_AS             16             2
+.P
+NF9_DST_AS             17             2
+.P
+NF9_DST_TOS            55             3
+.P
+NF9_DIRECTION          61             3
+.P
+NF9_SRC_MASK            9             3
+.P
+NF9_DST_MASK           13             3
+.P
+NF9_IPV6_SRC_MASK      29             3
+.P
+NF9_IPV6_DST_MASK      30             3
+.P
+NF9_V4_NEXT_HOP        15             4
+.P
+NF9_V6_NEXT_HOP        62             4
+.P
+NF9_BGP_V4_NEXT_HOP    18             5
+.P
+NF9_BPG_V6_NEXT_HOP    63             5
+.P
+NF9_SRC_VLAN           58             6
+.P
+NF9_DST_VLAN           59             6
+.P
+NF9_OUT_PKTS           24             7
+.P
+NF9_OUT_BYTES          23             8
+.P
+NF9_FLOWS_AGGR          3             9
+.P
+NF9_IN_SRC_MAC         56            10
+.P
+NF9_OUT_DST_MAC        57            10
+.P
+NF9_IN_DST_MAC         80            11
+.P
+NF9_OUT_SRC_MAC        81            11
+.P
+NF9_MPLS_LABEL_1       70            12
+.P
+NF9_MPLS_LABEL_2       71            12
+.P
+NF9_MPLS_LABEL_3       72            12
+.P
+NF9_MPLS_LABEL_4       73            12
+.P
+NF9_MPLS_LABEL_5       74            12
+.P
+NF9_MPLS_LABEL_6       75            12
+.P
+NF9_MPLS_LABEL_7       76            12
+.P
+NF9_MPLS_LABEL_8       77            12
+.P
+NF9_MPLS_LABEL_9       78            12
+.P
+NF9_MPLS_LABEL_10      79            12
+.P
+NF9_SAMPLING_INTERVAL  34            Sampling
+.P
+NF9_SAMPLING_ALGORITHM 35            Sampling
+.P
+NF9_FLOW_SAMPLER_ID    48            Sampling
+.P
+FLOW_SAMPLER_MODE      49            Sampling
+.P
+NF9_FLOW_SAMPLER_RANDOM_INTERVAL 50  Sampling
+.P
+IP addr of exporting router          13
+.P
+NF9_ENGINE_TYPE        38            14
+.P
+NF9_ENGINE_ID          39            14
+.P
+NF9_BGP_ADJ_NEXT_AS   128            15			
+.P
+NF9_BGP_ADJ_PREV_AS   129            15
+.P
+collector received timestamp         16
+.RE
+.PD
+32 and 64 bit are supported for all counters. 32it AS numbers are supported.
+.P
+IPFIX support is experimental. Due to lack of implementation of sampling
+in many IPFIX exporters, sampling for IPFIX is not yet supported.
+.P
+The format of the data files is netflow version independent.
+.P
+Socket buffer: Setting the socket buffer size is system dependent. 
+When starting up, nfcapd returns the number of bytes the buffer was 
+actually set. This is done by reading back the buffer size and may 
+differ from what you requested. 
+.SH "SEE ALSO"
+nfdump(1), nfprofile(1), nfreplay(1)
+.SH BUGS
+No software without bugs! Please report any bugs back to me.

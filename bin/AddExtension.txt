@@ -1,0 +1,11 @@
+Add extensions:
+===============
+
+1. Add appropriate definitions for new extension in nffile.h
+2. Update extension_descriptor array in nfx.c to reflect the new extension.
+   Increase user index ( 3rd value )
+3. Add filter in grammar.y
+4. test filter with nftest.
+5. nffile_inline.c
+6. nf_common.c define printing functions
+7. nfsta.c add stat definitions
