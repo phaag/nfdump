@@ -13,7 +13,7 @@ nfdumpp is used as backend toolset for __NfSen__.
 
 ## NSEL/ASA, NEL/NAT support
 
-__NSEL__ (*__N__etwork __E__vent __S__ecurity __L__ogging*) as well as NEL (*__N__AT __E__vent __L__ ogging*) are technologies invented by __CISCO__ and also use the netflow v9 protocol. However, NSEL and NEL are not flows as commonly known but rather *__Events__!* exported from specific devices such as CISCO ASA. nfdump supports Event looging as part of netflow v9.
+__NSEL__ (* Network Event Security Logging *) as well as NEL (* NAT Event Logging *) are technologies invented by __CISCO__ and also use the netflow v9 protocol. However, NSEL and NEL are not flows as commonly known but rather *__Events__!* exported from specific devices such as CISCO ASA. nfdump supports Event looging as part of netflow v9.
 
 __Note:__ The older nfdump-1.5.8-2-NSEL is __not compatible__ with nfdump > 1.6.9 which supports NSEL/NEL.
 
