@@ -86,6 +86,10 @@
  *   +-----------+-------------+-------------+-------------+-----+-------------+
  */
 
+#define NOT_COMPRESSED 0
+#define LZO_COMPRESSED 1
+#define BZ2_COMPRESSED 2
+
 typedef struct file_header_s {
 	uint16_t	magic;				// magic to recognize nfdump file type and endian type
 #define MAGIC 0xA50C
@@ -94,14 +98,13 @@ typedef struct file_header_s {
 #define LAYOUT_VERSION_1	1
 
 	uint32_t	flags;				
-#define NUM_FLAGS		3
-#define FLAG_COMPRESSED 	0x1		// flow records are compressed
+#define NUM_FLAGS		4
+#define FLAG_NOT_COMPRESSED	0x0		// records are not compressed
+#define FLAG_LZO_COMPRESSED	0x1		// records are LZO compressed
 #define FLAG_ANONYMIZED 	0x2		// flow data are anonimized 
 #define FLAG_CATALOG		0x4		// has a file catalog record after stat record
-
-									/*
-										0x1 File is compressed with LZO1X-1 compression
-									 */
+#define FLAG_BZ2_COMPRESSED 0x8		// records are BZ2 compressed
+							
 	uint32_t	NumBlocks;			// number of data blocks in file
 	char		ident[IDENTLEN];	// string identifier for this file
 } file_header_t;
@@ -164,7 +167,7 @@ typedef struct data_block_header_s {
 	uint32_t	NumRecords;		// number of data records in data block
 	uint32_t	size;			// size of this block in bytes without this header
 	uint16_t	id;				// Block ID == DATA_BLOCK_TYPE_2
-	uint16_t	flags;			// 0 - kompatibility
+	uint16_t	flags;			// 0 - compatibility
 								// 1 - block uncompressed
 								// 2 - block compressed
 } data_block_header_t;
@@ -2156,7 +2159,11 @@ typedef struct common_record_v1_s {
 
 
 // a few handy shortcuts
-#define FILE_IS_COMPRESSED(n) ((n)->file_header->flags & FLAG_COMPRESSED)
+#define FILE_IS_LZO_COMPRESSED(n) ((n)->file_header->flags & FLAG_LZO_COMPRESSED)
+#define FILE_IS_BZ2_COMPRESSED(n) ((n)->file_header->flags & FLAG_BZ2_COMPRESSED)
+#define FILE_COMPRESSION(n) ( FILE_IS_LZO_COMPRESSED(n) ? LZO_COMPRESSED : FILE_IS_BZ2_COMPRESSED(n) ? BZ2_COMPRESSED : NOT_COMPRESSED )
+#define FILE_IS_NOT_COMPRESSED(n) ( (FILE_IS_LZO_COMPRESSED(n) + FILE_IS_BZ2_COMPRESSED(n)) == 0 )
+
 #define BLOCK_IS_COMPRESSED(n) ((n)->flags == 2 )
 #define HAS_CATALOG(n) ((n)->file_header->flags & FLAG_CATALOG)
 #define IP_ANONYMIZED(n) ((n)->file_header->flags & FLAG_ANONYMIZED)
@@ -2165,7 +2172,7 @@ void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
 nffile_t *OpenFile(char *filename, nffile_t *nffile);
 
-nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int compressed, int anonymized, char *ident);
+nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int compress, int anonymized, char *ident);
 
 nffile_t *AppendFile(char *filename);
 
@@ -2191,7 +2198,7 @@ int WriteExtraBlock(nffile_t *nffile, data_block_header_t *block_header);
 
 int RenameAppend(char *from, char *to);
 
-void UnCompressFile(char * filename);
+void ModifyCompressFile(char * rfile, char *Rfile, int compress);
 
 void ExpandRecord_v1(common_record_t *input_record,master_record_t *output_record );
 

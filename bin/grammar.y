@@ -719,9 +719,9 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 	| ASA EVENT DENIED STRING {
 #ifdef NSEL
 		uint64_t xevent = 0;
-		if( strncasecmp($4,"interface", 6) == 0) {
+		if( strncasecmp($4,"interface", 9) == 0) {
 			xevent = 1003;
-		} else if( strncasecmp($4,"nosyn", 6) == 0) {
+		} else if( strncasecmp($4,"nosyn", 5) == 0) {
 			xevent = 1004;
 		} else {
 			xevent = (uint64_t)strtol($4, (char **)NULL, 10);
@@ -974,11 +974,11 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| NAT EVENT REASON {
 #ifdef NSEL
-		if ( strncasecmp($3,"invalid", 6) == 0) {
+		if ( strncasecmp($3,"invalid", 7) == 0) {
 			$$.self = NewBlock(OffsetNATevent, MasNATevent, ( NEL_EVENT_INVALID << ShiftNATevent) & MasNATevent, CMP_EQ, FUNC_NONE, NULL );
-		} else if( strncasecmp($3,"add", 6) == 0) {
+		} else if( strncasecmp($3,"add", 3) == 0 || strncasecmp($3,"create", 6) == 0) {
 			$$.self = NewBlock(OffsetNATevent, MasNATevent, ( NEL_EVENT_ADD << ShiftNATevent) & MasNATevent, CMP_EQ, FUNC_NONE, NULL );
-		} else if( strncasecmp($3,"delete", 4) == 0 || strncasecmp($3,"delete", 6) == 0) {
+		} else if( strncasecmp($3,"delete", 6) == 0) {
 			$$.self = NewBlock(OffsetNATevent, MasNATevent, ( NEL_EVENT_DELETE << ShiftNATevent) & MasNATevent, CMP_EQ, FUNC_NONE, NULL );
 		} else {
 			yyerror("Unknown nat event");

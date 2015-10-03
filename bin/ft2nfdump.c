@@ -91,7 +91,7 @@ void usage(char *name);
 
 extension_info_t *GenExtensionMap(struct ftio *ftio);
 
-int flows2nfdump(struct ftio *ftio, extension_info_t *extension_info, int extended, uint32_t limitflows);
+int flows2nfdump(struct ftio *ftio, char *wfile, int compress, extension_info_t *extension_info, int extended, uint32_t limitflows);
 
 #define NEED_PACKRECORD
 #include "nffile_inline.c"
@@ -104,9 +104,12 @@ void usage(char *name) {
 					"-c\t\tLimit number of records to convert.\n"
 					"-m\t\tPrint the extension map and exit.\n"
 					"-V\t\tPrint version and exit.\n"
-					"-r\t\tread input from file\n"
+					"-r <file>\tread flow-tools records from file\n"
+					"-w <file>\twrite nfdump records to file\n"
+					"-j\t\tBZ2 compress flows in output file.\n"
+					"-z\t\tLZO compress flows in output file.\n"
 					"Convert flow-tools format to nfdump format:\n"
-					"ft2nfdump -r <flow-tools-data-file> | nfdump -z -w <nfdump-file>\n"
+					"ft2nfdump -r <flow-tools-data-file> -w <nfdump-file> [-z]\n"
 				, name);
 
 } // End of usage
@@ -187,7 +190,7 @@ int	i;
 
 } // End of GenExtensionMap
 
-int flows2nfdump(struct ftio *ftio, extension_info_t *extension_info, int extended, uint32_t limitflows) {
+int flows2nfdump(struct ftio *ftio, char *wfile, int compress, extension_info_t *extension_info, int extended, uint32_t limitflows) {
 // required flow tools variables
 struct fttime 		ftt;
 struct fts3rec_offsets fo;
@@ -200,7 +203,7 @@ char				*s;
 uint32_t			cnt;
 
 	s = "flow-tools";
-	nffile = OpenNewFile( "-", NULL, 0, 0, s);
+	nffile = OpenNewFile( wfile , NULL, compress, 0, s);
 	if ( !nffile ) {
 		fprintf(stderr, "%s\n", s);
 		return 1;
@@ -316,8 +319,8 @@ struct ftio ftio;
 extension_info_t *extension_info;
 struct stat statbuf;
 uint32_t	limitflows;
-int i, extended, printmap, ret, fd;
-char   *ftfile;
+int i, extended, printmap, ret, fd, compress;;
+char   *ftfile, *wfile;
 
 	/* init fterr */
 	fterr_setid(argv[0]);
@@ -326,8 +329,10 @@ char   *ftfile;
 	printmap 	= 0;
 	limitflows 	= 0;
 	ftfile   	= NULL;
+	wfile		= "-";
+	compress 	= NOT_COMPRESSED;
 
-	while ((i = getopt(argc, argv, "EVc:hmr:?")) != -1)
+	while ((i = getopt(argc, argv, "jzEVc:hmr:w:?")) != -1)
 		switch (i) {
 			case 'h': /* help */
 				case '?':
@@ -356,12 +361,24 @@ char   *ftfile;
 				printmap = 1;
 				break;
 
+			case 'j':
+				compress = LZO_COMPRESSED;
+				break;
+
+			case 'z':
+				compress = BZ2_COMPRESSED;
+				break;
+
 			case 'r':
 				ftfile = optarg;
 				if ( (stat(ftfile, &statbuf) < 0 ) || !(statbuf.st_mode & S_IFREG) ) {
 					fprintf(stderr, "No such file: '%s'\n", ftfile);
 					exit(255);
 				}
+				break;
+
+			case 'w':
+				wfile = optarg;
 				break;
 		
 			default:
@@ -398,7 +415,7 @@ char   *ftfile;
 		exit(255);
 	} 
 
-	ret = flows2nfdump(&ftio, extension_info, extended, limitflows);
+	ret = flows2nfdump(&ftio, wfile, compress, extension_info, extended, limitflows);
 
 	return ret;
 

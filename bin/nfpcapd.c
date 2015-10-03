@@ -81,7 +81,7 @@
 # include <net/bpf.h>
 #else 
 #ifdef HAVE_PCAP_BPF_H
-# include <pcap-bpf.h>
+# include <pcap/bpf.h>
 #else
 # error missing bpf header
 #endif 
@@ -100,6 +100,8 @@
 #include "nfxstat.h"
 #include "collector.h"
 #include "exporter.h"
+#include "rbtree.h"
+#include "ipfrag.h"
 
 #ifdef HAVE_FTS_H
 #   include <fts.h>
@@ -612,7 +614,7 @@ __attribute__((noreturn)) static void *p_flow_thread(void *thread_data) {
 p_flow_thread_args_t *args = (p_flow_thread_args_t *)thread_data;
 time_t t_win				 = args->t_win;
 int subdir_index			 = args->subdir_index;
-int compress				 = args->compress;
+int compress			 	 = args->compress;
 FlowSource_t *fs			 = args->fs;
 
 // locals
@@ -1209,11 +1211,11 @@ p_flow_thread_args_t *p_flow_thread_args;
 	fs				= NULL;
 	extension_tags	= DefaultExtensions;
 	subdir_index	= 0;
-	compress		= 0;
+	compress		= NOT_COMPRESSED;
 	verbose			= 0;
 	expire			= 0;
 	cache_size		= 0;
-	while ((c = getopt(argc, argv, "B:DEI:g:hi:r:s:l:p:P:t:u:S:T:e:Vz")) != EOF) {
+	while ((c = getopt(argc, argv, "B:DEI:g:hi:j:r:s:l:p:P:t:u:S:T:e:Vz")) != EOF) {
 		switch (c) {
 			struct stat fstat;
 			case 'h':
@@ -1287,8 +1289,19 @@ p_flow_thread_args_t *p_flow_thread_args;
 					exit(EXIT_FAILURE);
 				}
 				break;
+			case 'j':
+				if ( compress ) {
+					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					exit(255);
+				}
+				compress = BZ2_COMPRESSED;
+				break;
 			case 'z':
-				compress = 1;
+				if ( compress ) {
+					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					exit(255);
+				}
+				compress = LZO_COMPRESSED;
 				break;
 			case 'P':
 				if ( optarg[0] == '/' ) { 	// absolute path given

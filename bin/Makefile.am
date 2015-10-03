@@ -119,12 +119,12 @@ nftest_SOURCES = nftest.c $(common) $(util) $(filter) $(filelzo)
 nftest_DEPENDENCIES = nfgen
 
 if FT2NFDUMP
-ft2nfdump_SOURCES = ft2nfdump.c $(common) $(filelzo) $(util)
+ft2nfdump_SOURCES = ft2nfdump.c $(common) $(filelzo) $(util) $(nflist)
 ft2nfdump_CFLAGS = @FT_INCLUDES@
 ft2nfdump_LDADD = -lft -lz
 ft2nfdump_LDADD += @FT_LDFLAGS@
 endif
 
-EXTRA_DIST = inline.c collector_inline.c nffile_inline.c nfdump_inline.c heapsort_inline.c applybits_inline.c test.sh nfdump.test.out parse_csv.pl
-	
+EXTRA_DIST = inline.c collector_inline.c nffile_inline.c nfdump_inline.c heapsort_inline.c applybits_inline.c 
+EXTRA_DIST += test.sh nfdump.test.out parse_csv.pl AddExtension.txt	nfdump.test.diff
 CLEANFILES = lex.yy.c grammar.c grammar.h scanner.c scanner.h

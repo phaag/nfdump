@@ -35,6 +35,8 @@
  *  
  */
 
+#include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -598,6 +600,7 @@ int proto;
 	return node;
 } // End of Pop_Node
 
+#ifdef DEVEL
 void DumpList(NodeList_t *NodeList) {
 struct FlowNode *node;
 
@@ -612,6 +615,7 @@ struct FlowNode *node;
 	}
 	printf("tail: 0x%llx\n\n", (unsigned long long)NodeList->last);
 } // End of DumpList
+#endif
 
 void DumpNodeStat(void) {
 	LogInfo("Nodes in use: %u, Flows: %u CacheOverflow: %u", Allocated, NumFlows, CacheOverflow);

@@ -80,6 +80,12 @@
 #include "util.h"
 #include "flist.h"
 
+#ifndef DEVEL
+#   define dbg_printf(...) /* printf(__VA_ARGS__) */
+#else
+#   define dbg_printf(...) printf(__VA_ARGS__)
+#endif
+
 /* hash parameters */
 #define NumPrealloc 128000
 
@@ -281,8 +287,9 @@ static void usage(char *name) {
 					"-q\t\tQuiet: Do not print the header and bottom stat lines.\n"
 					"-H Add xstat histogram data to flow file.(default 'no')\n"
 					"-i <ident>\tChange Ident to <ident> in file given by -r.\n"
-					"-j <file>\tCompress/Uncompress file.\n"
-					"-z\t\tCompress flows in output file. Used in combination with -w.\n"
+					"-J <num>\tModify file compression: 0: uncompressed - 1: LZO compressed - 2: BZ2 compressed.\n"
+					"-j\t\tlzo compress flows in output file. Used in combination with -w.\n"
+					"-z\t\tbz2 compress flows in output file. Used in combination with -w.\n"
 					"-l <expr>\tSet limit on packets for line and packed output format.\n"
 					"\t\tkey: 32 character string or 64 digit hex string starting with 0x.\n"
 					"-L <expr>\tSet limit on bytes for line and packed output format.\n"
@@ -360,7 +367,7 @@ char 		bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_
 stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
 	printer_t print_header, printer_t print_record, time_t twin_start, time_t twin_end, 
 	uint64_t limitflows, int tag, int compress, int do_xstat) {
-common_record_t 	*flow_record;
+common_record_t 	*flow_record, *record_ptr;
 master_record_t		*master_record;
 nffile_t			*nffile_w, *nffile_r;
 xstat_t				*xstat;
@@ -441,6 +448,7 @@ int	v1_map_done = 0;
 	done = 0;
 	while ( !done ) {
 	int i, ret;
+	char *ConvertBuffer = NULL;
 
 		// get next data block from file
 		ret = ReadBlock(nffile_r);
@@ -538,22 +546,38 @@ int	v1_map_done = 0;
 			continue;
 		}
 
-		flow_record = nffile_r->buff_ptr;
+		record_ptr = nffile_r->buff_ptr;
 		for ( i=0; i < nffile_r->block_header->NumRecords; i++ ) {
-
-			switch ( flow_record->type ) {
-				case CommonRecordV0Type:
-				case CommonRecordType:  {
+			flow_record = record_ptr;
+			switch ( record_ptr->type ) {
+				case CommonRecordV0Type: 
+					// convert common record v0
+					if ( !ConvertBuffer ) {
+						ConvertBuffer = malloc(65536);
+						if ( !ConvertBuffer ) {
+							LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+							exit(255);
+						}
+					}
+					ConvertCommonV0((void *)record_ptr, (common_record_t *)ConvertBuffer);
+					flow_record = (common_record_t *)ConvertBuffer;
+					dbg_printf("Converted type %u to %u record\n", CommonRecordV0Type, CommonRecordType);
+				case CommonRecordType: {
 					int match;
-					uint32_t map_id = flow_record->ext_map;
-					generic_exporter_t *exp_info = exporter_list[flow_record->exporter_sysid];
+					uint32_t map_id;
+					generic_exporter_t *exp_info;
+
+					// valid flow_record converted if needed
+					map_id = flow_record->ext_map;
+					exp_info = exporter_list[flow_record->exporter_sysid];
+
 					if ( map_id >= MAX_EXTENSION_MAPS ) {
 						LogError("Corrupt data file. Extension map id %u too big.\n", flow_record->ext_map);
 						exit(255);
 					}
 					if ( extension_map_list->slot[map_id] == NULL ) {
 						LogError("Corrupt data file. Missing extension map %u. Skip record.\n", flow_record->ext_map);
-						flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);	
+						record_ptr = (common_record_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
 						continue;
 					} 
 
@@ -574,7 +598,7 @@ int	v1_map_done = 0;
 	
 					if ( match == 0 ) { // record failed to pass all filters
 						// increment pointer by number of bytes for netflow record
-						flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);	
+						record_ptr = (common_record_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
 						// go to next record
 						continue;
 					}
@@ -619,7 +643,7 @@ int	v1_map_done = 0;
 					} // sort_flows - else
 					} break; 
 				case ExtensionMapType: {
-					extension_map_t *map = (extension_map_t *)flow_record;
+					extension_map_t *map = (extension_map_t *)record_ptr;
 	
 					if ( Insert_Extension_Map(extension_map_list, map) && write_file ) {
 						// flush new map
@@ -631,19 +655,19 @@ int	v1_map_done = 0;
 						// Silently skip exporter records
 					break;
 				case ExporterInfoRecordType: {
-					int ret = AddExporterInfo((exporter_info_record_t *)flow_record);
+					int ret = AddExporterInfo((exporter_info_record_t *)record_ptr);
 					if ( ret != 0 ) {
 						if ( write_file && ret == 1 ) 
-							AppendToBuffer(nffile_w, (void *)flow_record, flow_record->size);
+							AppendToBuffer(nffile_w, (void *)record_ptr, record_ptr->size);
 					} else {
 						LogError("Failed to add Exporter Record\n");
 					}
 					} break;
 				case ExporterStatRecordType:
-					AddExporterStat((exporter_stats_record_t *)flow_record);
+					AddExporterStat((exporter_stats_record_t *)record_ptr);
 					break;
 				case SamplerInfoRecordype: {
-					int ret = AddSamplerInfo((sampler_info_record_t *)flow_record);
+					int ret = AddSamplerInfo((sampler_info_record_t *)record_ptr);
 					if ( ret != 0 ) {
 						if ( write_file && ret == 1 ) 
 							AppendToBuffer(nffile_w, (void *)flow_record, flow_record->size);
@@ -652,12 +676,12 @@ int	v1_map_done = 0;
 					}
 					} break;
 				default: {
-					LogError("Skip unknown record type %i\n", flow_record->type);
+					LogError("Skip unknown record type %i\n", record_ptr->type);
 				}
 			}
 
 		// Advance pointer by number of bytes for netflow record
-		flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);	
+		record_ptr = (common_record_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
 
 
 		} // for all records
@@ -709,11 +733,11 @@ printer_t 	print_header, print_record;
 nfprof_t 	profile_data;
 char 		*rfile, *Rfile, *Mdirs, *wfile, *ffile, *filter, *tstring, *stat_type;
 char		*byte_limit_string, *packet_limit_string, *print_format, *record_header;
-char		*print_order, *query_file, *UnCompress_file, *nameserver, *aggr_fmt;
+char		*print_order, *query_file, *nameserver, *aggr_fmt;
 int 		c, ffd, ret, element_stat, fdump;
 int 		i, user_format, quiet, flow_stat, topN, aggregate, aggregate_mask, bidir;
 int 		print_stat, syntax_only, date_sorted, do_tag, compress, do_xstat;
-int			plain_numbers, GuessDir, pipe_output, csv_output;
+int			plain_numbers, GuessDir, pipe_output, csv_output, ModifyCompress;
 time_t 		t_start, t_end;
 uint32_t	limitflows;
 char 		Ident[IDENTLEN];
@@ -738,7 +762,7 @@ char 		Ident[IDENTLEN];
 	do_tag			= 0;
 	quiet			= 0;
 	user_format		= 0;
-	compress		= 0;
+	compress		= NOT_COMPRESSED;
 	plain_numbers   = 0;
 	pipe_output		= 0;
 	csv_output		= 0;
@@ -751,13 +775,13 @@ char 		Ident[IDENTLEN];
 	print_record  	= NULL;
 	print_order  	= NULL;
 	query_file		= NULL;
-	UnCompress_file	= NULL;
+	ModifyCompress	= -1;
 	aggr_fmt		= NULL;
 	record_header 	= NULL;
 
 	Ident[0] = '\0';
 
-	while ((c = getopt(argc, argv, "6aA:Bbc:D:E:s:hHn:i:j:f:qzr:v:w:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
+	while ((c = getopt(argc, argv, "6aA:Bbc:D:E:s:hHn:i:jf:qzr:v:w:J:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -805,8 +829,19 @@ char 		Ident[IDENTLEN];
 			case 'q':
 				quiet = 1;
 				break;
+			case 'j':
+				if ( compress ) {
+					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					exit(255);
+				}
+				compress = BZ2_COMPRESSED;
+				break;
 			case 'z':
-				compress = 1;
+				if ( compress ) {
+					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					exit(255);
+				}
+				compress = LZO_COMPRESSED;
 				break;
 			case 'c':	
 				limitflows = atoi(optarg);
@@ -907,10 +942,12 @@ char 		Ident[IDENTLEN];
 					exit(255);
 				}
 				break;
-			case 'j':
-				UnCompress_file = optarg;
-				UnCompressFile(UnCompress_file);
-				exit(0);
+			case 'J':
+				ModifyCompress = atoi(optarg);
+				if ( (ModifyCompress < 0) || (ModifyCompress > 2) ) {
+					LogError("Expected -J <num>, 0: uncompressed, 1: LZO compressed, 2: BZ2 compressed.\n");
+					exit(255);
+				}
 				break;
 			case 'x':
 				query_file = optarg;
@@ -940,6 +977,16 @@ char 		Ident[IDENTLEN];
 		FilterFilename = NULL;
 	}
 	
+	// Modify compression
+	if ( ModifyCompress >= 0 ) {
+		if ( !rfile && !Rfile ) {
+			LogError("Expected -r <file> or -R <dir> to change compression\n");
+			exit(255);
+		}
+		ModifyCompressFile(rfile, Rfile, ModifyCompress);
+		exit(0);
+	}
+
 	// Change Ident only
 	if ( rfile && strlen(Ident) > 0 ) {
 		ChangeIdent(rfile, Ident);

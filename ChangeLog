@@ -1,3 +1,14 @@
+2015-10-02
+- Fix compile errors on other platforms
+- Add -R to ModifyCompression
+- Add std sampler ID 4 Bytes and allow random sampler (tag 50)
+- Add BZ2 compression along existing LZ0
+- Add direct write to flowtools converter ft2nfdump
+- Fix zero alignment bug, if only half of an extension is sent
+- Fix nfanon time window bug in subsequent files in -R list
+- Fix CommonRecordV0Type conversion bug
+- Fix nfexport bug, if only one single map exists
+
 2014-11-16
 - Fix v1 extension size bug
 - Add htonll check for autoconf
@@ -7,6 +18,7 @@
 - Cleanup some stat code. more needs to be done ..
 - Cleanup man pages for -O -n
 - Remove SunPro test in configure - no longer supported anyway
+- Cleanup NAT/NSEL filter differences
 
 2014-06-15 v1.6.12p1
 - Add pblock compare functions

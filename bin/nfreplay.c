@@ -334,7 +334,6 @@ int	v1_map_done = 0;
 			int match;
 
 			switch ( flow_record->type ) {
-				case CommonRecordV0Type:
 				case CommonRecordType: {
 					if ( extension_map_list->slot[flow_record->ext_map] == NULL ) {
 						LogError("Corrupt data file. Missing extension map %u. Skip record.\n", flow_record->ext_map);

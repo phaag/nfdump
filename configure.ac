@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.59)
 AC_REVISION($Revision: 243 $)dnl 
-AC_INIT(nfdump, 1.6.13, phaag@users.sourceforge.net)
+AC_INIT(nfdump, 1.6.14, phaag@users.sourceforge.net)
 # $Date: 2014-11-16 14:10:20 +0100 (Sun, 16 Nov 2014) $
 #AC_CONFIG_SRCDIR([grammar.y])
 AC_CONFIG_HEADER([config.h])
@@ -272,6 +272,10 @@ AC_CHECK_HEADERS(sys/types.h netinet/in.h arpa/nameser.h arpa/nameser_compat.h n
 #  include <netdb.h>
 #endif]])
 
+AC_CHECK_HEADERS([bzlib.h])
+if test "$ac_cv_header_bzlib_h" = no; then
+	AC_MSG_ERROR(Required bzlib.h header file not found!)
+fi
 
 if test "$ac_cv_header_fts_h" != yes; then
 	FTS_OBJ=fts_compat.o
@@ -316,6 +320,10 @@ AC_CHECK_LIB(socket, res_search, [
   AC_CHECK_LIB(resolv, __dn_skipname)
  ]) 
 ])
+
+AC_CHECK_LIB(bz2, BZ2_bzCompressInit, [
+ LIBS="$LIBS -lbz2"
+ ], [])
 
 # lzo compression requirements
 AC_CHECK_TYPE(ptrdiff_t, long)

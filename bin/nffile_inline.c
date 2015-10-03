@@ -49,6 +49,8 @@ static inline void AppendToBuffer(nffile_t *nffile, void *record, size_t require
 
 static inline void CopyV6IP(uint32_t *dst, uint32_t *src);
 
+static inline void ConvertCommonV0(void *record, common_record_t *flow_record);
+
 static inline void ExpandRecord_v2(common_record_t *input_record, extension_info_t *extension_info, exporter_info_record_t *exporter_info, master_record_t *output_record );
 
 #ifdef NEED_PACKRECORD
@@ -86,6 +88,22 @@ static inline void CopyV6IP(uint32_t *dst, uint32_t *src) {
 	dst[3] = src[3];
 } // End of CopyV6IP
 
+static inline void ConvertCommonV0(void *record, common_record_t *flow_record) {
+common_record_v0_t *flow_record_v0 = (common_record_v0_t *)record;
+
+	// copy v0 common record
+	memcpy((void *)flow_record, record, COMMON_RECORDV0_DATA_SIZE);
+	memcpy((void *)flow_record->data, (void *)flow_record_v0->data, flow_record_v0->size - COMMON_RECORDV0_DATA_SIZE);
+
+	// fix record differences
+	flow_record->type			= CommonRecordType;
+	flow_record->size			+= (COMMON_RECORD_DATA_SIZE - COMMON_RECORDV0_DATA_SIZE);
+	flow_record->flags			= flow_record_v0->flags;
+	flow_record->exporter_sysid = flow_record_v0->exporter_sysid;
+	flow_record->reserved 		= 0;
+
+} // End of ConvertCommonV0
+
 /*
  * Expand file record into master record for further processing
  * LP64 CPUs need special 32bit operations as it is not guarateed, that 64bit
@@ -95,6 +113,8 @@ static inline void ExpandRecord_v2(common_record_t *input_record, extension_info
 extension_map_t *extension_map = extension_info->map;
 uint32_t	i, *u;
 void		*p = (void *)input_record;
+// printf("Byte: %u\n", _b);
+
 #ifdef NSEL
 		// nasty bug work around - compat issues 1.6.10 - 1.6.12 onwards
 		union {
@@ -108,20 +128,9 @@ void		*p = (void *)input_record;
 	// set map ref
 	output_record->map_ref = extension_map;
 
-	if ( input_record->type == CommonRecordType ) {
-		// Copy common data block
-		memcpy((void *)output_record, (void *)input_record, COMMON_RECORD_DATA_SIZE);
-		p = (void *)input_record->data;
-	} else {
-		// Compat v0 record - convert to new Common Record
-		common_record_v0_t *common_record_v0 = (common_record_v0_t *)input_record;
-		uint16_t flags			= common_record_v0->flags;
-		uint16_t exporter_sysid = common_record_v0->exporter_sysid;
-		memcpy((void *)output_record, (void *)input_record, COMMON_RECORDV0_DATA_SIZE);
-		output_record->flags 		  = flags;
-		output_record->exporter_sysid = exporter_sysid;
-		p = (void *)common_record_v0->data;
-	}
+	// Copy common data block
+	memcpy((void *)output_record, (void *)input_record, COMMON_RECORD_DATA_SIZE);
+	p = (void *)input_record->data;
 
 	if ( exporter_info ) {
 		uint32_t sysid = exporter_info->sysid;

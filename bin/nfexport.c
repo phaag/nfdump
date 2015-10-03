@@ -88,7 +88,7 @@ int map_id, opt_extensions, num_extensions, new_map_size, opt_align;
 extension_map_t	*new_map;
 
 	// no extension maps to export - nothing to do
-	if ( extension_map_list->max_used == 0 )
+	if ( extension_map_list->map_list == NULL )
 		return;
 
 	new_map = NULL;

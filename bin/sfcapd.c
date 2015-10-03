@@ -140,7 +140,7 @@ static void usage(char *name) {
 					"-w\t\tSync file rotation with next 5min (default) interval\n"
 					"-t interval\tset the interval to rotate sfcapd files\n"
 					"-b host\t\tbind socket to host/IP addr\n"
-					"-j mcastgroup\tJoin multicast group <mcastgroup>\n"
+					"-J mcastgroup\tJoin multicast group <mcastgroup>\n"
 					"-p portnum\tlisten on port portnum\n"
 					"-l logdir \tset the output directory. (no default) \n"
 					"-S subdir\tSub directory format. see nfcapd(1) for format\n"
@@ -150,7 +150,8 @@ static void usage(char *name) {
 					"-P pidfile\tset the PID file\n"
 					"-R IP[/port]\tRepeat incoming packets to IP address/port\n"
 					"-x process\tlaunch process after a new file becomes available\n"
-					"-z\t\tCompress flows in output file.\n"
+					"-j\t\tBZ2 compress flows in output file.\n"
+					"-z\t\tLZO compress flows in output file.\n"
 					"-B bufflen\tSet socket buffer to bufflen bytes\n"
 					"-e\t\tExpire data at each cycle.\n"
 					"-D\t\tFork to background\n"
@@ -705,7 +706,7 @@ int	c;
 	datadir	 		= NULL;
 	subdir_index	= 0;
 	expire			= 0;
-	compress		= 0;
+	compress		= NOT_COMPRESSED;
 	do_xstat		= 0;
 	memset((void *)&peer, 0, sizeof(send_peer_t));
 	peer.family		= AF_UNSPEC;
@@ -714,7 +715,7 @@ int	c;
 	extension_tags	= DefaultExtensions;
 	pcap_file		= NULL;
 
-	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:j:l:n:p:P:R:S:T:t:x:ru:g:z")) != EOF) {
+	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:n:p:J:P:R:S:T:t:x:ru:g:z")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -765,8 +766,19 @@ int	c;
 			case 'w':
 				synctime = 1;
 				break;
+			case 'j':
+				if ( compress ) {
+					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					exit(255);
+				}
+				compress = BZ2_COMPRESSED;
+				break;
 			case 'z':
-				compress = 1;
+				if ( compress ) {
+					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					exit(255);
+				}
+				compress = LZO_COMPRESSED;
 				break;
 			case 'B':
 				bufflen = strtol(optarg, &checkptr, 10);
@@ -777,7 +789,7 @@ int	c;
 			case 'b':
 				bindhost = optarg;
 				break;
-			case 'j':
+			case 'J':
 				mcastgroup = optarg;
 				break;
 			case 'p':

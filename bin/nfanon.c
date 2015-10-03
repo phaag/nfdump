@@ -226,9 +226,9 @@ int	v1_map_done = 0;
 	}
 
 	if ( wfile )
-		nffile_w = OpenNewFile(wfile, NULL, FILE_IS_COMPRESSED(nffile_r), 1, NULL);
+		nffile_w = OpenNewFile(wfile, NULL, FILE_COMPRESSION(nffile_r), 1, NULL);
 	else
-		nffile_w = OpenNewFile(outfile, NULL, FILE_IS_COMPRESSED(nffile_r), 1, NULL);
+		nffile_w = OpenNewFile(outfile, NULL, FILE_COMPRESSION(nffile_r), 1, NULL);
 
 	if ( !nffile_w ) {
 		if ( nffile_r ) {
@@ -291,7 +291,7 @@ int	v1_map_done = 0;
 					snprintf(outfile,MAXPATHLEN-1, "%s-tmp", cfile);
 					outfile[MAXPATHLEN-1] = '\0';
 
-					nffile_w = OpenNewFile(outfile, nffile_w, FILE_IS_COMPRESSED(nffile_r), 1, NULL);
+					nffile_w = OpenNewFile(outfile, nffile_w, FILE_COMPRESSION(nffile_r), 1, NULL);
 					if ( !nffile_w ) {
 						if ( nffile_r ) {
 							CloseFile(nffile_r);
@@ -299,7 +299,7 @@ int	v1_map_done = 0;
 						}
 						return;
 					}
-					memcpy((void *)nffile_w->stat_record, (void *)&nffile_r->stat_record, sizeof(stat_record_t));
+					memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
 				} else {
 					SumStatRecords(nffile_w->stat_record, nffile_r->stat_record);
 				}
@@ -357,7 +357,6 @@ int	v1_map_done = 0;
 		flow_record = nffile_r->buff_ptr;
 		for ( i=0; i < nffile_r->block_header->NumRecords; i++ ) {
 			switch ( flow_record->type ) { 
-				case CommonRecordV0Type:
 				case CommonRecordType: {
 					uint32_t map_id = flow_record->ext_map;
 					if ( extension_map_list->slot[map_id] == NULL ) {

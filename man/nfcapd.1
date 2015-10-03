@@ -58,7 +58,7 @@ Forces nfcapd to listen on IPv6 addresses only. Can be used together with \-b
 if a hostname has an IPv4 and IPv6 address record. Depending on the socket
 implementation \-6 also accepts IPv4 data.
 .TP 3
-.B -j \fIMulticastGroup
+.B -J \fIMulticastGroup
 Join the specified IPv4 or IPv6 multicast group for listening. 
 .TP 3
 .B -R \fIhost[/port}
@@ -289,6 +289,9 @@ is OS ( and kernel )  dependent.
 .B -E
 Print netflow records in nfdump raw format to stdout. This option is for 
 debugging purpose only, to see how incoming netflow data is processed and stored.
+.TP 3
+.B -j
+Compress flows. Use bz2 compression in output file. Note: not recommended while collecting
 .TP 3
 .B -z
 Compress flows. Use fast LZO1X\-1 compression in output file.

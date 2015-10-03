@@ -264,6 +264,7 @@ static struct v9_element_map_s {
 	// sampling
 	{ NF9_FLOW_SAMPLER_ID, 	 	 "sampler ID",		_1byte,   _1byte, nop, nop, COMMON_BLOCK },
 	{ NF9_FLOW_SAMPLER_ID, 	 	 "sampler ID",		_2bytes,  _2bytes, nop, nop, COMMON_BLOCK },
+	{ NF9_FLOW_SAMPLER_ID, 	 	 "sampler ID",		_4bytes,  _4bytes, nop, nop, COMMON_BLOCK },
 	{ FLOW_SAMPLER_MODE, 	 	 "sampler mode",	_1byte,   _1byte, nop, nop, COMMON_BLOCK },
 	{ NF9_FLOW_SAMPLER_RANDOM_INTERVAL, "sampler rand interval",		_4bytes, _4bytes, nop, nop, COMMON_BLOCK },
 
@@ -608,7 +609,7 @@ input_translation_t **table;
 
 } // End of add_translation_table
 
-static inline void PushSequence(input_translation_t *table, uint16_t Type, uint32_t *offset, void *stack) {
+static inline void PushSequence(input_translation_t *table, uint16_t Type, uint32_t *offset, void *stack, int pair_offset) {
 uint32_t i = table->number_of_sequences;
 uint32_t index = cache.lookup_info[Type].index;
 
@@ -627,6 +628,9 @@ uint32_t index = cache.lookup_info[Type].index;
 			table->sequence[i].stack = stack;
 			dbg_printf("Fill ");
 	} else {
+			// in case only on half of an extension is sent from the collector, make
+			// sure the right zero sequence is taken, where two length types exists
+			index += pair_offset;
 			table->sequence[i].id = v9_element_map[index].zero_sequence;
 			table->sequence[i].input_offset  = 0;
 			table->sequence[i].output_offset = *offset;
@@ -727,27 +731,27 @@ size_t				size_required;
 	offset = BYTE_OFFSET_first;
 	if ( cache.lookup_info[NF_F_FLOW_CREATE_TIME_MSEC].found ) {
 		uint32_t _tmp = 0;
-		PushSequence( table, NF_F_FLOW_CREATE_TIME_MSEC, &_tmp, &table->flow_start);
+		PushSequence( table, NF_F_FLOW_CREATE_TIME_MSEC, &_tmp, &table->flow_start, 0);
 		dbg_printf("Push NF_F_FLOW_CREATE_TIME_MSEC\n");
 	}
 	if ( cache.lookup_info[NF_F_FLOW_END_TIME_MSEC].found ) {
 		uint32_t _tmp = 0;
-		PushSequence( table, NF_F_FLOW_END_TIME_MSEC, &_tmp, &table->flow_end);
+		PushSequence( table, NF_F_FLOW_END_TIME_MSEC, &_tmp, &table->flow_end, 0);
 		dbg_printf("Push NF_F_FLOW_END_TIME_MSEC\n");
 	}
 
-	PushSequence( table, NF9_FIRST_SWITCHED, &offset, NULL);
+	PushSequence( table, NF9_FIRST_SWITCHED, &offset, NULL, 0);
 	offset = BYTE_OFFSET_first + 4;
-	PushSequence( table, NF9_LAST_SWITCHED, &offset, NULL);
+	PushSequence( table, NF9_LAST_SWITCHED, &offset, NULL, 0);
 	offset = BYTE_OFFSET_first + 8;
-	PushSequence( table, NF9_FORWARDING_STATUS, &offset, NULL);
+	PushSequence( table, NF9_FORWARDING_STATUS, &offset, NULL, 0);
 
-	PushSequence( table, NF9_TCP_FLAGS, &offset, NULL);
-	PushSequence( table, NF9_IN_PROTOCOL, &offset, NULL);
-	PushSequence( table, NF9_SRC_TOS, &offset, NULL);
+	PushSequence( table, NF9_TCP_FLAGS, &offset, NULL, 0);
+	PushSequence( table, NF9_IN_PROTOCOL, &offset, NULL, 0);
+	PushSequence( table, NF9_SRC_TOS, &offset, NULL, 0);
 
-	PushSequence( table, NF9_L4_SRC_PORT, &offset, NULL);
-	PushSequence( table, NF9_L4_DST_PORT, &offset, NULL);
+	PushSequence( table, NF9_L4_SRC_PORT, &offset, NULL, 0);
+	PushSequence( table, NF9_L4_DST_PORT, &offset, NULL, 0);
 
 	// skip exporter_sysid and reserved
 	offset += 4;
@@ -758,37 +762,37 @@ size_t				size_required;
 	 */
 	if ( cache.lookup_info[NF9_IPV4_SRC_ADDR].found ) {
 		// IPv4 addresses 
-		PushSequence( table, NF9_IPV4_SRC_ADDR, &offset, NULL);
-		PushSequence( table, NF9_IPV4_DST_ADDR, &offset, NULL);
+		PushSequence( table, NF9_IPV4_SRC_ADDR, &offset, NULL, 0);
+		PushSequence( table, NF9_IPV4_DST_ADDR, &offset, NULL, 0);
 	} else if ( cache.lookup_info[NF9_IPV6_SRC_ADDR].found ) {
 		// IPv6 addresses 
-		PushSequence( table, NF9_IPV6_SRC_ADDR, &offset, NULL);
-		PushSequence( table, NF9_IPV6_DST_ADDR, &offset, NULL);
+		PushSequence( table, NF9_IPV6_SRC_ADDR, &offset, NULL, 0);
+		PushSequence( table, NF9_IPV6_DST_ADDR, &offset, NULL, 0);
 		// mark IPv6 
 		SetFlag(table->flags, FLAG_IPV6_ADDR);
 		ipv6 = 1;
 	} else {
 		// should not happen, assume empty IPv4 addresses
-		PushSequence( table, NF9_IPV4_SRC_ADDR, &offset, NULL);
-		PushSequence( table, NF9_IPV4_DST_ADDR, &offset, NULL);
+		PushSequence( table, NF9_IPV4_SRC_ADDR, &offset, NULL, 0);
+		PushSequence( table, NF9_IPV4_DST_ADDR, &offset, NULL, 0);
 	}
 
 	/* packet counter
 	 * This record is expected in the output stream. If not available
 	 * in the template, assume empty 4 bytes value
 	 */
-	PushSequence( table, NF9_IN_PACKETS, &offset, &table->packets);
+	PushSequence( table, NF9_IN_PACKETS, &offset, &table->packets, 0);
 	// fix: always have 64bit counters due to possible sampling
 	SetFlag(table->flags, FLAG_PKG_64);
 
 	if ( cache.lookup_info[NF_F_FLOW_BYTES].found ) {
 		// NSEL ASA bytes
-		PushSequence( table, NF_F_FLOW_BYTES, &offset, &table->bytes);
+		PushSequence( table, NF_F_FLOW_BYTES, &offset, &table->bytes, 0);
 	} else if ( cache.lookup_info[NF_F_FWD_FLOW_DELTA_BYTES].found ) {
 		// NSEL ASA 8.4 bytes
-		PushSequence( table, NF_F_FWD_FLOW_DELTA_BYTES, &offset, &table->bytes);
+		PushSequence( table, NF_F_FWD_FLOW_DELTA_BYTES, &offset, &table->bytes, 0);
 	} else {
-		PushSequence( table, NF9_IN_BYTES, &offset, &table->bytes);
+		PushSequence( table, NF9_IN_BYTES, &offset, &table->bytes, 0);
 	}
 	// fix: always have 64bit counters due to possible sampling
 	SetFlag(table->flags, FLAG_BYTES_64);
@@ -810,97 +814,97 @@ size_t				size_required;
 
 		switch(i) {
 			case EX_IO_SNMP_2:
-				PushSequence( table, NF9_INPUT_SNMP, &offset, NULL);
-				PushSequence( table, NF9_OUTPUT_SNMP, &offset, NULL);
+				PushSequence( table, NF9_INPUT_SNMP, &offset, NULL, 0);
+				PushSequence( table, NF9_OUTPUT_SNMP, &offset, NULL, 0);
 				break;
 			case EX_IO_SNMP_4:
-				PushSequence( table, NF9_INPUT_SNMP, &offset, NULL);
-				PushSequence( table, NF9_OUTPUT_SNMP, &offset, NULL);
+				PushSequence( table, NF9_INPUT_SNMP, &offset, NULL, 1);
+				PushSequence( table, NF9_OUTPUT_SNMP, &offset, NULL, 1);
 				break;
 			case EX_AS_2:
-				PushSequence( table, NF9_SRC_AS, &offset, NULL);
-				PushSequence( table, NF9_DST_AS, &offset, NULL);
+				PushSequence( table, NF9_SRC_AS, &offset, NULL, 0);
+				PushSequence( table, NF9_DST_AS, &offset, NULL, 0);
 				break;
 			case EX_AS_4:
-				PushSequence( table, NF9_SRC_AS, &offset, NULL);
-				PushSequence( table, NF9_DST_AS, &offset, NULL);
+				PushSequence( table, NF9_SRC_AS, &offset, NULL, 1);
+				PushSequence( table, NF9_DST_AS, &offset, NULL, 1);
 				break;
 			case EX_MULIPLE:
-				PushSequence( table, NF9_DST_TOS, &offset, NULL);
-				PushSequence( table, NF9_DIRECTION, &offset, NULL);
+				PushSequence( table, NF9_DST_TOS, &offset, NULL, 0);
+				PushSequence( table, NF9_DIRECTION, &offset, NULL, 0);
 				if ( ipv6 ) {
 					// IPv6
-					PushSequence( table, NF9_IPV6_SRC_MASK, &offset, NULL);
-					PushSequence( table, NF9_IPV6_DST_MASK, &offset, NULL);
+					PushSequence( table, NF9_IPV6_SRC_MASK, &offset, NULL, 0);
+					PushSequence( table, NF9_IPV6_DST_MASK, &offset, NULL, 0);
 				} else {
 					// IPv4
-					PushSequence( table, NF9_SRC_MASK, &offset, NULL);
-					PushSequence( table, NF9_DST_MASK, &offset, NULL);
+					PushSequence( table, NF9_SRC_MASK, &offset, NULL, 0);
+					PushSequence( table, NF9_DST_MASK, &offset, NULL, 0);
 				}
 				break;
 			case EX_NEXT_HOP_v4:
-				PushSequence( table, NF9_V4_NEXT_HOP, &offset, NULL);
+				PushSequence( table, NF9_V4_NEXT_HOP, &offset, NULL, 0);
 				break;
 			case EX_NEXT_HOP_v6:
-				PushSequence( table, NF9_V6_NEXT_HOP, &offset, NULL);
+				PushSequence( table, NF9_V6_NEXT_HOP, &offset, NULL, 0);
 				SetFlag(table->flags, FLAG_IPV6_NH);
 				break;
 			case EX_NEXT_HOP_BGP_v4:
-				PushSequence( table, NF9_BGP_V4_NEXT_HOP, &offset, NULL);
+				PushSequence( table, NF9_BGP_V4_NEXT_HOP, &offset, NULL, 0);
 				break;
 			case EX_NEXT_HOP_BGP_v6:
-				PushSequence( table, NF9_BPG_V6_NEXT_HOP, &offset, NULL);
+				PushSequence( table, NF9_BPG_V6_NEXT_HOP, &offset, NULL, 0);
 				SetFlag(table->flags, FLAG_IPV6_NHB);
 				break;
 			case EX_VLAN:
-				PushSequence( table, NF9_SRC_VLAN, &offset, NULL);
-				PushSequence( table, NF9_DST_VLAN, &offset, NULL);
+				PushSequence( table, NF9_SRC_VLAN, &offset, NULL, 0);
+				PushSequence( table, NF9_DST_VLAN, &offset, NULL, 0);
 				break;
 			case EX_OUT_PKG_4:
-				PushSequence( table, NF9_OUT_PKTS, &offset, &table->out_packets);
+				PushSequence( table, NF9_OUT_PKTS, &offset, &table->out_packets, 0);
 				break;
 			case EX_OUT_PKG_8:
-				PushSequence( table, NF9_OUT_PKTS, &offset, &table->out_packets);
+				PushSequence( table, NF9_OUT_PKTS, &offset, &table->out_packets, 0);
 				break;
 			case EX_OUT_BYTES_4:
 				if ( cache.lookup_info[NF_F_REV_FLOW_DELTA_BYTES].found ) {
-					PushSequence( table, NF_F_REV_FLOW_DELTA_BYTES, &offset, &table->out_bytes);
+					PushSequence( table, NF_F_REV_FLOW_DELTA_BYTES, &offset, &table->out_bytes, 0);
 				} else {
-					PushSequence( table, NF9_OUT_BYTES, &offset, &table->out_bytes);
+					PushSequence( table, NF9_OUT_BYTES, &offset, &table->out_bytes, 0);
 				}
 				break;
 			case EX_OUT_BYTES_8:
 				if ( cache.lookup_info[NF_F_REV_FLOW_DELTA_BYTES].found ) {
-					PushSequence( table, NF_F_REV_FLOW_DELTA_BYTES, &offset, &table->out_bytes);
+					PushSequence( table, NF_F_REV_FLOW_DELTA_BYTES, &offset, &table->out_bytes, 0);
 				} else {
-					PushSequence( table, NF9_OUT_BYTES, &offset, &table->out_bytes);
+					PushSequence( table, NF9_OUT_BYTES, &offset, &table->out_bytes, 0);
 				}
 				break;
 			case EX_AGGR_FLOWS_4:
-				PushSequence( table, NF9_FLOWS_AGGR, &offset, NULL);
+				PushSequence( table, NF9_FLOWS_AGGR, &offset, NULL, 0);
 				break;
 			case EX_AGGR_FLOWS_8:
-				PushSequence( table, NF9_FLOWS_AGGR, &offset, NULL);
+				PushSequence( table, NF9_FLOWS_AGGR, &offset, NULL, 0);
 				break;
 			case EX_MAC_1:
-				PushSequence( table, NF9_IN_SRC_MAC, &offset, NULL);
-				PushSequence( table, NF9_OUT_DST_MAC, &offset, NULL);
+				PushSequence( table, NF9_IN_SRC_MAC, &offset, NULL, 0);
+				PushSequence( table, NF9_OUT_DST_MAC, &offset, NULL, 0);
 				break;
 			case EX_MAC_2:
-				PushSequence( table, NF9_IN_DST_MAC, &offset, NULL);
-				PushSequence( table, NF9_OUT_SRC_MAC, &offset, NULL);
+				PushSequence( table, NF9_IN_DST_MAC, &offset, NULL, 0);
+				PushSequence( table, NF9_OUT_SRC_MAC, &offset, NULL, 0);
 				break;
 			case EX_MPLS:
-				PushSequence( table, NF9_MPLS_LABEL_1, &offset, NULL);
-				PushSequence( table, NF9_MPLS_LABEL_2, &offset, NULL);
-				PushSequence( table, NF9_MPLS_LABEL_3, &offset, NULL);
-				PushSequence( table, NF9_MPLS_LABEL_4, &offset, NULL);
-				PushSequence( table, NF9_MPLS_LABEL_5, &offset, NULL);
-				PushSequence( table, NF9_MPLS_LABEL_6, &offset, NULL);
-				PushSequence( table, NF9_MPLS_LABEL_7, &offset, NULL);
-				PushSequence( table, NF9_MPLS_LABEL_8, &offset, NULL);
-				PushSequence( table, NF9_MPLS_LABEL_9, &offset, NULL);
-				PushSequence( table, NF9_MPLS_LABEL_10, &offset, NULL);
+				PushSequence( table, NF9_MPLS_LABEL_1, &offset, NULL, 0);
+				PushSequence( table, NF9_MPLS_LABEL_2, &offset, NULL, 0);
+				PushSequence( table, NF9_MPLS_LABEL_3, &offset, NULL, 0);
+				PushSequence( table, NF9_MPLS_LABEL_4, &offset, NULL, 0);
+				PushSequence( table, NF9_MPLS_LABEL_5, &offset, NULL, 0);
+				PushSequence( table, NF9_MPLS_LABEL_6, &offset, NULL, 0);
+				PushSequence( table, NF9_MPLS_LABEL_7, &offset, NULL, 0);
+				PushSequence( table, NF9_MPLS_LABEL_8, &offset, NULL, 0);
+				PushSequence( table, NF9_MPLS_LABEL_9, &offset, NULL, 0);
+				PushSequence( table, NF9_MPLS_LABEL_10, &offset, NULL, 0);
 				break;
 			case EX_ROUTER_IP_v4:
 			case EX_ROUTER_IP_v6:
@@ -927,8 +931,8 @@ size_t				size_required;
 				dbg_printf("Engine offset: %u\n", offset);
 				offset += 2;
 				dbg_printf("Skip 2 unused bytes. Next offset: %u\n", offset);
-				PushSequence( table, NF9_ENGINE_TYPE, &offset, NULL);
-				PushSequence( table, NF9_ENGINE_ID, &offset, NULL);
+				PushSequence( table, NF9_ENGINE_TYPE, &offset, NULL, 0);
+				PushSequence( table, NF9_ENGINE_ID, &offset, NULL, 0);
 				// unused fill element for 32bit alignment
 				break;
 			case EX_RECEIVED:
@@ -948,9 +952,9 @@ size_t				size_required;
 				table->number_of_sequences++;
 				dbg_printf("Zero latency at offset: %u\n", offset);
 
-				PushSequence( table, NF9_NPROBE_CLIENT_NW_DELAY_SEC, &offset, NULL);
+				PushSequence( table, NF9_NPROBE_CLIENT_NW_DELAY_SEC, &offset, NULL, 0);
 				offset -= 8;
-				PushSequence( table, NF9_NPROBE_CLIENT_NW_DELAY_USEC, &offset, NULL);
+				PushSequence( table, NF9_NPROBE_CLIENT_NW_DELAY_USEC, &offset, NULL, 0);
 
 				table->sequence[i].id = zero64;
 				table->sequence[i].input_offset  = 0;
@@ -959,9 +963,9 @@ size_t				size_required;
 				table->number_of_sequences++;
 				dbg_printf("Zero latency at offset: %u\n", offset);
 
-				PushSequence( table, NF9_NPROBE_SERVER_NW_DELAY_SEC, &offset, NULL);
+				PushSequence( table, NF9_NPROBE_SERVER_NW_DELAY_SEC, &offset, NULL, 0);
 				offset -= 8;
-				PushSequence( table, NF9_NPROBE_SERVER_NW_DELAY_USEC, &offset, NULL);
+				PushSequence( table, NF9_NPROBE_SERVER_NW_DELAY_USEC, &offset, NULL, 0);
 
 				table->sequence[i].id = zero64;
 				table->sequence[i].input_offset  = 0;
@@ -970,83 +974,83 @@ size_t				size_required;
 				table->number_of_sequences++;
 				dbg_printf("Zero latency at offset: %u\n", offset);
 
-				PushSequence( table, NF9_NPROBE_APPL_LATENCY_SEC, &offset, NULL);
+				PushSequence( table, NF9_NPROBE_APPL_LATENCY_SEC, &offset, NULL, 0);
 				offset -= 8;
-				PushSequence( table, NF9_NPROBE_APPL_LATENCY_USEC, &offset, NULL);
+				PushSequence( table, NF9_NPROBE_APPL_LATENCY_USEC, &offset, NULL, 0);
 
 				} break;
 			case EX_BGPADJ:
-				PushSequence( table, NF9_BGP_ADJ_NEXT_AS, &offset, NULL);
-				PushSequence( table, NF9_BGP_ADJ_PREV_AS, &offset, NULL);
+				PushSequence( table, NF9_BGP_ADJ_NEXT_AS, &offset, NULL, 0);
+				PushSequence( table, NF9_BGP_ADJ_PREV_AS, &offset, NULL, 0);
 				break;
 			case EX_NSEL_COMMON:
-				PushSequence( table, NF_F_EVENT_TIME_MSEC, &offset, &table->EventTimeMsec);
-				PushSequence( table, NF_F_CONN_ID, &offset, NULL);
+				PushSequence( table, NF_F_EVENT_TIME_MSEC, &offset, &table->EventTimeMsec, 0);
+				PushSequence( table, NF_F_CONN_ID, &offset, NULL, 0);
 				if ( ipv6 ) {
 #ifdef WORDS_BIGENDIAN
-					PushSequence( table, NF_F_ICMP_TYPE_IPV6, &offset, NULL);
-					PushSequence( table, NF_F_ICMP_CODE_IPV6, &offset, NULL);
+					PushSequence( table, NF_F_ICMP_TYPE_IPV6, &offset, NULL, 0);
+					PushSequence( table, NF_F_ICMP_CODE_IPV6, &offset, NULL, 0);
 #else
-					PushSequence( table, NF_F_ICMP_CODE_IPV6, &offset, NULL);
-					PushSequence( table, NF_F_ICMP_TYPE_IPV6, &offset, NULL);
+					PushSequence( table, NF_F_ICMP_CODE_IPV6, &offset, NULL, 0);
+					PushSequence( table, NF_F_ICMP_TYPE_IPV6, &offset, NULL, 0);
 #endif
 				} else {
 #ifdef WORDS_BIGENDIAN
-					PushSequence( table, NF_F_ICMP_TYPE, &offset, NULL);
-					PushSequence( table, NF_F_ICMP_CODE, &offset, NULL);
+					PushSequence( table, NF_F_ICMP_TYPE, &offset, NULL, 0);
+					PushSequence( table, NF_F_ICMP_CODE, &offset, NULL, 0);
 #else
-					PushSequence( table, NF_F_ICMP_CODE, &offset, NULL);
-					PushSequence( table, NF_F_ICMP_TYPE, &offset, NULL);
+					PushSequence( table, NF_F_ICMP_CODE, &offset, NULL, 0);
+					PushSequence( table, NF_F_ICMP_TYPE, &offset, NULL, 0);
 #endif
 				}
 				cache.lookup_info[NF_F_FW_EVENT_84].found ?
-					PushSequence( table, NF_F_FW_EVENT_84, &offset, NULL) :
-					PushSequence( table, NF_F_FW_EVENT, &offset, NULL);
+					PushSequence( table, NF_F_FW_EVENT_84, &offset, NULL, 0) :
+					PushSequence( table, NF_F_FW_EVENT, &offset, NULL, 0);
 				offset += 1;
-				PushSequence( table, NF_F_FW_EXT_EVENT, &offset, NULL);
+				PushSequence( table, NF_F_FW_EXT_EVENT, &offset, NULL, 0);
 				offset += 2;
 				break;
 			case EX_NSEL_XLATE_PORTS:
 				if ( cache.lookup_info[NF_F_XLATE_SRC_ADDR_84].found ) {
-					PushSequence( table, NF_F_XLATE_SRC_PORT_84, &offset, NULL);
-					PushSequence( table, NF_F_XLATE_DST_PORT_84, &offset, NULL);
+					PushSequence( table, NF_F_XLATE_SRC_PORT_84, &offset, NULL, 0);
+					PushSequence( table, NF_F_XLATE_DST_PORT_84, &offset, NULL, 0);
 				} else {
-					PushSequence( table, NF_F_XLATE_SRC_PORT, &offset, NULL);
-					PushSequence( table, NF_F_XLATE_DST_PORT, &offset, NULL);
+					PushSequence( table, NF_F_XLATE_SRC_PORT, &offset, NULL, 0);
+					PushSequence( table, NF_F_XLATE_DST_PORT, &offset, NULL, 0);
 				}
 				break;
 			case EX_NSEL_XLATE_IP_v4:
 				if ( cache.lookup_info[NF_F_XLATE_SRC_ADDR_84].found ) {
-					PushSequence( table, NF_F_XLATE_SRC_ADDR_84, &offset, NULL);
-					PushSequence( table, NF_F_XLATE_DST_ADDR_84, &offset, NULL);
+					PushSequence( table, NF_F_XLATE_SRC_ADDR_84, &offset, NULL, 0);
+					PushSequence( table, NF_F_XLATE_DST_ADDR_84, &offset, NULL, 0);
 				} else {
-					PushSequence( table, NF_F_XLATE_SRC_ADDR_IPV4, &offset, NULL);
-					PushSequence( table, NF_F_XLATE_DST_ADDR_IPV4, &offset, NULL);
+					PushSequence( table, NF_F_XLATE_SRC_ADDR_IPV4, &offset, NULL, 0);
+					PushSequence( table, NF_F_XLATE_DST_ADDR_IPV4, &offset, NULL, 0);
 				}
 				break;
 			case EX_NSEL_XLATE_IP_v6:
-				PushSequence( table, NF_F_XLATE_SRC_ADDR_IPV6, &offset, NULL);
-				PushSequence( table, NF_F_XLATE_DST_ADDR_IPV6, &offset, NULL);
+				PushSequence( table, NF_F_XLATE_SRC_ADDR_IPV6, &offset, NULL, 0);
+				PushSequence( table, NF_F_XLATE_DST_ADDR_IPV6, &offset, NULL, 0);
 				break;
 			case EX_NSEL_ACL:
-				PushSequence( table, NF_F_INGRESS_ACL_ID, &offset, NULL);
-				PushSequence( table, NF_F_EGRESS_ACL_ID, &offset, NULL);
+				PushSequence( table, NF_F_INGRESS_ACL_ID, &offset, NULL, 0);
+				PushSequence( table, NF_F_EGRESS_ACL_ID, &offset, NULL, 0);
 				break;
 			case EX_NSEL_USER:
 			case EX_NSEL_USER_MAX:
-				PushSequence( table, NF_F_USERNAME, &offset, NULL);
+				PushSequence( table, NF_F_USERNAME, &offset, NULL, 0);
 				break;
 			case EX_NEL_COMMON:
-				PushSequence( table, NF_N_NAT_EVENT, &offset, NULL);
+				PushSequence( table, NF_N_NAT_EVENT, &offset, NULL, 0);
 				offset += 3;
-				PushSequence( table, NF_N_EGRESS_VRFID, &offset, NULL);
-				PushSequence( table, NF_N_INGRESS_VRFID, &offset, NULL);
+				PushSequence( table, NF_N_EGRESS_VRFID, &offset, NULL, 0);
+				PushSequence( table, NF_N_INGRESS_VRFID, &offset, NULL, 0);
 				break;
 			case EX_PORT_BLOCK_ALLOC:
-				PushSequence( table, NF_F_XLATE_PORT_BLOCK_START, &offset, NULL);
-				PushSequence( table, NF_F_XLATE_PORT_BLOCK_END, &offset, NULL);
-				PushSequence( table, NF_F_XLATE_PORT_BLOCK_STEP, &offset, NULL);
-				PushSequence( table, NF_F_XLATE_PORT_BLOCK_SIZE, &offset, NULL);
+				PushSequence( table, NF_F_XLATE_PORT_BLOCK_START, &offset, NULL, 0);
+				PushSequence( table, NF_F_XLATE_PORT_BLOCK_END, &offset, NULL, 0);
+				PushSequence( table, NF_F_XLATE_PORT_BLOCK_STEP, &offset, NULL, 0);
+				PushSequence( table, NF_F_XLATE_PORT_BLOCK_SIZE, &offset, NULL, 0);
 				break;
 			case EX_NEL_GLOBAL_IP_v4:
 				// XXX no longer used
@@ -1085,20 +1089,20 @@ size_t				size_required;
 
 	/* Sampler ID */
 	if ( cache.lookup_info[NF9_FLOW_SAMPLER_ID].found ) {
-		if ( cache.lookup_info[NF9_FLOW_SAMPLER_ID].length == 1 ) {
-			table->sampler_offset = cache.lookup_info[NF9_FLOW_SAMPLER_ID].offset;
-			table->sampler_size = 1;
-			dbg_printf("1 byte Sampling ID included at offset %u\n", table->sampler_offset);
-		} else if ( cache.lookup_info[NF9_FLOW_SAMPLER_ID].length == 2 ) {
-			table->sampler_offset = cache.lookup_info[NF9_FLOW_SAMPLER_ID].offset;
-			table->sampler_size = 2;
-			dbg_printf("2 byte Sampling ID included at offset %u\n", table->sampler_offset);
-		}  else {
-			syslog(LOG_ERR, "Process_v9: Unexpected SAMPLER ID field length: %d", 
-				cache.lookup_info[NF9_FLOW_SAMPLER_ID].length);
-			dbg_printf("Unexpected SAMPLER ID field length: %d", 
-				cache.lookup_info[NF9_FLOW_SAMPLER_ID].length);
-
+		uint32_t length = cache.lookup_info[NF9_FLOW_SAMPLER_ID].length;
+		switch (length) {
+			case 1:
+			case 2:
+			case 4:
+				table->sampler_offset = cache.lookup_info[NF9_FLOW_SAMPLER_ID].offset;
+				table->sampler_size = length;
+				dbg_printf("%d byte Sampling ID included at offset %u\n", length, table->sampler_offset);
+				break;
+			default:
+				syslog(LOG_ERR, "Process_v9: Unexpected SAMPLER ID field length: %d", 
+					cache.lookup_info[NF9_FLOW_SAMPLER_ID].length);
+				dbg_printf("Unexpected SAMPLER ID field length: %d", 
+					cache.lookup_info[NF9_FLOW_SAMPLER_ID].length);
 		}
 	} else {
 		dbg_printf("No Sampling ID found\n");
@@ -1433,7 +1437,9 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 				break;
 			case NF9_FLOW_SAMPLER_RANDOM_INTERVAL:
 				offset_sampler_interval = offset;
+				offset_std_sampler_interval = offset;
 				found_sampler++;
+				found_std_sampling++;
 				break;
 		}
 		offset += length;
@@ -1997,7 +2003,7 @@ uint8_t		*in;
 		InsertSampler(fs, exporter, id, mode, interval);
 
 		dbg_printf("Extracted Std Sampler data:\n");
-		dbg_printf("Sampler ID       : %u\n", id);
+		dbg_printf("Sampler ID       : %i\n", id);
 		dbg_printf("Sampler algorithm: %u\n", mode);
 		dbg_printf("Sampler interval : %u\n", interval);
 

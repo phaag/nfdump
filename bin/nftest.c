@@ -137,10 +137,11 @@ nffile_t	*nffile_w, *nffile_r;
 int i, compress, bsize;
 ssize_t	ret;
 char outfile[MAXPATHLEN];
-struct timeval  	tstart[2];
-struct timeval  	tend[2];
+struct timeval  	tstart[3];
+struct timeval  	tend[3];
 u_long usec, sec;
-double wall[2];
+double wall[3];
+uint32_t recsize[3];
 
 	nffile_r = OpenFile(filename, NULL);
 	if ( !nffile_r ) {
@@ -161,7 +162,8 @@ double wall[2];
 	nffile_w = NULL;
 
 	bsize = nffile_r->block_header->size;
-	for ( compress=0; compress<=1; compress++ ) {
+	for ( compress=0; compress<=2; compress++ ) {
+		int wsize;
 		nffile_w = OpenNewFile(outfile, nffile_w, compress, 0, NULL);
 		if ( !nffile_w ) {
 			DisposeFile(nffile_r);
@@ -171,7 +173,8 @@ double wall[2];
 		gettimeofday(&(tstart[compress]), (struct timezone*)NULL);
 		for ( i=0; i<100; i++ ) {
 			nffile_w->block_header->size = bsize;
-			if ( WriteExtraBlock(nffile_w, nffile_r->block_header) <= 0 ) {
+			wsize = WriteExtraBlock(nffile_w, nffile_r->block_header);
+			if ( wsize <= 0 ) {
 				fprintf(stderr, "Failed to write output buffer to disk: '%s'" , strerror(errno));
 				// Cleanup
 				CloseFile(nffile_w);
@@ -194,21 +197,17 @@ double wall[2];
 		sec  = tend[compress].tv_sec - tstart[compress].tv_sec;
 
 		wall[compress] = (double)sec + ((double)usec)/1000000;
+		recsize[compress] = wsize;
 	}
 
 	DisposeFile(nffile_r);
 	DisposeFile(nffile_w);
 
 	printf("100 write cycles, with size %u bytes\n", bsize);
-	printf("Uncompressed write time: %-.6fs size: %u\n", wall[0], bsize);
-	printf("Compressed write time  : %-.6fs size: %d\n", wall[1], (int32_t)ret);
-	printf("Ratio                  : 1:%-.3f\n", (double)ret/(double)bsize);
+	printf("Uncompressed write time: %-.6fs size: %u, 1:%-.3f\n", wall[0], recsize[0], (double)recsize[0]/(double)bsize );
+	printf("LZO compressed write time  : %-.6fs size: %d, 1:%-.3f\n", wall[1], (int32_t)recsize[1], (double)recsize[1]/(double)bsize );
+	printf("BZ2 compressed write time  : %-.6fs size: %d, 1:%-.3f\n", wall[2], (int32_t)recsize[2], (double)recsize[2]/(double)bsize );
 
-	if ( wall[0] < wall[1] )
-		printf("You should run nfcapd without compression\n");
-	else
-		printf("You can run nfcapd with compression (-z)\n");
-	
 } // End of CheckCompression
 
 int main(int argc, char **argv) {

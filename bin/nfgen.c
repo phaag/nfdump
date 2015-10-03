@@ -232,7 +232,7 @@ nffile_t			*nffile;
 	}
 	memset((void *)&record, 0, sizeof(record));
 
-	nffile = OpenNewFile("-", NULL, 0, 0, NULL);
+	nffile = OpenNewFile("-", NULL, NOT_COMPRESSED, 0, NULL);
 	if ( !nffile ) {
 		exit(255);
 	}

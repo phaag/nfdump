@@ -235,7 +235,6 @@ int	v1_map_done = 0;
 		flow_record = nffile->buff_ptr;
 		for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
 			switch ( flow_record->type ) { 
-					case CommonRecordV0Type:
 					case CommonRecordType: {
 					generic_exporter_t *exp_info = exporter_list[flow_record->exporter_sysid];
 					uint32_t map_id = flow_record->ext_map;
@@ -540,7 +539,7 @@ time_t tslot;
 	tslot 			= 0;
 	syntax_only	    = 0;
 	do_xstat	    = 0;
-	compress		= 0;
+	compress		= NOT_COMPRESSED;
 	subdir_index	= 0;
 	profile_list	= NULL;
 	nameserver		= NULL;
@@ -553,7 +552,7 @@ time_t tslot;
 	// default file names
 	ffile = "filter.txt";
 	rfile = NULL;
-	while ((c = getopt(argc, argv, "D:HIL:p:P:hf:r:n:M:S:t:VzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "D:HIL:p:P:hf:J;r:n:M:S:t:VzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -603,8 +602,19 @@ time_t tslot;
 			case 'r':
 				rfile = optarg;
 				break;
+			case 'j':
+				if ( compress ) {
+					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					exit(255);
+				}
+				compress = BZ2_COMPRESSED;
+				break;
 			case 'z':
-				compress = 1;
+				if ( compress ) {
+					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					exit(255);
+				}
+				compress = LZO_COMPRESSED;
 				break;
 			default:
 				usage(argv[0]);

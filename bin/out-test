@@ -1,0 +1,2532 @@
++ set -e
++ TZ=MET
++ export TZ
++ ./nfgen
++ ./nfdump -q -o raw
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv6 32bit packets 32bit bytes
+IPv6 32bit packets 32bit bytes
+IPv6 32bit packets 64bit bytes
+IPv6 64bit packets 32bit bytes
+IPv6 64bit packets 64bit bytes
+IPv4 32bit packets 64bit bytes
+IPv4 64bit packets 32bit bytes
+IPv4 64bit packets 64bit bytes
+4 bytes interfaces, 2 bytes AS numbers 24 25
+2 bytes interfaces, 4 bytes AS numbers 25 27
+4 bytes interfaces, 4 bytes AS numbers 26 29
++ diff -u test1.out nfdump.test.out
++ ./nfgen
++ ./nfdump -z -q -w test.flows
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv6 32bit packets 32bit bytes
+IPv6 32bit packets 32bit bytes
+IPv6 32bit packets 64bit bytes
+IPv6 64bit packets 32bit bytes
+IPv6 64bit packets 64bit bytes
+IPv4 32bit packets 64bit bytes
+IPv4 64bit packets 32bit bytes
+IPv4 64bit packets 64bit bytes
+4 bytes interfaces, 2 bytes AS numbers 24 25
+2 bytes interfaces, 4 bytes AS numbers 25 27
+4 bytes interfaces, 4 bytes AS numbers 26 29
++ ./nfdump -q -r test.flows -o raw
++ diff -u test2.out nfdump.test.out
++ ./nfdump -q -r test.flows -O tstart -o raw
++ diff -u test3.out nfdump.test.out
++ ./nfdump -r test.flows -O tstart -z -w test2.flows
++ ./nfdump -q -r test2.flows -o raw
++ diff -u test4.out nfdump.test.out
++ rm -f test.flows test2.out
++ ./nfgen
++ ./nfdump -q -w test.flows
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv4 32bit packets 32bit bytes
+IPv6 32bit packets 32bit bytes
+IPv6 32bit packets 32bit bytes
+IPv6 32bit packets 64bit bytes
+IPv6 64bit packets 32bit bytes
+IPv6 64bit packets 64bit bytes
+IPv4 32bit packets 64bit bytes
+IPv4 64bit packets 32bit bytes
+IPv4 64bit packets 64bit bytes
+4 bytes interfaces, 2 bytes AS numbers 24 25
+2 bytes interfaces, 4 bytes AS numbers 25 27
+4 bytes interfaces, 4 bytes AS numbers 26 29
++ ./nfdump -q -r test.flows -o raw
++ diff -u test2.out nfdump.test.out
++ rm -r test1.out test2.out
++ '[' -d tmp ']'
++ rm -f tmp/nfcapd.201402160855
++ rmdir tmp
++ mkdir tmp
++ echo
+
++ echo -n Starting nfcapd ...
+-n Starting nfcapd ...
++ ./nfcapd -p 65530 -T '*' -l tmp -D -P tmp/pidfile
++ sleep 1
++ echo done.
+done.
++ echo -n Replay flows ...
+-n Replay flows ...
++ ./nfreplay -r test.flows -v9 -H 127.0.0.1 -p 65530
++ echo done.
+done.
++ sleep 1
++ echo -n Terminate nfcapd ...
+-n Terminate nfcapd ...
+++ cat tmp/pidfile
++ kill -TERM 50085
++ sleep 1
++ echo done.
+done.
++ '[' -f tmp/pidfile ']'
++ ./nfdump -r tmp/nfcapd.201402160855 -q -o raw
++ grep -v 'received at'
++ diff test5.out nfdump.test.out
++ true
++ diff test5.diff nfdump.test.diff
+1c1
+< 3,5c3,5
+---
+> 3c3
+3,4d2
+< <   export sysid =               322
+< <   size         =               192
+7,91c5
+< >   export sysid =                 1
+< >   size         =               172
+< 10,11c10,11
+< <   src addr     =   192.168.170.100
+< <   dst addr     =         0.0.0.202
+< ---
+< >   src addr     =       172.16.1.66
+< >   dst addr     =   192.168.170.100
+< 18,53c18,53
+< <   (in)packets  =        1301375090688
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =               202
+< >   (in)bytes    =               303
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 57,59c57,59
+< <   Flags        =              0x06 FLOW, Unsampled
+< <   export sysid =               578
+---
+> 5c5
+94,177c8,9
+< >   Flags        =              0x00 FLOW, Unsampled
+< >   export sysid =                 1
+< >   size         =               172
+< 64,65c64,65
+< <   src addr     =   192.168.170.101
+< <   dst addr     =         0.0.0.202
+< ---
+< >   src addr     =       172.16.2.66
+< >   dst addr     =   192.168.170.101
+< 72,107c72,107
+< <   (in)packets  =        1301375090688
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =               202
+< >   (in)bytes    =               303
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 111,113c111,113
+---
+> >   size         =               168
+> 57c57
+179,180d10
+< <   export sysid =               578
+< <   size         =               192
+183,267c13
+< >   export sysid =                 1
+< >   size         =               172
+< 118,119c118,119
+< <   src addr     =   192.168.170.101
+< <   dst addr     =         0.0.0.101
+< ---
+< >   src addr     =       172.16.2.66
+< >   dst addr     =   192.168.170.101
+< 126,161c126,161
+< <   (in)packets  =        438086664192
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =               101
+< >   (in)bytes    =               102
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 165,167c165,167
+< <   Flags        =              0x06 FLOW, Unsampled
+< <   export sysid =               834
+---
+> 59c59
+270,353c16,17
+< >   Flags        =              0x00 FLOW, Unsampled
+< >   export sysid =                 1
+< >   size         =               172
+< 172,173c172,173
+< <   src addr     =   192.168.170.102
+< <   dst addr     =         0.0.0.101
+< ---
+< >   src addr     =       172.16.3.66
+< >   dst addr     =   192.168.170.102
+< 180,215c180,215
+< <   (in)packets  =        438086664192
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =               101
+< >   (in)bytes    =               102
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 219,221c219,221
+---
+> >   size         =               168
+> 111c111
+355,356d18
+< <   export sysid =              1090
+< <   size         =               192
+359,443c21
+< >   export sysid =                 1
+< >   size         =               172
+< 226,227c226,227
+< <   src addr     =   192.168.170.103
+< <   dst addr     =         0.0.3.233
+< ---
+< >   src addr     =       172.16.4.66
+< >   dst addr     =   192.168.170.103
+< 234,269c234,269
+< <   (in)packets  =        4303557230592
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =              1001
+< >   (in)bytes    =              1002
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 273,275c273,275
+< <   Flags        =              0x06 FLOW, Unsampled
+< <   export sysid =              1346
+---
+> 113c113
+446,529c24,25
+< >   Flags        =              0x00 FLOW, Unsampled
+< >   export sysid =                 1
+< >   size         =               172
+< 280,281c280,281
+< <   src addr     =   192.168.170.104
+< <   dst addr     =         0.0.39.17
+< ---
+< >   src addr     =       172.16.5.66
+< >   dst addr     =   192.168.170.104
+< 288,323c288,323
+< <   (in)packets  =        42958262894592
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =             10001
+< >   (in)bytes    =             10002
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 327,329c327,329
+---
+> >   size         =               168
+> 165c165
+531,532d26
+< <   export sysid =              1602
+< <   size         =               192
+535,619c29
+< >   export sysid =                 1
+< >   size         =               172
+< 334,335c334,335
+< <   src addr     =   192.168.170.105
+< <   dst addr     =       0.1.134.161
+< ---
+< >   src addr     =       172.16.6.66
+< >   dst addr     =   192.168.170.105
+< 342,377c342,377
+< <   (in)packets  =        429505319534592
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =            100001
+< >   (in)bytes    =            100002
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 381,383c381,383
+< <   Flags        =              0x06 FLOW, Unsampled
+< <   export sysid =              1858
+---
+> 167c167
+622,705c32,33
+< >   Flags        =              0x00 FLOW, Unsampled
+< >   export sysid =                 1
+< >   size         =               172
+< 388,389c388,389
+< <   src addr     =   192.168.170.106
+< <   dst addr     =        0.15.66.65
+< ---
+< >   src addr     =       172.16.7.66
+< >   dst addr     =   192.168.170.106
+< 396,431c396,431
+< <   (in)packets  =        4294975885934592
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =           1000001
+< >   (in)bytes    =           1000002
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 435,437c435,437
+---
+> >   size         =               168
+> 219c219
+707,708d34
+< <   export sysid =              2114
+< <   size         =               192
+711,795c37
+< >   export sysid =                 1
+< >   size         =               172
+< 442,443c442,443
+< <   src addr     =   192.168.170.107
+< <   dst addr     =     0.152.150.129
+< ---
+< >   src addr     =       172.16.8.66
+< >   dst addr     =   192.168.170.107
+< 450,485c450,485
+< <   (in)packets  =        4299262263296
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =          10000001
+< >   (in)bytes    =              1001
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 489,491c489,491
+< <   Flags        =              0x06 FLOW, Unsampled
+< <   export sysid =              2370
+---
+> 221c221
+798,881c40,41
+< >   Flags        =              0x00 FLOW, Unsampled
+< >   export sysid =                 1
+< >   size         =               172
+< 496,497c496,497
+< <   src addr     =   192.168.170.108
+< <   dst addr     =         0.0.1.244
+< ---
+< >   src addr     =       172.16.9.66
+< >   dst addr     =   192.168.170.108
+< 504,539c504,539
+< <   (in)packets  =        42949677254967296
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =               500
+< >   (in)bytes    =          10000001
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 543,545c543,545
+---
+> >   size         =               168
+> 273c273
+883c43,45
+< <   export sysid =              2626
+---
+> ---
+> >   Flags        =              0x00 FLOW, Unsampled
+> 275c275
+885a48,51
+> >   size         =               168
+> 327c327
+> <   Flags        =              0x06 FLOW, Unsampled
+> ---
+887,969c53,57
+< >   export sysid =                 1
+< >   size         =               172
+< 550,551c550,551
+< <   src addr     =   192.168.170.109
+< <   dst addr     =         0.0.1.244
+< ---
+< >   src addr     =      172.16.10.66
+< >   dst addr     =   192.168.170.109
+< 558,593c558,593
+< <   (in)packets  =        42949677254967296
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =               500
+< >   (in)bytes    =          10000001
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 597,599c597,599
+---
+> 329c329
+> <   size         =               192
+> ---
+> >   size         =               168
+> 381c381
+971c59,61
+< <   export sysid =              2882
+---
+> ---
+> >   Flags        =              0x00 FLOW, Unsampled
+> 383c383
+973a64,67
+> >   size         =               168
+> 435c435
+> <   Flags        =              0x06 FLOW, Unsampled
+> ---
+975,1057c69,73
+< >   export sysid =                 1
+< >   size         =               172
+< 604,605c604,605
+< <   src addr     =   192.168.170.110
+< <   dst addr     =        0.0.19.136
+< ---
+< >   src addr     =      172.16.11.66
+< >   dst addr     =   192.168.170.110
+< 612,647c612,647
+< <   (in)packets  =        429496733894967296
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =              5000
+< >   (in)bytes    =         100000001
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 651,653c651,653
+---
+> 437c437
+> <   size         =               192
+> ---
+> >   size         =               168
+> 489c489
+1059c75,77
+< <   export sysid =              3138
+---
+> ---
+> >   Flags        =              0x00 FLOW, Unsampled
+> 491c491
+1061a80,83
+> >   size         =               168
+> 543c543
+> <   Flags        =              0x06 FLOW, Unsampled
+> ---
+1063,1145c85,89
+< >   export sysid =                 1
+< >   size         =               172
+< 658,659c658,659
+< <   src addr     =   192.168.170.111
+< <   dst addr     =        0.0.19.136
+< ---
+< >   src addr     =      172.16.12.66
+< >   dst addr     =   192.168.170.111
+< 666,701c666,701
+< <   (in)packets  =        4294967300294967296
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =              5000
+< >   (in)bytes    =        1000000001
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 705,707c705,707
+---
+> 545c545
+> <   size         =               192
+> ---
+> >   size         =               168
+> 597c597
+1147c91,93
+< <   export sysid =              3394
+---
+> ---
+> >   Flags        =              0x00 FLOW, Unsampled
+> 599c599
+1149a96,99
+> >   size         =               168
+> 651c651
+> <   Flags        =              0x06 FLOW, Unsampled
+> ---
+1151,1233c101,105
+< >   export sysid =                 1
+< >   size         =               172
+< 712,713c712,713
+< <   src addr     =   192.168.170.112
+< <   dst addr     =        0.0.195.82
+< ---
+< >   src addr     =      172.16.13.66
+< >   dst addr     =   192.168.170.112
+< 719,754c719,754
+< <   (in)packets  =        214748364800000
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =             50002
+< >   (in)bytes    =             50000
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 758,760c758,760
+---
+> 653c653
+> <   size         =               192
+> ---
+> >   size         =               168
+> 705c705
+1235c107,109
+< <   export sysid =             41126
+---
+> ---
+> >   Flags        =              0x00 FLOW, Unsampled
+> 707c707
+1237a112,115
+> >   size         =               168
+> 758c758
+> <   Flags        =              0x06 FLOW, Unsampled
+> ---
+1239,1321c117,121
+< >   export sysid =                 1
+< >   size         =               172
+< 765,766c765,766
+< <   src addr     =   172.160.160.180
+< <   dst addr     =        0.7.161.33
+< ---
+< >   src addr     =   172.160.160.166
+< >   dst addr     =   172.160.160.180
+< 773,808c773,808
+< <   (in)packets  =        2147483648000000
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 172.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =            500001
+< >   (in)bytes    =            500000
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.160.0.0/16
+< >   dst mask     =                24 172.160.160.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 812,814c812,814
+---
+> 760c760
+> <   size         =               192
+> ---
+> >   size         =               168
+> 812c812
+1323,1324d122
+< <   export sysid =                 0
+< <   size         =               216
+1327,1411c125
+< >   export sysid =                 1
+< >   size         =               196
+< 819,820c819,820
+< <   src addr     =  1234:0:..10:abcd
+< <   dst addr     =  1235:43..10:abcd
+< ---
+< >   src addr     =  fe80::2..:1234:0
+< >   dst addr     =  fe80::2..35:4321
+< 827,862c827,862
+< <   (in)packets  =        64854006169600
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 1234:0:fe80::/72
+< <   dst mask     =               172 1235:43..:2110:0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =                10
+< >   (in)bytes    =             15100
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 fe80::/16
+< >   dst mask     =                24 fe80::/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 866,868c866,868
+< <   Flags        =              0x07 FLOW, Unsampled
+< <   export sysid =                 0
+---
+> 814c814
+1414,1497c128,129
+< >   Flags        =              0x01 FLOW, Unsampled
+< >   export sysid =                 1
+< >   size         =               196
+< 873,874c873,874
+< <   src addr     =  fe80:d0..11:24ff
+< <   dst addr     =  fe52:38..03:baff
+< ---
+< >   src addr     =  2001:23..80:d01e
+< >   dst addr     =  2001:62..52:38e5
+< 881,916c881,916
+< <   (in)packets  =        64424509440000000
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 fe80:d0..1:234::/72
+< <   dst mask     =               172 fe52:38..4:200:0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =             10100
+< >   (in)bytes    =          15000000
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 2001:234:aabb::/16
+< >   dst mask     =                24 2001:620:0:8::/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 920,922c920,922
+---
+> >   size         =               192
+> 866c866
+1499c131,133
+< <   export sysid =                 0
+---
+> ---
+> >   Flags        =              0x01 FLOW, Unsampled
+> 868c868
+1502,1585c136,137
+< >   Flags        =              0x05 FLOW, Unsampled
+< >   export sysid =                 1
+< >   size         =               200
+< 927,928c927,928
+< <   src addr     =  fe80:d0..11:24ff
+< <   dst addr     =  fe52:38..03:baff
+< ---
+< >   src addr     =  2001:23..80:d01e
+< >   dst addr     =  2001:62..52:38e5
+< 935,970c935,970
+< <   (in)packets  =                 0
+< <   (in)bytes    =        3940701213556737
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 fe80:d0..1:234::/72
+< <   dst mask     =               172 fe52:38..0:200::/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =          10100000
+< >   (in)bytes    =        4294967296
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 2001:234:aabb::/16
+< >   dst mask     =                24 2001:620:0:8::/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 974,976c974,976
+---
+> >   size         =               192
+> 920c920
+1587c139,141
+< <   export sysid =                 0
+---
+> ---
+> >   Flags        =              0x05 FLOW, Unsampled
+> 922c922
+1589a144,147
+> >   size         =               196
+> 974c974
+> <   Flags        =              0x07 FLOW, Unsampled
+> ---
+1591,1674c149,153
+< >   export sysid =                 1
+< >   size         =               200
+< 981,982c981,982
+< <   src addr     =  fe80:d0..11:24ff
+< <   dst addr     =  fe52:38..03:baff
+< ---
+< >   src addr     =  2001:23..80:d01e
+< >   dst addr     =  2001:62..52:38e5
+< 989,1024c989,1024
+< <   (in)packets  =        64424509440000001
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 fe80:d0..1:234::/72
+< <   dst mask     =               172 fe52:38..::200:0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =        4294967296
+< >   (in)bytes    =          15000000
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 2001:234:aabb::/16
+< >   dst mask     =                24 2001:620:0:8::/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 1029,1030c1029,1030
+< <   export sysid =                 0
+---
+> 976c976
+> <   size         =               216
+> ---
+> >   size         =               196
+> 1030c1030
+1677,1759c156,157
+< >   export sysid =                 1
+< >   size         =               204
+< 1035,1036c1035,1036
+< <   src addr     =  fe80:d0..11:24ff
+< <   dst addr     =  fe52:38..03:baff
+< ---
+< >   src addr     =  2001:23..80:d01e
+< >   dst addr     =  2001:62..52:38e5
+< 1043,1078c1043,1078
+< <   (in)packets  =                 1
+< <   (in)bytes    =        3940701213556738
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 fe80:d0..1:234::/72
+< <   dst mask     =               172 fe52:38..::200:0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =        4294967296
+< >   (in)bytes    =        8589934592
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 2001:234:aabb::/16
+< >   dst mask     =                24 2001:620:0:8::/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 1082,1084c1082,1084
+---
+> >   size         =               200
+> 1082c1082
+1761,1762d158
+< <   export sysid =              3602
+< <   size         =               192
+1765,1849c161
+< >   export sysid =                 1
+< >   size         =               176
+< 1089,1090c1089,1090
+< <   src addr     =   192.168.170.113
+< <   dst addr     =       0.154.29.32
+< ---
+< >   src addr     =      172.16.14.18
+< >   dst addr     =   192.168.170.113
+< 1097,1132c1097,1132
+< <   (in)packets  =                 0
+< <   (in)bytes    =        3940701213556737
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940564
+< ---
+< >   (in)packets  =          10100000
+< >   (in)bytes    =        4294967296
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 1136,1138c1136,1138
+< <   Flags        =              0x06 FLOW, Unsampled
+< <   export sysid =              3858
+---
+> 1084c1084
+1851a164,167
+> >   size         =               172
+> 1136c1136
+> <   Flags        =              0x06 FLOW, Unsampled
+> ---
+1853,1936c169
+< >   export sysid =                 1
+< >   size         =               176
+< 1143,1144c1143,1144
+< <   src addr     =   192.168.170.114
+< <   dst addr     =           0.0.0.0
+< ---
+< >   src addr     =      172.16.15.18
+< >   dst addr     =   192.168.170.114
+< 1151,1186c1151,1186
+< <   (in)packets  =        64424509440000001
+< <   (in)bytes    =        3940701213556736
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940565
+< ---
+< >   (in)packets  =        4294967296
+< >   (in)bytes    =          15000000
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 1191,1192c1191,1192
+< <   export sysid =              4114
+---
+> 1138c1138
+1939,2022c172,177
+< >   export sysid =                 1
+< >   size         =               180
+< 1197,1198c1197,1198
+< <   src addr     =   192.168.170.115
+< <   dst addr     =           0.0.0.0
+< ---
+< >   src addr     =      172.16.16.18
+< >   dst addr     =   192.168.170.115
+< 1205,1240c1205,1240
+< <   (in)packets  =                 1
+< <   (in)bytes    =        3940701213556738
+< <   input        =               775
+< <   output       =              8404
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940565
+< ---
+< >   (in)packets  =        4294967296
+< >   (in)bytes    =        8589934592
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 1245,1246c1245,1246
+< <   export sysid =              4114
+---
+> >   size         =               172
+> 1192c1192
+> <   size         =               192
+> ---
+> >   size         =               176
+> 1246c1246
+2025,2108c180,181
+< >   export sysid =                 1
+< >   size         =               184
+< 1251,1252c1251,1252
+< <   src addr     =   192.168.170.115
+< <   dst addr     =           0.0.0.0
+< ---
+< >   src addr     =      172.16.16.18
+< >   dst addr     =   192.168.170.115
+< 1259,1294c1259,1294
+< <   (in)packets  =                 1
+< <   (in)bytes    =        51539607554
+< <   input        =                14
+< <   output       =             550765319
+< <   src as       =               384
+< <   dst as       =              6160
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940565
+< ---
+< >   (in)packets  =        4294967296
+< >   (in)bytes    =        8589934592
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 1299,1300c1299,1300
+< <   export sysid =              4114
+---
+> >   size         =               180
+> 1300c1300
+2111,2194c184,185
+< >   export sysid =                 1
+< >   size         =               184
+< 1305,1306c1305,1306
+< <   src addr     =   192.168.170.115
+< <   dst addr     =           0.0.0.0
+< ---
+< >   src addr     =      172.16.16.18
+< >   dst addr     =   192.168.170.115
+< 1313,1348c1313,1348
+< <   (in)packets  =                 1
+< <   (in)bytes    =        3940701213556738
+< <   input        =               775
+< <   output       =                 0
+< <   src as       =              8404
+< <   dst as       =             403702144
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940565
+< ---
+< >   (in)packets  =        4294967296
+< >   (in)bytes    =        8589934592
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+< 1353,1354c1353,1354
+< <   export sysid =              4114
+---
+> >   size         =               180
+> 1354c1354
+2197,2278c188
+< >   export sysid =                 1
+< >   size         =               188
+< 1359,1360c1359,1360
+< <   src addr     =   192.168.170.115
+< <   dst addr     =           0.0.0.0
+< ---
+< >   src addr     =      172.16.16.18
+< >   dst addr     =   192.168.170.115
+< 1367,1402c1367,1402
+< <   (in)packets  =                 1
+< <   (in)bytes    =        51539607554
+< <   input        =                14
+< <   output       =               775
+< <   src as       =              8404
+< <   dst as       =             403702144
+< <   src mask     =                72 192.0.0.0/72
+< <   dst mask     =               172 0.0.0.0/172
+< <   dst tos      =                 2
+< <   direction    =                 1
+< <   ip next hop  =        172.73.2.3
+< <   bgp next hop =         0.93.0.82
+< <   src vlan     =               212
+< <   dst vlan     =                 0
+< <   out packets  =        13889924235264
+< <   out bytes    =        12884901888
+< <   aggr flows   =        1450741930
+< <   in src mac   = bb:aa:00:00:02:34
+< <   out dst mac  = bb:ff:00:00:ff:ee
+< <   in dst mac   = 90:02:00:00:aa:ee
+< <   out src mac  = 3f:20:00:00:aa:34
+< <   MPLS Lbl  1  =          2020-0-0
+< <   MPLS Lbl  2  =          3030-0-0
+< <   MPLS Lbl  3  =          4040-0-0
+< <   MPLS Lbl  4  =          5050-0-0
+< <   MPLS Lbl  5  =          6060-0-0
+< <   MPLS Lbl  6  =          7070-0-0
+< <   MPLS Lbl  7  =          8080-0-0
+< <   MPLS Lbl  8  =          9090-0-0
+< <   MPLS Lbl  9  =        100100-0-1
+< <   MPLS Lbl 10  =      133169152-0-1
+< <   ip router    =           6.5.0.0
+< <   engine type  =                 0
+< <   engine ID    =                 0
+< <   next as      =             32775
+< <   prev as      =             967940566
+< ---
+< >   (in)packets  =        4294967296
+< >   (in)bytes    =        8589934592
+< >   input        =                12
+< >   output       =                14
+< >   src as       =               775
+< >   dst as       =              8404
+< >   src mask     =                16 172.16.0.0/16
+< >   dst mask     =                24 192.168.170.0/24
+< >   dst tos      =               128
+< >   direction    =                 1
+< >   ip next hop  =        172.72.1.2
+< >   bgp next hop =        172.73.2.3
+< >   src vlan     =                82
+< >   dst vlan     =                93
+< >   out packets  =               212
+< >   out bytes    =              3234
+< >   aggr flows   =                 3
+< >   in src mac   = 02:34:56:78:90:aa
+< >   out dst mac  = ff:ee:dd:cc:bb:aa
+< >   in dst mac   = aa:ee:dd:cc:bb:ff
+< >   out src mac  = aa:34:56:78:90:02
+< >   MPLS Lbl  1  =          1010-0-0
+< >   MPLS Lbl  2  =          2020-0-0
+< >   MPLS Lbl  3  =          3030-0-0
+< >   MPLS Lbl  4  =          4040-0-0
+< >   MPLS Lbl  5  =          5050-0-0
+< >   MPLS Lbl  6  =          6060-0-0
+< >   MPLS Lbl  7  =          7070-0-0
+< >   MPLS Lbl  8  =          8080-0-0
+< >   MPLS Lbl  9  =          9090-0-0
+< >   MPLS Lbl 10  =        100100-0-1
+< >   ip router    =         127.0.0.1
+< >   engine type  =                 5
+< >   engine ID    =                 6
+< >   next as      =             45804
+< >   prev as      =             32775
+---
+> >   size         =               184
