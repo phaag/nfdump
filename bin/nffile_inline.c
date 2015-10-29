@@ -367,6 +367,18 @@ void		*p = (void *)input_record;
 				output_record->appl_latency_usec = tpl->appl_latency_usec;
 				p = (void *)tpl->data;
 			} break;
+                        case EX_PAN_APPID: {
+                                tpl_ext_50_t *tpl = (tpl_ext_50_t *)p;
+				strncpy((void *)output_record->appid, (void *)tpl->appid, sizeof(output_record->appid));
+				output_record->appid[sizeof(output_record->appid)-1] = '\0';	// safety 0
+				p = (void *)tpl->data;				
+			} break;
+			case EX_PAN_USERID: {
+				tpl_ext_51_t *tpl = (tpl_ext_51_t *)p;
+                                strncpy((void *)output_record->userid, (void *)tpl->userid, sizeof(output_record->userid));
+				output_record->userid[sizeof(output_record->userid)-1] = '\0';	// safety 0
+				p = (void *)tpl->data;
+			} break;
 			case EX_RECEIVED: {
 				tpl_ext_27_t *tpl = (tpl_ext_27_t *)p;
 				value64_t v;
@@ -730,6 +742,18 @@ int		i;
 				tpl->bgpPrevAdjacentAS = master_record->bgpPrevAdjacentAS;
 				p = (void *)tpl->data;
 				} break;
+                        case EX_PAN_APPID: {
+                                tpl_ext_50_t *tpl = (tpl_ext_50_t *)p;
+				strncpy((void *)tpl->appid, (void *)master_record->appid, sizeof(tpl->appid));
+				tpl->appid[sizeof(tpl->appid)-1] = '\0';	// safety 0
+				p = (void *)tpl->data;				
+			} break;
+			case EX_PAN_USERID: {
+				tpl_ext_51_t *tpl = (tpl_ext_51_t *)p;
+                                strncpy((void *)tpl->userid, (void *)master_record->userid, sizeof(tpl->userid));
+				tpl->userid[sizeof(tpl->userid)-1] = '\0';	// safety 0
+				p = (void *)tpl->data;
+			} break;
 			case EX_RECEIVED: {
 				tpl_ext_27_t *tpl = (tpl_ext_27_t *)p;
 				tpl->received = master_record->received;

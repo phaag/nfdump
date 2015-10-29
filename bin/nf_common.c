@@ -220,6 +220,10 @@ static void String_bpp(master_record_t *r, char *string);
 
 static void String_ExpSysID(master_record_t *r, char *string);
 
+static void String_AppID(master_record_t *r, char *string);
+
+static void String_UserID(master_record_t *r, char *string);
+
 #ifdef NSEL
 static void String_EventTime(master_record_t *r, char *string);
 
@@ -375,6 +379,11 @@ static struct format_token_list_s {
 	{ "%sl", 0, "S latency", 	 		 	String_ServerLatency },	// server latency
 	{ "%al", 0, "A latency", 			 	String_AppLatency },	// app latency
 	
+	// Palo Alto Firewall
+	{ "%userid", 0, "User-ID", 	 		 	String_UserID },	// User-ID
+	{ "%appid", 0, "App-ID", 	 		 	String_AppID },	        // App-ID
+           
+        
 	{ NULL, 0, NULL, NULL }
 };
 
@@ -1070,6 +1079,22 @@ extension_map_t	*extension_map = r->map_ref;
 				snprintf(_s, slen-1,
 "  received at  =     %13llu [%s.%03llu]\n"
 , (long long unsigned)r->received, datestr3, (long long unsigned)(r->received % 1000L));
+				_slen = strlen(data_string);
+				_s = data_string + _slen;
+				slen = STRINGSIZE - _slen;
+				break;
+			case EX_PAN_APPID:
+				snprintf(_s, slen-1,
+"  App ID    = %s\n"
+, r->appid[0] ? r->appid : "          <empty>");
+				_slen = strlen(data_string);
+				_s = data_string + _slen;
+				slen = STRINGSIZE - _slen;
+				break;
+			case EX_PAN_USERID:
+				snprintf(_s, slen-1,
+"  User ID    = %s\n"
+, r->userid[0] ? r->userid : "          <empty>");
 				_slen = strlen(data_string);
 				_s = data_string + _slen;
 				slen = STRINGSIZE - _slen;
@@ -2883,5 +2908,26 @@ static void String_PortBlockSize(master_record_t *r, char *string) {
 
 } // End of String_PortBlockSize
 
+static void String_UserID(master_record_t *r, char *string) {
+
+	if ( r->userid[0] == '\0' ) 
+		snprintf(string, MAX_STRING_LENGTH-1 ,"%s", "<empty>");
+	else
+		snprintf(string, MAX_STRING_LENGTH-1 ,"%s", r->userid);
+
+	string[MAX_STRING_LENGTH-1] = '\0';
+
+} // End of String_UserID
+
+static void String_AppID(master_record_t *r, char *string) {
+
+	if ( r->appid[0] == '\0' ) 
+		snprintf(string, MAX_STRING_LENGTH-1 ,"%s", "<empty>");
+	else
+		snprintf(string, MAX_STRING_LENGTH-1 ,"%s", r->appid);
+
+	string[MAX_STRING_LENGTH-1] = '\0';
+
+} // End of String_AppID
 
 #endif

@@ -164,6 +164,8 @@ typedef struct common_header_s {
 #define _16bytes  16
 #define _20bytes  20
 #define _24bytes  24
+#define _32bytes  32
+#define _64bytes  64
 #define _65bytes  65
 #define _72bytes  72
 
@@ -296,6 +298,10 @@ typedef struct common_header_s {
 #define NF9_NPROBE_SERVER_NW_DELAY_USEC 57557
 #define NF9_NPROBE_APPL_LATENCY_SEC		57558
 #define NF9_NPROBE_APPL_LATENCY_USEC	57559
+
+// Palo Alto Firewall
+#define NF9_PAN_APPID   56701
+#define NF9_PAN_USERID  56702
 
 /* prototypes */
 int Init_v9(void);

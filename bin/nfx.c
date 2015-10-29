@@ -126,13 +126,17 @@ extension_descriptor_t extension_descriptor[] = {
 
 	// nprobe extensions
 	{ EX_LATENCY,			24,	64, 0,		"nprobe latency"},
-
+        
 	// NAT - Network Event Logging
 	{ EX_NEL_COMMON,		12,	31, 0,		"NEL Common block"},
 	{ EX_NEL_GLOBAL_IP_v4,  0,	0, 0,    	"Compat NEL IPv4"},
 	{ EX_PORT_BLOCK_ALLOC, 	8,	32, 0,    	"NAT Port Block Allocation"},
 	{ EX_NEL_RESERVED_1,	0,	0, 0,		NULL},
 
+        // Palo Alto Firewall
+        { EX_PAN_APPID,                   32,     65, 0,          "Palo Alto App-ID"},
+        { EX_PAN_USERID,                  64,     66, 0,          "Palo Alto User-ID"},
+        
 	// last entry
 	{ 0,	0,	0, 0,	NULL }
 };

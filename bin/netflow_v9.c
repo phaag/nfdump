@@ -123,6 +123,8 @@ typedef struct sequence_map_s {
 #define zero64			24
 #define zero96			25
 #define zero128			26
+#define move_appid_32   27
+#define move_userid_64  28
 
 	uint32_t	id;				// sequence ID as defined above
 	uint16_t	input_offset;	// copy/process data at this input offset
@@ -357,6 +359,10 @@ static struct v9_element_map_s {
 	{ NF9_NPROBE_SERVER_NW_DELAY_SEC, 	 "NPROBE server lat sec",	_4bytes, _8bytes, move_slatency, nop, EX_LATENCY },
 	{ NF9_NPROBE_APPL_LATENCY_SEC, 	 	 "NPROBE appl lat sec",		_4bytes, _8bytes, move_slatency, nop, EX_LATENCY },
 
+        // Palo Alto Firewall Extension
+        { NF9_PAN_APPID,    "Palo Alto Firewall App-ID",    _32bytes, _32bytes, move_appid_32, zero32, EX_PAN_APPID },
+        { NF9_PAN_USERID,    "Palo Alto Firewall User-ID",    _64bytes, _64bytes, move_userid_64, zero32, EX_PAN_USERID },
+        
 	{0, "NULL",	0, 0}
 };
 
@@ -1040,6 +1046,12 @@ size_t				size_required;
 			case EX_NSEL_USER_MAX:
 				PushSequence( table, NF_F_USERNAME, &offset, NULL, 0);
 				break;
+                        case EX_PAN_APPID:
+				PushSequence( table, NF9_PAN_APPID, &offset, NULL, 0);
+				break;
+                        case EX_PAN_USERID:
+				PushSequence( table, NF9_PAN_USERID, &offset, NULL, 0);
+				break;
 			case EX_NEL_COMMON:
 				PushSequence( table, NF_N_NAT_EVENT, &offset, NULL, 0);
 				offset += 3;
@@ -1698,6 +1710,14 @@ char				*string;
 				case move_user_65:
 					memcpy((void *)&out[output_offset],(void *)&in[input_offset],65);
 					out[output_offset+65] = 0;	// trailing 0 for string
+					break;
+                                case move_appid_32:
+					memcpy((void *)&out[output_offset],(void *)&in[input_offset],32);
+					out[output_offset+32] = 0;	// trailing 0 for string
+					break;
+                                case move_userid_64:
+					memcpy((void *)&out[output_offset],(void *)&in[input_offset],64);
+					out[output_offset+64] = 0;	// trailing 0 for string
 					break;
 				case TimeMsec:
 					{ uint64_t DateMiliseconds = Get_val64((void *)&in[input_offset]);
