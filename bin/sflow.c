@@ -915,6 +915,7 @@ static void decodeIPV4(SFSample *sample)
 			dbg_printf("IPFragmentOffset %u\n", sample->ip_fragmentOffset);
 		}
 		else {
+			dbg_printf("Unfragmented\n");
 			/* advance the pointer to the next protocol layer */
 			/* ip headerLen is expressed as a number of quads */
 			ptr += (ip.version_and_headerLen & 0x0f) * 4;
@@ -1031,11 +1032,14 @@ value32_t	*val;
 uint32_t bytes, j, id, ipsize, ip_flags;
 uint64_t _bytes, _packets, _t;	// tmp buffers
 
+	dbg_printf("StoreSflowRecord\n");
+
 	gettimeofday(&now, NULL);
 
-	// ignore fragments
-	if( sample->ip_fragmentOffset > 0 ) 
-		return;
+	if( sample->ip_fragmentOffset > 0 ) {
+		sample->dcd_sport = 0;
+		sample->dcd_dport = 0;
+	}
 
 	bytes = sample->sampledPacketSize;
 	
@@ -1082,6 +1086,7 @@ uint64_t _bytes, _packets, _t;	// tmp buffers
 		return;
 	}
 
+	dbg_printf("Fill Record\n");
 	common_record = (common_record_t *)fs->nffile->buff_ptr;
 
 	common_record->size			  = sflow_output_record_size[ip_flags] + ipsize;

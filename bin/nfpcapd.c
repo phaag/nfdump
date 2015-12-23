@@ -1466,7 +1466,6 @@ p_flow_thread_args_t *p_flow_thread_args;
 
 	// Init the extension map list
 	if ( !InitExtensionMapList(fs) ) {
-		// error message goes to syslog
 		pcap_close(pcap_dev->handle);
 		exit(255);
 	}

@@ -8,6 +8,10 @@ AC_INIT(nfdump, 1.6.14, phaag@users.sourceforge.net)
 #AC_CONFIG_SRCDIR([grammar.y])
 AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([subdir-objects])
+
+LT_INIT
+# AC_ENABLE_SHARED
+# AC_ENABLE_STATIC
  
 # Checks for programs.
 AC_PROG_CC

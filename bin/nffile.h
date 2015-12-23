@@ -475,6 +475,7 @@ typedef struct ip_addr_s {
 		};
 		uint64_t		_v6[2];
 	} ip_union;
+#define IP_ADDR_T
 } ip_addr_t;
 
 #define v4 ip_union._v4

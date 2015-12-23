@@ -43,7 +43,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <syslog.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
@@ -139,7 +138,7 @@ uint16_t	map_size;
 	// Create a generic pcap extension map
 	pcap_extension_info.map = (extension_map_t *)malloc((size_t)map_size);
 	if ( !pcap_extension_info.map ) {
-		syslog(LOG_ERR, "Process_pcap: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
+		LogError("Process_pcap: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
 		return 0;
 	}
 	pcap_extension_info.map->type 	  	  	= ExtensionMapType;
