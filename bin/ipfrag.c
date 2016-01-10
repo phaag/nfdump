@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  All rights reserved.
  *  
@@ -26,12 +27,8 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: phaag $
+ *  Author: peter
  *
- *  $Id: ipfrag.c 40874 2014-03-06 09:58:20Z phaag $
- *
- *  $LastChangedRevision: 40874 $
- *  
  */
 
 #include "config.h"
@@ -43,6 +40,16 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
+
+#ifdef HAVE_NETINET_IN_SYSTM_H
+#include <netinet/in_systm.h>
+#endif
+
+#ifdef HAVE_NETINET_IN_H
+#include <netinet/in.h>
+#endif
+
+#include <netinet/in.h>
 #include <netinet/ip.h>
 #include <unistd.h>
 #include <stdint.h>

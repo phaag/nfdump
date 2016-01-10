@@ -266,6 +266,7 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PCAP_LIBS = @PCAP_LIBS@
 RANLIB = @RANLIB@
 RRD_LIBS = @RRD_LIBS@
 SED = @SED@
@@ -328,7 +329,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 SUBDIRS = . bin man
-EXTRA_DIST = CreateSubHierarchy.pl LICENSE BSD-license.txt extra/PortTracker.pm extra/nfdump.spec bootstrap flows
+EXTRA_DIST = CreateSubHierarchy.pl LICENSE BSD-license.txt extra/PortTracker.pm extra/nfdump.spec bootstrap
 all: config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-recursive
 

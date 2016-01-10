@@ -2,6 +2,8 @@
 bin_PROGRAMS = nfcapd nfdump nfreplay nfexpire nfanon
 check_PROGRAMS = nftest nfgen nfreader
 
+EXTRA_DIST = applybits_inline.c nffile_inline.c collector_inline.c inline.c nfdump_inline.c heapsort_inline.c test.sh nfdump.test.out nfdump.test.diff
+
 check_PROGRAMMS = test.sh
 TESTS = nftest test.sh
 

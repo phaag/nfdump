@@ -642,6 +642,7 @@ FTS_OBJ
 LFLAGS
 FT_LDFLAGS
 FT_INCLUDES
+PCAP_LIBS
 BUILDNFPCAPD_FALSE
 BUILDNFPCAPD_TRUE
 READPCAP_FALSE
@@ -793,6 +794,7 @@ enable_nel
 enable_fixtimebug
 with_ftpath
 with_rrdpath
+with_pcappath
 enable_ftconv
 enable_nfprofile
 enable_nftrack
@@ -1466,6 +1468,7 @@ Optional Packages:
                           compiler's sysroot if not specified).
   --with-ftpath=PATH      Expect flow-tool sources in PATH; default /usr/local/flow-tools/
   --with-rrdpath=PATH      Expect RRD installed in PATH; default /usr/local
+  --with-pcappath=PATH      Expect RRD installed in PATH; default /usr/local
 
 Some influential environment variables:
   CC          C compiler command
@@ -13324,6 +13327,20 @@ fi
 fi
 
 
+
+@%:@ Check whether --with-pcappath was given.
+if test "${with_pcappath+set}" = set; then :
+  withval=$with_pcappath; if test "x$with_pcappath" = "xyes" ; then
+	CPPFLAGS="${CPPFLAGS} -I/usr/local/include"
+	LDFLAGS="${LDFLAGS} -L/usr/local/lib"
+else
+	CPPFLAGS="${CPPFLAGS} -I${with_pcappath}/include"
+	LDFLAGS="${LDFLAGS} -L${with_pcappath}/lib"
+fi
+
+fi
+
+
 #Tidz up? esp not using in source dist flow-tools
 @%:@ Check whether --enable-ftconv was given.
 if test "${enable_ftconv+set}" = set; then :
@@ -13379,7 +13396,7 @@ if test -d "$WHERE_FTPATH"; then
 	if test ! -f "$WHERE_FTPATH/include/ftlib.h"; then
 		as_fn_error $? "ftlib.h file not found in flow-tools directory '$WHERE_FTPATH'. Use --with-ftpath=PATH" "$LINENO" 5
 	fi
-	if test ! -f "$WHERE_FTPATH/lib/libft.a"; then
+	if test ! -f "$WHERE_FTPATH/lib/libft.a" -a -f "$WHERE_FTPATH/lib64/libft.a" ! -f "$WHERE_FTPATH/lib/libft.so" -a -f "$WHERE_FTPATH/lib64/libft.so"; then
 		as_fn_error $? "libft.a not found in flow-tools directory '$WHERE_FTPATH'. Build flow tools first" "$LINENO" 5
 	fi
 	FT_INCLUDES="-I$WHERE_FTPATH/include -I$WHERE_FTPATH/lib"
@@ -13688,15 +13705,125 @@ fi
 
 @%:@ Check whether --enable-nfpcapd was given.
 if test "${enable_nfpcapd+set}" = set; then :
-  enableval=$enable_nfpcapd; 
+  enableval=$enable_nfpcapd;  
+	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for pcap_create in -lpcap" >&5
+$as_echo_n "checking for pcap_create in -lpcap... " >&6; }
+if ${ac_cv_lib_pcap_pcap_create+:} false; then :
+  $as_echo_n "(cached) " >&6
+else
+  ac_check_lib_save_LIBS=$LIBS
+LIBS="-lpcap  $LIBS"
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+/* Override any GCC internal prototype to avoid an error.
+   Use char because int might match the return type of a GCC
+   builtin and then its argument prototype would still apply.  */
+#ifdef __cplusplus
+extern "C"
+#endif
+char pcap_create ();
+int
+main ()
+{
+return pcap_create ();
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+  ac_cv_lib_pcap_pcap_create=yes
+else
+  ac_cv_lib_pcap_pcap_create=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+LIBS=$ac_check_lib_save_LIBS
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_lib_pcap_pcap_create" >&5
+$as_echo "$ac_cv_lib_pcap_pcap_create" >&6; }
+if test "x$ac_cv_lib_pcap_pcap_create" = xyes; then :
+  
+cat >>config.h <<_ACEOF
+#define HAVE_LIBPCAP 1
+_ACEOF
+RRD_LIBS="-lpcap"
+
+
+
+else
+  as_fn_error $? "Can not link libpcap. Please specify --with-pcappath=.. configure failed! " "$LINENO" 5
 fi
 
- if test "$enable_nfpcapd" = yes; then
+	for ac_header in pcap.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "pcap.h" "ac_cv_header_pcap_h" "$ac_includes_default"
+if test "x$ac_cv_header_pcap_h" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+@%:@define HAVE_PCAP_H 1
+_ACEOF
+ 
+fi
+
+done
+
+	if test "$ac_cv_header_pcap_h" = yes; then
+		 if true; then
   BUILDNFPCAPD_TRUE=
   BUILDNFPCAPD_FALSE='#'
 else
   BUILDNFPCAPD_TRUE='#'
   BUILDNFPCAPD_FALSE=
+fi
+
+	else
+		as_fn_error $? "Required pcap.h header file not found!" "$LINENO" 5
+	fi
+	if test "$cross_compiling" = yes; then :
+  { { $as_echo "$as_me:${as_lineno-$LINENO}: error: in \`$ac_pwd':" >&5
+$as_echo "$as_me: error: in \`$ac_pwd':" >&2;}
+as_fn_error $? "cannot run test program while cross compiling
+See \`config.log' for more details" "$LINENO" 5; }
+else
+  cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+ 
+				#include <stdio.h>
+				#include <pcap.h>
+			
+int
+main ()
+{
+ 
+				struct pcap_pkthdr p; 
+			
+  ;
+  return 0;
+}
+		
+_ACEOF
+if ac_fn_c_try_run "$LINENO"; then :
+  
+else
+  as_fn_error $? "Can not load pcap library. Not in loader search path! " "$LINENO" 5
+fi
+rm -f core *.core core.conftest.* gmon.out bb.out conftest$ac_exeext \
+  conftest.$ac_objext conftest.beam conftest.$ac_ext
+fi
+
+
+
+
+else
+   if false; then
+  BUILDNFPCAPD_TRUE=
+  BUILDNFPCAPD_FALSE='#'
+else
+  BUILDNFPCAPD_TRUE='#'
+  BUILDNFPCAPD_FALSE=
+fi
+
+
 fi
 
 
@@ -14307,7 +14434,7 @@ fi
 done
 
 
-for ac_header in sys/types.h netinet/in.h arpa/nameser.h arpa/nameser_compat.h netdb.h resolv.h
+for ac_header in sys/types.h netinet/in.h arpa/nameser.h arpa/nameser_compat.h netdb.h resolv.h netinet/in_systm.h
 do :
   as_ac_Header=`$as_echo "ac_cv_header_$ac_header" | $as_tr_sh`
 ac_fn_c_check_header_compile "$LINENO" "$ac_header" "$as_ac_Header" "#ifdef HAVE_SYS_TYPES_H
@@ -16711,6 +16838,10 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${READPCAP_TRUE}" && test -z "${READPCAP_FALSE}"; then
   as_fn_error $? "conditional \"READPCAP\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${BUILDNFPCAPD_TRUE}" && test -z "${BUILDNFPCAPD_FALSE}"; then
+  as_fn_error $? "conditional \"BUILDNFPCAPD\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${BUILDNFPCAPD_TRUE}" && test -z "${BUILDNFPCAPD_FALSE}"; then
