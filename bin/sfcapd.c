@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,7 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: sfcapd.c 69 2010-09-09 07:17:43Z haag $
- *
- *  $LastChangedRevision: 69 $
- *	
+ *  Author: peter
  *
  */
 
@@ -129,7 +125,8 @@ static void daemonize(void);
 
 static void SetPriv(char *userid, char *groupid );
 
-static void run(packet_function_t receive_packet, int socket, send_peer_t peer, time_t twin, time_t t_begin, int report_seq, char *datadir, int use_subdirs, int compress, int do_xstat);
+static void run(packet_function_t receive_packet, int socket, send_peer_t peer, 
+	time_t twin, time_t t_begin, int report_seq, int use_subdirs, char *time_extension, int compress, int do_xstat);
 
 /* Functions */
 static void usage(char *name) {
@@ -159,6 +156,7 @@ static void usage(char *name) {
 					"-4\t\tListen on IPv4 (default).\n"
 					"-6\t\tListen on IPv6.\n"
 					"-V\t\tPrint version and exit.\n"
+					"-Z\t\tAdd timezone offset to filenamet.\n"
 					, name);
 } // End of usage
 
@@ -334,7 +332,8 @@ int		err;
 #include "nffile_inline.c"
 #include "collector_inline.c"
 
-static void run(packet_function_t receive_packet, int socket, send_peer_t peer, time_t twin, time_t t_begin, int report_seq, char *datadir, int use_subdirs, int compress, int do_xstat) {
+static void run(packet_function_t receive_packet, int socket, send_peer_t peer, 
+	time_t twin, time_t t_begin, int report_seq, int use_subdirs, char *time_extension, int compress, int do_xstat) {
 FlowSource_t			*fs;
 struct sockaddr_storage sf_sender;
 socklen_t 	sf_sender_size = sizeof(sf_sender);
@@ -437,9 +436,10 @@ srecord_t	*commbuff;
 		if ( ((t_now - t_start) >= twin) || done ) {
 			char subfilename[64];
 			struct  tm *now;
-			char	*subdir;
+			char	*subdir, fmt[64];
 			alarm(0);
 			now = localtime(&t_start);
+			strftime(fmt, sizeof fmt, time_extension, now);
 
 			// prepare sub dir hierarchy
 			if ( use_subdirs ) {
@@ -450,16 +450,13 @@ srecord_t	*commbuff;
 			
 					// failed to generate subdir path - put flows into base directory
 					subdir = NULL;
-					snprintf(subfilename, 63, "nfcapd.%i%02i%02i%02i%02i",
-						now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min);
+					snprintf(subfilename, 63, "nfcapd.%s", fmt);
 				} else {
-					snprintf(subfilename, 63, "%s/nfcapd.%i%02i%02i%02i%02i", subdir,
-						now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min);
+					snprintf(subfilename, 63, "%s/nfcapd.%s", subdir, fmt);
 				}
 			} else {
 				subdir = NULL;
-				snprintf(subfilename, 63, "nfcapd.%i%02i%02i%02i%02i",
-					now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min);
+				snprintf(subfilename, 63, "nfcapd.%s", fmt);
 			}
 			subfilename[63] = '\0';
 
@@ -675,7 +672,7 @@ int main(int argc, char **argv) {
  
 char	*bindhost, *filter, *datadir, pidstr[32], *launch_process;
 char	*userid, *groupid, *checkptr, *listenport, *mcastgroup, *extension_tags;
-char	*Ident, *pcap_file, pidfile[MAXPATHLEN];
+char	*Ident, *pcap_file, *time_extension, pidfile[MAXPATHLEN];
 struct stat fstat;
 srecord_t	*commbuff;
 packet_function_t receive_packet;
@@ -684,7 +681,7 @@ FlowSource_t *fs;
 struct sigaction act;
 int		family, bufflen;
 time_t 	twin, t_start;
-int		sock, err, synctime, do_daemonize, expire, report_sequence, do_xstat;
+int		sock, err, synctime, do_daemonize, expire, spec_time_extension, report_sequence, do_xstat;
 int		subdir_index, compress;
 int	c;
 
@@ -705,7 +702,9 @@ int	c;
 	twin	 		= TIME_WINDOW;
 	datadir	 		= NULL;
 	subdir_index	= 0;
+	time_extension	= "%Y%m%d%H%M";
 	expire			= 0;
+	spec_time_extension = 0;
 	compress		= NOT_COMPRESSED;
 	do_xstat		= 0;
 	memset((void *)&peer, 0, sizeof(send_peer_t));
@@ -715,7 +714,7 @@ int	c;
 	extension_tags	= DefaultExtensions;
 	pcap_file		= NULL;
 
-	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:n:p:J:P:R:S:T:t:x:ru:g:z")) != EOF) {
+	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:n:p:J:P:R:S:T:t:x:ru:g:zZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -860,6 +859,10 @@ int	c;
 			case 'x':
 				launch_process = optarg;
 				break;
+			case 'Z':
+				time_extension	= "%Y%m%d%H%M%z";
+				spec_time_extension = 1;
+				break;
 			case '4':
 				if ( family == AF_UNSPEC )
 					family = AF_INET;
@@ -880,6 +883,11 @@ int	c;
 				usage(argv[0]);
 				exit(255);
 		}
+	}
+
+	if ( expire && spec_time_extension ) {
+		fprintf(stderr, "ERROR, -Z timezone extension breaks expire -e\n");
+		exit(255);
 	}
 
 	InitExtensionMaps(NO_EXTENSION_LIST);
@@ -1081,7 +1089,8 @@ int	c;
 	sigaction(SIGCHLD, &act, NULL);
 
 	syslog(LOG_INFO, "Startup.");
-	run(receive_packet, sock, peer, twin, t_start, report_sequence, datadir, subdir_index, compress, do_xstat);
+	run(receive_packet, sock, peer, twin, t_start, report_sequence, subdir_index, 
+		time_extension, compress, do_xstat);
 	close(sock);
 	kill_launcher(launcher_pid);
 
