@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -1101,7 +1102,7 @@ uint64_t _bytes, _packets, _t;	// tmp buffers
 	common_record->last			  = common_record->first;
 	common_record->msec_first	  = now.tv_usec / 1000;
 	common_record->msec_last	  = common_record->msec_first;
-	_t							  = 1000*now.tv_sec + common_record->msec_first;	// tmp buff for first_seen
+	_t							  = 1000LL * now.tv_sec + common_record->msec_first;	// tmp buff for first_seen
 
 	common_record->fwd_status	  = 0;
 	common_record->reserved	  	  = 0;
