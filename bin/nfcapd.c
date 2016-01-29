@@ -616,7 +616,7 @@ srecord_t	*commbuff;
 					LogInfo("Signal launcher");
 					kill(launcher_pid, SIGHUP);
 				} else 
-					LogError("ERROR: Launcher did unexpectedly!");
+					LogError("ERROR: Launcher died unexpectedly!");
 
 			}
 			
