@@ -1,7 +1,7 @@
 Name: nfdump
 Summary: A set of command-line tools to collect and process netflow data
-Version: 1.6.8p1
-Release: p1
+Version: 1.6.14
+Release: 1
 License: BSD
 Group: Applications/System
 Source: %{name}-%{version}.tar.gz
