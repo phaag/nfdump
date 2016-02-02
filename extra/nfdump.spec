@@ -33,6 +33,6 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)
-%doc INSTALL READMEmd ToDo BSD-license.txt AUTHORS ChangeLog
+%doc INSTALL README.md ToDo BSD-license.txt AUTHORS ChangeLog
 %{prefix}/bin/*
 %{prefix}/share/man/man1/*
