@@ -22,7 +22,7 @@ rm -rf $RPM_BUILD_ROOT
 %setup -q
 
 %build
-./configure --prefix=$RPM_BUILD_ROOT/%{prefix}
+./configure --prefix=$RPM_BUILD_ROOT/%{prefix} --libdir=$RPM_BUILD_ROOT/%{_libdir}
 make
 
 %install
@@ -36,3 +36,4 @@ rm -rf $RPM_BUILD_ROOT
 %doc INSTALL README.md ToDo BSD-license.txt AUTHORS ChangeLog
 %{prefix}/bin/*
 %{prefix}/share/man/man1/*
+%{_libdir}/*
