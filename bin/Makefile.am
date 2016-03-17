@@ -60,8 +60,10 @@ launch = launch.c launch.h
 lib_LTLIBRARIES = libnfdump.la
 libnfdump_la_SOURCES = $(common) $(util) $(filelzo) $(nflist) $(filter) $(exporter)
 #libnfdump_la_LIBADD = -lz
-libnfdump_la_LDFLAGS = -release 1.6.14 -shared 
 
+# allow both shared lib and semi-static linking of libnfdump
+# into the nf* programs - depending on configure's --enable-shared argument.
+libnfdump_la_LDFLAGS = -release 1.6.14
 
 nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h nfexport.c nfexport.h  \
 	$(nflowcache) $(nfprof)
