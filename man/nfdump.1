@@ -580,7 +580,7 @@ are aggregated this results in the average bps during this periode of time.
 \fBBpp:\fR The calculated bytes per packet: number of bytes / number of packets. If flows
 are aggregated this results in the average bpp during this periode of time.
 .P
-\fBFlows:\fR Number of flows. If flows are listed only, this number is alwasy 1. If flows
+\fBFlows:\fR Number of flows. If flows are listed only, this number is always 1. If flows
 are aggregated, this shows the number of aggregated flows to one record.
 .RE
 .PD
@@ -722,6 +722,8 @@ and format specifier as described below
 .br
 \fB%bpp\fR      bps \- Bytes per package
 .br
+\fB%ff\fR       flow record flags
+.br
 
 .br
 NSEL specific formats
@@ -792,6 +794,29 @@ Nprobe formats
 .RE
 .PD
 .P
+The "flow flags" format (%ff) prints the internal record flags as a single hexadecimal number,
+consisting of any of these flag values or-ed together:
+.P
+.RS 3
+.br
+1    Record contains IPv6 addresses
+.br
+2    Packet counters are 64-bit
+.br
+4    Byte counters are 64-bit
+.br
+8    IP next hop is IPv6 address
+.br
+16	BGP next hop is IPv6 address
+.br
+32   Exporting router is IPv6 address
+.br
+64   Record is of an EVENT, not a FLOW
+.br
+128  Record is Sampled
+.RE
+
+.P
 Example: the standard output format \fBlong\fR can be created as
 .RS 3
 \fB\-o "fmt:%ts %td %pr %sap \-> %dap %flg %tos %pkt %byt %fl"\fR
@@ -817,7 +842,7 @@ Record line:  2004-07-11 10:30:00,2004-07-11 10:30:10,10.010,...
 .PD
 .P
 All records are in ASCII readable form. Numbers are not scaled, so each line 
-can easly be parsed.
+can easily be parsed.
 .P
 Indices used in nfdump 1.6:
 .P
