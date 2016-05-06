@@ -60,7 +60,7 @@ launch = launch.c launch.h
 lib_LTLIBRARIES = libnfdump.la
 libnfdump_la_SOURCES = $(common) $(util) $(filelzo) $(nflist) $(filter) $(exporter)
 #libnfdump_la_LIBADD = -lz
-libnfdump_la_LDFLAGS = -release 1.6.14 -shared 
+libnfdump_la_LDFLAGS = -release 1.6.14
 
 
 nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h nfexport.c nfexport.h  \
