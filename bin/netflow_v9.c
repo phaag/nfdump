@@ -1528,13 +1528,13 @@ char				*string;
 	while (size_left) {
 		common_record_t		*data_record;
 
-		if ( (table->input_record_size == 0 )) {
+		if ( table->input_record_size == 0 ) {
 			LogError("Process_v9: Corrupt data flowset? table input_record_sizei = 0 ");
 			size_left = 0;
 			continue;
 		}
 
-		if ( (size_left < table->input_record_size) ) {
+		if ( size_left < table->input_record_size ) {
 			if ( size_left > 3 ) {
 				LogError("Process_v9: Corrupt data flowset? Pad bytes: %u", size_left);
 				dbg_printf("Process_v9: Corrupt data flowset? Pad bytes: %u, table record_size: %u\n", 
