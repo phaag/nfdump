@@ -35,6 +35,8 @@
  *	
  */
 
+#ifndef _NFXSTAT_H
+#define _NFXSTAT_H 1
 
 typedef struct port_histogram_s {
 	uint32_t	count;
@@ -79,4 +81,4 @@ void ResetPortHistogram(flow_port_histogram_t *port_histogram);
 
 void ResetBppHistogram(flow_bpp_histogram_t *bpp_histogram);
 
-
+#endif // _NFXSTAT_H
