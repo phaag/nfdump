@@ -604,6 +604,8 @@ and format specifier as described below
 .RS 3
 \fB%<format>\fR Inserts the predefined \fBformat\fR at this position. e.g. \fB%line\fR
 .br
+\fB%ff\fR       flow record flags in hex. 
+.br
 \fB%ts\fR       Start Time \- first seen
 .br
 \fB%te\fR       End Time \- last seen
@@ -794,6 +796,8 @@ Nprobe formats
 .RE
 .PD
 .P
+
+
 The "flow flags" format (%ff) prints the internal record flags as a single hexadecimal number,
 consisting of any of these flag values or-ed together:
 .P
@@ -805,18 +809,18 @@ consisting of any of these flag values or-ed together:
 .br
 4    Byte counters are 64-bit
 .br
-8    IP next hop is IPv6 address
+8    IP next hop is an IPv6 address
 .br
-16	BGP next hop is IPv6 address
+16	BGP next hop is an IPv6 address
 .br
-32   Exporting router is IPv6 address
+32   Exporting router is an IPv6 address
 .br
-64   Record is of an EVENT, not a FLOW
+64   Record is an EVENT record
 .br
-128  Record is Sampled
+128  Record is sampled
 .RE
-
 .P
+
 Example: the standard output format \fBlong\fR can be created as
 .RS 3
 \fB\-o "fmt:%ts %td %pr %sap \-> %dap %flg %tos %pkt %byt %fl"\fR

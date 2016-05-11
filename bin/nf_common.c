@@ -96,6 +96,8 @@ static void AddToken(int index);
 
 static void AddString(char *string);
 
+static void String_FlowFlags(master_record_t *r, char *string);
+
 static void String_FirstSeen(master_record_t *r, char *string);
 
 static void String_LastSeen(master_record_t *r, char *string);
@@ -271,6 +273,7 @@ static struct format_token_list_s {
 	char				*header;			// header line description
 	string_function_t	string_function;	// function generation output string
 } format_token_list[] = {
+	{ "%ff", 0, "Flow Flags", 				String_FlowFlags }, 	// flow flags in hex
 	{ "%tfs", 0, "Date first seen        ", String_FirstSeen },		// Start Time - first seen
 	{ "%ts",  0, "Date first seen        ", String_FirstSeen },		// Start Time - first seen
 	{ "%te",  0, "Date last seen         ", String_LastSeen },		// End Time	- last seen
@@ -1813,12 +1816,11 @@ static inline void ICMP_Port_decode(master_record_t *r, char *string) {
 } // End of ICMP_Port_decode
 
 /* functions, which create the individual strings for the output line */
-
-static void String_FlowFlags(master_record_t *r, char *string)
-{
+static void String_FlowFlags(master_record_t *r, char *string) {
 	snprintf(string, MAX_STRING_LENGTH-1, "0x%.2x", r->flags);
+	string[MAX_STRING_LENGTH-1] = '\0';
 }
-
+ 
 static void String_FirstSeen(master_record_t *r, char *string) {
 time_t 	tt;
 struct tm * ts;
