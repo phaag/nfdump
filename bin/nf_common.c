@@ -1881,13 +1881,13 @@ static void String_ReceivedRaw(master_record_t *r, char *string)
 static void String_FirstSeenRaw(master_record_t *r, char *string)
 {
 	 /* snprintf does write \0, and the max is INCL the terminating \0 */
-	 snprintf(string, MAX_STRING_LENGTH, "%.3f", r->first/1000.0);
+	 snprintf(string, MAX_STRING_LENGTH, "%u.%03u", r->first, r->msec_first);
 }
 
 static void String_LastSeenRaw(master_record_t *r, char *string)
 {
 	 /* snprintf does write \0, and the max is INCL the terminating \0 */
-	 snprintf(string, MAX_STRING_LENGTH, "%.3f", r->last/1000.0);
+	 snprintf(string, MAX_STRING_LENGTH, "%u.%03u", r->last, r->msec_last);
 }
 
 
