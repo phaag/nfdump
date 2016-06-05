@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,11 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nf_common.c 69 2010-09-09 07:17:43Z haag $
- *
- *  $LastChangedRevision: 69 $
  *	
  */
 
@@ -1822,9 +1818,11 @@ static inline void ICMP_Port_decode(master_record_t *r, char *string) {
 
 /* functions, which create the individual strings for the output line */
 static void String_FlowFlags(master_record_t *r, char *string) {
+
 	snprintf(string, MAX_STRING_LENGTH-1, "0x%.2x", r->flags);
 	string[MAX_STRING_LENGTH-1] = '\0';
-}
+
+} // End of String_FlowFlags
  
 static void String_FirstSeen(master_record_t *r, char *string) {
 time_t 	tt;
@@ -1868,23 +1866,26 @@ char 	*s;
 
 } // End of String_Received
 
-static void String_ReceivedRaw(master_record_t *r, char *string)
-{
+static void String_ReceivedRaw(master_record_t *r, char *string) {
+
 	 /* snprintf does write \0, and the max is INCL the terminating \0 */
 	 snprintf(string, MAX_STRING_LENGTH, "%.3f", r->received/1000.0);
-}
 
-static void String_FirstSeenRaw(master_record_t *r, char *string)
-{
+} // End of String_ReceivedRaw
+
+static void String_FirstSeenRaw(master_record_t *r, char *string) {
+
 	 /* snprintf does write \0, and the max is INCL the terminating \0 */
 	 snprintf(string, MAX_STRING_LENGTH, "%u.%03u", r->first, r->msec_first);
-}
 
-static void String_LastSeenRaw(master_record_t *r, char *string)
-{
+} // End of String_FirstSeenRaw
+
+static void String_LastSeenRaw(master_record_t *r, char *string) {
+
 	 /* snprintf does write \0, and the max is INCL the terminating \0 */
 	 snprintf(string, MAX_STRING_LENGTH, "%u.%03u", r->last, r->msec_last);
-}
+
+} // End of String_LastSeenRaw
 
 
 #ifdef NSEL
