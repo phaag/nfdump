@@ -1355,10 +1355,10 @@ struct tm	*tbuff;
 	duration += ((double)StatData->msec_last - (double)StatData->msec_first) / 1000.0;
 	
 	if ( duration != 0 ) {
-		in_pps  = (uint32_t)((double)StatData->counter[INPACKETS] / duration);
-		in_bps  = (uint32_t)((double)(8 * StatData->counter[INBYTES]) / duration);
-		out_pps = (uint32_t)((double)StatData->counter[OUTPACKETS] / duration);
-		out_bps = (uint32_t)((double)(8 * StatData->counter[OUTBYTES]) / duration);
+		in_pps  = (uint64_t)((double)StatData->counter[INPACKETS] / duration);
+		in_bps  = (uint64_t)((double)(8 * StatData->counter[INBYTES]) / duration);
+		out_pps = (uint64_t)((double)StatData->counter[OUTPACKETS] / duration);
+		out_bps = (uint64_t)((double)(8 * StatData->counter[OUTBYTES]) / duration);
 	} else {
 		in_pps  = in_bps  = 0;
 		out_pps = out_bps = 0;
@@ -1774,9 +1774,9 @@ int32_t 		i, j, hash_num, order_index;
 
 				if ( cvs_output ) {
 					if ( order_mode[order_index].inout == OUT ) 
-						printf("ts,te,td,pr,val,fl,flP,opkt,opktP,obyt,obytP,opps,opbs,obpp\n");
+						printf("ts,te,td,pr,val,fl,flP,opkt,opktP,obyt,obytP,opps,obps,obpp\n");
 					else
-						printf("ts,te,td,pr,val,fl,flP,ipkt,ipktP,ibyt,ibytP,ipps,ipbs,ibpp\n");
+						printf("ts,te,td,pr,val,fl,flP,ipkt,ipktP,ibyt,ibytP,ipps,ibps,ibpp\n");
 				}
 
 				j = numflows - topN;
