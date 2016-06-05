@@ -1,3 +1,8 @@
+2016-06-05 v.1.6.15
+- Fix Security issue http://www.security-assessment.com/files/documents/advisory/Nfdump%20nfcapd%201.6.14%20-%20Multiple%20Vulnerabilities.pdf
+- Fix obyte, opps and obps output records
+- Fix wrong bps type case in cvs output. Fix opbs ipbs typos
+
 2016-01-10 v.1.6.14
 - Fix CentOS compile issues with flow-tools converter
 - Fix FreeBSD,OpenBSD build problems
