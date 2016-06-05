@@ -104,6 +104,12 @@ static void String_LastSeen(master_record_t *r, char *string);
 
 static void String_Received(master_record_t *r, char *string);
 
+static void String_FirstSeenRaw(master_record_t *r, char *string);
+
+static void String_LastSeenRaw(master_record_t *r, char *string);
+
+static void String_ReceivedRaw(master_record_t *r, char *string);
+
 static void String_Duration(master_record_t *r, char *string);
 
 static void String_Protocol(master_record_t *r, char *string);
@@ -274,8 +280,11 @@ static struct format_token_list_s {
 	{ "%ff", 0, "Flow Flags", 				String_FlowFlags }, 	// flow flags in hex
 	{ "%tfs", 0, "Date first seen        ", String_FirstSeen },		// Start Time - first seen
 	{ "%ts",  0, "Date first seen        ", String_FirstSeen },		// Start Time - first seen
+	{ "%tsr",  0, "Date first seen (raw)    ", String_FirstSeenRaw },		// Start Time - first seen, seconds
 	{ "%te",  0, "Date last seen         ", String_LastSeen },		// End Time	- last seen
+	{ "%ter",  0, "Date last seen (raw)     ", String_LastSeenRaw },		// End Time - first seen, seconds
 	{ "%tr",  0, "Date flow received     ", String_Received },		// Received Time
+	{ "%trr",  0, "Date flow received (raw)  ", String_ReceivedRaw },		// Received Time, seconds
 	{ "%td",  0, " Duration", 				String_Duration },		// Duration
 	{ "%exp", 0, "Exp ID", 				 	String_ExpSysID },		// Exporter SysID
 	{ "%pr",  0, "Proto", 					String_Protocol },		// Protocol
@@ -1858,6 +1867,25 @@ char 	*s;
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_Received
+
+static void String_ReceivedRaw(master_record_t *r, char *string)
+{
+	 /* snprintf does write \0, and the max is INCL the terminating \0 */
+	 snprintf(string, MAX_STRING_LENGTH, "%.3f", r->received/1000.0);
+}
+
+static void String_FirstSeenRaw(master_record_t *r, char *string)
+{
+	 /* snprintf does write \0, and the max is INCL the terminating \0 */
+	 snprintf(string, MAX_STRING_LENGTH, "%u.%03u", r->first, r->msec_first);
+}
+
+static void String_LastSeenRaw(master_record_t *r, char *string)
+{
+	 /* snprintf does write \0, and the max is INCL the terminating \0 */
+	 snprintf(string, MAX_STRING_LENGTH, "%u.%03u", r->last, r->msec_last);
+}
+
 
 #ifdef NSEL
 static void String_EventTime(master_record_t *r, char *string) {
