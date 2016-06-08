@@ -1,5 +1,7 @@
 # nfdump
 
+[![Build Status](https://travis-ci.org/phaag/nfdump.svg?branch=master)](http://travis-ci.org/phaag/nfdump)
+
 Stable Release v1.6.15
 
 See the Changelog file for all changes in release 1.6.15
