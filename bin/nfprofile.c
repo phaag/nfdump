@@ -363,7 +363,6 @@ profile_param_info_t **list = &profile_list;
 
 	profile_list = NULL;
 	while ( ( fgets(line, 512, stdin) != NULL )) {
-		LogInfo("Process line '%s'\n", line);
 		line[511] = '\0';
 
 		if ( *list == NULL ) 
@@ -387,6 +386,7 @@ profile_param_info_t **list = &profile_list;
 		// <profilegroup>#<profilename>#<profiletype>#<channelname>#<channel_sourcelist>
 		p = strchr(line, '\n');
 		if ( p ) *p = '\0';
+		LogInfo("Process line '%s'\n", line);
 
 		q = line;
 		p = strchr(q, '#');
@@ -527,12 +527,11 @@ int main( int argc, char **argv ) {
 unsigned int		num_channels, compress;
 struct stat stat_buf;
 profile_param_info_t *profile_list;
-char *rfile, *ffile, *filename, *Mdirs, *tstring;
+char *rfile, *ffile, *filename, *Mdirs;
 char	*profile_datadir, *profile_statdir, *nameserver;
 int c, syntax_only, subdir_index, stdin_profile_params, do_xstat;
 time_t tslot;
 
-	tstring 		= NULL;
 	profile_datadir = NULL;
 	profile_statdir = NULL;
 	Mdirs 			= NULL;
