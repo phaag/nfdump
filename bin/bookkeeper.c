@@ -80,7 +80,7 @@ static bookkeeper_list_t *bookkeeper_list = NULL;
  */
 void LogError(char *format, ...);
 
-static key_t _ftok(const char *path, int id);
+static uint32_t hash(char *str, int flag);
 
 static void sem_lock(int sem_set_id);
 
@@ -90,16 +90,21 @@ static inline bookkeeper_list_t *Get_bookkeeper_list_entry(bookkeeper_t *bookkee
 
 /* Create shared memory object and set its size */
 
-/* our own ftok implementation - the standard C library ftok is not reliable enough */
-static key_t _ftok(const char *path, int id) {
-struct stat st;
+/* hash: compute hash value of string */
+#define MULTIPLIER 37
+static uint32_t hash(char *str, int flag) {
+uint32_t h; 
+unsigned char *p;
 
-    if (stat(path, &st) < 0)
-        return (key_t)-1;
+	h = 0;
+	for (p = (unsigned char*)str; *p != '\0'; p++)
+		h = MULTIPLIER * h + *p;
 
-    return (key_t) ( ((st.st_dev & 0xffff) << 16) ^ st.st_ino ) + id;
-}
-
+	if ( flag ) {
+		h = MULTIPLIER * h + 'R';
+	}
+	return h; // or, h % ARRAY_SIZE;
+} // End of hash
 
 // locks the semaphore, for exclusive access to the bookkeeping record
 static void sem_lock(int sem_set_id) {
@@ -152,7 +157,7 @@ bookkeeper_list_t	**bookkeeper_list_entry;
 
 	*bookkeeper = NULL;
 
-	shm_key = _ftok(path, 1); 
+	shm_key = hash(path, 0); 
 	if ( shm_key == - 1 ) 
 		return ERR_PATHACCESS;
 
@@ -240,7 +245,7 @@ bookkeeper_list_t	**bookkeeper_list_entry;
 
 	// create semaphore
 
-	sem_key = _ftok(path, 2); 
+	sem_key = hash(path, 1); 
 	// this should never fail, as we aleady got a key for the shared memory
 	if ( sem_key == - 1 ) {
 		// .. but catch it anyway .. and release shared memory. something is fishy
@@ -310,7 +315,7 @@ int sem_key, shm_key, shm_id, sem_id;
 
 	*bookkeeper = NULL;
 
-	shm_key = _ftok(path, 1); 
+	shm_key = hash(path, 0); 
 	if ( shm_key == - 1 ) 
 		return ERR_PATHACCESS;
 
@@ -341,7 +346,7 @@ int sem_key, shm_key, shm_id, sem_id;
 	// at this point we now have a valid record and can proceed
 
 	// create semaphore
-	sem_key = _ftok(path, 2); 
+	sem_key = hash(path, 1); 
 	// this should never fail, as we aleady got a key for the shared memory
 	if ( sem_key == - 1 ) {
 		// .. but catch it anyway .. and release shared memory. something is fishy
