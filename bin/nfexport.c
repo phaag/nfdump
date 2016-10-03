@@ -295,7 +295,7 @@ char				*string;
 		}
 
 		if ( c != maxindex ) {
-			LogError("Abort: Missmatch %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
+			LogError("Abort: Mismatch %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
 			return 0;
 		}
 

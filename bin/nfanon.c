@@ -90,7 +90,7 @@ static void process_data(void *wfile);
 static void usage(char *name) {
 		printf("usage %s [options] \n"
 					"-h\t\tthis text you see right here\n"
-					"-K <key>\tAnonymize IP addressses using CryptoPAn with key <key>.\n"
+					"-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>.\n"
 					"-r\t\tread input from file\n"
 					"-M <expr>\tRead input from multiple directories.\n"
 					"-R <expr>\tRead input from sequence of files.\n"

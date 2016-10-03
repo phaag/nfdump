@@ -178,7 +178,7 @@ pid_t ret;
 			sleep(1);
 		}
 		if ( i >= LAUNCHER_TIMEOUT ) {
-			syslog(LOG_WARNING, "Laucher does not want to terminate - signal again");
+			syslog(LOG_WARNING, "Launcher does not want to terminate - signal again");
 			kill(pid, SIGTERM);
 			sleep(1);
 		}
