@@ -51,7 +51,7 @@ to exist in all the given directories.  The options \-r and \-R must
 not contain any directory part when used in conjunction with \-M.
 .TP 3
 .B -m
-depricated option. Use -O tstart instead.
+deprecated option. Use -O tstart instead.
 .TP 3
 .B -O \fIorder
 Set sort order to print flows or aggregated flows. \fIorder\fR can be:
@@ -541,9 +541,9 @@ additional computed information such as \fBpps\fR, \fBbps\fR and \fBbpp\fR.
 .P
 .RS 3
 \fBDate flow start:\fR Start time flow first seen. ISO 8601 format 
-including miliseconds.
+including milliseconds.
 .P
-\fBDuration:\fR Duration of the flow in seconds and miliseconds. 
+\fBDuration:\fR Duration of the flow in seconds and milliseconds. 
 If flows are aggregated, \fIduration\fR is the time span over the 
 entire periode of time from first seen to last seen.
 .P
@@ -989,7 +989,7 @@ Select the IPv4 network \fIa.b.c.d\fR with netmask \fIm.n.r.s\fR.
 .br
 with \fI<net>\fR as a valid IPv4 or IPv6 network and \fI<num>\fR as maskbits. 
 The number of mask bits must match the appropriate address familiy in IPv4 or 
-IPv6. Networks may be abreviated such as 172.16/16 if they are unambiguous.
+IPv6. Networks may be abbreviated such as 172.16/16 if they are unambiguous.
 .RE
 .TP 4 
 .I Port
@@ -1037,7 +1037,7 @@ Example: \fBin if 3\fR
 \fB[src|dst|prev|next] as [comp] <num>\fR
 .br
 Selects source, dstination, previous, next or any AS number
-with \fI<num>\fR as any valid as number. 32bit AS numbers are suported. If 
+with \fI<num>\fR as any valid as number. 32bit AS numbers are supported. If 
 \fIcomp\fR is omitted, '=' is assumed. \fIcomp\fR is explained more detailed below.
 .br
 
@@ -1152,7 +1152,7 @@ To filter for flows with specific packets per second.
 .I Duration: Calculated value
 \fBduration\fR \fI[comp]\fR \fInum\fR
 .br
-To filter for flows with specific duration in miliseconds.
+To filter for flows with specific duration in milliseconds.
 .TP 4 
 .I Bits per second: Calculated value.
 \fBbps\fR \fI[comp]\fR \fInum\fR \fI[scale]\fR
@@ -1211,7 +1211,7 @@ Select the translated IP address
 .br
 with \fI<net>\fR as a valid translated IPv4 or IPv6 network and \fI<num>\fR as maskbits. 
 The number of mask bits must match the appropriate address familiy in IPv4 or 
-IPv6. Networks may be abreviated such as 172.16/16 if they are unambiguous.
+IPv6. Networks may be abbreviated such as 172.16/16 if they are unambiguous.
 .P
 \fB[src|dst] xport <port>\fR
 .br
@@ -1282,7 +1282,7 @@ Generates the Top 20 statistics from 08:45 to 09:45 from 3 sources
 Generates the Top 20 statistics, extended output format
 .P
 .B nfdump \-r /and/dir/nfcapd.201107110845 \-s record \-n 20 'in if 5 and bps > 10k'
-Generates the Top 20 statistics from flows comming from interface 5
+Generates the Top 20 statistics from flows coming from interface 5
 .P
 .B nfdump \-r /and/dir/nfcapd.201107110845 'inet6 and proto tcp and ( src port > 1024 and dst port 80 )
 Dumps all port 80 IPv6 connections to any web server.
