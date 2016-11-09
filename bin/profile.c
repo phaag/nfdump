@@ -407,12 +407,194 @@ int ret, update_ok;
 
 } // End of CloseChannels
 
+#ifdef HAVE_INFLUXDB
+
+#include <curl/curl.h>
+
+/**
+ * CURL Callback reading data to userdata buffer
+ */
+static size_t influxdb_client_write_data(char *buf,
+                           size_t size,
+                           size_t nmemb,
+                           void *userdata) {
+    size_t realsize = size * nmemb;
+    if (userdata != NULL)
+    {
+        char **buffer = userdata;
+
+        *buffer = realloc(*buffer, strlen(*buffer) + realsize + 1);
+
+        strncat(*buffer, buf, realsize);
+    }
+    return realsize;
+}
+/**
+ * Low level function performing real HTTP request
+ */
+static int influxdb_client_curl(char *url,
+                     char *reqtype,
+                     char *body,
+                     char **response) {
+    CURLcode c;
+    CURL *handle = curl_easy_init();
+
+	//curl -i -XPOST 'http://nbox-demo:8086/write?db=lucatest' --data-binary 'test,host=server01,region=us-west valueA=0.64 valueB=0.64 1434055562000000000'
+
+    if (reqtype != NULL)
+        curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST, reqtype);
+    curl_easy_setopt(handle, CURLOPT_URL, url);
+
+    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, influxdb_client_write_data);
+    curl_easy_setopt(handle, CURLOPT_WRITEDATA, response);
+
+    if (body != NULL)
+        curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body);
+
+    c = curl_easy_perform(handle);
+
+    if (c == CURLE_OK) {
+        long status_code = 0;
+        if (curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE,
+                              &status_code) == CURLE_OK)
+            c = status_code;
+    }
+
+    curl_easy_cleanup(handle);
+
+    return c;
+}
+
+//int
+//influxdb_client_get_url_with_credential(char (*buffer)[],
+//        								size_t size,
+//										char *schema,
+//										char *host,
+//										char *port,
+//                                        char *path,
+//										char *database,
+//                                        char *username,
+//                                        char *password)
+//{
+//    (*buffer)[0] = '\0';
+//    strncat(*buffer, schema, size);
+//    strncat(*buffer, "://", size);
+//    strncat(*buffer, host, size);
+//    strncat(*buffer, ":", size);
+//    strncat(*buffer, port, size);
+//    strncat(*buffer, path, size);
+//
+//    if (strchr(path, '?'))
+//        strncat(*buffer, "&", size);
+//    else
+//        strncat(*buffer, "?", size);
+//
+//    if (database){
+//		char *database_enc = curl_easy_escape(NULL, database, 0);
+//		strncat(*buffer, "db=", size);
+//		strncat(*buffer, database_enc, size);
+//		free(database_enc);
+//    }
+//
+//    if (username){
+//		char *username_enc = curl_easy_escape(NULL, username, 0);
+//		char *password_enc = curl_easy_escape(NULL, password, 0);
+//
+//		strncat(*buffer, "&u=", size);
+//		strncat(*buffer, username_enc, size);
+//		strncat(*buffer, "&p=", size);
+//		strncat(*buffer, password_enc, size);
+//
+//		free(username_enc);
+//		free(password_enc);
+//    }
+//// 'http://localhost:8086/write?db=mydb&u=pippo&p=paperino'
+////	curl -i -XPOST 'http://localhost:8086/write?db=mydb' --data-binary 'cpu_load_short,host=server01,region=us-west value=0.64 1434055562000000000'
+//    return strlen(*buffer);
+//}
+
+extern char *influxdb_url;
+
+static int influxdb_client_post(char *body) {
+    int status;
+    char *buffer = calloc(1, sizeof (char));
+
+    status = influxdb_client_curl(influxdb_url, NULL, body, &buffer);
+
+    if (status != 204){
+    	// error
+    	if(buffer != NULL){
+
+    	}
+    }
+
+    free(buffer);
+
+    return status;
+}
+
+static void UpdateInfluxDB( time_t tslot, profile_channel_info_t *channel ) {
+	char	buff[1024], *s;
+	int		len, buffsize;
+	stat_record_t stat_record = channel->stat_record;
+
+	buffsize = 1024;
+	s = buff;
+	len = snprintf(s, buffsize , "netflow_stats,channel=%s,group=%s,profile=%s ",channel->channel, channel->group, channel->profile);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , "flows=%llu", (long long unsigned)stat_record.numflows);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",flows_tcp=%llu", (long long unsigned)stat_record.numflows_tcp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",flows_udp=%llu", (long long unsigned)stat_record.numflows_udp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",flows_icmp=%llu", (long long unsigned)stat_record.numflows_icmp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",flows_other=%llu", (long long unsigned)stat_record.numflows_other);
+	buffsize -= len; s += len;
+
+	len = snprintf(s, buffsize , ",packets=%llu", (long long unsigned)stat_record.numpackets);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",packets_tcp=%llu", (long long unsigned)stat_record.numpackets_tcp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",packets_udp=%llu", (long long unsigned)stat_record.numpackets_udp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",packets_icmp=%llu", (long long unsigned)stat_record.numpackets_icmp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",packets_other=%llu", (long long unsigned)stat_record.numpackets_other);
+	buffsize -= len; s += len;
+
+	len = snprintf(s, buffsize , ",traffic=%llu", (long long unsigned)stat_record.numbytes);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",traffic_tcp=%llu", (long long unsigned)stat_record.numbytes_tcp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",traffic_udp=%llu", (long long unsigned)stat_record.numbytes_udp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",traffic_icmp=%llu", (long long unsigned)stat_record.numbytes_icmp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",traffic_other=%llu", (long long unsigned)stat_record.numbytes_other);
+	buffsize -= len; s += len;
+	// timestamp in nanoseconds
+	len = snprintf(s, buffsize , " %llu000000000", (long long unsigned)tslot);
+	buffsize -= len; s += len;
+
+	influxdb_client_post(s);
+
+	//DATA: test,host=server01,region=us-west valueA=0.64,valueB=0.64 1434055562000000000'
+} // End of UpdateInfluxDB
+
+#endif /* HAVE_INFLUXDB */
+
 void UpdateRRD( time_t tslot, profile_channel_info_t *channel ) {
 char	*rrd_arg[10], buff[1024];
 char	*template, *s;
 int		i, len, argc, buffsize;
 stat_record_t stat_record = channel->stat_record;
 	
+#ifdef HAVE_INFLUXDB
+	UpdateInfluxDB(tslot, channel);
+#endif
+
 	template = 	"flows:flows_tcp:flows_udp:flows_icmp:flows_other:packets:packets_tcp:packets_udp:packets_icmp:packets_other:traffic:traffic_tcp:traffic_udp:traffic_icmp:traffic_other";
 
 	argc = 0;

@@ -30,3 +30,22 @@
 
 # Debug files
 *.dSYM/
+/.cproject
+/.project
+/config.h
+/config.h.in~
+/config.log
+/config.status
+/libtool
+/Makefile
+/stamp-h1
+/.settings
+/Makefile.in
+/install-sh
+/ltmain.sh
+/config.guess
+/config.sub
+/configure
+/config.h.in
+/aclocal.m4
+/autom4te.cache

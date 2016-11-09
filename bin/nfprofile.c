@@ -94,6 +94,9 @@ static profile_param_info_t *ParseParams (char *profile_datadir);
 
 static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot, int do_xstat);
 
+#ifdef HAVE_INFLUXDB
+char influxdb_url[1024]="";
+#endif
 
 /* Functions */
 
@@ -115,6 +118,9 @@ static void usage(char *name) {
 					"-Z\t\tCheck filter syntax and exit.\n"
 					"-S subdir\tSub directory format. see nfcapd(1) for format\n"
 					"-z\t\tCompress flows in output file.\n"
+#ifdef HAVE_INFLUXDB
+					"-i <influxdburl>\t\tInfluxdb url for stats (example: http://localhost:8086/write?db=mydb&u=pippo&p=paperino)\n"
+#endif
 					"-t <time>\ttime for RRD update\n", name);
 } /* usage */
 
@@ -551,7 +557,7 @@ time_t tslot;
 	// default file names
 	ffile = "filter.txt";
 	rfile = NULL;
-	while ((c = getopt(argc, argv, "D:HIL:p:P:hf:J;r:n:M:S:t:VzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "D:HIL:p:P:hf:J;r:n:M:S:t:VzZi")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -615,6 +621,11 @@ time_t tslot;
 				}
 				compress = LZO_COMPRESSED;
 				break;
+#ifdef HAVE_INFLUXDB
+			case 'i':
+				strncpy(influxdb_url, optarg, 1024);
+				break;
+#endif
 			default:
 				usage(argv[0]);
 				exit(0);

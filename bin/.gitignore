@@ -1,0 +1,17 @@
+.deps
+.libs
+/nfanon
+/nfcapd
+/nfdump
+/nfexpire
+/nfpcapd
+/nfprofile
+/ft2nfdump
+/Makefile
+/nfreplay
+/nftrack
+/sfcapd
+/Makefile.in
+/grammar.c
+/grammar.h
+/scanner.c
