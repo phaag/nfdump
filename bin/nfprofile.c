@@ -119,7 +119,7 @@ static void usage(char *name) {
 					"-S subdir\tSub directory format. see nfcapd(1) for format\n"
 					"-z\t\tCompress flows in output file.\n"
 #ifdef HAVE_INFLUXDB
-					"-i <influxdburl>\t\tInfluxdb url for stats (example: http://localhost:8086/write?db=mydb&u=pippo&p=paperino)\n"
+					"-i <influxurl>\tInfluxdb url for stats (example: http://localhost:8086/write?db=mydb&u=pippo&p=paperino)\n"
 #endif
 					"-t <time>\ttime for RRD update\n", name);
 } /* usage */
