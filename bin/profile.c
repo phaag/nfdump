@@ -417,43 +417,32 @@ static char influxdb_measurement[]="nfsen_stats";
 
 #include <curl/curl.h>
 
-static int influxdb_client_post(char *body) {
+static void influxdb_client_post(char *body) {
     CURLcode c;
     CURL *handle = curl_easy_init();
-    if(handle){
-		//curl -i -XPOST 'http://nbox-demo:8086/write?db=lucatest' --data-binary 'test,host=server01,region=us-west valueA=0.64 valueB=0.64 1434055562000000000'
+	//curl -i -XPOST 'http://nbox-demo:8086/write?db=lucatest' --data-binary 'test,host=server01,region=us-west valueA=0.64 valueB=0.64 1434055562000000000'
 
-		curl_easy_setopt(handle, CURLOPT_URL, influxdb_url);
-		curl_easy_setopt(handle, CURLOPT_TIMEOUT, 5L);
-		curl_easy_setopt(handle, CURLOPT_CONNECTTIMEOUT, 3L);
-		curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body);
+	curl_easy_setopt(handle, CURLOPT_URL, influxdb_url);
+	curl_easy_setopt(handle, CURLOPT_TIMEOUT, 5L);
+	curl_easy_setopt(handle, CURLOPT_CONNECTTIMEOUT, 3L);
+	curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body);
 
-		//    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, influxdb_client_write_data);
-		//    curl_easy_setopt(handle, CURLOPT_WRITEDATA, response);
+	c = curl_easy_perform(handle);
 
-		c = curl_easy_perform(handle);
+	if (c == CURLE_OK) {
+		long status_code = 0;
+		if (curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &status_code) == CURLE_OK){
+			c = status_code;
 
-		if (c == CURLE_OK) {
-			long status_code = 0;
-			if (curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &status_code) == CURLE_OK){
-				c = status_code;
-
-				if (status_code != 204){
-					LogError("INFLUXDB: %s Insert Error: HTTP %d\n", influxdb_url, status_code);
-				}
+			if (status_code != 204){
+				LogError("INFLUXDB: %s Insert Error: HTTP %d\n", influxdb_url, status_code);
 			}
-		} else{
-			LogError("INFLUXDB: %s Curl Error: %s\n", influxdb_url, curl_easy_strerror(c));
 		}
+	} else{
+		LogError("INFLUXDB: %s Curl Error: %s\n", influxdb_url, curl_easy_strerror(c));
+	}
 
-		curl_easy_cleanup(handle);
-    } else {
-    	c = -1;
-    	LogError("INFLUXDB: %s Unable to init Curl\n", influxdb_url);
-    }
-
-//    LogInfo("INFLUXDB: %s Insert : HTTP %d\n", influxdb_url, c);
-    return c;
+	curl_easy_cleanup(handle);
 }
 
 void UpdateInfluxDB( time_t tslot, profile_channel_info_t *channel ) {
