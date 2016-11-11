@@ -412,92 +412,58 @@ int ret, update_ok;
 } // End of CloseChannels
 
 #ifdef HAVE_INFLUXDB
+extern char influxdb_url[1024];
+static char influxdb_measurement[]="nfsen_stats";
 
 #include <curl/curl.h>
 
-/**
- * CURL Callback reading data to userdata buffer
- */
-static size_t influxdb_client_write_data(char *buf,
-                           size_t size,
-                           size_t nmemb,
-                           void *userdata) {
-    size_t realsize = size * nmemb;
-    if (userdata != NULL)
-    {
-        char **buffer = userdata;
-
-        *buffer = realloc(*buffer, strlen(*buffer) + realsize + 1);
-
-        strncat(*buffer, buf, realsize);
-    }
-    return realsize;
-}
-/**
- * Low level function performing real HTTP request
- */
-static int influxdb_client_curl(char *url,
-                     char *reqtype,
-                     char *body,
-                     char **response) {
+static int influxdb_client_post(char *body) {
     CURLcode c;
     CURL *handle = curl_easy_init();
+    if(handle){
+		//curl -i -XPOST 'http://nbox-demo:8086/write?db=lucatest' --data-binary 'test,host=server01,region=us-west valueA=0.64 valueB=0.64 1434055562000000000'
 
-	//curl -i -XPOST 'http://nbox-demo:8086/write?db=lucatest' --data-binary 'test,host=server01,region=us-west valueA=0.64 valueB=0.64 1434055562000000000'
+		curl_easy_setopt(handle, CURLOPT_URL, influxdb_url);
+		curl_easy_setopt(handle, CURLOPT_TIMEOUT, 5L);
+		curl_easy_setopt(handle, CURLOPT_CONNECTTIMEOUT, 3L);
+		curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body);
 
-    if (reqtype != NULL)
-        curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST, reqtype);
-    curl_easy_setopt(handle, CURLOPT_URL, url);
+		//    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, influxdb_client_write_data);
+		//    curl_easy_setopt(handle, CURLOPT_WRITEDATA, response);
 
-    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, influxdb_client_write_data);
-    curl_easy_setopt(handle, CURLOPT_WRITEDATA, response);
+		c = curl_easy_perform(handle);
 
-    curl_easy_setopt(handle, CURLOPT_TIMEOUT, 5L);
-    curl_easy_setopt(handle, CURLOPT_CONNECTTIMEOUT, 3L);
+		if (c == CURLE_OK) {
+			long status_code = 0;
+			if (curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &status_code) == CURLE_OK){
+				c = status_code;
 
-    if (body != NULL)
-        curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body);
+				if (status_code != 204){
+					LogError("INFLUXDB: %s Insert Error: HTTP %d\n", influxdb_url, status_code);
+				}
+			}
+		} else{
+			LogError("INFLUXDB: %s Curl Error: %s\n", influxdb_url, curl_easy_strerror(c));
+		}
 
-    c = curl_easy_perform(handle);
-
-    if (c == CURLE_OK) {
-        long status_code = 0;
-        if (curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE,
-                              &status_code) == CURLE_OK)
-            c = status_code;
+		curl_easy_cleanup(handle);
+    } else {
+    	c = -1;
+    	LogError("INFLUXDB: %s Unable to init Curl\n", influxdb_url);
     }
 
-    curl_easy_cleanup(handle);
-
+//    LogInfo("INFLUXDB: %s Insert : HTTP %d\n", influxdb_url, c);
     return c;
 }
 
-extern char *influxdb_url;
-static char influxdb_measurement[]="nfsen_stats";
-
-static int influxdb_client_post(char *body) {
-    int status;
-    char *buffer = calloc(1, sizeof (char));
-
-    status = influxdb_client_curl(influxdb_url, NULL, body, &buffer);
-
-    if (status != 204){
-    	LogError("INFLUXDB: %s Insert Error: %d %s\n", influxdb_url, status, buffer);
-    }
-
-    free(buffer);
-
-    return status;
-}
-
 void UpdateInfluxDB( time_t tslot, profile_channel_info_t *channel ) {
-	char	buff[1024], *s;
+	char	buff[2048], *s;
 	int		len, buffsize;
 	stat_record_t stat_record = channel->stat_record;
 
 	char *groupname = strcmp(channel->group, ".")==0?"ROOT":channel->group;
 
-	buffsize = 1024;
+	buffsize = sizeof(buff);
 	s = buff;
 	len = snprintf(s, buffsize , "%s,channel=%s,profilegroup=%s,profile=%s ", influxdb_measurement, channel->channel, groupname, channel->profile);
 	buffsize -= len; s += len;
@@ -537,7 +503,7 @@ void UpdateInfluxDB( time_t tslot, profile_channel_info_t *channel ) {
 	len = snprintf(s, buffsize , " %llu000000000", (long long unsigned)tslot);
 	buffsize -= len; s += len;
 
-	influxdb_client_post(s);
+	influxdb_client_post(buff);
 
 	//DATA: test,host=server01,region=us-west valueA=0.64,valueB=0.64 1434055562000000000'
 } // End of UpdateInfluxDB
