@@ -1529,6 +1529,7 @@ char				*string;
 		common_record_t		*data_record;
 
 		if ( table->input_record_size == 0 ) {
+			dbg_printf("Process_v9: Corrupt data flowset? table input_record_sizei = 0\n");
 			LogError("Process_v9: Corrupt data flowset? table input_record_sizei = 0 ");
 			size_left = 0;
 			continue;
@@ -2031,7 +2032,10 @@ uint32_t 			flowset_id, flowset_length, exporter_id;
 ssize_t				size_left;
 static int pkg_num = 0;
 
+printf("Enter Process_v9\n");
 	pkg_num++;
+	dbg_printf("Process_v9: Next packet: %i\n", pkg_num);
+
 	size_left = in_buff_cnt;
 	if ( size_left < NETFLOW_V9_HEADER_LENGTH ) {
 		LogError( "Process_v9: Too little data for v9 packet: '%lli'", (long long)size_left);
@@ -2060,7 +2064,8 @@ static int pkg_num = 0;
 
 #ifdef DEVEL
 	uint32_t expected_records 		= ntohs(v9_header->count);
-	printf("\n[%u] Next packet: %i %u records, buffer: %li \n", exporter_id, pkg_num, expected_records, size_left);
+	uint32_t skip = 0;
+	printf("\n[%u] Process next packet: %i %u records, buffer: %li \n", exporter_id, pkg_num, expected_records, size_left);
 #endif
 
 	// sequence check
@@ -2161,6 +2166,9 @@ static int pkg_num = 0;
 						// maybe a flowset with option data
 						dbg_printf("Process v9: [%u] No table for id %u -> Skip record\n", 
 							exporter->info.id, flowset_id);
+#ifdef DEVEL
+						skip = 1;
+#endif
 					}
 				}
 			}
@@ -2172,7 +2180,7 @@ static int pkg_num = 0;
 	} // End of while 
 
 #ifdef DEVEL
-	if ( processed_records != expected_records ) {
+	if ( skip == 0 && processed_records != expected_records ) {
 		LogError( "Process_v9: Processed records %u, expected %u", processed_records, expected_records);
 		printf("Process_v9: Processed records %u, expected %u\n", processed_records, expected_records);
 	}

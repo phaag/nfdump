@@ -1625,8 +1625,10 @@ ipfix_header_t		*ipfix_header;
 void				*flowset_header;
 #ifdef DEVEL
 static uint32_t		packet_cntr = 0;
-#endif
 
+	packet_cntr++;
+	dbg_printf("Next packet: %u\n", packet_cntr);
+#endif
 	size_left 	 = in_buff_cnt;
 	if ( size_left < IPFIX_HEADER_LENGTH ) {
 		LogError("Process_ipfix: Too little data for ipfix packet: '%lli'", (long long)size_left);
@@ -1648,8 +1650,8 @@ static uint32_t		packet_cntr = 0;
 	flowset_header	= (void *)ipfix_header + IPFIX_HEADER_LENGTH;
 	size_left 	   -= IPFIX_HEADER_LENGTH;
 
-	dbg_printf("\n[%u] Next packet: %u, exported: %s, TemplateRecords: %llu, DataRecords: %llu, buffer: %li \n", 
-		ObservationDomain, packet_cntr++, UNIX2ISO(ExportTime), (long long unsigned)exporter->TemplateRecords, 
+	dbg_printf("\n[%u] process packet: %u, exported: %s, TemplateRecords: %llu, DataRecords: %llu, buffer: %li \n", 
+		ObservationDomain, packet_cntr, UNIX2ISO(ExportTime), (long long unsigned)exporter->TemplateRecords, 
 		(long long unsigned)exporter->DataRecords, size_left);
 
 	dbg_printf("[%u] Sequence: %u\n", ObservationDomain, Sequence);

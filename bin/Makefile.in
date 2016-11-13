@@ -105,6 +105,7 @@ TESTS = nftest$(EXEEXT) test.sh
 @BUILDNFPCAPD_TRUE@am__append_8 = -lpcap 
 @READPCAP_TRUE@am__append_9 = pcap_reader.c pcap_reader.h
 @READPCAP_TRUE@am__append_10 = -lpcap
+@FT2NFDUMP_FALSE@ft2nfdump_DEPENDENCIES =
 subdir = bin
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/configure.ac
@@ -171,14 +172,12 @@ PROGRAMS = $(bin_PROGRAMS)
 am__ft2nfdump_SOURCES_DIST = ft2nfdump.c
 @FT2NFDUMP_TRUE@am_ft2nfdump_OBJECTS = ft2nfdump-ft2nfdump.$(OBJEXT)
 ft2nfdump_OBJECTS = $(am_ft2nfdump_OBJECTS)
-ft2nfdump_DEPENDENCIES =
 ft2nfdump_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(ft2nfdump_CFLAGS) \
 	$(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 am__objects_7 = panonymizer.$(OBJEXT) rijndael.$(OBJEXT)
 am_nfanon_OBJECTS = nfanon.$(OBJEXT) $(am__objects_7)
 nfanon_OBJECTS = $(am_nfanon_OBJECTS)
-nfanon_DEPENDENCIES =
 am__nfcapd_SOURCES_DIST = nfcapd.c nfstatfile.c nfstatfile.h launch.c \
 	launch.h nfnet.c nfnet.h collector.c collector.h netflow_v1.c \
 	netflow_v1.h netflow_v5_v7.c netflow_v5_v7.h netflow_v9.c \
@@ -202,7 +201,6 @@ am_nfcapd_OBJECTS = nfcapd-nfcapd.$(OBJEXT) $(am__objects_8) \
 	$(am__objects_18)
 nfcapd_OBJECTS = $(am_nfcapd_OBJECTS)
 am__DEPENDENCIES_1 =
-nfcapd_DEPENDENCIES = $(am__DEPENDENCIES_1)
 nfcapd_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(nfcapd_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
@@ -211,17 +209,14 @@ am__objects_20 = nfprof.$(OBJEXT)
 am_nfdump_OBJECTS = nfdump.$(OBJEXT) nfstat.$(OBJEXT) \
 	nfexport.$(OBJEXT) $(am__objects_19) $(am__objects_20)
 nfdump_OBJECTS = $(am_nfdump_OBJECTS)
-nfdump_DEPENDENCIES =
 am__objects_21 = bookkeeper.$(OBJEXT)
 am__objects_22 = expire.$(OBJEXT)
 am__objects_23 = nfstatfile.$(OBJEXT)
 am_nfexpire_OBJECTS = nfexpire.$(OBJEXT) $(am__objects_21) \
 	$(am__objects_22) $(am__objects_23)
 nfexpire_OBJECTS = $(am_nfexpire_OBJECTS)
-nfexpire_DEPENDENCIES =
 am_nfgen_OBJECTS = nfgen.$(OBJEXT)
 nfgen_OBJECTS = $(am_nfgen_OBJECTS)
-nfgen_DEPENDENCIES =
 am__objects_24 = nfpcapd-pcaproc.$(OBJEXT) nfpcapd-flowtree.$(OBJEXT) \
 	nfpcapd-ipfrag.$(OBJEXT)
 am__objects_25 = nfpcapd-netflow_pcap.$(OBJEXT)
@@ -237,17 +232,14 @@ am_nfpcapd_OBJECTS = nfpcapd-nfpcapd.$(OBJEXT) $(am__objects_24) \
 	$(am__objects_28) $(am__objects_29) $(am__objects_30) \
 	$(am__objects_31) $(am__objects_32)
 nfpcapd_OBJECTS = $(am_nfpcapd_OBJECTS)
-nfpcapd_DEPENDENCIES = $(am__DEPENDENCIES_1)
 nfpcapd_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(nfpcapd_CFLAGS) \
 	$(CFLAGS) $(nfpcapd_LDFLAGS) $(LDFLAGS) -o $@
 am_nfprofile_OBJECTS = nfprofile.$(OBJEXT) profile.$(OBJEXT) \
 	$(am__objects_23)
 nfprofile_OBJECTS = $(am_nfprofile_OBJECTS)
-nfprofile_DEPENDENCIES =
 am_nfreader_OBJECTS = nfreader.$(OBJEXT)
 nfreader_OBJECTS = $(am_nfreader_OBJECTS)
-nfreader_DEPENDENCIES =
 am__objects_33 = nfnet.$(OBJEXT)
 am__objects_34 = collector.$(OBJEXT)
 am__objects_35 = netflow_v1.$(OBJEXT)
@@ -258,7 +250,6 @@ am_nfreplay_OBJECTS = nfreplay.$(OBJEXT) $(am__objects_20) \
 	$(am__objects_33) $(am__objects_34) $(am__objects_35) \
 	$(am__objects_36) $(am__objects_37) $(am__objects_38)
 nfreplay_OBJECTS = $(am_nfreplay_OBJECTS)
-nfreplay_DEPENDENCIES =
 am_nftest_OBJECTS = nftest.$(OBJEXT)
 nftest_OBJECTS = $(am_nftest_OBJECTS)
 am__dirstamp = $(am__leading_dot)dirstamp
@@ -266,7 +257,6 @@ am_nftrack_OBJECTS = ../extra/nftrack/nftrack-nftrack.$(OBJEXT) \
 	../extra/nftrack/nftrack-nftrack_rrd.$(OBJEXT) \
 	../extra/nftrack/nftrack-nftrack_stat.$(OBJEXT)
 nftrack_OBJECTS = $(am_nftrack_OBJECTS)
-nftrack_DEPENDENCIES =
 nftrack_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(nftrack_CFLAGS) \
 	$(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
@@ -286,7 +276,6 @@ am_sfcapd_OBJECTS = sfcapd-sfcapd.$(OBJEXT) sfcapd-sflow.$(OBJEXT) \
 	$(am__objects_42) $(am__objects_43) $(am__objects_44) \
 	$(am__objects_45)
 sfcapd_OBJECTS = $(am_sfcapd_OBJECTS)
-sfcapd_DEPENDENCIES = $(am__DEPENDENCIES_1)
 sfcapd_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(sfcapd_CFLAGS) $(CFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
@@ -724,28 +713,34 @@ nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h nfexport.c nfexport.h  \
 	$(nflowcache) $(nfprof)
 
 nfdump_LDADD = -lnfdump
+nfdump_DEPENDENCIES = libnfdump.la
 nfreplay_SOURCES = nfreplay.c $(nfprof) \
 	$(nfnet) $(collector) $(nfv1) $(nfv9) $(nfv5v7) $(ipfix)
 
 nfreplay_LDADD = -lnfdump
+nfreplay_DEPENDENCIES = libnfdump.la
 nfprofile_SOURCES = nfprofile.c profile.c profile.h $(nfstatfile) 
 nfprofile_LDADD = -lnfdump -lrrd
+nfprofile_DEPENDENCIES = libnfdump.la
 nftrack_SOURCES = ../extra/nftrack/nftrack.c \
 	../extra/nftrack/nftrack_rrd.c ../extra/nftrack/nftrack_rrd.h \
 	../extra/nftrack/nftrack_stat.c ../extra/nftrack/nftrack_stat.h 
 
 nftrack_CFLAGS = -I ../extra/nftrack
 nftrack_LDADD = -lnfdump -lrrd
+nftrack_DEPENDENCIES = libnfdump.la
 nfcapd_SOURCES = nfcapd.c $(nfstatfile) $(launch) $(nfnet) \
 	$(collector) $(nfv1) $(nfv5v7) $(nfv9) $(ipfix) $(bookkeeper) \
 	$(expire) $(am__append_5)
 nfcapd_LDADD = -lnfdump $(am__append_6)
+nfcapd_DEPENDENCIES = libnfdump.la
 nfpcapd_SOURCES = nfpcapd.c \
 	$(pcaproc) $(netflow_pcap) \
 	$(nfstatfile) $(launch) \
 	$(nfnet) $(collector) $(bookkeeper) $(expire) $(content)
 
 nfpcapd_LDADD = -lnfdump $(am__append_8)
+nfpcapd_DEPENDENCIES = libnfdump.la
 @READPCAP_TRUE@nfcapd_CFLAGS = -DPCAP
 @BUILDNFPCAPD_TRUE@nfpcapd_CFLAGS = -D_BSD_SOURCE
 @BUILDNFPCAPD_TRUE@nfpcapd_LDFLAGS = -pthread
@@ -753,23 +748,29 @@ sfcapd_SOURCES = sfcapd.c sflow.c sflow.h sflow_proto.h $(nfstatfile) \
 	$(launch) $(nfnet) $(collector) $(bookkeeper) $(expire) \
 	$(am__append_9)
 sfcapd_LDADD = -lnfdump $(am__append_10)
+sfcapd_DEPENDENCIES = libnfdump.la
 @READPCAP_TRUE@sfcapd_CFLAGS = -DPCAP
 nfreader_SOURCES = nfreader.c 
 nfreader_LDADD = -lnfdump 
+nfreader_DEPENDENCIES = libnfdump.la
 nfanon_SOURCES = nfanon.c $(anon)
 nfanon_LDADD = -lnfdump 
+nfanon_DEPENDENCIES = libnfdump.la
 nfgen_SOURCES = nfgen.c 
 nfgen_LDADD = -lnfdump 
+nfgen_DEPENDENCIES = libnfdump.la
 nfexpire_SOURCES = nfexpire.c \
 	$(bookkeeper) $(expire) $(nfstatfile)
 
 nfexpire_LDADD = -lnfdump @FTS_OBJ@
+nfexpire_DEPENDENCIES = libnfdump.la
 nftest_SOURCES = nftest.c 
 nftest_LDADD = -lnfdump 
-nftest_DEPENDENCIES = nfgen
+nftest_DEPENDENCIES = nfgen libnfdump.la
 @FT2NFDUMP_TRUE@ft2nfdump_SOURCES = ft2nfdump.c 
 @FT2NFDUMP_TRUE@ft2nfdump_CFLAGS = @FT_INCLUDES@
 @FT2NFDUMP_TRUE@ft2nfdump_LDADD = -lnfdump -lft -lz @FT_LDFLAGS@
+@FT2NFDUMP_TRUE@ft2nfdump_DEPENDENCIES = libnfdump.la
 check_DIST = inline.c collector_inline.c nffile_inline.c \
 	nfdump_inline.c heapsort_inline.c applybits_inline.c test.sh \
 	nfdump.test.out parse_csv.pl AddExtension.txt nfdump.test.diff
