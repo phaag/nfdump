@@ -755,7 +755,7 @@ size_t				size_required;
 	// skip exporter_sysid and reserved
 	offset += 4;
 
-	/* IP addresss record
+	/* IP address record
 	 * This record is expected in the output stream. If not available
 	 * in the template, assume empty v4 address.
 	 */

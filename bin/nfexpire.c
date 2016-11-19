@@ -376,7 +376,7 @@ channel_t	*channel, *current_channel;
 				printf("Rescan again, due to file changes in directory!\n");
 			}
 			if ( BookSequence(current_channel->books) != last_sequence ) {
-				fprintf(stderr, "Could not savely rescan the directory. Data is not consistent.\n");
+				fprintf(stderr, "Could not safely rescan the directory. Data is not consistent.\n");
 				ReleaseBookkeeper(current_channel->books, DETACH_ONLY);
 				if ( current_channel->status == OK )
 					WriteStatInfo(current_channel->dirstat);
