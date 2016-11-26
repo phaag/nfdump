@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,22 +29,17 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: netflow_v5_v7.c 69 2010-09-09 07:17:43Z haag $
- *
- *  $LastChangedRevision: 69 $
- *	
  */
 
+#ifdef HAVE_CONFIG_H 
 #include "config.h"
+#endif
 
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <syslog.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
@@ -159,7 +155,7 @@ uint16_t	map_size;
 	// Create a generic v5 extension map
 	v5_extension_info.map = (extension_map_t *)malloc((size_t)map_size);
 	if ( !v5_extension_info.map ) {
-		syslog(LOG_ERR, "Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
+		LogError("Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
 		return 0;
 	}
 	v5_extension_info.map->type 	  	  = ExtensionMapType;
@@ -204,7 +200,7 @@ char ipstr[IP_STRING_LEN];
 	// nothing found
 	*e = (exporter_v5_t *)malloc(sizeof(exporter_v5_t));
 	if ( !(*e)) {
-		syslog(LOG_ERR, "Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
+		LogError("Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
 		return NULL;
 	}
 	memset((void *)(*e), 0, sizeof(exporter_v5_t));
@@ -222,7 +218,7 @@ char ipstr[IP_STRING_LEN];
 
 	sampler = (generic_sampler_t *)malloc(sizeof(generic_sampler_t));
 	if ( !sampler ) {
-		syslog(LOG_ERR, "Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
+		LogError("Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
 		return NULL;
 	}
 	(*e)->sampler = sampler;
@@ -241,7 +237,7 @@ char ipstr[IP_STRING_LEN];
 	// copy the v5 generic extension map
 	(*e)->extension_map		= (extension_map_t *)malloc(v5_extension_info.map->size);
 	if ( !(*e)->extension_map ) {
-		syslog(LOG_ERR, "Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
+		LogError("Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
 		free(*e);
 		*e = NULL;
 		return NULL;
@@ -277,12 +273,12 @@ char ipstr[IP_STRING_LEN];
 
 	dbg_printf("New Exporter: v5 SysID: %u, Extension ID: %i, IP: %s, Sampling Mode: %i, Sampling Interval: %u\n", 
 		(*e)->info.sysid, (*e)->extension_map->map_id, ipstr, sampler->info.mode	,sampler->info.interval);
-	syslog(LOG_INFO, "Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s, Sampling Mode: %i, Sampling Interval: %u\n", 
+	LogInfo("Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s, Sampling Mode: %i, Sampling Interval: %u\n", 
 		(*e)->info.sysid, ( engine_tag & 0xFF ),( (engine_tag >> 8) & 0xFF ), ipstr, sampler->info.mode	,sampler->info.interval );
 
 	if ( overwrite_sampling > 0 )  {
 		sampler->info.interval = overwrite_sampling;
-		syslog(LOG_INFO, "Process_v5: Hard overwrite sampling rate: %u\n", sampler->info.interval);
+		LogInfo("Process_v5: Hard overwrite sampling rate: %u\n", sampler->info.interval);
 	}
 
 	return (*e);
@@ -312,7 +308,7 @@ char		*string;
 
 		exporter = GetExporter(fs, v5_header);
 		if ( !exporter ) {
-			syslog(LOG_ERR,"Process_v5: Exporter NULL: Abort v5/v7 record processing");
+			LogError("Process_v5: Exporter NULL: Abort v5/v7 record processing");
 			return;
 		}
 		exporter->packets++;
@@ -348,14 +344,14 @@ char		*string;
 			// count check
 	  		count	= ntohs(v5_header->count);
 			if ( count > NETFLOW_V5_MAX_RECORDS ) {
-				syslog(LOG_ERR,"Process_v5: Unexpected record count in header: %i. Abort v5/v7 record processing", count);
+				LogError("Process_v5: Unexpected record count in header: %i. Abort v5/v7 record processing", count);
 				fs->nffile->buff_ptr = (void *)common_record;
 				return;
 			}
 
 			// input buffer size check for all expected records
 			if ( size_left < ( NETFLOW_V5_HEADER_LENGTH + count * flow_record_length) ) {
-				syslog(LOG_ERR,"Process_v5: Not enough data to process v5 record. Abort v5/v7 record processing");
+				LogError("Process_v5: Not enough data to process v5 record. Abort v5/v7 record processing");
 				fs->nffile->buff_ptr = (void *)common_record;
 				return;
 			}
@@ -363,7 +359,7 @@ char		*string;
 			// output buffer size check for all expected records
 			if ( !CheckBufferSpace(fs->nffile, count * v5_output_record_size) ) {
 				// fishy! - should never happen. maybe disk full?
-				syslog(LOG_ERR,"Process_v5: output buffer size error. Abort v5/v7 record processing");
+				LogError("Process_v5: output buffer size error. Abort v5/v7 record processing");
 				return;
 			}
 
@@ -389,7 +385,7 @@ char		*string;
 					fs->nffile->stat_record->sequence_failure++;
 					exporter->sequence_failure++;
 					/*
-					syslog(LOG_ERR,"Flow v%d sequence last:%llu now:%llu mismatch. Missing: dist:%lu flows",
+					LogError("Flow v%d sequence last:%llu now:%llu mismatch. Missing: dist:%lu flows",
 						version, exporter->last_sequence, exporter->sequence, exporter->distance);
 					*/
 
@@ -516,7 +512,7 @@ char		*string;
 
 						default:
 							// this should never happen, as v5 has no other extensions
-							syslog(LOG_ERR,"Process_v5: Unexpected extension %i for v5 record. Skip extension", id);
+							LogError("Process_v5: Unexpected extension %i for v5 record. Skip extension", id);
 					}
 					j++;
 				}
@@ -534,7 +530,7 @@ char		*string;
 				 */
 				if ( First > Last && ( (First - Last)  < 20000) ) {
 					uint32_t _t;
-					syslog(LOG_ERR,"Process_v5: Unexpected time swap: First 0x%llx smaller than boot time: 0x%llx", start_time, boot_time);
+					LogError("Process_v5: Unexpected time swap: First 0x%llx smaller than boot time: 0x%llx", start_time, boot_time);
 					_t= First;
 					First = Last;
 					Last = _t;
@@ -652,9 +648,9 @@ char		*string;
 				// buffer size sanity check - should never happen, but check it anyway
 				bsize = (pointer_addr_t)common_record - (pointer_addr_t)fs->nffile->block_header - sizeof(data_block_header_t);
 				if ( bsize >= BUFFSIZE ) {
-					syslog(LOG_ERR,"### Software error ###: %s line %d", __FILE__, __LINE__);
-					syslog(LOG_ERR,"Process_v5: Output buffer overflow! Flush buffer and skip records.");
-					syslog(LOG_ERR,"Buffer size: size: %u, bsize: %llu > %u", fs->nffile->block_header->size, (unsigned long long)bsize, BUFFSIZE);
+					LogError("### Software error ###: %s line %d", __FILE__, __LINE__);
+					LogError("Process_v5: Output buffer overflow! Flush buffer and skip records.");
+					LogError("Buffer size: size: %u, bsize: %llu > %u", fs->nffile->block_header->size, (unsigned long long)bsize, BUFFSIZE);
 					// reset buffer
 					fs->nffile->block_header->size 		= 0;
 					fs->nffile->block_header->NumRecords = 0;

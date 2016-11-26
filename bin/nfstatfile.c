@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,15 +29,11 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nfstatfile.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *  
  */
 
+#ifdef HAVE_CONFIG_H 
 #include "config.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,6 +52,7 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
 #include "nfstatfile.h"
 
 #define stat_filename ".nfstat"
@@ -94,13 +92,6 @@ static const double _1min  = 60.0;
 static const double _1hour = 3600.0;
 static const double _1day  = 86400.0;
 static const double _1week = 604800.0;
-
-/* 
- * expire.c is needed for daemon code as well as normal stdio code 
- * therefore a generic LogError is defined, which maps to the 
- * approriate logging channel - either stderr or syslog
- */
-void LogError(char *format, ...);
 
 static inline uint64_t string2uint64(char *s);
 

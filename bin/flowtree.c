@@ -30,7 +30,9 @@
  *  
  */
 
+#ifdef HAVE_CONFIG_H 
 #include "config.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -53,14 +55,6 @@
 #include "collector.h"
 #include "flowtree.h"
 #include "netflow_pcap.h"
-
-#ifdef DEVEL
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#   define dbg_assert(a) assert(a)
-#else
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#   define dbg_assert(a) /* assert(a) */
-#endif
 
 static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2);
 
@@ -364,34 +358,6 @@ if ( node->left || node->right ) {
 	return n;
 
 } // End of Flush_FlowTree
-
-static void DisconnectFlowNode(Linked_list_t *LinkedList, struct FlowNode *node) {
-	
-	if ( node == NULL ) 
-		return;
-
-	else {
-		// disconnect node 
-		struct FlowNode *prev = node->left;
-		struct FlowNode *next = node->right;
-		if ( prev )
-			prev->right = next;
-		else
-			LinkedList->list = next;
-
-		if ( next ) 
-			next->left  = prev;
-
-		if ( LinkedList->tail == node )
-			LinkedList->tail = node->left;
-
-		node->left  = NULL;
-		node->right = NULL;
-
-		LinkedList->size--;
-	}
-
-} // End of DisconnectFlowNode
 
 int AddNodeData(struct FlowNode *node, uint32_t seq, void *payload, uint32_t size) {
 

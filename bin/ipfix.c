@@ -1665,8 +1665,8 @@ static uint32_t		packet_cntr = 0;
 			exporter->sequence_failure++;
 			dbg_printf("[%u] Sequence check failed: last seq: %u, seq %u\n", 
 				exporter->info.id, Sequence, exporter->PacketSequence);
-			/* maybee to noise onbuggy exporters
-			syslog(LOG_ERR, "Process_ipfix [%u] Sequence error: last seq: %u, seq %u\n", 
+			/* maybee to noise on buggy exporters
+			LogError("Process_ipfix [%u] Sequence error: last seq: %u, seq %u\n", 
 				info.id, exporter->LastSequence, Sequence);
 			*/
 		} else {

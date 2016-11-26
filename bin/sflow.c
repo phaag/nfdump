@@ -487,12 +487,7 @@ static inline uint64_t getData64(SFSample *sample);
 
 static void writeCountersLine(SFSample *sample);
 
-#ifdef __SUNPRO_C
-static void receiveError(SFSample *sample, char *errm, int hexdump);
-#pragma does_not_return (receiveError)
-#else
 static void receiveError(SFSample *sample, char *errm, int hexdump) __attribute__ ((noreturn));
-#endif
 
 static inline void skipBytes(SFSample *sample, int skip);
 
@@ -505,8 +500,6 @@ static inline void sf_log_percentage(SFSample *sample, char *fieldName);
 static inline uint32_t getString(SFSample *sample, char *buf, int bufLen);
 
 static inline uint32_t getAddress(SFSample *sample, SFLAddress *address);
-
-static inline char *printTag(uint32_t tag, char *buf, int bufLen);
 
 static inline void skipTLVRecord(SFSample *sample, uint32_t tag, uint32_t len, char *description);
 
@@ -521,6 +514,10 @@ static inline void readFlowSample_v2v4(SFSample *sample, FlowSource_t *fs);
 static inline void readCountersSample_v2v4(SFSample *sample, FlowSource_t *fs);
 
 static inline void StoreSflowRecord(SFSample *sample, FlowSource_t *fs);
+
+#ifdef DEVEL
+static inline char *printTag(uint32_t tag, char *buf, int bufLen);
+#endif
 
 extern int verbose;
 
@@ -1410,13 +1407,14 @@ static inline uint32_t getAddress(SFSample *sample, SFLAddress *address) {
 	return address->type;
 } // End of getAddress
 
+static inline void skipTLVRecord(SFSample *sample, uint32_t tag, uint32_t len, char *description) {
+
+#ifdef DEVEL
 static inline char *printTag(uint32_t tag, char *buf, int bufLen) {
 	snprintf(buf, bufLen, "%u:%u", (tag >> 12), (tag & 0x00000FFF));
 	return buf;
 } // End of printTag
 
-static inline void skipTLVRecord(SFSample *sample, uint32_t tag, uint32_t len, char *description) {
-#ifdef DEVEL
 char buf[51];
 #endif
 

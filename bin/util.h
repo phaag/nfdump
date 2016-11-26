@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,16 +29,30 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: util.h 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
  */
 
 #ifndef _UTIL_H
 #define _UTIL_H 1
+
+#ifdef HAVE_CONFIG_H 
+#include "config.h"
+#endif
+
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include <time.h>
+
+#ifdef DEVEL
+#	include <stdio.h>
+#	include <assert.h>
+#	define dbg_printf(...) printf(__VA_ARGS__)
+#	define dbg_assert(a) assert(a)
+#else
+#	define dbg_printf(...) /* printf(__VA_ARGS__) */
+#	define dbg_assert(a) /* assert(a) */
+#endif
 
 #define EBUFF_SIZE 256
 
@@ -55,7 +70,6 @@
 #define _1MB (double)(1000.0 * 1000.0)
 #define _1GB (double)(1000.0 * 1000.0 * 1000.0)
 #define _1TB (double)(1000.0 * 1000.0 * 1000.0 * 1000.0)
-
 
 typedef struct stringlist_s {
 	uint32_t	block_size;

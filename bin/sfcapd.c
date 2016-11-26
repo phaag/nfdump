@@ -29,11 +29,11 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  Author: peter
- *
  */
 
+#ifdef HAVE_CONFIG_H 
 #include "config.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -55,7 +55,6 @@
 #include <time.h>
 #include <fcntl.h>
 #include <signal.h>
-#include <syslog.h>
 #include <sys/mman.h>
 #include <string.h>
 #include <dirent.h>
@@ -168,7 +167,7 @@ pid_t ret;
 		return;
 
 	if ( launcher_alive ) {
-		syslog(LOG_INFO, "Signal launcher[%i] to terminate.", pid);
+		LogInfo("Signal launcher[%i] to terminate.", pid);
 		kill(pid, SIGTERM);
 
 		// wait for launcher to teminate
@@ -178,22 +177,22 @@ pid_t ret;
 			sleep(1);
 		}
 		if ( i >= LAUNCHER_TIMEOUT ) {
-			syslog(LOG_WARNING, "Launcher does not want to terminate - signal again");
+			LogError("Launcher does not want to terminate - signal again");
 			kill(pid, SIGTERM);
 			sleep(1);
 		}
 	} else {
-		syslog(LOG_ERR, "launcher[%i] already dead.", pid);
+		LogError("launcher[%i] already dead.", pid);
 	}
 
 	if ( (ret = waitpid (pid, &stat, 0)) == -1 ) {
-		syslog(LOG_ERR, "wait for launcher failed: %s %i", strerror(errno), ret);
+		LogError("wait for launcher failed: %s %i", strerror(errno), ret);
 	} else {
 		if ( WIFEXITED(stat) ) {
-			syslog(LOG_INFO, "launcher exit status: %i", WEXITSTATUS(stat));
+			LogInfo("launcher exit status: %i", WEXITSTATUS(stat));
 		}
 		if (  WIFSIGNALED(stat) ) {
-			syslog(LOG_WARNING, "launcher terminated due to signal %i", WTERMSIG(stat));
+			LogError("launcher terminated due to signal %i", WTERMSIG(stat));
 		}
 	}
 
@@ -285,7 +284,7 @@ int		err;
 	newuid = newgid = 0;
 	myuid = getuid();
 	if ( myuid != 0 ) {
-		syslog(LOG_ERR, "Only root wants to change uid/gid");
+		LogError("Only root wants to change uid/gid");
 		fprintf(stderr, "ERROR: Only root wants to change uid/gid\n");
 		exit(255);
 	}
@@ -311,7 +310,7 @@ int		err;
 
 		err = setgid(newgid);
 		if ( err ) {
-			syslog(LOG_ERR, "Can't set group id %ld for group '%s': %s",   (long)newgid, groupid, strerror(errno));
+			LogError("Can't set group id %ld for group '%s': %s",   (long)newgid, groupid, strerror(errno));
 			fprintf (stderr,"Can't set group id %ld for group '%s': %s\n", (long)newgid, groupid, strerror(errno));
 			exit(255);
 		}
@@ -321,7 +320,7 @@ int		err;
 	if ( newuid ) {
 		err = setuid(newuid);
 		if ( err ) {
-			syslog(LOG_ERR, "Can't set user id %ld for user '%s': %s",   (long)newuid, userid, strerror(errno));
+			LogError("Can't set user id %ld for user '%s': %s",   (long)newuid, userid, strerror(errno));
 			fprintf (stderr,"Can't set user id %ld for user '%s': %s\n", (long)newuid, userid, strerror(errno));
 			exit(255);
 		}
@@ -350,7 +349,7 @@ srecord_t	*commbuff;
 
 	in_buff  = malloc(NETWORK_INPUT_BUFF_SIZE);
 	if ( !in_buff ) {
-		syslog(LOG_ERR, "malloc() buffer allocation error: %s", strerror(errno));
+		LogError("malloc() buffer allocation error: %s", strerror(errno));
 		return;
 	}
 
@@ -416,7 +415,7 @@ srecord_t	*commbuff;
 				(struct sockaddr *)&sf_sender, &sf_sender_size);
 #endif
 			if ( cnt == -1 && errno != EINTR ) {
-				syslog(LOG_ERR, "ERROR: recvfrom: %s", strerror(errno));
+				LogError("ERROR: recvfrom: %s", strerror(errno));
 				continue;
 			}
 
@@ -424,7 +423,7 @@ srecord_t	*commbuff;
 				ssize_t len;
 				len = sendto(peer.sockfd, in_buff, cnt, 0, (struct sockaddr *)&(peer.addr), peer.addrlen);
 				if ( len < 0 ) {
-					syslog(LOG_ERR, "ERROR: sendto(): %s", strerror(errno));
+					LogError("ERROR: sendto(): %s", strerror(errno));
 				}
 			}
 		}
@@ -446,7 +445,7 @@ srecord_t	*commbuff;
 				subdir = GetSubDir(now);
 				if ( !subdir ) {
 					// failed to generate subdir path - put flows into base directory
-					syslog(LOG_ERR, "Failed to create subdir path!");
+					LogError("Failed to create subdir path!");
 			
 					// failed to generate subdir path - put flows into base directory
 					subdir = NULL;
@@ -476,7 +475,7 @@ srecord_t	*commbuff;
 				if ( nffile->block_header->NumRecords ) {
 					// flush current buffer to disc
 					if ( WriteBlock(nffile) <= 0 )
-						syslog(LOG_ERR, "Ident: %s, failed to write output buffer to disk: '%s'" , fs->Ident, strerror(errno));
+						LogError("Ident: %s, failed to write output buffer to disk: '%s'" , fs->Ident, strerror(errno));
 				} // else - no new records in current block
 
 	
@@ -492,7 +491,7 @@ srecord_t	*commbuff;
 	
 				if ( fs->xstat ) {
 					if ( WriteExtraBlock(nffile, fs->xstat->block_header ) <= 0 ) 
-						syslog(LOG_ERR, "Ident: %s, failed to write xstat buffer to disk: '%s'" , fs->Ident, strerror(errno));
+						LogError("Ident: %s, failed to write xstat buffer to disk: '%s'" , fs->Ident, strerror(errno));
 
 					ResetPortHistogram(fs->xstat->port_histogram);
 					ResetBppHistogram(fs->xstat->bpp_histogram);
@@ -506,15 +505,15 @@ srecord_t	*commbuff;
 				if ( subdir && !SetupSubDir(fs->datadir, subdir, error, 255) ) {
 					// in this case the flows get lost! - the rename will fail
 					// but this should not happen anyway, unless i/o problems, inode problems etc.
-					syslog(LOG_ERR, "Ident: %s, Failed to create sub hier directories: %s", fs->Ident, error );
+					LogError("Ident: %s, Failed to create sub hier directories: %s", fs->Ident, error );
 				}
 
 				// if rename fails, we are in big trouble, as we need to get rid of the old .current file
 				// otherwise, we will loose flows and can not continue collecting new flows
 				err = rename(fs->current, nfcapd_filename);
 				if ( err ) {
-					syslog(LOG_ERR, "Ident: %s, Can't rename dump file: %s", fs->Ident,  strerror(errno));
-					syslog(LOG_ERR, "Ident: %s, Serious Problem! Fix manually", fs->Ident);
+					LogError("Ident: %s, Can't rename dump file: %s", fs->Ident,  strerror(errno));
+					LogError("Ident: %s, Serious Problem! Fix manually", fs->Ident);
 					if ( launcher_pid )
 						commbuff->failed = 1;
 
@@ -531,7 +530,7 @@ srecord_t	*commbuff;
 				}
 
 				// log stats
-				syslog(LOG_INFO,"Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Sequence Errors: %u, Bad Packets: %u", 
+				LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Sequence Errors: %u, Bad Packets: %u", 
 					fs->Ident, (unsigned long long)nffile->stat_record->numflows, (unsigned long long)nffile->stat_record->numpackets, 
 					(unsigned long long)nffile->stat_record->numbytes, nffile->stat_record->sequence_failure, fs->bad_packets);
 
@@ -576,14 +575,14 @@ srecord_t	*commbuff;
 					commbuff->subdir[0] = '\0';
 
 				if ( launcher_alive ) {
-					syslog(LOG_DEBUG, "Signal launcher");
+					LogInfo("Signal launcher");
 					kill(launcher_pid, SIGHUP);
 				} else 
-					syslog(LOG_ERR, "ERROR: Launcher died unexpectedly!");
+					LogError("ERROR: Launcher died unexpectedly!");
 
 			}
 			
-			syslog(LOG_INFO, "Total ignored packets: %u", ignored_packets);
+			LogInfo("Total ignored packets: %u", ignored_packets);
 			ignored_packets = 0;
 
 			if ( done )
@@ -611,7 +610,7 @@ srecord_t	*commbuff;
 				break;
 			else {
 				/* this should never be executed as it should be caught in other places */
-				syslog(LOG_ERR, "error condition in '%s', line '%d', cnt: %i", __FILE__, __LINE__ ,(int)cnt);
+				LogError("error condition in '%s', line '%d', cnt: %i", __FILE__, __LINE__ ,(int)cnt);
 				continue;
 			}
 		}
@@ -624,7 +623,7 @@ srecord_t	*commbuff;
 
 		fs = GetFlowSource(&sf_sender);
 		if ( fs == NULL ) {
-			syslog(LOG_WARNING, "Skip UDP packet. Ignored packets so far %u packets", ignored_packets);
+			LogError("Skip UDP packet. Ignored packets so far %u packets", ignored_packets);
 			ignored_packets++;
 			continue;
 		}
@@ -632,7 +631,7 @@ srecord_t	*commbuff;
 
 		/* check for too little data - cnt must be > 0 at this point */
 		if ( cnt < sizeof(common_flow_header_t) ) {
-			syslog(LOG_WARNING, "Ident: %s, Data length error: too little data for common netflow header. cnt: %i",fs->Ident, (int)cnt);
+			LogError("Ident: %s, Data length error: too little data for common netflow header. cnt: %i",fs->Ident, (int)cnt);
 			fs->bad_packets++;
 			continue;
 		}
@@ -651,7 +650,7 @@ srecord_t	*commbuff;
 			fs->nffile->block_header->size 		 = 0;
 			fs->nffile->block_header->NumRecords = 0;
 			fs->nffile->buff_ptr = (void *)((pointer_addr_t)fs->nffile->block_header + sizeof(data_block_header_t) );
-			syslog(LOG_ERR, "### Software bug ### Ident: %s, output buffer overflow: expect memory inconsitency", fs->Ident);
+			LogError("### Software bug ### Ident: %s, output buffer overflow: expect memory inconsitency", fs->Ident);
 		}
 	}
 
@@ -1003,7 +1002,7 @@ int	c;
 		pid_t pid = getpid();
 		int pidf  = open(pidfile, O_RDWR|O_TRUNC|O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 		if ( pidf == -1 ) {
-			syslog(LOG_ERR, "Error opening pid file: '%s' %s", pidfile, strerror(errno));
+			LogError("Error opening pid file: '%s' %s", pidfile, strerror(errno));
 			close(sock);
 			exit(255);
 		}
@@ -1021,7 +1020,7 @@ int	c;
 		// prepare shared memory
 		shmem = mmap(0, sizeof(srecord_t), PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
 		if ( shmem == (caddr_t)-1 ) {
-			syslog(LOG_ERR, "mmap() error: %s", strerror(errno));
+			LogError("mmap() error: %s", strerror(errno));
 			close(sock);
 			exit(255);
 		}
@@ -1037,7 +1036,7 @@ int	c;
 				exit(0);
 				break;
 			case -1:
-				syslog(LOG_ERR, "fork() error: %s", strerror(errno));
+				LogError("fork() error: %s", strerror(errno));
 				if ( strlen(pidfile) )
 					unlink(pidfile);
 				exit(255);
@@ -1045,14 +1044,14 @@ int	c;
 			default:
 				// parent
 			launcher_alive = 1;
-			syslog(LOG_DEBUG, "Launcher[%i] forked", launcher_pid);
+			LogInfo("Launcher[%i] forked", launcher_pid);
 		}
 	}
 
 	fs = FlowSource;
 	while ( fs ) {
 		if ( InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid(), launcher_pid) != BOOKKEEPER_OK ) {
-			syslog(LOG_ERR, "initialize bookkeeper failed.");
+			LogError("initialize bookkeeper failed.");
 
 			// release all already allocated bookkeepers
 			fs = FlowSource;
@@ -1070,7 +1069,6 @@ int	c;
 
 		// Init the extension map list
 		if ( !InitExtensionMapList(fs) ) {
-			// error message goes to syslog
 			exit(255);
 		}
 
@@ -1088,7 +1086,7 @@ int	c;
 	sigaction(SIGALRM, &act, NULL);
 	sigaction(SIGCHLD, &act, NULL);
 
-	syslog(LOG_INFO, "Startup.");
+	LogInfo("Startup.");
 	run(receive_packet, sock, peer, twin, t_start, report_sequence, subdir_index, 
 		time_extension, compress, do_xstat);
 	close(sock);
@@ -1101,15 +1099,15 @@ int	c;
 		if ( expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK ) {
 			UpdateBookStat(dirstat, fs->bookkeeper);
 			WriteStatInfo(dirstat);
-			syslog(LOG_INFO, "Updating statinfo in directory '%s'", datadir);
+			LogInfo("Updating statinfo in directory '%s'", datadir);
 		}
 
 		ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
 		fs = fs->next;
 	}
 
-	syslog(LOG_INFO, "Terminating sfcapd.");
-	closelog();
+	LogInfo("Terminating sfcapd.");
+	EndLog();
 
 	if ( strlen(pidfile) )
 		unlink(pidfile);

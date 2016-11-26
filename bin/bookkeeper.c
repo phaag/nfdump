@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,16 +29,11 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: bookkeeper.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
- *
  */
 
+#ifdef HAVE_CONFIG_H 
 #include "config.h"
+#endif
 
 #include <stdio.h>
 #include <unistd.h>
@@ -65,20 +61,12 @@ union semun {
 };
 #endif
 
-#include "config.h"
-
+#include "util.h"
 #include "bookkeeper.h"
 
 static bookkeeper_list_t *bookkeeper_list = NULL;
 
 /* function prototypes */
-
-/* 
- * bookkeeper.c is needed for daemon code as well as normal stdio code 
- * therefore a generic LogError is defined, which maps to the 
- * approriate logging channel - either stderr or syslog
- */
-void LogError(char *format, ...);
 
 static uint32_t hash(char *str, int flag);
 

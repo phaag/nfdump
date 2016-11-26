@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,15 +29,11 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: util.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
  */
 
+#ifdef HAVE_CONFIG_H 
 #include "config.h"
+#endif
 
 #include <stdio.h>
 #include <unistd.h>
@@ -45,10 +42,12 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <sys/select.h>
 
 #ifndef SYSLOG_NAMES
-#define SYSLOG_NAMES 1
+#	define SYSLOG_NAMES 1
 #endif
+
 #include <syslog.h>
 #include <stdarg.h>
 
@@ -63,12 +62,6 @@
 extern char *CurrentIdent;
 
 enum { NONE, LESS, MORE };
-
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
 
 /* Function prototypes */
 static int check_number(char *s, int len);

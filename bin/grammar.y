@@ -1,6 +1,5 @@
 /*
- *  This file is part of the nfdump project.
- *
+ *  Copyright (c) 2016
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -12,7 +11,7 @@
  *   * Redistributions in binary form must reproduce the above copyright notice, 
  *     this list of conditions and the following disclaimer in the documentation 
  *     and/or other materials provided with the distribution.
- *   * Neither the name of SWITCH nor the names of its contributors may be 
+ *   * Neither the name of the author nor the names of its contributors may be 
  *     used to endorse or promote products derived from this software without 
  *     specific prior written permission.
  *  
@@ -28,19 +27,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: peter $
- *
- *  $Id: grammar.y 100 2008-08-15 11:36:21Z peter $
- *
- *  $LastChangedRevision: 100 $
- *	
- *
- *
  */
 
 %{
 
+#ifdef HAVE_CONFIG_H 
 #include "config.h"
+#endif
 
 #include <stdio.h>
 #include <sys/types.h>
