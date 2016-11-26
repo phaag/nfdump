@@ -124,8 +124,8 @@ extension_descriptor_t extension_descriptor[] = {
 
 	{ EX_NSEL_RESERVED,		0,	0, 0,		NULL},
 
-	// nprobe extensions
-	{ EX_LATENCY,			24,	64, 0,		"nprobe latency"},
+	// latency extension for nfpcapd and nprobe
+	{ EX_LATENCY,			24,	64, 0,		"nprobe/nfpcapd latency"},
 
 	// NAT - Network Event Logging
 	{ EX_NEL_COMMON,		12,	31, 0,		"NEL Common block"},

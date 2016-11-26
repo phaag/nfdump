@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2011, Peter Haag
  *  All rights reserved.
@@ -27,12 +28,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author$
- *
- *  $Id$
- *
- *  $LastChangedRevision$
- *  
  */
 
 #include "config.h"
@@ -59,10 +54,12 @@
 #include "flowtree.h"
 #include "netflow_pcap.h"
 
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
+#ifdef DEVEL
 #   define dbg_printf(...) printf(__VA_ARGS__)
+#   define dbg_assert(a) assert(a)
+#else
+#   define dbg_printf(...) /* printf(__VA_ARGS__) */
+#   define dbg_assert(a) /* assert(a) */
 #endif
 
 static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2);
@@ -92,15 +89,6 @@ typedef struct FlowNode_list_s {
 	struct FlowNode *tail;
 	uint32_t	size;
 } Linked_list_t;
-
-static Linked_list_t UDP_list;
-
-/* static prototypes */
-static void AppendFlowNode(Linked_list_t *LinkedList, struct FlowNode *node);
-
-static void DisconnectFlowNode(Linked_list_t *LinkedList, struct FlowNode *node);
-
-static void TouchFlowNode(Linked_list_t *LinkedList, struct FlowNode *node);
 
 /* Free list handling functions */
 // Get next free node from free list
@@ -169,10 +157,8 @@ void Free_Node(struct FlowNode *node) {
 		node->data = NULL;
 	}
 
-#ifdef DEVEL
-	assert(node->left == NULL);
-	assert(node->right == NULL);
-#endif
+	dbg_assert(node->left == NULL);
+	dbg_assert(node->right == NULL);
 
 #ifdef USE_MALLOC
 	dbg_printf("Free node: %llx\n", (unsigned long long)node);
@@ -242,10 +228,6 @@ int i;
 	Allocated 	  = 0;
 	NumFlows 	  = 0;
 
-	UDP_list.list	= NULL;
-	UDP_list.tail	= NULL;
-	UDP_list.size	= 0;
-
 	return 1;
 } // End of Init_FlowTree
 
@@ -285,6 +267,9 @@ struct FlowNode *Lookup_Node(struct FlowNode *node) {
 struct FlowNode *Insert_Node(struct FlowNode *node) {
 struct FlowNode *n;
 
+dbg_assert(node->left == NULL);
+dbg_assert(node->right == NULL);
+
 	// return RB_INSERT(FlowTree, FlowTree, node);
 	n = RB_INSERT(FlowTree, FlowTree, node);
 	if ( n ) { // existing node
@@ -293,9 +278,10 @@ struct FlowNode *n;
 		NumFlows++;
 		return NULL;
 	}
-} // End of Lookup_FlowTree
+} // End of Insert_Node
 
 void Remove_Node(struct FlowNode *node) {
+struct FlowNode *rev_node;
 
 #ifdef DEVEL
 	assert(node->memflag == NODE_IN_USE);
@@ -305,11 +291,53 @@ void Remove_Node(struct FlowNode *node) {
 	}
 #endif
 
+	rev_node = node->rev_node;
+	if ( rev_node ) {
+		// unlink rev node on both nodes
+		dbg_assert(rev_node->rev_node == node);
+		rev_node->rev_node = NULL;
+		node->rev_node	   = NULL;
+	}
 	RB_REMOVE(FlowTree, FlowTree, node);
 	Free_Node(node);
 	NumFlows--;
 
-} // End of Lookup_FlowTree
+} // End of Remove_Node
+
+int Link_RevNode(struct FlowNode *node) {
+struct FlowNode lookup_node, *rev_node;
+
+    dbg_printf("Link node: ");
+    dbg_assert(node->rev_node == NULL);
+    lookup_node.src_addr = node->dst_addr;
+    lookup_node.dst_addr = node->src_addr;
+    lookup_node.src_port = node->dst_port;
+    lookup_node.dst_port = node->src_port;
+    lookup_node.version  = node->version;
+    lookup_node.proto    = node->proto;
+    rev_node = Lookup_Node(&lookup_node);
+    if ( rev_node ) { 
+        dbg_printf("Found revnode ");
+		// rev node must not be linked already - otherwise there is an inconsistency
+		dbg_assert(node->rev_node == NULL);
+        if (node->rev_node == NULL ) {
+			// link both nodes
+            node->rev_node = rev_node;
+            rev_node->rev_node = node;
+            dbg_printf(" - linked\n");
+        } else {
+            dbg_printf("Rev-node != NULL skip linking - inconsitency\n");
+            LogError("Rev-node != NULL skip linking - inconsitency\n");
+        }
+		return 1;
+    } else {
+        dbg_printf("no revnode node\n");
+		return 0;
+    }
+
+	/* not reached */
+
+} // End of Link_RevNode
 
 uint32_t Flush_FlowTree(FlowSource_t *fs) {
 struct FlowNode *node, *nxt;
@@ -333,65 +361,9 @@ if ( node->left || node->right ) {
 		LogError("### Flush_FlowTree() remaining flows: %u\n", NumFlows);
 #endif
 
-	UDP_list.list	= NULL;
-	UDP_list.tail	= NULL;
-	UDP_list.size	= 0;
-
 	return n;
 
 } // End of Flush_FlowTree
-
-void UDPexpire(FlowSource_t *fs, time_t t_expire) {
-struct FlowNode  *node;
-uint32_t num = 0;
-
-	node = UDP_list.list;
-	while ( node && (node->t_last.tv_sec < t_expire) ) {
-		struct FlowNode  *n = node;
-		node = node->right;
-		DisconnectFlowNode(&UDP_list, n);
-		StorePcapFlow(fs, n);
-		Remove_Node(n);
-		num++;
-	}
-	dbg_printf("UDP expired %u flows - left %u\n", num, UDP_list.size);
-
-} // End of UDPexpire
-
-void AppendUDPNode(struct FlowNode *node) {
-	AppendFlowNode(&UDP_list, node);
-} // End of AppendUDPNode
-
-static void AppendFlowNode(Linked_list_t *LinkedList, struct FlowNode *node) {
-
-#ifdef DEVEL
-	if ( LinkedList->tail ) 
-		assert(LinkedList->tail->right == NULL);
-		assert(node->memflag == NODE_IN_USE);
-		assert(node->left == NULL);
-		assert(node->right == NULL);
-#endif
-	if ( LinkedList->list == NULL ) {
-		dbg_printf("AppendFlowNode(): First node\n");
-		node->left  = NULL;
-		node->right = NULL;
-		LinkedList->list = node;
-		LinkedList->tail = node;
-		LinkedList->size++;
-	} else {
-		// new node 
-		dbg_printf("AppendFlowNode(): next node: %u\n", LinkedList->size);
-		LinkedList->tail->right = node;
-		node->left = LinkedList->tail;
-		node->right = NULL;
-		LinkedList->tail = node;
-		LinkedList->size++;
-	} 
-#ifdef DEVEL
-	assert(LinkedList->tail->right == NULL);
-#endif
-} // End of AppendFlowNode
-
 
 static void DisconnectFlowNode(Linked_list_t *LinkedList, struct FlowNode *node) {
 	
@@ -420,44 +392,6 @@ static void DisconnectFlowNode(Linked_list_t *LinkedList, struct FlowNode *node)
 	}
 
 } // End of DisconnectFlowNode
-
-void TouchUDPNode(struct FlowNode *node) {
-	TouchFlowNode(&UDP_list, node);
-} // End of TouchUDPNode
-
-static void TouchFlowNode(Linked_list_t *LinkedList, struct FlowNode *node) {
-	
-	dbg_printf("In TochFlowNode()\n");
-	if ( LinkedList->list == NULL ) {
-		// should never happen
-		LogError("TouchFlowNode() error in %s line %d: %s\n", __FILE__, __LINE__, "Tried to touch node in empty list" );
-		return;
-	}
-
-	if ( LinkedList->tail == node ) {
-		// nothing to do
-		dbg_printf("TochFlowNode() - last node - nothing to do\n");
-		return;
-	}
-
-	if ( node->left == NULL ) {
-		// first node - disconnect node
-		dbg_printf("TochFlowNode() - touch first node\n");
-		LinkedList->list = node->right;
-		LinkedList->list->left = NULL;
-	} else {
-		dbg_printf("TochFlowNode() - touch middle node\n");
-		(node->right)->left = node->left;
-		(node->left)->right = node->right;
-	}
-
-	// append node
-	LinkedList->tail->right = node;
-	node->left = LinkedList->tail;
-	node->right = NULL;
-	LinkedList->tail = node;
-
-} // End of TouchFlowNode
 
 int AddNodeData(struct FlowNode *node, uint32_t seq, void *payload, uint32_t size) {
 
@@ -497,6 +431,7 @@ void DisposeNodeList(NodeList_t *NodeList) {
 } // End of DisposeNodeList
 
 #ifdef DEVEL
+void ListCheck(NodeList_t *NodeList);
 void ListCheck(NodeList_t *NodeList) {
 uint32_t len = 0, mem = 0, proto;
 static uint32_t loops = 0;
@@ -619,7 +554,7 @@ struct FlowNode *node;
 
 void DumpNodeStat(void) {
 	LogInfo("Nodes in use: %u, Flows: %u CacheOverflow: %u", Allocated, NumFlows, CacheOverflow);
-} // End of NodesAllocated
+} // End of DumpNodeStat
 
 /*
 int main(int argc, char **argv) {

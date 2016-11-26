@@ -378,7 +378,7 @@ static struct format_token_list_s {
 	{ "%pbsize",  0, "Pb-Size", 			  String_PortBlockSize},	// Port block size
 #endif
 
-	// nprobe latency
+	// latency extension for nfpcapd and nprobe
 	{ "%cl", 0, "C Latency", 	 		 	String_ClientLatency },	// client latency
 	{ "%sl", 0, "S latency", 	 		 	String_ServerLatency },	// server latency
 	{ "%al", 0, "A latency", 			 	String_AppLatency },	// app latency

@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2013, Peter Haag
  *  All rights reserved.
@@ -27,15 +28,7 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author$
- *
- *  $Id$
- *
- *  $LastChangedRevision$
- *  
  */
-
-/* $Id: pcapd.c 2778 2012-03-19 09:23:26Z roethlis $ */
 
 #include "config.h"
 
@@ -62,6 +55,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
+#include <assert.h>
 
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
@@ -618,7 +612,7 @@ int compress			 	 = args->compress;
 FlowSource_t *fs			 = args->fs;
 
 // locals
-time_t t_start, t_clock, t_udp_flush;
+time_t t_start, t_clock;
 int err, done;
 
 	done 	   = 0;
@@ -659,7 +653,6 @@ int err, done;
 
 	t_start = 0;
 	t_clock = 0;
-	t_udp_flush = 0;
 	while ( 1 ) {
 		struct FlowNode	*Node;
 
@@ -673,7 +666,7 @@ int err, done;
 		}
 
 		if ( t_start == 0 ) {
-			t_udp_flush = t_start = t_clock - (t_clock % t_win);
+			t_start = t_clock - (t_clock % t_win);
 		}
 
 		if (((t_clock - t_start) >= t_win) || done) { /* rotate file */
@@ -794,11 +787,6 @@ int err, done;
    				pthread_kill(args->parent, SIGUSR1);
 				break;
 			}
-		}
-
-		if (((t_clock - t_udp_flush) >= 10) || !done) { /* flush inactive UDP list */
-			UDPexpire(fs, t_clock - 10 );
-			t_udp_flush = t_clock;
 		}
 
 		if ( Node->fin != SIGNAL_NODE )

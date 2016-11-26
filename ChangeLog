@@ -1,3 +1,7 @@
+2016-11-25
+- Add latency extension to nfpcapd
+- Smaller bug fixes to nfpcapd
+
 2016-07-23
 - Replace unreliable _ftok with more reliable string hash
 

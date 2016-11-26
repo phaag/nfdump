@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  All rights reserved.
  *  
@@ -26,11 +27,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author$
- *
- *  $Id$
- *
- *  $LastChangedRevision$
  *  
  */
 
@@ -265,8 +261,9 @@ struct FlowNode *Node;
 
 	assert(NewNode->memflag == NODE_IN_USE);
 	Node = Insert_Node(NewNode);
-	// if insert fails, the existing node is returned -> flow exists already
+	// Return existing Node if flow exists already, otherwise insert es new
 	if ( Node == NULL ) {
+		// Insert as new
 		dbg_printf("New TCP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
 
 		// in case it's a FIN/RST only packet - immediately flush it
@@ -283,11 +280,23 @@ struct FlowNode *Node;
 			NumFlows  = Flush_FlowTree(fs);
 			LogError("Flushed flows: %u", NumFlows);	
 		}
+
+		if ( Link_RevNode(NewNode)) {
+			// if we could link this new node, it is the server answer
+			// -> calculate server latency
+			SetServer_latency(NewNode);
+		}
 		return;
 	}
 
 	assert(Node->memflag == NODE_IN_USE);
 
+	// check for first client ACK for client latency
+	if ( Node->latency.flag == 1 ) {
+		SetClient_latency(Node, &(NewNode->t_first));
+	} else if ( Node->latency.flag == 2 ) {
+		SetApplication_latency(Node, &(NewNode->t_first));
+	}
 	// update existing flow
 	Node->flags |= NewNode->flags;
 	Node->packets++;
@@ -323,7 +332,6 @@ struct FlowNode *Node;
 	Node = Insert_Node(NewNode);
 	// if insert fails, the existing node is returned -> flow exists already
 	if ( Node == NULL ) {
-		AppendUDPNode(NewNode);
 		dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
 		return;
 	} 
@@ -333,7 +341,6 @@ struct FlowNode *Node;
 	Node->packets++;
 	Node->bytes += NewNode->bytes; 
 	Node->t_last = NewNode->t_last; 
-	TouchUDPNode(Node);
 
 	dbg_printf("Existing UDP flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
 
@@ -643,7 +650,6 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 				if ( Node->src_port == 53 || Node->dst_port == 53 ) 
  					content_decode_dns(Node, payload, payload_len);
 			}
-
 			Push_Node(NodeList, Node);
 			} break;
 		case IPPROTO_TCP: {

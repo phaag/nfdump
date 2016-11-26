@@ -1112,7 +1112,7 @@ typedef struct tpl_ext_43_s {
 #define EX_NSEL_RESERVED 44
 
 /*
- * nprobe extensions
+ * latency extensions, used by nprobe and nfpcapd
  */
 
 /*
@@ -2046,7 +2046,6 @@ typedef struct master_record_s {
 
 #endif
 
-	// nprobe extensions
 	// latency extension
 	uint64_t	client_nw_delay_usec;	// index LATENCY_BASE_OFFSET 0xffff'ffff'ffff'ffff
 	uint64_t	server_nw_delay_usec;	// index LATENCY_BASE_OFFSET + 1 0xffff'ffff'ffff'ffff

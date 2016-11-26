@@ -40,3 +40,9 @@ int Init_pcap2nf(void);
 
 int StorePcapFlow(FlowSource_t *fs, struct FlowNode *Node);
 
+void SetServer_latency(struct FlowNode *node);
+
+void SetClient_latency(struct FlowNode *node, struct timeval *t_packet);
+
+void SetApplication_latency(struct FlowNode *node, struct timeval *t_packet);
+
