@@ -203,7 +203,7 @@ pid_t ret;
 			sleep(1);
 		}
 		if ( i >= LAUNCHER_TIMEOUT ) {
-			LogError("Laucher does not want to terminate - signal again");
+			LogError("Launcher does not want to terminate - signal again");
 			kill(pid, SIGTERM);
 			sleep(1);
 		}
@@ -708,7 +708,7 @@ srecord_t	*commbuff;
 				if ( verbose ) {
 					uint16_t count = ntohs(nf_header->count);
 					if ( blast_cnt != count ) {
-							// LogError("Missmatch blast check: Expected %u got %u\n", blast_cnt, count);
+							// LogError("Mismatch blast check: Expected %u got %u\n", blast_cnt, count);
 						blast_cnt = count;
 						blast_failures++;
 					} else {

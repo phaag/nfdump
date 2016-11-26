@@ -297,7 +297,7 @@ static void usage(char *name) {
 					"-M <expr>\tRead input from multiple directories.\n"
 					"\t\t/dir/dir1:dir2:dir3 Read the same files from '/dir/dir1' '/dir/dir2' and '/dir/dir3'.\n"
 					"\t\trequests either -r filename or -R firstfile:lastfile without pathnames\n"
-					"-m\t\tdepricated\n"
+					"-m\t\tdeprecated\n"
 					"-O <order> Sort order for aggregated flows - tstart, tend, flows, packets bps pps bbp etc.\n"
 					"-R <expr>\tRead input from sequence of files.\n"
 					"\t\t/any/dir  Read all files in that directory.\n"
@@ -897,7 +897,7 @@ char 		Ident[IDENTLEN];
 				print_order = "tstart";
 				Parse_PrintOrder(print_order);
 				date_sorted = 1;
-				LogError("Option -m depricated. Use '-O tstart' instead\n");
+				LogError("Option -m deprecated. Use '-O tstart' instead\n");
 				break;
 			case 'M':
 				Mdirs = optarg;
@@ -1009,7 +1009,7 @@ char 		Ident[IDENTLEN];
 	}
 
 	if ( rfile && Rfile ) {
-		LogError("-r and -R are mutually exclusive. Plase specify either -r or -R\n");
+		LogError("-r and -R are mutually exclusive. Please specify either -r or -R\n");
 		exit(255);
 	}
 	if ( Mdirs && !(rfile || Rfile) ) {

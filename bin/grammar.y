@@ -822,7 +822,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 
 		if ( $5 > (bytes*8) ) {
-			yyerror("Too many netbits for this IP addresss");
+			yyerror("Too many netbits for this IP address");
 			YYABORT;
 		}
 
@@ -1413,7 +1413,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 
 		if ( $5 > (bytes*8) ) {
-			yyerror("Too many netbits for this IP addresss");
+			yyerror("Too many netbits for this IP address");
 			YYABORT;
 		}
 

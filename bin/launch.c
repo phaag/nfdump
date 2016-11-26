@@ -412,18 +412,18 @@ srecord_t	*InfoRecord;
 			}
 		}
 		if ( child_exit ) {
-			syslog(LOG_INFO, "laucher child exit %d childs.", child_exit);
+			syslog(LOG_INFO, "launcher child exit %d children.", child_exit);
 			while ( (pid = waitpid (-1, &stat, WNOHANG)) > 0  ) {
 				if ( WIFEXITED(stat) ) {
 					syslog(LOG_DEBUG, "launcher child %i exit status: %i", pid, WEXITSTATUS(stat));
 				}
 				if (  WIFSIGNALED(stat) ) {
-					syslog(LOG_WARNING, "laucher child %i died due to signal %i", pid, WTERMSIG(stat));
+					syslog(LOG_WARNING, "launcher child %i died due to signal %i", pid, WTERMSIG(stat));
 				}
 
 				child_exit--;
 			}
-			syslog(LOG_INFO, "laucher waiting childs done. %d childs", child_exit);
+			syslog(LOG_INFO, "launcher waiting children done. %d children", child_exit);
 			child_exit = 0;
 		}
 		if ( done ) {
