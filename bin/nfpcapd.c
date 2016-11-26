@@ -245,9 +245,9 @@ static void usage(char *name) {
 					"-i device\tspecify a device\n"
 					"-r pcapfile\tspecify a file to read from\n"
 					"-B cache buckets\tset the number of cache buckets. (default 1048576)\n"
-					"-s snaplen\tset the snapshot length\n"
+					"-s snaplen\tset the snapshot length - default 1500\n"
 					"-l flowdir \tset the flow output directory. (no default) \n"
-					"-l pcapdir \tset the pcapdir directory. (optional) \n"
+					"-p pcapdir \tset the pcapdir directory. (optional) \n"
 					"-S subdir\tSub directory format. see nfcapd(1) for format\n"
 					"-I Ident\tset the ident string for stat file. (default 'none')\n"
 					"-P pidfile\tset the PID file\n"
@@ -1184,7 +1184,7 @@ pcap_dev_t 		*pcap_dev;
 p_packet_thread_args_t *p_packet_thread_args;
 p_flow_thread_args_t *p_flow_thread_args;
 
-	snaplen			= 100;
+	snaplen			= 1500;
 	do_daemonize	= 0;
 	launcher_pid	= 0;
 	device			= NULL;

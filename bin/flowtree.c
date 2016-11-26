@@ -48,13 +48,29 @@
 #include <assert.h>
 
 #include "rbtree.h"
-#include "util.h"
 #include "nffile.h"
 #include "bookkeeper.h"
 #include "nfxstat.h"
 #include "collector.h"
-#include "flowtree.h"
 #include "netflow_pcap.h"
+#include "util.h"
+#include "flowtree.h"
+
+static void spin_lock(int *p);
+static void spin_unlock(int volatile *p);
+
+static void spin_lock(int *p) {
+    while(!__sync_bool_compare_and_swap(p, 0, 1));
+}
+
+static void spin_unlock(int volatile *p) {
+    __asm volatile (""); // acts as a memory barrier.
+    *p = 0;
+}
+
+#define GetTreeLock(a)		spin_lock(&((a)->list_lock))
+#define ReleaseTreeLock(a)	spin_unlock(&((a)->list_lock))
+
 
 static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2);
 
@@ -376,6 +392,9 @@ NodeList_t *NodeList;
 	NodeList->list 		= NULL;
 	NodeList->last 		= NULL;
 	NodeList->length	= 0;
+	NodeList->list_lock	= 0;
+	NodeList->waiting	= 0;
+	NodeList->waits		= 0;
 	pthread_mutex_init(&NodeList->m_list, NULL);
 	pthread_cond_init(&NodeList->c_list, NULL);
 
@@ -392,6 +411,7 @@ void DisposeNodeList(NodeList_t *NodeList) {
 		LogError("Try to free non empty NodeList");
 		return;
 	}
+printf("FREE - waitrs: %u\n", NodeList->waits);
  	free(NodeList);
 
 } // End of DisposeNodeList
@@ -433,7 +453,8 @@ len, mem, proto, loops, Allocated, CacheOverflow);
 
 void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
 
-	pthread_mutex_lock(&NodeList->m_list);
+	GetTreeLock(NodeList);
+	// pthread_mutex_lock(&NodeList->m_list);
 	if ( NodeList->length == 0 ) {
 		// empty list
 		NodeList->list = node;
@@ -452,8 +473,12 @@ void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
 		(unsigned long long)node, proto, NodeList->length, (unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
 	ListCheck(NodeList);
 #endif
- 	pthread_mutex_unlock(&NodeList->m_list);
-	pthread_cond_signal(&NodeList->c_list);
+	if ( NodeList->waiting ) {
+		pthread_cond_signal(&NodeList->c_list);
+	}
+	ReleaseTreeLock(NodeList);
+ 	// pthread_mutex_unlock(&NodeList->m_list);
+	// pthread_cond_signal(&NodeList->c_list);
 
 } // End of Push_Node
 
@@ -461,19 +486,30 @@ struct FlowNode *Pop_Node(NodeList_t *NodeList, int *done) {
 struct FlowNode *node;
 int proto;
 
-	pthread_mutex_lock(&NodeList->m_list);
-    while ( NodeList->length == 0 && !*done ) 
+	GetTreeLock(NodeList);
+    while ( NodeList->length == 0 && !*done ) {
+		pthread_mutex_lock(&NodeList->m_list);
+		NodeList->waiting = 1;
+		NodeList->waits++;
+		ReleaseTreeLock(NodeList);
+		// sleep ad wait
         pthread_cond_wait(&NodeList->c_list, &NodeList->m_list);
 
+		// wake up
+		GetTreeLock(NodeList);
+		NodeList->waiting = 0;
+		pthread_mutex_unlock(&NodeList->m_list);
+	}
+
 	if ( NodeList->length == 0 && *done ) {
- 		pthread_mutex_unlock(&NodeList->m_list);
+		ReleaseTreeLock(NodeList);
 		dbg_printf("Pop_Node done\n");
 		return NULL;
 	}
 
 	if ( NodeList->list == NULL ) { 
 		// should never happen - list is supposed to have at least one item
- 		pthread_mutex_unlock(&NodeList->m_list);
+		ReleaseTreeLock(NodeList);
 		LogError("Unexpected empty FlowNode_ProcessList");
 		return NULL;
 	}
@@ -496,7 +532,7 @@ int proto;
 
 	ListCheck(NodeList);
 #endif
- 	pthread_mutex_unlock(&NodeList->m_list);
+	ReleaseTreeLock(NodeList);
 
 	return node;
 } // End of Pop_Node

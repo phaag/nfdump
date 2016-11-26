@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  All rights reserved.
  *  
@@ -26,13 +27,24 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author$
- *
- *  $Id$
- *
- *  $LastChangedRevision$
- *  
  */
+
+#ifndef _PCAPROC_H
+#define _PCAPROC_H 1
+
+#ifdef HAVE_CONFIG_H 
+#include "config.h"
+#endif
+
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include <time.h>
+#include <pthread.h>
+#include <pcap.h>
+
+#include "flowtree.h"
 
 typedef struct proc_stat_s {
     uint32_t    packets;
@@ -75,3 +87,4 @@ void ProcessFlowNode(FlowSource_t *fs, struct FlowNode *node);
 
 void ProcessPacket(NodeList_t *nodeList, pcap_dev_t *pcap_dev, const struct pcap_pkthdr *hdr, const u_char *data);
 
+#endif // _PCAPROC_H

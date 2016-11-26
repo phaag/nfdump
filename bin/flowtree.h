@@ -30,7 +30,21 @@
  *  
  */
 
+#ifndef _FLOWTREE_H
+#define _FLOWTREE_H 1
+
+#ifdef HAVE_CONFIG_H 
+#include "config.h"
+#endif
+
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include <time.h>
+
 #include "rbtree.h"
+#include "nffile.h"
 
 #define v4 ip_union._v4
 #define v6 ip_union._v6
@@ -95,9 +109,12 @@ struct FlowNode {
 typedef struct NodeList_s {
 	struct FlowNode *list;
 	struct FlowNode *last;
+	sig_atomic_t	list_lock;
 	pthread_mutex_t m_list;
 	pthread_cond_t  c_list;
 	uint32_t length;
+	uint32_t waiting;
+	uint64_t waits;
 } NodeList_t;
 
 
@@ -143,4 +160,4 @@ void DumpList(NodeList_t *NodeList);
 // Stat functions
 void DumpNodeStat(void);
 
-
+#endif // _FLOWTREE_H
