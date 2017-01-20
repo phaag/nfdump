@@ -385,7 +385,9 @@ For enable this option you need libcurl dev package installed, use --enable-infl
 Example: -i http://localhost:8086/write?db=mydb&u=user&p=pass 
 The parameters for auth (&u=user&p=pass) are optional.
 Then you get the stats data on influxdb mydb in the measurement nfsen_stats.
-For put the stats of live profile you need to apply a patch to nfsen (in extra/nfsen).
+
+For put the stats of live profile you need to apply a patch to nfsen (in extra/nfsen) and add in nfsen.conf the option:
+	$influxdb_url="http://mydbhost.local:8086/write?db=nfsen";
 as example I added a preconfigured grafana dashboard in extra/grafana/Nfsen_Stats.json .
 
 ---
