@@ -50,10 +50,11 @@ int32_t	i, maxindex;
 	 * we are only interested in the first top N => skip sorting the rest
 	 * For topN == 0 -> all flows gets sorted
 	 */
-    if ( (topN >= (array_size - 1)) || topN == 0 )
+    if ( (topN >= (array_size - 1)) || topN == 0 ) {
         maxindex = 0;
-    else
+    } else {
         maxindex = array_size - 1 - topN;
+	}
 
 	for(i = array_size-1; i > maxindex; i-- ) {
 		SortElement_t temp = SortElement[0];

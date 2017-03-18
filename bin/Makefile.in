@@ -742,7 +742,7 @@ nfpcapd_SOURCES = nfpcapd.c \
 nfpcapd_LDADD = -lnfdump $(am__append_8)
 nfpcapd_DEPENDENCIES = libnfdump.la
 @READPCAP_TRUE@nfcapd_CFLAGS = -DPCAP
-@BUILDNFPCAPD_TRUE@nfpcapd_CFLAGS = -D_BSD_SOURCE
+@BUILDNFPCAPD_TRUE@nfpcapd_CFLAGS = -D_BSD_SOURCE -D_DEFAULT_SOURCE
 @BUILDNFPCAPD_TRUE@nfpcapd_LDFLAGS = -pthread
 sfcapd_SOURCES = sfcapd.c sflow.c sflow.h sflow_proto.h $(nfstatfile) \
 	$(launch) $(nfnet) $(collector) $(bookkeeper) $(expire) \

@@ -105,7 +105,7 @@ endif
 
 if BUILDNFPCAPD
 bin_PROGRAMS += nfpcapd
-nfpcapd_CFLAGS = -D_BSD_SOURCE
+nfpcapd_CFLAGS = -D_BSD_SOURCE -D_DEFAULT_SOURCE
 nfpcapd_LDADD += -lpcap 
 nfpcapd_LDFLAGS = -pthread
 endif

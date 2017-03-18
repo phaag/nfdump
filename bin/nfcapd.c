@@ -758,7 +758,7 @@ srecord_t	*commbuff;
 
 int main(int argc, char **argv) {
  
-char	*bindhost, *filter, *datadir, pidstr[32], *launch_process;
+char	*bindhost, *datadir, pidstr[32], *launch_process;
 char	*userid, *groupid, *checkptr, *listenport, *mcastgroup, *extension_tags;
 char	*Ident, *dynsrcdir, *time_extension, pidfile[MAXPATHLEN];
 struct stat fstat;
@@ -788,7 +788,6 @@ char	*pcap_file;
 	bindhost 		= NULL;
 	mcastgroup		= NULL;
 	pidfile[0]		= 0;
-	filter   		= NULL;
 	launch_process	= NULL;
 	userid 			= groupid = NULL;
 	twin	 		= TIME_WINDOW;
@@ -1121,11 +1120,7 @@ char	*pcap_file;
 		usage(argv[0]);
 		close(sock);
 		exit(255);
-	} else {
-		/* user specified a pcap filter */
-		filter = argv[optind];
-	}
-
+	} 
 
 	t_start = time(NULL);
 	if ( synctime )

@@ -42,6 +42,7 @@
 #endif
 
 #include <time.h>
+#include <signal.h>
 
 #include "rbtree.h"
 #include "nffile.h"

@@ -404,6 +404,7 @@ static inline uint64_t	bps_record(FlowTableRecord_t *record, int inout);
 static inline uint64_t	bpp_record(FlowTableRecord_t *record, int inout);
 static inline uint64_t	tstart_record(FlowTableRecord_t *record, int inout);
 static inline uint64_t	tend_record(FlowTableRecord_t *record, int inout);
+// static inline uint64_t	clat_record(FlowTableRecord_t *record, int inout);
 
 static inline uint64_t	null_element(StatRecord_t *record, int inout);
 static inline uint64_t	flows_element(StatRecord_t *record, int inout);
@@ -441,6 +442,7 @@ struct order_mode_s {
 	{ "obpp",		OUT,	DESCENDING, bpp_record, bpp_element},
 	{ "tstart",		0,	ASCENDING,  tstart_record, null_element},
 	{ "tend",		0,	ASCENDING,  tend_record, null_element},
+//	{ "clat",		0,	DESCENDING,  clat_record, null_element},
 	{ NULL,			0,		0,	 NULL, NULL}
 };
 #define Default_PrintOrder 1		// order_mode[0].val

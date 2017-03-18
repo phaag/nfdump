@@ -2025,7 +2025,6 @@ uint8_t		*in;
 void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 exporter_v9_domain_t	*exporter;
 void				*flowset_header;
-option_template_flowset_t	*option_flowset;
 netflow_v9_header_t	*v9_header;
 int64_t 			distance;
 uint32_t 			flowset_id, flowset_length, exporter_id;
@@ -2143,11 +2142,14 @@ printf("Enter Process_v9\n");
 			case NF9_TEMPLATE_FLOWSET_ID:
 				Process_v9_templates(exporter, flowset_header, fs);
 				break;
-			case NF9_OPTIONS_FLOWSET_ID:
+			case NF9_OPTIONS_FLOWSET_ID: {
+#ifdef DEVEL
+				option_template_flowset_t	*option_flowset;
 				option_flowset = (option_template_flowset_t *)flowset_header;
 				dbg_printf("Process_v9: Found options flowset: template %u", ntohs(option_flowset->template_id));
+#endif
 				Process_v9_option_templates(exporter, flowset_header, fs);
-				break;
+				} break;
 			default: {
 				input_translation_t *table;
 				if ( flowset_id < NF9_MIN_RECORD_FLOWSET_ID ) {
