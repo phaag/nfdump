@@ -411,7 +411,6 @@ void DisposeNodeList(NodeList_t *NodeList) {
 		LogError("Try to free non empty NodeList");
 		return;
 	}
-printf("FREE - waitrs: %u\n", NodeList->waits);
  	free(NodeList);
 
 } // End of DisposeNodeList
