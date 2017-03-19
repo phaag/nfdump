@@ -267,6 +267,8 @@ static void String_PortBlockSize(master_record_t *r, char *string);
 
 #endif
 
+static void String_FlowFlags(master_record_t *r, char *string);
+
 static struct format_token_list_s {
 	char				*token;				// token
 	int					is_address;			// is an IP address
@@ -382,6 +384,8 @@ static struct format_token_list_s {
 	{ "%cl", 0, "C Latency", 	 		 	String_ClientLatency },	// client latency
 	{ "%sl", 0, "S latency", 	 		 	String_ServerLatency },	// server latency
 	{ "%al", 0, "A latency", 			 	String_AppLatency },	// app latency
+
+	{ "%ff", 0, "Flow Flags", String_FlowFlags }, /* flow flags in hex */
 	
 	{ NULL, 0, NULL, NULL }
 };

@@ -142,6 +142,8 @@ void AddFlow(common_record_t *raw_record, master_record_t *flow_record, extensio
 
 int SetBidirAggregation( void );
 
+void SetKeepFirstAggregation( void );
+
 int ParseAggregateMask( char *arg, char **aggr_fmt  );
 
 master_record_t *GetMasterAggregateMask(void);

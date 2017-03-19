@@ -62,7 +62,6 @@ libnfdump_la_SOURCES = $(common) $(util) $(filelzo) $(nflist) $(filter) $(export
 #libnfdump_la_LIBADD = -lz
 libnfdump_la_LDFLAGS = -release 1.6.15
 
-
 nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h nfexport.c nfexport.h  \
 	$(nflowcache) $(nfprof)
 nfdump_LDADD = -lnfdump

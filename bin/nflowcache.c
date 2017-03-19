@@ -171,6 +171,8 @@ static aggregate_param_t *aggregate_stack = NULL;
 static uint32_t	aggregate_key_len 		  = sizeof(Default_key_t);
 static uint32_t	bidir_flows				  = 0;
 
+static int keep_first = 0;			/* zero non-aggregated fields with -A or not */
+
 // counter indices
 // The array size of FlowTableRecord_t array counter must match.
 enum CNT_IND { FLOWS = 0, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES };
@@ -623,6 +625,12 @@ int SetBidirAggregation(void) {
 
 } // End of SetBidirAggregation
 
+void SetKeepFirstAggregation(void)
+{
+	 keep_first = 1;
+	 return;
+}
+
 int ParseAggregateMask( char *arg, char **aggr_fmt ) {
 char 		*p, *q;
 uint64_t mask[2];
@@ -830,7 +838,9 @@ struct aggregate_info_s *a;
 master_record_t *GetMasterAggregateMask(void) {
 master_record_t *aggr_record_mask;
 
-	if ( aggregate_stack ) {
+/* zero out all record fields if custom aggregation fields are used AND keep_first isn't set;
+	 pass first record's fields if standard -a aggregation is used or keep_first is set. */
+	if ( aggregate_stack && !keep_first ) {
 		uint64_t *r;
 		aggregate_param_t *aggr_param = aggregate_stack;
 

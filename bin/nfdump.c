@@ -273,6 +273,7 @@ static void usage(char *name) {
 					"-a\t\tAggregate netflow data.\n"
 					"-A <expr>[/net]\tHow to aggregate: ',' sep list of tags see nfdump(1)\n"
 					"\t\tor subnet aggregation: srcip4/24, srcip6/64.\n"
+          "-1\t\tkeep the first record's fields with -A\n"
 					"-b\t\tAggregate netflow records as bidirectional flows.\n"
 					"-B\t\tAggregate netflow records as bidirectional flows - Guess direction.\n"
 					"-r <file>\tread input from file\n"
@@ -781,7 +782,7 @@ char 		Ident[IDENTLEN];
 
 	Ident[0] = '\0';
 
-	while ((c = getopt(argc, argv, "6aA:Bbc:D:E:s:hHn:i:jf:qzr:v:w:J:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
+	while ((c = getopt(argc, argv, "16aA:Bbc:D:E:s:hHn:i:jf:qzr:v:w:J:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -789,6 +790,9 @@ char 		Ident[IDENTLEN];
 				break;
 			case 'a':
 				aggregate = 1;
+				break;
+		 case '1':
+				SetKeepFirstAggregation(); /* irrelevant without -A */
 				break;
 			case 'A':
 				if ( !ParseAggregateMask(optarg, &aggr_fmt ) ) {
