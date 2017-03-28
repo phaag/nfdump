@@ -1,7 +1,7 @@
 Name: nfdump
 Summary: A set of command-line tools to collect and process netflow data
-Version: 1.6.8p1
-Release: p1
+Version: 1.6.15
+Release: 1
 License: BSD
 Group: Applications/System
 Source: %{name}-%{version}.tar.gz
@@ -22,7 +22,7 @@ rm -rf $RPM_BUILD_ROOT
 %setup -q
 
 %build
-./configure --prefix=$RPM_BUILD_ROOT/%{prefix}
+./configure --prefix=$RPM_BUILD_ROOT/%{prefix} --libdir=$RPM_BUILD_ROOT/%{_libdir}
 make
 
 %install
@@ -33,6 +33,7 @@ rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)
-%doc INSTALL README ToDo BSD-license.txt AUTHORS ChangeLog
+%doc INSTALL README.md ToDo BSD-license.txt AUTHORS ChangeLog
 %{prefix}/bin/*
 %{prefix}/share/man/man1/*
+%{_libdir}/*

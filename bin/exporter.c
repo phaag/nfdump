@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2012, Peter Haag
  *  
@@ -26,15 +27,11 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: peter $
- *
- *  $Id: exporter.c 224 2014-02-16 12:59:29Z peter $
- *
- *  $LastChangedRevision: 224 $
- *	
  */
 
+#ifdef HAVE_CONFIG_H 
 #include "config.h"
+#endif
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -47,7 +44,6 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
-#include <syslog.h>
 #include <stdarg.h>
 
 #ifdef HAVE_STDINT_H

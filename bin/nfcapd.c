@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,7 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nfcapd.c 51 2010-01-29 09:01:54Z haag $
- *
- *  $LastChangedRevision: 51 $
- *	
+ *  Author: peter
  *
  */
 
@@ -153,7 +149,7 @@ static void daemonize(void);
 static void SetPriv(char *userid, char *groupid );
 
 static void run(packet_function_t receive_packet, int socket, send_peer_t peer, 
-	time_t twin, time_t t_begin, int report_seq, int use_subdirs, int compress, int do_xstat);
+	time_t twin, time_t t_begin, int report_seq, int use_subdirs, char *time_extension, int compress, int do_xstat);
 
 /* Functions */
 static void usage(char *name) {
@@ -185,6 +181,7 @@ static void usage(char *name) {
 					"-4\t\tListen on IPv4 (default).\n"
 					"-6\t\tListen on IPv6.\n"
 					"-V\t\tPrint version and exit.\n"
+					"-Z\t\tAdd timezone offset to filenamet.\n"
 					, name);
 } // End of usage
 
@@ -206,7 +203,7 @@ pid_t ret;
 			sleep(1);
 		}
 		if ( i >= LAUNCHER_TIMEOUT ) {
-			LogError("Laucher does not want to terminate - signal again");
+			LogError("Launcher does not want to terminate - signal again");
 			kill(pid, SIGTERM);
 			sleep(1);
 		}
@@ -363,7 +360,7 @@ int		err;
 #include "collector_inline.c"
 
 static void run(packet_function_t receive_packet, int socket, send_peer_t peer, 
-	time_t twin, time_t t_begin, int report_seq, int use_subdirs, int compress, int do_xstat) {
+	time_t twin, time_t t_begin, int report_seq, int use_subdirs, char *time_extension, int compress, int do_xstat) {
 common_flow_header_t	*nf_header;
 FlowSource_t			*fs;
 struct sockaddr_storage nf_sender;
@@ -469,10 +466,11 @@ srecord_t	*commbuff;
 		if ( ((t_now - t_start) >= twin) || done ) {
 			char subfilename[64];
 			struct  tm *now;
-			char	*subdir;
+			char	*subdir, fmt[64];
 
 			alarm(0);
 			now = localtime(&t_start);
+			strftime(fmt, sizeof fmt, time_extension, now);
 
 			// prepare sub dir hierarchy
 			if ( use_subdirs ) {
@@ -483,16 +481,13 @@ srecord_t	*commbuff;
 			
 					// failed to generate subdir path - put flows into base directory
 					subdir = NULL;
-					snprintf(subfilename, 63, "nfcapd.%i%02i%02i%02i%02i",
-						now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min);
+					snprintf(subfilename, 63, "nfcapd.%s", fmt);
 				} else {
-					snprintf(subfilename, 63, "%s/nfcapd.%i%02i%02i%02i%02i", subdir,
-						now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min);
+					snprintf(subfilename, 63, "%s/nfcapd.%s", subdir, fmt);
 				}
 			} else {
 				subdir = NULL;
-				snprintf(subfilename, 63, "nfcapd.%i%02i%02i%02i%02i",
-					now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min);
+				snprintf(subfilename, 63, "nfcapd.%s", fmt);
 			}
 			subfilename[63] = '\0';
 
@@ -621,7 +616,7 @@ srecord_t	*commbuff;
 					LogInfo("Signal launcher");
 					kill(launcher_pid, SIGHUP);
 				} else 
-					LogError("ERROR: Launcher did unexpectedly!");
+					LogError("ERROR: Launcher died unexpectedly!");
 
 			}
 			
@@ -713,7 +708,7 @@ srecord_t	*commbuff;
 				if ( verbose ) {
 					uint16_t count = ntohs(nf_header->count);
 					if ( blast_cnt != count ) {
-							// LogError("Missmatch blast check: Expected %u got %u\n", blast_cnt, count);
+							// LogError("Mismatch blast check: Expected %u got %u\n", blast_cnt, count);
 						blast_cnt = count;
 						blast_failures++;
 					} else {
@@ -763,9 +758,9 @@ srecord_t	*commbuff;
 
 int main(int argc, char **argv) {
  
-char	*bindhost, *filter, *datadir, pidstr[32], *launch_process;
+char	*bindhost, *datadir, pidstr[32], *launch_process;
 char	*userid, *groupid, *checkptr, *listenport, *mcastgroup, *extension_tags;
-char	*Ident, *dynsrcdir, pidfile[MAXPATHLEN];
+char	*Ident, *dynsrcdir, *time_extension, pidfile[MAXPATHLEN];
 struct stat fstat;
 packet_function_t receive_packet;
 send_peer_t  peer;
@@ -773,7 +768,7 @@ FlowSource_t *fs;
 struct sigaction act;
 int		family, bufflen;
 time_t 	twin, t_start;
-int		sock, synctime, do_daemonize, expire, report_sequence, do_xstat;
+int		sock, synctime, do_daemonize, expire, spec_time_extension, report_sequence, do_xstat;
 int		subdir_index, sampling_rate, compress;
 int		c;
 #ifdef PCAP
@@ -793,12 +788,13 @@ char	*pcap_file;
 	bindhost 		= NULL;
 	mcastgroup		= NULL;
 	pidfile[0]		= 0;
-	filter   		= NULL;
 	launch_process	= NULL;
 	userid 			= groupid = NULL;
 	twin	 		= TIME_WINDOW;
 	datadir	 		= NULL;
 	subdir_index	= 0;
+	time_extension	= "%Y%m%d%H%M";
+	spec_time_extension = 0;
 	expire			= 0;
 	sampling_rate	= 1;
 	compress		= NOT_COMPRESSED;
@@ -810,7 +806,7 @@ char	*pcap_file;
 	extension_tags	= DefaultExtensions;
 	dynsrcdir		= NULL;
 
-	while ((c = getopt(argc, argv, "46ef:whEVI:DB:b:jl:J:M:n:p:P:R:S:s:T:t:x:Xru:g:z")) != EOF) {
+	while ((c = getopt(argc, argv, "46ef:whEVI:DB:b:jl:J:M:n:p:P:R:S:s:T:t:x:Xru:g:zZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -988,6 +984,10 @@ char	*pcap_file;
 				}
 				compress = LZO_COMPRESSED;
 				break;
+			case 'Z':
+				time_extension	= "%Y%m%d%H%M%z";
+				spec_time_extension = 1;
+				break;
 			case '4':
 				if ( family == AF_UNSPEC )
 					family = AF_INET;
@@ -1025,6 +1025,11 @@ char	*pcap_file;
 	}
 
 	if ( do_daemonize && !InitLog(argv[0], SYSLOG_FACILITY)) {
+		exit(255);
+	}
+
+	if ( expire && spec_time_extension ) {
+		fprintf(stderr, "ERROR, -Z timezone extension breaks expire -e\n");
 		exit(255);
 	}
 
@@ -1115,11 +1120,7 @@ char	*pcap_file;
 		usage(argv[0]);
 		close(sock);
 		exit(255);
-	} else {
-		/* user specified a pcap filter */
-		filter = argv[optind];
-	}
-
+	} 
 
 	t_start = time(NULL);
 	if ( synctime )
@@ -1219,7 +1220,8 @@ char	*pcap_file;
 	sigaction(SIGCHLD, &act, NULL);
 
 	LogInfo("Startup.");
-	run(receive_packet, sock, peer, twin, t_start, report_sequence, subdir_index, compress, do_xstat);
+	run(receive_packet, sock, peer, twin, t_start, report_sequence, subdir_index, 
+		time_extension, compress, do_xstat);
 	close(sock);
 	kill_launcher(launcher_pid);
 

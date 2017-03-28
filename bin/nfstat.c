@@ -377,7 +377,7 @@ struct StatParameter_s {
 };
 
 enum CntIndices { FLOWS = 0, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES };
-enum FlowDir 	{ IN = 0, OUT };
+enum FlowDir 	{ IN = 0, OUT, INOUT };
 
 #define MaxStats 16
 struct StatRequest_s {
@@ -395,12 +395,21 @@ typedef uint64_t (*order_proc_record_t)(FlowTableRecord_t *, int);
 typedef uint64_t (*order_proc_element_t)(StatRecord_t *, int);
 
 /* order functions */
+static inline uint64_t	null_record(FlowTableRecord_t *record, int inout);
+static inline uint64_t	flows_record(FlowTableRecord_t *record, int inout);
+static inline uint64_t	packets_record(FlowTableRecord_t *record, int inout);
+static inline uint64_t	bytes_record(FlowTableRecord_t *record, int inout);
 static inline uint64_t	pps_record(FlowTableRecord_t *record, int inout);
 static inline uint64_t	bps_record(FlowTableRecord_t *record, int inout);
 static inline uint64_t	bpp_record(FlowTableRecord_t *record, int inout);
 static inline uint64_t	tstart_record(FlowTableRecord_t *record, int inout);
 static inline uint64_t	tend_record(FlowTableRecord_t *record, int inout);
+// static inline uint64_t	clat_record(FlowTableRecord_t *record, int inout);
 
+static inline uint64_t	null_element(StatRecord_t *record, int inout);
+static inline uint64_t	flows_element(StatRecord_t *record, int inout);
+static inline uint64_t	packets_element(StatRecord_t *record, int inout);
+static inline uint64_t	bytes_element(StatRecord_t *record, int inout);
 static inline uint64_t	pps_element(StatRecord_t *record, int inout);
 static inline uint64_t	bps_element(StatRecord_t *record, int inout);
 static inline uint64_t	bpp_element(StatRecord_t *record, int inout);
@@ -409,32 +418,32 @@ static inline uint64_t	bpp_element(StatRecord_t *record, int inout);
 #define DESCENDING 0
 struct order_mode_s {
 	char *string;	// Stat name 
-	int	 cindex;	// Which counter to use - corresponds to CntIndices
-	int	 inout;		// use IN or OUT packets/bytes
+	int	 inout;		// use IN or OUT or INOUT packets/bytes
 	int	 direction;	// ascending or descending
 	order_proc_record_t  record_function;	// Function to call for record stats
 	order_proc_element_t element_function;	// Function to call for element stats
 } order_mode[] = {
-	{ "-",			0, 	0,	0, NULL, NULL},	// empty entry 0
-	{ "flows",		FLOWS, 	IN,	DESCENDING, NULL, NULL},
-	{ "packets",	INPACKETS,	IN,	 DESCENDING, NULL, NULL},
-	{ "ipkg",		INPACKETS,	IN,	 DESCENDING, NULL, NULL},
-	{ "opkg",		OUTPACKETS, OUT, DESCENDING, NULL, NULL},
-	{ "bytes",		INBYTES, 	IN,	 DESCENDING, NULL, NULL},
-	{ "ibyte",		INBYTES,	IN,	 DESCENDING, NULL, NULL},
-	{ "obyte",		INBYTES,	OUT, DESCENDING, NULL, NULL},
-	{ "pps",		INPACKETS,	IN,	 DESCENDING, pps_record, pps_element},
-	{ "ipps",		INPACKETS,	IN,	 DESCENDING, pps_record, pps_element},
-	{ "opps",		INPACKETS,	OUT, DESCENDING, pps_record, pps_element},
-	{ "bps",		INBYTES,	IN,	 DESCENDING, bps_record, bps_element},
-	{ "ibps",		INBYTES,	IN,	 DESCENDING, bps_record, bps_element},
-	{ "obps",		INBYTES,	OUT, DESCENDING, bps_record, bps_element},
-	{ "bpp",		0,			IN,	 DESCENDING, bpp_record, bpp_element},
-	{ "ibpp",		0,			IN,	 DESCENDING, bpp_record, bpp_element},
-	{ "obpp",		0,			OUT, DESCENDING, bpp_record, bpp_element},
-	{ "tstart",		0,			0,	 ASCENDING,  tstart_record, NULL},
-	{ "tend",		0,			0,	 ASCENDING,  tend_record, NULL},
-	{ NULL,			0,			0,	 0, NULL}
+	{ "-",			0,	0, null_record, null_element},	// empty entry 0
+	{ "flows",		IN,	DESCENDING, flows_record, flows_element},
+	{ "packets",		INOUT,	DESCENDING, packets_record, packets_element},
+	{ "ipkg",		IN,	DESCENDING, packets_record, packets_element},
+	{ "opkg",		OUT,	DESCENDING, packets_record, packets_element},
+	{ "bytes",		INOUT,	DESCENDING, bytes_record, bytes_element},
+	{ "ibyte",		IN,	DESCENDING, bytes_record, bytes_element},
+	{ "obyte",		OUT,	DESCENDING, bytes_record, bytes_element},
+	{ "pps",		INOUT,	DESCENDING, pps_record, pps_element},
+	{ "ipps",		IN,	DESCENDING, pps_record, pps_element},
+	{ "opps",		OUT,	DESCENDING, pps_record, pps_element},
+	{ "bps",		INOUT,	DESCENDING, bps_record, bps_element},
+	{ "ibps",		IN,	DESCENDING, bps_record, bps_element},
+	{ "obps",		OUT,	DESCENDING, bps_record, bps_element},
+	{ "bpp",		INOUT,	DESCENDING, bpp_record, bpp_element},
+	{ "ibpp",		IN,	DESCENDING, bpp_record, bpp_element},
+	{ "obpp",		OUT,	DESCENDING, bpp_record, bpp_element},
+	{ "tstart",		0,	ASCENDING,  tstart_record, null_element},
+	{ "tend",		0,	ASCENDING,  tend_record, null_element},
+//	{ "clat",		0,	DESCENDING,  clat_record, null_element},
+	{ NULL,			0,		0,	 NULL, NULL}
 };
 #define Default_PrintOrder 1		// order_mode[0].val
 static uint32_t	print_order_bits = 0;
@@ -459,7 +468,7 @@ static inline void PrintSortedFlowcache(SortElement_t *SortList, uint32_t maxind
 
 static void PrintStatLine(stat_record_t	*stat, uint32_t plain_numbers, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
 
-static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto, int tag);
+static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
 
 static void PrintCvsStatLine(stat_record_t	*stat, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
 
@@ -481,43 +490,66 @@ static int initialised = 0;
 #include "heapsort_inline.c"
 #include "applybits_inline.c"
 
+static uint64_t	null_record(FlowTableRecord_t *record, int inout) {
+        return 0;
+}
+
+static uint64_t	flows_record(FlowTableRecord_t *record, int inout) {
+        return record->counter[FLOWS];
+}
+
+static uint64_t	packets_record(FlowTableRecord_t *record, int inout) {
+        if (inout == IN)
+                return record->counter[INPACKETS];
+        else if (inout == OUT)
+                return record->counter[OUTPACKETS];
+        else
+                return record->counter[INPACKETS] + record->counter[OUTPACKETS];
+}
+
+static uint64_t	bytes_record(FlowTableRecord_t *record, int inout) {
+        if (inout == IN)
+                return record->counter[INBYTES];
+        else if (inout == OUT)
+                return record->counter[OUTBYTES];
+        else
+                return record->counter[INBYTES] + record->counter[OUTBYTES];
+}
+
 static uint64_t	pps_record(FlowTableRecord_t *record, int inout) {
 uint64_t		duration;
-int index = inout == OUT ? OUTPACKETS : INPACKETS;
+uint64_t		packets;
 
 	/* duration in msec */
 	duration = 1000LL*(uint64_t)(record->flowrecord.last - record->flowrecord.first) + (uint64_t)record->flowrecord.msec_last - (uint64_t)record->flowrecord.msec_first;
 	if ( duration == 0 )
 		return 0;
-	else 
-		return ( 1000LL * (uint64_t)record->counter[index] ) / duration;
+	else {
+	        packets = packets_record(record, inout);
+		return ( 1000LL * packets ) / duration;
+	}
 
 } // End of pps_record
 
 static uint64_t	bps_record(FlowTableRecord_t *record, int inout) {
 uint64_t		duration;
-int index = inout == OUT ? OUTBYTES : INBYTES;
+uint64_t		bytes;
 
 	duration = 1000LL*(uint64_t)(record->flowrecord.last - record->flowrecord.first) + (uint64_t)record->flowrecord.msec_last - (uint64_t)record->flowrecord.msec_first;
 	if ( duration == 0 )
 		return 0;
-	else 
-		return ( 8000LL * (uint64_t)record->counter[index] ) / duration;	/* 8 bits per Octet - x 1000 for msec */
+	else {
+                bytes = bytes_record(record, inout);
+		return ( 8000LL * bytes ) / duration;	/* 8 bits per Octet - x 1000 for msec */
+	}
 
 } // End of bps_record
 
 static uint64_t	bpp_record(FlowTableRecord_t *record, int inout) {
-int index_packets, index_bytes;
+uint64_t packets = packets_record(record, inout);
+uint64_t bytes = bytes_record(record, inout);
 
-	if ( inout == OUT ) {
-		index_packets = OUTPACKETS;
-		index_bytes   = OUTBYTES;
-	} else {
-		index_packets = INPACKETS;
-		index_bytes   = INBYTES;
-	}
-
-	return record->counter[index_packets] ? record->counter[index_bytes] / record->counter[index_packets] : 0;
+	return packets ? bytes / packets : 0;
 
 } // End of bpp_record
 
@@ -525,51 +557,74 @@ static uint64_t	tstart_record(FlowTableRecord_t *record, int inout) {
 	
 	return 1000LL * record->flowrecord.first + record->flowrecord.msec_first;
 
-} // End of bpp_record
+} // End of tstart_record
 
 static uint64_t	tend_record(FlowTableRecord_t *record, int inout) {
 	
 	return 1000LL * record->flowrecord.last + record->flowrecord.msec_last;
 
-} // End of bpp_record
+} // End of tend_record
+
+static uint64_t	null_element(StatRecord_t *record, int inout) {
+        return 0;
+}
+
+static uint64_t	flows_element(StatRecord_t *record, int inout) {
+        return record->counter[FLOWS];
+}
+
+static uint64_t	packets_element(StatRecord_t *record, int inout) {
+        if (inout == IN)
+                return record->counter[INPACKETS];
+        else if (inout == OUT)
+                return record->counter[OUTPACKETS];
+        else
+                return record->counter[INPACKETS] + record->counter[OUTPACKETS];
+}
+
+static uint64_t	bytes_element(StatRecord_t *record, int inout) {
+        if (inout == IN)
+                return record->counter[INBYTES];
+        else if (inout == OUT)
+                return record->counter[OUTBYTES];
+        else
+                return record->counter[INBYTES] + record->counter[OUTBYTES];
+}
 
 static uint64_t	pps_element(StatRecord_t *record, int inout) {
 uint64_t		duration;
-int index = inout == OUT ? OUTPACKETS : INPACKETS;
+uint64_t		packets;
 
 	/* duration in msec */
 	duration = 1000LL*(uint64_t)(record->last - record->first) + (uint64_t)record->msec_last - (uint64_t)record->msec_first;
 	if ( duration == 0 )
 		return 0;
-	else 
-		return ( 1000LL * (uint64_t)record->counter[index] ) / duration;
+	else {
+	        packets = packets_element(record, inout);
+		return ( 1000LL * packets ) / duration;
+	}
 
 } // End of pps_element
 
 static uint64_t	bps_element(StatRecord_t *record, int inout) {
 uint64_t		duration;
-int index = inout == OUT ? OUTBYTES : INBYTES;
+uint64_t		bytes;
 
 	duration = 1000LL*(uint64_t)(record->last - record->first) + (uint64_t)record->msec_last - (uint64_t)record->msec_first;
 	if ( duration == 0 )
 		return 0;
-	else 
-		return ( 8000LL * (uint64_t)record->counter[index] ) / duration;	/* 8 bits per Octet - x 1000 for msec */
+	else {
+	        bytes = bytes_element(record, inout);
+		return ( 8000LL * bytes ) / duration;	/* 8 bits per Octet - x 1000 for msec */
+	}
 
 } // End of bps_element
 
 static uint64_t	bpp_element(StatRecord_t *record, int inout) {
-int index_packets, index_bytes;
+uint64_t packets = packets_element(record, inout);
+uint64_t bytes = bytes_element(record, inout);
 
-	if ( inout == OUT ) {
-		index_packets = OUTPACKETS;
-		index_bytes   = OUTBYTES;
-	} else {
-		index_packets = INPACKETS;
-		index_bytes   = INBYTES;
-	}
-	
-	return record->counter[index_packets] ? record->counter[index_bytes] / record->counter[index_packets] : 0;
+	return packets ? bytes / packets : 0;
 
 } // End of bpp_element
 
@@ -1062,15 +1117,13 @@ int	j, i;
 
 static void PrintStatLine(stat_record_t	*stat, uint32_t plain_numbers, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
 char		proto[16], valstr[40], datestr[64];
-char		flows_str[NUMBER_STRING_SIZE], in_byte_str[NUMBER_STRING_SIZE], in_packets_str[NUMBER_STRING_SIZE];
-char		out_byte_str[NUMBER_STRING_SIZE], out_packets_str[NUMBER_STRING_SIZE];
-char		in_pps_str[NUMBER_STRING_SIZE], in_bps_str[NUMBER_STRING_SIZE];
-char		out_pps_str[NUMBER_STRING_SIZE], out_bps_str[NUMBER_STRING_SIZE];
+char		flows_str[NUMBER_STRING_SIZE], byte_str[NUMBER_STRING_SIZE], packets_str[NUMBER_STRING_SIZE];
+char		pps_str[NUMBER_STRING_SIZE], bps_str[NUMBER_STRING_SIZE];
 char tag_string[2];
-double		duration, flows_percent, in_packets_percent, in_bytes_percent;
-double		out_packets_percent, out_bytes_percent;
-uint32_t	in_bpp, out_bpp;
-uint64_t	in_pps, in_bps, out_pps, out_bps;
+uint64_t	count_flows, count_packets, count_bytes;
+double		duration, flows_percent, packets_percent, bytes_percent;
+uint32_t	bpp;
+uint64_t	pps, bps;
 int			scale;
 time_t		first;
 struct tm	*tbuff;
@@ -1146,58 +1199,44 @@ struct tm	*tbuff;
 
 	valstr[39] = 0;
 	scale = plain_numbers == 0;
-	format_number(StatData->counter[FLOWS], flows_str, scale, FIXED_WIDTH);
-	format_number(StatData->counter[INPACKETS], in_packets_str, scale, FIXED_WIDTH);
-	format_number(StatData->counter[INBYTES], in_byte_str, scale, FIXED_WIDTH);
-	format_number(StatData->counter[OUTPACKETS], out_packets_str, scale, FIXED_WIDTH);
-	format_number(StatData->counter[OUTBYTES], out_byte_str, scale, FIXED_WIDTH);
+	count_flows = StatData->counter[FLOWS];
+	count_packets = packets_element(StatData, inout);
+	count_bytes = bytes_element(StatData, inout);
+	format_number(count_flows, flows_str, scale, FIXED_WIDTH);
+	format_number(count_packets, packets_str, scale, FIXED_WIDTH);
+	format_number(count_bytes, byte_str, scale, FIXED_WIDTH);
 
-	flows_percent   = stat->numflows   ? (double)(StatData->counter[FLOWS] * 100 ) / (double)stat->numflows : 0;
+	flows_percent   = stat->numflows   ? (double)(count_flows * 100 ) / (double)stat->numflows : 0;
 	if ( stat->numpackets ) {
-		in_packets_percent  = (double)(StatData->counter[INPACKETS]  * 100 ) / (double)stat->numpackets;
-		out_packets_percent = (double)(StatData->counter[OUTPACKETS] * 100 ) / (double)stat->numpackets;
+		packets_percent  = (double)(count_packets * 100 ) / (double)stat->numpackets;
 	} else {
-		in_packets_percent  = 0;
-		out_packets_percent = 0;
+		packets_percent  = 0;
 	}
 
 	if ( stat->numbytes ) {
-		in_bytes_percent  = (double)(StatData->counter[INBYTES] * 100 ) / (double)stat->numbytes;
-		out_bytes_percent = (double)(StatData->counter[OUTBYTES] * 100 ) / (double)stat->numbytes;
+		bytes_percent  = (double)(count_bytes * 100 ) / (double)stat->numbytes;
 	} else {
-		in_bytes_percent  = 0;
-		out_bytes_percent = 0;
+		bytes_percent  = 0;
 	}
 
 	duration = StatData->last - StatData->first;
 	duration += ((double)StatData->msec_last - (double)StatData->msec_first) / 1000.0;
 	
 	if ( duration != 0 ) {
-		in_pps  = (uint64_t)((double)StatData->counter[INPACKETS] / duration);
-		in_bps  = (uint64_t)((double)(8 * StatData->counter[INBYTES]) / duration);
-		out_pps = (uint64_t)((double)StatData->counter[OUTPACKETS] / duration);
-		out_bps = (uint64_t)((double)(8 * StatData->counter[OUTBYTES]) / duration);
+		pps  = (uint64_t)((double)count_packets / duration);
+		bps  = (uint64_t)((double)(8 * count_bytes) / duration);
 	} else {
-		in_pps  = in_bps  = 0;
-		out_pps = out_bps = 0;
+		pps  = bps  = 0;
 	}
 
-	if (StatData->counter[INPACKETS]) {
-		in_bpp = StatData->counter[INBYTES] / StatData->counter[INPACKETS];
+	if (count_packets) {
+		bpp = count_bytes / count_packets;
 	} else {
-		in_bpp = 0;
-	}
-	if (StatData->counter[OUTPACKETS]) {
-		out_bpp = StatData->counter[OUTBYTES] / StatData->counter[OUTPACKETS];
-	} else {
-		out_bpp = 0;
+		bpp = 0;
 	}
 
-
-	format_number(in_pps, in_pps_str, scale, FIXED_WIDTH);
-	format_number(in_bps, in_bps_str, scale, FIXED_WIDTH);
-	format_number(out_pps, out_pps_str, scale, VAR_LENGTH);
-	format_number(out_bps, out_bps_str, scale, VAR_LENGTH);
+	format_number(pps, pps_str, scale, FIXED_WIDTH);
+	format_number(bps, bps_str, scale, FIXED_WIDTH);
 
 	first = StatData->first;
 	tbuff = localtime(&first);
@@ -1217,33 +1256,20 @@ struct tm	*tbuff;
 	if ( Getv6Mode() && ( type == IS_IPADDR ) )
 		printf("%s.%03u %9.3f %s %s%39s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", 
 				datestr, StatData->msec_first, duration, proto, tag_string, valstr, 
-				flows_str, flows_percent, in_packets_str, in_packets_percent, in_byte_str, 
-				in_bytes_percent, in_pps_str, in_bps_str, in_bpp );
+				flows_str, flows_percent, packets_str, packets_percent, byte_str,
+				bytes_percent, pps_str, bps_str, bpp );
 	else {
-		if ( inout == OUT ) 
-			printf("%s.%03u %9.3f %s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", 
-					datestr, StatData->msec_first, duration, proto, tag_string, valstr, 
-					flows_str, flows_percent, out_packets_str, out_packets_percent, out_byte_str, 
-					out_bytes_percent, out_pps_str, out_bps_str, out_bpp );
-		else
-			printf("%s.%03u %9.3f %s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", 
-					datestr, StatData->msec_first, duration, proto, tag_string, valstr, 
-					flows_str, flows_percent, in_packets_str, in_packets_percent, in_byte_str, 
-					in_bytes_percent, in_pps_str, in_bps_str, in_bpp );
-/*
-		printf("%s.%03u %9.3f %s %s%17s %8s(%4.1f) %8s(%4.1f)/%s(%4.1f) %8s(%4.1f)/%-8s(%4.1f) %8s/%-8s %8s/%-8s %5u/%-5u\n", 
-				datestr, StatData->msec_first, duration, proto, tag_string, valstr, 
-				flows_str, flows_percent, in_packets_str, in_packets_percent, 
-				out_packets_str, out_packets_percent, in_byte_str, in_bytes_percent, 
-				out_byte_str, out_bytes_percent, in_pps_str, out_pps_str, 
-				in_bps_str, out_bps_str, in_bpp, out_bpp );
-*/
+                printf("%s.%03u %9.3f %s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n",
+                                datestr, StatData->msec_first, duration, proto, tag_string, valstr,
+                                flows_str, flows_percent, packets_str, packets_percent, byte_str,
+                                bytes_percent, pps_str, bps_str, bpp );
 	}
 
 } // End of PrintStatLine
 
-static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto, int tag) {
+static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
 double		duration;
+uint64_t	count_flows, count_packets, count_bytes;
 uint32_t	pps, bps, bpp;
 uint32_t	sa[4];
 int			af;
@@ -1268,15 +1294,18 @@ int			af;
 	duration = StatData->last - StatData->first;
 	duration += ((double)StatData->msec_last - (double)StatData->msec_first) / 1000.0;
 	
+	count_flows = flows_element(StatData, inout);
+	count_packets = packets_element(StatData, inout);
+	count_bytes = bytes_element(StatData, inout);
 	if ( duration != 0 ) {
-		pps = (uint32_t)((double)StatData->counter[INPACKETS] / duration);
-		bps = (uint32_t)((double)(8 * StatData->counter[INBYTES]) / duration);
+		pps = (uint32_t)((double)count_packets / duration);
+		bps = (uint32_t)((double)(8 * count_bytes) / duration);
 	} else {
 		pps = bps = 0;
 	}
 
-	if ( StatData->counter[INPACKETS] )
-		bpp = StatData->counter[INBYTES] / StatData->counter[INPACKETS];
+	if ( count_packets )
+		bpp = count_bytes / count_packets;
 	else
 		bpp = 0;
 
@@ -1287,24 +1316,24 @@ int			af;
 	if ( type == IS_IPADDR )
 		printf("%i|%u|%u|%u|%u|%u|%u|%u|%u|%u|%llu|%llu|%llu|%u|%u|%u\n",
 				af, StatData->first, StatData->msec_first ,StatData->last, StatData->msec_last, StatData->prot, 
-				sa[0], sa[1], sa[2], sa[3], (long long unsigned)StatData->counter[FLOWS], 
-				(long long unsigned)StatData->counter[INPACKETS], (long long unsigned)StatData->counter[INBYTES], 
+				sa[0], sa[1], sa[2], sa[3], (long long unsigned)count_flows,
+				(long long unsigned)count_packets, (long long unsigned)count_bytes,
 				pps, bps, bpp);
 	else
 		printf("%i|%u|%u|%u|%u|%u|%llu|%llu|%llu|%llu|%u|%u|%u\n",
 				af, StatData->first, StatData->msec_first ,StatData->last, StatData->msec_last, StatData->prot, 
-				(long long unsigned)StatData->stat_key[1], (long long unsigned)StatData->counter[FLOWS], 
-				(long long unsigned)StatData->counter[INPACKETS], (long long unsigned)StatData->counter[INBYTES], 
+				(long long unsigned)StatData->stat_key[1], (long long unsigned)count_flows,
+				(long long unsigned)count_packets, (long long unsigned)count_bytes,
 				pps, bps, bpp);
 
 } // End of PrintPipeStatLine
 
 static void PrintCvsStatLine(stat_record_t	*stat, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
 char		proto[16], valstr[40], datestr1[64], datestr2[64];
-double		duration, flows_percent, in_packets_percent, in_bytes_percent;
-double		out_packets_percent, out_bytes_percent;
-uint32_t	i, in_bpp, out_bpp;
-uint64_t	in_pps, in_bps, out_pps, out_bps;
+uint64_t	count_flows, count_packets, count_bytes;
+double		duration, flows_percent, packets_percent, bytes_percent;
+uint32_t	i, bpp;
+uint64_t	pps, bps;
 time_t		when;
 struct tm	*tbuff;
 
@@ -1345,35 +1374,28 @@ struct tm	*tbuff;
 
 	valstr[39] = 0;
 
-	flows_percent   	= (double)(StatData->counter[FLOWS] * 100 ) / (double)stat->numflows;
-	in_packets_percent  = (double)(StatData->counter[INPACKETS] * 100 ) / (double)stat->numpackets;
-	in_bytes_percent    = (double)(StatData->counter[INBYTES] * 100 ) / (double)stat->numbytes;
-	out_packets_percent = (double)(StatData->counter[OUTPACKETS] * 100 ) / (double)stat->numpackets;
-	out_bytes_percent   = (double)(StatData->counter[OUTBYTES] * 100 ) / (double)stat->numbytes;
+	count_flows   = StatData->counter[FLOWS];
+	count_packets = packets_element(StatData, inout);
+	count_bytes   = bytes_element(StatData, inout);
+
+	flows_percent   = stat->numflows ? (double)(count_flows * 100 ) / (double)stat->numflows : 0;
+	packets_percent = stat->numpackets ? (double)(count_packets * 100 ) / (double)stat->numpackets : 0;
+	bytes_percent   = stat->numbytes ? (double)(count_bytes * 100 ) / (double)stat->numbytes : 0;
 
 	duration = StatData->last - StatData->first;
 	duration += ((double)StatData->msec_last - (double)StatData->msec_first) / 1000.0;
 	
 	if ( duration != 0 ) {
-		in_pps  = (uint32_t)((double)StatData->counter[INPACKETS] / duration);
-		in_bps  = (uint32_t)((double)(8 * StatData->counter[INBYTES]) / duration);
-		out_pps = (uint32_t)((double)StatData->counter[OUTPACKETS] / duration);
-		out_bps = (uint32_t)((double)(8 * StatData->counter[OUTBYTES]) / duration);
+		pps  = (uint64_t)((double)count_packets / duration);
+		bps  = (uint64_t)((double)(8 * count_bytes) / duration);
 	} else {
-		in_pps  = in_bps  = 0;
-		out_pps = out_bps = 0;
+		pps  = bps  = 0;
 	}
 
-	if (StatData->counter[INPACKETS]) {
-		in_bpp = StatData->counter[INBYTES] / StatData->counter[INPACKETS];
+	if (count_packets) {
+		bpp = count_bytes / count_packets;
 	} else {
-		in_bpp = 0;
-	}
-
-	if (StatData->counter[OUTPACKETS]) {
-		out_bpp = StatData->counter[OUTBYTES] / StatData->counter[OUTPACKETS];
-	} else {
-		out_bpp = 0;
+		bpp = 0;
 	}
 
 	when = StatData->first;
@@ -1406,20 +1428,12 @@ struct tm	*tbuff;
 		i++;
 	}
 
-	if ( inout == OUT ) 
-		printf("%s,%s,%.3f,%s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n", 
-			datestr1, datestr2, duration, proto, valstr, 
-			(long long unsigned)StatData->counter[FLOWS], flows_percent, 
-			(long long unsigned)StatData->counter[OUTPACKETS], out_packets_percent,
-			(long long unsigned)StatData->counter[OUTBYTES], out_bytes_percent,
-			(long long unsigned)out_pps,(long long unsigned)out_bps,out_bpp);
-	else
-		printf("%s,%s,%.3f,%s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n", 
-			datestr1, datestr2, duration, proto, valstr, 
-			(long long unsigned)StatData->counter[FLOWS], flows_percent, 
-			(long long unsigned)StatData->counter[INPACKETS], in_packets_percent,
-			(long long unsigned)StatData->counter[INBYTES], in_bytes_percent,
-			(long long unsigned)in_pps,(long long unsigned)in_bps,in_bpp);
+        printf("%s,%s,%.3f,%s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n",
+                datestr1, datestr2, duration, proto, valstr,
+                (long long unsigned)count_flows, flows_percent,
+                (long long unsigned)count_packets, packets_percent,
+                (long long unsigned)count_bytes, bytes_percent,
+                (long long unsigned)pps,(long long unsigned)bps,bpp);
 
 } // End of PrintCvsStatLine
 
@@ -1428,6 +1442,7 @@ hash_FlowTable *FlowTable;
 FlowTableRecord_t	*r;
 master_record_t		*aggr_record_mask;
 SortElement_t 		*SortList;
+uint64_t			value;
 uint32_t 			i;
 uint32_t			maxindex, c;
 char				*string;
@@ -1455,26 +1470,23 @@ char				*string;
 			while ( r ) {
 				// we want to sort only those flows which pass the packet or byte limits
 				if ( byte_limit ) {
-					if (( byte_mode == LESS && r->counter[INBYTES] >= byte_limit ) ||
-						( byte_mode == MORE && r->counter[INBYTES]  <= byte_limit ) ) {
+				        value = bytes_record(r, order_mode[PrintOrder].inout);
+					if (( byte_mode == LESS && value >= byte_limit ) ||
+						( byte_mode == MORE && value <= byte_limit ) ) {
 						r = r->next;
 						continue;
 					}
 				}
 				if ( packet_limit ) {
-					if (( packet_mode == LESS && r->counter[INPACKETS] >= packet_limit ) ||
-						( packet_mode == MORE && r->counter[INPACKETS]  <= packet_limit ) ) {
+				        value = packets_record(r, order_mode[PrintOrder].inout);
+					if (( packet_mode == LESS && value >= packet_limit ) ||
+						( packet_mode == MORE && value <= packet_limit ) ) {
 						r = r->next;
 						continue;
 					}
 				}
 				
-				if ( order_mode[PrintOrder].record_function ) {
-					SortList[c].count  = order_mode[PrintOrder].record_function(r, order_mode[PrintOrder].inout);
-				} else {
-					int cindex = order_mode[PrintOrder].cindex;
-					SortList[c].count  = r->counter[cindex];
-				}
+				SortList[c].count  = order_mode[PrintOrder].record_function(r, order_mode[PrintOrder].inout);
 				SortList[c].record = (void *)r;
 				c++;
 				r = r->next;
@@ -1504,15 +1516,17 @@ char				*string;
 
 				// we want to print only those flows which pass the packet or byte limits
 				if ( byte_limit ) {
-					if (( byte_mode == LESS && r->counter[INBYTES] >= byte_limit ) ||
-						( byte_mode == MORE && r->counter[INBYTES]  <= byte_limit ) ) {
+				        value = bytes_record(r, order_mode[PrintOrder].inout);
+					if (( byte_mode == LESS && value >= byte_limit ) ||
+						( byte_mode == MORE && value <= byte_limit ) ) {
 						r = r->next;
 						continue;
 					}
 				}
 				if ( packet_limit ) {
-					if (( packet_mode == LESS && r->counter[INPACKETS] >= packet_limit ) ||
-						( packet_mode == MORE && r->counter[INPACKETS]  <= packet_limit ) ) {
+				        value = packets_record(r, order_mode[PrintOrder].inout);
+					if (( packet_mode == LESS && value >= packet_limit ) ||
+						( packet_mode == MORE && value <= packet_limit ) ) {
 						r = r->next;
 						continue;
 					}
@@ -1558,6 +1572,7 @@ hash_FlowTable *FlowTable;
 FlowTableRecord_t	*r;
 SortElement_t 		*SortList;
 unsigned int 		order_index, i;
+uint64_t			value;
 uint32_t			maxindex, c;
 
 	FlowTable = GetFlowTable();
@@ -1589,15 +1604,17 @@ uint32_t			maxindex, c;
 		while ( r ) {
 			// we want to sort only those flows which pass the packet or byte limits
 			if ( byte_limit ) {
-				if (( byte_mode == LESS && r->counter[INBYTES] >= byte_limit ) ||
-					( byte_mode == MORE && r->counter[INBYTES]  <= byte_limit ) ) {
+			        value = bytes_record(r, order_mode[order_index].inout);
+				if (( byte_mode == LESS && value >= byte_limit ) ||
+					( byte_mode == MORE && value <= byte_limit ) ) {
 					r = r->next;
 					continue;
 				}
 			}
 			if ( packet_limit ) {
-				if (( packet_mode == LESS && r->counter[INPACKETS] >= packet_limit ) ||
-					( packet_mode == MORE && r->counter[INPACKETS]  <= packet_limit ) ) {
+			        value = packets_record(r, order_mode[order_index].inout);
+				if (( packet_mode == LESS && value >= packet_limit ) ||
+					( packet_mode == MORE && value <= packet_limit ) ) {
 					r = r->next;
 					continue;
 				}
@@ -1605,12 +1622,7 @@ uint32_t			maxindex, c;
 			
 			// As we touch each flow in the list here, fill in the values for the first requested stat
 			// often, no more than one stat is requested anyway. This saves time
-			if ( order_mode[order_index].record_function ) {
-				SortList[c].count  = order_mode[order_index].record_function(r, order_mode[order_index].inout);
-			} else {
-				int cindex = order_mode[order_index].cindex;
-				SortList[c].count  = r->counter[cindex];
-			}
+			SortList[c].count  = order_mode[order_index].record_function(r, order_mode[order_index].inout);
 			SortList[c].record = (void *)r;
 			c++;
 			r = r->next;
@@ -1647,12 +1659,7 @@ uint32_t			maxindex, c;
 				/* if we have some different sort orders, which are not directly available in the FlowTableRecord_t
 		 		 * we need to calculate this value first - such as bpp, bps etc.
 		 		 */
-				if ( order_mode[order_index].record_function ) {
-					SortList[i].count  = order_mode[order_index].record_function(r, order_mode[order_index].inout);
-				} else {
-					int cindex = order_mode[order_index].cindex;
-					SortList[i].count  = r->counter[cindex];
-				}
+				SortList[i].count  = order_mode[order_index].record_function(r, order_mode[order_index].inout);
 			}
 
 			if ( maxindex >= 2 )
@@ -1773,10 +1780,12 @@ int32_t 		i, j, hash_num, order_index;
 				}
 
 				if ( cvs_output ) {
-					if ( order_mode[order_index].inout == OUT ) 
-						printf("ts,te,td,pr,val,fl,flP,opkt,opktP,obyt,obytP,opps,opbs,obpp\n");
+					if ( order_mode[order_index].inout == IN )
+						printf("ts,te,td,pr,val,fl,flP,ipkt,ipktP,ibyt,ibytP,ipps,ibps,ibpp\n");
+					else if ( order_mode[order_index].inout == OUT )
+						printf("ts,te,td,pr,val,fl,flP,opkt,opktP,obyt,obytP,opps,obps,obpp\n");
 					else
-						printf("ts,te,td,pr,val,fl,flP,ipkt,ipktP,ibyt,ibytP,ipps,ipbs,ibpp\n");
+						printf("ts,te,td,pr,val,fl,flP,pkt,pktP,byt,bytP,pps,bps,bpp\n");
 				}
 
 				j = numflows - topN;
@@ -1787,10 +1796,10 @@ int32_t 		i, j, hash_num, order_index;
 					//if ( !topN_element_list[i].count )
 						//break;
 
-					// Again - ugly output formating - needs to be cleand up
+					// Again - ugly output formating - needs to be cleaned up
 					if ( pipe_output ) 
 						PrintPipeStatLine((StatRecord_t *)topN_element_list[i].record, type, 
-							StatRequest[hash_num].order_proto, tag);
+							StatRequest[hash_num].order_proto, tag, order_mode[order_index].inout);
 					else if ( cvs_output ) 
 						PrintCvsStatLine(sum_stat, (StatRecord_t *)topN_element_list[i].record, type, 
 							StatRequest[hash_num].order_proto, tag, order_mode[order_index].inout);
@@ -1809,6 +1818,7 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
 SortElement_t 		*topN_list;
 StatRecord_t		*r;
 unsigned int		i;
+uint64_t			value;
 uint32_t	   		c, maxindex;
 
 	maxindex  = ( StatTable[hash_num].NextBlock * StatTable[hash_num].Prealloc ) + StatTable[hash_num].NextElem;
@@ -1830,27 +1840,23 @@ uint32_t	   		c, maxindex;
 
 			// we want to sort only those flows which pass the packet or byte limits
 			if ( byte_limit ) {
-				if (( byte_mode == LESS && r->counter[INBYTES] >= byte_limit ) ||
-					( byte_mode == MORE && r->counter[INBYTES]  <= byte_limit ) ) {
+			        value = bytes_element(r, order_mode[order].inout);
+				if (( byte_mode == LESS && value >= byte_limit ) ||
+					( byte_mode == MORE && value <= byte_limit ) ) {
 					r = r->next;
 					continue;
 				}
 			}
 			if ( packet_limit ) {
-				if (( packet_mode == LESS && r->counter[INPACKETS] >= packet_limit ) ||
-					( packet_mode == MORE && r->counter[INPACKETS]  <= packet_limit ) ) {
+			        value = packets_element(r, order_mode[order].inout);
+				if (( packet_mode == LESS && value >= packet_limit ) ||
+					( packet_mode == MORE && value <= packet_limit ) ) {
 					r = r->next;
 					continue;
 				}
 			}
 
-			if ( order_mode[order].element_function ) {
-				topN_list[c].count  = order_mode[order].element_function(r, order_mode[order].inout);
-			} else {
-				int cindex = order_mode[order].cindex;
-				topN_list[c].count  = r->counter[cindex];
-			}
-
+			topN_list[c].count  = order_mode[order].element_function(r, order_mode[order].inout);
 			topN_list[c].record = (void *)r;
 			r = r->next;
 			c++;

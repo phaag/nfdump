@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -486,12 +487,7 @@ static inline uint64_t getData64(SFSample *sample);
 
 static void writeCountersLine(SFSample *sample);
 
-#ifdef __SUNPRO_C
-static void receiveError(SFSample *sample, char *errm, int hexdump);
-#pragma does_not_return (receiveError)
-#else
 static void receiveError(SFSample *sample, char *errm, int hexdump) __attribute__ ((noreturn));
-#endif
 
 static inline void skipBytes(SFSample *sample, int skip);
 
@@ -504,8 +500,6 @@ static inline void sf_log_percentage(SFSample *sample, char *fieldName);
 static inline uint32_t getString(SFSample *sample, char *buf, int bufLen);
 
 static inline uint32_t getAddress(SFSample *sample, SFLAddress *address);
-
-static inline char *printTag(uint32_t tag, char *buf, int bufLen);
 
 static inline void skipTLVRecord(SFSample *sample, uint32_t tag, uint32_t len, char *description);
 
@@ -520,6 +514,10 @@ static inline void readFlowSample_v2v4(SFSample *sample, FlowSource_t *fs);
 static inline void readCountersSample_v2v4(SFSample *sample, FlowSource_t *fs);
 
 static inline void StoreSflowRecord(SFSample *sample, FlowSource_t *fs);
+
+#ifdef DEVEL
+static inline char *printTag(uint32_t tag, char *buf, int bufLen);
+#endif
 
 extern int verbose;
 
@@ -915,6 +913,7 @@ static void decodeIPV4(SFSample *sample)
 			dbg_printf("IPFragmentOffset %u\n", sample->ip_fragmentOffset);
 		}
 		else {
+			dbg_printf("Unfragmented\n");
 			/* advance the pointer to the next protocol layer */
 			/* ip headerLen is expressed as a number of quads */
 			ptr += (ip.version_and_headerLen & 0x0f) * 4;
@@ -1031,11 +1030,14 @@ value32_t	*val;
 uint32_t bytes, j, id, ipsize, ip_flags;
 uint64_t _bytes, _packets, _t;	// tmp buffers
 
+	dbg_printf("StoreSflowRecord\n");
+
 	gettimeofday(&now, NULL);
 
-	// ignore fragments
-	if( sample->ip_fragmentOffset > 0 ) 
-		return;
+	if( sample->ip_fragmentOffset > 0 ) {
+		sample->dcd_sport = 0;
+		sample->dcd_dport = 0;
+	}
 
 	bytes = sample->sampledPacketSize;
 	
@@ -1082,6 +1084,7 @@ uint64_t _bytes, _packets, _t;	// tmp buffers
 		return;
 	}
 
+	dbg_printf("Fill Record\n");
 	common_record = (common_record_t *)fs->nffile->buff_ptr;
 
 	common_record->size			  = sflow_output_record_size[ip_flags] + ipsize;
@@ -1096,7 +1099,7 @@ uint64_t _bytes, _packets, _t;	// tmp buffers
 	common_record->last			  = common_record->first;
 	common_record->msec_first	  = now.tv_usec / 1000;
 	common_record->msec_last	  = common_record->msec_first;
-	_t							  = 1000*now.tv_sec + common_record->msec_first;	// tmp buff for first_seen
+	_t							  = 1000LL * now.tv_sec + common_record->msec_first;	// tmp buff for first_seen
 
 	common_record->fwd_status	  = 0;
 	common_record->reserved	  	  = 0;
@@ -1404,13 +1407,14 @@ static inline uint32_t getAddress(SFSample *sample, SFLAddress *address) {
 	return address->type;
 } // End of getAddress
 
+static inline void skipTLVRecord(SFSample *sample, uint32_t tag, uint32_t len, char *description) {
+
+#ifdef DEVEL
 static inline char *printTag(uint32_t tag, char *buf, int bufLen) {
 	snprintf(buf, bufLen, "%u:%u", (tag >> 12), (tag & 0x00000FFF));
 	return buf;
 } // End of printTag
 
-static inline void skipTLVRecord(SFSample *sample, uint32_t tag, uint32_t len, char *description) {
-#ifdef DEVEL
 char buf[51];
 #endif
 

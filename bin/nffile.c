@@ -452,7 +452,7 @@ nffile_t *DisposeFile(nffile_t *nffile) {
 
 nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int compress, int anonymized, char *ident) {
 size_t			len;
-int 			flags;
+int 			fd, flags;
 
 	switch (compress) {
 		case 0:
@@ -460,13 +460,32 @@ int 			flags;
 			break;
 		case 1:
 			flags = FLAG_LZO_COMPRESSED;
+			if ( !lzo_initialized && !LZO_initialize() ) {
+				LogError("Failed to initialize LZO compression");
+				return NULL;
+			}
 			break;
 		case 2:
 			flags = FLAG_BZ2_COMPRESSED;
+			if ( !bz2_initialized && !BZ2_initialize() ) {
+				LogError("Failed to initialize BZ2 compression");
+				return NULL;
+			}
 			break;
 		default:
 			LogError("Unknown compression ID: %i\n", compress);
 			return NULL;
+	}
+
+	fd = 0;
+	if ( strcmp(filename, "-") == 0 ) { // output to stdout
+		fd = STDOUT_FILENO;
+	} else {
+		fd = open(filename, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH );
+		if ( fd < 0 ) {
+			LogError("Failed to open file %s: '%s'" , filename, strerror(errno));
+			return NULL;
+		}
 	}
 
 	// Allocate new struct if not given
@@ -477,20 +496,12 @@ int 			flags;
 		}
 	}
 
+	nffile->fd = fd;
+
 	if ( anonymized ) 
 		SetFlag(flags, FLAG_ANONYMIZED);
 
 	nffile->file_header->flags 	   = flags;
-
-	if ( strcmp(filename, "-") == 0 ) { // output to stdout
-		nffile->fd = STDOUT_FILENO;
-	} else {
-		nffile->fd = open(filename, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH );
-		if ( nffile->fd < 0 ) {
-			LogError("Failed to open file %s: '%s'" , filename, strerror(errno));
-			return NULL;
-		}
-	}
 
 /*
 	XXX catalogs not yet implemented
@@ -511,28 +522,12 @@ int 			flags;
 		nffile->file_header->ident[IDENTLEN - 1] = 0;
 	} 
 
-
-	if ( TestFlag(flags, FLAG_LZO_COMPRESSED) ) {
-		if ( !lzo_initialized && !LZO_initialize() ) {
-			LogError("Failed to initialize LZO compression");
-			close(nffile->fd);
-			return NULL;
-		}
-   	}
-
-	if ( TestFlag(flags, FLAG_BZ2_COMPRESSED) ) {
-		if ( !bz2_initialized && !BZ2_initialize() ) {
-			LogError("Failed to initialize BZ2 compression");
-			close(nffile->fd);
-			return NULL;
-		}
-   	}
-
 	nffile->file_header->NumBlocks = 0;
 	len = sizeof(file_header_t);
 	if ( write(nffile->fd, (void *)nffile->file_header, len) < len ) {
 		LogError("write() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		close(nffile->fd);
+		nffile->fd = 0;
 		return NULL;
 	}
 
@@ -541,6 +536,7 @@ int 			flags;
 	if ( write(nffile->fd, (void *)nffile->stat_record, len) < len ) {
 		LogError("write() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		close(nffile->fd);
+		nffile->fd = 0;
 		return NULL;
 	}
 

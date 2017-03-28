@@ -51,7 +51,7 @@ to exist in all the given directories.  The options \-r and \-R must
 not contain any directory part when used in conjunction with \-M.
 .TP 3
 .B -m
-depricated option. Use -O tstart instead.
+deprecated option. Use -O tstart instead.
 .TP 3
 .B -O \fIorder
 Set sort order to print flows or aggregated flows. \fIorder\fR can be:
@@ -90,7 +90,7 @@ obpp     Sort according to output packets
 .br
 tstart   Sort according to start time of flow - former -m
 .br
-tend"    Sort according to end time of flows
+tend     Sort according to end time of flows
 .RE
 .TP 3
 .B -w \fIoutputfile
@@ -405,11 +405,6 @@ Example:
 .RE
 .PP
 .TP 3
-.B -O \fIorderby
-Specifies the default \fIorderby\fR for flow element statistics \-s, which 
-applies when no \fIorderby\fR is given at \-s. \fIorderby\fR can be \fIflows\fR, 
-\fIpackets\fR, \fIbytes\fR, \fIpps\fR, \fIbps\fR or \fIbpp\fR. Defaults to \fIflows\fR.
-.TP 3
 .B -l \fI[+/\-]packet_num
 Limit statistics output to those records above or below the \fIpacket_num\fR 
 limit. \fIpacket_num\fR accepts positive or negative numbers followed by 'K'
@@ -541,9 +536,9 @@ additional computed information such as \fBpps\fR, \fBbps\fR and \fBbpp\fR.
 .P
 .RS 3
 \fBDate flow start:\fR Start time flow first seen. ISO 8601 format 
-including miliseconds.
+including milliseconds.
 .P
-\fBDuration:\fR Duration of the flow in seconds and miliseconds. 
+\fBDuration:\fR Duration of the flow in seconds and milliseconds. 
 If flows are aggregated, \fIduration\fR is the time span over the 
 entire periode of time from first seen to last seen.
 .P
@@ -573,7 +568,7 @@ are aggregated this results in the average bps during this periode of time.
 \fBBpp:\fR The calculated bytes per packet: number of bytes / number of packets. If flows
 are aggregated this results in the average bpp during this periode of time.
 .P
-\fBFlows:\fR Number of flows. If flows are listed only, this number is alwasy 1. If flows
+\fBFlows:\fR Number of flows. If flows are listed only, this number is always 1. If flows
 are aggregated, this shows the number of aggregated flows to one record.
 .RE
 .PD
@@ -597,11 +592,19 @@ and format specifier as described below
 .RS 3
 \fB%<format>\fR Inserts the predefined \fBformat\fR at this position. e.g. \fB%line\fR
 .br
+\fB%ff\fR       flow record flags in hex. 
+.br
 \fB%ts\fR       Start Time \- first seen
+.br
+\fB%tsr\fR      Start Time, but in fractional seconds since the epoch (1970-01-01)
 .br
 \fB%te\fR       End Time \- last seen
 .br
+\fB%ter\fR      End Time, in fractional seconds
+.br
 \fB%tr\fR       Time the flow was received by the collector
+.br
+\fB%trr\fR      Time the flow was received, in fractional seconds
 .br
 \fB%td\fR       Duration
 .br
@@ -785,6 +788,30 @@ Nprobe formats
 .RE
 .PD
 .P
+
+The "flow flags" format (%ff) prints the internal record flags as a single hexadecimal number,
+consisting of any of these flag values or-ed together:
+.P
+.RS 3
+.br
+1    Record contains IPv6 addresses
+.br
+2    Packet counters are 64-bit
+.br
+4    Byte counters are 64-bit
+.br
+8    IP next hop is an IPv6 address
+.br
+16	BGP next hop is an IPv6 address
+.br
+32   Exporting router is an IPv6 address
+.br
+64   Record is an EVENT record
+.br
+128  Record is sampled
+.RE
+.P
+
 Example: the standard output format \fBlong\fR can be created as
 .RS 3
 \fB\-o "fmt:%ts %td %pr %sap \-> %dap %flg %tos %pkt %byt %fl"\fR
@@ -810,7 +837,7 @@ Record line:  2004-07-11 10:30:00,2004-07-11 10:30:10,10.010,...
 .PD
 .P
 All records are in ASCII readable form. Numbers are not scaled, so each line 
-can easly be parsed.
+can easily be parsed.
 .P
 Indices used in nfdump 1.6:
 .P
@@ -957,7 +984,7 @@ Select the IPv4 network \fIa.b.c.d\fR with netmask \fIm.n.r.s\fR.
 .br
 with \fI<net>\fR as a valid IPv4 or IPv6 network and \fI<num>\fR as maskbits. 
 The number of mask bits must match the appropriate address familiy in IPv4 or 
-IPv6. Networks may be abreviated such as 172.16/16 if they are unambiguous.
+IPv6. Networks may be abbreviated such as 172.16/16 if they are unambiguous.
 .RE
 .TP 4 
 .I Port
@@ -1005,7 +1032,7 @@ Example: \fBin if 3\fR
 \fB[src|dst|prev|next] as [comp] <num>\fR
 .br
 Selects source, dstination, previous, next or any AS number
-with \fI<num>\fR as any valid as number. 32bit AS numbers are suported. If 
+with \fI<num>\fR as any valid as number. 32bit AS numbers are supported. If 
 \fIcomp\fR is omitted, '=' is assumed. \fIcomp\fR is explained more detailed below.
 .br
 
@@ -1120,7 +1147,7 @@ To filter for flows with specific packets per second.
 .I Duration: Calculated value
 \fBduration\fR \fI[comp]\fR \fInum\fR
 .br
-To filter for flows with specific duration in miliseconds.
+To filter for flows with specific duration in milliseconds.
 .TP 4 
 .I Bits per second: Calculated value.
 \fBbps\fR \fI[comp]\fR \fInum\fR \fI[scale]\fR
@@ -1179,7 +1206,7 @@ Select the translated IP address
 .br
 with \fI<net>\fR as a valid translated IPv4 or IPv6 network and \fI<num>\fR as maskbits. 
 The number of mask bits must match the appropriate address familiy in IPv4 or 
-IPv6. Networks may be abreviated such as 172.16/16 if they are unambiguous.
+IPv6. Networks may be abbreviated such as 172.16/16 if they are unambiguous.
 .P
 \fB[src|dst] xport <port>\fR
 .br
@@ -1228,7 +1255,7 @@ Select the NAT port
 .TP 4
 .I NEL NAT vrf
 \fBingress vrf <num>\fR
-.b
+.br
 Select the vrf
 .RE
 .PD
@@ -1250,7 +1277,7 @@ Generates the Top 20 statistics from 08:45 to 09:45 from 3 sources
 Generates the Top 20 statistics, extended output format
 .P
 .B nfdump \-r /and/dir/nfcapd.201107110845 \-s record \-n 20 'in if 5 and bps > 10k'
-Generates the Top 20 statistics from flows comming from interface 5
+Generates the Top 20 statistics from flows coming from interface 5
 .P
 .B nfdump \-r /and/dir/nfcapd.201107110845 'inet6 and proto tcp and ( src port > 1024 and dst port 80 )
 Dumps all port 80 IPv6 connections to any web server.

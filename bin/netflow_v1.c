@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,22 +29,17 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: peter $
- *
- *  $Id: netflow_v1.c 30 2011-07-18 11:19:46Z peter $
- *
- *  $LastChangedRevision: 30 $
- *	
  */
 
+#ifdef HAVE_CONFIG_H 
 #include "config.h"
+#endif
 
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <syslog.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
@@ -63,12 +59,6 @@
 #include "collector.h"
 #include "exporter.h"
 #include "netflow_v1.h"
-
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
 
 extern int verbose;
 extern extension_descriptor_t extension_descriptor[];
@@ -151,7 +141,7 @@ uint16_t	map_size;
 	// Create a generic netflow v1 extension map
 	v1_extension_info.map = (extension_map_t *)malloc((size_t)map_size);
 	if ( !v1_extension_info.map ) {
-		syslog(LOG_ERR, "Process_v1: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
+		LogError("Process_v1: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
 		return 0;
 	}
 
@@ -195,7 +185,7 @@ char ipstr[IP_STRING_LEN];
 	// nothing found
 	*e = (exporter_v1_t *)malloc(sizeof(exporter_v1_t));
 	if ( !(*e)) {
-		syslog(LOG_ERR, "Process_v1: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
+		LogError("Process_v1: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
 		return NULL;
 	}
 	memset((void *)(*e), 0, sizeof(exporter_v1_t));
@@ -214,7 +204,7 @@ char ipstr[IP_STRING_LEN];
 	// copy the v1 generic extension map
 	(*e)->extension_map		= (extension_map_t *)malloc(v1_extension_info.map->size);
 	if ( !(*e)->extension_map ) {
-		syslog(LOG_ERR, "Process_v1: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
+		LogError("Process_v1: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
 		free(*e);
 		*e = NULL;
 		return NULL;
@@ -246,7 +236,7 @@ char ipstr[IP_STRING_LEN];
 
 	dbg_printf("New Exporter: v1 SysID: %u, Extension ID: %i, IP: %s, \n", 
 		(*e)->info.sysid, (*e)->extension_map->map_id, ipstr);
-	syslog(LOG_INFO, "Process_v1: SysID: %u, New exporter: IP: %s\n", (*e)->info.sysid, ipstr);
+	LogError("Process_v1: SysID: %u, New exporter: IP: %s\n", (*e)->info.sysid, ipstr);
 
 	return (*e);
 
@@ -271,7 +261,7 @@ char		*string;
 
 		exporter = GetExporter(fs, v1_header);
 		if ( !exporter ) {
-			syslog(LOG_ERR,"Process_v1: Exporter NULL: Abort v1 record processing");
+			LogError("Process_v1: Exporter NULL: Abort v1 record processing");
 			return;
 		}
 		flags = 0;
@@ -294,14 +284,14 @@ char		*string;
 			// count check
 	  		count	= ntohs(v1_header->count);
 			if ( count > NETFLOW_V1_MAX_RECORDS ) {
-				syslog(LOG_ERR,"Process_v1: Unexpected record count in header: %i. Abort v1 record processing", count);
+				LogError("Process_v1: Unexpected record count in header: %i. Abort v1 record processing", count);
 				fs->nffile->buff_ptr = (void *)common_record;
 				return;
 			}
 
 			// input buffer size check for all expected records
 			if ( size_left < ( NETFLOW_V1_HEADER_LENGTH + count * flow_record_length) ) {
-				syslog(LOG_ERR,"Process_v1: Not enough data to process v1 record. Abort v1 record processing");
+				LogError("Process_v1: Not enough data to process v1 record. Abort v1 record processing");
 				fs->nffile->buff_ptr = (void *)common_record;
 				return;
 			}
@@ -309,7 +299,7 @@ char		*string;
 			// output buffer size check for all expected records
 			if ( !CheckBufferSpace(fs->nffile, count * v1_output_record_size) ) {
 				// fishy! - should never happen. maybe disk full?
-				syslog(LOG_ERR,"Process_v1: output buffer size error. Abort v1 record processing");
+				LogError("Process_v1: output buffer size error. Abort v1 record processing");
 				return;
 			}
 
@@ -386,7 +376,7 @@ char		*string;
 
 						default:
 							// this should never happen, as v1 has no other extensions
-							syslog(LOG_ERR,"Process_v1: Unexpected extension %i for v1 record. Skip extension", id);
+							LogError("Process_v1: Unexpected extension %i for v1 record. Skip extension", id);
 					}
 					j++;
 				}
@@ -504,9 +494,9 @@ char		*string;
 				// buffer size sanity check - should never happen, but check it anyway
 				bsize = (pointer_addr_t)common_record - (pointer_addr_t)fs->nffile->block_header - sizeof(data_block_header_t);
 				if ( bsize > BUFFSIZE ) {
-					syslog(LOG_ERR,"### Software error ###: %s line %d", __FILE__, __LINE__);
-					syslog(LOG_ERR,"Process_v1: Output buffer overflow! Flush buffer and skip records.");
-					syslog(LOG_ERR,"Buffer size: size: %u, bsize: %llu > %u", fs->nffile->block_header->size, (unsigned long long)bsize, BUFFSIZE);
+					LogError("### Software error ###: %s line %d", __FILE__, __LINE__);
+					LogError("Process_v1: Output buffer overflow! Flush buffer and skip records.");
+					LogError("Buffer size: size: %u, bsize: %llu > %u", fs->nffile->block_header->size, (unsigned long long)bsize, BUFFSIZE);
 					// reset buffer
 					fs->nffile->block_header->size 		= 0;
 					fs->nffile->block_header->NumRecords = 0;

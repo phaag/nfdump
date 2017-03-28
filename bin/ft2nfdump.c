@@ -1,5 +1,6 @@
 /*
  *  All rights reserved.
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -32,16 +33,11 @@
  *  
  *  Flow-Tools related code taken from flow-tools-0.67 cretated by Mark Fullmer
  *
- *  $Author: haag $
- *
- *  $Id: ft2nfdump.c 69 2010-09-09 07:17:43Z haag $
- *
- *  $LastChangedRevision: 69 $
- *	
- *
  */
 
+#ifdef HAVE_CONFIG_H 
 #include "config.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,6 +62,7 @@
 #include "nffile.h"
 #include "nfx.h"
 #include "launch.h"
+#include "util.h"
 
 /* Global defines */
 #define MAXRECORDS 30

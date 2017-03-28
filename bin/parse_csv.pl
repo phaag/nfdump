@@ -1,5 +1,6 @@
 #!/usr/bin/perl
 #
+#  Copyright (c) 2016, Peter Haag
 #  Copyright (c) 2009, Peter Haag
 #  All rights reserved.
 #  
@@ -26,11 +27,6 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 #  POSSIBILITY OF SUCH DAMAGE.
 #  
-#  $Author: haag $
-#
-#  $Id: parse_csv.pl 33 2009-09-30 08:30:37Z haag $
-#
-#  $LastChangedRevision: 33 $
 #   
 
 use strict;
@@ -85,7 +81,7 @@ my @tags;
 # ismc,odmc	input src, output dst MAC
 # idmc,osmc	input dst, output src MAC
 # mpls1,mpls2,mpls3,mpls4,mpls5,mpls6,mpls7,mpls8,mpls9,mpls10 MPLS label 1-10
-# cl,sl,al  client server application latency (nprobe)
+# cl,sl,al  client server application latency (nfpcapd,nprobe)
 # ra		router IP
 # eng		router engine type/id
 # exid		exporter SysID

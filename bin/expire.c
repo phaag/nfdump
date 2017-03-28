@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -72,13 +73,6 @@
 #include "expire.h"
 
 static uint32_t timeout = 0;
-
-/* 
- * expire.c is needed for daemon code as well as normal stdio code 
- * therefore a generic LogError is defined, which maps to the 
- * approriate logging channel - either stderr or syslog
- */
-void LogError(char *format, ...);
 
 static void PrepareDirLists(channel_t *channel);
 

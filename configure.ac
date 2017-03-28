@@ -3,11 +3,15 @@
 
 AC_PREREQ(2.59)
 AC_REVISION($Revision: 243 $)dnl 
-AC_INIT(nfdump, 1.6.14, phaag@users.sourceforge.net)
+AC_INIT(nfdump, 1.6.15, peter@people.ops-trust.net)
 # $Date: 2014-11-16 14:10:20 +0100 (Sun, 16 Nov 2014) $
 #AC_CONFIG_SRCDIR([grammar.y])
 AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([subdir-objects])
+
+LT_INIT
+# AC_ENABLE_SHARED
+# AC_ENABLE_STATIC
  
 # Checks for programs.
 AC_PROG_CC
@@ -99,6 +103,18 @@ fi
 ,
 )
 
+AC_ARG_WITH(pcappath,
+[  --with-pcappath=PATH      Expect RRD installed in PATH; default /usr/local],
+if test "x$with_pcappath" = "xyes" ; then
+	CPPFLAGS="${CPPFLAGS} -I/usr/local/include"
+	LDFLAGS="${LDFLAGS} -L/usr/local/lib"
+else
+	CPPFLAGS="${CPPFLAGS} -I${with_pcappath}/include"
+	LDFLAGS="${LDFLAGS} -L${with_pcappath}/lib"
+fi
+,
+)
+
 #Tidz up? esp not using in source dist flow-tools
 AC_ARG_ENABLE(ftconv,
 [  --enable-ftconv         Build the flow-tools to nfdump converter; default is NO],
@@ -109,7 +125,7 @@ if test -d "$WHERE_FTPATH"; then
 	if test ! -f "$WHERE_FTPATH/include/ftlib.h"; then
 		AC_MSG_ERROR(ftlib.h file not found in flow-tools directory '$WHERE_FTPATH'. Use --with-ftpath=PATH)
 	fi
-	if test ! -f "$WHERE_FTPATH/lib/libft.a"; then
+	if test ! -f "$WHERE_FTPATH/lib/libft.a" -a -f "$WHERE_FTPATH/lib64/libft.a" ! -f "$WHERE_FTPATH/lib/libft.so" -a -f "$WHERE_FTPATH/lib64/libft.so"; then
 		AC_MSG_ERROR(libft.a not found in flow-tools directory '$WHERE_FTPATH'. Build flow tools first)
 	fi
 	FT_INCLUDES="-I$WHERE_FTPATH/include -I$WHERE_FTPATH/lib"
@@ -198,8 +214,37 @@ AC_ARG_ENABLE(readpcap,
 AM_CONDITIONAL(READPCAP, test "$enable_readpcap" = yes)
 
 AC_ARG_ENABLE(nfpcapd,
-[  --enable-nfpcapd       Build nfpcapd collector to create netflow data from interface or pcap data; default is NO])
-AM_CONDITIONAL(BUILDNFPCAPD, test "$enable_nfpcapd" = yes)
+[  --enable-nfpcapd       Build nfpcapd collector to create netflow data from interface or pcap data; default is NO],
+[ 
+	AC_CHECK_LIB(pcap, pcap_create,[
+cat >>config.h <<_ACEOF
+#define HAVE_LIBPCAP 1
+_ACEOF
+RRD_LIBS="-lpcap"
+AC_SUBST(PCAP_LIBS)
+]
+, AC_MSG_ERROR(Can not link libpcap. Please specify --with-pcappath=.. configure failed! ))
+	AC_CHECK_HEADERS([pcap.h])
+	if test "$ac_cv_header_pcap_h" = yes; then
+		AM_CONDITIONAL(BUILDNFPCAPD, true)
+	else
+		AC_MSG_ERROR(Required pcap.h header file not found!)
+	fi
+	AC_RUN_IFELSE(
+		[ AC_LANG_PROGRAM(
+			[[
+				#include <stdio.h>
+				#include <pcap.h>
+			]],
+            [[ 
+				struct pcap_pkthdr p; 
+			]])
+		],, AC_MSG_ERROR(Can not load pcap library. Not in loader search path! ))
+
+]
+,
+AM_CONDITIONAL(BUILDNFPCAPD, false)
+)
 
 # Check for structures
 AC_CHECK_MEMBER([struct sockaddr.sa_len],
@@ -257,7 +302,7 @@ AC_CHECK_HEADERS([nameser8_compat.h])
 AC_CHECK_HEADERS([features.h arpa/inet.h fcntl.h netinet/in.h fts.h stdint.h stdlib.h stddef.h string.h sys/socket.h syslog.h unistd.h iso/limits_iso.h])
 AC_CHECK_HEADERS(pcap-bpf.h net/bpf.h)
 
-AC_CHECK_HEADERS(sys/types.h netinet/in.h arpa/nameser.h arpa/nameser_compat.h netdb.h resolv.h,
+AC_CHECK_HEADERS(sys/types.h netinet/in.h arpa/nameser.h arpa/nameser_compat.h netdb.h resolv.h netinet/in_systm.h,
                  [], [],
 [[#ifdef HAVE_SYS_TYPES_H
 #  include <sys/types.h>

@@ -28,65 +28,23 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
+ *  $Author: peter $
  *
- *  $Id: heapsort_inline.c 39 2009-11-25 08:11:15Z haag $
+ *  $Id: nftrack_rrd.h 224 2014-02-16 12:59:29Z peter $
  *
- *  $LastChangedRevision: 39 $
+ *  $LastChangedRevision: 224 $
  *  
+ *
  */
 
-static void heapSort(SortElement_t *SortElement, uint32_t array_size, int topN);
+int CreateRRDBs (char *path, time_t when);
 
-static inline void siftDown(SortElement_t *SortElement, uint32_t root, uint32_t bottom);
+int RRD_StoreDataRow(char *path, char *iso_time, data_row *row);
 
-static void heapSort(SortElement_t *SortElement, uint32_t array_size, int topN) {
-int32_t	i, maxindex;
+data_row *RRD_GetDataRow(char *path, time_t when);
 
-	for(i = array_size - 1; i >= 0; i--)
-		siftDown(SortElement,array_size,i);
+time_t	RRD_LastUpdate(char *path);
 
-	/* 
-	 * we are only interested in the first top N => skip sorting the rest
-	 * For topN == 0 -> all flows gets sorted
-	 */
-    if ( (topN >= (array_size - 1)) || topN == 0 ) {
-        maxindex = 0;
-    } else {
-        maxindex = array_size - 1 - topN;
-	}
+time_t  RRD_First(char *path);
 
-	for(i = array_size-1; i > maxindex; i-- ) {
-		SortElement_t temp = SortElement[0];
-		SortElement[0] = SortElement[i];
-		SortElement[i] = temp;
-		siftDown(SortElement,i,0);
-	}
-
-} // End of heapSort
-
-static inline void siftDown(SortElement_t *SortElement, uint32_t numbersSize, uint32_t node) {
-uint32_t i, parent, child;
-
-    parent = node;
-    i = parent + 1;
-    while( i != parent ) {
-        i = parent;
-
-        // Compare with left child node
-		child = 2*i+1;
-        if( (child) < numbersSize && SortElement[child].count > SortElement[parent].count)
-            parent = child;
-
-        // Compare with right child node
-		child = 2*i+2;
-        if( (child) < numbersSize && SortElement[child].count > SortElement[parent].count)
-            parent = child;
-
-        if ( i != parent ) {
-            SortElement_t temp = SortElement[i];
-            SortElement[i] = SortElement[parent];
-            SortElement[parent] = temp;
-        }
-    }
-} // End of siftDown
+time_t ISO2UNIX(char *tstring);

@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2013, Peter Haag
  *  All rights reserved.
@@ -27,13 +28,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author:$
- *
- *  $Id:$
- *
- *  $LastChangedRevision:$
- *	
- *
  */
 
 #include "config.h"
@@ -43,7 +37,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <syslog.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
@@ -102,7 +95,7 @@ typedef struct pcap_v6_block_s {
 #define PCAP_V6_BLOCK_DATA_SIZE (sizeof(pcap_v6_block_t) - sizeof(uint32_t))
 
 // All required extension to save full pcap records
-static uint16_t pcap_full_map[] = { 0 };
+static uint16_t pcap_full_map[] = { EX_LATENCY, 0 };
 
 #include "nffile_inline.c"
 
@@ -139,7 +132,7 @@ uint16_t	map_size;
 	// Create a generic pcap extension map
 	pcap_extension_info.map = (extension_map_t *)malloc((size_t)map_size);
 	if ( !pcap_extension_info.map ) {
-		syslog(LOG_ERR, "Process_pcap: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
+		LogError("Process_pcap: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
 		return 0;
 	}
 	pcap_extension_info.map->type 	  	  	= ExtensionMapType;
@@ -252,6 +245,13 @@ void		*data_ptr;
  					tpl->output = 0;
 				data_ptr = (void *)tpl->data;
 				} break;
+			case EX_LATENCY:	{	// latecy extension
+				tpl_ext_latency_t *tpl = (tpl_ext_latency_t *)data_ptr;
+					tpl->client_nw_delay_usec = Node->latency.client;
+					tpl->server_nw_delay_usec = Node->latency.server;
+					tpl->appl_latency_usec 	  = Node->latency.application;
+				data_ptr = (void *)tpl->data;
+				} break;
 			default:
 				// this should never happen, as pcap has no other extensions
 				LogError("Process_pcap: Unexpected extension %i for pcap record. Skip extension", id);
@@ -350,4 +350,59 @@ void		*data_ptr;
 	return 1;
 
 } /* End of StorePcapFlow */
+
+// Server latency = t(SYN Server) - t(SYN CLient)
+void SetServer_latency(struct FlowNode *node) {
+struct FlowNode *Client_node;
+uint64_t	latency;
+
+	Client_node = node->rev_node;
+	latency = ((uint64_t)node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)node->t_first.tv_usec) -
+			  ((uint64_t)Client_node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)Client_node->t_first.tv_usec);
+	
+	node->latency.server 		= latency;
+	Client_node->latency.server = latency;
+	// set flag, to calc client latency with nex packet from client
+	Client_node->latency.flag 	= 1;
+	dbg_printf("Server latency: %llu\n", (long long unsigned)latency);
+
+} // End of SetServerClient_latency
+
+// Client latency = t(ACK CLient) - t(SYN Server)
+void SetClient_latency(struct FlowNode *node, struct timeval *t_packet) {
+struct FlowNode *Server_node;
+uint64_t	latency;
+
+	Server_node = node->rev_node;
+	latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
+			  ((uint64_t)Server_node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)Server_node->t_first.tv_usec);
+	
+	node->latency.client 		= latency;
+	Server_node->latency.client = latency;
+	// reset flag
+	node->latency.flag			= 0;
+	// set flag, to calc application latency with nex packet from server
+	Server_node->latency.flag	= 2;
+	Server_node->latency.t_request = *t_packet;
+	dbg_printf("Client latency: %llu\n", (long long unsigned)latency);
+
+} // End of SetClient_latency
+
+// Application latency = t(ACK Server) - t(ACK CLient)
+void SetApplication_latency(struct FlowNode *node, struct timeval *t_packet) {
+struct FlowNode *Client_node;
+uint64_t	latency;
+
+	Client_node = node->rev_node;
+	latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
+			  ((uint64_t)node->latency.t_request.tv_sec * (uint64_t)1000000 + (uint64_t)node->latency.t_request.tv_usec);
+	
+	node->latency.application 		 = latency;
+	Client_node->latency.application = latency;
+	// reset flag
+	node->latency.flag			= 0;
+	dbg_printf("Application latency: %llu\n", (long long unsigned)latency);
+
+} // End of SetApplication_latency
+
 

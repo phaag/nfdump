@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2013, Peter Haag
  *  All rights reserved.
@@ -27,16 +28,25 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author:$
- *
- *  $Id:$
- *
- *  $LastChangedRevision:$
- *	
- *
  */
+
+#ifndef _NETFLOW_PCAP_H
+#define _NETFLOW_PCAP_H 1
+
+#include <time.h>
+
+#include "collector.h"
+#include "flowtree.h"
 
 int Init_pcap2nf(void);
 
 int StorePcapFlow(FlowSource_t *fs, struct FlowNode *Node);
+
+void SetServer_latency(struct FlowNode *node);
+
+void SetClient_latency(struct FlowNode *node, struct timeval *t_packet);
+
+void SetApplication_latency(struct FlowNode *node, struct timeval *t_packet);
+
+#endif
 

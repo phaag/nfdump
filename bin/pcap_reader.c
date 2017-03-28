@@ -148,6 +148,7 @@ struct sockaddr_in *in_sock = (struct sockaddr_in *)sock;
  	*  extract the first byte and make it the big byte and then extract
  	*  the next byte and make it the small byte.
  	*/
+	REDO_LINK:
 	switch (pkt[12] << 0x08 | pkt[13]) {
 		case 0x0800:
 			/* IPv4 */
@@ -162,8 +163,14 @@ struct sockaddr_in *in_sock = (struct sockaddr_in *)sock;
 			/* ARP */
 			arp_count++;
 			break;
+		case 0x8100: // VLAN 
+			pkt += 4; // strip off vlan
+			printf("Skip VLAN labels\n");
+			goto REDO_LINK;
+			break;
 		default:
 			/* We're not bothering with 802.3 or anything else */
+			printf("PCAP unknown linktype %u%u\n", pkt[12], pkt[13]);
 			unknow_count++;
 			break;
 	}

@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,20 +29,7 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nffile_inline.c 40 2009-12-16 10:41:44Z haag $
- *
- *  $LastChangedRevision: 40 $
- *	
  */
-
-/* 
- * nffile_inline.c is needed for daemon code as well as normal stdio code 
- * therefore a generic LogError is defined, which maps to the 
- * approriate logging channel - either stderr or syslog
- */
-void LogError(char *format, ...);
 
 static inline int CheckBufferSpace(nffile_t *nffile, size_t required);
 
@@ -59,9 +47,7 @@ static void PackRecord(master_record_t *master_record, nffile_t *nffile);
 
 static inline int CheckBufferSpace(nffile_t *nffile, size_t required) {
 
-#ifdef DEVEL
-//	printf("Buffer Size %u\n", nffile->block_header->size);
-#endif
+	dbg_printf("Buffer Size %u\n", nffile->block_header->size);
 	// flush current buffer to disc
 	if ( (nffile->block_header->size + required )  > WRITE_BUFFSIZE ) {
 

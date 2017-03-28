@@ -43,7 +43,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <syslog.h>
 #include <string.h>
 #include <errno.h>
 #include <time.h>
@@ -457,7 +456,7 @@ int i;
 	cache.lookup_info	    = (struct element_param_s *)calloc(65536, sizeof(struct element_param_s));
 	cache.common_extensions = (uint32_t *)malloc((Max_num_extensions+1)*sizeof(uint32_t));
 	if ( !cache.common_extensions || !cache.lookup_info ) {
-		syslog(LOG_ERR, "Process_v9: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+		LogError( "Process_v9: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 		return 0;
 	}
 
@@ -471,7 +470,7 @@ int i;
 	}
 	cache.max_v9_elements = i;
 
-	syslog(LOG_DEBUG,"Init v9: Max number of v9 tags: %u", cache.max_v9_elements);
+	dbg_printf("Init v9: Max number of v9 tags: %u", cache.max_v9_elements);
 
 
 	return 1;
@@ -505,7 +504,7 @@ exporter_v9_domain_t **e = (exporter_v9_domain_t **)&(fs->exporter_data);
 	// nothing found
 	*e = (exporter_v9_domain_t *)malloc(sizeof(exporter_v9_domain_t));
 	if ( !(*e)) {
-		syslog(LOG_ERR, "Process_v9: Panic! malloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+		LogError( "Process_v9: Panic! malloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 		return NULL;
 	}
 	memset((void *)(*e), 0, sizeof(exporter_v9_domain_t));
@@ -527,7 +526,7 @@ exporter_v9_domain_t **e = (exporter_v9_domain_t **)&(fs->exporter_data);
 
 	dbg_printf("Process_v9: New exporter: SysID: %u, Domain: %u, IP: %s\n", 
 		(*e)->info.sysid, exporter_id, ipstr);
-	syslog(LOG_INFO, "Process_v9: New exporter: SysID: %u, Domain: %u, IP: %s\n", 
+	LogInfo("Process_v9: New exporter: SysID: %u, Domain: %u, IP: %s\n", 
 		(*e)->info.sysid, exporter_id, ipstr);
 
 
@@ -597,12 +596,12 @@ input_translation_t **table;
 	// so template refreshing may change the table size without danger of overflowing 
 	*table = calloc(1, sizeof(input_translation_t));
 	if ( !(*table) ) {
-			syslog(LOG_ERR, "Process_v9: Panic! calloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+			LogError( "Process_v9: Panic! calloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 			return NULL;
 	}
 	(*table)->sequence = calloc(cache.max_v9_elements, sizeof(sequence_map_t));
 	if ( !(*table)->sequence ) {
-			syslog(LOG_ERR, "Process_v9: Panic! malloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+			LogError( "Process_v9: Panic! malloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 			return NULL;
 	}
 
@@ -620,7 +619,7 @@ uint32_t i = table->number_of_sequences;
 uint32_t index = cache.lookup_info[Type].index;
 
 	if ( table->number_of_sequences >= cache.max_v9_elements ) {
-		syslog(LOG_ERR, "Process_v9: Software bug! Sequence table full. at %s line %d", 
+		LogError( "Process_v9: Software bug! Sequence table full. at %s line %d", 
 			__FILE__, __LINE__);
 		dbg_printf("Software bug! Sequence table full. at %s line %d", 
 			__FILE__, __LINE__);
@@ -662,7 +661,7 @@ size_t				size_required;
 
 	table = GetTranslationTable(exporter, id);
 	if ( !table ) {
-		syslog(LOG_INFO, "Process_v9: [%u] Add template %u", exporter->info.id, id);
+		LogInfo( "Process_v9: [%u] Add template %u", exporter->info.id, id);
 		dbg_printf("[%u] Add template %u\n", exporter->info.id, id);
 		table = add_translation_table(exporter, id);
 		if ( !table ) {
@@ -676,7 +675,7 @@ size_t				size_required;
 		size_required = (size_required + 3) &~(size_t)3;
 		extension_map = malloc(size_required);
 		if ( !extension_map ) {
-			syslog(LOG_ERR, "Process_v9: Panic! malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+			LogError( "Process_v9: Panic! malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 			return  NULL;
 		}
 		extension_map->type 	   = ExtensionMapType;
@@ -762,7 +761,7 @@ size_t				size_required;
 	// skip exporter_sysid and reserved
 	offset += 4;
 
-	/* IP addresss record
+	/* IP address record
 	 * This record is expected in the output stream. If not available
 	 * in the template, assume empty v4 address.
 	 */
@@ -1111,7 +1110,7 @@ size_t				size_required;
 				dbg_printf("%d byte Sampling ID included at offset %u\n", length, table->sampler_offset);
 				break;
 			default:
-				syslog(LOG_ERR, "Process_v9: Unexpected SAMPLER ID field length: %d", 
+				LogError( "Process_v9: Unexpected SAMPLER ID field length: %d", 
 					cache.lookup_info[NF9_FLOW_SAMPLER_ID].length);
 				dbg_printf("Unexpected SAMPLER ID field length: %d", 
 					cache.lookup_info[NF9_FLOW_SAMPLER_ID].length);
@@ -1201,7 +1200,7 @@ option_offset_t	**t;
 			fprintf(stderr, "malloc() allocation error: %s\n", strerror(errno));
 			return ;
 		} 
-		syslog(LOG_ERR, "Process_v9: New std sampler: interval: %i, algorithm: %i", 
+		LogError( "Process_v9: New std sampler: interval: %i, algorithm: %i", 
 			offset_std_sampler_interval, offset_std_sampler_algorithm);
 	}	// else existing table
 
@@ -1252,7 +1251,7 @@ int			i;
 		dbg_printf("template size: %u buffersize: %u\n", size_required, size_left);
 
 		if ( size_left < size_required ) {
-			syslog(LOG_ERR, "Process_v9: [%u] buffer size error: expected %u available %u", 
+			LogError( "Process_v9: [%u] buffer size error: expected %u available %u", 
 				exporter->info.id, size_required, size_left);
 			size_left = 0;
 			continue;
@@ -1360,19 +1359,19 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 	option_length 	= GET_OPTION_TEMPLATE_OPTION_LENGTH(option_template);
 
 	if ( scope_length & 0x3 ) {
-		syslog(LOG_ERR, "Process_v9: [%u] scope length error: length %u not multiple of 4", 
+		LogError( "Process_v9: [%u] scope length error: length %u not multiple of 4", 
 			exporter->info.id, scope_length);
 		return;
 	}
 
 	if ( option_length & 0x3 ) {
-		syslog(LOG_ERR, "Process_v9: [%u] option length error: length %u not multiple of 4", 
+		LogError( "Process_v9: [%u] option length error: length %u not multiple of 4", 
 			exporter->info.id, option_length);
 		return;
 	}
 
 	if ( (scope_length + option_length) > size_left ) {
-		syslog(LOG_ERR, "Process_v9: [%u] option template length error: size left %u too small for %u scopes length and %u options length", 
+		LogError( "Process_v9: [%u] option template length error: size left %u too small for %u scopes length and %u options length", 
 			exporter->info.id, size_left, scope_length, option_length);
 		return;
 	}
@@ -1422,7 +1421,7 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 		}
 
 		if ( index && v9_element_map[index].length != length ) {
-			syslog(LOG_ERR,"Process_v9: Option field Type: %u, length %u not supported\n", type, length);
+			LogError("Process_v9: Option field Type: %u, length %u not supported\n", type, length);
 			dbg_printf("Process_v9: Option field Type: %u, length %u not supported\n", type, length);
 			continue;
 		}
@@ -1541,9 +1540,16 @@ char				*string;
 	while (size_left) {
 		common_record_t		*data_record;
 
-		if ( (size_left < table->input_record_size) ) {
+		if ( table->input_record_size == 0 ) {
+			dbg_printf("Process_v9: Corrupt data flowset? table input_record_sizei = 0\n");
+			LogError("Process_v9: Corrupt data flowset? table input_record_sizei = 0 ");
+			size_left = 0;
+			continue;
+		}
+
+		if ( size_left < table->input_record_size ) {
 			if ( size_left > 3 ) {
-				syslog(LOG_WARNING,"Process_v9: Corrupt data flowset? Pad bytes: %u", size_left);
+				LogError("Process_v9: Corrupt data flowset? Pad bytes: %u", size_left);
 				dbg_printf("Process_v9: Corrupt data flowset? Pad bytes: %u, table record_size: %u\n", 
 					size_left, table->input_record_size);
 			}
@@ -1554,7 +1560,7 @@ char				*string;
 		// check for enough space in output buffer
 		if ( !CheckBufferSpace(fs->nffile, table->output_record_size) ) {
 			// this should really never occur, because the buffer gets flushed ealier
-			syslog(LOG_ERR,"Process_v9: output buffer size error. Abort v9 record processing");
+			LogError("Process_v9: output buffer size error. Abort v9 record processing");
 			dbg_printf("Process_v9: output buffer size error. Abort v9 record processing");
 			return;
 		}
@@ -1758,7 +1764,7 @@ char				*string;
 						*((uint32_t *)&out[output_offset+12]) = 0;
 					} break;
 				default:
-					syslog(LOG_ERR, "Process_v9: Software bug! Unknown Sequence: %u. at %s line %d", 
+					LogError( "Process_v9: Software bug! Unknown Sequence: %u. at %s line %d", 
 						table->sequence[i].id, __FILE__, __LINE__);
 					dbg_printf("Software bug! Unknown Sequence: %u. at %s line %d", 
 						table->sequence[i].id, __FILE__, __LINE__);
@@ -1956,9 +1962,9 @@ char				*string;
 		// buffer size sanity check
 		if ( fs->nffile->block_header->size  > BUFFSIZE ) {
 			// should never happen
-			syslog(LOG_ERR,"### Software error ###: %s line %d", __FILE__, __LINE__);
-			syslog(LOG_ERR,"Process v9: Output buffer overflow! Flush buffer and skip records.");
-			syslog(LOG_ERR,"Buffer size: %u > %u", fs->nffile->block_header->size, BUFFSIZE);
+			LogError("### Software error ###: %s line %d", __FILE__, __LINE__);
+			LogError("Process v9: Output buffer overflow! Flush buffer and skip records.");
+			LogError("Buffer size: %u > %u", fs->nffile->block_header->size, BUFFSIZE);
 
 			// reset buffer
 			fs->nffile->block_header->size 		= 0;
@@ -1983,7 +1989,7 @@ uint8_t		*in;
 
 	if ( !offset_table ) {
 		// should never happen - catch it anyway
-		syslog(LOG_ERR, "Process_v9: Panic! - No Offset table found! : %s line %d", __FILE__, __LINE__);
+		LogError( "Process_v9: Panic! - No Offset table found! : %s line %d", __FILE__, __LINE__);
 		return;
 	}
 
@@ -2027,7 +2033,7 @@ uint8_t		*in;
 		dbg_printf("Sampler algorithm: %u\n", mode);
 		dbg_printf("Sampler interval : %u\n", interval);
 
-		syslog(LOG_INFO, "Set std sampler: algorithm: %u, interval: %u\n", 
+		LogInfo( "Set std sampler: algorithm: %u, interval: %u\n", 
 				mode, interval);
 		dbg_printf("Set std sampler: algorithm: %u, interval: %u\n", 
 				mode, interval);
@@ -2039,17 +2045,19 @@ uint8_t		*in;
 void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 exporter_v9_domain_t	*exporter;
 void				*flowset_header;
-option_template_flowset_t	*option_flowset;
 netflow_v9_header_t	*v9_header;
 int64_t 			distance;
 uint32_t 			flowset_id, flowset_length, exporter_id;
 ssize_t				size_left;
 static int pkg_num = 0;
 
+printf("Enter Process_v9\n");
 	pkg_num++;
+	dbg_printf("Process_v9: Next packet: %i\n", pkg_num);
+
 	size_left = in_buff_cnt;
 	if ( size_left < NETFLOW_V9_HEADER_LENGTH ) {
-		syslog(LOG_ERR, "Process_v9: Too little data for v9 packet: '%lli'", (long long)size_left);
+		LogError( "Process_v9: Too little data for v9 packet: '%lli'", (long long)size_left);
 		return;
 	}
 
@@ -2059,7 +2067,7 @@ static int pkg_num = 0;
 
 	exporter	= GetExporter(fs, exporter_id);
 	if ( !exporter ) {
-		syslog(LOG_ERR,"Process_v9: Exporter NULL: Abort v9 record processing");
+		LogError("Process_v9: Exporter NULL: Abort v9 record processing");
 		return;
 	}
 	exporter->packets++;
@@ -2075,7 +2083,8 @@ static int pkg_num = 0;
 
 #ifdef DEVEL
 	uint32_t expected_records 		= ntohs(v9_header->count);
-	printf("\n[%u] Next packet: %i %u records, buffer: %li \n", exporter_id, pkg_num, expected_records, size_left);
+	uint32_t skip = 0;
+	printf("\n[%u] Process next packet: %i %u records, buffer: %li \n", exporter_id, pkg_num, expected_records, size_left);
 #endif
 
 	// sequence check
@@ -2098,7 +2107,7 @@ static int pkg_num = 0;
 				exporter->info.id, (long long)exporter->last_sequence, (long long)exporter->sequence, (long long)distance);
 			/*
 			if ( report_seq ) 
-				syslog(LOG_ERR,"Flow sequence mismatch. Missing: %lli packets", delta(last_count,distance));
+				LogError("Flow sequence mismatch. Missing: %lli packets", delta(last_count,distance));
 			*/
 		}
 	}
@@ -2122,7 +2131,7 @@ static int pkg_num = 0;
 				and smaller is an illegal flowset anyway ...
 				if it happends, we can't determine the next flowset, so skip the entire export packet
 			 */
-			syslog(LOG_ERR,"Process_v9: flowset zero length error.");
+			LogError("Process_v9: flowset zero length error.");
 			dbg_printf("Process_v9: flowset zero length error.\n");
 			return;
 		}
@@ -2136,7 +2145,7 @@ static int pkg_num = 0;
 		if ( flowset_length > size_left ) {
 			dbg_printf("flowset length error. Expected bytes: %u > buffersize: %lli", 
 				flowset_length, (long long)size_left);
-			syslog(LOG_ERR,"Process_v9: flowset length error. Expected bytes: %u > buffersize: %lli", 
+			LogError("Process_v9: flowset length error. Expected bytes: %u > buffersize: %lli", 
 				flowset_length, (long long)size_left);
 			size_left = 0;
 			continue;
@@ -2153,16 +2162,19 @@ static int pkg_num = 0;
 			case NF9_TEMPLATE_FLOWSET_ID:
 				Process_v9_templates(exporter, flowset_header, fs);
 				break;
-			case NF9_OPTIONS_FLOWSET_ID:
+			case NF9_OPTIONS_FLOWSET_ID: {
+#ifdef DEVEL
+				option_template_flowset_t	*option_flowset;
 				option_flowset = (option_template_flowset_t *)flowset_header;
-				syslog(LOG_DEBUG,"Process_v9: Found options flowset: template %u", ntohs(option_flowset->template_id));
+				dbg_printf("Process_v9: Found options flowset: template %u", ntohs(option_flowset->template_id));
+#endif
 				Process_v9_option_templates(exporter, flowset_header, fs);
-				break;
+				} break;
 			default: {
 				input_translation_t *table;
 				if ( flowset_id < NF9_MIN_RECORD_FLOWSET_ID ) {
 					dbg_printf("Invalid flowset id: %u\n", flowset_id);
-					syslog(LOG_ERR,"Process_v9: Invalid flowset id: %u", flowset_id);
+					LogError("Process_v9: Invalid flowset id: %u", flowset_id);
 				} else {
 
 					dbg_printf("[%u] ID %u Data flowset\n", exporter->info.id, flowset_id);
@@ -2176,6 +2188,9 @@ static int pkg_num = 0;
 						// maybe a flowset with option data
 						dbg_printf("Process v9: [%u] No table for id %u -> Skip record\n", 
 							exporter->info.id, flowset_id);
+#ifdef DEVEL
+						skip = 1;
+#endif
 					}
 				}
 			}
@@ -2187,8 +2202,8 @@ static int pkg_num = 0;
 	} // End of while 
 
 #ifdef DEVEL
-	if ( processed_records != expected_records ) {
-		syslog(LOG_ERR, "Process_v9: Processed records %u, expected %u", processed_records, expected_records);
+	if ( skip == 0 && processed_records != expected_records ) {
+		LogError( "Process_v9: Processed records %u, expected %u", processed_records, expected_records);
 		printf("Process_v9: Processed records %u, expected %u\n", processed_records, expected_records);
 	}
 #endif
@@ -3010,7 +3025,7 @@ generic_sampler_t *sampler;
 		// no samplers so far 
 		sampler = (generic_sampler_t *)malloc(sizeof(generic_sampler_t));
 		if ( !sampler ) {
-			syslog(LOG_ERR, "Process_v9: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+			LogError( "Process_v9: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 			return;
 		}
 
@@ -3024,7 +3039,7 @@ generic_sampler_t *sampler;
 		exporter->sampler = sampler;
 
 		FlushInfoSampler(fs, &(sampler->info));
-		syslog(LOG_INFO, "Add new sampler: ID: %i, mode: %u, interval: %u\n", 
+		LogInfo( "Add new sampler: ID: %i, mode: %u, interval: %u\n", 
 			id, mode, interval);
 		dbg_printf("Add new sampler: ID: %i, mode: %u, interval: %u\n", 
 			id, mode, interval);
@@ -3035,7 +3050,7 @@ generic_sampler_t *sampler;
 			// test for update of existing sampler
 			if ( sampler->info.id == id ) {
 				// found same sampler id - update record
-				syslog(LOG_INFO, "Update existing sampler id: %i, mode: %u, interval: %u\n", 
+				LogInfo( "Update existing sampler id: %i, mode: %u, interval: %u\n", 
 					id, mode, interval);
 				dbg_printf("Update existing sampler id: %i, mode: %u, interval: %u\n", 
 					id, mode, interval);
@@ -3057,7 +3072,7 @@ generic_sampler_t *sampler;
 				// end of sampler chain - insert new sampler
 				sampler->next = (generic_sampler_t *)malloc(sizeof(generic_sampler_t));
 				if ( !sampler->next ) {
-					syslog(LOG_ERR, "Process_v9: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+					LogError( "Process_v9: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 					return;
 				}
 				sampler = sampler->next;
@@ -3073,7 +3088,7 @@ generic_sampler_t *sampler;
 				FlushInfoSampler(fs, &(sampler->info));
 
 
-				syslog(LOG_INFO, "Append new sampler: ID: %u, mode: %u, interval: %u\n", 
+				LogInfo( "Append new sampler: ID: %u, mode: %u, interval: %u\n", 
 					id, mode, interval);
 				dbg_printf("Append new sampler: ID: %u, mode: %u, interval: %u\n", 
 					id, mode, interval);

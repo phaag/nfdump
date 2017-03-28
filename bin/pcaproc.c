@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  All rights reserved.
  *  
@@ -26,15 +27,12 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author$
- *
- *  $Id$
- *
- *  $LastChangedRevision$
  *  
  */
 
+#ifdef HAVE_CONFIG_H 
 #include "config.h"
+#endif
 
 #ifdef HAVE_FEATURES_H
 #include <features.h>
@@ -67,7 +65,6 @@
 
 #include <pcap.h>
 
-#include "util.h"
 #include "nffile.h"
 #include "bookkeeper.h"
 #include "nfxstat.h"
@@ -76,13 +73,8 @@
 #include "ipfrag.h"
 #include "pcaproc.h"
 #include "content_dns.h"
+#include "util.h"
 #include "netflow_pcap.h"
-
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
 
 static inline void ProcessTCPFlow(FlowSource_t	*fs, struct FlowNode *NewNode );
 
@@ -265,8 +257,9 @@ struct FlowNode *Node;
 
 	assert(NewNode->memflag == NODE_IN_USE);
 	Node = Insert_Node(NewNode);
-	// if insert fails, the existing node is returned -> flow exists already
+	// Return existing Node if flow exists already, otherwise insert es new
 	if ( Node == NULL ) {
+		// Insert as new
 		dbg_printf("New TCP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
 
 		// in case it's a FIN/RST only packet - immediately flush it
@@ -283,11 +276,23 @@ struct FlowNode *Node;
 			NumFlows  = Flush_FlowTree(fs);
 			LogError("Flushed flows: %u", NumFlows);	
 		}
+
+		if ( Link_RevNode(NewNode)) {
+			// if we could link this new node, it is the server answer
+			// -> calculate server latency
+			SetServer_latency(NewNode);
+		}
 		return;
 	}
 
 	assert(Node->memflag == NODE_IN_USE);
 
+	// check for first client ACK for client latency
+	if ( Node->latency.flag == 1 ) {
+		SetClient_latency(Node, &(NewNode->t_first));
+	} else if ( Node->latency.flag == 2 ) {
+		SetApplication_latency(Node, &(NewNode->t_first));
+	}
 	// update existing flow
 	Node->flags |= NewNode->flags;
 	Node->packets++;
@@ -323,7 +328,6 @@ struct FlowNode *Node;
 	Node = Insert_Node(NewNode);
 	// if insert fails, the existing node is returned -> flow exists already
 	if ( Node == NULL ) {
-		AppendUDPNode(NewNode);
 		dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
 		return;
 	} 
@@ -333,7 +337,6 @@ struct FlowNode *Node;
 	Node->packets++;
 	Node->bytes += NewNode->bytes; 
 	Node->t_last = NewNode->t_last; 
-	TouchUDPNode(Node);
 
 	dbg_printf("Existing UDP flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
 
@@ -386,7 +389,7 @@ void ProcessPacket(NodeList_t *NodeList, pcap_dev_t *pcap_dev, const struct pcap
 struct FlowNode	*Node;
 struct ip 	  *ip;
 void		  *payload, *defragmented;
-uint32_t	  size_ip, offset, data_len, payload_len;
+uint32_t	  size_ip, offset, data_len, payload_len, bytes;
 uint16_t	  version, ethertype, proto;
 #ifdef DEVEL
 char		  s1[64];
@@ -512,14 +515,11 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 
 		// XXX Extension headers not processed
 		proto		= ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
-		payload_len = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);
+		payload_len = bytes = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);
 
 		if (data_len < (payload_len + size_ip) ) {
-			LogError("Packet: %u Length error: data_len: %u < payload_len %u + size IPv6", 
-				pkg_cnt, data_len, payload_len);
-			pcap_dev->proc_stat.short_snap++;
-			Free_Node(Node);
-			return;
+			// capture len was limited - so adapt payload_len
+			payload_len = data_len - size_ip;
 		}
 
 		dbg_printf("Packet IPv6, SRC %s, DST %s, ",
@@ -555,13 +555,13 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 		dbg_printf("size IP hader: %u, len: %u, %u\n", size_ip, ip->ip_len, payload_len);
 
 		payload_len -= size_ip;	// ajust length compatibel IPv6
+		bytes 		= payload_len;
 		payload = (void *)ip + size_ip;
 		proto   = ip->ip_p;
 
-
 		if (data_len < (payload_len + size_ip) ) {
-			LogError("Packet: %u Length error: data_len: %u < payload_len %u + size IPv4, captured: %u, hdr len: %u", 
-				pkg_cnt, data_len, payload_len, hdr->caplen, hdr->len);
+			// capture len was limited - so adapt payload_len
+			payload_len = data_len - size_ip;
 			pcap_dev->proc_stat.short_snap++;
 		}
 
@@ -597,9 +597,9 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 	}
 
 	Node->packets = 1;
-	Node->bytes   = payload_len;
+	Node->bytes   = bytes;
 	Node->proto   = proto;
-	dbg_printf("Size: %u\n", payload_len);
+	dbg_printf("Payload: %u bytes, Full packet: %u bytes\n", payload_len, bytes);
 
 	// TCP/UDP decoding
 	switch (proto) {
@@ -618,7 +618,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			}
 			uint32_t size_udp_payload = ntohs(udp->uh_ulen) - 8;
 
-			if ( (payload_len - sizeof(struct udphdr)) != size_udp_payload ) {
+			if ( (bytes == payload_len ) && (payload_len - sizeof(struct udphdr)) != size_udp_payload ) {
 				LogError("UDP payload legth error: Expected %u, have %u bytes\n",
 					size_udp_payload, (payload_len - (unsigned)sizeof(struct udphdr)));
 
@@ -640,10 +640,9 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 
 			if ( hdr->caplen == hdr->len ) {
 				// process payload of full packets
-				if ( Node->src_port == 53 || Node->dst_port == 53 ) 
+				if ( (bytes == payload_len) && (Node->src_port == 53 || Node->dst_port == 53) ) 
  					content_decode_dns(Node, payload, payload_len);
 			}
-
 			Push_Node(NodeList, Node);
 			} break;
 		case IPPROTO_TCP: {
@@ -665,7 +664,6 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			payload = payload + size_tcp;
 			payload_len -= size_tcp;
 			dbg_printf("Size TCP header: %u, size TCP payload: %u ", size_tcp, payload_len);
-			// XXX Debug stuff - remove when released ...
 			dbg_printf("src %i, DST %i, flags %i : ", 
 				ntohs(tcp->th_sport), ntohs(tcp->th_dport), tcp->th_flags);
 

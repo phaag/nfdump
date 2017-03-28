@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2011, Peter Haag
  *  All rights reserved.
@@ -27,15 +28,11 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author$
- *
- *  $Id$
- *
- *  $LastChangedRevision$
- *  
  */
 
+#ifdef HAVE_CONFIG_H 
 #include "config.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,19 +48,29 @@
 #include <assert.h>
 
 #include "rbtree.h"
-#include "util.h"
 #include "nffile.h"
 #include "bookkeeper.h"
 #include "nfxstat.h"
 #include "collector.h"
-#include "flowtree.h"
 #include "netflow_pcap.h"
+#include "util.h"
+#include "flowtree.h"
 
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
+static void spin_lock(int *p);
+static void spin_unlock(int volatile *p);
+
+static void spin_lock(int *p) {
+    while(!__sync_bool_compare_and_swap(p, 0, 1));
+}
+
+static void spin_unlock(int volatile *p) {
+    __asm volatile (""); // acts as a memory barrier.
+    *p = 0;
+}
+
+#define GetTreeLock(a)		spin_lock(&((a)->list_lock))
+#define ReleaseTreeLock(a)	spin_unlock(&((a)->list_lock))
+
 
 static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2);
 
@@ -92,15 +99,6 @@ typedef struct FlowNode_list_s {
 	struct FlowNode *tail;
 	uint32_t	size;
 } Linked_list_t;
-
-static Linked_list_t UDP_list;
-
-/* static prototypes */
-static void AppendFlowNode(Linked_list_t *LinkedList, struct FlowNode *node);
-
-static void DisconnectFlowNode(Linked_list_t *LinkedList, struct FlowNode *node);
-
-static void TouchFlowNode(Linked_list_t *LinkedList, struct FlowNode *node);
 
 /* Free list handling functions */
 // Get next free node from free list
@@ -169,10 +167,8 @@ void Free_Node(struct FlowNode *node) {
 		node->data = NULL;
 	}
 
-#ifdef DEVEL
-	assert(node->left == NULL);
-	assert(node->right == NULL);
-#endif
+	dbg_assert(node->left == NULL);
+	dbg_assert(node->right == NULL);
 
 #ifdef USE_MALLOC
 	dbg_printf("Free node: %llx\n", (unsigned long long)node);
@@ -242,10 +238,6 @@ int i;
 	Allocated 	  = 0;
 	NumFlows 	  = 0;
 
-	UDP_list.list	= NULL;
-	UDP_list.tail	= NULL;
-	UDP_list.size	= 0;
-
 	return 1;
 } // End of Init_FlowTree
 
@@ -285,6 +277,9 @@ struct FlowNode *Lookup_Node(struct FlowNode *node) {
 struct FlowNode *Insert_Node(struct FlowNode *node) {
 struct FlowNode *n;
 
+dbg_assert(node->left == NULL);
+dbg_assert(node->right == NULL);
+
 	// return RB_INSERT(FlowTree, FlowTree, node);
 	n = RB_INSERT(FlowTree, FlowTree, node);
 	if ( n ) { // existing node
@@ -293,9 +288,10 @@ struct FlowNode *n;
 		NumFlows++;
 		return NULL;
 	}
-} // End of Lookup_FlowTree
+} // End of Insert_Node
 
 void Remove_Node(struct FlowNode *node) {
+struct FlowNode *rev_node;
 
 #ifdef DEVEL
 	assert(node->memflag == NODE_IN_USE);
@@ -305,11 +301,53 @@ void Remove_Node(struct FlowNode *node) {
 	}
 #endif
 
+	rev_node = node->rev_node;
+	if ( rev_node ) {
+		// unlink rev node on both nodes
+		dbg_assert(rev_node->rev_node == node);
+		rev_node->rev_node = NULL;
+		node->rev_node	   = NULL;
+	}
 	RB_REMOVE(FlowTree, FlowTree, node);
 	Free_Node(node);
 	NumFlows--;
 
-} // End of Lookup_FlowTree
+} // End of Remove_Node
+
+int Link_RevNode(struct FlowNode *node) {
+struct FlowNode lookup_node, *rev_node;
+
+    dbg_printf("Link node: ");
+    dbg_assert(node->rev_node == NULL);
+    lookup_node.src_addr = node->dst_addr;
+    lookup_node.dst_addr = node->src_addr;
+    lookup_node.src_port = node->dst_port;
+    lookup_node.dst_port = node->src_port;
+    lookup_node.version  = node->version;
+    lookup_node.proto    = node->proto;
+    rev_node = Lookup_Node(&lookup_node);
+    if ( rev_node ) { 
+        dbg_printf("Found revnode ");
+		// rev node must not be linked already - otherwise there is an inconsistency
+		dbg_assert(node->rev_node == NULL);
+        if (node->rev_node == NULL ) {
+			// link both nodes
+            node->rev_node = rev_node;
+            rev_node->rev_node = node;
+            dbg_printf(" - linked\n");
+        } else {
+            dbg_printf("Rev-node != NULL skip linking - inconsitency\n");
+            LogError("Rev-node != NULL skip linking - inconsitency\n");
+        }
+		return 1;
+    } else {
+        dbg_printf("no revnode node\n");
+		return 0;
+    }
+
+	/* not reached */
+
+} // End of Link_RevNode
 
 uint32_t Flush_FlowTree(FlowSource_t *fs) {
 struct FlowNode *node, *nxt;
@@ -333,131 +371,9 @@ if ( node->left || node->right ) {
 		LogError("### Flush_FlowTree() remaining flows: %u\n", NumFlows);
 #endif
 
-	UDP_list.list	= NULL;
-	UDP_list.tail	= NULL;
-	UDP_list.size	= 0;
-
 	return n;
 
 } // End of Flush_FlowTree
-
-void UDPexpire(FlowSource_t *fs, time_t t_expire) {
-struct FlowNode  *node;
-uint32_t num = 0;
-
-	node = UDP_list.list;
-	while ( node && (node->t_last.tv_sec < t_expire) ) {
-		struct FlowNode  *n = node;
-		node = node->right;
-		DisconnectFlowNode(&UDP_list, n);
-		StorePcapFlow(fs, n);
-		Remove_Node(n);
-		num++;
-	}
-	dbg_printf("UDP expired %u flows - left %u\n", num, UDP_list.size);
-
-} // End of UDPexpire
-
-void AppendUDPNode(struct FlowNode *node) {
-	AppendFlowNode(&UDP_list, node);
-} // End of AppendUDPNode
-
-static void AppendFlowNode(Linked_list_t *LinkedList, struct FlowNode *node) {
-
-#ifdef DEVEL
-	if ( LinkedList->tail ) 
-		assert(LinkedList->tail->right == NULL);
-		assert(node->memflag == NODE_IN_USE);
-		assert(node->left == NULL);
-		assert(node->right == NULL);
-#endif
-	if ( LinkedList->list == NULL ) {
-		dbg_printf("AppendFlowNode(): First node\n");
-		node->left  = NULL;
-		node->right = NULL;
-		LinkedList->list = node;
-		LinkedList->tail = node;
-		LinkedList->size++;
-	} else {
-		// new node 
-		dbg_printf("AppendFlowNode(): next node: %u\n", LinkedList->size);
-		LinkedList->tail->right = node;
-		node->left = LinkedList->tail;
-		node->right = NULL;
-		LinkedList->tail = node;
-		LinkedList->size++;
-	} 
-#ifdef DEVEL
-	assert(LinkedList->tail->right == NULL);
-#endif
-} // End of AppendFlowNode
-
-
-static void DisconnectFlowNode(Linked_list_t *LinkedList, struct FlowNode *node) {
-	
-	if ( node == NULL ) 
-		return;
-
-	else {
-		// disconnect node 
-		struct FlowNode *prev = node->left;
-		struct FlowNode *next = node->right;
-		if ( prev )
-			prev->right = next;
-		else
-			LinkedList->list = next;
-
-		if ( next ) 
-			next->left  = prev;
-
-		if ( LinkedList->tail == node )
-			LinkedList->tail = node->left;
-
-		node->left  = NULL;
-		node->right = NULL;
-
-		LinkedList->size--;
-	}
-
-} // End of DisconnectFlowNode
-
-void TouchUDPNode(struct FlowNode *node) {
-	TouchFlowNode(&UDP_list, node);
-} // End of TouchUDPNode
-
-static void TouchFlowNode(Linked_list_t *LinkedList, struct FlowNode *node) {
-	
-	dbg_printf("In TochFlowNode()\n");
-	if ( LinkedList->list == NULL ) {
-		// should never happen
-		LogError("TouchFlowNode() error in %s line %d: %s\n", __FILE__, __LINE__, "Tried to touch node in empty list" );
-		return;
-	}
-
-	if ( LinkedList->tail == node ) {
-		// nothing to do
-		dbg_printf("TochFlowNode() - last node - nothing to do\n");
-		return;
-	}
-
-	if ( node->left == NULL ) {
-		// first node - disconnect node
-		dbg_printf("TochFlowNode() - touch first node\n");
-		LinkedList->list = node->right;
-		LinkedList->list->left = NULL;
-	} else {
-		dbg_printf("TochFlowNode() - touch middle node\n");
-		(node->right)->left = node->left;
-		(node->left)->right = node->right;
-	}
-
-	// append node
-	LinkedList->tail->right = node;
-	node->left = LinkedList->tail;
-	node->right = NULL;
-	LinkedList->tail = node;
-
-} // End of TouchFlowNode
 
 int AddNodeData(struct FlowNode *node, uint32_t seq, void *payload, uint32_t size) {
 
@@ -476,6 +392,9 @@ NodeList_t *NodeList;
 	NodeList->list 		= NULL;
 	NodeList->last 		= NULL;
 	NodeList->length	= 0;
+	NodeList->list_lock	= 0;
+	NodeList->waiting	= 0;
+	NodeList->waits		= 0;
 	pthread_mutex_init(&NodeList->m_list, NULL);
 	pthread_cond_init(&NodeList->c_list, NULL);
 
@@ -497,6 +416,7 @@ void DisposeNodeList(NodeList_t *NodeList) {
 } // End of DisposeNodeList
 
 #ifdef DEVEL
+void ListCheck(NodeList_t *NodeList);
 void ListCheck(NodeList_t *NodeList) {
 uint32_t len = 0, mem = 0, proto;
 static uint32_t loops = 0;
@@ -532,7 +452,8 @@ len, mem, proto, loops, Allocated, CacheOverflow);
 
 void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
 
-	pthread_mutex_lock(&NodeList->m_list);
+	GetTreeLock(NodeList);
+	// pthread_mutex_lock(&NodeList->m_list);
 	if ( NodeList->length == 0 ) {
 		// empty list
 		NodeList->list = node;
@@ -551,8 +472,12 @@ void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
 		(unsigned long long)node, proto, NodeList->length, (unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
 	ListCheck(NodeList);
 #endif
- 	pthread_mutex_unlock(&NodeList->m_list);
-	pthread_cond_signal(&NodeList->c_list);
+	if ( NodeList->waiting ) {
+		pthread_cond_signal(&NodeList->c_list);
+	}
+	ReleaseTreeLock(NodeList);
+ 	// pthread_mutex_unlock(&NodeList->m_list);
+	// pthread_cond_signal(&NodeList->c_list);
 
 } // End of Push_Node
 
@@ -560,19 +485,30 @@ struct FlowNode *Pop_Node(NodeList_t *NodeList, int *done) {
 struct FlowNode *node;
 int proto;
 
-	pthread_mutex_lock(&NodeList->m_list);
-    while ( NodeList->length == 0 && !*done ) 
+	GetTreeLock(NodeList);
+    while ( NodeList->length == 0 && !*done ) {
+		pthread_mutex_lock(&NodeList->m_list);
+		NodeList->waiting = 1;
+		NodeList->waits++;
+		ReleaseTreeLock(NodeList);
+		// sleep ad wait
         pthread_cond_wait(&NodeList->c_list, &NodeList->m_list);
 
+		// wake up
+		GetTreeLock(NodeList);
+		NodeList->waiting = 0;
+		pthread_mutex_unlock(&NodeList->m_list);
+	}
+
 	if ( NodeList->length == 0 && *done ) {
- 		pthread_mutex_unlock(&NodeList->m_list);
+		ReleaseTreeLock(NodeList);
 		dbg_printf("Pop_Node done\n");
 		return NULL;
 	}
 
 	if ( NodeList->list == NULL ) { 
 		// should never happen - list is supposed to have at least one item
- 		pthread_mutex_unlock(&NodeList->m_list);
+		ReleaseTreeLock(NodeList);
 		LogError("Unexpected empty FlowNode_ProcessList");
 		return NULL;
 	}
@@ -595,7 +531,7 @@ int proto;
 
 	ListCheck(NodeList);
 #endif
- 	pthread_mutex_unlock(&NodeList->m_list);
+	ReleaseTreeLock(NodeList);
 
 	return node;
 } // End of Pop_Node
@@ -619,7 +555,7 @@ struct FlowNode *node;
 
 void DumpNodeStat(void) {
 	LogInfo("Nodes in use: %u, Flows: %u CacheOverflow: %u", Allocated, NumFlows, CacheOverflow);
-} // End of NodesAllocated
+} // End of DumpNodeStat
 
 /*
 int main(int argc, char **argv) {

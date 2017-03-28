@@ -1,3 +1,27 @@
+2016-11-25
+- Add latency extension to nfpcapd
+- Smaller bug fixes to nfpcapd
+
+2016-07-23
+- Replace unreliable _ftok with more reliable string hash
+
+2016-07-20
+- Aggregate using in+out bytes for bidirectional flows
+
+2016-06-05 v.1.6.15
+- Fix Security issue http://www.security-assessment.com/files/documents/advisory/Nfdump%20nfcapd%201.6.14%20-%20Multiple%20Vulnerabilities.pdf
+- Fix obyte, opps and obps output records
+- Fix wrong bps type case in cvs output. Fix opbs ipbs typos
+
+2016-01-10 v.1.6.14
+- Fix CentOS compile issues with flow-tools converter
+- Fix FreeBSD,OpenBSD build problems
+- Fix timestamp overflow in sflow.c
+
+2015-12-23
+- Fix IP Fragmentation in sflow collector
+- Create libnfdump for dynamic linking
+
 2015-10-02
 - Fix compile errors on other platforms
 - Add -R to ModifyCompression
@@ -9,7 +33,7 @@
 - Fix CommonRecordV0Type conversion bug
 - Fix nfexport bug, if only one single map exists
 
-2014-11-16
+2014-11-16 v.1.6.13
 - Fix v1 extension size bug
 - Add htonll check for autoconf
 - Fix AddExtensionMap compare bug

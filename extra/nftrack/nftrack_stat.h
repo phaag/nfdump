@@ -1,6 +1,6 @@
 /*
- *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
+ *  Copyright (c) 2009, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -27,64 +27,40 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
+ *  $Author: peter $
+ *
+ *  $Id: nftrack_stat.h 224 2014-02-16 12:59:29Z peter $
+ *
+ *  $LastChangedRevision: 224 $
+ *  
+ *
  */
 
-#ifndef _PCAPROC_H
-#define _PCAPROC_H 1
 
-#ifdef HAVE_CONFIG_H 
-#include "config.h"
-#endif
+typedef struct data_element_s {
+	uint64_t		type[3];	// 0 - flows 1 - packets 2- bytes
+} data_element;
 
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
+typedef struct data_row_s {
+	data_element	proto[2];	// 0 - tcp 1 - udp
+} data_row;
 
-#include <time.h>
-#include <pthread.h>
-#include <pcap.h>
+// to be used as index
+enum { tcp = 0, udp };
+enum { flows = 0, packets, bytes };
 
-#include "flowtree.h"
+int InitStat(char *path);
 
-typedef struct proc_stat_s {
-    uint32_t    packets;
-    uint32_t    unknown;
-    uint32_t    skipped;
-    uint32_t    short_snap;
-} proc_stat_t;
+int CloseStat(void);
 
-typedef struct pcap_dev_s {
-    pcap_t  *handle;
-    uint32_t snaplen;
-    uint32_t linkoffset;
-    uint32_t linktype;
-    proc_stat_t proc_stat;
-} pcap_dev_t;
+int InitStatFile(void);
 
-typedef struct pcapfile_s {
-	void			*data_buffer;
-	void			*data_ptr;
-	uint32_t		data_size;
-	void			*alternate_buffer;
-	uint32_t		alternate_size;
-	int				pfd;
-	time_t			t_CloseRename;
-	pcap_dumper_t	*pd;
-	pcap_t 			*p;
-	pthread_mutex_t m_pbuff;
-	pthread_cond_t  c_pbuff;
-} pcapfile_t;
+data_row *GetStat(void);
 
-pcapfile_t *OpenNewPcapFile(pcap_t *p, char *filename, pcapfile_t *pcapfile);
+void ClearStat(void);
 
-int ClosePcapFile(pcapfile_t *pcapfile);
+int UpdateStat(data_row *row, time_t when);
 
-void RotateFile(pcapfile_t *pcapfile, time_t t_CloseRename, int live);
+void Generate_TopN(data_row *row, int n, int scale, time_t when, int output_mode, char *wfile);
 
-void PcapDump(pcapfile_t *pcapfile,  struct pcap_pkthdr *h, const u_char *sp);
-
-void ProcessFlowNode(FlowSource_t *fs, struct FlowNode *node);
-
-void ProcessPacket(NodeList_t *nodeList, pcap_dev_t *pcap_dev, const struct pcap_pkthdr *hdr, const u_char *data);
-
-#endif // _PCAPROC_H
+int Lister(data_row *row);
