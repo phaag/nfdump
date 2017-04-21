@@ -404,7 +404,8 @@ int ret, update_ok;
 			UpdateRRD(tslot, &profile_channels[num]);
 
 #ifdef HAVE_INFLUXDB
-			UpdateInfluxDB(tslot, &profile_channels[num]);
+			if(strlen(influxdb_url) > 0)
+				UpdateInfluxDB(tslot, &profile_channels[num]);
 #endif
 		}
 	}
