@@ -1,5 +1,11 @@
 2017-10-22
 - Add support for CISCO IOS 8 bytes timestamps ID 21/22
+- Fix issue #72 - multiple stat output
+- Change -B behaviour as proposed in issue #59. Should not impact with previous use, but is more flexible
+- Add bzip compress switch in usage output of nfpcapd
+- Fix compile issues on some platforms
+- nfpcapd improvements - still beta software.
+- Minor bug fixes
 
 2016-11-25
 - Add latency extension to nfpcapd

@@ -3,7 +3,7 @@
 
 AC_PREREQ(2.59)
 AC_REVISION($Revision: 243 $)dnl 
-AC_INIT(nfdump, 1.6.15-20171105, peter@people.ops-trust.net)
+AC_INIT(nfdump, 1.6.16, peter@people.ops-trust.net)
 # $Date: 2014-11-16 14:10:20 +0100 (Sun, 16 Nov 2014) $
 #AC_CONFIG_SRCDIR([grammar.y])
 AC_CONFIG_HEADER([config.h])
