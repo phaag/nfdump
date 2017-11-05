@@ -147,7 +147,7 @@ struct FlowNode *node;
 
 	return node;
 
-} // End of New_node
+} // End of New_Node
 
 // return node into free list
 void Free_Node(struct FlowNode *node) {

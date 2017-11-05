@@ -67,7 +67,7 @@
 #define KEYLEN (offsetof(IPFragNode_t,data_size) - offsetof(IPFragNode_t, src_addr))
 static int IPFragNodeCMP(struct IPFragNode *e1, struct IPFragNode *e2);
 
-static struct IPFragNode *New_node(void);
+static struct IPFragNode *New_frag_node(void);
 
 static void Free_node(struct IPFragNode *node, int free_data);
 
@@ -89,7 +89,7 @@ int i;
  
 } // End of IPFragNodeCMP
 
-static struct IPFragNode *New_node(void) {
+static struct IPFragNode *New_frag_node(void) {
 struct IPFragNode *node;
 
 	node = malloc(sizeof(struct IPFragNode));
@@ -122,7 +122,7 @@ struct IPFragNode *node;
 
 	return node;
 
-} // End of New_node
+} // End of New_frag_node
 
 static void Free_node(struct IPFragNode *node, int free_data) {
 hole_t *hole, *h;
@@ -133,7 +133,7 @@ hole_t *hole, *h;
 		free(hole);
 		hole = h;
 	}
-	if ( free_data) 
+	if (free_data) 
 		free(node->data);
 	free(node);
 
@@ -185,7 +185,7 @@ int found_hole;
 	FindNode.ident 	  = ident;
 	n = RB_FIND(IPFragTree, IPFragTree, &FindNode);
 	if ( !n ) {
-		n = New_node();
+		n = New_frag_node();
 		n->src_addr = src;
 		n->dst_addr = dst;
 		n->ident 	= ident;

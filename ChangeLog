@@ -1,3 +1,6 @@
+2017-10-22
+- Add support for CISCO IOS 8 bytes timestamps ID 21/22
+
 2016-11-25
 - Add latency extension to nfpcapd
 - Smaller bug fixes to nfpcapd

@@ -103,25 +103,26 @@ typedef struct sequence_map_s {
 #define move48  		5
 #define move56  		6
 #define move64  		7
-#define move96  		8
-#define move128 		9
-#define move32_sampling 10
-#define move64_sampling 11
-#define move_mac		12
-#define move_mpls 		13
-#define move_ulatency	14
-#define move_slatency 	15
-#define move_user_20	16
-#define move_user_65	17
-#define TimeMsec 		18
-#define PushTimeMsec 	19
-#define saveICMP 		20
-#define zero8			21
-#define zero16			22
-#define zero32			23
-#define zero64			24
-#define zero96			25
-#define zero128			26
+#define move64_32  		8
+#define move96  		9
+#define move128 		10
+#define move32_sampling 11
+#define move64_sampling 12
+#define move_mac		13
+#define move_mpls 		14
+#define move_ulatency	15
+#define move_slatency 	16
+#define move_user_20	17
+#define move_user_65	18
+#define TimeMsec 		19
+#define PushTimeMsec 	20
+#define saveICMP 		21
+#define zero8			22
+#define zero16			23
+#define zero32			24
+#define zero64			25
+#define zero96			26
+#define zero128			27
 
 	uint32_t	id;				// sequence ID as defined above
 	uint16_t	input_offset;	// copy/process data at this input offset
@@ -205,7 +206,7 @@ static struct v9_element_map_s {
 	char		*name;		// name string
 	uint16_t	length;		// type of this element ( input length )
 	uint16_t	out_length;	// type of this element ( output length )
-	uint32_t	sequence;	// output length
+	uint32_t	sequence;	// sequencer ID
 	uint32_t	zero_sequence;	// 
 	uint16_t	extension;	// maps into nfdump extension ID
 } v9_element_map[] = {
@@ -237,8 +238,10 @@ static struct v9_element_map_s {
 	{ NF9_DST_AS, 			 	 "dst AS",			_2bytes,  _2bytes, move16, zero16, EX_AS_2 },
 	{ NF9_DST_AS, 			 	 "dst AS",			_4bytes,  _4bytes, move32, zero32, EX_AS_4 },
 	{ NF9_BGP_V4_NEXT_HOP,		 "V4 BGP next hop",	_4bytes,  _4bytes, move32, zero32, EX_NEXT_HOP_BGP_v4 },
-	{ NF9_LAST_SWITCHED, 		 "time sec end",	_4bytes,  _4bytes, move32, zero32, COMMON_BLOCK },
 	{ NF9_FIRST_SWITCHED, 		 "time sec create",	_4bytes,  _4bytes, move32, zero32, COMMON_BLOCK },
+	{ NF9_FIRST_SWITCHED, 		 "time sec create",	_8bytes,  _4bytes, move64_32, zero32, COMMON_BLOCK },
+	{ NF9_LAST_SWITCHED, 		 "time sec end",	_4bytes,  _4bytes, move32, zero32, COMMON_BLOCK },
+	{ NF9_LAST_SWITCHED, 		 "time sec end",	_8bytes,  _4bytes, move64_32, zero32, COMMON_BLOCK },
 	{ NF_F_FLOW_CREATE_TIME_MSEC, "time msec start",_8bytes,  _8bytes, TimeMsec, nop, COMMON_BLOCK },
 	{ NF_F_FLOW_END_TIME_MSEC, 	"time msec end",	_8bytes,  _8bytes, TimeMsec, nop, COMMON_BLOCK },
 	{ NF9_OUT_BYTES, 			 "out bytes",		_4bytes,  _8bytes, move32_sampling, zero64, EX_OUT_BYTES_8 },
@@ -464,7 +467,7 @@ int i;
 	}
 	cache.max_v9_elements = i;
 
-	dbg_printf("Init v9: Max number of v9 tags: %u", cache.max_v9_elements);
+	dbg_printf("Init v9: Max number of v9 tags: %u\n", cache.max_v9_elements);
 
 
 	return 1;
@@ -546,7 +549,12 @@ int	index;
 			} 
 			index++;
 		}
-	}
+#ifdef DEVEL
+		printf("=> known type: %u(%s), at index: %i, length: %u not supported\n", 
+			Type, v9_element_map[index].name, index, Length);
+
+#endif
+	} 
 	dbg_printf("Skip unknown element type: %u, Length: %u\n", 
 		Type, Length);
 
@@ -1628,6 +1636,11 @@ char				*string;
 						*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
 						*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
 					} break;
+				case move64_32: 
+					{ type_mask_t t;
+						t.val.val64 = Get_val64((void *)&in[input_offset]);
+						*((uint32_t *)&out[output_offset]) =  t.val.val32[1];
+					} break;
 				case move96: 
 					{   *((uint32_t *)&out[output_offset]) = Get_val32((void *)&in[input_offset]);
 						*((uint32_t *)&out[output_offset+4]) = Get_val32((void *)&in[input_offset+4]);
@@ -2031,7 +2044,6 @@ uint32_t 			flowset_id, flowset_length, exporter_id;
 ssize_t				size_left;
 static int pkg_num = 0;
 
-printf("Enter Process_v9\n");
 	pkg_num++;
 	dbg_printf("Process_v9: Next packet: %i\n", pkg_num);
 
