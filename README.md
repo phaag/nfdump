@@ -1,8 +1,8 @@
 # nfdump
 
-Stable Release v1.6.15
+Stable Release v1.6.16
 
-See the Changelog file for all changes in release 1.6.15
+See the Changelog file for all changes in release 1.6.16
 
 nfdump is a toolset in oder to collect and process netflow data, sent from netflow compatible devices. The toolset supports netflow __v1__, __v5/v7__ __v9__ and __IPFIX__. See the details below for a more details explanation.
 The toolset also contains a collector to collect __sflow__ data. nfdump supports IPv4 as well as IPv6.
