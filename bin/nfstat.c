@@ -1553,7 +1553,7 @@ char				*string;
 				if ( aggr_record_mask ) {
 					ApplyAggrMask(flow_record, aggr_record_mask);
 				}
-				if ( GuessDir && ( flow_record->srcport < 1024 && flow_record->dstport > 1024 ) )
+				if ( GuessDir && ( flow_record->srcport < flow_record->dstport ) )
 					SwapFlow(flow_record);
 				print_record((void *)flow_record, &string, tag);
 				printf("%s\n", string);
@@ -1736,7 +1736,7 @@ int	i, max;
 		} else if ( aggr_record_mask )
 			ApplyAggrMask(flow_record, aggr_record_mask);
 
-		if ( GuessFlowDirection && ( flow_record->srcport < 1024 && flow_record->dstport > 1024 ) )
+		if ( GuessFlowDirection && ( flow_record->srcport < flow_record->dstport ) )
 			SwapFlow(flow_record);
 
 		print_record((void *)flow_record, &string, tag);

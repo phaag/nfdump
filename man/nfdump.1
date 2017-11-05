@@ -232,10 +232,10 @@ flows are merged into a single record. An appropriate output format is selected
 automatically, which may be overwritten by any \-o format option.
 .TP 3
 .B -B
-Like \-b but automagically swaps flows, such that src port is > 1024 and dst port 
-is < 1024 as some exporters do not care sending the flows in proper order. It's 
-considered to be a convenient option. If src and dst port are > 1024 or < 1024, 
-the flows are taken as is.
+Like \-b but automagically swaps flows if src port is < dst port 
+as some exporters do not care sending the flows in proper order. It's 
+considered to be a convenient option. Please note - for some peer-to-peer flows
+this my lead to errornous swapping.
 .TP 3
 .B -I
 Print flow statistics from file specified by \-r, or timeslot specified by \-R/\-M. 
