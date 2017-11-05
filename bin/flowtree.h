@@ -47,6 +47,8 @@
 #include "rbtree.h"
 #include "nffile.h"
 
+#include "signal.h"
+
 #define v4 ip_union._v4
 #define v6 ip_union._v6
 
