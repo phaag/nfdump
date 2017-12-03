@@ -853,6 +853,7 @@ int	c;
 				}
 				if (twin < 60) {
 					fprintf(stderr, "WARNING, Very small time frame - < 60s!\n");
+					exit(255);
 				}
 				break;
 			case 'x':
