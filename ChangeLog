@@ -1,5 +1,6 @@
 2017-12-03
 - Fix old 1.6.15 tags
+- Fix minor issues and compiler warnings
 
 2017-10-22
 - Add support for CISCO IOS 8 bytes timestamps ID 21/22

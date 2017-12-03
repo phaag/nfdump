@@ -1670,7 +1670,7 @@ uint32_t			maxindex, c;
 					else
 						printf("Top flows ordered by %s:\n", order_mode[order_index].string);
 				}
-				if ( !record_header ) 
+				if ( record_header ) 
 					printf("%s\n", record_header);
 			}
 			PrintSortedFlowcache(SortList, maxindex, topN, 0, print_record, tag, DESCENDING, extension_map_list);

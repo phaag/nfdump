@@ -467,9 +467,8 @@ void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
 	NodeList->last = node;
 	NodeList->length++;
 #ifdef DEVEL
-	int proto = node->proto;
 	printf("pushed node 0x%llx proto: %u, length: %u first: %llx, last: %llx\n", 
-		(unsigned long long)node, proto, NodeList->length, (unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
+		(unsigned long long)node, node->proto, NodeList->length, (unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
 	ListCheck(NodeList);
 #endif
 	if ( NodeList->waiting ) {
@@ -483,7 +482,6 @@ void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
 
 struct FlowNode *Pop_Node(NodeList_t *NodeList, int *done) {
 struct FlowNode *node;
-int proto;
 
 	GetTreeLock(NodeList);
     while ( NodeList->length == 0 && !*done ) {
@@ -522,12 +520,11 @@ int proto;
 
 	node->left = NULL;
 	node->right = NULL;
-	proto = node->proto;
 
 	NodeList->length--;
 #ifdef DEVEL
 	printf("popped node 0x%llx proto: %u, length: %u first: %llx, last: %llx\n", 
-		(unsigned long long)node, proto, NodeList->length, (unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
+		(unsigned long long)node, node->proto, NodeList->length, (unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
 
 	ListCheck(NodeList);
 #endif

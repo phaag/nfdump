@@ -212,12 +212,12 @@ int main( int argc, char **argv ) {
 struct stat fstat;
 int 		c, err, maxsize_set, maxlife_set;
 int			do_rescan, do_expire, do_list, print_stat, do_update_param, print_books, is_profile, nfsen_format;
-char		*maxsize_string, *lifetime_string, *datadir;
+char		*lifetime_string, *datadir;
 uint64_t	maxsize, lifetime, low_water;
 uint32_t	runtime;
 channel_t	*channel, *current_channel;
 
-	maxsize_string = lifetime_string = NULL;
+	lifetime_string = NULL;
 	datadir = NULL;
 	maxsize = lifetime = 0;
 	do_rescan  		= 0;

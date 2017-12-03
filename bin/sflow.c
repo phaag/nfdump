@@ -515,11 +515,17 @@ static inline void readCountersSample_v2v4(SFSample *sample, FlowSource_t *fs);
 
 static inline void StoreSflowRecord(SFSample *sample, FlowSource_t *fs);
 
+extern int verbose;
+
 #ifdef DEVEL
 static inline char *printTag(uint32_t tag, char *buf, int bufLen);
-#endif
 
-extern int verbose;
+static inline char *printTag(uint32_t tag, char *buf, int bufLen) {
+    snprintf(buf, bufLen, "%u:%u", (tag >> 12), (tag & 0x00000FFF));
+    return buf;
+} // End of printTag
+
+#endif
 
 
 /*_________________---------------------------__________________
@@ -1410,15 +1416,11 @@ static inline uint32_t getAddress(SFSample *sample, SFLAddress *address) {
 static inline void skipTLVRecord(SFSample *sample, uint32_t tag, uint32_t len, char *description) {
 
 #ifdef DEVEL
-static inline char *printTag(uint32_t tag, char *buf, int bufLen) {
-	snprintf(buf, bufLen, "%u:%u", (tag >> 12), (tag & 0x00000FFF));
-	return buf;
-} // End of printTag
-
-char buf[51];
+	char buf[51];
+	snprintf(buf, 50, "%u:%u", (tag >> 12), (tag & 0x00000FFF));
+	printf("skipping unknown %s: 0x%x, %s len=%d\n", description, tag, buf, len);
 #endif
 
-	dbg_printf("skipping unknown %s: 0x%x, %s len=%d\n", description, tag, printTag(tag, buf, 50), len);
 	skipBytes(sample, len);
 } // End of skipTLVRecord
 
