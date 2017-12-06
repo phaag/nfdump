@@ -172,6 +172,27 @@ AC_SUBST(RRD_LIBS)
 AM_CONDITIONAL(NFPROFILE, false)
 )
 
+
+AC_ARG_ENABLE(influxdb, [AS_HELP_STRING([--enable-influxdb], [enable stats to influxdb (default is no)])], [
+   influxdb=${enableval} ], [influxdb=no])
+AS_IF([test "x$influxdb" = xyes], [ 
+	PKG_CHECK_MODULES([curl], [libcurl],,
+	    [AC_MSG_ERROR([No pkg-config for libcurl])])
+	AC_SUBST(CURL_CFLAGS)
+	AC_SUBST(CURL_LIBS)
+	#CFLAGS="${CFLAGS} ${CURL_CFLAGS}"
+	#LIBS="${LIBS} ${LIBS_CFLAGS}"
+	
+	AC_CHECK_LIB([curl], [curl_easy_init],,[AC_MSG_ERROR([libcurl required!])])
+	AC_CHECK_LIB([curl], [curl_easy_escape],,[AC_MSG_ERROR([libcurl required!])])
+	AC_CHECK_LIB([curl], [curl_easy_setopt],,[AC_MSG_ERROR([libcurl required!])])
+	AC_CHECK_LIB([curl], [curl_easy_cleanup],,[AC_MSG_ERROR([libcurl required!])])
+	AC_CHECK_LIB([curl], [curl_free],,[AC_MSG_ERROR([libcurl required!])])
+	
+	AC_DEFINE_UNQUOTED(HAVE_INFLUXDB, 1, [enable stats to influxdb])
+], [ 
+])
+
 AC_ARG_ENABLE(nftrack,
 [  --enable-nftrack      Build nftrack used by PortTracker; default is NO],
 [ 

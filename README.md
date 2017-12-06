@@ -379,6 +379,17 @@ which may or may not be stored into the data file. Therefore the v9 templates co
 By default, the sampling rate is set to 1 (unsampled) or to 
 any given value specified by the -s cmd line option. If sampling information is found in the netflow stream, it overwrites the default value. Sampling is automatically recognised when announced in v9 option templates (tags #48, #49, #50 ) or in the unofficial v5 header hack. Note: Not all platforms (or IOS versions) support exporting sampling information in netflow data, even if sampling is configured. The number of bytes/packets in each netflow record is automatically multiplied by the sampling rate. The total number of flows is not changed as this is not accurate enough. (Small flows versus large flows)
 
+###InfluxDB
+You can send nfprofile stats data to an influxdb database. The data are the same of rrd files.
+For enable this option you need libcurl dev package installed, use --enable-influxdb for configure the project and the nfprofile command should be invoked with option: -i <influxurl> . 
+Example: -i http://localhost:8086/write?db=mydb&u=user&p=pass 
+The parameters for auth (&u=user&p=pass) are optional.
+Then you get the stats data on influxdb mydb in the measurement nfsen_stats.
+
+For put the stats of live profile you need to apply a patch to nfsen (in extra/nfsen) and add in nfsen.conf the option:
+	$influxdb_url="http://mydbhost.local:8086/write?db=nfsen";
+as example I added a preconfigured grafana dashboard in extra/grafana/Nfsen_Stats.json .
+
 ---
 
 For more information, see the GitHub Wiki

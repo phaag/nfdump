@@ -75,4 +75,8 @@ void CloseChannels (time_t tslot, int compress);
 
 void UpdateRRD( time_t tslot, profile_channel_info_t *channel );
 
+#ifdef HAVE_INFLUXDB
+void UpdateInfluxDB( time_t tslot, profile_channel_info_t *channel );
+#endif
+
 #endif //_PROFILE_H
