@@ -47,3 +47,6 @@
 /man/Makefile.in
 /missing
 /test-driver
+/ylwrap
+/config.h.in
+/INSTALL
