@@ -1103,7 +1103,7 @@ lzo_uint out_len;
  
 		bs.next_in = (char*) ( (pointer_addr_t) block_header + sizeof (data_block_header_t));
 		bs.next_out = (char*) ( (pointer_addr_t) out_block_header + sizeof (data_block_header_t));
-		bs.avail_in = nffile->block_header->size;
+		bs.avail_in = block_header->size;
 		bs.avail_out = BUFFSIZE;
  
 		for (;;) {
