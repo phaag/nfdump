@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2013, Peter Haag
  *  All rights reserved.
@@ -26,12 +27,6 @@
  *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
- *  
- *  $Author$
- *
- *  $Id$
- *
- *  $LastChangedRevision$
  *  
  */
 
@@ -81,7 +76,6 @@
 #include "util.h"
 #include "nffile.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "flowtree.h"
 #include "content_dns.h"

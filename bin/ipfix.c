@@ -1,4 +1,5 @@
 /*  
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2012, Peter Haag
  *  All rights reserved.
@@ -58,7 +59,6 @@
 #include "nf_common.h"
 #include "util.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "exporter.h"
 #include "ipfix.h"
@@ -1561,29 +1561,6 @@ char				*string;
 		fs->nffile->stat_record->numpackets	+= table->out_packets;
 		fs->nffile->stat_record->numbytes	+= table->out_bytes;
 	
-		if ( fs->xstat ) {
-			uint32_t bpp = table->packets ? table->bytes/table->packets : 0;
-			if ( bpp > MAX_BPP ) 
-				bpp = MAX_BPP;
-			if ( data_record->prot == IPPROTO_TCP ) {
-				fs->xstat->bpp_histogram->tcp.bpp[bpp]++;
-				fs->xstat->bpp_histogram->tcp.count++;
-
-				fs->xstat->port_histogram->src_tcp.port[data_record->srcport]++;
-				fs->xstat->port_histogram->dst_tcp.port[data_record->dstport]++;
-				fs->xstat->port_histogram->src_tcp.count++;
-				fs->xstat->port_histogram->dst_tcp.count++;
-			} else if ( data_record->prot == IPPROTO_UDP ) {
-				fs->xstat->bpp_histogram->udp.bpp[bpp]++;
-				fs->xstat->bpp_histogram->udp.count++;
-
-				fs->xstat->port_histogram->src_udp.port[data_record->srcport]++;
-				fs->xstat->port_histogram->dst_udp.port[data_record->dstport]++;
-				fs->xstat->port_histogram->src_udp.count++;
-				fs->xstat->port_histogram->dst_udp.count++;
-			}
-		}
-
 		if ( verbose ) {
 			master_record_t master_record;
 			ExpandRecord_v2((common_record_t *)data_record, &(table->extension_info), &(exporter->info), &master_record);

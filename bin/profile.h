@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: profile.h 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *      
 */
 
 #ifndef _PROFILE_H
@@ -59,7 +54,6 @@ typedef struct profile_channel_info_s {
 	char				*dirstat_path;	// pathname for dirstat file
 	nffile_t			*nffile;
 	stat_record_t		stat_record;
-	xstat_t				*xstat;
 	int					type;
 	dirstat_t 			*dirstat;
 } profile_channel_info_t;
@@ -67,7 +61,7 @@ typedef struct profile_channel_info_s {
 profile_channel_info_t	*GetProfiles(void);
 
 unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_param_info_t *profile_list, 
-	char *filterfile, char *filename, int subdir_index, int veryfy_only, int compress, int do_xstat );
+	char *filterfile, char *filename, int subdir_index, int veryfy_only, int compress );
 
 profile_channel_info_t	*GetChannelInfoList(void);
 

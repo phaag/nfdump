@@ -1698,6 +1698,19 @@ m4trace:/opt/local/share/aclocal-1.15/auxdir.m4:51: -1- AC_DEFUN([AM_AUX_DIR_EXP
 # Expand $ac_aux_dir to an absolute path.
 am_aux_dir=`cd "$ac_aux_dir" && pwd`
 ])
+m4trace:/opt/local/share/aclocal-1.15/cond-if.m4:36: -1- AC_DEFUN([AM_COND_IF], [m4_ifndef([_AM_COND_VALUE_$1],
+	   [m4_fatal([$0: no such condition "$1"])])dnl
+_AM_COND_IF([$1])dnl
+if test -z "$$1_TRUE"; then :
+  m4_n([$2])[]dnl
+m4_ifval([$3],
+[_AM_COND_ELSE([$1])dnl
+else
+  $3
+])dnl
+_AM_COND_ENDIF([$1])dnl
+fi[]dnl
+])
 m4trace:/opt/local/share/aclocal-1.15/cond.m4:32: -1- AC_DEFUN([AM_CONDITIONAL], [AC_PREREQ([2.52])dnl
  m4_if([$1], [TRUE],  [AC_FATAL([$0: invalid condition: $1])],
        [$1], [FALSE], [AC_FATAL([$0: invalid condition: $1])])dnl
@@ -2868,15 +2881,23 @@ m4trace:configure.ac:436: -1- _m4_warn([obsolete], [The macro `AC_TRY_RUN' is ob
 You should run autoupdate.], [../../lib/autoconf/general.m4:2765: AC_TRY_RUN is expanded from...
 configure.ac:436: the top level])
 m4trace:configure.ac:436: -1- m4_pattern_allow([^HAVE_SIZE_T_Z_FORMAT$])
-m4trace:configure.ac:439: -1- _m4_warn([obsolete], [AC_OUTPUT should be used without arguments.
+m4trace:configure.ac:438: -1- m4_pattern_allow([^DOXYGEN$])
+m4trace:configure.ac:439: -1- AM_CONDITIONAL([HAVE_DOXYGEN], [test -z $DOXYGEN])
+m4trace:configure.ac:439: -1- m4_pattern_allow([^HAVE_DOXYGEN_TRUE$])
+m4trace:configure.ac:439: -1- m4_pattern_allow([^HAVE_DOXYGEN_FALSE$])
+m4trace:configure.ac:439: -1- _AM_SUBST_NOTMAKE([HAVE_DOXYGEN_TRUE])
+m4trace:configure.ac:439: -1- _AM_SUBST_NOTMAKE([HAVE_DOXYGEN_FALSE])
+m4trace:configure.ac:440: -1- AM_COND_IF([HAVE_DOXYGEN], [ac_config_files="$ac_config_files doc/Doxyfile"
+])
+m4trace:configure.ac:443: -1- _m4_warn([obsolete], [AC_OUTPUT should be used without arguments.
 You should run autoupdate.], [])
-m4trace:configure.ac:439: -1- m4_pattern_allow([^LIB@&t@OBJS$])
-m4trace:configure.ac:439: -1- m4_pattern_allow([^LTLIBOBJS$])
-m4trace:configure.ac:439: -1- AM_CONDITIONAL([am__EXEEXT], [test -n "$EXEEXT"])
-m4trace:configure.ac:439: -1- m4_pattern_allow([^am__EXEEXT_TRUE$])
-m4trace:configure.ac:439: -1- m4_pattern_allow([^am__EXEEXT_FALSE$])
-m4trace:configure.ac:439: -1- _AM_SUBST_NOTMAKE([am__EXEEXT_TRUE])
-m4trace:configure.ac:439: -1- _AM_SUBST_NOTMAKE([am__EXEEXT_FALSE])
-m4trace:configure.ac:439: -1- _AC_AM_CONFIG_HEADER_HOOK(["$ac_file"])
-m4trace:configure.ac:439: -1- _AM_OUTPUT_DEPENDENCY_COMMANDS
-m4trace:configure.ac:439: -1- _LT_PROG_LTMAIN
+m4trace:configure.ac:443: -1- m4_pattern_allow([^LIB@&t@OBJS$])
+m4trace:configure.ac:443: -1- m4_pattern_allow([^LTLIBOBJS$])
+m4trace:configure.ac:443: -1- AM_CONDITIONAL([am__EXEEXT], [test -n "$EXEEXT"])
+m4trace:configure.ac:443: -1- m4_pattern_allow([^am__EXEEXT_TRUE$])
+m4trace:configure.ac:443: -1- m4_pattern_allow([^am__EXEEXT_FALSE$])
+m4trace:configure.ac:443: -1- _AM_SUBST_NOTMAKE([am__EXEEXT_TRUE])
+m4trace:configure.ac:443: -1- _AM_SUBST_NOTMAKE([am__EXEEXT_FALSE])
+m4trace:configure.ac:443: -1- _AC_AM_CONFIG_HEADER_HOOK(["$ac_file"])
+m4trace:configure.ac:443: -1- _AM_OUTPUT_DEPENDENCY_COMMANDS
+m4trace:configure.ac:443: -1- _LT_PROG_LTMAIN

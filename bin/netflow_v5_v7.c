@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
@@ -55,7 +56,6 @@
 #include "nfnet.h"
 #include "nf_common.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "exporter.h"
 #include "netflow_v5_v7.h"
@@ -601,30 +601,6 @@ char		*string;
 				fs->nffile->stat_record->numflows++;
 				fs->nffile->stat_record->numpackets	+= packets;
 				fs->nffile->stat_record->numbytes	+= bytes;
-
-				if ( fs->xstat ) {
-					uint32_t bpp = packets ? (bytes/packets) : 0;
-					if ( bpp > MAX_BPP ) 
-						bpp = MAX_BPP;
-					if ( common_record->prot == IPPROTO_TCP ) {
-						fs->xstat->bpp_histogram->tcp.bpp[bpp]++;
-						fs->xstat->bpp_histogram->tcp.count++;
-
-						fs->xstat->port_histogram->src_tcp.port[common_record->srcport]++;
-						fs->xstat->port_histogram->dst_tcp.port[common_record->dstport]++;
-						fs->xstat->port_histogram->src_tcp.count++;
-						fs->xstat->port_histogram->dst_tcp.count++;
-					} else if ( common_record->prot == IPPROTO_UDP ) {
-						fs->xstat->bpp_histogram->udp.bpp[bpp]++;
-						fs->xstat->bpp_histogram->udp.count++;
-
-						fs->xstat->port_histogram->src_udp.port[common_record->srcport]++;
-						fs->xstat->port_histogram->dst_udp.port[common_record->dstport]++;
-						fs->xstat->port_histogram->src_udp.count++;
-						fs->xstat->port_histogram->dst_udp.count++;
-					}
-				}
-
 
 				if ( verbose ) {
 					master_record_t master_record;

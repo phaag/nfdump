@@ -30,3 +30,14 @@
 
 # Debug files
 *.dSYM/
+
+# Backup files
+*~
+
+# Doc
+/doc/Doxyfile
+/doc/Makefile.in
+/doc/Makefile
+/doc/html
+/doc/man
+/doc/xml

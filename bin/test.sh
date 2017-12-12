@@ -118,6 +118,12 @@ export MallocCorruptionAbort=1
 ./nfdump -J 0 -r test.flows
 ./nfdump -J 1 -r test.flows
 ./nfdump -J 2 -r test.flows
+./nfdump -J 3 -r test.flows
+./nfdump -J 2 -r test.flows
+./nfdump -J 1 -r test.flows
+./nfdump -J 0 -r test.flows
+./nfdump -q -r test.flows -o raw > test2.out
+diff -u test2.out nfdump.test.out
 rm -f tmp/nfcapd.* test*.out test*.flows
 [ -d tmp ] && rmdir tmp
 [ -d memck.$$ ] && rm -rf  memck.$$

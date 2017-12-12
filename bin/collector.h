@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: collector.h 51 2010-01-29 09:01:54Z haag $
- *
- *  $LastChangedRevision: 51 $
- *	
  */
 
 #ifndef _COLLECTOR_H
@@ -52,7 +47,6 @@ typedef struct srecord_s {
 
 // common_record_t defines ext_map as uint_8, so max 256 extension maps allowed.
 // should be enough anyway
-
 
 typedef struct option_offset_s {
 	struct option_offset_s *next;
@@ -113,9 +107,6 @@ typedef struct FlowSource_s {
 	uint32_t			bad_packets;
 	uint64_t			first_seen;		// in msec 
 	uint64_t			last_seen;		// in msec
-
-	// port histogram data
-	xstat_t				*xstat;
 
 	// Any exporter specific data
 	generic_exporter_t	*exporter_data;

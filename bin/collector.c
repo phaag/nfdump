@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
@@ -64,7 +65,6 @@
 #include "util.h"
 #include "nf_common.h"
 #include "nffile.h"
-#include "nfxstat.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "nfx.h"
@@ -135,7 +135,6 @@ int ok;
 	(*source)->bookkeeper 	  	  = NULL;
 	(*source)->any_source 	  	  = 0;
 	(*source)->exporter_data  	  = NULL;
-	(*source)->xstat 		  	  = NULL;
 	(*FlowSource)->exporter_count = 0;
 
 	// separate IP address from ident
@@ -244,7 +243,6 @@ char s[MAXPATHLEN];
 	(*FlowSource)->bookkeeper 	  = NULL;
 	(*FlowSource)->any_source 	  = 1;
 	(*FlowSource)->exporter_data  = NULL;
-	(*FlowSource)->xstat 	  	  = NULL;
 	(*FlowSource)->exporter_count = 0;
 
 	// fill in ident
@@ -327,7 +325,6 @@ int				err;
 	(*source)->bookkeeper 	  	  = NULL;
 	(*source)->any_source 	  	  = 0;
 	(*source)->exporter_data  	  = NULL;
-	(*source)->xstat 		  	  = NULL;
 	(*FlowSource)->exporter_count = 0;
 
 	switch (ss->ss_family) {

@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
@@ -73,7 +74,6 @@
 #include "nf_common.h"
 #include "nfnet.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "flist.h"
 #include "nfstatfile.h"
@@ -125,7 +125,7 @@ static void daemonize(void);
 static void SetPriv(char *userid, char *groupid );
 
 static void run(packet_function_t receive_packet, int socket, send_peer_t peer, 
-	time_t twin, time_t t_begin, int report_seq, int use_subdirs, char *time_extension, int compress, int do_xstat);
+	time_t twin, time_t t_begin, int report_seq, int use_subdirs, char *time_extension, int compress);
 
 /* Functions */
 static void usage(char *name) {
@@ -146,8 +146,9 @@ static void usage(char *name) {
 					"-P pidfile\tset the PID file\n"
 					"-R IP[/port]\tRepeat incoming packets to IP address/port\n"
 					"-x process\tlaunch process after a new file becomes available\n"
-					"-j\t\tBZ2 compress flows in output file.\n"
 					"-z\t\tLZO compress flows in output file.\n"
+					"-y\t\tLZ4 compress flows in output file.\n"
+					"-j\t\tBZ2 compress flows in output file.\n"
 					"-B bufflen\tSet socket buffer to bufflen bytes\n"
 					"-e\t\tExpire data at each cycle.\n"
 					"-D\t\tFork to background\n"
@@ -332,7 +333,7 @@ int		err;
 #include "collector_inline.c"
 
 static void run(packet_function_t receive_packet, int socket, send_peer_t peer, 
-	time_t twin, time_t t_begin, int report_seq, int use_subdirs, char *time_extension, int compress, int do_xstat) {
+	time_t twin, time_t t_begin, int report_seq, int use_subdirs, char *time_extension, int compress) {
 FlowSource_t			*fs;
 struct sockaddr_storage sf_sender;
 socklen_t 	sf_sender_size = sizeof(sf_sender);
@@ -365,11 +366,6 @@ srecord_t	*commbuff;
 		fs->nffile = OpenNewFile(fs->current, NULL, compress, 0, NULL);
 		if ( !fs->nffile ) {
 			return;
-		}
-		if ( do_xstat ) {
-			fs->xstat = InitXStat(fs->nffile);
-			if ( !fs->xstat ) 
-				return;
 		}
 
 		// init stat vars
@@ -489,14 +485,6 @@ srecord_t	*commbuff;
 				nffile->stat_record->last_seen 	= fs->last_seen/1000;
 				nffile->stat_record->msec_last	= fs->last_seen - nffile->stat_record->last_seen*1000;
 	
-				if ( fs->xstat ) {
-					if ( WriteExtraBlock(nffile, fs->xstat->block_header ) <= 0 ) 
-						LogError("Ident: %s, failed to write xstat buffer to disk: '%s'" , fs->Ident, strerror(errno));
-
-					ResetPortHistogram(fs->xstat->port_histogram);
-					ResetBppHistogram(fs->xstat->bpp_histogram);
-				}
-
 				// Flush Exporter Stat to file
 				FlushExporterStats(fs);
 				// Write Stat record and close file
@@ -544,10 +532,6 @@ srecord_t	*commbuff;
 					if ( !fs->nffile ) {
 						LogError("killed due to fatal error: ident: %s", fs->Ident);
 						break;
-					}
-					/* XXX needs fixing */
-					if ( fs->xstat ) {
-						// Add catalog entry
 					}
 				}
 
@@ -680,7 +664,7 @@ FlowSource_t *fs;
 struct sigaction act;
 int		family, bufflen;
 time_t 	twin, t_start;
-int		sock, err, synctime, do_daemonize, expire, spec_time_extension, report_sequence, do_xstat;
+int		sock, err, synctime, do_daemonize, expire, spec_time_extension, report_sequence;
 int		subdir_index, compress;
 int	c;
 
@@ -705,7 +689,6 @@ int	c;
 	expire			= 0;
 	spec_time_extension = 0;
 	compress		= NOT_COMPRESSED;
-	do_xstat		= 0;
 	memset((void *)&peer, 0, sizeof(send_peer_t));
 	peer.family		= AF_UNSPEC;
 	Ident			= "none";
@@ -730,9 +713,6 @@ int	c;
 				break;
 			case 'E':
 				verbose = 1;
-				break;
-			case 'H':
-				do_xstat = 1;
 				break;
 			case 'f': {
 #ifdef PCAP
@@ -766,14 +746,21 @@ int	c;
 				break;
 			case 'j':
 				if ( compress ) {
-					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
 					exit(255);
 				}
 				compress = BZ2_COMPRESSED;
 				break;
+			case 'y':
+				if ( compress ) {
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
+					exit(255);
+				}
+				compress = LZ4_COMPRESSED;
+				break;
 			case 'z':
 				if ( compress ) {
-					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
 					exit(255);
 				}
 				compress = LZO_COMPRESSED;
@@ -1089,7 +1076,7 @@ int	c;
 
 	LogInfo("Startup.");
 	run(receive_packet, sock, peer, twin, t_start, report_sequence, subdir_index, 
-		time_extension, compress, do_xstat);
+		time_extension, compress);
 	close(sock);
 	kill_launcher(launcher_pid);
 

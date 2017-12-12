@@ -53,7 +53,6 @@
 #include "nffile.h"
 #include "nfx.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "exporter.h"
 #include "nfnet.h"

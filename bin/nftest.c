@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nftest.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
  */
 
 #include "config.h"
@@ -137,11 +132,11 @@ nffile_t	*nffile_w, *nffile_r;
 int i, compress, bsize;
 ssize_t	ret;
 char outfile[MAXPATHLEN];
-struct timeval  	tstart[3];
-struct timeval  	tend[3];
+struct timeval  	tstart[4];
+struct timeval  	tend[4];
 u_long usec, sec;
-double wall[3];
-uint32_t recsize[3];
+double wall[4];
+uint32_t recsize[4];
 
 	nffile_r = OpenFile(filename, NULL);
 	if ( !nffile_r ) {
@@ -162,18 +157,19 @@ uint32_t recsize[3];
 	nffile_w = NULL;
 
 	bsize = nffile_r->block_header->size;
-	for ( compress=0; compress<=2; compress++ ) {
+	for ( compress=NOT_COMPRESSED; compress<=LZ4_COMPRESSED; compress++ ) {
 		int wsize;
 		nffile_w = OpenNewFile(outfile, nffile_w, compress, 0, NULL);
 		if ( !nffile_w ) {
 			DisposeFile(nffile_r);
         	return;
     	}
-		
+		// fill buffer
+		memcpy(nffile_w->buff_pool[0], nffile_r->buff_pool[0], nffile_r->buff_size);
 		gettimeofday(&(tstart[compress]), (struct timezone*)NULL);
 		for ( i=0; i<100; i++ ) {
 			nffile_w->block_header->size = bsize;
-			wsize = WriteExtraBlock(nffile_w, nffile_r->block_header);
+			wsize = WriteBlock(nffile_w);
 			if ( wsize <= 0 ) {
 				fprintf(stderr, "Failed to write output buffer to disk: '%s'" , strerror(errno));
 				// Cleanup
@@ -206,6 +202,7 @@ uint32_t recsize[3];
 	printf("100 write cycles, with size %u bytes\n", bsize);
 	printf("Uncompressed write time: %-.6fs size: %u, 1:%-.3f\n", wall[0], recsize[0], (double)recsize[0]/(double)bsize );
 	printf("LZO compressed write time  : %-.6fs size: %d, 1:%-.3f\n", wall[1], (int32_t)recsize[1], (double)recsize[1]/(double)bsize );
+	printf("LZ4 compressed write time  : %-.6fs size: %d, 1:%-.3f\n", wall[1], (int32_t)recsize[1], (double)recsize[1]/(double)bsize );
 	printf("BZ2 compressed write time  : %-.6fs size: %d, 1:%-.3f\n", wall[2], (int32_t)recsize[2], (double)recsize[2]/(double)bsize );
 
 } // End of CheckCompression

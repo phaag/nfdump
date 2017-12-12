@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
@@ -68,7 +69,6 @@
 
 #include "expire.h"
 #include "nffile.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "util.h"
 

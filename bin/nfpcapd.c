@@ -92,7 +92,6 @@
 #include "flist.h"
 #include "nfstatfile.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "exporter.h"
 #include "rbtree.h"
@@ -646,7 +645,6 @@ int err, done;
    		pthread_kill(args->parent, SIGUSR1);
 		pthread_exit((void *)args);
 	}
-	fs->xstat = NULL;
 
 	// init vars
 	fs->bad_packets		= 0;

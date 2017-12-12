@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nfprofile.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
  */
 
 #include "config.h"
@@ -64,7 +59,6 @@
 #include "nfstat.h"
 #include "nfstatfile.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "exporter.h"
 #include "ipconv.h"
@@ -92,7 +86,7 @@ static void usage(char *name);
 
 static profile_param_info_t *ParseParams (char *profile_datadir);
 
-static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot, int do_xstat);
+static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot);
 
 
 /* Functions */
@@ -105,7 +99,6 @@ static void usage(char *name) {
 					"-h\t\tthis text you see right here\n"
 					"-V\t\tPrint version and exit.\n"
 					"-D <dns>\tUse nameserver <dns> for host lookup.\n"
-					"-H Add xstat histogram data to flow file.(default 'no')\n"
 					"-M <expr>\tRead input from multiple directories.\n"
 					"-r\t\tread input from file\n"
 					"-f\t\tfilename with filter syntaxfile\n"
@@ -119,7 +112,7 @@ static void usage(char *name) {
 } /* usage */
 
 
-static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot, int do_xstat) {
+static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot) {
 common_record_t	*flow_record;
 nffile_t		*nffile;
 FilterEngine_data_t	*engine;
@@ -268,9 +261,6 @@ int	v1_map_done = 0;
 						UpdateStat(&channels[j].stat_record, master_record);
 						if ( channels[j].nffile ) 
 							UpdateStat(channels[j].nffile->stat_record, master_record);
-	
-						if ( channels[j].xstat ) 
-							UpdateXStat(channels[j].xstat, master_record);
 	
 						// do we need to write data to new file - shadow profiles do not have files.
 						// check if we need to flush the output buffer
@@ -529,7 +519,7 @@ struct stat stat_buf;
 profile_param_info_t *profile_list;
 char *rfile, *ffile, *filename, *Mdirs;
 char	*profile_datadir, *profile_statdir, *nameserver;
-int c, syntax_only, subdir_index, stdin_profile_params, do_xstat;
+int c, syntax_only, subdir_index, stdin_profile_params;
 time_t tslot;
 
 	profile_datadir = NULL;
@@ -537,7 +527,6 @@ time_t tslot;
 	Mdirs 			= NULL;
 	tslot 			= 0;
 	syntax_only	    = 0;
-	do_xstat	    = 0;
 	compress		= NOT_COMPRESSED;
 	subdir_index	= 0;
 	profile_list	= NULL;
@@ -565,9 +554,6 @@ time_t tslot;
 				break;
 			case 'I':
 				stdin_profile_params = 1;
-				break;
-			case 'H':
-				do_xstat = 1;
 				break;
 			case 'L':
 				if ( !InitLog("nfprofile", optarg) )
@@ -603,14 +589,21 @@ time_t tslot;
 				break;
 			case 'j':
 				if ( compress ) {
-					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
 					exit(255);
 				}
 				compress = BZ2_COMPRESSED;
 				break;
+			case 'y':
+				if ( compress ) {
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
+					exit(255);
+				}
+				compress = LZ4_COMPRESSED;
+				break;
 			case 'z':
 				if ( compress ) {
-					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
 					exit(255);
 				}
 				compress = LZO_COMPRESSED;
@@ -668,7 +661,7 @@ time_t tslot;
 		exit(255);
 	}
 
-	num_channels = InitChannels(profile_datadir, profile_statdir, profile_list, ffile, filename, subdir_index, syntax_only, compress, do_xstat);
+	num_channels = InitChannels(profile_datadir, profile_statdir, profile_list, ffile, filename, subdir_index, syntax_only, compress);
 
 	// nothing to do
 	if ( num_channels == 0 ) {
@@ -693,7 +686,7 @@ time_t tslot;
 
 	SetupInputFileSequence(Mdirs,rfile, NULL);
 
-	process_data(GetChannelInfoList(), num_channels, tslot, do_xstat);
+	process_data(GetChannelInfoList(), num_channels, tslot);
 
 	CloseChannels(tslot, compress);
 

@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -63,7 +64,6 @@
 #include "nfx.h"
 #include "nfnet.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "exporter.h"
 #include "nf_common.h"
@@ -259,7 +259,7 @@ static void PrintSummary(stat_record_t *stat_record, int plain_numbers, int csv_
 
 static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
 	printer_t print_header, printer_t print_record, time_t twin_start, time_t twin_end, 
-	uint64_t limitflows, int tag, int compress, int do_xstat);
+	uint64_t limitflows, int tag, int compress);
 
 /* Functions */
 
@@ -285,11 +285,11 @@ static void usage(char *name) {
 					"-s <expr>[/<order>]\tGenerate statistics for <expr> any valid record element.\n"
 					"\t\tand ordered by <order>: packets, bytes, flows, bps pps and bpp.\n"
 					"-q\t\tQuiet: Do not print the header and bottom stat lines.\n"
-					"-H Add xstat histogram data to flow file.(default 'no')\n"
 					"-i <ident>\tChange Ident to <ident> in file given by -r.\n"
-					"-J <num>\tModify file compression: 0: uncompressed - 1: LZO compressed - 2: BZ2 compressed.\n"
-					"-z\t\tlzo compress flows in output file. Used in combination with -w.\n"
-					"-j\t\tbz2 compress flows in output file. Used in combination with -w.\n"
+					"-J <num>\tModify file compression: 0: uncompressed - 1: LZO - 2: BZ2 - 3: LZ4 compressed.\n"
+					"-z\t\tLZO compress flows in output file. Used in combination with -w.\n"
+					"-y\t\tLZ4 compress flows in output file. Used in combination with -w.\n"
+					"-j\t\tBZ2 compress flows in output file. Used in combination with -w.\n"
 					"-l <expr>\tSet limit on packets for line and packed output format.\n"
 					"\t\tkey: 32 character string or 64 digit hex string starting with 0x.\n"
 					"-L <expr>\tSet limit on bytes for line and packed output format.\n"
@@ -366,11 +366,10 @@ char 		bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_
 
 stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
 	printer_t print_header, printer_t print_record, time_t twin_start, time_t twin_end, 
-	uint64_t limitflows, int tag, int compress, int do_xstat) {
+	uint64_t limitflows, int tag, int compress) {
 common_record_t 	*flow_record, *record_ptr;
 master_record_t		*master_record;
 nffile_t			*nffile_w, *nffile_r;
-xstat_t				*xstat;
 stat_record_t 		stat_record;
 int 				done, write_file;
 
@@ -395,7 +394,6 @@ int	v1_map_done = 0;
 	write_file = !(sort_flows || flow_stat || element_stat) && wfile;
 	nffile_r = NULL;
 	nffile_w = NULL;
-	xstat  	 = NULL;
 
 	// Get the first file handle
 	nffile_r = GetNextFile(NULL, twin_start, twin_end);
@@ -428,16 +426,6 @@ int	v1_map_done = 0;
 				DisposeFile(nffile_r);
 			}
 			return stat_record;
-		}
-		if ( do_xstat ) {
-			xstat = InitXStat(nffile_w);
-			if ( !xstat ) {
-				if ( nffile_r ) {
-					CloseFile(nffile_r);
-					DisposeFile(nffile_r);
-				}
-				return stat_record;
-			}
 		}
 	}
 
@@ -622,8 +610,6 @@ int	v1_map_done = 0;
 					} else {
 						if ( write_file ) {
 							AppendToBuffer(nffile_w, (void *)flow_record, flow_record->size);
-							if ( xstat ) 
-								UpdateXStat(xstat, master_record);
 						} else if ( print_record ) {
 							char *string;
 							// if we need to print out this record
@@ -703,12 +689,6 @@ int	v1_map_done = 0;
 			} 
 		}
 
-		if ( xstat ) {
-			if ( WriteExtraBlock(nffile_w, xstat->block_header ) <= 0 ) {
-				LogError("Failed to write xstat buffer to disk: '%s'" , strerror(errno));
-			} 
-		}
-
 		/* Stat info */
 		if ( write_file ) {
 			/* Copy stat info and close file */
@@ -736,7 +716,7 @@ char		*byte_limit_string, *packet_limit_string, *print_format, *record_header;
 char		*print_order, *query_file, *nameserver, *aggr_fmt;
 int 		c, ffd, ret, element_stat, fdump;
 int 		i, user_format, quiet, flow_stat, topN, aggregate, aggregate_mask, bidir;
-int 		print_stat, syntax_only, date_sorted, do_tag, compress, do_xstat;
+int 		print_stat, syntax_only, date_sorted, do_tag, compress;
 int			plain_numbers, GuessDir, pipe_output, csv_output, ModifyCompress;
 time_t 		t_start, t_end;
 uint32_t	limitflows;
@@ -753,7 +733,6 @@ char 		Ident[IDENTLEN];
 	flow_stat       = 0;
 	print_stat      = 0;
 	element_stat  	= 0;
-	do_xstat 		= 0;
 	limitflows		= 0;
 	date_sorted		= 0;
 	total_bytes		= 0;
@@ -781,7 +760,7 @@ char 		Ident[IDENTLEN];
 
 	Ident[0] = '\0';
 
-	while ((c = getopt(argc, argv, "6aA:Bbc:D:E:s:hHn:i:jf:qzr:v:w:J:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
+	while ((c = getopt(argc, argv, "6aA:Bbc:D:E:s:hn:i:jf:qyzr:v:w:J:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -831,14 +810,21 @@ char 		Ident[IDENTLEN];
 				break;
 			case 'j':
 				if ( compress ) {
-					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
 					exit(255);
 				}
 				compress = BZ2_COMPRESSED;
 				break;
+			case 'y':
+				if ( compress ) {
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
+					exit(255);
+				}
+				compress = LZ4_COMPRESSED;
+				break;
 			case 'z':
 				if ( compress ) {
-					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
 					exit(255);
 				}
 				compress = LZO_COMPRESSED;
@@ -872,9 +858,6 @@ char 		Ident[IDENTLEN];
 			case 'K':
 				LogError("*** Anonymisation moved! Use nfanon to anonymise flows!\n");
 				exit(255);
-				break;
-			case 'H':
-				do_xstat = 1;
 				break;
 			case 'L':
 				byte_limit_string = optarg;
@@ -944,8 +927,8 @@ char 		Ident[IDENTLEN];
 				break;
 			case 'J':
 				ModifyCompress = atoi(optarg);
-				if ( (ModifyCompress < 0) || (ModifyCompress > 2) ) {
-					LogError("Expected -J <num>, 0: uncompressed, 1: LZO compressed, 2: BZ2 compressed.\n");
+				if ( (ModifyCompress < 0) || (ModifyCompress > 3) ) {
+					LogError("Expected -J <num>, 0: uncompressed, 1: LZO, 2: BZ2, 3: LZ4 compressed.\n");
 					exit(255);
 				}
 				break;
@@ -1215,7 +1198,7 @@ char 		Ident[IDENTLEN];
 	nfprof_start(&profile_data);
 	sum_stat = process_data(wfile, element_stat, aggregate || flow_stat, print_order != NULL,
 						print_header, print_record, t_start, t_end, 
-						limitflows, do_tag, compress, do_xstat);
+						limitflows, do_tag, compress);
 	nfprof_end(&profile_data, total_flows);
 
 	if ( total_bytes == 0 ) {
