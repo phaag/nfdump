@@ -435,6 +435,10 @@ char	string[16];
 ]
 )
 
+AC_PATH_PROG([DOXYGEN], [doxygen], [])
+AM_CONDITIONAL([HAVE_DOXYGEN], [test -n "$DOXYGEN"])
+AM_COND_IF([HAVE_DOXYGEN], AC_CONFIG_FILES([doc/Doxyfile]))
+
 #AC_CONFIG_FILES([Makefile])
 AC_OUTPUT(Makefile bin/Makefile man/Makefile)
 
