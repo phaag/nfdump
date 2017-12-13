@@ -53,3 +53,15 @@
 /test-driver
 /ylwrap
 
+# Configure generated files
+/Makefile
+/bin/.deps/
+/bin/Makefile
+/config.h
+/config.log
+/config.status
+/extra/nftrack/.deps/
+/libtool
+/man/Makefile
+/stamp-h1
+
