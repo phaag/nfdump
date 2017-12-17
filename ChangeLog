@@ -1,3 +1,6 @@
+2017-12-17
+- Add ipfix sampling. Process option template/record with sampling elements 34 and 35
+
 2017-12-10
 - Add lz4 compression
 - Remove old xstat legancy code, not needed
