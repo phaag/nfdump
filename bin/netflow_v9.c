@@ -3013,8 +3013,6 @@ generic_sampler_t *sampler;
 			// test for update of existing sampler
 			if ( sampler->info.id == id ) {
 				// found same sampler id - update record
-				LogInfo( "Update existing sampler id: %i, mode: %u, interval: %u\n", 
-					id, mode, interval);
 				dbg_printf("Update existing sampler id: %i, mode: %u, interval: %u\n", 
 					id, mode, interval);
 
@@ -3023,6 +3021,8 @@ generic_sampler_t *sampler;
 					FlushInfoSampler(fs, &(sampler->info));
 					sampler->info.mode 	   = mode;
 					sampler->info.interval = interval;
+					LogInfo( "Update existing sampler id: %i, mode: %u, interval: %u\n", 
+						id, mode, interval);
 				} else {
 					dbg_printf("Sampler unchanged!\n");
 				}

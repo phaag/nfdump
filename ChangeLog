@@ -1,5 +1,6 @@
 2017-12-17
 - Add ipfix sampling. Process option template/record with sampling elements 34 and 35
+- Report updates on existing samplers in v9 only if values change. issue 84
 
 2017-12-10
 - Add lz4 compression
