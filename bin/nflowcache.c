@@ -115,6 +115,12 @@ static struct aggregate_info_s {
 	{ "srcip",		{ 8, OffsetSrcIPv6b, 	MaskIPv6, 	 ShiftIPv6 },    	-1, 0, 	NULL	},
 	{ "dstip",		{ 8, OffsetDstIPv6a, 	MaskIPv6, 	 ShiftIPv6 },    	-1, 0,	"%da"	},
 	{ "dstip",		{ 8, OffsetDstIPv6b, 	MaskIPv6, 	 ShiftIPv6 },    	-1, 0, 	NULL	},
+#ifdef NSEL
+	{ "xsrcip",		{ 8, OffsetXLATESRCv6a,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0,	"%xsa" 	},
+	{ "xsrcip",		{ 8, OffsetXLATESRCv6b,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0, 	NULL	},
+	{ "xdstip",		{ 8, OffsetXLATEDSTv6a,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0,	"%xda"	},
+	{ "xdstip",		{ 8, OffsetXLATESRCv6b,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0, 	NULL	},
+#endif
 	{ "dstip4",		{ 8, OffsetDstIPv6a, 	MaskIPv6, 	 ShiftIPv6 },     	 0, 0,	"%da"	},
 	{ "dstip4",		{ 8, OffsetDstIPv6b, 	MaskIPv6, 	 ShiftIPv6 },     	 1, 0,	NULL	},
 	{ "dstip6",		{ 8, OffsetDstIPv6a, 	MaskIPv6, 	 ShiftIPv6 },     	 0, 0,	"%da"	},
