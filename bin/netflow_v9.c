@@ -1401,6 +1401,7 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 		dbg_printf("Option field Type: %u, length %u\n", type, length);
 		if ( !index ) {
 			dbg_printf("Unsupported: Option field Type: %u, length %u\n", type, length);
+			offset += length;
 			continue;
 		}
 		while ( index && v9_element_map[index].id == type ) {
@@ -1413,6 +1414,7 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 		if ( index && v9_element_map[index].length != length ) {
 			LogError("Process_v9: Option field Type: %u, length %u not supported\n", type, length);
 			dbg_printf("Process_v9: Option field Type: %u, length %u not supported\n", type, length);
+			offset += length;
 			continue;
 		}
 		switch (type) {
@@ -1450,7 +1452,8 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 		dbg_printf("[%u] Sampling information found\n", exporter->info.id);
 		InsertSamplerOffset(fs, id, offset_sampler_id, sampler_id_length, offset_sampler_mode, offset_sampler_interval);
 	} else if ( found_std_sampling == 2 ) { // need all two tags
-		dbg_printf("[%u] Std sampling information found\n", exporter->info.id);
+		dbg_printf("[%u] Std sampling information found. offset intervall: %u, offset algo: %u\n", 
+			exporter->info.id, offset_std_sampler_interval, offset_std_sampler_algorithm);
 		InsertStdSamplerOffset(fs, id, offset_std_sampler_interval, offset_std_sampler_algorithm);
 	} else {
 		dbg_printf("[%u] No Sampling information found\n", exporter->info.id);
