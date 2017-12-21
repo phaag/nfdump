@@ -597,6 +597,7 @@ void PrintStat(stat_record_t *s) {
 
 static nffile_t *NewFile(void) {
 nffile_t *nffile;
+int i;
 
 	// Create struct
 	nffile = calloc(1, sizeof(nffile_t));
@@ -639,7 +640,7 @@ nffile_t *nffile;
 */
 	// init data buffer
 	nffile->buff_size = 2 * BUFFSIZE;
-	for (int i=0; i<NUM_BUFFS; i++ ) {
+	for (i=0; i<NUM_BUFFS; i++ ) {
 		// allocate twice of BUFFSIZE initially - should be ok, otherwise expand
 		nffile->buff_pool[i] = malloc(nffile->buff_size);
 		if ( !nffile->buff_pool[i] ) {
@@ -661,10 +662,12 @@ nffile_t *nffile;
 } // End of NewFile
 
 nffile_t *DisposeFile(nffile_t *nffile) {
+int i;
+
 	free(nffile->file_header);
 	free(nffile->stat_record);
 
-	for (int i=0; i<NUM_BUFFS; i++ ) {
+	for (i=0; i<NUM_BUFFS; i++ ) {
 		free(nffile->buff_pool[i]);
 	}
 
