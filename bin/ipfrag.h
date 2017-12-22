@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  All rights reserved.
  *  
@@ -25,12 +26,6 @@
  *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
- *  
- *  $Author: phaag $
- *
- *  $Id: ipfrag.h 40691 2014-03-03 11:24:22Z phaag $
- *
- *  $LastChangedRevision: 40691 $
  *  
  */
 
@@ -71,4 +66,6 @@ int IPFragTree_init(void);
 void IPFragTree_free(void);
 
 void *IPFrag_tree_Update(uint32_t src, uint32_t dst, uint32_t ident, uint32_t *length, uint32_t ip_off, void *data);
+
+uint32_t IPFragEntries(void);
 

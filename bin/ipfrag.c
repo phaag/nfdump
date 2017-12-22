@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  All rights reserved.
@@ -77,6 +78,7 @@ static void Remove_node(struct IPFragNode *node);
 RB_GENERATE(IPFragTree, IPFragNode, entry, IPFragNodeCMP);
 
 static IPFragTree_t *IPFragTree;
+static uint32_t NumFragments;
 
 static int IPFragNodeCMP(struct IPFragNode *e1, struct IPFragNode *e2) {
 uint32_t    *a = &e1->src_addr;
@@ -119,6 +121,7 @@ struct IPFragNode *node;
 	node->holes->next  = NULL;
 	node->holes->first = 0;
 	node->holes->last = IP_MAXPACKET;
+	NumFragments++;
 
 	return node;
 
@@ -136,6 +139,7 @@ hole_t *hole, *h;
 	if (free_data) 
 		free(node->data);
 	free(node);
+	NumFragments--;
 
 } // End of Free_node
 
@@ -156,6 +160,7 @@ int IPFragTree_init(void) {
 		return 0;
 	}
 	RB_INIT(IPFragTree);
+	NumFragments = 0;
 	dbg_printf("IPFrag key len: %lu\n", KEYLEN);
 	return 1;
 } // End of IPFragTree_init
@@ -172,6 +177,8 @@ struct IPFragNode *node, *nxt;
 
 	free(IPFragTree);
 	IPFragTree = NULL;
+	NumFragments = 0;
+
 } // End of IPFragTree_free
 
 void *IPFrag_tree_Update(uint32_t src, uint32_t dst, uint32_t ident, uint32_t *length, uint32_t ip_off, void *data) {
@@ -203,14 +210,14 @@ int found_hole;
 	
 	if ( last > IP_MAXPACKET ) {
 		LogError("Fragment assembly error: last > IP_MAXPACKET");
-		LogError("Fraget assembly: first: %u, last: %u, MF: %u\n", first, last, more_fragments);
+		LogError("Fragment assembly: first: %u, last: %u, MF: %u\n", first, last, more_fragments);
 		return NULL;
 	}
 
 	// last fragment - sets max offset
 	found_hole = 0;
 	max = more_fragments == 0 ? last : 0;
-	dbg_printf("Fraget assembly: first: %u, last: %u, MF: %u\n", first, last, more_fragments);
+	dbg_printf("Fragment assembly: first: %u, last: %u, MF: %u\n", first, last, more_fragments);
 	while (hole) {
 		uint16_t hole_last;
 		if ( max ) {
@@ -307,3 +314,7 @@ int found_hole;
 	}
 
 } // End of IPFrag_tree_Update
+
+uint32_t IPFragEntries() {
+	return NumFragments;
+} // End of IPFragEntries

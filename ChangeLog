@@ -1,3 +1,6 @@
+2017-12-22
+- Fix potential memory leaks in nfpcapd
+
 2017-12-21
 - Fix wrong offset calculation if unknown options are found
 - Add x-late src/dst ip aggregation, if compiled with NSEL support

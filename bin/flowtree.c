@@ -110,7 +110,6 @@ struct FlowNode *node;
 	memset((void *)node, 'A', sizeof(struct FlowNode));
 	node->left = NULL;
 	node->right = NULL;
-	node->data = NULL;
 	node->memflag = NODE_IN_USE;
 	dbg_printf("New node: %llx\n", (unsigned long long)node);
 	return node;
@@ -160,11 +159,6 @@ void Free_Node(struct FlowNode *node) {
 	if ( node->memflag != NODE_IN_USE ) {
 		LogError("Free_Node() Fatal: Tried to free a Node not in use");
 		abort();
-	}
-
-	if ( node->data ) {
-		free(node->data);
-		node->data = NULL;
 	}
 
 	dbg_assert(node->left == NULL);
@@ -248,8 +242,6 @@ struct FlowNode *node, *nxt;
 	for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
 		nxt = RB_NEXT(FlowTree, FlowTree, node);
 		RB_REMOVE(FlowTree, FlowTree, node);
-		if ( node->data ) 
-			free(node->data);
 	}
 	free(FlowElementCache);
 	FlowElementCache 	 = NULL;

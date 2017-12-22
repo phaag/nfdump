@@ -1220,7 +1220,7 @@ ipfix_template_record_t *ipfix_template_record;
 } // End of Process_ipfix_template_withdraw
 
 static inline void Process_ipfix_option_templates(exporter_ipfix_domain_t *exporter, void *option_template_flowset, FlowSource_t *fs) {
-void		*DataPtr;
+uint8_t		*DataPtr;
 uint32_t	size_left, size_required, i;
 // uint32_t nr_scopes, nr_options;
 uint16_t	id, field_count, scope_field_count, offset, sampler_id_length;

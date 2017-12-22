@@ -762,9 +762,9 @@ int err, done;
 				UpdateBooks(fs->bookkeeper, t_start, 512*fstat.st_blocks);
 			}
 
-			LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Max Flows: %u", 
+			LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Max Flows: %u, Fragments: %u", 
 				fs->Ident, (unsigned long long)nffile->stat_record->numflows, (unsigned long long)nffile->stat_record->numpackets, 
-				(unsigned long long)nffile->stat_record->numbytes, NumFlows);
+				(unsigned long long)nffile->stat_record->numbytes, NumFlows, IPFragEntries());
 
 			// reset stats
 			fs->bad_packets = 0;

@@ -1335,7 +1335,7 @@ int			i;
 } // End of Process_v9_templates
 
 static inline void Process_v9_option_templates(exporter_v9_domain_t *exporter, void *option_template_flowset, FlowSource_t *fs) {
-void		*option_template, *p;
+uint8_t		*option_template, *p;
 uint32_t	size_left, nr_scopes, nr_options, i;
 uint16_t	id, scope_length, option_length, offset, sampler_id_length;
 uint16_t	offset_sampler_id, offset_sampler_mode, offset_sampler_interval, found_sampler;

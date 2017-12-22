@@ -494,6 +494,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 		// data is sitting on a defragmented IPv4 packet memory region
 		// REDO loop could result in a memory leak, if again IP is fragmented
 		// XXX memory leak to be fixed
+		LogError("Fragmentation memory leak triggered!");
 	}
 
 	ip  	= (struct ip *)(data + offset); // offset points to end of link layer
@@ -570,13 +571,24 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
 
 		// IPv4 defragmentation
-		if ( (ip_off & IP_MF) || frag_offset ) { 
+		if ( (ip_off & IP_MF) || frag_offset ) {
 			uint16_t ip_id = ntohs(ip->ip_id);
+#ifdef DEVEL
+			if ( frag_offset == 0 )
+				printf("Fragmented packet: first segement: ip_off: %u, frag_offset: %u\n", ip_off, frag_offset);
+			if (( ip_off & IP_MF ) && frag_offset )
+				printf("Fragmented packet: middle segement: ip_off: %u, frag_offset: %u\n", ip_off, frag_offset);
+			if (( ip_off & IP_MF ) == 0  )
+				printf("Fragmented packet: last segement: ip_off: %u, frag_offset: %u\n", ip_off, frag_offset);
+#endif
 			// fragmented packet
 			defragmented = IPFrag_tree_Update(ip->ip_src.s_addr, ip->ip_dst.s_addr, ip_id, &payload_len, ip_off, payload);
-			if ( defragmented == NULL ) 
+			if ( defragmented == NULL ) {
 				// not yet complete
+				dbg_printf("Fragmentation not yet completed\n");
 				return;
+			}
+			dbg_printf("Fragmentation assembled\n");
 			// packet defragmented - set payload to defragmented data
 			payload = defragmented;
 		} 
@@ -609,25 +621,16 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			if ( UDPlen < 8 ) {
 				LogError("UDP payload legth error: %u bytes < 8\n",
 					UDPlen);
-				if ( defragmented ) {
-					free(defragmented);
-					defragmented = NULL;
-				}
 				Free_Node(Node);
-				return;
+				break;
 			}
 			uint32_t size_udp_payload = ntohs(udp->uh_ulen) - 8;
 
 			if ( (bytes == payload_len ) && (payload_len - sizeof(struct udphdr)) != size_udp_payload ) {
 				LogError("UDP payload legth error: Expected %u, have %u bytes\n",
 					size_udp_payload, (payload_len - (unsigned)sizeof(struct udphdr)));
-
-				if ( defragmented ) {
-					free(defragmented);
-					defragmented = NULL;
-				}
 				Free_Node(Node);
-				return;
+				break;
 			}
 			payload = payload + sizeof(struct udphdr);
 			payload_len -= sizeof(struct udphdr);
@@ -653,12 +656,8 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			if ( payload_len < size_tcp ) {
 				LogError("TCP header length error: len: %u < size TCP header: %u", payload_len, size_tcp);	
 				pcap_dev->proc_stat.short_snap++;
-				if ( defragmented ) {
-					free(defragmented);
-					defragmented = NULL;
-				}
 				Free_Node(Node);
-				return;
+				break;
 			}
 
 			payload = payload + size_tcp;
@@ -731,12 +730,8 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			if ( payload_len < size_inner_ip ) {
 				LogError("IPIP tunnel header length error: len: %u < size inner IP: %u", payload_len, size_inner_ip);	
 				pcap_dev->proc_stat.short_snap++;
-				if ( defragmented ) {
-					free(defragmented);
-					defragmented = NULL;
-				}
 				Free_Node(Node);
-				return;
+				break;
 			}
 			offset   = 0;
 			data 	 = payload;
@@ -760,12 +755,8 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			if ( payload_len < gre_hdr_size ) {
 				LogError("GRE tunnel header length error: len: %u < size GRE hdr: %u", payload_len, gre_hdr_size);	
 				pcap_dev->proc_stat.short_snap++;
-				if ( defragmented ) {
-					free(defragmented);
-					defragmented = NULL;
-				}
 				Free_Node(Node);
-				return;
+				break;
 			}
 
 			dbg_printf("GRE proto encapsulation: type: 0x%x\n", ethertype);
@@ -791,9 +782,9 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 	}
 
 	if ( defragmented ) {
-		LogError("Defragmented buffer not freed for proto %u", proto);	
 		free(defragmented);
 		defragmented = NULL;
+		dbg_printf("Defragmented buffer freed for proto %u", proto);	
 	}
 
 
