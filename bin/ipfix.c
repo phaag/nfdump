@@ -112,6 +112,7 @@ typedef struct sequence_map_s {
 #define zero32			17
 #define zero64			18
 #define zero128			19
+#define Time32Delta		20
 
 	uint32_t	id;				// sequence ID as defined above
 	uint16_t	input_offset;	// copy/process data at this input offset
@@ -266,6 +267,9 @@ static struct ipfix_element_map_s {
 	{ IPFIX_postSourceMacAddress, 		 _6bytes,   _8bytes,  move_mac, zero64, EX_MAC_2},
 	{ IPFIX_flowStartMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero32, COMMON_BLOCK},
 	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero32, COMMON_BLOCK},
+	// the following to records do not have a data record representation
+	{ IPFIX_flowStartDeltaMicroseconds,	 _4bytes,         0,  Time32Delta, zero32, COMMON_BLOCK},
+	{ IPFIX_flowEndDeltaMicroseconds,	 _4bytes,         0,  Time32Delta, zero32, COMMON_BLOCK},
 	{0, 0, 0}
 };
 
@@ -552,6 +556,7 @@ input_translation_t *table, *next;
 static inline void PushSequence(input_translation_t *table, uint16_t Type, uint32_t *offset, void *stack) {
 uint32_t i = table->number_of_sequences;
 uint32_t index = cache.lookup_info[Type].index;
+uint16_t out_length = ipfix_element_map[index].out_length;
 
 	if ( table->number_of_sequences >= cache.max_ipfix_elements ) {
 		LogError("Process_ipfix: Software bug! Sequence table full. at %s line %d", 
@@ -564,19 +569,24 @@ uint32_t index = cache.lookup_info[Type].index;
 	if ( cache.lookup_info[Type].found ) {
 			table->sequence[i].id = ipfix_element_map[index].sequence;
 			table->sequence[i].input_offset  = cache.lookup_info[Type].offset;
-			table->sequence[i].output_offset = *offset;
+			if (out_length)
+				table->sequence[i].output_offset = *offset;
+			// else left uninitialized
 			table->sequence[i].stack = stack;
 	} else {
 			table->sequence[i].id = ipfix_element_map[index].zero_sequence;
 			table->sequence[i].input_offset  = 0;
-			table->sequence[i].output_offset = *offset;
+			if (out_length)
+				table->sequence[i].output_offset = *offset;
+			// else left uninitialized
 			table->sequence[i].stack = NULL;
 	}
 	dbg_printf("Push: sequence: %u, Type: %u, length: %u, out length: %u, id: %u, in offset: %u, out offset: %u\n",
 		i, Type, ipfix_element_map[index].length, ipfix_element_map[index].out_length, table->sequence[i].id, 
 		table->sequence[i].input_offset, table->sequence[i].output_offset);
 	table->number_of_sequences++;
-	(*offset) += ipfix_element_map[index].out_length;
+	if (out_length)
+		(*offset) += out_length;
 
 } // End of PushSequence
 
@@ -709,6 +719,9 @@ size_t				size_required;
 
 
 	// Optional extensions
+	PushSequence( table, IPFIX_flowStartDeltaMicroseconds, 0, &table->flow_start);
+	PushSequence( table, IPFIX_flowEndDeltaMicroseconds, 0, &table->flow_end);
+
 	next_extension = 0;
 	for (i=4; extension_descriptor[i].id; i++ ) {
 		uint32_t map_index = i;
@@ -1380,7 +1393,7 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 } // End of Process_ipfix_option_templates
 
 
-static inline void Process_ipfix_data(exporter_ipfix_domain_t *exporter, void *data_flowset, FlowSource_t *fs, input_translation_t *table ){
+static inline void Process_ipfix_data(exporter_ipfix_domain_t *exporter, uint32_t ExportTime, void *data_flowset, FlowSource_t *fs, input_translation_t *table ){
 uint64_t			sampling_rate;
 uint32_t			size_left;
 uint8_t				*in, *out;
@@ -1576,6 +1589,10 @@ char				*string;
 						*((uint64_t *)&out[output_offset]) = 0;
 						*((uint64_t *)&out[output_offset+8]) = 0;
 					break;
+				case Time32Delta:
+					{ uint32_t DeltaMilliseconds = Get_val32((void *)&in[input_offset]) / 1000;
+					  *(uint64_t *)stack = (uint64_t)ExportTime * 1000 - DeltaMilliseconds;
+					} break;
 				
 				default:
 					LogError("Process_ipfix: Software bug! Unknown Sequence: %u. at %s line %d", 
@@ -1892,7 +1909,7 @@ static uint32_t		packet_cntr = 0;
 					dbg_printf("Process data flowset, length: %u\n", flowset_length);
 					table = GetTranslationTable(exporter, flowset_id);
 					if ( table ) {
-						Process_ipfix_data(exporter, flowset_header, fs, table);
+						Process_ipfix_data(exporter, ExportTime, flowset_header, fs, table);
 						exporter->DataRecords++;
 					} else if ( HasOptionTable(fs, flowset_id) ) {
 						Process_ipfix_option_data(exporter, flowset_header, fs);
