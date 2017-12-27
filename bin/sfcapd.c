@@ -91,7 +91,7 @@
 
 #include "expire.h"
 
-#include "sflow.h"
+#include "sflow_nfdump.h"
 
 #define DEFAULTSFLOWPORT "6343"
 

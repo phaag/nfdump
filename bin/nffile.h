@@ -29,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nffile.h 40 2009-12-16 10:41:44Z haag $
- *
- *  $LastChangedRevision: 40 $
- *	
  */
 
 #ifndef _NFFILE_H
@@ -345,7 +339,7 @@ typedef struct nffile_s {
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
  * |  2 |                          last (21)                        |fwd_status(89)| tcpflags (6) |  proto (4)   |  src tos (5) |
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  3 |           srcport (7)       |   dstport(11)/ICMP (32)     |          exporter ID        |           <free>            |
+ * |  3 |           srcport (7)       |   dstport(11)/ICMP (32)     |          exporter ID        |  reserved icmp type/code    |
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
 
  * 
@@ -494,8 +488,8 @@ typedef struct ip_addr_s {
 #define IP_ADDR_T
 } ip_addr_t;
 
-#define v4 ip_union._v4
-#define v6 ip_union._v6
+#define V4 ip_union._v4
+#define V6 ip_union._v6
 
  /*
  * Extension 2: 
@@ -1504,7 +1498,6 @@ typedef struct master_record_s {
 		};
 		uint16_t icmp;
 	};
-
 
 #ifdef WORDS_BIGENDIAN
 #	define OffsetPort 			3

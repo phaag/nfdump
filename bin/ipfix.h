@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  All rights reserved.
@@ -27,12 +28,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author:$
- *
- *  $Id:$
- *
- *  $LastChangedRevision:$
- *	
  */
 
 #ifndef _IPFIX_H
@@ -260,7 +255,8 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_packetTotalCount		 	 	 86
 #define IPFIX_flowStartMilliseconds			152
 #define IPFIX_flowEndMilliseconds			153
-// reserved 89
+#define IPFIX_flowStartDeltaMicroseconds	158
+#define IPFIX_flowEndDeltaMicroseconds		159
 
 /* prototypes */
 int Init_IPFIX(void);

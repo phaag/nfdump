@@ -1543,10 +1543,10 @@ char				*string;
 
 				// apply IP mask from aggregation, to provide a pretty output
 				if ( FlowTable->has_masks ) {
-					flow_record->v6.srcaddr[0] &= FlowTable->IPmask[0];
-					flow_record->v6.srcaddr[1] &= FlowTable->IPmask[1];
-					flow_record->v6.dstaddr[0] &= FlowTable->IPmask[2];
-					flow_record->v6.dstaddr[1] &= FlowTable->IPmask[3];
+					flow_record->V6.srcaddr[0] &= FlowTable->IPmask[0];
+					flow_record->V6.srcaddr[1] &= FlowTable->IPmask[1];
+					flow_record->V6.dstaddr[0] &= FlowTable->IPmask[2];
+					flow_record->V6.dstaddr[1] &= FlowTable->IPmask[3];
 				}
 
 				if ( aggr_record_mask ) {
@@ -1718,10 +1718,10 @@ int	i, max;
 		
 		// apply IP mask from aggregation, to provide a pretty output
 		if ( FlowTable->has_masks ) {
-			flow_record->v6.srcaddr[0] &= FlowTable->IPmask[0];
-			flow_record->v6.srcaddr[1] &= FlowTable->IPmask[1];
-			flow_record->v6.dstaddr[0] &= FlowTable->IPmask[2];
-			flow_record->v6.dstaddr[1] &= FlowTable->IPmask[3];
+			flow_record->V6.srcaddr[0] &= FlowTable->IPmask[0];
+			flow_record->V6.srcaddr[1] &= FlowTable->IPmask[1];
+			flow_record->V6.dstaddr[0] &= FlowTable->IPmask[2];
+			flow_record->V6.dstaddr[1] &= FlowTable->IPmask[3];
 		}
 
 		if ( FlowTable->apply_netbits ) {
@@ -1887,12 +1887,12 @@ uint64_t _tmp_ip[2];
 uint64_t _tmp_l;
 uint32_t _tmp;
 
-	_tmp_ip[0] = flow_record->v6.srcaddr[0];
-	_tmp_ip[1] = flow_record->v6.srcaddr[1];
-	flow_record->v6.srcaddr[0] = flow_record->v6.dstaddr[0];
-	flow_record->v6.srcaddr[1] = flow_record->v6.dstaddr[1];
-	flow_record->v6.dstaddr[0] = _tmp_ip[0];
-	flow_record->v6.dstaddr[1] = _tmp_ip[1];
+	_tmp_ip[0] = flow_record->V6.srcaddr[0];
+	_tmp_ip[1] = flow_record->V6.srcaddr[1];
+	flow_record->V6.srcaddr[0] = flow_record->V6.dstaddr[0];
+	flow_record->V6.srcaddr[1] = flow_record->V6.dstaddr[1];
+	flow_record->V6.dstaddr[0] = _tmp_ip[0];
+	flow_record->V6.dstaddr[1] = _tmp_ip[1];
 
 	_tmp = flow_record->srcport;
 	flow_record->srcport = flow_record->dstport;

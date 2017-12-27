@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nflowcache.c 40 2009-12-16 10:41:44Z haag $
- *
- *  $LastChangedRevision: 40 $
- *	
  */
 
 #include "config.h"
@@ -916,20 +911,20 @@ Default_key_t *keyptr;
 	} else if ( swap_flow ) {
 		// default 5-tuple aggregation for bidirectional flows
 		keyptr = (Default_key_t *)keymem;
-		keyptr->srcaddr[0]	= flow_record->v6.dstaddr[0];
-		keyptr->srcaddr[1]	= flow_record->v6.dstaddr[1];
-		keyptr->dstaddr[0]	= flow_record->v6.srcaddr[0];
-		keyptr->dstaddr[1]	= flow_record->v6.srcaddr[1];
+		keyptr->srcaddr[0]	= flow_record->V6.dstaddr[0];
+		keyptr->srcaddr[1]	= flow_record->V6.dstaddr[1];
+		keyptr->dstaddr[0]	= flow_record->V6.srcaddr[0];
+		keyptr->dstaddr[1]	= flow_record->V6.srcaddr[1];
 		keyptr->srcport		= flow_record->dstport;
 		keyptr->dstport		= flow_record->srcport;
 		keyptr->proto		= flow_record->prot;
 	} else {
 		// default 5-tuple aggregation
 		keyptr = (Default_key_t *)keymem;
-		keyptr->srcaddr[0]	= flow_record->v6.srcaddr[0];
-		keyptr->srcaddr[1]	= flow_record->v6.srcaddr[1];
-		keyptr->dstaddr[0]	= flow_record->v6.dstaddr[0];
-		keyptr->dstaddr[1]	= flow_record->v6.dstaddr[1];
+		keyptr->srcaddr[0]	= flow_record->V6.srcaddr[0];
+		keyptr->srcaddr[1]	= flow_record->V6.srcaddr[1];
+		keyptr->dstaddr[0]	= flow_record->V6.dstaddr[0];
+		keyptr->dstaddr[1]	= flow_record->V6.dstaddr[1];
 		keyptr->srcport		= flow_record->srcport;
 		keyptr->dstport		= flow_record->dstport;
 		keyptr->proto		= flow_record->prot;

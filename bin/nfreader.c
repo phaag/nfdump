@@ -29,13 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nfreader.c 48 2010-01-02 08:06:27Z haag $
- *
- *  $LastChangedRevision: 48 $
- *	
- *
  */
 
 /* 
@@ -124,17 +117,17 @@ struct tm 	*ts;
 master_record_t *r = (master_record_t *)record;
 
 	if ( (r->flags & FLAG_IPV6_ADDR ) != 0 ) { // IPv6
-		r->v6.srcaddr[0] = htonll(r->v6.srcaddr[0]);
-		r->v6.srcaddr[1] = htonll(r->v6.srcaddr[1]);
-		r->v6.dstaddr[0] = htonll(r->v6.dstaddr[0]);
-		r->v6.dstaddr[1] = htonll(r->v6.dstaddr[1]);
-		inet_ntop(AF_INET6, r->v6.srcaddr, as, sizeof(as));
-		inet_ntop(AF_INET6, r->v6.dstaddr, ds, sizeof(ds));
+		r->V6.srcaddr[0] = htonll(r->V6.srcaddr[0]);
+		r->V6.srcaddr[1] = htonll(r->V6.srcaddr[1]);
+		r->V6.dstaddr[0] = htonll(r->V6.dstaddr[0]);
+		r->V6.dstaddr[1] = htonll(r->V6.dstaddr[1]);
+		inet_ntop(AF_INET6, r->V6.srcaddr, as, sizeof(as));
+		inet_ntop(AF_INET6, r->V6.dstaddr, ds, sizeof(ds));
 	} else {	// IPv4
-		r->v4.srcaddr = htonl(r->v4.srcaddr);
-		r->v4.dstaddr = htonl(r->v4.dstaddr);
-		inet_ntop(AF_INET, &r->v4.srcaddr, as, sizeof(as));
-		inet_ntop(AF_INET, &r->v4.dstaddr, ds, sizeof(ds));
+		r->V4.srcaddr = htonl(r->V4.srcaddr);
+		r->V4.dstaddr = htonl(r->V4.dstaddr);
+		inet_ntop(AF_INET, &r->V4.srcaddr, as, sizeof(as));
+		inet_ntop(AF_INET, &r->V4.dstaddr, ds, sizeof(ds));
 	}
 	as[40-1] = 0;
 	ds[40-1] = 0;

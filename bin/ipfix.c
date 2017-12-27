@@ -28,12 +28,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author:$
- *
- *  $Id:$
- *
- *  $LastChangedRevision:$
- *	
  */
 
 #include "config.h"
@@ -106,12 +100,13 @@ typedef struct sequence_map_s {
 #define move_mac		11
 #define move_mpls 		12
 #define Time64Mili 		13
-#define saveICMP 		14
-#define zero8			15
-#define zero16			16
-#define zero32			17
-#define zero64			18
-#define zero128			19
+#define TimeDeltaMicro 	14
+#define saveICMP 		15
+#define zero8			16
+#define zero16			17
+#define zero32			18
+#define zero64			19
+#define zero128			20
 
 	uint32_t	id;				// sequence ID as defined above
 	uint16_t	input_offset;	// copy/process data at this input offset
@@ -135,6 +130,7 @@ typedef struct input_translation_s {
 	uint32_t	output_record_size;		// required size in nfdump format
 
 	// tmp vars needed while processing the data record
+	int			delta_time;				// delta micro or absolute ms time stamps
 	uint64_t	flow_start;				// start time in msec
 	uint64_t	flow_end;				// end time in msec
 	uint32_t	ICMP_offset;			// offset of ICMP type/code in data stream
@@ -266,6 +262,8 @@ static struct ipfix_element_map_s {
 	{ IPFIX_postSourceMacAddress, 		 _6bytes,   _8bytes,  move_mac, zero64, EX_MAC_2},
 	{ IPFIX_flowStartMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero32, COMMON_BLOCK},
 	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero32, COMMON_BLOCK},
+	{ IPFIX_flowStartDeltaMicroseconds,	 _4bytes,   _4bytes,  TimeDeltaMicro, zero32, COMMON_BLOCK},
+	{ IPFIX_flowEndDeltaMicroseconds, 	 _4bytes,   _4bytes,  TimeDeltaMicro, zero32, COMMON_BLOCK},
 	{0, 0, 0}
 };
 
@@ -319,6 +317,8 @@ static inline void Process_ipfix_template_withdraw(exporter_ipfix_domain_t *expo
 
 static inline void  Process_ipfix_option_data(exporter_ipfix_domain_t *exporter, void *data_flowset, FlowSource_t *fs);
 
+static inline void Process_ipfix_data(exporter_ipfix_domain_t *exporter, uint32_t ExportTime, void *data_flowset, FlowSource_t *fs, input_translation_t *table );
+
 #include "inline.c"
 #include "nffile_inline.c"
 
@@ -356,18 +356,18 @@ uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
 
 	while ( *e ) {
 		if ( (*e)->info.id == ObservationDomain && (*e)->info.version == 10 && 
-			 (*e)->info.ip.v6[0] == fs->ip.v6[0] && (*e)->info.ip.v6[1] == fs->ip.v6[1]) 
+			 (*e)->info.ip.V6[0] == fs->ip.V6[0] && (*e)->info.ip.V6[1] == fs->ip.V6[1]) 
 			return *e;
 		e = &((*e)->next);
 	}
 
 	if ( fs->sa_family == AF_INET ) {
-		uint32_t _ip = htonl(fs->ip.v4);
+		uint32_t _ip = htonl(fs->ip.V4);
 		inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
 	} else if ( fs->sa_family == AF_INET6 ) {
 		uint64_t _ip[2];
-		_ip[0] = htonll(fs->ip.v6[0]);
-		_ip[1] = htonll(fs->ip.v6[1]);
+		_ip[0] = htonll(fs->ip.V6[0]);
+		_ip[1] = htonll(fs->ip.V6[1]);
 		inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
 	} else {
 		strncpy(ipstr, "<unknown>", IP_STRING_LEN);
@@ -637,7 +637,8 @@ size_t				size_required;
 	table->flags			= 0;
 	SetFlag(table->flags, FLAG_PKG_64);
 	SetFlag(table->flags, FLAG_BYTES_64);
-	table->ICMP_offset	= 0;
+	table->delta_time		= 0;
+	table->ICMP_offset		= 0;
 //	table->sampler_offset 	= 0;
 //	table->sampler_size		= 0;
 //	table->engine_offset 	= 0;
@@ -658,10 +659,20 @@ size_t				size_required;
 	// The order we Push all ipfix elements, must corresponde to the structure of the common record
 	// followed by all available extension in the extension map
 	offset = BYTE_OFFSET_first;
-	PushSequence( table, IPFIX_flowStartMilliseconds, &offset, &table->flow_start);
-	offset = BYTE_OFFSET_first + 4;
-	PushSequence( table, IPFIX_flowEndMilliseconds, &offset, &table->flow_end);
-	offset = BYTE_OFFSET_first + 8;
+	if ( cache.lookup_info[IPFIX_flowStartDeltaMicroseconds].found ) {
+		PushSequence( table, IPFIX_flowStartDeltaMicroseconds, &offset, &table->flow_start);
+		offset = BYTE_OFFSET_first + 4;
+		PushSequence( table, IPFIX_flowEndDeltaMicroseconds, &offset, &table->flow_end);
+		offset = BYTE_OFFSET_first + 8;
+		table->delta_time = 1;
+		dbg_printf("Time stamp: flow start/end delta microseconds\n");
+	} else if ( cache.lookup_info[IPFIX_flowStartMilliseconds].found ) {
+		PushSequence( table, IPFIX_flowStartMilliseconds, &offset, &table->flow_start);
+		offset = BYTE_OFFSET_first + 4;
+		PushSequence( table, IPFIX_flowEndMilliseconds, &offset, &table->flow_end);
+		offset = BYTE_OFFSET_first + 8;
+		dbg_printf("Time stamp: flow start/end absolute milliseconds\n");
+	}
 	offset +=1;	// Skip netflow v9 fwd status
 	PushSequence( table, IPFIX_tcpControlBits, &offset, NULL);
 	PushSequence( table, IPFIX_protocolIdentifier, &offset, NULL);
@@ -1133,7 +1144,7 @@ uint16_t Offset = 0;
 				fs->sa_family == PF_INET6 ? "ipv6" : "ipv4", EX_ROUTER_IP_v4);
 		}
 
-		// XXX for now, we do not stre router ID in IPFIX
+		// XXX for now, we do not store router ID in IPFIX
 		extension_descriptor[EX_ROUTER_ID].enabled = 0;
 
 /*	
@@ -1380,7 +1391,7 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 } // End of Process_ipfix_option_templates
 
 
-static inline void Process_ipfix_data(exporter_ipfix_domain_t *exporter, void *data_flowset, FlowSource_t *fs, input_translation_t *table ){
+static inline void Process_ipfix_data(exporter_ipfix_domain_t *exporter, uint32_t ExportTime, void *data_flowset, FlowSource_t *fs, input_translation_t *table ){
 uint64_t			sampling_rate;
 uint32_t			size_left;
 uint8_t				*in, *out;
@@ -1551,6 +1562,11 @@ char				*string;
 					  *(uint64_t *)stack = DateMiliseconds;
 
 					} break;
+				case TimeDeltaMicro:
+					{ uint64_t DeltaMicroSec = Get_val32((void *)&in[input_offset]);
+					  *(uint64_t *)stack = ((1000000LL * (uint64_t)ExportTime) - DeltaMicroSec) / 1000LL;
+
+					} break;
 				case move_mac:
 					/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
 					{ type_mask_t t;
@@ -1621,15 +1637,15 @@ char				*string;
 				// 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs 
 				type_mask_t t;
 					  
-				t.val.val64 = exporter->info.ip.v6[0];
+				t.val.val64 = exporter->info.ip.V6[0];
 				*((uint32_t *)&out[output_offset]) 	  = t.val.val32[0];
 				*((uint32_t *)&out[output_offset+4])  = t.val.val32[1];
 
-				t.val.val64 = exporter->info.ip.v6[1];
+				t.val.val64 = exporter->info.ip.V6[1];
 				*((uint32_t *)&out[output_offset+8])  = t.val.val32[0];
 				*((uint32_t *)&out[output_offset+12]) = t.val.val32[1];
 			} else {
-				*((uint32_t *)&out[output_offset]) = exporter->info.ip.v4;
+				*((uint32_t *)&out[output_offset]) = exporter->info.ip.V4;
 			}
 		}
 
@@ -1892,7 +1908,7 @@ static uint32_t		packet_cntr = 0;
 					dbg_printf("Process data flowset, length: %u\n", flowset_length);
 					table = GetTranslationTable(exporter, flowset_id);
 					if ( table ) {
-						Process_ipfix_data(exporter, flowset_header, fs, table);
+						Process_ipfix_data(exporter, ExportTime, flowset_header, fs, table);
 						exporter->DataRecords++;
 					} else if ( HasOptionTable(fs, flowset_id) ) {
 						Process_ipfix_option_data(exporter, flowset_header, fs);

@@ -475,18 +475,18 @@ exporter_v9_domain_t **e = (exporter_v9_domain_t **)&(fs->exporter_data);
 
 	while ( *e ) {
 		if ( (*e)->info.id == exporter_id && (*e)->info.version == 9 && 
-			 (*e)->info.ip.v6[0] == fs->ip.v6[0] && (*e)->info.ip.v6[1] == fs->ip.v6[1]) 
+			 (*e)->info.ip.V6[0] == fs->ip.V6[0] && (*e)->info.ip.V6[1] == fs->ip.V6[1]) 
 			return *e;
 		e = &((*e)->next);
 	}
 
 	if ( fs->sa_family == AF_INET ) {
-		uint32_t _ip = htonl(fs->ip.v4);
+		uint32_t _ip = htonl(fs->ip.V4);
 		inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
 	} else if ( fs->sa_family == AF_INET6 ) {
 		uint64_t _ip[2];
-		_ip[0] = htonll(fs->ip.v6[0]);
-		_ip[1] = htonll(fs->ip.v6[1]);
+		_ip[0] = htonll(fs->ip.V6[0]);
+		_ip[1] = htonll(fs->ip.V6[1]);
 		inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
 	} else {
 		strncpy(ipstr, "<unknown>", IP_STRING_LEN);
@@ -1845,15 +1845,15 @@ char				*string;
 				/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
 				type_mask_t t;
 					  
-				t.val.val64 = exporter->info.ip.v6[0];
+				t.val.val64 = exporter->info.ip.V6[0];
 				*((uint32_t *)&out[output_offset]) 	  = t.val.val32[0];
 				*((uint32_t *)&out[output_offset+4])  = t.val.val32[1];
 
-				t.val.val64 = exporter->info.ip.v6[1];
+				t.val.val64 = exporter->info.ip.V6[1];
 				*((uint32_t *)&out[output_offset+8])  = t.val.val32[0];
 				*((uint32_t *)&out[output_offset+12]) = t.val.val32[1];
 			} else {
-				*((uint32_t *)&out[output_offset]) = exporter->info.ip.v4;
+				*((uint32_t *)&out[output_offset]) = exporter->info.ip.V4;
 			}
 		}
 
@@ -2626,18 +2626,18 @@ uint16_t	icmp;
 
 	// IP address info
 	if ((master_record->flags & FLAG_IPV6_ADDR) != 0 ) { // IPv6
-		master_record->v6.srcaddr[0] = htonll(master_record->v6.srcaddr[0]);
-		master_record->v6.srcaddr[1] = htonll(master_record->v6.srcaddr[1]);
-		master_record->v6.dstaddr[0] = htonll(master_record->v6.dstaddr[0]);
-		master_record->v6.dstaddr[1] = htonll(master_record->v6.dstaddr[1]);
+		master_record->V6.srcaddr[0] = htonll(master_record->V6.srcaddr[0]);
+		master_record->V6.srcaddr[1] = htonll(master_record->V6.srcaddr[1]);
+		master_record->V6.dstaddr[0] = htonll(master_record->V6.dstaddr[0]);
+		master_record->V6.dstaddr[1] = htonll(master_record->V6.dstaddr[1]);
 		// keep compiler happy
-		// memcpy(peer->buff_ptr, master_record->v6.srcaddr, 4 * sizeof(uint64_t));
+		// memcpy(peer->buff_ptr, master_record->V6.srcaddr, 4 * sizeof(uint64_t));
 		memcpy(peer->buff_ptr, master_record->ip_union._ip_64.addr, 4 * sizeof(uint64_t));
 		peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + 4 * sizeof(uint64_t));
 	} else {
-		Put_val32(htonl(master_record->v4.srcaddr), peer->buff_ptr);
+		Put_val32(htonl(master_record->V4.srcaddr), peer->buff_ptr);
 		peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint32_t));
-		Put_val32(htonl(master_record->v4.dstaddr), peer->buff_ptr);
+		Put_val32(htonl(master_record->V4.dstaddr), peer->buff_ptr);
 		peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint32_t));
 	}
 
@@ -2712,23 +2712,23 @@ uint16_t	icmp;
 				peer->buff_ptr = (void *)tpl->data;
 				} break;
 			case EX_NEXT_HOP_v4:
-				Put_val32(htonl(master_record->ip_nexthop.v4), peer->buff_ptr);
+				Put_val32(htonl(master_record->ip_nexthop.V4), peer->buff_ptr);
 				peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint32_t));
 				break;
 			case EX_NEXT_HOP_v6: 
-				Put_val64(htonll(master_record->ip_nexthop.v6[0]), peer->buff_ptr);
+				Put_val64(htonll(master_record->ip_nexthop.V6[0]), peer->buff_ptr);
 				peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint64_t));
-				Put_val64(htonll(master_record->ip_nexthop.v6[1]), peer->buff_ptr);
+				Put_val64(htonll(master_record->ip_nexthop.V6[1]), peer->buff_ptr);
 				peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint64_t));
 				break;
 			case EX_NEXT_HOP_BGP_v4: 
-				Put_val32(htonl(master_record->bgp_nexthop.v4), peer->buff_ptr);
+				Put_val32(htonl(master_record->bgp_nexthop.V4), peer->buff_ptr);
 				peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint32_t));
 				break;
 			case EX_NEXT_HOP_BGP_v6: 
-				Put_val64(htonll(master_record->bgp_nexthop.v6[0]), peer->buff_ptr);
+				Put_val64(htonll(master_record->bgp_nexthop.V6[0]), peer->buff_ptr);
 				peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint64_t));
-				Put_val64(htonll(master_record->bgp_nexthop.v6[1]), peer->buff_ptr);
+				Put_val64(htonll(master_record->bgp_nexthop.V6[1]), peer->buff_ptr);
 				peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint64_t));
 				break;
 			case EX_VLAN: 

@@ -96,18 +96,18 @@ static void SetIPaddress(master_record_t *record, int af,  char *src_ip, char *d
 
 	if ( af == PF_INET6 ) {
 		SetFlag(record->flags, FLAG_IPV6_ADDR);
-		inet_pton(PF_INET6, src_ip, &(record->v6.srcaddr[0]));
-		inet_pton(PF_INET6, dst_ip, &(record->v6.dstaddr[0]));
-		record->v6.srcaddr[0] = ntohll(record->v6.srcaddr[0]);
-		record->v6.srcaddr[1] = ntohll(record->v6.srcaddr[1]);
-		record->v6.dstaddr[0] = ntohll(record->v6.dstaddr[0]);
-		record->v6.dstaddr[1] = ntohll(record->v6.dstaddr[1]);
+		inet_pton(PF_INET6, src_ip, &(record->V6.srcaddr[0]));
+		inet_pton(PF_INET6, dst_ip, &(record->V6.dstaddr[0]));
+		record->V6.srcaddr[0] = ntohll(record->V6.srcaddr[0]);
+		record->V6.srcaddr[1] = ntohll(record->V6.srcaddr[1]);
+		record->V6.dstaddr[0] = ntohll(record->V6.dstaddr[0]);
+		record->V6.dstaddr[1] = ntohll(record->V6.dstaddr[1]);
 	} else {
 		ClearFlag(record->flags, FLAG_IPV6_ADDR);
-		inet_pton(PF_INET, src_ip, &record->v4.srcaddr);
-		inet_pton(PF_INET, dst_ip, &record->v4.dstaddr);
-		record->v4.srcaddr = ntohl(record->v4.srcaddr);
-		record->v4.dstaddr = ntohl(record->v4.dstaddr);
+		inet_pton(PF_INET, src_ip, &record->V4.srcaddr);
+		inet_pton(PF_INET, dst_ip, &record->V4.dstaddr);
+		record->V4.srcaddr = ntohl(record->V4.srcaddr);
+		record->V4.dstaddr = ntohl(record->V4.dstaddr);
 	}
 
 } // End of SetIPaddress
@@ -116,13 +116,13 @@ static void SetNextIPaddress(master_record_t *record, int af,  char *next_ip) {
 
 	if ( af == PF_INET6 ) {
 		SetFlag(record->flags, FLAG_IPV6_NH);
-		inet_pton(PF_INET6, next_ip, &(record->ip_nexthop.v6[0]));
-		record->ip_nexthop.v6[0] = ntohll(record->ip_nexthop.v6[0]);
-		record->ip_nexthop.v6[1] = ntohll(record->ip_nexthop.v6[1]);
+		inet_pton(PF_INET6, next_ip, &(record->ip_nexthop.V6[0]));
+		record->ip_nexthop.V6[0] = ntohll(record->ip_nexthop.V6[0]);
+		record->ip_nexthop.V6[1] = ntohll(record->ip_nexthop.V6[1]);
 	} else {
 		ClearFlag(record->flags, FLAG_IPV6_NH);
-		inet_pton(PF_INET, next_ip, &record->ip_nexthop.v4);
-		record->ip_nexthop.v4 = ntohl(record->ip_nexthop.v4);
+		inet_pton(PF_INET, next_ip, &record->ip_nexthop.V4);
+		record->ip_nexthop.V4 = ntohl(record->ip_nexthop.V4);
 	}
 
 } // End of SetNextIPaddress
@@ -131,13 +131,13 @@ static void SetRouterIPaddress(master_record_t *record, int af,  char *next_ip) 
 
 	if ( af == PF_INET6 ) {
 		SetFlag(record->flags, FLAG_IPV6_NH);
-		inet_pton(PF_INET6, next_ip, &(record->ip_router.v6[0]));
-		record->ip_router.v6[0] = ntohll(record->ip_router.v6[0]);
-		record->ip_router.v6[1] = ntohll(record->ip_router.v6[1]);
+		inet_pton(PF_INET6, next_ip, &(record->ip_router.V6[0]));
+		record->ip_router.V6[0] = ntohll(record->ip_router.V6[0]);
+		record->ip_router.V6[1] = ntohll(record->ip_router.V6[1]);
 	} else {
 		ClearFlag(record->flags, FLAG_IPV6_NH);
-		inet_pton(PF_INET, next_ip, &record->ip_router.v4);
-		record->ip_router.v4 = ntohl(record->ip_router.v4);
+		inet_pton(PF_INET, next_ip, &record->ip_router.V4);
+		record->ip_router.V4 = ntohl(record->ip_router.V4);
 	}
 
 } // End of SetRouterIPaddress
@@ -146,13 +146,13 @@ static void SetBGPNextIPaddress(master_record_t *record, int af,  char *next_ip)
 
 	if ( af == PF_INET6 ) {
 		SetFlag(record->flags, FLAG_IPV6_NHB);
-		inet_pton(PF_INET6, next_ip, &(record->bgp_nexthop.v6[0]));
-		record->bgp_nexthop.v6[0] = ntohll(record->bgp_nexthop.v6[0]);
-		record->bgp_nexthop.v6[1] = ntohll(record->bgp_nexthop.v6[1]);
+		inet_pton(PF_INET6, next_ip, &(record->bgp_nexthop.V6[0]));
+		record->bgp_nexthop.V6[0] = ntohll(record->bgp_nexthop.V6[0]);
+		record->bgp_nexthop.V6[1] = ntohll(record->bgp_nexthop.V6[1]);
 	} else {
 		ClearFlag(record->flags, FLAG_IPV6_NHB);
-		inet_pton(PF_INET, next_ip, &record->bgp_nexthop.v4);
-		record->bgp_nexthop.v4 = ntohl(record->bgp_nexthop.v4);
+		inet_pton(PF_INET, next_ip, &record->bgp_nexthop.V4);
+		record->bgp_nexthop.V4 = ntohl(record->bgp_nexthop.V4);
 	}
 
 } // End of SetBGPNextIPaddress

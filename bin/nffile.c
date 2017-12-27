@@ -1213,19 +1213,19 @@ void		*p = (void *)input_record;
 	if ( (input_record->flags & FLAG_IPV6_ADDR) != 0 )	{ // IPv6
 		// IPv6
 		// keep compiler happy
-		// memcpy((void *)output_record->v6.srcaddr, p, 4 * sizeof(uint64_t));	
+		// memcpy((void *)output_record->V6.srcaddr, p, 4 * sizeof(uint64_t));	
 		memcpy((void *)output_record->ip_union._ip_64.addr, p, 4 * sizeof(uint64_t));	
 		p = (void *)((pointer_addr_t)p + 4 * sizeof(uint64_t));
 	} else { 	
 		// IPv4
 		u = (uint32_t *)p;
-		output_record->v6.srcaddr[0] = 0;
-		output_record->v6.srcaddr[1] = 0;
-		output_record->v4.srcaddr 	 = u[0];
+		output_record->V6.srcaddr[0] = 0;
+		output_record->V6.srcaddr[1] = 0;
+		output_record->V4.srcaddr 	 = u[0];
 
-		output_record->v6.dstaddr[0] = 0;
-		output_record->v6.dstaddr[1] = 0;
-		output_record->v4.dstaddr 	 = u[1];
+		output_record->V6.dstaddr[0] = 0;
+		output_record->V6.dstaddr[1] = 0;
+		output_record->V4.dstaddr 	 = u[1];
 		p = (void *)((pointer_addr_t)p + 2 * sizeof(uint32_t));
 	}
 
