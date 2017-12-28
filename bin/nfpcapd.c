@@ -140,7 +140,7 @@ int verbose = 0;
 
 static const char *nfdump_version = VERSION;
 
-static int launcher_alive, periodic_trigger, launcher_pid;
+static int launcher_pid;
 static pthread_mutex_t  m_done  = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t terminate = PTHREAD_COND_INITIALIZER;
 static pthread_key_t buffer_key;

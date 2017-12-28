@@ -64,17 +64,11 @@
 #include <stdint.h>
 #endif
 
-// #include "sflow.h" /* sFlow v5 */
+#include "sflow.h" /* sFlow v5 */
 #include "sflow_v2v4.h" /* sFlow v2/4 */
 #include "util.h"
 #include "sflow_process.h"
 #include "sflow_nfdump.h"
-
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
 
 static uint8_t bin2hex(int nib);
 static int printHex(const uint8_t *a, int len, char *buf, int bufLen, int marker, int bytesPerOutputLine);
@@ -1463,17 +1457,19 @@ static void readExtendedWifiRx(SFSample *sample)
 
 static void readExtendedWifiTx(SFSample *sample)
 {
+#ifdef DEVEL
   uint32_t i;
   uint8_t *bssid;
   char ssid[SFL_MAX_SSID_LEN+1];
   if(getString(sample, ssid, SFL_MAX_SSID_LEN) > 0) {
-    dbg_printf("tx_SSID %s\n", ssid);
+    printf("tx_SSID %s\n", ssid);
   }
 
   bssid = (uint8_t *)sample->datap;
-  dbg_printf("tx_BSSID ");
+  printf("tx_BSSID ");
   for(i = 0; i < 6; i++) dbg_printf("%02x", bssid[i]);
-  dbg_printf("\n");
+  printf("\n");
+#endif
   skipBytes(sample, 6);
 
   sf_log_next32(sample, "tx_version");
@@ -1754,6 +1750,12 @@ static void readFlowSample_http(SFSample *sample, uint32_t tag)
   uint32_t status;
   uint64_t resp_bytes;
 
+  // keep compiler happy
+  UNUSED(method);
+  UNUSED(protocol);
+  UNUSED(status);
+  UNUSED(resp_bytes);
+
   dbg_printf("flowSampleType http\n");
   method = sf_log_next32(sample, "http_method");
   protocol = sf_log_next32(sample, "http_protocol");
@@ -1931,6 +1933,9 @@ static void readExtendedProxySocket4(SFSample *sample)
   char buf[51];
 #endif
   SFLAddress ipsrc,ipdst;
+  // keep compiler happy
+  UNUSED(ipsrc);
+  UNUSED(ipdst);
   dbg_printf("extendedType proxy_socket4\n");
   sf_log_next32(sample, "proxy_socket4_ip_protocol");
   ipsrc.type = SFLADDRESSTYPE_IP_V4;
@@ -2028,15 +2033,19 @@ static void readExtendedVNI(SFSample *sample, char *prefix)
 
 static void readExtendedTCPInfo(SFSample *sample)
 {
-  char *direction;
   EnumPktDirection dirn = getData32(sample);
+  UNUSED(dirn); // keep compiler happy
+#ifdef DEVEL
+  char *direction;
   switch(dirn) {
   case PKTDIR_unknown: direction = "unknown"; break;
   case PKTDIR_received: direction = "received"; break;
   case PKTDIR_sent: direction = "sent"; break;
   default: direction = "<bad value>"; break;
   }
-  dbg_printf( "tcpinfo_direction %s\n", direction);
+  printf( "tcpinfo_direction %s\n", direction);
+#endif
+
   sf_log_next32(sample, "tcpinfo_send_mss");
   sf_log_next32(sample, "tcpinfo_receive_mss");
   sf_log_next32(sample, "tcpinfo_unacked_pkts");

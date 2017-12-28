@@ -547,6 +547,7 @@ typedef enum {
   SFLAPP_NUM_STATUS_CODES
 } EnumSFLAPPStatus;
 
+#ifdef DEVEL
   static const char *SFL_APP_STATUS_names[] = { "SUCCESS",
 						"OTHER",
 						"TIMEOUT",
@@ -558,6 +559,7 @@ typedef enum {
 						"NOT_FOUND",
 						"UNAVAILABLE",
 						"UNATHORIZED" };
+#endif
 
 /* Operation context */
 typedef struct {

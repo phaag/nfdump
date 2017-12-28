@@ -657,7 +657,6 @@ char	*bindhost, *datadir, pidstr[32], *launch_process;
 char	*userid, *groupid, *checkptr, *listenport, *mcastgroup, *extension_tags;
 char	*Ident, *pcap_file, *time_extension, pidfile[MAXPATHLEN];
 struct stat fstat;
-srecord_t	*commbuff;
 packet_function_t receive_packet;
 send_peer_t  peer;
 FlowSource_t *fs;
@@ -1011,8 +1010,6 @@ int	c;
 			close(sock);
 			exit(255);
 		}
-
-		commbuff = (srecord_t *)shmem;
 
 		launcher_pid = fork();
 		switch (launcher_pid) {

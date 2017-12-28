@@ -61,7 +61,7 @@
 enum { SRC_IP, DST_IP, UDP_PORT, TCP_PORT, ICMP_TYPE };
 
 static pcap_t	*pcap_handle;
-static uint32_t	tcp_count, udp_count, icmp_count, arp_count, unknow_count;
+static uint32_t	tcp_count, udp_count, arp_count, unknow_count;
 
 /*
  * Function prototypes

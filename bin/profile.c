@@ -29,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: profile.c 41 2009-12-31 14:46:28Z haag $
- *
- *  $LastChangedRevision: 41 $
- *      
  */
 
 #include "config.h"
@@ -357,7 +351,6 @@ void CloseChannels (time_t tslot, int compress) {
 dirstat_t	*dirstat;
 struct stat fstat;
 unsigned int num;
-int ret, update_ok;
 
 	for ( num = 0; num < num_channels; num++ ) {
 		if ( profile_channels[num].ofile ) {
@@ -368,10 +361,7 @@ int ret, update_ok;
 			profile_channels[num].nffile = DisposeFile(profile_channels[num].nffile);
 
 			stat(profile_channels[num].ofile, &fstat);
-
-			ret = ReadStatInfo(profile_channels[num].dirstat_path, &dirstat, CREATE_AND_LOCK);
-			update_ok = ret == STATFILE_OK;
-
+			ReadStatInfo(profile_channels[num].dirstat_path, &dirstat, CREATE_AND_LOCK);
 	
 			if ( rename(profile_channels[num].ofile, profile_channels[num].wfile) < 0 ) {
 				LogError("Failed to rename file %s to %s: %s\n", 

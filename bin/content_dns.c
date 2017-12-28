@@ -206,6 +206,9 @@ int i;
 	for (i=0; i<ancount && p < eod; i++ ) {
 		uint32_t type, class, ttl;
         int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
+		// keep compiler happy
+		UNUSED(class);
+		UNUSED(ttl);
         if(len < 0) {
             LogError("dn_expand() failed: %s", "");
         }

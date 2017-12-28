@@ -1322,6 +1322,8 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 		uint16_t id, length;
 		int Enterprise;
 
+		// keep compiler happy
+		UNUSED(enterprise_value);
 		id 	   = Get_val16(DataPtr); DataPtr += 2;
 		length = Get_val16(DataPtr); DataPtr += 2;
 		size_left -= 4;
