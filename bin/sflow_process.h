@@ -34,6 +34,8 @@
 #ifndef _SFLOW_PROCESS_H
 #define _SFLOW_PROCESS_H 1
 
+#include "config.h"
+
 #include <sys/types.h>
 #ifdef HAVE_STDINT_H
 #include <stdint.h>

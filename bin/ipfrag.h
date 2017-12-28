@@ -29,6 +29,18 @@
  *  
  */
 
+#ifndef _IPFRAG_H
+#define _IPFRAG_H 1
+
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include "rbtree.h"
+
 typedef struct hole_s {
 	struct hole_s *next;
 	uint32_t	first;
@@ -69,3 +81,4 @@ void *IPFrag_tree_Update(uint32_t src, uint32_t dst, uint32_t ident, uint32_t *l
 
 uint32_t IPFragEntries(void);
 
+#endif

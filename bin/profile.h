@@ -34,6 +34,10 @@
 #ifndef _PROFILE_H
 #define _PROFILE_H 1
 
+#include "nftree.h"
+#include "nffile.h"
+#include "nfstatfile.h"
+
 typedef struct profile_param_info_s {
 	struct profile_param_info_s *next;
 	int		profiletype;

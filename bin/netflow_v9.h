@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: netflow_v9.h 51 2010-01-29 09:01:54Z haag $
- *
- *  $LastChangedRevision: 51 $
- *	
  */
 
 /* v9 structures */
@@ -71,6 +66,17 @@
 
 #ifndef _NETFLOW_V9_H
 #define _NETFLOW_V9_H 1
+
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include "collector.h"
+#include "nfnet.h"
+#include "nffile.h"
 
 typedef struct netflow_v9_header {
 	uint16_t  version;

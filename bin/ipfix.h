@@ -33,6 +33,15 @@
 #ifndef _IPFIX_H
 #define _IPFIX_H 1
 
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include "collector.h"
+
 /* reference: http://tools.ietf.org/html/draft-ietf-ipfix-protocol-rfc5101bis-00 */
 
 typedef struct ipfix_header {

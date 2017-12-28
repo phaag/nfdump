@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: panonymizer.h 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
  */
 
 /* Original disclaimer
@@ -79,6 +74,13 @@
 
 #ifndef _PANONYMIZER_H_
 #define _PANONYMIZER_H_ 1
+
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
 
 #include "rijndael.h"
 

@@ -34,8 +34,12 @@
 #ifndef _NFFILE_H
 #define _NFFILE_H 1
 
-#ifdef HAVE_STDDEF_H
+#include "config.h"
+
 #include <stddef.h>
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
 #endif
 
 #define IDENTLEN	128

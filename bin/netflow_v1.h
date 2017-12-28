@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
@@ -33,6 +34,15 @@
 
 #ifndef _NETFLOW_V1_H
 #define _NETFLOW_V1_H 1
+
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include "collector.h"
 
 #define NETFLOW_V1_HEADER_LENGTH 16
 #define NETFLOW_V1_RECORD_LENGTH 48

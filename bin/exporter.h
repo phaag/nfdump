@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2012, Peter Haag
  *  
@@ -26,16 +27,19 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: peter $
- *
- *  $Id: exporter.h 224 2014-02-16 12:59:29Z peter $
- *
- *  $LastChangedRevision: 224 $
- *	
  */
 
 #ifndef _EXPORTER_H
 #define _EXPORTER_H 1
+
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include "nffile.h"
 
 int InitExporterList(void);
 

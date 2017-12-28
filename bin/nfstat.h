@@ -34,6 +34,17 @@
 #ifndef _NFSTAT_H
 #define _NFSTAT_H 1
 
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include "nf_common.h"
+#include "nfx.h"
+#include "nffile.h"
+
 /* Definitions */
 
 
