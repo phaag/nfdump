@@ -52,6 +52,10 @@
 #define v4 ip_union._v4
 #define v6 ip_union._v6
 
+#if !defined(__GLIBC__) 
+#include <signal.h>
+#endif
+
 struct FlowNode {
 	// tree
 	RB_ENTRY(FlowNode) entry;
