@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -27,12 +28,6 @@
  *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
- *  
- *  $Author: haag $
- *
- *  $Id: nfexpire.c 51 2010-01-29 09:01:54Z haag $
- *
- *  $LastChangedRevision: 51 $
  *  
  */
 
@@ -210,14 +205,13 @@ int i;
 
 int main( int argc, char **argv ) {
 struct stat fstat;
-int 		c, err, maxsize_set, maxlife_set;
+int 		c, maxsize_set, maxlife_set;
 int			do_rescan, do_expire, do_list, print_stat, do_update_param, print_books, is_profile, nfsen_format;
-char		*lifetime_string, *datadir;
+char		*datadir;
 uint64_t	maxsize, lifetime, low_water;
 uint32_t	runtime;
 channel_t	*channel, *current_channel;
 
-	lifetime_string = NULL;
 	datadir = NULL;
 	maxsize = lifetime = 0;
 	do_rescan  		= 0;
@@ -315,7 +309,7 @@ channel_t	*channel, *current_channel;
 		exit(250);
 	}
 
-	err  = stat(datadir, &fstat);
+	stat(datadir, &fstat);
 	if ( !(fstat.st_mode & S_IFDIR) ) {
 		fprintf(stderr, "No such directory: %s\n", datadir);
 		exit(250);

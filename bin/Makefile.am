@@ -111,7 +111,7 @@ nfpcapd_LDADD += -lpcap
 nfpcapd_LDFLAGS = -pthread
 endif
 
-sfcapd_SOURCES = sfcapd.c sflow_nfdump.c sflow_nfdump.h sflow.h sflow_v2v4.h \
+sfcapd_SOURCES = sfcapd.c sflow_nfdump.c sflow_nfdump.h sflow.h sflow_v2v4.h sflow_process.c  sflow_process.h\
 	$(nfstatfile) $(launch) \
 	$(nfnet) $(collector) $(bookkeeper) $(expire)
 sfcapd_LDADD = -lnfdump 

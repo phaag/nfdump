@@ -1203,14 +1203,14 @@ ipfix_template_record_t *ipfix_template_record;
 
 	// a template flowset can contain multiple records ( templates )
 	while ( size_left ) {
-		uint32_t id, count;
+		uint32_t id;
 
 		// map next record.
 		ipfix_template_record = (ipfix_template_record_t *)DataPtr;
 		size_left 		-= 4;
 
 		id 	  = ntohs(ipfix_template_record->TemplateID);
-		count = ntohs(ipfix_template_record->FieldCount);
+		// count = ntohs(ipfix_template_record->FieldCount);
 
 		if ( id == IPFIX_TEMPLATE_FLOWSET_ID ) {
 			// withdraw all templates
@@ -1234,8 +1234,7 @@ static inline void Process_ipfix_option_templates(exporter_ipfix_domain_t *expor
 uint8_t		*DataPtr;
 uint32_t	size_left, size_required, i;
 // uint32_t nr_scopes, nr_options;
-uint16_t	id, field_count, scope_field_count, offset, sampler_id_length;
-uint16_t	offset_sampler_id, offset_sampler_mode, offset_sampler_interval, found_sampler;
+uint16_t	id, field_count, scope_field_count, offset;
 uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sampling;
 
 	i = 0;	// keep compiler happy
@@ -1279,18 +1278,12 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 		return;
 	}
 
-	sampler_id_length			 = 0;
-	offset_sampler_id 			 = 0;
-	offset_sampler_mode 		 = 0;
-	offset_sampler_interval 	 = 0;
 	offset_std_sampler_interval  = 0;
 	offset_std_sampler_algorithm = 0;
-	found_sampler				 = 0;
 	found_std_sampling			 = 0;
 	offset = 0;
 
 	for ( i=0; i<scope_field_count; i++ ) {
-		uint32_t enterprise_value;
 		uint16_t id, length;
 		int Enterprise;
 
@@ -1313,11 +1306,10 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 					size_left, field_count);
 				return;
 			}
-			enterprise_value = Get_val32(DataPtr);
 			DataPtr += 4;
 			size_left -= 4;
 			dbg_printf(" [%i] Enterprise: 1, scope id: %u, scope length %u enterprise value: %u\n", 
-				i, id, length, enterprise_value);
+				i, id, length, Get_val32(DataPtr));
 		} else {
 			dbg_printf(" [%i] Enterprise: 0, scope id: %u, scope length %u\n", i, id, length);
 		}
@@ -1785,15 +1777,15 @@ uint8_t	 *in;
 void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 exporter_ipfix_domain_t	*exporter;
 ssize_t				size_left;
-uint32_t			ExportTime, ObservationDomain, Sequence, flowset_length;
+uint32_t			ExportTime, Sequence, flowset_length;
 ipfix_header_t		*ipfix_header;
 void				*flowset_header;
+
 #ifdef DEVEL
 static uint32_t		packet_cntr = 0;
-
-	packet_cntr++;
-	dbg_printf("Next packet: %u\n", packet_cntr);
+uint32_t 			ObservationDomain;
 #endif
+
 	size_left 	 = in_buff_cnt;
 	if ( size_left < IPFIX_HEADER_LENGTH ) {
 		LogError("Process_ipfix: Too little data for ipfix packet: '%lli'", (long long)size_left);
@@ -1801,9 +1793,14 @@ static uint32_t		packet_cntr = 0;
 	}
 
 	ipfix_header = (ipfix_header_t *)in_buff;
-	ObservationDomain 	 = ntohl(ipfix_header->ObservationDomain);
 	ExportTime 			 = ntohl(ipfix_header->ExportTime);
 	Sequence 			 = ntohl(ipfix_header->LastSequence);
+
+#ifdef DEVEL
+	ObservationDomain 	 = ntohl(ipfix_header->ObservationDomain);
+	packet_cntr++;
+	printf("Next packet: %u\n", packet_cntr);
+#endif
 
 	exporter	= GetExporter(fs, ipfix_header);
 	if ( !exporter ) {

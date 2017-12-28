@@ -1,6 +1,7 @@
 2017-12-27
 - Add ipfix delta timestamp elements 158/159. 
 - Update sflow code to commit 7322984 of https://github.com/sflow/sflowtool
+- Cleanup sflow code - uncomment unnecessary code
 
 2017-12-22
 - Fix potential memory leaks in nfpcapd

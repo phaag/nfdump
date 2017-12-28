@@ -653,7 +653,7 @@ srecord_t	*commbuff;
 
 int main(int argc, char **argv) {
  
-char	*bindhost, *filter, *datadir, pidstr[32], *launch_process;
+char	*bindhost, *datadir, pidstr[32], *launch_process;
 char	*userid, *groupid, *checkptr, *listenport, *mcastgroup, *extension_tags;
 char	*Ident, *pcap_file, *time_extension, pidfile[MAXPATHLEN];
 struct stat fstat;
@@ -664,7 +664,7 @@ FlowSource_t *fs;
 struct sigaction act;
 int		family, bufflen;
 time_t 	twin, t_start;
-int		sock, err, synctime, do_daemonize, expire, spec_time_extension, report_sequence;
+int		sock, synctime, do_daemonize, expire, spec_time_extension, report_sequence;
 int		subdir_index, compress;
 int	c;
 
@@ -679,7 +679,6 @@ int	c;
 	bindhost 		= NULL;
 	mcastgroup		= NULL;
 	pidfile[0]		= 0;
-	filter   		= NULL;
 	launch_process	= NULL;
 	userid 			= groupid = NULL;
 	twin	 		= TIME_WINDOW;
@@ -815,7 +814,7 @@ int	c;
 					fprintf(stderr, "ERROR: Path too long!\n");
 					exit(255);
 				}
-				err  = stat(datadir, &fstat);
+				stat(datadir, &fstat);
 				if ( !(fstat.st_mode & S_IFDIR) ) {
 					fprintf(stderr, "No such directory: %s\n", datadir);
 					break;
@@ -975,7 +974,7 @@ int	c;
 		exit(255);
 	} else {
 		/* user specified a pcap filter */
-		filter = argv[optind];
+		// not used: filter = argv[optind];
 	}
 
 	t_start = time(NULL);

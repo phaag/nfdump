@@ -34,6 +34,17 @@
 #ifndef _COLLECTOR_H
 #define _COLLECTOR_H 1
 
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+#include <sys/socket.h>
+
+#include "bookkeeper.h"
+#include "nffile.h"
+
 #define FNAME_SIZE  256
 #define IDENT_SIZE  32
 

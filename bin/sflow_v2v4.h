@@ -4,6 +4,15 @@
 #ifndef SFLOW_V2V4_H
 #define SFLOW_V2V4_H 1
 
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include <sflow.h>
+
 #if defined(__cplusplus)
 extern "C" {
 #endif

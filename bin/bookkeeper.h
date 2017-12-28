@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,17 +29,19 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: bookkeeper.h 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
- *
  */
 
 #ifndef _BOOKKEEPER_H
 #define _BOOKKEEPER_H 1
+
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+#include <time.h>
+#include <unistd.h>
 
 enum { BOOKKEEPER_OK = 0, ERR_FAILED, ERR_NOTEXISTS, ERR_PATHACCESS, ERR_EXISTS };
 

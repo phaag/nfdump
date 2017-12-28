@@ -10,6 +10,13 @@
 #ifndef SFLOW_H
 #define SFLOW_H 1
 
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
 #if defined(__cplusplus)
 extern "C" {
 #endif

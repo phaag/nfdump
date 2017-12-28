@@ -31,9 +31,20 @@
 #ifndef _SFLOW_NFDUMP_H
 #define _SFLOW_NFDUMP_H 1
 
+#include <sys/types.h>
+
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include "collector.h"
+#include "sflow_process.h"
+
 void Init_sflow(void);
 
 void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
+
+void StoreSflowRecord(SFSample *sample, FlowSource_t *fs);
 
 /*
  * Extension map for sflow ( compatibility for now )
@@ -51,5 +62,6 @@ void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
  * 4	: 2 byte input/output interface id
  * 6	: 2 byte src/dst as
  */
+
 
 #endif // _SFLOW_NFDUMP_H
