@@ -2,6 +2,8 @@
 - Add ipfix delta timestamp elements 158/159. 
 - Update sflow code to commit 7322984 of https://github.com/sflow/sflowtool
 - Cleanup sflow code - uncomment unnecessary code
+- Fix header includes"
+- Fix 64bit fts compat issue in fts_compat.c
 
 2017-12-22
 - Fix potential memory leaks in nfpcapd
