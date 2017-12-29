@@ -1,9 +1,14 @@
+2017-12-28
+- Add sampling elements ID 302,304,305. put them identcal to ID 48,49,50
+- Add option to label filter terms. syntax: ( <filter> ) %labelname.
+
 2017-12-27
 - Add ipfix delta timestamp elements 158/159. 
 - Update sflow code to commit 7322984 of https://github.com/sflow/sflowtool
 - Cleanup sflow code - uncomment unnecessary code
 - Fix header includes"
 - Fix 64bit fts compat issue in fts_compat.c
+- Add more detailed autogen.sh - softlink bootstrap
 
 2017-12-22
 - Fix potential memory leaks in nfpcapd

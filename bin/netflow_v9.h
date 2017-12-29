@@ -217,8 +217,12 @@ typedef struct common_header_s {
 #define NF9_ENGINE_ID			39
 
 #define NF9_FLOW_SAMPLER_ID 	48 
-#define FLOW_SAMPLER_MODE 	49 
+#define FLOW_SAMPLER_MODE 		49 
 #define NF9_FLOW_SAMPLER_RANDOM_INTERVAL 50
+
+#define NF_SELECTOR_ID			302
+#define NF_SELECTOR_ALGORITHM	304
+#define NF_SAMPLING_INTERVAL	305
 
 // #define NF9_MIN_TTL			52
 // #define NF9_MAX_TTL			53

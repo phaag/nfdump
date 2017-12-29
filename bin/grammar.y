@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017
  *  Copyright (c) 2016
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
@@ -2096,6 +2097,10 @@ expr:	term		{ $$ = $1.self;        }
 	| expr AND expr	{ $$ = Connect_AND($1, $3); }
 	| NOT expr	%prec NEGATE	{ $$ = Invert($2);			}
 	| '(' expr ')'	{ $$ = $2; }
+	| '(' expr ')' '%' STRING	{ 
+		$$ = $2; 
+		AddLabel($2, $5);
+	}
 	;
 
 %%

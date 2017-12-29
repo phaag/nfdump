@@ -65,6 +65,7 @@ typedef struct FilterBlock {
 	uint16_t	comp;				/* comperator */
 	flow_proc_t	function;			/* function for flow processing */
 	char		*fname;				/* ascii function name */
+	char		*label;				/* label, if any */
 	void		*data;				/* any additional data for this block */
 } FilterBlock_t;
 
@@ -163,6 +164,11 @@ uint32_t	Connect_OR(uint32_t b1, uint32_t b2);
  * Inverts OnTrue and OnFalse
  */
 uint32_t	Invert(uint32_t a );
+
+/* 
+ * Add label to filter index
+ */
+void AddLabel(uint32_t index, char *label);
 
 /* 
  * Add Ident to Identlist

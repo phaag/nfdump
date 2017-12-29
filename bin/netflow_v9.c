@@ -1391,7 +1391,30 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 
 		uint16_t length = Get_val16(p); p = p + 2;
 		offset += length;
-		dbg_printf("Scope field Type: %u, length %u\n", type, length);
+#ifdef DEVEL
+		printf("Scope field: Type ");
+		switch (type) {
+			case 1:
+				printf("(1) - System");
+				break;
+			case 2:
+				printf("(2) - Interface");
+				break;
+			case 3:
+				printf("(3) - Line Card");
+				break;
+			case 4:
+				printf("(4) - NetFlow Cache");
+				break;
+			case 5:
+				printf("(5) - Template");
+				break;
+			default:
+				printf("(%u) - Unknown", type);
+				break;
+		}
+		printf(", length %u\n", length);
+#endif
 	}
 
 	for ( ; i<(nr_scopes+nr_options); i++ ) {
@@ -1429,16 +1452,19 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 				break;
 
 			// individual samplers
-			case NF9_FLOW_SAMPLER_ID:
+			case NF9_FLOW_SAMPLER_ID:	// depricated
+			case NF_SELECTOR_ID:
 				offset_sampler_id = offset;
 				sampler_id_length = length;
 				found_sampler++;
 				break;
-			case FLOW_SAMPLER_MODE:
+			case FLOW_SAMPLER_MODE:		// 	// depricated
+			case NF_SELECTOR_ALGORITHM:
 				offset_sampler_mode = offset;
 				found_sampler++;
 				break;
-			case NF9_FLOW_SAMPLER_RANDOM_INTERVAL:
+			case NF9_FLOW_SAMPLER_RANDOM_INTERVAL: // depricated 
+			case NF_SAMPLING_INTERVAL:
 				offset_sampler_interval = offset;
 				offset_std_sampler_interval = offset;
 				found_sampler++;

@@ -244,6 +244,7 @@ uint32_t	NewBlock(uint32_t offset, uint64_t mask, uint64_t value, uint16_t comp,
 	FilterTree[n].comp 		= comp;
 	FilterTree[n].function 	= flow_procs_map[function].function;
 	FilterTree[n].fname 	= flow_procs_map[function].name;
+	FilterTree[n].label 	= NULL;
 	FilterTree[n].data 		= data;
 	if ( comp > 0 || function > 0 )
 		Extended = 1;
@@ -383,15 +384,17 @@ void DumpList(FilterEngine_data_t *args) {
 
 	for (i=1; i<NumBlocks; i++ ) {
 		if ( args->filter[i].invert )
-			printf("Index: %u, Offset: %u, Mask: %.16llx, Value: %.16llx, Superblock: %u, Numblocks: %u, !OnTrue: %u, !OnFalse: %u Comp: %u Function: %s\n",
+			printf("Index: %u, Offset: %u, Mask: %.16llx, Value: %.16llx, Superblock: %u, Numblocks: %u, !OnTrue: %u, !OnFalse: %u Comp: %u Function: %s, Label: %s\n",
 				i, args->filter[i].offset, (unsigned long long)args->filter[i].mask, 
 				(unsigned long long)args->filter[i].value, args->filter[i].superblock, 
-				args->filter[i].numblocks, args->filter[i].OnTrue, args->filter[i].OnFalse, args->filter[i].comp, args->filter[i].fname);
+				args->filter[i].numblocks, args->filter[i].OnTrue, args->filter[i].OnFalse, 
+				args->filter[i].comp, args->filter[i].fname, args->filter[i].label ? args->filter[i].label : "<none>");
 		else 
-			printf("Index: %u, Offset: %u, Mask: %.16llx, Value: %.16llx, Superblock: %u, Numblocks: %u, OnTrue: %u, OnFalse: %u Comp: %u Function: %s\n",
+			printf("Index: %u, Offset: %u, Mask: %.16llx, Value: %.16llx, Superblock: %u, Numblocks: %u, OnTrue: %u, OnFalse: %u Comp: %u Function: %s, Label: %s\n",
 				i, args->filter[i].offset, (unsigned long long)args->filter[i].mask, 
 				(unsigned long long)args->filter[i].value, args->filter[i].superblock, 
-				args->filter[i].numblocks, args->filter[i].OnTrue, args->filter[i].OnFalse, args->filter[i].comp, args->filter[i].fname);
+				args->filter[i].numblocks, args->filter[i].OnTrue, args->filter[i].OnFalse, 
+				args->filter[i].comp, args->filter[i].fname, args->filter[i].label ? args->filter[i].label : "<none>");
 		if ( args->filter[i].OnTrue > (memblocks * MAXBLOCKS) || args->filter[i].OnFalse > (memblocks * MAXBLOCKS) ) {
 			fprintf(stderr, "Tree pointer out of range for index %u. *** ABORT ***\n", i);
 			exit(255);
@@ -499,6 +502,10 @@ int	evaluate, invert;
 	return invert ? !evaluate : evaluate;
 
 } /* End of RunExtendedFilter */
+
+void AddLabel(uint32_t index, char *label) {
+	FilterTree[index].label = strdup(label);
+} // End of AddLabel
 
 uint32_t AddIdent(char *Ident) {
 uint32_t	num;
