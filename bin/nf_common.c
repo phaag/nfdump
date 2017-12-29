@@ -211,6 +211,8 @@ static void String_MPLSs(master_record_t *r, char *string);
 
 static void String_Engine(master_record_t *r, char *string);
 
+static void String_Label(master_record_t *r, char *string);
+
 static void String_ClientLatency(master_record_t *r, char *string);
 
 static void String_ServerLatency(master_record_t *r, char *string);
@@ -341,6 +343,7 @@ static struct format_token_list_s {
 	{ "%pps", 0, "     pps", 			 	String_pps },			// pps - packets per second
 	{ "%bpp", 0, "   Bpp", 				 	String_bpp },			// bpp - Bytes per package
 	{ "%eng", 0, " engine", 			 	String_Engine },		// Engine Type/ID
+	{ "%lbl", 0, "           label", 		String_Label },			// Flow Label
 
 #ifdef NSEL
 // NSEL specifics
@@ -768,6 +771,7 @@ extension_map_t	*extension_map = r->map_ref;
 	snprintf(_s, slen-1, "\n"
 "Flow Record: \n"
 "  Flags        =              0x%.2x %s, %s\n"
+"  label        =  %16s\n"
 "  export sysid =             %5u\n"
 "  size         =             %5u\n"
 "  first        =        %10u [%s]\n"
@@ -778,7 +782,9 @@ extension_map_t	*extension_map = r->map_ref;
 "  dst addr     =  %16s\n"
 , 
 		r->flags, TestFlag(r->flags, FLAG_EVENT) ? "EVENT" : "FLOW", 
-		TestFlag(r->flags, FLAG_SAMPLED) ? "Sampled" : "Unsampled", r->exporter_sysid, r->size, r->first, 
+		TestFlag(r->flags, FLAG_SAMPLED) ? "Sampled" : "Unsampled", 
+		r->label ? r->label : "<none>",
+		r->exporter_sysid, r->size, r->first, 
 		datestr1, r->last, datestr2, r->msec_first, r->msec_last, 
 		as, ds );
 
@@ -2546,6 +2552,17 @@ static void String_Engine(master_record_t *r, char *string) {
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_Engine
+
+static void String_Label(master_record_t *r, char *string) {
+
+	if ( r->label ) 
+		snprintf(string, MAX_STRING_LENGTH-1 ,"%16s", r->label);
+	else
+		snprintf(string, MAX_STRING_LENGTH-1 ,"<none>");
+
+	string[MAX_STRING_LENGTH-1] = '\0';
+
+} // End of String_Label
 
 static void String_ClientLatency(master_record_t *r, char *string) {
 double latency;

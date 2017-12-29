@@ -431,6 +431,7 @@ int RunFilter(FilterEngine_data_t *args) {
 uint32_t	index, offset;
 int	evaluate, invert;
 
+	args->label = NULL;
 	index = args->StartNode;
 	evaluate = 0;
 	invert = 0;
@@ -450,6 +451,7 @@ uint32_t	index, offset;
 uint64_t	comp_value[2];
 int	evaluate, invert;
 
+	args->label = NULL;
 	index = args->StartNode;
 	evaluate = 0;
 	invert = 0;
@@ -497,14 +499,38 @@ int	evaluate, invert;
 				break;
 		}
 
-		index = evaluate ? args->filter[index].OnTrue : args->filter[index].OnFalse;
+		/*
+		 * Label evaluation:
+		 * A flow gets labeled, if one filter expression has a label assigned and
+		 * that filter expression is in the 'true' path of the tree, resulting
+		 * to a final match. If subsequent expressions in the same path evaluate
+		 * to false, the label is cleared again.
+		 * In case of multiple labels in a true patch, the last seen label wins.
+		 */
+		if ( evaluate ) {
+			// if filter expression has a label assigned, copy that
+			if ( args->filter[index].label ) {
+				args->label = args->filter[index].label;
+			}
+			index = args->filter[index].OnTrue;
+		} else {
+			// filter expression does not match - clear previous label if abailable
+			if ( args->label )
+				args->label = NULL;
+			index = args->filter[index].OnFalse;
+		}
+		// index = evaluate ? args->filter[index].OnTrue : args->filter[index].OnFalse;
 	}
 	return invert ? !evaluate : evaluate;
 
 } /* End of RunExtendedFilter */
 
 void AddLabel(uint32_t index, char *label) {
+
 	FilterTree[index].label = strdup(label);
+	//Evaluation requires extended engine
+	Extended = 1;
+
 } // End of AddLabel
 
 uint32_t AddIdent(char *Ident) {

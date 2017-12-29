@@ -621,6 +621,8 @@ and format specifier as described below
 .br
 \fB%eng\fR      Engine Type/ID
 .br
+\fB%lbl\fR      Flowlabel
+.br
 \fB%sa\fR       Source Address
 .br
 \fB%da\fR       Destination Address
@@ -1267,6 +1269,26 @@ Select the vrf
 .RE
 .PD
 
+.SH "Flowlabel"
+One or more specific filter expressions can be assigned a flowlabel in order to identify
+the flow in the output according to the label. A flowlabel has the form \fB%LabelName\fR and is 
+appended or prepended to a filter expression in braces. It may have up to 16 characters. 
+Example: \fB(ip 8.8.8.8) %GoogleDNS\fR. If a filter matches, with a labeled expressions, 
+and that expression is in the matching filter patch, the label can be printed in the output, 
+using the \fB%%lbl\fR format token. See OUTPUT FORMATS.
+Example: Add flowlabel to end of 'line' format: 
+.br
+\fB./nfdump -r <file> -o 'fmt:%line %lbl" ..\fR
+.br
+Note: A filter may have multiple matching paths - for example \fBproto tcp or ip 8.8.8.8\fR
+The shortest path which evaluates successfully, wins. Other paths are skipped, which means 
+that flowlabels are not printed in not evaluated filter paths. A filter may contain multiple 
+flowlabels. The flowlabel of the last matching expression in the winning path is printed.
+Flowlabels are most useful in large and complex filters stored in one or multiple files, 
+to better read the flow output list. 
+.br
+Example: \fB(ip in [172.16.1.0/24]) %ISP_1 or (ip in [172.16.16.0/24]) %IPS_2 or %GoogleDNS((proto udp or proto tcp) and ip 8.8.8.8)
+.br
 .SH "EXAMPLES"
 .B nfdump \-r /and/dir/nfcapd.201107110845 \-c 100 'proto tcp and ( src ip 172.16.17.18 or dst ip 172.16.17.19 )'
 Dumps the first 100 netflow records which match the given filter:

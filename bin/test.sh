@@ -94,7 +94,7 @@ fi
 
 # supress 'received at' as this is always different
 ./nfdump -r tmp/nfcapd.* -q -o raw | grep -v 'received at' > test5.out
-# nfdump 1.6.5 always uses 64 bits. therefore we have a predictable diff
+# nfdump 1.6.5 and later always use 64 bits. therefore we have a predictable diff
 # so diff the diff
 diff test5.out nfdump.test.out > test5.diff || true
 diff test5.diff nfdump.test.diff

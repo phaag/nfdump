@@ -441,6 +441,7 @@ void *p;
 	flow_record.V4.dstaddr = 0x0a0a0a0b;
 	ret = check_filter_block("src ip 172.32.7.16", &flow_record, 1);
 	ret = check_filter_block("( src ip 172.32.7.16 ) %MyLabel", &flow_record, 1);
+	ret = check_filter_block("%MyLabel( src ip 172.32.7.16 )", &flow_record, 1);
 	ret = check_filter_block("src ip 172.32.7.15", &flow_record, 0);
 	ret = check_filter_block("dst ip 10.10.10.11", &flow_record, 1);
 	ret = check_filter_block("dst ip 10.10.10.10", &flow_record, 0);

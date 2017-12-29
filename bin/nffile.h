@@ -2102,6 +2102,9 @@ typedef struct master_record_s {
 	// last entry in master record 
 #	define Offset_MR_LAST	offsetof(master_record_t, map_ref)
 	extension_map_t	*map_ref;
+
+	// optional flowlabel
+	char	*label;
 } master_record_t;
 
 #define AnyMask  	0xffffffffffffffffLL

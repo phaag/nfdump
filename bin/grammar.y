@@ -2099,7 +2099,21 @@ expr:	term		{ $$ = $1.self;        }
 	| '(' expr ')'	{ $$ = $2; }
 	| '(' expr ')' '%' STRING	{ 
 		$$ = $2; 
-		AddLabel($2, $5);
+		if ( strlen($5) > 16 ) {
+			yyerror("Error: Maximum 16 chars allowed for flowlabel");
+			YYABORT;
+		} else {
+			AddLabel($2, $5);
+		}
+	}
+	| '%' STRING '(' expr ')' { 
+		$$ = $4; 
+		if ( strlen($2) > 16 ) {
+			yyerror("Error: Maximum 16 chars allowed for flowlabel");
+			YYABORT;
+		} else {
+			AddLabel($4, $2);
+		}
 	}
 	;
 

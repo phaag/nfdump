@@ -593,6 +593,11 @@ int	v1_map_done = 0;
 
 					// Records passed filter -> continue record processing
 					// Update statistics
+					master_record->label = Engine->label;
+#ifdef DEVEL
+					if ( Engine->label )
+						printf("Flow has label: %s\n", Engine->label);
+#endif
 					UpdateStat(&stat_record, master_record);
 
 					// update number of flows matching a given map

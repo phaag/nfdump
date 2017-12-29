@@ -75,6 +75,7 @@ typedef struct FilterEngine_data_s {
 	uint32_t 		Extended;
 	char			**IdentList;
 	uint64_t		*nfrecord;
+	char			*label;
 	int (*FilterEngine)(struct FilterEngine_data_s *);
 } FilterEngine_data_t;
 
