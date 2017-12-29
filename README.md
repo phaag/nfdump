@@ -106,7 +106,7 @@ __nftrack__ - Port tracking decoder for NfSen plugin PortTracker.
 __ft2nfdump__ - flow-tools flow converter  
 ft2nfdump converts flow-tools data into nfdump format. 
 
-__nfreade__r - Framework for programmers  
+__nfreader__ - Framework for programmers  
 nfreader is a framework to read nfdump files for any other purpose.
 Own C code can be added to process flows. nfreader is not installed
 
@@ -115,7 +115,7 @@ parse_csv.pl reads nfdump csv output and print the flows to stdout.
 This program is intended to be a framework for post processing flows
 for any other purpose.
 
-####Notes for sflow users:
+#### Notes for sflow users:
 sfcapd and nfcapd can be used concurrently to collect netflow and sflow
 data at the same time. Generic command line options apply to both 
 collectors likewise. sfcapd's sflow decoding module is based on InMon's 
@@ -125,7 +125,7 @@ More fields may be integrated in future versions of sfcapd.
 
 ---
 
-###Compression
+### Compression
 Binary data files can optionally be compressed using either the fast LZO1X-1 compression, 
 LZ4 or the efficient but slow bzip2 methode. 
 If you compress automatically flows while they are collected, LZO1X-1 or LZ4 methodes are
