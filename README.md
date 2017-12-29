@@ -339,8 +339,10 @@ NF9_OUT_SRC_MAC | 81
 NF9_FORWARDING_STATUS | 89
 NF9_BGP_ADJ_NEXT_AS  | 128
 NF9_BGP_ADJ_PREV_AS  | 129
-|
-__CISCO ASA NSEL extension - Network Security Event Logging__ |
+
+### CISCO ASA NSEL extension - Network Security Event Logging__
+Tag | ID
+----|---
 NF_F_FLOW_BYTES | 85
 NF_F_CONN_ID | 148
 NF_F_FLOW_CREATE_TIME_MSEC | 152
@@ -361,16 +363,20 @@ NF_F_XLATE_DST_ADDR_IPV4 | 40002
 NF_F_XLATE_SRC_PORT | 40003
 NF_F_XLATE_DST_PORT | 40004
 NF_F_FW_EVENT | 40005
-|
-__Cisco ASR 1000 series NEL extension - Nat Event Logging__|
+
+### Cisco ASR 1000 series NEL extension - Nat Event Logging__
+Tag | ID
+----|---
 NF_N_NAT_EVENT | 230
 NF_N_INGRESS_VRFID | 234
 NF_N_NAT_INSIDE_GLOBAL_IPV4 | 225
 NF_N_NAT_OUTSIDE_GLOBAL_IPV4 | 226
 NF_N_POST_NAPT_SRC_PORT | 	227
 NF_N_POST_NAPT_DST_PORT | 	228
-|
-__latency extensions for nfpcapd and nprobe__|
+
+### latency extensions for nfpcapd and nprobe__
+Tag | ID
+----|---
 NF9_NPROBE_CLIENT_NW_DELAY_SEC | 57554
 NF9_NPROBE_CLIENT_NW_DELAY_USEC | 57555
 NF9_NPROBE_SERVER_NW_DELAY_SEC | 57556
