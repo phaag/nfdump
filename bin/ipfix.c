@@ -1681,6 +1681,7 @@ char				*string;
 	
 		if ( verbose ) {
 			master_record_t master_record;
+			memset((void *)&master_record, 0, sizeof(master_record_t));
 			ExpandRecord_v2((common_record_t *)data_record, &(table->extension_info), &(exporter->info), &master_record);
 		 	format_file_block_record(&master_record, &string, 0);
 			printf("%s\n", string);

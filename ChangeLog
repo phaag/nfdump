@@ -1,3 +1,6 @@
+2017-12-29
+- Add new output format json. Print each record as individual json object
+
 2017-12-28
 - Add sampling elements ID 302,304,305. put them identcal to ID 48,49,50
 - Add option to label filter terms. syntax: (<filter>) %labelname.

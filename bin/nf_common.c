@@ -75,6 +75,16 @@ static int 		long_v6 	 = 0;
 static int		scale	 	 = 1;
 static double	duration;
 
+#ifdef NSEL
+static char *NSEL_event_string[6] = {
+	"IGNORE", "CREATE", "DELETE", "DENIED", "ALERT", "UPDATE"
+};
+
+static char *NEL_event_string[3] = {
+	"INVALID", "ADD", "DELETE"
+};
+#endif
+
 #define STRINGSIZE 10240
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
@@ -564,14 +574,6 @@ static struct fwd_status_def_s {
 	{ 130,	"TincAdj"}, // Terminate Incomplete Adjacency
 	{ 131,	"Tforus"}, 	// Terminate For us
 	{ 0,	NULL}		// Last entry
-};
-
-char *NSEL_event_string[6] = {
-	"IGNORE", "CREATE", "DELETE", "DENIED", "ALERT", "UPDATE"
-};
-
-char *NEL_event_string[3] = {
-	"INVALID", "ADD", "DELETE"
 };
 
 static char **fwd_status = NULL;
@@ -1146,10 +1148,10 @@ extension_map_t	*extension_map = r->map_ref;
 			case EX_NSEL_XLATE_IP_v4:
 				as[0] = 0;
 				ds[0] = 0;
-				r->xlate_src_ip.v4 = htonl(r->xlate_src_ip.v4);
-				r->xlate_dst_ip.v4 = htonl(r->xlate_dst_ip.v4);
-				inet_ntop(AF_INET, &r->xlate_src_ip.v4, as, sizeof(as));
-				inet_ntop(AF_INET, &r->xlate_dst_ip.v4, ds, sizeof(ds));
+				r->xlate_src_ip.V4 = htonl(r->xlate_src_ip.V4);
+				r->xlate_dst_ip.V4 = htonl(r->xlate_dst_ip.V4);
+				inet_ntop(AF_INET, &r->xlate_src_ip.V4, as, sizeof(as));
+				inet_ntop(AF_INET, &r->xlate_dst_ip.V4, ds, sizeof(ds));
 				as[IP_STRING_LEN-1] = 0;
 				ds[IP_STRING_LEN-1] = 0;
 
@@ -1164,12 +1166,12 @@ extension_map_t	*extension_map = r->map_ref;
 			case EX_NSEL_XLATE_IP_v6:
 				as[0] = 0;
 				ds[0] = 0;
-				r->xlate_src_ip.v6[0] = htonll(r->xlate_src_ip.v6[0]);
-				r->xlate_src_ip.v6[1] = htonll(r->xlate_src_ip.v6[1]);
-				r->xlate_dst_ip.v6[0] = htonll(r->xlate_dst_ip.v6[0]);
-				r->xlate_dst_ip.v6[1] = htonll(r->xlate_dst_ip.v6[1]);
-				inet_ntop(AF_INET6, &r->xlate_src_ip.v6, as, sizeof(as));
-				inet_ntop(AF_INET6, &r->xlate_dst_ip.v6, ds, sizeof(ds));
+				r->xlate_src_ip.V6[0] = htonll(r->xlate_src_ip.V6[0]);
+				r->xlate_src_ip.V6[1] = htonll(r->xlate_src_ip.V6[1]);
+				r->xlate_dst_ip.V6[0] = htonll(r->xlate_dst_ip.V6[0]);
+				r->xlate_dst_ip.V6[1] = htonll(r->xlate_dst_ip.V6[1]);
+				inet_ntop(AF_INET6, &r->xlate_src_ip.V6, as, sizeof(as));
+				inet_ntop(AF_INET6, &r->xlate_dst_ip.V6, ds, sizeof(ds));
 				if ( ! long_v6 ) {
 					condense_v6(as);
 					condense_v6(ds);
@@ -2858,8 +2860,8 @@ char 	tmp_str[IP_STRING_LEN], portchar;
 	if ( (r->xlate_flags & 1 ) != 0 ) { // IPv6
 		uint64_t	ip[2];
 
-		ip[0] = htonll(r->xlate_dst_ip.v6[0]);
-		ip[1] = htonll(r->xlate_dst_ip.v6[1]);
+		ip[0] = htonll(r->xlate_dst_ip.V6[0]);
+		ip[1] = htonll(r->xlate_dst_ip.V6[1]);
 		inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
 		if ( ! long_v6 ) {
 			condense_v6(tmp_str);

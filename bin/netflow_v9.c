@@ -1607,7 +1607,7 @@ char				*string;
 		table->out_packets 	  	    = 0;
 		table->out_bytes 	  	    = 0;
 
-		dbg_printf("%u] Process data record: MapID: %u\n", exporter->info.id, table->extension_info.map->map_id);
+		dbg_printf("[%u] Process data record: MapID: %u\n", exporter->info.id, table->extension_info.map->map_id);
 
 		// apply copy and processing sequence
 		for ( i=0; i<table->number_of_sequences; i++ ) {
@@ -1939,6 +1939,7 @@ char				*string;
 	
 		if ( verbose ) {
 			master_record_t master_record;
+			memset((void *)&master_record, 0, sizeof(master_record_t));
 			ExpandRecord_v2((common_record_t *)data_record, &(table->extension_info), &(exporter->info), &master_record);
 		 	format_file_block_record(&master_record, &string, 0);
 			printf("%s\n", string);
@@ -2076,7 +2077,8 @@ static int pkg_num = 0;
 #ifdef DEVEL
 	uint32_t expected_records 		= ntohs(v9_header->count);
 	uint32_t skip = 0;
-	printf("\n[%u] Process next packet: %i %u records, buffer: %li \n", exporter_id, pkg_num, expected_records, size_left);
+	printf("\n[%u] Process next packet: %i records: %u, buffer: %li \n", exporter_id, pkg_num, expected_records, size_left);
+	printf("SourceID: %u, Sysuptime: %u.%u\n", v9_header->source_id, v9_header->SysUptime, v9_header->unix_secs);
 #endif
 
 	// sequence check
@@ -2103,6 +2105,7 @@ static int pkg_num = 0;
 			*/
 		}
 	}
+	dbg_printf("Sequence: %llu\n", exporter->sequence);
 
 	processed_records = 0;
 

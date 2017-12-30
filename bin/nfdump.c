@@ -67,6 +67,7 @@
 #include "collector.h"
 #include "exporter.h"
 #include "nf_common.h"
+#include "output_json.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
 #include "rbtree.h"
@@ -232,6 +233,7 @@ printmap_t printmap[] = {
 	{ "biline", 	format_special,      		FORMAT_biline 	},
 	{ "bilong", 	format_special,      		FORMAT_bilong 	},
 	{ "pipe", 		flow_record_to_pipe,      	NULL 			},
+	{ "json", 		flow_record_to_json,      	NULL 			},
 	{ "csv", 		flow_record_to_csv,      	NULL 			},
 	{ "null", 		flow_record_to_null,      	NULL 			},
 #ifdef NSEL

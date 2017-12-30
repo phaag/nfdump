@@ -434,7 +434,7 @@ if not specified or -n 0 is given, all records are listed.
 Selects the output format to print flows or flow record statistics (\-s record). The following 
 formats are available:
 .RS 5
-raw      Print each file flow record on multiple lines.
+raw      Print full flow record on multiple lines.
 .br
 line     Print each flow on one line. Default format.
 .br
@@ -446,11 +446,13 @@ bilong   Same as long, but for bidir flows
 .br
 extended Print each flow on one line with even more details.
 .br
-nsel     Print each NSEL event on one line. Default if NSEL/ASA enabled.
+nsel     Print each NSEL event on one line. Default if NSEL/NAT
 .br
-nel      Print each NAT event on one line. Default if NEL enabled.
+nel      Print each NAT event on one line. 
 .br
 csv      Comma separated output for machine readable processing.
+.br
+json     Print full record as separate json object
 .br
 pipe     Legacy machine readable format: fields '|' separated.
 .br

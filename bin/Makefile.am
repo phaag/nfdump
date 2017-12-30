@@ -33,6 +33,7 @@ LDADD = $(DEPS_LIBS)
 AM_CFLAGS = -ggdb 
 
 # libnfdump sources
+output =  output_json.c output_json.h 
 common =  nf_common.c nf_common.h 
 util = util.c util.h
 filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h nffile.c nffile.h nfx.c nfx.h 
@@ -59,7 +60,7 @@ expire= expire.c expire.h
 launch = launch.c launch.h
 
 lib_LTLIBRARIES = libnfdump.la
-libnfdump_la_SOURCES = $(common) $(util) $(filelzo) $(nflist) $(filter) $(exporter)
+libnfdump_la_SOURCES = $(output) $(common) $(util) $(filelzo) $(nflist) $(filter) $(exporter)
 #libnfdump_la_LIBADD = -lz
 libnfdump_la_LDFLAGS = -release 1.6.16
 
