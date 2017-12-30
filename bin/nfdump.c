@@ -197,6 +197,8 @@ extern generic_exporter_t **exporter_list;
 
 #define FORMAT_nel "%ts %nevt %pr %sap -> %dap %nsap -> %ndap"
 
+#define FORMAT_json "{\"start_time\":\"%ts\", \"end_time\":\"%te\", \"duration\":%td, \"proto\":\"%pr\", \"next_hop\":\"%nh\", \"next_hop_bgp\":\"%nhb\", \"input_interface\":%in, \"output_interface\":%out, \"packets\":%pkt, \"input_packets\":%ipkt, \"output_packets\":%opkt, \"bytes\":%byt, \"input_bytes\":%ibyt, \"output_bytes\":%obyt, \"flows\":%fl, \"flags\":\"%flg\", \"tos\":%tos, \"direction\":\"%dir\", \"forwarding_status\":%fwd, \"input_src_mac\":\"%ismc\", \"output_dest_mac\":\"%odmc\", \"output_src_mac\":\"%idmc\", \"input_dest_mac\":\"%osmc\", \"mpls1\":\"%mpls1\", \"mpls2\":\"%mpls2\", \"mpls3\":\"%mpls3\", \"mpls4\":\"%mpls4\", \"mpls5\":\"%mpls5\", \"mpls6\":\"%mpls6\", \"mpls7\":\"%mpls7\", \"mpls8\":\"%mpls8\", \"mpls9\":\"%mpls9\", \"mpls10\":\"%mpls10\", \"bps\":%bps, \"pps\":%pps, \"src\": {\"ip\":\"%sa\", \"port\":%sp, \"asn\":%sas, \"tos\":%stos, \"mask\":%smk, \"vlan\":%svln }, \"dest\": {\"ip\":\"%da\", \"port\":%dp, \"asn\":%das, \"tos\":%dtos, \"mask\":%dmk, \"vlan\":%dvln } }"
+
 #ifdef NSEL
 #	define DefaultMode "nsel"
 #else 
@@ -235,6 +237,7 @@ printmap_t printmap[] = {
 	{ "pipe", 		flow_record_to_pipe,      	NULL 			},
 	{ "json", 		flow_record_to_json,      	NULL 			},
 	{ "csv", 		flow_record_to_csv,      	NULL 			},
+    { "json",		format_special,				FORMAT_json		},
 	{ "null", 		flow_record_to_null,      	NULL 			},
 #ifdef NSEL
 	{ "nsel",		format_special, 			FORMAT_nsel		},
@@ -311,6 +314,7 @@ static void usage(char *name) {
 					"\t\t long     Standard output line format with additional fields.\n"
 					"\t\t extended Even more information.\n"
 					"\t\t csv      ',' separated, machine parseable output format.\n"
+					"\t\t json     json output, machine parseable output format.\n"
 					"\t\t pipe     '|' separated legacy machine parseable output format.\n"
 					"\t\t\tmode may be extended by '6' for full IPv6 listing. e.g.long6, extended6.\n"
 					"-E <file>\tPrint exporter ans sampling info for collected flows.\n"
