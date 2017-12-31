@@ -1349,7 +1349,8 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 
 		switch (id) {
 			// general sampling
-			case IPFIX_samplingInterval:
+			case IPFIX_samplingInterval:		// legacy #34
+			case IPFIX_samplingPacketInterval:	// #305
 				if ( length == 4 ) {
 					offset_std_sampler_interval = offset;
 					found_std_sampling++;
@@ -1359,7 +1360,8 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 						exporter->info.id, length);
 				}
 				break;
-			case IPFIX_samplingAlgorithm:
+			case IPFIX_samplingAlgorithm:	// legacy #35
+			case IPFIX_selectorAlgorithm:	// #304
 				if ( length == 1 ) {
 					offset_std_sampler_algorithm = offset;
 					dbg_printf("	1 byte sampling algorithm option at offset: %u\n", offset);
@@ -1374,12 +1376,16 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 		offset += length;
 	}
 
-	if ( found_std_sampling == 2 ) { // need all two tags
-        dbg_printf("[%u] Std sampling information found\n", exporter->info.id);
+	if ( offset_std_sampler_interval ) {
+        dbg_printf("[%u] Std sampling interval found. offset: %u\n", 
+			exporter->info.id, offset_std_sampler_interval);
+		if ( offset_std_sampler_algorithm )
+        	dbg_printf("[%u] Std sampling algorithm found. offset: %u\n", 
+			exporter->info.id, offset_std_sampler_algorithm);
         InsertStdSamplerOffset(fs, id, offset_std_sampler_interval, offset_std_sampler_algorithm);
-    }
+		dbg_printf("\n");
+	}
 
-	dbg_printf("\n");
 	processed_records++;
 
 } // End of Process_ipfix_option_templates
@@ -1747,7 +1753,8 @@ uint8_t	 *in;
 		} else {
 			id = in[offset_table->offset_id];
 		}
-		mode	 = in[offset_table->offset_mode];
+
+		mode = offset_table->offset_mode ? in[offset_table->offset_mode] : 0;
 		interval = Get_val32((void *)&in[offset_table->offset_interval]); 
 	
 		InsertSampler(fs, exporter, id, mode, interval);
@@ -1760,7 +1767,7 @@ uint8_t	 *in;
 
 	if ( TestFlag(offset_table->flags, HAS_STD_SAMPLER_DATA) ) {
 		int32_t  id	   = -1;
-		uint16_t mode	 = in[offset_table->offset_std_sampler_algorithm];
+		uint16_t mode	 = offset_table->offset_std_sampler_algorithm ? in[offset_table->offset_std_sampler_algorithm] : 0;
 		uint32_t interval = Get_val32((void *)&in[offset_table->offset_std_sampler_interval]);
 
  		InsertSampler(fs, exporter, id, mode, interval);

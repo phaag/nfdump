@@ -1,8 +1,12 @@
-2017-12-29
+2017-12-31
+- IPFIX sampling - sampling algorithm no longer required for tag #34
+- IPFIX sampling add tags #305 and #304 - set them identical to #34, #35
+
+2017-12-30
 - Add new output format json. Print each record as individual json object
 
 2017-12-28
-- Add sampling elements ID 302,304,305. put them identcal to ID 48,49,50
+- Add sampling elements ID 302,304,305. put them identical to ID 48,49,50
 - Add option to label filter terms. syntax: (<filter>) %labelname.
 - Add %lbl option to print flow label in output
 - Update nfdump(1) man page for flowlabels
@@ -25,6 +29,8 @@
 2017-12-17
 - Add ipfix sampling. Process option template/record with sampling elements 34 and 35
 - Report updates on existing samplers in v9 only if values change. issue 84
+
+2017-11-05 v1.6.16
 
 2017-12-10
 - Add lz4 compression

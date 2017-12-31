@@ -228,9 +228,16 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_DestinationIPv6PrefixLength	 30
 #define IPFIX_flowLabelIPv6					 31
 #define IPFIX_icmpTypeCodeIPv4			 	 32
-// 33 igmpTYpe 
+
+// deprecated elements for sampling 
 #define IPFIX_samplingInterval				 34
 #define IPFIX_samplingAlgorithm				 35
+// 1 - Deterministic Sampling,
+// 2 - Random Sampling.
+
+#define IPFIX_samplingPacketInterval		305
+#define IPFIX_selectorAlgorithm				304
+
 // reserved 38, 39
 // reserved 48, 49, 50, 51
 
