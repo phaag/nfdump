@@ -209,6 +209,7 @@ static struct ipfix_element_map_s {
 	{ IPFIX_octetTotalCount, 			 _4bytes, 	_8bytes,  move32_sampling, zero64, COMMON_BLOCK },
 	{ IPFIX_packetTotalCount, 			 _8bytes, 	_8bytes,  move64_sampling, zero64, COMMON_BLOCK },
 	{ IPFIX_packetTotalCount, 			 _4bytes, 	_8bytes,  move32_sampling, zero64, COMMON_BLOCK },
+	{ IPFIX_forwardingStatus, 	 		 _1byte,    _1byte,   move8, zero8, COMMON_BLOCK },
 	{ IPFIX_protocolIdentifier, 		 _1byte, 	_1byte,   move8,  zero8, COMMON_BLOCK },
 	{ IPFIX_ipClassOfService, 			 _1byte, 	_1byte,   move8, zero8, COMMON_BLOCK },
 	{ IPFIX_tcpControlBits, 			 _1byte, 	_1byte,   move8, zero8, COMMON_BLOCK },
@@ -685,7 +686,7 @@ size_t				size_required;
 		dbg_printf("Time stamp: No known format found\n");
 		offset = BYTE_OFFSET_first + 8;
 	}
-	offset +=1;	// Skip netflow v9 fwd status
+	PushSequence( table, IPFIX_forwardingStatus, &offset, NULL);
 	PushSequence( table, IPFIX_tcpControlBits, &offset, NULL);
 	PushSequence( table, IPFIX_protocolIdentifier, &offset, NULL);
 	PushSequence( table, IPFIX_ipClassOfService, &offset, NULL);

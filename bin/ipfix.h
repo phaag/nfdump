@@ -269,6 +269,7 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_postSourceMacAddress		 	 81
 #define IPFIX_octetTotalCount		 	 	 85
 #define IPFIX_packetTotalCount		 	 	 86
+#define IPFIX_forwardingStatus				 89
 #define IPFIX_flowStartMilliseconds			152
 #define IPFIX_flowEndMilliseconds			153
 #define IPFIX_flowStartDeltaMicroseconds	158
