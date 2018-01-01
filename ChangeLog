@@ -1,3 +1,6 @@
+2018-01-01
+- IPFIX time stamps - Fix elements #21,#22 offset calculation, but timestamps not yet evaluated. (#160)
+
 2017-12-31
 - IPFIX sampling - sampling algorithm no longer required for tag #34
 - IPFIX sampling add tags #305 and #304 - set them identical to #34, #35

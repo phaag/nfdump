@@ -544,6 +544,7 @@ int	index;
 			index++;
 		}
 #ifdef DEVEL
+		index--;
 		printf("=> known type: %u(%s), at index: %i, length: %u not supported\n", 
 			Type, v9_element_map[index].name, index, Length);
 

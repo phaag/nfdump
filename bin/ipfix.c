@@ -665,13 +665,24 @@ size_t				size_required;
 		PushSequence( table, IPFIX_flowEndDeltaMicroseconds, &offset, &table->flow_end);
 		offset = BYTE_OFFSET_first + 8;
 		table->delta_time = 1;
-		dbg_printf("Time stamp: flow start/end delta microseconds\n");
+		dbg_printf("Time stamp: flow start/end delta microseconds: %u/%u\n",
+			IPFIX_flowStartDeltaMicroseconds, IPFIX_flowEndDeltaMicroseconds);
 	} else if ( cache.lookup_info[IPFIX_flowStartMilliseconds].found ) {
 		PushSequence( table, IPFIX_flowStartMilliseconds, &offset, &table->flow_start);
 		offset = BYTE_OFFSET_first + 4;
 		PushSequence( table, IPFIX_flowEndMilliseconds, &offset, &table->flow_end);
 		offset = BYTE_OFFSET_first + 8;
-		dbg_printf("Time stamp: flow start/end absolute milliseconds\n");
+		dbg_printf("Time stamp: flow start/end absolute milliseconds: %u/%u\n", 
+			IPFIX_flowStartMilliseconds, IPFIX_flowEndMilliseconds);
+	} else if ( cache.lookup_info[IPFIX_flowStartSysUpTime].found ) {
+		PushSequence( table, IPFIX_flowStartSysUpTime, &offset, &table->flow_start);
+		offset = BYTE_OFFSET_first + 4;
+		PushSequence( table, IPFIX_flowEndSysUpTime, &offset, &table->flow_end);
+		offset = BYTE_OFFSET_first + 8;
+		dbg_printf("Time stamp: flow start/end relative milliseconds: %u/%u\n", 
+			IPFIX_flowStartSysUpTime, IPFIX_flowEndSysUpTime);
+	} else {
+		dbg_printf("Time stamp: No known format found\n");
 	}
 	offset +=1;	// Skip netflow v9 fwd status
 	PushSequence( table, IPFIX_tcpControlBits, &offset, NULL);
