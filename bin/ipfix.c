@@ -683,6 +683,7 @@ size_t				size_required;
 			IPFIX_flowStartSysUpTime, IPFIX_flowEndSysUpTime);
 	} else {
 		dbg_printf("Time stamp: No known format found\n");
+		offset = BYTE_OFFSET_first + 8;
 	}
 	offset +=1;	// Skip netflow v9 fwd status
 	PushSequence( table, IPFIX_tcpControlBits, &offset, NULL);
