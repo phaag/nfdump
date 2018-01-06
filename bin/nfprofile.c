@@ -1,8 +1,6 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2009 - 2018, Peter Haag
+ *  Copyright (c) 2004 - 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -81,13 +79,16 @@ extension_map_list_t *extension_map_list;
 uint32_t is_anonymized;
 char Ident[IDENTLEN];
 
+#ifdef HAVE_INFLUXDB
+	char influxdb_url[1024]="";
+#endif
+
 /* Function Prototypes */
 static void usage(char *name);
 
 static profile_param_info_t *ParseParams (char *profile_datadir);
 
 static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot);
-
 
 /* Functions */
 
@@ -108,6 +109,9 @@ static void usage(char *name) {
 					"-Z\t\tCheck filter syntax and exit.\n"
 					"-S subdir\tSub directory format. see nfcapd(1) for format\n"
 					"-z\t\tCompress flows in output file.\n"
+#ifdef HAVE_INFLUXDB
+					"-i <influxurl>\tInfluxdb url for stats (example: http://localhost:8086/write?db=mydb&u=pippo&p=paperino)\n"
+#endif
 					"-t <time>\ttime for RRD update\n", name);
 } /* usage */
 
@@ -540,7 +544,7 @@ time_t tslot;
 	// default file names
 	ffile = "filter.txt";
 	rfile = NULL;
-	while ((c = getopt(argc, argv, "D:HIL:p:P:hf:J;r:n:M:S:t:VzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "D:HIL:p:P:hif:J;r:n:M:S:t:VzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -608,6 +612,12 @@ time_t tslot;
 				}
 				compress = LZO_COMPRESSED;
 				break;
+#ifdef HAVE_INFLUXDB
+			case 'i':
+				strncpy(influxdb_url, optarg, 1024);
+				influxdb_url[1023] = '\0';
+				break;
+#endif
 			default:
 				usage(argv[0]);
 				exit(0);

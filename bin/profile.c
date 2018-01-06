@@ -1,8 +1,6 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2009 - 2018, Peter Haag
+ *  Copyright (c) 2004 - 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -61,6 +59,12 @@
 #include "util.h"
 #include "nftree.h"
 #include "profile.h"
+
+#ifdef HAVE_INFLUXDB
+#include <curl/curl.h>
+extern char influxdb_url[1024];
+static char influxdb_measurement[]="nfsen_stats";
+#endif
 
 /* imported vars */
 extern char yyerror_buff[256];
@@ -378,6 +382,10 @@ unsigned int num;
 		}
 		if ( ((profile_channels[num].type & 0x8) == 0) && tslot > 0 ) {
 			UpdateRRD(tslot, &profile_channels[num]);
+#ifdef HAVE_INFLUXDB
+			if(strlen(influxdb_url) > 0)
+				UpdateInfluxDB(tslot, &profile_channels[num]);
+#endif
 		}
 	}
 
@@ -447,3 +455,87 @@ stat_record_t stat_record = channel->stat_record;
 	}
 
 } // End of UpdateRRD
+
+#ifdef HAVE_INFLUXDB
+static void influxdb_client_post(char *body) {
+CURLcode c;
+CURL *handle = curl_easy_init();
+	//curl -i -XPOST 'http://nbox-demo:8086/write?db=lucatest' --data-binary 'test,host=server01,region=us-west valueA=0.64 valueB=0.64 1434055562000000000'
+
+	curl_easy_setopt(handle, CURLOPT_URL, influxdb_url);
+	curl_easy_setopt(handle, CURLOPT_TIMEOUT, 5L);
+	curl_easy_setopt(handle, CURLOPT_CONNECTTIMEOUT, 3L);
+	curl_easy_setopt(handle, CURLOPT_POSTFIELDS, body);
+
+	c = curl_easy_perform(handle);
+
+	if (c == CURLE_OK) {
+		long status_code = 0;
+		if (curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &status_code) == CURLE_OK){
+			c = status_code;
+
+			if (status_code != 204){
+				LogError("INFLUXDB: %s Insert Error: HTTP %d\n", influxdb_url, status_code);
+			}
+		}
+	} else{
+		LogError("INFLUXDB: %s Curl Error: %s\n", influxdb_url, curl_easy_strerror(c));
+	}
+
+	curl_easy_cleanup(handle);
+}
+
+void UpdateInfluxDB( time_t tslot, profile_channel_info_t *channel ) {
+	char	buff[2048], *s;
+	int		len, buffsize;
+	stat_record_t stat_record = channel->stat_record;
+
+	char *groupname = strcmp(channel->group, ".")==0?"ROOT":channel->group;
+
+	buffsize = sizeof(buff);
+	s = buff;
+	len = snprintf(s, buffsize , "%s,channel=%s,profilegroup=%s,profile=%s ", influxdb_measurement, channel->channel, groupname, channel->profile);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , "flows=%llu", (long long unsigned)stat_record.numflows);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",flows_tcp=%llu", (long long unsigned)stat_record.numflows_tcp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",flows_udp=%llu", (long long unsigned)stat_record.numflows_udp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",flows_icmp=%llu", (long long unsigned)stat_record.numflows_icmp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",flows_other=%llu", (long long unsigned)stat_record.numflows_other);
+	buffsize -= len; s += len;
+
+	len = snprintf(s, buffsize , ",packets=%llu", (long long unsigned)stat_record.numpackets);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",packets_tcp=%llu", (long long unsigned)stat_record.numpackets_tcp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",packets_udp=%llu", (long long unsigned)stat_record.numpackets_udp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",packets_icmp=%llu", (long long unsigned)stat_record.numpackets_icmp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",packets_other=%llu", (long long unsigned)stat_record.numpackets_other);
+	buffsize -= len; s += len;
+
+	len = snprintf(s, buffsize , ",traffic=%llu", (long long unsigned)stat_record.numbytes);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",traffic_tcp=%llu", (long long unsigned)stat_record.numbytes_tcp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",traffic_udp=%llu", (long long unsigned)stat_record.numbytes_udp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",traffic_icmp=%llu", (long long unsigned)stat_record.numbytes_icmp);
+	buffsize -= len; s += len;
+	len = snprintf(s, buffsize , ",traffic_other=%llu", (long long unsigned)stat_record.numbytes_other);
+	buffsize -= len; s += len;
+	// timestamp in nanoseconds
+	len = snprintf(s, buffsize , " %llu000000000", (long long unsigned)tslot);
+	buffsize -= len; s += len;
+
+	influxdb_client_post(buff);
+
+	//DATA: test,host=server01,region=us-west valueA=0.64,valueB=0.64 1434055562000000000'
+} // End of UpdateInfluxDB
+
+#endif /* HAVE_INFLUXDB */
+

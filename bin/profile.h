@@ -1,8 +1,6 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2009 - 2018, Peter Haag
+ *  Copyright (c) 2004 - 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -72,5 +70,9 @@ profile_channel_info_t	*GetChannelInfoList(void);
 void CloseChannels (time_t tslot, int compress);
 
 void UpdateRRD( time_t tslot, profile_channel_info_t *channel );
+
+#ifdef HAVE_INFLUXDB
+void UpdateInfluxDB( time_t tslot, profile_channel_info_t *channel );
+#endif
 
 #endif //_PROFILE_H

@@ -1,0 +1,131 @@
+Index: bin/nfsend
+===================================================================
+--- bin/nfsend	(revision 27)
++++ bin/nfsend	(working copy)
+@@ -66,6 +66,61 @@
+ my $VERSION = '$Id$';
+ my $nfsen_version = "1.3";
+ 
++
++########## TODO INFLUXDB #########
++use LWP::UserAgent;
++my $ua;	
++my $influxdb_url;
++my $influxdb_measurement;
++
++sub UpdateInflux {
++	my $timeslot = shift;
++	my $channel= shift;
++	my $profilegroup= shift;
++	my $profilename= shift;
++	my $statinfo= shift;
++	
++	if ($profilegroup eq "."){
++		$profilegroup="ROOT";
++	}
++	
++	my $post_data = "$influxdb_measurement,channel=$channel,profilegroup=$profilegroup,profile=$profilename v=1";
++					
++	#foreach my $ds ( @NfSen::RRD::RRD_DS ) {
++	foreach my $ds ( @NfSenRRD::RRD_DS ) {
++		if ( !defined $$statinfo{$ds} || $$statinfo{$ds} == - 1 ) {
++			$post_data.=",$ds=0";
++		} else {
++			$post_data.=",$ds=$$statinfo{$ds}";
++		}
++	}					
++	
++	$post_data .= " $timeslot";
++	$post_data .= "000000000";
++
++	syslog("debug","$influxdb_url $post_data");
++	
++	my $req = HTTP::Request->new(POST => $influxdb_url);
++	$req->content($post_data);
++	 						
++	my $resp = $ua->request($req);
++	my $response = $resp->as_string();
++	
++	syslog("debug"," 		$response ");
++					
++	if ( $resp->is_success ) {
++		
++	} else {
++	    syslog("err","Error $response");
++	}
++										
++	if ( $resp->code != 204 ) {
++		syslog("err","Unable to post data to influxdb $influxdb_url: $response ".$resp->code);
++	}	
++}
++
++############################################################
++
+ my $forever = 1;
+ my $reload  = 0;
+ 
+@@ -373,7 +428,7 @@
+ 			$profileinfo{'updated'} = $timeslot;
+ 
+ 			if ( $profilegroup eq '.' && $profilename eq 'live' ) {
+-				# update live RRD database - other profiles were already updated by nfpofile
++				# update live RRD database - other profiles were already updated by nfprofile
+ 				foreach my $channel ( NfProfile::ProfileChannels(\%profileinfo) ) {
+ 
+ 					my ($statinfo, $exit_code, $err ) = NfProfile::ReadStatInfo(\%profileinfo, $channel, $subdirs, $t_iso, undef);
+@@ -395,6 +450,12 @@
+ 					if ( $Log::ERROR ) {
+ 						syslog('err', "ERROR Update RRD time: '$t_iso', db: '$channel', profile: '$profilename' group '$profilegroup' : $Log::ERROR");
+ 					}
++					
++					########## TODO INFLUX #########
++					if( $influxdb_url ) {
++						UpdateInflux($timeslot,$channel,$profilegroup,$profilename, $statinfo);
++					}
++					#################################					
+ 				}
+ 			}
+ 
+@@ -699,6 +760,17 @@
+ Log::LogInit();
+ syslog("info", "Startup. Version: $nfsen_version $VERSION");
+ 
++########## TODO INFLUXDB #########
++$influxdb_url = "$NfConf::influxdb_url";
++$influxdb_measurement = "$NfConf::influxdb_measurement";
++
++if($influxdb_url) {		 
++	$ua = LWP::UserAgent->new;
++	$ua->timeout( 10 );
++	syslog("info","Enabled INFLUXDB on $influxdb_url");
++}
++###################################
++
+ my $arg = shift @ARGV;
+ $arg = '' unless defined $arg;
+ die "Unknow argument '$arg'" if $arg ne '' && $arg ne 'once';
+Index: libexec/NfConf.pm
+===================================================================
+--- libexec/NfConf.pm	(revision 27)
++++ libexec/NfConf.pm	(working copy)
+@@ -73,6 +73,9 @@
+ our $BACKEND_PLUGINDIR;
+ our $PICDIR;
+ 
++#INFLUXDB
++our $influxdb_url;
++our $influxdb_measurement;
+ 
+ # Alerting email vars
+ our $MAIL_FROM;
+@@ -137,6 +140,10 @@
+ 	$ZIPprofiles	 = 0;
+ 
+ 	$LogSocket	= $^O eq "solaris" ? 'stream' : 'unix';
++	
++	#INFLUXDB
++	$influxdb_url	 = undef;
++	$influxdb_measurement = "nfsen_stats";
+ 
+ 	# Read Configuration
+ 	if ( ! open( TMP, $CONFFILE) ) {

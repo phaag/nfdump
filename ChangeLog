@@ -1,3 +1,6 @@
+2018-01-06
+- Merge pull request #51 Influxdb from Luca. Thx for the patch
+
 2018-01-01
 - IPFIX time stamps - Fix elements #21,#22 offset calculation, but timestamps not yet evaluated. (#160)
 - IPFIX add fwd status tag #89 compatible to v9 (1byte)

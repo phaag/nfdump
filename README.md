@@ -403,6 +403,17 @@ netflow data, even if sampling is configured. The number of bytes/packets in eac
 netflow record is automatically multiplied by the sampling rate. The total number of 
 flows is not changed as this is not accurate enough. (Small flows versus large flows)
 
+###InfluxDB
+You can send nfprofile stats data to an influxdb database. The data are the same of rrd files.
+For enable this option you need libcurl dev package installed, use --enable-influxdb for configure the project and the nfprofile command should be invoked with option: -i <influxurl> . 
+Example: -i http://localhost:8086/write?db=mydb&u=user&p=pass 
+The parameters for auth (&u=user&p=pass) are optional.
+Then you get the stats data on influxdb mydb in the measurement nfsen_stats.
+
+For put the stats of live profile you need to apply a patch to nfsen (in extra/nfsen) and add in nfsen.conf the option:
+	$influxdb_url="http://mydbhost.local:8086/write?db=nfsen";
+as example I added a preconfigured grafana dashboard in extra/grafana/Nfsen_Stats.json .
+
 ---
 
 For more information, see the GitHub Wiki
