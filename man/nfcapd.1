@@ -86,6 +86,11 @@ the final directory is concatenated to \fIbase_directory/sub_hierarchy. Multiple
 sources can be specified. All data is sent to the same port specified by \fI\-p\fR.
 Note: You must not mix \-n option with \-I and \-l. Use either syntax.
 .TP 3
+.B -N \fI<file>
+Specifies the \fIfile\fR to read to add multiple netflow sources. The file is expected to contain
+one netflow source per line based on the same syntax than the -n option. Comments are not interpreted.
+Ident collision are not handled if -N is specified multiple times.
+.TP 3
 .B -f \fI<pcap_file>
 Read netflow packets from a give \fIpcap_file\fR instead of the network. This 
 requires nfcapd to be compiled with the pcap option and is intended for debugging only.
