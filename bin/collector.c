@@ -227,6 +227,55 @@ int ok;
 
 } // End of AddFlowSource
 
+int AddFlowSourceFromFile(FlowSource_t **FlowSource, char *path) {
+    struct stat fstat;
+    char entry[MAXPATHLEN];
+    FILE *inputfile = NULL;
+    int ret = 0;
+
+    if (strlen(path) >= MAXPATHLEN) {
+	fprintf(stderr, "Path too long: %s\n", path);
+	return 1;
+    }
+   
+    if (stat(path, &fstat)) {
+        fprintf(stderr, "stat() error %s: %s\n", path, strerror(errno));
+        return 2;
+    }
+
+    if (!(fstat.st_mode & S_IFREG) ) {
+        fprintf(stderr, "Not a file: %s\n", path);
+        return 3;
+    }
+   
+    inputfile = fopen(path, "r");
+    if (NULL == inputfile) {
+        fprintf(stderr, "Cannot open file %s: %s\n", path, strerror(errno));
+        return 4;
+    }
+    
+    for(;fgets(entry,sizeof(entry),inputfile) != NULL;) {
+        int len = strlen(entry);
+                
+        if (entry[len-2] == '\n' || entry[len-2] == '\r')
+            entry[len-2] = 0;
+        if (entry[len-1] == '\n' || entry[len-1] == '\r')
+            entry[len-1] = 0;
+        
+        if (!AddFlowSource(FlowSource, entry)) {
+            fprintf(stderr, "Could not add flow source %s\n", entry);
+            ret = 5;
+        }
+    }
+    
+    if (fclose(inputfile)) {
+        fprintf(stderr, "Cannot close file %s: %s\n", path, strerror(errno));
+        return 6;
+    }
+    
+    return ret;
+} // End of AddFlowSourceFromFile
+
 int AddDefaultFlowSource(FlowSource_t **FlowSource, char *ident, char *path) {
 struct 	stat 	fstat;
 char s[MAXPATHLEN];
