@@ -1,3 +1,6 @@
+2018-02-11
+- Add missing json output format help text
+
 2018-01-06
 - Merge pull request #51 Influxdb from Luca. Thx for the patch
 
