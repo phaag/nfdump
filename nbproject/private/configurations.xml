@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configurationDescriptor version="97">
+  <logicalFolder name="root" displayName="root" projectFiles="true" kind="ROOT">
+    <df root="." name="0">
+      <df name="autom4te.cache">
+      </df>
+      <df name="bin">
+        <df name=".deps">
+        </df>
+        <df name=".libs">
+        </df>
+        <in>applybits_inline.c</in>
+        <in>bookkeeper.c</in>
+        <in>bookkeeper.h</in>
+        <in>collector.c</in>
+        <in>collector.h</in>
+        <in>collector_inline.c</in>
+        <in>content_dns.c</in>
+        <in>content_dns.h</in>
+        <in>expire.c</in>
+        <in>expire.h</in>
+        <in>exporter.c</in>
+        <in>exporter.h</in>
+        <in>flist.c</in>
+        <in>flist.h</in>
+        <in>flowtree.c</in>
+        <in>flowtree.h</in>
+        <in>ft2nfdump.c</in>
+        <in>fts_compat.c</in>
+        <in>fts_compat.h</in>
+        <in>grammar.c</in>
+        <in>grammar.h</in>
+        <in>grammar.y</in>
+        <in>heapsort_inline.c</in>
+        <in>inline.c</in>
+        <in>ipconv.c</in>
+        <in>ipconv.h</in>
+        <in>ipfix.c</in>
+        <in>ipfix.h</in>
+        <in>ipfrag.c</in>
+        <in>ipfrag.h</in>
+        <in>launch.c</in>
+        <in>launch.h</in>
+        <in>lzoconf.h</in>
+        <in>lzodefs.h</in>
+        <in>minilzo.c</in>
+        <in>minilzo.h</in>
+        <in>netflow_pcap.c</in>
+        <in>netflow_pcap.h</in>
+        <in>netflow_v1.c</in>
+        <in>netflow_v1.h</in>
+        <in>netflow_v5_v7.c</in>
+        <in>netflow_v5_v7.h</in>
+        <in>netflow_v9.c</in>
+        <in>netflow_v9.h</in>
+        <in>nf_common.c</in>
+        <in>nf_common.h</in>
+        <in>nfanon.c</in>
+        <in>nfcapd.c</in>
+        <in>nfdump.c</in>
+        <in>nfdump.h</in>
+        <in>nfdump_inline.c</in>
+        <in>nfexpire.c</in>
+        <in>nfexport.c</in>
+        <in>nfexport.h</in>
+        <in>nffile.c</in>
+        <in>nffile.h</in>
+        <in>nffile_inline.c</in>
+        <in>nfgen.c</in>
+        <in>nflowcache.c</in>
+        <in>nflowcache.h</in>
+        <in>nfnet.c</in>
+        <in>nfnet.h</in>
+        <in>nfpcapd.c</in>
+        <in>nfprof.c</in>
+        <in>nfprof.h</in>
+        <in>nfprofile.c</in>
+        <in>nfreader.c</in>
+        <in>nfreplay.c</in>
+        <in>nfstat.c</in>
+        <in>nfstat.h</in>
+        <in>nfstatfile.c</in>
+        <in>nfstatfile.h</in>
+        <in>nftest.c</in>
+        <in>nftree.c</in>
+        <in>nftree.h</in>
+        <in>nfx.c</in>
+        <in>nfx.h</in>
+        <in>nfxstat.c</in>
+        <in>nfxstat.h</in>
+        <in>panonymizer.c</in>
+        <in>panonymizer.h</in>
+        <in>pcap_reader.c</in>
+        <in>pcap_reader.h</in>
+        <in>pcaproc.c</in>
+        <in>pcaproc.h</in>
+        <in>profile.c</in>
+        <in>profile.h</in>
+        <in>rbtree.h</in>
+        <in>rijndael.c</in>
+        <in>rijndael.h</in>
+        <in>scanner.c</in>
+        <in>scanner.l</in>
+        <in>sfcapd.c</in>
+        <in>sflow.c</in>
+        <in>sflow.h</in>
+        <in>sflow_proto.h</in>
+        <in>util.c</in>
+        <in>util.h</in>
+      </df>
+      <df name="extra">
+        <df name="nftrack">
+          <df name=".deps">
+          </df>
+          <in>nftrack.c</in>
+          <in>nftrack_rrd.c</in>
+          <in>nftrack_rrd.h</in>
+          <in>nftrack_stat.c</in>
+          <in>nftrack_stat.h</in>
+        </df>
+      </df>
+      <df name="man">
+      </df>
+      <df name="non-dist">
+      </df>
+      <in>config.h</in>
+    </df>
+  </logicalFolder>
+  <projectmakefile>Makefile</projectmakefile>
+  <confs>
+    <conf name="Default" type="0">
+      <toolsSet>
+        <developmentServer>root@192.168.2.165:22</developmentServer>
+        <platform>2</platform>
+      </toolsSet>
+      <compile>
+        <compiledirpicklist>
+          <compiledirpicklistitem>.</compiledirpicklistitem>
+          <compiledirpicklistitem>${AUTO_FOLDER}</compiledirpicklistitem>
+        </compiledirpicklist>
+        <compiledir>${AUTO_FOLDER}</compiledir>
+        <compilecommandpicklist>
+          <compilecommandpicklistitem>${MAKE} ${ITEM_NAME}.o</compilecommandpicklistitem>
+          <compilecommandpicklistitem>${AUTO_COMPILE}</compilecommandpicklistitem>
+        </compilecommandpicklist>
+        <compilecommand>${AUTO_COMPILE}</compilecommand>
+      </compile>
+      <dbx_gdbdebugger version="1">
+        <gdb_pathmaps>
+        </gdb_pathmaps>
+        <gdb_interceptlist>
+          <gdbinterceptoptions gdb_all="false" gdb_unhandled="true" gdb_unexpected="true"/>
+        </gdb_interceptlist>
+        <gdb_options>
+          <DebugOptions>
+          </DebugOptions>
+        </gdb_options>
+        <gdb_buildfirst gdb_buildfirst_overriden="false" gdb_buildfirst_old="false"/>
+      </dbx_gdbdebugger>
+      <nativedebugger version="1">
+        <engine>gdb</engine>
+      </nativedebugger>
+      <runprofile version="9">
+        <runcommandpicklist>
+          <runcommandpicklistitem>"${OUTPUT_PATH}"</runcommandpicklistitem>
+        </runcommandpicklist>
+        <runcommand>"${OUTPUT_PATH}"</runcommand>
+        <rundir>.</rundir>
+        <buildfirst>false</buildfirst>
+        <terminal-type>0</terminal-type>
+        <remove-instrumentation>0</remove-instrumentation>
+        <environment>
+        </environment>
+      </runprofile>
+    </conf>
+  </confs>
+</configurationDescriptor>
