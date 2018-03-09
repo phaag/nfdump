@@ -177,7 +177,7 @@ sysid			{ return SYSID; }
  
 asa				{ return ASA; 		/* NSEL filter */ }
 event			{ return EVENT; 	/* NEL/NSEL filter */ }
-ignore|invalid|create|add|term|delete|deny|n44cre|n44del|adrexh	{ 	/* NSEL filter */
+ignore|invalid|create|add|term|delete|deny	{ 	/* NSEL filter */
 					yylval.s = strdup(yytext);
 					return REASON; 
 				}

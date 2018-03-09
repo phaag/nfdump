@@ -77,11 +77,6 @@ typedef struct printmap_s {
 #define NEL_EVENT_INVALID 0LL
 #define NEL_EVENT_ADD	  1LL
 #define NEL_EVENT_DELETE  2LL
-/* https://www.iana.org/assignments/ipfix/ipfix.xml#ipfix-nat-event-type */
-
-#define NEL_EVENT_NAT_ADDRS_EXHAUSTED	3LL
-#define NEL_EVENT_NAT44_SESSION_CREATE	4LL
-#define NEL_EVENT_NAT44_SESSION_DELETE	5LL
 
 /* prototypes */
 

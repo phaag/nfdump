@@ -974,12 +974,6 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			$$.self = NewBlock(OffsetNATevent, MasNATevent, ( NEL_EVENT_ADD << ShiftNATevent) & MasNATevent, CMP_EQ, FUNC_NONE, NULL );
 		} else if( strncasecmp($3,"delete", 6) == 0) {
 			$$.self = NewBlock(OffsetNATevent, MasNATevent, ( NEL_EVENT_DELETE << ShiftNATevent) & MasNATevent, CMP_EQ, FUNC_NONE, NULL );
-		} else if( strncasecmp($3,"adrexh", 6) == 0) {
-			$$.self = NewBlock(OffsetNATevent, MasNATevent, ( NEL_EVENT_NAT_ADDRS_EXHAUSTED << ShiftNATevent) & MasNATevent, CMP_EQ, FUNC_NONE, NULL );
-		} else if( strncasecmp($3,"n44cre", 6) == 0) {
-			$$.self = NewBlock(OffsetNATevent, MasNATevent, ( NEL_EVENT_NAT44_SESSION_CREATE << ShiftNATevent) & MasNATevent, CMP_EQ, FUNC_NONE, NULL );
-		} else if( strncasecmp($3,"n44del", 6) == 0) {
-			$$.self = NewBlock(OffsetNATevent, MasNATevent, ( NEL_EVENT_NAT44_SESSION_DELETE << ShiftNATevent) & MasNATevent, CMP_EQ, FUNC_NONE, NULL );
 		} else {
 			yyerror("Unknown nat event");
 			YYABORT;
