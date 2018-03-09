@@ -80,8 +80,9 @@ static char *NSEL_event_string[6] = {
 	"IGNORE", "CREATE", "DELETE", "DENIED", "ALERT", "UPDATE"
 };
 
-static char *NEL_event_string[3] = {
-	"INVALID", "ADD", "DELETE"
+static char *NEL_event_string[6] = {
+	"INVALID", "ADD", "DELETE", "NAT_ADDRS_EXHAUSTED", "NAT44_CREATE",
+	"NAT44_DELETE"
 };
 #endif
 
@@ -576,15 +577,6 @@ static struct fwd_status_def_s {
 	{ 130,	"TincAdj"}, // Terminate Incomplete Adjacency
 	{ 131,	"Tforus"}, 	// Terminate For us
 	{ 0,	NULL}		// Last entry
-};
-
-char *NSEL_event_string[6] = {
-	"IGNORE", "CREATE", "DELETE", "DENIED", "ALERT", "UPDATE"
-};
-
-char *NEL_event_string[6] = {
-	"INVALID", "ADD", "DELETE", "NAT_ADDRS_EXHAUSTED", "NAT44_CREATE",
-	"NAT44_DELETE"
 };
 
 static char **fwd_status = NULL;
