@@ -265,6 +265,15 @@ static struct ipfix_element_map_s {
 	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero32, COMMON_BLOCK},
 	{ IPFIX_flowStartDeltaMicroseconds,	 _4bytes,   _4bytes,  TimeDeltaMicro, zero32, COMMON_BLOCK},
 	{ IPFIX_flowEndDeltaMicroseconds, 	 _4bytes,   _4bytes,  TimeDeltaMicro, zero32, COMMON_BLOCK},
+	/* NEL */
+	{ IPFIX_postNATSourceIPv4Address, 	 _4bytes,   _4bytes,  move32, zero32, EX_NSEL_XLATE_IP_v4},
+	{ IPFIX_postNATDestinationIPv4Address,	 _4bytes,   _4bytes,  move32, zero32, EX_NSEL_XLATE_IP_v4},
+	{ IPFIX_postNAPTSourceTransportPort, _2bytes,   _2bytes,  move16, zero16, EX_NSEL_XLATE_PORTS},
+	{ IPFIX_postNAPTDestinationTransportPort, _2bytes,   _2bytes,  move16, zero16, EX_NSEL_XLATE_PORTS},
+	{ IPFIX_natEvent, _1byte,   _1byte,  move8, zero8, EX_NEL_COMMON},
+	{ IPFIX_ingressVRFID, _4bytes,   _4bytes,  move32, zero32, EX_NEL_COMMON},
+	{ IPFIX_egressVRFID, _4bytes,   _4bytes,  move32, zero32, EX_NEL_COMMON},
+	{ IPFIX_observationTimeMilliseconds, 				 _8bytes, 	_8bytes,  Time64Mili, zero32, COMMON_BLOCK },
 	{0, 0, 0}
 };
 
@@ -741,6 +750,26 @@ size_t				size_required;
 			continue;
 
 		switch(i) {
+			case EX_NEL_COMMON:
+				PushSequence( table, IPFIX_natEvent, &offset, NULL);
+				offset += 3;
+				PushSequence( table, IPFIX_ingressVRFID, &offset, NULL);
+				PushSequence( table, IPFIX_egressVRFID, &offset, NULL);
+
+				uint32_t offs = BYTE_OFFSET_first;
+				PushSequence( table, IPFIX_observationTimeMilliseconds, &offs, &table->flow_start);
+				offs = BYTE_OFFSET_first + 4;
+				PushSequence( table, IPFIX_observationTimeMilliseconds, &offs, &table->flow_end);
+
+				break;
+			case EX_NSEL_XLATE_PORTS:
+				PushSequence( table, IPFIX_postNAPTSourceTransportPort, &offset, NULL);
+				PushSequence( table, IPFIX_postNAPTDestinationTransportPort, &offset, NULL);
+				break;
+			case EX_NSEL_XLATE_IP_v4:
+				PushSequence( table, IPFIX_postNATSourceIPv4Address, &offset, NULL);
+				PushSequence( table, IPFIX_postNATDestinationIPv4Address, &offset, NULL);
+				break;
 			case EX_IO_SNMP_2:
 				PushSequence( table, IPFIX_ingressInterface, &offset, NULL);
 				PushSequence( table, IPFIX_egressInterface, &offset, NULL);
@@ -1177,6 +1206,27 @@ uint16_t Offset = 0;
 				num_extensions++;
 			}
 			dbg_printf("Force add packet received time, Extension: %u\n", EX_RECEIVED);
+		}
+
+		if ( extension_descriptor[EX_NSEL_XLATE_PORTS].enabled ) {
+			if ( cache.common_extensions[EX_NSEL_XLATE_PORTS] == 0 ) {
+				cache.common_extensions[EX_NSEL_XLATE_PORTS] = 1;
+				num_extensions++;
+			}
+		}
+
+		if ( extension_descriptor[EX_NSEL_XLATE_IP_v4].enabled ) {
+			if ( cache.common_extensions[EX_NSEL_XLATE_IP_v4] == 0 ) {
+				cache.common_extensions[EX_NSEL_XLATE_IP_v4] = 1;
+				num_extensions++;
+			}
+		}
+
+		if ( extension_descriptor[EX_NEL_COMMON].enabled ) {
+			if ( cache.common_extensions[EX_NEL_COMMON] == 0 ) {
+				cache.common_extensions[EX_NEL_COMMON] = 1;
+				num_extensions++;
+			}
 		}
 
 #ifdef DEVEL
