@@ -544,7 +544,7 @@ time_t tslot;
 	// default file names
 	ffile = "filter.txt";
 	rfile = NULL;
-	while ((c = getopt(argc, argv, "D:HIL:p:P:hif:J;r:n:M:S:t:VzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "D:HIL:p:P:hi:f:J;r:n:M:S:t:VzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -613,8 +613,13 @@ time_t tslot;
 				compress = LZO_COMPRESSED;
 				break;
 #ifdef HAVE_INFLUXDB
-			case 'i':
-				strncpy(influxdb_url, optarg, 1024);
+			case 'i': 
+				if ( optarg != NULL ) 
+					strncpy(influxdb_url, optarg, 1024);
+				else {
+					LogError("Missing argument for -i <influx URL>\n");
+					exit(255);
+				}
 				influxdb_url[1023] = '\0';
 				break;
 #endif

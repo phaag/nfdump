@@ -2,6 +2,7 @@
 - Add program exit in nfx.c after panic with correupt data file
 - Add missing size check when reading nfdump 1.5.x common record blocks
 - Add missing option -M in man page. Issue #103
+- Add Fix processing of influx URL in nfprofile
 
 2018-02-11
 - Add missing json output format in nfdump help text
