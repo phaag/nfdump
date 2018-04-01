@@ -38,7 +38,7 @@ static inline void AppendToBuffer(nffile_t *nffile, void *record, size_t require
 
 static inline void CopyV6IP(uint32_t *dst, uint32_t *src);
 
-static inline void ConvertCommonV0(void *record, common_record_t *flow_record);
+static inline int ConvertCommonV0(void *record, common_record_t *flow_record);
 
 static inline void ExpandRecord_v2(common_record_t *input_record, extension_info_t *extension_info, exporter_info_record_t *exporter_info, master_record_t *output_record );
 
@@ -75,11 +75,13 @@ static inline void CopyV6IP(uint32_t *dst, uint32_t *src) {
 	dst[3] = src[3];
 } // End of CopyV6IP
 
-static inline void ConvertCommonV0(void *record, common_record_t *flow_record) {
+static inline int ConvertCommonV0(void *record, common_record_t *flow_record) {
 common_record_v0_t *flow_record_v0 = (common_record_v0_t *)record;
 
 	// copy v0 common record
 	memcpy((void *)flow_record, record, COMMON_RECORDV0_DATA_SIZE);
+	if ( flow_record_v0->size <= COMMON_RECORDV0_DATA_SIZE ) 
+		return 0;
 	memcpy((void *)flow_record->data, (void *)flow_record_v0->data, flow_record_v0->size - COMMON_RECORDV0_DATA_SIZE);
 
 	// fix record differences
@@ -89,6 +91,7 @@ common_record_v0_t *flow_record_v0 = (common_record_v0_t *)record;
 	flow_record->exporter_sysid = flow_record_v0->exporter_sysid;
 	flow_record->reserved 		= 0;
 
+	return 1;
 } // End of ConvertCommonV0
 
 /*

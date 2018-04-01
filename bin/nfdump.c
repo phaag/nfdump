@@ -542,7 +542,11 @@ int	v1_map_done = 0;
 							exit(255);
 						}
 					}
-					ConvertCommonV0((void *)record_ptr, (common_record_t *)ConvertBuffer);
+					if ( !ConvertCommonV0((void *)record_ptr, (common_record_t *)ConvertBuffer) ) {
+						LogError("Corrupt data file. Unable to decode at %s line %d\n", __FILE__, __LINE__);
+						exit(255);
+
+					}
 					flow_record = (common_record_t *)ConvertBuffer;
 					dbg_printf("Converted type %u to %u record\n", CommonRecordV0Type, CommonRecordType);
 				case CommonRecordType: {
