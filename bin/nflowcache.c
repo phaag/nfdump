@@ -116,6 +116,8 @@ static struct aggregate_info_s {
 	{ "xsrcip",		{ 8, OffsetXLATESRCv6b,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0, 	NULL	},
 	{ "xdstip",		{ 8, OffsetXLATEDSTv6a,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0,	"%xda"	},
 	{ "xdstip",		{ 8, OffsetXLATESRCv6b,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0, 	NULL	},
+	{ "xsrcport",	{ 2, OffsetXLATEPort,   MaskXLATESRCPORT,   ShiftXLATESRCPORT }, 	-1, 0, 	"%xsp"	},
+	{ "xdstport",	{ 2, OffsetXLATEPort,   MaskXLATEDSTPORT,   ShiftXLATEDSTPORT }, 	-1, 0, 	"%xdp"	},
 #endif
 	{ "dstip4",		{ 8, OffsetDstIPv6a, 	MaskIPv6, 	 ShiftIPv6 },     	 0, 0,	"%da"	},
 	{ "dstip4",		{ 8, OffsetDstIPv6b, 	MaskIPv6, 	 ShiftIPv6 },     	 1, 0,	NULL	},
