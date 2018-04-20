@@ -35,8 +35,8 @@ does not support the full IPFIX definition.
 
 ### Building and config options
 
-The toolset is build upon the autotools framework. Run __./autogen.sh__ first.
-Afterwards __./configure ./make__ and __./make install__ should do the trick.
+The toolset is build upon the autotools framework. Run `./autogen.sh` first.
+Afterwards `./configure` `make` and `make install` should do the trick.
 
 The following config options are available:
 
