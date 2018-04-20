@@ -189,8 +189,10 @@ AS_IF([test "x$influxdb" = xyes], [
 	AC_CHECK_LIB([curl], [curl_free],,[AC_MSG_ERROR([libcurl required!])])
 	
 	AC_DEFINE_UNQUOTED(HAVE_INFLUXDB, 1, [enable stats to influxdb])
-], [ 
-])
+	AM_CONDITIONAL(INFLXDB, true)
+], 
+AM_CONDITIONAL(INFLXDB, false)
+)
 
 AC_ARG_ENABLE(nftrack,
 [  --enable-nftrack      Build nftrack used by PortTracker; default is NO],

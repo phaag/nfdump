@@ -281,6 +281,10 @@ LZ4LIB_API int LZ4_compress_fast_continue (LZ4_stream_t* streamPtr, const char* 
  */
 LZ4LIB_API int LZ4_saveDict (LZ4_stream_t* streamPtr, char* safeBuffer, int dictSize);
 
+// add missing prototypes
+int LZ4_compress_fast_force(const char* source, char* dest, int inputSize, int maxOutputSize, int acceleration);
+int LZ4_compress_forceExtDict (LZ4_stream_t* LZ4_dict, const char* source, char* dest, int inputSize);
+int LZ4_decompress_safe_forceExtDict(const char* source, char* dest, int compressedSize, int maxOutputSize, const char* dictStart, int dictSize);
 
 /*-**********************************************
 *  Streaming Decompression Functions
