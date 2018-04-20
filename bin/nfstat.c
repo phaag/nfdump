@@ -442,6 +442,7 @@ struct order_mode_s {
 #define Default_PrintOrder 1		// order_mode[0].val
 static uint32_t	print_order_bits = 0;
 static uint32_t	PrintOrder 		 = 0;
+static uint32_t	GuessDirection 	 = 0;
 static uint32_t	NumStats 		 = 0;
 
 static uint64_t	byte_limit, packet_limit;
@@ -493,6 +494,12 @@ static uint64_t	flows_record(FlowTableRecord_t *record, int inout) {
 }
 
 static uint64_t	packets_record(FlowTableRecord_t *record, int inout) {
+		if ( GuessDirection && (record->flowrecord.srcport < record->flowrecord.dstport) ) {
+			if (inout == IN)
+				inout = OUT;
+			else if (inout == OUT)
+				inout = IN;
+		}
         if (inout == IN)
                 return record->counter[INPACKETS];
         else if (inout == OUT)
@@ -502,6 +509,12 @@ static uint64_t	packets_record(FlowTableRecord_t *record, int inout) {
 }
 
 static uint64_t	bytes_record(FlowTableRecord_t *record, int inout) {
+		if ( GuessDirection && (record->flowrecord.srcport < record->flowrecord.dstport) ) {
+			if (inout == IN)
+				inout = OUT;
+			else if (inout == OUT)
+				inout = IN;
+		}
         if (inout == IN)
                 return record->counter[INBYTES];
         else if (inout == OUT)
@@ -1435,6 +1448,7 @@ struct tm	*tbuff;
 
 } // End of PrintCvsStatLine
 
+
 void PrintFlowTable(printer_t print_record, uint32_t topN, int tag, int GuessDir, extension_map_list_t *extension_map_list) {
 hash_FlowTable *FlowTable;
 FlowTableRecord_t	*r;
@@ -1445,12 +1459,13 @@ uint32_t 			i;
 uint32_t			maxindex, c;
 char				*string;
 
+	GuessDirection = GuessDir;
 	FlowTable = GetFlowTable();
 	aggr_record_mask = GetMasterAggregateMask();
 	c = 0;
 	maxindex = FlowTable->NumRecords;
 	if ( PrintOrder ) {
-		// Sort according the date
+		// Sort according the requested order
 		SortList = (SortElement_t *)calloc(maxindex, sizeof(SortElement_t));
 
 		if ( !SortList ) {
@@ -1915,3 +1930,4 @@ uint32_t _tmp;
 	flow_record->out_bytes = _tmp_l;
 
 } // End of SwapFlow
+

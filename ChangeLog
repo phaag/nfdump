@@ -1,3 +1,6 @@
+2018-04-20
+- Fix bug in sorting when guessing flow direction. Issue #92
+
 2018-04-01
 - Add program exit in nfx.c after panic with correupt data file
 - Add missing size check when reading nfdump 1.5.x common record blocks
