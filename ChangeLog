@@ -1,6 +1,7 @@
 2018-04-20
 - Fix bug in sorting when guessing flow direction. Issue #92
 - Update nfdump.1 man page for xsrcport & xdstport aggregations. Request #109
+- Fix minor bugs
 
 2018-04-01
 - Add program exit in nfx.c after panic with correupt data file

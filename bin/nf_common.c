@@ -2389,7 +2389,7 @@ static void String_Flags(master_record_t *r, char *string) {
 
 	// if record contains unusuall flags, print the flags in hex as 0x.. number
 	if ( r->tcp_flags > 63 ) {
-		snprintf(string, 7, "  0x%2x\n", r->tcp_flags );
+		snprintf(string, 7, "  0x%2x", r->tcp_flags );
 	} else {
 		string[0] = r->tcp_flags & 32 ? 'U' : '.';
 		string[1] = r->tcp_flags & 16 ? 'A' : '.';

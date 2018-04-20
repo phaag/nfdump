@@ -1607,7 +1607,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			uint64_t mask;
 			uint32_t offset, shift;
 			char *s = &$2[5];
-			if ( s == '\0' ) {
+			if ( *s == '\0' ) {
 				yyerror("Missing label number");
 				YYABORT;
 			}
@@ -1678,7 +1678,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			uint64_t mask;
 			uint32_t offset, shift;
 			char *s = &$2[3];
-			if ( s == '\0' ) {
+			if ( *s == '\0' ) {
 				yyerror("Missing label number");
 				YYABORT;
 			}
