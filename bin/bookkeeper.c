@@ -43,6 +43,7 @@
 #include <sys/shm.h>
 #include <sys/sem.h>
 #include <sys/stat.h>
+#include <sys/param.h>
 #include <string.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -83,15 +84,21 @@ static inline bookkeeper_list_t *Get_bookkeeper_list_entry(bookkeeper_t *bookkee
 static uint32_t hash(char *str, int flag) {
 uint32_t h; 
 unsigned char *p;
+char cleanPath[MAXPATHLEN];
+
+	if ( realpath(str, cleanPath) == NULL ) {
+		return 0;
+	}
 
 	h = 0;
-	for (p = (unsigned char*)str; *p != '\0'; p++)
+	for (p = (unsigned char*)cleanPath; *p != '\0'; p++)
 		h = MULTIPLIER * h + *p;
 
 	if ( flag ) {
 		h = MULTIPLIER * h + 'R';
 	}
 	return h; // or, h % ARRAY_SIZE;
+
 } // End of hash
 
 // locks the semaphore, for exclusive access to the bookkeeping record

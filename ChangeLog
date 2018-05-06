@@ -1,3 +1,6 @@
+2018-05-06
+- New bookkeeper hash broke NfSen. Fixed. ported back to release 1.6.17
+
 2018-04-20
 - Release 1.6.17
 
