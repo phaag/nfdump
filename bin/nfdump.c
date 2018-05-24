@@ -189,11 +189,21 @@ extern generic_exporter_t **exporter_list;
 
 #define FORMAT_nel "%ts %nevt %pr %sap -> %dap %nsap -> %ndap"
 
-#define FORMAT_asa    "%evt|%xevt|%nfc|%msec|%ts|%pr|%in|%sa|%sp|%out|%da|%dp|%ibyt|%obyt|%ipkt|%opkt"
+#define FORMAT_asa    "%evt|%xevt|%nfc|%ts|%pr|%in|%sa|%sp|%out|%da|%dp|%ibyt|%obyt|%ipkt|%opkt"
 
-#define FORMAT_asaexp "%evt|%xevt|%nfc|%ts|%pr|%in|%sa|%sp|%out|%da|%dp|%ibyt|%obyt|%ipkt|%opkt"
+#define FORMAT_asaexp "%evt|%xevt|%nfc|%msec|%pr|%in|%sa|%sp|%out|%da|%dp|%ibyt|%obyt|%ipkt|%opkt"
 
-#define FORMAT_asaagg "%pr|%in|%sa|%sp|%out|%da|%dp|%ibyt|%obyt|%ipkt|%opkt"
+#define FORMAT_asaagg "%pr|%in|%sa|%sp|%out|%da|%dp|%ibyt|%obyt|%ipkt|%opkt|%fl"
+
+#define FORMAT_bitab  "%ts|%pr|%flg|%tos|%in|%sa|%sp|%out|%da|%dp|%ibyt|%ipkt|%obyt|%opkt"
+
+#define FORMAT_biexp  "%msec|%pr|%flg|%tos|%in|%sa|%sp|%out|%da|%dp|%ibyt|%ipkt|%obyt|%opkt"
+
+#define FORMAT_tab    "%ts|%pr|%flg|%tos|%in|%sa|%sp|%out|%da|%dp|%ibyt|%ipkt"
+
+#define FORMAT_tabexp "%msec|%pr|%flg|%tos|%in|%sa|%sp|%out|%da|%dp|%ibyt|%ipkt"
+
+#define FORMAT_tabagg "%pr|%flg|%tos|%in|%sa|%sp|%out|%da|%dp|%ibyt|%ipkt|%fl"
 
 #ifdef NSEL
 #	define DefaultMode "nsel"
@@ -233,6 +243,11 @@ printmap_t printmap[] = {
 	{ "asa", 	format_special,      		FORMAT_asa 	},
 	{ "asaexp", 	format_special,      		FORMAT_asaexp 	},
 	{ "asaagg", 	format_special,      		FORMAT_asaagg 	},
+	{ "bitab",  format_special,      		FORMAT_bitab 	},
+	{ "biexp",  format_special,      		FORMAT_biexp 	},
+	{ "tab",    format_special,      		FORMAT_tab 	},
+	{ "tabexp", format_special,      		FORMAT_tabexp 	},
+	{ "tabagg", format_special,      		FORMAT_tabagg 	},
 	{ "pipe", 		flow_record_to_pipe,      	NULL 			},
 	{ "json", 		flow_record_to_json,      	NULL 			},
 	{ "csv", 		flow_record_to_csv,      	NULL 			},
