@@ -325,6 +325,12 @@ static struct v9_element_map_s {
 	// byte count
 	{ NF_F_FLOW_BYTES, 			 "ASA bytes",				_4bytes,  _8bytes, move32_sampling, zero64, EX_NSEL_COMMON },
 	{ NF_F_FLOW_BYTES, 			 "ASA bytes",				_8bytes,  _8bytes, move64_sampling, zero64, EX_NSEL_COMMON },
+	// packet count
+	{ NF_F_IN_PACKETS, 			 "ASA in packets",		_4bytes,  _8bytes, move32_sampling, zero64, EX_NSEL_COMMON },
+	{ NF_F_IN_PACKETS, 			 "ASA in packets",		_8bytes,  _8bytes, move64_sampling, zero64, EX_NSEL_COMMON },
+	{ NF_F_OUT_PACKETS, 		 "ASA out packets",		_4bytes,  _8bytes, move32_sampling, zero64, EX_OUT_PKG_8 },
+	{ NF_F_OUT_PACKETS, 		 "ASA out packets",		_8bytes,  _8bytes, move64_sampling, zero64, EX_OUT_PKG_8 },
+
 	{ NF_F_FWD_FLOW_DELTA_BYTES, "ASA fwd bytes",			_4bytes,  _8bytes, move32_sampling, zero64, EX_NSEL_COMMON },
 	{ NF_F_FWD_FLOW_DELTA_BYTES, "ASA fwd bytes",			_8bytes,  _8bytes, move64_sampling, zero64, EX_NSEL_COMMON },
 	{ NF_F_REV_FLOW_DELTA_BYTES,  "ASA rew bytes",			_4bytes,  _4bytes, move32_sampling, zero32, EX_OUT_BYTES_4 },
@@ -783,7 +789,12 @@ size_t				size_required;
 	 * This record is expected in the output stream. If not available
 	 * in the template, assume empty 4 bytes value
 	 */
+	// ASA 9.x: pkt counters in (unpublished) records 298 and 299 (see EX_OUT_PKG below)
+	if ( cache.lookup_info[NF_F_IN_PACKETS].found ) {
+		PushSequence( table, NF_F_IN_PACKETS, &offset, &table->packets, 0);
+	} else {
 	PushSequence( table, NF9_IN_PACKETS, &offset, &table->packets, 0);
+	}
 	// fix: always have 64bit counters due to possible sampling
 	SetFlag(table->flags, FLAG_PKG_64);
 
@@ -863,10 +874,18 @@ size_t				size_required;
 				PushSequence( table, NF9_DST_VLAN, &offset, NULL, 0);
 				break;
 			case EX_OUT_PKG_4:
+			  if ( cache.lookup_info[NF_F_OUT_PACKETS].found ) {
+				  PushSequence( table, NF_F_OUT_PACKETS, &offset, &table->out_packets, 0);
+				} else {
 				PushSequence( table, NF9_OUT_PKTS, &offset, &table->out_packets, 0);
+			  }
 				break;
 			case EX_OUT_PKG_8:
+			  if ( cache.lookup_info[NF_F_OUT_PACKETS].found ) {
+				  PushSequence( table, NF_F_OUT_PACKETS, &offset, &table->out_packets, 0);
+				} else {
 				PushSequence( table, NF9_OUT_PKTS, &offset, &table->out_packets, 0);
+			  }
 				break;
 			case EX_OUT_BYTES_4:
 				if ( cache.lookup_info[NF_F_REV_FLOW_DELTA_BYTES].found ) {
