@@ -789,7 +789,7 @@ size_t				size_required;
 	 * This record is expected in the output stream. If not available
 	 * in the template, assume empty 4 bytes value
 	 */
-	// ASA 9.x: pkt counters in (unpublished) records 298 and 299 (see EX_OUT_PKG below)
+	// ASA 9.x: pkt counters in initiatorPackets and responderPackets
 	if ( cache.lookup_info[NF_F_IN_PACKETS].found ) {
 		PushSequence( table, NF_F_IN_PACKETS, &offset, &table->packets, 0);
 	} else {
@@ -874,6 +874,7 @@ size_t				size_required;
 				PushSequence( table, NF9_DST_VLAN, &offset, NULL, 0);
 				break;
 			case EX_OUT_PKG_4:
+	     // ASA 9.x: pkt counters in initiatorPackets and responderPackets
 			  if ( cache.lookup_info[NF_F_OUT_PACKETS].found ) {
 				  PushSequence( table, NF_F_OUT_PACKETS, &offset, &table->out_packets, 0);
 				} else {
@@ -881,6 +882,7 @@ size_t				size_required;
 			  }
 				break;
 			case EX_OUT_PKG_8:
+	      // ASA 9.x: pkt counters in initiatorPackets and responderPackets
 			  if ( cache.lookup_info[NF_F_OUT_PACKETS].found ) {
 				  PushSequence( table, NF_F_OUT_PACKETS, &offset, &table->out_packets, 0);
 				} else {
