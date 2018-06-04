@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2011, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nffile.c 41 2009-12-31 14:46:28Z haag $
- *
- *  $LastChangedRevision: 41 $
- *	
  */
 
 #include "config.h"
@@ -60,6 +55,7 @@
 #endif
 
 #include "minilzo.h"
+#include "lz4.h"
 #include "nf_common.h"
 #include "nffile.h"
 #include "flist.h"
@@ -75,19 +71,17 @@ char 	*CurrentIdent;
 #define WRITE_FILE	1
 
 // LZO params
-#define LZO_BUFFSIZE  ((BUFFSIZE + BUFFSIZE / 16 + 64 + 3) + sizeof(data_block_header_t))
 #define HEAP_ALLOC(var,size) \
     lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t) ]
 
 static HEAP_ALLOC(wrkmem,LZO1X_1_MEM_COMPRESS);
-static void *lzo_buff, *bz2_buff;
 static int lzo_initialized = 0;
+static int lz4_initialized = 0;
 static int bz2_initialized = 0;
 
-#define ERR_SIZE 256
-static char	error_string[ERR_SIZE];
-
 static int LZO_initialize(void);
+
+static int LZ4_initialize(void);
 
 static int BZ2_initialize(void);
 
@@ -143,29 +137,32 @@ void SumStatRecords(stat_record_t *s1, stat_record_t *s2) {
 static int LZO_initialize(void) {
 
 	if (lzo_init() != LZO_E_OK) {
-			// this usually indicates a compiler bug - try recompiling 
-			// without optimizations, and enable `-DLZO_DEBUG' for diagnostics
-			LogError("Compression lzo_init() failed.\n");
-			return 0;
-	} 
-	lzo_buff = malloc(BUFFSIZE+ sizeof(data_block_header_t));
-	if ( !lzo_buff ) {
-		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+		// this usually indicates a compiler bug - try recompiling 
+		// without optimizations, and enable `-DLZO_DEBUG' for diagnostics
+		LogError("Compression lzo_init() failed.\n");
 		return 0;
-	}
+	} 
 	lzo_initialized = 1;
 
 	return 1;
 
 } // End of LZO_initialize
 
-static int BZ2_initialize (void) {
+static int LZ4_initialize (void) {
 
-	bz2_buff = malloc (2 * BUFFSIZE + sizeof (data_block_header_t)); //should be enough.
-	if (!bz2_buff) {
-		LogError ("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
+	int lz4_buff_size = LZ4_compressBound(BUFFSIZE + sizeof (data_block_header_t));
+	if ( lz4_buff_size > (2 * BUFFSIZE) ) {
+		LogError ("LZ4_compressBound() error in %s line %d: Buffer too small\n", __FILE__, __LINE__);
 		return 0;
 	}
+	lz4_initialized = 1;
+
+	return 1;
+
+} // End of LZ4_initialize
+
+static int BZ2_initialize (void) {
+
 	bz2_initialized = 1;
 
 	return 1;
@@ -179,6 +176,213 @@ static void BZ2_prep_stream (bz_stream* bs)
    bs->opaque = NULL;
 } // End of BZ2_prep_stream
 
+static int Compress_Block_LZO(nffile_t *nffile) {
+unsigned char __LZO_MMODEL *in;
+unsigned char __LZO_MMODEL *out;
+lzo_uint in_len;
+lzo_uint out_len;
+int r;
+
+	in  = (unsigned char __LZO_MMODEL *)(nffile->buff_pool[0] + sizeof(data_block_header_t));	
+	out = (unsigned char __LZO_MMODEL *)(nffile->buff_pool[1] + sizeof(data_block_header_t));	
+	in_len = nffile->block_header->size;
+	r = lzo1x_1_compress(in,in_len,out,&out_len,wrkmem);
+
+	if (r != LZO_E_OK) {
+		LogError("Compress_Block_LZO() error compression failed in %s line %d: LZ4 : %d\n", __FILE__, __LINE__, r);
+		return -1;
+	}
+	
+	// copy header
+	memcpy(nffile->buff_pool[1], nffile->buff_pool[0], sizeof(data_block_header_t));
+	((data_block_header_t *)nffile->buff_pool[1])->size = out_len;
+
+	// swap buffers
+	void *_tmp = nffile->buff_pool[1];
+	nffile->buff_pool[1] = nffile->buff_pool[0];
+	nffile->buff_pool[0] = _tmp;
+
+	nffile->block_header = nffile->buff_pool[0];
+
+	return 1;
+
+} // End of Compress_Block_LZO
+
+static int Uncompress_Block_LZO(nffile_t *nffile) {
+unsigned char __LZO_MMODEL *in;
+unsigned char __LZO_MMODEL *out;
+lzo_uint in_len;
+lzo_uint out_len;
+int r;
+
+	in  = (unsigned char __LZO_MMODEL *)(nffile->buff_pool[0] + sizeof(data_block_header_t));	
+	out = (unsigned char __LZO_MMODEL *)(nffile->buff_pool[1] + sizeof(data_block_header_t));	
+	in_len = nffile->block_header->size;
+
+	r = lzo1x_decompress(in,in_len,out,&out_len,NULL);
+	if (r != LZO_E_OK ) {
+  		/* this should NEVER happen */
+		LogError("Uncompress_Block_LZO() error decompression failed in %s line %d: LZO error: %d\n", __FILE__, __LINE__, r);
+   		return -1;
+	}
+
+	// copy header
+	memcpy(nffile->buff_pool[1], nffile->buff_pool[0], sizeof(data_block_header_t));
+	((data_block_header_t *)nffile->buff_pool[1])->size = out_len;
+
+	// swap buffers
+	void *_tmp = nffile->buff_pool[1];
+	nffile->buff_pool[1] = nffile->buff_pool[0];
+	nffile->buff_pool[0] = _tmp;
+
+	nffile->block_header = nffile->buff_pool[0];
+	nffile->buff_ptr 	 = nffile->buff_pool[0] + sizeof(data_block_header_t);
+
+	return 1;
+
+} // End of Uncompress_Block_LZO
+
+static int Compress_Block_LZ4(nffile_t *nffile) {
+
+	const char *in  = (const char *)(nffile->buff_pool[0] + sizeof(data_block_header_t));
+	char *out 		= (char *)(nffile->buff_pool[1] + sizeof(data_block_header_t));
+	int in_len 		= nffile->block_header->size;
+
+	int out_len = LZ4_compress_default(in, out, in_len, nffile->buff_size);
+	if (out_len == 0 ) {
+		LogError("Compress_Block_LZ4() error compression aborted in %s line %d: LZ4 : buffer too small\n", __FILE__, __LINE__);
+   		return -1;
+   	}
+   	if (out_len < 0 ) {
+		LogError("Compress_Block_LZ4() error compression failed in %s line %d: LZ4 : %d\n", __FILE__, __LINE__, out_len);
+   		return -1;
+   	}
+
+	// copy header
+	memcpy(nffile->buff_pool[1], nffile->buff_pool[0], sizeof(data_block_header_t));
+	((data_block_header_t *)nffile->buff_pool[1])->size = out_len;
+
+	// swap buffers
+	void *_tmp = nffile->buff_pool[1];
+	nffile->buff_pool[1] = nffile->buff_pool[0];
+	nffile->buff_pool[0] = _tmp;
+
+	nffile->block_header = nffile->buff_pool[0];
+
+	return 1;
+
+} // End of Compress_Block_LZ4
+
+static int Uncompress_Block_LZ4(nffile_t *nffile) {
+
+	const char *in  = (const char *)(nffile->buff_pool[0] + sizeof(data_block_header_t));
+	char *out 		= (char *)(nffile->buff_pool[1] + sizeof(data_block_header_t));
+	int in_len 		= nffile->block_header->size;
+
+	int out_len = LZ4_decompress_safe(in, out, in_len, nffile->buff_size);
+	if (out_len == 0 ) {
+		LogError("LZ4_decompress_safe() error compression aborted in %s line %d: LZ4 : buffer too small\n", __FILE__, __LINE__);
+   		return -1;
+   	}
+   	if (out_len < 0 ) {
+		LogError("LZ4_decompress_safe() error compression failed in %s line %d: LZ4 : %d\n", __FILE__, __LINE__, out_len);
+   		return -1;
+   	}
+
+	// copy header
+	memcpy(nffile->buff_pool[1], nffile->buff_pool[0], sizeof(data_block_header_t));
+	((data_block_header_t *)nffile->buff_pool[1])->size = out_len;
+
+	// swap buffers
+	void *_tmp = nffile->buff_pool[1];
+	nffile->buff_pool[1] = nffile->buff_pool[0];
+	nffile->buff_pool[0] = _tmp;
+
+	nffile->block_header = nffile->buff_pool[0];
+	nffile->buff_ptr 	 = nffile->buff_pool[0] + sizeof(data_block_header_t);
+
+	return 1;
+
+} // End of Uncompress_Block_LZ4
+
+static int Compress_Block_BZ2(nffile_t *nffile) {
+bz_stream bs;
+
+	BZ2_prep_stream (&bs);
+	BZ2_bzCompressInit (&bs, 9, 0, 0);
+
+	bs.next_in   = (char*)(nffile->buff_pool[0] + sizeof(data_block_header_t));
+	bs.next_out  = (char*)(nffile->buff_pool[1] + sizeof(data_block_header_t));
+	bs.avail_in  = nffile->block_header->size;
+	bs.avail_out = nffile->buff_size;
+ 
+	for (;;) {
+		int r = BZ2_bzCompress (&bs, BZ_FINISH);
+		if (r == BZ_FINISH_OK) continue;
+		if (r != BZ_STREAM_END) {
+			LogError("Compress_Block_BZ2() error compression failed in %s line %d: LZ4 : %d\n", __FILE__, __LINE__, r);
+			return -1;
+		}
+		break;
+	}
+
+ 	// copy header
+	memcpy(nffile->buff_pool[1], nffile->buff_pool[0], sizeof(data_block_header_t));
+	((data_block_header_t *)nffile->buff_pool[1])->size = bs.total_out_lo32;
+
+	// swap buffers
+	void *_tmp = nffile->buff_pool[1];
+	nffile->buff_pool[1] = nffile->buff_pool[0];
+	nffile->buff_pool[0] = _tmp;
+
+	nffile->block_header = nffile->buff_pool[0];
+
+	BZ2_bzCompressEnd (&bs);
+	
+	return 1;
+
+} // End of Compress_Block_BZ2
+
+static int Uncompress_Block_BZ2(nffile_t *nffile) {
+bz_stream bs;
+
+	BZ2_prep_stream (&bs);
+	BZ2_bzDecompressInit (&bs, 0, 0);
+
+	bs.next_in   = (char*)(nffile->buff_pool[0] + sizeof(data_block_header_t));
+	bs.next_out  = (char*)(nffile->buff_pool[1] + sizeof(data_block_header_t));
+	bs.avail_in  = nffile->block_header->size;
+	bs.avail_out = nffile->buff_size;
+ 
+	for (;;) {
+		int r = BZ2_bzDecompress (&bs);
+		if (r == BZ_OK) {
+			continue;
+		} else if (r != BZ_STREAM_END) {
+			BZ2_bzDecompressEnd (&bs);
+			return NF_CORRUPT;
+		} else {
+			break;
+		}
+	}
+
+ 	// copy header
+	memcpy(nffile->buff_pool[1], nffile->buff_pool[0], sizeof(data_block_header_t));
+	((data_block_header_t *)nffile->buff_pool[1])->size = bs.total_out_lo32;
+
+	// swap buffers
+	void *_tmp = nffile->buff_pool[1];
+	nffile->buff_pool[1] = nffile->buff_pool[0];
+	nffile->buff_pool[0] = _tmp;
+
+	nffile->block_header = nffile->buff_pool[0];
+	nffile->buff_ptr 	 = nffile->buff_pool[0] + sizeof(data_block_header_t);
+
+	BZ2_bzDecompressEnd (&bs);
+	
+	return 1;
+
+} // End of Uncompress_Block_BZ2
 
 nffile_t *OpenFile(char *filename, nffile_t *nffile){
 struct stat stat_buf;
@@ -259,19 +463,29 @@ int ret, allocated;
 
 	CurrentIdent		= nffile->file_header->ident;
 
-	if ( FILE_IS_LZO_COMPRESSED(nffile) && !lzo_initialized && !LZO_initialize() ) {
-		if ( allocated ) {
-			DisposeFile(nffile);
-			return NULL;
-		}
-    }
-
-	if ( FILE_IS_BZ2_COMPRESSED(nffile) && !bz2_initialized && !BZ2_initialize() ) {
-		if ( allocated ) {
-			DisposeFile(nffile);
-			return NULL;
-		}
-    }
+	int compression = FILE_COMPRESSION(nffile);
+	switch (compression) {
+		case NOT_COMPRESSED:
+			break;
+		case LZO_COMPRESSED: 
+			if ( !lzo_initialized && !LZO_initialize() && allocated ) {
+				DisposeFile(nffile);
+				return NULL;
+			}
+			break;
+		case LZ4_COMPRESSED: 
+			if ( !lz4_initialized && !LZ4_initialize() && allocated ) {
+				DisposeFile(nffile);
+				return NULL;
+			}
+			break;
+		case BZ2_COMPRESSED: 
+			if ( !bz2_initialized && !BZ2_initialize() && allocated ) {
+				DisposeFile(nffile);
+				return NULL;
+			}
+			break;
+	}
 
 	return nffile;
 
@@ -383,6 +597,7 @@ void PrintStat(stat_record_t *s) {
 
 static nffile_t *NewFile(void) {
 nffile_t *nffile;
+int i;
 
 	// Create struct
 	nffile = calloc(1, sizeof(nffile_t));
@@ -392,7 +607,6 @@ nffile_t *nffile;
 	}
 	nffile->buff_ptr = NULL;
 	nffile->fd	 	= 0;
-	nffile->catalog = NULL;
 
 	// Init file header
 	nffile->file_header = calloc(1, sizeof(file_header_t));
@@ -425,11 +639,17 @@ nffile_t *nffile;
 	nffile->catalog->reserved 	= 0;
 */
 	// init data buffer
-	nffile->block_header = malloc(BUFFSIZE + sizeof(data_block_header_t));
-	if ( !nffile->block_header ) {
-		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-		return NULL;
+	nffile->buff_size = 2 * BUFFSIZE;
+	for (i=0; i<NUM_BUFFS; i++ ) {
+		// allocate twice of BUFFSIZE initially - should be ok, otherwise expand
+		nffile->buff_pool[i] = malloc(nffile->buff_size);
+		if ( !nffile->buff_pool[i] ) {
+			LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+			return NULL;
+		}
 	}
+
+	nffile->block_header 			 = nffile->buff_pool[0];
 	nffile->block_header->size 		 = 0;
 	nffile->block_header->NumRecords = 0;
 	nffile->block_header->id		 = DATA_BLOCK_TYPE_2;
@@ -442,11 +662,15 @@ nffile_t *nffile;
 } // End of NewFile
 
 nffile_t *DisposeFile(nffile_t *nffile) {
+int i;
+
 	free(nffile->file_header);
 	free(nffile->stat_record);
-	if (nffile->block_header) 
-		free(nffile->block_header);
-	free(nffile);
+
+	for (i=0; i<NUM_BUFFS; i++ ) {
+		free(nffile->buff_pool[i]);
+	}
+
 	return NULL;
 } // End of DisposeFile
 
@@ -455,17 +679,24 @@ size_t			len;
 int 			fd, flags;
 
 	switch (compress) {
-		case 0:
+		case NOT_COMPRESSED:
 			flags = FLAG_NOT_COMPRESSED;
 			break;
-		case 1:
+		case LZO_COMPRESSED:
 			flags = FLAG_LZO_COMPRESSED;
 			if ( !lzo_initialized && !LZO_initialize() ) {
 				LogError("Failed to initialize LZO compression");
 				return NULL;
 			}
 			break;
-		case 2:
+		case LZ4_COMPRESSED:
+			flags = FLAG_LZ4_COMPRESSED;
+			if ( !lz4_initialized && !LZ4_initialize() ) {
+				LogError("Failed to initialize LZ4 compression");
+				return NULL;
+			}
+			break;
+		case BZ2_COMPRESSED:
 			flags = FLAG_BZ2_COMPRESSED;
 			if ( !bz2_initialized && !BZ2_initialize() ) {
 				LogError("Failed to initialize BZ2 compression");
@@ -584,24 +815,35 @@ nffile_t		*nffile;
 	nffile->block_header->flags		 = 0;
 	nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(data_block_header_t));
 
-	// initialize output  lzo buffer
-	if ( FILE_IS_LZO_COMPRESSED(nffile) ) {
-		if ( !lzo_initialized && !LZO_initialize() ) {
-			LogError("Failed to initialize LZO compression");
-			close(nffile->fd);
-			DisposeFile(nffile);
-			return NULL;
-		}
-    }
-
-	if ( FILE_IS_BZ2_COMPRESSED(nffile) ) {
-		if ( !bz2_initialized && !BZ2_initialize() ) {
-			LogError("Failed to initialize BZ2 compression");
-			close(nffile->fd);
-			DisposeFile(nffile);
-			return NULL;
-		}
-    }
+	int compression = FILE_COMPRESSION(nffile);
+	switch (compression) {
+		case NOT_COMPRESSED:
+			break;
+		case LZO_COMPRESSED: 
+			if ( !lzo_initialized && !LZO_initialize() ) {
+				LogError("Failed to initialize LZO compression");
+				close(nffile->fd);
+				DisposeFile(nffile);
+				return NULL;
+			}
+			break;
+		case LZ4_COMPRESSED: 
+			if ( !lz4_initialized && !LZ4_initialize() ) {
+				LogError("Failed to initialize LZ4 compression");
+				close(nffile->fd);
+				DisposeFile(nffile);
+				return NULL;
+			}
+			break;
+		case BZ2_COMPRESSED: 
+			if ( !bz2_initialized && !BZ2_initialize() ) {
+				LogError("Failed to initialize BZ2 compression");
+				close(nffile->fd);
+				DisposeFile(nffile);
+				return NULL;
+			}
+			break;
+	}
 
 	return nffile;
 
@@ -749,6 +991,8 @@ int fd, ret;
 
 	if ( file_header.flags & FLAG_LZO_COMPRESSED ) 
 		*compressed = FLAG_LZO_COMPRESSED;
+	else if ( file_header.flags & FLAG_LZ4_COMPRESSED )
+		*compressed = FLAG_LZ4_COMPRESSED;
 	else if ( file_header.flags & FLAG_BZ2_COMPRESSED )
 		*compressed = FLAG_BZ2_COMPRESSED;
 	else
@@ -807,7 +1051,8 @@ int CloseUpdateFile(nffile_t *nffile, char *ident) {
 
 int ReadBlock(nffile_t *nffile) {
 ssize_t ret, read_bytes, buff_bytes, request_size;
-void 	*read_ptr, *buff;
+void 	*read_ptr;
+uint32_t compression;
 
 	ret = read(nffile->fd, nffile->block_header, sizeof(data_block_header_t));
 	if ( ret == 0 )		// EOF
@@ -833,52 +1078,28 @@ void 	*read_ptr, *buff;
 		return NF_CORRUPT;
 	}
 
-	if ( FILE_IS_LZO_COMPRESSED(nffile) ) 
-		buff = lzo_buff;
-	else if ( FILE_IS_BZ2_COMPRESSED(nffile) )
-		buff = bz2_buff;
-	else
-		buff = nffile->buff_ptr;
-
-	ret = read(nffile->fd, buff, nffile->block_header->size);
+	compression = FILE_COMPRESSION(nffile);
+	ret = read(nffile->fd, nffile->buff_ptr, nffile->block_header->size);
 	if ( ret == nffile->block_header->size ) {
 		// we have the whole record and are done for now
-		if ( FILE_IS_LZO_COMPRESSED(nffile) ) {
-			lzo_uint new_len;
-			int r;
-   			r = lzo1x_decompress(lzo_buff,nffile->block_header->size,nffile->buff_ptr,&new_len,NULL);
-   			if (r != LZO_E_OK ) {
-       			/* this should NEVER happen */
-				LogError("ReadBlock() error decompression failed in %s line %d: LZO error: %d\n", __FILE__, __LINE__, r);
-       			return NF_CORRUPT;
-   			}
-			nffile->block_header->size = new_len;
-			return read_bytes + new_len;
-		} else if ( FILE_IS_BZ2_COMPRESSED(nffile) ) {
-			bz_stream bs;
-			BZ2_prep_stream (&bs);
-			BZ2_bzDecompressInit (&bs, 0, 0);
-			bs.next_in = bz2_buff;
-			bs.avail_in = ret;
-			bs.next_out = nffile->buff_ptr;
-			bs.avail_out = BUFFSIZE;
-			for (;;) {
-				int r = BZ2_bzDecompress (&bs);
-				if (r == BZ_OK) {
-					continue;
-				} else if (r != BZ_STREAM_END) {
-					BZ2_bzDecompressEnd (&bs);
+		switch (compression) {
+			case NOT_COMPRESSED:
+				break;
+			case LZO_COMPRESSED: 
+				if ( Uncompress_Block_LZO(nffile) < 0 ) 
 					return NF_CORRUPT;
-				} else {
-					break;
-				}
-			}
-			nffile->block_header->size = bs.total_out_lo32;
-			int total = read_bytes + bs.total_out_lo32; //we do not overflow 2^32 here for sure.
-			BZ2_bzDecompressEnd (&bs);
-			return total;
-		} else
-			return read_bytes + ret;
+				break;
+			case LZ4_COMPRESSED: 
+				if ( Uncompress_Block_LZ4(nffile) < 0 ) 
+					return NF_CORRUPT;
+				break;
+			case BZ2_COMPRESSED: 
+				if ( Uncompress_Block_BZ2(nffile) < 0 )
+					return NF_CORRUPT;
+			break;
+		}
+		nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(data_block_header_t));
+		return read_bytes + nffile->block_header->size;
 	} 
 			
 	if ( ret == 0 ) {
@@ -899,7 +1120,7 @@ void 	*read_ptr, *buff;
 	buff_bytes 	 = ret;								// already in buffer
 	request_size = nffile->block_header->size - buff_bytes;	// still to go for this amount of data
 
-	read_ptr 	 = (void *)((pointer_addr_t)buff + buff_bytes);	
+	read_ptr 	 = (void *)((pointer_addr_t)nffile->buff_ptr + buff_bytes);	
 	do {
 		ret = read(nffile->fd, read_ptr, request_size);
 		if ( ret < 0 ) {
@@ -910,7 +1131,7 @@ void 	*read_ptr, *buff;
 
 		if ( ret == 0 ) {
 			//  0: EOF   - not expected
-			LogError(error_string, ERR_SIZE, "Corrupt data file: Unexpected EOF. Short read of data block.\n");
+			LogError("read() corrupt data file: Unexpected EOF in %s line %d: %s\n", __FILE__, __LINE__);
 			return NF_CORRUPT;
 		} 
 		
@@ -919,225 +1140,65 @@ void 	*read_ptr, *buff;
 
 		if ( request_size > 0 ) {
 			// still a short read - continue in read loop
-			read_ptr = (void *)((pointer_addr_t)buff + buff_bytes);
+			read_ptr = (void *)((pointer_addr_t)nffile->buff_ptr + buff_bytes);
 		}
 	} while ( request_size > 0 );
 
-	if ( FILE_IS_LZO_COMPRESSED(nffile) ) {
-		int r;
-		lzo_uint new_len;
-   		r = lzo1x_decompress(lzo_buff, nffile->block_header->size, nffile->buff_ptr, &new_len, NULL);
-   		if (r != LZO_E_OK ) {
-       		/* this should NEVER happen */
-			LogError("ReadBlock() error decompression failed in %s line %d: LZO error: %d\n", __FILE__, __LINE__, r);
-       		return NF_CORRUPT;
-   		}
-		nffile->block_header->size = new_len;
-		return read_bytes + new_len;
-
-	} else if ( FILE_IS_BZ2_COMPRESSED(nffile) ) {
-			bz_stream bs;
-			BZ2_prep_stream (&bs);
-			BZ2_bzDecompressInit (&bs, 0, 0);
-			bs.next_in = bz2_buff;
-			bs.avail_in = ret;
-			bs.next_out = nffile->buff_ptr;
-			bs.avail_out = BUFFSIZE;
-			for (;;) {
-				int r = BZ2_bzDecompress (&bs);
-				if (r == BZ_OK) {
-					continue;
-				} else if (r != BZ_STREAM_END) {
-					BZ2_bzDecompressEnd (&bs);
-					return NF_CORRUPT;
-				} else {
-					break;
-				}
-			}
-			nffile->block_header->size = bs.total_out_lo32;
-			int total = read_bytes + bs.total_out_lo32; //we do not overflow 2^32 here for sure.
-			BZ2_bzDecompressEnd (&bs);
-			return total;
-	} else {
-		// finally - we are done for now
-		return read_bytes + buff_bytes;
+	switch (compression) {
+		case NOT_COMPRESSED:
+			break;
+		case LZO_COMPRESSED: 
+			if ( Uncompress_Block_LZO(nffile) < 0 ) 
+				return NF_CORRUPT;
+			break;
+		case LZ4_COMPRESSED: 
+			if ( Uncompress_Block_LZ4(nffile) < 0 ) 
+				return NF_CORRUPT;
+			break;
+		case BZ2_COMPRESSED: 
+			if ( Uncompress_Block_BZ2(nffile) < 0 )
+				return NF_CORRUPT;
+		break;
 	}
 
-	/* not reached */
+	nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(data_block_header_t));
+	return read_bytes + nffile->block_header->size;
 
 } // End of ReadBlock
 
 int WriteBlock(nffile_t *nffile) {
-data_block_header_t *out_block_header;
-int r, ret;
-unsigned char __LZO_MMODEL *in;
-unsigned char __LZO_MMODEL *out;
-lzo_uint in_len;
-lzo_uint out_len;
+int ret, compression;
 
 	// empty blocks need not to be stored 
 	if ( nffile->block_header->size == 0 )
 		return 1;
 
-	if ( FILE_IS_LZO_COMPRESSED(nffile) ) {
-
-		out_block_header = (data_block_header_t *)lzo_buff;
-		*out_block_header = *(nffile->block_header);
-
-		in  = (unsigned char __LZO_MMODEL *)((pointer_addr_t)nffile->block_header     + sizeof(data_block_header_t));	
-		out = (unsigned char __LZO_MMODEL *)((pointer_addr_t)out_block_header + sizeof(data_block_header_t));	
-		in_len = nffile->block_header->size;
-		r = lzo1x_1_compress(in,in_len,out,&out_len,wrkmem);
-
-		if (r != LZO_E_OK) {
-			snprintf(error_string, ERR_SIZE,"compression failed: %d" , r);
-			error_string[ERR_SIZE-1] = 0;
-			return -2;
-		}
-
-		out_block_header->size = out_len;
-		ret = write(nffile->fd, (void *)out_block_header, sizeof(data_block_header_t) + out_block_header->size);
-		if ( ret > 0 ) {
-			nffile->block_header->size 		 = 0;
-			nffile->block_header->NumRecords = 0;
-			nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(data_block_header_t) );
-			nffile->file_header->NumBlocks++;
-		}
-
-		return ret;
-	}
-
-	if ( FILE_IS_BZ2_COMPRESSED(nffile) ) {
- 
-		out_block_header = (data_block_header_t *) bz2_buff;
-		*out_block_header = * (nffile->block_header);
-
-		bz_stream bs;
-		BZ2_prep_stream (&bs);
-		BZ2_bzCompressInit (&bs, 9, 0, 0);
- 
-		bs.next_in = (char*) ( (pointer_addr_t) nffile->block_header + sizeof (data_block_header_t));
-		bs.next_out = (char*) ( (pointer_addr_t) out_block_header + sizeof (data_block_header_t));
-		bs.avail_in = nffile->block_header->size;
-		bs.avail_out = BUFFSIZE;
- 
-		for (;;) {
-			int r = BZ2_bzCompress (&bs, BZ_FINISH);
-			if (r == BZ_FINISH_OK) continue;
-			if (r != BZ_STREAM_END) {
-				snprintf (error_string, ERR_SIZE, "bz2 compression failed: %d" , r);
-				error_string[ERR_SIZE - 1] = 0;
-				BZ2_bzCompressEnd (&bs);
-				return -2;
-			}
+	compression = FILE_COMPRESSION(nffile);
+	switch (compression) {
+		case NOT_COMPRESSED:
 			break;
-		}
- 
-		out_block_header->size = bs.total_out_lo32;
-		BZ2_bzCompressEnd (&bs);
-
-		ret = write (nffile->fd, (void *) out_block_header, sizeof (data_block_header_t) + out_block_header->size);
-		if (ret > 0) {
-			nffile->block_header->size = 0;
-			nffile->block_header->NumRecords = 0;
-			nffile->buff_ptr = (void *) ( (pointer_addr_t) nffile->block_header + sizeof (data_block_header_t));
-			nffile->file_header->NumBlocks++;
-		}
- 
-		return ret;
+		case LZO_COMPRESSED: 
+			if ( Compress_Block_LZO(nffile) < 0 ) return -1;
+			break;
+		case LZ4_COMPRESSED:
+			if ( Compress_Block_LZ4(nffile) < 0 ) return -1;
+			break;
+		case BZ2_COMPRESSED:
+			if ( Compress_Block_BZ2(nffile) < 0 ) return -1;
+		break;
 	}
 
-	// not compressed
 	ret = write(nffile->fd, (void *)nffile->block_header, sizeof(data_block_header_t) + nffile->block_header->size);
-	if ( ret > 0 ) {
-		nffile->block_header->size 		 = 0;
+	if (ret > 0) {
+		nffile->block_header->size = 0;
 		nffile->block_header->NumRecords = 0;
-		nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(data_block_header_t) );
+		nffile->buff_ptr = (void *)((pointer_addr_t) nffile->block_header + sizeof (data_block_header_t));
 		nffile->file_header->NumBlocks++;
 	}
+ 	
 	return ret;
-
 
 } // End of WriteBlock
-
-int WriteExtraBlock(nffile_t *nffile, data_block_header_t *block_header) {
-data_block_header_t *out_block_header;
-int r, ret;
-unsigned char __LZO_MMODEL *in;
-unsigned char __LZO_MMODEL *out;
-lzo_uint in_len;
-lzo_uint out_len;
-
-
-	if ( FILE_IS_LZO_COMPRESSED(nffile) && block_header->id != CATALOG_BLOCK) {
-		out_block_header = (data_block_header_t *)lzo_buff;
-		*out_block_header = *(block_header);
-	
-		in  = (unsigned char __LZO_MMODEL *)((pointer_addr_t)block_header     + sizeof(data_block_header_t));	
-		out = (unsigned char __LZO_MMODEL *)((pointer_addr_t)out_block_header + sizeof(data_block_header_t));	
-		in_len = block_header->size;
-		r = lzo1x_1_compress(in,in_len,out,&out_len,wrkmem);
-	
-		if (r != LZO_E_OK) {
-			snprintf(error_string, ERR_SIZE,"compression failed: %d" , r);
-			error_string[ERR_SIZE-1] = 0;
-			return -2;
-		}
-	
-		out_block_header->size = out_len;
-		ret =  write(nffile->fd, (void *)out_block_header, sizeof(data_block_header_t) + out_block_header->size);
-		if ( ret > 0 ) {
-			nffile->file_header->NumBlocks++;
-		}
-	
-		return ret;
-	}
-
-	if ( FILE_IS_BZ2_COMPRESSED(nffile) && block_header->id != CATALOG_BLOCK) {
-		bz_stream bs;
-		BZ2_prep_stream (&bs);
-		BZ2_bzCompressInit (&bs, 9, 0, 0);
-
-		out_block_header = (data_block_header_t *)bz2_buff;
-		*out_block_header = *(block_header);
- 
-		bs.next_in = (char*) ( (pointer_addr_t) block_header + sizeof (data_block_header_t));
-		bs.next_out = (char*) ( (pointer_addr_t) out_block_header + sizeof (data_block_header_t));
-		bs.avail_in = nffile->block_header->size;
-		bs.avail_out = BUFFSIZE;
- 
-		for (;;) {
-			int r = BZ2_bzCompress (&bs, BZ_FINISH);
-			if (r == BZ_FINISH_OK) continue;
-			if (r != BZ_STREAM_END) {
-				snprintf (error_string, ERR_SIZE, "bz2 compression failed: %d" , r);
-				error_string[ERR_SIZE - 1] = 0;
-				BZ2_bzCompressEnd (&bs);
-				return -2;
-			}
-			break;
-		}
- 
-		out_block_header->size = bs.total_out_lo32;
-		BZ2_bzCompressEnd (&bs);
- 
-		ret = write (nffile->fd, (void *) out_block_header, sizeof (data_block_header_t) + out_block_header->size);
-		if (ret > 0) {
-			nffile->file_header->NumBlocks++;
-		}
-
-		return ret;
-	}
-
-	// not compressed or catalog
-	ret =  write(nffile->fd, (void *)block_header, sizeof(data_block_header_t) + block_header->size);
-	if ( ret > 0 ) {
-		nffile->file_header->NumBlocks++;
-	}
-	return ret;
-
-} // End of WriteExtraBlock
-
 
 inline void ExpandRecord_v1(common_record_t *input_record, master_record_t *output_record ) {
 uint32_t	*u;
@@ -1152,19 +1213,19 @@ void		*p = (void *)input_record;
 	if ( (input_record->flags & FLAG_IPV6_ADDR) != 0 )	{ // IPv6
 		// IPv6
 		// keep compiler happy
-		// memcpy((void *)output_record->v6.srcaddr, p, 4 * sizeof(uint64_t));	
+		// memcpy((void *)output_record->V6.srcaddr, p, 4 * sizeof(uint64_t));	
 		memcpy((void *)output_record->ip_union._ip_64.addr, p, 4 * sizeof(uint64_t));	
 		p = (void *)((pointer_addr_t)p + 4 * sizeof(uint64_t));
 	} else { 	
 		// IPv4
 		u = (uint32_t *)p;
-		output_record->v6.srcaddr[0] = 0;
-		output_record->v6.srcaddr[1] = 0;
-		output_record->v4.srcaddr 	 = u[0];
+		output_record->V6.srcaddr[0] = 0;
+		output_record->V6.srcaddr[1] = 0;
+		output_record->V4.srcaddr 	 = u[0];
 
-		output_record->v6.dstaddr[0] = 0;
-		output_record->v6.dstaddr[1] = 0;
-		output_record->v4.dstaddr 	 = u[1];
+		output_record->V6.dstaddr[0] = 0;
+		output_record->V6.dstaddr[1] = 0;
+		output_record->V4.dstaddr 	 = u[1];
 		p = (void *)((pointer_addr_t)p + 2 * sizeof(uint32_t));
 	}
 
@@ -1199,12 +1260,11 @@ void		*p = (void *)input_record;
 } // End of ExpandRecord_v1
 
 void ModifyCompressFile(char * rfile, char *Rfile, int compress) {
-int 			i, anonymized;
+int 			i, anonymized, compression;
 ssize_t			ret;
 nffile_t		*nffile_r, *nffile_w;
 stat_record_t	*_s;
 char 			*filename, outfile[MAXPATHLEN];
-void			*tmp;
 
 	SetupInputFileSequence(NULL, rfile, Rfile);
 
@@ -1222,14 +1282,9 @@ void			*tmp;
 			break;
 		}
 	
-		if ( (compress == NOT_COMPRESSED && FILE_IS_NOT_COMPRESSED(nffile_r)) ||
-		 	(compress == LZO_COMPRESSED && FILE_IS_LZO_COMPRESSED(nffile_r)) ||
-		 	(compress == BZ2_COMPRESSED && FILE_IS_BZ2_COMPRESSED(nffile_r)) ) {
-			printf("File %s is already %s", filename,
-				FILE_IS_LZO_COMPRESSED (nffile_r) ? "lzo compressed" :
-				FILE_IS_BZ2_COMPRESSED (nffile_r) ? "bz2 compressed" :
-            	"uncompressed");
-			printf("\n");
+		compression = FILE_COMPRESSION(nffile_r);
+		if ( compression == compress ) {
+			printf("File %s is already same compression methode\n", filename);
 			continue;
 		}
 
@@ -1247,11 +1302,6 @@ void			*tmp;
 			break;;
 		}
 
-		// Use same buffer for read/write
-		tmp = nffile_r->block_header;
-		nffile_r->block_header =  nffile_w->block_header;
-		nffile_r->buff_ptr 	   =  nffile_w->buff_ptr;
-	
 		// swap stat records :)
 		_s = nffile_r->stat_record;
 		nffile_r->stat_record = nffile_w->stat_record;
@@ -1261,7 +1311,6 @@ void			*tmp;
 			ret = ReadBlock(nffile_r);
 			if ( ret < 0 ) {
 				LogError("Error while reading data block. Abort.\n");
-				nffile_r->block_header = tmp;
 				CloseFile(nffile_r);
 				DisposeFile(nffile_r);
 				CloseFile(nffile_w);
@@ -1269,9 +1318,17 @@ void			*tmp;
 				unlink(outfile);
 				break;;
 			}
+
+			// swap buffers
+			void *_tmp = nffile_r->buff_pool[0];
+			nffile_r->buff_pool[0] = nffile_w->buff_pool[0];
+			nffile_w->buff_pool[0] = _tmp;
+			nffile_w->block_header = nffile_w->buff_pool[0];
+			nffile_r->block_header = nffile_r->buff_pool[0];
+			nffile_r->buff_ptr = (void *)((pointer_addr_t)nffile_r->block_header + sizeof(data_block_header_t));
+
 			if ( WriteBlock(nffile_w) <= 0 ) {
 				LogError("Failed to write output buffer to disk: '%s'" , strerror(errno));
-				nffile_r->block_header = tmp;
 				CloseFile(nffile_r);
 				DisposeFile(nffile_r);
 				CloseFile(nffile_w);
@@ -1281,15 +1338,7 @@ void			*tmp;
 			}
 		}
 
-		// file processed 
-		nffile_r->block_header = tmp;
-	
-		printf("File %s is now %s", filename,
-			FILE_IS_LZO_COMPRESSED (nffile_w) ? "lzo compressed" :
-			FILE_IS_BZ2_COMPRESSED (nffile_w) ? "bz2 compressed" :
-           	"uncompressed");
-		printf("\n");
-
+		printf("File %s compression changed\n", filename);
 		if ( !CloseUpdateFile(nffile_w, nffile_r->file_header->ident) ) {
 			unlink(outfile);
 			LogError("Failed to close file: '%s'" , strerror(errno));
@@ -1330,6 +1379,7 @@ off_t	fsize;
 	printf("File    : %s\n", filename);
 	printf ("Version : %u - %s\n", nffile->file_header->version,
 		FILE_IS_LZO_COMPRESSED (nffile) ? "lzo compressed" :
+		FILE_IS_LZ4_COMPRESSED (nffile) ? "lz4 compressed" :
 		FILE_IS_BZ2_COMPRESSED (nffile) ? "bz2 compressed" :
             "not compressed");
 

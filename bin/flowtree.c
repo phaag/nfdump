@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2011, Peter Haag
@@ -50,7 +51,6 @@
 #include "rbtree.h"
 #include "nffile.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "netflow_pcap.h"
 #include "util.h"
@@ -110,7 +110,6 @@ struct FlowNode *node;
 	memset((void *)node, 'A', sizeof(struct FlowNode));
 	node->left = NULL;
 	node->right = NULL;
-	node->data = NULL;
 	node->memflag = NODE_IN_USE;
 	dbg_printf("New node: %llx\n", (unsigned long long)node);
 	return node;
@@ -147,7 +146,7 @@ struct FlowNode *node;
 
 	return node;
 
-} // End of New_node
+} // End of New_Node
 
 // return node into free list
 void Free_Node(struct FlowNode *node) {
@@ -160,11 +159,6 @@ void Free_Node(struct FlowNode *node) {
 	if ( node->memflag != NODE_IN_USE ) {
 		LogError("Free_Node() Fatal: Tried to free a Node not in use");
 		abort();
-	}
-
-	if ( node->data ) {
-		free(node->data);
-		node->data = NULL;
 	}
 
 	dbg_assert(node->left == NULL);
@@ -248,8 +242,6 @@ struct FlowNode *node, *nxt;
 	for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
 		nxt = RB_NEXT(FlowTree, FlowTree, node);
 		RB_REMOVE(FlowTree, FlowTree, node);
-		if ( node->data ) 
-			free(node->data);
 	}
 	free(FlowElementCache);
 	FlowElementCache 	 = NULL;
@@ -467,9 +459,8 @@ void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
 	NodeList->last = node;
 	NodeList->length++;
 #ifdef DEVEL
-	int proto = node->proto;
 	printf("pushed node 0x%llx proto: %u, length: %u first: %llx, last: %llx\n", 
-		(unsigned long long)node, proto, NodeList->length, (unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
+		(unsigned long long)node, node->proto, NodeList->length, (unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
 	ListCheck(NodeList);
 #endif
 	if ( NodeList->waiting ) {
@@ -483,7 +474,6 @@ void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
 
 struct FlowNode *Pop_Node(NodeList_t *NodeList, int *done) {
 struct FlowNode *node;
-int proto;
 
 	GetTreeLock(NodeList);
     while ( NodeList->length == 0 && !*done ) {
@@ -522,12 +512,11 @@ int proto;
 
 	node->left = NULL;
 	node->right = NULL;
-	proto = node->proto;
 
 	NodeList->length--;
 #ifdef DEVEL
 	printf("popped node 0x%llx proto: %u, length: %u first: %llx, last: %llx\n", 
-		(unsigned long long)node, proto, NodeList->length, (unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
+		(unsigned long long)node, node->proto, NodeList->length, (unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
 
 	ListCheck(NodeList);
 #endif

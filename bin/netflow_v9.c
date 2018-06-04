@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: netflow_v9.c 55 2010-02-02 16:02:58Z haag $
- *
- *  $LastChangedRevision: 55 $
- *	
  */
 
 #include "config.h"
@@ -59,7 +54,6 @@
 #include "nf_common.h"
 #include "util.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "exporter.h"
 #include "netflow_v9.h"
@@ -103,27 +97,28 @@ typedef struct sequence_map_s {
 #define move48  		5
 #define move56  		6
 #define move64  		7
-#define move96  		8
-#define move128 		9
-#define move32_sampling 10
-#define move64_sampling 11
-#define move_mac		12
-#define move_mpls 		13
-#define move_ulatency	14
-#define move_slatency 	15
-#define move_user_20	16
-#define move_user_65	17
-#define TimeMsec 		18
-#define PushTimeMsec 	19
-#define saveICMP 		20
-#define zero8			21
-#define zero16			22
-#define zero32			23
-#define zero64			24
-#define zero96			25
-#define zero128			26
-#define move_appid_32   27
-#define move_userid_64  28
+#define move64_32     8
+#define move96      9
+#define move128     10
+#define move32_sampling 11
+#define move64_sampling 12
+#define move_mac    13
+#define move_mpls     14
+#define move_ulatency 15
+#define move_slatency   16
+#define move_user_20  17
+#define move_user_65  18
+#define TimeMsec    19
+#define PushTimeMsec  20
+#define saveICMP    21
+#define zero8     22
+#define zero16      23
+#define zero32      24
+#define zero64      25
+#define zero96      26
+#define zero128     27
+#define move_appid_32   28
+#define move_userid_64  29
 
 	uint32_t	id;				// sequence ID as defined above
 	uint16_t	input_offset;	// copy/process data at this input offset
@@ -207,7 +202,7 @@ static struct v9_element_map_s {
 	char		*name;		// name string
 	uint16_t	length;		// type of this element ( input length )
 	uint16_t	out_length;	// type of this element ( output length )
-	uint32_t	sequence;	// output length
+	uint32_t	sequence;	// sequencer ID
 	uint32_t	zero_sequence;	// 
 	uint16_t	extension;	// maps into nfdump extension ID
 } v9_element_map[] = {
@@ -239,8 +234,10 @@ static struct v9_element_map_s {
 	{ NF9_DST_AS, 			 	 "dst AS",			_2bytes,  _2bytes, move16, zero16, EX_AS_2 },
 	{ NF9_DST_AS, 			 	 "dst AS",			_4bytes,  _4bytes, move32, zero32, EX_AS_4 },
 	{ NF9_BGP_V4_NEXT_HOP,		 "V4 BGP next hop",	_4bytes,  _4bytes, move32, zero32, EX_NEXT_HOP_BGP_v4 },
-	{ NF9_LAST_SWITCHED, 		 "time sec end",	_4bytes,  _4bytes, move32, zero32, COMMON_BLOCK },
 	{ NF9_FIRST_SWITCHED, 		 "time sec create",	_4bytes,  _4bytes, move32, zero32, COMMON_BLOCK },
+	{ NF9_FIRST_SWITCHED, 		 "time sec create",	_8bytes,  _4bytes, move64_32, zero32, COMMON_BLOCK },
+	{ NF9_LAST_SWITCHED, 		 "time sec end",	_4bytes,  _4bytes, move32, zero32, COMMON_BLOCK },
+	{ NF9_LAST_SWITCHED, 		 "time sec end",	_8bytes,  _4bytes, move64_32, zero32, COMMON_BLOCK },
 	{ NF_F_FLOW_CREATE_TIME_MSEC, "time msec start",_8bytes,  _8bytes, TimeMsec, nop, COMMON_BLOCK },
 	{ NF_F_FLOW_END_TIME_MSEC, 	"time msec end",	_8bytes,  _8bytes, TimeMsec, nop, COMMON_BLOCK },
 	{ NF9_OUT_BYTES, 			 "out bytes",		_4bytes,  _8bytes, move32_sampling, zero64, EX_OUT_BYTES_8 },
@@ -470,7 +467,7 @@ int i;
 	}
 	cache.max_v9_elements = i;
 
-	dbg_printf("Init v9: Max number of v9 tags: %u", cache.max_v9_elements);
+	dbg_printf("Init v9: Max number of v9 tags: %u\n", cache.max_v9_elements);
 
 
 	return 1;
@@ -484,18 +481,18 @@ exporter_v9_domain_t **e = (exporter_v9_domain_t **)&(fs->exporter_data);
 
 	while ( *e ) {
 		if ( (*e)->info.id == exporter_id && (*e)->info.version == 9 && 
-			 (*e)->info.ip.v6[0] == fs->ip.v6[0] && (*e)->info.ip.v6[1] == fs->ip.v6[1]) 
+			 (*e)->info.ip.V6[0] == fs->ip.V6[0] && (*e)->info.ip.V6[1] == fs->ip.V6[1]) 
 			return *e;
 		e = &((*e)->next);
 	}
 
 	if ( fs->sa_family == AF_INET ) {
-		uint32_t _ip = htonl(fs->ip.v4);
+		uint32_t _ip = htonl(fs->ip.V4);
 		inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
 	} else if ( fs->sa_family == AF_INET6 ) {
 		uint64_t _ip[2];
-		_ip[0] = htonll(fs->ip.v6[0]);
-		_ip[1] = htonll(fs->ip.v6[1]);
+		_ip[0] = htonll(fs->ip.V6[0]);
+		_ip[1] = htonll(fs->ip.V6[1]);
 		inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
 	} else {
 		strncpy(ipstr, "<unknown>", IP_STRING_LEN);
@@ -552,7 +549,13 @@ int	index;
 			} 
 			index++;
 		}
-	}
+#ifdef DEVEL
+		index--;
+		printf("=> known type: %u(%s), at index: %i, length: %u not supported\n", 
+			Type, v9_element_map[index].name, index, Length);
+
+#endif
+	} 
 	dbg_printf("Skip unknown element type: %u, Length: %u\n", 
 		Type, Length);
 
@@ -1345,7 +1348,7 @@ int			i;
 } // End of Process_v9_templates
 
 static inline void Process_v9_option_templates(exporter_v9_domain_t *exporter, void *option_template_flowset, FlowSource_t *fs) {
-void		*option_template, *p;
+uint8_t		*option_template, *p;
 uint32_t	size_left, nr_scopes, nr_options, i;
 uint16_t	id, scope_length, option_length, offset, sampler_id_length;
 uint16_t	offset_sampler_id, offset_sampler_mode, offset_sampler_interval, found_sampler;
@@ -1401,7 +1404,30 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 
 		uint16_t length = Get_val16(p); p = p + 2;
 		offset += length;
-		dbg_printf("Scope field Type: %u, length %u\n", type, length);
+#ifdef DEVEL
+		printf("Scope field: Type ");
+		switch (type) {
+			case 1:
+				printf("(1) - System");
+				break;
+			case 2:
+				printf("(2) - Interface");
+				break;
+			case 3:
+				printf("(3) - Line Card");
+				break;
+			case 4:
+				printf("(4) - NetFlow Cache");
+				break;
+			case 5:
+				printf("(5) - Template");
+				break;
+			default:
+				printf("(%u) - Unknown", type);
+				break;
+		}
+		printf(", length %u\n", length);
+#endif
 	}
 
 	for ( ; i<(nr_scopes+nr_options); i++ ) {
@@ -1411,6 +1437,7 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 		dbg_printf("Option field Type: %u, length %u\n", type, length);
 		if ( !index ) {
 			dbg_printf("Unsupported: Option field Type: %u, length %u\n", type, length);
+			offset += length;
 			continue;
 		}
 		while ( index && v9_element_map[index].id == type ) {
@@ -1423,6 +1450,7 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 		if ( index && v9_element_map[index].length != length ) {
 			LogError("Process_v9: Option field Type: %u, length %u not supported\n", type, length);
 			dbg_printf("Process_v9: Option field Type: %u, length %u not supported\n", type, length);
+			offset += length;
 			continue;
 		}
 		switch (type) {
@@ -1437,16 +1465,19 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 				break;
 
 			// individual samplers
-			case NF9_FLOW_SAMPLER_ID:
+			case NF9_FLOW_SAMPLER_ID:	// depricated
+			case NF_SELECTOR_ID:
 				offset_sampler_id = offset;
 				sampler_id_length = length;
 				found_sampler++;
 				break;
-			case FLOW_SAMPLER_MODE:
+			case FLOW_SAMPLER_MODE:		// 	// depricated
+			case NF_SELECTOR_ALGORITHM:
 				offset_sampler_mode = offset;
 				found_sampler++;
 				break;
-			case NF9_FLOW_SAMPLER_RANDOM_INTERVAL:
+			case NF9_FLOW_SAMPLER_RANDOM_INTERVAL: // depricated 
+			case NF_SAMPLING_INTERVAL:
 				offset_sampler_interval = offset;
 				offset_std_sampler_interval = offset;
 				found_sampler++;
@@ -1460,7 +1491,8 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 		dbg_printf("[%u] Sampling information found\n", exporter->info.id);
 		InsertSamplerOffset(fs, id, offset_sampler_id, sampler_id_length, offset_sampler_mode, offset_sampler_interval);
 	} else if ( found_std_sampling == 2 ) { // need all two tags
-		dbg_printf("[%u] Std sampling information found\n", exporter->info.id);
+		dbg_printf("[%u] Std sampling information found. offset intervall: %u, offset algo: %u\n", 
+			exporter->info.id, offset_std_sampler_interval, offset_std_sampler_algorithm);
 		InsertStdSamplerOffset(fs, id, offset_std_sampler_interval, offset_std_sampler_algorithm);
 	} else {
 		dbg_printf("[%u] No Sampling information found\n", exporter->info.id);
@@ -1588,7 +1620,7 @@ char				*string;
 		table->out_packets 	  	    = 0;
 		table->out_bytes 	  	    = 0;
 
-		dbg_printf("%u] Process data record: MapID: %u\n", exporter->info.id, table->extension_info.map->map_id);
+		dbg_printf("[%u] Process data record: MapID: %u\n", exporter->info.id, table->extension_info.map->map_id);
 
 		// apply copy and processing sequence
 		for ( i=0; i<table->number_of_sequences; i++ ) {
@@ -1639,6 +1671,11 @@ char				*string;
 
 						*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
 						*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
+					} break;
+				case move64_32: 
+					{ type_mask_t t;
+						t.val.val64 = Get_val64((void *)&in[input_offset]);
+						*((uint32_t *)&out[output_offset]) =  t.val.val32[1];
 					} break;
 				case move96: 
 					{   *((uint32_t *)&out[output_offset]) = Get_val32((void *)&in[input_offset]);
@@ -1855,15 +1892,15 @@ char				*string;
 				/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
 				type_mask_t t;
 					  
-				t.val.val64 = exporter->info.ip.v6[0];
+				t.val.val64 = exporter->info.ip.V6[0];
 				*((uint32_t *)&out[output_offset]) 	  = t.val.val32[0];
 				*((uint32_t *)&out[output_offset+4])  = t.val.val32[1];
 
-				t.val.val64 = exporter->info.ip.v6[1];
+				t.val.val64 = exporter->info.ip.V6[1];
 				*((uint32_t *)&out[output_offset+8])  = t.val.val32[0];
 				*((uint32_t *)&out[output_offset+12]) = t.val.val32[1];
 			} else {
-				*((uint32_t *)&out[output_offset]) = exporter->info.ip.v4;
+				*((uint32_t *)&out[output_offset]) = exporter->info.ip.V4;
 			}
 		}
 
@@ -1921,31 +1958,9 @@ char				*string;
 		fs->nffile->stat_record->numpackets	+= table->out_packets;
 		fs->nffile->stat_record->numbytes	+= table->out_bytes;
 	
-		if ( fs->xstat ) {
-			uint32_t bpp = table->packets ? table->bytes/table->packets : 0;
-			if ( bpp > MAX_BPP ) 
-				bpp = MAX_BPP;
-			if ( data_record->prot == IPPROTO_TCP ) {
-				fs->xstat->bpp_histogram->tcp.bpp[bpp]++;
-				fs->xstat->bpp_histogram->tcp.count++;
-
-				fs->xstat->port_histogram->src_tcp.port[data_record->srcport]++;
-				fs->xstat->port_histogram->dst_tcp.port[data_record->dstport]++;
-				fs->xstat->port_histogram->src_tcp.count++;
-				fs->xstat->port_histogram->dst_tcp.count++;
-			} else if ( data_record->prot == IPPROTO_UDP ) {
-				fs->xstat->bpp_histogram->udp.bpp[bpp]++;
-				fs->xstat->bpp_histogram->udp.count++;
-
-				fs->xstat->port_histogram->src_udp.port[data_record->srcport]++;
-				fs->xstat->port_histogram->dst_udp.port[data_record->dstport]++;
-				fs->xstat->port_histogram->src_udp.count++;
-				fs->xstat->port_histogram->dst_udp.count++;
-			}
-		}
-
 		if ( verbose ) {
 			master_record_t master_record;
+			memset((void *)&master_record, 0, sizeof(master_record_t));
 			ExpandRecord_v2((common_record_t *)data_record, &(table->extension_info), &(exporter->info), &master_record);
 		 	format_file_block_record(&master_record, &string, 0);
 			printf("%s\n", string);
@@ -2051,7 +2066,6 @@ uint32_t 			flowset_id, flowset_length, exporter_id;
 ssize_t				size_left;
 static int pkg_num = 0;
 
-printf("Enter Process_v9\n");
 	pkg_num++;
 	dbg_printf("Process_v9: Next packet: %i\n", pkg_num);
 
@@ -2084,7 +2098,8 @@ printf("Enter Process_v9\n");
 #ifdef DEVEL
 	uint32_t expected_records 		= ntohs(v9_header->count);
 	uint32_t skip = 0;
-	printf("\n[%u] Process next packet: %i %u records, buffer: %li \n", exporter_id, pkg_num, expected_records, size_left);
+	printf("\n[%u] Process next packet: %i records: %u, buffer: %li \n", exporter_id, pkg_num, expected_records, size_left);
+	printf("SourceID: %u, Sysuptime: %u.%u\n", v9_header->source_id, v9_header->SysUptime, v9_header->unix_secs);
 #endif
 
 	// sequence check
@@ -2111,6 +2126,7 @@ printf("Enter Process_v9\n");
 			*/
 		}
 	}
+	dbg_printf("Sequence: %llu\n", exporter->sequence);
 
 	processed_records = 0;
 
@@ -2660,18 +2676,18 @@ uint16_t	icmp;
 
 	// IP address info
 	if ((master_record->flags & FLAG_IPV6_ADDR) != 0 ) { // IPv6
-		master_record->v6.srcaddr[0] = htonll(master_record->v6.srcaddr[0]);
-		master_record->v6.srcaddr[1] = htonll(master_record->v6.srcaddr[1]);
-		master_record->v6.dstaddr[0] = htonll(master_record->v6.dstaddr[0]);
-		master_record->v6.dstaddr[1] = htonll(master_record->v6.dstaddr[1]);
+		master_record->V6.srcaddr[0] = htonll(master_record->V6.srcaddr[0]);
+		master_record->V6.srcaddr[1] = htonll(master_record->V6.srcaddr[1]);
+		master_record->V6.dstaddr[0] = htonll(master_record->V6.dstaddr[0]);
+		master_record->V6.dstaddr[1] = htonll(master_record->V6.dstaddr[1]);
 		// keep compiler happy
-		// memcpy(peer->buff_ptr, master_record->v6.srcaddr, 4 * sizeof(uint64_t));
+		// memcpy(peer->buff_ptr, master_record->V6.srcaddr, 4 * sizeof(uint64_t));
 		memcpy(peer->buff_ptr, master_record->ip_union._ip_64.addr, 4 * sizeof(uint64_t));
 		peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + 4 * sizeof(uint64_t));
 	} else {
-		Put_val32(htonl(master_record->v4.srcaddr), peer->buff_ptr);
+		Put_val32(htonl(master_record->V4.srcaddr), peer->buff_ptr);
 		peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint32_t));
-		Put_val32(htonl(master_record->v4.dstaddr), peer->buff_ptr);
+		Put_val32(htonl(master_record->V4.dstaddr), peer->buff_ptr);
 		peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint32_t));
 	}
 
@@ -2746,23 +2762,23 @@ uint16_t	icmp;
 				peer->buff_ptr = (void *)tpl->data;
 				} break;
 			case EX_NEXT_HOP_v4:
-				Put_val32(htonl(master_record->ip_nexthop.v4), peer->buff_ptr);
+				Put_val32(htonl(master_record->ip_nexthop.V4), peer->buff_ptr);
 				peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint32_t));
 				break;
 			case EX_NEXT_HOP_v6: 
-				Put_val64(htonll(master_record->ip_nexthop.v6[0]), peer->buff_ptr);
+				Put_val64(htonll(master_record->ip_nexthop.V6[0]), peer->buff_ptr);
 				peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint64_t));
-				Put_val64(htonll(master_record->ip_nexthop.v6[1]), peer->buff_ptr);
+				Put_val64(htonll(master_record->ip_nexthop.V6[1]), peer->buff_ptr);
 				peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint64_t));
 				break;
 			case EX_NEXT_HOP_BGP_v4: 
-				Put_val32(htonl(master_record->bgp_nexthop.v4), peer->buff_ptr);
+				Put_val32(htonl(master_record->bgp_nexthop.V4), peer->buff_ptr);
 				peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint32_t));
 				break;
 			case EX_NEXT_HOP_BGP_v6: 
-				Put_val64(htonll(master_record->bgp_nexthop.v6[0]), peer->buff_ptr);
+				Put_val64(htonll(master_record->bgp_nexthop.V6[0]), peer->buff_ptr);
 				peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint64_t));
-				Put_val64(htonll(master_record->bgp_nexthop.v6[1]), peer->buff_ptr);
+				Put_val64(htonll(master_record->bgp_nexthop.V6[1]), peer->buff_ptr);
 				peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + sizeof(uint64_t));
 				break;
 			case EX_VLAN: 
@@ -3050,8 +3066,6 @@ generic_sampler_t *sampler;
 			// test for update of existing sampler
 			if ( sampler->info.id == id ) {
 				// found same sampler id - update record
-				LogInfo( "Update existing sampler id: %i, mode: %u, interval: %u\n", 
-					id, mode, interval);
 				dbg_printf("Update existing sampler id: %i, mode: %u, interval: %u\n", 
 					id, mode, interval);
 
@@ -3060,6 +3074,8 @@ generic_sampler_t *sampler;
 					FlushInfoSampler(fs, &(sampler->info));
 					sampler->info.mode 	   = mode;
 					sampler->info.interval = interval;
+					LogInfo( "Update existing sampler id: %i, mode: %u, interval: %u\n", 
+						id, mode, interval);
 				} else {
 					dbg_printf("Sampler unchanged!\n");
 				}

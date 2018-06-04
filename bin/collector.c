@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
@@ -64,7 +65,6 @@
 #include "util.h"
 #include "nf_common.h"
 #include "nffile.h"
-#include "nfxstat.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "nfx.h"
@@ -135,7 +135,6 @@ int ok;
 	(*source)->bookkeeper 	  	  = NULL;
 	(*source)->any_source 	  	  = 0;
 	(*source)->exporter_data  	  = NULL;
-	(*source)->xstat 		  	  = NULL;
 	(*FlowSource)->exporter_count = 0;
 
 	// separate IP address from ident
@@ -156,15 +155,15 @@ int ok;
 		uint64_t _ip[2];
 		ok = inet_pton(PF_INET6, p, _ip);
 		(*source)->sa_family = PF_INET6;
-		(*source)->ip.v6[0] = ntohll(_ip[0]);
-		(*source)->ip.v6[1] = ntohll(_ip[1]);
+		(*source)->ip.V6[0] = ntohll(_ip[0]);
+		(*source)->ip.V6[1] = ntohll(_ip[1]);
 	} else {
 		uint32_t _ip;
 		ok = inet_pton(PF_INET, p, &_ip);
 		(*source)->sa_family = PF_INET;
-		(*source)->ip.v6[0] = 0;
-		(*source)->ip.v6[1] = 0;
-		(*source)->ip.v4 = ntohl(_ip);
+		(*source)->ip.V6[0] = 0;
+		(*source)->ip.V6[1] = 0;
+		(*source)->ip.V4 = ntohl(_ip);
 	}
 	switch (ok) {
 		case 0:
@@ -244,7 +243,6 @@ char s[MAXPATHLEN];
 	(*FlowSource)->bookkeeper 	  = NULL;
 	(*FlowSource)->any_source 	  = 1;
 	(*FlowSource)->exporter_data  = NULL;
-	(*FlowSource)->xstat 	  	  = NULL;
 	(*FlowSource)->exporter_count = 0;
 
 	// fill in ident
@@ -327,7 +325,6 @@ int				err;
 	(*source)->bookkeeper 	  	  = NULL;
 	(*source)->any_source 	  	  = 0;
 	(*source)->exporter_data  	  = NULL;
-	(*source)->xstat 		  	  = NULL;
 	(*FlowSource)->exporter_count = 0;
 
 	switch (ss->ss_family) {
@@ -342,9 +339,9 @@ int				err;
 			}
 #endif
 			(*source)->sa_family = PF_INET;
-			(*source)->ip.v6[0] = 0;
-			(*source)->ip.v6[1] = 0;
-			(*source)->ip.v4 = ntohl(u.sa_in->sin_addr.s_addr);
+			(*source)->ip.V6[0] = 0;
+			(*source)->ip.V6[1] = 0;
+			(*source)->ip.V4 = ntohl(u.sa_in->sin_addr.s_addr);
 			ptr 	   = &u.sa_in->sin_addr;
 			} break;
 		case PF_INET6: {
@@ -361,14 +358,14 @@ int				err;
 #endif
 			// ptr = &((struct sockaddr_in6 *)sa)->sin6_addr;
 			(*source)->sa_family = PF_INET6;
-			(*source)->ip.v6[0] = ntohll(ip_ptr[0]);
-			(*source)->ip.v6[1] = ntohll(ip_ptr[1]);
+			(*source)->ip.V6[0] = ntohll(ip_ptr[0]);
+			(*source)->ip.V6[1] = ntohll(ip_ptr[1]);
 			ptr = &u.sa_in6->sin6_addr;
 			} break;
 		default:
 			// keep compiler happy
-			(*source)->ip.v6[0] = 0;
-			(*source)->ip.v6[1] = 0;
+			(*source)->ip.V6[0] = 0;
+			(*source)->ip.V6[1] = 0;
 			ptr   = NULL;
 
 			LogError("Unknown sa fanily: %d in '%s', line '%d'", ss->ss_family, __FILE__, __LINE__ );
@@ -533,14 +530,14 @@ int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {
 		char ipstr[IP_STRING_LEN];
 		printf("Flush Exporter: ");
 		if ( exporter->sa_family == AF_INET ) {
-			uint32_t _ip = htonl(exporter->ip.v4);
+			uint32_t _ip = htonl(exporter->ip.V4);
 			inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
 			printf("SysID: %u, IP: %16s, version: %u, ID: %2u\n", exporter->sysid,
 				ipstr, exporter->version, exporter->id);
 		} else if ( exporter->sa_family == AF_INET6 ) {
 			uint64_t _ip[2];
-			_ip[0] = htonll(exporter->ip.v6[0]);
-			_ip[1] = htonll(exporter->ip.v6[1]);
+			_ip[0] = htonll(exporter->ip.V6[0]);
+			_ip[1] = htonll(exporter->ip.V6[1]);
 			inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
 			printf("SysID: %u, IP: %40s, version: %u, ID: %2u\n", exporter->sysid,
 				ipstr, exporter->version, exporter->id);

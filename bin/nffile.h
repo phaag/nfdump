@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,19 +29,17 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nffile.h 40 2009-12-16 10:41:44Z haag $
- *
- *  $LastChangedRevision: 40 $
- *	
  */
 
 #ifndef _NFFILE_H
 #define _NFFILE_H 1
 
-#ifdef HAVE_STDDEF_H
+#include "config.h"
+
 #include <stddef.h>
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
 #endif
 
 #define IDENTLEN	128
@@ -89,6 +88,7 @@
 #define NOT_COMPRESSED 0
 #define LZO_COMPRESSED 1
 #define BZ2_COMPRESSED 2
+#define LZ4_COMPRESSED 3
 
 typedef struct file_header_s {
 	uint16_t	magic;				// magic to recognize nfdump file type and endian type
@@ -104,6 +104,19 @@ typedef struct file_header_s {
 #define FLAG_ANONYMIZED 	0x2		// flow data are anonimized 
 #define FLAG_CATALOG		0x4		// has a file catalog record after stat record
 #define FLAG_BZ2_COMPRESSED 0x8		// records are BZ2 compressed
+#define FLAG_LZ4_COMPRESSED 0x10	// records are LZ4 compressed
+#define COMPRESSION_MASK	0x19	// all compression bits
+// shortcuts
+
+#define FILE_IS_NOT_COMPRESSED(n) (((n)->file_header->flags & COMPRESSION_MASK) == 0)
+#define FILE_IS_LZO_COMPRESSED(n) ((n)->file_header->flags & FLAG_LZO_COMPRESSED)
+#define FILE_IS_BZ2_COMPRESSED(n) ((n)->file_header->flags & FLAG_BZ2_COMPRESSED)
+#define FILE_IS_LZ4_COMPRESSED(n) ((n)->file_header->flags & FLAG_LZ4_COMPRESSED)
+#define FILE_COMPRESSION(n) (FILE_IS_LZO_COMPRESSED(n) ? LZO_COMPRESSED : (FILE_IS_BZ2_COMPRESSED(n) ? BZ2_COMPRESSED : (FILE_IS_LZ4_COMPRESSED(n) ? LZ4_COMPRESSED : NOT_COMPRESSED)))
+
+#define BLOCK_IS_COMPRESSED(n) ((n)->flags == 2 )
+#define IP_ANONYMIZED(n) ((n)->file_header->flags & FLAG_ANONYMIZED)
+
 							
 	uint32_t	NumBlocks;			// number of data blocks in file
 	char		ident[IDENTLEN];	// string identifier for this file
@@ -232,11 +245,12 @@ typedef struct catalog_s {
  */
 typedef struct nffile_s {
 	file_header_t		*file_header;	// file header
-	data_block_header_t	*block_header;	// buffer
+#define NUM_BUFFS 2
+	void				*buff_pool[NUM_BUFFS];	// buffer space for read/write/compression 
+	size_t				buff_size;
+	data_block_header_t	*block_header;	// buffer ptr
 	void				*buff_ptr;		// pointer into buffer for read/write blocks/records
 	stat_record_t 		*stat_record;	// flow stat record
-	catalog_t			*catalog;		// file catalog
-	int					_compress;		// data compressed flag
 	int					fd;				// file descriptor
 } nffile_t;
 
@@ -329,7 +343,7 @@ typedef struct nffile_s {
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
  * |  2 |                          last (21)                        |fwd_status(89)| tcpflags (6) |  proto (4)   |  src tos (5) |
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  3 |           srcport (7)       |   dstport(11)/ICMP (32)     |          exporter ID        |           <free>            |
+ * |  3 |           srcport (7)       |   dstport(11)/ICMP (32)     |          exporter ID        |  reserved icmp type/code    |
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
 
  * 
@@ -478,8 +492,8 @@ typedef struct ip_addr_s {
 #define IP_ADDR_T
 } ip_addr_t;
 
-#define v4 ip_union._v4
-#define v6 ip_union._v6
+#define V4 ip_union._v4
+#define V6 ip_union._v6
 
  /*
  * Extension 2: 
@@ -1534,7 +1548,6 @@ typedef struct master_record_s {
 		uint16_t icmp;
 	};
 
-
 #ifdef WORDS_BIGENDIAN
 #	define OffsetPort 			3
 #	define OffsetExporterSysID	3
@@ -2142,6 +2155,9 @@ typedef struct master_record_s {
 	// last entry in master record 
 #	define Offset_MR_LAST	offsetof(master_record_t, map_ref)
 	extension_map_t	*map_ref;
+
+	// optional flowlabel
+	char	*label;
 } master_record_t;
 
 #define AnyMask  	0xffffffffffffffffLL
@@ -2211,16 +2227,6 @@ typedef struct common_record_v1_s {
 #endif
 
 
-// a few handy shortcuts
-#define FILE_IS_LZO_COMPRESSED(n) ((n)->file_header->flags & FLAG_LZO_COMPRESSED)
-#define FILE_IS_BZ2_COMPRESSED(n) ((n)->file_header->flags & FLAG_BZ2_COMPRESSED)
-#define FILE_COMPRESSION(n) ( FILE_IS_LZO_COMPRESSED(n) ? LZO_COMPRESSED : FILE_IS_BZ2_COMPRESSED(n) ? BZ2_COMPRESSED : NOT_COMPRESSED )
-#define FILE_IS_NOT_COMPRESSED(n) ( (FILE_IS_LZO_COMPRESSED(n) + FILE_IS_BZ2_COMPRESSED(n)) == 0 )
-
-#define BLOCK_IS_COMPRESSED(n) ((n)->flags == 2 )
-#define HAS_CATALOG(n) ((n)->file_header->flags & FLAG_CATALOG)
-#define IP_ANONYMIZED(n) ((n)->file_header->flags & FLAG_ANONYMIZED)
-
 void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
 nffile_t *OpenFile(char *filename, nffile_t *nffile);
@@ -2246,8 +2252,6 @@ int CloseUpdateFile(nffile_t *nffile, char *ident);
 int ReadBlock(nffile_t *nffile);
 
 int WriteBlock(nffile_t *nffile);
-
-int WriteExtraBlock(nffile_t *nffile, data_block_header_t *block_header);
 
 int RenameAppend(char *from, char *to);
 

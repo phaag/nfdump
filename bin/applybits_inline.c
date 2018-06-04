@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,11 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: applybits_inline.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
  *  
  */
 
@@ -46,11 +42,11 @@ static inline void ApplyNetMaskBits(master_record_t *flow_record, int apply_netb
 				uint32_t mask_bits = flow_record->src_mask;
 				if ( mask_bits > 64 ) {
                     mask = 0xffffffffffffffffLL << ( 128 - mask_bits );
-					flow_record->v6.srcaddr[1] &= mask;
+					flow_record->V6.srcaddr[1] &= mask;
                 } else {
                     mask = 0xffffffffffffffffLL << ( 64 - mask_bits );
-					flow_record->v6.srcaddr[0] &= mask;
-					flow_record->v6.srcaddr[1] = 0;
+					flow_record->V6.srcaddr[0] &= mask;
+					flow_record->V6.srcaddr[1] = 0;
                 }
 			}
 			if ( apply_netbits & 2 ) {
@@ -59,21 +55,21 @@ static inline void ApplyNetMaskBits(master_record_t *flow_record, int apply_netb
 
 				if ( mask_bits > 64 ) {
                     mask = 0xffffffffffffffffLL << ( 128 - mask_bits );
-					flow_record->v6.dstaddr[1] &= mask;
+					flow_record->V6.dstaddr[1] &= mask;
                 } else {
                     mask = 0xffffffffffffffffLL << ( 64 - mask_bits );
-					flow_record->v6.dstaddr[0] &= mask;
-					flow_record->v6.dstaddr[1] = 0;
+					flow_record->V6.dstaddr[0] &= mask;
+					flow_record->V6.dstaddr[1] = 0;
                 }
 			}
 		} else { // IPv4
 			if ( apply_netbits & 1 ) {
 				uint32_t srcmask = 0xffffffff << ( 32 - flow_record->src_mask );
-				flow_record->v4.srcaddr &= srcmask;
+				flow_record->V4.srcaddr &= srcmask;
 			}
 			if ( apply_netbits & 2 ) {
 				uint32_t dstmask = 0xffffffff << ( 32 - flow_record->dst_mask );
-				flow_record->v4.dstaddr &= dstmask;
+				flow_record->V4.dstaddr &= dstmask;
 			}
 		}
 

@@ -1,11 +1,11 @@
 # nfdump
 
-Stable Release v1.6.15
+Stable Release v1.6.17
 
-See the Changelog file for all changes in release 1.6.15
+See the Changelog file for all changes in release 1.6.17
 
-nfdump is a toolset in oder to collect and process netflow data, sent from netflow compatible devices. The toolset supports netflow __v1__, __v5/v7__ __v9__ and __IPFIX__. See the details below for a more details explanation.
-The toolset also contains a collector to collect __sflow__ data. nfdump supports IPv4 as well as IPv6.
+nfdump is a toolset in oder to collect and process netflow and sflow data, sent from netflow/sflow compatible devices. 
+The toolset supports netflow __v1__, __v5/v7__,__v9__,__IPFIX__ and __SFLOW__.  nfdump supports IPv4 as well as IPv6.
 
 nfdump is used as backend toolset for __NfSen__.
 
@@ -21,12 +21,11 @@ __Note:__ The older nfdump-1.5.8-2-NSEL is __not compatible__ with nfdump > 1.6.
 
 ## IPFIX
 
-nfdump contains an IPFIX module for decoding IPFIX data. It
-is does not support the full IPFIX definition, however is considered stable.
+nfdump contains an IPFIX module for decoding IPFIX flow data. It
+does not support the full IPFIX definition.
 
 * Supports basically same feature set of elements as netflow_v9 module
-* Only UDP traffic is accepted no SCTP so far
-* No sampling support.
+* Only UDP traffic is accepted no tCP/SCTP
 * If you would like to see more IPFIX support, please contact me. 
 
 ---
@@ -36,9 +35,8 @@ is does not support the full IPFIX definition, however is considered stable.
 
 ### Building and config options
 
-The toolset is build upon the autotools framework, which means __./configure ./make__ and __./make install__ should do the trick
-In case of an autoconf error, run 'autoreconf -if' first to sync with your
-local version of autotools
+The toolset is build upon the autotools framework. Run `./autogen.sh` first.
+Afterwards `./configure` `make` and `make install` should do the trick.
 
 The following config options are available:
 
@@ -73,9 +71,9 @@ every 5 min ) The netflow versions mentioned above are read transparently
 Multiple netflow streams can be collected by a single or collector.  
 nfcapd can listen on IPv6 or IPv4. Furthermore multicast is supported.
 
-
 __nfdump__ - process collected netflow records.  
-Nfdump reads the netflow data from one or many files stored by nfcapd. It's filter syntax is similar to tcpdump ( pcap like ) but adapted for netflow.
+Nfdump reads the netflow data from one or many files stored by nfcapd. 
+It's filter syntax is similar to tcpdump ( pcap like ) but adapted for netflow.
 If you like tcpdump you will like nfdump. nfdump displays netflow 
 data and/or creates top N statistics of flows, bytes, packets. nfdump 
 has a powerful and flexible flow aggregation including bi-directional 
@@ -92,11 +90,11 @@ __nfreplay__ - netflow replay
 Reads the netflow data from the files stored by nfcapd and sends it
 over the network to another host.
 
-####Optional binaries:
+#### Optional binaries:
 
 __sfcapd__ - sflow collector daemon  
 scfapd collects sflow data and stores it into nfcapd comaptible files.
-"sfcapd includes sFlow(TM) code, freely available from http://www.inmon.com/".
+"sfcapd includes sFlow(TM) code, freely available from https://github.com/sflow/sflowtool.
 
 __nfprofile__ - netflow profiler. Required by NfSen  
 Reads the netflow data from the files stored by nfcapd. Filters the 
@@ -108,7 +106,7 @@ __nftrack__ - Port tracking decoder for NfSen plugin PortTracker.
 __ft2nfdump__ - flow-tools flow converter  
 ft2nfdump converts flow-tools data into nfdump format. 
 
-__nfreade__r - Framework for programmers  
+__nfreader__ - Framework for programmers  
 nfreader is a framework to read nfdump files for any other purpose.
 Own C code can be added to process flows. nfreader is not installed
 
@@ -117,19 +115,32 @@ parse_csv.pl reads nfdump csv output and print the flows to stdout.
 This program is intended to be a framework for post processing flows
 for any other purpose.
 
-####Notes for sflow users:
+#### Notes for sflow users:
 sfcapd and nfcapd can be used concurrently to collect netflow and sflow
 data at the same time. Generic command line options apply to both 
-collectors likewise. sfcapd's sflow decoding module is based on InMon's sflowtool code and supports similar fields as nfcapd does for netflow v9, which is a subset of all available sflow fields in an sflow record. More fields may be integrated in future versions of sfcapd.
+collectors likewise. sfcapd's sflow decoding module is based on InMon's 
+sflowtool code and supports similar fields as nfcapd does for netflow v9, 
+which is a subset of all available sflow fields in an sflow record. 
+More fields may be integrated in future versions of sfcapd.
 
 ---
 
-###Compression
-Binary data files can optionally be compressed using either the fast LZO1X-1 compression, or the efficient bzip2 methode. 
-If you compress automatically flows while they are collected, only the LZO1X-1 methode is recommended. bzip uses about 30 times more CPU than 
-LZO1X-1. Used bzip2 to archive data, which may reduce the disk usage again by a factor of 2. The compression of flow files can be changed any time later with nfdump.  
-For more details on LZO1X-1 see, http://www.oberhumer.com/opensource/lzo.   
-You can check the compression speed for your system by doing ./nftest <path/to/an/existing/netflow/file>. 
+### Compression
+Binary data files can optionally be compressed using either the fast LZO1X-1 compression, 
+LZ4 or the efficient but slow bzip2 methode. 
+If you compress automatically flows while they are collected, LZO1X-1 or LZ4 methodes are
+recommended. bzip2 uses about 30 times more CPU than LZO1X-1. Use bzip2 to archive netflow
+data, which may reduce the disk usage again by a factor of 2. The compression of flow files 
+can be changed any time with nfdump -J <num>
+For more details on each methde, see:
+
+LZO1X-1: http://www.oberhumer.com/opensource/lzo
+
+LZ4: https://github.com/lz4/lz4
+
+bzip2: http://www.bzip.org
+
+You can check the compression speed for your system by running ./nftest <path/to/an/existing/netflow/file>. 
 
 ---
 
@@ -328,8 +339,10 @@ NF9_OUT_SRC_MAC | 81
 NF9_FORWARDING_STATUS | 89
 NF9_BGP_ADJ_NEXT_AS  | 128
 NF9_BGP_ADJ_PREV_AS  | 129
-|
-__CISCO ASA NSEL extension - Network Security Event Logging__ |
+
+### CISCO ASA NSEL extension - Network Security Event Logging__
+Tag | ID
+----|---
 NF_F_FLOW_BYTES | 85
 NF_F_CONN_ID | 148
 NF_F_FLOW_CREATE_TIME_MSEC | 152
@@ -350,16 +363,20 @@ NF_F_XLATE_DST_ADDR_IPV4 | 40002
 NF_F_XLATE_SRC_PORT | 40003
 NF_F_XLATE_DST_PORT | 40004
 NF_F_FW_EVENT | 40005
-|
-__Cisco ASR 1000 series NEL extension - Nat Event Logging__|
+
+### Cisco ASR 1000 series NEL extension - Nat Event Logging__
+Tag | ID
+----|---
 NF_N_NAT_EVENT | 230
 NF_N_INGRESS_VRFID | 234
 NF_N_NAT_INSIDE_GLOBAL_IPV4 | 225
 NF_N_NAT_OUTSIDE_GLOBAL_IPV4 | 226
 NF_N_POST_NAPT_SRC_PORT | 	227
 NF_N_POST_NAPT_DST_PORT | 	228
-|
-__latency extensions for nfpcapd and nprobe__|
+
+### latency extensions for nfpcapd and nprobe__
+Tag | ID
+----|---
 NF9_NPROBE_CLIENT_NW_DELAY_SEC | 57554
 NF9_NPROBE_CLIENT_NW_DELAY_USEC | 57555
 NF9_NPROBE_SERVER_NW_DELAY_SEC | 57556
@@ -377,7 +394,25 @@ which may or may not be stored into the data file. Therefore the v9 templates co
 
 ###Sampling
 By default, the sampling rate is set to 1 (unsampled) or to 
-any given value specified by the -s cmd line option. If sampling information is found in the netflow stream, it overwrites the default value. Sampling is automatically recognised when announced in v9 option templates (tags #48, #49, #50 ) or in the unofficial v5 header hack. Note: Not all platforms (or IOS versions) support exporting sampling information in netflow data, even if sampling is configured. The number of bytes/packets in each netflow record is automatically multiplied by the sampling rate. The total number of flows is not changed as this is not accurate enough. (Small flows versus large flows)
+any given value specified by the -s cmd line option. If sampling information is found 
+in the netflow stream, it overwrites the default value. Sampling is automatically 
+recognised when announced in v9 option templates (tags #48, #49, #50 ), (tag #34, #35)
+or in the unofficial v5 header hack. 
+Note: Not all platforms (or IOS versions) support exporting sampling information in 
+netflow data, even if sampling is configured. The number of bytes/packets in each 
+netflow record is automatically multiplied by the sampling rate. The total number of 
+flows is not changed as this is not accurate enough. (Small flows versus large flows)
+
+###InfluxDB
+You can send nfprofile stats data to an influxdb database. The data are the same of rrd files.
+For enable this option you need libcurl dev package installed, use --enable-influxdb for configure the project and the nfprofile command should be invoked with option: -i <influxurl> . 
+Example: -i http://localhost:8086/write?db=mydb&u=user&p=pass 
+The parameters for auth (&u=user&p=pass) are optional.
+Then you get the stats data on influxdb mydb in the measurement nfsen_stats.
+
+For put the stats of live profile you need to apply a patch to nfsen (in extra/nfsen) and add in nfsen.conf the option:
+	$influxdb_url="http://mydbhost.local:8086/write?db=nfsen";
+as example I added a preconfigured grafana dashboard in extra/grafana/Nfsen_Stats.json .
 
 ---
 

@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nftest.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
  */
 
 #include "config.h"
@@ -137,11 +132,11 @@ nffile_t	*nffile_w, *nffile_r;
 int i, compress, bsize;
 ssize_t	ret;
 char outfile[MAXPATHLEN];
-struct timeval  	tstart[3];
-struct timeval  	tend[3];
+struct timeval  	tstart[4];
+struct timeval  	tend[4];
 u_long usec, sec;
-double wall[3];
-uint32_t recsize[3];
+double wall[4];
+uint32_t recsize[4];
 
 	nffile_r = OpenFile(filename, NULL);
 	if ( !nffile_r ) {
@@ -162,18 +157,19 @@ uint32_t recsize[3];
 	nffile_w = NULL;
 
 	bsize = nffile_r->block_header->size;
-	for ( compress=0; compress<=2; compress++ ) {
+	for ( compress=NOT_COMPRESSED; compress<=LZ4_COMPRESSED; compress++ ) {
 		int wsize;
 		nffile_w = OpenNewFile(outfile, nffile_w, compress, 0, NULL);
 		if ( !nffile_w ) {
 			DisposeFile(nffile_r);
         	return;
     	}
-		
+		// fill buffer
+		memcpy(nffile_w->buff_pool[0], nffile_r->buff_pool[0], nffile_r->buff_size);
 		gettimeofday(&(tstart[compress]), (struct timezone*)NULL);
 		for ( i=0; i<100; i++ ) {
 			nffile_w->block_header->size = bsize;
-			wsize = WriteExtraBlock(nffile_w, nffile_r->block_header);
+			wsize = WriteBlock(nffile_w);
 			if ( wsize <= 0 ) {
 				fprintf(stderr, "Failed to write output buffer to disk: '%s'" , strerror(errno));
 				// Cleanup
@@ -206,6 +202,7 @@ uint32_t recsize[3];
 	printf("100 write cycles, with size %u bytes\n", bsize);
 	printf("Uncompressed write time: %-.6fs size: %u, 1:%-.3f\n", wall[0], recsize[0], (double)recsize[0]/(double)bsize );
 	printf("LZO compressed write time  : %-.6fs size: %d, 1:%-.3f\n", wall[1], (int32_t)recsize[1], (double)recsize[1]/(double)bsize );
+	printf("LZ4 compressed write time  : %-.6fs size: %d, 1:%-.3f\n", wall[1], (int32_t)recsize[1], (double)recsize[1]/(double)bsize );
 	printf("BZ2 compressed write time  : %-.6fs size: %d, 1:%-.3f\n", wall[2], (int32_t)recsize[2], (double)recsize[2]/(double)bsize );
 
 } // End of CheckCompression
@@ -371,12 +368,12 @@ void *p;
 	ret = check_filter_block("icmp-code 4", &flow_record, 0);
 
 
-	inet_pton(PF_INET6, "fe80::2110:abcd:1234:5678", flow_record.v6.srcaddr);
-	inet_pton(PF_INET6, "fe80::1104:fedc:4321:8765", flow_record.v6.dstaddr);
-	flow_record.v6.srcaddr[0] = ntohll(flow_record.v6.srcaddr[0]);
-	flow_record.v6.srcaddr[1] = ntohll(flow_record.v6.srcaddr[1]);
-	flow_record.v6.dstaddr[0] = ntohll(flow_record.v6.dstaddr[0]);
-	flow_record.v6.dstaddr[1] = ntohll(flow_record.v6.dstaddr[1]);
+	inet_pton(PF_INET6, "fe80::2110:abcd:1234:5678", flow_record.V6.srcaddr);
+	inet_pton(PF_INET6, "fe80::1104:fedc:4321:8765", flow_record.V6.dstaddr);
+	flow_record.V6.srcaddr[0] = ntohll(flow_record.V6.srcaddr[0]);
+	flow_record.V6.srcaddr[1] = ntohll(flow_record.V6.srcaddr[1]);
+	flow_record.V6.dstaddr[0] = ntohll(flow_record.V6.dstaddr[0]);
+	flow_record.V6.dstaddr[1] = ntohll(flow_record.V6.dstaddr[1]);
 	ret = check_filter_block("src ip fe80::2110:abcd:1234:5678", &flow_record, 1);
 	ret = check_filter_block("src ip fe80::2110:abcd:1234:5679", &flow_record, 0);
 	ret = check_filter_block("src ip fe80::2111:abcd:1234:5678", &flow_record, 0);
@@ -393,39 +390,39 @@ void *p;
 	ret = check_filter_block("src ip in [fe80::2110:abcd:1234:5678]", &flow_record, 1);
 	ret = check_filter_block("src ip in [fe80::2110:abcd:1234:5679]", &flow_record, 0);
 
-	inet_pton(PF_INET6, "fe80::2110:abcd:1234:0", flow_record.v6.srcaddr);
-	flow_record.v6.srcaddr[0] = ntohll(flow_record.v6.srcaddr[0]);
-	flow_record.v6.srcaddr[1] = ntohll(flow_record.v6.srcaddr[1]);
+	inet_pton(PF_INET6, "fe80::2110:abcd:1234:0", flow_record.V6.srcaddr);
+	flow_record.V6.srcaddr[0] = ntohll(flow_record.V6.srcaddr[0]);
+	flow_record.V6.srcaddr[1] = ntohll(flow_record.V6.srcaddr[1]);
 	ret = check_filter_block("src net fe80::2110:abcd:1234:0/112", &flow_record, 1);
 
-	inet_pton(PF_INET6, "fe80::2110:abcd:1234:ffff", flow_record.v6.srcaddr);
-	flow_record.v6.srcaddr[0] = ntohll(flow_record.v6.srcaddr[0]);
-	flow_record.v6.srcaddr[1] = ntohll(flow_record.v6.srcaddr[1]);
+	inet_pton(PF_INET6, "fe80::2110:abcd:1234:ffff", flow_record.V6.srcaddr);
+	flow_record.V6.srcaddr[0] = ntohll(flow_record.V6.srcaddr[0]);
+	flow_record.V6.srcaddr[1] = ntohll(flow_record.V6.srcaddr[1]);
 	ret = check_filter_block("src net fe80::2110:abcd:1234:0/112", &flow_record, 1);
 
-	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.v6.srcaddr);
-	flow_record.v6.srcaddr[0] = ntohll(flow_record.v6.srcaddr[0]);
-	flow_record.v6.srcaddr[1] = ntohll(flow_record.v6.srcaddr[1]);
+	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.V6.srcaddr);
+	flow_record.V6.srcaddr[0] = ntohll(flow_record.V6.srcaddr[0]);
+	flow_record.V6.srcaddr[1] = ntohll(flow_record.V6.srcaddr[1]);
 	ret = check_filter_block("src net fe80::2110:abcd:1234:0/112", &flow_record, 0);
 	ret = check_filter_block("src net fe80::0/16", &flow_record, 1);
 	ret = check_filter_block("src net fe81::0/16", &flow_record, 0);
 
-	flow_record.v6.srcaddr[0] = 0;
-	flow_record.v6.srcaddr[1] = 0;
+	flow_record.V6.srcaddr[0] = 0;
+	flow_record.V6.srcaddr[1] = 0;
 
-	inet_pton(PF_INET6, "fe80::2110:abcd:1234:0", flow_record.v6.dstaddr);
-	flow_record.v6.dstaddr[0] = ntohll(flow_record.v6.dstaddr[0]);
-	flow_record.v6.dstaddr[1] = ntohll(flow_record.v6.dstaddr[1]);
+	inet_pton(PF_INET6, "fe80::2110:abcd:1234:0", flow_record.V6.dstaddr);
+	flow_record.V6.dstaddr[0] = ntohll(flow_record.V6.dstaddr[0]);
+	flow_record.V6.dstaddr[1] = ntohll(flow_record.V6.dstaddr[1]);
 	ret = check_filter_block("dst net fe80::2110:abcd:1234:0/112", &flow_record, 1);
 
-	inet_pton(PF_INET6, "fe80::2110:abcd:1234:ffff", flow_record.v6.dstaddr);
-	flow_record.v6.dstaddr[0] = ntohll(flow_record.v6.dstaddr[0]);
-	flow_record.v6.dstaddr[1] = ntohll(flow_record.v6.dstaddr[1]);
+	inet_pton(PF_INET6, "fe80::2110:abcd:1234:ffff", flow_record.V6.dstaddr);
+	flow_record.V6.dstaddr[0] = ntohll(flow_record.V6.dstaddr[0]);
+	flow_record.V6.dstaddr[1] = ntohll(flow_record.V6.dstaddr[1]);
 	ret = check_filter_block("dst net fe80::2110:abcd:1234:0/112", &flow_record, 1);
 
-	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.v6.dstaddr);
-	flow_record.v6.dstaddr[0] = ntohll(flow_record.v6.dstaddr[0]);
-	flow_record.v6.dstaddr[1] = ntohll(flow_record.v6.dstaddr[1]);
+	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.V6.dstaddr);
+	flow_record.V6.dstaddr[0] = ntohll(flow_record.V6.dstaddr[0]);
+	flow_record.V6.dstaddr[1] = ntohll(flow_record.V6.dstaddr[1]);
 	ret = check_filter_block("dst net fe80::2110:abcd:1234:0/112", &flow_record, 0);
 	ret = check_filter_block("dst net fe80::0/16", &flow_record, 1);
 	ret = check_filter_block("not dst net fe80::0/16", &flow_record, 0);
@@ -436,13 +433,15 @@ void *p;
 	/* 172.32.7.16 => 0xac200710
 	 * 10.10.10.11 => 0x0a0a0a0b
 	 */
-	flow_record.v6.srcaddr[0] = 0;
-	flow_record.v6.srcaddr[1] = 0;
-	flow_record.v6.dstaddr[0] = 0;
-	flow_record.v6.dstaddr[1] = 0;
-	flow_record.v4.srcaddr = 0xac200710;
-	flow_record.v4.dstaddr = 0x0a0a0a0b;
+	flow_record.V6.srcaddr[0] = 0;
+	flow_record.V6.srcaddr[1] = 0;
+	flow_record.V6.dstaddr[0] = 0;
+	flow_record.V6.dstaddr[1] = 0;
+	flow_record.V4.srcaddr = 0xac200710;
+	flow_record.V4.dstaddr = 0x0a0a0a0b;
 	ret = check_filter_block("src ip 172.32.7.16", &flow_record, 1);
+	ret = check_filter_block("( src ip 172.32.7.16 ) %MyLabel", &flow_record, 1);
+	ret = check_filter_block("%MyLabel( src ip 172.32.7.16 )", &flow_record, 1);
 	ret = check_filter_block("src ip 172.32.7.15", &flow_record, 0);
 	ret = check_filter_block("dst ip 10.10.10.11", &flow_record, 1);
 	ret = check_filter_block("dst ip 10.10.10.10", &flow_record, 0);
@@ -599,53 +598,53 @@ void *p;
 	ret = check_filter_block("src ip 172.32.7.15 and dst ip 10.10.10.11", &flow_record, 0);
 	ret = check_filter_block("src ip 172.32.7.16 and dst ip 10.10.10.12", &flow_record, 0);
 
-	flow_record.v4.srcaddr = 0;
-	flow_record.v4.dstaddr = 0;
+	flow_record.V4.srcaddr = 0;
+	flow_record.V4.dstaddr = 0;
 
 	// 172.32.7.16 => 0xac200710
-	flow_record.ip_nexthop.v6[0] = 0;
-	flow_record.ip_nexthop.v6[1] = 0;
-	flow_record.ip_nexthop.v4 = 0xac200710;
+	flow_record.ip_nexthop.V6[0] = 0;
+	flow_record.ip_nexthop.V6[1] = 0;
+	flow_record.ip_nexthop.V4 = 0xac200710;
 	ret = check_filter_block("next ip 172.32.7.16", &flow_record, 1);
 	ret = check_filter_block("next ip 172.32.7.15", &flow_record, 0);
 	ret = check_filter_block("next ip in [172.32.7.16 fe80::2110:abcd:1235:ffff]", &flow_record, 1);
 	ret = check_filter_block("next ip in [172.32.7.15 fe80::2110:abcd:1235:ffff]", &flow_record, 0);
 
-	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.ip_nexthop.v6);
-	flow_record.ip_nexthop.v6[0] = ntohll(flow_record.ip_nexthop.v6[0]);
-	flow_record.ip_nexthop.v6[1] = ntohll(flow_record.ip_nexthop.v6[1]);
+	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.ip_nexthop.V6);
+	flow_record.ip_nexthop.V6[0] = ntohll(flow_record.ip_nexthop.V6[0]);
+	flow_record.ip_nexthop.V6[1] = ntohll(flow_record.ip_nexthop.V6[1]);
 	ret = check_filter_block("next ip fe80::2110:abcd:1235:ffff", &flow_record, 1);
 	ret = check_filter_block("next ip in [172.32.7.16 fe80::2110:abcd:1235:ffff]", &flow_record, 1);
 	ret = check_filter_block("next ip in [172.32.7.16 fe80::2110:abcd:1235:fffe]", &flow_record, 0);
 	ret = check_filter_block("next ip fe80::2110:abcd:1235:fffe", &flow_record, 0);
 	ret = check_filter_block("next ip fe81::2110:abcd:1235:ffff", &flow_record, 0);
 
-	flow_record.ip_nexthop.v6[0] = 0;
-	flow_record.ip_nexthop.v6[1] = 0;
+	flow_record.ip_nexthop.V6[0] = 0;
+	flow_record.ip_nexthop.V6[1] = 0;
 
-	flow_record.bgp_nexthop.v6[0] = 0;
-	flow_record.bgp_nexthop.v6[1] = 0;
-	flow_record.bgp_nexthop.v4 = 0xac200710;
+	flow_record.bgp_nexthop.V6[0] = 0;
+	flow_record.bgp_nexthop.V6[1] = 0;
+	flow_record.bgp_nexthop.V4 = 0xac200710;
 	ret = check_filter_block("bgpnext ip 172.32.7.16", &flow_record, 1);
 	ret = check_filter_block("bgpnext ip 172.32.7.15", &flow_record, 0);
 
-	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.bgp_nexthop.v6);
-	flow_record.bgp_nexthop.v6[0] = ntohll(flow_record.bgp_nexthop.v6[0]);
-	flow_record.bgp_nexthop.v6[1] = ntohll(flow_record.bgp_nexthop.v6[1]);
+	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.bgp_nexthop.V6);
+	flow_record.bgp_nexthop.V6[0] = ntohll(flow_record.bgp_nexthop.V6[0]);
+	flow_record.bgp_nexthop.V6[1] = ntohll(flow_record.bgp_nexthop.V6[1]);
 	ret = check_filter_block("bgpnext ip fe80::2110:abcd:1235:ffff", &flow_record, 1);
 	ret = check_filter_block("bgpnext ip fe80::2110:abcd:1235:fffe", &flow_record, 0);
 	ret = check_filter_block("bgpnext ip fe81::2110:abcd:1235:ffff", &flow_record, 0);
 
-	flow_record.ip_router.v6[0] = 0;
-	flow_record.ip_router.v6[1] = 0;
-	flow_record.ip_router.v4 = 0xac200720;
-	flow_record.ip_nexthop.v4 = 0xac200720;
+	flow_record.ip_router.V6[0] = 0;
+	flow_record.ip_router.V6[1] = 0;
+	flow_record.ip_router.V4 = 0xac200720;
+	flow_record.ip_nexthop.V4 = 0xac200720;
 	ret = check_filter_block("router ip 172.32.7.32", &flow_record, 1);
 	ret = check_filter_block("router ip 172.32.7.33", &flow_record, 0);
 
-	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.ip_router.v6);
-	flow_record.ip_router.v6[0] = ntohll(flow_record.ip_router.v6[0]);
-	flow_record.ip_router.v6[1] = ntohll(flow_record.ip_router.v6[1]);
+	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.ip_router.V6);
+	flow_record.ip_router.V6[0] = ntohll(flow_record.ip_router.V6[0]);
+	flow_record.ip_router.V6[1] = ntohll(flow_record.ip_router.V6[1]);
 	ret = check_filter_block("router ip fe80::2110:abcd:1235:ffff", &flow_record, 1);
 	ret = check_filter_block("router ip fe80::2110:abcd:1235:fffe", &flow_record, 0);
 	ret = check_filter_block("router ip fe81::2110:abcd:1235:ffff", &flow_record, 0);
@@ -1042,12 +1041,12 @@ void *p;
 	ret = check_filter_block("asa xevent < 1004", &flow_record, 0);
 	ret = check_filter_block("asa xevent > 1004", &flow_record, 0);
 
-	flow_record.xlate_src_ip.v6[0] = 0;
-	flow_record.xlate_src_ip.v6[1] = 0;
-	flow_record.xlate_src_ip.v4 = 0xac200710;
-	flow_record.xlate_dst_ip.v6[0] = 0;
-	flow_record.xlate_dst_ip.v6[1] = 0;
-	flow_record.xlate_dst_ip.v4 = 0x0a0a0a0b;
+	flow_record.xlate_src_ip.V6[0] = 0;
+	flow_record.xlate_src_ip.V6[1] = 0;
+	flow_record.xlate_src_ip.V4 = 0xac200710;
+	flow_record.xlate_dst_ip.V6[0] = 0;
+	flow_record.xlate_dst_ip.V6[1] = 0;
+	flow_record.xlate_dst_ip.V4 = 0x0a0a0a0b;
 	ret = check_filter_block("src xip 172.32.7.16", &flow_record, 1);
 	ret = check_filter_block("src xip 172.32.7.15", &flow_record, 0);
 	ret = check_filter_block("dst xip 10.10.10.11", &flow_record, 1);
@@ -1063,23 +1062,23 @@ void *p;
 	ret = check_filter_block("xnet 172.32.7.0/24", &flow_record, 1);
 	ret = check_filter_block("xnet 10.10.10.0/24", &flow_record, 1);
 
-	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.xlate_src_ip.v6);
-	flow_record.xlate_src_ip.v6[0] = ntohll(flow_record.xlate_src_ip.v6[0]);
-	flow_record.xlate_src_ip.v6[1] = ntohll(flow_record.xlate_src_ip.v6[1]);
+	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.xlate_src_ip.V6);
+	flow_record.xlate_src_ip.V6[0] = ntohll(flow_record.xlate_src_ip.V6[0]);
+	flow_record.xlate_src_ip.V6[1] = ntohll(flow_record.xlate_src_ip.V6[1]);
 	ret = check_filter_block("src xip fe80::2110:abcd:1235:ffff", &flow_record, 1);
 	ret = check_filter_block("src xip fe80::2110:abcd:1235:fffe", &flow_record, 0);
 
-	flow_record.xlate_src_ip.v6[0] = 0;
-	flow_record.xlate_src_ip.v6[1] = 0;
-	inet_pton(PF_INET6, "fe80::2110:abcd:1235:fffe", flow_record.xlate_dst_ip.v6);
-	flow_record.xlate_dst_ip.v6[0] = ntohll(flow_record.xlate_dst_ip.v6[0]);
-	flow_record.xlate_dst_ip.v6[1] = ntohll(flow_record.xlate_dst_ip.v6[1]);
+	flow_record.xlate_src_ip.V6[0] = 0;
+	flow_record.xlate_src_ip.V6[1] = 0;
+	inet_pton(PF_INET6, "fe80::2110:abcd:1235:fffe", flow_record.xlate_dst_ip.V6);
+	flow_record.xlate_dst_ip.V6[0] = ntohll(flow_record.xlate_dst_ip.V6[0]);
+	flow_record.xlate_dst_ip.V6[1] = ntohll(flow_record.xlate_dst_ip.V6[1]);
 	ret = check_filter_block("dst xip fe80::2110:abcd:1235:fffe", &flow_record, 1);
 	ret = check_filter_block("dst xip fe80::2110:abcd:1235:fffc", &flow_record, 0);
-	flow_record.xlate_src_ip.v6[0] = 0;
-	flow_record.xlate_src_ip.v6[1] = 0;
-	flow_record.xlate_dst_ip.v6[0] = 0;
-	flow_record.xlate_dst_ip.v6[1] = 0;
+	flow_record.xlate_src_ip.V6[0] = 0;
+	flow_record.xlate_src_ip.V6[1] = 0;
+	flow_record.xlate_dst_ip.V6[0] = 0;
+	flow_record.xlate_dst_ip.V6[1] = 0;
 
 	flow_record.xlate_src_port = 1023;
 	flow_record.xlate_dst_port = 32798;
@@ -1208,12 +1207,12 @@ exit(0);
 	flow_record.xlate_src_port = 0xffff;
 	flow_record.xlate_dst_port = 0xffff;
 
-	flow_record.xlate_src_ip.v6[0] = 0;
-	flow_record.xlate_src_ip.v6[1] = 0;
-	flow_record.xlate_src_ip.v4 = 0xac200710;
-	flow_record.xlate_dst_ip.v6[0] = 0;
-	flow_record.xlate_dst_ip.v6[1] = 0;
-	flow_record.xlate_dst_ip.v4 = 0x0a0a0a0b;
+	flow_record.xlate_src_ip.V6[0] = 0;
+	flow_record.xlate_src_ip.V6[1] = 0;
+	flow_record.xlate_src_ip.V4 = 0xac200710;
+	flow_record.xlate_dst_ip.V6[0] = 0;
+	flow_record.xlate_dst_ip.V6[1] = 0;
+	flow_record.xlate_dst_ip.V4 = 0x0a0a0a0b;
 	ret = check_filter_block("src nip 172.32.7.16", &flow_record, 1);
 	ret = check_filter_block("src nip 172.32.7.15", &flow_record, 0);
 	ret = check_filter_block("dst nip 10.10.10.11", &flow_record, 1);
@@ -1223,17 +1222,17 @@ exit(0);
 	ret = check_filter_block("nip 172.32.7.15", &flow_record, 0);
 	ret = check_filter_block("nip 10.10.10.12", &flow_record, 0);
 
-	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.xlate_src_ip.v6);
-	flow_record.xlate_src_ip.v6[0] = ntohll(flow_record.xlate_src_ip.v6[0]);
-	flow_record.xlate_src_ip.v6[1] = ntohll(flow_record.xlate_src_ip.v6[1]);
+	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.xlate_src_ip.V6);
+	flow_record.xlate_src_ip.V6[0] = ntohll(flow_record.xlate_src_ip.V6[0]);
+	flow_record.xlate_src_ip.V6[1] = ntohll(flow_record.xlate_src_ip.V6[1]);
 	ret = check_filter_block("src nip fe80::2110:abcd:1235:ffff", &flow_record, 1);
 	ret = check_filter_block("src nip fe80::2110:abcd:1235:fffe", &flow_record, 0);
 
-	flow_record.xlate_src_ip.v6[0] = 0;
-	flow_record.xlate_src_ip.v6[1] = 0;
-	inet_pton(PF_INET6, "fe80::2110:abcd:1235:fffe", flow_record.xlate_dst_ip.v6);
-	flow_record.xlate_dst_ip.v6[0] = ntohll(flow_record.xlate_dst_ip.v6[0]);
-	flow_record.xlate_dst_ip.v6[1] = ntohll(flow_record.xlate_dst_ip.v6[1]);
+	flow_record.xlate_src_ip.V6[0] = 0;
+	flow_record.xlate_src_ip.V6[1] = 0;
+	inet_pton(PF_INET6, "fe80::2110:abcd:1235:fffe", flow_record.xlate_dst_ip.V6);
+	flow_record.xlate_dst_ip.V6[0] = ntohll(flow_record.xlate_dst_ip.V6[0]);
+	flow_record.xlate_dst_ip.V6[1] = ntohll(flow_record.xlate_dst_ip.V6[1]);
 	ret = check_filter_block("dst nip fe80::2110:abcd:1235:fffe", &flow_record, 1);
 	ret = check_filter_block("dst nip fe80::2110:abcd:1235:fffc", &flow_record, 0);
 

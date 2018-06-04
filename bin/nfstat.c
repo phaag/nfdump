@@ -1,4 +1,5 @@
 /*  
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nfstat.c 69 2010-09-09 07:17:43Z haag $
- *
- *  $LastChangedRevision: 69 $
- *	
  */
 
 #include "config.h"
@@ -58,7 +53,6 @@
 #include "nffile.h"
 #include "nfx.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "exporter.h"
 #include "nfnet.h"
@@ -448,6 +442,7 @@ struct order_mode_s {
 #define Default_PrintOrder 1		// order_mode[0].val
 static uint32_t	print_order_bits = 0;
 static uint32_t	PrintOrder 		 = 0;
+static uint32_t	GuessDirection 	 = 0;
 static uint32_t	NumStats 		 = 0;
 
 static uint64_t	byte_limit, packet_limit;
@@ -499,6 +494,12 @@ static uint64_t	flows_record(FlowTableRecord_t *record, int inout) {
 }
 
 static uint64_t	packets_record(FlowTableRecord_t *record, int inout) {
+		if ( GuessDirection && (record->flowrecord.srcport < record->flowrecord.dstport) ) {
+			if (inout == IN)
+				inout = OUT;
+			else if (inout == OUT)
+				inout = IN;
+		}
         if (inout == IN)
                 return record->counter[INPACKETS];
         else if (inout == OUT)
@@ -508,6 +509,12 @@ static uint64_t	packets_record(FlowTableRecord_t *record, int inout) {
 }
 
 static uint64_t	bytes_record(FlowTableRecord_t *record, int inout) {
+		if ( GuessDirection && (record->flowrecord.srcport < record->flowrecord.dstport) ) {
+			if (inout == IN)
+				inout = OUT;
+			else if (inout == OUT)
+				inout = IN;
+		}
         if (inout == IN)
                 return record->counter[INBYTES];
         else if (inout == OUT)
@@ -1139,9 +1146,10 @@ struct tm	*tbuff;
 		case IS_IPADDR:
 			tag_string[0] = tag ? TAG_CHAR : '\0';
 			if ( (StatData->record_flags & 0x1) != 0 ) { // IPv6
-				StatData->stat_key[0] = htonll(StatData->stat_key[0]);
-				StatData->stat_key[1] = htonll(StatData->stat_key[1]);
-				inet_ntop(AF_INET6, StatData->stat_key, valstr, sizeof(valstr));
+				uint64_t	_key[2];
+				_key[0] = htonll(StatData->stat_key[0]);
+				_key[1] = htonll(StatData->stat_key[1]);
+				inet_ntop(AF_INET6, _key, valstr, sizeof(valstr));
 				if ( ! Getv6Mode() )
 					condense_v6(valstr);
 	
@@ -1269,27 +1277,29 @@ struct tm	*tbuff;
 
 static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
 double		duration;
-uint64_t	count_flows, count_packets, count_bytes;
+uint64_t	count_flows, count_packets, count_bytes, _key[2];
 uint32_t	pps, bps, bpp;
 uint32_t	sa[4];
 int			af;
 
 	sa[0] = sa[1] = sa[2] = sa[3] = 0;
 	af = AF_UNSPEC;
+	_key[0] = StatData->stat_key[0];
+	_key[1] = StatData->stat_key[1];
 	if ( type == IS_IPADDR ) {
 		if ( (StatData->record_flags & 0x1) != 0 ) { // IPv6
-			StatData->stat_key[0] = htonll(StatData->stat_key[0]);
-			StatData->stat_key[1] = htonll(StatData->stat_key[1]);
+			_key[0] = htonll(StatData->stat_key[0]);
+			_key[1] = htonll(StatData->stat_key[1]);
 			af = PF_INET6;
 
 		} else {	// IPv4
 			af = PF_INET;
 		}
 		// Make sure Endian does not screw us up
-    	sa[0] = ( StatData->stat_key[0] >> 32 ) & 0xffffffffLL;
-    	sa[1] = StatData->stat_key[0] & 0xffffffffLL;
-    	sa[2] = ( StatData->stat_key[1] >> 32 ) & 0xffffffffLL;
-    	sa[3] = StatData->stat_key[1] & 0xffffffffLL;
+    	sa[0] = ( _key[0] >> 32 ) & 0xffffffffLL;
+    	sa[1] = _key[0] & 0xffffffffLL;
+    	sa[2] = ( _key[1] >> 32 ) & 0xffffffffLL;
+    	sa[3] = _key[1] & 0xffffffffLL;
 	} 
 	duration = StatData->last - StatData->first;
 	duration += ((double)StatData->msec_last - (double)StatData->msec_first) / 1000.0;
@@ -1322,7 +1332,7 @@ int			af;
 	else
 		printf("%i|%u|%u|%u|%u|%u|%llu|%llu|%llu|%llu|%u|%u|%u\n",
 				af, StatData->first, StatData->msec_first ,StatData->last, StatData->msec_last, StatData->prot, 
-				(long long unsigned)StatData->stat_key[1], (long long unsigned)count_flows,
+				(long long unsigned)_key[1], (long long unsigned)count_flows,
 				(long long unsigned)count_packets, (long long unsigned)count_bytes,
 				pps, bps, bpp);
 
@@ -1345,9 +1355,10 @@ struct tm	*tbuff;
 			break;
 		case IS_IPADDR:
 			if ( (StatData->record_flags & 0x1) != 0 ) { // IPv6
-				StatData->stat_key[0] = htonll(StatData->stat_key[0]);
-				StatData->stat_key[1] = htonll(StatData->stat_key[1]);
-				inet_ntop(AF_INET6, StatData->stat_key, valstr, sizeof(valstr));
+				uint64_t	_key[2];
+				_key[0] = htonll(StatData->stat_key[0]);
+				_key[1] = htonll(StatData->stat_key[1]);
+				inet_ntop(AF_INET6, _key, valstr, sizeof(valstr));
 	
 			} else {	// IPv4
 				uint32_t	ipv4;
@@ -1437,6 +1448,7 @@ struct tm	*tbuff;
 
 } // End of PrintCvsStatLine
 
+
 void PrintFlowTable(printer_t print_record, uint32_t topN, int tag, int GuessDir, extension_map_list_t *extension_map_list) {
 hash_FlowTable *FlowTable;
 FlowTableRecord_t	*r;
@@ -1447,12 +1459,13 @@ uint32_t 			i;
 uint32_t			maxindex, c;
 char				*string;
 
+	GuessDirection = GuessDir;
 	FlowTable = GetFlowTable();
 	aggr_record_mask = GetMasterAggregateMask();
 	c = 0;
 	maxindex = FlowTable->NumRecords;
 	if ( PrintOrder ) {
-		// Sort according the date
+		// Sort according the requested order
 		SortList = (SortElement_t *)calloc(maxindex, sizeof(SortElement_t));
 
 		if ( !SortList ) {
@@ -1545,16 +1558,16 @@ char				*string;
 
 				// apply IP mask from aggregation, to provide a pretty output
 				if ( FlowTable->has_masks ) {
-					flow_record->v6.srcaddr[0] &= FlowTable->IPmask[0];
-					flow_record->v6.srcaddr[1] &= FlowTable->IPmask[1];
-					flow_record->v6.dstaddr[0] &= FlowTable->IPmask[2];
-					flow_record->v6.dstaddr[1] &= FlowTable->IPmask[3];
+					flow_record->V6.srcaddr[0] &= FlowTable->IPmask[0];
+					flow_record->V6.srcaddr[1] &= FlowTable->IPmask[1];
+					flow_record->V6.dstaddr[0] &= FlowTable->IPmask[2];
+					flow_record->V6.dstaddr[1] &= FlowTable->IPmask[3];
 				}
 
 				if ( aggr_record_mask ) {
 					ApplyAggrMask(flow_record, aggr_record_mask);
 				}
-				if ( GuessDir && ( flow_record->srcport < 1024 && flow_record->dstport > 1024 ) )
+				if ( GuessDir && ( flow_record->srcport < flow_record->dstport ) )
 					SwapFlow(flow_record);
 				print_record((void *)flow_record, &string, tag);
 				printf("%s\n", string);
@@ -1671,7 +1684,7 @@ uint32_t			maxindex, c;
 					else
 						printf("Top flows ordered by %s:\n", order_mode[order_index].string);
 				}
-				if ( !record_header ) 
+				if ( record_header ) 
 					printf("%s\n", record_header);
 			}
 			PrintSortedFlowcache(SortList, maxindex, topN, 0, print_record, tag, DESCENDING, extension_map_list);
@@ -1720,10 +1733,10 @@ int	i, max;
 		
 		// apply IP mask from aggregation, to provide a pretty output
 		if ( FlowTable->has_masks ) {
-			flow_record->v6.srcaddr[0] &= FlowTable->IPmask[0];
-			flow_record->v6.srcaddr[1] &= FlowTable->IPmask[1];
-			flow_record->v6.dstaddr[0] &= FlowTable->IPmask[2];
-			flow_record->v6.dstaddr[1] &= FlowTable->IPmask[3];
+			flow_record->V6.srcaddr[0] &= FlowTable->IPmask[0];
+			flow_record->V6.srcaddr[1] &= FlowTable->IPmask[1];
+			flow_record->V6.dstaddr[0] &= FlowTable->IPmask[2];
+			flow_record->V6.dstaddr[1] &= FlowTable->IPmask[3];
 		}
 
 		if ( FlowTable->apply_netbits ) {
@@ -1737,7 +1750,7 @@ int	i, max;
 		} else if ( aggr_record_mask )
 			ApplyAggrMask(flow_record, aggr_record_mask);
 
-		if ( GuessFlowDirection && ( flow_record->srcport < 1024 && flow_record->dstport > 1024 ) )
+		if ( GuessFlowDirection && ( flow_record->srcport < flow_record->dstport ) )
 			SwapFlow(flow_record);
 
 		print_record((void *)flow_record, &string, tag);
@@ -1889,12 +1902,12 @@ uint64_t _tmp_ip[2];
 uint64_t _tmp_l;
 uint32_t _tmp;
 
-	_tmp_ip[0] = flow_record->v6.srcaddr[0];
-	_tmp_ip[1] = flow_record->v6.srcaddr[1];
-	flow_record->v6.srcaddr[0] = flow_record->v6.dstaddr[0];
-	flow_record->v6.srcaddr[1] = flow_record->v6.dstaddr[1];
-	flow_record->v6.dstaddr[0] = _tmp_ip[0];
-	flow_record->v6.dstaddr[1] = _tmp_ip[1];
+	_tmp_ip[0] = flow_record->V6.srcaddr[0];
+	_tmp_ip[1] = flow_record->V6.srcaddr[1];
+	flow_record->V6.srcaddr[0] = flow_record->V6.dstaddr[0];
+	flow_record->V6.srcaddr[1] = flow_record->V6.dstaddr[1];
+	flow_record->V6.dstaddr[0] = _tmp_ip[0];
+	flow_record->V6.dstaddr[1] = _tmp_ip[1];
 
 	_tmp = flow_record->srcport;
 	flow_record->srcport = flow_record->dstport;
@@ -1917,3 +1930,4 @@ uint32_t _tmp;
 	flow_record->out_bytes = _tmp_l;
 
 } // End of SwapFlow
+

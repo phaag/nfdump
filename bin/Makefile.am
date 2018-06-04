@@ -33,9 +33,10 @@ LDADD = $(DEPS_LIBS)
 AM_CFLAGS = -ggdb 
 
 # libnfdump sources
+output =  output_json.c output_json.h 
 common =  nf_common.c nf_common.h 
 util = util.c util.h
-filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h nffile.c nffile.h nfx.c nfx.h nfxstat.h nfxstat.c 
+filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h nffile.c nffile.h nfx.c nfx.h 
 nflist = flist.c flist.h fts_compat.c fts_compat.h
 filter = grammar.y scanner.l nftree.c nftree.h ipconv.c ipconv.h rbtree.h
 exporter = exporter.c exporter.h
@@ -46,6 +47,7 @@ anon = panonymizer.c panonymizer.h rijndael.c rijndael.h
 collector = collector.c collector.h
 nfv1 = netflow_v1.c netflow_v1.h
 nfv9 = netflow_v9.c netflow_v9.h
+# pcaproc = pcaproc.c pcaproc.h flowtree.c flowtree.h ipfrag.c ipfrag.h malloc_hook.c
 pcaproc = pcaproc.c pcaproc.h flowtree.c flowtree.h ipfrag.c ipfrag.h
 content = content_dns.c content_dns.h
 netflow_pcap = netflow_pcap.c netflow_pcap.h
@@ -58,9 +60,9 @@ expire= expire.c expire.h
 launch = launch.c launch.h
 
 lib_LTLIBRARIES = libnfdump.la
-libnfdump_la_SOURCES = $(common) $(util) $(filelzo) $(nflist) $(filter) $(exporter)
+libnfdump_la_SOURCES = $(output) $(common) $(util) $(filelzo) $(nflist) $(filter) $(exporter)
 #libnfdump_la_LIBADD = -lz
-libnfdump_la_LDFLAGS = -release 1.6.15
+libnfdump_la_LDFLAGS = -release 1.6.17
 
 
 nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h nfexport.c nfexport.h  \
@@ -110,7 +112,7 @@ nfpcapd_LDADD += -lpcap
 nfpcapd_LDFLAGS = -pthread
 endif
 
-sfcapd_SOURCES = sfcapd.c sflow.c sflow.h sflow_proto.h \
+sfcapd_SOURCES = sfcapd.c sflow_nfdump.c sflow_nfdump.h sflow.h sflow_v2v4.h sflow_process.c  sflow_process.h\
 	$(nfstatfile) $(launch) \
 	$(nfnet) $(collector) $(bookkeeper) $(expire)
 sfcapd_LDADD = -lnfdump 

@@ -1,6 +1,6 @@
 Name: nfdump
 Summary: A set of command-line tools to collect and process netflow data
-Version: 1.6.15
+Version: 1.6.17
 Release: 1
 License: BSD
 Group: Applications/System
@@ -9,7 +9,7 @@ BuildRequires: flex
 BuildRoot: %{_tmppath}/%{name}-root
 Packager: Colin Bloch <fourthdown@gmail.com>
 Prefix: /usr
-Url: http://nfdump.sourceforge.net/
+Url: https://github.com/phaag/nfdump
 
 %description
 The nfdump tools collect and process netflow data on the command line.

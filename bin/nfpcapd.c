@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2013, Peter Haag
@@ -91,7 +92,6 @@
 #include "flist.h"
 #include "nfstatfile.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "exporter.h"
 #include "rbtree.h"
@@ -140,7 +140,7 @@ int verbose = 0;
 
 static const char *nfdump_version = VERSION;
 
-static int launcher_alive, periodic_trigger, launcher_pid;
+static int launcher_pid;
 static pthread_mutex_t  m_done  = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t terminate = PTHREAD_COND_INITIALIZER;
 static pthread_key_t buffer_key;
@@ -252,6 +252,7 @@ static void usage(char *name) {
 					"-I Ident\tset the ident string for stat file. (default 'none')\n"
 					"-P pidfile\tset the PID file\n"
 					"-t time frame\tset the time window to rotate pcap/nfcapd file\n"
+					"-j\t\tBZ2 compress flows in output file.\n"
 					"-z\t\tCompress flows in output file.\n"
 					"-E\t\tPrint extended format of netflow data. for debugging purpose only.\n"
 					"-T\t\tInclude extension tags in records.\n"
@@ -644,7 +645,6 @@ int err, done;
    		pthread_kill(args->parent, SIGUSR1);
 		pthread_exit((void *)args);
 	}
-	fs->xstat = NULL;
 
 	// init vars
 	fs->bad_packets		= 0;
@@ -762,9 +762,9 @@ int err, done;
 				UpdateBooks(fs->bookkeeper, t_start, 512*fstat.st_blocks);
 			}
 
-			LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Max Flows: %u", 
+			LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Max Flows: %u, Fragments: %u", 
 				fs->Ident, (unsigned long long)nffile->stat_record->numflows, (unsigned long long)nffile->stat_record->numpackets, 
-				(unsigned long long)nffile->stat_record->numbytes, NumFlows);
+				(unsigned long long)nffile->stat_record->numbytes, NumFlows, IPFragEntries());
 
 			// reset stats
 			fs->bad_packets = 0;

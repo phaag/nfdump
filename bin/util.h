@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
@@ -53,6 +54,8 @@
 #	define dbg_printf(...) /* printf(__VA_ARGS__) */
 #	define dbg_assert(a) /* assert(a) */
 #endif
+
+#define UNUSED(expr) do { (void)(expr); } while (0)
 
 #define EBUFF_SIZE 256
 

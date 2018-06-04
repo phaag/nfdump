@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,13 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id:$
- *
- *  $LastChangedRevision: 48 $
- *	
- *
  */
 
 #include "config.h"
@@ -106,18 +100,18 @@ int		i;
 	if ( (master_record->flags & FLAG_IPV6_ADDR) != 0 )	{ // IPv6
 		// IPv6
 		uint64_t    anon_ip[2];
-		anonymize_v6(master_record->v6.srcaddr, anon_ip);
-		master_record->v6.srcaddr[0] = anon_ip[0];
-		master_record->v6.srcaddr[1] = anon_ip[1];
+		anonymize_v6(master_record->V6.srcaddr, anon_ip);
+		master_record->V6.srcaddr[0] = anon_ip[0];
+		master_record->V6.srcaddr[1] = anon_ip[1];
     
-		anonymize_v6(master_record->v6.dstaddr, anon_ip);
-		master_record->v6.dstaddr[0] = anon_ip[0];
-		master_record->v6.dstaddr[1] = anon_ip[1];
+		anonymize_v6(master_record->V6.dstaddr, anon_ip);
+		master_record->V6.dstaddr[0] = anon_ip[0];
+		master_record->V6.dstaddr[1] = anon_ip[1];
 
 	} else { 	
 		// IPv4
-		master_record->v4.srcaddr = anonymize(master_record->v4.srcaddr);
-		master_record->v4.dstaddr = anonymize(master_record->v4.dstaddr);
+		master_record->V4.srcaddr = anonymize(master_record->V4.srcaddr);
+		master_record->V4.dstaddr = anonymize(master_record->V4.dstaddr);
 	}
 
 	// Process optional extensions
@@ -133,45 +127,45 @@ int		i;
 				master_record->dstas = 0;
 				break;
 			case EX_NEXT_HOP_v4:
-				master_record->ip_nexthop.v4 = anonymize(master_record->ip_nexthop.v4);
+				master_record->ip_nexthop.V4 = anonymize(master_record->ip_nexthop.V4);
 				break;
 			case EX_NEXT_HOP_v6: {
 				uint64_t    anon_ip[2];
-				anonymize_v6(master_record->ip_nexthop.v6, anon_ip);
-				master_record->ip_nexthop.v6[0] = anon_ip[0];
-				master_record->ip_nexthop.v6[1] = anon_ip[1];
+				anonymize_v6(master_record->ip_nexthop.V6, anon_ip);
+				master_record->ip_nexthop.V6[0] = anon_ip[0];
+				master_record->ip_nexthop.V6[1] = anon_ip[1];
 				} break;
 			case EX_NEXT_HOP_BGP_v4: 
-				master_record->bgp_nexthop.v4 = anonymize(master_record->bgp_nexthop.v4);
+				master_record->bgp_nexthop.V4 = anonymize(master_record->bgp_nexthop.V4);
 				break;
 			case EX_NEXT_HOP_BGP_v6: {
 				uint64_t    anon_ip[2];
-				anonymize_v6(master_record->bgp_nexthop.v6, anon_ip);
-				master_record->bgp_nexthop.v6[0] = anon_ip[0];
-				master_record->bgp_nexthop.v6[1] = anon_ip[1];
+				anonymize_v6(master_record->bgp_nexthop.V6, anon_ip);
+				master_record->bgp_nexthop.V6[0] = anon_ip[0];
+				master_record->bgp_nexthop.V6[1] = anon_ip[1];
 				} break;
 			case EX_ROUTER_IP_v4:
-				master_record->ip_router.v4 = anonymize(master_record->ip_router.v4);
+				master_record->ip_router.V4 = anonymize(master_record->ip_router.V4);
 				break;
 			case EX_ROUTER_IP_v6: {
 				uint64_t    anon_ip[2];
-				anonymize_v6(master_record->ip_router.v6, anon_ip);
-				master_record->ip_router.v6[0] = anon_ip[0];
-				master_record->ip_router.v6[1] = anon_ip[1];
+				anonymize_v6(master_record->ip_router.V6, anon_ip);
+				master_record->ip_router.V6[0] = anon_ip[0];
+				master_record->ip_router.V6[1] = anon_ip[1];
 				} break;
 #ifdef NSEL
 			case EX_NSEL_XLATE_IP_v4:
-				master_record->xlate_src_ip.v4 = anonymize(master_record->xlate_src_ip.v4);
-				master_record->xlate_dst_ip.v4 = anonymize(master_record->xlate_dst_ip.v4);
+				master_record->xlate_src_ip.V4 = anonymize(master_record->xlate_src_ip.V4);
+				master_record->xlate_dst_ip.V4 = anonymize(master_record->xlate_dst_ip.V4);
 				break;
 			case EX_NSEL_XLATE_IP_v6: {
 				uint64_t    anon_ip[2];
-				anonymize_v6(master_record->xlate_src_ip.v6, anon_ip);
-				master_record->xlate_src_ip.v6[0] = anon_ip[0];
-				master_record->xlate_src_ip.v6[1] = anon_ip[1];
-				anonymize_v6(master_record->xlate_dst_ip.v6, anon_ip);
-				master_record->xlate_dst_ip.v6[0] = anon_ip[0];
-				master_record->xlate_dst_ip.v6[1] = anon_ip[1];
+				anonymize_v6(master_record->xlate_src_ip.V6, anon_ip);
+				master_record->xlate_src_ip.V6[0] = anon_ip[0];
+				master_record->xlate_src_ip.V6[1] = anon_ip[1];
+				anonymize_v6(master_record->xlate_dst_ip.V6, anon_ip);
+				master_record->xlate_dst_ip.V6[0] = anon_ip[0];
+				master_record->xlate_dst_ip.V6[1] = anon_ip[1];
 				} break;
 #endif
 		}

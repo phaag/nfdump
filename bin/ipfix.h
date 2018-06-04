@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  All rights reserved.
@@ -27,16 +28,19 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author:$
- *
- *  $Id:$
- *
- *  $LastChangedRevision:$
- *	
  */
 
 #ifndef _IPFIX_H
 #define _IPFIX_H 1
+
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include "collector.h"
 
 /* reference: http://tools.ietf.org/html/draft-ietf-ipfix-protocol-rfc5101bis-00 */
 
@@ -224,7 +228,16 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_DestinationIPv6PrefixLength	 30
 #define IPFIX_flowLabelIPv6					 31
 #define IPFIX_icmpTypeCodeIPv4			 	 32
-// reserved 34, 35
+
+// deprecated elements for sampling 
+#define IPFIX_samplingInterval				 34
+#define IPFIX_samplingAlgorithm				 35
+// 1 - Deterministic Sampling,
+// 2 - Random Sampling.
+
+#define IPFIX_samplingPacketInterval		305
+#define IPFIX_selectorAlgorithm				304
+
 // reserved 38, 39
 // reserved 48, 49, 50, 51
 
@@ -256,9 +269,11 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_postSourceMacAddress		 	 81
 #define IPFIX_octetTotalCount		 	 	 85
 #define IPFIX_packetTotalCount		 	 	 86
+#define IPFIX_forwardingStatus				 89
 #define IPFIX_flowStartMilliseconds			152
 #define IPFIX_flowEndMilliseconds			153
-// reserved 89
+#define IPFIX_flowStartDeltaMicroseconds	158
+#define IPFIX_flowEndDeltaMicroseconds		159
 
 /* prototypes */
 int Init_IPFIX(void);

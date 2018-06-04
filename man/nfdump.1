@@ -206,6 +206,14 @@ mpls9      MPLS label 9
 mpls10     MPLS label 10
 .br
 router     Exporting router IP
+.br
+xsrcip     X-late source IP address, if compiled with NSEL support
+.br
+xdstip     X-late destination IP address, if compiled with NSEL support
+.br
+xsrcport   X-late source port, if compiled with NSEL support
+.br
+xdstport   X-late destination port, if compiled with NSEL support
 .RE
 .RS 3
 .P
@@ -232,10 +240,10 @@ flows are merged into a single record. An appropriate output format is selected
 automatically, which may be overwritten by any \-o format option.
 .TP 3
 .B -B
-Like \-b but automagically swaps flows, such that src port is > 1024 and dst port 
-is < 1024 as some exporters do not care sending the flows in proper order. It's 
-considered to be a convenient option. If src and dst port are > 1024 or < 1024, 
-the flows are taken as is.
+Like \-b but automagically swaps flows if src port is < dst port 
+as some exporters do not care sending the flows in proper order. It's 
+considered to be a convenient option. Please note - for some peer-to-peer flows
+this my lead to errornous swapping.
 .TP 3
 .B -I
 Print flow statistics from file specified by \-r, or timeslot specified by \-R/\-M. 
@@ -430,7 +438,7 @@ if not specified or -n 0 is given, all records are listed.
 Selects the output format to print flows or flow record statistics (\-s record). The following 
 formats are available:
 .RS 5
-raw      Print each file flow record on multiple lines.
+raw      Print full flow record on multiple lines.
 .br
 line     Print each flow on one line. Default format.
 .br
@@ -442,11 +450,13 @@ bilong   Same as long, but for bidir flows
 .br
 extended Print each flow on one line with even more details.
 .br
-nsel     Print each NSEL event on one line. Default if NSEL/ASA enabled.
+nsel     Print each NSEL event on one line. Default if NSEL/NAT
 .br
-nel      Print each NAT event on one line. Default if NEL enabled.
+nel      Print each NAT event on one line. 
 .br
 csv      Comma separated output for machine readable processing.
+.br
+json     Print full record as separate json object
 .br
 pipe     Legacy machine readable format: fields '|' separated.
 .br
@@ -483,12 +493,15 @@ Scan and print extension maps located in file \flfile\fR
 .B -j
 Compress flows. Use bz2 compression in output file. Space efficient method
 .TP 3
+.B -y
+Compress flows. Use LZ4 compression in output file. Time efficient method
+.TP 3
 .B -z
 Compress flows. Use fast LZO1X\-1 compression in output file. Time efficient method
 .TP 3
 .B -J \flnum\fR
 Change compression for file(s) given by -r <file> or -R <dir>
-num: 0 uncompress, 1: LZO1X\-1 compression, 2: bz2 compression
+num: 0 uncompress, 1: LZO1X\-1, 2: bz2, 3: LZ4 compression
 .TP 3
 .B -Z
 Check filter syntax and exit. Sets the return value accordingly.
@@ -613,6 +626,8 @@ and format specifier as described below
 \fB%exp\fR      Exporter ID
 .br
 \fB%eng\fR      Engine Type/ID
+.br
+\fB%lbl\fR      Flowlabel
 .br
 \fB%sa\fR       Source Address
 .br
@@ -1260,6 +1275,26 @@ Select the vrf
 .RE
 .PD
 
+.SH "Flowlabel"
+One or more specific filter expressions can be assigned a flowlabel in order to identify
+the flow in the output according to the label. A flowlabel has the form \fB%LabelName\fR and is 
+appended or prepended to a filter expression in braces. It may have up to 16 characters. 
+Example: \fB(ip 8.8.8.8) %GoogleDNS\fR. If a filter matches, with a labeled expressions, 
+and that expression is in the matching filter patch, the label can be printed in the output, 
+using the \fB%%lbl\fR format token. See OUTPUT FORMATS.
+Example: Add flowlabel to end of 'line' format: 
+.br
+\fB./nfdump -r <file> -o 'fmt:%line %lbl" ..\fR
+.br
+Note: A filter may have multiple matching paths - for example \fBproto tcp or ip 8.8.8.8\fR
+The shortest path which evaluates successfully, wins. Other paths are skipped, which means 
+that flowlabels are not printed in not evaluated filter paths. A filter may contain multiple 
+flowlabels. The flowlabel of the last matching expression in the winning path is printed.
+Flowlabels are most useful in large and complex filters stored in one or multiple files, 
+to better read the flow output list. 
+.br
+Example: \fB(ip in [172.16.1.0/24]) %ISP_1 or (ip in [172.16.16.0/24]) %IPS_2 or %GoogleDNS((proto udp or proto tcp) and ip 8.8.8.8)
+.br
 .SH "EXAMPLES"
 .B nfdump \-r /and/dir/nfcapd.201107110845 \-c 100 'proto tcp and ( src ip 172.16.17.18 or dst ip 172.16.17.19 )'
 Dumps the first 100 netflow records which match the given filter:

@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,12 +29,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nfexport.c 54 2010-01-29 11:30:22Z haag $
- *
- *  $LastChangedRevision: 54 $
- *	
  */
 
 #include "config.h"
@@ -60,7 +55,6 @@
 #include "nffile.h"
 #include "nfx.h"
 #include "nfstat.h"
-#include "nfxstat.h"
 #include "nflowcache.h"
 #include "exporter.h"
 
@@ -321,10 +315,10 @@ char				*string;
 
 			// apply IP mask from aggregation, to provide a pretty output
 			if ( FlowTable->has_masks ) {
-				flow_record->v6.srcaddr[0] &= FlowTable->IPmask[0];
-				flow_record->v6.srcaddr[1] &= FlowTable->IPmask[1];
-				flow_record->v6.dstaddr[0] &= FlowTable->IPmask[2];
-				flow_record->v6.dstaddr[1] &= FlowTable->IPmask[3];
+				flow_record->V6.srcaddr[0] &= FlowTable->IPmask[0];
+				flow_record->V6.srcaddr[1] &= FlowTable->IPmask[1];
+				flow_record->V6.dstaddr[0] &= FlowTable->IPmask[2];
+				flow_record->V6.dstaddr[1] &= FlowTable->IPmask[3];
 			}
 
 			if ( FlowTable->apply_netbits )
@@ -368,10 +362,10 @@ char				*string;
 
 				// apply IP mask from aggregation, to provide a pretty output
 				if ( FlowTable->has_masks ) {
-					flow_record->v6.srcaddr[0] &= FlowTable->IPmask[0];
-					flow_record->v6.srcaddr[1] &= FlowTable->IPmask[1];
-					flow_record->v6.dstaddr[0] &= FlowTable->IPmask[2];
-					flow_record->v6.dstaddr[1] &= FlowTable->IPmask[3];
+					flow_record->V6.srcaddr[0] &= FlowTable->IPmask[0];
+					flow_record->V6.srcaddr[1] &= FlowTable->IPmask[1];
+					flow_record->V6.dstaddr[0] &= FlowTable->IPmask[2];
+					flow_record->V6.dstaddr[1] &= FlowTable->IPmask[3];
 				}
 
 				if ( FlowTable->apply_netbits )

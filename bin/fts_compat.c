@@ -949,7 +949,7 @@ fts_alloc(FTS *sp, const char *name, size_t namelen)
 #endif
 
 #ifndef ALIGN
-#define ALIGN(p)   (((u_int)(p) + ALIGNBYTES) &~ ALIGNBYTES)
+#define ALIGN(p)   (((u_long)(p) + ALIGNBYTES) &~ ALIGNBYTES)
 #endif
 
 	size_t len;

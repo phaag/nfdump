@@ -1,3 +1,84 @@
+2018-05-06
+- New bookkeeper hash broke NfSen. Fixed. ported back to release 1.6.17
+
+2018-04-20
+- Release 1.6.17
+
+2018-04-20
+- Fix bug in sorting when guessing flow direction. Issue #92
+- Update nfdump.1 man page for xsrcport & xdstport aggregations. Request #109
+- Fix minor bugs
+- Fix definition for InfluxDB in configure.ac Issue #98
+
+2018-04-01
+- Add program exit in nfx.c after panic with correupt data file
+- Add missing size check when reading nfdump 1.5.x common record blocks
+- Add missing option -M in man page. Issue #103
+- Add Fix processing of influx URL in nfprofile
+
+2018-02-11
+- Add missing json output format in nfdump help text
+- Add missing -v option in nfreplay help text
+
+2018-01-06
+- Merge pull request #51 Influxdb from Luca. Thx for the patch
+
+2018-01-01
+- IPFIX time stamps - Fix elements #21,#22 offset calculation, but timestamps not yet evaluated. (#160)
+- IPFIX add fwd status tag #89 compatible to v9 (1byte)
+
+2017-12-31
+- IPFIX sampling - sampling algorithm no longer required for tag #34
+- IPFIX sampling add tags #305 and #304 - set them identical to #34, #35
+
+2017-12-30
+- Add new output format json. Print each record as individual json object
+
+2017-12-28
+- Add sampling elements ID 302,304,305. put them identical to ID 48,49,50
+- Add option to label filter terms. syntax: (<filter>) %labelname.
+- Add %lbl option to print flow label in output
+- Update nfdump(1) man page for flowlabels
+
+2017-12-27
+- Add ipfix delta timestamp elements 158/159. 
+- Update sflow code to commit 7322984 of https://github.com/sflow/sflowtool
+- Cleanup sflow code - uncomment unnecessary code
+- Fix header includes"
+- Fix 64bit fts compat issue in fts_compat.c
+- Add more detailed autogen.sh - softlink bootstrap
+
+2017-12-22
+- Fix potential memory leaks in nfpcapd
+
+2017-12-21
+- Fix wrong offset calculation if unknown options are found
+- Add x-late src/dst ip aggregation, if compiled with NSEL support
+
+2017-12-17
+- Add ipfix sampling. Process option template/record with sampling elements 34 and 35
+- Report updates on existing samplers in v9 only if values change. issue 84
+
+2017-11-05 v1.6.16
+
+2017-12-10
+- Add lz4 compression
+- Remove old xstat legancy code, not needed
+- Remove automake files from git
+
+2017-12-03
+- Fix old 1.6.15 tags
+- Fix minor issues and compiler warnings
+
+2017-10-22
+- Add support for CISCO IOS 8 bytes timestamps ID 21/22
+- Fix issue #72 - multiple stat output
+- Change -B behaviour as proposed in issue #59. Should not impact with previous use, but is more flexible
+- Add bzip compress switch in usage output of nfpcapd
+- Fix compile issues on some platforms
+- nfpcapd improvements - still beta software.
+- Minor bug fixes
+
 2016-11-25
 - Add latency extension to nfpcapd
 - Smaller bug fixes to nfpcapd

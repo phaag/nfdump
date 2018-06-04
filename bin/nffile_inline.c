@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
@@ -37,7 +38,7 @@ static inline void AppendToBuffer(nffile_t *nffile, void *record, size_t require
 
 static inline void CopyV6IP(uint32_t *dst, uint32_t *src);
 
-static inline void ConvertCommonV0(void *record, common_record_t *flow_record);
+static inline int ConvertCommonV0(void *record, common_record_t *flow_record);
 
 static inline void ExpandRecord_v2(common_record_t *input_record, extension_info_t *extension_info, exporter_info_record_t *exporter_info, master_record_t *output_record );
 
@@ -74,11 +75,13 @@ static inline void CopyV6IP(uint32_t *dst, uint32_t *src) {
 	dst[3] = src[3];
 } // End of CopyV6IP
 
-static inline void ConvertCommonV0(void *record, common_record_t *flow_record) {
+static inline int ConvertCommonV0(void *record, common_record_t *flow_record) {
 common_record_v0_t *flow_record_v0 = (common_record_v0_t *)record;
 
 	// copy v0 common record
 	memcpy((void *)flow_record, record, COMMON_RECORDV0_DATA_SIZE);
+	if ( flow_record_v0->size <= COMMON_RECORDV0_DATA_SIZE ) 
+		return 0;
 	memcpy((void *)flow_record->data, (void *)flow_record_v0->data, flow_record_v0->size - COMMON_RECORDV0_DATA_SIZE);
 
 	// fix record differences
@@ -88,6 +91,7 @@ common_record_v0_t *flow_record_v0 = (common_record_v0_t *)record;
 	flow_record->exporter_sysid = flow_record_v0->exporter_sysid;
 	flow_record->reserved 		= 0;
 
+	return 1;
 } // End of ConvertCommonV0
 
 /*
@@ -134,19 +138,19 @@ void		*p = (void *)input_record;
 	if ( (input_record->flags & FLAG_IPV6_ADDR) != 0 )	{ // IPv6
 		// IPv6
 		// keep compiler happy
-		// memcpy((void *)output_record->v6.srcaddr, p, 4 * sizeof(uint64_t));	
+		// memcpy((void *)output_record->V6.srcaddr, p, 4 * sizeof(uint64_t));	
 		memcpy((void *)output_record->ip_union._ip_64.addr, p, 4 * sizeof(uint64_t));	
 		p = (void *)((pointer_addr_t)p + 4 * sizeof(uint64_t));
 	} else { 	
 		// IPv4
 		u = (uint32_t *)p;
-		output_record->v6.srcaddr[0] = 0;
-		output_record->v6.srcaddr[1] = 0;
-		output_record->v4.srcaddr 	 = u[0];
+		output_record->V6.srcaddr[0] = 0;
+		output_record->V6.srcaddr[1] = 0;
+		output_record->V4.srcaddr 	 = u[0];
 
-		output_record->v6.dstaddr[0] = 0;
-		output_record->v6.dstaddr[1] = 0;
-		output_record->v4.dstaddr 	 = u[1];
+		output_record->V6.dstaddr[0] = 0;
+		output_record->V6.dstaddr[1] = 0;
+		output_record->V4.dstaddr 	 = u[1];
 		p = (void *)((pointer_addr_t)p + 2 * sizeof(uint32_t));
 	}
 
@@ -223,29 +227,29 @@ void		*p = (void *)input_record;
 				} break;
 			case EX_NEXT_HOP_v4: {
 				tpl_ext_9_t *tpl = (tpl_ext_9_t *)p;
-				output_record->ip_nexthop.v6[0] = 0;
-				output_record->ip_nexthop.v6[1] = 0;
-				output_record->ip_nexthop.v4	= tpl->nexthop;
+				output_record->ip_nexthop.V6[0] = 0;
+				output_record->ip_nexthop.V6[1] = 0;
+				output_record->ip_nexthop.V4	= tpl->nexthop;
 				p = (void *)tpl->data;
 				ClearFlag(output_record->flags, FLAG_IPV6_NH);
 				} break;
 			case EX_NEXT_HOP_v6: {
 				tpl_ext_10_t *tpl = (tpl_ext_10_t *)p;
-				CopyV6IP((uint32_t *)output_record->ip_nexthop.v6, (uint32_t *)tpl->nexthop);
+				CopyV6IP((uint32_t *)output_record->ip_nexthop.V6, (uint32_t *)tpl->nexthop);
 				p = (void *)tpl->data;
 				SetFlag(output_record->flags, FLAG_IPV6_NH);
 				} break;
 			case EX_NEXT_HOP_BGP_v4: {
 				tpl_ext_11_t *tpl = (tpl_ext_11_t *)p;
-				output_record->bgp_nexthop.v6[0] = 0;
-				output_record->bgp_nexthop.v6[1] = 0;
-				output_record->bgp_nexthop.v4	= tpl->bgp_nexthop;
+				output_record->bgp_nexthop.V6[0] = 0;
+				output_record->bgp_nexthop.V6[1] = 0;
+				output_record->bgp_nexthop.V4	= tpl->bgp_nexthop;
 				ClearFlag(output_record->flags, FLAG_IPV6_NHB);
 				p = (void *)tpl->data;
 				} break;
 			case EX_NEXT_HOP_BGP_v6: {
 				tpl_ext_12_t *tpl = (tpl_ext_12_t *)p;
-				CopyV6IP((uint32_t *)output_record->bgp_nexthop.v6, (uint32_t *)tpl->bgp_nexthop);
+				CopyV6IP((uint32_t *)output_record->bgp_nexthop.V6, (uint32_t *)tpl->bgp_nexthop);
 				p = (void *)tpl->data;
 				SetFlag(output_record->flags, FLAG_IPV6_NHB);
 				} break;
@@ -322,15 +326,15 @@ void		*p = (void *)input_record;
 			} break;
 			case EX_ROUTER_IP_v4: {
 				tpl_ext_23_t *tpl = (tpl_ext_23_t *)p;
-				output_record->ip_router.v6[0] = 0;
-				output_record->ip_router.v6[1] = 0;
-				output_record->ip_router.v4	= tpl->router_ip;
+				output_record->ip_router.V6[0] = 0;
+				output_record->ip_router.V6[1] = 0;
+				output_record->ip_router.V4	= tpl->router_ip;
 				p = (void *)tpl->data;
 				ClearFlag(output_record->flags, FLAG_IPV6_EXP);
 				} break;
 			case EX_ROUTER_IP_v6: {
 				tpl_ext_24_t *tpl = (tpl_ext_24_t *)p;
-				CopyV6IP((uint32_t *)output_record->ip_router.v6, (uint32_t *)tpl->router_ip);
+				CopyV6IP((uint32_t *)output_record->ip_router.V6, (uint32_t *)tpl->router_ip);
 				p = (void *)tpl->data;
 				SetFlag(output_record->flags, FLAG_IPV6_EXP);
 				} break;
@@ -395,21 +399,21 @@ void		*p = (void *)input_record;
 			} break;
 			case EX_NSEL_XLATE_IP_v4: {
 				tpl_ext_39_t *tpl = (tpl_ext_39_t *)p;
-				output_record->xlate_src_ip.v6[0] = 0;
-				output_record->xlate_src_ip.v6[1] = 0;
-				output_record->xlate_src_ip.v4	= tpl->xlate_src_ip;
-				output_record->xlate_dst_ip.v6[0] = 0;
-				output_record->xlate_dst_ip.v6[1] = 0;
-				output_record->xlate_dst_ip.v4	= tpl->xlate_dst_ip;
+				output_record->xlate_src_ip.V6[0] = 0;
+				output_record->xlate_src_ip.V6[1] = 0;
+				output_record->xlate_src_ip.V4	= tpl->xlate_src_ip;
+				output_record->xlate_dst_ip.V6[0] = 0;
+				output_record->xlate_dst_ip.V6[1] = 0;
+				output_record->xlate_dst_ip.V4	= tpl->xlate_dst_ip;
 				p = (void *)tpl->data;
 				output_record->xlate_flags = 0;
 				} break;
 			case EX_NSEL_XLATE_IP_v6: {
 				tpl_ext_40_t *tpl = (tpl_ext_40_t *)p;
-				output_record->xlate_src_ip.v6[0] = tpl->xlate_src_ip[0];
-				output_record->xlate_src_ip.v6[1] = tpl->xlate_src_ip[1];
-				output_record->xlate_dst_ip.v6[0] = tpl->xlate_dst_ip[0];
-				output_record->xlate_dst_ip.v6[1] = tpl->xlate_dst_ip[1];
+				output_record->xlate_src_ip.V6[0] = tpl->xlate_src_ip[0];
+				output_record->xlate_src_ip.V6[1] = tpl->xlate_src_ip[1];
+				output_record->xlate_dst_ip.V6[0] = tpl->xlate_dst_ip[0];
+				output_record->xlate_dst_ip.V6[1] = tpl->xlate_dst_ip[1];
 				p = (void *)tpl->data;
 				output_record->xlate_flags = 1;
 				} break;
@@ -454,12 +458,12 @@ void		*p = (void *)input_record;
 			// compat record v1.6.10
 			case EX_NEL_GLOBAL_IP_v4: {
 				tpl_ext_47_t *tpl = (tpl_ext_47_t *)p;
-				output_record->xlate_src_ip.v6[0] = 0;
-				output_record->xlate_src_ip.v6[1] = 0;
-				output_record->xlate_src_ip.v4	= tpl->nat_inside;
-				output_record->xlate_dst_ip.v6[0] = 0;
-				output_record->xlate_dst_ip.v6[1] = 0;
-				output_record->xlate_dst_ip.v4	= tpl->nat_outside;
+				output_record->xlate_src_ip.V6[0] = 0;
+				output_record->xlate_src_ip.V6[1] = 0;
+				output_record->xlate_src_ip.V4	= tpl->nat_inside;
+				output_record->xlate_dst_ip.V6[0] = 0;
+				output_record->xlate_dst_ip.V6[1] = 0;
+				output_record->xlate_dst_ip.V4	= tpl->nat_outside;
 				p = (void *)tpl->data;
 
 				output_record->xlate_src_port = compat_nel_bug.port[0];
@@ -534,14 +538,14 @@ int		i;
 	if ( (master_record->flags & FLAG_IPV6_ADDR) != 0 )	{ // IPv6
 		// IPv6
 		// keep compiler happy
-		// memcpy(p, (void *)master_record->v6.srcaddr, 4 * sizeof(uint64_t));	
+		// memcpy(p, (void *)master_record->V6.srcaddr, 4 * sizeof(uint64_t));	
 		memcpy(p, (void *)master_record->ip_union._ip_64.addr, 4 * sizeof(uint64_t));	
 		p = (void *)((pointer_addr_t)p + 4 * sizeof(uint64_t));
 	} else { 	
 		// IPv4
 		uint32_t *u = (uint32_t *)p;
-		u[0] = master_record->v4.srcaddr;
-		u[1] = master_record->v4.dstaddr;
+		u[0] = master_record->V4.srcaddr;
+		u[1] = master_record->V4.dstaddr;
 		p = (void *)((pointer_addr_t)p + 2 * sizeof(uint32_t));
 	}
 
@@ -615,24 +619,24 @@ int		i;
 				} break;
 			case EX_NEXT_HOP_v4: {
 				tpl_ext_9_t *tpl = (tpl_ext_9_t *)p;
-				tpl->nexthop = master_record->ip_nexthop.v4;
+				tpl->nexthop = master_record->ip_nexthop.V4;
 				p = (void *)tpl->data;
 				} break;
 			case EX_NEXT_HOP_v6: {
 				tpl_ext_10_t *tpl = (tpl_ext_10_t *)p;
-				tpl->nexthop[0] = master_record->ip_nexthop.v6[0];
-				tpl->nexthop[1] = master_record->ip_nexthop.v6[1];
+				tpl->nexthop[0] = master_record->ip_nexthop.V6[0];
+				tpl->nexthop[1] = master_record->ip_nexthop.V6[1];
 				p = (void *)tpl->data;
 				} break;
 			case EX_NEXT_HOP_BGP_v4: {
 				tpl_ext_11_t *tpl = (tpl_ext_11_t *)p;
-				tpl->bgp_nexthop = master_record->bgp_nexthop.v4;
+				tpl->bgp_nexthop = master_record->bgp_nexthop.V4;
 				p = (void *)tpl->data;
 				} break;
 			case EX_NEXT_HOP_BGP_v6: {
 				tpl_ext_12_t *tpl = (tpl_ext_12_t *)p;
-				tpl->bgp_nexthop[0] = master_record->bgp_nexthop.v6[0];
-				tpl->bgp_nexthop[1] = master_record->bgp_nexthop.v6[1];
+				tpl->bgp_nexthop[0] = master_record->bgp_nexthop.V6[0];
+				tpl->bgp_nexthop[1] = master_record->bgp_nexthop.V6[1];
 				p = (void *)tpl->data;
 				} break;
 			case EX_VLAN: {
@@ -707,13 +711,13 @@ int		i;
 				} break;
 			case EX_ROUTER_IP_v4: {
 				tpl_ext_23_t *tpl = (tpl_ext_23_t *)p;
-				tpl->router_ip = master_record->ip_router.v4;
+				tpl->router_ip = master_record->ip_router.V4;
 				p = (void *)tpl->data;
 				} break;
 			case EX_ROUTER_IP_v6: {
 				tpl_ext_24_t *tpl = (tpl_ext_24_t *)p;
-				tpl->router_ip[0] = master_record->ip_router.v6[0];
-				tpl->router_ip[1] = master_record->ip_router.v6[1];
+				tpl->router_ip[0] = master_record->ip_router.V6[0];
+				tpl->router_ip[1] = master_record->ip_router.V6[1];
 				p = (void *)tpl->data;
 				} break;
 			case EX_ROUTER_ID: {
@@ -765,17 +769,17 @@ int		i;
 				} break;
 			case EX_NSEL_XLATE_IP_v4: {
 				tpl_ext_39_t *tpl = (tpl_ext_39_t *)p;
-				tpl->xlate_src_ip = master_record->xlate_src_ip.v4;
-				tpl->xlate_dst_ip = master_record->xlate_dst_ip.v4;
+				tpl->xlate_src_ip = master_record->xlate_src_ip.V4;
+				tpl->xlate_dst_ip = master_record->xlate_dst_ip.V4;
 				p = (void *)tpl->data;
 				} break;
 			case EX_NSEL_XLATE_IP_v6: {
 				tpl_ext_40_t *tpl = (tpl_ext_40_t *)p;
-				tpl->xlate_src_ip[0] = master_record->xlate_src_ip.v6[0];
-				tpl->xlate_src_ip[1] = master_record->xlate_src_ip.v6[1];
+				tpl->xlate_src_ip[0] = master_record->xlate_src_ip.V6[0];
+				tpl->xlate_src_ip[1] = master_record->xlate_src_ip.V6[1];
 				p = (void *)tpl->data;
-				tpl->xlate_dst_ip[0] = master_record->xlate_dst_ip.v6[0];
-				tpl->xlate_dst_ip[1] = master_record->xlate_dst_ip.v6[1];
+				tpl->xlate_dst_ip[0] = master_record->xlate_dst_ip.V6[0];
+				tpl->xlate_dst_ip[1] = master_record->xlate_dst_ip.V6[1];
 				p = (void *)tpl->data;
 				} break;
 			case EX_NSEL_ACL: {

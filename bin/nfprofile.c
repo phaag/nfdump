@@ -1,7 +1,6 @@
 /*
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2009 - 2018, Peter Haag
+ *  Copyright (c) 2004 - 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -28,12 +27,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nfprofile.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
  */
 
 #include "config.h"
@@ -64,7 +57,6 @@
 #include "nfstat.h"
 #include "nfstatfile.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "exporter.h"
 #include "ipconv.h"
@@ -87,13 +79,16 @@ extension_map_list_t *extension_map_list;
 uint32_t is_anonymized;
 char Ident[IDENTLEN];
 
+#ifdef HAVE_INFLUXDB
+	char influxdb_url[1024]="";
+#endif
+
 /* Function Prototypes */
 static void usage(char *name);
 
 static profile_param_info_t *ParseParams (char *profile_datadir);
 
-static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot, int do_xstat);
-
+static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot);
 
 /* Functions */
 
@@ -105,7 +100,6 @@ static void usage(char *name) {
 					"-h\t\tthis text you see right here\n"
 					"-V\t\tPrint version and exit.\n"
 					"-D <dns>\tUse nameserver <dns> for host lookup.\n"
-					"-H Add xstat histogram data to flow file.(default 'no')\n"
 					"-M <expr>\tRead input from multiple directories.\n"
 					"-r\t\tread input from file\n"
 					"-f\t\tfilename with filter syntaxfile\n"
@@ -115,11 +109,14 @@ static void usage(char *name) {
 					"-Z\t\tCheck filter syntax and exit.\n"
 					"-S subdir\tSub directory format. see nfcapd(1) for format\n"
 					"-z\t\tCompress flows in output file.\n"
+#ifdef HAVE_INFLUXDB
+					"-i <influxurl>\tInfluxdb url for stats (example: http://localhost:8086/write?db=mydb&u=pippo&p=paperino)\n"
+#endif
 					"-t <time>\ttime for RRD update\n", name);
 } /* usage */
 
 
-static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot, int do_xstat) {
+static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot) {
 common_record_t	*flow_record;
 nffile_t		*nffile;
 FilterEngine_data_t	*engine;
@@ -268,9 +265,6 @@ int	v1_map_done = 0;
 						UpdateStat(&channels[j].stat_record, master_record);
 						if ( channels[j].nffile ) 
 							UpdateStat(channels[j].nffile->stat_record, master_record);
-	
-						if ( channels[j].xstat ) 
-							UpdateXStat(channels[j].xstat, master_record);
 	
 						// do we need to write data to new file - shadow profiles do not have files.
 						// check if we need to flush the output buffer
@@ -529,7 +523,7 @@ struct stat stat_buf;
 profile_param_info_t *profile_list;
 char *rfile, *ffile, *filename, *Mdirs;
 char	*profile_datadir, *profile_statdir, *nameserver;
-int c, syntax_only, subdir_index, stdin_profile_params, do_xstat;
+int c, syntax_only, subdir_index, stdin_profile_params;
 time_t tslot;
 
 	profile_datadir = NULL;
@@ -537,7 +531,6 @@ time_t tslot;
 	Mdirs 			= NULL;
 	tslot 			= 0;
 	syntax_only	    = 0;
-	do_xstat	    = 0;
 	compress		= NOT_COMPRESSED;
 	subdir_index	= 0;
 	profile_list	= NULL;
@@ -551,7 +544,7 @@ time_t tslot;
 	// default file names
 	ffile = "filter.txt";
 	rfile = NULL;
-	while ((c = getopt(argc, argv, "D:HIL:p:P:hf:J;r:n:M:S:t:VzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "D:HIL:p:P:hi:f:J;r:n:M:S:t:VzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -565,9 +558,6 @@ time_t tslot;
 				break;
 			case 'I':
 				stdin_profile_params = 1;
-				break;
-			case 'H':
-				do_xstat = 1;
 				break;
 			case 'L':
 				if ( !InitLog("nfprofile", optarg) )
@@ -603,18 +593,36 @@ time_t tslot;
 				break;
 			case 'j':
 				if ( compress ) {
-					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
 					exit(255);
 				}
 				compress = BZ2_COMPRESSED;
 				break;
+			case 'y':
+				if ( compress ) {
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
+					exit(255);
+				}
+				compress = LZ4_COMPRESSED;
+				break;
 			case 'z':
 				if ( compress ) {
-					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
 					exit(255);
 				}
 				compress = LZO_COMPRESSED;
 				break;
+#ifdef HAVE_INFLUXDB
+			case 'i': 
+				if ( optarg != NULL ) 
+					strncpy(influxdb_url, optarg, 1024);
+				else {
+					LogError("Missing argument for -i <influx URL>\n");
+					exit(255);
+				}
+				influxdb_url[1023] = '\0';
+				break;
+#endif
 			default:
 				usage(argv[0]);
 				exit(0);
@@ -668,7 +676,7 @@ time_t tslot;
 		exit(255);
 	}
 
-	num_channels = InitChannels(profile_datadir, profile_statdir, profile_list, ffile, filename, subdir_index, syntax_only, compress, do_xstat);
+	num_channels = InitChannels(profile_datadir, profile_statdir, profile_list, ffile, filename, subdir_index, syntax_only, compress);
 
 	// nothing to do
 	if ( num_channels == 0 ) {
@@ -693,7 +701,7 @@ time_t tslot;
 
 	SetupInputFileSequence(Mdirs,rfile, NULL);
 
-	process_data(GetChannelInfoList(), num_channels, tslot, do_xstat);
+	process_data(GetChannelInfoList(), num_channels, tslot);
 
 	CloseChannels(tslot, compress);
 

@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  All rights reserved.
@@ -27,13 +28,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: pcap_reader.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *  
- *
  */
 
 #include <config.h>
@@ -67,7 +61,7 @@
 enum { SRC_IP, DST_IP, UDP_PORT, TCP_PORT, ICMP_TYPE };
 
 static pcap_t	*pcap_handle;
-static uint32_t	tcp_count, udp_count, icmp_count, arp_count, unknow_count;
+static uint32_t	tcp_count, udp_count, arp_count, unknow_count;
 
 /*
  * Function prototypes
@@ -130,7 +124,6 @@ static ssize_t decode_packet(struct pcap_pkthdr *hdr, u_char *pkt, void *buffer,
 struct ip	 	*ip;
 struct udphdr 	*udp;
 struct tcphdr 	*tcp;
-struct icmp	  	*icmp;
 u_char		  	*payload;
 int 			len, i;
 u_int 			hlen,version;
@@ -245,10 +238,13 @@ struct sockaddr_in *in_sock = (struct sockaddr_in *)sock;
 			printf("\n");
 
 			break;
-		case IPPROTO_ICMP:
+/*
+		case IPPROTO_ICMP: {
+			struct icmp	  	*icmp;
 			icmp_count++;
 			icmp = (struct icmp *)((void *)ip + (ip->ip_hl << 0x02));
-			break;
+			} break;
+*/
 		default:
 			/* no default */
 			break;

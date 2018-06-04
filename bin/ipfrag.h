@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  All rights reserved.
  *  
@@ -26,13 +27,19 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: phaag $
- *
- *  $Id: ipfrag.h 40691 2014-03-03 11:24:22Z phaag $
- *
- *  $LastChangedRevision: 40691 $
- *  
  */
+
+#ifndef _IPFRAG_H
+#define _IPFRAG_H 1
+
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include "rbtree.h"
 
 typedef struct hole_s {
 	struct hole_s *next;
@@ -72,3 +79,6 @@ void IPFragTree_free(void);
 
 void *IPFrag_tree_Update(uint32_t src, uint32_t dst, uint32_t ident, uint32_t *length, uint32_t ip_off, void *data);
 
+uint32_t IPFragEntries(void);
+
+#endif

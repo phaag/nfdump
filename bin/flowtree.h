@@ -37,15 +37,17 @@
 #include "config.h"
 #endif
 
+#include <sys/types.h>
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 #endif
+#include <sys/time.h>
 
 #include <time.h>
 #include <signal.h>
 
+#include "collector.h"
 #include "rbtree.h"
-#include "nffile.h"
 
 #define v4 ip_union._v4
 #define v6 ip_union._v6
@@ -91,11 +93,6 @@ struct FlowNode {
 
 	uint32_t	packets;	// summed up number of packets
 	uint32_t	bytes;		// summed up number of bytes
-
-	// flow payload
-#define DATABLOCKSIZE 256
-	uint32_t	DataSize;	// max size of data buffer
-	void		*data;		// start of data buffer
 
 	struct FlowNode *rev_node;
 	struct latency_s {

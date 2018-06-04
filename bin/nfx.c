@@ -546,6 +546,7 @@ int i, extension_size, max_elements;
 		int id = map->ex_id[i];
 		if ( id > Max_num_extensions ) {
 			printf("PANIC! - Verify map id %i: ERROR: element id %i out of range [%i]!\n", map->map_id, id, Max_num_extensions);
+			exit(255);
 		}
 		extension_size += extension_descriptor[id].size;
 		i++;

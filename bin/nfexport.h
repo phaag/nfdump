@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2015, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,16 +29,13 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nfexport.h 54 2010-01-29 11:30:22Z haag $
- *
- *  $LastChangedRevision: 54 $
- *	
  */
 
 #ifndef _NFEXPORT_H
 #define _NFEXPORT_H 1
+
+#include "nffile.h"
+#include "nfx.h"
 
 int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int date_sorted, extension_map_list_t *extension_map_list);
 

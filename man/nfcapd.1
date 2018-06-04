@@ -86,6 +86,16 @@ the final directory is concatenated to \fIbase_directory/sub_hierarchy. Multiple
 sources can be specified. All data is sent to the same port specified by \fI\-p\fR.
 Note: You must not mix \-n option with \-I and \-l. Use either syntax.
 .TP 3
+.B -M \fI<dynbase_directory>
+Specifies the base directory to store the output files. In contrast to -l -M allows to add 
+dynamically new flow sources (exporters), as they appear. All exporters send netflow data 
+to the same port and IP.  For each dynamically added source, a new directory is created 
+with the name of the IPv4/IPv6 address of the exporter. All '.' and ':" in IP addresses 
+are replaced be '-' e.g.  10.11.12.13 is converted to the directory name 10-11-12-13.
+Note: Please make sure to restrict at host level the potential range of IP addresses 
+which are allowed to connect to nfcapd. Otherwise you risk a potential DoS attack on
+nfcapd, as nfcapd has no built in restrictions.
+.TP 3
 .B -f \fI<pcap_file>
 Read netflow packets from a give \fIpcap_file\fR instead of the network. This 
 requires nfcapd to be compiled with the pcap option and is intended for debugging only.
@@ -292,6 +302,9 @@ debugging purpose only, to see how incoming netflow data is processed and stored
 .TP 3
 .B -j
 Compress flows. Use bz2 compression in output file. Note: not recommended while collecting
+.TP 3
+.B -y
+Compress flows. Use LZ4 compression in output file.
 .TP 3
 .B -z
 Compress flows. Use fast LZO1X\-1 compression in output file.

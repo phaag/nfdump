@@ -1,0 +1,141 @@
+Index: bin/nfsend
+===================================================================
+--- bin/nfsend	(revision 27)
++++ bin/nfsend	(working copy)
+@@ -55,6 +55,60 @@
+ use NfSen::Comm;
+ use NfSen::Log;
+ 
++########## TODO INFLUXDB #########
++use LWP::UserAgent;
++my $ua;	
++my $influxdb_url;
++my $influxdb_measurement;
++
++sub UpdateInflux {
++	my $timeslot = shift;
++	my $channel= shift;
++	my $profilegroup= shift;
++	my $profilename= shift;
++	my $statinfo= shift;
++	
++	if ($profilegroup eq "."){
++		$profilegroup="ROOT";
++	}
++	
++	my $post_data = "$influxdb_measurement,channel=$channel,profilegroup=$profilegroup,profile=$profilename v=1";
++					
++	#foreach my $ds ( @NfSen::RRD::RRD_DS ) {
++	foreach my $ds ( @NfSenRRD::RRD_DS ) {
++		if ( !defined $$statinfo{$ds} || $$statinfo{$ds} == - 1 ) {
++			$post_data.=",$ds=0";
++		} else {
++			$post_data.=",$ds=$$statinfo{$ds}";
++		}
++	}					
++	
++	$post_data .= " $timeslot";
++	$post_data .= "000000000";
++
++	log_debug("$influxdb_url $post_data");
++	
++	my $req = HTTP::Request->new(POST => $influxdb_url);
++	$req->content($post_data);
++	 						
++	my $resp = $ua->request($req);
++	my $response = $resp->as_string();
++	
++	log_debug(" 		$response ");
++					
++	if ( $resp->is_success ) {
++		
++	} else {
++	    log_error("Error $response");
++	}
++										
++	if ( $resp->code != 204 ) {
++		log_error("Unable to post data to influxdb $influxdb_url: $response ".$resp->code);
++	}	
++}
++
++############################################################
++
+ my $forever = 1;
+ my $reload  = 0;
+ 
+@@ -279,7 +333,11 @@
+ 
+ 		my $arg = "-I -t $timeslot -p $pSpooldir -P $pDatadir $subdirlayout $compress";
+ 		my $flist = "-M $pSpooldir/live/$channellist -r nfcapd.$t_iso";
+-	
++########## TODO INFLUXDB #########		
++		if ( $influxdb_url ){
++			$arg = "$arg -i $influxdb_url";
++		}
++##################################		
+ 		if ( open NFPROFILE, "| nfprofile $arg $flist 2>&1" ) {
+ 			local $SIG{PIPE} = sub { log_error("Pipe broke for nfprofile"); };
+ 			foreach my $profileopts ( @ProfileOptList ) {
+@@ -390,6 +448,13 @@
+ 					if ( $err ) {
+ 						log_error("ERROR Update RRD time: '$t_iso', db: '$channel', profile: '$profilename' group '$profilegroup'.");
+ 					}
++					
++					
++					########## TODO INFLUX #########
++					if( $influxdb_url ) {
++						UpdateInflux($timeslot,$channel,$profilegroup,$profilename, $statinfo);
++					}
++					#################################
+ 				}
+ 			}
+ 
+@@ -699,6 +764,20 @@
+ NfSen::Log::handle_stderr(3,4);
+ log_notice("Startup nfsend. Version: $NfSen::VERSION");
+ 
++########## TODO INFLUXDB #########
++$influxdb_url = NfSen::Conf::database('influxdb_url');
++$influxdb_measurement = NfSen::Conf::database('influxdb_measurement');
++if($influxdb_url) {
++	if (!$influxdb_measurement){
++		$influxdb_measurement = "nfsen_stats";
++	}		 
++	$ua = LWP::UserAgent->new;
++	$ua->timeout( 10 );
++	
++	log_notice("Enabled INFLUXDB on $influxdb_url to $influxdb_measurement");
++}
++###################################
++
+ my $arg = shift @ARGV;
+ $arg = '' unless defined $arg;
+ die "Unknow argument '$arg'" if $arg ne '' && $arg ne 'once';
+Index: etc/backend.conf-dist
+===================================================================
+--- etc/backend.conf-dist	(revision 27)
++++ etc/backend.conf-dist	(working copy)
+@@ -101,6 +101,11 @@
+ [database]
+ 
+ ###############
++# INFLUX
++#influxdb_url = http://<hostname>:8086/write?db=<dbname>
++#influxdb_measurement = nfsen_stats
++
++###############
+ # Type of DB (manager) to use.
+ # Supported types are: mysql, csv, sqlite, postgresql
+ #
+Index: .
+===================================================================
+--- .	(revision 27)
++++ .	(working copy)
+
+Property changes on: .
+___________________________________________________________________
+Added: svn:ignore
+## -0,0 +1,3 ##
++.project
++
++.includepath

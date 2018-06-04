@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,21 +29,12 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nfdump_inline.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
- *
  */
 
 
 // to improve readability - separate some code blocks in functions and make them inline
 // as it's called for every single flow
 static inline void UpdateStat(stat_record_t	*stat_record, master_record_t *master_record);
-
-static inline void UpdateXStat(xstat_t	*xstat, master_record_t *master_record);
 
 static inline void UpdateStat(stat_record_t	*stat_record, master_record_t *master_record) {
 
@@ -99,29 +91,3 @@ static inline void UpdateStat(stat_record_t	*stat_record, master_record_t *maste
 			stat_record->msec_last = master_record->msec_last;
 
 } // End of UpdateStat
-
-static inline void UpdateXStat(xstat_t	*xstat, master_record_t *master_record) {
-uint32_t bpp = master_record->dPkts ? master_record->dOctets/master_record->dPkts : 0;
-
-	if ( bpp > MAX_BPP ) 
-		bpp = MAX_BPP;
-	if ( master_record->prot == IPPROTO_TCP ) {
-		xstat->bpp_histogram->tcp.bpp[bpp]++;
-		xstat->bpp_histogram->tcp.count++;
-
-		xstat->port_histogram->src_tcp.port[master_record->srcport]++;
-		xstat->port_histogram->dst_tcp.port[master_record->dstport]++;
-		xstat->port_histogram->src_tcp.count++;
-		xstat->port_histogram->dst_tcp.count++;
-	} else if ( master_record->prot == IPPROTO_UDP ) {
-		xstat->bpp_histogram->udp.bpp[bpp]++;
-		xstat->bpp_histogram->udp.count++;
-
-		xstat->port_histogram->src_udp.port[master_record->srcport]++;
-		xstat->port_histogram->dst_udp.port[master_record->dstport]++;
-		xstat->port_histogram->src_udp.count++;
-		xstat->port_histogram->dst_udp.count++;
-	}
-
-} // End of UpdateXStat
-

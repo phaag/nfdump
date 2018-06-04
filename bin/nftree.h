@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
@@ -28,16 +29,19 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nftree.h 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
  */
 
 #ifndef _NFTREE_H
 #define _NFTREE_H 1
+
+#include "config.h"
+
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+
+#include "rbtree.h"
 
 /*
  * type definitions for nf tree
@@ -61,6 +65,7 @@ typedef struct FilterBlock {
 	uint16_t	comp;				/* comperator */
 	flow_proc_t	function;			/* function for flow processing */
 	char		*fname;				/* ascii function name */
+	char		*label;				/* label, if any */
 	void		*data;				/* any additional data for this block */
 } FilterBlock_t;
 
@@ -70,6 +75,7 @@ typedef struct FilterEngine_data_s {
 	uint32_t 		Extended;
 	char			**IdentList;
 	uint64_t		*nfrecord;
+	char			*label;
 	int (*FilterEngine)(struct FilterEngine_data_s *);
 } FilterEngine_data_t;
 
@@ -159,6 +165,11 @@ uint32_t	Connect_OR(uint32_t b1, uint32_t b2);
  * Inverts OnTrue and OnFalse
  */
 uint32_t	Invert(uint32_t a );
+
+/* 
+ * Add label to filter index
+ */
+void AddLabel(uint32_t index, char *label);
 
 /* 
  * Add Ident to Identlist

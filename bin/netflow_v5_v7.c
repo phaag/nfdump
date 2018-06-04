@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
  *  Copyright (c) 2009, Peter Haag
@@ -55,7 +56,6 @@
 #include "nfnet.h"
 #include "nf_common.h"
 #include "bookkeeper.h"
-#include "nfxstat.h"
 #include "collector.h"
 #include "exporter.h"
 #include "netflow_v5_v7.h"
@@ -192,7 +192,7 @@ char ipstr[IP_STRING_LEN];
 	// search the appropriate exporter engine
 	while ( *e ) {
 		if ( (*e)->info.version == version && (*e)->info.id == engine_tag &&
-			 (*e)->info.ip.v6[0] == fs->ip.v6[0] && (*e)->info.ip.v6[1] == fs->ip.v6[1]) 
+			 (*e)->info.ip.V6[0] == fs->ip.V6[0] && (*e)->info.ip.V6[1] == fs->ip.V6[1]) 
 			return *e;
 		e = &((*e)->next);
 	}
@@ -258,12 +258,12 @@ char ipstr[IP_STRING_LEN];
 	FlushInfoSampler(fs, &(sampler->info));
 
 	if ( fs->sa_family == AF_INET ) {
-		uint32_t _ip = htonl(fs->ip.v4);
+		uint32_t _ip = htonl(fs->ip.V4);
 		inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
 	} else if ( fs->sa_family == AF_INET6 ) {
 		uint64_t _ip[2];
-		_ip[0] = htonll(fs->ip.v6[0]);
-		_ip[1] = htonll(fs->ip.v6[1]);
+		_ip[0] = htonll(fs->ip.V6[0]);
+		_ip[1] = htonll(fs->ip.V6[1]);
 		inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
 	} else {
 		strncpy(ipstr, "<unknown>", IP_STRING_LEN);
@@ -493,7 +493,7 @@ char		*string;
 							} break;
 						case EX_ROUTER_IP_v4:	 {	// IPv4 router address
 							tpl_ext_23_t *tpl = (tpl_ext_23_t *)data_ptr;
-							tpl->router_ip = fs->ip.v4;
+							tpl->router_ip = fs->ip.V4;
 							data_ptr = (void *)tpl->data;
 							ClearFlag(common_record->flags, FLAG_IPV6_EXP);
 							} break;
@@ -602,32 +602,9 @@ char		*string;
 				fs->nffile->stat_record->numpackets	+= packets;
 				fs->nffile->stat_record->numbytes	+= bytes;
 
-				if ( fs->xstat ) {
-					uint32_t bpp = packets ? (bytes/packets) : 0;
-					if ( bpp > MAX_BPP ) 
-						bpp = MAX_BPP;
-					if ( common_record->prot == IPPROTO_TCP ) {
-						fs->xstat->bpp_histogram->tcp.bpp[bpp]++;
-						fs->xstat->bpp_histogram->tcp.count++;
-
-						fs->xstat->port_histogram->src_tcp.port[common_record->srcport]++;
-						fs->xstat->port_histogram->dst_tcp.port[common_record->dstport]++;
-						fs->xstat->port_histogram->src_tcp.count++;
-						fs->xstat->port_histogram->dst_tcp.count++;
-					} else if ( common_record->prot == IPPROTO_UDP ) {
-						fs->xstat->bpp_histogram->udp.bpp[bpp]++;
-						fs->xstat->bpp_histogram->udp.count++;
-
-						fs->xstat->port_histogram->src_udp.port[common_record->srcport]++;
-						fs->xstat->port_histogram->dst_udp.port[common_record->dstport]++;
-						fs->xstat->port_histogram->src_udp.count++;
-						fs->xstat->port_histogram->dst_udp.count++;
-					}
-				}
-
-
 				if ( verbose ) {
 					master_record_t master_record;
+					memset((void *)&master_record, 0, sizeof(master_record_t));
 					ExpandRecord_v2((common_record_t *)common_record, &v5_extension_info, &(exporter->info), &master_record);
 				 	format_file_block_record(&master_record, &string, 0);
 					printf("%s\n", string);
@@ -731,8 +708,8 @@ uint32_t	i, id, t1, t2;
   	v5_output_record->First		= htonl(t1);
   	v5_output_record->Last		= htonl(t2);
 
-	v5_output_record->srcaddr	= htonl(master_record->v4.srcaddr);
-  	v5_output_record->dstaddr	= htonl(master_record->v4.dstaddr);
+	v5_output_record->srcaddr	= htonl(master_record->V4.srcaddr);
+  	v5_output_record->dstaddr	= htonl(master_record->V4.dstaddr);
 
   	v5_output_record->srcport	= htons(master_record->srcport);
   	v5_output_record->dstport	= htons(master_record->dstport);
@@ -770,7 +747,7 @@ uint32_t	i, id, t1, t2;
 				v5_output_record->dst_mask 	= master_record->dst_mask;
 				break;
 			case EX_NEXT_HOP_v4:
-				v5_output_record->nexthop	= htonl(master_record->ip_nexthop.v4);
+				v5_output_record->nexthop	= htonl(master_record->ip_nexthop.V4);
 				break;
 			// default: Other extensions can not be sent with v5
 		}

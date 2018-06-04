@@ -94,7 +94,7 @@ fi
 
 # supress 'received at' as this is always different
 ./nfdump -r tmp/nfcapd.* -q -o raw | grep -v 'received at' > test5.out
-# nfdump 1.6.5 always uses 64 bits. therefore we have a predictable diff
+# nfdump 1.6.5 and later always use 64 bits. therefore we have a predictable diff
 # so diff the diff
 diff test5.out nfdump.test.out > test5.diff || true
 diff test5.diff nfdump.test.diff
@@ -118,6 +118,12 @@ export MallocCorruptionAbort=1
 ./nfdump -J 0 -r test.flows
 ./nfdump -J 1 -r test.flows
 ./nfdump -J 2 -r test.flows
+./nfdump -J 3 -r test.flows
+./nfdump -J 2 -r test.flows
+./nfdump -J 1 -r test.flows
+./nfdump -J 0 -r test.flows
+./nfdump -q -r test.flows -o raw > test2.out
+diff -u test2.out nfdump.test.out
 rm -f tmp/nfcapd.* test*.out test*.flows
 [ -d tmp ] && rmdir tmp
 [ -d memck.$$ ] && rm -rf  memck.$$

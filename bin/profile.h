@@ -1,7 +1,6 @@
 /*
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2009 - 2018, Peter Haag
+ *  Copyright (c) 2004 - 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -28,16 +27,14 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: profile.h 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *      
 */
 
 #ifndef _PROFILE_H
 #define _PROFILE_H 1
+
+#include "nftree.h"
+#include "nffile.h"
+#include "nfstatfile.h"
 
 typedef struct profile_param_info_s {
 	struct profile_param_info_s *next;
@@ -59,7 +56,6 @@ typedef struct profile_channel_info_s {
 	char				*dirstat_path;	// pathname for dirstat file
 	nffile_t			*nffile;
 	stat_record_t		stat_record;
-	xstat_t				*xstat;
 	int					type;
 	dirstat_t 			*dirstat;
 } profile_channel_info_t;
@@ -67,12 +63,16 @@ typedef struct profile_channel_info_s {
 profile_channel_info_t	*GetProfiles(void);
 
 unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_param_info_t *profile_list, 
-	char *filterfile, char *filename, int subdir_index, int veryfy_only, int compress, int do_xstat );
+	char *filterfile, char *filename, int subdir_index, int veryfy_only, int compress );
 
 profile_channel_info_t	*GetChannelInfoList(void);
 
 void CloseChannels (time_t tslot, int compress);
 
 void UpdateRRD( time_t tslot, profile_channel_info_t *channel );
+
+#ifdef HAVE_INFLUXDB
+void UpdateInfluxDB( time_t tslot, profile_channel_info_t *channel );
+#endif
 
 #endif //_PROFILE_H
