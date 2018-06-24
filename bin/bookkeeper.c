@@ -69,7 +69,7 @@ static bookkeeper_list_t *bookkeeper_list = NULL;
 
 /* function prototypes */
 
-static uint32_t hash(char *str, int flag);
+static key_t hash(char *str, int flag);
 
 static void sem_lock(int sem_set_id);
 
@@ -81,13 +81,13 @@ static inline bookkeeper_list_t *Get_bookkeeper_list_entry(bookkeeper_t *bookkee
 
 /* hash: compute hash value of string */
 #define MULTIPLIER 37
-static uint32_t hash(char *str, int flag) {
+static key_t hash(char *str, int flag) {
 uint32_t h; 
 unsigned char *p;
 char cleanPath[MAXPATHLEN];
 
 	if ( realpath(str, cleanPath) == NULL ) {
-		return 0;
+		return -1;
 	}
 
 	h = 0;
@@ -97,7 +97,8 @@ char cleanPath[MAXPATHLEN];
 	if ( flag ) {
 		h = MULTIPLIER * h + 'R';
 	}
-	return h; // or, h % ARRAY_SIZE;
+	// LogError("Bookeeper hash for path: '%s' -> '%s': %u flag: %i", str, cleanPath, h, flag);
+	return (key_t)h; // or, h % ARRAY_SIZE;
 
 } // End of hash
 
