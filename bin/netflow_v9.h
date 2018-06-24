@@ -290,7 +290,8 @@ typedef struct common_header_s {
 #define NF_F_XLATE_DST_PORT_84      40004
 #define NF_F_FW_EVENT_84            40005
 
-// ASA 5508
+// ASA 9.x packet counters: initiatorPackets and responderPackets
+// see https://www.iana.org/assignments/ipfix/ipfix.xhtml
 #define NF_F_INITIATORPACKETS		298
 #define NF_F_RESPONDERPACKETS		299
 
