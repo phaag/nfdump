@@ -658,7 +658,7 @@ char *Get_fwd_status_name(uint32_t id) {
 
 } // End of Get_fwd_status_name
 
-void format_file_block_header(void *header, char ** s, int tag) {
+void format_file_block_header(void *header, char **s, int tag) {
 data_block_header_t *h = (data_block_header_t *)header;
 	
 	snprintf(data_string,STRINGSIZE-1 ,""
@@ -673,7 +673,7 @@ data_block_header_t *h = (data_block_header_t *)header;
 
 } // End of format_file_block_header
 
-void format_file_block_record(void *record, char ** s, int tag) {
+void format_file_block_record(void *record, char **s, int tag) {
 char 		*_s, as[IP_STRING_LEN], ds[IP_STRING_LEN], datestr1[64], datestr2[64], datestr3[64], flags_str[16];
 char		s_snet[IP_STRING_LEN], s_dnet[IP_STRING_LEN], s_proto[32];
 int			i, id;

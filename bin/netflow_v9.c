@@ -210,6 +210,7 @@ static struct v9_element_map_s {
 	{ NF9_IN_BYTES, 			 "bytes",			_8bytes,  _8bytes, move64_sampling, zero64, COMMON_BLOCK },
 	{ NF9_IN_PACKETS, 			 "packets",			_4bytes,  _8bytes, move32_sampling, zero64, COMMON_BLOCK },
 	{ NF9_IN_PACKETS, 			 "packets",			_8bytes,  _8bytes, move64_sampling, zero64, COMMON_BLOCK },
+	{ NF_F_INITIATORPACKETS, 	 "packets",			_8bytes,  _8bytes, move64_sampling, zero64, COMMON_BLOCK },
 
 	{ NF9_FLOWS_AGGR, 			 "flows",			_4bytes,  _4bytes, move32, zero32, EX_AGGR_FLOWS_4 },
 	{ NF9_FLOWS_AGGR, 			 "flows",			_8bytes,  _8bytes, move64, zero64, EX_AGGR_FLOWS_8 },
@@ -242,6 +243,7 @@ static struct v9_element_map_s {
 	{ NF9_OUT_BYTES, 			 "out bytes",		_8bytes,  _8bytes, move64_sampling, zero64, EX_OUT_BYTES_8 },
 	{ NF9_OUT_PKTS, 			 "out packets",		_4bytes,  _8bytes, move32_sampling, zero64, EX_OUT_PKG_8 },
 	{ NF9_OUT_PKTS, 			 "out packets",		_8bytes,  _8bytes, move64_sampling, zero64, EX_OUT_PKG_8 },
+	{ NF_F_RESPONDERPACKETS, 	 "out packets",		_8bytes,  _8bytes, move64_sampling, zero64, EX_OUT_PKG_8 },
 	{ NF9_IPV6_SRC_ADDR,		 "V6 src addr",		_16bytes, _16bytes, move128, zero128, COMMON_BLOCK },
 	{ NF9_IPV6_DST_ADDR,		 "V6 dst addr",		_16bytes, _16bytes, move128, zero128, COMMON_BLOCK },
 	{ NF9_IPV6_SRC_MASK, 	 	 "V6 src mask",		_1byte,   _1byte,  move8, zero8, EX_MULIPLE },
@@ -783,7 +785,12 @@ size_t				size_required;
 	 * This record is expected in the output stream. If not available
 	 * in the template, assume empty 4 bytes value
 	 */
-	PushSequence( table, NF9_IN_PACKETS, &offset, &table->packets, 0);
+	if ( cache.lookup_info[NF_F_INITIATORPACKETS].found ) {
+		PushSequence( table, NF_F_INITIATORPACKETS, &offset, &table->packets, 0);
+		dbg_printf("Push NF_F_INITIATORPACKETS\n");
+	} else {
+		PushSequence( table, NF9_IN_PACKETS, &offset, &table->packets, 0);
+	}
 	// fix: always have 64bit counters due to possible sampling
 	SetFlag(table->flags, FLAG_PKG_64);
 
@@ -866,7 +873,12 @@ size_t				size_required;
 				PushSequence( table, NF9_OUT_PKTS, &offset, &table->out_packets, 0);
 				break;
 			case EX_OUT_PKG_8:
-				PushSequence( table, NF9_OUT_PKTS, &offset, &table->out_packets, 0);
+				if ( cache.lookup_info[NF_F_RESPONDERPACKETS].found ) {
+					PushSequence( table, NF_F_RESPONDERPACKETS, &offset, &table->out_packets, 0);
+					dbg_printf("Push NF_F_RESPONDERPACKETS\n");
+				} else {
+					PushSequence( table, NF9_OUT_PKTS, &offset, &table->out_packets, 0);
+				}
 				break;
 			case EX_OUT_BYTES_4:
 				if ( cache.lookup_info[NF_F_REV_FLOW_DELTA_BYTES].found ) {
