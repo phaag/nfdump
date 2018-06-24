@@ -57,6 +57,17 @@ typedef struct send_peer_s {
 	void		*endp;
 } send_peer_t;
 
+typedef struct repeater_s {
+	char	*hostname;
+	char	*port;
+	struct sockaddr_storage addr;
+	int		addrlen;
+	int		family;
+	int		sockfd;
+} repeater_t;
+
+#define MAX_REPEATERS 8
+
 /* Function prototypes */
 
 int Unicast_receive_socket(const char *bindhost, const char *listenport, int family, int sockbuflen );

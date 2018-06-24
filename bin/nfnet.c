@@ -178,12 +178,11 @@ int 			error, p, sockfd;
 int Unicast_send_socket (const char *hostname, const char *sendport, int family, 
 		unsigned int wmem_size, struct sockaddr_storage *addr, int *addrlen) {
 struct addrinfo hints, *res, *ressave;
-int n, sockfd;
+int error, sockfd;
 unsigned int wmem_actual;
 socklen_t optlen;
 
 	if ( !hostname || !sendport ) {
-        fprintf(stderr, "hostname and listen port required!\n");
         LogError("hostname and listen port required!");
 		return -1;
 	}
@@ -194,10 +193,9 @@ socklen_t optlen;
     hints.ai_family   = family;
     hints.ai_socktype = SOCK_DGRAM; 
     
-    n = getaddrinfo(hostname, sendport, &hints, &res);
-
-    if ( n < 0 ) {
-        fprintf(stderr, "getaddrinfo error: [%s]\n", strerror(errno));
+    error = getaddrinfo(hostname, sendport, &hints, &res);
+    if ( error ) {
+        LogError("getaddrinfo() error: %s", gai_strerror(error));
         return -1;
     }
 
@@ -205,27 +203,28 @@ socklen_t optlen;
     sockfd  = -1;
     while (res) {
         sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-
-        if ( !(sockfd < 0) ) {
+        if ( sockfd < 0 ) {
+        	LogError("socket() error: could not open the requested socket: %s", strerror (errno));
+		} else {
 			// socket call was successsful
-            if (connect(sockfd, res->ai_addr, res->ai_addrlen) == 0) {
+            if (connect(sockfd, res->ai_addr, res->ai_addrlen) < 0) { 
+				// unsuccessful connect :(
+        		LogError("connect() error: could not open the requested socket: %s", strerror (errno));
+            	close(sockfd);
+            	sockfd = -1;
+			} else {
 				// connect successful - we are done
             	close(sockfd);
 				// ok - we need now an unconnected socket
         		sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
                 break;
             }
-			// unsuccessful connect :(
-            close(sockfd);
-            sockfd = -1;
         }
         res=res->ai_next;
     }
 
     if (sockfd < 0) {
         freeaddrinfo(ressave);
-        fprintf(stderr, "Send socket error: could not open the requested socket: %s\n", strerror (errno));
-        LogError("Send socket error: could not open the requested socket: %s", strerror (errno));
         return -1;
     }
 

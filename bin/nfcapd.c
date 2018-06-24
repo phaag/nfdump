@@ -146,7 +146,7 @@ static void daemonize(void);
 
 static void SetPriv(char *userid, char *groupid );
 
-static void run(packet_function_t receive_packet, int socket, send_peer_t peer, 
+static void run(packet_function_t receive_packet, int socket, repeater_t *repeater, 
 	time_t twin, time_t t_begin, int report_seq, int use_subdirs, char *time_extension, int compress);
 
 /* Functions */
@@ -166,7 +166,7 @@ static void usage(char *name) {
 					"-H Add port histogram data to flow file.(default 'no')\n"
 					"-n Ident,IP,logdir\tAdd this flow source - multiple streams\n" 
 					"-P pidfile\tset the PID file\n"
-					"-R IP[/port]\tRepeat incoming packets to IP address/port\n"
+					"-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
 					"-s rate\tset default sampling rate (default 1)\n"
 					"-x process\tlaunch process after a new file becomes available\n"
 					"-z\t\tLZO compress flows in output file.\n"
@@ -358,7 +358,7 @@ int		err;
 #include "nffile_inline.c"
 #include "collector_inline.c"
 
-static void run(packet_function_t receive_packet, int socket, send_peer_t peer, 
+static void run(packet_function_t receive_packet, int socket, repeater_t *repeater, 
 	time_t twin, time_t t_begin, int report_seq, int use_subdirs, char *time_extension, int compress) {
 common_flow_header_t	*nf_header;
 FlowSource_t			*fs;
@@ -422,6 +422,7 @@ srecord_t	*commbuff;
 	 */
 	while ( 1 ) {
 		struct timeval tv;
+		int i;
 
 		/* read next bunch of data into beginn of input buffer */
 		if ( !done) {
@@ -443,12 +444,15 @@ srecord_t	*commbuff;
 				continue;
 			}
 
-			if ( peer.hostname ) {
+			i = 0;
+			while ( repeater[i].hostname && (i < MAX_REPEATERS)) {
 				ssize_t len;
-				len = sendto(peer.sockfd, in_buff, cnt, 0, (struct sockaddr *)&(peer.addr), peer.addrlen);
+				len = sendto(repeater[i].sockfd, in_buff, cnt, 0, 
+						(struct sockaddr *)&(repeater[i].addr), repeater[i].addrlen);
 				if ( len < 0 ) {
 					LogError("ERROR: sendto(): %s", strerror(errno));
 				}
+				i++;
 			}
 		}
 
@@ -745,14 +749,14 @@ char	*userid, *groupid, *checkptr, *listenport, *mcastgroup, *extension_tags;
 char	*Ident, *dynsrcdir, *time_extension, pidfile[MAXPATHLEN];
 struct stat fstat;
 packet_function_t receive_packet;
-send_peer_t  peer;
+repeater_t repeater[MAX_REPEATERS];
 FlowSource_t *fs;
 struct sigaction act;
 int		family, bufflen;
 time_t 	twin, t_start;
 int		sock, synctime, do_daemonize, expire, spec_time_extension, report_sequence;
 int		subdir_index, sampling_rate, compress;
-int		c;
+int		c, i;
 #ifdef PCAP
 char	*pcap_file;
  
@@ -780,8 +784,10 @@ char	*pcap_file;
 	expire			= 0;
 	sampling_rate	= 1;
 	compress		= NOT_COMPRESSED;
-	memset((void *)&peer, 0, sizeof(send_peer_t));
-	peer.family		= AF_UNSPEC;
+	memset((void *)&repeater, 0, sizeof(repeater));
+	for ( i = 0; i < MAX_REPEATERS; i++ ) {
+		repeater[i].family = AF_UNSPEC;
+	}
 	Ident			= "none";
 	FlowSource		= NULL;
 	extension_tags	= DefaultExtensions;
@@ -886,14 +892,23 @@ char	*pcap_file;
 				pidfile[MAXPATHLEN-1] = 0;
 				break;
 			case 'R': {
+				char *port, *hostname;
 				char *p = strchr(optarg, '/');
+				int i = 0;
 				if ( p ) { 
 					*p++ = '\0';
-					peer.port = strdup(p);
+					port = strdup(p);
 				} else {
-					peer.port = DEFAULTCISCOPORT;
+					port = DEFAULTCISCOPORT;
 				}
-				peer.hostname = strdup(optarg);
+				hostname = strdup(optarg);
+				while ( repeater[i].hostname && (i < MAX_REPEATERS) ) i++;
+				if ( i == MAX_REPEATERS ) {
+					fprintf(stderr, "Too many packet repeaters! Max: %i repeaters allowed.\n", MAX_REPEATERS);
+					exit(255);
+				}
+				repeater[i].hostname = hostname;
+				repeater[i].port 	 = port;
 
 				break; }
 			case 'r':
@@ -1040,12 +1055,14 @@ char	*pcap_file;
 		exit(255);
 	}
 
-	if ( peer.hostname ) {
-		peer.sockfd = Unicast_send_socket (peer.hostname, peer.port, peer.family, bufflen, 
-											&peer.addr, &peer.addrlen );
-		if ( peer.sockfd <= 0 )
+	i = 0;
+	while ( repeater[i].hostname && (i < MAX_REPEATERS) ) {
+		repeater[i].sockfd = Unicast_send_socket (repeater[i].hostname, repeater[i].port, repeater[i].family, bufflen, 
+											&repeater[i].addr, &repeater[i].addrlen );
+		if ( repeater[i].sockfd <= 0 )
 			exit(255);
-		LogInfo("Replay flows to host: %s port: %s", peer.hostname, peer.port);
+		LogInfo("Replay flows to host: %s port: %s", repeater[i].hostname, repeater[i].port);
+		i++;
 	}
 
 	if ( sampling_rate < 0 ) {
@@ -1205,7 +1222,7 @@ char	*pcap_file;
 	sigaction(SIGCHLD, &act, NULL);
 
 	LogInfo("Startup.");
-	run(receive_packet, sock, peer, twin, t_start, report_sequence, subdir_index, 
+	run(receive_packet, sock, repeater, twin, t_start, report_sequence, subdir_index, 
 		time_extension, compress);
 	close(sock);
 	kill_launcher(launcher_pid);
