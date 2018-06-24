@@ -3,6 +3,8 @@
 - Add multiple packet repeaters to nfcapd/sfcapd. Up to 8 repeaters (-R) can be defined.
 - Ignore OSX .DS_Store files in -R file list
 - Add CISCO ASA elements initiatorPackets (298) responderPackets (299)
+- Merge #120 pull request for -z parameter to nfreplay
+- Update man page nfreplay
 
 2018-05-06
 - New bookkeeper hash broke NfSen. Fixed. ported back to release 1.6.17

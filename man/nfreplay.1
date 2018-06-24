@@ -57,6 +57,11 @@ the time spec may be omitted e.g YYYY/MM/dd expands to
 YYYY/MM/dd.00:00:00\-YYYY/MM/dd.23:59:59 and sends all flow from a 
 given day.
 .TP 3
+.B -z \fInum
+Flows are sent with their "real distribution" acrross time (with a speed coefficient)
+-z 1 : 5 minutes of records will be sent in 5 minutes.
+-z 20 : 5 minutes of record will be sent in 5/20 = 0.25 minutes.
+.TP 3
 .B -c \fInum
 Limit number of records to send to the first \fInum\fR flows.
 .TP 3
