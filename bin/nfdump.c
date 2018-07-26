@@ -348,11 +348,11 @@ char 		bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_
 			(long long unsigned)stat_record->numpackets, (long long unsigned)bps, 
 			(long long unsigned)pps, (long long unsigned)bpp );
 	} else {
-		format_number(stat_record->numbytes, byte_str, DONT_SCALE_NUMBER, VAR_LENGTH);
-		format_number(stat_record->numpackets, packet_str, DONT_SCALE_NUMBER, VAR_LENGTH);
-		format_number(bps, bps_str, DONT_SCALE_NUMBER, VAR_LENGTH);
-		format_number(pps, pps_str, DONT_SCALE_NUMBER, VAR_LENGTH);
-		format_number(bpp, bpp_str, DONT_SCALE_NUMBER, VAR_LENGTH);
+		format_number(stat_record->numbytes, byte_str, DO_SCALE_NUMBER, VAR_LENGTH);
+		format_number(stat_record->numpackets, packet_str, DO_SCALE_NUMBER, VAR_LENGTH);
+		format_number(bps, bps_str, DO_SCALE_NUMBER, VAR_LENGTH);
+		format_number(pps, pps_str, DO_SCALE_NUMBER, VAR_LENGTH);
+		format_number(bpp, bpp_str, DO_SCALE_NUMBER, VAR_LENGTH);
 		printf("Summary: total flows: %llu, total bytes: %s, total packets: %s, avg bps: %s, avg pps: %s, avg bpp: %s\n",
 		(unsigned long long)stat_record->numflows, byte_str, packet_str, bps_str, pps_str, bpp_str );
 	}
