@@ -493,7 +493,7 @@ char protolist[NumProtos][MAX_PROTO_STR] = {
 	"TTP  ",    // 84	TTP
 	"NSIGP",    // 85	NSFNET-IGP
 	"DGP  ",    // 86	Dissimilar Gateway Protocol
-	"TCP  ",    // 87	TCF
+	"TCF  ",    // 87	TCF
 	"EIGRP",    // 88	EIGRP
 	"OSPF ",    // 89	OSPFIGP
 	"S-RPC",    // 90	Sprite RPC Protocol
