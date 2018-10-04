@@ -721,10 +721,10 @@ uint32_t	i, id, t1, t2;
   	v5_output_record->dPkts		= htonl((uint32_t)master_record->dPkts);
   	v5_output_record->dOctets	= htonl((uint32_t)master_record->dOctets);
 
-  	v5_output_record->input		= 0;
-  	v5_output_record->output	= 0;
-  	v5_output_record->src_as	= 0;
-  	v5_output_record->dst_as	= 0;
+  	v5_output_record->input		= htons(master_record->input);
+  	v5_output_record->output	= htons(master_record->output);
+  	v5_output_record->src_as	= htons(master_record->srcas);
+  	v5_output_record->dst_as	= htons(master_record->dstas);
 	v5_output_record->src_mask 	= 0;
 	v5_output_record->dst_mask 	= 0;
 	v5_output_record->pad1 		= 0;
