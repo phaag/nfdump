@@ -688,7 +688,7 @@ size_t				size_required;
 		table->extension_map_changed = 1;
 #ifdef DEVEL
 		if ( !GetTranslationTable(exporter, id) ) {
-			printf("*** ERROR failed to crosscheck translation table\n");
+			fprintf(stderr, "*** ERROR failed to crosscheck translation table\n");
 		} else {
 			printf("table lookup ok!\n");
 		}

@@ -163,7 +163,7 @@ int i;
 	i = 1;
 	while ( extension_descriptor[i].id ) {
 		if ( extension_descriptor[i].id != i ) {
-			printf("*** ERROR *** Init extension_descriptors at index %i: ID: %i, %s\n", 
+			fprintf(stderr, "*** ERROR *** Init extension_descriptors at index %i: ID: %i, %s\n", 
 				i, extension_descriptor[i].id, extension_descriptor[i].description);
 		}
 		i++;
@@ -486,7 +486,7 @@ int i, failed, extension_size, max_elements;
 	}
 
 	if ( ((int)map->size - (int)sizeof(extension_map_t)) <= 0 ) {
-		printf("Verify map id %i: ERROR: map size %i too small!\n", map->map_id, map->size);
+		fprintf(stderr, "Verify map id %i: ERROR: map size %i too small!\n", map->map_id, map->size);
 		failed = 1;
 		return 0;
 	}
@@ -497,7 +497,7 @@ int i, failed, extension_size, max_elements;
 	while (map->ex_id[i] && i <= max_elements) {
 		int id = map->ex_id[i];
 		if ( id > Max_num_extensions ) {
-			printf("Verify map id %i: ERROR: element id %i out of range [%i]!\n", map->map_id, id, Max_num_extensions);
+			fprintf(stderr, "Verify map id %i: eRROR: element id %i out of range [%i]!\n", map->map_id, id, Max_num_extensions);
 			failed = 1;
 		}
 		extension_size += extension_descriptor[id].size;
@@ -505,13 +505,13 @@ int i, failed, extension_size, max_elements;
 	}
 
 	if ( (extension_size != map->extension_size ) ) {
-		printf("Verify map id %i: ERROR extension size: Expected %i, Map reports: %i!\n",  map->map_id,
+		fprintf(stderr, "Verify map id %i: ERROR extension size: Expected %i, Map reports: %i!\n",  map->map_id,
 			extension_size, map->extension_size);
 		failed = 1;
 	}
 	if ( (i != max_elements ) && ((max_elements-i) != 1) ) {
 		// off by 1 is the opt alignment
-		printf("Verify map id %i: ERROR: Expected %i elements in map, but found %i!\n", map->map_id, max_elements, i);
+		fprintf(stderr, "Verify map id %i: ERROR: Expected %i elements in map, but found %i!\n", map->map_id, max_elements, i);
 		failed = 1;
 	}
 
@@ -531,7 +531,7 @@ int i, extension_size, max_elements;
 	}
 
 	if ( ((int)map->size - (int)sizeof(extension_map_t)) <= 0 ) {
-		printf("PANIC! - Verify map id %i: ERROR: map size %i too small!\n", map->map_id, map->size);
+		fprintf(stderr, "PANIC! - Verify map id %i: ERROR: map size %i too small!\n", map->map_id, map->size);
 		exit(255);
 	}
 
@@ -541,7 +541,7 @@ int i, extension_size, max_elements;
 	while (map->ex_id[i] && i <= max_elements) {
 		int id = map->ex_id[i];
 		if ( id > Max_num_extensions ) {
-			printf("PANIC! - Verify map id %i: ERROR: element id %i out of range [%i]!\n", map->map_id, id, Max_num_extensions);
+			fprintf(stderr, "PANIC! - Verify map id %i: ERROR: element id %i out of range [%i]!\n", map->map_id, id, Max_num_extensions);
 			exit(255);
 		}
 		extension_size += extension_descriptor[id].size;
@@ -558,7 +558,7 @@ int i, extension_size, max_elements;
 
 	if ( (i != max_elements ) && ((max_elements-i) != 1) ) {
 		// off by 1 is the opt alignment
-		printf("Verify map id %i: ERROR: Expected %i elements in map, but found %i!\n", map->map_id, max_elements, i);
+		fprintf(stderr, "Verify map id %i: ERROR: Expected %i elements in map, but found %i!\n", map->map_id, max_elements, i);
 	}
 
 } // End of FixExtensionMap

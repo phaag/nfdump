@@ -764,7 +764,7 @@ printf("file_list_level: %i\n", file_list_level);
 		}
 
 		if ( ftsent->fts_pathlen < sub_index ) {
-			printf("ERROR: fts_pathlen error at %s line %d\n", __FILE__, __LINE__);
+			fprintf(stderr, "ERROR: fts_pathlen error at %s line %d\n", __FILE__, __LINE__);
 			exit(250);
 		}
 		fts_path = &ftsent->fts_path[sub_index];
