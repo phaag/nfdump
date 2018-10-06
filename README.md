@@ -392,7 +392,7 @@ Extensions: nfcapd supports a large number of v9 tags. In order to optimise
 disk space and performance, v9 tags are grouped into a number of extensions
 which may or may not be stored into the data file. Therefore the v9 templates configured on the exporter may be tuned with the collector. Only the tags common to both are stored into the data files. Extensions can be switch on/off by using the -T option. If you want to collect all data, use __-Tall__
 
-###Sampling
+### Sampling
 By default, the sampling rate is set to 1 (unsampled) or to 
 any given value specified by the -s cmd line option. If sampling information is found 
 in the netflow stream, it overwrites the default value. Sampling is automatically 
@@ -403,7 +403,7 @@ netflow data, even if sampling is configured. The number of bytes/packets in eac
 netflow record is automatically multiplied by the sampling rate. The total number of 
 flows is not changed as this is not accurate enough. (Small flows versus large flows)
 
-###InfluxDB
+### InfluxDB
 You can send nfprofile stats data to an influxdb database. The data are the same of rrd files.
 For enable this option you need libcurl dev package installed, use --enable-influxdb for configure the project and the nfprofile command should be invoked with option: -i <influxurl> . 
 Example: -i http://localhost:8086/write?db=mydb&u=user&p=pass 
