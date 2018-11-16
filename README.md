@@ -81,7 +81,7 @@ flows. The output format is user selectable and also includes a simple
 csv format for post processing.
 
 __nfanon__ - anonymize netflow records  
-IP addresses in flow records are anonimized using the CryptoPAn methode.
+IP addresses in flow records are anonimized using the CryptoPAn method.
 
 __nfexpire__ - expire old netflow data  
 Manages data expiration. Sets appropriate limits. Used by NfSen.
@@ -127,8 +127,8 @@ More fields may be integrated in future versions of sfcapd.
 
 ### Compression
 Binary data files can optionally be compressed using either the fast LZO1X-1 compression, 
-LZ4 or the efficient but slow bzip2 methode. 
-If you compress automatically flows while they are collected, LZO1X-1 or LZ4 methodes are
+LZ4 or the efficient but slow bzip2 method. 
+If you compress automatically flows while they are collected, LZO1X-1 or LZ4 methods are
 recommended. bzip2 uses about 30 times more CPU than LZO1X-1. Use bzip2 to archive netflow
 data, which may reduce the disk usage again by a factor of 2. The compression of flow files 
 can be changed any time with nfdump -J <num>
@@ -392,7 +392,7 @@ Extensions: nfcapd supports a large number of v9 tags. In order to optimise
 disk space and performance, v9 tags are grouped into a number of extensions
 which may or may not be stored into the data file. Therefore the v9 templates configured on the exporter may be tuned with the collector. Only the tags common to both are stored into the data files. Extensions can be switch on/off by using the -T option. If you want to collect all data, use __-Tall__
 
-###Sampling
+### Sampling
 By default, the sampling rate is set to 1 (unsampled) or to 
 any given value specified by the -s cmd line option. If sampling information is found 
 in the netflow stream, it overwrites the default value. Sampling is automatically 
@@ -403,7 +403,7 @@ netflow data, even if sampling is configured. The number of bytes/packets in eac
 netflow record is automatically multiplied by the sampling rate. The total number of 
 flows is not changed as this is not accurate enough. (Small flows versus large flows)
 
-###InfluxDB
+### InfluxDB
 You can send nfprofile stats data to an influxdb database. The data are the same of rrd files.
 For enable this option you need libcurl dev package installed, use --enable-influxdb for configure the project and the nfprofile command should be invoked with option: -i <influxurl> . 
 Example: -i http://localhost:8086/write?db=mydb&u=user&p=pass 
