@@ -71,18 +71,15 @@ static char data_string[STRINGSIZE];
 
 static void String_Flags(master_record_t *r, char *string) {
 
-	// if record contains unusuall flags, print the flags in hex as 0x.. number
-	if ( r->tcp_flags > 63 ) {
-		snprintf(string, 7, "  0x%2x\n", r->tcp_flags );
-	} else {
-		string[0] = r->tcp_flags & 32 ? 'U' : '.';
-		string[1] = r->tcp_flags & 16 ? 'A' : '.';
-		string[2] = r->tcp_flags &  8 ? 'P' : '.';
-		string[3] = r->tcp_flags &  4 ? 'R' : '.';
-		string[4] = r->tcp_flags &  2 ? 'S' : '.';
-		string[5] = r->tcp_flags &  1 ? 'F' : '.';
-	}
-	string[6] = '\0';
+	string[0] = r->tcp_flags & 128 ? 'C' : '.';	// Congestion window reduced -  CWR
+	string[1] = r->tcp_flags &  64 ? 'E' : '.';	// ECN-Echo
+	string[2] = r->tcp_flags &  32 ? 'U' : '.';	// Urgent
+	string[3] = r->tcp_flags &  16 ? 'A' : '.';	// Ack
+	string[4] = r->tcp_flags &   8 ? 'P' : '.';	// Push
+	string[5] = r->tcp_flags &   4 ? 'R' : '.';	// Reset
+	string[6] = r->tcp_flags &   2 ? 'S' : '.';	// Syn
+	string[7] = r->tcp_flags &   1 ? 'F' : '.';	// Fin
+	string[8] = '\0';
 
 } // End of String_Flags
 
