@@ -1,3 +1,6 @@
+2018-11-24
+- Fix protocol tag for protocol 87 - TCF - #130
+
 2018-06-24
 - Fix bookkeeper type - use key_t
 - Add multiple packet repeaters to nfcapd/sfcapd. Up to 8 repeaters (-R) can be defined.
