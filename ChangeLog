@@ -1,6 +1,7 @@
 2018-11-24
 - Fix protocol tag for protocol 87 - TCF - #130
 - Add TCP flags ECN,CVR - #132
+- Fix some error messages to be printed to the correct stream #135
 
 2018-06-24
 - Fix bookkeeper type - use key_t

@@ -526,12 +526,12 @@ void FixExtensionMap(extension_map_t *map) {
 int i, extension_size, max_elements;
 
 	if (( map->size & 0x3 ) != 0 ) {
-		printf("PANIC! - Verify map id %i: WARNING: map size %i not aligned!\n", map->map_id, map->size);
+		LogError("PANIC! - Verify map id %i: WARNING: map size %i not aligned!\n", map->map_id, map->size);
 		exit(255);
 	}
 
 	if ( ((int)map->size - (int)sizeof(extension_map_t)) <= 0 ) {
-		printf("PANIC! - Verify map id %i: ERROR: map size %i too small!\n", map->map_id, map->size);
+		LogError("PANIC! - Verify map id %i: ERROR: map size %i too small!\n", map->map_id, map->size);
 		exit(255);
 	}
 
@@ -541,7 +541,7 @@ int i, extension_size, max_elements;
 	while (map->ex_id[i] && i <= max_elements) {
 		int id = map->ex_id[i];
 		if ( id > Max_num_extensions ) {
-			printf("PANIC! - Verify map id %i: ERROR: element id %i out of range [%i]!\n", map->map_id, id, Max_num_extensions);
+			LogError("PANIC! - Verify map id %i: ERROR: element id %i out of range [%i]!\n", map->map_id, id, Max_num_extensions);
 			exit(255);
 		}
 		extension_size += extension_descriptor[id].size;
