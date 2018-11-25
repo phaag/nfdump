@@ -3,6 +3,7 @@
 - Add TCP flags ECN,CVR - #132
 - Fix some error messages to be printed to the correct stream #135
 - Add missing -M command line help to nfcapd
+- Remove padding byte warning in log #141
 
 2018-06-24
 - Fix bookkeeper type - use key_t

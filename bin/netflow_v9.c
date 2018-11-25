@@ -168,6 +168,7 @@ typedef struct exporter_v9_domain_s {
 	uint64_t	packets;			// number of packets sent by this exporter
 	uint64_t	flows;				// number of flow records sent by this exporter
 	uint32_t	sequence_failure;	// number of sequence failues
+	uint32_t	padding_errors;		// number of padding errors
 
 	// generic sampler
 	generic_sampler_t		*sampler;
@@ -511,6 +512,7 @@ exporter_v9_domain_t **e = (exporter_v9_domain_t **)&(fs->exporter_data);
 
 	(*e)->first	 			= 1;
 	(*e)->sequence_failure	= 0;
+	(*e)->padding_errors	= 0;
 
 	(*e)->sampler 	 = NULL;
 	(*e)->next	 	 = NULL;
@@ -1581,7 +1583,7 @@ char				*string;
 
 		if ( size_left < table->input_record_size ) {
 			if ( size_left > 3 ) {
-				LogError("Process_v9: Corrupt data flowset? Pad bytes: %u", size_left);
+				exporter->padding_errors++;
 				dbg_printf("Process_v9: Corrupt data flowset? Pad bytes: %u, table record_size: %u\n", 
 					size_left, table->input_record_size);
 			}

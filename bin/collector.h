@@ -92,6 +92,7 @@ typedef struct generic_exporter_s {
 	uint64_t	packets;			// number of packets sent by this exporter
 	uint64_t	flows;				// number of flow records sent by this exporter
 	uint32_t	sequence_failure;	// number of sequence failues
+	uint32_t	padding_errors;		// number of sequence failues
 
 	generic_sampler_t		*sampler;
 

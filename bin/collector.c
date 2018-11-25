@@ -631,12 +631,13 @@ uint32_t i, size;
 		exporter_stats->stat[i].packets 		 = e->packets;
 		exporter_stats->stat[i].flows 			 = e->flows;
 #ifdef DEVEL
-		printf("Stat: SysID: %u, version: %u, ID: %2u, Packets: %llu, Flows: %llu, Sequence Failures: %u\n", e->info.sysid,
-			e->info.version, e->info.id, e->packets, e->flows, e->sequence_failure);
+		printf("Stat: SysID: %u, version: %u, ID: %2u, Packets: %llu, Flows: %llu, Sequence Failures: %u, Padding Errors: %u\n", 
+			e->info.sysid, e->info.version, e->info.id, e->packets, e->flows, e->sequence_failure, e->padding_errors);
 
 #endif
 		// reset counters
 		e->sequence_failure = 0;
+		e->padding_errors   = 0;
 		e->packets 			= 0;
 		e->flows 			= 0;
 
