@@ -2,6 +2,7 @@
 - Fix protocol tag for protocol 87 - TCF - #130
 - Add TCP flags ECN,CVR - #132
 - Fix some error messages to be printed to the correct stream #135
+- Add missing -M command line help to nfcapd
 
 2018-06-24
 - Fix bookkeeper type - use key_t
