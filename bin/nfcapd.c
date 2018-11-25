@@ -165,6 +165,8 @@ static void usage(char *name) {
 					"-I Ident\tset the ident string for stat file. (default 'none')\n"
 					"-H Add port histogram data to flow file.(default 'no')\n"
 					"-n Ident,IP,logdir\tAdd this flow source - multiple streams\n" 
+					"-M dir \t\tSet the output directory for dynamic sources.\n"
+
 					"-P pidfile\tset the PID file\n"
 					"-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
 					"-s rate\tset default sampling rate (default 1)\n"
