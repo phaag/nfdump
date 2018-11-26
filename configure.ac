@@ -104,7 +104,7 @@ fi
 )
 
 AC_ARG_WITH(pcappath,
-[  --with-pcappath=PATH      Expect RRD installed in PATH; default /usr/local],
+[  --with-pcappath=PATH      Expect libpcap installed in PATH; default /usr/local],
 if test "x$with_pcappath" = "xyes" ; then
 	CPPFLAGS="${CPPFLAGS} -I/usr/local/include"
 	LDFLAGS="${LDFLAGS} -L/usr/local/lib"
@@ -242,7 +242,7 @@ AC_ARG_ENABLE(nfpcapd,
 cat >>config.h <<_ACEOF
 #define HAVE_LIBPCAP 1
 _ACEOF
-RRD_LIBS="-lpcap"
+PCAP_LIBS="-lpcap"
 AC_SUBST(PCAP_LIBS)
 ]
 , AC_MSG_ERROR(Can not link libpcap. Please specify --with-pcappath=.. configure failed! ))
