@@ -1,4 +1,5 @@
 /*
+ *  Copyright (c) 2019, Peter Haag
  *  Copyright (c) 2017, Peter Haag
  *  Copyright (c) 2016, Peter Haag
  *  Copyright (c) 2014, Peter Haag
@@ -264,7 +265,6 @@ static void Interrupt_handler(int sig) {
 pthread_t tid		 = pthread_self();
 thread_info_t	*thread_info;
 
-	LogInfo("[%lu] Signal handler: %i", (long unsigned)tid, sig);
 	thread_info = (thread_info_t *)pthread_getspecific(buffer_key);
 	if ( !thread_info ) {
 		LogError("[%lu] Interrupt_handler() failed to get thread specific data block\n", (long unsigned)tid);
