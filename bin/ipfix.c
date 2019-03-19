@@ -112,7 +112,15 @@ typedef struct sequence_map_s {
 	uint16_t	input_offset;	// copy/process data at this input offset
 	uint16_t	output_offset;	// copy final data to this output offset
 	void		*stack;			// optionally copy data onto this stack
+	uint16_t	type; // type
 } sequence_map_t;
+
+typedef struct template_s
+{
+	uint16_t	type;
+	uint16_t	length;
+	sequence_map_t	*sequence;
+} template_t;
 
 /*
  * the IPFIX template records are processed and
@@ -153,6 +161,8 @@ typedef struct input_translation_s {
 	// sequence map information
 	uint32_t	number_of_sequences;	// number of sequences for the translate 
 	sequence_map_t *sequence;			// sequence map
+	template_t *template; // template
+	uint32_t template_elements;
 } input_translation_t;
 
 /*
@@ -265,6 +275,15 @@ static struct ipfix_element_map_s {
 	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero32, COMMON_BLOCK},
 	{ IPFIX_flowStartDeltaMicroseconds,	 _4bytes,   _4bytes,  TimeDeltaMicro, zero32, COMMON_BLOCK},
 	{ IPFIX_flowEndDeltaMicroseconds, 	 _4bytes,   _4bytes,  TimeDeltaMicro, zero32, COMMON_BLOCK},
+	/* NEL */
+	{ IPFIX_postNATSourceIPv4Address, 	 _4bytes,   _4bytes,  move32, zero32, EX_NSEL_XLATE_IP_v4},
+	{ IPFIX_postNATDestinationIPv4Address,	 _4bytes,   _4bytes,  move32, zero32, EX_NSEL_XLATE_IP_v4},
+	{ IPFIX_postNAPTSourceTransportPort, _2bytes,   _2bytes,  move16, zero16, EX_NSEL_XLATE_PORTS},
+	{ IPFIX_postNAPTDestinationTransportPort, _2bytes,   _2bytes,  move16, zero16, EX_NSEL_XLATE_PORTS},
+	{ IPFIX_natEvent, _1byte,   _1byte,  move8, zero8, EX_NEL_COMMON},
+	{ IPFIX_ingressVRFID, _4bytes,   _4bytes,  move32, zero32, EX_NEL_COMMON},
+	{ IPFIX_egressVRFID, _4bytes,   _4bytes,  move32, zero32, EX_NEL_COMMON},
+	{ IPFIX_observationTimeMilliseconds, _8bytes, _8bytes, Time64Mili, zero32, COMMON_BLOCK },
 	{0, 0, 0}
 };
 
@@ -280,6 +299,7 @@ static struct cache_s {
 	uint32_t	*common_extensions;
 
 } cache;
+
 
 // module limited globals
 static uint32_t	processed_records;
@@ -567,6 +587,8 @@ uint32_t index = cache.lookup_info[Type].index;
 			table->sequence[i].input_offset  = cache.lookup_info[Type].offset;
 			table->sequence[i].output_offset = *offset;
 			table->sequence[i].stack = stack;
+			table->sequence[i].type = Type;
+
 	} else {
 			table->sequence[i].id = ipfix_element_map[index].zero_sequence;
 			table->sequence[i].input_offset  = 0;
@@ -741,6 +763,25 @@ size_t				size_required;
 			continue;
 
 		switch(i) {
+			case EX_NEL_COMMON:
+				PushSequence( table, IPFIX_natEvent, &offset, NULL);
+				offset += 3;
+				PushSequence( table, IPFIX_ingressVRFID, &offset, NULL);
+				PushSequence( table, IPFIX_egressVRFID, &offset, NULL);
+
+				uint32_t offs = BYTE_OFFSET_first;
+				PushSequence( table, IPFIX_observationTimeMilliseconds, &offs, &table->flow_start);
+				offs = BYTE_OFFSET_first + 4;
+				PushSequence( table, IPFIX_observationTimeMilliseconds, &offs, &table->flow_end);
+				break;
+			case EX_NSEL_XLATE_PORTS:
+				PushSequence( table, IPFIX_postNAPTSourceTransportPort, &offset, NULL);
+				PushSequence( table, IPFIX_postNAPTDestinationTransportPort, &offset, NULL);
+				break;
+			case EX_NSEL_XLATE_IP_v4:
+				PushSequence( table, IPFIX_postNATSourceIPv4Address, &offset, NULL);
+				PushSequence( table, IPFIX_postNATDestinationIPv4Address, &offset, NULL);
+				break;
 			case EX_IO_SNMP_2:
 				PushSequence( table, IPFIX_ingressInterface, &offset, NULL);
 				PushSequence( table, IPFIX_egressInterface, &offset, NULL);
@@ -1105,8 +1146,10 @@ uint16_t Offset = 0;
 
 		Offset = 0;
 		// process all elements in this record
+		template_t *template = calloc(count, sizeof(template_t));
 		NextElement 	 = (ipfix_template_elements_std_t *)ipfix_template_record->elements;
 		for ( i=0; i<count; i++ ) {
+			template_t *cur_template = &template[i];
 			uint16_t Type, Length;
 			uint32_t ext_id;
 			int Enterprise;
@@ -1114,9 +1157,11 @@ uint16_t Offset = 0;
 			Type   = ntohs(NextElement->Type);
 			Length = ntohs(NextElement->Length);
 			Enterprise = Type & 0x8000 ? 1 : 0;
-
+			cur_template->type = Type;
+			cur_template->length = Length;
 			ext_id = MapElement(Type, Length, Offset);
 
+			dbg_printf("Proceed idx: %d, type: %u, length: %u\n", i, Type, Length);
 			// do we store this extension? enabled != 0
 			// more than 1 v9 tag may map to an extension - so count this extension once only
 			if ( ext_id && extension_descriptor[ext_id].enabled ) {
@@ -1179,6 +1224,28 @@ uint16_t Offset = 0;
 			dbg_printf("Force add packet received time, Extension: %u\n", EX_RECEIVED);
 		}
 
+		if ( extension_descriptor[EX_NSEL_XLATE_PORTS].enabled ) {
+			if ( cache.common_extensions[EX_NSEL_XLATE_PORTS] == 0 ) {
+				cache.common_extensions[EX_NSEL_XLATE_PORTS] = 1;
+				num_extensions++;
+			}
+		}
+
+		if ( extension_descriptor[EX_NSEL_XLATE_IP_v4].enabled ) {
+			if ( cache.common_extensions[EX_NSEL_XLATE_IP_v4] == 0 ) {
+				cache.common_extensions[EX_NSEL_XLATE_IP_v4] = 1;
+				num_extensions++;
+			}
+		}
+
+		if ( extension_descriptor[EX_NEL_COMMON].enabled ) {
+			if ( cache.common_extensions[EX_NEL_COMMON] == 0 ) {
+				cache.common_extensions[EX_NEL_COMMON] = 1;
+				num_extensions++;
+			}
+		}
+
+
 #ifdef DEVEL
 		{
 			int i;
@@ -1197,6 +1264,22 @@ uint16_t Offset = 0;
 			dbg_printf("Translation Table changed! Add extension map ID: %i\n", translation_table->extension_info.map->map_id);
 			AddExtensionMap(fs, translation_table->extension_info.map);
 			dbg_printf("Translation Table added! map ID: %i\n", translation_table->extension_info.map->map_id);
+		}
+
+		translation_table->template = template;
+		translation_table->template_elements = count;
+		for(i = 0; i < count; i++)
+		{
+			int z;
+			for(z = 0; z < translation_table->number_of_sequences; z++)
+			{
+				if(template[i].type == translation_table->sequence[z].type)
+				{
+					dbg_printf("Adding sequence for type: %u\n", template[i].type);
+					template[i].sequence = &translation_table->sequence[z];
+					break;
+				}
+			}
 		}
 
 		// update size left of this flowset
@@ -1408,7 +1491,6 @@ static inline void Process_ipfix_data(exporter_ipfix_domain_t *exporter, uint32_
 uint64_t			sampling_rate;
 uint32_t			size_left;
 uint8_t				*in, *out;
-int					i;
 char				*string;
 
 	size_left = GET_FLOWSET_LENGTH(data_flowset) - 4; // -4 for data flowset header -> id and length
@@ -1489,106 +1571,14 @@ char				*string;
 		table->out_packets 	  	    = 0;
 		table->out_bytes 	  	    = 0;
 
-		// apply copy and processing sequence
-		for ( i=0; i<table->number_of_sequences; i++ ) {
-			int input_offset  = table->sequence[i].input_offset;
-			int output_offset = table->sequence[i].output_offset;
-			void *stack = table->sequence[i].stack;
-			switch (table->sequence[i].id) {
-				case nop:
-					break;
-				case move8:
-					out[output_offset] = in[input_offset];
-					break;
-				case move16:
-					*((uint16_t *)&out[output_offset]) = Get_val16((void *)&in[input_offset]);
-					break;
-				case move32:
-					*((uint32_t *)&out[output_offset]) = Get_val32((void *)&in[input_offset]);
-					break;
-				case move40:
-					/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
-					{ type_mask_t t;
+		int z;
+		uint8_t *cur_in = in;
+		int rec_size = 0;
 
-						t.val.val64 = Get_val40((void *)&in[input_offset]);
-						*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
-						*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
-					}
-					break;
-				case move48:
-					/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
-					{ type_mask_t t;
-						t.val.val64 = Get_val48((void *)&in[input_offset]);
-						*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
-						*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
-					}
-					break;
-				case move56:
-					/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
-					{ type_mask_t t;
-
-						t.val.val64 = Get_val56((void *)&in[input_offset]);
-						*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
-						*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
-					}
-					break;
-				case move64: 
-					{ type_mask_t t;
-						t.val.val64 = Get_val64((void *)&in[input_offset]);
-
-						*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
-						*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
-					} break;
-				case move128: 
-					/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
-					{ type_mask_t t;
-					  
-						t.val.val64 = Get_val64((void *)&in[input_offset]);
-						*((uint32_t *)&out[output_offset]) 	  = t.val.val32[0];
-						*((uint32_t *)&out[output_offset+4])  = t.val.val32[1];
-
-						t.val.val64 = Get_val64((void *)&in[input_offset+8]);
-						*((uint32_t *)&out[output_offset+8])  = t.val.val32[0];
-						*((uint32_t *)&out[output_offset+12]) = t.val.val32[1];
-					} break;
-				case move32_sampling:
-					/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
-					{ type_mask_t t;
-						t.val.val64 = Get_val32((void *)&in[input_offset]);
-						t.val.val64 *= sampling_rate;
-						*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
-						*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
-					  	*(uint64_t *)stack = t.val.val64;
-					} break;
-				case move64_sampling:
-					/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
-					{ type_mask_t t;
-						t.val.val64 = Get_val64((void *)&in[input_offset]);
-
-						t.val.val64 *= sampling_rate;
-						*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
-						*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
-					  	*(uint64_t *)stack = t.val.val64;
-					} break;
-				case Time64Mili:
-					{ uint64_t DateMiliseconds = Get_val64((void *)&in[input_offset]);
-					  *(uint64_t *)stack = DateMiliseconds;
-
-					} break;
-				case TimeDeltaMicro:
-					{ uint64_t DeltaMicroSec = Get_val32((void *)&in[input_offset]);
-					  *(uint64_t *)stack = ((1000000LL * (uint64_t)ExportTime) - DeltaMicroSec) / 1000LL;
-
-					} break;
-				case move_mac:
-					/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
-					{ type_mask_t t;
-
-						t.val.val64 = Get_val48((void *)&in[input_offset]);
-						*((uint32_t *)&out[output_offset])   = t.val.val32[0];
-						*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
-					}
-					break;
+		for(z = 0; z < table->number_of_sequences; z++)
+		{
+			int output_offset = table->sequence[z].output_offset;
+			switch (table->sequence[z].id) {
 				case zero8:
 					out[output_offset] = 0;
 					break;
@@ -1599,20 +1589,155 @@ char				*string;
 					*((uint32_t *)&out[output_offset]) = 0;
 					break;
 				case zero64: 
-						*((uint64_t *)&out[output_offset]) = 0;
+					*((uint64_t *)&out[output_offset]) = 0;
 					 break;
-				case zero128: 
-						*((uint64_t *)&out[output_offset]) = 0;
-						*((uint64_t *)&out[output_offset+8]) = 0;
+				case zero128:
+					*((uint64_t *)&out[output_offset]) = 0;
+					*((uint64_t *)&out[output_offset+8]) = 0;
 					break;
-				
 				default:
-					LogError("Process_ipfix: Software bug! Unknown Sequence: %u. at %s line %d", 
-						table->sequence[i].id, __FILE__, __LINE__);
-					dbg_printf("Software bug! Unknown Sequence: %u. at %s line %d\n", 
-						table->sequence[i].id, __FILE__, __LINE__);
+					break;
 			}
 		}
+
+
+		for(z = 0; z < table->template_elements; z++)
+		{
+			dbg_printf("Proceed type %u\n", table->template[z].type);
+			if(table->template[z].sequence != NULL)
+			{
+				sequence_map_t *sequence = table->template[z].sequence;
+				int output_offset = sequence->output_offset;
+				void *stack = sequence->stack;
+				switch (sequence->id) {
+					case nop:
+						break;
+					case move8:
+						out[output_offset] = *cur_in;
+						break;
+					case move16:
+						*((uint16_t *)&out[output_offset]) = Get_val16((void *)cur_in);
+						break;
+					case move32:
+						*((uint32_t *)&out[output_offset]) = Get_val32((void *)cur_in);
+						break;
+					case move40:
+						/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
+						{ type_mask_t t;
+							t.val.val64 = Get_val40((void *)cur_in);
+							*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
+							*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
+						}
+						break;
+					case move48:
+						/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
+						{ type_mask_t t;
+							t.val.val64 = Get_val48((void *)cur_in);
+							*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
+							*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
+						}
+						break;
+					case move56:
+						/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
+						{ type_mask_t t;
+							t.val.val64 = Get_val56((void *)cur_in);
+							*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
+							*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
+						}
+						break;
+					case move64:
+						{ type_mask_t t;
+							t.val.val64 = Get_val64((void *)cur_in);
+						*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
+						*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
+					} break;
+					case move128:
+						/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
+						{ type_mask_t t;
+					  
+							t.val.val64 = Get_val64((void *)cur_in);
+							*((uint32_t *)&out[output_offset]) 	  = t.val.val32[0];
+							*((uint32_t *)&out[output_offset+4])  = t.val.val32[1];
+
+							t.val.val64 = Get_val64((void *)cur_in + 8);
+							*((uint32_t *)&out[output_offset+8])  = t.val.val32[0];
+							*((uint32_t *)&out[output_offset+12]) = t.val.val32[1];
+						} break;
+					case move32_sampling:
+						/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
+						{ type_mask_t t;
+							t.val.val64 = Get_val32((void *)cur_in);
+							t.val.val64 *= sampling_rate;
+							*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
+							*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
+						  	*(uint64_t *)stack = t.val.val64;
+						} break;
+					case move64_sampling:
+						/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
+						{ type_mask_t t;
+							t.val.val64 = Get_val64((void *)cur_in);
+
+							t.val.val64 *= sampling_rate;
+							*((uint32_t *)&out[output_offset]) 	 = t.val.val32[0];
+							*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
+						  	*(uint64_t *)stack = t.val.val64;
+						} break;
+					case Time64Mili:
+						{ uint64_t DateMiliseconds = Get_val64((void *)cur_in);
+						  *(uint64_t *)stack = DateMiliseconds;
+						} break;
+					case TimeDeltaMicro:
+						{ uint64_t DeltaMicroSec = Get_val32((void *)cur_in);
+						  *(uint64_t *)stack = ((1000000LL * (uint64_t)ExportTime) - DeltaMicroSec) / 1000LL;
+						} break;
+					case move_mac:
+						/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
+						{ type_mask_t t;
+	
+							t.val.val64 = Get_val48((void *)cur_in);
+							*((uint32_t *)&out[output_offset])   = t.val.val32[0];
+							*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
+						}
+						break;
+					case zero8:
+						out[output_offset] = 0;
+						break;
+					case zero16:
+						*((uint16_t *)&out[output_offset]) = 0;
+						break;
+					case zero32:
+						*((uint32_t *)&out[output_offset]) = 0;
+						break;
+					case zero64: 
+						*((uint64_t *)&out[output_offset]) = 0;
+						 break;
+					case zero128:
+						*((uint64_t *)&out[output_offset]) = 0;
+						*((uint64_t *)&out[output_offset+8]) = 0;
+						break;
+					default:
+						LogError("Process_ipfix: Software bug! Unknown Sequence: %u. at %s line %d", 
+							sequence->id, __FILE__, __LINE__);
+						dbg_printf("Software bug! Unknown Sequence: %u. at %s line %d\n", 
+							sequence->id, __FILE__, __LINE__);
+				}
+			}
+			if(table->template[z].length == 65535)
+			{
+				dbg_printf("Variable length %d for field with sequence %d\n",(int)*cur_in + 1,  z);
+				int sz = (int)*cur_in + 1;
+				cur_in += sz;
+				size_left -= sz;
+				rec_size += sz;
+			}
+			else
+			{
+				cur_in += table->template[z].length;
+				size_left -= table->template[z].length;
+				rec_size += table->template[z].length;
+			}
+		}
+		dbg_printf("Input record size: %d\n", rec_size);
 
 		// for netflow historical reason, ICMP type/code goes into dst port field
 		if ( data_record->prot == IPPROTO_ICMP || data_record->prot == IPPROTO_ICMPV6 ) {
@@ -1711,8 +1836,8 @@ char				*string;
 		fs->nffile->buff_ptr	= (common_record_t *)((pointer_addr_t)data_record + data_record->size);
 
 		// advance input
-		size_left 		   -= table->input_record_size;
-		in  	  		   += table->input_record_size;
+//		size_left 		   -= table->input_record_size;
+		in  	  		   = cur_in;
 
 		// buffer size sanity check
 		if ( fs->nffile->block_header->size  > BUFFSIZE ) {
