@@ -1726,6 +1726,11 @@ char				*string;
 			{
 				dbg_printf("Variable length %d for field with sequence %d\n",(int)*cur_in + 1,  z);
 				int sz = (int)*cur_in + 1;
+				if(*cur_in == 255)
+				{
+					uint16_t *p = (uint16_t *)((uint8_t *)cur_in + 1);
+					sz = 3 + ntohs(*p);
+				}
 				cur_in += sz;
 				size_left -= sz;
 				rec_size += sz;
