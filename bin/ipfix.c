@@ -1589,6 +1589,9 @@ char				*string;
 						*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
 					}
 					break;
+				case move_mpls:
+					// XXX implementation needs test data
+					break;
 				case zero8:
 					out[output_offset] = 0;
 					break;
