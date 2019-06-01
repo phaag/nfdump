@@ -155,4 +155,4 @@ endif
 
 check_DIST = inline.c collector_inline.c nffile_inline.c nfdump_inline.c heapsort_inline.c applybits_inline.c 
 check_DIST += test.sh nfdump.test.out parse_csv.pl AddExtension.txt	nfdump.test.diff
-CLEANFILES = lex.yy.c grammar.c grammar.h scanner.c scanner.h $(check_PROGRAMS)
+CLEANFILES = lex.yy.c grammar.c grammar.h scanner.c scanner.h $(check_PROGRAMS) *.gch

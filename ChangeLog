@@ -1,5 +1,6 @@
 2019-06-01
 - Fix issue #162 - ipfix mpls sequece.
+- Fix issue #156 - print flowtable index error
 
 2019-03-17
 - Fix spec file

@@ -1474,7 +1474,7 @@ char				*string;
 		}
 
 		// preset SortList table - still unsorted
-		for ( i=0; i<FlowTable->IndexMask; i++ ) {
+		for ( i=0; i<=FlowTable->IndexMask; i++ ) {
 			r = FlowTable->bucket[i];
 			if ( !r ) 
 				continue;
@@ -1517,7 +1517,7 @@ char				*string;
 	} else {
 		// print them as they came
 		c = 0;
-		for ( i=0; i<FlowTable->IndexMask; i++ ) {
+		for ( i=0; i<=FlowTable->IndexMask; i++ ) {
 			r = FlowTable->bucket[i];
 			while ( r ) {
 				master_record_t	*flow_record;
@@ -1577,7 +1577,6 @@ char				*string;
 			}
 		}
 	}
-
 } // End of PrintFlowTable
 
 void PrintFlowStat(char *record_header, printer_t print_record, int topN, int tag, int quiet, int cvs_output, extension_map_list_t *extension_map_list) {
@@ -1608,7 +1607,7 @@ uint32_t			maxindex, c;
 	}
 
 	// preset SortList table - still unsorted
-	for ( i=0; i<FlowTable->IndexMask; i++ ) {
+	for ( i=0; i<=FlowTable->IndexMask; i++ ) {
 		r = FlowTable->bucket[i];
 		if ( !r ) 
 			continue;
