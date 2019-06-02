@@ -1,4 +1,7 @@
 2019-06-01
+- Add ipfix dyn element handling.
+
+2019-06-01
 - Fix issue #162 - ipfix mpls sequece.
 - Fix issue #156 - print flowtable index error
 

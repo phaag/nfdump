@@ -74,6 +74,8 @@
 #define GET_OPTION_TEMPLATE_FIELD_COUNT(p)   (Get_val16((void *)((p) + 2)))
 #define GET_OPTION_TEMPLATE_SCOPE_FIELD_COUNT(p)   		 (Get_val16((void *)((p) + 4)))
 
+#define DYN_FIELD_LENGTH	65535
+
 /* module limited globals */
 
 /* 
@@ -86,30 +88,34 @@ typedef struct sequence_map_s {
    set a certain number of output bytes to zero -> zeroXX
    process input data into appropriate output   -> AnyName
  */
-#define nop     		0
-#define move8   		1
-#define move16  		2
-#define move32  		3
-#define move40  		4
-#define move48  		5
-#define move56  		6
-#define move64  		7
-#define move128 		8
-#define move32_sampling 9
-#define move64_sampling 10
-#define move_mac		11
-#define move_mpls 		12
-#define Time64Mili 		13
-#define TimeDeltaMicro 	14
-#define saveICMP 		15
-#define zero8			16
-#define zero16			17
-#define zero32			18
-#define zero64			19
-#define zero128			20
+#define nop    			0
+#define dyn_skip		1
+#define move8   		2
+#define move16  		3
+#define move32  		4
+#define move40  		5
+#define move48  		6
+#define move56  		7
+#define move64  		8
+#define move128 		9
+#define move32_sampling 10
+#define move64_sampling 11
+#define move_mac		12
+#define move_mpls 		13
+#define move_flags		14
+#define Time64Mili 		15
+#define TimeDeltaMicro 	16
+#define saveICMP 		17
+#define zero8			18
+#define zero16			19
+#define zero32			20
+#define zero64			22
+#define zero128			23
 
 	uint32_t	id;				// sequence ID as defined above
-	uint16_t	input_offset;	// copy/process data at this input offset
+	uint16_t	skip_count;		// skip this number of bytes in input stream after reading
+	uint16_t	type;			// Element type
+	uint16_t	input_length;	// length of input element
 	uint16_t	output_offset;	// copy final data to this output offset
 	void		*stack;			// optionally copy data onto this stack
 } sequence_map_t;
@@ -126,23 +132,17 @@ typedef struct input_translation_s {
 	uint32_t	flags;					// flags for output record
 	time_t		updated;				// timestamp of last update/refresh
 	uint32_t	id;						// template ID of exporter domains
-	uint32_t	input_record_size;		// size of the input record
 	uint32_t	output_record_size;		// required size in nfdump format
 
 	// tmp vars needed while processing the data record
 	int			delta_time;				// delta micro or absolute ms time stamps
 	uint64_t	flow_start;				// start time in msec
 	uint64_t	flow_end;				// end time in msec
-	uint32_t	ICMP_offset;			// offset of ICMP type/code in data stream
+	uint32_t	icmpTypeCodeIPv4;		// ICMP type/code in data stream
 	uint64_t    packets;				// total (in)packets - sampling corrected
 	uint64_t    bytes;					// total (in)bytes - sampling corrected
 	uint64_t    out_packets;			// total out packets - sampling corrected
 	uint64_t    out_bytes;				// total out bytes - sampling corrected
-//	uint32_t	src_as_offset;
-//	uint32_t	dst_as_offset;
-//	uint32_t	sampler_offset;
-//	uint32_t	sampler_size;
-//	uint32_t	engine_offset;
 	uint32_t	router_ip_offset;
 	uint32_t	received_offset;
 
@@ -151,6 +151,7 @@ typedef struct input_translation_s {
 	extension_info_t 	 extension_info; // the extension map reflecting this template
 
 	// sequence map information
+	uint32_t	max_number_of_sequences; // max number of sequences for the translate 
 	uint32_t	number_of_sequences;	// number of sequences for the translate 
 	sequence_map_t *sequence;			// sequence map
 } input_translation_t;
@@ -213,6 +214,7 @@ static struct ipfix_element_map_s {
 	{ IPFIX_protocolIdentifier, 		 _1byte, 	_1byte,   move8,  zero8, COMMON_BLOCK },
 	{ IPFIX_ipClassOfService, 			 _1byte, 	_1byte,   move8, zero8, COMMON_BLOCK },
 	{ IPFIX_tcpControlBits, 			 _1byte, 	_1byte,   move8, zero8, COMMON_BLOCK },
+	{ IPFIX_tcpControlBits, 			 _2bytes, 	_1byte,   move_flags, zero8, COMMON_BLOCK },
 	{ IPFIX_SourceTransportPort, 		 _2bytes, 	_2bytes,  move16, zero16, COMMON_BLOCK },
 	{ IPFIX_SourceIPv4Address, 			 _4bytes, 	_4bytes,  move32, zero32, COMMON_BLOCK },
 	{ IPFIX_SourceIPv4PrefixLength, 	 _1byte, 	_1byte,   move8, zero8, EX_MULIPLE },
@@ -239,8 +241,7 @@ static struct ipfix_element_map_s {
 	{ IPFIX_DestinationIPv6Address, 	 _16bytes, 	_16bytes, move128, zero128, COMMON_BLOCK },
 	{ IPFIX_SourceIPv6PrefixLength, 	 _1byte, 	_1byte,   move8, zero8, EX_MULIPLE },
 	{ IPFIX_DestinationIPv6PrefixLength, _1byte, 	_1byte,   move8, zero8, EX_MULIPLE },
-	{ IPFIX_flowLabelIPv6, 				 _4bytes, 	_4bytes,  nop, nop, COMMON_BLOCK },
-	{ IPFIX_icmpTypeCodeIPv4, 			 _2bytes, 	_2bytes,  nop, nop, COMMON_BLOCK },
+	{ IPFIX_icmpTypeCodeIPv4, 			 _2bytes, 	_2bytes,  saveICMP, nop, COMMON_BLOCK },
 	{ IPFIX_postIpClassOfService, 		 _1byte, 	_1byte,   move8, zero8, EX_MULIPLE },
 	{ IPFIX_SourceMacAddress, 			 _6bytes, 	_8bytes,  move_mac, zero64, EX_MAC_1},
 	{ IPFIX_postDestinationMacAddress, 	 _6bytes,	_8bytes,  move_mac, zero64, EX_MAC_1},
@@ -273,12 +274,16 @@ static struct cache_s {
 	struct element_param_s {
 		uint16_t index;
 		uint16_t found;
-		uint16_t offset;
 		uint16_t length;
 	}			*lookup_info;
+	struct order_s {
+		uint16_t type;
+		uint16_t length;
+	} *input_order;
+	uint32_t	input_count;
 	uint32_t	max_ipfix_elements;
 	uint32_t	*common_extensions;
-
+	
 } cache;
 
 // module limited globals
@@ -304,21 +309,25 @@ static void remove_translation_table(FlowSource_t *fs, exporter_ipfix_domain_t *
 
 static void remove_all_translation_tables(exporter_ipfix_domain_t *exporter);
 
-static inline exporter_ipfix_domain_t *GetExporter(FlowSource_t *fs, ipfix_header_t *ipfix_header);
+static exporter_ipfix_domain_t *GetExporter(FlowSource_t *fs, ipfix_header_t *ipfix_header);
 
-static inline uint32_t MapElement(uint16_t Type, uint16_t Length, uint16_t Offset);
+static uint32_t MapElement(uint16_t Type, uint16_t Length, uint32_t order);
 
-static inline void PushSequence(input_translation_t *table, uint16_t Type, uint32_t *offset, void *stack);
+static void PushSequence(input_translation_t *table, uint16_t Type, uint32_t *offset, void *stack);
 
-static inline void Process_ipfix_templates(exporter_ipfix_domain_t *exporter, void *flowset_header, uint32_t size_left, FlowSource_t *fs);
+static int compact_input_order(void);
 
-static inline void Process_ipfix_template_add(exporter_ipfix_domain_t *exporter, void *DataPtr, uint32_t size_left, FlowSource_t *fs);
+static int reorder_sequencer(input_translation_t *table);
 
-static inline void Process_ipfix_template_withdraw(exporter_ipfix_domain_t *exporter, void *DataPtr, uint32_t size_left, FlowSource_t *fs);
+static void Process_ipfix_templates(exporter_ipfix_domain_t *exporter, void *flowset_header, uint32_t size_left, FlowSource_t *fs);
 
-static inline void  Process_ipfix_option_data(exporter_ipfix_domain_t *exporter, void *data_flowset, FlowSource_t *fs);
+static void Process_ipfix_template_add(exporter_ipfix_domain_t *exporter, void *DataPtr, uint32_t size_left, FlowSource_t *fs);
 
-static inline void Process_ipfix_data(exporter_ipfix_domain_t *exporter, uint32_t ExportTime, void *data_flowset, FlowSource_t *fs, input_translation_t *table );
+static void Process_ipfix_template_withdraw(exporter_ipfix_domain_t *exporter, void *DataPtr, uint32_t size_left, FlowSource_t *fs);
+
+static void  Process_ipfix_option_data(exporter_ipfix_domain_t *exporter, void *data_flowset, FlowSource_t *fs);
+
+static void Process_ipfix_data(exporter_ipfix_domain_t *exporter, uint32_t ExportTime, void *data_flowset, FlowSource_t *fs, input_translation_t *table );
 
 #include "inline.c"
 #include "nffile_inline.c"
@@ -342,6 +351,7 @@ int i;
 			cache.lookup_info[Type].index  = i;
 	}
 	cache.max_ipfix_elements = i;
+	cache.input_order = NULL;
 
 	LogError("Init IPFIX: Max number of IPFIX tags: %u", cache.max_ipfix_elements);
 
@@ -349,7 +359,7 @@ int i;
 
 } // End of Init_IPFIX
 
-static inline exporter_ipfix_domain_t *GetExporter(FlowSource_t *fs, ipfix_header_t *ipfix_header) {
+static exporter_ipfix_domain_t *GetExporter(FlowSource_t *fs, ipfix_header_t *ipfix_header) {
 #define IP_STRING_LEN   40
 char ipstr[IP_STRING_LEN];
 exporter_ipfix_domain_t **e = (exporter_ipfix_domain_t **)&(fs->exporter_data);
@@ -407,15 +417,17 @@ uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
 
 } // End of GetExporter
 
-static inline uint32_t MapElement(uint16_t Type, uint16_t Length, uint16_t Offset) {
+static uint32_t MapElement(uint16_t Type, uint16_t Length, uint32_t order) {
 int	index;
+
+	cache.input_order[order].type	= Type;
+	cache.input_order[order].length	= Length;
 
 	index = cache.lookup_info[Type].index;
 	if ( index ) {
 		while ( index && ipfix_element_map[index].id == Type ) {
 			if ( Length == ipfix_element_map[index].length ) {
 				cache.lookup_info[Type].found  = 1;
-				cache.lookup_info[Type].offset = Offset;
 				cache.lookup_info[Type].length = Length;
 				cache.lookup_info[Type].index  = index;
 				dbg_printf("found extension %u for type: %u, input length: %u output length: %u Extension: %u\n", 
@@ -425,14 +437,17 @@ int	index;
 			}
 			index++;
 		}
+		dbg_printf("Skip known element type: %u, Unknown length: %u\n", Type, Length);
+	} else {
+		dbg_printf("Skip unknown element type: %u, Length: %u\n", Type, Length);
 	}
-	dbg_printf("Skip unknown element type: %u, Length: %u\n", Type, Length);
 
+	cache.input_order[order].type = SKIP_ELEMENT;
 	return 0;
 
 } // End of MapElement
 
-static inline input_translation_t *GetTranslationTable(exporter_ipfix_domain_t *exporter, uint16_t id) {
+static input_translation_t *GetTranslationTable(exporter_ipfix_domain_t *exporter, uint16_t id) {
 input_translation_t *table;
 
 	if ( exporter->current_table && ( exporter->current_table->id == id ) )
@@ -470,14 +485,11 @@ input_translation_t **table;
 			LogError("Process_ipfix: Panic! calloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 			return NULL;
 	}
-	(*table)->sequence = calloc(cache.max_ipfix_elements, sizeof(sequence_map_t));
-	if ( !(*table)->sequence ) {
-			LogError("Process_ipfix: Panic! malloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
-			return NULL;
-	}
-
-	(*table)->id   = id;
-	(*table)->next = NULL;
+	(*table)->max_number_of_sequences = 0;
+	(*table)->number_of_sequences 	  = 0;
+	(*table)->sequence = NULL;
+	(*table)->id   	   = id;
+	(*table)->next	   = NULL;
 
 	dbg_printf("[%u] Get new translation table %u\n", exporter->info.id, id);
 
@@ -550,38 +562,207 @@ input_translation_t *table, *next;
 
 } // End of remove_all_translation_tables
 
-static inline void PushSequence(input_translation_t *table, uint16_t Type, uint32_t *offset, void *stack) {
+static int CheckSequenceMap(input_translation_t *table) {
+
+	if ( table->number_of_sequences < table->max_number_of_sequences )
+		return 1;
+
+	dbg_printf("Extend sequence map %u -> ", table->max_number_of_sequences);
+	void *p = realloc(table->sequence,  (table->max_number_of_sequences + 1) * sizeof(sequence_map_t));
+	if ( !p ) {
+		LogError("Process_ipfix: realloc() at %s line %d: %s", 
+			__FILE__, __LINE__, strerror (errno));
+		dbg_printf("\nProcess_ipfix: realloc() at %s line %d: %s", 
+			__FILE__, __LINE__, strerror (errno));
+		return 0;
+	}
+	table->sequence = p;
+	table->max_number_of_sequences += 1;
+	dbg_printf("%u\n", table->max_number_of_sequences);
+	return 1;
+
+} // End of CheckSequenceMap
+
+static void PushSequence(input_translation_t *table, uint16_t Type, uint32_t *offset, void *stack) {
 uint32_t i = table->number_of_sequences;
 uint32_t index = cache.lookup_info[Type].index;
 
-	if ( table->number_of_sequences >= cache.max_ipfix_elements ) {
-		LogError("Process_ipfix: Software bug! Sequence table full. at %s line %d", 
-			__FILE__, __LINE__);
-		dbg_printf("Software bug! Sequence table full. at %s line %d", 
-			__FILE__, __LINE__);
+	if ( !CheckSequenceMap(table) )
 		return;
-	}
 
+	table->sequence[i].skip_count = 0;
+	table->sequence[i].type = Type;
 	if ( cache.lookup_info[Type].found ) {
 			table->sequence[i].id = ipfix_element_map[index].sequence;
-			table->sequence[i].input_offset  = cache.lookup_info[Type].offset;
-			table->sequence[i].output_offset = *offset;
+			table->sequence[i].output_offset = offset ? *offset : 0;
 			table->sequence[i].stack = stack;
+			table->sequence[i].input_length = cache.lookup_info[Type].length;
 	} else {
 			table->sequence[i].id = ipfix_element_map[index].zero_sequence;
-			table->sequence[i].input_offset  = 0;
-			table->sequence[i].output_offset = *offset;
+			table->sequence[i].output_offset = offset ? *offset : 0;
 			table->sequence[i].stack = NULL;
 	}
-	dbg_printf("Push: sequence: %u, Type: %u, length: %u, out length: %u, id: %u, in offset: %u, out offset: %u\n",
-		i, Type, ipfix_element_map[index].length, ipfix_element_map[index].out_length, table->sequence[i].id, 
-		table->sequence[i].input_offset, table->sequence[i].output_offset);
+	dbg_printf("Push: sequence: %u, Type: %u, in length: %u, out length: %u, id: %u, out offset: %u\n",
+		i, Type, ipfix_element_map[index].length, ipfix_element_map[index].out_length, 
+		table->sequence[i].id, table->sequence[i].output_offset);
 	table->number_of_sequences++;
-	(*offset) += ipfix_element_map[index].out_length;
+	if ( offset ) 
+		(*offset) += ipfix_element_map[index].out_length;
 
 } // End of PushSequence
 
-static input_translation_t *setup_translation_table (exporter_ipfix_domain_t *exporter, uint16_t id, uint16_t input_record_size) {
+static int compact_input_order(void) {
+int i;
+
+	dbg_printf("\nCompacting element input order: %u elements\n", cache.input_count);
+	for ( i=0; i< cache.input_count; i++ ) {
+		dbg_printf("%i: type: %u, length: %u\n", 
+			i, cache.input_order[i].type, cache.input_order[i].length);
+		
+		if ( (cache.input_order[i].type == SKIP_ELEMENT) && (cache.input_order[i].length == DYN_FIELD_LENGTH) ) {
+			dbg_printf("Dynamic length field: %u\n", cache.input_order[i].type);
+			continue;
+		}
+		while ( (i+1) < cache.input_count &&
+			(cache.input_order[i].type == SKIP_ELEMENT) && (cache.input_order[i].length != DYN_FIELD_LENGTH) &&
+			(cache.input_order[i+1].type == SKIP_ELEMENT) && (cache.input_order[i+1].length != DYN_FIELD_LENGTH)) {
+			// merge multiple skipped fix length elements into 1 hole sequence
+				int j;
+				dbg_printf("%i: type: %u, length: %u\n", 
+					i+1, cache.input_order[i+1].type, cache.input_order[i+1].length);
+				dbg_printf("Merge order %u and %u\n", i, i+1);
+				// type set 0 to mark skip sequence
+				cache.input_order[i].type = SKIP_ELEMENT;
+				cache.input_order[i].length += cache.input_order[i+1].length;
+		
+				// shift up lower entries - fill 
+				for ( j=i+1; (j+1)<cache.input_count; j++) {
+					cache.input_order[j] = cache.input_order[j+1];
+				}
+				cache.input_count--;
+		}
+	}
+
+#ifdef DEVEL
+	printf("\nCompacted input order table: count: %u\n", cache.input_count);
+	for ( i=0; i< cache.input_count; i++ ) {
+		dbg_printf("%i: Type: %u, Length: %u\n", 
+			i, cache.input_order[i].type, cache.input_order[i].length);
+	}
+	printf("\n");
+#endif
+
+	// check for common input fields
+	for ( i=0; i< cache.input_count; i++ ) {
+		if ( cache.input_order[i].type != SKIP_ELEMENT ) 
+			// common input field in table
+			return 1;
+	}
+	// if we skip all input fields 
+	return 0;
+
+} // End of compact_input_order
+
+static int reorder_sequencer(input_translation_t *table) {
+int i, n;
+sequence_map_t *sequence = table->sequence;
+
+#ifdef DEVEL
+	printf("\nReorder Sequencer. Sequence steps: %u\n", table->number_of_sequences);
+	for ( i=0; i<table->number_of_sequences; i++ ) {
+		printf("Order: %i, Sequence: %u, Type: %u, Input length: %u, Output offset: %u, Skip Count: %u\n",
+			i, sequence[i].id, sequence[i].type, sequence[i].input_length, 
+			sequence[i].output_offset, sequence[i].skip_count);
+	}
+#endif
+
+	n = 0;	// index into sequencer table
+	// reorder Sequencer steps, so they follow input order
+	// insert skip counts if needed
+	for ( i=0; i<cache.input_count; i++ ) {
+		if ( cache.input_order[i].type == SKIP_ELEMENT ) {
+			// skip dyn length or no previous slot in sequence map
+			if ( cache.input_order[i].length == DYN_FIELD_LENGTH || n == 0 ) {
+				int j;
+				// insert skip sequence 
+
+				if ( !CheckSequenceMap(table) )
+					return 0;
+
+				// make room for new sequence - shift down slots
+				for ( j=table->number_of_sequences-1; j>=n; j-- ) {
+					sequence[j+1] = sequence[j];
+				}
+
+				// slot n now available - create nop sequence with skip count
+				if ( cache.input_order[i].length == DYN_FIELD_LENGTH ) {
+					sequence[n].id = dyn_skip;
+					sequence[n].skip_count = 0;
+				} else {
+					sequence[n].id = nop;
+					sequence[n].skip_count = cache.input_order[i].length;
+				}
+				sequence[n].type = SKIP_ELEMENT;
+				sequence[n].input_length = 0;
+				sequence[n].stack = NULL;
+				table->number_of_sequences++;
+				dbg_printf("Insert skip sequence in slot: %u, skip count: %u, dyn: %u\n", 
+					n, sequence[n].skip_count, cache.input_order[i].length == DYN_FIELD_LENGTH ? 1 : 0);
+			} else {
+				sequence[n-1].skip_count += cache.input_order[i].length;
+				dbg_printf("Merge skip count: %u into previous sequence: %u\n", cache.input_order[i].length, n-1);
+				continue;
+			}
+		} else {
+			// reorder input element if needed
+			if ( sequence[n].type != cache.input_order[i].type ) {
+				sequence_map_t _s;
+				int j = n+1;
+
+				while ( sequence[j].type != cache.input_order[i].type && j < table->number_of_sequences )
+					j++;
+
+				// must never happen!
+				if ( j == table->number_of_sequences ) {
+					// skip this field
+					if ( n == 0 ) {
+						// XXX fix this
+						return 0;
+					} else {
+						sequence[n-1].skip_count += cache.input_order[i].length;
+						dbg_printf("Merge skip count: %u into previous sequence: %u\n", cache.input_order[i].length, n-1);
+						continue;
+					}
+					return 0;
+				}
+				// swap slots
+				_s = sequence[n];
+				sequence[n] = sequence[j];
+				sequence[j] = _s;
+				dbg_printf("Swap slots %u <-> %u\n", n, j);
+			} else {
+				dbg_printf("In order slot %u\n", n);
+			}
+		}
+		// advance sequence slot
+		n++;
+	}
+
+#ifdef DEVEL
+	printf("\nReordered Sequencer. Sequence steps: %u\n", table->number_of_sequences);
+	for ( int i=0; i<table->number_of_sequences; i++ ) {
+		printf("Order: %i, Sequence: %u, Type: %u, Input length: %u, Output offset: %u, Skip Count: %u\n",
+			i, sequence[i].id, sequence[i].type, sequence[i].input_length, 
+			sequence[i].output_offset, sequence[i].skip_count);
+	}
+	printf("\n");
+#endif
+
+	return 1;
+
+} // End of reorder_sequencer
+
+static input_translation_t *setup_translation_table (exporter_ipfix_domain_t *exporter, uint16_t id) {
 input_translation_t *table;
 extension_map_t 	*extension_map;
 uint32_t			i, ipv6, offset, next_extension;
@@ -623,15 +804,18 @@ size_t				size_required;
 		// reset size/extension size - it's refreshed automatically
 		extension_map->size 	   	  = sizeof(extension_map_t);
 		extension_map->extension_size = 0;
+		free((void *)table->sequence);
 
-		dbg_printf("[%u] Refresh template %u\n", exporter->info.id, id);
-
-		// very noisy with somee exporters
 		dbg_printf("[%u] Refresh template %u\n", exporter->info.id, id);
 	}
-	// clear current table
-	memset((void *)table->sequence, 0, cache.max_ipfix_elements * sizeof(sequence_map_t));
+	// Add new sequence
+	table->sequence = calloc(cache.max_ipfix_elements, sizeof(sequence_map_t));
+	if ( !table->sequence ) {
+		LogError("Process_ipfix: Panic! malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+		return  NULL;
+	}
 	table->number_of_sequences = 0;
+	table->max_number_of_sequences = cache.max_ipfix_elements;
 
 	table->updated  	= time(NULL);
 	// IPFIX only has 64bit counters
@@ -639,10 +823,7 @@ size_t				size_required;
 	SetFlag(table->flags, FLAG_PKG_64);
 	SetFlag(table->flags, FLAG_BYTES_64);
 	table->delta_time		= 0;
-	table->ICMP_offset		= 0;
-//	table->sampler_offset 	= 0;
-//	table->sampler_size		= 0;
-//	table->engine_offset 	= 0;
+	table->icmpTypeCodeIPv4	= 0;
 	table->router_ip_offset = 0;
 	table->received_offset  = 0;
 
@@ -661,24 +842,21 @@ size_t				size_required;
 	// followed by all available extension in the extension map
 	offset = BYTE_OFFSET_first;
 	if ( cache.lookup_info[IPFIX_flowStartDeltaMicroseconds].found ) {
-		PushSequence( table, IPFIX_flowStartDeltaMicroseconds, &offset, &table->flow_start);
-		offset = BYTE_OFFSET_first + 4;
-		PushSequence( table, IPFIX_flowEndDeltaMicroseconds, &offset, &table->flow_end);
+		PushSequence( table, IPFIX_flowStartDeltaMicroseconds, NULL, &table->flow_start);
+		PushSequence( table, IPFIX_flowEndDeltaMicroseconds, NULL, &table->flow_end);
 		offset = BYTE_OFFSET_first + 8;
 		table->delta_time = 1;
 		dbg_printf("Time stamp: flow start/end delta microseconds: %u/%u\n",
 			IPFIX_flowStartDeltaMicroseconds, IPFIX_flowEndDeltaMicroseconds);
 	} else if ( cache.lookup_info[IPFIX_flowStartMilliseconds].found ) {
-		PushSequence( table, IPFIX_flowStartMilliseconds, &offset, &table->flow_start);
-		offset = BYTE_OFFSET_first + 4;
-		PushSequence( table, IPFIX_flowEndMilliseconds, &offset, &table->flow_end);
+		PushSequence( table, IPFIX_flowStartMilliseconds, NULL, &table->flow_start);
+		PushSequence( table, IPFIX_flowEndMilliseconds, NULL, &table->flow_end);
 		offset = BYTE_OFFSET_first + 8;
 		dbg_printf("Time stamp: flow start/end absolute milliseconds: %u/%u\n", 
 			IPFIX_flowStartMilliseconds, IPFIX_flowEndMilliseconds);
 	} else if ( cache.lookup_info[IPFIX_flowStartSysUpTime].found ) {
-		PushSequence( table, IPFIX_flowStartSysUpTime, &offset, &table->flow_start);
-		offset = BYTE_OFFSET_first + 4;
-		PushSequence( table, IPFIX_flowEndSysUpTime, &offset, &table->flow_end);
+		PushSequence( table, IPFIX_flowStartSysUpTime, NULL, &table->flow_start);
+		PushSequence( table, IPFIX_flowEndSysUpTime, NULL, &table->flow_end);
 		offset = BYTE_OFFSET_first + 8;
 		dbg_printf("Time stamp: flow start/end relative milliseconds: %u/%u\n", 
 			IPFIX_flowStartSysUpTime, IPFIX_flowEndSysUpTime);
@@ -875,12 +1053,11 @@ size_t				size_required;
 	}
  
 	table->output_record_size = offset;
-	table->input_record_size  = input_record_size;
 
 	// for netflow historical reason, ICMP type/code goes into dst port field
 	// remember offset, for decoding
 	if ( cache.lookup_info[IPFIX_icmpTypeCodeIPv4].found && cache.lookup_info[IPFIX_icmpTypeCodeIPv4].length == 2 ) {
-		table->ICMP_offset = cache.lookup_info[IPFIX_icmpTypeCodeIPv4].offset;
+		PushSequence( table, IPFIX_icmpTypeCodeIPv4, NULL, &table->icmpTypeCodeIPv4);
 	}
 
 #ifdef DEVEL
@@ -894,13 +1071,11 @@ size_t				size_required;
 		extension_map->map_id, extension_map->size, extension_map->extension_size);
 	{ int i;
 	for (i=0; i<table->number_of_sequences; i++ ) {
-		printf("Sequence %i: id: %u, in offset: %u, out offset: %u, stack: %llu\n",
-			i, table->sequence[i].id, table->sequence[i].input_offset, table->sequence[i].output_offset, 
-			(unsigned long long)table->sequence[i].stack);
+		printf("Sequence %i: id: %u, Type: %u, Length: %u, Output offset: %u, stack: %llu\n",
+			i, table->sequence[i].id, table->sequence[i].type, table->sequence[i].input_length, 
+			table->sequence[i].output_offset, (unsigned long long)table->sequence[i].stack);
 	}
-	printf("Flags: 0x%x\n", table->flags); 
-	printf("Input record size: %u, output record size: %u\n", 
-		table->input_record_size, table->output_record_size);
+	printf("Flags: 0x%x output record size: %u\n", table->flags, table->output_record_size); 
 	}
 	PrintExtensionMap(extension_map);
 #endif
@@ -1024,12 +1199,11 @@ generic_sampler_t *sampler;
 			// advance
 			sampler = sampler->next;
 		}
-
 	} 
 	
 } // End of InsertSampler
 
-static inline void Process_ipfix_templates(exporter_ipfix_domain_t *exporter, void *flowset_header, uint32_t size_left, FlowSource_t *fs) {
+static void Process_ipfix_templates(exporter_ipfix_domain_t *exporter, void *flowset_header, uint32_t size_left, FlowSource_t *fs) {
 ipfix_template_record_t *ipfix_template_record;
 void *DataPtr;
 uint32_t count;
@@ -1052,15 +1226,16 @@ uint32_t count;
 
 } // End of Process_ipfix_templates
 
-static inline void Process_ipfix_template_add(exporter_ipfix_domain_t *exporter, void *DataPtr, uint32_t size_left, FlowSource_t *fs) {
+static void Process_ipfix_template_add(exporter_ipfix_domain_t *exporter, void *DataPtr, uint32_t size_left, FlowSource_t *fs) {
 input_translation_t *translation_table;
 ipfix_template_record_t *ipfix_template_record;
 ipfix_template_elements_std_t *NextElement;
 int i;
-uint16_t Offset = 0;
 
 	// a template flowset can contain multiple records ( templates )
 	while ( size_left ) {
+		uint32_t table_id, count, size_required;
+		uint32_t num_extensions = 0;
 
 		if ( size_left && size_left < 4 ) {
 			LogError("Process_ipfix [%u] Template size error at %s line %u" , 
@@ -1069,6 +1244,17 @@ uint16_t Offset = 0;
 			continue;
 		}
 
+		// map next record.
+		ipfix_template_record = (ipfix_template_record_t *)DataPtr;
+		size_left 		-= 4;
+
+		table_id = ntohs(ipfix_template_record->TemplateID);
+		count	 = ntohs(ipfix_template_record->FieldCount);
+
+		dbg_printf("\n[%u] Template ID: %u\n", exporter->info.id, table_id);
+		dbg_printf("FieldCount: %u buffersize: %u\n", count, size_left);
+
+		// prepare
 		// clear helper tables
 		memset((void *)cache.common_extensions, 0,  (Max_num_extensions+1)*sizeof(uint32_t));
 		memset((void *)cache.lookup_info, 0, 65536 * sizeof(struct element_param_s));
@@ -1079,19 +1265,14 @@ uint16_t Offset = 0;
 			cache.lookup_info[Type].index   = i;
 			// other elements cleard be memset
 		}
+		cache.input_order = calloc(count, sizeof(struct order_s));
+		if ( !cache.input_order ) {
+			LogError("Process_ipfix: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+			size_left = 0;
+			continue;
+		}
 
-		uint32_t id, count, size_required;
-		uint32_t num_extensions = 0;
-
-		// map next record.
-		ipfix_template_record = (ipfix_template_record_t *)DataPtr;
-		size_left 		-= 4;
-
-		id 	  = ntohs(ipfix_template_record->TemplateID);
-		count = ntohs(ipfix_template_record->FieldCount);
-
-		dbg_printf("\n[%u] Template ID: %u\n", exporter->info.id, id);
-		dbg_printf("FieldCount: %u buffersize: %u\n", count, size_left);
+		cache.input_count = count;
 
 		// assume all elements in template are std elements. correct this value, if we find an enterprise element
 		size_required   = 4*count;
@@ -1103,7 +1284,6 @@ uint16_t Offset = 0;
 			return;
 		}
 
-		Offset = 0;
 		// process all elements in this record
 		NextElement 	 = (ipfix_template_elements_std_t *)ipfix_template_record->elements;
 		for ( i=0; i<count; i++ ) {
@@ -1114,8 +1294,9 @@ uint16_t Offset = 0;
 			Type   = ntohs(NextElement->Type);
 			Length = ntohs(NextElement->Length);
 			Enterprise = Type & 0x8000 ? 1 : 0;
+			Type = Type & 0x7FFF;
 
-			ext_id = MapElement(Type, Length, Offset);
+			ext_id = MapElement(Type, Length, i);
 
 			// do we store this extension? enabled != 0
 			// more than 1 v9 tag may map to an extension - so count this extension once only
@@ -1125,7 +1306,6 @@ uint16_t Offset = 0;
 					num_extensions++;
 				}
 			} 
-			Offset += Length;
 	
 			if ( Enterprise ) {
 				ipfix_template_elements_e_t *e = (ipfix_template_elements_e_t *)NextElement;
@@ -1136,7 +1316,11 @@ uint16_t Offset = 0;
 					dbg_printf("ERROR: Not enough data for template elements! required: %i, left: %u", size_required, size_left);
 					return;
 				}
-				dbg_printf(" [%i] Enterprise: 1, Type: %u, Length %u EnterpriseNumber: %u\n", i, Type, Length, ntohl(e->EnterpriseNumber));
+				if ( ntohl(e->EnterpriseNumber) == IPFIX_ReverseInformationElement ) {
+					dbg_printf(" [%i] Enterprise: 1, Type: %u, Length %u Reverse Information Element: %u\n", i, Type, Length, ntohl(e->EnterpriseNumber));
+				} else {
+					dbg_printf(" [%i] Enterprise: 1, Type: %u, Length %u EnterpriseNumber: %u\n", i, Type, Length, ntohl(e->EnterpriseNumber));
+				}
 				e++;
 				NextElement = (ipfix_template_elements_std_t *)e;
 			} else {
@@ -1147,18 +1331,22 @@ uint16_t Offset = 0;
 
 		dbg_printf("Processed: %u\n", size_required);
 
-		// as the router IP address extension is not part announced in a template, we need to deal with it here
-		if ( extension_descriptor[EX_ROUTER_IP_v4].enabled ) {
-			if ( cache.common_extensions[EX_ROUTER_IP_v4] == 0 ) {
-				cache.common_extensions[EX_ROUTER_IP_v4] = 1;
-				num_extensions++;
-			}
-			dbg_printf("Add sending router IP address (%s) => Extension: %u\n", 
-				fs->sa_family == PF_INET6 ? "ipv6" : "ipv4", EX_ROUTER_IP_v4);
-		}
+		// compact input order and reorder sequencer
+		if ( compact_input_order() ) {
+			// valid template with common inout fields
 
-		// XXX for now, we do not store router ID in IPFIX
-		extension_descriptor[EX_ROUTER_ID].enabled = 0;
+			// as the router IP address extension is not part announced in a template, we need to deal with it here
+			if ( extension_descriptor[EX_ROUTER_IP_v4].enabled ) {
+				if ( cache.common_extensions[EX_ROUTER_IP_v4] == 0 ) {
+					cache.common_extensions[EX_ROUTER_IP_v4] = 1;
+					num_extensions++;
+				}
+				dbg_printf("Add sending router IP address (%s) => Extension: %u\n", 
+					fs->sa_family == PF_INET6 ? "ipv6" : "ipv4", EX_ROUTER_IP_v4);
+			}
+	
+			// XXX for now, we do not store router ID in IPFIX
+			extension_descriptor[EX_ROUTER_ID].enabled = 0;
 
 /*	
 		// as the router IP address extension is not part announced in a template, we need to deal with it here
@@ -1170,14 +1358,14 @@ uint16_t Offset = 0;
 			dbg_printf("Force add router ID (engine type/ID), Extension: %u\n", EX_ROUTER_ID);
 		}
 */
-		// as the received time is not announced in a template, we need to deal with it here
-		if ( extension_descriptor[EX_RECEIVED].enabled ) {
-			if ( cache.common_extensions[EX_RECEIVED] == 0 ) {
-				cache.common_extensions[EX_RECEIVED] = 1;
-				num_extensions++;
+			// received time 
+			if ( extension_descriptor[EX_RECEIVED].enabled ) {
+				if ( cache.common_extensions[EX_RECEIVED] == 0 ) {
+					cache.common_extensions[EX_RECEIVED] = 1;
+					num_extensions++;
+				}
+				dbg_printf("Force add packet received time, Extension: %u\n", EX_RECEIVED);
 			}
-			dbg_printf("Force add packet received time, Extension: %u\n", EX_RECEIVED);
-		}
 
 #ifdef DEVEL
 		{
@@ -1190,15 +1378,23 @@ uint16_t Offset = 0;
 		}
 #endif
 	
-		translation_table = setup_translation_table(exporter, id, Offset);
-		if (translation_table->extension_map_changed ) {
-			translation_table->extension_map_changed = 0;
-			// refresh he map in the ouput buffer
-			dbg_printf("Translation Table changed! Add extension map ID: %i\n", translation_table->extension_info.map->map_id);
-			AddExtensionMap(fs, translation_table->extension_info.map);
-			dbg_printf("Translation Table added! map ID: %i\n", translation_table->extension_info.map->map_id);
+			translation_table = setup_translation_table(exporter, table_id);
+			if (translation_table->extension_map_changed ) {
+				// refresh he map in the ouput buffer
+				dbg_printf("Translation Table changed! Add extension map ID: %i\n", translation_table->extension_info.map->map_id);
+				AddExtensionMap(fs, translation_table->extension_info.map);
+				translation_table->extension_map_changed = 0;
+				dbg_printf("Translation Table added! map ID: %i\n", translation_table->extension_info.map->map_id);
+			}
+	
+			if ( !reorder_sequencer(translation_table) ) {
+				LogError("Process_ipfix: [%u] Failed to reorder sequencer. Remove table id: %u", 
+							exporter->info.id, table_id);
+				remove_translation_table(fs, exporter, table_id);
+			}
+		} else {
+			dbg_printf("Template does not contain any common fields - skip\n");
 		}
-
 		// update size left of this flowset
 		size_left -= size_required;
 		DataPtr = DataPtr + size_required+4;	// +4 for header
@@ -1207,11 +1403,13 @@ uint16_t Offset = 0;
 			dbg_printf("Skip %u bytes padding\n", size_left);
 			size_left = 0;
 		}
+		free(cache.input_order);
+		cache.input_order = NULL;
 	}
 
 } // End of Process_ipfix_template_add
 
-static inline void Process_ipfix_template_withdraw(exporter_ipfix_domain_t *exporter, void *DataPtr, uint32_t size_left, FlowSource_t *fs) {
+static void Process_ipfix_template_withdraw(exporter_ipfix_domain_t *exporter, void *DataPtr, uint32_t size_left, FlowSource_t *fs) {
 ipfix_template_record_t *ipfix_template_record;
 
 	// a template flowset can contain multiple records ( templates )
@@ -1243,7 +1441,7 @@ ipfix_template_record_t *ipfix_template_record;
  
 } // End of Process_ipfix_template_withdraw
 
-static inline void Process_ipfix_option_templates(exporter_ipfix_domain_t *exporter, void *option_template_flowset, FlowSource_t *fs) {
+static void Process_ipfix_option_templates(exporter_ipfix_domain_t *exporter, void *option_template_flowset, FlowSource_t *fs) {
 uint8_t		*DataPtr;
 uint32_t	size_left, size_required, i;
 // uint32_t nr_scopes, nr_options;
@@ -1311,12 +1509,10 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 		Enterprise = id & 0x8000 ? 1 : 0;
 		if ( Enterprise ) {
 			size_required += 4;
-			dbg_printf("Adjusted: Size left: %u, size required: %u\n", size_left, size_required);
-			if ( size_left < size_required ) {
-				LogError("Process_ipfix: [%u] option template length error: size left %u too small for %u scopes length and %u options length", 
-					exporter->info.id, size_left, field_count, scope_field_count);
-				dbg_printf("option template length error: size left %u too small for field_count %u\n", 
-					size_left, field_count);
+			if ( size_left < 4 ) {
+				LogError("Process_ipfix: [%u] option template length error: size left %u too small", 
+					exporter->info.id, size_left);
+				dbg_printf("option template length error: size left %u too small\n", size_left);
 				return;
 			}
 			DataPtr += 4;
@@ -1343,12 +1539,10 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 		Enterprise = id & 0x8000 ? 1 : 0;
 		if ( Enterprise ) {
 			size_required += 4;
-			dbg_printf("Adjusted: Size left: %u, size required: %u\n", size_left, size_required);
-			if ( size_left < size_required ) {
-				LogError("Process_ipfix: [%u] option template length error: size left %u too small for %u scopes length and %u options length", 
-					exporter->info.id, size_left, field_count, scope_field_count);
-				dbg_printf("option template length error: size left %u too small for field_count %u\n", 
-					size_left, field_count);
+			if ( size_left < 4 ) {
+				LogError("Process_ipfix: [%u] option template length error: size left %u too", 
+					exporter->info.id, size_left);
+				dbg_printf("option template length error: size left %u too small\n", size_left);
 				return;
 			}
 			enterprise_value = Get_val32(DataPtr);
@@ -1404,7 +1598,7 @@ uint16_t	offset_std_sampler_interval, offset_std_sampler_algorithm, found_std_sa
 } // End of Process_ipfix_option_templates
 
 
-static inline void Process_ipfix_data(exporter_ipfix_domain_t *exporter, uint32_t ExportTime, void *data_flowset, FlowSource_t *fs, input_translation_t *table ){
+static void Process_ipfix_data(exporter_ipfix_domain_t *exporter, uint32_t ExportTime, void *data_flowset, FlowSource_t *fs, input_translation_t *table ){
 uint64_t			sampling_rate;
 uint32_t			size_left;
 uint8_t				*in, *out;
@@ -1443,14 +1637,10 @@ char				*string;
 		SetFlag(table->flags, FLAG_SAMPLED);
 
 	while (size_left) {
+		int input_offset;
 		common_record_t		*data_record;
 
-		if ( (size_left < table->input_record_size) ) {
-			if ( size_left > 3 ) {
-				LogError("Process_ipfix: Corrupt data flowset? Pad bytes: %u", size_left);
-				dbg_printf("Process_ipfix: Corrupt data flowset? Pad bytes: %u, table record_size: %u\n", 
-					size_left, table->input_record_size);
-			}
+		if ( size_left < 4 ) {	// rounding pads
 			size_left = 0;
 			continue;
 		}
@@ -1470,9 +1660,9 @@ char				*string;
 		// map output buffer as a byte array
 		out 	  = (uint8_t *)data_record;
 
-		dbg_printf("[%u] Process data record: %u addr: %llu, in record size: %u, buffer size_left: %u\n", 
+		dbg_printf("[%u] Process data record: %u addr: %llu, buffer size_left: %u\n", 
 			exporter->info.id, processed_records, (long long unsigned)((ptrdiff_t)in - (ptrdiff_t)data_flowset), 
-			table->input_record_size, size_left);
+			size_left);
 
 		// fill the data record
 		data_record->flags 		    = table->flags;
@@ -1489,14 +1679,30 @@ char				*string;
 		table->out_packets 	  	    = 0;
 		table->out_bytes 	  	    = 0;
 
+		input_offset = 0;
 		// apply copy and processing sequence
 		for ( i=0; i<table->number_of_sequences; i++ ) {
-			int input_offset  = table->sequence[i].input_offset;
 			int output_offset = table->sequence[i].output_offset;
 			void *stack = table->sequence[i].stack;
+
+			if ( input_offset > size_left ) {
+				// overrun
+				LogError("Process ipfix: buffer overrun!! input_offset: %i > size left data buffer: %u\n", input_offset, size_left);
+				return;
+			} 
+
 			switch (table->sequence[i].id) {
 				case nop:
 					break;
+				case dyn_skip: {
+					uint16_t skip = in[input_offset];
+					if ( skip < 255 ) {
+						input_offset += (skip+1);
+					} else {
+						skip = Get_val16((void *)&in[input_offset+1]);
+						input_offset += (skip+3);
+					}
+					} break;
 				case move8:
 					out[output_offset] = in[input_offset];
 					break;
@@ -1580,6 +1786,17 @@ char				*string;
 					  *(uint64_t *)stack = ((1000000LL * (uint64_t)ExportTime) - DeltaMicroSec) / 1000LL;
 
 					} break;
+				case saveICMP:
+					*(uint32_t *)stack = Get_val16((void *)&in[input_offset]);
+					break;
+				case move_mpls:
+					*((uint32_t *)&out[output_offset]) = Get_val24((void *)&in[input_offset]);
+					break;
+				case move_flags: {
+					uint16_t flags = Get_val16((void *)&in[input_offset]);
+					// cut upper byte
+					out[output_offset] = flags & 0xFF;
+					} break;
 				case move_mac:
 					/* 64bit access to potentially unaligned output buffer. use 2 x 32bit for _LP64 CPUs */
 					{ type_mask_t t;
@@ -1588,9 +1805,6 @@ char				*string;
 						*((uint32_t *)&out[output_offset])   = t.val.val32[0];
 						*((uint32_t *)&out[output_offset+4]) = t.val.val32[1];
 					}
-					break;
-				case move_mpls:
-					// XXX implementation needs test data
 					break;
 				case zero8:
 					out[output_offset] = 0;
@@ -1615,13 +1829,15 @@ char				*string;
 					dbg_printf("Software bug! Unknown Sequence: %u. at %s line %d\n", 
 						table->sequence[i].id, __FILE__, __LINE__);
 			}
+			input_offset += (table->sequence[i].input_length + table->sequence[i].skip_count);
 		}
 
 		// for netflow historical reason, ICMP type/code goes into dst port field
 		if ( data_record->prot == IPPROTO_ICMP || data_record->prot == IPPROTO_ICMPV6 ) {
-			if ( table->ICMP_offset ) {
+			if ( table->icmpTypeCodeIPv4 ) {
 				data_record->srcport = 0;
-				data_record->dstport = Get_val16((void *)&in[table->ICMP_offset]);
+				data_record->dstport = table->icmpTypeCodeIPv4;
+				// data_record->dstport = Get_val16((void *)&in[table->ICMP_offset]);
 			}
 		}
 
@@ -1714,8 +1930,14 @@ char				*string;
 		fs->nffile->buff_ptr	= (common_record_t *)((pointer_addr_t)data_record + data_record->size);
 
 		// advance input
-		size_left 		   -= table->input_record_size;
-		in  	  		   += table->input_record_size;
+		dbg_printf("Adjust input stream offset: %u\n", input_offset);
+		if ( input_offset > size_left ) {
+			// overrun
+			LogError("Process ipfix: buffer overrun!! input_offset: %i > size left data buffer: %u\n", input_offset, size_left);
+			return;
+		} 
+		size_left 		   -= input_offset;
+		in  	  		   += input_offset;
 
 		// buffer size sanity check
 		if ( fs->nffile->block_header->size  > BUFFSIZE ) {
@@ -1735,7 +1957,7 @@ char				*string;
 
 } // End of Process_ipfix_data
 
-static inline void  Process_ipfix_option_data(exporter_ipfix_domain_t *exporter, void *data_flowset, FlowSource_t *fs) {
+static void  Process_ipfix_option_data(exporter_ipfix_domain_t *exporter, void *data_flowset, FlowSource_t *fs) {
 option_offset_t *offset_table;
 uint32_t	id;
 uint8_t	 *in;
@@ -1871,8 +2093,6 @@ uint32_t 			ObservationDomain;
 		uint16_t	flowset_id;
 
 		if ( size_left && size_left < 4 ) {
-			LogError("Process_ipfix [%u] Template size error at %s line %u" , 
-				exporter->info.id, __FILE__, __LINE__, strerror (errno));
 			size_left = 0;
 			continue;
 		}
@@ -1882,7 +2102,7 @@ uint32_t 			ObservationDomain;
 		flowset_id 		= GET_FLOWSET_ID(flowset_header);
 		flowset_length 	= GET_FLOWSET_LENGTH(flowset_header);
 
-		dbg_printf("Process_ipfix: Next flowset %u, length %u.\n", flowset_id, flowset_length);
+		dbg_printf("Process_ipfix: Next flowset id %u, length %u.\n", flowset_id, flowset_length);
 
 		if ( flowset_length == 0 ) {
 			/* 	this should never happen, as 4 is an empty flowset 

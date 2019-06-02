@@ -196,6 +196,7 @@ typedef struct ipfix_template_elements_e_s {
 #define _8bytes   8
 #define _16bytes  16
 
+#define SKIP_ELEMENT						  0
 // IPFIX std element definitios
 // Flowset record types
 #define IPFIX_octetDeltaCount	 			  1
@@ -274,6 +275,9 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_flowEndMilliseconds			153
 #define IPFIX_flowStartDeltaMicroseconds	158
 #define IPFIX_flowEndDeltaMicroseconds		159
+
+// Private Enterprise Numbers
+#define IPFIX_ReverseInformationElement		29305
 
 /* prototypes */
 int Init_IPFIX(void);
