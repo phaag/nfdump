@@ -1,5 +1,6 @@
 2019-06-01
 - Add ipfix dyn element handling.
+- Add empty m4 directory - keep autoconf happy
 
 2019-06-01
 - Fix issue #162 - ipfix mpls sequece.
