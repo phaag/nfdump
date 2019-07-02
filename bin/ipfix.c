@@ -1,7 +1,5 @@
 /*  
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2012, Peter Haag
+ *  Copyright (c) 2012-2019, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -105,10 +103,11 @@ typedef struct sequence_map_s {
 #define move_flags		14
 #define Time64Mili 		15
 #define TimeDeltaMicro 	16
-#define saveICMP 		17
-#define zero8			18
-#define zero16			19
-#define zero32			20
+#define TimeUnix 		17
+#define saveICMP 		18
+#define zero8			19
+#define zero16			20
+#define zero32			21
 #define zero64			22
 #define zero128			23
 
@@ -263,6 +262,9 @@ static struct ipfix_element_map_s {
 	{ IPFIX_DestinationMacAddress, 		 _6bytes,   _8bytes,  move_mac, zero64, EX_MAC_2},
 	{ IPFIX_postSourceMacAddress, 		 _6bytes,   _8bytes,  move_mac, zero64, EX_MAC_2},
 	{ IPFIX_flowStartMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero32, COMMON_BLOCK},
+	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero32, COMMON_BLOCK},
+	{ IPFIX_flowStartSeconds, 		 	 _4bytes,   _4bytes,  TimeUnix, zero32, COMMON_BLOCK},
+	{ IPFIX_flowEndSeconds,  	 		 _4bytes,   _4bytes,  TimeUnix, zero32, COMMON_BLOCK},
 	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero32, COMMON_BLOCK},
 	{ IPFIX_flowStartDeltaMicroseconds,	 _4bytes,   _4bytes,  TimeDeltaMicro, zero32, COMMON_BLOCK},
 	{ IPFIX_flowEndDeltaMicroseconds, 	 _4bytes,   _4bytes,  TimeDeltaMicro, zero32, COMMON_BLOCK},
@@ -860,7 +862,13 @@ size_t				size_required;
 		offset = BYTE_OFFSET_first + 8;
 		dbg_printf("Time stamp: flow start/end relative milliseconds: %u/%u\n", 
 			IPFIX_flowStartSysUpTime, IPFIX_flowEndSysUpTime);
-	} else {
+	} else if ( cache.lookup_info[IPFIX_flowStartSeconds].found ) {
+		PushSequence( table, IPFIX_flowStartSeconds, NULL, &table->flow_start);
+		PushSequence( table, IPFIX_flowEndSeconds, NULL, &table->flow_end);
+		offset = BYTE_OFFSET_first + 8;
+		dbg_printf("Time stamp: flow start/end absolute seconds: %u/%u\n", 
+			IPFIX_flowStartSeconds, IPFIX_flowEndSeconds);
+	}else {
 		dbg_printf("Time stamp: No known format found\n");
 		offset = BYTE_OFFSET_first + 8;
 	}
@@ -1779,6 +1787,11 @@ char				*string;
 				case Time64Mili:
 					{ uint64_t DateMiliseconds = Get_val64((void *)&in[input_offset]);
 					  *(uint64_t *)stack = DateMiliseconds;
+
+					} break;
+				case TimeUnix:
+					{ uint64_t DateSeconds = Get_val32((void *)&in[input_offset]);
+					  *(uint64_t *)stack = DateSeconds *1000LL;
 
 					} break;
 				case TimeDeltaMicro:

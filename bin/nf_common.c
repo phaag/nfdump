@@ -871,29 +871,23 @@ extension_map_t	*extension_map = r->map_ref;
 				slen = STRINGSIZE - _slen;
 				break;
 			case EX_NEXT_HOP_v4:
-				as[0] = 0;
-				r->ip_nexthop.V4 = htonl(r->ip_nexthop.V4);
-				inet_ntop(AF_INET, &r->ip_nexthop.V4, as, sizeof(as));
-				as[IP_STRING_LEN-1] = 0;
-
-				snprintf(_s, slen-1,
-"  ip next hop  =  %16s\n"
-, as);
-				_slen = strlen(data_string);
-				_s = data_string + _slen;
-				slen = STRINGSIZE - _slen;
-	
-			break;
 			case EX_NEXT_HOP_v6:
-				as[0] = 0;
-				r->ip_nexthop.V6[0] = htonll(r->ip_nexthop.V6[0]);
-				r->ip_nexthop.V6[1] = htonll(r->ip_nexthop.V6[1]);
-				inet_ntop(AF_INET6, r->ip_nexthop.V6, as, sizeof(as));
-				if ( ! long_v6 ) {
-					condense_v6(as);
-					condense_v6(ds);
+				if ( (r->flags & FLAG_IPV6_NH ) != 0 ) { // IPv6
+					as[0] = 0;
+					r->ip_nexthop.V6[0] = htonll(r->ip_nexthop.V6[0]);
+					r->ip_nexthop.V6[1] = htonll(r->ip_nexthop.V6[1]);
+					inet_ntop(AF_INET6, r->ip_nexthop.V6, as, sizeof(as));
+					if ( ! long_v6 ) {
+						condense_v6(as);
+						condense_v6(ds);
+					}
+					as[IP_STRING_LEN-1] = 0;
+				} else {
+					as[0] = 0;
+					r->ip_nexthop.V4 = htonl(r->ip_nexthop.V4);
+					inet_ntop(AF_INET, &r->ip_nexthop.V4, as, sizeof(as));
+					as[IP_STRING_LEN-1] = 0;
 				}
-				as[IP_STRING_LEN-1] = 0;
 
 				snprintf(_s, slen-1,
 "  ip next hop  =  %16s\n"
@@ -903,30 +897,23 @@ extension_map_t	*extension_map = r->map_ref;
 				slen = STRINGSIZE - _slen;
 			break;
 			case EX_NEXT_HOP_BGP_v4:
-				as[0] = 0;
-				r->bgp_nexthop.V4 = htonl(r->bgp_nexthop.V4);
-				inet_ntop(AF_INET, &r->bgp_nexthop.V4, as, sizeof(as));
-				as[IP_STRING_LEN-1] = 0;
-
-				snprintf(_s, slen-1,
-"  bgp next hop =  %16s\n"
-, as);
-				_slen = strlen(data_string);
-				_s = data_string + _slen;
-				slen = STRINGSIZE - _slen;
-	
-			break;
 			case EX_NEXT_HOP_BGP_v6:
-				as[0] = 0;
-				r->bgp_nexthop.V6[0] = htonll(r->bgp_nexthop.V6[0]);
-				r->bgp_nexthop.V6[1] = htonll(r->bgp_nexthop.V6[1]);
-				inet_ntop(AF_INET6, r->ip_nexthop.V6, as, sizeof(as));
-				if ( ! long_v6 ) {
-					condense_v6(as);
-					condense_v6(ds);
+				if ( (r->flags & FLAG_IPV6_NHB ) != 0 ) { // IPv6
+					as[0] = 0;
+					r->bgp_nexthop.V6[0] = htonll(r->bgp_nexthop.V6[0]);
+					r->bgp_nexthop.V6[1] = htonll(r->bgp_nexthop.V6[1]);
+					inet_ntop(AF_INET6, r->ip_nexthop.V6, as, sizeof(as));
+					if ( ! long_v6 ) {
+						condense_v6(as);
+						condense_v6(ds);
+					}
+					as[IP_STRING_LEN-1] = 0;
+				} else {
+					as[0] = 0;
+					r->bgp_nexthop.V4 = htonl(r->bgp_nexthop.V4);
+					inet_ntop(AF_INET, &r->bgp_nexthop.V4, as, sizeof(as));
+					as[IP_STRING_LEN-1] = 0;
 				}
-				as[IP_STRING_LEN-1] = 0;
-
 				snprintf(_s, slen-1,
 "  bgp next hop =  %16s\n"
 , as);
@@ -1413,7 +1400,7 @@ master_record_t *r = (master_record_t *)record;
 		slen = STRINGSIZE - _slen;
 	}
 	
-	if ( (r->flags & FLAG_IPV6_NH ) != 0 ) { // IPv6
+	if ( (r->flags & FLAG_IPV6_NHB ) != 0 ) { // IPv6
 		// EX_NEXT_HOP_BGP_v6:
 		as[0] = 0;
 		r->bgp_nexthop.V6[0] = htonll(r->bgp_nexthop.V6[0]);
@@ -2049,7 +2036,7 @@ static void String_BGPNextHop(master_record_t *r, char *string) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
-	if ( (r->flags & FLAG_IPV6_NH ) != 0 ) { // IPv6
+	if ( (r->flags & FLAG_IPV6_NHB ) != 0 ) { // IPv6
 		uint64_t	ip[2];
 
 		ip[0] = htonll(r->bgp_nexthop.V6[0]);

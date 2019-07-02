@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -271,6 +269,8 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_octetTotalCount		 	 	 85
 #define IPFIX_packetTotalCount		 	 	 86
 #define IPFIX_forwardingStatus				 89
+#define IPFIX_flowStartSeconds				150
+#define IPFIX_flowEndSeconds				151
 #define IPFIX_flowStartMilliseconds			152
 #define IPFIX_flowEndMilliseconds			153
 #define IPFIX_flowStartDeltaMicroseconds	158
