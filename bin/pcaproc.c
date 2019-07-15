@@ -619,7 +619,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			struct udphdr *udp = (struct udphdr *)payload;
 			uint16_t UDPlen = ntohs(udp->uh_ulen);
 			if ( UDPlen < 8 ) {
-				LogError("UDP payload legth error: %u bytes < 8\n",
+				LogError("UDP payload length error: %u bytes < 8\n",
 					UDPlen);
 				Free_Node(Node);
 				break;

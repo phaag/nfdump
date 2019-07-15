@@ -145,7 +145,7 @@ typedef struct input_translation_s {
 	uint32_t	router_ip_offset;
 	uint32_t	received_offset;
 
-	// etension map infos
+	// extension map infos
 	uint32_t	extension_map_changed;	// map changed while refreshing?
 	extension_info_t 	 extension_info; // the extension map reflecting this template
 
@@ -168,6 +168,7 @@ typedef struct exporter_ipfix_domain_s {
 	uint64_t	packets;			// number of packets sent by this exporter
 	uint64_t	flows;				// number of flow records sent by this exporter
 	uint32_t	sequence_failure;	// number of sequence failues
+	uint32_t	padding_errors;		// number of sequence failues
 
 	// generic sampler
 	generic_sampler_t		*sampler;
@@ -404,6 +405,7 @@ uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
 	(*e)->TemplateRecords 	= 0;
 	(*e)->DataRecords 	 	= 0;
 	(*e)->sequence_failure 	= 0;
+	(*e)->padding_errors 	= 0;
 	(*e)->next	 			= NULL;
 	(*e)->sampler 			= NULL;
 

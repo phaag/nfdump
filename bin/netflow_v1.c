@@ -89,6 +89,7 @@ typedef struct exporter_v1_s {
 	uint64_t	packets;			// number of packets sent by this exporter
 	uint64_t	flows;				// number of flow records sent by this exporter
 	uint32_t	sequence_failure;	// number of sequence failues
+	uint32_t	padding_errors;		// number of sequence failues
 
 	generic_sampler_t		*sampler;
 	// End of generic_exporter_t
@@ -199,6 +200,7 @@ char ipstr[IP_STRING_LEN];
 	(*e)->packets			= 0;
 	(*e)->flows				= 0;
 	(*e)->sequence_failure	= 0;
+	(*e)->padding_errors	= 0;
 	(*e)->sampler			= NULL;
 
 	// copy the v1 generic extension map

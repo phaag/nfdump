@@ -92,6 +92,7 @@ typedef struct exporter_v5_s {
 	uint64_t	packets;			// number of packets sent by this exporter
 	uint64_t	flows;				// number of flow records sent by this exporter
 	uint32_t	sequence_failure;	// number of sequence failues
+	uint32_t	padding_errors;		// number of sequence failues
 
 	// generic sampler
 	generic_sampler_t		*sampler;
@@ -212,6 +213,7 @@ char ipstr[IP_STRING_LEN];
 	(*e)->info.ip			= fs->ip;
 	(*e)->info.sa_family	= fs->sa_family;
 	(*e)->sequence_failure	= 0;
+	(*e)->padding_errors	= 0;
 	(*e)->packets			= 0;
 	(*e)->flows				= 0;
 	(*e)->first	 			= 1;

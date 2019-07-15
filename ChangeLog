@@ -1,3 +1,7 @@
+2019-07-15
+- Fix typos
+- Fix exporter struct inconsistancies. Coredump on ARM otherwise.
+
 2019-07-02
 - Add ipfix element #150, #151 unix time start/end
 - Fix display bug raw record
