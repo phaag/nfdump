@@ -725,6 +725,13 @@ int		i;
 				tpl->received = master_record->received;
 				p = (void *)tpl->data;
 				} break;
+			case EX_LATENCY: {
+				tpl_ext_latency_t *tpl = (tpl_ext_latency_t *)p;
+				tpl->client_nw_delay_usec = master_record->client_nw_delay_usec;
+				tpl->server_nw_delay_usec = master_record->server_nw_delay_usec;
+				tpl->appl_latency_usec	  = master_record->appl_latency_usec;
+				p = (void *)tpl->data;
+			} break;
 #ifdef NSEL
 			case EX_NSEL_COMMON: {
 				tpl_ext_37_t *tpl = (tpl_ext_37_t *)p;

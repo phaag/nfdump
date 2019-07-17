@@ -39,6 +39,8 @@
 #include <stdint.h>
 #endif
 
+#include <time.h>
+
 #include "rbtree.h"
 
 typedef struct hole_s {
@@ -59,6 +61,8 @@ struct IPFragNode {
 	// End of flow key
 
 	uint32_t	data_size;
+	time_t		last;
+
 	// packet data
 	void		*data;
 	void		*eod;
@@ -77,7 +81,7 @@ int IPFragTree_init(void);
 
 void IPFragTree_free(void);
 
-void *IPFrag_tree_Update(uint32_t src, uint32_t dst, uint32_t ident, uint32_t *length, uint32_t ip_off, void *data);
+void *IPFrag_tree_Update(time_t when, uint32_t src, uint32_t dst, uint32_t ident, uint32_t *length, uint32_t ip_off, void *data);
 
 uint32_t IPFragEntries(void);
 

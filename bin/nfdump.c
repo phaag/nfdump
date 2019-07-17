@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2018, 2017 Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -306,7 +305,7 @@ static void usage(char *name) {
 					"\t\t json     json output format.\n"
 					"\t\t pipe     '|' separated legacy machine parseable output format.\n"
 					"\t\t\tmode may be extended by '6' for full IPv6 listing. e.g.long6, extended6.\n"
-					"-E <file>\tPrint exporter ans sampling info for collected flows.\n"
+					"-E <file>\tPrint exporter and sampling info for collected flows.\n"
 					"-v <file>\tverify netflow data file. Print version and blocks.\n"
 					"-x <file>\tverify extension records in netflow data file.\n"
 					"-X\t\tDump Filtertable and exit (debug option).\n"

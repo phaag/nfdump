@@ -582,10 +582,12 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 				printf("Fragmented packet: last segement: ip_off: %u, frag_offset: %u\n", ip_off, frag_offset);
 #endif
 			// fragmented packet
-			defragmented = IPFrag_tree_Update(ip->ip_src.s_addr, ip->ip_dst.s_addr, ip_id, &payload_len, ip_off, payload);
+			defragmented = IPFrag_tree_Update(hdr->ts.tv_sec, ip->ip_src.s_addr, ip->ip_dst.s_addr, 
+				ip_id, &payload_len, ip_off, payload);
 			if ( defragmented == NULL ) {
 				// not yet complete
 				dbg_printf("Fragmentation not yet completed\n");
+				Free_Node(Node);
 				return;
 			}
 			dbg_printf("Fragmentation assembled\n");

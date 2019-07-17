@@ -1,3 +1,6 @@
+2019-07016
+- Add latency extension if dumping flowcache
+
 2019-07-15
 - Fix typos
 - Fix exporter struct inconsistancies. Coredump on ARM otherwise.

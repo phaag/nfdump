@@ -79,6 +79,8 @@ RB_GENERATE(IPFragTree, IPFragNode, entry, IPFragNodeCMP);
 
 static IPFragTree_t *IPFragTree;
 static uint32_t NumFragments;
+static time_t tCompare;
+static uint32_t expireNodes = 0;
 
 static int IPFragNodeCMP(struct IPFragNode *e1, struct IPFragNode *e2) {
 uint32_t    *a = &e1->src_addr;
@@ -87,6 +89,12 @@ int i;
    
 	// 2 x sizeof(uint32_t) (8) + frag_offset == 12
 	i = memcmp((void *)a, (void *)b, KEYLEN );
+	if ( (tCompare - e1->last) > 30 ) {
+		LogError("Node 1 older than 30s: %u", expireNodes++);
+	}
+	if ( (tCompare - e2->last) > 30 ) { 
+		LogError("Node 2 older than 30s: %u", expireNodes++);
+	}
 	return i; 
  
 } // End of IPFragNodeCMP
@@ -181,7 +189,7 @@ struct IPFragNode *node, *nxt;
 
 } // End of IPFragTree_free
 
-void *IPFrag_tree_Update(uint32_t src, uint32_t dst, uint32_t ident, uint32_t *length, uint32_t ip_off, void *data) {
+void *IPFrag_tree_Update(time_t when, uint32_t src, uint32_t dst, uint32_t ident, uint32_t *length, uint32_t ip_off, void *data) {
 struct IPFragNode FindNode, *n;
 hole_t *hole, *h, *hole_parent;
 uint16_t more_fragments, first, last, max;
@@ -190,6 +198,7 @@ int found_hole;
 	FindNode.src_addr = src;
 	FindNode.dst_addr = dst;
 	FindNode.ident 	  = ident;
+	tCompare 	  	  = when;
 	n = RB_FIND(IPFragTree, IPFragTree, &FindNode);
 	if ( !n ) {
 		n = New_frag_node();
@@ -201,6 +210,7 @@ int found_hole;
 			LogError("Node insert returned existing node - Software error in %s line %d", __FILE__, __LINE__);
 		}
 	}
+	n->last = when;
 	hole = n->holes;
 	hole_parent = NULL;
 
