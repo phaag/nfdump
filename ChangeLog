@@ -1,4 +1,8 @@
-2019-07016
+2019-07-25
+- Rework nfpcapd and add it officially to the nfdump collection.
+- Add nfpcapd man page
+
+2019-07-16
 - Add latency extension if dumping flowcache
 
 2019-07-15

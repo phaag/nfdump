@@ -1,8 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2013, Peter Haag
+ *  Copyright (c) 2013-2019, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -334,6 +331,9 @@ struct FlowNode *Client_node;
 uint64_t	latency;
 
 	Client_node = node->rev_node;
+	if ( !Client_node ) 
+		return;
+
 	latency = ((uint64_t)node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)node->t_first.tv_usec) -
 			  ((uint64_t)Client_node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)Client_node->t_first.tv_usec);
 	
@@ -351,6 +351,9 @@ struct FlowNode *Server_node;
 uint64_t	latency;
 
 	Server_node = node->rev_node;
+	if ( !Server_node ) 
+		return;
+
 	latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
 			  ((uint64_t)Server_node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)Server_node->t_first.tv_usec);
 	
@@ -371,6 +374,9 @@ struct FlowNode *Client_node;
 uint64_t	latency;
 
 	Client_node = node->rev_node;
+	if ( !Client_node ) 
+		return;
+
 	latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
 			  ((uint64_t)node->latency.t_request.tv_sec * (uint64_t)1000000 + (uint64_t)node->latency.t_request.tv_usec);
 	

@@ -60,7 +60,7 @@ Insert lots of debug and development code into nfdump for testing and debugging;
 * __--enable-readpcap__  
 Add code to nfcapd to read flow data also from pcap files; default is __NO__  
 * __--enable-nfpcapd__  
-Build experimental nfpcapd collector to create netflow data from interface traffic or precollected pcap traffic, similar to softflowd; default is __NO__
+Build nfpcapd collector to create netflow data from interface traffic or precollected pcap traffic, similar to softflowd; default is __NO__
 
 
 ### The tools
@@ -91,6 +91,11 @@ Reads the netflow data from the files stored by nfcapd and sends it
 over the network to another host.
 
 #### Optional binaries:
+
+__nfpcapd__ - pcap to netflow collector daemon  
+nfpcapd listens on a network interface, or reads precollected pcap traffic 
+and stores flow records into nfcapd comaptible files. It is nfcapd's
+companion to convert traffic directly into nfdump records.
 
 __sfcapd__ - sflow collector daemon  
 scfapd collects sflow data and stores it into nfcapd comaptible files.

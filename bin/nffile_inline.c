@@ -130,6 +130,7 @@ void		*p = (void *)input_record;
 	} else {
 		output_record->exp_ref 		  = NULL;
 	}
+	output_record->label = NULL;
 
 	// map icmp type/code in it's own vars
 	output_record->icmp = output_record->dstport;

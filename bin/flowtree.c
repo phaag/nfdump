@@ -1,8 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2011, Peter Haag
+ *  Copyright (c) 2011-2019, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -78,8 +75,9 @@ static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2);
 RB_GENERATE(FlowTree, FlowNode, entry, FlowNodeCMP);
 
 // Flow Cache to store all nodes
-#define FLOWELEMENTNUM 1024 * 1024
-//#define FLOWELEMENTNUM 128
+static uint32_t FlowCacheSize = 512 * 1024;
+static uint32_t expireActiveTimeout = 300;
+static uint32_t expireInactiveTimeout = 60;
 static struct FlowNode *FlowElementCache;
 
 // free list 
@@ -91,7 +89,7 @@ static uint32_t	Allocated;
 
 // Flow tree
 static FlowTree_t *FlowTree;
-static int NumFlows;
+static int NumFlows = 0;
 
 // Simple unprotected list
 typedef struct FlowNode_list_s {
@@ -105,20 +103,10 @@ typedef struct FlowNode_list_s {
 struct FlowNode *New_Node(void) {
 struct FlowNode *node;
 
-#ifdef USE_MALLOC
-	node = malloc(sizeof(struct FlowNode));
-	memset((void *)node, 'A', sizeof(struct FlowNode));
-	node->left = NULL;
-	node->right = NULL;
-	node->memflag = NODE_IN_USE;
-	dbg_printf("New node: %llx\n", (unsigned long long)node);
-	return node;
-#endif 
-
 	pthread_mutex_lock(&m_FreeList);
     while ( FlowNode_FreeList == NULL ) {
 		CacheOverflow++;
-		LogError("Free list exhausted: %u, Flows: %u - sleep", Allocated, NumFlows);
+		LogInfo("Free nodes list exhausted: %u, Flows: %u - sleep", Allocated, NumFlows);
         pthread_cond_wait(&c_FreeList, &m_FreeList);
 	}
 
@@ -164,14 +152,6 @@ void Free_Node(struct FlowNode *node) {
 	dbg_assert(node->left == NULL);
 	dbg_assert(node->right == NULL);
 
-#ifdef USE_MALLOC
-	dbg_printf("Free node: %llx\n", (unsigned long long)node);
-	node->memflag = NODE_FREE;
-	memset((void *)node, 'B', sizeof(struct FlowNode));
-	free(node);
-	return;
-#endif
-
 	memset((void *)node, 0, sizeof(struct FlowNode));
 
 	pthread_mutex_lock(&m_FreeList);
@@ -180,22 +160,55 @@ void Free_Node(struct FlowNode *node) {
 	node->memflag = NODE_FREE;
 	FlowNode_FreeList = node;
 	Allocated--;
-	pthread_mutex_unlock(&m_FreeList);
 	if ( CacheOverflow ) {
 		CacheOverflow = 0;
 		pthread_cond_signal(&c_FreeList);
 	}
+	pthread_mutex_unlock(&m_FreeList);
 
 } // End of Free_Node
 
 /* safety check - this must never become 0 - otherwise the cache is too small */
-uint32_t CacheCheck(void) {
-	return FLOWELEMENTNUM - NumFlows;
+void CacheCheck(FlowSource_t *fs, time_t when, int live) {
+uint32_t num;
+
+// live = 1;
+	// if the cache is exhausted - force expire now
+	if (FlowCacheSize == NumFlows || (live && FlowNode_FreeList == NULL) ) {
+		LogInfo("Node cache exhausted! - Force expire");	
+		Expire_FlowTree(fs, when);
+	}
+
+	// if still exhausted force flush of all flows
+	if (FlowCacheSize == NumFlows || (live && FlowNode_FreeList == NULL)) {
+		LogError("Node cache exhausted! - Force immediate flush - increase flow cache > %u", FlowCacheSize);	
+		num  = Flush_FlowTree(fs);
+		LogError("Expired flows: %u", num);	
+	}
+
 } // End of CacheCheck
 
 /* flow tree functions */
-int Init_FlowTree(uint32_t CacheSize) {
+int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive) {
 int i;
+
+	if ( expireActive ) {
+		if ( expireActive < 0 || expireActive > 3600 ) {
+			LogError("Active flow timeout %d out of range", expireActive);
+			return 0;
+		}
+		expireActiveTimeout = expireActive;
+		LogInfo("Set active flow expire timout to %us", expireActiveTimeout);
+	}
+
+	if ( expireInactive ) {
+		if ( expireInactive < 0 || expireInactive > 3600 ) {
+			LogError("Inactive flow timeout %d out of range", expireInactive);
+			return 0;
+		}
+		expireInactiveTimeout = expireInactive;
+		LogInfo("Set inactive flow expire timout to %us", expireInactiveTimeout);
+	}
 
 	FlowTree = malloc(sizeof(FlowTree_t));
 	if ( !FlowTree ) {
@@ -205,7 +218,10 @@ int i;
 	RB_INIT(FlowTree);
 
 	if ( CacheSize == 0 )
-		CacheSize = FLOWELEMENTNUM;
+		CacheSize = FlowCacheSize;
+	else
+		FlowCacheSize = CacheSize;
+
 	FlowElementCache = calloc(CacheSize, sizeof(struct FlowNode));
 	if ( !FlowElementCache ) {
 		LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
@@ -239,9 +255,10 @@ void Dispose_FlowTree(void) {
 struct FlowNode *node, *nxt;
 
 	// Dump all incomplete flows to the file
+	nxt = NULL;
 	for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
 		nxt = RB_NEXT(FlowTree, FlowTree, node);
-		RB_REMOVE(FlowTree, FlowTree, node);
+		Remove_Node(node);
 	}
 	free(FlowElementCache);
 	FlowElementCache 	 = NULL;
@@ -269,8 +286,8 @@ struct FlowNode *Lookup_Node(struct FlowNode *node) {
 struct FlowNode *Insert_Node(struct FlowNode *node) {
 struct FlowNode *n;
 
-dbg_assert(node->left == NULL);
-dbg_assert(node->right == NULL);
+	dbg_assert(node->left == NULL);
+	dbg_assert(node->right == NULL);
 
 	// return RB_INSERT(FlowTree, FlowTree, node);
 	n = RB_INSERT(FlowTree, FlowTree, node);
@@ -346,6 +363,7 @@ struct FlowNode *node, *nxt;
 uint32_t n = NumFlows;
 
 	// Dump all incomplete flows to the file
+	nxt = NULL;
 	for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
 		StorePcapFlow(fs, node);
 		nxt = RB_NEXT(FlowTree, FlowTree, node);
@@ -367,10 +385,31 @@ if ( node->left || node->right ) {
 
 } // End of Flush_FlowTree
 
-int AddNodeData(struct FlowNode *node, uint32_t seq, void *payload, uint32_t size) {
+uint32_t Expire_FlowTree(FlowSource_t *fs, time_t when) {
+struct FlowNode *node, *nxt;
 
-	return 0;
-} // End of AddNodeData
+	if ( NumFlows == 0 )
+		return NumFlows;
+
+	uint32_t expireCnt = 0;
+	// Dump all incomplete flows to the file
+	nxt = NULL;
+	for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
+		nxt = RB_NEXT(FlowTree, FlowTree, node);
+		if ( when == 0 || 
+			 (when - node->t_last.tv_sec) > expireInactiveTimeout || 
+			 (when - node->t_first.tv_sec) > expireActiveTimeout) {
+			StorePcapFlow(fs, node);
+			Remove_Node(node);
+			expireCnt++;
+		}
+	}
+	if ( expireCnt ) 
+		LogInfo("Expired Nodes: %u, in use: %u, total flows: %u", 
+			expireCnt, Allocated, NumFlows);
+	
+	return NumFlows;
+} // End of Expire_FlowTree
 
 /* Node list functions */
 NodeList_t *NewNodeList(void) {
@@ -433,11 +472,12 @@ struct FlowNode *node, *n;
 		node=node->right;
 	}
 	if ( len != NodeList->length) {
-		printf("Len miss match: len: %u, last: %u, proto: %u, Nodelist: %u, loops: %u, allocated: %u, overlow: %u node: %llx\n", len, mem, proto, NodeList->length, loops, Allocated, CacheOverflow, (long long unsigned)n);
+		printf("Len miss match: len: %u, last: %u, proto: %u, Nodelist: %u, loops: %u, allocated: %u, node: %llx\n", 
+			len, mem, proto, NodeList->length, loops, Allocated, (long long unsigned)n);
 		assert(len==NodeList->length);
 	} else {
-printf("Len: %u ok last: %u, proto: %u in loop %u, allocated: %u, overlow: %u\n", 
-len, mem, proto, loops, Allocated, CacheOverflow);
+		printf("Len: %u ok last: %u, proto: %u in loop %u, allocated: %u\n", 
+			len, mem, proto, loops, Allocated);
 	}
 }
 #endif
@@ -458,11 +498,14 @@ void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
 	}
 	NodeList->last = node;
 	NodeList->length++;
+
 #ifdef DEVEL
 	printf("pushed node 0x%llx proto: %u, length: %u first: %llx, last: %llx\n", 
-		(unsigned long long)node, node->proto, NodeList->length, (unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
+		(unsigned long long)node, node->proto, NodeList->length, 
+		(unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
 	ListCheck(NodeList);
 #endif
+
 	if ( NodeList->waiting ) {
 		pthread_cond_signal(&NodeList->c_list);
 	}
@@ -514,12 +557,14 @@ struct FlowNode *node;
 	node->right = NULL;
 
 	NodeList->length--;
+
 #ifdef DEVEL
 	printf("popped node 0x%llx proto: %u, length: %u first: %llx, last: %llx\n", 
-		(unsigned long long)node, node->proto, NodeList->length, (unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
-
+		(unsigned long long)node, node->proto, NodeList->length, 
+		(unsigned long long)NodeList->list, (unsigned long long)NodeList->last);
 	ListCheck(NodeList);
 #endif
+
 	ReleaseTreeLock(NodeList);
 
 	return node;
@@ -542,14 +587,7 @@ struct FlowNode *node;
 } // End of DumpList
 #endif
 
-void DumpNodeStat(void) {
-	LogInfo("Nodes in use: %u, Flows: %u CacheOverflow: %u", Allocated, NumFlows, CacheOverflow);
+void DumpNodeStat(NodeList_t *NodeList) {
+	LogInfo("Nodes in use: %u, Flows: %u, Nodes list length: %u", 
+		Allocated, NumFlows, NodeList->length);
 } // End of DumpNodeStat
-
-/*
-int main(int argc, char **argv) {
-
-	
-	return 0;
-} // End of main
-*/

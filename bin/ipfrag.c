@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
+ *  Copyright (c) 2014-2019, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -28,8 +26,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  Author: peter
- *
  */
 
 #include "config.h"
@@ -41,7 +37,6 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
-
 #ifdef HAVE_NETINET_IN_SYSTM_H
 #include <netinet/in_systm.h>
 #endif
@@ -52,18 +47,13 @@
 
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <arpa/inet.h>
 #include <unistd.h>
 #include <stdint.h>
 
 #include "util.h"
 #include "rbtree.h"
 #include "ipfrag.h"
-
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
 
 #define KEYLEN (offsetof(IPFragNode_t,data_size) - offsetof(IPFragNode_t, src_addr))
 static int IPFragNodeCMP(struct IPFragNode *e1, struct IPFragNode *e2);
@@ -72,15 +62,14 @@ static struct IPFragNode *New_frag_node(void);
 
 static void Free_node(struct IPFragNode *node, int free_data);
 
-static void Remove_node(struct IPFragNode *node);
+static void Remove_node(struct IPFragNode *node, int free_data);
 
 // Insert the IP RB tree code here
 RB_GENERATE(IPFragTree, IPFragNode, entry, IPFragNodeCMP);
 
 static IPFragTree_t *IPFragTree;
 static uint32_t NumFragments;
-static time_t tCompare;
-static uint32_t expireNodes = 0;
+static time_t lastExpire = 0;
 
 static int IPFragNodeCMP(struct IPFragNode *e1, struct IPFragNode *e2) {
 uint32_t    *a = &e1->src_addr;
@@ -89,12 +78,6 @@ int i;
    
 	// 2 x sizeof(uint32_t) (8) + frag_offset == 12
 	i = memcmp((void *)a, (void *)b, KEYLEN );
-	if ( (tCompare - e1->last) > 30 ) {
-		LogError("Node 1 older than 30s: %u", expireNodes++);
-	}
-	if ( (tCompare - e2->last) > 30 ) { 
-		LogError("Node 2 older than 30s: %u", expireNodes++);
-	}
 	return i; 
  
 } // End of IPFragNodeCMP
@@ -102,27 +85,26 @@ int i;
 static struct IPFragNode *New_frag_node(void) {
 struct IPFragNode *node;
 
-	node = malloc(sizeof(struct IPFragNode));
+	node = calloc(1, sizeof(struct IPFragNode));
 	if ( !node ) {
 		LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 		return NULL;
 	}
-	memset((void *)node, 0, sizeof(struct IPFragNode));
 
-	node->data = malloc(IP_MAXPACKET);
+	node->data = calloc(1, IP_MAXPACKET);
 	if ( !node->data ) {
 		LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 		free(node);
 		return NULL;
 	}
-	memset(node->data, 0, IP_MAXPACKET);
 
 	node->eod = node->data;
 	node->data_size = 0;
 
-	node->holes = malloc(sizeof(hole_t));
+	node->holes = calloc(1, sizeof(hole_t));
 	if ( !node->holes ) {
 		LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
+		free(node->data);
 		free(node);
 		return NULL;
 	}
@@ -151,18 +133,18 @@ hole_t *hole, *h;
 
 } // End of Free_node
 
-static void Remove_node(struct IPFragNode *node) {
+static void Remove_node(struct IPFragNode *node, int free_data) {
 struct IPFragNode *n;
 
 	n = RB_REMOVE(IPFragTree, IPFragTree, node);
 	if ( n ) {
-		Free_node(n, 0);
+		Free_node(n, free_data);
 	} // else - node not in tree
 
 } // End of Remove_node
 
 int IPFragTree_init(void) {
-	IPFragTree = malloc(sizeof(IPFragTree_t));
+	IPFragTree = calloc(1, sizeof(IPFragTree_t));
 	if ( !IPFragTree ) {
 		LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 		return 0;
@@ -176,7 +158,7 @@ int IPFragTree_init(void) {
 void IPFragTree_free(void) {
 struct IPFragNode *node, *nxt;
 
-    // Dump all incomplete flows to the file
+	nxt = NULL;
     for (node = RB_MIN(IPFragTree, IPFragTree); node != NULL; node = nxt) {
         nxt = RB_NEXT(IPFragTree, IPFragTree, node);
         RB_REMOVE(IPFragTree, IPFragTree, node);
@@ -189,28 +171,61 @@ struct IPFragNode *node, *nxt;
 
 } // End of IPFragTree_free
 
+static void IPFragTree_expire(time_t when) {
+struct IPFragNode *node, *nxt;
+
+	uint32_t expireCnt = 0;
+	nxt = NULL;
+    for (node = RB_MIN(IPFragTree, IPFragTree); node != NULL; node = nxt) {
+        nxt = RB_NEXT(IPFragTree, IPFragTree, node);
+		if ( (when - node->last) > 15 ) {
+        	RB_REMOVE(IPFragTree, IPFragTree, node);
+			Free_node(node, 1);
+			expireCnt++;
+		}
+    }
+	dbg_printf("Expired %u incomplete IP fragments, total fragments: %u\n", expireCnt, NumFragments);
+	if ( expireCnt )
+		LogInfo("Expired %u incomplete IP fragments, total fragments: %u", expireCnt, NumFragments);
+
+} // End of IPFragTree_expire
+
 void *IPFrag_tree_Update(time_t when, uint32_t src, uint32_t dst, uint32_t ident, uint32_t *length, uint32_t ip_off, void *data) {
 struct IPFragNode FindNode, *n;
 hole_t *hole, *h, *hole_parent;
 uint16_t more_fragments, first, last, max;
 int found_hole;
+char src_s[16], dst_s[16];
+
+	if ( (when - lastExpire ) > 10 ) {
+		IPFragTree_expire(when);
+		lastExpire = when;
+	}
+
+#ifdef DEVEL
+	inet_ntop(AF_INET, &src, src_s, 16);
+	inet_ntop(AF_INET, &dst, dst_s, 16);
+	printf("Update %s - %s\n", src_s, dst_s);
+#endif
 
 	FindNode.src_addr = src;
 	FindNode.dst_addr = dst;
 	FindNode.ident 	  = ident;
-	tCompare 	  	  = when;
+	FindNode.last 	  = 0;
+
 	n = RB_FIND(IPFragTree, IPFragTree, &FindNode);
 	if ( !n ) {
 		n = New_frag_node();
 		n->src_addr = src;
 		n->dst_addr = dst;
 		n->ident 	= ident;
+		n->last 	= when;
 		if ( RB_INSERT(IPFragTree, IPFragTree, n) ) {
 			// must never happen
 			LogError("Node insert returned existing node - Software error in %s line %d", __FILE__, __LINE__);
 		}
 	}
-	n->last = when;
+
 	hole = n->holes;
 	hole_parent = NULL;
 
@@ -227,7 +242,7 @@ int found_hole;
 	// last fragment - sets max offset
 	found_hole = 0;
 	max = more_fragments == 0 ? last : 0;
-	dbg_printf("Fragment assembly: first: %u, last: %u, MF: %u\n", first, last, more_fragments);
+	dbg_printf("Fragment assembly: first: %u, last: %u, MF: %u, ID: %x\n", first, last, more_fragments, ident);
 	while (hole) {
 		uint16_t hole_last;
 		if ( max ) {
@@ -235,16 +250,14 @@ int found_hole;
 			// last fragment offset/length
 			if ( hole->last == IP_MAXPACKET ) {
 				// last fragment has max size
-				if ( max > hole->first ) {
+				if ( max >= hole->first ) {
 					dbg_printf("set max of last fragment: %u\n", max);
 					hole->last = max;
 				} else {
-					LogError("last fragment offset error - teardrop attack??");
-				}
-			} else {
-				// last fragment must always be max offset
-				if ( max < hole->last ) {
-					LogError("last fragment offset error - teardrop attack??");
+					inet_ntop(AF_INET, &src, src_s, 16);
+					inet_ntop(AF_INET, &dst, dst_s, 16);
+					LogError("last fragment offset error - teardrop attack?? SRC: %s, DST: %s",
+							src_s, dst_s);
 				}
 			}
 		}
@@ -263,6 +276,21 @@ int found_hole;
 			continue;
 		}
 
+		// check for overlapping - cut off overlap
+		if ( last > hole->last ) {
+			dbg_printf("Truncate right overlapping fragment: %u -> %u\n", last, hole->last);
+			last = hole->last;
+		}
+
+		if ( first < hole->first ) {
+			dbg_printf("Truncate left overlapping fragment: %u -> %u\n", first, hole->first);
+			first = hole->first;
+		}
+
+		if ( first > last ) {
+			LogInfo("fragment error first %u >= last %u", first, last);
+			return NULL;
+		}
 		// fragment fits into hole
 		found_hole = 1;
 		if ( last > n->data_size ) 
@@ -278,7 +306,7 @@ int found_hole;
 				if ( hole_parent ) {
 					hole_parent->next = hole->next;
 				} else {
-					n->holes = NULL;
+					n->holes = hole->next;
 				}
 				free(hole);
 				hole = NULL;
@@ -308,16 +336,24 @@ int found_hole;
 
 		break;
 	}
-	
-	if ( !found_hole )
-		LogError("No space - Fragment overlap: first: %u, last: %u\n", first, last);
+
+#ifdef DEVEL	
+	if ( !found_hole ) {
+	hole_t *h = n->holes;
+		dbg_printf("No space in fragment list for: first: %u, last: %u\n", first, last);
+		while ( h ) {
+			dbg_printf("first: %u,last: %u\n", h->first, h->last);
+			h = h->next;
+		}
+	}
+#endif
 	
 	if ( n->holes == NULL ) {
 		void *data = n->data;
 		n->data_size++;
 		*length = n->data_size;
-		Remove_node(n);
-		dbg_printf("Datagramm complete - size: %u\n", n->data_size);
+		Remove_node(n, 0);
+		dbg_printf("Defragmentation complete - size: %u\n", n->data_size);
 		return data;
 	} else {
 		return NULL;

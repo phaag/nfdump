@@ -1,0 +1,167 @@
+.TH nfpcapd 1 2019\-07\-25 "" ""
+.SH NAME
+nfpcapd \- pcap capture to netflow daemon
+.SH SYNOPSIS
+.HP 5
+.B nfpcapd [options]
+.SH DESCRIPTION
+.B nfpcapd
+is the pcap capture daemon of the nfdump tools. It reads network
+packets from an interface or from a file and directly creates nfdump
+netflow records. This skips the step to send data in any netflow protocol
+to the nfcapd collector. It is nfcapd's pcap brother and shares many 
+options and generates the same type of files. nfpcapd likewise creates, 
+rotates and stores files. See nfpcap(1) for more information.
+.P
+nfpcapd optionally also stores pcap traffic data in separate files and
+uses the same rotation interval as for the netflow data. 
+.P
+nfpcapd is multithreaded and uses separate threads for packet, netflow
+and pcap processing.
+.P 
+.SH OPTIONS
+.TP 3
+.B -i \fIinterface
+Listen on this interface in promisc mode for packet processing.
+.TP 3
+.B -r \fIfile
+Read and process packets from this file. This file is a pcap compatible
+file
+.TP 3
+.B -s \fIsnaplen
+Limit the snaplen on collected packets. The default is 1526 bytes. The
+snaplen needs to be large enough to process all required protocols.
+.TP 3
+.B -B \fIcachesize
+Sets the number of cache nodes required by the flow cache and packet
+processing. By default 500k nodes should be fine for normal networks.
+For busy networks double or tripple this value, which needs more memory.
+The cachesize is part of the balance between expire times and cache size.
+See the notes below.
+.TP 3
+.B -e \fIactive,inactive
+Sets the active and inactive flow expire values in s. The default ist 300,60.
+.br
+.B Active timeout:
+A flow gets flushed to disk after this period even if it
+is still active. As a rule of thumb, it should correspond with the -t rotation 
+value, in order to reflect continous traffic in the flow files. 
+.br
+.B Inactive timeout:
+A flow gets flushed to disk after being inactive for this 
+number of seconds. It frees up node recources.
+.br
+On busy networks these values can be set to more aggressive timeouts. 
+.TP 3
+.B -I \fIIdentString ( capital letter i )
+Specifies an ident string, which describes the source e.g. the 
+name of the interface or host. This string is put into the stat record to identify
+the source. Default is 'none'. Same is nfcapd(1)
+.TP 3
+.B -l \fIflowdir ( letter ell )
+Specifies the base directory to store the flow files. 
+If a sub hierarchy is specified with \-S the final directory is concatenated 
+to \fIbase_directory/sub_hierarchy\fR. 
+.TP 3
+.B -p \fIpcapdir
+Store network packets in pcap compatible files in this directory and rotate files
+the same as the flow files. Sub hierarchy directories are applied likewise.
+.TP 3
+.B -S \fI<num>
+Allows to specify an additional directory sub hierarchy to store 
+the data files. The default is 0, no sub hierarchy, which means the 
+files go directly in the base directory (\-l). The base directory (\-l) is
+concatenated with the specified sub hierarchy format to form the final 
+data directory.  For a full list of hierarchies see nfcapd(1).
+.TP 3
+.B -T \fI<extension list>
+This option is identical to nfcapd(1) for compatibility. For now only the standard 
+netflow record data as well as the latency extesion are supported. Other extensions
+are ignored.
+.TP 3
+.B -t \fIinterval
+Specifies the time interval in seconds to rotate files. The default value 
+is 300s ( 5min ). The intervalls are in sync with wall clock 5min intervals 5,10,15, ..
+.TP 3
+.B -P \fIpidfile
+Specify name of pidfile. Default is no pidfile.
+.TP 3
+.B -D
+Daemon mode: fork to background and detach from terminal.
+Nfpcapd terminates on signal TERM, INT and HUP.
+.TP 3
+.B -E
+Verbose flow printing. Print flows on stdout, when flushed to disk.
+Use verbose printing only for debugging purpose in oder to see if your
+setup works. Running nfpcapd in verbose mode limits processing bandwith!
+.TP 3
+.B -u \fIuserid
+Change to the user \fIuserid\fP as soon as possible. Only root is allowed
+to use this option. Uid/Gid is switched after opening the reading device.
+.TP 3
+.B -g \fIgroupid
+Change to the group \fIgroupid\fP as soon as possible. Only root is allowed 
+use this option. Uid/Gid is switched after opening the reading device.
+.TP 3
+.B -j
+Compress flows. Use bz2 compression in output file. Note: not recommended while collecting
+.TP 3
+.B -y
+Compress flows. Use LZ4 compression in output file.
+.TP 3
+.B -z
+Compress flows. Use fast LZO1X\-1 compression in output file.
+.TP 3
+.B -V
+Print nfpcapd version and exit.
+.TP 3
+.B -h
+Print help text to stdout with all options and exit.
+.TP 3
+.B '<filter>'
+Optional pcap compatible packet filter. The filter needs to be put within quotes.
+.SH "RETURN VALUE"
+Returns 0 on success, or 255 if initialization failed.
+.SH "LOGGING"
+nfpcapd logs to syslog with SYSLOG_FACILITY LOG_DAEMON.
+For normal operation level 'error' should be fine. 
+More information is reported at level 'info'.
+.P
+A small statistic about the collected flows, as well as errors
+are reported at the end of every interval to syslog with level 'info'.
+.SH "EXAMPLES"
+Read packets from interface eth0
+.RS
+\fBnfpcapd \-i eth0 \-j \-D \-T all \-l /netflow/flows \-S 2 \-I any \-P /var/run/nfpcapd.pid\fP
+.RE
+.LP
+Read packets from interface mx0 and store also packets in pcap files.
+.RS
+\fBnfpcapd \-i vmx0 \-j \-D \-l /netflow/flows \-p /netflow/caps\fP
+.RE
+.LP
+For busy networks e.g. increase node buffer and apply more aggressive expire timeouts
+.RS
+\fBnfpcapd \-i eth1 \-j \-D \-l /netflow/flows -B 1048576 \-e 60,20\fP
+.RE
+.LP
+.SH NOTES
+The node cache buffer size and the expire values form a balanced system. The larger
+the expire values are, the more cache nodes are needed. Cache nodes are preallocated
+for performance reason. In case of a shortage of free nodes, the cache gets forcefully
+expired. If still no free nodes are available, the flow cache gets flushed to disk
+regardless any expire values. This results in a warning to increase the node cache size.
+.LP
+The flow cache is checked in regular 10s intervalls and expires flows according to the
+expire values. Expired flows are flushed to disk and nodes are freed up. The expire
+intervals are independant of the file rotation sequence.
+.LP
+If IP packets are fragmented, they are reassembled before processing. All IP fragments
+need to be reassembled correctly in order to be passed to the next stage. If not all 
+fragments are correctly assembled withing 15s since the first fragment arrived, all 
+fragments are discarded.
+
+.SH "SEE ALSO"
+nfcapd(1), nfdump(1), nfexpire(1)
+.SH BUGS
+No software without bugs! Please report any bugs back to me.

@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2011, Peter Haag
+ *  Copyright (c) 2011-2019, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -122,11 +120,13 @@ typedef RB_HEAD(FlowTree, FlowNode) FlowTree_t;
 // Insert the RB prototypes here
 RB_PROTOTYPE(FlowTree, FlowNode, entry, FlowNodeCMP);
 
-int Init_FlowTree(uint32_t CacheSize);
+int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive);
 
 void Dispose_FlowTree(void);
 
 uint32_t Flush_FlowTree(FlowSource_t *fs);
+
+uint32_t Expire_FlowTree(FlowSource_t *fs, time_t when);
 
 struct FlowNode *Lookup_Node(struct FlowNode *node);
 
@@ -134,7 +134,7 @@ struct FlowNode *New_Node(void);
 
 void Free_Node(struct FlowNode *node);
 
-uint32_t CacheCheck(void);
+void CacheCheck(FlowSource_t *fs, time_t when, int live);
 
 int AddNodeData(struct FlowNode *node, uint32_t seq, void *payload, uint32_t size);
 
@@ -156,6 +156,6 @@ struct FlowNode *Pop_Node(NodeList_t *NodeList, int *done);
 void DumpList(NodeList_t *NodeList);
 
 // Stat functions
-void DumpNodeStat(void);
+void DumpNodeStat(NodeList_t *NodeList);
 
 #endif // _FLOWTREE_H

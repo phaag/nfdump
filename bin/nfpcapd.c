@@ -1,9 +1,5 @@
 /*
- *  Copyright (c) 2019, Peter Haag
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2013, Peter Haag
+ *  Copyright (c) 2013-2019, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -58,6 +54,7 @@
 #include <signal.h>
 #include <string.h>
 #include <assert.h>
+// #include <mcheck.h>
 
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
@@ -98,17 +95,6 @@
 #include "rbtree.h"
 #include "ipfrag.h"
 
-#ifdef HAVE_FTS_H
-#   include <fts.h>
-#else
-#   include "fts_compat.h"
-#define fts_children fts_children_compat
-#define fts_close fts_close_compat
-#define fts_open  fts_open_compat
-#define fts_read  fts_read_compat
-#define fts_set   fts_set_compat
-#endif
-
 #include "expire.h"
 
 #include "flowtree.h"
@@ -116,7 +102,6 @@
 #include "pcaproc.h"
 
 #define TIME_WINDOW     300
-#define SNAPLEN         200
 #define PROMISC         1
 #define TIMEOUT         500
 #define FILTER          ""
@@ -126,11 +111,7 @@
 #define DLT_LINUX_SLL   113
 #endif
 
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
+#define EXPIREINTERVALL 10
 
 int verbose = 0;
 
@@ -193,9 +174,8 @@ typedef struct p_packet_thread_args_s {
 typedef struct p_flow_thread_args_s {
 	// common thread info struct
 	pthread_t tid;
-	int		  done;
-	int		  exit;
-
+	int	done;
+	int	exit;
 	// the parent
 	pthread_t parent;
 
@@ -205,6 +185,7 @@ typedef struct p_flow_thread_args_s {
 	time_t	t_win;
 	int		subdir_index;
 	int		compress;
+	int		live;
 } p_flow_thread_args_t;
 
 /*
@@ -243,18 +224,20 @@ static void usage(char *name) {
 					"-h\t\tthis text you see right here\n"
 					"-u userid\tChange user to username\n"
 					"-g groupid\tChange group to groupname\n"
-					"-i device\tspecify a device\n"
-					"-r pcapfile\tspecify a file to read from\n"
-					"-B cache buckets\tset the number of cache buckets. (default 1048576)\n"
-					"-s snaplen\tset the snapshot length - default 1500\n"
+					"-i interface\tread packets from interface\n"
+					"-r pcapfile\tread packets from file\n"
+					"-B num\tset the node cache size. (default 524288)\n"
+					"-s snaplen\tset the snapshot length - default 1526\n"
+					"-e active,inactive\tset the active,inactive flow expire time (s) - default 300,60\n"
 					"-l flowdir \tset the flow output directory. (no default) \n"
 					"-p pcapdir \tset the pcapdir directory. (optional) \n"
 					"-S subdir\tSub directory format. see nfcapd(1) for format\n"
 					"-I Ident\tset the ident string for stat file. (default 'none')\n"
 					"-P pidfile\tset the PID file\n"
 					"-t time frame\tset the time window to rotate pcap/nfcapd file\n"
+					"-z\t\tLZO compress flows in output file.\n"
+					"-y\t\tLZ4 compress flows in output file.\n"
 					"-j\t\tBZ2 compress flows in output file.\n"
-					"-z\t\tCompress flows in output file.\n"
 					"-E\t\tPrint extended format of netflow data. for debugging purpose only.\n"
 					"-T\t\tInclude extension tags in records.\n"
 					"-D\t\tdetach from terminal (daemonize)\n"
@@ -267,10 +250,10 @@ thread_info_t	*thread_info;
 
 	thread_info = (thread_info_t *)pthread_getspecific(buffer_key);
 	if ( !thread_info ) {
-		LogError("[%lu] Interrupt_handler() failed to get thread specific data block\n", (long unsigned)tid);
+		LogError("[%lu] Interrupt_handler() failed to get thread specific data block", (long unsigned)tid);
 	} else {
 		if ( thread_info->tid != tid ) {
-			LogError("[%lu] Interrupt_handler() missmatch tid in thread_info\n", (long unsigned)tid);
+			LogError("[%lu] Interrupt_handler() missmatch tid in thread_info", (long unsigned)tid);
 		} else {
 			thread_info->done = 1;
 		}
@@ -417,7 +400,6 @@ uint32_t	linkoffset, linktype;
 	/*
 	 *  Open the packet capturing device with the following values:
 	 *
-	 *  SNAPLEN: User defined or 200 bytes
 	 *  PROMISC: on
 	 *  The interface needs to be in promiscuous mode to capture all
 	 *  network traffic on the localnet.
@@ -610,9 +592,9 @@ p_flow_thread_args_t *args = (p_flow_thread_args_t *)thread_data;
 time_t t_win				 = args->t_win;
 int subdir_index			 = args->subdir_index;
 int compress			 	 = args->compress;
+int live			 	 	 = args->live;
 FlowSource_t *fs			 = args->fs;
-
-// locals
+static time_t lastExpire = 0;
 time_t t_start, t_clock;
 int err, done;
 
@@ -676,10 +658,14 @@ int err, done;
 			char netflowFname[128];
 			char error[256];
 			char *subdir;
+			uint32_t NumFlows;
 
 			// flush all flows to disk
-			DumpNodeStat();
-			uint32_t NumFlows  = Flush_FlowTree(fs);
+			DumpNodeStat(args->NodeList);
+			if (done)
+				NumFlows = Flush_FlowTree(fs);
+			else
+				NumFlows = Expire_FlowTree(fs, t_clock);
 
 			when = localtime(&t_start);
 			nffile = fs->nffile;
@@ -789,9 +775,16 @@ int err, done;
 			}
 		}
 
-		if ( Node->fin != SIGNAL_NODE )
+		if ( Node->fin != SIGNAL_NODE ) {
 			// Process the Node
 			ProcessFlowNode(fs, Node);
+			time_t when = Node->t_last.tv_sec;
+			if ( (when - lastExpire) > EXPIREINTERVALL ) {
+				Expire_FlowTree(fs, when);
+				lastExpire = when;
+			} 
+			CacheCheck(fs, when, live);
+		}
 
 	}
 
@@ -1175,6 +1168,7 @@ sigset_t			signal_set;
 struct sigaction	sa;
 int c, snaplen, err, do_daemonize;
 int subdir_index, compress, expire, cache_size;
+int active, inactive;
 FlowSource_t	*fs;
 dirstat_t 		*dirstat;
 time_t 			t_win;
@@ -1184,7 +1178,7 @@ pcap_dev_t 		*pcap_dev;
 p_packet_thread_args_t *p_packet_thread_args;
 p_flow_thread_args_t *p_flow_thread_args;
 
-	snaplen			= 1500;
+	snaplen			= 1526;
 	do_daemonize	= 0;
 	launcher_pid	= 0;
 	device			= NULL;
@@ -1203,7 +1197,9 @@ p_flow_thread_args_t *p_flow_thread_args;
 	verbose			= 0;
 	expire			= 0;
 	cache_size		= 0;
-	while ((c = getopt(argc, argv, "B:DEI:g:hi:j:r:s:l:p:P:t:u:S:T:e:Vz")) != EOF) {
+	active			= 0;
+	inactive		= 0;
+	while ((c = getopt(argc, argv, "B:DEI:e:g:hi:j:r:s:l:p:P:t:u:S:T:Vyz")) != EOF) {
 		switch (c) {
 			struct stat fstat;
 			case 'h':
@@ -1267,6 +1263,26 @@ p_flow_thread_args_t *p_flow_thread_args;
 					exit(EXIT_FAILURE);
 				}
 				break;
+			case 'e': {
+				if ( strlen(optarg) > 16 ) {
+					LogError("ERROR:, size timeout values too big");
+					exit(EXIT_FAILURE);
+				}
+				char *s = strdup(optarg);
+				char *sep = strchr(s, ',');
+				if ( !sep ) {
+					LogError("ERROR:, timeout values format error");
+					exit(EXIT_FAILURE);
+				}
+				*sep = '\0';
+				sep++;
+				active   = atoi(s);
+				inactive = atoi(sep);
+				if (snaplen < 14 + 20 + 20) { // ethernet, IP , TCP, no payload
+					LogError("ERROR:, snaplen < sizeof IPv4 - Need 54 bytes for TCP/IPv4");
+					exit(EXIT_FAILURE);
+				}
+				} break;
 			case 't':
 				t_win = atoi(optarg);
 				if (t_win < 60) {
@@ -1283,6 +1299,13 @@ p_flow_thread_args_t *p_flow_thread_args;
 					exit(255);
 				}
 				compress = BZ2_COMPRESSED;
+				break;
+			case 'y':
+				if ( compress ) {
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
+					exit(255);
+				}
+				compress = LZ4_COMPRESSED;
 				break;
 			case 'z':
 				if ( compress ) {
@@ -1355,7 +1378,7 @@ p_flow_thread_args_t *p_flow_thread_args;
 	}
 
 	
-	if ( !Init_FlowTree(cache_size)) {
+	if ( !Init_FlowTree(cache_size, active, inactive)) {
 		LogError("Init_FlowTree() failed.");
 		exit(EXIT_FAILURE);
 	}
@@ -1498,11 +1521,13 @@ p_flow_thread_args_t *p_flow_thread_args;
 	p_flow_thread_args->fs 	   	   = fs;
 	p_flow_thread_args->t_win 	   = t_win;
 	p_flow_thread_args->compress   = compress;
+	p_flow_thread_args->live	   = device != NULL;
 	p_flow_thread_args->subdir_index = subdir_index;
 	p_flow_thread_args->parent	   = pthread_self();
 	p_flow_thread_args->NodeList   = NewNodeList();
 
 	err = 0;
+
 	err = pthread_create(&p_flow_thread_args->tid, NULL, p_flow_thread, (void *)p_flow_thread_args);
 	if ( err ) {
 		LogError("pthread_create() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
@@ -1540,6 +1565,8 @@ p_flow_thread_args_t *p_flow_thread_args;
 
 	dbg_printf("Signal flow thread to terminate\n");
 	SignalThreadTerminate((thread_info_t *)p_flow_thread_args, &p_packet_thread_args->NodeList->c_list);
+
+	IPFragTree_free();
 
 	// free arg list
 	free((void *)p_packet_thread_args);
