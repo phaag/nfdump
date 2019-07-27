@@ -1,6 +1,7 @@
 2019-07-25
 - Rework nfpcapd and add it officially to the nfdump collection.
 - Add nfpcapd man page
+- Fix potential unsigned integer underflow #171
 
 2019-07-16
 - Add latency extension if dumping flowcache

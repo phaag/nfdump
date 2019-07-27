@@ -1247,7 +1247,7 @@ int i;
 		uint32_t table_id, count, size_required;
 		uint32_t num_extensions = 0;
 
-		if ( size_left && size_left < 4 ) {
+		if ( size_left < 4 ) {
 			LogError("Process_ipfix [%u] Template size error at %s line %u" , 
 				exporter->info.id, __FILE__, __LINE__, strerror (errno));
 			size_left = 0;
@@ -1425,6 +1425,14 @@ ipfix_template_record_t *ipfix_template_record;
 	// a template flowset can contain multiple records ( templates )
 	while ( size_left ) {
 		uint32_t id;
+
+		if ( size_left < 4 ) {
+			LogError("Process_ipfix [%u] Template withdraw size error at %s line %u" , 
+				exporter->info.id, __FILE__, __LINE__, strerror (errno));
+			size_left = 0;
+			continue;
+		}
+
 
 		// map next record.
 		ipfix_template_record = (ipfix_template_record_t *)DataPtr;
