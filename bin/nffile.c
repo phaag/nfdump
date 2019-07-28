@@ -224,7 +224,7 @@ int r;
    		return -1;
 	}
 
-	r = lzo1x_decompress(in,in_len,out,&out_len,NULL);
+	r = lzo1x_decompress_safe(in,in_len,out,&out_len,NULL);
 	if (r != LZO_E_OK ) {
   		/* this should NEVER happen */
 		LogError("Uncompress_Block_LZO() error decompression failed in %s line %d: LZO error: %d\n", __FILE__, __LINE__, r);
