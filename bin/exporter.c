@@ -225,6 +225,7 @@ generic_sampler_t	**sampler;
 int AddExporterStat(exporter_stats_record_t *stat_record) {
 int i, use_copy;
 exporter_stats_record_t *rec;
+size_t size;
 
 	// 64bit counters can be potentially unaligned
 	if ( ((ptrdiff_t)stat_record & 0x7) != 0 ) {
@@ -240,6 +241,11 @@ exporter_stats_record_t *rec;
 		use_copy = 0;
 	}
 
+	size = sizeof(exporter_stats_record_t) + (rec->stat_count -1) * sizeof(struct exporter_stat_s);
+	if ( size > rec->header.size ) {
+		LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
+		return 0;
+	}
 	for (i=0; i<rec->stat_count; i++ ) {
 		uint32_t id = rec->stat[i].sysid;
 		if ( !exporter_list[id] ) {
