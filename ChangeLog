@@ -1,6 +1,7 @@
 2019-07-26
 - nfpcapd cleanup, add some more monitoring
 - Fix hbo_exporter.c:249_1 segfault 
+- Fix hbo_nffile_inline.c:85_1 segfault
 
 2019-07-25
 - Rework nfpcapd and add it officially to the nfdump collection.

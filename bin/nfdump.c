@@ -528,9 +528,15 @@ int	v1_map_done = 0;
 			continue;
 		}
 
+		uint32_t sumSize = 0;
 		record_ptr = nffile_r->buff_ptr;
 		for ( i=0; i < nffile_r->block_header->NumRecords; i++ ) {
 			flow_record = record_ptr;
+			if ( (sumSize + record_ptr->size) > ret ) {
+				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
+				exit(255);
+			}
+			sumSize += record_ptr->size;
 			switch ( record_ptr->type ) {
 				case CommonRecordV0Type: 
 					// convert common record v0
