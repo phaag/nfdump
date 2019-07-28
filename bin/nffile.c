@@ -219,6 +219,11 @@ int r;
 	out = (unsigned char __LZO_MMODEL *)(nffile->buff_pool[1] + sizeof(data_block_header_t));	
 	in_len = nffile->block_header->size;
 
+	if ( in_len == 0 ) {
+		LogError("Uncompress_Block_LZO() header length error in %s line %d\n", __FILE__, __LINE__);
+   		return -1;
+	}
+
 	r = lzo1x_decompress(in,in_len,out,&out_len,NULL);
 	if (r != LZO_E_OK ) {
   		/* this should NEVER happen */
