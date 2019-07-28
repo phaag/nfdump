@@ -1,3 +1,6 @@
+2019-07-26
+- nfpcapd cleanup, add some more monitoring
+
 2019-07-25
 - Rework nfpcapd and add it officially to the nfdump collection.
 - Add nfpcapd man page

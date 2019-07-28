@@ -84,7 +84,8 @@ static struct FlowNode *FlowElementCache;
 static struct FlowNode *FlowNode_FreeList;
 static pthread_mutex_t m_FreeList = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  c_FreeList = PTHREAD_COND_INITIALIZER;
-static uint32_t	CacheOverflow;
+static uint32_t	EmptyFreeList;
+static uint32_t	EmptyFreeListEvents = 0;
 static uint32_t	Allocated;
 
 // Flow tree
@@ -105,8 +106,8 @@ struct FlowNode *node;
 
 	pthread_mutex_lock(&m_FreeList);
     while ( FlowNode_FreeList == NULL ) {
-		CacheOverflow++;
-		LogInfo("Free nodes list exhausted: %u, Flows: %u - sleep", Allocated, NumFlows);
+		EmptyFreeList = 1;
+		EmptyFreeListEvents++;
         pthread_cond_wait(&c_FreeList, &m_FreeList);
 	}
 
@@ -160,8 +161,8 @@ void Free_Node(struct FlowNode *node) {
 	node->memflag = NODE_FREE;
 	FlowNode_FreeList = node;
 	Allocated--;
-	if ( CacheOverflow ) {
-		CacheOverflow = 0;
+	if ( EmptyFreeList ) {
+		EmptyFreeList = 0;
 		pthread_cond_signal(&c_FreeList);
 	}
 	pthread_mutex_unlock(&m_FreeList);
@@ -244,7 +245,7 @@ int i;
 	FlowElementCache[i].right 	= NULL;
 	FlowElementCache[i].memflag = NODE_FREE;
 
-	CacheOverflow = 0;
+	EmptyFreeList = 0;
 	Allocated 	  = 0;
 	NumFlows 	  = 0;
 
@@ -263,7 +264,7 @@ struct FlowNode *node, *nxt;
 	free(FlowElementCache);
 	FlowElementCache 	 = NULL;
 	FlowNode_FreeList 	 = NULL;
-	CacheOverflow = 0;
+	EmptyFreeList = 0;
 
 } // End of Dispose_FlowTree
 
@@ -588,6 +589,7 @@ struct FlowNode *node;
 #endif
 
 void DumpNodeStat(NodeList_t *NodeList) {
-	LogInfo("Nodes in use: %u, Flows: %u, Nodes list length: %u", 
-		Allocated, NumFlows, NodeList->length);
+	LogInfo("Nodes in use: %u, Flows: %u, Nodes list length: %u, Waiting for freelist: %u", 
+		Allocated, NumFlows, NodeList->length, EmptyFreeListEvents);
+	EmptyFreeListEvents = 0;
 } // End of DumpNodeStat

@@ -1053,12 +1053,22 @@ int err;
 							Node->t_last  = tv;
 							Node->fin  	  = SIGNAL_NODE;
 							Push_Node(args->NodeList, Node);
-							if ( pcap_datadir )
-							// keep the packet
+							if ( pcap_datadir ) {
+								// keep the packet
 								RotateFile(pcapfile, t_start, live);
+							}
 							LogInfo("Packet processing stats: Total: %u, Skipped: %u, Unknown: %u, Short snaplen: %u", 
 								pcap_dev->proc_stat.packets, pcap_dev->proc_stat.skipped, 
 								pcap_dev->proc_stat.unknown, pcap_dev->proc_stat.short_snap);
+						}
+						if ( live ) {
+							struct pcap_stat p_stat;
+							if( pcap_stats(pcap_dev->handle, &p_stat) < 0) {
+								LogInfo("pcap_stats() failed: %s", pcap_geterr(pcapfile->p));
+							} else {
+								LogInfo("Dropped: %u, dropped by interface: %u ",
+									p_stat.ps_drop, p_stat.ps_ifdrop );
+							}
 						}
 						t_start = t_clock - (t_clock % t_win);
 						memset((void *)&(pcap_dev->proc_stat), 0, sizeof(proc_stat_t));

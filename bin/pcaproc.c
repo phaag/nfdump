@@ -1,34 +1,34 @@
 /*
  *  Copyright (c) 2014-2019, Peter Haag
  *  All rights reserved.
- *  
- *  Redistribution and use in source and binary forms, with or without 
+ *
+ *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
- *  
- *   * Redistributions of source code must retain the above copyright notice, 
+ *
+ *   * Redistributions of source code must retain the above copyright notice,
  *	 this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above copyright notice, 
- *	 this list of conditions and the following disclaimer in the documentation 
+ *   * Redistributions in binary form must reproduce the above copyright notice,
+ *	 this list of conditions and the following disclaimer in the documentation
  *	 and/or other materials provided with the distribution.
- *   * Neither the name of the author nor the names of its contributors may be 
- *	 used to endorse or promote products derived from this software without 
+ *   * Neither the name of the author nor the names of its contributors may be
+ *	 used to endorse or promote products derived from this software without
  *	 specific prior written permission.
- *  
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
- *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
- *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
- *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
- *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
- *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
- *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
- *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
- *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
- *  
+ *
  */
 
-#ifdef HAVE_CONFIG_H 
+#ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
 
@@ -143,7 +143,7 @@ pcapfile_t *OpenNewPcapFile(pcap_t *p, char *filename, pcapfile_t *pcapfile) {
 			pcapfile->pfd = fileno((FILE *)pcapfile->pd);
 			return pcapfile;
 		}
-	} else 
+	} else
 		return pcapfile;
 
 } // End of OpenNewPcapFile
@@ -191,7 +191,7 @@ void *_b;
 		if( pcap_stats(pcapfile->p, &p_stat) < 0) {
 			LogError("pcap_stats() failed: %s", pcap_geterr(pcapfile->p));
 		} else {
-			LogInfo("Packets received: %u, dropped: %u, dropped by interface: %u ", 
+			LogInfo("Packets received: %u, dropped: %u, dropped by interface: %u ",
 				p_stat.ps_recv, p_stat.ps_drop, p_stat.ps_ifdrop );
 		}
 	}
@@ -262,7 +262,7 @@ struct FlowNode *Node;
 			// flush node
 			if ( StorePcapFlow(fs, NewNode) ) {
 				Remove_Node(NewNode);
-			} 
+			}
 		}
 
 		if ( Link_RevNode(NewNode)) {
@@ -284,8 +284,8 @@ struct FlowNode *Node;
 	// update existing flow
 	Node->flags |= NewNode->flags;
 	Node->packets++;
-	Node->bytes += NewNode->bytes; 
-	Node->t_last = NewNode->t_last; 
+	Node->bytes += NewNode->bytes;
+	Node->t_last = NewNode->t_last;
 	dbg_printf("Existing TCP flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
 
 	if ( NewNode->fin == FIN_NODE) {
@@ -293,11 +293,11 @@ struct FlowNode *Node;
 		Node->fin = FIN_NODE;
 		if ( StorePcapFlow(fs, Node) ) {
 			Remove_Node(Node);
-		} 
+		}
 	} else {
 		Free_Node(NewNode);
 	}
- 
+
 
 } // End of ProcessTCPFlow
 
@@ -305,7 +305,7 @@ static inline void ProcessUDPFlow(FlowSource_t	*fs, struct FlowNode *NewNode ) {
 struct FlowNode *Node;
 
 	assert(NewNode->memflag == NODE_IN_USE);
-	// Flush DNS queries directly 
+	// Flush DNS queries directly
 	if ( NewNode->src_port == 53 || NewNode->dst_port == 53 ) {
 		StorePcapFlow(fs, NewNode);
 		Free_Node(NewNode);
@@ -318,13 +318,13 @@ struct FlowNode *Node;
 	if ( Node == NULL ) {
 		dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
 		return;
-	} 
+	}
 	assert(Node->memflag == NODE_IN_USE);
 
 	// update existing flow
 	Node->packets++;
-	Node->bytes += NewNode->bytes; 
-	Node->t_last = NewNode->t_last; 
+	Node->bytes += NewNode->bytes;
+	Node->t_last = NewNode->t_last;
 	dbg_printf("Existing UDP flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
 
 	Free_Node(NewNode);
@@ -333,7 +333,7 @@ struct FlowNode *Node;
 
 static inline void ProcessICMPFlow(FlowSource_t	*fs, struct FlowNode *NewNode ) {
 
-	// Flush ICMP directly 
+	// Flush ICMP directly
 	StorePcapFlow(fs, NewNode);
 	dbg_printf("Flush ICMP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
 
@@ -365,7 +365,7 @@ void ProcessFlowNode(FlowSource_t *fs, struct FlowNode *node) {
 		case IPPROTO_ICMPV6:
 			ProcessICMPFlow(fs, node);
 			break;
-		default: 
+		default:
 			ProcessOtherFlow(fs, node);
 	}
 
@@ -408,10 +408,10 @@ static unsigned pkg_cnt = 0;
 				case 0x800:	 // IPv4
 				case 0x86DD: // IPv6
 					break;
-				case 0x8100: {	// VLAN 
+				case 0x8100: {	// VLAN
 					do {
 						vlan_hdr_t *vlan_hdr = (vlan_hdr_t *)(data + offset);  // offset points to end of link layer
-						dbg_printf("VLAN ID: %u, type: 0x%x\n", 
+						dbg_printf("VLAN ID: %u, type: 0x%x\n",
 							ntohs(vlan_hdr->vlan_id), ntohs(vlan_hdr->type) );
 						ethertype = ntohs(vlan_hdr->type);
 /*
@@ -493,7 +493,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 		offset = size_ip;	// offset point to end of IP header
 
 		if ( data_len < size_ip ) {
-			LogInfo("Packet: %u Length error: data_len: %u < size IPV6: %u, captured: %u, hdr len: %u", 
+			LogInfo("Packet: %u Length error: data_len: %u < size IPV6: %u, captured: %u, hdr len: %u",
 				pkg_cnt, data_len, size_ip, hdr->caplen, hdr->len);	
 			pcap_dev->proc_stat.short_snap++;
 			Free_Node(Node);
@@ -531,7 +531,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 		offset = size_ip;	// offset point to end of IP header
 
 		if ( data_len < size_ip ) {
-			LogInfo("Packet: %u Length error: data_len: %u < size IPV4: %u, captured: %u, hdr len: %u", 
+			LogInfo("Packet: %u Length error: data_len: %u < size IPV4: %u, captured: %u, hdr len: %u",
 				pkg_cnt, data_len, size_ip, hdr->caplen, hdr->len);	
 			pcap_dev->proc_stat.short_snap++;
 			Free_Node(Node);
@@ -560,7 +560,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			uint16_t ip_id = ntohs(ip->ip_id);
 #ifdef DEVEL
 			if ( frag_offset == 0 )
-				printf("Fragmented packet: first segement: ip_off: %u, frag_offset: %u\n", 
+				printf("Fragmented packet: first segement: ip_off: %u, frag_offset: %u\n",
 					ip_off, frag_offset);
 			if (( ip_off & IP_MF ) && frag_offset )
 				printf("Fragmented packet: middle segement: ip_off: %u, frag_offset: %u\n",
@@ -570,7 +570,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 					ip_off, frag_offset);
 #endif
 			// fragmented packet
-			defragmented = IPFrag_tree_Update(hdr->ts.tv_sec, ip->ip_src.s_addr, ip->ip_dst.s_addr, 
+			defragmented = IPFrag_tree_Update(hdr->ts.tv_sec, ip->ip_src.s_addr, ip->ip_dst.s_addr,
 				ip_id, &payload_len, ip_off, payload);
 			if ( defragmented == NULL ) {
 				// not yet complete
@@ -581,7 +581,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			dbg_printf("Fragmentation complete\n");
 			// packet defragmented - set payload to defragmented data
 			payload = defragmented;
-		} 
+		}
 		bytes 		= payload_len;
 
 		Node->src_addr.v6[0] = 0;
@@ -610,7 +610,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			struct udphdr *udp = (struct udphdr *)payload;
 			uint16_t UDPlen = ntohs(udp->uh_ulen);
 			if ( UDPlen < 8 ) {
-				LogInfo("UDP payload length error: %u bytes < 8, SRC %s, DST %s", 
+				LogInfo("UDP payload length error: %u bytes < 8, SRC %s, DST %s",
 					UDPlen, inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
 					inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
 
@@ -629,7 +629,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			}
 			payload = payload + sizeof(struct udphdr);
 			payload_len -= sizeof(struct udphdr);
-			dbg_printf("UDP: size: %u, SRC: %i, DST: %i\n", 
+			dbg_printf("UDP: size: %u, SRC: %i, DST: %i\n",
 				size_udp_payload, ntohs(udp->uh_sport), ntohs(udp->uh_dport));
 
 			Node->bytes = payload_len;
@@ -639,7 +639,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 
 			if ( hdr->caplen == hdr->len ) {
 				// process payload of full packets
-				if ( (bytes == payload_len) && (Node->src_port == 53 || Node->dst_port == 53) ) 
+				if ( (bytes == payload_len) && (Node->src_port == 53 || Node->dst_port == 53) )
  					content_decode_dns(Node, payload, payload_len);
 			}
 			Push_Node(NodeList, Node);
@@ -650,10 +650,10 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			size_tcp = tcp->th_off << 2;
 
 			if ( payload_len < size_tcp ) {
-				LogInfo("TCP header length error: len: %u < size TCP header: %u, SRC %s, DST %s", 
+				LogInfo("TCP header length error: len: %u < size TCP header: %u, SRC %s, DST %s",
 					payload_len, size_tcp,
 					inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
-					inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));   
+					inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
                 pcap_dev->proc_stat.short_snap++;
 
 				pcap_dev->proc_stat.short_snap++;
@@ -664,7 +664,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			payload = payload + size_tcp;
 			payload_len -= size_tcp;
 			dbg_printf("Size TCP header: %u, size TCP payload: %u ", size_tcp, payload_len);
-			dbg_printf("src %i, DST %i, flags %i : ", 
+			dbg_printf("src %i, DST %i, flags %i : ",
 				ntohs(tcp->th_sport), ntohs(tcp->th_dport), tcp->th_flags);
 
 #ifdef DEVEL
@@ -777,7 +777,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			goto REDO_LINK;
 
 			} break;
-		default: 
+		default:
 			// not handled protocol - simply save node
 			Push_Node(NodeList, Node);
 			pcap_dev->proc_stat.unknown++;
@@ -793,6 +793,3 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 
 
 } // End of ProcessPacket
-
-
-
