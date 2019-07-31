@@ -1,3 +1,6 @@
+2019-07-31
+- Add early record size sanity check also for nfprofile, nfanon and nfreplay
+
 2019-07-26
 - nfpcapd cleanup, add some more monitoring
 - Fix hbo_exporter.c:249_1 segfault 

@@ -330,9 +330,14 @@ int	v1_map_done = 0;
 		// cnt is the number of blocks, which survived the filter
 		// and added to the output buffer
 		flow_record = nffile->buff_ptr;
-
+		uint32_t sumSize = 0;
 		for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
 			int match;
+			if ( (sumSize + flow_record->size) > ret ) {
+				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
+				exit(255);
+			}
+			sumSize += flow_record->size;
 
 			switch ( flow_record->type ) {
 				case CommonRecordType: {
@@ -368,9 +373,9 @@ int	v1_map_done = 0;
 					numflows++;
 
 					if ( peer.flush ) {
-						ret = FlushBuffer(confirm);
+						int err = FlushBuffer(confirm);
 	
-						if ( ret < 0 ) {
+						if ( err < 0 ) {
 							perror("Error sending data");
 							CloseFile(nffile);
 							DisposeFile(nffile);
