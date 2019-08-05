@@ -95,13 +95,19 @@ int InitExporterList(void) {
 } // End of InitExporterList
 
 int AddExporterInfo(exporter_info_record_t *exporter_record) {
-uint32_t id = exporter_record->sysid;
+uint32_t id;
 int i;
 char *p1, *p2;
 
+	if ( exporter_record->header.size != sizeof(exporter_info_record_t) ) {
+		LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
+		return 0;
+	}
+
 	// sanity check
+	id = exporter_record->sysid;
 	if ( id >= MAX_EXPORTERS ) {
-		LogError("Exporter id: %u out of range. Skip exporter", id);
+		LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
 		return 0;
 	}
 	if ( exporter_list[id] != NULL ) {
