@@ -67,10 +67,6 @@
 /* externals */
 extern generic_exporter_t **exporter_list;
 
-#ifdef COMPAT15
-extern extension_descriptor_t extension_descriptor[];
-#endif
-
 /* Local Variables */
 static const char *nfdump_version = VERSION;
 
@@ -121,9 +117,6 @@ common_record_t	*flow_record;
 nffile_t		*nffile;
 FilterEngine_data_t	*engine;
 int 		i, j, done, ret ;
-#ifdef COMPAT15
-int	v1_map_done = 0;
-#endif
 
 	nffile = GetNextFile(NULL, 0, 0);
 	if ( !nffile ) {
@@ -169,55 +162,6 @@ int	v1_map_done = 0;
 	
 				} break; // not really needed
 		}
-
-#ifdef COMPAT15
-		if ( nffile->block_header->id == DATA_BLOCK_TYPE_1 ) {
-			common_record_v1_t *v1_record = (common_record_v1_t *)nffile->buff_ptr;
-			// create an extension map for v1 blocks
-			if ( v1_map_done == 0 ) {
-				extension_map_t *map = malloc(sizeof(extension_map_t) + 2 * sizeof(uint16_t) );
-				if ( ! map ) {
-					LogError("malloc() allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-					exit(255);
-				}
-				map->type 	= ExtensionMapType;
-				map->size 	= sizeof(extension_map_t) + 2 * sizeof(uint16_t);
-				if (( map->size & 0x3 ) != 0 ) {
-					map->size += 4 - ( map->size & 0x3 );
-				}
-				
-				map->map_id = INIT_ID;
-				map->ex_id[0]  = EX_IO_SNMP_2;
-				map->ex_id[1]  = EX_AS_2;
-				map->ex_id[2]  = 0;
-
-				map->extension_size  = 0;
-				map->extension_size += extension_descriptor[EX_IO_SNMP_2].size;
-				map->extension_size += extension_descriptor[EX_AS_2].size;
-				
-				if ( Insert_Extension_Map(extension_map_list, map) ) {
-					int j;
-					for ( j=0; j < num_channels; j++ ) {
-						if ( channels[j].nffile != NULL) {
-							// flush new map
-							AppendToBuffer(channels[j].nffile, (void *)map, map->size);
-						}
-					}
-				} // else map already known and flushed
-			
-				v1_map_done = 1;
-			}
-
-			// convert the records to v2
-			for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
-				common_record_t *v2_record = (common_record_t *)v1_record;
-				Convert_v1_to_v2((void *)v1_record);
-				// now we have a v2 record -> use size of v2_record->size
-				v1_record = (common_record_v1_t *)((pointer_addr_t)v1_record + v2_record->size);
-			}
-			nffile->block_header->id = DATA_BLOCK_TYPE_2;
-		}
-#endif
 
 		if ( nffile->block_header->id == Large_BLOCK_Type ) {
 			// skip

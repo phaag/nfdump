@@ -179,10 +179,6 @@ nffile_t			*nffile_r;
 nffile_t			*nffile_w;
 int 		i, done, ret, cnt, verbose;
 char		outfile[MAXPATHLEN], *cfile;
-#ifdef COMPAT15
-int	v1_map_done = 0;
-#endif
-
 
 	setbuf(stderr, NULL);
 	cnt 	= 1;
@@ -301,40 +297,6 @@ int	v1_map_done = 0;
 	
 				} break; // not really needed
 		}
-
-#ifdef COMPAT15
-		if ( nffile_r->block_header->id == DATA_BLOCK_TYPE_1 ) {
-			common_record_v1_t *v1_record = (common_record_v1_t *)nffile_r->buff_ptr;
-			// create an extension map for v1 blocks
-			if ( v1_map_done == 0 ) {
-				extension_map_t *map = malloc(sizeof(extension_map_t) + 2 * sizeof(uint16_t) );
-				if ( ! map ) {
-					LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-					exit(255);
-				}
-				map->type 	= ExtensionMapType;
-				map->size 	= sizeof(extension_map_t) + 2 * sizeof(uint16_t);
-				map->map_id = 0;
-				map->ex_id[0]  = EX_IO_SNMP_2;
-				map->ex_id[1]  = EX_AS_2;
-				map->ex_id[2]  = 0;
-
-				Insert_Extension_Map(extension_map_list, map);
-				AppendToBuffer(nffile_w, (void *)map, map->size);
-
-				v1_map_done = 1;
-			}
-
-			// convert the records to v2
-			for ( i=0; i < nffile_r->block_header->NumRecords; i++ ) {
-				common_record_t *v2_record = (common_record_t *)v1_record;
-				Convert_v1_to_v2((void *)v1_record);
-				// now we have a v2 record -> use size of v2_record->size
-				v1_record = (common_record_v1_t *)((pointer_addr_t)v1_record + v2_record->size);
-			}
-			nffile_r->block_header->id = DATA_BLOCK_TYPE_2;
-		}
-#endif
 
 		if ( nffile_r->block_header->id == Large_BLOCK_Type ) {
 			// skip

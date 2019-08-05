@@ -85,10 +85,6 @@
 /* Externals */
 extern int yydebug;
 
-#ifdef COMPAT15
-extern extension_descriptor_t extension_descriptor[];
-#endif
-
 /* Global Variables */
 FilterEngine_data_t	*Engine;
 int 		verbose;
@@ -217,10 +213,6 @@ uint32_t		numflows, cnt;
 	double first, last, now, today = 0, reftime = 0;
 	int reducer = 0;
 
-#ifdef COMPAT15
-int	v1_map_done = 0;
-#endif
-	
 	// Get the first file handle
 	nffile = GetNextFile(NULL, twin_start, twin_end);
 	if ( !nffile ) {
@@ -282,45 +274,6 @@ int	v1_map_done = 0;
 	
 				} break; // not really needed
 		}
-
-#ifdef COMPAT15
-		if ( nffile->block_header->id == DATA_BLOCK_TYPE_1 ) {
-			common_record_v1_t *v1_record = (common_record_v1_t *)nffile->buff_ptr;
-			// create an extension map for v1 blocks
-			if ( v1_map_done == 0 ) {
-				extension_map_t *map = malloc(sizeof(extension_map_t) + 2 * sizeof(uint16_t) );
-				if ( ! map ) {
-					perror("Memory allocation error");
-					exit(255);
-				}
-				map->type 	= ExtensionMapType;
-				map->size 	= sizeof(extension_map_t) + 2 * sizeof(uint16_t);
-				if (( map->size & 0x3 ) != 0 ) {
-					map->size += 4 - ( map->size & 0x3 );
-				}
-				map->map_id = INIT_ID;
-				map->ex_id[0]  = EX_IO_SNMP_2;
-				map->ex_id[1]  = EX_AS_2;
-				map->ex_id[2]  = 0;
-				
-				map->extension_size  = 0;
-				map->extension_size += extension_descriptor[EX_IO_SNMP_2].size;
-				map->extension_size += extension_descriptor[EX_AS_2].size;
-					
-				Insert_Extension_Map(extension_map_list, map);
-				v1_map_done = 1;
-			}
-
-			// convert the records to v2
-			for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
-				common_record_t *v2_record = (common_record_t *)v1_record;
-				Convert_v1_to_v2((void *)v1_record);
-				// now we have a v2 record -> use size of v2_record->size
-				v1_record = (common_record_v1_t *)((pointer_addr_t)v1_record + v2_record->size);
-			}
-			nffile->block_header->id = DATA_BLOCK_TYPE_2;
-		}
-#endif
 
 		if ( nffile->block_header->id != DATA_BLOCK_TYPE_2 ) {
 			LogError("Can't process block type %u. Skip block.\n", nffile->block_header->id);

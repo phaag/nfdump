@@ -41,10 +41,6 @@ fi
 AC_ARG_ENABLE(compat15,
 [  --enable-compat15       compile nfdump, to read nfdump data files created with nfdump 1.5.x; default is NO])
 
-if test "${enable_compat15}" = "yes" ; then
-	CFLAGS="$CFLAGS -DCOMPAT15"
-fi
-
 AC_ARG_ENABLE(nsel,
 [  --enable-nsel           compile nfdump, to read and process ASA/NSEL/NEL event data; default is NO])
 

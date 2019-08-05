@@ -2139,41 +2139,6 @@ typedef struct type_mask_s {
  * 				for IPv4 netflow v5/v7	12
  */
 
-/*
- * exporter records
- */
-
-#ifdef COMPAT15
-/*
- * Data block type 1 compatibility
- */
- 
-typedef struct common_record_v1_s {
-    // the head of each data record
-    uint32_t    flags;
-    uint16_t    size;
-    uint16_t    exporter_ref;
-    uint16_t    msec_first;
-    uint16_t    msec_last;
-    uint32_t    first;
-    uint32_t    last;
-
-    uint8_t     dir;
-    uint8_t     tcp_flags;
-    uint8_t     prot;
-    uint8_t     tos;
-    uint16_t    input;
-    uint16_t    output;
-    uint16_t    srcport;
-    uint16_t    dstport;
-    uint16_t    srcas;
-    uint16_t    dstas;
-    uint8_t     data[4];    // .. more data below
-} common_record_v1_t;
-
-#endif
-
-
 void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
 nffile_t *OpenFile(char *filename, nffile_t *nffile);
@@ -2205,10 +2170,6 @@ int RenameAppend(char *from, char *to);
 void ModifyCompressFile(char * rfile, char *Rfile, int compress);
 
 void ExpandRecord_v1(common_record_t *input_record,master_record_t *output_record );
-
-#ifdef COMPAT15
-void Convert_v1_to_v2(void *mem);
-#endif
 
 #endif //_NFFILE_H
 
