@@ -297,9 +297,18 @@ int	v1_map_done = 0;
 				case ExtensionMapType: {
 					extension_map_t *map = (extension_map_t *)flow_record;
 
-					if ( Insert_Extension_Map(extension_map_list, map) ) {
-					 	// flush new map
-					} // else map already known and flushed
+					int ret = Insert_Extension_Map(extension_map_list, map);
+					switch (ret) {
+						case 0:
+							// map already known and flushed
+							break; 
+						case 1:
+							// new map
+							break;
+						default:
+							LogError("Corrupt data file. Unable to decode at %s line %d\n", __FILE__, __LINE__);
+							exit(255);
+					}
 
 					} break;
 				case ExporterInfoRecordType:

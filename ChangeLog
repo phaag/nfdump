@@ -5,6 +5,7 @@
 - Add bound checks in AddExporterStat #174
 - Add bound checks in AddSamplerInfo #176
 - Add bound checks in AddExporterInfo
+- Fix checks in InsertExtensionMap #177
 
 2019-07-31
 - Add early record size sanity check also for nfprofile, nfanon and nfreplay

@@ -84,8 +84,6 @@ void SetupExtensionDescriptors(char *options);
 
 void PrintExtensionMap(extension_map_t *map);
 
-int VerifyExtensionMap(extension_map_t *map);
-
 void DumpExMaps(char *filename);
 
 #endif //_NFX_H
