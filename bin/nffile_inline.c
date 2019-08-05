@@ -75,25 +75,6 @@ static inline void CopyV6IP(uint32_t *dst, uint32_t *src) {
 	dst[3] = src[3];
 } // End of CopyV6IP
 
-static inline int ConvertCommonV0(void *record, common_record_t *flow_record) {
-common_record_v0_t *flow_record_v0 = (common_record_v0_t *)record;
-
-	// copy v0 common record
-	memcpy((void *)flow_record, record, COMMON_RECORDV0_DATA_SIZE);
-	if ( flow_record_v0->size <= COMMON_RECORDV0_DATA_SIZE ) 
-		return 0;
-	memcpy((void *)flow_record->data, (void *)flow_record_v0->data, flow_record_v0->size - COMMON_RECORDV0_DATA_SIZE);
-
-	// fix record differences
-	flow_record->type			= CommonRecordType;
-	flow_record->size			+= (COMMON_RECORD_DATA_SIZE - COMMON_RECORDV0_DATA_SIZE);
-	flow_record->flags			= flow_record_v0->flags;
-	flow_record->exporter_sysid = flow_record_v0->exporter_sysid;
-	flow_record->reserved 		= 0;
-
-	return 1;
-} // End of ConvertCommonV0
-
 /*
  * Expand file record into master record for further processing
  * LP64 CPUs need special 32bit operations as it is not guarateed, that 64bit

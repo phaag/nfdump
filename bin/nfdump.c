@@ -422,8 +422,6 @@ int 				done, write_file;
 	done = 0;
 	while ( !done ) {
 	int i, ret;
-	char *ConvertBuffer = NULL;
-
 		// get next data block from file
 		ret = ReadBlock(nffile_r);
 
@@ -485,21 +483,8 @@ int 				done, write_file;
 			sumSize += record_ptr->size;
 			switch ( record_ptr->type ) {
 				case CommonRecordV0Type: 
-					// convert common record v0
-					if ( !ConvertBuffer ) {
-						ConvertBuffer = malloc(65536);
-						if ( !ConvertBuffer ) {
-							LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-							exit(255);
-						}
-					}
-					if ( !ConvertCommonV0((void *)record_ptr, (common_record_t *)ConvertBuffer) ) {
-						LogError("Corrupt data file. Unable to decode at %s line %d\n", __FILE__, __LINE__);
-						exit(255);
-
-					}
-					flow_record = (common_record_t *)ConvertBuffer;
-					dbg_printf("Converted type %u to %u record\n", CommonRecordV0Type, CommonRecordType);
+					LogError("Old common v0 records no longer supported - skipped");
+					break;
 				case CommonRecordType: {
 					int match;
 					uint32_t map_id;
