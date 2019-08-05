@@ -2,6 +2,7 @@
 - Fix nfdump.1 man page. #175
 - Fix off by 1 array. #173
 - Fix use after free in ModifyCompressFile
+- Add bound checks in AddExporterStat #174
 
 2019-07-31
 - Add early record size sanity check also for nfprofile, nfanon and nfreplay

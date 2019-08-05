@@ -532,7 +532,7 @@ int	v1_map_done = 0;
 		record_ptr = nffile_r->buff_ptr;
 		for ( i=0; i < nffile_r->block_header->NumRecords; i++ ) {
 			flow_record = record_ptr;
-			if ( (sumSize + record_ptr->size) > ret || (record_ptr->size < COMMON_RECORD_DATA_SIZE) ) {
+			if ( (sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t)) ) {
 				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
 				exit(255);
 			}

@@ -225,7 +225,18 @@ generic_sampler_t	**sampler;
 int AddExporterStat(exporter_stats_record_t *stat_record) {
 int i, use_copy;
 exporter_stats_record_t *rec;
-size_t size;
+size_t required;
+
+	if ( stat_record->header.size < sizeof(exporter_stats_record_t) ) {
+		LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
+		return 0;
+	}
+
+	required = sizeof(exporter_stats_record_t) + (stat_record->stat_count-1) * sizeof(struct exporter_stat_s);
+	if ((stat_record->stat_count == 0) || (stat_record->header.size != required)) {
+		LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
+		return 0;
+	}
 
 	// 64bit counters can be potentially unaligned
 	if ( ((ptrdiff_t)stat_record & 0x7) != 0 ) {
@@ -241,13 +252,12 @@ size_t size;
 		use_copy = 0;
 	}
 
-	size = sizeof(exporter_stats_record_t) + (rec->stat_count -1) * sizeof(struct exporter_stat_s);
-	if ( size > rec->header.size ) {
-		LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
-		return 0;
-	}
 	for (i=0; i<rec->stat_count; i++ ) {
 		uint32_t id = rec->stat[i].sysid;
+		if ( id >= MAX_EXPORTERS ) {
+			LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
+			return 0;
+		}
 		if ( !exporter_list[id] ) {
 			LogError("Exporter SysID: %u not found! - Skip stat record record.\n");
 			continue;
