@@ -1321,7 +1321,7 @@ char 			*filename, outfile[MAXPATHLEN];
 				CloseFile(nffile_w);
 				DisposeFile(nffile_w);
 				unlink(outfile);
-				break;;
+				return;
 			}
 
 			// swap buffers
@@ -1339,7 +1339,7 @@ char 			*filename, outfile[MAXPATHLEN];
 				CloseFile(nffile_w);
 				DisposeFile(nffile_w);
 				unlink(outfile);
-				break;;
+				return;
 			}
 		}
 
