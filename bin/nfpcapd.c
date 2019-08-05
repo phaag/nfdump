@@ -372,8 +372,9 @@ int		err;
 } // End of SetPriv
 
 static pcap_dev_t *setup_pcap_live(char *device, char *filter, int snaplen) {
-pcap_t 		*handle;
-pcap_dev_t	*pcap_dev;
+pcap_t 		*handle    = NULL;
+pcap_dev_t	*pcap_dev  = NULL;
+pcap_if_t	*alldevsp = NULL;
 char errbuf[PCAP_ERRBUF_SIZE];
 bpf_u_int32 mask;		/* Our netmask */
 bpf_u_int32 net;		/* Our IP */
@@ -383,11 +384,17 @@ uint32_t	linkoffset, linktype;
 	dbg_printf("Enter function: %s\n", __FUNCTION__);
 
 	if (device == NULL) {
-		device = pcap_lookupdev(errbuf);
-		if (device == NULL) {
-			LogError("Couldn't find default device: %s", errbuf);
+		if ( pcap_findalldevs(&alldevsp, errbuf) == -1 ) {
+			LogError("pcap_findalldevs() error: %s in %s line %d", 
+				errbuf, __FILE__, __LINE__);
 			return NULL;
 		}
+		if ( alldevsp == NULL ) {
+			LogError("Couldn't find default device");
+			return NULL;
+		}
+		device = alldevsp[0].name;
+		LogInfo("Listen on %s", device);
 	}
 
 	/* Find the properties for the device */
@@ -1382,12 +1389,6 @@ p_flow_thread_args_t *p_flow_thread_args;
 		exit(EXIT_FAILURE);
 	}
 
-	if ( !device && !pcapfile ) {
-		LogError("Specify either a device or a pcapfile to read packets from");
-		exit(EXIT_FAILURE);
-	}
-
-	
 	if ( !Init_FlowTree(cache_size, active, inactive)) {
 		LogError("Init_FlowTree() failed.");
 		exit(EXIT_FAILURE);
