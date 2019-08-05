@@ -178,8 +178,19 @@ char *p1, *p2;
 } // End of AddExporterInfo
 
 int AddSamplerInfo(sampler_info_record_t *sampler_record) {
-uint32_t id = sampler_record->exporter_sysid;
+uint32_t id;
 generic_sampler_t	**sampler;
+
+	if ( sampler_record->header.size != sizeof(sampler_info_record_t) ) {
+		LogError("Corrupt sampler record in %s line %d\n", __FILE__, __LINE__);
+		return 0;
+	}
+
+	id = sampler_record->exporter_sysid;
+	if ( id >= MAX_EXPORTERS) {
+		LogError("Corrupt sampler record in %s line %d\n", __FILE__, __LINE__);
+		return 0;
+	}
 
 	if ( !exporter_list[id] ) {
 		LogError("Exporter SysID: %u not found! - Skip sampler record", id);
