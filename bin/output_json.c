@@ -269,7 +269,7 @@ extension_map_t	*extension_map = r->map_ref;
 				as[IP_STRING_LEN-1] = 0;
 
 				snprintf(_s, slen-1,
-"	\"bgp4_next_hop\" : \"%s\",\n"
+"	\"bgp6_next_hop\" : \"%s\",\n"
 , as);
 			} break;
 			case EX_VLAN:
