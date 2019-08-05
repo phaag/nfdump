@@ -7,6 +7,7 @@
 - Add bound checks in AddExporterInfo
 - Fix checks in InsertExtensionMap #177
 - Remove COMPAT15 code - should no longer be needed.
+- Move version to v1.6.18
 
 2019-07-31
 - Add early record size sanity check also for nfprofile, nfanon and nfreplay
