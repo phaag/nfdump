@@ -74,7 +74,7 @@
 generic_exporter_t **exporter_list;
 
 /* local variables */
-#define MAX_EXPORTERS 65535
+#define MAX_EXPORTERS 65536
 static generic_exporter_t *exporter_root;
 
 #include "nffile_inline.c"
