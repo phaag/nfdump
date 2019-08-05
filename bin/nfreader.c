@@ -220,7 +220,7 @@ int 		i, done, ret;
 		uint32_t sumSize = 0;
 		for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
 			char        string[1024];
-			if ( (sumSize + flow_record->size) > ret ) {
+			if ( (sumSize + flow_record->size) > ret || (record_ptr->size < sizeof(record_header_t)) ) {
 				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
 				exit(255);
 			}
