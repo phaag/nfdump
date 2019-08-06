@@ -27,7 +27,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
  */
-
+#define DEVEL 1
 #include "config.h"
 
 #include <stdio.h>
@@ -298,7 +298,6 @@ extern uint32_t Max_num_extensions;
 extern extension_descriptor_t extension_descriptor[];
 extern uint32_t default_sampling;
 extern uint32_t overwrite_sampling;
-extern uint32_t	exporter_sysid;
 
 // prototypes
 static void InsertStdSamplerOffset(FlowSource_t *fs, uint16_t id, uint16_t offset_std_sampler_interval, 

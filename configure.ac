@@ -38,9 +38,6 @@ cat >>config.h <<_ACEOF
 _ACEOF
 fi
 
-AC_ARG_ENABLE(compat15,
-[  --enable-compat15       compile nfdump, to read nfdump data files created with nfdump 1.5.x; default is NO])
-
 AC_ARG_ENABLE(nsel,
 [  --enable-nsel           compile nfdump, to read and process ASA/NSEL/NEL event data; default is NO])
 

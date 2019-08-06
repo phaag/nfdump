@@ -176,7 +176,7 @@ int 		i, j, done, ret ;
 		flow_record = nffile->buff_ptr;
 		uint32_t sumSize = 0;
 		for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
-			if ( (sumSize + flow_record->size) > ret || (record_ptr->size < sizeof(record_header_t))) {
+			if ( (sumSize + flow_record->size) > ret || (flow_record->size < sizeof(record_header_t))) {
 				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
 				exit(255);
 			}

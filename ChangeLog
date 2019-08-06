@@ -1,3 +1,6 @@
+2019-08-06
+- Fix compile errors
+
 2019-08-05
 - Fix nfdump.1 man page. #175
 - Fix off by 1 array. #173
