@@ -479,15 +479,14 @@ int i;
 } // End of PrintExtensionMap
 
 static int VerifyExtensionMap(extension_map_t *map) {
-int i, ok, extension_size, max_elements;
+int i, extension_size, max_elements;
 
-	ok = 1;
 	if (( map->size & 0x3 ) != 0 ) {
 		LogError("Verify map id %i: WARNING: map size %i not aligned!", map->map_id, map->size);
-		ok = 0;
+		return 0;
 	}
 
-	if ( ((int)map->size - (int)sizeof(extension_map_t)) <= 0 ) {
+	if ( map->size <= sizeof(extension_map_t) ) {
 		LogError("Verify map id %i: ERROR: map size %i too small", map->map_id, map->size);
 		return 0;
 	}
@@ -499,27 +498,29 @@ int i, ok, extension_size, max_elements;
 		int id = map->ex_id[i];
 		if ( id > Max_num_extensions ) {
 			LogError("Verify map id %i: ERROR: element id %i out of range [%i]", map->map_id, id, Max_num_extensions);
-			ok = 0;
+			return 0;
 		}
 		extension_size += extension_descriptor[id].size;
 		i++;
 	}
 
+	if ( i != max_elements && (i+1) != max_elements ) {
+		LogError("Verify map id %i: map has a zero element", map->map_id);
+		return 0;
+	}
+
+	if ( map->ex_id[i] != 0 ) {
+		LogError("Verify map id %i: ERROR: no zero element", map->map_id);
+		return 0;
+	}
+
 	if ( (extension_size != map->extension_size ) ) {
 		LogError("Verify map id %i: ERROR: extension size: Expected %i, Map reports: %i",  map->map_id,
 			extension_size, map->extension_size);
-		ok = 0;
+		return 0;
 	}
-	if ( (i != max_elements ) && ((max_elements-i) != 1) ) {
-		// off by 1 is the opt alignment
-		LogError("Verify map id %i: ERROR: Expected %i elements in map, but found %i", map->map_id, max_elements, i);
-		ok = 0;
-	}
-	if ( map->ex_id[i] != 0 ) {
-		LogError("Verify map id %i: ERROR: Last element != 0", map->map_id);
-		ok = 0;
-	}
-	return ok;
+
+	return 1;
 
 } // End of VerifyExtensionMap
 
