@@ -77,8 +77,9 @@ static char *NSEL_event_string[6] = {
 	"IGNORE", "CREATE", "DELETE", "DENIED", "ALERT", "UPDATE"
 };
 
-static char *NEL_event_string[3] = {
-	"INVALID", "ADD", "DELETE"
+static char *NEL_event_string[6] = {
+	"INVALID", "ADD", "DELETE", "NAT_ADDRS_EXHAUSTED", "NAT44_CREATE",
+	"NAT44_DELETE"
 };
 #endif
 
@@ -239,6 +240,8 @@ static void String_EventTime(master_record_t *r, char *string);
 
 static void String_nfc(master_record_t *r, char *string);
 
+static void String_NEL_evt(master_record_t *r, char *string);
+
 static void String_evt(master_record_t *r, char *string);
 
 static void String_xevt(master_record_t *r, char *string);
@@ -371,7 +374,7 @@ static struct format_token_list_s {
 
 // NEL
 // for v.1.6.10 compatibility, keep NEL specific addr/port format tokens 
-	{ "%nevt",   0, " Event", 				  String_evt },				// NAT event
+	{ "%nevt",   0, " Event", 				  String_NEL_evt },				// NAT event
 	{ "%vrf",    0, "  I-VRF-ID", 			  String_ivrf },			// NAT ivrf ID - compatible
 	{ "%ivrf",   0, "  I-VRF-ID", 			  String_ivrf },			// NAT ivrf ID
 	{ "%evrf",   0, "  E-VRF-ID", 			  String_evrf },			// NAT ivrf ID
@@ -2635,6 +2638,33 @@ static void String_nfc(master_record_t *r, char *string) {
 
 } // End of String_nfc
 
+static void String_NEL_evt(master_record_t *r, char *string)
+{
+	switch(r->event) {
+		case 0:
+				snprintf(string, MAX_STRING_LENGTH-1 ,"%3s", "INVALID");
+			break;
+		case 1:
+			snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "ADD");
+			break;
+		case 2:
+			snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "DELETE");
+			break;
+		case NEL_EVENT_NAT_ADDRS_EXHAUSTED:
+			snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "ADREXH");
+			break;
+		case NEL_EVENT_NAT44_SESSION_CREATE:
+			snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "N44CRE");
+			break;
+		case NEL_EVENT_NAT44_SESSION_DELETE:
+			snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "N44DEL");
+			break;
+		default:
+			snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "UNKNOW");
+	}
+	string[MAX_STRING_LENGTH-1] = '\0';
+}
+
 static void String_evt(master_record_t *r, char *string) {
 
 	if ( r->event_flag == FW_EVENT ) {
@@ -2659,24 +2689,12 @@ static void String_evt(master_record_t *r, char *string) {
 				break;
 			default:
 				snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "UNKNOW");
-		}			
-	} else {
-		switch(r->event) {
-			case 0:
-					snprintf(string, MAX_STRING_LENGTH-1 ,"%3s", "INVALID");
-				break;
-			case 1:
-				snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "ADD");
-				break;
-			case 2:
-				snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "DELETE");
-				break;
-			default:
-				snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "UNKNOW");
-		}			
+		}
+		string[MAX_STRING_LENGTH-1] = '\0';
 	}
-	string[MAX_STRING_LENGTH-1] = '\0';
-
+	else {
+		String_NEL_evt(r, string);
+	}
 } // End of String_evt
 
 
