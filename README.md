@@ -4,7 +4,7 @@ Stable Release v1.6.18
 
 See the Changelog file for all changes in release 1.6.18
 
-nfdump is a toolset in oder to collect and process netflow and sflow data, sent from netflow/sflow compatible devices. 
+nfdump is a toolset in order to collect and process netflow and sflow data, sent from netflow/sflow compatible devices. 
 The toolset supports netflow __v1__, __v5/v7__,__v9__,__IPFIX__ and __SFLOW__.  nfdump supports IPv4 as well as IPv6.
 
 nfdump is used as backend toolset for __NfSen__.
@@ -13,9 +13,12 @@ nfdump is used as backend toolset for __NfSen__.
 
 ## NSEL/ASA, NEL/NAT support
 
-__NSEL__ (* Network Event Security Logging *) as well as NEL (* NAT Event Logging *) are technologies invented by __CISCO__ and also use the netflow v9 protocol. However, NSEL and NEL are not flows as commonly known but rather *__Events__!* exported from specific devices such as CISCO ASA. nfdump supports Event looging as part of netflow v9.
+__NSEL__ (Network Event Security Logging) as well as NEL (NAT Event Logging) are technologies invented by __CISCO__ and also use the netflow v9 protocol. However, NSEL and NEL are not flows as commonly known but rather *__Events__!* exported from specific devices such as CISCO ASA. nfdump supports Event looging as part of netflow v9.
 
 __Note:__ The older nfdump-1.5.8-2-NSEL is __not compatible__ with nfdump > 1.6.9 which supports NSEL/NEL.
+
+__Note:__ nfdump 1.6.18 __not longer__ supports nfdump-1.5.x files. If you have nfdump-1.5.x please convert them
+before upgrading.
 
 ---
 

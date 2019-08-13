@@ -1883,7 +1883,9 @@ char				*string;
 			fs->first_seen = table->flow_start;
 		if ( table->flow_end > fs->last_seen )
 			fs->last_seen = table->flow_end;
-
+		dbg_printf("msecFrist: %llu\n", table->flow_start);
+		dbg_printf("msecLast : %llu\n", table->flow_end);
+	
 		// check if we need to record the router IP address
 		if ( table->router_ip_offset ) {
 			int output_offset = table->router_ip_offset;

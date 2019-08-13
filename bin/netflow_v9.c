@@ -2148,8 +2148,7 @@ static int pkg_num = 0;
 
 		// possible padding
 		if ( flowset_length <= 4 ) {
-			size_left = 0;
-			continue;
+			return;
 		}
 
 		if ( flowset_length > size_left ) {
