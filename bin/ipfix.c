@@ -27,7 +27,7 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
  */
-#define DEVEL 1
+
 #include "config.h"
 
 #include <stdio.h>

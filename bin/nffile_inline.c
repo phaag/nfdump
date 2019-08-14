@@ -38,8 +38,6 @@ static inline void AppendToBuffer(nffile_t *nffile, void *record, size_t require
 
 static inline void CopyV6IP(uint32_t *dst, uint32_t *src);
 
-static inline int ConvertCommonV0(void *record, common_record_t *flow_record);
-
 static inline void ExpandRecord_v2(common_record_t *input_record, extension_info_t *extension_info, exporter_info_record_t *exporter_info, master_record_t *output_record );
 
 #ifdef NEED_PACKRECORD
