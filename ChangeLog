@@ -1,5 +1,6 @@
 2019-08-14
 - Fix compile issues
+- Fix output buffer size for lzo1x_decompress_safe()
 
 2019-08-07
 - Fix VerifyExtensionMap #179
