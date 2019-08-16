@@ -846,8 +846,8 @@ Flow Record:
   output       =                14
   src as       =               775
   dst as       =              8404
-  src mask     =                16 fe80::/16
-  dst mask     =                24 fe80::/24
+  src mask     =                16 fe80::2..:1234:0/16
+  dst mask     =                24 fe80::2..:1200:0/24
   dst tos      =               128
   direction    =                 1
   ip next hop  =        172.72.1.2
@@ -901,8 +901,8 @@ Flow Record:
   output       =                14
   src as       =               775
   dst as       =              8404
-  src mask     =                16 2001:234:aabb::/16
-  dst mask     =                24 2001:620:0:8::/24
+  src mask     =                16 2001:23..:fe80:0/16
+  dst mask     =                24 2001:62..:fe00:0/24
   dst tos      =               128
   direction    =                 1
   ip next hop  =        172.72.1.2
@@ -956,8 +956,8 @@ Flow Record:
   output       =                14
   src as       =               775
   dst as       =              8404
-  src mask     =                16 2001:234:aabb::/16
-  dst mask     =                24 2001:620:0:8::/24
+  src mask     =                16 2001:23..:fe80:0/16
+  dst mask     =                24 2001:62..:fe00:0/24
   dst tos      =               128
   direction    =                 1
   ip next hop  =        172.72.1.2
@@ -1011,8 +1011,8 @@ Flow Record:
   output       =                14
   src as       =               775
   dst as       =              8404
-  src mask     =                16 2001:234:aabb::/16
-  dst mask     =                24 2001:620:0:8::/24
+  src mask     =                16 2001:23..:fe80:0/16
+  dst mask     =                24 2001:62..:fe00:0/24
   dst tos      =               128
   direction    =                 1
   ip next hop  =        172.72.1.2
@@ -1066,8 +1066,8 @@ Flow Record:
   output       =                14
   src as       =               775
   dst as       =              8404
-  src mask     =                16 2001:234:aabb::/16
-  dst mask     =                24 2001:620:0:8::/24
+  src mask     =                16 2001:23..:fe80:0/16
+  dst mask     =                24 2001:62..:fe00:0/24
   dst tos      =               128
   direction    =                 1
   ip next hop  =        172.72.1.2

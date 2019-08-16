@@ -1,3 +1,6 @@
+2019-08-16
+- Cleanup and fix IPv6 network display in war records.
+
 2019-08-14
 - Fix compile issues
 - Fix output buffer size for lzo1x_decompress_safe()

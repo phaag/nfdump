@@ -686,41 +686,40 @@ extension_map_t	*extension_map = r->map_ref;
 		uint64_t snet[2];
 		uint64_t dnet[2];
 
-		// remember IPs for network 
-		snet[0] = r->V6.srcaddr[0];
-		snet[1] = r->V6.srcaddr[1];
-		dnet[0] = r->V6.dstaddr[0];
-		dnet[1] = r->V6.dstaddr[1];
-		r->V6.srcaddr[0] = htonll(r->V6.srcaddr[0]);
-		r->V6.srcaddr[1] = htonll(r->V6.srcaddr[1]);
-		r->V6.dstaddr[0] = htonll(r->V6.dstaddr[0]);
-		r->V6.dstaddr[1] = htonll(r->V6.dstaddr[1]);
-		inet_ntop(AF_INET6, r->V6.srcaddr, as, sizeof(as));
-		inet_ntop(AF_INET6, r->V6.dstaddr, ds, sizeof(ds));
+		snet[0] = htonll(r->V6.srcaddr[0]);
+		snet[1] = htonll(r->V6.srcaddr[1]);
+		dnet[0] = htonll(r->V6.dstaddr[0]);
+		dnet[1] = htonll(r->V6.dstaddr[1]);
+		inet_ntop(AF_INET6, snet, as, sizeof(as));
+		inet_ntop(AF_INET6, dnet, ds, sizeof(ds));
 		if ( ! long_v6 ) {
 			condense_v6(as);
 			condense_v6(ds);
 		}
+
 		if ( r->src_mask || r->dst_mask) {
-			if ( r->src_mask > 64 )
-				snet[1] &= 0xffffffffffffffffLL << ( 128 - r->src_mask );
-			else {
-				snet[1] &= 0xffffffffffffffffLL << ( 64 - r->src_mask );
+			if ( r->src_mask >= 64 ) {
+				snet[0] = r->V6.srcaddr[0] & (0xffffffffffffffffLL << (r->src_mask - 64));
 				snet[1] = 0;
+			} else {
+				snet[0] = r->V6.srcaddr[0];
+				snet[1] = r->V6.srcaddr[1] & (0xffffffffffffffffLL << r->src_mask);
 			}
 			snet[0] = htonll(snet[0]);
 			snet[1] = htonll(snet[1]);
-			inet_ntop(AF_INET6, &snet, s_snet, sizeof(s_snet));
+			inet_ntop(AF_INET6, snet, s_snet, sizeof(s_snet));
 
-			if ( r->dst_mask > 64 )
-				dnet[1] &= 0xffffffffffffffffLL << ( 128 - r->dst_mask );
-			else {
-				dnet[1] &= 0xffffffffffffffffLL << ( 64 - r->dst_mask );
+			if ( r->dst_mask >= 64 ) {
+				dnet[0] = r->V6.dstaddr[0] & (0xffffffffffffffffLL << (r->dst_mask - 64));
 				dnet[1] = 0;
+			} else {
+				dnet[0] = r->V6.dstaddr[0];
+				dnet[1] = r->V6.dstaddr[1] & (0xffffffffffffffffLL << r->dst_mask);
 			}
 			dnet[0] = htonll(dnet[0]);
 			dnet[1] = htonll(dnet[1]);
-			inet_ntop(AF_INET6, &dnet, s_dnet, sizeof(s_dnet));
+			inet_ntop(AF_INET6, dnet, s_dnet, sizeof(s_dnet));
+
 			if ( ! long_v6 ) {
 				condense_v6(s_snet);
 				condense_v6(s_dnet);
@@ -1253,38 +1252,35 @@ master_record_t *r = (master_record_t *)record;
 		uint64_t snet[2];
 		uint64_t dnet[2];
 
-		// remember IPs for network 
-		snet[0] = r->V6.srcaddr[0];
-		snet[1] = r->V6.srcaddr[1];
-		dnet[0] = r->V6.dstaddr[0];
-		dnet[1] = r->V6.dstaddr[1];
-		r->V6.srcaddr[0] = htonll(r->V6.srcaddr[0]);
-		r->V6.srcaddr[1] = htonll(r->V6.srcaddr[1]);
-		r->V6.dstaddr[0] = htonll(r->V6.dstaddr[0]);
-		r->V6.dstaddr[1] = htonll(r->V6.dstaddr[1]);
-		inet_ntop(AF_INET6, r->V6.srcaddr, as, sizeof(as));
-		inet_ntop(AF_INET6, r->V6.dstaddr, ds, sizeof(ds));
+		snet[0] = htonll(r->V6.srcaddr[0]);
+		snet[1] = htonll(r->V6.srcaddr[1]);
+		dnet[0] = htonll(r->V6.dstaddr[0]);
+		dnet[1] = htonll(r->V6.dstaddr[1]);
+		inet_ntop(AF_INET6, snet, as, sizeof(as));
+		inet_ntop(AF_INET6, dnet, ds, sizeof(ds));
 
 		if ( r->src_mask || r->dst_mask) {
-			if ( r->src_mask > 64 )
-				snet[1] &= 0xffffffffffffffffLL << ( 128 - r->src_mask );
-			else {
-				snet[1] &= 0xffffffffffffffffLL << ( 64 - r->src_mask );
+			if ( r->src_mask >= 64 ) {
+				snet[0] = r->V6.srcaddr[0] & (0xffffffffffffffffLL << (r->src_mask - 64));
 				snet[1] = 0;
+			} else {
+				snet[0] = r->V6.srcaddr[0];
+				snet[1] = r->V6.srcaddr[1] & (0xffffffffffffffffLL << r->src_mask);
 			}
 			snet[0] = htonll(snet[0]);
 			snet[1] = htonll(snet[1]);
-			inet_ntop(AF_INET6, &snet, s_snet, sizeof(s_snet));
+			inet_ntop(AF_INET6, snet, s_snet, sizeof(s_snet));
 
-			if ( r->dst_mask > 64 )
-				dnet[1] &= 0xffffffffffffffffLL << ( 128 - r->dst_mask );
-			else {
-				dnet[1] &= 0xffffffffffffffffLL << ( 64 - r->dst_mask );
+			if ( r->dst_mask >= 64 ) {
+				dnet[0] = r->V6.dstaddr[0] & (0xffffffffffffffffLL << (r->dst_mask - 64));
 				dnet[1] = 0;
+			} else {
+				dnet[0] = r->V6.dstaddr[0];
+				dnet[1] = r->V6.dstaddr[1] & (0xffffffffffffffffLL << r->dst_mask);
 			}
 			dnet[0] = htonll(dnet[0]);
 			dnet[1] = htonll(dnet[1]);
-			inet_ntop(AF_INET6, &dnet, s_dnet, sizeof(s_dnet));
+			inet_ntop(AF_INET6, dnet, s_dnet, sizeof(s_dnet));
 
 		} else {
 			s_snet[0] = '\0';
