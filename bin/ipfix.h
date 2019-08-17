@@ -231,14 +231,12 @@ typedef struct ipfix_template_elements_e_s {
 // deprecated elements for sampling 
 #define IPFIX_samplingInterval				 34
 #define IPFIX_samplingAlgorithm				 35
-// 1 - Deterministic Sampling,
-// 2 - Random Sampling.
 
-#define IPFIX_samplingPacketInterval		305
-#define IPFIX_selectorAlgorithm				304
+// depricated 38, 39
 
-// reserved 38, 39
-// reserved 48, 49, 50, 51
+#define IPFIX_samplerId						48
+#define IPFIX_samplerMode					49
+#define IPFIX_samplerRandomInterval			50
 
 // #define IPFIX_MIN_TTL			52
 // #define IPFIX_MAX_TTL			53
@@ -275,6 +273,13 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_flowEndMilliseconds			153
 #define IPFIX_flowStartDeltaMicroseconds	158
 #define IPFIX_flowEndDeltaMicroseconds		159
+#define IPFIX_postOctetTotalCount	 	 	171
+#define IPFIX_postPacketTotalCount	 	 	172
+
+// sampling
+#define IPFIX_selectorId					302
+#define IPFIX_selectorAlgorithm				304
+#define IPFIX_samplingPacketInterval		305
 
 // Private Enterprise Numbers
 #define IPFIX_ReverseInformationElement		29305

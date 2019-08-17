@@ -20,7 +20,7 @@ AM_PROG_CC_C_O
 dnl get the flags
 CFLAGS="${CFLAGS=}"
 if test $ac_cv_prog_gcc = yes -a "x$CFLAGS" = "x-g -O2"; then
-	CFLAGS="-g -O2 -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wmissing-noreturn -fno-strict-aliasing"
+	CFLAGS="-g  -O3 -std=c11 -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wmissing-noreturn -fno-strict-aliasing"
 fi
 
 AC_ARG_ENABLE(devel,

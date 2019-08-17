@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -42,6 +40,7 @@
 #endif
 #include <sys/socket.h>
 
+#include "exporter.h"
 #include "bookkeeper.h"
 #include "nffile.h"
 
@@ -55,48 +54,6 @@ typedef struct srecord_s {
     time_t  tstamp;                 // UNIX time stamp
 	int		failed;					// in case of an error
 } srecord_t;
-
-// common_record_t defines ext_map as uint_8, so max 256 extension maps allowed.
-// should be enough anyway
-
-typedef struct option_offset_s {
-	struct option_offset_s *next;
-	uint32_t	id;					// table id
-	uint32_t	flags;				// info about this map
-
-	// sampling offsets
-#define HAS_SAMPLER_DATA	1
-	uint16_t	offset_id;
-	uint16_t    sampler_id_length;
-	uint16_t	offset_mode;
-	uint16_t	offset_interval;
-
-#define HAS_STD_SAMPLER_DATA 2
-	uint16_t	offset_std_sampler_interval;
-	uint16_t	offset_std_sampler_algorithm;
-
-} option_offset_t;
-
-typedef struct generic_sampler_s {
-	struct generic_sampler_s *next;
-	sampler_info_record_t	info;
-} generic_sampler_t;
-
-typedef struct generic_exporter_s {
-	// link chain
-	struct generic_exporter_s *next;
-
-	// generic exporter information
-	exporter_info_record_t info;
-
-	uint64_t	packets;			// number of packets sent by this exporter
-	uint64_t	flows;				// number of flow records sent by this exporter
-	uint32_t	sequence_failure;	// number of sequence failues
-	uint32_t	padding_errors;		// number of sequence failues
-
-	generic_sampler_t		*sampler;
-
-} generic_exporter_t;
 
 typedef struct FlowSource_s {
 	// link
@@ -121,7 +78,7 @@ typedef struct FlowSource_s {
 	uint64_t			last_seen;		// in msec
 
 	// Any exporter specific data
-	generic_exporter_t	*exporter_data;
+	exporter_t			*exporter_data;
 	uint32_t			exporter_count;
 	struct timeval		received;
 
@@ -133,8 +90,6 @@ typedef struct FlowSource_s {
 		int num_maps;
 		extension_map_t	**maps;
 	} extension_map_list;
-
-	option_offset_t *option_offset_table;
 
 } FlowSource_t;
 
@@ -165,8 +120,6 @@ void FlushExporterStats(FlowSource_t *fs);
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter);
 
 int FlushInfoSampler(FlowSource_t *fs, sampler_info_record_t *sampler);
-
-int HasOptionTable(FlowSource_t *fs, uint16_t id );
 
 void launcher (char *commbuff, FlowSource_t *FlowSource, char *process, int expire);
 

@@ -106,7 +106,7 @@ int hash_skip = 0;
 
 extension_map_list_t *extension_map_list;
 
-extern generic_exporter_t **exporter_list;
+extern exporter_t **exporter_list;
 /*
  * Output Formats:
  * User defined output formats can be compiled into nfdump, for easy access
@@ -488,7 +488,7 @@ int 				done, write_file;
 				case CommonRecordType: {
 					int match;
 					uint32_t map_id;
-					generic_exporter_t *exp_info;
+					exporter_t *exp_info;
 
 					// valid flow_record converted if needed
 					map_id = flow_record->ext_map;

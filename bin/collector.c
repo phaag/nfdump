@@ -1,8 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -54,12 +51,6 @@
 
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
-
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
 #endif
 
 #include "util.h"
@@ -574,11 +565,11 @@ int FlushInfoSampler(FlowSource_t *fs, sampler_info_record_t *sampler) {
 } // End of FlushInfoSampler
 
 void FlushStdRecords(FlowSource_t *fs) {
-generic_exporter_t *e = fs->exporter_data;
+exporter_t *e = fs->exporter_data;
 int i;
 
 	while ( e ) {
-		generic_sampler_t *sampler = e->sampler;
+		sampler_t *sampler = e->sampler;
 		AppendToBuffer(fs->nffile, (void *)&(e->info), e->info.header.size);
 		while ( sampler ) {
 			AppendToBuffer(fs->nffile, (void *)&(sampler->info), sampler->info.header.size);
@@ -596,7 +587,7 @@ int i;
 } // End of FlushStdRecords
 
 void FlushExporterStats(FlowSource_t *fs) {
-generic_exporter_t *e = fs->exporter_data;
+exporter_t *e = fs->exporter_data;
 exporter_stats_record_t	*exporter_stats;
 uint32_t i, size;
 
@@ -654,17 +645,3 @@ uint32_t i, size;
  
 } // End of FlushExporterStats
 
-
-
-int HasOptionTable(FlowSource_t *fs, uint16_t id ) {
-option_offset_t *t;
-
-	t = fs->option_offset_table;
-	while ( t && t->id != id )
-		t = t->next;
-
-	dbg_printf("Has option table: %s\n", t == NULL ? "not found" : "found");
-
-	return t != NULL;
-
-} // End of HasOptionTable

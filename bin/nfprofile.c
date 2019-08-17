@@ -65,7 +65,7 @@
 #include "profile.h"
 
 /* externals */
-extern generic_exporter_t **exporter_list;
+extern exporter_t **exporter_list;
 
 /* Local Variables */
 static const char *nfdump_version = VERSION;
@@ -184,7 +184,7 @@ int 		i, j, done, ret ;
 
 			switch ( flow_record->type ) { 
 					case CommonRecordType: {
-					generic_exporter_t *exp_info = exporter_list[flow_record->exporter_sysid];
+					exporter_t *exp_info = exporter_list[flow_record->exporter_sysid];
 					uint32_t map_id = flow_record->ext_map;
 					master_record_t	*master_record;
 

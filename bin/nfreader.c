@@ -86,7 +86,7 @@ typedef uint32_t    pointer_addr_t;
 // module limited globals
 extension_map_list_t *extension_map_list;
 
-extern generic_exporter_t **exporter_list;
+extern exporter_t **exporter_list;
 
 /* Function Prototypes */
 static void usage(char *name);
@@ -229,7 +229,7 @@ int 		i, done, ret;
 			switch ( flow_record->type ) {
 				case CommonRecordType: {
 					uint32_t map_id = flow_record->ext_map;
-					generic_exporter_t *exp_info = exporter_list[flow_record->exporter_sysid];
+					exporter_t *exp_info = exporter_list[flow_record->exporter_sysid];
 					if ( extension_map_list->slot[map_id] == NULL ) {
 						snprintf(string, 1024, "Corrupt data file! No such extension map id: %u. Skip record", flow_record->ext_map );
 						string[1023] = '\0';

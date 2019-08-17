@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2012, Peter Haag
+ *  Copyright (c) 2012-2019, Peter Haag
  *  
  *  Redistribution and use in source and binary forms, with or without 
  *  modification, are permitted provided that the following conditions are met:
@@ -40,6 +38,55 @@
 #endif
 
 #include "nffile.h"
+
+typedef struct optionTag_s {
+	uint16_t offset;
+	uint16_t length;
+} optionTag_t;
+
+typedef struct samplerOption_s {
+	struct samplerOption_s *next;
+	uint32_t	tableID;	// table id
+#define STDSAMPLING34	1
+#define STDSAMPLING35	2
+#define STDMASK			0x3
+#define STDFLAGS		0x3
+
+#define SAMPLER302		4
+#define SAMPLER304		8
+#define SAMPLER305		16
+#define SAMPLERMASK		0x1C
+#define SAMPLERFLAGS	0x1C
+
+	uint32_t	flags;		// info about this map
+
+	// sampling offset/length values
+	optionTag_t id;
+	optionTag_t mode;
+	optionTag_t interval;
+
+} samplerOption_t;
+
+typedef struct sampler_s {
+	struct sampler_s *next;
+	sampler_info_record_t	info;	// sampler record nffile
+} sampler_t;
+
+typedef struct exporter_s {
+	// linked chain
+	struct exporter_s *next;
+
+	// exporter information
+	exporter_info_record_t info;	// exporter record nffile
+
+	uint64_t	packets;			// number of packets sent by this exporter
+	uint64_t	flows;				// number of flow records sent by this exporter
+	uint32_t	sequence_failure;	// number of sequence failues
+	uint32_t	padding_errors;		// number of sequence failues
+
+	sampler_t *sampler;				// list of samplers associated with this exporter
+
+} exporter_t;
 
 int InitExporterList(void);
 

@@ -1,8 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2012, Peter Haag
+ *  Copyright (c) 2012-2019, Peter Haag
  *  
  *  Redistribution and use in source and binary forms, with or without 
  *  modification, are permitted provided that the following conditions are met:
@@ -51,12 +48,6 @@
 #include <stdint.h>
 #endif
 
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
-
 #include "util.h"
 #include "nffile.h"
 #include "nfx.h"
@@ -71,11 +62,11 @@
 #include "ipfix.h"
 
 /* global */
-generic_exporter_t **exporter_list;
+exporter_t **exporter_list;
 
 /* local variables */
 #define MAX_EXPORTERS 65536
-static generic_exporter_t *exporter_root;
+static exporter_t *exporter_root;
 
 #include "nffile_inline.c"
 
@@ -84,7 +75,7 @@ static generic_exporter_t *exporter_root;
 /* functions */
 int InitExporterList(void) {
 
-	exporter_list = calloc(MAX_EXPORTERS, sizeof(generic_exporter_t *));
+	exporter_list = calloc(MAX_EXPORTERS, sizeof(exporter_t *));
 	if ( !exporter_list ) {
 		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		return 0;
@@ -136,7 +127,7 @@ char *p1, *p2;
 	}
 
 	// slot[id] is now available
-	exporter_list[id] = (generic_exporter_t *)calloc(1, sizeof(generic_exporter_t));
+	exporter_list[id] = (exporter_t *)calloc(1, sizeof(exporter_t));
 	if ( !exporter_list[id] ) {
 		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		return 0;
@@ -185,7 +176,7 @@ char *p1, *p2;
 
 int AddSamplerInfo(sampler_info_record_t *sampler_record) {
 uint32_t id;
-generic_sampler_t	**sampler;
+sampler_t	**sampler;
 
 	if ( sampler_record->header.size != sizeof(sampler_info_record_t) ) {
 		LogError("Corrupt sampler record in %s line %d\n", __FILE__, __LINE__);
@@ -213,7 +204,7 @@ generic_sampler_t	**sampler;
 		sampler = &((*sampler)->next);
 	}
 
-	*sampler = (generic_sampler_t *)malloc(sizeof(generic_sampler_t));
+	*sampler = (sampler_t *)malloc(sizeof(sampler_t));
 	if ( !*sampler ) {
 		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		return 0;
@@ -300,7 +291,7 @@ int i;
 	i = 1;
 	while ( i < MAX_EXPORTERS  && exporter_list[i] != NULL ) {
 		exporter_info_record_t *exporter;
-       	generic_sampler_t *sampler;
+       	sampler_t *sampler;
 
 		exporter = &exporter_list[i]->info;
 		AppendToBuffer(nffile, (void *)exporter, exporter->header.size);
@@ -438,7 +429,7 @@ uint64_t total_bytes;
 		char ipstr[IP_STRING_LEN];
 
 		exporter_info_record_t *exporter;
-       	generic_sampler_t *sampler;
+       	sampler_t *sampler;
 
 		printf("\n");
 		exporter = &exporter_list[i]->info;

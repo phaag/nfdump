@@ -80,10 +80,10 @@ typedef struct v1_block_s {
 #define V1_BLOCK_DATA_SIZE (sizeof(v1_block_t) - sizeof(uint32_t))
 
 typedef struct exporter_v1_s {
-	// identical to generic_exporter_t
+	// identical to exporter_t
 	struct exporter_v1_s *next;
 
-	// generic exporter information
+	// exporter information
 	exporter_info_record_t info;
 
 	uint64_t	packets;			// number of packets sent by this exporter
@@ -91,8 +91,8 @@ typedef struct exporter_v1_s {
 	uint32_t	sequence_failure;	// number of sequence failues
 	uint32_t	padding_errors;		// number of sequence failues
 
-	generic_sampler_t		*sampler;
-	// End of generic_exporter_t
+	sampler_t		*sampler;
+	// End of exporter_t
 
 	// extension map
 	extension_map_t 	 *extension_map;
@@ -139,7 +139,7 @@ uint16_t	map_size;
 	if ( ( map_size & 0x3 ) != 0 )
 		map_size += 2;
 
-	// Create a generic netflow v1 extension map
+	// Create a netflow v1 extension map
 	v1_extension_info.map = (extension_map_t *)malloc((size_t)map_size);
 	if ( !v1_extension_info.map ) {
 		LogError("Process_v1: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
@@ -203,7 +203,7 @@ char ipstr[IP_STRING_LEN];
 	(*e)->padding_errors	= 0;
 	(*e)->sampler			= NULL;
 
-	// copy the v1 generic extension map
+	// copy the v1 extension map
 	(*e)->extension_map		= (extension_map_t *)malloc(v1_extension_info.map->size);
 	if ( !(*e)->extension_map ) {
 		LogError("Process_v1: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));

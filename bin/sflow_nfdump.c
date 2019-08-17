@@ -1,8 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -73,26 +70,20 @@
 #include "sflow_process.h"
 #include "sflow_nfdump.h"
 
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
-
 #define MAX_SFLOW_EXTENSIONS 8
 
 typedef struct exporter_sflow_s {
 	// link chain
 	struct exporter_sflow_s *next;
 
-	// generic exporter information
+	// exporter information
 	exporter_info_record_t info;
 
     uint64_t    packets;            // number of packets sent by this exporter
     uint64_t    flows;              // number of flow records sent by this exporter
     uint32_t    sequence_failure;   // number of sequence failues
 
-    generic_sampler_t       *sampler;
+    sampler_t       *sampler;
 
 	// extension map
 	// extension maps are common for all exporters
@@ -251,7 +242,7 @@ int i, id, extension_size, map_size, map_index;
 		map_size += 2;
 
 
-	// Create a generic sflow extension map
+	// Create a sflow extension map
 	exporter->sflow_extension_info[num].map = (extension_map_t *)malloc((size_t)map_size);
 	if ( !exporter->sflow_extension_info[num].map ) {
 		LogError("SFLOW: malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
@@ -322,7 +313,7 @@ int i, id, extension_size, map_size, map_index;
 
 static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint32_t meanSkipCount) {
 exporter_sflow_t **e = (exporter_sflow_t **)&(fs->exporter_data);
-generic_sampler_t *sampler;
+sampler_t *sampler;
 #define IP_STRING_LEN   40
 char ipstr[IP_STRING_LEN];
 int i;
@@ -370,7 +361,7 @@ int i;
 		(*e)->sflow_extension_info[i].map = NULL;
 	}
 
-	sampler = (generic_sampler_t *)malloc(sizeof(generic_sampler_t));
+	sampler = (sampler_t *)malloc(sizeof(sampler_t));
 	if ( !sampler ) {
 		LogError("SFLOW: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 		return NULL;

@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2018, 2017, 2016 Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -95,8 +93,6 @@ static const char *nfdump_version = VERSION;
 send_peer_t peer;
 
 extension_map_list_t *extension_map_list;
-
-generic_exporter_t **exporter_list;
 
 /* Function Prototypes */
 static void usage(char *name);

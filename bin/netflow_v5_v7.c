@@ -83,10 +83,10 @@ static uint16_t v5_full_mapp[] = { EX_IO_SNMP_2, EX_AS_2, EX_MULIPLE, EX_NEXT_HO
 #define V5_BLOCK_DATA_SIZE (sizeof(ipv4_block_t) - sizeof(uint32_t) + 2 * sizeof(uint64_t))
 
 typedef struct exporter_v5_s {
-	// identical to generic_exporter_t
+	// identical to exporter_t
 	struct exporter_v5_s *next;
 
-	// generic exporter information
+	// exporter information
 	exporter_info_record_t info;
 
 	uint64_t	packets;			// number of packets sent by this exporter
@@ -94,9 +94,9 @@ typedef struct exporter_v5_s {
 	uint32_t	sequence_failure;	// number of sequence failues
 	uint32_t	padding_errors;		// number of sequence failues
 
-	// generic sampler
-	generic_sampler_t		*sampler;
-	// end of generic_exporter_t
+	// sampler
+	sampler_t		*sampler;
+	// end of exporter_t
 
 	// sequence vars
 	int64_t	 last_sequence;
@@ -153,7 +153,7 @@ uint16_t	map_size;
 	if ( ( map_size & 0x3 ) != 0 )
 		map_size += 2;
 
-	// Create a generic v5 extension map
+	// Create a v5 extension map
 	v5_extension_info.map = (extension_map_t *)malloc((size_t)map_size);
 	if ( !v5_extension_info.map ) {
 		LogError("Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
@@ -184,7 +184,7 @@ uint16_t	map_size;
 
 static inline exporter_v5_t *GetExporter(FlowSource_t *fs, netflow_v5_header_t *header) {
 exporter_v5_t **e = (exporter_v5_t **)&(fs->exporter_data);
-generic_sampler_t *sampler;
+sampler_t *sampler;
 uint16_t	engine_tag = ntohs(header->engine_tag);
 uint16_t	version    = ntohs(header->version);
 #define IP_STRING_LEN   40
@@ -218,7 +218,7 @@ char ipstr[IP_STRING_LEN];
 	(*e)->flows				= 0;
 	(*e)->first	 			= 1;
 
-	sampler = (generic_sampler_t *)malloc(sizeof(generic_sampler_t));
+	sampler = (sampler_t *)malloc(sizeof(sampler_t));
 	if ( !sampler ) {
 		LogError("Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
 		return NULL;
@@ -236,7 +236,7 @@ char ipstr[IP_STRING_LEN];
 	if ( sampler->info.interval == 0 )
 		sampler->info.interval = default_sampling;
 
-	// copy the v5 generic extension map
+	// copy the v5 extension map
 	(*e)->extension_map		= (extension_map_t *)malloc(v5_extension_info.map->size);
 	if ( !(*e)->extension_map ) {
 		LogError("Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));

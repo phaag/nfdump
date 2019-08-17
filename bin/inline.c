@@ -50,6 +50,8 @@ static inline uint64_t	Get_val56(void *p);
 
 static inline uint64_t	Get_val64(void *p);
 
+static inline uint64_t	Get_val(void *p, uint32_t index, uint32_t length);
+
 static inline void	Put_val16(uint16_t v, void *p);
 
 static inline void	Put_val24(uint32_t v, void *p);
@@ -229,6 +231,40 @@ type_mask_t mask;
 	return mask.val.val64;
 
 } // End of Get_val64
+
+static inline uint64_t Get_val(void *p, uint32_t index, uint32_t length) {
+
+	switch (length)  {
+		case 1:
+			return *((uint8_t *)(p + index));
+			break;
+		case 2:
+			return Get_val16(p + index);
+			break;
+		case 3:
+			return Get_val24(p + index);
+			break;
+		case 4:
+			return Get_val32(p + index);
+			break;
+		case 5:
+			return Get_val40(p + index);
+			break;
+		case 6:
+			return Get_val48(p + index);
+			break;
+		case 7:
+			return Get_val56(p + index);
+			break;
+		case 8:
+			return Get_val64(p + index);
+			break;
+		default:
+			return 0;
+	}
+	return 0;
+
+} // End of Get_val
 
 static inline void	Put_val16(uint16_t v, void *p) {
 uint8_t		*out = (uint8_t *)p;
