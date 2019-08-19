@@ -92,7 +92,6 @@ typedef struct exporter_sflow_s {
 } exporter_sflow_t;
 
 extern extension_descriptor_t extension_descriptor[];
-extern FlowSource_t *FlowSource;
 
 /* module limited globals */
 
@@ -153,7 +152,6 @@ static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
 
 #include "inline.c"
 #include "nffile_inline.c"
-#include "collector_inline.c"
 
 void Init_sflow(void) {
 int i, id;
