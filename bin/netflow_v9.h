@@ -257,6 +257,8 @@ typedef struct common_header_s {
 
 #define NF9_BGP_ADJ_NEXT_AS 	128
 #define NF9_BGP_ADJ_PREV_AS 	129
+#define NF9_dot1qVlanId			243
+#define NF9_postDot1qVlanId		254
 
 // CISCO ASA NSEL extension - Network Security Event Logging
 #define NF_F_FLOW_BYTES				   85
@@ -299,6 +301,7 @@ typedef struct common_header_s {
 #define NF_N_NAT_EVENT				230
 #define NF_N_INGRESS_VRFID			234
 #define NF_N_EGRESS_VRFID			235
+
 #define NF_F_XLATE_PORT_BLOCK_START 361
 #define NF_F_XLATE_PORT_BLOCK_END   362
 #define NF_F_XLATE_PORT_BLOCK_STEP  363

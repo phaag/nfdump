@@ -265,6 +265,8 @@ static struct v9_element_map_s {
 
 	{ NF9_SRC_VLAN, 			 "src vlan",		_2bytes,  _2bytes, move16, zero16, EX_VLAN}, 
 	{ NF9_DST_VLAN, 			 "dst vlan",		_2bytes,  _2bytes, move16, zero16, EX_VLAN},
+	{ NF9_dot1qVlanId,		 	 "src vlan",		_2bytes,  _2bytes, move16, zero16, EX_VLAN}, 
+	{ NF9_postDot1qVlanId,		 "dst vlan",		_2bytes,  _2bytes, move16, zero16, EX_VLAN},
 
 	{ NF9_DIRECTION, 	 	 	 "direction",		_1byte,   _1byte,  move8, zero8, EX_MULIPLE },
 
@@ -870,8 +872,13 @@ size_t				size_required;
 				SetFlag(table->flags, FLAG_IPV6_NHB);
 				break;
 			case EX_VLAN:
-				PushSequence( table, NF9_SRC_VLAN, &offset, NULL, 0);
-				PushSequence( table, NF9_DST_VLAN, &offset, NULL, 0);
+				if ( cache.lookup_info[NF9_dot1qVlanId].found ) {
+					PushSequence( table, NF9_dot1qVlanId, &offset, NULL, 0);
+					PushSequence( table, NF9_postDot1qVlanId, &offset, NULL, 0);
+				} else {
+					PushSequence( table, NF9_SRC_VLAN, &offset, NULL, 0);
+					PushSequence( table, NF9_DST_VLAN, &offset, NULL, 0);
+				}
 				break;
 			case EX_OUT_PKG_4:
 				PushSequence( table, NF9_OUT_PKTS, &offset, &table->out_packets, 0);
@@ -1217,7 +1224,7 @@ int			i;
 			if ( v9_element_map[i].id == v9_element_map[i-1].id )
 				continue;
 			cache.lookup_info[Type].index  = i;
-			// other elements cleard be memset
+			// other elements cleared by memset
 		}
 
 		id 	  = GET_TEMPLATE_ID(template);

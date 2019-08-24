@@ -1,3 +1,6 @@
+2019-08-24
+- Add vlan tags dot1qVlanId, 243, 254 - #182
+
 2019-08-19
 - Fix ft2nfdump next hop and ip router fields
 
