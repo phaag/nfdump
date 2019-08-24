@@ -3374,8 +3374,7 @@ static void readFlowSample_v2v4(SFSample *sample, FlowSource_t *fs, int verbose)
 		}
 	}
 
-	if(sample->gotIPV4 || sample->gotIPV6) 
-		StoreSflowRecord(sample, fs);
+	StoreSflowRecord(sample, fs);
 
 	if ( verbose ) 
 		writeFlowLine(sample);
@@ -3453,6 +3452,7 @@ uint8_t *sampleStart;
 	num_elements = getData32(sample);
 	{
 		uint32_t el;
+printf("numElements: %i\n", num_elements);
 		for(el = 0; el < num_elements; el++) {
 			uint32_t tag, length;
 			uint8_t *start;
@@ -3514,8 +3514,7 @@ uint8_t *sampleStart;
 	}
 	lengthCheck(sample, "flow_sample", sampleStart, sampleLength);
 
- 	if ( sample->gotIPV4 || sample->gotIPV6 )
-		StoreSflowRecord(sample, fs);
+	StoreSflowRecord(sample, fs);
 
 	/* or line-by-line output... */
 	if ( verbose ) 
