@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2017, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -27,17 +27,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- */
-
-/*
- * Because NetFlow export uses UDP to send export datagrams, it is possible 
- * for datagrams to be lost. To determine whether flow export information has 
- * been lost, Version 5, Version 7, and Version 8 headers contain a flow 
- * sequence number. The sequence number is equal to the sequence number of the 
- * previous datagram plus the number of flows in the previous datagram. After 
- * receiving a new datagram, the receiving application can subtract the expected 
- * sequence number from the sequence number in the header to derive the number 
- * of missed flows.
  */
 
 #include "config.h"
@@ -82,6 +71,7 @@
 #include "flist.h"
 #include "nfstatfile.h"
 #include "bookkeeper.h"
+#include "launch.h"
 #include "collector.h"
 #include "exporter.h"
 #include "netflow_v1.h"
@@ -106,14 +96,8 @@
 #define DEFAULTHOSTNAME "127.0.0.1"
 #define SENDSOCK_BUFFSIZE 200000
 
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
-
 /* globals */
-caddr_t		shmem;
+void *shmem;
 int verbose = 0;
 
 extern uint32_t default_sampling;   // the default sampling rate when nothing else applies. set by -S
@@ -463,11 +447,11 @@ srecord_t	*commbuff;
 		if ( ((t_now - t_start) >= twin) || done ) {
 			char subfilename[64];
 			struct  tm *now;
-			char	*subdir, fmt[64];
+			char	*subdir, fmt[24];
 
 			alarm(0);
 			now = localtime(&t_start);
-			strftime(fmt, sizeof fmt, time_extension, now);
+			strftime(fmt, sizeof(fmt), time_extension, now);
 
 			// prepare sub dir hierarchy
 			if ( use_subdirs ) {
@@ -593,9 +577,10 @@ srecord_t	*commbuff;
 				commbuff->tstring[15] = 0;
 				commbuff->tstamp = t_start;
 				if ( subdir ) 
-					strncpy(commbuff->subdir, subdir, FNAME_SIZE);
+					strncpy(commbuff->subdir, subdir, FNAME_SIZE-1);
 				else
 					commbuff->subdir[0] = '\0';
+				commbuff->subdir[FNAME_SIZE-1] = '\0';
 
 				if ( launcher_alive ) {
 					LogInfo("Signal launcher");
@@ -1154,7 +1139,7 @@ char	*pcap_file;
 		// as well as shared memory
 		// prepare shared memory
 		shmem = mmap(0, sizeof(srecord_t), PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-		if ( shmem == (caddr_t)-1 ) {
+		if ( shmem == MAP_FAILED ) {
 			LogError("mmap() error: %s", strerror(errno));
 			close(sock);
 			exit(255);
@@ -1165,7 +1150,7 @@ char	*pcap_file;
 			case 0:
 				// child
 				close(sock);
-				launcher((char *)shmem, FlowSource, launch_process, expire);
+				launcher(shmem, FlowSource, launch_process, expire);
 				_exit(0);
 				break;
 			case -1:

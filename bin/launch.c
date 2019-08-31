@@ -1,8 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -71,6 +68,7 @@
 #include "nffile.h"
 #include "collector.h"
 #include "util.h"
+#include "launch.h"
 
 static int done, launch, child_exit;
 
@@ -137,11 +135,7 @@ int  i;
 					s = InfoRecord->tstring;
 					break;
 				case 'u' :
-#if defined __OpenBSD__ || defined __FreeBSD__
-					snprintf(tmp, 16, "%i", InfoRecord->tstamp);
-#else
-					snprintf(tmp, 16, "%li", InfoRecord->tstamp);
-#endif
+					snprintf(tmp, 16, "%lli", (long long)InfoRecord->tstamp);
 					tmp[15] = 0;
 					s = tmp;
 					break;
@@ -320,7 +314,7 @@ int				ret, bookkeeper_stat, do_rescan;
 
 } // End of do_expire
 
-void launcher (char *commbuff, FlowSource_t *FlowSource, char *process, int expire) {
+void launcher (void *commbuff, FlowSource_t *FlowSource, char *process, int expire) {
 FlowSource_t	*fs;
 struct sigaction act;
 char 		*args[MAXARGS];

@@ -52,6 +52,10 @@
 #include <stdint.h>
 #endif
 
+#ifdef HAVE_STDIO_EXT_H
+#include <stdio_ext.h>
+#endif
+
 #include "nffile.h"
 #include "nfx.h"
 #include "nf_common.h"

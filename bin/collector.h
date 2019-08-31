@@ -47,14 +47,6 @@
 #define FNAME_SIZE  256
 #define IDENT_SIZE  32
 
-typedef struct srecord_s {
-    char    fname[FNAME_SIZE];      // file name
-    char    subdir[FNAME_SIZE];     // subdir name
-    char    tstring[16];            // actually 12 needed e.g. 200411011230
-    time_t  tstamp;                 // UNIX time stamp
-	int		failed;					// in case of an error
-} srecord_t;
-
 typedef struct FlowSource_s {
 	// link
 	struct FlowSource_s *next;
@@ -120,8 +112,6 @@ void FlushExporterStats(FlowSource_t *fs);
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter);
 
 int FlushInfoSampler(FlowSource_t *fs, sampler_info_record_t *sampler);
-
-void launcher (char *commbuff, FlowSource_t *FlowSource, char *process, int expire);
 
 /* Default time window in seconds to rotate files */
 #define TIME_WINDOW	  	300

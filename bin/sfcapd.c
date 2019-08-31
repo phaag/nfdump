@@ -1,9 +1,5 @@
 /*
- *  Copyright (c) 2018, Peter Haag
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -76,6 +72,7 @@
 #include "nfnet.h"
 #include "bookkeeper.h"
 #include "collector.h"
+#include "launch.h"
 #include "flist.h"
 #include "nfstatfile.h"
 
@@ -97,7 +94,7 @@
 #define DEFAULTSFLOWPORT "6343"
 
 /* Global Variables */
-caddr_t		shmem;
+void *shmem;
 
 /* globals */
 int verbose = 0;
@@ -436,10 +433,10 @@ srecord_t	*commbuff;
 		if ( ((t_now - t_start) >= twin) || done ) {
 			char subfilename[64];
 			struct  tm *now;
-			char	*subdir, fmt[64];
+			char	*subdir, fmt[24];
 			alarm(0);
 			now = localtime(&t_start);
-			strftime(fmt, sizeof fmt, time_extension, now);
+			strftime(fmt, sizeof(fmt), time_extension, now);
 
 			// prepare sub dir hierarchy
 			if ( use_subdirs ) {
@@ -524,7 +521,8 @@ srecord_t	*commbuff;
 
 				// log stats
 				LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Sequence Errors: %u, Bad Packets: %u", 
-					fs->Ident, (unsigned long long)nffile->stat_record->numflows, (unsigned long long)nffile->stat_record->numpackets, 
+					fs->Ident, (unsigned long long)nffile->stat_record->numflows,
+					(unsigned long long)nffile->stat_record->numpackets, 
 					(unsigned long long)nffile->stat_record->numbytes, nffile->stat_record->sequence_failure, fs->bad_packets);
 
 				// reset stat record
@@ -559,9 +557,10 @@ srecord_t	*commbuff;
 				commbuff->tstring[15] = 0;
 				commbuff->tstamp = t_start;
 				if ( subdir ) 
-					strncpy(commbuff->subdir, subdir, FNAME_SIZE);
+					strncpy(commbuff->subdir, subdir, FNAME_SIZE-1);
 				else
 					commbuff->subdir[0] = '\0';
+				commbuff->subdir[FNAME_SIZE-1] = '\0';
 
 				if ( launcher_alive ) {
 					LogInfo("Signal launcher");
@@ -1024,7 +1023,7 @@ int		c, i;
 		// as well as shared memory
 		// prepare shared memory
 		shmem = mmap(0, sizeof(srecord_t), PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-		if ( shmem == (caddr_t)-1 ) {
+		if ( shmem == MAP_FAILED ) {
 			LogError("mmap() error: %s", strerror(errno));
 			close(sock);
 			exit(255);
@@ -1035,7 +1034,7 @@ int		c, i;
 			case 0:
 				// child
 				close(sock);
-				launcher((char *)shmem, FlowSource, launch_process, expire);
+				launcher(shmem, FlowSource, launch_process, expire);
 				exit(0);
 				break;
 			case -1:

@@ -211,7 +211,7 @@ int main(int argc, char **argv) {
 master_record_t flow_record;
 common_record_t c_record;
 uint64_t *blocks, l;
-uint32_t size, in[2];
+uint32_t in[2];
 time_t	now;
 int ret, i;
 value64_t	v;
@@ -262,7 +262,6 @@ void *p;
 	}
 
 
-	size = COMMON_RECORD_DATA_SIZE;
 	memset((void *)&flow_record, 0, sizeof(master_record_t));
 	blocks = (uint64_t *)&flow_record;
 

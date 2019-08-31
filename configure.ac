@@ -2,26 +2,21 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.59)
-AC_REVISION($Revision: 243 $)dnl 
+AC_REVISION($Revision: 244 $)dnl 
 AC_INIT(nfdump, 1.6.18, peter@people.ops-trust.net)
-# $Date: 2014-11-16 14:10:20 +0100 (Sun, 16 Nov 2014) $
-#AC_CONFIG_SRCDIR([grammar.y])
+
 AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([subdir-objects])
 
-LT_INIT
-# AC_ENABLE_SHARED
-# AC_ENABLE_STATIC
- 
 # Checks for programs.
-AC_PROG_CC
-AM_PROG_CC_C_O
+CFLAGS="-g -O3 -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wmissing-noreturn -fno-strict-aliasing"
+AC_PROG_CC([clang gcc])
+AX_CHECK_C11
+
+LT_INIT
 
 dnl get the flags
 CFLAGS="${CFLAGS=}"
-if test $ac_cv_prog_gcc = yes -a "x$CFLAGS" = "x-g -O2"; then
-	CFLAGS="-g  -O3 -std=c11 -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wmissing-noreturn -fno-strict-aliasing"
-fi
 
 AC_ARG_ENABLE(devel,
 [  --enable-devel       compile debug and development code into nfdump; default is NO])
@@ -29,13 +24,6 @@ AC_ARG_ENABLE(devel,
 # Which way is better?
 if test "${enable_devel}" = "yes" ; then
 	CFLAGS="$CFLAGS -DDEVEL"
-cat >>config.h <<_ACEOF
-#define dbg_printf(...) printf(__VA_ARGS__)
-_ACEOF
-else
-cat >>config.h <<_ACEOF
-#define dbg_printf(...) /* printf(__VA_ARGS__) */
-_ACEOF
 fi
 
 AC_ARG_ENABLE(nsel,
@@ -313,6 +301,7 @@ AC_LINK_IFELSE(
 # Checks for header files.
 AC_HEADER_DIRENT
 AC_HEADER_STDC
+AC_CHECK_HEADERS(stdio_ext.h)
 AC_CHECK_HEADERS([nameser8_compat.h])
 AC_CHECK_HEADERS([features.h arpa/inet.h fcntl.h netinet/in.h fts.h stdint.h stdlib.h stddef.h string.h sys/socket.h syslog.h unistd.h iso/limits_iso.h])
 AC_CHECK_HEADERS(pcap-bpf.h net/bpf.h)
@@ -395,6 +384,7 @@ AC_CHECK_SIZEOF(long long)
 AC_CHECK_SIZEOF(__int64)
 AC_CHECK_SIZEOF(void *)
 AC_CHECK_SIZEOF(size_t)
+AC_CHECK_SIZEOF(time_t)
 AC_CHECK_SIZEOF(ptrdiff_t)
 AC_C_CONST
 AC_CHECK_FUNCS(memcmp memcpy memmove memset)
