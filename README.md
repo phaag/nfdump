@@ -53,8 +53,9 @@ Build sflow collector sfcpad; default is __NO__
 Build nfprofile used by NfSen; default is __NO__
 * __--enable-nftrack__  
 Build nftrack used by PortTracker; default is __NO__
-* __--enable-compat15__  
-Build nfdump, to read nfdump data files created with nfdump 1.5.x; default is __NO__
+
+This code no longer reads nfdump-1.5.x data files. If needed use nfdump up
+to v1.6.17
 
 Development and beta options
 

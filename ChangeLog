@@ -1,5 +1,6 @@
 2019-08-31
 - Fix various c11 compile issues
+- Cleanup old compat15 comments
 
 2019-08-24
 - Add vlan tags dot1qVlanId, 243, 254 - #182

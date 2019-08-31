@@ -464,7 +464,7 @@ int 				done, write_file;
 
 		if ( nffile_r->block_header->id != DATA_BLOCK_TYPE_2 ) {
 			if ( nffile_r->block_header->id == DATA_BLOCK_TYPE_1 ) {
-				LogError("Can't process nfdump 1.5.x block type 1. Add --enable-compat15 to compile compatibility code. Skip block.\n");
+				LogError("nfdump 1.5.x block type 1 no longer supported. Skip block.\n");
 			} else {
 				LogError("Can't process block type %u. Skip block.\n", nffile_r->block_header->id);
 			}
