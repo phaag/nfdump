@@ -9,14 +9,12 @@ AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([subdir-objects])
 
 # Checks for programs.
-CFLAGS="-g -O3 -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wmissing-noreturn -fno-strict-aliasing"
+CFLAGS="-g -O3"
 AC_PROG_CC([clang gcc])
 AX_CHECK_C11
+CFLAGS="$CFLAGS -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wmissing-noreturn -fno-strict-aliasing"
 
 LT_INIT
-
-dnl get the flags
-CFLAGS="${CFLAGS=}"
 
 AC_ARG_ENABLE(devel,
 [  --enable-devel       compile debug and development code into nfdump; default is NO])
