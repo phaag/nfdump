@@ -126,6 +126,10 @@ extension_descriptor_t extension_descriptor[] = {
 	{ EX_PORT_BLOCK_ALLOC, 	8,	32, 0,    	"NAT Port Block Allocation"},
 	{ EX_NEL_RESERVED_1,	0,	0, 0,		NULL},
 
+        // Palo Alto Firewall
+        { EX_PAN_APPID,                   32,     65, 0,          "Palo Alto App-ID"},
+        { EX_PAN_USERID,                  64,     66, 0,          "Palo Alto User-ID"},
+        
 	// last entry
 	{ 0,	0,	0, 0,	NULL }
 };
