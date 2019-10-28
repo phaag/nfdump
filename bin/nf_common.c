@@ -73,16 +73,6 @@ static int 		long_v6 	 = 0;
 static int		scale	 	 = 1;
 static double	duration;
 
-#ifdef NSEL
-static char *NSEL_event_string[6] = {
-	"IGNORE", "CREATE", "DELETE", "DENIED", "ALERT", "UPDATE"
-};
-
-static char *NEL_event_string[3] = {
-	"INVALID", "ADD", "DELETE"
-};
-#endif
-
 #define STRINGSIZE 10240
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
@@ -847,10 +837,9 @@ extension_map_t	*extension_map = r->map_ref;
 				break;
 #ifdef NSEL
 			case EX_NSEL_COMMON: {
-				char *event = "UNKNOWN";
-				if ( r->event <= 5 ) {
-					event = NSEL_event_string[r->event];
-				} 
+				char event[MAX_STRING_LENGTH];
+				event[0] = '\0';
+				String_evt(r, event);
 				when = r->event_time / 1000LL;
 				ts = localtime(&when);
 				strftime(datestr3, 63, "%Y-%m-%d %H:%M:%S", ts);
@@ -866,10 +855,9 @@ extension_map_t	*extension_map = r->map_ref;
 				slen = STRINGSIZE - _slen;
 				} break;
 			case EX_NEL_COMMON: {
-				char *event = "UNKNOWN";
-				if ( r->event <= 2 ) {
-					event = NEL_event_string[r->event];
-				}
+				char event[MAX_STRING_LENGTH];
+				event[0] = '\0';
+				String_evt(r, event);
 				snprintf(_s, slen-1,
 "  nat event    =             %5u: %s\n"
 "  ingress VRF  =        %10u\n"
@@ -2045,8 +2033,44 @@ static void String_evt(master_record_t *r, char *string) {
 
 	if ( r->event_flag == FW_EVENT ) {
 		switch(r->event) {
+#ifdef JUNOS
 			case 0:
-					snprintf(string, MAX_STRING_LENGTH-1 ,"%3s", "IGNORE");
+				snprintf(string, MAX_STRING_LENGTH-1 ,"%3s", "IGNORE");
+				break;
+			case 1:
+			case 4:
+			case 6:
+			case 8:
+			case 12:
+				snprintf(string, MAX_STRING_LENGTH-1 ,"%s", "CREATE");
+				break;
+			case 2:
+			case 5:
+			case 7:
+			case 9:
+			case 13:
+				snprintf(string, MAX_STRING_LENGTH-1 ,"%s", "DELETE");
+				break;
+			case 3:
+			case 10:
+				snprintf(string, MAX_STRING_LENGTH-1 ,"%s", "EXHAUSTED");
+				break;
+			case 11:
+				snprintf(string, MAX_STRING_LENGTH-1 ,"%s", "QUOTA EXCEED");
+				break;
+			case 14:
+				snprintf(string, MAX_STRING_LENGTH-1 ,"%s", "NAT PORT ALLOC");
+				break;
+			case 15:
+				snprintf(string, MAX_STRING_LENGTH-1 ,"%s", "NAT PORT RELEASE");
+				break;
+			case 16:
+				snprintf(string, MAX_STRING_LENGTH-1 ,"%s", "NAT PORT ACTIVE");
+				break;
+
+#else
+			case 0:
+				snprintf(string, MAX_STRING_LENGTH-1 ,"%3s", "IGNORE");
 				break;
 			case 1:
 				snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "CREATE");
@@ -2063,6 +2087,7 @@ static void String_evt(master_record_t *r, char *string) {
 			case 5:
 				snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "UPDATE");
 				break;
+#endif
 			default:
 				snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", "UNKNOW");
 		}			

@@ -31,6 +31,17 @@ if test "${enable_nsel}" = "yes" ; then
 	CFLAGS="$CFLAGS -DNSEL"
 fi
 
+AC_ARG_ENABLE(jnat,
+[  --enable-jnat           compile nfdump, to read and process Junos NAT event logging; default is NO])
+
+if test "${enable_jnat}" = "yes" ; then
+	CFLAGS="$CFLAGS -DNSEL -DJUNOS"
+fi
+
+if test "${enable_nsel}" = "yes" -a "${enable_jnat}" = "yes"; then
+	AC_MSG_ERROR(You can use only one of --enable-nsel or --enable-jnat. CISCO and Juniper are not compatible.)
+fi
+
 AC_ARG_ENABLE(nel,
 [  --enable-nel            (depricated) compile nfdump, to read and process NAT/NSEL/NEL event data; default is NO])
 

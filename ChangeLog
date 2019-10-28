@@ -2,6 +2,7 @@
 - Restructure code for output into separate files.
 - Cleanup old code.
 - Fix bug #189 - valid json output
+- Fix issue #190. Add compile time option for JunOS.
 
 2019-09-01
 - Cleanup configure.ac
