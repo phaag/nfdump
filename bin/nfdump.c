@@ -1176,10 +1176,10 @@ char 		Ident[IDENTLEN];
 		PrintElementStat(&sum_stat, plain_numbers, print_record, topN, do_tag, quiet, pipe_output, csv_output);
 	} 
 
+	if ( print_epilog ) {
+		print_epilog();
+	}
 	if ( !quiet && !json_output ) {
-		if ( print_epilog ) {
-			print_epilog();
-		}
 		if ( csv_output ) {
 			PrintSummary(&sum_stat, plain_numbers, csv_output);
 		} else if ( !wfile ) {
