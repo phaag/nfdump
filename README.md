@@ -7,6 +7,9 @@ See the Changelog file for all changes in release 1.6.18
 nfdump is a toolset in order to collect and process netflow and sflow data, sent from netflow/sflow compatible devices. 
 The toolset supports netflow __v1__, __v5/v7__,__v9__,__IPFIX__ and __SFLOW__.  nfdump supports IPv4 as well as IPv6.
 
+__Note:__ nfdump 1.6.18 __not longer__ supports nfdump-1.5.x files. If you have nfdump-1.5.x please convert them
+before upgrading.
+
 nfdump is used as backend toolset for __NfSen__.
 
 ---
@@ -17,8 +20,8 @@ __NSEL__ (Network Event Security Logging) as well as NEL (NAT Event Logging) are
 
 __Note:__ The older nfdump-1.5.8-2-NSEL is __not compatible__ with nfdump > 1.6.9 which supports NSEL/NEL.
 
-__Note:__ nfdump 1.6.18 __not longer__ supports nfdump-1.5.x files. If you have nfdump-1.5.x please convert them
-before upgrading.
+__Jun OS NAT Event Logging__ is mostly compatible with CISCO's NAT Event Logging - mostly - it needs another data interpretation.
+See __--enable-jnat__ below
 
 ---
 
@@ -45,6 +48,8 @@ The following config options are available:
 
 *  __--enable-nsel__   
 Compile nfdump, to read and process NSEL/NEL event data; default is __NO__
+*  __--enable-jnat__   
+compile nfdump, to read and process JunOS NAT event logging __NO__
 * __--enable-ftconv__  
 Build the flow-tools to nfdump converter; default is __NO__
 * __--enable-sflow__  
