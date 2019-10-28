@@ -89,8 +89,6 @@ void text_epilog(void);
 
 void format_file_block_record(void *record, char **s, int tag);
 
-void flow_record_to_pipe(void *record, char ** s, int tag);
-
 void flow_record_to_null(void *record, char ** s, int tag);
 
 int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap);

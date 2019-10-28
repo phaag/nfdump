@@ -233,7 +233,7 @@ printmap_t printmap[] = {
 // add your formats here
 
 // This is always the last line
-	{ NULL,			NULL,                       NULL			}
+	{ NULL, NULL, NULL, NULL, "" }
 };
 
 // For automatic output format generation in case of custom aggregation
@@ -660,7 +660,7 @@ func_prolog_t print_prolog;
 func_epilog_t print_epilog;
 nfprof_t 	profile_data;
 char 		*rfile, *Rfile, *Mdirs, *wfile, *ffile, *filter, *tstring, *stat_type;
-char		*byte_limit_string, *packet_limit_string, *print_format, *record_header;
+char		*byte_limit_string, *packet_limit_string, *print_format;
 char		*print_order, *query_file, *nameserver, *aggr_fmt;
 int 		c, ffd, ret, element_stat, fdump;
 int 		i, quiet, flow_stat, topN, aggregate, aggregate_mask, bidir;
@@ -705,7 +705,6 @@ char 		Ident[IDENTLEN];
 	query_file		= NULL;
 	ModifyCompress	= -1;
 	aggr_fmt		= NULL;
-	record_header 	= NULL;
 
 	Ident[0] = '\0';
 
@@ -1167,14 +1166,14 @@ char 		Ident[IDENTLEN];
 	}
 
 	if (flow_stat) {
-		PrintFlowStat(record_header, print_record, topN, do_tag, quiet, csv_output, extension_map_list);
+		PrintFlowStat(print_prolog, print_record, topN, do_tag, quiet, csv_output, extension_map_list);
 #ifdef DEVEL
 		printf("Loopcnt: %u\n", loopcnt);
 #endif
 	} 
 
 	if (element_stat) {
-		PrintElementStat(&sum_stat, plain_numbers, record_header, print_record, topN, do_tag, quiet, pipe_output, csv_output);
+		PrintElementStat(&sum_stat, plain_numbers, print_record, topN, do_tag, quiet, pipe_output, csv_output);
 	} 
 
 	if ( !quiet && !json_output ) {

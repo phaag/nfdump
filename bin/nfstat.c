@@ -1,7 +1,5 @@
 /*  
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -913,8 +911,7 @@ int i=0;
 
 	// no order is given - default order applies;
 	if ( !q ) {
-		free(s);
-		return 1;
+		q = "/flows";  // default to flows
 	}
 
 	// check if one or more orders are given
@@ -1579,7 +1576,7 @@ char				*string;
 	}
 } // End of PrintFlowTable
 
-void PrintFlowStat(char *record_header, printer_t print_record, int topN, int tag, int quiet, int cvs_output, extension_map_list_t *extension_map_list) {
+void PrintFlowStat(func_prolog_t record_header, printer_t print_record, int topN, int tag, int quiet, int cvs_output, extension_map_list_t *extension_map_list) {
 hash_FlowTable *FlowTable;
 FlowTableRecord_t	*r;
 SortElement_t 		*SortList;
@@ -1656,7 +1653,7 @@ uint32_t			maxindex, c;
 				printf("Top flows ordered by %s:\n", order_mode[order_index].string);
 		}
 		if ( record_header ) 
-			printf("%s\n", record_header);
+			record_header();
 	}
 
 	PrintSortedFlowcache(SortList, maxindex, topN, 0, print_record, tag, DESCENDING, extension_map_list);
@@ -1684,7 +1681,7 @@ uint32_t			maxindex, c;
 						printf("Top flows ordered by %s:\n", order_mode[order_index].string);
 				}
 				if ( record_header ) 
-					printf("%s\n", record_header);
+					record_header();
 			}
 			PrintSortedFlowcache(SortList, maxindex, topN, 0, print_record, tag, DESCENDING, extension_map_list);
 
@@ -1758,7 +1755,7 @@ int	i, max;
 
 } // End of PrintSortedFlowcache
 
-void PrintElementStat(stat_record_t	*sum_stat, uint32_t limitflows, char *record_header, printer_t print_record, int topN, int tag, int quiet, int pipe_output, int cvs_output) {
+void PrintElementStat(stat_record_t	*sum_stat, uint32_t limitflows, printer_t print_record, int topN, int tag, int quiet, int pipe_output, int cvs_output) {
 SortElement_t	*topN_element_list;
 uint32_t		numflows;
 int32_t 		i, j, hash_num, order_index;
