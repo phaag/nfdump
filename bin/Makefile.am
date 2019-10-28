@@ -33,7 +33,7 @@ LDADD = $(DEPS_LIBS)
 AM_CFLAGS = -ggdb 
 
 # libnfdump sources
-output =  output_json.c output_json.h 
+output =  output.h output_json.c output_json.h output_csv.c output_csv.h output_pipe.c output_pipe.h
 common =  nf_common.c nf_common.h 
 util = util.c util.h
 filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h nffile.c nffile.h nfx.c nfx.h 

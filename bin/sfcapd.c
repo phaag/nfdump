@@ -327,6 +327,19 @@ int		err;
 
 } // End of SetPriv
 
+static void format_file_block_header(data_block_header_t *header) {
+	
+	printf("\n"
+"File Block Header: \n"
+"  NumBlocks     =  %10u\n"
+"  Size          =  %10u\n"
+"  id         	 =  %10u\n",
+		header->NumRecords,
+		header->size,
+		header->id);
+
+} // End of format_file_block_header
+
 #include "nffile_inline.c"
 #include "collector_inline.c"
 
@@ -341,7 +354,6 @@ uint32_t	blast_cnt, blast_failures, ignored_packets;
 ssize_t		cnt;
 void 		*in_buff;
 int 		err;
-char 		*string;
 srecord_t	*commbuff;
 
 	Init_sflow();
@@ -354,7 +366,6 @@ srecord_t	*commbuff;
 
 	// init vars
 	commbuff = (srecord_t *)shmem;
-	string = NULL;
 
 	// Init each netflow source output data buffer
 	fs = FlowSource;
@@ -466,8 +477,7 @@ srecord_t	*commbuff;
 
 				if ( verbose ) {
 					// Dump to stdout
-					format_file_block_header(nffile->block_header, &string, 0);
-					printf("%s\n", string);
+					format_file_block_header(nffile->block_header);
 				}
 
 				if ( nffile->block_header->NumRecords ) {

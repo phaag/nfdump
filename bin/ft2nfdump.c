@@ -56,7 +56,6 @@
 #endif
 
 #include "ftlib.h"
-#include "nf_common.h"
 #include "nffile.h"
 #include "nfx.h"
 #include "launch.h"

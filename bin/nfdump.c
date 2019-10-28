@@ -58,6 +58,8 @@
 #include "collector.h"
 #include "exporter.h"
 #include "nf_common.h"
+#include "output_pipe.h"
+#include "output_csv.h"
 #include "output_json.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
@@ -93,7 +95,7 @@ extern uint32_t loopcnt;
 const char *nfdump_version = VERSION;
 
 static uint64_t total_bytes;
-static uint32_t total_flows;
+static uint32_t recordCount;
 static uint32_t skipped_blocks;
 static uint32_t	is_anonymized;
 static time_t 	t_first_flow, t_last_flow;
@@ -213,19 +215,19 @@ extern exporter_t **exporter_list;
 // Assign print functions for all output options -o
 // Teminated with a NULL record
 printmap_t printmap[] = {
-	{ "raw",		format_file_block_record,  	NULL 			},
-	{ "line", 		format_special,      		FORMAT_line 	},
-	{ "long", 		format_special, 			FORMAT_long 	},
-	{ "extended",	format_special, 			FORMAT_extended	},
-	{ "biline", 	format_special,      		FORMAT_biline 	},
-	{ "bilong", 	format_special,      		FORMAT_bilong 	},
-	{ "pipe", 		flow_record_to_pipe,      	NULL 			},
-	{ "json", 		flow_record_to_json,      	NULL 			},
-	{ "csv", 		flow_record_to_csv,      	NULL 			},
-	{ "null", 		flow_record_to_null,      	NULL 			},
+	{ "raw",		format_file_block_record,  	NULL, NULL, NULL },
+	{ "line", 		format_special,      		text_prolog, text_epilog, FORMAT_line },
+	{ "long", 		format_special, 			text_prolog, text_epilog, FORMAT_long },
+	{ "extended",	format_special, 			text_prolog, text_epilog, FORMAT_extended },
+	{ "biline", 	format_special,      		text_prolog, text_epilog, FORMAT_biline	},
+	{ "bilong", 	format_special,      		text_prolog, text_epilog, FORMAT_bilong	},
+	{ "pipe", 		flow_record_to_pipe,      	pipe_prolog, pipe_epilog, NULL },
+	{ "json", 		flow_record_to_json,      	json_prolog, json_epilog, NULL },
+	{ "csv", 		flow_record_to_csv,      	csv_prolog,  csv_epilog,  NULL },
+	{ "null", 		flow_record_to_null,      	text_prolog, text_epilog, NULL },
 #ifdef NSEL
-	{ "nsel",		format_special, 			FORMAT_nsel		},
-	{ "nel",		format_special, 			FORMAT_nel		},
+	{ "nsel",		format_special, 			text_prolog, text_epilog, FORMAT_nsel },
+	{ "nel",		format_special, 			text_prolog, text_epilog, FORMAT_nel },
 #endif
 
 // add your formats here
@@ -247,8 +249,8 @@ static void usage(char *name);
 static void PrintSummary(stat_record_t *stat_record, int plain_numbers, int csv_output);
 
 static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
-	printer_t print_header, printer_t print_record, time_t twin_start, time_t twin_end, 
-	uint64_t limitflows, int tag, int compress);
+	printer_t print_record, time_t twin_start, time_t twin_end, 
+	uint64_t limitRecords, int tag, int compress);
 
 /* Functions */
 
@@ -300,6 +302,7 @@ static void usage(char *name) {
 					"\t\t csv      ',' separated, machine parseable output format.\n"
 					"\t\t json     json output format.\n"
 					"\t\t pipe     '|' separated legacy machine parseable output format.\n"
+					"\t\t null     no flow records, but statistics output.\n"
 					"\t\t\tmode may be extended by '6' for full IPv6 listing. e.g.long6, extended6.\n"
 					"-E <file>\tPrint exporter and sampling info for collected flows.\n"
 					"-v <file>\tverify netflow data file. Print version and blocks.\n"
@@ -309,7 +312,6 @@ static void usage(char *name) {
 					"-t <time>\ttime window for filtering packets\n"
 					"\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n", name);
 } /* usage */
-
 
 static void PrintSummary(stat_record_t *stat_record, int plain_numbers, int csv_output) {
 static double	duration;
@@ -355,8 +357,8 @@ char 		bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_
 } // End of PrintSummary
 
 stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
-	printer_t print_header, printer_t print_record, time_t twin_start, time_t twin_end, 
-	uint64_t limitflows, int tag, int compress) {
+	printer_t print_record, time_t twin_start, time_t twin_end, 
+	uint64_t limitRecords, int tag, int compress) {
 common_record_t 	*flow_record, *record_ptr;
 master_record_t		*master_record;
 nffile_t			*nffile_w, *nffile_r;
@@ -504,7 +506,7 @@ int 				done, write_file;
 						continue;
 					} 
 
-					total_flows++;
+					recordCount++;
 					master_record = &(extension_map_list->slot[map_id]->master_record);
 					Engine->nfrecord = (uint64_t *)master_record;
 					ExpandRecord_v2( flow_record, extension_map_list->slot[map_id], 
@@ -513,7 +515,7 @@ int 				done, write_file;
 					// Time based filter
 					// if no time filter is given, the result is always true
 					match  = twin_start && (master_record->first < twin_start || master_record->last > twin_end) ? 0 : 1;
-					match &= limitflows ? stat_record.numflows < limitflows : 1;
+					match &= limitRecords ? recordCount <= limitRecords : 1;
 
 					// filter netflow record with user supplied filter
 					if ( match ) 
@@ -555,11 +557,7 @@ int 				done, write_file;
 							// if we need to print out this record
 							print_record(master_record, &string, tag);
 							if ( string ) {
-								if ( limitflows ) {
-									if ( (stat_record.numflows <= limitflows) )
-										printf("%s\n", string);
-								} else 
-									printf("%s\n", string);
+								printf("%s\n", string);
 							}
 						} else { 
 							// mutually exclusive conditions should prevent executing this code
@@ -621,8 +619,8 @@ int 				done, write_file;
 		} // for all records
 
 		// check if we are done, due to -c option 
-		if ( limitflows ) 
-			done = stat_record.numflows >= limitflows;
+		if ( limitRecords ) 
+			done = recordCount >= limitRecords;
 
 	} // while
 
@@ -657,17 +655,19 @@ int 				done, write_file;
 int main( int argc, char **argv ) {
 struct stat stat_buff;
 stat_record_t	sum_stat;
-printer_t 	print_header, print_record;
+printer_t 	print_record;
+func_prolog_t print_prolog;
+func_epilog_t print_epilog;
 nfprof_t 	profile_data;
 char 		*rfile, *Rfile, *Mdirs, *wfile, *ffile, *filter, *tstring, *stat_type;
 char		*byte_limit_string, *packet_limit_string, *print_format, *record_header;
 char		*print_order, *query_file, *nameserver, *aggr_fmt;
 int 		c, ffd, ret, element_stat, fdump;
-int 		i, user_format, quiet, flow_stat, topN, aggregate, aggregate_mask, bidir;
+int 		i, quiet, flow_stat, topN, aggregate, aggregate_mask, bidir;
 int 		print_stat, syntax_only, date_sorted, do_tag, compress;
-int			plain_numbers, GuessDir, pipe_output, csv_output, ModifyCompress;
+int			plain_numbers, GuessDir, pipe_output, csv_output, json_output, ModifyCompress;
 time_t 		t_start, t_end;
-uint32_t	limitflows;
+uint32_t	limitRecords;
 char 		Ident[IDENTLEN];
 
 	rfile = Rfile = Mdirs = wfile = ffile = filter = tstring = stat_type = NULL;
@@ -681,25 +681,26 @@ char 		Ident[IDENTLEN];
 	flow_stat       = 0;
 	print_stat      = 0;
 	element_stat  	= 0;
-	limitflows		= 0;
+	limitRecords		= 0;
 	date_sorted		= 0;
 	total_bytes		= 0;
-	total_flows		= 0;
+	recordCount		= 0;
 	skipped_blocks	= 0;
 	do_tag			= 0;
 	quiet			= 0;
-	user_format		= 0;
 	compress		= NOT_COMPRESSED;
 	plain_numbers   = 0;
 	pipe_output		= 0;
 	csv_output		= 0;
+	json_output		= 0;
 	is_anonymized	= 0;
 	GuessDir		= 0;
 	nameserver		= NULL;
 
 	print_format    = NULL;
-	print_header 	= NULL;
 	print_record  	= NULL;
+	print_prolog	= NULL;
+	print_epilog	= NULL;
 	print_order  	= NULL;
 	query_file		= NULL;
 	ModifyCompress	= -1;
@@ -778,8 +779,8 @@ char 		Ident[IDENTLEN];
 				compress = LZO_COMPRESSED;
 				break;
 			case 'c':	
-				limitflows = atoi(optarg);
-				if ( !limitflows ) {
+				limitRecords = atoi(optarg);
+				if ( !limitRecords ) {
 					LogError("Option -c needs a number > 0\n");
 					exit(255);
 				}
@@ -1009,8 +1010,7 @@ char 		Ident[IDENTLEN];
 			if ( !ParseOutputFormat(format, plain_numbers, printmap) )
 				exit(255);
 			print_record  = format_special;
-			record_header = get_record_header();
-			user_format	  = 1;
+			print_prolog  = text_prolog;
 		} else {
 			LogError("Missing format description for user defined output format!\n");
 			exit(255);
@@ -1035,9 +1035,9 @@ char 		Ident[IDENTLEN];
 					if ( !ParseOutputFormat(printmap[i].Format, plain_numbers, printmap) )
 						exit(255);
 					// predefined custom format
-					print_record  = printmap[i].func;
-					record_header = get_record_header();
-					user_format	  = 1;
+					print_record  = printmap[i].func_record;
+					print_prolog  = printmap[i].func_prolog;
+					print_epilog  = printmap[i].func_epilog;
 				} else {
 					// To support the pipe output format for element stats - check for pipe, and remember this
 					if ( strncasecmp(print_format, "pipe", MAXMODELEN) == 0 ) {
@@ -1045,12 +1045,14 @@ char 		Ident[IDENTLEN];
 					}
 					if ( strncasecmp(print_format, "csv", MAXMODELEN) == 0 ) {
 						csv_output = 1;
-						set_record_header();
-						record_header = get_record_header();
+					}
+					if ( strncasecmp(print_format, "json", MAXMODELEN) == 0 ) {
+						json_output = 1;
 					}
 					// predefined static format
-					print_record  = printmap[i].func;
-					user_format	  = 0;
+					print_record  = printmap[i].func_record;
+					print_prolog  = printmap[i].func_prolog;
+					print_epilog  = printmap[i].func_epilog;
 				}
 				break;
 			}
@@ -1063,10 +1065,6 @@ char 		Ident[IDENTLEN];
 		exit(255);
 	}
 
-	// this is the only case, where headers are printed.
-	if ( strncasecmp(print_format, "raw", 16) == 0 )
-		print_header = format_file_block_header;
-	
 	if ( aggregate && (flow_stat || element_stat) ) {
 		aggregate = 0;
 		LogError("Command line switch -s overwrites -a\n");
@@ -1136,24 +1134,16 @@ char 		Ident[IDENTLEN];
 	}
 
 
-	if ( !(flow_stat || element_stat || wfile || quiet ) && record_header ) {
-		if ( user_format ) {
-			printf("%s\n", record_header);
-		} else {
-			// static format - no static format with header any more, but keep code anyway
-			if ( Getv6Mode() ) {
-				printf("%s\n", record_header);
-			} else
-				printf("%s\n", record_header);
-		}
+	if ( !(flow_stat || element_stat || wfile || quiet ) && print_prolog ) {
+		print_prolog();
 	}
 
 	nfprof_start(&profile_data);
 	sum_stat = process_data(wfile, element_stat, aggregate || flow_stat, print_order != NULL,
-						print_header, print_record, t_start, t_end, 
-						limitflows, do_tag, compress);
-	nfprof_end(&profile_data, total_flows);
-
+						print_record, t_start, t_end, 
+						limitRecords, do_tag, compress);
+	nfprof_end(&profile_data, recordCount);
+	
 	if ( total_bytes == 0 ) {
 		printf("No matched flows\n");
 		exit(0);
@@ -1187,7 +1177,10 @@ char 		Ident[IDENTLEN];
 		PrintElementStat(&sum_stat, plain_numbers, record_header, print_record, topN, do_tag, quiet, pipe_output, csv_output);
 	} 
 
-	if ( !quiet ) {
+	if ( !quiet && !json_output ) {
+		if ( print_epilog ) {
+			print_epilog();
+		}
 		if ( csv_output ) {
 			PrintSummary(&sum_stat, plain_numbers, csv_output);
 		} else if ( !wfile ) {
@@ -1201,7 +1194,7 @@ char 		Ident[IDENTLEN];
  				printf("Time window: %s\n", TimeString(t_first_flow, t_last_flow));
 			}
 			printf("Total flows processed: %u, Blocks skipped: %u, Bytes read: %llu\n", 
-				total_flows, skipped_blocks, (unsigned long long)total_bytes);
+				recordCount, skipped_blocks, (unsigned long long)total_bytes);
 			nfprof_print(&profile_data, stdout);
 		}
 	}

@@ -1,0 +1,59 @@
+Dockerfile 
+#
+# Ubuntu Dockerfile
+#
+# https://github.com/dockerfile/ubuntu
+#
+
+# Pull base image.
+FROM ubuntu:latest
+
+#Expose sflow port
+EXPOSE 6343/udp
+
+
+# Install.
+RUN apt-get update && apt-get install -y \
+  wget \
+  unzip \
+  man \
+  apt-utils \
+  dialog \
+  pkg-config \
+  rrdtool \
+  librrd-dev \
+  libtool \
+  autoconf \
+  autogen \
+  bison \
+  byacc \
+  flex \
+  libbz2-dev \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN cd /usr/src \
+  && wget https://github.com/phaag/nfdump/archive/v1.6.18.zip \
+  && unzip v1.6.18.zip \
+  && cd nfdump-1.6.18\
+  && mkdir m4 \
+  && ./autogen.sh \
+  && ./configure --enable-nfprofile --enable-sflow \
+  && make \
+  && make install
+
+RUN ldconfig
+
+# Add files.
+#ADD root/.bashrc /root/.bashrc
+#ADD root/.gitconfig /root/.gitconfig
+#ADD root/.scripts /root/.scripts
+
+# Set environment variables.
+#ENV HOME /root
+
+# Define working directory.
+WORKDIR /usr/src
+
+# Define default command.
+CMD ["bash"]
+

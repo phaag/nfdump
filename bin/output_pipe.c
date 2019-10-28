@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2019, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -29,79 +28,71 @@
  *  
  */
 
-#ifndef _NF_COMMON_H
-#define _NF_COMMON_H 1
-
 #include "config.h"
 
+#include <stdio.h>
+#include <stddef.h>
 #include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <time.h>
+#include <string.h>
 
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 #endif
 
-typedef void (*printer_t)(void *, char **, int);
-typedef void (*func_prolog_t)(void);
-typedef void (*func_epilog_t)(void);
+#include "nffile.h"
+#include "output_pipe.h"
 
-typedef struct msec_time_s {
-	time_t		sec;
-	uint16_t	msec;
-} msec_time_tt;
+#define STRINGSIZE 10240
+#define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
-/* common minimum netflow header for all versions */
-typedef struct common_flow_header {
-  uint16_t  version;
-  uint16_t  count;
-} common_flow_header_t;
+static char data_string[STRINGSIZE];
 
-typedef struct printmap_s {
-	char		  *printmode;	// name of the output format
-	printer_t	  func_record;			// prints the record
-	func_prolog_t func_prolog;	// prints the output prolog
-	func_epilog_t func_epilog;	// prints the output epilog
-	char		  *Format;		// output format definition
-} printmap_t;
+// record counter 
+static uint32_t recordCount;
 
-#define NSEL_EVENT_IGNORE 0LL
-#define NSEL_EVENT_CREATE 1LL
-#define NSEL_EVENT_DELETE 2LL
-#define NSEL_EVENT_DENIED 3LL
-#define NSEL_EVENT_ALERT  4LL
-#define NSEL_EVENT_UPDATE 5LL
+void pipe_prolog(void) {
+	recordCount = 0;
+	memset(data_string, 0, STRINGSIZE);
+} // End of pipe_prolog
 
-#define NEL_EVENT_INVALID 0LL
-#define NEL_EVENT_ADD	  1LL
-#define NEL_EVENT_DELETE  2LL
+void pipe_epilog(void) {
+	// empty
+} // End of pipe_epilog
 
-/* prototypes */
+void flow_record_to_pipe(void *record, char ** s, int tag) {
+uint32_t	sa[4], da[4];
+int			af;
+master_record_t *r = (master_record_t *)record;
 
-void Setv6Mode(int mode);
+	if ( (r->flags & FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+		af = PF_INET6;
+	} else {	// IPv4
+		af = PF_INET;
+	}
 
-int Getv6Mode(void);
+	// Make sure Endian does not screw us up
+    sa[0] = ( r->V6.srcaddr[0] >> 32 ) & 0xffffffffLL;
+    sa[1] = r->V6.srcaddr[0] & 0xffffffffLL;
+    sa[2] = ( r->V6.srcaddr[1] >> 32 ) & 0xffffffffLL;
+    sa[3] = r->V6.srcaddr[1] & 0xffffffffLL;
 
-int Proto_num(char *protostr);
+    da[0] = ( r->V6.dstaddr[0] >> 32 ) & 0xffffffffLL;
+    da[1] = r->V6.dstaddr[0] & 0xffffffffLL;
+    da[2] = ( r->V6.dstaddr[1] >> 32 ) & 0xffffffffLL;
+    da[3] = r->V6.dstaddr[1] & 0xffffffffLL;
 
-void text_prolog(void);
+	snprintf(data_string, STRINGSIZE-1 ,"%i|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%llu|%llu",
+		af, r->first, r->msec_first ,r->last, r->msec_last, r->prot, 
+		sa[0], sa[1], sa[2], sa[3], r->srcport, da[0], da[1], da[2], da[3], r->dstport, 
+		r->srcas, r->dstas, r->input, r->output,
+		r->tcp_flags, r->tos, (unsigned long long)r->dPkts, (unsigned long long)r->dOctets);
 
-void text_epilog(void);
+	data_string[STRINGSIZE-1] = 0;
 
-void format_file_block_record(void *record, char **s, int tag);
+	*s = data_string;
 
-void flow_record_to_pipe(void *record, char ** s, int tag);
-
-void flow_record_to_null(void *record, char ** s, int tag);
-
-int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap);
-
-void format_special(void *record, char ** s, int tag);
-
-void Proto_string(uint8_t protonum, char *protostr);
-
-void condense_v6(char *s);
-
-#define TAG_CHAR ''
-
-#endif //_NF_COMMON_H
-
+} // End of flow_record_to_pipe

@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2017
- *  Copyright (c) 2016
+ *  Copyright (c) 2016-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -66,6 +65,10 @@ static uint32_t ChainHosts(uint64_t *offsets, uint64_t *hostlist, int num_record
 
 static uint64_t VerifyMac(char *s);
 
+static int InitSymbols(void);
+
+static uint32_t Get_fwd_status_id(char *status);
+
 enum { DIR_UNSPEC = 1, 
 	   SOURCE, DESTINATION, SOURCE_AND_DESTINATION, SOURCE_OR_DESTINATION, 
 	   DIR_IN, DIR_OUT, 
@@ -84,6 +87,38 @@ extern int (*FilterEngine)(uint32_t *);
 extern char	*FilterFilename;
 
 static uint32_t num_ip;
+
+static struct fwd_status_def_s {
+	uint32_t	id;
+	char		*name;
+} fwd_status_def_list[] = {
+	{ 0,	"Ukwn"}, 	// Unknown
+	{ 1,	"Forw"}, 	// Normal forwarding
+	{ 2,	"Frag"}, 	// Fragmented
+	{ 16,	"Drop"}, 	// Drop
+	{ 17,	"DaclD"},	// Drop ACL deny
+	{ 18,	"Daclp"},	// Drop ACL drop
+	{ 19,	"Noroute"},	// Unroutable
+	{ 20,	"Dadj"}, 	// Drop Adjacency
+	{ 21,	"Dfrag"}, 	// Drop Fragmentation & DF set
+	{ 22,	"Dbadh"}, 	// Drop Bad header checksum
+	{ 23,	"Dbadtlen"}, // Drop Bad total Length
+	{ 24,	"Dbadhlen"}, // Drop Bad Header Length
+	{ 25,	"DbadTTL"}, // Drop bad TTL
+	{ 26,	"Dpolicy"}, // Drop Policer
+	{ 27,	"Dwred"}, 	// Drop WRED
+	{ 28,	"Drpf"}, 	// Drop RPF
+	{ 29,	"Dforus"}, 	// Drop For us
+	{ 30,	"DbadOf"}, 	// Drop Bad output interface
+	{ 31,	"Dhw"}, 	// Drop Hardware
+	{ 128,	"Term"}, 	// Terminate
+	{ 129,	"Tadj"}, 	// Terminate Punt Adjacency
+	{ 130,	"TincAdj"}, // Terminate Incomplete Adjacency
+	{ 131,	"Tforus"}, 	// Terminate For us
+	{ 0,	NULL}		// Last entry
+};
+
+static char **fwd_status = NULL;
 
 char yyerror_buff[256];
 
@@ -2214,3 +2249,43 @@ int i;
 	return mac;
 
 } // End of VerifyMac
+
+static int InitSymbols(void) {
+int i;
+
+	// already initialised?
+	if ( fwd_status )
+		return 1;
+
+	// fill fwd status cache table
+	fwd_status = ( char **)calloc(256, sizeof(char *));
+	if ( !fwd_status ) {
+		fprintf(stderr, "malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+		return 0;
+	}
+	i=0;
+	while ( fwd_status_def_list[i].name ) {
+		uint32_t j = fwd_status_def_list[i].id;
+		fwd_status[j] = fwd_status_def_list[i].name;
+		i++;
+	}
+	return 1;
+
+} // End of InitSymbols
+
+static uint32_t Get_fwd_status_id(char *status) {
+int i;
+
+	if ( !fwd_status && !InitSymbols() )
+		yyerror("malloc() error");
+
+	i = 0;
+	while ( i < 256 ) {
+		if ( fwd_status[i] && strcasecmp(fwd_status[i], status) == 0 ) 
+			return i;
+		i++;
+	}
+	return 256;
+
+} // End of Get_fwd_status_id
+

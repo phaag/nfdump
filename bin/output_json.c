@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
+ *  Copyright (c) 2019, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -35,23 +35,20 @@
 
 #include <stdio.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
 #include <string.h>
-#include <ctype.h>
-#include <stdlib.h>
-#include <errno.h>
 
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 #endif
 
-#include "nffile.h"
 #include "util.h"
-#include "nf_common.h"
+#include "nffile.h"
 #include "output_json.h"
 
 #define STRINGSIZE 10240
@@ -69,6 +66,9 @@ static char *NEL_event_string[3] = {
 
 static char data_string[STRINGSIZE];
 
+// record counter 
+static uint32_t recordCount;
+
 static void String_Flags(master_record_t *r, char *string) {
 
 	string[0] = r->tcp_flags & 128 ? 'C' : '.';	// Congestion window reduced -  CWR
@@ -82,6 +82,17 @@ static void String_Flags(master_record_t *r, char *string) {
 	string[8] = '\0';
 
 } // End of String_Flags
+
+void json_prolog(void) {
+	recordCount = 0;
+	memset(data_string, 0, STRINGSIZE);
+	printf("[\n");
+} // End of json_prolog
+
+void json_epilog(void) {
+	printf("]\n");
+} // End of json_epilog
+
 
 void flow_record_to_json(void *record, char ** s, int tag) {
 char 		*_s, as[IP_STRING_LEN], ds[IP_STRING_LEN], *datestr1, *datestr2, datebuff[64], flags_str[16];
@@ -104,8 +115,14 @@ extension_map_t	*extension_map = r->map_ref;
 
 	String_Flags(record, flags_str);
 
-	_s = data_string;
-	slen = STRINGSIZE;
+	if ( recordCount ) {
+		strncpy(data_string, ",\n", STRINGSIZE-1);
+	}
+	recordCount++;
+
+	_slen = strlen(data_string);
+	_s = data_string + _slen;
+	slen = STRINGSIZE - _slen;
 	snprintf(_s, slen-1, "{\n"
 "	\"type\" : \"%s\",\n"
 "	\"sampled\" : %u,\n"
@@ -495,10 +512,10 @@ extension_map_t	*extension_map = r->map_ref;
 	// add label and close json object
 	snprintf(_s, slen-1, 
 "	\"label\" : \"%s\"\n"
-"}\n", r->label ? r->label : "<none>");
+"}", r->label ? r->label : "<none>");
 
 	data_string[STRINGSIZE-1] = 0;
 	*s = data_string;
 
 
-} // End of format_file_block_record
+} // End of flow_record_to_json

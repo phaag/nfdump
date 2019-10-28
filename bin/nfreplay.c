@@ -210,7 +210,7 @@ uint32_t		numflows, cnt;
 
 	// z-parameter variables
 	struct timeval todayTime, currentTime;
-	double first, last, now, today = 0, reftime = 0;
+	double today = 0, reftime = 0;
 	int reducer = 0;
 
 	// Get the first file handle
@@ -380,11 +380,11 @@ uint32_t		numflows, cnt;
 
 			// z-parameter
 			//first and last are line (tstart and tend) timestamp with milliseconds
-			first = (double) flow_record->first + ((double)flow_record->msec_first / 1000);
-			last = (double) flow_record->last + ((double)flow_record->msec_last / 1000);
+			// first = (double) flow_record->first + ((double)flow_record->msec_first / 1000);
+			double last = (double) flow_record->last + ((double)flow_record->msec_last / 1000);
 
 			gettimeofday(&currentTime, NULL);
-			now =  (double)currentTime.tv_sec + (double)currentTime.tv_usec / 1000000;
+			double now =  (double)currentTime.tv_sec + (double)currentTime.tv_usec / 1000000;
 
 			// remove incoherent values
 			if (reftime == 0 && last > 1000000000 && last < 2000000000){

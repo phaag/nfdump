@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -28,12 +27,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nftree.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
  */
 
 #include "config.h"
@@ -51,11 +44,10 @@
 #include "rbtree.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nf_common.h"
 #include "ipconv.h"
 #include "nftree.h"
 
-#include "grammar.h"
+// #include "grammar.h"
 
 /*
  * netflow filter engine
@@ -156,6 +148,7 @@ void InitTree(void) {
 	ClearFilter();
 } // End of InitTree
 
+
 /*
  * Clear Filter
  */
@@ -183,8 +176,6 @@ int	ret;
 		exit(255);
 	}
 
-	if ( !InitSymbols() )
-		exit(255);
 	InitTree();
 	lex_init(FilterSyntax);
 	ret = yyparse();

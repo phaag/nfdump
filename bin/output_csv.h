@@ -28,13 +28,13 @@
  *  
  */
 
-#ifndef _OUTPUT_JSON_H
-#define _OUTPUT_JSON_H 1
+#ifndef _OUTPUT_CSV_H
+#define _OUTPUT_CSV_H 1
 
-void json_prolog(void);
+void csv_prolog(void);
 
-void json_epilog(void);
+void csv_epilog(void);
 
-void flow_record_to_json(void *record, char **s, int tag);
+void flow_record_to_csv(void *record, char **s, int tag);
 
-#endif // _OUTPUT_JSON_H
+#endif // _OUTPUT_CSV_H

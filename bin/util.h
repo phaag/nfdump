@@ -1,8 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -67,6 +64,12 @@
 #	define ntohll(n)	(((uint64_t)ntohl(n)) << 32) + ntohl((n) >> 32)
 #	define htonll(n)	(((uint64_t)htonl(n)) << 32) + htonl((n) >> 32)
 #endif
+#endif
+
+#if ( SIZEOF_VOID_P == 8 )
+typedef uint64_t	pointer_addr_t;
+#else
+typedef uint32_t	pointer_addr_t;
 #endif
 
 #define _1KB (double)(1000.0)

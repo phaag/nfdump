@@ -104,7 +104,7 @@ if test -d "$WHERE_FTPATH"; then
 	if test ! -f "$WHERE_FTPATH/include/ftlib.h"; then
 		AC_MSG_ERROR(ftlib.h file not found in flow-tools directory '$WHERE_FTPATH'. Use --with-ftpath=PATH)
 	fi
-	if test ! -f "$WHERE_FTPATH/lib/libft.a" -a -f "$WHERE_FTPATH/lib64/libft.a" ! -f "$WHERE_FTPATH/lib/libft.so" -a -f "$WHERE_FTPATH/lib64/libft.so"; then
+	if test ! -f "$WHERE_FTPATH/lib/libft.a" -o -f "$WHERE_FTPATH/lib64/libft.a" -o -f "$WHERE_FTPATH/lib/libft.so" -o -f "$WHERE_FTPATH/lib64/libft.so"; then
 		AC_MSG_ERROR(libft.a not found in flow-tools directory '$WHERE_FTPATH'. Build flow tools first)
 	fi
 	FT_INCLUDES="-I$WHERE_FTPATH/include -I$WHERE_FTPATH/lib"

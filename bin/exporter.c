@@ -55,7 +55,6 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
-#include "nf_common.h"
 #include "netflow_v1.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"

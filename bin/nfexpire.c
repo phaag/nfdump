@@ -111,8 +111,8 @@ char *path;
 	}
 	memset((void *)path, 0, MAXPATHLEN);
 	getcwd(path, MAXPATHLEN-strlen(dirname)-2);	// -2: one for '/' and one for '\0'
-	strncat(path, "/", 1);
-	strncat(path, dirname, strlen(dirname));
+	strncat(path, "/", 2);
+	strncat(path, dirname, strlen(dirname)+1);
 	path[MAXPATHLEN-1] = '\0';
 	
 	return path;
