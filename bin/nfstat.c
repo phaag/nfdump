@@ -1252,13 +1252,13 @@ struct tm	*tbuff;
 	strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
 	if ( Getv6Mode() && ( type == IS_IPADDR ) )
-		printf("%s.%03u %9.3f %5s %s%39s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", 
+		printf("%s.%03u %9.3f %-5s %s%39s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", 
 			datestr, StatData->msec_first, duration, 
 			order_proto ? ProtoString(StatData->prot) : "any", tag_string, valstr, 
 			flows_str, flows_percent, packets_str, packets_percent, byte_str,
 			bytes_percent, pps_str, bps_str, bpp );
 	else {
-		printf("%s.%03u %9.3f %s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n",
+		printf("%s.%03u %9.3f %-5s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n",
 		datestr, StatData->msec_first, duration, 
 		order_proto ? ProtoString(StatData->prot) : "any", tag_string, valstr,
 		flows_str, flows_percent, packets_str, packets_percent, byte_str,
@@ -1417,7 +1417,7 @@ struct tm	*tbuff;
 	}
 	strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
-	printf("%s,%s,%.3f,%5s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n",
+	printf("%s,%s,%.3f,%s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n",
 		datestr1, datestr2, duration, 
 		order_proto ? ProtoString(StatData->prot) : "any", valstr,
 		(long long unsigned)count_flows, flows_percent,
