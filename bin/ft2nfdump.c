@@ -55,11 +55,12 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
+#include "output_raw.h"
 #include "ftlib.h"
 #include "nffile.h"
 #include "nfx.h"
 #include "launch.h"
-#include "util.h"
 
 /* Global defines */
 #define MAXRECORDS 30
@@ -283,7 +284,7 @@ uint32_t			cnt;
 
 		if ( extended ) {
 			char *string;
-			format_file_block_record(&record, &string, 0);
+			flow_record_to_raw(&record, &string, 0);
 			fprintf(stderr, "%s\n", string);
 		} 
 

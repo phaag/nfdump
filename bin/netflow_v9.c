@@ -46,11 +46,11 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
 #include "nffile.h"
 #include "nfx.h"
 #include "nfnet.h"
-#include "nf_common.h"
-#include "util.h"
+#include "output_raw.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
@@ -1917,7 +1917,7 @@ char				*string;
 			master_record_t master_record;
 			memset((void *)&master_record, 0, sizeof(master_record_t));
 			ExpandRecord_v2((common_record_t *)data_record, &(table->extension_info), &(exporter->info), &master_record);
-		 	format_file_block_record(&master_record, &string, 0);
+		 	flow_record_to_raw(&master_record, &string, 0);
 			printf("%s\n", string);
 		}
 
@@ -2824,9 +2824,9 @@ void		*endwrite;
 time_t		now = time(NULL);
 
 #ifdef DEVEL
-//	char		*string;
-//	format_file_block_record(master_record, 1, &string, 0);
-//	dbg_printf("%s\n", string);
+	char		*string;
+	flow_record_to_raw(master_record, &string, 0);
+	printf("%s\n", string);
 #endif
 
 	if ( !v9_output_header->unix_secs ) {	// first time a record is added

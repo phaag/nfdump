@@ -45,15 +45,8 @@
 #include <stdint.h>
 #endif
 
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
-
-#include "nf_common.h"
-#include "nffile.h"
 #include "util.h"
+#include "nffile.h"
 #include "nfx.h"
 
 /* global vars */

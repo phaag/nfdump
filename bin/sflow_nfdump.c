@@ -58,10 +58,10 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
 #include "nffile.h"
 #include "nfx.h"
-#include "nf_common.h"
-#include "util.h"
+#include "output_raw.h"
 #include "bookkeeper.h"
 #include "collector.h"
 
@@ -660,7 +660,7 @@ uint64_t _bytes, _packets, _t;	// tmp buffers
 		master_record_t master_record;
 		char	*string;
 		ExpandRecord_v2((common_record_t *)common_record, &exporter->sflow_extension_info[ip_flags], &(exporter->info), &master_record);
-	 	format_file_block_record(&master_record, &string, 0);
+	 	flow_record_to_raw(&master_record, &string, 0);
 		printf("%s\n", string);
 	}
 

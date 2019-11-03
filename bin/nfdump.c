@@ -57,7 +57,8 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
-#include "nf_common.h"
+// #include "nf_common.h"
+#include "output_raw.h"
 #include "output_pipe.h"
 #include "output_csv.h"
 #include "output_json.h"
@@ -212,10 +213,12 @@ extern exporter_t **exporter_list;
  * 5. Recompile nfdump
  */
 
+static void flow_record_to_null(void *record, char ** s, int tag);
+
 // Assign print functions for all output options -o
 // Teminated with a NULL record
 printmap_t printmap[] = {
-	{ "raw",		format_file_block_record,  	NULL, NULL, NULL },
+	{ "raw",		flow_record_to_raw,  		raw_prolog, raw_epilog, NULL },
 	{ "line", 		format_special,      		text_prolog, text_epilog, FORMAT_line },
 	{ "long", 		format_special, 			text_prolog, text_epilog, FORMAT_long },
 	{ "extended",	format_special, 			text_prolog, text_epilog, FORMAT_extended },
@@ -312,6 +315,10 @@ static void usage(char *name) {
 					"-t <time>\ttime window for filtering packets\n"
 					"\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n", name);
 } /* usage */
+
+static void flow_record_to_null(void *record, char ** s, int tag) {
+	// empty - do not list any flows
+} // End of flow_record_to_null
 
 static void PrintSummary(stat_record_t *stat_record, int plain_numbers, int csv_output) {
 static double	duration;

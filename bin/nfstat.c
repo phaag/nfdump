@@ -46,6 +46,7 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
 #include "rbtree.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -55,8 +56,7 @@
 #include "exporter.h"
 #include "nfnet.h"
 #include "netflow_v5_v7.h"
-#include "nf_common.h"
-#include "util.h"
+#include "output_util.h"
 #include "nflowcache.h"
 #include "nfstat.h"
 
@@ -1120,7 +1120,7 @@ int	j, i;
 } // End of AddStat
 
 static void PrintStatLine(stat_record_t	*stat, uint32_t plain_numbers, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
-char		proto[16], valstr[40], datestr[64];
+char		valstr[40], datestr[64];
 char		flows_str[NUMBER_STRING_SIZE], byte_str[NUMBER_STRING_SIZE], packets_str[NUMBER_STRING_SIZE];
 char		pps_str[NUMBER_STRING_SIZE], bps_str[NUMBER_STRING_SIZE];
 char tag_string[2];
@@ -1148,7 +1148,7 @@ struct tm	*tbuff;
 				_key[1] = htonll(StatData->stat_key[1]);
 				inet_ntop(AF_INET6, _key, valstr, sizeof(valstr));
 				if ( ! Getv6Mode() )
-					condense_v6(valstr);
+					CondenseV6(valstr);
 	
 			} else {	// IPv4
 				uint32_t	ipv4;
@@ -1251,23 +1251,18 @@ struct tm	*tbuff;
 	}
 	strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
-	if ( order_proto ) {
-		Proto_string(StatData->prot, proto);
-	} else {
-		snprintf(proto, 15, "any  ");
-		proto[15] = 0;
-	}
-
 	if ( Getv6Mode() && ( type == IS_IPADDR ) )
-		printf("%s.%03u %9.3f %s %s%39s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", 
-				datestr, StatData->msec_first, duration, proto, tag_string, valstr, 
-				flows_str, flows_percent, packets_str, packets_percent, byte_str,
-				bytes_percent, pps_str, bps_str, bpp );
+		printf("%s.%03u %9.3f %5s %s%39s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", 
+			datestr, StatData->msec_first, duration, 
+			order_proto ? ProtoString(StatData->prot) : "any", tag_string, valstr, 
+			flows_str, flows_percent, packets_str, packets_percent, byte_str,
+			bytes_percent, pps_str, bps_str, bpp );
 	else {
-                printf("%s.%03u %9.3f %s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n",
-                                datestr, StatData->msec_first, duration, proto, tag_string, valstr,
-                                flows_str, flows_percent, packets_str, packets_percent, byte_str,
-                                bytes_percent, pps_str, bps_str, bpp );
+		printf("%s.%03u %9.3f %s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n",
+		datestr, StatData->msec_first, duration, 
+		order_proto ? ProtoString(StatData->prot) : "any", tag_string, valstr,
+		flows_str, flows_percent, packets_str, packets_percent, byte_str,
+		bytes_percent, pps_str, bps_str, bpp );
 	}
 
 } // End of PrintStatLine
@@ -1336,10 +1331,10 @@ int			af;
 } // End of PrintPipeStatLine
 
 static void PrintCvsStatLine(stat_record_t	*stat, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
-char		proto[16], valstr[40], datestr1[64], datestr2[64];
+char		valstr[40], datestr1[64], datestr2[64];
 uint64_t	count_flows, count_packets, count_bytes;
 double		duration, flows_percent, packets_percent, bytes_percent;
-uint32_t	i, bpp;
+uint32_t	bpp;
 uint64_t	pps, bps;
 time_t		when;
 struct tm	*tbuff;
@@ -1422,26 +1417,13 @@ struct tm	*tbuff;
 	}
 	strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
-	if ( order_proto ) {
-		Proto_string(StatData->prot, proto);
-	} else {
-		snprintf(proto, 15, "any  ");
-		proto[15] = 0;
-	}
-
-	i=0;
-	while ( proto[i] ) {
-		if ( proto[i] == ' ' )
-			proto[i] = '\0';
-		i++;
-	}
-
-        printf("%s,%s,%.3f,%s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n",
-                datestr1, datestr2, duration, proto, valstr,
-                (long long unsigned)count_flows, flows_percent,
-                (long long unsigned)count_packets, packets_percent,
-                (long long unsigned)count_bytes, bytes_percent,
-                (long long unsigned)pps,(long long unsigned)bps,bpp);
+	printf("%s,%s,%.3f,%5s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n",
+		datestr1, datestr2, duration, 
+		order_proto ? ProtoString(StatData->prot) : "any", valstr,
+		(long long unsigned)count_flows, flows_percent,
+		(long long unsigned)count_packets, packets_percent,
+		(long long unsigned)count_bytes, bytes_percent,
+		(long long unsigned)pps,(long long unsigned)bps,bpp);
 
 } // End of PrintCvsStatLine
 

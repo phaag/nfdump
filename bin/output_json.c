@@ -49,20 +49,11 @@
 
 #include "util.h"
 #include "nffile.h"
+#include "output_util.h"
 #include "output_json.h"
 
 #define STRINGSIZE 10240
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
-
-#ifdef NSEL
-static char *NSEL_event_string[6] = {
-	"IGNORE", "CREATE", "DELETE", "DENIED", "ALERT", "UPDATE"
-};
-
-static char *NEL_event_string[3] = {
-	"INVALID", "ADD", "DELETE"
-};
-#endif
 
 static char data_string[STRINGSIZE];
 
@@ -409,11 +400,7 @@ extension_map_t	*extension_map = r->map_ref;
 				} break;
 #ifdef NSEL
 			case EX_NSEL_COMMON: {
-				char *event = "UNKNOWN";
 				char *datestr, datebuff[64];
-				if ( r->event <= 5 ) {
-					event = NSEL_event_string[r->event];
-				} 
 				when = r->event_time / 1000LL;
 				ts = localtime(&when);
 				strftime(datebuff, 63, "%Y-%m-%dT%H:%M:%S", ts);
@@ -424,20 +411,18 @@ extension_map_t	*extension_map = r->map_ref;
 "	\"event\" : \"%s\",\n"
 "	\"xevent_id\" : \"%u\",\n"
 "	\"t_event\" : \"%s\",\n"
-, r->conn_id, r->event, event, r->fw_xevent, datestr);
+, r->conn_id, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event)
+, r->fw_xevent, datestr);
 				free(datestr);
 				} break;
 			case EX_NEL_COMMON: {
-				char *event = "UNKNOWN";
-				if ( r->event <= 2 ) {
-					event = NEL_event_string[r->event];
-				}
 				snprintf(_s, slen-1,
 "	\"nat_event_id\" : \"%u\",\n"
 "	\"nat_event\" : \"%s\",\n"
 "	\"ingress_vrf\" : \"%u\",\n"
 "	\"egress_vrf\" : \"%u\",\n"
-, r->event, event, r->ingress_vrfid, r->egress_vrfid);
+, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event)
+, r->ingress_vrfid, r->egress_vrfid);
 				} break;
 			case EX_NSEL_XLATE_PORTS: {
 				snprintf(_s, slen-1,

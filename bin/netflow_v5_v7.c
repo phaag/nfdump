@@ -1,8 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -54,17 +51,11 @@
 #include "nffile.h"
 #include "nfx.h"
 #include "nfnet.h"
-#include "nf_common.h"
+#include "output_raw.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
 #include "netflow_v5_v7.h"
-
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
 
 extern int verbose;
 extern extension_descriptor_t extension_descriptor[];
@@ -608,7 +599,7 @@ char		*string;
 					master_record_t master_record;
 					memset((void *)&master_record, 0, sizeof(master_record_t));
 					ExpandRecord_v2((common_record_t *)common_record, &v5_extension_info, &(exporter->info), &master_record);
-				 	format_file_block_record(&master_record, &string, 0);
+				 	flow_record_to_raw(&master_record, &string, 0);
 					printf("%s\n", string);
 				}
 

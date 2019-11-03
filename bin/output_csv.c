@@ -45,7 +45,7 @@
 
 #include "util.h"
 #include "nffile.h"
-#include "output.h"
+#include "output_util.h"
 #include "output_csv.h"
 
 #define STRINGSIZE 10240
@@ -55,20 +55,6 @@ static char data_string[STRINGSIZE];
 
 // record counter 
 static uint32_t recordCount;
-
-static void Flags(master_record_t *r, char *string) {
-
-	string[0] = r->tcp_flags & 128 ? 'C' : '.';	// Congestion window reduced -  CWR
-	string[1] = r->tcp_flags &  64 ? 'E' : '.';	// ECN-Echo
-	string[2] = r->tcp_flags &  32 ? 'U' : '.';	// Urgent
-	string[3] = r->tcp_flags &  16 ? 'A' : '.';	// Ack
-	string[4] = r->tcp_flags &   8 ? 'P' : '.';	// Push
-	string[5] = r->tcp_flags &   4 ? 'R' : '.';	// Reset
-	string[6] = r->tcp_flags &   2 ? 'S' : '.';	// Syn
-	string[7] = r->tcp_flags &   1 ? 'F' : '.';	// Fin
-	string[8] = '\0';
-
-} // End of Flags
 
 void csv_prolog(void) {
 	recordCount = 0;
@@ -84,7 +70,7 @@ void csv_epilog(void) {
 
 void flow_record_to_csv(void *record, char ** s, int tag) {
 char 		*_s, as[IP_STRING_LEN], ds[IP_STRING_LEN]; 
-char		proto_str[MAX_PROTO_STR], datestr1[64], datestr2[64], datestr3[64], flags_str[16];
+char		datestr1[64], datestr2[64], datestr3[64];
 char		s_snet[IP_STRING_LEN], s_dnet[IP_STRING_LEN];
 ssize_t		slen, _slen;
 time_t		when;
@@ -167,30 +153,12 @@ master_record_t *r = (master_record_t *)record;
 	double duration = r->last - r->first;
 	duration += ((double)r->msec_last - (double)r->msec_first) / 1000.0;
 
-	Flags(record, flags_str);
-
-	if ( r->prot >= NumProtos ) {
-		snprintf(proto_str,MAX_PROTO_STR-1,"%u", r->prot );
-		proto_str[MAX_PROTO_STR-1] = '\0';
-	} else {
-		int i = 0;;
-		strncpy(proto_str, protolist[r->prot], MAX_PROTO_STR-1);
-		proto_str[MAX_PROTO_STR-1] = '\0';
-		// remove white spaces for csv
-		while ( proto_str[i] ) {
-			if ( proto_str[i] == ' ' )
-				proto_str[i] = '\0';
-			i++;
-		}
-	}
-
 	_s = data_string;
 	slen = STRINGSIZE;
 	snprintf(_s, slen-1, "%s,%s,%.3f,%s,%s,%u,%u,%s,%s,%u,%u,%llu,%llu,%llu,%llu",
-		datestr1, datestr2, duration, as,ds,r->srcport, r->dstport, proto_str, flags_str, 
-		r->fwd_status, r->tos, (unsigned long long)r->dPkts, (unsigned long long)r->dOctets,
-		(long long unsigned)r->out_pkts, (long long unsigned)r->out_bytes
-	);
+		datestr1, datestr2, duration, as,ds,r->srcport, r->dstport, ProtoString(r->prot),
+		FlagsString(r->tcp_flags), r->fwd_status, r->tos, (unsigned long long)r->dPkts,
+		(unsigned long long)r->dOctets, (long long unsigned)r->out_pkts, (long long unsigned)r->out_bytes);
 
 	_slen = strlen(data_string);
 	_s += _slen;

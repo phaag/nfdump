@@ -49,19 +49,13 @@
 #include "nffile.h"
 #include "nfx.h"
 #include "nfnet.h"
-#include "nf_common.h"
+#include "output_raw.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
 
 #include "flowtree.h"
 #include "netflow_pcap.h"
-
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
 
 extern int verbose;
 extern extension_descriptor_t extension_descriptor[];
@@ -312,7 +306,7 @@ void		*data_ptr;
 	if ( verbose ) {
 		master_record_t master_record;
 		ExpandRecord_v2((common_record_t *)common_record, &pcap_extension_info, NULL, &master_record);
-	 	format_file_block_record(&master_record, &string, 0);
+	 	flow_record_to_raw(&master_record, &string, 0);
 		printf("%s\n", string);
 	}
 

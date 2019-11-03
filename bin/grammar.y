@@ -48,13 +48,14 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
+#include "output_util.h"
 #include "nf_common.h"
 #include "rbtree.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nftree.h"
 #include "ipconv.h"
-#include "util.h"
 
 /*
  * function prototypes
@@ -198,7 +199,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| PROTO STRING { 
 		int64_t	proto;
-		proto = Proto_num($2);
+		proto = ProtoNum($2);
 
 		if ( proto > 255 ) {
 			yyerror("Protocol number > 255");

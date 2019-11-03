@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -51,7 +49,7 @@
 #endif
 
 #include "util.h"
-#include "nf_common.h"
+#include "output_util.h"
 #include "nffile.h"
 #include "nfx.h"
 #include "nfstat.h"
@@ -333,7 +331,7 @@ char				*string;
 			flow_record->ext_map = extension_info->map->map_id;
 			PackRecord(flow_record, nffile);
 #ifdef DEVEL
-			format_file_block_record((void *)flow_record, &string, 0);
+			flow_record_to_raw((void *)flow_record, &string, 0);
 			printf("%s\n", string);
 #endif
 			// Update statistics
@@ -380,7 +378,7 @@ char				*string;
 				flow_record->ext_map = extension_info->map->map_id;
 				PackRecord(flow_record, nffile);
 #ifdef DEVEL
-				format_file_block_record((void *)flow_record, &string, 0);
+				flow_record_to_raw((void *)flow_record, &string, 0);
 				printf("%s\n", string);
 #endif
 				// Update statistics

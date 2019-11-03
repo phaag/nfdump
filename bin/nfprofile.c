@@ -48,7 +48,7 @@
 #include <stdint.h>
 #endif
 
-#include "nf_common.h"
+#include "util.h"
 #include "rbtree.h"
 #include "nftree.h"
 #include "nfdump.h"
@@ -61,7 +61,6 @@
 #include "exporter.h"
 #include "ipconv.h"
 #include "flist.h"
-#include "util.h"
 #include "profile.h"
 
 /* externals */
