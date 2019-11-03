@@ -719,7 +719,7 @@ static void String_Duration(master_record_t *r, char *string) {
 
 static void String_Protocol(master_record_t *r, char *string) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%s", ProtoString(r->prot));
+	snprintf(string, MAX_STRING_LENGTH-1 ,"%-5s", ProtoString(r->prot));
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_Protocol
