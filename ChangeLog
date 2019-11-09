@@ -1,8 +1,9 @@
-2019-11-08
-- Fix corrupt file handling #193
-
 2019-11-09
 - Fix minor nfpcapd issues
+- Fix gcc compile issue
+
+2019-11-08
+- Fix corrupt file handling #193
 
 2019-11-03
 - More code cleanup. Move code to dedicated files.

@@ -43,6 +43,7 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
 #include "nffile.h"
 #include "output_util.h"
 #include "output_raw.h"
