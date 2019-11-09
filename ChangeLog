@@ -1,3 +1,6 @@
+2019-11-08
+- Fix corrupt file handling #193
+
 2019-11-09
 - Fix minor nfpcapd issues
 

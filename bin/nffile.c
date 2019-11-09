@@ -1077,7 +1077,8 @@ uint32_t compression;
 	read_bytes = ret;
 
 	// Check for sane buffer size
-	if ( nffile->block_header->size > BUFFSIZE ) {
+	if ( nffile->block_header->size > BUFFSIZE ||
+	     nffile->block_header->size == 0 || nffile->block_header->NumRecords == 0) {
 		// this is most likely a corrupt file
 		LogError("Corrupt data file: Requested buffer size %u exceeds max. buffer size.\n", nffile->block_header->size);
 		return NF_CORRUPT;
