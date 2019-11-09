@@ -425,36 +425,31 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 					// redo ethertype evaluation
 					goto REDO_LINK;
 					} break;
-				case 0x806:	 // skip ARP
-					// silently skip ARP
-					pcap_dev->proc_stat.skipped++;
-					goto END_FUNC;
-					break;
 				case 0x26:	 // ?? multicast router termination ??
+				case 0x32:	
+				case 0x806:	 // skip ARP
 				case 0x4305: // B.A.T.M.A.N. BATADV
 				case 0x886f: // MS NLB heartbeat
 				case 0x88a2: // ATA over ethernet
 				case 0x88cc: // CISCO LLDP
 				case 0x9000: // Loop
+				case 0x9003: 
 				case 0x880b: // PPP - rfc 7042
 				case 0x6558: // Ethernet Bridge
 					pcap_dev->proc_stat.skipped++;
-					if ( Node->proto ) {
-						// if it's an encap which we do not understand yet - push tunnel
-						Push_Node(NodeList, Node);
-					} else {
-						pcap_dev->proc_stat.skipped++;
-						dbg_printf("Skip Ethertype 0x%x", ethertype);
-						Free_Node(Node);
-					}
+					Free_Node(Node);
 					goto END_FUNC;
 					break;
 				default:
 					pcap_dev->proc_stat.unknown++;
-					LogInfo("Unsupported link type: 0x%x, packet: %u", ethertype, pkg_cnt);
+					LogInfo("Unsupported ether type: 0x%x, packet: %u", ethertype, pkg_cnt);
 					Free_Node(Node);
 					goto END_FUNC;
 			}
+	} else {
+		LogInfo("Unsupported link type: 0x%x, packet: %u", pcap_dev->linktype, pkg_cnt);
+		Free_Node(Node);
+		return;
 	}
 
 	if (hdr->caplen < offset) {
@@ -593,7 +588,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 		Node->dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
 		Node->version = AF_INET;
 	} else {
-		LogInfo("ProcessPacket() Unsupprted protocol version: %i", version);
+		LogInfo("ProcessPacket() Unsupported protocol version: %i", version);
 		pcap_dev->proc_stat.unknown++;
 		Free_Node(Node);
 		goto END_FUNC;
@@ -778,8 +773,8 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 
 			} break;
 		default:
-			// not handled protocol - simply save node
-			Push_Node(NodeList, Node);
+			// not handled protocol
+			Free_Node(Node);
 			pcap_dev->proc_stat.unknown++;
 			break;
 	}

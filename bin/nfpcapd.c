@@ -782,16 +782,21 @@ int err, done;
 			}
 		}
 
-		if ( Node->fin != SIGNAL_NODE ) {
-			// Process the Node
-			ProcessFlowNode(fs, Node);
-			time_t when = Node->t_last.tv_sec;
-			if ( (when - lastExpire) > EXPIREINTERVALL ) {
-				Expire_FlowTree(fs, when);
-				lastExpire = when;
-			} 
-			CacheCheck(fs, when, live);
-		}
+		time_t when;
+		if ( Node ) {
+			if ( Node->fin != SIGNAL_NODE ) {
+				// Process the Node
+				ProcessFlowNode(fs, Node);
+			}
+			when = Node->t_last.tv_sec;
+		} else {
+			when = time(NULL);
+		} 
+		if ( (when - lastExpire) > EXPIREINTERVALL ) {
+			Expire_FlowTree(fs, when);
+			lastExpire = when;
+		} 
+		CacheCheck(fs, when, live);
 
 	}
 
