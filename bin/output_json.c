@@ -485,6 +485,11 @@ extension_map_t	*extension_map = r->map_ref;
 "	\"user_name\" : \"%s\",\n"
 , r->username[0] ? r->username : "<empty>");
 				break;
+			case EX_ZBF_COMMON:
+			    snprintf(_s, slen-1, 
+"	\"src_sgt\" : \"%u\",\n",  r->src_sgt);
+				break;
+
 #endif
 		}
 		_slen = strlen(data_string);

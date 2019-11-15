@@ -315,6 +315,9 @@ typedef struct common_header_s {
 #define NF9_NPROBE_APPL_LATENCY_SEC		57558
 #define NF9_NPROBE_APPL_LATENCY_USEC	57559
 
+// Cisco ASR Zone Based Firewall
+#define NF9_ZBF_CTS_SRC_SGT  34000
+
 /* prototypes */
 int Init_v9(void);
 

@@ -449,7 +449,12 @@ void		*p = (void *)input_record;
 					output_record->block_end = output_record->block_start + output_record->block_size - 1;
 				p = (void *)tpl->data;
 			} break;
-			
+			case EX_ZBF_COMMON: {
+				tpl_ext_50_t *tpl = (tpl_ext_50_t *)p;
+				output_record->src_sgt 	      = tpl->src_sgt;
+				p = (void *)tpl->data;
+			} break;
+
 #endif
 		}
 	}

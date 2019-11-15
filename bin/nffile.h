@@ -1128,6 +1128,17 @@ typedef struct tpl_ext_48_s {
 
 #define EX_NEL_RESERVED_1	49
 
+/*
+ * Cisco ZBR Block Allocation
+ * +----+--------------+--------------+
+ * |  0 | NF9_ZBF_CTS_SRC_SGT(34000)  |
+ * +----+--------------+--------------+
+ */
+#define EX_ZBF_COMMON 50
+typedef struct tpl_ext_50_s {
+	uint16_t	src_sgt;
+	uint8_t		data[4];	// points to further data
+} tpl_ext_50_t;
 
 /* 
  * 
@@ -1947,6 +1958,9 @@ typedef struct master_record_s {
 	// username
 #	define OffsetUsername  NSEL_BASE_OFFSET+10
 	char username[72];
+
+    // Cisco ASR ZBF extensions
+	uint16_t	src_sgt;
 
 	// NAT extensions
 	// NAT event is mapped into ASA event

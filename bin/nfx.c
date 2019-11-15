@@ -118,6 +118,9 @@ extension_descriptor_t extension_descriptor[] = {
 	{ EX_NEL_GLOBAL_IP_v4,  0,	0, 0,    	"Compat NEL IPv4"},
 	{ EX_PORT_BLOCK_ALLOC, 	8,	32, 0,    	"NAT Port Block Allocation"},
 	{ EX_NEL_RESERVED_1,	0,	0, 0,		NULL},
+	
+	// Cisco ARS  Zone Base Firewall Extensions
+	{ EX_ZBF_COMMON,	   2,	33, 0,		"ASR ZBF block"},
 
 	// last entry
 	{ 0,	0,	0, 0,	NULL }

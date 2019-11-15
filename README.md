@@ -398,6 +398,11 @@ NF9_NPROBE_SERVER_NW_DELAY_USEC | 57557
 NF9_NPROBE_APPL_LATENCY_SEC | 	57558
 NF9_NPROBE_APPL_LATENCY_USEC | 57559
 
+### Cisco ASR 1000 series NEL extension - Zone Based Firewall Logging__
+Tag | ID
+----|---
+NF9_ZBF_CTS_SRC_SGT  | 34000
+
 32 and 64 bit counters are supported for any counters. However, internally
 nfdump stores packets and bytes counters always as 64bit counters. 
 16 and 32 bit AS numbers are supported.

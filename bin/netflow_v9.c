@@ -349,6 +349,9 @@ static struct v9_element_map_s {
 	{ NF9_NPROBE_SERVER_NW_DELAY_SEC, 	 "NPROBE server lat sec",	_4bytes, _8bytes, move_slatency, nop, EX_LATENCY },
 	{ NF9_NPROBE_APPL_LATENCY_SEC, 	 	 "NPROBE appl lat sec",		_4bytes, _8bytes, move_slatency, nop, EX_LATENCY },
 
+    // Cisco ASR Zone Based Firewall Mapping
+	{ NF9_ZBF_CTS_SRC_SGT, 		"ASR source sgt",			_2bytes, _2bytes, move16, zero16, EX_ZBF_COMMON },
+
 	{0, "NULL",	0, 0}
 };
 
@@ -1079,6 +1082,9 @@ size_t				size_required;
 				break;
 			case EX_NEL_GLOBAL_IP_v4:
 				// XXX no longer used
+				break;
+			case EX_ZBF_COMMON:
+				PushSequence( table, NF9_ZBF_CTS_SRC_SGT, &offset, NULL, 0);
 				break;
 		}
 		extension_map->size += sizeof(uint16_t);

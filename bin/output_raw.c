@@ -550,6 +550,12 @@ extension_map_t	*extension_map = r->map_ref;
 				_s = data_string + _slen;
 				slen = STRINGSIZE - _slen;
 				break;
+			case EX_ZBF_COMMON:
+				snprintf(_s, slen-1,
+"  Source Security Group  =      %5u\n"
+, r->src_sgt);
+				break;
+
 #endif
 			default:
 				snprintf(_s, slen-1, "Type %u not implemented\n", id);
