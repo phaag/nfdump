@@ -1,5 +1,5 @@
 2019-11-17
-- Enable small time intervals < 300s. - #185
+- Enable small time intervals < 60s. - #185
 - Cleanup old code
 
 2019-11-09
