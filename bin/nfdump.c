@@ -873,8 +873,8 @@ char 		Ident[IDENTLEN];
 				do_tag = 1;
 				break;
 			case 'i':
-				strncpy(Ident, optarg, IDENT_SIZE);
-				Ident[IDENT_SIZE - 1] = 0;
+				strncpy(Ident, optarg, IDENTLEN);
+				Ident[IDENTLEN - 1] = 0;
 				if ( strchr(Ident, ' ') ) {
 					LogError("Ident must not contain spaces\n");
 					exit(255);

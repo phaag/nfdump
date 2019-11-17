@@ -185,22 +185,24 @@ int ok;
 		exit(255);
 	}
 
+	char *path = realpath(q, NULL);
+	if ( !path ) {
+		fprintf(stderr, "realpath() error %s: %s\n", q, strerror(errno));
+		return 0;
+	}
+
 	// check for existing path
-	if ( stat(q, &fstat) ) {
-		fprintf(stderr, "stat() error %s: %s\n", q, strerror(errno));
+	if ( stat(path, &fstat) ) {
+		fprintf(stderr, "stat() error %s: %s\n", path, strerror(errno));
 		return 0;
 	}
 	if ( !(fstat.st_mode & S_IFDIR) ) {
-		fprintf(stderr, "No such directory: %s\n", q);
+		fprintf(stderr, "Not a directory: %s\n", path);
 		return 0;
 	}
 
 	// remember path
-	(*source)->datadir = strdup(q);
-	if ( !(*source)->datadir ) {
-		fprintf(stderr, "strdup() error: %s\n", strerror(errno));
-		return 0;
-	}
+	(*source)->datadir = path;
 
 	// cache current collector file
 	if ( snprintf(s, MAXPATHLEN-1, "%s/%s.%lu", (*source)->datadir , NF_DUMPFILE, (unsigned long)getpid() ) >= (MAXPATHLEN-1)) {

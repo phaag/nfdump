@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -38,11 +36,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/uio.h>
 #include <unistd.h>
 #include <dirent.h>
-#include <sys/param.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <ctype.h>
@@ -63,10 +61,10 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
 #include "bookkeeper.h"
 #include "nfstatfile.h"
 #include "expire.h"
-#include "util.h"
 
 static void usage(char *name);
 
@@ -90,34 +88,10 @@ static void usage(char *name) {
 
 void CheckDataDir( char *datadir) {
 	if ( datadir ) {
-		fprintf(stderr, "Specify only one option out of -l -e -r -u or -p \n");
+		LogError("Only one option allowed out of -l -e -r -u or -p");
 		exit(250);
 	}
 } // End of CheckDataDir
-
-static char *AbsolutePath(char *dirname) {
-char *path;
-
-	if ( !dirname )
-		return NULL;
-
-	if ( dirname[0] == '/' ) // it's already absolute path
-		return dirname;
-
-	path = (char *)malloc(MAXPATHLEN);
-	if ( !path ) {
-		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-		return NULL;
-	}
-	memset((void *)path, 0, MAXPATHLEN);
-	getcwd(path, MAXPATHLEN-strlen(dirname)-2);	// -2: one for '/' and one for '\0'
-	strncat(path, "/", 2);
-	strncat(path, dirname, strlen(dirname)+1);
-	path[MAXPATHLEN-1] = '\0';
-	
-	return path;
-
-} // End of AbsolutePath
 
 channel_t *GetChannelList(char *datadir, int is_profile, int do_rescan) {
 channel_t **c, *channel;
@@ -131,7 +105,7 @@ int i;
 		DIR *PDIR = opendir(datadir);
 		struct dirent *entry;
 		if ( !PDIR ) {
-			fprintf(stderr, "Can't read profiledir '%s': %s\n",datadir, strerror(errno) );
+			LogError("Can't read profiledir '%s': %s", datadir, strerror(errno));
 			return NULL;
 		}
 		while ( ( entry = readdir(PDIR)) != NULL ) {
@@ -140,7 +114,7 @@ int i;
 			stringbuf[MAXPATHLEN-1] = '\0';
 
 			if ( stat(stringbuf, &stat_buf) ) {
-				fprintf(stderr, "Can't stat '%s': %s\n",stringbuf, strerror(errno) );
+				LogError("Can't stat '%s': %s", stringbuf, strerror(errno));
 				continue;
 			}
 			if ( !S_ISDIR(stat_buf.st_mode) ) 
@@ -164,7 +138,7 @@ int i;
 
 		*c = (channel_t *)malloc(sizeof(channel_t));
 		if ( !*c ) {
-			LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+			LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 			return NULL;
 		}
 		memset((void *)*c, 0, sizeof(channel_t));
@@ -192,7 +166,7 @@ int i;
 
 		(*c)->books_stat = AccessBookkeeper(&((*c)->books), (*c)->datadir);
 		if ( (*c)->books_stat == ERR_FAILED ) {
-			fprintf(stderr, "Failed to access bookkeeping record.\n");
+			LogError("Failed to access bookkeeping record");
 			exit(250);
 		}
 
@@ -278,7 +252,7 @@ channel_t	*channel, *current_channel;
 			case 'w':
 				low_water = strtoll(optarg, NULL, 10);
 				if ( low_water > 100 ) {
-					fprintf(stderr, "Water mark > 100%%\n");
+					LogError("Water mark > 100%%");
 					exit(250);
 				}
 				if ( low_water == 0 )
@@ -287,7 +261,7 @@ channel_t	*channel, *current_channel;
 			case 'T':
 				runtime = strtoll(optarg, NULL, 10);
 				if ( runtime > 3600 ) {
-					fprintf(stderr, "Runtime > 3600 (1h)\n");
+					LogError("Runtime > 3600 (1h)");
 					exit(250);
 				}
 				break;
@@ -301,17 +275,18 @@ channel_t	*channel, *current_channel;
 
 	}
 	
-	datadir = AbsolutePath(datadir);
+	datadir = realpath(datadir, NULL);
 
 	if ( !datadir ) {
-		fprintf(stderr, "Missing data directory\n");
+		LogError("Data directory %s", datadir);
+		LogError("realpath() in %s:%d: %s", __FILE__, __LINE__, strerror(errno) );
 		usage(argv[0]);
 		exit(250);
 	}
 
 	stat(datadir, &fstat);
 	if ( !(fstat.st_mode & S_IFDIR) ) {
-		fprintf(stderr, "No such directory: %s\n", datadir);
+		LogError("No such directory: %s", datadir);
 		exit(250);
 	}
 
@@ -370,7 +345,7 @@ channel_t	*channel, *current_channel;
 				printf("Rescan again, due to file changes in directory!\n");
 			}
 			if ( BookSequence(current_channel->books) != last_sequence ) {
-				fprintf(stderr, "Could not safely rescan the directory. Data is not consistent.\n");
+				LogError("Could not safely rescan the directory. Data is not consistent");
 				ReleaseBookkeeper(current_channel->books, DETACH_ONLY);
 				if ( current_channel->status == OK )
 					WriteStatInfo(current_channel->dirstat);

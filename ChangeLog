@@ -1,3 +1,7 @@
+2019-11-17
+- Enable small time intervals < 300s. - #185
+- Cleanup old code
+
 2019-11-09
 - Fix minor nfpcapd issues
 - Fix gcc compile issue

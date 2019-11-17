@@ -35,16 +35,15 @@
 #include "config.h"
 
 #include <time.h>
+#include <sys/param.h>
 #include "collector.h"
+#include "nffile.h"
 
-#define FNAME_SIZE	256
-#define IDENT_SIZE	32
+#define MAXTIMESTRING 24
 
 typedef struct srecord_s {
-	char	fname[FNAME_SIZE];		// file name
-	char	subdir[FNAME_SIZE];		// subdir name
-	char	ident[IDENT_SIZE];		// -I ident string
-	char	tstring[24];			// 12 needed for YYYYmmddHHMM + opt. timezone
+	char	fname[MAXPATHLEN];		// %f file name
+	char	tstring[MAXTIMESTRING];	// %t 14 needed for YYYYmmddHHMMSS + opt. timezone
 	time_t	tstamp;					// UNIX time stamp
 	int		failed;					// in case of an error
 } srecord_t;

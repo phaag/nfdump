@@ -392,8 +392,8 @@ srecord_t	*commbuff;
 	cnt = 0;
 	ignored_packets  = 0;
 
-	// wake up at least at next time slot (twin) + some Overdue time
-	alarm(t_start + twin + OVERDUE_TIME - time(NULL));
+	// wake up at least at next time slot (twin) + 1s
+	alarm(t_start + twin + 1 - time(NULL));
 	/*
 	 * Main processing loop:
 	 * this loop, continues until done = 1, set by the signal handler
@@ -442,9 +442,9 @@ srecord_t	*commbuff;
 		t_now = tv.tv_sec;
 
 		if ( ((t_now - t_start) >= twin) || done ) {
-			char subfilename[64];
 			struct  tm *now;
 			char	*subdir, fmt[24];
+
 			alarm(0);
 			now = localtime(&t_start);
 			strftime(fmt, sizeof(fmt), time_extension, now);
@@ -458,15 +458,10 @@ srecord_t	*commbuff;
 			
 					// failed to generate subdir path - put flows into base directory
 					subdir = NULL;
-					snprintf(subfilename, 63, "nfcapd.%s", fmt);
-				} else {
-					snprintf(subfilename, 63, "%s/nfcapd.%s", subdir, fmt);
 				}
 			} else {
 				subdir = NULL;
-				snprintf(subfilename, 63, "nfcapd.%s", fmt);
 			}
-			subfilename[63] = '\0';
 
 			// for each flow source update the stats, close the file and re-initialize the new file
 			fs = FlowSource;
@@ -488,11 +483,27 @@ srecord_t	*commbuff;
 
 	
 				// prepare filename
-				snprintf(nfcapd_filename, MAXPATHLEN-1, "%s/%s", fs->datadir, subfilename);
+				if ( subdir ) {
+					if ( SetupSubDir(fs->datadir, subdir, error, 255) ) {
+						snprintf(nfcapd_filename, MAXPATHLEN-1, "%s/%s/nfcapd.%s", fs->datadir, subdir, fmt);
+					} else {
+						LogError("Ident: %s, Failed to create sub hier directories: %s", fs->Ident, error );
+						// skip subdir - put flows directly into current directory
+						snprintf(nfcapd_filename, MAXPATHLEN-1, "%s/nfcapd.%s", fs->datadir, fmt);
+					}
+				} else {
+					snprintf(nfcapd_filename, MAXPATHLEN-1, "%s/nfcapd.%s", fs->datadir, fmt);
+				}
 				nfcapd_filename[MAXPATHLEN-1] = '\0';
-	
+
 				// update stat record
-				nffile->stat_record->first_seen 	= fs->first_seen/1000;
+				// if no flows were collected, fs->last_seen is still 0
+				// set first_seen to start of this time slot, with twin window size.
+				if ( fs->last_seen == 0 ) {
+					fs->first_seen = (uint64_t)1000 * (uint64_t)t_start;
+					fs->last_seen  = (uint64_t)1000 * (uint64_t)(t_start + twin);
+				}
+				nffile->stat_record->first_seen = fs->first_seen/1000;
 				nffile->stat_record->msec_first	= fs->first_seen - nffile->stat_record->first_seen*1000;
 				nffile->stat_record->last_seen 	= fs->last_seen/1000;
 				nffile->stat_record->msec_last	= fs->last_seen - nffile->stat_record->last_seen*1000;
@@ -501,12 +512,6 @@ srecord_t	*commbuff;
 				FlushExporterStats(fs);
 				// Write Stat record and close file
 				CloseUpdateFile(nffile, fs->Ident);
-
-				if ( subdir && !SetupSubDir(fs->datadir, subdir, error, 255) ) {
-					// in this case the flows get lost! - the rename will fail
-					// but this should not happen anyway, unless i/o problems, inode problems etc.
-					LogError("Ident: %s, Failed to create sub hier directories: %s", fs->Ident, error );
-				}
 
 				// if rename fails, we are in big trouble, as we need to get rid of the old .current file
 				// otherwise, we will loose flows and can not continue collecting new flows
@@ -559,18 +564,15 @@ srecord_t	*commbuff;
 			if ( launcher_pid ) {
 				// Signal launcher
 		
-				// prepare filename for %f expansion
-				strncpy(commbuff->fname, subfilename, FNAME_SIZE-1);
-				commbuff->fname[FNAME_SIZE-1] = 0;
-				snprintf(commbuff->tstring, 16, "%i%02i%02i%02i%02i", 
-					now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min);
-				commbuff->tstring[15] = 0;
+				strncpy(commbuff->tstring, fmt, MAXTIMESTRING-1);
 				commbuff->tstamp = t_start;
-				if ( subdir ) 
-					strncpy(commbuff->subdir, subdir, FNAME_SIZE-1);
-				else
-					commbuff->subdir[0] = '\0';
-				commbuff->subdir[FNAME_SIZE-1] = '\0';
+
+				if ( subdir ) {
+					snprintf(commbuff->fname, MAXPATHLEN-1, "%s/nfcapd.%s", subdir, fmt);
+				} else {
+					snprintf(commbuff->fname, MAXPATHLEN-1, "nfcapd.%s", fmt);
+				}
+				commbuff->fname[MAXPATHLEN-1] = '\0';
 
 				if ( launcher_alive ) {
 					LogInfo("Signal launcher");
@@ -590,10 +592,10 @@ srecord_t	*commbuff;
 			t_start += twin;
 			/* t_start = filename time stamp: begin of slot
 		 	* + twin = end of next time interval
-		 	* + OVERDUE_TIME = if no data is collected, this is at latest to act
+		 	* + 1 = if no data is collected, this is at latest to act
 		 	* - t_now = difference value to now
 		 	*/
-			alarm(t_start + twin + OVERDUE_TIME - t_now);
+			alarm(t_start + twin + 1 - t_now);
 		}
 
 		/* check for error condition or done . errno may only be EINTR */
@@ -669,7 +671,7 @@ int main(int argc, char **argv) {
  
 char	*bindhost, *datadir, pidstr[32], *launch_process;
 char	*userid, *groupid, *checkptr, *listenport, *mcastgroup, *extension_tags;
-char	*Ident, *pcap_file, *time_extension, pidfile[MAXPATHLEN];
+char	*Ident, *time_extension, pidfile[MAXPATHLEN];
 struct stat fstat;
 packet_function_t receive_packet;
 repeater_t repeater[MAX_REPEATERS];
@@ -680,6 +682,9 @@ time_t 	twin, t_start;
 int		sock, synctime, do_daemonize, expire, spec_time_extension, report_sequence;
 int		subdir_index, compress;
 int		c, i;
+#ifdef PCAP
+char	*pcap_file = NULL;
+#endif
 
 	receive_packet 	= recvfrom;
 	verbose = synctime = do_daemonize = 0;
@@ -698,8 +703,8 @@ int		c, i;
 	datadir	 		= NULL;
 	subdir_index	= 0;
 	time_extension	= "%Y%m%d%H%M";
-	expire			= 0;
 	spec_time_extension = 0;
+	expire			= 0;
 	compress		= NOT_COMPRESSED;
 	memset((void *)&repeater, 0, sizeof(repeater));
 	for ( i = 0; i < MAX_REPEATERS; i++ ) {
@@ -708,7 +713,6 @@ int		c, i;
 	Ident			= "none";
 	FlowSource		= NULL;
 	extension_tags	= DefaultExtensions;
-	pcap_file		= NULL;
 
 	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:n:p:J:P:R:S:T:t:x:ru:g:zZ")) != EOF) {
 		switch (c) {
@@ -857,13 +861,12 @@ int		c, i;
 				break;
 			case 't':
 				twin = atoi(optarg);
-				if ( twin <= 0 ) {
-					fprintf(stderr, "ERROR: time frame <= 0\n");
+				if ( twin < 2 ) {
+					LogError("time interval <= 2s not allowed");
 					exit(255);
 				}
 				if (twin < 60) {
-					fprintf(stderr, "WARNING, Very small time frame - < 60s!\n");
-					exit(255);
+					time_extension	= "%Y%m%d%H%M%S";
 				}
 				break;
 			case 'x':

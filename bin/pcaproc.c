@@ -134,13 +134,18 @@ pcapfile_t *OpenNewPcapFile(pcap_t *p, char *filename, pcapfile_t *pcapfile) {
 	}
 
 	if ( filename ) {
-		pcapfile->pd = pcap_dump_open(p, filename);
+		FILE* pFile = fopen(filename, "wb"); 
+		if ( !pFile ) {
+			LogError("fopen() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
+			return NULL;
+		}
+		pcapfile->pd = pcap_dump_fopen(p, pFile);
 		if ( !pcapfile->pd ) {
 			LogError("Fatal: pcap_dump_open() failed for file '%s': %s", filename, pcap_geterr(p));
 			return NULL;
 		} else {
-			fflush((FILE *)pcapfile->pd);
-			pcapfile->pfd = fileno((FILE *)pcapfile->pd);
+			fflush(pFile);
+			pcapfile->pfd = fileno((FILE *)pFile);
 			return pcapfile;
 		}
 	} else
@@ -151,10 +156,7 @@ pcapfile_t *OpenNewPcapFile(pcap_t *p, char *filename, pcapfile_t *pcapfile) {
 int ClosePcapFile(pcapfile_t *pcapfile) {
 int err = 0;
 
-	if ( fclose((FILE *)pcapfile->pd) < 0 ) {
-		LogError("close() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
-		err = errno;
-	}
+	pcap_dump_close(pcapfile->pd);
 	pcapfile->pfd = -1;
 
 	return err;

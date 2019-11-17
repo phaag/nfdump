@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -28,12 +26,6 @@
  *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
- *  
- *  $Author: haag $
- *
- *  $Id: expire.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
  *  
  */
 
@@ -77,15 +69,6 @@ static uint32_t timeout = 0;
 static void PrepareDirLists(channel_t *channel);
 
 static int compare(const FTSENT **f1, const FTSENT **f2);
-
-#if 0
-#define unlink unlink_debug
-
-static int unlink_debug (const char *path) {
-	printf("Unlink %s\n", path);
-	return 0;
-} // End of unlink_debug
-#endif
 
 static void IntHandler(int signal) {
 
@@ -144,7 +127,7 @@ int		dot;
 		p++;
 	}
 	if ( p == s ) {
-		fprintf(stderr, "Missing number in '%s'\n", s);
+		LogError("Missing number in '%s'", s);
 		return 0;
 	}
 
@@ -172,7 +155,7 @@ int		dot;
 			fac = 1024LL * 1024LL * 1024LL * 1024LL;
 			break;
 		default:
-			fprintf(stderr, "Garbage character(s) '%s' in '%s'\n", p, s);
+			LogError("Garbage character(s) '%s' in '%s'", p, s);
 			return 0;
 	}
 
@@ -184,7 +167,7 @@ int		dot;
 
 		if ( *p ) {
 			// extra garbage after factor
-			fprintf(stderr, "Garbage character(s) '%s''in '%s'\n", p, s);
+			LogError("Garbage character(s) '%s''in '%s'", p, s);
 			return 0;
 		}
 		*r = '\0';
@@ -222,14 +205,14 @@ uint64_t	weeks, days, hours, minutes;
 			p++;
 		}
 		if ( p == q ) {
-			fprintf(stderr, "Missing number before '%s'\n", q);
+			LogError("Missing number before '%s'", q);
 			return 0;
 		}
 		switch (*p) {
 			case 'w':
 				*p++ = '\0';
 				if ( weeks ) {
-					fprintf(stderr, "Ambiguous weeks %sw\n", q);
+					LogError("Ambiguous weeks %sw", q);
 					return 0;
 				}
 				weeks = strtoll(q, NULL, 10);
@@ -237,7 +220,7 @@ uint64_t	weeks, days, hours, minutes;
 			case 'd':
 				*p++ = '\0';
 				if ( days ) {
-					fprintf(stderr, "Ambiguous days %sD\n", q);
+					LogError("Ambiguous days %sD", q);
 					return 0;
 				}
 				days = strtoll(q, NULL, 10);
@@ -246,7 +229,7 @@ uint64_t	weeks, days, hours, minutes;
 			case 'H':
 				if ( *p ) *p++ = '\0';
 				if ( hours ) {
-					fprintf(stderr, "Ambiguous hours %sH\n", q);
+					LogError("Ambiguous hours %sH", q);
 					return 0;
 				}
 				hours = strtoll(q, NULL, 10);
@@ -254,13 +237,13 @@ uint64_t	weeks, days, hours, minutes;
 			case 'M':
 				*p++ = '\0';
 				if ( minutes ) {
-					fprintf(stderr, "Ambiguous minutes %sM\n", q);
+					LogError("Ambiguous minutes %sM", q);
 					return 0;
 				}
 				minutes = strtoll(q, NULL, 10);
 				break;
 			default:
-				fprintf(stderr, "Unknown time unit '%s'\n", q);
+				LogError("Unknown time unit '%s'", q);
 				return 0;
 
 		}
@@ -285,8 +268,8 @@ char		first_timestring[16], last_timestring[16];
 	dirstat->filesize = dirstat->numfiles = 0;
 	dirstat->first = 0;
 	dirstat->last  = 0;
-	strncpy(first_timestring, "999999999999", 15);
-	strncpy(last_timestring,  "000000000000", 15);
+	strncpy(first_timestring, "99999999999999", 15);
+	strncpy(last_timestring,  "00000000000000", 15);
 	
 	fts = fts_open(path, FTS_LOGICAL,  compare);
 	if ( !fts ) {
@@ -294,8 +277,10 @@ char		first_timestring[16], last_timestring[16];
 		return;
 	}
 	while ( (ftsent = fts_read(fts)) != NULL) {
-		if ( ftsent->fts_info == FTS_F && ftsent->fts_namelen == 19 ) {
-			// nfcapd.200604301200 strlen = 19
+		if ( ftsent->fts_info == FTS_F && 
+			((ftsent->fts_namelen == 19) || (ftsent->fts_namelen == 21)) ) {
+			// nfcapd.200604301200   strlen = 19
+			// nfcapd.20190430120010 strlen = 21
 			if ( strncmp(ftsent->fts_name, "nfcapd.", 7) == 0 ) {
 				char *s, *p = &(ftsent->fts_name[7]);
 
@@ -339,6 +324,7 @@ char		first_timestring[16], last_timestring[16];
 	}
 	fts_close(fts);
 
+
 	// no files means do rebuild next time, otherwise the stat record may not be accurate 
 	if ( dirstat->numfiles == 0 ) {
 		dirstat->first  = dirstat->last = time(NULL);
@@ -348,6 +334,7 @@ char		first_timestring[16], last_timestring[16];
 		dirstat->last   = ISO2UNIX(last_timestring);	
 		dirstat->status = STATFILE_OK;
 	}
+	dbg_printf("Rescan dir - first: %s, last: %s\n", first_timestring, last_timestring)
 
 } // End of RescanDir
 
@@ -375,10 +362,10 @@ time_t 		now = time(NULL);
 		
 		time_t t_watermark = now - (time_t)((maxlife * dirstat->low_water)/100);
 
-// printf("Expire files before %s", ctime(&t_expire));
+		dbg_printf("Expire files before %s", ctime(&t_expire));
 		expire_timelimit = strdup(UNIX2ISO(t_watermark));
-// printf("down to %s", ctime(&t_watermark));
-// printf("Diff: %i\n", t_watermark - t_expire );
+		dbg_printf("down to %s", ctime(&t_watermark));
+		dbg_printf("Diff: %i\n", t_watermark - t_expire );
 
 		if ( dirstat->last < t_expire && (isatty(STDIN_FILENO) ) ) {
 			// this means all files will get expired - are you sure ?
@@ -419,8 +406,10 @@ time_t 		now = time(NULL);
 	while ( !done && ((ftsent = fts_read(fts)) != NULL) ) {
 		if ( ftsent->fts_info == FTS_F ) {
 			dir_files++;	// count files in directories
-			if ( ftsent->fts_namelen == 19 && strncmp(ftsent->fts_name, "nfcapd.", 7) == 0 ) {
-				// nfcapd.200604301200 strlen = 19
+			if ( (ftsent->fts_namelen == 19 || ftsent->fts_namelen == 21) && 
+				  strncmp(ftsent->fts_name, "nfcapd.", 7) == 0 ) {
+				// nfcapd.200604301200   strlen = 19
+				// nfcapd.20190430120010 strlen = 21
 				char *s, *p = &(ftsent->fts_name[7]);
 	
 				// process only nfcapd. files
@@ -489,7 +478,7 @@ time_t 		now = time(NULL);
 					// do not delete base data directory ( level == 0 )
 					if ( dir_files == 0 && ftsent->fts_level > 0 ) {
 						// directory is empty and can be deleted
-// printf("Will remove directory %s\n", ftsent->fts_path);
+						dbg_printf("Will remove directory %s\n", ftsent->fts_path);
 						if ( rmdir(ftsent->fts_path) != 0 ) {
 							LogError( "rmdir() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 						}
@@ -547,29 +536,6 @@ channel_t *current_channel = channel;
 
 		while ( current_channel->ftsent ) {
 
-/*
-			FTSENT *ftsent = current_channel->ftsent;
-			char *finfo;
-			switch (ftsent->fts_info) {
-				case FTS_ERR:
-				case FTS_NS:
-					LogError( "fts_read() %s error in %s line %d: %s\n", 
-						current_channel->ftsent->fts_path, __FILE__, __LINE__, strerror(current_channel->ftsent->fts_errno) );
-					break;
-				case FTS_D:
-					finfo = "DIR pre ";
-					break;
-				case FTS_DP:
-					finfo = "DIR post";
-					break;
-				case FTS_F:
-					finfo = "FILE    ";
-					break;
-				default:
-					finfo = "<undef> ";
-			}
-			printf("%u %i %s %s %s\n", ftsent->fts_info, ftsent->fts_level, finfo, ftsent->fts_path, ftsent->fts_name);
-*/
 		 	if ( current_channel->ftsent->fts_info == FTS_ERR ||
 				 current_channel->ftsent->fts_info == FTS_NS) {
 				LogError( "fts_read() %s error in %s line %d: %s\n", 
@@ -584,7 +550,8 @@ channel_t *current_channel = channel;
 			current_channel->ftsent->fts_number++;
 
 			// if ftsent points to first valid file, break
-			if ( current_channel->ftsent->fts_namelen == 19 && strncmp(current_channel->ftsent->fts_name, "nfcapd.", 7) == 0 )
+			if ( (current_channel->ftsent->fts_namelen == 19 || current_channel->ftsent->fts_namelen == 21) && 
+				  strncmp(current_channel->ftsent->fts_name, "nfcapd.", 7) == 0 )
 				break;
 
 			// otherwise loop
@@ -608,14 +575,14 @@ uint64_t	sizelimit, num_expired;
 	SetupSignalHandler();
 
 	if ( maxlife ) {
-//		time_t t_expire = now - maxlife;
+		// time_t t_expire = now - maxlife;
 		// build an appropriate string for comparing
 		time_t t_watermark = now - (time_t)((maxlife * current_stat->low_water)/100);
 
-//	printf("Expire files before %s", ctime(&t_expire));
+		dbg_printf("Expire files before %s", ctime(&t_expire));
 		expire_timelimit = strdup(UNIX2ISO(t_watermark));
-//	printf("down to %s", ctime(&t_watermark));
-//	printf("Diff: %i\n", t_watermark - t_expire );
+		dbg_printf("down to %s", ctime(&t_watermark));
+		dbg_printf("Diff: %i\n", t_watermark - t_expire );
 
 	}
 
@@ -662,11 +629,11 @@ uint64_t	sizelimit, num_expired;
 		// expire_channel now points to the channel with oldest file
 		// do expire
 		p = &(expire_channel->ftsent->fts_name[7]);
-//	printf("File: %s\n", expire_channel->ftsent->fts_path);
+		dbg_printf("File: %s\n", expire_channel->ftsent->fts_path);
 
 		if ( !size_done ) {
 			// expire size-wise if needed
-//	printf("	Size expire %llu %llu\n", current_stat->filesize, sizelimit);
+			dbg_printf("	Size expire %llu %llu\n", current_stat->filesize, sizelimit);
 			if ( current_stat->filesize > sizelimit ) {
 				// need to delete this file
 				if ( unlink(expire_channel->ftsent->fts_path) == 0 ) {
@@ -693,7 +660,7 @@ uint64_t	sizelimit, num_expired;
 				size_done = 1;
 			}
 		} else if ( !lifetime_done ) {
-//	printf("	Time expire \n");
+			dbg_printf("	Time expire \n");
 			// expire time-wise if needed
 			// this part of the code is executed only when size-wise is already fullfilled
 			if ( strcmp(p, expire_timelimit) < 0  ) {
@@ -733,7 +700,7 @@ uint64_t	sizelimit, num_expired;
 			while ( expire_channel->ftsent ) {
 				if ( expire_channel->ftsent->fts_info == FTS_F ) { // entry is a file
 					expire_channel->ftsent->fts_number++;
-					if ( expire_channel->ftsent->fts_namelen == 19 && 
+					if ( (expire_channel->ftsent->fts_namelen == 19 || expire_channel->ftsent->fts_namelen == 21) && 
 					 	strncmp(expire_channel->ftsent->fts_name, "nfcapd.", 7) == 0 ) {
 						// if ftsent points to next valid file
 						char *p = &(expire_channel->ftsent->fts_name[7]);
@@ -758,7 +725,7 @@ uint64_t	sizelimit, num_expired;
 							// do not delete base data directory ( level == 0 )
 							if ( expire_channel->ftsent->fts_number == 0 && expire_channel->ftsent->fts_level > 0 ) {
 								// directory is empty and can be deleted
-//	printf("Will remove directory %s\n", expire_channel->ftsent->fts_path);
+								dbg_printf("Will remove directory %s\n", expire_channel->ftsent->fts_path);
 								if ( rmdir(expire_channel->ftsent->fts_path) != 0 ) {
 									LogError( "rmdir() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 								}

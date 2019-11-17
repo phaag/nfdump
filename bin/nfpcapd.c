@@ -149,6 +149,7 @@ typedef struct p_pcap_flush_thread_args_s {
 	// arguments
 	int		subdir_index;
 	char	*pcap_datadir;
+	char	*time_extension;
 	pcap_dev_t *pcap_dev; 
 	pcapfile_t *pcapfile;
 } p_pcap_flush_thread_args_t;
@@ -168,6 +169,7 @@ typedef struct p_packet_thread_args_s {
 	time_t	t_win;
 	int		subdir_index;
 	char	*pcap_datadir;
+	char	*time_extension;
 	int		live;
 } p_packet_thread_args_t;
 
@@ -183,6 +185,7 @@ typedef struct p_flow_thread_args_s {
 	NodeList_t *NodeList;		// pop new nodes from this list
 	FlowSource_t *fs;
 	time_t	t_win;
+	char	*time_extension;
 	int		subdir_index;
 	int		compress;
 	int		live;
@@ -596,11 +599,12 @@ static void SignalThreadTerminate(thread_info_t *thread_info, pthread_cond_t *th
 __attribute__((noreturn)) static void *p_flow_thread(void *thread_data) {
 // argument dispatching
 p_flow_thread_args_t *args = (p_flow_thread_args_t *)thread_data;
-time_t t_win				 = args->t_win;
-int subdir_index			 = args->subdir_index;
-int compress			 	 = args->compress;
-int live			 	 	 = args->live;
-FlowSource_t *fs			 = args->fs;
+time_t t_win		 = args->t_win;
+int subdir_index	 = args->subdir_index;
+int compress	 	 = args->compress;
+int live		 	 = args->live;
+FlowSource_t *fs	 = args->fs;
+char *time_extension = args->time_extension;
 static time_t lastExpire = 0;
 time_t t_start, t_clock;
 int err, done;
@@ -664,7 +668,7 @@ int err, done;
 			char FullName[MAXPATHLEN];
 			char netflowFname[128];
 			char error[256];
-			char *subdir;
+			char *subdir, fmt[24];
 			uint32_t NumFlows;
 
 			// flush all flows to disk
@@ -675,6 +679,8 @@ int err, done;
 				NumFlows = Expire_FlowTree(fs, t_clock);
 
 			when = localtime(&t_start);
+			strftime(fmt, sizeof(fmt), time_extension, when);
+
 			nffile = fs->nffile;
 
 			// prepare sub dir hierarchy
@@ -686,17 +692,14 @@ int err, done;
 				
 					// failed to generate subdir path - put flows into base directory
 					subdir = NULL;
-					snprintf(netflowFname, 127, "nfcapd.%i%02i%02i%02i%02i",
-						when->tm_year + 1900, when->tm_mon + 1, when->tm_mday, when->tm_hour, when->tm_min);
+					snprintf(netflowFname, 127, "nfcapd.%s", fmt);
 				} else {
-					snprintf(netflowFname, 127, "%s/nfcapd.%i%02i%02i%02i%02i", subdir,
-						when->tm_year + 1900, when->tm_mon + 1, when->tm_mday, when->tm_hour, when->tm_min);
+					snprintf(netflowFname, 127, "%s/nfcapd.%s", subdir, fmt);
 				}
 
 			} else {
 				subdir = NULL;
-				snprintf(netflowFname, 127, "nfcapd.%i%02i%02i%02i%02i",
-					when->tm_year + 1900, when->tm_mon + 1, when->tm_mday, when->tm_hour, when->tm_min);
+				snprintf(netflowFname, 127, "nfcapd.%s", fmt);
 			}
 			netflowFname[127] = '\0';
 	
@@ -818,6 +821,7 @@ p_pcap_flush_thread_args_t *args = (p_pcap_flush_thread_args_t *)thread_data;
 char *pcap_datadir	 = args->pcap_datadir;
 pcap_dev_t *pcap_dev = args->pcap_dev;
 pcapfile_t *pcapfile = args->pcapfile;
+char *time_extension = args->time_extension;
 char pcap_dumpfile[MAXPATHLEN];
 int err;
 int runs = 0;
@@ -882,11 +886,13 @@ int runs = 0;
 			char FullName[MAXPATHLEN];
 			char pcapFname[128];
 			char error[256];
-			char *subdir;
+			char *subdir, fmt[24];
 			int err;
 
 			dbg_printf("Flush rotate file\n");
 			when = localtime(&pcapfile->t_CloseRename);
+			strftime(fmt, sizeof(fmt), time_extension, when);
+
 			pcapfile->t_CloseRename = 0;
 
 			// prepare sub dir hierarchy
@@ -898,17 +904,14 @@ int runs = 0;
 				
 					// failed to generate subdir path - put flows into base directory
 					subdir = NULL;
-					snprintf(pcapFname, 127, "pcapd.%i%02i%02i%02i%02i",
-						when->tm_year + 1900, when->tm_mon + 1, when->tm_mday, when->tm_hour, when->tm_min);
+					snprintf(pcapFname, 127, "pcapd.%s", fmt);
 				} else {
-					snprintf(pcapFname, 127, "%s/pcapd.%i%02i%02i%02i%02i", subdir,
-						when->tm_year + 1900, when->tm_mon + 1, when->tm_mday, when->tm_hour, when->tm_min);
+					snprintf(pcapFname, 127, "%s/pcapd.%s", subdir, fmt);
 				}
 
 			} else {
 				subdir = NULL;
-				snprintf(pcapFname, 127, "pcapd.%i%02i%02i%02i%02i",
-					when->tm_year + 1900, when->tm_mon + 1, when->tm_mday, when->tm_hour, when->tm_min);
+				snprintf(pcapFname, 127, "pcapd.%s", fmt);
 			}
 			pcapFname[127] 	  = '\0';
 	
@@ -964,6 +967,7 @@ p_packet_thread_args_t *args = (p_packet_thread_args_t *)thread_data;
 pcap_dev_t *pcap_dev = args->pcap_dev;
 time_t t_win		 = args->t_win;
 char *pcap_datadir 	 = args->pcap_datadir;
+char *time_extension = args->time_extension;
 int subdir_index	 = args->subdir_index;
 int live		 	 = args->live;
 // locals
@@ -999,13 +1003,14 @@ int err;
 			/* NOTREACHED */
 		}
 
-		p_flush_thread_args.done 	 	 = 0;
-		p_flush_thread_args.exit 	 	 = 0;
-		p_flush_thread_args.parent 	 	 = args->tid;
-		p_flush_thread_args.pcap_dev 	 = args->pcap_dev;
-		p_flush_thread_args.subdir_index = subdir_index;
-		p_flush_thread_args.pcap_datadir = pcap_datadir;
-		p_flush_thread_args.pcapfile 	 = pcapfile;
+		p_flush_thread_args.done		   = 0;
+		p_flush_thread_args.exit		   = 0;
+		p_flush_thread_args.parent		   = args->tid;
+		p_flush_thread_args.pcap_dev	   = args->pcap_dev;
+		p_flush_thread_args.subdir_index   = subdir_index;
+		p_flush_thread_args.pcap_datadir   = pcap_datadir;
+		p_flush_thread_args.time_extension = time_extension;
+		p_flush_thread_args.pcapfile	   = pcapfile;
 
 		err = pthread_create(&p_flush_thread_args.tid, NULL, p_pcap_flush_thread, (void *)&p_flush_thread_args);
 		if ( err ) {
@@ -1196,6 +1201,7 @@ dirstat_t 		*dirstat;
 time_t 			t_win;
 char 			*device, *pcapfile, *filter, *datadir, *pcap_datadir, *extension_tags, pidfile[MAXPATHLEN], pidstr[32];
 char			*Ident, *userid, *groupid;
+char			*time_extension;
 pcap_dev_t 		*pcap_dev;
 p_packet_thread_args_t *p_packet_thread_args;
 p_flow_thread_args_t *p_flow_thread_args;
@@ -1214,6 +1220,7 @@ p_flow_thread_args_t *p_flow_thread_args;
 	Ident			= "none";
 	fs				= NULL;
 	extension_tags	= DefaultExtensions;
+	time_extension	= "%Y%m%d%H%M";
 	subdir_index	= 0;
 	compress		= NOT_COMPRESSED;
 	verbose			= 0;
@@ -1307,12 +1314,12 @@ p_flow_thread_args_t *p_flow_thread_args;
 				} break;
 			case 't':
 				t_win = atoi(optarg);
-				if (t_win < 60) {
-					LogError("WARNING, very small time frame (< 60)!");
-				}
-				if (t_win <= 0) {
-					LogError("ERROR: time frame too small (<= 0)");
+				if (t_win < 2) {
+					LogError("time interval <= 2s not allowed");
 					exit(EXIT_FAILURE);
+				}
+				if (t_win < 60) {
+					time_extension	= "%Y%m%d%H%M%S";
 				}
 				break;
 			case 'j':
@@ -1534,13 +1541,14 @@ p_flow_thread_args_t *p_flow_thread_args;
 			__FILE__, __LINE__, strerror(errno) );
 		exit(255);
 	}	
-	p_flow_thread_args->fs 	   	   = fs;
-	p_flow_thread_args->t_win 	   = t_win;
-	p_flow_thread_args->compress   = compress;
-	p_flow_thread_args->live	   = device != NULL;
-	p_flow_thread_args->subdir_index = subdir_index;
-	p_flow_thread_args->parent	   = pthread_self();
-	p_flow_thread_args->NodeList   = NewNodeList();
+	p_flow_thread_args->fs			   = fs;
+	p_flow_thread_args->t_win		   = t_win;
+	p_flow_thread_args->compress	   = compress;
+	p_flow_thread_args->live		   = device != NULL;
+	p_flow_thread_args->subdir_index   = subdir_index;
+	p_flow_thread_args->parent		   = pthread_self();
+	p_flow_thread_args->NodeList	   = NewNodeList();
+	p_flow_thread_args->time_extension = time_extension;
 
 	err = 0;
 
@@ -1558,13 +1566,14 @@ p_flow_thread_args_t *p_flow_thread_args;
 			__FILE__, __LINE__, strerror(errno) );
 		exit(255);
 	}	
-	p_packet_thread_args->pcap_dev 	   = pcap_dev;
-	p_packet_thread_args->t_win 	   = t_win;
-	p_packet_thread_args->subdir_index = subdir_index;
-	p_packet_thread_args->pcap_datadir = pcap_datadir;
-	p_packet_thread_args->live 	   	   = device != NULL;
-	p_packet_thread_args->parent	   = pthread_self();
-	p_packet_thread_args->NodeList	   = p_flow_thread_args->NodeList;
+	p_packet_thread_args->pcap_dev		 = pcap_dev;
+	p_packet_thread_args->t_win			 = t_win;
+	p_packet_thread_args->subdir_index	 = subdir_index;
+	p_packet_thread_args->pcap_datadir	 = pcap_datadir;
+	p_packet_thread_args->live			 = device != NULL;
+	p_packet_thread_args->parent		 = pthread_self();
+	p_packet_thread_args->NodeList		 = p_flow_thread_args->NodeList;
+	p_packet_thread_args->time_extension = p_flow_thread_args->time_extension;
 
 	err = pthread_create(&p_packet_thread_args->tid, NULL, p_packet_thread, (void *)p_packet_thread_args);
 	if ( err ) {

@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2019, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -28,12 +27,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: flist.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
  */
 
 #include "config.h"
@@ -68,8 +61,8 @@
 #define fts_set   fts_set_compat
 #endif
 
-#include "nffile.h"
 #include "util.h"
+#include "nffile.h"
 #include "flist.h"
 
 /*
@@ -1112,7 +1105,8 @@ char s[MAXPATHLEN];
 struct  tm *t_tm;
 int	i;
 
-	if ( strlen(filename) == 19 && (strncmp(filename, "nfcapd.", 7) == 0) ) {
+	size_t len = strlen(filename);
+	if ( (len == 19 || len == 21) && (strncmp(filename, "nfcapd.", 7) == 0) ) {
 		char *p  = &filename[7];
 		time_t t = ISO2UNIX(p);
 		t_tm = localtime(&t);

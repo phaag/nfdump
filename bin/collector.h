@@ -45,7 +45,6 @@
 #include "nffile.h"
 
 #define FNAME_SIZE  256
-#define IDENT_SIZE  32
 
 typedef struct FlowSource_s {
 	// link

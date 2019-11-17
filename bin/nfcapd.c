@@ -96,8 +96,7 @@
 #define DEFAULTHOSTNAME "127.0.0.1"
 #define SENDSOCK_BUFFSIZE 200000
 
-/* globals */
-void *shmem;
+static void *shmem = NULL;
 int verbose = 0;
 
 extern uint32_t default_sampling;   // the default sampling rate when nothing else applies. set by -S
@@ -407,8 +406,8 @@ srecord_t	*commbuff;
 	periodic_trigger = 0;
 	ignored_packets  = 0;
 
-	// wake up at least at next time slot (twin) + some Overdue time
-	alarm(t_start + twin + OVERDUE_TIME - time(NULL));
+	// wake up at least at next time slot (twin) + 1s
+	alarm(t_start + twin + 1 - time(NULL));
 	/*
 	 * Main processing loop:
 	 * this loop, continues until done = 1, set by the signal handler
@@ -457,7 +456,6 @@ srecord_t	*commbuff;
 		t_now = tv.tv_sec;
 
 		if ( ((t_now - t_start) >= twin) || done ) {
-			char subfilename[64];
 			struct  tm *now;
 			char	*subdir, fmt[24];
 
@@ -474,15 +472,10 @@ srecord_t	*commbuff;
 			
 					// failed to generate subdir path - put flows into base directory
 					subdir = NULL;
-					snprintf(subfilename, 63, "nfcapd.%s", fmt);
-				} else {
-					snprintf(subfilename, 63, "%s/nfcapd.%s", subdir, fmt);
-				}
+				} 
 			} else {
 				subdir = NULL;
-				snprintf(subfilename, 63, "nfcapd.%s", fmt);
 			}
-			subfilename[63] = '\0';
 
 			// for each flow source update the stats, close the file and re-initialize the new file
 			fs = FlowSource;
@@ -504,7 +497,17 @@ srecord_t	*commbuff;
 
 	
 				// prepare filename
-				snprintf(nfcapd_filename, MAXPATHLEN-1, "%s/%s", fs->datadir, subfilename);
+				if ( subdir ) {
+					if ( SetupSubDir(fs->datadir, subdir, error, 255) ) {
+						snprintf(nfcapd_filename, MAXPATHLEN-1, "%s/%s/nfcapd.%s", fs->datadir, subdir, fmt);
+					} else {
+						LogError("Ident: %s, Failed to create sub hier directories: %s", fs->Ident, error );
+						// skip subdir - put flows directly into current directory
+						snprintf(nfcapd_filename, MAXPATHLEN-1, "%s/nfcapd.%s", fs->datadir, fmt);
+					}
+				} else {
+					snprintf(nfcapd_filename, MAXPATHLEN-1, "%s/nfcapd.%s", fs->datadir, fmt);
+				}
 				nfcapd_filename[MAXPATHLEN-1] = '\0';
 	
 				// update stat record
@@ -523,12 +526,6 @@ srecord_t	*commbuff;
 				FlushExporterStats(fs);
 				// Close file
 				CloseUpdateFile(nffile, fs->Ident);
-
-				if ( subdir && !SetupSubDir(fs->datadir, subdir, error, 255) ) {
-					// in this case the flows get lost! - the rename will fail
-					// but this should not happen anyway, unless i/o problems, inode problems etc.
-					LogError("Ident: %s, Failed to create sub hier directories: %s", fs->Ident, error );
-				}
 
 				// if rename fails, we are in big trouble, as we need to get rid of the old .current file
 				// otherwise, we will loose flows and can not continue collecting new flows
@@ -553,7 +550,8 @@ srecord_t	*commbuff;
 
 				// log stats
 				LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Sequence Errors: %u, Bad Packets: %u", 
-					fs->Ident, (unsigned long long)nffile->stat_record->numflows, (unsigned long long)nffile->stat_record->numpackets, 
+					fs->Ident, (unsigned long long)nffile->stat_record->numflows, 
+					(unsigned long long)nffile->stat_record->numpackets, 
 					(unsigned long long)nffile->stat_record->numbytes, nffile->stat_record->sequence_failure, fs->bad_packets);
 
 				// reset stats
@@ -574,24 +572,22 @@ srecord_t	*commbuff;
 
 				// next flow source
 				fs = fs->next;
+
 			} // end of while (fs)
 
-			// All flow sources updated - signal launcher if required
+			// trigger launcher if required
 			if ( launcher_pid ) {
 				// Signal launcher
-		
-				// prepare filename for %f expansion
-				strncpy(commbuff->fname, subfilename, FNAME_SIZE-1);
-				commbuff->fname[FNAME_SIZE-1] = 0;
-				snprintf(commbuff->tstring, 16, "%i%02i%02i%02i%02i", 
-					now->tm_year + 1900, now->tm_mon + 1, now->tm_mday, now->tm_hour, now->tm_min);
-				commbuff->tstring[15] = 0;
+
+				strncpy(commbuff->tstring, fmt, MAXTIMESTRING-1);
 				commbuff->tstamp = t_start;
-				if ( subdir ) 
-					strncpy(commbuff->subdir, subdir, FNAME_SIZE-1);
-				else
-					commbuff->subdir[0] = '\0';
-				commbuff->subdir[FNAME_SIZE-1] = '\0';
+
+				if ( subdir ) {
+					snprintf(commbuff->fname, MAXPATHLEN-1, "%s/nfcapd.%s", subdir, fmt);
+				} else {
+					snprintf(commbuff->fname, MAXPATHLEN-1, "nfcapd.%s", fmt);
+				}
+				commbuff->fname[MAXPATHLEN-1] = '\0';
 
 				if ( launcher_alive ) {
 					LogInfo("Signal launcher");
@@ -611,10 +607,10 @@ srecord_t	*commbuff;
 			t_start += twin;
 			/* t_start = filename time stamp: begin of slot
 		 	* + twin = end of next time interval
-		 	* + OVERDUE_TIME = if no data is collected, this is at latest to act
+		 	* + 1 = act at least 1s after time window expired
 		 	* - t_now = difference value to now
 		 	*/
-			alarm(t_start + twin + OVERDUE_TIME - t_now);
+			alarm(t_start + twin + 1 - t_now);
 
 		}
 
@@ -749,17 +745,15 @@ FlowSource_t *fs;
 struct sigaction act;
 int		family, bufflen;
 time_t 	twin, t_start;
-int		sock, synctime, do_daemonize, expire, spec_time_extension, report_sequence;
+int		sock, do_daemonize, expire, spec_time_extension, report_sequence;
 int		subdir_index, sampling_rate, compress;
 int		c, i;
 #ifdef PCAP
-char	*pcap_file;
- 
-	pcap_file		= NULL;
+char	*pcap_file = NULL;
 #endif
 
 	receive_packet 	= recvfrom;
-	verbose = synctime = do_daemonize = 0;
+	verbose = do_daemonize = 0;
 	bufflen  		= 0;
 	family			= AF_UNSPEC;
 	launcher_pid	= 0;
@@ -854,7 +848,7 @@ char	*pcap_file;
 					exit(255);
 				break;
 			case 'w':
-				synctime = 1;
+				// allow for compatibility - always sync timeslot
 				break;
 			case 'B':
 				bufflen = strtol(optarg, &checkptr, 10);
@@ -933,6 +927,7 @@ char	*pcap_file;
 					fprintf(stderr, "ERROR: Path too long!\n");
 					exit(255);
 				}
+				datadir = realpath(datadir, NULL);
 				if ( stat(datadir, &fstat) < 0 ) {
 					fprintf(stderr, "stat() failed on %s: %s\n", datadir, strerror(errno));
 					exit(255);
@@ -947,12 +942,12 @@ char	*pcap_file;
 				break;
 			case 't':
 				twin = atoi(optarg);
-				if ( twin <= 0 ) {
-					fprintf(stderr, "ERROR: time frame <= 0\n");
+				if ( twin < 2 ) {
+					LogError("time interval <= 2s not allowed");
 					exit(255);
 				}
 				if (twin < 60) {
-					fprintf(stderr, "WARNING, Very small time frame - < 60s!\n");
+					time_extension	= "%Y%m%d%H%M%S";
 				}
 				break;
 			case 'x':
@@ -1120,8 +1115,7 @@ char	*pcap_file;
 	} 
 
 	t_start = time(NULL);
-	if ( synctime )
-		t_start = t_start - ( t_start % twin);
+	t_start = t_start - ( t_start % twin);
 
 	if ( do_daemonize ) {
 		verbose = 0;
@@ -1144,14 +1138,11 @@ char	*pcap_file;
 
 	done = 0;
 	if ( launch_process || expire ) {
-		// for efficiency reason, the process collecting the data
-		// and the process launching processes, when a new file becomes
-		// available are separated. Communication is done using signals
-		// as well as shared memory
-		// prepare shared memory
+
+		// create laucher comm memory struct
 		shmem = mmap(0, sizeof(srecord_t), PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-		if ( shmem == MAP_FAILED ) {
-			LogError("mmap() error: %s", strerror(errno));
+		if ( shmem == MAP_FAILED) {
+			LogError("mmap() error in %s:%i: %s", __FILE__, __LINE__ , strerror(errno));
 			close(sock);
 			exit(255);
 		}

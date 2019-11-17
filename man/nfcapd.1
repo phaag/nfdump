@@ -10,7 +10,10 @@ is the netflow capture daemon of the nfdump tools. It reads netflow
 data from the network and stores it into files. The output file
 is automatically rotated and renamed every n minutes \- typically
 5 min \- according the timestamp YYYYMMddhhmm of the interval e.g. 
-nfcapd.201107110845 contains the data from July 11th 2011 08:45 onward.
+nfcapd.201907110845 contains the data from July 11th 2019 08:45 onward.
+If the time interval is smaller then 60s, the naming extends to seconds
+e.g. nfcapd.20190711084510. 
+
 .P
 Netflow version v1, v5, v7 and v9 and IPFIX are transparently supported.
 .P
@@ -241,7 +244,7 @@ list which v9 tags are mapped into which extensions is given in the section
 .TP 3
 .B -t \fIinterval
 Specifies the time interval in seconds to rotate files. The default value 
-is 300s ( 5min ).
+is 300s ( 5min ). The smallest interval is 2s.
 .TP 3
 .B -w
 Align file rotation with next n minute ( specified by \-t ) interval. 

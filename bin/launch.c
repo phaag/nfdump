@@ -64,11 +64,13 @@
 #define fts_set   fts_set_compat
 #endif
 
+#include "util.h"
 #include "expire.h"
 #include "nffile.h"
 #include "collector.h"
-#include "util.h"
 #include "launch.h"
+
+#define DEVEL 1
 
 static int done, launch, child_exit;
 
@@ -116,7 +118,7 @@ int  i;
 
 	q = strdup(process);
 	if ( !q ) {
-		perror("Process cmdline");
+		LogError("strdup() error in %s:%i: %s", __FILE__, __LINE__ , strerror(errno));
 		return NULL;
 	}
 	i = 0;
@@ -149,13 +151,12 @@ int  i;
 			if ( s ) {
 				q = realloc(q, strlen(q) + strlen(s));
 				if ( !q ) {
-					perror("Process cmdline");
+					LogError("realloc() error in %s:%i: %s", __FILE__, __LINE__ , strerror(errno));
 					return NULL;
 				}
-				// be a bit paranoid and prevent endless expansion
+				// sanity check
 				if ( strlen(q) > MAXCMDLEN ) {
-					// this is fishy
-					LogError("Error: cmdline too long!");
+					LogError("command expand error in %s:%i: cmd line too long", __FILE__, __LINE__);
 					return NULL;
 				}
 				memmove(&q[i] + strlen(s), &q[i+2], strlen(&q[i+2]) + 1);   // include trailing '0' in memmove
@@ -331,22 +332,20 @@ srecord_t	*InfoRecord;
 		char 		*cmd = NULL;
 		srecord_t	TestRecord;
 		// check for valid command expansion
-		strncpy(TestRecord.fname, "test", FNAME_SIZE-1);
-		TestRecord.fname[FNAME_SIZE-1] = 0;
-		strncpy(TestRecord.tstring, "200407110845", 15);	
-		TestRecord.tstring[15] = 0;
+		strncpy(TestRecord.fname, "test", MAXPATHLEN-1);
+		TestRecord.fname[MAXPATHLEN-1] = 0;
+		strncpy(TestRecord.tstring, "20190711084500", MAXTIMESTRING-1);	
+		TestRecord.tstring[MAXTIMESTRING-1] = 0;
 		TestRecord.tstamp = 1;
 
+		// checkk valid command expansion
 		fs = FlowSource;
-		while ( fs ) {
-			cmd = cmd_expand(&TestRecord, fs->Ident, fs->datadir, process);
-			if ( cmd == NULL ) {
-				LogError("Launcher: ident: %s, Unable to expand command: '%s'", fs->Ident, process);
-				exit(255);
-			}
-
-			fs = fs->next;
+		cmd = cmd_expand(&TestRecord, fs->Ident, fs->datadir, process);
+		if ( cmd == NULL ) {
+			LogError("Launcher: ident: %s, Unable to expand command: '%s'", fs->Ident, process);
+			exit(255);
 		}
+		free(cmd);
 	}
 
 	/* Signal handling */
@@ -368,7 +367,7 @@ srecord_t	*InfoRecord;
 			launch = 0;
 
 			if ( process ) {
-				char 		*cmd = NULL;
+				char *cmd = NULL;
 
 				fs = FlowSource;
 				while ( fs ) {
