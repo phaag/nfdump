@@ -254,6 +254,7 @@ uint16_t map_id;
 		}
 		l->ref_count 	= 0;
 		l->next 		= NULL;
+		l->exportMap 	= NULL;
 		memset((void *)&l->master_record, 0, sizeof(master_record_t));
 
 		l->map   = (extension_map_t *)malloc((ssize_t)map->size);

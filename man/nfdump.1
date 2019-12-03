@@ -240,9 +240,9 @@ automatically, which may be overwritten by any \-o format option.
 .TP 3
 .B -B
 Like \-b but automagically swaps flows if src port is < dst port 
-as some exporters do not care sending the flows in proper order. It's 
-considered to be a convenient option. Please note - for some peer-to-peer flows
-this my lead to errornous swapping.
+for TCP and UDP flows and src port < 1024 and dst port > 1024.
+as some exporters do not care sending the flows in proper order. Other
+flows are not affected. It's considered to be a convenient option. 
 .TP 3
 .B -I
 Print flow statistics from file specified by \-r, or timeslot specified by \-R/\-M. 

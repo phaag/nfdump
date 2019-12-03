@@ -58,6 +58,7 @@ typedef struct extension_descriptor_s {
 typedef struct extension_info_s {
 	struct extension_info_s *next;
 	extension_map_t	*map;
+	extension_map_t	*exportMap;
 	uint32_t		ref_count;
 	uint32_t		*offset_cache;
 	master_record_t	master_record;

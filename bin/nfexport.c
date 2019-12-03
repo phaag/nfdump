@@ -111,19 +111,23 @@ extension_map_t	*new_map;
 		// parse map for older NEL nat extension
 		has_nat			= 0;
 
+		int needConvert = 0;
 		num_extensions = 0;
 		i = 0;
 		while ( SourceMap->ex_id[i] ) {
 			switch (SourceMap->ex_id[i]) {
 				case EX_AGGR_FLOWS_4:
+					needConvert = 1;
 				case EX_AGGR_FLOWS_8:
 					has_aggr_flows  = 1;
 					break;
 				case EX_OUT_BYTES_4:
+					needConvert = 1;
 				case EX_OUT_BYTES_8:
 					has_out_bytes	= 1;
 					break;
 				case EX_OUT_PKG_4:
+					needConvert = 1;
 				case EX_OUT_PKG_8:
 					has_out_packets	= 1;
 					break;
@@ -137,8 +141,8 @@ extension_map_t	*new_map;
 			num_extensions++;
 		}
 #ifdef DEVEL
-		printf("map: num_extensions: %i, has_aggr_flows: %i, has_out_bytes: %i, has_out_packets: %i, has_nat: %i\n", 
-			num_extensions, has_aggr_flows, has_out_bytes, has_out_packets, has_nat);
+		printf("map: num_extensions: %i, has_aggr_flows: %i, has_out_bytes: %i, has_out_packets: %i, has_nat: %i, needConvert: %i\n", 
+			num_extensions, has_aggr_flows, has_out_bytes, has_out_packets, has_nat, needConvert);
 #endif
 
 		// count missing extensions
@@ -160,7 +164,7 @@ extension_map_t	*new_map;
 		printf("opt_extensions: %i, new_map_size: %i\n", opt_extensions,new_map_size );
 		PrintExtensionMap(SourceMap);
 #endif
-		if ( opt_extensions ) {
+		if ( opt_extensions || needConvert ) {
     		// align 32bits
     		if (( new_map_size & 0x3 ) != 0 ) {
         		new_map_size += 4 - ( new_map_size & 0x3 );
@@ -202,19 +206,39 @@ extension_map_t	*new_map;
 		
 		new_map->size   = new_map_size;
 
-		// add the missing extensions to the output map
-		// skip to end of current map
-		while ( new_map->ex_id[i] )
+		i = 0;
+		// convert 4 to 8 byte counters
+		while ( new_map->ex_id[i] ) {
+			switch (new_map->ex_id[i]) {
+				case EX_AGGR_FLOWS_4:
+					new_map->extension_size -= extension_descriptor[EX_AGGR_FLOWS_4].size;
+					new_map->extension_size += extension_descriptor[EX_AGGR_FLOWS_8].size;
+					new_map->ex_id[i] = EX_AGGR_FLOWS_8;
+					break;
+				case EX_OUT_BYTES_4:
+					new_map->extension_size -= extension_descriptor[EX_OUT_BYTES_4].size;
+					new_map->extension_size += extension_descriptor[EX_OUT_BYTES_8].size;
+					new_map->ex_id[i] = EX_OUT_BYTES_8;
+					break;
+				case EX_OUT_PKG_4:
+					new_map->extension_size -= extension_descriptor[EX_OUT_PKG_4].size;
+					new_map->extension_size += extension_descriptor[EX_OUT_PKG_8].size;
+					new_map->ex_id[i] = EX_OUT_PKG_8;
+					break;
+				// default: nothing to do
+			}
 			i++;
+		}
 
+		// add the missing extensions to the output map
 		if ( has_nat ) {
 			new_map->ex_id[i++] 	 = EX_NSEL_XLATE_PORTS;
 			new_map->extension_size += extension_descriptor[EX_NSEL_XLATE_PORTS].size;
 		}
 		// add missing map elements
 		if ( aggregate && !has_aggr_flows ) {
-			new_map->ex_id[i++] 	 = EX_AGGR_FLOWS_4;
-			new_map->extension_size += extension_descriptor[EX_AGGR_FLOWS_4].size;
+			new_map->ex_id[i++] 	 = EX_AGGR_FLOWS_8;
+			new_map->extension_size += extension_descriptor[EX_AGGR_FLOWS_8].size;
 		}
 		if ( bidir && !has_out_bytes )  {
 			new_map->ex_id[i++] 	 = EX_OUT_BYTES_8;
@@ -230,11 +254,12 @@ extension_map_t	*new_map;
 			new_map->ex_id[i]  = 0;
 
 #ifdef DEVEL
+		printf("New/converted extension map:\n");
 		PrintExtensionMap(new_map);
 #endif
 
-		free(extension_map_list->slot[map_id]->map);
-		extension_map_list->slot[map_id]->map = new_map; 
+		// set new export map
+		extension_map_list->slot[map_id]->exportMap = new_map; 
 
 		// Flush the map to disk
 		AppendToBuffer(nffile, (void *)new_map, new_map->size);
@@ -243,7 +268,7 @@ extension_map_t	*new_map;
 
 } // End of ExportExtensionMaps
 
-int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int date_sorted, extension_map_list_t *extension_map_list) {
+int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir, int date_sorted, extension_map_list_t *extension_map_list) {
 hash_FlowTable *FlowTable;
 FlowTableRecord_t	*r;
 SortElement_t 		*SortList;
@@ -309,7 +334,7 @@ char				*string;
 			flow_record->dOctets 	= r->counter[INBYTES];
 			flow_record->out_pkts 	= r->counter[OUTPACKETS];
 			flow_record->out_bytes 	= r->counter[OUTBYTES];
-			flow_record->aggr_flows 	= r->counter[FLOWS];
+			flow_record->aggr_flows = r->counter[FLOWS];
 
 			// apply IP mask from aggregation, to provide a pretty output
 			if ( FlowTable->has_masks ) {
@@ -326,9 +351,16 @@ char				*string;
 				ApplyAggrMask(flow_record, aggr_record_mask);
 			}
 
+			if ( GuessDir && 
+			   ( flow_record->prot == IPPROTO_TCP || flow_record->prot == IPPROTO_UDP) &&
+			   ( flow_record->srcport < 1024 ) && ( flow_record->dstport > 1024 ) &&
+			   ( flow_record->srcport < flow_record->dstport ) ) {
+				SwapFlow(flow_record);
+			}
+
 			// switch to output extension map
-			flow_record->map_ref = extension_info->map;
-			flow_record->ext_map = extension_info->map->map_id;
+			flow_record->map_ref = extension_info->exportMap ? extension_info->exportMap : extension_info->map;
+			flow_record->ext_map = flow_record->map_ref->map_id;
 			PackRecord(flow_record, nffile);
 #ifdef DEVEL
 			flow_record_to_raw((void *)flow_record, &string, 0);
@@ -351,7 +383,7 @@ char				*string;
 				extension_info = r->map_info_ref;
 
 				flow_record = &(extension_info->master_record);
-				ExpandRecord_v2( raw_record, extension_info, r->exp_ref, flow_record);
+				ExpandRecord_v2(raw_record, extension_info, r->exp_ref, flow_record);
 				flow_record->dPkts 		= r->counter[INPACKETS];
 				flow_record->dOctets 	= r->counter[INBYTES];
 				flow_record->out_pkts 	= r->counter[OUTPACKETS];
@@ -373,9 +405,16 @@ char				*string;
 					ApplyAggrMask(flow_record, aggr_record_mask);
 				}
 
+				if ( GuessDir && 
+			   	   ( flow_record->prot == IPPROTO_TCP || flow_record->prot == IPPROTO_UDP) &&
+			   	   ( flow_record->srcport < 1024 ) && ( flow_record->dstport > 1024 ) &&
+			   	   ( flow_record->srcport < flow_record->dstport ) ) {
+					SwapFlow(flow_record);
+				}
+
 				// switch to output extension map
-				flow_record->map_ref = extension_info->map;
-				flow_record->ext_map = extension_info->map->map_id;
+				flow_record->map_ref = extension_info->exportMap ? extension_info->exportMap : extension_info->map;
+				flow_record->ext_map = flow_record->map_ref->map_id;
 				PackRecord(flow_record, nffile);
 #ifdef DEVEL
 				flow_record_to_raw((void *)flow_record, &string, 0);

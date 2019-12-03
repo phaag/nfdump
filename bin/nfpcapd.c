@@ -1401,6 +1401,11 @@ p_flow_thread_args_t *p_flow_thread_args;
 		exit(EXIT_FAILURE);
 	}
 
+	if ( !device && !pcapfile ) {
+		LogError("Specify either a device or a pcapfile to read packets from");
+		exit(EXIT_FAILURE);
+	}
+
 	if ( !Init_FlowTree(cache_size, active, inactive)) {
 		LogError("Init_FlowTree() failed.");
 		exit(EXIT_FAILURE);

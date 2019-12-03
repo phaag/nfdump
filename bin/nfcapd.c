@@ -162,7 +162,7 @@ static void usage(char *name) {
 					"-4\t\tListen on IPv4 (default).\n"
 					"-6\t\tListen on IPv6.\n"
 					"-V\t\tPrint version and exit.\n"
-					"-Z\t\tAdd timezone offset to filenamet.\n"
+					"-Z\t\tAdd timezone offset to filename.\n"
 					, name);
 } // End of usage
 
@@ -492,7 +492,8 @@ srecord_t	*commbuff;
 				if ( nffile->block_header->NumRecords ) {
 					// flush current buffer to disc
 					if ( WriteBlock(nffile) <= 0 )
-						LogError("Ident: %s, failed to write output buffer to disk: '%s'" , fs->Ident, strerror(errno));
+						LogError("Ident: %s, failed to write output buffer to disk: '%s'" , 
+							fs->Ident, strerror(errno));
 				} // else - no new records in current block
 
 	

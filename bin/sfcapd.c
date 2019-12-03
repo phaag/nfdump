@@ -478,7 +478,8 @@ srecord_t	*commbuff;
 				if ( nffile->block_header->NumRecords ) {
 					// flush current buffer to disc
 					if ( WriteBlock(nffile) <= 0 )
-						LogError("Ident: %s, failed to write output buffer to disk: '%s'" , fs->Ident, strerror(errno));
+						LogError("Ident: %s, failed to write output buffer to disk: '%s'" ,
+							fs->Ident, strerror(errno));
 				} // else - no new records in current block
 
 	

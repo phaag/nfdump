@@ -54,7 +54,9 @@ diff -u test3.out nfdump.test.out
 
 ./nfdump -r test.flows -O tstart -z -w test2.flows
 ./nfdump -q -r test2.flows -o raw > test4.out
-diff -u test4.out nfdump.test.out
+diff test4.out nfdump.test.out > test4.diff || true
+diff test4.diff nfdump.test2.diff
+
 
 # uncompressed flow test
 rm -f test.flows test2.out

@@ -400,7 +400,7 @@ nffile_t			*nffile;
 	SetIPaddress(&record,  PF_INET, "172.16.13.66", "192.168.170.112");
 	record.srcport 	 	= 0;
 	record.dstport 	 	= 8;
-	record.prot 	 	= 1;
+	record.prot 	 	= IPPROTO_ICMP;
 	record.tcp_flags 	= 0;
 	record.tos 		 	= 0;
 	record.dPkts 	 	= 50002;

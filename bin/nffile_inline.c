@@ -787,7 +787,7 @@ int		i;
 		}
 	}
 
-	nffile->block_header->size 		+= required;
+	nffile->block_header->size += required;
 	nffile->block_header->NumRecords++;
 #ifdef DEVEL
 	if ( ((pointer_addr_t)p - (pointer_addr_t)nffile->buff_ptr) != required ) {

@@ -334,7 +334,7 @@ char		first_timestring[16], last_timestring[16];
 		dirstat->last   = ISO2UNIX(last_timestring);	
 		dirstat->status = STATFILE_OK;
 	}
-	dbg_printf("Rescan dir - first: %s, last: %s\n", first_timestring, last_timestring)
+	dbg_printf("Rescan dir - first: %s, last: %s\n", first_timestring, last_timestring);
 
 } // End of RescanDir
 
@@ -365,7 +365,7 @@ time_t 		now = time(NULL);
 		dbg_printf("Expire files before %s", ctime(&t_expire));
 		expire_timelimit = strdup(UNIX2ISO(t_watermark));
 		dbg_printf("down to %s", ctime(&t_watermark));
-		dbg_printf("Diff: %i\n", t_watermark - t_expire );
+		dbg_printf("Diff: %li\n", t_watermark - t_expire );
 
 		if ( dirstat->last < t_expire && (isatty(STDIN_FILENO) ) ) {
 			// this means all files will get expired - are you sure ?
@@ -579,10 +579,8 @@ uint64_t	sizelimit, num_expired;
 		// build an appropriate string for comparing
 		time_t t_watermark = now - (time_t)((maxlife * current_stat->low_water)/100);
 
-		dbg_printf("Expire files before %s", ctime(&t_expire));
 		expire_timelimit = strdup(UNIX2ISO(t_watermark));
 		dbg_printf("down to %s", ctime(&t_watermark));
-		dbg_printf("Diff: %i\n", t_watermark - t_expire );
 
 	}
 

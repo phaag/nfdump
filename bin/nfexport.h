@@ -37,7 +37,7 @@
 #include "nffile.h"
 #include "nfx.h"
 
-int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int date_sorted, extension_map_list_t *extension_map_list);
+int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir, int date_sorted, extension_map_list_t *extension_map_list);
 
 #endif //_NFEXPORT_H
 

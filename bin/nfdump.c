@@ -1160,7 +1160,7 @@ char 		Ident[IDENTLEN];
 			nffile_t *nffile = OpenNewFile(wfile, NULL, compress, is_anonymized, NULL);
 			if ( !nffile ) 
 				exit(255);
-			if ( ExportFlowTable(nffile, aggregate, bidir, date_sorted, extension_map_list) ) {
+			if ( ExportFlowTable(nffile, aggregate, bidir, GuessDir, date_sorted, extension_map_list) ) {
 				CloseUpdateFile(nffile, Ident );	
 			} else {
 				CloseFile(nffile);

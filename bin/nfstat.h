@@ -126,4 +126,5 @@ int ParseListOrder(char *s, int multiple_orders );
 
 void PrintSortedFlows(printer_t print_record, uint32_t limitflows, int tag);
 
+void SwapFlow(master_record_t *flow_record);
 #endif //_NFSTAT_H
