@@ -1,3 +1,6 @@
+2019-12-05
+- Remove unused old code. Fix for #197
+
 2019-12-04
 - Fix bidir export issues. Cleanup code. Fix for #195
 

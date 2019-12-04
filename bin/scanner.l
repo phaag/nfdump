@@ -282,27 +282,6 @@ int yywrap(void) {
 	return 1;
 }
 
-int ScreenIPString(char *string) {
-	char *c;
-
-	// [0-9A-Fa-f:][0-9A-Fa-f\.:]+[0-9A-Fa-f:] {
-	int len = strlen(string);
-	if ( len < 3 || len > 39 ) 
-		return 0;
-	
-	if ( !isxdigit(string[0]) ) 
-		return 0;
-
-	c = &string[1];
-	while ( *c ) {
-		if ( *c != '.' || *c != ':' || !isxdigit(*c) ) 
-			return 0;
-		c++;
-	}
-	return 1;
-
-} // End of ScreenString
-
 int ScreenIdentString(char *string) {
 	char *c;
 

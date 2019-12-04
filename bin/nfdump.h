@@ -74,8 +74,6 @@ void lex_cleanup(void);
 
 void lex_init(char *buf);
 
-int ScreenIPString(char *string);
-
 int ScreenIdentString(char *string);
 
 // Insert the RB prototypes here
