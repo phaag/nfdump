@@ -1,3 +1,6 @@
+2020-01-11
+- Fix bug for IPv6 network cidr representation in raw and cvs output mode.
+
 2019-12-05
 - Remove unused old code. Fix for #197
 

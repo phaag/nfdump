@@ -90,54 +90,19 @@ master_record_t *r = (master_record_t *)record;
 		inet_ntop(AF_INET6, snet, as, sizeof(as));
 		inet_ntop(AF_INET6, dnet, ds, sizeof(ds));
 
-		if ( r->src_mask || r->dst_mask) {
-			if ( r->src_mask >= 64 ) {
-				snet[0] = r->V6.srcaddr[0] & (0xffffffffffffffffLL << (r->src_mask - 64));
-				snet[1] = 0;
-			} else {
-				snet[0] = r->V6.srcaddr[0];
-				snet[1] = r->V6.srcaddr[1] & (0xffffffffffffffffLL << r->src_mask);
-			}
-			snet[0] = htonll(snet[0]);
-			snet[1] = htonll(snet[1]);
-			inet_ntop(AF_INET6, snet, s_snet, sizeof(s_snet));
-
-			if ( r->dst_mask >= 64 ) {
-				dnet[0] = r->V6.dstaddr[0] & (0xffffffffffffffffLL << (r->dst_mask - 64));
-				dnet[1] = 0;
-			} else {
-				dnet[0] = r->V6.dstaddr[0];
-				dnet[1] = r->V6.dstaddr[1] & (0xffffffffffffffffLL << r->dst_mask);
-			}
-			dnet[0] = htonll(dnet[0]);
-			dnet[1] = htonll(dnet[1]);
-			inet_ntop(AF_INET6, dnet, s_dnet, sizeof(s_dnet));
-
-		} else {
-			s_snet[0] = '\0';
-			s_dnet[0] = '\0';
-		}
+		inet6_ntop_mask(r->V6.srcaddr, r->src_mask, s_snet, sizeof(s_snet));
+		inet6_ntop_mask(r->V6.dstaddr, r->dst_mask, s_dnet, sizeof(s_dnet));
 
 	} else {	// IPv4
 		uint32_t snet, dnet;
-		snet = r->V4.srcaddr;
-		dnet = r->V4.dstaddr;
-		r->V4.srcaddr = htonl(r->V4.srcaddr);
-		r->V4.dstaddr = htonl(r->V4.dstaddr);
-		inet_ntop(AF_INET, &r->V4.srcaddr, as, sizeof(as));
-		inet_ntop(AF_INET, &r->V4.dstaddr, ds, sizeof(ds));
-		if ( r->src_mask || r->dst_mask) {
-			snet &= 0xffffffffL << ( 32 - r->src_mask );
-			snet = htonl(snet);
-			inet_ntop(AF_INET, &snet, s_snet, sizeof(s_snet));
+		snet = htonl(r->V4.srcaddr);
+		dnet = htonl(r->V4.dstaddr);
+		inet_ntop(AF_INET, &snet, as, sizeof(as));
+		inet_ntop(AF_INET, &dnet, ds, sizeof(ds));
 
-			dnet &= 0xffffffffL << ( 32 - r->dst_mask );
-			dnet = htonl(dnet);
-			inet_ntop(AF_INET, &dnet, s_dnet, sizeof(s_dnet));
-		} else {
-			s_snet[0] = '\0';
-			s_dnet[0] = '\0';
-		}
+		inet_ntop_mask(r->V4.srcaddr, r->src_mask, s_snet, sizeof(s_snet));
+		inet_ntop_mask(r->V4.dstaddr, r->dst_mask, s_dnet, sizeof(s_dnet));
+
 	}
 	as[IP_STRING_LEN-1] = 0;
 	ds[IP_STRING_LEN-1] = 0;

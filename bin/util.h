@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -118,5 +118,9 @@ void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multip
 char *GetCurrentFilename(void);
 
 void Setv6Mode(int mode);
+
+void inet_ntop_mask(uint32_t ipv4, int mask, char *s, size_t sSize);
+
+void inet6_ntop_mask(uint64_t ipv6[2], int mask, char *s, size_t sSize);
 
 #endif //_UTIL_H
