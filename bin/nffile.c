@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2011, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -56,7 +54,6 @@
 
 #include "minilzo.h"
 #include "lz4.h"
-#include "nf_common.h"
 #include "nffile.h"
 #include "flist.h"
 #include "util.h"

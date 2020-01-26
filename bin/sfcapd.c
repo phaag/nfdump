@@ -68,7 +68,6 @@
 #include "util.h"
 #include "nffile.h"
 #include "nfx.h"
-#include "nf_common.h"
 #include "nfnet.h"
 #include "bookkeeper.h"
 #include "collector.h"

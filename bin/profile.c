@@ -50,7 +50,6 @@
 
 #include <rrd.h>
 
-#include "nf_common.h"
 #include "rbtree.h"
 #include "nfdump.h"
 #include "nffile.h"

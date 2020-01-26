@@ -58,7 +58,6 @@
 
 #include "nffile.h"
 #include "nfx.h"
-#include "nf_common.h"
 #include "rbtree.h"
 #include "nftree.h"
 #include "nfdump.h"

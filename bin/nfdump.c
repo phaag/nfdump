@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -57,7 +57,7 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
-// #include "nf_common.h"
+#include "output_util.h"
 #include "output_raw.h"
 #include "output_pipe.h"
 #include "output_csv.h"

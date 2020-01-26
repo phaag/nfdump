@@ -56,7 +56,6 @@
 #include <stdint.h>
 #endif
 
-#include "rbtree.h"
 #include "filter.h"
 #include "nftree.h"
 #include "grammar.h"

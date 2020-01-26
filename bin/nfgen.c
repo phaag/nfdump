@@ -49,15 +49,10 @@
 #include <stdint.h>
 #endif
 
-#include "nffile.h"
-#include "nfx.h"
-#include "nfnet.h"
-#include "nf_common.h"
 #include "util.h"
-#include "bookkeeper.h"
+#include "nffile.h"
 #include "collector.h"
-#include "exporter.h"
-#include "netflow_v5_v7.h"
+#include "nfx.h"
 
 extern extension_descriptor_t extension_descriptor[];
 

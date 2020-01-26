@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -66,7 +66,6 @@
 #include "util.h"
 #include "nffile.h"
 #include "nfx.h"
-#include "nf_common.h"
 #include "nfnet.h"
 #include "flist.h"
 #include "nfstatfile.h"

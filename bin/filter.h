@@ -38,6 +38,19 @@
 #include <stdint.h>
 #endif
 
+#include "rbtree.h"
+
+#define NSEL_EVENT_IGNORE 0LL
+#define NSEL_EVENT_CREATE 1LL
+#define NSEL_EVENT_DELETE 2LL
+#define NSEL_EVENT_DENIED 3LL
+#define NSEL_EVENT_ALERT  4LL
+#define NSEL_EVENT_UPDATE 5LL
+
+#define NEL_EVENT_INVALID 0LL
+#define NEL_EVENT_ADD	  1LL
+#define NEL_EVENT_DELETE  2LL
+
 /* 
  * Definitions
  */

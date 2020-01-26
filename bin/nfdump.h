@@ -38,5 +38,6 @@
 #include <stdint.h>
 #endif
 
+
 #endif //_NFDUMP_H
 

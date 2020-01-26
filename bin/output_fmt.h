@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -29,8 +29,8 @@
  *  
  */
 
-#ifndef _NF_COMMON_H
-#define _NF_COMMON_H 1
+#ifndef _OUTPUT_FMT_H
+#define _OUTPUT_FMT_H 1
 
 #include "config.h"
 
@@ -41,39 +41,6 @@
 #include <stdint.h>
 #endif
 
-typedef void (*printer_t)(void *, char **, int);
-typedef void (*func_prolog_t)(void);
-typedef void (*func_epilog_t)(void);
-
-typedef struct msec_time_s {
-	time_t		sec;
-	uint16_t	msec;
-} msec_time_tt;
-
-/* common minimum netflow header for all versions */
-typedef struct common_flow_header {
-  uint16_t  version;
-  uint16_t  count;
-} common_flow_header_t;
-
-typedef struct printmap_s {
-	char		  *printmode;	// name of the output format
-	printer_t	  func_record;			// prints the record
-	func_prolog_t func_prolog;	// prints the output prolog
-	func_epilog_t func_epilog;	// prints the output epilog
-	char		  *Format;		// output format definition
-} printmap_t;
-
-#define NSEL_EVENT_IGNORE 0LL
-#define NSEL_EVENT_CREATE 1LL
-#define NSEL_EVENT_DELETE 2LL
-#define NSEL_EVENT_DENIED 3LL
-#define NSEL_EVENT_ALERT  4LL
-#define NSEL_EVENT_UPDATE 5LL
-
-#define NEL_EVENT_INVALID 0LL
-#define NEL_EVENT_ADD	  1LL
-#define NEL_EVENT_DELETE  2LL
 
 /* prototypes */
 
@@ -91,5 +58,5 @@ void format_special(void *record, char ** s, int tag);
 
 #define TAG_CHAR ''
 
-#endif //_NF_COMMON_H
+#endif //_OUTPUT_FMT_H
 

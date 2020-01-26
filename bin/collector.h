@@ -46,6 +46,12 @@
 
 #define FNAME_SIZE  256
 
+/* common minimum netflow header for all versions */
+typedef struct common_flow_header {
+  uint16_t  version;
+  uint16_t  count;
+} common_flow_header_t;
+
 typedef struct FlowSource_s {
 	// link
 	struct FlowSource_s *next;

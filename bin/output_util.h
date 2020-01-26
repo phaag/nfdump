@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019, Peter Haag
+ *  Copyright (c) 2019-2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -30,6 +30,19 @@
 
 #ifndef _OUTPUT_UTIL_H
 #define _OUTPUT_UTIL_H 1
+
+typedef void (*printer_t)(void *, char **, int);
+typedef void (*func_prolog_t)(void);
+typedef void (*func_epilog_t)(void);
+
+typedef struct printmap_s {
+	char		  *printmode;	// name of the output format
+	printer_t	  func_record;	// prints the record
+	func_prolog_t func_prolog;	// prints the output prolog
+	func_epilog_t func_epilog;	// prints the output epilog
+	char		  *Format;		// output format definition
+} printmap_t;
+
 
 char *ProtoString(uint8_t protoNum);
 

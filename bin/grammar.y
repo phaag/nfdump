@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016-2019, Peter Haag
+ *  Copyright (c) 2016-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -50,7 +50,6 @@
 
 #include "util.h"
 #include "output_util.h"
-#include "nf_common.h"
 #include "rbtree.h"
 #include "filter.h"
 #include "nfdump.h"
