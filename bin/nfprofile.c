@@ -51,7 +51,6 @@
 #include "util.h"
 #include "rbtree.h"
 #include "nftree.h"
-#include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
 #include "nfstat.h"
@@ -114,7 +113,7 @@ static void usage(char *name) {
 static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot) {
 common_record_t	*flow_record;
 nffile_t		*nffile;
-FilterEngine_data_t	*engine;
+FilterEngine_t	*engine;
 int 		i, j, done, ret ;
 
 	nffile = GetNextFile(NULL, 0, 0);

@@ -87,7 +87,7 @@
 #define AGGR_SIZE 7
 
 /* Global Variables */
-FilterEngine_data_t	*Engine;
+FilterEngine_t	*Engine;
 
 extern char	*FilterFilename;
 extern uint32_t loopcnt;
@@ -1114,7 +1114,7 @@ char 		Ident[IDENTLEN];
 
 	if ( fdump ) {
 		printf("StartNode: %i Engine: %s\n", Engine->StartNode, Engine->Extended ? "Extended" : "Fast");
-		DumpList(Engine);
+		DumpEngine(Engine);
 		exit(0);
 	}
 

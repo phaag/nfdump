@@ -1,6 +1,6 @@
 /*
- *  Copyright (c) 2009 - 2018, Peter Haag
- *  Copyright (c) 2004 - 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -46,18 +46,18 @@ typedef struct profile_param_info_s {
 } profile_param_info_t;
 
 typedef struct profile_channel_info_s {
-	FilterEngine_data_t	*engine;
-	char				*group;
-	char				*profile;
-	char				*channel;
-	char				*ofile;			// tmp output file
-	char				*wfile;			// final filename
-	char				*rrdfile;		// rrd filename for update
-	char				*dirstat_path;	// pathname for dirstat file
-	nffile_t			*nffile;
-	stat_record_t		stat_record;
-	int					type;
-	dirstat_t 			*dirstat;
+	FilterEngine_t	*engine;
+	char			*group;
+	char			*profile;
+	char			*channel;
+	char			*ofile;			// tmp output file
+	char			*wfile;			// final filename
+	char			*rrdfile;		// rrd filename for update
+	char			*dirstat_path;	// pathname for dirstat file
+	nffile_t		*nffile;
+	stat_record_t	stat_record;
+	int				type;
+	dirstat_t 		*dirstat;
 } profile_channel_info_t;
 
 profile_channel_info_t	*GetProfiles(void);

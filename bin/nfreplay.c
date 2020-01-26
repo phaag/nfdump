@@ -71,7 +71,6 @@
 #include "nfprof.h"
 #include "flist.h"
 #include "util.h"
-#include "grammar.h"
 
 #define DEFAULTCISCOPORT "9995"
 #define DEFAULTHOSTNAME "127.0.0.1"
@@ -88,7 +87,7 @@
 extern int yydebug;
 
 /* Global Variables */
-FilterEngine_data_t	*Engine;
+FilterEngine_t *Engine;
 int 		verbose;
 
 /* Local Variables */

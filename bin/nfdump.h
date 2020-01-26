@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2009-2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -38,48 +37,6 @@
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 #endif
-
-#include "rbtree.h"
-
-#define BuffNumRecords	1024
-
-/* 
- * Offset definitions for filter engine. Offsets must agree with the defined
- * flow record definition data_block_record_t in nffile.h
- */
-
-#include "config.h"
-
-typedef struct FilterParam {
-	uint16_t	comp;
-	uint16_t	direction;
-	uint32_t	data;
-	uint32_t	inout;
-	uint32_t	acl;
-	uint32_t	self;
-} FilterParam_t;
-
-/* IP tree type */
-typedef RB_HEAD(IPtree, IPListNode) IPlist_t;
-
-/* Port/AS tree type */
-typedef RB_HEAD(ULongtree, ULongListNode) ULongtree_t;
-
-/* parser/scanner prototypes */
-int yyparse(void);
-
-int yylex(void);
-
-void lex_cleanup(void);
-
-void lex_init(char *buf);
-
-int ScreenIdentString(char *string);
-
-// Insert the RB prototypes here
-RB_PROTOTYPE(IPtree, IPListNode, entry, IPNodeCMP);
-
-RB_PROTOTYPE(ULongtree, ULongListNode, entry, ULNodeCMP);
 
 #endif //_NFDUMP_H
 

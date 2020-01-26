@@ -39,8 +39,6 @@
 #include <stdint.h>
 #endif
 
-#include "rbtree.h"
-
 /*
  * type definitions for nf tree
  */
@@ -75,113 +73,25 @@ typedef struct FilterEngine_data_s {
 	uint64_t		*nfrecord;
 	char			*label;
 	int (*FilterEngine)(struct FilterEngine_data_s *);
-} FilterEngine_data_t;
-
-
-/* 
- * Definitions
- */
-enum { CMP_EQ = 0, CMP_GT, CMP_LT, CMP_IDENT, CMP_FLAGS, CMP_IPLIST, CMP_ULLIST };
-
-/*
- * filter functions:
- * For some filter functions, netflow records need to be processed first in order to filter them
- * This involves all data not directly available in the netflow record, such as packets per second etc. 
- * Filter speed is a bit slower due to extra netflow processsing
- * The sequence of the enum values must correspond with the entries in the flow_procs array
- */
-
-enum { 	FUNC_NONE = 0,	/* no function - just plain filtering - just to be complete here */
-		FUNC_PPS,		/* function code for pps ( packet per second ) filter function */
-		FUNC_BPS,		/* function code for bps ( bits per second ) filter function */
-		FUNC_BPP,		/* function code for bpp ( bytes per packet ) filter function */
-		FUNC_DURATION,	/* function code for duration ( in miliseconds ) filter function */
-		FUNC_MPLS_EOS,	/* function code for matching End of MPLS Stack label */
-		FUNC_MPLS_ANY,	/* function code for matching any MPLS label */ 
-		FUNC_PBLOCK		/* function code for matching ports against pblock start */
-};
-
-/* 
- * Tree type defs
- */
-
-/* Definition of the IP list node */
-struct IPListNode {
-	RB_ENTRY(IPListNode) entry;
-	uint64_t	ip[2];
-	uint64_t	mask[2];
-};
-
-/* Definition of the port/AS list node */
-struct ULongListNode {
-	RB_ENTRY(ULongListNode) entry;
-	uint64_t	value;
-};
-
+} FilterEngine_t;
 
 /* 
  * Filter Engine Functions
  */
-int RunFilter(FilterEngine_data_t *args);
-int RunExtendedFilter(FilterEngine_data_t *args);
-/*
- * For testing purpose only
- */
-int nblocks(void);
-
-/*
- * Initialize globals
- */
 void InitTree(void);
 
-/*
- * Returns the current Filter Tree
- */
-FilterEngine_data_t *CompileFilter(char *FilterSyntax);
+FilterEngine_t *CompileFilter(char *FilterSyntax);
 
-/*
- * Clear Filter
- */
+int RunFilter(FilterEngine_t *engine);
+
+int RunExtendedFilter(FilterEngine_t *engine);
+
 void ClearFilter(void);
 
-/* 
- * Returns next free slot in blocklist
- */
-uint32_t	NewBlock(uint32_t offset, uint64_t mask, uint64_t value, uint16_t comp, uint32_t function, void *data);
+void DumpEngine(FilterEngine_t *engine);
 
-/* 
- * Connects the to blocks b1 and b2 ( AND ) and returns index of superblock
- */
-uint32_t	Connect_AND(uint32_t b1, uint32_t b2);
+int nblocks(void);
 
-/* 
- * Connects the to blocks b1 and b2 ( OR ) and returns index of superblock
- */
-uint32_t	Connect_OR(uint32_t b1, uint32_t b2);
-
-/* 
- * Inverts OnTrue and OnFalse
- */
-uint32_t	Invert(uint32_t a );
-
-/* 
- * Add label to filter index
- */
-void AddLabel(uint32_t index, char *label);
-
-/* 
- * Add Ident to Identlist
- */
-uint32_t AddIdent(char *Ident);
-
-/*
- * Dump Filterlist 
- */
-void DumpList(FilterEngine_data_t *args);
-
-/* 
- * Prints info while filer is running
- */
 int RunDebugFilter(uint32_t	*block);
 
 #endif //_NFTREE_H

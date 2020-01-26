@@ -57,7 +57,8 @@
 #endif
 
 #include "rbtree.h"
-#include "nfdump.h"
+#include "filter.h"
+#include "nftree.h"
 #include "grammar.h"
 
 extern char yyerror_buff[256];

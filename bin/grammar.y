@@ -52,6 +52,7 @@
 #include "output_util.h"
 #include "nf_common.h"
 #include "rbtree.h"
+#include "filter.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nftree.h"

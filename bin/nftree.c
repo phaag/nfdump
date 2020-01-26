@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -42,6 +42,7 @@
 #endif
 
 #include "rbtree.h"
+#include "filter.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "ipconv.h"
@@ -163,8 +164,8 @@ void ClearFilter(void) {
 
 } /* End of ClearFilter */
 
-FilterEngine_data_t *CompileFilter(char *FilterSyntax) {
-FilterEngine_data_t	*engine;
+FilterEngine_t *CompileFilter(char *FilterSyntax) {
+FilterEngine_t	*engine;
 int	ret;
 
 	if ( !FilterSyntax ) 
@@ -185,7 +186,7 @@ int	ret;
 	lex_cleanup();
 	free(IPstack);
 
-	engine = malloc(sizeof(FilterEngine_data_t));
+	engine = malloc(sizeof(FilterEngine_t));
 	if ( !engine ) {
 		fprintf(stderr, "Memory allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		exit(255);
@@ -200,7 +201,7 @@ int	ret;
 	else
 		engine->FilterEngine = RunFilter;
 
-	return engine;
+	return (FilterEngine_t *)engine;
 
 } // End of GetTree
 
@@ -370,45 +371,45 @@ static void UpdateList(uint32_t a, uint32_t b) {
 /*
  * Dump Filterlist 
  */
-void DumpList(FilterEngine_data_t *args) {
-	uint32_t i, j;
+void DumpEngine(FilterEngine_t *engine) {
+uint32_t i, j;
 
 	for (i=1; i<NumBlocks; i++ ) {
-		if ( args->filter[i].invert )
+		if ( engine->filter[i].invert )
 			printf("Index: %u, Offset: %u, Mask: %.16llx, Value: %.16llx, Superblock: %u, Numblocks: %u, !OnTrue: %u, !OnFalse: %u Comp: %u Function: %s, Label: %s\n",
-				i, args->filter[i].offset, (unsigned long long)args->filter[i].mask, 
-				(unsigned long long)args->filter[i].value, args->filter[i].superblock, 
-				args->filter[i].numblocks, args->filter[i].OnTrue, args->filter[i].OnFalse, 
-				args->filter[i].comp, args->filter[i].fname, args->filter[i].label ? args->filter[i].label : "<none>");
+				i, engine->filter[i].offset, (unsigned long long)engine->filter[i].mask, 
+				(unsigned long long)engine->filter[i].value, engine->filter[i].superblock, 
+				engine->filter[i].numblocks, engine->filter[i].OnTrue, engine->filter[i].OnFalse, 
+				engine->filter[i].comp, engine->filter[i].fname, engine->filter[i].label ? engine->filter[i].label : "<none>");
 		else 
 			printf("Index: %u, Offset: %u, Mask: %.16llx, Value: %.16llx, Superblock: %u, Numblocks: %u, OnTrue: %u, OnFalse: %u Comp: %u Function: %s, Label: %s\n",
-				i, args->filter[i].offset, (unsigned long long)args->filter[i].mask, 
-				(unsigned long long)args->filter[i].value, args->filter[i].superblock, 
-				args->filter[i].numblocks, args->filter[i].OnTrue, args->filter[i].OnFalse, 
-				args->filter[i].comp, args->filter[i].fname, args->filter[i].label ? args->filter[i].label : "<none>");
-		if ( args->filter[i].OnTrue > (memblocks * MAXBLOCKS) || args->filter[i].OnFalse > (memblocks * MAXBLOCKS) ) {
+				i, engine->filter[i].offset, (unsigned long long)engine->filter[i].mask, 
+				(unsigned long long)engine->filter[i].value, engine->filter[i].superblock, 
+				engine->filter[i].numblocks, engine->filter[i].OnTrue, engine->filter[i].OnFalse, 
+				engine->filter[i].comp, engine->filter[i].fname, engine->filter[i].label ? engine->filter[i].label : "<none>");
+		if ( engine->filter[i].OnTrue > (memblocks * MAXBLOCKS) || engine->filter[i].OnFalse > (memblocks * MAXBLOCKS) ) {
 			fprintf(stderr, "Tree pointer out of range for index %u. *** ABORT ***\n", i);
 			exit(255);
 		}
-		if ( args->filter[i].data ) {
-			if ( args->filter[i].comp == CMP_IPLIST ) {
+		if ( engine->filter[i].data ) {
+			if ( engine->filter[i].comp == CMP_IPLIST ) {
 				struct IPListNode *node;
-				RB_FOREACH(node, IPtree, args->filter[i].data) {
+				RB_FOREACH(node, IPtree, engine->filter[i].data) {
 					printf("value: %.16llx %.16llx mask: %.16llx %.16llx\n", 
 						(unsigned long long)node->ip[0], (unsigned long long)node->ip[1], 
 						(unsigned long long)node->mask[0], (unsigned long long)node->mask[1]);
 				} 
-			} else if ( args->filter[i].comp == CMP_ULLIST ) {
+			} else if ( engine->filter[i].comp == CMP_ULLIST ) {
 				struct ULongListNode *node;
-				RB_FOREACH(node, ULongtree, args->filter[i].data) {
+				RB_FOREACH(node, ULongtree, engine->filter[i].data) {
 					printf("%.16llx \n", (unsigned long long)node->value);
 				}
 			} else 
-				printf("Error comp: %i\n", args->filter[i].comp);
+				printf("Error comp: %i\n", engine->filter[i].comp);
 		}
 		printf("\tBlocks: ");
-		for ( j=0; j<args->filter[i].numblocks; j++ ) 
-			printf("%i ", args->filter[i].blocklist[j]);
+		for ( j=0; j<engine->filter[i].numblocks; j++ ) 
+			printf("%i ", engine->filter[i].blocklist[j]);
 		printf("\n");
 	}
 	printf("NumBlocks: %i\n", NumBlocks - 1);
@@ -418,45 +419,45 @@ void DumpList(FilterEngine_data_t *args) {
 } /* End of DumpList */
 
 /* fast filter engine */
-int RunFilter(FilterEngine_data_t *args) {
+int RunFilter(FilterEngine_t *engine) {
 uint32_t	index, offset;
 int	evaluate, invert;
 
-	args->label = NULL;
-	index = args->StartNode;
+	engine->label = NULL;
+	index = engine->StartNode;
 	evaluate = 0;
 	invert = 0;
 	while ( index ) {
-		offset   = args->filter[index].offset;
-		invert   = args->filter[index].invert;
-		evaluate = ( args->nfrecord[offset] & args->filter[index].mask ) == args->filter[index].value;
-		index    = evaluate ?  args->filter[index].OnTrue : args->filter[index].OnFalse;
+		offset   = engine->filter[index].offset;
+		invert   = engine->filter[index].invert;
+		evaluate = ( engine->nfrecord[offset] & engine->filter[index].mask ) == engine->filter[index].value;
+		index    = evaluate ?  engine->filter[index].OnTrue : engine->filter[index].OnFalse;
 	}
 	return invert ? !evaluate : evaluate;
 
 } /* End of RunFilter */
 
 /* extended filter engine */
-int RunExtendedFilter(FilterEngine_data_t *args) {
+int RunExtendedFilter(FilterEngine_t *engine) {
 uint32_t	index, offset; 
 uint64_t	comp_value[2];
 int	evaluate, invert;
 
-	args->label = NULL;
-	index = args->StartNode;
+	engine->label = NULL;
+	index = engine->StartNode;
 	evaluate = 0;
 	invert = 0;
 	while ( index ) {
-		offset   = args->filter[index].offset;
-		invert   = args->filter[index].invert;
+		offset   = engine->filter[index].offset;
+		invert   = engine->filter[index].invert;
 
-		comp_value[0] = args->nfrecord[offset] & args->filter[index].mask;
-		comp_value[1] = args->filter[index].value;
+		comp_value[0] = engine->nfrecord[offset] & engine->filter[index].mask;
+		comp_value[1] = engine->filter[index].value;
 
-		if (args->filter[index].function != NULL)
-			args->filter[index].function(args->nfrecord, comp_value);
+		if (engine->filter[index].function != NULL)
+			engine->filter[index].function(engine->nfrecord, comp_value);
 
-		switch (args->filter[index].comp) {
+		switch (engine->filter[index].comp) {
 			case CMP_EQ:
 				evaluate = comp_value[0] == comp_value[1];
 				break;
@@ -467,7 +468,7 @@ int	evaluate, invert;
 				evaluate = comp_value[0] < comp_value[1];
 				break;
 			case CMP_IDENT:
-				evaluate = strncmp(CurrentIdent, args->IdentList[comp_value[1]], IDENTLEN) == 0 ;
+				evaluate = strncmp(CurrentIdent, engine->IdentList[comp_value[1]], IDENTLEN) == 0 ;
 				break;
 			case CMP_FLAGS:
 				if ( invert )
@@ -477,16 +478,16 @@ int	evaluate, invert;
 				break;
 			case CMP_IPLIST: {
 				struct IPListNode find;
-				find.ip[0] = args->nfrecord[offset];
-				find.ip[1] = args->nfrecord[offset+1];
+				find.ip[0] = engine->nfrecord[offset];
+				find.ip[1] = engine->nfrecord[offset+1];
 				find.mask[0] = 0xffffffffffffffffLL;
 				find.mask[1] = 0xffffffffffffffffLL;
-				evaluate = RB_FIND(IPtree, args->filter[index].data, &find) != NULL; }
+				evaluate = RB_FIND(IPtree, engine->filter[index].data, &find) != NULL; }
 				break;
 			case CMP_ULLIST: {
 				struct ULongListNode find;
 				find.value = comp_value[0];
-				evaluate = RB_FIND(ULongtree, args->filter[index].data, &find ) != NULL; }
+				evaluate = RB_FIND(ULongtree, engine->filter[index].data, &find ) != NULL; }
 				break;
 		}
 
@@ -500,17 +501,17 @@ int	evaluate, invert;
 		 */
 		if ( evaluate ) {
 			// if filter expression has a label assigned, copy that
-			if ( args->filter[index].label ) {
-				args->label = args->filter[index].label;
+			if ( engine->filter[index].label ) {
+				engine->label = engine->filter[index].label;
 			}
-			index = args->filter[index].OnTrue;
+			index = engine->filter[index].OnTrue;
 		} else {
 			// filter expression does not match - clear previous label if abailable
-			if ( args->label )
-				args->label = NULL;
-			index = args->filter[index].OnFalse;
+			if ( engine->label )
+				engine->label = NULL;
+			index = engine->filter[index].OnFalse;
 		}
-		// index = evaluate ? args->filter[index].OnTrue : args->filter[index].OnFalse;
+		// index = evaluate ? engine->filter[index].OnTrue : engine->filter[index].OnFalse;
 	}
 	return invert ? !evaluate : evaluate;
 
