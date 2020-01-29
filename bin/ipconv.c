@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2008-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -43,13 +42,6 @@
  * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
  * SOFTWARE.
  *
- *
- *  $Author: haag $
- *
- *  $Id: ipconv.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *  
  */
 
 #include "config.h"
@@ -73,8 +65,9 @@
 #include <stdint.h>
 #endif
 
-#include "nffile.h"
 #include "util.h"
+#include "nfdump.h"
+#include "nffile.h"
 #include "ipconv.h"
 
 

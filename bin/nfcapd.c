@@ -64,15 +64,16 @@
 #endif
 
 #include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "exporter.h"
 #include "nfnet.h"
 #include "flist.h"
 #include "nfstatfile.h"
 #include "bookkeeper.h"
 #include "launch.h"
 #include "collector.h"
-#include "exporter.h"
 #include "netflow_v1.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"

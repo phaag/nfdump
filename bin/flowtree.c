@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2011-2019, Peter Haag
+ *  Copyright (c) 2011-2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -45,12 +45,12 @@
 #include <pthread.h>
 #include <assert.h>
 
-#include "rbtree.h"
+#include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "netflow_pcap.h"
-#include "util.h"
 #include "flowtree.h"
 
 static void spin_lock(int *p);

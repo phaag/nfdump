@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2013-2019, Peter Haag
+ *  Copyright (c) 2013-2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -83,8 +83,10 @@
 #include <pcap.h>
 
 #include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "expire.h"
 #include "nfnet.h"
 #include "flist.h"
 #include "nfstatfile.h"
@@ -92,9 +94,6 @@
 #include "collector.h"
 #include "exporter.h"
 #include "ipfrag.h"
-
-#include "expire.h"
-
 #include "flowtree.h"
 #include "netflow_pcap.h"
 #include "pcaproc.h"

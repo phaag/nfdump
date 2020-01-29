@@ -48,7 +48,9 @@
 #endif
 
 #include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
+#include "nfx.h"
 #include "output_util.h"
 #include "output_fmt.h"
 

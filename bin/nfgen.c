@@ -50,6 +50,7 @@
 #endif
 
 #include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "collector.h"
 #include "nfx.h"

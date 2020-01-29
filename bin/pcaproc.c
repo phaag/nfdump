@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2014-2019, Peter Haag
+ *  Copyright (c) 2014-2020, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -63,6 +63,8 @@
 
 #include <pcap.h>
 
+#include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "bookkeeper.h"
 #include "collector.h"
@@ -70,7 +72,6 @@
 #include "ipfrag.h"
 #include "pcaproc.h"
 #include "content_dns.h"
-#include "util.h"
 #include "netflow_pcap.h"
 
 struct pcap_timeval {

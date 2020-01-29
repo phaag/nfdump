@@ -52,11 +52,12 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
+#include "nfdump.h"
 #include "minilzo.h"
 #include "lz4.h"
-#include "nffile.h"
 #include "flist.h"
-#include "util.h"
+#include "nffile.h"
 
 /* global vars */
 
@@ -1202,65 +1203,6 @@ int ret, compression;
 	return ret;
 
 } // End of WriteBlock
-
-inline void ExpandRecord_v1(common_record_t *input_record, master_record_t *output_record ) {
-uint32_t	*u;
-size_t		size;
-void		*p = (void *)input_record;
-
-	// Copy common data block
-	size = sizeof(common_record_t) - sizeof(uint8_t[4]);
-	memcpy((void *)output_record, p, size);
-	p = (void *)input_record->data;
-
-	if ( (input_record->flags & FLAG_IPV6_ADDR) != 0 )	{ // IPv6
-		// IPv6
-		// keep compiler happy
-		// memcpy((void *)output_record->V6.srcaddr, p, 4 * sizeof(uint64_t));	
-		memcpy((void *)output_record->ip_union._ip_64.addr, p, 4 * sizeof(uint64_t));	
-		p = (void *)((pointer_addr_t)p + 4 * sizeof(uint64_t));
-	} else { 	
-		// IPv4
-		u = (uint32_t *)p;
-		output_record->V6.srcaddr[0] = 0;
-		output_record->V6.srcaddr[1] = 0;
-		output_record->V4.srcaddr 	 = u[0];
-
-		output_record->V6.dstaddr[0] = 0;
-		output_record->V6.dstaddr[1] = 0;
-		output_record->V4.dstaddr 	 = u[1];
-		p = (void *)((pointer_addr_t)p + 2 * sizeof(uint32_t));
-	}
-
-	// packet counter
-	if ( (input_record->flags & FLAG_PKG_64 ) != 0 ) { 
-		// 64bit packet counter
-		value64_t	l, *v = (value64_t *)p;
-		l.val.val32[0] = v->val.val32[0];
-		l.val.val32[1] = v->val.val32[1];
-		output_record->dPkts = l.val.val64;
-		p = (void *)((pointer_addr_t)p + sizeof(uint64_t));
-	} else {	
-		// 32bit packet counter
-		output_record->dPkts = *((uint32_t *)p);
-		p = (void *)((pointer_addr_t)p + sizeof(uint32_t));
-	}
-
-	// byte counter
-	if ( (input_record->flags & FLAG_BYTES_64 ) != 0 ) { 
-		// 64bit byte counter
-		value64_t	l, *v = (value64_t *)p;
-		l.val.val32[0] = v->val.val32[0];
-		l.val.val32[1] = v->val.val32[1];
-		output_record->dOctets = l.val.val64;
-		p = (void *)((pointer_addr_t)p + sizeof(uint64_t));
-	} else {	
-		// 32bit bytes counter
-		output_record->dOctets = *((uint32_t *)p);
-		p = (void *)((pointer_addr_t)p + sizeof(uint32_t));
-	}
-
-} // End of ExpandRecord_v1
 
 void ModifyCompressFile(char * rfile, char *Rfile, int compress) {
 int 			i, anonymized, compression;

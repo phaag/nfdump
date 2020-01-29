@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019, Peter Haag
+ *  Copyright (c) 2019-2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -43,7 +43,9 @@
 #include <stdint.h>
 #endif
 
+#include "nfdump.h"
 #include "nffile.h"
+#include "nfx.h"
 #include "output_pipe.h"
 
 #define STRINGSIZE 10240

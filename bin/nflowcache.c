@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -49,15 +47,11 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
 #include "nflowcache.h"
-
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
 
 #define ALIGN_BYTES (offsetof (struct { char x; uint64_t y; }, y) - 1)
 

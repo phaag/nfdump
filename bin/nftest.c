@@ -63,12 +63,12 @@
 
 #define ALIGN_BYTES (offsetof (struct { char x; uint64_t y; }, y) - 1)
 
+#include "util.h"
 #include "nfdump.h"
-#include "nftree.h"
 #include "nffile.h"
+#include "nftree.h"
 #include "filter.h"
 #include "nfx.h"
-#include "util.h"
 
 /* Global Variables */
 extern char 	*CurrentIdent;

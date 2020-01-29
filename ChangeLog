@@ -1,3 +1,9 @@
+2020-01-29
+- Major code rearrangement in order to prepare for futur versions of nfdump
+  Move extension definitions into extension files nfx.h
+  Move exporter definition into extension.h
+  nffile.h should only contain nffile data block handlich definitions
+
 2020-01-26
 - Fix compile error for FreeBSD #203
 - Cleanup header code - add new filter.h - free nfdump.h from dust

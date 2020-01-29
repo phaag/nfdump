@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -65,8 +65,9 @@
 #endif
 
 #include "util.h"
-#include "expire.h"
+#include "nfdump.h"
 #include "nffile.h"
+#include "expire.h"
 #include "collector.h"
 #include "launch.h"
 

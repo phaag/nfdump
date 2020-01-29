@@ -57,6 +57,8 @@
 #include "nftree.h"
 #include "ipconv.h"
 
+#define AnyMask 0xffffffffffffffffLL
+
 /*
  * function prototypes
  */

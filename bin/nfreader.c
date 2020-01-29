@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -43,8 +43,7 @@
  * This compiles this code and links the required nfdump files
  * If you do it by hand:
  *
- * gcc -c nfreader.c
- * gcc -o nfreader nfreader.o nffile.o flist.o util.o  
+ * gcc -I.. -o nfreader nfreader.c -lnfdump
  *
  */
  
@@ -69,19 +68,14 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
-#include "util.h"
 #include "flist.h"
-
-#if ( SIZEOF_VOID_P == 8 )
-typedef uint64_t    pointer_addr_t;
-#else
-typedef uint32_t    pointer_addr_t;
-#endif
 
 // module limited globals
 extension_map_list_t *extension_map_list;

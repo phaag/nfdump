@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -56,11 +56,12 @@
 #include <stdio_ext.h>
 #endif
 
+#include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
-#include "rbtree.h"
+#include "flist.h"
 #include "nftree.h"
-#include "nfdump.h"
 #include "nfnet.h"
 #include "bookkeeper.h"
 #include "collector.h"
@@ -68,8 +69,6 @@
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
 #include "nfprof.h"
-#include "flist.h"
-#include "util.h"
 
 #define DEFAULTCISCOPORT "9995"
 #define DEFAULTHOSTNAME "127.0.0.1"

@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2013, Peter Haag
+ *  Copyright (c) 2013-2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -74,17 +72,12 @@
 #include <pcap.h>
 
 #include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "flowtree.h"
 #include "content_dns.h"
-
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
 
 #include "inline.c"
 

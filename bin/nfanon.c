@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -51,17 +51,13 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
-#include "util.h"
+#include "exporter.h"
 #include "flist.h"
 #include "panonymizer.h"
-
-#if ( SIZEOF_VOID_P == 8 )
-typedef uint64_t    pointer_addr_t;
-#else
-typedef uint32_t    pointer_addr_t;
-#endif
 
 // module limited globals
 extension_map_list_t *extension_map_list;

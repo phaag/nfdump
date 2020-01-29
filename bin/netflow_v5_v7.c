@@ -48,6 +48,7 @@
 #endif
 
 #include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
 #include "nfnet.h"

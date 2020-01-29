@@ -51,8 +51,11 @@
 #include <stdint.h>
 #endif
 
+#include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "flist.h"
 #include "nfnet.h"
 #include "bookkeeper.h"
 #include "collector.h"
@@ -64,22 +67,12 @@
 #include "output_json.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
-#include "rbtree.h"
 #include "nftree.h"
 #include "nfprof.h"
-#include "nfdump.h"
 #include "nflowcache.h"
 #include "nfstat.h"
 #include "nfexport.h"
 #include "ipconv.h"
-#include "util.h"
-#include "flist.h"
-
-#ifndef DEVEL
-#   define dbg_printf(...) /* printf(__VA_ARGS__) */
-#else
-#   define dbg_printf(...) printf(__VA_ARGS__)
-#endif
 
 /* hash parameters */
 #define NumPrealloc 128000

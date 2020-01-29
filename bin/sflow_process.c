@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
+ *  Copyright (c) 2017-2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -64,6 +64,7 @@
 #include <stdint.h>
 #endif
 
+#include "nfdump.h"
 #include "sflow.h" /* sFlow v5 */
 #include "sflow_v2v4.h" /* sFlow v2/4 */
 #include "util.h"

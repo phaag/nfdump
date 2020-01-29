@@ -39,6 +39,7 @@
 #include <stdint.h>
 #endif
 
+#include "nfdump.h"
 #include "nffile.h"
 #include "output_util.h"
 

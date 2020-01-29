@@ -1,6 +1,6 @@
 /*
  *  All rights reserved.
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  Copyright (c) 2001 Mark Fullmer and The Ohio State University
  *  All rights reserved.
@@ -56,11 +56,12 @@
 #endif
 
 #include "util.h"
-#include "output_raw.h"
-#include "ftlib.h"
+#include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
-#include "launch.h"
+#include "exporter.h"
+#include "ftlib.h"
+#include "output_raw.h"
 
 /* Global defines */
 #define MAXRECORDS 30

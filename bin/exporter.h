@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2019, Peter Haag
+ *  Copyright (c) 2012-2020, Peter Haag
  *  
  *  Redistribution and use in source and binary forms, with or without 
  *  modification, are permitted provided that the following conditions are met:
@@ -44,6 +44,143 @@ typedef struct optionTag_s {
 	uint16_t length;
 } optionTag_t;
 
+/*
+ * 
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  0 |       record type == 7      |             size            |                          version                          |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  1 |                                                                                                                       |
+ * +----+--------------+--------------+--------------+----------  ip   ------------+--------------+--------------+--------------+
+ * |  2 |                                                                                                                       |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  3 |          sa_family          |            sysid            |                             id                            |      
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ */
+typedef struct exporter_info_record_s {
+	record_header_t	header;
+
+	// exporter version
+	uint32_t 	version;
+#define SFLOW_VERSION  9999
+
+	// IP address
+	ip_addr_t	ip;
+	uint16_t	sa_family;
+
+	// internal assigned ID
+	uint16_t	sysid;
+
+	// exporter ID/Domain ID/Observation Domain ID assigned by the device
+	uint32_t	id;
+
+} exporter_info_record_t;
+
+// legacy record - to be deleted in future release
+typedef struct exporter_record_s {
+	record_header_t	header;
+
+	// exporter data
+	uint32_t 	version;		// make sure it's a version 9 exporter 
+
+	// IP address
+	uint32_t	sa_family;
+	ip_addr_t	ip;
+
+	// internal assigned ID
+	uint32_t	sysid;
+
+	// exporter info
+	uint32_t	exporter_id;
+	uint32_t	sequence_failure;
+
+} exporter_record_t;
+
+/*
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  0 |       record type == 8      |             size            |                         stat_count                        |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  1 |                           sysid[0]                        |                      sequence_failure[0]                  |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  2 |                                                        packets[0]                                                     |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  3 |                                                         flows[0]                                                      |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * ... more stat records [x], one for each exporter
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ */
+typedef struct exporter_stats_record_s {
+	record_header_t	header;
+
+	uint32_t	stat_count;		// number of stat records 
+	
+	struct exporter_stat_s {
+		uint32_t	sysid;				// identifies the exporter
+		uint32_t	sequence_failure;	// number of sequence failues
+		uint64_t	packets;			// number of packets sent by this exporter
+		uint64_t	flows;				// number of flow records sent by this exporter
+	} stat[1];
+
+} exporter_stats_record_t;
+
+/*
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  0 |       record type == 9      |             size            |                             id                            |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  1 |                          interval                         |             mode            |       exporter_sysid        |
+ * +----+--------------+--------------+--------------+-----------------------------+--------------+--------------+--------------+
+ */
+typedef struct sampler_info_record_s {
+	record_header_t	header;
+
+	// sampler data
+	int32_t		id;				// id assigned by the exporting device
+	uint32_t	interval;		// sampling interval
+	uint16_t	mode;			// sampling mode
+	uint16_t	exporter_sysid; // internal reference to exporter
+
+} sampler_info_record_t;
+
+// legacy record - to be deleted in future release
+typedef struct sampler_record_s {
+	record_header_t	header;
+
+	// reference to exporter
+	uint32_t	exporter_sysid;
+
+	// sampler data
+	int32_t		id;
+	uint32_t	interval;
+	uint8_t		mode;
+} sampler_record_t;
+
+
+typedef struct sampler_s {
+	struct sampler_s *next;
+	sampler_info_record_t	info;	// sampler record nffile
+} sampler_t;
+
+typedef struct exporter_s {
+	// linked chain
+	struct exporter_s *next;
+
+	// exporter information
+	exporter_info_record_t info;	// exporter record nffile
+
+	uint64_t	packets;			// number of packets sent by this exporter
+	uint64_t	flows;				// number of flow records sent by this exporter
+	uint32_t	sequence_failure;	// number of sequence failues
+	uint32_t	padding_errors;		// number of sequence failues
+
+	sampler_t *sampler;				// list of samplers associated with this exporter
+
+} exporter_t;
+
 typedef struct samplerOption_s {
 	struct samplerOption_s *next;
 	uint32_t	tableID;	// table id
@@ -67,26 +204,6 @@ typedef struct samplerOption_s {
 
 } samplerOption_t;
 
-typedef struct sampler_s {
-	struct sampler_s *next;
-	sampler_info_record_t	info;	// sampler record nffile
-} sampler_t;
-
-typedef struct exporter_s {
-	// linked chain
-	struct exporter_s *next;
-
-	// exporter information
-	exporter_info_record_t info;	// exporter record nffile
-
-	uint64_t	packets;			// number of packets sent by this exporter
-	uint64_t	flows;				// number of flow records sent by this exporter
-	uint32_t	sequence_failure;	// number of sequence failues
-	uint32_t	padding_errors;		// number of sequence failues
-
-	sampler_t *sampler;				// list of samplers associated with this exporter
-
-} exporter_t;
 
 int InitExporterList(void);
 

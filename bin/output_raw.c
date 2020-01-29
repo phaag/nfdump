@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019, Peter Haag
+ *  Copyright (c) 2019-2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -44,7 +44,9 @@
 #endif
 
 #include "util.h"
+#include "nfdump.h"
 #include "nffile.h"
+#include "nfx.h"
 #include "output_util.h"
 #include "output_raw.h"
 
