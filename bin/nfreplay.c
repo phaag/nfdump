@@ -363,8 +363,8 @@ uint32_t		numflows, cnt;
 					}
 
 					} break;
-				case ExporterRecordType:
-				case SamplerRecordype:
+				case LegacyRecordType1:
+				case LegacyRecordType2:
 				case ExporterInfoRecordType:
 				case ExporterStatRecordType:
 				case SamplerInfoRecordype:

@@ -363,40 +363,10 @@ uint64_t total_bytes;
 
 		for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
 			switch ( record->type ) {
-				// ExporterRecordType and SamplerRecordype tc versions only
-				case ExporterRecordType: {
-					#define IP_STRING_LEN   40
-					char ipstr[IP_STRING_LEN];
-					exporter_record_t *exporter_record = (exporter_record_t *)record ;
-					found = 1;
-					printf("\n");
-					if ( exporter_record->sa_family == AF_INET ) {
-						uint32_t _ip = htonl(exporter_record->ip.V4);
-						inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
-						printf("SysID: %u, IP: %16s, version: %u, ID: %2u, Sequence Failures: %u\n", exporter_record->sysid,
-							ipstr, exporter_record->version, exporter_record->exporter_id, exporter_record->sequence_failure);
-					} else if ( exporter_record->sa_family == AF_INET6 ) {
-						uint64_t _ip[2];
-						_ip[0] = htonll(exporter_record->ip.V6[0]);
-						_ip[1] = htonll(exporter_record->ip.V6[1]);
-						inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
-						printf("SysID: %u, IP: %40s, version: %u, ID: %2u, Sequence Failures: %u\n", exporter_record->sysid,
-							ipstr, exporter_record->version, exporter_record->exporter_id, exporter_record->sequence_failure);
-					} else {
-						strncpy(ipstr, "<unknown>", IP_STRING_LEN);
-						printf("**** Exporter IP version unknown ****\n");
-					}
-				} break;
-				case SamplerRecordype: {
-					sampler_record_t  *sampler_record = (sampler_record_t *)record;;
-					if ( sampler_record->id < 0 ) {
-						printf("	Generic Sampler: mode: %u, interval: %u\n",
-							sampler_record->mode, sampler_record->interval);
-					} else {
-						printf("	Sampler: id: %i, mode: %u, interval: %u\n",
-							sampler_record->id, sampler_record->mode, sampler_record->interval);
-					}
-				} break;
+				case LegacyRecordType1: 
+				case LegacyRecordType2: 
+						LogError("Legacy record type: %i no longer supported\n", record->type);
+					 break;
 				case ExporterInfoRecordType:
 					found = 1;
 					if ( !AddExporterInfo((exporter_info_record_t *)record) ) {

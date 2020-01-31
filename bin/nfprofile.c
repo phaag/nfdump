@@ -277,8 +277,8 @@ int 		i, j, done, ret ;
 						LogError("Failed to add Sampler Record\n");
 					}
 					} break;
-				case ExporterRecordType:
-				case SamplerRecordype:
+				case LegacyRecordType1:
+				case LegacyRecordType2:
 				case ExporterStatRecordType:
 						// Silently skip exporter records
 					break;

@@ -77,26 +77,6 @@ typedef struct exporter_info_record_s {
 
 } exporter_info_record_t;
 
-// legacy record - to be deleted in future release
-typedef struct exporter_record_s {
-	record_header_t	header;
-
-	// exporter data
-	uint32_t 	version;		// make sure it's a version 9 exporter 
-
-	// IP address
-	uint32_t	sa_family;
-	ip_addr_t	ip;
-
-	// internal assigned ID
-	uint32_t	sysid;
-
-	// exporter info
-	uint32_t	exporter_id;
-	uint32_t	sequence_failure;
-
-} exporter_record_t;
-
 /*
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
  * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
@@ -145,20 +125,6 @@ typedef struct sampler_info_record_s {
 	uint16_t	exporter_sysid; // internal reference to exporter
 
 } sampler_info_record_t;
-
-// legacy record - to be deleted in future release
-typedef struct sampler_record_s {
-	record_header_t	header;
-
-	// reference to exporter
-	uint32_t	exporter_sysid;
-
-	// sampler data
-	int32_t		id;
-	uint32_t	interval;
-	uint8_t		mode;
-} sampler_record_t;
-
 
 typedef struct sampler_s {
 	struct sampler_s *next;

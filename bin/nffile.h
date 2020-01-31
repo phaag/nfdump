@@ -234,9 +234,9 @@ typedef struct nffile_s {
 #define PortHistogramType	3
 #define BppHistogramType	4
 
-// TC code - phased out
-#define ExporterRecordType	5
-#define SamplerRecordype	6
+// Legacy records
+#define LegacyRecordType1	5
+#define LegacyRecordType2	6
 
 // replaces TC Types
 #define ExporterInfoRecordType	7

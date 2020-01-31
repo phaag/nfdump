@@ -344,8 +344,8 @@ char		outfile[MAXPATHLEN], *cfile;
 							exit(255);
 					}
 					} break; 
-				case ExporterRecordType:
-				case SamplerRecordype:
+				case LegacyRecordType1:
+				case LegacyRecordType2:
 				case ExporterInfoRecordType:
 				case ExporterStatRecordType:
 				case SamplerInfoRecordype:

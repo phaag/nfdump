@@ -582,9 +582,9 @@ int 				done, write_file;
 							exit(255);
 					}
 					} break;
-				case ExporterRecordType:
-				case SamplerRecordype:
-						// Silently skip exporter records
+				case LegacyRecordType1:
+				case LegacyRecordType2:
+						// Silently skip legacy records
 					break;
 				case ExporterInfoRecordType: {
 					int ret = AddExporterInfo((exporter_info_record_t *)record_ptr);
