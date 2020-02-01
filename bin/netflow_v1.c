@@ -58,10 +58,10 @@
 #include "exporter.h"
 #include "netflow_v1.h"
 
-extern int verbose;
 extern extension_descriptor_t extension_descriptor[];
 
 /* module limited globals */
+static int verbose;
 static extension_info_t v1_extension_info;		// common for all v1 records
 static uint16_t v1_output_record_size;
 
@@ -103,11 +103,12 @@ static inline exporter_v1_t *GetExporter(FlowSource_t *fs, netflow_v1_header_t *
 
 #include "nffile_inline.c"
 
-int Init_v1(void) {
+int Init_v1(int v) {
 int i, id, map_index;
 int extension_size;
 uint16_t	map_size;
 
+	verbose = v;
 	// prepare v1 extension map
 	v1_extension_info.map		   = NULL;
 	v1_extension_info.next		   = NULL;

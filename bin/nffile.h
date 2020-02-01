@@ -238,7 +238,7 @@ typedef struct nffile_s {
 #define LegacyRecordType1	5
 #define LegacyRecordType2	6
 
-// replaces TC Types
+// exporter/sampler types
 #define ExporterInfoRecordType	7
 #define ExporterStatRecordType	8
 #define SamplerInfoRecordype	9

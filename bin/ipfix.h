@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -285,7 +285,7 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_ReverseInformationElement		29305
 
 /* prototypes */
-int Init_IPFIX(void);
+int Init_IPFIX(int v, uint32_t sampling, uint32_t overwrite);
 
 void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 

@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -125,7 +123,7 @@ typedef struct netflow_v7_record {
 } netflow_v7_record_t;
 
 /* prototypes */
-int Init_v5_v7_input(void);
+int Init_v5_v7_input(int v, uint32_t sampling, uint32_t overwrite);
 
 void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 

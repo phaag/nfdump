@@ -62,10 +62,6 @@
 
 #include "nffile_inline.c"
 
-/* globals */
-uint32_t default_sampling   = 1;
-uint32_t overwrite_sampling = 0;
-
 /* local variables */
 static uint32_t	exporter_sysid = 0;
 static char *DynamicSourcesDir = NULL;

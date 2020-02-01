@@ -97,7 +97,9 @@
 #define SENDSOCK_BUFFSIZE 200000
 
 static void *shmem = NULL;
-int verbose = 0;
+static int verbose = 0;
+static uint32_t default_sampling   = 1;
+static uint32_t overwrite_sampling = 0;
 
 extern uint32_t default_sampling;   // the default sampling rate when nothing else applies. set by -S
 extern uint32_t overwrite_sampling;	// unconditionally overwrite sampling rate with given sampling rate -S
@@ -368,7 +370,8 @@ void 		*in_buff;
 int 		err;
 srecord_t	*commbuff;
 
-	if ( !Init_v1() || !Init_v5_v7_input() || !Init_v9() || !Init_IPFIX() )
+	if ( !Init_v1(verbose) || !Init_v5_v7_input(verbose, default_sampling, overwrite_sampling) || 
+		 !Init_v9(verbose, default_sampling, overwrite_sampling) || !Init_IPFIX(verbose, default_sampling, overwrite_sampling) )
 		return;
 
 	in_buff  = malloc(NETWORK_INPUT_BUFF_SIZE);

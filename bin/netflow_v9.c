@@ -69,11 +69,12 @@
 
 #include "inline.c"
 
-extern int verbose;
 extern extension_descriptor_t extension_descriptor[];
 extern uint32_t Max_num_extensions;
-extern uint32_t default_sampling;
-extern uint32_t overwrite_sampling;
+
+static int verbose;
+static uint32_t default_sampling;
+static uint32_t overwrite_sampling;
 
 typedef struct sequence_map_s {
 /* sequence definition:
@@ -434,9 +435,12 @@ static netflow_v9_header_t	*v9_output_header;
 
 #include "nffile_inline.c"
 
-int Init_v9(void) {
+int Init_v9(int v, uint32_t sampling, uint32_t overwrite) {
 int i;
 
+	verbose 		   = v;
+	default_sampling   = sampling;
+	overwrite_sampling = overwrite;
 	output_templates = NULL;
 
 	cache.lookup_info	    = (struct element_param_s *)calloc(65536, sizeof(struct element_param_s));

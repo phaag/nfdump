@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -58,12 +58,13 @@
 #include "exporter.h"
 #include "netflow_v5_v7.h"
 
-extern int verbose;
 extern extension_descriptor_t extension_descriptor[];
-extern uint32_t default_sampling;
-extern uint32_t overwrite_sampling;
 
 /* module limited globals */
+static int verbose;
+static uint32_t default_sampling;
+static uint32_t overwrite_sampling;
+
 static extension_info_t v5_extension_info;		// common for all v5 records
 static uint16_t v5_output_record_size, v5_output_record_base_size;
 
@@ -115,12 +116,16 @@ static inline int CheckBufferSpace(nffile_t *nffile, size_t required);
 
 #include "nffile_inline.c"
 
-int Init_v5_v7_input(void) {
+int Init_v5_v7_input(int v, uint32_t sampling, uint32_t overwrite) {
 int i, id, map_index;
 int extension_size;
 uint16_t	map_size;
 
-	extension_size   = 0;
+	verbose 		   = v;
+	default_sampling   = sampling;
+	overwrite_sampling = overwrite;
+	extension_size	   = 0;
+
 	// prepare v5 extension map
 	v5_extension_info.map		   = NULL;
 	v5_extension_info.next		   = NULL;
