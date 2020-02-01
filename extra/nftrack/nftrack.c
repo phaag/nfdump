@@ -65,9 +65,6 @@
 // We have 288 slot ( 1 day ) for stat record
 #define AVG_STAT 1
 
-/* Externals */
-extern int yydebug;
-
 /* Global Variables */
 FilterEngine_t *Engine;
 int 		byte_mode, packet_mode;
@@ -367,7 +364,7 @@ struct tm * t1;
 				AddDB = 1;
 				break;
 			case 'L':
-				if ( !InitLog("nftrack", optarg) )
+				if ( !InitLog(0, "nftrack", optarg, 0) )
 					exit(255);
 				break;
 			case 'S':

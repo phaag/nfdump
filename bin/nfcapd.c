@@ -159,7 +159,7 @@ static void usage(char *name) {
 					"-B bufflen\tSet socket buffer to bufflen bytes\n"
 					"-e\t\tExpire data at each cycle.\n"
 					"-D\t\tFork to background\n"
-					"-E\t\tPrint extended format of netflow data. for debugging purpose only.\n"
+					"-E\t\tPrint extended format of netflow data. For debugging purpose only.\n"
 					"-T\t\tInclude extension tags in records.\n"
 					"-4\t\tListen on IPv4 (default).\n"
 					"-6\t\tListen on IPv6.\n"
@@ -1018,7 +1018,7 @@ char	*pcap_file = NULL;
 		exit(255);
 	}
 
-	if ( do_daemonize && !InitLog(argv[0], SYSLOG_FACILITY)) {
+	if ( !InitLog(do_daemonize, argv[0], SYSLOG_FACILITY, verbose) ) {
 		exit(255);
 	}
 

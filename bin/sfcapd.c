@@ -356,7 +356,7 @@ void 		*in_buff;
 int 		err;
 srecord_t	*commbuff;
 
-	Init_sflow();
+	Init_sflow(verbose);
 
 	in_buff  = malloc(NETWORK_INPUT_BUFF_SIZE);
 	if ( !in_buff ) {
@@ -920,7 +920,7 @@ char	*pcap_file = NULL;
 		exit(255);
 	}
 
-	if ( !InitLog(argv[0], SYSLOG_FACILITY)) {
+	if ( !InitLog(do_daemonize, argv[0], SYSLOG_FACILITY, verbose) ) {
 		exit(255);
 	}
 

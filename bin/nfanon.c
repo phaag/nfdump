@@ -401,7 +401,7 @@ char		CryptoPAnKey[32];
 				PAnonymizer_Init((uint8_t *)CryptoPAnKey);
 				break;
 			case 'L':
-				if ( !InitLog("argv[0]", optarg) )
+				if ( !InitLog(0, "argv[0]", optarg, 0) )
 					exit(255);
 				break;
 			case 'r':

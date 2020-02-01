@@ -89,7 +89,7 @@ void xsleep(long sec);
 
 void EndLog(void);
 
-int InitLog(char *name, char *facility);
+int InitLog(int use_syslog, char *name, char *facility, int verbose_log);
 
 void LogError(char *format, ...);
 

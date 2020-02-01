@@ -59,9 +59,7 @@
 
 /* Global vars */
 
-extern char *CurrentIdent;
-
-enum { NONE, LESS, MORE };
+static int verbose = 0;
 
 /* Function prototypes */
 static int check_number(char *s, int len);
@@ -120,9 +118,13 @@ void EndLog() {
 		closelog();
 } // End of CloseLog
 
-int InitLog(char *name, char *facility) {
+int InitLog(int use_syslog, char *name, char *facility, int verbose_log) {
 int i;
 char *logname;
+
+	verbose = verbose_log;
+	if ( !use_syslog ) 
+		return 1;
 
 	if ( !facility || strlen(facility) > 32 ) {
 		fprintf(stderr, "Invalid syslog facility name '%s'!\n", facility);

@@ -1427,7 +1427,7 @@ p_flow_thread_args_t *p_flow_thread_args;
 		exit(255);
 	}
 
-	if ( do_daemonize && !InitLog(argv[0], SYSLOG_FACILITY)) {
+	if ( !InitLog(do_daemonize, argv[0], SYSLOG_FACILITY, verbose) ) {
 		pcap_close(pcap_dev->handle);
 		exit(255);
 	}

@@ -143,8 +143,7 @@ static struct sflow_ip_extensions_s {
 #define SFLOW_NEXT_HOP_BGP 2
 #define SFLOW_ROUTER_IP    4
 
-extern int verbose;
-
+static int verbose = 0;
 static int IP_extension_mask = 0;
 
 static int Setup_Extension_Info(FlowSource_t *fs, exporter_sflow_t	*exporter, int num);
@@ -154,8 +153,10 @@ static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
 #include "inline.c"
 #include "nffile_inline.c"
 
-void Init_sflow(void) {
+void Init_sflow(int v) {
 int i, id;
+
+	verbose = v;
 
 	i=0;
 	Num_enabled_extensions = 0;

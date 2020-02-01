@@ -519,7 +519,7 @@ time_t tslot;
 				stdin_profile_params = 1;
 				break;
 			case 'L':
-				if ( !InitLog("nfprofile", optarg) )
+				if ( !InitLog(0, "nfprofile", optarg, 0) )
 					exit(255);
 				break;
 			case 'Z':
