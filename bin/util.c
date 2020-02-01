@@ -349,7 +349,7 @@ int ScanTimeFrame(char *tstring, time_t *t_start, time_t *t_end) {
 char *p;
 
 	if ( !tstring ) {
-		fprintf(stderr,"Time Window format error '%s'\n", tstring);
+		fprintf(stderr,"Time Window format error\n");
 		return 0;
 	}
 
@@ -424,7 +424,7 @@ static char timestring[16];
 
 	when = localtime(&t);
 	when->tm_isdst = -1;
-	snprintf(timestring, 15, "%i%02i%02i%02i%02i%02i", 
+	snprintf(timestring, 15, "%4i%02i%02i%02i%02i%02i", 
 		when->tm_year + 1900, when->tm_mon + 1, when->tm_mday, when->tm_hour, when->tm_min, when->tm_sec);
 	timestring[15] = '\0';
 

@@ -65,9 +65,6 @@
 char 	*CurrentIdent;
 
 
-#define READ_FILE	1
-#define WRITE_FILE	1
-
 // LZO params
 #define HEAP_ALLOC(var,size) \
     lzo_align_t __LZO_MMODEL var [ ((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t) ]
