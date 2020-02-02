@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2014-2019, Peter Haag
+ *  Copyright (c) 2014-2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -195,7 +195,7 @@ void *IPFrag_tree_Update(time_t when, uint32_t src, uint32_t dst, uint32_t ident
 struct IPFragNode FindNode, *n;
 hole_t *hole, *h, *hole_parent;
 uint16_t more_fragments, first, last, max;
-int found_hole;
+dbg(int found_hole;)
 char src_s[16], dst_s[16];
 
 	if ( (when - lastExpire ) > 10 ) {
@@ -241,7 +241,7 @@ char src_s[16], dst_s[16];
 	}
 
 	// last fragment - sets max offset
-	found_hole = 0;
+	dbg(found_hole = 0;)
 	max = more_fragments == 0 ? last : 0;
 	dbg_printf("Fragment assembly: first: %u, last: %u, MF: %u, ID: %x\n", first, last, more_fragments, ident);
 	while (hole) {
@@ -293,7 +293,7 @@ char src_s[16], dst_s[16];
 			return NULL;
 		}
 		// fragment fits into hole
-		found_hole = 1;
+		dbg(found_hole = 1;)
 		if ( last > n->data_size ) 
 			n->data_size = last;
 

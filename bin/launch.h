@@ -39,7 +39,7 @@
 #include "collector.h"
 #include "nffile.h"
 
-#define MAXTIMESTRING 24
+#define MAXTIMESTRING 64
 
 typedef struct srecord_s {
 	char	fname[MAXPATHLEN];		// %f file name

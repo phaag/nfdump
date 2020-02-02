@@ -47,9 +47,11 @@
 #	include <assert.h>
 #	define dbg_printf(...) printf(__VA_ARGS__)
 #	define dbg_assert(a) assert(a)
+#   define dbg(a) a
 #else
 #	define dbg_printf(...) /* printf(__VA_ARGS__) */
 #	define dbg_assert(a) /* assert(a) */
+#   define dbg(a) /* a */
 #endif
 
 #define UNUSED(expr) do { (void)(expr); } while (0)

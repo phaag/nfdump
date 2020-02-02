@@ -1350,7 +1350,12 @@ p_flow_thread_args_t *p_flow_thread_args;
 						exit(255);
 					}
 					tmp[MAXPATHLEN-1] = 0;
-					snprintf(pidfile, MAXPATHLEN - 1 - strlen(tmp), "%s/%s", tmp, optarg);
+					if ( (strlen(tmp) + strlen(optarg) + 3) < MAXPATHLEN ) {
+						snprintf(pidfile, MAXPATHLEN - 3 - strlen(tmp), "%s/%s", tmp, optarg);
+					} else {
+						fprintf(stderr, "pidfile MAXPATHLEN error:\n");
+						exit(255);
+					}
 				}
 				// pidfile now absolute path
 				pidfile[MAXPATHLEN-1] = 0;

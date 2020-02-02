@@ -1,3 +1,6 @@
+2020-02-02
+- Fix various compiler warnings and automake issues
+
 2020-02-01
 - Remove external global vars
 - Set verbose logging off by default in non daemon mode

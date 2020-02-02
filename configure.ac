@@ -115,11 +115,12 @@ if test -d "$WHERE_FTPATH"; then
 	if test ! -f "$WHERE_FTPATH/include/ftlib.h"; then
 		AC_MSG_ERROR(ftlib.h file not found in flow-tools directory '$WHERE_FTPATH'. Use --with-ftpath=PATH)
 	fi
-	if test ! -f "$WHERE_FTPATH/lib/libft.a" -o -f "$WHERE_FTPATH/lib64/libft.a" -o -f "$WHERE_FTPATH/lib/libft.so" -o -f "$WHERE_FTPATH/lib64/libft.so"; then
+	if test -f "$WHERE_FTPATH/lib/libft.a" -o -f "$WHERE_FTPATH/lib64/libft.a" -o -f "$WHERE_FTPATH/lib/libft.so" -o -f "$WHERE_FTPATH/lib64/libft.so"; then
+		FT_INCLUDES="-I$WHERE_FTPATH/include -I$WHERE_FTPATH/lib"
+		FT_LDFLAGS="-L$WHERE_FTPATH/lib"
+	else
 		AC_MSG_ERROR(libft.a not found in flow-tools directory '$WHERE_FTPATH'. Build flow tools first)
 	fi
-	FT_INCLUDES="-I$WHERE_FTPATH/include -I$WHERE_FTPATH/lib"
-	FT_LDFLAGS="-L$WHERE_FTPATH/lib"
 else
 	AC_MSG_ERROR(flow-tools directory '$WHERE_FTPATH' does not exists. Use --with-ftpath=PATH)
 fi
@@ -459,10 +460,9 @@ AC_OUTPUT(Makefile bin/Makefile man/Makefile)
 
 echo ""
 echo "* Many thanks for using nfdump tools"
+echo "* Please send bug reports back to me: peter@people.ops-trust.net"
+echo "* or open a ticket at https://github.com/phaag/nfdump/issues"
 echo "* You may want to subscribe to the nfdump-discuss and/or"
 echo "* nfsen-discuss mailing list:"
 echo "* http://lists.sourceforge.net/lists/listinfo/nfdump-discuss"
 echo "* http://lists.sourceforge.net/lists/listinfo/nfsen-discuss"
-echo "* Please send bug reports back to me: phaag@users.sourceforge.net"
-echo "* or to one of the lists."
-

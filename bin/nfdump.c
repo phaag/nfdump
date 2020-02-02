@@ -838,6 +838,11 @@ char 		Ident[IDENTLEN];
 				break;
 			case 'o':	// output mode
 				print_format = optarg;
+				// limit input chars
+				if ( strlen(print_format) > 512 ) {
+					LogError("Length of ouput format string too big - > 512\n");
+					exit(255);
+				}
 				break;
 			case 'O': {	// stat order by
 				int ret;
@@ -997,11 +1002,6 @@ char 		Ident[IDENTLEN];
 			print_format = DefaultMode;
 	}
 
-	// limit input chars
-	if ( strlen(print_format) > 512 ) {
-		LogError("Length of ouput format string too big - > 512\n");
-		exit(255);
-	}
 	if ( strncasecmp(print_format, "fmt:", 4) == 0 ) {
 		// special user defined output format
 		char *format = &print_format[4];

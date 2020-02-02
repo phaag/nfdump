@@ -460,7 +460,7 @@ srecord_t	*commbuff;
 
 		if ( ((t_now - t_start) >= twin) || done ) {
 			struct  tm *now;
-			char	*subdir, fmt[24];
+			char	*subdir, fmt[MAXTIMESTRING];
 
 			alarm(0);
 			now = localtime(&t_start);
@@ -583,9 +583,10 @@ srecord_t	*commbuff;
 			if ( launcher_pid ) {
 				// Signal launcher
 
-				strncpy(commbuff->tstring, fmt, MAXTIMESTRING-1);
-				commbuff->tstamp = t_start;
+				strncpy(commbuff->tstring, fmt, MAXTIMESTRING);
+				commbuff->tstring[MAXTIMESTRING-1] = '\0';
 
+				commbuff->tstamp = t_start;
 				if ( subdir ) {
 					snprintf(commbuff->fname, MAXPATHLEN-1, "%s/nfcapd.%s", subdir, fmt);
 				} else {
@@ -879,8 +880,8 @@ char	*pcap_file = NULL;
 						exit(255);
 					}
 					tmp[MAXPATHLEN-1] = 0;
-					if ( (strlen(tmp) + strlen(optarg) + 1) < MAXPATHLEN ) {
-						snprintf(pidfile, MAXPATHLEN - 1 - strlen(tmp), "%s/%s", tmp, optarg);
+					if ( (strlen(tmp) + strlen(optarg) + 3) < MAXPATHLEN ) {
+						snprintf(pidfile, MAXPATHLEN - 3 - strlen(tmp), "%s/%s", tmp, optarg);
 					} else {
 						fprintf(stderr, "pidfile MAXPATHLEN error:\n");
 						exit(255);

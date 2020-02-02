@@ -420,13 +420,13 @@ struct tm	*tbuff;
 
 char *UNIX2ISO(time_t t) {
 struct tm	*when;
-static char timestring[16];
+static char timestring[32];
 
 	when = localtime(&t);
 	when->tm_isdst = -1;
-	snprintf(timestring, 15, "%4i%02i%02i%02i%02i%02i", 
+	snprintf(timestring, 31, "%4i%02i%02i%02i%02i%02i", 
 		when->tm_year + 1900, when->tm_mon + 1, when->tm_mday, when->tm_hour, when->tm_min, when->tm_sec);
-	timestring[15] = '\0';
+	timestring[31] = '\0';
 
 	return timestring;
 
