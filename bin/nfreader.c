@@ -200,11 +200,6 @@ int 		i, done, ret;
 				} break; // not really needed
 		}
 
-		if ( nffile->block_header->id == Large_BLOCK_Type ) {
-			// skip
-			continue;
-		}
-
 		if ( nffile->block_header->id != DATA_BLOCK_TYPE_2 ) {
 			fprintf(stderr, "Can't process block type %u. Skip block.\n", nffile->block_header->id);
 			continue;

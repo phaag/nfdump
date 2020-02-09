@@ -58,6 +58,7 @@
 #include "lz4.h"
 #include "flist.h"
 #include "nffile.h"
+#include "nffileV2.h"
 
 /* global vars */
 
@@ -1297,7 +1298,7 @@ char 			*filename, outfile[MAXPATHLEN];
 void QueryFile(char *filename) {
 int i;
 nffile_t	*nffile;
-uint32_t num_records, type1, type2, type3;
+uint32_t num_records, type1, type2;
 struct stat stat_buf;
 ssize_t	ret;
 off_t	fsize;
@@ -1317,7 +1318,6 @@ off_t	fsize;
 	fsize = lseek(nffile->fd, 0, SEEK_CUR);
 	type1 = 0;
 	type2 = 0;
-	type3 = 0;
 	printf("File    : %s\n", filename);
 	printf ("Version : %u - %s\n", nffile->file_header->version,
 		FILE_IS_LZO_COMPRESSED (nffile) ? "lzo compressed" :
@@ -1357,9 +1357,6 @@ off_t	fsize;
 			case DATA_BLOCK_TYPE_2:
 				type2++;
 				break;
-			case Large_BLOCK_Type:
-				type3++;
-				break;
 			default:
 				printf("block %i has unknown type %u\n", i, nffile->block_header->id);
 		}
@@ -1387,7 +1384,6 @@ off_t	fsize;
 
 	printf(" Type 1 : %u\n", type1);
 	printf(" Type 2 : %u\n", type2);
-	printf(" Type 3 : %u\n", type3);
 	printf("Records : %u\n", num_records);
 
 	CloseFile(nffile);

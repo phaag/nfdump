@@ -754,6 +754,16 @@ typedef struct master_record_s {
 	char	*label;
 } master_record_t;
 
+// convenience type conversion record 
+typedef struct type_mask_s {
+	union {
+		uint8_t		val8[8];
+		uint16_t	val16[4];
+		uint32_t	val32[2];
+		uint64_t	val64;
+	} val;
+} type_mask_t;
+
 
 #endif //_NFDUMP_H
 

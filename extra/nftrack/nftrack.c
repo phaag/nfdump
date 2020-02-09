@@ -217,11 +217,6 @@ uint64_t total_bytes;
                 total_bytes += ret;
         }
 
-		if ( nffile->block_header->id == Large_BLOCK_Type ) {
-			// skip
-			continue;
-		}
-
 		if ( nffile->block_header->id != DATA_BLOCK_TYPE_2 ) {
 			LogError("Can't process block type %u\n", nffile->block_header->id);
 			continue;

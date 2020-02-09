@@ -458,12 +458,6 @@ int 				done, write_file;
 				total_bytes += ret;
 		}
 
-		if ( nffile_r->block_header->id == Large_BLOCK_Type ) {
-			// skip
-			printf("Xstat block skipped ...\n");
-			continue;
-		}
-
 		if ( nffile_r->block_header->id != DATA_BLOCK_TYPE_2 ) {
 			if ( nffile_r->block_header->id == DATA_BLOCK_TYPE_1 ) {
 				LogError("nfdump 1.5.x block type 1 no longer supported. Skip block.\n");

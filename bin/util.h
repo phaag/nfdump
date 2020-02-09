@@ -79,6 +79,11 @@ typedef uint32_t	pointer_addr_t;
 #define _1GB (double)(1000.0 * 1000.0 * 1000.0)
 #define _1TB (double)(1000.0 * 1000.0 * 1000.0 * 1000.0)
 
+#define SetFlag(var, flag) 		(var |= flag)
+#define ClearFlag(var, flag) 	(var &= ~flag)
+#define TestFlag(var, flag)		(var & flag)
+
+
 typedef struct stringlist_s {
 	uint32_t	block_size;
 	uint32_t	max_index;

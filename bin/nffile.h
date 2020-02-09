@@ -49,9 +49,10 @@
 
 #define NF_DUMPFILE         "nfcapd.current"
 
-#define SetFlag(var, flag) 		(var |= flag)
-#define ClearFlag(var, flag) 	(var &= ~flag)
-#define TestFlag(var, flag)		(var & flag)
+#define NOT_COMPRESSED 0
+#define LZO_COMPRESSED 1
+#define BZ2_COMPRESSED 2
+#define LZ4_COMPRESSED 3
 
 /* 
  * output buffer max size, before writing data to the file 
@@ -87,10 +88,6 @@
  *   +-----------+-------------+-------------+-------------+-----+-------------+
  */
 
-#define NOT_COMPRESSED 0
-#define LZO_COMPRESSED 1
-#define BZ2_COMPRESSED 2
-#define LZ4_COMPRESSED 3
 
 typedef struct file_header_s {
 	uint16_t	magic;				// magic to recognize nfdump file type and endian type
@@ -123,7 +120,6 @@ typedef struct file_header_s {
 	uint32_t	NumBlocks;			// number of data blocks in file
 	char		ident[IDENTLEN];	// string identifier for this file
 } file_header_t;
-
 
 /* 
  * In file layout format 1: After the file header an 
@@ -185,17 +181,6 @@ typedef struct data_block_header_s {
 } data_block_header_t;
 
 /*
- *
- * Block type 3
- * ============
- * same block header as type 2. Used for data other than flow data - e.g. histograms. Important difference:
- * included data records have type L_record_header_t headers in order to allow larger data records.
- *
- */ 
-
-#define Large_BLOCK_Type	3
-
-/*
  * Generic file handle for reading/writing files
  * if a file is read only writeto and block_header are NULL
  */
@@ -254,16 +239,6 @@ typedef struct record_header_s {
  * for the detailed description of the record definition see nfx.h
 */
 
-
-// convenience type conversion record 
-typedef struct type_mask_s {
-	union {
-		uint8_t		val8[8];
-		uint16_t	val16[4];
-		uint32_t	val32[2];
-		uint64_t	val64;
-	} val;
-} type_mask_t;
 
 void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
