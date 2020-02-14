@@ -626,19 +626,6 @@ int i;
 		return NULL;
 	}
 
-/*
-	XXX catalogs not yet implemented
-	nffile->catalog = calloc(1, sizeof(catalog_t));
-	if ( !nffile->catalog ) {
-		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-		return NULL;
-	}
-	nffile->catalog->NumRecords = 0;
-	nffile->catalog->size 		= sizeof(catalog_t) - sizeof(data_block_header_t);
-	nffile->catalog->id 		= CATALOG_BLOCK;
-	nffile->catalog->pad 		= 0;
-	nffile->catalog->reserved 	= 0;
-*/
 	// init data buffer
 	nffile->buff_size = 2 * BUFFSIZE;
 	for (i=0; i<NUM_BUFFS; i++ ) {
@@ -735,14 +722,6 @@ int 			fd, flags;
 
 	nffile->file_header->flags 	   = flags;
 
-/*
-	XXX catalogs not yet implemented
-	if ( nffile->catalog && nffile->catalog->NumRecords ) {
-		memset((void *)nffile->catalog->entries, 0, nffile->catalog->NumRecords * sizeof(struct catalog_entry_s));
-		nffile->catalog->NumRecords = 0;
-		nffile->catalog->size		= 0;
-	} 
-*/
 	if ( nffile->stat_record ) {
 		memset((void *)nffile->stat_record, 0, sizeof(stat_record_t));
 		nffile->stat_record->first_seen = 0x7fffffff;
@@ -771,15 +750,6 @@ int 			fd, flags;
 		nffile->fd = 0;
 		return NULL;
 	}
-
-/* skip writing catalog in this test version
-	XXX catalogs not yet implemented
-	if ( WriteExtraBlock(nffile, (data_block_header_t *)nffile->catalog) < 0 ) {
-		LogError("write() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-		close(nffile->fd);
-		return NULL;
-	}
-*/
 
 	return nffile;
 
@@ -1076,11 +1046,21 @@ uint32_t compression;
 	if ( nffile->block_header->size > BUFFSIZE ||
 	     nffile->block_header->size == 0 || nffile->block_header->NumRecords == 0) {
 		// this is most likely a corrupt file
-		LogError("Corrupt data file: Requested buffer size %u exceeds max. buffer size.\n", nffile->block_header->size);
+		LogError("Corrupt data file: Requested buffer size %u exceeds max. buffer size", nffile->block_header->size);
 		return NF_CORRUPT;
 	}
 
+	// check block compression - defaults to file compression setting
+
 	compression = FILE_COMPRESSION(nffile);
+	// block type 1/2 does not honour the compression flag and inherites 
+	// the file compression settings - thes block types are depricated
+	if ( nffile->block_header->id == DATA_BLOCK_TYPE_3 ) {
+		if ( !TestFlag(nffile->block_header->flags, FLAG_BLOCK_COMPRESSED ) )
+			compression = NOT_COMPRESSED;
+		// else block compressed.
+	} 
+
 	ret = read(nffile->fd, nffile->buff_ptr, nffile->block_header->size);
 	if ( ret == nffile->block_header->size ) {
 		// we have the whole record and are done for now

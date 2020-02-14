@@ -65,8 +65,15 @@ typedef struct fileHeaderV2_s {
 									// 4bytes 1.6.19-1 0x01061301 
 	time_t		created;			// file create time
 
-	uint32_t	flags;
-	uint32_t	unused;				// unused 0
+	uint8_t		compression;
+#define NOT_COMPRESSED 0
+#define LZO_COMPRESSED 1
+#define BZ2_COMPRESSED 2
+#define LZ4_COMPRESSED 3
+	uint8_t		encryption;
+	uint16_t	flags;
+	uint32_t	unused;				// unused 0	- reserved for futur use
+	uint64_t	unused2;			// unused 0 - reserved for futur use
 
 	uint32_t	BlockSize;			// max block size of data blocks
 	uint32_t	NumBlocks;			// number of data blocks in file
@@ -79,19 +86,17 @@ typedef struct fileHeaderV2_s {
  * ==================
  * Data blocks are generic containers for the any type of data records.
  * Each data block starts with a block header, which specifies the size, the number of records
- * and data block properties.
+ * and data block properties. The struct is compatible with type 2 data records
  */
 
 typedef struct dataBlock_s {
 	uint32_t	NumRecords;		// number of data records in data block
 	uint32_t	size;			// size of this block in bytes without this header
-	uint8_t		compression;	// type of compression for this block
-#define NOT_COMPRESSED 0
-#define LZO_COMPRESSED 1
-#define BZ2_COMPRESSED 2
-#define LZ4_COMPRESSED 3
-	uint8_t		flags;
-	uint16_t 	unused;		// unused 0;
+	uint16_t	id;				// Block ID == DATA_BLOCK_TYPE_3
+#define DATA_BLOCK_TYPE_3 3
+	uint16_t	flags;
+#define FLAG_BLOCK_COMPRESSED 1
+// Bit 0 - 0: uncompressed data, 1: compressed data
 } dataBlock_t;
 
 /*
