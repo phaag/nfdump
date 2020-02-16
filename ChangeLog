@@ -1,5 +1,6 @@
 2020-02-16
 - Add Source security group tag (SGT 34000) issue #192
+- Modify heuristic for bidir flows #59
 
 2020-02-09
 - Cleanup unused nffile records. Add nffileV2.h

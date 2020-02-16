@@ -1551,8 +1551,9 @@ char				*string;
 
 				if ( GuessDir && 
 				   ( flow_record->prot == IPPROTO_TCP || flow_record->prot == IPPROTO_UDP) &&
-	   			   ( flow_record->srcport < 1024 ) && ( flow_record->dstport > 1024 ) &&
-				   ( flow_record->srcport < flow_record->dstport ) )
+	   			   ( flow_record->srcport < 1024 ) && ( flow_record->dstport >= 1024 ) &&
+	   			   ( flow_record->srcport < 32768 ) && ( flow_record->dstport >= 32768 ) &&
+	   			   ( flow_record->srcport < 49152 ) && ( flow_record->dstport >= 49152 ))
 					SwapFlow(flow_record);
 
 				print_record((void *)flow_record, &string, tag);
@@ -1737,8 +1738,9 @@ int	i, max;
 
 		if ( GuessFlowDirection && 
 		   ( flow_record->prot == IPPROTO_TCP || flow_record->prot == IPPROTO_UDP) &&
-	 	   ( flow_record->srcport < 1024 ) && ( flow_record->dstport > 1024 ) &&
-		   ( flow_record->srcport < flow_record->dstport ) )
+	  	   ( flow_record->srcport < 1024 ) && ( flow_record->dstport >= 1024 ) &&
+	   	   ( flow_record->srcport < 32768 ) && ( flow_record->dstport >= 32768 ) &&
+	   	   ( flow_record->srcport < 49152 ) && ( flow_record->dstport >= 49152 ))
 			SwapFlow(flow_record);
 
 		print_record((void *)flow_record, &string, tag);
