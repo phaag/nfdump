@@ -1041,7 +1041,7 @@ size_t				size_required;
 					PushSequence( table, NF_F_FW_EVENT, &offset, NULL, 0);
 				offset += 1;
 				PushSequence( table, NF_F_FW_EXT_EVENT, &offset, NULL, 0);
-				offset += 2;
+				PushSequence( table, NF_FW_CTS_SRC_SGT, &offset, NULL, 0);
 				break;
 			case EX_NSEL_XLATE_PORTS:
 				if ( cache.lookup_info[NF_F_XLATE_SRC_ADDR_84].found ) {
