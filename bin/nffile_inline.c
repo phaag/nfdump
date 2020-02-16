@@ -357,6 +357,7 @@ void		*p = (void *)input_record;
 				output_record->event_flag = FW_EVENT;
 				output_record->fw_xevent  = tpl->fw_xevent;
 				output_record->icmp = tpl->nsel_icmp;
+				output_record->sec_group_tag = tpl->sec_group_tag;
 				p = (void *)tpl->data;
 			} break;
 			case EX_NSEL_XLATE_PORTS: {
@@ -720,7 +721,7 @@ int		i;
 				tpl->fw_event   = master_record->event;
 				tpl->nsel_icmp  = master_record->icmp;
 				tpl->fill  = 0;
-				tpl->fill2 = 0;
+				tpl->sec_group_tag = master_record->sec_group_tag;
 				tpl->fw_xevent = master_record->fw_xevent;
 				p = (void *)tpl->data;
 				} break;

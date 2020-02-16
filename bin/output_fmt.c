@@ -236,6 +236,8 @@ static void String_evt(master_record_t *r, char *string);
 
 static void String_xevt(master_record_t *r, char *string);
 
+static void String_sgt(master_record_t *r, char *string);
+
 static void String_msec(master_record_t *r, char *string);
 
 static void String_iacl(master_record_t *r, char *string);
@@ -351,6 +353,7 @@ static struct format_token_list_s {
 	{ "%tevt", 	0, "Event time             ",String_EventTime },		// NSEL Flow start time
 	{ "%evt",   0, " Event", 				String_evt },				// NSEL event
 	{ "%xevt",  0, " XEvent", 				String_xevt },				// NSEL xevent
+	{ "%sgt",   0, "  SGT  ", 				String_sgt },				// NSEL xevent
 	{ "%msec",  0, "   Event Time", 		String_msec},				// NSEL event time in msec
 	{ "%iacl",  0, "Ingress ACL                     ", String_iacl}, 	// NSEL ingress ACL
 	{ "%eacl",  0, "Egress ACL                      ", String_eacl}, 	// NSEL egress ACL
@@ -1451,12 +1454,17 @@ static void String_evt(master_record_t *r, char *string) {
 
 } // End of String_evt
 
-
 static void String_xevt(master_record_t *r, char *string) {
 
 	snprintf(string, MAX_STRING_LENGTH-1 ,"%7s", EventXString(r->fw_xevent));
 
 } // End of String_xevt
+
+static void String_sgt(master_record_t *r, char *string) {
+
+	snprintf(string, MAX_STRING_LENGTH-1 ,"%5u", r->sec_group_tag);
+
+} // End of String_sgt
 
 static void String_msec(master_record_t *r, char *string) {
 	unsigned long long etime;

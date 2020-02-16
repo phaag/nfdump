@@ -412,9 +412,10 @@ extension_map_t	*extension_map = r->map_ref;
 "	\"event_id\" : \"%u\",\n"
 "	\"event\" : \"%s\",\n"
 "	\"xevent_id\" : \"%u\",\n"
+"	\"sgt_id\" : \"%u\",\n"
 "	\"t_event\" : \"%s\",\n"
 , r->conn_id, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event)
-, r->fw_xevent, datestr);
+, r->fw_xevent, r->sec_group_tag, datestr);
 				free(datestr);
 				} break;
 			case EX_NEL_COMMON: {

@@ -421,9 +421,10 @@ extension_map_t	*extension_map = r->map_ref;
 "  connect ID   =        %10u\n"
 "  fw event     =             %5u: %s\n"
 "  fw ext event =             %5u: %s\n"
+"  secgroup tag =             %5u\n"
 "  Event time   =     %13llu [%s.%03llu]\n"
 , r->conn_id, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event)
-, r->fw_xevent, EventXString(r->fw_xevent)
+, r->fw_xevent, EventXString(r->fw_xevent), r->sec_group_tag
 , (long long unsigned)r->event_time, datestr3, (long long unsigned)(r->event_time % 1000L));
 				_slen = strlen(data_string);
 				_s = data_string + _slen;

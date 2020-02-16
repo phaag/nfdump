@@ -295,6 +295,9 @@ typedef struct common_header_s {
 #define NF_F_INITIATORPACKETS		298
 #define NF_F_RESPONDERPACKETS		299
 
+// Zone-Based Firewall Logging
+#define NF_FW_CTS_SRC_SGT			34000
+
 // Cisco ASR 1000 series NEL extension - Nat Event Logging
 #define NF_N_NAT_EVENT				230
 #define NF_N_INGRESS_VRFID			234

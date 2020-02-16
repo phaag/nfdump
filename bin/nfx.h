@@ -708,7 +708,7 @@ typedef struct tpl_ext_27_s {
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
  * |  1 |                      NF_F_CONN_ID(148)                    |i type(176/8) |i code(177/9) |EVT(40005/233)|    fill      |
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  2 |   NF_F_FW_EXT_EVENT(33002)  |            fill2            |
+ * |  2 |   NF_F_FW_EXT_EVENT(33002)  |   FW_CTS_SRC_SGT(34000)     |
  * +----+--------------+--------------+--------------+--------------+
  * * EVT: NF_F_FW_EVENT
  * * XEVT: NF_F_FW_EXT_EVENT
@@ -735,7 +735,7 @@ typedef struct tpl_ext_37_s {
 	uint8_t		fw_event;
 	uint8_t		fill;
 	uint16_t	fw_xevent;
-	uint16_t	fill2;
+	uint16_t	sec_group_tag;
 	uint8_t		data[4];	// points to further data
 } tpl_ext_37_t;
 

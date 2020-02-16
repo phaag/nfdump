@@ -305,6 +305,9 @@ static struct v9_element_map_s {
 	{ NF_F_ICMP_CODE, 			"FNF ICMP code",			_1byte, _1byte,  move8,  zero8,  EX_NSEL_COMMON },
 	{ NF_F_ICMP_TYPE_IPV6, 		"ASA ICMP type V6",			_1byte, _1byte,  move8,  zero8,  EX_NSEL_COMMON },
 	{ NF_F_ICMP_CODE_IPV6, 		"ASA ICMP code V6",			_1byte, _1byte,  move8,  zero8,  EX_NSEL_COMMON },
+	// zone base firewall
+	{ NF_FW_CTS_SRC_SGT, 		"Source security group tag", _2bytes, _2bytes, move16, 	zero16, EX_NSEL_COMMON },
+
 	// XlATE extensions
 	{ NF_F_XLATE_SRC_ADDR_IPV4, "ASA V4 xsrc addr",			_4bytes,  _4bytes,  move32,  zero32,  EX_NSEL_XLATE_IP_v4 },
 	{ NF_F_XLATE_DST_ADDR_IPV4, "ASA V4 xdst addr",			_4bytes,  _4bytes,  move32,  zero32,  EX_NSEL_XLATE_IP_v4 },

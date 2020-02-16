@@ -491,8 +491,7 @@ typedef struct master_record_s {
 #	define OffsetRouterv6b		30
 #endif
 
-	// extension 25
-	uint16_t	fill;			// fill	index 31 0xffff'0000'0000'0000
+	uint16_t	sec_group_tag;	// sec group tag index 31 0xffff'0000'0000'0000
 	uint8_t		engine_type;	// type index 31 0x0000'ff00'0000'0000
 	uint8_t		engine_id;		// ID	index 31 0x0000'00ff'0000'0000
 	uint32_t	fill2;
