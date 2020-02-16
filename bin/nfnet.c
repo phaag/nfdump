@@ -416,12 +416,6 @@ int error, sockfd;
 	*addrlen = res->ai_addrlen;
 	memcpy(addr, res->ai_addr, res->ai_addrlen);
 
-/*
-     ((struct sockaddr_in *)addr)->sin_family=AF_INET;
-     addr.sin_addr.s_addr=inet_addr(HELLO_GROUP);
-     addr.sin_port=htons(HELLO_PORT);
-*/
-
 	if (joinGroup(sockfd, 1 , 1, (struct sockaddr_storage *)res->ai_addr) <0) {
 		close(sockfd);
 		freeaddrinfo(ressave);
@@ -430,20 +424,6 @@ int error, sockfd;
 
     freeaddrinfo(ressave);
 
-/*
-	message = "hello world\n";
-     printf("Send %lu bytes, Message: %s\n", strlen(message)+1, message);
-     while (1) {
-      ret = sendto(sockfd,message,strlen(message)+1,0,(struct sockaddr *) addr, *addrlen);
-      if ( ret != strlen(message)+1 ) {
-           perror("sendto");
-           exit(1);
-      }
-		printf("sleep\n");
-      sleep(1);
-     }
-exit(255);
-*/
     return sockfd;
 
 } /* End of Multicast_send_socket */
@@ -467,20 +447,6 @@ int ret, err;
 				break;
 			}
 			ret = 0;
-/*
-			// These two setsockopt may fail because not implemented on every OS, but harmless
-			err = setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_LOOP, &loopBack, sizeof(loopBack));
-			if ( err ) {
-				fprintf(stderr, "setsockopt IP_MULTICAST_LOOP: %s\n", strerror (errno));
-        		LogError("setsockopt IP_MULTICAST_LOOP: %s", strerror (errno));
-			}
-
-			err = setsockopt(sockfd, IPPROTO_IP, IP_MULTICAST_TTL, &mcastTTL, sizeof(mcastTTL));
-			if ( err ) {
-				fprintf(stderr, "setsockopt IP_MULTICAST_LOOP: %s\n", strerror (errno));
-        		LogError("setsockopt IP_MULTICAST_LOOP: %s", strerror (errno));
-			}
-*/
 		} break;
 
 		case AF_INET6: {
@@ -496,20 +462,6 @@ int ret, err;
 				break;
 			}
 			ret = 0;
-/*
-			// These two setsockopt may fail because not implemented on every OS, but harmless
-			err = setsockopt(sockfd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP, &loopBack, sizeof(loopBack));
-			if ( err ) {
-				fprintf(stderr, "setsockopt IPV6_MULTICAST_LOOP: %s\n", strerror (errno));
-        		LogError("setsockopt IPV6_MULTICAST_LOOP: %s", strerror (errno));
-			}
-
-			err = setsockopt(sockfd, IPPROTO_IPV6, IPV6_MULTICAST_HOPS, &mcastTTL, sizeof(mcastTTL));
-			if ( err ) {
-				fprintf(stderr, "setsockopt IPV6_MULTICAST_HOPS: %s\n", strerror (errno));
-        		LogError("setsockopt IPV6_MULTICAST_HOPS: %s", strerror (errno));
-			}
-*/
 		} break;
 
 		default:
