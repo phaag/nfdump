@@ -1,13 +1,13 @@
 # nfdump
 
-Stable Release v1.6.18
+Stable Release v1.6.19
 
-See the Changelog file for all changes in release 1.6.18
+See the Changelog file for all changes in release 1.6.19
 
 nfdump is a toolset in order to collect and process netflow and sflow data, sent from netflow/sflow compatible devices. 
 The toolset supports netflow __v1__, __v5/v7__,__v9__,__IPFIX__ and __SFLOW__.  nfdump supports IPv4 as well as IPv6.
 
-__Note:__ nfdump 1.6.18 __not longer__ supports nfdump-1.5.x files. If you have nfdump-1.5.x please convert them
+__Note:__ nfdump 1.6.18 and newer versions __not longer__ support nfdump-1.5.x files. If you have nfdump-1.5.x please convert them
 before upgrading.
 
 nfdump is used as backend toolset for __NfSen__.

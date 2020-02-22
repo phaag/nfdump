@@ -1,3 +1,6 @@
+2020-02-22
+- Release 1.6.19
+
 2020-02-16
 - Add Source security group tag (SGT 34000) issue #192
 - Modify heuristic for bidir flows #59
