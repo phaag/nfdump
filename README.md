@@ -215,7 +215,7 @@ It is assumed, that host level security is in place to filter the
 proper IP addresses.
 
 See the manual pages or use the -h switch for details on using each of 
-the programs. For any questions send email to phaag@users.sourceforge.net
+the programs. For any questions send email to peter@people.ops-trust.net
 
 Configure your router to export netflow. See the relevant documentation
 for your model. 
