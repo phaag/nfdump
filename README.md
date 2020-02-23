@@ -1,6 +1,7 @@
 # nfdump
 
-Stable Release v1.6.19
+UNICORN is the development branch of nfdump.
+It implements all new changes towards nfdump 1.7
 
 See the Changelog file for all changes in release 1.6.19
 
