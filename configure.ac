@@ -147,7 +147,7 @@ AC_SUBST(RRD_LIBS)
 	else
 		AC_MSG_ERROR(Required rrd.h header file not found!)
 	fi
-	AC_RUN_IFELSE(
+	AC_COMPILE_IFELSE(
 		[ AC_LANG_PROGRAM(
 			[[
 				#include <stdio.h>
@@ -202,7 +202,7 @@ AC_SUBST(RRD_LIBS)
 	else
 		AC_MSG_ERROR(Required rrd.h header file not found!)
 	fi
-	AC_RUN_IFELSE(
+	AC_COMPILE_IFELSE(
 		[ AC_LANG_PROGRAM(
 			[[
 				#include <stdio.h>
@@ -243,7 +243,7 @@ AC_SUBST(PCAP_LIBS)
 	else
 		AC_MSG_ERROR(Required pcap.h header file not found!)
 	fi
-	AC_RUN_IFELSE(
+	AC_COMPILE_IFELSE(
 		[ AC_LANG_PROGRAM(
 			[[
 				#include <stdio.h>
