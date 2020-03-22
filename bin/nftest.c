@@ -71,19 +71,19 @@
 #include "nfx.h"
 
 /* Global Variables */
-extern char 	*CurrentIdent;
 extern extension_descriptor_t extension_descriptor[];
 
-FilterEngine_t *Engine;
+static char *CurrentIdent;
+static FilterEngine_t *Engine;
 
 /* exported fuctions */
-int check_filter_block(char *filter, master_record_t *flow_record, int expect);
+static int check_filter_block(char *filter, master_record_t *flow_record, int expect);
 
-void check_offset(char *text, pointer_addr_t offset, pointer_addr_t expect);
+static void check_offset(char *text, pointer_addr_t offset, pointer_addr_t expect);
 
-void CheckCompression(char *filename);
+static void CheckCompression(char *filename);
 
-int check_filter_block(char *filter, master_record_t *flow_record, int expect) {
+static int check_filter_block(char *filter, master_record_t *flow_record, int expect) {
 int ret, i;
 uint64_t	*block = (uint64_t *)flow_record;
 
@@ -92,6 +92,7 @@ uint64_t	*block = (uint64_t *)flow_record;
 		exit(254);
 	}
 
+	Engine->ident = CurrentIdent;
 	Engine->nfrecord = (uint64_t *)flow_record;
 	ret =  (*Engine->FilterEngine)(Engine);
 	if ( ret == expect ) {
@@ -105,14 +106,14 @@ uint64_t	*block = (uint64_t *)flow_record;
 			printf("%3i %.16llx\n", i, (long long)block[i]);
 		}
 		if ( Engine->IdentList ) {
-			printf("Current Ident: %s, Ident 0 %s\n", CurrentIdent, Engine->IdentList[0]);
+			printf("Current Ident: %s, Ident 0 %s\n", Engine->ident ? Engine->ident : "NULL", Engine->IdentList[0]);
 		}
 		exit(255);
 	}
 	return (ret == expect);
 }
 
-void check_offset(char *text, pointer_addr_t offset, pointer_addr_t expect) {
+static void check_offset(char *text, pointer_addr_t offset, pointer_addr_t expect) {
 
 	if ( offset == expect ) {
 		printf("Success: %s: %llu\n", text, (unsigned long long)expect);
@@ -124,7 +125,7 @@ void check_offset(char *text, pointer_addr_t offset, pointer_addr_t expect) {
 	}
 }
 
-void CheckCompression(char *filename) {
+static void CheckCompression(char *filename) {
 nffile_t	*nffile_w, *nffile_r;
 int i, compress, bsize;
 ssize_t	ret;
@@ -156,7 +157,7 @@ uint32_t recsize[4];
 	bsize = nffile_r->block_header->size;
 	for ( compress=NOT_COMPRESSED; compress<=LZ4_COMPRESSED; compress++ ) {
 		int wsize;
-		nffile_w = OpenNewFile(outfile, nffile_w, compress, 0, NULL);
+		nffile_w = OpenNewFile(outfile, nffile_w, compress, NOT_ENCRYPTED);
 		if ( !nffile_w ) {
 			DisposeFile(nffile_r);
         	return;
@@ -832,6 +833,8 @@ void *p;
 	ret = check_filter_block("not ident channel1", &flow_record, 0);
 	ret = check_filter_block("ident none", &flow_record, 0);
 	ret = check_filter_block("not ident none", &flow_record, 1);
+	CurrentIdent = NULL;
+	ret = check_filter_block("ident none", &flow_record, 0);
 
 	// vlan labels
 	flow_record.src_vlan = 0;

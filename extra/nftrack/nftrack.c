@@ -162,7 +162,7 @@ int i, done, ret;
 data_row * 	port_table;
 uint64_t total_bytes; 
 
-	nffile = GetNextFile(NULL, 0, 0);
+	nffile = GetNextFile(NULL);
 	if ( !nffile ) {
 		LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		return NULL;
@@ -195,12 +195,12 @@ uint64_t total_bytes;
             case NF_CORRUPT:
             case NF_ERROR:
                 if ( ret == NF_CORRUPT ) 
-                    LogError("Skip corrupt data file '%s'\n",GetCurrentFilename());
+                    LogError("Skip corrupt data file '%s'\n", nffile->fileName);
                 else 
-                    LogError("Read error in file '%s': %s\n",GetCurrentFilename(), strerror(errno) );
+                    LogError("Read error in file '%s': %s\n", nffile->fileName, strerror(errno));
                 // fall through - get next file in chain
             case NF_EOF: {
-				nffile_t *next = GetNextFile(nffile, 0, 0);
+				nffile_t *next = GetNextFile(nffile);
 				if ( next == EMPTY_LIST ) {
 					done = 1;
 				}
@@ -217,8 +217,9 @@ uint64_t total_bytes;
                 total_bytes += ret;
         }
 
-		if ( nffile->block_header->id != DATA_BLOCK_TYPE_2 ) {
-			LogError("Can't process block type %u\n", nffile->block_header->id);
+		if ( nffile->block_header->type != DATA_BLOCK_TYPE_2 && 
+			 nffile->block_header->type != DATA_BLOCK_TYPE_3) {
+			LogError("Can't process block type %u\n", nffile->block_header->type);
 			continue;
 		}
 
@@ -462,7 +463,7 @@ struct tm * t1;
 
 	port_table = NULL;
 	if ( Mdirs || Rfile || rfile ) {
-		SetupInputFileSequence(Mdirs, rfile, Rfile);
+		SetupInputFileSequence(Mdirs, rfile, Rfile, NULL);
 		port_table = process(filter);
 //		Lister(port_table);
 		if ( !port_table ) {

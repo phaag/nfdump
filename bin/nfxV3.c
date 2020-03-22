@@ -39,7 +39,8 @@
 #endif
 #define DEVEL 1
 #include "util.h"
-#include "nfxV2.h"
+#include "nfdump.h"
+#include "nfxV3.h"
 
 #include "inline.c"
 

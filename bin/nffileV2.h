@@ -62,6 +62,7 @@ typedef struct fileHeaderV2_s {
 #define LAYOUT_VERSION_2	2
 
 	uint32_t	nfversion;			// version of nfdump created this file
+#define NFVERSION 0x010700FF
 									// 4bytes 1.6.19-1 0x01061301 
 	time_t		created;			// file create time
 
@@ -70,15 +71,20 @@ typedef struct fileHeaderV2_s {
 #define LZO_COMPRESSED 1
 #define BZ2_COMPRESSED 2
 #define LZ4_COMPRESSED 3
+
 	uint8_t		encryption;
-	uint16_t	flags;
-	uint32_t	unused;				// unused 0	- reserved for futur use
-	uint64_t	unused2;			// unused 0 - reserved for futur use
+#define NOT_ENCRYPTED 0
+	uint16_t	appendixBlocks;		// number of blocks to read from appendix
+									// on open file for internal data structs
+	uint32_t	unused;				// unused 0	- reserved for future use
+	off_t		offAppendix;		// offset in file for appendix blocks with additional data
 
 	uint32_t	BlockSize;			// max block size of data blocks
 	uint32_t	NumBlocks;			// number of data blocks in file
 } fileHeaderV2_t;
 
+#define FILE_COMPRESSION(n) ((n)->file_header->compression)
+#define FILE_ENCRYPTION(n) ((n)->file_header->encryption)
 
 /*
  *
@@ -90,13 +96,16 @@ typedef struct fileHeaderV2_s {
  */
 
 typedef struct dataBlock_s {
-	uint32_t	NumRecords;		// number of data records in data block
+	uint32_t	NumRecords;		// size of this block in bytes without this header
 	uint32_t	size;			// size of this block in bytes without this header
-	uint16_t	id;				// Block ID == DATA_BLOCK_TYPE_3
-#define DATA_BLOCK_TYPE_3 3
-	uint16_t	flags;
-#define FLAG_BLOCK_COMPRESSED 1
-// Bit 0 - 0: uncompressed data, 1: compressed data
+	uint16_t	type;			// Block type
+#define DATA_BLOCK_TYPE_3	3
+	uint16_t	flags;			// Bit 0: 0: file block compression, 1: block uncompressed
+								// Bit 1: 0: file block encryption, 1: block unencrypted
+								// Bit 2: 0: no autoread, 1: autoread - internal structure
+#define FLAG_BLOCK_UNCOMPRESSED	0x1
+#define FLAG_BLOCK_UNENCRYPTED	0x2
+#define FLAG_BLOCK_AUTOREAD		0x4
 } dataBlock_t;
 
 /*
@@ -105,10 +114,12 @@ typedef struct dataBlock_s {
  */
 typedef struct recordHeader_s {
  	// record header
- 	uint16_t	type;
- 	uint16_t	size;
+ 	uint16_t	type;	// type of data
+ 	uint16_t	size;	// size of record including this header
 } recordHeader_t;
 
+#define TYPE_IDENT 0x8001 
+#define TYPE_STAT  0x8002 
 
 #endif //_NFFILEV2_H
 

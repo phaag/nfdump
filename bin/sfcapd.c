@@ -327,7 +327,7 @@ int		err;
 
 } // End of SetPriv
 
-static void format_file_block_header(data_block_header_t *header) {
+static void format_file_block_header(dataBlock_t *header) {
 	
 	printf("\n"
 "File Block Header: \n"
@@ -336,7 +336,7 @@ static void format_file_block_header(data_block_header_t *header) {
 "  id         	 =  %10u\n",
 		header->NumRecords,
 		header->size,
-		header->id);
+		header->type);
 
 } // End of format_file_block_header
 
@@ -353,7 +353,6 @@ uint64_t	export_packets;
 uint32_t	blast_cnt, blast_failures, ignored_packets;
 ssize_t		cnt;
 void 		*in_buff;
-int 		err;
 srecord_t	*commbuff;
 
 	Init_sflow(verbose);
@@ -372,10 +371,11 @@ srecord_t	*commbuff;
 	while ( fs ) {
 
 		// prepare file
-		fs->nffile = OpenNewFile(fs->current, NULL, compress, 0, NULL);
+		fs->nffile = OpenNewFile(fs->current, NULL, compress, NOT_ENCRYPTED);
 		if ( !fs->nffile ) {
 			return;
 		}
+		SetIdent(fs->nffile, fs->Ident);
 
 		// init stat vars
 		fs->bad_packets		= 0;
@@ -512,12 +512,11 @@ srecord_t	*commbuff;
 				// Flush Exporter Stat to file
 				FlushExporterStats(fs);
 				// Write Stat record and close file
-				CloseUpdateFile(nffile, fs->Ident);
+				CloseUpdateFile(nffile);
 
 				// if rename fails, we are in big trouble, as we need to get rid of the old .current file
 				// otherwise, we will loose flows and can not continue collecting new flows
-				err = rename(fs->current, nfcapd_filename);
-				if ( err ) {
+				if ( rename(fs->current, nfcapd_filename) < 0 ) {
 					LogError("Ident: %s, Can't rename dump file: %s", fs->Ident,  strerror(errno));
 					LogError("Ident: %s, Serious Problem! Fix manually", fs->Ident);
 					if ( launcher_pid )
@@ -547,7 +546,7 @@ srecord_t	*commbuff;
 				fs->last_seen 	= 0;
 
 				if ( !done ) {
-					fs->nffile = OpenNewFile(fs->current, fs->nffile, compress, 0, NULL);
+					fs->nffile = OpenNewFile(fs->current, fs->nffile, compress, NOT_ENCRYPTED);
 					if ( !fs->nffile ) {
 						LogError("killed due to fatal error: ident: %s", fs->Ident);
 						break;
@@ -645,15 +644,6 @@ srecord_t	*commbuff;
 		// each Process_xx function has to process the entire input buffer, therefore it's empty now.
 		export_packets++;
 
-		// flush current buffer to disc
-		if ( fs->nffile->block_header->size > BUFFSIZE ) {
-			// fishy! - we already wrote into someone elses memory! - I'm sorry
-			// reset output buffer - data may be lost, as we don not know, where it happen
-			fs->nffile->block_header->size 		 = 0;
-			fs->nffile->block_header->NumRecords = 0;
-			fs->nffile->buff_ptr = (void *)((pointer_addr_t)fs->nffile->block_header + sizeof(data_block_header_t) );
-			LogError("### Software bug ### Ident: %s, output buffer overflow: expect memory inconsitency", fs->Ident);
-		}
 	}
 
 	if ( verbose && blast_failures ) {
@@ -663,7 +653,8 @@ srecord_t	*commbuff;
 
 	fs = FlowSource;
 	while ( fs ) {
-		fs->nffile = DisposeFile(fs->nffile);
+		DisposeFile(fs->nffile);
+		fs->nffile= NULL;
 		fs = fs->next;
 	}
 

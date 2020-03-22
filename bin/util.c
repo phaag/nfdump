@@ -66,8 +66,6 @@ static int check_number(char *s, int len);
 
 static int ParseTime(char *s, time_t *t_start);
 
-uint32_t twin_first, twin_last;
-
 static int use_syslog = 0;
 
 #ifdef sun
@@ -345,48 +343,68 @@ char *p, *q;
 } // End of ParseTime
 
 
-int ScanTimeFrame(char *tstring, time_t *t_start, time_t *t_end) {
+timeWindow_t *ScanTimeFrame(char *tstring) {
+timeWindow_t *timeWindow;
 char *p;
 
 	if ( !tstring ) {
 		fprintf(stderr,"Time Window format error\n");
-		return 0;
+		return NULL;
+	}
+
+	timeWindow = calloc(1, sizeof(timeWindow_t));
+	if ( !timeWindow ) {
+		LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+		return NULL;
 	}
 
 	// check for delta time window
 	if ( tstring[0] == '-' || tstring[0] == '+' ) {
-		if ( !twin_first || !twin_last ) {
-			fprintf(stderr,"Time Window error: No time slot information available\n");
-			return 0;
+		if ( strlen(tstring) > 16 ) {
+			LogError("Time string too long: %s", tstring);
+			free(timeWindow);
+			return NULL;
 		}
-
-		if ( tstring[0] == '-' ) {
-			*t_start = twin_last + atoi(tstring);
-			*t_end	 = twin_last;
-			return 1;
+		char *invalid = NULL;
+		errno = 0;
+		long sec = strtol(tstring, &invalid, 10);
+		if ( sec == 0 && errno != 0 ) {
+			LogError("Invald time string %s: %s", tstring, strerror(errno));
+			free(timeWindow);
+			return NULL;
 		}
-		
-		if ( tstring[0] == '+' ) {
-			*t_start = twin_first;
-			*t_end	 = twin_first + atoi(tstring);
-			return 1;
+		if ( invalid && strlen(invalid) > 0 ) {
+			LogError("Invald time string %s at %c", tstring, *invalid);
+			free(timeWindow);
+			return NULL;
 		}
-	}
-
-	if ( strlen(tstring) < 4 ) {
-		fprintf(stderr,"Time Window format error '%s'\n", tstring);
-		return 0;
-	}
-	if ( (p = strchr(tstring, '-') ) == NULL ) {
-		ParseTime(tstring, t_start);
-		*t_end = 0xFFFFFFFF;
+		if ( sec == 0 ) {
+			LogError("Ignore time string: %s", tstring, *invalid, strerror(errno));
+			free(timeWindow);
+			return NULL;
+		}
+		if ( sec < 0 ) {
+			timeWindow->last = abs((int)sec);
+		} else {
+			timeWindow->first = sec;
+		}
 	} else {
-		*p++ = 0;
-		ParseTime(tstring, t_start);
-		ParseTime(p, t_end);
+
+		if ( strlen(tstring) < 4 ) {
+			LogError("Time string format error '%s'\n", tstring);
+			return NULL;
+		}
+
+		if ( (p = strchr(tstring, '-') ) == NULL ) {
+			ParseTime(tstring, &timeWindow->first);
+		} else {
+			*p++ = 0;
+			ParseTime(tstring, &timeWindow->first);
+			ParseTime(p, &timeWindow->last);
+		}
 	}
 
-	return *t_start == 0 || *t_end == 0 ? 0 : 1;
+	return timeWindow;
 
 } // End of ScanTimeFrame
 

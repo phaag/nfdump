@@ -162,7 +162,7 @@ nffile_t		*nffile;
 int 		i, done, ret;
 
 	// Get the first file handle
-	nffile = GetNextFile(NULL, 0, 0);
+	nffile = GetNextFile(NULL);
 	if ( !nffile ) {
 		LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		return;
@@ -181,12 +181,12 @@ int 		i, done, ret;
 			case NF_CORRUPT:
 			case NF_ERROR:
 				if ( ret == NF_CORRUPT ) 
-					fprintf(stderr, "Skip corrupt data file '%s'\n",GetCurrentFilename());
+					fprintf(stderr, "Skip corrupt data file '%s'\n", nffile->fileName);
 				else 
-					fprintf(stderr, "Read error in file '%s': %s\n",GetCurrentFilename(), strerror(errno) );
+					fprintf(stderr, "Read error in file '%s': %s\n", nffile->fileName, strerror(errno));
 				// fall through - get next file in chain
 			case NF_EOF: {
-				nffile_t *next = GetNextFile(nffile, 0, 0);
+				nffile_t *next = GetNextFile(nffile);
 				if ( next == EMPTY_LIST ) {
 					done = 1;
 				}
@@ -200,8 +200,8 @@ int 		i, done, ret;
 				} break; // not really needed
 		}
 
-		if ( nffile->block_header->id != DATA_BLOCK_TYPE_2 ) {
-			fprintf(stderr, "Can't process block type %u. Skip block.\n", nffile->block_header->id);
+		if ( nffile->block_header->type != DATA_BLOCK_TYPE_2 && nffile->block_header->type != DATA_BLOCK_TYPE_3) {
+			fprintf(stderr, "Can't process block type %u. Skip block.\n", nffile->block_header->type);
 			continue;
 		}
 
@@ -329,7 +329,7 @@ int			c;
 		exit(255);
 	}
 
-	SetupInputFileSequence(Mdirs, rfile, Rfile);
+	SetupInputFileSequence(Mdirs, rfile, Rfile, NULL);
 
 	process_data();
 

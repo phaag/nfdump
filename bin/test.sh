@@ -41,11 +41,13 @@ TZ=MET
 export TZ
 
 # Check for correct output
-./nfgen | ./nfdump -q -o raw  > test1.out
+rm -f flows.nf
+./nfgen 
+./nfdump -r flows.nf -q -o raw  > test1.out
 diff -u test1.out nfdump.test.out
 
 # compressed flow test
-./nfgen | ./nfdump -z -q -w  test.flows
+./nfdump -r flows.nf -z -q -w  test.flows
 ./nfdump -q -r test.flows -o raw > test2.out
 diff -u test2.out nfdump.test.out
 
@@ -60,7 +62,7 @@ diff test4.diff nfdump.test2.diff
 
 # uncompressed flow test
 rm -f test.flows test2.out
-./nfgen | ./nfdump -q -w  test.flows
+./nfdump -r flows.nf -q -w  test.flows
 ./nfdump -q -r test.flows -o raw > test2.out
 diff -u test2.out nfdump.test.out
 
@@ -126,7 +128,7 @@ export MallocCorruptionAbort=1
 ./nfdump -J 0 -r test.flows
 ./nfdump -q -r test.flows -o raw > test2.out
 diff -u test2.out nfdump.test.out
-rm -f tmp/nfcapd.* test*.out test*.flows
+rm -f flows.nf tmp/nfcapd.* test*.out test*.flows
 [ -d tmp ] && rmdir tmp
 [ -d memck.$$ ] && rm -rf  memck.$$
 

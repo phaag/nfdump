@@ -81,12 +81,10 @@
 #define	FPURGE	fpurge
 #endif
 
-/* Global Variables */
-FilterEngine_t *Engine;
-static int verbose;
-
 /* Local Variables */
+static int verbose;
 static const char *nfdump_version = VERSION;
+static FilterEngine_t *Engine;
 
 static send_peer_t peer;
 
@@ -97,7 +95,7 @@ static void usage(char *name);
 
 static void send_blast(unsigned int delay );
 
-static void send_data(char *rfile, time_t twin_start, time_t twin_end, uint32_t count, 
+static void send_data(char *rfile, timeWindow_t *timeWindow, uint32_t count, 
 				unsigned int delay,  int confirm, int netflow_version, int distribution);
 
 static int FlushBuffer(int confirm);
@@ -195,8 +193,8 @@ double 					fps;
 
 } // End of send_blast
 
-static void send_data(char *rfile, time_t twin_start, 
-			time_t twin_end, uint32_t count, unsigned int delay, int confirm, int netflow_version, int distribution) {
+static void send_data(char *rfile, timeWindow_t *timeWindow,
+			uint32_t count, unsigned int delay, int confirm, int netflow_version, int distribution) {
 master_record_t	master_record;
 common_record_t	*flow_record;
 nffile_t		*nffile;
@@ -209,7 +207,7 @@ uint32_t		numflows, cnt;
 	int reducer = 0;
 
 	// Get the first file handle
-	nffile = GetNextFile(NULL, twin_start, twin_end);
+	nffile = GetNextFile(NULL);
 	if ( !nffile ) {
 		LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		return;
@@ -241,6 +239,7 @@ uint32_t		numflows, cnt;
 	// setup Filter Engine to point to master_record, as any record read from file
 	// is expanded into this record
 	Engine->nfrecord = (uint64_t *)&master_record;
+	Engine->ident = nffile->ident;
 
 	cnt = 0;
 	while ( !done ) {
@@ -251,12 +250,12 @@ uint32_t		numflows, cnt;
 			case NF_CORRUPT:
 			case NF_ERROR:
 				if ( ret == NF_CORRUPT ) 
-					LogError("Skip corrupt data file '%s'\n",GetCurrentFilename());
+					LogError("Skip corrupt data file '%s'\n", nffile->fileName);
 				else 
-					LogError("Read error in file '%s': %s\n",GetCurrentFilename(), strerror(errno) );
+					LogError("Read error in file '%s': %s\n", nffile->fileName, strerror(errno));
 				// fall through - get next file in chain
 			case NF_EOF: {
-				nffile_t *next = GetNextFile(nffile, twin_start, twin_end);
+				nffile_t *next = GetNextFile(nffile);
 				if ( next == EMPTY_LIST ) {
 					done = 1;
 				}
@@ -265,13 +264,15 @@ uint32_t		numflows, cnt;
 					LogError("Unexpected end of file list\n");
 				}
 				// else continue with next file
+				Engine->ident = nffile->ident;
 				continue;
 	
 				} break; // not really needed
 		}
 
-		if ( nffile->block_header->id != DATA_BLOCK_TYPE_2 ) {
-			LogError("Can't process block type %u. Skip block.\n", nffile->block_header->id);
+		if ( nffile->block_header->type != DATA_BLOCK_TYPE_2 && 
+			 nffile->block_header->type != DATA_BLOCK_TYPE_3) {
+			LogError("Can't process block type %u. Skip block.\n", nffile->block_header->type);
 			continue;
 		}
 
@@ -298,7 +299,8 @@ uint32_t		numflows, cnt;
 					// if no filter is given, the result is always true
 					ExpandRecord_v2( flow_record, extension_map_list->slot[flow_record->ext_map], NULL, &master_record);
 
-					match = twin_start && (master_record.first < twin_start || master_record.last > twin_end) ? 0 : 1;
+					match  = timeWindow && 
+						(master_record.first < timeWindow->first || master_record.last > timeWindow->last ) ? 0 : 1;
 
 					// filter netflow record with user supplied filter
 					if ( match ) 
@@ -430,10 +432,10 @@ struct stat stat_buff;
 char *rfile, *ffile, *filter, *tstring;
 int c, confirm, ffd, ret, blast, netflow_version, distribution;
 unsigned int delay, count, sockbuff_size;
-time_t t_start, t_end;
+timeWindow_t *timeWindow;
 
 	rfile = ffile = filter = tstring = NULL;
-	t_start = t_end = 0;
+	timeWindow = NULL;
 
 	peer.hostname 	= NULL;
 	peer.port 		= DEFAULTCISCOPORT;
@@ -601,14 +603,15 @@ time_t t_start, t_end;
 
 	extension_map_list = InitExtensionMaps(NEEDS_EXTENSION_LIST);
 
-	SetupInputFileSequence(NULL,rfile, NULL);
-
 	if ( tstring ) {
-		if ( !ScanTimeFrame(tstring, &t_start, &t_end) )
+		timeWindow = ScanTimeFrame(tstring);
+		if ( !timeWindow )
 			exit(255);
 	}
 
-	send_data(rfile, t_start, t_end, count, delay, confirm, netflow_version,distribution);
+	SetupInputFileSequence(NULL,rfile, NULL, timeWindow);
+
+	send_data(rfile, timeWindow, count, delay, confirm, netflow_version,distribution);
 
 	FreeExtensionMaps(extension_map_list);
 

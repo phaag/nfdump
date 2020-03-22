@@ -91,6 +91,10 @@ typedef struct stringlist_s {
 	char		**list;
 } stringlist_t;
 
+typedef struct timeWindow_s {
+	time_t first;
+	time_t last;
+} timeWindow_t;
 
 void xsleep(long sec);
 
@@ -106,7 +110,7 @@ void InitStringlist(stringlist_t *list, int block_size);
 
 void InsertString(stringlist_t *list, char *string);
 
-int ScanTimeFrame(char *tstring, time_t *t_start, time_t *t_end);
+timeWindow_t *ScanTimeFrame(char *tstring);
 
 char *TimeString(time_t start, time_t end);
 
@@ -120,10 +124,6 @@ time_t ISO2UNIX(char *timestring);
 #define FIXED_WIDTH 	  1
 #define VAR_LENGTH  	  0
 void format_number(uint64_t num, char *s, int scale, int fixed_width);
-
-void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multiple_files);
-
-char *GetCurrentFilename(void);
 
 void Setv6Mode(int mode);
 

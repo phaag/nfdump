@@ -181,7 +181,7 @@ char		outfile[MAXPATHLEN], *cfile;
 	verbose = 1;
 
 	// Get the first file handle
-	nffile_r = GetNextFile(NULL, 0, 0);
+	nffile_r = GetNextFile(NULL);
 	if ( !nffile_r ) {
 		LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		return;
@@ -191,7 +191,7 @@ char		outfile[MAXPATHLEN], *cfile;
 		return;
 	}
 
-	cfile = GetCurrentFilename();
+	cfile = nffile_r->fileName;
 	if ( !cfile ) {
 		if ( nffile_r->fd == 0 ) { // stdin
 			outfile[0] = '-';
@@ -209,10 +209,11 @@ char		outfile[MAXPATHLEN], *cfile;
 			fprintf(stderr, " %i Processing %s\r", cnt++, cfile);
 	}
 
+	// XXX fix anon flag
 	if ( wfile )
-		nffile_w = OpenNewFile(wfile, NULL, FILE_COMPRESSION(nffile_r), 1, NULL);
+		nffile_w = OpenNewFile(wfile, NULL, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
 	else
-		nffile_w = OpenNewFile(outfile, NULL, FILE_COMPRESSION(nffile_r), 1, NULL);
+		nffile_w = OpenNewFile(outfile, NULL, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
 
 	if ( !nffile_w ) {
 		if ( nffile_r ) {
@@ -222,6 +223,7 @@ char		outfile[MAXPATHLEN], *cfile;
 		return;
 	}
 
+	SetIdent(nffile_w, FILE_IDENT(nffile_r));
 	memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
 
 	done = 0;
@@ -233,9 +235,9 @@ char		outfile[MAXPATHLEN], *cfile;
 			case NF_CORRUPT:
 			case NF_ERROR:
 				if ( ret == NF_CORRUPT ) 
-					LogError("Skip corrupt data file '%s'\n",GetCurrentFilename());
+					LogError("Skip corrupt data file '%s'\n",cfile);
 				else 
-					LogError("Read error in file '%s': %s\n",GetCurrentFilename(), strerror(errno) );
+					LogError("Read error in file '%s': %s\n",cfile, strerror(errno) );
 				// fall through - get next file in chain
 			case NF_EOF: {
 				nffile_t *next;
@@ -245,7 +247,7 @@ char		outfile[MAXPATHLEN], *cfile;
         			} 
     			}
 				if ( wfile == NULL ) {
-					CloseUpdateFile(nffile_w, nffile_r->file_header->ident);
+					CloseUpdateFile(nffile_w);
 					if ( rename(outfile, cfile) < 0 ) {
 						LogError("\nrename() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 						LogError("Abort processing.\n");
@@ -253,7 +255,7 @@ char		outfile[MAXPATHLEN], *cfile;
 					}
 				}
 
-				next = GetNextFile(nffile_r, 0, 0);
+				next = GetNextFile(nffile_r);
 				if ( next == EMPTY_LIST ) {
 					done = 1;
 					continue;
@@ -264,7 +266,7 @@ char		outfile[MAXPATHLEN], *cfile;
 					continue;
 				}
 
-				cfile = GetCurrentFilename();
+				cfile = nffile_r->fileName;
 				if ( !cfile ) {
 					LogError("(NULL) input file name error in %s line %d\n", __FILE__, __LINE__);
 					return;
@@ -275,7 +277,7 @@ char		outfile[MAXPATHLEN], *cfile;
 					snprintf(outfile,MAXPATHLEN-1, "%s-tmp", cfile);
 					outfile[MAXPATHLEN-1] = '\0';
 
-					nffile_w = OpenNewFile(outfile, nffile_w, FILE_COMPRESSION(nffile_r), 1, NULL);
+					nffile_w = OpenNewFile(outfile, nffile_w, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
 					if ( !nffile_w ) {
 						if ( nffile_r ) {
 							CloseFile(nffile_r);
@@ -294,8 +296,9 @@ char		outfile[MAXPATHLEN], *cfile;
 				} break; // not really needed
 		}
 
-		if ( nffile_r->block_header->id != DATA_BLOCK_TYPE_2 ) {
-			fprintf(stderr, "Can't process block type %u. Skip block.\n", nffile_r->block_header->id);
+		if ( nffile_r->block_header->type != DATA_BLOCK_TYPE_2 && 
+			 nffile_r->block_header->type != DATA_BLOCK_TYPE_3) {
+			fprintf(stderr, "Can't process block type %u. Skip block.\n", nffile_r->block_header->type);
 			continue;
 		}
 
@@ -360,7 +363,7 @@ char		outfile[MAXPATHLEN], *cfile;
 
 	PackExtensionMapList(extension_map_list);
 	if ( wfile != NULL )
-		CloseUpdateFile(nffile_w, nffile_r->file_header->ident);
+		CloseUpdateFile(nffile_w);
 
 	if ( nffile_r ) {
 		CloseFile(nffile_r);
@@ -430,7 +433,7 @@ char		CryptoPAnKey[32];
 
 	extension_map_list = InitExtensionMaps(NEEDS_EXTENSION_LIST);
 
-	SetupInputFileSequence(Mdirs, rfile, Rfile);
+	SetupInputFileSequence(Mdirs, rfile, Rfile, NULL);
 
 	process_data(wfile);
 

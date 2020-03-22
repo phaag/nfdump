@@ -405,7 +405,6 @@ char		*string;
 
 			/* loop over each records associated with this header */
 			for (i = 0; i < count; i++) {
-				pointer_addr_t	bsize;
 				uint64_t	packets, bytes;
 				void	*data_ptr;
 				uint8_t *s1, *s2;
@@ -621,19 +620,6 @@ char		*string;
 				common_record	= (common_record_t *)data_ptr;
 				ipv4_block		= (ipv4_block_t *)common_record->data;
 				
-				// buffer size sanity check - should never happen, but check it anyway
-				bsize = (pointer_addr_t)common_record - (pointer_addr_t)fs->nffile->block_header - sizeof(data_block_header_t);
-				if ( bsize >= BUFFSIZE ) {
-					LogError("### Software error ###: %s line %d", __FILE__, __LINE__);
-					LogError("Process_v5: Output buffer overflow! Flush buffer and skip records.");
-					LogError("Buffer size: size: %u, bsize: %llu > %u", fs->nffile->block_header->size, (unsigned long long)bsize, BUFFSIZE);
-					// reset buffer
-					fs->nffile->block_header->size 		= 0;
-					fs->nffile->block_header->NumRecords = 0;
-					fs->nffile->buff_ptr = (void *)((pointer_addr_t)fs->nffile->block_header + sizeof(data_block_header_t) );
-					return;
-				}
-
 			} // End of foreach v5 record
 
 		// update file record size ( -> output buffer size )

@@ -195,15 +195,13 @@ char				*rec;
 // nfdump variables
 nffile_t			*nffile;
 master_record_t	 record;
-char				*s;
 uint32_t			cnt;
 
-	s = "flow-tools";
-	nffile = OpenNewFile( wfile , NULL, compress, 0, s);
+	nffile = OpenNewFile( wfile , NULL, compress, NOT_ENCRYPTED);
 	if ( !nffile ) {
-		fprintf(stderr, "%s\n", s);
 		return 1;
 	}
+	SetIdent(nffile, "flow-tools");
 
 	AppendToBuffer(nffile, (void *)extension_info->map, extension_info->map->size);
 	

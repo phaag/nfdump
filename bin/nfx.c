@@ -564,7 +564,7 @@ uint64_t total_bytes;
 				total_bytes += ret;
 		}
 
-		if ( nffile->block_header->id != DATA_BLOCK_TYPE_2 ) {
+		if ( nffile->block_header->type != DATA_BLOCK_TYPE_2 ) {
 			skipped_blocks++;
 			continue;
 		}

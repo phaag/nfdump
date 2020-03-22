@@ -628,13 +628,14 @@ int err, done;
 	}
 
 	// prepare file
-	fs->nffile = OpenNewFile(fs->current, NULL, compress, 0, NULL);
+	fs->nffile = OpenNewFile(fs->current, NULL, compress, NOT_ENCRYPTED);
 	if ( !fs->nffile ) {
 		args->done = 1;
 		args->exit = 255;
    		pthread_kill(args->parent, SIGUSR1);
 		pthread_exit((void *)args);
 	}
+	SetIdent(fs->nffile, fs->Ident);
 
 	// init vars
 	fs->bad_packets		= 0;
@@ -731,11 +732,11 @@ int err, done;
 			// Flush Exporter Stat to file
 			FlushExporterStats(fs);
 			// Close file
-			CloseUpdateFile(nffile, fs->Ident);
+			CloseUpdateFile(nffile);
 	
 			// if rename fails, we are in big trouble, as we need to get rid of the old .current file
 			// otherwise, we will loose flows and can not continue collecting new flows
-			if ( !RenameAppend(fs->current, FullName) ) {
+			if ( rename(fs->current, FullName) < 0 ) {
 				LogError("Ident: %s, Can't rename dump file: %s", fs->Ident,  strerror(errno));
 				LogError("Ident: %s, Serious Problem! Fix manually", fs->Ident);
 	/* XXX
@@ -772,8 +773,8 @@ int err, done;
 	
 			t_start = t_clock - (t_clock % t_win);
 
-			nffile = OpenNewFile(fs->current, nffile, compress, 0, NULL);
-			if ( !nffile ) {
+			fs->nffile = OpenNewFile(fs->current, nffile, compress, NOT_ENCRYPTED);
+			if ( !fs->nffile ) {
 				LogError("Fatal: OpenNewFile() failed for ident: %s", fs->Ident);
 				args->done = 1;
 				args->exit = 255;

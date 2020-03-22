@@ -55,8 +55,6 @@
  *
  */
 
-extern char 	*CurrentIdent;
-
 #define MAXBLOCKS 1024
 
 static FilterBlock_t *FilterTree;
@@ -192,6 +190,8 @@ int	ret;
 		exit(255);
 	}
 	engine->nfrecord  = NULL;
+	engine->label	  = NULL;
+	engine->ident	  = NULL;
 	engine->StartNode = StartNode;
 	engine->Extended  = Extended;
 	engine->IdentList = IdentList;
@@ -468,7 +468,7 @@ int	evaluate, invert;
 				evaluate = comp_value[0] < comp_value[1];
 				break;
 			case CMP_IDENT:
-				evaluate = strncmp(CurrentIdent, engine->IdentList[comp_value[1]], IDENTLEN) == 0 ;
+				evaluate = engine->ident ? strncmp(engine->ident, engine->IdentList[comp_value[1]], IDENTLEN) == 0 : 0;
 				break;
 			case CMP_FLAGS:
 				if ( invert )

@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -46,6 +44,8 @@ char *GetSubDir(struct  tm *now);
 
 int SetupSubDir(char *dir, char *subdir, char *error, size_t errlen );
 
-nffile_t *GetNextFile(nffile_t *nffile, time_t twin_start, time_t twin_end);
+void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multiple_files, timeWindow_t *timeWindow);
+
+nffile_t *GetNextFile(nffile_t *nffile);
 
 #endif //_FLIST_H

@@ -79,22 +79,18 @@
 
 #define AGGR_SIZE 7
 
-/* Global Variables */
-FilterEngine_t	*Engine;
 
 extern char	*FilterFilename;
 extern uint32_t loopcnt;
 
 /* Local Variables */
+static FilterEngine_t	*Engine;
 const char *nfdump_version = VERSION;
 
 static uint64_t total_bytes;
 static uint32_t recordCount;
 static uint32_t skipped_blocks;
-static uint32_t	is_anonymized;
 static time_t 	t_first_flow, t_last_flow;
-static char		Ident[IDENTLEN];
-
 
 int hash_hit = 0; 
 int hash_miss = 0;
@@ -245,7 +241,7 @@ static void usage(char *name);
 static void PrintSummary(stat_record_t *stat_record, int plain_numbers, int csv_output);
 
 static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
-	printer_t print_record, time_t twin_start, time_t twin_end, 
+	printer_t print_record, timeWindow_t *timeWindow,
 	uint64_t limitRecords, int tag, int compress);
 
 /* Functions */
@@ -357,7 +353,7 @@ char 		bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_
 } // End of PrintSummary
 
 stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
-	printer_t print_record, time_t twin_start, time_t twin_end, 
+	printer_t print_record, timeWindow_t *timeWindow,
 	uint64_t limitRecords, int tag, int compress) {
 common_record_t 	*flow_record, *record_ptr;
 master_record_t		*master_record;
@@ -384,7 +380,7 @@ int 				done, write_file;
 	nffile_w = NULL;
 
 	// Get the first file handle
-	nffile_r = GetNextFile(NULL, twin_start, twin_end);
+	nffile_r = GetNextFile(NULL);
 	if ( !nffile_r ) {
 		LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		return stat_record;
@@ -398,16 +394,9 @@ int 				done, write_file;
 	t_first_flow = nffile_r->stat_record->first_seen;
 	t_last_flow  = nffile_r->stat_record->last_seen;
 
-	// store infos away for later use
-	// although multiple files may be processed, it is assumed that all 
-	// have the same settings
-	is_anonymized = IP_ANONYMIZED(nffile_r);
-	strncpy(Ident, nffile_r->file_header->ident, IDENTLEN);
-	Ident[IDENTLEN-1] = '\0';
-
 	// prepare output file if requested
 	if ( write_file ) {
-		nffile_w = OpenNewFile(wfile, NULL, compress, IP_ANONYMIZED(nffile_r), NULL );
+		nffile_w = OpenNewFile(wfile, NULL, compress, NOT_ENCRYPTED );
 		if ( !nffile_w ) {
 			if ( nffile_r ) {
 				CloseFile(nffile_r);
@@ -415,7 +404,9 @@ int 				done, write_file;
 			}
 			return stat_record;
 		}
+		SetIdent(nffile_w, nffile_r->ident);
 	}
+	Engine->ident = nffile_r->ident;
 
 	// setup Filter Engine to point to master_record, as any record read from file
 	// is expanded into this record
@@ -431,12 +422,12 @@ int 				done, write_file;
 			case NF_CORRUPT:
 			case NF_ERROR:
 				if ( ret == NF_CORRUPT ) 
-					LogError("Skip corrupt data file '%s'\n",GetCurrentFilename());
+					LogError("Skip corrupt data file '%s'\n",nffile_r->fileName);
 				else 
-					LogError("Read error in file '%s': %s\n",GetCurrentFilename(), strerror(errno) );
+					LogError("Read error in file '%s': %s\n",nffile_r->fileName, strerror(errno) );
 				// fall through - get next file in chain
 			case NF_EOF: {
-				nffile_t *next = GetNextFile(nffile_r, twin_start, twin_end);
+				nffile_t *next = GetNextFile(nffile_r);
 				if ( next == EMPTY_LIST ) {
 					done = 1;
 				} else if ( next == NULL ) {
@@ -450,6 +441,7 @@ int 				done, write_file;
 						t_last_flow = next->stat_record->last_seen;
 					// continue with next file
 				}
+				Engine->ident = nffile_r->ident;
 				continue;
 
 				} break; // not really needed
@@ -458,11 +450,12 @@ int 				done, write_file;
 				total_bytes += ret;
 		}
 
-		if ( nffile_r->block_header->id != DATA_BLOCK_TYPE_2 ) {
-			if ( nffile_r->block_header->id == DATA_BLOCK_TYPE_1 ) {
+		if ( nffile_r->block_header->type != DATA_BLOCK_TYPE_2 &&
+			 nffile_r->block_header->type != DATA_BLOCK_TYPE_3) {
+			if ( nffile_r->block_header->type == DATA_BLOCK_TYPE_1 ) {
 				LogError("nfdump 1.5.x block type 1 no longer supported. Skip block.\n");
 			} else {
-				LogError("Can't process block type %u. Skip block.\n", nffile_r->block_header->id);
+				LogError("Can't process block type %u. Skip block.\n", nffile_r->block_header->type);
 			}
 			skipped_blocks++;
 			continue;
@@ -508,7 +501,14 @@ int 				done, write_file;
 
 					// Time based filter
 					// if no time filter is given, the result is always true
-					match  = twin_start && (master_record->first < twin_start || master_record->last > twin_end) ? 0 : 1;
+					match = 1;
+					if ( timeWindow ) {
+						match = 0;
+						if (timeWindow->first && (master_record->first > timeWindow->first))
+							match = 1;
+						if (timeWindow->last && master_record->last < timeWindow->last )
+							match = 1;
+					}
 					match &= limitRecords ? recordCount <= limitRecords : 1;
 
 					// filter netflow record with user supplied filter
@@ -633,8 +633,8 @@ int 				done, write_file;
 		if ( write_file ) {
 			/* Copy stat info and close file */
 			memcpy((void *)nffile_w->stat_record, (void *)&stat_record, sizeof(stat_record_t));
-			CloseUpdateFile(nffile_w, nffile_r->file_header->ident );
-			nffile_w = DisposeFile(nffile_w);
+			CloseUpdateFile(nffile_w);
+			DisposeFile(nffile_w);
 		} // else stdout
 	}	 
 
@@ -649,6 +649,7 @@ int 				done, write_file;
 int main( int argc, char **argv ) {
 struct stat stat_buff;
 stat_record_t	sum_stat;
+timeWindow_t *timeWindow;
 printer_t 	print_record;
 func_prolog_t print_prolog;
 func_epilog_t print_epilog;
@@ -660,7 +661,6 @@ int 		c, ffd, ret, element_stat, fdump;
 int 		i, quiet, flow_stat, topN, aggregate, aggregate_mask, bidir;
 int 		print_stat, syntax_only, date_sorted, do_tag, compress;
 int			plain_numbers, GuessDir, pipe_output, csv_output, json_output, ModifyCompress;
-time_t 		t_start, t_end;
 uint32_t	limitRecords;
 char 		Ident[IDENTLEN];
 
@@ -669,13 +669,13 @@ char 		Ident[IDENTLEN];
 	fdump = aggregate = 0;
 	aggregate_mask	= 0;
 	bidir			= 0;
-	t_start = t_end = 0;
+	timeWindow		= NULL;
 	syntax_only	    = 0;
 	topN	        = -1;
 	flow_stat       = 0;
 	print_stat      = 0;
 	element_stat  	= 0;
-	limitRecords		= 0;
+	limitRecords	= 0;
 	date_sorted		= 0;
 	total_bytes		= 0;
 	recordCount		= 0;
@@ -687,7 +687,6 @@ char 		Ident[IDENTLEN];
 	pipe_output		= 0;
 	csv_output		= 0;
 	json_output		= 0;
-	is_anonymized	= 0;
 	GuessDir		= 0;
 	nameserver		= NULL;
 
@@ -902,7 +901,6 @@ char 		Ident[IDENTLEN];
 		usage(argv[0]);
 		exit(255);
 	} else {
-		/* user specified a pcap filter */
 		filter = argv[optind];
 		FilterFilename = NULL;
 	}
@@ -938,6 +936,11 @@ char 		Ident[IDENTLEN];
 		aggregate = 1;
 	}
 
+	if ( Mdirs == NULL && rfile == NULL && Rfile == NULL ) {
+		LogError("Need an input source -r/-R/-M - <stdin> invalid");
+		exit(255);
+	}
+
 	if ( rfile && Rfile ) {
 		LogError("-r and -R are mutually exclusive. Please specify either -r or -R\n");
 		exit(255);
@@ -952,7 +955,13 @@ char 		Ident[IDENTLEN];
 		exit(255);
 	}
 
-	SetupInputFileSequence(Mdirs, rfile, Rfile);
+	if ( tstring ) {
+		timeWindow = ScanTimeFrame(tstring);
+		if ( !timeWindow ) 
+			exit(255);
+	}
+
+	SetupInputFileSequence(Mdirs, rfile, Rfile, timeWindow);
 
 	if ( print_stat ) {
 		nffile_t *nffile;
@@ -964,16 +973,20 @@ char 		Ident[IDENTLEN];
 		memset((void *)&sum_stat, 0, sizeof(stat_record_t));
 		sum_stat.first_seen = 0x7fffffff;
 		sum_stat.msec_first = 999;
-		nffile = GetNextFile(NULL, 0, 0);
+		nffile = GetNextFile(NULL);
 		if ( !nffile ) {
 			LogError("Error open file: %s\n", strerror(errno));
 			exit(250);
 		}
+		char *ident = NULL;
+		if ( nffile->ident ) {
+			ident = strdup(nffile->ident);
+		}
 		while ( nffile && nffile != EMPTY_LIST ) {
 			SumStatRecords(&sum_stat, nffile->stat_record);
-			nffile = GetNextFile(nffile, 0, 0);
+			nffile = GetNextFile(nffile);
 		}
-		PrintStat(&sum_stat);
+		PrintStat(&sum_stat, ident);
 		exit(0);
 	}
 
@@ -1121,10 +1134,6 @@ char 		Ident[IDENTLEN];
 
 	SetLimits(element_stat || aggregate || flow_stat, packet_limit_string, byte_limit_string);
 
-	if ( tstring ) {
-		if ( !ScanTimeFrame(tstring, &t_start, &t_end) )
-			exit(255);
-	}
 
 
 	if ( !(flow_stat || element_stat || wfile || quiet ) && print_prolog ) {
@@ -1133,7 +1142,7 @@ char 		Ident[IDENTLEN];
 
 	nfprof_start(&profile_data);
 	sum_stat = process_data(wfile, element_stat, aggregate || flow_stat, print_order != NULL,
-						print_record, t_start, t_end, 
+						print_record, timeWindow, 
 						limitRecords, do_tag, compress);
 	nfprof_end(&profile_data, recordCount);
 	
@@ -1144,11 +1153,11 @@ char 		Ident[IDENTLEN];
 
 	if (aggregate || print_order) {
 		if ( wfile ) {
-			nffile_t *nffile = OpenNewFile(wfile, NULL, compress, is_anonymized, NULL);
+			nffile_t *nffile = OpenNewFile(wfile, NULL, compress, NOT_ENCRYPTED );
 			if ( !nffile ) 
 				exit(255);
 			if ( ExportFlowTable(nffile, aggregate, bidir, GuessDir, date_sorted, extension_map_list) ) {
-				CloseUpdateFile(nffile, Ident );	
+				CloseUpdateFile(nffile);	
 			} else {
 				CloseFile(nffile);
 				unlink(wfile);
@@ -1177,13 +1186,17 @@ char 		Ident[IDENTLEN];
 		if ( csv_output ) {
 			PrintSummary(&sum_stat, plain_numbers, csv_output);
 		} else if ( !wfile ) {
-			if (is_anonymized)
-				printf("IP addresses anonymised\n");
 			PrintSummary(&sum_stat, plain_numbers, csv_output);
 			if ( t_last_flow == 0 ) {
 				// in case of a pre 1.6.6 collected and empty flow file
  				printf("Time window: <unknown>\n");
 			} else {
+				if ( timeWindow ) {
+					if ( timeWindow->first && (timeWindow->first > t_first_flow))
+						t_first_flow = timeWindow->first;
+					if ( timeWindow->last && (timeWindow->last < t_last_flow))
+						t_last_flow = timeWindow->last;
+				}
  				printf("Time window: %s\n", TimeString(t_first_flow, t_last_flow));
 			}
 			printf("Total flows processed: %u, Blocks skipped: %u, Bytes read: %llu\n", 

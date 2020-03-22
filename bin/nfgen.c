@@ -220,7 +220,7 @@ nffile_t			*nffile;
 	}
 	memset((void *)&record, 0, sizeof(record));
 
-	nffile = OpenNewFile("-", NULL, NOT_COMPRESSED, 0, NULL);
+	nffile = OpenNewFile("flows.nf", NULL, NOT_COMPRESSED, NOT_ENCRYPTED);
 	if ( !nffile ) {
 		exit(255);
 	}
@@ -535,6 +535,10 @@ nffile_t			*nffile;
 		if ( WriteBlock(nffile) <= 0 ) {
 			fprintf(stderr, "Failed to write output buffer to disk: '%s'" , strerror(errno));
 		} 
+	}
+
+	if ( !CloseUpdateFile(nffile) ) {
+		return 255;
 	}
 
 	return 0;

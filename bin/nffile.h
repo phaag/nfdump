@@ -40,6 +40,8 @@
 #include <stdint.h>
 #endif
 
+#include "nffileV2.h"
+
 #define IDENTLEN	128
 #define IDENTNONE	"none"
 
@@ -48,11 +50,6 @@
 #define NF_CORRUPT		-2
 
 #define NF_DUMPFILE         "nfcapd.current"
-
-#define NOT_COMPRESSED 0
-#define LZO_COMPRESSED 1
-#define BZ2_COMPRESSED 2
-#define LZ4_COMPRESSED 3
 
 /* 
  * output buffer max size, before writing data to the file 
@@ -89,7 +86,7 @@
  */
 
 
-typedef struct file_header_s {
+typedef struct fileHeaderV1_s {
 	uint16_t	magic;				// magic to recognize nfdump file type and endian type
 #define MAGIC 0xA50C
 
@@ -107,11 +104,11 @@ typedef struct file_header_s {
 #define COMPRESSION_MASK	0x19	// all compression bits
 // shortcuts
 
-#define FILE_IS_NOT_COMPRESSED(n) (((n)->file_header->flags & COMPRESSION_MASK) == 0)
-#define FILE_IS_LZO_COMPRESSED(n) ((n)->file_header->flags & FLAG_LZO_COMPRESSED)
-#define FILE_IS_BZ2_COMPRESSED(n) ((n)->file_header->flags & FLAG_BZ2_COMPRESSED)
-#define FILE_IS_LZ4_COMPRESSED(n) ((n)->file_header->flags & FLAG_LZ4_COMPRESSED)
-#define FILE_COMPRESSION(n) (FILE_IS_LZO_COMPRESSED(n) ? LZO_COMPRESSED : (FILE_IS_BZ2_COMPRESSED(n) ? BZ2_COMPRESSED : (FILE_IS_LZ4_COMPRESSED(n) ? LZ4_COMPRESSED : NOT_COMPRESSED)))
+#define FILE_IS_NOT_COMPRESSED(n) (((n)->flags & COMPRESSION_MASK) == 0)
+#define FILE_IS_LZO_COMPRESSED(n) ((n)->flags & FLAG_LZO_COMPRESSED)
+#define FILE_IS_BZ2_COMPRESSED(n) ((n)->flags & FLAG_BZ2_COMPRESSED)
+#define FILE_IS_LZ4_COMPRESSED(n) ((n)->flags & FLAG_LZ4_COMPRESSED)
+#define FILEV1_COMPRESSION(n) (FILE_IS_LZO_COMPRESSED(n) ? LZO_COMPRESSED : (FILE_IS_BZ2_COMPRESSED(n) ? BZ2_COMPRESSED : (FILE_IS_LZ4_COMPRESSED(n) ? LZ4_COMPRESSED : NOT_COMPRESSED)))
 
 #define BLOCK_IS_COMPRESSED(n) ((n)->flags == 2 )
 #define IP_ANONYMIZED(n) ((n)->file_header->flags & FLAG_ANONYMIZED)
@@ -119,7 +116,7 @@ typedef struct file_header_s {
 							
 	uint32_t	NumBlocks;			// number of data blocks in file
 	char		ident[IDENTLEN];	// string identifier for this file
-} file_header_t;
+} fileHeaderV1_t;
 
 /* 
  * In file layout format 1: After the file header an 
@@ -178,22 +175,30 @@ typedef struct data_block_header_s {
 	uint16_t	flags;			// 0 - compatibility
 								// 1 - block uncompressed
 								// 2 - block compressed
-} data_block_header_t;
+} data_block_headerV1_t;
 
 /*
  * Generic file handle for reading/writing files
  * if a file is read only writeto and block_header are NULL
  */
 typedef struct nffile_s {
-	file_header_t		*file_header;	// file header
+	fileHeaderV2_t		*file_header;	// file header
+	int					fd;				// associated file descriptor
+
 #define NUM_BUFFS 2
-	void				*buff_pool[NUM_BUFFS];	// buffer space for read/write/compression 
 	size_t				buff_size;
-	data_block_header_t	*block_header;	// buffer ptr
+	void				*buff_pool[NUM_BUFFS];	// buffer space for read/write/compression 
+	dataBlock_t			*block_header;	// buffer ptr
 	void				*buff_ptr;		// pointer into buffer for read/write blocks/records
+
 	stat_record_t 		*stat_record;	// flow stat record
-	int					fd;				// file descriptor
+	char				*ident;			// source identifier
+	char				*fileName;		// file name
+
+	uint32_t			blockCount;		// number of blocks read
 } nffile_t;
+
+#define FILE_IDENT(n)	((n)->ident)
 
 /* 
  * The block type 2 contains a common record and multiple extension records. This allows a more flexible data
@@ -244,32 +249,33 @@ void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
 nffile_t *OpenFile(char *filename, nffile_t *nffile);
 
-nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int compress, int anonymized, char *ident);
+nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int compress, int encryption);
 
 nffile_t *AppendFile(char *filename);
 
 int ChangeIdent(char *filename, char *Ident);
 
-void PrintStat(stat_record_t *s);
+void PrintStat(stat_record_t *s, char *ident);
 
 void QueryFile(char *filename);
 
-stat_record_t *GetStatRecord(char *filename, stat_record_t *stat_record);
+int GetStatRecord(char *filename, stat_record_t *stat_record);
 
-nffile_t *DisposeFile(nffile_t *nffile);
+void DisposeFile(nffile_t *nffile);
 
 void CloseFile(nffile_t *nffile);
 
-int CloseUpdateFile(nffile_t *nffile, char *ident);
+int FlushFile(nffile_t *nffile);
+
+int CloseUpdateFile(nffile_t *nffile);
 
 int ReadBlock(nffile_t *nffile);
 
 int WriteBlock(nffile_t *nffile);
 
-int RenameAppend(char *from, char *to);
+void SetIdent(nffile_t *nffile, char *Ident);
 
 void ModifyCompressFile(char * rfile, char *Rfile, int compress);
-
 
 #endif //_NFFILE_H
 

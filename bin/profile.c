@@ -50,12 +50,12 @@
 
 #include <rrd.h>
 
+#include "util.h"
 #include "rbtree.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfstatfile.h"
 #include "flist.h"
-#include "util.h"
 #include "nftree.h"
 #include "profile.h"
 
@@ -67,7 +67,6 @@ static char influxdb_measurement[]="nfsen_stats";
 
 /* imported vars */
 extern char yyerror_buff[256];
-extern uint32_t is_anonymized;
 extern char Ident[IDENTLEN];
 
 static profile_channel_info_t *profile_channels;
@@ -304,10 +303,11 @@ nffile_t *nffile;
 
 		ofile = strdup(path);
 	
-		nffile = OpenNewFile(path, NULL, compress, 0, NULL);
+		nffile = OpenNewFile(path, NULL, compress, NOT_ENCRYPTED);
 		if ( !nffile ) {
 			return;
 		}
+		SetIdent(nffile, Ident);
 	} 
 
 	snprintf(path, MAXPATHLEN-1, "%s/%s/%s/%s.rrd", 
@@ -358,10 +358,9 @@ unsigned int num;
 	for ( num = 0; num < num_channels; num++ ) {
 		if ( profile_channels[num].ofile ) {
 
-			if ( is_anonymized ) 
-				SetFlag(profile_channels[num].nffile->file_header->flags, FLAG_ANONYMIZED);
-			CloseUpdateFile(profile_channels[num].nffile, Ident);
-			profile_channels[num].nffile = DisposeFile(profile_channels[num].nffile);
+			CloseUpdateFile(profile_channels[num].nffile);
+			DisposeFile(profile_channels[num].nffile);
+			profile_channels[num].nffile = NULL;
 
 			stat(profile_channels[num].ofile, &fstat);
 			ReadStatInfo(profile_channels[num].dirstat_path, &dirstat, CREATE_AND_LOCK);

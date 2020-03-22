@@ -65,13 +65,13 @@
 /* externals */
 extern exporter_t **exporter_list;
 
+/* Global */
+char Ident[IDENTLEN];
+
 /* Local Variables */
 static const char *nfdump_version = VERSION;
 
-
 extension_map_list_t *extension_map_list;
-uint32_t is_anonymized;
-char Ident[IDENTLEN];
 
 #ifdef HAVE_INFLUXDB
 	char influxdb_url[1024]="";
@@ -116,7 +116,7 @@ nffile_t		*nffile;
 FilterEngine_t	*engine;
 int 		i, j, done, ret ;
 
-	nffile = GetNextFile(NULL, 0, 0);
+	nffile = GetNextFile(NULL);
 	if ( !nffile ) {
 		LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		return;
@@ -126,12 +126,12 @@ int 		i, j, done, ret ;
 		return;
 	}
 
-	// store infos away for later use
-	// although multiple files may be processed, it is assumed that all 
-	// have the same settings
-	is_anonymized = IP_ANONYMIZED(nffile);
-	strncpy(Ident, nffile->file_header->ident, IDENTLEN);
-	Ident[IDENTLEN-1] = '\0';
+
+    strncpy(Ident, FILE_IDENT(nffile), IDENTLEN);
+    Ident[IDENTLEN-1] = '\0';
+	for ( int j=0; j < num_channels; j++ ) {
+		(channels[j].engine)->ident = Ident;
+	}
 
 	done = 0;
 	while ( !done ) {
@@ -143,12 +143,12 @@ int 		i, j, done, ret ;
 			case NF_CORRUPT:
 			case NF_ERROR:
 				if ( ret == NF_CORRUPT ) 
-					LogError("Skip corrupt data file '%s'\n",GetCurrentFilename());
+					LogError("Skip corrupt data file '%s'\n", nffile->fileName);
 				else 
-					LogError("Read error in file '%s': %s\n",GetCurrentFilename(), strerror(errno) );
+					LogError("Read error in file '%s': %s\n", nffile->fileName, strerror(errno) );
 				// fall through - get next file in chain
 			case NF_EOF: {
-				nffile_t *next = GetNextFile(nffile, 0, 0);
+				nffile_t *next = GetNextFile(nffile);
 				if ( next == EMPTY_LIST ) {
 					done = 1;
 				}
@@ -156,13 +156,19 @@ int 		i, j, done, ret ;
 					done = 1;
 					LogError("Unexpected end of file list\n");
 				}
+    			strncpy(Ident, FILE_IDENT(nffile), IDENTLEN);
+    			Ident[IDENTLEN-1] = '\0';
+				for ( int j=0; j < num_channels; j++ ) {
+					(channels[j].engine)->ident = Ident;
+				}
 				continue;
 	
 				} break; // not really needed
 		}
 
-		if ( nffile->block_header->id != DATA_BLOCK_TYPE_2 ) {
-			LogError("Can't process block type %u. Skip block.\n", nffile->block_header->id);
+		if ( nffile->block_header->type != DATA_BLOCK_TYPE_2 && 
+			 nffile->block_header->type != DATA_BLOCK_TYPE_3) {
+			LogError("Can't process block type %u. Skip block.\n", nffile->block_header->type);
 			continue;
 		}
 
@@ -490,10 +496,6 @@ time_t tslot;
 	profile_list	= NULL;
 	nameserver		= NULL;
 	stdin_profile_params = 0;
-	is_anonymized	= 0;
-
-	strncpy(Ident, "none", IDENTLEN);
-	Ident[IDENTLEN-1] = '\0';
 
 	// default file names
 	ffile = "filter.txt";
@@ -653,7 +655,7 @@ time_t tslot;
 		exit(255);
 	}
 
-	SetupInputFileSequence(Mdirs,rfile, NULL);
+	SetupInputFileSequence(Mdirs,rfile, NULL, NULL);
 
 	process_data(GetChannelInfoList(), num_channels, tslot);
 

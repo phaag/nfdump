@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -72,6 +72,7 @@ typedef struct FilterEngine_data_s {
 	char			**IdentList;
 	uint64_t		*nfrecord;
 	char			*label;
+	char			*ident;
 	int (*FilterEngine)(struct FilterEngine_data_s *);
 } FilterEngine_t;
 

@@ -214,15 +214,17 @@ static struct entry_filter_s {
 
 #define NUM_PTR 16
 
-// globals
-extern uint32_t	twin_first, twin_last;
+// module variables
+static timeWindow_t globalWindow;
+static timeWindow_t *searchWindow = NULL;
 
-static char		*first_file, *last_file;
-static char		*current_file = NULL;
+static char	*first_file = NULL;
+static char *last_file  = NULL;
+
 static stringlist_t source_dirs, file_list;
 
 /* Function prototypes */
-static inline int CheckTimeWindow(uint32_t t_start, uint32_t t_end, stat_record_t *stat_record);
+static int CheckTimeWindow(stat_record_t *stat_record);
 
 static void GetFileList(char *path);
 
@@ -277,32 +279,29 @@ size_t	len;
 
 } // End of CleanPath
 
-static inline int CheckTimeWindow(uint32_t t_start, uint32_t t_end, stat_record_t *stat_record) {
+static int CheckTimeWindow(stat_record_t *stat_record) {
 
-/*
-	printf("t start %u %s", t_start, ctime(&t_start));
-	printf("t end   %u %s", t_end, ctime(&t_end));
-	printf("f start %u %s", NetflowStat.first_seen, ctime(&NetflowStat.first_seen));
-	printf("f end   %u %s", NetflowStat.last_seen, ctime(&NetflowStat.last_seen));
-*/
-
-	// if no time window is set, return true
-	if ( t_start == 0 )
+	// no time search window set
+	if ( !searchWindow ) 
 		return 1;
 
-	if ( stat_record->first_seen == 0 )
+	int ok = 1;
+
+	// can/need to check first ?
+	if ( searchWindow->first && globalWindow.first )
+		ok = stat_record->first_seen < searchWindow->first;
+	
+	if ( !ok )
 		return 0;
 
-	if ( t_start >= stat_record->first_seen  && t_start <= stat_record->last_seen ) 
-		return 1;
+	// can/need to check first ?
+	if ( searchWindow->last && globalWindow.last )
+		ok = stat_record->last_seen > searchWindow->last;
+	
+	if ( !ok )
+		return 0;
 
-	if ( t_end >= stat_record->first_seen  && t_end <= stat_record->last_seen ) 
-		return 1;
-
-	if ( t_start < stat_record->first_seen  && t_end > stat_record->last_seen ) 
-		return 1;
-
-	return 0;
+	return 1;
 
 } // End of CheckTimeWindow
 
@@ -886,10 +885,11 @@ char	path[MAXPATHLEN];
 
 } // End of Getsource_dirs
 
-void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multiple_files) {
+void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multiple_files, timeWindow_t *timeWindow) {
 
-	twin_first  = 0;
-	twin_last   = 0xffffffff;
+	globalWindow.first  = 0xffffffff;
+	globalWindow.last   = 0;
+	searchWindow = timeWindow;
 
 	first_file 	= NULL;
 	last_file  	= NULL;
@@ -905,35 +905,38 @@ void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multip
 		GetFileList(multiple_files);
 
 		// get time window spanning all the files 
-		if ( file_list.num_strings ) {
+		if ( timeWindow && file_list.num_strings ) {
 			stat_record_t stat_ptr;
 
 			// read the stat record
 			if ( !GetStatRecord(file_list.list[0], &stat_ptr) ) {
 				exit(250);
 			}
-			twin_first = stat_ptr.first_seen;
+			globalWindow.first = stat_ptr.first_seen;
 
 			// read the stat record of last file
 			if ( !GetStatRecord(file_list.list[file_list.num_strings-1], &stat_ptr) ) {
 				exit(250);
 			}
-			twin_last  = stat_ptr.last_seen;
+			globalWindow.last  = stat_ptr.last_seen;
 		}
 
 	} else if ( single_file ) {
 		CleanPath(single_file);
 
 		if ( source_dirs.num_strings == 0 ) {
+			// single file -r
 			stat_record_t stat_ptr;
 			InsertString(&file_list, single_file);
-			if ( !GetStatRecord(single_file, &stat_ptr) ) {
-				exit(250);
+			if ( timeWindow ) {
+				if ( !GetStatRecord(single_file, &stat_ptr) ) {
+					exit(250);
+				}
+				globalWindow.first = stat_ptr.first_seen;
+				globalWindow.last  = stat_ptr.last_seen;
 			}
-			twin_first = stat_ptr.first_seen;
-			twin_last  = stat_ptr.last_seen;
-
 		} else {
+			// single file -r in multiple dirs -M
 			int i;
 
 			if ( single_file[0] == '/' ) {
@@ -956,11 +959,15 @@ void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multip
 							snprintf(s, MAXPATHLEN-1, "%s/%s/%s", source_dirs.list[i], sub_dir, single_file);
 							s[MAXPATHLEN-1] = '\0';
 							InsertString(&file_list, s);
-							if ( !GetStatRecord(s, &stat_ptr) ) {
-								exit(250);
+							if ( timeWindow ) {
+								if ( !GetStatRecord(s, &stat_ptr) ) {
+									exit(250);
+								}
+								if ( stat_ptr.first_seen < globalWindow.first ) 
+									globalWindow.first = stat_ptr.first_seen;
+								if ( stat_ptr.last_seen > globalWindow.last ) 
+									globalWindow.last  = stat_ptr.last_seen;
 							}
-							twin_first = stat_ptr.first_seen;
-							twin_last  = stat_ptr.last_seen;
 						} else {	// no subdir found
 							fprintf(stderr, "stat() error '%s': %s\n", s, "File not found!");
 						}
@@ -974,12 +981,13 @@ void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multip
 					} else {
 						stat_record_t stat_ptr;
 						InsertString(&file_list, s);
-						if ( !GetStatRecord(s, &stat_ptr) ) {
-							exit(250);
+						if ( timeWindow ) {
+							if ( !GetStatRecord(s, &stat_ptr) ) {
+								exit(250);
+							}
+							globalWindow.first = stat_ptr.first_seen;
+							globalWindow.last  = stat_ptr.last_seen;
 						}
-						twin_first = stat_ptr.first_seen;
-						twin_last  = stat_ptr.last_seen;
-				
 					}
 				}
 			}
@@ -988,20 +996,26 @@ void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multip
 	} else // else use stdin
 		InsertString(&file_list, NULL);
 
+	// if relative time window, calculate abosulte time
+	if ( timeWindow ) {
+		if ( timeWindow->first && timeWindow->first <= 86400 ) {
+			timeWindow->last = globalWindow.first + timeWindow->first;
+			timeWindow->first = 0;
+		}
+		if ( timeWindow->last && timeWindow->last <= 86400 ) {
+			timeWindow->first = globalWindow.last - timeWindow->last;
+			timeWindow->last = 0;
+		}
+	}
 } // End of SetupInputFileSequence
 
-char *GetCurrentFilename(void) {
-	return current_file;
-} // End of GetCurrentFilename
-
-nffile_t *GetNextFile(nffile_t *nffile, time_t twin_start, time_t twin_end) {
+nffile_t *GetNextFile(nffile_t *nffile) {
 static int cnt;
 
 	// close current file before open the next one
 	// stdin ( current = 0 ) is not closed
 	if ( nffile ) {
 		CloseFile(nffile);
-		current_file = NULL;
 	} else {
 		// is it first time init ?
 		cnt  = 0;
@@ -1009,7 +1023,6 @@ static int cnt;
 
 	// no or no more files available
 	if ( file_list.num_strings == cnt ) {
-		current_file = NULL;
 		return EMPTY_LIST;
 	}
 	
@@ -1022,23 +1035,24 @@ static int cnt;
 		if ( !nffile ) {
 			return NULL;
 		}
-		current_file = file_list.list[cnt];
 		cnt++;
 
 		// stdin
 		if ( nffile->fd == STDIN_FILENO ) {
-			current_file = NULL;
 			return nffile;
 		}
 
-		if ( CheckTimeWindow(twin_start, twin_end, nffile->stat_record) ) {
-			// printf("Return file: %s\n", string);
+		if ( searchWindow ) {
+			if ( CheckTimeWindow(nffile->stat_record) ) {
+				// printf("Return file: %s\n", string);
+				return nffile;
+			} 
+			CloseFile(nffile);
+		} else {
 			return nffile;
-		} 
-		CloseFile(nffile);
+		}
 	}
 
-	current_file = NULL;
 	return EMPTY_LIST;
 
 } // End of GetNextFile

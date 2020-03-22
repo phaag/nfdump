@@ -1937,19 +1937,6 @@ char				*string;
 		size_left 		   -= table->input_record_size;
 		in  	  		   += table->input_record_size;
 
-		// buffer size sanity check
-		if ( fs->nffile->block_header->size  > BUFFSIZE ) {
-			// should never happen
-			LogError("### Software error ###: %s line %d", __FILE__, __LINE__);
-			LogError("Process v9: Output buffer overflow! Flush buffer and skip records.");
-			LogError("Buffer size: %u > %u", fs->nffile->block_header->size, BUFFSIZE);
-
-			// reset buffer
-			fs->nffile->block_header->size 		= 0;
-			fs->nffile->block_header->NumRecords = 0;
-			fs->nffile->buff_ptr = (void *)((pointer_addr_t)fs->nffile->block_header + sizeof(data_block_header_t) );
-			return;
-		}
 	}
 
 } // End of Process_v9_data
