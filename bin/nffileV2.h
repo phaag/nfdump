@@ -90,13 +90,10 @@ typedef struct fileHeaderV2_s {
  */
 
 typedef struct dataBlock_s {
-	uint32_t	NumRecords;		// number of data records in data block
+	uint32_t	type;			// Block type
+#define TYPE_STAT_BLOCK 1
+#define TYPE_RECORD_BLOCK 2
 	uint32_t	size;			// size of this block in bytes without this header
-	uint16_t	id;				// Block ID == DATA_BLOCK_TYPE_3
-#define DATA_BLOCK_TYPE_3 3
-	uint16_t	flags;
-#define FLAG_BLOCK_COMPRESSED 1
-// Bit 0 - 0: uncompressed data, 1: compressed data
 } dataBlock_t;
 
 /*

@@ -163,7 +163,7 @@ extension_map_t	*extension_map = r->map_ref;
 "  (src)tos     =               %3u\n"
 "  (in)packets  =        %10llu\n"
 "  (in)bytes    =        %10llu\n",
-	r->fwd_status, r->tcp_flags, FlagsString(r->tcp_flags), r->prot, ProtoString(r->prot), r->tos,
+	r->fwd_status, r->tcp_flags, FlagsString(r->tcp_flags), r->prot, ProtoString(r->prot, 0), r->tos,
 		(unsigned long long)r->dPkts, (unsigned long long)r->dOctets);
 
 	_slen = strlen(data_string);

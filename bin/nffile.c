@@ -1053,14 +1053,6 @@ uint32_t compression;
 	// check block compression - defaults to file compression setting
 
 	compression = FILE_COMPRESSION(nffile);
-	// block type 1/2 does not honour the compression flag and inherites 
-	// the file compression settings - thes block types are depricated
-	if ( nffile->block_header->id == DATA_BLOCK_TYPE_3 ) {
-		if ( !TestFlag(nffile->block_header->flags, FLAG_BLOCK_COMPRESSED ) )
-			compression = NOT_COMPRESSED;
-		// else block compressed.
-	} 
-
 	ret = read(nffile->fd, nffile->buff_ptr, nffile->block_header->size);
 	if ( ret == nffile->block_header->size ) {
 		// we have the whole record and are done for now

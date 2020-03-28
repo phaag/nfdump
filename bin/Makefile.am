@@ -37,7 +37,8 @@ output =  output_util.h output_util.c output_raw.h output_raw.c
 output += output_json.c output_json.h output_csv.c output_csv.h output_pipe.c output_pipe.h
 output += output_fmt.c output_fmt.h 
 util = util.c util.h
-filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h nffile.c nffile.h nfx.c nfx.h 
+filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h 
+nffile = nffile.c nffile.h nfx.c nfx.h 
 nflist = flist.c flist.h fts_compat.c fts_compat.h
 filter = grammar.y scanner.l nftree.c nftree.h ipconv.c ipconv.h rbtree.h
 exporter = exporter.c exporter.h
@@ -61,7 +62,7 @@ expire= expire.c expire.h
 launch = launch.c launch.h
 
 lib_LTLIBRARIES = libnfdump.la
-libnfdump_la_SOURCES = $(output) $(util) $(filelzo) $(nflist) $(filter) $(exporter)
+libnfdump_la_SOURCES = $(output) $(util) $(filelzo) $(nffile) $(nflist) $(filter) $(exporter)
 libnfdump_la_LDFLAGS = -release 1.6.19
 
 

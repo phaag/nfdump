@@ -44,7 +44,7 @@ typedef struct printmap_s {
 } printmap_t;
 
 
-char *ProtoString(uint8_t protoNum);
+char *ProtoString(uint8_t protoNum, uint32_t plainNumbers);
 
 int ProtoNum(char *protoString);
 
