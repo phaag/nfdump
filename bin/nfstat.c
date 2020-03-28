@@ -461,7 +461,7 @@ static void PrintStatLine(stat_record_t	*stat, uint32_t plain_numbers, StatRecor
 
 static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
 
-static void PrintCvsStatLine(stat_record_t	*stat, plain_numbers, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
+static void PrintCvsStatLine(stat_record_t	*stat, int plain_numbers, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
 
 static inline int TimeMsec_CMP(time_t t1, uint16_t offset1, time_t t2, uint16_t offset2 );
 
@@ -1332,7 +1332,7 @@ int			af;
 
 } // End of PrintPipeStatLine
 
-static void PrintCvsStatLine(stat_record_t	*stat, plain_numbers, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
+static void PrintCvsStatLine(stat_record_t	*stat, int plain_numbers, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
 char		valstr[40], datestr1[64], datestr2[64];
 uint64_t	count_flows, count_packets, count_bytes;
 double		duration, flows_percent, packets_percent, bytes_percent;
