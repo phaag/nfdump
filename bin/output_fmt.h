@@ -52,7 +52,7 @@ void text_prolog(void);
 
 void text_epilog(void);
 
-int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap);
+int ParseOutputFormat(char *format, int printPlain, printmap_t *printmap);
 
 void format_special(void *record, char ** s, int tag);
 

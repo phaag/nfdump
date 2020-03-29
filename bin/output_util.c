@@ -185,10 +185,10 @@ static char *protoList[NumProtos] = {
 	"MPLS"    // 137	MPLS-in-IP 
 };
 
-char *ProtoString(uint8_t protoNum, uint32_t plainNumbers) {
+char *ProtoString(uint8_t protoNum, uint32_t printPlain) {
 static char s[16];
 
-	if ( protoNum >= NumProtos || plainNumbers) {
+	if ( protoNum >= NumProtos || printPlain) {
 		snprintf(s,15,"%-5i", protoNum );
 		s[15] = '\0';
 		return s;

@@ -1,3 +1,6 @@
+2020-03-29
+- More cleanup on plain number printing
+
 2020-03-28
 - Fix plain numbers bug #213
 - Fix profiler filer but

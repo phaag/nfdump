@@ -72,7 +72,7 @@ static int	format_index		= 0;
 
 static int		do_tag 		 = 0;
 static int 		long_v6 	 = 0;
-static int		printPlain	 = 1;
+static int		printPlain	 = 0;
 static double	duration;
 
 #define STRINGSIZE 10240
@@ -538,7 +538,7 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
 char *c, *s, *h;
 int	i, remaining;
 
-	printPlain = plain_numbers == 0;
+	printPlain = plain_numbers;
 
 	InitFormatParser();
 	

@@ -242,7 +242,7 @@ printmap_t printmap[] = {
 /* Function Prototypes */
 static void usage(char *name);
 
-static void PrintSummary(stat_record_t *stat_record, int plain_numbers, int csv_output);
+static void PrintSummary(stat_record_t *stat_record, int printPlain, int csv_output);
 
 static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
 	printer_t print_record, time_t twin_start, time_t twin_end, 
@@ -313,7 +313,7 @@ static void flow_record_to_null(void *record, char ** s, int tag) {
 	// empty - do not list any flows
 } // End of flow_record_to_null
 
-static void PrintSummary(stat_record_t *stat_record, int plain_numbers, int csv_output) {
+static void PrintSummary(stat_record_t *stat_record, int printPlain, int csv_output) {
 static double	duration;
 uint64_t	bps, pps, bpp;
 char 		byte_str[NUMBER_STRING_SIZE], packet_str[NUMBER_STRING_SIZE];
@@ -339,17 +339,19 @@ char 		bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_
 			(long long unsigned)stat_record->numflows, (long long unsigned)stat_record->numbytes, 
 			(long long unsigned)stat_record->numpackets, (long long unsigned)bps, 
 			(long long unsigned)pps, (long long unsigned)bpp );
-	} else if ( plain_numbers ) {
+/*
+	} else if ( printPlain ) {
 		printf("Summary: total flows: %llu, total bytes: %llu, total packets: %llu, avg bps: %llu, avg pps: %llu, avg bpp: %llu\n",
 			(long long unsigned)stat_record->numflows, (long long unsigned)stat_record->numbytes, 
 			(long long unsigned)stat_record->numpackets, (long long unsigned)bps, 
 			(long long unsigned)pps, (long long unsigned)bpp );
+*/
 	} else {
-		format_number(stat_record->numbytes, byte_str, DO_SCALE_NUMBER, VAR_LENGTH);
-		format_number(stat_record->numpackets, packet_str, DO_SCALE_NUMBER, VAR_LENGTH);
-		format_number(bps, bps_str, DO_SCALE_NUMBER, VAR_LENGTH);
-		format_number(pps, pps_str, DO_SCALE_NUMBER, VAR_LENGTH);
-		format_number(bpp, bpp_str, DO_SCALE_NUMBER, VAR_LENGTH);
+		format_number(stat_record->numbytes, byte_str, printPlain, VAR_LENGTH);
+		format_number(stat_record->numpackets, packet_str, printPlain, VAR_LENGTH);
+		format_number(bps, bps_str, printPlain, VAR_LENGTH);
+		format_number(pps, pps_str, printPlain, VAR_LENGTH);
+		format_number(bpp, bpp_str, printPlain, VAR_LENGTH);
 		printf("Summary: total flows: %llu, total bytes: %s, total packets: %s, avg bps: %s, avg pps: %s, avg bpp: %s\n",
 		(unsigned long long)stat_record->numflows, byte_str, packet_str, bps_str, pps_str, bpp_str );
 	}
@@ -659,7 +661,7 @@ char		*print_order, *query_file, *nameserver, *aggr_fmt;
 int 		c, ffd, ret, element_stat, fdump;
 int 		i, quiet, flow_stat, topN, aggregate, aggregate_mask, bidir;
 int 		print_stat, syntax_only, date_sorted, do_tag, compress;
-int			plain_numbers, GuessDir, pipe_output, csv_output, json_output, ModifyCompress;
+int			printPlain, GuessDir, pipe_output, csv_output, json_output, ModifyCompress;
 time_t 		t_start, t_end;
 uint32_t	limitRecords;
 char 		Ident[IDENTLEN];
@@ -683,7 +685,7 @@ char 		Ident[IDENTLEN];
 	do_tag			= 0;
 	quiet			= 0;
 	compress		= NOT_COMPRESSED;
-	plain_numbers   = 0;
+	printPlain		= 0;
 	pipe_output		= 0;
 	csv_output		= 0;
 	json_output		= 0;
@@ -805,7 +807,7 @@ char 		Ident[IDENTLEN];
 				byte_limit_string = optarg;
 				break;
 			case 'N':
-				plain_numbers = 1;
+				printPlain = 1;
 				break;
 			case 'f':
 				ffile = optarg;
@@ -1000,7 +1002,7 @@ char 		Ident[IDENTLEN];
 		// special user defined output format
 		char *format = &print_format[4];
 		if ( strlen(format) ) {
-			if ( !ParseOutputFormat(format, plain_numbers, printmap) )
+			if ( !ParseOutputFormat(format, printPlain, printmap) )
 				exit(255);
 			print_record  = format_special;
 			print_prolog  = text_prolog;
@@ -1025,7 +1027,7 @@ char 		Ident[IDENTLEN];
 		while ( printmap[i].printmode ) {
 			if ( strncasecmp(print_format, printmap[i].printmode, MAXMODELEN) == 0 ) {
 				if ( printmap[i].Format ) {
-					if ( !ParseOutputFormat(printmap[i].Format, plain_numbers, printmap) )
+					if ( !ParseOutputFormat(printmap[i].Format, printPlain, printmap) )
 						exit(255);
 					// predefined custom format
 					print_record  = printmap[i].func_record;
@@ -1167,7 +1169,7 @@ char 		Ident[IDENTLEN];
 	} 
 
 	if (element_stat) {
-		PrintElementStat(&sum_stat, plain_numbers, print_record, topN, do_tag, quiet, pipe_output, csv_output);
+		PrintElementStat(&sum_stat, printPlain, print_record, topN, do_tag, quiet, pipe_output, csv_output);
 	} 
 
 	if ( print_epilog ) {
@@ -1175,11 +1177,11 @@ char 		Ident[IDENTLEN];
 	}
 	if ( !quiet && !json_output ) {
 		if ( csv_output ) {
-			PrintSummary(&sum_stat, plain_numbers, csv_output);
+			PrintSummary(&sum_stat, printPlain, csv_output);
 		} else if ( !wfile ) {
 			if (is_anonymized)
 				printf("IP addresses anonymised\n");
-			PrintSummary(&sum_stat, plain_numbers, csv_output);
+			PrintSummary(&sum_stat, printPlain, csv_output);
 			if ( t_last_flow == 0 ) {
 				// in case of a pre 1.6.6 collected and empty flow file
  				printf("Time window: <unknown>\n");

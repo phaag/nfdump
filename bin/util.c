@@ -536,10 +536,10 @@ void InsertString(stringlist_t *list, char *string) {
 
 } // End of InsertString
 
-void format_number(uint64_t num, char *s, int scale, int fixed_width) {
+void format_number(uint64_t num, char *s, int printPlain, int fixed_width) {
 double f = num;
 
-	if ( !scale ) {
+	if ( printPlain ) {
 		snprintf(s, 31, "%llu", (long long unsigned)num);
 	} else {
 

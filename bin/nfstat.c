@@ -457,11 +457,11 @@ static void Expand_StatTable_Blocks(int hash_num);
 static inline void PrintSortedFlowcache(SortElement_t *SortList, uint32_t maxindex, int limit_count, int GuessFlowDirection, 
 	printer_t print_record, int tag, int ascending, extension_map_list_t *extension_map_list );
 
-static void PrintStatLine(stat_record_t	*stat, uint32_t plain_numbers, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
+static void PrintStatLine(stat_record_t	*stat, uint32_t printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
 
 static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
 
-static void PrintCvsStatLine(stat_record_t	*stat, int plain_numbers, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
+static void PrintCvsStatLine(stat_record_t	*stat, int printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
 
 static inline int TimeMsec_CMP(time_t t1, uint16_t offset1, time_t t2, uint16_t offset2 );
 
@@ -1121,7 +1121,7 @@ int	j, i;
 
 } // End of AddStat
 
-static void PrintStatLine(stat_record_t	*stat, uint32_t plain_numbers, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
+static void PrintStatLine(stat_record_t	*stat, uint32_t printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
 char		valstr[40], datestr[64];
 char		flows_str[NUMBER_STRING_SIZE], byte_str[NUMBER_STRING_SIZE], packets_str[NUMBER_STRING_SIZE];
 char		pps_str[NUMBER_STRING_SIZE], bps_str[NUMBER_STRING_SIZE];
@@ -1130,7 +1130,6 @@ uint64_t	count_flows, count_packets, count_bytes;
 double		duration, flows_percent, packets_percent, bytes_percent;
 uint32_t	bpp;
 uint64_t	pps, bps;
-int			scale;
 time_t		first;
 struct tm	*tbuff;
 
@@ -1205,13 +1204,12 @@ struct tm	*tbuff;
 	}
 
 	valstr[39] = 0;
-	scale = plain_numbers == 0;
 	count_flows = StatData->counter[FLOWS];
 	count_packets = packets_element(StatData, inout);
 	count_bytes = bytes_element(StatData, inout);
-	format_number(count_flows, flows_str, scale, FIXED_WIDTH);
-	format_number(count_packets, packets_str, scale, FIXED_WIDTH);
-	format_number(count_bytes, byte_str, scale, FIXED_WIDTH);
+	format_number(count_flows, flows_str, printPlain, FIXED_WIDTH);
+	format_number(count_packets, packets_str, printPlain, FIXED_WIDTH);
+	format_number(count_bytes, byte_str, printPlain, FIXED_WIDTH);
 
 	flows_percent   = stat->numflows   ? (double)(count_flows * 100 ) / (double)stat->numflows : 0;
 	if ( stat->numpackets ) {
@@ -1242,8 +1240,8 @@ struct tm	*tbuff;
 		bpp = 0;
 	}
 
-	format_number(pps, pps_str, scale, FIXED_WIDTH);
-	format_number(bps, bps_str, scale, FIXED_WIDTH);
+	format_number(pps, pps_str, printPlain, FIXED_WIDTH);
+	format_number(bps, bps_str, printPlain, FIXED_WIDTH);
 
 	first = StatData->first;
 	tbuff = localtime(&first);
@@ -1256,13 +1254,13 @@ struct tm	*tbuff;
 	if ( Getv6Mode() && ( type == IS_IPADDR ) )
 		printf("%s.%03u %9.3f %-5s %s%39s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", 
 			datestr, StatData->msec_first, duration, 
-			order_proto ? ProtoString(StatData->prot, plain_numbers) : "any", tag_string, valstr, 
+			order_proto ? ProtoString(StatData->prot, printPlain) : "any", tag_string, valstr, 
 			flows_str, flows_percent, packets_str, packets_percent, byte_str,
 			bytes_percent, pps_str, bps_str, bpp );
 	else {
 		printf("%s.%03u %9.3f %-5s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n",
 		datestr, StatData->msec_first, duration, 
-		order_proto ? ProtoString(StatData->prot, plain_numbers) : "any", tag_string, valstr,
+		order_proto ? ProtoString(StatData->prot, printPlain) : "any", tag_string, valstr,
 		flows_str, flows_percent, packets_str, packets_percent, byte_str,
 		bytes_percent, pps_str, bps_str, bpp );
 	}
@@ -1332,7 +1330,7 @@ int			af;
 
 } // End of PrintPipeStatLine
 
-static void PrintCvsStatLine(stat_record_t	*stat, int plain_numbers, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
+static void PrintCvsStatLine(stat_record_t	*stat, int printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
 char		valstr[40], datestr1[64], datestr2[64];
 uint64_t	count_flows, count_packets, count_bytes;
 double		duration, flows_percent, packets_percent, bytes_percent;
@@ -1421,7 +1419,7 @@ struct tm	*tbuff;
 
 	printf("%s,%s,%.3f,%s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n",
 		datestr1, datestr2, duration, 
-		order_proto ? ProtoString(StatData->prot, plain_numbers) : "any", valstr,
+		order_proto ? ProtoString(StatData->prot, printPlain) : "any", valstr,
 		(long long unsigned)count_flows, flows_percent,
 		(long long unsigned)count_packets, packets_percent,
 		(long long unsigned)count_bytes, bytes_percent,
@@ -1749,7 +1747,7 @@ int	i, max;
 
 } // End of PrintSortedFlowcache
 
-void PrintElementStat(stat_record_t	*sum_stat, uint32_t plain_numbers, printer_t print_record, int topN, int tag, int quiet, int pipe_output, int cvs_output) {
+void PrintElementStat(stat_record_t	*sum_stat, uint32_t printPlain, printer_t print_record, int topN, int tag, int quiet, int pipe_output, int cvs_output) {
 SortElement_t	*topN_element_list;
 uint32_t		numflows;
 int32_t 		i, j, hash_num, order_index;
@@ -1804,10 +1802,10 @@ int32_t 		i, j, hash_num, order_index;
 						PrintPipeStatLine((StatRecord_t *)topN_element_list[i].record, type, 
 							StatRequest[hash_num].order_proto, tag, order_mode[order_index].inout);
 					else if ( cvs_output ) 
-						PrintCvsStatLine(sum_stat, plain_numbers, (StatRecord_t *)topN_element_list[i].record, type, 
+						PrintCvsStatLine(sum_stat, printPlain, (StatRecord_t *)topN_element_list[i].record, type, 
 							StatRequest[hash_num].order_proto, tag, order_mode[order_index].inout);
 					else
-						PrintStatLine(sum_stat, plain_numbers, (StatRecord_t *)topN_element_list[i].record, 
+						PrintStatLine(sum_stat, printPlain, (StatRecord_t *)topN_element_list[i].record, 
 							type, StatRequest[hash_num].order_proto, tag, order_mode[order_index].inout);
 				}
 				free((void *)topN_element_list);
