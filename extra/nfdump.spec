@@ -1,6 +1,6 @@
 Name: nfdump
 Summary: A set of command-line tools to collect and process netflow data
-Version: 1.6.19
+Version: 1.6.20
 Release: 1
 License: BSD
 Group: Applications/System
@@ -41,4 +41,4 @@ rm -rf $RPM_BUILD_ROOT
 
 %changelog
 * Thu Jan 03 2019 Richard REY <Rexy>
-- Version 1.6.19 (used in ALCASAR 3.3.3)
+- Version 1.6.20 (used in ALCASAR 3.3.3)

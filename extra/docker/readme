@@ -32,9 +32,9 @@ RUN apt-get update && apt-get install -y \
  && rm -rf /var/lib/apt/lists/*
 
 RUN cd /usr/src \
-  && wget https://github.com/phaag/nfdump/archive/v1.6.19.zip \
-  && unzip v1.6.19.zip \
-  && cd nfdump-1.6.19\
+  && wget https://github.com/phaag/nfdump/archive/v1.6.20.zip \
+  && unzip v1.6.20.zip \
+  && cd nfdump-1.6.20\
   && mkdir m4 \
   && ./autogen.sh \
   && ./configure --enable-nfprofile --enable-sflow \
