@@ -31,9 +31,19 @@
 #ifndef _OUTPUT_UTIL_H
 #define _OUTPUT_UTIL_H 1
 
+#include <stdbool.h>
+
 typedef void (*printer_t)(void *, char **, int);
 typedef void (*func_prolog_t)(void);
 typedef void (*func_epilog_t)(void);
+
+typedef struct outputParams_s {
+	bool printPlain;
+	bool doTag;
+	bool quiet;
+	bool modePipe, modeCsv, modeJson;
+	int  topN;
+} outputParams_t;
 
 typedef struct printmap_s {
 	char		  *printmode;	// name of the output format
@@ -43,8 +53,7 @@ typedef struct printmap_s {
 	char		  *Format;		// output format definition
 } printmap_t;
 
-
-char *ProtoString(uint8_t protoNum);
+char *ProtoString(uint8_t protoNum, uint32_t plainNumbers);
 
 int ProtoNum(char *protoString);
 

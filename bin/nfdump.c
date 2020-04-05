@@ -35,6 +35,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <errno.h>
 #include <time.h>
 #include <string.h>
@@ -238,11 +239,11 @@ printmap_t printmap[] = {
 /* Function Prototypes */
 static void usage(char *name);
 
-static void PrintSummary(stat_record_t *stat_record, int plain_numbers, int csv_output);
+static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams);
 
 static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
 	printer_t print_record, timeWindow_t *timeWindow,
-	uint64_t limitRecords, int tag, int compress);
+	uint64_t limitRecords, outputParams_t *outputParams, int compress);
 
 /* Functions */
 
@@ -309,7 +310,7 @@ static void flow_record_to_null(void *record, char ** s, int tag) {
 	// empty - do not list any flows
 } // End of flow_record_to_null
 
-static void PrintSummary(stat_record_t *stat_record, int plain_numbers, int csv_output) {
+static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams) {
 static double	duration;
 uint64_t	bps, pps, bpp;
 char 		byte_str[NUMBER_STRING_SIZE], packet_str[NUMBER_STRING_SIZE];
@@ -328,24 +329,19 @@ char 		bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_
 		pps = stat_record->numpackets / duration;			// packets per second
 		bpp = stat_record->numpackets ? stat_record->numbytes / stat_record->numpackets : 0;    // Bytes per Packet
 	}
-	if ( csv_output ) {
+	if ( outputParams->modeCsv ) {
 		printf("Summary\n");
 		printf("flows,bytes,packets,avg_bps,avg_pps,avg_bpp\n");
 		printf("%llu,%llu,%llu,%llu,%llu,%llu\n",
 			(long long unsigned)stat_record->numflows, (long long unsigned)stat_record->numbytes, 
 			(long long unsigned)stat_record->numpackets, (long long unsigned)bps, 
 			(long long unsigned)pps, (long long unsigned)bpp );
-	} else if ( plain_numbers ) {
-		printf("Summary: total flows: %llu, total bytes: %llu, total packets: %llu, avg bps: %llu, avg pps: %llu, avg bpp: %llu\n",
-			(long long unsigned)stat_record->numflows, (long long unsigned)stat_record->numbytes, 
-			(long long unsigned)stat_record->numpackets, (long long unsigned)bps, 
-			(long long unsigned)pps, (long long unsigned)bpp );
-	} else {
-		format_number(stat_record->numbytes, byte_str, DO_SCALE_NUMBER, VAR_LENGTH);
-		format_number(stat_record->numpackets, packet_str, DO_SCALE_NUMBER, VAR_LENGTH);
-		format_number(bps, bps_str, DO_SCALE_NUMBER, VAR_LENGTH);
-		format_number(pps, pps_str, DO_SCALE_NUMBER, VAR_LENGTH);
-		format_number(bpp, bpp_str, DO_SCALE_NUMBER, VAR_LENGTH);
+	}  else {
+		format_number(stat_record->numbytes, byte_str, outputParams->printPlain, VAR_LENGTH);
+		format_number(stat_record->numpackets, packet_str, outputParams->printPlain, VAR_LENGTH);
+		format_number(bps, bps_str, outputParams->printPlain, VAR_LENGTH);
+		format_number(pps, pps_str, outputParams->printPlain, VAR_LENGTH);
+		format_number(bpp, bpp_str, outputParams->printPlain, VAR_LENGTH);
 		printf("Summary: total flows: %llu, total bytes: %s, total packets: %s, avg bps: %s, avg pps: %s, avg bpp: %s\n",
 		(unsigned long long)stat_record->numflows, byte_str, packet_str, bps_str, pps_str, bpp_str );
 	}
@@ -353,8 +349,8 @@ char 		bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_
 } // End of PrintSummary
 
 stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
-	printer_t print_record, timeWindow_t *timeWindow,
-	uint64_t limitRecords, int tag, int compress) {
+	printer_t print_record, timeWindow_t *timeWindow, uint64_t limitRecords, 
+	outputParams_t *outputParams, int compress) {
 common_record_t 	*flow_record, *record_ptr;
 master_record_t		*master_record;
 nffile_t			*nffile_w, *nffile_r;
@@ -549,7 +545,7 @@ int 				done, write_file;
 						} else if ( print_record ) {
 							char *string;
 							// if we need to print out this record
-							print_record(master_record, &string, tag);
+							print_record(master_record, &string, outputParams->doTag);
 							if ( string ) {
 								printf("%s\n", string);
 							}
@@ -649,18 +645,19 @@ int 				done, write_file;
 int main( int argc, char **argv ) {
 struct stat stat_buff;
 stat_record_t	sum_stat;
-timeWindow_t *timeWindow;
-printer_t 	print_record;
-func_prolog_t print_prolog;
-func_epilog_t print_epilog;
+outputParams_t *outputParams;
+printer_t 	   print_record;
+func_prolog_t  print_prolog;
+func_epilog_t  print_epilog;
 nfprof_t 	profile_data;
+timeWindow_t *timeWindow;
 char 		*rfile, *Rfile, *Mdirs, *wfile, *ffile, *filter, *tstring, *stat_type;
 char		*byte_limit_string, *packet_limit_string, *print_format;
 char		*print_order, *query_file, *nameserver, *aggr_fmt;
 int 		c, ffd, ret, element_stat, fdump;
-int 		i, quiet, flow_stat, topN, aggregate, aggregate_mask, bidir;
-int 		print_stat, syntax_only, date_sorted, do_tag, compress;
-int			plain_numbers, GuessDir, pipe_output, csv_output, json_output, ModifyCompress;
+int 		i, flow_stat, aggregate, aggregate_mask, bidir;
+int 		print_stat, syntax_only, date_sorted, compress;
+int			printPlain, GuessDir, ModifyCompress;
 uint32_t	limitRecords;
 char 		Ident[IDENTLEN];
 
@@ -671,7 +668,6 @@ char 		Ident[IDENTLEN];
 	bidir			= 0;
 	timeWindow		= NULL;
 	syntax_only	    = 0;
-	topN	        = -1;
 	flow_stat       = 0;
 	print_stat      = 0;
 	element_stat  	= 0;
@@ -680,13 +676,8 @@ char 		Ident[IDENTLEN];
 	total_bytes		= 0;
 	recordCount		= 0;
 	skipped_blocks	= 0;
-	do_tag			= 0;
-	quiet			= 0;
 	compress		= NOT_COMPRESSED;
-	plain_numbers   = 0;
-	pipe_output		= 0;
-	csv_output		= 0;
-	json_output		= 0;
+	printPlain		= 0;
 	GuessDir		= 0;
 	nameserver		= NULL;
 
@@ -698,6 +689,13 @@ char 		Ident[IDENTLEN];
 	query_file		= NULL;
 	ModifyCompress	= -1;
 	aggr_fmt		= NULL;
+
+	outputParams	= calloc(1, sizeof(outputParams_t));
+	if ( !outputParams ) {
+		LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+		exit(255);
+	}
+	outputParams->topN = 10;
 
 	Ident[0] = '\0';
 
@@ -747,7 +745,7 @@ char 		Ident[IDENTLEN];
 				syntax_only = 1;
 				break;
 			case 'q':
-				quiet = 1;
+				outputParams->quiet = 1;
 				break;
 			case 'j':
 				if ( compress ) {
@@ -804,7 +802,7 @@ char 		Ident[IDENTLEN];
 				byte_limit_string = optarg;
 				break;
 			case 'N':
-				plain_numbers = 1;
+				printPlain = 1;
 				break;
 			case 'f':
 				ffile = optarg;
@@ -854,14 +852,14 @@ char 		Ident[IDENTLEN];
 				wfile = optarg;
 				break;
 			case 'n':
-				topN = atoi(optarg);
-				if ( topN < 0 ) {
-					LogError("TopnN number %i out of range\n", topN);
+				outputParams->topN = atoi(optarg);
+				if ( outputParams->topN < 0 ) {
+					LogError("TopnN number %i out of range\n", outputParams->topN);
 					exit(255);
 				}
 				break;
 			case 'T':
-				do_tag = 1;
+				outputParams->doTag = 1;
 				break;
 			case 'i':
 				strncpy(Ident, optarg, IDENTLEN);
@@ -920,12 +918,6 @@ char 		Ident[IDENTLEN];
 		ChangeIdent(rfile, Ident);
 		exit(0);
 	}
-
-	if ( (element_stat || flow_stat) && (topN == -1)  ) 
-		topN = 10;
-
-	if ( topN < 0 )
-		topN = 0;
 
 	if ( (element_stat && !flow_stat) && aggregate_mask ) {
 		LogError("Warning: Aggregation ignored for element statistics\n");
@@ -1013,7 +1005,7 @@ char 		Ident[IDENTLEN];
 		// special user defined output format
 		char *format = &print_format[4];
 		if ( strlen(format) ) {
-			if ( !ParseOutputFormat(format, plain_numbers, printmap) )
+			if ( !ParseOutputFormat(format, printPlain, printmap) )
 				exit(255);
 			print_record  = format_special;
 			print_prolog  = text_prolog;
@@ -1038,7 +1030,7 @@ char 		Ident[IDENTLEN];
 		while ( printmap[i].printmode ) {
 			if ( strncasecmp(print_format, printmap[i].printmode, MAXMODELEN) == 0 ) {
 				if ( printmap[i].Format ) {
-					if ( !ParseOutputFormat(printmap[i].Format, plain_numbers, printmap) )
+					if ( !ParseOutputFormat(printmap[i].Format, printPlain, printmap) )
 						exit(255);
 					// predefined custom format
 					print_record  = printmap[i].func_record;
@@ -1047,13 +1039,13 @@ char 		Ident[IDENTLEN];
 				} else {
 					// To support the pipe output format for element stats - check for pipe, and remember this
 					if ( strncasecmp(print_format, "pipe", MAXMODELEN) == 0 ) {
-						pipe_output = 1;
+						outputParams->modePipe = true;
 					}
 					if ( strncasecmp(print_format, "csv", MAXMODELEN) == 0 ) {
-						csv_output = 1;
+						outputParams->modeCsv = true;
 					}
 					if ( strncasecmp(print_format, "json", MAXMODELEN) == 0 ) {
-						json_output = 1;
+						outputParams->modeJson = true;
 					}
 					// predefined static format
 					print_record  = printmap[i].func_record;
@@ -1134,16 +1126,14 @@ char 		Ident[IDENTLEN];
 
 	SetLimits(element_stat || aggregate || flow_stat, packet_limit_string, byte_limit_string);
 
-
-
-	if ( !(flow_stat || element_stat || wfile || quiet ) && print_prolog ) {
+	if ( !(flow_stat || element_stat || wfile || outputParams->quiet ) && print_prolog ) {
 		print_prolog();
 	}
 
 	nfprof_start(&profile_data);
 	sum_stat = process_data(wfile, element_stat, aggregate || flow_stat, print_order != NULL,
 						print_record, timeWindow, 
-						limitRecords, do_tag, compress);
+						limitRecords, outputParams, compress);
 	nfprof_end(&profile_data, recordCount);
 	
 	if ( total_bytes == 0 ) {
@@ -1164,29 +1154,29 @@ char 		Ident[IDENTLEN];
 			}
 			DisposeFile(nffile);
 		} else {
-			PrintFlowTable(print_record, topN, do_tag, GuessDir, extension_map_list);
+			PrintFlowTable(print_record, outputParams, GuessDir, extension_map_list);
 		}
 	}
 
 	if (flow_stat) {
-		PrintFlowStat(print_prolog, print_record, topN, do_tag, quiet, csv_output, extension_map_list);
+		PrintFlowStat(print_prolog, print_record, outputParams, extension_map_list);
 #ifdef DEVEL
 		printf("Loopcnt: %u\n", loopcnt);
 #endif
 	} 
 
 	if (element_stat) {
-		PrintElementStat(&sum_stat, plain_numbers, print_record, topN, do_tag, quiet, pipe_output, csv_output);
+		PrintElementStat(&sum_stat, outputParams, print_record);
 	} 
 
 	if ( print_epilog ) {
 		print_epilog();
 	}
-	if ( !quiet && !json_output ) {
-		if ( csv_output ) {
-			PrintSummary(&sum_stat, plain_numbers, csv_output);
+	if ( !outputParams->quiet && !outputParams->modeJson ) {
+		if ( outputParams->modeCsv ) {
+			PrintSummary(&sum_stat, outputParams);
 		} else if ( !wfile ) {
-			PrintSummary(&sum_stat, plain_numbers, csv_output);
+			PrintSummary(&sum_stat, outputParams);
 			if ( t_last_flow == 0 ) {
 				// in case of a pre 1.6.6 collected and empty flow file
  				printf("Time window: <unknown>\n");

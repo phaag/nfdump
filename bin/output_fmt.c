@@ -72,7 +72,7 @@ static int	format_index		= 0;
 
 static int		do_tag 		 = 0;
 static int 		long_v6 	 = 0;
-static int		scale	 	 = 1;
+static int		printPlain	 = 0;
 static double	duration;
 
 #define STRINGSIZE 10240
@@ -538,7 +538,7 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
 char *c, *s, *h;
 int	i, remaining;
 
-	scale = plain_numbers == 0;
+	printPlain = plain_numbers;
 
 	InitFormatParser();
 	
@@ -728,7 +728,7 @@ static void String_Duration(master_record_t *r, char *string) {
 
 static void String_Protocol(master_record_t *r, char *string) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%-5s", ProtoString(r->prot));
+	snprintf(string, MAX_STRING_LENGTH-1 ,"%-5s", ProtoString(r->prot, printPlain));
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_Protocol
@@ -1081,7 +1081,7 @@ static void String_Output(master_record_t *r, char *string) {
 static void String_InPackets(master_record_t *r, char *string) {
 char s[NUMBER_STRING_SIZE];
 
-	format_number(r->dPkts, s, scale, FIXED_WIDTH);
+	format_number(r->dPkts, s, printPlain, FIXED_WIDTH);
 	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
@@ -1090,7 +1090,7 @@ char s[NUMBER_STRING_SIZE];
 static void String_OutPackets(master_record_t *r, char *string) {
 char s[NUMBER_STRING_SIZE];
 
-	format_number(r->out_pkts, s, scale, FIXED_WIDTH);
+	format_number(r->out_pkts, s, printPlain, FIXED_WIDTH);
 	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
@@ -1099,7 +1099,7 @@ char s[NUMBER_STRING_SIZE];
 static void String_InBytes(master_record_t *r, char *string) {
 char s[NUMBER_STRING_SIZE];
 
-	format_number(r->dOctets, s, scale, FIXED_WIDTH);
+	format_number(r->dOctets, s, printPlain, FIXED_WIDTH);
 	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
@@ -1108,7 +1108,7 @@ char s[NUMBER_STRING_SIZE];
 static void String_OutBytes(master_record_t *r, char *string) {
 char s[NUMBER_STRING_SIZE];
 
-	format_number(r->out_bytes, s, scale, FIXED_WIDTH);
+	format_number(r->out_bytes, s, printPlain, FIXED_WIDTH);
 	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
@@ -1392,7 +1392,7 @@ char s[NUMBER_STRING_SIZE];
 	} else {
 		bps = 0;
 	}
-	format_number(bps, s, scale, FIXED_WIDTH);
+	format_number(bps, s, printPlain, FIXED_WIDTH);
 	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
@@ -1407,7 +1407,7 @@ char s[NUMBER_STRING_SIZE];
 	} else {
 		pps = 0;
 	}
-	format_number(pps, s, scale, FIXED_WIDTH);
+	format_number(pps, s, printPlain, FIXED_WIDTH);
 	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
 	string[MAX_STRING_LENGTH-1] = '\0';
 

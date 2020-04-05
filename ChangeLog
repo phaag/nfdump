@@ -1,3 +1,6 @@
+2020-04-05
+- add output parameter struct
+
 2020-03-22
 - Introduce file layout V2. Adappt for new record format.
   Cleanup lots of old stuff

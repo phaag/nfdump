@@ -117,11 +117,10 @@ int Parse_PrintOrder(char *order);
 
 void AddStat(common_record_t *raw_record, master_record_t *flow_record );
 
-void PrintFlowTable(printer_t print_record, uint32_t limitflows, int tag, int GuessDir, extension_map_list_t *extension_map_list);
+void PrintFlowTable(printer_t print_record, outputParams_t *outputParams, int GuessDir, extension_map_list_t *extension_map_list);
 
-void PrintFlowStat(func_prolog_t record_header, printer_t print_record, int topN, int tag, int quiet, int cvs_output, extension_map_list_t *extension_map_list);
-
-void PrintElementStat(stat_record_t	*sum_stat, uint32_t limitflows, printer_t print_record, int topN, int tag, int quiet, int pipe_output, int cvs_output);
+void PrintFlowStat(func_prolog_t record_header, printer_t print_record, outputParams_t *outputParams, extension_map_list_t *extension_map_list);
+void PrintElementStat(stat_record_t	*sum_stat, outputParams_t *outputParams, printer_t print_record);
 
 int ParseListOrder(char *s, int multiple_orders );
 

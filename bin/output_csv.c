@@ -123,7 +123,7 @@ master_record_t *r = (master_record_t *)record;
 	_s = data_string;
 	slen = STRINGSIZE;
 	snprintf(_s, slen-1, "%s,%s,%.3f,%s,%s,%u,%u,%s,%s,%u,%u,%llu,%llu,%llu,%llu",
-		datestr1, datestr2, duration, as,ds,r->srcport, r->dstport, ProtoString(r->prot),
+		datestr1, datestr2, duration, as,ds,r->srcport, r->dstport, ProtoString(r->prot, 0),
 		FlagsString(r->tcp_flags), r->fwd_status, r->tos, (unsigned long long)r->dPkts,
 		(unsigned long long)r->dOctets, (long long unsigned)r->out_pkts, (long long unsigned)r->out_bytes);
 
