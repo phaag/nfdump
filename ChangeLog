@@ -1,6 +1,7 @@
 - internal: put output parameters in a single struct
 - Fix GuessDir bug - issue #215
 - Compact Changelog
+- Fix GuessDir bug - issue #215 in flow exporter
 
 2020-03-29
 - Release 1.6.20

@@ -351,12 +351,8 @@ char				*string;
 				ApplyAggrMask(flow_record, aggr_record_mask);
 			}
 
-			if ( GuessDir && 
-			   ( flow_record->prot == IPPROTO_TCP || flow_record->prot == IPPROTO_UDP) &&
-			   ( flow_record->srcport < 1024 ) && ( flow_record->dstport > 1024 ) &&
-			   ( flow_record->srcport < flow_record->dstport ) ) {
+			if ( NeedSwap(GuessDir, flow_record) ) 
 				SwapFlow(flow_record);
-			}
 
 			// switch to output extension map
 			flow_record->map_ref = extension_info->exportMap ? extension_info->exportMap : extension_info->map;
@@ -405,12 +401,8 @@ char				*string;
 					ApplyAggrMask(flow_record, aggr_record_mask);
 				}
 
-				if ( GuessDir && 
-			   	   ( flow_record->prot == IPPROTO_TCP || flow_record->prot == IPPROTO_UDP) &&
-			   	   ( flow_record->srcport < 1024 ) && ( flow_record->dstport > 1024 ) &&
-			   	   ( flow_record->srcport < flow_record->dstport ) ) {
+				if ( NeedSwap(GuessDir, flow_record) )  
 					SwapFlow(flow_record);
-				}
 
 				// switch to output extension map
 				flow_record->map_ref = extension_info->exportMap ? extension_info->exportMap : extension_info->map;

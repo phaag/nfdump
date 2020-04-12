@@ -104,6 +104,14 @@ typedef struct SortElement {
 #define MULTIPLE_LIST_ORDERS 1
 #define SINGLE_LIST_ORDER    0
 
+#define NeedSwap(GuessDir, r) ( GuessDir && \
+	((r)->prot == IPPROTO_TCP || (r)->prot == IPPROTO_UDP) && \
+	 ((((r)->srcport < 1024) && ((r)->dstport >= 1024)) || \
+	  (((r)->srcport < 32768) && ((r)->dstport >= 32768)) || \
+	  (((r)->srcport < 49152) && ((r)->dstport >= 49152)) \
+	 ) \
+	)
+
 /* Function prototypes */
 void SetLimits(int stat, char *packet_limit_string, char *byte_limit_string );
 

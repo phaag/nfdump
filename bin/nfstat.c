@@ -487,14 +487,6 @@ static uint64_t	flows_record(FlowTableRecord_t *record, int inout) {
 	return record->counter[FLOWS];
 }
 
-#define NeedSwap(GuessDir, r) ( GuessDir && \
-	((r)->prot == IPPROTO_TCP || (r)->prot == IPPROTO_UDP) && \
-	 ((((r)->srcport < 1024) && ((r)->dstport >= 1024)) || \
-	  (((r)->srcport < 32768) && ((r)->dstport >= 32768)) || \
-	  (((r)->srcport < 49152) && ((r)->dstport >= 49152)) \
-	 ) \
-	)
-
 static uint64_t	packets_record(FlowTableRecord_t *record, int inout) {
 	if (NeedSwap(GuessDirection, &(record->flowrecord))) {
 		if (inout == IN)
