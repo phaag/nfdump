@@ -124,11 +124,11 @@ master_record_t *r = (master_record_t *)record;
 	as[40-1] = 0;
 	ds[40-1] = 0;
 
-	when = r->first;
+	when = r->msecFirst / 1000LL;
 	ts = localtime(&when);
 	strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
 
-	when = r->last;
+	when = r->msecLast / 1000LL;
 	ts = localtime(&when);
 	strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
 
@@ -136,18 +136,18 @@ master_record_t *r = (master_record_t *)record;
 "Flow Record: \n"
 "  srcaddr     = %16s\n"
 "  dstaddr     = %16s\n"
-"  first       =       %10u [%s]\n"
-"  last        =       %10u [%s]\n"
-"  msec_first  =            %5u\n"
-"  msec_last   =            %5u\n"
+"  first        =     %13llu [%s.%03llu]\n"
+"  last         =     %13llu [%s.%03llu]\n"
 "  prot        =              %3u\n"
-"  srcport     =            %5u\n"
-"  dstport     =            %5u\n"
+"  srcPort     =            %5u\n"
+"  dstPort     =            %5u\n"
 "  dPkts       =       %10llu\n"
 "  dOctets     =       %10llu\n"
 , 
-		as, ds, r->first, datestr1, r->last, datestr2, r->msec_first, r->msec_last, 
-		r->prot, r->srcport, r->dstport,
+		as, ds,
+		r->msecFirst, datestr1, r->msecFirst % 1000LL, 
+		r->msecLast , datestr2, r->msecFirst % 1000LL, 
+		r->proto, r->srcPort, r->dstPort, 
 		(unsigned long long)r->dPkts, (unsigned long long)r->dOctets);
 
 	s[1024-1] = 0;

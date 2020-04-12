@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -38,7 +36,7 @@ static inline void UpdateStat(stat_record_t	*stat_record, master_record_t *maste
 
 static inline void UpdateStat(stat_record_t	*stat_record, master_record_t *master_record) {
 
-	switch (master_record->prot) {
+	switch (master_record->proto) {
 		case IPPROTO_ICMP:
 		case IPPROTO_ICMPV6:
 			stat_record->numflows_icmp   += master_record->aggr_flows ? master_record->aggr_flows : 1;
@@ -74,20 +72,24 @@ static inline void UpdateStat(stat_record_t	*stat_record, master_record_t *maste
 	stat_record->numbytes 	+= master_record->dOctets;
 	stat_record->numbytes 	+= master_record->out_bytes;
 
-	if ( master_record->first < stat_record->first_seen ) {
-		stat_record->first_seen = master_record->first;
-		stat_record->msec_first = master_record->msec_first;
+	uint32_t sec  = master_record->msecFirst / 1000LL;
+	uint32_t msec = master_record->msecFirst % 1000LL;
+	if ( sec < stat_record->first_seen ) {
+		stat_record->first_seen = sec;
+		stat_record->msec_first = msec;
 	}
-	if ( master_record->first == stat_record->first_seen && 
-	 	master_record->msec_first < stat_record->msec_first ) 
-			stat_record->msec_first = master_record->msec_first;
+	if ( sec == stat_record->first_seen && 
+	 	msec < stat_record->msec_first ) 
+			stat_record->msec_first = msec;
 
-	if ( master_record->last > stat_record->last_seen ) {
-		stat_record->last_seen = master_record->last;
-		stat_record->msec_last = master_record->msec_last;
+	sec  = master_record->msecLast / 1000LL;
+	msec = master_record->msecLast % 1000LL;
+	if ( sec > stat_record->last_seen ) {
+		stat_record->last_seen = sec;
+		stat_record->msec_last = msec;
 	}
-	if ( master_record->last == stat_record->last_seen && 
-	 	master_record->msec_last > stat_record->msec_last ) 
-			stat_record->msec_last = master_record->msec_last;
+	if ( sec == stat_record->last_seen && 
+	 	msec > stat_record->msec_last ) 
+			stat_record->msec_last = msec;
 
 } // End of UpdateStat

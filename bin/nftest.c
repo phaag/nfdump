@@ -268,14 +268,14 @@ void *p;
 	printf("Offset is %lu\n", Offset_BASE_U1);
 #endif
 
-	check_offset("First    Offset", (unsigned int)((pointer_addr_t)&flow_record.first  		-  (pointer_addr_t)blocks), BYTE_OFFSET_first);
+	check_offset("First    Offset", (unsigned int)((pointer_addr_t)&flow_record.msecFirst	-  (pointer_addr_t)blocks), BYTE_OFFSET_first);
 	check_offset("Src AS   Offset", (unsigned int)((pointer_addr_t)&flow_record.srcas  		-  (pointer_addr_t)&blocks[OffsetAS]), 0);
 	check_offset("Dst AS   Offset", (unsigned int)((pointer_addr_t)&flow_record.dstas  		-  (pointer_addr_t)&blocks[OffsetAS]), 4);
-	check_offset("Src Port Offset", (unsigned int)((pointer_addr_t)&flow_record.srcport 	- (pointer_addr_t)&blocks[OffsetPort]), 0);
-	check_offset("Dst Port Offset", (unsigned int)((pointer_addr_t)&flow_record.dstport 	- (pointer_addr_t)&blocks[OffsetPort]), 2);
+	check_offset("Src Port Offset", (unsigned int)((pointer_addr_t)&flow_record.srcPort 	- (pointer_addr_t)&blocks[OffsetPort]), 0);
+	check_offset("Dst Port Offset", (unsigned int)((pointer_addr_t)&flow_record.dstPort 	- (pointer_addr_t)&blocks[OffsetPort]), 2);
 	check_offset("Status   Offset", (unsigned int)((pointer_addr_t)&flow_record.fwd_status 	- (pointer_addr_t)&blocks[OffsetStatus]), 4);
 	check_offset("Flags    Offset", (unsigned int)((pointer_addr_t)&flow_record.tcp_flags	- (pointer_addr_t)&blocks[OffsetFlags]), 5);
-	check_offset("Protocol Offset", (unsigned int)((pointer_addr_t)&flow_record.prot    	- (pointer_addr_t)&blocks[OffsetProto]), 6);
+	check_offset("Protocol Offset", (unsigned int)((pointer_addr_t)&flow_record.proto    	- (pointer_addr_t)&blocks[OffsetProto]), 6);
 	check_offset("tos      Offset", (unsigned int)((pointer_addr_t)&flow_record.tos     	- (pointer_addr_t)&blocks[OffsetTos]), 7);
 	check_offset("packets  Offset", (unsigned int)((pointer_addr_t)&flow_record.dPkts     	- (pointer_addr_t)&blocks[OffsetPackets]), 0);
 	check_offset("bytes    Offset", (unsigned int)((pointer_addr_t)&flow_record.dOctets     - (pointer_addr_t)&blocks[OffsetBytes]), 0);
@@ -307,32 +307,32 @@ void *p;
 	ret = check_filter_block("ipv6", &flow_record, 1);
 
 
-	flow_record.prot = IPPROTO_TCP;
+	flow_record.proto = IPPROTO_TCP;
 	ret = check_filter_block("any", &flow_record, 1);
 	ret = check_filter_block("not any", &flow_record, 0);
 	ret = check_filter_block("proto tcp", &flow_record, 1);
 	ret = check_filter_block("proto udp", &flow_record, 0);
 
-	flow_record.prot = IPPROTO_UDP;
+	flow_record.proto = IPPROTO_UDP;
 	ret = check_filter_block("proto tcp", &flow_record, 0);
 	ret = check_filter_block("proto udp", &flow_record, 1);
-	flow_record.prot = IPPROTO_ESP;
+	flow_record.proto = IPPROTO_ESP;
 	ret = check_filter_block("proto esp", &flow_record, 1);
 	ret = check_filter_block("proto ah", &flow_record, 0);
-	flow_record.prot = IPPROTO_AH;
+	flow_record.proto = IPPROTO_AH;
 	ret = check_filter_block("proto ah", &flow_record, 1);
-	flow_record.prot = IPPROTO_RSVP;
+	flow_record.proto = IPPROTO_RSVP;
 	ret = check_filter_block("proto rsvp", &flow_record, 1);
-	flow_record.prot = IPPROTO_GRE;
+	flow_record.proto = IPPROTO_GRE;
 	ret = check_filter_block("proto gre", &flow_record, 1);
 	ret = check_filter_block("proto 47", &flow_record, 1);
 	ret = check_filter_block("proto 42", &flow_record, 0);
 
-	flow_record.srcport = 0xaaaa;
-	flow_record.prot = IPPROTO_ICMP;
-	flow_record.dstport = 0xaffa; // -> icmp type 175, code 250
-	flow_record.icmp = flow_record.dstport;
-	flow_record.dstport = 0xbbbb;
+	flow_record.srcPort = 0xaaaa;
+	flow_record.proto = IPPROTO_ICMP;
+	flow_record.dstPort = 0xaffa; // -> icmp type 175, code 250
+	flow_record.icmp = flow_record.dstPort;
+	flow_record.dstPort = 0xbbbb;
 	ret = check_filter_block("icmp-type 175", &flow_record, 1);
 	ret = check_filter_block("icmp-type 176", &flow_record, 0);
 	ret = check_filter_block("icmp-code 250", &flow_record, 1);
@@ -344,8 +344,8 @@ void *p;
 		exit(255);
 	}
 
-	flow_record.dstport = 3 << 8; // -> icmp type 3
-	flow_record.icmp = flow_record.dstport;
+	flow_record.dstPort = 3 << 8; // -> icmp type 3
+	flow_record.icmp = flow_record.dstPort;
 	if ( flow_record.icmp_type != 3 ) {
         printf("**** FAILED **** ICMP type check failed!\n" );
         printf("ICMP type: %u, code: %u\n", flow_record.icmp_type, flow_record.icmp_code );
@@ -354,8 +354,8 @@ void *p;
 	ret = check_filter_block("icmp-type 3", &flow_record, 1);
 	ret = check_filter_block("icmp-type 4", &flow_record, 0);
 
-	flow_record.dstport = 8; // -> icmp code 8
-	flow_record.icmp = flow_record.dstport;
+	flow_record.dstPort = 8; // -> icmp code 8
+	flow_record.icmp = flow_record.dstPort;
 	if ( flow_record.icmp_code != 8 ) {
         printf("**** FAILED **** ICMP code check failed!\n" );
         printf("ICMP type: %u, code: %u\n", flow_record.icmp_type, flow_record.icmp_code );
@@ -478,8 +478,8 @@ void *p;
 	ret = check_filter_block("src ip in [172.32.7.16 172.32.6.0/24]", &flow_record, 1);
 	ret = check_filter_block("src ip in [10.10.10.11 172.32.6.0/24]", &flow_record, 0);
 
-	flow_record.srcport = 63;
-	flow_record.dstport = 255;
+	flow_record.srcPort = 63;
+	flow_record.dstPort = 255;
 	ret = check_filter_block("src port 63", &flow_record, 1);
 	ret = check_filter_block("dst port 255", &flow_record, 1);
 	ret = check_filter_block("port 63", &flow_record, 1);
@@ -771,10 +771,8 @@ void *p;
 	/* 
 	 * Function tests
 	 */
-	flow_record.first = 1089534600;		/* 2004-07-11 10:30:00 */
-	flow_record.last  = 1089534600;		/* 2004-07-11 10:30:00 */
-	flow_record.msec_first = 10;
-	flow_record.msec_last  = 20;
+	flow_record.msecFirst = 1089534600LL * 1000LL + 10;		/* 2004-07-11 10:30:00 */
+	flow_record.msecLast  = 1089534600LL * 1000LL + 20;		/* 2004-07-11 10:30:00 */
 
 	/* duration 10ms */
 	ret = check_filter_block("duration == 10", &flow_record, 1);
@@ -784,10 +782,8 @@ void *p;
 	ret = check_filter_block("duration > 10", &flow_record, 0);
 	ret = check_filter_block("duration < 10", &flow_record, 0);
 
-	flow_record.first = 1089534600;		/* 2004-07-11 10:30:00 */
-	flow_record.last  = 1089534610;		/* 2004-07-11 10:30:10 */
-	flow_record.msec_first = 0;
-	flow_record.msec_last  = 0;
+	flow_record.msecFirst = 1089534600LL * 1000LL;		/* 2004-07-11 10:30:00 */
+	flow_record.msecFirst = 1089534610LL * 1000LL;		/* 2004-07-11 10:30:10 */
 
 	/* duration 10s */
 	flow_record.dPkts = 1000;
@@ -1145,48 +1141,48 @@ void *p;
 	ret = check_filter_block("pblock size 4444", &flow_record, 1);
 	ret = check_filter_block("pblock size 5555", &flow_record, 0);
 
-	flow_record.srcport = 63;
-	flow_record.dstport = 255;
+	flow_record.srcPort = 63;
+	flow_record.dstPort = 255;
 	ret = check_filter_block("src port in pblock", &flow_record, 0);
 	ret = check_filter_block("dst port in pblock", &flow_record, 0);
 	ret = check_filter_block("port in pblock", &flow_record, 0);
 
-	flow_record.srcport = 1110;
+	flow_record.srcPort = 1110;
 	ret = check_filter_block("src port in pblock", &flow_record, 0);
 	ret = check_filter_block("port in pblock", &flow_record, 0);
 
-	flow_record.srcport = 1111;
+	flow_record.srcPort = 1111;
 	ret = check_filter_block("src port in pblock", &flow_record, 1);
 	ret = check_filter_block("port in pblock", &flow_record, 1);
 
-	flow_record.srcport = 2222;
+	flow_record.srcPort = 2222;
 	ret = check_filter_block("src port in pblock", &flow_record, 1);
 	ret = check_filter_block("port in pblock", &flow_record, 1);
 
-	flow_record.srcport = 2223;
+	flow_record.srcPort = 2223;
 	ret = check_filter_block("src port in pblock", &flow_record, 0);
 	ret = check_filter_block("port in pblock", &flow_record, 0);
 
-	flow_record.dstport = 1110;
+	flow_record.dstPort = 1110;
 	ret = check_filter_block("src port in pblock", &flow_record, 0);
 	ret = check_filter_block("dst port in pblock", &flow_record, 0);
 	ret = check_filter_block("port in pblock", &flow_record, 0);
 
-	flow_record.dstport = 1111;
+	flow_record.dstPort = 1111;
 	ret = check_filter_block("dst port in pblock", &flow_record, 1);
 	ret = check_filter_block("port in pblock", &flow_record, 1);
 exit(0);
 
-	flow_record.dstport = 2222;
+	flow_record.dstPort = 2222;
 	ret = check_filter_block("dst port in pblock", &flow_record, 1);
 	ret = check_filter_block("port in pblock", &flow_record, 1);
 
-	flow_record.dstport = 2223;
+	flow_record.dstPort = 2223;
 	ret = check_filter_block("dst port in pblock", &flow_record, 0);
 	ret = check_filter_block("port in pblock", &flow_record, 0);
 
-	flow_record.srcport = 1234;
-	flow_record.srcport = 2134;
+	flow_record.srcPort = 1234;
+	flow_record.srcPort = 2134;
 	ret = check_filter_block("src port in pblock", &flow_record, 1);
 	ret = check_filter_block("dst port in pblock", &flow_record, 1);
 	ret = check_filter_block("port in pblock", &flow_record, 1);

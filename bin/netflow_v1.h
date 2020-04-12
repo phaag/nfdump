@@ -64,8 +64,8 @@ typedef struct netflow_v1_record {
   uint32_t  dOctets;
   uint32_t  First;
   uint32_t  Last;
-  uint16_t  srcport;
-  uint16_t  dstport;
+  uint16_t  srcPort;
+  uint16_t  dstPort;
   uint16_t  pad1;
   uint8_t   prot;
   uint8_t   tos;

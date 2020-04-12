@@ -1885,9 +1885,9 @@ char				*string;
 		// for netflow historical reason, ICMP type/code goes into dst port field
 		if ( data_record->prot == IPPROTO_ICMP || data_record->prot == IPPROTO_ICMPV6 ) {
 			if ( table->icmpTypeCodeIPv4 ) {
-				data_record->srcport = 0;
-				data_record->dstport = table->icmpTypeCodeIPv4;
-				// data_record->dstport = Get_val16((void *)&in[table->ICMP_offset]);
+				data_record->srcPort = 0;
+				data_record->dstPort = table->icmpTypeCodeIPv4;
+				// data_record->dstPort = Get_val16((void *)&in[table->ICMP_offset]);
 			}
 		}
 

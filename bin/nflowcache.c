@@ -68,8 +68,6 @@ static inline void *MemoryHandle_get(MemoryHandle_t *handle, uint32_t size);
 
 static inline FlowTableRecord_t *hash_insert_FlowTable(uint32_t index_cache, void *flowkey, common_record_t *flow_record);
 
-static inline int TimeMsec_CMP(time_t t1, uint16_t offset1, time_t t2, uint16_t offset2 );
-
 static inline uint32_t SuperFastHash (const char * data, int len);
 
 static inline void New_Hash_Key(void *keymem, master_record_t *flow_record, int swap_flow);
@@ -110,8 +108,8 @@ static struct aggregate_info_s {
 	{ "xsrcip",		{ 8, OffsetXLATESRCv6b,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0, 	NULL	},
 	{ "xdstip",		{ 8, OffsetXLATEDSTv6a,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0,	"%xda"	},
 	{ "xdstip",		{ 8, OffsetXLATESRCv6b,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0, 	NULL	},
-	{ "xsrcport",	{ 2, OffsetXLATEPort,   MaskXLATESRCPORT,   ShiftXLATESRCPORT }, 	-1, 0, 	"%xsp"	},
-	{ "xdstport",	{ 2, OffsetXLATEPort,   MaskXLATEDSTPORT,   ShiftXLATEDSTPORT }, 	-1, 0, 	"%xdp"	},
+	{ "xsrcPort",	{ 2, OffsetXLATEPort,   MaskXLATESRCPORT,   ShiftXLATESRCPORT }, 	-1, 0, 	"%xsp"	},
+	{ "xdstPort",	{ 2, OffsetXLATEPort,   MaskXLATEDSTPORT,   ShiftXLATEDSTPORT }, 	-1, 0, 	"%xdp"	},
 #endif
 	{ "dstip4",		{ 8, OffsetDstIPv6a, 	MaskIPv6, 	 ShiftIPv6 },     	 0, 0,	"%da"	},
 	{ "dstip4",		{ 8, OffsetDstIPv6b, 	MaskIPv6, 	 ShiftIPv6 },     	 1, 0,	NULL	},
@@ -143,8 +141,8 @@ static struct aggregate_info_s {
 	{ "mpls8",		{ 4, OffsetMPLS78, 		MaskMPLSlabelEven,  ShiftMPLSlabelEven }, 	-1, 0, 	"%mpls8"},
 	{ "mpls9",		{ 4, OffsetMPLS910,		MaskMPLSlabelOdd,  ShiftMPLSlabelOdd },	 	-1, 0, 	"%mpls9"},
 	{ "mpls10",		{ 4, OffsetMPLS910,		MaskMPLSlabelEven,  ShiftMPLSlabelEven }, 	-1, 0, 	"%mpls10"},
-	{ "srcport",	{ 2, OffsetPort, 		MaskSrcPort, ShiftSrcPort }, 	-1, 0, 	"%sp"	},
-	{ "dstport",	{ 2, OffsetPort, 		MaskDstPort, ShiftDstPort }, 	-1, 0, 	"%dp"	},
+	{ "srcPort",	{ 2, OffsetPort, 		MaskSrcPort, ShiftSrcPort }, 	-1, 0, 	"%sp"	},
+	{ "dstPort",	{ 2, OffsetPort, 		MaskDstPort, ShiftDstPort }, 	-1, 0, 	"%dp"	},
 	{ "srcvlan",	{ 2, OffsetVlan, 		MaskSrcVlan, ShiftSrcVlan }, 	-1, 0, 	"%svln"	},
 	{ "dstvlan",	{ 2, OffsetVlan, 		MaskDstVlan, ShiftDstVlan }, 	-1, 0, 	"%dvln"	},
 	{ "srcmask",	{ 1, OffsetMask, 		MaskSrcMask, ShiftSrcMask },   	-1, 0,	"%smk"	},
@@ -157,8 +155,8 @@ static struct aggregate_info_s {
 };
 
 typedef struct Default_key_s {
-	uint16_t srcport;
-	uint16_t dstport;
+	uint16_t srcPort;
+	uint16_t dstPort;
 	uint64_t srcaddr[2];
 	uint64_t dstaddr[2];
 	uint32_t proto;
@@ -176,21 +174,6 @@ enum CNT_IND { FLOWS = 0, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES };
 #include "applybits_inline.c"
 
 /* Functions */
-
-static inline int TimeMsec_CMP(time_t t1, uint16_t offset1, time_t t2, uint16_t offset2 ) {
-	if ( t1 > t2 )
-		return 1;
-	if ( t2 > t1 ) 
-		return 2;
-	// else t1 == t2 - offset is now relevant
-	if ( offset1 > offset2 )
-		return 1;
-	if ( offset2 > offset1 )
-		return 2;
-	else
-		// both times are the same
-		return 0;
-} // End of TimeMsec_CMP
 
 static int MemoryHandle_init(MemoryHandle_t *handle) {
 
@@ -385,13 +368,13 @@ uint32_t index = index_cache & FlowTable.IndexMask;
 
 	// allocate enough memory for the new flow including all additional information in FlowTableRecord_t
 	// MemoryHandle_get always succeeds. If no memory, MemoryHandle_get already exists cleanly
-	record = MemoryHandle_get(&FlowTable.mem, sizeof(FlowTableRecord_t) - sizeof(common_record_t) + raw_record->size);
+	record = MemoryHandle_get(&FlowTable.mem, sizeof(FlowTableRecord_t) + raw_record->size);
 
 	record->next 	 = NULL;
 	record->hash 	 = index_cache;
 	record->hash_key = flowkey;
 
-	memcpy((void *)&record->flowrecord, (void *)raw_record, raw_record->size);
+	memcpy((void *)&record->rawRecord, (void *)raw_record, raw_record->size);
 	if ( FlowTable.bucket[index] == NULL ) 
 		FlowTable.bucket[index] = record;
 	else 
@@ -415,7 +398,7 @@ FlowTableRecord_t	*record;
 	record->hash 	 = 0;
 	record->hash_key = NULL;
 
-	memcpy((void *)&record->flowrecord, (void *)raw_record, raw_record->size);
+	memcpy((void *)&record->rawRecord, (void *)raw_record, raw_record->size);
 	if ( FlowTable.bucket[0] == NULL ) 
 		FlowTable.bucket[0] = record;
 	else 
@@ -464,21 +447,21 @@ uint32_t			index_cache;
 		FlowTableRecord->counter[OUTBYTES]   += flow_record->out_bytes;
 		FlowTableRecord->counter[OUTPACKETS] += flow_record->out_pkts;
 
-		if ( TimeMsec_CMP(flow_record->first, flow_record->msec_first, 
-				FlowTableRecord->flowrecord.first, FlowTableRecord->flowrecord.msec_first) == 2) {
-			FlowTableRecord->flowrecord.first = flow_record->first;
-			FlowTableRecord->flowrecord.msec_first = flow_record->msec_first;
+		if ( flow_record->msecFirst < FlowTableRecord->msecFirst ) {
+			FlowTableRecord->msecFirst = flow_record->msecFirst;
 		}
-		if ( TimeMsec_CMP(flow_record->last, flow_record->msec_last, 
-				FlowTableRecord->flowrecord.last, FlowTableRecord->flowrecord.msec_last) == 1) {
-			FlowTableRecord->flowrecord.last = flow_record->last;
-			FlowTableRecord->flowrecord.msec_last = flow_record->msec_last;
+		if ( FlowTableRecord->msecLast > FlowTableRecord->msecLast )  {
+			FlowTableRecord->msecLast =	FlowTableRecord->msecLast;
 		}
 
 		FlowTableRecord->counter[FLOWS]        += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
-		FlowTableRecord->flowrecord.tcp_flags  |= flow_record->tcp_flags;
+		FlowTableRecord->tcpFlags		|= flow_record->tcp_flags;
+		FlowTableRecord->srcPort		 = flow_record->srcPort;
+		FlowTableRecord->dstPort		 = flow_record->dstPort;
+		FlowTableRecord->proto			 = flow_record->proto;
 
-	} else if ( !bidir_flows || ( flow_record->prot != IPPROTO_TCP && flow_record->prot != IPPROTO_UDP) ) {
+
+	} else if ( !bidir_flows || ( flow_record->proto != IPPROTO_TCP && flow_record->proto != IPPROTO_UDP) ) {
 		// no flow record found and no TCP/UDP bidir flows. Insert flow record into hash
 		FlowTableRecord = hash_insert_FlowTable(index_cache, keymem, raw_record);
 
@@ -490,6 +473,11 @@ uint32_t			index_cache;
 
 		FlowTableRecord->map_info_ref  	 	 = extension_info;
 		FlowTableRecord->exp_ref  	 		 = flow_record->exp_ref;
+		FlowTableRecord->srcPort			 = flow_record->srcPort;
+		FlowTableRecord->dstPort			 = flow_record->dstPort;
+		FlowTableRecord->proto				 = flow_record->proto;
+		FlowTableRecord->msecFirst			 = flow_record->msecFirst;
+		FlowTableRecord->msecLast			 = flow_record->msecLast;
 
 		// keymen got part of the cache
 		keymem = NULL;
@@ -518,19 +506,19 @@ uint32_t			index_cache;
 			FlowTableRecord->counter[INBYTES]    += flow_record->out_bytes;
 			FlowTableRecord->counter[INPACKETS]  += flow_record->out_pkts;
 
-			if ( TimeMsec_CMP(flow_record->first, flow_record->msec_first, 
-					FlowTableRecord->flowrecord.first, FlowTableRecord->flowrecord.msec_first) == 2) {
-				FlowTableRecord->flowrecord.first = flow_record->first;
-				FlowTableRecord->flowrecord.msec_first = flow_record->msec_first;
+			if ( flow_record->msecFirst < FlowTableRecord->msecFirst ) {
+				FlowTableRecord->msecFirst = flow_record->msecFirst;
 			}
-			if ( TimeMsec_CMP(flow_record->last, flow_record->msec_last, 
-				FlowTableRecord->flowrecord.last, FlowTableRecord->flowrecord.msec_last) == 1) {
-				FlowTableRecord->flowrecord.last = flow_record->last;
-				FlowTableRecord->flowrecord.msec_last = flow_record->msec_last;
+			if ( flow_record->msecLast > FlowTableRecord->msecLast ) {
+				FlowTableRecord->msecLast = flow_record->msecLast;
 			}
-	
+
 			FlowTableRecord->counter[FLOWS]        += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
-			FlowTableRecord->flowrecord.tcp_flags  |= flow_record->tcp_flags;
+			FlowTableRecord->tcpFlags		|= flow_record->tcp_flags;
+			FlowTableRecord->srcPort		 = flow_record->srcPort;
+			FlowTableRecord->dstPort		 = flow_record->dstPort;
+			FlowTableRecord->proto			 = flow_record->proto;
+
 		} else {
 			// no bidir flow found 
 			// insert original flow into the cache
@@ -543,6 +531,13 @@ uint32_t			index_cache;
 			FlowTableRecord->counter[FLOWS]   	 = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 			FlowTableRecord->map_info_ref  	 	 = extension_info;
 			FlowTableRecord->exp_ref  	 		 = flow_record->exp_ref;
+
+			FlowTableRecord->tcpFlags	= flow_record->tcp_flags;
+			FlowTableRecord->srcPort	= flow_record->srcPort;
+			FlowTableRecord->dstPort	= flow_record->dstPort;
+			FlowTableRecord->proto		= flow_record->proto;
+			FlowTableRecord->msecFirst	= flow_record->msecFirst;
+			FlowTableRecord->msecLast	= flow_record->msecLast;
 
 			keymem = NULL;
 		}
@@ -849,13 +844,13 @@ master_record_t *aggr_record_mask;
 		// not really needed, but preset it anyway
 		r[0] = 0xffffffffffffffffLL;
 		r[1] = 0xffffffffffffffffLL;
-		aggr_record_mask->dPkts   	= 0xffffffffffffffffLL;
-		aggr_record_mask->dOctets 	= 0xffffffffffffffffLL;
-		aggr_record_mask->out_pkts   = 0xffffffffffffffffLL;
-		aggr_record_mask->out_bytes  = 0xffffffffffffffffLL;
+		aggr_record_mask->dPkts		 = 0xffffffffffffffffLL;
+		aggr_record_mask->dOctets	 = 0xffffffffffffffffLL;
+		aggr_record_mask->out_pkts	 = 0xffffffffffffffffLL;
+		aggr_record_mask->out_bytes	 = 0xffffffffffffffffLL;
 		aggr_record_mask->aggr_flows = 0xffffffffffffffffLL;
-		aggr_record_mask->last    	= 0xffffffff;
-		
+		aggr_record_mask->msecLast	 = 0xffffffffffffffffLL;
+
 		return aggr_record_mask;
 	} else {
 		return NULL;
@@ -912,9 +907,9 @@ Default_key_t *keyptr;
 		keyptr->srcaddr[1]	= flow_record->V6.dstaddr[1];
 		keyptr->dstaddr[0]	= flow_record->V6.srcaddr[0];
 		keyptr->dstaddr[1]	= flow_record->V6.srcaddr[1];
-		keyptr->srcport		= flow_record->dstport;
-		keyptr->dstport		= flow_record->srcport;
-		keyptr->proto		= flow_record->prot;
+		keyptr->srcPort		= flow_record->dstPort;
+		keyptr->dstPort		= flow_record->srcPort;
+		keyptr->proto		= flow_record->proto;
 	} else {
 		// default 5-tuple aggregation
 		keyptr = (Default_key_t *)keymem;
@@ -922,9 +917,9 @@ Default_key_t *keyptr;
 		keyptr->srcaddr[1]	= flow_record->V6.srcaddr[1];
 		keyptr->dstaddr[0]	= flow_record->V6.dstaddr[0];
 		keyptr->dstaddr[1]	= flow_record->V6.dstaddr[1];
-		keyptr->srcport		= flow_record->srcport;
-		keyptr->dstport		= flow_record->dstport;
-		keyptr->proto		= flow_record->prot;
+		keyptr->srcPort		= flow_record->srcPort;
+		keyptr->dstPort		= flow_record->dstPort;
+		keyptr->proto		= flow_record->proto;
 	}
 	
 } // End of New_Hash_Key

@@ -247,14 +247,14 @@ uint64_t total_bytes;
 
 
 						// Add to stat record
-						if ( master_record.prot == 6 ) {
-							port_table[master_record.dstport].proto[tcp].type[flows]++;
-							port_table[master_record.dstport].proto[tcp].type[packets]	+= master_record.dPkts;
-							port_table[master_record.dstport].proto[tcp].type[bytes]	+= master_record.dOctets;
-						} else if ( master_record.prot == 17 ) {
-							port_table[master_record.dstport].proto[udp].type[flows]++;
-							port_table[master_record.dstport].proto[udp].type[packets]	+= master_record.dPkts;
-							port_table[master_record.dstport].proto[udp].type[bytes]	+= master_record.dOctets;
+						if ( master_record.proto == IPPROTO_TCP ) {
+							port_table[master_record.dstPort].proto[tcp].type[flows]++;
+							port_table[master_record.dstPort].proto[tcp].type[packets]	+= master_record.dPkts;
+							port_table[master_record.dstPort].proto[tcp].type[bytes]	+= master_record.dOctets;
+						} else if ( master_record.proto == IPPROTO_UDP ) {
+							port_table[master_record.dstPort].proto[udp].type[flows]++;
+							port_table[master_record.dstPort].proto[udp].type[packets]	+= master_record.dPkts;
+							port_table[master_record.dstPort].proto[udp].type[bytes]	+= master_record.dOctets;
 						}
              		}
 				} break;

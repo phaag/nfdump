@@ -96,15 +96,15 @@ struct tm 	*ts;
 master_record_t *r = (master_record_t *)record;
 extension_map_t	*extension_map = r->map_ref;
 
-	when = r->first;
+	when = r->msecFirst/1000LL;
 	ts = localtime(&when);
 	strftime(datebuff, 63, "%Y-%m-%dT%H:%M:%S", ts);
-	asprintf(&datestr1, "%s.%u", datebuff, r->msec_first);
+	asprintf(&datestr1, "%s.%llu", datebuff, r->msecFirst/1000LL);
 
-	when = r->last;
+	when = r->msecLast;
 	ts = localtime(&when);
 	strftime(datebuff, 63, "%Y-%m-%dT%H:%M:%S", ts);
-	asprintf(&datestr2, "%s.%u", datebuff, r->msec_last);
+	asprintf(&datestr2, "%s.%llu", datebuff, r->msecLast/1000LL);
 
 	String_Flags(record, flags_str);
 
@@ -120,12 +120,15 @@ extension_map_t	*extension_map = r->map_ref;
 "	\"type\" : \"%s\",\n"
 "	\"sampled\" : %u,\n"
 "	\"export_sysid\" : %u,\n"
-"	\"t_first\" : \"%s\",\n"
-"	\"t_last\" : \"%s\",\n"
+"	\"first\" : \"%s\",\n"
+"	\"last\" : \"%s\",\n"
+"	\"msecfirst\" : \"%llu\",\n"
+"	\"mseclast\" : \"%llu\",\n"
 "	\"proto\" : %u,\n"
 , TestFlag(r->flags, FLAG_EVENT) ? "EVENT" : "FLOW", 
 	TestFlag(r->flags, FLAG_SAMPLED) ? 1 : 0, 
-	r->exporter_sysid, datestr1, datestr2, r->prot);
+	r->exporter_sysid, datestr1, datestr2, 
+	r->msecFirst, r->msecLast, r->proto);
 
 	free(datestr1);
 	free(datestr2);
@@ -171,7 +174,7 @@ extension_map_t	*extension_map = r->map_ref;
 	slen = STRINGSIZE - _slen;
 
 
-	if ( r->prot == IPPROTO_ICMP || r->prot == IPPROTO_ICMPV6 ) { // ICMP
+	if ( r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6 ) { // ICMP
 		snprintf(_s, slen-1,
 "	\"icmp_type\" : %u,\n"
 "	\"icmp_code\" : %u,\n"
@@ -180,7 +183,7 @@ extension_map_t	*extension_map = r->map_ref;
 		snprintf(_s, slen-1,
 "	\"src_port\" : %u,\n"
 "	\"dst_port\" : %u,\n"
-, r->srcport, r->dstport);
+, r->srcPort, r->dstPort);
 	}
 
 	_slen = strlen(data_string);

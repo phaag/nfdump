@@ -57,9 +57,9 @@
 
 extern extension_descriptor_t extension_descriptor[];
 
-static time_t	when;
-uint32_t offset  = 10;
-uint32_t msecs   = 10;
+static uint64_t when;
+uint64_t offset  = 10000;
+uint64_t msecs   = 10;
 
 static extension_info_t extension_info;
 
@@ -148,13 +148,11 @@ static void SetBGPNextIPaddress(master_record_t *record, int af,  char *next_ip)
 
 static void UpdateRecord(master_record_t *record) {
 
-	record->first		= when;
-	record->last		 = when + offset;
-	record->msec_first   = msecs;
-	record->msec_last	= msecs + 10;
+	record->msecFirst = when + msecs;
+	record->msecLast  = record->msecFirst + offset + 10;
 
-	when   += 10;
-	offset += 10;
+	when   += 10000LL;
+	offset += 10000LL;
 
 	msecs += 100;
 	if ( msecs > 1000 )
@@ -169,7 +167,7 @@ int i, c;
 master_record_t		record;
 nffile_t			*nffile;
 
-	when = ISO2UNIX(strdup("200407111030"));
+	when = ISO2UNIX(strdup("200407111030")) * 1000LL;
 	while ((c = getopt(argc, argv, "h")) != EOF) {
 		switch(c) {
 			case 'h':
@@ -228,16 +226,14 @@ nffile_t			*nffile;
 	AppendToBuffer(nffile, (void *)extension_info.map, extension_info.map->size);
 	
 	record.map_ref = extension_info.map;
-	record.type	= CommonRecordType;
-
 	record.flags   		= 0;
 	record.exporter_sysid = 1;
 	record.tcp_flags   	= 1;
 	record.tos 		   	= 2;
 	record.fwd_status	= 0;
-	record.srcport 	 	= 1024;
-	record.dstport 	 	= 25;
-	record.prot 	 	= IPPROTO_TCP;
+	record.srcPort 	 	= 1024;
+	record.dstPort 	 	= 25;
+	record.proto 	 	= IPPROTO_TCP;
 	record.input 	 	= 12;
 	record.output 	 	= 14;
 	record.srcas 	 	= 775;
@@ -300,8 +296,8 @@ nffile_t			*nffile;
 	PackRecord(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.4.66", "192.168.170.103");
-	record.srcport 	 = 2024;
-	record.prot 	 = IPPROTO_UDP;
+	record.srcPort 	 = 2024;
+	record.proto 	 = IPPROTO_UDP;
 	record.tcp_flags = 1;
 	record.tos 		 = 1;
 	record.dPkts 	 = 1001;
@@ -311,8 +307,8 @@ nffile_t			*nffile;
 	PackRecord(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.5.66", "192.168.170.104");
-	record.srcport 	 	= 3024;
-	record.prot 	 	= 51;
+	record.srcPort 	 	= 3024;
+	record.proto 	 	= 51;
 	record.tcp_flags 	= 2;
 	record.tos 		 	= 2;
 	record.dPkts 	 	= 10001;
@@ -322,8 +318,8 @@ nffile_t			*nffile;
 	PackRecord(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.6.66", "192.168.170.105");
-	record.srcport 	 	= 4024;
-	record.prot 	 	= IPPROTO_TCP;
+	record.srcPort 	 	= 4024;
+	record.proto 	 	= IPPROTO_TCP;
 	record.tcp_flags 	= 4;
 	record.tos 		 	= 3;
 	record.dPkts 	 	= 100001;
@@ -333,7 +329,7 @@ nffile_t			*nffile;
 	PackRecord(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.7.66", "192.168.170.106");
-	record.srcport 	 	= 5024;
+	record.srcPort 	 	= 5024;
 	record.tcp_flags 	= 8;
 	record.tos 		 	= 4;
 	record.dPkts 	 	= 1000001;
@@ -352,7 +348,7 @@ nffile_t			*nffile;
 	PackRecord(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.9.66", "192.168.170.108");
-	record.srcport 	 	= 6024;
+	record.srcPort 	 	= 6024;
 	record.tcp_flags 	= 16;
 	record.tos 		 	= 5;
 	record.dPkts 	 	= 500;
@@ -367,7 +363,7 @@ nffile_t			*nffile;
 	PackRecord(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.11.66", "192.168.170.110");
-	record.srcport 		= 7024;
+	record.srcPort 		= 7024;
 	record.tcp_flags 	= 32;
 	record.tos 		 	= 255;
 	record.dPkts 	 	= 5000;
@@ -377,7 +373,7 @@ nffile_t			*nffile;
 	PackRecord(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.12.66", "192.168.170.111");
-	record.srcport 	 	= 8024;
+	record.srcPort 	 	= 8024;
 	record.tcp_flags 	= 63;
 	record.tos 		 	= 0;
 	record.dOctets 	 	= 1000000001;
@@ -386,9 +382,9 @@ nffile_t			*nffile;
 	PackRecord(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.13.66", "192.168.170.112");
-	record.srcport 	 	= 0;
-	record.dstport 	 	= 8;
-	record.prot 	 	= IPPROTO_ICMP;
+	record.srcPort 	 	= 0;
+	record.dstPort 	 	= 8;
+	record.proto 	 	= IPPROTO_ICMP;
 	record.tcp_flags 	= 0;
 	record.tos 		 	= 0;
 	record.dPkts 	 	= 50002;
@@ -398,9 +394,9 @@ nffile_t			*nffile;
 	PackRecord(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.160.160.166", "172.160.160.180");
-	record.srcport 	 = 10024;
-	record.dstport 	 = 25000;
-	record.prot 	 = IPPROTO_TCP;
+	record.srcPort 	 = 10024;
+	record.dstPort 	 = 25000;
+	record.proto 	 = IPPROTO_TCP;
 	record.dPkts 	 = 500001;
 	record.dOctets 	 = 500000;
 	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
@@ -410,8 +406,8 @@ nffile_t			*nffile;
 	SetIPaddress(&record,  PF_INET6, "fe80::2110:abcd:1234:0", "fe80::2110:abcd:1235:4321");
 //	SetNextIPaddress(&record,  PF_INET6, "2003:234:aabb::211:24ff:fe80:d01e");
 //	SetBGPNextIPaddress(&record,  PF_INET6, "2004:234:aabb::211:24ff:fe80:d01e");
-	record.srcport 	 = 1024;
-	record.dstport 	 = 25;
+	record.srcPort 	 = 1024;
+	record.dstPort 	 = 25;
 	record.tcp_flags = 27;
 	record.dPkts 	 = 10;
 	record.dOctets 	 = 15100;
@@ -422,8 +418,8 @@ nffile_t			*nffile;
 	SetIPaddress(&record,  PF_INET6, "2001:234:aabb:cc:211:24ff:fe80:d01e", "2001:620:1f:8:203:baff:fe52:38e5");
 	record.src_mask		= 88;
 	record.dst_mask		= 48;
-	record.srcport 	 = 10240;
-	record.dstport 	 = 52345;
+	record.srcPort 	 = 10240;
+	record.dstPort 	 = 52345;
 	record.dPkts 	 = 10100;
 	record.dOctets 	 = 15000000;
 	fprintf(stderr, "IPv6 32bit packets 32bit bytes\n");
@@ -452,8 +448,8 @@ nffile_t			*nffile;
 //	SetBGPNextIPaddress(&record,  PF_INET, "172.73.2.3");
 	record.src_mask		= 16;
 	record.dst_mask		= 24;
-	record.srcport 	 = 10240;
-	record.dstport 	 = 52345;
+	record.srcPort 	 = 10240;
+	record.dstPort 	 = 52345;
 	record.dPkts 	 = 10100000;
 	record.dOctets 	 = 0x100000000LL;
 	fprintf(stderr, "IPv4 32bit packets 64bit bytes\n");

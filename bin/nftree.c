@@ -565,7 +565,7 @@ static inline void duration_function(uint64_t *record_data, uint64_t *comp_value
 master_record_t *record = (master_record_t *)record_data;
 
 	/* duration in msec */
-	comp_values[0] = 1000*(record->last - record->first) + record->msec_last - record->msec_first;
+	comp_values[0] = record->msecLast - record->msecFirst;
 
 } // End of duration_function
 
@@ -574,7 +574,7 @@ master_record_t *record = (master_record_t *)record_data;
 uint64_t		duration;
 
 	/* duration in msec */
-	duration = 1000*(record->last - record->first) + record->msec_last - record->msec_first;
+	duration = record->msecLast - record->msecFirst;
 	if ( duration == 0 )
 		comp_values[0] = 0;
 	else 
@@ -587,7 +587,7 @@ master_record_t *record = (master_record_t *)record_data;
 uint64_t		duration;
 
 	/* duration in msec */
-	duration = 1000*(record->last - record->first) + record->msec_last - record->msec_first;
+	duration = record->msecLast - record->msecFirst;
 	if ( duration == 0 )
 		comp_values[0] = 0;
 	else 

@@ -210,7 +210,6 @@ uint32_t			cnt;
 
 	memset((void *)&record, 0, sizeof(record));
 	record.map_ref 		  = extension_info->map;
-	record.type 		  = CommonRecordType;
 	record.exporter_sysid = 0;
 
 	// only v4 addresses
@@ -227,20 +226,18 @@ uint32_t			cnt;
 
 		when	   = *((uint32_t*)(rec+fo.First));
 		ftt = ftltime(sysUpTime, unix_secs, unix_nsecs, when);
-		record.first 		= ftt.secs;
-		record.msec_first 	= ftt.msecs;
+		record.msecFirst 	= 1000LL * ftt.secs + ftt.msecs;
 	
 		when	   = *((uint32_t*)(rec+fo.Last));
 		ftt = ftltime(sysUpTime, unix_secs, unix_nsecs, when);
-		record.last 		= ftt.secs;
-		record.msec_last 	= ftt.msecs;
+		record.msecLast 	= 1000LL * ftt.secs + ftt.msecs;
 	
 		record.V4.srcaddr 	= *((uint32_t*)(rec+fo.srcaddr));
 		record.V4.dstaddr 	= *((uint32_t*)(rec+fo.dstaddr));
-		record.srcport 		= *((uint16_t*)(rec+fo.srcport));
-		record.dstport 		= *((uint16_t*)(rec+fo.dstport));
+		record.srcPort 		= *((uint16_t*)(rec+fo.srcport));
+		record.dstPort 		= *((uint16_t*)(rec+fo.dstport));
 
-		record.prot 		= *((uint8_t*)(rec+fo.prot));
+		record.proto 		= *((uint8_t*)(rec+fo.prot));
 		record.tcp_flags	= *((uint8_t*)(rec+fo.tcp_flags));
 		record.tos 			= *((uint8_t*)(rec+fo.tos));
 

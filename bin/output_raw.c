@@ -107,11 +107,11 @@ extension_map_t	*extension_map = r->map_ref;
 	as[IP_STRING_LEN-1] = 0;
 	ds[IP_STRING_LEN-1] = 0;
 
-	when = r->first;
+	when = r->msecFirst/1000LL;
 	ts = localtime(&when);
 	strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
 
-	when = r->last;
+	when = r->msecLast/1000LL;
 	ts = localtime(&when);
 	strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
 
@@ -123,25 +123,23 @@ extension_map_t	*extension_map = r->map_ref;
 "  label        =  %16s\n"
 "  export sysid =             %5u\n"
 "  size         =             %5u\n"
-"  first        =        %10u [%s]\n"
-"  last         =        %10u [%s]\n"
-"  msec_first   =             %5u\n"
-"  msec_last    =             %5u\n"
+"  first        =     %13llu [%s.%03llu]\n"
+"  last         =     %13llu [%s.%03llu]\n"
 "  src addr     =  %16s\n"
 "  dst addr     =  %16s\n"
 , 
 		r->flags, TestFlag(r->flags, FLAG_EVENT) ? "EVENT" : "FLOW", 
 		TestFlag(r->flags, FLAG_SAMPLED) ? "Sampled" : "Unsampled", 
 		r->label ? r->label : "<none>",
-		r->exporter_sysid, r->size, r->first, 
-		datestr1, r->last, datestr2, r->msec_first, r->msec_last, 
+		r->exporter_sysid, r->size, r->msecFirst, datestr1, r->msecFirst % 1000LL,
+		r->msecLast, datestr2, r->msecLast % 1000LL,
 		as, ds );
 
 	_slen = strlen(data_string);
 	_s = data_string + _slen;
 	slen = STRINGSIZE - _slen;
 
-	if ( r->prot == IPPROTO_ICMP || r->prot == IPPROTO_ICMPV6 ) { // ICMP
+	if ( r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6 ) { // ICMP
 		snprintf(_s, slen-1,
 "  ICMP         =              %2u.%-2u type.code\n",
 		r->icmp_type, r->icmp_code);
@@ -149,7 +147,7 @@ extension_map_t	*extension_map = r->map_ref;
 		snprintf(_s, slen-1,
 "  src port     =             %5u\n"
 "  dst port     =             %5u\n",
-		r->srcport, r->dstport);
+		r->srcPort, r->dstPort);
 	}
 
 	_slen = strlen(data_string);
@@ -163,7 +161,7 @@ extension_map_t	*extension_map = r->map_ref;
 "  (src)tos     =               %3u\n"
 "  (in)packets  =        %10llu\n"
 "  (in)bytes    =        %10llu\n",
-	r->fwd_status, r->tcp_flags, FlagsString(r->tcp_flags), r->prot, ProtoString(r->prot, 0), r->tos,
+	r->fwd_status, r->tcp_flags, FlagsString(r->tcp_flags), r->proto, ProtoString(r->proto, 0), r->tos,
 		(unsigned long long)r->dPkts, (unsigned long long)r->dOctets);
 
 	_slen = strlen(data_string);

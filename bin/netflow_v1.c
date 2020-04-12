@@ -332,8 +332,8 @@ char		*string;
 	  			common_record->size			= v1_output_record_size;
 
 				// v1 common fields
-	  			common_record->srcport		= ntohs(v1_record->srcport);
-	  			common_record->dstport		= ntohs(v1_record->dstport);
+	  			common_record->srcPort		= ntohs(v1_record->srcPort);
+	  			common_record->dstPort		= ntohs(v1_record->dstPort);
 	  			common_record->tcp_flags	= v1_record->tcp_flags;
 	  			common_record->prot			= v1_record->prot;
 	  			common_record->tos			= v1_record->tos;
@@ -421,12 +421,12 @@ char		*string;
 						fs->nffile->stat_record->numpackets_icmp += v1_block->dPkts;
 						fs->nffile->stat_record->numbytes_icmp   += v1_block->dOctets;
 						// fix odd CISCO behaviour for ICMP port/type in src port
-						if ( common_record->srcport != 0 ) {
-							s1 = (uint8_t *)&(common_record->srcport);
-							s2 = (uint8_t *)&(common_record->dstport);
+						if ( common_record->srcPort != 0 ) {
+							s1 = (uint8_t *)&(common_record->srcPort);
+							s2 = (uint8_t *)&(common_record->dstPort);
 							s2[0] = s1[1];
 							s2[1] = s1[0];
-							common_record->srcport = 0;
+							common_record->srcPort = 0;
 						}
 						break;
 					case IPPROTO_TCP:

@@ -476,8 +476,8 @@ uint64_t _bytes, _packets, _t;	// tmp buffers
 	common_record->tcp_flags	  = sample->dcd_tcpFlags;
 	common_record->prot			  = sample->dcd_ipProtocol;
 	common_record->tos			  = sample->dcd_ipTos;
-	common_record->srcport		  = (uint16_t)sample->dcd_sport;
-	common_record->dstport		  = (uint16_t)sample->dcd_dport;
+	common_record->srcPort		  = (uint16_t)sample->dcd_sport;
+	common_record->dstPort		  = (uint16_t)sample->dcd_dport;
 
 	if(sample->gotIPV6) {
 		u_char 		*b;

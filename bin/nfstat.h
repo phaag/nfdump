@@ -66,10 +66,8 @@ typedef struct StatRecord {
 	struct StatRecord *next;
 	// flow parameters
 	uint64_t	counter[5];	// flows ipkg ibyte opkg obyte
-	uint32_t	first;
-	uint32_t	last;
-	uint16_t	msec_first;
-	uint16_t	msec_last;
+	uint64_t	msecFirst;
+	uint64_t	msecLast;
 	uint8_t		record_flags;
 	uint8_t		tcp_flags;
 	uint8_t		tos;
@@ -103,6 +101,14 @@ typedef struct SortElement {
 
 #define MULTIPLE_LIST_ORDERS 1
 #define SINGLE_LIST_ORDER    0
+
+#define NeedSwap(GuessDir, r) ( GuessDir && \
+	((r)->proto == IPPROTO_TCP || (r)->proto == IPPROTO_UDP) && \
+	 ((((r)->srcPort < 1024) && ((r)->dstPort >= 1024)) || \
+	  (((r)->srcPort < 32768) && ((r)->dstPort >= 32768)) || \
+	  (((r)->srcPort < 49152) && ((r)->dstPort >= 49152)) \
+	 ) \
+	)
 
 /* Function prototypes */
 void SetLimits(int stat, char *packet_limit_string, char *byte_limit_string );

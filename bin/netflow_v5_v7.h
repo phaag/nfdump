@@ -73,8 +73,8 @@ typedef struct netflow_v5_record {
   uint32_t  dOctets;
   uint32_t  First;
   uint32_t  Last;
-  uint16_t  srcport;
-  uint16_t  dstport;
+  uint16_t  srcPort;
+  uint16_t  dstPort;
   uint8_t   pad1;
   uint8_t   tcp_flags;
   uint8_t   prot;
@@ -108,8 +108,8 @@ typedef struct netflow_v7_record {
   uint32_t  dOctets;
   uint32_t  First;
   uint32_t  Last;
-  uint16_t  srcport;
-  uint16_t  dstport;
+  uint16_t  srcPort;
+  uint16_t  dstPort;
   uint8_t   flags;
   uint8_t   tcp_flags;
   uint8_t   prot;

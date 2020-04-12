@@ -304,7 +304,7 @@ char				*string;
 
 			// foreach elem in this bucket
 			while ( r ) {
-				SortList[c].count  = 1000LL * r->flowrecord.first + r->flowrecord.msec_first;	// sort according the date
+				SortList[c].count  = r->msecFirst;	// sort according the date
 				SortList[c].record = (void *)r;
 				c++;
 				r = r->next;
@@ -325,7 +325,7 @@ char				*string;
 			extension_info_t *extension_info;
 
 			r = (FlowTableRecord_t *)(SortList[i].record);
-			raw_record = &(r->flowrecord);
+			raw_record = (common_record_t *)(r->rawRecord);
 			extension_info = r->map_info_ref;
 
 			flow_record = &(extension_info->master_record);
@@ -351,12 +351,8 @@ char				*string;
 				ApplyAggrMask(flow_record, aggr_record_mask);
 			}
 
-			if ( GuessDir && 
-			   ( flow_record->prot == IPPROTO_TCP || flow_record->prot == IPPROTO_UDP) &&
-			   ( flow_record->srcport < 1024 ) && ( flow_record->dstport > 1024 ) &&
-			   ( flow_record->srcport < flow_record->dstport ) ) {
+			if ( NeedSwap(GuessDir, flow_record) )
 				SwapFlow(flow_record);
-			}
 
 			// switch to output extension map
 			flow_record->map_ref = extension_info->exportMap ? extension_info->exportMap : extension_info->map;
@@ -379,7 +375,7 @@ char				*string;
 				common_record_t *raw_record;
 				extension_info_t *extension_info;
 
-				raw_record = &(r->flowrecord);
+				raw_record = (common_record_t *)(r->rawRecord);
 				extension_info = r->map_info_ref;
 
 				flow_record = &(extension_info->master_record);
@@ -405,12 +401,8 @@ char				*string;
 					ApplyAggrMask(flow_record, aggr_record_mask);
 				}
 
-				if ( GuessDir && 
-			   	   ( flow_record->prot == IPPROTO_TCP || flow_record->prot == IPPROTO_UDP) &&
-			   	   ( flow_record->srcport < 1024 ) && ( flow_record->dstport > 1024 ) &&
-			   	   ( flow_record->srcport < flow_record->dstport ) ) {
+				if ( NeedSwap(GuessDir, flow_record) )
 					SwapFlow(flow_record);
-				}
 
 				// switch to output extension map
 				flow_record->map_ref = extension_info->exportMap ? extension_info->exportMap : extension_info->map;

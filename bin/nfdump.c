@@ -356,13 +356,20 @@ master_record_t		*master_record;
 nffile_t			*nffile_w, *nffile_r;
 stat_record_t 		stat_record;
 int 				done, write_file;
+uint64_t	twin_msecFirst, twin_msecLast;
 
 	// time window of all matched flows
 	memset((void *)&stat_record, 0, sizeof(stat_record_t));
 	stat_record.first_seen = 0x7fffffff;
 	stat_record.msec_first = 999;
 
-	// Do the logic first
+	if ( timeWindow ) {
+		twin_msecFirst = timeWindow->first * 1000LL;
+		twin_msecLast  = timeWindow->last * 1000LL;
+	} else {
+		twin_msecFirst = twin_msecLast = 0;
+	}
+
 
 	// do not print flows when doing any stats are sorting
 	if ( sort_flows || flow_stat || element_stat ) {
@@ -500,9 +507,9 @@ int 				done, write_file;
 					match = 1;
 					if ( timeWindow ) {
 						match = 0;
-						if (timeWindow->first && (master_record->first > timeWindow->first))
+						if (twin_msecFirst && (master_record->msecFirst > twin_msecFirst))
 							match = 1;
-						if (timeWindow->last && master_record->last < timeWindow->last )
+						if (twin_msecLast && master_record->msecLast < twin_msecLast )
 							match = 1;
 					}
 					match &= limitRecords ? recordCount <= limitRecords : 1;

@@ -290,7 +290,7 @@ netflow_v5_record_t *v5_record;
 exporter_v5_t 		*exporter;
 extension_map_t		*extension_map;
 common_record_t		*common_record;
-uint64_t	start_time, end_time, boot_time;
+uint64_t	start_time, end_time, msecBoot;
 uint32_t   	First, Last;
 uint16_t	count;
 uint8_t		flags;
@@ -397,7 +397,7 @@ char		*string;
 	  		v5_header->unix_nsecs	 = ntohl(v5_header->unix_nsecs);
 	
 			/* calculate boot time in msec */
-			boot_time  = ((uint64_t)(v5_header->unix_secs)*1000 + 
+			msecBoot  = ((uint64_t)(v5_header->unix_secs)*1000 + 
 					((uint64_t)(v5_header->unix_nsecs) / 1000000) ) - (uint64_t)(v5_header->SysUptime);
 	
 			// process all records
@@ -417,8 +417,8 @@ char		*string;
 	  			common_record->size			  = v5_output_record_size;
 
 				// v5 common fields
-	  			common_record->srcport		  = ntohs(v5_record->srcport);
-	  			common_record->dstport		  = ntohs(v5_record->dstport);
+	  			common_record->srcPort		  = ntohs(v5_record->srcPort);
+	  			common_record->dstPort		  = ntohs(v5_record->dstPort);
 	  			common_record->tcp_flags	  = v5_record->tcp_flags;
 	  			common_record->prot			  = v5_record->prot;
 	  			common_record->tos			  = v5_record->tos;
@@ -528,7 +528,7 @@ char		*string;
 				 */
 				if ( First > Last && ( (First - Last)  < 20000) ) {
 					uint32_t _t;
-					LogError("Process_v5: Unexpected time swap: First 0x%llx smaller than boot time: 0x%llx", start_time, boot_time);
+					LogError("Process_v5: Unexpected time swap: First 0x%llx smaller than boot time: 0x%llx", start_time, msecBoot);
 					_t= First;
 					First = Last;
 					Last = _t;
@@ -536,13 +536,13 @@ char		*string;
 #endif
 				if ( First > Last ) {
 					/* First in msec, in case of msec overflow, between start and end */
-					start_time = boot_time - 0x100000000LL + (uint64_t)First;
+					start_time = msecBoot - 0x100000000LL + (uint64_t)First;
 				} else {
-					start_time = boot_time + (uint64_t)First;
+					start_time = msecBoot + (uint64_t)First;
 				}
 
 				/* end time in msecs */
-				end_time = (uint64_t)Last + boot_time;
+				end_time = (uint64_t)Last + msecBoot;
 
 				// if overflow happened after flow ended but before got exported
 				// the additional check > 100000 is required due to a CISCO IOS bug
@@ -572,12 +572,12 @@ char		*string;
 						fs->nffile->stat_record->numpackets_icmp += packets;
 						fs->nffile->stat_record->numbytes_icmp   += bytes;
 						// fix odd CISCO behaviour for ICMP port/type in src port
-						if ( common_record->srcport != 0 ) {
-							s1 = (uint8_t *)&(common_record->srcport);
-							s2 = (uint8_t *)&(common_record->dstport);
+						if ( common_record->srcPort != 0 ) {
+							s1 = (uint8_t *)&(common_record->srcPort);
+							s2 = (uint8_t *)&(common_record->dstPort);
 							s2[0] = s1[1];
 							s2[1] = s1[0];
-							common_record->srcport = 0;
+							common_record->srcPort = 0;
 						}
 						break;
 					case IPPROTO_TCP:
@@ -664,7 +664,7 @@ void Init_v5_v7_output(send_peer_t *peer) {
 } // End of Init_v5_v7_output
 
 int Add_v5_output_record(master_record_t *master_record, send_peer_t *peer) {
-static uint64_t	boot_time;	// in msec
+static uint64_t	msecBoot;	// in msec
 static int	cnt;
 extension_map_t *extension_map = master_record->map_ref;
 uint32_t	i, id, t1, t2;
@@ -675,8 +675,8 @@ uint32_t	i, id, t1, t2;
 
 	if ( output_engine.first ) {	// first time a record is added
 		// boot time is set one day back - assuming that the start time of every flow does not start ealier
-		boot_time  			 		= (uint64_t)(master_record->first - 86400)*1000;
-		v5_output_header->unix_secs = htonl(master_record->first - 86400);
+		msecBoot  			 		= master_record->msecFirst - 86400LL*1000LL;
+		v5_output_header->unix_secs = htonl((uint32_t)(master_record->msecFirst/1000LL) - 86400);
 		cnt   	 = 0;
 		output_engine.first 	 = 0;
 	}
@@ -688,18 +688,18 @@ uint32_t	i, id, t1, t2;
 		output_engine.last_sequence = output_engine.sequence;
 	}
 
-	t1 	= (uint32_t)(1000LL * (uint64_t)master_record->first + (uint64_t)master_record->msec_first - boot_time);
-	t2	= (uint32_t)(1000LL * (uint64_t)master_record->last  + (uint64_t)master_record->msec_last - boot_time);
+	t1 	= (uint32_t)(master_record->msecFirst - msecBoot);
+	t2	= (uint32_t)(master_record->msecLast - msecBoot);
   	v5_output_record->First		= htonl(t1);
   	v5_output_record->Last		= htonl(t2);
 
 	v5_output_record->srcaddr	= htonl(master_record->V4.srcaddr);
   	v5_output_record->dstaddr	= htonl(master_record->V4.dstaddr);
 
-  	v5_output_record->srcport	= htons(master_record->srcport);
-  	v5_output_record->dstport	= htons(master_record->dstport);
+  	v5_output_record->srcPort	= htons(master_record->srcPort);
+  	v5_output_record->dstPort	= htons(master_record->dstPort);
   	v5_output_record->tcp_flags = master_record->tcp_flags;
-  	v5_output_record->prot		= master_record->prot;
+  	v5_output_record->prot		= master_record->proto;
   	v5_output_record->tos		= master_record->tos;
 
 	// the 64bit counters are cut down to 32 bits for v5

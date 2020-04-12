@@ -124,7 +124,7 @@ typedef struct fileHeaderV1_s {
  * information about all netflow records in this file.
  */
 
-typedef struct stat_record_s {
+typedef struct stat_recordV1_s {
 	// overall stat
 	uint64_t	numflows;
 	uint64_t	numbytes;
@@ -151,7 +151,7 @@ typedef struct stat_record_s {
 	uint16_t	msec_last;
 	// other
 	uint32_t	sequence_failure;
-} stat_record_t;
+} stat_recordV1_t;
 
 
 // legacy nfdump 1.5.x data block type

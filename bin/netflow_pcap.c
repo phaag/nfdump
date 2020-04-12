@@ -199,8 +199,8 @@ void		*data_ptr;
 	common_record->size			= pcap_output_record_size;
 
 	// pcap common fields
-	common_record->srcport		= Node->src_port;
-	common_record->dstport		= Node->dst_port;
+	common_record->srcPort		= Node->src_port;
+	common_record->dstPort		= Node->dst_port;
 	common_record->tcp_flags	= Node->flags;
 	common_record->prot			= Node->proto;
 	common_record->tos			= 0;
@@ -275,13 +275,13 @@ void		*data_ptr;
 			fs->nffile->stat_record->numpackets_icmp += packets;
 			fs->nffile->stat_record->numbytes_icmp   += bytes;
 			// fix odd CISCO behaviour for ICMP port/type in src port
-			if ( common_record->srcport != 0 ) {
+			if ( common_record->srcPort != 0 ) {
 				uint8_t *s1, *s2;
-				s1 = (uint8_t *)&(common_record->srcport);
-				s2 = (uint8_t *)&(common_record->dstport);
+				s1 = (uint8_t *)&(common_record->srcPort);
+				s2 = (uint8_t *)&(common_record->dstPort);
 				s2[0] = s1[1];
 				s2[1] = s1[0];
-				common_record->srcport = 0;
+				common_record->srcPort = 0;
 			}
 			break;
 		case IPPROTO_TCP:

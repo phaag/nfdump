@@ -418,8 +418,7 @@ int	i, index;
 	tag_string[0] = do_tag ? TAG_CHAR : '\0';
 	tag_string[1] = '\0';
 
-	duration = r->last - r->first;
-	duration += ((double)r->msec_last - (double)r->msec_first) / 1000.0;
+	duration = (r->msecLast - r->msecFirst) / 1000.0;
 	for ( i=0; i<token_index; i++ ) {
 		token_list[i].string_function(r, token_list[i].string_buffer);
 	}
@@ -620,10 +619,10 @@ static char *ICMP_Port_decode(master_record_t *r) {
 #define ICMPSTRLEN 16
 static char icmp_string[ICMPSTRLEN];
 
-	if ( r->prot == IPPROTO_ICMP || r->prot == IPPROTO_ICMPV6 ) { // ICMP
+	if ( r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6 ) { // ICMP
 		snprintf(icmp_string, ICMPSTRLEN-1, "%u.%u",  r->icmp_type, r->icmp_code);
 	} else { 	// dst port
-		snprintf(icmp_string, ICMPSTRLEN-1, "%u",  r->dstport);
+		snprintf(icmp_string, ICMPSTRLEN-1, "%u",  r->dstPort);
 	}
 	icmp_string[ICMPSTRLEN-1] = '\0';
 
@@ -644,11 +643,11 @@ time_t 	tt;
 struct tm * ts;
 char 	*s;
 
-	tt = r->first;
+	tt = r->msecFirst/1000LL;
 	ts = localtime(&tt);
 	strftime(string, MAX_STRING_LENGTH-1, "%Y-%m-%d %H:%M:%S", ts);
 	s = string + strlen(string);
-	snprintf(s, MAX_STRING_LENGTH-strlen(string)-1,".%03u", r->msec_first);
+	snprintf(s, MAX_STRING_LENGTH-strlen(string)-1,".%03u", (unsigned)(r->msecFirst % 1000LL));
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_FirstSeen
@@ -658,11 +657,11 @@ time_t 	tt;
 struct tm * ts;
 char 	*s;
 
-	tt = r->last;
+	tt = r->msecLast/1000LL;
 	ts = localtime(&tt);
 	strftime(string, MAX_STRING_LENGTH-1, "%Y-%m-%d %H:%M:%S", ts);
 	s = string + strlen(string);
-	snprintf(s, MAX_STRING_LENGTH-strlen(string)-1,".%03u", r->msec_last);
+	snprintf(s, MAX_STRING_LENGTH-strlen(string)-1,".%03u", (unsigned)(r->msecLast % 1000LL));
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_LastSeen
@@ -691,14 +690,14 @@ static void String_ReceivedRaw(master_record_t *r, char *string) {
 static void String_FirstSeenRaw(master_record_t *r, char *string) {
 
 	 /* snprintf does write \0, and the max is INCL the terminating \0 */
-	 snprintf(string, MAX_STRING_LENGTH, "%u.%03u", r->first, r->msec_first);
+	 snprintf(string, MAX_STRING_LENGTH, "%llu.%03llu", r->msecFirst / 1000LL, r->msecFirst % 1000LL);
 
 } // End of String_FirstSeenRaw
 
 static void String_LastSeenRaw(master_record_t *r, char *string) {
 
 	 /* snprintf does write \0, and the max is INCL the terminating \0 */
-	 snprintf(string, MAX_STRING_LENGTH, "%u.%03u", r->last, r->msec_last);
+	 snprintf(string, MAX_STRING_LENGTH, "%llu.%03llu", r->msecLast / 1000LL, r->msecLast % 100LL);
 
 } // End of String_LastSeenRaw
 
@@ -728,7 +727,7 @@ static void String_Duration(master_record_t *r, char *string) {
 
 static void String_Protocol(master_record_t *r, char *string) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%-5s", ProtoString(r->prot, printPlain));
+	snprintf(string, MAX_STRING_LENGTH-1 ,"%-5s", ProtoString(r->proto, printPlain));
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_Protocol
@@ -785,9 +784,9 @@ char 	tmp_str[IP_STRING_LEN], portchar;
 	tmp_str[IP_STRING_LEN-1] = 0;
 
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s%c%-5i", tag_string, tmp_str, portchar, r->srcport);
+		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s%c%-5i", tag_string, tmp_str, portchar, r->srcPort);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s%c%-5i", tag_string, tmp_str, portchar, r->srcport);
+		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s%c%-5i", tag_string, tmp_str, portchar, r->srcPort);
 
 	string[MAX_STRING_LENGTH-1] = 0;
 
@@ -1006,7 +1005,7 @@ char tmp_str[IP_STRING_LEN];
 
 static void String_SrcPort(master_record_t *r, char *string) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%6u", r->srcport);
+	snprintf(string, MAX_STRING_LENGTH-1 ,"%6u", r->srcPort);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_SrcPort
@@ -1021,7 +1020,7 @@ static void String_DstPort(master_record_t *r, char *string) {
 static void String_ICMP_type(master_record_t *r, char *string) {
 	uint8_t type;
 
-	type =  ( r->prot == IPPROTO_ICMP || r->prot == IPPROTO_ICMPV6 ) ? r->icmp_type : 0;
+	type =  ( r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6 ) ? r->icmp_type : 0;
 	snprintf(string, MAX_STRING_LENGTH-1, "%6u", type);
 	string[MAX_STRING_LENGTH-1] = 0;
 
@@ -1030,7 +1029,7 @@ static void String_ICMP_type(master_record_t *r, char *string) {
 static void String_ICMP_code(master_record_t *r, char *string) {
 	uint8_t code;
 
-	code =  ( r->prot == IPPROTO_ICMP || r->prot == IPPROTO_ICMPV6 ) ? r->icmp_code : 0;
+	code =  ( r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6 ) ? r->icmp_code : 0;
 	snprintf(string, MAX_STRING_LENGTH-1, "%6u", code);
 	string[MAX_STRING_LENGTH-1] = 0;
 

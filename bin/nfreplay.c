@@ -200,11 +200,19 @@ common_record_t	*flow_record;
 nffile_t		*nffile;
 int 			i, done, ret, again;
 uint32_t		numflows, cnt;
+uint64_t	twin_msecFirst, twin_msecLast;
 
 	// z-parameter variables
 	struct timeval todayTime, currentTime;
 	double today = 0, reftime = 0;
 	int reducer = 0;
+
+	if ( timeWindow ) {
+		twin_msecFirst = timeWindow->first * 1000LL;
+		twin_msecLast  = timeWindow->last * 1000LL;
+	} else {
+		twin_msecFirst = twin_msecLast = 0;
+	}
 
 	// Get the first file handle
 	nffile = GetNextFile(NULL);
@@ -299,8 +307,14 @@ uint32_t		numflows, cnt;
 					// if no filter is given, the result is always true
 					ExpandRecord_v2( flow_record, extension_map_list->slot[flow_record->ext_map], NULL, &master_record);
 
-					match  = timeWindow && 
-						(master_record.first < timeWindow->first || master_record.last > timeWindow->last ) ? 0 : 1;
+					match = 1;
+					if ( timeWindow ) {
+						match = 0;
+						if (twin_msecFirst && (master_record.msecFirst > twin_msecFirst))
+							match = 1;
+						if (twin_msecLast && master_record.msecLast < twin_msecLast )
+							match = 1;
+					}
 
 					// filter netflow record with user supplied filter
 					if ( match ) 

@@ -109,11 +109,11 @@ struct StatParameter_s {
 		{ {OffsetRouterv6a, OffsetRouterv6b, MaskIPv6, 0},	{0,0,0,0} },
 			1, IS_IPADDR },
 
-	{ "srcport", "Src Port", 
+	{ "srcPort", "Src Port", 
 		{ {0, OffsetPort, MaskSrcPort, ShiftSrcPort}, 		{0,0,0,0} },
 			1, IS_NUMBER },
 
-	{ "dstport", "Dst Port", 
+	{ "dstPort", "Dst Port", 
 		{ {0, OffsetPort, MaskDstPort, ShiftDstPort}, 		{0,0,0,0} },
 			1, IS_NUMBER },
 
@@ -302,11 +302,11 @@ struct StatParameter_s {
 		{ {OffsetXLATEDSTv6a, OffsetXLATEDSTv6b, MaskIPv6, 0},	{0,0,0,0} },
 			1, IS_IPADDR},
 
-	{ "xsrcport", " X-Src Port", 
+	{ "xsrcPort", " X-Src Port", 
 		{ {0, OffsetXLATEPort, MaskXLATESRCPORT, ShiftXLATESRCPORT}, 		{0,0,0,0} },
 			1, IS_NUMBER},
 
-	{ "xdstport", " X-Dst Port", 
+	{ "xdstPort", " X-Dst Port", 
 		{ {0, OffsetXLATEPort, MaskXLATEDSTPORT, ShiftXLATEDSTPORT}, 		{0,0,0,0} },
 			1, IS_NUMBER},
 
@@ -351,11 +351,11 @@ struct StatParameter_s {
 		{ {OffsetXLATEDSTv6a, OffsetXLATEDSTv6b, MaskIPv6, 0},	{0,0,0,0} },
 			1, IS_IPADDR},
 
-	{ "nsrcport", " X-Src Port", 
+	{ "nsrcPort", " X-Src Port", 
 		{ {0, OffsetXLATEPort, MaskXLATESRCPORT, ShiftXLATESRCPORT}, 		{0,0,0,0} },
 			1, IS_NUMBER},
 
-	{ "ndstport", " X-Dst Port", 
+	{ "ndstPort", " X-Dst Port", 
 		{ {0, OffsetXLATEPort, MaskXLATEDSTPORT, ShiftXLATEDSTPORT}, 		{0,0,0,0} },
 			1, IS_NUMBER},
 
@@ -463,8 +463,6 @@ static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto,
 
 static void PrintCvsStatLine(stat_record_t	*stat, int printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
 
-static inline int TimeMsec_CMP(time_t t1, uint16_t offset1, time_t t2, uint16_t offset2 );
-
 static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order );
 
 /* locals */
@@ -488,10 +486,7 @@ static uint64_t	flows_record(FlowTableRecord_t *record, int inout) {
 }
 
 static uint64_t	packets_record(FlowTableRecord_t *record, int inout) {
-	if ( GuessDirection && 
-	   ( record->flowrecord.prot == IPPROTO_TCP || record->flowrecord.prot == IPPROTO_UDP) &&
-	   ( record->flowrecord.srcport < 1024 ) && ( record->flowrecord.dstport > 1024 ) &&
-	   ( record->flowrecord.srcport < record->flowrecord.dstport) ) {
+	if (NeedSwap(GuessDirection, record)) {
 		if (inout == IN)
 			inout = OUT;
 		else if (inout == OUT)
@@ -506,10 +501,7 @@ static uint64_t	packets_record(FlowTableRecord_t *record, int inout) {
 }
 
 static uint64_t	bytes_record(FlowTableRecord_t *record, int inout) {
-	if ( GuessDirection && 
-	   ( record->flowrecord.prot == IPPROTO_TCP || record->flowrecord.prot == IPPROTO_UDP) &&
-	   ( record->flowrecord.srcport < 1024 ) && ( record->flowrecord.dstport > 1024 ) &&
-	   ( record->flowrecord.srcport < record->flowrecord.dstport) ) {
+	if (NeedSwap(GuessDirection, record)) {
 		if (inout == IN)
 			inout = OUT;
 		else if (inout == OUT)
@@ -528,28 +520,26 @@ uint64_t		duration;
 uint64_t		packets;
 
 	/* duration in msec */
-	duration = 1000LL*(uint64_t)(record->flowrecord.last - record->flowrecord.first) + (uint64_t)record->flowrecord.msec_last - (uint64_t)record->flowrecord.msec_first;
+	duration = record->msecLast - record->msecFirst;
 	if ( duration == 0 )
 		return 0;
 	else {
 	        packets = packets_record(record, inout);
 		return ( 1000LL * packets ) / duration;
 	}
-
 } // End of pps_record
 
 static uint64_t	bps_record(FlowTableRecord_t *record, int inout) {
 uint64_t		duration;
 uint64_t		bytes;
 
-	duration = 1000LL*(uint64_t)(record->flowrecord.last - record->flowrecord.first) + (uint64_t)record->flowrecord.msec_last - (uint64_t)record->flowrecord.msec_first;
+	duration = record->msecLast - record->msecLast;
 	if ( duration == 0 )
 		return 0;
 	else {
 		bytes = bytes_record(record, inout);
 		return ( 8000LL * bytes ) / duration;	/* 8 bits per Octet - x 1000 for msec */
 	}
-
 } // End of bps_record
 
 static uint64_t	bpp_record(FlowTableRecord_t *record, int inout) {
@@ -557,19 +547,14 @@ uint64_t packets = packets_record(record, inout);
 uint64_t bytes = bytes_record(record, inout);
 
 	return packets ? bytes / packets : 0;
-
 } // End of bpp_record
 
 static uint64_t	tstart_record(FlowTableRecord_t *record, int inout) {
-	
-	return 1000LL * record->flowrecord.first + record->flowrecord.msec_first;
-
+	return record->msecFirst;
 } // End of tstart_record
 
 static uint64_t	tend_record(FlowTableRecord_t *record, int inout) {
-	
-	return 1000LL * record->flowrecord.last + record->flowrecord.msec_last;
-
+	return record->msecLast;
 } // End of tend_record
 
 static uint64_t	null_element(StatRecord_t *record, int inout) {
@@ -603,7 +588,7 @@ uint64_t		duration;
 uint64_t		packets;
 
 	/* duration in msec */
-	duration = 1000LL*(uint64_t)(record->last - record->first) + (uint64_t)record->msec_last - (uint64_t)record->msec_first;
+	duration = record->msecLast - record->msecFirst;
 	if ( duration == 0 )
 		return 0;
 	else {
@@ -617,7 +602,7 @@ static uint64_t	bps_element(StatRecord_t *record, int inout) {
 uint64_t		duration;
 uint64_t		bytes;
 
-	duration = 1000LL*(uint64_t)(record->last - record->first) + (uint64_t)record->msec_last - (uint64_t)record->msec_first;
+	duration = record->msecLast - record->msecFirst;
 	if ( duration == 0 )
 		return 0;
 	else {
@@ -634,23 +619,6 @@ uint64_t bytes = bytes_element(record, inout);
 	return packets ? bytes / packets : 0;
 
 } // End of bpp_element
-
-
-static inline int TimeMsec_CMP(time_t t1, uint16_t offset1, time_t t2, uint16_t offset2 ) {
-    if ( t1 > t2 )
-        return 1;
-    if ( t2 > t1 ) 
-        return 2;
-    // else t1 == t2 - offset is now relevant
-    if ( offset1 > offset2 )
-        return 1;
-    if ( offset2 > offset1 )
-        return 2;
-    else
-        // both times are the same
-        return 0;
-} // End of TimeMsec_CMP
-
 
 void SetLimits(int stat, char *packet_limit_string, char *byte_limit_string ) {
 char 		*s, c;
@@ -1085,34 +1053,30 @@ int	j, i;
 			if ( i == 1 && value[0][0] == value[1][0] && value[0][1] == value[1][1] ) {
 				break;
 			}
-			stat_record = stat_hash_lookup(value[i], flow_record->prot, j);
+			stat_record = stat_hash_lookup(value[i], flow_record->proto, j);
 			if ( stat_record ) {
 				stat_record->counter[INBYTES] 	 += flow_record->dOctets;
 				stat_record->counter[INPACKETS]  += flow_record->dPkts;
 				stat_record->counter[OUTBYTES] 	 += flow_record->out_bytes;
 				stat_record->counter[OUTPACKETS] += flow_record->out_pkts;
 		
-				if ( TimeMsec_CMP(flow_record->first, flow_record->msec_first, stat_record->first, stat_record->msec_first) == 2) {
-					stat_record->first 		= flow_record->first;
-					stat_record->msec_first = flow_record->msec_first;
+				if (flow_record->msecFirst < stat_record->msecFirst )  {
+					stat_record->msecFirst	= flow_record->msecFirst;
 				}
-				if ( TimeMsec_CMP(flow_record->last, flow_record->msec_last, stat_record->last, stat_record->msec_last) == 1) {
-					stat_record->last 		= flow_record->last;
-					stat_record->msec_last 	= flow_record->msec_last;
+				if (flow_record->msecLast > stat_record->msecLast) {
+					stat_record->msecLast	= flow_record->msecLast;
 				}
 				stat_record->counter[FLOWS] += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 
 			} else {
-				stat_record = stat_hash_insert(value[i], flow_record->prot, j);
+				stat_record = stat_hash_insert(value[i], flow_record->proto, j);
 		
 				stat_record->counter[INBYTES]   = flow_record->dOctets;
 				stat_record->counter[INPACKETS]	= flow_record->dPkts;
 				stat_record->counter[OUTBYTES] 	= flow_record->out_bytes;
 				stat_record->counter[OUTPACKETS]= flow_record->out_pkts;
-				stat_record->first    			= flow_record->first;
-				stat_record->msec_first 		= flow_record->msec_first;
-				stat_record->last				= flow_record->last;
-				stat_record->msec_last			= flow_record->msec_last;
+				stat_record->msecFirst			= flow_record->msecFirst; 
+				stat_record->msecLast			= flow_record->msecLast;
 				stat_record->record_flags		= flow_record->flags & 0x1;
 				stat_record->counter[FLOWS]		= flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 			}
@@ -1224,9 +1188,7 @@ struct tm	*tbuff;
 		bytes_percent  = 0;
 	}
 
-	duration = StatData->last - StatData->first;
-	duration += ((double)StatData->msec_last - (double)StatData->msec_first) / 1000.0;
-	
+	duration = (StatData->msecLast - StatData->msecFirst);
 	if ( duration != 0 ) {
 		pps  = (uint64_t)((double)count_packets / duration);
 		bps  = (uint64_t)((double)(8 * count_bytes) / duration);
@@ -1243,7 +1205,7 @@ struct tm	*tbuff;
 	format_number(pps, pps_str, printPlain, FIXED_WIDTH);
 	format_number(bps, bps_str, printPlain, FIXED_WIDTH);
 
-	first = StatData->first;
+	first = StatData->msecFirst / 1000LL;
 	tbuff = localtime(&first);
 	if ( !tbuff ) {
 		perror("Error time convert");
@@ -1253,13 +1215,13 @@ struct tm	*tbuff;
 
 	if ( Getv6Mode() && ( type == IS_IPADDR ) )
 		printf("%s.%03u %9.3f %-5s %s%39s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", 
-			datestr, StatData->msec_first, duration, 
+			datestr, (unsigned)(StatData->msecFirst % 1000), duration / 1000.0,
 			order_proto ? ProtoString(StatData->prot, printPlain) : "any", tag_string, valstr, 
 			flows_str, flows_percent, packets_str, packets_percent, byte_str,
 			bytes_percent, pps_str, bps_str, bpp );
 	else {
 		printf("%s.%03u %9.3f %-5s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n",
-		datestr, StatData->msec_first, duration, 
+		datestr, (unsigned)(StatData->msecFirst % 1000), duration / 1000.0,
 		order_proto ? ProtoString(StatData->prot, printPlain) : "any", tag_string, valstr,
 		flows_str, flows_percent, packets_str, packets_percent, byte_str,
 		bytes_percent, pps_str, bps_str, bpp );
@@ -1293,8 +1255,7 @@ int			af;
     	sa[2] = ( _key[1] >> 32 ) & 0xffffffffLL;
     	sa[3] = _key[1] & 0xffffffffLL;
 	} 
-	duration = StatData->last - StatData->first;
-	duration += ((double)StatData->msec_last - (double)StatData->msec_first) / 1000.0;
+	duration = (StatData->msecLast - StatData->msecFirst);
 	
 	count_flows = flows_element(StatData, inout);
 	count_packets = packets_element(StatData, inout);
@@ -1316,14 +1277,14 @@ int			af;
 	}
 
 	if ( type == IS_IPADDR )
-		printf("%i|%u|%u|%u|%u|%u|%u|%u|%u|%u|%llu|%llu|%llu|%u|%u|%u\n",
-			af, StatData->first, StatData->msec_first ,StatData->last, StatData->msec_last, StatData->prot, 
+		printf("%i|%llu|%llu|%u|%u|%u|%u|%u|%llu|%llu|%llu|%u|%u|%u\n",
+			af, StatData->msecFirst, StatData->msecLast, StatData->prot,
 			sa[0], sa[1], sa[2], sa[3], (long long unsigned)count_flows,
 			(long long unsigned)count_packets, (long long unsigned)count_bytes,
 			pps, bps, bpp);
 	else
-		printf("%i|%u|%u|%u|%u|%u|%llu|%llu|%llu|%llu|%u|%u|%u\n",
-			af, StatData->first, StatData->msec_first ,StatData->last, StatData->msec_last, StatData->prot, 
+		printf("%i|%llu|%llu|%u|%llu|%llu|%llu|%llu|%u|%u|%u\n",
+			af, StatData->msecFirst, StatData->msecLast, StatData->prot,
 			(long long unsigned)_key[1], (long long unsigned)count_flows,
 			(long long unsigned)count_packets, (long long unsigned)count_bytes,
 			pps, bps, bpp);
@@ -1385,8 +1346,7 @@ struct tm	*tbuff;
 	packets_percent = stat->numpackets ? (double)(count_packets * 100 ) / (double)stat->numpackets : 0;
 	bytes_percent   = stat->numbytes ? (double)(count_bytes * 100 ) / (double)stat->numbytes : 0;
 
-	duration = StatData->last - StatData->first;
-	duration += ((double)StatData->msec_last - (double)StatData->msec_first) / 1000.0;
+	duration = (StatData->msecLast - StatData->msecFirst);
 	
 	if ( duration != 0 ) {
 		pps  = (uint64_t)((double)count_packets / duration);
@@ -1401,7 +1361,7 @@ struct tm	*tbuff;
 		bpp = 0;
 	}
 
-	when = StatData->first;
+	when = StatData->msecFirst / 1000;
 	tbuff = localtime(&when);
 	if ( !tbuff ) {
 		perror("Error time convert");
@@ -1409,7 +1369,7 @@ struct tm	*tbuff;
 	}
 	strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
-	when = StatData->last;
+	when = StatData->msecLast / 1000;
 	tbuff = localtime(&when);
 	if ( !tbuff ) {
 		perror("Error time convert");
@@ -1418,7 +1378,7 @@ struct tm	*tbuff;
 	strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
 	printf("%s,%s,%.3f,%s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n",
-		datestr1, datestr2, duration, 
+		datestr1, datestr2, duration/1000.0,
 		order_proto ? ProtoString(StatData->prot, printPlain) : "any", valstr,
 		(long long unsigned)count_flows, flows_percent,
 		(long long unsigned)count_packets, packets_percent,
@@ -1524,7 +1484,7 @@ char				*string;
 					}
 				}
 
-				raw_record = &(r->flowrecord);
+				raw_record = (common_record_t *)(r->rawRecord);
 				map_id = r->map_info_ref->map->map_id;
 
 				flow_record = &(extension_map_list->slot[map_id]->master_record);
@@ -1547,11 +1507,7 @@ char				*string;
 					ApplyAggrMask(flow_record, aggr_record_mask);
 				}
 
-				if ( GuessDir && 
-				   ( flow_record->prot == IPPROTO_TCP || flow_record->prot == IPPROTO_UDP) &&
-	   			   ( flow_record->srcport < 1024 ) && ( flow_record->dstport >= 1024 ) &&
-	   			   ( flow_record->srcport < 32768 ) && ( flow_record->dstport >= 32768 ) &&
-	   			   ( flow_record->srcport < 49152 ) && ( flow_record->dstport >= 49152 ))
+				if (NeedSwap(GuessDir, flow_record))
 					SwapFlow(flow_record);
 
 				print_record((void *)flow_record, &string, outputParams->doTag);
@@ -1702,7 +1658,7 @@ int	i, max;
 			j = maxindex - 1 - i;
 
 		r = (FlowTableRecord_t *)(SortList[j].record);
-		raw_record = &(r->flowrecord);
+		raw_record = (common_record_t *)(r->rawRecord);
 		map_id = r->map_info_ref->map->map_id;
 
 		flow_record = &(extension_map_list->slot[map_id]->master_record);
@@ -1732,11 +1688,7 @@ int	i, max;
 		} else if ( aggr_record_mask )
 			ApplyAggrMask(flow_record, aggr_record_mask);
 
-		if ( GuessFlowDirection && 
-		   ( flow_record->prot == IPPROTO_TCP || flow_record->prot == IPPROTO_UDP) &&
-	  	   ( flow_record->srcport < 1024 ) && ( flow_record->dstport >= 1024 ) &&
-	   	   ( flow_record->srcport < 32768 ) && ( flow_record->dstport >= 32768 ) &&
-	   	   ( flow_record->srcport < 49152 ) && ( flow_record->dstport >= 49152 ))
+		if ( NeedSwap(GuessFlowDirection, flow_record) )
 			SwapFlow(flow_record);
 
 		print_record((void *)flow_record, &string, outputParams->doTag);
@@ -1895,9 +1847,9 @@ uint32_t _tmp;
 	flow_record->V6.dstaddr[0] = _tmp_ip[0];
 	flow_record->V6.dstaddr[1] = _tmp_ip[1];
 
-	_tmp = flow_record->srcport;
-	flow_record->srcport = flow_record->dstport;
-	flow_record->dstport = _tmp;
+	_tmp = flow_record->srcPort;
+	flow_record->srcPort = flow_record->dstPort;
+	flow_record->dstPort = _tmp;
 
 	_tmp = flow_record->srcas;
 	flow_record->srcas = flow_record->dstas;

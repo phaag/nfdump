@@ -390,10 +390,10 @@ typedef struct output_templates_s {
 #define MAX_LIFETIME 60
 
 static output_template_t	*output_templates;
-static uint64_t	boot_time;	// in msec
-static uint16_t				template_id;
-static uint32_t				Max_num_v9_tags;
-static uint32_t				processed_records;
+static uint64_t	msecBoot;
+static uint16_t	template_id;
+static uint32_t	Max_num_v9_tags;
+static uint32_t	processed_records;
 
 /* local function prototypes */
 static int HasOptionTable(exporterDomain_t *exporter, uint16_t tableID );
@@ -1776,12 +1776,12 @@ char				*string;
 		// most of them send ICMP in dst port field some don't some have both
 		if ( data_record->prot == IPPROTO_ICMP || data_record->prot == IPPROTO_ICMPV6 ) {
 			if ( table->ICMP_offset ) {
-				data_record->dstport = Get_val16((void *)&in[table->ICMP_offset]);
+				data_record->dstPort = Get_val16((void *)&in[table->ICMP_offset]);
 			}
-			if ( data_record->dstport == 0 && data_record->srcport != 0 ) {
+			if ( data_record->dstPort == 0 && data_record->srcPort != 0 ) {
 				// some IOSes are even lazzier and map ICMP code in src port - ughh
-				data_record->dstport = data_record->srcport;
-				data_record->srcport = 0;
+				data_record->dstPort = data_record->srcPort;
+				data_record->srcPort = 0;
 			}
 		}
 
@@ -2596,27 +2596,31 @@ uint32_t	i, count, record_length;
 
 static void Append_Record(send_peer_t *peer, master_record_t *master_record) {
 extension_map_t *extension_map = master_record->map_ref;
-uint32_t	i, t1, t2;
+uint32_t	i, first, last;
 uint16_t	icmp;
 
-	t1 	= (uint32_t)(1000LL * (uint64_t)master_record->first + master_record->msec_first - boot_time);
-	t2	= (uint32_t)(1000LL * (uint64_t)master_record->last  + master_record->msec_last - boot_time);
-  	master_record->first	= htonl(t1);
-  	master_record->last		= htonl(t2);
+	first 	= (uint32_t)(master_record->msecFirst - msecBoot);
+	last	= (uint32_t)(master_record->msecLast  - msecBoot);
 
-  	master_record->srcport	= htons(master_record->srcport);
-  	master_record->dstport	= htons(master_record->dstport);
+  	master_record->srcPort	= htons(master_record->srcPort);
+  	master_record->dstPort	= htons(master_record->dstPort);
 
 	// if it's an ICMP send it in the appropriate v9 tag
-	if ( master_record->prot == IPPROTO_ICMP || master_record->prot == IPPROTO_ICMPV6  ) { // it's an ICMP
-		icmp = master_record->dstport;
-		master_record->dstport = 0;
+	if ( master_record->proto == IPPROTO_ICMP || master_record->proto == IPPROTO_ICMPV6  ) { // it's an ICMP
+		icmp = master_record->dstPort;
+		master_record->dstPort = 0;
 	} else {
 		icmp = 0;
 	}
-	// write the first 16 bytes of the master_record starting with first up to and including dst port
-	memcpy(peer->buff_ptr, (void *)&master_record->first, 16);
-	peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + 16);
+
+	*(uint32_t *)peer->buff_ptr = first; peer->buff_ptr += 4;
+	*(uint32_t *)peer->buff_ptr = last;  peer->buff_ptr += 4;
+	*(uint8_t *)peer->buff_ptr = master_record->fwd_status;  peer->buff_ptr++;
+	*(uint8_t *)peer->buff_ptr = master_record->flags;       peer->buff_ptr++;
+	*(uint8_t *)peer->buff_ptr = master_record->proto;       peer->buff_ptr++;
+	*(uint8_t *)peer->buff_ptr = master_record->tos;         peer->buff_ptr++;
+	*(uint16_t *)peer->buff_ptr = master_record->srcPort;    peer->buff_ptr += 2;
+	*(uint16_t *)peer->buff_ptr = master_record->dstPort;    peer->buff_ptr += 2;
 
 	// write ICMP type/code
 	memcpy(peer->buff_ptr, (void *)&icmp,2);
@@ -2826,8 +2830,8 @@ time_t		now = time(NULL);
 
 	if ( !v9_output_header->unix_secs ) {	// first time a record is added
 		// boot time is set one day back - assuming that the start time of every flow does not start ealier
-		boot_time	   = (uint64_t)(master_record->first - 86400)*1000;
-		v9_output_header->unix_secs = htonl(master_record->first - 86400);
+		msecBoot	   = master_record->msecFirst - 86400*1000;
+		v9_output_header->unix_secs = htonl(master_record->msecFirst/1000 - 86400);
 		v9_output_header->sequence  = 0;
 		peer->buff_ptr  = (void *)((pointer_addr_t)peer->send_buffer + NETFLOW_V9_HEADER_LENGTH);
 		record_count   = 0;

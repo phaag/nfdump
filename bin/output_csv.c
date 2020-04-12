@@ -109,21 +109,20 @@ master_record_t *r = (master_record_t *)record;
 	as[IP_STRING_LEN-1] = 0;
 	ds[IP_STRING_LEN-1] = 0;
 
-	when = r->first;
+	when = r->msecFirst/1000LL;
 	ts = localtime(&when);
 	strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
 
-	when = r->last;
+	when = r->msecLast/1000LL;
 	ts = localtime(&when);
 	strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
 
-	double duration = r->last - r->first;
-	duration += ((double)r->msec_last - (double)r->msec_first) / 1000.0;
+	double duration = (double)(r->msecLast - r->msecFirst) / 1000.0;
 
 	_s = data_string;
 	slen = STRINGSIZE;
 	snprintf(_s, slen-1, "%s,%s,%.3f,%s,%s,%u,%u,%s,%s,%u,%u,%llu,%llu,%llu,%llu",
-		datestr1, datestr2, duration, as,ds,r->srcport, r->dstport, ProtoString(r->prot, 0),
+		datestr1, datestr2, duration, as,ds,r->srcPort, r->dstPort, ProtoString(r->proto, 0),
 		FlagsString(r->tcp_flags), r->fwd_status, r->tos, (unsigned long long)r->dPkts,
 		(unsigned long long)r->dOctets, (long long unsigned)r->out_pkts, (long long unsigned)r->out_bytes);
 

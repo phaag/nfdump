@@ -57,6 +57,12 @@ typedef struct FlowTableRecord {
 	// record chain - points to next record with same hash in case of a hash collision
 	struct FlowTableRecord *next;	
 
+	// port for direction verification
+	uint16_t	srcPort;
+	uint16_t	dstPort;
+	uint16_t	tcpFlags;
+	uint8_t		proto;
+
 	// Hash papameters
 	uint32_t	hash;		// the full 32bit hash value
 	char		*hash_key;	// all keys in sequence to generate the hash 
@@ -64,14 +70,16 @@ typedef struct FlowTableRecord {
 	// flow counter parameters for FLOWS, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES
 	uint64_t	counter[5];
 
+	// time info in msec
+	uint64_t	msecFirst;
+	uint64_t	msecLast;
+
 	extension_info_t	   *map_info_ref;
 	exporter_info_record_t *exp_ref;
-	// flow record follows
-	// flow data size may vary depending on the number of extensions
-	// common_record_t already contains a pointer to more data ( extensions ) at the end
-	common_record_t	flowrecord;
 
-	// no further vars beyond this point! The flow record above has additional data.
+	// raw record followed
+	uint8_t		rawRecord[1];
+
 } FlowTableRecord_t;
 
 typedef struct MemoryHandle_s {

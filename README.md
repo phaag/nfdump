@@ -3,7 +3,7 @@
 UNICORN is the development branch of nfdump.
 It implements all new changes towards nfdump 1.7
 
-See the Changelog file for all changes in release 1.6.19
+For production environments use stabe releases
 
 nfdump is a toolset in order to collect and process netflow and sflow data, sent from netflow/sflow compatible devices. 
 The toolset supports netflow __v1__, __v5/v7__,__v9__,__IPFIX__ and __SFLOW__.  nfdump supports IPv4 as well as IPv6.

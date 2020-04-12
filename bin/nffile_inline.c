@@ -94,8 +94,18 @@ void		*p = (void *)input_record;
 	// set map ref
 	output_record->map_ref = extension_map;
 
-	// Copy common data block
-	memcpy((void *)output_record, (void *)input_record, COMMON_RECORD_DATA_SIZE);
+	output_record->size		 = input_record->size;
+	output_record->flags	 = input_record->flags;
+	output_record->proto	 = input_record->prot;
+	output_record->tcp_flags = input_record->tcp_flags;
+ 	output_record->srcPort	 = input_record->srcPort;
+ 	output_record->dstPort	 = input_record->dstPort;
+	output_record->fwd_status = input_record->fwd_status;
+	output_record->tos		 = input_record->tos;
+	output_record->msecFirst = input_record->first * 1000L + input_record->msec_first;
+	output_record->msecLast  = input_record->last  * 1000L + input_record->msec_last;
+	output_record->exporter_sysid = input_record->exporter_sysid;
+
 	p = (void *)input_record->data;
 
 	if ( exporter_info ) {
@@ -109,7 +119,7 @@ void		*p = (void *)input_record;
 	output_record->label = NULL;
 
 	// map icmp type/code in it's own vars
-	output_record->icmp = output_record->dstport;
+	output_record->icmp = output_record->dstPort;
 
 	// Required extension 1 - IP addresses
 	if ( (input_record->flags & FLAG_IPV6_ADDR) != 0 )	{ // IPv6
@@ -454,6 +464,256 @@ void		*p = (void *)input_record;
 	
 } // End of ExpandRecord_v2
 
+/*
+static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *output_record ) {
+void		*p   = (void *)v3Record;
+void		*eor = p + v3Record->size;
+elementHeader_t *elementHeader;
+uint32_t	s = sizeof(recordHeaderV3_t);
+
+	// set map ref
+	output_record->map_ref = NULL;
+	output_record->exp_ref = NULL;
+
+	output_record->size = v3Record->size;
+	output_record->flags = v3Record->flags;
+	output_record->exporter_sysid = v3Record->exporterID;
+	output_record->numElements = v3Record->numElements;
+	output_record->engine_type = v3Record->engineType;
+	output_record->engine_id = v3Record->engineID;
+
+	if ( v3Record->size < s ) {
+		LogError("Size error v3Record: '%u'", v3Record->size);
+		exit(255);
+	}
+	dbg_printf("Record announces %u extensions with total size %u\n", v3Record->numElements, v3Record->size);
+	// first record header
+	elementHeader = (elementHeader_t *)(p + sizeof(recordHeaderV3_t));
+	for (int i=0; i<v3Record->numElements; i++ ) {
+		int skip = 0;
+		dbg_printf("[%i] next extension: %u\n", i, elementHeader->type);
+		switch (elementHeader->type) {
+			case EXnull:
+				fprintf(stderr, "ExpandRecord_v3() Found unexpected NULL extension\n");
+				break;
+			case EXmsecRelTimeFlowID: {
+				EXmsecRelTimeFlow_t *msecRelTimeFlow = (EXmsecRelTimeFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				UNUSED(msecRelTimeFlow);
+				} break;
+			case EXmsecTimeFlowID: {
+				EXmsecTimeFlow_t *msecTimeFlow = (EXmsecTimeFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->msecFirst = msecTimeFlow->msecFirst;
+				output_record->msecLast  = msecTimeFlow->msecLast;
+				} break;
+			case EXmsecReceivedID: {
+				EXmsecReceived_t *msecReceived = (EXmsecReceived_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->received = msecReceived->msecReceived;
+				} break;
+			case EXipv4FlowID: {
+				EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->V6.srcaddr[0] = 0;
+				output_record->V6.srcaddr[1] = 0;
+				output_record->V4.srcaddr 	 = ipv4Flow->srcAddr;
+
+				output_record->V6.dstaddr[0] = 0;
+				output_record->V6.dstaddr[1] = 0;
+				output_record->V4.dstaddr 	 = ipv4Flow->dstAddr;
+				} break;
+			case EXipv6FlowID: {
+				EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
+
+				output_record->V6.srcaddr[0] = ipv6Flow->srcAddr[0];
+				output_record->V6.srcaddr[1] = ipv6Flow->srcAddr[1];
+				output_record->V6.dstaddr[0] = ipv6Flow->dstAddr[0];
+				output_record->V6.dstaddr[1] = ipv6Flow->dstAddr[1];
+
+				SetFlag(output_record->flags, FLAG_IPV6_ADDR);
+				} break;
+			case EXflowMiscID: {
+				EXflowMisc_t *flowMisc = (EXflowMisc_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->srcPort	 = flowMisc->srcPort;
+				output_record->dstPort	 = flowMisc->dstPort;
+				output_record->tcp_flags = flowMisc->tcpFlags;
+				output_record->proto	 = flowMisc->proto;
+				output_record->dir		 = flowMisc->dir;
+				} break;
+			case EXflowAddID: {
+				EXflowAdd_t *flowAdd = (EXflowAdd_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->fwd_status = flowAdd->fwdStatus;
+				output_record->tos		= flowAdd->srcTos;
+				output_record->dst_tos	= flowAdd->dstTos;
+				output_record->src_mask	= flowAdd->srcMask;
+				output_record->dst_mask	= flowAdd->dstMask;
+				} break;
+			case EXcntFlowID: {
+				EXcntFlow_t *cntFlow = (EXcntFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->dPkts	  = cntFlow->inPackets;
+				output_record->dOctets	  = cntFlow->inBytes;
+				output_record->out_pkts	  = cntFlow->outPackets;
+				output_record->out_bytes  = cntFlow->outBytes;
+				output_record->aggr_flows = cntFlow->flows;
+				SetFlag(output_record->flags, FLAG_PKG_64);
+				SetFlag(output_record->flags, FLAG_BYTES_64);
+				} break;
+			case EXsnmpInterfaceID: {
+				EXsnmpInterface_t *snmpInterface = (EXsnmpInterface_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->input  = snmpInterface->input;
+				output_record->output = snmpInterface->output;
+				} break;
+			case EXvLanID: {
+				EXvLan_t *vLan = (EXvLan_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->src_vlan = vLan->srcVlan;
+				output_record->dst_vlan = vLan->dstVlan;
+				} break;
+			case EXasRoutingID: {
+				EXasRouting_t *asRouting = (EXasRouting_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->srcas = asRouting->srcAS;
+				output_record->dstas = asRouting->dstAS;
+				} break;
+			case EXbgpNextHopV4ID: {
+				EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->bgp_nexthop.V6[0] = 0;
+				output_record->bgp_nexthop.V6[1] = 0;
+				output_record->bgp_nexthop.V4	= bgpNextHopV4->ip;
+				ClearFlag(output_record->flags, FLAG_IPV6_NHB);
+				} break;
+			case EXbgpNextHopV6ID: {
+				EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->bgp_nexthop.V6[0] = bgpNextHopV6->ip[0];
+				output_record->bgp_nexthop.V6[1] = bgpNextHopV6->ip[1];
+				SetFlag(output_record->flags, FLAG_IPV6_NHB);
+				} break;
+			case EXipNextHopV4ID: {
+				EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->ip_nexthop.V6[0] = 0;
+				output_record->ip_nexthop.V6[1] = 0;
+				output_record->ip_nexthop.V4 = ipNextHopV4->ip;
+				ClearFlag(output_record->flags, FLAG_IPV6_NH);
+				} break;
+			case EXipNextHopV6ID: {
+				EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->ip_nexthop.V6[0] = ipNextHopV6->ip[0];
+				output_record->ip_nexthop.V6[1] = ipNextHopV6->ip[1];
+				SetFlag(output_record->flags, FLAG_IPV6_NH);
+				} break;
+			case EXipReceivedV4ID: {
+				EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->ip_router.V6[0] = 0;
+				output_record->ip_router.V6[1] = 0;
+				output_record->ip_router.V4 = ipNextHopV4->ip;
+				ClearFlag(output_record->flags, FLAG_IPV6_EXP);
+				} break;
+			case EXipReceivedV6ID: {
+				EXipReceivedV6_t *ipNextHopV6 = (EXipReceivedV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->ip_router.V6[0] = ipNextHopV6->ip[0];
+				output_record->ip_router.V6[1] = ipNextHopV6->ip[1];
+				SetFlag(output_record->flags, FLAG_IPV6_EXP);
+				} break;
+			case EXmplsLabelID: {
+				EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				for (int j=0; j<10; j++) {
+					output_record->mpls_label[j] = mplsLabel->mplsLabel[j];
+				}
+				} break;
+			case EXmacAddrID: {
+				EXmacAddr_t *macAddr = (EXmacAddr_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->in_src_mac	= macAddr->inSrcMac;
+				output_record->out_dst_mac	= macAddr->outDstMac;
+				output_record->in_dst_mac	= macAddr->inDstMac;
+				output_record->out_src_mac	= macAddr->outSrcMac;
+				} break;
+			case EXasAdjacentID: {
+				EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->bgpNextAdjacentAS = asAdjacent->nextAdjacentAS;
+				output_record->bgpPrevAdjacentAS = asAdjacent->prevAdjacentAS;
+			} break;
+			case EXlatencyID: {
+				EXlatency_t *latency = (EXlatency_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->client_nw_delay_usec = latency->usecClientNwDelay;
+				output_record->server_nw_delay_usec = latency->usecServerNwDelay;
+				output_record->appl_latency_usec = latency->usecApplLatency;
+			} break;
+			case EXnselCommonID: {
+				EXnselCommon_t *nselCommon = (EXnselCommon_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->event_flag = FW_EVENT;
+				output_record->conn_id 	  = nselCommon->connID;
+				output_record->event   	  = nselCommon->fwEvent;
+				output_record->fw_xevent  = nselCommon->fwXevent;
+				output_record->event_time = nselCommon->msecEvent;
+				SetFlag(output_record->flags, FLAG_EVENT);
+			} break;
+			case EXnselXlateIPv4ID: {
+				EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->xlate_src_ip.V6[0] = 0;
+				output_record->xlate_src_ip.V6[1] = 0;
+				output_record->xlate_src_ip.V4	= nselXlateIPv4->xlateSrcAddr;
+				output_record->xlate_dst_ip.V6[0] = 0;
+				output_record->xlate_dst_ip.V6[1] = 0;
+				output_record->xlate_dst_ip.V4	= nselXlateIPv4->xlateDstAddr;
+				output_record->xlate_flags = 0;
+			} break;
+			case EXnselXlateIPv6ID: {
+				EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				memcpy(output_record->xlate_src_ip.V6, &(nselXlateIPv6->xlateSrcAddr), 16);
+				memcpy(output_record->xlate_dst_ip.V6, &(nselXlateIPv6->xlateDstAddr), 16);
+				output_record->xlate_flags = 1;
+			} break;
+			case EXnselXlatePortID: {
+				EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->xlate_src_port = nselXlatePort->xlateSrcPort;
+				output_record->xlate_dst_port = nselXlatePort->xlateDstPort;
+			} break;
+			case EXnselAclID: {
+				EXnselAcl_t *nselAcl = (EXnselAcl_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				memcpy(output_record->ingress_acl_id, nselAcl->ingressAcl, 12);
+				memcpy(output_record->egress_acl_id, nselAcl->egressAcl, 12);
+			} break;
+			case EXnselUserID: {
+				EXnselUser_t *nselUser = (EXnselUser_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				memcpy(output_record->username, nselUser->username, 66);
+			} break;
+			case EXnelCommonID: {
+				EXnelCommon_t *nelCommon = (EXnelCommon_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->event_time = nelCommon->msecEvent;
+				output_record->event 	  = nelCommon->natEvent;
+				output_record->event_flag = FW_EVENT;
+				output_record->egress_vrfid  = nelCommon->egressVrf;
+				output_record->ingress_vrfid = nelCommon->ingressVrf;
+			} break;
+			case EXnelXlatePortID: {
+				EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->block_start = nelXlatePort->blockStart;
+				output_record->block_end   = nelXlatePort->blockEnd;
+				output_record->block_step  = nelXlatePort->blockStep;
+				output_record->block_size  = nelXlatePort->blockSize;
+			} break;
+			default:
+				fprintf(stderr, "Unknown extension '%u'\n", elementHeader->type);
+				skip = 1;
+		}
+		if (!skip) {
+			output_record->exElementList[i] = elementHeader->type;
+		} else {
+			skip = 0;
+		}
+
+		s += elementHeader->length;
+		elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
+
+		if( (void *)elementHeader > eor ) {
+			fprintf(stderr, "ptr error - elementHeader > eor\n");
+			exit(255);
+		}
+	}
+	// map icmp type/code in it's own vars
+	output_record->icmp = output_record->dstPort;
+	if ( s != v3Record->size ) {
+		fprintf(stderr, "Record size info: '%u' not equal sum extensions: '%u'\n", v3Record->size, s);
+		exit(255);
+	}
+} // End of ExpandRecord_v3
+*/
+
 #ifdef NEED_PACKRECORD
 static void PackRecord(master_record_t *master_record, nffile_t *nffile) {
 extension_map_t *extension_map = master_record->map_ref;
@@ -491,12 +751,26 @@ int		i;
 		return;
 	}
 
+	// write common record
 	// enough buffer space available at this point
+	size = COMMON_RECORD_DATA_SIZE;
 	common_record = (common_record_t *)nffile->buff_ptr;
 
-	// write common record
-	size = COMMON_RECORD_DATA_SIZE;
-	memcpy((void *)common_record, (void *)master_record, size);
+	common_record->type = CommonRecordType;
+	common_record->size = master_record->size;
+	common_record->flags = master_record->flags;
+	common_record->ext_map = master_record->ext_map;
+	common_record->first = master_record->msecFirst / 1000;
+	common_record->msec_first = master_record->msecFirst % 1000;
+	common_record->last = master_record->msecLast / 1000;
+	common_record->msec_last = master_record->msecLast % 1000;
+	common_record->fwd_status = master_record->fwd_status;
+	common_record->tcp_flags = master_record->tcp_flags;
+	common_record->prot = master_record->proto;
+	common_record->tos = master_record->tos;
+	common_record->srcPort = master_record->srcPort;
+	common_record->dstPort = master_record->dstPort;
+	common_record->exporter_sysid = master_record->exporter_sysid;
 	common_record->reserved = 0;
 	p = (void *)((pointer_addr_t)common_record + size);
 

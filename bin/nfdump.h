@@ -69,78 +69,97 @@ typedef struct master_record_s {
 	// 							// interpreted as uint64_t[]
 	// 							#ifdef WORDS_BIGENDIAN
 
-	uint16_t	type;			// index 0  0xffff 0000 0000 0000
-	uint16_t	size;			// index 0	0x0000'ffff'0000 0000
-	uint16_t	flags;			// index 0	0x0000'0000'ffff'0000
-	uint16_t	ext_map;		// index 0	0x0000'0000'0000'ffff
+	uint16_t	flags;			// index 0  0xffff 0000 0000 0000
+	uint16_t	ext_map;		// index 0	0x0000'ffff'0000 0000
+	uint16_t	exporter_sysid; // index 0	0x0000'0000'ffff'0000
+	uint16_t	size;			// index 0	0x0000'0000'0000'ffff
 #	define OffsetRecordFlags 	0
+#	define OffsetExporterSysID	0
 #ifdef WORDS_BIGENDIAN
-#	define MaskRecordFlags  	0x00000000ff000000LL
-#	define ShiftRecordFlags 	24
+#	define MaskRecordFlags  	0xffff000000000000LL
+#	define ShiftRecordFlags 	48
+
+#	define MaskExporterSysID  	0x00000000ffff0000LL
+#	define ShiftExporterSysID 	16
+
 #else
-#	define MaskRecordFlags  	0x000000ff00000000LL
-#	define ShiftRecordFlags 	32
+#	define MaskRecordFlags  	0x000000000000ffffLL
+#	define ShiftRecordFlags 	0
+
+#	define MaskExporterSysID  	0x0000ffff00000000LL
+#	define ShiftExporterSysID 	32
+
 #endif
 
-	//
-	uint16_t	msec_first;		// index 1	0xffff'0000'0000'0000
-	uint16_t	msec_last;		// index 1	0x0000'ffff'0000'0000
+	// 8 bytes offset in master record to first
+#define BYTE_OFFSET_first	8
+#define INDEX_BASE   (offsetof(master_record_t, msecFirst) >> 3)
 
-	// 12 bytes offset in master record to first
-#define BYTE_OFFSET_first	12
+	uint64_t	msecFirst;		// index 1 0xffff'ffff'ffff'ffff
+	uint64_t	msecLast;		// index 2 0xffff'ffff'ffff'ffff
 
-	uint32_t	first;			// index 1	0x0000'0000'ffff'ffff
+	uint16_t	numElements;	// index 3 0xffff'0000'0000'0000
+	uint8_t		engine_type;	// index 3 0x0000'ff00'0000'0000
+	uint8_t		engine_id;		// index 3 0x0000'00ff'0000'0000
 
-	//
-	uint32_t	last;			// index 2	0xffff'ffff'0000'0000
-	uint8_t		fwd_status;		// index 2	0x0000'0000'ff00'0000
-	uint8_t		tcp_flags;		// index 2  0x0000'0000'00ff'0000
-	uint8_t		prot;			// index 2  0x0000'0000'0000'ff00
-	uint8_t		tos;			// index 2  0x0000'0000'0000'00ff
+	uint8_t		fwd_status;		// index 3	0x0000'0000'ff00'0000
+	uint8_t		tcp_flags;		// index 3  0x0000'0000'00ff'0000
+	uint8_t		proto;			// index 3  0x0000'0000'0000'ff00
+	uint8_t		tos;			// index 3  0x0000'0000'0000'00ff
+
+#	define OffsetRouterID		INDEX_BASE + 2
+#	define OffsetStatus 		INDEX_BASE + 2
+#	define OffsetFlags 			INDEX_BASE + 2
+#	define OffsetProto 			INDEX_BASE + 2
+#	define OffsetTos			INDEX_BASE + 2
 #ifdef WORDS_BIGENDIAN
-#	define OffsetStatus 		2
+#	define MaskEngineType		0x0000FF0000000000LL
+#	define ShiftEngineType		40
+
+#	define MaskEngineID			0x000000FF00000000LL
+#	define ShiftEngineID		32
+
 #	define MaskStatus  			0x00000000ff000000LL
 #	define ShiftStatus  		24
 
-#	define OffsetFlags 			2
 #	define MaskFlags   			0x0000000000ff0000LL
-	#define ShiftFlags  		16
+#	define ShiftFlags  			16
 
-#	define OffsetProto 			2
 #	define MaskProto   			0x000000000000ff00LL
 #	define ShiftProto  			8
 
-#	define OffsetTos			2
 #	define MaskTos	   			0x00000000000000ffLL
 #	define ShiftTos  			0
 
 #else
-#	define OffsetStatus 		2
+#	define MaskEngineType		0x0000000000FF0000LL
+#	define ShiftEngineType		16
+
+#	define MaskEngineID			0x00000000FF000000LL
+#	define ShiftEngineID		24
+
 #	define MaskStatus  			0x000000ff00000000LL
 #	define ShiftStatus  		32
 
-#	define OffsetFlags 			2
 #	define MaskFlags   			0x0000ff0000000000LL
 #	define ShiftFlags  			40
 
-#	define OffsetProto 			2
 #	define MaskProto   			0x00ff000000000000LL
 #	define ShiftProto  			48
 
-#	define OffsetTos			2
 #	define MaskTos	   			0xff00000000000000LL
 #	define ShiftTos  			56
 #endif
 
-	uint16_t	srcport;		// index 3	0xffff'0000'0000'0000
-	uint16_t	dstport;		// index 3  0x0000'ffff'0000'0000
-	uint16_t	exporter_sysid; // index 3	0x0000'0000'ffff'0000
+	uint16_t	srcPort;		// index 4	0xffff'0000'0000'0000
+	uint16_t	dstPort;		// index 4  0x0000'ffff'0000'0000
+	uint16_t	sec_group_tag;	// index 4  0x0000'0000'ffff'ffff
 
 	union {
 		struct {
 #ifdef WORDS_BIGENDIAN
-			uint8_t		icmp_type;	// index 3  0x0000'0000'0000'ff00
-			uint8_t		icmp_code;	// index 3  0x0000'0000'0000'00ff
+			uint8_t		icmp_type;	// index 4  0x0000'0000'0000'ff00
+			uint8_t		icmp_code;	// index 4  0x0000'0000'0000'00ff
 #else
 			// little endian confusion ...
 			uint8_t		icmp_code;	
@@ -150,231 +169,203 @@ typedef struct master_record_s {
 		uint16_t icmp;
 	};
 
+#	define OffsetPort 			INDEX_BASE + 3
 #ifdef WORDS_BIGENDIAN
-#	define OffsetPort 			3
-#	define OffsetExporterSysID	3
 #	define MaskSrcPort			0xffff000000000000LL
 #	define ShiftSrcPort			48
 
 #	define MaskDstPort			0x0000ffff00000000LL
 #	define ShiftDstPort 		32	
 
-#	define MaskExporterSysID  	0x00000000ffff0000LL
-#	define ShiftExporterSysID 	16
-
 #	define MaskICMPtype			0x000000000000ff00LL
 #	define ShiftICMPtype 		8
+
 #	define MaskICMPcode			0x00000000000000ffLL
 #	define ShiftICMPcode 		0
 
 #else
-#	define OffsetPort 			3
-#	define OffsetExporterSysID	3
 #	define MaskSrcPort			0x000000000000ffffLL
 #	define ShiftSrcPort			0
 
 #	define MaskDstPort			0x00000000ffff0000LL
 #	define ShiftDstPort 		16
 
-#	define MaskExporterSysID  	0x0000ffff00000000LL
-#	define ShiftExporterSysID 	32
-
 #	define MaskICMPtype			0xff00000000000000LL
 #	define ShiftICMPtype 		56
+
 #	define MaskICMPcode			0x00ff000000000000LL
 #	define ShiftICMPcode 		48
 #endif
 
-	// extension 4 / 5
-	uint32_t	input;			// index 4	0xffff'ffff'0000'0000
-	uint32_t	output;			// index 4	0x0000'0000'ffff'ffff
+	uint32_t	input;			// index 5	0xffff'ffff'0000'0000
+	uint32_t	output;			// index 5	0x0000'0000'ffff'ffff
+#	define OffsetInOut     		INDEX_BASE + 4
 #ifdef WORDS_BIGENDIAN
-#	define OffsetInOut     		4
 #	define MaskInput       		0xffffffff00000000LL
 #	define ShiftInput      		32
 #	define MaskOutput      		0x00000000ffffffffLL
 #	define ShiftOutput     		0
 
 #else
-#	define OffsetInOut     		4
 #	define MaskInput      		0x00000000ffffffffLL
 #	define ShiftInput      		0
 #	define MaskOutput       	0xffffffff00000000LL
 #	define ShiftOutput     		32
 #endif
 
-	// extension 6 / 7
-	uint32_t	srcas;			// index 5	0xffff'ffff'0000'0000
+	uint32_t	srcas;			// index 6	0xffff'ffff'0000'0000
 	uint32_t	dstas;			// index 5	0x0000'0000'ffff'ffff
+#	define OffsetAS 			INDEX_BASE + 5
 #ifdef WORDS_BIGENDIAN
-#	define OffsetAS 			5
 #	define MaskSrcAS 			0xffffffff00000000LL
 #	define ShiftSrcAS 			32
+
 #	define MaskDstAS 			0x00000000ffffffffLL
 #	define ShiftDstAS 			0
 
 #else
-#	define OffsetAS 			5
 #	define MaskSrcAS 			0x00000000ffffffffLL
 #	define ShiftSrcAS 			0
+
 #	define MaskDstAS 			0xffffffff00000000LL
 #	define ShiftDstAS 			32
 #endif
-
 
 	// IP address block 
 	union {						
 		struct _ipv4_s {
 #ifdef WORDS_BIGENDIAN
-			uint32_t	fill1[3];	// <empty>		index 6	0xffff'ffff'ffff'ffff
-									// <empty>		index 7 0xffff'ffff'0000'0000
-			uint32_t	srcaddr;	// srcaddr      index 7 0x0000'0000'ffff'ffff
-			uint32_t	fill2[3];	// <empty>		index 8	0xffff'ffff'ffff'ffff
-									// <empty>		index 9	0xffff'ffff'0000'0000
-			uint32_t	dstaddr;	// dstaddr      index 9 0x0000'0000'ffff'ffff
+			uint32_t	fill1[3];	// <empty>		index  7 0xffff'ffff'ffff'ffff
+									// <empty>		index  8 0xffff'ffff'0000'0000
+			uint32_t	srcaddr;	// srcaddr      index  8 0x0000'0000'ffff'ffff
+			uint32_t	fill2[3];	// <empty>		index  9 0xffff'ffff'ffff'ffff
+									// <empty>		index 10 0xffff'ffff'0000'0000
+			uint32_t	dstaddr;	// dstaddr      index 10 0x0000'0000'ffff'ffff
 #else
-			uint32_t	fill1[2];	// <empty>		index 6	0xffff'ffff'ffff'ffff
-			uint32_t	srcaddr;	// srcaddr      index 7 0xffff'ffff'0000'0000
-			uint32_t	fill2;		// <empty>		index 7 0x0000'0000'ffff'ffff
-			uint32_t	fill3[2];	// <empty>		index 8 0xffff'ffff'ffff'ffff
-			uint32_t	dstaddr;	// dstaddr      index 9 0xffff'ffff'0000'0000
-			uint32_t	fill4;		// <empty>		index 9 0xffff'ffff'0000'0000
+			uint32_t	fill1[2];	// <empty>		index  7 0xffff'ffff'ffff'ffff
+			uint32_t	srcaddr;	// srcaddr      index  8 0xffff'ffff'0000'0000
+			uint32_t	fill2;		// <empty>		index  8 0x0000'0000'ffff'ffff
+			uint32_t	fill3[2];	// <empty>		index  9 0xffff'ffff'ffff'ffff
+			uint32_t	dstaddr;	// dstaddr      index 10 0xffff'ffff'0000'0000
+			uint32_t	fill4;		// <empty>		index 10 0xffff'ffff'0000'0000
 #endif
 		} _v4;	
 		struct _ipv6_s {
-			uint64_t	srcaddr[2];	// srcaddr[0-1] index 6 0xffff'ffff'ffff'ffff
-									// srcaddr[2-3] index 7 0xffff'ffff'ffff'ffff
-			uint64_t	dstaddr[2];	// dstaddr[0-1] index 8 0xffff'ffff'ffff'ffff
-									// dstaddr[2-3] index 9 0xffff'ffff'ffff'ffff
+			uint64_t	srcaddr[2];	// srcaddr[0-1] index  7 0xffff'ffff'ffff'ffff
+									// srcaddr[2-3] index  8 0xffff'ffff'ffff'ffff
+			uint64_t	dstaddr[2];	// dstaddr[0-1] index  9 0xffff'ffff'ffff'ffff
+									// dstaddr[2-3] index 10 0xffff'ffff'ffff'ffff
 		} _v6;
 		struct _ip64_s {
 			uint64_t	addr[4];
 		} _ip_64;
 	} ip_union;
 
+#	define OffsetSrcIPv4 		INDEX_BASE + 7
+#	define OffsetDstIPv4 		INDEX_BASE + 9
+#	define OffsetSrcIPv6a 		INDEX_BASE + 6
+#	define OffsetSrcIPv6b 		INDEX_BASE + 7
+#	define OffsetDstIPv6a 		INDEX_BASE + 8
+#	define OffsetDstIPv6b 		INDEX_BASE + 9
 #ifdef WORDS_BIGENDIAN
-#	define OffsetSrcIPv4 		7
 #	define MaskSrcIPv4  		0x00000000ffffffffLL
 #	define ShiftSrcIPv4 		0
 
-#	define OffsetDstIPv4 		9
 #	define MaskDstIPv4  		0x00000000ffffffffLL
 #	define ShiftDstIPv4  		0	
 
-#	define OffsetSrcIPv6a 		6
-#	define OffsetSrcIPv6b 		7
-#	define OffsetDstIPv6a 		8
-#	define OffsetDstIPv6b 		9
 #	define MaskIPv6  			0xffffffffffffffffLL
 #	define ShiftIPv6 			0
 
 #else
-#	define OffsetSrcIPv4 		6
 #	define MaskSrcIPv4  		0xffffffff00000000LL
 #	define ShiftSrcIPv4 		32
 
-#	define OffsetDstIPv4 		8
 #	define MaskDstIPv4  		0xffffffff00000000LL
 #	define ShiftDstIPv4  		32
 
-#	define OffsetSrcIPv6a 		6
-#	define OffsetSrcIPv6b 		7
-#	define OffsetDstIPv6a 		8
-#	define OffsetDstIPv6b 		9
 #	define MaskIPv6  			0xffffffffffffffffLL
 #	define ShiftIPv6 			0
 #endif
 
-
-	// counter block - expanded to 8 bytes
-	uint64_t	dPkts;			// index 10	0xffff'ffff'ffff'ffff
-#	define OffsetPackets 		10
+	// counter block 
+	uint64_t	dPkts;			// index 11	0xffff'ffff'ffff'ffff
+#	define OffsetPackets 		INDEX_BASE + 10
 #	define MaskPackets  		0xffffffffffffffffLL
 #	define ShiftPackets 		0
 
-	uint64_t	dOctets;		// index 11 0xffff'ffff'ffff'ffff
-#	define OffsetBytes 			11
+	uint64_t	dOctets;		// index 12 0xffff'ffff'ffff'ffff
+#	define OffsetBytes 			INDEX_BASE + 11
 #	define MaskBytes  			0xffffffffffffffffLL
 #	define ShiftBytes 			0
 
-	// extension 9 / 10
-	ip_addr_t	ip_nexthop;		// ipv4   index 13 0x0000'0000'ffff'ffff
-								// ipv6	  index 12 0xffff'ffff'ffff'ffff
+	ip_addr_t	ip_nexthop;		// ipv4   index 14 0x0000'0000'ffff'ffff
 								// ipv6	  index 13 0xffff'ffff'ffff'ffff
+								// ipv6	  index 14 0xffff'ffff'ffff'ffff
 
+#	define OffsetNexthopv4 		INDEX_BASE + 13
+#	define OffsetNexthopv6a		INDEX_BASE + 12
+#	define OffsetNexthopv6b		INDEX_BASE + 13
 #ifdef WORDS_BIGENDIAN
-#	define OffsetNexthopv4 		13	
 #	define MaskNexthopv4  		0x00000000ffffffffLL
 #	define ShiftNexthopv4 		0
 
-#	define OffsetNexthopv6a		12
-#	define OffsetNexthopv6b		13
 // MaskIPv6 and ShiftIPv6 already defined
 
 #else
-#	define OffsetNexthopv4 		13	
 #	define MaskNexthopv4  		0xffffffff00000000LL
 #	define ShiftNexthopv4 		0
-
-#	define OffsetNexthopv6a		12
-#	define OffsetNexthopv6b		13
 #endif
 
-	// extension 11 / 12
-	ip_addr_t	bgp_nexthop;	// ipv4   index 15 0x0000'0000'ffff'ffff
-								// ipv6	  index 14 0xffff'ffff'ffff'ffff
+	ip_addr_t	bgp_nexthop;	// ipv4   index 16 0x0000'0000'ffff'ffff
 								// ipv6	  index 15 0xffff'ffff'ffff'ffff
+								// ipv6	  index 16 0xffff'ffff'ffff'ffff
 
+#	define OffsetBGPNexthopv4 	INDEX_BASE + 15
+#	define OffsetBGPNexthopv6a	INDEX_BASE + 14
+#	define OffsetBGPNexthopv6b	INDEX_BASE + 15
 #ifdef WORDS_BIGENDIAN
-#	define OffsetBGPNexthopv4 	15	
 #	define MaskBGPNexthopv4  	0x00000000ffffffffLL
 #	define ShiftBGPNexthopv4 	0
 
-#	define OffsetBGPNexthopv6a	14
-#	define OffsetBGPNexthopv6b	15
 // MaskIPv6 and ShiftIPv6 already defined
 
 #else
-#	define OffsetBGPNexthopv4 	15	
 #	define MaskBGPNexthopv4  	0xffffffff00000000LL
 #	define ShiftBGPNexthopv4 	0
-
-#	define OffsetBGPNexthopv6a	14
-#	define OffsetBGPNexthopv6b	15
 #endif
 
-	// extension 8
 	union {
 		struct {
-			uint8_t	dst_tos;	// index 16 0xff00'0000'0000'0000
-			uint8_t	dir;		// index 16 0x00ff'0000'0000'0000
-			uint8_t	src_mask;	// index 16 0x0000'ff00'0000'0000
-			uint8_t	dst_mask;	// index 16 0x0000'00ff'0000'0000
+			uint8_t	dst_tos;	// index 17 0xff00'0000'0000'0000
+			uint8_t	dir;		// index 17 0x00ff'0000'0000'0000
+			uint8_t	src_mask;	// index 17 0x0000'ff00'0000'0000
+			uint8_t	dst_mask;	// index 17 0x0000'00ff'0000'0000
 		};
 		uint32_t	any;
 	};
 
 	// extension 13
-	uint16_t	src_vlan;		// index 16 0x0000'0000'ffff'0000
-	uint16_t	dst_vlan;		// index 16 0x0000'0000'0000'ffff
+	uint16_t	src_vlan;		// index 17 0x0000'0000'ffff'0000
+	uint16_t	dst_vlan;		// index 17 0x0000'0000'0000'ffff
 
+#	define OffsetDstTos			INDEX_BASE + 16
+#	define OffsetDir			INDEX_BASE + 16
+#	define OffsetMask			INDEX_BASE + 16
+#	define OffsetVlan 			INDEX_BASE + 16
 #ifdef WORDS_BIGENDIAN
-#	define OffsetDstTos			16
 #	define MaskDstTos			0xff00000000000000LL
 #	define ShiftDstTos  		56
 
-#	define OffsetDir			16
 #	define MaskDir				0x00ff000000000000LL
 #	define ShiftDir  			48
 
-#	define OffsetMask			16
 #	define MaskSrcMask			0x0000ff0000000000LL
 #	define ShiftSrcMask  		40
 
 #	define MaskDstMask			0x000000ff00000000LL
 #	define ShiftDstMask 		32
 
-#	define OffsetVlan 			16	
 #	define MaskSrcVlan  		0x00000000ffff0000LL
 #	define ShiftSrcVlan 		16
 
@@ -382,22 +373,18 @@ typedef struct master_record_s {
 #	define ShiftDstVlan 		0
 
 #else
-#	define OffsetDstTos			16
 #	define MaskDstTos			0x00000000000000ffLL
 #	define ShiftDstTos  		0
 
-#	define OffsetDir			16
 #	define MaskDir				0x000000000000ff00LL
 #	define ShiftDir  			8
 
-#	define OffsetMask			16
 #	define MaskSrcMask			0x0000000000ff0000LL
 #	define ShiftSrcMask  		16
 
 #	define MaskDstMask			0x00000000ff000000LL
 #	define ShiftDstMask 		24
 
-#	define OffsetVlan 			16	
 #	define MaskSrcVlan  		0x0000ffff00000000LL
 #	define ShiftSrcVlan 		32
 
@@ -406,44 +393,36 @@ typedef struct master_record_s {
 
 #endif
 
-	// extension 14 / 15
-	uint64_t	out_pkts;		// index 17	0xffff'ffff'ffff'ffff
-#	define OffsetOutPackets 	17
+	uint64_t	out_pkts;		// index 18	0xffff'ffff'ffff'ffff
+#	define OffsetOutPackets 	INDEX_BASE + 17
 // MaskPackets and ShiftPackets already defined
 
-	// extension 16 / 17
-	uint64_t	out_bytes;		// index 18 0xffff'ffff'ffff'ffff
-#	define OffsetOutBytes 		18
+	uint64_t	out_bytes;		// index 19 0xffff'ffff'ffff'ffff
+#	define OffsetOutBytes 		INDEX_BASE + 18
 
-	// extension 18 / 19
-	uint64_t	aggr_flows;		// index 19 0xffff'ffff'ffff'ffff
-#	define OffsetAggrFlows 		19
+	uint64_t	aggr_flows;		// index 20 0xffff'ffff'ffff'ffff
+#	define OffsetAggrFlows 		INDEX_BASE + 19
 #	define MaskFlows 	 		0xffffffffffffffffLL
 
-	// extension 20
-	uint64_t	in_src_mac;		// index 20 0xffff'ffff'ffff'ffff
-#	define OffsetInSrcMAC 		20
+	uint64_t	in_src_mac;		// index 21 0xffff'ffff'ffff'ffff
+#	define OffsetInSrcMAC 		INDEX_BASE + 20
 #	define MaskMac 	 			0xffffffffffffffffLL
 
-	// extension 20
-	uint64_t	out_dst_mac;	// index 21 0xffff'ffff'ffff'ffff
-#	define OffsetOutDstMAC 		21
+	uint64_t	out_dst_mac;	// index 22 0xffff'ffff'ffff'ffff
+#	define OffsetOutDstMAC 		INDEX_BASE + 21
 
-	// extension 21
-	uint64_t	in_dst_mac;		// index 22 0xffff'ffff'ffff'ffff
-#	define OffsetInDstMAC 		22
+	uint64_t	in_dst_mac;		// index 23 0xffff'ffff'ffff'ffff
+#	define OffsetInDstMAC 		INDEX_BASE + 22
 
-	// extension 21
-	uint64_t	out_src_mac;	// index 23 0xffff'ffff'ffff'ffff
-#	define OffsetOutSrcMAC 		23
+	uint64_t	out_src_mac;	// index 24 0xffff'ffff'ffff'ffff
+#	define OffsetOutSrcMAC 		INDEX_BASE + 23
 
-	// extension 22
 	uint32_t	mpls_label[10];
-#	define OffsetMPLS12 		24
-#	define OffsetMPLS34 		25
-#	define OffsetMPLS56 		26
-#	define OffsetMPLS78 		27
-#	define OffsetMPLS910 		28
+#	define OffsetMPLS12 		INDEX_BASE + 24
+#	define OffsetMPLS34 		INDEX_BASE + 25
+#	define OffsetMPLS56 		INDEX_BASE + 26
+#	define OffsetMPLS78 		INDEX_BASE + 27
+#	define OffsetMPLS910 		INDEX_BASE + 28
 
 #ifdef WORDS_BIGENDIAN
 #	define MaskMPLSlabelOdd  	0x00fffff000000000LL
@@ -468,55 +447,31 @@ typedef struct master_record_s {
 
 #endif
 
-	// extension 23 / 24
-	ip_addr_t	ip_router;		// ipv4   index 30 0x0000'0000'ffff'ffff
-								// ipv6	  index 29 0xffff'ffff'ffff'ffff
+	ip_addr_t	ip_router;		// ipv4   index 31 0x0000'0000'ffff'ffff
 								// ipv6	  index 30 0xffff'ffff'ffff'ffff
+								// ipv6	  index 31 0xffff'ffff'ffff'ffff
 
+#	define OffsetRouterv4 		INDEX_BASE + 30
+#	define OffsetRouterv6a		INDEX_BASE + 29
+#	define OffsetRouterv6b		INDEX_BASE + 30
 #ifdef WORDS_BIGENDIAN
-#	define OffsetRouterv4 		30
 #	define MaskRouterv4  		0x00000000ffffffffLL
 #	define ShiftRouterv4 		0
 
-#	define OffsetRouterv6a		29
-#	define OffsetRouterv6b		30
 // MaskIPv6 and ShiftIPv6 already defined
 
 #else
-#	define OffsetRouterv4 		30
 #	define MaskRouterv4  		0xffffffff00000000LL
 #	define ShiftRouterv4 		0
-
-#	define OffsetRouterv6a		29
-#	define OffsetRouterv6b		30
 #endif
 
-	uint16_t	sec_group_tag;	// sec group tag index 31 0xffff'0000'0000'0000
-	uint8_t		engine_type;	// type index 31 0x0000'ff00'0000'0000
-	uint8_t		engine_id;		// ID	index 31 0x0000'00ff'0000'0000
-	uint32_t	fill2;
-
-#	define OffsetRouterID	31
-#ifdef WORDS_BIGENDIAN
-#	define MaskEngineType		0x0000FF0000000000LL
-#	define ShiftEngineType		40
-#	define MaskEngineID			0x000000FF00000000LL
-#	define ShiftEngineID		32
-
-#else
-#	define MaskEngineType		0x0000000000FF0000LL
-#	define ShiftEngineType		16
-#	define MaskEngineID			0x00000000FF000000LL
-#	define ShiftEngineID		24
-#endif
 
 	// IPFIX extensions in v9
 	// BGP next/prev AS
 	uint32_t	bgpNextAdjacentAS;	// index 32 0xffff'ffff'0000'0000
 	uint32_t	bgpPrevAdjacentAS;	// index 32 0x0000'0000'ffff'ffff
 
-// extension 18
-#	define OffsetBGPadj	32
+#	define OffsetBGPadj	INDEX_BASE + 31
 #ifdef WORDS_BIGENDIAN
 #	define MaskBGPadjNext		0xFFFFFFFF00000000LL
 #	define ShiftBGPadjNext		32
@@ -578,6 +533,11 @@ typedef struct master_record_s {
 	ip_addr_t	xlate_dst_ip;		// ipv4  OffsetXLATEDSTIP +1 0x0000'0000'ffff'ffff
 									// ipv6	 OffsetXLATEDSTIP 	 0xffff'ffff'ffff'ffff
 									// ipv6	 OffsetXLATEDSTIP 	 0xffff'ffff'ffff'ffff
+#	define OffsetXLATESRCv6a OffsetXLATESRCIP
+#	define OffsetXLATESRCv6b OffsetXLATESRCIP+1
+#	define OffsetXLATEDSTv6a OffsetXLATESRCIP+2
+#	define OffsetXLATEDSTv6b OffsetXLATESRCIP+3
+
 #ifdef WORDS_BIGENDIAN
 #	define MaskXLATESRCPORT	 0xFFFF000000000000LL
 #	define ShiftXLATESRCPORT 48
@@ -588,12 +548,6 @@ typedef struct master_record_s {
 #	define MaskXLATEIPv4  	 0x00000000fFFFFFFFLL
 #	define ShiftXLATEIPv4 	 0
 
-#	define OffsetXLATESRCv6a OffsetXLATESRCIP
-#	define OffsetXLATESRCv6b OffsetXLATESRCIP+1
-
-#	define OffsetXLATEDSTv6a OffsetXLATESRCIP+2
-#	define OffsetXLATEDSTv6b OffsetXLATESRCIP+3
-
 #else
 #	define MaskXLATESRCPORT	 0x000000000000FFFFLL
 #	define ShiftXLATESRCPORT 0
@@ -603,12 +557,6 @@ typedef struct master_record_s {
 #	define OffsetXLATESRCv4	 OffsetXLATESRCIP+1
 #	define MaskXLATEIPv4  	 0xFFFFFFFF00000000LL
 #	define ShiftXLATEIPv4 	 32
-
-#	define OffsetXLATESRCv6a OffsetXLATESRCIP
-#	define OffsetXLATESRCv6b OffsetXLATESRCIP+1
-
-#	define OffsetXLATEDSTv6a OffsetXLATESRCIP+2
-#	define OffsetXLATEDSTv6b OffsetXLATESRCIP+3
 
 #endif
 
@@ -729,19 +677,6 @@ typedef struct master_record_s {
  * - the extension map must be updated accordingly
  */
 
-#ifdef USER_EXTENSION_1
-	uint64_t	u64_1;
-#	define Offset_BASE_U1	offsetof(master_record_t, u64_1)
-#	define OffsetUser1_u64	Offset_BASE_U1
-	
-	uint32_t	u32_1;
-	uint32_t	u32_2;
-#	define OffsetUser1_u32_1	Offset_BASE_U1 + 8
-#	define MaskUser1_u32_1 		0xffffffff00000000LL
-#	define MaskUser1_u32_2 		0x00000000ffffffffLL
-
-#endif
-
 	// reference to exporter
 	exporter_info_record_t	*exp_ref;
 
@@ -763,6 +698,34 @@ typedef struct type_mask_s {
 	} val;
 } type_mask_t;
 
+typedef struct stat_record_s {
+    // overall stat
+    uint64_t    numflows;
+    uint64_t    numbytes;
+    uint64_t    numpackets;
+    // flow stat
+    uint64_t    numflows_tcp;
+    uint64_t    numflows_udp;
+    uint64_t    numflows_icmp;
+    uint64_t    numflows_other;
+    // bytes stat
+    uint64_t    numbytes_tcp;
+    uint64_t    numbytes_udp;
+    uint64_t    numbytes_icmp;
+    uint64_t    numbytes_other;
+    // packet stat
+    uint64_t    numpackets_tcp;
+    uint64_t    numpackets_udp;
+    uint64_t    numpackets_icmp;
+    uint64_t    numpackets_other;
+    // time window
+    uint32_t    first_seen;
+    uint32_t    last_seen;
+    uint16_t    msec_first;
+    uint16_t    msec_last;
+    // other
+    uint32_t    sequence_failure;
+} stat_record_t;
 
 #endif //_NFDUMP_H
 
