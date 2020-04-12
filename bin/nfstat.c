@@ -487,11 +487,16 @@ static uint64_t	flows_record(FlowTableRecord_t *record, int inout) {
 	return record->counter[FLOWS];
 }
 
+#define NeedSwap(GuessDir, r) ( GuessDir && \
+	((r)->prot == IPPROTO_TCP || (r)->prot == IPPROTO_UDP) && \
+	 ((((r)->srcport < 1024) && ((r)->dstport >= 1024)) || \
+	  (((r)->srcport < 32768) && ((r)->dstport >= 32768)) || \
+	  (((r)->srcport < 49152) && ((r)->dstport >= 49152)) \
+	 ) \
+	)
+
 static uint64_t	packets_record(FlowTableRecord_t *record, int inout) {
-	if ( GuessDirection && 
-	   ( record->flowrecord.prot == IPPROTO_TCP || record->flowrecord.prot == IPPROTO_UDP) &&
-	   ( record->flowrecord.srcport < 1024 ) && ( record->flowrecord.dstport > 1024 ) &&
-	   ( record->flowrecord.srcport < record->flowrecord.dstport) ) {
+	if (NeedSwap(GuessDirection, &(record->flowrecord))) {
 		if (inout == IN)
 			inout = OUT;
 		else if (inout == OUT)
@@ -506,10 +511,7 @@ static uint64_t	packets_record(FlowTableRecord_t *record, int inout) {
 }
 
 static uint64_t	bytes_record(FlowTableRecord_t *record, int inout) {
-	if ( GuessDirection && 
-	   ( record->flowrecord.prot == IPPROTO_TCP || record->flowrecord.prot == IPPROTO_UDP) &&
-	   ( record->flowrecord.srcport < 1024 ) && ( record->flowrecord.dstport > 1024 ) &&
-	   ( record->flowrecord.srcport < record->flowrecord.dstport) ) {
+	if (NeedSwap(GuessDirection, &(record->flowrecord))) {
 		if (inout == IN)
 			inout = OUT;
 		else if (inout == OUT)
@@ -1547,11 +1549,7 @@ char				*string;
 					ApplyAggrMask(flow_record, aggr_record_mask);
 				}
 
-				if ( GuessDir && 
-				   ( flow_record->prot == IPPROTO_TCP || flow_record->prot == IPPROTO_UDP) &&
-	   			   ( flow_record->srcport < 1024 ) && ( flow_record->dstport >= 1024 ) &&
-	   			   ( flow_record->srcport < 32768 ) && ( flow_record->dstport >= 32768 ) &&
-	   			   ( flow_record->srcport < 49152 ) && ( flow_record->dstport >= 49152 ))
+				if (NeedSwap(GuessDir, flow_record))
 					SwapFlow(flow_record);
 
 				print_record((void *)flow_record, &string, outputParams->doTag);
