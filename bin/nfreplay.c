@@ -290,6 +290,10 @@ uint64_t	twin_msecFirst, twin_msecLast;
 		uint32_t sumSize = 0;
 		for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
 			int match;
+
+			if (count && (numflows >= count))
+				break;
+
 			if ( (sumSize + flow_record->size) > ret ) {
 				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
 				exit(255);
@@ -458,7 +462,7 @@ timeWindow_t *timeWindow;
 	peer.sockfd		= 0;
 
 	delay 	  		= 1;
-	count	  		= 0xFFFFFFFF;
+	count	  		= 0;
 	sockbuff_size  	= 0;
 	netflow_version	= 5;
 	blast			= 0;

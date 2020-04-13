@@ -226,8 +226,8 @@ extension_map_t	*extension_map = r->map_ref;
 					as[IP_STRING_LEN-1] = 0;
 				} else {
 					as[0] = 0;
-					r->ip_nexthop.V4 = htonl(r->ip_nexthop.V4);
-					inet_ntop(AF_INET, &r->ip_nexthop.V4, as, sizeof(as));
+					uint32_t ip = htonl(r->ip_nexthop.V4);
+					inet_ntop(AF_INET, &ip, as, sizeof(as));
 					as[IP_STRING_LEN-1] = 0;
 				}
 
@@ -248,8 +248,8 @@ extension_map_t	*extension_map = r->map_ref;
 					as[IP_STRING_LEN-1] = 0;
 				} else {
 					as[0] = 0;
-					r->bgp_nexthop.V4 = htonl(r->bgp_nexthop.V4);
-					inet_ntop(AF_INET, &r->bgp_nexthop.V4, as, sizeof(as));
+					uint32_t ip = htonl(r->bgp_nexthop.V4);
+					inet_ntop(AF_INET, &ip, as, sizeof(as));
 					as[IP_STRING_LEN-1] = 0;
 				}
 				snprintf(_s, slen-1,

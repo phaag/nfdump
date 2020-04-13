@@ -62,6 +62,45 @@ extern int hash_hit;
 extern int hash_miss;
 extern int hash_skip;
 
+/*
+ * Stat Table
+ * In order to generate any flow element statistics, the flows passed the filter
+ * are stored into an internal hash table.
+ */
+
+typedef struct StatRecord {
+	// record chain
+	struct StatRecord *next;
+	// flow parameters
+	uint64_t	counter[5];	// flows ipkg ibyte opkg obyte
+	uint64_t	msecFirst;
+	uint64_t	msecLast;
+	uint8_t		record_flags;
+	uint8_t		tcp_flags;
+	uint8_t		tos;
+	// key 
+	uint8_t		prot;
+	uint64_t	stat_key[2];
+} StatRecord_t;
+
+typedef struct hash_StatTable {
+	/* hash table data */
+	uint16_t 			NumBits;		/* width of the hash table */
+	uint32_t			IndexMask;		/* Mask which corresponds to NumBits */
+	StatRecord_t 		**bucket;		/* Hash entry point: points to elements in the stat block */
+	StatRecord_t 		**bucketcache;	/* in case of index collisions, this array points to the last element with that index */
+
+	/* memory management */
+	/* memory blocks - containing the stat records */
+	StatRecord_t		**memblock;		/* array holding all NumBlocks allocated stat blocks */
+	uint32_t 			MaxBlocks;		/* Size of memblock array */
+	/* stat blocks - containing the stat records */
+	uint32_t 			NumBlocks;		/* number of allocated stat blocks in memblock array */
+	uint32_t 			Prealloc;		/* Number of stat records in each stat block */
+	uint32_t			NextBlock;		/* This stat block contains the next free slot for a stat recorrd */
+	uint32_t			NextElem;		/* This element in the current stat block is the next free slot */
+} hash_StatTable;
+
 struct flow_element_s {
 	uint32_t	offset0;
 	uint32_t	offset1;	// set in the netflow record block
@@ -109,11 +148,11 @@ struct StatParameter_s {
 		{ {OffsetRouterv6a, OffsetRouterv6b, MaskIPv6, 0},	{0,0,0,0} },
 			1, IS_IPADDR },
 
-	{ "srcPort", "Src Port", 
+	{ "srcport", "Src Port", 
 		{ {0, OffsetPort, MaskSrcPort, ShiftSrcPort}, 		{0,0,0,0} },
 			1, IS_NUMBER },
 
-	{ "dstPort", "Dst Port", 
+	{ "dstport", "Dst Port", 
 		{ {0, OffsetPort, MaskDstPort, ShiftDstPort}, 		{0,0,0,0} },
 			1, IS_NUMBER },
 
@@ -302,11 +341,11 @@ struct StatParameter_s {
 		{ {OffsetXLATEDSTv6a, OffsetXLATEDSTv6b, MaskIPv6, 0},	{0,0,0,0} },
 			1, IS_IPADDR},
 
-	{ "xsrcPort", " X-Src Port", 
+	{ "xsrcport", " X-Src Port", 
 		{ {0, OffsetXLATEPort, MaskXLATESRCPORT, ShiftXLATESRCPORT}, 		{0,0,0,0} },
 			1, IS_NUMBER},
 
-	{ "xdstPort", " X-Dst Port", 
+	{ "xdstport", " X-Dst Port", 
 		{ {0, OffsetXLATEPort, MaskXLATEDSTPORT, ShiftXLATEDSTPORT}, 		{0,0,0,0} },
 			1, IS_NUMBER},
 
@@ -351,11 +390,11 @@ struct StatParameter_s {
 		{ {OffsetXLATEDSTv6a, OffsetXLATEDSTv6b, MaskIPv6, 0},	{0,0,0,0} },
 			1, IS_IPADDR},
 
-	{ "nsrcPort", " X-Src Port", 
+	{ "nsrcport", " X-Src Port", 
 		{ {0, OffsetXLATEPort, MaskXLATESRCPORT, ShiftXLATESRCPORT}, 		{0,0,0,0} },
 			1, IS_NUMBER},
 
-	{ "ndstPort", " X-Dst Port", 
+	{ "ndstport", " X-Dst Port", 
 		{ {0, OffsetXLATEPort, MaskXLATEDSTPORT, ShiftXLATEDSTPORT}, 		{0,0,0,0} },
 			1, IS_NUMBER},
 
@@ -435,7 +474,7 @@ struct order_mode_s {
 //	{ "clat",		0,	DESCENDING,  clat_record, null_element},
 	{ NULL,			0,		0,	 NULL, NULL}
 };
-#define Default_PrintOrder 1		// order_mode[0].val
+#define Default_PrintOrder 1
 static uint32_t	print_order_bits = 0;
 static uint32_t	PrintOrder 		 = 0;
 static uint32_t	GuessDirection 	 = 0;
@@ -467,9 +506,7 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
 
 /* locals */
 static hash_StatTable *StatTable;
-static SumRecord_t SumRecord;
 static int initialised = 0;
-
 
 /* Functions */
 
@@ -742,8 +779,6 @@ int		 hash_num;
 		fprintf(stderr, "Numbits outside 1..31\n");
 		exit(255);
 	}
-
-	memset((void *)&SumRecord, 0, sizeof(SumRecord));
 
 	maxindex = (1 << NumBits);
 
@@ -1026,12 +1061,6 @@ void AddStat(common_record_t *raw_record, master_record_t *flow_record ) {
 StatRecord_t		*stat_record;
 uint64_t			value[2][2];
 int	j, i;
-
-	SumRecord.ibyte += flow_record->dOctets;
-	SumRecord.ipkg  += flow_record->dPkts;
-	SumRecord.obyte += flow_record->out_bytes;
-	SumRecord.opkg  += flow_record->out_pkts;
-	SumRecord.flows += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 
 	// for every requested -s stat do
 	for ( j=0; j<NumStats; j++ ) {

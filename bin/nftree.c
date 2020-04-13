@@ -566,7 +566,6 @@ master_record_t *record = (master_record_t *)record_data;
 
 	/* duration in msec */
 	comp_values[0] = record->msecLast - record->msecFirst;
-
 } // End of duration_function
 
 static inline void pps_function(uint64_t *record_data, uint64_t *comp_values) {

@@ -145,6 +145,7 @@ typedef struct common_record_s {
 	// netflow common record
  	uint16_t	msec_first;
  	uint16_t	msec_last;
+#define BYTE_OFFSET_first	12
  	uint32_t	first;
  	uint32_t	last;
  

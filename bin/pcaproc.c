@@ -449,7 +449,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 					Free_Node(Node);
 					goto END_FUNC;
 			}
-	} else {
+	} else if ( pcap_dev->linktype != DLT_RAW ) { // we can still process raw IP
 		LogInfo("Unsupported link type: 0x%x, packet: %u", pcap_dev->linktype, pkg_cnt);
 		Free_Node(Node);
 		return;

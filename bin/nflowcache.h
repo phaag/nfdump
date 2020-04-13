@@ -60,7 +60,6 @@ typedef struct FlowTableRecord {
 	// port for direction verification
 	uint16_t	srcPort;
 	uint16_t	dstPort;
-	uint16_t	tcpFlags;
 	uint8_t		proto;
 
 	// Hash papameters
@@ -149,9 +148,9 @@ char *VerifyStat(uint16_t Aggregate_Bits);
 
 int SetStat(char *str, int *element_stat, int *flow_stat);
 
-void InsertFlow(common_record_t *raw_record, master_record_t *flow_record, extension_info_t *extension_info);
+void InsertFlow(void *raw_record, master_record_t *flow_record, extension_info_t *extension_info);
 
-void AddFlow(common_record_t *raw_record, master_record_t *flow_record, extension_info_t *extension_info );
+void AddFlow(void *raw_record, master_record_t *flow_record, extension_info_t *extension_info );
 
 int SetBidirAggregation( void );
 

@@ -92,7 +92,6 @@ typedef struct master_record_s {
 #endif
 
 	// 8 bytes offset in master record to first
-#define BYTE_OFFSET_first	8
 #define INDEX_BASE   (offsetof(master_record_t, msecFirst) >> 3)
 
 	uint64_t	msecFirst;		// index 1 0xffff'ffff'ffff'ffff

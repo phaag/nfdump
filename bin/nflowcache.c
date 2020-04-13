@@ -387,18 +387,24 @@ uint32_t index = index_cache & FlowTable.IndexMask;
 
 } // End of hash_insert_FlowTable
 
-void InsertFlow(common_record_t *raw_record, master_record_t *flow_record, extension_info_t *extension_info) {
+void InsertFlow(void *raw_record, master_record_t *flow_record, extension_info_t *extension_info) {
 FlowTableRecord_t	*record;
 
 	// allocate enough memory for the new flow including all additional information in FlowTableRecord_t
 	// MemoryHandle_get always succeeds. If no memory, MemoryHandle_get already exits cleanly
-	record = MemoryHandle_get(&FlowTable.mem, sizeof(FlowTableRecord_t) - sizeof(common_record_t) + raw_record->size);
+	record = MemoryHandle_get(&FlowTable.mem, sizeof(FlowTableRecord_t) + flow_record->size);
 
 	record->next 	 = NULL;
 	record->hash 	 = 0;
 	record->hash_key = NULL;
 
-	memcpy((void *)&record->rawRecord, (void *)raw_record, raw_record->size);
+	record->srcPort	  = flow_record->srcPort;
+	record->dstPort	  = flow_record->dstPort;
+	record->proto	  = flow_record->proto;
+	record->msecFirst = flow_record->msecFirst;
+	record->msecLast  = flow_record->msecLast;
+
+	memcpy((void *)&record->rawRecord, (void *)raw_record, flow_record->size);
 	if ( FlowTable.bucket[0] == NULL ) 
 		FlowTable.bucket[0] = record;
 	else 
@@ -419,9 +425,7 @@ FlowTableRecord_t	*record;
 
 } // End of InsertFlow
 
-
-
-void AddFlow(common_record_t *raw_record, master_record_t *flow_record, extension_info_t *extension_info ) {
+void AddFlow(void *raw_record, master_record_t *flow_record, extension_info_t *extension_info ) {
 static void			*keymem = NULL, *bidirkeymem = NULL;
 FlowTableRecord_t	*FlowTableRecord;
 uint32_t			index_cache; 
@@ -433,7 +437,6 @@ uint32_t			index_cache;
 
 		// for 64 bit arch int == 8 bytes otherwise 4
 		((int *)keymem)[FlowTable.keylen-1] = 0;
-
 	}
 
 	New_Hash_Key(keymem, flow_record, 0);
@@ -454,8 +457,7 @@ uint32_t			index_cache;
 			FlowTableRecord->msecLast =	FlowTableRecord->msecLast;
 		}
 
-		FlowTableRecord->counter[FLOWS]        += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
-		FlowTableRecord->tcpFlags		|= flow_record->tcp_flags;
+		FlowTableRecord->counter[FLOWS] += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 		FlowTableRecord->srcPort		 = flow_record->srcPort;
 		FlowTableRecord->dstPort		 = flow_record->dstPort;
 		FlowTableRecord->proto			 = flow_record->proto;
@@ -471,13 +473,13 @@ uint32_t			index_cache;
 		FlowTableRecord->counter[OUTPACKETS] = flow_record->out_pkts;
 		FlowTableRecord->counter[FLOWS]   	 = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 
-		FlowTableRecord->map_info_ref  	 	 = extension_info;
-		FlowTableRecord->exp_ref  	 		 = flow_record->exp_ref;
-		FlowTableRecord->srcPort			 = flow_record->srcPort;
-		FlowTableRecord->dstPort			 = flow_record->dstPort;
-		FlowTableRecord->proto				 = flow_record->proto;
-		FlowTableRecord->msecFirst			 = flow_record->msecFirst;
-		FlowTableRecord->msecLast			 = flow_record->msecLast;
+		FlowTableRecord->map_info_ref = extension_info;
+		FlowTableRecord->exp_ref	  = flow_record->exp_ref;
+		FlowTableRecord->srcPort	  = flow_record->srcPort;
+		FlowTableRecord->dstPort	  = flow_record->dstPort;
+		FlowTableRecord->proto		  = flow_record->proto;
+		FlowTableRecord->msecFirst	  = flow_record->msecFirst;
+		FlowTableRecord->msecLast	  = flow_record->msecLast;
 
 		// keymen got part of the cache
 		keymem = NULL;
@@ -514,7 +516,6 @@ uint32_t			index_cache;
 			}
 
 			FlowTableRecord->counter[FLOWS]        += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
-			FlowTableRecord->tcpFlags		|= flow_record->tcp_flags;
 			FlowTableRecord->srcPort		 = flow_record->srcPort;
 			FlowTableRecord->dstPort		 = flow_record->dstPort;
 			FlowTableRecord->proto			 = flow_record->proto;
@@ -532,7 +533,6 @@ uint32_t			index_cache;
 			FlowTableRecord->map_info_ref  	 	 = extension_info;
 			FlowTableRecord->exp_ref  	 		 = flow_record->exp_ref;
 
-			FlowTableRecord->tcpFlags	= flow_record->tcp_flags;
 			FlowTableRecord->srcPort	= flow_record->srcPort;
 			FlowTableRecord->dstPort	= flow_record->dstPort;
 			FlowTableRecord->proto		= flow_record->proto;

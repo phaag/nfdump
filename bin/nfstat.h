@@ -44,61 +44,6 @@
 #include "nfx.h"
 #include "nffile.h"
 
-/* Definitions */
-
-
-/*
- * Stat Table
- * In order to generate any flow element statistics, the flows passed the filter
- * are stored into an internal hash table.
- */
-
-typedef struct SumRecord_s {
-	uint64_t	flows;
-	uint64_t	ipkg;
-	uint64_t	opkg;
-	uint64_t	ibyte;
-	uint64_t	obyte;
-} SumRecord_t;
-
-typedef struct StatRecord {
-	// record chain
-	struct StatRecord *next;
-	// flow parameters
-	uint64_t	counter[5];	// flows ipkg ibyte opkg obyte
-	uint64_t	msecFirst;
-	uint64_t	msecLast;
-	uint8_t		record_flags;
-	uint8_t		tcp_flags;
-	uint8_t		tos;
-	// key 
-	uint8_t		prot;
-	uint64_t	stat_key[2];
-} StatRecord_t;
-
-typedef struct hash_StatTable {
-	/* hash table data */
-	uint16_t 			NumBits;		/* width of the hash table */
-	uint32_t			IndexMask;		/* Mask which corresponds to NumBits */
-	StatRecord_t 		**bucket;		/* Hash entry point: points to elements in the stat block */
-	StatRecord_t 		**bucketcache;	/* in case of index collisions, this array points to the last element with that index */
-
-	/* memory management */
-	/* memory blocks - containing the stat records */
-	StatRecord_t		**memblock;		/* array holding all NumBlocks allocated stat blocks */
-	uint32_t 			MaxBlocks;		/* Size of memblock array */
-	/* stat blocks - containing the stat records */
-	uint32_t 			NumBlocks;		/* number of allocated stat blocks in memblock array */
-	uint32_t 			Prealloc;		/* Number of stat records in each stat block */
-	uint32_t			NextBlock;		/* This stat block contains the next free slot for a stat recorrd */
-	uint32_t			NextElem;		/* This element in the current stat block is the next free slot */
-} hash_StatTable;
-
-typedef struct SortElement {
-	void 		*record;
-    uint64_t	count;
-} SortElement_t;
-
 #define MULTIPLE_LIST_ORDERS 1
 #define SINGLE_LIST_ORDER    0
 
@@ -109,6 +54,11 @@ typedef struct SortElement {
 	  (((r)->srcPort < 49152) && ((r)->dstPort >= 49152)) \
 	 ) \
 	)
+
+typedef struct SortElement {
+	void 		*record;
+    uint64_t	count;
+} SortElement_t;
 
 /* Function prototypes */
 void SetLimits(int stat, char *packet_limit_string, char *byte_limit_string );

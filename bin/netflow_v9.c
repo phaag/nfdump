@@ -390,7 +390,7 @@ typedef struct output_templates_s {
 #define MAX_LIFETIME 60
 
 static output_template_t	*output_templates;
-static uint64_t	msecBoot;
+static uint64_t	msecBoot = 0;
 static uint16_t	template_id;
 static uint32_t	Max_num_v9_tags;
 static uint32_t	processed_records;
@@ -2599,11 +2599,8 @@ extension_map_t *extension_map = master_record->map_ref;
 uint32_t	i, first, last;
 uint16_t	icmp;
 
-	first 	= (uint32_t)(master_record->msecFirst - msecBoot);
-	last	= (uint32_t)(master_record->msecLast  - msecBoot);
-
-  	master_record->srcPort	= htons(master_record->srcPort);
-  	master_record->dstPort	= htons(master_record->dstPort);
+	first 	= master_record->msecFirst - msecBoot;
+	last	= master_record->msecLast  - msecBoot;
 
 	// if it's an ICMP send it in the appropriate v9 tag
 	if ( master_record->proto == IPPROTO_ICMP || master_record->proto == IPPROTO_ICMPV6  ) { // it's an ICMP
@@ -2613,18 +2610,17 @@ uint16_t	icmp;
 		icmp = 0;
 	}
 
-	*(uint32_t *)peer->buff_ptr = first; peer->buff_ptr += 4;
-	*(uint32_t *)peer->buff_ptr = last;  peer->buff_ptr += 4;
+	*(uint32_t *)peer->buff_ptr = htonl(first); peer->buff_ptr += 4;
+	*(uint32_t *)peer->buff_ptr = htonl(last);  peer->buff_ptr += 4;
 	*(uint8_t *)peer->buff_ptr = master_record->fwd_status;  peer->buff_ptr++;
-	*(uint8_t *)peer->buff_ptr = master_record->flags;       peer->buff_ptr++;
+	*(uint8_t *)peer->buff_ptr = master_record->tcp_flags;       peer->buff_ptr++;
 	*(uint8_t *)peer->buff_ptr = master_record->proto;       peer->buff_ptr++;
 	*(uint8_t *)peer->buff_ptr = master_record->tos;         peer->buff_ptr++;
-	*(uint16_t *)peer->buff_ptr = master_record->srcPort;    peer->buff_ptr += 2;
-	*(uint16_t *)peer->buff_ptr = master_record->dstPort;    peer->buff_ptr += 2;
+	*(uint16_t *)peer->buff_ptr = htons(master_record->srcPort);    peer->buff_ptr += 2;
+	*(uint16_t *)peer->buff_ptr = htons(master_record->dstPort);    peer->buff_ptr += 2;
 
 	// write ICMP type/code
-	memcpy(peer->buff_ptr, (void *)&icmp,2);
-	peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + 2);
+	*(uint16_t *)peer->buff_ptr = htons(icmp);    peer->buff_ptr += 2;
 
 	// IP address info
 	if ((master_record->flags & FLAG_IPV6_ADDR) != 0 ) { // IPv6
@@ -2828,9 +2824,9 @@ time_t		now = time(NULL);
 	printf("%s\n", string);
 #endif
 
-	if ( !v9_output_header->unix_secs ) {	// first time a record is added
+	if ( msecBoot == 0 ) {	// first time a record is added
 		// boot time is set one day back - assuming that the start time of every flow does not start ealier
-		msecBoot	   = master_record->msecFirst - 86400*1000;
+		msecBoot	   = ((master_record->msecFirst / 1000) - 86400 ) * 1000;
 		v9_output_header->unix_secs = htonl(master_record->msecFirst/1000 - 86400);
 		v9_output_header->sequence  = 0;
 		peer->buff_ptr  = (void *)((pointer_addr_t)peer->send_buffer + NETFLOW_V9_HEADER_LENGTH);

@@ -263,12 +263,12 @@ void *p;
 	memset((void *)&flow_record, 0, sizeof(master_record_t));
 	blocks = (uint64_t *)&flow_record;
 
-#define BASEOFFSET offsetof(master_record_t, first)
+#define BASEOFFSET offsetof(common_record_t, first)
 #ifdef USER_EXTENSION_1
 	printf("Offset is %lu\n", Offset_BASE_U1);
 #endif
 
-	check_offset("First    Offset", (unsigned int)((pointer_addr_t)&flow_record.msecFirst	-  (pointer_addr_t)blocks), BYTE_OFFSET_first);
+	check_offset("First    Offset", (unsigned int)((pointer_addr_t)&c_record.first	-  (pointer_addr_t)&c_record), BYTE_OFFSET_first);
 	check_offset("Src AS   Offset", (unsigned int)((pointer_addr_t)&flow_record.srcas  		-  (pointer_addr_t)&blocks[OffsetAS]), 0);
 	check_offset("Dst AS   Offset", (unsigned int)((pointer_addr_t)&flow_record.dstas  		-  (pointer_addr_t)&blocks[OffsetAS]), 4);
 	check_offset("Src Port Offset", (unsigned int)((pointer_addr_t)&flow_record.srcPort 	- (pointer_addr_t)&blocks[OffsetPort]), 0);
@@ -783,7 +783,7 @@ void *p;
 	ret = check_filter_block("duration < 10", &flow_record, 0);
 
 	flow_record.msecFirst = 1089534600LL * 1000LL;		/* 2004-07-11 10:30:00 */
-	flow_record.msecFirst = 1089534610LL * 1000LL;		/* 2004-07-11 10:30:10 */
+	flow_record.msecLast  = 1089534610LL * 1000LL;		/* 2004-07-11 10:30:10 */
 
 	/* duration 10s */
 	flow_record.dPkts = 1000;
