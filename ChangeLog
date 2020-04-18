@@ -1,3 +1,5 @@
+- Fix ft2nfdump nexthop fields
+- Fix ft2nfdump extension map size
 - internal: put output parameters in a single struct
 - Fix GuessDir bug - issue #215
 - Compact Changelog

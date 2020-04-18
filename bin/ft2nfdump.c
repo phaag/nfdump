@@ -154,7 +154,7 @@ int	i;
 		extension_info->map->ex_id[i++] = EX_MULIPLE;
 	}
 
-   	if (!ftio_check_xfield(ftio, FT_XFIELD_PEER_NEXTHOP )) {
+   	if (!ftio_check_xfield(ftio, FT_XFIELD_NEXTHOP )) {
 		extension_info->map->ex_id[i++] = EX_NEXT_HOP_v4;
 	}
 
@@ -166,7 +166,7 @@ int	i;
 		extension_info->map->ex_id[i++] = EX_ROUTER_ID;
 	}
 
-	extension_info->map->ex_id[i++] = 0;
+	extension_info->map->ex_id[i] = 0;
 	extension_info->map->size       = sizeof(extension_map_t) + i * sizeof(uint16_t);
 
 	// align 32bits
@@ -267,7 +267,7 @@ uint32_t			cnt;
 					record.dst_tos  	= 0;
 					break;
 				case EX_NEXT_HOP_v4:
-					record.ip_nexthop.V4 = *((uint32_t*)(rec+fo.peer_nexthop));
+					record.ip_nexthop.V4 = *((uint32_t*)(rec+fo.nexthop));
 					break;
 				case EX_ROUTER_IP_v4:
 					record.ip_router.V4 = *((uint32_t*)(rec+fo.exaddr));
