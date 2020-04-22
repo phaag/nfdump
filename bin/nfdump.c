@@ -695,7 +695,7 @@ char 		Ident[IDENTLEN];
 		LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		exit(255);
 	}
-	outputParams->topN = 10;
+	outputParams->topN = -1;
 
 	Ident[0] = '\0';
 
@@ -918,6 +918,14 @@ char 		Ident[IDENTLEN];
 	if ( rfile && strlen(Ident) > 0 ) {
 		ChangeIdent(rfile, Ident);
 		exit(0);
+	}
+
+	if ( outputParams->topN < 0 ) {
+		if ( flow_stat || element_stat ) {
+			outputParams->topN = 10;
+		} else {
+			outputParams->topN = 0;
+		}
 	}
 
 	if ( (element_stat && !flow_stat) && aggregate_mask ) {
