@@ -8,14 +8,14 @@ nfdump \- netflow display and analyze program
 .B nfdump
 is the netflow display and analyzing program of the nfdump tool set. 
 It reads the netflow data from files stored by nfcapd and processes
-the flows according the options given. The filter syntax is comparable 
+the flows according to the options given. The filter syntax is comparable 
 to tcpdump and extended for netflow data. Nfdump can also display many 
 different top N flow and flow element statistics.
 
 .SH OPTIONS
 .TP 3
 .B -r \fIinputfile
-Read input data from \fIinputfile\fR. Default is read from stdin.
+Read input data from \fIinputfile\fR. Default is to read from stdin.
 .TP 3
 .B -R \fIexpr
 Read input from a sequence of files in the same directory. \fIexpr\fR
@@ -37,7 +37,7 @@ Read all files from \fIsub1/sub2/file1\fR
 \fIsub3/sub4/file2\fR iterating over all required hierarchy levels.
 
 .P
-Note: files are read in alphabetical sequence.
+Note: files are read in alphabetical order.
 .RE
 .PD
 .TP 3
@@ -56,7 +56,7 @@ deprecated option. Use -O tstart instead.
 .B -O \fIorder
 Set sort order to print flows or aggregated flows. \fIorder\fR can be:
 .RS 5
-flows    Sort according the number of flows
+flows    Sort according to the number of flows
 .br
 packets  Sort according to (in)packets
 .br
@@ -104,7 +104,7 @@ Reads the filter syntax from \fIfilterfile\fR. Note: Any filter specified
 directly on the command line takes precedence over \-f.
 .TP 3
 .B -t \fItimewin
-Process only flows, which fall in the time window \fItimewin\fR, where
+Process only flows which fall in the time window \fItimewin\fR, where
 \fItimewin\fR is YYYY/MM/dd.hh:mm:ss[\-YYYY/MM/dd.hh:mm:ss]. Any parts of
 the time spec may be omitted e.g YYYY/MM/dd expands to 
 YYYY/MM/dd.00:00:00\-infinity and processes all flow from a given day 
@@ -113,7 +113,7 @@ it is relativ to the beginning or end of all flows. +10 means the first
 10 seconds of all flows, \-10 means the last 10 seconds of all flows.
 .TP 3
 .B -c \fInum
-Limit the number of records to read and process from file(es) to the first \fInum\fR flows.
+Limit the number of records to read and process from file(s) to the first \fInum\fR flows.
 .TP 3
 .B -a
 Aggregate netflow data. Aggregation is done at connection level by taking 
@@ -122,7 +122,7 @@ the 5\-tuple protocol, srcip, dstip, srcport and dstport.
 .B -A \fIaggregation 
 Similar to Flexible Netflow (FNF), netflow records can be aggregated 
 by any number of given v9 fields. \fIaggregation\fR is a ',' separated list
-of recognised tags of the following list:
+of recognised tags from the following list:
 .RS 5
 proto      IP protocol
 .br
@@ -204,7 +204,7 @@ mpls9      MPLS label 9
 .br
 mpls10     MPLS label 10
 .br
-router     Exporting router IP
+router     Exporting router's IP
 .br
 xsrcip     X-late source IP address, if compiled with NSEL support
 .br
@@ -234,7 +234,7 @@ Example:
 Aggregate netflow records as bidirectional flows. Automatically implies \-a. 
 Aggregation is done on connection level by taking the 5\-tuple protocol, srcip, 
 dstip, srcport and dstport, or the reverse order for the corresponding connection 
-flow. Input and output packets/bytes are counted and reported separate. Both 
+flow. Input and output packets/bytes are counted and reported separately. Both 
 flows are merged into a single record. An appropriate output format is selected 
 automatically, which may be overwritten by any \-o format option.
 .TP 3
@@ -242,18 +242,18 @@ automatically, which may be overwritten by any \-o format option.
 Like \-b but automagically swaps flows if src port is < dst port 
 for TCP and UDP flows and src port < 1024 and dst port > 1024.
 as some exporters do not care sending the flows in proper order. Other
-flows are not affected. It's considered to be a convenient option. 
+flows are not affected. It's considered to be a conveniency option. 
 .TP 3
 .B -I
 Print flow statistics from file specified by \-r, or timeslot specified by \-R/\-M. 
 .TP 3
 .B -D \fIdns
-Set \fIdns\fR as nameserver to lookup hostnames.
+Set \fIdns\fR as nameserver to look up hostnames.
 .TP 3
 .B -s \fIstatistic[:p][/orderby]
 Generate the Top N flow or flow element statistic. \fIstatistic\fR can be:
 .RS 5
-record    Statistic about arregated netflow records.
+record    Statistic about aggregated netflow records.
 .br
 srcip     Statistic about source IP addresses
 .br
@@ -347,7 +347,7 @@ sysid     Internal SysID of exporter
 .br
 
 .br
-NSEL/ASA stats
+NSEL/ASA statistics
 .br
 event     NSEL/ASA event
 .br
@@ -375,7 +375,7 @@ exace     NSEL/ASA egress xACE
 .br
 
 .br
-NAT stats
+NAT statistics
 .br
 nevent    NAT event
 .br
@@ -397,12 +397,12 @@ ndstport  NAT dst port
 By adding \fI:p\fR to the statistic name, the resulting statistic is split up into
 transport layer protocols. Default is transport protocol independent statistics.
 .P
-\fIorderby\fR is optional and specifies the order by which the statistics is
+\fIorderby\fR is optional and specifies the order by which the statistics are
 ordered and can be \fIflows\fR, \fIpackets\fR, \fIbytes\fR, \fIpps\fR, \fIbps\fR 
 or \fIbpp\fR. You may specify more than one \fIorderby\fR which results in the 
 same statistic but ordered differently. If no \fIorderby\fR is given, statistics 
 are ordered by \fIflows\fR.
-You can specify as many \-s flow element statistics on the command line for the 
+You can specify as many \-s flow element statistics as needed on the command line for the 
 same run. 
 .P
 Example:
@@ -455,9 +455,9 @@ nel      Print each NAT event on one line.
 .br
 csv      Comma separated output for machine readable processing.
 .br
-json     Print full record as separate json object
+json     Print full record as separate json object.
 .br
-pipe     Legacy machine readable format: fields '|' separated.
+pipe     Legacy machine readable format: fields are '|' separated.
 .br
 fmt:\fIformat\fR
 User defined output format.
@@ -469,7 +469,7 @@ For each defined output format except \-o fmt:<format> an IPv6 long output forma
 .PD
 .TP 3
 .B -q
-Suppress the header line and the statistics at the bottom.
+Be quiet. Suppress the header line and the statistics at the bottom.
 .TP 3
 .B -N
 Print plain numbers in output. Easier for post\-parsing.
@@ -483,8 +483,8 @@ and compression status.
 .TP 3
 .B -E \flfile
 Print exporter/sampler list found in \fIfile\fR. In case of
-a nfcapd collector file, an additional statistics per exporter 
-is printed with number of flows, packets and sequence errors.
+a nfcapd collector file, additional statistics per exporter 
+are printed with number of flows, packets and sequence errors.
 .TP 3
 .B -x \flfile
 Scan and print extension maps located in file \flfile\fR
@@ -547,21 +547,21 @@ additional computed information such as \fBpps\fR, \fBbps\fR and \fBbpp\fR.
 \fIFields:\fR
 .P
 .RS 3
-\fBDate flow start:\fR Start time flow first seen. ISO 8601 format 
+\fBDate flow start:\fR Start time the flow was first seen. ISO 8601 format 
 including milliseconds.
 .P
 \fBDuration:\fR Duration of the flow in seconds and milliseconds. 
 If flows are aggregated, \fIduration\fR is the time span over the 
-entire periode of time from first seen to last seen.
+entire period of time from first seen to last seen.
 .P
 \fBProto:\fR Protocol used in the connection.
 .P
 \fBSrc IP Addr:Port:\fR Source IP address and source port.
 .P
 \fBDst IP Addr:Port:\fR Destination IP address and destination port.
-In case of ICMP, port is decodes as type.code.
+In case of ICMP, port is decoded as type.code.
 .P
-\fBFlags:\fR TCP flags ORed of the connection.
+\fBFlags:\fR TCP flags OR-ed of the connection.
 .P
 \fBTos:\fR Type of service.
 .P
@@ -572,16 +572,16 @@ aggregated, the packets are summed up.
 the bytes are summed up.
 .P
 \fBpps:\fR The calculated packets per second: number of packets / duration. 
-If flows are aggregated this results in the average pps during this periode of time.
+If flows are aggregated this results in the average pps during this period of time.
 .P
 \fBbps:\fR The calculated bits per second: 8 * number of bytes / duration. If flows
-are aggregated this results in the average bps during this periode of time.
+are aggregated this results in the average bps during this period of time.
 .P
 \fBBpp:\fR The calculated bytes per packet: number of bytes / number of packets. If flows
-are aggregated this results in the average bpp during this periode of time.
+are aggregated this results in the average bpp during this period of time.
 .P
 \fBFlows:\fR Number of flows. If flows are listed only, this number is always 1. If flows
-are aggregated, this shows the number of aggregated flows to one record.
+are aggregated, this shows the number of flows aggregated in this one record.
 .RE
 .PD
 .P
@@ -589,11 +589,11 @@ Numbers larger than 1'000'000 (1000*1000), are scaled to 4 digits and one decima
 scaling factor \fBM\fR, \fBG\fR or \fBT\fR for cleaner output, e.g. \fB923.4 M\fR
 .P
 To make the output more readable, IPv6 addresses are shrinked down to 16 characters. The seven
-most and seven least digits connected with two dots \fB'..'\fR are displayed in any normal output
-formats. To display the full IPv6 address, use the appropriate long format, which is the format name
-followed by a \fB6\fR. 
+leftmost and seven rightmost digits connected with two dots \fB'..'\fR are displayed in any normal 
+output formats. To display the full IPv6 address, use the appropriate long format, which is the format
+name followed by a \fB6\fR. 
 .P 
-Example: \fB\-o line\fR displays an IPv6 address as \fB2001:23..80:d01e\fR where as the format 
+Example: \fB\-o line\fR displays an IPv6 address as \fB2001:23..80:d01e\fR where the format 
 \fB\-o line6\fR displays the IPv6 address in full length \fB2001:234:aabb::211:24ff:fe80:d01e\fR.
 The combination of \fB\-o line \-6\fR is equivalent to \fB\-o line6\fR.
 .P
@@ -806,7 +806,7 @@ Nprobe formats
 .P
 
 The "flow flags" format (%ff) prints the internal record flags as a single hexadecimal number,
-consisting of any of these flag values or-ed together:
+consisting of any of these flag values OR-ed together:
 .P
 .RS 3
 .br
@@ -838,8 +838,8 @@ See nfdump.c section \fBOutput Formats\fR for more details.
 .P
 The \fBcsv\fR output format is intended to be read by another program for 
 further processing. As an example, see the parse_csv.pl Perl program.
-The cvs output format consists of one or more output blocks and one summary 
-block. Each output block starts with a cvs index line followed by the cvs 
+The csv output format consists of one or more output blocks and one summary 
+block. Each output block starts with a csv index line followed by the csv 
 record lines. The index lines describes the order, how each following record 
 is composed.
 .P
@@ -853,7 +853,7 @@ Record line:  2004-07-11 10:30:00,2004-07-11 10:30:10,10.010,...
 .PD
 .P
 All records are in ASCII readable form. Numbers are not scaled, so each line 
-can easily be parsed.
+can be easily parsed.
 .P
 Indices used in nfdump 1.6:
 .P
@@ -889,7 +889,7 @@ ipkt,ibyt   input packets/bytes
 .br
 opkt,obyt   output packets, bytes
 .br
-in,out      input/output interface SNMP number
+in,out      input/output interface SNMP index number
 .br
 sas,das     src, dst AS
 .br
@@ -899,7 +899,7 @@ dtos        dst tos
 .br
 dir         direction
 .br
-nh,nhb      nethop IP address, bgp next hop IP
+nh,nhb      next hop IP address, bgp next hop IP
 .br
 svln,dvln   src, dst vlan id
 .br
@@ -931,7 +931,7 @@ The filter syntax is similar to the well known pcap library used by tcpdump.
 The filter can be either specified on the command line after all options or 
 in a separate file. It can span several lines. Anything after a '#' is treated as a 
 comment and ignored to the end of the line. There is virtually no limit in 
-the length of the filter expression. All keywords are case independent.
+the length of the filter expression. All keywords are case insensitive.
 .P Syntax
 Any filter consists of one or more expressions \fIexpr\fR. Any number of \fIexpr\fR
 can be linked together:
@@ -966,7 +966,7 @@ where \fB<protocol>\fR is known protocol such as
 .br
 \fB[src|dst] host <ipaddr>\fR 
 .br
-with \fI<ipaddr>\fR as any valid IPv4, IPv6 address, or a full qualified
+with \fI<ipaddr>\fR as any valid IPv4, IPv6 address, or a fully qualified
 hostname.  In case of a hostname, the IP address is looked up in DNS. 
 If more than a single IP address is found, all IP addresses are chained 
 together. \fB(ip1 or ip2 or ip3 ... )\fR
@@ -978,13 +978,13 @@ To check if an IP address is in a known IP list, use
 \fB[src|dst] host in [ <iplist> ]  \fR
 .br
 \fI<iplist>\fR is a space or comma separated list of individual \fB<ipaddr>\fR or 
-full qualified hostnames, which are looked up in DNS. If more than a 
+fully qualified hostnames, which are looked up in DNS. If more than a 
 single IP address is found, all IP addresses are put into the list.
 .RE
 .PD
 .TP 4
 .I [src|dst]
-IP addresses, networks, ports, AS number etc. can be specifically selected
+IP addresses, networks, ports, AS numbers etc. can be specifically selected
 by using a direction qualifier, such as \fbsrc\fR or \fBdst\fR.
 They can also be used in combination with \fBand\fR and \fBor\fR.
 such as \fBsrc and dst ip ..\fR. 
@@ -998,8 +998,8 @@ Select the IPv4 network \fIa.b.c.d\fR with netmask \fIm.n.r.s\fR.
 .br
 \fB[src|dst] net <net>/<num>\fR
 .br
-with \fI<net>\fR as a valid IPv4 or IPv6 network and \fI<num>\fR as maskbits. 
-The number of mask bits must match the appropriate address familiy in IPv4 or 
+with \fI<net>\fR as a valid IPv4 or IPv6 network and \fI<num>\fR as mask bits. 
+The number of mask bits must match the appropriate address family in IPv4 or 
 IPv6. Networks may be abbreviated such as 172.16/16 if they are unambiguous.
 .RE
 .TP 4 
@@ -1008,7 +1008,7 @@ IPv6. Networks may be abbreviated such as 172.16/16 if they are unambiguous.
 \fB[src|dst] port [comp] <num>\fR
 .br
 with \fI<num>\fR as any valid port number.  If \fIcomp\fR is omitted, 
- '=' is assumed. \fIcomp\fR is explained more detailed below.
+ '=' is assumed. \fIcomp\fR is explained in more details below.
 .br
 \fB[src|dst] port in [ <portlist> ] \fR
 .br
@@ -1047,9 +1047,9 @@ Example: \fBin if 3\fR
 .I AS numbers
 \fB[src|dst|prev|next] as [comp] <num>\fR
 .br
-Selects source, dstination, previous, next or any AS number
-with \fI<num>\fR as any valid as number. 32bit AS numbers are supported. If 
-\fIcomp\fR is omitted, '=' is assumed. \fIcomp\fR is explained more detailed below.
+Selects source, destination, previous, next or any AS number
+with \fI<num>\fR as any valid as number. 32-bit AS numbers are supported. If 
+\fIcomp\fR is omitted, '=' is assumed. \fIcomp\fR is explained in more details below.
 .br
 
 .br
@@ -1112,8 +1112,8 @@ Filter the flows according the IP address of the exporting router.
 MAC addresses
 \fB[InOutSrcDst] mac <addr>\fR
 .br
-With \fI<addr>\fR any valid MAC address. \fBmac\fR can be more specific 
-specified by using any combination of a direction specifier as defined by CISCO v9.
+With \fI<addr>\fR any valid MAC address. \fBmac\fR can be made more specific 
+by using any combination of a direction specifier as defined by CISCO v9.
 \fBin src\fR, \fBin dst\fR, \fBout src\fR, \fBout dst\fR.
 .TP 4
 .I MPLS labels
@@ -1208,7 +1208,7 @@ Select a NSEL/ASA denied event by type
 .RS 4
 \fBasa xevent [comp] <num>\fR
 .br
-Select an extended NSELL ASA event by number, or optionally compared by a number.
+Select an extended NSEL ASA event by number, or optionally compared by a number.
 .RE
 .PD
 .TP 4
@@ -1220,8 +1220,8 @@ Select the translated IP address
 .P
 \fB[src|dst] xnet <net>/<num>\fR
 .br
-with \fI<net>\fR as a valid translated IPv4 or IPv6 network and \fI<num>\fR as maskbits. 
-The number of mask bits must match the appropriate address familiy in IPv4 or 
+with \fI<net>\fR as a valid translated IPv4 or IPv6 network and \fI<num>\fR as mask bits. 
+The number of mask bits must match the appropriate address family in IPv4 or 
 IPv6. Networks may be abbreviated such as 172.16/16 if they are unambiguous.
 .P
 \fB[src|dst] xport <port>\fR
@@ -1281,14 +1281,14 @@ One or more specific filter expressions can be assigned a flowlabel in order to 
 the flow in the output according to the label. A flowlabel has the form \fB%LabelName\fR and is 
 appended or prepended to a filter expression in braces. It may have up to 16 characters. 
 Example: \fB(ip 8.8.8.8) %GoogleDNS\fR. If a filter matches, with a labeled expressions, 
-and that expression is in the matching filter patch, the label can be printed in the output, 
+and that expression is in the matching filter path, the label can be printed in the output, 
 using the \fB%%lbl\fR format token. See OUTPUT FORMATS.
 Example: Add flowlabel to end of 'line' format: 
 .br
 \fB./nfdump -r <file> -o 'fmt:%line %lbl" ..\fR
 .br
 Note: A filter may have multiple matching paths - for example \fBproto tcp or ip 8.8.8.8\fR
-The shortest path which evaluates successfully, wins. Other paths are skipped, which means 
+The shortest path which evaluates successfully wins. Other paths are skipped, which means 
 that flowlabels are not printed in not evaluated filter paths. A filter may contain multiple 
 flowlabels. The flowlabel of the last matching expression in the winning path is printed.
 Flowlabels are most useful in large and complex filters stored in one or multiple files, 
@@ -1301,7 +1301,7 @@ Example: \fB(ip in [172.16.1.0/24]) %ISP_1 or (ip in [172.16.16.0/24]) %IPS_2 or
 Dumps the first 100 netflow records which match the given filter:
 .P
 .B nfdump \-r /and/dir/nfcapd.201107110845 \-B
-Map matching flows as bin-directional single flow.
+Map matching flows as bi-directional single flow.
 .P
 .B nfdump \-R /and/dir/nfcapd.201107110845:nfcapd.200407110945 'host 192.168.1.2'
 Dumps all netflow records of host 192.168.1.2 from July 11 08:45 \- 09:45
@@ -1313,12 +1313,12 @@ Generates the Top 20 statistics from 08:45 to 09:45 from 3 sources
 Generates the Top 20 statistics, extended output format
 .P
 .B nfdump \-r /and/dir/nfcapd.201107110845 \-s record \-n 20 'in if 5 and bps > 10k'
-Generates the Top 20 statistics from flows coming from interface 5
+Generates the Top 20 statistics from flows coming from interface with SNMP index of 5
 .P
 .B nfdump \-r /and/dir/nfcapd.201107110845 'inet6 and proto tcp and ( src port > 1024 and dst port 80 )
 Dumps all port 80 IPv6 connections to any web server.
 .SH NOTES
-Generating the statistics for data files of a few hundred MB is no problem. However
+Generating the statistics for data files of a few hundred MB is no problem. However,
 be careful if you want to create statistics of several GB of data. This may consume a lot
 of memory and can take a while. Flow anonymization has moved into nfanon.
 .SH "SEE ALSO"
