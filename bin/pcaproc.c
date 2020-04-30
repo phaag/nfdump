@@ -374,7 +374,7 @@ void ProcessFlowNode(FlowSource_t *fs, struct FlowNode *node) {
 
 } // End of ProcessFlowNode
 
-void ProcessPacket(NodeList_t *NodeList, pcap_dev_t *pcap_dev, const struct pcap_pkthdr *hdr, const u_char *data) {
+void ProcessPacket(NodeList_t *NodeList, pcap_dev_t *pcap_dev, const struct pcap_pkthdr *hdr, const u_char *data, procpkt_opt_t opt) {
 struct FlowNode	*Node;
 struct ip 	  *ip;
 void		  *payload, *defragmented;
@@ -617,7 +617,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			}
 			uint32_t size_udp_payload = ntohs(udp->uh_ulen) - 8;
 
-			if ( (bytes == payload_len ) && (payload_len - sizeof(struct udphdr)) < size_udp_payload ) {
+			if ( (bytes == payload_len ) && (payload_len - sizeof(struct udphdr)) < size_udp_payload && (opt.chk_flag & PROCPKT_UDPPAYLOAD) ) {
 				LogInfo("UDP payload length error: Expected %u, have %u bytes, SRC %s, DST %s",
 					size_udp_payload, (payload_len - (unsigned)sizeof(struct udphdr)),
 					inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
@@ -635,7 +635,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			Node->src_port = ntohs(udp->uh_sport);
 			Node->dst_port = ntohs(udp->uh_dport);
 
-			if ( hdr->caplen == hdr->len ) {
+			if ( hdr->caplen == hdr->len && (opt.chk_flag & PROCPKT_UDPPAYLOAD)) {
 				// process payload of full packets
 				if ( (bytes == payload_len) && (Node->src_port == 53 || Node->dst_port == 53) )
  					content_decode_dns(Node, payload, payload_len);
@@ -645,7 +645,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 		case IPPROTO_TCP: {
 			struct tcphdr *tcp = (struct tcphdr *)payload;
 			uint32_t size_tcp;
-			size_tcp = tcp->th_off << 2;
+			size_tcp = opt.chk_flag & PROCPKT_TCPOPTION ? tcp->th_off << 2 : 20;
 
 			if ( payload_len < size_tcp ) {
 				LogInfo("TCP header length error: len: %u < size TCP header: %u, SRC %s, DST %s",

@@ -168,6 +168,7 @@ typedef struct p_packet_thread_args_s {
 	char	*pcap_datadir;
 	char	*time_extension;
 	int		live;
+	procpkt_opt_t opt;
 } p_packet_thread_args_t;
 
 typedef struct p_flow_thread_args_s {
@@ -241,6 +242,7 @@ static void usage(char *name) {
 					"-E\t\tPrint extended format of netflow data. for debugging purpose only.\n"
 					"-T\t\tInclude extension tags in records.\n"
 					"-D\t\tdetach from terminal (daemonize)\n"
+					"-m\t\tminimize check size\n"
 	, name);
 } // End of usage
 
@@ -967,6 +969,7 @@ char *pcap_datadir 	 = args->pcap_datadir;
 char *time_extension = args->time_extension;
 int subdir_index	 = args->subdir_index;
 int live		 	 = args->live;
+procpkt_opt_t opt = args->opt;
 // locals
 p_pcap_flush_thread_args_t p_flush_thread_args;
 pcapfile_t *pcapfile;
@@ -1040,7 +1043,7 @@ int err;
 					// packet read ok
 					t_clock = hdr->ts.tv_sec;
 					// process packet for flow cache
-					ProcessPacket(args->NodeList, pcap_dev, hdr, data);
+					ProcessPacket(args->NodeList, pcap_dev, hdr, data, opt);
 					if ( pcap_datadir ) {
 						// keep the packet
 						if (((t_clock - t_start) >= t_win)) { 
@@ -1202,6 +1205,7 @@ char			*time_extension;
 pcap_dev_t 		*pcap_dev;
 p_packet_thread_args_t *p_packet_thread_args;
 p_flow_thread_args_t *p_flow_thread_args;
+procpkt_opt_t opt;
 
 	snaplen			= 1526;
 	do_daemonize	= 0;
@@ -1225,7 +1229,8 @@ p_flow_thread_args_t *p_flow_thread_args;
 	cache_size		= 0;
 	active			= 0;
 	inactive		= 0;
-	while ((c = getopt(argc, argv, "B:DEI:e:g:hi:j:r:s:l:p:P:t:u:S:T:Vyz")) != EOF) {
+  opt.chk_flag = PROCPKT_UDPPAYLOAD | PROCPKT_TCPOPTION;
+	while ((c = getopt(argc, argv, "B:DEI:e:g:hi:j:r:s:l:p:P:t:u:S:T:Vyzm")) != EOF) {
 		switch (c) {
 			struct stat fstat;
 			case 'h':
@@ -1379,6 +1384,9 @@ p_flow_thread_args_t *p_flow_thread_args;
 				printf("%s: Version: %s\n",argv[0], nfdump_version);
 				exit(0);
 				break;
+      case 'm': /* minimum check size */
+        opt.chk_flag = 0;
+        break;
 			default:
 				usage(argv[0]);
 				exit(EXIT_FAILURE);
@@ -1581,6 +1589,7 @@ p_flow_thread_args_t *p_flow_thread_args;
 	p_packet_thread_args->parent		 = pthread_self();
 	p_packet_thread_args->NodeList		 = p_flow_thread_args->NodeList;
 	p_packet_thread_args->time_extension = p_flow_thread_args->time_extension;
+	p_packet_thread_args->opt = opt;
 
 	err = pthread_create(&p_packet_thread_args->tid, NULL, p_packet_thread, (void *)p_packet_thread_args);
 	if ( err ) {

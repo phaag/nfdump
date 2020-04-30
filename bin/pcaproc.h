@@ -46,6 +46,9 @@
 
 #include "flowtree.h"
 
+#define PROCPKT_UDPPAYLOAD 0x01
+#define PROCPKT_TCPOPTION  0x02
+
 typedef struct proc_stat_s {
     uint32_t    packets;
     uint32_t    unknown;
@@ -75,6 +78,10 @@ typedef struct pcapfile_s {
 	pthread_cond_t  c_pbuff;
 } pcapfile_t;
 
+typedef struct procpkt_opt_s {
+  uint8_t chk_flag;
+} procpkt_opt_t;
+
 pcapfile_t *OpenNewPcapFile(pcap_t *p, char *filename, pcapfile_t *pcapfile);
 
 int ClosePcapFile(pcapfile_t *pcapfile);
@@ -85,6 +92,6 @@ void PcapDump(pcapfile_t *pcapfile,  struct pcap_pkthdr *h, const u_char *sp);
 
 void ProcessFlowNode(FlowSource_t *fs, struct FlowNode *node);
 
-void ProcessPacket(NodeList_t *nodeList, pcap_dev_t *pcap_dev, const struct pcap_pkthdr *hdr, const u_char *data);
+void ProcessPacket(NodeList_t *nodeList, pcap_dev_t *pcap_dev, const struct pcap_pkthdr *hdr, const u_char *data, procpkt_opt_t opt);
 
 #endif // _PCAPROC_H
