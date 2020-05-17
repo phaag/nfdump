@@ -348,7 +348,6 @@ timeWindow_t *timeWindow;
 char *p;
 
 	if ( !tstring ) {
-		fprintf(stderr,"Time Window format error\n");
 		return NULL;
 	}
 
@@ -360,7 +359,7 @@ char *p;
 
 	// check for delta time window
 	if ( tstring[0] == '-' || tstring[0] == '+' ) {
-		if ( strlen(tstring) > 16 ) {
+		if ( strlen(tstring) > 10 ) {
 			LogError("Time string too long: %s", tstring);
 			free(timeWindow);
 			return NULL;

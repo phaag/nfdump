@@ -348,6 +348,13 @@ char 		bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_
 
 } // End of PrintSummary
 
+__attribute__((noinline)) static int dofilter(master_record_t *master_record);
+static int dofilter(master_record_t *master_record) {
+return (master_record->srcPort == 107 || master_record->dstPort == 107 ||
+master_record->srcPort == 106 || master_record->dstPort == 106 ||
+master_record->srcPort == 105 || master_record->dstPort == 105);
+}
+
 stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
 	printer_t print_record, timeWindow_t *timeWindow, uint64_t limitRecords, 
 	outputParams_t *outputParams, int compress) {
@@ -365,11 +372,13 @@ uint64_t	twin_msecFirst, twin_msecLast;
 
 	if ( timeWindow ) {
 		twin_msecFirst = timeWindow->first * 1000LL;
-		twin_msecLast  = timeWindow->last * 1000LL;
+		if ( timeWindow->last ) 
+			twin_msecLast  = timeWindow->last * 1000LL;
+		else
+			twin_msecLast  = 0x7FFFFFFFFFFFFFFFLL;
 	} else {
 		twin_msecFirst = twin_msecLast = 0;
 	}
-
 
 	// do not print flows when doing any stats are sorting
 	if ( sort_flows || flow_stat || element_stat ) {
@@ -499,25 +508,21 @@ uint64_t	twin_msecFirst, twin_msecLast;
 					recordCount++;
 					master_record = &(extension_map_list->slot[map_id]->master_record);
 					Engine->nfrecord = (uint64_t *)master_record;
+
 					ExpandRecord_v2( flow_record, extension_map_list->slot[map_id], 
 						exp_info ? &(exp_info->info) : NULL, master_record);
 
 					// Time based filter
 					// if no time filter is given, the result is always true
-					match = 1;
-					if ( timeWindow ) {
-						match = 0;
-						if (twin_msecFirst && (master_record->msecFirst > twin_msecFirst))
-							match = 1;
-						if (twin_msecLast && master_record->msecLast < twin_msecLast )
-							match = 1;
-					}
+					match = twin_msecFirst && 
+						(master_record->msecFirst < twin_msecFirst ||  master_record->msecLast > twin_msecLast) ? 0 : 1;
 					match &= limitRecords ? recordCount <= limitRecords : 1;
 
 					// filter netflow record with user supplied filter
 					if ( match ) 
 						match = (*Engine->FilterEngine)(Engine);
-	
+//						match = dofilter(master_record);
+
 					if ( match == 0 ) { // record failed to pass all filters
 						// increment pointer by number of bytes for netflow record
 						record_ptr = (common_record_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
@@ -702,7 +707,7 @@ char 		Ident[IDENTLEN];
 		LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		exit(255);
 	}
-	outputParams->topN = 10;
+	outputParams->topN = -1;
 
 	Ident[0] = '\0';
 
@@ -924,6 +929,14 @@ char 		Ident[IDENTLEN];
 	if ( rfile && strlen(Ident) > 0 ) {
 		ChangeIdent(rfile, Ident);
 		exit(0);
+	}
+	
+	if ( outputParams->topN < 0 ) {
+		if ( flow_stat || element_stat ) {
+			outputParams->topN = 10;
+		} else {
+			outputParams->topN = 0;
+		}
 	}
 
 	if ( (element_stat && !flow_stat) && aggregate_mask ) {

@@ -257,7 +257,8 @@ uint32_t	Connect_AND(uint32_t b1, uint32_t b2) {
 
 	uint32_t	a, b, i, j;
 
-	if ( FilterTree[b1].numblocks <= FilterTree[b2].numblocks ) {
+	// do not optimise blocks if block 'any' is appended
+	if ((FilterTree[b2].data == (void *)-1) || (FilterTree[b1].numblocks <= FilterTree[b2].numblocks)) {
 		a = b1;
 		b = b2;
 	} else {
@@ -291,7 +292,9 @@ uint32_t	Connect_OR(uint32_t b1, uint32_t b2) {
 
 	uint32_t	a, b, i, j;
 
-	if ( FilterTree[b1].numblocks <= FilterTree[b2].numblocks ) {
+	// do not optimise block 'any' if appended as lastelement
+	// for all prepending blocks to be evaluated. 
+	if ((FilterTree[b2].data == (void *)-1) || (FilterTree[b1].numblocks <= FilterTree[b2].numblocks)) {
 		a = b1;
 		b = b2;
 	} else {
@@ -518,9 +521,15 @@ int	evaluate, invert;
 } /* End of RunExtendedFilter */
 
 void AddLabel(uint32_t index, char *label) {
+	char *l = strdup(label);
 
-	FilterTree[index].label = strdup(label);
-	//Evaluation requires extended engine
+	// each block not further connected and returns true, gets the label 
+	for ( int i=0; i< FilterTree[index].numblocks; i++ ) {
+		int j = FilterTree[index].blocklist[i];
+		if ( FilterTree[j].OnTrue == 0 ) {
+			FilterTree[j].label = l;
+		}
+	}
 	Extended = 1;
 
 } // End of AddLabel

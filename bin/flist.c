@@ -289,14 +289,14 @@ static int CheckTimeWindow(stat_record_t *stat_record) {
 
 	// can/need to check first ?
 	if ( searchWindow->first && globalWindow.first )
-		ok = stat_record->first_seen < searchWindow->first;
+		ok = stat_record->first_seen <= searchWindow->first;
 	
 	if ( !ok )
 		return 0;
 
-	// can/need to check first ?
+	// can/need to check last ?
 	if ( searchWindow->last && globalWindow.last )
-		ok = stat_record->last_seen > searchWindow->last;
+		ok = stat_record->last_seen >= searchWindow->last;
 	
 	if ( !ok )
 		return 0;
@@ -732,13 +732,6 @@ FTSENT *ftsent;
 		}
 	}
 
-/*
-printf("first_file %s\n", first_file ? first_file : "<none>");
-printf("last_file %s\n", last_file ? last_file : "<none>");
-printf("first_path %s\n", first_path ? first_path : "<none>");
-printf("last_path %s\n", last_path ? last_path : "<none>");
-printf("file_list_level: %i\n", file_list_level);
-*/
 	CreateDirListFilter(first_path, last_path, file_list_level );
 
 	// last entry must be NULL
@@ -748,8 +741,6 @@ printf("file_list_level: %i\n", file_list_level);
 	while ( (ftsent = fts_read(fts)) != NULL) {
 		int fts_level = ftsent->fts_level;
 		char *fts_path;
-
-// printf("DBG: %u %i %s %s\n", ftsent->fts_info, ftsent->fts_level, ftsent->fts_path, ftsent->fts_name);
 
 		if ( fts_level == 0 ) {
 			sub_index = ftsent->fts_pathlen + 1;
@@ -762,11 +753,6 @@ printf("file_list_level: %i\n", file_list_level);
 		}
 		fts_path = &ftsent->fts_path[sub_index];
 
-/*
-if ( file_list_level ) 
-printf("DGB: short fts: '%s', filer_first: '%s', filter_last: '%s'\n", 
-					fts_path, dir_entry_filter[fts_level].first_entry , dir_entry_filter[fts_level].last_entry);
-*/
 		switch (ftsent->fts_info) {
 			case FTS_D:
 				// dir entry pre descend
@@ -783,7 +769,6 @@ printf("DGB: short fts: '%s', filer_first: '%s', filter_last: '%s'\n",
 				break;
 			case FTS_F:
 				// file entry
-// printf("==> Check: %s\n", ftsent->fts_name);
 
 				// skip stat file
 				if ( strcmp(ftsent->fts_name, ".nfstat") == 0 ||
@@ -807,7 +792,6 @@ printf("DGB: short fts: '%s', filer_first: '%s', filter_last: '%s'\n",
 				   ) )
 					continue;
 
-// printf("==> Listed: %s\n", ftsent->fts_path);
 				InsertString(&file_list, ftsent->fts_path);
 
 				break;
@@ -996,15 +980,15 @@ void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multip
 	} else // else use stdin
 		InsertString(&file_list, NULL);
 
-	// if relative time window, calculate abosulte time
+	// if relative time window, calculate absolute time
 	if ( timeWindow ) {
 		if ( timeWindow->first && timeWindow->first <= 86400 ) {
 			timeWindow->last = globalWindow.first + timeWindow->first;
-			timeWindow->first = 0;
+			timeWindow->first = globalWindow.first;
 		}
 		if ( timeWindow->last && timeWindow->last <= 86400 ) {
 			timeWindow->first = globalWindow.last - timeWindow->last;
-			timeWindow->last = 0;
+			timeWindow->last = timeWindow->last;
 		}
 	}
 } // End of SetupInputFileSequence

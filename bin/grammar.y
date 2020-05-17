@@ -160,7 +160,7 @@ prog: 		/* empty */
 	;
 
 term:	ANY { /* this is an unconditionally true expression, as a filter applies in any case */
-		$$.self = NewBlock(OffsetProto, 0, 0, CMP_EQ, FUNC_NONE, NULL ); 
+		$$.self = NewBlock(OffsetProto, 0, 0, CMP_EQ, FUNC_NONE, (void *)-1 ); 
 	}
 
 	| IDENT STRING {	

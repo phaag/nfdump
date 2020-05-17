@@ -1349,7 +1349,7 @@ static void String_Label(master_record_t *r, char *string) {
 	if ( r->label ) 
 		snprintf(string, MAX_STRING_LENGTH-1 ,"%16s", r->label);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1 ,"<none>");
+		snprintf(string, MAX_STRING_LENGTH-1 ,"%16s", "<none>");
 
 	string[MAX_STRING_LENGTH-1] = '\0';
 
