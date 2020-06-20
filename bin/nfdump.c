@@ -267,7 +267,7 @@ static void usage(char *name) {
 					"-w <file>\twrite output to file\n"
 					"-f\t\tread netflow filter from file\n"
 					"-n\t\tDefine number of top N for stat or sorted output.\n"
-					"-c\t\tLimit number of records to read from source(es)\n"
+					"-c\t\tLimit number of matching records\n"
 					"-D <dns>\tUse nameserver <dns> for host lookup.\n"
 					"-N\t\tPrint plain numbers\n"
 					"-s <expr>[/<order>]\tGenerate statistics for <expr> any valid record element.\n"
@@ -505,7 +505,7 @@ int 				done, write_file;
 					// Time based filter
 					// if no time filter is given, the result is always true
 					match  = twin_start && (master_record->first < twin_start || master_record->last > twin_end) ? 0 : 1;
-					match &= limitRecords ? recordCount <= limitRecords : 1;
+					match &= limitRecords ? stat_record.numflows < limitRecords : 1;
 
 					// filter netflow record with user supplied filter
 					if ( match ) 
