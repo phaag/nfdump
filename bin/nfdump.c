@@ -676,6 +676,7 @@ char 		Ident[IDENTLEN];
 	total_bytes		= 0;
 	recordCount		= 0;
 	skipped_blocks	= 0;
+	printPlain		= 0;
 	compress		= NOT_COMPRESSED;
 	is_anonymized	= 0;
 	GuessDir		= 0;

@@ -1,4 +1,5 @@
 2020-06-20
+- Fix uninitialized variable printPlain
 - Fix bug #223 limit matchig flows -c
 - Restore old behaviour unlimiting output flows unless in -s stat
 - Fix ft2nfdump nexthop fields
