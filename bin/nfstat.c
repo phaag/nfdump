@@ -1679,6 +1679,9 @@ int	i, max;
 	aggr_record_mask = GetMasterAggregateMask();
 
 	max = maxindex;
+	if ( outputParams->topN && outputParams->topN < maxindex )
+		max = outputParams->topN;
+
 	for ( i = 0; i < max; i++ ) {
 		master_record_t	*flow_record;
 		common_record_t *raw_record;
