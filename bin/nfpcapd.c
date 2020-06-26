@@ -110,7 +110,7 @@
 
 #define EXPIREINTERVALL 10
 
-int verbose = 0;
+static int verbose = 0;
 
 /*
  * global static var: used by interrupt routine
@@ -620,7 +620,7 @@ int err, done;
 		pthread_exit((void *)args);
 	}
 
-	if ( !Init_pcap2nf() ) {
+	if ( !Init_pcap2nf(verbose) ) {
 		args->done = 1;
 		args->exit = 255;
    		pthread_kill(args->parent, SIGUSR1);
@@ -639,8 +639,8 @@ int err, done;
 
 	// init vars
 	fs->bad_packets		= 0;
-	fs->first_seen      = 0xffffffffffffLL;
-	fs->last_seen 		= 0;
+	fs->msecFirst	= 0xffffffffffffLL;
+	fs->msecLast	= 0;
 
 	t_start = 0;
 	t_clock = 0;
@@ -720,14 +720,14 @@ int err, done;
 			// update stat record
 			// if no flows were collected, fs->last_seen is still 0
 			// set first_seen to start of this time slot, with twin window size.
-			if ( fs->last_seen == 0 ) {
-				fs->first_seen = (uint64_t)1000 * (uint64_t)t_start;
-				fs->last_seen  = (uint64_t)1000 * (uint64_t)(t_start + t_win);
+			if ( fs->msecLast == 0 ) {
+				fs->msecFirst = (uint64_t)1000 * (uint64_t)t_start;
+				fs->msecLast  = (uint64_t)1000 * (uint64_t)(t_start + t_win);
 			}
-			nffile->stat_record->first_seen = fs->first_seen/1000;
-			nffile->stat_record->msec_first	= fs->first_seen - nffile->stat_record->first_seen*1000;
-			nffile->stat_record->last_seen 	= fs->last_seen/1000;
-			nffile->stat_record->msec_last	= fs->last_seen - nffile->stat_record->last_seen*1000;
+			nffile->stat_record->first_seen = fs->msecFirst/1000;
+			nffile->stat_record->msec_first	= fs->msecFirst - nffile->stat_record->first_seen*1000;
+			nffile->stat_record->last_seen 	= fs->msecLast/1000;
+			nffile->stat_record->msec_last	= fs->msecLast - nffile->stat_record->last_seen*1000;
 	
 			// Flush Exporter Stat to file
 			FlushExporterStats(fs);
@@ -762,8 +762,8 @@ int err, done;
 
 			// reset stats
 			fs->bad_packets = 0;
-			fs->first_seen  = 0xffffffffffffLL;
-			fs->last_seen 	= 0;
+			fs->msecFirst   = 0xffffffffffffLL;
+			fs->msecLast 	= 0;
 	
 			// Dump all extension maps and exporters to the buffer
 			FlushStdRecords(fs);
@@ -1413,9 +1413,6 @@ p_flow_thread_args_t *p_flow_thread_args;
 		LogError("Init_FlowTree() failed.");
 		exit(EXIT_FAILURE);
 	}
-
-	InitExtensionMaps(NO_EXTENSION_LIST);
-	SetupExtensionDescriptors(strdup(extension_tags));
 
 	if ( pcapfile ) {
 		pcap_dev = setup_pcap_file(pcapfile, filter, snaplen);

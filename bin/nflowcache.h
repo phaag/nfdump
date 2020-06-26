@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -61,6 +59,7 @@ typedef struct FlowTableRecord {
 	uint16_t	srcPort;
 	uint16_t	dstPort;
 	uint8_t		proto;
+	uint8_t		tcpFlags;
 
 	// Hash papameters
 	uint32_t	hash;		// the full 32bit hash value
@@ -73,11 +72,8 @@ typedef struct FlowTableRecord {
 	uint64_t	msecFirst;
 	uint64_t	msecLast;
 
-	extension_info_t	   *map_info_ref;
 	exporter_info_record_t *exp_ref;
-
-	// raw record followed
-	uint8_t		rawRecord[1];
+	recordHeaderV3_t	flowrecord;
 
 } FlowTableRecord_t;
 
@@ -148,9 +144,9 @@ char *VerifyStat(uint16_t Aggregate_Bits);
 
 int SetStat(char *str, int *element_stat, int *flow_stat);
 
-void InsertFlow(void *raw_record, master_record_t *flow_record, extension_info_t *extension_info);
+void InsertFlow(void *raw_record, master_record_t *flow_record);
 
-void AddFlow(void *raw_record, master_record_t *flow_record, extension_info_t *extension_info );
+void AddFlow(void *raw_record, master_record_t *flow_record);
 
 int SetBidirAggregation( void );
 

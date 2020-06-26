@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020 Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -49,21 +49,22 @@
 #include <stdint.h>
 #endif
 
-#include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
+#include "nfxV3.h"
+#include "nfnet.h"
+#include "util.h"
+#include "bookkeeper.h"
 #include "collector.h"
-#include "nfx.h"
+#include "exporter.h"
+#include "netflow_v5_v7.h"
 
-extern extension_descriptor_t extension_descriptor[];
-
-static uint64_t when;
-uint64_t offset  = 10000;
+static time_t	when;
+time_t offset  = 10;
 uint64_t msecs   = 10;
 
-static extension_info_t extension_info;
-
 #define NEED_PACKRECORD 1
+#include "nfx.h"
 #include "nffile_inline.c"
 #undef NEED_PACKRECORD
 
@@ -145,20 +146,27 @@ static void SetBGPNextIPaddress(master_record_t *record, int af,  char *next_ip)
 
 } // End of SetBGPNextIPaddress
 
-
 static void UpdateRecord(master_record_t *record) {
 
-	record->msecFirst = when + msecs;
-	record->msecLast  = record->msecFirst + offset + 10;
+	record->msecFirst	= 1000LL * when + msecs;
+	record->msecLast	= 1000LL * when + offset + msecs + 10LL;
+	record->received	= record->msecLast - 1000LL +1LL;
 
-	when   += 10000LL;
-	offset += 10000LL;
+	record->srcPort		+= 10;
+	record->dstPort		+= 11;
 
-	msecs += 100;
+	record->dPkts		+= 1;
+	record->dOctets		+= 1024;
+
+	when   += 10LL;
+	offset += 10LL;
+
+	msecs += 100LL;
 	if ( msecs > 1000 )
 		msecs = msecs - 1000;
 
-	record->fwd_status++;
+	record->engine_id++;
+	record->engine_type = offset;
 
 } // End of UpdateRecord
 
@@ -167,7 +175,7 @@ int i, c;
 master_record_t		record;
 nffile_t			*nffile;
 
-	when = ISO2UNIX(strdup("200407111030")) * 1000LL;
+	when = ISO2UNIX(strdup("201907111030"));
 	while ((c = getopt(argc, argv, "h")) != EOF) {
 		switch(c) {
 			case 'h':
@@ -178,87 +186,108 @@ nffile_t			*nffile;
 		}
 	}
 
-	extension_info.map = (extension_map_t *)malloc(sizeof(extension_map_t) + 32 * sizeof(uint16_t));
-	if ( !extension_info.map ) {
-		fprintf(stderr, "malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
-		exit(255);
-	}
-	extension_info.map->type = ExtensionMapType;
-	extension_info.map->map_id = 0;
-	i = 0;
-	extension_info.map->ex_id[i++] = EX_IO_SNMP_2;
-	extension_info.map->ex_id[i++] = EX_AS_2;
-	extension_info.map->ex_id[i++] = EX_MULIPLE;
-	extension_info.map->ex_id[i++] = EX_NEXT_HOP_v4;
-	extension_info.map->ex_id[i++] = EX_NEXT_HOP_BGP_v4;
-	extension_info.map->ex_id[i++] = EX_VLAN;
-	extension_info.map->ex_id[i++] = EX_OUT_PKG_4;
-	extension_info.map->ex_id[i++] = EX_OUT_BYTES_4;
-	extension_info.map->ex_id[i++] = EX_AGGR_FLOWS_4;
- 	extension_info.map->ex_id[i++] = EX_MAC_1;
- 	extension_info.map->ex_id[i++] = EX_MAC_2;
- 	extension_info.map->ex_id[i++] = EX_MPLS;
- 	extension_info.map->ex_id[i++] = EX_ROUTER_IP_v4;
- 	extension_info.map->ex_id[i++] = EX_ROUTER_ID;
- 	extension_info.map->ex_id[i++] = EX_BGPADJ;
-	extension_info.map->ex_id[i] = 0;
-	extension_info.map->size = sizeof(extension_map_t) + i * sizeof(uint16_t);
-
-	// align 32bits
-	if (( extension_info.map->size & 0x3 ) != 0 ) {
-		extension_info.map->size += 4 - ( extension_info.map->size & 0x3 );
-	}
-
-	extension_info.map->extension_size = 0;
-	i=0;
-	while (extension_info.map->ex_id[i]) {
-		int id = extension_info.map->ex_id[i];
-		extension_info.map->extension_size += extension_descriptor[id].size;
-		i++;
-	}
 	memset((void *)&record, 0, sizeof(record));
 
-	nffile = OpenNewFile("flows.nf", NULL, NOT_COMPRESSED, NOT_ENCRYPTED);
+	nffile = OpenNewFile("testflows", NULL, NOT_COMPRESSED, 0);
 	if ( !nffile ) {
 		exit(255);
 	}
 
-	AppendToBuffer(nffile, (void *)extension_info.map, extension_info.map->size);
-	
-	record.map_ref = extension_info.map;
-	record.flags   		= 0;
-	record.exporter_sysid = 1;
-	record.tcp_flags   	= 1;
-	record.tos 		   	= 2;
-	record.fwd_status	= 0;
-	record.srcPort 	 	= 1024;
-	record.dstPort 	 	= 25;
-	record.proto 	 	= IPPROTO_TCP;
-	record.input 	 	= 12;
-	record.output 	 	= 14;
-	record.srcas 	 	= 775;
-	record.dstas 	 	= 8404;
+	i = 0;
+
+	// Start with empty record
+	record.size = V3HeaderRecordSize;
+	record.numElements = i;
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i++] = EXgenericFlowID; record.size += EXgenericFlowSize;
+	record.numElements = i;
+	record.fwd_status  	= 1;
+	record.tcp_flags	= 2;
+	record.tos			= 3;
+	record.dst_tos		= 4;
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i++] = EXipv4FlowID; record.size += EXipv4FlowSize;
 	SetIPaddress(&record,  PF_INET, "172.16.1.66", "192.168.170.100");
-	SetNextIPaddress(&record,  PF_INET, "172.72.1.2");
-	SetBGPNextIPaddress(&record,  PF_INET, "172.73.2.3");
-	SetRouterIPaddress(&record,  PF_INET, "127.0.0.1");
-	record.engine_type	= 5;
-	record.engine_id	= 6;
-	record.dPkts 	 	= 202;
-	record.dOctets 	 	= 303;
-	record.dst_tos		= 128;
-	record.dir			= 1;
+	record.numElements = i;
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i-1] = EXipv6FlowID;
+	record.size -= EXipv4FlowSize;
+	record.size += EXipv6FlowSize;
+	SetIPaddress(&record,  PF_INET6, "fe80::2110:abcd:1234:0", "fe80::2110:abcd:1235:4321");
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i-1] = EXipv4FlowID;
+	record.size += EXipv4FlowSize;
+	record.size -= EXipv6FlowSize;
+	SetIPaddress(&record,  PF_INET, "172.16.2.66", "192.168.170.101");
+	record.exElementList[i++] = EXflowMiscID; record.size += EXflowMiscSize;
+	record.numElements = i;
+	record.input 	 	= 32;
+	record.output 	 	= 33;
 	record.src_mask		= 16;
 	record.dst_mask		= 24;
-	record.src_vlan		= 82;
-	record.dst_vlan		= 93;
-	record.out_pkts		= 212;
-	record.out_bytes	= 3234;
-	record.aggr_flows	= 3;
-	record.in_src_mac	= 0x0234567890aaLL;
-	record.out_dst_mac	= 0xffeeddccbbaaLL;
-	record.out_src_mac	= 0xaa3456789002LL;
-	record.in_dst_mac	= 0xaaeeddccbbffLL;
+	record.tcp_flags   	= 1;
+	record.proto 	 	= IPPROTO_TCP;
+	record.dir			= 1;
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i++] = EXcntFlowID; record.size += EXcntFlowSize;
+	record.numElements = i;
+	record.tcp_flags++;
+	record.out_pkts		= 203;
+	record.out_bytes	= 204;
+	record.aggr_flows	= 7;
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i++] = EXvLanID; record.size += EXvLanSize;
+	record.numElements = i;
+	record.tcp_flags++;
+	record.src_vlan		= 45;
+	record.dst_vlan		= 46;
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i++] = EXasRoutingID; record.size += EXasRoutingSize;
+	record.numElements = i;
+	record.tcp_flags++;
+	record.srcas 	 	= 775;
+	record.dstas 	 	= 3303;
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i++] = EXipNextHopV4ID; record.size += EXipNextHopV4Size;
+	record.numElements = i;
+	record.tcp_flags++;
+	SetNextIPaddress(&record,  PF_INET, "172.72.1.2");
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i++] = EXbgpNextHopV4ID; record.size += EXbgpNextHopV4Size; // 7
+	record.numElements = i;
+	record.tcp_flags++;
+	SetBGPNextIPaddress(&record,  PF_INET, "172.73.2.3");
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i++] = EXipReceivedV4ID; record.size += EXipReceivedV4Size; // 9
+	record.numElements = i;
+	record.tcp_flags++;
+	SetRouterIPaddress(&record,  PF_INET, "127.0.0.1");
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i++] = EXmplsLabelID; record.size += EXmplsLabelSize;
+	record.numElements = i;
+	record.tcp_flags++;
 	record.mpls_label[0] = 1010 << 4;
 	record.mpls_label[1] = 2020 << 4;
 	record.mpls_label[2] = 3030 << 4;
@@ -269,31 +298,61 @@ nffile_t			*nffile;
 	record.mpls_label[7] = 8080 << 4;
 	record.mpls_label[8] = 9090 << 4;
 	record.mpls_label[9] = (100100 << 4) + 1;
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i++] = EXmacAddrID; record.size += EXmacAddrSize;
+	record.numElements = i;
+	record.tcp_flags++;
+	record.in_src_mac	= 0x1234567890aaLL;
+	record.out_dst_mac	= 0x2feeddccbbabLL;
+	record.in_dst_mac	= 0x3aeeddccbbfcLL;
+	record.out_src_mac	= 0x4a345678900dLL;
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i++] = EXasAdjacentID; record.size += EXasAdjacentSize;
+	record.numElements = i;
+	record.tcp_flags++;
+	record.bgpNextAdjacentAS = 7751;
+	record.bgpPrevAdjacentAS = 33032;
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
+
+	record.exElementList[i++] = EXlatencyID; record.size += EXlatencySize;
+	record.numElements = i;
+	record.tcp_flags++;
 	record.client_nw_delay_usec = 2;
 	record.server_nw_delay_usec = 22;
 	record.appl_latency_usec = 222;
-	record.bgpNextAdjacentAS = 45804;
-	record.bgpPrevAdjacentAS = 32775;
-
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
+
+/*
+	record.exElementList[i] = 0;
+	record.numElements = i;
+					
+	record.map_ref = 0;
+	record.type	= CommonRecordType;
+
+	record.flags   		= 0;
+	record.exporter_sysid = 1;
+
+	UpdateRecord(&record);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.2.66", "192.168.170.101");
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	record.dPkts 	 	= 101;
 	record.dOctets 	 	= 102;
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.3.66", "192.168.170.102");
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.4.66", "192.168.170.103");
 	record.srcPort 	 = 2024;
@@ -302,9 +361,8 @@ nffile_t			*nffile;
 	record.tos 		 = 1;
 	record.dPkts 	 = 1001;
 	record.dOctets 	 = 1002;
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.5.66", "192.168.170.104");
 	record.srcPort 	 	= 3024;
@@ -313,9 +371,8 @@ nffile_t			*nffile;
 	record.tos 		 	= 2;
 	record.dPkts 	 	= 10001;
 	record.dOctets 	 	= 10002;
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.6.66", "192.168.170.105");
 	record.srcPort 	 	= 4024;
@@ -324,9 +381,8 @@ nffile_t			*nffile;
 	record.tos 		 	= 3;
 	record.dPkts 	 	= 100001;
 	record.dOctets 	 	= 100002;
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.7.66", "192.168.170.106");
 	record.srcPort 	 	= 5024;
@@ -334,18 +390,16 @@ nffile_t			*nffile;
 	record.tos 		 	= 4;
 	record.dPkts 	 	= 1000001;
 	record.dOctets 	 	= 1000002;
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.8.66", "192.168.170.107");
 	record.tcp_flags 	= 1;
 	record.tos 		 	= 4;
 	record.dPkts 	 	= 10000001;
 	record.dOctets 	 	= 1001;
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.9.66", "192.168.170.108");
 	record.srcPort 	 	= 6024;
@@ -353,14 +407,12 @@ nffile_t			*nffile;
 	record.tos 		 	= 5;
 	record.dPkts 	 	= 500;
 	record.dOctets 	 	= 10000001;
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.10.66", "192.168.170.109");
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.11.66", "192.168.170.110");
 	record.srcPort 		= 7024;
@@ -368,30 +420,27 @@ nffile_t			*nffile;
 	record.tos 		 	= 255;
 	record.dPkts 	 	= 5000;
 	record.dOctets 	 	= 100000001;
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.12.66", "192.168.170.111");
 	record.srcPort 	 	= 8024;
 	record.tcp_flags 	= 63;
 	record.tos 		 	= 0;
 	record.dOctets 	 	= 1000000001;
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.13.66", "192.168.170.112");
 	record.srcPort 	 	= 0;
 	record.dstPort 	 	= 8;
-	record.proto 	 	= IPPROTO_ICMP;
+	record.proto 	 	= 1;
 	record.tcp_flags 	= 0;
 	record.tos 		 	= 0;
 	record.dPkts 	 	= 50002;
 	record.dOctets 	 	= 50000;
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.160.160.166", "172.160.160.180");
 	record.srcPort 	 = 10024;
@@ -399,144 +448,69 @@ nffile_t			*nffile;
 	record.proto 	 = IPPROTO_TCP;
 	record.dPkts 	 = 500001;
 	record.dOctets 	 = 500000;
-	fprintf(stderr, "IPv4 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET6, "fe80::2110:abcd:1234:0", "fe80::2110:abcd:1235:4321");
-//	SetNextIPaddress(&record,  PF_INET6, "2003:234:aabb::211:24ff:fe80:d01e");
-//	SetBGPNextIPaddress(&record,  PF_INET6, "2004:234:aabb::211:24ff:fe80:d01e");
+	SetNextIPaddress(&record,  PF_INET6, "2003:234:aabb::211:24ff:fe80:d01e");
+	SetBGPNextIPaddress(&record,  PF_INET6, "2004:234:aabb::211:24ff:fe80:d01e");
 	record.srcPort 	 = 1024;
 	record.dstPort 	 = 25;
 	record.tcp_flags = 27;
 	record.dPkts 	 = 10;
 	record.dOctets 	 = 15100;
-	fprintf(stderr, "IPv6 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
-	SetIPaddress(&record,  PF_INET6, "2001:234:aabb:cc:211:24ff:fe80:d01e", "2001:620:1f:8:203:baff:fe52:38e5");
-	record.src_mask		= 88;
-	record.dst_mask		= 48;
+	SetIPaddress(&record,  PF_INET6, "2001:234:aabb::211:24ff:fe80:d01e", "2001:620::8:203:baff:fe52:38e5");
 	record.srcPort 	 = 10240;
 	record.dstPort 	 = 52345;
 	record.dPkts 	 = 10100;
 	record.dOctets 	 = 15000000;
-	fprintf(stderr, "IPv6 32bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	record.dPkts 	 = 10100000;
 	record.dOctets 	 = 0x100000000LL;
-	fprintf(stderr, "IPv6 32bit packets 64bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	record.dPkts 	 = 0x100000000LL;
 	record.dOctets 	 = 15000000;
-	fprintf(stderr, "IPv6 64bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	record.dOctets 	 = 0x200000000LL;
-	fprintf(stderr, "IPv6 64bit packets 64bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.14.18", "192.168.170.113");
-//	SetNextIPaddress(&record,  PF_INET, "172.72.1.2");
-//	SetBGPNextIPaddress(&record,  PF_INET, "172.73.2.3");
-	record.src_mask		= 16;
-	record.dst_mask		= 24;
+	SetNextIPaddress(&record,  PF_INET, "172.72.1.2");
+	SetBGPNextIPaddress(&record,  PF_INET, "172.73.2.3");
 	record.srcPort 	 = 10240;
 	record.dstPort 	 = 52345;
 	record.dPkts 	 = 10100000;
 	record.dOctets 	 = 0x100000000LL;
-	fprintf(stderr, "IPv4 32bit packets 64bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.15.18", "192.168.170.114");
 	record.dPkts 	 = 0x100000000LL;
 	record.dOctets 	 = 15000000;
-	fprintf(stderr, "IPv4 64bit packets 32bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
+	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.16.18", "192.168.170.115");
 	record.dOctets 	 = 0x200000000LL;
-	fprintf(stderr, "IPv4 64bit packets 64bit bytes\n");
 	UpdateRecord(&record);
-	PackRecord(&record, nffile);
-
-	extension_info.map->ex_id[0] = EX_IO_SNMP_4;
-
-	extension_info.map->extension_size = 0;
-	i=0;
-	while (extension_info.map->ex_id[i]) {
-		int id = extension_info.map->ex_id[i];
-		extension_info.map->extension_size += extension_descriptor[id].size;
-		i++;
-	}
-
-	memcpy(nffile->buff_ptr, (void *)extension_info.map, extension_info.map->size);
-	nffile->buff_ptr += extension_info.map->size;
-	nffile->block_header->NumRecords++;
-	nffile->block_header->size 		+= extension_info.map->size;
-
-	UpdateRecord(&record);
-	fprintf(stderr, "4 bytes interfaces, 2 bytes AS numbers %d %d\n", record.fwd_status, nffile->block_header->NumRecords);
-	PackRecord(&record, nffile);
-
-	extension_info.map->ex_id[0] = EX_IO_SNMP_2;
-	extension_info.map->ex_id[1] = EX_AS_4;
-
-	extension_info.map->extension_size = 0;
-	i=0;
-	while (extension_info.map->ex_id[i]) {
-		int id = extension_info.map->ex_id[i];
-		extension_info.map->extension_size += extension_descriptor[id].size;
-		i++;
-	}
-
-	memcpy(nffile->buff_ptr, (void *)extension_info.map, extension_info.map->size);
-	nffile->buff_ptr += extension_info.map->size;
-	nffile->block_header->NumRecords++;
-	nffile->block_header->size 		+= extension_info.map->size;
-
-	UpdateRecord(&record);
-	fprintf(stderr, "2 bytes interfaces, 4 bytes AS numbers %d %d\n", record.fwd_status, nffile->block_header->NumRecords);
-	PackRecord(&record, nffile);
-
-	extension_info.map->ex_id[0] = EX_IO_SNMP_4;
-
-	extension_info.map->extension_size = 0;
-	i=0;
-	while (extension_info.map->ex_id[i]) {
-		int id = extension_info.map->ex_id[i];
-		extension_info.map->extension_size += extension_descriptor[id].size;
-		i++;
-	}
-
-	memcpy(nffile->buff_ptr, (void *)extension_info.map, extension_info.map->size);
-	nffile->buff_ptr += extension_info.map->size;
-	nffile->block_header->NumRecords++;
-	nffile->block_header->size 		+= extension_info.map->size;
-
-	UpdateRecord(&record);
-	fprintf(stderr, "4 bytes interfaces, 4 bytes AS numbers %d %d\n", record.fwd_status, nffile->block_header->NumRecords);
-	PackRecord(&record, nffile);
-
+	PackRecordV3(&record, nffile);
+*/
 	if ( nffile->block_header->NumRecords ) {
 		if ( WriteBlock(nffile) <= 0 ) {
 			fprintf(stderr, "Failed to write output buffer to disk: '%s'" , strerror(errno));
 		} 
 	}
-
-	if ( !CloseUpdateFile(nffile) ) {
-		return 255;
-	}
-
+	CloseUpdateFile(nffile);
 	return 0;
 }
 

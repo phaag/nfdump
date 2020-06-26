@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -71,8 +71,8 @@ typedef struct FlowSource_s {
 
 	// statistical data per source
 	uint32_t			bad_packets;
-	uint64_t			first_seen;		// in msec 
-	uint64_t			last_seen;		// in msec
+	uint64_t			msecFirst;		// in msec 
+	uint64_t			msecLast;		// in msec
 
 	// Any exporter specific data
 	exporter_t			*exporter_data;
@@ -92,6 +92,10 @@ typedef struct FlowSource_s {
 
 /* input buffer size, to read data from the network */
 #define NETWORK_INPUT_BUFF_SIZE 65535	// Maximum UDP message size
+
+#define UpdateFirstLast(fs, First, Last) \
+	if ( (First) < (fs)->msecFirst ) { (fs)->msecFirst = (First); } \
+	if ( (Last) > (fs)->msecLast ) { (fs)->msecLast = (Last); }
 
 // prototypes
 int AddFlowSource(FlowSource_t **FlowSource, char *ident);

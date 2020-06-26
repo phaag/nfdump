@@ -182,20 +182,24 @@ typedef struct data_block_header_s {
  * if a file is read only writeto and block_header are NULL
  */
 typedef struct nffile_s {
-	fileHeaderV2_t		*file_header;	// file header
-	int					fd;				// associated file descriptor
+	fileHeaderV2_t	*file_header;	// file header
+	int				fd;				// associated file descriptor
+	void			*mapped;		// memory mapped file
+	void			*eom;			// end of memory mapped block
+	void			*fptr;			// read pointer 
+	off_t			fsize;			// file size
 
 #define NUM_BUFFS 2
-	size_t				buff_size;
-	void				*buff_pool[NUM_BUFFS];	// buffer space for read/write/compression 
-	dataBlock_t			*block_header;	// buffer ptr
-	void				*buff_ptr;		// pointer into buffer for read/write blocks/records
+	size_t			buff_size;
+	void			*buff_pool[NUM_BUFFS];	// buffer space for read/write/compression 
+	dataBlock_t		*block_header;	// buffer ptr
+	void			*buff_ptr;		// pointer into buffer for read/write blocks/records
 
-	stat_record_t 		*stat_record;	// flow stat record
-	char				*ident;			// source identifier
-	char				*fileName;		// file name
+	stat_record_t 	*stat_record;	// flow stat record
+	char			*ident;			// source identifier
+	char			*fileName;		// file name
 
-	uint32_t			blockCount;		// number of blocks read
+	uint32_t		blockCount;		// number of blocks read
 } nffile_t;
 
 #define FILE_IDENT(n)	((n)->ident)

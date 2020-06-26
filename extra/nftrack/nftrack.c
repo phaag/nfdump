@@ -55,6 +55,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "nfxV3.h"
 #include "exporter.h"
 #include "flist.h"
 #include "nftree.h"
@@ -69,8 +70,6 @@
 FilterEngine_t *Engine;
 int 		byte_mode, packet_mode;
 uint32_t	byte_limit, packet_limit;	// needed for linking purpose only
-
-extension_map_list_t *extension_map_list;
 
 /* Local Variables */
 static const char *nfdump_version = VERSION;
@@ -155,8 +154,6 @@ char pidstr[32];
 } // End of CheckRunningOnce
 
 static data_row *process(char *filter) {
-master_record_t		master_record;
-common_record_t		*flow_record;
 nffile_t	*nffile;
 int i, done, ret;
 data_row * 	port_table;
@@ -180,9 +177,15 @@ uint64_t total_bytes;
 
     memset((void *)port_table, 0, 65536 * sizeof(data_row));
 
+	master_record_t *master_record = calloc(1, sizeof(master_record_t));
+	if ( !master_record ) {
+		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+		return NULL;
+	}
+
 	// setup Filter Engine to point to master_record, as any record read from file
 	// is expanded into this record
-	Engine->nfrecord = (uint64_t *)&master_record;
+	Engine->nfrecord = (uint64_t *)master_record;
 
 	total_bytes = 0;
 	done	 	= 0;
@@ -223,67 +226,59 @@ uint64_t total_bytes;
 			continue;
 		}
 
-		flow_record = nffile->buff_ptr;
-
+		record_header_t	*record_ptr = nffile->buff_ptr;
+		uint32_t sumSize = 0;
 		for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
-			int			ret;
+			if ( (sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t)) ) {
+				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
+				exit(255);
+			}
+			sumSize += record_ptr->size;
 
-			switch ( flow_record->type ) {
-				case CommonRecordV0Type:
-				case CommonRecordType: {
-                	if ( extension_map_list->slot[flow_record->ext_map] == NULL ) {
-                    	LogError("Corrupt data file! No such extension map id: %u. Skip record", flow_record->ext_map );
-                	} else {
-                    	ExpandRecord_v2( flow_record, extension_map_list->slot[flow_record->ext_map], NULL, &master_record);
+			switch ( record_ptr->type ) {
+				case V3Record: {
+					memset((void *)master_record, 0, sizeof(master_record_t));
+					ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
             
-   						ret = (*Engine->FilterEngine)(Engine);
+   					int	ret = (*Engine->FilterEngine)(Engine);
 
-						if ( ret == 0 ) { // record failed to pass the filter
-							// increment pointer by number of bytes for netflow record
-							flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);	
-							// go to next record
-							continue;
-						}
+					if ( ret == 0 ) { // record failed to pass the filter
+						// increment pointer by number of bytes for netflow record
+						record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);	
+						// go to next record
+						continue;
+					}
 
 
-						// Add to stat record
-						if ( master_record.proto == IPPROTO_TCP ) {
-							port_table[master_record.dstPort].proto[tcp].type[flows]++;
-							port_table[master_record.dstPort].proto[tcp].type[packets]	+= master_record.dPkts;
-							port_table[master_record.dstPort].proto[tcp].type[bytes]	+= master_record.dOctets;
-						} else if ( master_record.proto == IPPROTO_UDP ) {
-							port_table[master_record.dstPort].proto[udp].type[flows]++;
-							port_table[master_record.dstPort].proto[udp].type[packets]	+= master_record.dPkts;
-							port_table[master_record.dstPort].proto[udp].type[bytes]	+= master_record.dOctets;
-						}
-             		}
-				} break;
-				case ExtensionMapType: {
-                	extension_map_t *map = (extension_map_t *)flow_record;
-
-                	if ( Insert_Extension_Map(extension_map_list, map) ) {
-                     		// flush new map
-                	} // else map already known and flushed
-				} break;
+					// Add to stat record
+					if ( master_record->proto == IPPROTO_TCP ) {
+						port_table[master_record->dstPort].proto[tcp].type[flows]++;
+						port_table[master_record->dstPort].proto[tcp].type[packets]	+= master_record->dPkts;
+						port_table[master_record->dstPort].proto[tcp].type[bytes]	+= master_record->dOctets;
+					} else if ( master_record->proto == IPPROTO_UDP ) {
+						port_table[master_record->dstPort].proto[udp].type[flows]++;
+						port_table[master_record->dstPort].proto[udp].type[packets]	+= master_record->dPkts;
+						port_table[master_record->dstPort].proto[udp].type[bytes]	+= master_record->dOctets;
+					}
+             	}
+				break;
 				case ExporterInfoRecordType:
 				case ExporterStatRecordType:
 				case SamplerInfoRecordype:
 						// Silently skip exporter records
 					break;
 				default: {
-					LogError("Skip unknown record type %i\n", flow_record->type);
+					LogError("Skip unknown record type %i\n", record_ptr->type);
 				}
             }
 
 			// Advance pointer by number of bytes for netflow record
-			flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);	
+			record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);	
 		}
 	} // while
 
 	CloseFile(nffile);
 	DisposeFile(nffile);
-
-	PackExtensionMapList(extension_map_list);
 
 	return port_table;
 
@@ -446,8 +441,6 @@ struct tm * t1;
 		exit(0);
 	}
 
-	extension_map_list = InitExtensionMaps(NEEDS_EXTENSION_LIST);
-
 	if ( lastupdate ) {
 		when = RRD_LastUpdate(DBdir);
 		if ( !when ) {
@@ -492,7 +485,6 @@ struct tm * t1;
 		Generate_TopN(port_table, topN, AVG_STAT, 0, output_mode, wfile);
 
 	} 
-
 
 	if ( GenStat ) {
 		when = ISO2UNIX(timeslot);

@@ -44,15 +44,6 @@
 
 #include "inline.c"
 
-#define nop			0
-#define move8		1
-#define move16		2
-#define move16_32	3
-#define move32		4
-#define move32_64	5
-#define move64		6
-#define move128		7
-
 static int calculateRecordLength(sequencer_t *sequencer, void *in, size_t inSize);
 
 static void DumpHex(const void* data, size_t size);
@@ -356,7 +347,10 @@ int SequencerRun(sequencer_t *sequencer, void *in, size_t inSize, void *out, siz
 				case 8:
 					v = Get_val64(in); break;
 				case 16:
-					memcpy(vv, in, 16); break;
+					vv[0] = Get_val64(in);
+					vv[1] = Get_val64(in+8);
+			//		memcpy(vv, in, 16); break;
+					break;
 				default:
 					LogError( "sequencer input length %u not implemented", 
 						sequencer->sequenceTable[i].inputLength);

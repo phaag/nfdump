@@ -52,6 +52,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "nfxV3.h"
 #include "nfnet.h"
 #include "bookkeeper.h"
 #include "collector.h"
@@ -330,7 +331,6 @@ uint64_t total_bytes;
 
 		// get next data block from file
 		ret = ReadBlock(nffile);
-
 		switch (ret) {
 			case NF_CORRUPT:
 			case NF_ERROR:
@@ -352,15 +352,14 @@ uint64_t total_bytes;
 				total_bytes += ret;
 		}
 
-		if ( nffile->block_header->type != DATA_BLOCK_TYPE_2 ) {
+		if ( nffile->block_header->type != DATA_BLOCK_TYPE_2 &&
+			 nffile->block_header->type != DATA_BLOCK_TYPE_3 ) {
 			skipped_blocks++;
+			printf("Skip unknown block type: %u\n", nffile->block_header->type);
 			continue;
 		}
 
-		// block type = 2
-
 		record = (record_header_t *)nffile->buff_ptr;
-
 		for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
 			switch ( record->type ) {
 				case LegacyRecordType1: 

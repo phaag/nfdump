@@ -51,6 +51,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "nfxV3.h"
 #include "nflowcache.h"
 
 #define ALIGN_BYTES (offsetof (struct { char x; uint64_t y; }, y) - 1)
@@ -66,7 +67,7 @@ static int MemoryHandle_init(MemoryHandle_t *handle);
 
 static inline void *MemoryHandle_get(MemoryHandle_t *handle, uint32_t size);
 
-static inline FlowTableRecord_t *hash_insert_FlowTable(uint32_t index_cache, void *flowkey, common_record_t *flow_record);
+static inline FlowTableRecord_t *hash_insert_FlowTable(uint32_t index_cache, void *flowkey, recordHeaderV3_t *flow_record);
 
 static inline uint32_t SuperFastHash (const char * data, int len);
 
@@ -108,8 +109,8 @@ static struct aggregate_info_s {
 	{ "xsrcip",		{ 8, OffsetXLATESRCv6b,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0, 	NULL	},
 	{ "xdstip",		{ 8, OffsetXLATEDSTv6a,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0,	"%xda"	},
 	{ "xdstip",		{ 8, OffsetXLATESRCv6b,	MaskIPv6, 	 ShiftIPv6 },    	-1, 0, 	NULL	},
-	{ "xsrcPort",	{ 2, OffsetXLATEPort,   MaskXLATESRCPORT,   ShiftXLATESRCPORT }, 	-1, 0, 	"%xsp"	},
-	{ "xdstPort",	{ 2, OffsetXLATEPort,   MaskXLATEDSTPORT,   ShiftXLATEDSTPORT }, 	-1, 0, 	"%xdp"	},
+	{ "xsrcport",	{ 2, OffsetXLATEPort,   MaskXLATESRCPORT,   ShiftXLATESRCPORT }, 	-1, 0, 	"%xsp"	},
+	{ "xdstport",	{ 2, OffsetXLATEPort,   MaskXLATEDSTPORT,   ShiftXLATEDSTPORT }, 	-1, 0, 	"%xdp"	},
 #endif
 	{ "dstip4",		{ 8, OffsetDstIPv6a, 	MaskIPv6, 	 ShiftIPv6 },     	 0, 0,	"%da"	},
 	{ "dstip4",		{ 8, OffsetDstIPv6b, 	MaskIPv6, 	 ShiftIPv6 },     	 1, 0,	NULL	},
@@ -141,8 +142,8 @@ static struct aggregate_info_s {
 	{ "mpls8",		{ 4, OffsetMPLS78, 		MaskMPLSlabelEven,  ShiftMPLSlabelEven }, 	-1, 0, 	"%mpls8"},
 	{ "mpls9",		{ 4, OffsetMPLS910,		MaskMPLSlabelOdd,  ShiftMPLSlabelOdd },	 	-1, 0, 	"%mpls9"},
 	{ "mpls10",		{ 4, OffsetMPLS910,		MaskMPLSlabelEven,  ShiftMPLSlabelEven }, 	-1, 0, 	"%mpls10"},
-	{ "srcPort",	{ 2, OffsetPort, 		MaskSrcPort, ShiftSrcPort }, 	-1, 0, 	"%sp"	},
-	{ "dstPort",	{ 2, OffsetPort, 		MaskDstPort, ShiftDstPort }, 	-1, 0, 	"%dp"	},
+	{ "srcport",	{ 2, OffsetPort, 		MaskSrcPort, ShiftSrcPort }, 	-1, 0, 	"%sp"	},
+	{ "dstport",	{ 2, OffsetPort, 		MaskDstPort, ShiftDstPort }, 	-1, 0, 	"%dp"	},
 	{ "srcvlan",	{ 2, OffsetVlan, 		MaskSrcVlan, ShiftSrcVlan }, 	-1, 0, 	"%svln"	},
 	{ "dstvlan",	{ 2, OffsetVlan, 		MaskDstVlan, ShiftDstVlan }, 	-1, 0, 	"%dvln"	},
 	{ "srcmask",	{ 1, OffsetMask, 		MaskSrcMask, ShiftSrcMask },   	-1, 0,	"%smk"	},
@@ -362,19 +363,19 @@ FlowTableRecord_t	*record;
 } // End of hash_lookup_FlowTable
 
 
-inline static FlowTableRecord_t *hash_insert_FlowTable(uint32_t index_cache, void *flowkey, common_record_t *raw_record) {
+inline static FlowTableRecord_t *hash_insert_FlowTable(uint32_t index_cache, void *flowkey, recordHeaderV3_t *raw_record) {
 FlowTableRecord_t	*record;
 uint32_t index = index_cache & FlowTable.IndexMask;
 
 	// allocate enough memory for the new flow including all additional information in FlowTableRecord_t
 	// MemoryHandle_get always succeeds. If no memory, MemoryHandle_get already exists cleanly
-	record = MemoryHandle_get(&FlowTable.mem, sizeof(FlowTableRecord_t) + raw_record->size);
+	record = MemoryHandle_get(&FlowTable.mem, sizeof(FlowTableRecord_t) - sizeof(recordHeaderV3_t) + raw_record->size);
 
 	record->next 	 = NULL;
 	record->hash 	 = index_cache;
 	record->hash_key = flowkey;
 
-	memcpy((void *)&record->rawRecord, (void *)raw_record, raw_record->size);
+	memcpy((void *)&record->flowrecord, (void *)raw_record, raw_record->size);
 	if ( FlowTable.bucket[index] == NULL ) 
 		FlowTable.bucket[index] = record;
 	else 
@@ -387,12 +388,13 @@ uint32_t index = index_cache & FlowTable.IndexMask;
 
 } // End of hash_insert_FlowTable
 
-void InsertFlow(void *raw_record, master_record_t *flow_record, extension_info_t *extension_info) {
+void InsertFlow(void *raw_record, master_record_t *flow_record) {
+recordHeaderV3_t	*recordHeaderV3 = (recordHeaderV3_t *)raw_record;
 FlowTableRecord_t	*record;
 
 	// allocate enough memory for the new flow including all additional information in FlowTableRecord_t
 	// MemoryHandle_get always succeeds. If no memory, MemoryHandle_get already exits cleanly
-	record = MemoryHandle_get(&FlowTable.mem, sizeof(FlowTableRecord_t) + flow_record->size);
+	record = MemoryHandle_get(&FlowTable.mem, sizeof(FlowTableRecord_t) - sizeof(recordHeaderV3_t) + recordHeaderV3->size);
 
 	record->next 	 = NULL;
 	record->hash 	 = 0;
@@ -404,7 +406,7 @@ FlowTableRecord_t	*record;
 	record->msecFirst = flow_record->msecFirst;
 	record->msecLast  = flow_record->msecLast;
 
-	memcpy((void *)&record->rawRecord, (void *)raw_record, flow_record->size);
+	memcpy((void *)&record->flowrecord, (void *)raw_record, recordHeaderV3->size);
 	if ( FlowTable.bucket[0] == NULL ) 
 		FlowTable.bucket[0] = record;
 	else 
@@ -413,7 +415,6 @@ FlowTableRecord_t	*record;
 	FlowTable.bucketcache[0] = record;
 	
 	// safe the extension map and exporter reference
-	record->map_info_ref = extension_info;
 	record->exp_ref = flow_record->exp_ref;
 
 	record->counter[INBYTES]	 = flow_record->dOctets;
@@ -425,7 +426,7 @@ FlowTableRecord_t	*record;
 
 } // End of InsertFlow
 
-void AddFlow(void *raw_record, master_record_t *flow_record, extension_info_t *extension_info ) {
+void AddFlow(void *raw_record, master_record_t *flow_record) {
 static void			*keymem = NULL, *bidirkeymem = NULL;
 FlowTableRecord_t	*FlowTableRecord;
 uint32_t			index_cache; 
@@ -461,7 +462,7 @@ uint32_t			index_cache;
 		FlowTableRecord->srcPort		 = flow_record->srcPort;
 		FlowTableRecord->dstPort		 = flow_record->dstPort;
 		FlowTableRecord->proto			 = flow_record->proto;
-
+		FlowTableRecord->tcpFlags		|= flow_record->tcp_flags;
 
 	} else if ( !bidir_flows || ( flow_record->proto != IPPROTO_TCP && flow_record->proto != IPPROTO_UDP) ) {
 		// no flow record found and no TCP/UDP bidir flows. Insert flow record into hash
@@ -473,7 +474,6 @@ uint32_t			index_cache;
 		FlowTableRecord->counter[OUTPACKETS] = flow_record->out_pkts;
 		FlowTableRecord->counter[FLOWS]   	 = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 
-		FlowTableRecord->map_info_ref = extension_info;
 		FlowTableRecord->exp_ref	  = flow_record->exp_ref;
 		FlowTableRecord->srcPort	  = flow_record->srcPort;
 		FlowTableRecord->dstPort	  = flow_record->dstPort;
@@ -530,7 +530,6 @@ uint32_t			index_cache;
 			FlowTableRecord->counter[OUTBYTES]   = flow_record->out_bytes;
 			FlowTableRecord->counter[OUTPACKETS] = flow_record->out_pkts;
 			FlowTableRecord->counter[FLOWS]   	 = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
-			FlowTableRecord->map_info_ref  	 	 = extension_info;
 			FlowTableRecord->exp_ref  	 		 = flow_record->exp_ref;
 
 			FlowTableRecord->srcPort	= flow_record->srcPort;

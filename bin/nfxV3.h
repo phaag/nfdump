@@ -80,7 +80,10 @@ typedef struct recordHeaderV3_s {
 typedef struct elementHeader_s {
 	uint16_t	type;
 	uint16_t	length;
-} elementHeader_t;
+} __attribute__((__packed__ )) elementHeader_t;
+
+// Identifier for new V3Record 
+#define V3Record	11
 
 /*
  * Extension elements

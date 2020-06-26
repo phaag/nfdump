@@ -41,59 +41,10 @@
 
 #include "collector.h"
 
-#define NETFLOW_V1_HEADER_LENGTH 16
-#define NETFLOW_V1_RECORD_LENGTH 48
-#define NETFLOW_V1_MAX_RECORDS   24
-
-/* v1 structures */
-typedef struct netflow_v1_header {
-  uint16_t  version;
-  uint16_t  count;
-  uint32_t  SysUptime;
-  uint32_t  unix_secs;
-  uint32_t  unix_nsecs;
-} netflow_v1_header_t;
-
-typedef struct netflow_v1_record {
-  uint32_t  srcaddr;
-  uint32_t  dstaddr;
-  uint32_t  nexthop;
-  uint16_t  input;
-  uint16_t  output;
-  uint32_t  dPkts;
-  uint32_t  dOctets;
-  uint32_t  First;
-  uint32_t  Last;
-  uint16_t  srcPort;
-  uint16_t  dstPort;
-  uint16_t  pad1;
-  uint8_t   prot;
-  uint8_t   tos;
-  uint8_t   tcp_flags;
-  uint8_t   pad2[7];
-} netflow_v1_record_t;
-
-
 /* prototypes */
-int Init_v1(int v);
+int Init_v1(int verbose);
 
 void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 
-/*
- * Extension map for v1
- *
- * Required extensions:
- *
- *       4 byte byte counter
- *       | 4byte packet counter
- *       | | IPv4 
- *       | | |
- * xxxx x0 0 0
- *
- * Optional extensions:
- *
- * 4	: 2 byte input/output interface id
- * 9	: IPv4 next hop
- */
 
 #endif //_NETFLOW_V1_H

@@ -51,6 +51,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "nfxV3.h"
 #include "nfnet.h"
 #include "output_raw.h"
 #include "bookkeeper.h"
@@ -58,123 +59,85 @@
 #include "exporter.h"
 #include "netflow_v1.h"
 
-extern extension_descriptor_t extension_descriptor[];
 
-/* module limited globals */
-static int verbose;
-static extension_info_t v1_extension_info;		// common for all v1 records
-static uint16_t v1_output_record_size;
+#define NETFLOW_V1_HEADER_LENGTH 16
+#define NETFLOW_V1_RECORD_LENGTH 48
+#define NETFLOW_V1_MAX_RECORDS   24
 
-// All required extension to save full v1 records
-static uint16_t v1_full_map[] = { EX_IO_SNMP_2, EX_NEXT_HOP_v4, EX_ROUTER_IP_v4, EX_RECEIVED, 0 };
+/* v1 structures */
+typedef struct netflow_v1_header {
+  uint16_t  version;
+  uint16_t  count;
+  uint32_t  SysUptime;
+  uint32_t  unix_secs;
+  uint32_t  unix_nsecs;
+} netflow_v1_header_t;
 
-typedef struct v1_block_s {
-	uint32_t	srcaddr;
-	uint32_t	dstaddr;
-	uint32_t	dPkts;
-	uint32_t	dOctets;
-	uint32_t	data[1];	// link to next record
-} v1_block_t;
-#define V1_BLOCK_DATA_SIZE (sizeof(v1_block_t) - sizeof(uint32_t))
+typedef struct netflow_v1_record {
+  uint32_t  srcaddr;
+  uint32_t  dstaddr;
+  uint32_t  nexthop;
+  uint16_t  input;
+  uint16_t  output;
+  uint32_t  dPkts;
+  uint32_t  dOctets;
+  uint32_t  First;
+  uint32_t  Last;
+  uint16_t  srcPort;
+  uint16_t  dstPort;
+  uint16_t  pad1;
+  uint8_t   prot;
+  uint8_t   tos;
+  uint8_t   tcp_flags;
+  uint8_t   pad2[7];
+} netflow_v1_record_t;
 
 typedef struct exporter_v1_s {
-	// identical to exporter_t
+	// struct exporter_s
 	struct exporter_v1_s *next;
 
 	// exporter information
-	exporter_info_record_t info;
+	exporter_info_record_t info;	// exporter record nffile
 
 	uint64_t	packets;			// number of packets sent by this exporter
 	uint64_t	flows;				// number of flow records sent by this exporter
 	uint32_t	sequence_failure;	// number of sequence failues
 	uint32_t	padding_errors;		// number of sequence failues
 
-	sampler_t		*sampler;
-	// End of exporter_t
+	sampler_t *sampler;				// list of samplers associated with this exporter
+	// end of struct exporter_s
 
-	// extension map
-	extension_map_t 	 *extension_map;
+	// pre-calculated v1 output record header values
+	uint16_t	outRecordSize;
 
 } exporter_v1_t;
 
-static inline exporter_v1_t *GetExporter(FlowSource_t *fs, netflow_v1_header_t *header);
+/* module limited globals */
+static int printRecord;
+static uint32_t baseRecordSize;
+
+static inline exporter_v1_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *header);
 
 /* functions */
 
 #include "nffile_inline.c"
 
-int Init_v1(int v) {
-int i, id, map_index;
-int extension_size;
-uint16_t	map_size;
+int Init_v1(int verbose) {
+	printRecord = verbose;
+	baseRecordSize = sizeof(recordHeaderV3_t) + EXgenericFlowSize + 
+				EXipv4FlowSize + EXflowMiscSize + EXipNextHopV4Size;
 
-	verbose = v;
-	// prepare v1 extension map
-	v1_extension_info.map		   = NULL;
-	v1_extension_info.next		   = NULL;
-	v1_extension_info.offset_cache = NULL;
-	v1_extension_info.ref_count	= 0;
-
-	extension_size  = 0;
-	// default map - 0 extensions
-	map_size 		 = sizeof(extension_map_t);
-	i=0;
-	dbg_printf("v1 map: map size start: %u\n", map_size);
-	while ( (id = v1_full_map[i]) != 0  ) {
-		if ( extension_descriptor[id].enabled ) {
-			extension_size += extension_descriptor[id].size;
-			map_size += sizeof(uint16_t);
-			dbg_printf("v1 map: enabled extension %u\n", id);
-		}
-		i++;
-	}
-	dbg_printf("v1 map: map size so far: %u\n", map_size);
-
-	// extension_size contains the sum of all optional extensions
-	// caculate the record size 
-	v1_output_record_size = COMMON_RECORD_DATA_SIZE + V1_BLOCK_DATA_SIZE + extension_size;  
- 
-	// align 32 bits
-	if ( ( map_size & 0x3 ) != 0 )
-		map_size += 2;
-
-	// Create a netflow v1 extension map
-	v1_extension_info.map = (extension_map_t *)malloc((size_t)map_size);
-	if ( !v1_extension_info.map ) {
-		LogError("Process_v1: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
-		return 0;
-	}
-
-	v1_extension_info.map->type 	  	  = ExtensionMapType;
-	v1_extension_info.map->size 	  	  = map_size;
-	v1_extension_info.map->map_id 	  	  = INIT_ID;		
-	v1_extension_info.map->extension_size = extension_size;  
-
-	// see netflow_v1.h for extension map description
-	map_index = 0;
-	i=0;
-	while ( (id = v1_full_map[i]) != 0 ) {
-		if ( extension_descriptor[id].enabled )
-			v1_extension_info.map->ex_id[map_index++] = id;
-		i++;
-	}
-	v1_extension_info.map->ex_id[map_index] = 0;
-
+	LogInfo("Init v1");
 	return 1;
 } // End of Init_v1
 
-/*
- * functions used for receiving netflow v1 records
- */
-
-
-static inline exporter_v1_t *GetExporter(FlowSource_t *fs, netflow_v1_header_t *header) {
+static inline exporter_v1_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *header) {
 exporter_v1_t **e = (exporter_v1_t **)&(fs->exporter_data);
 uint16_t	version    = ntohs(header->version);
 #define IP_STRING_LEN   40
 char ipstr[IP_STRING_LEN];
 
-	// search the appropriate exporter engine
+	// search the matching v1 exporter
 	while ( *e ) {
 		if ( (*e)->info.version == version && 
 			 (*e)->info.ip.V6[0] == fs->ip.V6[0] && (*e)->info.ip.V6[1] == fs->ip.V6[1]) 
@@ -189,297 +152,240 @@ char ipstr[IP_STRING_LEN];
 		return NULL;
 	}
 	memset((void *)(*e), 0, sizeof(exporter_v1_t));
+	(*e)->next	 			= NULL;
 	(*e)->info.header.type  = ExporterInfoRecordType;
 	(*e)->info.header.size  = sizeof(exporter_info_record_t);
 	(*e)->info.version 		= version;
 	(*e)->info.id			= 0;
 	(*e)->info.ip			= fs->ip;
 	(*e)->info.sa_family	= fs->sa_family;
-	(*e)->next	 			= NULL;
+	(*e)->info.sysid 		= 0;
 	(*e)->packets			= 0;
 	(*e)->flows				= 0;
 	(*e)->sequence_failure	= 0;
-	(*e)->padding_errors	= 0;
-	(*e)->sampler			= NULL;
 
-	// copy the v1 extension map
-	(*e)->extension_map		= (extension_map_t *)malloc(v1_extension_info.map->size);
-	if ( !(*e)->extension_map ) {
-		LogError("Process_v1: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
-		free(*e);
-		*e = NULL;
-		return NULL;
-	}
-	memcpy((void *)(*e)->extension_map, (void *)v1_extension_info.map, v1_extension_info.map->size);
-
-	if ( !AddExtensionMap(fs, (*e)->extension_map) ) {
-		// bad - we must free this map and fail - otherwise data can not be read any more
-		free((*e)->extension_map);
-		free(*e);
-		*e = NULL;
-		return NULL;
-	}
-
-	(*e)->info.sysid = 0;
-	FlushInfoExporter(fs, &((*e)->info));
-
-	if ( fs->sa_family == AF_INET ) {
-		uint32_t _ip = htonl(fs->ip.V4);
-		inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
-	} else if ( fs->sa_family == AF_INET6 ) {
+	if ( fs->sa_family == PF_INET6 ) {
+		(*e)->outRecordSize		= baseRecordSize + EXipReceivedV6Size;
 		uint64_t _ip[2];
 		_ip[0] = htonll(fs->ip.V6[0]);
 		_ip[1] = htonll(fs->ip.V6[1]);
 		inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
+		dbg_printf("Process_v1: New IPv6 exporter %s - add EXipReceivedV6\n", ipstr);
 	} else {
-		strncpy(ipstr, "<unknown>", IP_STRING_LEN);
+		(*e)->outRecordSize		= baseRecordSize + EXipReceivedV4Size;
+		uint32_t _ip = htonl(fs->ip.V4);
+		inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
+		dbg_printf("Process_v1: New IPv4 exporter %s - add EXipReceivedV4\n", ipstr);
 	}
 
-	dbg_printf("New Exporter: v1 SysID: %u, Extension ID: %i, IP: %s, \n", 
-		(*e)->info.sysid, (*e)->extension_map->map_id, ipstr);
-	LogError("Process_v1: SysID: %u, New exporter: IP: %s\n", (*e)->info.sysid, ipstr);
+	FlushInfoExporter(fs, &((*e)->info));
+
+	LogInfo("Process_v1: SysID: %u, New exporter: IP: %s\n", (*e)->info.sysid, ipstr);
 
 	return (*e);
 
-} // End of GetExporter
+} // End of getExporter
 
 void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 netflow_v1_header_t	*v1_header;
-netflow_v1_record_t *v1_record;
 exporter_v1_t 		*exporter;
-extension_map_t		*extension_map;
-common_record_t		*common_record;
-uint64_t	start_time, end_time, boot_time;
-uint32_t   	First, Last;
-uint16_t	count;
-uint8_t		flags;
-int			i, done, flow_record_length;
-ssize_t		size_left;
-char		*string;
 
 		// map v1 data structure to input buffer
 		v1_header 	= (netflow_v1_header_t *)in_buff;
 
-		exporter = GetExporter(fs, v1_header);
+		exporter = getExporter(fs, v1_header);
 		if ( !exporter ) {
-			LogError("Process_v1: Exporter NULL: Abort v1 record processing");
+			LogError("Process_v1: NULL Exporter: Abort v1 record processing");
 			return;
 		}
-		flags = 0;
-
 		exporter->packets++;
 
-		extension_map = exporter->extension_map;
-		flow_record_length = NETFLOW_V1_RECORD_LENGTH;
-
 		// this many data to process
-		size_left	= in_buff_cnt;
+		ssize_t size_left = in_buff_cnt;
 
-		common_record = fs->nffile->buff_ptr;
-		done = 0;
+		// time received for this packet
+		uint64_t msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + 
+							     (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
+
+		void *outBuff = fs->nffile->buff_ptr;
+		int done = 0;
 		while ( !done ) {
-			v1_block_t			*v1_block;
-
+			netflow_v1_record_t *v1_record;
 			/* Process header */
 	
 			// count check
-	  		count	= ntohs(v1_header->count);
+	  		uint16_t count	= ntohs(v1_header->count);
 			if ( count > NETFLOW_V1_MAX_RECORDS ) {
 				LogError("Process_v1: Unexpected record count in header: %i. Abort v1 record processing", count);
-				fs->nffile->buff_ptr = (void *)common_record;
+				fs->nffile->buff_ptr = (void *)outBuff;
 				return;
 			}
 
 			// input buffer size check for all expected records
-			if ( size_left < ( NETFLOW_V1_HEADER_LENGTH + count * flow_record_length) ) {
+			if ( size_left < ( NETFLOW_V1_HEADER_LENGTH + count * NETFLOW_V1_RECORD_LENGTH) ) {
 				LogError("Process_v1: Not enough data to process v1 record. Abort v1 record processing");
-				fs->nffile->buff_ptr = (void *)common_record;
+				fs->nffile->buff_ptr = (void *)outBuff;
 				return;
 			}
 	
 			// output buffer size check for all expected records
-			if ( !CheckBufferSpace(fs->nffile, count * v1_output_record_size) ) {
+			if ( !CheckBufferSpace(fs->nffile, count * exporter->outRecordSize) ) {
 				// fishy! - should never happen. maybe disk full?
 				LogError("Process_v1: output buffer size error. Abort v1 record processing");
 				return;
 			}
 
-			// map output record to memory buffer
-			common_record	= (common_record_t *)fs->nffile->buff_ptr;
-			v1_block		= (v1_block_t *)common_record->data;
+			// map output memory buffer
+			outBuff = fs->nffile->buff_ptr;
 
 	  		v1_header->SysUptime	 = ntohl(v1_header->SysUptime);
 	  		v1_header->unix_secs	 = ntohl(v1_header->unix_secs);
 	  		v1_header->unix_nsecs	 = ntohl(v1_header->unix_nsecs);
 	
 			/* calculate boot time in msec */
-			boot_time  = ((uint64_t)(v1_header->unix_secs)*1000 + 
+			uint64_t msecBoot  = ((uint64_t)(v1_header->unix_secs)*1000 + 
 					((uint64_t)(v1_header->unix_nsecs) / 1000000) ) - (uint64_t)(v1_header->SysUptime);
 	
 			// process all records
 			v1_record	= (netflow_v1_record_t *)((pointer_addr_t)v1_header + NETFLOW_V1_HEADER_LENGTH);
 
 			/* loop over each records associated with this header */
-			for (i = 0; i < count; i++) {
-				void	*data_ptr;
-				uint8_t *s1, *s2;
-				int j, id;
-				// header data
-	  			common_record->flags		= flags;
-	  			common_record->type			= CommonRecordType;
-	  			common_record->exporter_sysid = exporter->info.sysid;
-	  			common_record->ext_map		= extension_map->map_id;
-	  			common_record->size			= v1_output_record_size;
+			uint32_t outSize = 0;
+			for (int i = 0; i < count; i++) {
+				// header data gets initialized by macro
+				AddV3Header(outBuff, recordHeader);
+				recordHeader->exporterID	= exporter->info.sysid;
 
-				// v1 common fields
-	  			common_record->srcPort		= ntohs(v1_record->srcPort);
-	  			common_record->dstPort		= ntohs(v1_record->dstPort);
-	  			common_record->tcp_flags	= v1_record->tcp_flags;
-	  			common_record->prot			= v1_record->prot;
-	  			common_record->tos			= v1_record->tos;
-	  			common_record->fwd_status 	= 0;
-	  			common_record->reserved 	= 0;
+    			PushExtension(recordHeader, EXgenericFlow, genericFlow);
+				genericFlow->msecReceived = msecReceived;
+				genericFlow->inPackets = ntohl(v1_record->dPkts);
+				genericFlow->inBytes   = ntohl(v1_record->dOctets);
+				genericFlow->srcPort   = ntohs(v1_record->srcPort);
+				genericFlow->dstPort   = ntohs(v1_record->dstPort);
+				genericFlow->proto	   = v1_record->prot;
+				genericFlow->srcTos	   = v1_record->tos;
+				genericFlow->tcpFlags  = v1_record->tcp_flags;
 
-				// v1 typed data as fixed struct v1_block
-	  			v1_block->srcaddr	= ntohl(v1_record->srcaddr);
-	  			v1_block->dstaddr	= ntohl(v1_record->dstaddr);
-	  			v1_block->dPkts  	= ntohl(v1_record->dPkts);
-	  			v1_block->dOctets	= ntohl(v1_record->dOctets);
+				PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
+				ipv4Flow->srcAddr = ntohl(v1_record->srcaddr);
+				ipv4Flow->dstAddr = ntohl(v1_record->dstaddr);
 
-				// process optional extensions
-				data_ptr = (void *)v1_block->data;
-				j = 0;
-				while ( (id = extension_map->ex_id[j]) != 0 ) {
-					switch (id) {
-						case EX_IO_SNMP_2:	{	// 2 byte input/output interface index
-							tpl_ext_4_t *tpl = (tpl_ext_4_t *)data_ptr;
-	  						tpl->input  = ntohs(v1_record->input);
-	  						tpl->output = ntohs(v1_record->output);
-							data_ptr = (void *)tpl->data;
-							} break;
-						case EX_NEXT_HOP_v4:	 {	// IPv4 next hop
-							tpl_ext_9_t *tpl = (tpl_ext_9_t *)data_ptr;
-							tpl->nexthop = ntohl(v1_record->nexthop);
-							data_ptr = (void *)tpl->data;
-							} break;
-						case EX_ROUTER_IP_v4:	 {	// IPv4 router address
-							tpl_ext_23_t *tpl = (tpl_ext_23_t *)data_ptr;
-							tpl->router_ip = fs->ip.V4;
-							data_ptr = (void *)tpl->data;
-							ClearFlag(common_record->flags, FLAG_IPV6_EXP);
-							} break;
-						case EX_RECEIVED: {
-							tpl_ext_27_t *tpl = (tpl_ext_27_t *)data_ptr;
-							tpl->received  = (uint64_t)((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
-							data_ptr = (void *)tpl->data;
-							} break;
-
-						default:
-							// this should never happen, as v1 has no other extensions
-							LogError("Process_v1: Unexpected extension %i for v1 record. Skip extension", id);
-					}
-					j++;
+				if ( v1_record->input || v1_record->output ) {
+					PushExtension(recordHeader, EXflowMisc, flowMisc);
+					flowMisc->input  = ntohs(v1_record->input);
+					flowMisc->output = ntohs(v1_record->output);
 				}
-	
-				// Time issues
-	  			First	 				= ntohl(v1_record->First);
-	  			Last		 			= ntohl(v1_record->Last);
+
+				if ( v1_record->nexthop ) {
+					PushExtension(recordHeader, EXipNextHopV4, ipNextHopV4);
+					ipNextHopV4->ip = ntohl(v1_record->nexthop);
+				}
+
+				// post process required data
+
+				// calculate msec values first/last
+	  			uint64_t First = ntohl(v1_record->First);
+	  			uint64_t Last  = ntohl(v1_record->Last);
+				uint64_t msecStart, msecEnd;
 
 				if ( First > Last ) {
-					/* First in msec, in case of msec overflow, between start and end */
-					start_time = boot_time - 0x100000000LL + (uint64_t)First;
+					// First in msec, in case of msec overflow, between start and end
+					msecStart = msecBoot - 0x100000000LL + First;
 				} else {
-					start_time = boot_time + (uint64_t)First;
+					msecStart = msecBoot + First;
 				}
 
-				/* end time in msecs */
-				end_time = (uint64_t)Last + boot_time;
+				// end time in msecs
+				msecEnd = Last + msecBoot;
 
 				// if overflow happened after flow ended but before got exported
 				if ( Last > v1_header->SysUptime ) {
-					start_time  -= 0x100000000LL;
-					end_time    -= 0x100000000LL;
+					msecStart  -= 0x100000000LL;
+					msecEnd    -= 0x100000000LL;
+				}
+				genericFlow->msecFirst	= msecStart;
+				genericFlow->msecLast	= msecEnd;
+	
+				UpdateFirstLast(fs, msecStart, msecEnd);
+
+				// router IP
+				if ( fs->sa_family == PF_INET6 ) {
+					PushExtension(recordHeader, EXipReceivedV6, ipReceivedV6);
+					ipReceivedV6->ip[0] = fs->ip.V6[0];
+					ipReceivedV6->ip[1] = fs->ip.V6[1];
+				} else {
+					PushExtension(recordHeader, EXipReceivedV4, ipReceivedV4);
+					ipReceivedV4->ip = fs->ip.V4;
 				}
 
-				common_record->first 		= start_time/1000;
-				common_record->msec_first	= start_time - common_record->first*1000;
-	
-				common_record->last 		= end_time/1000;
-				common_record->msec_last	= end_time - common_record->last*1000;
-	
-				// update first_seen, last_seen
-				if ( start_time < fs->first_seen )
-					fs->first_seen = start_time;
-				if ( end_time > fs->last_seen )
-					fs->last_seen = end_time;
-	
-	
 				// Update stats
-				switch (common_record->prot) {
+				switch (genericFlow->proto) {
 					case IPPROTO_ICMP:
 						fs->nffile->stat_record->numflows_icmp++;
-						fs->nffile->stat_record->numpackets_icmp += v1_block->dPkts;
-						fs->nffile->stat_record->numbytes_icmp   += v1_block->dOctets;
+						fs->nffile->stat_record->numpackets_icmp += genericFlow->inPackets;
+						fs->nffile->stat_record->numbytes_icmp   += genericFlow->inBytes;
 						// fix odd CISCO behaviour for ICMP port/type in src port
-						if ( common_record->srcPort != 0 ) {
-							s1 = (uint8_t *)&(common_record->srcPort);
-							s2 = (uint8_t *)&(common_record->dstPort);
+						if ( genericFlow->srcPort != 0 ) {
+							uint8_t *s1 = (uint8_t *)&(genericFlow->srcPort);
+							uint8_t *s2 = (uint8_t *)&(genericFlow->dstPort);
 							s2[0] = s1[1];
 							s2[1] = s1[0];
-							common_record->srcPort = 0;
+							genericFlow->srcPort = 0;
 						}
 						break;
 					case IPPROTO_TCP:
 						fs->nffile->stat_record->numflows_tcp++;
-						fs->nffile->stat_record->numpackets_tcp += v1_block->dPkts;
-						fs->nffile->stat_record->numbytes_tcp   += v1_block->dOctets;
+						fs->nffile->stat_record->numpackets_tcp += genericFlow->inPackets;
+						fs->nffile->stat_record->numbytes_tcp   += genericFlow->inBytes;
 						break;
 					case IPPROTO_UDP:
 						fs->nffile->stat_record->numflows_udp++;
-						fs->nffile->stat_record->numpackets_udp += v1_block->dPkts;
-						fs->nffile->stat_record->numbytes_udp   += v1_block->dOctets;
+						fs->nffile->stat_record->numpackets_udp += genericFlow->inPackets;
+						fs->nffile->stat_record->numbytes_udp   += genericFlow->inBytes;
 						break;
 					default:
 						fs->nffile->stat_record->numflows_other++;
-						fs->nffile->stat_record->numpackets_other += v1_block->dPkts;
-						fs->nffile->stat_record->numbytes_other   += v1_block->dOctets;
+						fs->nffile->stat_record->numpackets_other += genericFlow->inPackets;
+						fs->nffile->stat_record->numbytes_other   += genericFlow->inBytes;
 				}
 				exporter->flows++;
 				fs->nffile->stat_record->numflows++;
-				fs->nffile->stat_record->numpackets	+= v1_block->dPkts;
-				fs->nffile->stat_record->numbytes	+= v1_block->dOctets;
+				fs->nffile->stat_record->numpackets	+= genericFlow->inPackets;
+				fs->nffile->stat_record->numbytes	+= genericFlow->inBytes;
 
-				if ( verbose ) {
+				if ( printRecord ) {
+					char *string;
 					master_record_t master_record;
 					memset((void *)&master_record, 0, sizeof(master_record_t));
-					ExpandRecord_v2((common_record_t *)common_record, &v1_extension_info, &(exporter->info), &master_record);
+					ExpandRecord_v3(recordHeader, &master_record);
 				 	flow_record_to_raw(&master_record, &string, 0);
 					printf("%s\n", string);
 				}
 
-				// advance to next input flow record
-				v1_record		= (netflow_v1_record_t *)((pointer_addr_t)v1_record + flow_record_length);
+				// advance output buffer
+				outBuff += recordHeader->size;
+				outSize += recordHeader->size;
+				// advance input buffer to next flow record
+				v1_record = (netflow_v1_record_t *)((pointer_addr_t)v1_record + NETFLOW_V1_RECORD_LENGTH);
 
-				if ( ((pointer_addr_t)data_ptr - (pointer_addr_t)common_record) != v1_output_record_size ) {
-					printf("Panic size check: ptr diff: %llu, record size: %u\n", (unsigned long long)((pointer_addr_t)data_ptr - (pointer_addr_t)common_record), v1_output_record_size ); 
-					abort();
+				if ( recordHeader->size > exporter->outRecordSize ) {
+					LogError("Process_v1: Record size check failed! Exptected: %u, counted: %u\n", 
+						exporter->outRecordSize, recordHeader->size);
+					exit(255);
 				}
-				// advance to next output record
-				common_record	= (common_record_t *)data_ptr;
-				v1_block		= (v1_block_t *)common_record->data;
-				
+
 			} // End of foreach v1 record
 
 		// update file record size ( -> output buffer size )
 		fs->nffile->block_header->NumRecords += count;
-		fs->nffile->block_header->size 		 += count * v1_output_record_size;
-		fs->nffile->buff_ptr 				  = (void *)common_record;
+		fs->nffile->block_header->size 		 += outSize;
+		fs->nffile->buff_ptr 				  = (void *)outBuff;
 
 		// still to go for this many input bytes
-		size_left 	-= NETFLOW_V1_HEADER_LENGTH + count * flow_record_length;
+		size_left -= NETFLOW_V1_HEADER_LENGTH + count * NETFLOW_V1_RECORD_LENGTH;
 
 		// next header
-		v1_header	= (netflow_v1_header_t *)v1_record;
+		v1_header = (netflow_v1_header_t *)v1_record;
 
 		// should never be < 0
 		done = size_left <= 0;

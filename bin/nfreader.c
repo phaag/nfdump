@@ -43,7 +43,7 @@
  * This compiles this code and links the required nfdump files
  * If you do it by hand:
  *
- * gcc -I.. -o nfreader nfreader.c -lnfdump
+ * gcc -I.. -std=c11 -O3 -o nfreader nfreader.c -lnfdump
  *
  */
  
@@ -72,6 +72,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "nfxV3.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
@@ -156,8 +157,6 @@ master_record_t *r = (master_record_t *)record;
 
 
 static void process_data(void) {
-master_record_t	master_record;
-common_record_t *flow_record;
 nffile_t		*nffile;
 int 		i, done, ret;
 
@@ -169,6 +168,12 @@ int 		i, done, ret;
 	}
 	if ( nffile == EMPTY_LIST ) {
 		LogError("Empty file list. No files to process\n");
+		return;
+	}
+
+	master_record_t *master_record = malloc(sizeof(master_record_t));
+	if ( !master_record ) {
+		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		return;
 	}
 
@@ -205,29 +210,20 @@ int 		i, done, ret;
 			continue;
 		}
 
-		flow_record = nffile->buff_ptr;
+		record_header_t	*record_ptr = nffile_r->buff_ptr;
 		uint32_t sumSize = 0;
 		for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
 			char        string[1024];
-			if ( (sumSize + flow_record->size) > ret || (flow_record->size < sizeof(record_header_t)) ) {
+			if ( (sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t)) ) {
 				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
 				exit(255);
 			}
-			sumSize += flow_record->size;
+			sumSize += record_ptr->size;
 
-			switch ( flow_record->type ) {
-				case CommonRecordType: {
-					uint32_t map_id = flow_record->ext_map;
-					exporter_t *exp_info = exporter_list[flow_record->exporter_sysid];
-					if ( extension_map_list->slot[map_id] == NULL ) {
-						snprintf(string, 1024, "Corrupt data file! No such extension map id: %u. Skip record", flow_record->ext_map );
-						string[1023] = '\0';
-					} else {
-						ExpandRecord_v2( flow_record, extension_map_list->slot[flow_record->ext_map], 
-							exp_info ? &(exp_info->info) : NULL, &master_record);
-
-						// update number of flows matching a given map
-						extension_map_list->slot[map_id]->ref_count++;
+			switch ( record_ptr->type ) {
+				case V3Record:
+					memset((void *)master_record, 0, sizeof(master_record_t));
+					ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
 			
 						/* 
 			 			* insert hier your calls to your processing routine 
@@ -237,26 +233,7 @@ int 		i, done, ret;
 			 			*/
 						print_record(&master_record, string);
 						printf("%s\n", string);
-					}
-	
-					} break;
-				case ExtensionMapType: {
-					extension_map_t *map = (extension_map_t *)flow_record;
-
-					int ret = Insert_Extension_Map(extension_map_list, map);
-					switch (ret) {
-						case 0:
-							// map already known and flushed
-							break; 
-						case 1:
-							// new map
-							break;
-						default:
-							LogError("Corrupt data file. Unable to decode at %s line %d\n", __FILE__, __LINE__);
-							exit(255);
-					}
-
-					} break;
+					break;
 				case ExporterInfoRecordType:
 				case ExporterStatRecordType:
 				case SamplerInfoRecordype:
@@ -268,7 +245,7 @@ int 		i, done, ret;
 			}
 
 			// Advance pointer by number of bytes for netflow record
-			flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);	
+			record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);	
 
 		} // for all records
 
@@ -276,8 +253,6 @@ int 		i, done, ret;
 
 	CloseFile(nffile);
 	DisposeFile(nffile);
-
-	PackExtensionMapList(extension_map_list);
 
 } // End of process_data
 
@@ -324,7 +299,6 @@ int			c;
 		exit(255);
 	}
 
-	extension_map_list = InitExtensionMaps(NEEDS_EXTENSION_LIST);
 	if ( !InitExporterList() ) {
 		exit(255);
 	}
@@ -332,8 +306,6 @@ int			c;
 	SetupInputFileSequence(Mdirs, rfile, Rfile, NULL);
 
 	process_data();
-
-	FreeExtensionMaps(extension_map_list);
 
 	return 0;
 }

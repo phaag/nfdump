@@ -199,8 +199,7 @@ typedef struct ipfix_template_elements_e_s {
 // Flowset record types
 #define IPFIX_octetDeltaCount	 			  1
 #define IPFIX_packetDeltaCount	 			  2
-// reserved 3
-#define IPFIX_FLOWS_AGGR		 			  3
+#define IPFIX_deltaFlowCount				  3
 #define IPFIX_protocolIdentifier 			  4
 #define IPFIX_ipClassOfService			 	  5
 #define IPFIX_tcpControlBits			 	  6
@@ -243,7 +242,7 @@ typedef struct ipfix_template_elements_e_s {
 // #define IPFIX_IPV4_IDENT			54
 
 #define IPFIX_postIpClassOfService			 55
-#define IPFIX_SourceMacAddress		 56
+#define IPFIX_SourceMacAddress		 		 56
 #define IPFIX_postDestinationMacAddress		 57
 #define IPFIX_vlanId			 			 58
 #define IPFIX_postVlanId			 		 59
@@ -267,6 +266,7 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_octetTotalCount		 	 	 85
 #define IPFIX_packetTotalCount		 	 	 86
 #define IPFIX_forwardingStatus				 89
+#define IPFIX_observationDomainId			149
 #define IPFIX_flowStartSeconds				150
 #define IPFIX_flowEndSeconds				151
 #define IPFIX_flowStartMilliseconds			152
@@ -284,8 +284,12 @@ typedef struct ipfix_template_elements_e_s {
 // Private Enterprise Numbers
 #define IPFIX_ReverseInformationElement		29305
 
+#define LOCAL_IPv4Received					32764
+#define LOCAL_IPv6Received					32765
+#define LOCAL_msecTimeReceived				32766
+
 /* prototypes */
-int Init_IPFIX(int v, uint32_t sampling, uint32_t overwrite);
+int Init_IPFIX(int verbose, uint32_t sampling, uint32_t overwrite);
 
 void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 

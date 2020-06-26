@@ -68,13 +68,13 @@
 #include "nffile.h"
 #include "nfx.h"
 #include "nfxV3.h"
-#include "exporter.h"
 #include "nfnet.h"
+#include "bookkeeper.h"
+#include "exporter.h"
+#include "collector.h"
+#include "launch.h"
 #include "flist.h"
 #include "nfstatfile.h"
-#include "bookkeeper.h"
-#include "launch.h"
-#include "collector.h"
 #include "netflow_v1.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
@@ -94,8 +94,6 @@
 #include "expire.h"
 
 #define DEFAULTCISCOPORT "9995"
-#define DEFAULTHOSTNAME "127.0.0.1"
-#define SENDSOCK_BUFFSIZE 200000
 
 static void *shmem = NULL;
 static int verbose = 0;
@@ -396,9 +394,9 @@ srecord_t	*commbuff;
 		SetIdent(fs->nffile, fs->Ident);
 
 		// init vars
-		fs->bad_packets		= 0;
-		fs->first_seen      = 0xffffffffffffLL;
-		fs->last_seen 		= 0;
+		fs->bad_packets = 0;
+		fs->msecFirst	= 0xffffffffffffLL;
+		fs->msecLast	= 0;
 
 		// next source
 		fs = fs->next;
@@ -517,16 +515,16 @@ srecord_t	*commbuff;
 				nfcapd_filename[MAXPATHLEN-1] = '\0';
 	
 				// update stat record
-				// if no flows were collected, fs->last_seen is still 0
+				// if no flows were collected, fs->msecLast is still 0
 				// set first_seen to start of this time slot, with twin window size.
-				if ( fs->last_seen == 0 ) {
-					fs->first_seen = (uint64_t)1000 * (uint64_t)t_start;
-					fs->last_seen  = (uint64_t)1000 * (uint64_t)(t_start + twin);
+				if ( fs->msecLast == 0 ) {
+					fs->msecFirst = (uint64_t)1000 * (uint64_t)t_start;
+					fs->msecLast  = (uint64_t)1000 * (uint64_t)(t_start + twin);
 				}
-				nffile->stat_record->first_seen = fs->first_seen/1000;
-				nffile->stat_record->msec_first	= fs->first_seen - nffile->stat_record->first_seen*1000;
-				nffile->stat_record->last_seen 	= fs->last_seen/1000;
-				nffile->stat_record->msec_last	= fs->last_seen - nffile->stat_record->last_seen*1000;
+				nffile->stat_record->first_seen = fs->msecFirst/1000;
+				nffile->stat_record->msec_first	= fs->msecFirst - nffile->stat_record->first_seen*1000;
+				nffile->stat_record->last_seen 	= fs->msecLast/1000;
+				nffile->stat_record->msec_last	= fs->msecLast - nffile->stat_record->last_seen*1000;
 
 				// Flush Exporter Stat to file
 				FlushExporterStats(fs);
@@ -561,8 +559,8 @@ srecord_t	*commbuff;
 
 				// reset stats
 				fs->bad_packets = 0;
-				fs->first_seen  = 0xffffffffffffLL;
-				fs->last_seen 	= 0;
+				fs->msecFirst   = 0xffffffffffffLL;
+				fs->msecLast 	= 0;
 
 				if ( !done ) {
 					fs->nffile = OpenNewFile(fs->current, fs->nffile, compress, NOT_ENCRYPTED);
@@ -572,7 +570,7 @@ srecord_t	*commbuff;
 					}
 				}
 
-				// Dump all extension maps and exporters to the buffer
+				// Dump all exporters/samplers to the buffer
 				FlushStdRecords(fs);
 
 				// next flow source
@@ -1025,9 +1023,6 @@ char	*pcap_file = NULL;
 		fprintf(stderr, "ERROR, -Z timezone extension breaks expire -e\n");
 		exit(255);
 	}
-
-	InitExtensionMaps(NO_EXTENSION_LIST);
-	SetupExtensionDescriptors(strdup(extension_tags));
 
 	// Debug code to read from pcap file
 #ifdef PCAP

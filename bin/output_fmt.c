@@ -238,7 +238,7 @@ static void String_xevt(master_record_t *r, char *string);
 
 static void String_sgt(master_record_t *r, char *string);
 
-static void String_msec(master_record_t *r, char *string);
+static void String_msecEvent(master_record_t *r, char *string);
 
 static void String_iacl(master_record_t *r, char *string);
 
@@ -354,7 +354,7 @@ static struct format_token_list_s {
 	{ "%evt",   0, " Event", 				String_evt },				// NSEL event
 	{ "%xevt",  0, " XEvent", 				String_xevt },				// NSEL xevent
 	{ "%sgt",   0, "  SGT  ", 				String_sgt },				// NSEL xevent
-	{ "%msec",  0, "   Event Time", 		String_msec},				// NSEL event time in msec
+	{ "%msec",  0, "   Event Time", 		String_msecEvent},				// NSEL event time in msec
 	{ "%iacl",  0, "Ingress ACL                     ", String_iacl}, 	// NSEL ingress ACL
 	{ "%eacl",  0, "Egress ACL                      ", String_eacl}, 	// NSEL egress ACL
 	{ "%xsa",   0, "   X-late Src IP", 		String_xlateSrcAddr},		// NSEL XLATE src IP
@@ -1465,14 +1465,12 @@ static void String_sgt(master_record_t *r, char *string) {
 
 } // End of String_sgt
 
-static void String_msec(master_record_t *r, char *string) {
-	unsigned long long etime;
+static void String_msecEvent(master_record_t *r, char *string) {
 
-	etime = 1000LL * (unsigned long long)r->first + (unsigned long long)r->msec_first;
-	snprintf(string, MAX_STRING_LENGTH-1,"%13llu",  etime);
+	snprintf(string, MAX_STRING_LENGTH-1,"%13llu",  r->msecEvent);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
-} // End of String_msec 
+} // End of String_msecEvent 
 
 static void String_iacl(master_record_t *r, char *string) {
 

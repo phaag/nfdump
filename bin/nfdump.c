@@ -56,6 +56,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "nfxV3.h"
 #include "flist.h"
 #include "nfnet.h"
 #include "bookkeeper.h"
@@ -249,6 +250,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
 
 #include "nfdump_inline.c"
 #include "nffile_inline.c"
+#include "nffile_compat.c"
 
 static void usage(char *name) {
 		printf("usage %s [options] [\"filter\"]\n"
@@ -263,7 +265,7 @@ static void usage(char *name) {
 					"-w <file>\twrite output to file\n"
 					"-f\t\tread netflow filter from file\n"
 					"-n\t\tDefine number of top N for stat or sorted output.\n"
-					"-c\t\tLimit number of records to read from source(es)\n"
+					"-c\t\tLimit number of matching records\n"
 					"-D <dns>\tUse nameserver <dns> for host lookup.\n"
 					"-N\t\tPrint plain numbers\n"
 					"-s <expr>[/<order>]\tGenerate statistics for <expr> any valid record element.\n"
@@ -358,12 +360,9 @@ master_record->srcPort == 105 || master_record->dstPort == 105);
 stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
 	printer_t print_record, timeWindow_t *timeWindow, uint64_t limitRecords, 
 	outputParams_t *outputParams, int compress) {
-common_record_t 	*flow_record, *record_ptr;
-master_record_t		*master_record;
 nffile_t			*nffile_w, *nffile_r;
 stat_record_t 		stat_record;
-int 				done, write_file;
-uint64_t	twin_msecFirst, twin_msecLast;
+uint64_t twin_msecFirst, twin_msecLast;
 
 	// time window of all matched flows
 	memset((void *)&stat_record, 0, sizeof(stat_record_t));
@@ -387,7 +386,7 @@ uint64_t	twin_msecFirst, twin_msecLast;
 
 	// do not write flows to file, when doing any stats
 	// -w may apply for flow_stats later
-	write_file = !(sort_flows || flow_stat || element_stat) && wfile;
+	int write_file = !(sort_flows || flow_stat || element_stat) && wfile;
 	nffile_r = NULL;
 	nffile_w = NULL;
 
@@ -420,11 +419,26 @@ uint64_t	twin_msecFirst, twin_msecLast;
 	}
 	Engine->ident = nffile_r->ident;
 
-	// setup Filter Engine to point to master_record, as any record read from file
-	// is expanded into this record
-	// Engine->nfrecord = (uint64_t *)master_record;
+	master_record_t *master_record = malloc(sizeof(master_record_t));
+	if ( !master_record ) {
+		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+		return stat_record;
+	}
 
-	done = 0;
+	Engine->nfrecord = (uint64_t *)master_record;
+
+	// do we need to convert old v2 records?
+	record_header_t	*convertedV2 = NULL;
+	int convertV2 = flow_stat || sort_flows || write_file;
+	if ( convertV2 ) {
+		convertedV2 = calloc(1, 4096);	// one size fits all
+		if ( !convertedV2 ) {
+			LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+			exit(255);
+		}
+	}
+
+	int done = 0;
 	while ( !done ) {
 	int i, ret;
 		// get next data block from file
@@ -474,49 +488,39 @@ uint64_t	twin_msecFirst, twin_msecLast;
 		}
 
 		uint32_t sumSize = 0;
-		record_ptr = nffile_r->buff_ptr;
+		record_header_t	*record_ptr = nffile_r->buff_ptr;
+		dbg_printf("Block has %i records\n", nffile_r->block_header->NumRecords);
 		for ( i=0; i < nffile_r->block_header->NumRecords; i++ ) {
-			flow_record = record_ptr;
 			if ( (sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t)) ) {
 				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
 				exit(255);
 			}
 			sumSize += record_ptr->size;
+
 			switch ( record_ptr->type ) {
-				case CommonRecordV0Type: 
-					LogError("Old common v0 records no longer supported - skipped");
-					break;
+				case V3Record:
 				case CommonRecordType: {
 					int match;
-					uint32_t map_id;
-					exporter_t *exp_info;
-
-					// valid flow_record converted if needed
-					map_id = flow_record->ext_map;
-					exp_info = exporter_list[flow_record->exporter_sysid];
-
-					if ( map_id >= MAX_EXTENSION_MAPS ) {
-						LogError("Corrupt data file. Extension map id %u too big.\n", flow_record->ext_map);
-						exit(255);
-					}
-					if ( extension_map_list->slot[map_id] == NULL ) {
-						LogError("Corrupt data file. Missing extension map %u. Skip record.\n", flow_record->ext_map);
-						record_ptr = (common_record_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
-						continue;
+					memset((void *)master_record, 0, sizeof(master_record_t));
+					if ( record_ptr->type == CommonRecordType ) {
+						if ( !ExpandRecord_v2(record_ptr, master_record)) {
+							goto NEXT;
+						}
+						if ( convertV2 ) {
+							dbg_printf("Convert v2 record\n");
+							if ( !ConvertRecordV2((common_record_t *)record_ptr, convertedV2))
+								goto NEXT;
+						}
+					} else {
+						ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
 					} 
-
 					recordCount++;
-					master_record = &(extension_map_list->slot[map_id]->master_record);
-					Engine->nfrecord = (uint64_t *)master_record;
-
-					ExpandRecord_v2( flow_record, extension_map_list->slot[map_id], 
-						exp_info ? &(exp_info->info) : NULL, master_record);
 
 					// Time based filter
 					// if no time filter is given, the result is always true
 					match = twin_msecFirst && 
 						(master_record->msecFirst < twin_msecFirst ||  master_record->msecLast > twin_msecLast) ? 0 : 1;
-					match &= limitRecords ? recordCount <= limitRecords : 1;
+					match &= limitRecords ? stat_record.numflows < limitRecords : 1;
 
 					// filter netflow record with user supplied filter
 					if ( match ) 
@@ -524,10 +528,8 @@ uint64_t	twin_msecFirst, twin_msecLast;
 //						match = dofilter(master_record);
 
 					if ( match == 0 ) { // record failed to pass all filters
-						// increment pointer by number of bytes for netflow record
-						record_ptr = (common_record_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
 						// go to next record
-						continue;
+						goto NEXT;
 					}
 
 					// Records passed filter -> continue record processing
@@ -539,21 +541,21 @@ uint64_t	twin_msecFirst, twin_msecLast;
 #endif
 					UpdateStat(&stat_record, master_record);
 
-					// update number of flows matching a given map
-					extension_map_list->slot[map_id]->ref_count++;
-	
 					if ( flow_stat ) {
-						AddFlow(flow_record, master_record, extension_map_list->slot[map_id]);
+						AddFlow(convertedV2 ? convertedV2 : record_ptr, master_record);
 						if ( element_stat ) {
-							AddStat(flow_record, master_record);
+							AddStat(master_record);
 						} 
 					} else if ( element_stat ) {
-						AddStat(flow_record, master_record);
+						AddStat(master_record);
 					} else if ( sort_flows ) {
-						InsertFlow(flow_record, master_record, extension_map_list->slot[map_id]);
+						InsertFlow(convertedV2 ? convertedV2 : record_ptr, master_record);
 					} else {
 						if ( write_file ) {
-							AppendToBuffer(nffile_w, (void *)flow_record, flow_record->size);
+							if ( convertedV2 ) 
+								AppendToBuffer(nffile_w, (void *)convertedV2, convertedV2->size);
+							else
+								AppendToBuffer(nffile_w, (void *)record_ptr, record_ptr->size);
 						} else if ( print_record ) {
 							char *string;
 							// if we need to print out this record
@@ -565,29 +567,17 @@ uint64_t	twin_msecFirst, twin_msecLast;
 							// mutually exclusive conditions should prevent executing this code
 							// this is buggy!
 							printf("Bug! - this code should never get executed in file %s line %d\n", __FILE__, __LINE__);
+							exit(255);
 						}
 					} // sort_flows - else
 					} break; 
 				case ExtensionMapType: {
 					extension_map_t *map = (extension_map_t *)record_ptr;
-	
-					int ret = Insert_Extension_Map(extension_map_list, map);
-					switch (ret) {
-						case 0:
-							break; // map already known and flushed
-						case 1:
-							if ( write_file ) 
-								AppendToBuffer(nffile_w, (void *)map, map->size);
-							break;
-						default:
-							LogError("Corrupt data file. Unable to decode at %s line %d\n", __FILE__, __LINE__);
-							exit(255);
+					if ( Insert_Extension_Map(extension_map_list, map) < 0 ) {
+						LogError("Corrupt data file. Unable to decode at %s line %d\n", __FILE__, __LINE__);
+						exit(255);
 					}
 					} break;
-				case LegacyRecordType1:
-				case LegacyRecordType2:
-						// Silently skip legacy records
-					break;
 				case ExporterInfoRecordType: {
 					int ret = AddExporterInfo((exporter_info_record_t *)record_ptr);
 					if ( ret != 0 ) {
@@ -604,18 +594,24 @@ uint64_t	twin_msecFirst, twin_msecLast;
 					int ret = AddSamplerInfo((sampler_info_record_t *)record_ptr);
 					if ( ret != 0 ) {
 						if ( write_file && ret == 1 ) 
-							AppendToBuffer(nffile_w, (void *)flow_record, flow_record->size);
+							AppendToBuffer(nffile_w, (void *)record_ptr, record_ptr->size);
 					} else {
 						LogError("Failed to add Sampler Record\n");
 					}
 					} break;
+				case LegacyRecordType1:
+				case LegacyRecordType2:
+				case CommonRecordV0Type: 
+					LogError("Skip lagecy record type: %d", record_ptr->type);
+					break;
 				default: {
 					LogError("Skip unknown record type %i\n", record_ptr->type);
 				}
 			}
 
+		NEXT:
 		// Advance pointer by number of bytes for netflow record
-		record_ptr = (common_record_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
+		record_ptr = (record_header_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
 
 
 		} // for all records
@@ -645,8 +641,6 @@ uint64_t	twin_msecFirst, twin_msecLast;
 			DisposeFile(nffile_w);
 		} // else stdout
 	}	 
-
-	PackExtensionMapList(extension_map_list);
 
 	DisposeFile(nffile_r);
 	return stat_record;
@@ -1166,7 +1160,7 @@ char 		Ident[IDENTLEN];
 			nffile_t *nffile = OpenNewFile(wfile, NULL, compress, NOT_ENCRYPTED );
 			if ( !nffile ) 
 				exit(255);
-			if ( ExportFlowTable(nffile, aggregate, bidir, GuessDir, date_sorted, extension_map_list) ) {
+			if ( ExportFlowTable(nffile, aggregate, bidir, GuessDir, date_sorted) ) {
 				CloseUpdateFile(nffile);	
 			} else {
 				CloseFile(nffile);

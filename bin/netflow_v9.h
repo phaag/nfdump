@@ -76,16 +76,16 @@
 #include "nfnet.h"
 #include "nffile.h"
 
-typedef struct netflow_v9_header {
+typedef struct v9Header_s {
 	uint16_t  version;
 	uint16_t  count;
 	uint32_t  SysUptime;
 	uint32_t  unix_secs;
 	uint32_t  sequence;
 	uint32_t  source_id;
-} netflow_v9_header_t;
+} v9Header_t;
 
-#define NETFLOW_V9_HEADER_LENGTH sizeof(netflow_v9_header_t)
+#define V9_HEADER_LENGTH sizeof(v9Header_t)
 
 /* FlowSet ID
  *         FlowSet ID value of 0 is reserved for the Template FlowSet.
@@ -120,26 +120,6 @@ typedef struct netflow_v9_header {
  *         the "Field Type Definitions" section.
  */
 
-typedef struct template_record_s {
-	uint16_t  	template_id;
-	uint16_t  	count;
-	struct {
-		uint16_t  type;
-		uint16_t  length;
-	} record[1];
-} template_record_t;
-
-typedef struct template_flowset_s {
-	uint16_t  	flowset_id;
-	uint16_t  	length;
-	template_record_t	fields[1];
-} template_flowset_t;
-
-typedef struct data_flowset_s {
-	uint16_t  	flowset_id;
-	uint16_t  	length;
-	uint8_t		data[4];
-} data_flowset_t;
 
 typedef struct option_template_flowset_s {
 	uint16_t  	flowset_id;
@@ -253,10 +233,10 @@ typedef struct common_header_s {
 
 #define NF9_FORWARDING_STATUS	89
 
-#define NF9_BGP_ADJ_NEXT_AS 	128
-#define NF9_BGP_ADJ_PREV_AS 	129
-#define NF9_dot1qVlanId			243
-#define NF9_postDot1qVlanId		254
+#define NF_F_BGP_ADJ_NEXT_AS 	128
+#define NF_F_BGP_ADJ_PREV_AS 	129
+#define NF_F_dot1qVlanId		243
+#define NF_F_postDot1qVlanId	254
 
 // CISCO ASA NSEL extension - Network Security Event Logging
 #define NF_F_FLOW_BYTES				   85
@@ -281,6 +261,7 @@ typedef struct common_header_s {
 #define NF_F_XLATE_DST_PORT			  228
 #define NF_F_XLATE_SRC_ADDR_IPV6	  281
 #define NF_F_XLATE_DST_ADDR_IPV6	  282
+#define NF_N_NATPOOL_ID				  283
 #define NF_F_FW_EVENT				  233
 
 // ASA 8.4 compat elements
@@ -295,34 +276,37 @@ typedef struct common_header_s {
 #define NF_F_INITIATORPACKETS		298
 #define NF_F_RESPONDERPACKETS		299
 
-// Zone-Based Firewall Logging
-#define NF_FW_CTS_SRC_SGT			34000
-
 // Cisco ASR 1000 series NEL extension - Nat Event Logging
 #define NF_N_NAT_EVENT				230
 #define NF_N_INGRESS_VRFID			234
 #define NF_N_EGRESS_VRFID			235
-
 #define NF_F_XLATE_PORT_BLOCK_START 361
 #define NF_F_XLATE_PORT_BLOCK_END   362
 #define NF_F_XLATE_PORT_BLOCK_STEP  363
 #define NF_F_XLATE_PORT_BLOCK_SIZE  364
 
 // nprobe latency extensions
-#define NF9_NPROBE_CLIENT_NW_DELAY_SEC	57554
-#define NF9_NPROBE_CLIENT_NW_DELAY_USEC	57555
-#define NF9_NPROBE_SERVER_NW_DELAY_SEC	57556
-#define NF9_NPROBE_SERVER_NW_DELAY_USEC 57557
-#define NF9_NPROBE_APPL_LATENCY_SEC		57558
-#define NF9_NPROBE_APPL_LATENCY_USEC	57559
+#define NF_NPROBE_CLIENT_NW_DELAY_SEC	57554
+#define NF_NPROBE_CLIENT_NW_DELAY_USEC	57555
+#define NF_NPROBE_SERVER_NW_DELAY_SEC	57556
+#define NF_NPROBE_SERVER_NW_DELAY_USEC 57557
+#define NF_NPROBE_APPL_LATENCY_SEC		57558
+#define NF_NPROBE_APPL_LATENCY_USEC	57559
+
+// LOCAL types
+#define LOCAL_IPv4Received					32764
+#define LOCAL_IPv6Received					32765
+#define LOCAL_msecTimeReceived				32766
 
 /* prototypes */
 int Init_v9(int v, uint32_t sampling, uint32_t overwrite);
 
 void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 
-void Init_v9_output(send_peer_t *peer);
+void *Init_v9_output(send_peer_t *peer);
 
-int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer);
+int Close_v9_output(void *data, send_peer_t *peer);
+
+int Add_v9_output_record(master_record_t *master_record, void *data, send_peer_t *peer);
 
 #endif //_NETFLOW_V9_H 1

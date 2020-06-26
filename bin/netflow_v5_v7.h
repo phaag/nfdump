@@ -43,87 +43,9 @@
 #include "nffile.h"
 #include "nfnet.h"
 
-#define NETFLOW_V5_HEADER_LENGTH 24
-#define NETFLOW_V5_RECORD_LENGTH 48
-#define NETFLOW_V5_MAX_RECORDS	 30
-
-#define NETFLOW_V7_HEADER_LENGTH 24
-#define NETFLOW_V7_RECORD_LENGTH 52
-#define NETFLOW_V7_MAX_RECORDS   28
-
-/* v5 structures */
-typedef struct netflow_v5_header {
-  uint16_t  version;
-  uint16_t  count;
-  uint32_t  SysUptime;
-  uint32_t  unix_secs;
-  uint32_t  unix_nsecs;
-  uint32_t  flow_sequence;
-  uint16_t	engine_tag;
-  uint16_t  sampling_interval;
-} netflow_v5_header_t;
-
-typedef struct netflow_v5_record {
-  uint32_t  srcaddr;
-  uint32_t  dstaddr;
-  uint32_t  nexthop;
-  uint16_t  input;
-  uint16_t  output;
-  uint32_t  dPkts;
-  uint32_t  dOctets;
-  uint32_t  First;
-  uint32_t  Last;
-  uint16_t  srcPort;
-  uint16_t  dstPort;
-  uint8_t   pad1;
-  uint8_t   tcp_flags;
-  uint8_t   prot;
-  uint8_t   tos;
-  uint16_t  src_as;
-  uint16_t  dst_as;
-  uint8_t   src_mask;
-  uint8_t   dst_mask;
-  uint16_t  pad2;
-} netflow_v5_record_t;
-
-
-/* v7 structures */
-typedef struct netflow_v7_header {
-  uint16_t  version;
-  uint16_t  count;
-  uint32_t  SysUptime;
-  uint32_t  unix_secs;
-  uint32_t  unix_nsecs;
-  uint32_t  flow_sequence;
-  uint32_t  reserved;
-} netflow_v7_header_t;
-
-typedef struct netflow_v7_record {
-  uint32_t  srcaddr;
-  uint32_t  dstaddr;
-  uint32_t  nexthop;
-  uint16_t  input;
-  uint16_t  output;
-  uint32_t  dPkts;
-  uint32_t  dOctets;
-  uint32_t  First;
-  uint32_t  Last;
-  uint16_t  srcPort;
-  uint16_t  dstPort;
-  uint8_t   flags;
-  uint8_t   tcp_flags;
-  uint8_t   prot;
-  uint8_t   tos;
-  uint16_t  src_as;
-  uint16_t  dst_as;
-  uint8_t   src_mask;
-  uint8_t   dst_mask;
-  uint16_t  pad;
-  uint32_t  router_sc;
-} netflow_v7_record_t;
 
 /* prototypes */
-int Init_v5_v7_input(int v, uint32_t sampling, uint32_t overwrite);
+int Init_v5_v7_input(int verbose, uint32_t sampling, uint32_t overwrite);
 
 void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 

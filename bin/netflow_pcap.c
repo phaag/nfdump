@@ -49,6 +49,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "nfxV3.h"
 #include "nfnet.h"
 #include "output_raw.h"
 #include "bookkeeper.h"
@@ -58,263 +59,153 @@
 #include "flowtree.h"
 #include "netflow_pcap.h"
 
-extern int verbose;
-extern extension_descriptor_t extension_descriptor[];
-
-/* module limited globals */
-static extension_info_t pcap_extension_info;		// common for all pcap records
-static extension_map_t	*pcap_extension_map;
-
-static uint32_t pcap_output_record_size_v4;
-static uint32_t pcap_output_record_size_v6;
-
-typedef struct pcap_v4_block_s {
-	uint32_t	srcaddr;
-	uint32_t	dstaddr;
-	uint32_t	dPkts;
-	uint32_t	dOctets;
-	uint32_t	data[1];	// link to next record
-} __attribute__((__packed__ )) pcap_v4_block_t;
-#define PCAP_V4_BLOCK_DATA_SIZE (sizeof(pcap_v4_block_t) - sizeof(uint32_t))
-
-typedef struct pcap_v6_block_s {
-	uint64_t	srcaddr[2];
-	uint64_t	dstaddr[2];
-	uint32_t	dPkts;
-	uint32_t	dOctets;
-	uint32_t	data[1];	// link to next record
-} __attribute__((__packed__ )) pcap_v6_block_t;
-#define PCAP_V6_BLOCK_DATA_SIZE (sizeof(pcap_v6_block_t) - sizeof(uint32_t))
-
-// All required extension to save full pcap records
-static uint16_t pcap_full_map[] = { EX_LATENCY, 0 };
+static int printRecord;
+static uint32_t recordSizev6;
+static uint32_t recordSizev4;
+static uint32_t numElements;
 
 #include "nffile_inline.c"
 
-int Init_pcap2nf(void) {
-int i, id, map_index;
-int extension_size;
-uint16_t	map_size;
+/* module limited globals */
+static uint32_t pcap_output_record_size_v4;
+static uint32_t pcap_output_record_size_v6;
 
-	// prepare pcap extension map
-	pcap_extension_info.map = NULL;
-	extension_size	 = 0;
-	map_size 		 = 0;
+int Init_pcap2nf(int verbose) {
 
-	i=0;
-	while ( (id = pcap_full_map[i]) != 0  ) {
-		if ( extension_descriptor[id].enabled ) {
-			extension_size += extension_descriptor[id].size;
-			map_size += sizeof(uint16_t);
-		}
-		i++;
-	}
-	// extension_size contains the sum of all optional extensions
-	// caculate the record size 
-	pcap_output_record_size_v4 = COMMON_RECORD_DATA_SIZE + PCAP_V4_BLOCK_DATA_SIZE + extension_size;	
-	pcap_output_record_size_v6 = COMMON_RECORD_DATA_SIZE + PCAP_V6_BLOCK_DATA_SIZE + extension_size;	
-
-	// now the full extension map size
-	map_size 	+= sizeof(extension_map_t);
-
-	// align 32 bits
-	if ( ( map_size & 0x3 ) != 0 )
-		map_size += 2;
-
-	// Create a generic pcap extension map
-	pcap_extension_info.map = (extension_map_t *)malloc((size_t)map_size);
-	if ( !pcap_extension_info.map ) {
-		LogError("Process_pcap: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
-		return 0;
-	}
-	pcap_extension_info.map->type 	  	  	= ExtensionMapType;
-	pcap_extension_info.map->size 	  	  	= map_size;
-	pcap_extension_info.map->map_id 	  	= INIT_ID;		
-	pcap_extension_info.map->extension_size = extension_size;		
-
-	// see netflow_pcap.h for extension map description
-	map_index = 0;
-	i=0;
-	while ( (id = pcap_full_map[i]) != 0 ) {
-		if ( extension_descriptor[id].enabled )
-			pcap_extension_info.map->ex_id[map_index++] = id;
-		i++;
-	}
-	pcap_extension_info.map->ex_id[map_index] = 0;
-
-	pcap_extension_map = NULL;
-
+	printRecord = verbose;
+	recordSizev6 = EXgenericFlowSize + EXipv6FlowSize + EXflowMiscSize + 
+					 EXlatencySize;
+	recordSizev4 = EXgenericFlowSize + EXipv4FlowSize + EXflowMiscSize + 
+					 EXlatencySize;
+	numElements = 4;
 	return 1;
 
 } // End of Init_pcap2nf
 
 int StorePcapFlow(FlowSource_t *fs, struct FlowNode *Node) {
-common_record_t		*common_record;
-uint32_t			packets, bytes, pcap_output_record_size;
-uint64_t	start_time, end_time;
-int			j, id;
-char		*string;
-void		*data_ptr;
-
-	if ( !pcap_extension_map ) {
-		pcap_extension_map	= (extension_map_t *)malloc(pcap_extension_info.map->size);
-		if ( !pcap_extension_map ) {
-			LogError("Process_pcap: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
-			return 0;
-		}
-		memcpy((void *)pcap_extension_map, (void *)pcap_extension_info.map, pcap_extension_info.map->size);
-		if ( !AddExtensionMap(fs, pcap_extension_map) ) {
-			LogError("Process_pcap: Fatal: AddExtensionMap() failed in %s line %d\n", __FILE__, __LINE__);
-			return 0;
-		}
-
-	}
+uint32_t	recordSize;
 
 	if ( Node->version == AF_INET6 ) {
-		pcap_output_record_size = pcap_output_record_size_v6;
-		dbg_printf("Store Flow v6 node: size: %u\n", pcap_output_record_size);
+		recordSize = recordSizev6;
+		dbg_printf("Store Flow v6 node: size: %u\n", recordSize);
 	} else if ( Node->version == AF_INET ) {
-		pcap_output_record_size = pcap_output_record_size_v4;
-		dbg_printf("Store Flow v4 node: size: %u\n", pcap_output_record_size);
+		recordSize = recordSizev4;
+		dbg_printf("Store Flow v4 node: size: %u\n", recordSize);
 	} else {
 		LogError("Process_pcap: Unexpected version in %s line %d: %u\n", __FILE__, __LINE__, Node->version);
 		return 0;
 	}
 
 	// output buffer size check for all expected records
-	if ( !CheckBufferSpace(fs->nffile, pcap_output_record_size) ) {
+	recordSize += sizeof(recordHeaderV3_t);
+	if ( !CheckBufferSpace(fs->nffile, recordSize) ) {
 		// fishy! - should never happen. maybe disk full?
 		LogError("Process_pcap: output buffer size error. Abort pcap record processing");
 		return 0;
 	}
 
 	// map output record to memory buffer
-	common_record	= (common_record_t *)fs->nffile->buff_ptr;
+	AddV3Header(fs->nffile->buff_ptr, recordHeader);
 
 	// header data
-	common_record->flags		= 0;
-  	common_record->type			= CommonRecordType;
-	common_record->exporter_sysid = 0;
-	common_record->ext_map		= pcap_extension_map->map_id;
-	common_record->size			= pcap_output_record_size;
+    recordHeader->engineType = 0x11;
+    recordHeader->engineID   = 1;
 
-	// pcap common fields
-	common_record->srcPort		= Node->src_port;
-	common_record->dstPort		= Node->dst_port;
-	common_record->tcp_flags	= Node->flags;
-	common_record->prot			= Node->proto;
-	common_record->tos			= 0;
-	common_record->fwd_status 	= 0;
+    // pack V3 record
+    PushExtension(recordHeader, EXgenericFlow, genericFlow);
+    genericFlow->msecFirst = (1000 * Node->t_first.tv_sec) + Node->t_first.tv_usec / 1000;
+    genericFlow->msecLast  = (1000 * Node->t_last.tv_sec) + Node->t_last.tv_usec / 1000;
+
+	struct timeval now;
+	gettimeofday(&now, NULL);
+	genericFlow->msecReceived = now.tv_sec * 1000L + now.tv_usec / 1000;
+
+	genericFlow->inPackets	= Node->packets;
+	genericFlow->inBytes	= Node->bytes;
+
+    genericFlow->proto     = Node->proto;
+    genericFlow->tcpFlags  = Node->flags;
+    genericFlow->srcPort   = Node->src_port;
+    genericFlow->dstPort   = Node->dst_port;
 
 	if ( Node->version == AF_INET6 ) {
-		SetFlag(common_record->flags, FLAG_IPV6_ADDR);
-		pcap_v6_block_t *pcap_v6_block = (pcap_v6_block_t *)common_record->data;
-		pcap_v6_block->srcaddr[0] = Node->src_addr.v6[0];
-		pcap_v6_block->srcaddr[1] = Node->src_addr.v6[1];
-		pcap_v6_block->dstaddr[0] = Node->dst_addr.v6[0];
-		pcap_v6_block->dstaddr[1] = Node->dst_addr.v6[1];
-		pcap_v6_block->dPkts	  = packets = Node->packets;
-		pcap_v6_block->dOctets	  = bytes   = Node->bytes;
-
-		data_ptr = (void *)pcap_v6_block->data;
+		SetFlag(recordHeader->flags, FLAG_IPV6_ADDR);
+		PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
+		ipv6Flow->srcAddr[0] = Node->src_addr.v6[0];
+		ipv6Flow->srcAddr[1] = Node->src_addr.v6[1];
+		ipv6Flow->dstAddr[0] = Node->dst_addr.v6[0];
+		ipv6Flow->dstAddr[1] = Node->dst_addr.v6[1];
 	} else {
-		pcap_v4_block_t *pcap_v4_block = (pcap_v4_block_t *)common_record->data;
-		pcap_v4_block->srcaddr = Node->src_addr.v4;
-		pcap_v4_block->dstaddr = Node->dst_addr.v4;
-		pcap_v4_block->dPkts   = packets = Node->packets;
-		pcap_v4_block->dOctets = bytes   = Node->bytes;
-
-		data_ptr = (void *)pcap_v4_block->data;
+		PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
+		ipv4Flow->srcAddr = Node->src_addr.v4;
+		ipv4Flow->dstAddr = Node->dst_addr.v4;
 	}
 
-	// process optional extensions
-	j = 0;
-	while ( (id = pcap_extension_map->ex_id[j]) != 0 ) {
-		switch (id) {
-			case EX_IO_SNMP_2:	{	// 2 byte input/output interface index
-				tpl_ext_4_t *tpl = (tpl_ext_4_t *)data_ptr;
- 					tpl->input  = 0;
- 					tpl->output = 0;
-				data_ptr = (void *)tpl->data;
-				} break;
-			case EX_LATENCY:	{	// latecy extension
-				tpl_ext_latency_t *tpl = (tpl_ext_latency_t *)data_ptr;
-					tpl->client_nw_delay_usec = Node->latency.client;
-					tpl->server_nw_delay_usec = Node->latency.server;
-					tpl->appl_latency_usec 	  = Node->latency.application;
-				data_ptr = (void *)tpl->data;
-				} break;
-			default:
-				// this should never happen, as pcap has no other extensions
-				LogError("Process_pcap: Unexpected extension %i for pcap record. Skip extension", id);
-		}
-		j++;
-	}
 
-	common_record->first 		= Node->t_first.tv_sec;
-	common_record->msec_first	= Node->t_first.tv_usec / 1000;
+/* future extension XXX
+	PushExtension(p, EXmacAddr, macAddr);
+	macAddr->inSrcMac   = Get_val48((void *)&sample->eth_src);
+	macAddr->outDstMac  = Get_val48((void *)&sample->eth_dst);
+	macAddr->inDstMac   = 0;
+	macAddr->outSrcMac  = 0;
+*/
 
-	common_record->last 		= Node->t_last.tv_sec;
-	common_record->msec_last	= Node->t_last.tv_usec / 1000;
+	PushExtension(recordHeader, EXlatency, latency);
+	latency->usecClientNwDelay = Node->latency.client;
+	latency->usecServerNwDelay = Node->latency.server;
+	latency->usecApplLatency   = Node->latency.application;
 
-	start_time = (1000LL * (uint64_t)common_record->first) + (uint64_t)common_record->msec_first;
-	end_time   = (1000LL * (uint64_t)common_record->last) + (uint64_t)common_record->msec_last;
 
 	// update first_seen, last_seen
-	if ( start_time < fs->first_seen )
-		fs->first_seen = start_time;
-	if ( end_time > fs->last_seen )
-		fs->last_seen = end_time;
+	if ( genericFlow->msecFirst  < fs->msecFirst )
+		fs->msecFirst = genericFlow->msecFirst ;
+	if ( genericFlow->msecLast > fs->msecLast )
+		fs->msecLast = genericFlow->msecLast;
 
 
 	// Update stats
-	switch (common_record->prot) {
+	stat_record_t *stat_record = fs->nffile->stat_record;
+	switch (genericFlow->proto) {
 		case IPPROTO_ICMP:
-		case IPPROTO_ICMPV6:
-			fs->nffile->stat_record->numflows_icmp++;
-			fs->nffile->stat_record->numpackets_icmp += packets;
-			fs->nffile->stat_record->numbytes_icmp   += bytes;
-			// fix odd CISCO behaviour for ICMP port/type in src port
-			if ( common_record->srcPort != 0 ) {
-				uint8_t *s1, *s2;
-				s1 = (uint8_t *)&(common_record->srcPort);
-				s2 = (uint8_t *)&(common_record->dstPort);
-				s2[0] = s1[1];
-				s2[1] = s1[0];
-				common_record->srcPort = 0;
-			}
+			stat_record->numflows_icmp++;
+			stat_record->numpackets_icmp += genericFlow->inPackets;
+			stat_record->numbytes_icmp   += genericFlow->inBytes;
 			break;
 		case IPPROTO_TCP:
-			fs->nffile->stat_record->numflows_tcp++;
-			fs->nffile->stat_record->numpackets_tcp += packets;
-			fs->nffile->stat_record->numbytes_tcp   += bytes;
+			stat_record->numflows_tcp++;
+			stat_record->numpackets_tcp += genericFlow->inPackets;
+			stat_record->numbytes_tcp   += genericFlow->inBytes;
 			break;
 		case IPPROTO_UDP:
-			fs->nffile->stat_record->numflows_udp++;
-			fs->nffile->stat_record->numpackets_udp += packets;
-			fs->nffile->stat_record->numbytes_udp   += bytes;
+			stat_record->numflows_udp++;
+			stat_record->numpackets_udp += genericFlow->inPackets;
+			stat_record->numbytes_udp   += genericFlow->inBytes;
 			break;
 		default:
-			fs->nffile->stat_record->numflows_other++;
-			fs->nffile->stat_record->numpackets_other += packets;
-			fs->nffile->stat_record->numbytes_other   += bytes;
+			stat_record->numflows_other++;
+			stat_record->numpackets_other += genericFlow->inPackets;
+			stat_record->numbytes_other   += genericFlow->inBytes;
 	}
+	stat_record->numflows++;
+	stat_record->numpackets	+= genericFlow->inPackets;
+	stat_record->numbytes	+= genericFlow->inBytes;
 
-	fs->nffile->stat_record->numflows++;
-	fs->nffile->stat_record->numpackets	+= packets;
-	fs->nffile->stat_record->numbytes	+= bytes;
-
-	if ( verbose ) {
+	if ( printRecord ) {
+		char *string;
 		master_record_t master_record;
-		ExpandRecord_v2((common_record_t *)common_record, &pcap_extension_info, NULL, &master_record);
+		memset((void *)&master_record, 0, sizeof(master_record_t));
+		ExpandRecord_v3(recordHeader, &master_record);
 	 	flow_record_to_raw(&master_record, &string, 0);
 		printf("%s\n", string);
 	}
 
 	// update file record size ( -> output buffer size )
 	fs->nffile->block_header->NumRecords += 1;
-	fs->nffile->block_header->size 		 += pcap_output_record_size;
-	fs->nffile->buff_ptr 				 = data_ptr;
+	fs->nffile->block_header->size 		 += recordSize;
+
+	dbg_assert(recordHeader->size == recordSize);
+
+	fs->nffile->buff_ptr += recordSize;
 
 	return 1;
 

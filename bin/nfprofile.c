@@ -53,6 +53,7 @@
 #include "nftree.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "nfxV3.h"
 #include "nfstat.h"
 #include "nfstatfile.h"
 #include "bookkeeper.h"
@@ -62,16 +63,11 @@
 #include "flist.h"
 #include "profile.h"
 
-/* externals */
-extern exporter_t **exporter_list;
-
 /* Global */
 char Ident[IDENTLEN];
 
 /* Local Variables */
 static const char *nfdump_version = VERSION;
-
-extension_map_list_t *extension_map_list;
 
 #ifdef HAVE_INFLUXDB
 	char influxdb_url[1024]="";
@@ -109,9 +105,7 @@ static void usage(char *name) {
 					"-t <time>\ttime for RRD update\n", name);
 } /* usage */
 
-
 static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot) {
-common_record_t	*flow_record;
 nffile_t		*nffile;
 FilterEngine_t	*engine;
 int 		i, j, done, ret ;
@@ -126,11 +120,16 @@ int 		i, j, done, ret ;
 		return;
 	}
 
-
     strncpy(Ident, FILE_IDENT(nffile), IDENTLEN);
     Ident[IDENTLEN-1] = '\0';
 	for ( int j=0; j < num_channels; j++ ) {
 		(channels[j].engine)->ident = Ident;
+	}
+
+	master_record_t *master_record = malloc(sizeof(master_record_t));
+	if ( !master_record ) {
+		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+		return;
 	}
 
 	done = 0;
@@ -172,30 +171,19 @@ int 		i, j, done, ret ;
 			continue;
 		}
 
-		flow_record = nffile->buff_ptr;
+		record_header_t	*record_ptr = nffile->buff_ptr;
 		uint32_t sumSize = 0;
 		for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
-			if ( (sumSize + flow_record->size) > ret || (flow_record->size < sizeof(record_header_t))) {
+			if ( (sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t)) ) {
 				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
 				exit(255);
 			}
-			sumSize += flow_record->size;
+			sumSize += record_ptr->size;
 
-			switch ( flow_record->type ) { 
-					case CommonRecordType: {
-					exporter_t *exp_info = exporter_list[flow_record->exporter_sysid];
-					uint32_t map_id = flow_record->ext_map;
-					master_record_t	*master_record;
-
-					if ( extension_map_list->slot[map_id] == NULL ) {
-						LogError("Corrupt data file. Missing extension map %u. Skip record.\n", flow_record->ext_map);
-						flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);	
-						continue;
-					} 
-	
-					master_record = &(extension_map_list->slot[map_id]->master_record);
-					ExpandRecord_v2( flow_record, extension_map_list->slot[flow_record->ext_map], 
-						exp_info ? &(exp_info->info) : NULL, master_record);
+			switch ( record_ptr->type ) { 
+				case V3Record:
+					memset((void *)master_record, 0, sizeof(master_record_t));
+					ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
 
 					for ( j=0; j < num_channels; j++ ) {
 						int match;
@@ -220,44 +208,20 @@ int 		i, j, done, ret ;
 						// check if we need to flush the output buffer
 						if ( channels[j].nffile != NULL ) {
 							// write record to output buffer
-							AppendToBuffer(channels[j].nffile, (void *)flow_record, flow_record->size);
+							AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
 						} 
 	
 					} // End of for all channels
 	
-					} break;
-				case ExtensionMapType: {
-					extension_map_t *map = (extension_map_t *)flow_record;
-
-					int ret = Insert_Extension_Map(extension_map_list, map);
-					switch (ret) {
-						case 0:
-							break; // map already known and flushed
-						case 1: {
-							int j;
-							for ( j=0; j < num_channels; j++ ) {
-								if ( channels[j].nffile != NULL ) {
-									// flush new map
-									AppendToBuffer(channels[j].nffile, (void *)map, map->size);
-								}
-							}
-							} break;
-						default:
-							LogError("Corrupt data file. Unable to decode at %s line %d\n", __FILE__, __LINE__);
-							exit(255);
-					}
-					if ( Insert_Extension_Map(extension_map_list, map) ) {
-					} // else map already known and flushed
-	
-					} break; 
+					break;
 				case ExporterInfoRecordType: {
-					int err = AddExporterInfo((exporter_info_record_t *)flow_record);
+					int err = AddExporterInfo((exporter_info_record_t *)record_ptr);
 					if ( err != 0 ) {
 						int j;
 						for ( j=0; j < num_channels; j++ ) {
 							if ( channels[j].nffile != NULL && err == 1) {
 								// flush new exporter
-								AppendToBuffer(channels[j].nffile, (void *)flow_record, flow_record->size);
+								AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
 							}
 						}
 					} else {
@@ -265,13 +229,13 @@ int 		i, j, done, ret ;
 					}
 					} break;
 				case SamplerInfoRecordype: {
-					int err = AddSamplerInfo((sampler_info_record_t *)flow_record);
+					int err = AddSamplerInfo((sampler_info_record_t *)record_ptr);
 					if ( err != 0 ) {
 						int j;
 						for ( j=0; j < num_channels; j++ ) {
 							if ( channels[j].nffile != NULL && err == 1 ) {
 								// flush new map
-								AppendToBuffer(channels[j].nffile, (void *)flow_record, flow_record->size);
+								AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
 							}
 						}
 					} else {
@@ -284,11 +248,11 @@ int 		i, j, done, ret ;
 						// Silently skip exporter records
 					break;
 				default:  {
-					LogError("Skip unknown record type %i\n", flow_record->type);
+					LogError("Skip unknown record type %i\n", record_ptr->type);
 				}
 			}
 			// Advance pointer by number of bytes for netflow record
-			flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);
+			record_ptr = (record_header_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
 
 		} // End of for all umRecords
 	} // End of while !done
@@ -650,7 +614,6 @@ time_t tslot;
 		exit(255);
 	}
 
-	extension_map_list = InitExtensionMaps(NEEDS_EXTENSION_LIST);
 	if ( !InitExporterList() ) {
 		exit(255);
 	}
@@ -660,8 +623,6 @@ time_t tslot;
 	process_data(GetChannelInfoList(), num_channels, tslot);
 
 	CloseChannels(tslot, compress);
-
-	FreeExtensionMaps(extension_map_list);
 
 	return 0;
 }

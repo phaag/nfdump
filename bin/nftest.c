@@ -66,13 +66,11 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
+#include "nfx.h"
 #include "nftree.h"
 #include "filter.h"
-#include "nfx.h"
 
 /* Global Variables */
-extern extension_descriptor_t extension_descriptor[];
-
 static char *CurrentIdent;
 static FilterEngine_t *Engine;
 
@@ -207,13 +205,11 @@ uint32_t recsize[4];
 
 int main(int argc, char **argv) {
 master_record_t flow_record;
-common_record_t c_record;
 uint64_t *blocks, l;
 uint32_t in[2];
 time_t	now;
 int ret, i;
 value64_t	v;
-void *p;
 
     if ( sizeof(struct in_addr) != sizeof(uint32_t) ) {
 #ifdef HAVE_SIZE_T_Z_FORMAT
@@ -224,22 +220,6 @@ void *p;
 		exit(255);
     }
 
-	i = 1;
-	do {
-		if ( extension_descriptor[i].id != i ) {
-        	printf("**** FAILED **** Extension id %u != index %u\n", 
-				extension_descriptor[i].id, i);
-		}
-	} while ( extension_descriptor[++i].id );
-
-	p = (void *)c_record.data;
-	if (( (pointer_addr_t)p - (pointer_addr_t)&c_record ) != COMMON_RECORD_DATA_SIZE ) {
-		printf("*** common record size missmatch: expected %i, found: %llu\n",	
-			(int)COMMON_RECORD_DATA_SIZE, (unsigned long long)((pointer_addr_t)p - (pointer_addr_t)&c_record));
-		exit(255);
-	} else {
-		printf("Common record size is %i\n", (int)COMMON_RECORD_DATA_SIZE);
-	}
 	i = 3;
 	printf("ALIGN BYTES: %lu\n", (long unsigned)ALIGN_BYTES);
 	printf("aligned: %i -> %lu\n", i, (long unsigned)(((u_int)(i) + ALIGN_BYTES) &~ ALIGN_BYTES));
@@ -263,12 +243,6 @@ void *p;
 	memset((void *)&flow_record, 0, sizeof(master_record_t));
 	blocks = (uint64_t *)&flow_record;
 
-#define BASEOFFSET offsetof(common_record_t, first)
-#ifdef USER_EXTENSION_1
-	printf("Offset is %lu\n", Offset_BASE_U1);
-#endif
-
-	check_offset("First    Offset", (unsigned int)((pointer_addr_t)&c_record.first	-  (pointer_addr_t)&c_record), BYTE_OFFSET_first);
 	check_offset("Src AS   Offset", (unsigned int)((pointer_addr_t)&flow_record.srcas  		-  (pointer_addr_t)&blocks[OffsetAS]), 0);
 	check_offset("Dst AS   Offset", (unsigned int)((pointer_addr_t)&flow_record.dstas  		-  (pointer_addr_t)&blocks[OffsetAS]), 4);
 	check_offset("Src Port Offset", (unsigned int)((pointer_addr_t)&flow_record.srcPort 	- (pointer_addr_t)&blocks[OffsetPort]), 0);

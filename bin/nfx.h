@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -162,8 +160,6 @@ typedef struct common_record_s {
 	// link to extensions
  	uint32_t	data[1];
 } common_record_t;
-
-#define COMMON_RECORD_DATA_SIZE   (sizeof(common_record_t) - sizeof(uint32_t) )
 
 #define COMMON_BLOCK	0
 
@@ -974,11 +970,7 @@ extension_map_list_t *InitExtensionMaps(int AllocateList);
 
 void FreeExtensionMaps(extension_map_list_t *extension_map_list);
 
-void PackExtensionMapList(extension_map_list_t *extension_map_list);
-
 int Insert_Extension_Map(extension_map_list_t *extension_map_list, extension_map_t *map);
-
-void SetupExtensionDescriptors(char *options);
 
 void PrintExtensionMap(extension_map_t *map);
 

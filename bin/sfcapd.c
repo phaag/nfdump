@@ -69,6 +69,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "nfxV3.h"
 #include "nfnet.h"
 #include "bookkeeper.h"
 #include "collector.h"
@@ -93,11 +94,8 @@
 
 #define DEFAULTSFLOWPORT "6343"
 
-/* Global Variables */
-void *shmem;
-
-/* globals */
-int verbose = 0;
+static void *shmem;
+static int verbose = 0;
 
 // Define a generic type to get data from socket or pcap file
 typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *, socklen_t *);
@@ -154,7 +152,7 @@ static void usage(char *name) {
 					"-4\t\tListen on IPv4 (default).\n"
 					"-6\t\tListen on IPv6.\n"
 					"-V\t\tPrint version and exit.\n"
-					"-Z\t\tAdd timezone offset to filenamet.\n"
+					"-Z\t\tAdd timezone offset to filename.\n"
 					, name);
 } // End of usage
 
@@ -327,19 +325,6 @@ int		err;
 
 } // End of SetPriv
 
-static void format_file_block_header(dataBlock_t *header) {
-	
-	printf("\n"
-"File Block Header: \n"
-"  NumBlocks     =  %10u\n"
-"  Size          =  %10u\n"
-"  id         	 =  %10u\n",
-		header->NumRecords,
-		header->size,
-		header->type);
-
-} // End of format_file_block_header
-
 #include "nffile_inline.c"
 #include "collector_inline.c"
 
@@ -379,8 +364,8 @@ srecord_t	*commbuff;
 
 		// init stat vars
 		fs->bad_packets		= 0;
-		fs->first_seen 		= (uint64_t)0xffffffffffffLL;
-		fs->last_seen 		= 0;
+		fs->msecFirst	= 0xffffffffffffLL;
+		fs->msecLast	= 0;
 
 		// next source
 		fs = fs->next;
@@ -470,11 +455,6 @@ srecord_t	*commbuff;
 				char error[255];
 				nffile_t *nffile = fs->nffile;
 
-				if ( verbose ) {
-					// Dump to stdout
-					format_file_block_header(nffile->block_header);
-				}
-
 				if ( nffile->block_header->NumRecords ) {
 					// flush current buffer to disc
 					if ( WriteBlock(nffile) <= 0 )
@@ -498,24 +478,20 @@ srecord_t	*commbuff;
 				nfcapd_filename[MAXPATHLEN-1] = '\0';
 
 				// update stat record
-				// if no flows were collected, fs->last_seen is still 0
-				// set first_seen to start of this time slot, with twin window size.
-				if ( fs->last_seen == 0 ) {
-					fs->first_seen = (uint64_t)1000 * (uint64_t)t_start;
-					fs->last_seen  = (uint64_t)1000 * (uint64_t)(t_start + twin);
+				if ( fs->msecLast == 0 ) {
+					fs->msecFirst = (uint64_t)1000 * (uint64_t)t_start;
+					fs->msecLast  = (uint64_t)1000 * (uint64_t)(t_start + twin);
 				}
-				nffile->stat_record->first_seen = fs->first_seen/1000;
-				nffile->stat_record->msec_first	= fs->first_seen - nffile->stat_record->first_seen*1000;
-				nffile->stat_record->last_seen 	= fs->last_seen/1000;
-				nffile->stat_record->msec_last	= fs->last_seen - nffile->stat_record->last_seen*1000;
-	
+				nffile->stat_record->first_seen = fs->msecFirst/1000;
+				nffile->stat_record->msec_first	= fs->msecFirst - nffile->stat_record->first_seen*1000;
+				nffile->stat_record->last_seen 	= fs->msecLast/1000;
+				nffile->stat_record->msec_last	= fs->msecLast - nffile->stat_record->last_seen*1000;
+
 				// Flush Exporter Stat to file
 				FlushExporterStats(fs);
 				// Write Stat record and close file
 				CloseUpdateFile(nffile);
 
-				// if rename fails, we are in big trouble, as we need to get rid of the old .current file
-				// otherwise, we will loose flows and can not continue collecting new flows
 				if ( rename(fs->current, nfcapd_filename) < 0 ) {
 					LogError("Ident: %s, Can't rename dump file: %s", fs->Ident,  strerror(errno));
 					LogError("Ident: %s, Serious Problem! Fix manually", fs->Ident);
@@ -542,8 +518,9 @@ srecord_t	*commbuff;
 
 				// reset stat record
 				fs->bad_packets = 0;
-				fs->first_seen 	= 0xffffffffffffLL;
-				fs->last_seen 	= 0;
+				fs->msecFirst	= 0xffffffffffffLL;
+				fs->msecLast	= 0;
+
 
 				if ( !done ) {
 					fs->nffile = OpenNewFile(fs->current, fs->nffile, compress, NOT_ENCRYPTED);
@@ -663,7 +640,7 @@ srecord_t	*commbuff;
 int main(int argc, char **argv) {
  
 char	*bindhost, *datadir, pidstr[32], *launch_process;
-char	*userid, *groupid, *checkptr, *listenport, *mcastgroup, *extension_tags;
+char	*userid, *groupid, *checkptr, *listenport, *mcastgroup;
 char	*Ident, *time_extension, pidfile[MAXPATHLEN];
 struct stat fstat;
 packet_function_t receive_packet;
@@ -705,9 +682,8 @@ char	*pcap_file = NULL;
 	}
 	Ident			= "none";
 	FlowSource		= NULL;
-	extension_tags	= DefaultExtensions;
 
-	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:n:p:J:P:R:S:T:t:x:ru:g:zZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:n:p:J:P:R:S:t:x:ru:g:zZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -846,14 +822,6 @@ char	*pcap_file = NULL;
 					break;
 				}
 				break;
-			case 'T': {
-				size_t len = strlen(optarg);
-				extension_tags = optarg;
-				if ( len == 0 || len > 128 ) {
-					fprintf(stderr, "Extension length error. Unexpected option '%s'\n", extension_tags);
-					exit(255);
-				}
-				break; }
 			case 'S':
 				subdir_index = atoi(optarg);
 				break;
@@ -900,9 +868,6 @@ char	*pcap_file = NULL;
 		fprintf(stderr, "ERROR, -Z timezone extension breaks expire -e\n");
 		exit(255);
 	}
-
-	InitExtensionMaps(NO_EXTENSION_LIST);
-	SetupExtensionDescriptors(strdup(extension_tags));
 
 	if ( FlowSource == NULL && datadir == NULL ) {
 		fprintf(stderr, "ERROR, Missing -n (-l/-I) source definitions\n");

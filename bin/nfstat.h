@@ -71,7 +71,7 @@ int SetStat(char *str, int *element_stat, int *flow_stat);
 
 int Parse_PrintOrder(char *order);
 
-void AddStat(common_record_t *raw_record, master_record_t *flow_record );
+void AddStat(master_record_t *flow_record );
 
 void PrintFlowTable(printer_t print_record, outputParams_t *outputParams, int GuessDir, extension_map_list_t *extension_map_list);
 

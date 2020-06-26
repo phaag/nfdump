@@ -59,6 +59,7 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "nfx.h"
+#include "nfxV3.h"
 
 #include "nffile_inline.c"
 
@@ -560,7 +561,6 @@ int FlushInfoSampler(FlowSource_t *fs, sampler_info_record_t *sampler) {
 
 void FlushStdRecords(FlowSource_t *fs) {
 exporter_t *e = fs->exporter_data;
-int i;
 
 	while ( e ) {
 		sampler_t *sampler = e->sampler;
@@ -571,12 +571,6 @@ int i;
 		}
 		e = e->next;
 	}
-
-    for ( i=0; i<fs->extension_map_list.next_free; i++ ) {
-        extension_map_t *map = fs->extension_map_list.maps[i];
-		if ( map ) 
-			AppendToBuffer(fs->nffile, (void *)map, map->size);
-    }
 
 } // End of FlushStdRecords
 

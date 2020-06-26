@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2015, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -37,7 +35,7 @@
 #include "nffile.h"
 #include "nfx.h"
 
-int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir, int date_sorted, extension_map_list_t *extension_map_list);
+int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir, int date_sorted);
 
 #endif //_NFEXPORT_H
 

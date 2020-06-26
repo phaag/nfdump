@@ -52,6 +52,8 @@ static inline uint64_t	Get_val64(void *p);
 
 static inline uint64_t	Get_val(void *p, uint32_t index, uint32_t length);
 
+static inline void	Put_val8(uint8_t v, void *p);
+
 static inline void	Put_val16(uint16_t v, void *p);
 
 static inline void	Put_val24(uint32_t v, void *p);
@@ -266,8 +268,15 @@ static inline uint64_t Get_val(void *p, uint32_t index, uint32_t length) {
 
 } // End of Get_val
 
+static inline void	Put_val8(uint8_t v, void *p) {
+uint8_t	*out = (uint8_t *)p;
+
+	out[0] = v;
+
+} // End of Put_val16
+
 static inline void	Put_val16(uint16_t v, void *p) {
-uint8_t		*out = (uint8_t *)p;
+uint8_t	*out = (uint8_t *)p;
 type_mask_t mask;
 
 	mask.val.val16[0] = v;
@@ -277,7 +286,7 @@ type_mask_t mask;
 } // End of Put_val16
 
 static inline void	Put_val24(uint32_t v, void *p) {
-uint8_t		*out = (uint8_t *)p;
+uint8_t	*out = (uint8_t *)p;
 type_mask_t mask;
 
 	mask.val.val32[0] = v;
@@ -288,7 +297,7 @@ type_mask_t mask;
 } // End of Put_val24
 
 static inline void	Put_val32(uint32_t v, void *p) {
-uint8_t		*out = (uint8_t *)p;
+uint8_t	*out = (uint8_t *)p;
 type_mask_t mask;
 
 	mask.val.val32[0] = v;
@@ -318,7 +327,7 @@ type_mask_t mask;
  */
 
 static inline void	Put_val48(uint64_t v, void *p) {
-uint8_t		*out = (uint8_t *)p;
+uint8_t	*out = (uint8_t *)p;
 type_mask_t mask;
 
 	mask.val.val64 = v;
@@ -335,7 +344,7 @@ type_mask_t mask;
  * not yet used
  *
 static inline void	Put_val56(uint64_t v, void *p) {
-uint8_t		*out = (uint8_t *)p;
+uint8_t	*out = (uint8_t *)p;
 type_mask_t mask;
 
 	mask.val.val64 = v;
@@ -352,7 +361,7 @@ type_mask_t mask;
  */
 
 static inline void	Put_val64(uint64_t v, void *p) {
-uint8_t		*out = (uint8_t *)p;
+uint8_t	*out = (uint8_t *)p;
 type_mask_t mask;
 
 	mask.val.val64 = v;

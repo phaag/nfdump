@@ -60,6 +60,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "nfxV3.h"
 #include "flist.h"
 #include "nftree.h"
 #include "nfnet.h"
@@ -194,9 +195,7 @@ double 					fps;
 } // End of send_blast
 
 static void send_data(char *rfile, timeWindow_t *timeWindow,
-			uint32_t count, unsigned int delay, int confirm, int netflow_version, int distribution) {
-master_record_t	master_record;
-common_record_t	*flow_record;
+			uint32_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
 nffile_t		*nffile;
 int 			i, done, ret, again;
 uint32_t		numflows, cnt;
@@ -209,7 +208,10 @@ uint64_t	twin_msecFirst, twin_msecLast;
 
 	if ( timeWindow ) {
 		twin_msecFirst = timeWindow->first * 1000LL;
-		twin_msecLast  = timeWindow->last * 1000LL;
+		if ( timeWindow->last ) 
+			twin_msecLast  = timeWindow->last * 1000LL;
+		else
+			twin_msecLast  = 0x7FFFFFFFFFFFFFFFLL;
 	} else {
 		twin_msecFirst = twin_msecLast = 0;
 	}
@@ -236,17 +238,22 @@ uint64_t	twin_msecFirst, twin_msecLast;
 	peer.buff_ptr = peer.send_buffer;
 	peer.endp  	  = (void *)((pointer_addr_t)peer.send_buffer + UDP_PACKET_SIZE - 1);
 
-	if ( netflow_version == 5 ) 
+	void *sender_data = NULL;
+	if ( netflow_version == 5 ) {
 		Init_v5_v7_output(&peer);
-	else 
-		Init_v9_output(&peer);
+	} else {
+		sender_data = Init_v9_output(&peer);
+		if ( !sender_data ) 
+			return;
+	}
 
 	numflows	= 0;
 	done	 	= 0;
 
 	// setup Filter Engine to point to master_record, as any record read from file
 	// is expanded into this record
-	Engine->nfrecord = (uint64_t *)&master_record;
+	master_record_t *master_record = malloc(sizeof(master_record_t));
+	Engine->nfrecord = (uint64_t *)master_record;
 	Engine->ident = nffile->ident;
 
 	cnt = 0;
@@ -284,58 +291,42 @@ uint64_t	twin_msecFirst, twin_msecLast;
 			continue;
 		}
 
-		// cnt is the number of blocks, which survived the filter
+		// cnt is the number of blocks, which matched the filter
 		// and added to the output buffer
-		flow_record = nffile->buff_ptr;
+		record_header_t	*record_ptr = nffile->buff_ptr;
 		uint32_t sumSize = 0;
 		for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
-			int match;
-
-			if (count && (numflows >= count))
-				break;
-
-			if ( (sumSize + flow_record->size) > ret ) {
+			if ( (sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t)) ) {
 				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
 				exit(255);
 			}
-			sumSize += flow_record->size;
+			sumSize += record_ptr->size;
 
-			switch ( flow_record->type ) {
-				case CommonRecordType: {
-					if ( extension_map_list->slot[flow_record->ext_map] == NULL ) {
-						LogError("Corrupt data file. Missing extension map %u. Skip record.\n", flow_record->ext_map);
-						flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);	
-						continue;
-					} 
-
-					// if no filter is given, the result is always true
-					ExpandRecord_v2( flow_record, extension_map_list->slot[flow_record->ext_map], NULL, &master_record);
-
-					match = 1;
-					if ( timeWindow ) {
-						match = 0;
-						if (twin_msecFirst && (master_record.msecFirst > twin_msecFirst))
-							match = 1;
-						if (twin_msecLast && master_record.msecLast < twin_msecLast )
-							match = 1;
-					}
+			switch ( record_ptr->type ) {
+				case V3Record: {
+					int match;
+					memset((void *)master_record, 0, sizeof(master_record_t));
+					ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
+					// Time based filter
+					// if no time filter is given, the result is always true
+					match = twin_msecFirst && 
+						(master_record->msecFirst < twin_msecFirst ||  master_record->msecLast > twin_msecLast) ? 0 : 1;
+					match &= limitRecords ? numflows < limitRecords : 1;
 
 					// filter netflow record with user supplied filter
 					if ( match ) 
 						match = (*Engine->FilterEngine)(Engine);
 	
 					if ( match == 0 ) { // record failed to pass all filters
-						// increment pointer by number of bytes for netflow record
-						flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);	
 						// go to next record
-						continue;
+						goto NEXT;
 					}
 					// Records passed filter -> continue record processing
 
 					if ( netflow_version == 5 ) 
-						again = Add_v5_output_record(&master_record, &peer);
+						again = Add_v5_output_record(master_record, &peer);
 					else
-						again = Add_v9_output_record(&master_record, &peer);
+						again = Add_v9_output_record(master_record, sender_data, &peer);
 	
 					cnt++;
 					numflows++;
@@ -359,25 +350,10 @@ uint64_t	twin_msecFirst, twin_msecLast;
 	
 					if ( again ) {
 						if ( netflow_version == 5 ) 
-							Add_v5_output_record(&master_record, &peer);
+							Add_v5_output_record(master_record, &peer);
 						else
-							Add_v9_output_record(&master_record, &peer);
+							Add_v9_output_record(master_record, sender_data, &peer);
 						cnt++;
-					}
-
-					} break;
-				case ExtensionMapType: {
-					extension_map_t *map = (extension_map_t *)flow_record;
-
-					int ret = Insert_Extension_Map(extension_map_list, map);
-					switch (ret) {
-						case 0:
-							break; // map already known and flushed
-						case 1:
-							break; // new map
-						default:
-							LogError("Corrupt data file. Unable to decode at %s line %d\n", __FILE__, __LINE__);
-							exit(255);
 					}
 
 					} break;
@@ -389,14 +365,14 @@ uint64_t	twin_msecFirst, twin_msecLast;
 						// Silently skip exporter/sampler records
 					break;
 			 	default: {
-					LogError("Skip unknown record type %i\n", flow_record->type);
+					LogError("Skip unknown record type %i\n", record_ptr->type);
 				}
 			}
 
 			// z-parameter
 			//first and last are line (tstart and tend) timestamp with milliseconds
-			// first = (double) flow_record->first + ((double)flow_record->msec_first / 1000);
-			double last = (double) flow_record->last + ((double)flow_record->msec_last / 1000);
+			// first = (double)master_record->msecFirst / 1000.0;
+			double last = (double)master_record->msecLast / 1000.0;
 
 			gettimeofday(&currentTime, NULL);
 			double now =  (double)currentTime.tv_sec + (double)currentTime.tv_usec / 1000000;
@@ -417,14 +393,15 @@ uint64_t	twin_msecFirst, twin_msecLast;
 			}
 			reducer++;
 
+			NEXT:
 			// Advance pointer by number of bytes for netflow record
-			flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);	
+			record_ptr = (record_header_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
 
 		}
 	} // while
 
 	// flush still remaining records
-	if ( cnt ) {
+	if ( Close_v9_output(sender_data, &peer) ) {
 		ret = FlushBuffer(confirm);
 
 		if ( ret < 0 ) {
@@ -619,8 +596,6 @@ timeWindow_t *timeWindow;
 		exit(0);
 	}
 
-	extension_map_list = InitExtensionMaps(NEEDS_EXTENSION_LIST);
-
 	if ( tstring ) {
 		timeWindow = ScanTimeFrame(tstring);
 		if ( !timeWindow )
@@ -630,8 +605,6 @@ timeWindow_t *timeWindow;
 	SetupInputFileSequence(NULL,rfile, NULL, timeWindow);
 
 	send_data(rfile, timeWindow, count, delay, confirm, netflow_version,distribution);
-
-	FreeExtensionMaps(extension_map_list);
 
 	return 0;
 }

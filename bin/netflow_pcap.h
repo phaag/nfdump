@@ -1,8 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2013, Peter Haag
+ *  Copyright (c) 2013-2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -39,7 +36,7 @@
 #include "collector.h"
 #include "flowtree.h"
 
-int Init_pcap2nf(void);
+int Init_pcap2nf(int verbose);
 
 int StorePcapFlow(FlowSource_t *fs, struct FlowNode *Node);
 

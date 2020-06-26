@@ -50,6 +50,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfx.h"
+#include "nfxV3.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
@@ -1057,7 +1058,7 @@ StatRecord_t	*record;
 
 } // End of stat_hash_insert
 
-void AddStat(common_record_t *raw_record, master_record_t *flow_record ) {
+void AddStat(master_record_t *flow_record ) {
 StatRecord_t		*stat_record;
 uint64_t			value[2][2];
 int	j, i;
@@ -1488,9 +1489,8 @@ char				*string;
 		for ( i=0; i<=FlowTable->IndexMask; i++ ) {
 			r = FlowTable->bucket[i];
 			while ( r ) {
-				master_record_t	*flow_record;
-				common_record_t *raw_record;
-				int map_id;
+				master_record_t	flow_record;
+				recordHeaderV3_t *raw_record;
 
 				if ( outputParams->topN && c >= outputParams->topN )
 					return;
@@ -1513,33 +1513,33 @@ char				*string;
 					}
 				}
 
-				raw_record = (common_record_t *)(r->rawRecord);
-				map_id = r->map_info_ref->map->map_id;
-
-				flow_record = &(extension_map_list->slot[map_id]->master_record);
-				ExpandRecord_v2( raw_record, extension_map_list->slot[map_id], r->exp_ref, flow_record);
-				flow_record->dPkts 		= r->counter[INPACKETS];
-				flow_record->dOctets 	= r->counter[INBYTES];
-				flow_record->out_pkts 	= r->counter[OUTPACKETS];
-				flow_record->out_bytes 	= r->counter[OUTBYTES];
-				flow_record->aggr_flows = r->counter[FLOWS];
+				raw_record = &(r->flowrecord);
+				memset((void *)&flow_record, 0, sizeof(master_record_t));
+				ExpandRecord_v3(raw_record, &flow_record);
+				flow_record.dPkts 		= r->counter[INPACKETS];
+				flow_record.dOctets 	= r->counter[INBYTES];
+				flow_record.out_pkts 	= r->counter[OUTPACKETS];
+				flow_record.out_bytes 	= r->counter[OUTBYTES];
+				flow_record.aggr_flows	= r->counter[FLOWS];
+				flow_record.msecFirst	= r->msecFirst;
+				flow_record.msecLast	= r->msecLast;
 
 				// apply IP mask from aggregation, to provide a pretty output
 				if ( FlowTable->has_masks ) {
-					flow_record->V6.srcaddr[0] &= FlowTable->IPmask[0];
-					flow_record->V6.srcaddr[1] &= FlowTable->IPmask[1];
-					flow_record->V6.dstaddr[0] &= FlowTable->IPmask[2];
-					flow_record->V6.dstaddr[1] &= FlowTable->IPmask[3];
+					flow_record.V6.srcaddr[0] &= FlowTable->IPmask[0];
+					flow_record.V6.srcaddr[1] &= FlowTable->IPmask[1];
+					flow_record.V6.dstaddr[0] &= FlowTable->IPmask[2];
+					flow_record.V6.dstaddr[1] &= FlowTable->IPmask[3];
 				}
 
 				if ( aggr_record_mask ) {
-					ApplyAggrMask(flow_record, aggr_record_mask);
+					ApplyAggrMask(&flow_record, aggr_record_mask);
 				}
 
-				if (NeedSwap(GuessDir, flow_record))
-					SwapFlow(flow_record);
+				if (NeedSwap(GuessDir, &flow_record))
+					SwapFlow(&flow_record);
 
-				print_record((void *)flow_record, &string, outputParams->doTag);
+				print_record((void *)&flow_record, &string, outputParams->doTag);
 				printf("%s\n", string);
 
 				c++;
@@ -1674,12 +1674,15 @@ int	i, max;
 	aggr_record_mask = GetMasterAggregateMask();
 
 	max = maxindex;
+	if ( outputParams->topN && outputParams->topN < maxindex )
+		max = outputParams->topN;
+
 	for ( i = 0; i < max; i++ ) {
-		master_record_t	*flow_record;
-		common_record_t *raw_record;
+		master_record_t	flow_record;
+		recordHeaderV3_t *raw_record;
 		FlowTableRecord_t	*r;
 		char	*string;
-		int map_id, j;
+		int j;
 
 		if ( ascending )
 			j = i;
@@ -1687,40 +1690,42 @@ int	i, max;
 			j = maxindex - 1 - i;
 
 		r = (FlowTableRecord_t *)(SortList[j].record);
-		raw_record = (common_record_t *)(r->rawRecord);
-		map_id = r->map_info_ref->map->map_id;
+		raw_record = &(r->flowrecord);
 
-		flow_record = &(extension_map_list->slot[map_id]->master_record);
-		ExpandRecord_v2( raw_record, extension_map_list->slot[map_id], r->exp_ref, flow_record);
-		flow_record->dPkts 		= r->counter[INPACKETS];
-		flow_record->dOctets 	= r->counter[INBYTES];
-		flow_record->out_pkts 	= r->counter[OUTPACKETS];
-		flow_record->out_bytes 	= r->counter[OUTBYTES];
-		flow_record->aggr_flows 	= r->counter[FLOWS];
-		
+		memset((void *)&flow_record, 0, sizeof(master_record_t));
+		ExpandRecord_v3(raw_record, &flow_record);
+
+		flow_record.dPkts 		= r->counter[INPACKETS];
+		flow_record.dOctets 	= r->counter[INBYTES];
+		flow_record.out_pkts 	= r->counter[OUTPACKETS];
+		flow_record.out_bytes 	= r->counter[OUTBYTES];
+		flow_record.aggr_flows 	= r->counter[FLOWS];
+		flow_record.msecFirst	= r->msecFirst;
+		flow_record.msecLast	= r->msecLast;
+
 		// apply IP mask from aggregation, to provide a pretty output
 		if ( FlowTable->has_masks ) {
-			flow_record->V6.srcaddr[0] &= FlowTable->IPmask[0];
-			flow_record->V6.srcaddr[1] &= FlowTable->IPmask[1];
-			flow_record->V6.dstaddr[0] &= FlowTable->IPmask[2];
-			flow_record->V6.dstaddr[1] &= FlowTable->IPmask[3];
+			flow_record.V6.srcaddr[0] &= FlowTable->IPmask[0];
+			flow_record.V6.srcaddr[1] &= FlowTable->IPmask[1];
+			flow_record.V6.dstaddr[0] &= FlowTable->IPmask[2];
+			flow_record.V6.dstaddr[1] &= FlowTable->IPmask[3];
 		}
 
 		if ( FlowTable->apply_netbits ) {
-			int src_mask = flow_record->src_mask;
-			int dst_mask = flow_record->dst_mask;
-			ApplyNetMaskBits(flow_record, FlowTable->apply_netbits);
+			int src_mask = flow_record.src_mask;
+			int dst_mask = flow_record.dst_mask;
+			ApplyNetMaskBits(&flow_record, FlowTable->apply_netbits);
 			if ( aggr_record_mask )
-				ApplyAggrMask(flow_record, aggr_record_mask);
-			flow_record->src_mask = src_mask;
-			flow_record->dst_mask = dst_mask;
+				ApplyAggrMask(&flow_record, aggr_record_mask);
+			flow_record.src_mask = src_mask;
+			flow_record.dst_mask = dst_mask;
 		} else if ( aggr_record_mask )
-			ApplyAggrMask(flow_record, aggr_record_mask);
+			ApplyAggrMask(&flow_record, aggr_record_mask);
 
-		if ( NeedSwap(GuessFlowDirection, flow_record) )
-			SwapFlow(flow_record);
+		if ( NeedSwap(GuessFlowDirection, &flow_record) )
+			SwapFlow(&flow_record);
 
-		print_record((void *)flow_record, &string, outputParams->doTag);
+		print_record((void *)&flow_record, &string, outputParams->doTag);
 		printf("%s\n", string);
 	}
 
