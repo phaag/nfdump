@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -29,13 +28,59 @@
  *  
  */
 
-#ifndef _NFEXPORT_H
-#define _NFEXPORT_H 1
+#ifndef _QUEUE_H
+#define _QUEUE_H 1
 
-#include "nffile.h"
-#include "nfx.h"
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
-int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir, int date_sorted);
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
 
-#endif //_NFEXPORT_H
+#define QUEUE_FULL	 (void *)-1
+#define QUEUE_EMPTY	 (void *)-2
+#define QUEUE_CLOSED (void *)-3
+
+typedef struct element_s {
+	void	*data;
+} element_t;
+
+typedef struct queue_s {
+	pthread_mutex_t mutex;
+	pthread_cond_t  cond;
+	uint32_t	closed;	
+
+	size_t		length;
+	size_t		mask;
+	unsigned	next_free;
+	unsigned	next_avail;
+	unsigned	c_wait;
+	unsigned	p_wait;
+	size_t		num_elements;
+	size_t		max_used;
+
+	void		*element[1];
+} queue_t;
+
+queue_t *queue_init(size_t length);
+
+void queue_free(queue_t *queue);
+
+void *queue_push(queue_t *queue, void *data);
+
+void *queue_pop(queue_t *queue);
+
+void queue_open(queue_t *queue);
+
+void queue_close(queue_t *queue);
+
+void queue_sync(queue_t *queue);
+
+size_t queue_length(queue_t *queue);
+
+uint32_t queue_done(queue_t *queue);
+
+#endif // _QUEUE_H
 

@@ -86,49 +86,42 @@ int ret;
  * 
  */
 void  nfprof_print(nfprof_t *profile_data, FILE *std) {
-u_long usec, sec;
-double fps, allsecs;
+struct timeval tv;
 
-	usec = profile_data->used.ru_utime.tv_usec + profile_data->used.ru_stime.tv_usec;
-	sec = profile_data->used.ru_utime.tv_sec + profile_data->used.ru_stime.tv_sec;
+    gettimeofday(&tv, NULL);
 
-	if (usec > 1000000)
-		usec -= 1000000, ++sec;
+	double tsys  = profile_data->used.ru_stime.tv_sec + profile_data->used.ru_stime.tv_usec / 1000000.0;
+	double tuser = profile_data->used.ru_utime.tv_sec + profile_data->used.ru_utime.tv_usec / 1000000.0;
 
-	
-	allsecs = (double)sec + ((double)usec/1000000);
-	if ( allsecs == 0.0 ) 
-		fps = 0;
-	else
-		fps = (double)profile_data->numflows / ((double)sec + ((double)usec/1000000));
+	double tstart = profile_data->tstart.tv_sec + profile_data->tstart.tv_usec / 1000000.0;
+	double tend   = profile_data->tend.tv_sec + profile_data->tend.tv_usec / 1000000.0;
+	double tstop  = tv.tv_sec + tv.tv_usec / 1000000.0;
 
-	fprintf(std, "Sys: %lu.%-3.3lus flows/second: %-10.1f ", sec, usec/1000, fps);
-
-	if (profile_data->tend.tv_usec < profile_data->tstart.tv_usec) 
-		profile_data->tend.tv_usec += 1000000, --profile_data->tend.tv_sec;
-
-	usec = profile_data->tend.tv_usec - profile_data->tstart.tv_usec;
-	sec = profile_data->tend.tv_sec - profile_data->tstart.tv_sec;
-
-	if ( usec == 0 && sec == 0 ) 
+	double fps;
+	if ( tstart == tend ) 
 		// acctually should never happen, but catch it anyway
 		fps = 0;
 	else
-		fps = (double)profile_data->numflows / ((double)sec + ((double)usec/1000000));
+		fps = (double)profile_data->numflows / (tend-tstart);
 
-	fprintf(std, "Wall: %lu.%-3.3lus flows/second: %-10.1f\n", sec, usec/1000, fps);
-/*
+	fprintf(std, "Sys: %.4fs User: %.4fs Wall: %.4fs flows/second: %-10.1f Runtime: %.4fs\n", 
+			tsys, tuser, tend-tstart, fps, tstop-tstart);
+
 	fprintf(std, "\n");
-	fprintf(std, "integral max resident set size: %u\n", profile_data->used.ru_maxrss);
-	fprintf(std, "integral shared text memory size: %u\n", profile_data->used.ru_ixrss);
-	fprintf(std, "integral unshared data size: %u\n", profile_data->used.ru_idrss);
-	fprintf(std, "integral unshared stack size: %u\n", profile_data->used.ru_isrss);
-	fprintf(std, "page reclaims: %u\n", profile_data->used.ru_minflt);
-	fprintf(std, "page faults: %u\n", profile_data->used.ru_majflt);
-	fprintf(std, "swaps: %u\n", profile_data->used.ru_nswap);
-	fprintf(std, "block input operations: %u\n", profile_data->used.ru_inblock);
-	fprintf(std, "block output operations: %u\n", profile_data->used.ru_oublock);
+	fprintf(std, "Max RSS: %ld\n", profile_data->used.ru_maxrss);
+/*
+	fprintf(std, "integral shared text memory size: %ld\n", profile_data->used.ru_ixrss);
+	fprintf(std, "integral unshared data size: %ld\n", profile_data->used.ru_idrss);
+	fprintf(std, "integral unshared stack size: %ld\n", profile_data->used.ru_isrss);
 */
+	fprintf(std, "page reclaims: %ld\n", profile_data->used.ru_minflt);
+	fprintf(std, "page faults: %ld\n", profile_data->used.ru_majflt);
+	fprintf(std, "swaps: %ld\n", profile_data->used.ru_nswap);
+/*
+	fprintf(std, "block input operations: %ld\n", profile_data->used.ru_inblock);
+	fprintf(std, "block output operations: %ld\n", profile_data->used.ru_oublock);
+*/
+
 
 } // End of nfprof_print
 

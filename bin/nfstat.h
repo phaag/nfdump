@@ -44,43 +44,26 @@
 #include "nfx.h"
 #include "nffile.h"
 
-#define MULTIPLE_LIST_ORDERS 1
-#define SINGLE_LIST_ORDER    0
-
-#define NeedSwap(GuessDir, r) ( GuessDir && \
-	((r)->proto == IPPROTO_TCP || (r)->proto == IPPROTO_UDP) && \
-	 ((((r)->srcPort < 1024) && ((r)->dstPort >= 1024)) || \
-	  (((r)->srcPort < 32768) && ((r)->dstPort >= 32768)) || \
-	  (((r)->srcPort < 49152) && ((r)->dstPort >= 49152)) \
-	 ) \
-	)
-
+/*
 typedef struct SortElement {
 	void 		*record;
     uint64_t	count;
 } SortElement_t;
+*/
 
 /* Function prototypes */
 void SetLimits(int stat, char *packet_limit_string, char *byte_limit_string );
 
-int Init_StatTable(uint16_t NumBits, uint32_t Prealloc);
+int Init_StatTable(void);
 
 void Dispose_StatTable(void);
 
 int SetStat(char *str, int *element_stat, int *flow_stat);
 
-int Parse_PrintOrder(char *order);
+void AddElementStat(master_record_t *flow_record );
 
-void AddStat(master_record_t *flow_record );
-
-void PrintFlowTable(printer_t print_record, outputParams_t *outputParams, int GuessDir, extension_map_list_t *extension_map_list);
-
-void PrintFlowStat(func_prolog_t record_header, printer_t print_record, outputParams_t *outputParams, extension_map_list_t *extension_map_list);
 void PrintElementStat(stat_record_t	*sum_stat, outputParams_t *outputParams, printer_t print_record);
-
-int ParseListOrder(char *s, int multiple_orders );
 
 void PrintSortedFlows(printer_t print_record, uint32_t limitflows, int tag);
 
-void SwapFlow(master_record_t *flow_record);
 #endif //_NFSTAT_H

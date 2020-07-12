@@ -89,8 +89,8 @@ uint32_t size = sizeof(recordHeaderV3_t);
 	output_record->engine_id = v3Record->engineID;
 
 	if ( v3Record->size < size ) {
-		LogError("Size error v3Record: '%u'", v3Record->size);
-		exit(255);
+		LogError("ExpandRecord_v3() Unexpected size: '%u'", v3Record->size);
+		abort();
 	}
 
 	dbg_printf("Record announces %u extensions with total size %u\n", v3Record->numElements, v3Record->size);

@@ -38,7 +38,7 @@ output += output_json.c output_json.h output_csv.c output_csv.h output_pipe.c ou
 output += output_fmt.c output_fmt.h 
 util = util.c util.h
 filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h
-nffile = nffile.c nffile.h nfx.c nfx.h nfxV3.h nfxV3.c
+nffile = nffile.c nffile.h lstack.c lstack.h queue.c queue.h nfx.c nfx.h nfxV3.h nfxV3.c
 nflist = flist.c flist.h fts_compat.c fts_compat.h
 filter = grammar.y scanner.l nftree.c nftree.h ipconv.c ipconv.h rbtree.h
 exporter = exporter.c exporter.h
@@ -63,12 +63,13 @@ launch = launch.c launch.h
 
 lib_LTLIBRARIES = libnfdump.la
 libnfdump_la_SOURCES = $(output) $(util) $(filelzo) $(nffile) $(nflist) $(filter) $(exporter)
-libnfdump_la_LDFLAGS = -release 1.6.19
+libnfdump_la_LDFLAGS = -release 1.7.0
 
 
-nfdump_SOURCES = $(util) nfdump.c nfdump.h nfstat.c nfstat.h nfexport.c nfexport.h  \
+nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h blocksort.h blocksort.c  \
 	$(nflowcache) $(nfprof)
 nfdump_LDADD = -lnfdump
+nfdump_LDFLAGS = -pthread
 nfdump_DEPENDENCIES = libnfdump.la
 
 nfreplay_SOURCES = nfreplay.c $(nfprof) \
@@ -76,7 +77,7 @@ nfreplay_SOURCES = nfreplay.c $(nfprof) \
 nfreplay_LDADD = -lnfdump
 nfreplay_DEPENDENCIES = libnfdump.la
 
-nfprofile_SOURCES = $(util) nfprofile.c profile.c profile.h $(nfstatfile) 
+nfprofile_SOURCES = nfprofile.c profile.c profile.h $(nfstatfile) 
 nfprofile_LDADD = -lnfdump -lrrd
 nfprofile_DEPENDENCIES = libnfdump.la
 
@@ -88,13 +89,13 @@ nftrack_LDADD = -lnfdump -lrrd
 nftrack_DEPENDENCIES = libnfdump.la
 
 nfcapd_SOURCES = nfcapd.c \
-	$(util) $(nfstatfile) $(launch) \
+	$(nfstatfile) $(launch) \
 	$(nfnet) $(collector) $(nfv1) $(nfv5v7) $(nfv9) $(ipfix) $(bookkeeper) $(expire)
 nfcapd_LDADD = -lnfdump 
 nfcapd_DEPENDENCIES = libnfdump.la
 
 nfpcapd_SOURCES = nfpcapd.c \
-	$(util) $(pcaproc) $(netflow_pcap) \
+	$(pcaproc) $(netflow_pcap) \
 	$(nfstatfile) $(launch) \
 	$(nfnet) $(collector) $(bookkeeper) $(expire) $(content)
 nfpcapd_LDADD = -lnfdump 

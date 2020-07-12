@@ -391,6 +391,9 @@ char   *ftfile, *wfile;
 		fd = 0;
 	}
 
+	if ( !Init_nffile(NULL) )
+		exit(254);
+
 	/* read from fd */
 	if (ftio_init(&ftio, fd, FT_IO_FLAG_READ) < 0)
 		fterr_errx(1, "ftio_init(): failed");

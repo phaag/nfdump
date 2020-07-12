@@ -83,6 +83,8 @@ typedef uint32_t	pointer_addr_t;
 #define ClearFlag(var, flag) 	(var &= ~flag)
 #define TestFlag(var, flag)		(var & flag)
 
+#define likely(x)       __builtin_expect((x),1)
+#define unlikely(x)     __builtin_expect((x),0)
 
 typedef struct stringlist_s {
 	uint32_t	block_size;
@@ -96,7 +98,11 @@ typedef struct timeWindow_s {
 	time_t last;
 } timeWindow_t;
 
-void xsleep(long sec);
+double t(void);
+
+void xsleep(long usec);
+
+int CheckPath(char *path, unsigned type);
 
 void EndLog(void);
 

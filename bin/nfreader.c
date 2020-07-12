@@ -75,13 +75,7 @@
 #include "nfxV3.h"
 #include "bookkeeper.h"
 #include "collector.h"
-#include "exporter.h"
 #include "flist.h"
-
-// module limited globals
-extension_map_list_t *extension_map_list;
-
-extern exporter_t **exporter_list;
 
 /* Function Prototypes */
 static void usage(char *name);
@@ -298,6 +292,10 @@ int			c;
 		fprintf(stderr, "-M needs either -r or -R to specify the file or file list. Add '-R .' for all files in the directories.\n");
 		exit(255);
 	}
+
+
+	if ( !Init_nffile() )
+		exit(254);
 
 	if ( !InitExporterList() ) {
 		exit(255);

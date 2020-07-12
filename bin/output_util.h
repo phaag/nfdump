@@ -37,11 +37,12 @@ typedef void (*printer_t)(void *, char **, int);
 typedef void (*func_prolog_t)(void);
 typedef void (*func_epilog_t)(void);
 
+enum { MODE_PLAIN = 0, MODE_PIPE, MODE_JSON, MODE_CSV};
 typedef struct outputParams_s {
 	bool printPlain;
 	bool doTag;
 	bool quiet;
-	bool modePipe, modeCsv, modeJson;
+	int  mode;
 	int  topN;
 } outputParams_t;
 

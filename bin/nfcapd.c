@@ -65,6 +65,7 @@
 
 #include "util.h"
 #include "nfdump.h"
+#include "flist.h"
 #include "nffile.h"
 #include "nfx.h"
 #include "nfxV3.h"
@@ -73,7 +74,6 @@
 #include "exporter.h"
 #include "collector.h"
 #include "launch.h"
-#include "flist.h"
 #include "nfstatfile.h"
 #include "netflow_v1.h"
 #include "netflow_v5_v7.h"
@@ -923,19 +923,13 @@ char	*pcap_file = NULL;
 				}
 				break; }
 			case 'l':
-				datadir = optarg;
-				if ( strlen(datadir) > MAXPATHLEN ) {
-					fprintf(stderr, "ERROR: Path too long!\n");
+				if ( !CheckPath(optarg, S_IFDIR) )
 					exit(255);
-				}
-				datadir = realpath(datadir, NULL);
-				if ( stat(datadir, &fstat) < 0 ) {
-					fprintf(stderr, "stat() failed on %s: %s\n", datadir, strerror(errno));
+
+				datadir = realpath(optarg, NULL);
+				if ( !datadir ) {
+					fprintf(stderr, "realpath() failed on %s: %s\n", datadir, strerror(errno));
 					exit(255);
-				}
-				if ( !(fstat.st_mode & S_IFDIR) ) {
-					fprintf(stderr, "No such directory: %s\n", datadir);
-					break;
 				}
 				break;
 			case 'S':
@@ -1018,6 +1012,10 @@ char	*pcap_file = NULL;
 	if ( !InitLog(do_daemonize, argv[0], SYSLOG_FACILITY, verbose) ) {
 		exit(255);
 	}
+
+	if ( !Init_nffile(NULL) )
+		exit(254);
+
 
 	if ( expire && spec_time_extension ) {
 		fprintf(stderr, "ERROR, -Z timezone extension breaks expire -e\n");

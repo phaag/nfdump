@@ -45,6 +45,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/resource.h>
+#include <sys/param.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -76,14 +77,7 @@
 #include "nfexport.h"
 #include "ipconv.h"
 
-/* hash parameters */
-#define NumPrealloc 128000
-
-#define AGGR_SIZE 7
-
-
 extern char	*FilterFilename;
-extern uint32_t loopcnt;
 
 /* Local Variables */
 static FilterEngine_t	*Engine;
@@ -93,10 +87,6 @@ static uint64_t total_bytes;
 static uint32_t recordCount;
 static uint32_t skipped_blocks;
 static time_t 	t_first_flow, t_last_flow;
-
-int hash_hit = 0; 
-int hash_miss = 0;
-int hash_skip = 0;
 
 extension_map_list_t *extension_map_list;
 
@@ -331,7 +321,7 @@ char 		bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_
 		pps = stat_record->numpackets / duration;			// packets per second
 		bpp = stat_record->numpackets ? stat_record->numbytes / stat_record->numpackets : 0;    // Bytes per Packet
 	}
-	if ( outputParams->modeCsv ) {
+	if ( outputParams->mode == MODE_CSV ) {
 		printf("Summary\n");
 		printf("flows,bytes,packets,avg_bps,avg_pps,avg_bpp\n");
 		printf("%llu,%llu,%llu,%llu,%llu,%llu\n",
@@ -350,14 +340,14 @@ char 		bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_
 
 } // End of PrintSummary
 
-__attribute__((noinline)) static int dofilter(master_record_t *master_record);
+__attribute__((noinline, unused)) static int dofilter(master_record_t *master_record);
 static int dofilter(master_record_t *master_record) {
 return (master_record->srcPort == 107 || master_record->dstPort == 107 ||
 master_record->srcPort == 106 || master_record->dstPort == 106 ||
 master_record->srcPort == 105 || master_record->dstPort == 105);
 }
 
-stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
+static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
 	printer_t print_record, timeWindow_t *timeWindow, uint64_t limitRecords, 
 	outputParams_t *outputParams, int compress) {
 nffile_t			*nffile_w, *nffile_r;
@@ -393,7 +383,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 	// Get the first file handle
 	nffile_r = GetNextFile(NULL);
 	if ( !nffile_r ) {
-		LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+		LogError("GetNextFile() error in %s line %d", __FILE__, __LINE__);
 		return stat_record;
 	}
 	if ( nffile_r == EMPTY_LIST ) {
@@ -491,6 +481,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 		record_header_t	*record_ptr = nffile_r->buff_ptr;
 		dbg_printf("Block has %i records\n", nffile_r->block_header->NumRecords);
 		for ( i=0; i < nffile_r->block_header->NumRecords; i++ ) {
+			record_header_t	*process_ptr = record_ptr;
 			if ( (sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t)) ) {
 				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
 				exit(255);
@@ -510,6 +501,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 							dbg_printf("Convert v2 record\n");
 							if ( !ConvertRecordV2((common_record_t *)record_ptr, convertedV2))
 								goto NEXT;
+							process_ptr = convertedV2;
 						}
 					} else {
 						ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
@@ -542,20 +534,17 @@ uint64_t twin_msecFirst, twin_msecLast;
 					UpdateStat(&stat_record, master_record);
 
 					if ( flow_stat ) {
-						AddFlow(convertedV2 ? convertedV2 : record_ptr, master_record);
+						AddFlowCache(process_ptr, master_record);
 						if ( element_stat ) {
-							AddStat(master_record);
+							AddElementStat(master_record);
 						} 
 					} else if ( element_stat ) {
-						AddStat(master_record);
+						AddElementStat(master_record);
 					} else if ( sort_flows ) {
-						InsertFlow(convertedV2 ? convertedV2 : record_ptr, master_record);
+						InsertFlow(process_ptr, master_record);
 					} else {
 						if ( write_file ) {
-							if ( convertedV2 ) 
-								AppendToBuffer(nffile_w, (void *)convertedV2, convertedV2->size);
-							else
-								AppendToBuffer(nffile_w, (void *)record_ptr, record_ptr->size);
+							AppendToBuffer(nffile_w, (void *)process_ptr, process_ptr->size);
 						} else if ( print_record ) {
 							char *string;
 							// if we need to print out this record
@@ -657,17 +646,19 @@ func_prolog_t  print_prolog;
 func_epilog_t  print_epilog;
 nfprof_t 	profile_data;
 timeWindow_t *timeWindow;
-char 		*rfile, *Rfile, *Mdirs, *wfile, *ffile, *filter, *tstring, *stat_type;
+char 		*wfile, *ffile, *filter, *tstring, *stat_type;
 char		*byte_limit_string, *packet_limit_string, *print_format;
 char		*print_order, *query_file, *nameserver, *aggr_fmt;
 int 		c, ffd, ret, element_stat, fdump;
 int 		i, flow_stat, aggregate, aggregate_mask, bidir;
-int 		print_stat, syntax_only, date_sorted, compress;
+int 		print_stat, syntax_only, sort_order, compress;
 int			printPlain, GuessDir, ModifyCompress;
 uint32_t	limitRecords;
 char 		Ident[IDENTLEN];
+flist_t 	flist;
 
-	rfile = Rfile = Mdirs = wfile = ffile = filter = tstring = stat_type = NULL;
+	memset((void *)&flist, 0, sizeof(flist));
+	wfile = ffile = filter = tstring = stat_type = NULL;
 	byte_limit_string = packet_limit_string = NULL;
 	fdump = aggregate = 0;
 	aggregate_mask	= 0;
@@ -678,7 +669,7 @@ char 		Ident[IDENTLEN];
 	print_stat      = 0;
 	element_stat  	= 0;
 	limitRecords	= 0;
-	date_sorted		= 0;
+	sort_order		= 0;
 	total_bytes		= 0;
 	recordCount		= 0;
 	skipped_blocks	= 0;
@@ -703,8 +694,8 @@ char 		Ident[IDENTLEN];
 	}
 	outputParams->topN = -1;
 
-	Ident[0] = '\0';
 
+	Ident[0] = '\0';
 	while ((c = getopt(argc, argv, "6aA:Bbc:D:E:s:hn:i:jf:qyzr:v:w:J:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
 		switch (c) {
 			case 'h':
@@ -817,18 +808,20 @@ char 		Ident[IDENTLEN];
 				tstring = optarg;
 				break;
 			case 'r':
-				rfile = optarg;
-				if ( strcmp(rfile, "-") == 0 )
-					rfile = NULL;
+				if ( !CheckPath(optarg, S_IFREG) )
+					exit(255);
+				flist.single_file = strdup(optarg);
 				break;
 			case 'm':
 				print_order = "tstart";
 				Parse_PrintOrder(print_order);
-				date_sorted = 1;
+				sort_order = 6;
 				LogError("Option -m deprecated. Use '-O tstart' instead\n");
 				break;
 			case 'M':
-				Mdirs = optarg;
+				if ( strlen(optarg) > MAXPATHLEN )
+					exit(255);
+				flist.multiple_dirs = strdup(optarg);
 				break;
 			case 'I':
 				print_stat++;
@@ -849,10 +842,12 @@ char 		Ident[IDENTLEN];
 					LogError("Unknown print order '%s'\n", print_order);
 					exit(255);
 				}
-				date_sorted = ret == 6;		// index into order_mode
+				sort_order = ret;
 				} break;
 			case 'R':
-				Rfile = optarg;
+				if ( strlen(optarg) > MAXPATHLEN )
+					exit(255);
+				flist.multiple_files = strdup(optarg);
 				break;
 			case 'w':
 				wfile = optarg;
@@ -908,20 +903,65 @@ char 		Ident[IDENTLEN];
 		filter = argv[optind];
 		FilterFilename = NULL;
 	}
+
+	if ( !filter && ffile ) {
+		if ( stat(ffile, &stat_buff) ) {
+			LogError("Can't stat filter file '%s': %s\n", ffile, strerror(errno));
+			exit(255);
+		}
+		filter = (char *)malloc(stat_buff.st_size+1);
+		if ( !filter ) {
+			LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+			exit(255);
+		}
+		ffd = open(ffile, O_RDONLY);
+		if ( ffd < 0 ) {
+			LogError("Can't open filter file '%s': %s\n", ffile, strerror(errno));
+			exit(255);
+		}
+		ret = read(ffd, (void *)filter, stat_buff.st_size);
+		if ( ret < 0   ) {
+			perror("Error reading filter file");
+			close(ffd);
+			exit(255);
+		}
+		total_bytes += ret;
+		filter[stat_buff.st_size] = 0;
+		close(ffd);
+
+		FilterFilename = ffile;
+	}
+
+	// if no filter is given, set the default ip filter which passes through every flow
+	if ( !filter  || strlen(filter) == 0 ) 
+		filter = "any";
+
+	Engine = CompileFilter(filter);
+	if ( !Engine ) 
+		exit(254);
+
+	if ( fdump ) {
+		printf("StartNode: %i Engine: %s\n", Engine->StartNode, Engine->Extended ? "Extended" : "Fast");
+		DumpEngine(Engine);
+		exit(0);
+	}
+
+	if ( syntax_only )
+		exit(0);
 	
 	// Modify compression
 	if ( ModifyCompress >= 0 ) {
-		if ( !rfile && !Rfile ) {
+		if ( !flist.single_file && !flist.multiple_files ) {
 			LogError("Expected -r <file> or -R <dir> to change compression\n");
 			exit(255);
 		}
-		ModifyCompressFile(rfile, Rfile, ModifyCompress);
+		ModifyCompressFile(&flist, ModifyCompress);
 		exit(0);
 	}
 
 	// Change Ident only
-	if ( rfile && strlen(Ident) > 0 ) {
-		ChangeIdent(rfile, Ident);
+	if ( flist.single_file && strlen(Ident) > 0 ) {
+		ChangeIdent(flist.single_file, Ident);
 		exit(0);
 	}
 	
@@ -932,6 +972,8 @@ char 		Ident[IDENTLEN];
 			outputParams->topN = 0;
 		}
 	}
+	if ( wfile ) 
+		outputParams->quiet = 1;
 
 	if ( (element_stat && !flow_stat) && aggregate_mask ) {
 		LogError("Warning: Aggregation ignored for element statistics\n");
@@ -942,16 +984,16 @@ char 		Ident[IDENTLEN];
 		aggregate = 1;
 	}
 
-	if ( Mdirs == NULL && rfile == NULL && Rfile == NULL ) {
+	if ( flist.multiple_dirs == NULL && flist.single_file == NULL && flist.multiple_files == NULL ) {
 		LogError("Need an input source -r/-R/-M - <stdin> invalid");
 		exit(255);
 	}
 
-	if ( rfile && Rfile ) {
+	if ( flist.single_file && flist.multiple_files ) {
 		LogError("-r and -R are mutually exclusive. Please specify either -r or -R\n");
 		exit(255);
 	}
-	if ( Mdirs && !(rfile || Rfile) ) {
+	if ( flist.multiple_dirs && !(flist.single_file || flist.multiple_files) ) {
 		LogError("-M needs either -r or -R to specify the file or file list. Add '-R .' for all files in the directories.\n");
 		exit(255);
 	}
@@ -962,16 +1004,18 @@ char 		Ident[IDENTLEN];
 	}
 
 	if ( tstring ) {
-		timeWindow = ScanTimeFrame(tstring);
-		if ( !timeWindow ) 
+		flist.timeWindow = ScanTimeFrame(tstring);
+		if ( !flist.timeWindow ) 
 			exit(255);
 	}
 
-	SetupInputFileSequence(Mdirs, rfile, Rfile, timeWindow);
+	queue_t *fileList = SetupInputFileSequence(&flist);
+	if ( !Init_nffile(fileList) )
+		exit(254);
 
 	if ( print_stat ) {
 		nffile_t *nffile;
-		if ( !rfile && !Rfile && !Mdirs) {
+		if ( !flist.single_file && !flist.multiple_files && !flist.multiple_dirs) {
 			LogError("Expect data file(s).\n");
 			exit(255);
 		}
@@ -1053,13 +1097,13 @@ char 		Ident[IDENTLEN];
 				} else {
 					// To support the pipe output format for element stats - check for pipe, and remember this
 					if ( strncasecmp(print_format, "pipe", MAXMODELEN) == 0 ) {
-						outputParams->modePipe = true;
-					}
-					if ( strncasecmp(print_format, "csv", MAXMODELEN) == 0 ) {
-						outputParams->modeCsv = true;
-					}
-					if ( strncasecmp(print_format, "json", MAXMODELEN) == 0 ) {
-						outputParams->modeJson = true;
+						outputParams->mode = MODE_PIPE;
+					} else if ( strncasecmp(print_format, "csv", MAXMODELEN) == 0 ) {
+						outputParams->mode = MODE_CSV;
+					} else if ( strncasecmp(print_format, "json", MAXMODELEN) == 0 ) {
+						outputParams->mode = MODE_JSON;
+					} else {
+						outputParams->mode = MODE_PLAIN;
 					}
 					// predefined static format
 					print_record  = printmap[i].func_record;
@@ -1082,65 +1126,20 @@ char 		Ident[IDENTLEN];
 		LogError("Command line switch -s overwrites -a\n");
 	}
 
-	if ( !filter && ffile ) {
-		if ( stat(ffile, &stat_buff) ) {
-			LogError("Can't stat filter file '%s': %s\n", ffile, strerror(errno));
-			exit(255);
-		}
-		filter = (char *)malloc(stat_buff.st_size+1);
-		if ( !filter ) {
-			LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-			exit(255);
-		}
-		ffd = open(ffile, O_RDONLY);
-		if ( ffd < 0 ) {
-			LogError("Can't open filter file '%s': %s\n", ffile, strerror(errno));
-			exit(255);
-		}
-		ret = read(ffd, (void *)filter, stat_buff.st_size);
-		if ( ret < 0   ) {
-			perror("Error reading filter file");
-			close(ffd);
-			exit(255);
-		}
-		total_bytes += ret;
-		filter[stat_buff.st_size] = 0;
-		close(ffd);
-
-		FilterFilename = ffile;
-	}
-
-	// if no filter is given, set the default ip filter which passes through every flow
-	if ( !filter  || strlen(filter) == 0 ) 
-		filter = "any";
-
-	Engine = CompileFilter(filter);
-	if ( !Engine ) 
-		exit(254);
-
-	if ( fdump ) {
-		printf("StartNode: %i Engine: %s\n", Engine->StartNode, Engine->Extended ? "Extended" : "Fast");
-		DumpEngine(Engine);
-		exit(0);
-	}
-
-	if ( syntax_only )
-		exit(0);
-
 	if ( print_order && flow_stat ) {
 		printf("-s record and -O (-m) are mutually exclusive options\n");
 		exit(255);
 	}
 
-	if ((aggregate || flow_stat || print_order)  && !Init_FlowTable() )
+	if ((aggregate || flow_stat || print_order)  && !Init_FlowCache() )
 			exit(250);
 
-	if (element_stat && !Init_StatTable(HashBits, NumPrealloc) )
+	if (element_stat && !Init_StatTable() )
 			exit(250);
 
 	SetLimits(element_stat || aggregate || flow_stat, packet_limit_string, byte_limit_string);
 
-	if ( !(flow_stat || element_stat || wfile || outputParams->quiet ) && print_prolog ) {
+	if ( !(flow_stat || element_stat || outputParams->quiet ) && print_prolog ) {
 		print_prolog();
 	}
 
@@ -1160,7 +1159,7 @@ char 		Ident[IDENTLEN];
 			nffile_t *nffile = OpenNewFile(wfile, NULL, compress, NOT_ENCRYPTED );
 			if ( !nffile ) 
 				exit(255);
-			if ( ExportFlowTable(nffile, aggregate, bidir, GuessDir, date_sorted) ) {
+			if ( ExportFlowTable(nffile, aggregate, bidir, GuessDir, sort_order) ) {
 				CloseUpdateFile(nffile);	
 			} else {
 				CloseFile(nffile);
@@ -1168,15 +1167,12 @@ char 		Ident[IDENTLEN];
 			}
 			DisposeFile(nffile);
 		} else {
-			PrintFlowTable(print_record, outputParams, GuessDir, extension_map_list);
+			PrintFlowTable(print_record, outputParams, GuessDir);
 		}
 	}
 
 	if (flow_stat) {
-		PrintFlowStat(print_prolog, print_record, outputParams, extension_map_list);
-#ifdef DEVEL
-		printf("Loopcnt: %u\n", loopcnt);
-#endif
+		PrintFlowStat(print_prolog, print_record, outputParams);
 	} 
 
 	if (element_stat) {
@@ -1186,37 +1182,39 @@ char 		Ident[IDENTLEN];
 	if ( print_epilog ) {
 		print_epilog();
 	}
-	if ( !outputParams->quiet && !outputParams->modeJson ) {
-		if ( outputParams->modeCsv ) {
-			PrintSummary(&sum_stat, outputParams);
-		} else if ( !wfile ) {
-			PrintSummary(&sum_stat, outputParams);
-			if ( t_last_flow == 0 ) {
-				// in case of a pre 1.6.6 collected and empty flow file
- 				printf("Time window: <unknown>\n");
-			} else {
-				if ( timeWindow ) {
-					if ( timeWindow->first && (timeWindow->first > t_first_flow))
-						t_first_flow = timeWindow->first;
-					if ( timeWindow->last && (timeWindow->last < t_last_flow))
-						t_last_flow = timeWindow->last;
+	if ( !outputParams->quiet ) {
+		switch (outputParams->mode) {
+			case MODE_PLAIN:
+				PrintSummary(&sum_stat, outputParams);
+				if ( t_last_flow == 0 ) {
+ 					printf("Time window: <unknown>\n");
+				} else {
+					if ( timeWindow ) {
+						if ( timeWindow->first && (timeWindow->first > t_first_flow))
+							t_first_flow = timeWindow->first;
+						if ( timeWindow->last && (timeWindow->last < t_last_flow))
+							t_last_flow = timeWindow->last;
+					}
+ 					printf("Time window: %s\n", TimeString(t_first_flow, t_last_flow));
 				}
- 				printf("Time window: %s\n", TimeString(t_first_flow, t_last_flow));
-			}
-			printf("Total flows processed: %u, Blocks skipped: %u, Bytes read: %llu\n", 
-				recordCount, skipped_blocks, (unsigned long long)total_bytes);
-			nfprof_print(&profile_data, stdout);
+				printf("Total flows processed: %u, Blocks skipped: %u, Bytes read: %llu\n", 
+					recordCount, skipped_blocks, (unsigned long long)total_bytes);
+				nfprof_print(&profile_data, stdout);
+				break;
+			case MODE_PIPE:
+				break;
+			case MODE_CSV:
+				PrintSummary(&sum_stat, outputParams);
+				break;
+			case MODE_JSON:
+				break;
 		}
-	}
+
+	} // else - no output
 
 	Dispose_FlowTable();
 	Dispose_StatTable();
 	FreeExtensionMaps(extension_map_list);
-
-#ifdef DEVEL
-	if ( hash_hit || hash_miss )
-		printf("Hash hit: %i, miss: %i, skip: %i, ratio: %5.3f\n", hash_hit, hash_miss, hash_skip, (float)hash_hit/((float)(hash_hit+hash_miss)));
-#endif
 
 	return 0;
 }

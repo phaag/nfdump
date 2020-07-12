@@ -40,6 +40,8 @@
 #include <stdint.h>
 #endif
 
+#include "flist.h"
+#include "queue.h"
 #include "nffileV2.h"
 
 #define IDENTLEN	128
@@ -184,16 +186,19 @@ typedef struct data_block_header_s {
 typedef struct nffile_s {
 	fileHeaderV2_t	*file_header;	// file header
 	int				fd;				// associated file descriptor
-	void			*mapped;		// memory mapped file
-	void			*eom;			// end of memory mapped block
-	void			*fptr;			// read pointer 
-	off_t			fsize;			// file size
+	int				compat16;		// underlaying file is compat16
+	_Atomic pthread_t worker;		// nfread/nfwrite worker thread;
+	dataBlock_t		*worker_buffer;	// buffer ptr
 
+#define FILE_IS_COMPAT16(n) (n->compat16)
 #define NUM_BUFFS 2
 	size_t			buff_size;
-	void			*buff_pool[NUM_BUFFS];	// buffer space for read/write/compression 
+	// void			*buff_pool[NUM_BUFFS];	// buffer space for read/write/compression 
+
 	dataBlock_t		*block_header;	// buffer ptr
 	void			*buff_ptr;		// pointer into buffer for read/write blocks/records
+
+	queue_t			*blockQueue;	// block Q
 
 	stat_record_t 	*stat_record;	// flow stat record
 	char			*ident;			// source identifier
@@ -249,6 +254,8 @@ typedef struct record_header_s {
 */
 
 
+int Init_nffile(queue_t *fileList);
+
 void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
 nffile_t *OpenFile(char *filename, nffile_t *nffile);
@@ -269,9 +276,9 @@ void DisposeFile(nffile_t *nffile);
 
 void CloseFile(nffile_t *nffile);
 
-int FlushFile(nffile_t *nffile);
-
 int CloseUpdateFile(nffile_t *nffile);
+
+nffile_t *GetNextFile(nffile_t *nffile);
 
 int ReadBlock(nffile_t *nffile);
 
@@ -279,7 +286,11 @@ int WriteBlock(nffile_t *nffile);
 
 void SetIdent(nffile_t *nffile, char *Ident);
 
-void ModifyCompressFile(char * rfile, char *Rfile, int compress);
+void ModifyCompressFile(flist_t *flist, int compress);
+
+void* nfreader(void *arg);
+
+void* nfwriter(void *arg);
 
 #endif //_NFFILE_H
 

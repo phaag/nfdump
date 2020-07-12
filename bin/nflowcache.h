@@ -41,117 +41,76 @@
 
 #include "nfx.h"
 #include "nffile.h"
+#include "output_util.h"
 
-/* Definitions */
+#define NeedSwap(GuessDir, r) ( GuessDir && \
+	((r)->proto == IPPROTO_TCP || (r)->proto == IPPROTO_UDP) && \
+	 ((((r)->srcPort < 1024) && ((r)->dstPort >= 1024)) || \
+	  (((r)->srcPort < 32768) && ((r)->dstPort >= 32768)) || \
+	  (((r)->srcPort < 49152) && ((r)->dstPort >= 49152)) \
+	 ) \
+	)
 
-/*
- * Flow Table
- * In order to aggregate flows or to generate any flow statistics, the flows passed the filter
- * are stored into an internal hash table.
- */
+#define SwapFlow(r) { \
+uint64_t _tmp_ip[2]; \
+uint64_t _tmp_l;	\
+uint32_t _tmp;	\
+	\
+	_tmp_ip[0] = (r)->V6.srcaddr[0];	\
+	_tmp_ip[1] = (r)->V6.srcaddr[1];	\
+	(r)->V6.srcaddr[0] = (r)->V6.dstaddr[0];	\
+	(r)->V6.srcaddr[1] = (r)->V6.dstaddr[1];	\
+	(r)->V6.dstaddr[0] = _tmp_ip[0];	\
+	(r)->V6.dstaddr[1] = _tmp_ip[1];	\
+	\
+	_tmp = (r)->srcPort;	\
+	(r)->srcPort = (r)->dstPort;	\
+	(r)->dstPort = _tmp;	\
+	\
+	_tmp = (r)->srcas;	\
+	(r)->srcas = (r)->dstas;	\
+	(r)->dstas = _tmp;	\
+	\
+	_tmp = (r)->input;	\
+	(r)->input = (r)->output;	\
+	(r)->output = _tmp;	\
+	\
+	_tmp_l = (r)->dPkts;	\
+	(r)->dPkts = (r)->out_pkts;	\
+	(r)->out_pkts = _tmp_l;	\
+	\
+	_tmp_l = (r)->dOctets;	\
+	(r)->dOctets = (r)->out_bytes;	\
+	(r)->out_bytes = _tmp_l;	\
+}
 
-/* Element of the Flow Table ( cache ) */
-typedef struct FlowTableRecord {
-	// record chain - points to next record with same hash in case of a hash collision
-	struct FlowTableRecord *next;	
+typedef struct SortElement {
+    void        *record;
+    uint64_t    count;
+} SortElement_t;
 
-	// port for direction verification
-	uint16_t	srcPort;
-	uint16_t	dstPort;
-	uint8_t		proto;
-	uint8_t		tcpFlags;
-
-	// Hash papameters
-	uint32_t	hash;		// the full 32bit hash value
-	char		*hash_key;	// all keys in sequence to generate the hash 
-
-	// flow counter parameters for FLOWS, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES
-	uint64_t	counter[5];
-
-	// time info in msec
-	uint64_t	msecFirst;
-	uint64_t	msecLast;
-
-	exporter_info_record_t *exp_ref;
-	recordHeaderV3_t	flowrecord;
-
-} FlowTableRecord_t;
-
-typedef struct MemoryHandle_s {
-	/* 
-	 * to speedup aggregation/record statistics, the internal hash tables use their own memory management.
-	 * memory is allocated with malloc in chunks of MemBlockSize. All memory blocks are kept in the
-	 * memblock array. Memory blocks are allocated on request up to the number of MaxMemBlocks. If more 
-	 * blocks are requested, the memblock array is automatically extended.
-	 * Memory allocated from a memblock is aligned accoording ALIGN
-	 */
-
-	uint32_t	BlockSize;		/* max size of each pre-allocated memblock */
-
-	/* memory blocks - containing the flow records and keys */
-	void		**memblock;		/* array holding all NumBlocks allocated memory blocks */
-	uint32_t 	MaxBlocks;		/* Size of memblock array */
-	uint32_t 	NumBlocks;		/* number of allocated flow blocks in memblock array */
-	uint32_t	CurrentBlock;	/* Index of current memblock to allocate memory from */
-	uint32_t 	Allocted;		/* Number of bytes already allocated in memblock */
-
-} MemoryHandle_t;
-
-#ifdef __x86_64
-# 	define ALIGN_MASK 0xFFFFFFF8
-#else
-# 	define ALIGN_MASK 0xFFFFFFFC
-#endif
-
-// number of bits for hash width for floe table
-// Size: 0 < HashBits < 32
-// typically 20 - tradeoff memory/speed
-#define HashBits 20
-
-// Each pre-allocated memory block is 10M
-#define MemBlockSize 10*1024*1024
-#define MaxMemBlocks	256
-
-
-typedef struct hash_FlowTable {
-	/* hash table data */
-	uint16_t 			NumBits;		/* width of the hash table */
-	uint32_t			IndexMask;		/* Mask which corresponds to NumBits */
-	uint32_t			NumRecords;		/* number of records in table */
-	FlowTableRecord_t 	**bucket;		/* Hash entry point: points to elements in the flow block */
-	FlowTableRecord_t 	**bucketcache;	/* in case of index collisions, this array points to the last element with that index */
-
-	uint32_t			keylen;			/* key length of hash key as number of 4byte ints */
-	uint32_t			keysize;		/* size of key in bytes */
-
-	/* use a MemoryHandle for the table */
-	MemoryHandle_t		mem;
-
-	/* src/dst IP aggr masks - use to properly maks the IP before printing */
-	uint64_t			IPmask[4];		// 0-1 srcIP, 2-3 dstIP
-	int					has_masks;
-	int					apply_netbits;	// bit 0: src, bit 1: dst
-
-} hash_FlowTable;
-
-hash_FlowTable *GetFlowTable(void);
-
-int Init_FlowTable(void);
+int Init_FlowCache(void);
 
 void Dispose_FlowTable(void);
 
-char *VerifyStat(uint16_t Aggregate_Bits);
+int Parse_PrintOrder(char *order);
+
+int ParseAggregateMask( char *arg, char **aggr_fmt  );
+
+int SetBidirAggregation( void );
+
+void Add_FlowStatOrder(uint32_t order );
 
 int SetStat(char *str, int *element_stat, int *flow_stat);
 
 void InsertFlow(void *raw_record, master_record_t *flow_record);
 
-void AddFlow(void *raw_record, master_record_t *flow_record);
+void AddFlowCache(void *raw_record, master_record_t *flow_record);
 
-int SetBidirAggregation( void );
+void PrintFlowTable(printer_t print_record, outputParams_t *outputParams, int GuessDir);
 
-int ParseAggregateMask( char *arg, char **aggr_fmt  );
+void PrintFlowStat(func_prolog_t record_header, printer_t print_record, outputParams_t *outputParams);
 
-master_record_t *GetMasterAggregateMask(void);
+int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir, int sort_order);
 
 #endif //_NFLOWCACHE_H

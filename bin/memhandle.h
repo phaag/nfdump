@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2020, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -11,7 +10,7 @@
  *   * Redistributions in binary form must reproduce the above copyright notice, 
  *     this list of conditions and the following disclaimer in the documentation 
  *     and/or other materials provided with the distribution.
- *   * Neither the name of the author nor the names of its contributors may be 
+ *   * Neither the name of the auhor nor the names of its contributors may be 
  *     used to endorse or promote products derived from this software without 
  *     specific prior written permission.
  *  
@@ -29,29 +28,17 @@
  *  
  */
 
-#ifndef _FLIST_H
-#define _FLIST_H 1
+#ifndef _MEMHANDLE_H
+#define _MEMHANDLE_H 1
 
-#include <time.h>
+static int nfalloc_Init(uint32_t memBlockSize);
 
-#include "util.h"
-#include "queue.h"
+static void nfalloc_free(void);
 
-#define EMPTY_LIST ((nffile_t *)-1)
+static inline void *nfmalloc(size_t size);
 
-typedef struct flist_s {
-	char *multiple_dirs;
-	char *single_file;
-	char *multiple_files;
-	timeWindow_t *timeWindow;
-} flist_t;
+static inline void *nfcalloc(size_t count, size_t size);
 
-int InitHierPath(int num);
+static inline void nffree(void *p);
 
-char *GetSubDir(struct  tm *now);
-
-int SetupSubDir(char *dir, char *subdir, char *error, size_t errlen );
-
-queue_t *SetupInputFileSequence(flist_t *flist);
-
-#endif //_FLIST_H
+#endif //_MEMHANDLE_H

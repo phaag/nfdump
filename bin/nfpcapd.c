@@ -1435,6 +1435,9 @@ p_flow_thread_args_t *p_flow_thread_args;
 		exit(255);
 	}
 
+	if ( !Init_nffile(NULL) )
+		exit(254);
+
 	// check if pid file exists and if so, if a process with registered pid is running
 	if ( strlen(pidfile) ) {
 		int pidf;

@@ -287,7 +287,7 @@ uint64_t total_bytes;
 
 int main( int argc, char **argv ) {
 struct stat stat_buff;
-char *wfile, *rfile, *Rfile, *Mdirs, *ffile, *filter, *timeslot, *DBdir;
+char *wfile, *ffile, *filter, *timeslot, *DBdir;
 char datestr[64];
 char pidfile[MAXPATHLEN];
 int c, ffd, ret, DBinit, AddDB, GenStat, AvStat, output_mode, topN;
@@ -295,8 +295,11 @@ unsigned int lastupdate;
 data_row *port_table;
 time_t	when;
 struct tm * t1;
+flist_t flist;
 
-	wfile = rfile = Rfile = Mdirs = ffile = filter = DBdir = timeslot = NULL;
+	memset((void *)&flist, 0, sizeof(flist));
+
+	wfile = ffile = filter = DBdir = timeslot = NULL;
 	DBinit = AddDB = GenStat = AvStat = 0;
 	lastupdate = output_mode = 0;
 	topN = 10;
@@ -310,10 +313,14 @@ struct tm * t1;
 				DBinit = 1;
 				break;
 			case 'M':
-				Mdirs = strdup(optarg);
+				if ( !CheckPath(optarg, S_IFDIR) )
+					exit(255);
+				flist.multiple_dirs = strdup(optarg);
 				break;
 			case 'R':
-				Rfile = strdup(optarg);
+				if ( !CheckPath(optarg, S_IFDIR) )
+					exit(255);
+				flist.multiple_files = strdup(optarg);
 				break;
 			case 'd':
 				DBdir = strdup(optarg);
@@ -337,7 +344,9 @@ struct tm * t1;
 				output_mode = 1;
 				break;
 			case 'r':
-				rfile = strdup(optarg);
+				if ( !CheckPath(optarg, S_IFREG) )
+					exit(255);
+				flist.single_file = strdup(optarg);
 				break;
 			case 'w':
 				wfile = strdup(optarg);
@@ -455,8 +464,10 @@ struct tm * t1;
 	}
 
 	port_table = NULL;
-	if ( Mdirs || Rfile || rfile ) {
-		SetupInputFileSequence(Mdirs, rfile, Rfile, NULL);
+	if ( flist.multiple_dirs || flist.multiple_files || flist.single_file ) {
+		queue_t *fileList = SetupInputFileSequence(&flist);
+		if ( !Init_nffile(fileList) )
+			exit(254);
 		port_table = process(filter);
 //		Lister(port_table);
 		if ( !port_table ) {

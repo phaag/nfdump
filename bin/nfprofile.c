@@ -443,16 +443,16 @@ profile_param_info_t **list = &profile_list;
 
 int main( int argc, char **argv ) {
 unsigned int		num_channels, compress;
-struct stat stat_buf;
 profile_param_info_t *profile_list;
-char *rfile, *ffile, *filename, *Mdirs;
+char *ffile, *filename;
 char	*profile_datadir, *profile_statdir, *nameserver;
 int c, syntax_only, subdir_index, stdin_profile_params;
 time_t tslot;
+flist_t flist;
 
+	memset((void *)&flist, 0, sizeof(flist));
 	profile_datadir = NULL;
 	profile_statdir = NULL;
-	Mdirs 			= NULL;
 	tslot 			= 0;
 	syntax_only	    = 0;
 	compress		= NOT_COMPRESSED;
@@ -463,7 +463,6 @@ time_t tslot;
 
 	// default file names
 	ffile = "filter.txt";
-	rfile = NULL;
 	while ((c = getopt(argc, argv, "D:HIL:p:P:hi:f:J;r:n:M:S:t:VzZ")) != EOF) {
 		switch (c) {
 			case 'h':
@@ -506,10 +505,14 @@ time_t tslot;
 				tslot = atoi(optarg);
 				break;
 			case 'M':
-				Mdirs = optarg;
+				if ( !CheckPath(optarg, S_IFDIR) )
+					exit(255);
+				flist.multiple_dirs = strdup(optarg);
 				break;
 			case 'r':
-				rfile = optarg;
+				if ( !CheckPath(optarg, S_IFREG) )
+					exit(255);
+				flist.single_file = strdup(optarg);
 				break;
 			case 'j':
 				if ( compress ) {
@@ -562,6 +565,7 @@ time_t tslot;
 		profile_statdir = profile_datadir;
 	}
 
+	struct stat stat_buf;
 	if ( stat(profile_datadir, &stat_buf) || !S_ISDIR(stat_buf.st_mode) ) {
 		LogError("'%s' not a directory\n", profile_datadir);
 		exit(255);
@@ -576,15 +580,15 @@ time_t tslot;
 
 	if ( syntax_only ) {
 		filename = NULL;
-		rfile = NULL;
+		flist.single_file = NULL;
 	} else {
 		char *p;
-		if ( rfile == NULL ) {
+		if ( flist.single_file == NULL ) {
 			LogError("-r filename required!\n");
 			exit(255);
 		}
-		p = strrchr(rfile, '/');
-		filename = p == NULL ? rfile : ++p;
+		p = strrchr(flist.single_file, '/');
+		filename = p == NULL ? flist.single_file : ++p;
 		if ( strlen(filename) == 0 ) {
 			LogError("Filename error: zero length filename\n");
 			exit(254);
@@ -609,7 +613,7 @@ time_t tslot;
 		return 0;
 	}
 
-	if ( !rfile ) {
+	if ( !flist.single_file ) {
 		LogError("Input file (-r) required!\n");
 		exit(255);
 	}
@@ -618,7 +622,9 @@ time_t tslot;
 		exit(255);
 	}
 
-	SetupInputFileSequence(Mdirs,rfile, NULL, NULL);
+	queue_t *fileList = SetupInputFileSequence(&flist);
+	if ( !Init_nffile(fileList) )
+		exit(254);
 
 	process_data(GetChannelInfoList(), num_channels, tslot);
 

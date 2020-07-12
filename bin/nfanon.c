@@ -60,9 +60,6 @@
 #include "flist.h"
 #include "panonymizer.h"
 
-// module limited globals
-extension_map_list_t *extension_map_list;
-
 /* Function Prototypes */
 static void usage(char *name);
 
@@ -88,10 +85,7 @@ static void usage(char *name) {
 } /* usage */
 
 static inline void AnonRecord(master_record_t *master_record) {
-extension_map_t *extension_map = master_record->map_ref;
-int		i;
 
-	// Required extension 1 - IP addresses
 	if ( (master_record->flags & FLAG_IPV6_ADDR) != 0 )	{ // IPv6
 		// IPv6
 		uint64_t    anon_ip[2];
@@ -109,6 +103,7 @@ int		i;
 		master_record->V4.dstaddr = anonymize(master_record->V4.dstaddr);
 	}
 
+/* XXX fix
 	// Process optional extensions
 	i=0;
 	while ( extension_map->ex_id[i] ) {
@@ -165,7 +160,7 @@ int		i;
 #endif
 		}
 	}
-
+*/
 } // End of AnonRecord
 
 
@@ -358,11 +353,13 @@ char		outfile[MAXPATHLEN], *cfile;
 
 
 int main( int argc, char **argv ) {
-char 		*rfile, *Rfile, *wfile, *Mdirs;
+char 		*wfile;
 int			c;
 char		CryptoPAnKey[32];
+flist_t flist;
 
-	rfile = Rfile = Mdirs = wfile = NULL;
+	memset((void *)&flist, 0, sizeof(flist));
+	wfile = NULL;
 	while ((c = getopt(argc, argv, "K:L:r:M:R:w:")) != EOF) {
 		switch (c) {
 			case 'h':
@@ -382,15 +379,19 @@ char		CryptoPAnKey[32];
 					exit(255);
 				break;
 			case 'r':
-				rfile = optarg;
-				if ( strcmp(rfile, "-") == 0 )
-					rfile = NULL;
+				if ( !CheckPath(optarg, S_IFREG) )
+					exit(255);
+				flist.single_file = strdup(optarg);
 				break;
 			case 'M':
-				Mdirs = optarg;
+				if ( !CheckPath(optarg, S_IFDIR) )
+					exit(255);
+				flist.multiple_dirs = strdup(optarg);
 				break;
 			case 'R':
-				Rfile = optarg;
+				if ( !CheckPath(optarg, S_IFDIR) )
+					exit(255);
+				flist.multiple_files = strdup(optarg);
 				break;
 			case 'w':
 				wfile = optarg;
@@ -401,16 +402,18 @@ char		CryptoPAnKey[32];
 		}
 	}
 
-	if ( rfile && Rfile ) {
-		fprintf(stderr, "-r and -R are mutually exclusive. Please specify either -r or -R\n");
+	if ( flist.single_file && flist.multiple_files ) {
+		LogError("-r and -R are mutually exclusive. Please specify either -r or -R");
 		exit(255);
 	}
-	if ( Mdirs && !(rfile || Rfile) ) {
-		fprintf(stderr, "-M needs either -r or -R to specify the file or file list. Add '-R .' for all files in the directories.\n");
+	if ( flist.multiple_dirs && !(flist.single_file || flist.multiple_files) ) {
+		LogError("-M needs either -r or -R to specify a list of files");
 		exit(255);
 	}
 
-	SetupInputFileSequence(Mdirs, rfile, Rfile, NULL);
+	queue_t *fileList = SetupInputFileSequence(&flist);
+	if ( !Init_nffile(fileList) )
+		exit(254);
 
 	process_data(wfile);
 

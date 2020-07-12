@@ -66,7 +66,6 @@
 #include "nfnet.h"
 #include "bookkeeper.h"
 #include "collector.h"
-#include "exporter.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
 #include "nfprof.h"
@@ -89,14 +88,12 @@ static FilterEngine_t *Engine;
 
 static send_peer_t peer;
 
-extension_map_list_t *extension_map_list;
-
 /* Function Prototypes */
 static void usage(char *name);
 
 static void send_blast(unsigned int delay );
 
-static void send_data(char *rfile, timeWindow_t *timeWindow, uint32_t count, 
+static void send_data(timeWindow_t *timeWindow, uint32_t count, 
 				unsigned int delay,  int confirm, int netflow_version, int distribution);
 
 static int FlushBuffer(int confirm);
@@ -194,7 +191,7 @@ double 					fps;
 
 } // End of send_blast
 
-static void send_data(char *rfile, timeWindow_t *timeWindow,
+static void send_data(timeWindow_t *timeWindow,
 			uint32_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
 nffile_t		*nffile;
 int 			i, done, ret, again;
@@ -424,12 +421,14 @@ uint64_t	twin_msecFirst, twin_msecLast;
 
 int main( int argc, char **argv ) {
 struct stat stat_buff;
-char *rfile, *ffile, *filter, *tstring;
+char *ffile, *filter, *tstring;
 int c, confirm, ffd, ret, blast, netflow_version, distribution;
 unsigned int delay, count, sockbuff_size;
 timeWindow_t *timeWindow;
+flist_t flist;
 
-	rfile = ffile = filter = tstring = NULL;
+	memset((void *)&flist, 0, sizeof(flist));
+	ffile = filter = tstring = NULL;
 	timeWindow = NULL;
 
 	peer.hostname 	= NULL;
@@ -513,7 +512,9 @@ timeWindow_t *timeWindow;
 				tstring = optarg;
 				break;
 			case 'r':
-				rfile = optarg;
+				if ( !CheckPath(optarg, S_IFREG) )
+					exit(255);
+				flist.single_file = strdup(optarg);
 				break;
 			case 'z':
 				distribution = atoi(optarg);
@@ -597,14 +598,16 @@ timeWindow_t *timeWindow;
 	}
 
 	if ( tstring ) {
-		timeWindow = ScanTimeFrame(tstring);
-		if ( !timeWindow )
+		flist.timeWindow = ScanTimeFrame(tstring);
+		if ( !flist.timeWindow )
 			exit(255);
 	}
 
-	SetupInputFileSequence(NULL,rfile, NULL, timeWindow);
+	queue_t *fileList = SetupInputFileSequence(&flist);
+	if ( !Init_nffile(fileList) )
+		exit(254);
 
-	send_data(rfile, timeWindow, count, delay, confirm, netflow_version,distribution);
+	send_data(timeWindow, count, delay, confirm, netflow_version,distribution);
 
 	return 0;
 }

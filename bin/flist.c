@@ -44,6 +44,7 @@
 #include <sys/param.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <pthread.h>
 #include <netinet/in.h>
 
 #ifdef HAVE_STDINT_H
@@ -65,6 +66,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "flist.h"
+#include "queue.h"
 
 /*
  * Select a single file
@@ -215,16 +217,15 @@ static struct entry_filter_s {
 #define NUM_PTR 16
 
 // module variables
-static timeWindow_t globalWindow;
 static timeWindow_t *searchWindow = NULL;
 
 static char	*first_file = NULL;
 static char *last_file  = NULL;
 
-static stringlist_t source_dirs, file_list;
+static stringlist_t source_dirs;
+static queue_t *file_queue = NULL;
 
 /* Function prototypes */
-static int CheckTimeWindow(stat_record_t *stat_record);
 
 static void GetFileList(char *path);
 
@@ -237,6 +238,10 @@ static int mkpath(char *path, char *p, mode_t mode, mode_t dir_mode, char *error
 static char *GuessSubDir(char *channeldir, char *filename);
 
 static char *VerifyFileRange(char *path, char *last_file);
+
+static void *FileLister_thr(void *arg);
+
+static int CheckTimeWindow(char *filename);
 
 /* Functions */
 
@@ -279,31 +284,6 @@ size_t	len;
 
 } // End of CleanPath
 
-static int CheckTimeWindow(stat_record_t *stat_record) {
-
-	// no time search window set
-	if ( !searchWindow ) 
-		return 1;
-
-	int ok = 1;
-
-	// can/need to check first ?
-	if ( searchWindow->first && globalWindow.first )
-		ok = stat_record->first_seen <= searchWindow->first;
-	
-	if ( !ok )
-		return 0;
-
-	// can/need to check last ?
-	if ( searchWindow->last && globalWindow.last )
-		ok = stat_record->last_seen >= searchWindow->last;
-	
-	if ( !ok )
-		return 0;
-
-	return 1;
-
-} // End of CheckTimeWindow
 
 // file filter for scandir function
 
@@ -338,13 +318,13 @@ char *p, *q, *first_mark, *last_mark;
 		return;
 
 	if ( file_list_level < 0 ) {
-		fprintf(stderr, "software error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+		LogError("software error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 		exit(250);
 	}
 
 	dir_entry_filter = (struct entry_filter_s *)malloc((file_list_level+1) * sizeof(struct entry_filter_s));
 	if ( !dir_entry_filter ) {
-		fprintf(stderr, "malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+		LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 		exit(250);
 	}
 
@@ -389,7 +369,7 @@ char *p, *q, *first_mark, *last_mark;
 		}
 		if ( dir_entry_filter[i].first_entry && dir_entry_filter[i].last_entry &&
 			 strcmp(dir_entry_filter[i].first_entry, dir_entry_filter[i].last_entry) > 0 )
-			fprintf(stderr, "WARNING: Entry '%s' > '%s'. Will not match anything!\n",
+			LogError("WARNING: Entry '%s' > '%s'. Will not match anything!",
 					dir_entry_filter[i].first_entry, dir_entry_filter[i].last_entry);
 
 //		printf("%i first: '%s', last: '%s'\n", 
@@ -403,7 +383,7 @@ char *p, *q, *first_mark, *last_mark;
 
 	if ( dir_entry_filter[file_list_level].first_entry && dir_entry_filter[file_list_level].last_entry &&
 		 strcmp(dir_entry_filter[file_list_level].first_entry, dir_entry_filter[file_list_level].last_entry) > 0 )
-		fprintf(stderr, "WARNING: File '%s' > '%s'. Will not match anything!\n",
+		LogError("WARNING: File '%s' > '%s'. Will not match anything!",
 				dir_entry_filter[file_list_level].first_entry, dir_entry_filter[file_list_level].last_entry);
 
 //	printf("%i first: '%s', last: '%s'\n", 
@@ -429,21 +409,21 @@ FTSENT *ftsent;
 	if ( last_file_ptr ) {
 		// make sure we have only a single ':' in path
 		if ( strrchr(path, ':') != last_file_ptr ) {
-			fprintf(stderr, "Multiple file separators ':' in path not allowed!\n");
+			LogError("Multiple file separators ':' in path not allowed!");
 			exit(250);
 		}
 		*last_file_ptr++ = '\0';
 		// last_file_ptr points to last_file
 
 		if ( strlen(last_file_ptr) == 0 ) {
-			fprintf(stderr, "Missing last file option after ':'!\n");
+			LogError("Missing last file option after ':'!");
 			exit(250);
 		}
 	
 		CleanPath(last_file_ptr);
 		// make sure last_file option is not a full path
 		if ( last_file_ptr[0] == '/') {
-			fprintf(stderr, "Last file name in -R list must not start with '/'\n");
+			LogError("Last file name in -R list must not start with '/'");
 			exit(250);
 		}
 		// how may sub dir levels has last_file option?
@@ -473,11 +453,11 @@ FTSENT *ftsent;
 		// path contains the path to a file/directory
 		// stat this entry
 		if ( stat(path, &stat_buf) ) {
-			fprintf(stderr, "stat() error '%s': %s\n", path, strerror(errno));
+			LogError("stat() error '%s': %s", path, strerror(errno));
 			exit(250);
 		}
 		if ( !S_ISDIR(stat_buf.st_mode) && !S_ISREG(stat_buf.st_mode) ) {
-			fprintf(stderr, "Not a file or directory: '%s'\n", path);
+			LogError("Not a file or directory: '%s'", path);
 			exit(250);
 		}
 
@@ -489,7 +469,7 @@ FTSENT *ftsent;
 
 			// make sure first_file is a file
 			if ( S_ISDIR(stat_buf.st_mode) ) {
-				fprintf(stderr, "Not a file: '%s'\n", path);
+				LogError("Not a file: '%s'", path);
 				exit(250);
 			}
 
@@ -498,14 +478,14 @@ FTSENT *ftsent;
 	
 				// sub dir levels of first_file mus have at least the same number of levels as last_file
 				if ( levels_first_file < levels_last_file ) {
-					fprintf(stderr, "Number of sub dirs for sub level hierarchy for file list -R do not match\n");
+					LogError("Number of sub dirs for sub level hierarchy for file list -R do not match");
 					exit(250);
 				}
 				if ( levels_first_file == levels_last_file ) {
 					char *p, *q;
 					// path = [/]sub1[/..]/first_file:sub1[/...]/last_file
 					if ( path[0] == '/' ) {
-						// this is rather strange, but strctly spoken, valid anyway
+						// this is rather strange, but strictly spoken, valid anyway
 						InsertString(&source_dirs, "/");
 						path++;
 					} else {
@@ -517,7 +497,7 @@ FTSENT *ftsent;
 					q = strrchr(last_file_ptr, '/');
 					if ( !p || !q ) {
 						// this should never happen
-						fprintf(stderr, "software error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+						LogError("software error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 						exit(250);
 					}
 					*p++ = '\0';
@@ -550,7 +530,7 @@ FTSENT *ftsent;
 					s = strrchr(last_file_ptr, '/');
 					if ( !r || !s ) {
 						// this must never happen
-						fprintf(stderr, "software error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+						LogError("software error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 						exit(250);
 					}
 					*r++ = '\0';
@@ -619,7 +599,7 @@ FTSENT *ftsent;
 		char pathbuff[MAXPATHLEN];
 		// multiple sources option -M given
 		if ( path[0] == '/') {
-			fprintf(stderr, "File list -R must not start with '/' when combined with a source list -M\n");
+			LogError("File list -R must not start with '/' when combined with a source list -M");
 			exit(250);
 		}
 
@@ -658,21 +638,21 @@ FTSENT *ftsent;
 								// update dir levels of extended file path
 								levels_last_file  = dirlevels(last_file_ptr);
 							} else {
-								fprintf(stderr, "'%s': %s\n", last_file_ptr, "File not found!");
+								LogError("'%s': %s", last_file_ptr, "File not found!");
 								exit(250);
 							}
 						}
 	
 					} else {	// no file in any possible subdir found
-						fprintf(stderr, "stat() error '%s': %s\n", pathbuff, "File not found!");
+						LogError("stat() error '%s': %s", pathbuff, "File not found!");
 						exit(250);
 					}
 				} else {	// Any other stat error
-					fprintf(stderr, "stat() error '%s': %s\n", pathbuff, strerror(errno));
+					LogError("stat() error '%s': %s", pathbuff, strerror(errno));
 					exit(250);
 				}
 			} else if ( !S_ISREG(stat_buf.st_mode) ) {
-				fprintf(stderr, "Not a file : '%s'\n", pathbuff);
+				LogError("Not a file : '%s'", pathbuff);
 				exit(250);
 			}
 
@@ -685,7 +665,7 @@ FTSENT *ftsent;
 	
 				// the number of sub dirs must be eqal for first_file and last_file
 				if ( levels_first_file != levels_last_file ) {
-					fprintf(stderr, "Number of sub dirs must agree in '%s' and '%s'\n", path, last_file_ptr);
+					LogError("Number of sub dirs must agree in '%s' and '%s'", path, last_file_ptr);
 					exit(250);
 				}
 	
@@ -748,7 +728,7 @@ FTSENT *ftsent;
 		}
 
 		if ( ftsent->fts_pathlen < sub_index ) {
-			LogError("ERROR: fts_pathlen error at %s line %d\n", __FILE__, __LINE__);
+			LogError("ERROR: fts_pathlen error at %s line %d", __FILE__, __LINE__);
 			exit(250);
 		}
 		fts_path = &ftsent->fts_path[sub_index];
@@ -792,8 +772,7 @@ FTSENT *ftsent;
 				   ) )
 					continue;
 
-				InsertString(&file_list, ftsent->fts_path);
-
+				queue_push(file_queue, strdup(ftsent->fts_path));
 				break;
 		}
 
@@ -813,7 +792,6 @@ FTSENT *ftsent;
  * 	dir1, dir2 etc entrys
  */
 void Getsource_dirs(char *dirs) {
-struct stat stat_buf;
 char	*p, *q, *dirprefix;
 char	path[MAXPATHLEN];
 
@@ -838,12 +816,8 @@ char	path[MAXPATHLEN];
 			// p point to a dir name
 			snprintf(path, 1023, "%s/%s", dirprefix, p);
 			path[MAXPATHLEN-1] = 0;
-			if ( stat(dirs, &stat_buf) ) {
-				fprintf(stderr, "Can't stat '%s': %s\n", path, strerror(errno));
-				return;
-			}
-			if ( !S_ISDIR(stat_buf.st_mode) ) {
-				fprintf(stderr, "Not a directory: '%s'\n", path);
+			if ( !CheckPath(dirs, S_IFDIR) ) {
+				LogError("Not a directory: '%s'", path);
 				return;
 			}
 
@@ -854,12 +828,8 @@ char	path[MAXPATHLEN];
 		}
 
 	} else { // we have only one directory
-		if ( stat(dirs, &stat_buf) ) {
-			fprintf(stderr, "Can't stat '%s': %s\n", dirs, strerror(errno));
-			return;
-		}
-		if ( !S_ISDIR(stat_buf.st_mode) ) {
-			fprintf(stderr, "Not a directory: '%s'\n", dirs);
+		if ( !CheckPath(dirs, S_IFDIR) ) {
+			LogError("Not a directory: '%s'", dirs);
 			return;
 		}
 
@@ -869,62 +839,47 @@ char	path[MAXPATHLEN];
 
 } // End of Getsource_dirs
 
-void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multiple_files, timeWindow_t *timeWindow) {
+queue_t *SetupInputFileSequence(flist_t *flist) {
 
-	globalWindow.first  = 0xffffffff;
-	globalWindow.last   = 0;
+	file_queue = queue_init(64);
+	pthread_t tid;
+	pthread_create(&tid, NULL, FileLister_thr, (void *)flist);
+	pthread_detach(tid);
+	return file_queue;
+
+} // End of SetupInputFileSequence
+
+static void *FileLister_thr(void *arg) {
+flist_t *flist = (flist_t *)arg;
+char *single_file = flist->single_file;
+timeWindow_t *timeWindow = flist->timeWindow;
+
 	searchWindow = timeWindow;
 
 	first_file 	= NULL;
 	last_file  	= NULL;
 
 	InitStringlist(&source_dirs, NUM_PTR);
-	InitStringlist(&file_list, 64);
+	if ( flist->multiple_dirs ) 
+		Getsource_dirs(flist->multiple_dirs);
 
-	if ( multiple_dirs ) 
-		Getsource_dirs(multiple_dirs);
-
-	if ( multiple_files ) {
+	if ( flist->multiple_files ) {
 		// use multiple files
-		GetFileList(multiple_files);
-
-		// get time window spanning all the files 
-		if ( timeWindow && file_list.num_strings ) {
-			stat_record_t stat_ptr;
-
-			// read the stat record
-			if ( !GetStatRecord(file_list.list[0], &stat_ptr) ) {
-				exit(250);
-			}
-			globalWindow.first = stat_ptr.first_seen;
-
-			// read the stat record of last file
-			if ( !GetStatRecord(file_list.list[file_list.num_strings-1], &stat_ptr) ) {
-				exit(250);
-			}
-			globalWindow.last  = stat_ptr.last_seen;
-		}
-
+		GetFileList(flist->multiple_files);
 	} else if ( single_file ) {
 		CleanPath(single_file);
 
 		if ( source_dirs.num_strings == 0 ) {
 			// single file -r
-			stat_record_t stat_ptr;
-			InsertString(&file_list, single_file);
-			if ( timeWindow ) {
-				if ( !GetStatRecord(single_file, &stat_ptr) ) {
-					exit(250);
-				}
-				globalWindow.first = stat_ptr.first_seen;
-				globalWindow.last  = stat_ptr.last_seen;
+			if ( CheckTimeWindow(single_file)) {
+				queue_push(file_queue, strdup(single_file));
 			}
 		} else {
 			// single file -r in multiple dirs -M
 			int i;
 
 			if ( single_file[0] == '/' ) {
-				fprintf(stderr, "File -r must not start with '/', when combined with a source list -M\n");
+				LogError("File -r must not start with '/', when combined with a source list -M");
 				exit(250);
 			}
 
@@ -939,47 +894,32 @@ void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multip
 						// file not found - try to guess subdir
 						char *sub_dir = GuessSubDir(source_dirs.list[i], single_file);
 						if ( sub_dir ) {	// subdir found
-							stat_record_t stat_ptr;
 							snprintf(s, MAXPATHLEN-1, "%s/%s/%s", source_dirs.list[i], sub_dir, single_file);
 							s[MAXPATHLEN-1] = '\0';
-							InsertString(&file_list, s);
-							if ( timeWindow ) {
-								if ( !GetStatRecord(s, &stat_ptr) ) {
-									exit(250);
-								}
-								if ( stat_ptr.first_seen < globalWindow.first ) 
-									globalWindow.first = stat_ptr.first_seen;
-								if ( stat_ptr.last_seen > globalWindow.last ) 
-									globalWindow.last  = stat_ptr.last_seen;
+							if ( CheckTimeWindow(s)) {
+								queue_push(file_queue, strdup(s));
 							}
 						} else {	// no subdir found
-							fprintf(stderr, "stat() error '%s': %s\n", s, "File not found!");
+							LogError("stat() error '%s': %s", s, "File not found!");
 						}
 					} else {	// Any other stat error
-						fprintf(stderr, "stat() error '%s': %s\n", s, strerror(errno));
+						LogError("stat() error '%s': %s", s, strerror(errno));
 						exit(250);
 					}
 				} else {	// stat() successful
 					if ( !S_ISREG(stat_buf.st_mode) ) {
-						fprintf(stderr, "Skip non file entry: '%s'\n", s);
+						LogError("Skip non file entry: '%s'", s);
 					} else {
-						stat_record_t stat_ptr;
-						InsertString(&file_list, s);
-						if ( timeWindow ) {
-							if ( !GetStatRecord(s, &stat_ptr) ) {
-								exit(250);
-							}
-							globalWindow.first = stat_ptr.first_seen;
-							globalWindow.last  = stat_ptr.last_seen;
+						if ( CheckTimeWindow(s)) {
+							queue_push(file_queue, strdup(s));
 						}
 					}
 				}
 			}
 		}
+	} 
 
-	} else // else use stdin
-		InsertString(&file_list, NULL);
-
+/*
 	// if relative time window, calculate absolute time
 	if ( timeWindow ) {
 		if ( timeWindow->first && timeWindow->first <= 86400 ) {
@@ -991,56 +931,13 @@ void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multip
 			timeWindow->last = timeWindow->last;
 		}
 	}
-} // End of SetupInputFileSequence
+*/
 
-nffile_t *GetNextFile(nffile_t *nffile) {
-static int cnt;
+	queue_close(file_queue);
+	pthread_exit(NULL);
+	/* not reached */
 
-	// close current file before open the next one
-	// stdin ( current = 0 ) is not closed
-	if ( nffile ) {
-		CloseFile(nffile);
-	} else {
-		// is it first time init ?
-		cnt  = 0;
-	}
-
-	// no or no more files available
-	if ( file_list.num_strings == cnt ) {
-		return EMPTY_LIST;
-	}
-	
-
-	while ( cnt < file_list.num_strings ) {
-#ifdef DEVEL
-		printf("Process: '%s'\n", file_list.list[cnt] ? file_list.list[cnt] : "<stdin>");
-#endif
-		nffile = OpenFile(file_list.list[cnt], nffile);	// Open the file
-		if ( !nffile ) {
-			return NULL;
-		}
-		cnt++;
-
-		// stdin
-		if ( nffile->fd == STDIN_FILENO ) {
-			return nffile;
-		}
-
-		if ( searchWindow ) {
-			if ( CheckTimeWindow(nffile->stat_record) ) {
-				// printf("Return file: %s\n", string);
-				return nffile;
-			} 
-			CloseFile(nffile);
-		} else {
-			return nffile;
-		}
-	}
-
-	return EMPTY_LIST;
-
-} // End of GetNextFile
-
+} // End of FileLister_thr
 
 int InitHierPath(int num) {
 int i;
@@ -1054,7 +951,7 @@ int i;
 		i++;
 	}
 	if ( subdir_def[i] == NULL ) {
-		fprintf(stderr, "No such subdir level %i\n", num);
+		LogError("No such subdir level %i", num);
 		return 0;
 	}
 
@@ -1193,7 +1090,7 @@ int err;
 		if ( err == 0 ) // creation was successful
 			return 1;
 	} else {
-		snprintf(error, errlen, "mkdir() error for '%s': %s\n", path, strerror(errno));
+		snprintf(error, errlen, "mkdir() error for '%s': %s", path, strerror(errno));
 	}
 
 	// anything else failed and error string is set
@@ -1224,7 +1121,7 @@ int done = 0;
 
         if (stat(path, &sb)) {
             if (errno != ENOENT || (mkdir(path, done ? mode : dir_mode) && errno != EEXIST)) {
-				snprintf(error, errlen, "mkdir() error for '%s': %s\n", path, strerror(errno));
+				snprintf(error, errlen, "mkdir() error for '%s': %s", path, strerror(errno));
                 return (-1);
             }
         } else if (!S_ISDIR(sb.st_mode)) {
@@ -1239,3 +1136,23 @@ int done = 0;
 
 } // End of mkpath
 
+static int CheckTimeWindow(char *filename) {
+
+	// no time search window set
+	if ( !searchWindow ) 
+		return 1;
+
+	stat_record_t stat_record;
+	if ( !GetStatRecord(filename, &stat_record) ) {
+		return 0;
+	}
+	
+	if ( searchWindow->last && searchWindow->last < stat_record.first_seen )
+		return 0;
+	
+	if ( searchWindow->first && searchWindow->first > stat_record.last_seen )
+		return 0;
+	
+	return 1;
+
+} // End of CheckTimeWindow

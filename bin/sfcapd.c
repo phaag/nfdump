@@ -642,7 +642,6 @@ int main(int argc, char **argv) {
 char	*bindhost, *datadir, pidstr[32], *launch_process;
 char	*userid, *groupid, *checkptr, *listenport, *mcastgroup;
 char	*Ident, *time_extension, pidfile[MAXPATHLEN];
-struct stat fstat;
 packet_function_t receive_packet;
 repeater_t repeater[MAX_REPEATERS];
 FlowSource_t *fs;
@@ -811,15 +810,13 @@ char	*pcap_file = NULL;
 				report_sequence = 1;
 				break;
 			case 'l':
-				datadir = optarg;
-				if ( strlen(datadir) > MAXPATHLEN ) {
-					fprintf(stderr, "ERROR: Path too long!\n");
+				if ( !CheckPath(optarg, S_IFDIR) )
 					exit(255);
-				}
-				stat(datadir, &fstat);
-				if ( !(fstat.st_mode & S_IFDIR) ) {
-					fprintf(stderr, "No such directory: %s\n", datadir);
-					break;
+
+				datadir = realpath(optarg, NULL);
+				if ( !datadir ) {
+					fprintf(stderr, "realpath() failed on %s: %s\n", datadir, strerror(errno));
+					exit(255);
 				}
 				break;
 			case 'S':
@@ -885,6 +882,9 @@ char	*pcap_file = NULL;
 	if ( !InitLog(do_daemonize, argv[0], SYSLOG_FACILITY, verbose) ) {
 		exit(255);
 	}
+
+	if ( !Init_nffile(NULL) )
+		exit(254);
 
 #ifdef PCAP
 	// Debug code to read from pcap file

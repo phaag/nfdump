@@ -40,9 +40,13 @@
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
+#include <sys/param.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/stat.h>
 #include <arpa/inet.h>
+#include <limits.h>
 
 #ifndef SYSLOG_NAMES
 #	define SYSLOG_NAMES 1
@@ -98,18 +102,58 @@ struct _code {
 
 /* Functions */
 
+double t(void) {
+
+    static double t0;
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    double h = t0;
+    t0 = tv.tv_sec + tv.tv_usec / 1000000.0;
+    return t0 - h;
+} // End of t
+
 /*
 ** usleep(3) implemented with select.
 */
-
-void xsleep(long sec) {
+void xsleep(long usec) {
 	struct timeval tv;
 
-	tv.tv_sec = sec;
-	tv.tv_usec = 0;
+	tv.tv_sec = 0;
+	tv.tv_usec = usec;
 
 	select(0, NULL, NULL, NULL, &tv);
 }
+
+int CheckPath(char *path, unsigned type) {
+struct stat fstat;
+
+	if ( strlen(path) >= MAXPATHLEN ) {
+		LogError("File or directory name too long");
+		return 0;
+	}
+
+	if ( stat(path, &fstat) ) {
+		LogError("No such file or directory: %s", path);
+		LogError("stat() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+		return 0;
+	}
+
+	if ( type ) {
+		if ( !(fstat.st_mode & type) ) {
+			LogError("Type err for %s\n", path);
+			return 0;
+		} else {
+			return 1;
+		}
+	} else if (S_ISREG(fstat.st_mode) || S_ISDIR(fstat.st_mode)) {
+		return 1;
+	} else {
+		LogError("Not a file or directory: %s", path);
+		return 0;
+	}
+
+	/* NOTREACHED */
+} // End of CheckPath
 
 void EndLog() {
 	if ( use_syslog )
@@ -341,7 +385,6 @@ char *p, *q;
 	return 1;
 
 } // End of ParseTime
-
 
 timeWindow_t *ScanTimeFrame(char *tstring) {
 timeWindow_t *timeWindow;

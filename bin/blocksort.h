@@ -1,6 +1,5 @@
 /*
  *  Copyright (c) 2009-2020, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -29,29 +28,21 @@
  *  
  */
 
-#ifndef _FLIST_H
-#define _FLIST_H 1
+#ifndef _BLOCKSORT_H
+#define _BLOCKSORT_H 1
 
-#include <time.h>
+#include "config.h"
 
-#include "util.h"
-#include "queue.h"
+#include <sys/types.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
 
-#define EMPTY_LIST ((nffile_t *)-1)
+typedef struct SortRecord {
+	void *record;
+    uint64_t	count;
+} SortRecord_t;
 
-typedef struct flist_s {
-	char *multiple_dirs;
-	char *single_file;
-	char *multiple_files;
-	timeWindow_t *timeWindow;
-} flist_t;
+void blocksort(SortRecord_t *data, int len);
 
-int InitHierPath(int num);
-
-char *GetSubDir(struct  tm *now);
-
-int SetupSubDir(char *dir, char *subdir, char *error, size_t errlen );
-
-queue_t *SetupInputFileSequence(flist_t *flist);
-
-#endif //_FLIST_H
+#endif //_BLOCKSORT_H

@@ -66,10 +66,6 @@ static uint32_t numElements;
 
 #include "nffile_inline.c"
 
-/* module limited globals */
-static uint32_t pcap_output_record_size_v4;
-static uint32_t pcap_output_record_size_v6;
-
 int Init_pcap2nf(int verbose) {
 
 	printRecord = verbose;
