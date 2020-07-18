@@ -1599,6 +1599,7 @@ samplerOption_t *samplerOption;
 				samplerOption->interval.length = length;
 				samplerOption->interval.offset = offset;
 				SetFlag(samplerOption->flags, STDSAMPLING34);
+				dbg_printf("Std Sampling found. length: %u, offset: %u\n", length, offset);
 				break;
 			case IPFIX_samplingAlgorithm: // #35
 				samplerOption->mode.length = length;
@@ -1629,10 +1630,10 @@ samplerOption_t *samplerOption;
 		offset += length;
 	}
 
-	if ( (samplerOption->flags & SAMPLERMASK ) == SAMPLERFLAGS) {
+	if ( (samplerOption->flags & SAMPLERMASK ) != 0) {
 		dbg_printf("[%u] Sampler information found\n", exporter->info.id);
 		InsertSamplerOption(exporter, samplerOption);
-	} else if ( (samplerOption->flags & STDMASK ) == STDFLAGS) {
+	} else if ( (samplerOption->flags & STDMASK ) != 0) {
 		dbg_printf("[%u] Std sampling information found\n", exporter->info.id);
 		InsertSamplerOption(exporter, samplerOption);
 	} else {
@@ -2034,7 +2035,7 @@ uint8_t	 *in;
 	// map input buffer as a byte array
 	in	= (uint8_t *)(data_flowset + 4);  // skip flowset header
 
-	if ( (samplerOption->flags & SAMPLERMASK ) == SAMPLERFLAGS) {
+	if ( (samplerOption->flags & SAMPLERMASK ) != 0) {
 		int32_t  id;
 		uint16_t mode;
 		uint32_t interval;
@@ -2051,7 +2052,7 @@ uint8_t	 *in;
 		dbg_printf("Sampler interval: %u\n", interval);
 	}
 
-	if ( (samplerOption->flags & STDMASK ) == STDFLAGS) {
+	if ( (samplerOption->flags & STDMASK ) != 0) {
 		int32_t  id;
 		uint16_t mode;
 		uint32_t interval;

@@ -1459,10 +1459,10 @@ samplerOption_t *samplerOption;
 		offset += length;
 	}
 
-	if ( (samplerOption->flags & SAMPLERMASK ) == SAMPLERFLAGS) {
+	if ( (samplerOption->flags & SAMPLERMASK ) != 0) {
 		dbg_printf("[%u] Sampler information found\n", exporter->info.id);
 		InsertSamplerOption(exporter, samplerOption);
-	} else if ( (samplerOption->flags & STDMASK ) == STDFLAGS) {
+	} else if ( (samplerOption->flags & STDMASK ) != 0) {
 		dbg_printf("[%u] Std sampling information found\n", exporter->info.id);
 		InsertSamplerOption(exporter, samplerOption);
 	} else {
