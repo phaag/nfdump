@@ -496,7 +496,6 @@ int 				done, write_file;
 						continue;
 					} 
 
-					recordCount++;
 					master_record = &(extension_map_list->slot[map_id]->master_record);
 					Engine->nfrecord = (uint64_t *)master_record;
 					ExpandRecord_v2( flow_record, extension_map_list->slot[map_id], 
@@ -517,6 +516,7 @@ int 				done, write_file;
 						// go to next record
 						continue;
 					}
+					recordCount++;
 
 					// Records passed filter -> continue record processing
 					// Update statistics

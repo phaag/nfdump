@@ -210,7 +210,7 @@ static struct entry_filter_s {
 	char	*first_entry;
 	char	*last_entry;
 	int		list_files;
-} *dir_entry_filter;
+} *dir_entry_filter = NULL;
 
 #define NUM_PTR 16
 
@@ -339,13 +339,13 @@ char *p, *q, *first_mark, *last_mark;
 		return;
 
 	if ( file_list_level < 0 ) {
-		fprintf(stderr, "software error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+		LogError("software error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 		exit(250);
 	}
 
 	dir_entry_filter = (struct entry_filter_s *)malloc((file_list_level+1) * sizeof(struct entry_filter_s));
 	if ( !dir_entry_filter ) {
-		fprintf(stderr, "malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+		LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 		exit(250);
 	}
 
@@ -390,7 +390,7 @@ char *p, *q, *first_mark, *last_mark;
 		}
 		if ( dir_entry_filter[i].first_entry && dir_entry_filter[i].last_entry &&
 			 strcmp(dir_entry_filter[i].first_entry, dir_entry_filter[i].last_entry) > 0 )
-			fprintf(stderr, "WARNING: Entry '%s' > '%s'. Will not match anything!\n",
+			LogError("WARNING: Entry '%s' > '%s'. Will not match anything!",
 					dir_entry_filter[i].first_entry, dir_entry_filter[i].last_entry);
 
 //		printf("%i first: '%s', last: '%s'\n", 
@@ -404,12 +404,12 @@ char *p, *q, *first_mark, *last_mark;
 
 	if ( dir_entry_filter[file_list_level].first_entry && dir_entry_filter[file_list_level].last_entry &&
 		 strcmp(dir_entry_filter[file_list_level].first_entry, dir_entry_filter[file_list_level].last_entry) > 0 )
-		fprintf(stderr, "WARNING: File '%s' > '%s'. Will not match anything!\n",
+		LogError("WARNING: File '%s' > '%s'. Will not match anything!",
 				dir_entry_filter[file_list_level].first_entry, dir_entry_filter[file_list_level].last_entry);
-
-//	printf("%i first: '%s', last: '%s'\n", 
-//		file_list_level, dir_entry_filter[file_list_level].first_entry, dir_entry_filter[file_list_level].last_entry);
-
+/*
+	printf("%i first: '%s', last: '%s'\n", 
+		file_list_level, dir_entry_filter[file_list_level].first_entry, dir_entry_filter[file_list_level].last_entry);
+*/
 } // End of CreateDirListFilter
 
 static void GetFileList(char *path) {
@@ -430,21 +430,21 @@ FTSENT *ftsent;
 	if ( last_file_ptr ) {
 		// make sure we have only a single ':' in path
 		if ( strrchr(path, ':') != last_file_ptr ) {
-			fprintf(stderr, "Multiple file separators ':' in path not allowed!\n");
+			LogError("Multiple file separators ':' in path not allowed!");
 			exit(250);
 		}
 		*last_file_ptr++ = '\0';
 		// last_file_ptr points to last_file
 
 		if ( strlen(last_file_ptr) == 0 ) {
-			fprintf(stderr, "Missing last file option after ':'!\n");
+			LogError("Missing last file option after ':'!");
 			exit(250);
 		}
 	
 		CleanPath(last_file_ptr);
 		// make sure last_file option is not a full path
 		if ( last_file_ptr[0] == '/') {
-			fprintf(stderr, "Last file name in -R list must not start with '/'\n");
+			LogError("Last file name in -R list must not start with '/'");
 			exit(250);
 		}
 		// how may sub dir levels has last_file option?
@@ -474,11 +474,11 @@ FTSENT *ftsent;
 		// path contains the path to a file/directory
 		// stat this entry
 		if ( stat(path, &stat_buf) ) {
-			fprintf(stderr, "stat() error '%s': %s\n", path, strerror(errno));
+			LogError("stat() error '%s': %s", path, strerror(errno));
 			exit(250);
 		}
 		if ( !S_ISDIR(stat_buf.st_mode) && !S_ISREG(stat_buf.st_mode) ) {
-			fprintf(stderr, "Not a file or directory: '%s'\n", path);
+			LogError("Not a file or directory: '%s'", path);
 			exit(250);
 		}
 
@@ -490,7 +490,7 @@ FTSENT *ftsent;
 
 			// make sure first_file is a file
 			if ( S_ISDIR(stat_buf.st_mode) ) {
-				fprintf(stderr, "Not a file: '%s'\n", path);
+				LogError("Not a file: '%s'", path);
 				exit(250);
 			}
 
@@ -499,7 +499,7 @@ FTSENT *ftsent;
 	
 				// sub dir levels of first_file mus have at least the same number of levels as last_file
 				if ( levels_first_file < levels_last_file ) {
-					fprintf(stderr, "Number of sub dirs for sub level hierarchy for file list -R do not match\n");
+					LogError("Number of sub dirs for sub level hierarchy for file list -R do not match");
 					exit(250);
 				}
 				if ( levels_first_file == levels_last_file ) {
@@ -518,7 +518,7 @@ FTSENT *ftsent;
 					q = strrchr(last_file_ptr, '/');
 					if ( !p || !q ) {
 						// this should never happen
-						fprintf(stderr, "software error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+						LogError("software error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 						exit(250);
 					}
 					*p++ = '\0';
@@ -551,7 +551,7 @@ FTSENT *ftsent;
 					s = strrchr(last_file_ptr, '/');
 					if ( !r || !s ) {
 						// this must never happen
-						fprintf(stderr, "software error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+						LogError("software error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 						exit(250);
 					}
 					*r++ = '\0';
@@ -620,7 +620,7 @@ FTSENT *ftsent;
 		char pathbuff[MAXPATHLEN];
 		// multiple sources option -M given
 		if ( path[0] == '/') {
-			fprintf(stderr, "File list -R must not start with '/' when combined with a source list -M\n");
+			LogError("File list -R must not start with '/' when combined with a source list -M");
 			exit(250);
 		}
 
@@ -659,21 +659,21 @@ FTSENT *ftsent;
 								// update dir levels of extended file path
 								levels_last_file  = dirlevels(last_file_ptr);
 							} else {
-								fprintf(stderr, "'%s': %s\n", last_file_ptr, "File not found!");
+								LogError("'%s': %s", last_file_ptr, "File not found!");
 								exit(250);
 							}
 						}
 	
 					} else {	// no file in any possible subdir found
-						fprintf(stderr, "stat() error '%s': %s\n", pathbuff, "File not found!");
+						LogError("stat() error '%s': %s", pathbuff, "File not found!");
 						exit(250);
 					}
 				} else {	// Any other stat error
-					fprintf(stderr, "stat() error '%s': %s\n", pathbuff, strerror(errno));
+					LogError("stat() error '%s': %s", pathbuff, strerror(errno));
 					exit(250);
 				}
 			} else if ( !S_ISREG(stat_buf.st_mode) ) {
-				fprintf(stderr, "Not a file : '%s'\n", pathbuff);
+				LogError("Not a file : '%s'", pathbuff);
 				exit(250);
 			}
 
@@ -686,7 +686,7 @@ FTSENT *ftsent;
 	
 				// the number of sub dirs must be eqal for first_file and last_file
 				if ( levels_first_file != levels_last_file ) {
-					fprintf(stderr, "Number of sub dirs must agree in '%s' and '%s'\n", path, last_file_ptr);
+					LogError("Number of sub dirs must agree in '%s' and '%s'", path, last_file_ptr);
 					exit(250);
 				}
 	
@@ -733,13 +733,6 @@ FTSENT *ftsent;
 		}
 	}
 
-/*
-printf("first_file %s\n", first_file ? first_file : "<none>");
-printf("last_file %s\n", last_file ? last_file : "<none>");
-printf("first_path %s\n", first_path ? first_path : "<none>");
-printf("last_path %s\n", last_path ? last_path : "<none>");
-printf("file_list_level: %i\n", file_list_level);
-*/
 	CreateDirListFilter(first_path, last_path, file_list_level );
 
 	// last entry must be NULL
@@ -757,8 +750,13 @@ printf("file_list_level: %i\n", file_list_level);
 			continue;
 		}
 
+		if ( dir_entry_filter && (fts_level > file_list_level) ) {
+			LogError("ERROR: fts_level error at %s line %d", __FILE__, __LINE__);
+			exit(250);
+		}
+
 		if ( ftsent->fts_pathlen < sub_index ) {
-			LogError("ERROR: fts_pathlen error at %s line %d\n", __FILE__, __LINE__);
+			LogError("ERROR: fts_pathlen error at %s line %d", __FILE__, __LINE__);
 			exit(250);
 		}
 		fts_path = &ftsent->fts_path[sub_index];
@@ -784,7 +782,7 @@ printf("DGB: short fts: '%s', filer_first: '%s', filter_last: '%s'\n",
 				break;
 			case FTS_F:
 				// file entry
-// printf("==> Check: %s\n", ftsent->fts_name);
+				// printf("==> Check: %s\n", ftsent->fts_name);
 
 				// skip stat file
 				if ( strcmp(ftsent->fts_name, ".nfstat") == 0 ||
@@ -856,11 +854,11 @@ char	path[MAXPATHLEN];
 			snprintf(path, 1023, "%s/%s", dirprefix, p);
 			path[MAXPATHLEN-1] = 0;
 			if ( stat(dirs, &stat_buf) ) {
-				fprintf(stderr, "Can't stat '%s': %s\n", path, strerror(errno));
+				LogError("Can't stat '%s': %s", path, strerror(errno));
 				return;
 			}
 			if ( !S_ISDIR(stat_buf.st_mode) ) {
-				fprintf(stderr, "Not a directory: '%s'\n", path);
+				LogError("Not a directory: '%s'", path);
 				return;
 			}
 
@@ -872,11 +870,11 @@ char	path[MAXPATHLEN];
 
 	} else { // we have only one directory
 		if ( stat(dirs, &stat_buf) ) {
-			fprintf(stderr, "Can't stat '%s': %s\n", dirs, strerror(errno));
+			LogError("Can't stat '%s': %s", dirs, strerror(errno));
 			return;
 		}
 		if ( !S_ISDIR(stat_buf.st_mode) ) {
-			fprintf(stderr, "Not a directory: '%s'\n", dirs);
+			LogError("Not a directory: '%s'", dirs);
 			return;
 		}
 
@@ -937,7 +935,7 @@ void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multip
 			int i;
 
 			if ( single_file[0] == '/' ) {
-				fprintf(stderr, "File -r must not start with '/', when combined with a source list -M\n");
+				LogError("File -r must not start with '/', when combined with a source list -M");
 				exit(250);
 			}
 
@@ -962,15 +960,15 @@ void SetupInputFileSequence(char *multiple_dirs, char *single_file, char *multip
 							twin_first = stat_ptr.first_seen;
 							twin_last  = stat_ptr.last_seen;
 						} else {	// no subdir found
-							fprintf(stderr, "stat() error '%s': %s\n", s, "File not found!");
+							LogError("stat() error '%s': %s", s, "File not found!");
 						}
 					} else {	// Any other stat error
-						fprintf(stderr, "stat() error '%s': %s\n", s, strerror(errno));
+						LogError("stat() error '%s': %s", s, strerror(errno));
 						exit(250);
 					}
 				} else {	// stat() successful
 					if ( !S_ISREG(stat_buf.st_mode) ) {
-						fprintf(stderr, "Skip non file entry: '%s'\n", s);
+						LogError("Skip non file entry: '%s'", s);
 					} else {
 						stat_record_t stat_ptr;
 						InsertString(&file_list, s);
@@ -1056,7 +1054,7 @@ int i;
 		i++;
 	}
 	if ( subdir_def[i] == NULL ) {
-		fprintf(stderr, "No such subdir level %i\n", num);
+		LogError("No such subdir level %i", num);
 		return 0;
 	}
 
