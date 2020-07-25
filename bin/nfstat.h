@@ -101,6 +101,9 @@ typedef struct SortElement {
     uint64_t	count;
 } SortElement_t;
 
+#define ASCENDING 1
+#define DESCENDING 0
+
 #define MULTIPLE_LIST_ORDERS 1
 #define SINGLE_LIST_ORDER    0
 
@@ -129,8 +132,6 @@ void PrintFlowTable(printer_t print_record, outputParams_t *outputParams, int Gu
 
 void PrintFlowStat(func_prolog_t record_header, printer_t print_record, outputParams_t *outputParams, extension_map_list_t *extension_map_list);
 void PrintElementStat(stat_record_t	*sum_stat, outputParams_t *outputParams, printer_t print_record);
-
-int ParseListOrder(char *s, int multiple_orders );
 
 void PrintSortedFlows(printer_t print_record, uint32_t limitflows, int tag);
 

@@ -56,6 +56,7 @@
 #include "nflowcache.h"
 #include "exporter.h"
 #include "output_util.h"
+#include "output_raw.h"
 #include "nfexport.h"
 
 #include "nfdump_inline.c"
@@ -317,7 +318,7 @@ char				*string;
 		}
 
 		if ( c >= 2 )
- 			heapSort(SortList, c, 0);
+ 			heapSort(SortList, c, 0, DESCENDING);
 
 		for ( i = 0; i < c; i++ ) {
 			master_record_t	*flow_record;

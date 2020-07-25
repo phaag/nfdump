@@ -53,9 +53,12 @@ not contain any directory part when used in conjunction with \-M.
 .B -m
 deprecated option. Use -O tstart instead.
 .TP 3
-.B -O \fIorder
-Set sort order to print flows or aggregated flows. \fIorder\fR can be:
+.B -O \fIorder[:direction]
+Set sort order to print raw or aggregated flows. Optionally add an
+order \fIdirection\fR 'a' for ascending or 'd' for descending. \fIorder\fR can be:
 .RS 5
+by default descending:
+.br
 flows    Sort according to the number of flows
 .br
 packets  Sort according to (in)packets
@@ -87,6 +90,8 @@ bpp      Sort according to (in)bytes per packet
 ibpp     Same as bpp
 .br
 obpp     Sort according to output packets
+.br
+by default ascending:
 .br
 tstart   Sort according to start time of flow - former -m
 .br
@@ -250,7 +255,7 @@ Print flow statistics from file specified by \-r, or timeslot specified by \-R/\
 .B -D \fIdns
 Set \fIdns\fR as nameserver to look up hostnames.
 .TP 3
-.B -s \fIstatistic[:p][/orderby]
+.B -s \fIstatistic[:p][/orderby[:direction]]
 Generate the Top N flow or flow element statistic. \fIstatistic\fR can be:
 .RS 5
 record    Statistic about aggregated netflow records.
@@ -402,6 +407,8 @@ ordered and can be \fIflows\fR, \fIpackets\fR, \fIbytes\fR, \fIpps\fR, \fIbps\fR
 or \fIbpp\fR. You may specify more than one \fIorderby\fR which results in the 
 same statistic but ordered differently. If no \fIorderby\fR is given, statistics 
 are ordered by \fIflows\fR.
+Optionally to the order you add a \fI:direction\fR ':a' for ascending or ':d' for descending.
+By default all -s statitics are printed in descending order.
 You can specify as many \-s flow element statistics as needed on the command line for the 
 same run. 
 .P

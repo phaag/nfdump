@@ -1,5 +1,5 @@
-2020-07-18
-- Fix #231 sampling detection
+2020-07-25
+- Add optional print direction ascending or descending to output of statistics -s and oredered printing -O. Request #235
 
 2020-06-20
 - Honor -n flag when printing sorted flow cache

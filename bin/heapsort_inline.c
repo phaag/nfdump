@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -28,23 +27,23 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: heapsort_inline.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *  
  */
 
-static void heapSort(SortElement_t *SortElement, uint32_t array_size, int topN);
+typedef void (*siftElement_t)(SortElement_t *SortElement, uint32_t numbersSize, uint32_t node);
+
+static void heapSort(SortElement_t *SortElement, uint32_t array_size, int topN, int direction);
 
 static inline void siftDown(SortElement_t *SortElement, uint32_t root, uint32_t bottom);
 
-static void heapSort(SortElement_t *SortElement, uint32_t array_size, int topN) {
+static inline void siftUp(SortElement_t *SortElement, uint32_t numbersSize, uint32_t node);
+
+static void heapSort(SortElement_t *SortElement, uint32_t array_size, int topN, int direction) {
 int32_t	i, maxindex;
 
+	siftElement_t siftElement = direction == DESCENDING ? siftDown : siftUp;
+
 	for(i = array_size - 1; i >= 0; i--)
-		siftDown(SortElement,array_size,i);
+		siftElement(SortElement,array_size,i);
 
 	/* 
 	 * we are only interested in the first top N => skip sorting the rest
@@ -60,7 +59,7 @@ int32_t	i, maxindex;
 		SortElement_t temp = SortElement[0];
 		SortElement[0] = SortElement[i];
 		SortElement[i] = temp;
-		siftDown(SortElement,i,0);
+		siftElement(SortElement,i,0);
 	}
 
 } // End of heapSort
@@ -90,3 +89,29 @@ uint32_t i, parent, child;
         }
     }
 } // End of siftDown
+
+static inline void siftUp(SortElement_t *SortElement, uint32_t numbersSize, uint32_t node) {
+uint32_t i, parent, child;
+
+    parent = node;
+    i = parent + 1;
+    while( i != parent ) {
+        i = parent;
+
+        // Compare with left child node
+		child = 2*i+1;
+        if( (child) < numbersSize && SortElement[child].count < SortElement[parent].count)
+            parent = child;
+
+        // Compare with right child node
+		child = 2*i+2;
+        if( (child) < numbersSize && SortElement[child].count < SortElement[parent].count)
+            parent = child;
+
+        if ( i != parent ) {
+            SortElement_t temp = SortElement[i];
+            SortElement[i] = SortElement[parent];
+            SortElement[parent] = temp;
+        }
+    }
+} // End of siftUp
