@@ -1,6 +1,7 @@
 2020-07-25
 - Add optional print direction ascending or descending to output of statistics -s and oredered printing -O. Request #235
 - Fix issue #234 
+- Fix #230 - Avoid use_syslog name clash on certain OS
 
 2020-06-20
 - Honor -n flag when printing sorted flow cache
