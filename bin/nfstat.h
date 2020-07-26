@@ -51,6 +51,9 @@ typedef struct SortElement {
 } SortElement_t;
 */
 
+#define ASCENDING 1
+#define DESCENDING 0
+
 /* Function prototypes */
 void SetLimits(int stat, char *packet_limit_string, char *byte_limit_string );
 

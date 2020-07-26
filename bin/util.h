@@ -106,7 +106,7 @@ int CheckPath(char *path, unsigned type);
 
 void EndLog(void);
 
-int InitLog(int use_syslog, char *name, char *facility, int verbose_log);
+int InitLog(int want_syslog, char *name, char *facility, int verbose_log);
 
 void LogError(char *format, ...);
 

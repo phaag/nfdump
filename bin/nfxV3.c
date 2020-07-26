@@ -37,7 +37,7 @@
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 #endif
-#define DEVEL 1
+
 #include "util.h"
 #include "nfdump.h"
 #include "nfxV3.h"
@@ -143,6 +143,35 @@ static void DumpHex(const void* data, size_t size) {
 		}
 	}
 }
+
+static void CompactSequencer(sequencer_t *sequencer) {
+
+	int i = 0;
+	while ( i < sequencer->numSequences ) {
+		if ( sequencer->sequenceTable[i].inputType || ( sequencer->sequenceTable[i].inputLength == 0xFFFF )) {
+			i++;
+			continue;
+		}
+		int j = i+1;
+		while ( j < sequencer->numSequences ) {
+			if ( sequencer->sequenceTable[j].inputType == 0 && sequencer->sequenceTable[j].inputLength != 0xFFFF ) {
+				 sequencer->sequenceTable[i].inputLength += sequencer->sequenceTable[j].inputLength;
+				j++;
+			} else {
+				break;
+			}
+		}
+		int k = i+1;
+		while ( j < sequencer->numSequences ) {
+			sequencer->sequenceTable[k] = sequencer->sequenceTable[j];
+			k++; j++;
+		}
+		i++;
+		sequencer->numSequences -= (j-k);
+	}
+
+} // End of CompactSequencer
+
 uint16_t *SetupSequencer(sequencer_t *sequencer, sequence_t *sequenceTable, uint32_t numSequences) {
 uint32_t	ExtSize[MAXELEMENTS];
 
@@ -153,6 +182,9 @@ uint32_t	ExtSize[MAXELEMENTS];
 	sequencer->hasVarLength  = false;
 	sequencer->inLength  = 0;
 	sequencer->outLength = 0;
+
+	CompactSequencer(sequencer);
+
 	for (int i=0; i<sequencer->numSequences; i++ ) {
 		uint32_t ExtID = sequencer->sequenceTable[i].extensionID;
 		if ( sequencer->sequenceTable[i].inputLength == VARLENGTH ) {
@@ -276,7 +308,7 @@ int SequencerRun(sequencer_t *sequencer, void *in, size_t inSize, void *out, siz
 		// check for skip sequence
 		if ( ExtID == EXnull && stackID == 0 ) {
 #ifdef DEVEL
-			printf("[%i] Skip element %u, length %u\n",
+			printf("[%i] Skip element %u, length %u: ",
 				i, sequencer->sequenceTable[i].inputType, inLength);
 			DumpHex(in,inLength);
 #endif
@@ -358,14 +390,14 @@ int SequencerRun(sequencer_t *sequencer, void *in, size_t inSize, void *out, siz
 			}
 #ifdef DEVEL
 			if ( sequencer->sequenceTable[i].inputLength <= 8 )
-				printf("[%i] Read length: %u, val: %llu\n", i, sequencer->sequenceTable[i].inputLength, v);
+				printf("[%i] Read length: %u, val: %llu\n", i, sequencer->sequenceTable[i].inputLength, (long long unsigned)v);
 
 			if ( sequencer->sequenceTable[i].inputLength == 16 )
-				printf("[%i] Read length: %u, val: %llx %llx\n", i, sequencer->sequenceTable[i].inputLength, vv[0], vv[1]);
+				printf("[%i] Read length: %u, val: %llx %llx\n", i, sequencer->sequenceTable[i].inputLength, (long long unsigned)vv[0], (long long unsigned)vv[1]);
 #endif
 			if ( stackID && stack ) {
 				stack[stackID] = v;
-				dbg_printf("Stack value %llu in slot %u\n", v, stackID);
+				dbg_printf("Stack value %llu in slot %u\n", (long long unsigned)v, stackID);
 			}
 
 			switch (outLength) {
@@ -433,8 +465,8 @@ void PrintSequencer(sequencer_t *sequencer) {
 	printf("Outlength     : %lu\n", sequencer->outLength);
 	printf("Sequences\n");
 	for (int i=0; i<sequencer->numSequences; i++) {
-		printf("inputType: %u, inputLength: %d, extensionID: %u, outputLength: %u, offsetRel: %lu, stackID: %u\n",
-		sequencer->sequenceTable[i].inputType, sequencer->sequenceTable[i].inputLength,
+		printf("[%u] inputType: %u, inputLength: %d, extensionID: %u, outputLength: %u, offsetRel: %lu, stackID: %u\n",
+		i, sequencer->sequenceTable[i].inputType, sequencer->sequenceTable[i].inputLength,
 		sequencer->sequenceTable[i].extensionID, sequencer->sequenceTable[i].outputLength,
 		sequencer->sequenceTable[i].offsetRel, sequencer->sequenceTable[i].stackID);
 	}

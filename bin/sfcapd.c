@@ -455,14 +455,6 @@ srecord_t	*commbuff;
 				char error[255];
 				nffile_t *nffile = fs->nffile;
 
-				if ( nffile->block_header->NumRecords ) {
-					// flush current buffer to disc
-					if ( WriteBlock(nffile) <= 0 )
-						LogError("Ident: %s, failed to write output buffer to disk: '%s'" ,
-							fs->Ident, strerror(errno));
-				} // else - no new records in current block
-
-	
 				// prepare filename
 				if ( subdir ) {
 					if ( SetupSubDir(fs->datadir, subdir, error, 255) ) {
@@ -528,10 +520,10 @@ srecord_t	*commbuff;
 						LogError("killed due to fatal error: ident: %s", fs->Ident);
 						break;
 					}
-				}
 
-				// Dump all extension maps to the buffer
-				FlushStdRecords(fs);
+					// Dump all extension maps to the buffer
+					FlushStdRecords(fs);
+				}
 
 				// next flow source
 				fs = fs->next;

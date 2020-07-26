@@ -188,6 +188,7 @@ typedef struct nffile_s {
 	int				fd;				// associated file descriptor
 	int				compat16;		// underlaying file is compat16
 	_Atomic pthread_t worker;		// nfread/nfwrite worker thread;
+	_Atomic int		terminate;		// signal to terminate 
 	dataBlock_t		*worker_buffer;	// buffer ptr
 
 #define FILE_IS_COMPAT16(n) (n->compat16)
@@ -286,7 +287,7 @@ int WriteBlock(nffile_t *nffile);
 
 void SetIdent(nffile_t *nffile, char *Ident);
 
-void ModifyCompressFile(flist_t *flist, int compress);
+void ModifyCompressFile(int compress);
 
 void* nfreader(void *arg);
 

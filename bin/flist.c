@@ -212,7 +212,7 @@ static struct entry_filter_s {
 	char	*first_entry;
 	char	*last_entry;
 	int		list_files;
-} *dir_entry_filter;
+} *dir_entry_filter = NULL;
 
 #define NUM_PTR 16
 
@@ -725,6 +725,11 @@ FTSENT *ftsent;
 		if ( fts_level == 0 ) {
 			sub_index = ftsent->fts_pathlen + 1;
 			continue;
+		}
+
+		if ( dir_entry_filter && (fts_level > file_list_level) ) {
+			LogError("ERROR: fts_level error at %s line %d", __FILE__, __LINE__);
+			exit(250);
 		}
 
 		if ( ftsent->fts_pathlen < sub_index ) {

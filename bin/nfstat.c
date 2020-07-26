@@ -373,6 +373,7 @@ typedef struct hashkey_s {
 	khint64_t v0;
 	khint64_t v1;
 	uint8_t	proto;
+	khint_t	hash;
 } hashkey_t;
 
 // khash record for element stat
@@ -385,7 +386,6 @@ typedef struct StatRecord {
 	
 	// add key for output processing
 	hashkey_t	hashkey;
-	khint_t	hash;
 } StatRecord_t;
 
 /* 
@@ -405,40 +405,38 @@ static inline uint64_t	bpp_element(StatRecord_t *record, int inout);
 enum CntIndices { FLOWS = 0, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES };
 enum FlowDir 	{ IN = 0, OUT, INOUT };
 
-#define ASCENDING 1
-#define DESCENDING 0
 static struct order_mode_s {
 	char *string;	// Stat name 
 	int	 inout;		// use IN or OUT or INOUT packets/bytes
-	int	 direction;	// ascending or descending
 	order_proc_element_t element_function;	// Function to call for element stats
 } order_mode[] = {
-	{ "-",			0,		0, 			null_element},	// empty entry 0
-	{ "flows",		IN,		DESCENDING, flows_element},
-	{ "packets",	INOUT,	DESCENDING, packets_element},
-	{ "ipkg",		IN,		DESCENDING, packets_element},
-	{ "opkg",		OUT,	DESCENDING, packets_element},
-	{ "bytes",		INOUT,	DESCENDING, bytes_element},
-	{ "ibyte",		IN,		DESCENDING, bytes_element},
-	{ "obyte",		OUT,	DESCENDING, bytes_element},
-	{ "pps",		INOUT,	DESCENDING, pps_element},
-	{ "ipps",		IN,		DESCENDING, pps_element},
-	{ "opps",		OUT,	DESCENDING, pps_element},
-	{ "bps",		INOUT,	DESCENDING, bps_element},
-	{ "ibps",		IN,		DESCENDING, bps_element},
-	{ "obps",		OUT,	DESCENDING, bps_element},
-	{ "bpp",		INOUT,	DESCENDING, bpp_element},
-	{ "ibpp",		IN,		DESCENDING, bpp_element},
-	{ "obpp",		OUT,	DESCENDING, bpp_element},
-	{ NULL,			0,		0,	 		NULL}
+	{ "-",			0,		null_element},	// empty entry 0
+	{ "flows",		IN,		flows_element},
+	{ "packets",	INOUT,	packets_element},
+	{ "ipkg",		IN,		packets_element},
+	{ "opkg",		OUT,	packets_element},
+	{ "bytes",		INOUT,	bytes_element},
+	{ "ibyte",		IN,		bytes_element},
+	{ "obyte",		OUT,	bytes_element},
+	{ "pps",		INOUT,	pps_element},
+	{ "ipps",		IN,		pps_element},
+	{ "opps",		OUT,	pps_element},
+	{ "bps",		INOUT,	bps_element},
+	{ "ibps",		IN,		bps_element},
+	{ "obps",		OUT,	bps_element},
+	{ "bpp",		INOUT,	bpp_element},
+	{ "ibpp",		IN,		bpp_element},
+	{ "obpp",		OUT,	bpp_element},
+	{ NULL,			0,		NULL}
 };
 
 #define MaxStats 8
 struct StatRequest_s {
-	uint32_t	order_bits;		// bit field for multiple print orders
-	int16_t		StatType;		// index into StatParameters
-	uint8_t		order_proto;	// protocol separated statistics
-} StatRequest[MaxStats];		// This number should do it for a single run
+	uint32_t order_bits;	// bit field for multiple print orders
+	int16_t  StatType;		// index into StatParameters
+	uint8_t	 order_proto;	// protocol separated statistics
+	uint8_t	 direction;		// sort ascending/descending
+} StatRequest[MaxStats];	// This number should do it for a single run
 
 static uint32_t	NumStats = 0;	// number of stats in StatRequest
 
@@ -454,7 +452,9 @@ static int byte_mode, packet_mode;
 enum { NONE = 0, LESS, MORE };
 
 /* function prototypes */
-static int ParseStatString(char *str, int16_t *StatType, int *flow_stat, uint16_t *order_proto, uint32_t *order_bits);
+static int ParseStatString(char *str, int16_t *StatType, int *flow_stat, uint16_t *order_proto, uint32_t *order_bits, uint32_t *direction);
+
+static int ParseListOrder(char *s, uint32_t *order_bits, uint32_t *direction);
 
 static void PrintStatLine(stat_record_t	*stat, outputParams_t *outputParams, StatRecord_t *StatData, int type, int order_proto, int inout);
 
@@ -462,7 +462,7 @@ static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto,
 
 static void PrintCvsStatLine(stat_record_t	*stat, int printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
 
-static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order );
+static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, int direction);
 
 
 #include "heapsort_inline.c"
@@ -672,17 +672,19 @@ int SetStat(char *str, int *element_stat, int *flow_stat) {
 	}
 
 	int	is_flow_stat = 0;
+	uint32_t direction = DESCENDING;
 	int16_t  StatType    = 0;
 	uint16_t order_proto = 0;
 	uint32_t order_bits = 0;
-	if ( ParseStatString(str, &StatType, &is_flow_stat, &order_proto, &order_bits) ) {
+	if ( ParseStatString(str, &StatType, &is_flow_stat, &order_proto, &order_bits, &direction) ) {
 		if ( is_flow_stat ) {
 			*flow_stat = 1;
-			Add_FlowStatOrder(order_bits);
+			Add_FlowStatOrder(order_bits, direction);
 		} else {
 			StatRequest[NumStats].StatType 	  = StatType;
 			StatRequest[NumStats].order_bits  = order_bits;
 			StatRequest[NumStats].order_proto = order_proto;
+			StatRequest[NumStats].direction   = direction;
 			NumStats++; 
 			*element_stat = 1;
 		}
@@ -694,7 +696,7 @@ int SetStat(char *str, int *element_stat, int *flow_stat) {
 
 } // End of SetStat
 
-static int ParseListOrder(char *s, uint32_t *order_bits) {
+static int ParseListOrder(char *s, uint32_t *order_bits, uint32_t *direction) {
 char *q;
 uint32_t bitset;
 
@@ -704,6 +706,24 @@ uint32_t bitset;
 		q = strchr(s, '/');
 		if ( q ) 
 			*q = 0;
+
+		char *r = strchr(s, ':');
+		if ( r ) {
+			*r++ = 0;
+			switch (*r) {
+				case 'a':
+					*direction = ASCENDING;
+					break;
+				case 'd':
+					*direction = DESCENDING;
+					break;
+				default:
+					return -1;
+			}
+		} else {
+			*direction = DESCENDING;
+		}
+
 		i = 0;
 		while ( order_mode[i].string ) {
 			if (  strcasecmp(order_mode[i].string, s ) == 0 )
@@ -728,7 +748,7 @@ uint32_t bitset;
 
 } // End of ParseListOrder
 
-static int ParseStatString(char *str, int16_t *StatType, int *flow_stat, uint16_t *order_proto, uint32_t *order_bits) {
+static int ParseStatString(char *str, int16_t *StatType, int *flow_stat, uint16_t *order_proto, uint32_t *order_bits, uint32_t *direction) {
 char	*s, *p, *q, *r;
 int i=0;
 
@@ -775,7 +795,7 @@ int i=0;
 
 	// check if one or more orders are given
 	r = ++q;
-	if ( ParseListOrder(r, order_bits) == 1 ) {
+	if ( ParseListOrder(r, order_bits, direction) == 1 ) {
 		free(s);
 		return 1;
 	} else {
@@ -1026,14 +1046,14 @@ int			af;
 
 	if ( type == IS_IPADDR )
 		printf("%i|%llu|%llu|%u|%u|%u|%u|%u|%llu|%llu|%llu|%u|%u|%u\n",
-			af, StatData->msecFirst, StatData->msecLast, StatData->hashkey.proto,
-			sa[0], sa[1], sa[2], sa[3], (long long unsigned)count_flows,
+			af, (long long unsigned)StatData->msecFirst, (long long unsigned)StatData->msecLast, 
+			StatData->hashkey.proto, sa[0], sa[1], sa[2], sa[3], (long long unsigned)count_flows,
 			(long long unsigned)count_packets, (long long unsigned)count_bytes,
 			pps, bps, bpp);
 	else
 		printf("%i|%llu|%llu|%u|%llu|%llu|%llu|%llu|%u|%u|%u\n",
-			af, StatData->msecFirst, StatData->msecLast, StatData->hashkey.proto,
-			(long long unsigned)_key[1], (long long unsigned)count_flows,
+			af, (long long unsigned)StatData->msecFirst, (long long unsigned)StatData->msecLast, 
+			StatData->hashkey.proto, (long long unsigned)_key[1], (long long unsigned)count_flows,
 			(long long unsigned)count_packets, (long long unsigned)count_bytes,
 			pps, bps, bpp);
 
@@ -1141,13 +1161,14 @@ uint32_t numflows;
 	numflows = 0;
 	// for every requested -s stat do
 	for (int hash_num = 0; hash_num < NumStats; hash_num++) {
-		int stat   = StatRequest[hash_num].StatType;
-		int order  = StatRequest[hash_num].order_bits;
-		int	type = StatParameters[stat].type;
+		int stat	  = StatRequest[hash_num].StatType;
+		int order	  = StatRequest[hash_num].order_bits;
+		int direction = StatRequest[hash_num].direction;
+		int	type	  = StatParameters[stat].type;
 		for (int order_index = 0; order_mode[order_index].string != NULL; order_index++ ) {
 			unsigned int order_bit = (1<<order_index);
 			if ( order & order_bit ) {
-				SortElement_t *topN_element_list = StatTopN(outputParams->topN, &numflows, hash_num, order_index);
+				SortElement_t *topN_element_list = StatTopN(outputParams->topN, &numflows, hash_num, order_index, direction);
 
 				// this output formating is pretty ugly - and needs to be cleaned up - improved
 				if ( outputParams->mode == MODE_PLAIN && !outputParams->quiet ) {
@@ -1205,7 +1226,7 @@ uint32_t numflows;
 	} // for every requested -s stat do
 } // End of PrintElementStat
 
-static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order ) {
+static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, int direction) {
 SortElement_t 		*topN_list;
 uint32_t	   		c, maxindex;
 
@@ -1257,7 +1278,7 @@ uint32_t	   		c, maxindex;
 	// Sorting makes only sense, when 2 or more flows are left
 	if ( c >= 2 ) {
 		if ( c < 100 ) 
-			heapSort(topN_list, c, topN);
+			heapSort(topN_list, c, topN, direction);
 		else
  			blocksort((SortRecord_t *)topN_list, c);
 	}

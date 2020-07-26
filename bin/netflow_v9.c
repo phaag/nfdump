@@ -1217,8 +1217,8 @@ uint8_t				*inBuff;
 				fs->msecFirst = genericFlow->msecFirst;
 			if ( genericFlow->msecLast > fs->msecLast )
 				fs->msecLast = genericFlow->msecLast;
-			dbg_printf("msecFrist: %llu\n", genericFlow->msecFirst);
-			dbg_printf("msecLast : %llu\n", genericFlow->msecLast);
+			dbg_printf("msecFrist: %llu\n", (long long unsigned)genericFlow->msecFirst);
+			dbg_printf("msecLast : %llu\n", (long long unsigned)genericFlow->msecLast);
 		}
 
 		// nprobe latency
@@ -1286,7 +1286,7 @@ uint8_t		*in;
 	// map input buffer as a byte array
 	in	  = (uint8_t *)(data_flowset + 4);	// skip flowset header
 
-	if ( (samplerOption->flags & SAMPLERMASK ) == SAMPLERFLAGS) {
+	if ( (samplerOption->flags & SAMPLERMASK ) != 0) {
 		int32_t  id;
 		uint16_t mode;
 		uint32_t interval;
@@ -1303,7 +1303,7 @@ uint8_t		*in;
 		InsertSampler(fs, exporter, id, mode, interval);
 	}
 
-	if ( (samplerOption->flags & STDMASK ) == STDFLAGS) {
+	if ( (samplerOption->flags & STDMASK ) != 0) {
 		int32_t  id;
 		uint16_t mode;
 		uint32_t interval;

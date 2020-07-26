@@ -99,7 +99,7 @@ int ParseAggregateMask( char *arg, char **aggr_fmt  );
 
 int SetBidirAggregation( void );
 
-void Add_FlowStatOrder(uint32_t order );
+void Add_FlowStatOrder(uint32_t order, uint32_t direction);
 
 int SetStat(char *str, int *element_stat, int *flow_stat);
 

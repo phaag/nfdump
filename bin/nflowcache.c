@@ -59,6 +59,7 @@
 #include "blocksort.h"
 #include "klist.h"
 #include "nflowcache.h"
+#include "output_raw.h"
 
 typedef struct aggregate_param_s {
 	uint32_t	size;	// size of parameter in bytes
@@ -140,23 +141,19 @@ static struct aggregate_table_s {
 /* Element of the flow hash ( cache ) */
 typedef struct FlowHashRecord {
 	// record chain - for FlowList
-	struct FlowHashRecord *next;	
-
-	// port for direction verification
-	uint16_t	srcPort;
-	uint16_t	dstPort;
-	uint8_t		proto;
-	uint8_t		tcpFlags;
-
-	// Hash papameters
-	uint32_t	hash;	// the full 32bit hash value - cached for khash resize
+	union {
+		struct FlowHashRecord *next;	
+		uint8_t *hashkey;
+	};
+	uint32_t hash;	// the full 32bit hash value - cached for khash resize
+	uint32_t fill;	// align
 
 	// flow counter parameters for FLOWS, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES
-	uint64_t	counter[5];
+	uint64_t counter[5];
 
 	// time info in msec
-	uint64_t	msecFirst;
-	uint64_t	msecLast;
+	uint64_t msecFirst;
+	uint64_t msecLast;
 
 	recordHeaderV3_t	*flowrecord;
 } FlowHashRecord_t;
@@ -212,6 +209,7 @@ static struct order_mode_s {
 
 static uint32_t	FlowStat_order = 0;	// bit field for multiple print orders
 static uint32_t	PrintOrder 	   = 0; // -O selected print order - index into order_mode
+static uint32_t PrintDirection = 0;
 static uint32_t	GuessDirection = 0;
 
 /*
@@ -243,15 +241,15 @@ static size_t hashKeyLen;			// length of hash_key
 static inline uint32_t SuperFastHash (const char * data, int len);
 
 // hash func - reduce byte sequence to kh_int
-static kh_inline khint_t __HashFunc(const hashkey_t hash) {
-	return SuperFastHash((char *)hash, hashKeyLen);
+static kh_inline khint_t __HashFunc(const FlowHashRecord_t record) {
+	return SuperFastHash((char *)record.hashkey, hashKeyLen);
 }
 // compare func - compare two hash keys
-static kh_inline khint_t __HashEqual(hashkey_t k1, hashkey_t k2) {
-	return memcmp((void *)k1, (void *)k2, hashKeyLen) == 0;
+static kh_inline khint_t __HashEqual(FlowHashRecord_t r1, FlowHashRecord_t r2) {
+	return memcmp((void *)r1.hashkey, (void *)r2.hashkey, hashKeyLen) == 0;
 }
 // insert FlowHash definitions/code
-KHASH_INIT(FlowHash, hashkey_t, FlowHashRecord_t, 1, __HashFunc, __HashEqual)
+KHASH_INIT(FlowHash, FlowHashRecord_t, char, 0, __HashFunc, __HashEqual)
 // FlowHash var
 static khash_t(FlowHash) *FlowHash = NULL;
 sig_atomic_t lock = 0;
@@ -425,7 +423,7 @@ static uint64_t	flows_record(FlowHashRecord_t *record, int inout) {
 }
 
 static uint64_t	packets_record(FlowHashRecord_t *record, int inout) {
-	if (NeedSwap(GuessDirection, record)) {
+	if (NeedSwap(GuessDirection, (FlowKey_t *)record->hashkey)) {
 		if (inout == IN)
 			inout = OUT;
 		else if (inout == OUT)
@@ -440,7 +438,7 @@ static uint64_t	packets_record(FlowHashRecord_t *record, int inout) {
 }
 
 static uint64_t	bytes_record(FlowHashRecord_t *record, int inout) {
-	if (NeedSwap(GuessDirection, record)) {
+	if (NeedSwap(GuessDirection, (FlowKey_t *)record->hashkey)) {
 		if (inout == IN)
 			inout = OUT;
 		else if (inout == OUT)
@@ -550,9 +548,8 @@ SortElement_t *list;
 		int c = 0;
 		for (khiter_t k = kh_begin(FlowHash); k != kh_end(FlowHash); ++k) {  // traverse
 			if (kh_exist(FlowHash,k)) {
-				FlowHashRecord_t *r = &kh_value(FlowHash,k);
+				FlowHashRecord_t *r = &kh_key(FlowHash,k);
         		list[c++].record = (void *)r;
-        		dbg_printf("Add count: %lu, record: %llu\n", list[c].count, (long long unsigned *)node->flowrecord);
 			}
     	}
 		*size = hashSize;
@@ -607,6 +604,22 @@ void Dispose_FlowTable(void) {
 // Parse flow cache print order -O
 int Parse_PrintOrder(char *order) {
 
+	int direction = -1;
+	char *r = strchr(order, ':');
+	if ( r ) {
+		*r++ = 0;
+		switch (*r) {
+			case 'a':
+				direction = ASCENDING;
+				break;
+			case 'd':
+				direction = DESCENDING;
+				break;
+			default:
+				return -1;
+		}
+	} 
+
 	PrintOrder = 0;
 	while ( order_mode[PrintOrder].string ) {
 		if (  strcasecmp(order_mode[PrintOrder].string, order ) == 0 )
@@ -618,6 +631,8 @@ int Parse_PrintOrder(char *order) {
 		return -1;
 	}
 
+	PrintDirection = direction >= 0 ? direction : order_mode[PrintOrder].direction;
+
 	return PrintOrder;
 
 } // End of Parse_PrintOrder
@@ -625,8 +640,9 @@ int Parse_PrintOrder(char *order) {
 // set sort order is given by -s record - parsed in nfstat.c
 // multiple sort orders may be given - each order adds the
 // corresoponding bit
-void Add_FlowStatOrder(uint32_t order ) {
+void Add_FlowStatOrder(uint32_t order, uint32_t direction) {
 	FlowStat_order |= order;
+	PrintDirection = direction;
 } // End of Add_FlowStatOrder
 
 int ParseAggregateMask( char *arg, char **aggr_fmt ) {
@@ -815,11 +831,11 @@ uint64_t mask[2];
 			aggr_param++;
 		} // while 
 	} 
-	printf("Has IP mask: %i %i\n", has_mask, FlowTable.has_masks);
-	printf("Mask 0: 0x%llx\n", (unsigned long long)FlowTable.IPmask[0]);
-	printf("Mask 1: 0x%llx\n", (unsigned long long)FlowTable.IPmask[1]);
-	printf("Mask 2: 0x%llx\n", (unsigned long long)FlowTable.IPmask[2]);
-	printf("Mask 3: 0x%llx\n", (unsigned long long)FlowTable.IPmask[3]);
+	printf("Has IP mask: %i %i\n", has_mask, aggregate_info.has_masks);
+	printf("Mask 0: 0x%llx\n", (unsigned long long)aggregate_info.IPmask[0]);
+	printf("Mask 1: 0x%llx\n", (unsigned long long)aggregate_info.IPmask[1]);
+	printf("Mask 2: 0x%llx\n", (unsigned long long)aggregate_info.IPmask[2]);
+	printf("Mask 3: 0x%llx\n", (unsigned long long)aggregate_info.IPmask[3]);
 
 #endif
 
@@ -840,7 +856,6 @@ int SetBidirAggregation(void) {
 
 } // End of SetBidirAggregation
 
-
 void InsertFlow(void *raw_record, master_record_t *flow_record) {
 recordHeaderV3_t	*recordHeaderV3 = (recordHeaderV3_t *)raw_record;
 FlowHashRecord_t	*record;
@@ -849,9 +864,6 @@ FlowHashRecord_t	*record;
 	record->flowrecord = nfmalloc(recordHeaderV3->size);
 	memcpy((void *)record->flowrecord, (void *)raw_record, recordHeaderV3->size);
 
-	record->srcPort	  = flow_record->srcPort;
-	record->dstPort	  = flow_record->dstPort;
-	record->proto	  = flow_record->proto;
 	record->msecFirst = flow_record->msecFirst;
 	record->msecLast  = flow_record->msecLast;
 
@@ -868,50 +880,46 @@ FlowHashRecord_t	*record;
 
 } // End of InsertFlow
 
-void AddFlowCache(void *raw_record, master_record_t *flow_record) {
+static void AddBidirFlow(void *raw_record, master_record_t *flow_record) {
 recordHeaderV3_t *record = (recordHeaderV3_t *)raw_record;
 static void	*keymem = NULL;
 static void	*bidirkeymem = NULL;
+FlowHashRecord_t r;
 
 	if ( keymem == NULL ) {
 		keymem = nfmalloc(hashKeyLen);
 	}
 	New_HashKey(keymem, flow_record, 0);
+	r.hashkey = keymem;
 
 	int ret;
-	khiter_t k = kh_put(FlowHash, FlowHash, keymem, &ret);
-	if ( ret == 0 ) {
+	khiter_t k = kh_get(FlowHash, FlowHash, r);
+	if ( k != kh_end(FlowHash) ) {
 		// flow record found - best case! update all fields
-		kh_value(FlowHash,k).counter[INBYTES]    += flow_record->dOctets;
-		kh_value(FlowHash,k).counter[INPACKETS]  += flow_record->dPkts;
-		kh_value(FlowHash,k).counter[OUTBYTES]   += flow_record->out_bytes;
-		kh_value(FlowHash,k).counter[OUTPACKETS] += flow_record->out_pkts;
+		kh_key(FlowHash,k).counter[INBYTES]    += flow_record->dOctets;
+		kh_key(FlowHash,k).counter[INPACKETS]  += flow_record->dPkts;
+		kh_key(FlowHash,k).counter[OUTBYTES]   += flow_record->out_bytes;
+		kh_key(FlowHash,k).counter[OUTPACKETS] += flow_record->out_pkts;
 
-		if ( flow_record->msecFirst < kh_value(FlowHash,k).msecFirst ) {
-			kh_value(FlowHash,k).msecFirst = flow_record->msecFirst;
+		if ( flow_record->msecFirst < kh_key(FlowHash,k).msecFirst ) {
+			kh_key(FlowHash,k).msecFirst = flow_record->msecFirst;
 		}
-		if ( flow_record->msecLast > kh_value(FlowHash,k).msecLast )  {
-			kh_value(FlowHash,k).msecLast =	flow_record->msecLast;
+		if ( flow_record->msecLast > kh_key(FlowHash,k).msecLast )  {
+			kh_key(FlowHash,k).msecLast =	flow_record->msecLast;
 		}
 
-		kh_value(FlowHash,k).counter[FLOWS] += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
-		kh_value(FlowHash,k).srcPort		 = flow_record->srcPort;
-		kh_value(FlowHash,k).dstPort		 = flow_record->dstPort;
-		kh_value(FlowHash,k).proto			 = flow_record->proto;
-		kh_value(FlowHash,k).tcpFlags		|= flow_record->tcp_flags;
-	} else if ( !bidir_flows || ( flow_record->proto != IPPROTO_TCP && flow_record->proto != IPPROTO_UDP) ) {
+		kh_key(FlowHash,k).counter[FLOWS] += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
+	} else if ( flow_record->proto != IPPROTO_TCP && flow_record->proto != IPPROTO_UDP) {
 		// no flow record found and no TCP/UDP bidir flows. Insert flow record into hash
-		kh_value(FlowHash,k).counter[INBYTES]	 = flow_record->dOctets;
-		kh_value(FlowHash,k).counter[INPACKETS]  = flow_record->dPkts;
-		kh_value(FlowHash,k).counter[OUTBYTES]   = flow_record->out_bytes;
-		kh_value(FlowHash,k).counter[OUTPACKETS] = flow_record->out_pkts;
-		kh_value(FlowHash,k).counter[FLOWS]   	 = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
+		k = kh_put(FlowHash, FlowHash, r, &ret);
+		kh_key(FlowHash,k).counter[INBYTES]	   = flow_record->dOctets;
+		kh_key(FlowHash,k).counter[INPACKETS]  = flow_record->dPkts;
+		kh_key(FlowHash,k).counter[OUTBYTES]   = flow_record->out_bytes;
+		kh_key(FlowHash,k).counter[OUTPACKETS] = flow_record->out_pkts;
+		kh_key(FlowHash,k).counter[FLOWS]      = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 
-		kh_value(FlowHash,k).srcPort	  = flow_record->srcPort;
-		kh_value(FlowHash,k).dstPort	  = flow_record->dstPort;
-		kh_value(FlowHash,k).proto		  = flow_record->proto;
-		kh_value(FlowHash,k).msecFirst	  = flow_record->msecFirst;
-		kh_value(FlowHash,k).msecLast	  = flow_record->msecLast;
+		kh_key(FlowHash,k).msecFirst	  = flow_record->msecFirst;
+		kh_key(FlowHash,k).msecLast	  = flow_record->msecLast;
 
 		void *p = malloc(record->size);
 		if ( !p ) {
@@ -919,14 +927,14 @@ static void	*bidirkeymem = NULL;
 			exit(255);
 		}
 		memcpy((void *)p, raw_record, record->size);
-		kh_value(FlowHash,k).flowrecord = p;
+		kh_key(FlowHash,k).flowrecord = p;
 
 		// keymen got part of the cache
 		keymem = NULL;
 	} else {
 		// for bidir flows do
 
-		// use tmp memory for bidir hash key to search for bidir flow
+		// generate reverse hash key to search for bidir flow
 		// we need it only to lookup 
 		if ( bidirkeymem == NULL ) {
 			bidirkeymem = nfmalloc(hashKeyLen);
@@ -934,41 +942,37 @@ static void	*bidirkeymem = NULL;
 
 		// generate the hash key for reverse record (bidir)
 		New_HashKey(bidirkeymem, flow_record, 1);
+		r.hashkey = bidirkeymem;
 
-		k = kh_put(FlowHash, FlowHash, bidirkeymem, &ret);
-		if ( ret == 0 ) {
+		k = kh_get(FlowHash, FlowHash, r);
+		if ( k != kh_end(FlowHash) ) {
 			// we found a corresponding flow - so update all fields in reverse direction
-			kh_value(FlowHash,k).counter[OUTBYTES]   += flow_record->dOctets;
-			kh_value(FlowHash,k).counter[OUTPACKETS] += flow_record->dPkts;
-			kh_value(FlowHash,k).counter[INBYTES]    += flow_record->out_bytes;
-			kh_value(FlowHash,k).counter[INPACKETS]  += flow_record->out_pkts;
+			kh_key(FlowHash,k).counter[OUTBYTES]   += flow_record->dOctets;
+			kh_key(FlowHash,k).counter[OUTPACKETS] += flow_record->dPkts;
+			kh_key(FlowHash,k).counter[INBYTES]    += flow_record->out_bytes;
+			kh_key(FlowHash,k).counter[INPACKETS]  += flow_record->out_pkts;
 
-			if ( flow_record->msecFirst < kh_value(FlowHash,k).msecFirst ) {
-				kh_value(FlowHash,k).msecFirst = flow_record->msecFirst;
+			if ( flow_record->msecFirst < kh_key(FlowHash,k).msecFirst ) {
+				kh_key(FlowHash,k).msecFirst = flow_record->msecFirst;
 			}
-			if ( flow_record->msecLast > kh_value(FlowHash,k).msecLast ) {
-				kh_value(FlowHash,k).msecLast = flow_record->msecLast;
+			if ( flow_record->msecLast > kh_key(FlowHash,k).msecLast ) {
+				kh_key(FlowHash,k).msecLast = flow_record->msecLast;
 			}
 
-			kh_value(FlowHash,k).counter[FLOWS] += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
-			kh_value(FlowHash,k).srcPort		 = flow_record->srcPort;
-			kh_value(FlowHash,k).dstPort		 = flow_record->dstPort;
-			kh_value(FlowHash,k).proto			 = flow_record->proto;
-
+			kh_key(FlowHash,k).counter[FLOWS] += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 		} else {
 			// no bidir flow found 
 			// insert original flow into the cache
-			kh_value(FlowHash,k).counter[INBYTES]	 = flow_record->dOctets;
-			kh_value(FlowHash,k).counter[INPACKETS]  = flow_record->dPkts;
-			kh_value(FlowHash,k).counter[OUTBYTES]   = flow_record->out_bytes;
-			kh_value(FlowHash,k).counter[OUTPACKETS] = flow_record->out_pkts;
-			kh_value(FlowHash,k).counter[FLOWS]   	 = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
+			r.hashkey = keymem;
+			k = kh_put(FlowHash, FlowHash, r, &ret);
+			kh_key(FlowHash,k).counter[INBYTES]	   = flow_record->dOctets;
+			kh_key(FlowHash,k).counter[INPACKETS]  = flow_record->dPkts;
+			kh_key(FlowHash,k).counter[OUTBYTES]   = flow_record->out_bytes;
+			kh_key(FlowHash,k).counter[OUTPACKETS] = flow_record->out_pkts;
+			kh_key(FlowHash,k).counter[FLOWS]	   = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 
-			kh_value(FlowHash,k).srcPort	= flow_record->srcPort;
-			kh_value(FlowHash,k).dstPort	= flow_record->dstPort;
-			kh_value(FlowHash,k).proto		= flow_record->proto;
-			kh_value(FlowHash,k).msecFirst	= flow_record->msecFirst;
-			kh_value(FlowHash,k).msecLast	= flow_record->msecLast;
+			kh_key(FlowHash,k).msecFirst = flow_record->msecFirst;
+			kh_key(FlowHash,k).msecLast	 = flow_record->msecLast;
 
 			void *p = malloc(record->size);
 			if ( !p ) {
@@ -976,13 +980,71 @@ static void	*bidirkeymem = NULL;
 				exit(255);
 			}
 			memcpy((void *)p, raw_record, record->size);
-			kh_value(FlowHash,k).flowrecord = p;
+			kh_key(FlowHash,k).flowrecord = p;
 
+			// keymen got part of the cache
 			keymem = NULL;
 		}
 	} 
 
+} // End of AddBidirFlow
+
+void AddFlowCache(void *raw_record, master_record_t *flow_record) {
+recordHeaderV3_t *record = (recordHeaderV3_t *)raw_record;
+static void	*keymem = NULL;
+FlowHashRecord_t r;
+
+	if ( bidir_flows )
+		return AddBidirFlow(raw_record, flow_record);
+
+	if ( keymem == NULL ) {
+		keymem = nfmalloc(hashKeyLen);
+	}
+	New_HashKey(keymem, flow_record, 0);
+	r.hashkey = keymem;
+
+	int ret;
+	khiter_t k = kh_put(FlowHash, FlowHash, r, &ret);
+	if ( ret == 0 ) {
+		// flow record found - best case! update all fields
+		kh_key(FlowHash,k).counter[INBYTES]    += flow_record->dOctets;
+		kh_key(FlowHash,k).counter[INPACKETS]  += flow_record->dPkts;
+		kh_key(FlowHash,k).counter[OUTBYTES]   += flow_record->out_bytes;
+		kh_key(FlowHash,k).counter[OUTPACKETS] += flow_record->out_pkts;
+
+		if ( flow_record->msecFirst < kh_key(FlowHash,k).msecFirst ) {
+			kh_key(FlowHash,k).msecFirst = flow_record->msecFirst;
+		}
+		if ( flow_record->msecLast > kh_key(FlowHash,k).msecLast )  {
+			kh_key(FlowHash,k).msecLast =	flow_record->msecLast;
+		}
+
+		kh_key(FlowHash,k).counter[FLOWS] += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
+	} else {
+		// no flow record found and no TCP/UDP bidir flows. Insert flow record into hash
+		kh_key(FlowHash,k).counter[INBYTES]	   = flow_record->dOctets;
+		kh_key(FlowHash,k).counter[INPACKETS]  = flow_record->dPkts;
+		kh_key(FlowHash,k).counter[OUTBYTES]   = flow_record->out_bytes;
+		kh_key(FlowHash,k).counter[OUTPACKETS] = flow_record->out_pkts;
+		kh_key(FlowHash,k).counter[FLOWS]      = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
+
+		kh_key(FlowHash,k).msecFirst	  = flow_record->msecFirst;
+		kh_key(FlowHash,k).msecLast	  = flow_record->msecLast;
+
+		void *p = malloc(record->size);
+		if ( !p ) {
+			LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+			exit(255);
+		}
+		memcpy((void *)p, raw_record, record->size);
+		kh_key(FlowHash,k).flowrecord = p;
+
+		// keymen got part of the cache
+		keymem = NULL;
+	} 
+
 } // End of AddFlow
+
 
 // print SortList - apply possible aggregation mask to zero out aggregated fields
 static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, 
@@ -1070,7 +1132,7 @@ size_t	maxindex;
 
 			if ( maxindex > 2 ) {
 				if ( maxindex < 100 ) 
-					heapSort(SortList, maxindex, outputParams->topN);
+					heapSort(SortList, maxindex, outputParams->topN, PrintDirection);
 				else
  					blocksort((SortRecord_t *)SortList, maxindex);
 			}
@@ -1106,10 +1168,10 @@ void PrintFlowTable(printer_t print_record, outputParams_t *outputParams, int Gu
 			FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[i].record);
 			SortList[i].count  = order_mode[PrintOrder].record_function(r, order_mode[PrintOrder].inout);
 		}
-
+printf("PrintDir: %d\n", PrintDirection);
 		if ( maxindex >= 2 ) {
 			if ( maxindex < 100 ) 
-				heapSort(SortList, maxindex, 0);
+				heapSort(SortList, maxindex, 0, PrintDirection);
 			else
  				blocksort((SortRecord_t *)SortList, maxindex);
 		}
@@ -1146,7 +1208,7 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 
 		if ( maxindex >= 2 ) {
 			if ( maxindex < 100 ) 
-				heapSort(SortList, maxindex, 0);
+				heapSort(SortList, maxindex, 0, PrintDirection);
 			else
  				blocksort((SortRecord_t *)SortList, maxindex);
 		}
@@ -1229,6 +1291,7 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 			// switch to output extension map
 			PackRecordV3(&flow_record, nffile);
 #ifdef DEVEL
+			char *string;
 			flow_record_to_raw((void *)&flow_record, &string, 0);
 			printf("%s\n", string);
 #endif

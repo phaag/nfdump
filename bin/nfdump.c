@@ -74,7 +74,6 @@
 #include "nfprof.h"
 #include "nflowcache.h"
 #include "nfstat.h"
-#include "nfexport.h"
 #include "ipconv.h"
 
 extern char	*FilterFilename;
@@ -480,7 +479,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 		uint32_t sumSize = 0;
 		record_header_t	*record_ptr = nffile_r->buff_ptr;
 		dbg_printf("Block has %i records\n", nffile_r->block_header->NumRecords);
-		for ( i=0; i < nffile_r->block_header->NumRecords; i++ ) {
+		for ( i=0; i < nffile_r->block_header->NumRecords && !done; i++ ) {
 			record_header_t	*process_ptr = record_ptr;
 			if ( (sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t)) ) {
 				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
@@ -506,7 +505,6 @@ uint64_t twin_msecFirst, twin_msecLast;
 					} else {
 						ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
 					} 
-					recordCount++;
 
 					// Time based filter
 					// if no time filter is given, the result is always true
@@ -523,6 +521,11 @@ uint64_t twin_msecFirst, twin_msecLast;
 						// go to next record
 						goto NEXT;
 					}
+
+					recordCount++;
+					// check if we are done, if -c option was set
+					if ( limitRecords ) 
+						done = recordCount >= limitRecords;
 
 					// Records passed filter -> continue record processing
 					// Update statistics
@@ -598,16 +601,12 @@ uint64_t twin_msecFirst, twin_msecLast;
 				}
 			}
 
-		NEXT:
-		// Advance pointer by number of bytes for netflow record
-		record_ptr = (record_header_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
-
+			NEXT:
+			// Advance pointer by number of bytes for netflow record
+			record_ptr = (record_header_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
 
 		} // for all records
 
-		// check if we are done, due to -c option 
-		if ( limitRecords ) 
-			done = recordCount >= limitRecords;
 
 	} // while
 
@@ -949,22 +948,6 @@ flist_t 	flist;
 	if ( syntax_only )
 		exit(0);
 	
-	// Modify compression
-	if ( ModifyCompress >= 0 ) {
-		if ( !flist.single_file && !flist.multiple_files ) {
-			LogError("Expected -r <file> or -R <dir> to change compression\n");
-			exit(255);
-		}
-		ModifyCompressFile(&flist, ModifyCompress);
-		exit(0);
-	}
-
-	// Change Ident only
-	if ( flist.single_file && strlen(Ident) > 0 ) {
-		ChangeIdent(flist.single_file, Ident);
-		exit(0);
-	}
-	
 	if ( outputParams->topN < 0 ) {
 		if ( flow_stat || element_stat ) {
 			outputParams->topN = 10;
@@ -1012,6 +995,22 @@ flist_t 	flist;
 	queue_t *fileList = SetupInputFileSequence(&flist);
 	if ( !Init_nffile(fileList) )
 		exit(254);
+
+	// Modify compression
+	if ( ModifyCompress >= 0 ) {
+		if ( !flist.single_file && !flist.multiple_files ) {
+			LogError("Expected -r <file> or -R <dir> to change compression\n");
+			exit(255);
+		}
+		ModifyCompressFile(ModifyCompress);
+		exit(0);
+	}
+
+	// Change Ident only
+	if ( flist.single_file && strlen(Ident) > 0 ) {
+		ChangeIdent(flist.single_file, Ident);
+		exit(0);
+	}
 
 	if ( print_stat ) {
 		nffile_t *nffile;

@@ -269,7 +269,7 @@ static const double __ac_HASH_UPPER = 0.77;
 			for (j = 0; j != h->n_buckets; ++j) {						\
 				if (__ac_iseither(h->flags, j) == 0) {					\
 					khkey_t key = h->keys[j];							\
-					khint_t k = h->vals[j].hash; \
+					khint_t k = h->keys[j].hash; \
 					khval_t val;										\
 					khint_t new_mask;									\
 					new_mask = new_n_buckets - 1; 						\
@@ -336,7 +336,7 @@ static const double __ac_HASH_UPPER = 0.77;
 		}																\
 		if (__ac_isempty(h->flags, x)) { /* not present at all */		\
 			h->keys[x] = key;											\
-			h->vals[x].hash = k;											\
+			h->keys[x].hash = k;											\
 			__ac_set_isboth_false(h->flags, x);							\
 			++h->size; ++h->n_occupied;									\
 			*ret = 1;													\

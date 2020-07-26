@@ -160,12 +160,12 @@ void EndLog() {
 		closelog();
 } // End of CloseLog
 
-int InitLog(int use_syslog, char *name, char *facility, int verbose_log) {
+int InitLog(int want_syslog, char *name, char *facility, int verbose_log) {
 int i;
 char *logname;
 
 	verbose = verbose_log;
-	if ( !use_syslog ) 
+	if ( !want_syslog ) 
 		return 1;
 
 	if ( !facility || strlen(facility) > 32 ) {

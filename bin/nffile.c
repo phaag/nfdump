@@ -102,6 +102,8 @@ static int ReadAppendix(nffile_t *nffile);
 
 static int WriteAppendix(nffile_t *nffile);
 
+static int SignalTerminate(nffile_t *nffile);
+
 static void FlushFile(nffile_t *nffile);
 
 static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2);
@@ -740,6 +742,7 @@ int 			fd;
 	pthread_create(&tid, NULL, nfwriter, (void *)nffile);
 	pthread_detach(tid);
 	atomic_init(&nffile->worker, tid);
+	atomic_init(&nffile->terminate, 0);
 	return nffile;
 
 } /* End of OpenNewFile */
@@ -780,7 +783,7 @@ nffile_t		*nffile;
 
 } /* End of AppendFile */
 
-void FlushFile(nffile_t *nffile) {
+static void FlushFile(nffile_t *nffile) {
 
 	if ( nffile->block_header->size ) {
 		queue_push(nffile->blockQueue, nffile->block_header);
@@ -801,6 +804,9 @@ void CloseFile(nffile_t *nffile){
 
 	if ( !nffile || nffile->fd == 0) 
 		return;
+
+	// make sure all workers are gone
+	SignalTerminate(nffile);
 
 	// do not close stdout
 	if ( nffile->fd ) {
@@ -902,6 +908,7 @@ nffile_t *GetNextFile(nffile_t *nffile) {
 		pthread_create(&tid, NULL, nfreader, (void *)nffile);
 		pthread_detach(tid);
 		atomic_init(&nffile->worker, tid);
+		atomic_init(&nffile->terminate, 0);
 		return nffile;
 	}
 
@@ -1021,6 +1028,7 @@ static dataBlock_t *nfread(nffile_t *nffile) {
 void* nfreader(void *arg) {
 nffile_t *nffile = (nffile_t *)arg;
 
+	int terminate;
 	dataBlock_t *block_header = NULL;
 	do {
 		block_header = nfread(nffile);
@@ -1032,7 +1040,8 @@ nffile_t *nffile = (nffile_t *)arg;
 		dbg_printf("ReadBlock - expanded: %u\n", block_header->size);
 		dbg_printf("Blocks: %u\n", nffile->blockCount);
 
-	} while ((nffile->blockCount + nffile->file_header->appendixBlocks) < nffile->file_header->NumBlocks);
+		terminate = atomic_load(&nffile->terminate);
+	} while ( !terminate && (nffile->blockCount + nffile->file_header->appendixBlocks) < nffile->file_header->NumBlocks);
 
 	// eof or error ends processing
 	queue_close(nffile->blockQueue);
@@ -1157,18 +1166,18 @@ nffile_t *nffile = (nffile_t *)arg;
  	
 } // End of nfwriter
 
-// this function should never needed to be called while working normally
-static int kill_worker(nffile_t *nffile) {
+static int SignalTerminate(nffile_t *nffile) {
 
 	pthread_t tid = atomic_load(&nffile->worker);
 	if ( tid == 0 )
 		return 1;
 
-	// killing a worker may result in a memory leak
-	if ( pthread_cancel(tid) != 0 ) {
-		LogError("pthread_cancel() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-		return 0;
-	}
+	atomic_init(&nffile->terminate, 1);
+	xsleep(1);
+	do {
+		tid = atomic_load(&nffile->worker);
+		xsleep(1);
+	} while(tid);
 
 	// clean queue
 	while (queue_length(nffile->blockQueue)) {
@@ -1178,7 +1187,7 @@ static int kill_worker(nffile_t *nffile) {
 
 	return 1;
 
-} // End of kill_worker
+} // End of SignalTerminate
 
 void SetIdent(nffile_t *nffile, char *Ident) {
 
@@ -1239,13 +1248,11 @@ int ChangeIdent(char *filename, char *Ident) {
 
 } // End of ChangeIdent
 
-void ModifyCompressFile(flist_t *flist, int compress) {
+void ModifyCompressFile(int compress) {
 int 			compression;
 nffile_t		*nffile_r, *nffile_w;
 stat_record_t	*_s;
 char 			outfile[MAXPATHLEN];
-
-	SetupInputFileSequence(flist);
 
 	nffile_r = NULL;
 	while (1) {
@@ -1258,7 +1265,7 @@ char 			outfile[MAXPATHLEN];
 		compression = nffile_r->file_header->compression;
 		if ( compression == compress ) {
 			printf("File %s is already same compression methode\n", nffile_r->fileName);
-			kill_worker(nffile_r);
+			SignalTerminate(nffile_r);
 			continue;
 		}
 

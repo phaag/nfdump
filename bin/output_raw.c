@@ -94,9 +94,9 @@ char datestr1[64], datestr2[64], datestr3[64];
 "  received at  =     %13llu [%s.%03llu]\n"
 "  proto        =               %3u %s\n"
 "  tcp flags    =              0x%.2x %s\n"
-, r->msecFirst, datestr1, r->msecFirst % 1000LL
-, r->msecLast, datestr2, r->msecLast % 1000LL
-, r->received, datestr3, r->received % 1000L
+, (long long unsigned)r->msecFirst, datestr1, r->msecFirst % 1000LL
+, (long long unsigned)r->msecLast, datestr2, r->msecLast % 1000LL
+, (long long unsigned)r->received, datestr3, (long long unsigned)r->received % 1000L
 , r->proto, ProtoString(r->proto, 0), r->tcp_flags, FlagsString(r->tcp_flags));
 	s += len;
 	size -= len;

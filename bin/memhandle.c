@@ -138,7 +138,7 @@ size_t aligned_size;
 		// enough space available in current memblock
 		p = MemHandler->memblock[MemHandler->CurrentBlock] + MemHandler->Allocted;
 		MemHandler->Allocted += aligned_size;
-		dbg_printf("Mem Handle: Requested: %u, aligned: %u, ptr: %lx\n", size, aligned_size, (long unsigned)p);
+		dbg_printf("Mem Handle: Requested: %zu, aligned: %zu, ptr: %lx\n", size, aligned_size, (long unsigned)p);
 		ReleaseLock(MemHandler);
 		return p;
 	}
@@ -166,7 +166,7 @@ size_t aligned_size;
 	MemHandler->Allocted = aligned_size;
 	MemHandler->NumBlocks++;
 	ReleaseLock(MemHandler);
-	dbg_printf("Mem Handle: Requested: %u, aligned: %u, ptr: %lu\n", size, aligned_size, (long unsigned)p);
+	dbg_printf("Mem Handle: Requested: %zu, aligned: %zu, ptr: %lu\n", size, aligned_size, (long unsigned)p);
 	return p;
 
 } // End of nfmalloc
