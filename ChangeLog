@@ -1,5 +1,6 @@
 2020-08-02
 - Address issue #159. Implement rfc 7011 and include sender UDP port into unique template identification
+- Address issue #236 Add token 'dir' equivalent to 'flowdir' in filter syntax
 
 2020-07-25
 - Add optional print direction ascending or descending to output of statistics -s and oredered printing -O. Request #235

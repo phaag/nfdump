@@ -1,6 +1,5 @@
 /*
- *  This file is part of the nfdump project.
- *
+ *  Copyright (c) 2012-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -28,14 +27,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: peter $
- *
- *  $Id: scanner.l 100 2008-08-15 11:36:21Z peter $
- *
- *  $LastChangedRevision: 100 $
- *	
- *
- *
  */
 
 %x incl
@@ -141,6 +132,7 @@ flags			{ return FLAGS; }
 proto			{ return PROTO; }
 tos				{ return TOS; }
 flowdir			{ return DIR; }
+dir				{ return DIR; }
 net				{ return NET; }
 port			{ return PORT; }
 as				{ return AS; }

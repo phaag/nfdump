@@ -911,6 +911,7 @@ void *p;
 	ret = check_filter_block("fwdstat noroute", &flow_record, 0); 
 
 	flow_record.dir = 1;
+	ret = check_filter_block("dir 1", &flow_record, 1); 
 	ret = check_filter_block("flowdir 1", &flow_record, 1); 
 	ret = check_filter_block("flowdir 0", &flow_record, 0); 
 	ret = check_filter_block("flowdir egress", &flow_record, 1); 
