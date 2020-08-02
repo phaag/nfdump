@@ -466,7 +466,7 @@ int 				done, write_file;
 
 		uint32_t sumSize = 0;
 		record_ptr = nffile_r->buff_ptr;
-		for ( i=0; i < nffile_r->block_header->NumRecords; i++ ) {
+		for ( i=0; i < nffile_r->block_header->NumRecords && !done; i++ ) {
 			flow_record = record_ptr;
 			if ( (sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t)) ) {
 				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
@@ -602,15 +602,15 @@ int 				done, write_file;
 				}
 			}
 
-		// Advance pointer by number of bytes for netflow record
-		record_ptr = (common_record_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
+			// Advance pointer by number of bytes for netflow record
+			record_ptr = (common_record_t *)((pointer_addr_t)record_ptr + record_ptr->size);	
 
+			// check if we are done, due to -c option 
+			if ( limitRecords ) 
+				done = recordCount >= limitRecords;
 
 		} // for all records
 
-		// check if we are done, due to -c option 
-		if ( limitRecords ) 
-			done = recordCount >= limitRecords;
 
 	} // while
 

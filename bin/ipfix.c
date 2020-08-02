@@ -158,6 +158,7 @@ typedef struct exporterDomain_s {
 
 	// exporter information
 	exporter_info_record_t info;
+	in_port_t	port;				// follow rfc 7011 - matching src port
 
 	uint64_t	packets;			// number of packets sent by this exporter
 	uint64_t	flows;				// number of flow records sent by this exporter
@@ -382,6 +383,7 @@ uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
 
 	while ( *e ) {
 		if ( (*e)->info.id == ObservationDomain && (*e)->info.version == 10 && 
+			 (*e)->port == fs->port &&
 			 (*e)->info.ip.V6[0] == fs->ip.V6[0] && (*e)->info.ip.V6[1] == fs->ip.V6[1]) 
 			return *e;
 		e = &((*e)->next);
@@ -410,6 +412,7 @@ uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
 	(*e)->info.header.size  = sizeof(exporter_info_record_t);
 	(*e)->info.id 			= ObservationDomain;
 	(*e)->info.ip			= fs->ip;
+	(*e)->port				= fs->port;
 	(*e)->info.sa_family	= fs->sa_family;
 	(*e)->info.version 		= 10;
 	(*e)->info.sysid	 	= 0;
@@ -423,8 +426,8 @@ uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
 
 	FlushInfoExporter(fs, &((*e)->info));
 
-	dbg_printf("[%u] New exporter: SysID: %u, Observation domain %u from: %s\n", 
-		ObservationDomain, (*e)->info.sysid, ObservationDomain, ipstr);
+	dbg_printf("[%u] New exporter: SysID: %u, Observation domain %u from: %s:%u\n", 
+		ObservationDomain, (*e)->info.sysid, ObservationDomain, ipstr, fs->port);
 	LogInfo("Process_ipfix: New exporter: SysID: %u, Observation domain %u from: %s\n", 
 		(*e)->info.sysid, ObservationDomain, ipstr);
 

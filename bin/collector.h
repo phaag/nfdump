@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -60,6 +60,7 @@ typedef struct FlowSource_s {
 	char 				Ident[IDENTLEN];
 	ip_addr_t			ip;
 	uint32_t			sa_family;
+	in_port_t			port;
 
 	int					any_source;
 	bookkeeper_t 		*bookkeeper;

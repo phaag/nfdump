@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -35,6 +33,7 @@ static inline FlowSource_t *GetFlowSource(struct sockaddr_storage *ss) {
 FlowSource_t	*fs;
 void			*ptr;
 ip_addr_t		ip;
+in_port_t		port;
 char			as[100];
 
     union {
@@ -56,8 +55,9 @@ char			as[100];
 #endif
 			ip.V6[0] = 0;
 			ip.V6[1] = 0;
-			ip.V4 = ntohl(u.sa_in->sin_addr.s_addr);
-			ptr 	   = &u.sa_in->sin_addr;
+			ip.V4	 = ntohl(u.sa_in->sin_addr.s_addr);
+			port	 = u.sa_in->sin_port;
+			ptr 	 = &u.sa_in->sin_addr;
 			} break;
 		case PF_INET6: {
 			uint64_t *ip_ptr = (uint64_t *)u.sa_in6->sin6_addr.s6_addr;
@@ -72,13 +72,15 @@ char			as[100];
 			// ptr = &((struct sockaddr_in6 *)sa)->sin6_addr;
 			ip.V6[0] = ntohll(ip_ptr[0]);
 			ip.V6[1] = ntohll(ip_ptr[1]);
-			ptr = &u.sa_in6->sin6_addr;
+			port	 = u.sa_in6->sin6_port;
+			ptr		 = &u.sa_in6->sin6_addr;
 			} break;
 		default:
 			// keep compiler happy
 			ip.V6[0] = 0;
 			ip.V6[1] = 0;
-			ptr   = NULL;
+			port	 = 0;
+			ptr		 = NULL;
 
 			LogError("Unknown sa fanily: %d in '%s', line '%d'", ss->ss_family, __FILE__, __LINE__ );
 			return NULL;
@@ -92,13 +94,16 @@ char			as[100];
 
 	fs = FlowSource;
 	while ( fs ) {
-		if ( ip.V6[0] ==  fs->ip.V6[0] && ip.V6[1] == fs->ip.V6[1] )
-			return fs; 
+		if ( ip.V6[0] ==  fs->ip.V6[0] && ip.V6[1] == fs->ip.V6[1] ) {
+			fs->port = port;
+			return fs;
+		}
 
 		// if we match any source, store the current IP address - works as faster cache next time
 		// and identifies the current source by IP
 		if ( fs->any_source ) {
-			fs->ip = ip;
+			fs->ip	 = ip;
+			fs->port = port;
 			fs->sa_family = ss->ss_family;
 			return fs;
 		}
