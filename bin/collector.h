@@ -39,6 +39,7 @@
 #include <stdint.h>
 #endif
 #include <sys/socket.h>
+#include <netinet/in.h>
 
 #include "exporter.h"
 #include "bookkeeper.h"
