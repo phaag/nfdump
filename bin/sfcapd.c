@@ -141,6 +141,7 @@ static void usage(char *name) {
 					"-I Ident\tset the ident string for stat file. (default 'none')\n"
 					"-H Add port histogram data to flow file.(default 'no')\n"
 					"-n Ident,IP,logdir\tAdd this flow source - multiple streams\n" 
+					"-N sourceFile\tAdd flows from sourceFile\n" 
 					"-P pidfile\tset the PID file\n"
 					"-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters\n"
 					"-x process\tlaunch process after a new file becomes available\n"
@@ -716,7 +717,7 @@ char	*pcap_file = NULL;
 	FlowSource		= NULL;
 	extension_tags	= DefaultExtensions;
 
-	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:n:p:J:P:R:S:T:t:x:ru:g:zZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:N:n:p:J:P:R:S:T:t:x:ru:g:zZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -759,6 +760,10 @@ char	*pcap_file = NULL;
 				break;
 			case 'n':
 				if ( AddFlowSource(&FlowSource, optarg) != 1 ) 
+					exit(255);
+				break;
+			case 'N':
+				if ( AddFlowSourceFromFile(&FlowSource, optarg) )
 					exit(255);
 				break;
 			case 'w':

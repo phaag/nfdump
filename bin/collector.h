@@ -98,6 +98,8 @@ typedef struct FlowSource_s {
 // prototypes
 int AddFlowSource(FlowSource_t **FlowSource, char *ident);
 
+int AddFlowSourceFromFile(FlowSource_t **FlowSource, char *path);
+
 int AddDefaultFlowSource(FlowSource_t **FlowSource, char *ident, char *path);
 
 int SetDynamicSourcesDir(FlowSource_t **FlowSource, char *dir);
