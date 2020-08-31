@@ -147,6 +147,7 @@ static void usage(char *name) {
 					"-I Ident\tset the ident string for stat file. (default 'none')\n"
 					"-H Add port histogram data to flow file.(default 'no')\n"
 					"-n Ident,IP,logdir\tAdd this flow source - multiple streams\n" 
+					"-N sourceFile\tAdd flows from sourceFile\n" 
 					"-M dir \t\tSet the output directory for dynamic sources.\n"
 
 					"-P pidfile\tset the PID file\n"
@@ -787,7 +788,7 @@ char	*pcap_file = NULL;
 	extension_tags	= DefaultExtensions;
 	dynsrcdir		= NULL;
 
-	while ((c = getopt(argc, argv, "46ef:whEVI:DB:b:jl:J:M:n:p:P:R:S:s:T:t:x:Xru:g:yzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ef:whEVI:DB:b:jl:J:M:n:N:p:P:R:S:s:T:t:x:Xru:g:yzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -850,6 +851,10 @@ char	*pcap_file = NULL;
 				break;
 			case 'n':
 				if ( AddFlowSource(&FlowSource, optarg) != 1 ) 
+					exit(255);
+				break;
+			case 'N':
+				if ( AddFlowSourceFromFile(&FlowSource, optarg) ) 
 					exit(255);
 				break;
 			case 'w':
