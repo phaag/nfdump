@@ -130,7 +130,7 @@ typedef struct common_record_s {
  	uint16_t	size;
 
 	// record meta data
-	uint16_t	flags;
+	uint8_t	flags;
 #define FLAG_IPV6_ADDR	1
 #define FLAG_PKG_64		2
 #define FLAG_BYTES_64	4
@@ -140,6 +140,7 @@ typedef struct common_record_s {
 #define FLAG_EVENT		64
 #define FLAG_SAMPLED	128
 
+	uint8_t	nfversion;
  	uint16_t	ext_map;
 
 	// netflow common record

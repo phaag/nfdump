@@ -71,15 +71,21 @@ typedef struct master_record_s {
 
 	uint16_t	type;			// index 0  0xffff 0000 0000 0000
 	uint16_t	size;			// index 0	0x0000'ffff'0000 0000
-	uint16_t	flags;			// index 0	0x0000'0000'ffff'0000
+	uint8_t		flags;			// index 0  0x0000'0000'ff00'0000
+	uint8_t		nfversion;		// index 0  0x0000'0000'00ff'0000
 	uint16_t	ext_map;		// index 0	0x0000'0000'0000'ffff
 #	define OffsetRecordFlags 	0
+#	define OffsetRecordVersion 	0
 #ifdef WORDS_BIGENDIAN
 #	define MaskRecordFlags  	0x00000000ff000000LL
 #	define ShiftRecordFlags 	24
+#	define MaskRecordVersion  	0x0000000000ff0000LL
+#	define ShiftRecordVersion 	16
 #else
 #	define MaskRecordFlags  	0x000000ff00000000LL
 #	define ShiftRecordFlags 	32
+#	define MaskRecordVersion  	0x0000ff0000000000LL
+#	define ShiftRecordVersion 	40
 #endif
 
 	//
@@ -494,7 +500,8 @@ typedef struct master_record_s {
 	uint16_t	sec_group_tag;	// sec group tag index 31 0xffff'0000'0000'0000
 	uint8_t		engine_type;	// type index 31 0x0000'ff00'0000'0000
 	uint8_t		engine_id;		// ID	index 31 0x0000'00ff'0000'0000
-	uint32_t	fill2;
+
+	uint32_t	reserved;
 
 #	define OffsetRouterID	31
 #ifdef WORDS_BIGENDIAN

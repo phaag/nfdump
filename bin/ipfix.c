@@ -1716,6 +1716,7 @@ char				*string;
 		data_record->type  		    = CommonRecordType;
 	  	data_record->ext_map	    = table->extension_info.map->map_id;
 		data_record->exporter_sysid = exporter->info.sysid;
+		data_record->nfversion		= 10;
 		data_record->reserved 		= 0;
 
 		table->flow_start 		    = 0;

@@ -129,6 +129,7 @@ ident			{ return IDENT; }
 out				{ return OUT; }
 
 flags			{ return FLAGS; }
+nfversion		{ return NFVERSION; }
 proto			{ return PROTO; }
 tos				{ return TOS; }
 flowdir			{ return DIR; }

@@ -424,6 +424,7 @@ char		*string;
 	  			common_record->prot			  = v5_record->prot;
 	  			common_record->tos			  = v5_record->tos;
 	  			common_record->fwd_status 	  = 0;
+	  			common_record->nfversion	  = 5;
 	  			common_record->reserved 	  = 0;
 
 				// v5 typed data as fixed struct v5_block

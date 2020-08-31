@@ -473,6 +473,7 @@ uint64_t _bytes, _packets, _t;	// tmp buffers
 
 	common_record->fwd_status	  = 0;
 	common_record->reserved	  	  = 0;
+	common_record->nfversion	  = 0x80 | sample->datagramVersion;
 	common_record->tcp_flags	  = sample->dcd_tcpFlags;
 	common_record->prot			  = sample->dcd_ipProtocol;
 	common_record->tos			  = sample->dcd_ipTos;

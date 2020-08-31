@@ -95,6 +95,8 @@ static void AddString(char *string);
 
 static void String_FlowFlags(master_record_t *r, char *string);
 
+static void String_Version(master_record_t *r, char *string);
+
 static void String_FirstSeen(master_record_t *r, char *string);
 
 static void String_LastSeen(master_record_t *r, char *string);
@@ -279,6 +281,7 @@ static struct format_token_list_s {
 	string_function_t	string_function;	// function generation output string
 } format_token_list[] = {
 	{ "%ff", 0, "Flow Flags", 				String_FlowFlags }, 	// flow flags in hex
+	{ "%nfv", 0, "Ver", 					String_Version }, 		// netflow version
 	{ "%tfs", 0, "Date first seen        ", String_FirstSeen },		// Start Time - first seen
 	{ "%ts",  0, "Date first seen        ", String_FirstSeen },		// Start Time - first seen
 	{ "%tsr",  0, "Date first seen (raw)    ", String_FirstSeenRaw },		// Start Time - first seen, seconds
@@ -638,7 +641,30 @@ static void String_FlowFlags(master_record_t *r, char *string) {
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_FlowFlags
- 
+
+static void String_Version(master_record_t *r, char *string) {
+
+	char *type;
+	if ( TestFlag(r->flags, FLAG_EVENT) ) {
+		type = "EVT";
+		snprintf(string, MAX_STRING_LENGTH-1, "%s%u", type, r->nfversion);
+	} else {
+		if ( r->nfversion != 0 ) {
+			if ( r->nfversion & 0x80 ) {
+				type = "Sv";
+			} else {
+				type = "Nv";
+			}
+			snprintf(string, MAX_STRING_LENGTH-1, "%s%u", type, r->nfversion & 0x7F);
+		} else {
+			// compat with previous versions
+			type = "FLO";
+			snprintf(string, MAX_STRING_LENGTH-1, "%s", type);
+		}
+	}
+
+} // End of String_Version
+
 static void String_FirstSeen(master_record_t *r, char *string) {
 time_t 	tt;
 struct tm * ts;

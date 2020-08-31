@@ -1,6 +1,6 @@
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -55,7 +55,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -110,7 +110,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -165,7 +165,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -220,7 +220,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -275,7 +275,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -330,7 +330,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -385,7 +385,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -440,7 +440,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -495,7 +495,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -550,7 +550,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -605,7 +605,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -660,7 +660,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -715,7 +715,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -769,7 +769,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x00 FLOW, Unsampled
+  Flags        =              0x00 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               172
@@ -824,7 +824,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x01 FLOW, Unsampled
+  Flags        =              0x01 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               196
@@ -879,7 +879,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x01 FLOW, Unsampled
+  Flags        =              0x01 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               196
@@ -934,7 +934,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x05 FLOW, Unsampled
+  Flags        =              0x05 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               200
@@ -989,7 +989,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x03 FLOW, Unsampled
+  Flags        =              0x03 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               200
@@ -1044,7 +1044,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x07 FLOW, Unsampled
+  Flags        =              0x07 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               204
@@ -1099,7 +1099,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x04 FLOW, Unsampled
+  Flags        =              0x04 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               176
@@ -1154,7 +1154,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x02 FLOW, Unsampled
+  Flags        =              0x02 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               176
@@ -1209,7 +1209,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x06 FLOW, Unsampled
+  Flags        =              0x06 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               180
@@ -1264,7 +1264,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x06 FLOW, Unsampled
+  Flags        =              0x06 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               184
@@ -1319,7 +1319,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x06 FLOW, Unsampled
+  Flags        =              0x06 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               184
@@ -1374,7 +1374,7 @@ Flow Record:
 
 
 Flow Record: 
-  Flags        =              0x06 FLOW, Unsampled
+  Flags        =              0x06 NETFLOW v9, Unsampled
   label        =            <none>
   export sysid =                 1
   size         =               188

@@ -298,13 +298,20 @@ void *p;
 	flow_record.flags	 = 2;
 	ret = check_filter_block("ipv4", &flow_record, 1);
 	ret = check_filter_block("ipv6", &flow_record, 0);
-	flow_record.flags	 = 1;
+	flow_record.flags	 = 0xFF;
 	ret = check_filter_block("ipv4", &flow_record, 0);
 	ret = check_filter_block("ipv6", &flow_record, 1);
 	flow_record.flags	 = 7;
 	ret = check_filter_block("ipv4", &flow_record, 0);
 	ret = check_filter_block("ipv6", &flow_record, 1);
 
+	flow_record.nfversion = 5;
+	ret = check_filter_block("nfversion 5", &flow_record, 1);
+	ret = check_filter_block("nfversion 9", &flow_record, 0);
+	flow_record.nfversion = 9;
+	ret = check_filter_block("nfversion > 5", &flow_record, 1);
+	ret = check_filter_block("nfversion 9", &flow_record, 1);
+	ret = check_filter_block("nfversion 10", &flow_record, 0);
 
 	flow_record.prot = IPPROTO_TCP;
 	ret = check_filter_block("any", &flow_record, 1);

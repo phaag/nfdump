@@ -136,7 +136,7 @@ char yyerror_buff[256];
 }
 
 %token ANY IP IF MAC MPLS TOS DIR FLAGS PROTO MASK HOSTNAME NET PORT FWDSTAT IN OUT SRC DST EQ LT GT PREV NEXT
-%token NUMBER STRING IDENT PORTNUM ICMP_TYPE ICMP_CODE ENGINE_TYPE ENGINE_ID AS PACKETS BYTES FLOWS 
+%token NUMBER STRING IDENT PORTNUM ICMP_TYPE ICMP_CODE ENGINE_TYPE ENGINE_ID AS PACKETS BYTES FLOWS NFVERSION
 %token PPS BPS BPP DURATION NOT 
 %token IPV4 IPV6 BGPNEXTHOP ROUTER VLAN
 %token CLIENT SERVER APP LATENCY SYSID
@@ -307,6 +307,14 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 		$$.self = NewBlock(OffsetFlags, MaskFlags, ($3 << ShiftFlags) & MaskFlags, $2.comp, FUNC_NONE, NULL); 
+	}
+
+	| NFVERSION comp NUMBER	{	
+		if ( $3 > 10 ) {
+			yyerror("Netflow version must be <= 10");
+			YYABORT;
+		}
+		$$.self = NewBlock(OffsetRecordVersion, MaskRecordVersion, ($3 << ShiftRecordVersion) & MaskRecordVersion, $2.comp, FUNC_NONE, NULL); 
 	}
 
 	| FLAGS STRING	{	

@@ -613,6 +613,8 @@ and format specifier as described below
 .br
 \fB%ff\fR       flow record flags in hex. 
 .br
+\fB%nfv\fR      Netflow/Sflow/Event record version.
+.br
 \fB%ts\fR       Start Time \- first seen
 .br
 \fB%tsr\fR      Start Time, but in fractional seconds since the epoch (1970-01-01)
@@ -1042,6 +1044,13 @@ with \fI<num>\fR as a valid icmp type/code. This automatically implies
 \fBsysid <num>\fR
 .br
 with \fI<num>\fR as a valid router engine type/id or exporter ID(0..255).
+.RE
+.TP 4 
+.I Netflow version
+.RS 4
+\fBnfversion [comp] <num>\fR 
+.br
+netflow version exported.
 .RE
 .TP 4 
 .I Interface

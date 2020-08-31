@@ -339,6 +339,7 @@ char		*string;
 	  			common_record->prot			= v1_record->prot;
 	  			common_record->tos			= v1_record->tos;
 	  			common_record->fwd_status 	= 0;
+	  			common_record->nfversion 	= 1;
 	  			common_record->reserved 	= 0;
 
 				// v1 typed data as fixed struct v1_block

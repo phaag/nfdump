@@ -231,6 +231,7 @@ nffile_t			*nffile;
 	record.type	= CommonRecordType;
 
 	record.flags   		= 0;
+	record.nfversion	= 9;
 	record.exporter_sysid = 1;
 	record.tcp_flags   	= 1;
 	record.tos 		   	= 2;
