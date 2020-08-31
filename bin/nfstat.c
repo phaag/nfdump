@@ -1758,11 +1758,7 @@ int	i, max;
 		} else if ( aggr_record_mask )
 			ApplyAggrMask(flow_record, aggr_record_mask);
 
-		if ( GuessFlowDirection && 
-		   ( flow_record->prot == IPPROTO_TCP || flow_record->prot == IPPROTO_UDP) &&
-	  	   ( flow_record->srcport < 1024 ) && ( flow_record->dstport >= 1024 ) &&
-	   	   ( flow_record->srcport < 32768 ) && ( flow_record->dstport >= 32768 ) &&
-	   	   ( flow_record->srcport < 49152 ) && ( flow_record->dstport >= 49152 ))
+		if (NeedSwap(GuessFlowDirection, flow_record))
 			SwapFlow(flow_record);
 
 		print_record((void *)flow_record, &string, outputParams->doTag);
