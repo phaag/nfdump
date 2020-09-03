@@ -1455,6 +1455,15 @@ samplerOption_t *samplerOption;
 				samplerOption->interval.offset = offset;
 				SetFlag(samplerOption->flags, SAMPLER305);
 				break;
+			case 95:
+				dbg_printf("Option template: Application ID found\n");
+				break;
+			case 96:
+				dbg_printf("Option template: Application Name found\n");
+				break;
+			case 94:
+				dbg_printf("Option template: Application Desc found\n");
+				break;
 		}
 		offset += length;
 	}

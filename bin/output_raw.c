@@ -122,9 +122,11 @@ extension_map_t	*extension_map = r->map_ref;
 		version[0] = '\0';
 	} else {
 		if ( r->nfversion != 0 ) {
-			snprintf(version, 8, " v%u", r->nfversion & 0x7F);
+			snprintf(version, 8, " v%u", r->nfversion & 0x0F);
 			if ( r->nfversion & 0x80 ) {
 				type = "SFLOW";
+			} else if ( r->nfversion & 0x40 ) {
+				type = "PCAP";
 			} else {
 				type = "NETFLOW";
 			}

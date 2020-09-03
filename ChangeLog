@@ -1,3 +1,6 @@
+2020-09-03
+- Add nfversion to nfpcapd
+
 2020-08-31
 - Add collected netflow/sflow version in nfdump record. Request #242
 - Fix GuessDir bug - issue #215

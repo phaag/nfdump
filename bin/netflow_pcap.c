@@ -193,6 +193,7 @@ void		*data_ptr;
 
 	// header data
 	common_record->flags		= 0;
+	common_record->nfversion	= 0x41;
   	common_record->type			= CommonRecordType;
 	common_record->exporter_sysid = 0;
 	common_record->ext_map		= pcap_extension_map->map_id;

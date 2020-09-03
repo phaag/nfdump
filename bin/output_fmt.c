@@ -652,10 +652,12 @@ static void String_Version(master_record_t *r, char *string) {
 		if ( r->nfversion != 0 ) {
 			if ( r->nfversion & 0x80 ) {
 				type = "Sv";
+			} else if ( r->nfversion & 0x40 ) {
+				type = "Pv";
 			} else {
 				type = "Nv";
 			}
-			snprintf(string, MAX_STRING_LENGTH-1, "%s%u", type, r->nfversion & 0x7F);
+			snprintf(string, MAX_STRING_LENGTH-1, "%s%u", type, r->nfversion & 0x0F);
 		} else {
 			// compat with previous versions
 			type = "FLO";
