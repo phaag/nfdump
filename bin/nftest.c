@@ -1180,7 +1180,7 @@ void *p;
 	flow_record.dstport = 1111;
 	ret = check_filter_block("dst port in pblock", &flow_record, 1);
 	ret = check_filter_block("port in pblock", &flow_record, 1);
-exit(0);
+
 
 	flow_record.dstport = 2222;
 	ret = check_filter_block("dst port in pblock", &flow_record, 1);
@@ -1191,7 +1191,7 @@ exit(0);
 	ret = check_filter_block("port in pblock", &flow_record, 0);
 
 	flow_record.srcport = 1234;
-	flow_record.srcport = 2134;
+	flow_record.dstport = 2134;
 	ret = check_filter_block("src port in pblock", &flow_record, 1);
 	ret = check_filter_block("dst port in pblock", &flow_record, 1);
 	ret = check_filter_block("port in pblock", &flow_record, 1);
@@ -1225,6 +1225,12 @@ exit(0);
 	ret = check_filter_block("nip 10.10.10.11", &flow_record, 1);
 	ret = check_filter_block("nip 172.32.7.15", &flow_record, 0);
 	ret = check_filter_block("nip 10.10.10.12", &flow_record, 0);
+	ret = check_filter_block("src nip in [ 172.32.7.16] ", &flow_record, 1);
+	ret = check_filter_block("src nip in [ 172.32.7.15] ", &flow_record, 0);
+	ret = check_filter_block("dst nip in [ 10.10.10.11] ", &flow_record, 1);
+	ret = check_filter_block("dst nip in [ 10.10.10.12] ", &flow_record, 0);
+	ret = check_filter_block("nip in [ 10.10.10.11] ", &flow_record, 1);
+	ret = check_filter_block("nip in [ 172.32.7.16] ", &flow_record, 1);
 
 	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.xlate_src_ip.V6);
 	flow_record.xlate_src_ip.V6[0] = ntohll(flow_record.xlate_src_ip.V6[0]);

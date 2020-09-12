@@ -1,3 +1,6 @@
+2020-09-12
+- Cleanup nip/xip filter syntax. Add filter syntax 'nip in [ <iplist>]'. Request #246
+
 2020-09-03
 - Add nfversion to nfpcapd
 

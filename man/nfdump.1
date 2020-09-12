@@ -1232,7 +1232,7 @@ Select an extended NSEL ASA event by number, or optionally compared by a number.
 .RS 4
 \fB[src|dst] xip <ip>\fr
 .br
-Select the translated IP address
+Select the translated IP address - identical to nip
 .P
 \fB[src|dst] xnet <net>/<num>\fR
 .br
@@ -1275,13 +1275,17 @@ select NEL NAT event by name or number. If given as number it can be compared wi
 .TP 4
 .I NEL NAT ip addresses and ports
 .RS 4
-\fB[src|dst] nip <ip>
+\fB[src|dst] nip <ip>\fR
 .br
-Select the NAT IP address
+Match NAT IP address
 .P
-\fB[src|dst] nport <port>
+\fB[src|dst] nip in [ <iplist> ] \fR
 .br
-Select the NAT port
+Match NAT IP from list <iplist> - see \fBip in [ <iplist> ]\fR for syntax.
+.P
+\fB[src|dst] nport <port>\fR
+.br
+Match NAT port
 .RE
 .PD
 .TP 4

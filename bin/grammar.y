@@ -140,7 +140,7 @@ char yyerror_buff[256];
 %token PPS BPS BPP DURATION NOT 
 %token IPV4 IPV6 BGPNEXTHOP ROUTER VLAN
 %token CLIENT SERVER APP LATENCY SYSID
-%token ASA REASON DENIED XEVENT XIP XNET XPORT INGRESS EGRESS ACL ACE XACE
+%token ASA REASON DENIED XEVENT XNET XPORT INGRESS EGRESS ACL ACE XACE
 %token NAT ADD EVENT VRF NPORT NIP
 %token PBLOCK START END STEP SIZE
 %type <value>	expr NUMBER PORTNUM ICMP_TYPE ICMP_CODE
@@ -793,56 +793,6 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 #endif
 	}
 
-	| dqual XIP STRING { 	
-#ifdef NSEL
-		int af, bytes, ret;
-
-		ret = parse_ip(&af, $3, IPstack, &bytes, ALLOW_LOOKUP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Error parsing IP address.");
-			YYABORT;
-		}
-
-		// ret == -1 will never happen here, as ALLOW_LOOKUP is set
-		if ( ret == -2 ) {
-			// could not resolv host => 'not any'
-			$$.self = Invert(NewBlock(OffsetProto, 0, 0, CMP_EQ, FUNC_NONE, NULL )); 
-		} else {
-			uint64_t offsets[4] = {OffsetXLATESRCv6a, OffsetXLATESRCv6b, OffsetXLATEDSTv6a, OffsetXLATEDSTv6b };
-			if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
-				yyerror("incomplete IP address");
-				YYABORT;
-			}
-
-			switch ( $1.direction ) {
-				case SOURCE:
-				case DESTINATION:
-					$$.self = ChainHosts(offsets, IPstack, num_ip, $1.direction);
-					break;
-				case DIR_UNSPEC:
-				case SOURCE_OR_DESTINATION: {
-					uint32_t src = ChainHosts(offsets, IPstack, num_ip, SOURCE);
-					uint32_t dst = ChainHosts(offsets, IPstack, num_ip, DESTINATION);
-					$$.self = Connect_OR(src, dst);
-					} break;
-				case SOURCE_AND_DESTINATION: {
-					uint32_t src = ChainHosts(offsets, IPstack, num_ip, SOURCE);
-					uint32_t dst = ChainHosts(offsets, IPstack, num_ip, DESTINATION);
-					$$.self = Connect_AND(src, dst);
-					} break;
-				default:
-					yyerror("This token is not expected here!");
-					YYABORT;
-	
-			} // End of switch
-
-		}
-#else
-		yyerror("NSEL/ASA filters not available");
-		YYABORT;
-#endif
-	}
 
 	| dqual XNET STRING '/' NUMBER { 
 #ifdef NSEL
@@ -1203,6 +1153,38 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 	
 			} // End of switch
 
+		}
+#else
+		yyerror("NSEL/ASA filters not available");
+		YYABORT;
+#endif
+	}
+
+	| dqual NIP IN '[' iplist ']' { 	
+#ifdef NSEL
+		switch ( $1.direction ) {
+			case SOURCE:
+				$$.self = NewBlock(OffsetXLATESRCv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 );
+				break;
+			case DESTINATION:
+				$$.self = NewBlock(OffsetXLATEDSTv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 );
+				break;
+			case DIR_UNSPEC:
+			case SOURCE_OR_DESTINATION:
+				$$.self = Connect_OR(
+					NewBlock(OffsetXLATESRCv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 ),
+					NewBlock(OffsetXLATEDSTv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 )
+				);
+				break;
+			case SOURCE_AND_DESTINATION:
+				$$.self = Connect_AND(
+					NewBlock(OffsetXLATESRCv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 ),
+					NewBlock(OffsetXLATEDSTv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 )
+				);
+				break;
+			default:
+				yyerror("This token is not expected here!");
+				YYABORT;
 		}
 #else
 		yyerror("NSEL/ASA filters not available");
