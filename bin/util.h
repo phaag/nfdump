@@ -112,6 +112,8 @@ void LogError(char *format, ...);
 
 void LogInfo(char *format, ...);
 
+void LogVerbose(char *format, ...);
+
 void InitStringlist(stringlist_t *list, int block_size);
 
 void InsertString(stringlist_t *list, char *string);

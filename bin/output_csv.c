@@ -46,7 +46,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "output_util.h"
 #include "output_csv.h"
 
@@ -81,7 +80,7 @@ master_record_t *r = (master_record_t *)record;
 
 	as[0] = 0;
 	ds[0] = 0;
-	if ( (r->flags & FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags,V3_FLAG_IPV6_ADDR ) != 0 ) {
 		uint64_t snet[2];
 		uint64_t dnet[2];
 
@@ -123,8 +122,8 @@ master_record_t *r = (master_record_t *)record;
 	slen = STRINGSIZE;
 	snprintf(_s, slen-1, "%s,%s,%.3f,%s,%s,%u,%u,%s,%s,%u,%u,%llu,%llu,%llu,%llu",
 		datestr1, datestr2, duration, as,ds,r->srcPort, r->dstPort, ProtoString(r->proto, 0),
-		FlagsString(r->tcp_flags), r->fwd_status, r->tos, (unsigned long long)r->dPkts,
-		(unsigned long long)r->dOctets, (long long unsigned)r->out_pkts, (long long unsigned)r->out_bytes);
+		FlagsString(r->tcp_flags), r->fwd_status, r->tos, (unsigned long long)r->inPackets,
+		(unsigned long long)r->inBytes, (long long unsigned)r->out_pkts, (long long unsigned)r->out_bytes);
 
 	_slen = strlen(data_string);
 	_s += _slen;
@@ -150,7 +149,7 @@ master_record_t *r = (master_record_t *)record;
 		_s = data_string + _slen;
 		slen = STRINGSIZE - _slen;
 
-	if ( (r->flags & FLAG_IPV6_NH ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags,V3_FLAG_IPV6_NH ) != 0 ) { // IPv6
 		// EX_NEXT_HOP_v6:
 		as[0] = 0;
 		r->ip_nexthop.V6[0] = htonll(r->ip_nexthop.V6[0]);
@@ -176,7 +175,7 @@ master_record_t *r = (master_record_t *)record;
 		slen = STRINGSIZE - _slen;
 	}
 	
-	if ( (r->flags & FLAG_IPV6_NHB ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags,V3_FLAG_IPV6_NHB ) != 0 ) { // IPv6
 		// EX_NEXT_HOP_BGP_v6:
 		as[0] = 0;
 		r->bgp_nexthop.V6[0] = htonll(r->bgp_nexthop.V6[0]);
@@ -285,7 +284,7 @@ master_record_t *r = (master_record_t *)record;
 
 
 	// EX_ROUTER_IP_v4:
-	if ( (r->flags & FLAG_IPV6_EXP ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags,V3_FLAG_IPV6_EXP ) != 0 ) {
 		// EX_NEXT_HOP_v6:
 		as[0] = 0;
 		r->ip_router.V6[0] = htonll(r->ip_router.V6[0]);
@@ -324,11 +323,11 @@ master_record_t *r = (master_record_t *)record;
 		slen = STRINGSIZE - _slen;
 
 	// Date flow received
-	when = r->received / 1000LL;
+	when = r->msecReceived / 1000LL;
  	ts = localtime(&when);
  	strftime(datestr3, 63, ",%Y-%m-%d %H:%M:%S", ts);
  
- 	snprintf(_s, slen-1, "%s.%03llu", datestr3, (long long unsigned)r->received % 1000LL);
+ 	snprintf(_s, slen-1, "%s.%03llu", datestr3, (long long unsigned)r->msecReceived % 1000LL);
  	        _slen = strlen(data_string);
  	        _s = data_string + _slen;
  	        slen = STRINGSIZE - _slen;

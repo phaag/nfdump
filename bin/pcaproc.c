@@ -611,17 +611,18 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 				LogInfo("UDP payload length error: %u bytes < 8, SRC %s, DST %s",
 					UDPlen, inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
 					inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
-
 				Free_Node(Node);
 				break;
 			}
 			uint32_t size_udp_payload = ntohs(udp->uh_ulen) - 8;
 
 			if ( (bytes == payload_len ) && (payload_len - sizeof(struct udphdr)) < size_udp_payload ) {
+/*
 				LogInfo("UDP payload length error: Expected %u, have %u bytes, SRC %s, DST %s",
 					size_udp_payload, (payload_len - (unsigned)sizeof(struct udphdr)),
 					inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
 					inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
+*/
 				Free_Node(Node);
 				break;
 			}

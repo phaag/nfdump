@@ -1,6 +1,5 @@
 /*
- *  This file is part of the nfdump project.
- *
+ *  Copyright (c) 2012-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -28,14 +27,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: peter $
- *
- *  $Id: scanner.l 100 2008-08-15 11:36:21Z peter $
- *
- *  $LastChangedRevision: 100 $
- *	
- *
- *
  */
 
 %x incl
@@ -129,7 +120,6 @@ H				(0X|0x)[0-9A-Fa-f]+
 
 any				{ return ANY; }
 ip|host			{ return IP; }
-hostname		{ return HOSTNAME; }
 if				{ return IF; }
 mac				{ return MAC; }
 mpls			{ return MPLS; }
@@ -138,8 +128,10 @@ ident			{ return IDENT; }
 out				{ return OUT; }
 
 flags			{ return FLAGS; }
+nfversion		{ return NFVERSION; }
 proto			{ return PROTO; }
 tos				{ return TOS; }
+dir				{ return DIR; }
 flowdir			{ return DIR; }
 net				{ return NET; }
 port			{ return PORT; }
@@ -183,7 +175,7 @@ ignore|invalid|create|add|term|delete|deny	{ 	/* NSEL filter */
 				}
 denied			{ return DENIED; 	/* NSEL filter */ }
 xevent			{ return XEVENT; 	/* NSEL filter */ }
-xip				{ return XIP; 		/* NSEL filter */ }
+xip				{ return NIP; 		/* NSEL filter */ }
 xnet			{ return XNET; 		/* NSEL filter */ }
 xport			{ return XPORT; 	/* NSEL filter */ }
 acl				{ return ACL; 		/* NSEL filter */ }

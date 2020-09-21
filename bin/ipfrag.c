@@ -187,7 +187,7 @@ struct IPFragNode *node, *nxt;
     }
 	dbg_printf("Expired %u incomplete IP fragments, total fragments: %u\n", expireCnt, NumFragments);
 	if ( expireCnt )
-		LogInfo("Expired %u incomplete IP fragments, total fragments: %u", expireCnt, NumFragments);
+		LogVerbose("Expired %u incomplete IP fragments, total fragments: %u", expireCnt, NumFragments);
 
 } // End of IPFragTree_expire
 

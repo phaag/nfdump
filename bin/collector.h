@@ -39,6 +39,7 @@
 #include <stdint.h>
 #endif
 #include <sys/socket.h>
+#include <netinet/in.h>
 
 #include "exporter.h"
 #include "bookkeeper.h"
@@ -60,6 +61,7 @@ typedef struct FlowSource_s {
 	char 				Ident[IDENTLEN];
 	ip_addr_t			ip;
 	uint32_t			sa_family;
+	in_port_t			port;
 
 	int					any_source;
 	bookkeeper_t 		*bookkeeper;
@@ -79,15 +81,6 @@ typedef struct FlowSource_s {
 	uint32_t			exporter_count;
 	struct timeval		received;
 
-	// extension map list
-	struct {
-#define BLOCK_SIZE	16
-		int	next_free;
-		int	max_maps;
-		int num_maps;
-		extension_map_t	**maps;
-	} extension_map_list;
-
 } FlowSource_t;
 
 /* input buffer size, to read data from the network */
@@ -100,19 +93,13 @@ typedef struct FlowSource_s {
 // prototypes
 int AddFlowSource(FlowSource_t **FlowSource, char *ident);
 
+int AddFlowSourceFromFile(FlowSource_t **FlowSource, char *path);
+
 int AddDefaultFlowSource(FlowSource_t **FlowSource, char *ident, char *path);
 
 int SetDynamicSourcesDir(FlowSource_t **FlowSource, char *dir);
 
 FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storage *ss);
-
-int InitExtensionMapList(FlowSource_t *fs);
-
-int ReInitExtensionMapList(FlowSource_t *fs);
-
-int RemoveExtensionMap(FlowSource_t *fs, extension_map_t *map);
-
-int AddExtensionMap(FlowSource_t *fs, extension_map_t *map);
 
 void FlushStdRecords(FlowSource_t *fs);
 

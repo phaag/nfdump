@@ -59,7 +59,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "flist.h"
 #include "nftree.h"

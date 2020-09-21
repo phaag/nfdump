@@ -243,11 +243,14 @@ typedef struct nffile_s {
 #define ExporterStatRecordType	8
 #define SamplerInfoRecordype	9
 
+// nbar record
+#define NbarRecordType			10
+
 typedef struct record_header_s {
  	// record header
  	uint16_t	type;
  	uint16_t	size;
-} record_header_t;
+} __attribute__((__packed__ )) record_header_t;
 
 
 /*

@@ -39,6 +39,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <string.h>
+#include <assert.h>
 #include <pthread.h>
 
 #ifdef HAVE_STDINT_H
@@ -48,7 +49,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "nfnet.h"
 #include "output_raw.h"
@@ -62,18 +62,14 @@
 static int printRecord;
 static uint32_t recordSizev6;
 static uint32_t recordSizev4;
-static uint32_t numElements;
 
 #include "nffile_inline.c"
 
 int Init_pcap2nf(int verbose) {
 
 	printRecord = verbose;
-	recordSizev6 = EXgenericFlowSize + EXipv6FlowSize + EXflowMiscSize + 
-					 EXlatencySize;
-	recordSizev4 = EXgenericFlowSize + EXipv4FlowSize + EXflowMiscSize + 
-					 EXlatencySize;
-	numElements = 4;
+	recordSizev6 = EXgenericFlowSize + EXipv6FlowSize + EXlatencySize;
+	recordSizev4 = EXgenericFlowSize + EXipv4FlowSize + EXlatencySize;
 	return 1;
 
 } // End of Init_pcap2nf
@@ -104,8 +100,10 @@ uint32_t	recordSize;
 	AddV3Header(fs->nffile->buff_ptr, recordHeader);
 
 	// header data
+    recordHeader->nfversion  = 0x41;
     recordHeader->engineType = 0x11;
     recordHeader->engineID   = 1;
+	recordHeader->exporterID = 0;
 
     // pack V3 record
     PushExtension(recordHeader, EXgenericFlow, genericFlow);
@@ -116,8 +114,8 @@ uint32_t	recordSize;
 	gettimeofday(&now, NULL);
 	genericFlow->msecReceived = now.tv_sec * 1000L + now.tv_usec / 1000;
 
-	genericFlow->inPackets	= Node->packets;
-	genericFlow->inBytes	= Node->bytes;
+	genericFlow->inPackets = Node->packets;
+	genericFlow->inBytes   = Node->bytes;
 
     genericFlow->proto     = Node->proto;
     genericFlow->tcpFlags  = Node->flags;
@@ -125,7 +123,6 @@ uint32_t	recordSize;
     genericFlow->dstPort   = Node->dst_port;
 
 	if ( Node->version == AF_INET6 ) {
-		SetFlag(recordHeader->flags, FLAG_IPV6_ADDR);
 		PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
 		ipv6Flow->srcAddr[0] = Node->src_addr.v6[0];
 		ipv6Flow->srcAddr[1] = Node->src_addr.v6[1];
@@ -197,11 +194,10 @@ uint32_t	recordSize;
 
 	// update file record size ( -> output buffer size )
 	fs->nffile->block_header->NumRecords += 1;
-	fs->nffile->block_header->size 		 += recordSize;
+	fs->nffile->block_header->size 		 += recordHeader->size;
 
-	dbg_assert(recordHeader->size == recordSize);
-
-	fs->nffile->buff_ptr += recordSize;
+	assert(recordHeader->size == recordSize);
+	fs->nffile->buff_ptr += recordHeader->size;
 
 	return 1;
 

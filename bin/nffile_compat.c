@@ -60,10 +60,10 @@ void		*p = input_record->data;
 	genericFlow->tcpFlags  = input_record->tcp_flags;
  	genericFlow->srcPort   = input_record->srcPort;
  	genericFlow->dstPort   = input_record->dstPort;
-	genericFlow->fwdStatus	= input_record->fwd_status;
-	genericFlow->srcTos		= input_record->tos;
+	genericFlow->fwdStatus = input_record->fwd_status;
+	genericFlow->srcTos	   = input_record->tos;
 
-	if ( TestFlag(input_record->flags, FLAG_IPV6_ADDR) != 0 )	{ // IPv6
+	if ( TestFlag(input_record->flags, FLAG_IPV6_ADDR))	{ // IPv6
 		// IPv6
 		PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
 		memcpy(ipv6Flow->srcAddr, (void *)input_record->data, 4 * sizeof(uint64_t));	
@@ -80,7 +80,7 @@ void		*p = input_record->data;
 		p = (void *)(p + 2 * sizeof(uint32_t));
 	}
 
-	if ( (input_record->flags & FLAG_PKG_64 ) != 0 ) { 
+	if ( TestFlag(input_record->flags, FLAG_PKG_64)) { 
 		// 64bit packet counter
 		genericFlow->inPackets = *((uint64_t *)p);
 		p = (void *)(p + sizeof(uint64_t));
@@ -90,7 +90,7 @@ void		*p = input_record->data;
 		p = (void *)(p + sizeof(uint32_t));
 	}
 
-	if ( (input_record->flags & FLAG_BYTES_64 ) != 0 ) { 
+	if ( TestFlag(input_record->flags, FLAG_BYTES_64)) { 
 		// 64bit byte counter
 		genericFlow->inBytes = *((uint64_t *)p);
 		p = (void *)(p + sizeof(uint64_t));
@@ -450,12 +450,12 @@ void		*p = (void *)input_record;
 	index = 0;
 
 	// set map ref
-	output_record->map_ref = extension_map;
 	output_record->engine_type = 0;
 	output_record->engine_id   = 0;
 
 	output_record->size		 = 0;
-	output_record->flags	 = input_record->flags;
+	output_record->flags	 = input_record->flags >> 6;
+	output_record->mflags	 = 0;
 	output_record->proto	 = input_record->prot;
 	output_record->tcp_flags = input_record->tcp_flags;
  	output_record->srcPort	 = input_record->srcPort;
@@ -464,7 +464,7 @@ void		*p = (void *)input_record;
 	output_record->tos		 = input_record->tos;
 	output_record->msecFirst = input_record->first * 1000L + input_record->msec_first;
 	output_record->msecLast  = input_record->last  * 1000L + input_record->msec_last;
-	output_record->received = 0;
+	output_record->msecReceived = 0;
 	output_record->exporter_sysid = input_record->exporter_sysid;
 
 	InsertElelement(output_record->exElementList, index++, EXgenericFlowID);
@@ -487,7 +487,7 @@ void		*p = (void *)input_record;
 	output_record->icmp = output_record->dstPort;
 
 	// Required extension 1 - IP addresses
-	if ( (input_record->flags & FLAG_IPV6_ADDR) != 0 )	{ // IPv6
+	if ( TestFlag(input_record->flags, FLAG_IPV6_ADDR))	{ // IPv6
 		// IPv6
 		// keep compiler happy
 		// memcpy((void *)output_record->V6.srcaddr, p, 4 * sizeof(uint64_t));	
@@ -496,6 +496,7 @@ void		*p = (void *)input_record;
 		InsertElelement(output_record->exElementList, index++, EXipv6FlowID);
 		output_record->size += EXipv6FlowSize;
 		output_record->numElements++;
+		SetFlag(output_record->mflags, V3_FLAG_IPV6_ADDR);
 	} else { 	
 		// IPv4
 		u = (uint32_t *)p;
@@ -513,30 +514,30 @@ void		*p = (void *)input_record;
 	}
 
 	// Required extension 2 - packet counter
-	if ( (input_record->flags & FLAG_PKG_64 ) != 0 ) { 
+	if ( TestFlag(input_record->flags, FLAG_PKG_64)) { 
 		// 64bit packet counter
 		value64_t	l, *v = (value64_t *)p;
 		l.val.val32[0] = v->val.val32[0];
 		l.val.val32[1] = v->val.val32[1];
-		output_record->dPkts = l.val.val64;
+		output_record->inPackets = l.val.val64;
 		p = (void *)((pointer_addr_t)p + sizeof(uint64_t));
 	} else {	
 		// 32bit packet counter
-		output_record->dPkts = *((uint32_t *)p);
+		output_record->inPackets = *((uint32_t *)p);
 		p = (void *)((pointer_addr_t)p + sizeof(uint32_t));
 	}
 
 	// Required extension 3 - byte counter
-	if ( (input_record->flags & FLAG_BYTES_64 ) != 0 ) { 
+	if ( TestFlag(input_record->flags, FLAG_BYTES_64)) { 
 		// 64bit byte counter
 		value64_t	l, *v = (value64_t *)p;
 		l.val.val32[0] = v->val.val32[0];
 		l.val.val32[1] = v->val.val32[1];
-		output_record->dOctets = l.val.val64;
+		output_record->inBytes = l.val.val64;
 		p = (void *)((pointer_addr_t)p + sizeof(uint64_t));
 	} else {	
 		// 32bit bytes counter
-		output_record->dOctets = *((uint32_t *)p);
+		output_record->inBytes = *((uint32_t *)p);
 		p = (void *)((pointer_addr_t)p + sizeof(uint32_t));
 	}
 
@@ -616,7 +617,6 @@ void		*p = (void *)input_record;
 				output_record->ip_nexthop.V6[1] = 0;
 				output_record->ip_nexthop.V4	= tpl->nexthop;
 				p = (void *)tpl->data;
-				ClearFlag(output_record->flags, FLAG_IPV6_NH);
 				InsertElelement(output_record->exElementList, index++, EXipNextHopV4ID);
 				output_record->size += EXipNextHopV4Size;
 				output_record->numElements++;
@@ -625,7 +625,7 @@ void		*p = (void *)input_record;
 				tpl_ext_10_t *tpl = (tpl_ext_10_t *)p;
 				CopyV6IP((uint32_t *)output_record->ip_nexthop.V6, (uint32_t *)tpl->nexthop);
 				p = (void *)tpl->data;
-				SetFlag(output_record->flags, FLAG_IPV6_NH);
+				SetFlag(output_record->mflags, V3_FLAG_IPV6_NH);
 				InsertElelement(output_record->exElementList, index++, EXipNextHopV6ID);
 				output_record->size += EXipNextHopV6Size;
 				output_record->numElements++;
@@ -635,7 +635,6 @@ void		*p = (void *)input_record;
 				output_record->bgp_nexthop.V6[0] = 0;
 				output_record->bgp_nexthop.V6[1] = 0;
 				output_record->bgp_nexthop.V4	= tpl->bgp_nexthop;
-				ClearFlag(output_record->flags, FLAG_IPV6_NHB);
 				p = (void *)tpl->data;
 				InsertElelement(output_record->exElementList, index++, EXbgpNextHopV4ID);
 				output_record->size += EXbgpNextHopV4Size;
@@ -645,7 +644,7 @@ void		*p = (void *)input_record;
 				tpl_ext_12_t *tpl = (tpl_ext_12_t *)p;
 				CopyV6IP((uint32_t *)output_record->bgp_nexthop.V6, (uint32_t *)tpl->bgp_nexthop);
 				p = (void *)tpl->data;
-				SetFlag(output_record->flags, FLAG_IPV6_NHB);
+				SetFlag(output_record->mflags, V3_FLAG_IPV6_NHB);
 				InsertElelement(output_record->exElementList, index++, EXbgpNextHopV6ID);
 				output_record->size += EXbgpNextHopV6Size;
 				output_record->numElements++;
@@ -781,7 +780,6 @@ void		*p = (void *)input_record;
 				output_record->ip_router.V6[1] = 0;
 				output_record->ip_router.V4	= tpl->router_ip;
 				p = (void *)tpl->data;
-				ClearFlag(output_record->flags, FLAG_IPV6_EXP);
 				InsertElelement(output_record->exElementList, index++, EXipReceivedV4ID);
 				output_record->size += EXipReceivedV4Size;
 				output_record->numElements++;
@@ -790,7 +788,7 @@ void		*p = (void *)input_record;
 				tpl_ext_24_t *tpl = (tpl_ext_24_t *)p;
 				CopyV6IP((uint32_t *)output_record->ip_router.V6, (uint32_t *)tpl->router_ip);
 				p = (void *)tpl->data;
-				SetFlag(output_record->flags, FLAG_IPV6_EXP);
+				SetFlag(output_record->mflags, V3_FLAG_IPV6_EXP);
 				InsertElelement(output_record->exElementList, index++, EXipReceivedV6ID);
 				output_record->size += EXipReceivedV6Size;
 				output_record->numElements++;
@@ -825,7 +823,7 @@ void		*p = (void *)input_record;
 				value64_t v;
 				v.val.val32[0] = tpl->v[0];
 				v.val.val32[1] = tpl->v[1];
-				output_record->received = v.val.val64;
+				output_record->msecReceived = v.val.val64;
 				p = (void *)tpl->data;
 			} break;
 #ifdef NSEL
@@ -834,11 +832,11 @@ void		*p = (void *)input_record;
 				value64_t v;
 				v.val.val32[0] = tpl->v[0];
 				v.val.val32[1] = tpl->v[1];
-				output_record->event_time = v.val.val64;
-				output_record->conn_id 	  = tpl->conn_id;
+				output_record->msecEvent  = v.val.val64;
+				output_record->connID 	  = tpl->conn_id;
 				output_record->event   	  = tpl->fw_event;
 				output_record->event_flag = FW_EVENT;
-				output_record->fw_xevent  = tpl->fw_xevent;
+				output_record->fwXevent   = tpl->fw_xevent;
 				output_record->icmp = tpl->nsel_icmp;
 				output_record->sec_group_tag = tpl->sec_group_tag;
 				p = (void *)tpl->data;
@@ -873,8 +871,8 @@ void		*p = (void *)input_record;
 				tpl_ext_41_t *tpl = (tpl_ext_41_t *)p;
 				int j;
 				for (j=0; j<3; j++) {
-					output_record->ingress_acl_id[j] = tpl->ingress_acl_id[j];
-					output_record->egress_acl_id[j] = tpl->egress_acl_id[j];
+					output_record->ingressAcl[j] = tpl->ingress_acl_id[j];
+					output_record->egressAcl[j] = tpl->egress_acl_id[j];
 				}
 				p = (void *)tpl->data;
 			} break;
@@ -895,33 +893,10 @@ void		*p = (void *)input_record;
 				output_record->event 	  = tpl->nat_event;
 				output_record->event_flag = FW_EVENT;
 				// XXX	- 3 bytes unused
-				output_record->egress_vrfid  = tpl->egress_vrfid;
-				output_record->ingress_vrfid = tpl->ingress_vrfid;
+				output_record->egressVrf  = tpl->egress_vrfid;
+				output_record->ingressVrf = tpl->ingress_vrfid;
 				p = (void *)tpl->data;
 
-				// remember this value, if we read old 1.6.10 files
-				compat_nel_bug.vrf = tpl->egress_vrfid;
-				if ( compat_nel ) {
-					output_record->xlate_src_port = compat_nel_bug.port[0];
-					output_record->xlate_dst_port = compat_nel_bug.port[1];
-					output_record->egress_vrfid   = 0;
-				}
-			} break;
-			// compat record v1.6.10
-			case EX_NEL_GLOBAL_IP_v4: {
-				tpl_ext_47_t *tpl = (tpl_ext_47_t *)p;
-				output_record->xlate_src_ip.V6[0] = 0;
-				output_record->xlate_src_ip.V6[1] = 0;
-				output_record->xlate_src_ip.V4	= tpl->nat_inside;
-				output_record->xlate_dst_ip.V6[0] = 0;
-				output_record->xlate_dst_ip.V6[1] = 0;
-				output_record->xlate_dst_ip.V4	= tpl->nat_outside;
-				p = (void *)tpl->data;
-
-				output_record->xlate_src_port = compat_nel_bug.port[0];
-				output_record->xlate_dst_port = compat_nel_bug.port[1];
-				output_record->egress_vrfid   = 0;
-				compat_nel = 1;
 			} break;
 			case EX_PORT_BLOCK_ALLOC: {
 				tpl_ext_48_t *tpl = (tpl_ext_48_t *)p;

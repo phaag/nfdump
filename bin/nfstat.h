@@ -41,7 +41,6 @@
 
 #include "output_util.h"
 #include "output_fmt.h"
-#include "nfx.h"
 #include "nffile.h"
 
 /*

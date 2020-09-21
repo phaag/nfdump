@@ -33,6 +33,10 @@
 
 #include "config.h"
 
+#ifdef WORDS_BIGENDIAN
+#	error "Big endian CPU not supported"
+#endif
+
 #include <sys/types.h>
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
@@ -67,56 +71,72 @@ typedef struct extension_map_s extension_map_t;
 typedef struct master_record_s {
 	// common information from all netflow versions
 	// 							// interpreted as uint64_t[]
-	// 							#ifdef WORDS_BIGENDIAN
 
-	uint16_t	flags;			// index 0  0xffff 0000 0000 0000
-	uint16_t	ext_map;		// index 0	0x0000'ffff'0000 0000
-	uint16_t	exporter_sysid; // index 0	0x0000'0000'ffff'0000
-	uint16_t	size;			// index 0	0x0000'0000'0000'ffff
+	uint8_t		flags;			// 0xff00 0000 0000 0000
+	uint8_t		nfversion;		// 0x00ff 0000 0000 0000
+	uint16_t	mflags; 		// 0x0000'ffff'0000'0000
+#define V3_FLAG_IPV6_ADDR	1
+#define V3_FLAG_IPV6_NH		2
+#define V3_FLAG_IPV6_NHB	4
+#define V3_FLAG_IPV6_EXP	8
+	uint16_t	size;			// 0x0000'0000'ffff'0000
+	uint16_t	numElements;	// 0x0000'0000'0000'ffff
+
 #	define OffsetRecordFlags 	0
-#	define OffsetExporterSysID	0
+#	define OffsetRecordVersion 	0
 #ifdef WORDS_BIGENDIAN
-#	define MaskRecordFlags  	0xffff000000000000LL
-#	define ShiftRecordFlags 	48
+#	define MaskRecordFlags  	0xff00000000000000LL
+#	define ShiftRecordFlags 	56
 
-#	define MaskExporterSysID  	0x00000000ffff0000LL
-#	define ShiftExporterSysID 	16
+#	define MaskRecordVersion  	0x00ff000000000000LL
+#	define ShiftRecordVersion 	48
 
 #else
-#	define MaskRecordFlags  	0x000000000000ffffLL
+#	define MaskRecordFlags  	0x00000000000000ffLL
 #	define ShiftRecordFlags 	0
 
-#	define MaskExporterSysID  	0x0000ffff00000000LL
-#	define ShiftExporterSysID 	32
+#	define MaskRecordVersion  	0x000000000000ff00LL
+#	define ShiftRecordVersion 	8
 
 #endif
 
 	// 8 bytes offset in master record to first
 #define INDEX_BASE   (offsetof(master_record_t, msecFirst) >> 3)
 
-	uint64_t	msecFirst;		// index 1 0xffff'ffff'ffff'ffff
-	uint64_t	msecLast;		// index 2 0xffff'ffff'ffff'ffff
+	uint64_t	msecFirst;		// 0xffff'ffff'ffff'ffff
+	uint64_t	msecLast;		// 0xffff'ffff'ffff'ffff
+	uint64_t	msecReceived;	// 0xffff'ffff'ffff'ffff
 
-	uint16_t	numElements;	// index 3 0xffff'0000'0000'0000
-	uint8_t		engine_type;	// index 3 0x0000'ff00'0000'0000
-	uint8_t		engine_id;		// index 3 0x0000'00ff'0000'0000
+	uint64_t	inPackets;		// 0xffff'ffff'ffff'ffff
+	uint64_t	inBytes;		// 0xffff'ffff'ffff'ffff
 
-	uint8_t		fwd_status;		// index 3	0x0000'0000'ff00'0000
-	uint8_t		tcp_flags;		// index 3  0x0000'0000'00ff'0000
-	uint8_t		proto;			// index 3  0x0000'0000'0000'ff00
-	uint8_t		tos;			// index 3  0x0000'0000'0000'00ff
+	uint16_t	srcPort;		// 0xffff'0000'0000'0000
+	uint16_t	dstPort;		// 0x0000'ffff'0000'0000
 
-#	define OffsetRouterID		INDEX_BASE + 2
-#	define OffsetStatus 		INDEX_BASE + 2
-#	define OffsetFlags 			INDEX_BASE + 2
-#	define OffsetProto 			INDEX_BASE + 2
-#	define OffsetTos			INDEX_BASE + 2
+	uint8_t		fwd_status;		// 0x0000'0000'ff00'0000
+	uint8_t		tcp_flags;		// 0x0000'0000'00ff'0000
+	uint8_t		proto;			// 0x0000'0000'0000'ff00
+	uint8_t		tos;			// 0x0000'0000'0000'00ff
+
+#	define OffsetPackets 		(offsetof(master_record_t, inPackets) >> 3)
+#	define OffsetBytes 			(offsetof(master_record_t, inBytes) >> 3)
+#	define OffsetPort 			(offsetof(master_record_t, srcPort) >> 3)
+#	define OffsetStatus 		(offsetof(master_record_t, fwd_status) >> 3)
+#	define OffsetFlags 			(offsetof(master_record_t, tcp_flags) >> 3)
+#	define OffsetProto 			(offsetof(master_record_t, proto) >> 3)
+#	define OffsetTos			(offsetof(master_record_t, tos) >> 3)
+
+#	define MaskPackets  		0xffffffffffffffffLL
+#	define ShiftPackets 		0
+#	define MaskBytes  			0xffffffffffffffffLL
+#	define ShiftBytes 			0
+
 #ifdef WORDS_BIGENDIAN
-#	define MaskEngineType		0x0000FF0000000000LL
-#	define ShiftEngineType		40
+#	define MaskSrcPort			0xffff000000000000LL
+#	define ShiftSrcPort			48
 
-#	define MaskEngineID			0x000000FF00000000LL
-#	define ShiftEngineID		32
+#	define MaskDstPort			0x0000ffff00000000LL
+#	define ShiftDstPort 		32	
 
 #	define MaskStatus  			0x00000000ff000000LL
 #	define ShiftStatus  		24
@@ -131,11 +151,11 @@ typedef struct master_record_s {
 #	define ShiftTos  			0
 
 #else
-#	define MaskEngineType		0x0000000000FF0000LL
-#	define ShiftEngineType		16
+#	define MaskSrcPort			0x000000000000ffffLL
+#	define ShiftSrcPort			0
 
-#	define MaskEngineID			0x00000000FF000000LL
-#	define ShiftEngineID		24
+#	define MaskDstPort			0x00000000ffff0000LL
+#	define ShiftDstPort 		16
 
 #	define MaskStatus  			0x000000ff00000000LL
 #	define ShiftStatus  		32
@@ -150,31 +170,38 @@ typedef struct master_record_s {
 #	define ShiftTos  			56
 #endif
 
-	uint16_t	srcPort;		// index 4	0xffff'0000'0000'0000
-	uint16_t	dstPort;		// index 4  0x0000'ffff'0000'0000
-	uint16_t	sec_group_tag;	// index 4  0x0000'0000'ffff'ffff
+	uint16_t	exporter_sysid;	// 0xffff'0000'0000'0000
+	uint8_t		engine_type;	// 0x0000'ff00'0000'0000
+	uint8_t		engine_id;		// 0x0000'00ff'0000'0000
+	uint16_t	sec_group_tag;	// 0x0000'0000'ffff'0000
 
 	union {
 		struct {
 #ifdef WORDS_BIGENDIAN
-			uint8_t		icmp_type;	// index 4  0x0000'0000'0000'ff00
-			uint8_t		icmp_code;	// index 4  0x0000'0000'0000'00ff
+			uint8_t		icmp_type;	// 0x0000'0000'0000'ff00
+			uint8_t		icmp_code;	// 0x0000'0000'0000'00ff
 #else
-			// little endian confusion ...
-			uint8_t		icmp_code;	
+			uint8_t		icmp_code;
 			uint8_t		icmp_type;
 #endif
 		};
 		uint16_t icmp;
 	};
 
-#	define OffsetPort 			INDEX_BASE + 3
-#ifdef WORDS_BIGENDIAN
-#	define MaskSrcPort			0xffff000000000000LL
-#	define ShiftSrcPort			48
+#	define OffsetExporterSysID	(offsetof(master_record_t, exporter_sysid) >> 3)
+#	define OffsetRouterID		(offsetof(master_record_t, engine_type) >> 3)
+#	define OffsetICMP			(offsetof(master_record_t, icmp) >> 3)
 
-#	define MaskDstPort			0x0000ffff00000000LL
-#	define ShiftDstPort 		32	
+#ifdef WORDS_BIGENDIAN
+#	define MaskExporterSysID  	0xffff000000000000LL
+#	define ShiftExporterSysID 	48
+
+#	define MaskEngineType		0x0000FF0000000000LL
+#	define ShiftEngineType		40
+
+#	define MaskEngineID			0x000000FF00000000LL
+#	define ShiftEngineID		32
+
 
 #	define MaskICMPtype			0x000000000000ff00LL
 #	define ShiftICMPtype 		8
@@ -183,11 +210,14 @@ typedef struct master_record_s {
 #	define ShiftICMPcode 		0
 
 #else
-#	define MaskSrcPort			0x000000000000ffffLL
-#	define ShiftSrcPort			0
+#	define MaskExporterSysID  	0x000000000000ffffLL
+#	define ShiftExporterSysID 	0
 
-#	define MaskDstPort			0x00000000ffff0000LL
-#	define ShiftDstPort 		16
+#	define MaskEngineType		0x0000000000FF0000LL
+#	define ShiftEngineType		16
+
+#	define MaskEngineID			0x00000000FF000000LL
+#	define ShiftEngineID		24
 
 #	define MaskICMPtype			0xff00000000000000LL
 #	define ShiftICMPtype 		56
@@ -196,9 +226,9 @@ typedef struct master_record_s {
 #	define ShiftICMPcode 		48
 #endif
 
-	uint32_t	input;			// index 5	0xffff'ffff'0000'0000
-	uint32_t	output;			// index 5	0x0000'0000'ffff'ffff
-#	define OffsetInOut     		INDEX_BASE + 4
+	uint32_t	input;			// 0xffff'ffff'0000'0000
+	uint32_t	output;			// 0x0000'0000'ffff'ffff
+#	define OffsetInOut     		(offsetof(master_record_t, input) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskInput       		0xffffffff00000000LL
 #	define ShiftInput      		32
@@ -212,9 +242,9 @@ typedef struct master_record_s {
 #	define ShiftOutput     		32
 #endif
 
-	uint32_t	srcas;			// index 6	0xffff'ffff'0000'0000
-	uint32_t	dstas;			// index 5	0x0000'0000'ffff'ffff
-#	define OffsetAS 			INDEX_BASE + 5
+	uint32_t	srcas;			// 0xffff'ffff'0000'0000
+	uint32_t	dstas;			// 0x0000'0000'ffff'ffff
+#	define OffsetAS 			(offsetof(master_record_t, srcas) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskSrcAS 			0xffffffff00000000LL
 #	define ShiftSrcAS 			32
@@ -234,38 +264,38 @@ typedef struct master_record_s {
 	union {						
 		struct _ipv4_s {
 #ifdef WORDS_BIGENDIAN
-			uint32_t	fill1[3];	// <empty>		index  7 0xffff'ffff'ffff'ffff
-									// <empty>		index  8 0xffff'ffff'0000'0000
-			uint32_t	srcaddr;	// srcaddr      index  8 0x0000'0000'ffff'ffff
-			uint32_t	fill2[3];	// <empty>		index  9 0xffff'ffff'ffff'ffff
-									// <empty>		index 10 0xffff'ffff'0000'0000
-			uint32_t	dstaddr;	// dstaddr      index 10 0x0000'0000'ffff'ffff
+			uint32_t	fill1[3];	// <empty>		0xffff'ffff'ffff'ffff
+									// <empty>		0xffff'ffff'0000'0000
+			uint32_t	srcaddr;	// srcaddr      0x0000'0000'ffff'ffff
+			uint32_t	fill2[3];	// <empty>		0xffff'ffff'ffff'ffff
+									// <empty>		0xffff'ffff'0000'0000
+			uint32_t	dstaddr;	// dstaddr      0x0000'0000'ffff'ffff
 #else
-			uint32_t	fill1[2];	// <empty>		index  7 0xffff'ffff'ffff'ffff
-			uint32_t	srcaddr;	// srcaddr      index  8 0xffff'ffff'0000'0000
-			uint32_t	fill2;		// <empty>		index  8 0x0000'0000'ffff'ffff
-			uint32_t	fill3[2];	// <empty>		index  9 0xffff'ffff'ffff'ffff
-			uint32_t	dstaddr;	// dstaddr      index 10 0xffff'ffff'0000'0000
-			uint32_t	fill4;		// <empty>		index 10 0xffff'ffff'0000'0000
+			uint32_t	fill1[2];	// <empty>		0xffff'ffff'ffff'ffff
+			uint32_t	srcaddr;	// srcaddr      0xffff'ffff'0000'0000
+			uint32_t	fill2;		// <empty>		0x0000'0000'ffff'ffff
+			uint32_t	fill3[2];	// <empty>		0xffff'ffff'ffff'ffff
+			uint32_t	dstaddr;	// dstaddr      0xffff'ffff'0000'0000
+			uint32_t	fill4;		// <empty>		0xffff'ffff'0000'0000
 #endif
 		} _v4;	
 		struct _ipv6_s {
-			uint64_t	srcaddr[2];	// srcaddr[0-1] index  7 0xffff'ffff'ffff'ffff
-									// srcaddr[2-3] index  8 0xffff'ffff'ffff'ffff
-			uint64_t	dstaddr[2];	// dstaddr[0-1] index  9 0xffff'ffff'ffff'ffff
-									// dstaddr[2-3] index 10 0xffff'ffff'ffff'ffff
+			uint64_t	srcaddr[2];	// srcaddr[0-1] 0xffff'ffff'ffff'ffff
+									// srcaddr[2-3] 0xffff'ffff'ffff'ffff
+			uint64_t	dstaddr[2];	// dstaddr[0-1] 0xffff'ffff'ffff'ffff
+									// dstaddr[2-3] 0xffff'ffff'ffff'ffff
 		} _v6;
 		struct _ip64_s {
 			uint64_t	addr[4];
 		} _ip_64;
 	} ip_union;
 
-#	define OffsetSrcIPv4 		INDEX_BASE + 7
-#	define OffsetDstIPv4 		INDEX_BASE + 9
-#	define OffsetSrcIPv6a 		INDEX_BASE + 6
-#	define OffsetSrcIPv6b 		INDEX_BASE + 7
-#	define OffsetDstIPv6a 		INDEX_BASE + 8
-#	define OffsetDstIPv6b 		INDEX_BASE + 9
+#	define OffsetSrcIPv4 		(offsetof(master_record_t, ip_union._v4.srcaddr) >> 3)
+#	define OffsetDstIPv4 		(offsetof(master_record_t, ip_union._v4.dstaddr) >> 3)
+#	define OffsetSrcIPv6a 		(offsetof(master_record_t, ip_union._v6.srcaddr[0]) >> 3)
+#	define OffsetSrcIPv6b 		(offsetof(master_record_t, ip_union._v6.srcaddr[1]) >> 3)
+#	define OffsetDstIPv6a 		(offsetof(master_record_t, ip_union._v6.dstaddr[0]) >> 3)
+#	define OffsetDstIPv6b 		(offsetof(master_record_t, ip_union._v6.dstaddr[1]) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskSrcIPv4  		0x00000000ffffffffLL
 #	define ShiftSrcIPv4 		0
@@ -287,24 +317,14 @@ typedef struct master_record_s {
 #	define ShiftIPv6 			0
 #endif
 
-	// counter block 
-	uint64_t	dPkts;			// index 11	0xffff'ffff'ffff'ffff
-#	define OffsetPackets 		INDEX_BASE + 10
-#	define MaskPackets  		0xffffffffffffffffLL
-#	define ShiftPackets 		0
 
-	uint64_t	dOctets;		// index 12 0xffff'ffff'ffff'ffff
-#	define OffsetBytes 			INDEX_BASE + 11
-#	define MaskBytes  			0xffffffffffffffffLL
-#	define ShiftBytes 			0
+	ip_addr_t	ip_nexthop;		// ipv4 0x0000'0000'ffff'ffff
+								// ipv6	0xffff'ffff'ffff'ffff
+								// ipv6	0xffff'ffff'ffff'ffff
 
-	ip_addr_t	ip_nexthop;		// ipv4   index 14 0x0000'0000'ffff'ffff
-								// ipv6	  index 13 0xffff'ffff'ffff'ffff
-								// ipv6	  index 14 0xffff'ffff'ffff'ffff
-
-#	define OffsetNexthopv4 		INDEX_BASE + 13
-#	define OffsetNexthopv6a		INDEX_BASE + 12
-#	define OffsetNexthopv6b		INDEX_BASE + 13
+#	define OffsetNexthopv4 		(offsetof(master_record_t, ip_nexthop.ip_union._v4) >> 3)
+#	define OffsetNexthopv6a		(offsetof(master_record_t, ip_nexthop.ip_union._v6[0]) >> 3)
+#	define OffsetNexthopv6b		(offsetof(master_record_t, ip_nexthop.ip_union._v6[1]) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskNexthopv4  		0x00000000ffffffffLL
 #	define ShiftNexthopv4 		0
@@ -316,18 +336,16 @@ typedef struct master_record_s {
 #	define ShiftNexthopv4 		0
 #endif
 
-	ip_addr_t	bgp_nexthop;	// ipv4   index 16 0x0000'0000'ffff'ffff
-								// ipv6	  index 15 0xffff'ffff'ffff'ffff
-								// ipv6	  index 16 0xffff'ffff'ffff'ffff
+	ip_addr_t	bgp_nexthop;	// ipv4 0x0000'0000'ffff'ffff
+								// ipv6 0xffff'ffff'ffff'ffff
+								// ipv6	0xffff'ffff'ffff'ffff
 
-#	define OffsetBGPNexthopv4 	INDEX_BASE + 15
-#	define OffsetBGPNexthopv6a	INDEX_BASE + 14
-#	define OffsetBGPNexthopv6b	INDEX_BASE + 15
+#	define OffsetBGPNexthopv4 	(offsetof(master_record_t, bgp_nexthop.ip_union._v4) >> 3)
+#	define OffsetBGPNexthopv6a	(offsetof(master_record_t, bgp_nexthop.ip_union._v6[0]) >> 3)
+#	define OffsetBGPNexthopv6b	(offsetof(master_record_t, bgp_nexthop.ip_union._v6[1]) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskBGPNexthopv4  	0x00000000ffffffffLL
 #	define ShiftBGPNexthopv4 	0
-
-// MaskIPv6 and ShiftIPv6 already defined
 
 #else
 #	define MaskBGPNexthopv4  	0xffffffff00000000LL
@@ -336,22 +354,22 @@ typedef struct master_record_s {
 
 	union {
 		struct {
-			uint8_t	dst_tos;	// index 17 0xff00'0000'0000'0000
-			uint8_t	dir;		// index 17 0x00ff'0000'0000'0000
-			uint8_t	src_mask;	// index 17 0x0000'ff00'0000'0000
-			uint8_t	dst_mask;	// index 17 0x0000'00ff'0000'0000
+			uint8_t	dst_tos;	// 0xff00'0000'0000'0000
+			uint8_t	dir;		// 0x00ff'0000'0000'0000
+			uint8_t	src_mask;	// 0x0000'ff00'0000'0000
+			uint8_t	dst_mask;	// 0x0000'00ff'0000'0000
 		};
 		uint32_t	any;
 	};
 
 	// extension 13
-	uint16_t	src_vlan;		// index 17 0x0000'0000'ffff'0000
-	uint16_t	dst_vlan;		// index 17 0x0000'0000'0000'ffff
+	uint16_t	src_vlan;		// 0x0000'0000'ffff'0000
+	uint16_t	dst_vlan;		// 0x0000'0000'0000'ffff
 
-#	define OffsetDstTos			INDEX_BASE + 16
-#	define OffsetDir			INDEX_BASE + 16
-#	define OffsetMask			INDEX_BASE + 16
-#	define OffsetVlan 			INDEX_BASE + 16
+#	define OffsetDstTos			(offsetof(master_record_t, dst_tos) >> 3)
+#	define OffsetDir			(offsetof(master_record_t, dir) >> 3)
+#	define OffsetMask			(offsetof(master_record_t, src_mask) >> 3)
+#	define OffsetVlan 			(offsetof(master_record_t, src_vlan) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskDstTos			0xff00000000000000LL
 #	define ShiftDstTos  		56
@@ -392,36 +410,35 @@ typedef struct master_record_s {
 
 #endif
 
-	uint64_t	out_pkts;		// index 18	0xffff'ffff'ffff'ffff
-#	define OffsetOutPackets 	INDEX_BASE + 17
-// MaskPackets and ShiftPackets already defined
+	uint64_t	out_pkts;		// 0xffff'ffff'ffff'ffff
+#	define OffsetOutPackets 	(offsetof(master_record_t, out_pkts) >> 3)
 
-	uint64_t	out_bytes;		// index 19 0xffff'ffff'ffff'ffff
-#	define OffsetOutBytes 		INDEX_BASE + 18
+	uint64_t	out_bytes;		// 0xffff'ffff'ffff'ffff
+#	define OffsetOutBytes 		(offsetof(master_record_t, out_bytes) >> 3)
 
-	uint64_t	aggr_flows;		// index 20 0xffff'ffff'ffff'ffff
-#	define OffsetAggrFlows 		INDEX_BASE + 19
+	uint64_t	aggr_flows;		// 0xffff'ffff'ffff'ffff
+#	define OffsetAggrFlows 		(offsetof(master_record_t, aggr_flows) >> 3)
 #	define MaskFlows 	 		0xffffffffffffffffLL
 
-	uint64_t	in_src_mac;		// index 21 0xffff'ffff'ffff'ffff
-#	define OffsetInSrcMAC 		INDEX_BASE + 20
+	uint64_t	in_src_mac;		// 0xffff'ffff'ffff'ffff
+#	define OffsetInSrcMAC 		(offsetof(master_record_t, in_src_mac) >> 3)
 #	define MaskMac 	 			0xffffffffffffffffLL
 
-	uint64_t	out_dst_mac;	// index 22 0xffff'ffff'ffff'ffff
-#	define OffsetOutDstMAC 		INDEX_BASE + 21
+	uint64_t	out_dst_mac;	// 0xffff'ffff'ffff'ffff
+#	define OffsetOutDstMAC 		(offsetof(master_record_t, out_dst_mac) >> 3)
 
-	uint64_t	in_dst_mac;		// index 23 0xffff'ffff'ffff'ffff
-#	define OffsetInDstMAC 		INDEX_BASE + 22
+	uint64_t	in_dst_mac;		// 0xffff'ffff'ffff'ffff
+#	define OffsetInDstMAC 		(offsetof(master_record_t, in_dst_mac) >> 3)
 
-	uint64_t	out_src_mac;	// index 24 0xffff'ffff'ffff'ffff
-#	define OffsetOutSrcMAC 		INDEX_BASE + 23
+	uint64_t	out_src_mac;	// 0xffff'ffff'ffff'ffff
+#	define OffsetOutSrcMAC 		(offsetof(master_record_t, out_src_mac) >> 3)
 
 	uint32_t	mpls_label[10];
-#	define OffsetMPLS12 		INDEX_BASE + 24
-#	define OffsetMPLS34 		INDEX_BASE + 25
-#	define OffsetMPLS56 		INDEX_BASE + 26
-#	define OffsetMPLS78 		INDEX_BASE + 27
-#	define OffsetMPLS910 		INDEX_BASE + 28
+#	define OffsetMPLS12 		(offsetof(master_record_t, mpls_label[0]) >> 3)
+#	define OffsetMPLS34 		(offsetof(master_record_t, mpls_label[2]) >> 3)
+#	define OffsetMPLS56 		(offsetof(master_record_t, mpls_label[4]) >> 3)
+#	define OffsetMPLS78 		(offsetof(master_record_t, mpls_label[6]) >> 3)
+#	define OffsetMPLS910 		(offsetof(master_record_t, mpls_label[8]) >> 3)
 
 #ifdef WORDS_BIGENDIAN
 #	define MaskMPLSlabelOdd  	0x00fffff000000000LL
@@ -446,31 +463,27 @@ typedef struct master_record_s {
 
 #endif
 
-	ip_addr_t	ip_router;		// ipv4   index 31 0x0000'0000'ffff'ffff
-								// ipv6	  index 30 0xffff'ffff'ffff'ffff
-								// ipv6	  index 31 0xffff'ffff'ffff'ffff
+	ip_addr_t	ip_router;		// ipv4 0x0000'0000'ffff'ffff
+								// ipv6	0xffff'ffff'ffff'ffff
+								// ipv6	0xffff'ffff'ffff'ffff
 
-#	define OffsetRouterv4 		INDEX_BASE + 30
-#	define OffsetRouterv6a		INDEX_BASE + 29
-#	define OffsetRouterv6b		INDEX_BASE + 30
+#	define OffsetRouterv4 		(offsetof(master_record_t, ip_router.ip_union._v4) >> 3)
+#	define OffsetRouterv6a		(offsetof(master_record_t, ip_router.ip_union._v6[0]) >> 3)
+#	define OffsetRouterv6b		(offsetof(master_record_t, ip_router.ip_union._v6[1]) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskRouterv4  		0x00000000ffffffffLL
 #	define ShiftRouterv4 		0
-
-// MaskIPv6 and ShiftIPv6 already defined
 
 #else
 #	define MaskRouterv4  		0xffffffff00000000LL
 #	define ShiftRouterv4 		0
 #endif
 
-
-	// IPFIX extensions in v9
 	// BGP next/prev AS
-	uint32_t	bgpNextAdjacentAS;	// index 32 0xffff'ffff'0000'0000
-	uint32_t	bgpPrevAdjacentAS;	// index 32 0x0000'0000'ffff'ffff
+	uint32_t	bgpNextAdjacentAS;	// 0xffff'ffff'0000'0000
+	uint32_t	bgpPrevAdjacentAS;	// 0x0000'0000'ffff'ffff
 
-#	define OffsetBGPadj	INDEX_BASE + 31
+#	define OffsetBGPadj			(offsetof(master_record_t, bgpNextAdjacentAS) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskBGPadjNext		0xFFFFFFFF00000000LL
 #	define ShiftBGPadjNext		32
@@ -484,20 +497,32 @@ typedef struct master_record_s {
 #	define ShiftBGPadjPrev		32
 #endif
 
+	// latency extension
+	uint64_t	client_nw_delay_usec;	// index LATENCY_BASE_OFFSET 0xffff'ffff'ffff'ffff
+	uint64_t	server_nw_delay_usec;	// index LATENCY_BASE_OFFSET + 1 0xffff'ffff'ffff'ffff
+	uint64_t	appl_latency_usec;		// index LATENCY_BASE_OFFSET + 2 0xffff'ffff'ffff'ffff
+
+#define LATENCY_BASE_OFFSET     (offsetof(master_record_t, client_nw_delay_usec) >> 3)
+#   define OffsetClientLatency  LATENCY_BASE_OFFSET
+#   define OffsetServerLatency  LATENCY_BASE_OFFSET + 1
+#   define OffsetAppLatency     LATENCY_BASE_OFFSET + 2
+#   define MaskLatency          0xFFFFFFFFFFFFFFFFLL
+#   define ShiftLatency         0
+
 	// NSEL extensions
 #ifdef NSEL 
-#define NSEL_BASE_OFFSET     (offsetof(master_record_t, conn_id) >> 3)
+#define NSEL_BASE_OFFSET     (offsetof(master_record_t, connID) >> 3)
 
 	// common block
 #   define OffsetConnID  NSEL_BASE_OFFSET
 #   define OffsetNATevent  NSEL_BASE_OFFSET
-	uint32_t	conn_id;			// index OffsetConnID    0xffff'ffff'0000'0000
-	uint8_t		event;				// index OffsetConnID    0x0000'0000'ff00'0000
+	uint32_t	connID;			// index OffsetConnID    0xffff'ffff'0000'0000
+	uint8_t		event;			// index OffsetConnID    0x0000'0000'ff00'0000
 #define FW_EVENT 1
 #define NAT_EVENT 2
-	uint8_t		event_flag;			// index OffsetConnID    0x0000'0000'00ff'0000
-	uint16_t	fw_xevent;			// index OffsetConnID    0x0000'0000'0000'ffff
-	uint64_t	event_time;			// index OffsetConnID +1 0x1111'1111'1111'1111
+	uint8_t		event_flag;		// index OffsetConnID    0x0000'0000'00ff'0000
+	uint16_t	fwXevent;		// index OffsetConnID    0x0000'0000'0000'ffff
+	uint64_t	msecEvent;		// index OffsetConnID +1 0x1111'1111'1111'1111
 #ifdef WORDS_BIGENDIAN
 #	define MaskConnID		0xFFFFFFFF00000000LL
 #	define ShiftConnID		32
@@ -567,10 +592,10 @@ typedef struct master_record_s {
 #	define OffsetEgressAclId  NSEL_BASE_OFFSET+8
 #	define OffsetEgressAceId  NSEL_BASE_OFFSET+9
 #	define OffsetEgressGrpId  NSEL_BASE_OFFSET+9
-	uint32_t ingress_acl_id[3];	// index OffsetIngressAclId   0xffff'ffff'0000'0000
+	uint32_t ingressAcl[3];	// index OffsetIngressAclId   0xffff'ffff'0000'0000
 								// index OffsetIngressAceId   0x0000'0000'ffff'ffff
 								// index OffsetIngressGrpId   0xffff'ffff'0000'0000
-	uint32_t egress_acl_id[3];	// index OffsetEgressAclId	  0x0000'0000'ffff'ffff
+	uint32_t egressAcl[3];	// index OffsetEgressAclId	  0x0000'0000'ffff'ffff
 								// index OffsetEgressAceId	  0xffff'ffff'0000'0000
 								// index OffsetEgressGrpId	  0x0000'0000'ffff'ffff
 #ifdef WORDS_BIGENDIAN
@@ -607,14 +632,14 @@ typedef struct master_record_s {
 
 	// NAT extensions
 	// NAT event is mapped into ASA event
-#define NAT_BASE_OFFSET     (offsetof(master_record_t, ingress_vrfid) >> 3)
+#define NAT_BASE_OFFSET     (offsetof(master_record_t, ingressVrf) >> 3)
 	// common block
 #   define OffsetNELcommon  NEL_BASE_OFFSET
 #   define OffsetIVRFID  	NAT_BASE_OFFSET
 #   define OffsetEVRFID  	NAT_BASE_OFFSET
 #   define OffsetPortBlock	NAT_BASE_OFFSET+1
-	uint32_t	ingress_vrfid;	// OffsetIVRFID	   0xffff'ffff'0000'0000
-	uint32_t	egress_vrfid;	// OffsetEVRFID	   0x0000'0000'ffff'ffff
+	uint32_t	ingressVrf;	// OffsetIVRFID	   0xffff'ffff'0000'0000
+	uint32_t	egressVrf;	// OffsetEVRFID	   0x0000'0000'ffff'ffff
 
 	// Port block allocation
 	uint16_t	block_start;	// OffsetPortBlock 0xffff'0000'0000'0000
@@ -652,51 +677,18 @@ typedef struct master_record_s {
 
 #endif
 
-	// latency extension
-	uint64_t	client_nw_delay_usec;	// index LATENCY_BASE_OFFSET 0xffff'ffff'ffff'ffff
-	uint64_t	server_nw_delay_usec;	// index LATENCY_BASE_OFFSET + 1 0xffff'ffff'ffff'ffff
-	uint64_t	appl_latency_usec;		// index LATENCY_BASE_OFFSET + 2 0xffff'ffff'ffff'ffff
 
-#define LATENCY_BASE_OFFSET     (offsetof(master_record_t, client_nw_delay_usec) >> 3)
-#   define OffsetClientLatency  LATENCY_BASE_OFFSET
-#   define OffsetServerLatency  LATENCY_BASE_OFFSET + 1
-#   define OffsetAppLatency     LATENCY_BASE_OFFSET + 2
-#   define MaskLatency          0xFFFFFFFFFFFFFFFFLL
-#   define ShiftLatency         0
-
-	// flow received time in ms
-	uint64_t	received;
-
-/* possible user extensions may fit here
- * - Put each extension into its own #ifdef
- * - Define the base offset for the user extension as reference to the first object
- * - Refer to this base offset for each of the values in the master record for the extension
- * - make sure the extension is 64bit aligned
- * - The user extension must be independant of the number of user extensions already defined
- * - the extension map must be updated accordingly
- */
+	// last entry in master record 
+	uint16_t	exElementList[64];	// XXX fix number of elements
 
 	// reference to exporter
 	exporter_info_record_t	*exp_ref;
 
-	// last entry in master record 
-#	define Offset_MR_LAST	offsetof(master_record_t, map_ref)
-	extension_map_t	*map_ref;
-	uint16_t	exElementList[64];	// XXX fix
-
 	// optional flowlabel
 	char	*label;
+#	define Offset_MR_LAST	offsetof(master_record_t, label)
 } master_record_t;
 
-// convenience type conversion record 
-typedef struct type_mask_s {
-	union {
-		uint8_t		val8[8];
-		uint16_t	val16[4];
-		uint32_t	val32[2];
-		uint64_t	val64;
-	} val;
-} type_mask_t;
 
 typedef struct stat_record_s {
     // overall stat

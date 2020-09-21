@@ -71,7 +71,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "bookkeeper.h"
 #include "collector.h"
@@ -103,7 +102,7 @@ time_t		when;
 struct tm 	*ts;
 master_record_t *r = (master_record_t *)record;
 
-	if ( (r->flags & FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_ADDR )) {
 		r->V6.srcaddr[0] = htonll(r->V6.srcaddr[0]);
 		r->V6.srcaddr[1] = htonll(r->V6.srcaddr[1]);
 		r->V6.dstaddr[0] = htonll(r->V6.dstaddr[0]);
@@ -143,7 +142,7 @@ master_record_t *r = (master_record_t *)record;
 		r->msecFirst, datestr1, r->msecFirst % 1000LL, 
 		r->msecLast , datestr2, r->msecFirst % 1000LL, 
 		r->proto, r->srcPort, r->dstPort, 
-		(unsigned long long)r->dPkts, (unsigned long long)r->dOctets);
+		(unsigned long long)r->inPackets, (unsigned long long)r->inBytes);
 
 	s[1024-1] = 0;
 
@@ -204,7 +203,7 @@ int 		i, done, ret;
 			continue;
 		}
 
-		record_header_t	*record_ptr = nffile_r->buff_ptr;
+		record_header_t	*record_ptr = nffile->buff_ptr;
 		uint32_t sumSize = 0;
 		for ( i=0; i < nffile->block_header->NumRecords; i++ ) {
 			char        string[1024];

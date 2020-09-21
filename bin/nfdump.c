@@ -705,7 +705,16 @@ flist_t 	flist;
 				aggregate = 1;
 				break;
 			case 'A':
-				if ( !ParseAggregateMask(optarg, &aggr_fmt ) ) {
+				if (strlen(optarg) > 64) {
+					LogError("Aggregate mask format length error");
+					exit(255);
+				}
+				if (aggregate_mask) {
+					LogError("Multiple aggregation masks not allowed");
+					exit(255);
+				}
+				aggr_fmt = ParseAggregateMask(optarg);
+				if (!aggr_fmt) {
 					exit(255);
 				}
 				aggregate_mask = 1;

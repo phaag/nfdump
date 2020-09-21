@@ -50,7 +50,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "output_util.h"
 #include "output_json.h"
@@ -74,7 +73,7 @@ char datebuff1[64], datebuff2[64], dateBuff3[64];
 	ts = localtime(&when);
 	strftime(datebuff2, 63, "%Y-%m-%dT%H:%M:%S", ts);
 
-	when = r->received / 1000LL;
+	when = r->msecReceived / 1000LL;
 	ts = localtime(&when);
 	strftime(dateBuff3, 63, "%Y-%m-%dT%H:%M:%S", ts);
 
@@ -86,8 +85,8 @@ char datebuff1[64], datebuff2[64], dateBuff3[64];
 "	\"in_bytes\" : %llu,\n"
 	, datebuff1, (unsigned)(r->msecFirst % 1000LL)
 	, datebuff2, (unsigned)(r->msecLast % 1000LL)
-	, dateBuff3, (unsigned)(r->received % 1000LL)
-	, (unsigned long long)r->dPkts, (unsigned long long)r->dOctets);
+	, dateBuff3, (unsigned)(r->msecReceived % 1000LL)
+	, (unsigned long long)r->inPackets, (unsigned long long)r->inBytes);
 
 	if ( r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6 ) { // ICMP
 		snprintf(s, size-1,
@@ -141,7 +140,7 @@ uint64_t dst[2];
 static void stringsEXflowMisc(char *s, size_t size, master_record_t *r) {
 char snet[IP_STRING_LEN], dnet[IP_STRING_LEN];
 
-	if ( TestFlag(r->flags,FLAG_IPV6_ADDR ) != 0 ) {
+	if ( TestFlag(r->mflags,V3_FLAG_IPV6_ADDR ) != 0 ) {
 		// IPv6
 		if ( r->src_mask || r->dst_mask) {
 			uint64_t src[2];
@@ -377,7 +376,7 @@ double f1, f2, f3;
 static void stringsEXnselCommon(char *s, size_t size, master_record_t *r) {
 char datestr[64];
 
-	time_t when = r->event_time / 1000LL;
+	time_t when = r->msecEvent / 1000LL;
 	if ( when == 0 ) {
 		strncpy(datestr, "<unknown>", 63);
 	} else {
@@ -390,8 +389,8 @@ char datestr[64];
 "	\"event\" : \"%s\",\n"
 "	\"xevent_id\" : \"%u\",\n"
 "	\"t_event\" : \"%s.%llu\",\n"
-, r->conn_id, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event)
-, r->fw_xevent, datestr, r->event_time % 1000LL);
+, r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event)
+, r->fwXevent, datestr, r->msecEvent % 1000LL);
 
 } // End of stringsEXnselCommon
 
@@ -441,8 +440,8 @@ static void stringsEXnselAcl(char *s, size_t size, master_record_t *r) {
 	snprintf(s, size-1,
 "	\"ingress_acl\" : \"0x%x/0x%x/0x%x\",\n"
 "	\"egress_acl\" : \"0x%x/0x%x/0x%x\",\n"
-, r->ingress_acl_id[0], r->ingress_acl_id[1], r->ingress_acl_id[2], 
-  r->egress_acl_id[0], r->egress_acl_id[1], r->egress_acl_id[2]);
+, r->ingressAcl[0], r->ingressAcl[1], r->ingressAcl[2], 
+  r->egressAcl[0], r->egressAcl[1], r->egressAcl[2]);
 
 } // End of stringsEXnselAcl
 
@@ -500,7 +499,7 @@ char *event;
 			event = ""; break;
 	}
 
-	time_t when = r->event_time / 1000LL;
+	time_t when = r->msecEvent / 1000LL;
 	if ( when == 0 ) {
 		strncpy(datestr, "<unknown>", 63);
 	} else {
@@ -513,8 +512,8 @@ char *event;
 "	\"ingress_vrf\" : \"%u\",\n"
 "	\"egress_vrf\" : \"%u\",\n"
 "	\"t_event\" : \"%s.%llu\",\n"
-, r->event, event, r->ingress_vrfid, r->egress_vrfid
-, datestr, r->event_time % 1000LL);
+, r->event, event, r->ingressVrf, r->egressVrf
+, datestr, r->msecEvent % 1000LL);
 
 } // End of stringsEXnelCommon
 
@@ -555,8 +554,8 @@ master_record_t *r = (master_record_t *)record;
 "	\"type\" : \"%s\",\n"
 "	\"sampled\" : %u,\n"
 "	\"export_sysid\" : %u,\n"
-, TestFlag(r->flags, FLAG_EVENT) ? "EVENT" : "FLOW", 
-	TestFlag(r->flags, FLAG_SAMPLED) ? 1 : 0, 
+, TestFlag(r->flags, V3_FLAG_EVENT) ? "EVENT" : "FLOW", 
+	TestFlag(r->flags, V3_FLAG_SAMPLED) ? 1 : 0, 
 	r->exporter_sysid);
 
 	int i = 0;

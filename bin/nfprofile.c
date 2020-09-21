@@ -52,7 +52,6 @@
 #include "nfdump.h"
 #include "nftree.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "nfstat.h"
 #include "nfstatfile.h"

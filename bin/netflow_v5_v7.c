@@ -50,7 +50,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "nfnet.h"
 #include "output_raw.h"
@@ -376,9 +375,10 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 				AddV3Header(outBuff, recordHeader);
 
 				// header data
-				recordHeader->engineType	= engineType;
-				recordHeader->engineID	= engineID;
-				recordHeader->exporterID	= exporter->info.sysid;
+				recordHeader->engineType = engineType;
+				recordHeader->engineID	 = engineID;
+				recordHeader->exporterID = exporter->info.sysid;
+				recordHeader->nfversion	 = 5;
 
 				// Add v5 specific data
 	   			PushExtension(recordHeader, EXgenericFlow, genericFlow);
@@ -457,7 +457,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 				if ( exporter->sampler->info.interval > 1 ) {
 	  				genericFlow->inPackets *= (uint64_t)exporter->sampler->info.interval;
 	  				genericFlow->inBytes   *= (uint64_t)exporter->sampler->info.interval;
-					SetFlag(recordHeader->flags, FLAG_SAMPLED);
+					SetFlag(recordHeader->flags, V3_FLAG_SAMPLED);
 				}
 
 				// Update stats
@@ -564,7 +564,7 @@ static int	cnt;
 uint32_t	t1, t2;
 
 	// Skip IPv6 records
-	if ( (master_record->flags & FLAG_IPV6_ADDR ) != 0 )
+	if ( TestFlag(master_record->mflags, V3_FLAG_IPV6_ADDR ))
 		return 0;
 
 	if ( output_engine.first ) {	// first time a record is added
@@ -597,8 +597,8 @@ uint32_t	t1, t2;
   	v5_output_record->tos		= master_record->tos;
 
 	// the 64bit counters are cut down to 32 bits for v5
-  	v5_output_record->dPkts		= htonl((uint32_t)master_record->dPkts);
-  	v5_output_record->dOctets	= htonl((uint32_t)master_record->dOctets);
+  	v5_output_record->dPkts		= htonl((uint32_t)master_record->inPackets);
+  	v5_output_record->dOctets	= htonl((uint32_t)master_record->inBytes);
 
   	v5_output_record->input		= htons(master_record->input);
   	v5_output_record->output	= htons(master_record->output);

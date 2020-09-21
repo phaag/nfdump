@@ -50,7 +50,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "nfnet.h"
 #include "output_raw.h"
@@ -255,6 +254,7 @@ exporter_v1_t 		*exporter;
 				// header data gets initialized by macro
 				AddV3Header(outBuff, recordHeader);
 				recordHeader->exporterID	= exporter->info.sysid;
+				recordHeader->nfversion		= 1;
 
     			PushExtension(recordHeader, EXgenericFlow, genericFlow);
 				genericFlow->msecReceived = msecReceived;

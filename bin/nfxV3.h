@@ -65,7 +65,12 @@ typedef struct recordHeaderV3_s {
  	uint8_t		engineType;
  	uint8_t		engineID;
 	uint16_t	exporterID;
-	uint16_t	flags;
+	uint8_t		flags;
+#define	V3_FLAG_EVENT	1
+#define V3_FLAG_SAMPLED	2
+#define V3_FLAG_ANON  	4
+
+	uint8_t		nfversion;
 } recordHeaderV3_t;
 #define V3HeaderRecordSize sizeof(recordHeaderV3_t)
 #define AddV3Header(p, h) \
@@ -119,11 +124,18 @@ typedef struct EXgenericFlow_s {
 #define OFFinBytes offsetof(EXgenericFlow_t, inBytes)
 #define SIZEinBytes MemberSize(EXgenericFlow_t, inBytes)
  	uint16_t srcPort;
- 	uint16_t dstPort;
+	union {
+		uint16_t dstPort;
+		uint8_t icmp[2];
+	};
 #define OFFsrcPort offsetof(EXgenericFlow_t, srcPort)
 #define SIZEsrcPort MemberSize(EXgenericFlow_t, srcPort)
 #define OFFdstPort offsetof(EXgenericFlow_t, dstPort)
 #define SIZEdstPort MemberSize(EXgenericFlow_t, dstPort)
+#define OFFicmpCode offsetof(EXgenericFlow_t, icmp[0])
+#define SIZEicmpCode MemberSize(EXgenericFlow_t, icmp[0])
+#define OFFicmpType offsetof(EXgenericFlow_t, icmp[1])
+#define SIZEicmpType MemberSize(EXgenericFlow_t, icmp[1])
   	uint8_t	 proto;
 #define OFFproto offsetof(EXgenericFlow_t, proto)
 #define SIZEproto MemberSize(EXgenericFlow_t, proto)
@@ -380,6 +392,7 @@ typedef struct EXnselCommon_s {
 #define OFFfwEvent offsetof(EXnselCommon_t, fwEvent)
 #define SIZEfwEvent MemberSize(EXnselCommon_t, fwEvent)
 } EXnselCommon_t;
+#define EXnselCommonSize (sizeof(EXnselCommon_t) + sizeof(elementHeader_t))
 
 typedef struct EXnselXlateIPv4_s {
 #define EXnselXlateIPv4ID 21
@@ -390,6 +403,7 @@ typedef struct EXnselXlateIPv4_s {
 #define OFFxlateDst4Addr offsetof(EXnselXlateIPv4_t, xlateDstAddr)
 #define SIZExlateDst4Addr MemberSize(EXnselXlateIPv4_t, xlateDstAddr)
 } EXnselXlateIPv4_t;
+#define EXnselXlateIPv4Size (sizeof(EXnselXlateIPv4_t) + sizeof(elementHeader_t))
 
 typedef struct EXnselXlateIPv6_s {
 #define EXnselXlateIPv6ID 22
@@ -400,6 +414,7 @@ typedef struct EXnselXlateIPv6_s {
 #define OFFxlateDst6Addr offsetof(EXnselXlateIPv6_t, xlateDstAddr)
 #define SIZExlateDst6Addr MemberSize(EXnselXlateIPv6_t, xlateDstAddr)
 } EXnselXlateIPv6_t;
+#define EXnselXlateIPv6Size (sizeof(EXnselXlateIPv6_t) + sizeof(elementHeader_t))
 
 typedef struct EXnselXlatePort_s {
 #define EXnselXlatePortID 23
@@ -410,6 +425,7 @@ typedef struct EXnselXlatePort_s {
 #define OFFxlateDstPort offsetof(EXnselXlatePort_t, xlateDstPort)
 #define SIZExlateDstPort MemberSize(EXnselXlatePort_t, xlateDstPort)
 } EXnselXlatePort_t;
+#define EXnselXlatePortSize (sizeof(EXnselXlatePort_t) + sizeof(elementHeader_t))
 
 typedef struct EXnselAcl_s {
 #define EXnselAclID 24
@@ -420,13 +436,16 @@ typedef struct EXnselAcl_s {
 #define OFFegressAcl offsetof(EXnselAcl_t, egressAcl)
 #define SIZEegressAcl MemberSize(EXnselAcl_t, egressAcl)
 } EXnselAcl_t;
+#define EXnselAclSize (sizeof(EXnselAcl_t) + sizeof(elementHeader_t))
 
 typedef struct EXnselUser_s {
 #define EXnselUserID 25
-	char		username[66]; // NF_F_USERNAME(40000), 
+	char	 username[66]; // NF_F_USERNAME(40000), 
+	uint16_t fill2;
 #define OFFusername offsetof(EXnselUser_t, username)
 #define SIZEusername MemberSize(EXnselUser_t, username)
 } EXnselUser_t;
+#define EXnselUserSize (sizeof(EXnselUser_t) + sizeof(elementHeader_t))
 
 // NEL
 typedef struct EXnelCommon_s {
@@ -449,6 +468,7 @@ typedef struct EXnelCommon_s {
 #define OFFnatEvent offsetof(EXnelCommon_t, natEvent)
 #define SIZEnatEvent MemberSize(EXnelCommon_t, natEvent)
 } EXnelCommon_t;
+#define EXnelCommonSize (sizeof(EXnelCommon_t) + sizeof(elementHeader_t))
 
 typedef struct EXnelXlatePort_s {
 #define EXnelXlatePortID 27
@@ -465,6 +485,7 @@ typedef struct EXnelXlatePort_s {
 #define OFFnelblockSize offsetof(EXnelXlatePort_t, blockSize)
 #define SIZEnelblockSize MemberSize(EXnelXlatePort_t, blockSize)
 } EXnelXlatePort_t;
+#define EXnelXlatePortSize (sizeof(EXnelXlatePort_t) + sizeof(elementHeader_t))
 
 // max possible elements
 #define MAXELEMENTS 27
@@ -544,7 +565,7 @@ void ClearSequencer(sequencer_t *sequencer);
 
 int CalcOutRecordSize(sequencer_t *sequencer, void *in, size_t inSize);
 
-int SequencerRun(sequencer_t *sequencer, void *in, size_t inSize, void *out, size_t outSize, uint64_t *stack);
+int SequencerRun(sequencer_t *sequencer, void *inBuff, size_t inSize, void *outBuff, size_t outSize, uint64_t *stack);
 
 void PrintSequencer(sequencer_t *sequencer);
 

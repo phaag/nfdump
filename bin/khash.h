@@ -336,7 +336,7 @@ static const double __ac_HASH_UPPER = 0.77;
 		}																\
 		if (__ac_isempty(h->flags, x)) { /* not present at all */		\
 			h->keys[x] = key;											\
-			h->keys[x].hash = k;											\
+			h->keys[x].hash = k;										\
 			__ac_set_isboth_false(h->flags, x);							\
 			++h->size; ++h->n_occupied;									\
 			*ret = 1;													\

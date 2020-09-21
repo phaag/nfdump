@@ -58,7 +58,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "exporter.h"
 #include "ftlib.h"
@@ -66,9 +65,6 @@
 
 /* Global defines */
 #define MAXRECORDS 30
-
-/* Global consts */
-extern extension_descriptor_t extension_descriptor[];
 
 const char *nfdump_version = VERSION;
 
@@ -88,13 +84,9 @@ extern uint32_t Max_num_extensions;
 /* prototypes */
 void usage(char *name);
 
-extension_info_t *GenExtensionMap(struct ftio *ftio);
-
 static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extended, uint32_t limitflows);
 
-#define NEED_PACKRECORD
 #include "nffile_inline.c"
-#undef NEED_PACKRECORD
 
 void usage(char *name) {
 		printf("usage %s [options] \n"

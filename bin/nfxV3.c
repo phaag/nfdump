@@ -256,7 +256,7 @@ int CalcOutRecordSize(sequencer_t *sequencer, void *in, size_t inSize) {
 } // End of OutRecordSize
 
 // SequencerRun requires calling CalcOutRecordSize first 
-int SequencerRun(sequencer_t *sequencer, void *in, size_t inSize, void *out, size_t outSize, uint64_t *stack) {
+int SequencerRun(sequencer_t *sequencer, void *inBuff, size_t inSize, void *outBuff, size_t outSize, uint64_t *stack) {
 
 	if (sequencer->inLength > inSize) {
 		LogError("SequencerRun() Skip processing input stream. Expected %u bytes, available %u bytes",
@@ -283,15 +283,15 @@ int SequencerRun(sequencer_t *sequencer, void *in, size_t inSize, void *out, siz
 		uint16_t outLength = sequencer->sequenceTable[i].outputLength;
 		bool varLength = sequencer->sequenceTable[i].inputLength == VARLENGTH;
 		if (varLength) { 	// dyn length
-			uint16_t len = ((uint8_t *)in)[0];
+			uint16_t len = ((uint8_t *)inBuff)[0];
 			if ( len < 255 ) {
 				inLength = len;
-				in += 1;	// adjust var length field
+				inBuff += 1;	// adjust var length field
 				totalInLength += 1;
 				inSize -= 1;
 			} else {
-				inLength = Get_val16(in+1);
-				in += 3;	// adjust var length fields
+				inLength = Get_val16(inBuff+1);
+				inBuff += 3;	// adjust var length fields
 				totalInLength += 3;
 				inSize -= 3;
 			}
@@ -310,9 +310,9 @@ int SequencerRun(sequencer_t *sequencer, void *in, size_t inSize, void *out, siz
 #ifdef DEVEL
 			printf("[%i] Skip element %u, length %u: ",
 				i, sequencer->sequenceTable[i].inputType, inLength);
-			DumpHex(in,inLength);
+			DumpHex(inBuff,inLength);
 #endif
-			in += inLength;
+			inBuff += inLength;
 			inSize -= inLength;
 			totalInLength += inLength;
 			continue;
@@ -321,22 +321,22 @@ int SequencerRun(sequencer_t *sequencer, void *in, size_t inSize, void *out, siz
 		void *outRecord = sequencer->offsetCache[ExtID];
 		if ( outRecord == NULL && ExtID != EXnull ) {
 			// push element header
-			elementHeader_t *elementHeader = (elementHeader_t *)out;
+			elementHeader_t *elementHeader = (elementHeader_t *)outBuff;
 			elementHeader->type = extensionTable[ExtID].id;
-			out += sizeof(elementHeader_t);
+			outBuff += sizeof(elementHeader_t);
 
 			// check for dyn length
 			if (sequencer->sequenceTable[i].outputLength == 0xFFFF) { 	// dyn length record
-				memset(out, 0, outLength);
+				memset(outBuff, 0, outLength);
 				elementHeader->length = sizeof(elementHeader_t) + outLength;
-				sequencer->offsetCache[ExtID] = outRecord = out;
-				out += outLength;
+				sequencer->offsetCache[ExtID] = outRecord = outBuff;
+				outBuff += outLength;
 				totalOutLength += (sizeof(elementHeader_t) + outLength);
 			} else {
-				memset(out, 0, extensionTable[ExtID].size);
+				memset(outBuff, 0, extensionTable[ExtID].size);
 				elementHeader->length = sizeof(elementHeader_t) + extensionTable[ExtID].size;
-				sequencer->offsetCache[ExtID] = outRecord = out;
-				out += extensionTable[ExtID].size;
+				sequencer->offsetCache[ExtID] = outRecord = outBuff;
+				outBuff += extensionTable[ExtID].size;
 				totalOutLength += (sizeof(elementHeader_t) + extensionTable[ExtID].size);
 			}
 		}
@@ -351,10 +351,10 @@ int SequencerRun(sequencer_t *sequencer, void *in, size_t inSize, void *out, siz
 		if ( varLength == true || inLength > 16 ) {
 			uint8_t *out = (uint8_t *)(outRecord + sequencer->sequenceTable[i].offsetRel);
 			if ( inLength == outLength ) {
-				memcpy(out, in, inLength);
+				memcpy(out, inBuff, inLength);
 			} else {
 				size_t copyLen = inLength < outLength ? inLength : outLength;
-				memcpy(out, in, copyLen);
+				memcpy(out, inBuff, copyLen);
 			}
 		} else {
 			uint64_t v;		// up to 8 bytes
@@ -363,37 +363,37 @@ int SequencerRun(sequencer_t *sequencer, void *in, size_t inSize, void *out, siz
 			memset(vv, 0, sizeof(vv));
 			switch (inLength) {
 				case 1:
-					v = ((uint8_t *)in)[0]; break;
+					v = ((uint8_t *)inBuff)[0]; break;
 				case 2:
-					v = Get_val16(in); break;
+					v = Get_val16(inBuff); break;
 				case 3:
-					v = Get_val24(in); break;
+					v = Get_val24(inBuff); break;
 				case 4:
-					v = Get_val32(in); break;
+					v = Get_val32(inBuff); break;
 				case 5:
-					v = Get_val40(in); break;
+					v = Get_val40(inBuff); break;
 				case 6:
-					v = Get_val48(in); break;
+					v = Get_val48(inBuff); break;
 				case 7:
-					v = Get_val56(in); break;
+					v = Get_val56(inBuff); break;
 				case 8:
-					v = Get_val64(in); break;
+					v = Get_val64(inBuff); break;
 				case 16:
-					vv[0] = Get_val64(in);
-					vv[1] = Get_val64(in+8);
-			//		memcpy(vv, in, 16); break;
+					vv[0] = Get_val64(inBuff);
+					vv[1] = Get_val64(inBuff+8);
 					break;
 				default:
-					LogError( "sequencer input length %u not implemented", 
-						sequencer->sequenceTable[i].inputLength);
-					abort();
+					// for length 9, 10, 11 and 12
+					memcpy(vv, inBuff, inLength); break;
 			}
 #ifdef DEVEL
 			if ( sequencer->sequenceTable[i].inputLength <= 8 )
-				printf("[%i] Read length: %u, val: %llu\n", i, sequencer->sequenceTable[i].inputLength, (long long unsigned)v);
+				printf("[%i] Read length: %u, val: %llu\n", 
+					i, sequencer->sequenceTable[i].inputLength, (long long unsigned)v);
 
 			if ( sequencer->sequenceTable[i].inputLength == 16 )
-				printf("[%i] Read length: %u, val: %llx %llx\n", i, sequencer->sequenceTable[i].inputLength, (long long unsigned)vv[0], (long long unsigned)vv[1]);
+				printf("[%i] Read length: %u, val: %llx %llx\n",
+					i, sequencer->sequenceTable[i].inputLength, (long long unsigned)vv[0], (long long unsigned)vv[1]);
 #endif
 			if ( stackID && stack ) {
 				stack[stackID] = v;
@@ -425,14 +425,16 @@ int SequencerRun(sequencer_t *sequencer, void *in, size_t inSize, void *out, siz
 					uint64_t *d = (uint64_t *)(outRecord + sequencer->sequenceTable[i].offsetRel);
 					memcpy(d, vv, 16);
 					} break;
-				default:
-					LogError("sequence %u: output length %u not implemented", 
-						i, outLength);
-					dbg_assert(0);
+				default: {
+					// for length 9, 10, 11 and 12
+					uint8_t *d = (uint8_t *)(outRecord + sequencer->sequenceTable[i].offsetRel);
+					uint32_t copyLen = inLength < outLength ? inLength : outLength;
+					memcpy(d, vv, copyLen);
+				}
 			}
 		}
 
-		in += inLength;
+		inBuff += inLength;
 		inSize -= inLength;
 		totalInLength += inLength;
 	}

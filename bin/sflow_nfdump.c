@@ -61,7 +61,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "output_raw.h"
 #include "bookkeeper.h"
@@ -88,10 +87,6 @@ typedef struct exporter_sflow_s {
     sampler_t       *sampler;
 
 } exporter_sflow_t;
-
-extern extension_descriptor_t extension_descriptor[];
-
-/* module limited globals */
 
 static int printRecord = 0;
 static uint32_t recordBaseSize;
@@ -280,7 +275,8 @@ struct timeval now;
     recordHeader->type = V3Record;
     recordHeader->size = recordSize;
     recordHeader->exporterID = exporter->info.sysid;
-	recordHeader->flags		 = FLAG_SAMPLED;
+	recordHeader->flags		 = V3_FLAG_SAMPLED;
+	recordHeader->nfversion  = 0x80 | sample->datagramVersion;
 
     // pack V3 record
     PushExtension(recordHeader, EXgenericFlow, genericFlow);
@@ -297,7 +293,7 @@ struct timeval now;
 
 	if(sample->gotIPV6) {
 		PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
-		SetFlag(recordHeader->flags, FLAG_IPV6_ADDR);
+		SetFlag(recordHeader->flags, V3_FLAG_IPV6_ADDR);
 
 		u_char   *b = sample->ipsrc.address.ip_v6.addr;
 		uint64_t *u = (uint64_t *)b;
@@ -340,7 +336,6 @@ struct timeval now;
 		PushExtension(recordHeader, EXipNextHopV6, ipNextHopV6);
 		ipNextHopV6->ip[0] = ntohll(addr[0]);
 		ipNextHopV6->ip[1] = ntohll(addr[1]);
-		SetFlag(recordHeader->flags, FLAG_IPV6_NH);
 	}
 
 	if ( sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V4 ) {

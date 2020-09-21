@@ -68,7 +68,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "nfnet.h"
 #include "bookkeeper.h"
@@ -139,6 +138,7 @@ static void usage(char *name) {
 					"-I Ident\tset the ident string for stat file. (default 'none')\n"
 					"-H Add port histogram data to flow file.(default 'no')\n"
 					"-n Ident,IP,logdir\tAdd this flow source - multiple streams\n" 
+					"-N sourceFile\tAdd flows from sourceFile\n"
 					"-P pidfile\tset the PID file\n"
 					"-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters\n"
 					"-x process\tlaunch process after a new file becomes available\n"
@@ -674,7 +674,7 @@ char	*pcap_file = NULL;
 	Ident			= "none";
 	FlowSource		= NULL;
 
-	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:n:p:J:P:R:S:t:x:ru:g:zZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:n:N:p:J:P:R:S:t:x:ru:g:zZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -717,6 +717,10 @@ char	*pcap_file = NULL;
 				break;
 			case 'n':
 				if ( AddFlowSource(&FlowSource, optarg) != 1 ) 
+					exit(255);
+				break;
+			case 'N':
+				if ( AddFlowSourceFromFile(&FlowSource, optarg) )
 					exit(255);
 				break;
 			case 'w':
@@ -1034,11 +1038,6 @@ char	*pcap_file = NULL;
 				kill_launcher(launcher_pid);
 			if ( strlen(pidfile) )
 				unlink(pidfile);
-			exit(255);
-		}
-
-		// Init the extension map list
-		if ( !InitExtensionMapList(fs) ) {
 			exit(255);
 		}
 

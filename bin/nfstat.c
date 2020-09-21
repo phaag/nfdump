@@ -52,7 +52,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "bookkeeper.h"
 #include "collector.h"
@@ -827,8 +826,8 @@ int	j, i;
 			int ret;
 			khiter_t k = kh_put(ElementHash, ElementKHash[j], hashkey, &ret);
 			if ( ret == 0 ) {
-				kh_value(ElementKHash[j],k).counter[INBYTES]	  += flow_record->dOctets;
-				kh_value(ElementKHash[j],k).counter[INPACKETS]  += flow_record->dPkts;
+				kh_value(ElementKHash[j],k).counter[INBYTES]	  += flow_record->inBytes;
+				kh_value(ElementKHash[j],k).counter[INPACKETS]  += flow_record->inPackets;
 				kh_value(ElementKHash[j],k).counter[OUTBYTES]   += flow_record->out_bytes;
 				kh_value(ElementKHash[j],k).counter[OUTPACKETS] += flow_record->out_pkts;
 		
@@ -841,8 +840,8 @@ int	j, i;
 				kh_value(ElementKHash[j],k).counter[FLOWS] += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 
 			} else {
-				kh_value(ElementKHash[j],k).counter[INBYTES]   = flow_record->dOctets;
-				kh_value(ElementKHash[j],k).counter[INPACKETS] = flow_record->dPkts;
+				kh_value(ElementKHash[j],k).counter[INBYTES]   = flow_record->inBytes;
+				kh_value(ElementKHash[j],k).counter[INPACKETS] = flow_record->inPackets;
 				kh_value(ElementKHash[j],k).counter[OUTBYTES]  = flow_record->out_bytes;
 				kh_value(ElementKHash[j],k).counter[OUTPACKETS]= flow_record->out_pkts;
 				kh_value(ElementKHash[j],k).msecFirst			= flow_record->msecFirst; 

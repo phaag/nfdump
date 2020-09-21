@@ -36,7 +36,7 @@ static inline void ApplyNetMaskBits(master_record_t *flow_record, int apply_netb
 
 static inline void ApplyNetMaskBits(master_record_t *flow_record, int apply_netbits) {
 
-		if ( (flow_record->flags & FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+		if ( (flow_record->mflags & V3_FLAG_IPV6_ADDR ) != 0 ) { // IPv6
 			if ( apply_netbits & 1 ) {
 				uint64_t mask;
 				uint32_t mask_bits = flow_record->src_mask;
@@ -80,7 +80,7 @@ uint64_t *r = (uint64_t *)record;
 uint64_t *m = (uint64_t *)mask;
 int i, max_offset;
 
-	max_offset = offsetof(master_record_t, map_ref) >> 3;
+	max_offset = Offset_MR_LAST;
 	for (i=2; i<max_offset; i++) {
 		r[i] &= m[i];
 	}

@@ -85,7 +85,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "expire.h"
 #include "nfnet.h"
 #include "flist.h"
@@ -239,7 +238,6 @@ static void usage(char *name) {
 					"-y\t\tLZ4 compress flows in output file.\n"
 					"-j\t\tBZ2 compress flows in output file.\n"
 					"-E\t\tPrint extended format of netflow data. for debugging purpose only.\n"
-					"-T\t\tInclude extension tags in records.\n"
 					"-D\t\tdetach from terminal (daemonize)\n"
 	, name);
 } // End of usage
@@ -1154,7 +1152,7 @@ sigset_t signal_set;
 int done, sig;
 pthread_t tid   = pthread_self();
 
-	LogInfo("[%lu] WaitDone() waiting", (long unsigned)tid);
+	LogVerbose("[%lu] WaitDone() waiting", (long unsigned)tid);
 
 	sigemptyset(&signal_set);
 	sigaddset(&signal_set, SIGINT);
@@ -1166,7 +1164,7 @@ pthread_t tid   = pthread_self();
 	done = 0;
 	while ( !done ) {
 		sigwait(&signal_set, &sig);
-		LogInfo("[%lu] WaitDone() signal %i", (long unsigned)tid, sig);
+		LogVerbose("[%lu] WaitDone() signal %i", (long unsigned)tid, sig);
 		switch ( sig ) {
 			case SIGHUP:
 				break;
@@ -1197,7 +1195,7 @@ int active, inactive;
 FlowSource_t	*fs;
 dirstat_t 		*dirstat;
 time_t 			t_win;
-char 			*device, *pcapfile, *filter, *datadir, *pcap_datadir, *extension_tags, pidfile[MAXPATHLEN], pidstr[32];
+char 			*device, *pcapfile, *filter, *datadir, *pcap_datadir, pidfile[MAXPATHLEN], pidstr[32];
 char			*Ident, *userid, *groupid;
 char			*time_extension;
 pcap_dev_t 		*pcap_dev;
@@ -1217,7 +1215,6 @@ p_flow_thread_args_t *p_flow_thread_args;
 	userid			= groupid = NULL;
 	Ident			= "none";
 	fs				= NULL;
-	extension_tags	= DefaultExtensions;
 	time_extension	= "%Y%m%d%H%M";
 	subdir_index	= 0;
 	compress		= NOT_COMPRESSED;
@@ -1226,7 +1223,7 @@ p_flow_thread_args_t *p_flow_thread_args;
 	cache_size		= 0;
 	active			= 0;
 	inactive		= 0;
-	while ((c = getopt(argc, argv, "B:DEI:e:g:hi:j:r:s:l:p:P:t:u:S:T:Vyz")) != EOF) {
+	while ((c = getopt(argc, argv, "B:DEI:e:g:hi:j:r:s:l:p:P:t:u:S:Vyz")) != EOF) {
 		switch (c) {
 			struct stat fstat;
 			case 'h':
@@ -1364,14 +1361,6 @@ p_flow_thread_args_t *p_flow_thread_args;
 			case 'S':
 				subdir_index = atoi(optarg);
 				break;
-			case 'T': {
-				size_t len = strlen(optarg);
-				extension_tags = optarg;
-				if ( len == 0 || len > 128 ) {
-					fprintf(stderr, "Extension length error. Unexpected option '%s'\n", extension_tags);
-					exit(255);
-				}
-				break; }
 			case 'E':
 				verbose = 1;
 				Setv6Mode(1);
@@ -1504,12 +1493,6 @@ p_flow_thread_args_t *p_flow_thread_args;
 			LogError("initialize bookkeeper failed.");
 			pcap_close(pcap_dev->handle);
 			exit(255);
-	}
-
-	// Init the extension map list
-	if ( !InitExtensionMapList(fs) ) {
-		pcap_close(pcap_dev->handle);
-		exit(255);
 	}
 
 	IPFragTree_init();

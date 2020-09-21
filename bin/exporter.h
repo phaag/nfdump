@@ -38,11 +38,7 @@
 #endif
 
 #include "nffile.h"
-
-typedef struct optionTag_s {
-	uint16_t offset;
-	uint16_t length;
-} optionTag_t;
+#include "fnf.h"
 
 /*
  * 
@@ -58,6 +54,7 @@ typedef struct optionTag_s {
  * |  3 |          sa_family          |            sysid            |                             id                            |      
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
  */
+
 typedef struct exporter_info_record_s {
 	record_header_t	header;
 
@@ -169,7 +166,6 @@ typedef struct samplerOption_s {
 	optionTag_t interval;
 
 } samplerOption_t;
-
 
 int InitExporterList(void);
 

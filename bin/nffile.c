@@ -433,6 +433,7 @@ static int ReadAppendix(nffile_t *nffile) {
 // Write appendix - assume current file pos is end of data blocks
 static int WriteAppendix(nffile_t *nffile) {
 
+	dbg_printf("Write Appendix\n");
 	// add appendix to end of data
 	off_t currentPos = lseek(nffile->fd, 0, SEEK_CUR);
 	if ( currentPos < 0 ) {
@@ -541,6 +542,8 @@ static nffile_t *NewFile(nffile_t *nffile) {
 
 	nffile->block_header = NULL;
 	nffile->buff_ptr 	 = NULL;
+
+	queue_open(nffile->blockQueue);
 	
 	return nffile;
 
@@ -641,7 +644,7 @@ int ret, fd;
 			memset((void *)nffile->file_header, 0, sizeof(fileHeaderV2_t));
 			nffile->file_header->magic		 = MAGIC;
 			nffile->file_header->version	 = LAYOUT_VERSION_2;
-			nffile->file_header->nfversion	 = NFVERSION;
+			nffile->file_header->nfdversion	 = NFDVERSION;
 #ifdef __APPLE__
 #define st_mtim st_mtimespec
 #endif
@@ -689,8 +692,6 @@ int ret, fd;
 		}
 	}
 
-	queue_open(nffile->blockQueue);
-
 	return nffile;
 
 } // End of OpenFile
@@ -720,7 +721,7 @@ int 			fd;
 	memset((void *)nffile->file_header, 0, sizeof(fileHeaderV2_t));
 	nffile->file_header->magic		 = MAGIC;
 	nffile->file_header->version	 = LAYOUT_VERSION_2;
-	nffile->file_header->nfversion	 = NFVERSION;
+	nffile->file_header->nfdversion	 = NFDVERSION;
 	nffile->file_header->created	 = time(NULL);
 	nffile->file_header->compression = compress;
 	nffile->file_header->encryption  = encryption;
@@ -739,10 +740,9 @@ int 			fd;
 
 	// kick off nfwriter
 	pthread_t tid;
-	pthread_create(&tid, NULL, nfwriter, (void *)nffile);
-	pthread_detach(tid);
-	atomic_init(&nffile->worker, tid);
+	atomic_init(&nffile->worker, 0);
 	atomic_init(&nffile->terminate, 0);
+	pthread_create(&tid, NULL, nfwriter, (void *)nffile);
 	return nffile;
 
 } /* End of OpenNewFile */
@@ -795,8 +795,13 @@ static void FlushFile(nffile_t *nffile) {
 	queue_sync(nffile->blockQueue);
 
 	// wait for nfwriter to complete
-	while ( atomic_load(&nffile->worker) )
-		xsleep(10);
+	pthread_t writer_tid = atomic_load(&nffile->worker);
+	if ( writer_tid ) {
+		int err = pthread_join(writer_tid, NULL);
+		if ( err ) {
+			LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		}
+	}
 
 } // End of FlushFile
 
@@ -905,10 +910,9 @@ nffile_t *GetNextFile(nffile_t *nffile) {
 
 		// kick off nfreader
 		pthread_t tid;
-		pthread_create(&tid, NULL, nfreader, (void *)nffile);
-		pthread_detach(tid);
-		atomic_init(&nffile->worker, tid);
+		atomic_init(&nffile->worker, 0);
 		atomic_init(&nffile->terminate, 0);
+		pthread_create(&tid, NULL, nfreader, (void *)nffile);
 		return nffile;
 	}
 
@@ -1028,6 +1032,9 @@ static dataBlock_t *nfread(nffile_t *nffile) {
 void* nfreader(void *arg) {
 nffile_t *nffile = (nffile_t *)arg;
 
+	pthread_t self = pthread_self();
+	atomic_init(&nffile->worker, self);
+
 	int terminate;
 	dataBlock_t *block_header = NULL;
 	do {
@@ -1091,7 +1098,7 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
 	int failed = 0;
 	// compress according file compression
 	int compression = nffile->file_header->compression;
-	dbg_printf("nfwriter - compression: %u\n", compression);
+	dbg_printf("nfwrite - compression: %u\n", compression);
 	switch (compression) {
 		case NOT_COMPRESSED:
 			buff = block_header;
@@ -1121,7 +1128,7 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
 		block_header->type, block_header->size, 
 		block_header->NumRecords, block_header->flags);
 
-	dbg_printf("nfwriter - compressed: %u\n", buff->size);
+	dbg_printf("nfwrite - compressed: %u\n", buff->size);
 	int ret = write(nffile->fd, (void *)buff, sizeof(dataBlock_t) + buff->size);
 	if (ret < 0) {
 		LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -1137,6 +1144,9 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
 void* nfwriter(void *arg) {
 nffile_t *nffile = (nffile_t *)arg;
 
+	dbg_printf("nfwriter enter\n");
+	pthread_t self = pthread_self();
+	atomic_init(&nffile->worker, self);
 	dataBlock_t *block_header;
 	while (1) {
 		block_header = queue_pop(nffile->blockQueue);
@@ -1149,6 +1159,7 @@ nffile_t *nffile = (nffile_t *)arg;
 			continue;
 		}
 
+		dbg_printf("nfwriter write\n");
 		if ( !nfwrite(nffile, block_header) )
 			break;
 
@@ -1173,11 +1184,10 @@ static int SignalTerminate(nffile_t *nffile) {
 		return 1;
 
 	atomic_init(&nffile->terminate, 1);
-	xsleep(1);
-	do {
-		tid = atomic_load(&nffile->worker);
-		xsleep(1);
-	} while(tid);
+	int err = pthread_join(tid, NULL);
+	if ( err ) {
+		LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+	}
 
 	// clean queue
 	while (queue_length(nffile->blockQueue)) {
@@ -1389,7 +1399,7 @@ off_t	fsize;
 		char t1[64];
 		strftime(t1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 		printf("Created    : %s\n", t1);
-		printf("nfdump     : %x\n", fileHeader.nfversion);
+		printf("nfdump     : %x\n", fileHeader.nfdversion);
 		printf("encryption : %s\n", fileHeader.encryption ? "yes" : "no");
 		printf("Appdx blks : %u\n", fileHeader.appendixBlocks);
 		printf("Data blks  : %u\n", fileHeader.NumBlocks);
@@ -1418,9 +1428,9 @@ off_t	fsize;
 
 	printf("Checking data blocks\n");
 	setvbuf(stdout, (char *)NULL, _IONBF, 0);
-	char spinner[] = { '|', '/', '-', '\\' }; 
 	for ( int i=0; i < fileHeader.NumBlocks + fileHeader.appendixBlocks; i++ ) {
 #ifndef DEVEL
+		char spinner[] = { '|', '/', '-', '\\' }; 
 		if ( (numBlocks & 0x7) == 0) printf(" %c\r", spinner[(numBlocks >> 3) & 0x2]);
 #endif
 		if ( (fsize + sizeof(dataBlock_t)) > stat_buf.st_size ) {
@@ -1563,6 +1573,8 @@ off_t	fsize;
 			if ( recordHeader->size < sizeof(recordHeader_t) ) {
 				LogError("Error in block: %u, record: %u: record size %u below header size", 
 					numBlocks, numRecords, recordHeader->size);
+				LogError("Record %i, type: %u, size: %u - block size: %u\n", 
+					numRecords, recordHeader->type, recordHeader->size, blockSize);
 				close(fd);
 				return;
 			}

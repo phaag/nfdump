@@ -67,7 +67,6 @@
 #include "nfdump.h"
 #include "flist.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "nfnet.h"
 #include "bookkeeper.h"
@@ -146,6 +145,7 @@ static void usage(char *name) {
 					"-I Ident\tset the ident string for stat file. (default 'none')\n"
 					"-H Add port histogram data to flow file.(default 'no')\n"
 					"-n Ident,IP,logdir\tAdd this flow source - multiple streams\n" 
+					"-N sourceFile\tAdd flows from sourceFile\n"
 					"-M dir \t\tSet the output directory for dynamic sources.\n"
 
 					"-P pidfile\tset the PID file\n"
@@ -159,7 +159,6 @@ static void usage(char *name) {
 					"-e\t\tExpire data at each cycle.\n"
 					"-D\t\tFork to background\n"
 					"-E\t\tPrint extended format of netflow data. For debugging purpose only.\n"
-					"-T\t\tInclude extension tags in records.\n"
 					"-4\t\tListen on IPv4 (default).\n"
 					"-6\t\tListen on IPv6.\n"
 					"-V\t\tPrint version and exit.\n"
@@ -724,7 +723,7 @@ srecord_t	*commbuff;
 int main(int argc, char **argv) {
  
 char	*bindhost, *datadir, pidstr[32], *launch_process;
-char	*userid, *groupid, *checkptr, *listenport, *mcastgroup, *extension_tags;
+char	*userid, *groupid, *checkptr, *listenport, *mcastgroup;
 char	*Ident, *dynsrcdir, *time_extension, pidfile[MAXPATHLEN];
 struct stat fstat;
 packet_function_t receive_packet;
@@ -767,10 +766,9 @@ char	*pcap_file = NULL;
 	}
 	Ident			= "none";
 	FlowSource		= NULL;
-	extension_tags	= DefaultExtensions;
 	dynsrcdir		= NULL;
 
-	while ((c = getopt(argc, argv, "46ef:whEVI:DB:b:jl:J:M:n:p:P:R:S:s:T:t:x:Xru:g:yzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ef:whEVI:DB:b:jl:J:M:n:N:p:P:R:S:s:t:x:Xru:g:yzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -833,6 +831,10 @@ char	*pcap_file = NULL;
 				break;
 			case 'n':
 				if ( AddFlowSource(&FlowSource, optarg) != 1 ) 
+					exit(255);
+				break;
+			case 'N':
+				if ( AddFlowSourceFromFile(&FlowSource, optarg) ) 
 					exit(255);
 				break;
 			case 'w':
@@ -906,14 +908,6 @@ char	*pcap_file = NULL;
 					exit(255);
 				} 
 				break;
-			case 'T': {
-				size_t len = strlen(optarg);
-				extension_tags = optarg;
-				if ( len == 0 || len > 128 ) {
-					fprintf(stderr, "Extension length error. Unexpected option '%s'\n", extension_tags);
-					exit(255);
-				}
-				break; }
 			case 'l':
 				if ( !CheckPath(optarg, S_IFDIR) )
 					exit(255);
@@ -1172,12 +1166,6 @@ char	*pcap_file = NULL;
 				kill_launcher(launcher_pid);
 			if ( strlen(pidfile) )
 				unlink(pidfile);
-			exit(255);
-		}
-
-		// Init the extension map list
-		if ( !InitExtensionMapList(fs) ) {
-			// error message goes to syslog
 			exit(255);
 		}
 

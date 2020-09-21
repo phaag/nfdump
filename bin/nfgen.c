@@ -64,7 +64,6 @@ time_t offset  = 10;
 uint64_t msecs   = 10;
 
 #define NEED_PACKRECORD 1
-#include "nfx.h"
 #include "nffile_inline.c"
 #undef NEED_PACKRECORD
 
@@ -84,7 +83,7 @@ static void UpdateRecord(master_record_t *record);
 static void SetIPaddress(master_record_t *record, int af,  char *src_ip, char *dst_ip) {
 
 	if ( af == PF_INET6 ) {
-		SetFlag(record->flags, FLAG_IPV6_ADDR);
+		SetFlag(record->mflags, V3_FLAG_IPV6_ADDR);
 		inet_pton(PF_INET6, src_ip, &(record->V6.srcaddr[0]));
 		inet_pton(PF_INET6, dst_ip, &(record->V6.dstaddr[0]));
 		record->V6.srcaddr[0] = ntohll(record->V6.srcaddr[0]);
@@ -92,7 +91,7 @@ static void SetIPaddress(master_record_t *record, int af,  char *src_ip, char *d
 		record->V6.dstaddr[0] = ntohll(record->V6.dstaddr[0]);
 		record->V6.dstaddr[1] = ntohll(record->V6.dstaddr[1]);
 	} else {
-		ClearFlag(record->flags, FLAG_IPV6_ADDR);
+		ClearFlag(record->mflags, V3_FLAG_IPV6_ADDR);
 		inet_pton(PF_INET, src_ip, &record->V4.srcaddr);
 		inet_pton(PF_INET, dst_ip, &record->V4.dstaddr);
 		record->V4.srcaddr = ntohl(record->V4.srcaddr);
@@ -104,12 +103,12 @@ static void SetIPaddress(master_record_t *record, int af,  char *src_ip, char *d
 static void SetNextIPaddress(master_record_t *record, int af,  char *next_ip) {
 
 	if ( af == PF_INET6 ) {
-		SetFlag(record->flags, FLAG_IPV6_NH);
+		SetFlag(record->mflags, V3_FLAG_IPV6_NH);
 		inet_pton(PF_INET6, next_ip, &(record->ip_nexthop.V6[0]));
 		record->ip_nexthop.V6[0] = ntohll(record->ip_nexthop.V6[0]);
 		record->ip_nexthop.V6[1] = ntohll(record->ip_nexthop.V6[1]);
 	} else {
-		ClearFlag(record->flags, FLAG_IPV6_NH);
+		ClearFlag(record->mflags, V3_FLAG_IPV6_NH);
 		inet_pton(PF_INET, next_ip, &record->ip_nexthop.V4);
 		record->ip_nexthop.V4 = ntohl(record->ip_nexthop.V4);
 	}
@@ -119,12 +118,12 @@ static void SetNextIPaddress(master_record_t *record, int af,  char *next_ip) {
 static void SetRouterIPaddress(master_record_t *record, int af,  char *next_ip) {
 
 	if ( af == PF_INET6 ) {
-		SetFlag(record->flags, FLAG_IPV6_NH);
+		SetFlag(record->mflags, V3_FLAG_IPV6_NH);
 		inet_pton(PF_INET6, next_ip, &(record->ip_router.V6[0]));
 		record->ip_router.V6[0] = ntohll(record->ip_router.V6[0]);
 		record->ip_router.V6[1] = ntohll(record->ip_router.V6[1]);
 	} else {
-		ClearFlag(record->flags, FLAG_IPV6_NH);
+		ClearFlag(record->mflags, V3_FLAG_IPV6_NH);
 		inet_pton(PF_INET, next_ip, &record->ip_router.V4);
 		record->ip_router.V4 = ntohl(record->ip_router.V4);
 	}
@@ -134,12 +133,12 @@ static void SetRouterIPaddress(master_record_t *record, int af,  char *next_ip) 
 static void SetBGPNextIPaddress(master_record_t *record, int af,  char *next_ip) {
 
 	if ( af == PF_INET6 ) {
-		SetFlag(record->flags, FLAG_IPV6_NHB);
+		SetFlag(record->mflags, V3_FLAG_IPV6_NHB);
 		inet_pton(PF_INET6, next_ip, &(record->bgp_nexthop.V6[0]));
 		record->bgp_nexthop.V6[0] = ntohll(record->bgp_nexthop.V6[0]);
 		record->bgp_nexthop.V6[1] = ntohll(record->bgp_nexthop.V6[1]);
 	} else {
-		ClearFlag(record->flags, FLAG_IPV6_NHB);
+		ClearFlag(record->mflags, V3_FLAG_IPV6_NHB);
 		inet_pton(PF_INET, next_ip, &record->bgp_nexthop.V4);
 		record->bgp_nexthop.V4 = ntohl(record->bgp_nexthop.V4);
 	}
@@ -148,15 +147,15 @@ static void SetBGPNextIPaddress(master_record_t *record, int af,  char *next_ip)
 
 static void UpdateRecord(master_record_t *record) {
 
-	record->msecFirst	= 1000LL * when + msecs;
-	record->msecLast	= 1000LL * when + offset + msecs + 10LL;
-	record->received	= record->msecLast - 1000LL +1LL;
+	record->msecFirst	 = 1000LL * when + msecs;
+	record->msecLast	 = 1000LL * when + offset + msecs + 10LL;
+	record->msecReceived = record->msecLast - 1000LL +1LL;
 
 	record->srcPort		+= 10;
 	record->dstPort		+= 11;
 
-	record->dPkts		+= 1;
-	record->dOctets		+= 1024;
+	record->inPackets	+= 1;
+	record->inBytes		+= 1024;
 
 	when   += 10LL;
 	offset += 10LL;
@@ -345,8 +344,8 @@ nffile_t			*nffile;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
-	record.dPkts 	 	= 101;
-	record.dOctets 	 	= 102;
+	record.inPackets 	 	= 101;
+	record.inByytes 	 	= 102;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
@@ -359,8 +358,8 @@ nffile_t			*nffile;
 	record.proto 	 = IPPROTO_UDP;
 	record.tcp_flags = 1;
 	record.tos 		 = 1;
-	record.dPkts 	 = 1001;
-	record.dOctets 	 = 1002;
+	record.inPackets 	 = 1001;
+	record.inByytes 	 = 1002;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
@@ -369,8 +368,8 @@ nffile_t			*nffile;
 	record.proto 	 	= 51;
 	record.tcp_flags 	= 2;
 	record.tos 		 	= 2;
-	record.dPkts 	 	= 10001;
-	record.dOctets 	 	= 10002;
+	record.inPackets 	 	= 10001;
+	record.inByytes 	 	= 10002;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
@@ -379,8 +378,8 @@ nffile_t			*nffile;
 	record.proto 	 	= IPPROTO_TCP;
 	record.tcp_flags 	= 4;
 	record.tos 		 	= 3;
-	record.dPkts 	 	= 100001;
-	record.dOctets 	 	= 100002;
+	record.inPackets 	 	= 100001;
+	record.inByytes 	 	= 100002;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
@@ -388,16 +387,16 @@ nffile_t			*nffile;
 	record.srcPort 	 	= 5024;
 	record.tcp_flags 	= 8;
 	record.tos 		 	= 4;
-	record.dPkts 	 	= 1000001;
-	record.dOctets 	 	= 1000002;
+	record.inPackets 	 	= 1000001;
+	record.inByytes 	 	= 1000002;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.8.66", "192.168.170.107");
 	record.tcp_flags 	= 1;
 	record.tos 		 	= 4;
-	record.dPkts 	 	= 10000001;
-	record.dOctets 	 	= 1001;
+	record.inPackets 	 	= 10000001;
+	record.inByytes 	 	= 1001;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
@@ -405,8 +404,8 @@ nffile_t			*nffile;
 	record.srcPort 	 	= 6024;
 	record.tcp_flags 	= 16;
 	record.tos 		 	= 5;
-	record.dPkts 	 	= 500;
-	record.dOctets 	 	= 10000001;
+	record.inPackets 	 	= 500;
+	record.inByytes 	 	= 10000001;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
@@ -418,8 +417,8 @@ nffile_t			*nffile;
 	record.srcPort 		= 7024;
 	record.tcp_flags 	= 32;
 	record.tos 		 	= 255;
-	record.dPkts 	 	= 5000;
-	record.dOctets 	 	= 100000001;
+	record.inPackets 	 	= 5000;
+	record.inByytes 	 	= 100000001;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
@@ -427,7 +426,7 @@ nffile_t			*nffile;
 	record.srcPort 	 	= 8024;
 	record.tcp_flags 	= 63;
 	record.tos 		 	= 0;
-	record.dOctets 	 	= 1000000001;
+	record.inByytes 	 	= 1000000001;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
@@ -437,8 +436,8 @@ nffile_t			*nffile;
 	record.proto 	 	= 1;
 	record.tcp_flags 	= 0;
 	record.tos 		 	= 0;
-	record.dPkts 	 	= 50002;
-	record.dOctets 	 	= 50000;
+	record.inPackets 	 	= 50002;
+	record.inByytes 	 	= 50000;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
@@ -446,8 +445,8 @@ nffile_t			*nffile;
 	record.srcPort 	 = 10024;
 	record.dstPort 	 = 25000;
 	record.proto 	 = IPPROTO_TCP;
-	record.dPkts 	 = 500001;
-	record.dOctets 	 = 500000;
+	record.inPackets 	 = 500001;
+	record.inByytes 	 = 500000;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
@@ -457,30 +456,30 @@ nffile_t			*nffile;
 	record.srcPort 	 = 1024;
 	record.dstPort 	 = 25;
 	record.tcp_flags = 27;
-	record.dPkts 	 = 10;
-	record.dOctets 	 = 15100;
+	record.inPackets 	 = 10;
+	record.inByytes 	 = 15100;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET6, "2001:234:aabb::211:24ff:fe80:d01e", "2001:620::8:203:baff:fe52:38e5");
 	record.srcPort 	 = 10240;
 	record.dstPort 	 = 52345;
-	record.dPkts 	 = 10100;
-	record.dOctets 	 = 15000000;
+	record.inPackets 	 = 10100;
+	record.inByytes 	 = 15000000;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
-	record.dPkts 	 = 10100000;
-	record.dOctets 	 = 0x100000000LL;
+	record.inPackets 	 = 10100000;
+	record.inByytes 	 = 0x100000000LL;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
-	record.dPkts 	 = 0x100000000LL;
-	record.dOctets 	 = 15000000;
+	record.inPackets 	 = 0x100000000LL;
+	record.inByytes 	 = 15000000;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
-	record.dOctets 	 = 0x200000000LL;
+	record.inByytes 	 = 0x200000000LL;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
@@ -489,19 +488,19 @@ nffile_t			*nffile;
 	SetBGPNextIPaddress(&record,  PF_INET, "172.73.2.3");
 	record.srcPort 	 = 10240;
 	record.dstPort 	 = 52345;
-	record.dPkts 	 = 10100000;
-	record.dOctets 	 = 0x100000000LL;
+	record.inPackets 	 = 10100000;
+	record.inByytes 	 = 0x100000000LL;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.15.18", "192.168.170.114");
-	record.dPkts 	 = 0x100000000LL;
-	record.dOctets 	 = 15000000;
+	record.inPackets 	 = 0x100000000LL;
+	record.inByytes 	 = 15000000;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "172.16.16.18", "192.168.170.115");
-	record.dOctets 	 = 0x200000000LL;
+	record.inByytes 	 = 0x200000000LL;
 	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 */

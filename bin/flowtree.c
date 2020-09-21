@@ -191,7 +191,6 @@ uint32_t num;
 
 /* flow tree functions */
 int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive) {
-int i;
 
 	if ( expireActive ) {
 		if ( expireActive < 0 || expireActive > 3600 ) {
@@ -236,6 +235,7 @@ int i;
 	FlowNode_FreeList->left    = NULL;
 	FlowNode_FreeList->right   = &FlowElementCache[1];
 	FlowNode_FreeList->memflag = NODE_FREE;
+	int i;
 	for (i=1; i < (CacheSize-1); i++ ) {
 		FlowElementCache[i].memflag = NODE_FREE;
 		FlowElementCache[i].left  = &FlowElementCache[i-1];
@@ -406,7 +406,7 @@ struct FlowNode *node, *nxt;
 		}
 	}
 	if ( expireCnt ) 
-		LogInfo("Expired Nodes: %u, in use: %u, total flows: %u", 
+		LogVerbose("Expired Nodes: %u, in use: %u, total flows: %u", 
 			expireCnt, Allocated, NumFlows);
 	
 	return NumFlows;

@@ -40,36 +40,36 @@ static inline void UpdateStat(stat_record_t	*stat_record, master_record_t *maste
 		case IPPROTO_ICMP:
 		case IPPROTO_ICMPV6:
 			stat_record->numflows_icmp   += master_record->aggr_flows ? master_record->aggr_flows : 1;
-			stat_record->numpackets_icmp += master_record->dPkts;
+			stat_record->numpackets_icmp += master_record->inPackets;
 			stat_record->numpackets_icmp += master_record->out_pkts;
-			stat_record->numbytes_icmp   += master_record->dOctets;
+			stat_record->numbytes_icmp   += master_record->inBytes;
 			stat_record->numbytes_icmp   += master_record->out_bytes;
 			break;
 		case IPPROTO_TCP:
 			stat_record->numflows_tcp   += master_record->aggr_flows ? master_record->aggr_flows : 1;
-			stat_record->numpackets_tcp += master_record->dPkts;
+			stat_record->numpackets_tcp += master_record->inPackets;
 			stat_record->numpackets_tcp += master_record->out_pkts;
-			stat_record->numbytes_tcp   += master_record->dOctets;
+			stat_record->numbytes_tcp   += master_record->inBytes;
 			stat_record->numbytes_tcp   += master_record->out_bytes;
 			break;
 		case IPPROTO_UDP:
 			stat_record->numflows_udp   += master_record->aggr_flows ? master_record->aggr_flows : 1;
-			stat_record->numpackets_udp += master_record->dPkts;
+			stat_record->numpackets_udp += master_record->inPackets;
 			stat_record->numpackets_udp += master_record->out_pkts;
-			stat_record->numbytes_udp   += master_record->dOctets;
+			stat_record->numbytes_udp   += master_record->inBytes;
 			stat_record->numbytes_udp   += master_record->out_bytes;
 			break;
 		default:
 			stat_record->numflows_other   += master_record->aggr_flows ? master_record->aggr_flows : 1;
-			stat_record->numpackets_other += master_record->dPkts;
+			stat_record->numpackets_other += master_record->inPackets;
 			stat_record->numpackets_other += master_record->out_pkts;
-			stat_record->numbytes_other   += master_record->dOctets;
+			stat_record->numbytes_other   += master_record->inBytes;
 			stat_record->numbytes_other   += master_record->out_bytes;
 	}
 	stat_record->numflows   += master_record->aggr_flows ? master_record->aggr_flows : 1;
-	stat_record->numpackets	+= master_record->dPkts;
+	stat_record->numpackets	+= master_record->inPackets;
 	stat_record->numpackets	+= master_record->out_pkts;
-	stat_record->numbytes 	+= master_record->dOctets;
+	stat_record->numbytes 	+= master_record->inBytes;
 	stat_record->numbytes 	+= master_record->out_bytes;
 
 	uint32_t sec  = master_record->msecFirst / 1000LL;

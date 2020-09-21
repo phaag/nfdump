@@ -227,26 +227,29 @@ static void spin_unlock(int volatile *p) {
 */
 
 typedef struct FlowKey_s {
+	struct _ipv6_s ipaddr;
 	uint16_t srcPort;
 	uint16_t dstPort;
-	uint64_t srcaddr[2];
-	uint64_t dstaddr[2];
 	uint32_t proto;
 } FlowKey_t;
 
 // definitions for khash flow cache
 typedef const uint8_t *hashkey_t;	// hash key - byte sequence
-static size_t hashKeyLen;			// length of hash_key
+static size_t hashKeyLen = 0;			// length of hash_key
 
 static inline uint32_t SuperFastHash (const char * data, int len);
 
+/*
 // hash func - reduce byte sequence to kh_int
 static kh_inline khint_t __HashFunc(const FlowHashRecord_t record) {
 	return SuperFastHash((char *)record.hashkey, hashKeyLen);
 }
+*/
+#define __HashFunc(k)	(k).hash
+
 // compare func - compare two hash keys
 static kh_inline khint_t __HashEqual(FlowHashRecord_t r1, FlowHashRecord_t r2) {
-	return memcmp((void *)r1.hashkey, (void *)r2.hashkey, hashKeyLen) == 0;
+	return r1.hash == r2.hash && memcmp((void *)r1.hashkey, (void *)r2.hashkey, hashKeyLen) == 0;
 }
 // insert FlowHash definitions/code
 KHASH_INIT(FlowHash, FlowHashRecord_t, char, 0, __HashFunc, __HashEqual)
@@ -269,11 +272,11 @@ static struct aggregate_info_s {
     int		 has_masks;
     int		 apply_netbits;  // bit 0: src, bit 1: dst
 
-} aggregate_info;
+} aggregate_info = {
+	.stack = NULL
+};
 
-static uint32_t	aggregate_key_len = sizeof(FlowKey_t);
 static uint32_t	bidir_flows		  = 0;
-
 
 #include "nfdump_inline.c"
 #include "applybits_inline.c"
@@ -393,23 +396,17 @@ FlowKey_t *keyptr;
 	} else if ( swap_flow ) {
 		// default 5-tuple aggregation for bidirectional flows
 		keyptr = (FlowKey_t *)keymem;
-		keyptr->srcaddr[0]	= flow_record->V6.dstaddr[0];
-		keyptr->srcaddr[1]	= flow_record->V6.dstaddr[1];
-		keyptr->dstaddr[0]	= flow_record->V6.srcaddr[0];
-		keyptr->dstaddr[1]	= flow_record->V6.srcaddr[1];
-		keyptr->srcPort		= flow_record->dstPort;
-		keyptr->dstPort		= flow_record->srcPort;
-		keyptr->proto		= flow_record->proto;
+		keyptr->ipaddr 	= flow_record->ip_union._v6;
+		keyptr->srcPort	= flow_record->dstPort;
+		keyptr->dstPort	= flow_record->srcPort;
+		keyptr->proto	= flow_record->proto;
 	} else {
 		// default 5-tuple aggregation
 		keyptr = (FlowKey_t *)keymem;
-		keyptr->srcaddr[0]	= flow_record->V6.srcaddr[0];
-		keyptr->srcaddr[1]	= flow_record->V6.srcaddr[1];
-		keyptr->dstaddr[0]	= flow_record->V6.dstaddr[0];
-		keyptr->dstaddr[1]	= flow_record->V6.dstaddr[1];
-		keyptr->srcPort		= flow_record->srcPort;
-		keyptr->dstPort		= flow_record->dstPort;
-		keyptr->proto		= flow_record->proto;
+		keyptr->ipaddr	= flow_record->ip_union._v6;
+		keyptr->srcPort	= flow_record->srcPort;
+		keyptr->dstPort	= flow_record->dstPort;
+		keyptr->proto	= flow_record->proto;
 	}
 	
 } // End of New_HashKey
@@ -518,8 +515,8 @@ master_record_t *aggr_record_mask;
 		// not really needed, but preset it anyway
 		r[0] = 0xffffffffffffffffLL;
 		r[1] = 0xffffffffffffffffLL;
-		aggr_record_mask->dPkts		 = 0xffffffffffffffffLL;
-		aggr_record_mask->dOctets	 = 0xffffffffffffffffLL;
+		aggr_record_mask->inPackets	 = 0xffffffffffffffffLL;
+		aggr_record_mask->inBytes	 = 0xffffffffffffffffLL;
 		aggr_record_mask->out_pkts	 = 0xffffffffffffffffLL;
 		aggr_record_mask->out_bytes	 = 0xffffffffffffffffLL;
 		aggr_record_mask->aggr_flows = 0xffffffffffffffffLL;
@@ -584,14 +581,14 @@ int Init_FlowCache(void) {
 	if ( !nfalloc_Init(0) )
 		return 0;
 
+	if ( !hashKeyLen ) 
+		hashKeyLen = sizeof(FlowKey_t);
+
 	FlowHash = kh_init(FlowHash);
-	hashKeyLen = aggregate_key_len;
 
 	FlowList.head = NULL;
 	FlowList.tail = &FlowList.head;
 	FlowList.NumRecords = 0;
-
-	memset((void *)&aggregate_info, 0, sizeof(aggregate_info));
 
 	return 1;
 
@@ -645,38 +642,36 @@ void Add_FlowStatOrder(uint32_t order, uint32_t direction) {
 	PrintDirection = direction;
 } // End of Add_FlowStatOrder
 
-int ParseAggregateMask( char *arg, char **aggr_fmt ) {
+char *ParseAggregateMask(char *arg) {
 struct aggregate_table_s *a;
 uint64_t mask[2];
+char *aggr_fmt;
 
 	if ( bidir_flows ) {
-		fprintf(stderr, "Can not set custom aggregation while bidir mode is set.\n");
-		return 0;
+		LogError("Can not set custom aggregation in bidir mode");
+		return NULL;
 	}
 
 	uint32_t stack_count = 0;
 	uint32_t subnet		 = 0;
 	uint32_t has_mask    = 0;
 
-	aggregate_key_len = 0;
+	hashKeyLen = 0;
+	memset((void *)&aggregate_info, 0, sizeof(aggregate_info));
 
 	size_t fmt_len = 0;
 	for (int i=0; aggregate_table[i].aggregate_token != NULL; i++ ) {
-		if ( aggregate_table[i].active )
-			stack_count++;
 		if ( aggregate_table[i].fmt )
 			fmt_len += ( strlen(aggregate_table[i].fmt) + 1 );
 	}
 	fmt_len++;	// trailing '\0'
 
-	if ( !*aggr_fmt ) {
-		*aggr_fmt = malloc(fmt_len);
-		(*aggr_fmt)[0] = '\0';
-	}
-	if ( !*aggr_fmt ) {
-		fprintf(stderr, "malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror (errno));
+	aggr_fmt = malloc(fmt_len);
+	if ( !aggr_fmt ) {
+		LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 		return 0;
 	}
+	aggr_fmt[0] = '\0';
 
 	aggregate_info.apply_netbits  = 0;
 	aggregate_info.has_masks = 0;
@@ -704,18 +699,17 @@ uint64_t mask[2];
 			if ( *n == '4' ) {
 				// IPv4
 				if ( subnet < 1 || subnet > 32 ) {
-					fprintf(stderr, "Subnet specifier '%s' out of range for IPv4\n", q+1);
-					return 0;
+					LogError("Subnet mask length '%d' out of range for IPv4", subnet);
+					return NULL;
 				}
-
 				mask[0] = 0xffffffffffffffffLL;
 				mask[1] = 0xffffffffffffffffLL << ( 32 - subnet );
 
 			} else if ( *n == '6' ) {
 				// IPv6
 				if ( subnet < 1 || subnet > 128 ) {
-					fprintf(stderr, "Subnet specifier '%s' out of range for IPv6\n", q+1);
-					return 0;
+					LogError("Subnet mask length '%d' out of range for IPv4", subnet);
+					return NULL;
 				}
 
 				if ( subnet > 64 ) {
@@ -728,8 +722,8 @@ uint64_t mask[2];
 			} else {
 				// rubbish
 				*q = '/';
-				fprintf(stderr, "Need src4/dst4 src6/dst6 for IPv4 or IPv6 to aggregate with explicit netmask: '%s'\n", p);
-				return 0;
+				LogError("Need src4/dst4 or src6/dst6 for IPv4 or IPv6 to aggregate with explicit netmask: '%s'", p);
+				return NULL;
 			}
 		} else {
 			has_mask = 0;
@@ -740,13 +734,14 @@ uint64_t mask[2];
 			a++;
 
 		if ( a->active ) {
-			fprintf(stderr, "Skip already given aggregation mask: %s\n", p);
+			LogError("Duplicate aggregation mask: %s", p);
+			return NULL;
 		} else if ( a->aggregate_token != NULL ) {
 
 			if ( a->fmt != NULL ) {
-				strncat(*aggr_fmt, a->fmt, fmt_len);
+				strncat(aggr_fmt, a->fmt, fmt_len);
 				fmt_len -= strlen(a->fmt);
-				strncat(*aggr_fmt, " ", fmt_len);
+				strncat(aggr_fmt, " ", fmt_len);
 				fmt_len -= 1;
 			}
 
@@ -763,17 +758,17 @@ uint64_t mask[2];
 					if ( has_mask ) {
 						a->param.mask = mask[i];
 					} else {
-						fprintf(stderr, "'%s' needs subnet bits too aggregate\n", p);
-						return 0;
+						LogError("'%s' needs number of subnet bits to aggregate", p);
+						return NULL;
 					}
 				} else {
 					if ( has_mask ) { 
-						fprintf(stderr, "'%s' No subnet bits allowed here!\n", p);
-						return 0;
+						LogError("'%s' No subnet bits allowed here", p);
+						return NULL;
 					}
 				}
 				a->active = 1;
-				aggregate_key_len += a->param.size;
+				hashKeyLen += a->param.size;
 				stack_count++;
 				a++;
 			} while (a->aggregate_token && (strcasecmp(p, a->aggregate_token ) == 0));
@@ -792,16 +787,16 @@ uint64_t mask[2];
 				}
 			} 
 		} else {
-			fprintf(stderr, "Unknown aggregation specifier '%s'\n", p);
-			return 0;
+			LogError("Unknown aggregation field '%s'", p);
+			return NULL;
 		}
 
 		p = strtok(NULL, ",");
 	}
 
 	if ( stack_count == 0 ) {
-		fprintf(stderr, "No aggregation specified!\n");
-		return 0;
+		LogError("No aggregation specified!");
+		return NULL;
 	}
 
 	aggregate_info.stack = (aggregate_param_t *)malloc((stack_count+1) * sizeof(aggregate_param_t));
@@ -818,8 +813,8 @@ uint64_t mask[2];
 	// final '0' record
 	aggregate_info.stack[stack_count] = a->param;
 
-	dbg_printf("Aggregate key len: %i bytes\n", aggregate_key_len);
-	dbg_printf("Aggregate format string: '%s'\n", *aggr_fmt);
+	dbg_printf("Aggregate key len: %i bytes\n", hashKeyLen);
+	dbg_printf("Aggregate format string: '%s'\n", aggr_fmt);
 
 #ifdef DEVEL
 	if ( aggregate_info.stack ) {
@@ -841,13 +836,13 @@ uint64_t mask[2];
 
 	aggregate_info.mask = SetAggregateMask();
 
-	return 1;
+	return aggr_fmt;
 } // End of ParseAggregateMask
 
 int SetBidirAggregation(void) {
 	
 	if ( aggregate_info.stack ) {
-		fprintf(stderr, "Can not set bidir mode while custom aggregation is set.\n");
+		LogError("Can not set bidir mode with custom aggregation mask");
 		return 0;
 	}
 	bidir_flows = 1;
@@ -867,8 +862,8 @@ FlowHashRecord_t	*record;
 	record->msecFirst = flow_record->msecFirst;
 	record->msecLast  = flow_record->msecLast;
 
-	record->counter[INBYTES]	 = flow_record->dOctets;
-	record->counter[INPACKETS] 	 = flow_record->dPkts;
+	record->counter[INBYTES]	 = flow_record->inBytes;
+	record->counter[INPACKETS] 	 = flow_record->inPackets;
 	record->counter[OUTBYTES]	 = flow_record->out_bytes;
 	record->counter[OUTPACKETS]  = flow_record->out_pkts;
 	record->counter[FLOWS]	 	 = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
@@ -891,13 +886,14 @@ FlowHashRecord_t r;
 	}
 	New_HashKey(keymem, flow_record, 0);
 	r.hashkey = keymem;
+	r.hash = SuperFastHash(keymem, hashKeyLen);
 
 	int ret;
 	khiter_t k = kh_get(FlowHash, FlowHash, r);
 	if ( k != kh_end(FlowHash) ) {
 		// flow record found - best case! update all fields
-		kh_key(FlowHash,k).counter[INBYTES]    += flow_record->dOctets;
-		kh_key(FlowHash,k).counter[INPACKETS]  += flow_record->dPkts;
+		kh_key(FlowHash,k).counter[INBYTES]    += flow_record->inBytes;
+		kh_key(FlowHash,k).counter[INPACKETS]  += flow_record->inPackets;
 		kh_key(FlowHash,k).counter[OUTBYTES]   += flow_record->out_bytes;
 		kh_key(FlowHash,k).counter[OUTPACKETS] += flow_record->out_pkts;
 
@@ -912,8 +908,8 @@ FlowHashRecord_t r;
 	} else if ( flow_record->proto != IPPROTO_TCP && flow_record->proto != IPPROTO_UDP) {
 		// no flow record found and no TCP/UDP bidir flows. Insert flow record into hash
 		k = kh_put(FlowHash, FlowHash, r, &ret);
-		kh_key(FlowHash,k).counter[INBYTES]	   = flow_record->dOctets;
-		kh_key(FlowHash,k).counter[INPACKETS]  = flow_record->dPkts;
+		kh_key(FlowHash,k).counter[INBYTES]	   = flow_record->inBytes;
+		kh_key(FlowHash,k).counter[INPACKETS]  = flow_record->inPackets;
 		kh_key(FlowHash,k).counter[OUTBYTES]   = flow_record->out_bytes;
 		kh_key(FlowHash,k).counter[OUTPACKETS] = flow_record->out_pkts;
 		kh_key(FlowHash,k).counter[FLOWS]      = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
@@ -943,12 +939,13 @@ FlowHashRecord_t r;
 		// generate the hash key for reverse record (bidir)
 		New_HashKey(bidirkeymem, flow_record, 1);
 		r.hashkey = bidirkeymem;
+		r.hash = SuperFastHash(bidirkeymem, hashKeyLen);
 
 		k = kh_get(FlowHash, FlowHash, r);
 		if ( k != kh_end(FlowHash) ) {
 			// we found a corresponding flow - so update all fields in reverse direction
-			kh_key(FlowHash,k).counter[OUTBYTES]   += flow_record->dOctets;
-			kh_key(FlowHash,k).counter[OUTPACKETS] += flow_record->dPkts;
+			kh_key(FlowHash,k).counter[OUTBYTES]   += flow_record->inBytes;
+			kh_key(FlowHash,k).counter[OUTPACKETS] += flow_record->inPackets;
 			kh_key(FlowHash,k).counter[INBYTES]    += flow_record->out_bytes;
 			kh_key(FlowHash,k).counter[INPACKETS]  += flow_record->out_pkts;
 
@@ -965,8 +962,8 @@ FlowHashRecord_t r;
 			// insert original flow into the cache
 			r.hashkey = keymem;
 			k = kh_put(FlowHash, FlowHash, r, &ret);
-			kh_key(FlowHash,k).counter[INBYTES]	   = flow_record->dOctets;
-			kh_key(FlowHash,k).counter[INPACKETS]  = flow_record->dPkts;
+			kh_key(FlowHash,k).counter[INBYTES]	   = flow_record->inBytes;
+			kh_key(FlowHash,k).counter[INPACKETS]  = flow_record->inPackets;
 			kh_key(FlowHash,k).counter[OUTBYTES]   = flow_record->out_bytes;
 			kh_key(FlowHash,k).counter[OUTPACKETS] = flow_record->out_pkts;
 			kh_key(FlowHash,k).counter[FLOWS]	   = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
@@ -1002,13 +999,15 @@ FlowHashRecord_t r;
 	}
 	New_HashKey(keymem, flow_record, 0);
 	r.hashkey = keymem;
+	r.hash = SuperFastHash(keymem, hashKeyLen);
+	// r.hash = (uint32_t)flow_record->dstPort << 16 | flow_record->srcPort;
 
 	int ret;
 	khiter_t k = kh_put(FlowHash, FlowHash, r, &ret);
 	if ( ret == 0 ) {
 		// flow record found - best case! update all fields
-		kh_key(FlowHash,k).counter[INBYTES]    += flow_record->dOctets;
-		kh_key(FlowHash,k).counter[INPACKETS]  += flow_record->dPkts;
+		kh_key(FlowHash,k).counter[INBYTES]    += flow_record->inBytes;
+		kh_key(FlowHash,k).counter[INPACKETS]  += flow_record->inPackets;
 		kh_key(FlowHash,k).counter[OUTBYTES]   += flow_record->out_bytes;
 		kh_key(FlowHash,k).counter[OUTPACKETS] += flow_record->out_pkts;
 
@@ -1022,20 +1021,16 @@ FlowHashRecord_t r;
 		kh_key(FlowHash,k).counter[FLOWS] += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 	} else {
 		// no flow record found and no TCP/UDP bidir flows. Insert flow record into hash
-		kh_key(FlowHash,k).counter[INBYTES]	   = flow_record->dOctets;
-		kh_key(FlowHash,k).counter[INPACKETS]  = flow_record->dPkts;
+		kh_key(FlowHash,k).counter[INBYTES]	   = flow_record->inBytes;
+		kh_key(FlowHash,k).counter[INPACKETS]  = flow_record->inPackets;
 		kh_key(FlowHash,k).counter[OUTBYTES]   = flow_record->out_bytes;
 		kh_key(FlowHash,k).counter[OUTPACKETS] = flow_record->out_pkts;
 		kh_key(FlowHash,k).counter[FLOWS]      = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 
-		kh_key(FlowHash,k).msecFirst	  = flow_record->msecFirst;
+		kh_key(FlowHash,k).msecFirst  = flow_record->msecFirst;
 		kh_key(FlowHash,k).msecLast	  = flow_record->msecLast;
 
-		void *p = malloc(record->size);
-		if ( !p ) {
-			LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror (errno));
-			exit(255);
-		}
+		void *p = nfmalloc(record->size);
 		memcpy((void *)p, raw_record, record->size);
 		kh_key(FlowHash,k).flowrecord = p;
 
@@ -1070,8 +1065,8 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 		memset((void *)&flow_record, 0, sizeof(master_record_t));
 		ExpandRecord_v3(raw_record, &flow_record);
 
-		flow_record.dPkts 		= r->counter[INPACKETS];
-		flow_record.dOctets 	= r->counter[INBYTES];
+		flow_record.inPackets 	= r->counter[INPACKETS];
+		flow_record.inBytes 	= r->counter[INBYTES];
 		flow_record.out_pkts 	= r->counter[OUTPACKETS];
 		flow_record.out_bytes 	= r->counter[OUTBYTES];
 		flow_record.aggr_flows 	= r->counter[FLOWS];
@@ -1130,11 +1125,14 @@ size_t	maxindex;
 				SortList[i].count  = order_mode[order_index].record_function(r, order_mode[order_index].inout);
 			}
 
+			int direction = PrintDirection;
 			if ( maxindex > 2 ) {
-				if ( maxindex < 100 ) 
+				if ( maxindex < 100 ) {
 					heapSort(SortList, maxindex, outputParams->topN, PrintDirection);
-				else
+					direction = 0;
+				} else {
  					blocksort((SortRecord_t *)SortList, maxindex);
+				}
 			}
 			if ( !outputParams->quiet ) {
 				if ( outputParams->mode == MODE_PLAIN ) {
@@ -1146,7 +1144,7 @@ size_t	maxindex;
 				if ( record_header ) 
 					record_header();
 			}
-			PrintSortList(SortList, maxindex, outputParams, 0, print_record, DESCENDING);
+			PrintSortList(SortList, maxindex, outputParams, 0, print_record, direction);
 		}
 	}
 
@@ -1168,21 +1166,23 @@ void PrintFlowTable(printer_t print_record, outputParams_t *outputParams, int Gu
 			FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[i].record);
 			SortList[i].count  = order_mode[PrintOrder].record_function(r, order_mode[PrintOrder].inout);
 		}
-printf("PrintDir: %d\n", PrintDirection);
+
 		if ( maxindex >= 2 ) {
-			if ( maxindex < 100 ) 
+			if ( maxindex < 100 ) {
 				heapSort(SortList, maxindex, 0, PrintDirection);
-			else
+				PrintDirection = 0;
+			} else {
  				blocksort((SortRecord_t *)SortList, maxindex);
+			}
 		}
 
 		PrintSortList(SortList, maxindex, outputParams, GuessDir, 
-			print_record, order_mode[PrintOrder].direction);
+			print_record, PrintDirection);
 
 	} else {
 		// for -a and no -O sorting required
 		PrintSortList(SortList, maxindex, outputParams, GuessDir, 
-			print_record, order_mode[PrintOrder].direction);
+			print_record, PrintDirection);
  
 	}
 } // End of PrintFlowTable
@@ -1199,7 +1199,6 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 
 
 	if ( sort_order ) {
-
 		// set sort value
 		for ( int i = 0; i < maxindex; i++ ) {
 			FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[i].record);
@@ -1222,8 +1221,8 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 
 			memset((void *)&flow_record, 0, sizeof(master_record_t));
 			ExpandRecord_v3(raw_record, &flow_record);
-			flow_record.dPkts 		= r->counter[INPACKETS];
-			flow_record.dOctets 	= r->counter[INBYTES];
+			flow_record.inPackets	= r->counter[INPACKETS];
+			flow_record.inBytes 	= r->counter[INBYTES];
 			flow_record.out_pkts 	= r->counter[OUTPACKETS];
 			flow_record.out_bytes 	= r->counter[OUTBYTES];
 			flow_record.aggr_flows 	= r->counter[FLOWS];
@@ -1264,8 +1263,8 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 			master_record_t	flow_record;
 			memset((void *)&flow_record, 0, sizeof(master_record_t));
 			ExpandRecord_v3(raw_record, &flow_record);
-			flow_record.dPkts 		= r->counter[INPACKETS];
-			flow_record.dOctets 	= r->counter[INBYTES];
+			flow_record.inPackets	= r->counter[INPACKETS];
+			flow_record.inBytes 	= r->counter[INBYTES];
 			flow_record.out_pkts 	= r->counter[OUTPACKETS];
 			flow_record.out_bytes 	= r->counter[OUTBYTES];
 			flow_record.aggr_flows	= r->counter[FLOWS];

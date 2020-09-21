@@ -48,26 +48,16 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "nfnet.h"
 #include "output_raw.h"
 #include "bookkeeper.h"
 #include "collector.h"
+#include "fnf.h"
 #include "exporter.h"
+#include "nbar.h"
 #include "ipfix.h"
 
-#define GET_FLOWSET_ID(p) 	  (Get_val16(p))
-#define GET_FLOWSET_LENGTH(p) (Get_val16((void *)((p) + 2)))
-
-#define GET_TEMPLATE_ID(p) 	  (Get_val16(p))
-#define GET_TEMPLATE_COUNT(p) (Get_val16((void *)((p) + 2)))
-
-#define GET_OPTION_TEMPLATE_ID(p)				 (Get_val16(p))
-#define GET_OPTION_TEMPLATE_FIELD_COUNT(p)		 (Get_val16((void *)((p) + 2)))
-#define GET_OPTION_TEMPLATE_SCOPE_FIELD_COUNT(p) (Get_val16((void *)((p) + 4)))
-
-#define DYN_FIELD_LENGTH	65535
 
 // define stack slots
 #define STACK_NONE	  0
@@ -352,8 +342,8 @@ uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
 
 	FlushInfoExporter(fs, &((*e)->info));
 
-	dbg_printf("[%u] New exporter: SysID: %u, Observation domain %u from: %s\n", 
-		ObservationDomain, (*e)->info.sysid, ObservationDomain, ipstr);
+	dbg_printf("[%u] New exporter: SysID: %u, Observation domain %u from: %s:%u\n", 
+		ObservationDomain, (*e)->info.sysid, ObservationDomain, ipstr, fs->port);
 	LogInfo("Process_ipfix: New exporter: SysID: %u, Observation domain %u from: %s\n", 
 		(*e)->info.sysid, ObservationDomain, ipstr);
 
@@ -1062,8 +1052,9 @@ uint8_t				*inBuff;
 		// header data
 		recordHeaderV3->engineType	= 0; // XXX fix
 		recordHeaderV3->engineID	= 0; // XXX fix
+		recordHeaderV3->nfversion	= 10;
 		if ( sampling_rate != 1 )
-			SetFlag(recordHeaderV3->flags, FLAG_SAMPLED);
+			SetFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED);
 		recordHeaderV3->exporterID	= exporter->info.sysid;
 		recordHeaderV3->size		= sizeof(recordHeaderV3_t) + sequencer->outLength;
 		recordHeaderV3->numElements	= sequencer->numElements;
@@ -1136,7 +1127,7 @@ uint8_t				*inBuff;
 			}
 		}
 		if ( sampling_rate != 1 )
-			SetFlag(recordHeaderV3->flags, FLAG_SAMPLED);
+			SetFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED);
 
 		// add time received
 		EXgenericFlow_t *genericFlow = sequencer->offsetCache[EXgenericFlowID];
@@ -1178,7 +1169,7 @@ uint8_t				*inBuff;
 			if ( sampling_rate > 1 ) {
   				genericFlow->inPackets *= (uint64_t)sampling_rate;
   				genericFlow->inBytes   *= (uint64_t)sampling_rate;
-				SetFlag(recordHeaderV3->flags, FLAG_SAMPLED);
+				SetFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED);
 			}
 
 			switch (genericFlow->proto) {

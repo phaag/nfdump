@@ -134,7 +134,7 @@ size_t aligned_size;
 	aligned_size = (((size) + ALIGN_BYTES) &~ ALIGN_BYTES);
 
 	GetLock(MemHandler);
-	if ( (MemHandler->Allocted + aligned_size) < MemHandler->BlockSize ) {
+	if ( (MemHandler->Allocted + aligned_size) <= MemHandler->BlockSize ) {
 		// enough space available in current memblock
 		p = MemHandler->memblock[MemHandler->CurrentBlock] + MemHandler->Allocted;
 		MemHandler->Allocted += aligned_size;

@@ -239,6 +239,20 @@ char string[512];
 	
 } // End of LogInfo
 
+void LogVerbose(char *format, ...) {
+va_list var_args;
+char string[512];
+
+	if ( verbose ) {
+		va_start(var_args, format);
+		vsnprintf(string, 511, format, var_args);
+		fprintf(stderr, "%s\n", string);
+		va_end(var_args);
+	}
+	
+} // End of LogVerbose
+
+
 static int check_number(char *s, int len) {
 int i;
 int l = strlen(s);

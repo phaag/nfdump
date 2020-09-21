@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -28,13 +27,16 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: inline.c 40 2009-12-16 10:41:44Z haag $
- *
- *  $LastChangedRevision: 40 $
- *	
  */
+
+typedef struct type_mask_s {
+	union {
+		uint8_t		val8[8];
+		uint16_t	val16[4];
+		uint32_t	val32[2];
+		uint64_t	val64;
+	} val;
+} type_mask_t;
 
 static inline uint16_t	Get_val16(void *p);
 

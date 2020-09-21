@@ -58,7 +58,6 @@
 #include "nffile.h"
 #include "bookkeeper.h"
 #include "collector.h"
-#include "nfx.h"
 #include "nfxV3.h"
 
 #include "nffile_inline.c"
@@ -119,11 +118,6 @@ int ok;
 		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		return 0;
 	} 
-	(*source)->next 	  	  	  = NULL;
-	(*source)->bookkeeper 	  	  = NULL;
-	(*source)->any_source 	  	  = 0;
-	(*source)->exporter_data  	  = NULL;
-	(*FlowSource)->exporter_count = 0;
 
 	// separate IP address from ident
 	if ( ( p = strchr(ident, ',')) == NULL  ) {
@@ -216,6 +210,54 @@ int ok;
 	return 1;
 
 } // End of AddFlowSource
+
+int AddFlowSourceFromFile(FlowSource_t **FlowSource, char *path) {
+struct stat fstat;
+char entry[MAXPATHLEN];
+FILE *inputfile = NULL;
+int ret = 0;
+
+	if ( strlen(path) >= MAXPATHLEN ) {
+		fprintf(stderr, "Path too long: %s\n", path);
+		return 1;
+	}
+
+	if ( stat(path, &fstat) ) {
+		fprintf(stderr, "stat() error %s: %s\n", path, strerror(errno));
+		return 2;
+	}
+	if ( !(fstat.st_mode & S_IFREG) ) {
+		fprintf(stderr, "Not a file: %s\n", path);
+		return 3;
+	}
+
+	inputfile = fopen(path, "r");
+	if ( NULL == inputfile ) {
+		fprintf(stderr, "Cannot open file %s: %s\n", path, strerror(errno));
+		return 4;
+	}
+
+	for( ; fgets(entry,sizeof(entry),inputfile) != NULL ; ) {
+		int len = strlen(entry);
+
+		if ( entry[len-2] == '\n' || entry[len-2] == '\r' )
+			entry[len-2] = 0;
+		if ( entry[len-1] == '\n' || entry[len-1] == '\r' )
+			entry[len-1] = 0;
+
+		if ( !AddFlowSource(FlowSource, entry) ) {
+			fprintf(stderr, "Could not add flow source %s\n", entry);
+			ret = 5;
+		}
+	}
+
+	if ( fclose(inputfile) ) {
+		fprintf(stderr, "Cannot close file %s: %s\n", path, strerror(errno));
+		return 6;
+	}
+
+	return ret;
+} // End of AddFlowSourceFromFile
 
 int AddDefaultFlowSource(FlowSource_t **FlowSource, char *ident, char *path) {
 struct 	stat 	fstat;
@@ -409,100 +451,6 @@ int				err;
 	return *source;
 
 } // End of AddDynamicSource
-
-int InitExtensionMapList(FlowSource_t *fs) {
-
-	fs->extension_map_list.maps = (extension_map_t **)calloc(BLOCK_SIZE, sizeof(extension_map_t *));
-	if ( !fs->extension_map_list.maps ) {
-		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-		return 0;
-	}
-	fs->extension_map_list.max_maps  = BLOCK_SIZE;
-	fs->extension_map_list.next_free = 0;
-	fs->extension_map_list.num_maps  = 0;
-
-	return 1;
-
-} // End of InitExtensionMapList
-
-int ReInitExtensionMapList(FlowSource_t *fs) {
-
-	dbg_printf("Flush all extension maps!\n");
-	free(fs->extension_map_list.maps);
-	fs->extension_map_list.maps = NULL;
-
-	return InitExtensionMapList(fs);
-
-} // End of ReInitExtensionMapList
-
-int RemoveExtensionMap(FlowSource_t *fs, extension_map_t *map) {
-int slot = map->map_id;
-
-	dbg_printf("Remove extension map ID: %d\n", slot);
-	if ( slot >= fs->extension_map_list.max_maps ) {
-		// XXX hmm .. is simply return correct ///
-		LogError("*** software error *** Try to remove extension map %d, while only %d slots are available\n", slot, fs->extension_map_list.max_maps);
-		return 0;
-	}
-	fs->extension_map_list.maps[slot] = NULL;
-
-	return 1;
-
-} // End of RemoveExtensionMap
-
-int AddExtensionMap(FlowSource_t *fs, extension_map_t *map) {
-int next_slot = fs->extension_map_list.next_free;
-
-	dbg_printf("Add extension map\n");
-	// is it a new map, we have not yet in the list
-	if ( map->map_id == INIT_ID ) {
-		if ( next_slot >= fs->extension_map_list.max_maps ) {
-			// extend map list
-			dbg_printf("List full - extend extension list to %d slots\n", fs->extension_map_list.max_maps + BLOCK_SIZE);
-			extension_map_t **p = realloc((void *)fs->extension_map_list.maps, 
-				(fs->extension_map_list.max_maps + BLOCK_SIZE ) * sizeof(extension_map_t *));
-			if ( !p ) {
-				LogError("realloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-				return 0;
-			}
-			fs->extension_map_list.maps 	= p;
-			fs->extension_map_list.max_maps += BLOCK_SIZE;
-		}
-	
-		dbg_printf("Add map to slot %d\n", next_slot);
-		fs->extension_map_list.maps[next_slot] = map;
-		map->map_id = next_slot;
-		fs->extension_map_list.num_maps++;
-
-		if ( (next_slot + 1) == fs->extension_map_list.num_maps ) {
-			// sequencially filled slots
-			// next free is next slot
-			fs->extension_map_list.next_free++;
-			dbg_printf("Next slot is sequential: %d\n", fs->extension_map_list.next_free);
-		} else {
-			// fill gap in list - search for next free
-			int i;
-			dbg_printf("Search next slot ... \n");
-			for ( i = (next_slot + 1); i < fs->extension_map_list.max_maps; i++ ) {
-				if ( fs->extension_map_list.maps[i] == NULL ) {
-					// empty slot found
-					dbg_printf("Empty slot found at %d\n", i);
-					break;
-				}
-			} 
-			// assign next_free - if none found up to max, the list will get extended
-			// in the next round
-			dbg_printf("Set next free to %d\n", i);
-			fs->extension_map_list.next_free = i;
-		}
-		
-	}
-
-	AppendToBuffer(fs->nffile, (void *)map, map->size);
-
-	return 1;
-
-} // End of AddExtensionMap
 
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {
 

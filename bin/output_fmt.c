@@ -50,7 +50,7 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
+#include "nfxV3.h"
 #include "output_util.h"
 #include "output_fmt.h"
 
@@ -94,6 +94,8 @@ static void AddToken(int index);
 static void AddString(char *string);
 
 static void String_FlowFlags(master_record_t *r, char *string);
+
+static void String_Version(master_record_t *r, char *string);
 
 static void String_FirstSeen(master_record_t *r, char *string);
 
@@ -279,6 +281,7 @@ static struct format_token_list_s {
 	string_function_t	string_function;	// function generation output string
 } format_token_list[] = {
 	{ "%ff", 0, "Flow Flags", 				String_FlowFlags }, 	// flow flags in hex
+	{ "%nfv", 0, "Ver", 					String_Version }, 		// netflow version
 	{ "%tfs", 0, "Date first seen        ", String_FirstSeen },		// Start Time - first seen
 	{ "%ts",  0, "Date first seen        ", String_FirstSeen },		// Start Time - first seen
 	{ "%tsr",  0, "Date first seen (raw)    ", String_FirstSeenRaw },		// Start Time - first seen, seconds
@@ -637,7 +640,32 @@ static void String_FlowFlags(master_record_t *r, char *string) {
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_FlowFlags
- 
+
+static void String_Version(master_record_t *r, char *string) {
+
+	char *type;
+	if ( TestFlag(r->flags, V3_FLAG_EVENT) ) {
+		type = "EVT";
+		snprintf(string, MAX_STRING_LENGTH-1, "%s%u", type, r->nfversion);
+	} else {
+		if ( r->nfversion != 0 ) {
+			if ( r->nfversion & 0x80 ) {
+				type = "Sv";
+			} else if ( r->nfversion & 0x40 ) {
+				type = "Pv";
+			} else {
+				type = "Nv";
+			}
+			snprintf(string, MAX_STRING_LENGTH-1, "%s%u", type, r->nfversion & 0x0F);
+		} else {
+			// compat with previous versions
+			type = "FLO";
+			snprintf(string, MAX_STRING_LENGTH-1, "%s", type);
+		}
+	}
+
+} // End of String_Version
+
 static void String_FirstSeen(master_record_t *r, char *string) {
 time_t 	tt;
 struct tm * ts;
@@ -671,11 +699,11 @@ time_t 	tt;
 struct tm * ts;
 char 	*s;
 
-	tt = r->received / 1000LL;
+	tt = r->msecReceived / 1000LL;
 	ts = localtime(&tt);
 	strftime(string, MAX_STRING_LENGTH-1, "%Y-%m-%d %H:%M:%S", ts);
 	s = string + strlen(string);
-	snprintf(s, MAX_STRING_LENGTH-strlen(string)-1,".%03llu", r->received % 1000LL);
+	snprintf(s, MAX_STRING_LENGTH-strlen(string)-1,".%03llu", r->msecReceived % 1000LL);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_Received
@@ -683,7 +711,7 @@ char 	*s;
 static void String_ReceivedRaw(master_record_t *r, char *string) {
 
 	 /* snprintf does write \0, and the max is INCL the terminating \0 */
-	 snprintf(string, MAX_STRING_LENGTH, "%.3f", r->received/1000.0);
+	 snprintf(string, MAX_STRING_LENGTH, "%.3f", r->msecReceived/1000.0);
 
 } // End of String_ReceivedRaw
 
@@ -708,11 +736,11 @@ time_t 	tt;
 struct tm * ts;
 char 	*s;
 
-	tt = r->event_time / 1000LL;
+	tt = r->msecEvent / 1000LL;
 	ts = localtime(&tt);
 	strftime(string, MAX_STRING_LENGTH-1, "%Y-%m-%d %H:%M:%S", ts);
 	s = string + strlen(string);
-	snprintf(s, MAX_STRING_LENGTH-strlen(string)-1,".%03llu", r->event_time % 1000LL);
+	snprintf(s, MAX_STRING_LENGTH-strlen(string)-1,".%03llu", r->msecEvent % 1000LL);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_EventTime
@@ -736,7 +764,7 @@ static void String_SrcAddr(master_record_t *r, char *string) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
-	if ( (r->flags & FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+	if ( (r->mflags & V3_FLAG_IPV6_ADDR ) != 0 ) { // IPv6
 		uint64_t	ip[2];
 
 		ip[0] = htonll(r->V6.srcaddr[0]);
@@ -765,7 +793,7 @@ static void String_SrcAddrPort(master_record_t *r, char *string) {
 char 	tmp_str[IP_STRING_LEN], portchar;
 
 	tmp_str[0] = 0;
-	if ( (r->flags & FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_ADDR) ) { // IPv6
 		uint64_t	ip[2];
 
 		ip[0] = htonll(r->V6.srcaddr[0]);
@@ -796,7 +824,7 @@ static void String_DstAddr(master_record_t *r, char *string) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
-	if ( (r->flags & FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_ADDR) ) { // IPv6
 		uint64_t	ip[2];
 
 		ip[0] = htonll(r->V6.dstaddr[0]);
@@ -826,7 +854,7 @@ static void String_NextHop(master_record_t *r, char *string) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
-	if ( (r->flags & FLAG_IPV6_NH ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_NH) ) { // IPv6
 		uint64_t	ip[2];
 
 		ip[0] = htonll(r->ip_nexthop.V6[0]);
@@ -855,7 +883,7 @@ static void String_BGPNextHop(master_record_t *r, char *string) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
-	if ( (r->flags & FLAG_IPV6_NHB ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_NHB) ) { // IPv6
 		uint64_t	ip[2];
 
 		ip[0] = htonll(r->bgp_nexthop.V6[0]);
@@ -884,7 +912,7 @@ static void String_RouterIP(master_record_t *r, char *string) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
-	if ( (r->flags & FLAG_IPV6_EXP ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_EXP) ) { // IPv6
 		uint64_t	ip[2];
 
 		ip[0] = htonll(r->ip_router.V6[0]);
@@ -914,7 +942,7 @@ static void String_DstAddrPort(master_record_t *r, char *string) {
 char 	tmp_str[IP_STRING_LEN], portchar;
 
 	tmp_str[0] = 0;
-	if ( (r->flags & FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_ADDR) ) { // IPv6
 		uint64_t	ip[2];
 
 		ip[0] = htonll(r->V6.dstaddr[0]);
@@ -947,7 +975,7 @@ char tmp_str[IP_STRING_LEN];
 	ApplyNetMaskBits(r, 1);
 
 	tmp_str[0] = 0;
-	if ( (r->flags & FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_ADDR) ) { // IPv6
 		uint64_t	ip[2];
 
 		ip[0] = htonll(r->V6.srcaddr[0]);
@@ -978,7 +1006,7 @@ char tmp_str[IP_STRING_LEN];
 	ApplyNetMaskBits(r, 2);
 
 	tmp_str[0] = 0;
-	if ( (r->flags & FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_ADDR) ) { // IPv6
 		uint64_t	ip[2];
 
 		ip[0] = htonll(r->V6.dstaddr[0]);
@@ -1080,7 +1108,7 @@ static void String_Output(master_record_t *r, char *string) {
 static void String_InPackets(master_record_t *r, char *string) {
 char s[NUMBER_STRING_SIZE];
 
-	format_number(r->dPkts, s, printPlain, FIXED_WIDTH);
+	format_number(r->inPackets, s, printPlain, FIXED_WIDTH);
 	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
@@ -1098,7 +1126,7 @@ char s[NUMBER_STRING_SIZE];
 static void String_InBytes(master_record_t *r, char *string) {
 char s[NUMBER_STRING_SIZE];
 
-	format_number(r->dOctets, s, printPlain, FIXED_WIDTH);
+	format_number(r->inBytes, s, printPlain, FIXED_WIDTH);
 	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
@@ -1387,7 +1415,7 @@ uint64_t	bps;
 char s[NUMBER_STRING_SIZE];
 
 	if ( duration ) {
-		bps = (( r->dOctets << 3 ) / duration);	// bits per second. ( >> 3 ) -> * 8 to convert octets into bits
+		bps = (( r->inBytes << 3 ) / duration);	// bits per second. ( >> 3 ) -> * 8 to convert octets into bits
 	} else {
 		bps = 0;
 	}
@@ -1402,7 +1430,7 @@ uint64_t	pps;
 char s[NUMBER_STRING_SIZE];
 
 	if ( duration ) {
-		pps = r->dPkts / duration;				// packets per second
+		pps = r->inPackets / duration;				// packets per second
 	} else {
 		pps = 0;
 	}
@@ -1417,8 +1445,8 @@ uint32_t 	Bpp;
 
 	string[MAX_STRING_LENGTH-1] = '\0';
 
-	if ( r->dPkts ) 
-		Bpp = r->dOctets / r->dPkts;			// Bytes per Packet
+	if ( r->inPackets ) 
+		Bpp = r->inBytes / r->inPackets;			// Bytes per Packet
 	else 
 		Bpp = 0;
 	snprintf(string, MAX_STRING_LENGTH-1 ,"%6u", Bpp);
@@ -1438,14 +1466,14 @@ static void String_ExpSysID(master_record_t *r, char *string) {
 #ifdef NSEL
 static void String_nfc(master_record_t *r, char *string) {
 
- 	snprintf(string, MAX_STRING_LENGTH-1, "%10u", r->conn_id);
+ 	snprintf(string, MAX_STRING_LENGTH-1, "%10u", r->connID);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_nfc
 
 static void String_evt(master_record_t *r, char *string) {
 
-	if (r->fw_xevent) {
+	if (r->fwXevent) {
 		snprintf(string, MAX_STRING_LENGTH-1 ,"%7s", FwEventString(r->event));
 	} else {
 		snprintf(string, MAX_STRING_LENGTH-1 ,"%7s", EventString(r->event));
@@ -1455,7 +1483,7 @@ static void String_evt(master_record_t *r, char *string) {
 
 static void String_xevt(master_record_t *r, char *string) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%7s", EventXString(r->fw_xevent));
+	snprintf(string, MAX_STRING_LENGTH-1 ,"%7s", EventXString(r->fwXevent));
 
 } // End of String_xevt
 
@@ -1475,7 +1503,7 @@ static void String_msecEvent(master_record_t *r, char *string) {
 static void String_iacl(master_record_t *r, char *string) {
 
 	snprintf(string, MAX_STRING_LENGTH-1, "0x%-8x 0x%-8x 0x%-8x",
-		r->ingress_acl_id[0], r->ingress_acl_id[1], r->ingress_acl_id[2]);
+		r->ingressAcl[0], r->ingressAcl[1], r->ingressAcl[2]);
 	string[MAX_STRING_LENGTH-1] = 0;
 
 } // End of String_iacl
@@ -1483,7 +1511,7 @@ static void String_iacl(master_record_t *r, char *string) {
 static void String_eacl(master_record_t *r, char *string) {
 
 	snprintf(string, MAX_STRING_LENGTH-1, "%10u %10u %10u",
-		r->egress_acl_id[0], r->egress_acl_id[1], r->egress_acl_id[2]);
+		r->egressAcl[0], r->egressAcl[1], r->egressAcl[2]);
 
 	string[MAX_STRING_LENGTH-1] = 0;
 
@@ -1639,14 +1667,14 @@ static void String_userName(master_record_t *r, char *string) {
 
 static void String_ivrf(master_record_t *r, char *string) {
 
- 	snprintf(string, MAX_STRING_LENGTH-1, "%10u", r->ingress_vrfid);
+ 	snprintf(string, MAX_STRING_LENGTH-1, "%10u", r->ingressVrf);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_ivrf
 
 static void String_evrf(master_record_t *r, char *string) {
 
- 	snprintf(string, MAX_STRING_LENGTH-1, "%10u", r->egress_vrfid);
+ 	snprintf(string, MAX_STRING_LENGTH-1, "%10u", r->egressVrf);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_evrf

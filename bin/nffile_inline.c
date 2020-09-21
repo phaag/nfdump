@@ -78,11 +78,11 @@ uint32_t size = sizeof(recordHeaderV3_t);
 	void *eor = p + v3Record->size;
 
 	// set map ref
-	output_record->map_ref = NULL;
 	output_record->exp_ref = NULL;
 
 	output_record->size = v3Record->size;
 	output_record->flags = v3Record->flags;
+	output_record->mflags = 0;
 	output_record->exporter_sysid = v3Record->exporterID;
 	output_record->numElements = v3Record->numElements;
 	output_record->engine_type = v3Record->engineType;
@@ -111,9 +111,9 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
 				output_record->msecFirst  = genericFlow->msecFirst;
 				output_record->msecLast   = genericFlow->msecLast;
-				output_record->received	  = genericFlow->msecReceived;
-				output_record->dPkts	  = genericFlow->inPackets;
-				output_record->dOctets	  = genericFlow->inBytes;
+				output_record->msecReceived = genericFlow->msecReceived;
+				output_record->inPackets  = genericFlow->inPackets;
+				output_record->inBytes	  = genericFlow->inBytes;
 				output_record->srcPort	  = genericFlow->srcPort;
 				output_record->dstPort	  = genericFlow->dstPort;
 				output_record->proto	  = genericFlow->proto;
@@ -139,7 +139,7 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				output_record->V6.dstaddr[0] = ipv6Flow->dstAddr[0];
 				output_record->V6.dstaddr[1] = ipv6Flow->dstAddr[1];
 
-				SetFlag(output_record->flags, FLAG_IPV6_ADDR);
+				SetFlag(output_record->mflags, V3_FLAG_IPV6_ADDR);
 				} break;
 			case EXflowMiscID: {
 				EXflowMisc_t *flowMisc = (EXflowMisc_t *)((void *)elementHeader + sizeof(elementHeader_t));
@@ -155,8 +155,6 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				output_record->out_pkts	  = cntFlow->outPackets;
 				output_record->out_bytes  = cntFlow->outBytes;
 				output_record->aggr_flows = cntFlow->flows;
-				SetFlag(output_record->flags, FLAG_PKG_64);
-				SetFlag(output_record->flags, FLAG_BYTES_64);
 				} break;
 			case EXvLanID: {
 				EXvLan_t *vLan = (EXvLan_t *)((void *)elementHeader + sizeof(elementHeader_t));
@@ -173,39 +171,36 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				output_record->bgp_nexthop.V6[0] = 0;
 				output_record->bgp_nexthop.V6[1] = 0;
 				output_record->bgp_nexthop.V4	= bgpNextHopV4->ip;
-				ClearFlag(output_record->flags, FLAG_IPV6_NHB);
 				} break;
 			case EXbgpNextHopV6ID: {
 				EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
 				output_record->bgp_nexthop.V6[0] = bgpNextHopV6->ip[0];
 				output_record->bgp_nexthop.V6[1] = bgpNextHopV6->ip[1];
-				SetFlag(output_record->flags, FLAG_IPV6_NHB);
+				SetFlag(output_record->mflags, V3_FLAG_IPV6_NHB);
 				} break;
 			case EXipNextHopV4ID: {
 				EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
 				output_record->ip_nexthop.V6[0] = 0;
 				output_record->ip_nexthop.V6[1] = 0;
 				output_record->ip_nexthop.V4 = ipNextHopV4->ip;
-				ClearFlag(output_record->flags, FLAG_IPV6_NH);
 				} break;
 			case EXipNextHopV6ID: {
 				EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
 				output_record->ip_nexthop.V6[0] = ipNextHopV6->ip[0];
 				output_record->ip_nexthop.V6[1] = ipNextHopV6->ip[1];
-				SetFlag(output_record->flags, FLAG_IPV6_NH);
+				SetFlag(output_record->mflags, V3_FLAG_IPV6_NH);
 				} break;
 			case EXipReceivedV4ID: {
 				EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
 				output_record->ip_router.V6[0] = 0;
 				output_record->ip_router.V6[1] = 0;
 				output_record->ip_router.V4 = ipNextHopV4->ip;
-				ClearFlag(output_record->flags, FLAG_IPV6_EXP);
 				} break;
 			case EXipReceivedV6ID: {
 				EXipReceivedV6_t *ipNextHopV6 = (EXipReceivedV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
 				output_record->ip_router.V6[0] = ipNextHopV6->ip[0];
 				output_record->ip_router.V6[1] = ipNextHopV6->ip[1];
-				SetFlag(output_record->flags, FLAG_IPV6_EXP);
+				SetFlag(output_record->mflags, V3_FLAG_IPV6_EXP);
 				} break;
 			case EXmplsLabelID: {
 				EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)((void *)elementHeader + sizeof(elementHeader_t));
@@ -231,15 +226,13 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				output_record->server_nw_delay_usec = latency->usecServerNwDelay;
 				output_record->appl_latency_usec = latency->usecApplLatency;
 				} break;
-#ifdef NSEL
 			case EXnselCommonID: {
 				EXnselCommon_t *nselCommon = (EXnselCommon_t *)((void *)elementHeader + sizeof(elementHeader_t));
 				output_record->event_flag = FW_EVENT;
-				output_record->conn_id 	  = nselCommon->connID;
+				output_record->connID 	  = nselCommon->connID;
 				output_record->event   	  = nselCommon->fwEvent;
-				output_record->fw_xevent  = nselCommon->fwXevent;
-				output_record->event_time = nselCommon->msecEvent;
-				SetFlag(output_record->flags, FLAG_EVENT);
+				output_record->fwXevent	  = nselCommon->fwXevent;
+				output_record->msecEvent  = nselCommon->msecEvent;
 			} break;
 			case EXnselXlateIPv4ID: {
 				EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
@@ -264,20 +257,24 @@ uint32_t size = sizeof(recordHeaderV3_t);
 			} break;
 			case EXnselAclID: {
 				EXnselAcl_t *nselAcl = (EXnselAcl_t *)((void *)elementHeader + sizeof(elementHeader_t));
-				memcpy(output_record->ingress_acl_id, nselAcl->ingressAcl, 12);
-				memcpy(output_record->egress_acl_id, nselAcl->egressAcl, 12);
+				output_record->ingressAcl[0] = ntohl(nselAcl->ingressAcl[0]);
+				output_record->ingressAcl[1] = ntohl(nselAcl->ingressAcl[1]);
+				output_record->ingressAcl[2] = ntohl(nselAcl->ingressAcl[2]);
+				output_record->egressAcl[0] = ntohl(nselAcl->egressAcl[0]);
+				output_record->egressAcl[1] = ntohl(nselAcl->egressAcl[1]);
+				output_record->egressAcl[2] = ntohl(nselAcl->egressAcl[2]);
 			} break;
 			case EXnselUserID: {
 				EXnselUser_t *nselUser = (EXnselUser_t *)((void *)elementHeader + sizeof(elementHeader_t));
 				memcpy(output_record->username, nselUser->username, 66);
 			} break;
 			case EXnelCommonID: {
-				EXnelCommon_t *nelCommon = (EXnelCommon_t *)((void *)elementHeader + sizeof(elementHeader_t));
-				output_record->event_time = nelCommon->msecEvent;
+				EXnelCommon_t *nelCommon  = (EXnelCommon_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->msecEvent  = nelCommon->msecEvent;
 				output_record->event 	  = nelCommon->natEvent;
-				output_record->event_flag = FW_EVENT;
-				output_record->egress_vrfid  = nelCommon->egressVrf;
-				output_record->ingress_vrfid = nelCommon->ingressVrf;
+				output_record->event_flag = NAT_EVENT;
+				output_record->egressVrf  = nelCommon->egressVrf;
+				output_record->ingressVrf = nelCommon->ingressVrf;
 			} break;
 			case EXnelXlatePortID: {
 				EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)((void *)elementHeader + sizeof(elementHeader_t));
@@ -286,7 +283,6 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				output_record->block_step  = nelXlatePort->blockStep;
 				output_record->block_size  = nelXlatePort->blockSize;
 			} break;
-#endif
 			default:
 				fprintf(stderr, "Unknown extension '%u'\n", elementHeader->type);
 				skip = 1;
@@ -367,9 +363,9 @@ uint32_t required;
 				PushExtension(v3Record, EXgenericFlow, genericFlow);
 				genericFlow->msecFirst = master_record->msecFirst;
 				genericFlow->msecLast  = master_record->msecLast;
-				genericFlow->msecReceived = master_record->received;
-				genericFlow->inPackets	= master_record->dPkts;
-				genericFlow->inBytes	= master_record->dOctets;
+				genericFlow->msecReceived = master_record->msecReceived;
+				genericFlow->inPackets	= master_record->inPackets;
+				genericFlow->inBytes	= master_record->inBytes;
  				genericFlow->srcPort	= master_record->srcPort;
  				genericFlow->dstPort	= master_record->dstPort;
 				genericFlow->proto		= master_record->proto;
@@ -468,9 +464,9 @@ uint32_t required;
 #ifdef NSEL
 			case EXnselCommonID: {
 				PushExtension(v3Record, EXnselCommon, nselCommon);
-				nselCommon->msecEvent = master_record->event_time;
-				nselCommon->connID    = master_record->conn_id;
-				nselCommon->fwXevent  = master_record->fw_xevent;
+				nselCommon->msecEvent = master_record->msecEvent;
+				nselCommon->connID    = master_record->connID;
+				nselCommon->fwXevent  = master_record->fwXevent;
 				nselCommon->fwEvent   = master_record->event;
 				} break;
 			case EXnselXlateIPv4ID: {
@@ -490,8 +486,12 @@ uint32_t required;
 				} break;
 			case EXnselAclID: {
 				PushExtension(v3Record, EXnselAcl, nselAcl);
-				memcpy(nselAcl->ingressAcl, master_record->ingress_acl_id, 12);
-				memcpy(nselAcl->egressAcl, master_record->egress_acl_id, 12);
+				nselAcl->ingressAcl[0] = htonl(master_record->ingressAcl[0]);
+				nselAcl->ingressAcl[1] = htonl(master_record->ingressAcl[1]);
+				nselAcl->ingressAcl[2] = htonl(master_record->ingressAcl[2]);
+				nselAcl->egressAcl[0] = htonl(master_record->egressAcl[0]);
+				nselAcl->egressAcl[1] = htonl(master_record->egressAcl[1]);
+				nselAcl->egressAcl[2] = htonl(master_record->egressAcl[2]);
 				} break;
 			case EXnselUserID: {
 				PushExtension(v3Record, EXnselUser, nselUser);
@@ -500,10 +500,10 @@ uint32_t required;
 				} break;
 			case EXnelCommonID: {
 				PushExtension(v3Record, EXnelCommon, nelCommon);
-				nelCommon->msecEvent  = master_record->event_time;
+				nelCommon->msecEvent  = master_record->msecEvent;
 				nelCommon->natEvent   = master_record->event;
-				nelCommon->egressVrf  = master_record->egress_vrfid;
-				nelCommon->ingressVrf = master_record->ingress_vrfid;
+				nelCommon->egressVrf  = master_record->egressVrf;
+				nelCommon->ingressVrf = master_record->ingressVrf;
 				} break;
 			case EXnelXlatePortID: {
 				PushExtension(v3Record, EXnelXlatePort, nelXlatePort);

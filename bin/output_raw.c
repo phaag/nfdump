@@ -46,7 +46,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "output_util.h"
 #include "output_raw.h"
@@ -79,8 +78,8 @@ char datestr1[64], datestr2[64], datestr3[64];
 		strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
 	}
 
-	if ( r->received ) {
-		when = r->received / 1000LL;
+	if ( r->msecReceived ) {
+		when = r->msecReceived / 1000LL;
 		ts = localtime(&when);
 		strftime(datestr3, 63, "%Y-%m-%d %H:%M:%S", ts);
 	} else {
@@ -96,7 +95,7 @@ char datestr1[64], datestr2[64], datestr3[64];
 "  tcp flags    =              0x%.2x %s\n"
 , (long long unsigned)r->msecFirst, datestr1, r->msecFirst % 1000LL
 , (long long unsigned)r->msecLast, datestr2, r->msecLast % 1000LL
-, (long long unsigned)r->received, datestr3, (long long unsigned)r->received % 1000L
+, (long long unsigned)r->msecReceived, datestr3, (long long unsigned)r->msecReceived % 1000L
 , r->proto, ProtoString(r->proto, 0), r->tcp_flags, FlagsString(r->tcp_flags));
 	s += len;
 	size -= len;
@@ -118,7 +117,7 @@ char datestr1[64], datestr2[64], datestr3[64];
 	snprintf(s, size-1,
 "  in packets   =        %10llu\n"
 "  in bytes     =        %10llu\n"
-	, (unsigned long long)r->dPkts, (unsigned long long)r->dOctets);
+	, (unsigned long long)r->inPackets, (unsigned long long)r->inBytes);
 
 } // End of EXgenericFlowID
 
@@ -160,7 +159,7 @@ uint64_t dst[2];
 static void stringsEXflowMisc(char *s, size_t size, master_record_t *r) {
 char snet[IP_STRING_LEN], dnet[IP_STRING_LEN];
 
-	if ( TestFlag(r->flags,FLAG_IPV6_ADDR ) != 0 ) {
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {
 		// IPv6
 		inet6_ntop_mask(r->V6.srcaddr, r->src_mask, snet, sizeof(snet));
  		inet6_ntop_mask(r->V6.dstaddr, r->dst_mask, dnet, sizeof(dnet));
@@ -359,11 +358,10 @@ double f1, f2, f3;
 
 } // End of stringsEXlatency
 
-#ifdef NSEL
 static void stringsEXnselCommon(char *s, size_t size, master_record_t *r) {
 char datestr[64];
 
-	time_t when = r->event_time / 1000LL;
+	time_t when = r->msecEvent / 1000LL;
 	if ( when == 0 ) {
 		strncpy(datestr, "<unknown>", 63);
 	} else {
@@ -375,10 +373,10 @@ char datestr[64];
 "  fw event     =             %5u: %s\n"
 "  fw ext event =             %5u: %s\n"
 "  Event time   =     %13llu [%s.%03llu]\n"
-, r->conn_id, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event)
-, r->fw_xevent, EventXString(r->fw_xevent)
-, (long long unsigned)r->event_time, datestr
-, (long long unsigned)(r->event_time % 1000L));
+, r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event)
+, r->fwXevent, EventXString(r->fwXevent)
+, (long long unsigned)r->msecEvent, datestr
+, (long long unsigned)(r->msecEvent % 1000L));
 
 } // End of stringsEXnselCommon
 
@@ -428,8 +426,8 @@ static void stringsEXnselAcl(char *s, size_t size, master_record_t *r) {
 	snprintf(s, size-1,
 "  Ingress ACL  =       0x%x/0x%x/0x%x\n"
 "  Egress ACL   =       0x%x/0x%x/0x%x\n"
-, r->ingress_acl_id[0], r->ingress_acl_id[1], r->ingress_acl_id[2], 
-  r->egress_acl_id[0], r->egress_acl_id[1], r->egress_acl_id[2]);
+, r->ingressAcl[0], r->ingressAcl[1], r->ingressAcl[2], 
+  r->egressAcl[0], r->egressAcl[1], r->egressAcl[2]);
 
 } // End of stringsEXnselAcl
 
@@ -443,7 +441,7 @@ static void stringsEXnselUserID(char *s, size_t size, master_record_t *r) {
 static void stringsEXnelCommon(char *s, size_t size, master_record_t *r) {
 char datestr[64];
 
-	time_t when = r->event_time / 1000LL;
+	time_t when = r->msecEvent / 1000LL;
 	if ( when == 0 ) {
 		strncpy(datestr, "<unknown>", 63);
 	} else {
@@ -456,9 +454,8 @@ char datestr[64];
 "  ingress VRF  =        %10u\n"
 "  egress VRF   =        %10u\n"
 , r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event)
-, (long long unsigned)r->event_time, datestr , (long long unsigned)(r->event_time % 1000L)
-, r->ingress_vrfid, r->egress_vrfid);
-
+, (long long unsigned)r->msecEvent, datestr , (long long unsigned)(r->msecEvent % 1000L)
+, r->ingressVrf, r->egressVrf);
 
 } // End of stringsEXnelCommon
 
@@ -472,8 +469,6 @@ static void stringsEXnelXlatePort(char *s, size_t size, master_record_t *r) {
 , r->block_start, r->block_end, r->block_step, r->block_size );
 
 } // End of stringsEXnelXlatePort
-
-#endif
 
 void raw_prolog(void) {
 	recordCount = 0;
@@ -495,18 +490,40 @@ char elementString[MAXELEMENTS * 5];
 		snprintf(elementString + strlen(elementString), sizeof(elementString) - strlen(elementString), "%u ", r->exElementList[i]);
 	}
 
+	char *type;
+	char version[8];
+	if ( TestFlag(r->flags, V3_FLAG_EVENT)) {
+		type = "EVENT";
+		version[0] = '\0';
+	} else {
+		if ( r->nfversion != 0 ) {
+			snprintf(version, 8, " v%u", r->nfversion & 0x0F);
+			if ( r->nfversion & 0x80 ) {
+				type = "SFLOW";
+			} else if ( r->nfversion & 0x40 ) {
+				type = "PCAP";
+			} else {
+				type = "NETFLOW";
+			}
+		} else {
+			// compat with previous versions
+			type = "FLOW";
+			version[0] = '\0';
+		}
+	}
+
 	_s = data_string;
 	slen = STRINGSIZE;
 	snprintf(_s, slen-1, "\n"
 "Flow Record: \n"
-"  Flags        =              0x%.2x %s, %s\n"
+"  Flags        =              0x%.2x %s%s, %s\n"
 "  Elements     =             %5u: %s\n"
 "  size         =             %5u\n"
 "  engine type  =             %5u\n"
 "  engine ID    =             %5u\n"
 "  export sysid =             %5u\n"
-,	r->flags, TestFlag(r->flags, FLAG_EVENT) ? "EVENT" : "FLOW", 
-	TestFlag(r->flags, FLAG_SAMPLED) ? "Sampled" : "Unsampled", 
+,	r->flags, type, version,
+	TestFlag(r->flags, V3_FLAG_SAMPLED) ? "Sampled" : "Unsampled", 
 	r->numElements, elementString, r->size, r->engine_type, r->engine_id, r->exporter_sysid);
 
 	int i = 0;
@@ -569,7 +586,6 @@ char elementString[MAXELEMENTS * 5];
 			case EXlatencyID:
 				stringsEXlatency(_s, slen, r);
 				break;
-#ifdef NSEL
 			case EXnselCommonID:
 				stringsEXnselCommon(_s, slen, r);
 				break;
@@ -594,7 +610,6 @@ char elementString[MAXELEMENTS * 5];
 			case EXnelXlatePortID:
 				stringsEXnelXlatePort(_s, slen, r);
 				break;
-#endif
 			default:
 				dbg_printf("Extension %i not yet implemented\n", r->exElementList[i]);
 		}

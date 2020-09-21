@@ -70,7 +70,6 @@ void insert_sort(SortRecord_t* left, SortRecord_t* right) {
     }
 }
 
-
 static void partition(SortRecord_t *left0, SortRecord_t *right0, 
 		SortRecord_t **l1, SortRecord_t **r1, 
 		SortRecord_t **l2, SortRecord_t **r2) {

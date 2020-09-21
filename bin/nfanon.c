@@ -54,7 +54,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "exporter.h"
 #include "flist.h"
@@ -86,7 +85,7 @@ static void usage(char *name) {
 
 static inline void AnonRecord(master_record_t *master_record) {
 
-	if ( (master_record->flags & FLAG_IPV6_ADDR) != 0 )	{ // IPv6
+	if ( TestFlag(master_record->mflags, V3_FLAG_IPV6_ADDR ) != 0 ) {
 		// IPv6
 		uint64_t    anon_ip[2];
 		anonymize_v6(master_record->V6.srcaddr, anon_ip);

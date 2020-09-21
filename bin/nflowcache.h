@@ -39,7 +39,6 @@
 #include <stdint.h>
 #endif
 
-#include "nfx.h"
 #include "nffile.h"
 #include "output_util.h"
 
@@ -75,12 +74,12 @@ uint32_t _tmp;	\
 	(r)->input = (r)->output;	\
 	(r)->output = _tmp;	\
 	\
-	_tmp_l = (r)->dPkts;	\
-	(r)->dPkts = (r)->out_pkts;	\
+	_tmp_l = (r)->inPackets;	\
+	(r)->inPackets = (r)->out_pkts;	\
 	(r)->out_pkts = _tmp_l;	\
 	\
-	_tmp_l = (r)->dOctets;	\
-	(r)->dOctets = (r)->out_bytes;	\
+	_tmp_l = (r)->inBytes;	\
+	(r)->inBytes = (r)->out_bytes;	\
 	(r)->out_bytes = _tmp_l;	\
 }
 
@@ -95,9 +94,9 @@ void Dispose_FlowTable(void);
 
 int Parse_PrintOrder(char *order);
 
-int ParseAggregateMask( char *arg, char **aggr_fmt  );
+char *ParseAggregateMask(char *arg);
 
-int SetBidirAggregation( void );
+int SetBidirAggregation(void);
 
 void Add_FlowStatOrder(uint32_t order, uint32_t direction);
 

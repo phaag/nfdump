@@ -45,7 +45,7 @@
 
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
+#include "nfxV3.h"
 #include "output_pipe.h"
 
 #define STRINGSIZE 10240
@@ -70,7 +70,7 @@ uint32_t	sa[4], da[4];
 int			af;
 master_record_t *r = (master_record_t *)record;
 
-	if ( (r->flags & FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_ADDR ) != 0 ) {
 		af = PF_INET6;
 	} else {	// IPv4
 		af = PF_INET;
@@ -91,7 +91,7 @@ master_record_t *r = (master_record_t *)record;
 		af, (long long unsigned)r->msecFirst, (long long unsigned)r->msecLast, r->proto, 
 		sa[0], sa[1], sa[2], sa[3], r->srcPort, da[0], da[1], da[2], da[3], r->dstPort, 
 		r->srcas, r->dstas, r->input, r->output,
-		r->tcp_flags, r->tos, (unsigned long long)r->dPkts, (unsigned long long)r->dOctets);
+		r->tcp_flags, r->tos, (unsigned long long)r->inPackets, (unsigned long long)r->inBytes);
 
 	data_string[STRINGSIZE-1] = 0;
 

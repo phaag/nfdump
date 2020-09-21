@@ -66,11 +66,17 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nftree.h"
 #include "filter.h"
 
-/* Global Variables */
+typedef struct value64_s {
+    union val_s {
+        uint64_t    val64;
+        uint32_t    val32[2];
+    } val;
+    uint8_t     data[4];    // .. more data below
+} value64_t;
+
 static char *CurrentIdent;
 static FilterEngine_t *Engine;
 
@@ -78,8 +84,6 @@ static FilterEngine_t *Engine;
 static int check_filter_block(char *filter, master_record_t *flow_record, int expect);
 
 static void check_offset(char *text, pointer_addr_t offset, pointer_addr_t expect);
-
-static void CheckCompression(char *filename);
 
 static int check_filter_block(char *filter, master_record_t *flow_record, int expect) {
 int ret, i;
@@ -123,86 +127,6 @@ static void check_offset(char *text, pointer_addr_t offset, pointer_addr_t expec
 	}
 }
 
-static void CheckCompression(char *filename) {
-nffile_t	*nffile_w, *nffile_r;
-int i, compress, bsize;
-ssize_t	ret;
-char outfile[MAXPATHLEN];
-struct timeval  	tstart[4];
-struct timeval  	tend[4];
-u_long usec, sec;
-double wall[4];
-uint32_t recsize[4];
-
-	nffile_r = OpenFile(filename, NULL);
-	if ( !nffile_r ) {
-		return;
-	}
-	
-	ret = ReadBlock(nffile_r);
-	if ( ret < 0 ) {
-		CloseFile(nffile_r);
-		DisposeFile(nffile_r);
-		return;
-	}
-	CloseFile(nffile_r);
-
-	// tmp filename for new output file
-	snprintf(outfile, MAXPATHLEN, "%s-tmp", filename);
-	outfile[MAXPATHLEN-1] = '\0';
-	nffile_w = NULL;
-
-	bsize = nffile_r->block_header->size;
-	for ( compress=NOT_COMPRESSED; compress<=LZ4_COMPRESSED; compress++ ) {
-		int wsize;
-		nffile_w = OpenNewFile(outfile, nffile_w, compress, NOT_ENCRYPTED);
-		if ( !nffile_w ) {
-			DisposeFile(nffile_r);
-        	return;
-    	}
-		// fill buffer
-		memcpy(nffile_w->buff_pool[0], nffile_r->buff_pool[0], nffile_r->buff_size);
-		gettimeofday(&(tstart[compress]), (struct timezone*)NULL);
-		for ( i=0; i<100; i++ ) {
-			nffile_w->block_header->size = bsize;
-			wsize = WriteBlock(nffile_w);
-			if ( wsize <= 0 ) {
-				fprintf(stderr, "Failed to write output buffer to disk: '%s'" , strerror(errno));
-				// Cleanup
-				CloseFile(nffile_w);
-				DisposeFile(nffile_w);
-				DisposeFile(nffile_r);
-				unlink(outfile);
-				return;
-			}
-		}
-		gettimeofday(&(tend[compress]), (struct timezone*)NULL);
-
-		// Cleanup
-		CloseFile(nffile_w);
-		unlink(outfile);
-
-		if (tend[compress].tv_usec < tstart[compress].tv_usec) 
-			tend[compress].tv_usec += 1000000, --tend[compress].tv_sec;
-
-		usec = tend[compress].tv_usec - tstart[compress].tv_usec;
-		sec  = tend[compress].tv_sec - tstart[compress].tv_sec;
-
-		wall[compress] = (double)sec + ((double)usec)/1000000;
-		recsize[compress] = wsize;
-	}
-
-	DisposeFile(nffile_r);
-	DisposeFile(nffile_w);
-
-	printf("100 write cycles, with size %u bytes\n", bsize);
-	printf("Uncompressed write time: %-.6fs size: %u, 1:%-.3f\n", wall[0], recsize[0], (double)recsize[0]/(double)bsize );
-	printf("LZO compressed write time  : %-.6fs size: %d, 1:%-.3f\n", wall[1], (int32_t)recsize[1], (double)recsize[1]/(double)bsize );
-	printf("LZ4 compressed write time  : %-.6fs size: %d, 1:%-.3f\n", wall[1], (int32_t)recsize[1], (double)recsize[1]/(double)bsize );
-	printf("BZ2 compressed write time  : %-.6fs size: %d, 1:%-.3f\n", wall[2], (int32_t)recsize[2], (double)recsize[2]/(double)bsize );
-
-} // End of CheckCompression
-
 int main(int argc, char **argv) {
 master_record_t flow_record;
 uint64_t *blocks, l;
@@ -234,12 +158,6 @@ value64_t	v;
 		exit(255);
 	}
 
-	if ( argc == 2 ) {
-		CheckCompression(argv[1]);
-		exit(0);
-	}
-
-
 	memset((void *)&flow_record, 0, sizeof(master_record_t));
 	blocks = (uint64_t *)&flow_record;
 
@@ -251,8 +169,8 @@ value64_t	v;
 	check_offset("Flags    Offset", (unsigned int)((pointer_addr_t)&flow_record.tcp_flags	- (pointer_addr_t)&blocks[OffsetFlags]), 5);
 	check_offset("Protocol Offset", (unsigned int)((pointer_addr_t)&flow_record.proto    	- (pointer_addr_t)&blocks[OffsetProto]), 6);
 	check_offset("tos      Offset", (unsigned int)((pointer_addr_t)&flow_record.tos     	- (pointer_addr_t)&blocks[OffsetTos]), 7);
-	check_offset("packets  Offset", (unsigned int)((pointer_addr_t)&flow_record.dPkts     	- (pointer_addr_t)&blocks[OffsetPackets]), 0);
-	check_offset("bytes    Offset", (unsigned int)((pointer_addr_t)&flow_record.dOctets     - (pointer_addr_t)&blocks[OffsetBytes]), 0);
+	check_offset("packets  Offset", (unsigned int)((pointer_addr_t)&flow_record.inPackets  	- (pointer_addr_t)&blocks[OffsetPackets]), 0);
+	check_offset("bytes    Offset", (unsigned int)((pointer_addr_t)&flow_record.inBytes     - (pointer_addr_t)&blocks[OffsetBytes]), 0);
 
 #ifdef HAVE_SIZE_T_Z_FORMAT
 	printf("Pointer  Size : %zu\n", sizeof(blocks));
@@ -696,7 +614,7 @@ value64_t	v;
 	/* 
 	 * 172.32.7.17 => 0xac200711
 	 */
-	flow_record.dPkts = 1000;
+	flow_record.inPackets = 1000;
 	ret = check_filter_block("packets 1000", &flow_record, 1);
 	ret = check_filter_block("packets = 1000", &flow_record, 1);
 	ret = check_filter_block("packets 1010", &flow_record, 0);
@@ -704,7 +622,7 @@ value64_t	v;
 	ret = check_filter_block("packets > 110", &flow_record, 1);
 	ret = check_filter_block("in packets 1000", &flow_record, 1);
 
-	flow_record.dOctets = 2000;
+	flow_record.inBytes = 2000;
 	ret = check_filter_block("bytes 2000", &flow_record, 1);
 	ret = check_filter_block("bytes  = 2000", &flow_record, 1);
 	ret = check_filter_block("bytes 2010", &flow_record, 0);
@@ -712,15 +630,15 @@ value64_t	v;
 	ret = check_filter_block("bytes > 210", &flow_record, 1);
 	ret = check_filter_block("in bytes  = 2000", &flow_record, 1);
 
-	flow_record.dOctets = 2000;
+	flow_record.inBytes = 2000;
 	ret = check_filter_block("bytes 2k", &flow_record, 1);
 	ret = check_filter_block("bytes < 2k", &flow_record, 0);
 	ret = check_filter_block("bytes > 2k", &flow_record, 0);
-	flow_record.dOctets *= 1000;
+	flow_record.inBytes *= 1000;
 	ret = check_filter_block("bytes 2m", &flow_record, 1);
 	ret = check_filter_block("bytes < 2m", &flow_record, 0);
 	ret = check_filter_block("bytes > 2m", &flow_record, 0);
-	flow_record.dOctets *= 1000;
+	flow_record.inBytes *= 1000;
 	ret = check_filter_block("bytes 2g", &flow_record, 1);
 	ret = check_filter_block("bytes < 2g", &flow_record, 0);
 	ret = check_filter_block("bytes > 2g", &flow_record, 0);
@@ -760,7 +678,7 @@ value64_t	v;
 	flow_record.msecLast  = 1089534610LL * 1000LL;		/* 2004-07-11 10:30:10 */
 
 	/* duration 10s */
-	flow_record.dPkts = 1000;
+	flow_record.inPackets = 1000;
 	ret = check_filter_block("duration == 10000", &flow_record, 1);
 	ret = check_filter_block("duration < 10001", &flow_record, 1);
 	ret = check_filter_block("duration > 9999", &flow_record, 1);
@@ -775,7 +693,7 @@ value64_t	v;
 	ret = check_filter_block("pps > 100", &flow_record, 0);
 	ret = check_filter_block("pps < 100", &flow_record, 0);
 
-	flow_record.dOctets = 1000;
+	flow_record.inBytes = 1000;
 	ret = check_filter_block("bps == 800", &flow_record, 1);
 	ret = check_filter_block("bps < 801", &flow_record, 1);
 	ret = check_filter_block("bps > 799", &flow_record, 1);
@@ -783,7 +701,7 @@ value64_t	v;
 	ret = check_filter_block("bps > 800", &flow_record, 0);
 	ret = check_filter_block("bps < 800", &flow_record, 0);
 
-	flow_record.dOctets = 20000;
+	flow_record.inBytes = 20000;
 	ret = check_filter_block("bps > 1k", &flow_record, 1);
 	ret = check_filter_block("bps > 15k", &flow_record, 1);
 	ret = check_filter_block("bps > 16k", &flow_record, 0);
@@ -993,14 +911,14 @@ value64_t	v;
 	ret = check_filter_block("asa event > 2", &flow_record, 1);
 	ret = check_filter_block("asa event > 3", &flow_record, 0);
 
-	flow_record.fw_xevent = 1001;
+	flow_record.fwXevent = 1001;
 	ret = check_filter_block("asa event denied ingress", &flow_record, 1);
 	ret = check_filter_block("asa event denied egress", &flow_record, 0);
-	flow_record.fw_xevent = 1002;
+	flow_record.fwXevent = 1002;
 	ret = check_filter_block("asa event denied egress", &flow_record, 1);
-	flow_record.fw_xevent = 1003;
+	flow_record.fwXevent = 1003;
 	ret = check_filter_block("asa event denied interface", &flow_record, 1);
-	flow_record.fw_xevent = 1004;
+	flow_record.fwXevent = 1004;
 	ret = check_filter_block("asa event denied nosyn", &flow_record, 1);
 	ret = check_filter_block("asa event denied ingress", &flow_record, 0);
 	flow_record.event = NSEL_EVENT_CREATE;
@@ -1064,13 +982,13 @@ value64_t	v;
 	flow_record.xlate_src_port = 0xffff;
 	flow_record.xlate_dst_port = 0xffff;
 
-	flow_record.ingress_acl_id[0] = 0xaabbcc;
-	flow_record.ingress_acl_id[1] = 0xbbccdd;
-	flow_record.ingress_acl_id[2] = 0xccddee;
+	flow_record.ingressAcl[0] = 0xaabbcc;
+	flow_record.ingressAcl[1] = 0xbbccdd;
+	flow_record.ingressAcl[2] = 0xccddee;
 
-	flow_record.egress_acl_id[0] = 0x112233;
-	flow_record.egress_acl_id[1] = 0x223344;
-	flow_record.egress_acl_id[2] = 0x334455;
+	flow_record.egressAcl[0] = 0x112233;
+	flow_record.egressAcl[1] = 0x223344;
+	flow_record.egressAcl[2] = 0x334455;
 
 	ret = check_filter_block("ingress ACL 0xaabbcc", &flow_record, 1);
 	flow_record.event = 255;
@@ -1091,11 +1009,11 @@ value64_t	v;
 	ret = check_filter_block("nat event > 2", &flow_record, 0);
 	flow_record.event = 255;
 
-	flow_record.ingress_vrfid = 0xAAAA;
+	flow_record.ingressVrf = 0xAAAA;
 	ret = check_filter_block("ingress vrf 0xAAAA", &flow_record, 1);
 	ret = check_filter_block("ingress vrf 100", &flow_record, 0);
 
-	flow_record.egress_vrfid = 0xBBBB;
+	flow_record.egressVrf = 0xBBBB;
 	ret = check_filter_block("egress vrf 0xBBBB", &flow_record, 1);
 	ret = check_filter_block("egress vrf 0xAAAA", &flow_record, 0);
 
@@ -1145,7 +1063,6 @@ value64_t	v;
 	flow_record.dstPort = 1111;
 	ret = check_filter_block("dst port in pblock", &flow_record, 1);
 	ret = check_filter_block("port in pblock", &flow_record, 1);
-exit(0);
 
 	flow_record.dstPort = 2222;
 	ret = check_filter_block("dst port in pblock", &flow_record, 1);
@@ -1156,7 +1073,7 @@ exit(0);
 	ret = check_filter_block("port in pblock", &flow_record, 0);
 
 	flow_record.srcPort = 1234;
-	flow_record.srcPort = 2134;
+	flow_record.dstPort = 2134;
 	ret = check_filter_block("src port in pblock", &flow_record, 1);
 	ret = check_filter_block("dst port in pblock", &flow_record, 1);
 	ret = check_filter_block("port in pblock", &flow_record, 1);
@@ -1190,6 +1107,12 @@ exit(0);
 	ret = check_filter_block("nip 10.10.10.11", &flow_record, 1);
 	ret = check_filter_block("nip 172.32.7.15", &flow_record, 0);
 	ret = check_filter_block("nip 10.10.10.12", &flow_record, 0);
+	ret = check_filter_block("src nip in [ 172.32.7.16] ", &flow_record, 1);
+	ret = check_filter_block("src nip in [ 172.32.7.15] ", &flow_record, 0);
+	ret = check_filter_block("dst nip in [ 10.10.10.11] ", &flow_record, 1);
+	ret = check_filter_block("dst nip in [ 10.10.10.12] ", &flow_record, 0);
+	ret = check_filter_block("nip in [ 10.10.10.11] ", &flow_record, 1);
+	ret = check_filter_block("nip in [ 172.32.7.16] ", &flow_record, 1);
 
 	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.xlate_src_ip.V6);
 	flow_record.xlate_src_ip.V6[0] = ntohll(flow_record.xlate_src_ip.V6[0]);

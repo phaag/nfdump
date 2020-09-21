@@ -586,7 +586,7 @@ uint64_t		duration;
 	if ( duration == 0 )
 		comp_values[0] = 0;
 	else 
-		comp_values[0] = ( 1000LL * record->dPkts ) / duration;
+		comp_values[0] = ( 1000LL * record->inPackets ) / duration;
 
 } // End of pps_function
 
@@ -599,14 +599,14 @@ uint64_t		duration;
 	if ( duration == 0 )
 		comp_values[0] = 0;
 	else 
-		comp_values[0] = ( 8000LL * record->dOctets ) / duration;	/* 8 bits per Octet - x 1000 for msec */
+		comp_values[0] = ( 8000LL * record->inBytes ) / duration;	/* 8 bits per Octet - x 1000 for msec */
 
 } // End of bps_function
 
 static inline void bpp_function(uint64_t *record_data, uint64_t *comp_values) {
 master_record_t *record = (master_record_t *)record_data;
 
-	comp_values[0] = record->dPkts ? record->dOctets / record->dPkts : 0;
+	comp_values[0] = record->inPackets ? record->inBytes / record->inPackets : 0;
 
 } // End of bpp_function
 

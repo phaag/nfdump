@@ -61,8 +61,8 @@ typedef struct fileHeaderV2_s {
 	uint16_t	version;			// version of binary file layout
 #define LAYOUT_VERSION_2	2
 
-	uint32_t	nfversion;			// version of nfdump created this file
-#define NFVERSION 0x010700FF
+	uint32_t	nfdversion;			// version of nfdump created this file
+#define NFDVERSION 0x010700FF
 									// 4bytes 1.6.19-1 0x01061301 
 	time_t		created;			// file create time
 

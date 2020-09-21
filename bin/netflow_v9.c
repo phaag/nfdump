@@ -45,30 +45,21 @@
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 #endif
-#define DEVEL 1
+
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "nfxV3.h"
 #include "nfnet.h"
 #include "output_raw.h"
 #include "bookkeeper.h"
 #include "collector.h"
+#include "fnf.h"
 #include "exporter.h"
+#include "nbar.h"
 #include "netflow_v9.h"
 
 // a few handy macros
-#define GET_FLOWSET_ID(p) 	  (Get_val16(p))
-#define GET_FLOWSET_LENGTH(p) (Get_val16((void *)((p) + 2)))
-
-#define GET_TEMPLATE_ID(p) 	  (Get_val16(p))
-#define GET_TEMPLATE_COUNT(p) (Get_val16((void *)((p) + 2)))
-
-#define GET_OPTION_TEMPLATE_ID(p) 	  		  		 (Get_val16(p))
-#define GET_OPTION_TEMPLATE_OPTION_SCOPE_LENGTH(p)   (Get_val16((void *)((p) + 2)))
-#define GET_OPTION_TEMPLATE_OPTION_LENGTH(p)   		 (Get_val16((void *)((p) + 4)))
-
 #include "inline.c"
 
 static int printRecord;
@@ -170,6 +161,10 @@ static const struct v9TranslationMap_s {
 	{ NF9_SRC_MASK,               SIZEsrcMask,      EXflowMiscID,      OFFsrcMask, STACK_NONE, "src mask IPv4" },
 	{ NF9_INPUT_SNMP,             SIZEinput,        EXflowMiscID,	   OFFinput, STACK_NONE, "input interface" },
 	{ NF9_L4_DST_PORT,            SIZEdstPort,      EXgenericFlowID,   OFFdstPort, STACK_DSTPORT, "dst port" },
+	{ NF_F_ICMP_TYPE,        	  SIZEicmpType,     EXgenericFlowID,   OFFicmpType, STACK_NONE, "icmp type" },
+	{ NF_F_ICMP_TYPE_IPV6,        SIZEicmpType,     EXgenericFlowID,   OFFicmpType, STACK_NONE, "icmp type" },
+	{ NF_F_ICMP_CODE,        	  SIZEicmpCode,     EXgenericFlowID,   OFFicmpCode, STACK_NONE, "icmp code" },
+	{ NF_F_ICMP_CODE_IPV6,        SIZEicmpCode,     EXgenericFlowID,   OFFicmpCode, STACK_NONE, "icmp code" },
 	{ NF9_IPV4_DST_ADDR,          SIZEdst4Addr,     EXipv4FlowID,      OFFdst4Addr, STACK_NONE, "dst IPv4" },
 	{ NF9_DST_MASK,               SIZEdstMask,      EXflowMiscID,      OFFdstMask, STACK_NONE, "dst mask IPv4" },
 	{ NF9_OUTPUT_SNMP,            SIZEoutput,       EXflowMiscID, 	   OFFoutput, STACK_NONE, "output interface" },
@@ -499,7 +494,7 @@ templateList_t *template;
 
 } // End of newTemplate
 
-static void removeTemplate(FlowSource_t *fs, exporterDomain_t *exporter, uint16_t id) {
+static void __attribute__((unused)) removeTemplate(FlowSource_t *fs, exporterDomain_t *exporter, uint16_t id) {
 templateList_t *template, *parent;
 
 	LogInfo("Process_v9: [%u] Withdraw template id: %i", 
@@ -537,7 +532,7 @@ templateList_t *template, *parent;
 
 } // End of removeTemplate
 
-static void removeAllTemplates(exporterDomain_t *exporter) {
+static void __attribute__((unused)) removeAllTemplates(exporterDomain_t *exporter) {
 templateList_t *template;
 
 	LogInfo("Process_v9: Withdraw all templates from observation domain %u\n", 
@@ -757,8 +752,8 @@ samplerOption_t *samplerOption;
 	size_left 		= GET_FLOWSET_LENGTH(option_template_flowset) - 4; // -4 for flowset header -> id and length
 	option_template = option_template_flowset + 4;
 	tableID			= GET_OPTION_TEMPLATE_ID(option_template); 
-	scope_length 	= GET_OPTION_TEMPLATE_OPTION_SCOPE_LENGTH(option_template);
-	option_length 	= GET_OPTION_TEMPLATE_OPTION_LENGTH(option_template);
+	scope_length 	= GET_OPTION_TEMPLATE_FIELD_COUNT(option_template);
+	option_length 	= GET_OPTION_TEMPLATE_SCOPE_FIELD_COUNT(option_template);
 
 	if ( scope_length & 0x3 ) {
 		LogError( "Process_v9: [%u] scope length error: length %u not multiple of 4", 
@@ -1028,6 +1023,7 @@ uint8_t				*inBuff;
 		recordHeaderV3->engineType	= ( exporter->info.id >> 8 ) & 0xFF;
 		recordHeaderV3->engineID	= exporter->info.id & 0xFF;
 		recordHeaderV3->flags		= 0;
+		recordHeaderV3->nfversion	= 9;
 		recordHeaderV3->exporterID	= exporter->info.sysid;
 		recordHeaderV3->size		= sizeof(recordHeaderV3_t) + sequencer->outLength;
 		recordHeaderV3->numElements	= sequencer->numElements;
@@ -1101,7 +1097,7 @@ uint8_t				*inBuff;
 			}
 		}
 		if ( sampling_rate != 1 )
-			SetFlag(recordHeaderV3->flags, FLAG_SAMPLED);
+			SetFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED);
 
 		// add router IP
 		if ( fs->sa_family == PF_INET6 ) {
@@ -1132,7 +1128,7 @@ uint8_t				*inBuff;
 			if ( sampling_rate > 1 ) {
   				genericFlow->inPackets *= (uint64_t)sampling_rate;
   				genericFlow->inBytes   *= (uint64_t)sampling_rate;
-				SetFlag(recordHeaderV3->flags, FLAG_SAMPLED);
+				SetFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED);
 			}
 
 			switch (genericFlow->proto) {
@@ -1157,12 +1153,14 @@ uint8_t				*inBuff;
 					fs->nffile->stat_record->numflows_tcp++;
 					fs->nffile->stat_record->numpackets_tcp += genericFlow->inPackets;
 					fs->nffile->stat_record->numbytes_tcp   += genericFlow->inBytes;
+					// make sure dst port wins if ICMP type/code and TCP/UDP port is sent
 					genericFlow->dstPort = stack[STACK_DSTPORT];
 					break;
 				case IPPROTO_UDP:
 					fs->nffile->stat_record->numflows_udp++;
 					fs->nffile->stat_record->numpackets_udp += genericFlow->inPackets;
 					fs->nffile->stat_record->numbytes_udp   += genericFlow->inBytes;
+					// make sure dst port wins if ICMP type/code and TCP/UDP port is sent
 					genericFlow->dstPort = stack[STACK_DSTPORT];
 					break;
 				default:
@@ -1826,9 +1824,9 @@ static void Append_Record(send_peer_t *peer, master_record_t *master_record) {
 				peer->buff_ptr += 8;
 				Put_val64(htonll(master_record->msecLast),peer->buff_ptr);
 				peer->buff_ptr += 8;
-				Put_val64(htonll(master_record->dPkts), peer->buff_ptr);
+				Put_val64(htonll(master_record->inPackets), peer->buff_ptr);
 				peer->buff_ptr += 8;
-				Put_val64(htonll(master_record->dOctets),peer->buff_ptr);
+				Put_val64(htonll(master_record->inBytes),peer->buff_ptr);
 				peer->buff_ptr += 8;
 				Put_val16(htons(master_record->srcPort),peer->buff_ptr);
 				peer->buff_ptr += 2;
