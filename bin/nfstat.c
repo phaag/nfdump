@@ -1173,7 +1173,7 @@ struct tm	*tbuff;
 			break;
 		case IS_IPADDR:
 			tag_string[0] = outputParams->doTag ? TAG_CHAR : '\0';
-			if ( (StatData->record_flags & 0x1) != 0 ) { // IPv6
+			if ( StatData->stat_key[0] != 0 ) { // IPv6
 				uint64_t	_key[2];
 				_key[0] = htonll(StatData->stat_key[0]);
 				_key[1] = htonll(StatData->stat_key[1]);
@@ -1309,7 +1309,7 @@ int			af;
 	_key[0] = StatData->stat_key[0];
 	_key[1] = StatData->stat_key[1];
 	if ( type == IS_IPADDR ) {
-		if ( (StatData->record_flags & 0x1) != 0 ) { // IPv6
+		if ( StatData->stat_key[0] != 0 ) { // IPv6
 			_key[0] = htonll(StatData->stat_key[0]);
 			_key[1] = htonll(StatData->stat_key[1]);
 			af = PF_INET6;
@@ -1376,7 +1376,7 @@ struct tm	*tbuff;
 			snprintf(valstr, 40, "%llu", (unsigned long long)StatData->stat_key[1]);
 			break;
 		case IS_IPADDR:
-			if ( (StatData->record_flags & 0x1) != 0 ) { // IPv6
+			if ( StatData->stat_key[0] != 0 ) { // IPv6
 				uint64_t	_key[2];
 				_key[0] = htonll(StatData->stat_key[0]);
 				_key[1] = htonll(StatData->stat_key[1]);

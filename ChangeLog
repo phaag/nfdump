@@ -3,6 +3,7 @@
 - Fix yacc/bison warnings. Cleanup unused tokens
 - Fix syntax error 'flags AS' as AS is a reserved word. #255
 - Add element 139 for ICMP type/code in IPv6. #250
+- Fix IPv4/IPv6 statistics representation #252
 
 2020-09-12
 - Cleanup nip/xip filter syntax. Add filter syntax 'nip in [ <iplist>]'. Request #246
