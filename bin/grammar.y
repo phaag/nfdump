@@ -135,7 +135,7 @@ char yyerror_buff[256];
 	void			*list;
 }
 
-%token ANY IP IF MAC MPLS TOS DIR FLAGS PROTO MASK HOSTNAME NET PORT FWDSTAT IN OUT SRC DST EQ LT GT PREV NEXT
+%token ANY IP IF MAC MPLS TOS DIR FLAGS PROTO MASK HOSTNAME NET PORT FWDSTAT IN OUT SRC DST EQ LT GT LE GE PREV NEXT
 %token NUMBER STRING IDENT PORTNUM ICMP_TYPE ICMP_CODE ENGINE_TYPE ENGINE_ID AS PACKETS BYTES FLOWS NFVERSION
 %token PPS BPS BPP DURATION NOT 
 %token IPV4 IPV6 BGPNEXTHOP ROUTER VLAN
@@ -2091,6 +2091,8 @@ comp:				{ $$.comp = CMP_EQ; }
 	| EQ			{ $$.comp = CMP_EQ; }
 	| LT			{ $$.comp = CMP_LT; }
 	| GT			{ $$.comp = CMP_GT; }
+	| LE			{ $$.comp = CMP_LE; }
+	| GE			{ $$.comp = CMP_GE; }
 	;
 
 /* 'direction' qualifiers */
