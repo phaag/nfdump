@@ -307,7 +307,11 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			yyerror("Flags must be 0..63");
 			YYABORT;
 		}
-		$$.self = NewBlock(OffsetFlags, MaskFlags, ($3 << ShiftFlags) & MaskFlags, $2.comp, FUNC_NONE, NULL); 
+		$$.self = Connect_AND(
+			// imply flags with a proto TCP block
+			NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_TCP << ShiftProto) & MaskProto, CMP_EQ, FUNC_NONE, NULL),
+			NewBlock(OffsetFlags, MaskFlags, ($3 << ShiftFlags) & MaskFlags, $2.comp, FUNC_NONE, NULL)
+		);
 	}
 
 	| NFVERSION comp NUMBER	{	
@@ -315,7 +319,11 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			yyerror("Netflow version must be <= 10");
 			YYABORT;
 		}
-		$$.self = NewBlock(OffsetRecordVersion, MaskRecordVersion, ($3 << ShiftRecordVersion) & MaskRecordVersion, $2.comp, FUNC_NONE, NULL); 
+		$$.self = Connect_AND(
+			// imply flags with a proto TCP block
+			NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_TCP << ShiftProto) & MaskProto, CMP_EQ, FUNC_NONE, NULL),
+			NewBlock(OffsetFlags, (fl << ShiftFlags) & MaskFlags, (fl << ShiftFlags) & MaskFlags, CMP_FLAGS, FUNC_NONE, NULL)
+		);
 	}
 
 	// handle special case with 'AS' takes as flags. and not AS number
@@ -350,8 +358,11 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 
-		$$.self = NewBlock(OffsetFlags, (fl << ShiftFlags) & MaskFlags, 
-					(fl << ShiftFlags) & MaskFlags, CMP_FLAGS, FUNC_NONE, NULL); 
+		$$.self = Connect_AND(
+			// imply flags with a proto TCP block
+			NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_TCP << ShiftProto) & MaskProto, CMP_EQ, FUNC_NONE, NULL),
+			NewBlock(OffsetFlags, (fl << ShiftFlags) & MaskFlags, (fl << ShiftFlags) & MaskFlags, CMP_FLAGS, FUNC_NONE, NULL)
+		);
 	}
 
 	| dqual IP STRING { 	
@@ -661,11 +672,11 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| ICMP_TYPE NUMBER {
 		if ( $2 > 255 ) {
-			yyerror("ICMP tpye of range 0..15");
+			yyerror("ICMP type of range 0..255");
 			YYABORT;
 		}
 		$$.self = Connect_AND(
-			// imply proto ICMP with a proto ICMP block
+			// imply ICMP-TYPE with a proto ICMP block
 			Connect_OR (
 				NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_ICMP << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL), 
 				NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_ICMPV6 << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL)
@@ -677,11 +688,11 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| ICMP_CODE NUMBER {
 		if ( $2 > 255 ) {
-			yyerror("ICMP code of range 0..15");
+			yyerror("ICMP code of range 0..255");
 			YYABORT;
 		}
 		$$.self = Connect_AND(
-			// imply proto ICMP with a proto ICMP block
+			// imply ICMP-CODE with a proto ICMP block
 			Connect_OR (
 				NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_ICMP << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL), 
 				NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_ICMPV6 << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL)
