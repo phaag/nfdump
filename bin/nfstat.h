@@ -70,9 +70,6 @@ typedef struct StatRecord {
 	uint32_t	last;
 	uint16_t	msec_first;
 	uint16_t	msec_last;
-	uint8_t		record_flags;
-	uint8_t		tcp_flags;
-	uint8_t		tos;
 	// key 
 	uint8_t		prot;
 	uint64_t	stat_key[2];
