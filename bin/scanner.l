@@ -120,7 +120,6 @@ H				(0X|0x)[0-9A-Fa-f]+
 
 any				{ return ANY; }
 ip|host			{ return IP; }
-hostname		{ return HOSTNAME; }
 if				{ return IF; }
 mac				{ return MAC; }
 mpls			{ return MPLS; }

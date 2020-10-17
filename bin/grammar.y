@@ -135,16 +135,17 @@ char yyerror_buff[256];
 	void			*list;
 }
 
-%token ANY IP IF MAC MPLS TOS DIR FLAGS PROTO MASK HOSTNAME NET PORT FWDSTAT IN OUT SRC DST EQ LT GT LE GE PREV NEXT
-%token NUMBER STRING IDENT PORTNUM ICMP_TYPE ICMP_CODE ENGINE_TYPE ENGINE_ID AS PACKETS BYTES FLOWS NFVERSION
+%token ANY IP IF MAC MPLS TOS DIR FLAGS PROTO MASK NET PORT FWDSTAT IN OUT SRC DST EQ LT GT LE GE PREV NEXT
+%token IDENT ENGINE_TYPE ENGINE_ID AS PACKETS BYTES FLOWS NFVERSION
 %token PPS BPS BPP DURATION NOT 
 %token IPV4 IPV6 BGPNEXTHOP ROUTER VLAN
 %token CLIENT SERVER APP LATENCY SYSID
-%token ASA REASON DENIED XEVENT XNET XPORT INGRESS EGRESS ACL ACE XACE
+%token ASA DENIED XEVENT XNET XPORT INGRESS EGRESS ACL ACE XACE
 %token NAT ADD EVENT VRF NPORT NIP
 %token PBLOCK START END STEP SIZE
-%type <value>	expr NUMBER PORTNUM ICMP_TYPE ICMP_CODE
-%type <s> STRING REASON 
+%token <s> STRING REASON
+%token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
+%type <value> expr
 %type <param> dqual term comp acl inout
 %type <list> iplist ullist
 
@@ -315,6 +316,15 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 		$$.self = NewBlock(OffsetRecordVersion, MaskRecordVersion, ($3 << ShiftRecordVersion) & MaskRecordVersion, $2.comp, FUNC_NONE, NULL); 
+	}
+
+	// handle special case with 'AS' takes as flags. and not AS number
+	| FLAGS AS	{	
+		uint64_t fl = 0;
+		fl |= 16;
+		fl |= 2;
+		$$.self = NewBlock(OffsetFlags, (fl << ShiftFlags) & MaskFlags, 
+					(fl << ShiftFlags) & MaskFlags, CMP_FLAGS, FUNC_NONE, NULL); 
 	}
 
 	| FLAGS STRING	{	
