@@ -131,7 +131,7 @@ typedef struct input_translation_s {
 	int			delta_time;				// delta micro or absolute ms time stamps
 	uint64_t	flow_start;				// start time in msec
 	uint64_t	flow_end;				// end time in msec
-	uint32_t	icmpTypeCodeIPv4;		// ICMP type/code in data stream
+	uint32_t	icmpTypeCode;			// ICMP type/code in data stream
 	uint64_t    packets;				// total (in)packets - sampling corrected
 	uint64_t    bytes;					// total (in)bytes - sampling corrected
 	uint64_t    out_packets;			// total out packets - sampling corrected
@@ -237,6 +237,7 @@ static struct ipfix_element_map_s {
 	{ IPFIX_SourceIPv6PrefixLength, 	 _1byte, 	_1byte,   move8, zero8, EX_MULIPLE },
 	{ IPFIX_DestinationIPv6PrefixLength, _1byte, 	_1byte,   move8, zero8, EX_MULIPLE },
 	{ IPFIX_icmpTypeCodeIPv4, 			 _2bytes, 	_2bytes,  saveICMP, nop, COMMON_BLOCK },
+	{ IPFIX_icmpTypeCodeIPv6, 			 _2bytes, 	_2bytes,  saveICMP, nop, COMMON_BLOCK },
 	{ IPFIX_postIpClassOfService, 		 _1byte, 	_1byte,   move8, zero8, EX_MULIPLE },
 	{ IPFIX_SourceMacAddress, 			 _6bytes, 	_8bytes,  move_mac, zero64, EX_MAC_1},
 	{ IPFIX_postDestinationMacAddress, 	 _6bytes,	_8bytes,  move_mac, zero64, EX_MAC_1},
@@ -839,7 +840,7 @@ size_t				size_required;
 	SetFlag(table->flags, FLAG_PKG_64);
 	SetFlag(table->flags, FLAG_BYTES_64);
 	table->delta_time		= 0;
-	table->icmpTypeCodeIPv4	= 0;
+	table->icmpTypeCode		= 0;
 	table->router_ip_offset = 0;
 	table->received_offset  = 0;
 
@@ -1079,7 +1080,10 @@ size_t				size_required;
 	// for netflow historical reason, ICMP type/code goes into dst port field
 	// remember offset, for decoding
 	if ( cache.lookup_info[IPFIX_icmpTypeCodeIPv4].found && cache.lookup_info[IPFIX_icmpTypeCodeIPv4].length == 2 ) {
-		PushSequence( table, IPFIX_icmpTypeCodeIPv4, NULL, &table->icmpTypeCodeIPv4);
+		PushSequence( table, IPFIX_icmpTypeCodeIPv4, NULL, &table->icmpTypeCode);
+	}
+	if ( cache.lookup_info[IPFIX_icmpTypeCodeIPv6].found && cache.lookup_info[IPFIX_icmpTypeCodeIPv6].length == 2 ) {
+		PushSequence( table, IPFIX_icmpTypeCodeIPv6, NULL, &table->icmpTypeCode);
 	}
 
 #ifdef DEVEL
@@ -1886,9 +1890,9 @@ char				*string;
 
 		// for netflow historical reason, ICMP type/code goes into dst port field
 		if ( data_record->prot == IPPROTO_ICMP || data_record->prot == IPPROTO_ICMPV6 ) {
-			if ( table->icmpTypeCodeIPv4 ) {
+			if ( table->icmpTypeCode ) {
 				data_record->srcport = 0;
-				data_record->dstport = table->icmpTypeCodeIPv4;
+				data_record->dstport = table->icmpTypeCode;
 				// data_record->dstport = Get_val16((void *)&in[table->ICMP_offset]);
 			}
 		}
