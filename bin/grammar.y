@@ -319,11 +319,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			yyerror("Netflow version must be <= 10");
 			YYABORT;
 		}
-		$$.self = Connect_AND(
-			// imply flags with a proto TCP block
-			NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_TCP << ShiftProto) & MaskProto, CMP_EQ, FUNC_NONE, NULL),
-			NewBlock(OffsetFlags, (fl << ShiftFlags) & MaskFlags, (fl << ShiftFlags) & MaskFlags, CMP_FLAGS, FUNC_NONE, NULL)
-		);
+		$$.self = NewBlock(OffsetRecordVersion, MaskRecordVersion, ($3 << ShiftRecordVersion) & MaskRecordVersion, $2.comp, FUNC_NONE, NULL); 
 	}
 
 	// handle special case with 'AS' takes as flags. and not AS number
@@ -331,8 +327,11 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		uint64_t fl = 0;
 		fl |= 16;
 		fl |= 2;
-		$$.self = NewBlock(OffsetFlags, (fl << ShiftFlags) & MaskFlags, 
-					(fl << ShiftFlags) & MaskFlags, CMP_FLAGS, FUNC_NONE, NULL); 
+		$$.self = Connect_AND(
+			// imply flags with a proto TCP block
+			NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_TCP << ShiftProto) & MaskProto, CMP_EQ, FUNC_NONE, NULL),
+			NewBlock(OffsetFlags, (fl << ShiftFlags) & MaskFlags, (fl << ShiftFlags) & MaskFlags, CMP_FLAGS, FUNC_NONE, NULL)
+		);
 	}
 
 	| FLAGS STRING	{	
