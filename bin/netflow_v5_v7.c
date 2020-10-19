@@ -690,17 +690,21 @@ uint32_t	i, id, t1, t2;
 
 	if ( output_engine.first ) {	// first time a record is added
 		// boot time is set one day back - assuming that the start time of every flow does not start ealier
-		boot_time  			 		= (uint64_t)(master_record->first - 86400)*1000;
-		v5_output_header->unix_secs = htonl(master_record->first - 86400);
+		boot_time = (uint64_t)(master_record->first - 86400)*1000LL;
 		cnt   	 = 0;
 		output_engine.first 	 = 0;
 	}
 	if ( cnt == 0 ) {
-		peer->buff_ptr  = (void *)((pointer_addr_t)peer->send_buffer + NETFLOW_V5_HEADER_LENGTH);
-		v5_output_record = (netflow_v5_record_t *)((pointer_addr_t)v5_output_header + (pointer_addr_t)sizeof(netflow_v5_header_t));	
-		output_engine.sequence = output_engine.last_sequence + output_engine.last_count;
+		v5_output_record = (netflow_v5_record_t *)((pointer_addr_t)peer->send_buffer + NETFLOW_V5_HEADER_LENGTH);
+		peer->buff_ptr  = (void *)v5_output_record;
+		memset(peer->buff_ptr, 0, NETFLOW_V5_MAX_RECORDS * NETFLOW_V5_RECORD_LENGTH);
+
+		output_engine.sequence += output_engine.last_count;
 		v5_output_header->flow_sequence	= htonl(output_engine.sequence);
-		output_engine.last_sequence = output_engine.sequence;
+
+		uint32_t unix_secs = master_record->last + 3600;
+		v5_output_header->unix_secs = htonl(unix_secs);
+		v5_output_header->SysUptime = htonl((uint32_t)(unix_secs * 1000 - boot_time));
 	}
 
 	t1 	= (uint32_t)(1000LL * (uint64_t)master_record->first + (uint64_t)master_record->msec_first - boot_time);

@@ -1,3 +1,6 @@
+2020-10-18
+- Fix nfreplay v5 time shift bug
+
 2020-10-17
 - add support for >=, <= comparators. #256. Thanks to piorek94
 - Fix yacc/bison warnings. Cleanup unused tokens
