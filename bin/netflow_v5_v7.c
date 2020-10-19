@@ -41,6 +41,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <assert.h>
 #include <string.h>
 
 #ifdef HAVE_STDINT_H
@@ -120,6 +121,9 @@ int Init_v5_v7_input(int v, uint32_t sampling, uint32_t overwrite) {
 int i, id, map_index;
 int extension_size;
 uint16_t	map_size;
+
+	assert(sizeof(netflow_v5_header_t) == NETFLOW_V5_HEADER_LENGTH);
+	assert(sizeof(netflow_v5_record_t) == NETFLOW_V5_RECORD_LENGTH);
 
 	verbose 		   = v;
 	default_sampling   = sampling;
@@ -662,6 +666,9 @@ char		*string;
  */
 void Init_v5_v7_output(send_peer_t *peer) {
 
+	assert(sizeof(netflow_v5_header_t) == NETFLOW_V5_HEADER_LENGTH);
+	assert(sizeof(netflow_v5_record_t) == NETFLOW_V5_RECORD_LENGTH);
+
 	v5_output_header = (netflow_v5_header_t *)peer->send_buffer;
 	v5_output_header->version 		= htons(5);
 	v5_output_header->SysUptime		= 0;
@@ -729,11 +736,6 @@ uint32_t	i, id, t1, t2;
   	v5_output_record->output	= htons(master_record->output);
   	v5_output_record->src_as	= htons(master_record->srcas);
   	v5_output_record->dst_as	= htons(master_record->dstas);
-	v5_output_record->src_mask 	= 0;
-	v5_output_record->dst_mask 	= 0;
-	v5_output_record->pad1 		= 0;
-	v5_output_record->pad2 		= 0;
-  	v5_output_record->nexthop	= 0;
 
 	i = 0;
 	while ( (id = extension_map->ex_id[i]) != 0 ) {
