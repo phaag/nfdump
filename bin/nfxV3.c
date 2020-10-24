@@ -115,7 +115,7 @@ uint32_t	ExtSize[MAXELEMENTS];
 	return 1;
 } // End of calculateRecordLength
 
-static void DumpHex(const void* data, size_t size) {
+__attribute__((unused)) static void DumpHex(const void* data, size_t size) {
 	char ascii[17];
 	size_t i, j;
 	ascii[16] = '\0';
@@ -388,12 +388,12 @@ int SequencerRun(sequencer_t *sequencer, void *inBuff, size_t inSize, void *outB
 			}
 #ifdef DEVEL
 			if ( sequencer->sequenceTable[i].inputLength <= 8 )
-				printf("[%i] Read length: %u, val: %llu\n", 
-					i, sequencer->sequenceTable[i].inputLength, (long long unsigned)v);
+				printf("[%i] Read length: %u, val: %llu, outLength: %u\n", 
+					i, sequencer->sequenceTable[i].inputLength, (long long unsigned)v, outLength);
 
 			if ( sequencer->sequenceTable[i].inputLength == 16 )
-				printf("[%i] Read length: %u, val: %llx %llx\n",
-					i, sequencer->sequenceTable[i].inputLength, (long long unsigned)vv[0], (long long unsigned)vv[1]);
+				printf("[%i] Read length: %u, val: %llx %llx, outLength: %u\n",
+					i, sequencer->sequenceTable[i].inputLength, (long long unsigned)vv[0], (long long unsigned)vv[1], outLength);
 #endif
 			if ( stackID && stack ) {
 				stack[stackID] = v;

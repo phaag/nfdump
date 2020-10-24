@@ -82,18 +82,18 @@ typedef struct master_record_s {
 	uint16_t	size;			// 0x0000'0000'ffff'0000
 	uint16_t	numElements;	// 0x0000'0000'0000'ffff
 
-#	define OffsetRecordFlags 	0
+#	define OffsetRecordMFlags 	0
 #	define OffsetRecordVersion 	0
 #ifdef WORDS_BIGENDIAN
-#	define MaskRecordFlags  	0xff00000000000000LL
-#	define ShiftRecordFlags 	56
+#	define MaskRecordMFlags  	0x0000ffff00000000LL
+#	define ShiftRecordMFlags 	32
 
 #	define MaskRecordVersion  	0x00ff000000000000LL
 #	define ShiftRecordVersion 	48
 
 #else
-#	define MaskRecordFlags  	0x00000000000000ffLL
-#	define ShiftRecordFlags 	0
+#	define MaskRecordMFlags  	0x00000000ffff0000LL
+#	define ShiftRecordMFlags 	16
 
 #	define MaskRecordVersion  	0x000000000000ff00LL
 #	define ShiftRecordVersion 	8

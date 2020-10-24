@@ -233,7 +233,7 @@ int 		i, done, ret;
 						// Silently skip exporter records
 					break;
 				default: {
-					fprintf(stderr, "Skip unknown record type %i\n", flow_record->type);
+					fprintf(stderr, "Skip unknown record type %i\n", record_ptr->type);
 				}
 			}
 
@@ -251,31 +251,30 @@ int 		i, done, ret;
 
 
 int main( int argc, char **argv ) {
-char 		*rfile, *Rfile, *Mdirs;
+flist_t 	flist;
 int			c;
 
-	rfile = Rfile = Mdirs = NULL;
-	while ((c = getopt(argc, argv, "L:r:M:R:")) != EOF) {
+	memset((void *)&flist, 0, sizeof(flist));
+	while ((c = getopt(argc, argv, "r:M:R:")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
 				exit(0);
 				break;
-				break;
-			case 'L':
-				if ( !InitLog(0, "argv[0]", optarg, 0) )
-					exit(255);
-				break;
 			case 'r':
-				rfile = optarg;
-				if ( strcmp(rfile, "-") == 0 )
-					rfile = NULL;
+				if ( !CheckPath(optarg, S_IFREG) )
+					exit(255);
+				flist.single_file = strdup(optarg);
 				break;
 			case 'M':
-				Mdirs = optarg;
+				if ( !CheckPath(optarg, S_IFDIR) )
+					exit(255);
+				flist.multiple_dirs = strdup(optarg);
 				break;
 			case 'R':
-				Rfile = optarg;
+				if ( !CheckPath(optarg, S_IFDIR) )
+					exit(255);
+				flist.multiple_files = strdup(optarg);
 				break;
 			default:
 				usage(argv[0]);
@@ -283,24 +282,10 @@ int			c;
 		}
 	}
 
-	if ( rfile && Rfile ) {
-		fprintf(stderr, "-r and -R are mutually exclusive. Please specify either -r or -R\n");
+
+	queue_t *fileList = SetupInputFileSequence(&flist);
+	if ( !fileList || !Init_nffile(fileList) )
 		exit(255);
-	}
-	if ( Mdirs && !(rfile || Rfile) ) {
-		fprintf(stderr, "-M needs either -r or -R to specify the file or file list. Add '-R .' for all files in the directories.\n");
-		exit(255);
-	}
-
-
-	if ( !Init_nffile() )
-		exit(254);
-
-	if ( !InitExporterList() ) {
-		exit(255);
-	}
-
-	SetupInputFileSequence(Mdirs, rfile, Rfile, NULL);
 
 	process_data();
 

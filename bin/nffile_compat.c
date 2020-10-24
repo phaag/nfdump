@@ -308,12 +308,12 @@ void		*p = input_record->data;
 			case EX_NSEL_COMMON: {
 				tpl_ext_37_t *tpl = (tpl_ext_37_t *)p;
 				PushExtension(recordHeader, EXnselCommon, nselCommon);
-				// XXX fix icmp type/code
 				recordHeader->flags = FW_EVENT;
 				nselCommon->msecEvent = tpl->event_time;
 				nselCommon->connID    = tpl->conn_id;
 				nselCommon->fwXevent  = tpl->fw_xevent;
 				nselCommon->fwEvent   = tpl->fw_event;
+				genericFlow->dstPort  = tpl->nsel_icmp;
 				p = (void *)tpl->data;
 			} break;
 			case EX_NSEL_XLATE_IP_v4: {

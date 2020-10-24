@@ -226,6 +226,7 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				output_record->server_nw_delay_usec = latency->usecServerNwDelay;
 				output_record->appl_latency_usec = latency->usecApplLatency;
 				} break;
+#ifdef NSEL
 			case EXnselCommonID: {
 				EXnselCommon_t *nselCommon = (EXnselCommon_t *)((void *)elementHeader + sizeof(elementHeader_t));
 				output_record->event_flag = FW_EVENT;
@@ -283,6 +284,7 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				output_record->block_step  = nelXlatePort->blockStep;
 				output_record->block_size  = nelXlatePort->blockSize;
 			} break;
+#endif
 			default:
 				fprintf(stderr, "Unknown extension '%u'\n", elementHeader->type);
 				skip = 1;

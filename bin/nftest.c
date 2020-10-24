@@ -187,16 +187,19 @@ value64_t	v;
 #endif
 
 	flow_record.flags	 = 0;
+	flow_record.mflags	 = 0;
 	ret = check_filter_block("ipv4", &flow_record, 1);
-	flow_record.flags	 = 2;
+	SetFlag(flow_record.mflags, V3_FLAG_IPV6_ADDR);
+	ret = check_filter_block("ipv4", &flow_record, 0);
+	ret = check_filter_block("ipv6", &flow_record, 1);
+	SetFlag(flow_record.mflags, V3_FLAG_IPV6_NH);
+	SetFlag(flow_record.mflags, V3_FLAG_IPV6_NHB);
+	SetFlag(flow_record.mflags, V3_FLAG_IPV6_EXP);
+	ret = check_filter_block("ipv4", &flow_record, 0);
+	ret = check_filter_block("ipv6", &flow_record, 1);
+	ClearFlag(flow_record.mflags, V3_FLAG_IPV6_ADDR);
 	ret = check_filter_block("ipv4", &flow_record, 1);
 	ret = check_filter_block("ipv6", &flow_record, 0);
-	flow_record.flags	 = 1;
-	ret = check_filter_block("ipv4", &flow_record, 0);
-	ret = check_filter_block("ipv6", &flow_record, 1);
-	flow_record.flags	 = 7;
-	ret = check_filter_block("ipv4", &flow_record, 0);
-	ret = check_filter_block("ipv6", &flow_record, 1);
 
 
 	flow_record.proto = IPPROTO_TCP;
@@ -390,6 +393,12 @@ value64_t	v;
 	ret = check_filter_block("src port < 64", &flow_record, 1);
 	ret = check_filter_block("src port lt 64", &flow_record, 1);
 	ret = check_filter_block("src port < 63", &flow_record, 0);
+	ret = check_filter_block("src port >= 63", &flow_record, 1);
+	ret = check_filter_block("src port >= 62", &flow_record, 1);
+	ret = check_filter_block("src port <= 255", &flow_record, 1);
+	ret = check_filter_block("src port <= 254", &flow_record, 1);
+	ret = check_filter_block("src port <= 256", &flow_record, 1);
+	ret = check_filter_block("src port >= 64", &flow_record, 0);
 
 	ret = check_filter_block("dst port = 255", &flow_record, 1);
 	ret = check_filter_block("dst port == 255", &flow_record, 1);

@@ -234,12 +234,10 @@ uint64_t	twin_msecFirst, twin_msecLast;
 	peer.buff_ptr = peer.send_buffer;
 	peer.endp  	  = (void *)((pointer_addr_t)peer.send_buffer + UDP_PACKET_SIZE - 1);
 
-	void *sender_data = NULL;
 	if ( netflow_version == 5 ) {
 		Init_v5_v7_output(&peer);
 	} else {
-		sender_data = Init_v9_output(&peer);
-		if ( !sender_data ) 
+		if ( !Init_v9_output(&peer) )
 			return;
 	}
 
@@ -322,7 +320,7 @@ uint64_t	twin_msecFirst, twin_msecLast;
 					if ( netflow_version == 5 ) 
 						again = Add_v5_output_record(master_record, &peer);
 					else
-						again = Add_v9_output_record(master_record, sender_data, &peer);
+						again = Add_v9_output_record(master_record, &peer);
 	
 					cnt++;
 					numflows++;
@@ -348,7 +346,7 @@ uint64_t	twin_msecFirst, twin_msecLast;
 						if ( netflow_version == 5 ) 
 							Add_v5_output_record(master_record, &peer);
 						else
-							Add_v9_output_record(master_record, sender_data, &peer);
+							Add_v9_output_record(master_record, &peer);
 						cnt++;
 					}
 
@@ -397,7 +395,7 @@ uint64_t	twin_msecFirst, twin_msecLast;
 	} // while
 
 	// flush still remaining records
-	if ( Close_v9_output(sender_data, &peer) ) {
+	if ( (netflow_version == 9 && Close_v9_output(&peer)) || cnt ) {
 		ret = FlushBuffer(confirm);
 
 		if ( ret < 0 ) {
@@ -444,7 +442,7 @@ flist_t flist;
 	verbose			= 0;
 	confirm			= 0;
 	distribution	= 0;
-	while ((c = getopt(argc, argv, "46BhH:i:K:L:p:d:c:b:j:r:f:t:v:z:VY")) != EOF) {
+	while ((c = getopt(argc, argv, "46BEhH:i:K:L:p:d:c:b:j:r:f:t:v:z:VY")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -606,7 +604,7 @@ flist_t flist;
 	if ( !Init_nffile(fileList) )
 		exit(254);
 
-	send_data(timeWindow, count, delay, confirm, netflow_version,distribution);
+	send_data(timeWindow, count, delay, confirm, netflow_version, distribution);
 
 	return 0;
 }

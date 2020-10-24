@@ -108,7 +108,7 @@ char datestr1[64], datestr2[64], datestr3[64];
 		len = snprintf(s, size-1,
 "  src port     =             %5u\n"
 "  dst port     =             %5u\n"
-"  dst tos      =               %3u\n"
+"  src tos      =               %3u\n"
 	, r->srcPort, r->dstPort, r->tos);
 	}
 	s += len;
@@ -175,7 +175,7 @@ char snet[IP_STRING_LEN], dnet[IP_STRING_LEN];
 "  src mask     =             %5u %s/%u\n"
 "  dst mask     =             %5u %s/%u\n"
 "  fwd status   =               %3u\n"
-"  src tos      =               %3u\n"
+"  dst tos      =               %3u\n"
 "  direction    =               %3u\n"
 	, r->input, r->output, 
 	  r->src_mask, snet, r->src_mask, r->dst_mask, dnet, r->dst_mask, 
@@ -358,6 +358,7 @@ double f1, f2, f3;
 
 } // End of stringsEXlatency
 
+#ifdef NSEL
 static void stringsEXnselCommon(char *s, size_t size, master_record_t *r) {
 char datestr[64];
 
@@ -469,6 +470,8 @@ static void stringsEXnelXlatePort(char *s, size_t size, master_record_t *r) {
 , r->block_start, r->block_end, r->block_step, r->block_size );
 
 } // End of stringsEXnelXlatePort
+
+#endif
 
 void raw_prolog(void) {
 	recordCount = 0;
@@ -586,6 +589,7 @@ char elementString[MAXELEMENTS * 5];
 			case EXlatencyID:
 				stringsEXlatency(_s, slen, r);
 				break;
+#ifdef NSEL
 			case EXnselCommonID:
 				stringsEXnselCommon(_s, slen, r);
 				break;
@@ -610,6 +614,7 @@ char elementString[MAXELEMENTS * 5];
 			case EXnelXlatePortID:
 				stringsEXnelXlatePort(_s, slen, r);
 				break;
+#endif
 			default:
 				dbg_printf("Extension %i not yet implemented\n", r->exElementList[i]);
 		}

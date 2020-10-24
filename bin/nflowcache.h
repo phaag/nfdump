@@ -110,6 +110,6 @@ void PrintFlowTable(printer_t print_record, outputParams_t *outputParams, int Gu
 
 void PrintFlowStat(func_prolog_t record_header, printer_t print_record, outputParams_t *outputParams);
 
-int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir, int sort_order);
+int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir);
 
 #endif //_NFLOWCACHE_H

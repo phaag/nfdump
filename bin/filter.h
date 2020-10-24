@@ -54,7 +54,7 @@
 /* 
  * Definitions
  */
-enum { CMP_EQ = 0, CMP_GT, CMP_LT, CMP_IDENT, CMP_FLAGS, CMP_IPLIST, CMP_ULLIST };
+enum { CMP_EQ = 0, CMP_GT, CMP_LT, CMP_GE, CMP_LE, CMP_IDENT, CMP_FLAGS, CMP_IPLIST, CMP_ULLIST };
 
 /*
  * filter functions:

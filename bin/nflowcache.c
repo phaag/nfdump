@@ -1081,15 +1081,10 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 			flow_record.V6.dstaddr[1] &= aggregate_info.IPmask[3];
 		}
 
-		if ( aggregate_info.apply_netbits ) {
-			int src_mask = flow_record.src_mask;
-			int dst_mask = flow_record.dst_mask;
+		if ( aggregate_info.apply_netbits ) 
 			ApplyNetMaskBits(&flow_record, aggregate_info.apply_netbits);
-			if ( aggr_record_mask )
-				ApplyAggrMask(&flow_record, aggr_record_mask);
-			flow_record.src_mask = src_mask;
-			flow_record.dst_mask = dst_mask;
-		} else if ( aggr_record_mask )
+
+		if ( aggr_record_mask )
 			ApplyAggrMask(&flow_record, aggr_record_mask);
 
 		if ( NeedSwap(GuessFlowDirection, &flow_record) )
@@ -1101,6 +1096,64 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 	}
 
 } // End of PrintSortList
+
+// export SortList - apply possible aggregation mask to zero out aggregated fields
+static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, 
+	nffile_t *nffile, int GuessFlowDirection, int ascending) {
+master_record_t	*aggr_record_mask = aggregate_info.mask;
+
+	for ( int i = 0; i < maxindex; i++ ) {
+		int j;
+
+		if ( ascending )
+			j = i;
+		else
+			j = maxindex -1 - i;
+
+		FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[j].record);
+		recordHeaderV3_t *raw_record = (r->flowrecord);
+
+		master_record_t	flow_record;
+		memset((void *)&flow_record, 0, sizeof(master_record_t));
+		ExpandRecord_v3(raw_record, &flow_record);
+
+		flow_record.inPackets	= r->counter[INPACKETS];
+		flow_record.inBytes 	= r->counter[INBYTES];
+		flow_record.out_pkts 	= r->counter[OUTPACKETS];
+		flow_record.out_bytes 	= r->counter[OUTBYTES];
+		flow_record.aggr_flows 	= r->counter[FLOWS];
+		flow_record.msecFirst	= r->msecFirst;
+		flow_record.msecLast	= r->msecLast;
+
+		// apply IP mask from aggregation, to provide a pretty output
+		if ( aggregate_info.has_masks ) {
+			flow_record.V6.srcaddr[0] &= aggregate_info.IPmask[0];
+			flow_record.V6.srcaddr[1] &= aggregate_info.IPmask[1];
+			flow_record.V6.dstaddr[0] &= aggregate_info.IPmask[2];
+			flow_record.V6.dstaddr[1] &= aggregate_info.IPmask[3];
+		}
+
+		if ( aggregate_info.apply_netbits )
+			ApplyNetMaskBits(&flow_record, aggregate_info.apply_netbits);
+
+		if ( aggr_record_mask ) {
+			ApplyAggrMask(&flow_record, aggr_record_mask);
+		}
+
+		if ( NeedSwap(GuessFlowDirection, &flow_record) )
+			SwapFlow(&flow_record);
+
+		PackRecordV3(&flow_record, nffile);
+#ifdef DEVEL
+		char *string;
+		flow_record_to_raw((void *)&flow_record, &string, 0);
+		printf("%s\n", string);
+#endif
+		// Update statistics
+		UpdateStat(nffile->stat_record, &flow_record);
+	}
+
+} // End of ExportSortList
 
 // print -s record/xx statistics with as many print orders as required
 void PrintFlowStat(func_prolog_t record_header, printer_t print_record, outputParams_t *outputParams) {
@@ -1178,17 +1231,16 @@ void PrintFlowTable(printer_t print_record, outputParams_t *outputParams, int Gu
 
 		PrintSortList(SortList, maxindex, outputParams, GuessDir, 
 			print_record, PrintDirection);
-
 	} else {
 		// for -a and no -O sorting required
 		PrintSortList(SortList, maxindex, outputParams, GuessDir, 
 			print_record, PrintDirection);
- 
 	}
 } // End of PrintFlowTable
 
-int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir, int sort_order) {
-master_record_t	*aggr_record_mask = aggregate_info.mask;
+int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
+
+	GuessDirection = GuessDir;
 
 	ExportExporterList(nffile);
 
@@ -1197,106 +1249,25 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 	if ( !SortList ) 
 		return 0;
 
-
-	if ( sort_order ) {
-		// set sort value
+	if ( PrintOrder ) {
+		// for any -O print mode
 		for ( int i = 0; i < maxindex; i++ ) {
 			FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[i].record);
-			SortList[i].count  = order_mode[sort_order].record_function(r, order_mode[sort_order].inout);
+			SortList[i].count  = order_mode[PrintOrder].record_function(r, order_mode[PrintOrder].inout);
 		}
 
 		if ( maxindex >= 2 ) {
-			if ( maxindex < 100 ) 
+			if ( maxindex < 100 ) {
 				heapSort(SortList, maxindex, 0, PrintDirection);
-			else
+				PrintDirection = 0;
+			} else {
  				blocksort((SortRecord_t *)SortList, maxindex);
+			}
 		}
 
-		for ( int i = 0; i < maxindex; i++ ) {
-			master_record_t	flow_record;
-			recordHeaderV3_t *raw_record;
-
-			FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[i].record);
-			raw_record = (r->flowrecord);
-
-			memset((void *)&flow_record, 0, sizeof(master_record_t));
-			ExpandRecord_v3(raw_record, &flow_record);
-			flow_record.inPackets	= r->counter[INPACKETS];
-			flow_record.inBytes 	= r->counter[INBYTES];
-			flow_record.out_pkts 	= r->counter[OUTPACKETS];
-			flow_record.out_bytes 	= r->counter[OUTBYTES];
-			flow_record.aggr_flows 	= r->counter[FLOWS];
-
-			// apply IP mask from aggregation, to provide a pretty output
-			if ( aggregate_info.has_masks ) {
-				flow_record.V6.srcaddr[0] &= aggregate_info.IPmask[0];
-				flow_record.V6.srcaddr[1] &= aggregate_info.IPmask[1];
-				flow_record.V6.dstaddr[0] &= aggregate_info.IPmask[2];
-				flow_record.V6.dstaddr[1] &= aggregate_info.IPmask[3];
-			}
-
-			if ( aggregate_info.apply_netbits )
-				ApplyNetMaskBits(&flow_record, aggregate_info.apply_netbits);
-
-			if ( aggr_record_mask ) {
-				ApplyAggrMask(&flow_record, aggr_record_mask);
-			}
-
-			if ( NeedSwap(GuessDir, &flow_record) )
-				SwapFlow(&flow_record);
-
-			PackRecordV3(&flow_record, nffile);
-#ifdef DEVEL
-			char *string;
-			flow_record_to_raw((void *)&flow_record, &string, 0);
-			printf("%s\n", string);
-#endif
-			// Update statistics
-			UpdateStat(nffile->stat_record, &flow_record);
-		}
-
+		ExportSortList(SortList, maxindex, nffile, GuessDir, PrintDirection);
 	} else {
-		for ( int i = 0; i < maxindex; i++ ) {
-			FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[i].record);
-			recordHeaderV3_t *raw_record = (r->flowrecord);
-
-			master_record_t	flow_record;
-			memset((void *)&flow_record, 0, sizeof(master_record_t));
-			ExpandRecord_v3(raw_record, &flow_record);
-			flow_record.inPackets	= r->counter[INPACKETS];
-			flow_record.inBytes 	= r->counter[INBYTES];
-			flow_record.out_pkts 	= r->counter[OUTPACKETS];
-			flow_record.out_bytes 	= r->counter[OUTBYTES];
-			flow_record.aggr_flows	= r->counter[FLOWS];
-
-			// apply IP mask from aggregation, to provide a pretty output
-			if ( aggregate_info.has_masks ) {
-				flow_record.V6.srcaddr[0] &= aggregate_info.IPmask[0];
-				flow_record.V6.srcaddr[1] &= aggregate_info.IPmask[1];
-				flow_record.V6.dstaddr[0] &= aggregate_info.IPmask[2];
-				flow_record.V6.dstaddr[1] &= aggregate_info.IPmask[3];
-			}
-
-			if ( aggregate_info.apply_netbits )
-				ApplyNetMaskBits(&flow_record, aggregate_info.apply_netbits);
-
-			if ( aggr_record_mask ) {
-				ApplyAggrMask(&flow_record, aggr_record_mask);
-			}
-
-			if ( NeedSwap(GuessDir, &flow_record) )
-				SwapFlow(&flow_record);
-
-			// switch to output extension map
-			PackRecordV3(&flow_record, nffile);
-#ifdef DEVEL
-			char *string;
-			flow_record_to_raw((void *)&flow_record, &string, 0);
-			printf("%s\n", string);
-#endif
-			// Update statistics
-			UpdateStat(nffile->stat_record, &flow_record);
-		}
+		ExportSortList(SortList, maxindex, nffile, GuessDir, PrintDirection);
 	}
 
     if ( nffile->block_header->NumRecords ) {

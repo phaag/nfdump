@@ -470,6 +470,12 @@ int	evaluate, invert;
 			case CMP_LT:
 				evaluate = comp_value[0] < comp_value[1];
 				break;
+			case CMP_GE:
+				evaluate = comp_value[0] >= comp_value[1];
+ 				break;
+ 			case CMP_LE:
+				evaluate = comp_value[0] <= comp_value[1];
+ 				break;
 			case CMP_IDENT:
 				evaluate = engine->ident ? strncmp(engine->ident, engine->IdentList[comp_value[1]], IDENTLEN) == 0 : 0;
 				break;

@@ -69,15 +69,18 @@ static uint32_t overwrite_sampling;
 // define stack slots
 #define STACK_NONE	       0
 #define STACK_ICMP	       1
-#define STACK_DSTPORT      2
-#define STACK_LAST21       3
+#define STACK_ICMP_TYPE    2
+#define STACK_ICMP_CODE    3
 #define STACK_FIRST22      4
-#define STACK_SAMPLER      5
-#define STACK_MSEC         6
-#define STACK_CLIENT_USEC  7
-#define STACK_SERVER_USEC  8
-#define STACK_APPL_USEC    9 
-#define STACK_MAX	      10
+#define STACK_LAST21	   5
+#define STACK_SAMPLER      6
+#define STACK_MSEC         7
+#define STACK_CLIENT_USEC  8
+#define STACK_SERVER_USEC  9
+#define STACK_APPL_USEC   10
+#define STACK_ENGINE_TYPE 11
+#define STACK_ENGINE_ID   12
+#define STACK_MAX	      13
 
 typedef struct templateList_s {
 	// linked list
@@ -160,11 +163,11 @@ static const struct v9TranslationMap_s {
 	{ NF9_IPV4_SRC_ADDR,          SIZEsrc4Addr,     EXipv4FlowID,      OFFsrc4Addr, STACK_NONE, "src IPv4" },
 	{ NF9_SRC_MASK,               SIZEsrcMask,      EXflowMiscID,      OFFsrcMask, STACK_NONE, "src mask IPv4" },
 	{ NF9_INPUT_SNMP,             SIZEinput,        EXflowMiscID,	   OFFinput, STACK_NONE, "input interface" },
-	{ NF9_L4_DST_PORT,            SIZEdstPort,      EXgenericFlowID,   OFFdstPort, STACK_DSTPORT, "dst port" },
-	{ NF_F_ICMP_TYPE,        	  SIZEicmpType,     EXgenericFlowID,   OFFicmpType, STACK_NONE, "icmp type" },
-	{ NF_F_ICMP_TYPE_IPV6,        SIZEicmpType,     EXgenericFlowID,   OFFicmpType, STACK_NONE, "icmp type" },
-	{ NF_F_ICMP_CODE,        	  SIZEicmpCode,     EXgenericFlowID,   OFFicmpCode, STACK_NONE, "icmp code" },
-	{ NF_F_ICMP_CODE_IPV6,        SIZEicmpCode,     EXgenericFlowID,   OFFicmpCode, STACK_NONE, "icmp code" },
+	{ NF9_L4_DST_PORT,            SIZEdstPort,      EXgenericFlowID,   OFFdstPort, STACK_NONE, "dst port" },
+	{ NF_F_ICMP_TYPE,        	  Stack_ONLY,       EXgenericFlowID,   OFFicmpType, STACK_ICMP_TYPE, "icmp type" },
+	{ NF_F_ICMP_TYPE_IPV6,        Stack_ONLY,       EXgenericFlowID,   OFFicmpType, STACK_ICMP_TYPE, "icmp type" },
+	{ NF_F_ICMP_CODE,        	  Stack_ONLY,       EXgenericFlowID,   OFFicmpCode, STACK_ICMP_CODE, "icmp code" },
+	{ NF_F_ICMP_CODE_IPV6,        Stack_ONLY,       EXgenericFlowID,   OFFicmpCode, STACK_ICMP_CODE, "icmp code" },
 	{ NF9_IPV4_DST_ADDR,          SIZEdst4Addr,     EXipv4FlowID,      OFFdst4Addr, STACK_NONE, "dst IPv4" },
 	{ NF9_DST_MASK,               SIZEdstMask,      EXflowMiscID,      OFFdstMask, STACK_NONE, "dst mask IPv4" },
 	{ NF9_OUTPUT_SNMP,            SIZEoutput,       EXflowMiscID, 	   OFFoutput, STACK_NONE, "output interface" },
@@ -180,7 +183,7 @@ static const struct v9TranslationMap_s {
 	{ NF9_IPV6_DST_ADDR,          SIZEdst6Addr,     EXipv6FlowID,      OFFdst6Addr, STACK_NONE, 	"IPv6 dst addr" },
 	{ NF9_IPV6_SRC_MASK,          SIZEsrcMask,      EXflowMiscID,      OFFsrcMask, STACK_NONE, 	"src mask bits" },
 	{ NF9_IPV6_DST_MASK,          SIZEdstMask,      EXflowMiscID,      OFFdstMask, STACK_NONE, 	"dst mask bits" },
-	{ NF9_ICMP_TYPE,              SIZEdstPort,      EXgenericFlowID,   OFFdstPort, STACK_ICMP, "icmp type/code" },
+	{ NF9_ICMP,					  Stack_ONLY,       EXgenericFlowID,   OFFdstPort, STACK_ICMP, "icmp type/code" },
 	{ NF9_DST_TOS,                SIZEdstTos,       EXflowMiscID,      OFFdstTos, STACK_NONE, 	"post IP class of Service" },
 	{ NF9_IN_SRC_MAC,             SIZEinSrcMac,     EXmacAddrID,       OFFinSrcMac,STACK_NONE, 	"in src MAC addr" },
 	{ NF9_OUT_DST_MAC,            SIZEoutDstMac,    EXmacAddrID,       OFFoutDstMac,	STACK_NONE, "out dst MAC addr" },
@@ -207,12 +210,16 @@ static const struct v9TranslationMap_s {
 	{ NF9_OUT_SRC_MAC,            SIZEoutSrcMac,    EXmacAddrID,	   OFFoutSrcMac, STACK_NONE, "out src MAC addr" },
 	{ NF_F_FLOW_CREATE_TIME_MSEC, SIZEmsecFirst,    EXgenericFlowID,   OFFmsecFirst, STACK_NONE, "msec first" },
 	{ NF_F_FLOW_END_TIME_MSEC,    SIZEmsecLast,     EXgenericFlowID,   OFFmsecLast, STACK_NONE, "msec last" },
+	{ NF9_ENGINE_TYPE,			  Stack_ONLY,    	EXnull,			   0, STACK_ENGINE_TYPE, "engine type"},
+	{ NF9_ENGINE_ID,			  Stack_ONLY,    	EXnull,			   0, STACK_ENGINE_ID, "engine ID"},
 	{ LOCAL_IPv4Received,         SIZEReceived4IP,  EXipReceivedV4ID,  OFFReceived4IP, STACK_NONE, "IPv4 exporter" },
 	{ LOCAL_IPv6Received,         SIZEReceived6IP,  EXipReceivedV6ID,  OFFReceived6IP, STACK_NONE, "IPv6 exporter" },
 	{ LOCAL_msecTimeReceived,     SIZEmsecReceived, EXgenericFlowID,   OFFmsecReceived, STACK_NONE, "msec time received"},
 
 	// NSEL extensions
-	{ NF_F_EVENT_TIME_MSEC,       Stack_ONLY,    EXnull,    0, STACK_MSEC, "msec time event"},
+	{ NF_F_FLOW_BYTES,            SIZEinBytes,      EXgenericFlowID,   OFFinBytes, STACK_NONE, "ASA inBytes total" },
+	{ NF_F_FLOW_PACKETS,          SIZEinPackets,    EXgenericFlowID,   OFFinPackets, STACK_NONE, "ASA inPackets total" },
+	{ NF_F_EVENT_TIME_MSEC,       Stack_ONLY,    	EXnull,    0, STACK_MSEC, "msec time event"},
 	{ NF_F_CONN_ID,               SIZEconnID,       EXnselCommonID,    OFFconnID, STACK_NONE, "connection ID"},
 	{ NF_F_FW_EVENT,              SIZEfwEvent,      EXnselCommonID,    OFFfwEvent, STACK_NONE, "fw event ID"},
 	{ NF_F_FW_EVENT_84,           SIZEfwEvent,      EXnselCommonID,    OFFfwEvent, STACK_NONE, "fw event ID"},
@@ -305,13 +312,13 @@ typedef struct sender_data_s {
 	data_flowset_t *data_flowset;	// start of data_flowset in buffer
 	uint32_t data_flowset_id;		// id of current data flowset
 	
-
 } sender_data_t;
 
 
 #define MAX_LIFETIME 60
 
-static outTemplate_t *outTemplates;
+static outTemplate_t *outTemplates = NULL;
+static sender_data_t *sender_data  = NULL;
 static uint32_t processed_records;
 static uint32_t numV9Elements;
 
@@ -338,9 +345,9 @@ static void Append_Record(send_peer_t *peer, master_record_t *master_record);
 
 static int Add_template_flowset(outTemplate_t *outTemplate, send_peer_t *peer);
 
-static void CloseDataFlowset(sender_data_t *sender_data, send_peer_t *peer);
+static void CloseDataFlowset(send_peer_t *peer);
 
-static int CheckSendBufferSpace(size_t size, sender_data_t *sender_data, send_peer_t *peer);
+static int CheckSendBufferSpace(size_t size, send_peer_t *peer);
 
 
 
@@ -727,8 +734,11 @@ int			i;
 		}
 		template->extensionList = SetupSequencer(&(template->sequencer), sequenceTable, numSequences);
 		template->updated = time(NULL);
-		dbg_printf("Added/Updated Sequencer to template\n");
+
+#ifdef DEVEL
+		printf("Added/Updated Sequencer to template\n");
 		PrintSequencer(&(template->sequencer));
+#endif
 
 		// update size left of this flowset
 		size_left -= size_required;
@@ -1047,11 +1057,17 @@ uint8_t				*inBuff;
 			LogError("Process v9: Sequencer run error. Skip record processing");
 			return;
 		}
+
 		outBuff += sequencer->outLength;
 		inBuff += sequencer->inLength;
 		size_left -= sequencer->inLength;
 
 		processed_records++;
+
+		if ( stack[STACK_ENGINE_TYPE] ) 
+			recordHeaderV3->engineType	= stack[STACK_ENGINE_TYPE];
+		if ( stack[STACK_ENGINE_ID] ) 
+			recordHeaderV3->engineID	= stack[STACK_ENGINE_ID];
 
 		// handle sampling
 		if ( overwrite_sampling > 0 ) {
@@ -1124,7 +1140,6 @@ uint8_t				*inBuff;
 		if ( genericFlow ) {
 			genericFlow->msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + 
 								  (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
-
 			if ( sampling_rate > 1 ) {
   				genericFlow->inPackets *= (uint64_t)sampling_rate;
   				genericFlow->inBytes   *= (uint64_t)sampling_rate;
@@ -1143,25 +1158,28 @@ uint8_t				*inBuff;
 						uint8_t *s2 = (uint8_t *)&(genericFlow->dstPort);
 						s2[0] = s1[1];
 						s2[1] = s1[0];
-						genericFlow->srcPort = 0;
 					}
+					// srcPort is always 0
+					genericFlow->srcPort = 0;
 					if ( stack[STACK_ICMP] != 0 ) {
+						// icmp type/code element #32
 						genericFlow->dstPort = stack[STACK_ICMP];
+					} else if ( stack[STACK_ICMP_TYPE] || stack[STACK_ICMP_CODE] ) {
+						// icmp type and code elements #176 #177 #178 #179
+						genericFlow->dstPort = 256 * stack[STACK_ICMP_TYPE] + stack[STACK_ICMP_CODE];
+					} else {
+						genericFlow->dstPort = 0;
 					}
 					break;
 				case IPPROTO_TCP:
 					fs->nffile->stat_record->numflows_tcp++;
 					fs->nffile->stat_record->numpackets_tcp += genericFlow->inPackets;
 					fs->nffile->stat_record->numbytes_tcp   += genericFlow->inBytes;
-					// make sure dst port wins if ICMP type/code and TCP/UDP port is sent
-					genericFlow->dstPort = stack[STACK_DSTPORT];
 					break;
 				case IPPROTO_UDP:
 					fs->nffile->stat_record->numflows_udp++;
 					fs->nffile->stat_record->numpackets_udp += genericFlow->inPackets;
 					fs->nffile->stat_record->numbytes_udp   += genericFlow->inBytes;
-					// make sure dst port wins if ICMP type/code and TCP/UDP port is sent
-					genericFlow->dstPort = stack[STACK_DSTPORT];
 					break;
 				default:
 					fs->nffile->stat_record->numflows_other++;
@@ -1473,17 +1491,17 @@ static int pkg_num = 1;
  * functions for sending netflow v9 records
  */
 
-void *Init_v9_output(send_peer_t *peer) {
+int Init_v9_output(send_peer_t *peer) {
 int i;
 
 	for (i=0; v9TranslationMap[i].name != NULL; i++ ) {}
 	LogInfo("Init v9 out: Max number of v9 tags: %u\n", i);
 	numV9Elements = i;
 
-	sender_data_t *sender_data = calloc(1, sizeof(sender_data_t));
+	sender_data = calloc(1, sizeof(sender_data_t));
 	if ( !sender_data ) {
 		LogError("calloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
-		return NULL;
+		return 0;
 	}
 	sender_data->header.v9_header = (v9Header_t *)peer->send_buffer;
 	peer->buff_ptr = (void *)((void *)sender_data->header.v9_header + sizeof(v9Header_t));	
@@ -1500,20 +1518,19 @@ int i;
 	sender_data->data_flowset 	 = NULL;
 	sender_data->data_flowset_id = 0;
 
-	return (void *)sender_data;
+	return 1;
 
 } // End of Init_v9_output
 
-int Close_v9_output(void *data, send_peer_t *peer) {
-sender_data_t *sender_data = (sender_data_t *)data;
+int Close_v9_output(send_peer_t *peer) {
 
-	dbg_printf("Close v9 output\n");
 	if ( (sender_data->header.record_count + sender_data->header.template_count) > 0 ) {
+		dbg_printf("Close v9 output\n");
 		peer->flush = 1;
 		sender_data->header.sequence++;
 		sender_data->header.v9_header->sequence = htonl(sender_data->header.sequence);
 		sender_data->header.v9_header->count = htons(sender_data->header.record_count + sender_data->header.template_count);
-		CloseDataFlowset(sender_data, peer);
+		CloseDataFlowset(peer);
 		dbg_printf("Prepare buffer: sequence: %u, records: %u, templates: %u\n", 
 			sender_data->header.sequence, sender_data->header.record_count, sender_data->header.template_count);
 		sender_data->header.record_count   = 0;
@@ -1571,6 +1588,7 @@ uint32_t template_id, count, record_length;
 	count 			= 0;
 	record_length 	= 0;
 	flowset = (*t)->template_flowset;
+
 	flowset->field[count].type   = htons(NF9_ENGINE_TYPE);
 	flowset->field[count].length = htons(1);
 	count++;
@@ -1579,6 +1597,7 @@ uint32_t template_id, count, record_length;
 	count++;
 	record_length 				+= 2;
 
+	dbg_printf("Generate template for %u extensions\n", master_record->numElements);
 	// iterate over all extensions
 	uint16_t srcMaskType = 0;
 	uint16_t dstMaskType = 0;
@@ -1587,6 +1606,7 @@ uint32_t template_id, count, record_length;
 			LogError("Panic! %s line %d: %s", __FILE__, __LINE__, "Numer of elements too big");
 			exit(255);
 		}
+		dbg_printf("extension %i: %u\n", i, master_record->exElementList[i]);
 		switch (master_record->exElementList[i]) {
 			case EXgenericFlowID:
 				flowset->field[count].type	 = htons(NF_F_FLOW_CREATE_TIME_MSEC);
@@ -1607,7 +1627,7 @@ uint32_t template_id, count, record_length;
 				flowset->field[count].type   = htons(NF9_L4_DST_PORT);
 				flowset->field[count].length = htons(2);
 				count++;
-    			flowset->field[count].type   = htons(NF9_ICMP_TYPE);
+    			flowset->field[count].type   = htons(NF9_ICMP);
     			flowset->field[count].length = htons(2);
     			count++;
 				flowset->field[count].type   = htons(NF9_IN_PROTOCOL);
@@ -1953,6 +1973,8 @@ static void Append_Record(send_peer_t *peer, master_record_t *master_record) {
 		}
 	}
 
+	sender_data->header.record_count++;
+
 
 } // End of Append_Record
 
@@ -1962,10 +1984,13 @@ static int Add_template_flowset(outTemplate_t *outTemplate, send_peer_t *peer) {
 	memcpy(peer->buff_ptr, (void *)outTemplate->template_flowset, outTemplate->flowset_length);
 	peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + outTemplate->flowset_length);
 
+	sender_data->header.template_count++;
+
 	return 1;
 } // End of Add_template_flowset
 
-static void CloseDataFlowset(sender_data_t *sender_data, send_peer_t *peer) {
+static void CloseDataFlowset(send_peer_t *peer) {
+
 	if ( sender_data->data_flowset ) {
 		uint32_t length = (void *)peer->buff_ptr - (void *)sender_data->data_flowset;
 		uint32_t align  = length & 0x3;
@@ -1984,7 +2009,7 @@ static void CloseDataFlowset(sender_data_t *sender_data, send_peer_t *peer) {
 	}
 } // End of CloseDataFlowset
 
-static int CheckSendBufferSpace(size_t size, sender_data_t *sender_data, send_peer_t *peer) {
+static int CheckSendBufferSpace(size_t size, send_peer_t *peer) {
 
 	dbg_printf("CheckSendBufferSpace for %lu bytes: ", size);
 	if ( (peer->buff_ptr + size) > peer->endp ) {
@@ -1994,7 +2019,7 @@ static int CheckSendBufferSpace(size_t size, sender_data_t *sender_data, send_pe
 		sender_data->header.sequence++;
 		sender_data->header.v9_header->sequence = htonl(sender_data->header.sequence);
 		sender_data->header.v9_header->count = htons(sender_data->header.record_count + sender_data->header.template_count);
-		CloseDataFlowset(sender_data, peer);
+		CloseDataFlowset(peer);
 		dbg_printf("Prepare buffer: sequence: %u, records: %u, templates: %u\n", 
 			sender_data->header.sequence, sender_data->header.record_count, sender_data->header.template_count);
 		sender_data->header.record_count   = 0;
@@ -2007,12 +2032,16 @@ static int CheckSendBufferSpace(size_t size, sender_data_t *sender_data, send_pe
 
 } // End of CheckBufferSpace
 
-int Add_v9_output_record(master_record_t *master_record, void *data, send_peer_t *peer) {
-sender_data_t *sender_data = (sender_data_t *)data;
+int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer) {
 
 	time_t now = time(NULL);
 
 	dbg_printf("\nNext packet\n");
+	if ( master_record->numElements == 0 ) {
+		dbg_printf("Skip record with 0 extensions\n\n");
+		return 0;
+	}
+
 	if ( !sender_data->header.v9_header->unix_secs ) {	// first time a record is added
 		dbg_printf("First time setup\n");
 		// boot time is set one day back - assuming that the start time of every flow does not start ealier
@@ -2027,84 +2056,48 @@ sender_data_t *sender_data = (sender_data_t *)data;
 	}
 
 	outTemplate_t *template = GetOutputTemplate(master_record);
-	if ( template->time_sent == 0 ) {
-		dbg_printf("New template\n");
-		if ( !CheckSendBufferSpace(template->flowset_length, sender_data, peer)) {
+	if ( (sender_data->data_flowset_id != template->template_id) || template->needs_refresh) {
+		// Different flowset ID - End data flowset and open new data flowset
+		CloseDataFlowset(peer);
+
+		if ( !CheckSendBufferSpace(template->record_length + sizeof(data_flowset_t), peer)) {
 			// request buffer flush first
-			dbg_printf("Flush Buffer\n");
+			dbg_printf("Flush Buffer #1\n");
 			return 1;
 		}
+
 		// add first time this template
 		Add_template_flowset(template, peer);
 		template->time_sent = now;
-		sender_data->header.template_count++;
+
+		// Add data flowset
+		dbg_printf("Add new data flowset\n");
+		sender_data->data_flowset = peer->buff_ptr;
+		sender_data->data_flowset->flowset_id = template->template_flowset->template_id;
+		sender_data->data_flowset_id = template->template_id;
+		peer->buff_ptr = (void *)sender_data->data_flowset->data;
+	} 
+
+	// same data flowset ID - add Record
+	if ( !CheckSendBufferSpace(template->record_length, peer)) {
+		// request buffer flush first
+		dbg_printf("Flush Buffer #2\n");
+		return 1;
 	}
 
-	// template is known to the collector
+	dbg_printf("Add record %u, bytes: %u\n", template->template_id, template->record_length);
+	Append_Record(peer, master_record);
+
+	// template record counter
 	template->record_count++;
 
 	// need refresh?
-	if ( ((template->record_count & 0xFFF) == 0) || ( now - template->time_sent > MAX_LIFETIME ) ) {
+	if ( ((template->record_count & 0xFFF) == 0) || (now - template->time_sent > MAX_LIFETIME) ) {
 		template->needs_refresh = 1;
+		dbg_printf("Schedule template refresh\n");
 	}
 
-	// check if a data flowset is already in buffer
-	if ( sender_data->data_flowset ) {
-		if ( sender_data->data_flowset_id == template->template_id ) {
-			// same data flowset ID - add Record
-			if ( !CheckSendBufferSpace(template->record_length, sender_data, peer)) {
-				// request buffer flush first
-				dbg_printf("Flush Buffer #1\n");
-				return 1;
-			}
-			dbg_printf("Add record %u, bytes: %u\n", template->template_id, template->record_length);
-			Append_Record(peer, master_record);
-			sender_data->header.record_count++;
-
-		} else {
-			// Different flowset ID - End data flowset and open new data flowset
-			CloseDataFlowset(sender_data, peer);
-			// at least one new record must fit
-			if ( !CheckSendBufferSpace(template->record_length + sizeof(data_flowset_t), sender_data, peer)) {
-				// request buffer flush first
-				dbg_printf("Flush Buffer #2\n");
-				return 1;
-			}
-			dbg_printf("Add new data flowset\n");
-			sender_data->data_flowset = peer->buff_ptr;
-			sender_data->data_flowset->flowset_id = template->template_flowset->template_id;
-			sender_data->data_flowset_id = template->template_id;
-			peer->buff_ptr = (void *)sender_data->data_flowset->data;
-			dbg_printf("Add record %u, bytes: %u\n", template->template_id, template->record_length);
-			Append_Record(peer, master_record);
-			sender_data->header.record_count++;
-		}
-	} else {
-		// Add flowset with template ID
-			if ( !CheckSendBufferSpace(template->record_length + sizeof(data_flowset_t), sender_data, peer)) {
-				// request buffer flush first
-				return 1;
-			}
-			dbg_printf("Add new data flowset\n");
-			sender_data->data_flowset = peer->buff_ptr;
-			sender_data->data_flowset->flowset_id = template->template_flowset->template_id;
-			sender_data->data_flowset_id = template->template_id;
-			peer->buff_ptr = (void *)sender_data->data_flowset->data;
-			dbg_printf("Add record %u, bytes: %u\n", template->template_id, template->record_length);
-			Append_Record(peer, master_record);
-			sender_data->header.record_count++;
-	}
-
-	if ( template->needs_refresh ) {
-		if ( !CheckSendBufferSpace(template->flowset_length, sender_data, peer)) {
-			dbg_printf("Postpone template refresh\n\n");
-			// refresh at next cycle
-			return 0;
-		}
-		Add_template_flowset(template, peer);
-		sender_data->header.template_count++;
-	}
-	dbg_printf("Done\n\n");
+	dbg_printf("Done Add_v9_output_record\n\n");
 
 	return 0;
 } // End of Add_v9_output_record

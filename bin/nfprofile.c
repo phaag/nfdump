@@ -622,7 +622,7 @@ flist_t flist;
 	}
 
 	queue_t *fileList = SetupInputFileSequence(&flist);
-	if ( !Init_nffile(fileList) )
+	if ( !fileList || !Init_nffile(fileList) )
 		exit(254);
 
 	process_data(GetChannelInfoList(), num_channels, tslot);

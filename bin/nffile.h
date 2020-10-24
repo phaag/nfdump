@@ -204,8 +204,6 @@ typedef struct nffile_s {
 	stat_record_t 	*stat_record;	// flow stat record
 	char			*ident;			// source identifier
 	char			*fileName;		// file name
-
-	uint32_t		blockCount;		// number of blocks read
 } nffile_t;
 
 #define FILE_IDENT(n)	((n)->ident)
@@ -272,7 +270,7 @@ int ChangeIdent(char *filename, char *Ident);
 
 void PrintStat(stat_record_t *s, char *ident);
 
-void QueryFile(char *filename);
+int QueryFile(char *filename);
 
 int GetStatRecord(char *filename, stat_record_t *stat_record);
 

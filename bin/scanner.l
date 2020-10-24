@@ -196,6 +196,8 @@ not|"!"			{ return NOT; }
 "="|"=="|eq		{ return EQ; }
 ">"|gt			{ return GT; }
 "<"|lt			{ return LT; }
+">="|ge			{ return GE; }
+"<="|le			{ return LE; }
 #.*				{ ; }
 [ \t]			{ ; }
 

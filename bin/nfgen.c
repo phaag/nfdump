@@ -187,7 +187,10 @@ nffile_t			*nffile;
 
 	memset((void *)&record, 0, sizeof(record));
 
-	nffile = OpenNewFile("testflows", NULL, NOT_COMPRESSED, 0);
+	if ( !Init_nffile(NULL) )
+		exit(254);
+
+	nffile = OpenNewFile("test.flows.nf", NULL, NOT_COMPRESSED, 0);
 	if ( !nffile ) {
 		exit(255);
 	}

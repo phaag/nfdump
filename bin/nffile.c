@@ -581,7 +581,6 @@ int ret, fd;
 		return NULL;
 	}
 	nffile->fd = fd;
-	nffile->blockCount = 0;
 	if ( filename )
 		nffile->fileName = strdup(filename);
 
@@ -669,12 +668,6 @@ int ret, fd;
 		}
 	}
 	nffile->compat16 = 0;
-
-	if ( nffile->file_header->NumBlocks == 0 ) {
-		LogError("Open file: Unclean closed file. Repair first");
-		CloseFile(nffile);
-		return NULL;
-	}
 
 	if ( FILE_ENCRYPTION(nffile) ) {
 		LogError("Open file %s: Can not handle encrypted files", filename);
@@ -1035,20 +1028,21 @@ nffile_t *nffile = (nffile_t *)arg;
 	pthread_t self = pthread_self();
 	atomic_init(&nffile->worker, self);
 
-	int terminate;
+	int terminate  = atomic_load(&nffile->terminate);
+	int blockCount = 0;
 	dataBlock_t *block_header = NULL;
-	do {
+	while ( !terminate && blockCount < nffile->file_header->NumBlocks ) {
 		block_header = nfread(nffile);
 		if ( !block_header ) 
 			break;
 
-		nffile->blockCount++;
+		blockCount++;
 		queue_push(nffile->blockQueue, (void *)block_header);
 		dbg_printf("ReadBlock - expanded: %u\n", block_header->size);
-		dbg_printf("Blocks: %u\n", nffile->blockCount);
+		dbg_printf("Blocks: %u\n", blockCount);
 
 		terminate = atomic_load(&nffile->terminate);
-	} while ( !terminate && (nffile->blockCount + nffile->file_header->appendixBlocks) < nffile->file_header->NumBlocks);
+	} 
 
 	// eof or error ends processing
 	queue_close(nffile->blockQueue);
@@ -1058,7 +1052,7 @@ nffile_t *nffile = (nffile_t *)arg;
 		nffile->worker_buffer = NULL;
 	}
 
-	dbg_printf("nfreader done - read %u blocks\n", nffile->blockCount);
+	dbg_printf("nfreader done - read %u blocks\n", blockCount);
 	dbg_printf("nfreader exit\n");
 
 	atomic_init(&nffile->worker, 0);
@@ -1319,7 +1313,7 @@ char 			outfile[MAXPATHLEN];
 
 } // End of ModifyCompressFile
 
-void QueryFile(char *filename) {
+int QueryFile(char *filename) {
 int fd;
 uint32_t totalRecords, numBlocks, type1, type2, type3;
 struct stat stat_buf;
@@ -1327,20 +1321,20 @@ ssize_t	ret;
 off_t	fsize;
 
 	if ( !Init_nffile(NULL) ) 
-		return;
+		return 0;
 
 	type1 = type2 = type3 = 0;
 	totalRecords = numBlocks = 0;
 
 	if ( stat(filename, &stat_buf) ) {
 		LogError("Can't stat '%s': %s", filename, strerror(errno));
-		return;
+		return 0;
 	}
 
 	fd = open(filename, O_RDONLY);
 	if ( fd < 0 ) {
 		LogError("Error open file: %s", strerror(errno));
-		return;
+		return 0;
 	}
 
 	// assume fileHeaderV2_t
@@ -1349,13 +1343,13 @@ off_t	fsize;
 	if ( ret < 1 ) {
 		LogError("read() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 		close(fd);
-		return;
+		return 0;
 	}
 
 	if ( fileHeader.magic != MAGIC ) {
         LogError("Open file '%s': bad magic: 0x%X", filename, fileHeader.magic );
         close(fd);
-		return;
+		return 0;
     }
 
 	printf("File       : %s\n", filename);
@@ -1363,24 +1357,24 @@ off_t	fsize;
 		if ( lseek(fd, 0, SEEK_SET) < 0 ) {
 			LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 			close(fd);
-			return;
+			return 0;
 		}
 		if ( !QueryFileV1(fd, &fileHeader) ) {
 			close(fd);
-			return;
+			return 0;
 		}
 	} else {
 
 		if ( fileHeader.version != LAYOUT_VERSION_2 ) {
         	LogError("Unknown layout version: %u", fileHeader.version );
         	close(fd);
-			return;
+			return 0;
 		}
 
 		if ( fileHeader.compression > LZ4_COMPRESSED) {
         	LogError("Unknown compression: %u", fileHeader.compression );
         	close(fd);
-			return;
+			return 0;
 		}
 
 		printf("Version    : %u - %s\n", fileHeader.version,
@@ -1392,7 +1386,7 @@ off_t	fsize;
 		if ( fileHeader.encryption != NOT_ENCRYPTED) {
         	LogError("Unknown encryption: %u", fileHeader.encryption );
         	close(fd);
-			return;
+			return 0;
 		}
 
 		struct tm   *tbuff = localtime(&fileHeader.created);
@@ -1407,7 +1401,7 @@ off_t	fsize;
 		if ( fileHeader.offAppendix >= stat_buf.st_size ) {
         	LogError("Invalid appendix offset: %u", fileHeader.offAppendix );
         	close(fd);
-			return;
+			return 0;
 		}
 	} 
 
@@ -1415,7 +1409,7 @@ off_t	fsize;
 	nffile_t *nffile = NewFile(NULL);
 	if ( !nffile ) {
 		close(fd);
-		return;
+		return 0;
 	}
 	nffile->fd = fd;
 	nffile->fileName = strdup(filename);
@@ -1442,19 +1436,19 @@ off_t	fsize;
 		if ( ret < 0 ) {
 			LogError("Error reading block %i: %s", numBlocks, strerror(errno));
 			close(fd);
-			return;
+			return 0;
 		}
 
 		// Should never happen, as catched already in first check, but test it anyway ..
 		if ( ret == 0 ) {
 			LogError("Unexpected eof. Expected %u blocks, counted %i", fileHeader.NumBlocks, i);
 			close(fd);
-			return;
+			return 0;
 		}
 		if ( ret < sizeof(dataBlock_t) ) {
 			LogError("Short read: Expected %u bytes, read: %i", sizeof(dataBlock_t), ret);
 			close(fd);
-			return;
+			return 0;
 		}
 		fsize += ret;
 		numBlocks++;
@@ -1472,19 +1466,19 @@ off_t	fsize;
 			default:
 				printf("block %i has unknown type %u\n", numBlocks, nffile->block_header->type);
 				close(fd);
-				return;
+				return 0;
 		}
 
 		if ( (nffile->block_header->size ) > BUFFSIZE ) {
 			LogError("Expected to seek beyond EOF! File corrupted");
 			close(fd);
-			return;
+			return 0;
 		}
 		
 		if ( (fsize + nffile->block_header->size ) > stat_buf.st_size ) {
 			LogError("Expected to seek beyond EOF! File corrupted");
 			close(fd);
-			return;
+			return 0;
 		}
 		
 		dbg_printf("Checking block %i, type: %u, size: %u, flags: 0x%x, records: %u\n", 
@@ -1500,18 +1494,18 @@ off_t	fsize;
 		if ( ret < 0 ) {
 			LogError("Error reading block %i: %s", numBlocks, strerror(errno));
 			close(fd);
-			return;
+			return 0;
 		}
 
 		if ( ret == 0 ) {
 			LogError("Unexpected eof. Expected %u blocks, counted %i", fileHeader.NumBlocks, numBlocks);
 			close(fd);
-			return;
+			return 0;
 		}
 		if ( ret != nffile->block_header->size ) {
 			LogError("Short read: Expected %u bytes, read: %i", nffile->block_header->size, ret);
 			close(fd);
-			return;
+			return 0;
 		}
 		fsize += ret;
 
@@ -1524,7 +1518,7 @@ off_t	fsize;
 				buff = b;
 				if ( Uncompress_Block_LZO(buff, nffile->block_header, nffile->buff_size) < 0 ) {
 					LogError("LZO decommpress failed");
-					return;
+					return 0;
 				}
 				} break;
 			case LZ4_COMPRESSED: {
@@ -1533,7 +1527,7 @@ off_t	fsize;
 				buff = b;
 				if ( Uncompress_Block_LZ4(buff, nffile->block_header, nffile->buff_size) < 0 ) {
 					LogError("LZ4 decommpress failed");
-					return;
+					return 0;
 				}
 				} break;
 			case BZ2_COMPRESSED: {
@@ -1542,7 +1536,7 @@ off_t	fsize;
 				buff = b;
 				if ( Uncompress_Block_BZ2(buff, nffile->block_header, nffile->buff_size) < 0 ) {
 					LogError("Bzip2 decommpress failed");
-					return;
+					return 0;
 				}
 				} break;
 		}
@@ -1563,7 +1557,7 @@ off_t	fsize;
 				LogError("Record size %u extends beyond block size: %u", 
 					blockSize + recordHeader->size, nffile->block_header->size );
 				close(fd);
-				return;
+				return 0;
 			}
 			blockSize += recordHeader->size;
 
@@ -1576,21 +1570,21 @@ off_t	fsize;
 				LogError("Record %i, type: %u, size: %u - block size: %u\n", 
 					numRecords, recordHeader->type, recordHeader->size, blockSize);
 				close(fd);
-				return;
+				return 0;
 			}
 			nffile->buff_ptr += recordHeader->size;
 		}
 		if (numRecords != nffile->block_header->NumRecords) {
 			LogError("Block %u num records %u != counted records: %u", i, nffile->block_header->NumRecords, numRecords);
 			close(fd);
-			return;
+			return 0;
 		}
 		totalRecords += numRecords;
 
 		if (blockSize != nffile->block_header->size) {
 			LogError("block size %u != sum record size: %u", blockSize, nffile->block_header->size);
 			close(fd);
-			return;
+			return 0;
 		}
 
 		if ( i+1 == fileHeader.NumBlocks ) {
@@ -1598,7 +1592,7 @@ off_t	fsize;
 			if ( fileHeader.appendixBlocks && fsize != fileHeader.offAppendix ) {
 				LogError("Invalid appendix offset - Expected: %u, found: %u", fileHeader.offAppendix, fsize);
 				close(fd);
-				return;
+				return 0;
 			}
 			if ( fileHeader.appendixBlocks ) 
 				printf("Checking appendix blocks\n");
@@ -1620,6 +1614,8 @@ off_t	fsize;
 	printf("Records       : %u\n", totalRecords);
 
 	DisposeFile(nffile);
+
+	return 1;
 
 } // End of QueryFile
 

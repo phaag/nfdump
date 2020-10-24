@@ -846,6 +846,20 @@ char	path[MAXPATHLEN];
 
 queue_t *SetupInputFileSequence(flist_t *flist) {
 
+	if ( flist->multiple_dirs == NULL && flist->single_file == NULL && flist->multiple_files == NULL ) {
+		LogError("Need an input source -r/-R/-M - <stdin> invalid");
+		return NULL;
+	}
+
+	if ( flist->single_file && flist->multiple_files ) {
+		LogError("-r and -R are mutually exclusive. Please specify either -r or -R\n");
+		return NULL;
+	}
+	if ( flist->multiple_dirs && !(flist->single_file || flist->multiple_files) ) {
+		LogError("-M needs either -r or -R to specify the file or file list. Add '-R .' for all files in the directories.\n");
+		return NULL;
+	}
+
 	file_queue = queue_init(64);
 	pthread_t tid;
 	pthread_create(&tid, NULL, FileLister_thr, (void *)flist);

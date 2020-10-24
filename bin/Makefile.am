@@ -2,10 +2,11 @@
 bin_PROGRAMS = nfcapd nfdump nfreplay nfexpire nfanon
 check_PROGRAMS = nftest nfgen nfreader
 
-EXTRA_DIST = applybits_inline.c nffile_inline.c collector_inline.c inline.c nfdump_inline.c heapsort_inline.c test.sh nfdump.test.out nfdump.test.diff
+EXTRA_DIST = applybits_inline.c nffile_inline.c nffile_compat.c collector_inline.c 
+EXTRA_DIST += inline.c memhandle.c nfdump_inline.c heapsort_inline.c runtest.sh nftest.1.out
 
-check_PROGRAMMS = test.sh
-TESTS = nftest test.sh
+check_PROGRAMMS = runtest.sh
+TESTS = nftest runtest.sh
 
 if SFLOW
 bin_PROGRAMS += sfcapd
@@ -38,9 +39,9 @@ output += output_json.c output_json.h output_csv.c output_csv.h output_pipe.c ou
 output += output_fmt.c output_fmt.h 
 util = util.c util.h
 filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h
-nffile = nffile.c nffile.h lstack.c lstack.h queue.c queue.h nfx.c nfx.h nfxV3.h nfxV3.c
+nffile = nffile.c nffile.h nffileV2 lstack.c lstack.h queue.c queue.h nfx.c nfx.h nfxV3.h nfxV3.c
 nflist = flist.c flist.h fts_compat.c fts_compat.h
-filter = grammar.y scanner.l nftree.c nftree.h ipconv.c ipconv.h rbtree.h
+filter = grammar.y scanner.l nftree.c nftree.h ipconv.c ipconv.h rbtree.h klist.h filter.h
 exporter = exporter.c exporter.h
 
 nfprof = nfprof.c nfprof.h
@@ -48,15 +49,14 @@ nfnet = nfnet.c nfnet.h
 anon = panonymizer.c panonymizer.h rijndael.c rijndael.h
 collector = collector.c collector.h
 nfv1 = netflow_v1.c netflow_v1.h
-nfv9 = netflow_v9.c netflow_v9.h
-# pcaproc = pcaproc.c pcaproc.h flowtree.c flowtree.h ipfrag.c ipfrag.h malloc_hook.c
+nfv5v7 = netflow_v5_v7.c netflow_v5_v7.h
+nfv9 = netflow_v9.c netflow_v9.h fnf.h nbar.h
+ipfix = ipfix.c ipfix.h fnf.h nbar.h
 pcaproc = pcaproc.c pcaproc.h flowtree.c flowtree.h ipfrag.c ipfrag.h
 content = content_dns.c content_dns.h
 netflow_pcap = netflow_pcap.c netflow_pcap.h
-ipfix = ipfix.c ipfix.h
-nfv5v7 = netflow_v5_v7.c netflow_v5_v7.h
 nfstatfile = nfstatfile.c nfstatfile.h
-nflowcache = nflowcache.c nflowcache.h
+nflowcache = nflowcache.c nflowcache.h memhandle.h 
 bookkeeper = bookkeeper.c bookkeeper.h
 expire= expire.c expire.h
 launch = launch.c launch.h
@@ -66,7 +66,7 @@ libnfdump_la_SOURCES = $(output) $(util) $(filelzo) $(nffile) $(nflist) $(filter
 libnfdump_la_LDFLAGS = -release 1.7.0
 
 
-nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h blocksort.h blocksort.c  \
+nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h khash.h blocksort.h blocksort.c  \
 	$(nflowcache) $(nfprof)
 nfdump_LDADD = -lnfdump
 nfdump_LDFLAGS = -pthread
@@ -156,5 +156,5 @@ ft2nfdump_DEPENDENCIES = libnfdump.la
 endif
 
 check_DIST = inline.c collector_inline.c nffile_inline.c nfdump_inline.c heapsort_inline.c applybits_inline.c 
-check_DIST += test.sh nfdump.test.out parse_csv.pl AddExtension.txt	nfdump.test.diff
+check_DIST += runtest.sh nfdump.test.out parse_csv.pl AddExtension.txt	nfdump.test.diff
 CLEANFILES = lex.yy.c grammar.c grammar.h scanner.c scanner.h $(check_PROGRAMS) *.gch

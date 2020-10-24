@@ -135,7 +135,7 @@ char yyerror_buff[256];
 	void			*list;
 }
 
-%token ANY IP IF MAC MPLS TOS DIR FLAGS PROTO MASK NET PORT FWDSTAT IN OUT SRC DST EQ LT GT PREV NEXT
+%token ANY IP IF MAC MPLS TOS DIR FLAGS PROTO MASK NET PORT FWDSTAT IN OUT SRC DST EQ LT GT LE GE PREV NEXT
 %token IDENT ENGINE_TYPE ENGINE_ID AS PACKETS BYTES FLOWS NFVERSION
 %token PPS BPS BPP DURATION NOT 
 %token IPV4 IPV6 BGPNEXTHOP ROUTER VLAN
@@ -144,7 +144,7 @@ char yyerror_buff[256];
 %token NAT ADD EVENT VRF NPORT NIP
 %token PBLOCK START END STEP SIZE
 %token <s> STRING REASON
-%token <value> PORTNUM NUMBER ICMP_TYPE ICMP_CODE
+%token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
 %type <value> expr
 %type <param> dqual term comp acl inout
 %type <list> iplist ullist
@@ -175,13 +175,13 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 	}
 
 	| IPV4 { 
-		$$.self = NewBlock(OffsetRecordFlags, (1LL << ShiftRecordFlags)  & MaskRecordFlags, 
-					(0LL << ShiftRecordFlags)  & MaskRecordFlags, CMP_EQ, FUNC_NONE, NULL); 
+		$$.self = NewBlock(OffsetRecordMFlags, (1LL << ShiftRecordMFlags)  & MaskRecordMFlags, 
+					(0LL << ShiftRecordMFlags)  & MaskRecordMFlags, CMP_EQ, FUNC_NONE, NULL); 
 	}
 
 	| IPV6 { 
-		$$.self = NewBlock(OffsetRecordFlags, (1LL << ShiftRecordFlags)  & MaskRecordFlags, 
-					(1LL << ShiftRecordFlags)  & MaskRecordFlags, CMP_EQ, FUNC_NONE, NULL); 
+		$$.self = NewBlock(OffsetRecordMFlags, (1LL << ShiftRecordMFlags)  & MaskRecordMFlags, 
+					(1LL << ShiftRecordMFlags)  & MaskRecordMFlags, CMP_EQ, FUNC_NONE, NULL); 
 	}
 
 	| PROTO NUMBER { 
@@ -316,6 +316,15 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 		$$.self = NewBlock(OffsetFlags, MaskFlags, ($3 << ShiftFlags) & MaskFlags, $2.comp, FUNC_NONE, NULL); 
+	}
+
+	| FLAGS AS	{	
+		// handle special case with 'AS' takes as flags. and not AS number
+		uint64_t fl = 0;
+		fl |= 16;
+		fl |= 2;
+		$$.self = NewBlock(OffsetFlags, (fl << ShiftFlags) & MaskFlags, 
+					(fl << ShiftFlags) & MaskFlags, CMP_FLAGS, FUNC_NONE, NULL); 
 	}
 
 	| FLAGS STRING	{	
@@ -2091,6 +2100,8 @@ comp:				{ $$.comp = CMP_EQ; }
 	| EQ			{ $$.comp = CMP_EQ; }
 	| LT			{ $$.comp = CMP_LT; }
 	| GT			{ $$.comp = CMP_GT; }
+	| LE			{ $$.comp = CMP_LE; }
+	| GE			{ $$.comp = CMP_GE; }
 	;
 
 /* 'direction' qualifiers */

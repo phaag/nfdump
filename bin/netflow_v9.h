@@ -186,7 +186,7 @@ typedef struct common_header_s {
 #define NF9_IPV6_DST_MASK		30
 
 #define NF9_IPV6_FLOW_LABEL		31
-#define NF9_ICMP_TYPE			32
+#define NF9_ICMP				32
 
 #define NF9_SAMPLING_INTERVAL	34
 #define NF9_SAMPLING_ALGORITHM	35
@@ -240,6 +240,7 @@ typedef struct common_header_s {
 
 // CISCO ASA NSEL extension - Network Security Event Logging
 #define NF_F_FLOW_BYTES				   85
+#define NF_F_FLOW_PACKETS			   86
 #define NF_F_CONN_ID                  148
 #define NF_F_FLOW_CREATE_TIME_MSEC	  152
 #define NF_F_FLOW_END_TIME_MSEC		  153
@@ -303,10 +304,10 @@ int Init_v9(int v, uint32_t sampling, uint32_t overwrite);
 
 void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 
-void *Init_v9_output(send_peer_t *peer);
+int Init_v9_output(send_peer_t *peer);
 
-int Close_v9_output(void *data, send_peer_t *peer);
+int Close_v9_output(send_peer_t *peer);
 
-int Add_v9_output_record(master_record_t *master_record, void *data, send_peer_t *peer);
+int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer);
 
 #endif //_NETFLOW_V9_H 1

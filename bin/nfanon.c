@@ -401,18 +401,10 @@ flist_t flist;
 		}
 	}
 
-	if ( flist.single_file && flist.multiple_files ) {
-		LogError("-r and -R are mutually exclusive. Please specify either -r or -R");
-		exit(255);
-	}
-	if ( flist.multiple_dirs && !(flist.single_file || flist.multiple_files) ) {
-		LogError("-M needs either -r or -R to specify a list of files");
-		exit(255);
-	}
 
 	queue_t *fileList = SetupInputFileSequence(&flist);
-	if ( !Init_nffile(fileList) )
-		exit(254);
+	if ( !fileList || !Init_nffile(fileList) )
+		exit(255);
 
 	process_data(wfile);
 

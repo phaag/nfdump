@@ -163,9 +163,9 @@ extern exporter_t **exporter_list;
 
 #define FORMAT_bilong "%ts %td %pr %sap <-> %dap %flg %tos %opkt %ipkt %obyt %ibyt %fl"
 
-#define FORMAT_nsel "%ts %evt %xevt %pr %sap -> %dap %xsap -> %xdap %ibyt %obyt"
+#define FORMAT_nsel "%tevt %evt %xevt %pr %sap -> %dap %xsap -> %xdap %ibyt %obyt"
 
-#define FORMAT_nel "%ts %nevt %pr %sap -> %dap %nsap -> %ndap"
+#define FORMAT_nel "%tevt %nevt %pr %sap -> %dap %nsap -> %ndap"
 
 #ifdef NSEL
 #	define DefaultMode "nsel"
@@ -650,7 +650,7 @@ char		*byte_limit_string, *packet_limit_string, *print_format;
 char		*print_order, *query_file, *nameserver, *aggr_fmt;
 int 		c, ffd, ret, element_stat, fdump;
 int 		i, flow_stat, aggregate, aggregate_mask, bidir;
-int 		print_stat, syntax_only, sort_order, compress;
+int 		print_stat, syntax_only, compress;
 int			printPlain, GuessDir, ModifyCompress;
 uint32_t	limitRecords;
 char 		Ident[IDENTLEN];
@@ -668,7 +668,6 @@ flist_t 	flist;
 	print_stat      = 0;
 	element_stat  	= 0;
 	limitRecords	= 0;
-	sort_order		= 0;
 	total_bytes		= 0;
 	recordCount		= 0;
 	skipped_blocks	= 0;
@@ -823,7 +822,6 @@ flist_t 	flist;
 			case 'm':
 				print_order = "tstart";
 				Parse_PrintOrder(print_order);
-				sort_order = 6;
 				LogError("Option -m deprecated. Use '-O tstart' instead\n");
 				break;
 			case 'M':
@@ -850,7 +848,6 @@ flist_t 	flist;
 					LogError("Unknown print order '%s'\n", print_order);
 					exit(255);
 				}
-				sort_order = ret;
 				} break;
 			case 'R':
 				if ( strlen(optarg) > MAXPATHLEN )
@@ -893,8 +890,10 @@ flist_t 	flist;
 				break;
 			case 'v':
 				query_file = optarg;
-				QueryFile(query_file);
-				exit(0);
+				if ( !QueryFile(query_file))
+					exit(255);
+				else
+					exit(0);
 				break;
 			case '6':	// print long IPv6 addr
 				Setv6Mode(1);
@@ -976,20 +975,6 @@ flist_t 	flist;
 		aggregate = 1;
 	}
 
-	if ( flist.multiple_dirs == NULL && flist.single_file == NULL && flist.multiple_files == NULL ) {
-		LogError("Need an input source -r/-R/-M - <stdin> invalid");
-		exit(255);
-	}
-
-	if ( flist.single_file && flist.multiple_files ) {
-		LogError("-r and -R are mutually exclusive. Please specify either -r or -R\n");
-		exit(255);
-	}
-	if ( flist.multiple_dirs && !(flist.single_file || flist.multiple_files) ) {
-		LogError("-M needs either -r or -R to specify the file or file list. Add '-R .' for all files in the directories.\n");
-		exit(255);
-	}
-
 	extension_map_list = InitExtensionMaps(NEEDS_EXTENSION_LIST);
 	if ( !InitExporterList() ) {
 		exit(255);
@@ -1002,8 +987,8 @@ flist_t 	flist;
 	}
 
 	queue_t *fileList = SetupInputFileSequence(&flist);
-	if ( !Init_nffile(fileList) )
-		exit(254);
+	if ( !fileList || !Init_nffile(fileList) )
+		exit(255);
 
 	// Modify compression
 	if ( ModifyCompress >= 0 ) {
@@ -1167,7 +1152,7 @@ flist_t 	flist;
 			nffile_t *nffile = OpenNewFile(wfile, NULL, compress, NOT_ENCRYPTED );
 			if ( !nffile ) 
 				exit(255);
-			if ( ExportFlowTable(nffile, aggregate, bidir, GuessDir, sort_order) ) {
+			if ( ExportFlowTable(nffile, aggregate, bidir, GuessDir) ) {
 				CloseUpdateFile(nffile);	
 			} else {
 				CloseFile(nffile);

@@ -41,6 +41,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <errno.h>
+#include <assert.h>
 #include <string.h>
 
 #ifdef HAVE_STDINT_H
@@ -180,6 +181,9 @@ static exporter_v5_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *header)
 #include "nffile_inline.c"
 
 int Init_v5_v7_input(int verbose, uint32_t sampling, uint32_t overwrite) {
+
+	assert(sizeof(netflow_v5_header_t) == NETFLOW_V5_HEADER_LENGTH);
+	assert(sizeof(netflow_v5_record_t) == NETFLOW_V5_RECORD_LENGTH);
 
 	printRecord		   = verbose;
 	default_sampling   = sampling;
@@ -542,6 +546,9 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
  */
 void Init_v5_v7_output(send_peer_t *peer) {
 
+	assert(sizeof(netflow_v5_header_t) == NETFLOW_V5_HEADER_LENGTH);
+	assert(sizeof(netflow_v5_record_t) == NETFLOW_V5_RECORD_LENGTH);
+
 	v5_output_header = (netflow_v5_header_t *)peer->send_buffer;
 	v5_output_header->version 		= htons(5);
 	v5_output_header->SysUptime		= 0;
@@ -551,64 +558,91 @@ void Init_v5_v7_output(send_peer_t *peer) {
 	output_engine.first				= 1;
 
 	output_engine.sequence		   = 0;
-	output_engine.last_sequence	   = 0;
 	output_engine.last_count 	   = 0;
 	output_engine.sequence_failure = 0;
-	v5_output_record = (netflow_v5_record_t *)((pointer_addr_t)v5_output_header + (pointer_addr_t)sizeof(netflow_v5_header_t));	
+	v5_output_record = (netflow_v5_record_t *)((void *)v5_output_header + NETFLOW_V5_HEADER_LENGTH);	
 
 } // End of Init_v5_v7_output
 
 int Add_v5_output_record(master_record_t *master_record, send_peer_t *peer) {
-static uint64_t	msecBoot;	// in msec
-static int	cnt;
+static uint64_t	msecBoot = 0;	// in msec
+static int	cnt = 0;
 uint32_t	t1, t2;
 
 	// Skip IPv6 records
 	if ( TestFlag(master_record->mflags, V3_FLAG_IPV6_ADDR ))
 		return 0;
 
+	// skip empty records and records without enough information for v5
+	if ( master_record->numElements < 2 || 
+			(master_record->exElementList[0] != EXgenericFlowID || master_record->exElementList[1] != EXipv4FlowID)) {
+		printf("Skip record\n");
+		return 0;
+	}
+
+	// set device boot time to 1 day back of tstart of first flow
 	if ( output_engine.first ) {	// first time a record is added
 		// boot time is set one day back - assuming that the start time of every flow does not start ealier
-		msecBoot  			 		= master_record->msecFirst - 86400LL*1000LL;
-		v5_output_header->unix_secs = htonl((uint32_t)(master_record->msecFirst/1000LL) - 86400);
+		msecBoot = ((master_record->msecFirst / 1000LL) - 86400LL) * 1000LL;
 		cnt   	 = 0;
-		output_engine.first 	 = 0;
+		output_engine.first = 0;
 	}
+
 	if ( cnt == 0 ) {
-		peer->buff_ptr  = (void *)((pointer_addr_t)peer->send_buffer + NETFLOW_V5_HEADER_LENGTH);
-		v5_output_record = (netflow_v5_record_t *)((pointer_addr_t)v5_output_header + (pointer_addr_t)sizeof(netflow_v5_header_t));	
-		output_engine.sequence = output_engine.last_sequence + output_engine.last_count;
+		v5_output_record = (netflow_v5_record_t *)((pointer_addr_t)peer->send_buffer + NETFLOW_V5_HEADER_LENGTH);
+		peer->buff_ptr  = (void *)v5_output_record;
+		memset(peer->buff_ptr, 0, NETFLOW_V5_MAX_RECORDS * NETFLOW_V5_RECORD_LENGTH);
+
+		output_engine.sequence += output_engine.last_count;
 		v5_output_header->flow_sequence	= htonl(output_engine.sequence);
-		output_engine.last_sequence = output_engine.sequence;
+
+		uint32_t unix_secs = (master_record->msecLast / 1000LL) + 3600;
+		v5_output_header->unix_secs = htonl(unix_secs);
+		v5_output_header->SysUptime = htonl((uint32_t)(unix_secs * 1000 - msecBoot));
 	}
 
-	t1 	= (uint32_t)(master_record->msecFirst - msecBoot);
-	t2	= (uint32_t)(master_record->msecLast - msecBoot);
-  	v5_output_record->First		= htonl(t1);
-  	v5_output_record->Last		= htonl(t2);
+	for ( int i=0; i<master_record->numElements; i++ ) {
+		switch (master_record->exElementList[i]) {
+			case EXgenericFlowID:
+				// #1
+				t1 	= (uint32_t)(master_record->msecFirst - msecBoot);
+				t2	= (uint32_t)(master_record->msecLast - msecBoot);
+  				v5_output_record->First		= htonl(t1);
+  				v5_output_record->Last		= htonl(t2);
 
-	v5_output_record->srcaddr	= htonl(master_record->V4.srcaddr);
-  	v5_output_record->dstaddr	= htonl(master_record->V4.dstaddr);
+  				v5_output_record->srcPort	= htons(master_record->srcPort);
+  				v5_output_record->dstPort	= htons(master_record->dstPort);
+  				v5_output_record->tcp_flags = master_record->tcp_flags;
+  				v5_output_record->prot		= master_record->proto;
+  				v5_output_record->tos		= master_record->tos;
 
-  	v5_output_record->srcPort	= htons(master_record->srcPort);
-  	v5_output_record->dstPort	= htons(master_record->dstPort);
-  	v5_output_record->tcp_flags = master_record->tcp_flags;
-  	v5_output_record->prot		= master_record->proto;
-  	v5_output_record->tos		= master_record->tos;
-
-	// the 64bit counters are cut down to 32 bits for v5
-  	v5_output_record->dPkts		= htonl((uint32_t)master_record->inPackets);
-  	v5_output_record->dOctets	= htonl((uint32_t)master_record->inBytes);
-
-  	v5_output_record->input		= htons(master_record->input);
-  	v5_output_record->output	= htons(master_record->output);
-  	v5_output_record->src_as	= htons(master_record->srcas);
-  	v5_output_record->dst_as	= htons(master_record->dstas);
-	v5_output_record->src_mask 	= master_record->src_mask;
-	v5_output_record->dst_mask 	= master_record->dst_mask;
-	v5_output_record->pad1 		= 0;
-	v5_output_record->pad2 		= 0;
-  	v5_output_record->nexthop	= htonl(master_record->ip_nexthop.V4);
+				// the 64bit counters are cut down to 32 bits for v5
+  				v5_output_record->dPkts		= htonl((uint32_t)master_record->inPackets);
+  				v5_output_record->dOctets	= htonl((uint32_t)master_record->inBytes);
+				break;
+			case EXipv4FlowID:
+				// #2
+				v5_output_record->srcaddr	= htonl(master_record->V4.srcaddr);
+  				v5_output_record->dstaddr	= htonl(master_record->V4.dstaddr);
+				break;
+			case EXflowMiscID:
+				// #5 
+  				v5_output_record->input		= htons(master_record->input);
+  				v5_output_record->output	= htons(master_record->output);
+				v5_output_record->src_mask 	= master_record->src_mask;
+				v5_output_record->dst_mask 	= master_record->dst_mask;
+				break;
+			case EXasRoutingID:
+				// #8
+  				v5_output_record->src_as	= htons(master_record->srcas);
+  				v5_output_record->dst_as	= htons(master_record->dstas);
+				break;
+			case EXipNextHopV4ID:
+				// #11
+  				v5_output_record->nexthop	= htonl(master_record->ip_nexthop.V4);
+				break;
+		}
+	}
 
 	cnt++;
 
@@ -617,7 +651,7 @@ uint32_t	t1, t2;
 	v5_output_record++;
 	if ( cnt == NETFLOW_V5_MAX_RECORDS ) {
 		peer->flush = 1;
-		output_engine.last_count 	  = cnt;
+		output_engine.last_count = cnt;
 		cnt = 0; 
 	}
 

@@ -380,8 +380,6 @@ typedef struct StatRecord {
 	uint64_t	counter[5];	// flows ipkg ibyte opkg obyte
 	uint64_t	msecFirst;
 	uint64_t	msecLast;
-	uint8_t		record_flags;
-	uint8_t		tcp_flags;
 	
 	// add key for output processing
 	hashkey_t	hashkey;
@@ -846,7 +844,6 @@ int	j, i;
 				kh_value(ElementKHash[j],k).counter[OUTPACKETS]= flow_record->out_pkts;
 				kh_value(ElementKHash[j],k).msecFirst			= flow_record->msecFirst; 
 				kh_value(ElementKHash[j],k).msecLast			= flow_record->msecLast;
-				kh_value(ElementKHash[j],k).record_flags		= flow_record->flags & 0x1;
 				kh_value(ElementKHash[j],k).counter[FLOWS]	= flow_record->aggr_flows ? flow_record->aggr_flows : 1;
 				kh_value(ElementKHash[j],k).hashkey = hashkey;
 			}
@@ -868,7 +865,7 @@ char tag_string[2];
 			break;
 		case IS_IPADDR:
 			tag_string[0] = outputParams->doTag ? TAG_CHAR : '\0';
-			if ( (StatData->record_flags & 0x1) != 0 ) { // IPv6
+			if ( StatData->hashkey.v0 != 0 ) { // IPv6
 				uint64_t	_key[2];
 				_key[0] = htonll(StatData->hashkey.v0);
 				_key[1] = htonll(StatData->hashkey.v1);
@@ -1008,7 +1005,7 @@ int			af;
 	_key[0] = StatData->hashkey.v0;
 	_key[1] = StatData->hashkey.v1;
 	if ( type == IS_IPADDR ) {
-		if ( (StatData->record_flags & 0x1) != 0 ) { // IPv6
+		if ( StatData->hashkey.v0 != 0 ) { // IPv6
 			_key[0] = htonll(StatData->hashkey.v0);
 			_key[1] = htonll(StatData->hashkey.v1);
 			af = PF_INET6;
@@ -1074,7 +1071,7 @@ struct tm	*tbuff;
 			snprintf(valstr, 40, "%llu", (unsigned long long)StatData->hashkey.v1);
 			break;
 		case IS_IPADDR:
-			if ( (StatData->record_flags & 0x1) != 0 ) { // IPv6
+			if ( StatData->hashkey.v0 != 0 ) { // IPv6
 				uint64_t	_key[2];
 				_key[0] = htonll(StatData->hashkey.v0);
 				_key[1] = htonll(StatData->hashkey.v1);
