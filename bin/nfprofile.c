@@ -53,6 +53,7 @@
 #include "nftree.h"
 #include "nffile.h"
 #include "nfxV3.h"
+#include "nbar.h"
 #include "nfstat.h"
 #include "nfstatfile.h"
 #include "bookkeeper.h"
@@ -227,7 +228,7 @@ int 		i, j, done, ret ;
 						LogError("Failed to add Exporter Record\n");
 					}
 					} break;
-				case SamplerInfoRecordype: {
+				case SamplerInfoRecordType: {
 					int err = AddSamplerInfo((sampler_info_record_t *)record_ptr);
 					if ( err != 0 ) {
 						int j;
@@ -241,6 +242,7 @@ int 		i, j, done, ret ;
 						LogError("Failed to add Sampler Record\n");
 					}
 					} break;
+				case NbarRecordType:
 				case LegacyRecordType1:
 				case LegacyRecordType2:
 				case ExporterStatRecordType:

@@ -102,6 +102,9 @@ typedef struct exporterDomain_s {
 	sampler_t		*sampler;		// sampler info
 	samplerOption_t *samplerOption; // sampler options table info
 
+	// nbar application info
+	nbarOption_t	*nbarOption;	// nbar options table info
+
 	// exporter parameters
 	uint32_t	ExportTime;
 
@@ -321,12 +324,11 @@ uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
 	}
 
 	// nothing found
-	*e = (exporterDomain_t *)malloc(sizeof(exporterDomain_t));
+	*e = (exporterDomain_t *)calloc(1, sizeof(exporterDomain_t));
 	if ( !(*e)) {
 		LogError("Process_ipfix: Panic! malloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 		return NULL;
 	}
-	memset((void *)(*e), 0, sizeof(exporterDomain_t));
 	(*e)->info.header.type  = ExporterInfoRecordType;
 	(*e)->info.header.size  = sizeof(exporter_info_record_t);
 	(*e)->info.id 			= ObservationDomain;
@@ -340,6 +342,7 @@ uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
 	(*e)->sequence_failure 	= 0;
 	(*e)->next	 			= NULL;
 	(*e)->sampler 			= NULL;
+	(*e)->nbarOption		= NULL;
 
 	FlushInfoExporter(fs, &((*e)->info));
 
@@ -365,7 +368,7 @@ sampler_t *sampler;
 			return;
 		}
 
-		sampler->info.header.type = SamplerInfoRecordype;
+		sampler->info.header.type = SamplerInfoRecordType;
 		sampler->info.header.size = sizeof(sampler_info_record_t);
 		sampler->info.exporter_sysid = exporter->info.sysid;
 		sampler->info.id	   = id;
@@ -374,7 +377,7 @@ sampler_t *sampler;
 		sampler->next		  = NULL;
 		exporter->sampler = sampler;
 
-		FlushInfoSampler(fs, &(sampler->info));
+		AppendToBuffer(fs->nffile, &(sampler->info.header), sampler->info.header.size);
 		LogInfo( "Add new sampler: ID: %i, mode: %u, interval: %u\n", 
 			id, mode, interval);
 		dbg_printf("Add new sampler: ID: %i, mode: %u, interval: %u\n", 
@@ -391,7 +394,7 @@ sampler_t *sampler;
 
 				// we update only on changes
 				if ( mode != sampler->info.mode || interval != sampler->info.interval ) {
-					FlushInfoSampler(fs, &(sampler->info));
+					AppendToBuffer(fs->nffile, &(sampler->info.header), sampler->info.header.size);
 					sampler->info.mode	 = mode;
 					sampler->info.interval = interval;
 					LogInfo( "Update existing sampler id: %i, mode: %u, interval: %u\n", 
@@ -413,7 +416,7 @@ sampler_t *sampler;
 				}
 				sampler = sampler->next;
 
-				sampler->info.header.type	 = SamplerInfoRecordype;
+				sampler->info.header.type	 = SamplerInfoRecordType;
 				sampler->info.header.size	 = sizeof(sampler_info_record_t);
 				sampler->info.exporter_sysid = exporter->info.sysid;
 				sampler->info.id	   	= id;
@@ -421,8 +424,7 @@ sampler_t *sampler;
 				sampler->info.interval	= interval;
 				sampler->next			= NULL;
 
-				FlushInfoSampler(fs, &(sampler->info));
-
+				AppendToBuffer(fs->nffile, &(sampler->info.header), sampler->info.header.size);
 				LogInfo( "Append new sampler: ID: %u, mode: %u, interval: %u\n", 
 					id, mode, interval);
 				dbg_printf("Append new sampler: ID: %u, mode: %u, interval: %u\n", 
@@ -476,6 +478,46 @@ samplerOption_t *s, *parent;
 		samplerOption->interval.offset, samplerOption->interval.length);
 
 } // End of InsertSamplerOption
+
+static void InsertNbarOption(exporterDomain_t *exporter, nbarOption_t *nbarOption) {
+nbarOption_t *s, *parent;
+
+	parent = NULL;
+	s = exporter->nbarOption;
+	while (s) {
+		if ( s->tableID == nbarOption->tableID ) { // table already known to us - update data
+			dbg_printf("Found existing nbar info in template %i\n", nbarOption->tableID);
+			break;
+		}
+		parent = s;
+		s = s->next;
+	}
+
+	if ( s != NULL ) { // existing entry
+		// replace existing table
+		dbg_printf("Replace existing nbar table ID %i\n", nbarOption->tableID);
+		if ( parent ) {
+			parent->next = nbarOption;
+		} else {
+			exporter->nbarOption = nbarOption;
+		}
+		nbarOption->next = s->next;
+		free(s);
+		s = NULL;
+	} else { // new entry
+		dbg_printf("New nbar table ID %i\n", nbarOption->tableID);
+		// push new nbar table
+		nbarOption->next = exporter->nbarOption;
+		exporter->nbarOption = nbarOption;
+	}
+
+	dbg_printf("Update/Insert nbar table id: %u nbar ID: %u/%u, name: %u/%u, desc: %u/%u\n",
+		nbarOption->tableID,
+		nbarOption->id.offset, nbarOption->id.length,
+		nbarOption->name.offset, nbarOption->name.length,
+		nbarOption->desc.offset, nbarOption->desc.length);
+
+} // End of InsertNbarOption
 
 static templateList_t *getTemplate(exporterDomain_t *exporter, uint16_t id) {
 templateList_t *template;
@@ -839,7 +881,6 @@ uint8_t		*option_template;
 uint32_t	size_left, size_required;
 // uint32_t nr_scopes, nr_options;
 uint16_t	tableID, field_count, scope_field_count, offset;
-samplerOption_t *samplerOption;
 
 	size_left = GET_FLOWSET_LENGTH(option_template_flowset) - 4; // -4 for flowset header -> id and length
 	if ( size_left < 6 ) {
@@ -881,14 +922,18 @@ samplerOption_t *samplerOption;
 		return;
 	}
 
-	samplerOption = (samplerOption_t *)malloc(sizeof(samplerOption_t));
+	samplerOption_t *samplerOption = (samplerOption_t *)calloc(1, sizeof(samplerOption_t));
 	if ( !samplerOption ) {
 		LogError("Error malloc(): %s in %s:%d", strerror (errno), __FILE__, __LINE__);
 		return;
 	}
-	memset((void *)samplerOption, 0, sizeof(samplerOption_t));
-
 	samplerOption->tableID = tableID;
+
+	nbarOption_t *nbarOption = (nbarOption_t *)calloc(1, sizeof(nbarOption_t));
+	if ( !nbarOption ) {
+		LogError("Error malloc(): %s in %s:%d", strerror (errno), __FILE__, __LINE__);
+		return;
+	}
 
 	int i;
 	offset = 0;
@@ -983,6 +1028,23 @@ samplerOption_t *samplerOption;
 				samplerOption->interval.offset = offset;
 				SetFlag(samplerOption->flags, SAMPLER305);
 				break;
+
+			// nbar application information
+			case NBAR_APPLICATION_DESC:
+				nbarOption->desc.length = length;
+				nbarOption->desc.offset = offset;
+				nbarOption->tableID = tableID;
+				break;
+			case NBAR_APPLICATION_ID:
+				nbarOption->id.length = length;
+				nbarOption->id.offset = offset;
+				nbarOption->tableID = tableID;
+				break;
+			case NBAR_APPLICATION_NAME:
+				nbarOption->name.length = length;
+				nbarOption->name.offset = offset;
+				nbarOption->tableID = tableID;
+				break;
 		}
 		offset += length;
 	}
@@ -997,7 +1059,19 @@ samplerOption_t *samplerOption;
 		free(samplerOption);
 		dbg_printf("[%u] No Sampling information found\n", exporter->info.id);
 	}
+
+	if ( nbarOption->tableID ) {
+		dbg_printf("[%u] found nbar options\n", exporter->info.id);
+		dbg_printf("[%u] id   length: %u\n", exporter->info.id, nbarOption->id.length);
+		dbg_printf("[%u] name length: %u\n", exporter->info.id, nbarOption->name.length);
+		dbg_printf("[%u] desc length: %u\n", exporter->info.id, nbarOption->desc.length);
+		InsertNbarOption(exporter, nbarOption);
+	} else {
+		free(nbarOption);
+		dbg_printf("[%u] No nbar information found\n", exporter->info.id);
+	}
 	processed_records++;
+	dbg_printf("\n");
 
 } // End of Process_ipfix_option_templates
 

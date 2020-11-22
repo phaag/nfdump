@@ -114,6 +114,9 @@ typedef struct exporterDomain_s {
 	sampler_t	    *sampler;		// sampler info
 	samplerOption_t *samplerOption; // sampler options table info
 
+	// nbar application info
+	nbarOption_t	*nbarOption;	// nbar options table info
+
 	// exporter parameters
 	uint64_t	boot_time;
 	// sequence
@@ -323,7 +326,7 @@ static uint32_t processed_records;
 static uint32_t numV9Elements;
 
 /* local function prototypes */
-static int HasOptionTable(exporterDomain_t *exporter, uint16_t tableID);
+static void ProcessOptionFlowset(exporterDomain_t *exporter, FlowSource_t *fs, void *data_flowset);
 
 static void InsertSamplerOption(exporterDomain_t *exporter, samplerOption_t *samplerOption);
 
@@ -335,7 +338,9 @@ static inline void Process_v9_option_templates(exporterDomain_t *exporter, void 
 
 static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowset, FlowSource_t *fs, templateList_t *template);
 
-static inline void Process_v9_option_data(exporterDomain_t *exporter, void *data_flowset, FlowSource_t *fs);
+static void Process_v9_sampler_option_data(exporterDomain_t *exporter, FlowSource_t *fs, samplerOption_t *samplerOption, void *data_flowset);
+
+static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t *fs, nbarOption_t *nbarOption, void *data_flowset);
 
 static inline exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t exporter_id);
 
@@ -369,18 +374,33 @@ int i;
 	
 } // End of Init_v9
 
-static int HasOptionTable(exporterDomain_t *exporter, uint16_t tableID ) {
-samplerOption_t *s;
+static void ProcessOptionFlowset(exporterDomain_t *exporter, FlowSource_t *fs, void *data_flowset) {
 
-	s = exporter->samplerOption;
+	uint16_t tableID = GET_FLOWSET_ID(data_flowset);
+
+	samplerOption_t *s = exporter->samplerOption;
 	while ( s && s->tableID != tableID )
 		s = s->next;
 
-	dbg_printf("Has option table: %s\n", s == NULL ? "not found" : "found");
+	if (s) {
+		dbg_printf("Found sampler option table\n");
+		Process_v9_sampler_option_data(exporter, fs, s, data_flowset);
+	} else {
+		dbg_printf("No sampler option table found\n");
+	}
 
-	return s != NULL;
+	nbarOption_t *n = exporter->nbarOption;
+	while ( n && n->tableID != tableID )
+		n = n->next;
 
-} // End of HasOptionTable
+	if (n) {
+		dbg_printf("Found nbar option table\n");
+		Process_v9_nbar_option_data(exporter, fs, n, data_flowset);
+	} else {
+		dbg_printf("No nbar option table found\n");
+	}
+
+} // End of ProcessOptionFlowset
 
 static int LookupElement(uint16_t type) {
 
@@ -420,12 +440,11 @@ exporterDomain_t **e = (exporterDomain_t **)&(fs->exporter_data);
 	}
 
 	// nothing found
-	*e = (exporterDomain_t *)malloc(sizeof(exporterDomain_t));
+	*e = (exporterDomain_t *)calloc(1, sizeof(exporterDomain_t));
 	if ( !(*e)) {
 		LogError( "Process_v9: Panic! malloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 		return NULL;
 	}
-	memset((void *)(*e), 0, sizeof(exporterDomain_t));
 	(*e)->info.header.type  = ExporterInfoRecordType;
 	(*e)->info.header.size  = sizeof(exporter_info_record_t);
 	(*e)->info.version 		= 9;
@@ -442,6 +461,7 @@ exporterDomain_t **e = (exporterDomain_t **)&(fs->exporter_data);
 
 	(*e)->samplerOption 	= NULL;
 	(*e)->sampler			= NULL;
+	(*e)->nbarOption		= NULL;
 	(*e)->next				= NULL;
 
 	FlushInfoExporter(fs, &((*e)->info));
@@ -617,6 +637,46 @@ samplerOption_t *s, *parent;
 
 } // End of InsertSamplerOption
 
+static void InsertNbarOption(exporterDomain_t *exporter, nbarOption_t *nbarOption) {
+nbarOption_t *s, *parent;
+
+	parent = NULL;
+	s = exporter->nbarOption;
+	while (s) {
+		if ( s->tableID == nbarOption->tableID ) { // table already known to us - update data
+			dbg_printf("Found existing nbar info in template %i\n", nbarOption->tableID);
+			break;
+		}
+		parent = s;
+		s = s->next;
+	}
+
+	if ( s != NULL ) { // existing entry
+		// replace existing table
+		dbg_printf("Replace existing nbar table ID %i\n", nbarOption->tableID);
+		if ( parent ) {
+			parent->next = nbarOption;
+		} else {
+			exporter->nbarOption = nbarOption;
+		}
+		nbarOption->next = s->next;
+		free(s);
+		s = NULL;
+	} else { // new entry
+		dbg_printf("New nbar table ID %i\n", nbarOption->tableID);
+		// push new nbar table
+		nbarOption->next = exporter->nbarOption;
+		exporter->nbarOption = nbarOption;
+	}
+
+	dbg_printf("Update/Insert nbar table id: %u nbar ID: %u/%u, name: %u/%u, desc: %u/%u\n",
+		nbarOption->tableID,
+		nbarOption->id.offset, nbarOption->id.length,
+		nbarOption->name.offset, nbarOption->name.length,
+		nbarOption->desc.offset, nbarOption->desc.length);
+
+} // End of InsertNbarOption
+
 static inline void Process_v9_templates(exporterDomain_t *exporter, void *DataPtr, FlowSource_t *fs) {
 void		*template;
 uint32_t	size_left, size_required, num_extensions, num_v9tags;
@@ -757,7 +817,6 @@ static inline void Process_v9_option_templates(exporterDomain_t *exporter, void 
 uint8_t		*option_template, *p;
 uint32_t	size_left, nr_scopes, nr_options;
 uint16_t	tableID, scope_length, option_length;
-samplerOption_t *samplerOption;
 
 	size_left 		= GET_FLOWSET_LENGTH(option_template_flowset) - 4; // -4 for flowset header -> id and length
 	option_template = option_template_flowset + 4;
@@ -789,14 +848,18 @@ samplerOption_t *samplerOption;
 	dbg_printf("\n[%u] Option Template ID: %u\n", exporter->info.id, tableID);
 	dbg_printf("Scope length: %u Option length: %u\n", scope_length, option_length);
 
-	samplerOption = (samplerOption_t *)malloc(sizeof(samplerOption_t));
+	samplerOption_t *samplerOption = (samplerOption_t *)calloc(1, sizeof(samplerOption_t));
 	if ( !samplerOption ) {
 		LogError("Error malloc(): %s in %s:%d", strerror (errno), __FILE__, __LINE__);
 		return;
 	}
-	memset((void *)samplerOption, 0, sizeof(samplerOption_t));
-
 	samplerOption->tableID = tableID;
+
+	nbarOption_t *nbarOption = (nbarOption_t *)calloc(1, sizeof(nbarOption_t));
+	if ( !nbarOption ) {
+		LogError("Error malloc(): %s in %s:%d", strerror (errno), __FILE__, __LINE__);
+		return;
+	}
 
 	int i;
 	uint16_t offset = 0;
@@ -834,6 +897,7 @@ samplerOption_t *samplerOption;
 		printf(", length %u\n", length);
 #endif
 	}
+	uint16_t scopeSize = offset;
 
 	for ( ; i<(nr_scopes+nr_options); i++ ) {
 		uint16_t type 	= Get_val16(p); p = p + 2;
@@ -872,6 +936,23 @@ samplerOption_t *samplerOption;
 				samplerOption->interval.offset = offset;
 				SetFlag(samplerOption->flags, SAMPLER305);
 				break;
+
+			// nbar application information
+			case NBAR_APPLICATION_DESC:
+				nbarOption->desc.length = length;
+				nbarOption->desc.offset = offset;
+				nbarOption->tableID 	= tableID;
+				break;
+			case NBAR_APPLICATION_ID:
+				nbarOption->id.length = length;
+				nbarOption->id.offset = offset;
+				nbarOption->tableID	  = tableID;
+				break;
+			case NBAR_APPLICATION_NAME:
+				nbarOption->name.length = length;
+				nbarOption->name.offset = offset;
+				nbarOption->tableID 	= tableID;
+				break;
 		}
 		offset += length;
 	}
@@ -885,6 +966,18 @@ samplerOption_t *samplerOption;
 	} else {
 		free(samplerOption);
 		dbg_printf("[%u] No Sampling information found\n", exporter->info.id);
+	}
+
+	if ( nbarOption->tableID ) {
+		dbg_printf("[%u] found nbar options\n", exporter->info.id);
+		dbg_printf("[%u] id   length: %u\n", exporter->info.id, nbarOption->id.length);
+		dbg_printf("[%u] name length: %u\n", exporter->info.id, nbarOption->name.length);
+		dbg_printf("[%u] desc length: %u\n", exporter->info.id, nbarOption->desc.length);
+		nbarOption->scopeSize = scopeSize;
+		InsertNbarOption(exporter, nbarOption);
+	} else {
+		free(nbarOption);
+		dbg_printf("[%u] No nbar information found\n", exporter->info.id);
 	}
 	processed_records++;
 	dbg_printf("\n");
@@ -904,7 +997,7 @@ sampler_t *sampler;
 			return;
 		}
 
-		sampler->info.header.type = SamplerInfoRecordype;
+		sampler->info.header.type = SamplerInfoRecordType;
 		sampler->info.header.size = sizeof(sampler_info_record_t);
 		sampler->info.exporter_sysid = exporter->info.sysid;
 		sampler->info.id 	   = id;
@@ -913,7 +1006,7 @@ sampler_t *sampler;
 		sampler->next 		   = NULL;
 		exporter->sampler = sampler;
 
-		FlushInfoSampler(fs, &(sampler->info));
+		AppendToBuffer(fs->nffile, &(sampler->info.header), sampler->info.header.size);
 		LogInfo( "Add new sampler: ID: %i, mode: %u, interval: %u\n", 
 			id, mode, interval);
 		dbg_printf("Add new sampler: ID: %i, mode: %u, interval: %u\n", 
@@ -930,7 +1023,7 @@ sampler_t *sampler;
 
 				// we update only on changes
 				if ( mode != sampler->info.mode || interval != sampler->info.interval ) {
-					FlushInfoSampler(fs, &(sampler->info));
+					AppendToBuffer(fs->nffile, &(sampler->info.header), sampler->info.header.size);
 					sampler->info.mode 	   = mode;
 					sampler->info.interval = interval;
 					LogInfo( "Update existing sampler id: %i, mode: %u, interval: %u\n", 
@@ -952,7 +1045,7 @@ sampler_t *sampler;
 				}
 				sampler = sampler->next;
 
-				sampler->info.header.type 	 = SamplerInfoRecordype;
+				sampler->info.header.type 	 = SamplerInfoRecordType;
 				sampler->info.header.size 	 = sizeof(sampler_info_record_t);
 				sampler->info.exporter_sysid = exporter->info.sysid;
 				sampler->info.id 	   = id;
@@ -960,9 +1053,7 @@ sampler_t *sampler;
 				sampler->info.interval = interval;
 				sampler->next 		   = NULL;
 
-				FlushInfoSampler(fs, &(sampler->info));
-
-
+				AppendToBuffer(fs->nffile, &(sampler->info.header), sampler->info.header.size);
 				LogInfo( "Append new sampler: ID: %u, mode: %u, interval: %u\n", 
 					id, mode, interval);
 				dbg_printf("Append new sampler: ID: %u, mode: %u, interval: %u\n", 
@@ -1277,30 +1368,15 @@ uint8_t				*inBuff;
 
 } // End of Process_v9_data
 
-static inline void Process_v9_option_data(exporterDomain_t *exporter, void *data_flowset, FlowSource_t *fs) {
-samplerOption_t *samplerOption;
-uint32_t	tableID;
-uint8_t		*in;
-
-	tableID	= GET_FLOWSET_ID(data_flowset);
-
-	samplerOption = exporter->samplerOption;
-	while ( samplerOption && samplerOption->tableID != tableID )
-		samplerOption = samplerOption->next;
-
-	if ( !samplerOption ) {
-		// should never happen - catch it anyway
-		LogError( "Process_v9: Panic! - No Offset table found! : %s line %d", __FILE__, __LINE__);
-		return;
-	}
+static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, FlowSource_t *fs, samplerOption_t *samplerOption, void *data_flowset) {
 
 #ifdef DEVEL
 	uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4; // -4 for data flowset header -> id and length
-	dbg_printf("[%u] Process option data flowset size: %u\n", exporter->info.id, size_left);
+	dbg_printf("[%u] Process sampler option data flowset size: %u\n", exporter->info.id, size_left);
 #endif
 
 	// map input buffer as a byte array
-	in	  = (uint8_t *)(data_flowset + 4);	// skip flowset header
+	uint8_t *in = (uint8_t *)(data_flowset + 4);	// skip flowset header
 
 	if ( (samplerOption->flags & SAMPLERMASK ) != 0) {
 		int32_t  id;
@@ -1340,7 +1416,96 @@ uint8_t		*in;
 	}
 	processed_records++;
 
-} // End of Process_v9_option_data
+} // End of Process_v9_sampler_option_data
+
+static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t *fs, nbarOption_t *nbarOption, void *data_flowset) {
+
+	uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4; // -4 for data flowset header -> id and length
+
+#ifdef DEVEL
+	dbg_printf("[%u] Process nbar option data flowset size: %u\n", exporter->info.id, size_left);
+#endif
+
+	// map input buffer as a byte array
+	uint8_t *in = (uint8_t *)(data_flowset + 4);	// skip flowset header
+	size_t nbar_data_size = nbarOption->id.length + nbarOption->name.length + nbarOption->desc.length;
+	size_t nbar_option_size = nbarOption->scopeSize + nbar_data_size;
+	dbg_printf("[%u] nbar option data size: %zu\n", exporter->info.id, nbar_option_size);
+
+	if ( nbar_option_size == 0 || nbar_option_size > size_left ) {
+		LogError( "Process_v9: nbar option size error: option size: %u, size left: %u", nbar_option_size, size_left);
+		return;
+	}
+
+	size_t nbar_record_size = sizeof(nbar_record_t) + nbar_data_size;
+	size_t align = nbar_record_size & 0x3;
+	if ( align ) {
+		nbar_record_size += 4 - align;
+	}
+	int numRecords = 0;
+	while ( size_left >= nbar_option_size ) {
+		nbar_record_t *nbar_record = calloc(1, nbar_record_size);
+		if ( !nbar_record ) {
+			LogError("malloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+			return;
+		}
+
+		// setup nbar record
+		nbar_record->header.type = NbarRecordType;
+		nbar_record->header.size = nbar_record_size;
+		nbar_record->app_id_length	 = nbarOption->id.length;
+		nbar_record->app_name_length = nbarOption->name.length;
+		nbar_record->app_desc_length = nbarOption->desc.length;
+		char *p = nbar_record->data;
+		int err = 0;
+
+		//copy data
+		// id octet array
+		memcpy(p, in + nbarOption->id.offset, nbarOption->id.length);
+		p += nbarOption->id.length;
+
+		// name string
+		memcpy(p, in + nbarOption->name.offset, nbarOption->name.length);
+		uint32_t state = UTF8_ACCEPT;
+		if (validate_utf8(&state, p, nbarOption->name.length) == UTF8_REJECT) {
+			LogError("validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar name");
+   			err = 1;
+    	}
+		p[nbarOption->name.length-1] = '\0';
+		p += nbarOption->name.length;
+
+		// description string
+		memcpy(p, in + nbarOption->desc.offset, nbarOption->desc.length);
+		state = UTF8_ACCEPT;
+		if (validate_utf8(&state, p, nbarOption->name.length) == UTF8_REJECT) {
+			LogError("validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar description");
+   			err = 1;
+    	}
+		p[nbarOption->desc.length-1] = '\0';
+
+		numRecords++;
+#ifdef DEVEL
+		if ( err == 0 ) {
+			printf("nbar record: %d: \n", numRecords);
+			PrintNbarRecord(nbar_record);
+		} else {
+			printf("Invalid nbar information - skip record\n");
+		}
+#endif
+
+		if ( err == 0 )
+			AppendToBuffer(fs->nffile, &(nbar_record->header), nbar_record->header.size);
+
+		in += nbar_option_size;
+		size_left -= nbar_option_size;
+	}
+
+	if ( size_left > 7 ) {
+		LogInfo("Proces nbar data record - %u extra bytes", size_left);
+	}
+	processed_records++;
+
+} // End of Process_v9_nbar_option_data
 
 void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 exporterDomain_t *exporter;
@@ -1467,12 +1632,8 @@ static int pkg_num = 1;
 					if ( template ) {
 						Process_v9_data(exporter, flowset_header, fs, template);
 						exporter->DataRecords++;
-					} else if ( HasOptionTable(exporter, flowset_id) ) {
-						Process_v9_option_data(exporter, flowset_header, fs);
 					} else {
-						// maybe a flowset with option data
-						dbg_printf("Process v9: [%u] No template for id %u -> Skip record\n", 
-							exporter->info.id, flowset_id);
+						ProcessOptionFlowset(exporter, fs, flowset_header);
 					}
 				}
 			}

@@ -107,8 +107,6 @@ void FlushExporterStats(FlowSource_t *fs);
 
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter);
 
-int FlushInfoSampler(FlowSource_t *fs, sampler_info_record_t *sampler);
-
 /* Default time window in seconds to rotate files */
 #define TIME_WINDOW	  	300
 

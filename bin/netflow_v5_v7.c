@@ -256,7 +256,7 @@ char ipstr[IP_STRING_LEN];
 	}
 	(*e)->sampler = sampler;
 
-	sampler->info.header.type 	= SamplerInfoRecordype;
+	sampler->info.header.type 	= SamplerInfoRecordType;
 	sampler->info.header.size	= sizeof(sampler_info_record_t);
 	sampler->info.id			= -1;
 	sampler->info.mode			= (0xC000 & ntohs(header->sampling_interval)) >> 14;
@@ -268,7 +268,7 @@ char ipstr[IP_STRING_LEN];
 		sampler->info.interval = default_sampling;
 
 	sampler->info.exporter_sysid = (*e)->info.sysid;
-	FlushInfoSampler(fs, &(sampler->info));
+	AppendToBuffer(fs->nffile, &(sampler->info.header), sampler->info.header.size);
 
 	LogInfo("Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s, Sampling Mode: %i, Sampling Interval: %u\n", 
 		(*e)->info.sysid, ( engine_tag & 0xFF ),( (engine_tag >> 8) & 0xFF ), ipstr, sampler->info.mode	,sampler->info.interval );

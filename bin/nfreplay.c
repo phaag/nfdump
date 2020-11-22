@@ -59,6 +59,7 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
+#include "nbar.h"
 #include "nfxV3.h"
 #include "flist.h"
 #include "nftree.h"
@@ -355,7 +356,8 @@ uint64_t	twin_msecFirst, twin_msecLast;
 				case LegacyRecordType2:
 				case ExporterInfoRecordType:
 				case ExporterStatRecordType:
-				case SamplerInfoRecordype:
+				case SamplerInfoRecordType:
+				case NbarRecordType:
 						// Silently skip exporter/sampler records
 					break;
 			 	default: {

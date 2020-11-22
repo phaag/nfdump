@@ -106,6 +106,8 @@ expands to `"foo" lose(4)'.
 
 #define MemberSize(type, member) sizeof(((type *)0)->member)
 
+#define VARLENGTH 0xFFFF
+
 typedef struct EXgenericFlow_s {
 #define EXgenericFlowID 1
 	uint64_t msecFirst;
@@ -487,18 +489,36 @@ typedef struct EXnelXlatePort_s {
 } EXnelXlatePort_t;
 #define EXnelXlatePortSize (sizeof(EXnelXlatePort_t) + sizeof(elementHeader_t))
 
-// max possible elements
-#define MAXELEMENTS 27
+typedef struct EXlabel_s {
+#define EXlabelID 28
+	char *label;
+#define OFFlabel offsetof(Exlabel_t, label)
+#define SIZElabel VARLENGTH
+} EXlabel_t;
+#define EXlabelIDSize VARLENGTH
 
-#define PushExtension(h, s, v) { \
+// max possible elements
+#define MAXELEMENTS 28
+
+#define PushExtension(h, x, v) { \
 	elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
-	elementHeader->type = s ## ID; \
-	elementHeader->length = sizeof(s ## _t) + sizeof(elementHeader_t); \
+	elementHeader->type = x ## ID; \
+	elementHeader->length = x ## Size; \
 	h->size += sizeof(elementHeader_t); } \
-	s ## _t *v = (s ## _t *)((void *)h + h->size); \
-	memset(v, 0, sizeof(s ## _t)); \
+	x ## _t *v = (x ## _t *)((void *)h + h->size); \
+	memset(v, 0, sizeof(x ## _t)); \
 	h->numElements++; \
-	h->size += sizeof(s ## _t);
+	h->size += sizeof(x ## _t);
+	
+#define PushVarLengthExtension(h, x, v, s) { \
+	elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
+	elementHeader->type = x ## ID; \
+	elementHeader->length = s; \
+	h->size += sizeof(elementHeader_t); } \
+	x ## _t *v = (x ## _t *)((void *)h + h->size); \
+	memset(v, 0, s); \
+	h->numElements++; \
+	h->size += s;
 	
 
 #define EXTENSION(s) { s ## ID, sizeof(s ## _t), #s} 
@@ -535,7 +555,8 @@ static const struct extensionTable_s {
 	EXTENSION(EXnselAcl),
 	EXTENSION(EXnselUser),
 	EXTENSION(EXnelCommon),
-	EXTENSION(EXnelXlatePort)
+	EXTENSION(EXnelXlatePort),
+	EXTENSION(EXlabel)
 };
 
 typedef struct sequence_s {
@@ -557,7 +578,6 @@ typedef struct sequencer_s {
 	size_t			outLength;
 } sequencer_t;
 
-#define VARLENGTH 0xFFFF
 
 uint16_t *SetupSequencer(sequencer_t *sequencer, sequence_t *sequenceTable, uint32_t numSequences);
 

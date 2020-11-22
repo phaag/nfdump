@@ -486,27 +486,6 @@ int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {
 
 } // End of FlushInfoExporter
 
-int FlushInfoSampler(FlowSource_t *fs, sampler_info_record_t *sampler) {
-
-	AppendToBuffer(fs->nffile, (void *)sampler, sampler->header.size);
-
-#ifdef DEVEL
-	{
-		printf("Flush Sampler: ");
-		if ( sampler->id < 0 ) {
-			printf("Exporter SysID: %u,	Generic Sampler: mode: %u, interval: %u\n",
-				sampler->exporter_sysid, sampler->mode, sampler->interval);
-		} else {
-			printf("Exporter SysID: %u, Sampler: id: %i, mode: %u, interval: %u\n",
-				sampler->exporter_sysid, sampler->id, sampler->mode, sampler->interval);
-		}
-	}
-#endif
-
-	return 1;
-
-} // End of FlushInfoSampler
-
 void FlushStdRecords(FlowSource_t *fs) {
 exporter_t *e = fs->exporter_data;
 

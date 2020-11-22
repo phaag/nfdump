@@ -813,7 +813,7 @@ char *aggr_fmt;
 	// final '0' record
 	aggregate_info.stack[stack_count] = a->param;
 
-	dbg_printf("Aggregate key len: %i bytes\n", hashKeyLen);
+	dbg_printf("Aggregate key len: %zu bytes\n", hashKeyLen);
 	dbg_printf("Aggregate format string: '%s'\n", aggr_fmt);
 
 #ifdef DEVEL

@@ -34,4 +34,29 @@
 
 #include "config.h"
 
+#include <sys/types.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <errno.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdarg.h>
+
+#include "nbar.h"
+
+void PrintNbarRecord(nbar_record_t *nbar_record) {
+
+	char *p = nbar_record->data;
+	printf("ID: ");
+	for(int i = 0; i < nbar_record->app_id_length; i++)
+   		printf("%02X ", *((uint8_t *)p++));
+	printf("\n");
+
+	printf("Name: %s\n", p);
+	p += nbar_record->app_name_length;
+	printf("Desc: %s\n\n", p);
+
+} // End of PrintNbarRecord
+
 

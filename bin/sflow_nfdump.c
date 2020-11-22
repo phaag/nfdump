@@ -185,7 +185,7 @@ char ipstr[IP_STRING_LEN];
 	}
 	(*e)->sampler = sampler;
 
-	sampler->info.header.type 	= SamplerInfoRecordype;
+	sampler->info.header.type 	= SamplerInfoRecordType;
 	sampler->info.header.size	= sizeof(sampler_info_record_t);
 	sampler->info.id			= -1;
 	sampler->info.mode			= 0;
@@ -194,7 +194,7 @@ char ipstr[IP_STRING_LEN];
 
 	FlushInfoExporter(fs, &((*e)->info));
 	sampler->info.exporter_sysid		= (*e)->info.sysid;
-	FlushInfoSampler(fs, &(sampler->info));
+	AppendToBuffer(fs->nffile, &(sampler->info.header), sampler->info.header.size);
 
 	dbg_printf("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s\n", 
 		(*e)->info.sysid, agentSubId, meanSkipCount, ipstr);

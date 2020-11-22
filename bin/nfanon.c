@@ -55,6 +55,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
+#include "nbar.h"
 #include "exporter.h"
 #include "flist.h"
 #include "panonymizer.h"
@@ -320,7 +321,8 @@ char		outfile[MAXPATHLEN], *cfile;
 					} break;
 				case ExporterInfoRecordType:
 				case ExporterStatRecordType:
-				case SamplerInfoRecordype:
+				case SamplerInfoRecordType:
+				case NbarRecordType:
 						// Silently skip exporter/sampler records
 					break;
 

@@ -40,6 +40,7 @@
 #include <stdint.h>
 #endif
 
+#include "nfdump.h"
 #include "flist.h"
 #include "queue.h"
 #include "nffileV2.h"
@@ -239,10 +240,11 @@ typedef struct nffile_s {
 // exporter/sampler types
 #define ExporterInfoRecordType	7
 #define ExporterStatRecordType	8
-#define SamplerInfoRecordype	9
+#define SamplerInfoRecordType	9
 
-// nbar record
-#define NbarRecordType			10
+// nfdump 1.6.x CommonRecordType	10
+// V3Record							11
+// nbar record						12
 
 typedef struct record_header_s {
  	// record header

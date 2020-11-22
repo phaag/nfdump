@@ -56,6 +56,7 @@
 #include "nffile.h"
 #include "nfx.h"
 #include "nfxV3.h"
+#include "nbar.h"
 #include "exporter.h"
 #include "flist.h"
 #include "nftree.h"
@@ -264,7 +265,8 @@ uint64_t total_bytes;
 				break;
 				case ExporterInfoRecordType:
 				case ExporterStatRecordType:
-				case SamplerInfoRecordype:
+				case SamplerInfoRecordType:
+				case NbarRecordType:
 						// Silently skip exporter records
 					break;
 				default: {

@@ -374,7 +374,7 @@ uint64_t total_bytes;
 				case ExporterStatRecordType:
 					AddExporterStat((exporter_stats_record_t *)record);
 					break;
-				case SamplerInfoRecordype:
+				case SamplerInfoRecordType:
 					if ( !AddSamplerInfo((sampler_info_record_t *)record) ) {
 						LogError("Failed to add Sampler Record\n");
 					}

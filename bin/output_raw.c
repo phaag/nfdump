@@ -529,6 +529,14 @@ char elementString[MAXELEMENTS * 5];
 	TestFlag(r->flags, V3_FLAG_SAMPLED) ? "Sampled" : "Unsampled", 
 	r->numElements, elementString, r->size, r->engine_type, r->engine_id, r->exporter_sysid);
 
+	if ( r->label ) {
+		_slen = strlen(data_string);
+		_s = data_string + _slen;
+	snprintf(_s, slen-1, 
+"  Label        =  %16s\n"
+, r->label);
+	}
+
 	int i = 0;
 	while (r->exElementList[i]) {
 		_slen = strlen(data_string);

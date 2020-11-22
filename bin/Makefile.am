@@ -39,10 +39,11 @@ output += output_json.c output_json.h output_csv.c output_csv.h output_pipe.c ou
 output += output_fmt.c output_fmt.h 
 util = util.c util.h
 filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h
-nffile = nffile.c nffile.h nffileV2 lstack.c lstack.h queue.c queue.h nfx.c nfx.h nfxV3.h nfxV3.c
+nffile = nffile.c nffile.h nffileV2.h lstack.c lstack.h queue.c queue.h nfx.c nfx.h nfxV3.h nfxV3.c
 nflist = flist.c flist.h fts_compat.c fts_compat.h
 filter = grammar.y scanner.l nftree.c nftree.h ipconv.c ipconv.h rbtree.h klist.h filter.h
 exporter = exporter.c exporter.h
+nbar = nbar.c nbar.h
 
 nfprof = nfprof.c nfprof.h
 nfnet = nfnet.c nfnet.h
@@ -50,8 +51,8 @@ anon = panonymizer.c panonymizer.h rijndael.c rijndael.h
 collector = collector.c collector.h
 nfv1 = netflow_v1.c netflow_v1.h
 nfv5v7 = netflow_v5_v7.c netflow_v5_v7.h
-nfv9 = netflow_v9.c netflow_v9.h fnf.h nbar.h
-ipfix = ipfix.c ipfix.h fnf.h nbar.h
+nfv9 = netflow_v9.c netflow_v9.h fnf.h
+ipfix = ipfix.c ipfix.h fnf.h
 pcaproc = pcaproc.c pcaproc.h flowtree.c flowtree.h ipfrag.c ipfrag.h
 content = content_dns.c content_dns.h
 netflow_pcap = netflow_pcap.c netflow_pcap.h
@@ -62,7 +63,7 @@ expire= expire.c expire.h
 launch = launch.c launch.h
 
 lib_LTLIBRARIES = libnfdump.la
-libnfdump_la_SOURCES = $(output) $(util) $(filelzo) $(nffile) $(nflist) $(filter) $(exporter)
+libnfdump_la_SOURCES = $(output) $(util) $(filelzo) $(nffile) $(nflist) $(filter) $(exporter) $(nbar)
 libnfdump_la_LDFLAGS = -release 1.7.0
 
 

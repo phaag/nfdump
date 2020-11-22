@@ -33,22 +33,42 @@
 
 #include "config.h"
 
+#include "fnf.h"
+#include "nffile.h"
+
+// record type definition
+#define NbarRecordType		12
+
+#define NBAR_APPLICATION_DESC	94
 #define NBAR_APPLICATION_ID		95
 #define NBAR_APPLICATION_NAME	96
-#define NBAR_APPLICATION_DESC	94
 
 typedef struct nbar_record_s {
 	record_header_t	header;
 
-	uint32_t app_id;
+	uint32_t app_id_length;
 	uint32_t app_name_length;
 	uint32_t app_desc_length;
 	char data[1];
 
 } nbar_record_t;
 
+typedef struct nbarOption_s {
+	struct nbarOption_s *next;
+
+	uint16_t 	tableID;
+	uint16_t	scopeSize;
+	optionTag_t id;
+	optionTag_t name;
+	optionTag_t desc;
+
+} nbarOption_t;
+
 #define set_nbar_record_header(r) \
 	r->type = NbarRecordType; \
 	r->size = sizeof(record_header_t) + 3 * sizeof(uint32_t) + r->app_name_length + r->app_desc_length;
 
 #endif
+
+void PrintNbarRecord(nbar_record_t *nbar_record);
+

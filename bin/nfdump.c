@@ -72,6 +72,7 @@
 #include "netflow_v9.h"
 #include "nftree.h"
 #include "nfprof.h"
+#include "nbar.h"
 #include "nflowcache.h"
 #include "nfstat.h"
 #include "ipconv.h"
@@ -582,7 +583,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 				case ExporterStatRecordType:
 					AddExporterStat((exporter_stats_record_t *)record_ptr);
 					break;
-				case SamplerInfoRecordype: {
+				case SamplerInfoRecordType: {
 					int ret = AddSamplerInfo((sampler_info_record_t *)record_ptr);
 					if ( ret != 0 ) {
 						if ( write_file && ret == 1 ) 
@@ -591,6 +592,10 @@ uint64_t twin_msecFirst, twin_msecLast;
 						LogError("Failed to add Sampler Record\n");
 					}
 					} break;
+				case NbarRecordType:
+					printf("Found nbar record\n");
+					PrintNbarRecord((nbar_record_t *)record_ptr);
+					break;
 				case LegacyRecordType1:
 				case LegacyRecordType2:
 				case CommonRecordV0Type: 
