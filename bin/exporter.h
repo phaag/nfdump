@@ -177,7 +177,7 @@ int AddExporterStat(exporter_stats_record_t *stat_record);
 
 void ExportExporterList( nffile_t *nffile );
 
-void PrintExporters(char *filename);
+void PrintExporters(void);
 
 #endif //_EXPORTER_H
 

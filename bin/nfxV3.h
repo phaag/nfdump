@@ -489,16 +489,24 @@ typedef struct EXnelXlatePort_s {
 } EXnelXlatePort_t;
 #define EXnelXlatePortSize (sizeof(EXnelXlatePort_t) + sizeof(elementHeader_t))
 
+typedef struct EXnbarApp_s {
+#define EXnbarAppID 28
+	uint8_t	id[1];
+#define OFFnbarAppID offsetof(EXnbarApp_t, id)
+#define SIZEnbarAppID VARLENGTH
+} EXnbarApp_t;
+#define EXnbarAppSize VARLENGTH
+
 typedef struct EXlabel_s {
-#define EXlabelID 28
+#define EXlabelID 29
 	char *label;
 #define OFFlabel offsetof(Exlabel_t, label)
 #define SIZElabel VARLENGTH
 } EXlabel_t;
-#define EXlabelIDSize VARLENGTH
+#define EXlabelSize VARLENGTH
 
 // max possible elements
-#define MAXELEMENTS 28
+#define MAXELEMENTS 29
 
 #define PushExtension(h, x, v) { \
 	elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
@@ -521,11 +529,11 @@ typedef struct EXlabel_s {
 	h->size += s;
 	
 
-#define EXTENSION(s) { s ## ID, sizeof(s ## _t), #s} 
+#define EXTENSION(s) { s ## ID, s ## Size, #s} 
 
 static const struct extensionTable_s {
     uint32_t    id;         // id number
-    uint32_t    size;       // number of bytes, 0xFFFF for dyn length
+    uint32_t    size;       // number of bytes incl. header, 0xFFFF for dyn length
     char        *name;		// name of extension
 } extensionTable[] = {
 	{ 0, 0, "ExNull" },
@@ -556,26 +564,31 @@ static const struct extensionTable_s {
 	EXTENSION(EXnselUser),
 	EXTENSION(EXnelCommon),
 	EXTENSION(EXnelXlatePort),
+	EXTENSION(EXnbarApp),
 	EXTENSION(EXlabel)
 };
 
 typedef struct sequence_s {
 	uint16_t		inputType;
 	uint16_t		inputLength;
-	uint32_t		extensionID;
+#define NumberCopy 1
+#define ByteCopy   2
+	uint16_t		copyMode;
+	uint16_t		extensionID;
 	unsigned long	offsetRel;
 	uint16_t		outputLength;
 	uint16_t		stackID;
 } sequence_t;
 
 typedef struct sequencer_s {
-	void			*offsetCache[MAXELEMENTS];
-	sequence_t		*sequenceTable;
-	uint32_t		numSequences;
-	uint32_t		numElements;
-	bool			hasVarLength;
-	size_t			inLength;
-	size_t			outLength;
+	void		*offsetCache[MAXELEMENTS];
+	sequence_t	*sequenceTable;
+	uint16_t	ExtSize[MAXELEMENTS];
+	uint32_t	numSequences;
+	uint32_t	numElements;
+	bool		hasVarLength;
+	size_t		inLength;
+	size_t		outLength;
 } sequencer_t;
 
 

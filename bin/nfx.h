@@ -974,6 +974,6 @@ int Insert_Extension_Map(extension_map_list_t *extension_map_list, extension_map
 
 void PrintExtensionMap(extension_map_t *map);
 
-void DumpExMaps(char *filename);
+void DumpExMaps(void);
 
 #endif //_NFX_H

@@ -103,7 +103,7 @@ typedef struct exporterDomain_s {
 	samplerOption_t *samplerOption; // sampler options table info
 
 	// nbar application info
-	nbarOption_t	*nbarOption;	// nbar options table info
+	nbarOptionList_t	*nbarOptionList;	// nbar options table info
 
 	// exporter parameters
 	uint32_t	ExportTime;
@@ -192,6 +192,7 @@ static const struct ipfixTranslationMap_s {
 	{ LOCAL_msecTimeReceived,            SIZEmsecReceived, EXgenericFlowID,  OFFmsecReceived, STACK_NONE, "msec time received"},
 	{ IPFIX_postOctetTotalCount,         SIZEoutBytes,     EXcntFlowID,       OFFoutBytes, STACK_NONE, "output octetTotalCount" },
 	{ IPFIX_postPacketTotalCount,        SIZEoutPackets,   EXcntFlowID,       OFFoutPackets, STACK_NONE, "output packetTotalCount" },
+	{ NBAR_APPLICATION_ID,        		 SIZEnbarAppID,    EXnbarAppID,       OFFnbarAppID, STACK_NONE, "nbar application ID" },
 	// sampling
 	{ IPFIX_samplerId,					 Stack_ONLY,       EXnull,			  0,				STACK_SAMPLER, "sampler ID" },
 	{ IPFIX_selectorId,					 Stack_ONLY,       EXnull,			  0,				STACK_SAMPLER, "sampler ID" },
@@ -342,7 +343,7 @@ uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
 	(*e)->sequence_failure 	= 0;
 	(*e)->next	 			= NULL;
 	(*e)->sampler 			= NULL;
-	(*e)->nbarOption		= NULL;
+	(*e)->nbarOptionList		= NULL;
 
 	FlushInfoExporter(fs, &((*e)->info));
 
@@ -479,14 +480,14 @@ samplerOption_t *s, *parent;
 
 } // End of InsertSamplerOption
 
-static void InsertNbarOption(exporterDomain_t *exporter, nbarOption_t *nbarOption) {
-nbarOption_t *s, *parent;
+static void InsertNbarOption(exporterDomain_t *exporter, nbarOptionList_t *nbarOptionList) {
+nbarOptionList_t *s, *parent;
 
 	parent = NULL;
-	s = exporter->nbarOption;
+	s = exporter->nbarOptionList;
 	while (s) {
-		if ( s->tableID == nbarOption->tableID ) { // table already known to us - update data
-			dbg_printf("Found existing nbar info in template %i\n", nbarOption->tableID);
+		if ( s->tableID == nbarOptionList->tableID ) { // table already known to us - update data
+			dbg_printf("Found existing nbar info in template %i\n", nbarOptionList->tableID);
 			break;
 		}
 		parent = s;
@@ -495,27 +496,27 @@ nbarOption_t *s, *parent;
 
 	if ( s != NULL ) { // existing entry
 		// replace existing table
-		dbg_printf("Replace existing nbar table ID %i\n", nbarOption->tableID);
+		dbg_printf("Replace existing nbar table ID %i\n", nbarOptionList->tableID);
 		if ( parent ) {
-			parent->next = nbarOption;
+			parent->next = nbarOptionList;
 		} else {
-			exporter->nbarOption = nbarOption;
+			exporter->nbarOptionList = nbarOptionList;
 		}
-		nbarOption->next = s->next;
+		nbarOptionList->next = s->next;
 		free(s);
 		s = NULL;
 	} else { // new entry
-		dbg_printf("New nbar table ID %i\n", nbarOption->tableID);
+		dbg_printf("New nbar table ID %i\n", nbarOptionList->tableID);
 		// push new nbar table
-		nbarOption->next = exporter->nbarOption;
-		exporter->nbarOption = nbarOption;
+		nbarOptionList->next = exporter->nbarOptionList;
+		exporter->nbarOptionList = nbarOptionList;
 	}
 
 	dbg_printf("Update/Insert nbar table id: %u nbar ID: %u/%u, name: %u/%u, desc: %u/%u\n",
-		nbarOption->tableID,
-		nbarOption->id.offset, nbarOption->id.length,
-		nbarOption->name.offset, nbarOption->name.length,
-		nbarOption->desc.offset, nbarOption->desc.length);
+		nbarOptionList->tableID,
+		nbarOptionList->id.offset, nbarOptionList->id.length,
+		nbarOptionList->name.offset, nbarOptionList->name.length,
+		nbarOptionList->desc.offset, nbarOptionList->desc.length);
 
 } // End of InsertNbarOption
 
@@ -929,8 +930,8 @@ uint16_t	tableID, field_count, scope_field_count, offset;
 	}
 	samplerOption->tableID = tableID;
 
-	nbarOption_t *nbarOption = (nbarOption_t *)calloc(1, sizeof(nbarOption_t));
-	if ( !nbarOption ) {
+	nbarOptionList_t *nbarOptionList = (nbarOptionList_t *)calloc(1, sizeof(nbarOptionList_t));
+	if ( !nbarOptionList ) {
 		LogError("Error malloc(): %s in %s:%d", strerror (errno), __FILE__, __LINE__);
 		return;
 	}
@@ -1031,19 +1032,19 @@ uint16_t	tableID, field_count, scope_field_count, offset;
 
 			// nbar application information
 			case NBAR_APPLICATION_DESC:
-				nbarOption->desc.length = length;
-				nbarOption->desc.offset = offset;
-				nbarOption->tableID = tableID;
+				nbarOptionList->desc.length = length;
+				nbarOptionList->desc.offset = offset;
+				nbarOptionList->tableID = tableID;
 				break;
 			case NBAR_APPLICATION_ID:
-				nbarOption->id.length = length;
-				nbarOption->id.offset = offset;
-				nbarOption->tableID = tableID;
+				nbarOptionList->id.length = length;
+				nbarOptionList->id.offset = offset;
+				nbarOptionList->tableID = tableID;
 				break;
 			case NBAR_APPLICATION_NAME:
-				nbarOption->name.length = length;
-				nbarOption->name.offset = offset;
-				nbarOption->tableID = tableID;
+				nbarOptionList->name.length = length;
+				nbarOptionList->name.offset = offset;
+				nbarOptionList->tableID = tableID;
 				break;
 		}
 		offset += length;
@@ -1060,14 +1061,14 @@ uint16_t	tableID, field_count, scope_field_count, offset;
 		dbg_printf("[%u] No Sampling information found\n", exporter->info.id);
 	}
 
-	if ( nbarOption->tableID ) {
+	if ( nbarOptionList->tableID ) {
 		dbg_printf("[%u] found nbar options\n", exporter->info.id);
-		dbg_printf("[%u] id   length: %u\n", exporter->info.id, nbarOption->id.length);
-		dbg_printf("[%u] name length: %u\n", exporter->info.id, nbarOption->name.length);
-		dbg_printf("[%u] desc length: %u\n", exporter->info.id, nbarOption->desc.length);
-		InsertNbarOption(exporter, nbarOption);
+		dbg_printf("[%u] id   length: %u\n", exporter->info.id, nbarOptionList->id.length);
+		dbg_printf("[%u] name length: %u\n", exporter->info.id, nbarOptionList->name.length);
+		dbg_printf("[%u] desc length: %u\n", exporter->info.id, nbarOptionList->desc.length);
+		InsertNbarOption(exporter, nbarOptionList);
 	} else {
-		free(nbarOption);
+		free(nbarOptionList);
 		dbg_printf("[%u] No nbar information found\n", exporter->info.id);
 	}
 	processed_records++;

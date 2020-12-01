@@ -39,22 +39,30 @@
 // record type definition
 #define NbarRecordType		12
 
+typedef struct nbarRecordHeader_s {
+ 	// record header
+ 	uint16_t	type;
+ 	uint16_t	size;
+ 	uint16_t	numElements;
+ 	uint16_t	fill;
+} nbarRecordHeader_t;
+
 #define NBAR_APPLICATION_DESC	94
 #define NBAR_APPLICATION_ID		95
 #define NBAR_APPLICATION_NAME	96
 
-typedef struct nbar_record_s {
-	record_header_t	header;
+// var length extension
+// size = sizeof nbarAppInfo_t + *_length
+typedef struct NbarAppInfo_s {
+#define NbarAppInfoID 1
+	uint16_t app_id_length;
+	uint16_t app_name_length;
+	uint16_t app_desc_length;
+	uint8_t data[1];
+} NbarAppInfo_t;
 
-	uint32_t app_id_length;
-	uint32_t app_name_length;
-	uint32_t app_desc_length;
-	char data[1];
-
-} nbar_record_t;
-
-typedef struct nbarOption_s {
-	struct nbarOption_s *next;
+typedef struct nbarOptionList_s {
+	struct nbarOptionList_s *next;
 
 	uint16_t 	tableID;
 	uint16_t	scopeSize;
@@ -62,13 +70,31 @@ typedef struct nbarOption_s {
 	optionTag_t name;
 	optionTag_t desc;
 
-} nbarOption_t;
+} nbarOptionList_t;
 
-#define set_nbar_record_header(r) \
-	r->type = NbarRecordType; \
-	r->size = sizeof(record_header_t) + 3 * sizeof(uint32_t) + r->app_name_length + r->app_desc_length;
+#define AddNbarHeader(p, h) \
+	nbarRecordHeader_t *h = (nbarRecordHeader_t *)p; \
+	memset(h, 0, sizeof(nbarRecordHeader_t)); \
+	h->type = NbarRecordType; \
+	h->size = sizeof(nbarRecordHeader_t);
 
-#endif
+#define PushNbarVarLengthExtension(h, x, v, s) { \
+	elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
+	elementHeader->type = x ## ID; \
+	elementHeader->length = s; \
+	h->size += sizeof(elementHeader_t); } \
+	x ## _t *v = (x ## _t *)((void *)h + h->size); \
+	memset(v, 0, s); \
+	h->numElements++; \
+	h->size += s;
+	
+int AddNbarRecord(nbarRecordHeader_t *nbarRecord);
 
-void PrintNbarRecord(nbar_record_t *nbar_record);
+char *GetNbarInfo(uint8_t *id, size_t size);
+
+void DumpNbarList(void);
+
+void PrintNbarRecord(nbarRecordHeader_t *nbarRecord);
+
+#endif // _NBAR_H
 

@@ -85,9 +85,9 @@ uint32_t	ExtSize[MAXELEMENTS];
 		} else {
 			dbg_printf(" fixed length field %u, type %u: -> %u\n",
 				i, sequencer->sequenceTable[i].inputType, inLength);
-			dbg_printf("   mapped to ext %u size %lu\n", 
-				ExtID, sizeof(elementHeader_t) + extensionTable[ExtID].size);
-			ExtSize[ExtID] = sizeof(elementHeader_t) + extensionTable[ExtID].size;
+			dbg_printf("   mapped to ext %u size %u\n", 
+				ExtID, extensionTable[ExtID].size);
+			ExtSize[ExtID] = extensionTable[ExtID].size;
 		}
 		
 		// input data length error
@@ -173,9 +173,8 @@ static void CompactSequencer(sequencer_t *sequencer) {
 } // End of CompactSequencer
 
 uint16_t *SetupSequencer(sequencer_t *sequencer, sequence_t *sequenceTable, uint32_t numSequences) {
-uint32_t	ExtSize[MAXELEMENTS];
 
-	memset((void *)ExtSize, 0, sizeof(ExtSize));
+	memset((void *)sequencer->ExtSize, 0, sizeof(sequencer->ExtSize));
 
 	sequencer->sequenceTable = sequenceTable;
 	sequencer->numSequences  = numSequences;
@@ -192,13 +191,19 @@ uint32_t	ExtSize[MAXELEMENTS];
 		} else {
 			sequencer->inLength += sequencer->sequenceTable[i].inputLength;
 		}
-		ExtSize[ExtID] = extensionTable[ExtID].size + sizeof(elementHeader_t);
+		// output byte array, but fixed length due to fixed input length
+		if ( sequencer->sequenceTable[i].outputLength == VARLENGTH && sequencer->sequenceTable[i].inputLength != VARLENGTH ) {
+			sequencer->sequenceTable[i].outputLength = sequencer->sequenceTable[i].inputLength;
+			sequencer->ExtSize[ExtID] = sequencer->sequenceTable[i].outputLength + sizeof(elementHeader_t);
+		} else {
+			sequencer->ExtSize[ExtID] = extensionTable[ExtID].size;
+		}
 	}
 
 	sequencer->numElements = 0;
 	for (int i=1; i<MAXELEMENTS; i++ ) {
-		if ( ExtSize[i] ) {
-			sequencer->outLength += ExtSize[i];
+		if ( sequencer->ExtSize[i] ) {
+			sequencer->outLength += sequencer->ExtSize[i];
 			sequencer->numElements++;
 		}
 	}
@@ -224,8 +229,8 @@ uint32_t	ExtSize[MAXELEMENTS];
 	}
 	int j = 0;
 	for (int i=1; i<MAXELEMENTS; i++ ) {
-		if ( ExtSize[i] ) {
-			dbg_printf("%u -> %d %s size: %u\n", j, i, extensionTable[i].name, ExtSize[i]);
+		if ( sequencer->ExtSize[i] ) {
+			dbg_printf("%u -> %d %s size: %u\n", j, i, extensionTable[i].name, sequencer->ExtSize[i]);
 			extensionList[j++] = i;
 		}
 	}
@@ -326,18 +331,19 @@ int SequencerRun(sequencer_t *sequencer, void *inBuff, size_t inSize, void *outB
 			outBuff += sizeof(elementHeader_t);
 
 			// check for dyn length
-			if (sequencer->sequenceTable[i].outputLength == 0xFFFF) { 	// dyn length record
+			if (sequencer->sequenceTable[i].outputLength == VARLENGTH ) { 	// dyn length out record
+				outLength = inLength;
 				memset(outBuff, 0, outLength);
 				elementHeader->length = sizeof(elementHeader_t) + outLength;
 				sequencer->offsetCache[ExtID] = outRecord = outBuff;
 				outBuff += outLength;
 				totalOutLength += (sizeof(elementHeader_t) + outLength);
 			} else {
-				memset(outBuff, 0, extensionTable[ExtID].size);
-				elementHeader->length = sizeof(elementHeader_t) + extensionTable[ExtID].size;
+				memset(outBuff, 0, sequencer->ExtSize[ExtID] - sizeof(elementHeader_t));
+				elementHeader->length = sequencer->ExtSize[ExtID];
 				sequencer->offsetCache[ExtID] = outRecord = outBuff;
-				outBuff += extensionTable[ExtID].size;
-				totalOutLength += (sizeof(elementHeader_t) + extensionTable[ExtID].size);
+				outBuff += sequencer->ExtSize[ExtID] - sizeof(elementHeader_t);
+				totalOutLength += sequencer->ExtSize[ExtID];
 			}
 		}
 
@@ -348,7 +354,7 @@ int SequencerRun(sequencer_t *sequencer, void *inBuff, size_t inSize, void *outB
 			continue;
 		}
 
-		if ( varLength == true || inLength > 16 ) {
+		if ( varLength == true || sequencer->sequenceTable[i].copyMode == ByteCopy || inLength > 16 ) {
 			uint8_t *out = (uint8_t *)(outRecord + sequencer->sequenceTable[i].offsetRel);
 			if ( inLength == outLength ) {
 				memcpy(out, inBuff, inLength);

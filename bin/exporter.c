@@ -308,7 +308,7 @@ int i;
 	
 } // End of ExportExporterList
 
-void PrintExporters(char *filename) {
+void PrintExporters(void) {
 int i, done, found = 0;
 nffile_t	*nffile;
 record_header_t *record;
@@ -317,7 +317,7 @@ uint64_t total_bytes;
 
 	printf("Exporters:\n");
 
-	nffile = OpenFile(filename, NULL);
+	nffile = GetNextFile(NULL);
 	if ( !nffile ) {
 		return;
 	}
@@ -334,9 +334,9 @@ uint64_t total_bytes;
 			case NF_CORRUPT:
 			case NF_ERROR:
 				if ( ret == NF_CORRUPT ) 
-					LogError("Corrupt data file '%s': '%s'\n",filename);
+					LogError("Corrupt data file");
 				else 
-					LogError("Read error in file '%s': %s\n",filename, strerror(errno) );
+					LogError("Read error: %s", strerror(errno));
 				done = 1;
 				continue;
 				break;
@@ -391,6 +391,7 @@ uint64_t total_bytes;
 		printf("No Exporter records found\n");
 	}
 
+	printf("\n");
 	i = 1;
 	while ( i < MAX_EXPORTERS  && exporter_list[i] != NULL ) {
 		#define IP_STRING_LEN   40
@@ -399,7 +400,6 @@ uint64_t total_bytes;
 		exporter_info_record_t *exporter;
        	sampler_t *sampler;
 
-		printf("\n");
 		exporter = &exporter_list[i]->info;
 		if ( exporter->sa_family == AF_INET ) {
 			uint32_t _ip = htonl(exporter->ip.V4);
@@ -411,7 +411,7 @@ uint64_t total_bytes;
 					(long long unsigned)exporter_list[i]->packets, 
 					(long long unsigned)exporter_list[i]->flows);
 			else 
-				printf("SysID: %u, IP: %16s, version: %u, ID: %2u\n", 
+				printf("SysID: %u, IP: %16s, version: %u, ID: %2u - no flows sent\n", 
 					exporter->sysid, ipstr, exporter->version, exporter->id);
 					
 		} else if ( exporter->sa_family == AF_INET6 ) {

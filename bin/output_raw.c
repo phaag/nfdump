@@ -47,6 +47,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
+#include "nbar.h"
 #include "output_util.h"
 #include "output_raw.h"
 
@@ -472,6 +473,30 @@ static void stringsEXnelXlatePort(char *s, size_t size, master_record_t *r) {
 } // End of stringsEXnelXlatePort
 
 #endif
+static void stringsEXnbarAppID(char *s, size_t size, master_record_t *r) {
+union {
+        uint8_t     val8[4];
+        uint32_t    val32;
+}conv;
+
+	char *name = GetNbarInfo(r->nbarAppID, 4);
+	if ( name == NULL) {
+		printf("No nbar app name\n");
+		name = "<no info>";
+	} else {
+		printf("Found nbar app name\n");
+	}
+
+	conv.val8[0] = 0;
+	conv.val8[1] = r->nbarAppID[1];
+	conv.val8[2] = r->nbarAppID[2];
+	conv.val8[3] = r->nbarAppID[3];
+
+	snprintf(s, size-1,
+"  app ID       =             %2u..%u: %s\n"
+, r->nbarAppID[0], ntohl(conv.val32), name);
+
+} // End of stringsEXnbarAppID
 
 void raw_prolog(void) {
 	recordCount = 0;
@@ -623,6 +648,9 @@ char elementString[MAXELEMENTS * 5];
 				stringsEXnelXlatePort(_s, slen, r);
 				break;
 #endif
+			case EXnbarAppID:
+				stringsEXnbarAppID(_s, slen, r);
+				break;
 			default:
 				dbg_printf("Extension %i not yet implemented\n", r->exElementList[i]);
 		}

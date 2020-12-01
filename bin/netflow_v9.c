@@ -115,7 +115,7 @@ typedef struct exporterDomain_s {
 	samplerOption_t *samplerOption; // sampler options table info
 
 	// nbar application info
-	nbarOption_t	*nbarOption;	// nbar options table info
+	nbarOptionList_t	*nbarOptionList;	// nbar options table info
 
 	// exporter parameters
 	uint64_t	boot_time;
@@ -150,121 +150,125 @@ static const struct v9TranslationMap_s {
 	uint16_t	id;				// v9 element id 
 #define Stack_ONLY 0
 	uint16_t	outputLength;	// output length in extension ID
-	uint32_t	extensionID;	// extension ID
+	uint16_t	copyMode;	// extension ID
+	uint16_t	extensionID;	// extension ID
 	uint32_t	offsetRel;		// offset rel. to extension start of struct
 	uint32_t	stackID;		// save value in stack slot, if needed
 	char		*name;			// name of element as string
 } v9TranslationMap[] = {
-	{ NF9_IN_BYTES,               SIZEinBytes,      EXgenericFlowID,   OFFinBytes, STACK_NONE, "inBytesDeltaCount" },
-	{ NF9_IN_PACKETS,             SIZEinPackets,    EXgenericFlowID,   OFFinPackets, STACK_NONE, "inPacketsDeltaCount" },
-	{ NF9_FLOWS_AGGR,             SIZEflows,        EXcntFlowID,       OFFflows, STACK_NONE, "FlowCount" },
-	{ NF9_IN_PROTOCOL,            SIZEproto,        EXgenericFlowID,   OFFproto, STACK_NONE, "proto" },
-	{ NF9_SRC_TOS,                SIZEsrcTos,       EXgenericFlowID,   OFFsrcTos, STACK_NONE, "src tos" },
-	{ NF9_FORWARDING_STATUS,      SIZEfwdStatus,    EXgenericFlowID,   OFFfwdStatus, STACK_NONE, "forwarding status" },
-	{ NF9_TCP_FLAGS,              SIZEtcpFlags,     EXgenericFlowID,   OFFtcpFlags, STACK_NONE, "TCP flags" },
-	{ NF9_L4_SRC_PORT,            SIZEsrcPort,      EXgenericFlowID,   OFFsrcPort, STACK_NONE, "src port" },
-	{ NF9_IPV4_SRC_ADDR,          SIZEsrc4Addr,     EXipv4FlowID,      OFFsrc4Addr, STACK_NONE, "src IPv4" },
-	{ NF9_SRC_MASK,               SIZEsrcMask,      EXflowMiscID,      OFFsrcMask, STACK_NONE, "src mask IPv4" },
-	{ NF9_INPUT_SNMP,             SIZEinput,        EXflowMiscID,	   OFFinput, STACK_NONE, "input interface" },
-	{ NF9_L4_DST_PORT,            SIZEdstPort,      EXgenericFlowID,   OFFdstPort, STACK_NONE, "dst port" },
-	{ NF_F_ICMP_TYPE,        	  Stack_ONLY,       EXgenericFlowID,   OFFicmpType, STACK_ICMP_TYPE, "icmp type" },
-	{ NF_F_ICMP_TYPE_IPV6,        Stack_ONLY,       EXgenericFlowID,   OFFicmpType, STACK_ICMP_TYPE, "icmp type" },
-	{ NF_F_ICMP_CODE,        	  Stack_ONLY,       EXgenericFlowID,   OFFicmpCode, STACK_ICMP_CODE, "icmp code" },
-	{ NF_F_ICMP_CODE_IPV6,        Stack_ONLY,       EXgenericFlowID,   OFFicmpCode, STACK_ICMP_CODE, "icmp code" },
-	{ NF9_IPV4_DST_ADDR,          SIZEdst4Addr,     EXipv4FlowID,      OFFdst4Addr, STACK_NONE, "dst IPv4" },
-	{ NF9_DST_MASK,               SIZEdstMask,      EXflowMiscID,      OFFdstMask, STACK_NONE, "dst mask IPv4" },
-	{ NF9_OUTPUT_SNMP,            SIZEoutput,       EXflowMiscID, 	   OFFoutput, STACK_NONE, "output interface" },
-	{ NF9_V4_NEXT_HOP,            SIZENext4HopIP,   EXipNextHopV4ID,   OFFNext4HopIP, STACK_NONE, "IPv4 next hop" },
-	{ NF9_SRC_AS,                 SIZEsrcAS,        EXasRoutingID,     OFFsrcAS, STACK_NONE, "src AS" },
-	{ NF9_DST_AS,                 SIZEdstAS,        EXasRoutingID,     OFFdstAS, STACK_NONE, "dst AS" },
-	{ NF9_BGP_V4_NEXT_HOP,        SIZEbgp4NextIP,   EXbgpNextHopV4ID,  OFFbgp4NextIP, STACK_NONE, "IPv4 bgp next hop" },
-	{ NF9_LAST_SWITCHED,          Stack_ONLY,       EXgenericFlowID,   OFFmsecLast, STACK_LAST21, "msec last SysupTime" },
-	{ NF9_FIRST_SWITCHED,         Stack_ONLY,       EXgenericFlowID,   OFFmsecFirst, STACK_FIRST22, "msec first SysupTime" },
-	{ NF9_OUT_BYTES,              SIZEoutBytes,     EXcntFlowID,       OFFoutBytes, STACK_NONE, "output bytes delta counter" },
-	{ NF9_OUT_PKTS,               SIZEoutPackets,   EXcntFlowID,       OFFoutPackets, STACK_NONE, "output packet delta counter" },
-	{ NF9_IPV6_SRC_ADDR,          SIZEsrc6Addr,     EXipv6FlowID,      OFFsrc6Addr, STACK_NONE, 	"IPv6 src addr" },
-	{ NF9_IPV6_DST_ADDR,          SIZEdst6Addr,     EXipv6FlowID,      OFFdst6Addr, STACK_NONE, 	"IPv6 dst addr" },
-	{ NF9_IPV6_SRC_MASK,          SIZEsrcMask,      EXflowMiscID,      OFFsrcMask, STACK_NONE, 	"src mask bits" },
-	{ NF9_IPV6_DST_MASK,          SIZEdstMask,      EXflowMiscID,      OFFdstMask, STACK_NONE, 	"dst mask bits" },
-	{ NF9_ICMP,					  Stack_ONLY,       EXgenericFlowID,   OFFdstPort, STACK_ICMP, "icmp type/code" },
-	{ NF9_DST_TOS,                SIZEdstTos,       EXflowMiscID,      OFFdstTos, STACK_NONE, 	"post IP class of Service" },
-	{ NF9_IN_SRC_MAC,             SIZEinSrcMac,     EXmacAddrID,       OFFinSrcMac,STACK_NONE, 	"in src MAC addr" },
-	{ NF9_OUT_DST_MAC,            SIZEoutDstMac,    EXmacAddrID,       OFFoutDstMac,	STACK_NONE, "out dst MAC addr" },
-	{ NF9_SRC_VLAN,               SIZEsrcVlan,      EXvLanID,          OFFsrcVlan,	STACK_NONE, "src VLAN ID" },
-	{ NF9_DST_VLAN,               SIZEdstVlan,      EXvLanID,          OFFdstVlan,	STACK_NONE, "dst VLAN ID" },
-	{ NF_F_dot1qVlanId,           SIZEsrcVlan,      EXvLanID,          OFFsrcVlan,	STACK_NONE, "src VLAN ID" },
-	{ NF_F_postDot1qVlanId,		  SIZEdstVlan,      EXvLanID,          OFFdstVlan,	STACK_NONE, "dst VLAN ID" },
-	{ NF9_DIRECTION,              SIZEdir,          EXflowMiscID,      OFFdir, 	STACK_NONE, "flow direction" },
-	{ NF9_V6_NEXT_HOP,            SIZENext6HopIP,   EXipNextHopV6ID,   OFFNext6HopIP, STACK_NONE, "IPv6 next hop IP" },
-	{ NF9_BPG_V6_NEXT_HOP,        SIZEbgp6NextIP,   EXbgpNextHopV6ID,  OFFbgp6NextIP, STACK_NONE, "IPv6 bgp next hop IP" },
-	{ NF_F_BGP_ADJ_NEXT_AS,       SIZEnextAdjacentAS,   EXasAdjacentID,  OFFnextAdjacentAS, STACK_NONE, "bgb adj next AS" },
-	{ NF_F_BGP_ADJ_PREV_AS,       SIZEprevAdjacentAS,   EXasAdjacentID,  OFFprevAdjacentAS, STACK_NONE, "bgb adj prev AS" },
-	{ NF9_MPLS_LABEL_1,           SIZEmplsLabel1,   EXmplsLabelID,     OFFmplsLabel1, STACK_NONE, "mpls label 1" },
-	{ NF9_MPLS_LABEL_2,           SIZEmplsLabel2,   EXmplsLabelID,     OFFmplsLabel2, STACK_NONE, "mpls label 2" },
-	{ NF9_MPLS_LABEL_3,           SIZEmplsLabel3,   EXmplsLabelID,     OFFmplsLabel3, STACK_NONE, "mpls label 3" },
-	{ NF9_MPLS_LABEL_4,           SIZEmplsLabel4,   EXmplsLabelID,     OFFmplsLabel4, STACK_NONE, "mpls label 4" },
-	{ NF9_MPLS_LABEL_5,           SIZEmplsLabel5,   EXmplsLabelID,     OFFmplsLabel5, STACK_NONE, "mpls label 5" },
-	{ NF9_MPLS_LABEL_6,           SIZEmplsLabel6,   EXmplsLabelID,     OFFmplsLabel6, STACK_NONE, "mpls label 6" },
-	{ NF9_MPLS_LABEL_7,           SIZEmplsLabel7,   EXmplsLabelID,     OFFmplsLabel7, STACK_NONE, "mpls label 7" },
-	{ NF9_MPLS_LABEL_8,           SIZEmplsLabel8,   EXmplsLabelID,     OFFmplsLabel8, STACK_NONE, "mpls label 8" },
-	{ NF9_MPLS_LABEL_9,           SIZEmplsLabel9,   EXmplsLabelID,     OFFmplsLabel9, STACK_NONE, "mpls label 9" },
-	{ NF9_MPLS_LABEL_10,          SIZEmplsLabel10,  EXmplsLabelID,     OFFmplsLabel10, STACK_NONE, "mpls label 10" },
-	{ NF9_IN_DST_MAC,             SIZEinDstMac,     EXmacAddrID,	   OFFinDstMac,	STACK_NONE, "in dst MAC addr" },
-	{ NF9_OUT_SRC_MAC,            SIZEoutSrcMac,    EXmacAddrID,	   OFFoutSrcMac, STACK_NONE, "out src MAC addr" },
-	{ NF_F_FLOW_CREATE_TIME_MSEC, SIZEmsecFirst,    EXgenericFlowID,   OFFmsecFirst, STACK_NONE, "msec first" },
-	{ NF_F_FLOW_END_TIME_MSEC,    SIZEmsecLast,     EXgenericFlowID,   OFFmsecLast, STACK_NONE, "msec last" },
-	{ NF9_ENGINE_TYPE,			  Stack_ONLY,    	EXnull,			   0, STACK_ENGINE_TYPE, "engine type"},
-	{ NF9_ENGINE_ID,			  Stack_ONLY,    	EXnull,			   0, STACK_ENGINE_ID, "engine ID"},
-	{ LOCAL_IPv4Received,         SIZEReceived4IP,  EXipReceivedV4ID,  OFFReceived4IP, STACK_NONE, "IPv4 exporter" },
-	{ LOCAL_IPv6Received,         SIZEReceived6IP,  EXipReceivedV6ID,  OFFReceived6IP, STACK_NONE, "IPv6 exporter" },
-	{ LOCAL_msecTimeReceived,     SIZEmsecReceived, EXgenericFlowID,   OFFmsecReceived, STACK_NONE, "msec time received"},
+	{ NF9_IN_BYTES,               SIZEinBytes,      NumberCopy, EXgenericFlowID,   OFFinBytes, STACK_NONE, "inBytesDeltaCount" },
+	{ NF9_IN_PACKETS,             SIZEinPackets,    NumberCopy, EXgenericFlowID,   OFFinPackets, STACK_NONE, "inPacketsDeltaCount" },
+	{ NF9_FLOWS_AGGR,             SIZEflows,        NumberCopy, EXcntFlowID,       OFFflows, STACK_NONE, "FlowCount" },
+	{ NF9_IN_PROTOCOL,            SIZEproto,        NumberCopy, EXgenericFlowID,   OFFproto, STACK_NONE, "proto" },
+	{ NF9_SRC_TOS,                SIZEsrcTos,       NumberCopy, EXgenericFlowID,   OFFsrcTos, STACK_NONE, "src tos" },
+	{ NF9_FORWARDING_STATUS,      SIZEfwdStatus,    NumberCopy, EXgenericFlowID,   OFFfwdStatus, STACK_NONE, "forwarding status" },
+	{ NF9_TCP_FLAGS,              SIZEtcpFlags,     NumberCopy, EXgenericFlowID,   OFFtcpFlags, STACK_NONE, "TCP flags" },
+	{ NF9_L4_SRC_PORT,            SIZEsrcPort,      NumberCopy, EXgenericFlowID,   OFFsrcPort, STACK_NONE, "src port" },
+	{ NF9_IPV4_SRC_ADDR,          SIZEsrc4Addr,     NumberCopy, EXipv4FlowID,      OFFsrc4Addr, STACK_NONE, "src IPv4" },
+	{ NF9_SRC_MASK,               SIZEsrcMask,      NumberCopy, EXflowMiscID,      OFFsrcMask, STACK_NONE, "src mask IPv4" },
+	{ NF9_INPUT_SNMP,             SIZEinput,        NumberCopy, EXflowMiscID,	   OFFinput, STACK_NONE, "input interface" },
+	{ NF9_L4_DST_PORT,            SIZEdstPort,      NumberCopy, EXgenericFlowID,   OFFdstPort, STACK_NONE, "dst port" },
+	{ NF_F_ICMP_TYPE,        	  Stack_ONLY,       NumberCopy, EXgenericFlowID,   OFFicmpType, STACK_ICMP_TYPE, "icmp type" },
+	{ NF_F_ICMP_TYPE_IPV6,        Stack_ONLY,       NumberCopy, EXgenericFlowID,   OFFicmpType, STACK_ICMP_TYPE, "icmp type" },
+	{ NF_F_ICMP_CODE,        	  Stack_ONLY,       NumberCopy, EXgenericFlowID,   OFFicmpCode, STACK_ICMP_CODE, "icmp code" },
+	{ NF_F_ICMP_CODE_IPV6,        Stack_ONLY,       NumberCopy, EXgenericFlowID,   OFFicmpCode, STACK_ICMP_CODE, "icmp code" },
+	{ NF9_IPV4_DST_ADDR,          SIZEdst4Addr,     NumberCopy, EXipv4FlowID,      OFFdst4Addr, STACK_NONE, "dst IPv4" },
+	{ NF9_DST_MASK,               SIZEdstMask,      NumberCopy, EXflowMiscID,      OFFdstMask, STACK_NONE, "dst mask IPv4" },
+	{ NF9_OUTPUT_SNMP,            SIZEoutput,       NumberCopy, EXflowMiscID, 	   OFFoutput, STACK_NONE, "output interface" },
+	{ NF9_V4_NEXT_HOP,            SIZENext4HopIP,   NumberCopy, EXipNextHopV4ID,   OFFNext4HopIP, STACK_NONE, "IPv4 next hop" },
+	{ NF9_SRC_AS,                 SIZEsrcAS,        NumberCopy, EXasRoutingID,     OFFsrcAS, STACK_NONE, "src AS" },
+	{ NF9_DST_AS,                 SIZEdstAS,        NumberCopy, EXasRoutingID,     OFFdstAS, STACK_NONE, "dst AS" },
+	{ NF9_BGP_V4_NEXT_HOP,        SIZEbgp4NextIP,   NumberCopy, EXbgpNextHopV4ID,  OFFbgp4NextIP, STACK_NONE, "IPv4 bgp next hop" },
+	{ NF9_LAST_SWITCHED,          Stack_ONLY,       NumberCopy, EXgenericFlowID,   OFFmsecLast, STACK_LAST21, "msec last SysupTime" },
+	{ NF9_FIRST_SWITCHED,         Stack_ONLY,       NumberCopy, EXgenericFlowID,   OFFmsecFirst, STACK_FIRST22, "msec first SysupTime" },
+	{ NF9_OUT_BYTES,              SIZEoutBytes,     NumberCopy, EXcntFlowID,       OFFoutBytes, STACK_NONE, "output bytes delta counter" },
+	{ NF9_OUT_PKTS,               SIZEoutPackets,   NumberCopy, EXcntFlowID,       OFFoutPackets, STACK_NONE, "output packet delta counter" },
+	{ NF9_IPV6_SRC_ADDR,          SIZEsrc6Addr,     NumberCopy, EXipv6FlowID,      OFFsrc6Addr, STACK_NONE, 	"IPv6 src addr" },
+	{ NF9_IPV6_DST_ADDR,          SIZEdst6Addr,     NumberCopy, EXipv6FlowID,      OFFdst6Addr, STACK_NONE, 	"IPv6 dst addr" },
+	{ NF9_IPV6_SRC_MASK,          SIZEsrcMask,      NumberCopy, EXflowMiscID,      OFFsrcMask, STACK_NONE, 	"src mask bits" },
+	{ NF9_IPV6_DST_MASK,          SIZEdstMask,      NumberCopy, EXflowMiscID,      OFFdstMask, STACK_NONE, 	"dst mask bits" },
+	{ NF9_ICMP,					  Stack_ONLY,       NumberCopy, EXgenericFlowID,   OFFdstPort, STACK_ICMP, "icmp type/code" },
+	{ NF9_DST_TOS,                SIZEdstTos,       NumberCopy, EXflowMiscID,      OFFdstTos, STACK_NONE, 	"post IP class of Service" },
+	{ NF9_IN_SRC_MAC,             SIZEinSrcMac,     NumberCopy, EXmacAddrID,       OFFinSrcMac,STACK_NONE, 	"in src MAC addr" },
+	{ NF9_OUT_DST_MAC,            SIZEoutDstMac,    NumberCopy, EXmacAddrID,       OFFoutDstMac,	STACK_NONE, "out dst MAC addr" },
+	{ NF9_SRC_VLAN,               SIZEsrcVlan,      NumberCopy, EXvLanID,          OFFsrcVlan,	STACK_NONE, "src VLAN ID" },
+	{ NF9_DST_VLAN,               SIZEdstVlan,      NumberCopy, EXvLanID,          OFFdstVlan,	STACK_NONE, "dst VLAN ID" },
+	{ NF_F_dot1qVlanId,           SIZEsrcVlan,      NumberCopy, EXvLanID,          OFFsrcVlan,	STACK_NONE, "src VLAN ID" },
+	{ NF_F_postDot1qVlanId,		  SIZEdstVlan,      NumberCopy, EXvLanID,          OFFdstVlan,	STACK_NONE, "dst VLAN ID" },
+	{ NF9_DIRECTION,              SIZEdir,          NumberCopy, EXflowMiscID,      OFFdir, 	STACK_NONE, "flow direction" },
+	{ NF9_V6_NEXT_HOP,            SIZENext6HopIP,   NumberCopy, EXipNextHopV6ID,   OFFNext6HopIP, STACK_NONE, "IPv6 next hop IP" },
+	{ NF9_BPG_V6_NEXT_HOP,        SIZEbgp6NextIP,   NumberCopy, EXbgpNextHopV6ID,  OFFbgp6NextIP, STACK_NONE, "IPv6 bgp next hop IP" },
+	{ NF_F_BGP_ADJ_NEXT_AS,       SIZEnextAdjacentAS,   NumberCopy, EXasAdjacentID,  OFFnextAdjacentAS, STACK_NONE, "bgb adj next AS" },
+	{ NF_F_BGP_ADJ_PREV_AS,       SIZEprevAdjacentAS,   NumberCopy, EXasAdjacentID,  OFFprevAdjacentAS, STACK_NONE, "bgb adj prev AS" },
+	{ NF9_MPLS_LABEL_1,           SIZEmplsLabel1,   NumberCopy, EXmplsLabelID,     OFFmplsLabel1, STACK_NONE, "mpls label 1" },
+	{ NF9_MPLS_LABEL_2,           SIZEmplsLabel2,   NumberCopy, EXmplsLabelID,     OFFmplsLabel2, STACK_NONE, "mpls label 2" },
+	{ NF9_MPLS_LABEL_3,           SIZEmplsLabel3,   NumberCopy, EXmplsLabelID,     OFFmplsLabel3, STACK_NONE, "mpls label 3" },
+	{ NF9_MPLS_LABEL_4,           SIZEmplsLabel4,   NumberCopy, EXmplsLabelID,     OFFmplsLabel4, STACK_NONE, "mpls label 4" },
+	{ NF9_MPLS_LABEL_5,           SIZEmplsLabel5,   NumberCopy, EXmplsLabelID,     OFFmplsLabel5, STACK_NONE, "mpls label 5" },
+	{ NF9_MPLS_LABEL_6,           SIZEmplsLabel6,   NumberCopy, EXmplsLabelID,     OFFmplsLabel6, STACK_NONE, "mpls label 6" },
+	{ NF9_MPLS_LABEL_7,           SIZEmplsLabel7,   NumberCopy, EXmplsLabelID,     OFFmplsLabel7, STACK_NONE, "mpls label 7" },
+	{ NF9_MPLS_LABEL_8,           SIZEmplsLabel8,   NumberCopy, EXmplsLabelID,     OFFmplsLabel8, STACK_NONE, "mpls label 8" },
+	{ NF9_MPLS_LABEL_9,           SIZEmplsLabel9,   NumberCopy, EXmplsLabelID,     OFFmplsLabel9, STACK_NONE, "mpls label 9" },
+	{ NF9_MPLS_LABEL_10,          SIZEmplsLabel10,  NumberCopy, EXmplsLabelID,     OFFmplsLabel10, STACK_NONE, "mpls label 10" },
+	{ NF9_IN_DST_MAC,             SIZEinDstMac,     NumberCopy, EXmacAddrID,	   OFFinDstMac,	STACK_NONE, "in dst MAC addr" },
+	{ NF9_OUT_SRC_MAC,            SIZEoutSrcMac,    NumberCopy, EXmacAddrID,	   OFFoutSrcMac, STACK_NONE, "out src MAC addr" },
+	{ NF_F_FLOW_CREATE_TIME_MSEC, SIZEmsecFirst,    NumberCopy, EXgenericFlowID,   OFFmsecFirst, STACK_NONE, "msec first" },
+	{ NF_F_FLOW_END_TIME_MSEC,    SIZEmsecLast,     NumberCopy, EXgenericFlowID,   OFFmsecLast, STACK_NONE, "msec last" },
+	{ NF9_ENGINE_TYPE,			  Stack_ONLY,    	NumberCopy, EXnull,			   0, STACK_ENGINE_TYPE, "engine type"},
+	{ NF9_ENGINE_ID,			  Stack_ONLY,    	NumberCopy, EXnull,			   0, STACK_ENGINE_ID, "engine ID"},
+	{ LOCAL_IPv4Received,         SIZEReceived4IP,  NumberCopy, EXipReceivedV4ID,  OFFReceived4IP, STACK_NONE, "IPv4 exporter" },
+	{ LOCAL_IPv6Received,         SIZEReceived6IP,  NumberCopy, EXipReceivedV6ID,  OFFReceived6IP, STACK_NONE, "IPv6 exporter" },
+	{ LOCAL_msecTimeReceived,     SIZEmsecReceived, NumberCopy, EXgenericFlowID,   OFFmsecReceived, STACK_NONE, "msec time received"},
 
 	// NSEL extensions
-	{ NF_F_FLOW_BYTES,            SIZEinBytes,      EXgenericFlowID,   OFFinBytes, STACK_NONE, "ASA inBytes total" },
-	{ NF_F_FLOW_PACKETS,          SIZEinPackets,    EXgenericFlowID,   OFFinPackets, STACK_NONE, "ASA inPackets total" },
-	{ NF_F_EVENT_TIME_MSEC,       Stack_ONLY,    	EXnull,    0, STACK_MSEC, "msec time event"},
-	{ NF_F_CONN_ID,               SIZEconnID,       EXnselCommonID,    OFFconnID, STACK_NONE, "connection ID"},
-	{ NF_F_FW_EVENT,              SIZEfwEvent,      EXnselCommonID,    OFFfwEvent, STACK_NONE, "fw event ID"},
-	{ NF_F_FW_EVENT_84,           SIZEfwEvent,      EXnselCommonID,    OFFfwEvent, STACK_NONE, "fw event ID"},
-	{ NF_F_FW_EXT_EVENT,          SIZEfwXevent,     EXnselCommonID,    OFFfwXevent, STACK_NONE, "fw ext event ID"},
-	{ NF_F_XLATE_SRC_ADDR_IPV4,   SIZExlateSrc4Addr, EXnselXlateIPv4ID, OFFxlateSrc4Addr, STACK_NONE, "xlate src addr"},
-	{ NF_F_XLATE_SRC_ADDR_84  ,   SIZExlateSrc4Addr, EXnselXlateIPv4ID, OFFxlateSrc4Addr, STACK_NONE, "xlate src addr"},
-	{ NF_F_XLATE_DST_ADDR_IPV4,   SIZExlateDst4Addr, EXnselXlateIPv4ID, OFFxlateDst4Addr, STACK_NONE, "xlate dst addr"},
-	{ NF_F_XLATE_DST_ADDR_84  ,   SIZExlateDst4Addr, EXnselXlateIPv4ID, OFFxlateDst4Addr, STACK_NONE, "xlate dst addr"},
-	{ NF_F_XLATE_SRC_ADDR_IPV6,   SIZExlateSrc6Addr, EXnselXlateIPv6ID, OFFxlateSrc6Addr, STACK_NONE, "xlate src addr"},
-	{ NF_F_XLATE_DST_ADDR_IPV6,   SIZExlateDst6Addr, EXnselXlateIPv6ID, OFFxlateDst6Addr, STACK_NONE, "xlate dst addr"},
-	{ NF_F_XLATE_SRC_PORT,        SIZExlateSrcPort, EXnselXlatePortID, OFFxlateSrcPort, STACK_NONE, "xlate src port"},
-	{ NF_F_XLATE_DST_PORT,        SIZExlateDstPort, EXnselXlatePortID, OFFxlateDstPort, STACK_NONE, "xlate dst port"},
-	{ NF_F_XLATE_SRC_PORT_84,     SIZExlateSrcPort, EXnselXlatePortID, OFFxlateSrcPort, STACK_NONE, "xlate src port"},
-	{ NF_F_XLATE_DST_PORT_84,     SIZExlateDstPort, EXnselXlatePortID, OFFxlateDstPort, STACK_NONE, "xlate dst port"},
-	{ NF_F_INGRESS_ACL_ID,        SIZEingressAcl, EXnselAclID, OFFingressAcl, STACK_NONE, "ingress ACL ID"},
-	{ NF_F_EGRESS_ACL_ID,         SIZEegressAcl, EXnselAclID, OFFegressAcl, STACK_NONE, "egress ACL ID"},
-	{ NF_F_USERNAME,              SIZEusername, EXnselUserID, OFFusername, STACK_NONE, "AAA username"},
+	{ NF_F_FLOW_BYTES,            SIZEinBytes,      NumberCopy, EXgenericFlowID,   OFFinBytes, STACK_NONE, "ASA inBytes total" },
+	{ NF_F_FLOW_PACKETS,          SIZEinPackets,    NumberCopy, EXgenericFlowID,   OFFinPackets, STACK_NONE, "ASA inPackets total" },
+	{ NF_F_EVENT_TIME_MSEC,       Stack_ONLY,    	NumberCopy, EXnull,    0, STACK_MSEC, "msec time event"},
+	{ NF_F_CONN_ID,               SIZEconnID,       NumberCopy, EXnselCommonID,    OFFconnID, STACK_NONE, "connection ID"},
+	{ NF_F_FW_EVENT,              SIZEfwEvent,      NumberCopy, EXnselCommonID,    OFFfwEvent, STACK_NONE, "fw event ID"},
+	{ NF_F_FW_EVENT_84,           SIZEfwEvent,      NumberCopy, EXnselCommonID,    OFFfwEvent, STACK_NONE, "fw event ID"},
+	{ NF_F_FW_EXT_EVENT,          SIZEfwXevent,     NumberCopy, EXnselCommonID,    OFFfwXevent, STACK_NONE, "fw ext event ID"},
+	{ NF_F_XLATE_SRC_ADDR_IPV4,   SIZExlateSrc4Addr, NumberCopy, EXnselXlateIPv4ID, OFFxlateSrc4Addr, STACK_NONE, "xlate src addr"},
+	{ NF_F_XLATE_SRC_ADDR_84  ,   SIZExlateSrc4Addr, NumberCopy, EXnselXlateIPv4ID, OFFxlateSrc4Addr, STACK_NONE, "xlate src addr"},
+	{ NF_F_XLATE_DST_ADDR_IPV4,   SIZExlateDst4Addr, NumberCopy, EXnselXlateIPv4ID, OFFxlateDst4Addr, STACK_NONE, "xlate dst addr"},
+	{ NF_F_XLATE_DST_ADDR_84  ,   SIZExlateDst4Addr, NumberCopy, EXnselXlateIPv4ID, OFFxlateDst4Addr, STACK_NONE, "xlate dst addr"},
+	{ NF_F_XLATE_SRC_ADDR_IPV6,   SIZExlateSrc6Addr, NumberCopy, EXnselXlateIPv6ID, OFFxlateSrc6Addr, STACK_NONE, "xlate src addr"},
+	{ NF_F_XLATE_DST_ADDR_IPV6,   SIZExlateDst6Addr, NumberCopy, EXnselXlateIPv6ID, OFFxlateDst6Addr, STACK_NONE, "xlate dst addr"},
+	{ NF_F_XLATE_SRC_PORT,        SIZExlateSrcPort, NumberCopy, EXnselXlatePortID, OFFxlateSrcPort, STACK_NONE, "xlate src port"},
+	{ NF_F_XLATE_DST_PORT,        SIZExlateDstPort, NumberCopy, EXnselXlatePortID, OFFxlateDstPort, STACK_NONE, "xlate dst port"},
+	{ NF_F_XLATE_SRC_PORT_84,     SIZExlateSrcPort, NumberCopy, EXnselXlatePortID, OFFxlateSrcPort, STACK_NONE, "xlate src port"},
+	{ NF_F_XLATE_DST_PORT_84,     SIZExlateDstPort, NumberCopy, EXnselXlatePortID, OFFxlateDstPort, STACK_NONE, "xlate dst port"},
+	{ NF_F_INGRESS_ACL_ID,        SIZEingressAcl, NumberCopy, EXnselAclID, OFFingressAcl, STACK_NONE, "ingress ACL ID"},
+	{ NF_F_EGRESS_ACL_ID,         SIZEegressAcl, NumberCopy, EXnselAclID, OFFegressAcl, STACK_NONE, "egress ACL ID"},
+	{ NF_F_USERNAME,              SIZEusername, NumberCopy, EXnselUserID, OFFusername, STACK_NONE, "AAA username"},
 	// NEL
 
-	{ NF_N_NAT_EVENT,              SIZEnatEvent, EXnelCommonID, OFFnatEvent, STACK_NONE, "NAT event"},
-	{ NF_N_INGRESS_VRFID,          SIZEingressVrf, EXnelCommonID, OFFingressVrf, STACK_NONE, "ingress VRF ID"},
-	{ NF_N_EGRESS_VRFID,           SIZEegressVrf, EXnelCommonID, OFFegressVrf, STACK_NONE, "egress VRF ID"},
-	{ NF_N_NATPOOL_ID,             SIZEnatPoolID, EXnelCommonID, OFFnatPoolID, STACK_NONE, "nat pool ID"},
-	{ NF_F_XLATE_PORT_BLOCK_START, SIZEnelblockStart, EXnelXlatePortID, OFFnelblockStart, STACK_NONE, "NAT block start"},
-	{ NF_F_XLATE_PORT_BLOCK_END,   SIZEnelblockEnd, EXnelXlatePortID, OFFnelblockEnd, STACK_NONE, "NAT block end"},
-	{ NF_F_XLATE_PORT_BLOCK_STEP,  SIZEnelblockStep, EXnelXlatePortID, OFFnelblockStep, STACK_NONE, "NAT block step"},
-	{ NF_F_XLATE_PORT_BLOCK_SIZE,  SIZEnelblockSize, EXnelXlatePortID, OFFnelblockSize, STACK_NONE, "NAT block size"},
+	{ NF_N_NAT_EVENT,              SIZEnatEvent, NumberCopy, EXnelCommonID, OFFnatEvent, STACK_NONE, "NAT event"},
+	{ NF_N_INGRESS_VRFID,          SIZEingressVrf, NumberCopy, EXnelCommonID, OFFingressVrf, STACK_NONE, "ingress VRF ID"},
+	{ NF_N_EGRESS_VRFID,           SIZEegressVrf, NumberCopy, EXnelCommonID, OFFegressVrf, STACK_NONE, "egress VRF ID"},
+	{ NF_N_NATPOOL_ID,             SIZEnatPoolID, NumberCopy, EXnelCommonID, OFFnatPoolID, STACK_NONE, "nat pool ID"},
+	{ NF_F_XLATE_PORT_BLOCK_START, SIZEnelblockStart, NumberCopy, EXnelXlatePortID, OFFnelblockStart, STACK_NONE, "NAT block start"},
+	{ NF_F_XLATE_PORT_BLOCK_END,   SIZEnelblockEnd, NumberCopy, EXnelXlatePortID, OFFnelblockEnd, STACK_NONE, "NAT block end"},
+	{ NF_F_XLATE_PORT_BLOCK_STEP,  SIZEnelblockStep, NumberCopy, EXnelXlatePortID, OFFnelblockStep, STACK_NONE, "NAT block step"},
+	{ NF_F_XLATE_PORT_BLOCK_SIZE,  SIZEnelblockSize, NumberCopy, EXnelXlatePortID, OFFnelblockSize, STACK_NONE, "NAT block size"},
 
 	// Nprobe latency
-	{ NF_NPROBE_CLIENT_NW_DELAY_USEC, SIZEusecClientNwDelay, EXlatencyID, OFFusecClientNwDelay, STACK_NONE, "nprobe client latency usec"},
-	{ NF_NPROBE_SERVER_NW_DELAY_USEC, SIZEusecServerNwDelay, EXlatencyID, OFFusecServerNwDelay, STACK_NONE, "nprobe client latency usec"},
-	{ NF_NPROBE_APPL_LATENCY_USEC,    SIZEusecApplLatency, EXlatencyID, OFFusecApplLatency, STACK_NONE, "nprobe application latency usec"},
-	{ NF_NPROBE_CLIENT_NW_DELAY_SEC,  Stack_ONLY, EXlatencyID, 0, STACK_CLIENT_USEC, "nprobe client latency sec"},
-	{ NF_NPROBE_SERVER_NW_DELAY_SEC,  Stack_ONLY, EXlatencyID, 0, STACK_SERVER_USEC, "nprobe server latency sec"},
-	{ NF_NPROBE_APPL_LATENCY_SEC,     Stack_ONLY, EXlatencyID, 0, STACK_APPL_USEC, "nprobe application latency sec"},
+	{ NF_NPROBE_CLIENT_NW_DELAY_USEC, SIZEusecClientNwDelay, NumberCopy, EXlatencyID, OFFusecClientNwDelay, STACK_NONE, "nprobe client latency usec"},
+	{ NF_NPROBE_SERVER_NW_DELAY_USEC, SIZEusecServerNwDelay, NumberCopy, EXlatencyID, OFFusecServerNwDelay, STACK_NONE, "nprobe client latency usec"},
+	{ NF_NPROBE_APPL_LATENCY_USEC,    SIZEusecApplLatency, NumberCopy, EXlatencyID, OFFusecApplLatency, STACK_NONE, "nprobe application latency usec"},
+	{ NF_NPROBE_CLIENT_NW_DELAY_SEC,  Stack_ONLY, NumberCopy, EXlatencyID, 0, STACK_CLIENT_USEC, "nprobe client latency sec"},
+	{ NF_NPROBE_SERVER_NW_DELAY_SEC,  Stack_ONLY, NumberCopy, EXlatencyID, 0, STACK_SERVER_USEC, "nprobe server latency sec"},
+	{ NF_NPROBE_APPL_LATENCY_SEC,     Stack_ONLY, NumberCopy, EXlatencyID, 0, STACK_APPL_USEC, "nprobe application latency sec"},
+
+	// nbar 
+	{ NBAR_APPLICATION_ID,        SIZEnbarAppID,    ByteCopy, EXnbarAppID, OFFnbarAppID, STACK_NONE, "nbar application ID" },
 
 	// sampling
-	{ NF9_FLOW_SAMPLER_ID,        Stack_ONLY,       EXnull,  0, STACK_SAMPLER, "sampler ID" },
-	{ NF_SELECTOR_ID,             Stack_ONLY,       EXnull,  0, STACK_SAMPLER, "sampler ID" },
+	{ NF9_FLOW_SAMPLER_ID,        Stack_ONLY,       NumberCopy, EXnull,  0, STACK_SAMPLER, "sampler ID" },
+	{ NF_SELECTOR_ID,             Stack_ONLY,       NumberCopy, EXnull,  0, STACK_SAMPLER, "sampler ID" },
 
 	// End of table
-	{ 0,            0, 0,  0, STACK_NONE, NULL },
+	{ 0,            0, 0, 0,  0, STACK_NONE, NULL },
 };
 
 typedef struct template_flowset_s {
@@ -340,7 +344,7 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
 
 static void Process_v9_sampler_option_data(exporterDomain_t *exporter, FlowSource_t *fs, samplerOption_t *samplerOption, void *data_flowset);
 
-static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t *fs, nbarOption_t *nbarOption, void *data_flowset);
+static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t *fs, nbarOptionList_t *nbarOptionList, void *data_flowset);
 
 static inline exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t exporter_id);
 
@@ -389,7 +393,7 @@ static void ProcessOptionFlowset(exporterDomain_t *exporter, FlowSource_t *fs, v
 		dbg_printf("No sampler option table found\n");
 	}
 
-	nbarOption_t *n = exporter->nbarOption;
+	nbarOptionList_t *n = exporter->nbarOptionList;
 	while ( n && n->tableID != tableID )
 		n = n->next;
 
@@ -461,7 +465,7 @@ exporterDomain_t **e = (exporterDomain_t **)&(fs->exporter_data);
 
 	(*e)->samplerOption 	= NULL;
 	(*e)->sampler			= NULL;
-	(*e)->nbarOption		= NULL;
+	(*e)->nbarOptionList		= NULL;
 	(*e)->next				= NULL;
 
 	FlushInfoExporter(fs, &((*e)->info));
@@ -637,14 +641,14 @@ samplerOption_t *s, *parent;
 
 } // End of InsertSamplerOption
 
-static void InsertNbarOption(exporterDomain_t *exporter, nbarOption_t *nbarOption) {
-nbarOption_t *s, *parent;
+static void InsertNbarOption(exporterDomain_t *exporter, nbarOptionList_t *nbarOptionList) {
+nbarOptionList_t *s, *parent;
 
 	parent = NULL;
-	s = exporter->nbarOption;
+	s = exporter->nbarOptionList;
 	while (s) {
-		if ( s->tableID == nbarOption->tableID ) { // table already known to us - update data
-			dbg_printf("Found existing nbar info in template %i\n", nbarOption->tableID);
+		if ( s->tableID == nbarOptionList->tableID ) { // table already known to us - update data
+			dbg_printf("Found existing nbar info in template %i\n", nbarOptionList->tableID);
 			break;
 		}
 		parent = s;
@@ -653,27 +657,27 @@ nbarOption_t *s, *parent;
 
 	if ( s != NULL ) { // existing entry
 		// replace existing table
-		dbg_printf("Replace existing nbar table ID %i\n", nbarOption->tableID);
+		dbg_printf("Replace existing nbar table ID %i\n", nbarOptionList->tableID);
 		if ( parent ) {
-			parent->next = nbarOption;
+			parent->next = nbarOptionList;
 		} else {
-			exporter->nbarOption = nbarOption;
+			exporter->nbarOptionList = nbarOptionList;
 		}
-		nbarOption->next = s->next;
+		nbarOptionList->next = s->next;
 		free(s);
 		s = NULL;
 	} else { // new entry
-		dbg_printf("New nbar table ID %i\n", nbarOption->tableID);
+		dbg_printf("New nbar table ID %i\n", nbarOptionList->tableID);
 		// push new nbar table
-		nbarOption->next = exporter->nbarOption;
-		exporter->nbarOption = nbarOption;
+		nbarOptionList->next = exporter->nbarOptionList;
+		exporter->nbarOptionList = nbarOptionList;
 	}
 
 	dbg_printf("Update/Insert nbar table id: %u nbar ID: %u/%u, name: %u/%u, desc: %u/%u\n",
-		nbarOption->tableID,
-		nbarOption->id.offset, nbarOption->id.length,
-		nbarOption->name.offset, nbarOption->name.length,
-		nbarOption->desc.offset, nbarOption->desc.length);
+		nbarOptionList->tableID,
+		nbarOptionList->id.offset, nbarOptionList->id.length,
+		nbarOptionList->name.offset, nbarOptionList->name.length,
+		nbarOptionList->desc.offset, nbarOptionList->desc.length);
 
 } // End of InsertNbarOption
 
@@ -736,6 +740,7 @@ int			i;
 				sequenceTable[numSequences].inputLength	 = Length;
 				sequenceTable[numSequences].extensionID	 = EXnull;
 				sequenceTable[numSequences].outputLength = 0;
+				sequenceTable[numSequences].copyMode	 = 0;
 				sequenceTable[numSequences].offsetRel	 = 0;
 				sequenceTable[numSequences].stackID		 = STACK_NONE;
 				dbg_printf("Skip sequence for unknown type: %u, length: %u\n",
@@ -743,6 +748,7 @@ int			i;
 			} else {
 				sequenceTable[numSequences].inputType	 = Type;
 				sequenceTable[numSequences].inputLength	 = Length;
+				sequenceTable[numSequences].copyMode	 = v9TranslationMap[index].copyMode;
 				sequenceTable[numSequences].extensionID	 = v9TranslationMap[index].extensionID;
 				sequenceTable[numSequences].outputLength = v9TranslationMap[index].outputLength;
 				sequenceTable[numSequences].offsetRel	 = v9TranslationMap[index].offsetRel;
@@ -855,8 +861,8 @@ uint16_t	tableID, scope_length, option_length;
 	}
 	samplerOption->tableID = tableID;
 
-	nbarOption_t *nbarOption = (nbarOption_t *)calloc(1, sizeof(nbarOption_t));
-	if ( !nbarOption ) {
+	nbarOptionList_t *nbarOptionList = (nbarOptionList_t *)calloc(1, sizeof(nbarOptionList_t));
+	if ( !nbarOptionList ) {
 		LogError("Error malloc(): %s in %s:%d", strerror (errno), __FILE__, __LINE__);
 		return;
 	}
@@ -939,19 +945,19 @@ uint16_t	tableID, scope_length, option_length;
 
 			// nbar application information
 			case NBAR_APPLICATION_DESC:
-				nbarOption->desc.length = length;
-				nbarOption->desc.offset = offset;
-				nbarOption->tableID 	= tableID;
+				nbarOptionList->desc.length = length;
+				nbarOptionList->desc.offset = offset;
+				nbarOptionList->tableID 	= tableID;
 				break;
 			case NBAR_APPLICATION_ID:
-				nbarOption->id.length = length;
-				nbarOption->id.offset = offset;
-				nbarOption->tableID	  = tableID;
+				nbarOptionList->id.length = length;
+				nbarOptionList->id.offset = offset;
+				nbarOptionList->tableID	  = tableID;
 				break;
 			case NBAR_APPLICATION_NAME:
-				nbarOption->name.length = length;
-				nbarOption->name.offset = offset;
-				nbarOption->tableID 	= tableID;
+				nbarOptionList->name.length = length;
+				nbarOptionList->name.offset = offset;
+				nbarOptionList->tableID 	= tableID;
 				break;
 		}
 		offset += length;
@@ -968,15 +974,15 @@ uint16_t	tableID, scope_length, option_length;
 		dbg_printf("[%u] No Sampling information found\n", exporter->info.id);
 	}
 
-	if ( nbarOption->tableID ) {
+	if ( nbarOptionList->tableID ) {
 		dbg_printf("[%u] found nbar options\n", exporter->info.id);
-		dbg_printf("[%u] id   length: %u\n", exporter->info.id, nbarOption->id.length);
-		dbg_printf("[%u] name length: %u\n", exporter->info.id, nbarOption->name.length);
-		dbg_printf("[%u] desc length: %u\n", exporter->info.id, nbarOption->desc.length);
-		nbarOption->scopeSize = scopeSize;
-		InsertNbarOption(exporter, nbarOption);
+		dbg_printf("[%u] id   length: %u\n", exporter->info.id, nbarOptionList->id.length);
+		dbg_printf("[%u] name length: %u\n", exporter->info.id, nbarOptionList->name.length);
+		dbg_printf("[%u] desc length: %u\n", exporter->info.id, nbarOptionList->desc.length);
+		nbarOptionList->scopeSize = scopeSize;
+		InsertNbarOption(exporter, nbarOptionList);
 	} else {
-		free(nbarOption);
+		free(nbarOptionList);
 		dbg_printf("[%u] No nbar information found\n", exporter->info.id);
 	}
 	processed_records++;
@@ -1418,7 +1424,7 @@ static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, Fl
 
 } // End of Process_v9_sampler_option_data
 
-static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t *fs, nbarOption_t *nbarOption, void *data_flowset) {
+static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t *fs, nbarOptionList_t *nbarOptionList, void *data_flowset) {
 
 	uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4; // -4 for data flowset header -> id and length
 
@@ -1427,78 +1433,96 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
 #endif
 
 	// map input buffer as a byte array
-	uint8_t *in = (uint8_t *)(data_flowset + 4);	// skip flowset header
-	size_t nbar_data_size = nbarOption->id.length + nbarOption->name.length + nbarOption->desc.length;
-	size_t nbar_option_size = nbarOption->scopeSize + nbar_data_size;
-	dbg_printf("[%u] nbar option data size: %zu\n", exporter->info.id, nbar_option_size);
+	uint8_t *inBuff = (uint8_t *)(data_flowset + 4);	// skip flowset header
+	// data size
+	size_t nbar_data_size = nbarOptionList->id.length + nbarOptionList->name.length + nbarOptionList->desc.length;
+	// size of record
+	size_t nbar_option_size = nbarOptionList->scopeSize + nbar_data_size;
+	// number of records in data
+	int numRecords = size_left / nbar_option_size;
+	dbg_printf("[%u] nbar option data - records: %u, size: %zu\n", exporter->info.id, numRecords, nbar_option_size);
 
-	if ( nbar_option_size == 0 || nbar_option_size > size_left ) {
-		LogError( "Process_v9: nbar option size error: option size: %u, size left: %u", nbar_option_size, size_left);
+	if ( numRecords == 0 || nbar_option_size == 0 || nbar_option_size > size_left ) {
+		LogError( "Process_nbar_option: nbar option size error: option size: %u, size left: %u", nbar_option_size, size_left);
 		return;
 	}
 
-	size_t nbar_record_size = sizeof(nbar_record_t) + nbar_data_size;
-	size_t align = nbar_record_size & 0x3;
+	size_t nbar_total_size = numRecords * ( sizeof(nbarRecordHeader_t) + sizeof(NbarAppInfo_t) + nbar_data_size );
+	size_t align = nbar_total_size & 0x3;
 	if ( align ) {
-		nbar_record_size += 4 - align;
+		nbar_total_size += 4 - align;
 	}
-	int numRecords = 0;
-	while ( size_left >= nbar_option_size ) {
-		nbar_record_t *nbar_record = calloc(1, nbar_record_size);
-		if ( !nbar_record ) {
-			LogError("malloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
-			return;
-		}
 
-		// setup nbar record
-		nbar_record->header.type = NbarRecordType;
-		nbar_record->header.size = nbar_record_size;
-		nbar_record->app_id_length	 = nbarOption->id.length;
-		nbar_record->app_name_length = nbarOption->name.length;
-		nbar_record->app_desc_length = nbarOption->desc.length;
-		char *p = nbar_record->data;
+	// output buffer size check for all expected records
+	if ( !CheckBufferSpace(fs->nffile, nbar_total_size)) {
+		// fishy! - should never happen. maybe disk full?
+		LogError("Process_nbar_option: output buffer size error. Abort nbar record processing");
+		return;
+	}
+
+	void *outBuff = fs->nffile->buff_ptr;
+
+	int cnt = 0;
+	while ( size_left >= nbar_option_size ) {
+		// push nbar header
+		AddNbarHeader(outBuff, nbarHeader);
+
+		// push nbar app info record
+		PushNbarVarLengthExtension(nbarHeader, NbarAppInfo, nbar_record, sizeof(NbarAppInfo_t) + nbar_data_size);
+		
+		nbar_record->app_id_length	 = nbarOptionList->id.length;
+		nbar_record->app_name_length = nbarOptionList->name.length;
+		nbar_record->app_desc_length = nbarOptionList->desc.length;
+		uint8_t *p = nbar_record->data;
 		int err = 0;
 
 		//copy data
 		// id octet array
-		memcpy(p, in + nbarOption->id.offset, nbarOption->id.length);
-		p += nbarOption->id.length;
+		memcpy(p, inBuff + nbarOptionList->id.offset, nbarOptionList->id.length);
+		p += nbarOptionList->id.length;
 
 		// name string
-		memcpy(p, in + nbarOption->name.offset, nbarOption->name.length);
+		memcpy(p, inBuff + nbarOptionList->name.offset, nbarOptionList->name.length);
 		uint32_t state = UTF8_ACCEPT;
-		if (validate_utf8(&state, p, nbarOption->name.length) == UTF8_REJECT) {
-			LogError("validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar name");
+		if (validate_utf8(&state, (char *)p, nbarOptionList->name.length) == UTF8_REJECT) {
+			LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar name");
    			err = 1;
     	}
-		p[nbarOption->name.length-1] = '\0';
-		p += nbarOption->name.length;
+		p[nbarOptionList->name.length-1] = '\0';
+		p += nbarOptionList->name.length;
 
 		// description string
-		memcpy(p, in + nbarOption->desc.offset, nbarOption->desc.length);
+		memcpy(p, inBuff + nbarOptionList->desc.offset, nbarOptionList->desc.length);
 		state = UTF8_ACCEPT;
-		if (validate_utf8(&state, p, nbarOption->name.length) == UTF8_REJECT) {
-			LogError("validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar description");
+		if (validate_utf8(&state, (char *)p, nbarOptionList->name.length) == UTF8_REJECT) {
+			LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar description");
    			err = 1;
     	}
-		p[nbarOption->desc.length-1] = '\0';
+		p[nbarOptionList->desc.length-1] = '\0';
 
-		numRecords++;
+		cnt++;
 #ifdef DEVEL
 		if ( err == 0 ) {
-			printf("nbar record: %d: \n", numRecords);
-			PrintNbarRecord(nbar_record);
+			printf("nbar record: %d: \n", cnt);
+			PrintNbarRecord(nbarHeader);
 		} else {
 			printf("Invalid nbar information - skip record\n");
 		}
 #endif
 
-		if ( err == 0 )
-			AppendToBuffer(fs->nffile, &(nbar_record->header), nbar_record->header.size);
 
-		in += nbar_option_size;
+		// in case of an err we do no store this record
+		if ( err == 0 ) {
+			outBuff += nbarHeader->size;
+			fs->nffile->block_header->NumRecords++;
+		} 
+		inBuff  += nbar_option_size;
 		size_left -= nbar_option_size;
 	}
+
+	// update file record size ( -> output buffer size )
+	fs->nffile->block_header->size 		 += (void *)outBuff - fs->nffile->buff_ptr;
+	fs->nffile->buff_ptr 				  = (void *)outBuff;
 
 	if ( size_left > 7 ) {
 		LogInfo("Proces nbar data record - %u extra bytes", size_left);

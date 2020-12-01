@@ -285,8 +285,18 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				output_record->block_size  = nelXlatePort->blockSize;
 			} break;
 #endif
+			case EXnbarAppID: {
+				EXnbarApp_t *EXnbarApp = (EXnbarApp_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				// the byte array is stored in full length but only 4 byte IDs are
+				// defined - skip everything else
+				if ( elementHeader->length > 8 ) { // 4 + 4header
+					LogError("nbar application ID > 4 bytes not supported");
+				} else {
+ 					memcpy(output_record->nbarAppID, EXnbarApp->id, elementHeader->length - sizeof(elementHeader_t));
+				}
+			} break;
 			default:
-				fprintf(stderr, "Unknown extension '%u'\n", elementHeader->type);
+				LogError("Unknown extension '%u'\n", elementHeader->type);
 				skip = 1;
 		}
 
@@ -515,6 +525,10 @@ uint32_t required;
 				nelXlatePort->blockSize  = master_record->block_size;
 				} break;
 #endif
+			case EXnbarAppID: {
+				PushVarLengthExtension(v3Record, EXnbarApp, nbarApp, 4);
+				memcpy(nbarApp->id, master_record->nbarAppID, 4);
+			} break;
 			default:
 				fprintf(stderr, "PackRecordV3(): Unknown extension '%u'\n", master_record->exElementList[i]);
 		}

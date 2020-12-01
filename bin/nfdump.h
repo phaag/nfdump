@@ -677,6 +677,10 @@ typedef struct master_record_s {
 
 #endif
 
+	// nbar AppID - actect array
+	uint8_t	nbarAppID[8];		// 0xffff'ffff'ffff'ffff
+#	define OffsetNbarAppID 		(offsetof(master_record_t, nbarAppID) >> 3)
+
 
 	// last entry in master record 
 	uint16_t	exElementList[64];	// XXX fix number of elements

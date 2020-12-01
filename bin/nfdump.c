@@ -592,10 +592,12 @@ uint64_t twin_msecFirst, twin_msecLast;
 						LogError("Failed to add Sampler Record\n");
 					}
 					} break;
-				case NbarRecordType:
-					printf("Found nbar record\n");
-					PrintNbarRecord((nbar_record_t *)record_ptr);
-					break;
+				case NbarRecordType: {
+					nbarRecordHeader_t *nbarRecord = (nbarRecordHeader_t *)record_ptr;
+					printf("Found nbar record: %u elements\n", nbarRecord->numElements);
+					PrintNbarRecord(nbarRecord);
+					AddNbarRecord(nbarRecord);
+					} break;
 				case LegacyRecordType1:
 				case LegacyRecordType2:
 				case CommonRecordV0Type: 
@@ -739,14 +741,17 @@ flist_t 	flist;
 					exit(255);
 				}
 				break;
-			case 'E':
-				query_file = optarg;
+			case 'E': {
 				if ( !InitExporterList() ) {
 					exit(255);
 				}
-				PrintExporters(query_file);
+				flist.single_file = strdup(optarg);
+				queue_t *fileList = SetupInputFileSequence(&flist);
+				if ( !fileList || !Init_nffile(fileList) )
+					exit(255);
+				PrintExporters();
 				exit(0);
-				break;
+				} break;
 			case 'X':
 				fdump = 1;
 				break;
@@ -887,12 +892,15 @@ flist_t 	flist;
 					exit(255);
 				}
 				break;
-			case 'x':
-				query_file = optarg;
+			case 'x': {
 				InitExtensionMaps(NO_EXTENSION_LIST);
-				DumpExMaps(query_file);
+				flist.single_file = strdup(optarg);
+				queue_t *fileList = SetupInputFileSequence(&flist);
+				if ( !fileList || !Init_nffile(fileList) )
+					exit(255);
+				DumpExMaps();
 				exit(0);
-				break;
+				} break;
 			case 'v':
 				query_file = optarg;
 				if ( !QueryFile(query_file))
@@ -1209,6 +1217,8 @@ flist_t 	flist;
 		}
 
 	} // else - no output
+
+	DumpNbarList();
 
 	Dispose_FlowTable();
 	Dispose_StatTable();

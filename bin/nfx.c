@@ -352,24 +352,22 @@ int i, extension_size, max_elements;
 
 } // End of VerifyExtensionMap
 
-void DumpExMaps(char *filename) {
-int done;
+void DumpExMaps(void) {
 nffile_t	*nffile;
 common_record_t *flow_record;
-uint32_t skipped_blocks;
-uint64_t total_bytes;
 
 	printf("\nDump all extension maps:\n");
 	printf("========================\n");
 
-	nffile = OpenFile(filename, NULL);
+	nffile = GetNextFile(NULL);
 	if ( !nffile ) {
 		return;
 	}
 
-	total_bytes	   = 0;
-	skipped_blocks = 0;
-	done = 0;
+	uint64_t total_bytes = 0;
+	uint32_t skipped_blocks = 0;
+	int cnt = 0;
+	int done = 0;
 	while ( !done ) {
 	int i, ret;
 
@@ -380,9 +378,9 @@ uint64_t total_bytes;
 			case NF_CORRUPT:
 			case NF_ERROR:
 				if ( ret == NF_CORRUPT ) 
-					LogError("Corrupt data file '%s': '%s'\n",filename);
+					LogError("Corrupt data file");
 				else 
-					LogError("Read error in file '%s': %s\n",filename, strerror(errno) );
+					LogError("Read error: %s", strerror(errno));
 				done = 1;
 				continue;
 				break;
@@ -412,11 +410,15 @@ uint64_t total_bytes;
 				if ( !VerifyExtensionMap(map) )
 					return;
 				PrintExtensionMap(map);
+				cnt++;
 			}
 
 			// Advance pointer by number of bytes for netflow record
 			flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);	
 		}
+	}
+	if ( cnt == 0 ) {
+		printf("No 1.6.x extension definition records\n");
 	}
 
 	CloseFile(nffile);
