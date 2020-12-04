@@ -803,7 +803,7 @@ char 		Ident[IDENTLEN];
 				byte_limit_string = optarg;
 				break;
 			case 'N':
-				printPlain = 1;
+				outputParams->printPlain = printPlain = 1;
 				break;
 			case 'f':
 				ffile = optarg;
