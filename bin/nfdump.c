@@ -844,7 +844,7 @@ char 		Ident[IDENTLEN];
 					LogError("Unknown print order '%s'\n", print_order);
 					exit(255);
 				}
-				date_sorted = ret == 6;		// index into order_mode
+				date_sorted = ret == 17;		// index into order_mode
 				} break;
 			case 'R':
 				Rfile = optarg;
