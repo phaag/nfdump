@@ -656,7 +656,7 @@ char		*print_order, *query_file, *nameserver, *aggr_fmt;
 int 		c, ffd, ret, element_stat, fdump;
 int 		i, flow_stat, aggregate, aggregate_mask, bidir;
 int 		print_stat, syntax_only, date_sorted, compress;
-int			printPlain, GuessDir, ModifyCompress;
+int			GuessDir, ModifyCompress;
 time_t 		t_start, t_end;
 uint32_t	limitRecords;
 char 		Ident[IDENTLEN];
@@ -676,7 +676,6 @@ char 		Ident[IDENTLEN];
 	total_bytes		= 0;
 	recordCount		= 0;
 	skipped_blocks	= 0;
-	printPlain		= 0;
 	compress		= NOT_COMPRESSED;
 	is_anonymized	= 0;
 	GuessDir		= 0;
@@ -803,7 +802,7 @@ char 		Ident[IDENTLEN];
 				byte_limit_string = optarg;
 				break;
 			case 'N':
-				printPlain = 1;
+				outputParams->printPlain = 1;
 				break;
 			case 'f':
 				ffile = optarg;
@@ -844,7 +843,7 @@ char 		Ident[IDENTLEN];
 					LogError("Unknown print order '%s'\n", print_order);
 					exit(255);
 				}
-				date_sorted = ret == 6;		// index into order_mode
+				date_sorted = ret == 17;		// index into order_mode
 				} break;
 			case 'R':
 				Rfile = optarg;
@@ -1000,7 +999,7 @@ char 		Ident[IDENTLEN];
 		// special user defined output format
 		char *format = &print_format[4];
 		if ( strlen(format) ) {
-			if ( !ParseOutputFormat(format, printPlain, printmap) )
+			if ( !ParseOutputFormat(format, outputParams->printPlain, printmap) )
 				exit(255);
 			print_record  = format_special;
 			print_prolog  = text_prolog;
@@ -1025,7 +1024,7 @@ char 		Ident[IDENTLEN];
 		while ( printmap[i].printmode ) {
 			if ( strncasecmp(print_format, printmap[i].printmode, MAXMODELEN) == 0 ) {
 				if ( printmap[i].Format ) {
-					if ( !ParseOutputFormat(printmap[i].Format, printPlain, printmap) )
+					if ( !ParseOutputFormat(printmap[i].Format, outputParams->printPlain, printmap) )
 						exit(255);
 					// predefined custom format
 					print_record  = printmap[i].func_record;

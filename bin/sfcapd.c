@@ -851,13 +851,21 @@ char	*pcap_file = NULL;
 			case 'l':
 				datadir = optarg;
 				if ( strlen(datadir) > MAXPATHLEN ) {
-					fprintf(stderr, "ERROR: Path too long!\n");
+					LogError("ERROR: Path too long!");
 					exit(255);
 				}
-				stat(datadir, &fstat);
+				if ( stat(datadir, &fstat) < 0 ) {
+					LogError("stat() failed on %s: %s", datadir, strerror(errno));
+					exit(255);
+				}
 				if ( !(fstat.st_mode & S_IFDIR) ) {
-					fprintf(stderr, "No such directory: %s\n", datadir);
-					break;
+					LogError("No such directory: %s", datadir);
+					exit(255);
+				}
+				datadir = realpath(datadir, NULL);
+				if ( !datadir ) {
+					LogError("Can not resolve realpath of %s", optarg);
+					exit(255);
 				}
 				break;
 			case 'T': {
