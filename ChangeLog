@@ -1,5 +1,6 @@
 2020-12-05
 - Fix path handling for -l <dir>
+- Fix print plain numbers #263
 
 2020-11-21
 - Release 1.6.22
