@@ -97,13 +97,15 @@ typedef struct sequence_map_s {
 #define move_flags		14
 #define Time64Mili 		15
 #define TimeDeltaMicro 	16
-#define TimeUnix 		17
-#define saveICMP 		18
-#define zero8			19
-#define zero16			20
-#define zero32			21
-#define zero64			22
-#define zero128			23
+#define TimeMili		17
+#define SystemInitTime 	18
+#define TimeUnix 		19
+#define saveICMP 		20
+#define zero8			21
+#define zero16			22
+#define zero32			23
+#define zero64			24
+#define zero128			25
 
 	uint32_t	id;				// sequence ID as defined above
 	uint16_t	skip_count;		// skip this number of bytes in input stream after reading
@@ -131,6 +133,7 @@ typedef struct input_translation_s {
 	int			delta_time;				// delta micro or absolute ms time stamps
 	uint64_t	flow_start;				// start time in msec
 	uint64_t	flow_end;				// end time in msec
+	uint64_t	System_InitTime;			// System Init Time
 	uint32_t	icmpTypeCode;			// ICMP type/code in data stream
 	uint64_t    packets;				// total (in)packets - sampling corrected
 	uint64_t    bytes;					// total (in)bytes - sampling corrected
@@ -226,8 +229,8 @@ static struct ipfix_element_map_s {
 	{ IPFIX_bgpDestinationAsNumber, 	 _4bytes, 	_4bytes,  move32, zero32, EX_AS_4 },
 	{ IPFIX_bgpDestinationAsNumber, 	 _2bytes, 	_2bytes,  move16, zero16, EX_AS_2 },
 	{ IPFIX_bgpNextHopIPv4Address, 		 _4bytes, 	_4bytes,  move32, zero32, EX_NEXT_HOP_BGP_v4},
-	{ IPFIX_flowEndSysUpTime, 			 _4bytes, 	_4bytes,  nop, nop,  COMMON_BLOCK },
-	{ IPFIX_flowStartSysUpTime, 		 _4bytes, 	_4bytes,  nop, nop, COMMON_BLOCK },
+	{ IPFIX_flowEndSysUpTime,			 _4bytes,   _4bytes,  TimeMili, nop, COMMON_BLOCK},
+	{ IPFIX_flowStartSysUpTime, 		 _4bytes, 	_4bytes,  TimeMili, nop, COMMON_BLOCK },
 	{ IPFIX_postOctetDeltaCount, 		 _8bytes, 	_8bytes,  move64, zero64, EX_OUT_BYTES_8 },
 	{ IPFIX_postOctetDeltaCount, 		 _4bytes, 	_4bytes,  move32, zero32, EX_OUT_BYTES_4 },
 	{ IPFIX_postPacketDeltaCount, 		 _8bytes, 	_8bytes,  move64, zero64, EX_OUT_PKG_8 },
@@ -258,13 +261,14 @@ static struct ipfix_element_map_s {
 	{ IPFIX_mplsLabelStackSection10, 	 _3bytes,   _4bytes,  move_mpls, zero32, EX_MPLS},
 	{ IPFIX_DestinationMacAddress, 		 _6bytes,   _8bytes,  move_mac, zero64, EX_MAC_2},
 	{ IPFIX_postSourceMacAddress, 		 _6bytes,   _8bytes,  move_mac, zero64, EX_MAC_2},
-	{ IPFIX_flowStartMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero32, COMMON_BLOCK},
-	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero32, COMMON_BLOCK},
+	{ IPFIX_flowStartMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero64, COMMON_BLOCK},
+	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero64, COMMON_BLOCK},
 	{ IPFIX_flowStartSeconds, 		 	 _4bytes,   _4bytes,  TimeUnix, zero32, COMMON_BLOCK},
 	{ IPFIX_flowEndSeconds,  	 		 _4bytes,   _4bytes,  TimeUnix, zero32, COMMON_BLOCK},
-	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero32, COMMON_BLOCK},
+	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero64, COMMON_BLOCK},
 	{ IPFIX_flowStartDeltaMicroseconds,	 _4bytes,   _4bytes,  TimeDeltaMicro, zero32, COMMON_BLOCK},
 	{ IPFIX_flowEndDeltaMicroseconds, 	 _4bytes,   _4bytes,  TimeDeltaMicro, zero32, COMMON_BLOCK},
+	{ IPFIX_SystemInitTimeMiliseconds,	 _8bytes,   _8bytes,  SystemInitTime, nop, COMMON_BLOCK},
 	{0, 0, 0}
 };
 
@@ -874,6 +878,7 @@ size_t				size_required;
 	} else if ( cache.lookup_info[IPFIX_flowStartSysUpTime].found ) {
 		PushSequence( table, IPFIX_flowStartSysUpTime, NULL, &table->flow_start);
 		PushSequence( table, IPFIX_flowEndSysUpTime, NULL, &table->flow_end);
+		PushSequence( table, IPFIX_SystemInitTimeMiliseconds, NULL, &table->System_InitTime);
 		offset = BYTE_OFFSET_first + 8;
 		dbg_printf("Time stamp: flow start/end relative milliseconds: %u/%u\n", 
 			IPFIX_flowStartSysUpTime, IPFIX_flowEndSysUpTime);
@@ -1725,6 +1730,7 @@ char				*string;
 
 		table->flow_start 		    = 0;
 		table->flow_end 		    = 0;
+		table->System_InitTime	    = 0;
 		table->packets 		  	    = 0;
 		table->bytes 		  	    = 0;
 		table->out_packets 	  	    = 0;
@@ -1842,6 +1848,14 @@ char				*string;
 					  *(uint64_t *)stack = ((1000000LL * (uint64_t)ExportTime) - DeltaMicroSec) / 1000LL;
 
 					} break;
+				case SystemInitTime:
+					{ uint64_t System_InitTime = Get_val64((void *)&in[input_offset]);
+					  *(uint64_t *)stack = System_InitTime;
+
+					} break;
+				case TimeMili:
+					*(uint32_t *)stack = Get_val32((void *)&in[input_offset]);
+					break;
 				case saveICMP:
 					*(uint32_t *)stack = Get_val16((void *)&in[input_offset]);
 					break;
@@ -1905,6 +1919,10 @@ char				*string;
 				*((uint32_t *)&out[table->received_offset+4]) = t.val.val32[1];
 		}
 
+		if ( table->System_InitTime ) {
+			table->flow_start += table->System_InitTime;
+			table->flow_end	  += table->System_InitTime;
+		}
 		// split first/last time into epoch/msec values
 		data_record->first 		= table->flow_start / 1000;
 		data_record->msec_first = table->flow_start % 1000;
@@ -1912,6 +1930,19 @@ char				*string;
 		data_record->last 		= table->flow_end / 1000;
 		data_record->msec_last	= table->flow_end % 1000;
 
+		/* cross check for invalid date/time records:
+		 * if either date is < 820454400 === 1.1.1996 (year of invention of netflow)
+		 * invalidates set start/end to 0
+		 */
+		if ( data_record->first < 820454400 || data_record->last < 820454400 ) {
+			dbg_printf("Zero date < 19960101\n");
+			data_record->first 		= 0;
+			data_record->msec_first = 0;
+			data_record->last 		= 0;
+			data_record->msec_last	= 0;
+			table->flow_start = 0;
+			table->flow_end	  = 0;
+		}
 		// update first_seen, last_seen
 		if ( table->flow_start < fs->first_seen )
 			fs->first_seen = table->flow_start;

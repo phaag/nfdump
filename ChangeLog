@@ -1,3 +1,6 @@
+2020-12-19
+- Add Element 160 (SystemInitTime) in flow record used by Huawei
+
 2020-12-05
 - Fix path handling for -l <dir>
 - Fix print plain numbers #263
