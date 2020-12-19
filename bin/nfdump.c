@@ -658,7 +658,7 @@ char		*print_order, *query_file, *nameserver, *aggr_fmt;
 int 		c, ffd, ret, element_stat, fdump;
 int 		i, flow_stat, aggregate, aggregate_mask, bidir;
 int 		print_stat, syntax_only, compress;
-int			printPlain, GuessDir, ModifyCompress;
+int			GuessDir, ModifyCompress;
 uint32_t	limitRecords;
 char 		Ident[IDENTLEN];
 flist_t 	flist;
@@ -679,7 +679,6 @@ flist_t 	flist;
 	recordCount		= 0;
 	skipped_blocks	= 0;
 	compress		= NOT_COMPRESSED;
-	printPlain		= 0;
 	GuessDir		= 0;
 	nameserver		= NULL;
 
@@ -816,7 +815,7 @@ flist_t 	flist;
 				byte_limit_string = optarg;
 				break;
 			case 'N':
-				printPlain = 1;
+				outputParams->printPlain = 1;
 				break;
 			case 'f':
 				ffile = optarg;
@@ -1069,7 +1068,7 @@ flist_t 	flist;
 		// special user defined output format
 		char *format = &print_format[4];
 		if ( strlen(format) ) {
-			if ( !ParseOutputFormat(format, printPlain, printmap) )
+			if ( !ParseOutputFormat(format, outputParams->printPlain, printmap) )
 				exit(255);
 			print_record  = format_special;
 			print_prolog  = text_prolog;
@@ -1094,7 +1093,7 @@ flist_t 	flist;
 		while ( printmap[i].printmode ) {
 			if ( strncasecmp(print_format, printmap[i].printmode, MAXMODELEN) == 0 ) {
 				if ( printmap[i].Format ) {
-					if ( !ParseOutputFormat(printmap[i].Format, printPlain, printmap) )
+					if ( !ParseOutputFormat(printmap[i].Format, outputParams->printPlain, printmap) )
 						exit(255);
 					// predefined custom format
 					print_record  = printmap[i].func_record;

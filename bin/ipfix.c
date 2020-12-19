@@ -60,11 +60,14 @@
 
 
 // define stack slots
-#define STACK_NONE	  0
-#define STACK_ICMP	  1
-#define STACK_DSTPORT 2
-#define STACK_SAMPLER 3
-#define STACK_MAX	  4
+#define STACK_NONE		0
+#define STACK_ICMP		1
+#define STACK_DSTPORT	2
+#define STACK_SAMPLER	3
+#define STACK_MSECFIRST	4
+#define STACK_MSECLAST	5
+#define STACK_SYSUPTIME	6
+#define STACK_MAX		7
 
 /* module limited globals */
 
@@ -115,6 +118,9 @@ typedef struct exporterDomain_s {
 	uint64_t	TemplateRecords;	// stat counter
 	uint64_t	DataRecords;		// stat counter
 
+	// SysUptime if sent with #160
+	uint64_t	SysUpTime;			// in msec
+
 	// in order to prevent search through all lists keep
 	// the last template we processed as a cache
 	templateList_t *currentTemplate;
@@ -142,17 +148,18 @@ static const struct ipfixTranslationMap_s {
 	{ IPFIX_SourceTransportPort,         SIZEsrcPort,      EXgenericFlowID,   OFFsrcPort, STACK_NONE, "src port" },
 	{ IPFIX_SourceIPv4Address,           SIZEsrc4Addr,     EXipv4FlowID,      OFFsrc4Addr, STACK_NONE, "src IPv4" },
 	{ IPFIX_SourceIPv4PrefixLength,      SIZEsrcMask,      EXflowMiscID,      OFFsrcMask, STACK_NONE, "src mask IPv4" },
-	{ IPFIX_ingressInterface,            SIZEinput,        EXflowMiscID, OFFinput, STACK_NONE, "input interface" },
+	{ IPFIX_ingressInterface,            SIZEinput,        EXflowMiscID,	  OFFinput, STACK_NONE, "input interface" },
 	{ IPFIX_DestinationTransportPort,    SIZEdstPort,      EXgenericFlowID,   OFFdstPort, STACK_DSTPORT, "dst port" },
 	{ IPFIX_DestinationIPv4Address,      SIZEdst4Addr,     EXipv4FlowID,      OFFdst4Addr, STACK_NONE, "dst IPv4" },
 	{ IPFIX_DestinationIPv4PrefixLength, SIZEdstMask,      EXflowMiscID,      OFFdstMask, STACK_NONE, "dst mask IPv4" },
-	{ IPFIX_egressInterface,             SIZEoutput,       EXflowMiscID, OFFoutput, STACK_NONE, "output interface" },
+	{ IPFIX_egressInterface,             SIZEoutput,       EXflowMiscID,	  OFFoutput, STACK_NONE, "output interface" },
 	{ IPFIX_ipNextHopIPv4Address,        SIZENext4HopIP,   EXipNextHopV4ID,   OFFNext4HopIP, STACK_NONE, "IPv4 next hop" },
 	{ IPFIX_bgpSourceAsNumber,           SIZEsrcAS,        EXasRoutingID,     OFFsrcAS, STACK_NONE, "src AS" },
 	{ IPFIX_bgpDestinationAsNumber,      SIZEdstAS,        EXasRoutingID,     OFFdstAS, STACK_NONE, "dst AS" },
 	{ IPFIX_bgpNextHopIPv4Address,       SIZEbgp4NextIP,   EXbgpNextHopV4ID,  OFFbgp4NextIP, STACK_NONE, "IPv4 bgp next hop" },
-	{ IPFIX_flowEndSysUpTime,            SIZEmsecRelLast,  EXmsecRelTimeFlowID, OFFmsecRelLast, STACK_NONE, "msec last SysupTime" },
-	{ IPFIX_flowStartSysUpTime,          SIZEmsecRelFirst, EXmsecRelTimeFlowID, OFFmsecRelFirst, STACK_NONE, "msec first SysupTime" },
+	{ IPFIX_flowEndSysUpTime,            Stack_ONLY,	   EXnull,			  0, STACK_MSECFIRST, "msec last SysupTime" },
+	{ IPFIX_flowStartSysUpTime,          Stack_ONLY,	   EXnull,			  0, STACK_MSECLAST, "msec first SysupTime" },
+	{ IPFIX_SystemInitTimeMiliseconds,   Stack_ONLY,	   EXnull,			  0, STACK_SYSUPTIME, "SysupTime msec" },
 	{ IPFIX_postOctetDeltaCount,         SIZEoutBytes,     EXcntFlowID,       OFFoutBytes, STACK_NONE, "output bytes delta counter" },
 	{ IPFIX_postPacketDeltaCount,        SIZEoutPackets,   EXcntFlowID,       OFFoutPackets, STACK_NONE, "output packet delta counter" },
 	{ IPFIX_SourceIPv6Address,           SIZEsrc6Addr,     EXipv6FlowID,      OFFsrc6Addr, STACK_NONE, 	"IPv6 src addr" },
@@ -1205,13 +1212,6 @@ uint8_t				*inBuff;
 		if ( sampling_rate != 1 )
 			SetFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED);
 
-		// add time received
-		EXgenericFlow_t *genericFlow = sequencer->offsetCache[EXgenericFlowID];
-		if ( genericFlow ) {
-			genericFlow->msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + 
-								  (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
-		}
-
 		// add router IP
 		if ( fs->sa_family == PF_INET6 ) {
 			EXipReceivedV6_t *ipReceivedV6 = sequencer->offsetCache[EXipReceivedV6ID];
@@ -1233,7 +1233,23 @@ uint8_t				*inBuff;
 		}
 
 		// update first_seen, last_seen
+		EXgenericFlow_t *genericFlow = sequencer->offsetCache[EXgenericFlowID];
 		if ( genericFlow ) {
+			// add time received
+			genericFlow->msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + 
+								  (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
+
+			// if timestamps relative to sysupTime
+			// record sysuptime overwrites option template sysuptime
+			if ( stack[STACK_SYSUPTIME] ) {
+				dbg_printf("Calculate first/last relative to SysupTime\n");
+				genericFlow->msecFirst = stack[STACK_SYSUPTIME] + stack[STACK_MSECFIRST];
+				genericFlow->msecLast  = stack[STACK_SYSUPTIME] + stack[STACK_MSECLAST];
+			} else if ( exporter->SysUpTime ) {
+				genericFlow->msecFirst = exporter->SysUpTime + stack[STACK_MSECFIRST];
+				genericFlow->msecLast  = exporter->SysUpTime + stack[STACK_MSECLAST];
+			}
+
 			if ( genericFlow->msecFirst < fs->msecFirst )
 				fs->msecFirst = genericFlow->msecFirst;
 			if ( genericFlow->msecLast > fs->msecLast )

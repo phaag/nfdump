@@ -175,19 +175,8 @@ typedef struct EXipv6Flow_s {
 } EXipv6Flow_t;
 #define EXipv6FlowSize (sizeof(EXipv6Flow_t) + sizeof(elementHeader_t))
 
-typedef struct EXmsecRelTimeFlow_s {
-#define EXmsecRelTimeFlowID 4
-	uint64_t	msecFirst;
-	uint64_t	msecLast;
-#define OFFmsecRelFirst offsetof(EXmsecRelTimeFlow_t, msecFirst)
-#define SIZEmsecRelFirst MemberSize(EXmsecRelTimeFlow_t, msecFirst)
-#define OFFmsecRelLast offsetof(EXmsecRelTimeFlow_t, msecLast)
-#define SIZEmsecRelLast MemberSize(EXmsecRelTimeFlow_t, msecLast)
-} EXmsecRelTimeFlow_t;
-#define EXmsecRelTimeFlowSize (sizeof(EXmsecRelTimeFlow_t) + sizeof(elementHeader_t))
-
 typedef struct EXflowMisc_s {
-#define EXflowMiscID 5
+#define EXflowMiscID 4
 	uint32_t	input;
 	uint32_t	output;
 #define OFFinput offsetof(EXflowMisc_t, input)
@@ -210,7 +199,7 @@ typedef struct EXflowMisc_s {
 #define EXflowMiscSize (sizeof(EXflowMisc_t) + sizeof(elementHeader_t))
 
 typedef struct EXcntFlow_s {
-#define EXcntFlowID 6
+#define EXcntFlowID 5
 	uint64_t	flows;
 #define OFFflows offsetof(EXcntFlow_t, flows)
 #define SIZEflows MemberSize(EXcntFlow_t, flows)
@@ -224,7 +213,7 @@ typedef struct EXcntFlow_s {
 #define EXcntFlowSize (sizeof(EXcntFlow_t) + sizeof(elementHeader_t))
 
 typedef struct EXvLan_s {
-#define EXvLanID 7
+#define EXvLanID 6
 	uint32_t	srcVlan;
 	uint32_t	dstVlan;
 #define OFFsrcVlan offsetof(EXvLan_t, srcVlan)
@@ -235,7 +224,7 @@ typedef struct EXvLan_s {
 #define EXvLanSize (sizeof(EXvLan_t) + sizeof(elementHeader_t))
 
 typedef struct EXasRouting_s {
-#define EXasRoutingID 8
+#define EXasRoutingID 7
 	uint32_t	srcAS;
 	uint32_t	dstAS;
 #define OFFsrcAS offsetof(EXasRouting_t, srcAS)
@@ -246,7 +235,7 @@ typedef struct EXasRouting_s {
 #define EXasRoutingSize (sizeof(EXasRouting_t) + sizeof(elementHeader_t))
 
 typedef struct EXbgpNextHopV4_s {
-#define EXbgpNextHopV4ID 9
+#define EXbgpNextHopV4ID 8
 	uint32_t	ip;
 #define OFFbgp4NextIP offsetof(EXbgpNextHopV4_t, ip)
 #define SIZEbgp4NextIP MemberSize(EXbgpNextHopV4_t, ip)
@@ -254,7 +243,7 @@ typedef struct EXbgpNextHopV4_s {
 #define EXbgpNextHopV4Size (sizeof(EXbgpNextHopV4_t) + sizeof(elementHeader_t))
 
 typedef struct EXbgpNextHopV6_s {
-#define EXbgpNextHopV6ID 10
+#define EXbgpNextHopV6ID 9
 	uint64_t	ip[2];
 #define OFFbgp6NextIP offsetof(EXbgpNextHopV6_t, ip)
 #define SIZEbgp6NextIP MemberSize(EXbgpNextHopV6_t, ip)
@@ -262,7 +251,7 @@ typedef struct EXbgpNextHopV6_s {
 #define EXbgpNextHopV6Size (sizeof(EXbgpNextHopV6_t) + sizeof(elementHeader_t))
 
 typedef struct EXipNextHopV4_s {
-#define EXipNextHopV4ID 11
+#define EXipNextHopV4ID 10
 	uint32_t	ip;
 #define OFFNext4HopIP offsetof(EXipNextHopV4_t, ip)
 #define SIZENext4HopIP MemberSize(EXipNextHopV4_t, ip)
@@ -270,7 +259,7 @@ typedef struct EXipNextHopV4_s {
 #define EXipNextHopV4Size (sizeof(EXipNextHopV4_t) + sizeof(elementHeader_t))
 
 typedef struct EXipNextHopV6_s {
-#define EXipNextHopV6ID 12
+#define EXipNextHopV6ID 11
 	uint64_t	ip[2];
 #define OFFNext6HopIP offsetof(EXipNextHopV6_t, ip)
 #define SIZENext6HopIP MemberSize(EXipNextHopV6_t, ip)
@@ -278,7 +267,7 @@ typedef struct EXipNextHopV6_s {
 #define EXipNextHopV6Size (sizeof(EXipNextHopV6_t) + sizeof(elementHeader_t))
 
 typedef struct EXipReceivedV4_s {
-#define EXipReceivedV4ID 13
+#define EXipReceivedV4ID 12
 	uint32_t	ip;
 #define OFFReceived4IP offsetof(EXipReceivedV4_t, ip)
 #define SIZEReceived4IP MemberSize(EXipReceivedV4_t, ip)
@@ -286,7 +275,7 @@ typedef struct EXipReceivedV4_s {
 #define EXipReceivedV4Size (sizeof(EXipReceivedV4_t) + sizeof(elementHeader_t))
 
 typedef struct EXipReceivedV6_s {
-#define EXipReceivedV6ID 14
+#define EXipReceivedV6ID 13
 	uint64_t	ip[2];
 #define OFFReceived6IP offsetof(EXipReceivedV6_t, ip)
 #define SIZEReceived6IP MemberSize(EXipReceivedV6_t, ip)
@@ -294,7 +283,7 @@ typedef struct EXipReceivedV6_s {
 #define EXipReceivedV6Size (sizeof(EXipReceivedV6_t) + sizeof(elementHeader_t))
 
 typedef struct EXmplsLabel_s {
-#define EXmplsLabelID 15
+#define EXmplsLabelID 14
 	uint32_t	mplsLabel[10];
 #define OFFmplsLabel1 offsetof(EXmplsLabel_t, mplsLabel[0])
 #define SIZEmplsLabel1 MemberSize(EXmplsLabel_t, mplsLabel[0])
@@ -320,7 +309,7 @@ typedef struct EXmplsLabel_s {
 #define EXmplsLabelSize (sizeof(EXmplsLabel_t) + sizeof(elementHeader_t))
 
 typedef struct EXmacAddr_s {
-#define EXmacAddrID 16
+#define EXmacAddrID 15
 	uint64_t	inSrcMac;
 	uint64_t	outDstMac;
 	uint64_t	inDstMac;
@@ -337,7 +326,7 @@ typedef struct EXmacAddr_s {
 #define EXmacAddrSize (sizeof(EXmacAddr_t) + sizeof(elementHeader_t))
 
 typedef struct EXasAdjacent_s {
-#define EXasAdjacentID 17
+#define EXasAdjacentID 16
 	uint32_t	nextAdjacentAS; // NF_F_BGP_ADJ_NEXT_AS(128)
 	uint32_t	prevAdjacentAS; // NF_F_BGP_ADJ_PREV_AS(129)
 #define OFFnextAdjacentAS offsetof(EXasAdjacent_t, nextAdjacentAS)
@@ -348,7 +337,7 @@ typedef struct EXasAdjacent_s {
 #define EXasAdjacentSize (sizeof(EXasAdjacent_t) + sizeof(elementHeader_t))
 
 typedef struct EXlatency_s {
-#define EXlatencyID 18
+#define EXlatencyID 17
     uint64_t    usecClientNwDelay; // NF_NPROBE_CLIENT_NW_DELAY_SEC(57554) + NF_NPROBE_CLIENT_NW_DELAY_USEC(57555)
     uint64_t    usecServerNwDelay; // NF_NPROBE_SERVER_NW_DELAY_SEC(57556) + NF_NPROBE_SERVER_NW_DELAY_USEC(57557)
     uint64_t    usecApplLatency; // NF_NPROBE_APPL_LATENCY_SEC(57558) + NF_NPROBE_APPL_LATENCY_USEC(57559)
@@ -362,7 +351,7 @@ typedef struct EXlatency_s {
 #define EXlatencySize (sizeof(EXlatency_t) + sizeof(elementHeader_t))
 
 typedef struct EXsamplerInfo_s {
-#define EXsamplerInfoID 19
+#define EXsamplerInfoID 18
 	int32_t		id;				// id assigned by the exporting device
 	uint32_t	interval;		// sampling interval
 	uint16_t	mode;			// sampling mode
@@ -379,7 +368,7 @@ typedef struct EXsamplerInfo_s {
 #define EXsamplerInfoSize (sizeof(EXsamplerInfo_t) + sizeof(elementHeader_t))
 
 typedef struct EXnselCommon_s {
-#define EXnselCommonID 20
+#define EXnselCommonID 19
 	uint64_t	msecEvent;	// NF_F_EVENT_TIME_MSEC(323)
 	uint32_t	connID;		// NF_F_CONN_ID(148)
 	uint16_t	fwXevent;	// NF_F_FW_EXT_EVENT(33002)
@@ -397,7 +386,7 @@ typedef struct EXnselCommon_s {
 #define EXnselCommonSize (sizeof(EXnselCommon_t) + sizeof(elementHeader_t))
 
 typedef struct EXnselXlateIPv4_s {
-#define EXnselXlateIPv4ID 21
+#define EXnselXlateIPv4ID 20
 	uint32_t	xlateSrcAddr; // NF_F_XLATE_SRC_ADDR_IPV4(225), NF_F_XLATE_SRC_ADDR_84(40001)
 	uint32_t	xlateDstAddr; // NF_F_XLATE_DST_ADDR_IPV4(226), NF_F_XLATE_DST_ADDR_84(40002)
 #define OFFxlateSrc4Addr offsetof(EXnselXlateIPv4_t, xlateSrcAddr)
@@ -408,7 +397,7 @@ typedef struct EXnselXlateIPv4_s {
 #define EXnselXlateIPv4Size (sizeof(EXnselXlateIPv4_t) + sizeof(elementHeader_t))
 
 typedef struct EXnselXlateIPv6_s {
-#define EXnselXlateIPv6ID 22
+#define EXnselXlateIPv6ID 21
 	uint32_t	xlateSrcAddr[2]; // NF_F_XLATE_SRC_ADDR_IPV6(281), 
 	uint32_t	xlateDstAddr[2]; // NF_F_XLATE_DST_ADDR_IPV6(282), 
 #define OFFxlateSrc6Addr offsetof(EXnselXlateIPv6_t, xlateSrcAddr)
@@ -419,7 +408,7 @@ typedef struct EXnselXlateIPv6_s {
 #define EXnselXlateIPv6Size (sizeof(EXnselXlateIPv6_t) + sizeof(elementHeader_t))
 
 typedef struct EXnselXlatePort_s {
-#define EXnselXlatePortID 23
+#define EXnselXlatePortID 22
 	uint16_t	xlateSrcPort; // NF_F_XLATE_SRC_PORT(227), NF_F_XLATE_SRC_PORT_84(40003)
 	uint16_t	xlateDstPort; //  NF_F_XLATE_DST_PORT(228), NF_F_XLATE_DST_PORT_84(40004)
 #define OFFxlateSrcPort offsetof(EXnselXlatePort_t, xlateSrcPort)
@@ -430,7 +419,7 @@ typedef struct EXnselXlatePort_s {
 #define EXnselXlatePortSize (sizeof(EXnselXlatePort_t) + sizeof(elementHeader_t))
 
 typedef struct EXnselAcl_s {
-#define EXnselAclID 24
+#define EXnselAclID 23
 	uint32_t	ingressAcl[3]; // NF_F_INGRESS_ACL_ID(33000)
 	uint32_t	egressAcl[3];  // NF_F_EGRESS_ACL_ID(33001)
 #define OFFingressAcl offsetof(EXnselAcl_t, ingressAcl)
@@ -441,7 +430,7 @@ typedef struct EXnselAcl_s {
 #define EXnselAclSize (sizeof(EXnselAcl_t) + sizeof(elementHeader_t))
 
 typedef struct EXnselUser_s {
-#define EXnselUserID 25
+#define EXnselUserID 24
 	char	 username[66]; // NF_F_USERNAME(40000), 
 	uint16_t fill2;
 #define OFFusername offsetof(EXnselUser_t, username)
@@ -451,7 +440,7 @@ typedef struct EXnselUser_s {
 
 // NEL
 typedef struct EXnelCommon_s {
-#define EXnelCommonID 26
+#define EXnelCommonID 25
 	uint64_t msecEvent;	// NF_F_EVENT_TIME_MSEC(323)
 	uint32_t egressVrf;	// NF_N_EGRESS_VRFID(235)
 	uint32_t ingressVrf; // NF_N_INGRESS_VRFID(234)
@@ -473,7 +462,7 @@ typedef struct EXnelCommon_s {
 #define EXnelCommonSize (sizeof(EXnelCommon_t) + sizeof(elementHeader_t))
 
 typedef struct EXnelXlatePort_s {
-#define EXnelXlatePortID 27
+#define EXnelXlatePortID 26
 	uint16_t	blockStart; // NF_F_XLATE_PORT_BLOCK_START(361)
 	uint16_t	blockEnd; // NF_F_XLATE_PORT_BLOCK_END(362)
 	uint16_t	blockStep; // NF_F_XLATE_PORT_BLOCK_STEP(363)
@@ -490,7 +479,7 @@ typedef struct EXnelXlatePort_s {
 #define EXnelXlatePortSize (sizeof(EXnelXlatePort_t) + sizeof(elementHeader_t))
 
 typedef struct EXnbarApp_s {
-#define EXnbarAppID 28
+#define EXnbarAppID 27
 	uint8_t	id[1];
 #define OFFnbarAppID offsetof(EXnbarApp_t, id)
 #define SIZEnbarAppID VARLENGTH
@@ -498,7 +487,7 @@ typedef struct EXnbarApp_s {
 #define EXnbarAppSize VARLENGTH
 
 typedef struct EXlabel_s {
-#define EXlabelID 29
+#define EXlabelID 28
 	char *label;
 #define OFFlabel offsetof(Exlabel_t, label)
 #define SIZElabel VARLENGTH
@@ -506,7 +495,7 @@ typedef struct EXlabel_s {
 #define EXlabelSize VARLENGTH
 
 // max possible elements
-#define MAXELEMENTS 29
+#define MAXELEMENTS 28
 
 #define PushExtension(h, x, v) { \
 	elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
@@ -540,7 +529,6 @@ static const struct extensionTable_s {
 	EXTENSION(EXgenericFlow),
 	EXTENSION(EXipv4Flow),
 	EXTENSION(EXipv6Flow),
-	EXTENSION(EXmsecRelTimeFlow),
 	EXTENSION(EXflowMisc),
 	EXTENSION(EXcntFlow),
 	EXTENSION(EXvLan),

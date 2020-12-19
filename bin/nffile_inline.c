@@ -103,10 +103,6 @@ uint32_t size = sizeof(recordHeaderV3_t);
 			case EXnull:
 				fprintf(stderr, "ExpandRecord_v3() Found unexpected NULL extension\n");
 				break;
-			case EXmsecRelTimeFlowID: {
-				EXmsecRelTimeFlow_t *msecRelTimeFlow = (EXmsecRelTimeFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
-				UNUSED(msecRelTimeFlow);
-				} break;
 			case EXgenericFlowID: {
 				EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
 				output_record->msecFirst  = genericFlow->msecFirst;

@@ -3,23 +3,24 @@
 UNICORN is the development branch of nfdump.
 It implements all new changes towards nfdump 1.7
 
-For production environments use stabe releases
+__This is beta code. Use it at your own risk. The file format may be changed
+if required until the final release of nfdump-1.7__
+
+For production environments use stabe releases 1.6.22 or newer.
+nfdump-1.7.x is compatible to nfdump-1.6.18, which means it can read files
+created with nfdump-1.6.18 or newer. Flow files created with earlier nfdump
+versions are not guaranteed to be fully processed. 
+
+---
 
 nfdump is a toolset in order to collect and process netflow and sflow data, sent from netflow/sflow compatible devices. 
 The toolset supports netflow __v1__, __v5/v7__,__v9__,__IPFIX__ and __SFLOW__.  nfdump supports IPv4 as well as IPv6.
-
-__Note:__ nfdump 1.6.18 and newer versions __not longer__ support nfdump-1.5.x files. If you have nfdump-1.5.x please convert them
-before upgrading.
-
-nfdump is used as backend toolset for __NfSen__.
 
 ---
 
 ## NSEL/ASA, NEL/NAT support
 
 __NSEL__ (Network Event Security Logging) as well as NEL (NAT Event Logging) are technologies invented by __CISCO__ and also use the netflow v9 protocol. However, NSEL and NEL are not flows as commonly known but rather *__Events__!* exported from specific devices such as CISCO ASA. nfdump supports Event looging as part of netflow v9.
-
-__Note:__ The older nfdump-1.5.8-2-NSEL is __not compatible__ with nfdump > 1.6.9 which supports NSEL/NEL.
 
 __Jun OS NAT Event Logging__ is mostly compatible with CISCO's NAT Event Logging - mostly - it needs another data interpretation.
 See __--enable-jnat__ below
@@ -32,7 +33,7 @@ nfdump contains an IPFIX module for decoding IPFIX flow data. It
 does not support the full IPFIX definition.
 
 * Supports basically same feature set of elements as netflow_v9 module
-* Only UDP traffic is accepted no tCP/SCTP
+* Only UDP traffic is accepted no TCP/SCTP
 * If you would like to see more IPFIX support, please contact me. 
 
 ---
@@ -59,9 +60,6 @@ Build sflow collector sfcpad; default is __NO__
 Build nfprofile used by NfSen; default is __NO__
 * __--enable-nftrack__  
 Build nftrack used by PortTracker; default is __NO__
-
-This code no longer reads nfdump-1.5.x data files. If needed use nfdump up
-to v1.6.17
 
 Development and beta options
 
@@ -124,11 +122,6 @@ ft2nfdump converts flow-tools data into nfdump format.
 __nfreader__ - Framework for programmers  
 nfreader is a framework to read nfdump files for any other purpose.
 Own C code can be added to process flows. nfreader is not installed
-
-__parse_csv.pl__ - Simple reader, written in Perl.  
-parse_csv.pl reads nfdump csv output and print the flows to stdout.
-This program is intended to be a framework for post processing flows
-for any other purpose.
 
 #### Notes for sflow users:
 sfcapd and nfcapd can be used concurrently to collect netflow and sflow
@@ -404,9 +397,8 @@ NF9_NPROBE_APPL_LATENCY_USEC | 57559
 nfdump stores packets and bytes counters always as 64bit counters. 
 16 and 32 bit AS numbers are supported.
 
-Extensions: nfcapd supports a large number of v9 tags. In order to optimise
-disk space and performance, v9 tags are grouped into a number of extensions
-which may or may not be stored into the data file. Therefore the v9 templates configured on the exporter may be tuned with the collector. Only the tags common to both are stored into the data files. Extensions can be switch on/off by using the -T option. If you want to collect all data, use __-Tall__
+Extensions: nfcapd supports a large number of v9 tags. It automatically add
+extensions to store data for v9/IPFIX elements which are supported.
 
 ### Sampling
 By default, the sampling rate is set to 1 (unsampled) or to 
