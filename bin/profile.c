@@ -90,7 +90,7 @@ size_t len = strlen(string);
 		return 0;
 	}
 
-	strncat(stack, string, len);
+	strncat(stack, string, *buff_size-1);
 	*buff_size -= len;
 
 	return 1;
@@ -210,7 +210,7 @@ nffile_t *nffile;
 		return;
 	}
 
-	strncpy(filter, source_filter, strlen(source_filter));
+	strncpy(filter, source_filter, filter_size-1);
 	p = filter + strlen(source_filter);
 
 	ret = read(ffd, (void *)p, stat_buf.st_size);

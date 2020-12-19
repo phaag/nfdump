@@ -181,6 +181,9 @@ typedef struct exporterDomain_s {
 	uint64_t	TemplateRecords;	// stat counter
 	uint64_t	DataRecords;		// stat counter
 
+	// SysUptime if sent with #160
+	uint64_t	SysUpTime;			// in msec
+
 	// linked list of all templates sent by this exporter
 	input_translation_t	*input_translation_table; 
 
@@ -1919,9 +1922,13 @@ char				*string;
 				*((uint32_t *)&out[table->received_offset+4]) = t.val.val32[1];
 		}
 
+		// record sysuptime overwrites option template sysuptime
 		if ( table->System_InitTime ) {
 			table->flow_start += table->System_InitTime;
 			table->flow_end	  += table->System_InitTime;
+		} else if ( exporter->SysUpTime ) {
+			table->flow_start += exporter->SysUpTime;
+			table->flow_end	  += exporter->SysUpTime;
 		}
 		// split first/last time into epoch/msec values
 		data_record->first 		= table->flow_start / 1000;

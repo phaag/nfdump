@@ -729,7 +729,7 @@ int 			fd, flags;
 	}
 
 	if ( ident ) {
-		strncpy(nffile->file_header->ident, ident, IDENTLEN);
+		strncpy(nffile->file_header->ident, ident, IDENTLEN-1);
 		nffile->file_header->ident[IDENTLEN - 1] = 0;
 	} 
 
@@ -997,11 +997,12 @@ int CloseUpdateFile(nffile_t *nffile, char *ident) {
 	}
 
 	if ( ident ) {
-		strncpy(nffile->file_header->ident, ident, IDENTLEN);
+		strncpy(nffile->file_header->ident, ident, IDENTLEN-1);
 	} else {
 		if ( strlen(nffile->file_header->ident) == 0 ) 
-		strncpy(nffile->file_header->ident, IDENTNONE, IDENTLEN);
+		strncpy(nffile->file_header->ident, IDENTNONE, IDENTLEN-1);
 	}
+	nffile->file_header->ident[IDENTLEN-1] = 0;
 
 	if ( write(nffile->fd, (void *)nffile->file_header, sizeof(file_header_t)) <= 0 ) {
 		LogError("write() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
