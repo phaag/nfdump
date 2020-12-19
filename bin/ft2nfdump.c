@@ -93,7 +93,6 @@ void usage(char *name) {
 					"-h\t\tthis text you see right here.\n"
 					"-E\t\tDump records in ASCII extended format to stdout.\n"
 					"-c\t\tLimit number of records to convert.\n"
-					"-m\t\tPrint the extension map and exit.\n"
 					"-V\t\tPrint version and exit.\n"
 					"-r <file>\tread flow-tools records from file\n"
 					"-w <file>\twrite nfdump records to file\n"
@@ -300,20 +299,19 @@ int main(int argc, char **argv) {
 struct ftio ftio;
 struct stat statbuf;
 uint32_t	limitflows;
-int i, extended, printmap, ret, fd, compress;;
+int i, extended, ret, fd, compress;;
 char   *ftfile, *wfile;
 
 	/* init fterr */
 	fterr_setid(argv[0]);
 
 	extended 	= 0;
-	printmap 	= 0;
 	limitflows 	= 0;
 	ftfile   	= NULL;
 	wfile		= "-";
 	compress 	= NOT_COMPRESSED;
 
-	while ((i = getopt(argc, argv, "jzEVc:hmr:w:?")) != -1)
+	while ((i = getopt(argc, argv, "jzEVc:hr:w:?")) != -1)
 		switch (i) {
 			case 'h': /* help */
 				case '?':
@@ -336,10 +334,6 @@ char   *ftfile, *wfile;
 					fprintf(stderr, "Option -c needs a number > 0\n");
 					exit(255);
 				}
-				break;
-
-			case 'm':
-				printmap = 1;
 				break;
 
 			case 'j':

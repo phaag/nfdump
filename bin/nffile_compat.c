@@ -231,9 +231,7 @@ void		*p = input_record->data;
 				p = (void *)tpl->data;
 				} break;
 			case EX_OUT_BYTES_8: {
-				tpl_ext_17_t v,*tpl = (tpl_ext_17_t *)p;
-				v.v[0] = tpl->v[0];
-				v.v[1] = tpl->v[1];
+				tpl_ext_17_t *tpl = (tpl_ext_17_t *)p;
 				outBytes = tpl->out_bytes;
 				p = (void *)tpl->data;
 				} break;
@@ -243,9 +241,7 @@ void		*p = input_record->data;
 				p = (void *)tpl->data;
 				} break;
 			case EX_AGGR_FLOWS_8: {
-				tpl_ext_19_t v, *tpl = (tpl_ext_19_t *)p;
-				v.v[0] = tpl->v[0];
-				v.v[1] = tpl->v[1];
+				tpl_ext_19_t *tpl = (tpl_ext_19_t *)p;
 				numFlows = tpl->aggr_flows;
 				p = (void *)tpl->data;
 				} break;
