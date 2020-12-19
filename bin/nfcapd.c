@@ -914,7 +914,7 @@ char	*pcap_file = NULL;
 
 				datadir = realpath(optarg, NULL);
 				if ( !datadir ) {
-					fprintf(stderr, "realpath() failed on %s: %s\n", datadir, strerror(errno));
+					fprintf(stderr, "realpath() failed on %s: %s\n", optarg, strerror(errno));
 					exit(255);
 				}
 				break;

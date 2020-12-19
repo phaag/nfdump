@@ -683,7 +683,7 @@ nbarOptionList_t *s, *parent;
 
 static inline void Process_v9_templates(exporterDomain_t *exporter, void *DataPtr, FlowSource_t *fs) {
 void		*template;
-uint32_t	size_left, size_required, num_extensions, num_v9tags;
+uint32_t	size_left, size_required, num_v9tags;
 int			i;
 
 	size_left = GET_FLOWSET_LENGTH(DataPtr);
@@ -716,7 +716,6 @@ int			i;
 			return;
 		}
 
-		num_extensions = 0;		// number of extensions
 		num_v9tags = 0;			// number of optional v9 tags 
 
 		sequence_t *sequenceTable = malloc((count + 4)*sizeof(sequence_t));	// + 2 for IP and time received

@@ -1022,7 +1022,7 @@ static dataBlock_t *nfread(nffile_t *nffile) {
 
 } // End of nfread
 
-void* nfreader(void *arg) {
+__attribute__((noreturn)) void* nfreader(void *arg) {
 nffile_t *nffile = (nffile_t *)arg;
 
 	pthread_t self = pthread_self();
@@ -1135,7 +1135,7 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
 
 } // End of nfwrite
 
-void* nfwriter(void *arg) {
+__attribute__((noreturn)) void* nfwriter(void *arg) {
 nffile_t *nffile = (nffile_t *)arg;
 
 	dbg_printf("nfwriter enter\n");
@@ -1168,7 +1168,9 @@ nffile_t *nffile = (nffile_t *)arg;
 	dbg_printf("nfwriter exit\n");
 	atomic_init(&nffile->worker, 0);
 	pthread_exit(NULL);
- 	
+
+ 	/* UNREACHED */
+
 } // End of nfwriter
 
 static int SignalTerminate(nffile_t *nffile) {

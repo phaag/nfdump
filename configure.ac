@@ -16,6 +16,12 @@ CFLAGS="$CFLAGS -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declara
 
 LT_INIT
 
+dnl
+dnl Check to see if -latomic is need for GCC atomic built-ins.
+AC_DEFUN([OVS_CHECK_ATOMIC_LIBS],
+[AC_SEARCH_LIBS([__atomic_load_8], [atomic], [ATOMIC_LIBS=-latomic])])
+
+
 AC_ARG_ENABLE(devel,
 [  --enable-devel       compile debug and development code into nfdump; default is NO])
 
@@ -258,6 +264,13 @@ AC_SUBST(PCAP_LIBS)
 ,
 AM_CONDITIONAL(BUILDNFPCAPD, false)
 )
+
+OVS_CHECK_ATOMIC_LIBS
+AX_PTHREAD([],AC_MSG_ERROR(No valid pthread configuration found))
+
+LIBS="$PTHREAD_LIBS $LIBS"
+CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+CC="$PTHREAD_CC"
 
 # Check for structures
 AC_CHECK_MEMBER([struct sockaddr.sa_len],

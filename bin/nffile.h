@@ -250,7 +250,8 @@ typedef struct record_header_s {
  	// record header
  	uint16_t	type;
  	uint16_t	size;
-} __attribute__((__packed__ )) record_header_t;
+} record_header_t;
+// } __attribute__((__packed__ )) record_header_t;
 
 
 /*

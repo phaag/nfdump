@@ -221,9 +221,7 @@ void		*p = input_record->data;
 				p = (void *)tpl->data;
 				} break;
 			case EX_OUT_PKG_8: {
-				tpl_ext_15_t v, *tpl = (tpl_ext_15_t *)p;
-				v.v[0] = tpl->v[0];
-				v.v[1] = tpl->v[1];
+				tpl_ext_15_t *tpl = (tpl_ext_15_t *)p;
 				outPackets = tpl->out_pkts;
 				p = (void *)tpl->data;
 				} break;

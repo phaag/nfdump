@@ -820,6 +820,7 @@ int	j, i;
 			offset = StatParameters[stat].element[i].offset0;
 			hashkey.v0 = offset ? ((uint64_t *)flow_record)[offset] : 0;
 			hashkey.proto = order_proto ? flow_record->proto : 0;
+			hashkey.hash = 0;
 
 			int ret;
 			khiter_t k = kh_put(ElementHash, ElementKHash[j], hashkey, &ret);

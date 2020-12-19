@@ -70,7 +70,6 @@ libnfdump_la_LDFLAGS = -release 1.7.0
 nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h khash.h blocksort.h blocksort.c  \
 	$(nflowcache) $(nfprof)
 nfdump_LDADD = -lnfdump
-nfdump_LDFLAGS = -pthread
 nfdump_DEPENDENCIES = libnfdump.la
 
 nfreplay_SOURCES = nfreplay.c $(nfprof) \
@@ -112,7 +111,6 @@ if BUILDNFPCAPD
 bin_PROGRAMS += nfpcapd
 nfpcapd_CFLAGS = -D_BSD_SOURCE -D_DEFAULT_SOURCE
 nfpcapd_LDADD += -lpcap 
-nfpcapd_LDFLAGS = -pthread
 endif
 
 sfcapd_SOURCES = sfcapd.c sflow_nfdump.c sflow_nfdump.h sflow.h sflow_v2v4.h sflow_process.c  sflow_process.h\

@@ -1495,7 +1495,7 @@ static void String_sgt(master_record_t *r, char *string) {
 
 static void String_msecEvent(master_record_t *r, char *string) {
 
-	snprintf(string, MAX_STRING_LENGTH-1,"%13llu",  r->msecEvent);
+	snprintf(string, MAX_STRING_LENGTH-1,"%13llu",  (long long unsigned)r->msecEvent);
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_msecEvent 
