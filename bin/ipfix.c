@@ -133,7 +133,8 @@ typedef struct input_translation_s {
 	int			delta_time;				// delta micro or absolute ms time stamps
 	uint64_t	flow_start;				// start time in msec
 	uint64_t	flow_end;				// end time in msec
-	uint64_t	System_InitTime;			// System Init Time
+	uint64_t	SysUpTime;				// System Init Time #160 per record
+	int			HasTimeMili;			// Exporter sent relative time stamps
 	uint32_t	icmpTypeCode;			// ICMP type/code in data stream
 	uint64_t    packets;				// total (in)packets - sampling corrected
 	uint64_t    bytes;					// total (in)bytes - sampling corrected
@@ -183,7 +184,8 @@ typedef struct exporterDomain_s {
 
 	// SysUptime if sent with #160
 	uint64_t	SysUpTime;			// in msec
-
+	optionTag_t SysUpOption;		// SysUpTime option information
+ 
 	// linked list of all templates sent by this exporter
 	input_translation_t	*input_translation_table; 
 
@@ -371,6 +373,9 @@ int i;
 
 static int HasOptionTable(exporterDomain_t *exporter, uint16_t tableID ) {
 samplerOption_t *s;
+
+	if ( exporter->SysUpOption.length ) 
+		return 1;
 
 	s = exporter->samplerOption;
 	while ( s && s->tableID != tableID )
@@ -881,7 +886,7 @@ size_t				size_required;
 	} else if ( cache.lookup_info[IPFIX_flowStartSysUpTime].found ) {
 		PushSequence( table, IPFIX_flowStartSysUpTime, NULL, &table->flow_start);
 		PushSequence( table, IPFIX_flowEndSysUpTime, NULL, &table->flow_end);
-		PushSequence( table, IPFIX_SystemInitTimeMiliseconds, NULL, &table->System_InitTime);
+		PushSequence( table, IPFIX_SystemInitTimeMiliseconds, NULL, &table->SysUpTime);
 		offset = BYTE_OFFSET_first + 8;
 		dbg_printf("Time stamp: flow start/end relative milliseconds: %u/%u\n", 
 			IPFIX_flowStartSysUpTime, IPFIX_flowEndSysUpTime);
@@ -1638,6 +1643,13 @@ samplerOption_t *samplerOption;
 				samplerOption->interval.offset = offset;
 				SetFlag(samplerOption->flags, SAMPLER305);
 				break;
+
+			// SysUpTime information
+			case IPFIX_SystemInitTimeMiliseconds:
+				exporter->SysUpOption.length = length;
+				exporter->SysUpOption.offset = offset;
+				break;
+
 		}
 		offset += length;
 	}
@@ -1651,6 +1663,10 @@ samplerOption_t *samplerOption;
 	} else {
 		free(samplerOption);
 		dbg_printf("[%u] No Sampling information found\n", exporter->info.id);
+	}
+
+	if ( exporter->SysUpOption.length ) {
+		dbg_printf("[%u] SysupTime information found, offset: %u\n", exporter->info.id, exporter->SysUpOption.offset);
 	}
 	processed_records++;
 
@@ -1733,7 +1749,7 @@ char				*string;
 
 		table->flow_start 		    = 0;
 		table->flow_end 		    = 0;
-		table->System_InitTime	    = 0;
+		table->SysUpTime			= 0;
 		table->packets 		  	    = 0;
 		table->bytes 		  	    = 0;
 		table->out_packets 	  	    = 0;
@@ -1852,12 +1868,13 @@ char				*string;
 
 					} break;
 				case SystemInitTime:
-					{ uint64_t System_InitTime = Get_val64((void *)&in[input_offset]);
-					  *(uint64_t *)stack = System_InitTime;
+					{ uint64_t SysUpTime = Get_val64((void *)&in[input_offset]);
+					  *(uint64_t *)stack = SysUpTime;
 
 					} break;
 				case TimeMili:
 					*(uint32_t *)stack = Get_val32((void *)&in[input_offset]);
+					table->HasTimeMili = 1;
 					break;
 				case saveICMP:
 					*(uint32_t *)stack = Get_val16((void *)&in[input_offset]);
@@ -1923,10 +1940,12 @@ char				*string;
 		}
 
 		// record sysuptime overwrites option template sysuptime
-		if ( table->System_InitTime ) {
-			table->flow_start += table->System_InitTime;
-			table->flow_end	  += table->System_InitTime;
-		} else if ( exporter->SysUpTime ) {
+		if ( table->SysUpTime && table->HasTimeMili ) {
+			dbg_printf("Calculate first/last from record SysUpTime\n");
+			table->flow_start += table->SysUpTime;
+			table->flow_end	  += table->SysUpTime;
+		} else if ( exporter->SysUpTime && table->HasTimeMili ) {
+			dbg_printf("Calculate first/last from option SysUpTime\n");
 			table->flow_start += exporter->SysUpTime;
 			table->flow_end	  += exporter->SysUpTime;
 		}
@@ -2054,20 +2073,18 @@ char				*string;
 } // End of Process_ipfix_data
 
 static void  Process_ipfix_option_data(exporterDomain_t *exporter, void *data_flowset, FlowSource_t *fs) {
-samplerOption_t *samplerOption;
-uint32_t	tableID;
-uint8_t	 *in;
 
-	tableID  = GET_FLOWSET_ID(data_flowset);
+	uint32_t tableID  = GET_FLOWSET_ID(data_flowset);
 
-	samplerOption = exporter->samplerOption;
-	while ( samplerOption && samplerOption->tableID != tableID )
-		samplerOption = samplerOption->next;
+	// map input buffer as a byte array
+	uint8_t *in	= (uint8_t *)(data_flowset + 4);  // skip flowset header
 
-	if ( !samplerOption ) {
-		// should never happen - catch it anyway
-		LogError( "Process_ipfix: Panic! - No Offset table found! : %s line %d", __FILE__, __LINE__);
-		return;
+	if ( exporter->SysUpOption.length ) {
+		exporter->SysUpTime = Get_val(in, exporter->SysUpOption.offset, exporter->SysUpOption.length);
+		dbg_printf("Found SysUpTime option data\n");
+		dbg_printf("Extracted SysUpTime : %llu\n", exporter->SysUpTime);
+	} else {
+		dbg_printf("No SysUpTime option data found\n");
 	}
 
 #ifdef DEVEL
@@ -2075,9 +2092,16 @@ uint8_t	 *in;
 	dbg_printf("[%u] Process option data flowset size: %u\n", exporter->info.id, size_left);
 #endif
 
-	// map input buffer as a byte array
-	in	= (uint8_t *)(data_flowset + 4);  // skip flowset header
+	samplerOption_t *samplerOption = exporter->samplerOption;
+	while ( samplerOption && samplerOption->tableID != tableID )
+		samplerOption = samplerOption->next;
 
+	if ( !samplerOption ) {
+		dbg_printf("No sampler option info\n");
+		return;
+	}
+
+	dbg_printf("sampler option found\n");
 	if ( (samplerOption->flags & SAMPLERMASK ) != 0) {
 		int32_t  id;
 		uint16_t mode;
