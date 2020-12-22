@@ -1,3 +1,6 @@
+2020-12-22
+- Code cleanup and boundary checks in optin template processing
+
 2020-12-19
 - Implement element 160 (SystemInitTime) in option template
 

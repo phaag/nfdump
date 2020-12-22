@@ -67,7 +67,8 @@
 #define GET_OPTION_TEMPLATE_OPTION_SCOPE_LENGTH(p)   (Get_val16((void *)((p) + 2)))
 #define GET_OPTION_TEMPLATE_OPTION_LENGTH(p)   		 (Get_val16((void *)((p) + 4)))
 
-#include "inline.c"
+#define CHECK_OPTION_DATA(avail, tag) ((tag.offset + tag.length) <= avail)
+
 
 extern extension_descriptor_t extension_descriptor[];
 extern uint32_t Max_num_extensions;
@@ -428,14 +429,10 @@ static uint32_t	Get_val32(void *p);
 
 static uint64_t	Get_val64(void *p);
 
-/* local variables */
-
-
 // for sending netflow v9
 static netflow_v9_header_t	*v9_output_header;
 
-/* functions */
-
+#include "inline.c"
 #include "nffile_inline.c"
 
 int Init_v9(int v, uint32_t sampling, uint32_t overwrite) {
@@ -1966,10 +1963,10 @@ char				*string;
 
 static inline void 	Process_v9_option_data(exporterDomain_t *exporter, void *data_flowset, FlowSource_t *fs) {
 samplerOption_t *samplerOption;
-uint32_t	tableID;
-uint8_t		*in;
 
-	tableID	= GET_FLOWSET_ID(data_flowset);
+	uint32_t tableID   = GET_FLOWSET_ID(data_flowset);
+	uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4; // -4 for data flowset header -> id and length
+	dbg_printf("[%u] Process option data flowset size: %u\n", exporter->info.id, size_left);
 
 	samplerOption = exporter->samplerOption;
 	while ( samplerOption && samplerOption->tableID != tableID )
@@ -1981,22 +1978,24 @@ uint8_t		*in;
 		return;
 	}
 
-#ifdef DEVEL
-	uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4; // -4 for data flowset header -> id and length
-	dbg_printf("[%u] Process option data flowset size: %u\n", exporter->info.id, size_left);
-#endif
-
 	// map input buffer as a byte array
-	in	  = (uint8_t *)(data_flowset + 4);	// skip flowset header
+	uint8_t *in = (uint8_t *)(data_flowset + 4);	// skip flowset header
 
 	if ( (samplerOption->flags & SAMPLERMASK ) == SAMPLERFLAGS) {
 		int32_t  id;
 		uint16_t mode;
 		uint32_t interval;
 
-		id	 = Get_val(in, samplerOption->id.offset, samplerOption->id.length);
-		mode = Get_val(in, samplerOption->mode.offset, samplerOption->mode.length);
-		interval = Get_val(in, samplerOption->interval.offset, samplerOption->interval.length);
+		if ( CHECK_OPTION_DATA(size_left, samplerOption->id) && 
+			 CHECK_OPTION_DATA(size_left, samplerOption->mode) &&
+			 CHECK_OPTION_DATA(size_left, samplerOption->interval)) {
+			id	 = Get_val(in, samplerOption->id.offset, samplerOption->id.length);
+			mode = Get_val(in, samplerOption->mode.offset, samplerOption->mode.length);
+			interval = Get_val(in, samplerOption->interval.offset, samplerOption->interval.length);
+		} else {
+			LogError("Process_v9_option: %s line %d: Not enough data for option data", __FILE__, __LINE__);
+			return;
+		}
 	
 		dbg_printf("Extracted Sampler data:\n");
 		dbg_printf("Sampler ID      : %u\n", id);
@@ -2012,8 +2011,14 @@ uint8_t		*in;
 		uint32_t interval;
 
 		id		 = -1;
-		mode	 = Get_val(in, samplerOption->mode.offset, samplerOption->mode.length);
-		interval = Get_val(in, samplerOption->interval.offset, samplerOption->interval.length);
+		if ( CHECK_OPTION_DATA(size_left, samplerOption->mode) &&
+			 CHECK_OPTION_DATA(size_left, samplerOption->interval)) {
+			mode	 = Get_val(in, samplerOption->mode.offset, samplerOption->mode.length);
+			interval = Get_val(in, samplerOption->interval.offset, samplerOption->interval.length);
+		} else {
+			LogError("Process_v9_option: %s line %d: Not enough data for option data", __FILE__, __LINE__);
+			return;
+		}
 
 		InsertSampler(fs, exporter, id, mode, interval);
 

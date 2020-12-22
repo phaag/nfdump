@@ -66,6 +66,8 @@
 #define GET_OPTION_TEMPLATE_FIELD_COUNT(p)		 (Get_val16((void *)((p) + 2)))
 #define GET_OPTION_TEMPLATE_SCOPE_FIELD_COUNT(p) (Get_val16((void *)((p) + 4)))
 
+#define CHECK_OPTION_DATA(avail, tag) ((tag.offset + tag.length) <= avail)
+
 #define DYN_FIELD_LENGTH	65535
 
 /* module limited globals */
@@ -2074,23 +2076,26 @@ char				*string;
 
 static void  Process_ipfix_option_data(exporterDomain_t *exporter, void *data_flowset, FlowSource_t *fs) {
 
-	uint32_t tableID  = GET_FLOWSET_ID(data_flowset);
+	uint32_t tableID   = GET_FLOWSET_ID(data_flowset);
+	uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4; // -4 for data flowset header -> id and length
+	dbg_printf("[%u] Process option data flowset size: %u\n", exporter->info.id, size_left);
 
 	// map input buffer as a byte array
 	uint8_t *in	= (uint8_t *)(data_flowset + 4);  // skip flowset header
 
 	if ( exporter->SysUpOption.length ) {
-		exporter->SysUpTime = Get_val(in, exporter->SysUpOption.offset, exporter->SysUpOption.length);
-		dbg_printf("Found SysUpTime option data\n");
-		dbg_printf("Extracted SysUpTime : %llu\n", exporter->SysUpTime);
+		if (CHECK_OPTION_DATA(size_left, exporter->SysUpOption)) {
+			exporter->SysUpTime = Get_val(in, exporter->SysUpOption.offset, exporter->SysUpOption.length);
+			dbg_printf("Found SysUpTime option data\n");
+			dbg_printf("Extracted SysUpTime : %llu\n", exporter->SysUpTime);
+		} else {
+			LogError("Process_ipfix_option: %s line %d: Not enough data for option data", __FILE__, __LINE__);
+			return;
+		}
 	} else {
 		dbg_printf("No SysUpTime option data found\n");
 	}
 
-#ifdef DEVEL
-	uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4; // -4 for data flowset header -> id and length
-	dbg_printf("[%u] Process option data flowset size: %u\n", exporter->info.id, size_left);
-#endif
 
 	samplerOption_t *samplerOption = exporter->samplerOption;
 	while ( samplerOption && samplerOption->tableID != tableID )
@@ -2107,9 +2112,16 @@ static void  Process_ipfix_option_data(exporterDomain_t *exporter, void *data_fl
 		uint16_t mode;
 		uint32_t interval;
 
-		id	 = Get_val(in, samplerOption->id.offset, samplerOption->id.length);
-		mode = Get_val(in, samplerOption->mode.offset, samplerOption->mode.length);
-		interval = Get_val(in, samplerOption->interval.offset, samplerOption->interval.length);
+		if ( CHECK_OPTION_DATA(size_left, samplerOption->id) && 
+			 CHECK_OPTION_DATA(size_left, samplerOption->mode) &&
+			 CHECK_OPTION_DATA(size_left, samplerOption->interval)) {
+			id	 = Get_val(in, samplerOption->id.offset, samplerOption->id.length);
+			mode = Get_val(in, samplerOption->mode.offset, samplerOption->mode.length);
+			interval = Get_val(in, samplerOption->interval.offset, samplerOption->interval.length);
+		} else {
+			LogError("Process_ipfix_option: %s line %d: Not enough data for option data", __FILE__, __LINE__);
+			return;
+		}
 
 		InsertSampler(fs, exporter, id, mode, interval);
 
@@ -2125,8 +2137,14 @@ static void  Process_ipfix_option_data(exporterDomain_t *exporter, void *data_fl
 		uint32_t interval;
 
 		id		 = -1;
-		mode	 = Get_val(in, samplerOption->mode.offset, samplerOption->mode.length);
-		interval = Get_val(in, samplerOption->interval.offset, samplerOption->interval.length);
+		if ( CHECK_OPTION_DATA(size_left, samplerOption->mode) &&
+			 CHECK_OPTION_DATA(size_left, samplerOption->interval)) {
+			mode	 = Get_val(in, samplerOption->mode.offset, samplerOption->mode.length);
+			interval = Get_val(in, samplerOption->interval.offset, samplerOption->interval.length);
+		} else {
+			LogError("Process_ipfix_option: %s line %d: Not enough data for option data", __FILE__, __LINE__);
+			return;
+		}
 
  		InsertSampler(fs, exporter, id, mode, interval);
 

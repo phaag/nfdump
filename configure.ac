@@ -19,9 +19,8 @@ LT_INIT
 AC_ARG_ENABLE(devel,
 [  --enable-devel       compile debug and development code into nfdump; default is NO])
 
-# Which way is better?
 if test "${enable_devel}" = "yes" ; then
-	CFLAGS="$CFLAGS -DDEVEL"
+	CFLAGS="$CFLAGS -DDEVEL -fno-omit-frame-pointer -fsanitize=address"
 fi
 
 AC_ARG_ENABLE(nsel,
