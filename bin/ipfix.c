@@ -1133,7 +1133,7 @@ sampler_t *sampler;
 		// no samplers so far 
 		sampler = (sampler_t *)malloc(sizeof(sampler_t));
 		if ( !sampler ) {
-			LogError( "Process_v9: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+			LogError( "Process_ipfix: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 			return;
 		}
 
@@ -1180,7 +1180,7 @@ sampler_t *sampler;
 				// end of sampler chain - insert new sampler
 				sampler->next = (sampler_t *)malloc(sizeof(sampler_t));
 				if ( !sampler->next ) {
-					LogError( "Process_v9: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+					LogError( "Process_ipfix: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 					return;
 				}
 				sampler = sampler->next;
@@ -1345,7 +1345,7 @@ int i;
 			ext_id = MapElement(Type, Length, i);
 
 			// do we store this extension? enabled != 0
-			// more than 1 v9 tag may map to an extension - so count this extension once only
+			// more than 1 ipfix tag may map to an extension - so count this extension once only
 			if ( ext_id && extension_descriptor[ext_id].enabled ) {
 				if ( cache.common_extensions[ext_id] == 0 ) {
 					cache.common_extensions[ext_id] = 1;
