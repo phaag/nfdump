@@ -20,7 +20,7 @@ __NSEL__ (Network Event Security Logging) as well as NEL (NAT Event Logging) are
 
 __Note:__ The older nfdump-1.5.8-2-NSEL is __not compatible__ with nfdump > 1.6.9 which supports NSEL/NEL.
 
-__Jun OS NAT Event Logging__ is mostly compatible with CISCO's NAT Event Logging - mostly - it needs another data interpretation.
+__Junos NAT Event Logging__ is mostly compatible with CISCO's NAT Event Logging - mostly - it needs another data interpretation.
 See __--enable-jnat__ below
 
 ---
