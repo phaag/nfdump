@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -142,23 +142,12 @@ typedef struct master_record_s {
 	uint16_t	dstport;		// index 3  0x0000'ffff'0000'0000
 	uint16_t	exporter_sysid; // index 3	0x0000'0000'ffff'0000
 
-	union {
-		struct {
-#ifdef WORDS_BIGENDIAN
-			uint8_t		icmp_type;	// index 3  0x0000'0000'0000'ff00
-			uint8_t		icmp_code;	// index 3  0x0000'0000'0000'00ff
-#else
-			// little endian confusion ...
-			uint8_t		icmp_code;	
-			uint8_t		icmp_type;
-#endif
-		};
-		uint16_t icmp;
-	};
+	uint8_t		biFlowDir;
+	uint8_t		fill;
 
-#ifdef WORDS_BIGENDIAN
 #	define OffsetPort 			3
 #	define OffsetExporterSysID	3
+#ifdef WORDS_BIGENDIAN
 #	define MaskSrcPort			0xffff000000000000LL
 #	define ShiftSrcPort			48
 
@@ -168,14 +157,8 @@ typedef struct master_record_s {
 #	define MaskExporterSysID  	0x00000000ffff0000LL
 #	define ShiftExporterSysID 	16
 
-#	define MaskICMPtype			0x000000000000ff00LL
-#	define ShiftICMPtype 		8
-#	define MaskICMPcode			0x00000000000000ffLL
-#	define ShiftICMPcode 		0
 
 #else
-#	define OffsetPort 			3
-#	define OffsetExporterSysID	3
 #	define MaskSrcPort			0x000000000000ffffLL
 #	define ShiftSrcPort			0
 
@@ -185,10 +168,6 @@ typedef struct master_record_s {
 #	define MaskExporterSysID  	0x0000ffff00000000LL
 #	define ShiftExporterSysID 	32
 
-#	define MaskICMPtype			0xff00000000000000LL
-#	define ShiftICMPtype 		56
-#	define MaskICMPcode			0x00ff000000000000LL
-#	define ShiftICMPcode 		48
 #endif
 
 	// extension 4 / 5
@@ -501,20 +480,46 @@ typedef struct master_record_s {
 	uint8_t		engine_type;	// type index 31 0x0000'ff00'0000'0000
 	uint8_t		engine_id;		// ID	index 31 0x0000'00ff'0000'0000
 
-	uint32_t	reserved;
+	uint16_t	reserved;
+
+	union {
+		struct {
+#ifdef WORDS_BIGENDIAN
+			uint8_t		icmp_type;	// index 31  0x0000'0000'0000'ff00
+			uint8_t		icmp_code;	// index 31  0x0000'0000'0000'00ff
+#else
+			// little endian confusion ...
+			uint8_t		icmp_code;	
+			uint8_t		icmp_type;
+#endif
+		};
+		uint16_t icmp;
+	};
+
 
 #	define OffsetRouterID	31
+#	define OffsetICMP		31
 #ifdef WORDS_BIGENDIAN
 #	define MaskEngineType		0x0000FF0000000000LL
 #	define ShiftEngineType		40
 #	define MaskEngineID			0x000000FF00000000LL
 #	define ShiftEngineID		32
 
+#	define MaskICMPtype			0x000000000000FF00LL
+#	define ShiftICMPtype 		8
+#	define MaskICMPcode			0x00000000000000FFLL
+#	define ShiftICMPcode 		0
+
 #else
 #	define MaskEngineType		0x0000000000FF0000LL
 #	define ShiftEngineType		16
 #	define MaskEngineID			0x00000000FF000000LL
 #	define ShiftEngineID		24
+
+#	define MaskICMPtype			0xFF00000000000000LL
+#	define ShiftICMPtype 		56
+#	define MaskICMPcode			0x00FF000000000000LL
+#	define ShiftICMPcode 		48
 #endif
 
 	// IPFIX extensions in v9

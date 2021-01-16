@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2020, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -229,6 +229,28 @@ static char string[16];
 	
 	return string;
 } // End of FlagsString
+
+char *biFlowString(uint8_t biFlow) {
+
+	switch (biFlow) {
+		case 0:
+			return "arbitrary";
+			break;
+		case 1:
+			return "initiator";
+			break;
+		case 2:
+			return "reverseInitiator";
+			break;
+		case 3:
+			return "perimeter";
+			break;
+	}
+
+	return "undef";
+
+} // End of biFlowString
+
 
 
 void CondenseV6(char *s) {

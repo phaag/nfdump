@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -179,6 +179,8 @@ static void String_DstVlan(master_record_t *r, char *string);
 
 static void String_FwdStatus(master_record_t *r, char *string);
 
+static void String_BiFlowDir(master_record_t *r, char *string);
+
 static void String_Flags(master_record_t *r, char *string);
 
 static void String_InSrcMac(master_record_t *r, char *string);
@@ -326,6 +328,7 @@ static struct format_token_list_s {
 	{ "%smk", 0, "SMask", 				 	String_SrcMask },		// Src mask
 	{ "%dmk", 0, "DMask", 				 	String_DstMask },		// Dst mask
 	{ "%fwd", 0, "Fwd", 				 	String_FwdStatus },		// Forwarding Status
+	{ "%bfd", 0, "Bfd", 				 	String_BiFlowDir },		// BiFlow Direction
 	{ "%svln", 0, "SVlan", 				 	String_SrcVlan },		// Src Vlan
 	{ "%dvln", 0, "DVlan", 				 	String_DstVlan },		// Dst Vlan
 	{ "%ismc", 0, "  In src MAC Addr", 	 	String_InSrcMac },		// Input Src Mac Addr
@@ -1212,6 +1215,13 @@ static void String_FwdStatus(master_record_t *r, char *string) {
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_FwdStatus
+
+static void String_BiFlowDir(master_record_t *r, char *string) {
+
+	snprintf(string, MAX_STRING_LENGTH-1 ,"%3u", r->biFlowDir);
+	string[MAX_STRING_LENGTH-1] = '\0';
+
+} // End of String_BiFlowDir
 
 static void String_Flags(master_record_t *r, char *string) {
 

@@ -1591,6 +1591,7 @@ char				*string;
 	  	data_record->ext_map	    = table->extension_info.map->map_id;
 		data_record->exporter_sysid = exporter->info.sysid;
 	  	data_record->nfversion		= 9;
+		data_record->biFlowDir 		= 0;
 		data_record->reserved 		= 0;
 
 		table->packets 		  	    = 0;

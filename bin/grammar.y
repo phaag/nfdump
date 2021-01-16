@@ -670,7 +670,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 				NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_ICMP << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL), 
 				NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_ICMPV6 << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL)
 			),
-			NewBlock(OffsetPort, MaskICMPtype, ($2 << ShiftICMPtype) & MaskICMPtype, CMP_EQ, FUNC_NONE, NULL )
+			NewBlock(OffsetICMP, MaskICMPtype, ($2 << ShiftICMPtype) & MaskICMPtype, CMP_EQ, FUNC_NONE, NULL )
 		);
 
 	}
@@ -686,7 +686,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 				NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_ICMP << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL), 
 				NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_ICMPV6 << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL)
 			),
-			NewBlock(OffsetPort, MaskICMPcode, ($2 << ShiftICMPcode) & MaskICMPcode, CMP_EQ, FUNC_NONE, NULL )
+			NewBlock(OffsetICMP, MaskICMPcode, ($2 << ShiftICMPcode) & MaskICMPcode, CMP_EQ, FUNC_NONE, NULL )
 		);
 
 	}
