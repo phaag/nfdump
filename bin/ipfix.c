@@ -1,5 +1,5 @@
 /*  
- *  Copyright (c) 2012-2020, Peter Haag
+ *  Copyright (c) 2012-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -279,6 +279,18 @@ static struct ipfix_element_map_s {
 	{0, 0, 0}
 };
 
+// map for corresponding reverse element, if enterprise ID = IPFIX_ReverseInformationElement
+static const struct ipfixReverseMap_s {
+	uint16_t ID;		// IPFIX element id 
+	uint16_t reverseID;	// reverse IPFIX element id
+} ipfixReverseMap[] = {
+	{ IPFIX_octetTotalCount, IPFIX_postOctetTotalCount},
+	{ IPFIX_packetTotalCount, IPFIX_postPacketTotalCount},
+	{ IPFIX_octetDeltaCount, IPFIX_postOctetDeltaCount},
+	{ IPFIX_packetDeltaCount, IPFIX_postPacketDeltaCount},
+	{ 0, 0},
+};
+
 // cache to be used while parsing a template
 static struct cache_s {
 	struct element_param_s {
@@ -321,7 +333,7 @@ static void remove_all_translation_tables(exporterDomain_t *exporter);
 
 static exporterDomain_t *GetExporter(FlowSource_t *fs, ipfix_header_t *ipfix_header);
 
-static uint32_t MapElement(uint16_t Type, uint16_t Length, uint32_t order);
+static uint32_t MapElement(uint16_t Type, uint16_t Length, uint32_t order, uint32_t EnterpriseNumber);
 
 static void PushSequence(input_translation_t *table, uint16_t Type, uint32_t *offset, void *stack);
 
@@ -448,13 +460,35 @@ uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
 
 } // End of GetExporter
 
-static uint32_t MapElement(uint16_t Type, uint16_t Length, uint32_t order) {
-int	index;
+static uint32_t MapElement(uint16_t Type, uint16_t Length, uint32_t order, uint32_t EnterpriseNumber) {
 
-	cache.input_order[order].type	= Type;
+	cache.input_order[order].type 	= SKIP_ELEMENT;
 	cache.input_order[order].length	= Length;
 
-	index = cache.lookup_info[Type].index;
+	switch ( EnterpriseNumber ) {
+		case 0:		// no Enterprise value
+			break;
+		case 6871:	// yaf CERT Coordination Centre
+			dbg_printf(" Skip yaf CERT Coordination Centre\n");
+			return 0;
+			break;
+		case IPFIX_ReverseInformationElement:
+			for (int i=0; ipfixReverseMap[i].ID != 0; i++ ) {
+				if ( ipfixReverseMap[i].ID == Type ) {
+					Type = ipfixReverseMap[i].reverseID;
+					dbg_printf(" Reverse mapped element type: %u\n", Type);
+					break;
+				}
+			}
+			break;
+		default:
+			dbg_printf(" Skip enterprise id: %u\n", EnterpriseNumber);
+			return 0;
+	}
+
+	cache.input_order[order].type	= Type;
+
+	int index = cache.lookup_info[Type].index;
 	if ( index ) {
 		while ( index && ipfix_element_map[index].id == Type ) {
 			if ( Length == ipfix_element_map[index].length ) {
@@ -473,7 +507,6 @@ int	index;
 		dbg_printf("Skip unknown element type: %u, Length: %u\n", Type, Length);
 	}
 
-	cache.input_order[order].type = SKIP_ELEMENT;
 	return 0;
 
 } // End of MapElement
@@ -1334,7 +1367,6 @@ int i;
 		NextElement 	 = (ipfix_template_elements_std_t *)ipfix_template_record->elements;
 		for ( i=0; i<count; i++ ) {
 			uint16_t Type, Length;
-			uint32_t ext_id;
 			int Enterprise;
 	
 			Type   = ntohs(NextElement->Type);
@@ -1342,17 +1374,7 @@ int i;
 			Enterprise = Type & 0x8000 ? 1 : 0;
 			Type = Type & 0x7FFF;
 
-			ext_id = MapElement(Type, Length, i);
-
-			// do we store this extension? enabled != 0
-			// more than 1 ipfix tag may map to an extension - so count this extension once only
-			if ( ext_id && extension_descriptor[ext_id].enabled ) {
-				if ( cache.common_extensions[ext_id] == 0 ) {
-					cache.common_extensions[ext_id] = 1;
-					num_extensions++;
-				}
-			} 
-	
+			uint32_t EnterpriseNumber = 0;
 			if ( Enterprise ) {
 				ipfix_template_elements_e_t *e = (ipfix_template_elements_e_t *)NextElement;
 				size_required += 4;	// ad 4 for enterprise value
@@ -1362,7 +1384,8 @@ int i;
 					dbg_printf("ERROR: Not enough data for template elements! required: %i, left: %u", size_required, size_left);
 					return;
 				}
-				if ( ntohl(e->EnterpriseNumber) == IPFIX_ReverseInformationElement ) {
+				EnterpriseNumber = ntohl(e->EnterpriseNumber);
+				if ( EnterpriseNumber == IPFIX_ReverseInformationElement ) {
 					dbg_printf(" [%i] Enterprise: 1, Type: %u, Length %u Reverse Information Element: %u\n", i, Type, Length, ntohl(e->EnterpriseNumber));
 				} else {
 					dbg_printf(" [%i] Enterprise: 1, Type: %u, Length %u EnterpriseNumber: %u\n", i, Type, Length, ntohl(e->EnterpriseNumber));
@@ -1373,10 +1396,21 @@ int i;
 				dbg_printf(" [%i] Enterprise: 0, Type: %u, Length %u\n", i, Type, Length);
 				NextElement++;
 			}
+
+
+			// do we store this extension? enabled != 0
+			// more than 1 ipfix tag may map to an extension - so count this extension once only
+			uint32_t ext_id = MapElement(Type, Length, i, EnterpriseNumber);
+			if ( ext_id && extension_descriptor[ext_id].enabled ) {
+				if ( cache.common_extensions[ext_id] == 0 ) {
+					cache.common_extensions[ext_id] = 1;
+					num_extensions++;
+				}
+			} 
+
 		}
 
 		dbg_printf("Processed: %u\n", size_required);
-
 		// compact input order and reorder sequencer
 		if ( compact_input_order() ) {
 			// valid template with common inout fields
