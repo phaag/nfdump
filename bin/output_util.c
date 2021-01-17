@@ -251,7 +251,32 @@ char *biFlowString(uint8_t biFlow) {
 
 } // End of biFlowString
 
+char *FlowEndString(uint8_t endReason) {
 
+	switch (endReason) {
+		case 0:
+			return "";
+			break;
+		case 1:
+			return "idle timeout";
+			break;
+		case 2:
+			return "active timeout";
+			break;
+		case 3:
+			return "end of Flow detected";
+			break;
+		case 4:
+			return "forced end";
+			break;
+		case 5:
+			return "lack of resources";
+			break;
+	}
+
+	return "undef";
+
+} // End of FlowEndString
 
 void CondenseV6(char *s) {
 size_t len = strlen(s);

@@ -1,6 +1,7 @@
 #!/bin/sh
 #  This file is part of the nfdump project.
 #
+#  Copyright (c) 2009-2021, Peter Haag
 #  Copyright (c) 2004, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
 #  All rights reserved.
 #  
@@ -28,13 +29,6 @@
 #  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
 #  POSSIBILITY OF SUCH DAMAGE.
 #  
-#  $Author: haag $
-#
-#  $Id: test.sh 56 2010-02-08 13:37:55Z haag $
-#
-#  $LastChangedRevision: 56 $
-#  
-# 
 
 set -e
 TZ=MET

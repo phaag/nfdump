@@ -181,6 +181,8 @@ static void String_FwdStatus(master_record_t *r, char *string);
 
 static void String_BiFlowDir(master_record_t *r, char *string);
 
+static void String_FlowEndReason(master_record_t *r, char *string);
+
 static void String_Flags(master_record_t *r, char *string);
 
 static void String_InSrcMac(master_record_t *r, char *string);
@@ -329,6 +331,7 @@ static struct format_token_list_s {
 	{ "%dmk", 0, "DMask", 				 	String_DstMask },		// Dst mask
 	{ "%fwd", 0, "Fwd", 				 	String_FwdStatus },		// Forwarding Status
 	{ "%bfd", 0, "Bfd", 				 	String_BiFlowDir },		// BiFlow Direction
+	{ "%end", 0, "End", 				 	String_FlowEndReason },	// Flow End Reason
 	{ "%svln", 0, "SVlan", 				 	String_SrcVlan },		// Src Vlan
 	{ "%dvln", 0, "DVlan", 				 	String_DstVlan },		// Dst Vlan
 	{ "%ismc", 0, "  In src MAC Addr", 	 	String_InSrcMac },		// Input Src Mac Addr
@@ -1222,6 +1225,13 @@ static void String_BiFlowDir(master_record_t *r, char *string) {
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_BiFlowDir
+
+static void String_FlowEndReason(master_record_t *r, char *string) {
+
+	snprintf(string, MAX_STRING_LENGTH-1 ,"%3u", r->flowEndReason);
+	string[MAX_STRING_LENGTH-1] = '\0';
+
+} // End of String_FlowEndReason
 
 static void String_Flags(master_record_t *r, char *string) {
 

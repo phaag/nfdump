@@ -15,6 +15,7 @@ Flow Record:
   fwd status   =                 1
   tcp flags    =              0x01 .......F
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 2
   (in)packets  =               202
@@ -71,6 +72,7 @@ Flow Record:
   fwd status   =                 2
   tcp flags    =              0x01 .......F
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 2
   (in)packets  =               202
@@ -127,6 +129,7 @@ Flow Record:
   fwd status   =                 3
   tcp flags    =              0x01 .......F
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 2
   (in)packets  =               101
@@ -183,6 +186,7 @@ Flow Record:
   fwd status   =                 4
   tcp flags    =              0x01 .......F
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 2
   (in)packets  =               101
@@ -239,6 +243,7 @@ Flow Record:
   fwd status   =                 5
   tcp flags    =              0x01 .......F
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                17 UDP
   (src)tos     =                 1
   (in)packets  =              1001
@@ -295,6 +300,7 @@ Flow Record:
   fwd status   =                 6
   tcp flags    =              0x02 ......S.
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                51 AH
   (src)tos     =                 2
   (in)packets  =             10001
@@ -351,6 +357,7 @@ Flow Record:
   fwd status   =                 7
   tcp flags    =              0x04 .....R..
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 3
   (in)packets  =            100001
@@ -407,6 +414,7 @@ Flow Record:
   fwd status   =                 8
   tcp flags    =              0x08 ....P...
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 4
   (in)packets  =           1000001
@@ -463,6 +471,7 @@ Flow Record:
   fwd status   =                 9
   tcp flags    =              0x01 .......F
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 4
   (in)packets  =          10000001
@@ -519,6 +528,7 @@ Flow Record:
   fwd status   =                10
   tcp flags    =              0x10 ...A....
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 5
   (in)packets  =               500
@@ -575,6 +585,7 @@ Flow Record:
   fwd status   =                11
   tcp flags    =              0x10 ...A....
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 5
   (in)packets  =               500
@@ -631,6 +642,7 @@ Flow Record:
   fwd status   =                12
   tcp flags    =              0x20 ..U.....
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =               255
   (in)packets  =              5000
@@ -687,6 +699,7 @@ Flow Record:
   fwd status   =                13
   tcp flags    =              0x3f ..UAPRSF
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =              5000
@@ -742,6 +755,7 @@ Flow Record:
   fwd status   =                14
   tcp flags    =              0x00 ........
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 1 ICMP
   (src)tos     =                 0
   (in)packets  =             50002
@@ -798,6 +812,7 @@ Flow Record:
   fwd status   =                15
   tcp flags    =              0x00 ........
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =            500001
@@ -854,6 +869,7 @@ Flow Record:
   fwd status   =                16
   tcp flags    =              0x1b ...AP.SF
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =                10
@@ -910,6 +926,7 @@ Flow Record:
   fwd status   =                17
   tcp flags    =              0x1b ...AP.SF
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =             10100
@@ -966,6 +983,7 @@ Flow Record:
   fwd status   =                18
   tcp flags    =              0x1b ...AP.SF
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =          10100000
@@ -1022,6 +1040,7 @@ Flow Record:
   fwd status   =                19
   tcp flags    =              0x1b ...AP.SF
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =        4294967296
@@ -1078,6 +1097,7 @@ Flow Record:
   fwd status   =                20
   tcp flags    =              0x1b ...AP.SF
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =        4294967296
@@ -1134,6 +1154,7 @@ Flow Record:
   fwd status   =                21
   tcp flags    =              0x1b ...AP.SF
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =          10100000
@@ -1190,6 +1211,7 @@ Flow Record:
   fwd status   =                22
   tcp flags    =              0x1b ...AP.SF
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =        4294967296
@@ -1246,6 +1268,7 @@ Flow Record:
   fwd status   =                23
   tcp flags    =              0x1b ...AP.SF
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =        4294967296
@@ -1302,6 +1325,7 @@ Flow Record:
   fwd status   =                24
   tcp flags    =              0x1b ...AP.SF
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =        4294967296
@@ -1358,6 +1382,7 @@ Flow Record:
   fwd status   =                25
   tcp flags    =              0x1b ...AP.SF
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =        4294967296
@@ -1414,6 +1439,7 @@ Flow Record:
   fwd status   =                26
   tcp flags    =              0x1b ...AP.SF
   biFlow Dir   =              0x00 arbitrary
+  end reason   =              0x00 
   proto        =                 6 TCP
   (src)tos     =                 0
   (in)packets  =        4294967296

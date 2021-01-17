@@ -255,6 +255,7 @@ static struct ipfix_element_map_s {
 	{ IPFIX_postVlanId, 				 _2bytes, 	_2bytes,  move16, zero16, EX_VLAN},
 	{ IPFIX_flowDirection, 				 _1byte, 	_1byte,   move8, zero8, EX_MULIPLE },
 	{ IPFIX_biflowDirection, 			 _1byte, 	_1byte,   move8, zero8, COMMON_BLOCK },
+	{ IPFIX_flowEndReason, 				 _1byte, 	_1byte,   move8, zero8, COMMON_BLOCK },
 	{ IPFIX_ipNextHopIPv6Address, 		 _16bytes, 	_16bytes, move128, zero128, EX_NEXT_HOP_v6},
 	{ IPFIX_bgpNextHopIPv6Address, 		 _16bytes, 	_16bytes, move128, zero128, EX_NEXT_HOP_BGP_v6},
 	{ IPFIX_mplsTopLabelStackSection, 	 _3bytes,   _4bytes,  move_mpls, zero32, EX_MPLS},
@@ -947,8 +948,7 @@ size_t				size_required;
 	// skip exporter_sysid
 	offset += 2;
 	PushSequence( table, IPFIX_biflowDirection, &offset, NULL);
-	// skip reserved
-	offset += 1;
+	PushSequence( table, IPFIX_flowEndReason, &offset, NULL);
 
 	/* IP address record
 	 * This record is expected in the output stream. If not available
@@ -1785,7 +1785,6 @@ char				*string;
 	  	data_record->ext_map	    = table->extension_info.map->map_id;
 		data_record->exporter_sysid = exporter->info.sysid;
 		data_record->nfversion		= 10;
-		data_record->reserved 		= 0;
 
 		table->flow_start 		    = 0;
 		table->flow_end 		    = 0;

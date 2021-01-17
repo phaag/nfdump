@@ -267,6 +267,7 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_octetTotalCount		 	 	 85
 #define IPFIX_packetTotalCount		 	 	 86
 #define IPFIX_forwardingStatus				 89
+#define IPFIX_flowEndReason					136
 #define IPFIX_icmpTypeCodeIPv6			 	139
 #define IPFIX_flowStartSeconds				150
 #define IPFIX_flowEndSeconds				151

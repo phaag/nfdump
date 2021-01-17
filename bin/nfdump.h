@@ -143,7 +143,7 @@ typedef struct master_record_s {
 	uint16_t	exporter_sysid; // index 3	0x0000'0000'ffff'0000
 
 	uint8_t		biFlowDir;
-	uint8_t		fill;
+	uint8_t		flowEndReason;
 
 #	define OffsetPort 			3
 #	define OffsetExporterSysID	3

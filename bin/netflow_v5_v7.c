@@ -422,14 +422,15 @@ char		*string;
 	  			common_record->size			  = v5_output_record_size;
 
 				// v5 common fields
-	  			common_record->srcport		  = ntohs(v5_record->srcport);
-	  			common_record->dstport		  = ntohs(v5_record->dstport);
-	  			common_record->tcp_flags	  = v5_record->tcp_flags;
-	  			common_record->prot			  = v5_record->prot;
-	  			common_record->tos			  = v5_record->tos;
-	  			common_record->fwd_status 	  = 0;
-	  			common_record->nfversion	  = 5;
-	  			common_record->reserved 	  = 0;
+	  			common_record->srcport		 = ntohs(v5_record->srcport);
+	  			common_record->dstport		 = ntohs(v5_record->dstport);
+	  			common_record->tcp_flags	 = v5_record->tcp_flags;
+	  			common_record->prot			 = v5_record->prot;
+	  			common_record->tos			 = v5_record->tos;
+	  			common_record->fwd_status 	 = 0;
+	  			common_record->nfversion	 = 5;
+	  			common_record->biFlowDir	 = 0;
+	  			common_record->flowEndReason = 0;
 
 				// v5 typed data as fixed struct v5_block
 	  			ipv4_block->srcaddr	= ntohl(v5_record->srcaddr);

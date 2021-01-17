@@ -333,14 +333,15 @@ char		*string;
 	  			common_record->size			= v1_output_record_size;
 
 				// v1 common fields
-	  			common_record->srcport		= ntohs(v1_record->srcport);
-	  			common_record->dstport		= ntohs(v1_record->dstport);
-	  			common_record->tcp_flags	= v1_record->tcp_flags;
-	  			common_record->prot			= v1_record->prot;
-	  			common_record->tos			= v1_record->tos;
-	  			common_record->fwd_status 	= 0;
-	  			common_record->nfversion 	= 1;
-	  			common_record->reserved 	= 0;
+	  			common_record->srcport		 = ntohs(v1_record->srcport);
+	  			common_record->dstport		 = ntohs(v1_record->dstport);
+	  			common_record->tcp_flags	 = v1_record->tcp_flags;
+	  			common_record->prot			 = v1_record->prot;
+	  			common_record->tos			 = v1_record->tos;
+	  			common_record->fwd_status 	 = 0;
+	  			common_record->nfversion 	 = 1;
+	  			common_record->biFlowDir	 = 0;
+	  			common_record->flowEndReason = 0;
 
 				// v1 typed data as fixed struct v1_block
 	  			v1_block->srcaddr	= ntohl(v1_record->srcaddr);

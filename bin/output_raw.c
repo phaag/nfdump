@@ -182,12 +182,14 @@ extension_map_t	*extension_map = r->map_ref;
 "  fwd status   =               %3u\n"
 "  tcp flags    =              0x%.2x %s\n"
 "  biFlow Dir   =              0x%.2x %s\n"
+"  end reason   =              0x%.2x %s\n"
 "  proto        =               %3u %s\n"
 "  (src)tos     =               %3u\n"
 "  (in)packets  =        %10llu\n"
 "  (in)bytes    =        %10llu\n",
 	r->fwd_status, r->tcp_flags, FlagsString(r->tcp_flags), r->biFlowDir, biFlowString(r->biFlowDir), 
-	r->prot, ProtoString(r->prot, 0), r->tos, (unsigned long long)r->dPkts, (unsigned long long)r->dOctets);
+	r->flowEndReason, FlowEndString(r->flowEndReason), r->prot, 
+	ProtoString(r->prot, 0), r->tos, (unsigned long long)r->dPkts, (unsigned long long)r->dOctets);
 
 	_slen = strlen(data_string);
 	_s = data_string + _slen;

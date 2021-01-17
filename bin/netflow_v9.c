@@ -1592,7 +1592,7 @@ char				*string;
 		data_record->exporter_sysid = exporter->info.sysid;
 	  	data_record->nfversion		= 9;
 		data_record->biFlowDir 		= 0;
-		data_record->reserved 		= 0;
+	  	data_record->flowEndReason	= 0;
 
 		table->packets 		  	    = 0;
 		table->bytes 		  	    = 0;

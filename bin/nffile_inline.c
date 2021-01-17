@@ -497,7 +497,6 @@ int		i;
 	// write common record
 	size = COMMON_RECORD_DATA_SIZE;
 	memcpy((void *)common_record, (void *)master_record, size);
-	common_record->reserved  = 0;
 	p = (void *)((pointer_addr_t)common_record + size);
 
 	// Required extension 1 - IP addresses
