@@ -2,6 +2,7 @@
 - Add reverse element enterprise ID 29305 for counter values
 - Add biFlow direction element 239
 - Add flow end reason element 136
+- Make -Tall the default for nfcapd to collect extensions
 
 2020-12-22
 - Code cleanup and boundary checks in option template processing

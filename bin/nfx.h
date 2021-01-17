@@ -47,14 +47,7 @@
 #define MAX_EXTENSION_MAPS	65536
 #define EXTENSION_MAP_MASK (MAX_EXTENSION_MAPS-1)
 
-#ifdef NSEL
-// Defaults for NSEL
-#define DefaultExtensions  "1,8,26,27,28,29,30,31"
-#else
-// Collector netflow defaults
-#define DefaultExtensions  "1,2"
-#endif
-
+#define DefaultExtensions  "all"
 
 #define NEEDS_EXTENSION_LIST 1
 #define NO_EXTENSION_LIST    0

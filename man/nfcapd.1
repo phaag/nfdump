@@ -142,7 +142,8 @@ data directory.  The following hierarchies are defined:
 .PD
 .TP 3
 .B -T \fI<extension list>
-Specifies the list of extensions, to be stored in the netflow file. 
+The argument is considered legacy. By default all matching extension sent by the
+exporter are stored. You still may overwrite this, if you want to skip certain extansions.
 Regardless of the extension list, the following netflow data is stored per record:
 first, last, fwd status, tcp flags, proto, (src)tos, src port, dst port, src 
 ipaddr, dst ipaddr, in(packets), in(bytes). In addition nfcapd recognises the 
@@ -216,7 +217,7 @@ latency extension
 64 nfpcapd/nprobe client/server/application latency"},
 
 .B IMPORTANT: 
-By default only extension 1 and 2 are selected
+By default all extension are selected
 Extensions can be added/deleted by specifying a ',' separated 
 list of extension ids. Each id may be prepended by an optional 
 sign +/\- to add or remove a given id from the extension list. 
