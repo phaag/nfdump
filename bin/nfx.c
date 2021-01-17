@@ -453,6 +453,8 @@ char *p, *q, *s;
 		}
 	}
 
+	free(s);
+	free(options);
 	free(mask);
 
 } // End of SetupExtensionDescriptors

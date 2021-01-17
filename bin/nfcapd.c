@@ -1249,6 +1249,7 @@ char	*pcap_file = NULL;
 	LogInfo("Terminating nfcapd.");
 	EndLog();
 
+	free(datadir);
 	if ( strlen(pidfile) )
 		unlink(pidfile);
 

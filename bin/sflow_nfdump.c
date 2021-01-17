@@ -472,7 +472,8 @@ uint64_t _bytes, _packets, _t;	// tmp buffers
 	_t							  = 1000LL * now.tv_sec + common_record->msec_first;	// tmp buff for first_seen
 
 	common_record->fwd_status	  = 0;
-	common_record->reserved	  	  = 0;
+	common_record->biFlowDir	  = 0;
+	common_record->flowEndReason  = 0;
 	common_record->nfversion	  = 0x80 | sample->datagramVersion;
 	common_record->tcp_flags	  = sample->dcd_tcpFlags;
 	common_record->prot			  = sample->dcd_ipProtocol;
