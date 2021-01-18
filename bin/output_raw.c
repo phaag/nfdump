@@ -178,9 +178,12 @@ char snet[IP_STRING_LEN], dnet[IP_STRING_LEN];
 "  fwd status   =               %3u\n"
 "  dst tos      =               %3u\n"
 "  direction    =               %3u\n"
+"  biFlow Dir   =              0x%.2x %s\n"
+"  end reason   =              0x%.2x %s\n"
 	, r->input, r->output, 
 	  r->src_mask, snet, r->src_mask, r->dst_mask, dnet, r->dst_mask, 
-	  r->fwd_status, r->tos, r->dir);
+	  r->fwd_status, r->tos, r->dir, r->biFlowDir, biFlowString(r->biFlowDir),
+	  r->flowEndReason, FlowEndString(r->flowEndReason));
 
 } // End of stringsEXflowMisc
 
@@ -473,7 +476,7 @@ static void stringsEXnelXlatePort(char *s, size_t size, master_record_t *r) {
 } // End of stringsEXnelXlatePort
 
 #endif
-static void stringsEXnbarAppID(char *s, size_t size, master_record_t *r) {
+static void stringsEXnbarApp(char *s, size_t size, master_record_t *r) {
 union {
         uint8_t     val8[4];
         uint32_t    val32;
@@ -497,6 +500,15 @@ union {
 , r->nbarAppID[0], ntohl(conv.val32), name);
 
 } // End of stringsEXnbarAppID
+
+static void stringsEXpayload(char *s, size_t size, master_record_t *r) {
+
+	snprintf(s, size-1,
+"  payload      =             %s\n"
+, r->payload);
+
+} // End of stringsEXnelXlatePort
+
 
 void raw_prolog(void) {
 	recordCount = 0;
@@ -649,7 +661,10 @@ char elementString[MAXELEMENTS * 5];
 				break;
 #endif
 			case EXnbarAppID:
-				stringsEXnbarAppID(_s, slen, r);
+				stringsEXnbarApp(_s, slen, r);
+				break;
+			case EXpayloadID:
+				stringsEXpayload(_s, slen, r);
 				break;
 			default:
 				dbg_printf("Extension %i not yet implemented\n", r->exElementList[i]);

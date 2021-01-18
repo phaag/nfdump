@@ -195,6 +195,14 @@ typedef struct EXflowMisc_s {
  	uint8_t	 dstTos;
 #define OFFdstTos offsetof(EXflowMisc_t, dstTos)
 #define SIZEdstTos MemberSize(EXflowMisc_t, dstTos)
+	uint8_t	biFlowDir;
+#define OFFbiFlowDir offsetof(EXflowMisc_t, biFlowDir)
+#define SIZEbiFlowDir MemberSize(EXflowMisc_t, biFlowDir)
+	uint8_t flowEndReason;
+#define OFFflowEndReason offsetof(EXflowMisc_t, flowEndReason)
+#define SIZEflowEndReason MemberSize(EXflowMisc_t, flowEndReason)
+	// allign bytes
+	uint8_t fill[2];
 } EXflowMisc_t;
 #define EXflowMiscSize (sizeof(EXflowMisc_t) + sizeof(elementHeader_t))
 
@@ -484,7 +492,7 @@ typedef struct EXnbarApp_s {
 #define OFFnbarAppID offsetof(EXnbarApp_t, id)
 #define SIZEnbarAppID VARLENGTH
 } EXnbarApp_t;
-#define EXnbarAppSize VARLENGTH
+#define EXnbarAppSize (sizeof(EXnbarApp_t) + sizeof(elementHeader_t))
 
 typedef struct EXlabel_s {
 #define EXlabelID 28
@@ -492,10 +500,19 @@ typedef struct EXlabel_s {
 #define OFFlabel offsetof(Exlabel_t, label)
 #define SIZElabel VARLENGTH
 } EXlabel_t;
-#define EXlabelSize VARLENGTH
+#define EXlabelSize (sizeof(EXlabel_t) + sizeof(elementHeader_t))
+
+typedef struct EXpayload_s {
+#define EXpayloadID 29
+	uint8_t	data[1];
+#define OFFdata offsetof(EXpayload_t, data)
+#define SIZEdata VARLENGTH
+} EXpayload_t;
+#define EXpayloadSize (sizeof(EXpayload_t) + sizeof(elementHeader_t))
+
 
 // max possible elements
-#define MAXELEMENTS 28
+#define MAXELEMENTS 30
 
 #define PushExtension(h, x, v) { \
 	elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
@@ -553,7 +570,8 @@ static const struct extensionTable_s {
 	EXTENSION(EXnelCommon),
 	EXTENSION(EXnelXlatePort),
 	EXTENSION(EXnbarApp),
-	EXTENSION(EXlabel)
+	EXTENSION(EXlabel),
+	EXTENSION(EXpayload)
 };
 
 typedef struct sequence_s {
@@ -569,16 +587,21 @@ typedef struct sequence_s {
 } sequence_t;
 
 typedef struct sequencer_s {
+	struct sequencer_s *next;
 	void		*offsetCache[MAXELEMENTS];
 	sequence_t	*sequenceTable;
+	uint16_t	templateID;
 	uint16_t	ExtSize[MAXELEMENTS];
 	uint32_t	numSequences;
 	uint32_t	numElements;
-	bool		hasVarLength;
+	bool		hasVarInLength;
+	bool		hasVarOutLength;
 	size_t		inLength;
 	size_t		outLength;
 } sequencer_t;
 
+#define SEQ_ERROR -1
+#define SEQ_MEM_ERR -2
 
 uint16_t *SetupSequencer(sequencer_t *sequencer, sequence_t *sequenceTable, uint32_t numSequences);
 

@@ -74,6 +74,8 @@
  * However, every Process_vx function checks buffer boundaries.
  */
 
+#define MAXRECORDSIZE 1024
+
 /*
  * nfdump binary file layout 1
  * ===========================

@@ -226,6 +226,24 @@ typedef struct master_record_s {
 #	define ShiftICMPcode 		48
 #endif
 
+	uint8_t	biFlowDir;
+	uint8_t flowEndReason;
+	uint8_t fill[6];
+#	define OffsetbiFlowDir	(offsetof(master_record_t, biFlowDir) >> 3)
+#ifdef WORDS_BIGENDIAN
+#	define MaskbiFlowDir    	0xff00000000000000LL
+#	define ShiftbiFlowDir      	56
+#	define MaskflowEndReason   	0x00ff000000000000LL
+#	define ShiftflowEndReason  	48
+
+#else
+#	define MaskbiFlowDir       	0x00000000000000ffLL
+#	define ShiftbiFlowDir      	0
+#	define MaskflowEndReason  	0x000000000000ff00LL
+#	define ShiftflowEndReason  	8
+
+#endif
+
 	uint32_t	input;			// 0xffff'ffff'0000'0000
 	uint32_t	output;			// 0x0000'0000'ffff'ffff
 #	define OffsetInOut     		(offsetof(master_record_t, input) >> 3)
@@ -688,7 +706,7 @@ typedef struct master_record_s {
 	// reference to exporter
 	exporter_info_record_t	*exp_ref;
 
-	// optional flowlabel
+	char	*payload;
 	char	*label;
 #	define Offset_MR_LAST	offsetof(master_record_t, label)
 } master_record_t;

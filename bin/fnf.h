@@ -50,6 +50,8 @@ typedef struct optionTag_s {
 #define GET_OPTION_TEMPLATE_FIELD_COUNT(p)       (Get_val16((void *)((p) + 2)))
 #define GET_OPTION_TEMPLATE_SCOPE_FIELD_COUNT(p) (Get_val16((void *)((p) + 4)))
 
+#define CHECK_OPTION_DATA(avail, tag) ((tag.offset + tag.length) <= avail)
+
 #define DYN_FIELD_LENGTH	65535
 
 #endif

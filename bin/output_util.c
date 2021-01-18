@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2020, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -230,6 +230,53 @@ static char string[16];
 	return string;
 } // End of FlagsString
 
+char *biFlowString(uint8_t biFlow) {
+
+	switch (biFlow) {
+		case 0:
+			return "";
+			break;
+		case 1:
+			return "initiator";
+			break;
+		case 2:
+			return "reverseInitiator";
+			break;
+		case 3:
+			return "perimeter";
+			break;
+	}
+
+	return "undef";
+
+} // End of biFlowString
+
+char *FlowEndString(uint8_t endReason) {
+
+	switch (endReason) {
+		case 0:
+			return "";
+			break;
+		case 1:
+			return "idle timeout";
+			break;
+		case 2:
+			return "active timeout";
+			break;
+		case 3:
+			return "end of Flow detected";
+			break;
+		case 4:
+			return "forced end";
+			break;
+		case 5:
+			return "lack of resources";
+			break;
+	}
+
+	return "undef";
+
+} // End of FlowEndString
 
 void CondenseV6(char *s) {
 size_t len = strlen(s);

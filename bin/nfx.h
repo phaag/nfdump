@@ -155,7 +155,8 @@ typedef struct common_record_s {
  	uint16_t	dstPort;
 
 	uint16_t	exporter_sysid;
-	uint16_t	reserved;
+	uint8_t		biFlowDir;
+	uint8_t		flowEndReason;
 
 	// link to extensions
  	uint32_t	data[1];

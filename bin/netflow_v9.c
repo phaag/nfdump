@@ -223,6 +223,10 @@ static const struct v9TranslationMap_s {
 	// NSEL extensions
 	{ NF_F_FLOW_BYTES,            SIZEinBytes,      NumberCopy, EXgenericFlowID,   OFFinBytes, STACK_NONE, "ASA inBytes total" },
 	{ NF_F_FLOW_PACKETS,          SIZEinPackets,    NumberCopy, EXgenericFlowID,   OFFinPackets, STACK_NONE, "ASA inPackets total" },
+	{ NF_F_FWD_FLOW_DELTA_BYTES,  SIZEinBytes,      NumberCopy, EXgenericFlowID,   OFFinBytes, STACK_NONE, "ASA fwd bytes" },
+	{ NF_F_REV_FLOW_DELTA_BYTES,  SIZEoutBytes,     NumberCopy, EXcntFlowID,       OFFoutBytes, STACK_NONE, "ASA rew bytes" },
+	{ NF_F_INITIATORPACKETS,      SIZEinPackets,    NumberCopy, EXgenericFlowID,   OFFinPackets, STACK_NONE, "ASA initiator pkackets" },
+	{ NF_F_RESPONDERPACKETS,      SIZEoutPackets,   NumberCopy, EXcntFlowID,       OFFoutPackets, STACK_NONE, "ASA responder packets" },
 	{ NF_F_EVENT_TIME_MSEC,       Stack_ONLY,    	NumberCopy, EXnull,    0, STACK_MSEC, "msec time event"},
 	{ NF_F_CONN_ID,               SIZEconnID,       NumberCopy, EXnselCommonID,    OFFconnID, STACK_NONE, "connection ID"},
 	{ NF_F_FW_EVENT,              SIZEfwEvent,      NumberCopy, EXnselCommonID,    OFFfwEvent, STACK_NONE, "fw event ID"},
@@ -726,6 +730,7 @@ int			i;
 		uint32_t numSequences = 0;
 
 		p = template + 4;		// type/length pairs start at template offset 4
+		int commonFound = 0;
 		for(i=0; i<count; i++ ) {
 			uint16_t Type, Length;
 
@@ -756,11 +761,21 @@ int			i;
 					Type, Length, 
 					v9TranslationMap[index].extensionID, v9TranslationMap[index].name,
 					v9TranslationMap[index].outputLength);
+				commonFound++;
 			}
 			numSequences++;
 
 		}
-		dbg_printf("Processed: %u\n", size_required);
+		dbg_printf("Processed: %u, common elements: %u\n", size_required, commonFound);
+
+		if ( commonFound == 0 ) {
+			size_left -= size_required;
+			DataPtr = DataPtr + size_required+4;	// +4 for header
+			dbg_printf("Template does not contain common elements - skip\n");
+			free(sequenceTable);
+			sequenceTable = NULL;
+			continue;
+		}
 
 		int index = LookupElement(LOCAL_msecTimeReceived);
 		sequenceTable[numSequences].inputType	 = LOCAL_msecTimeReceived;
@@ -1122,7 +1137,6 @@ uint8_t				*inBuff;
 
 		// process record
 		AddV3Header(outBuff, recordHeaderV3);
-		outBuff += sizeof(recordHeaderV3_t);
 
 		// header data
 		recordHeaderV3->type		= V3Record;
@@ -1131,8 +1145,6 @@ uint8_t				*inBuff;
 		recordHeaderV3->flags		= 0;
 		recordHeaderV3->nfversion	= 9;
 		recordHeaderV3->exporterID	= exporter->info.sysid;
-		recordHeaderV3->size		= sizeof(recordHeaderV3_t) + sequencer->outLength;
-		recordHeaderV3->numElements	= sequencer->numElements;
 		dbg_printf("Add record for %u elements und size: %u\n",
 			recordHeaderV3->numElements, recordHeaderV3->size);
 
@@ -1148,12 +1160,18 @@ uint8_t				*inBuff;
 		uint64_t stack[STACK_MAX];
 		memset((void *)stack, 0, sizeof(stack));
 		// copy record data
-		if ( !SequencerRun(sequencer, inBuff, size_left, 
-			outBuff, sequencer->outLength, stack) ) {
+		if ( SequencerRun(sequencer, inBuff, size_left, 
+			outBuff, sizeof(recordHeaderV3_t) + sequencer->outLength, stack) == SEQ_ERROR ) {
 			LogError("Process v9: Sequencer run error. Skip record processing");
 			return;
 		}
 
+		dbg_printf("New record added with %u elements and size: %u\n", 
+			recordHeaderV3->numElements, recordHeaderV3->size);
+		/*
+		recordHeaderV3->size		= sizeof(recordHeaderV3_t) + sequencer->outLength;
+		recordHeaderV3->numElements	= sequencer->numElements;
+		*/
 		outBuff += sequencer->outLength;
 		inBuff += sequencer->inLength;
 		size_left -= sequencer->inLength;
@@ -1357,11 +1375,11 @@ uint8_t				*inBuff;
 		fs->nffile->buff_ptr	= outBuff;
 
 		// buffer size sanity check
-		if ( fs->nffile->block_header->size  > BUFFSIZE ) {
+		if ( fs->nffile->block_header->size  > WRITE_BUFFSIZE ) {
 			// should never happen
 			LogError("### Software error ###: %s line %d", __FILE__, __LINE__);
 			LogError("Process v9: Output buffer overflow! Flush buffer and skip records.");
-			LogError("Buffer size: %u > %u", fs->nffile->block_header->size, BUFFSIZE);
+			LogError("Buffer size: %u > %u", fs->nffile->block_header->size, WRITE_BUFFSIZE);
 
 			// reset buffer
 			fs->nffile->block_header->size 		= 0;
@@ -1375,10 +1393,8 @@ uint8_t				*inBuff;
 
 static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, FlowSource_t *fs, samplerOption_t *samplerOption, void *data_flowset) {
 
-#ifdef DEVEL
 	uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4; // -4 for data flowset header -> id and length
 	dbg_printf("[%u] Process sampler option data flowset size: %u\n", exporter->info.id, size_left);
-#endif
 
 	// map input buffer as a byte array
 	uint8_t *in = (uint8_t *)(data_flowset + 4);	// skip flowset header
@@ -1388,10 +1404,17 @@ static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, Fl
 		uint16_t mode;
 		uint32_t interval;
 
-		id	 = Get_val(in, samplerOption->id.offset, samplerOption->id.length);
-		mode = Get_val(in, samplerOption->mode.offset, samplerOption->mode.length);
-		interval = Get_val(in, samplerOption->interval.offset, samplerOption->interval.length);
-	
+		if ( CHECK_OPTION_DATA(size_left, samplerOption->id) && 
+			 CHECK_OPTION_DATA(size_left, samplerOption->mode) &&
+			 CHECK_OPTION_DATA(size_left, samplerOption->interval)) {
+			id	 = Get_val(in, samplerOption->id.offset, samplerOption->id.length);
+			mode = Get_val(in, samplerOption->mode.offset, samplerOption->mode.length);
+			interval = Get_val(in, samplerOption->interval.offset, samplerOption->interval.length);
+		} else {
+			LogError("Process_ipfix_option: %s line %d: Not enough data for option data", __FILE__, __LINE__);
+			return;
+		}
+
 		dbg_printf("Extracted Sampler data:\n");
 		dbg_printf("Sampler ID      : %u\n", id);
 		dbg_printf("Sampler mode    : %u\n", mode);
@@ -1405,9 +1428,15 @@ static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, Fl
 		uint16_t mode;
 		uint32_t interval;
 
-		id		 = -1;
-		mode	 = Get_val(in, samplerOption->mode.offset, samplerOption->mode.length);
-		interval = Get_val(in, samplerOption->interval.offset, samplerOption->interval.length);
+		id = -1;
+		if ( CHECK_OPTION_DATA(size_left, samplerOption->mode) &&
+			 CHECK_OPTION_DATA(size_left, samplerOption->interval)) {
+			mode	 = Get_val(in, samplerOption->mode.offset, samplerOption->mode.length);
+			interval = Get_val(in, samplerOption->interval.offset, samplerOption->interval.length);
+		} else {
+			LogError("Process_ipfix_option: %s line %d: Not enough data for option data", __FILE__, __LINE__);
+			return;
+		}
 
 		InsertSampler(fs, exporter, id, mode, interval);
 

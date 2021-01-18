@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2020, Peter Haag
+ *  Copyright (c) 2019-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -59,6 +59,10 @@ char *ProtoString(uint8_t protoNum, uint32_t plainNumbers);
 int ProtoNum(char *protoString);
 
 char *FlagsString(uint16_t flags);
+
+char *biFlowString(uint8_t biFlow);
+
+char *FlowEndString(uint8_t biFlow);
 
 void CondenseV6(char *s);
 

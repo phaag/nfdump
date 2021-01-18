@@ -43,7 +43,13 @@ static void PackRecordV3(master_record_t *master_record, nffile_t *nffile);
 
 static inline int CheckBufferSpace(nffile_t *nffile, size_t required) {
 
-	dbg_printf("Buffer Size %u\n", nffile->block_header->size);
+	// if actual output size is unknown, make sure at leat 
+	// MAXRECORDSIZE is available
+	if ( required == 0 ) {
+		required = MAXRECORDSIZE;
+	}
+	dbg_printf("Buffer Size %u, check for %zu\n", nffile->block_header->size, required);
+
 	// flush current buffer to disc
 	if ( (nffile->block_header->size + required )  > WRITE_BUFFSIZE ) {
 
@@ -52,14 +58,15 @@ static inline int CheckBufferSpace(nffile_t *nffile, size_t required) {
 			LogError("Required buffer size %zu too big for output buffer!" , required);
 			return 0;
 		}
-
+	
 		if ( WriteBlock(nffile) <= 0 ) {
 			LogError("Failed to write output buffer to disk: '%s'" , strerror(errno));
 			return 0;
 		} 
 	}
 
-	return 1;
+	return WRITE_BUFFSIZE - nffile->block_header->size;
+
 } // End of CheckBufferSpace
 
 // Use 4 uint32_t copy cycles, as SPARC CPUs brak
@@ -139,12 +146,14 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				} break;
 			case EXflowMiscID: {
 				EXflowMisc_t *flowMisc = (EXflowMisc_t *)((void *)elementHeader + sizeof(elementHeader_t));
-				output_record->dir		= flowMisc->dir;
-				output_record->dst_tos	= flowMisc->dstTos;
-				output_record->src_mask	= flowMisc->srcMask;
-				output_record->dst_mask	= flowMisc->dstMask;
-				output_record->input	= flowMisc->input;
-				output_record->output	= flowMisc->output;
+				output_record->dir			 = flowMisc->dir;
+				output_record->dst_tos		 = flowMisc->dstTos;
+				output_record->src_mask		 = flowMisc->srcMask;
+				output_record->dst_mask		 = flowMisc->dstMask;
+				output_record->input		 = flowMisc->input;
+				output_record->output		 = flowMisc->output;
+				output_record->biFlowDir	 = flowMisc->biFlowDir;
+				output_record->flowEndReason = flowMisc->flowEndReason;
 				} break;
 			case EXcntFlowID: {
 				EXcntFlow_t *cntFlow = (EXcntFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
@@ -291,6 +300,18 @@ uint32_t size = sizeof(recordHeaderV3_t);
  					memcpy(output_record->nbarAppID, EXnbarApp->id, elementHeader->length - sizeof(elementHeader_t));
 				}
 			} break;
+			case EXpayloadID: {
+				EXpayload_t *EXpayload = (EXpayload_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				int dataLength = elementHeader->length - sizeof(elementHeader_t);
+				if ( dataLength <= 0 ) {
+					LogError("Invalid payload data length");
+				}
+
+				output_record->payload = malloc(dataLength+1);
+				memcpy(output_record->payload, EXpayload->data, dataLength);
+				output_record->payload[dataLength] = '\0';
+
+			} break;
 			default:
 				LogError("Unknown extension '%u'\n", elementHeader->type);
 				skip = 1;
@@ -395,12 +416,14 @@ uint32_t required;
 				} break;
 			case EXflowMiscID: {
 				PushExtension(v3Record, EXflowMisc, flowMisc);
-				flowMisc->input   = master_record->input;
-				flowMisc->output  = master_record->output;
- 				flowMisc->dir	  = master_record->dir;
-				flowMisc->dstTos  = master_record->dst_tos;
-				flowMisc->srcMask = master_record->src_mask;
-				flowMisc->dstMask = master_record->dst_mask;
+				flowMisc->input			= master_record->input;
+				flowMisc->output		= master_record->output;
+ 				flowMisc->dir			= master_record->dir;
+				flowMisc->dstTos		= master_record->dst_tos;
+				flowMisc->srcMask		= master_record->src_mask;
+				flowMisc->dstMask		= master_record->dst_mask;
+				flowMisc->biFlowDir		= master_record->biFlowDir;
+				flowMisc->flowEndReason = master_record->flowEndReason;
 				} break;
 			case EXcntFlowID: {
 				PushExtension(v3Record, EXcntFlow, cntFlow);

@@ -266,6 +266,7 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_octetTotalCount		 	 	 85
 #define IPFIX_packetTotalCount		 	 	 86
 #define IPFIX_forwardingStatus				 89
+#define IPFIX_flowEndReason					136
 #define IPFIX_icmpTypeCodeIPv6			 	139
 #define IPFIX_observationDomainId			149
 #define IPFIX_flowStartSeconds				150
@@ -278,6 +279,12 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_postOctetTotalCount	 	 	171
 #define IPFIX_postPacketTotalCount	 	 	172
 
+#define IPFIX_biflowDirection				239
+
+// sub template IDs
+#define IPFIX_subTemplateList				292
+#define IPFIX_subTemplateMultiList			293
+
 // sampling
 #define IPFIX_selectorId					302
 #define IPFIX_selectorAlgorithm				304
@@ -289,6 +296,7 @@ typedef struct ipfix_template_elements_e_s {
 #define LOCAL_IPv4Received					32764
 #define LOCAL_IPv6Received					32765
 #define LOCAL_msecTimeReceived				32766
+#define LOCAL_payload						32767
 
 /* prototypes */
 int Init_IPFIX(int verbose, uint32_t sampling, uint32_t overwrite);
