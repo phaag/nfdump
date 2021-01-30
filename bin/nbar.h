@@ -61,17 +61,6 @@ typedef struct NbarAppInfo_s {
 	uint8_t data[1];
 } NbarAppInfo_t;
 
-typedef struct nbarOptionList_s {
-	struct nbarOptionList_s *next;
-
-	uint16_t 	tableID;
-	uint16_t	scopeSize;
-	optionTag_t id;
-	optionTag_t name;
-	optionTag_t desc;
-
-} nbarOptionList_t;
-
 #define AddNbarHeader(p, h) \
 	nbarRecordHeader_t *h = (nbarRecordHeader_t *)p; \
 	memset(h, 0, sizeof(nbarRecordHeader_t)); \

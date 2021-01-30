@@ -294,8 +294,8 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				EXnbarApp_t *EXnbarApp = (EXnbarApp_t *)((void *)elementHeader + sizeof(elementHeader_t));
 				// the byte array is stored in full length but only 4 byte IDs are
 				// defined - skip everything else
-				if ( elementHeader->length > 8 ) { // 4 + 4header
-					LogError("nbar application ID > 4 bytes not supported");
+				if ( elementHeader->length > 12 ) { // 8 + 4header
+					LogError("nbar application ID length %u > 8 bytes not supported", elementHeader->length);
 				} else {
  					memcpy(output_record->nbarAppID, EXnbarApp->id, elementHeader->length - sizeof(elementHeader_t));
 				}

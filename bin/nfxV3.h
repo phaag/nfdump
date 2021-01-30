@@ -492,7 +492,7 @@ typedef struct EXnbarApp_s {
 #define OFFnbarAppID offsetof(EXnbarApp_t, id)
 #define SIZEnbarAppID VARLENGTH
 } EXnbarApp_t;
-#define EXnbarAppSize (sizeof(EXnbarApp_t) + sizeof(elementHeader_t))
+#define EXnbarAppSize (sizeof(EXnbarApp_t) - 1 + sizeof(elementHeader_t))
 
 typedef struct EXlabel_s {
 #define EXlabelID 28
@@ -594,12 +594,11 @@ typedef struct sequencer_s {
 	uint16_t	ExtSize[MAXELEMENTS];
 	uint32_t	numSequences;
 	uint32_t	numElements;
-	bool		hasVarInLength;
-	bool		hasVarOutLength;
 	size_t		inLength;
 	size_t		outLength;
 } sequencer_t;
 
+#define SEQ_OK 0
 #define SEQ_ERROR -1
 #define SEQ_MEM_ERR -2
 

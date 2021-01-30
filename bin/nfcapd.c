@@ -921,6 +921,9 @@ char	*pcap_file = NULL;
 			case 'S':
 				subdir_index = atoi(optarg);
 				break;
+			case 'T':
+				printf("Option -T no longer supported and ignored\n");
+				break;
 			case 't':
 				twin = atoi(optarg);
 				if ( twin < 2 ) {

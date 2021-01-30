@@ -299,6 +299,9 @@ typedef struct common_header_s {
 #define LOCAL_IPv6Received					32765
 #define LOCAL_msecTimeReceived				32766
 
+// v9 does not officially support IPFIX Enterprise IDs 
+#define IPFIX_ReverseInformationElement		29305
+
 /* prototypes */
 int Init_v9(int v, uint32_t sampling, uint32_t overwrite);
 

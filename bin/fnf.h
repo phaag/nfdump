@@ -1,5 +1,5 @@
 /*  
- *  Copyright (c) 2012-2020, Peter Haag
+ *  Copyright (c) 2012-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -34,11 +34,70 @@
 #define _FNF_H 1
 
 #include "config.h"
+#include "nfxV3.h"
+
+typedef struct templateList_s {
+	// linked list
+	struct templateList_s *next;
+
+	// template information
+	time_t		updated;	// last update/refresh of template
+	uint32_t	id;			// template ID
+#define UNUSED_TEMPLATE		0
+#define DATA_TEMPLATE		1
+#define SAMPLER_TEMPLATE	2
+#define NBAR_TEMPLATE		4
+#define SYSUPTIME_TEMPLATE	8
+	uint32_t	type;		// template type
+	void		*data;		// template data
+} templateList_t;
+
+typedef struct dataTemplate_s {
+	// extension elements
+	sequencer_t sequencer;
+	// extension vector
+	uint16_t	*extensionList;
+
+} dataTemplate_t;
 
 typedef struct optionTag_s {
 	uint16_t offset;
 	uint16_t length;
 } optionTag_t;
+
+typedef struct optionTemplate_s {
+	uint64_t flags;		// info about this option template
+	struct samplerOption_s {
+#define STDSAMPLING34	1
+#define STDSAMPLING35	2
+#define STDMASK			0x3
+#define STDFLAGS		0x3
+
+#define SAMPLER302		4
+#define SAMPLER304		8
+#define SAMPLER305		16
+#define SAMPLERMASK		0x1C
+#define SAMPLERFLAGS	0x1C
+
+		// sampling offset/length values
+		optionTag_t id;
+		optionTag_t mode;
+		optionTag_t interval;
+	} samplerOption;
+
+#define NBAROPTIONS		32
+	// nbar option data
+	struct nbarOptionList_s {
+		uint16_t	scopeSize;
+		optionTag_t id;
+		optionTag_t name;
+		optionTag_t desc;
+	} nbarOption;
+
+#define SYSUPOPTION		64
+	optionTag_t SysUpOption;
+
+} optionTemplate_t;
 
 #define GET_FLOWSET_ID(p) 	  (Get_val16(p))
 #define GET_FLOWSET_LENGTH(p) (Get_val16((void *)((p) + 2)))

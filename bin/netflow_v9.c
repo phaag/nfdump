@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -82,21 +82,6 @@ static uint32_t overwrite_sampling;
 #define STACK_ENGINE_ID   12
 #define STACK_MAX	      13
 
-typedef struct templateList_s {
-	// linked list
-	struct templateList_s *next;
-
-	// template information
-	time_t		updated;			// last update/refresh of template
-	uint32_t	id;					// template ID
-
-	// extension elements
-	sequencer_t sequencer;
-
-	// extension vector
-	uint16_t	*extensionList;
-
-} templateList_t;
 
 typedef struct exporterDomain_s {
 	// identical to generic_exporter_t
@@ -110,20 +95,6 @@ typedef struct exporterDomain_s {
 	uint32_t	sequence_failure;	// number of sequence failues
 	uint32_t	padding_errors;		// number of padding errors
 
-	// sampler
-	sampler_t	    *sampler;		// sampler info
-	samplerOption_t *samplerOption; // sampler options table info
-
-	// nbar application info
-	nbarOptionList_t	*nbarOptionList;	// nbar options table info
-
-	// exporter parameters
-	uint64_t	boot_time;
-	// sequence
-	int64_t		last_sequence;
-	int64_t		sequence;
-	int			first;
-
 	// sampling information: 
 	// each flow source may have several sampler applied
 	// tags #48, #49, #50
@@ -131,6 +102,14 @@ typedef struct exporterDomain_s {
 
 	// global sampling information #34 #35
 	// stored in a sampler with id = -1;
+	sampler_t	    *sampler;		// sampler info
+
+	// exporter parameters
+	uint64_t	boot_time;
+	// sequence
+	int64_t		last_sequence;
+	int64_t		sequence;
+	int			first;
 
 	// statistics
 	uint64_t	TemplateRecords;	// stat counter
@@ -275,6 +254,18 @@ static const struct v9TranslationMap_s {
 	{ 0,            0, 0, 0,  0, STACK_NONE, NULL },
 };
 
+// netflow v9 does not officially support enterprise IDs and reverse elements
+// some exporters export tem though
+// map for corresponding reverse element, if enterprise ID = IPFIX_ReverseInformationElement
+static const struct v9ReverseMap_s {
+	uint16_t ID;		// v9 element id 
+	uint16_t reverseID;	// reverse v9 element id
+} v9ReverseMap[] = {
+	{ NF9_IN_BYTES, NF9_OUT_BYTES},
+	{ NF9_IN_PACKETS, NF9_OUT_PKTS},
+	{ 0, 0},
+};
+
 typedef struct template_flowset_s {
 	uint16_t  	flowset_id;
 	uint16_t  	length;
@@ -334,9 +325,7 @@ static uint32_t processed_records;
 static uint32_t numV9Elements;
 
 /* local function prototypes */
-static void ProcessOptionFlowset(exporterDomain_t *exporter, FlowSource_t *fs, void *data_flowset);
-
-static void InsertSamplerOption(exporterDomain_t *exporter, samplerOption_t *samplerOption);
+static void ProcessOptionFlowset(exporterDomain_t *exporter, FlowSource_t *fs, templateList_t *templateList, void *data_flowset);
 
 static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, int32_t id, uint16_t mode, uint32_t interval);
 
@@ -344,11 +333,11 @@ static inline void Process_v9_templates(exporterDomain_t *exporter, void *templa
 
 static inline void Process_v9_option_templates(exporterDomain_t *exporter, void *option_template_flowset, FlowSource_t *fs);
 
-static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowset, FlowSource_t *fs, templateList_t *template);
+static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowset, FlowSource_t *fs, dataTemplate_t *template);
 
-static void Process_v9_sampler_option_data(exporterDomain_t *exporter, FlowSource_t *fs, samplerOption_t *samplerOption, void *data_flowset);
+static void Process_v9_sampler_option_data(exporterDomain_t *exporter, FlowSource_t *fs, templateList_t *template, void *data_flowset);
 
-static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t *fs, nbarOptionList_t *nbarOptionList, void *data_flowset);
+static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t *fs, templateList_t *template, void *data_flowset);
 
 static inline exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t exporter_id);
 
@@ -361,8 +350,6 @@ static int Add_template_flowset(outTemplate_t *outTemplate, send_peer_t *peer);
 static void CloseDataFlowset(send_peer_t *peer);
 
 static int CheckSendBufferSpace(size_t size, send_peer_t *peer);
-
-
 
 /* functions */
 
@@ -382,35 +369,37 @@ int i;
 	
 } // End of Init_v9
 
-static void ProcessOptionFlowset(exporterDomain_t *exporter, FlowSource_t *fs, void *data_flowset) {
+static void ProcessOptionFlowset(exporterDomain_t *exporter, FlowSource_t *fs, templateList_t *template, void *data_flowset) {
 
-	uint16_t tableID = GET_FLOWSET_ID(data_flowset);
-
-	samplerOption_t *s = exporter->samplerOption;
-	while ( s && s->tableID != tableID )
-		s = s->next;
-
-	if (s) {
+	if ( TestFlag(template->type, SAMPLER_TEMPLATE)) {
 		dbg_printf("Found sampler option table\n");
-		Process_v9_sampler_option_data(exporter, fs, s, data_flowset);
-	} else {
-		dbg_printf("No sampler option table found\n");
-	}
-
-	nbarOptionList_t *n = exporter->nbarOptionList;
-	while ( n && n->tableID != tableID )
-		n = n->next;
-
-	if (n) {
+		Process_v9_sampler_option_data(exporter, fs, template, data_flowset);
+	} 
+	if ( TestFlag(template->type, NBAR_TEMPLATE)) {
 		dbg_printf("Found nbar option table\n");
-		Process_v9_nbar_option_data(exporter, fs, n, data_flowset);
-	} else {
-		dbg_printf("No nbar option table found\n");
+		Process_v9_nbar_option_data(exporter, fs, template, data_flowset);
 	}
 
 } // End of ProcessOptionFlowset
 
-static int LookupElement(uint16_t type) {
+static int LookupElement(uint16_t type, int EnterpriseNumber) {
+
+	switch ( EnterpriseNumber ) {
+		case 0:		// no Enterprise value
+			break;
+		case IPFIX_ReverseInformationElement:
+			for (int i=0; v9ReverseMap[i].ID != 0; i++ ) {
+				if ( v9ReverseMap[i].ID == type ) {
+					type = v9ReverseMap[i].reverseID;
+					dbg_printf(" Reverse mapped element type: %u\n", type);
+					break;
+				}
+			}
+			break;
+		default:
+			dbg_printf(" Skip enterprise id: %u\n", EnterpriseNumber);
+			return -1;
+	}
 
 	int i = 0;
 	while ( v9TranslationMap[i].name != NULL ) {
@@ -467,9 +456,7 @@ exporterDomain_t **e = (exporterDomain_t **)&(fs->exporter_data);
 	(*e)->TemplateRecords 	= 0;
 	(*e)->DataRecords 	 	= 0;
 
-	(*e)->samplerOption 	= NULL;
 	(*e)->sampler			= NULL;
-	(*e)->nbarOptionList		= NULL;
 	(*e)->next				= NULL;
 
 	FlushInfoExporter(fs, &((*e)->info));
@@ -487,6 +474,18 @@ exporterDomain_t **e = (exporterDomain_t **)&(fs->exporter_data);
 static templateList_t *getTemplate(exporterDomain_t *exporter, uint16_t id) {
 templateList_t *template;
 
+#ifdef DEVEL
+	if ( exporter->currentTemplate ) {
+		printf("Get template - current template: %u\n", exporter->currentTemplate->id);
+	}
+	printf("Get template - available templates for exporter: %u\n", exporter->info.id);
+	template = exporter->template;
+	while ( template ) {
+		printf(" ID: %u, type:, %u\n", template->id, template->type);
+		template = template->next;
+	}
+#endif
+
 	if ( exporter->currentTemplate && ( exporter->currentTemplate->id == id ) )
 		return exporter->currentTemplate;
 
@@ -499,10 +498,9 @@ templateList_t *template;
 		template = template->next;
 	}
 
-	dbg_printf("[%u] Get template %u: %s\n", 
-		exporter->info.id, id, template == NULL ? "not found" : "found");
-
+	dbg_printf("[%u] Get template %u: not found\n", exporter->info.id, id);
 	exporter->currentTemplate = NULL;
+
 	return NULL;
 
 } // End of getTemplate
@@ -512,15 +510,15 @@ templateList_t *template;
 
 	template = calloc(1, sizeof(templateList_t));
 	if ( !template ) {
-			LogError("Process_v9: Panic! calloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
-			return NULL;
+		LogError("Process_v9: Panic! calloc() %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+		return NULL;
 	}
 
 	// init the new template
 	template->next	  = exporter->template;
 	template->updated = time(NULL);
 	template->id	  = id;
-	template->extensionList = NULL;
+	template->data	  = NULL;
 
 	exporter->template = template;
 	dbg_printf("[%u] Add new template ID %u\n", exporter->info.id, id);
@@ -529,11 +527,8 @@ templateList_t *template;
 
 } // End of newTemplate
 
-static void __attribute__((unused)) removeTemplate(FlowSource_t *fs, exporterDomain_t *exporter, uint16_t id) {
+static void removeTemplate(exporterDomain_t *exporter, uint16_t id) {
 templateList_t *template, *parent;
-
-	LogInfo("Process_v9: [%u] Withdraw template id: %i", 
-			exporter->info.id, id);
 
 	parent = NULL;
 	template = exporter->template;
@@ -543,12 +538,12 @@ templateList_t *template, *parent;
 	}
 
 	if ( template == NULL ) {
-		LogError("Process_v9: [%u] Withdraw template id: %i - template not found", 
+		dbg_printf("[%u] Remove template id: %i - template not found\n", 
 				exporter->info.id, id);
 		return;
+	} else {
+		dbg_printf("[%u] Remove template ID: %u\n", exporter->info.id, id);
 	}
-
-	dbg_printf("\n[%u] Withdraw template ID: %u\n", exporter->info.id, id);
 
 	// clear table cache, if this is the table to delete
 	if (exporter->currentTemplate == template)
@@ -559,131 +554,17 @@ templateList_t *template, *parent;
 		parent->next = template->next;
 	} else {
 		// last temeplate removed
-		exporter->template = NULL;
+		exporter->template = template->next;
 	}
 
-	ClearSequencer(&(template->sequencer));
+	if ( TestFlag(template->type, DATA_TEMPLATE) ) {
+		dataTemplate_t *dataTemplate = (dataTemplate_t *)template->data;
+		ClearSequencer(&(dataTemplate->sequencer));
+	}
+	free(template->data);
 	free(template);
 
 } // End of removeTemplate
-
-static void __attribute__((unused)) removeAllTemplates(exporterDomain_t *exporter) {
-templateList_t *template;
-
-	LogInfo("Process_v9: Withdraw all templates from observation domain %u\n", 
-		exporter->info.id);
-
-	template = exporter->template;
-	while ( template ) {
-		templateList_t *next;
-		next = template->next;
-
-		dbg_printf("\n[%u] Withdraw template ID: %u\n", exporter->info.id, template->id);
-
-		ClearSequencer(&(template->sequencer));
-		free(template);
-
-		template = next;
-	}
-
-} // End of removeAllTemplates
-
-static templateList_t *clearOrNewTemplate(exporterDomain_t *exporter, uint16_t id) {
-
-	dbg_printf("clearOrNewTemplate()\n");
-	templateList_t *template = getTemplate(exporter, id);
-
-	if ( !template ) {
-		dbg_printf("Process_v9: [%u] Add template %u\n", exporter->info.id, id);
-		LogInfo("Process_v9: [%u] Add template %u", exporter->info.id, id);
-		template = newTemplate(exporter, id);
-	} else {
-		dbg_printf("[%u] Refresh template %u\n", exporter->info.id, id);
-		ClearSequencer(&(template->sequencer));
-	}
-	return template;
-
-} // End of clearOrNewTemplate
-
-static void InsertSamplerOption(exporterDomain_t *exporter, samplerOption_t *samplerOption) {
-samplerOption_t *s, *parent;
-
-	parent = NULL;
-	s = exporter->samplerOption;
-	while (s) {
-		if ( s->tableID == samplerOption->tableID ) { // table already known to us - update data
-			dbg_printf("Found existing sampling info in template %i\n", samplerOption->tableID);
-			break;
-		}
-		parent = s;
-		s = s->next;
-	}
-
-	if ( s != NULL ) { // existing entry
-		// replace existing table
-		dbg_printf("Replace existing sampler table ID %i\n", samplerOption->tableID);
-		if ( parent ) {
-			parent->next = samplerOption;
-		} else {
-			exporter->samplerOption = samplerOption;
-		}
-		samplerOption->next = s->next;
-		free(s);
-		s = NULL;
-	} else { // new entry
-		dbg_printf("New sampling table ID %i\n", samplerOption->tableID);
-		// push new sampling table
-		samplerOption->next = exporter->samplerOption;
-		exporter->samplerOption = samplerOption;
-	}
-
-	dbg_printf("Update/Insert sampler table id: %u flags: 0x%x - sampler ID: %u/%u, mode: %u/%u, interval: %u/%u\n",
-		samplerOption->tableID, samplerOption->flags, 
-		samplerOption->id.offset, samplerOption->id.length,
-		samplerOption->mode.offset, samplerOption->mode.length,
-		samplerOption->interval.offset, samplerOption->interval.length);
-
-} // End of InsertSamplerOption
-
-static void InsertNbarOption(exporterDomain_t *exporter, nbarOptionList_t *nbarOptionList) {
-nbarOptionList_t *s, *parent;
-
-	parent = NULL;
-	s = exporter->nbarOptionList;
-	while (s) {
-		if ( s->tableID == nbarOptionList->tableID ) { // table already known to us - update data
-			dbg_printf("Found existing nbar info in template %i\n", nbarOptionList->tableID);
-			break;
-		}
-		parent = s;
-		s = s->next;
-	}
-
-	if ( s != NULL ) { // existing entry
-		// replace existing table
-		dbg_printf("Replace existing nbar table ID %i\n", nbarOptionList->tableID);
-		if ( parent ) {
-			parent->next = nbarOptionList;
-		} else {
-			exporter->nbarOptionList = nbarOptionList;
-		}
-		nbarOptionList->next = s->next;
-		free(s);
-		s = NULL;
-	} else { // new entry
-		dbg_printf("New nbar table ID %i\n", nbarOptionList->tableID);
-		// push new nbar table
-		nbarOptionList->next = exporter->nbarOptionList;
-		exporter->nbarOptionList = nbarOptionList;
-	}
-
-	dbg_printf("Update/Insert nbar table id: %u nbar ID: %u/%u, name: %u/%u, desc: %u/%u\n",
-		nbarOptionList->tableID,
-		nbarOptionList->id.offset, nbarOptionList->id.length,
-		nbarOptionList->name.offset, nbarOptionList->name.length,
-		nbarOptionList->desc.offset, nbarOptionList->desc.length);
-
-} // End of InsertNbarOption
 
 static inline void Process_v9_templates(exporterDomain_t *exporter, void *DataPtr, FlowSource_t *fs) {
 void		*template;
@@ -711,7 +592,7 @@ int			i;
 		count = GET_TEMPLATE_COUNT(template);
 		size_required = 4 + 4 * count;	// id + count = 4 bytes, and 2 x 2 bytes for each entry
 
-		dbg_printf("\n[%u] Template ID: %u\n", exporter->info.id, id);
+		dbg_printf("\n[%u] Template ID: %u, field count: %u\n", exporter->info.id, id, count);
 		dbg_printf("template size: %u buffersize: %u\n", size_required, size_left);
 
 		if ( size_left < size_required ) {
@@ -733,12 +614,13 @@ int			i;
 		int commonFound = 0;
 		for(i=0; i<count; i++ ) {
 			uint16_t Type, Length;
+			uint32_t EnterpriseNumber = 0;
 
 			Type   = Get_val16(p); p = p + 2;
 			Length = Get_val16(p); p = p + 2;
 			num_v9tags++;
 
-			int index = LookupElement(Type);
+			int index = LookupElement(Type, EnterpriseNumber);
 			if ( index < 0 ) {	// not found - enter skip seqence
 				sequenceTable[numSequences].inputType	 = Type;
 				sequenceTable[numSequences].inputLength	 = Length;
@@ -777,7 +659,7 @@ int			i;
 			continue;
 		}
 
-		int index = LookupElement(LOCAL_msecTimeReceived);
+		int index = LookupElement(LOCAL_msecTimeReceived, 0);
 		sequenceTable[numSequences].inputType	 = LOCAL_msecTimeReceived;
 		sequenceTable[numSequences].inputLength	 = 0;
 		sequenceTable[numSequences].extensionID	 = v9TranslationMap[index].extensionID;
@@ -790,34 +672,26 @@ int			i;
 			v9TranslationMap[index].extensionID, v9TranslationMap[index].name,
 			v9TranslationMap[index].outputLength);
 
-		if ( fs->sa_family == PF_INET6 ) {
-			index = LookupElement(LOCAL_IPv6Received);
-			sequenceTable[numSequences].inputType	 = LOCAL_IPv6Received;
-			sequenceTable[numSequences].inputLength	 = 0;
-		} else {
-			index = LookupElement(LOCAL_IPv4Received);
-			sequenceTable[numSequences].inputType	 = LOCAL_IPv4Received;
-			sequenceTable[numSequences].inputLength	 = 0;
-		}
-		sequenceTable[numSequences].extensionID	 = v9TranslationMap[index].extensionID;
-		sequenceTable[numSequences].outputLength = v9TranslationMap[index].outputLength;
-		sequenceTable[numSequences].offsetRel	 = v9TranslationMap[index].offsetRel;
-		sequenceTable[numSequences].stackID		 = v9TranslationMap[index].stackID;
-		numSequences++;
-		dbg_printf("Add sending router IP address (%s) => Extension: %u\n", 
-			fs->sa_family == PF_INET6 ? "ipv6" : "ipv4", v9TranslationMap[index].extensionID);
-
-		templateList_t *template = clearOrNewTemplate(exporter, id);
+		// if it exitsts - remove old template on exporter with same ID
+		removeTemplate(exporter, id);
+		templateList_t *template = newTemplate(exporter, id);
 		if ( !template ) {
 			LogError("Process_v9: abort template add: %s line %d", __FILE__, __LINE__);
 			return;
 		}
-		template->extensionList = SetupSequencer(&(template->sequencer), sequenceTable, numSequences);
-		template->updated = time(NULL);
+		dataTemplate_t *dataTemplate = calloc(1, sizeof(dataTemplate_t));
+		if ( !dataTemplate ) {
+			LogError("Error calloc(): %s in %s:%d", strerror (errno), __FILE__, __LINE__);
+			return;
+		}
+		template->data = dataTemplate;
+		dataTemplate->extensionList = SetupSequencer(&(dataTemplate->sequencer), sequenceTable, numSequences);
+		dataTemplate->sequencer.templateID = id;
+		SetFlag(template->type, DATA_TEMPLATE);
 
 #ifdef DEVEL
 		printf("Added/Updated Sequencer to template\n");
-		PrintSequencer(&(template->sequencer));
+		PrintSequencer(&(dataTemplate->sequencer));
 #endif
 
 		// update size left of this flowset
@@ -868,16 +742,10 @@ uint16_t	tableID, scope_length, option_length;
 	dbg_printf("\n[%u] Option Template ID: %u\n", exporter->info.id, tableID);
 	dbg_printf("Scope length: %u Option length: %u\n", scope_length, option_length);
 
-	samplerOption_t *samplerOption = (samplerOption_t *)calloc(1, sizeof(samplerOption_t));
-	if ( !samplerOption ) {
-		LogError("Error malloc(): %s in %s:%d", strerror (errno), __FILE__, __LINE__);
-		return;
-	}
-	samplerOption->tableID = tableID;
-
-	nbarOptionList_t *nbarOptionList = (nbarOptionList_t *)calloc(1, sizeof(nbarOptionList_t));
-	if ( !nbarOptionList ) {
-		LogError("Error malloc(): %s in %s:%d", strerror (errno), __FILE__, __LINE__);
+	removeTemplate(exporter, tableID);
+	optionTemplate_t *optionTemplate = (optionTemplate_t *)calloc(1, sizeof(optionTemplate_t));
+	if ( !optionTemplate ) {
+		LogError("Error calloc(): %s in %s:%d", strerror (errno), __FILE__, __LINE__);
 		return;
 	}
 
@@ -919,6 +787,9 @@ uint16_t	tableID, scope_length, option_length;
 	}
 	uint16_t scopeSize = offset;
 
+	struct samplerOption_s *samplerOption = &(optionTemplate->samplerOption);
+	struct nbarOptionList_s *nbarOption   = &(optionTemplate->nbarOption);
+
 	for ( ; i<(nr_scopes+nr_options); i++ ) {
 		uint16_t type 	= Get_val16(p); p = p + 2;
 		uint16_t length = Get_val16(p); p = p + 2;
@@ -929,12 +800,14 @@ uint16_t	tableID, scope_length, option_length;
 			case NF9_SAMPLING_INTERVAL:	// #34
 				samplerOption->interval.length = length;
 				samplerOption->interval.offset = offset;
-				SetFlag(samplerOption->flags, STDSAMPLING34);
+				SetFlag(optionTemplate->flags, STDSAMPLING34);
+				dbg_printf(" Sampling option found\n");
 				break;
 			case NF9_SAMPLING_ALGORITHM: // #35
 				samplerOption->mode.length = length;
 				samplerOption->mode.offset = offset;
-				SetFlag(samplerOption->flags, STDSAMPLING35);
+				SetFlag(optionTemplate->flags, STDSAMPLING35);
+				dbg_printf(" Sampling option found\n");
 				break;
 
 			// individual samplers
@@ -942,65 +815,87 @@ uint16_t	tableID, scope_length, option_length;
 			case NF_SELECTOR_ID:		// #302
 				samplerOption->id.length = length;
 				samplerOption->id.offset = offset;
-				SetFlag(samplerOption->flags, SAMPLER302);
+				SetFlag(optionTemplate->flags, SAMPLER302);
+				dbg_printf(" Sampling option found\n");
 				break;
 			case FLOW_SAMPLER_MODE:		// #49 depricated - fall through
 			case NF_SELECTOR_ALGORITHM: // #304
 				samplerOption->mode.length = length;
 				samplerOption->mode.offset = offset;
-				SetFlag(samplerOption->flags, SAMPLER304);
+				SetFlag(optionTemplate->flags, SAMPLER304);
+				dbg_printf(" Sampling option found\n");
 				break;
 			case NF9_FLOW_SAMPLER_RANDOM_INTERVAL: // #50 depricated - fall through
 			case NF_SAMPLING_INTERVAL:			   // #305
 				samplerOption->interval.length = length;
 				samplerOption->interval.offset = offset;
-				SetFlag(samplerOption->flags, SAMPLER305);
+				SetFlag(optionTemplate->flags, SAMPLER305);
+				dbg_printf(" Sampling option found\n");
 				break;
 
 			// nbar application information
 			case NBAR_APPLICATION_DESC:
-				nbarOptionList->desc.length = length;
-				nbarOptionList->desc.offset = offset;
-				nbarOptionList->tableID 	= tableID;
+				nbarOption->desc.length = length;
+				nbarOption->desc.offset = offset;
+				SetFlag(optionTemplate->flags, NBAROPTIONS);
+				dbg_printf(" Nbar option found\n");
 				break;
 			case NBAR_APPLICATION_ID:
-				nbarOptionList->id.length = length;
-				nbarOptionList->id.offset = offset;
-				nbarOptionList->tableID	  = tableID;
+				nbarOption->id.length = length;
+				nbarOption->id.offset = offset;
+				SetFlag(optionTemplate->flags, NBAROPTIONS);
+				dbg_printf(" Nbar option found\n");
 				break;
 			case NBAR_APPLICATION_NAME:
-				nbarOptionList->name.length = length;
-				nbarOptionList->name.offset = offset;
-				nbarOptionList->tableID 	= tableID;
+				nbarOption->name.length = length;
+				nbarOption->name.offset = offset;
+				SetFlag(optionTemplate->flags, NBAROPTIONS);
+				dbg_printf(" Nbar option found\n");
 				break;
+			default:
+				dbg_printf(" Skip this type: %u, length %u\n", type, length);
 		}
 		offset += length;
 	}
 
-	if ( (samplerOption->flags & SAMPLERMASK ) == SAMPLERFLAGS) {
-		dbg_printf("[%u] Sampler information found\n", exporter->info.id);
-		InsertSamplerOption(exporter, samplerOption);
-	} else if ( (samplerOption->flags & STDMASK ) == STDFLAGS) {
-		dbg_printf("[%u] Std sampling information found\n", exporter->info.id);
-		InsertSamplerOption(exporter, samplerOption);
+	dbg_printf("\n");
+
+	if ( optionTemplate->flags ) {
+		// if it exitsts - remove old template on exporter with same ID
+		templateList_t *template = newTemplate(exporter, tableID);
+		if ( !template ) {
+			LogError("Process_v9: abort template add: %s line %d", __FILE__, __LINE__);
+			return;
+		}
+		template->data = optionTemplate;
+
+		if ( (optionTemplate->flags & SAMPLERMASK ) == SAMPLERFLAGS) {
+			dbg_printf("[%u] Sampler information found\n", exporter->info.id);
+			SetFlag(template->type, SAMPLER_TEMPLATE);
+		} else if ( (optionTemplate->flags & STDMASK ) == STDFLAGS) {
+			dbg_printf("[%u] Std sampling information found\n", exporter->info.id);
+			SetFlag(template->type, SAMPLER_TEMPLATE);
+		} else {
+			dbg_printf("[%u] No Sampling information found\n", exporter->info.id);
+		}
+
+		if ( TestFlag(optionTemplate->flags, NBAROPTIONS) ) {
+			dbg_printf("[%u] found nbar options\n", exporter->info.id);
+			dbg_printf("[%u] id   length: %u\n", exporter->info.id, optionTemplate->nbarOption.id.length);
+			dbg_printf("[%u] name length: %u\n", exporter->info.id, optionTemplate->nbarOption.name.length);
+			dbg_printf("[%u] desc length: %u\n", exporter->info.id, optionTemplate->nbarOption.desc.length);
+			optionTemplate->nbarOption.scopeSize = scopeSize;
+			SetFlag(template->type, NBAR_TEMPLATE);
+		} else {
+			dbg_printf("[%u] No nbar information found\n", exporter->info.id);
+		}
+
 	} else {
-		free(samplerOption);
-		dbg_printf("[%u] No Sampling information found\n", exporter->info.id);
+		free(optionTemplate);
+		dbg_printf("[%u] Skip option template\n", exporter->info.id);
 	}
 
-	if ( nbarOptionList->tableID ) {
-		dbg_printf("[%u] found nbar options\n", exporter->info.id);
-		dbg_printf("[%u] id   length: %u\n", exporter->info.id, nbarOptionList->id.length);
-		dbg_printf("[%u] name length: %u\n", exporter->info.id, nbarOptionList->name.length);
-		dbg_printf("[%u] desc length: %u\n", exporter->info.id, nbarOptionList->desc.length);
-		nbarOptionList->scopeSize = scopeSize;
-		InsertNbarOption(exporter, nbarOptionList);
-	} else {
-		free(nbarOptionList);
-		dbg_printf("[%u] No nbar information found\n", exporter->info.id);
-	}
 	processed_records++;
-	dbg_printf("\n");
 
 } // End of Process_v9_option_templates
 
@@ -1089,10 +984,10 @@ sampler_t *sampler;
 	
 } // End of InsertSampler
 
-static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowset, FlowSource_t *fs, templateList_t *template){
-uint64_t			sampling_rate;
-uint32_t			size_left;
-uint8_t				*inBuff;
+static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowset, FlowSource_t *fs, dataTemplate_t *template){
+uint64_t	sampling_rate;
+int32_t		size_left;
+uint8_t		*inBuff;
 
 	size_left = GET_FLOWSET_LENGTH(data_flowset) - 4; // -4 for data flowset header -> id and length
 
@@ -1105,7 +1000,15 @@ uint8_t				*inBuff;
 
 	sampling_rate = 1;
 
-	while (size_left) {
+	// reserve space in output stream for EXipReceivedVx
+	uint32_t receivedSize = 0;
+	if ( fs->sa_family == PF_INET6 )
+		receivedSize = EXipReceivedV6Size;
+	else
+		receivedSize = EXipReceivedV4Size;
+
+
+	while (size_left > 0) {
 		void *outBuff;
 
 		if ( size_left < 4 ) {	// rounding pads
@@ -1115,64 +1018,80 @@ uint8_t				*inBuff;
 
 		// check for enough space in output buffer
 		uint32_t outRecordSize = CalcOutRecordSize(sequencer, inBuff, size_left);
-
-		if ( outRecordSize == 0 ) {
-			dbg_printf("Process_v9: output record size zero. Skip record processing");
-			return;
-		}
-		if ( !CheckBufferSpace(fs->nffile, sizeof(recordHeaderV3_t) + outRecordSize) ) {
+		int buffAvail = CheckBufferSpace(fs->nffile, sizeof(recordHeaderV3_t) + outRecordSize + receivedSize);
+		if ( buffAvail == 0 ) {
 			// this should really never occur, because the buffer gets flushed ealier
-			LogError("Process_v9: output buffer size error. Skip record processing");
-			dbg_printf("Process_v9: output buffer size error. Skip record processing");
+			LogError("Process_v9: output buffer size error. Skip ipfix record processing");
+			dbg_printf("Process_v9: output buffer size error. Skip ipfix record processing");
 			return;
 		}
 
+		REDO:
 		// map file record to output buffer
 		outBuff	= fs->nffile->buff_ptr;
 
-		dbg_printf("[%u] Process data record: %u addr: %llu, buffer size_left: %u\n", 
-			exporter->info.id, processed_records,
-			(long long unsigned)((ptrdiff_t)inBuff - (ptrdiff_t)data_flowset), 
-			size_left);
+		dbg_printf("[%u] Process data record: %u addr: %llu, size_left: %u buff_avail: %u\n",
+			exporter->info.id, processed_records, (long long unsigned)((ptrdiff_t)inBuff - (ptrdiff_t)data_flowset), 
+			size_left, buffAvail);
 
 		// process record
 		AddV3Header(outBuff, recordHeaderV3);
 
 		// header data
-		recordHeaderV3->type		= V3Record;
 		recordHeaderV3->engineType	= ( exporter->info.id >> 8 ) & 0xFF;
 		recordHeaderV3->engineID	= exporter->info.id & 0xFF;
-		recordHeaderV3->flags		= 0;
 		recordHeaderV3->nfversion	= 9;
 		recordHeaderV3->exporterID	= exporter->info.sysid;
-		dbg_printf("Add record for %u elements und size: %u\n",
-			recordHeaderV3->numElements, recordHeaderV3->size);
-
-		if ( sequencer->inLength > size_left ) {
-			// overrun
-			printf("Process v9: buffer check error: required size %lu > left buffer size: %u", 
-				sequencer->inLength, size_left);
-			LogError("Process v9: buffer check error: required size %i > left buffer size: %u", 
-				sequencer->inLength, size_left);
-			return;
-		} 
 
 		uint64_t stack[STACK_MAX];
 		memset((void *)stack, 0, sizeof(stack));
 		// copy record data
-		if ( SequencerRun(sequencer, inBuff, size_left, 
-			outBuff, sizeof(recordHeaderV3_t) + sequencer->outLength, stack) == SEQ_ERROR ) {
-			LogError("Process v9: Sequencer run error. Skip record processing");
-			return;
+		int ret = SequencerRun(sequencer, inBuff, size_left, outBuff, sizeof(recordHeaderV3_t) + outRecordSize, stack);
+		switch (ret) {
+			case SEQ_OK:
+				break;
+			case SEQ_ERROR:
+				LogError("Process v9: Sequencer run error. Skip record processing");
+				return;
+				break;
+			case SEQ_MEM_ERR:
+				if ( buffAvail == WRITE_BUFFSIZE ) {
+					LogError("Process v9: Sequencer run error. buffer size too small");
+					return;
+				}
+
+				// request new and empty buffer
+				LogInfo("Process v9: Sequencer run - resize output buffer");
+				buffAvail = CheckBufferSpace(fs->nffile, 0);
+				if ( buffAvail == 0 ) {
+					// this should really never occur, because the buffer gets flushed ealier
+					LogError("Process_v9: output buffer size error. Skip ipfix record processing");
+					dbg_printf("Process_v9: output buffer size error. Skip ipfix record processing");
+					return;
+				}
+				goto REDO;
+				break;
 		}
 
-		dbg_printf("New record added with %u elements and size: %u\n", 
+		dbg_printf("New record added with %u elements and size: %u, sequencer inLength: %lu, outLength: %lu\n", 
+			recordHeaderV3->numElements, recordHeaderV3->size, sequencer->inLength, sequencer->outLength);
+
+		// add router IP
+		if ( fs->sa_family == PF_INET6 ) {
+	   		PushExtension(recordHeaderV3, EXipReceivedV6, ipReceivedV6);
+			ipReceivedV6->ip[0] = fs->ip.V6[0];
+			ipReceivedV6->ip[1] = fs->ip.V6[1];
+			dbg_printf("Add IPv6 route IP extension\n");
+		} else {
+	   		PushExtension(recordHeaderV3, EXipReceivedV4, ipReceivedV4);
+			ipReceivedV4->ip = fs->ip.V4;
+			dbg_printf("Add IPv4 route IP extension\n");
+		}
+
+		dbg_printf("Record: %u elements, size: %u\n", 
 			recordHeaderV3->numElements, recordHeaderV3->size);
-		/*
-		recordHeaderV3->size		= sizeof(recordHeaderV3_t) + sequencer->outLength;
-		recordHeaderV3->numElements	= sequencer->numElements;
-		*/
-		outBuff += sequencer->outLength;
+
+		outBuff += recordHeaderV3->size;
 		inBuff += sequencer->inLength;
 		size_left -= sequencer->inLength;
 
@@ -1229,31 +1148,37 @@ uint8_t				*inBuff;
 		if ( sampling_rate != 1 )
 			SetFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED);
 
-		// add router IP
-		if ( fs->sa_family == PF_INET6 ) {
-			EXipReceivedV6_t *ipReceivedV6 = sequencer->offsetCache[EXipReceivedV6ID];
-			if ( ipReceivedV6 ) {
-				ipReceivedV6->ip[0] = fs->ip.V6[0];
-				ipReceivedV6->ip[1] = fs->ip.V6[1];
-			} else {
-				LogError("Process_v9: in %s line %d: %s\n", __FILE__, __LINE__, 
-					"Missing IPv6 extension on processed v1 record");
-			}
-		} else {
-			EXipReceivedV4_t *ipReceivedV4 = sequencer->offsetCache[EXipReceivedV4ID];
-			if ( ipReceivedV4 ) {
-				ipReceivedV4->ip = fs->ip.V4;
-			} else {
-				LogError("Process_v9: in %s line %d: %s\n", __FILE__, __LINE__, 
-					"Missing IPv4 extension on processed v1 record");
-			}
-		}
 
 		// add time received
 		EXgenericFlow_t *genericFlow = sequencer->offsetCache[EXgenericFlowID];
 		if ( genericFlow ) {
 			genericFlow->msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + 
 								  (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
+
+			// update first_seen, last_seen
+			// tags #152, #153 are expected otherwise
+			// process tags #21, #22
+			if ( stack[STACK_LAST21] != 0 ) {
+				uint64_t First = stack[STACK_FIRST22];
+				uint64_t Last  = stack[STACK_LAST21];
+
+				if ( First > Last )
+					/* First in msec, in case of msec overflow, between start and end */
+					genericFlow->msecFirst = exporter->boot_time - 0x100000000LL + First;
+				else
+					genericFlow->msecFirst = First + exporter->boot_time;
+	
+				// end time in msecs
+				genericFlow->msecLast = (uint64_t)Last + exporter->boot_time;
+			}
+
+			if (genericFlow->msecFirst < fs->msecFirst )
+				fs->msecFirst = genericFlow->msecFirst;
+			if ( genericFlow->msecLast > fs->msecLast )
+				fs->msecLast = genericFlow->msecLast;
+			dbg_printf("msecFrist: %llu\n", (long long unsigned)genericFlow->msecFirst);
+			dbg_printf("msecLast : %llu\n", (long long unsigned)genericFlow->msecLast);
+
 			if ( sampling_rate > 1 ) {
   				genericFlow->inPackets *= (uint64_t)sampling_rate;
   				genericFlow->inBytes   *= (uint64_t)sampling_rate;
@@ -1325,32 +1250,6 @@ uint8_t				*inBuff;
 			nelCommon->msecEvent = stack[STACK_MSEC];
 		}
 
-		// update first_seen, last_seen
-		// tags #152, #153 are expected otherwise
-		if ( genericFlow ) {
-			// process tags #21, #22
-			if ( stack[STACK_LAST21] != 0 ) {
-				uint64_t First = stack[STACK_FIRST22];
-				uint64_t Last  = stack[STACK_LAST21];
-
-				if ( First > Last )
-					/* First in msec, in case of msec overflow, between start and end */
-					genericFlow->msecFirst = exporter->boot_time - 0x100000000LL + First;
-				else
-					genericFlow->msecFirst = First + exporter->boot_time;
-	
-				// end time in msecs
-				genericFlow->msecLast = (uint64_t)Last + exporter->boot_time;
-			}
-
-			if (genericFlow->msecFirst < fs->msecFirst )
-				fs->msecFirst = genericFlow->msecFirst;
-			if ( genericFlow->msecLast > fs->msecLast )
-				fs->msecLast = genericFlow->msecLast;
-			dbg_printf("msecFrist: %llu\n", (long long unsigned)genericFlow->msecFirst);
-			dbg_printf("msecLast : %llu\n", (long long unsigned)genericFlow->msecLast);
-		}
-
 		// nprobe latency
 		EXlatency_t *latency  = sequencer->offsetCache[EXlatencyID];
 		if ( latency ) {
@@ -1359,8 +1258,6 @@ uint8_t				*inBuff;
 			latency->usecApplLatency   += 1000000LL * stack[STACK_APPL_USEC];
 		}
 
-		dbg_printf("Check record for %u elements und size: %u\n",
-			recordHeaderV3->numElements, recordHeaderV3->size);
 		if ( printRecord ) {
 			char *string;
 			master_record_t master_record;
@@ -1391,7 +1288,8 @@ uint8_t				*inBuff;
 
 } // End of Process_v9_data
 
-static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, FlowSource_t *fs, samplerOption_t *samplerOption, void *data_flowset) {
+static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, FlowSource_t *fs, templateList_t *template, void *data_flowset) {
+
 
 	uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4; // -4 for data flowset header -> id and length
 	dbg_printf("[%u] Process sampler option data flowset size: %u\n", exporter->info.id, size_left);
@@ -1399,7 +1297,10 @@ static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, Fl
 	// map input buffer as a byte array
 	uint8_t *in = (uint8_t *)(data_flowset + 4);	// skip flowset header
 
-	if ( (samplerOption->flags & SAMPLERMASK ) != 0) {
+	optionTemplate_t *optionTemplate 	  = (optionTemplate_t *)template->data;
+	struct samplerOption_s *samplerOption = &(optionTemplate->samplerOption);
+
+	if ((optionTemplate->flags & SAMPLERMASK ) != 0) {
 		int32_t  id;
 		uint16_t mode;
 		uint32_t interval;
@@ -1423,7 +1324,7 @@ static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, Fl
 		InsertSampler(fs, exporter, id, mode, interval);
 	}
 
-	if ( (samplerOption->flags & STDMASK ) != 0) {
+	if ((optionTemplate->flags & STDMASK ) != 0) {
 		int32_t  id;
 		uint16_t mode;
 		uint32_t interval;
@@ -1452,20 +1353,20 @@ static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, Fl
 
 } // End of Process_v9_sampler_option_data
 
-static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t *fs, nbarOptionList_t *nbarOptionList, void *data_flowset) {
+static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t *fs, templateList_t *template, void *data_flowset) {
 
 	uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4; // -4 for data flowset header -> id and length
-
-#ifdef DEVEL
 	dbg_printf("[%u] Process nbar option data flowset size: %u\n", exporter->info.id, size_left);
-#endif
+
+	optionTemplate_t *optionTemplate 	= (optionTemplate_t *)template->data;
+	struct nbarOptionList_s *nbarOption = &(optionTemplate->nbarOption);
 
 	// map input buffer as a byte array
 	uint8_t *inBuff = (uint8_t *)(data_flowset + 4);	// skip flowset header
 	// data size
-	size_t nbar_data_size = nbarOptionList->id.length + nbarOptionList->name.length + nbarOptionList->desc.length;
+	size_t nbar_data_size = nbarOption->id.length + nbarOption->name.length + nbarOption->desc.length;
 	// size of record
-	size_t nbar_option_size = nbarOptionList->scopeSize + nbar_data_size;
+	size_t nbar_option_size = nbarOption->scopeSize + nbar_data_size;
 	// number of records in data
 	int numRecords = size_left / nbar_option_size;
 	dbg_printf("[%u] nbar option data - records: %u, size: %zu\n", exporter->info.id, numRecords, nbar_option_size);
@@ -1498,35 +1399,35 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
 		// push nbar app info record
 		PushNbarVarLengthExtension(nbarHeader, NbarAppInfo, nbar_record, sizeof(NbarAppInfo_t) + nbar_data_size);
 		
-		nbar_record->app_id_length	 = nbarOptionList->id.length;
-		nbar_record->app_name_length = nbarOptionList->name.length;
-		nbar_record->app_desc_length = nbarOptionList->desc.length;
+		nbar_record->app_id_length	 = nbarOption->id.length;
+		nbar_record->app_name_length = nbarOption->name.length;
+		nbar_record->app_desc_length = nbarOption->desc.length;
 		uint8_t *p = nbar_record->data;
 		int err = 0;
 
 		//copy data
 		// id octet array
-		memcpy(p, inBuff + nbarOptionList->id.offset, nbarOptionList->id.length);
-		p += nbarOptionList->id.length;
+		memcpy(p, inBuff + nbarOption->id.offset, nbarOption->id.length);
+		p += nbarOption->id.length;
 
 		// name string
-		memcpy(p, inBuff + nbarOptionList->name.offset, nbarOptionList->name.length);
+		memcpy(p, inBuff + nbarOption->name.offset, nbarOption->name.length);
 		uint32_t state = UTF8_ACCEPT;
-		if (validate_utf8(&state, (char *)p, nbarOptionList->name.length) == UTF8_REJECT) {
+		if (validate_utf8(&state, (char *)p, nbarOption->name.length) == UTF8_REJECT) {
 			LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar name");
    			err = 1;
     	}
-		p[nbarOptionList->name.length-1] = '\0';
-		p += nbarOptionList->name.length;
+		p[nbarOption->name.length-1] = '\0';
+		p += nbarOption->name.length;
 
 		// description string
-		memcpy(p, inBuff + nbarOptionList->desc.offset, nbarOptionList->desc.length);
+		memcpy(p, inBuff + nbarOption->desc.offset, nbarOption->desc.length);
 		state = UTF8_ACCEPT;
-		if (validate_utf8(&state, (char *)p, nbarOptionList->name.length) == UTF8_REJECT) {
+		if (validate_utf8(&state, (char *)p, nbarOption->name.length) == UTF8_REJECT) {
 			LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar description");
    			err = 1;
     	}
-		p[nbarOptionList->desc.length-1] = '\0';
+		p[nbarOption->desc.length-1] = '\0';
 
 		cnt++;
 #ifdef DEVEL
@@ -1682,10 +1583,12 @@ static int pkg_num = 1;
 					dbg_printf("[%u] ID %u Data flowset\n", exporter->info.id, flowset_id);
 					templateList_t *template = getTemplate(exporter, flowset_id);
 					if ( template ) {
-						Process_v9_data(exporter, flowset_header, fs, template);
-						exporter->DataRecords++;
-					} else {
-						ProcessOptionFlowset(exporter, fs, flowset_header);
+						if ( TestFlag(template->type, DATA_TEMPLATE)) {
+							Process_v9_data(exporter, flowset_header, fs, (dataTemplate_t *)template->data);
+							exporter->DataRecords++;
+						} else {
+							ProcessOptionFlowset(exporter, fs, template, flowset_header);
+						}
 					}
 				}
 			}

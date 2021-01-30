@@ -143,7 +143,7 @@ typedef struct exporter_s {
 	sampler_t *sampler;				// list of samplers associated with this exporter
 
 } exporter_t;
-
+/*
 typedef struct samplerOption_s {
 	struct samplerOption_s *next;
 	uint32_t	tableID;	// table id
@@ -166,6 +166,7 @@ typedef struct samplerOption_s {
 	optionTag_t interval;
 
 } samplerOption_t;
+*/
 
 int InitExporterList(void);
 

@@ -97,7 +97,8 @@ char datestr1[64], datestr2[64], datestr3[64];
 , (long long unsigned)r->msecFirst, datestr1, r->msecFirst % 1000LL
 , (long long unsigned)r->msecLast, datestr2, r->msecLast % 1000LL
 , (long long unsigned)r->msecReceived, datestr3, (long long unsigned)r->msecReceived % 1000L
-, r->proto, ProtoString(r->proto, 0), r->tcp_flags, FlagsString(r->tcp_flags));
+, r->proto, ProtoString(r->proto, 0)
+, r->proto == IPPROTO_TCP ? r->tcp_flags : 0, FlagsString(r->proto == IPPROTO_TCP ? r->tcp_flags :0));
 	s += len;
 	size -= len;
 
