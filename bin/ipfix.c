@@ -488,12 +488,12 @@ static uint32_t MapElement(uint16_t Type, uint16_t Length, uint32_t order, uint3
 			return 0;
 	}
 
-	cache.input_order[order].type	= Type;
 
 	int index = cache.lookup_info[Type].index;
 	if ( index ) {
 		while ( index && ipfix_element_map[index].id == Type ) {
 			if ( Length == ipfix_element_map[index].length ) {
+				cache.input_order[order].type	= Type;
 				cache.lookup_info[Type].found  = 1;
 				cache.lookup_info[Type].length = Length;
 				cache.lookup_info[Type].index  = index;
@@ -1401,7 +1401,6 @@ int i;
 				NextElement++;
 			}
 
-
 			// do we store this extension? enabled != 0
 			// more than 1 ipfix tag may map to an extension - so count this extension once only
 			uint32_t ext_id = MapElement(Type, Length, i, EnterpriseNumber);
@@ -1414,9 +1413,9 @@ int i;
 
 		}
 
-		dbg_printf("Processed: %u\n", size_required);
+		dbg_printf("Processed: %u, num_extensions found: %u\n", size_required, num_extensions);
 		// compact input order and reorder sequencer
-		if ( compact_input_order() ) {
+		if ( num_extensions && compact_input_order() ) {
 			// valid template with common inout fields
 
 			// as the router IP address extension is not part announced in a template, we need to deal with it here
@@ -1802,7 +1801,8 @@ char				*string;
 
 			if ( input_offset > size_left ) {
 				// overrun
-				LogError("Process ipfix: buffer overrun!! input_offset: %i > size left data buffer: %u\n", input_offset, size_left);
+				LogError("Process ipfix: buffer overrun!! input_offset: %i > size left data buffer: %u", input_offset, size_left);
+				dbg_printf("Buffer overrun!! input_offset: %i > size left data buffer: %u\n", input_offset, size_left);
 				return;
 			} 
 

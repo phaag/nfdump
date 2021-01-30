@@ -1235,7 +1235,7 @@ static void String_FlowEndReason(master_record_t *r, char *string) {
 
 static void String_Flags(master_record_t *r, char *string) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", FlagsString(r->tcp_flags));
+	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", FlagsString(r->prot == IPPROTO_TCP ? r->tcp_flags :0));
 	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_Flags

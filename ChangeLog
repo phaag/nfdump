@@ -1,3 +1,7 @@
+2021-01-30
+- Fix processing deoding error for yaf exporter
+- Zero out tcp flags for non TCP records
+
 2021-01-16
 - Add reverse element enterprise ID 29305 for counter values
 - Add biFlow direction element 239

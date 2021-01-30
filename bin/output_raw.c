@@ -187,7 +187,8 @@ extension_map_t	*extension_map = r->map_ref;
 "  (src)tos     =               %3u\n"
 "  (in)packets  =        %10llu\n"
 "  (in)bytes    =        %10llu\n",
-	r->fwd_status, r->tcp_flags, FlagsString(r->tcp_flags), r->biFlowDir, biFlowString(r->biFlowDir), 
+	r->fwd_status, r->prot == IPPROTO_TCP ? r->tcp_flags : 0, FlagsString(r->prot == IPPROTO_TCP ? r->tcp_flags :0), 
+	r->biFlowDir, biFlowString(r->biFlowDir), 
 	r->flowEndReason, FlowEndString(r->flowEndReason), r->prot, 
 	ProtoString(r->prot, 0), r->tos, (unsigned long long)r->dPkts, (unsigned long long)r->dOctets);
 
