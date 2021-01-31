@@ -51,82 +51,6 @@
 
 static void DumpHex(const void* data, size_t size);
 
-/*
-static int __attribute__((__unused__))calculateRecordLength(sequencer_t *sequencer, void *in, size_t inSize);
-
-static int __attribute__((__unused__))calculateRecordLength(sequencer_t *sequencer, void *in, size_t inSize) {
-uint32_t	ExtSize[MAXELEMENTS];
-
-	memset((void *)ExtSize, 0, sizeof(ExtSize));
-
-	uint32_t totalInputLength  = 0;
-
-	dbg_printf("calculateRecordLength(): check %u sequences\n", sequencer->numSequences);
-	// input/output length checks ok - move data
-	for (int i=0; i<sequencer->numSequences; i++) {
-		// check for dyn length element
-		uint16_t inLength  = sequencer->sequenceTable[i].inputLength;
-		uint32_t ExtID = sequencer->sequenceTable[i].extensionID;
-
-		if (sequencer->sequenceTable[i].inputLength == 0xFFFF) { 	// dyn length
-			uint16_t len = ((uint8_t *)in)[0];
-			if ( len < 255 ) {
-				inLength = len;
-				in += 1;	// adjust var lenth field
-				totalInputLength += 1;
-				inSize -= 1;
-			} else {
-				inLength = Get_val16(in+1);
-				in += 3;	// adjust var length fields
-				totalInputLength += 3;
-				inSize -= 3;
-			}
-			dbg_printf(" found var length field %u, type %u: -> %u\n",
-				i, sequencer->sequenceTable[i].inputType, inLength);
-			dbg_printf("   mapped to ext %u size %lu\n", 
-				ExtID, sizeof(elementHeader_t) + inLength);
-			// output size equals input size
-			ExtSize[ExtID] = sizeof(elementHeader_t) + inLength;
-		} else {
-			dbg_printf(" fixed length field %u, type %u: -> %u\n",
-				i, sequencer->sequenceTable[i].inputType, inLength);
-			dbg_printf("   mapped to ext %u size %u\n", 
-				ExtID, extensionTable[ExtID].size);
-			ExtSize[ExtID] = extensionTable[ExtID].size;
-		}
-		
-		// input data length error
-		if ( inSize < inLength ) {
-			LogError(" inSize(%u) < inLength(%u) in %s line %d", 
-				inSize, inLength, __FILE__, __LINE__);
-			return 0;
-		}
-
-		inSize -= inLength;
-		totalInputLength += inLength;
-		in += inLength;
-	}
-
-	sequencer->inLength  = totalInputLength;
-
-	if ( sequencer->hasVarOutLength ) {
-		uint32_t totalOutputLength = 0;
-		for (int i=1; i<MAXELEMENTS; i++ ) {
-			totalOutputLength += ExtSize[i];
-		}
-		sequencer->outLength = totalOutputLength;
-		dbg_printf("calculateRecordLength(): Calculated input length: %lu, output length: %lu\n",
-			sequencer->inLength, sequencer->outLength);
-	} else {
-		dbg_printf("calculateRecordLength(): Calculated input length: %lu, fix output length: %lu\n",
-			sequencer->inLength, sequencer->outLength);
-	}
-
-	return sequencer->outLength;
-
-} // End of calculateRecordLength
-*/
-
 __attribute__((unused)) static void DumpHex(const void* data, size_t size) {
 	char ascii[17];
 	size_t i, j;
@@ -301,81 +225,81 @@ static sequencer_t *GetSubTemplateSequencer(sequencer_t *sequencer, uint16_t tem
 	}
 }
 
-/*
-static int ProcessSubTemplate(uint16_t type) {
+static int ProcessSubTemplate(sequencer_t *sequencer, uint16_t type, 
+	void *inBuff, uint16_t inLength, void *outBuff, size_t outSize, uint64_t *stack) {
 
-	if (type == subTemplateListType || type == subTemplateMultiListType) {
-		dbg_printf("[%i] Sub template %u, length %u: \n",
-			i, sequencer->sequenceTable[i].inputType, inLength);
-		if ( type == subTemplateMultiListType ) {
-			uint8_t *Semantic = (uint8_t *)inBuff;
-			void *subBuff = inBuff + 1;
-			dbg_printf("Semantic multilist template: %u\n", *Semantic);
-			int32_t length = inLength-1;
-			uint16_t *subTemplateID = subBuff;
-			uint16_t *subTemplateSize = subBuff+2;
-			while ( length > 0 ) {
-				dbg_printf(" Sub template ID: %u, length: %u\n", ntohs(*subTemplateID), ntohs(*subTemplateSize));
-				sequencer_t *subSequencer = GetSubTemplateSequencer(sequencer, ntohs(*subTemplateID));
-				if ( subSequencer ) {
-					int ret = SequencerRun(subSequencer, subBuff+4, ntohs(*subTemplateSize), outBuff, outSize, stack);
-					sequencer->outLength += subSequencer->outLength;
-					dbg_printf("Sub sequencer returns: %d\n", ret);
-					switch (ret) {
-						case SEQ_ERROR:
-							return SEQ_ERROR;
-							break;
-						case SEQ_MEM_ERR:
-							return SEQ_MEM_ERR;
-							break;
-					}
-				}
-				subBuff += ntohs(*subTemplateSize);
-				subTemplateID = subBuff;
-				assert(length >= ntohs(*subTemplateSize));
-				length -= ntohs(*subTemplateSize);
-				subTemplateSize = subTemplateID + 1;
-			}
-			dbg_printf("Processed sub element length: %u\n", inLength);
-		} else if ( type == subTemplateListType ) {
-			uint8_t *Semantic = (uint8_t *)inBuff;
-			dbg_printf("Semantic sub template: %u\n", *Semantic);
-			uint8_t *subTemplateID = inBuff+1;
-			dbg_printf(" Sub template ID: %u\n", ntohs(*subTemplateID));
-			sequencer_t *subSequencer = GetSubTemplateSequencer(sequencer, ntohs(*subTemplateID));
+	if ( inLength < 1 )
+		return SEQ_ERROR;
+
+	dbg_printf("Process sub template\n");
+	uint8_t Semantic = *((uint8_t *)inBuff);
+	inBuff++;
+	inLength--;
+	if ( type == subTemplateMultiListType ) {
+		dbg_printf("Semantic multilist template: %u\n", Semantic);
+		while ( inLength > 4 ) {
+			uint16_t subTemplateID   = ntohs(*((uint16_t *)inBuff));
+			uint16_t subTemplateSize = ntohs(*((uint16_t *)(inBuff+2)));
+			if ( subTemplateSize > inLength ) 
+				return SEQ_ERROR;
+
+			dbg_printf(" Sub template ID: %u, length: %u\n", subTemplateID, subTemplateSize);
+			sequencer_t *subSequencer = GetSubTemplateSequencer(sequencer, subTemplateID);
 			if ( subSequencer ) {
-				int ret = SequencerRun(subSequencer, inBuff+3, inLength-3, outBuff, outSize, stack);
-				dbg_printf("Sub sequencer returns: %d\n", ret);
-				switch (ret) {
-					case SEQ_ERROR:
-						return SEQ_ERROR;
-						break;
-					case SEQ_MEM_ERR:
-						return SEQ_MEM_ERR;
-						break;
-				}
+				int ret = SequencerRun(subSequencer, inBuff+4, subTemplateSize, outBuff, outSize, stack);
+				sequencer->outLength += subSequencer->outLength;
+				dbg_printf("Sub sequencer returns: %d, processed inLength: %zu, outLength: %zu\n", 
+					ret, subSequencer->inLength, subSequencer->outLength);
+				if ( ret != SEQ_OK )
+					return ret;
+			} else {
+				dbg_printf("No sub sequencer for id: %d\n", subTemplateID);
 			}
-			dbg_printf("Processed sub element length: %u\n", inLength);
-		} else {
-			dbg_printf("Skipped sub template: %u\n", type);
+
+			inBuff += subTemplateSize;
+			inLength -= subTemplateSize;
 		}
+		dbg_printf("End of multilist processing\n");
+	} else if ( type == subTemplateListType ) {
+		dbg_printf("Semantic sub template: %u\n", Semantic);
+		if ( inLength < 2 )
+			return SEQ_ERROR;
+
+		uint16_t subTemplateID = ntohs(*((uint16_t *)inBuff));
+		dbg_printf(" Sub template ID: %u\n", subTemplateID);
+		sequencer_t *subSequencer = GetSubTemplateSequencer(sequencer, subTemplateID);
+		if ( subSequencer ) {
+			int ret = SequencerRun(subSequencer, inBuff+2, inLength-2, outBuff, outSize, stack);
+			dbg_printf("Sub sequencer returns: %d\n", ret);
+			if ( ret != SEQ_OK )
+				return ret;
+		} else {
+			dbg_printf("No sub sequencer for id: %d\n", subTemplateID);
+		}
+		dbg_printf("End of single list processing\n");
+	} else {
+		dbg_printf("Skipped unknown sub template: %u\n", type);
 	}
+
+	return SEQ_OK;
+
 } // End of ProcessSubTemplate
-*/
+
 
 // SequencerRun requires calling CalcOutRecordSize first 
 int SequencerRun(sequencer_t *sequencer, void *inBuff, size_t inSize, void *outBuff, size_t outSize, uint64_t *stack) {
 static int nestLevel = 0;
 
+	nestLevel++;
 	dbg_printf("[%u] Run sequencer ID: %u, inSize: %zu, outSize: %zu\n", 
 		nestLevel, sequencer->templateID, inSize, outSize);
 
 	if ( inSize == 0 ) {
 		dbg_printf("[%u] End sequencer ID: %u, Sip 0 input stream\n", nestLevel, sequencer->templateID);
-		return 0;
+		nestLevel--;
+		return SEQ_OK;
 	}
 
-	nestLevel++;
 	if ( nestLevel > 16 ) {
 		LogError("SequencerRun() sub template run nested too deeply");
 		nestLevel--;
@@ -429,10 +353,19 @@ static int nestLevel = 0;
 		// check for skip sequence
 		if ( ExtID == EXnull && stackID == 0 ) {
 			uint16_t type = sequencer->sequenceTable[i].inputType;
-			dbg_printf("[%i] Skip element %u, length %u: \n",
-				i, type, inLength);
-			dbg_printf("Dump skip element length: %u\n", inLength);
 			DumpHex(inBuff,inLength);
+			if (type == subTemplateListType || type == subTemplateMultiListType) {
+				dbg_printf("[%i:%i] Sub template %u, length %u: \n", nestLevel, i, type, inLength);
+				int ret = ProcessSubTemplate(sequencer, type, inBuff, inLength, outBuff, outSize, stack);
+				if ( ret != SEQ_OK ) {
+					nestLevel--;
+					return ret;
+				}
+			} else {
+				dbg_printf("[%i:%i] Skip element %u, length %u: \n",
+					nestLevel, i, type, inLength);
+				dbg_printf("Dump skip element length: %u\n", inLength);
+			}
 			inBuff += inLength;
 			totalInLength += inLength;
 			continue;
@@ -452,7 +385,8 @@ static int nestLevel = 0;
 			if ( (recordHeaderV3->size + elementSize) > outSize ) {
 				dbg_printf("Size error add output element: header size: %u, element size: %zu, output size: %zu\n", 
 					recordHeaderV3->size, elementSize, outSize);
-				return 0;
+				nestLevel--;
+				return SEQ_MEM_ERR;
 			} else {
 				dbg_printf("Add output element at: header size: %u, element size: %zu, output size: %zu\n", 
 					recordHeaderV3->size, elementSize, outSize);
@@ -476,8 +410,8 @@ static int nestLevel = 0;
 
 		// check for placeholder sequence
 		if (inLength == 0) {
-			dbg_printf("[%i] put placeholder for extension: %u %s\n",
-				i, ExtID, extensionTable[ExtID].name );
+			dbg_printf("[%i:%i] put placeholder for extension: %u %s\n",
+				nestLevel, i, ExtID, extensionTable[ExtID].name );
 			continue;
 		}
 
@@ -595,9 +529,10 @@ void PrintSequencer(sequencer_t *sequencer) {
 	printf("Outlength        : %lu\n", sequencer->outLength);
 	printf("Sequences\n");
 	for (int i=0; i<sequencer->numSequences; i++) {
-		printf("[%u] inputType: %u, inputLength: %d, extensionID: %u, outputLength: %u, offsetRel: %lu, stackID: %u\n",
+		int extID = sequencer->sequenceTable[i].extensionID;
+		printf("[%u] inputType: %u, inputLength: %d, extension: %s(%u), outputLength: %u, offsetRel: %lu, stackID: %u\n",
 		i, sequencer->sequenceTable[i].inputType, sequencer->sequenceTable[i].inputLength,
-		sequencer->sequenceTable[i].extensionID, sequencer->sequenceTable[i].outputLength,
+		extensionTable[extID].name, extID, sequencer->sequenceTable[i].outputLength,
 		sequencer->sequenceTable[i].offsetRel, sequencer->sequenceTable[i].stackID);
 	}
 	printf("\n");

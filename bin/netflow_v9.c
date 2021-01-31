@@ -1007,7 +1007,6 @@ uint8_t		*inBuff;
 	else
 		receivedSize = EXipReceivedV4Size;
 
-
 	while (size_left > 0) {
 		void *outBuff;
 
@@ -1046,7 +1045,7 @@ uint8_t		*inBuff;
 		uint64_t stack[STACK_MAX];
 		memset((void *)stack, 0, sizeof(stack));
 		// copy record data
-		int ret = SequencerRun(sequencer, inBuff, size_left, outBuff, sizeof(recordHeaderV3_t) + outRecordSize, stack);
+		int ret = SequencerRun(sequencer, inBuff, size_left, outBuff, buffAvail, stack);
 		switch (ret) {
 			case SEQ_OK:
 				break;
@@ -1062,7 +1061,7 @@ uint8_t		*inBuff;
 
 				// request new and empty buffer
 				LogInfo("Process v9: Sequencer run - resize output buffer");
-				buffAvail = CheckBufferSpace(fs->nffile, 0);
+				buffAvail = CheckBufferSpace(fs->nffile, buffAvail+1);
 				if ( buffAvail == 0 ) {
 					// this should really never occur, because the buffer gets flushed ealier
 					LogError("Process_v9: output buffer size error. Skip ipfix record processing");

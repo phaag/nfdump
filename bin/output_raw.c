@@ -502,13 +502,32 @@ union {
 
 } // End of stringsEXnbarAppID
 
-static void stringsEXpayload(char *s, size_t size, master_record_t *r) {
+static void stringsEXinPayload(char *s, size_t size, master_record_t *r) {
 
 	snprintf(s, size-1,
-"  payload      =             %s\n"
-, r->payload);
+"  in payload   =        %10u\n"
+, r->inPayloadLength);
 
-} // End of stringsEXnelXlatePort
+} // End of stringsEXinPayload
+
+static void stringsEXoutPayload(char *s, size_t size, master_record_t *r) {
+
+	snprintf(s, size-1,
+"  out payload  =        %10u\n"
+, r->outPayloadLength);
+
+} // End of stringsEXoutPayload
+
+static void stringsEXdnsInfo(char *s, size_t size, master_record_t *r) {
+
+	snprintf(s, size-1,
+"  dns response =               %3u %s\n"
+"  dns TTL      =        %10u\n"
+"  dns Qname    =        %s\n"
+, r->ResponseCode, r->ResponseCode == 0 ? "query" : "response"
+, r->TTL, r->QnameLength ? r->Qname : "<empty>");
+
+} // End of stringsEXdnsInfo
 
 
 void raw_prolog(void) {
@@ -664,8 +683,14 @@ char elementString[MAXELEMENTS * 5];
 			case EXnbarAppID:
 				stringsEXnbarApp(_s, slen, r);
 				break;
-			case EXpayloadID:
-				stringsEXpayload(_s, slen, r);
+			case EXinPayloadID:
+				stringsEXinPayload(_s, slen, r);
+				break;
+			case EXoutPayloadID:
+				stringsEXoutPayload(_s, slen, r);
+				break;
+			case EXdnsInfoID:
+				stringsEXdnsInfo(_s, slen, r);
 				break;
 			default:
 				dbg_printf("Extension %i not yet implemented\n", r->exElementList[i]);

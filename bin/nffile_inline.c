@@ -65,6 +65,7 @@ static inline int CheckBufferSpace(nffile_t *nffile, size_t required) {
 		} 
 	}
 
+	dbg_printf("CheckBuffer returns %u\n", WRITE_BUFFSIZE - nffile->block_header->size);
 	return WRITE_BUFFSIZE - nffile->block_header->size;
 
 } // End of CheckBufferSpace
@@ -300,17 +301,47 @@ uint32_t size = sizeof(recordHeaderV3_t);
  					memcpy(output_record->nbarAppID, EXnbarApp->id, elementHeader->length - sizeof(elementHeader_t));
 				}
 			} break;
-			case EXpayloadID: {
-				EXpayload_t *EXpayload = (EXpayload_t *)((void *)elementHeader + sizeof(elementHeader_t));
+			case EXinPayloadID: {
+				EXinPayload_t *EXinPayload = (EXinPayload_t *)((void *)elementHeader + sizeof(elementHeader_t));
 				int dataLength = elementHeader->length - sizeof(elementHeader_t);
 				if ( dataLength <= 0 ) {
 					LogError("Invalid payload data length");
+					output_record->inPayloadLength = 0;
+					output_record->inPayload = NULL;
+				} else {
+					output_record->inPayloadLength = dataLength;
+					output_record->inPayload = malloc(dataLength);
+					memcpy(output_record->inPayload, EXinPayload->data, dataLength);
 				}
+			} break;
+			case EXoutPayloadID: {
+				EXoutPayload_t *EXoutPayload = (EXoutPayload_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				int dataLength = elementHeader->length - sizeof(elementHeader_t);
+				if ( dataLength <= 0 ) {
+					LogError("Invalid payload data length");
+					output_record->outPayloadLength = 0;
+					output_record->outPayload = NULL;
+				} else {
+					output_record->outPayloadLength = dataLength;
+					output_record->outPayload = malloc(dataLength);
+					memcpy(output_record->outPayload, EXoutPayload->data, dataLength);
+				}
+			} break;
+			case EXdnsInfoID: {
+				EXdnsInfo_t *EXdnsInfo = (EXdnsInfo_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->ResponseCode = EXdnsInfo->ResponseCode;
+				output_record->TTL = EXdnsInfo->TTL;
 
-				output_record->payload = malloc(dataLength+1);
-				memcpy(output_record->payload, EXpayload->data, dataLength);
-				output_record->payload[dataLength] = '\0';
-
+				output_record->QnameLength = elementHeader->length - sizeof(elementHeader_t) - sizeof(EXdnsInfo_t);
+				if ( output_record->QnameLength > 256 ) {
+					output_record->QnameLength = 0;
+					output_record->Qname = NULL;
+					LogError("Invalid dns Qname data length");
+				} else {
+					output_record->Qname = malloc(output_record->QnameLength+1);
+					memcpy(output_record->Qname, EXdnsInfo->Qname, output_record->QnameLength);
+					output_record->Qname[output_record->QnameLength] = '\0';
+				}
 			} break;
 			default:
 				LogError("Unknown extension '%u'\n", elementHeader->type);

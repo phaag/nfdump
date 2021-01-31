@@ -293,10 +293,27 @@ typedef struct ipfix_template_elements_e_s {
 // Private Enterprise Numbers
 #define IPFIX_ReverseInformationElement		29305
 
+#define YAF_payload							18
+#define YAF_dnsQueryResponse				174
+#define YAF_dnsQName						179
+#define YAF_dnsTTL							199
+
 #define LOCAL_IPv4Received					32764
 #define LOCAL_IPv6Received					32765
 #define LOCAL_msecTimeReceived				32766
-#define LOCAL_payload						32767
+#define LOCAL_inPayload						32767
+#define LOCAL_outPayload					32768
+
+#define LOCAL_ResponseCode					32769
+#define LOCAL_Authoritative					32770
+#define LOCAL_QueryResponse					32771
+#define LOCAL_RRsection						32772
+#define LOCAL_QueryType						32773
+#define LOCAL_ID							32774
+#define LOCAL_TTL							32775
+#define LOCAL_Qname							32776
+
+#define VENDOR_BIT_REVERSE					0x4000
 
 /* prototypes */
 int Init_IPFIX(int verbose, uint32_t sampling, uint32_t overwrite);

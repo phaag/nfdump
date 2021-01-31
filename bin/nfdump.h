@@ -700,14 +700,29 @@ typedef struct master_record_s {
 #	define OffsetNbarAppID 		(offsetof(master_record_t, nbarAppID) >> 3)
 
 
-	// last entry in master record 
 	uint16_t	exElementList[64];	// XXX fix number of elements
 
 	// reference to exporter
 	exporter_info_record_t	*exp_ref;
 
-	char	*payload;
-	char	*label;
+	uint32_t inPayloadLength;
+	uint32_t outPayloadLength;
+	char *inPayload;
+	char *outPayload;
+
+	// dns
+	uint8_t	 ResponseCode;
+	uint8_t	 Authoritative;
+	uint8_t	 QueryResponse; // query or response
+	uint8_t	 RRsection;
+	uint16_t QueryType;
+	uint16_t ID;
+	uint32_t TTL;
+	uint32_t QnameLength;
+	char	 *Qname;
+
+	// last entry in master record 
+	char *label;
 #	define Offset_MR_LAST	offsetof(master_record_t, label)
 } master_record_t;
 

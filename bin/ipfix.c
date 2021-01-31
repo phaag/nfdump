@@ -184,8 +184,13 @@ static const struct ipfixTranslationMap_s {
 	{ IPFIX_samplerId,					 Stack_ONLY,       EXnull,			  0,				STACK_SAMPLER, "sampler ID" },
 	{ IPFIX_selectorId,					 Stack_ONLY,       EXnull,			  0,				STACK_SAMPLER, "sampler ID" },
 	// payload
-	{ LOCAL_payload,					 SIZEdata,       EXpayloadID,		  OFFdata,			STACK_NONE, "payload" },
-	
+	{ LOCAL_inPayload,					 SIZEdata,       	EXinPayloadID,	  OFFdata,			STACK_NONE, "in payload" },
+	{ LOCAL_outPayload,					 SIZEdata,       	EXoutPayloadID,	  OFFdata,			STACK_NONE, "out payload" },
+	// dns
+	{ LOCAL_ResponseCode,				 SIZEResponseCode,  EXdnsInfoID,	  OFFResponseCode,	STACK_NONE, "dns respons code" },
+	{ LOCAL_TTL,						 SIZETTL,     		EXdnsInfoID,	  OFFTTL,			STACK_NONE, "dns TTL" },
+	{ LOCAL_Qname,						 SIZEQname,       	EXdnsInfoID,	  OFFQname,			STACK_NONE, "dns query name" },
+
 	// End of table
 	{ 0,            0, 0,  0, STACK_NONE, NULL },
 
@@ -200,6 +205,7 @@ static const struct ipfixReverseMap_s {
 	{ IPFIX_packetTotalCount, IPFIX_postPacketTotalCount},
 	{ IPFIX_octetDeltaCount, IPFIX_postOctetDeltaCount},
 	{ IPFIX_packetDeltaCount, IPFIX_postPacketDeltaCount},
+	{ LOCAL_inPayload, LOCAL_outPayload},
 	{ 0, 0},
 };
 
@@ -253,11 +259,25 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
 			break;
 		case 6871:	// yaf CERT Coordination Centre
 			// map yaf types here
-			if ( type == 18 ) 
-				type = LOCAL_payload;
-			else {
-				dbg_printf(" Skip yaf CERT Coordination Centre\n");
-				return -1;
+			switch (type) {
+				case YAF_payload:
+					type = LOCAL_inPayload;
+					break;
+				case 16402: // VENDOR_BIT_REVERSE | 18
+					type = LOCAL_outPayload;
+					break;
+				case YAF_dnsQueryResponse:
+					type = LOCAL_ResponseCode;
+					break;
+				case YAF_dnsTTL:
+					type = LOCAL_TTL;
+					break;
+				case YAF_dnsQName:
+					type = LOCAL_Qname;
+					break;
+				default:
+					dbg_printf(" Skip yaf CERT Coordination Centre\n");
+					return -1;
 			}
 			break;
 		case IPFIX_ReverseInformationElement:
@@ -628,6 +648,8 @@ static inline int SetSequence(sequence_t *sequenceTable, uint32_t numSequences,
 			found = 1;
 		} else {
 			sequenceTable[numSequences].inputType = 0;
+			dbg_printf(" Skip sequence for unknown type: %u, enterprise: %u, length: %u\n",
+				Type, EnterpriseNumber, Length);
 		}
 
 		sequenceTable[numSequences].inputLength	 = Length;
@@ -635,8 +657,6 @@ static inline int SetSequence(sequence_t *sequenceTable, uint32_t numSequences,
 		sequenceTable[numSequences].outputLength = 0;
 		sequenceTable[numSequences].offsetRel	 = 0;
 		sequenceTable[numSequences].stackID		 = STACK_NONE;
-		dbg_printf(" Skip sequence for unknown type: %u, enterprise: %u, length: %u\n",
-			Type, EnterpriseNumber, Length);
 	} else {
 		found = 1;
 		sequenceTable[numSequences].inputType	 = ipfixTranslationMap[index].id;
@@ -882,8 +902,6 @@ uint16_t	tableID, field_count, scope_field_count, offset;
 		if ( Enterprise ) {
 			size_required += 4;
 			if ( size_left < 4 ) {
-//				LogError("Process_ipfix: [%u] option template length error: size left %u too small", 
-//					exporter->info.id, size_left);
 				dbg_printf("option template length error: size left %u too small\n", size_left);
 				return;
 			}
@@ -1112,7 +1130,7 @@ printf("Sequencer inLength: %zu, outLength: %zu\n", sequencer->inLength, sequenc
 		uint64_t stack[STACK_MAX];
 		memset((void *)stack, 0, sizeof(stack));
 		// copy record data
-		int ret = SequencerRun(sequencer, inBuff, size_left, outBuff, sizeof(recordHeaderV3_t) + outRecordSize, stack);
+		int ret = SequencerRun(sequencer, inBuff, size_left, outBuff, buffAvail, stack);
 		switch (ret) {
 			case SEQ_OK:
 				break;
@@ -1128,7 +1146,7 @@ printf("Sequencer inLength: %zu, outLength: %zu\n", sequencer->inLength, sequenc
 
 				// request new and empty buffer
 				LogInfo("Process ipfix: Sequencer run - resize output buffer");
-				buffAvail = CheckBufferSpace(fs->nffile, 0);
+				buffAvail = CheckBufferSpace(fs->nffile, buffAvail+1);
 				if ( buffAvail == 0 ) {
 					// this should really never occur, because the buffer gets flushed ealier
 					LogError("Process_ipfix: output buffer size error. Skip ipfix record processing");
