@@ -33,7 +33,7 @@
 
 #include <stdbool.h>
 
-typedef void (*printer_t)(void *, char **, int);
+typedef void (*printer_t)(FILE *, void *, int);
 typedef void (*func_prolog_t)(void);
 typedef void (*func_epilog_t)(void);
 

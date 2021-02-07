@@ -106,7 +106,8 @@ uint32_t size = sizeof(recordHeaderV3_t);
 	elementHeader = (elementHeader_t *)(p + sizeof(recordHeaderV3_t));
 	for (int i=0; i<v3Record->numElements; i++ ) {
 		int skip = 0;
-		dbg_printf("[%i] next extension: %u: %s\n", i, elementHeader->type, extensionTable[elementHeader->type].name);
+		dbg_printf("[%i] next extension: %u: %s\n", i, elementHeader->type, 
+			elementHeader->type < MAXELEMENTS ? extensionTable[elementHeader->type].name : "<unknown>");
 		switch (elementHeader->type) {
 			case EXnull:
 				fprintf(stderr, "ExpandRecord_v3() Found unexpected NULL extension\n");
@@ -302,7 +303,7 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				}
 			} break;
 			case EXinPayloadID: {
-				EXinPayload_t *EXinPayload = (EXinPayload_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				void *data = (void *)((void *)elementHeader + sizeof(elementHeader_t));
 				int dataLength = elementHeader->length - sizeof(elementHeader_t);
 				if ( dataLength <= 0 ) {
 					LogError("Invalid payload data length");
@@ -311,11 +312,11 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				} else {
 					output_record->inPayloadLength = dataLength;
 					output_record->inPayload = malloc(dataLength);
-					memcpy(output_record->inPayload, EXinPayload->data, dataLength);
+					memcpy(output_record->inPayload, data, dataLength);
 				}
 			} break;
 			case EXoutPayloadID: {
-				EXoutPayload_t *EXoutPayload = (EXoutPayload_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				void *data = (void *)((void *)elementHeader + sizeof(elementHeader_t));
 				int dataLength = elementHeader->length - sizeof(elementHeader_t);
 				if ( dataLength <= 0 ) {
 					LogError("Invalid payload data length");
@@ -324,23 +325,7 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				} else {
 					output_record->outPayloadLength = dataLength;
 					output_record->outPayload = malloc(dataLength);
-					memcpy(output_record->outPayload, EXoutPayload->data, dataLength);
-				}
-			} break;
-			case EXdnsInfoID: {
-				EXdnsInfo_t *EXdnsInfo = (EXdnsInfo_t *)((void *)elementHeader + sizeof(elementHeader_t));
-				output_record->ResponseCode = EXdnsInfo->ResponseCode;
-				output_record->TTL = EXdnsInfo->TTL;
-
-				output_record->QnameLength = elementHeader->length - sizeof(elementHeader_t) - sizeof(EXdnsInfo_t);
-				if ( output_record->QnameLength > 256 ) {
-					output_record->QnameLength = 0;
-					output_record->Qname = NULL;
-					LogError("Invalid dns Qname data length");
-				} else {
-					output_record->Qname = malloc(output_record->QnameLength+1);
-					memcpy(output_record->Qname, EXdnsInfo->Qname, output_record->QnameLength);
-					output_record->Qname[output_record->QnameLength] = '\0';
+					memcpy(output_record->outPayload, data, dataLength);
 				}
 			} break;
 			default:

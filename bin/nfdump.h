@@ -710,17 +710,6 @@ typedef struct master_record_s {
 	char *inPayload;
 	char *outPayload;
 
-	// dns
-	uint8_t	 ResponseCode;
-	uint8_t	 Authoritative;
-	uint8_t	 QueryResponse; // query or response
-	uint8_t	 RRsection;
-	uint16_t QueryType;
-	uint16_t ID;
-	uint32_t TTL;
-	uint32_t QnameLength;
-	char	 *Qname;
-
 	// last entry in master record 
 	char *label;
 #	define Offset_MR_LAST	offsetof(master_record_t, label)

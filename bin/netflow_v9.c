@@ -1258,12 +1258,10 @@ uint8_t		*inBuff;
 		}
 
 		if ( printRecord ) {
-			char *string;
 			master_record_t master_record;
 			memset((void *)&master_record, 0, sizeof(master_record_t));
 			ExpandRecord_v3(recordHeaderV3, &master_record);
-		 	flow_record_to_raw(&master_record, &string, 0);
-			printf("%s\n", string);
+		 	flow_record_to_raw(stdout, &master_record, 0);
 		}
 
 		fs->nffile->block_header->size  += recordHeaderV3->size;

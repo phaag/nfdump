@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2020, Peter Haag
+ *  Copyright (c) 2019-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -48,24 +48,20 @@
 #include "nfxV3.h"
 #include "output_pipe.h"
 
-#define STRINGSIZE 10240
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
-
-static char data_string[STRINGSIZE];
 
 // record counter 
 static uint32_t recordCount;
 
 void pipe_prolog(void) {
 	recordCount = 0;
-	memset(data_string, 0, STRINGSIZE);
 } // End of pipe_prolog
 
 void pipe_epilog(void) {
 	// empty
 } // End of pipe_epilog
 
-void flow_record_to_pipe(void *record, char ** s, int tag) {
+void flow_record_to_pipe(FILE *stream, void *record, int tag) {
 uint32_t	sa[4], da[4];
 int			af;
 master_record_t *r = (master_record_t *)record;
@@ -87,14 +83,10 @@ master_record_t *r = (master_record_t *)record;
     da[2] = ( r->V6.dstaddr[1] >> 32 ) & 0xffffffffLL;
     da[3] = r->V6.dstaddr[1] & 0xffffffffLL;
 
-	snprintf(data_string, STRINGSIZE-1 ,"%i|%llu|%llu|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%llu|%llu",
+	fprintf(stream, "%i|%llu|%llu|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%llu|%llu",
 		af, (long long unsigned)r->msecFirst, (long long unsigned)r->msecLast, r->proto, 
 		sa[0], sa[1], sa[2], sa[3], r->srcPort, da[0], da[1], da[2], da[3], r->dstPort, 
 		r->srcas, r->dstas, r->input, r->output,
 		r->tcp_flags, r->tos, (unsigned long long)r->inPackets, (unsigned long long)r->inBytes);
-
-	data_string[STRINGSIZE-1] = 0;
-
-	*s = data_string;
 
 } // End of flow_record_to_pipe

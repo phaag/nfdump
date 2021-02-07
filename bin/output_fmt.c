@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -54,11 +54,11 @@
 #include "output_util.h"
 #include "output_fmt.h"
 
-typedef void (*string_function_t)(master_record_t *, char *);
+typedef void (*string_function_t)(FILE *, master_record_t *);
 
 static struct token_list_s {
-	string_function_t	string_function;	// function generation output string
-	char				*string_buffer;		// buffer for output string
+	string_function_t	string_function;	// function printing result to stream
+	char				*string_buffer;		// buffer for static output string
 } *token_list;
 
 static int	max_token_index	= 0;
@@ -68,18 +68,16 @@ static int	token_index		= 0;
 
 static char **format_list;		// ordered list of all individual strings formating the output line
 static int	max_format_index	= 0;
-static int	format_index		= 0;
 
 static int		do_tag 		 = 0;
 static int 		long_v6 	 = 0;
 static int		printPlain	 = 0;
 static double	duration;
 
-#define STRINGSIZE 10240
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
+#define STRINGSIZE 10240
 static char header_string[STRINGSIZE];
-static char data_string[STRINGSIZE];
 
 // tag 
 static char tag_string[2];
@@ -89,192 +87,190 @@ static char *ICMP_Port_decode(master_record_t *r);
 
 static void InitFormatParser(void);
 
-static void AddToken(int index);
+static void AddToken(int index, char *s);
 
-static void AddString(char *string);
+static void String_FlowFlags(FILE *stream, master_record_t *r);
 
-static void String_FlowFlags(master_record_t *r, char *string);
+static void String_Version(FILE *stream, master_record_t *r);
 
-static void String_Version(master_record_t *r, char *string);
+static void String_FirstSeen(FILE *stream, master_record_t *r);
 
-static void String_FirstSeen(master_record_t *r, char *string);
+static void String_LastSeen(FILE *stream, master_record_t *r);
 
-static void String_LastSeen(master_record_t *r, char *string);
+static void String_Received(FILE *stream, master_record_t *r);
 
-static void String_Received(master_record_t *r, char *string);
+static void String_FirstSeenRaw(FILE *stream, master_record_t *r);
 
-static void String_FirstSeenRaw(master_record_t *r, char *string);
+static void String_LastSeenRaw(FILE *stream, master_record_t *r);
 
-static void String_LastSeenRaw(master_record_t *r, char *string);
+static void String_ReceivedRaw(FILE *stream, master_record_t *r);
 
-static void String_ReceivedRaw(master_record_t *r, char *string);
+static void String_Duration(FILE *stream, master_record_t *r);
 
-static void String_Duration(master_record_t *r, char *string);
+static void String_Protocol(FILE *stream, master_record_t *r);
 
-static void String_Protocol(master_record_t *r, char *string);
+static void String_SrcAddr(FILE *stream, master_record_t *r);
 
-static void String_SrcAddr(master_record_t *r, char *string);
+static void String_DstAddr(FILE *stream, master_record_t *r);
 
-static void String_DstAddr(master_record_t *r, char *string);
+static void String_SrcAddrPort(FILE *stream, master_record_t *r);
 
-static void String_SrcAddrPort(master_record_t *r, char *string);
+static void String_DstAddrPort(FILE *stream, master_record_t *r);
 
-static void String_DstAddrPort(master_record_t *r, char *string);
+static void String_SrcNet(FILE *stream, master_record_t *r);
 
-static void String_SrcNet(master_record_t *r, char *string);
+static void String_DstNet(FILE *stream, master_record_t *r);
 
-static void String_DstNet(master_record_t *r, char *string);
+static void String_NextHop(FILE *stream, master_record_t *r);
 
-static void String_NextHop(master_record_t *r, char *string);
+static void String_BGPNextHop(FILE *stream, master_record_t *r);
 
-static void String_BGPNextHop(master_record_t *r, char *string);
+static void String_RouterIP(FILE *stream, master_record_t *r);
 
-static void String_RouterIP(master_record_t *r, char *string);
+static void String_SrcPort(FILE *stream, master_record_t *r);
 
-static void String_SrcPort(master_record_t *r, char *string);
+static void String_DstPort(FILE *stream, master_record_t *r);
 
-static void String_DstPort(master_record_t *r, char *string);
+static void String_ICMP_code(FILE *stream, master_record_t *r);
 
-static void String_ICMP_code(master_record_t *r, char *string);
-
-static void String_ICMP_type(master_record_t *r, char *string);
+static void String_ICMP_type(FILE *stream, master_record_t *r);
  
-static void String_SrcAS(master_record_t *r, char *string);
+static void String_SrcAS(FILE *stream, master_record_t *r);
 
-static void String_DstAS(master_record_t *r, char *string);
+static void String_DstAS(FILE *stream, master_record_t *r);
 
-static void String_NextAS(master_record_t *r, char *string);
+static void String_NextAS(FILE *stream, master_record_t *r);
 
-static void String_PrevAS(master_record_t *r, char *string);
+static void String_PrevAS(FILE *stream, master_record_t *r);
 
-static void String_Input(master_record_t *r, char *string);
+static void String_Input(FILE *stream, master_record_t *r);
 
-static void String_Output(master_record_t *r, char *string);
+static void String_Output(FILE *stream, master_record_t *r);
 
-static void String_InPackets(master_record_t *r, char *string);
+static void String_InPackets(FILE *stream, master_record_t *r);
 
-static void String_OutPackets(master_record_t *r, char *string);
+static void String_OutPackets(FILE *stream, master_record_t *r);
 
-static void String_InBytes(master_record_t *r, char *string);
+static void String_InBytes(FILE *stream, master_record_t *r);
 
-static void String_OutBytes(master_record_t *r, char *string);
+static void String_OutBytes(FILE *stream, master_record_t *r);
 
-static void String_Flows(master_record_t *r, char *string);
+static void String_Flows(FILE *stream, master_record_t *r);
 
-static void String_Tos(master_record_t *r, char *string);
+static void String_Tos(FILE *stream, master_record_t *r);
 
-static void String_Dir(master_record_t *r, char *string);
+static void String_Dir(FILE *stream, master_record_t *r);
 
-static void String_SrcTos(master_record_t *r, char *string);
+static void String_SrcTos(FILE *stream, master_record_t *r);
 
-static void String_DstTos(master_record_t *r, char *string);
+static void String_DstTos(FILE *stream, master_record_t *r);
 
-static void String_SrcMask(master_record_t *r, char *string);
+static void String_SrcMask(FILE *stream, master_record_t *r);
 
-static void String_DstMask(master_record_t *r, char *string);
+static void String_DstMask(FILE *stream, master_record_t *r);
 
-static void String_SrcVlan(master_record_t *r, char *string);
+static void String_SrcVlan(FILE *stream, master_record_t *r);
 
-static void String_DstVlan(master_record_t *r, char *string);
+static void String_DstVlan(FILE *stream, master_record_t *r);
 
-static void String_FwdStatus(master_record_t *r, char *string);
+static void String_FwdStatus(FILE *stream, master_record_t *r);
 
-static void String_BiFlowDir(master_record_t *r, char *string);
+static void String_BiFlowDir(FILE *stream, master_record_t *r);
 
-static void String_FlowEndReason(master_record_t *r, char *string);
+static void String_FlowEndReason(FILE *stream, master_record_t *r);
 
-static void String_Flags(master_record_t *r, char *string);
+static void String_Flags(FILE *stream, master_record_t *r);
 
-static void String_InSrcMac(master_record_t *r, char *string);
+static void String_InSrcMac(FILE *stream, master_record_t *r);
 
-static void String_OutDstMac(master_record_t *r, char *string);
+static void String_OutDstMac(FILE *stream, master_record_t *r);
 
-static void String_InDstMac(master_record_t *r, char *string);
+static void String_InDstMac(FILE *stream, master_record_t *r);
 
-static void String_OutSrcMac(master_record_t *r, char *string);
+static void String_OutSrcMac(FILE *stream, master_record_t *r);
 
-static void String_MPLS_1(master_record_t *r, char *string);
+static void String_MPLS_1(FILE *stream, master_record_t *r);
 
-static void String_MPLS_2(master_record_t *r, char *string);
+static void String_MPLS_2(FILE *stream, master_record_t *r);
 
-static void String_MPLS_3(master_record_t *r, char *string);
+static void String_MPLS_3(FILE *stream, master_record_t *r);
 
-static void String_MPLS_4(master_record_t *r, char *string);
+static void String_MPLS_4(FILE *stream, master_record_t *r);
 
-static void String_MPLS_5(master_record_t *r, char *string);
+static void String_MPLS_5(FILE *stream, master_record_t *r);
 
-static void String_MPLS_6(master_record_t *r, char *string);
+static void String_MPLS_6(FILE *stream, master_record_t *r);
 
-static void String_MPLS_7(master_record_t *r, char *string);
+static void String_MPLS_7(FILE *stream, master_record_t *r);
 
-static void String_MPLS_8(master_record_t *r, char *string);
+static void String_MPLS_8(FILE *stream, master_record_t *r);
 
-static void String_MPLS_9(master_record_t *r, char *string);
+static void String_MPLS_9(FILE *stream, master_record_t *r);
 
-static void String_MPLS_10(master_record_t *r, char *string);
+static void String_MPLS_10(FILE *stream, master_record_t *r);
 
-static void String_MPLSs(master_record_t *r, char *string);
+static void String_MPLSs(FILE *stream, master_record_t *r);
 
-static void String_Engine(master_record_t *r, char *string);
+static void String_Engine(FILE *stream, master_record_t *r);
 
-static void String_Label(master_record_t *r, char *string);
+static void String_Label(FILE *stream, master_record_t *r);
 
-static void String_ClientLatency(master_record_t *r, char *string);
+static void String_ClientLatency(FILE *stream, master_record_t *r);
 
-static void String_ServerLatency(master_record_t *r, char *string);
+static void String_ServerLatency(FILE *stream, master_record_t *r);
 
-static void String_AppLatency(master_record_t *r, char *string);
+static void String_AppLatency(FILE *stream, master_record_t *r);
 
-static void String_bps(master_record_t *r, char *string);
+static void String_bps(FILE *stream, master_record_t *r);
 
-static void String_pps(master_record_t *r, char *string);
+static void String_pps(FILE *stream, master_record_t *r);
 
-static void String_bpp(master_record_t *r, char *string);
+static void String_bpp(FILE *stream, master_record_t *r);
 
-static void String_ExpSysID(master_record_t *r, char *string);
+static void String_ExpSysID(FILE *stream, master_record_t *r);
 
 #ifdef NSEL
-static void String_EventTime(master_record_t *r, char *string);
+static void String_EventTime(FILE *stream, master_record_t *r);
 
-static void String_nfc(master_record_t *r, char *string);
+static void String_nfc(FILE *stream, master_record_t *r);
 
-static void String_evt(master_record_t *r, char *string);
+static void String_evt(FILE *stream, master_record_t *r);
 
-static void String_xevt(master_record_t *r, char *string);
+static void String_xevt(FILE *stream, master_record_t *r);
 
-static void String_sgt(master_record_t *r, char *string);
+static void String_sgt(FILE *stream, master_record_t *r);
 
-static void String_msecEvent(master_record_t *r, char *string);
+static void String_msecEvent(FILE *stream, master_record_t *r);
 
-static void String_iacl(master_record_t *r, char *string);
+static void String_iacl(FILE *stream, master_record_t *r);
 
-static void String_eacl(master_record_t *r, char *string);
+static void String_eacl(FILE *stream, master_record_t *r);
 
-static void String_xlateSrcAddr(master_record_t *r, char *string);
+static void String_xlateSrcAddr(FILE *stream, master_record_t *r);
 
-static void String_xlateDstAddr(master_record_t *r, char *string);
+static void String_xlateDstAddr(FILE *stream, master_record_t *r);
 
-static void String_xlateSrcPort(master_record_t *r, char *string);
+static void String_xlateSrcPort(FILE *stream, master_record_t *r);
 
-static void String_xlateDstPort(master_record_t *r, char *string);
+static void String_xlateDstPort(FILE *stream, master_record_t *r);
 
-static void String_xlateSrcAddrPort(master_record_t *r, char *string);
+static void String_xlateSrcAddrPort(FILE *stream, master_record_t *r);
 
-static void String_xlateDstAddrPort(master_record_t *r, char *string);
+static void String_xlateDstAddrPort(FILE *stream, master_record_t *r);
 
-static void String_userName(master_record_t *r, char *string);
+static void String_userName(FILE *stream, master_record_t *r);
 
-static void String_ivrf(master_record_t *r, char *string);
+static void String_ivrf(FILE *stream, master_record_t *r);
 
-static void String_evrf(master_record_t *r, char *string);
+static void String_evrf(FILE *stream, master_record_t *r);
 
-static void String_PortBlockStart(master_record_t *r, char *string);
+static void String_PortBlockStart(FILE *stream, master_record_t *r);
 
-static void String_PortBlockEnd(master_record_t *r, char *string);
+static void String_PortBlockEnd(FILE *stream, master_record_t *r);
 
-static void String_PortBlockStep(master_record_t *r, char *string);
+static void String_PortBlockStep(FILE *stream, master_record_t *r);
 
-static void String_PortBlockSize(master_record_t *r, char *string);
+static void String_PortBlockSize(FILE *stream, master_record_t *r);
 
 #endif
 
@@ -419,31 +415,23 @@ int Getv6Mode(void) {
 	return long_v6;
 } 
 
-void format_special(void *record, char ** s, int tag) {
+void format_special(FILE *stream, void *record, int tag) {
 master_record_t *r 		  = (master_record_t *)record;
-int	i, index;
 
 	do_tag		  = tag;
 	tag_string[0] = do_tag ? TAG_CHAR : '\0';
 	tag_string[1] = '\0';
 
 	duration = (r->msecLast - r->msecFirst) / 1000.0;
-	for ( i=0; i<token_index; i++ ) {
-		token_list[i].string_function(r, token_list[i].string_buffer);
+	for (int i=0; i<token_index; i++ ) {
+		if (token_list[i].string_function) {
+			token_list[i].string_function(stream, r);
+		} 
+		if (token_list[i].string_buffer) {
+			fprintf(stream, "%s", token_list[i].string_buffer);
+		}
 	}
-
-	// concat all strings together for the output line
-	i = 0;
-	for ( index=0; index<format_index; index++ ) {
-		int j = 0;
-		while ( format_list[index][j] && i < STRINGSIZE ) 
-			data_string[i++] = format_list[index][j++];
-	}
-	if ( i < STRINGSIZE ) 
-		data_string[i] = '\0';
-
-	data_string[STRINGSIZE-1] = '\0';
-	*s = data_string;
+	fprintf(stream, "\n");
 
 } // End of format_special 
 
@@ -467,7 +455,7 @@ static void InitFormatParser(void) {
 
 } // End of InitFormatParser
 
-static void AddToken(int index) {
+static void AddToken(int index, char *s) {
 
 	if ( token_index >= max_token_index ) { // no slot available - expand table
 		max_token_index += BLOCK_SIZE;
@@ -477,37 +465,17 @@ static void AddToken(int index) {
 			exit(255);
 		}
 	}
-	token_list[token_index].string_function	 = format_token_list[index].string_function;
-	token_list[token_index].string_buffer = malloc(MAX_STRING_LENGTH);
-	if ( !token_list[token_index].string_buffer ) {
-		fprintf(stderr, "Memory allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-		exit(255);
-	}
 
-	AddString(token_list[token_index].string_buffer);
+	if ( s == NULL ) {
+		token_list[token_index].string_function	 = format_token_list[index].string_function;
+		token_list[token_index].string_buffer    = s;
+	} else {
+		token_list[token_index].string_function = NULL;
+		token_list[token_index].string_buffer   = s;
+	}
 	token_index++;
 
 } // End of AddToken
-
-/* Add either a static string or the memory for a variable string from a token to the list */
-static void AddString(char *string) {
-
-	if ( !string ) {
-		fprintf(stderr, "Panic! NULL string in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-		exit(255);
-	}
-
-	if ( format_index >= max_format_index ) { // no slot available - expand table
-		max_format_index += BLOCK_SIZE;
-		format_list = (char **)realloc(format_list, max_format_index * sizeof(char *));
-		if ( !format_list ) {
-			fprintf(stderr, "Memory allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-			exit(255);
-		}
-	}
-	format_list[format_index++] = string;
-
-} // End of AddString
 
 static char* RecursiveReplace(char *format, printmap_t *printmap) {
 int i = 0;
@@ -573,7 +541,7 @@ int	i, remaining;
 					char p = c[len]; 	// save separator;
 					c[len] = '\0';
 					if ( strncmp(format_token_list[i].token, c, len) == 0 ) {	// token found
-						AddToken(i);
+						AddToken(i, NULL);
 						if ( long_v6 && format_token_list[i].is_address )
 							snprintf(h, STRINGSIZE-1-strlen(h), "%23s%s", "", format_token_list[i].header);
 						else
@@ -600,7 +568,7 @@ int	i, remaining;
 			if ( p ) {
 				// p points to next '%' token
 				*p = '\0';
-				AddString(strdup(c));
+				AddToken(0, strdup(c));
 				snprintf(format, 31, "%%%zus", strlen(c));
 				format[31] = '\0';
 				snprintf(h, STRINGSIZE-1-strlen(h), format, "");
@@ -609,7 +577,7 @@ int	i, remaining;
 				c = p;
 			} else {
 				// static string up to end of format string
-				AddString(strdup(c));
+				AddToken(0, strdup(c));
 				snprintf(format, 31, "%%%zus", strlen(c));
 				format[31] = '\0';
 				snprintf(h, STRINGSIZE-1-strlen(h), format, "");
@@ -640,19 +608,18 @@ static char icmp_string[ICMPSTRLEN];
 } // End of ICMP_Port_decode
 
 /* functions, which create the individual strings for the output line */
-static void String_FlowFlags(master_record_t *r, char *string) {
+static void String_FlowFlags(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1, "0x%.2x", r->flags);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream, "0x%.2x", r->flags);
 
 } // End of String_FlowFlags
 
-static void String_Version(master_record_t *r, char *string) {
+static void String_Version(FILE *stream, master_record_t *r) {
 
 	char *type;
 	if ( TestFlag(r->flags, V3_FLAG_EVENT) ) {
 		type = "EVT";
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%u", type, r->nfversion);
+		fprintf(stream, "%s%u", type, r->nfversion);
 	} else {
 		if ( r->nfversion != 0 ) {
 			if ( r->nfversion & 0x80 ) {
@@ -662,111 +629,101 @@ static void String_Version(master_record_t *r, char *string) {
 			} else {
 				type = "Nv";
 			}
-			snprintf(string, MAX_STRING_LENGTH-1, "%s%u", type, r->nfversion & 0x0F);
+			fprintf(stream, "%s%u", type, r->nfversion & 0x0F);
 		} else {
 			// compat with previous versions
 			type = "FLO";
-			snprintf(string, MAX_STRING_LENGTH-1, "%s", type);
+			fprintf(stream, "%s", type);
 		}
 	}
 
 } // End of String_Version
 
-static void String_FirstSeen(master_record_t *r, char *string) {
+static void String_FirstSeen(FILE *stream, master_record_t *r) {
 time_t 	tt;
 struct tm * ts;
-char 	*s;
+char s[128];
 
 	tt = r->msecFirst/1000LL;
 	ts = localtime(&tt);
-	strftime(string, MAX_STRING_LENGTH-1, "%Y-%m-%d %H:%M:%S", ts);
-	s = string + strlen(string);
-	snprintf(s, MAX_STRING_LENGTH-strlen(string)-1,".%03u", (unsigned)(r->msecFirst % 1000LL));
-	string[MAX_STRING_LENGTH-1] = '\0';
+	strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+	s[127] = '\0';
+	fprintf(stream,"%s.%03u", s, (unsigned)(r->msecFirst % 1000LL));
 
 } // End of String_FirstSeen
 
-static void String_LastSeen(master_record_t *r, char *string) {
+static void String_LastSeen(FILE *stream, master_record_t *r) {
 time_t 	tt;
 struct tm * ts;
-char 	*s;
+char s[128];
 
 	tt = r->msecLast/1000LL;
 	ts = localtime(&tt);
-	strftime(string, MAX_STRING_LENGTH-1, "%Y-%m-%d %H:%M:%S", ts);
-	s = string + strlen(string);
-	snprintf(s, MAX_STRING_LENGTH-strlen(string)-1,".%03u", (unsigned)(r->msecLast % 1000LL));
-	string[MAX_STRING_LENGTH-1] = '\0';
+	strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+	s[127] = '\0';
+	fprintf(stream,"%s.%03u", s, (unsigned)(r->msecLast % 1000LL));
 
 } // End of String_LastSeen
 
-static void String_Received(master_record_t *r, char *string) {
+static void String_Received(FILE *stream, master_record_t *r) {
 time_t 	tt;
 struct tm * ts;
-char 	*s;
+char s[128];
 
 	tt = r->msecReceived / 1000LL;
 	ts = localtime(&tt);
-	strftime(string, MAX_STRING_LENGTH-1, "%Y-%m-%d %H:%M:%S", ts);
-	s = string + strlen(string);
-	snprintf(s, MAX_STRING_LENGTH-strlen(string)-1,".%03llu", r->msecReceived % 1000LL);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+	s[127] = '\0';
+	fprintf(stream, "%s.%03llu", s, r->msecReceived % 1000LL);
 
 } // End of String_Received
 
-static void String_ReceivedRaw(master_record_t *r, char *string) {
+static void String_ReceivedRaw(FILE *stream, master_record_t *r) {
 
 	 /* snprintf does write \0, and the max is INCL the terminating \0 */
-	 snprintf(string, MAX_STRING_LENGTH, "%.3f", r->msecReceived/1000.0);
+	 fprintf(stream, "%.3f", r->msecReceived/1000.0);
 
 } // End of String_ReceivedRaw
 
-static void String_FirstSeenRaw(master_record_t *r, char *string) {
+static void String_FirstSeenRaw(FILE *stream, master_record_t *r) {
 
 	 /* snprintf does write \0, and the max is INCL the terminating \0 */
-	 snprintf(string, MAX_STRING_LENGTH, "%llu.%03llu", r->msecFirst / 1000LL, r->msecFirst % 1000LL);
+	 fprintf(stream, "%llu.%03llu", r->msecFirst / 1000LL, r->msecFirst % 1000LL);
 
 } // End of String_FirstSeenRaw
 
-static void String_LastSeenRaw(master_record_t *r, char *string) {
+static void String_LastSeenRaw(FILE *stream, master_record_t *r) {
 
 	 /* snprintf does write \0, and the max is INCL the terminating \0 */
-	 snprintf(string, MAX_STRING_LENGTH, "%llu.%03llu", r->msecLast / 1000LL, r->msecLast % 100LL);
+	 fprintf(stream, "%llu.%03llu", r->msecLast / 1000LL, r->msecLast % 100LL);
 
 } // End of String_LastSeenRaw
 
 
 #ifdef NSEL
-static void String_EventTime(master_record_t *r, char *string) {
+static void String_EventTime(FILE *stream, master_record_t *r) {
 time_t 	tt;
 struct tm * ts;
-char 	*s;
+char s[128];
 
 	tt = r->msecEvent / 1000LL;
 	ts = localtime(&tt);
-	strftime(string, MAX_STRING_LENGTH-1, "%Y-%m-%d %H:%M:%S", ts);
-	s = string + strlen(string);
-	snprintf(s, MAX_STRING_LENGTH-strlen(string)-1,".%03llu", r->msecEvent % 1000LL);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+	s[127] = '\0';
+	fprintf(stream, "%s.%03llu", s, r->msecEvent % 1000LL);
 
 } // End of String_EventTime
 #endif
 
-static void String_Duration(master_record_t *r, char *string) {
-
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%9.3f", duration);
-	string[MAX_STRING_LENGTH-1] = '\0';
-
+static void String_Duration(FILE *stream, master_record_t *r) {
+	fprintf(stream ,"%9.3f", duration);
 } // End of String_Duration
 
-static void String_Protocol(master_record_t *r, char *string) {
-
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%-5s", ProtoString(r->proto, printPlain));
-	string[MAX_STRING_LENGTH-1] = '\0';
-
+static void String_Protocol(FILE *stream, master_record_t *r) {
+	fprintf(stream ,"%-5s", ProtoString(r->proto, printPlain));
 } // End of String_Protocol
 
-static void String_SrcAddr(master_record_t *r, char *string) {
+static void String_SrcAddr(FILE *stream, master_record_t *r) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
@@ -786,16 +743,13 @@ char tmp_str[IP_STRING_LEN];
 	}
 	tmp_str[IP_STRING_LEN-1] = 0;
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s", tag_string, tmp_str);
+		fprintf(stream, "%s%39s", tag_string, tmp_str);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s", tag_string, tmp_str);
-
-	string[MAX_STRING_LENGTH-1] = 0;
-
+		fprintf(stream, "%s%16s", tag_string, tmp_str);
 
 } // End of String_SrcAddr
 
-static void String_SrcAddrPort(master_record_t *r, char *string) {
+static void String_SrcAddrPort(FILE *stream, master_record_t *r) {
 char 	tmp_str[IP_STRING_LEN], portchar;
 
 	tmp_str[0] = 0;
@@ -818,15 +772,14 @@ char 	tmp_str[IP_STRING_LEN], portchar;
 	tmp_str[IP_STRING_LEN-1] = 0;
 
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s%c%-5i", tag_string, tmp_str, portchar, r->srcPort);
+		fprintf(stream, "%s%39s%c%-5i", tag_string, tmp_str, portchar, r->srcPort);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s%c%-5i", tag_string, tmp_str, portchar, r->srcPort);
+		fprintf(stream, "%s%16s%c%-5i", tag_string, tmp_str, portchar, r->srcPort);
 
-	string[MAX_STRING_LENGTH-1] = 0;
 
 } // End of String_SrcAddrPort
 
-static void String_DstAddr(master_record_t *r, char *string) {
+static void String_DstAddr(FILE *stream, master_record_t *r) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
@@ -846,17 +799,16 @@ char tmp_str[IP_STRING_LEN];
 	}
 	tmp_str[IP_STRING_LEN-1] = 0;
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s", tag_string, tmp_str);
+		fprintf(stream, "%s%39s", tag_string, tmp_str);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s", tag_string, tmp_str);
+		fprintf(stream, "%s%16s", tag_string, tmp_str);
 
-	string[MAX_STRING_LENGTH-1] = 0;
 
 
 } // End of String_DstAddr
 
 
-static void String_NextHop(master_record_t *r, char *string) {
+static void String_NextHop(FILE *stream, master_record_t *r) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
@@ -876,16 +828,15 @@ char tmp_str[IP_STRING_LEN];
 	}
 	tmp_str[IP_STRING_LEN-1] = 0;
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s", tag_string, tmp_str);
+		fprintf(stream, "%s%39s", tag_string, tmp_str);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s", tag_string, tmp_str);
+		fprintf(stream, "%s%16s", tag_string, tmp_str);
 
-	string[MAX_STRING_LENGTH-1] = 0;
 
 
 } // End of String_NextHop
 
-static void String_BGPNextHop(master_record_t *r, char *string) {
+static void String_BGPNextHop(FILE *stream, master_record_t *r) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
@@ -905,16 +856,15 @@ char tmp_str[IP_STRING_LEN];
 	}
 	tmp_str[IP_STRING_LEN-1] = 0;
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s", tag_string, tmp_str);
+		fprintf(stream, "%s%39s", tag_string, tmp_str);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s", tag_string, tmp_str);
+		fprintf(stream, "%s%16s", tag_string, tmp_str);
 
-	string[MAX_STRING_LENGTH-1] = 0;
 
 
 } // End of String_NextHop
 
-static void String_RouterIP(master_record_t *r, char *string) {
+static void String_RouterIP(FILE *stream, master_record_t *r) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
@@ -934,17 +884,16 @@ char tmp_str[IP_STRING_LEN];
 	}
 	tmp_str[IP_STRING_LEN-1] = 0;
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s", tag_string, tmp_str);
+		fprintf(stream, "%s%39s", tag_string, tmp_str);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s", tag_string, tmp_str);
+		fprintf(stream, "%s%16s", tag_string, tmp_str);
 
-	string[MAX_STRING_LENGTH-1] = 0;
 
 
 } // End of String_RouterIP
 
 
-static void String_DstAddrPort(master_record_t *r, char *string) {
+static void String_DstAddrPort(FILE *stream, master_record_t *r) {
 char 	tmp_str[IP_STRING_LEN], portchar;
 
 	tmp_str[0] = 0;
@@ -967,15 +916,14 @@ char 	tmp_str[IP_STRING_LEN], portchar;
 	tmp_str[IP_STRING_LEN-1] = 0;
 
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s%c%-5s", tag_string, tmp_str, portchar, ICMP_Port_decode(r));
+		fprintf(stream, "%s%39s%c%-5s", tag_string, tmp_str, portchar, ICMP_Port_decode(r));
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s%c%-5s", tag_string, tmp_str, portchar, ICMP_Port_decode(r));
+		fprintf(stream, "%s%16s%c%-5s", tag_string, tmp_str, portchar, ICMP_Port_decode(r));
 
-	string[MAX_STRING_LENGTH-1] = 0;
 
 } // End of String_DstAddrPort
 
-static void String_SrcNet(master_record_t *r, char *string) {
+static void String_SrcNet(FILE *stream, master_record_t *r) {
 char tmp_str[IP_STRING_LEN];
 
 	ApplyNetMaskBits(r, 1);
@@ -997,16 +945,15 @@ char tmp_str[IP_STRING_LEN];
 	}
 	tmp_str[IP_STRING_LEN-1] = 0;
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s/%-2u", tag_string, tmp_str, r->src_mask );
+		fprintf(stream, "%s%39s/%-2u", tag_string, tmp_str, r->src_mask );
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s/%-2u", tag_string, tmp_str, r->src_mask );
+		fprintf(stream, "%s%16s/%-2u", tag_string, tmp_str, r->src_mask );
 
-	string[MAX_STRING_LENGTH-1] = 0;
 
 
 } // End of String_SrcNet
 
-static void String_DstNet(master_record_t *r, char *string) {
+static void String_DstNet(FILE *stream, master_record_t *r) {
 char tmp_str[IP_STRING_LEN];
 
 	ApplyNetMaskBits(r, 2);
@@ -1028,348 +975,306 @@ char tmp_str[IP_STRING_LEN];
 	}
 	tmp_str[IP_STRING_LEN-1] = 0;
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s/%-2u", tag_string, tmp_str, r->dst_mask );
+		fprintf(stream, "%s%39s/%-2u", tag_string, tmp_str, r->dst_mask );
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s/%-2u", tag_string, tmp_str, r->dst_mask );
+		fprintf(stream, "%s%16s/%-2u", tag_string, tmp_str, r->dst_mask );
 
-	string[MAX_STRING_LENGTH-1] = 0;
 
 
 } // End of String_DstNet
 
-static void String_SrcPort(master_record_t *r, char *string) {
+static void String_SrcPort(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%6u", r->srcPort);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%6u", r->srcPort);
 
 } // End of String_SrcPort
 
-static void String_DstPort(master_record_t *r, char *string) {
+static void String_DstPort(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%6s", ICMP_Port_decode(r));
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%6s", ICMP_Port_decode(r));
 
 } // End of String_DstPort
 
-static void String_ICMP_type(master_record_t *r, char *string) {
+static void String_ICMP_type(FILE *stream, master_record_t *r) {
 	uint8_t type;
 
 	type =  ( r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6 ) ? r->icmp_type : 0;
-	snprintf(string, MAX_STRING_LENGTH-1, "%6u", type);
-	string[MAX_STRING_LENGTH-1] = 0;
+	fprintf(stream, "%6u", type);
 
 } // End of String_ICMP_type
 
-static void String_ICMP_code(master_record_t *r, char *string) {
+static void String_ICMP_code(FILE *stream, master_record_t *r) {
 	uint8_t code;
 
 	code =  ( r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6 ) ? r->icmp_code : 0;
-	snprintf(string, MAX_STRING_LENGTH-1, "%6u", code);
-	string[MAX_STRING_LENGTH-1] = 0;
+	fprintf(stream, "%6u", code);
 
 } // End of String_ICMP_code
 
-static void String_SrcAS(master_record_t *r, char *string) {
+static void String_SrcAS(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%6u", r->srcas);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%6u", r->srcas);
 
 } // End of String_SrcAS
 
-static void String_DstAS(master_record_t *r, char *string) {
+static void String_DstAS(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%6u", r->dstas);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%6u", r->dstas);
 
 } // End of String_DstAS
 
-static void String_NextAS(master_record_t *r, char *string) {
+static void String_NextAS(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ," %6u", r->bgpNextAdjacentAS);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ," %6u", r->bgpNextAdjacentAS);
 
 } // End of String_NextAS
 
-static void String_PrevAS(master_record_t *r, char *string) {
+static void String_PrevAS(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ," %6u", r->bgpPrevAdjacentAS);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ," %6u", r->bgpPrevAdjacentAS);
 
 } // End of String_PrevAS
 
-static void String_Input(master_record_t *r, char *string) {
+static void String_Input(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%6u", r->input);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%6u", r->input);
 
 } // End of String_Input
 
-static void String_Output(master_record_t *r, char *string) {
+static void String_Output(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%6u", r->output);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%6u", r->output);
 
 } // End of String_Output
 
-static void String_InPackets(master_record_t *r, char *string) {
+static void String_InPackets(FILE *stream, master_record_t *r) {
 char s[NUMBER_STRING_SIZE];
 
 	format_number(r->inPackets, s, printPlain, FIXED_WIDTH);
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%8s", s);
 
 } // End of String_InPackets
 
-static void String_OutPackets(master_record_t *r, char *string) {
+static void String_OutPackets(FILE *stream, master_record_t *r) {
 char s[NUMBER_STRING_SIZE];
 
 	format_number(r->out_pkts, s, printPlain, FIXED_WIDTH);
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%8s", s);
 
 } // End of String_OutPackets
 
-static void String_InBytes(master_record_t *r, char *string) {
+static void String_InBytes(FILE *stream, master_record_t *r) {
 char s[NUMBER_STRING_SIZE];
 
 	format_number(r->inBytes, s, printPlain, FIXED_WIDTH);
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%8s", s);
 
 } // End of String_InBytes
 
-static void String_OutBytes(master_record_t *r, char *string) {
+static void String_OutBytes(FILE *stream, master_record_t *r) {
 char s[NUMBER_STRING_SIZE];
 
 	format_number(r->out_bytes, s, printPlain, FIXED_WIDTH);
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%8s", s);
 
 } // End of String_OutBytes
 
-static void String_Flows(master_record_t *r, char *string) {
+static void String_Flows(FILE *stream, master_record_t *r) {
 
-	// snprintf(string, MAX_STRING_LENGTH-1 ,"%5llu", r->aggr_flows ? (unsigned long long)r->aggr_flows : 1 );
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%5llu", (unsigned long long)r->aggr_flows );
-	string[MAX_STRING_LENGTH-1] = '\0';
+	// fprintf(stream ,"%5llu", r->aggr_flows ? (unsigned long long)r->aggr_flows : 1 );
+	fprintf(stream ,"%5llu", (unsigned long long)r->aggr_flows );
 
 } // End of String_Flows
 
-static void String_Tos(master_record_t *r, char *string) {
+static void String_Tos(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%3u", r->tos);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%3u", r->tos);
 
 } // End of String_Tos
 
-static void String_SrcTos(master_record_t *r, char *string) {
+static void String_SrcTos(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%4u", r->tos);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%4u", r->tos);
 
 } // End of String_SrcTos
 
-static void String_DstTos(master_record_t *r, char *string) {
+static void String_DstTos(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%4u", r->dst_tos);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%4u", r->dst_tos);
 
 } // End of String_DstTos
 
-static void String_SrcMask(master_record_t *r, char *string) {
+static void String_SrcMask(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%5u", r->src_mask);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%5u", r->src_mask);
 
 } // End of String_SrcMask
 
-static void String_DstMask(master_record_t *r, char *string) {
+static void String_DstMask(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%5u", r->dst_mask);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%5u", r->dst_mask);
 
 } // End of String_DstMask
 
-static void String_SrcVlan(master_record_t *r, char *string) {
+static void String_SrcVlan(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%5u", r->src_vlan);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%5u", r->src_vlan);
 
 } // End of String_SrcVlan
 
-static void String_DstVlan(master_record_t *r, char *string) {
+static void String_DstVlan(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%5u", r->dst_vlan);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%5u", r->dst_vlan);
 
 } // End of String_DstVlan
 
-static void String_Dir(master_record_t *r, char *string) {
+static void String_Dir(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%3c", r->dir ? 'E' : 'I' );
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%3c", r->dir ? 'E' : 'I' );
 
 } // End of String_Dir
 
-static void String_FwdStatus(master_record_t *r, char *string) {
+static void String_FwdStatus(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%3u", r->fwd_status);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%3u", r->fwd_status);
 
 } // End of String_FwdStatus
 
-static void String_BiFlowDir(master_record_t *r, char *string) {
+static void String_BiFlowDir(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%3u", r->biFlowDir);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%3u", r->biFlowDir);
 
 } // End of String_BiFlowDir
 
-static void String_FlowEndReason(master_record_t *r, char *string) {
+static void String_FlowEndReason(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%3u", r->flowEndReason);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%3u", r->flowEndReason);
 
 } // End of String_FlowEndReason
 
-static void String_Flags(master_record_t *r, char *string) {
+static void String_Flags(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", FlagsString(r->proto == IPPROTO_TCP ? r->tcp_flags :0));
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%8s", FlagsString(r->proto == IPPROTO_TCP ? r->tcp_flags :0));
 
 } // End of String_Flags
 
-static void String_InSrcMac(master_record_t *r, char *string) {
+static void String_InSrcMac(FILE *stream, master_record_t *r) {
 int i;
 uint8_t mac[6];
 
 	for ( i=0; i<6; i++ ) {
 		mac[i] = (r->in_src_mac >> ( i*8 )) & 0xFF;
 	}
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
 
 } // End of String_InSrcMac
 
-static void String_OutDstMac(master_record_t *r, char *string) {
+static void String_OutDstMac(FILE *stream, master_record_t *r) {
 int i;
 uint8_t mac[6];
 
 	for ( i=0; i<6; i++ ) {
 		mac[i] = (r->out_dst_mac >> ( i*8 )) & 0xFF;
 	}
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
 
 } // End of String_OutDstMac
 
-static void String_InDstMac(master_record_t *r, char *string) {
+static void String_InDstMac(FILE *stream, master_record_t *r) {
 int i;
 uint8_t mac[6];
 
 	for ( i=0; i<6; i++ ) {
 		mac[i] = (r->in_dst_mac >> ( i*8 )) & 0xFF;
 	}
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
 
 } // End of String_InDstMac
 
-static void String_OutSrcMac(master_record_t *r, char *string) {
+static void String_OutSrcMac(FILE *stream, master_record_t *r) {
 int i;
 uint8_t mac[6];
 
 	for ( i=0; i<6; i++ ) {
 		mac[i] = (r->out_src_mac >> ( i*8 )) & 0xFF;
 	}
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
 
 } // End of String_OutSrcMac
 
-static void String_MPLS_1(master_record_t *r, char *string) {
+static void String_MPLS_1(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8u-%1u-%1u", 
+	fprintf(stream ,"%8u-%1u-%1u", 
 		r->mpls_label[0] >> 4 , (r->mpls_label[0] & 0xF ) >> 1, r->mpls_label[0] & 1);
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_MPLS
 
-static void String_MPLS_2(master_record_t *r, char *string) {
+static void String_MPLS_2(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8u-%1u-%1u", 
+	fprintf(stream ,"%8u-%1u-%1u", 
 		r->mpls_label[1] >> 4 , (r->mpls_label[1] & 0xF ) >> 1, r->mpls_label[1] & 1);
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_MPLS
 
-static void String_MPLS_3(master_record_t *r, char *string) {
+static void String_MPLS_3(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8u-%1u-%1u", 
+	fprintf(stream ,"%8u-%1u-%1u", 
 		r->mpls_label[2] >> 4 , (r->mpls_label[2] & 0xF ) >> 1, r->mpls_label[2] & 1);
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_MPLS
 
-static void String_MPLS_4(master_record_t *r, char *string) {
+static void String_MPLS_4(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8u-%1u-%1u", 
+	fprintf(stream ,"%8u-%1u-%1u", 
 		r->mpls_label[3] >> 4 , (r->mpls_label[3] & 0xF ) >> 1, r->mpls_label[3] & 1);
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_MPLS
 
-static void String_MPLS_5(master_record_t *r, char *string) {
+static void String_MPLS_5(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8u-%1u-%1u", 
+	fprintf(stream ,"%8u-%1u-%1u", 
 		r->mpls_label[4] >> 4 , (r->mpls_label[4] & 0xF ) >> 1, r->mpls_label[4] & 1);
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_MPLS
 
-static void String_MPLS_6(master_record_t *r, char *string) {
+static void String_MPLS_6(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8u-%1u-%1u", 
+	fprintf(stream ,"%8u-%1u-%1u", 
 		r->mpls_label[5] >> 4 , (r->mpls_label[5] & 0xF ) >> 1, r->mpls_label[5] & 1);
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_MPLS
 
-static void String_MPLS_7(master_record_t *r, char *string) {
+static void String_MPLS_7(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8u-%1u-%1u", 
+	fprintf(stream ,"%8u-%1u-%1u", 
 		r->mpls_label[6] >> 4 , (r->mpls_label[6] & 0xF ) >> 1, r->mpls_label[6] & 1);
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_MPLS
 
-static void String_MPLS_8(master_record_t *r, char *string) {
+static void String_MPLS_8(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8u-%1u-%1u", 
+	fprintf(stream ,"%8u-%1u-%1u", 
 		r->mpls_label[7] >> 4 , (r->mpls_label[7] & 0xF ) >> 1, r->mpls_label[7] & 1);
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_MPLS
 
-static void String_MPLS_9(master_record_t *r, char *string) {
+static void String_MPLS_9(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8u-%1u-%1u", 
+	fprintf(stream ,"%8u-%1u-%1u", 
 		r->mpls_label[8] >> 4 , (r->mpls_label[8] & 0xF ) >> 1, r->mpls_label[8] & 1);
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_MPLS
 
-static void String_MPLS_10(master_record_t *r, char *string) {
+static void String_MPLS_10(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8u-%1u-%1u", 
+	fprintf(stream ,"%8u-%1u-%1u", 
 		r->mpls_label[9] >> 4 , (r->mpls_label[9] & 0xF ) >> 1, r->mpls_label[9] & 1);
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_MPLS
 
-static void String_MPLSs(master_record_t *r, char *string) {
+static void String_MPLSs(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u ", 
+	fprintf(stream ,"%8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u ", 
 		r->mpls_label[0] >> 4 , (r->mpls_label[0] & 0xF ) >> 1, r->mpls_label[0] & 1,
 		r->mpls_label[1] >> 4 , (r->mpls_label[1] & 0xF ) >> 1, r->mpls_label[1] & 1,
 		r->mpls_label[2] >> 4 , (r->mpls_label[2] & 0xF ) >> 1, r->mpls_label[2] & 1,
@@ -1381,56 +1286,50 @@ static void String_MPLSs(master_record_t *r, char *string) {
 		r->mpls_label[8] >> 4 , (r->mpls_label[8] & 0xF ) >> 1, r->mpls_label[8] & 1,
 		r->mpls_label[9] >> 4 , (r->mpls_label[9] & 0xF ) >> 1, r->mpls_label[9] & 1
 	);
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_MPLSs
 
-static void String_Engine(master_record_t *r, char *string) {
+static void String_Engine(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%3u/%-3u", r->engine_type, r->engine_id);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%3u/%-3u", r->engine_type, r->engine_id);
 
 } // End of String_Engine
 
-static void String_Label(master_record_t *r, char *string) {
+static void String_Label(FILE *stream, master_record_t *r) {
 
 	if ( r->label ) 
-		snprintf(string, MAX_STRING_LENGTH-1 ,"%16s", r->label);
+		fprintf(stream ,"%16s", r->label);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1 ,"%16s", "<none>");
+		fprintf(stream ,"%16s", "<none>");
 
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 } // End of String_Label
 
-static void String_ClientLatency(master_record_t *r, char *string) {
+static void String_ClientLatency(FILE *stream, master_record_t *r) {
 double latency;
 
 	latency = (double)r->client_nw_delay_usec / 1000.0;
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%9.3f", latency);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%9.3f", latency);
 
 } // End of String_ClientLatency
 
-static void String_ServerLatency(master_record_t *r, char *string) {
+static void String_ServerLatency(FILE *stream, master_record_t *r) {
 double latency;
 
 	latency = (double)r->server_nw_delay_usec / 1000.0;
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%9.3f", latency);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%9.3f", latency);
 
 } // End of String_ServerLatency
 
-static void String_AppLatency(master_record_t *r, char *string) {
+static void String_AppLatency(FILE *stream, master_record_t *r) {
 double latency;
 
 	latency = (double)r->appl_latency_usec / 1000.0;
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%9.3f", latency);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%9.3f", latency);
 
 } // End of String_AppLatency
 
-static void String_bps(master_record_t *r, char *string) {
+static void String_bps(FILE *stream, master_record_t *r) {
 uint64_t	bps;
 char s[NUMBER_STRING_SIZE];
 
@@ -1440,12 +1339,11 @@ char s[NUMBER_STRING_SIZE];
 		bps = 0;
 	}
 	format_number(bps, s, printPlain, FIXED_WIDTH);
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%8s", s);
 
 } // End of String_bps
 
-static void String_pps(master_record_t *r, char *string) {
+static void String_pps(FILE *stream, master_record_t *r) {
 uint64_t	pps;
 char s[NUMBER_STRING_SIZE];
 
@@ -1455,89 +1353,80 @@ char s[NUMBER_STRING_SIZE];
 		pps = 0;
 	}
 	format_number(pps, s, printPlain, FIXED_WIDTH);
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%8s", s);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%8s", s);
 
 } // End of String_Duration
 
-static void String_bpp(master_record_t *r, char *string) {
+static void String_bpp(FILE *stream, master_record_t *r) {
 uint32_t 	Bpp; 
 
-	string[MAX_STRING_LENGTH-1] = '\0';
 
 	if ( r->inPackets ) 
 		Bpp = r->inBytes / r->inPackets;			// Bytes per Packet
 	else 
 		Bpp = 0;
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%6u", Bpp);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%6u", Bpp);
 
 } // End of String_bpp
 
-static void String_ExpSysID(master_record_t *r, char *string) {
+static void String_ExpSysID(FILE *stream, master_record_t *r) {
 
-	string[MAX_STRING_LENGTH-1] = '\0';
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%6u", r->exporter_sysid);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%6u", r->exporter_sysid);
 
 } // End of String_ExpSysID
 
 #ifdef NSEL
-static void String_nfc(master_record_t *r, char *string) {
+static void String_nfc(FILE *stream, master_record_t *r) {
 
- 	snprintf(string, MAX_STRING_LENGTH-1, "%10u", r->connID);
-	string[MAX_STRING_LENGTH-1] = '\0';
+ 	fprintf(stream, "%10u", r->connID);
 
 } // End of String_nfc
 
-static void String_evt(master_record_t *r, char *string) {
+static void String_evt(FILE *stream, master_record_t *r) {
 
 	if (r->fwXevent) {
-		snprintf(string, MAX_STRING_LENGTH-1 ,"%7s", FwEventString(r->event));
+		fprintf(stream ,"%7s", FwEventString(r->event));
 	} else {
-		snprintf(string, MAX_STRING_LENGTH-1 ,"%7s", EventString(r->event));
+		fprintf(stream ,"%7s", EventString(r->event));
 	}
 
 } // End of String_evt
 
-static void String_xevt(master_record_t *r, char *string) {
+static void String_xevt(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%7s", EventXString(r->fwXevent));
+	fprintf(stream ,"%7s", EventXString(r->fwXevent));
 
 } // End of String_xevt
 
-static void String_sgt(master_record_t *r, char *string) {
+static void String_sgt(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%5u", r->sec_group_tag);
+	fprintf(stream ,"%5u", r->sec_group_tag);
 
 } // End of String_sgt
 
-static void String_msecEvent(master_record_t *r, char *string) {
+static void String_msecEvent(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1,"%13llu",  (long long unsigned)r->msecEvent);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream,"%13llu",  (long long unsigned)r->msecEvent);
 
 } // End of String_msecEvent 
 
-static void String_iacl(master_record_t *r, char *string) {
+static void String_iacl(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1, "0x%-8x 0x%-8x 0x%-8x",
+	fprintf(stream, "0x%-8x 0x%-8x 0x%-8x",
 		r->ingressAcl[0], r->ingressAcl[1], r->ingressAcl[2]);
-	string[MAX_STRING_LENGTH-1] = 0;
 
 } // End of String_iacl
 
-static void String_eacl(master_record_t *r, char *string) {
+static void String_eacl(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1, "%10u %10u %10u",
+	fprintf(stream, "%10u %10u %10u",
 		r->egressAcl[0], r->egressAcl[1], r->egressAcl[2]);
 
-	string[MAX_STRING_LENGTH-1] = 0;
 
 } // End of String_eacl
 
-static void String_xlateSrcAddr(master_record_t *r, char *string) {
+static void String_xlateSrcAddr(FILE *stream, master_record_t *r) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
@@ -1557,15 +1446,14 @@ char tmp_str[IP_STRING_LEN];
 	}
 	tmp_str[IP_STRING_LEN-1] = 0;
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s", tag_string, tmp_str);
+		fprintf(stream, "%s%39s", tag_string, tmp_str);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s", tag_string, tmp_str);
+		fprintf(stream, "%s%16s", tag_string, tmp_str);
 
-	string[MAX_STRING_LENGTH-1] = 0;
 
 } // End of String_xlateSrcAddr
 
-static void String_xlateDstAddr(master_record_t *r, char *string) {
+static void String_xlateDstAddr(FILE *stream, master_record_t *r) {
 char tmp_str[IP_STRING_LEN];
 
 	tmp_str[0] = 0;
@@ -1585,29 +1473,26 @@ char tmp_str[IP_STRING_LEN];
 	}
 	tmp_str[IP_STRING_LEN-1] = 0;
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s", tag_string, tmp_str);
+		fprintf(stream, "%s%39s", tag_string, tmp_str);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s", tag_string, tmp_str);
+		fprintf(stream, "%s%16s", tag_string, tmp_str);
 
-	string[MAX_STRING_LENGTH-1] = 0;
 
 } // End of String_xlateDstAddr
 
-static void String_xlateSrcPort(master_record_t *r, char *string) {
+static void String_xlateSrcPort(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%6u", r->xlate_src_port);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%6u", r->xlate_src_port);
 
 } // End of String_xlateSrcPort
 
-static void String_xlateDstPort(master_record_t *r, char *string) {
+static void String_xlateDstPort(FILE *stream, master_record_t *r) {
 
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%6u", r->xlate_dst_port);
-	string[MAX_STRING_LENGTH-1] = '\0';
+	fprintf(stream ,"%6u", r->xlate_dst_port);
 
 } // End of String_xlateDstPort
 
-static void String_xlateSrcAddrPort(master_record_t *r, char *string) {
+static void String_xlateSrcAddrPort(FILE *stream, master_record_t *r) {
 char 	tmp_str[IP_STRING_LEN], portchar;
 
 	tmp_str[0] = 0;
@@ -1632,15 +1517,13 @@ char 	tmp_str[IP_STRING_LEN], portchar;
 	tmp_str[IP_STRING_LEN-1] = 0;
 
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s%c%-5i", tag_string, tmp_str, portchar, r->xlate_src_port);
+		fprintf(stream, "%s%39s%c%-5i", tag_string, tmp_str, portchar, r->xlate_src_port);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s%c%-5i", tag_string, tmp_str, portchar, r->xlate_src_port);
-
-	string[MAX_STRING_LENGTH-1] = 0;
+		fprintf(stream, "%s%16s%c%-5i", tag_string, tmp_str, portchar, r->xlate_src_port);
 
 } // End of String_xlateSrcAddrPort
 
-static void String_xlateDstAddrPort(master_record_t *r, char *string) {
+static void String_xlateDstAddrPort(FILE *stream, master_record_t *r) {
 char 	tmp_str[IP_STRING_LEN], portchar;
 
 	tmp_str[0] = 0;
@@ -1665,66 +1548,43 @@ char 	tmp_str[IP_STRING_LEN], portchar;
 	tmp_str[IP_STRING_LEN-1] = 0;
 
 	if ( long_v6 ) 
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%39s%c%-5i", tag_string, tmp_str, portchar, r->xlate_dst_port);
+		fprintf(stream, "%s%39s%c%-5i", tag_string, tmp_str, portchar, r->xlate_dst_port);
 	else
-		snprintf(string, MAX_STRING_LENGTH-1, "%s%16s%c%-5i", tag_string, tmp_str, portchar, r->xlate_dst_port);
-
-	string[MAX_STRING_LENGTH-1] = 0;
-
+		fprintf(stream, "%s%16s%c%-5i", tag_string, tmp_str, portchar, r->xlate_dst_port);
 
 } // End of String_xlateDstAddrPort
 
-static void String_userName(master_record_t *r, char *string) {
+static void String_userName(FILE *stream, master_record_t *r) {
 
 	if ( r->username[0] == '\0' ) 
-		snprintf(string, MAX_STRING_LENGTH-1 ,"%s", "<empty>");
+		fprintf(stream ,"%s", "<empty>");
 	else
-		snprintf(string, MAX_STRING_LENGTH-1 ,"%s", r->username);
-
-	string[MAX_STRING_LENGTH-1] = '\0';
+		fprintf(stream ,"%s", r->username);
 
 } // End of String_userName
 
-static void String_ivrf(master_record_t *r, char *string) {
-
- 	snprintf(string, MAX_STRING_LENGTH-1, "%10u", r->ingressVrf);
-	string[MAX_STRING_LENGTH-1] = '\0';
-
+static void String_ivrf(FILE *stream, master_record_t *r) {
+ 	fprintf(stream, "%10u", r->ingressVrf);
 } // End of String_ivrf
 
-static void String_evrf(master_record_t *r, char *string) {
-
- 	snprintf(string, MAX_STRING_LENGTH-1, "%10u", r->egressVrf);
-	string[MAX_STRING_LENGTH-1] = '\0';
-
+static void String_evrf(FILE *stream, master_record_t *r) {
+ 	fprintf(stream, "%10u", r->egressVrf);
 } // End of String_evrf
 
-static void String_PortBlockStart(master_record_t *r, char *string) {
-
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%7u", r->block_start);
-	string[MAX_STRING_LENGTH-1] = '\0';
-
+static void String_PortBlockStart(FILE *stream, master_record_t *r) {
+	fprintf(stream ,"%7u", r->block_start);
 } // End of String_PortBlockStart
 
-static void String_PortBlockEnd(master_record_t *r, char *string) {
-
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%7u", r->block_end);
-	string[MAX_STRING_LENGTH-1] = '\0';
-
+static void String_PortBlockEnd(FILE *stream, master_record_t *r) {
+	fprintf(stream ,"%7u", r->block_end);
 } // End of String_PortBlockEnd
 
-static void String_PortBlockStep(master_record_t *r, char *string) {
-
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%7u", r->block_step);
-	string[MAX_STRING_LENGTH-1] = '\0';
-
+static void String_PortBlockStep(FILE *stream, master_record_t *r) {
+	fprintf(stream ,"%7u", r->block_step);
 } // End of String_PortBlockStep
 
-static void String_PortBlockSize(master_record_t *r, char *string) {
-
-	snprintf(string, MAX_STRING_LENGTH-1 ,"%7u", r->block_size);
-	string[MAX_STRING_LENGTH-1] = '\0';
-
+static void String_PortBlockSize(FILE *stream, master_record_t *r) {
+	fprintf(stream ,"%7u", r->block_size);
 } // End of String_PortBlockSize
 
 

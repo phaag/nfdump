@@ -295,8 +295,13 @@ typedef struct ipfix_template_elements_e_s {
 
 #define YAF_payload							18
 #define YAF_dnsQueryResponse				174
+#define YAF_dnsQRType						175
+#define YAF_dnsAuthoritative				176
+#define YAF_dnsNXDomain						177
+#define YAF_dnsRRSection					178
 #define YAF_dnsQName						179
 #define YAF_dnsTTL							199
+#define YAF_dnsID							226
 
 #define LOCAL_IPv4Received					32764
 #define LOCAL_IPv6Received					32765

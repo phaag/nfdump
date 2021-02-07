@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2013-2020, Peter Haag
+ *  Copyright (c) 2013-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -184,12 +184,10 @@ uint32_t	recordSize;
 	stat_record->numbytes	+= genericFlow->inBytes;
 
 	if ( printRecord ) {
-		char *string;
 		master_record_t master_record;
 		memset((void *)&master_record, 0, sizeof(master_record_t));
 		ExpandRecord_v3(recordHeader, &master_record);
-	 	flow_record_to_raw(&master_record, &string, 0);
-		printf("%s\n", string);
+	 	flow_record_to_raw(stdout, &master_record, 0);
 	}
 
 	// update file record size ( -> output buffer size )

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -194,7 +194,7 @@ extern exporter_t **exporter_list;
  * 5. Recompile nfdump
  */
 
-static void flow_record_to_null(void *record, char ** s, int tag);
+static void flow_record_to_null(FILE *stream, void *record, int tag);
 
 // Assign print functions for all output options -o
 // Teminated with a NULL record
@@ -298,7 +298,7 @@ static void usage(char *name) {
 					"\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n", name);
 } /* usage */
 
-static void flow_record_to_null(void *record, char ** s, int tag) {
+static void flow_record_to_null(FILE *stream, void *record, int tag) {
 	// empty - do not list any flows
 } // End of flow_record_to_null
 
@@ -550,12 +550,8 @@ uint64_t twin_msecFirst, twin_msecLast;
 						if ( write_file ) {
 							AppendToBuffer(nffile_w, (void *)process_ptr, process_ptr->size);
 						} else if ( print_record ) {
-							char *string;
 							// if we need to print out this record
-							print_record(master_record, &string, outputParams->doTag);
-							if ( string ) {
-								printf("%s\n", string);
-							}
+							print_record(stdout, master_record, outputParams->doTag);
 						} else { 
 							// mutually exclusive conditions should prevent executing this code
 							// this is buggy!

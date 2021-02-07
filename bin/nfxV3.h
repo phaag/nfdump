@@ -494,57 +494,17 @@ typedef struct EXnbarApp_s {
 } EXnbarApp_t;
 #define EXnbarAppSize (sizeof(EXnbarApp_t) - 1 + sizeof(elementHeader_t))
 
-typedef struct EXlabel_s {
 #define EXlabelID 28
-	char *label;
-#define OFFlabel offsetof(Exlabel_t, label)
-#define SIZElabel VARLENGTH
-} EXlabel_t;
-#define EXlabelSize (sizeof(EXlabel_t) + sizeof(elementHeader_t))
+#define EXlabelSize sizeof(elementHeader_t)
 
-typedef struct EXinPayload_s {
 #define EXinPayloadID 29
-	uint8_t	data[1];
-#define OFFdata offsetof(EXinPayload_t, data)
-#define SIZEdata VARLENGTH
-} EXinPayload_t;
-#define EXinPayloadSize (sizeof(EXinPayload_t) + sizeof(elementHeader_t))
+#define EXinPayloadSize  sizeof(elementHeader_t)
 
-typedef struct EXoutPayload_s {
 #define EXoutPayloadID 30
-	uint8_t	data[1];
-} EXoutPayload_t;
-#define EXoutPayloadSize (sizeof(EXoutPayload_t) + sizeof(elementHeader_t))
-
-typedef struct EXdnsInfo_s {
-#define EXdnsInfoID 31
-	uint8_t	 ResponseCode;
-	uint8_t	 Authoritative;
-	uint8_t	 QueryResponse; // query or response
-	uint8_t	 RRsection;
-	uint16_t QueryType;
-	uint16_t ID;
-	uint32_t TTL;
-	uint8_t	 Qname[1];
-#define OFFResponseCode offsetof(EXdnsInfo_t, ResponseCode)
-#define SIZEResponseCode MemberSize(EXdnsInfo_t, ResponseCode)
-#define OFFAuthoritative offsetof(EXdnsInfo_t, Authoritative)
-#define SIZEAuthoritative MemberSize(EXdnsInfo_t, Authoritative)
-#define OFFQueryResponse offsetof(EXdnsInfo_t, QueryResponse)
-#define SIZEQueryResponse MemberSize(EXdnsInfo_t, QueryResponse)
-#define OFFRRsection offsetof(EXdnsInfo_t, RRsection)
-#define SIZERRsection MemberSize(EXdnsInfo_t, RRsection)
-#define OFFID offsetof(EXdnsInfo_t, ID)
-#define SIZEID MemberSize(EXdnsInfo_t, ID)
-#define OFFTTL offsetof(EXdnsInfo_t, TTL)
-#define SIZETTL MemberSize(EXdnsInfo_t, TTL)
-#define OFFQname offsetof(EXdnsInfo_t, Qname)
-#define SIZEQname VARLENGTH
-} EXdnsInfo_t;
-#define EXdnsInfoSize (sizeof(EXdnsInfo_t) + sizeof(elementHeader_t))
+#define EXoutPayloadSize sizeof(elementHeader_t)
 
 // max possible elements
-#define MAXELEMENTS 32
+#define MAXELEMENTS 31
 
 #define PushExtension(h, x, v) { \
 	elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
@@ -604,8 +564,7 @@ static const struct extensionTable_s {
 	EXTENSION(EXnbarApp),
 	EXTENSION(EXlabel),
 	EXTENSION(EXinPayload),
-	EXTENSION(EXoutPayload),
-	EXTENSION(EXdnsInfo)
+	EXTENSION(EXoutPayload)
 };
 
 typedef struct sequence_s {

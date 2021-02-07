@@ -295,7 +295,7 @@ static int nestLevel = 0;
 		nestLevel, sequencer->templateID, inSize, outSize);
 
 	if ( inSize == 0 ) {
-		dbg_printf("[%u] End sequencer ID: %u, Sip 0 input stream\n", nestLevel, sequencer->templateID);
+		dbg_printf("[%u] End sequencer ID: %u, Skip 0 input stream\n", nestLevel, sequencer->templateID);
 		nestLevel--;
 		return SEQ_OK;
 	}
@@ -455,12 +455,12 @@ static int nestLevel = 0;
 			}
 #ifdef DEVEL
 			if ( sequencer->sequenceTable[i].inputLength <= 8 )
-				printf("[%i] Read length: %u, val: %llu, outLength: %u\n", 
-					i, sequencer->sequenceTable[i].inputLength, (long long unsigned)v, outLength);
+				printf("[%i] Type: %u, read length: %u, val: %llu, outLength: %u\n", 
+					i, sequencer->sequenceTable[i].inputType, sequencer->sequenceTable[i].inputLength, (long long unsigned)v, outLength);
 
 			if ( sequencer->sequenceTable[i].inputLength == 16 )
-				printf("[%i] Read length: %u, val: %llx %llx, outLength: %u\n",
-					i, sequencer->sequenceTable[i].inputLength, (long long unsigned)vv[0], (long long unsigned)vv[1], outLength);
+				printf("[%i] Type: %u, read length: %u, val: %llx %llx, outLength: %u\n",
+					i, sequencer->sequenceTable[i].inputType, sequencer->sequenceTable[i].inputLength, (long long unsigned)vv[0], (long long unsigned)vv[1], outLength);
 #endif
 			if ( stackID && stack ) {
 				stack[stackID] = v;

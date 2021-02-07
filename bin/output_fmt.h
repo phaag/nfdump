@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -54,7 +54,7 @@ void text_epilog(void);
 
 int ParseOutputFormat(char *format, int printPlain, printmap_t *printmap);
 
-void format_special(void *record, char ** s, int tag);
+void format_special(FILE *stream, void *record, int tag);
 
 #define TAG_CHAR ''
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -35,6 +35,6 @@ void raw_prolog(void);
 
 void raw_epilog(void);
 
-void flow_record_to_raw(void *record, char **s, int tag);
+void flow_record_to_raw(FILE *stream, void *record, int tag);
 
 #endif // _OUTPUT_RAW_H

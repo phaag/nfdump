@@ -184,12 +184,8 @@ static const struct ipfixTranslationMap_s {
 	{ IPFIX_samplerId,					 Stack_ONLY,       EXnull,			  0,				STACK_SAMPLER, "sampler ID" },
 	{ IPFIX_selectorId,					 Stack_ONLY,       EXnull,			  0,				STACK_SAMPLER, "sampler ID" },
 	// payload
-	{ LOCAL_inPayload,					 SIZEdata,       	EXinPayloadID,	  OFFdata,			STACK_NONE, "in payload" },
-	{ LOCAL_outPayload,					 SIZEdata,       	EXoutPayloadID,	  OFFdata,			STACK_NONE, "out payload" },
-	// dns
-	{ LOCAL_ResponseCode,				 SIZEResponseCode,  EXdnsInfoID,	  OFFResponseCode,	STACK_NONE, "dns respons code" },
-	{ LOCAL_TTL,						 SIZETTL,     		EXdnsInfoID,	  OFFTTL,			STACK_NONE, "dns TTL" },
-	{ LOCAL_Qname,						 SIZEQname,       	EXdnsInfoID,	  OFFQname,			STACK_NONE, "dns query name" },
+	{ LOCAL_inPayload,					 VARLENGTH,       	EXinPayloadID,	  0,				STACK_NONE, "in payload" },
+	{ LOCAL_outPayload,					 VARLENGTH,       	EXoutPayloadID,	  0,				STACK_NONE, "out payload" },
 
 	// End of table
 	{ 0,            0, 0,  0, STACK_NONE, NULL },
@@ -267,13 +263,28 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
 					type = LOCAL_outPayload;
 					break;
 				case YAF_dnsQueryResponse:
-					type = LOCAL_ResponseCode;
+					type = LOCAL_QueryResponse;
+					break;
+				case YAF_dnsQRType:
+					type = LOCAL_QueryType;
+					break;
+				case YAF_dnsAuthoritative:
+					type = LOCAL_Authoritative;
+					break;
+				case YAF_dnsNXDomain:
+					type = LOCAL_QueryResponse;
+					break;
+				case YAF_dnsRRSection:
+					type = LOCAL_RRsection;
+					break;
+				case YAF_dnsQName:
+					type = LOCAL_Qname;
 					break;
 				case YAF_dnsTTL:
 					type = LOCAL_TTL;
 					break;
-				case YAF_dnsQName:
-					type = LOCAL_Qname;
+				case YAF_dnsID:
+					type = LOCAL_ID;
 					break;
 				default:
 					dbg_printf(" Skip yaf CERT Coordination Centre\n");
@@ -1314,12 +1325,10 @@ printf("Sequencer inLength: %zu, outLength: %zu\n", sequencer->inLength, sequenc
 		}
 
 		if ( printRecord ) {
-			char *string;
 			master_record_t master_record;
 			memset((void *)&master_record, 0, sizeof(master_record_t));
 			ExpandRecord_v3(recordHeaderV3, &master_record);
-		 	flow_record_to_raw(&master_record, &string, 0);
-			printf("%s\n", string);
+		 	flow_record_to_raw(stdout, &master_record, 0);
 		}
 
 		fs->nffile->block_header->size  += recordHeaderV3->size;
