@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -53,42 +53,42 @@
 
 /* define my own IP header struct - to ease portability */
 struct myiphdr {
-		uint8_t version_and_headerLen;
-		uint8_t tos;
-		uint16_t tot_len;
-		uint16_t id;
-		uint16_t frag_off;
-		uint8_t ttl;
-		uint8_t protocol;
-		uint16_t check;
-		uint32_t saddr;
-		uint32_t daddr;
+	uint8_t version_and_headerLen;
+	uint8_t tos;
+	uint16_t tot_len;
+	uint16_t id;
+	uint16_t frag_off;
+	uint8_t ttl;
+	uint8_t protocol;
+	uint16_t check;
+	uint32_t saddr;
+	uint32_t daddr;
 };
 
 /* ip6 header if no option headers */
 struct myip6hdr {
-  uint8_t version_and_priority;
-  uint8_t label1;
-  uint8_t label2;
-  uint8_t label3;
-  uint16_t payloadLength;
-  uint8_t nextHeader;
-  uint8_t ttl;
-  struct in6_addr saddr;
-  struct in6_addr daddr;
+	uint8_t version_and_priority;
+	uint8_t label1;
+	uint8_t label2;
+	uint8_t label3;
+	uint16_t payloadLength;
+	uint8_t nextHeader;
+	uint8_t ttl;
+	struct in6_addr saddr;
+	struct in6_addr daddr;
 };
 
 /* same for tcp */
 struct mytcphdr {
-		uint16_t th_sport;		/* source port */
-		uint16_t th_dport;		/* destination port */
-		uint32_t th_seq;		/* sequence number */
-		uint32_t th_ack;		/* acknowledgement number */
-		uint8_t th_off_and_unused;
-		uint8_t th_flags;
-		uint16_t th_win;		/* window */
-		uint16_t th_sum;		/* checksum */
-		uint16_t th_urp;		/* urgent pointer */
+	uint16_t th_sport;		/* source port */
+	uint16_t th_dport;		/* destination port */
+	uint32_t th_seq;		/* sequence number */
+	uint32_t th_ack;		/* acknowledgement number */
+	uint8_t th_off_and_unused;
+	uint8_t th_flags;
+	uint16_t th_win;		/* window */
+	uint16_t th_sum;		/* checksum */
+	uint16_t th_urp;		/* urgent pointer */
 };
 
 /* and UDP */
@@ -110,11 +110,6 @@ typedef struct _SFSample {
 	/* exception handler context */
 	jmp_buf env;
 
-	struct in_addr sourceIP;		// EX_ROUTER_IP_v4
-
-	SFLAddress agent_addr;
-	uint32_t agentSubId;
-
 	/* the raw pdu */
 	uint8_t *rawSample;
 	uint32_t rawSampleLen;
@@ -124,7 +119,15 @@ typedef struct _SFSample {
 	/* decode cursor */
 	uint32_t *datap;
 
+	/* datagram fields */
+	struct in_addr sourceIP;		// EX_ROUTER_IP_v4
+	SFLAddress agent_addr;
+	uint32_t agentSubId;
 	uint32_t datagramVersion;
+	uint32_t sysUpTime;
+	uint32_t sequenceNo;
+
+	/* per sample data */
 	uint32_t sampleType;
 	uint32_t elementType;
 	uint32_t ds_class;
@@ -134,8 +137,6 @@ typedef struct _SFSample {
 	SFLIf_counters ifCounters;
 
 	/* sample stream info */
-	uint32_t sysUpTime;
-	uint32_t sequenceNo;
 	uint32_t sampledPacketSize;
 	uint32_t samplesGenerated;
 	uint32_t meanSkipCount;
@@ -265,6 +266,8 @@ typedef struct _SFSample {
 #define SF_ABORT_LENGTH_ERROR 3
 
 } SFSample;
+
+#define sampleDataOffset offsetof(SFSample, sampleType)
 
 void readSFlowDatagram(SFSample *sample, FlowSource_t *fs, int verbose);
 

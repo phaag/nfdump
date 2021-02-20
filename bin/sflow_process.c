@@ -3562,7 +3562,11 @@ uint32_t samplesInPacket, samp;
 	dbg_printf("samplesInPacket %u\n", samplesInPacket);
 
 	/* now iterate and pull out the flows and counters samples */
+	void *sampleData = (void *)sample + sampleDataOffset;
 	for(samp = 0; samp < samplesInPacket; samp++) {
+		// fix bug sflowtool */
+		memset(sampleData, 0, sizeof(SFSample)-sampleDataOffset);
+
 		if((uint8_t *)sample->datap >= sample->endp) {
 			LogError("SFLOW: readSFlowDatagram() unexpected end of datagram after sample %d of %d\n", samp, samplesInPacket);
 			return;
