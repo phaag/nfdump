@@ -646,11 +646,11 @@ uint64_t	sizelimit, num_expired;
 					// decrement number of files seen in this directory
 					expire_channel->ftsent->fts_number--;
 
-					file_removed = 1;
 					num_expired++;
 				} else {
 					LogError( "unlink() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 				}
+				file_removed = 1;
 			} else {
 				// we are done size-wise
 				// time of first file not expired = start time of channel/profile
@@ -675,11 +675,11 @@ uint64_t	sizelimit, num_expired;
 					// decrement number of files seen in this directory
 					expire_channel->ftsent->fts_number--;
 
-					file_removed = 1;
 					num_expired++;
 				} else {
 					LogError( "unlink() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 				}
+				file_removed = 1;
 			} else {
 				// we are done time-wise
 				// time of first file not expired = start time of channel/profile

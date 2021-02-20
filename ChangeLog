@@ -1,5 +1,6 @@
 2021-02-20
 - Fix sflow code extended field parsing. #262 and #273
+- Fix endless loop of nfexpire, if it does not find files
 
 2021-01-30
 - Fix processing deoding error for yaf exporter
