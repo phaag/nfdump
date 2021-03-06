@@ -309,15 +309,6 @@ typedef struct ipfix_template_elements_e_s {
 #define LOCAL_inPayload						32767
 #define LOCAL_outPayload					32768
 
-#define LOCAL_ResponseCode					32769
-#define LOCAL_Authoritative					32770
-#define LOCAL_QueryResponse					32771
-#define LOCAL_RRsection						32772
-#define LOCAL_QueryType						32773
-#define LOCAL_ID							32774
-#define LOCAL_TTL							32775
-#define LOCAL_Qname							32776
-
 #define VENDOR_BIT_REVERSE					0x4000
 
 /* prototypes */

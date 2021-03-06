@@ -68,6 +68,7 @@ static void spin_unlock(int volatile *p) {
 #define GetTreeLock(a)		spin_lock(&((a)->list_lock))
 #define ReleaseTreeLock(a)	spin_unlock(&((a)->list_lock))
 
+static int addPayload = 0;
 
 static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2);
 
@@ -150,6 +151,9 @@ void Free_Node(struct FlowNode *node) {
 		abort();
 	}
 
+	if ( node->payload ) 
+		free(node->payload);
+
 	dbg_assert(node->left == NULL);
 	dbg_assert(node->right == NULL);
 
@@ -190,7 +194,9 @@ uint32_t num;
 } // End of CacheCheck
 
 /* flow tree functions */
-int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive) {
+int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive, int fatFlows) {
+
+	addPayload = fatFlows;
 
 	if ( expireActive ) {
 		if ( expireActive < 0 || expireActive > 3600 ) {

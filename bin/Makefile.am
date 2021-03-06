@@ -36,7 +36,7 @@ AM_CFLAGS = -ggdb
 # libnfdump sources
 output =  output_util.h output_util.c output_raw.h output_raw.c 
 output += output_json.c output_json.h output_csv.c output_csv.h output_pipe.c output_pipe.h
-output += output_fmt.c output_fmt.h 
+output += output_fmt.c output_fmt.h content_dns.c content_dns.h
 util = util.c util.h
 filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h
 nffile = nffile.c nffile.h nffileV2.h lstack.c lstack.h queue.c queue.h nfx.c nfx.h nfxV3.h nfxV3.c

@@ -262,30 +262,6 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
 				case 16402: // VENDOR_BIT_REVERSE | 18
 					type = LOCAL_outPayload;
 					break;
-				case YAF_dnsQueryResponse:
-					type = LOCAL_QueryResponse;
-					break;
-				case YAF_dnsQRType:
-					type = LOCAL_QueryType;
-					break;
-				case YAF_dnsAuthoritative:
-					type = LOCAL_Authoritative;
-					break;
-				case YAF_dnsNXDomain:
-					type = LOCAL_QueryResponse;
-					break;
-				case YAF_dnsRRSection:
-					type = LOCAL_RRsection;
-					break;
-				case YAF_dnsQName:
-					type = LOCAL_Qname;
-					break;
-				case YAF_dnsTTL:
-					type = LOCAL_TTL;
-					break;
-				case YAF_dnsID:
-					type = LOCAL_ID;
-					break;
 				default:
 					dbg_printf(" Skip yaf CERT Coordination Centre\n");
 					return -1;

@@ -330,7 +330,7 @@ uint32_t size = sizeof(recordHeaderV3_t);
 			} break;
 			default:
 				LogError("Unknown extension '%u'\n", elementHeader->type);
-				skip = 1;
+		//		skip = 1;
 		}
 
 		if (!skip) {

@@ -50,6 +50,11 @@
 #define v4 ip_union._v4
 #define v6 ip_union._v6
 
+typedef struct vlan_hdr_s {
+  uint16_t vlan_id;
+  uint16_t type;
+} vlan_hdr_t;
+
 struct FlowNode {
 	// tree
 	RB_ENTRY(FlowNode) entry;
@@ -57,8 +62,6 @@ struct FlowNode {
 	// linked list
 	struct FlowNode *left;
 	struct FlowNode *right;
-
-	struct FlowNode *biflow;
 
 	// flow key
 	// IP addr
@@ -92,6 +95,10 @@ struct FlowNode {
 	uint32_t	packets;	// summed up number of packets
 	uint32_t	bytes;		// summed up number of bytes
 
+	void		*payload;	// payload
+	uint32_t	payloadSize;	// Size of payload
+	vlan_hdr_t	vlan;
+
 	struct FlowNode *rev_node;
 	struct latency_s {
 		uint64_t    client;
@@ -120,7 +127,7 @@ typedef RB_HEAD(FlowTree, FlowNode) FlowTree_t;
 // Insert the RB prototypes here
 RB_PROTOTYPE(FlowTree, FlowNode, entry, FlowNodeCMP);
 
-int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive);
+int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive, int fatFlows);
 
 void Dispose_FlowTree(void);
 

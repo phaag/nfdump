@@ -50,6 +50,7 @@
 #include "nbar.h"
 #include "output_util.h"
 #include "output_raw.h"
+#include "content_dns.h"
 
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
@@ -527,7 +528,10 @@ static void stringsEXinPayload(FILE *stream, master_record_t *r) {
 	fprintf(stream,
 "  in payload   =        %10u\n"
 , r->inPayloadLength);
-	DumpHex(stream, r->inPayload, r->inPayloadLength > 256 ? 256 : r->inPayloadLength);
+	DumpHex(stream, r->inPayload, r->inPayloadLength > 512 ? 512 : r->inPayloadLength);
+	if ( r->srcPort == 53 ||  r->dstPort == 53) {
+		content_decode_dns((uint8_t *)r->inPayload, r->inPayloadLength);
+	}
 } // End of stringsEXinPayload
 
 static void stringsEXoutPayload(FILE *stream, master_record_t *r) {
@@ -535,7 +539,10 @@ static void stringsEXoutPayload(FILE *stream, master_record_t *r) {
 	fprintf(stream,
 "  out payload  =        %10u\n"
 , r->outPayloadLength);
-	DumpHex(stream, r->outPayload, r->outPayloadLength > 256 ? 256 : r->outPayloadLength);
+	DumpHex(stream, r->outPayload, r->outPayloadLength > 512 ? 512 : r->outPayloadLength);
+	if ( r->srcPort == 53 ||  r->dstPort == 53) {
+		content_decode_dns((uint8_t *)r->outPayload, r->outPayloadLength);
+	}
 
 } // End of stringsEXoutPayload
 

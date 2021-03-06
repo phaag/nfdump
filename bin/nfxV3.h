@@ -497,6 +497,7 @@ typedef struct EXnbarApp_s {
 #define EXlabelID 28
 #define EXlabelSize sizeof(elementHeader_t)
 
+#define EXinPayload_t elementHeader_t
 #define EXinPayloadID 29
 #define EXinPayloadSize  sizeof(elementHeader_t)
 
@@ -519,14 +520,23 @@ typedef struct EXnbarApp_s {
 #define PushVarLengthExtension(h, x, v, s) { \
 	elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
 	elementHeader->type = x ## ID; \
-	elementHeader->length = s; \
+	elementHeader->length = x ## Size; \
 	h->size += sizeof(elementHeader_t); } \
 	x ## _t *v = (x ## _t *)((void *)h + h->size); \
 	memset(v, 0, s); \
 	h->numElements++; \
 	h->size += s;
 	
-
+#define PushVarLengthPointer(h, x, v, s) { \
+	elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
+	elementHeader->type = x ## ID; \
+	elementHeader->length = x ## Size + s; \
+	h->size += sizeof(elementHeader_t); } \
+	void *v = ((void *)h + h->size); \
+	memset(v, 0, s); \
+	h->numElements++; \
+	h->size += s;
+	
 #define EXTENSION(s) { s ## ID, s ## Size, #s} 
 
 static const struct extensionTable_s {

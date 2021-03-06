@@ -160,7 +160,7 @@ uint64_t sa6[2];
     return strdup(addr);
 }
 
-void content_decode_dns(struct FlowNode	*node, uint8_t *payload, uint32_t payload_size) {
+void content_decode_dns(uint8_t *payload, uint32_t payload_size) {
 dns_header_t *dns_header = (dns_header_t *)payload;
 uint32_t qdcount, ancount;
 void *p, *eod;
@@ -175,11 +175,11 @@ int i;
 
 	// no of query packets
 	qdcount = ntohs(dns_header->qdcount);
-	dbg_printf("DNS Queries: %u\n", qdcount);
+	printf("DNS Queries: %u\n", qdcount);
 
     // no of answer packets
     ancount = ntohs(dns_header->ancount);
-	dbg_printf("DNS Answers: %u\n", ancount);
+	printf("DNS Answers: %u\n", ancount);
 
     // end of dns packet
     eod = (void *)(payload + payload_size);
@@ -192,7 +192,7 @@ int i;
 		if (len < 0) {
             LogError("dn_expand() failed: %s", "");
 		} 
-		dbg_printf("DNS Query dn_expand: %s\n", dn);
+		printf("DNS Query dn_expand: %s\n", dn);
         p = (void *) (p + len + 4);	// + 4 bytes of fixed data in query
 	}
 
@@ -205,7 +205,7 @@ int i;
         if(len < 0) {
             LogError("dn_expand() failed: %s", "");
         }
-		dbg_printf("DNS Answer %i dn_expand: %s ", i, dn);
+		printf("DNS Answer %i dn_expand: %s ", i, dn);
 
         p += len;
 
@@ -215,7 +215,7 @@ int i;
 		ttl   = Get_val32(p); p += 4;
 		len   = Get_val16(p); p += 2;
 
-		dbg_printf(" Type: %u, class: %u, ttl: %u, len: %u ", type, class, ttl, len);
+		printf(" Type: %u, class: %u, ttl: %u, len: %u ", type, class, ttl, len);
         /* type-specific processing */
         switch(type) {
 			char *s;
@@ -225,7 +225,7 @@ int i;
             case ns_t_a:
 #endif
                 s = _a_rr(&p);
-				dbg_printf("A: %s\n", s);
+				printf("A: %s", s);
 				free(s);
                 break;
 #ifdef T_A6
@@ -238,26 +238,28 @@ int i;
             case ns_t_aaaa:
 #endif
                 s = _aaaa_rr(&p);
-				dbg_printf("AAAA: %s\n", s);
+				printf("AAAA: %s", s);
 				free(s);
                 break;
 #ifdef T_CNAME
-            case T_CNAME: {
+            case T_CNAME: 
 #else
-			case ns_t_cname: {
+			case ns_t_cname: 
 #endif
+				{
         		int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
-				dbg_printf("CNAME: %s\n", dn);
+				printf("CNAME: %s", dn);
                 p = (void *)(p + len);
                 } break;
 
             default:
-				dbg_printf("<unkn>\n");
+				dbg_printf("<unkn>");
                 p = (void *)(p + len);
                 continue;
-        }
 
-    }
+    	}
+		printf("\n");
+	}
 
 } // End of content_decode_dns
 

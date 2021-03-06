@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -110,11 +110,6 @@ typedef struct _SFSample {
 	/* exception handler context */
 	jmp_buf env;
 
-	struct in_addr sourceIP;		// EX_ROUTER_IP_v4
-
-	SFLAddress agent_addr;
-	uint32_t agentSubId;
-
 	/* the raw pdu */
 	uint8_t *rawSample;
 	uint32_t rawSampleLen;
@@ -124,7 +119,15 @@ typedef struct _SFSample {
 	/* decode cursor */
 	uint32_t *datap;
 
+	/* datagram fields */
+	struct in_addr sourceIP;		// EX_ROUTER_IP_v4
+	SFLAddress agent_addr;
+	uint32_t agentSubId;
 	uint32_t datagramVersion;
+	uint32_t sysUpTime;
+	uint32_t sequenceNo;
+
+	/* per sample data */
 	uint32_t sampleType;
 	uint32_t elementType;
 	uint32_t ds_class;
@@ -134,8 +137,6 @@ typedef struct _SFSample {
 	SFLIf_counters ifCounters;
 
 	/* sample stream info */
-	uint32_t sysUpTime;
-	uint32_t sequenceNo;
 	uint32_t sampledPacketSize;
 	uint32_t samplesGenerated;
 	uint32_t meanSkipCount;
@@ -265,6 +266,8 @@ typedef struct _SFSample {
 #define SF_ABORT_LENGTH_ERROR 3
 
 } SFSample;
+
+#define sampleDataOffset offsetof(SFSample, sampleType)
 
 void readSFlowDatagram(SFSample *sample, FlowSource_t *fs, int verbose);
 

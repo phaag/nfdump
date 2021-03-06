@@ -1190,8 +1190,8 @@ int main(int argc, char *argv[]) {
 sigset_t			signal_set;
 struct sigaction	sa;
 int c, snaplen, err, do_daemonize;
-int subdir_index, compress, expire, cache_size;
-int active, inactive;
+int subdir_index, compress, expire, fatFlows, cache_size;
+int activeTineout, inactiveTineout;
 FlowSource_t	*fs;
 dirstat_t 		*dirstat;
 time_t 			t_win;
@@ -1221,9 +1221,10 @@ p_flow_thread_args_t *p_flow_thread_args;
 	verbose			= 0;
 	expire			= 0;
 	cache_size		= 0;
-	active			= 0;
-	inactive		= 0;
-	while ((c = getopt(argc, argv, "B:DEI:e:g:hi:j:r:s:l:p:P:t:u:S:Vyz")) != EOF) {
+	activeTineout	= 0;
+	inactiveTineout	= 0;
+	fatFlows		= 0;
+	while ((c = getopt(argc, argv, "B:DEFI:e:g:hi:j:r:s:l:p:P:t:u:S:Vyz")) != EOF) {
 		switch (c) {
 			struct stat fstat;
 			case 'h':
@@ -1238,6 +1239,9 @@ p_flow_thread_args_t *p_flow_thread_args;
 				break;
 			case 'D':
 				do_daemonize = 1;
+				break;
+			case 'F':
+				fatFlows = 1;
 				break;
 			case 'B':
 				cache_size = atoi(optarg);
@@ -1300,8 +1304,8 @@ p_flow_thread_args_t *p_flow_thread_args;
 				}
 				*sep = '\0';
 				sep++;
-				active   = atoi(s);
-				inactive = atoi(sep);
+				activeTineout   = atoi(s);
+				inactiveTineout = atoi(sep);
 				if (snaplen < 14 + 20 + 20) { // ethernet, IP , TCP, no payload
 					LogError("ERROR:, snaplen < sizeof IPv4 - Need 54 bytes for TCP/IPv4");
 					exit(EXIT_FAILURE);
@@ -1398,7 +1402,7 @@ p_flow_thread_args_t *p_flow_thread_args;
 		exit(EXIT_FAILURE);
 	}
 
-	if ( !Init_FlowTree(cache_size, active, inactive)) {
+	if ( !Init_FlowTree(cache_size, activeTineout, inactiveTineout, fatFlows)) {
 		LogError("Init_FlowTree() failed.");
 		exit(EXIT_FAILURE);
 	}

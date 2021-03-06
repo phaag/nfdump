@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2013, Peter Haag
+ *  Copyright (c) 2013-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -27,13 +26,7 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author$
- *
- *  $Id$
- *
- *  $LastChangedRevision$
- *  
  */
 
-void content_decode_dns(struct FlowNode	*node, uint8_t *payload, uint32_t payload_size);
+void content_decode_dns(uint8_t *payload, uint32_t payload_size);
 

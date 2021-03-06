@@ -87,6 +87,10 @@ uint32_t	recordSize;
 		LogError("Process_pcap: Unexpected version in %s line %d: %u\n", __FILE__, __LINE__, Node->version);
 		return 0;
 	}
+	
+	if ( Node->payloadSize ) {
+		recordSize += (sizeof(elementHeader_t) + Node->payloadSize);
+	}
 
 	// output buffer size check for all expected records
 	recordSize += sizeof(recordHeaderV3_t);
@@ -155,6 +159,10 @@ uint32_t	recordSize;
 	if ( genericFlow->msecLast > fs->msecLast )
 		fs->msecLast = genericFlow->msecLast;
 
+	if ( Node->payloadSize ) {
+		PushVarLengthPointer(recordHeader, EXinPayload, inPayload, Node->payloadSize);
+		memcpy(inPayload, Node->payload, Node->payloadSize);
+	}
 
 	// Update stats
 	stat_record_t *stat_record = fs->nffile->stat_record;
