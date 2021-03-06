@@ -391,19 +391,11 @@ static unsigned pkg_cnt = 0;
 	offset = pcap_dev->linkoffset;
 	defragmented = NULL;
 
-	Node = New_Node();
-	if ( !Node ) {
-		pcap_dev->proc_stat.skipped++;
-		LogError("Node allocation error - skip packet");
-		return;
-	}
-
 	if ( pcap_dev->linktype == DLT_EN10MB ) {
 		ethertype = data[12] << 0x08 | data[13];
 		int	IEEE802 = ethertype <= 1500;
 		if ( IEEE802 ) {
 			pcap_dev->proc_stat.skipped++;
-			Free_Node(Node);
 			return;
 		}
 		REDO_LINK:
@@ -417,11 +409,6 @@ static unsigned pkg_cnt = 0;
 						dbg_printf("VLAN ID: %u, type: 0x%x\n",
 							ntohs(vlan_hdr->vlan_id), ntohs(vlan_hdr->type) );
 						ethertype = ntohs(vlan_hdr->type);
-/*
-pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
-	  pkt->vlans[pkt->vlan_count].cfi = (p[0] >> 4) & 1;
-	  pkt->vlans[pkt->vlan_count].vid = uint_16_be(p) & 0xfff;
-*/
 						offset += 4;
 					} while ( ethertype == 0x8100 );
 			
@@ -437,35 +424,27 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 				case 0x88cc: // CISCO LLDP
 				case 0x9000: // Loop
 				case 0x9003: 
+				case 0x8808: // Ethernet flow control
 				case 0x880b: // PPP - rfc 7042
 				case 0x6558: // Ethernet Bridge
 					pcap_dev->proc_stat.skipped++;
-					Free_Node(Node);
 					goto END_FUNC;
 					break;
 				default:
 					pcap_dev->proc_stat.unknown++;
 					LogInfo("Unsupported ether type: 0x%x, packet: %u", ethertype, pkg_cnt);
-					Free_Node(Node);
 					goto END_FUNC;
 			}
 	} else if ( pcap_dev->linktype != DLT_RAW ) { // we can still process raw IP
 		LogInfo("Unsupported link type: 0x%x, packet: %u", pcap_dev->linktype, pkg_cnt);
-		Free_Node(Node);
 		return;
 	}
 
 	if (hdr->caplen < offset) {
 		pcap_dev->proc_stat.short_snap++;
 		LogInfo("Short packet: %u/%u", hdr->caplen, offset);
-		Free_Node(Node);
 		goto END_FUNC;
 	}
-
-	Node->t_first.tv_sec = hdr->ts.tv_sec;
-	Node->t_first.tv_usec = hdr->ts.tv_usec;
-	Node->t_last.tv_sec  = hdr->ts.tv_sec;
-	Node->t_last.tv_usec  = hdr->ts.tv_usec;
 
 	data	 = data + offset;
 	data_len = hdr->caplen - offset;
@@ -479,6 +458,7 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 		// REDO loop could result in a memory leak, if again IP is fragmented
 		// XXX memory leak to be fixed
 		LogError("Fragmentation memory leak triggered!");
+		goto END_FUNC;
 	}
 
 	ip  	= (struct ip *)(data + offset); // offset points to end of link layer
@@ -494,7 +474,6 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			LogInfo("Packet: %u Length error: data_len: %u < size IPV6: %u, captured: %u, hdr len: %u",
 				pkg_cnt, data_len, size_ip, hdr->caplen, hdr->len);	
 			pcap_dev->proc_stat.short_snap++;
-			Free_Node(Node);
 			goto END_FUNC;
 		}
 
@@ -512,6 +491,17 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)));
 
 		payload = (void *)ip + size_ip;
+
+		Node = New_Node();
+		if ( !Node ) {
+			pcap_dev->proc_stat.skipped++;
+			LogError("Node allocation error - skip packet");
+			return;
+		}
+		Node->t_first.tv_sec = hdr->ts.tv_sec;
+		Node->t_first.tv_usec = hdr->ts.tv_usec;
+		Node->t_last.tv_sec  = hdr->ts.tv_sec;
+		Node->t_last.tv_usec  = hdr->ts.tv_usec;
 
 		addr = (uint64_t *)&ip6->ip6_src;
 		Node->src_addr.v6[0] = ntohll(addr[0]);
@@ -532,7 +522,6 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			LogInfo("Packet: %u Length error: data_len: %u < size IPV4: %u, captured: %u, hdr len: %u",
 				pkg_cnt, data_len, size_ip, hdr->caplen, hdr->len);	
 			pcap_dev->proc_stat.short_snap++;
-			Free_Node(Node);
 			goto END_FUNC;
 		}
 
@@ -581,6 +570,17 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 			payload = defragmented;
 		}
 		bytes 		= payload_len;
+
+		Node = New_Node();
+		if ( !Node ) {
+			pcap_dev->proc_stat.skipped++;
+			LogError("Node allocation error - skip packet");
+			return;
+		}
+		Node->t_first.tv_sec = hdr->ts.tv_sec;
+		Node->t_first.tv_usec = hdr->ts.tv_usec;
+		Node->t_last.tv_sec  = hdr->ts.tv_sec;
+		Node->t_last.tv_usec  = hdr->ts.tv_usec;
 
 		Node->src_addr.v6[0] = 0;
 		Node->src_addr.v6[1] = 0;

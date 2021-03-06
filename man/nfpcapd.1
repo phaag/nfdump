@@ -24,6 +24,10 @@ and pcap processing.
 .B -i \fIinterface
 Listen on this interface in promisc mode for packet processing.
 .TP 3
+.B -b \fIbuffersize
+Set the capture buffer size of the system in MB. The default is system dependant.
+Valid values for the buffer size can be set between 0(system default)..2047 (2GB)
+.TP 3
 .B -r \fIfile
 Read and process packets from this file. This file is a pcap compatible
 file

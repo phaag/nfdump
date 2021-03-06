@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2013-2020, Peter Haag
+ *  Copyright (c) 2013-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -199,7 +199,7 @@ static void Interrupt_handler(int sig);
 
 static void SetPriv(char *userid, char *groupid );
 
-static pcap_dev_t *setup_pcap_live(char *device, char *filter, int snaplen);
+static pcap_dev_t *setup_pcap_live(char *device, char *filter, int snaplen, int buffer_size);
 
 static pcap_dev_t *setup_pcap_Ffile(FILE *fp, char *filter, int snaplen);
 
@@ -371,7 +371,7 @@ int		err;
 
 } // End of SetPriv
 
-static pcap_dev_t *setup_pcap_live(char *device, char *filter, int snaplen) {
+static pcap_dev_t *setup_pcap_live(char *device, char *filter, int snaplen, int buffer_size) {
 pcap_t 		*handle    = NULL;
 pcap_dev_t	*pcap_dev  = NULL;
 pcap_if_t	*alldevsp = NULL;
@@ -415,14 +415,43 @@ uint32_t	linkoffset, linktype;
 	 *  architectures that support it, you might want tune this value
 	 *  depending on how much traffic you're seeing on the network.
 	 */
-	handle = pcap_open_live(device, snaplen, PROMISC, TIMEOUT, errbuf);
-	if (handle == NULL) {
-		LogError("Couldn't open device %s: %s", device, errbuf);
+	handle = pcap_create(device, errbuf);
+	if ( !handle ) {
+		LogError("pcap_create() failed on %s: %s", device, errbuf);
 		return NULL;
 	}
 
-	// XXX
-	// int pcap_set_buffer_size(pcap_t *p, int buffer_size);
+	if ( pcap_set_snaplen(handle, snaplen)) { 
+		LogError("pcap_set_snaplen() failed: %s", pcap_geterr(handle));
+		pcap_close(handle);
+		return NULL;
+	}
+
+	if ( pcap_set_promisc(handle, PROMISC)) {
+		LogError("pcap_set_promisc() failed: %s", pcap_geterr(handle));
+		pcap_close(handle);
+		return NULL;
+	}
+
+	if ( pcap_set_timeout(handle, TIMEOUT) ) {
+		LogError("pcap_set_promisc() failed: %s", pcap_geterr(handle));
+		pcap_close(handle);
+		return NULL;
+	}
+
+	if ( buffer_size ) 
+		if ( pcap_set_buffer_size(handle, 1024 * 1024 * buffer_size) < 0 ) {
+			LogError("pcap_set_buffer_size() failed: %s", pcap_geterr(handle));
+			pcap_close(handle);
+			return NULL;
+		}
+	// else use platform default
+
+    if ( pcap_activate(handle) ) {
+		LogError("pcap_activate() failed: %s", pcap_geterr(handle));
+		pcap_close(handle);
+		return NULL;
+	}
 
 	if ( filter ) {
 		/* Compile and apply the filter */
@@ -1191,7 +1220,7 @@ int main(int argc, char *argv[]) {
 sigset_t			signal_set;
 struct sigaction	sa;
 int c, snaplen, err, do_daemonize;
-int subdir_index, compress, expire, cache_size;
+int subdir_index, compress, expire, cache_size, buff_size;
 int active, inactive;
 FlowSource_t	*fs;
 dirstat_t 		*dirstat;
@@ -1223,9 +1252,10 @@ p_flow_thread_args_t *p_flow_thread_args;
 	verbose			= 0;
 	expire			= 0;
 	cache_size		= 0;
+	buff_size		= 0;
 	active			= 0;
 	inactive		= 0;
-	while ((c = getopt(argc, argv, "B:DEI:e:g:hi:j:r:s:l:p:P:t:u:S:T:Vyz")) != EOF) {
+	while ((c = getopt(argc, argv, "B:DEI:b:e:g:hi:j:r:s:l:p:P:t:u:S:T:Vyz")) != EOF) {
 		switch (c) {
 			struct stat fstat;
 			case 'h':
@@ -1250,6 +1280,13 @@ p_flow_thread_args_t *p_flow_thread_args;
 				break;
 			case 'I':
 				Ident = strdup(optarg);
+				break;
+			case 'b':
+				buff_size = atoi(optarg);
+				if (buff_size <= 0 || buff_size > 2047 ) {
+					LogError("ERROR: Buffer size in MB must be betwee 0..2047 (2GB max)");
+					exit(EXIT_FAILURE);
+				}
 				break;
 			case 'i':
 				device = optarg;
@@ -1419,7 +1456,7 @@ p_flow_thread_args_t *p_flow_thread_args;
 	if ( pcapfile ) {
 		pcap_dev = setup_pcap_file(pcapfile, filter, snaplen);
 	} else {
-		pcap_dev = setup_pcap_live(device, filter, snaplen);
+		pcap_dev = setup_pcap_live(device, filter, snaplen, buff_size);
 	}
 	if (!pcap_dev) {
 		exit(EXIT_FAILURE);

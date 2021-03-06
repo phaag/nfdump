@@ -1,3 +1,6 @@
+2021-03-06
+- Add packet capture buffer size to nfpcapd
+
 2021-02-20
 - Fix sflow code extended field parsing. #262 and #273
 - Fix endless loop of nfexpire, if it does not find files
