@@ -597,19 +597,27 @@ uint32_t	linkoffset, linktype;
 } // End of setup_pcap_file
 
 static void SignalThreadTerminate(thread_info_t *thread_info, pthread_cond_t *thread_cond ) {
+struct timespec waitTime;
+
+	waitTime.tv_sec = 0;
+	waitTime.tv_nsec = 10000;
 
 	if ( !thread_info->done ) {
-		dbg_printf("Signal thread[%lu] to terminate\n", (long unsigned)thread_info->tid);
-    	if ( pthread_kill(thread_info->tid, SIGUSR2) != 0 ) {
-			dbg_printf("Failed to signal thread[%lu]\n", (long unsigned)thread_info->tid);
-		} 
-
-		// in case of a condition - signal condition
-		if ( thread_cond ) 
-			pthread_cond_signal(thread_cond);
+		do {
+			dbg_printf("Signal thread[%lu] to terminate\n", (long unsigned)thread_info->tid);
+    		if ( pthread_kill(thread_info->tid, SIGUSR2) != 0 ) {
+				dbg_printf("Failed to signal thread[%lu]\n", (long unsigned)thread_info->tid);
+			} 
+			nanosleep(&waitTime, NULL);
+		} while ( !thread_info->done );
 
 	} else {
 		dbg_printf("thread[%lu] gone already\n", (long unsigned)thread_info->tid);
+	}
+
+	// in case of a condition - signal condition
+	if ( thread_cond ) {
+		pthread_cond_signal(thread_cond);
 	}
 
    	if( pthread_join(thread_info->tid, NULL) == 0 ) {

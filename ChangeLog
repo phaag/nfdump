@@ -1,3 +1,7 @@
+2021-03-12
+- Update rbtree.
+- Fix potential deadlock in nfpcapd if it terminates.
+
 2021-03-06
 - Add packet capture buffer size to nfpcapd
 
