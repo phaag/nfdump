@@ -429,6 +429,7 @@ uint8_t *start = sample->header;
 uint8_t *end = start + sample->headerLen;
 uint8_t *ptr = start;
 uint16_t type_len;
+uint32_t vlanNum=0;
 
 	/* assume not found */
 	sample->gotIPV4 = NO;
@@ -447,7 +448,11 @@ uint16_t type_len;
 	type_len = (ptr[0] << 8) + ptr[1];
 	ptr += 2;
 
-	if(type_len == 0x8100) {
+	while(type_len == 0x8100
+	|| type_len == 0x88A8
+	|| type_len == 0x9100
+	|| type_len == 0x9200
+	|| type_len == 0x9300) {
 		if((end - ptr) < 4)
 			/* not enough for an 802.1Q header */
 			return;
@@ -464,12 +469,19 @@ uint16_t type_len;
 		/* |   pri  | c |		 vlan-id		| */
 		/*  ------------------------------------- */
 		/* [priority = 3bits] [Canonical Format Flag = 1bit] [vlan-id = 12 bits] */
-		dbg_printf("decodedVLAN %u\n", vlan);
-		dbg_printf("decodedPriority %u\n", priority);
+		if(vlanNum == 0) {
+			dbg_printf("decodedVLAN %u\n", vlan);
+			dbg_printf("decodedPriority %u\n", priority);
+		}
+		else {
+			dbg_printf("decodedVLAN.%u %u\n", vlanNum, vlan);
+			dbg_printf("decodedPriority.%u %u\n", vlanNum, vlan);
+		}
 		sample->in_vlan = vlan;
 		/* now get the type_len again (next two bytes) */
 		type_len = (ptr[0] << 8) + ptr[1];
 		ptr += 2;
+		vlanNum++;
 	}
 
 	/* now we're just looking for IP */
@@ -773,15 +785,13 @@ uint8_t *ptr = start;
 		}
 
 		// get the tos (priority)
-		sample->dcd_ipTos = *ptr++ & 15;
+		sample->dcd_ipTos = ((ptr[0] & 15) << 4) + (ptr[1] >> 4);
+		ptr++;
 		dbg_printf("IPTOS %u\n", sample->dcd_ipTos);
 
-		// 24-bit label
-		label = *ptr++;
-		label <<= 8;
-		label += *ptr++;
-		label <<= 8;
-		label += *ptr++;
+		// 20-bit label
+		label = ((ptr[0] & 15) << 16) + (ptr[1] << 8) + ptr[2];
+		ptr += 3;
 		dbg_printf("IP6_label 0x%x\n", label);
 
 		// payload
@@ -823,12 +833,11 @@ uint8_t *ptr = start;
 				// nextHeader == 50 || // encryption - don't bother coz we'll not be able to read any further
 				nextHeader == 51 || // auth
 				nextHeader == 60) { // destination options
-			uint32_t optionLen, skip;
-			dbg_printf("IP6HeaderExtension: %d\n", nextHeader);
+			uint32_t optionLen;
+			dbg_printf("IP6HeaderExtension %d\n", nextHeader);
 			nextHeader = ptr[0];
 			optionLen = 8 * (ptr[1] + 1);  // second byte gives option len in 8-byte chunks, not counting first 8
-			skip = optionLen - 2;
-			ptr += skip;
+			ptr += optionLen;
 			if(ptr > end)
 				return; // ran off the end of the header
 		}
