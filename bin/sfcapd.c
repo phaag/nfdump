@@ -717,7 +717,7 @@ char	*pcap_file = NULL;
 	FlowSource		= NULL;
 	extension_tags	= DefaultExtensions;
 
-	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:N:n:p:J:P:R:S:T:t:x:ru:g:zZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:N:n:p:J:P:R:S:T:t:x:ru:g:yzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);

@@ -226,6 +226,7 @@ static void usage(char *name) {
 					"-g groupid\tChange group to groupname\n"
 					"-i interface\tread packets from interface\n"
 					"-r pcapfile\tread packets from file\n"
+					"-b num\tset socket buffer size in MB. (default 20MB)\n"
 					"-B num\tset the node cache size. (default 524288)\n"
 					"-s snaplen\tset the snapshot length - default 1526\n"
 					"-e active,inactive\tset the active,inactive flow expire time (s) - default 300,60\n"
@@ -903,7 +904,7 @@ int runs = 0;
 			pcapfile->alternate_size = 0;
 		}
 
-		// if we are done, try to flsuh main data buffer
+		// if we are done, try to flush main data buffer
 		if ( args->done && pcapfile->data_size ) {
 			dbg_printf("Done: Flush all buffers\n");
 			// flush alternate buffer
@@ -1245,7 +1246,7 @@ p_flow_thread_args_t *p_flow_thread_args;
 	launcher_pid	= 0;
 	device			= NULL;
 	pcapfile		= NULL;
-	filter			= NULL;
+	filter			= "ip";
 	pidfile[0]		= '\0';
 	t_win			= TIME_WINDOW;
 	datadir			= DEFAULT_DIR;
@@ -1260,7 +1261,7 @@ p_flow_thread_args_t *p_flow_thread_args;
 	verbose			= 0;
 	expire			= 0;
 	cache_size		= 0;
-	buff_size		= 0;
+	buff_size		= 20;
 	active			= 0;
 	inactive		= 0;
 	while ((c = getopt(argc, argv, "B:DEI:b:e:g:hi:j:r:s:l:p:P:t:u:S:T:Vyz")) != EOF) {
@@ -1292,7 +1293,7 @@ p_flow_thread_args_t *p_flow_thread_args;
 			case 'b':
 				buff_size = atoi(optarg);
 				if (buff_size <= 0 || buff_size > 2047 ) {
-					LogError("ERROR: Buffer size in MB must be betwee 0..2047 (2GB max)");
+					LogError("ERROR: Buffer size in MB must be betwee 0..2047 (2GB max, default 20M)");
 					exit(EXIT_FAILURE);
 				}
 				break;

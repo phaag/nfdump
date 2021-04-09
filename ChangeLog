@@ -1,3 +1,7 @@
+2021-04-09
+- Fix minor nfpcapd issues
+- Add mpls unwrap in sflow code - adds mpls labels if available
+
 2021-03-12
 - Update rbtree.
 - Fix potential deadlock in nfpcapd if it terminates.

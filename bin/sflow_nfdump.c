@@ -119,6 +119,7 @@ static uint16_t sflow_extensions[] = {
 	EX_MULIPLE, 
 	EX_VLAN, 
 	EX_MAC_1, 
+	EX_MPLS,
 	EX_RECEIVED,
 	0 			// final token
 };
@@ -202,6 +203,12 @@ int i, id;
 void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 SFSample 	sample;
 int 		exceptionVal;
+#ifdef DEVEL
+static int pkg_num = 0;
+
+	pkg_num++;
+	printf("Process_v9: Next packet: %i\n", pkg_num);
+#endif
 
 	memset(&sample, 0, sizeof(sample));
 	sample.rawSample = in_buff;
@@ -553,6 +560,16 @@ uint64_t _bytes, _packets, _t;	// tmp buffers
 				tpl_ext_20_t *tpl = (tpl_ext_20_t *)next_data;
 				tpl->in_src_mac  = Get_val48((void *)&sample->eth_src);
 				tpl->out_dst_mac = Get_val48((void *)&sample->eth_dst);
+				next_data = (void *)tpl->data;
+			} break;
+			case EX_MPLS: {
+				tpl_ext_22_t *tpl = (tpl_ext_22_t *)next_data;
+				for (int i=0; i<10; i++) {
+					if (i<sample->mpls_num_labels)
+						tpl->mpls_label[i] = sample->mpls_label[i];
+					else
+						tpl->mpls_label[i] = 0;
+				}
 				next_data = (void *)tpl->data;
 			} break;
 			case EX_NEXT_HOP_v4:	 {	// next hop IPv4 router address

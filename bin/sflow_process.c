@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2017-2020, Peter Haag
+ *  Copyright (c) 2017-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -434,6 +434,7 @@ uint32_t vlanNum=0;
 	/* assume not found */
 	sample->gotIPV4 = NO;
 	sample->gotIPV6 = NO;
+	sample->mpls_num_labels = 0;
 
 	if((end - ptr) < NFT_ETHHDR_SIZ)
 		/* not enough for an Ethernet header */
@@ -521,6 +522,26 @@ uint32_t vlanNum=0;
 			} else
 				return;
 		}
+	}
+
+	// MPLS stack
+	if(type_len == 0x8847) { 
+		// unwind MPLS label stack
+		int mpls_num_labels = 0;
+		sample->mpls_label[mpls_num_labels++] = ntohl(*((uint32_t *)ptr)) >> 8;
+		ptr += 2;
+		while (((end - ptr)>0) && (ptr[0] & 0x1) == 0) { // check for Bottom of stack
+			ptr += 2;
+			sample->mpls_label[mpls_num_labels++] = ntohl(*((uint32_t *)ptr)) >> 8;
+			ptr += 2;
+			sample->mpls_num_labels++;
+		}
+		ptr += 2;	// point to IP header
+		sample->mpls_num_labels = mpls_num_labels;
+		if((*ptr >> 4) == 4)
+			type_len = 0x0800;	// IPv4
+		if((*ptr >> 4) == 6)
+			type_len = 0x86DD;	// IPv6
 	}
 
 	/* assume type_len is an ethernet-type now */
@@ -1510,7 +1531,6 @@ static void readFlowSample_header(SFSample *sample)
   }
   sample->headerLen = getData32(sample);
   dbg_printf("headerLen %u\n", sample->headerLen);
-  
   sample->header = (uint8_t *)sample->datap; /* just point at the header */
   skipBytes(sample, sample->headerLen);
   {

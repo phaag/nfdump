@@ -205,13 +205,6 @@ void PcapDump(pcapfile_t *pcapfile,  struct pcap_pkthdr *h, const u_char *sp) {
 struct pcap_sf_pkthdr sf_hdr;
 size_t	size = sizeof(struct pcap_sf_pkthdr) + h->caplen;
 
-/*
-	if ( pcapfile->pd)
-		pcap_dump((u_char *)pcapfile->pd, h, sp);
-	else
-		printf("NULL handle\n");
-	return;
-*/
 	if ( (pcapfile->data_size + size ) > BUFFSIZE ) {
 		void *_b;
 		// no space left in buffer - rotate buffers

@@ -2042,10 +2042,12 @@ netflow_v9_header_t	*v9_header;
 int64_t 			distance;
 uint32_t 			flowset_id, flowset_length, exporter_id;
 ssize_t				size_left;
+#ifdef DEVEL
 static int pkg_num = 0;
 
 	pkg_num++;
-	dbg_printf("Process_v9: Next packet: %i\n", pkg_num);
+	printf("Process_v9: Next packet: %i\n", pkg_num);
+#endif
 
 	size_left = in_buff_cnt;
 	if ( size_left < NETFLOW_V9_HEADER_LENGTH ) {
