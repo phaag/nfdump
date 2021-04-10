@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -674,7 +674,7 @@ char	*pcap_file = NULL;
 	Ident			= "none";
 	FlowSource		= NULL;
 
-	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:n:N:p:J:P:R:S:t:x:ru:g:zZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:n:N:p:J:P:R:S:t:x:ru:g:yzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);

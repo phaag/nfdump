@@ -192,6 +192,10 @@ typedef struct _SFSample {
 	uint32_t out_priority;
 	int vlanFilterReject;
 
+	/* mpls */
+	int mpls_num_labels;
+	uint32_t mpls_label[10];
+
 	/* extended data fields */
 	uint32_t num_extended;
 	uint32_t extended_data_tag;

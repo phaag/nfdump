@@ -198,7 +198,7 @@ static void Interrupt_handler(int sig);
 
 static void SetPriv(char *userid, char *groupid );
 
-static pcap_dev_t *setup_pcap_live(char *device, char *filter, int snaplen);
+static pcap_dev_t *setup_pcap_live(char *device, char *filter, int snaplen, int buffer_size);
 
 static pcap_dev_t *setup_pcap_Ffile(FILE *fp, char *filter, int snaplen);
 
@@ -225,6 +225,7 @@ static void usage(char *name) {
 					"-g groupid\tChange group to groupname\n"
 					"-i interface\tread packets from interface\n"
 					"-r pcapfile\tread packets from file\n"
+					"-b num\tset socket buffer size in MB. (default 20MB)\n"
 					"-B num\tset the node cache size. (default 524288)\n"
 					"-s snaplen\tset the snapshot length - default 1526\n"
 					"-e active,inactive\tset the active,inactive flow expire time (s) - default 300,60\n"
@@ -369,19 +370,15 @@ int		err;
 
 } // End of SetPriv
 
-static pcap_dev_t *setup_pcap_live(char *device, char *filter, int snaplen) {
-pcap_t 		*handle    = NULL;
-pcap_dev_t	*pcap_dev  = NULL;
-pcap_if_t	*alldevsp = NULL;
+static pcap_dev_t *setup_pcap_live(char *device, char *filter, int snaplen, int buffer_size) {
 char errbuf[PCAP_ERRBUF_SIZE];
 bpf_u_int32 mask;		/* Our netmask */
 bpf_u_int32 net;		/* Our IP */
-struct bpf_program filter_code;	
-uint32_t	linkoffset, linktype;
 
 	dbg_printf("Enter function: %s\n", __FUNCTION__);
 
 	if (device == NULL) {
+		pcap_if_t *alldevsp = NULL;
 		if ( pcap_findalldevs(&alldevsp, errbuf) == -1 ) {
 			LogError("pcap_findalldevs() error: %s in %s line %d", 
 				errbuf, __FILE__, __LINE__);
@@ -413,16 +410,46 @@ uint32_t	linkoffset, linktype;
 	 *  architectures that support it, you might want tune this value
 	 *  depending on how much traffic you're seeing on the network.
 	 */
-	handle = pcap_open_live(device, snaplen, PROMISC, TIMEOUT, errbuf);
-	if (handle == NULL) {
-		LogError("Couldn't open device %s: %s", device, errbuf);
+	pcap_t *handle = pcap_create(device, errbuf);
+	if ( !handle ) {
+		LogError("pcap_create() failed on %s: %s", device, errbuf);
 		return NULL;
 	}
 
-	// XXX
-	// int pcap_set_buffer_size(pcap_t *p, int buffer_size);
+	if ( pcap_set_snaplen(handle, snaplen)) { 
+		LogError("pcap_set_snaplen() failed: %s", pcap_geterr(handle));
+		pcap_close(handle);
+		return NULL;
+	}
+
+	if ( pcap_set_promisc(handle, PROMISC)) {
+		LogError("pcap_set_promisc() failed: %s", pcap_geterr(handle));
+		pcap_close(handle);
+		return NULL;
+	}
+
+	if ( pcap_set_timeout(handle, TIMEOUT) ) {
+		LogError("pcap_set_promisc() failed: %s", pcap_geterr(handle));
+		pcap_close(handle);
+		return NULL;
+	}
+
+	if ( buffer_size ) 
+		if ( pcap_set_buffer_size(handle, 1024 * 1024 * buffer_size) < 0 ) {
+			LogError("pcap_set_buffer_size() failed: %s", pcap_geterr(handle));
+			pcap_close(handle);
+			return NULL;
+		}
+	// else use platform default
+
+    if ( pcap_activate(handle) ) {
+		LogError("pcap_activate() failed: %s", pcap_geterr(handle));
+		pcap_close(handle);
+		return NULL;
+	}
 
 	if ( filter ) {
+		struct bpf_program filter_code;	
 		/* Compile and apply the filter */
 		if (pcap_compile(handle, &filter_code, filter, 0, net) == -1) {
 			LogError("Couldn't parse filter %s: %s", filter, pcap_geterr(handle));
@@ -434,35 +461,20 @@ uint32_t	linkoffset, linktype;
 		}
 	}
 
-	pcap_dev = (pcap_dev_t *)calloc(1, sizeof(pcap_dev_t));
+	pcap_dev_t	*pcap_dev = (pcap_dev_t *)calloc(1, sizeof(pcap_dev_t));
 	if ( !pcap_dev ) {
 		LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
 		return NULL;
 	}	
 
-	linkoffset = 0;
-	linktype   = pcap_datalink(handle);
+	uint32_t linkoffset = 0;
+	uint32_t linktype   = pcap_datalink(handle);
 	switch ( linktype ) {
 		case DLT_RAW: 
 			linkoffset = 0; 
 			break;
-		case DLT_PPP: 
-			linkoffset = 2;
-			break;
-		case DLT_NULL: 
-			linkoffset = 4;
-			break;
-		case DLT_LOOP: 
-			linkoffset = 14; 
-			break;
 		case DLT_EN10MB: 
 			linkoffset = 14; 
-			break;
-		case DLT_LINUX_SLL: 
-			linkoffset = 16; 
-			break;
-		case DLT_IEEE802_11: 
-			linkoffset = 22; 
 			break;
 		default:
 			LogError("Unsupported data link type %i", linktype);
@@ -1190,7 +1202,7 @@ int main(int argc, char *argv[]) {
 sigset_t			signal_set;
 struct sigaction	sa;
 int c, snaplen, err, do_daemonize;
-int subdir_index, compress, expire, fatFlows, cache_size;
+int subdir_index, compress, expire, fatFlows, cache_size, buff_size;
 int activeTineout, inactiveTineout;
 FlowSource_t	*fs;
 dirstat_t 		*dirstat;
@@ -1207,7 +1219,7 @@ p_flow_thread_args_t *p_flow_thread_args;
 	launcher_pid	= 0;
 	device			= NULL;
 	pcapfile		= NULL;
-	filter			= NULL;
+	filter			= "ip";
 	pidfile[0]		= '\0';
 	t_win			= TIME_WINDOW;
 	datadir			= DEFAULT_DIR;
@@ -1221,10 +1233,11 @@ p_flow_thread_args_t *p_flow_thread_args;
 	verbose			= 0;
 	expire			= 0;
 	cache_size		= 0;
+	buff_size		= 20;
 	activeTineout	= 0;
 	inactiveTineout	= 0;
 	fatFlows		= 0;
-	while ((c = getopt(argc, argv, "B:DEFI:e:g:hi:j:r:s:l:p:P:t:u:S:Vyz")) != EOF) {
+	while ((c = getopt(argc, argv, "B:DEFI:b:e:g:hi:j:r:s:l:p:P:t:u:S:Vyz")) != EOF) {
 		switch (c) {
 			struct stat fstat;
 			case 'h':
@@ -1252,6 +1265,13 @@ p_flow_thread_args_t *p_flow_thread_args;
 				break;
 			case 'I':
 				Ident = strdup(optarg);
+				break;
+			case 'b':
+				buff_size = atoi(optarg);
+				if (buff_size <= 0 || buff_size > 2047 ) {
+					LogError("ERROR: Buffer size in MB must be betwee 0..2047 (2GB max)");
+					exit(EXIT_FAILURE);
+				}
 				break;
 			case 'i':
 				device = optarg;
@@ -1410,7 +1430,7 @@ p_flow_thread_args_t *p_flow_thread_args;
 	if ( pcapfile ) {
 		pcap_dev = setup_pcap_file(pcapfile, filter, snaplen);
 	} else {
-		pcap_dev = setup_pcap_live(device, filter, snaplen);
+		pcap_dev = setup_pcap_live(device, filter, snaplen, buff_size);
 	}
 	if (!pcap_dev) {
 		exit(EXIT_FAILURE);

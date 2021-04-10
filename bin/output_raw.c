@@ -196,8 +196,8 @@ char snet[IP_STRING_LEN], dnet[IP_STRING_LEN];
 	}
 
 	fprintf(stream,
-"  input        =             %5u\n"
-"  output       =             %5u\n"
+"  input        =          %8u\n"
+"  output       =          %8u\n"
 "  src mask     =             %5u %s/%u\n"
 "  dst mask     =             %5u %s/%u\n"
 "  fwd status   =               %3u\n"
@@ -331,9 +331,11 @@ uint64_t i[2];
 static void stringsEXmplsLabel(FILE *stream, master_record_t *r) {
 
 	for (int i=0; i<10; i++ ) {
-		fprintf(stream,
+		if (r->mpls_label[i] != 0) {
+			fprintf(stream,
 "  MPLS Lbl %2u  =      %8u-%1u-%1u\n", i+1
 , r->mpls_label[i] >> 4 , (r->mpls_label[i] & 0xF ) >> 1, r->mpls_label[i] & 1 );
+		}
 	}
 
 } // End of stringsEXipReceivedV6

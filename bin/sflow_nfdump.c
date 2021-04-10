@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -235,6 +235,11 @@ struct timeval now;
 	}
 	numElements++;
 
+	if (sample->mpls_num_labels > 0) {
+		recordSize += EXmplsLabelSize;
+		numElements++;
+	} 
+
 	if ( sample->nextHop.type == SFLADDRESSTYPE_IP_V4 ) {
 		recordSize += EXipNextHopV4Size;
 		numElements++;
@@ -272,8 +277,6 @@ struct timeval now;
 	dbg_printf("Fill Record\n");
 	AddV3Header(fs->nffile->buff_ptr, recordHeader);
 
-    recordHeader->type = V3Record;
-    recordHeader->size = recordSize;
     recordHeader->exporterID = exporter->info.sysid;
 	recordHeader->flags		 = V3_FLAG_SAMPLED;
 	recordHeader->nfversion  = 0x80 | sample->datagramVersion;
@@ -354,6 +357,13 @@ struct timeval now;
 	macAddr->outDstMac  = Get_val48((void *)&sample->eth_dst);
 	macAddr->inDstMac   = 0;
 	macAddr->outSrcMac  = 0;
+
+	if (sample->mpls_num_labels > 0) {
+		PushExtension(recordHeader, EXmplsLabel, mplsLabel);
+		for (int i=0; i<sample->mpls_num_labels; i++ ) {
+			mplsLabel->mplsLabel[i] = sample->mpls_label[i];
+		}
+	}
 
 	if(sample->agent_addr.type == SFLADDRESSTYPE_IP_V4) {
 		PushExtension(recordHeader, EXipReceivedV4, received);

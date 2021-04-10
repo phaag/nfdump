@@ -48,8 +48,8 @@
 
 typedef struct proc_stat_s {
     uint32_t    packets;
-    uint32_t    unknown;
     uint32_t    skipped;
+    uint32_t    unknown;
     uint32_t    short_snap;
 } proc_stat_t;
 

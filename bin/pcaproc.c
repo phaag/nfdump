@@ -398,41 +398,20 @@ static unsigned pkg_cnt = 0;
 				case 0x800:	 // IPv4
 				case 0x86DD: // IPv6
 					break;
-				case 0x8100: {	// VLAN
+				case 0x8100: { // VLAN
 					do {
 						vlan_hdr = (vlan_hdr_t *)(data + offset);  // offset points to end of link layer
 						dbg_printf("VLAN ID: %u, type: 0x%x\n",
 							ntohs(vlan_hdr->vlan_id), ntohs(vlan_hdr->type) );
 						ethertype = ntohs(vlan_hdr->type);
-/*
-pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
-	  pkt->vlans[pkt->vlan_count].cfi = (p[0] >> 4) & 1;
-	  pkt->vlans[pkt->vlan_count].vid = uint_16_be(p) & 0xfff;
-*/
 						offset += 4;
 					} while ( ethertype == 0x8100 );
 			
 					// redo ethertype evaluation
 					goto REDO_LINK;
 					} break;
-				case 0x26:	 // ?? multicast router termination ??
-				case 0x32:	
-				case 0x806:	 // skip ARP
-				case 0x4305: // B.A.T.M.A.N. BATADV
-				case 0x886f: // MS NLB heartbeat
-				case 0x88a2: // ATA over ethernet
-				case 0x88cc: // CISCO LLDP
-				case 0x9000: // Loop
-				case 0x9003: 
-				case 0x8808: // Ethernet flow control
-				case 0x880b: // PPP - rfc 7042
-				case 0x6558: // Ethernet Bridge
-					pcap_dev->proc_stat.skipped++;
-					goto END_FUNC;
-					break;
 				default:
-					pcap_dev->proc_stat.unknown++;
-					LogInfo("Unsupported ether type: 0x%x, packet: %u", ethertype, pkg_cnt);
+					pcap_dev->proc_stat.skipped++;
 					goto END_FUNC;
 			}
 	} else if ( pcap_dev->linktype != DLT_RAW ) { // we can still process raw IP
@@ -675,11 +654,11 @@ pkt->vlans[pkt->vlan_count].pcp = (p[0] >> 5) & 7;
 
 			payload = payload + size_tcp;
 			payload_len -= size_tcp;
-			dbg_printf("Size TCP header: %u, size TCP payload: %u ", size_tcp, payload_len);
-			dbg_printf("src %i, DST %i, flags %i : ",
-				ntohs(tcp->th_sport), ntohs(tcp->th_dport), tcp->th_flags);
 
 #ifdef DEVEL
+			printf("Size TCP header: %u, size TCP payload: %u ", size_tcp, payload_len);
+			printf("src %i, DST %i, flags %i : ",
+				ntohs(tcp->th_sport), ntohs(tcp->th_dport), tcp->th_flags);
 			if ( tcp->th_flags & TH_SYN )  printf("SYN ");
 			if ( tcp->th_flags & TH_ACK )  printf("ACK ");
 			if ( tcp->th_flags & TH_URG )  printf("URG ");
