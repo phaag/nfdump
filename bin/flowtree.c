@@ -53,20 +53,21 @@
 #include "netflow_pcap.h"
 #include "flowtree.h"
 
-static void spin_lock(int *p);
-static void spin_unlock(int volatile *p);
+// static void spin_lock(int *p);
+// static void spin_unlock(int volatile *p);
 
-static void spin_lock(int *p) {
-    while(!__sync_bool_compare_and_swap(p, 0, 1));
-}
+/* Lock operation. */
+#define spin_lock(lck) do { \
+int zero = 0; \
+while (!atomic_compare_exchange_weak(&(lck), &zero, 1)) \
+    zero = 0; \
+} while (0)
 
-static void spin_unlock(int volatile *p) {
-    __asm volatile (""); // acts as a memory barrier.
-    *p = 0;
-}
+/* Unlock operation. */
+#define spin_unlock(lck) atomic_store(&(lck), 0);
 
-#define GetTreeLock(a)		spin_lock(&((a)->list_lock))
-#define ReleaseTreeLock(a)	spin_unlock(&((a)->list_lock))
+#define GetTreeLock(a)		spin_lock((a)->list_lock)
+#define ReleaseTreeLock(a)	spin_unlock((a)->list_lock)
 
 
 static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2);

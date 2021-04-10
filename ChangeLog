@@ -1,4 +1,5 @@
 2021-04-10
+- Change spin lock to native C11 lock
 - Cleanup code for issue #283
 
 2021-04-09
