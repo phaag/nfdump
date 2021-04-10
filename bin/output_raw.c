@@ -364,12 +364,14 @@ extension_map_t	*extension_map = r->map_ref;
 			case EX_MPLS: {
 				unsigned int i;
 				for ( i=0; i<10; i++ ) {
-					snprintf(_s, slen-1,
+					if (r->mpls_label[i] != 0) {
+						snprintf(_s, slen-1,
 "  MPLS Lbl %2u  =      %8u-%1u-%1u\n", i+1
 , r->mpls_label[i] >> 4 , (r->mpls_label[i] & 0xF ) >> 1, r->mpls_label[i] & 1 );
-					_slen = strlen(data_string);
-					_s = data_string + _slen;
-					slen = STRINGSIZE - _slen;
+						_slen = strlen(data_string);
+						_s = data_string + _slen;
+						slen = STRINGSIZE - _slen;
+					}
 				}
 			} break;
 			case EX_ROUTER_IP_v4:

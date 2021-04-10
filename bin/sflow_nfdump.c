@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -207,7 +207,7 @@ int 		exceptionVal;
 static int pkg_num = 0;
 
 	pkg_num++;
-	printf("Process_v9: Next packet: %i\n", pkg_num);
+	printf("Process_sflow: Next packet: %i\n", pkg_num);
 #endif
 
 	memset(&sample, 0, sizeof(sample));

@@ -532,12 +532,13 @@ uint32_t vlanNum=0;
 		ptr += 2;
 		while (((end - ptr)>0) && (ptr[0] & 0x1) == 0) { // check for Bottom of stack
 			ptr += 2;
-			sample->mpls_label[mpls_num_labels++] = ntohl(*((uint32_t *)ptr)) >> 8;
+			if ( mpls_num_labels < 10 )
+				sample->mpls_label[mpls_num_labels++] = ntohl(*((uint32_t *)ptr)) >> 8;
 			ptr += 2;
 			sample->mpls_num_labels++;
 		}
 		ptr += 2;	// point to IP header
-		sample->mpls_num_labels = mpls_num_labels;
+		sample->mpls_num_labels = mpls_num_labels > 10 ? 10 : mpls_num_labels;
 		if((*ptr >> 4) == 4)
 			type_len = 0x0800;	// IPv4
 		if((*ptr >> 4) == 6)

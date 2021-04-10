@@ -1,3 +1,6 @@
+2021-04-10
+- Cleanup code for issue #283
+
 2021-04-09
 - Fix minor nfpcapd issues
 - Add mpls unwrap in sflow code - adds mpls labels if available
