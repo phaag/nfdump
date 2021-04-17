@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -28,12 +27,6 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
  *  POSSIBILITY OF SUCH DAMAGE.
  *  
- *  $Author: haag $
- *
- *  $Id: nfprof.c 39 2009-11-25 08:11:15Z haag $
- *
- *  $LastChangedRevision: 39 $
- *	
  */
 
 #include "config.h"
@@ -41,15 +34,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <strings.h>
-
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
+#include <strings.h>
 
 #include <sys/time.h>
 #include <sys/resource.h>
 #include "nfprof.h"
+
+#include "util.h"
 
 /*
  * Initialize profiling.
@@ -57,7 +49,7 @@
  */
 int nfprof_start(nfprof_t *profile_data) {
 
-	bzero (profile_data, sizeof(nfprof_t));
+	memset((void *)profile_data, 0, sizeof(nfprof_t));
 	return gettimeofday(&profile_data->tstart, (struct timezone*)NULL) == 0 ? 1 : 0;
 
 } // End of nfprof_start
@@ -104,9 +96,10 @@ struct timeval tv;
 	else
 		fps = (double)profile_data->numflows / (tend-tstart);
 
-	fprintf(std, "Sys: %.4fs User: %.4fs Wall: %.4fs flows/second: %-10.1f Runtime: %.4fs\n", 
+	fprintf(std, "Sys: %.4fs User: %.4fs Wall: %.4fs flows/second: %-.1f Runtime: %.4fs\n", 
 			tsys, tuser, tend-tstart, fps, tstop-tstart);
 
+#ifdef DEVEL
 	fprintf(std, "\n");
 	fprintf(std, "Max RSS: %ld\n", profile_data->used.ru_maxrss);
 /*
@@ -121,7 +114,7 @@ struct timeval tv;
 	fprintf(std, "block input operations: %ld\n", profile_data->used.ru_inblock);
 	fprintf(std, "block output operations: %ld\n", profile_data->used.ru_oublock);
 */
-
+#endif
 
 } // End of nfprof_print
 

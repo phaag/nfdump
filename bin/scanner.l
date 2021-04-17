@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2020, Peter Haag
+ *  Copyright (c) 2012-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -136,6 +136,7 @@ flowdir			{ return DIR; }
 net				{ return NET; }
 port			{ return PORT; }
 as				{ return AS; }
+geo				{ return GEO; }
 packets			{ return PACKETS; }
 bytes			{ return BYTES; }
 flows			{ return FLOWS; }

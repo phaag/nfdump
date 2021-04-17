@@ -24,6 +24,10 @@ if FT2NFDUMP
 bin_PROGRAMS += ft2nfdump
 endif
 
+if MAXMIND
+bin_PROGRAMS += mmc
+endif
+
 BUILT_SOURCES = grammar.h
 AM_YFLAGS = -d
 
@@ -61,9 +65,10 @@ nflowcache = nflowcache.c nflowcache.h memhandle.h
 bookkeeper = bookkeeper.c bookkeeper.h
 expire= expire.c expire.h
 launch = launch.c launch.h
+maxmind = maxmind.c maxmind.h
 
 lib_LTLIBRARIES = libnfdump.la
-libnfdump_la_SOURCES = $(output) $(util) $(filelzo) $(nffile) $(nflist) $(filter) $(exporter) $(nbar)
+libnfdump_la_SOURCES = $(output) $(util) $(filelzo) $(nffile) $(nflist) $(filter) $(exporter) $(nbar) $(maxmind)
 libnfdump_la_LDFLAGS = -release 1.7.0
 
 
@@ -134,6 +139,11 @@ nfexpire_LDADD = libnfdump.la @FTS_OBJ@
 nftest_SOURCES = nftest.c 
 nftest_LDADD = libnfdump.la
 nftest_DEPENDENCIES = nfgen
+
+if MAXMIND
+mmc_SOURCES = mmc.c 
+mmc_LDADD = libnfdump.la 
+endif
 
 if FT2NFDUMP
 ft2nfdump_SOURCES = ft2nfdump.c 

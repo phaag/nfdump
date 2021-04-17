@@ -51,6 +51,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
+#include "maxmind.h"
 #include "output_util.h"
 #include "output_fmt.h"
 
@@ -116,6 +117,10 @@ static void String_DstAddr(FILE *stream, master_record_t *r);
 static void String_SrcAddrPort(FILE *stream, master_record_t *r);
 
 static void String_DstAddrPort(FILE *stream, master_record_t *r);
+
+static void String_SrcAddrLocPort(FILE *stream, master_record_t *r);
+
+static void String_DstAddrLocPort(FILE *stream, master_record_t *r);
 
 static void String_SrcNet(FILE *stream, master_record_t *r);
 
@@ -229,6 +234,14 @@ static void String_bpp(FILE *stream, master_record_t *r);
 
 static void String_ExpSysID(FILE *stream, master_record_t *r);
 
+static void String_SrcCountry(FILE *stream, master_record_t *r);
+
+static void String_DstCountry(FILE *stream, master_record_t *r);
+
+static void String_SrcLocation(FILE *stream, master_record_t *r);
+
+static void String_DstLocation(FILE *stream, master_record_t *r);
+
 #ifdef NSEL
 static void String_EventTime(FILE *stream, master_record_t *r);
 
@@ -301,6 +314,8 @@ static struct format_token_list_s {
 	{ "%ra",  1, "       Router IP", 		String_RouterIP },		// Router IP Address
 	{ "%sap", 1, "     Src IP Addr:Port ",	String_SrcAddrPort },	// Source Address:Port
 	{ "%dap", 1, "     Dst IP Addr:Port ",  String_DstAddrPort },	// Destination Address:Port
+	{ "%gsap", 1, "     Src IP Addr(..):Port ",	String_SrcAddrLocPort },// Source Address(geo):Port
+	{ "%gdap", 1, "     Dst IP Addr(..):Port ", String_DstAddrLocPort },// Destination Address(geo):Port
 	{ "%sp",  0, "Src Pt", 				 	String_SrcPort },		// Source Port
 	{ "%dp",  0, "Dst Pt", 				 	String_DstPort },		// Destination Port
 	{ "%it",  0, "ICMP-T", 					String_ICMP_type },		// ICMP type
@@ -351,6 +366,10 @@ static struct format_token_list_s {
 	{ "%bpp", 0, "   Bpp", 				 	String_bpp },			// bpp - Bytes per package
 	{ "%eng", 0, " engine", 			 	String_Engine },		// Engine Type/ID
 	{ "%lbl", 0, "           label", 		String_Label },			// Flow Label
+	{ "%sc", 0, "  ", 			 			String_SrcCountry },	// src IP 2 letter country code
+	{ "%dc", 0, "  ", 			 			String_DstCountry },	// dst IP 2 letter country code
+	{ "%sloc", 0, "Src IP location info",	String_SrcLocation },	// src IP geo location info
+	{ "%dloc", 0, "Src IP location info",	String_DstLocation },	// src IP geo location info
 
 #ifdef NSEL
 // NSEL specifics
@@ -779,6 +798,40 @@ char 	tmp_str[IP_STRING_LEN], portchar;
 
 } // End of String_SrcAddrPort
 
+static void String_SrcAddrLocPort(FILE *stream, master_record_t *r) {
+char 	tmp_str[IP_STRING_LEN], portchar, country[4];
+
+	tmp_str[0] = 0;
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_ADDR) ) { // IPv6
+		uint64_t	ip[2];
+
+		ip[0] = htonll(r->V6.srcaddr[0]);
+		ip[1] = htonll(r->V6.srcaddr[1]);
+		inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
+		if ( ! long_v6 ) {
+			CondenseV6(tmp_str);
+		}
+		portchar = '.';
+		country[0] = ' ';
+		country[1] = ' ';
+		country[2] = '\0';
+	} else {	// IPv4
+		uint32_t	ip;
+		ip = htonl(r->V4.srcaddr);
+		inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+		portchar = ':';
+		LookupCountry(r->V4.srcaddr, country);
+	}
+	tmp_str[IP_STRING_LEN-1] = 0;
+
+	if ( long_v6 ) 
+		fprintf(stream, "%s%39s(%s)%c%-5i", tag_string, tmp_str, country, portchar, r->srcPort);
+	else
+		fprintf(stream, "%s%16s(%s)%c%-5i", tag_string, tmp_str, country, portchar, r->srcPort);
+
+
+} // End of String_SrcAddrLocPort
+
 static void String_DstAddr(FILE *stream, master_record_t *r) {
 char tmp_str[IP_STRING_LEN];
 
@@ -922,6 +975,39 @@ char 	tmp_str[IP_STRING_LEN], portchar;
 
 
 } // End of String_DstAddrPort
+
+static void String_DstAddrLocPort(FILE *stream, master_record_t *r) {
+char 	tmp_str[IP_STRING_LEN], portchar, country[4];
+
+	tmp_str[0] = 0;
+	if ( TestFlag(r->mflags, V3_FLAG_IPV6_ADDR) ) { // IPv6
+		uint64_t	ip[2];
+
+		ip[0] = htonll(r->V6.dstaddr[0]);
+		ip[1] = htonll(r->V6.dstaddr[1]);
+		inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
+		if ( ! long_v6 ) {
+			CondenseV6(tmp_str);
+		}
+		portchar = '.';
+		country[0] = ' ';
+		country[1] = ' ';
+		country[2] = '\0';
+	} else {	// IPv4
+		uint32_t	ip;
+		ip = htonl(r->V4.dstaddr);
+		inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+		portchar = ':';
+		LookupCountry(r->V4.dstaddr, country);
+	}
+	tmp_str[IP_STRING_LEN-1] = 0;
+
+	if ( long_v6 ) 
+		fprintf(stream, "%s%39s(%s)%c%-5s", tag_string, tmp_str, country, portchar, ICMP_Port_decode(r));
+	else
+		fprintf(stream, "%s%16s(%s)%c%-5s", tag_string, tmp_str, country, portchar, ICMP_Port_decode(r));
+
+} // End of String_DstAddrLocPort
 
 static void String_SrcNet(FILE *stream, master_record_t *r) {
 char tmp_str[IP_STRING_LEN];
@@ -1371,10 +1457,54 @@ uint32_t 	Bpp;
 
 static void String_ExpSysID(FILE *stream, master_record_t *r) {
 
-
 	fprintf(stream ,"%6u", r->exporter_sysid);
 
 } // End of String_ExpSysID
+
+static void String_SrcCountry(FILE *stream, master_record_t *r) {
+
+	if ( (r->mflags & V3_FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+		fprintf(stream,"  ");
+	} else { // IPv4
+		fprintf(stream,"%s", r->src_geo);
+	}
+
+} // End of String_SrcCountry
+
+static void String_DstCountry(FILE *stream, master_record_t *r) {
+
+	if ( (r->mflags & V3_FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+		fprintf(stream,"  ");
+	} else { // IPv4
+		fprintf(stream,"%s", r->dst_geo);
+	}
+
+} // End of String_DstCountry
+
+static void String_SrcLocation(FILE *stream, master_record_t *r) {
+char location[128];
+
+	if ( (r->mflags & V3_FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+		fprintf(stream,"  ");
+	} else { // IPv4
+		LookupLocation(r->V4.srcaddr, location, 128);
+		fprintf(stream,"%s", location);
+	}
+
+} // End of String_SrcLocation
+
+static void String_DstLocation(FILE *stream, master_record_t *r) {
+char location[128];
+
+	if ( (r->mflags & V3_FLAG_IPV6_ADDR ) != 0 ) { // IPv6
+		fprintf(stream,"  ");
+	} else { // IPv4
+		LookupLocation(r->V4.dstaddr, location, 128);
+		fprintf(stream,"%s", location);
+	}
+
+} // End of String_DstLocation
+
 
 #ifdef NSEL
 static void String_nfc(FILE *stream, master_record_t *r) {

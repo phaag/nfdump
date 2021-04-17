@@ -135,6 +135,14 @@ AM_CONDITIONAL(FT2NFDUMP, true)
 AM_CONDITIONAL(FT2NFDUMP, false)
 )
 
+AC_ARG_ENABLE(maxmind,
+[  --enable-maxmind        Build mmc to convert the MaxMind GeoDB; default is NO],
+AM_CONDITIONAL(MAXMIND, true)
+,
+AM_CONDITIONAL(MAXMIND, false)
+)
+
+
 #Needs tidy
 AC_ARG_ENABLE(nfprofile,
 [  --enable-nfprofile      Build nfprofile used by NfSen; default is NO],

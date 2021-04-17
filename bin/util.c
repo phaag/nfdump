@@ -134,7 +134,7 @@ struct stat fstat;
 
 	if ( stat(path, &fstat) ) {
 		LogError("No such file or directory: %s", path);
-		LogError("stat() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+		LogError("stat(%s) error in %s line %d: %s", path, __FILE__, __LINE__, strerror(errno));
 		return 0;
 	}
 

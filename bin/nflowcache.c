@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -211,20 +211,6 @@ static uint32_t	FlowStat_order = 0;	// bit field for multiple print orders
 static uint32_t	PrintOrder 	   = 0; // -O selected print order - index into order_mode
 static uint32_t PrintDirection = 0;
 static uint32_t	GuessDirection = 0;
-
-/*
-static void spin_lock(int *p);
-static void spin_unlock(int volatile *p);
-
-static void spin_lock(int *p) {
-    while(!__sync_bool_compare_and_swap(p, 0, 1));
-}
-
-static void spin_unlock(int volatile *p) {
-    __asm volatile (""); // acts as a memory barrier.
-    *p = 0;
-}
-*/
 
 typedef struct FlowKey_s {
 	struct _ipv6_s ipaddr;
@@ -1090,9 +1076,7 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 		if ( NeedSwap(GuessFlowDirection, &flow_record) )
 			SwapFlow(&flow_record);
 
-		char *string;
-		print_record((void *)&flow_record, &string, outputParams->doTag);
-		printf("%s\n", string);
+		print_record(stdout, &flow_record, outputParams->doTag);
 	}
 
 } // End of PrintSortList

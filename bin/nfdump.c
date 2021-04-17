@@ -35,10 +35,11 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdbool.h>
-#include <errno.h>
 #include <time.h>
 #include <string.h>
+#include <errno.h>
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -48,10 +49,6 @@
 #include <sys/param.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #include "util.h"
 #include "nfdump.h"
@@ -72,6 +69,7 @@
 #include "netflow_v9.h"
 #include "nftree.h"
 #include "nfprof.h"
+#include "maxmind.h"
 #include "nbar.h"
 #include "nflowcache.h"
 #include "nfstat.h"
@@ -83,8 +81,10 @@ extern char	*FilterFilename;
 static FilterEngine_t	*Engine;
 const char *nfdump_version = VERSION;
 
-static uint64_t total_bytes;
-static uint32_t recordCount;
+static uint64_t total_bytes = 0;
+static uint32_t processed = 0;
+static uint32_t passed	  = 0;
+static uint32_t HasGeoDB  = 0;
 static uint32_t skipped_blocks;
 static time_t 	t_first_flow, t_last_flow;
 
@@ -156,7 +156,11 @@ extern exporter_t **exporter_list;
 
 #define FORMAT_line "%ts %td %pr %sap -> %dap %pkt %byt %fl"
 
+#define FORMAT_gline "%ts %td %pr %gsap -> %gdap %pkt %byt %fl"
+
 #define FORMAT_long "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %fl"
+
+#define FORMAT_glong "%ts %td %pr %gsap -> %gdap %flg %tos %pkt %byt %fl"
 
 #define FORMAT_extended "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %pps %bps %bpp %fl"
 
@@ -201,7 +205,9 @@ static void flow_record_to_null(FILE *stream, void *record, int tag);
 printmap_t printmap[] = {
 	{ "raw",		flow_record_to_raw,  		raw_prolog, raw_epilog, NULL },
 	{ "line", 		format_special,      		text_prolog, text_epilog, FORMAT_line },
+	{ "gline", 		format_special,      		text_prolog, text_epilog, FORMAT_gline },
 	{ "long", 		format_special, 			text_prolog, text_epilog, FORMAT_long },
+	{ "glong", 		format_special, 			text_prolog, text_epilog, FORMAT_glong },
 	{ "extended",	format_special, 			text_prolog, text_epilog, FORMAT_extended },
 	{ "biline", 	format_special,      		text_prolog, text_epilog, FORMAT_biline	},
 	{ "bilong", 	format_special,      		text_prolog, text_epilog, FORMAT_bilong	},
@@ -505,13 +511,21 @@ uint64_t twin_msecFirst, twin_msecLast;
 						}
 					} else {
 						ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
-					} 
+					}
 
+					processed++;
+					if ( HasGeoDB ) {
+						LookupCountry(master_record->V4.srcaddr, master_record->src_geo);
+						LookupCountry(master_record->V4.dstaddr, master_record->dst_geo);
+						if ( master_record->srcas == 0 )
+							master_record->srcas = LookupAS(master_record->V4.srcaddr);
+						if ( master_record->dstas == 0 )
+							master_record->dstas = LookupAS(master_record->V4.dstaddr);
+					}
 					// Time based filter
 					// if no time filter is given, the result is always true
 					match = twin_msecFirst && 
 						(master_record->msecFirst < twin_msecFirst ||  master_record->msecLast > twin_msecLast) ? 0 : 1;
-					match &= limitRecords ? stat_record.numflows < limitRecords : 1;
 
 					// filter netflow record with user supplied filter
 					if ( match ) 
@@ -523,10 +537,10 @@ uint64_t twin_msecFirst, twin_msecLast;
 						goto NEXT;
 					}
 
-					recordCount++;
+					passed++;
 					// check if we are done, if -c option was set
 					if ( limitRecords ) 
-						done = recordCount >= limitRecords;
+						done = passed >= limitRecords;
 
 					// Records passed filter -> continue record processing
 					// Update statistics
@@ -650,7 +664,7 @@ nfprof_t 	profile_data;
 timeWindow_t *timeWindow;
 char 		*wfile, *ffile, *filter, *tstring, *stat_type;
 char		*byte_limit_string, *packet_limit_string, *print_format;
-char		*print_order, *query_file, *nameserver, *aggr_fmt;
+char		*print_order, *query_file, *geo_file, *nameserver, *aggr_fmt;
 int 		c, ffd, ret, element_stat, fdump;
 int 		i, flow_stat, aggregate, aggregate_mask, bidir;
 int 		print_stat, syntax_only, compress;
@@ -671,8 +685,6 @@ flist_t 	flist;
 	print_stat      = 0;
 	element_stat  	= 0;
 	limitRecords	= 0;
-	total_bytes		= 0;
-	recordCount		= 0;
 	skipped_blocks	= 0;
 	compress		= NOT_COMPRESSED;
 	GuessDir		= 0;
@@ -684,6 +696,7 @@ flist_t 	flist;
 	print_epilog	= NULL;
 	print_order  	= NULL;
 	query_file		= NULL;
+	geo_file		= NULL;
 	ModifyCompress	= -1;
 	aggr_fmt		= NULL;
 
@@ -694,9 +707,8 @@ flist_t 	flist;
 	}
 	outputParams->topN = -1;
 
-
 	Ident[0] = '\0';
-	while ((c = getopt(argc, argv, "6aA:Bbc:D:E:s:hn:i:jf:qyzr:v:w:J:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
+	while ((c = getopt(argc, argv, "6aA:Bbc:D:E:G:s:hn:i:jf:qyzr:v:w:J:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -747,6 +759,11 @@ flist_t 	flist;
 				PrintExporters();
 				exit(0);
 				} break;
+			case 'G':
+				if ( !CheckPath(optarg, S_IFREG) )
+					exit(255);
+				geo_file = strdup(optarg);
+				break;
 			case 'X':
 				fdump = 1;
 				break;
@@ -758,21 +775,21 @@ flist_t 	flist;
 				break;
 			case 'j':
 				if ( compress ) {
-					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
 					exit(255);
 				}
 				compress = BZ2_COMPRESSED;
 				break;
 			case 'y':
 				if ( compress ) {
-					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
 					exit(255);
 				}
 				compress = LZ4_COMPRESSED;
 				break;
 			case 'z':
 				if ( compress ) {
-					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
 					exit(255);
 				}
 				compress = LZO_COMPRESSED;
@@ -804,7 +821,7 @@ flist_t 	flist;
 				packet_limit_string = optarg;
 				break;
 			case 'K':
-				LogError("*** Anonymisation moved! Use nfanon to anonymise flows!\n");
+				LogError("*** Anonymisation moved! Use nfanon to anonymise flows!");
 				exit(255);
 				break;
 			case 'L':
@@ -827,7 +844,7 @@ flist_t 	flist;
 			case 'm':
 				print_order = "tstart";
 				Parse_PrintOrder(print_order);
-				LogError("Option -m deprecated. Use '-O tstart' instead\n");
+				LogError("Option -m deprecated. Use '-O tstart' instead");
 				break;
 			case 'M':
 				if ( strlen(optarg) > MAXPATHLEN )
@@ -841,7 +858,7 @@ flist_t 	flist;
 				print_format = optarg;
 				// limit input chars
 				if ( strlen(print_format) > 512 ) {
-					LogError("Length of ouput format string too big - > 512\n");
+					LogError("Length of ouput format string too big - > 512");
 					exit(255);
 				}
 				break;
@@ -850,7 +867,7 @@ flist_t 	flist;
 				print_order = optarg;
 				ret = Parse_PrintOrder(print_order);
 				if ( ret < 0 ) {
-					LogError("Unknown print order '%s'\n", print_order);
+					LogError("Unknown print order '%s'", print_order);
 					exit(255);
 				}
 				} break;
@@ -865,7 +882,7 @@ flist_t 	flist;
 			case 'n':
 				outputParams->topN = atoi(optarg);
 				if ( outputParams->topN < 0 ) {
-					LogError("TopnN number %i out of range\n", outputParams->topN);
+					LogError("TopnN number %i out of range", outputParams->topN);
 					exit(255);
 				}
 				break;
@@ -876,14 +893,14 @@ flist_t 	flist;
 				strncpy(Ident, optarg, IDENTLEN);
 				Ident[IDENTLEN - 1] = 0;
 				if ( strchr(Ident, ' ') ) {
-					LogError("Ident must not contain spaces\n");
+					LogError("Ident must not contain spaces");
 					exit(255);
 				}
 				break;
 			case 'J':
 				ModifyCompress = atoi(optarg);
 				if ( (ModifyCompress < 0) || (ModifyCompress > 3) ) {
-					LogError("Expected -J <num>, 0: uncompressed, 1: LZO, 2: BZ2, 3: LZ4 compressed.\n");
+					LogError("Expected -J <num>, 0: uncompressed, 1: LZO, 2: BZ2, 3: LZ4 compressed");
 					exit(255);
 				}
 				break;
@@ -921,26 +938,25 @@ flist_t 	flist;
 
 	if ( !filter && ffile ) {
 		if ( stat(ffile, &stat_buff) ) {
-			LogError("Can't stat filter file '%s': %s\n", ffile, strerror(errno));
+			LogError("Can't stat filter file '%s': %s", ffile, strerror(errno));
 			exit(255);
 		}
 		filter = (char *)malloc(stat_buff.st_size+1);
 		if ( !filter ) {
-			LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+			LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 			exit(255);
 		}
 		ffd = open(ffile, O_RDONLY);
 		if ( ffd < 0 ) {
-			LogError("Can't open filter file '%s': %s\n", ffile, strerror(errno));
+			LogError("Can't open filter file '%s': %s", ffile, strerror(errno));
 			exit(255);
 		}
 		ret = read(ffd, (void *)filter, stat_buff.st_size);
 		if ( ret < 0   ) {
-			perror("Error reading filter file");
+			LogError("Error reading filter file %s: %s", ffile, strerror(errno));
 			close(ffd);
 			exit(255);
 		}
-		total_bytes += ret;
 		filter[stat_buff.st_size] = 0;
 		close(ffd);
 
@@ -997,6 +1013,22 @@ flist_t 	flist;
 	queue_t *fileList = SetupInputFileSequence(&flist);
 	if ( !fileList || !Init_nffile(fileList) )
 		exit(255);
+
+	if (geo_file == NULL) {
+		char *f = getenv("NFGEODB");
+		if ( f && !CheckPath(f, S_IFREG) ) {
+			LogError("Error reading geo location DB file %s", f);
+			exit(255);
+		}
+		geo_file = f;
+	}
+	if ( geo_file ) {
+		if ( !Init_MaxMind() || !LoadMaxMind(geo_file) ) {
+			LogError("Error reading geo location DB file %s", geo_file);
+			exit(255);
+		}
+		HasGeoDB = 1;
+	}
 
 	// Modify compression
 	if ( ModifyCompress >= 0 ) {
@@ -1148,11 +1180,10 @@ flist_t 	flist;
 	sum_stat = process_data(wfile, element_stat, aggregate || flow_stat, print_order != NULL,
 						print_record, timeWindow, 
 						limitRecords, outputParams, compress);
-	nfprof_end(&profile_data, recordCount);
+	nfprof_end(&profile_data, processed);
 	
-	if ( total_bytes == 0 ) {
-		printf("No matched flows\n");
-		exit(0);
+	if ( passed == 0 ) {
+		printf("No matching flows\n");
 	}
 
 	if (aggregate || print_order) {
@@ -1198,8 +1229,8 @@ flist_t 	flist;
 					}
  					printf("Time window: %s\n", TimeString(t_first_flow, t_last_flow));
 				}
-				printf("Total flows processed: %u, Blocks skipped: %u, Bytes read: %llu\n", 
-					recordCount, skipped_blocks, (unsigned long long)total_bytes);
+				printf("Total flows processed: %u, passed: %u, Blocks skipped: %u, Bytes read: %llu\n", 
+					processed, passed, skipped_blocks, (unsigned long long)total_bytes);
 				nfprof_print(&profile_data, stdout);
 				break;
 			case MODE_PIPE:

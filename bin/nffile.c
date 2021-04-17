@@ -549,7 +549,7 @@ static nffile_t *NewFile(nffile_t *nffile) {
 
 } // End of NewFile
 
-nffile_t *OpenFile(char *filename, nffile_t *nffile){
+static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile){
 struct stat stat_buf;
 int ret, fd;
 
@@ -687,6 +687,22 @@ int ret, fd;
 
 	return nffile;
 
+} // End of OpenFileStatic
+
+nffile_t *OpenFile(char *filename, nffile_t *nffile){
+
+	nffile = OpenFileStatic(filename, nffile);	// Open the file
+	if ( !nffile ) {
+		return NULL;
+	}
+
+	// kick off nfreader
+	pthread_t tid;
+	atomic_init(&nffile->worker, 0);
+	atomic_init(&nffile->terminate, 0);
+	pthread_create(&tid, NULL, nfreader, (void *)nffile);
+	return nffile;
+
 } // End of OpenFile
 
 nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int compress, int encryption) {
@@ -744,7 +760,7 @@ nffile_t *AppendFile(char *filename) {
 nffile_t		*nffile;
 
 	// try to open the existing file
-	nffile = OpenFile(filename, NULL);
+	nffile = OpenFileStatic(filename, NULL);
 	if ( !nffile )
 		return NULL;
 
@@ -894,7 +910,7 @@ nffile_t *GetNextFile(nffile_t *nffile) {
 #ifdef DEVEL
 		printf("Process: '%s'\n", nextFile);
 #endif
-		nffile = OpenFile(nextFile, nffile);	// Open the file
+		nffile = OpenFileStatic(nextFile, nffile);	// Open the file
 		if ( !nffile ) {
 			return NULL;
 		}
@@ -1175,11 +1191,18 @@ nffile_t *nffile = (nffile_t *)arg;
 
 static int SignalTerminate(nffile_t *nffile) {
 
+	// get worker tid
 	pthread_t tid = atomic_load(&nffile->worker);
 	if ( tid == 0 )
 		return 1;
 
+	// set terminate
 	atomic_init(&nffile->terminate, 1);
+
+	// close queue and signal any waiting thread
+	queue_close(nffile->blockQueue);
+	pthread_cond_signal(&(nffile->blockQueue->cond));
+
 	int err = pthread_join(tid, NULL);
 	if ( err ) {
 		LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -1207,7 +1230,7 @@ void SetIdent(nffile_t *nffile, char *Ident) {
 
 int ChangeIdent(char *filename, char *Ident) {
 
-	nffile_t *nffile = OpenFile(filename, NULL);
+	nffile_t *nffile = OpenFileStatic(filename, NULL);
 	if ( !nffile ) {
 		return 0;
 	}
@@ -1317,7 +1340,7 @@ char 			outfile[MAXPATHLEN];
 
 int QueryFile(char *filename) {
 int fd;
-uint32_t totalRecords, numBlocks, type1, type2, type3;
+uint32_t totalRecords, numBlocks, type1, type2, type3, type4;
 struct stat stat_buf;
 ssize_t	ret;
 off_t	fsize;
@@ -1325,7 +1348,7 @@ off_t	fsize;
 	if ( !Init_nffile(NULL) ) 
 		return 0;
 
-	type1 = type2 = type3 = 0;
+	type1 = type2 = type3 = type4 = 0;
 	totalRecords = numBlocks = 0;
 
 	if ( stat(filename, &stat_buf) ) {
@@ -1465,6 +1488,9 @@ off_t	fsize;
 			case DATA_BLOCK_TYPE_3:
 				type3++;
 				break;
+			case DATA_BLOCK_TYPE_4:
+				type4++;
+				break;
 			default:
 				printf("block %i has unknown type %u\n", numBlocks, nffile->block_header->type);
 				close(fd);
@@ -1552,29 +1578,46 @@ off_t	fsize;
 		// record counting
 		int blockSize = 0;
 		int numRecords = 0;
-		while (blockSize < nffile->block_header->size) {
+		if ( nffile->block_header->type == DATA_BLOCK_TYPE_4) { // array block
 			recordHeader_t *recordHeader = (recordHeader_t *)nffile->buff_ptr;
-			numRecords++;
-			if ( (blockSize + recordHeader->size) > nffile->block_header->size ) {
-				LogError("Record size %u extends beyond block size: %u", 
-					blockSize + recordHeader->size, nffile->block_header->size );
+			blockSize += sizeof(recordHeader_t);
+			LogError("Array block: Record type: %u, size: %u", 
+					recordHeader->type, recordHeader->size);
+			while (blockSize < nffile->block_header->size) {
+				blockSize += recordHeader->size;
+				numRecords++;
+			}
+			if ( blockSize != nffile->block_header->size ) {
+				LogError("Error in block: %u, couted array size: %u != header size: %u\n",
+					numBlocks, blockSize, nffile->block_header->size);
 				close(fd);
 				return 0;
 			}
-			blockSize += recordHeader->size;
-
-			dbg_printf("Record %i, type: %u, size: %u - block size: %u\n", 
-				numRecords, recordHeader->type, recordHeader->size, blockSize);
-
-			if ( recordHeader->size < sizeof(recordHeader_t) ) {
-				LogError("Error in block: %u, record: %u: record size %u below header size", 
-					numBlocks, numRecords, recordHeader->size);
-				LogError("Record %i, type: %u, size: %u - block size: %u\n", 
+		} else {
+			while (blockSize < nffile->block_header->size) {
+				recordHeader_t *recordHeader = (recordHeader_t *)nffile->buff_ptr;
+				numRecords++;
+				if ( (blockSize + recordHeader->size) > nffile->block_header->size ) {
+					LogError("Record size %u extends beyond block size: %u", 
+						blockSize + recordHeader->size, nffile->block_header->size );
+					close(fd);
+					return 0;
+				}
+				blockSize += recordHeader->size;
+	
+				dbg_printf("Record %i, type: %u, size: %u - block size: %u\n", 
 					numRecords, recordHeader->type, recordHeader->size, blockSize);
-				close(fd);
-				return 0;
+
+				if ( recordHeader->size < sizeof(recordHeader_t) ) {
+					LogError("Error in block: %u, record: %u: record size %u below header size", 
+						numBlocks, numRecords, recordHeader->size);
+					LogError("Record %i, type: %u, size: %u - block size: %u\n", 
+						numRecords, recordHeader->type, recordHeader->size, blockSize);
+					close(fd);
+					return 0;
+				}
+				nffile->buff_ptr += recordHeader->size;
 			}
-			nffile->buff_ptr += recordHeader->size;
 		}
 		if (numRecords != nffile->block_header->NumRecords) {
 			LogError("Block %u num records %u != counted records: %u", i, nffile->block_header->NumRecords, numRecords);
@@ -1613,6 +1656,8 @@ off_t	fsize;
 		printf("Type 2 blocks : %u\n", type2);
 	if ( type3 )
 		printf("Type 3 blocks : %u\n", type3);
+	if ( type4 )
+		printf("Type 4 blocks : %u\n", type4);
 	printf("Records       : %u\n", totalRecords);
 
 	DisposeFile(nffile);
@@ -1691,7 +1736,7 @@ int ret;
 // simple interface to get a stat record
 int GetStatRecord(char *filename, stat_record_t *stat_record) {
 	
-	nffile_t *nffile = OpenFile(filename, NULL);
+	nffile_t *nffile = OpenFileStatic(filename, NULL);
 	if ( !nffile ) {
 		return 0;
 	}

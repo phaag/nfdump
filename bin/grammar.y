@@ -136,7 +136,7 @@ char yyerror_buff[256];
 }
 
 %token ANY IP IF MAC MPLS TOS DIR FLAGS PROTO MASK NET PORT FWDSTAT IN OUT SRC DST EQ LT GT LE GE PREV NEXT
-%token IDENT ENGINE_TYPE ENGINE_ID AS PACKETS BYTES FLOWS NFVERSION
+%token IDENT ENGINE_TYPE ENGINE_ID AS GEO PACKETS BYTES FLOWS NFVERSION
 %token PPS BPS BPP DURATION NOT 
 %token IPV4 IPV6 BGPNEXTHOP ROUTER VLAN
 %token CLIENT SERVER APP LATENCY SYSID
@@ -1232,6 +1232,46 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 				break;
 			case ADJ_NEXT:
 				$$.self = NewBlock(OffsetBGPadj, MaskBGPadjNext, ($4 << ShiftBGPadjNext) & MaskBGPadjNext, $3.comp, FUNC_NONE, NULL );
+				break;
+			default:
+				yyerror("This token is not expected here!");
+				YYABORT;
+		} // End of switch
+
+	}
+
+	| dqual GEO STRING {	
+		if ( strlen($3) != 2 ) {
+			yyerror("Need a two letter geo country code");
+			YYABORT;
+		}
+
+		union {
+			char c[8];
+			uint64_t u;
+		} v;
+		v.u = 0;
+		v.c[0] = $3[0];
+		v.c[1] = $3[1];
+		switch ( $1.direction ) {
+			case SOURCE:
+				$$.self = NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL );
+				break;
+			case DESTINATION:
+				$$.self = NewBlock(OffsetGeo, MaskDstGeo, (v.u << ShiftDstGeo) & MaskDstGeo, CMP_EQ, FUNC_NONE, NULL);
+				break;
+			case DIR_UNSPEC:
+			case SOURCE_OR_DESTINATION:
+				$$.self = Connect_OR(
+					NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL ),
+					NewBlock(OffsetGeo, MaskDstGeo, (v.u << ShiftDstGeo) & MaskDstGeo, CMP_EQ, FUNC_NONE, NULL)
+				);
+				break;
+			case SOURCE_AND_DESTINATION:
+				$$.self = Connect_AND(
+					NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL ),
+					NewBlock(OffsetGeo, MaskDstGeo, (v.u << ShiftDstGeo) & MaskDstGeo, CMP_EQ, FUNC_NONE, NULL)
+				);
 				break;
 			default:
 				yyerror("This token is not expected here!");

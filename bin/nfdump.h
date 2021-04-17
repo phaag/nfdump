@@ -335,6 +335,24 @@ typedef struct master_record_s {
 #	define ShiftIPv6 			0
 #endif
 
+	char src_geo[4];
+	char dst_geo[4];
+#	define OffsetGeo			(offsetof(master_record_t, src_geo) >> 3)
+#ifdef WORDS_BIGENDIAN
+#	define MaskSrcGeo 			0x00ffffff00000000LL
+#	define ShiftSrcGeo 			32
+
+#	define MaskDstGeo 			0x0000000000ffffffLL
+#	define ShiftDstGeo 			0
+
+#else
+#	define MaskSrcGeo 			0x0000000000ffffffLL
+#	define ShiftSrcGeo 			0
+
+#	define MaskDstGeo 			0x00ffffff00000000LL
+#	define ShiftDstGeo 			32
+#endif
+
 
 	ip_addr_t	ip_nexthop;		// ipv4 0x0000'0000'ffff'ffff
 								// ipv6	0xffff'ffff'ffff'ffff

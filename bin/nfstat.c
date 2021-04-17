@@ -1,5 +1,5 @@
 /*  
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -33,7 +33,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -41,13 +41,11 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <string.h>
+#include <errno.h>
 #include <ctype.h>
 #include <signal.h>
 #include <assert.h>
 
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #include "util.h"
 #include "nfdump.h"
@@ -56,12 +54,12 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
-#include "nfnet.h"
+#include "maxmind.h"
 #include "output_util.h"
 #include "nflowcache.h"
-#include "nfstat.h"
 #include "blocksort.h"
 #include "khash.h"
+#include "nfstat.h"
 
 enum { IS_NUMBER = 1, IS_IPADDR, IS_MACADDR, IS_MPLS_LBL, IS_LATENCY, IS_EVENT, IS_HEX};
 
@@ -372,7 +370,6 @@ typedef struct hashkey_s {
 	khint64_t v0;
 	khint64_t v1;
 	uint8_t	proto;
-	khint_t	hash;
 } hashkey_t;
 
 // khash record for element stat
@@ -444,6 +441,7 @@ KHASH_INIT(ElementHash, hashkey_t, StatRecord_t, 1, kh_key_hash_func, kh_key_has
 
 static khash_t(ElementHash) *ElementKHash[MaxStats];
 
+static uint32_t LoadedGeoDB  = 0;
 static uint64_t	byte_limit, packet_limit;
 static int byte_mode, packet_mode;
 enum { NONE = 0, LESS, MORE };
@@ -653,6 +651,8 @@ int Init_StatTable(void) {
 		ElementKHash[i] = kh_init(ElementHash);
 	}
 
+	LoadedGeoDB = Loaded_MaxMind();
+
 	return 1;
 
 } // End of Init_StatTable
@@ -820,7 +820,6 @@ int	j, i;
 			offset = StatParameters[stat].element[i].offset0;
 			hashkey.v0 = offset ? ((uint64_t *)flow_record)[offset] : 0;
 			hashkey.proto = order_proto ? flow_record->proto : 0;
-			hashkey.hash = 0;
 
 			int ret;
 			khiter_t k = kh_put(ElementHash, ElementKHash[j], hashkey, &ret);
@@ -853,7 +852,7 @@ int	j, i;
 } // AddStat
 
 static void PrintStatLine(stat_record_t	*stat, outputParams_t *outputParams, StatRecord_t *StatData, int type, int order_proto, int inout) {
-char valstr[40];
+char valstr[64];
 char tag_string[2];
 
 	tag_string[0] = '\0';
@@ -862,22 +861,37 @@ char tag_string[2];
 		case NONE:
 			break;
 		case IS_NUMBER:
-			snprintf(valstr, 40, "%llu", (unsigned long long)StatData->hashkey.v1);
+			snprintf(valstr, 64, "%llu", (unsigned long long)StatData->hashkey.v1);
 			break;
 		case IS_IPADDR:
 			tag_string[0] = outputParams->doTag ? TAG_CHAR : '\0';
 			if ( StatData->hashkey.v0 != 0 ) { // IPv6
-				uint64_t	_key[2];
+				uint64_t _key[2];
 				_key[0] = htonll(StatData->hashkey.v0);
 				_key[1] = htonll(StatData->hashkey.v1);
-				inet_ntop(AF_INET6, _key, valstr, sizeof(valstr));
-				if ( ! Getv6Mode() )
-					CondenseV6(valstr);
+				if (LoadedGeoDB) {
+					char ipstr[40], country[4];
+					snprintf(country, 4, "  ");
+					inet_ntop(AF_INET6, _key, ipstr, sizeof(ipstr));
+					if ( !Getv6Mode() )
+						CondenseV6(ipstr);
+					snprintf(valstr, 40, "%s(%s)", ipstr, country);
+				} else {
+					inet_ntop(AF_INET6, _key, valstr, sizeof(valstr));
+					if ( !Getv6Mode() )
+						CondenseV6(valstr);
+				}
 	
 			} else {	// IPv4
-				uint32_t	ipv4;
-				ipv4 = htonl(StatData->hashkey.v1);
-				inet_ntop(AF_INET, &ipv4, valstr, sizeof(valstr));
+				uint32_t ipv4 = htonl(StatData->hashkey.v1);
+				if (LoadedGeoDB) {
+					char ipstr[16], country[4];
+					inet_ntop(AF_INET, &ipv4, ipstr, sizeof(ipstr));
+					LookupCountry(StatData->hashkey.v1, country);
+					snprintf(valstr, 40, "%s(%s)", ipstr, country);
+				} else {
+					inet_ntop(AF_INET, &ipv4, valstr, sizeof(valstr));
+				}
 			}
 			break;
 		case IS_MACADDR: {
@@ -886,17 +900,17 @@ char tag_string[2];
 			for ( i=0; i<6; i++ ) {
 				mac[i] = ((unsigned long long)StatData->hashkey.v1 >> ( i*8 )) & 0xFF;
 			}
-			snprintf(valstr, 40, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
+			snprintf(valstr, 64, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
 			} break;
 		case IS_MPLS_LBL: {
-			snprintf(valstr, 40, "%llu", (unsigned long long)StatData->hashkey.v1);
-			snprintf(valstr, 40,"%8llu-%1llu-%1llu", 
+			snprintf(valstr, 64, "%llu", (unsigned long long)StatData->hashkey.v1);
+			snprintf(valstr, 64,"%8llu-%1llu-%1llu", 
 				(unsigned long long)StatData->hashkey.v1 >> 4 , 
 				((unsigned long long)StatData->hashkey.v1 & 0xF ) >> 1, 
 				(unsigned long long)StatData->hashkey.v1 & 1);
 			} break;
 		case IS_LATENCY: {
-			snprintf(valstr, 40, "      %9.3f", (double)((double)StatData->hashkey.v1/1000.0));
+			snprintf(valstr, 64, "      %9.3f", (double)((double)StatData->hashkey.v1/1000.0));
 			} break;
 #ifdef NSEL
 		case IS_EVENT: {
@@ -918,14 +932,14 @@ char tag_string[2];
 				default:
 					s = "UNKNOWN";
 			}			
-			snprintf(valstr, 40, "      %6s", s);
+			snprintf(valstr, 64, "      %6s", s);
 			} break;
 #endif
 		case IS_HEX: {
-			snprintf(valstr, 40, "0x%llx", (unsigned long long)StatData->hashkey.v1);
+			snprintf(valstr, 64, "0x%llx", (unsigned long long)StatData->hashkey.v1);
 		} break;
 	}
-	valstr[39] = 0;
+	valstr[63] = 0;
 
 	uint64_t count_flows = StatData->counter[FLOWS];
 	uint64_t count_packets = packets_element(StatData, inout);
@@ -986,10 +1000,17 @@ char tag_string[2];
 			protoStr, tag_string, valstr, flows_str, flows_percent, 
 			packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str, bpp );
 	} else {
-		printf("%s.%03u %9.3f %-5s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n",
-			datestr, (unsigned)(StatData->msecFirst % 1000), duration / 1000.0,
-			protoStr, tag_string, valstr, flows_str, flows_percent, 
-			packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str, bpp );
+		if (LoadedGeoDB) {
+			printf("%s.%03u %9.3f %-5s %s%21s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n",
+				datestr, (unsigned)(StatData->msecFirst % 1000), duration / 1000.0,
+				protoStr, tag_string, valstr, flows_str, flows_percent, 
+				packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str, bpp );
+		} else {
+			printf("%s.%03u %9.3f %-5s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n",
+				datestr, (unsigned)(StatData->msecFirst % 1000), duration / 1000.0,
+				protoStr, tag_string, valstr, flows_str, flows_percent, 
+				packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str, bpp );
+		}
 	}
 
 } // End of PrintStatLine
@@ -1169,18 +1190,26 @@ uint32_t numflows;
 
 				// this output formating is pretty ugly - and needs to be cleaned up - improved
 				if ( outputParams->mode == MODE_PLAIN && !outputParams->quiet ) {
-					if ( outputParams->topN != 0 ) 
+					if ( outputParams->topN != 0 ) {
 						printf("Top %i %s ordered by %s:\n", 
 							outputParams->topN, StatParameters[stat].HeaderInfo, order_mode[order_index].string);
-					else
+					} else {
 						printf("Top %s ordered by %s:\n", 
 							StatParameters[stat].HeaderInfo, order_mode[order_index].string);
-					if ( Getv6Mode() && (type == IS_IPADDR )) 
+					}
+					if ( Getv6Mode() && (type == IS_IPADDR )) {
 						printf("Date first seen          Duration Proto %39s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      bps   bpp\n",
 							StatParameters[stat].HeaderInfo);
-					else
-						printf("Date first seen          Duration Proto %17s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      bps   bpp\n",
-							StatParameters[stat].HeaderInfo);
+					} else {
+						if (LoadedGeoDB) {
+							printf("Date first seen          Duration Proto %21s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      bps   bpp\n",
+								StatParameters[stat].HeaderInfo);
+						} else {
+							printf("Date first seen          Duration Proto %17s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      bps   bpp\n",
+								StatParameters[stat].HeaderInfo);
+
+						}
+					}
 				}
 
 				if ( outputParams->mode == MODE_CSV ) {

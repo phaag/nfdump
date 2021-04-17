@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2020, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -34,20 +34,10 @@
 # 	define ALIGN_MASK 0xFFFFFFFC
 #endif
 
-static void memspin_lock(int *p);
-static void memspin_unlock(int volatile *p);
+#include "spin_lock.h"
 
-static void memspin_lock(int *p) {
-    while(!__sync_bool_compare_and_swap(p, 0, 1));
-}
-
-static void memspin_unlock(int volatile *p) {
-    __asm volatile (""); // acts as a memory barrier.
-    *p = 0;
-}
-
-#define GetLock(a)		memspin_lock(&((a)->lock))
-#define ReleaseLock(a)	memspin_unlock(&((a)->lock))
+#define GetLock(a)		spin_lock(((a)->lock))
+#define ReleaseLock(a)	spin_unlock(((a)->lock))
 
 #define ALIGN_BYTES (offsetof (struct { char x; uint64_t y; }, y) - 1)
 
@@ -64,7 +54,7 @@ typedef struct MemHandler_s {
 	size_t	CurrentBlock;	/* Index of current memblock to allocate memory from */
 	size_t 	Allocted;		/* Number of bytes already allocated in memblock */
 
-	sig_atomic_t lock;
+	atomic_int lock;
 
 } MemHandler_t;
 
@@ -138,7 +128,8 @@ size_t aligned_size;
 		// enough space available in current memblock
 		p = MemHandler->memblock[MemHandler->CurrentBlock] + MemHandler->Allocted;
 		MemHandler->Allocted += aligned_size;
-		dbg_printf("Mem Handle: Requested: %zu, aligned: %zu, ptr: %lx\n", size, aligned_size, (long unsigned)p);
+		dbg_printf("Mem Handle: Requested: %zu, aligned: %zu, ptr: %lx\n", 
+			size, aligned_size, (long unsigned)p);
 		ReleaseLock(MemHandler);
 		return p;
 	}

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2020, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -100,6 +100,7 @@ typedef struct dataBlock_s {
 	uint32_t	size;			// size of this block in bytes without this header
 	uint16_t	type;			// Block type
 #define DATA_BLOCK_TYPE_3	3
+#define DATA_BLOCK_TYPE_4	4
 	uint16_t	flags;			// Bit 0: 0: file block compression, 1: block uncompressed
 								// Bit 1: 0: file block encryption, 1: block unencrypted
 								// Bit 2: 0: no autoread, 1: autoread - internal structure

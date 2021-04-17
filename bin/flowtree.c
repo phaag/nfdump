@@ -52,21 +52,10 @@
 #include "collector.h"
 #include "netflow_pcap.h"
 #include "flowtree.h"
+#include "spin_lock.h"
 
-static void spin_lock(int *p);
-static void spin_unlock(int volatile *p);
-
-static void spin_lock(int *p) {
-    while(!__sync_bool_compare_and_swap(p, 0, 1));
-}
-
-static void spin_unlock(int volatile *p) {
-    __asm volatile (""); // acts as a memory barrier.
-    *p = 0;
-}
-
-#define GetTreeLock(a)		spin_lock(&((a)->list_lock))
-#define ReleaseTreeLock(a)	spin_unlock(&((a)->list_lock))
+#define GetTreeLock(a)		spin_lock(((a)->list_lock))
+#define ReleaseTreeLock(a)	spin_unlock(((a)->list_lock))
 
 static int addPayload = 0;
 

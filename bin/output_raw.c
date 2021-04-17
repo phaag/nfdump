@@ -48,6 +48,7 @@
 #include "nffile.h"
 #include "nfxV3.h"
 #include "nbar.h"
+#include "maxmind.h"
 #include "output_util.h"
 #include "output_raw.h"
 #include "content_dns.h"
@@ -85,7 +86,6 @@ static void DumpHex(FILE *stream, const void* data, size_t size) {
 		}
 	}
 }
-
 
 static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
 char datestr1[64], datestr2[64], datestr3[64];
@@ -150,16 +150,19 @@ char datestr1[64], datestr2[64], datestr3[64];
 
 static void stringsEXipv4Flow(FILE *stream, master_record_t *r) {
 char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+char sloc[128], dloc[128];
 
 	uint32_t src = htonl(r->V4.srcaddr);
 	uint32_t dst = htonl(r->V4.dstaddr);
 	inet_ntop(AF_INET, &src, as, sizeof(as));
 	inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
+	LookupLocation(r->V4.srcaddr, sloc, 128);
+	LookupLocation(r->V4.dstaddr, dloc, 128);
 	fprintf(stream,
-"  src addr     =  %16s\n"
-"  dst addr     =  %16s\n"
-	, as,ds);
+"  src addr     =  %16s: %s\n"
+"  dst addr     =  %16s: %s\n"
+	, as, sloc, ds, dloc);
 
 } // End of stringsEXipv4Flow
 

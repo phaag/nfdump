@@ -29,11 +29,9 @@
  *  
  */
 
-static inline int CheckBufferSpace(nffile_t *nffile, size_t required);
+static inline size_t CheckBufferSpace(nffile_t *nffile, size_t required);
 
 static inline void AppendToBuffer(nffile_t *nffile, void *record, size_t required);
-
-static inline void CopyV6IP(uint32_t *dst, uint32_t *src);
 
 static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *output_record);
 
@@ -41,9 +39,9 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
 static void PackRecordV3(master_record_t *master_record, nffile_t *nffile);
 #endif
 
-static inline int CheckBufferSpace(nffile_t *nffile, size_t required) {
+static inline size_t CheckBufferSpace(nffile_t *nffile, size_t required) {
 
-	// if actual output size is unknown, make sure at leat 
+	// if actual output size is unknown, make sure at least 
 	// MAXRECORDSIZE is available
 	if ( required == 0 ) {
 		required = MAXRECORDSIZE;
@@ -69,14 +67,6 @@ static inline int CheckBufferSpace(nffile_t *nffile, size_t required) {
 	return WRITE_BUFFSIZE - nffile->block_header->size;
 
 } // End of CheckBufferSpace
-
-// Use 4 uint32_t copy cycles, as SPARC CPUs brak
-static inline void CopyV6IP(uint32_t *dst, uint32_t *src) {
-	dst[0] = src[0];
-	dst[1] = src[1];
-	dst[2] = src[2];
-	dst[3] = src[3];
-} // End of CopyV6IP
 
 static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *output_record) {
 elementHeader_t *elementHeader;

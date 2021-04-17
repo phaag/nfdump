@@ -173,7 +173,7 @@ typedef khint_t khiter_t;
 #define __ac_fsize(m) ((m) < 16? 1 : (m)>>4)
 
 #ifndef kroundup32
-#define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x) )
+#define kroundup32(x) (--(x), (x)|=(x)>>1, (x)|=(x)>>2, (x)|=(x)>>4, (x)|=(x)>>8, (x)|=(x)>>16, ++(x))
 #endif
 
 #ifndef kcalloc
@@ -269,14 +269,14 @@ static const double __ac_HASH_UPPER = 0.77;
 			for (j = 0; j != h->n_buckets; ++j) {						\
 				if (__ac_iseither(h->flags, j) == 0) {					\
 					khkey_t key = h->keys[j];							\
-					khint_t k = h->keys[j].hash; \
 					khval_t val;										\
 					khint_t new_mask;									\
 					new_mask = new_n_buckets - 1; 						\
 					if (kh_is_map) val = h->vals[j];					\
 					__ac_set_isdel_true(h->flags, j);					\
 					while (1) { /* kick-out process; sort of like in Cuckoo hashing */ \
-						khint_t i, step = 0; \
+						khint_t k, i, step = 0; \
+						k = __hash_func(key);							\
 						i = k & new_mask;								\
 						while (!__ac_isempty(new_flags, i)) i = (i + (++step)) & new_mask; \
 						__ac_set_isempty_false(new_flags, i);			\
@@ -316,10 +316,9 @@ static const double __ac_HASH_UPPER = 0.77;
 				*ret = -1; return h->n_buckets;							\
 			}															\
 		} /* TODO: to implement automatically shrinking; resize() already support shrinking */ \
-		khint_t k = __hash_func(key); \
 		{																\
-			khint_t i, site, last, mask = h->n_buckets - 1, step = 0; \
-			x = site = h->n_buckets; i = k & mask; \
+			khint_t k, i, site, last, mask = h->n_buckets - 1, step = 0; \
+			x = site = h->n_buckets; k = __hash_func(key); i = k & mask; \
 			if (__ac_isempty(h->flags, i)) x = i; /* for speed up */	\
 			else {														\
 				last = i; \
@@ -336,7 +335,6 @@ static const double __ac_HASH_UPPER = 0.77;
 		}																\
 		if (__ac_isempty(h->flags, x)) { /* not present at all */		\
 			h->keys[x] = key;											\
-			h->keys[x].hash = k;										\
 			__ac_set_isboth_false(h->flags, x);							\
 			++h->size; ++h->n_occupied;									\
 			*ret = 1;													\
@@ -345,7 +343,7 @@ static const double __ac_HASH_UPPER = 0.77;
 			__ac_set_isboth_false(h->flags, x);							\
 			++h->size;													\
 			*ret = 2;													\
-		} else { *ret = 0; }/* Don't touch h->keys[x] if present and not deleted */ \
+		} else *ret = 0; /* Don't touch h->keys[x] if present and not deleted */ \
 		return x;														\
 	}																	\
 	SCOPE void kh_del_##name(kh_##name##_t *h, khint_t x)				\

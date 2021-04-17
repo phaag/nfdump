@@ -421,6 +421,14 @@ static inline void InsertElelement(uint16_t *list, int index, int elememt) {
 	list[j] = val;
 }
 
+// Use 4 uint32_t copy cycles, as SPARC CPUs brak
+static inline void CopyV6IP(uint32_t *dst, uint32_t *src) {
+	dst[0] = src[0];
+	dst[1] = src[1];
+	dst[2] = src[2];
+	dst[3] = src[3];
+} // End of CopyV6IP
+
 static inline int ExpandRecord_v2(record_header_t *record_ptr, master_record_t *output_record) {
 common_record_t *input_record = (common_record_t *)record_ptr;
 uint32_t	*u;
