@@ -474,10 +474,11 @@ uint64_t twin_msecFirst, twin_msecLast;
 
 		if ( nffile_r->block_header->type != DATA_BLOCK_TYPE_2 &&
 			 nffile_r->block_header->type != DATA_BLOCK_TYPE_3) {
-			if ( nffile_r->block_header->type == DATA_BLOCK_TYPE_1 ) {
-				LogError("nfdump 1.5.x block type 1 no longer supported. Skip block.\n");
-			} else {
-				LogError("Can't process block type %u. Skip block.\n", nffile_r->block_header->type);
+			if ( nffile_r->block_header->type != DATA_BLOCK_TYPE_4 ) {	// skip array blocks
+				if ( nffile_r->block_header->type == DATA_BLOCK_TYPE_1 )
+					LogError("nfdump 1.5.x block type 1 no longer supported. Skip block");
+				else
+					LogError("Unknown block type %u. Skip block", nffile_r->block_header->type);
 			}
 			skipped_blocks++;
 			continue;
@@ -515,12 +516,12 @@ uint64_t twin_msecFirst, twin_msecLast;
 
 					processed++;
 					if ( HasGeoDB ) {
-						LookupCountry(master_record->V4.srcaddr, master_record->src_geo);
-						LookupCountry(master_record->V4.dstaddr, master_record->dst_geo);
+						LookupCountry(master_record->V6.srcaddr, master_record->src_geo);
+						LookupCountry(master_record->V6.dstaddr, master_record->dst_geo);
 						if ( master_record->srcas == 0 )
-							master_record->srcas = LookupAS(master_record->V4.srcaddr);
+							master_record->srcas = LookupAS(master_record->V6.srcaddr);
 						if ( master_record->dstas == 0 )
-							master_record->dstas = LookupAS(master_record->V4.dstaddr);
+							master_record->dstas = LookupAS(master_record->V6.dstaddr);
 					}
 					// Time based filter
 					// if no time filter is given, the result is always true

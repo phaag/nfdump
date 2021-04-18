@@ -157,8 +157,8 @@ char sloc[128], dloc[128];
 	inet_ntop(AF_INET, &src, as, sizeof(as));
 	inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
-	LookupLocation(r->V4.srcaddr, sloc, 128);
-	LookupLocation(r->V4.dstaddr, dloc, 128);
+	LookupLocation(r->V6.srcaddr, sloc, 128);
+	LookupLocation(r->V6.dstaddr, dloc, 128);
 	fprintf(stream,
 "  src addr     =  %16s: %s\n"
 "  dst addr     =  %16s: %s\n"
@@ -168,8 +168,8 @@ char sloc[128], dloc[128];
 
 static void stringsEXipv6Flow(FILE *stream, master_record_t *r) {
 char as[IP_STRING_LEN], ds[IP_STRING_LEN];
-uint64_t src[2];
-uint64_t dst[2];
+uint64_t src[2], dst[2];
+char sloc[128], dloc[128];
 
 	src[0] = htonll(r->V6.srcaddr[0]);
 	src[1] = htonll(r->V6.srcaddr[1]);
@@ -178,10 +178,12 @@ uint64_t dst[2];
 	inet_ntop(AF_INET6, &src, as, sizeof(as));
 	inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
 
+	LookupLocation(r->V6.srcaddr, sloc, 128);
+	LookupLocation(r->V6.dstaddr, dloc, 128);
 	fprintf(stream,
-"  src addr     =  %16s\n"
-"  dst addr     =  %16s\n"
-	, as,ds);
+"  src addr     =  %16s: %s\n"
+"  dst addr     =  %16s: %s\n"
+	, as, sloc, ds, dloc);
 
 } // End of stringsEXipv6Flow
 
@@ -624,13 +626,14 @@ char elementString[MAXELEMENTS * 5];
 
 	fprintf(stream, "\n"
 "Flow Record: \n"
-"  Flags        =              0x%.2x %s%s, %s\n"
+"  Flags        =              0x%.2x %s%s%s, %s\n"
 "  Elements     =             %5u: %s\n"
 "  size         =             %5u\n"
 "  engine type  =             %5u\n"
 "  engine ID    =             %5u\n"
 "  export sysid =             %5u\n"
 ,	r->flags, type, version,
+	TestFlag(r->flags, V3_FLAG_ANON) ? " Anonymized" : "", 
 	TestFlag(r->flags, V3_FLAG_SAMPLED) ? "Sampled" : "Unsampled", 
 	r->numElements, elementString, r->size, r->engine_type, r->engine_id, r->exporter_sysid);
 

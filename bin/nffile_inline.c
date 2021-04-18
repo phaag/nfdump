@@ -194,9 +194,9 @@ uint32_t size = sizeof(recordHeaderV3_t);
 				output_record->ip_router.V4 = ipNextHopV4->ip;
 				} break;
 			case EXipReceivedV6ID: {
-				EXipReceivedV6_t *ipNextHopV6 = (EXipReceivedV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-				output_record->ip_router.V6[0] = ipNextHopV6->ip[0];
-				output_record->ip_router.V6[1] = ipNextHopV6->ip[1];
+				EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->ip_router.V6[0] = ipReceivedV6->ip[0];
+				output_record->ip_router.V6[1] = ipReceivedV6->ip[1];
 				SetFlag(output_record->mflags, V3_FLAG_IPV6_EXP);
 				} break;
 			case EXmplsLabelID: {
@@ -565,10 +565,10 @@ uint32_t required;
 	if ( v3Record->size != required ) {
 		fprintf(stderr, "PackRecordV3(): record size(%u) != expected(%u)'\n", v3Record->size, required);
 	}
-	nffile->block_header->size 	+= v3Record->size;
 	nffile->block_header->NumRecords++;
-	dbg_assert( v3Record->size == required );
+	nffile->block_header->size += v3Record->size;
 	nffile->buff_ptr += v3Record->size;
+	dbg_assert( v3Record->size == required );
 
 } // End of PackRecordV3
 #endif

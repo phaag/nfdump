@@ -497,7 +497,7 @@ void		*p = (void *)input_record;
 		// IPv6
 		// keep compiler happy
 		// memcpy((void *)output_record->V6.srcaddr, p, 4 * sizeof(uint64_t));	
-		memcpy((void *)output_record->ip_union._ip_64.addr, p, 4 * sizeof(uint64_t));	
+		memcpy((void *)output_record->ip_addr._ip_64.addr, p, 4 * sizeof(uint64_t));	
 		p = (void *)((pointer_addr_t)p + 4 * sizeof(uint64_t));
 		InsertElelement(output_record->exElementList, index++, EXipv6FlowID);
 		output_record->size += EXipv6FlowSize;

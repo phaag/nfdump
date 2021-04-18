@@ -42,8 +42,8 @@
 #include <stdint.h>
 #endif
 
-#define V4 ip_union._v4
-#define V6 ip_union._v6
+#define V4 ip_addr._v4
+#define V6 ip_addr._v6
 
 // single IP addr for next hop and bgp next hop
 typedef struct ip_addr_s {
@@ -59,7 +59,7 @@ typedef struct ip_addr_s {
 #endif
 		};
 		uint64_t		_v6[2];
-	} ip_union;
+	} ip_addr;
 #define IP_ADDR_T
 } ip_addr_t;
 
@@ -306,14 +306,14 @@ typedef struct master_record_s {
 		struct _ip64_s {
 			uint64_t	addr[4];
 		} _ip_64;
-	} ip_union;
+	} ip_addr;
 
-#	define OffsetSrcIPv4 		(offsetof(master_record_t, ip_union._v4.srcaddr) >> 3)
-#	define OffsetDstIPv4 		(offsetof(master_record_t, ip_union._v4.dstaddr) >> 3)
-#	define OffsetSrcIPv6a 		(offsetof(master_record_t, ip_union._v6.srcaddr[0]) >> 3)
-#	define OffsetSrcIPv6b 		(offsetof(master_record_t, ip_union._v6.srcaddr[1]) >> 3)
-#	define OffsetDstIPv6a 		(offsetof(master_record_t, ip_union._v6.dstaddr[0]) >> 3)
-#	define OffsetDstIPv6b 		(offsetof(master_record_t, ip_union._v6.dstaddr[1]) >> 3)
+#	define OffsetSrcIPv4 		(offsetof(master_record_t, ip_addr._v4.srcaddr) >> 3)
+#	define OffsetDstIPv4 		(offsetof(master_record_t, ip_addr._v4.dstaddr) >> 3)
+#	define OffsetSrcIPv6a 		(offsetof(master_record_t, ip_addr._v6.srcaddr[0]) >> 3)
+#	define OffsetSrcIPv6b 		(offsetof(master_record_t, ip_addr._v6.srcaddr[1]) >> 3)
+#	define OffsetDstIPv6a 		(offsetof(master_record_t, ip_addr._v6.dstaddr[0]) >> 3)
+#	define OffsetDstIPv6b 		(offsetof(master_record_t, ip_addr._v6.dstaddr[1]) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskSrcIPv4  		0x00000000ffffffffLL
 #	define ShiftSrcIPv4 		0
@@ -358,9 +358,9 @@ typedef struct master_record_s {
 								// ipv6	0xffff'ffff'ffff'ffff
 								// ipv6	0xffff'ffff'ffff'ffff
 
-#	define OffsetNexthopv4 		(offsetof(master_record_t, ip_nexthop.ip_union._v4) >> 3)
-#	define OffsetNexthopv6a		(offsetof(master_record_t, ip_nexthop.ip_union._v6[0]) >> 3)
-#	define OffsetNexthopv6b		(offsetof(master_record_t, ip_nexthop.ip_union._v6[1]) >> 3)
+#	define OffsetNexthopv4 		(offsetof(master_record_t, ip_nexthop.ip_addr._v4) >> 3)
+#	define OffsetNexthopv6a		(offsetof(master_record_t, ip_nexthop.ip_addr._v6[0]) >> 3)
+#	define OffsetNexthopv6b		(offsetof(master_record_t, ip_nexthop.ip_addr._v6[1]) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskNexthopv4  		0x00000000ffffffffLL
 #	define ShiftNexthopv4 		0
@@ -376,9 +376,9 @@ typedef struct master_record_s {
 								// ipv6 0xffff'ffff'ffff'ffff
 								// ipv6	0xffff'ffff'ffff'ffff
 
-#	define OffsetBGPNexthopv4 	(offsetof(master_record_t, bgp_nexthop.ip_union._v4) >> 3)
-#	define OffsetBGPNexthopv6a	(offsetof(master_record_t, bgp_nexthop.ip_union._v6[0]) >> 3)
-#	define OffsetBGPNexthopv6b	(offsetof(master_record_t, bgp_nexthop.ip_union._v6[1]) >> 3)
+#	define OffsetBGPNexthopv4 	(offsetof(master_record_t, bgp_nexthop.ip_addr._v4) >> 3)
+#	define OffsetBGPNexthopv6a	(offsetof(master_record_t, bgp_nexthop.ip_addr._v6[0]) >> 3)
+#	define OffsetBGPNexthopv6b	(offsetof(master_record_t, bgp_nexthop.ip_addr._v6[1]) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskBGPNexthopv4  	0x00000000ffffffffLL
 #	define ShiftBGPNexthopv4 	0
@@ -503,9 +503,9 @@ typedef struct master_record_s {
 								// ipv6	0xffff'ffff'ffff'ffff
 								// ipv6	0xffff'ffff'ffff'ffff
 
-#	define OffsetRouterv4 		(offsetof(master_record_t, ip_router.ip_union._v4) >> 3)
-#	define OffsetRouterv6a		(offsetof(master_record_t, ip_router.ip_union._v6[0]) >> 3)
-#	define OffsetRouterv6b		(offsetof(master_record_t, ip_router.ip_union._v6[1]) >> 3)
+#	define OffsetRouterv4 		(offsetof(master_record_t, ip_router.ip_addr._v4) >> 3)
+#	define OffsetRouterv6a		(offsetof(master_record_t, ip_router.ip_addr._v6[0]) >> 3)
+#	define OffsetRouterv6b		(offsetof(master_record_t, ip_router.ip_addr._v6[1]) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskRouterv4  		0x00000000ffffffffLL
 #	define ShiftRouterv4 		0

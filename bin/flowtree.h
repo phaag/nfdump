@@ -48,8 +48,8 @@
 #include "collector.h"
 #include "rbtree.h"
 
-#define v4 ip_union._v4
-#define v6 ip_union._v6
+#define v4 ip_addr._v4
+#define v6 ip_addr._v6
 
 typedef struct vlan_hdr_s {
   uint16_t vlan_id;

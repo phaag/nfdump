@@ -382,14 +382,14 @@ FlowKey_t *keyptr;
 	} else if ( swap_flow ) {
 		// default 5-tuple aggregation for bidirectional flows
 		keyptr = (FlowKey_t *)keymem;
-		keyptr->ipaddr 	= flow_record->ip_union._v6;
+		keyptr->ipaddr 	= flow_record->ip_addr._v6;
 		keyptr->srcPort	= flow_record->dstPort;
 		keyptr->dstPort	= flow_record->srcPort;
 		keyptr->proto	= flow_record->proto;
 	} else {
 		// default 5-tuple aggregation
 		keyptr = (FlowKey_t *)keymem;
-		keyptr->ipaddr	= flow_record->ip_union._v6;
+		keyptr->ipaddr	= flow_record->ip_addr._v6;
 		keyptr->srcPort	= flow_record->srcPort;
 		keyptr->dstPort	= flow_record->dstPort;
 		keyptr->proto	= flow_record->proto;

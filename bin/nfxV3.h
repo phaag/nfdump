@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2020, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -34,10 +34,7 @@
 #include "config.h"
 
 #include <sys/types.h>
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
-
 #include <stdbool.h>
 
 /*

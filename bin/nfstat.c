@@ -865,13 +865,16 @@ char tag_string[2];
 			break;
 		case IS_IPADDR:
 			tag_string[0] = outputParams->doTag ? TAG_CHAR : '\0';
+			uint64_t ip[2];
 			if ( StatData->hashkey.v0 != 0 ) { // IPv6
 				uint64_t _key[2];
 				_key[0] = htonll(StatData->hashkey.v0);
 				_key[1] = htonll(StatData->hashkey.v1);
 				if (LoadedGeoDB) {
 					char ipstr[40], country[4];
-					snprintf(country, 4, "  ");
+					ip[0] = StatData->hashkey.v0;
+					ip[1] = StatData->hashkey.v1;
+					LookupCountry(ip, country);
 					inet_ntop(AF_INET6, _key, ipstr, sizeof(ipstr));
 					if ( !Getv6Mode() )
 						CondenseV6(ipstr);
@@ -887,7 +890,9 @@ char tag_string[2];
 				if (LoadedGeoDB) {
 					char ipstr[16], country[4];
 					inet_ntop(AF_INET, &ipv4, ipstr, sizeof(ipstr));
-					LookupCountry(StatData->hashkey.v1, country);
+					ip[0] = 0;
+					ip[1] = StatData->hashkey.v1;
+					LookupCountry(ip, country);
 					snprintf(valstr, 40, "%s(%s)", ipstr, country);
 				} else {
 					inet_ntop(AF_INET, &ipv4, valstr, sizeof(valstr));
