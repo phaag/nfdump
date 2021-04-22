@@ -107,7 +107,6 @@ typedef struct NodeList_s {
 	struct FlowNode *list;
 	struct FlowNode *last;
 	atomic_int	list_lock;
-//	sig_atomic_t	list_lock;
 	pthread_mutex_t m_list;
 	pthread_cond_t  c_list;
 	uint32_t length;

@@ -1,3 +1,8 @@
+2021-04-20
+- Add mpls unwrap in nfpcapd. Skip MPLS labels
+- Add ESP to processed protocols in nfpcapd.
+- Some Code cleanup 
+
 2021-04-10
 - Change spin lock to native C11 lock
 - Cleanup code for issue #283

@@ -53,9 +53,6 @@
 #include "netflow_pcap.h"
 #include "flowtree.h"
 
-// static void spin_lock(int *p);
-// static void spin_unlock(int volatile *p);
-
 /* Lock operation. */
 #define spin_lock(lck) do { \
 int zero = 0; \

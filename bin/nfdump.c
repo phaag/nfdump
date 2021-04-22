@@ -942,7 +942,7 @@ char 		Ident[IDENTLEN];
 		exit(255);
 	}
 	if ( Mdirs && !(rfile || Rfile) ) {
-		LogError("-M needs either -r or -R to specify the file or file list. Add '-R .' for all files in the directories.\n");
+		LogError("-M needs either -r or -R to specify the file or file list. Add '-R .' for all files in the directories");
 		exit(255);
 	}
 

@@ -337,6 +337,31 @@ static inline void ProcessICMPFlow(FlowSource_t	*fs, struct FlowNode *NewNode ) 
 
 } // End of ProcessICMPFlow
 
+static inline void ProcessESPFlow(FlowSource_t *fs, struct FlowNode *NewNode ) {
+struct FlowNode *Node;
+
+	assert(NewNode->memflag == NODE_IN_USE);
+
+	// insert ESP/AH traffic
+	Node = Insert_Node(NewNode);
+	// if insert fails, the existing node is returned -> flow exists already
+	if ( Node == NULL ) {
+		dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
+		return;
+	}
+	assert(Node->memflag == NODE_IN_USE);
+
+	// update existing flow
+	Node->packets++;
+	Node->bytes += NewNode->bytes;
+	Node->t_last = NewNode->t_last;
+	dbg_printf("Existing ESP/AH flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
+
+	Free_Node(NewNode);
+
+} // End of ProcessESPFlow
+
+
 static inline void ProcessOtherFlow(FlowSource_t *fs, struct FlowNode *NewNode ) {
 
 	// Flush Other packets directly
@@ -360,6 +385,10 @@ void ProcessFlowNode(FlowSource_t *fs, struct FlowNode *node) {
 		case IPPROTO_ICMP:
 		case IPPROTO_ICMPV6:
 			ProcessICMPFlow(fs, node);
+			break;
+		case IPPROTO_AH:
+		case IPPROTO_ESP:
+			ProcessESPFlow(fs, node);
 			break;
 		default:
 			ProcessOtherFlow(fs, node);
@@ -405,6 +434,29 @@ static unsigned pkg_cnt = 0;
 						offset += 4;
 					} while ( ethertype == 0x8100 );
 			
+					// redo ethertype evaluation
+					goto REDO_LINK;
+					} break;
+				case 0x8847: { // MPLS
+					// unwind MPLS label stack
+					uint32_t *mpls = (uint32_t *)(data + offset);
+					offset += 4;
+					dbg_printf("MPLS label: %x\n", ntohl(*mpls) >> 8);
+					while ((offset < hdr->caplen) && ((ntohl(*mpls) & 0x100) == 0)) { // check for Bottom of stack
+						offset += 4;
+						mpls++;
+						dbg_printf("MPLS label: %x\n", ntohl(*mpls) >> 8);
+					}
+					uint8_t *hdr = (uint8_t *)data + offset;
+					if((*hdr >> 4) == 4)
+						ethertype = 0x0800;	// IPv4
+					else if((*hdr >> 4) == 6)
+						ethertype = 0x86DD;	// IPv6
+					else {
+						LogInfo("Unsupported protocol: 0x%x", *hdr >> 4);
+						goto END_FUNC;
+					}
+
 					// redo ethertype evaluation
 					goto REDO_LINK;
 					} break;
@@ -767,6 +819,10 @@ static unsigned pkg_cnt = 0;
 			// redo IP proto evaluation
 			goto REDO_LINK;
 
+			} break;
+		case IPPROTO_AH:
+		case IPPROTO_ESP: {
+			Push_Node(NodeList, Node);
 			} break;
 		default:
 			// not handled protocol

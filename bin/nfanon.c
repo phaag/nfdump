@@ -176,7 +176,6 @@ nffile_t			*nffile_w;
 int 		i, done, ret, cnt, verbose;
 char		outfile[MAXPATHLEN], *cfile;
 
-	setbuf(stderr, NULL);
 	cnt 	= 1;
 	verbose = 1;
 
@@ -206,7 +205,7 @@ char		outfile[MAXPATHLEN], *cfile;
 		snprintf(outfile,MAXPATHLEN-1, "%s-tmp", cfile);
 		outfile[MAXPATHLEN-1] = '\0';
 		if ( verbose )
-			fprintf(stderr, " %i Processing %s\r", cnt++, cfile);
+			LogInfo(" %i Processing %s", cnt++, cfile);
 	}
 
 	if ( wfile )
@@ -269,7 +268,7 @@ char		outfile[MAXPATHLEN], *cfile;
 					LogError("(NULL) input file name error in %s line %d\n", __FILE__, __LINE__);
 					return;
 				}
-				LogError(" %i Processing %s\r", cnt++, cfile);
+				printf(" %i Processing %s\r", cnt++, cfile);
 
 				if ( wfile == NULL ) {
 					snprintf(outfile,MAXPATHLEN-1, "%s-tmp", cfile);
@@ -295,7 +294,7 @@ char		outfile[MAXPATHLEN], *cfile;
 		}
 
 		if ( nffile_r->block_header->id != DATA_BLOCK_TYPE_2 ) {
-			fprintf(stderr, "Can't process block type %u. Skip block.\n", nffile_r->block_header->id);
+			LogError("Can't process block type %u. Skip block", nffile_r->block_header->id);
 			continue;
 		}
 
@@ -348,7 +347,7 @@ char		outfile[MAXPATHLEN], *cfile;
 					break;
 
 				default: {
-					fprintf(stderr, "Skip unknown record type %i\n", flow_record->type);
+					LogError("Skip unknown record type %i", flow_record->type);
 				}
 			}
 			// Advance pointer by number of bytes for netflow record
@@ -369,8 +368,7 @@ char		outfile[MAXPATHLEN], *cfile;
 
 	DisposeFile(nffile_w);
 
-	LogError("\n");
-	LogError("Processed %i files.\n", --cnt);
+	LogError("Processed %i files", --cnt);
 
 } // End of process_data
 
@@ -380,6 +378,7 @@ char 		*rfile, *Rfile, *wfile, *Mdirs;
 int			c;
 char		CryptoPAnKey[32];
 
+	memset((void *)CryptoPAnKey, 0, sizeof(CryptoPAnKey));
 	rfile = Rfile = Mdirs = wfile = NULL;
 	while ((c = getopt(argc, argv, "K:L:r:M:R:w:")) != EOF) {
 		switch (c) {
@@ -390,7 +389,7 @@ char		CryptoPAnKey[32];
 				break;
 			case 'K':
 				if ( !ParseCryptoPAnKey(optarg, CryptoPAnKey) ) {
-					fprintf(stderr, "Invalid key '%s' for CryptoPAn!\n", optarg);
+					LogError("Invalid key '%s' for CryptoPAn", optarg);
 					exit(255);
 				}
 				PAnonymizer_Init((uint8_t *)CryptoPAnKey);
@@ -419,12 +418,17 @@ char		CryptoPAnKey[32];
 		}
 	}
 
+	if ( CryptoPAnKey[0] == '\0' ) {
+		LogError("Expect -K <key> - 32 bytes key");
+		exit(255);
+	}
+
 	if ( rfile && Rfile ) {
-		fprintf(stderr, "-r and -R are mutually exclusive. Please specify either -r or -R\n");
+		LogError("-r and -R are mutually exclusive. Please specify either -r or -R");
 		exit(255);
 	}
 	if ( Mdirs && !(rfile || Rfile) ) {
-		fprintf(stderr, "-M needs either -r or -R to specify the file or file list. Add '-R .' for all files in the directories.\n");
+		LogError("-M needs either -r or -R to specify the file or file list. Add '-R .' for all files in the directories");
 		exit(255);
 	}
 
