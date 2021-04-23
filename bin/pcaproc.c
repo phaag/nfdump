@@ -337,7 +337,7 @@ static inline void ProcessICMPFlow(FlowSource_t	*fs, struct FlowNode *NewNode ) 
 
 } // End of ProcessICMPFlow
 
-static inline void ProcessESPFlow(FlowSource_t *fs, struct FlowNode *NewNode ) {
+static inline void ProcessOtherFlow(FlowSource_t *fs, struct FlowNode *NewNode ) {
 struct FlowNode *Node;
 
 	assert(NewNode->memflag == NODE_IN_USE);
@@ -346,7 +346,8 @@ struct FlowNode *Node;
 	Node = Insert_Node(NewNode);
 	// if insert fails, the existing node is returned -> flow exists already
 	if ( Node == NULL ) {
-		dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
+		dbg_printf("New flow IP proto: %u. Packets: %u, Bytes: %u\n",
+			NewNode->proto, NewNode->packets, NewNode->bytes);
 		return;
 	}
 	assert(Node->memflag == NODE_IN_USE);
@@ -355,23 +356,13 @@ struct FlowNode *Node;
 	Node->packets++;
 	Node->bytes += NewNode->bytes;
 	Node->t_last = NewNode->t_last;
-	dbg_printf("Existing ESP/AH flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
+	dbg_printf("Existing flow IP proto: %. Packets: %u, Bytes: %u\n",
+		NewNode->proto, Node->packets, Node->bytes);
 
 	Free_Node(NewNode);
-
-} // End of ProcessESPFlow
-
-
-static inline void ProcessOtherFlow(FlowSource_t *fs, struct FlowNode *NewNode ) {
-
-	// Flush Other packets directly
-	StorePcapFlow(fs, NewNode);
-	dbg_printf("Flush Other flow: Proto: %u, Packets: %u, Bytes: %u\n", NewNode->proto, NewNode->packets, NewNode->bytes);
-
-	Free_Node(NewNode);
-
 
 } // End of ProcessOtherFlow
+
 
 void ProcessFlowNode(FlowSource_t *fs, struct FlowNode *node) {
 
@@ -385,10 +376,6 @@ void ProcessFlowNode(FlowSource_t *fs, struct FlowNode *node) {
 		case IPPROTO_ICMP:
 		case IPPROTO_ICMPV6:
 			ProcessICMPFlow(fs, node);
-			break;
-		case IPPROTO_AH:
-		case IPPROTO_ESP:
-			ProcessESPFlow(fs, node);
 			break;
 		default:
 			ProcessOtherFlow(fs, node);
@@ -510,7 +497,6 @@ static unsigned pkg_cnt = 0;
 	version = ip->ip_v;	 // ip version
 
 	if ( version == 6 ) {
-		uint64_t *addr;
 		struct ip6_hdr *ip6 = (struct ip6_hdr *) (data + offset);
 		size_ip = sizeof(struct ip6_hdr);
 		offset = size_ip;	// offset point to end of IP header
@@ -548,11 +534,14 @@ static unsigned pkg_cnt = 0;
 		Node->t_last.tv_sec  = hdr->ts.tv_sec;
 		Node->t_last.tv_usec  = hdr->ts.tv_usec;
 
-		addr = (uint64_t *)&ip6->ip6_src;
+		// keep compiler happy - get's optimized out anyway
+		void *p = (void *)&ip6->ip6_src;
+		uint64_t *addr = (uint64_t *)p;
 		Node->src_addr.v6[0] = ntohll(addr[0]);
 		Node->src_addr.v6[1] = ntohll(addr[1]);
 
-		addr = (uint64_t *)&ip6->ip6_dst;
+		p = (void *)&ip6->ip6_dst;
+		addr = (uint64_t *)p;
 		Node->dst_addr.v6[0] = ntohll(addr[0]);
 		Node->dst_addr.v6[1] = ntohll(addr[1]);
 		Node->version = AF_INET6;
@@ -607,7 +596,6 @@ static unsigned pkg_cnt = 0;
 			if ( defragmented == NULL ) {
 				// not yet complete
 				dbg_printf("Fragmentation not yet completed. Size %u bytes\n", payload_len);
-				Free_Node(Node);
 				goto END_FUNC;
 			}
 			dbg_printf("Fragmentation complete\n");
@@ -820,14 +808,9 @@ static unsigned pkg_cnt = 0;
 			goto REDO_LINK;
 
 			} break;
-		case IPPROTO_AH:
-		case IPPROTO_ESP: {
-			Push_Node(NodeList, Node);
-			} break;
 		default:
-			// not handled protocol
-			Free_Node(Node);
-			pcap_dev->proc_stat.unknown++;
+			// other IP protocols are treated as stream such as ESP etc.
+			Push_Node(NodeList, Node);
 			break;
 	}
 

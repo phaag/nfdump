@@ -1,3 +1,6 @@
+2021-04-21
+- Add all non TCP/UDP IP protocols as streams in nfpcapd
+
 2021-04-20
 - Add mpls unwrap in nfpcapd. Skip MPLS labels
 - Add ESP to processed protocols in nfpcapd.
