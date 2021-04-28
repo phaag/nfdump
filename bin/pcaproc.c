@@ -399,6 +399,7 @@ static unsigned pkg_cnt = 0;
 	pcap_dev->proc_stat.packets++;
 	offset = pcap_dev->linkoffset;
 	defragmented = NULL;
+	Node = NULL;
 
 	if ( pcap_dev->linktype == DLT_EN10MB ) {
 		ethertype = data[12] << 0x08 | data[13];
@@ -626,7 +627,6 @@ static unsigned pkg_cnt = 0;
 	} else {
 		LogInfo("ProcessPacket() Unsupported protocol version: %i", version);
 		pcap_dev->proc_stat.unknown++;
-		Free_Node(Node);
 		goto END_FUNC;
 	}
 
