@@ -8,6 +8,8 @@ AC_INIT(nfdump, 1.7.0, peter@people.ops-trust.net)
 AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([subdir-objects])
 
+AC_CONFIG_MACRO_DIR([m4])
+
 # Checks for programs.
 CFLAGS="-g -O3"
 AC_PROG_CC([clang gcc])
@@ -273,6 +275,19 @@ AC_SUBST(PCAP_LIBS)
 AM_CONDITIONAL(BUILDNFPCAPD, false)
 )
 
+## Check for BSD socket or TPACKET_V3
+AM_COND_IF([BUILDNFPCAPD],
+	[AC_CHECK_HEADERS([net/bpf.h],
+		[AM_CONDITIONAL(BSDBPF, true) AM_CONDITIONAL(TPACKETV3, false) AM_CONDITIONAL(PLAINPCAP, false)],
+		[AC_CHECK_DECL([TPACKET_V3],
+			[AM_CONDITIONAL(TPACKETV3, true) AM_CONDITIONAL(BSDBPF, false) AM_CONDITIONAL(PLAINPCAP, false)],
+			[AM_CONDITIONAL(PLAINPCAP, true) AM_CONDITIONAL(BSDBPF, false) AM_CONDITIONAL(TPACKETV3, false)],
+			[[ #include <sys/socket.h>
+           	   #include <linux/if_packet.h>]])]
+	)],
+		[AM_CONDITIONAL(BSDBPF, false) AM_CONDITIONAL(TPACKETV3, false) AM_CONDITIONAL(PLAINPCAP, false)],
+)
+
 OVS_CHECK_ATOMIC_LIBS
 AX_PTHREAD([],AC_MSG_ERROR(No valid pthread configuration found))
 
@@ -339,18 +354,7 @@ AC_CHECK_HEADERS(pcap-bpf.h net/bpf.h)
 
 AC_CHECK_HEADERS(sys/types.h netinet/in.h arpa/nameser.h arpa/nameser_compat.h netdb.h resolv.h netinet/in_systm.h,
                  [], [],
-[[#ifdef HAVE_SYS_TYPES_H
-#  include <sys/types.h>
-#endif
-#ifdef HAVE_NETINET_IN_H
-#  include <netinet/in.h>   /* inet_ functions / structs */
-#endif
-#ifdef HAVE_ARPA_NAMESER_H
-#  include <arpa/nameser.h> /* DNS HEADER struct */
-#endif
-#ifdef HAVE_NETDB_H
-#  include <netdb.h>
-#endif]])
+)
 
 AC_CHECK_HEADERS([bzlib.h])
 if test "$ac_cv_header_bzlib_h" = no; then
@@ -477,8 +481,32 @@ AM_CONDITIONAL([HAVE_DOXYGEN], [test -n "$DOXYGEN"])
 AM_COND_IF([HAVE_DOXYGEN], AC_CONFIG_FILES([doc/Doxyfile]))
 AC_OUTPUT(doc/Makefile)
 
-#AC_CONFIG_FILES([Makefile])
-AC_OUTPUT(Makefile bin/Makefile man/Makefile)
+AC_CONFIG_FILES([Makefile src/lib/Makefile src/Makefile src/test/Makefile man/Makefile])
+if test "x$enable_ftconv" = "xyes"; then
+    AC_CONFIG_FILES([src/ft2nfdump/Makefile])
+fi
+
+if test "x$enable_sflow" = "xyes"; then
+    AC_CONFIG_FILES([src/sflow/Makefile])
+fi
+
+if test "x$enable_nfpcapd" = "xyes"; then
+    AC_CONFIG_FILES([src/nfpcapd/Makefile])
+fi
+
+if test "x$enable_nfprofile" = "xyes"; then
+    AC_CONFIG_FILES([src/nfsen/Makefile])
+fi
+
+AC_OUTPUT
+
+
+#AC_OUTPUT(Makefile src/lib/Makefile src/Makefile man/Makefile)
+#AC_OUTPUT(src/nfsen/Makefile)
+#AC_OUTPUT(src/sflow/Makefile)
+#AC_OUTPUT(src/ft2nfdump/Makefile)
+## AM_COND_IF([FT2NFDUMP], AC_OUTPUT(src/ft2nfdump/Makefile))
+## AM_COND_IF([BUILDNFPCAPD], AC_OUTPUT(src/nfpcapd/Makefile))
 
 echo ""
 echo "* Many thanks for using nfdump tools"
