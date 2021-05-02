@@ -160,9 +160,10 @@ char sloc[128], dloc[128];
 	LookupLocation(r->V6.srcaddr, sloc, 128);
 	LookupLocation(r->V6.dstaddr, dloc, 128);
 	fprintf(stream,
-"  src addr     =  %16s: %s\n"
-"  dst addr     =  %16s: %s\n"
-	, as, sloc, ds, dloc);
+"  src addr     =  %16s%s%s\n"
+"  dst addr     =  %16s%s%s\n"
+	, as, strlen(sloc) ? ": " : "", sloc
+	, ds, strlen(dloc) ? ": " : "", dloc);
 
 } // End of stringsEXipv4Flow
 
@@ -181,9 +182,10 @@ char sloc[128], dloc[128];
 	LookupLocation(r->V6.srcaddr, sloc, 128);
 	LookupLocation(r->V6.dstaddr, dloc, 128);
 	fprintf(stream,
-"  src addr     =  %16s: %s\n"
-"  dst addr     =  %16s: %s\n"
-	, as, sloc, ds, dloc);
+"  src addr     =  %16s%s%s\n"
+"  dst addr     =  %16s%s%s\n"
+	, as, strlen(sloc) ? ": " : "", sloc
+	, ds, strlen(dloc) ? ": " : "", dloc);
 
 } // End of stringsEXipv6Flow
 
@@ -535,9 +537,10 @@ static void stringsEXinPayload(FILE *stream, master_record_t *r) {
 	fprintf(stream,
 "  in payload   =        %10u\n"
 , r->inPayloadLength);
-	DumpHex(stream, r->inPayload, r->inPayloadLength > 512 ? 512 : r->inPayloadLength);
 	if ( r->srcPort == 53 ||  r->dstPort == 53) {
 		content_decode_dns((uint8_t *)r->inPayload, r->inPayloadLength);
+	} else {
+		DumpHex(stream, r->inPayload, r->inPayloadLength > 512 ? 512 : r->inPayloadLength);
 	}
 } // End of stringsEXinPayload
 
@@ -623,7 +626,7 @@ char elementString[MAXELEMENTS * 5];
 			version[0] = '\0';
 		}
 	}
-
+ 
 	fprintf(stream, "\n"
 "Flow Record: \n"
 "  Flags        =              0x%.2x %s%s%s, %s\n"

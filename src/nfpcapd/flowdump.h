@@ -46,16 +46,13 @@ typedef struct flowParam_s {
 	// arguments
 	NodeList_t *NodeList;		// pop new nodes from this list
 	FlowSource_t *fs;
-	int		t_win;
-	int		subdir_index;
-	int		compress;
+	int	t_win;
+	int	subdir_index;
+	int	compress;
+	// options
+	int extendedFlow;
+	int addPayload;
 } flowParam_t;
-
-void SetServer_latency(struct FlowNode *node);
-
-void SetClient_latency(struct FlowNode *node, struct timeval *t_packet);
-
-void SetApplication_latency(struct FlowNode *node, struct timeval *t_packet);
 
 __attribute__((noreturn)) void *flow_thread(void *thread_data);
 

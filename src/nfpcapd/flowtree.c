@@ -50,8 +50,6 @@
 #include "collector.h"
 #include "flowtree.h"
 
-static int addPayload = 0;
-
 static int ExtendCache(void);
 
 static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2);
@@ -200,9 +198,7 @@ static int ExtendCache(void) {
 } // End of ExtendCache
 
 /* flow tree functions */
-int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive, int fatFlows) {
-
-	addPayload = fatFlows;
+int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive) {
 
 	if ( expireActive ) {
 		if ( expireActive < 0 || expireActive > 3600 ) {
@@ -447,42 +443,6 @@ void DisposeNodeList(NodeList_t *NodeList) {
 
 } // End of DisposeNodeList
 
-#ifdef DEVEL
-void ListCheck(NodeList_t *NodeList);
-void ListCheck(NodeList_t *NodeList) {
-uint32_t len = 0, mem = 0, proto;
-static uint32_t loops = 0;
-struct FlowNode *node, *n;
-	
-//	DumpList(NodeList);
-	loops++;
-	node = NodeList->list;
-	while (node) {
-		len++;
-		if ( node == NodeList->last ) {
-			mem = len;
-		}
-		if ( node->memflag != NODE_IN_USE ) {
-			printf("mem flag error : len: %u, last: %u, Nodelist: %u, loops: %u\n", len, mem, NodeList->length, loops);
-		}
-		if ( node->right == NULL ) {
-			proto = node->proto;
-			n = node;
-		}
-
-		node=node->right;
-	}
-	if ( len != NodeList->length) {
-		printf("Len miss match: len: %u, last: %u, proto: %u, Nodelist: %u, loops: %u, allocated: %u, node: %llx\n", 
-			len, mem, proto, NodeList->length, loops, Allocated, (long long unsigned)n);
-		assert(len==NodeList->length);
-	} else {
-		printf("Len: %u ok last: %u, proto: %u in loop %u, allocated: %u\n", 
-			len, mem, proto, loops, Allocated);
-	}
-}
-#endif
-
 void DumpNodeStat(NodeList_t *NodeList) {
 	LogInfo("Nodes in use: %u, Flows: %u, Nodes list length: %u, Waiting for freelist: %u", 
 		Allocated, NumFlows, NodeList->length, EmptyFreeListEvents);
@@ -557,22 +517,4 @@ void Push_SyncNode(NodeList_t *NodeList, time_t timestamp) {
 	Push_Node(NodeList, Node);
 
 } // End of Push_SyncNode
-
-#ifdef DEVEL
-void DumpList(NodeList_t *NodeList) {
-struct FlowNode *node;
-
-	printf("FlowNode_ProcessList: 0x%llx, length: %u\n", 
-		(unsigned long long)NodeList->list, NodeList->length);
-	node = NodeList->list;
-	while ( node ) {
-		printf("node: 0x%llx\n", (unsigned long long)node);
-		printf("  ->left: 0x%llx\n", (unsigned long long)node->left);
-		printf("  ->right: 0x%llx\n", (unsigned long long)node->right);
-		node = node->right;
-	}
-	printf("tail: 0x%llx\n\n", (unsigned long long)NodeList->last);
-} // End of DumpList
-#endif
-
 

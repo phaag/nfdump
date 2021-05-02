@@ -44,6 +44,7 @@
 #include <pthread.h>
 #include <pcap.h>
 
+#include "collector.h"
 #include "packet_pcap.h"
 
 typedef struct pcapfile_s {

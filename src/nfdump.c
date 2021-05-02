@@ -353,6 +353,35 @@ master_record->srcPort == 106 || master_record->dstPort == 106 ||
 master_record->srcPort == 105 || master_record->dstPort == 105);
 }
 
+static inline void AddGeoInfo(master_record_t *master_record) {
+
+	LookupCountry(master_record->V6.srcaddr, master_record->src_geo);
+	LookupCountry(master_record->V6.dstaddr, master_record->dst_geo);
+	if ( master_record->srcas == 0 )
+		master_record->srcas = LookupAS(master_record->V6.srcaddr);
+	if ( master_record->dstas == 0 )
+		master_record->dstas = LookupAS(master_record->V6.dstaddr);
+	// insert AS element in order to list
+	int j = 0;
+	uint32_t val = EXasRoutingID;
+	while ( j < master_record->numElements ) {
+		if ( EXasRoutingID == master_record->exElementList[j] ) {
+			break;
+		}
+		if ( val < master_record->exElementList[j] ) {
+			uint32_t _tmp = master_record->exElementList[j];
+			master_record->exElementList[j] = val;
+			val = _tmp;
+		}
+		j++;
+	}
+	if ( val != EXasRoutingID ) {
+		master_record->exElementList[j] = val;
+		master_record->numElements++;
+	}
+
+} // End of AddGeoInfo
+
 static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows,
 	printer_t print_record, timeWindow_t *timeWindow, uint64_t limitRecords, 
 	outputParams_t *outputParams, int compress) {
@@ -516,12 +545,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 
 					processed++;
 					if ( HasGeoDB ) {
-						LookupCountry(master_record->V6.srcaddr, master_record->src_geo);
-						LookupCountry(master_record->V6.dstaddr, master_record->dst_geo);
-						if ( master_record->srcas == 0 )
-							master_record->srcas = LookupAS(master_record->V6.srcaddr);
-						if ( master_record->dstas == 0 )
-							master_record->dstas = LookupAS(master_record->V6.dstaddr);
+						AddGeoInfo(master_record);
 					}
 					// Time based filter
 					// if no time filter is given, the result is always true

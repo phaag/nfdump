@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2013-2020, Peter Haag
+ *  Copyright (c) 2013-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -168,13 +168,11 @@ int i;
 		return;
 	}
 
-	// no of query packets
+	// number of of query packets
 	qdcount = ntohs(dns_header->qdcount);
-	printf("DNS Queries: %u\n", qdcount);
-
-    // no of answer packets
+    // number of answer packets
     ancount = ntohs(dns_header->ancount);
-	printf("DNS Answers: %u\n", ancount);
+	// printf("DNS Queries: %u, Answers: %u\n", qdcount, ancount);
 
     // end of dns packet
     eod = (void *)(payload + payload_size);
@@ -187,7 +185,7 @@ int i;
 		if (len < 0) {
             LogError("dn_expand() failed: %s", "");
 		} 
-		printf("DNS Query dn_expand: %s\n", dn);
+		printf("DNS Query %i: %s\n", i, dn);
         p = (void *) (p + len + 4);	// + 4 bytes of fixed data in query
 	}
 
@@ -200,7 +198,7 @@ int i;
         if(len < 0) {
             LogError("dn_expand() failed: %s", "");
         }
-		printf("DNS Answer %i dn_expand: %s ", i, dn);
+		printf("DNS Answer %i: %s ", i, dn);
 
         p += len;
 
@@ -246,11 +244,30 @@ int i;
 				printf("CNAME: %s", dn);
                 p = (void *)(p + len);
                 } break;
+#ifdef T_NS
+            case T_CNAME: 
+#else
+			case ns_s_ns:
+#endif
+				{
+        		int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
+				printf("NS: %s", dn);
+                p = (void *)(p + len);
+                } break;
+#ifdef T_SOA
+            case T_CNAME: 
+#else
+			case ns_t_soa:
+#endif
+				{
+        		int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
+				printf("SOA: %s", dn);
+                p = (void *)(p + len);
+                } break;
 
             default:
-				dbg_printf("<unkn>");
+				printf("<unkn> %u", type);
                 p = (void *)(p + len);
-                continue;
 
     	}
 		printf("\n");

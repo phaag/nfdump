@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -34,8 +34,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
-#include <string.h>
-#include <errno.h>
+#include <unistd.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <time.h>
@@ -43,7 +43,6 @@
 #include <netdb.h>
 #include <pwd.h>
 #include <grp.h>
-#include <unistd.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <sys/param.h>
@@ -53,19 +52,17 @@
 #include <signal.h>
 #include <sys/mman.h>
 #include <string.h>
+#include <errno.h>
 #include <dirent.h>
 
 #ifdef PCAP
 #include "pcap_reader.h"
 #endif
 
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "util.h"
 #include "nfdump.h"
 #include "flist.h"
+#include "pidfile.h"
 #include "nffile.h"
 #include "nfxV3.h"
 #include "nfnet.h"
@@ -189,7 +186,7 @@ pid_t ret;
 			sleep(1);
 		}
 	} else {
-		LogError("launcher[%i] already dead.", pid);
+		LogError("launcher[%i] already dead", pid);
 	}
 
 	if ( (ret = waitpid (pid, &stat, 0)) == -1 ) {
@@ -235,17 +232,17 @@ int fd;
 			break;
 		case -1:
 			// error
-			fprintf(stderr, "fork() error: %s\n", strerror(errno));
-			exit(0);
+			LogError("fork() error: %s", strerror(errno));
+			exit(EXIT_SUCCESS);
 			break;
 		default:
 			// parent
-			_exit(0);
+			_exit(EXIT_SUCCESS);
 	}
 
 	if (setsid() < 0) {
-		fprintf(stderr, "setsid() error: %s\n", strerror(errno));
-		exit(0);
+		LogError("setsid() error: %s", strerror(errno));
+		exit(EXIT_SUCCESS);
 	}
 
 	// Double fork
@@ -255,12 +252,12 @@ int fd;
 			break;
 		case -1:
 			// error
-			fprintf(stderr, "fork() error: %s\n", strerror(errno));
-			exit(0);
+			LogError("fork() error: %s", strerror(errno));
+			exit(EXIT_SUCCESS);
 			break;
 		default:
 			// parent
-			_exit(0);
+			_exit(EXIT_SUCCESS);
 	}
 
 	fd = open("/dev/null", O_RDONLY);
@@ -294,8 +291,7 @@ int		err;
 	myuid = getuid();
 	if ( myuid != 0 ) {
 		LogError("Only root wants to change uid/gid");
-		fprintf(stderr, "ERROR: Only root wants to change uid/gid\n");
-		exit(255);
+		exit(EXIT_FAILURE);
 	}
 
 	if ( userid ) {
@@ -303,8 +299,8 @@ int		err;
 		newuid = pw_entry ? pw_entry->pw_uid : atol(userid);
 
 		if ( newuid == 0 ) {
-			fprintf (stderr,"Invalid user '%s'\n", userid);
-			exit(255);
+			LogError("Invalid user '%s'", userid);
+			exit(EXIT_FAILURE);
 		}
 	}
 
@@ -313,15 +309,14 @@ int		err;
 		newgid = gr_entry ? gr_entry->gr_gid : atol(groupid);
 
 		if ( newgid == 0 ) {
-			fprintf (stderr,"Invalid group '%s'\n", groupid);
-			exit(255);
+			LogError("Invalid group '%s'", groupid);
+			exit(EXIT_FAILURE);
 		}
 
 		err = setgid(newgid);
 		if ( err ) {
 			LogError("Can't set group id %ld for group '%s': %s",   (long)newgid, groupid, strerror(errno));
-			fprintf (stderr,"Can't set group id %ld for group '%s': %s\n", (long)newgid, groupid, strerror(errno));
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 
 	}
@@ -330,8 +325,7 @@ int		err;
 		err = setuid(newuid);
 		if ( err ) {
 			LogError("Can't set user id %ld for user '%s': %s",   (long)newuid, userid, strerror(errno));
-			fprintf (stderr,"Can't set user id %ld for user '%s': %s\n", (long)newuid, userid, strerror(errno));
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 	}
 
@@ -373,7 +367,7 @@ srecord_t	*commbuff;
 
 	in_buff  = malloc(NETWORK_INPUT_BUFF_SIZE);
 	if ( !in_buff ) {
-		LogError("malloc() allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
+		LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 		return;
 	}
 
@@ -526,7 +520,6 @@ srecord_t	*commbuff;
 				// otherwise, we will loose flows and can not continue collecting new flows
 				if ( rename(fs->current, nfcapd_filename) < 0 ) {
 					LogError("Ident: %s, Can't rename dump file: %s", fs->Ident,  strerror(errno));
-					LogError("Ident: %s, Serious Problem! Fix manually", fs->Ident);
 					if ( launcher_pid )
 						commbuff->failed = 1;
 
@@ -687,7 +680,7 @@ srecord_t	*commbuff;
 						blast_cnt++;
 					}
 					if ( blast_cnt == 65535 ) {
-						fprintf(stderr, "Total missed packets: %u\n", blast_failures);
+						LogError("Total missed packets: %u", blast_failures);
 						done = 1;
 					}
 					break;
@@ -707,7 +700,7 @@ srecord_t	*commbuff;
 	}
 
 	if ( verbose && blast_failures ) {
-		fprintf(stderr, "Total missed packets: %u\n", blast_failures);
+		LogError("Total missed packets: %u", blast_failures);
 	}
 	free(in_buff);
 
@@ -722,10 +715,9 @@ srecord_t	*commbuff;
 
 int main(int argc, char **argv) {
  
-char	*bindhost, *datadir, pidstr[32], *launch_process;
+char	*bindhost, *datadir, *launch_process;
 char	*userid, *groupid, *checkptr, *listenport, *mcastgroup;
-char	*Ident, *dynsrcdir, *time_extension, pidfile[MAXPATHLEN];
-struct stat fstat;
+char	*Ident, *dynsrcdir, *time_extension, *pidfile;
 packet_function_t receive_packet;
 repeater_t repeater[MAX_REPEATERS];
 FlowSource_t *fs;
@@ -749,7 +741,7 @@ char	*pcap_file = NULL;
 	listenport		= DEFAULTCISCOPORT;
 	bindhost 		= NULL;
 	mcastgroup		= NULL;
-	pidfile[0]		= 0;
+	pidfile			= NULL;
 	launch_process	= NULL;
 	userid 			= groupid = NULL;
 	twin	 		= TIME_WINDOW;
@@ -772,7 +764,7 @@ char	*pcap_file = NULL;
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
-				exit(0);
+				exit(EXIT_SUCCESS);
 				break;
 			case 'u':
 				userid  = optarg;
@@ -789,11 +781,11 @@ char	*pcap_file = NULL;
 				pcap_file = optarg;
 				stat(pcap_file, &fstat);
 				if ( !S_ISREG(fstat.st_mode) ) {
-					fprintf(stderr, "Not a regular file: %s\n", pcap_file);
+					LogError("Not a regular file: %s", pcap_file);
 					exit(254);
 				}
 #else
-				fprintf(stderr, "PCAP reader not compiled! Option ignored!\n");
+				LogError("PCAP reader not compiled! Option ignored!");
 #endif
 				} break;
 			case 'E':
@@ -801,7 +793,7 @@ char	*pcap_file = NULL;
 				break;
 			case 'V':
 				printf("%s: Version: %s\n",argv[0], nfdump_version);
-				exit(0);
+				exit(EXIT_SUCCESS);
 				break;
 			case 'D':
 				do_daemonize = 1;
@@ -809,32 +801,33 @@ char	*pcap_file = NULL;
 			case 'I':
 				Ident = strdup(optarg);
 				break;
-			case 'M':
+			case 'M': {
+				struct stat	fstat;
 				dynsrcdir = strdup(optarg);
 				if ( strlen(dynsrcdir) > MAXPATHLEN ) {
-					fprintf(stderr, "ERROR: Path too long!\n");
-					exit(255);
+					LogError("ERROR: Path too long!");
+					exit(EXIT_FAILURE);
 				}
 				if ( stat(dynsrcdir, &fstat) < 0 ) {
-					fprintf(stderr, "stat() failed on %s: %s\n", dynsrcdir, strerror(errno));
-					exit(255);
+					LogError("stat() failed on %s: %s", dynsrcdir, strerror(errno));
+					exit(EXIT_FAILURE);
 				}
 				if ( !(fstat.st_mode & S_IFDIR) ) {
-					fprintf(stderr, "No such directory: %s\n", dynsrcdir);
+					LogError("No such directory: %s", dynsrcdir);
 					break;
 				}
 				if ( !SetDynamicSourcesDir(&FlowSource, dynsrcdir) ) {
-					fprintf(stderr, "-l, -M and -n are mutually exclusive\n");
+					LogError("-l, -M and -n are mutually exclusive");
 					break;
 				}
-				break;
+				} break;
 			case 'n':
 				if ( AddFlowSource(&FlowSource, optarg) != 1 ) 
-					exit(255);
+					exit(EXIT_FAILURE);
 				break;
 			case 'N':
 				if ( AddFlowSourceFromFile(&FlowSource, optarg) ) 
-					exit(255);
+					exit(EXIT_FAILURE);
 				break;
 			case 'w':
 				// allow for compatibility - always sync timeslot
@@ -843,8 +836,8 @@ char	*pcap_file = NULL;
 				bufflen = strtol(optarg, &checkptr, 10);
 				if ( (checkptr != NULL && *checkptr == 0) && bufflen > 0 )
 					break;
-				fprintf(stderr,"Argument error for -B\n");
-				exit(255);
+				LogError("Argument error for -B");
+				exit(EXIT_FAILURE);
 			case 'b':
 				bindhost = optarg;
 				break;
@@ -855,24 +848,15 @@ char	*pcap_file = NULL;
 				listenport = optarg;
 				break;
 			case 'P':
-				if ( optarg[0] == '/' ) { 	// absolute path given
-					strncpy(pidfile, optarg, MAXPATHLEN-1);
-				} else {					// path relative to current working directory
-					char tmp[MAXPATHLEN];
-					if ( !getcwd(tmp, MAXPATHLEN-1) ) {
-						fprintf(stderr, "Failed to get current working directory: %s\n", strerror(errno));
-						exit(255);
-					}
-					tmp[MAXPATHLEN-1] = 0;
-					if ( (strlen(tmp) + strlen(optarg) + 3) < MAXPATHLEN ) {
-						snprintf(pidfile, MAXPATHLEN - 3 - strlen(tmp), "%s/%s", tmp, optarg);
-					} else {
-						fprintf(stderr, "pidfile MAXPATHLEN error:\n");
-						exit(255);
-					}
+				if (strlen(optarg) > PATH_MAX) {
+					LogError("Length error for pid fie");
+					exit(EXIT_FAILURE);
 				}
-				// pidfile now absolute path
-				pidfile[MAXPATHLEN-1] = 0;
+				pidfile = realpath(optarg, NULL);
+				if ( !pidfile ) {
+					LogError("realpath() pid file: %s", strerror(errno));
+					exit(EXIT_FAILURE);
+				}
 				break;
 			case 'R': {
 				char *port, *hostname;
@@ -887,8 +871,8 @@ char	*pcap_file = NULL;
 				hostname = strdup(optarg);
 				while ( repeater[i].hostname && (i < MAX_REPEATERS) ) i++;
 				if ( i == MAX_REPEATERS ) {
-					fprintf(stderr, "Too many packet repeaters! Max: %i repeaters allowed.\n", MAX_REPEATERS);
-					exit(255);
+					LogError("Too many packet repeaters! Max: %i repeaters allowed", MAX_REPEATERS);
+					exit(EXIT_FAILURE);
 				}
 				repeater[i].hostname = hostname;
 				repeater[i].port 	 = port;
@@ -903,18 +887,18 @@ char	*pcap_file = NULL;
 				if ( (sampling_rate == 0 ) ||
 					 (sampling_rate < 0 && sampling_rate < -10000000) ||
 					 (sampling_rate > 0 && sampling_rate > 10000000) ) {
-					fprintf(stderr, "Invalid sampling rate: %s\n", optarg);
-					exit(255);
+					LogError("Invalid sampling rate: %s", optarg);
+					exit(EXIT_FAILURE);
 				} 
 				break;
 			case 'l':
 				if ( !CheckPath(optarg, S_IFDIR) )
-					exit(255);
+					exit(EXIT_FAILURE);
 
 				datadir = realpath(optarg, NULL);
 				if ( !datadir ) {
-					fprintf(stderr, "realpath() failed on %s: %s\n", optarg, strerror(errno));
-					exit(255);
+					LogError("realpath() failed on %s: %s", optarg, strerror(errno));
+					exit(EXIT_FAILURE);
 				}
 				break;
 			case 'S':
@@ -927,7 +911,7 @@ char	*pcap_file = NULL;
 				twin = atoi(optarg);
 				if ( twin < 2 ) {
 					LogError("time interval <= 2s not allowed");
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				if (twin < 60) {
 					time_extension	= "%Y%m%d%H%M%S";
@@ -938,22 +922,22 @@ char	*pcap_file = NULL;
 				break;
 			case 'j':
 				if ( compress ) {
-					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
-					exit(255);
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+					exit(EXIT_FAILURE);
 				}
 				compress = BZ2_COMPRESSED;
 				break;
 			case 'y':
 				if ( compress ) {
-					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
-					exit(255);
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+					exit(EXIT_FAILURE);
 				}
 				compress = LZ4_COMPRESSED;
 				break;
 			case 'z':
 				if ( compress ) {
-					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
-					exit(255);
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+					exit(EXIT_FAILURE);
 				}
 				compress = LZO_COMPRESSED;
 				break;
@@ -965,40 +949,45 @@ char	*pcap_file = NULL;
 				if ( family == AF_UNSPEC )
 					family = AF_INET;
 				else {
-					fprintf(stderr, "ERROR, Accepts only one protocol IPv4 or IPv6!\n");
-					exit(255);
+					LogError("ERROR, Accepts only one protocol IPv4 or IPv6!");
+					exit(EXIT_FAILURE);
 				}
 				break;
 			case '6':
 				if ( family == AF_UNSPEC )
 					family = AF_INET6;
 				else {
-					fprintf(stderr, "ERROR, Accepts only one protocol IPv4 or IPv6!\n");
-					exit(255);
+					LogError("ERROR, Accepts only one protocol IPv4 or IPv6!");
+					exit(EXIT_FAILURE);
 				}
 				break;
 			default:
 				usage(argv[0]);
-				exit(255);
+				exit(EXIT_FAILURE);
 		}
 	}
 	
+	if (argc - optind > 1) {
+		usage(argv[0]);
+		exit(EXIT_FAILURE);
+	} 
+
 	if ( FlowSource == NULL && datadir == NULL && dynsrcdir == NULL ) {
-		fprintf(stderr, "ERROR, Missing -n (-l/-I) or -M source definitions\n");
-		exit(255);
+		LogError("ERROR, Missing -n (-l/-I) or -M source definitions");
+		exit(EXIT_FAILURE);
 	}
 	if ( FlowSource == NULL && datadir != NULL && !AddDefaultFlowSource(&FlowSource, Ident, datadir) ) {
-		fprintf(stderr, "Failed to add default data collector directory\n");
-		exit(255);
+		LogError("Failed to add default data collector directory");
+		exit(EXIT_FAILURE);
 	}
 
 	if ( bindhost && mcastgroup ) {
-		fprintf(stderr, "ERROR, -b and -j are mutually exclusive!!\n");
-		exit(255);
+		LogError("ERROR, -b and -j are mutually exclusive!!");
+		exit(EXIT_FAILURE);
 	}
 
 	if ( !InitLog(do_daemonize, argv[0], SYSLOG_FACILITY, verbose) ) {
-		exit(255);
+		exit(EXIT_FAILURE);
 	}
 
 	if ( !Init_nffile(NULL) )
@@ -1006,8 +995,8 @@ char	*pcap_file = NULL;
 
 
 	if ( expire && spec_time_extension ) {
-		fprintf(stderr, "ERROR, -Z timezone extension breaks expire -e\n");
-		exit(255);
+		LogError("ERROR, -Z timezone extension breaks expire -e");
+		exit(EXIT_FAILURE);
 	}
 
 	// Debug code to read from pcap file
@@ -1025,8 +1014,8 @@ char	*pcap_file = NULL;
 		sock = Unicast_receive_socket(bindhost, listenport, family, bufflen );
 
 	if ( sock == -1 ) {
-		fprintf(stderr,"Terminated due to errors.\n");
-		exit(255);
+		LogError("Terminated due to errors");
+		exit(EXIT_FAILURE);
 	}
 
 	i = 0;
@@ -1034,7 +1023,7 @@ char	*pcap_file = NULL;
 		repeater[i].sockfd = Unicast_send_socket (repeater[i].hostname, repeater[i].port, repeater[i].family, bufflen, 
 											&repeater[i].addr, &repeater[i].addrlen );
 		if ( repeater[i].sockfd <= 0 )
-			exit(255);
+			exit(EXIT_FAILURE);
 		LogInfo("Replay flows to host: %s port: %s", repeater[i].hostname, repeater[i].port);
 		i++;
 	}
@@ -1050,53 +1039,8 @@ char	*pcap_file = NULL;
 
 	if ( subdir_index && !InitHierPath(subdir_index) ) {
 		close(sock);
-		exit(255);
+		exit(EXIT_FAILURE);
 	}
-
-	// check if pid file exists and if so, if a process with registered pid is running
-	if ( strlen(pidfile) ) {
-		int pidf;
-		pidf = open(pidfile, O_RDONLY, 0);
-		if ( pidf > 0 ) {
-			// pid file exists
-			char s[32];
-			ssize_t len;
-			len = read(pidf, (void *)s, 31);
-			close(pidf);
-			s[31] = '\0';
-			if ( len < 0 ) {
-				fprintf(stderr, "read() error existing pid file: %s\n", strerror(errno));
-				exit(255);
-			} else {
-				unsigned long pid = atol(s);
-				if ( pid == 0 ) {
-					// garbage - use this file
-					unlink(pidfile);
-				} else {
-					if ( kill(pid, 0) == 0 ) {
-						// process exists
-						fprintf(stderr, "A process with pid %lu registered in pidfile %s is already running!\n", 
-							pid, strerror(errno));
-						exit(255);
-					} else {
-						// no such process - use this file
-						unlink(pidfile);
-					}
-				}
-			}
-		} else {
-			if ( errno != ENOENT ) {
-				fprintf(stderr, "open() error existing pid file: %s\n", strerror(errno));
-				exit(255);
-			} // else errno == ENOENT - no file - this is fine
-		}
-	}
-
-	if (argc - optind > 1) {
-		usage(argv[0]);
-		close(sock);
-		exit(255);
-	} 
 
 	t_start = time(NULL);
 	t_start = t_start - ( t_start % twin);
@@ -1105,19 +1049,10 @@ char	*pcap_file = NULL;
 		verbose = 0;
 		daemonize();
 	}
-	if (strlen(pidfile)) {
-		pid_t pid = getpid();
-		int pidf  = open(pidfile, O_RDWR|O_TRUNC|O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-		if ( pidf == -1 ) {
-			LogError("Error opening pid file: '%s' %s", pidfile, strerror(errno));
-			close(sock);
-			exit(255);
-		}
-		snprintf(pidstr,31,"%lu\n", (unsigned long)pid);
-		if ( write(pidf, pidstr, strlen(pidstr)) <= 0 ) {
-			LogError("Error write pid file: '%s' %s", pidfile, strerror(errno));
-		}
-		close(pidf);
+
+	if ( pidfile ) {
+		if ( check_pid(pidfile) != 0 || write_pid(pidfile) == 0 )
+		exit(EXIT_FAILURE);
 	}
 
 	done = 0;
@@ -1128,7 +1063,7 @@ char	*pcap_file = NULL;
 		if ( shmem == MAP_FAILED) {
 			LogError("mmap() error in %s:%i: %s", __FILE__, __LINE__ , strerror(errno));
 			close(sock);
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 
 		launcher_pid = fork();
@@ -1137,13 +1072,13 @@ char	*pcap_file = NULL;
 				// child
 				close(sock);
 				launcher(shmem, FlowSource, launch_process, expire);
-				_exit(0);
+				_exit(EXIT_SUCCESS);
 				break;
 			case -1:
 				LogError("fork() error: %s", strerror(errno));
-				if ( strlen(pidfile) )
-					unlink(pidfile);
-				exit(255);
+				if ( pidfile )
+					remove_pid(pidfile);
+				exit(EXIT_FAILURE);
 				break;
 			default:
 				// parent
@@ -1155,7 +1090,7 @@ char	*pcap_file = NULL;
 	fs = FlowSource;
 	while ( fs ) {
 		if ( InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid(), launcher_pid) != BOOKKEEPER_OK ) {
-			LogError("initialize bookkeeper failed.");
+			LogError("initialize bookkeeper failed");
 
 			// release all already allocated bookkeepers
 			fs = FlowSource;
@@ -1166,9 +1101,9 @@ char	*pcap_file = NULL;
 			close(sock);
 			if ( launcher_pid )
 				kill_launcher(launcher_pid);
-			if ( strlen(pidfile) )
-				unlink(pidfile);
-			exit(255);
+			if ( pidfile )
+				remove_pid(pidfile);
+			exit(EXIT_FAILURE);
 		}
 
 		fs = fs->next;
@@ -1206,11 +1141,10 @@ char	*pcap_file = NULL;
 	}
 
 	LogInfo("Terminating nfcapd.");
+	if ( pidfile )
+		remove_pid(pidfile);
+
 	EndLog();
-
-	if ( strlen(pidfile) )
-		unlink(pidfile);
-
 	return 0;
 
 } /* End of main */

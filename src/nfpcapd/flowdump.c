@@ -64,9 +64,10 @@ static int printRecord;
 #define UpdateRecordSize(s) recordSize += (s); \
 	if (recordSize > availableSize) continue;
 
-static int StorePcapFlow(FlowSource_t *fs, struct FlowNode *Node);
+static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node);
 
-static int StorePcapFlow(FlowSource_t *fs, struct FlowNode *Node) {
+static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
+FlowSource_t *fs = flowParam->fs;
 
 	dbg_printf("Store Flow node\n");
 	
@@ -76,9 +77,10 @@ static int StorePcapFlow(FlowSource_t *fs, struct FlowNode *Node) {
 		int availableSize = CheckBufferSpace(fs->nffile, recordSize);
 		if (availableSize == 0) {
 			// fishy! - should never happen. maybe disk full?
-			LogError("Process_pcap: output buffer size error. Abort pcap record processing");
+			LogError("StorePcapFlow(): output buffer size error. Skip record");
 			return 0;
 		}
+		recordSize = 0;
 
 		// map output record to memory buffer
 		UpdateRecordSize(V3HeaderRecordSize);
@@ -122,21 +124,44 @@ static int StorePcapFlow(FlowSource_t *fs, struct FlowNode *Node) {
 			ipv4Flow->dstAddr = Node->dst_addr.v4;
 		}
 
+		if ( flowParam->extendedFlow ) {
+			if ( Node->vlanID ) {
+				UpdateRecordSize(EXvLanSize);
+				PushExtension(recordHeader, EXvLan, vlan);
+				vlan->dstVlan = Node->vlanID;
+			}
 
-/* future extension XXX
-	PushExtension(p, EXmacAddr, macAddr);
-	macAddr->inSrcMac   = Get_val48((void *)&sample->eth_src);
-	macAddr->outDstMac  = Get_val48((void *)&sample->eth_dst);
-	macAddr->inDstMac   = 0;
-	macAddr->outSrcMac  = 0;
-*/
+			UpdateRecordSize(EXmacAddrSize);
+			PushExtension(recordHeader, EXmacAddr, macAddr);
+			macAddr->inSrcMac   = ntohll(Node->srcMac) >> 16;
+			macAddr->outDstMac  = ntohll(Node->dstMac) >> 16;
+			macAddr->inDstMac   = 0;
+			macAddr->outSrcMac  = 0;
 
-		UpdateRecordSize(EXlatencySize);
-		PushExtension(recordHeader, EXlatency, latency);
-		latency->usecClientNwDelay = Node->latency.client;
-		latency->usecServerNwDelay = Node->latency.server;
-		latency->usecApplLatency   = Node->latency.application;
+			if ( Node->mpls[0] ) {
+				UpdateRecordSize(EXmplsLabelSize);
+				PushExtension(recordHeader, EXmplsLabel, mplsLabel);
+				for (int i=0; Node->mpls[i] != 0; i++) {
+					mplsLabel->mplsLabel[i] = ntohl(Node->mpls[i]) >> 8;
+				}
+			}
 
+			if ( Node->proto == IPPROTO_TCP) {
+				UpdateRecordSize(EXlatencySize);
+				PushExtension(recordHeader, EXlatency, latency);
+				latency->usecClientNwDelay = Node->latency.client;
+				latency->usecServerNwDelay = Node->latency.server;
+				latency->usecApplLatency   = Node->latency.application;
+			}
+		}
+
+		if ( flowParam->addPayload ) {
+			if ( Node->payloadSize ) {
+				UpdateRecordSize(EXinPayloadSize+Node->payloadSize);
+				PushVarLengthPointer(recordHeader, EXinPayload, inPayload, Node->payloadSize);
+				memcpy(inPayload, Node->payload, Node->payloadSize);
+			}
+		}
 
 		// update first_seen, last_seen
 		if ( genericFlow->msecFirst  < fs->msecFirst )
@@ -144,12 +169,6 @@ static int StorePcapFlow(FlowSource_t *fs, struct FlowNode *Node) {
 		if ( genericFlow->msecLast > fs->msecLast )
 			fs->msecLast = genericFlow->msecLast;
 	
-		if ( Node->payloadSize ) {
-			UpdateRecordSize(EXinPayloadSize+Node->payloadSize);
-			PushVarLengthPointer(recordHeader, EXinPayload, inPayload, Node->payloadSize);
-			memcpy(inPayload, Node->payload, Node->payloadSize);
-		}
-
 		// Update stats
 		stat_record_t *stat_record = fs->nffile->stat_record;
 		switch (genericFlow->proto) {
@@ -177,7 +196,6 @@ static int StorePcapFlow(FlowSource_t *fs, struct FlowNode *Node) {
 		stat_record->numpackets	+= genericFlow->inPackets;
 		stat_record->numbytes	+= genericFlow->inBytes;
 	
-
 		if ( printRecord ) {
 			master_record_t master_record;
 			memset((void *)&master_record, 0, sizeof(master_record_t));
@@ -201,69 +219,6 @@ static int StorePcapFlow(FlowSource_t *fs, struct FlowNode *Node) {
 	return 1;
 
 } /* End of StorePcapFlow */
-
-// Server latency = t(SYN Server) - t(SYN CLient)
-void SetServer_latency(struct FlowNode *node) {
-struct FlowNode *Client_node;
-uint64_t	latency;
-
-	Client_node = node->rev_node;
-	if ( !Client_node ) 
-		return;
-
-	latency = ((uint64_t)node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)node->t_first.tv_usec) -
-			  ((uint64_t)Client_node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)Client_node->t_first.tv_usec);
-	
-	node->latency.server 		= latency;
-	Client_node->latency.server = latency;
-	// set flag, to calc client latency with nex packet from client
-	Client_node->latency.flag 	= 1;
-	dbg_printf("Server latency: %llu\n", (long long unsigned)latency);
-
-} // End of SetServerClient_latency
-
-// Client latency = t(ACK CLient) - t(SYN Server)
-void SetClient_latency(struct FlowNode *node, struct timeval *t_packet) {
-struct FlowNode *Server_node;
-uint64_t	latency;
-
-	Server_node = node->rev_node;
-	if ( !Server_node ) 
-		return;
-
-	latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
-			  ((uint64_t)Server_node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)Server_node->t_first.tv_usec);
-	
-	node->latency.client 		= latency;
-	Server_node->latency.client = latency;
-	// reset flag
-	node->latency.flag			= 0;
-	// set flag, to calc application latency with nex packet from server
-	Server_node->latency.flag	= 2;
-	Server_node->latency.t_request = *t_packet;
-	dbg_printf("Client latency: %llu\n", (long long unsigned)latency);
-
-} // End of SetClient_latency
-
-// Application latency = t(ACK Server) - t(ACK CLient)
-void SetApplication_latency(struct FlowNode *node, struct timeval *t_packet) {
-struct FlowNode *Client_node;
-uint64_t	latency;
-
-	Client_node = node->rev_node;
-	if ( !Client_node ) 
-		return;
-
-	latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
-			  ((uint64_t)node->latency.t_request.tv_sec * (uint64_t)1000000 + (uint64_t)node->latency.t_request.tv_usec);
-	
-	node->latency.application 		 = latency;
-	Client_node->latency.application = latency;
-	// reset flag
-	node->latency.flag			= 0;
-	dbg_printf("Application latency: %llu\n", (long long unsigned)latency);
-
-} // End of SetApplication_latency
 
 static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
 
@@ -400,7 +355,7 @@ FlowSource_t *fs	 = flowParam->fs;
 			CloseFlowFile(flowParam, Node->timestamp);
 			break;
 		} else {
-			StorePcapFlow(fs, Node);
+			StorePcapFlow(flowParam, Node);
 		}
 		Free_Node(Node);
 	}

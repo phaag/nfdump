@@ -230,7 +230,7 @@ char string[512];
 		va_end(var_args);
 		syslog(LOG_INFO, "%s", string);
 		dbg_printf("%s\n", string);
-	} else {
+	} else if ( verbose ) {
 		va_start(var_args, format);
 		vsnprintf(string, 511, format, var_args);
 		fprintf(stderr, "%s\n", string);

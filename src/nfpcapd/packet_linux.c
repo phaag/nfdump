@@ -62,11 +62,16 @@ struct block_desc {
 	struct tpacket_hdr_v1 h1;
 };
 
+static void CloseSocket(packetParam_t *param);
+
 static int setup_pcap_filter(packetParam_t *param, char *filter);
 
 static void ReportStat(packetParam_t *param);
 
 static inline void PcapDump(packetBuffer_t *packetBuffer,  struct tpacket3_hdr *ppd);
+
+static struct tpacket_stats_v3 last_stat = {0};
+static proc_stat_t proc_stat = {0};
 
 /*
  * Functions
@@ -211,26 +216,24 @@ struct bpf_program filter_code;
 
 static void ReportStat(packetParam_t *param) {
 struct tpacket_stats_v3 pstat;
-static struct tpacket_stats_v3 last_stat;
 
 	memset((void *)&pstat, 0, sizeof(struct tpacket_stats_v3));
 	unsigned int len = sizeof(pstat);
 	int err = getsockopt(param->fd, SOL_PACKET, PACKET_STATISTICS, &pstat, &len);
 	if (err < 0) {
 		LogError("getsockopt(PACKET_STATISTICS) failed: %s", strerror(errno));
-		return;
+	} else {
+		LogInfo("Stat: received: %d, dropped by OS/Buffer: %d, freeze_q_cnt: %u",
+			pstat.tp_packets - last_stat.tp_packets, pstat.tp_drops - last_stat.tp_drops, 
+			pstat.tp_freeze_q_cnt - last_stat.tp_freeze_q_cnt);
+		last_stat = pstat;
 	}
 
-	size_t qlen = queue_length(param->flushQueue);
-	if (param->deltaStat) 
-		LogError("Delta stat: received: %d, dropped by OS/Buffer: %d, freeze_q_cnt: %u, Qlen: %zu",
-			pstat.tp_packets - last_stat.tp_packets, pstat.tp_drops - last_stat.tp_drops, 
-			pstat.tp_freeze_q_cnt - last_stat.tp_freeze_q_cnt, qlen);
-	else
-		LogError("Received: %u, dropped: %u, freeze_q_cnt: %u, , Qlen: %zu",
-	       pstat.tp_packets, pstat.tp_drops, pstat.tp_freeze_q_cnt, qlen);
+	LogInfo("Processed: %u, skipped: %u, short caplen: %u, unknown: %u", 
+		param->proc_stat.packets - proc_stat.packets, param->proc_stat.skipped - proc_stat.skipped,
+		param->proc_stat.short_snap - proc_stat.short_snap, param->proc_stat.unknown - proc_stat.unknown);
 
-	last_stat = pstat;
+	proc_stat = param->proc_stat;
 
 } // End of ReportStat
 
@@ -298,9 +301,9 @@ packetParam_t *packetParam = (packetParam_t *)args;
 						packetBuffer->timeStamp = t_start;
 						queue_push(packetParam->flushQueue, packetBuffer);
 						packetBuffer = queue_pop(packetParam->bufferQueue);
-						ReportStat(packetParam);
 					}
 					// Rotate flow file
+					ReportStat(packetParam);
 					Push_SyncNode(packetParam->NodeList, t_start);
 					t_start = t_packet - (t_packet % t_win);
 				} 
@@ -327,9 +330,9 @@ packetParam_t *packetParam = (packetParam_t *)args;
 					packetBuffer->timeStamp = t_start;
 					queue_push(packetParam->flushQueue, packetBuffer);
 					packetBuffer = queue_pop(packetParam->bufferQueue);
-					ReportStat(packetParam);
 				}
 				// Rotate flow file
+				ReportStat(packetParam);
 				Push_SyncNode(packetParam->NodeList, t_start);
 				t_start = t_packet - (t_packet % t_win);
 			} 
@@ -365,10 +368,10 @@ packetParam_t *packetParam = (packetParam_t *)args;
 		packetBuffer->timeStamp = t_start;
 		queue_push(packetParam->flushQueue, packetBuffer);
 		queue_close(packetParam->flushQueue);
-		ReportStat(packetParam);
 	}
 
 	CloseSocket(packetParam);
+	ReportStat(packetParam);
 
 	// Tell parent we are gone
 	pthread_kill(packetParam->parent, SIGUSR1);

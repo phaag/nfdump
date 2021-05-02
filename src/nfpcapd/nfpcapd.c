@@ -65,10 +65,11 @@
 
 #include "util.h"
 #include "nfdump.h"
+#include "flist.h"
+#include "pidfile.h"
 #include "nffile.h"
 #include "expire.h"
 #include "nfnet.h"
-#include "flist.h"
 #include "nfstatfile.h"
 #include "bookkeeper.h"
 #include "collector.h"
@@ -120,6 +121,8 @@ static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, 
 
 static void WaitDone(void);
 
+static int scanOptions(flowParam_t *flowParam, char *options);
+
 /*
  * Functions
  */
@@ -133,8 +136,9 @@ static void usage(char *name) {
 					"-r pcapfile\tread packets from file\n"
 					"-b num\tset socket buffer size in MB. (default 20MB)\n"
 					"-B num\tset the node cache size. (default 524288)\n"
-					"-s snaplen\tset the snapshot length - default 1526\n"
+					"-s snaplen\tset the snapshot length - default 1522\n"
 					"-e active,inactive\tset the active,inactive flow expire time (s) - default 300,60\n"
+					"-o options \tAdd flow options, separated with ','. Available: 'fat', 'payload'\n"
 					"-l flowdir \tset the flow output directory. (no default) \n"
 					"-p pcapdir \tset the pcapdir directory. (optional) \n"
 					"-S subdir\tSub directory format. see nfcapd(1) for format\n"
@@ -167,17 +171,17 @@ int fd;
 			break;
 		case -1:
 			// error
-			fprintf(stderr, "fork() error: %s\n", strerror(errno));
-			exit(0);
+			LogError("fork() error: %s", strerror(errno));
+			exit(EXIT_SUCCESS);
 			break;
 		default:
 			// parent
-			_exit(0);
+			_exit(EXIT_SUCCESS);
 	}
 
 	if (setsid() < 0) {
-		fprintf(stderr, "setsid() error: %s\n", strerror(errno));
-		exit(0);
+		LogError("setsid() error: %s", strerror(errno));
+		exit(EXIT_SUCCESS);
 	}
 
 	// Double fork
@@ -187,12 +191,12 @@ int fd;
 			break;
 		case -1:
 			// error
-			fprintf(stderr, "fork() error: %s\n", strerror(errno));
-			exit(0);
+			LogError("fork() error: %s", strerror(errno));
+			exit(EXIT_SUCCESS);
 			break;
 		default:
 			// parent
-			_exit(0);
+			_exit(EXIT_SUCCESS);
 	}
 
 	fd = open("/dev/null", O_RDONLY);
@@ -226,8 +230,7 @@ int		err;
 	myuid = getuid();
 	if ( myuid != 0 ) {
 		LogError("Only root wants to change uid/gid");
-		fprintf(stderr, "ERROR: Only root wants to change uid/gid\n");
-		exit(255);
+		exit(EXIT_FAILURE);
 	}
 
 	if ( userid ) {
@@ -235,8 +238,8 @@ int		err;
 		newuid = pw_entry ? pw_entry->pw_uid : atol(userid);
 
 		if ( newuid == 0 ) {
-			fprintf (stderr,"Invalid user '%s'\n", userid);
-			exit(255);
+			LogError("Invalid user '%s'", userid);
+			exit(EXIT_FAILURE);
 		}
 	}
 
@@ -245,15 +248,14 @@ int		err;
 		newgid = gr_entry ? gr_entry->gr_gid : atol(groupid);
 
 		if ( newgid == 0 ) {
-			fprintf (stderr,"Invalid group '%s'\n", groupid);
-			exit(255);
+			LogError("Invalid group '%s'", groupid);
+			exit(EXIT_FAILURE);
 		}
 
 		err = setgid(newgid);
 		if ( err ) {
 			LogError("Can't set group id %ld for group '%s': %s",   (long)newgid, groupid, strerror(errno));
-			fprintf (stderr,"Can't set group id %ld for group '%s': %s\n", (long)newgid, groupid, strerror(errno));
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 
 	}
@@ -262,8 +264,7 @@ int		err;
 		err = setuid(newuid);
 		if ( err ) {
 			LogError("Can't set user id %ld for user '%s': %s",   (long)newuid, userid, strerror(errno));
-			fprintf (stderr,"Can't set user id %ld for user '%s': %s\n", (long)newuid, userid, strerror(errno));
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 	}
 
@@ -281,7 +282,6 @@ char errbuf[PCAP_ERRBUF_SIZE];	/* Error string */
 		LogError("pcap_open_offline() failed: %s", errbuf);
 		return -1;
 	}
-
 
 	if ( filter ) {
 		struct bpf_program filter_code;
@@ -338,9 +338,10 @@ char errbuf[PCAP_ERRBUF_SIZE];	/* Error string */
 static void WaitDone(void) {
 sigset_t signal_set;
 int done, sig;
+#ifdef DEVEL
 pthread_t tid   = pthread_self();
-
-	LogVerbose("[%lu] WaitDone() waiting", (long unsigned)tid);
+	printf("[%lu] WaitDone() waiting\n", (long unsigned)tid);
+#endif
 
 	sigemptyset(&signal_set);
 	sigaddset(&signal_set, SIGINT);
@@ -352,7 +353,7 @@ pthread_t tid   = pthread_self();
 	done = 0;
 	while ( !done ) {
 		sigwait(&signal_set, &sig);
-		LogVerbose("[%lu] WaitDone() signal %i", (long unsigned)tid, sig);
+		dbg_printf("[%lu] WaitDone() signal %i\n", (long unsigned)tid, sig);
 		switch ( sig ) {
 			case SIGHUP:
 				break;
@@ -374,28 +375,50 @@ pthread_t tid   = pthread_self();
 	
 } // End of WaitDone
 
+static int scanOptions(flowParam_t *flowParam, char *options) {
+
+	char *option = strtok(options, ",");
+	while( option != NULL ) {
+		if (strncasecmp(option, "fat", 4) == 0 ) {
+			flowParam->extendedFlow = 1;
+			dbg_printf("Found extended flow option\n");
+		} else if (strncasecmp(option, "payload", 8) == 0 ) {
+			flowParam->addPayload = 1;
+			dbg_printf("Found payload option\n");
+		} else {
+			LogError("Unknown option: %s", option);
+			return -1;
+		}
+		option = strtok(NULL, ",");
+	}
+
+	return 0;
+
+} // End of scanOption
+
 int main(int argc, char *argv[]) {
 sigset_t			signal_set;
 struct sigaction	sa;
 int c, snaplen, err, do_daemonize;
-int subdir_index, compress, expire, fatFlows, cache_size, buff_size;
-int activeTineout, inactiveTineout;
+int subdir_index, compress, expire, cache_size, buff_size;
+int activeTimeout, inactiveTimeout;
 dirstat_t 		*dirstat;
 time_t 			t_win;
-char 			*device, *pcapfile, *filter, *datadir, *pcap_datadir, pidfile[MAXPATHLEN], pidstr[32];
+char 			*device, *pcapfile, *filter, *datadir, *pcap_datadir, *pidfile, *options;
 char			*Ident, *userid, *groupid;
 char			*time_extension;
 
-	snaplen			= 65535;
+	snaplen			= 1522;
 	do_daemonize	= 0;
 	launcher_pid	= 0;
 	device			= NULL;
 	pcapfile		= NULL;
 	filter			= FILTER;
-	pidfile[0]		= '\0';
+	pidfile			= NULL;
 	t_win			= TIME_WINDOW;
 	datadir			= DEFAULT_DIR;
 	pcap_datadir	= NULL;
+	options			= NULL;
 	userid			= groupid = NULL;
 	Ident			= "none";
 	time_extension	= "%Y%m%d%H%M";
@@ -405,15 +428,14 @@ char			*time_extension;
 	expire			= 0;
 	cache_size		= 0;
 	buff_size		= 20;
-	activeTineout	= 0;
-	inactiveTineout	= 0;
-	fatFlows		= 0;
-	while ((c = getopt(argc, argv, "B:DEFI:b:e:g:hi:j:r:s:l:p:P:t:u:S:Vyz")) != EOF) {
+	activeTimeout	= 0;
+	inactiveTimeout	= 0;
+	while ((c = getopt(argc, argv, "B:DEI:b:e:g:hi:j:r:s:l:o:p:P:t:u:S:Vyz")) != EOF) {
 		switch (c) {
 			struct stat fstat;
 			case 'h':
 				usage(argv[0]);
-				exit(0);
+				exit(EXIT_SUCCESS);
 				break;
 			case 'u':
 				userid  = optarg;
@@ -423,9 +445,6 @@ char			*time_extension;
 				break;
 			case 'D':
 				do_daemonize = 1;
-				break;
-			case 'F':
-				fatFlows = 1;
 				break;
 			case 'B':
 				cache_size = atoi(optarg);
@@ -454,6 +473,13 @@ char			*time_extension;
 					LogError("No such directory: " "'%s'", datadir);
 					break;
 				}
+				break;
+			case 'o':
+				if ( strlen(optarg) > 64 ) {
+					LogError("ERROR:, option string size error");
+					exit(EXIT_FAILURE);
+				}
+				options = strdup(optarg);
 				break;
 			case 'p':
 				pcap_datadir = optarg;
@@ -495,8 +521,8 @@ char			*time_extension;
 				}
 				*sep = '\0';
 				sep++;
-				activeTineout   = atoi(s);
-				inactiveTineout = atoi(sep);
+				activeTimeout   = atoi(s);
+				inactiveTimeout = atoi(sep);
 				if (snaplen < 14 + 20 + 20) { // ethernet, IP , TCP, no payload
 					LogError("ERROR:, snaplen < sizeof IPv4 - Need 54 bytes for TCP/IPv4");
 					exit(EXIT_FAILURE);
@@ -514,44 +540,35 @@ char			*time_extension;
 				break;
 			case 'j':
 				if ( compress ) {
-					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
-					exit(255);
+					LogError("Use either -z for LZO or -j for BZ2 compression, but not both");
+					exit(EXIT_FAILURE);
 				}
 				compress = BZ2_COMPRESSED;
 				break;
 			case 'y':
 				if ( compress ) {
-					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
-					exit(255);
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+					exit(EXIT_FAILURE);
 				}
 				compress = LZ4_COMPRESSED;
 				break;
 			case 'z':
 				if ( compress ) {
-					LogError("Use either -z for LZO or -j for BZ2 compression, but not both\n");
-					exit(255);
+					LogError("Use either -z for LZO or -j for BZ2 compression, but not both");
+					exit(EXIT_FAILURE);
 				}
 				compress = LZO_COMPRESSED;
 				break;
 			case 'P':
-				if ( optarg[0] == '/' ) { 	// absolute path given
-					strncpy(pidfile, optarg, MAXPATHLEN-1);
-				} else {					// path relative to current working directory
-					char tmp[MAXPATHLEN];
-					if ( !getcwd(tmp, MAXPATHLEN-1) ) {
-						fprintf(stderr, "Failed to get current working directory: %s\n", strerror(errno));
-						exit(255);
-					}
-					tmp[MAXPATHLEN-1] = 0;
-					if ( (strlen(tmp) + strlen(optarg) + 3) < MAXPATHLEN ) {
-						snprintf(pidfile, MAXPATHLEN - 3 - strlen(tmp), "%s/%s", tmp, optarg);
-					} else {
-						fprintf(stderr, "pidfile MAXPATHLEN error:\n");
-						exit(255);
-					}
+				if (strlen(optarg) > MAXPATHLEN) {
+					LogError("Length error for pid fie");
+					exit(EXIT_FAILURE);
 				}
-				// pidfile now absolute path
-				pidfile[MAXPATHLEN-1] = 0;
+				pidfile = realpath(optarg, NULL);
+				if ( !pidfile ) {
+					LogError("realpath() pid file: %s", strerror(errno));
+					exit(EXIT_FAILURE);
+				}
 				break;
 			case 'S':
 				subdir_index = atoi(optarg);
@@ -560,8 +577,8 @@ char			*time_extension;
 				verbose = 1;
 				break;
 			case 'V':
-				printf("%s: Version: %s\n",argv[0], nfdump_version);
-				exit(0);
+				printf("%s: Version: %s",argv[0], nfdump_version);
+				exit(EXIT_SUCCESS);
 				break;
 			default:
 				usage(argv[0]);
@@ -584,15 +601,23 @@ char			*time_extension;
 
 	flushParam_t flushParam   = {0};
 	packetParam_t packetParam = {0};
+	flowParam_t flowParam	  = {0};
 
+	if (options && scanOptions(&flowParam, options) < 0) {
+		exit(EXIT_FAILURE);
+	}
+
+	
 	int buffsize = 64*1024;
 	int ret;
 	void *(*packet_thread)(void *) = NULL;
 
 	if ( pcapfile ) {
+		packetParam.live = 0;
 		ret = setup_pcap_file(&packetParam, pcapfile, filter, snaplen);
 		packet_thread = pcap_packet_thread;
 	} else {
+		packetParam.live = 1;
 #ifdef USE_BPFSOCKET
 		packetParam.bpfBufferSize = buffsize;
 		ret = setup_bpf_live(&packetParam, device, filter, snaplen, buffsize, TO_MS);
@@ -606,7 +631,7 @@ char			*time_extension;
 #endif
 	}
 	if (ret < 0) {
-		LogError("Setup failed. Exit.");
+		LogError("Setup failed. Exit");
 		exit(EXIT_FAILURE);
 	}
 
@@ -624,11 +649,11 @@ char			*time_extension;
 
 	FlowSource_t *fs = NULL;
 	if ( datadir != NULL && !AddDefaultFlowSource(&fs, Ident, datadir) ) {
-		fprintf(stderr, "Failed to add default data collector directory\n");
+		LogError("Failed to add default data collector directory");
 		exit(EXIT_FAILURE);
 	}
 
-	if ( !Init_FlowTree(cache_size, activeTineout, inactiveTineout, fatFlows)) {
+	if ( !Init_FlowTree(cache_size, activeTimeout, inactiveTimeout)) {
 		LogError("Init_FlowTree() failed.");
 		exit(EXIT_FAILURE);
 	}
@@ -647,72 +672,21 @@ char			*time_extension;
 		exit(EXIT_FAILURE);
 	}
 
-	// check if pid file exists and if so, if a process with registered pid is running
-	if ( strlen(pidfile) ) {
-		int pidf;
-		pidf = open(pidfile, O_RDONLY, 0);
-		if ( pidf > 0 ) {
-			// pid file exists
-			char s[32];
-			ssize_t len;
-			len = read(pidf, (void *)s, 31);
-			close(pidf);
-			s[31] = '\0';
-			if ( len < 0 ) {
-				fprintf(stderr, "read() error existing pid file: %s\n", strerror(errno));
-				pcap_close(packetParam.pcap_dev);
-				exit(255);
-			} else {
-				unsigned long pid = atol(s);
-				if ( pid == 0 ) {
-					// garbage - use this file
-					unlink(pidfile);
-				} else {
-					if ( kill(pid, 0) == 0 ) {
-						// process exists
-						fprintf(stderr, "A process with pid %lu registered in pidfile %s is already running!\n", 
-							pid, strerror(errno));
-						pcap_close(packetParam.pcap_dev);
-						exit(255);
-					} else {
-						// no such process - use this file
-						unlink(pidfile);
-					}
-				}
-			}
-		} else {
-			if ( errno != ENOENT ) {
-				fprintf(stderr, "open() error existing pid file: %s\n", strerror(errno));
-				pcap_close(packetParam.pcap_dev);
-				exit(255);
-			} // else errno == ENOENT - no file - this is fine
-		}
-	}
-
 	if ( do_daemonize ) {
 		verbose = 0;
 		daemonize();
 	}
 
-	if (strlen(pidfile)) {
-		pid_t pid = getpid();
-		int pidf  = open(pidfile, O_RDWR|O_TRUNC|O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-		if ( pidf == -1 ) {
-			LogError("Error opening pid file: '%s' %s", pidfile, strerror(errno));
-			pcap_close(packetParam.pcap_dev);
-			exit(255);
-		}
-		snprintf(pidstr,31,"%lu\n", (unsigned long)pid);
-		if ( write(pidf, pidstr, strlen(pidstr)) <= 0 ) {
-			LogError("Error write pid file: '%s' %s", pidfile, strerror(errno));
-		}
-		close(pidf);
+	if ( pidfile ) {
+		if ( check_pid(pidfile) != 0 || write_pid(pidfile) == 0 )
+		pcap_close(packetParam.pcap_dev);
+		exit(EXIT_FAILURE);
 	}
 
 	if ( InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid(), launcher_pid) != BOOKKEEPER_OK ) {
 			LogError("initialize bookkeeper failed.");
 			pcap_close(packetParam.pcap_dev);
-			exit(255);
+			exit(EXIT_FAILURE);
 	}
 
 	LogInfo("Startup.");
@@ -750,14 +724,13 @@ char			*time_extension;
 
 		int err = pthread_create(&flushParam.tid, NULL, flush_thread, (void *)&flushParam);
 		if (err) {
-			LogError("pthread_create() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-			exit(255);
+			LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+			exit(EXIT_FAILURE);
 		}
-		dbg_printf("Started flush thread[%lu]\n", (long unsigned)flushParam.tid);
+		dbg_printf("Started flush thread[%lu]", (long unsigned)flushParam.tid);
 	}
 
 	// fire off flow handling thread
-	flowParam_t flowParam	  = {0};
 	flowParam.done			  = &done;
 	flowParam.fs			  = fs;
 	flowParam.t_win			  = t_win;
@@ -767,19 +740,21 @@ char			*time_extension;
 	flowParam.NodeList	   	  = NewNodeList();
 	err = pthread_create(&flowParam.tid, NULL, flow_thread, (void *)&flowParam);
 	if ( err ) {
-		LogError("pthread_create() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-		exit(255);
+		LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
+		exit(EXIT_FAILURE);
 	}
-	dbg_printf("Started flow thread[%lu]\n", (long unsigned)flowParam.tid);
+	dbg_printf("Started flow thread[%lu]", (long unsigned)flowParam.tid);
 
-	packetParam.parent	  = pthread_self();
-	packetParam.NodeList  = flowParam.NodeList;
-	packetParam.t_win 	  = t_win;
-	packetParam.done 	  = &done;
+	packetParam.parent		 = pthread_self();
+	packetParam.NodeList	 = flowParam.NodeList;
+	packetParam.extendedFlow = flowParam.extendedFlow;
+	packetParam.addPayload	 = flowParam.addPayload;
+	packetParam.t_win		 = t_win;
+	packetParam.done		 = &done;
 	err = pthread_create(&packetParam.tid, NULL, packet_thread, (void *)&packetParam);
 	if ( err ) {
-		LogError("pthread_create() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-		exit(255);
+		LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
+		exit(EXIT_FAILURE);
 	}
 	dbg_printf("Started packet thread[%lu]\n", (long unsigned)packetParam.tid);
 
@@ -810,10 +785,13 @@ char			*time_extension;
 	}
 
 	ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
-	pcap_close(packetParam.pcap_dev);
 
-	if ( strlen(pidfile) )
-		unlink(pidfile);
+	LogInfo("Total: Processed: %u, skipped: %u, short caplen: %u, unknown: %u\n", 
+		packetParam.proc_stat.packets, packetParam.proc_stat.skipped,
+		packetParam.proc_stat.short_snap, packetParam.proc_stat.unknown);
+
+	if ( pidfile )
+		remove_pid(pidfile);
 
 	LogInfo("Terminating nfpcapd.");
 	EndLog();

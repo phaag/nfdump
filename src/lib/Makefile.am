@@ -9,6 +9,7 @@ LDADD = $(DEPS_LIBS)
 
 # libnfdump sources
 util = util.c util.h
+pidfile = pidfile.c pidfile.h
 filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h
 nffile = nffile.c nffile.h nffileV2.h lstack.c lstack.h queue.c queue.h nfx.c nfx.h nfxV3.h nfxV3.c
 nflist = flist.c flist.h fts_compat.c fts_compat.h
@@ -16,7 +17,7 @@ filter = grammar.y scanner.l nftree.c nftree.h ipconv.c ipconv.h rbtree.h klist.
 output = output_util.c output_util.h output_short.c output_short.h
 
 lib_LTLIBRARIES = libnfdump.la
-libnfdump_la_SOURCES = $(util) $(filelzo) $(nffile) $(nflist) $(filter) $(output)
+libnfdump_la_SOURCES = $(util) $(pidfile) $(filelzo) $(nffile) $(nflist) $(filter) $(output)
 libnfdump_la_LDFLAGS = -release 1.7.0
 
 CLEANFILES = lex.yy.c grammar.c grammar.h scanner.c scanner.h *.gch

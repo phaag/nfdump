@@ -97,10 +97,14 @@ typedef struct packetParam_s {
 	int 	  t_win;
 	int 	  *done;
 
-    uint32_t deltaStat;
     uint32_t snaplen;
     uint32_t linkoffset;
     uint32_t linktype;
+
+    uint32_t live;
+	uint32_t fat;
+	uint32_t extendedFlow;
+	uint32_t addPayload;
     proc_stat_t proc_stat;
 } packetParam_t;
 
@@ -119,6 +123,5 @@ int setup_linux_live(packetParam_t *param, char *device, char *filter, int snapl
 
 void __attribute__((noreturn)) *linux_packet_thread(void *args);
 #endif
-
 
 #endif

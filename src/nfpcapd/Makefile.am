@@ -19,10 +19,10 @@ nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h \
 	$(nfstatfile) \
 	$(nfnet) $(collector) $(bookkeeper) $(expire)
 nfpcapd_LDADD = ../lib/libnfdump.la
-## if BSDBPF
-## nfpcapd_SOURCES += packet_bpf.c
-## AM_CPPFLAGS += -DUSE_BPFSOCKET
-## endif
+if BSDBPF
+nfpcapd_SOURCES += packet_bpf.c
+AM_CPPFLAGS += -DUSE_BPFSOCKET
+endif
 if TPACKETV3
 nfpcapd_SOURCES += packet_linux.c
 AM_CPPFLAGS += -DUSE_TPACKETV3

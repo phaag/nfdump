@@ -42,6 +42,8 @@
 
 #include "util.h"
 #include "queue.h"
+#include "flist.h"
+#include "nffile.h"
 #include "packet_pcap.h"
 #include "packet_pcap.h"
 #include "pcapdump.h"

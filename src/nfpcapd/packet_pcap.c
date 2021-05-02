@@ -48,15 +48,26 @@
 #include "packet_pcap.h"
 #include "pcaproc.h"
 
+static void CloseSocket(packetParam_t *param);
+
 static int setup_pcap_filter(packetParam_t *param, char *filter);
 
 static void ReportStat(packetParam_t *param);
 
 static inline void PcapDump(packetBuffer_t *packetBuffer,  struct pcap_pkthdr *hdr, const u_char *sp);
 
+static struct pcap_stat last_stat = {0};
+static proc_stat_t proc_stat = {0};
+
 /*
  * Functions
  */
+
+static void CloseSocket(packetParam_t *param) {
+
+	pcap_close(param->pcap_dev);
+
+} // End of CloseSocket
 
 // live device
 int setup_pcap_live(packetParam_t *param, char *device, char *filter, int snaplen, int buffsize, int to_ms) {
@@ -193,23 +204,23 @@ struct bpf_program filter_code;
 
 static void ReportStat(packetParam_t *param) {
 struct pcap_stat pstat;
-static struct pcap_stat last_stat;
 
-	memset((void *)&pstat, 0, sizeof(struct pcap_stat));
-	if (pcap_stats(param->pcap_dev, &pstat) < 0) {
-		LogError("pcap_stats() failed: %s", pcap_geterr(param->pcap_dev));
-		return;
+	if (param->live ) {
+		memset((void *)&pstat, 0, sizeof(struct pcap_stat));
+		if (pcap_stats(param->pcap_dev, &pstat) < 0) {
+			LogError("pcap_stats() failed: %s", pcap_geterr(param->pcap_dev));
+		} else {
+			LogInfo("Stat: received: %d, dropped by OS/Buffer: %d, dropped by interface/driver: %d",
+				pstat.ps_recv - last_stat.ps_recv, pstat.ps_drop - last_stat.ps_drop, pstat.ps_ifdrop - last_stat.ps_ifdrop);
+			last_stat = pstat;
+		}
 	}
 
-	size_t qlen = queue_length(param->flushQueue);
-	if (param->deltaStat) 
-		LogError("Delta stat: received: %d, dropped by OS/Buffer: %d, dropped by interface/driver: %d, Qlen: %zu",
-			pstat.ps_recv - last_stat.ps_recv, pstat.ps_drop - last_stat.ps_drop, pstat.ps_ifdrop - last_stat.ps_ifdrop, qlen);
-	else
-		LogError("Stat: received: %d, dropped by OS/Buffer: %d, dropped by interface/driver: %d, Qlen: %zu",
-			pstat.ps_recv, pstat.ps_drop, pstat.ps_ifdrop, qlen);
+	LogInfo("Processed: %u, skipped: %u, short caplen: %u, unknown: %u", 
+		param->proc_stat.packets - proc_stat.packets, param->proc_stat.skipped - proc_stat.skipped,
+		param->proc_stat.short_snap - proc_stat.short_snap, param->proc_stat.unknown - proc_stat.unknown);
 
-	last_stat = pstat;
+	proc_stat = param->proc_stat;
 
 } // End of ReportStat
 
@@ -263,9 +274,9 @@ packetParam_t *packetParam = (packetParam_t *)args;
 						packetBuffer->timeStamp = t_start;
 						queue_push(packetParam->flushQueue, packetBuffer);
 						packetBuffer = queue_pop(packetParam->bufferQueue);
-						ReportStat(packetParam);
 					}
 					// Rotate flow file
+					ReportStat(packetParam);
 					Push_SyncNode(packetParam->NodeList, t_start);
 					t_start = t_packet - (t_packet % t_win);
 				} 
@@ -294,8 +305,8 @@ packetParam_t *packetParam = (packetParam_t *)args;
 						packetBuffer->timeStamp = t_start;
 						queue_push(packetParam->flushQueue, packetBuffer);
 						packetBuffer = queue_pop(packetParam->bufferQueue);
-						ReportStat(packetParam);
 					}
+					ReportStat(packetParam);
 					Push_SyncNode(packetParam->NodeList, t_start);
 					t_start = t_packet - (t_packet % t_win);
 				} 
@@ -325,10 +336,12 @@ packetParam_t *packetParam = (packetParam_t *)args;
 		packetBuffer->timeStamp = t_start;
 		queue_push(packetParam->flushQueue, packetBuffer);
 		queue_close(packetParam->flushQueue);
-		ReportStat(packetParam);
 	}
 
+	CloseSocket(packetParam);
+	ReportStat(packetParam);
 	packetParam->t_win = t_start;
+
 	// Tell parent we are gone
 	pthread_kill(packetParam->parent, SIGUSR1);
 	pthread_exit("leave pcap_loop()");

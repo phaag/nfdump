@@ -31,31 +31,22 @@
 #ifndef _FLOWTREE_H
 #define _FLOWTREE_H 1
 
-#ifdef HAVE_CONFIG_H 
 #include "config.h"
-#endif
 
 #include <sys/types.h>
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
 #include <sys/time.h>
 
 #include <time.h>
 #include <signal.h>
 #include <stdatomic.h>
 
-#include "collector.h"
+#include "nfdump.h"
 #include "flowtree.h"
 #include "rbtree.h"
 
 #define v4 ip_addr._v4
 #define v6 ip_addr._v6
-
-typedef struct vlan_hdr_s {
-  uint16_t vlan_id;
-  uint16_t type;
-} vlan_hdr_t;
 
 struct FlowNode {
 	// tree
@@ -104,7 +95,10 @@ struct FlowNode {
 
 	void		*payload;	// payload
 	uint32_t	payloadSize;	// Size of payload
-	vlan_hdr_t	vlan;
+	uint32_t	vlanID;
+	uint32_t	mpls[10];
+	uint64_t	srcMac;
+	uint64_t	dstMac;
 
 	struct FlowNode *rev_node;
 	struct latency_s {
@@ -132,7 +126,7 @@ typedef RB_HEAD(FlowTree, FlowNode) FlowTree_t;
 // Insert the RB prototypes here
 RB_PROTOTYPE(FlowTree, FlowNode, entry, FlowNodeCMP);
 
-int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive, int fatFlows);
+int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive);
 
 void Dispose_FlowTree(void);
 

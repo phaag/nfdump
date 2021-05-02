@@ -67,15 +67,26 @@ typedef struct gre_hdr_s {
   uint16_t type;
 } gre_hdr_t;
 
+typedef struct vlan_hdr_s {
+  uint16_t vlan_id;
+  uint16_t type;
+} vlan_hdr_t;
+
 static time_t lastRun = 0;	// remember last run to idle cache
 
-static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *NewNode );
+static inline void SetServer_latency(struct FlowNode *node);
 
-static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *NewNode );
+static inline void SetClient_latency(struct FlowNode *node, struct timeval *t_packet);
 
-static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *NewNode );
+static inline void SetApplication_latency(struct FlowNode *node, struct timeval *t_packet);
 
-static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode *NewNode );
+static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize);
+
+static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize);
+
+static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize);
+
+static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize);
 
 pcapfile_t *OpenNewPcapFile(pcap_t *p, char *filename, pcapfile_t *pcapfile) {
 
@@ -175,7 +186,70 @@ void *_b;
 
 } // End of RotateFile
 
-static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *NewNode ) {
+// Server latency = t(SYN Server) - t(SYN CLient)
+static inline void SetServer_latency(struct FlowNode *node) {
+struct FlowNode *Client_node;
+uint64_t	latency;
+
+	Client_node = node->rev_node;
+	if ( !Client_node ) 
+		return;
+
+	latency = ((uint64_t)node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)node->t_first.tv_usec) -
+			  ((uint64_t)Client_node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)Client_node->t_first.tv_usec);
+	
+	node->latency.server 		= latency;
+	Client_node->latency.server = latency;
+	// set flag, to calc client latency with nex packet from client
+	Client_node->latency.flag 	= 1;
+	dbg_printf("Server latency: %llu\n", (long long unsigned)latency);
+
+} // End of SetServerClient_latency
+
+// Client latency = t(ACK CLient) - t(SYN Server)
+static inline void SetClient_latency(struct FlowNode *node, struct timeval *t_packet) {
+struct FlowNode *Server_node;
+uint64_t	latency;
+
+	Server_node = node->rev_node;
+	if ( !Server_node ) 
+		return;
+
+	latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
+			  ((uint64_t)Server_node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)Server_node->t_first.tv_usec);
+	
+	node->latency.client 		= latency;
+	Server_node->latency.client = latency;
+	// reset flag
+	node->latency.flag			= 0;
+	// set flag, to calc application latency with nex packet from server
+	Server_node->latency.flag	= 2;
+	Server_node->latency.t_request = *t_packet;
+	dbg_printf("Client latency: %llu\n", (long long unsigned)latency);
+
+} // End of SetClient_latency
+
+// Application latency = t(ACK Server) - t(ACK CLient)
+void SetApplication_latency(struct FlowNode *node, struct timeval *t_packet) {
+struct FlowNode *Client_node;
+uint64_t	latency;
+
+	Client_node = node->rev_node;
+	if ( !Client_node ) 
+		return;
+
+	latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
+			  ((uint64_t)node->latency.t_request.tv_sec * (uint64_t)1000000 + (uint64_t)node->latency.t_request.tv_usec);
+	
+	node->latency.application 		 = latency;
+	Client_node->latency.application = latency;
+	// reset flag
+	node->latency.flag			= 0;
+	dbg_printf("Application latency: %llu\n", (long long unsigned)latency);
+
+} // End of SetApplication_latency
+
+static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
 struct FlowNode *Node;
 
 	assert(NewNode->memflag == NODE_IN_USE);
@@ -185,6 +259,13 @@ struct FlowNode *Node;
 		// Insert as new
 		dbg_printf("New TCP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
 
+		if ( payloadSize && packetParam->addPayload ) {
+			dbg_printf("New TCP flow: Set payload of size: %zu\n", payloadSize);
+			NewNode->payload = malloc(payloadSize);
+			memcpy(NewNode->payload, payload, payloadSize);
+			NewNode->payloadSize = payloadSize;
+		}
+
 		// in case it's a FIN/RST only packet - immediately flush it
 		if ( NewNode->fin == FIN_NODE  ) {
 			// flush node to flow thread
@@ -192,10 +273,10 @@ struct FlowNode *Node;
 			Push_Node(packetParam->NodeList, NewNode);
 		}
 
-		if ( Link_RevNode(NewNode)) {
+		if ( packetParam->extendedFlow && Link_RevNode(NewNode)) {
 			// if we could link this new node, it is the server answer
 			// -> calculate server latency
-			// XXX fix SetServer_latency(NewNode);
+			SetServer_latency(NewNode);
 		}
 		return;
 	}
@@ -204,24 +285,23 @@ struct FlowNode *Node;
 
 	// check for first client ACK for client latency
 	if ( Node->latency.flag == 1 ) {
-		// XXX SetClient_latency(Node, &(NewNode->t_first));
+		SetClient_latency(Node, &(NewNode->t_first));
 	} else if ( Node->latency.flag == 2 ) {
-		// XXX SetApplication_latency(Node, &(NewNode->t_first));
+		SetApplication_latency(Node, &(NewNode->t_first));
 	}
 	// update existing flow
 	Node->flags |= NewNode->flags;
 	Node->packets++;
 	Node->bytes += NewNode->bytes;
 	Node->t_last = NewNode->t_last;
-
-	if ( Node->payload == NULL && NewNode->payload != NULL ) {
-		dbg_printf("Existing TCP flow: Set payload of size: %u\n", NewNode->payloadSize);
-		Node->payload = NewNode->payload;
-		Node->payloadSize = NewNode->payloadSize;
-		NewNode->payload = NULL;
-		NewNode->payloadSize = 0;
-	}
 	dbg_printf("Existing TCP flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
+
+	if ( Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload ) {
+		dbg_printf("Existing TCP flow: Set payload of size: %zu\n", payloadSize);
+		Node->payload = malloc(payloadSize);
+		memcpy(Node->payload, payload, payloadSize);
+		Node->payloadSize = payloadSize;
+	}
 
 	if ( NewNode->fin == FIN_NODE) {
 		// flush node
@@ -229,28 +309,39 @@ struct FlowNode *Node;
 		// flush node to flow thread
 		Remove_Node(Node);
 		Push_Node(packetParam->NodeList, Node);
-	} else {
-		Free_Node(NewNode);
-	}
+	} 
+
+	Free_Node(NewNode);
 
 } // End of ProcessTCPFlow
 
-static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *NewNode ) {
+static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
 struct FlowNode *Node;
 
 	assert(NewNode->memflag == NODE_IN_USE);
 	// Flush DNS queries directly
 	if ( NewNode->src_port == 53 || NewNode->dst_port == 53 ) {
 		// flush node to flow thread
+		if ( payloadSize  && packetParam->addPayload ) {
+			dbg_printf("UDP DNS flow: payload size: %zu\n", payloadSize);
+			NewNode->payload = malloc(payloadSize);
+			memcpy(NewNode->payload, payload, payloadSize);
+			NewNode->payloadSize = payloadSize;
+		}
 		Push_Node(packetParam->NodeList, NewNode);
 		return;
 	}
 
 	// insert other UDP traffic
 	Node = Insert_Node(NewNode);
-	// if insert fails, the existing node is returned -> flow exists already
 	if ( Node == NULL ) {
 		dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
+		if ( payloadSize  && packetParam->addPayload ) {
+			dbg_printf("New UDP flow: Set payload of size: %zu\n", payloadSize);
+			NewNode->payload = malloc(payloadSize);
+			memcpy(NewNode->payload, payload, payloadSize);
+			NewNode->payloadSize = payloadSize;
+		}
 		return;
 	}
 	assert(Node->memflag == NODE_IN_USE);
@@ -261,19 +352,32 @@ struct FlowNode *Node;
 	Node->t_last = NewNode->t_last;
 	dbg_printf("Existing UDP flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
 
+	if ( Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload ) {
+		dbg_printf("Existing UDP flow: Set payload of size: %u\n", NewNode->payloadSize);
+		Node->payload = malloc(payloadSize);
+		memcpy(Node->payload, payload, payloadSize);
+		Node->payloadSize = payloadSize;
+	}
+
 	Free_Node(NewNode);
 
 } // End of ProcessUDPFlow
 
-static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *NewNode ) {
+static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
 
 	// Flush ICMP directly
 	dbg_printf("Flush ICMP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
+	if ( payloadSize && packetParam->addPayload ) {
+		dbg_printf("ICMP flow: payload size: %zu\n", payloadSize);
+		NewNode->payload = malloc(payloadSize);
+		memcpy(NewNode->payload, payload, payloadSize);
+		NewNode->payloadSize = payloadSize;
+	}
 	Push_Node(packetParam->NodeList, NewNode);
 
 } // End of ProcessICMPFlow
 
-static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode *NewNode ) {
+static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
 
 	assert(NewNode->memflag == NODE_IN_USE);
 
@@ -283,6 +387,12 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode 
 	if ( Node == NULL ) {
 		dbg_printf("New flow IP proto: %u. Packets: %u, Bytes: %u\n",
 			NewNode->proto, NewNode->packets, NewNode->bytes);
+		if ( payloadSize && packetParam->addPayload ) {
+			dbg_printf("flow: payload size: %zu\n", payloadSize);
+			NewNode->payload = malloc(payloadSize);
+			memcpy(NewNode->payload, payload, payloadSize);
+			NewNode->payloadSize = payloadSize;
+		}
 		return;
 	}
 	assert(Node->memflag == NODE_IN_USE);
@@ -294,69 +404,87 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode 
 	dbg_printf("Existing flow IP proto: %u Packets: %u, Bytes: %u\n",
 		NewNode->proto, Node->packets, Node->bytes);
 
+	if ( Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload ) {
+		dbg_printf("Existing UDP flow: Set payload of size: %u\n", NewNode->payloadSize);
+		Node->payload = malloc(payloadSize);
+		memcpy(Node->payload, payload, payloadSize);
+		Node->payloadSize = payloadSize;
+	}
+
 	Free_Node(NewNode);
 
 } // End of ProcessOtherFlow
 
 void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, const u_char *data) {
 struct FlowNode	*Node = NULL;
-struct ip 	  *ip;
-void		  *payload, *defragmented;
-uint32_t	  size_ip, offset, data_len, payload_len, bytes;
 uint16_t	  version, ethertype, proto;
 char		  s1[64];
 char		  s2[64];
 static unsigned pkg_cnt = 0;
 
 	pkg_cnt++;
-	dbg_printf("\nNext Packet: %u\n", pkg_cnt);
-
 	packetParam->proc_stat.packets++;
-	offset = packetParam->linkoffset;
-	defragmented = NULL;
+	dbg_printf("\nNext Packet: %u, cap len:%u, len: %u\n", pkg_cnt, hdr->caplen, hdr->len);
 
-	vlan_hdr_t *vlan_hdr = NULL;
+	// snaplen is minimum 54 bytes
+	void *dataptr	   = (void *)data + packetParam->linkoffset;	/// after ethernet header
+	void *eodata	   = (void *)data + hdr->caplen;
+	void *defragmented = NULL;
+	void *payload	   = NULL;
+	size_t payloadSize = 0;
+	uint32_t vlanID = 0;
+	uint64_t srcMac = 0;
+	uint64_t dstMac = 0;
+	uint32_t numMPLS= 0;
+	uint32_t *mplsLabel = NULL;
+
+	// link layer processing
 	if ( packetParam->linktype == DLT_EN10MB ) {
+		memcpy(&dstMac, data, 6);
+		memcpy(&srcMac, data + 6, 6);
 		ethertype = data[12] << 0x08 | data[13];
-		int	IEEE802 = ethertype <= 1500;
-		if ( IEEE802 ) {
-			packetParam->proc_stat.skipped++;
-			return;
-		}
 		REDO_LINK:
+			if (dataptr >= eodata) {
+				packetParam->proc_stat.short_snap++;
+				dbg_printf("Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
+				return;
+			}
 			switch (ethertype) {
 				case 0x800:	 // IPv4
 				case 0x86DD: // IPv6
 					break;
 				case 0x8100: { // VLAN
 					do {
-						vlan_hdr = (vlan_hdr_t *)(data + offset);  // offset points to end of link layer
+						vlan_hdr_t *vlan_hdr = (vlan_hdr_t *)dataptr; 
 						dbg_printf("VLAN ID: %u, type: 0x%x\n",
 							ntohs(vlan_hdr->vlan_id), ntohs(vlan_hdr->type) );
 						ethertype = ntohs(vlan_hdr->type);
-						offset += 4;
-					} while ( ethertype == 0x8100 );
+						vlanID = ntohs(vlan_hdr->vlan_id) & 0xFFF;
+						dataptr += 4;
+					} while ((dataptr < eodata) && ethertype == 0x8100 );
 			
 					// redo ethertype evaluation
 					goto REDO_LINK;
 					} break;
 				case 0x8847: { // MPLS
 					// unwind MPLS label stack
-					uint32_t *mpls = (uint32_t *)(data + offset);
-					offset += 4;
-					dbg_printf("MPLS label: %x\n", ntohl(*mpls) >> 8);
-					while ((offset < hdr->caplen) && ((ntohl(*mpls) & 0x100) == 0)) { // check for Bottom of stack
-						offset += 4;
-						mpls++;
+					uint32_t *mpls;
+					mplsLabel = (uint32_t *)dataptr; // 1st label
+					do {
+						mpls = (uint32_t *)dataptr;
 						dbg_printf("MPLS label: %x\n", ntohl(*mpls) >> 8);
-					}
-					uint8_t *nxHdr = (uint8_t *)data + offset;
+						dataptr += 4;
+						numMPLS++;
+					} while ((dataptr < eodata) && ((ntohl(*mpls) & 0x100) == 0)); // check for Bottom of stack
+
+					uint8_t *nxHdr = (uint8_t *)dataptr;
 					if((*nxHdr >> 4) == 4)
 						ethertype = 0x0800;	// IPv4
 					else if((*nxHdr >> 4) == 6)
 						ethertype = 0x86DD;	// IPv6
 					else {
-						LogInfo("Unsupported protocol: 0x%x", *nxHdr >> 4);
+						dbg_printf("Unsupported protocol: 0x%x\n", *nxHdr >> 4);
+						packetParam->proc_stat.skipped++;
 						goto END_FUNC;
 					}
 
@@ -364,6 +492,7 @@ static unsigned pkg_cnt = 0;
 					goto REDO_LINK;
 					} break;
 				default:
+					// int	IEEE802 = ethertype <= 1500;
 					packetParam->proc_stat.skipped++;
 					goto END_FUNC;
 			}
@@ -372,17 +501,16 @@ static unsigned pkg_cnt = 0;
 		return;
 	}
 
-	if (hdr->caplen < offset) {
+	dbg_printf("Link layer processed: %td bytes, remaining: %td\n", (ptrdiff_t)(dataptr -(void *)data), eodata - dataptr);
+
+	// link layer, vpn and mpls header removed
+	if (dataptr >= eodata) {
 		packetParam->proc_stat.short_snap++;
-		LogInfo("Short packet: %u/%u", hdr->caplen, offset);
+		dbg_printf("Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
 		goto END_FUNC;
 	}
 
-	data	 = data + offset;
-	data_len = hdr->caplen - offset;
-	offset	 = 0;
-
-	// IP decoding
+	// IP layer processing 
 	REDO_IPPROTO:
 	// IP decoding
 	if ( defragmented ) {
@@ -393,35 +521,25 @@ static unsigned pkg_cnt = 0;
 		goto END_FUNC;
 	}
 
-	ip  	= (struct ip *)(data + offset); // offset points to end of link layer
+	struct ip *ip = (struct ip *)dataptr; // offset points to end of link layer
 	version = ip->ip_v;	 // ip version
 
 	if ( version == 6 ) {
-		struct ip6_hdr *ip6 = (struct ip6_hdr *) (data + offset);
-		size_ip = sizeof(struct ip6_hdr);
-		offset = size_ip;	// offset point to end of IP header
+		struct ip6_hdr *ip6 = (struct ip6_hdr *)dataptr;
+		size_t size_ip = sizeof(struct ip6_hdr);
 
-		if ( data_len < size_ip ) {
-			LogInfo("Packet: %u Length error: data_len: %u < size IPV6: %u, captured: %u, hdr len: %u",
-				pkg_cnt, data_len, size_ip, hdr->caplen, hdr->len);	
+		dataptr  += size_ip;
+		if ( dataptr > eodata ) {
+			dbg_printf("Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
 			packetParam->proc_stat.short_snap++;
 			goto END_FUNC;
 		}
 
-		// XXX Extension headers not processed
-		proto		= ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
-		payload_len = bytes = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);
-
-		if (data_len < (payload_len + size_ip) ) {
-			// capture len was limited - so adapt payload_len
-			payload_len = data_len - size_ip;
-		}
-
-		dbg_printf("Packet IPv6, SRC %s, DST %s, ",
+		// ipv6 Extension headers not processed
+		proto = ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
+		dbg_printf("Packet IPv6, SRC %s, DST %s\n",
 			inet_ntop(AF_INET6, &ip6->ip6_src, s1, sizeof(s1)),
 			inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)));
-
-		payload = (void *)ip + size_ip;
 
 		Node = New_Node();
 		if ( !Node ) {
@@ -447,36 +565,20 @@ static unsigned pkg_cnt = 0;
 		Node->dst_addr.v6[1] = ntohll(addr[1]);
 		Node->version = AF_INET6;
 
-		if ( vlan_hdr ) 
-			Node->vlan = *vlan_hdr;
-
 	} else if ( version == 4 ) {
 		uint16_t ip_off = ntohs(ip->ip_off);
 		uint32_t frag_offset = (ip_off & IP_OFFMASK) << 3;
-		size_ip = (ip->ip_hl << 2);
-		offset = size_ip;	// offset point to end of IP header
+		int size_ip = (ip->ip_hl << 2);
 
-		if ( data_len < size_ip ) {
-			LogInfo("Packet: %u Length error: data_len: %u < size IPV4: %u, captured: %u, hdr len: %u",
-				pkg_cnt, data_len, size_ip, hdr->caplen, hdr->len);	
+		dataptr  += size_ip;
+		if ( dataptr > eodata ) {
+			dbg_printf("Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
 			packetParam->proc_stat.short_snap++;
 			goto END_FUNC;
 		}
 
-		payload_len = ntohs(ip->ip_len);
-		dbg_printf("size IP hader: %u, len: %u\n", size_ip, payload_len);
-
-		payload_len -= size_ip;	// ajust length compatibel IPv6
-		payload = (void *)ip + size_ip;
 		proto   = ip->ip_p;
-
-		if (data_len < (payload_len + size_ip) ) {
-			// capture len was limited - so adapt payload_len
-			payload_len = data_len - size_ip;
-			packetParam->proc_stat.short_snap++;
-		}
-
-		dbg_printf("Packet IPv4 SRC %s, DST %s, ",
+		dbg_printf("Packet IPv4 SRC %s, DST %s\n",
 			inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
 			inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
 
@@ -498,10 +600,10 @@ static unsigned pkg_cnt = 0;
 			// XXX skip fragmented packets for now
 			/*
 			defragmented = IPFrag_tree_Update(hdr->ts.tv_sec, ip->ip_src.s_addr, ip->ip_dst.s_addr,
-				ip_id, &payload_len, ip_off, payload);
+				ip_id, &payloadSize, ip_off, payload);
 			if ( defragmented == NULL ) {
 				// not yet complete
-				dbg_printf("Fragmentation not yet completed. Size %u bytes\n", payload_len);
+				dbg_printf("Fragmentation not yet completed. Size %u bytes\n", payloadSize);
 				goto END_FUNC;
 			}
 			dbg_printf("Fragmentation complete\n");
@@ -510,7 +612,6 @@ static unsigned pkg_cnt = 0;
 			*/
 			goto END_FUNC;
 		}
-		bytes 		= payload_len;
 
 		Node = New_Node();
 		if ( !Node ) {
@@ -519,104 +620,96 @@ static unsigned pkg_cnt = 0;
 			return;
 		}
 
-		Node->t_first.tv_sec = hdr->ts.tv_sec;
+		Node->t_first.tv_sec  = hdr->ts.tv_sec;
 		Node->t_first.tv_usec = hdr->ts.tv_usec;
-		Node->t_last.tv_sec  = hdr->ts.tv_sec;
+		Node->t_last.tv_sec   = hdr->ts.tv_sec;
 		Node->t_last.tv_usec  = hdr->ts.tv_usec;
 
-		Node->src_addr.v6[0] = 0;
-		Node->src_addr.v6[1] = 0;
 		Node->src_addr.v4 = ntohl(ip->ip_src.s_addr);
 
-		Node->dst_addr.v6[0] = 0;
-		Node->dst_addr.v6[1] = 0;
+		Node->version	  = AF_INET;
 		Node->dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
-		Node->version = AF_INET;
-
-		if ( vlan_hdr ) 
-			Node->vlan = *vlan_hdr;
 
 	} else {
-		LogInfo("ProcessPacket() Unsupported protocol version: %i", version);
+		dbg_printf("ProcessPacket() Unsupported protocol version: %i\n", version);
 		packetParam->proc_stat.unknown++;
 		goto END_FUNC;
 	}
 
+	// fill ipv4/ipv6 node with extracted data
+	Node->vlanID  = vlanID;
+	Node->srcMac  = srcMac;
+	Node->dstMac  = dstMac;
 	Node->packets = 1;
-	Node->bytes   = bytes;
 	Node->proto   = proto;
-	dbg_printf("Payload: %u bytes, Full packet: %u bytes\n", payload_len, bytes);
+	// bytes = number of bytes on wire - data link data
+	Node->bytes	  = hdr->len - packetParam->linkoffset;
+	dbg_printf("Payload: %td bytes, Full packet: %u bytes\n", eodata - dataptr, Node->bytes);
 
-	// TCP/UDP decoding
+	if ( numMPLS ) {
+		if ( numMPLS > 10 ) numMPLS = 10;
+		for (int i=0; i<numMPLS; i++) {
+			Node->mpls[i] = *mplsLabel;
+			mplsLabel++;
+		}
+	}
+
+	// transport protocol processing
 	switch (proto) {
 		case IPPROTO_UDP: {
-			struct udphdr *udp = (struct udphdr *)payload;
+			struct udphdr *udp = (struct udphdr *)dataptr;
+			dataptr += sizeof(struct udphdr);
+
+			if ( dataptr > eodata ) {
+				dbg_printf("  UDP Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
+				packetParam->proc_stat.short_snap++;
+				Free_Node(Node);
+				goto END_FUNC;
+			}
+
 			uint16_t UDPlen = ntohs(udp->uh_ulen);
 			if ( UDPlen < 8 ) {
-				LogInfo("UDP payload length error: %u bytes < 8, SRC %s, DST %s",
+				LogError("UDP payload length error: %u bytes < 8, SRC %s, DST %s",
 					UDPlen, inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
 					inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
 				Free_Node(Node);
 				break;
 			}
-			uint32_t size_udp_payload = ntohs(udp->uh_ulen) - 8;
 
-			if ( (bytes == payload_len ) && (payload_len - sizeof(struct udphdr)) < size_udp_payload ) {
-/*
-				LogInfo("UDP payload length error: Expected %u, have %u bytes, SRC %s, DST %s",
-					size_udp_payload, (payload_len - (unsigned)sizeof(struct udphdr)),
-					inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
-					inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
-*/
-				Free_Node(Node);
-				break;
-			}
-			payload = payload + sizeof(struct udphdr);
-			payload_len -= sizeof(struct udphdr);
-			dbg_printf("UDP: size: %u, SRC: %i, DST: %i\n",
-				size_udp_payload, ntohs(udp->uh_sport), ntohs(udp->uh_dport));
+			dbg_printf("  UDP: size: %u, SRC: %i, DST: %i\n",
+				UDPlen, ntohs(udp->uh_sport), ntohs(udp->uh_dport));
 
-			Node->bytes = payload_len;
 			Node->flags = 0;
 			Node->src_port = ntohs(udp->uh_sport);
 			Node->dst_port = ntohs(udp->uh_dport);
 
-			if ( payload_len ) {
-				Node->payload = malloc(payload_len);
-				if ( !Node->payload ) {
-					// skip payload
-					LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
-				} else {
-					memcpy(Node->payload, payload, payload_len);
-					Node->payloadSize = payload_len;
-				}
-			}
-			ProcessUDPFlow(packetParam, Node);
+			dbg_assert(dataptr <= eodata);
+			payloadSize = (ptrdiff_t)(eodata - dataptr);
+			if (payloadSize > 0 )
+				payload = (void *)dataptr;
+			ProcessUDPFlow(packetParam, Node, payload, payloadSize);
 
 			} break;
 		case IPPROTO_TCP: {
-			struct tcphdr *tcp = (struct tcphdr *)payload;
-			uint32_t size_tcp;
-			size_tcp = tcp->th_off << 2;
+			struct tcphdr *tcp = (struct tcphdr *)dataptr;
+			uint32_t size_tcp = tcp->th_off << 2;
+			dataptr  += size_tcp;
 
-			if ( payload_len < size_tcp ) {
-				LogInfo("TCP header length error: len: %u < size TCP header: %u, SRC %s, DST %s",
-					payload_len, size_tcp,
-					inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
-					inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
-                packetParam->proc_stat.short_snap++;
-
+			if ( dataptr > eodata ) {
+				dbg_printf("  TCP Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
 				packetParam->proc_stat.short_snap++;
 				Free_Node(Node);
-				break;
+				goto END_FUNC;
 			}
 
-			payload = payload + size_tcp;
-			payload_len -= size_tcp;
+			dbg_assert(dataptr <= eodata);
+			payloadSize = (ptrdiff_t)(eodata - dataptr);
+			if (payloadSize > 0 )
+				payload = (void *)dataptr;
 
 #ifdef DEVEL
-			printf("Size TCP header: %u, size TCP payload: %u ", size_tcp, payload_len);
-			printf("src %i, DST %i, flags %i : ",
+			printf("  Size TCP header: %u, size TCP payload: %zu ", size_tcp, payloadSize);
+			printf("  src port %i, dst port %i, flags %i : \n",
 				ntohs(tcp->th_sport), ntohs(tcp->th_dport), tcp->th_flags);
 			if ( tcp->th_flags & TH_SYN )  printf("SYN ");
 			if ( tcp->th_flags & TH_ACK )  printf("ACK ");
@@ -630,104 +723,107 @@ static unsigned pkg_cnt = 0;
 			Node->flags = tcp->th_flags;
 			Node->src_port = ntohs(tcp->th_sport);
 			Node->dst_port = ntohs(tcp->th_dport);
-			
-			if ( payload_len ) {
-				Node->payload = malloc(payload_len);
-				if ( !Node->payload ) {
-					// skip payload
-					LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
-				} else {
-					memcpy(Node->payload, payload, payload_len);
-					Node->payloadSize = payload_len;
-				}
-			}
-			ProcessTCPFlow(packetParam, Node);
+			ProcessTCPFlow(packetParam, Node, payload, payloadSize);
 
 			} break;
 		case IPPROTO_ICMP: {
-			struct icmp *icmp = (struct icmp *)payload;
+			struct icmp *icmp = (struct icmp *)dataptr;
+			dataptr  += 8;
 
-			Node->dst_port = (icmp->icmp_type << 8 ) + icmp->icmp_code;
-			dbg_printf("IPv%d ICMP proto: %u, type: %u, code: %u\n",
-				version, ip->ip_p, icmp->icmp_type, icmp->icmp_code);
-			Node->bytes -= sizeof(struct udphdr);
-			ProcessICMPFlow(packetParam, Node);
-			} break;
-		case IPPROTO_ICMPV6: {
-			struct icmp6_hdr *icmp6 = (struct icmp6_hdr *)payload;
-
-			Node->dst_port = (icmp6->icmp6_type << 8 ) + icmp6->icmp6_code;
-			dbg_printf("IPv%d ICMP proto: %u, type: %u, code: %u\n",
-				version, ip->ip_p, icmp6->icmp6_type, icmp6->icmp6_code);
-			ProcessICMPFlow(packetParam, Node);
-			} break;
-		case IPPROTO_IPV6: {
-			uint32_t size_inner_ip = sizeof(struct ip6_hdr);
-
-			if ( payload_len < size_inner_ip ) {
-				LogInfo("IPIPv6 tunnel header length error: len: %u < size inner IP: %u",
-					payload_len, size_inner_ip);	
+			if ( dataptr > eodata ) {
+				dbg_printf("  ICMP Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
 				packetParam->proc_stat.short_snap++;
 				Free_Node(Node);
 				goto END_FUNC;
 			}
-			offset   = 0;
-			data 	 = payload;
-			data_len = payload_len;
 
-//			// move IP to tun IP
-			Node->tun_src_addr = Node->src_addr;
-			Node->tun_dst_addr = Node->dst_addr;
-			Node->tun_proto	= IPPROTO_IPIP;
+			dbg_assert(dataptr <= eodata);
+			payloadSize = (ptrdiff_t)(eodata - dataptr);
+			if (payloadSize > 0 )
+				payload = (void *)dataptr;
 
-			dbg_printf("IPIPv6 tunnel - inner IPv6:\n");
-
-			// redo proto evaluation
-			goto REDO_IPPROTO;
+			Node->dst_port = (icmp->icmp_type << 8 ) + icmp->icmp_code;
+			dbg_printf("  IPv%d ICMP proto: %u, type: %u, code: %u\n",
+				version, ip->ip_p, icmp->icmp_type, icmp->icmp_code);
+			ProcessICMPFlow(packetParam, Node, payload, payloadSize);
 			} break;
-		case IPPROTO_IPIP: {
-			struct ip *inner_ip	= (struct ip *)payload;
-			uint32_t size_inner_ip = (inner_ip->ip_hl << 2);
+		case IPPROTO_ICMPV6: {
+			struct icmp6_hdr *icmp6 = (struct icmp6_hdr *)dataptr;
+			dataptr	 += sizeof(struct icmp6_hdr);
 
-			if ( payload_len < size_inner_ip ) {
-				LogInfo("IPIP tunnel header length error: len: %u < size inner IP: %u",
-					payload_len, size_inner_ip);	
+			if ( dataptr > eodata ) {
+				dbg_printf("  ICMPv6 Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
 				packetParam->proc_stat.short_snap++;
 				Free_Node(Node);
-				break;
+				goto END_FUNC;
 			}
-			offset   = 0;
-			data 	 = payload;
-			data_len = payload_len;
 
+			dbg_assert(dataptr <= eodata);
+			payloadSize = (ptrdiff_t)(eodata - dataptr);
+			if (payloadSize > 0 )
+				payload = (void *)dataptr;
+
+			Node->dst_port = (icmp6->icmp6_type << 8 ) + icmp6->icmp6_code;
+			dbg_printf("  IPv%d ICMP proto: %u, type: %u, code: %u\n",
+				version, ip->ip_p, icmp6->icmp6_type, icmp6->icmp6_code);
+			ProcessICMPFlow(packetParam, Node, payload, payloadSize);
+			} break;
+		case IPPROTO_IPV6: {
+			uint32_t size_inner_ip = sizeof(struct ip6_hdr);
+
+			if ( (dataptr + size_inner_ip) > eodata ) {
+				dbg_printf("  IPIPv6 tunnel Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
+				packetParam->proc_stat.short_snap++;
+				Free_Node(Node);
+				goto END_FUNC;
+			}
+			
 			// move IP to tun IP
 			Node->tun_src_addr = Node->src_addr;
 			Node->tun_dst_addr = Node->dst_addr;
 			Node->tun_proto	= IPPROTO_IPIP;
 
-			dbg_printf("IPIP tunnel - inner IP:\n");
+			dbg_printf("  IPIPv6 tunnel - inner IPv6:\n");
+
+			// redo proto evaluation
+			goto REDO_IPPROTO;
+			} break;
+		case IPPROTO_IPIP: {
+			struct ip *inner_ip	= (struct ip *)dataptr;
+			uint32_t size_inner_ip = (inner_ip->ip_hl << 2);
+
+			if ( (dataptr + size_inner_ip) > eodata ) {
+				dbg_printf("  IPIP tunnel Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
+				packetParam->proc_stat.short_snap++;
+				Free_Node(Node);
+				goto END_FUNC;
+			}
+			
+			// move IP to tun IP
+			Node->tun_src_addr = Node->src_addr;
+			Node->tun_dst_addr = Node->dst_addr;
+			Node->tun_proto	= IPPROTO_IPIP;
+
+			dbg_printf("  IPIP tunnel - inner IP:\n");
 
 			// redo proto evaluation
 			goto REDO_IPPROTO;
 
 			} break;
 		case IPPROTO_GRE: {
-			gre_hdr_t *gre_hdr = (gre_hdr_t *)payload;
+			gre_hdr_t *gre_hdr = (gre_hdr_t *)dataptr;
 			uint32_t gre_hdr_size = sizeof(gre_hdr_t); // offset points to end of inner IP
+			dataptr	 += gre_hdr_size;
 
-			if ( payload_len < gre_hdr_size ) {
-				LogError("GRE tunnel header length error: len: %u < size GRE hdr: %u",
-					payload_len, gre_hdr_size);	
+			if ( (dataptr + gre_hdr_size) > eodata ) {
+				dbg_printf("  GRE tunnel Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
 				packetParam->proc_stat.short_snap++;
 				Free_Node(Node);
-				break;
+				goto END_FUNC;
 			}
-
-			dbg_printf("GRE proto encapsulation: type: 0x%x\n", ethertype);
+			
+			dbg_printf("  GRE proto encapsulation: type: 0x%x\n", ethertype);
 			ethertype = ntohs(gre_hdr->type);
-			offset   = gre_hdr_size;
-			data 	 = payload;
-			data_len = payload_len;
 
 			// move IP to tun IP
 			Node->tun_src_addr = Node->src_addr;
@@ -739,8 +835,16 @@ static unsigned pkg_cnt = 0;
 
 			} break;
 		default:
-			// not handled protocol
-			ProcessOtherFlow(packetParam, Node);
+			// not handled transport protocol
+			// raw flow
+			dbg_assert(dataptr <= eodata);
+			payloadSize = (ptrdiff_t)(eodata - dataptr);
+			if (payloadSize > 0 )
+				payload = (void *)dataptr;
+
+			dbg_printf("  raw proto: %u, payload size: %zu\n", proto, payloadSize);
+
+			ProcessOtherFlow(packetParam, Node, payload, payloadSize);
 			break;
 	}
 
