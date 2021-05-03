@@ -245,7 +245,7 @@ int i;
                 p = (void *)(p + len);
                 } break;
 #ifdef T_NS
-            case T_CNAME: 
+            case T_NS: 
 #else
 			case ns_s_ns:
 #endif
@@ -255,7 +255,7 @@ int i;
                 p = (void *)(p + len);
                 } break;
 #ifdef T_SOA
-            case T_CNAME: 
+            case T_SOA: 
 #else
 			case ns_t_soa:
 #endif

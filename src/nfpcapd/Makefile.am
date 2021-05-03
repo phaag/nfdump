@@ -12,7 +12,7 @@ bookkeeper = ../bookkeeper.c ../bookkeeper.h
 expire= ../expire.c ../expire.h
 pcapdump = pcapdump.c pcapdump.h 
 flowdump = flowdump.c flowdump.h
-pcaproc = pcaproc.c pcaproc.h flowtree.c flowtree.h ipfrag.c ipfrag.h
+pcaproc = pcaproc.c pcaproc.h flowtree.c flowtree.h 
 
 nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h \
 	$(pcaproc) $(pcapdump) $(flowdump) \

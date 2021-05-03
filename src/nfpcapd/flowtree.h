@@ -76,7 +76,8 @@ struct FlowNode {
 #define NODE_IN_USE	0x5A
 	uint16_t	memflag;	// internal houskeeping flag
 	uint8_t		flags;
-#define FIN_NODE 1
+#define FIN_NODE 	  1
+#define FRAG_NODE	  2
 #define SIGNAL_SYNC 254
 #define SIGNAL_DONE 255
 	uint8_t		fin;		// double use:  1: fin received - end of flow

@@ -265,7 +265,7 @@ packetParam_t *packetParam = (packetParam_t *)args;
 		switch (ret) {
 			case 1: {
 				// packet read ok
-				dbg_printf("pcap_next_ex() read live - packet\n");	
+				dbg_printf("pcap_next_ex() next packet\n");	
 				t_packet = hdr->ts.tv_sec;
 				if ((t_packet - t_start) >= t_win)  { 
 					if ( DoPacketDump ) {

@@ -258,7 +258,12 @@ struct FlowNode *node, *nxt;
 /* safety check - this must never become 0 - otherwise the cache is too small */
 void CacheCheck(NodeList_t *NodeList, time_t when) {
 
-	dbg_printf("Cache check:\n");
+	dbg_printf("Cache check: ");
+	if ( lastExpire == 0 ) {
+		lastExpire = when;
+		dbg_printf("Init\n");
+		return;
+	}
 	if ( (when - lastExpire) > EXPIREINTERVALL ) {
 		uint32_t num __attribute__((unused)) = Expire_FlowTree(NodeList, when);
 		dbg_printf("  Expire cache: %u\n", num);
@@ -367,7 +372,11 @@ uint32_t n = NumFlows;
 	for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
 		nxt = RB_NEXT(FlowTree, FlowTree, node);
 		Remove_Node(node);
-		Push_Node(NodeList, node);
+		if ( node->flags == FRAG_NODE ) {
+			Free_Node(node);
+		} else {
+			Push_Node(NodeList, node);
+		}
 	}
 
 	if ( NumFlows != 0 )
@@ -386,24 +395,34 @@ uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
 struct FlowNode *node, *nxt;
 
 	if ( NumFlows == 0 )
-		return NumFlows;
+		return 0;
 
 	uint32_t expireCnt = 0;
+	uint32_t fragCnt   = 0;
 	// Dump all incomplete flows to the file
 	nxt = NULL;
 	for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
 		nxt = RB_NEXT(FlowTree, FlowTree, node);
 		if ( when == 0 || 
+			 // inactive timeout
 			 (when - node->t_last.tv_sec) > expireInactiveTimeout || 
-			 (when - node->t_first.tv_sec) > expireActiveTimeout) {
+			 // active timeout
+			 (when - node->t_first.tv_sec) > expireActiveTimeout  ||
+			 // fragment assembly timeout
+			 (node->flags == FRAG_NODE && (when - node->t_last.tv_sec) > 15)) {
 			Remove_Node(node);
-			Push_Node(NodeList, node);
+			if ( node->flags == FRAG_NODE ) {
+				fragCnt++;
+				Free_Node(node);
+			} else {
+				Push_Node(NodeList, node);
+			}
 			expireCnt++;
 		}
 	}
 	if ( expireCnt ) 
-		LogVerbose("Expired Nodes: %u, in use: %u, total flows: %u", 
-			expireCnt, Allocated, NumFlows);
+		LogVerbose("Expired Nodes: %u, frag nodes: %u, in use: %u, total flows: %u", 
+			expireCnt, fragCnt, Allocated, NumFlows);
 	
 	return NumFlows;
 } // End of Expire_FlowTree

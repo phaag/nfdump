@@ -249,6 +249,95 @@ uint64_t	latency;
 
 } // End of SetApplication_latency
 
+
+static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, struct ip *ip, void *eodata) {
+	uint16_t ip_off = ntohs(ip->ip_off);
+	uint32_t frag_offset = (ip_off & IP_OFFMASK) << 3;
+	int size_ip = (ip->ip_hl << 2);
+
+	struct FlowNode *Node = NULL;
+	if ( frag_offset == 0 ) {
+		// first fragment in sequence
+		dbg_printf("Fragmented packet: first segement: ip_off: %u, frag_offset: %u\n",
+			ip_off, frag_offset);
+		Node = New_Node();
+		if ( !Node ) {
+			packetParam->proc_stat.skipped++;
+			LogError("Node allocation error - skip packet");
+			return NULL;
+		}
+		Node->t_first.tv_sec  = hdr->ts.tv_sec;
+		Node->t_first.tv_usec = hdr->ts.tv_usec;
+		Node->t_last.tv_sec   = hdr->ts.tv_sec;
+		Node->t_last.tv_usec  = hdr->ts.tv_usec;
+		Node->version		  = AF_INET;
+		Node->proto   		  = ip->ip_p;
+		Node->src_addr.v4	  = ntohl(ip->ip_src.s_addr);
+		Node->dst_addr.v4	  = ntohl(ip->ip_dst.s_addr);
+		Node->src_port		  = ntohs(ip->ip_id);
+		Node->dst_port		  = 0;
+		Node->flags			  = FRAG_NODE;
+
+		if ( Insert_Node(Node) != NULL ) {
+			dbg_printf("IP fragment: initial node already exists! Skip!\n");
+			Free_Node(Node);
+			return NULL;
+		}
+
+		// allocate enough memory for udp packet
+		Node->payload = calloc(1, 65536);
+		if ( !Node->payload ) {
+			LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
+			Remove_Node(Node);
+			Free_Node(Node);
+			return NULL;
+		}
+	} else {
+		struct FlowNode FindNode = {0};
+		FindNode.version	 = AF_INET;
+		FindNode.proto		 = ip->ip_p;
+		FindNode.src_addr.v4 = ntohl(ip->ip_src.s_addr);
+		FindNode.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
+		FindNode.src_port	 = ntohs(ip->ip_id);
+		FindNode.dst_port	 = 0;
+
+		Node = Lookup_Node(&FindNode);
+		if ( !Node ) {
+			dbg_printf("IP fragment: initial node missing! Skip!\n");
+			return NULL;
+		}
+
+		if (( ip_off & IP_MF ) && frag_offset )
+			dbg_printf("Fragmented packet: middle segement: ip_off: %u, frag_offset: %u\n",
+				ip_off, frag_offset);
+	}
+
+	void *dataptr = (void *)ip + size_ip;
+	ptrdiff_t len = eodata - dataptr;
+	dbg_printf("IP frag: Insert fragment at offset: %u, length: %td\n", frag_offset, len);
+	if ( (frag_offset+len) > 65536 ) {
+		LogError("IP fragmen too large: %.", frag_offset+len);
+		Remove_Node(Node);
+		Free_Node(Node);
+		return NULL;
+
+	}
+
+	memcpy(Node->payload + frag_offset, dataptr, len);
+
+	if ((ip_off & IP_MF ) == 0) {
+		// last fragment - export node
+		Node->payloadSize = frag_offset + len;
+		Node->bytes = size_ip + Node->payloadSize;
+		dbg_printf("Fragmented packet: last segement: ip_off: %u, frag_offset: %u, total len: %u\n",
+			ip_off, frag_offset, Node->payloadSize);
+		Remove_Node(Node);
+		return Node;
+	}
+
+	return NULL;
+} // End of ProcessIPfrag
+
 static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
 struct FlowNode *Node;
 
@@ -548,10 +637,12 @@ static unsigned pkg_cnt = 0;
 			return;
 		}
 
-		Node->t_first.tv_sec = hdr->ts.tv_sec;
+		Node->version		  = AF_INET6;
+		Node->t_first.tv_sec  = hdr->ts.tv_sec;
 		Node->t_first.tv_usec = hdr->ts.tv_usec;
-		Node->t_last.tv_sec  = hdr->ts.tv_sec;
+		Node->t_last.tv_sec   = hdr->ts.tv_sec;
 		Node->t_last.tv_usec  = hdr->ts.tv_usec;
+		Node->bytes			  = hdr->len - packetParam->linkoffset;
 
 		// keep compiler happy - get's optimized out anyway
 		void *p = (void *)&ip6->ip6_src;
@@ -563,7 +654,6 @@ static unsigned pkg_cnt = 0;
 		addr = (uint64_t *)p;
 		Node->dst_addr.v6[0] = ntohll(addr[0]);
 		Node->dst_addr.v6[1] = ntohll(addr[1]);
-		Node->version = AF_INET6;
 
 	} else if ( version == 4 ) {
 		uint16_t ip_off = ntohs(ip->ip_off);
@@ -577,59 +667,46 @@ static unsigned pkg_cnt = 0;
 			goto END_FUNC;
 		}
 
-		proto   = ip->ip_p;
+		proto = ip->ip_p;
 		dbg_printf("Packet IPv4 SRC %s, DST %s\n",
 			inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
 			inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
 
 		// IPv4 defragmentation
 		if ( (ip_off & IP_MF) || frag_offset ) {
-			// uint16_t ip_id = ntohs(ip->ip_id);
-#ifdef DEVEL
-			if ( frag_offset == 0 )
-				printf("Fragmented packet: first segement: ip_off: %u, frag_offset: %u\n",
-					ip_off, frag_offset);
-			if (( ip_off & IP_MF ) && frag_offset )
-				printf("Fragmented packet: middle segement: ip_off: %u, frag_offset: %u\n",
-					ip_off, frag_offset);
-			if (( ip_off & IP_MF ) == 0  )
-				printf("Fragmented packet: last segement: ip_off: %u, frag_offset: %u\n",
-					ip_off, frag_offset);
-#endif
 			// fragmented packet
-			// XXX skip fragmented packets for now
-			/*
-			defragmented = IPFrag_tree_Update(hdr->ts.tv_sec, ip->ip_src.s_addr, ip->ip_dst.s_addr,
-				ip_id, &payloadSize, ip_off, payload);
-			if ( defragmented == NULL ) {
+			Node = ProcessIPfrag(packetParam, hdr, ip, eodata);
+			if ( Node == NULL ) {
 				// not yet complete
-				dbg_printf("Fragmentation not yet completed. Size %u bytes\n", payloadSize);
+				dbg_printf("Fragmentation not yet completed. Size %td bytes\n", eodata - dataptr);
 				goto END_FUNC;
 			}
-			dbg_printf("Fragmentation complete\n");
+			dbg_printf("Fragmentation complete: %u bytes\n", Node->bytes);
 			// packet defragmented - set payload to defragmented data
-			payload = defragmented;
-			*/
-			goto END_FUNC;
+			defragmented = Node->payload;
+			dataptr = Node->payload;
+			eodata  = dataptr + Node->payloadSize;
+			Node->payload = NULL;
+			Node->payloadSize = 0;
+		} else {
+
+			Node = New_Node();
+			if ( !Node ) {
+				packetParam->proc_stat.skipped++;
+				LogError("Node allocation error - skip packet");
+				return;
+			}
+
+			Node->version		  = AF_INET;
+			Node->t_first.tv_sec  = hdr->ts.tv_sec;
+			Node->t_first.tv_usec = hdr->ts.tv_usec;
+			Node->t_last.tv_sec   = hdr->ts.tv_sec;
+			Node->t_last.tv_usec  = hdr->ts.tv_usec;
+			Node->bytes			  = hdr->len - packetParam->linkoffset;
+
+			Node->src_addr.v4 = ntohl(ip->ip_src.s_addr);
+			Node->dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
 		}
-
-		Node = New_Node();
-		if ( !Node ) {
-			packetParam->proc_stat.skipped++;
-			LogError("Node allocation error - skip packet");
-			return;
-		}
-
-		Node->t_first.tv_sec  = hdr->ts.tv_sec;
-		Node->t_first.tv_usec = hdr->ts.tv_usec;
-		Node->t_last.tv_sec   = hdr->ts.tv_sec;
-		Node->t_last.tv_usec  = hdr->ts.tv_usec;
-
-		Node->src_addr.v4 = ntohl(ip->ip_src.s_addr);
-
-		Node->version	  = AF_INET;
-		Node->dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
-
 	} else {
 		dbg_printf("ProcessPacket() Unsupported protocol version: %i\n", version);
 		packetParam->proc_stat.unknown++;
@@ -643,7 +720,6 @@ static unsigned pkg_cnt = 0;
 	Node->packets = 1;
 	Node->proto   = proto;
 	// bytes = number of bytes on wire - data link data
-	Node->bytes	  = hdr->len - packetParam->linkoffset;
 	dbg_printf("Payload: %td bytes, Full packet: %u bytes\n", eodata - dataptr, Node->bytes);
 
 	if ( numMPLS ) {
@@ -852,7 +928,7 @@ static unsigned pkg_cnt = 0;
 	if ( defragmented ) {
 		free(defragmented);
 		defragmented = NULL;
-		dbg_printf("Defragmented buffer freed for proto %u", proto);	
+		dbg_printf("Defragmented buffer freed for proto %u\n", proto);	
 	}
 
 	if ((hdr->ts.tv_sec - lastRun) > 1) {
