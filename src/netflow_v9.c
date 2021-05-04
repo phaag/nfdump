@@ -1430,7 +1430,7 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
 #ifdef DEVEL
 		if ( err == 0 ) {
 			printf("nbar record: %d: \n", cnt);
-			PrintNbarRecord(nbarHeader);
+			// PrintNbarRecord(nbarHeader);
 		} else {
 			printf("Invalid nbar information - skip record\n");
 		}

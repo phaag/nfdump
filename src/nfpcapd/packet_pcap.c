@@ -246,7 +246,21 @@ void __attribute__((noreturn)) *pcap_packet_thread(void *args) {
 packetParam_t *packetParam = (packetParam_t *)args;
 
 	time_t t_win = packetParam->t_win;
-	time_t now = time(NULL);
+	time_t now = 0;
+	if ( packetParam->live ) {
+		// start time is now for live capture
+		now = time(NULL);
+	} else {
+		struct pcap_pkthdr *hdr; 
+		const u_char 	   *data;
+		// start time is time of 1st packet for file reading
+		long pos = ftell(pcap_file(packetParam->pcap_dev));
+		if ( pcap_next_ex(packetParam->pcap_dev, &hdr, &data) == 1 ) {
+			now = hdr->ts.tv_sec;
+		}
+		// reset file to 1st packet
+		fseek(pcap_file(packetParam->pcap_dev), pos, SEEK_SET);
+	}
 	time_t t_start = now - (now % t_win);
 
 	int done = *(packetParam->done);

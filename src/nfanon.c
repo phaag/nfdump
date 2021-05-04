@@ -97,7 +97,7 @@ uint32_t size = sizeof(recordHeaderV3_t);
 		return;
 	}
 
-	SetFlag(v3Record->flags, V3_FLAG_ANON)
+	SetFlag(v3Record->flags, V3_FLAG_ANON);
 	dbg_printf("Record announces %u extensions with total size %u\n", v3Record->numElements, v3Record->size);
 	// first record header
 	elementHeader = (elementHeader_t *)(p + sizeof(recordHeaderV3_t));

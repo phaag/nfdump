@@ -111,8 +111,6 @@ static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2);
 static queue_t *mem_queue = NULL;
 static queue_t *fileQueue = NULL;
 
-static nffile_t *NewFile(nffile_t *nffile);
-
 /* function definitions */
 
 #define QueueSize 16
@@ -378,6 +376,7 @@ static int ReadAppendix(nffile_t *nffile) {
 		if ( !block_header ) {
 			LogError("Unable to read appendix block");
 			lseek(nffile->fd, currentPos, SEEK_SET);
+			queue_push(mem_queue, block_header);
 			return 0;
 		}
 		void *buff_ptr = (void *)((void *)block_header + sizeof(dataBlock_t));
@@ -414,9 +413,11 @@ static int ReadAppendix(nffile_t *nffile) {
 			if ( processed > block_header->size ) {
 				LogError("Error processing appendix records: processed %u > block size %u", 
 					processed, block_header->size);
+				queue_push(mem_queue, block_header);
 				return 0;
 			}
 		}
+		queue_push(mem_queue, block_header);
 	}
 
 	// seek back to currentPos
@@ -1035,6 +1036,7 @@ static dataBlock_t *nfread(nffile_t *nffile) {
 		LogError("read() error: Short read: Expected: %u, received: %u\n", block_header->size, ret);
 		return NULL;
 	}
+
 
 } // End of nfread
 

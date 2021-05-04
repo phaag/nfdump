@@ -233,6 +233,7 @@ static int ProcessSubTemplate(sequencer_t *sequencer, uint16_t type,
 	// uint8_t Semantic = *((uint8_t *)inBuff);
 	inBuff++;
 	inLength--;
+	int Semantic = 0;
 	if ( type == subTemplateMultiListType ) {
 		dbg_printf("Semantic multilist template: %u\n", Semantic);
 		while ( inLength > 4 ) {
