@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -78,10 +76,9 @@ static inline void ApplyNetMaskBits(master_record_t *flow_record, int apply_netb
 static inline void ApplyAggrMask(master_record_t *record, master_record_t *mask) {
 uint64_t *r = (uint64_t *)record;
 uint64_t *m = (uint64_t *)mask;
-int i, max_offset;
 
-	max_offset = Offset_MR_LAST;
-	for (i=2; i<max_offset; i++) {
+	int max_offset = Offset_MR_LAST;
+	for (int i=2; i<max_offset; i++) {
 		r[i] &= m[i];
 	}
 

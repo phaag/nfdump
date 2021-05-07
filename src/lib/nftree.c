@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -34,12 +34,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <stdint.h>
 #include <string.h>
 #include <errno.h>
 
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #include "rbtree.h"
 #include "filter.h"
@@ -47,8 +45,6 @@
 #include "nffile.h"
 #include "ipconv.h"
 #include "nftree.h"
-
-// #include "grammar.h"
 
 /*
  * netflow filter engine
@@ -100,6 +96,7 @@ static struct flow_procs_map_s {
 uint64_t *IPstack = NULL;
 uint32_t StartNode;
 uint16_t Extended;
+uint16_t geoFilter = 0;;
 
 // 128bit compare for IPv6 
 static int IPNodeCMP(struct IPListNode *e1, struct IPListNode *e2) {
@@ -194,6 +191,7 @@ int	ret;
 	engine->ident	  = NULL;
 	engine->StartNode = StartNode;
 	engine->Extended  = Extended;
+	engine->geoFilter  = geoFilter;
 	engine->IdentList = IdentList;
 	engine->filter 	  = FilterTree;
 	if ( Extended ) 
@@ -215,8 +213,8 @@ int nblocks(void) {
 /* 
  * Returns next free slot in blocklist
  */
-uint32_t	NewBlock(uint32_t offset, uint64_t mask, uint64_t value, uint16_t comp, uint32_t  function, void *data) {
-	uint32_t	n = NumBlocks;
+uint32_t NewBlock(uint32_t offset, uint64_t mask, uint64_t value, uint16_t comp, uint32_t  function, void *data) {
+uint32_t n = NumBlocks;
 
 	if ( n >= ( memblocks * MAXBLOCKS ) ) {
 		memblocks++;
@@ -253,7 +251,7 @@ uint32_t	NewBlock(uint32_t offset, uint64_t mask, uint64_t value, uint16_t comp,
 /* 
  * Connects the two blocks b1 and b2 ( AND ) and returns index of superblock
  */
-uint32_t	Connect_AND(uint32_t b1, uint32_t b2) {
+uint32_t Connect_AND(uint32_t b1, uint32_t b2) {
 
 	uint32_t	a, b, i, j;
 
@@ -288,7 +286,7 @@ uint32_t	Connect_AND(uint32_t b1, uint32_t b2) {
 /* 
  * Connects the two blocks b1 and b2 ( OR ) and returns index of superblock
  */
-uint32_t	Connect_OR(uint32_t b1, uint32_t b2) {
+uint32_t Connect_OR(uint32_t b1, uint32_t b2) {
 
 	uint32_t	a, b, i, j;
 
@@ -324,7 +322,7 @@ uint32_t	Connect_OR(uint32_t b1, uint32_t b2) {
 /* 
  * Inverts OnTrue and OnFalse
  */
-uint32_t	Invert(uint32_t a) {
+uint32_t Invert(uint32_t a) {
 	uint32_t	i, j;
 
 	for ( i=0; i< FilterTree[a].numblocks; i++ ) {
@@ -498,6 +496,16 @@ int	evaluate, invert;
 				find.value = comp_value[0];
 				evaluate = RB_FIND(ULongtree, engine->filter[index].data, &find ) != NULL; }
 				break;
+			case CMP_PAYLOAD: {
+				master_record_t *r = (master_record_t *)engine->nfrecord;
+				char *string = (char *)engine->filter[index].data;
+
+				if ( r->inPayload != NULL && string != NULL) {
+					evaluate = strstr(r->inPayload, string) != NULL ? 1 : 0;
+				} else {
+					evaluate = 0;
+				}
+			} break;
 		}
 
 		/*
@@ -667,4 +675,3 @@ master_record_t *record = (master_record_t *)record_data;
 #endif
 
 } // End of pblock_function
-

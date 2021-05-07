@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016-2020, Peter Haag
+ *  Copyright (c) 2016-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -31,22 +31,17 @@
 
 %{
 
-#ifdef HAVE_CONFIG_H 
 #include "config.h"
-#endif
 
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <stdint.h>
 #include <netinet/in.h>
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <ctype.h>
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #include "util.h"
 #include "output_util.h"
@@ -72,6 +67,8 @@ static int InitSymbols(void);
 
 static uint32_t Get_fwd_status_id(char *status);
 
+static char *stripWord(char *word);
+
 enum { DIR_UNSPEC = 1, 
 	   SOURCE, DESTINATION, SOURCE_AND_DESTINATION, SOURCE_OR_DESTINATION, 
 	   DIR_IN, DIR_OUT, 
@@ -85,7 +82,7 @@ extern int 			lineno;
 extern char 		*yytext;
 extern uint64_t		*IPstack;
 extern uint32_t	StartNode;
-extern uint16_t	Extended;
+extern uint16_t	geoFilter;
 extern int (*FilterEngine)(uint32_t *);
 extern char	*FilterFilename;
 
@@ -143,7 +140,8 @@ char yyerror_buff[256];
 %token ASA DENIED XEVENT XNET XPORT INGRESS EGRESS ACL ACE XACE
 %token NAT ADD EVENT VRF NPORT NIP
 %token PBLOCK START END STEP SIZE
-%token <s> STRING REASON
+%token PAYLOAD CONTENT
+%token <s> STRING WORD REASON
 %token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
 %type <value> expr
 %type <param> dqual term comp acl inout
@@ -1169,6 +1167,23 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 #endif
 	}
 
+	| PAYLOAD CONTENT STRING {
+		if (strlen($3)>64) {
+			yyerror("word too long");
+			YYABORT;
+		}
+		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_PAYLOAD, FUNC_NONE, $3); 
+	} 
+
+	| PAYLOAD CONTENT WORD {
+		if (strlen($3)>64) {
+			yyerror("word too long");
+			YYABORT;
+		}
+		char *word = stripWord($3);
+		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_PAYLOAD, FUNC_NONE, word); 
+	} 
+
 	| dqual NIP IN '[' iplist ']' { 	
 #ifdef NSEL
 		switch ( $1.direction ) {
@@ -1207,6 +1222,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 
+		geoFilter = 1;
 		switch ( $1.direction ) {
 			case SOURCE:
 				$$.self = NewBlock(OffsetAS, MaskSrcAS, ($4 << ShiftSrcAS) & MaskSrcAS, $3.comp, FUNC_NONE, NULL );
@@ -1246,6 +1262,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 
+		geoFilter = 1;
 		union {
 			char c[8];
 			uint64_t u;
@@ -1284,6 +1301,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		struct ULongListNode *node;
 		ULongtree_t *root = NULL;
 
+		geoFilter = 1;
 		if ( $1.direction == DIR_UNSPEC || $1.direction == SOURCE_OR_DESTINATION || $1.direction == SOURCE_AND_DESTINATION ) {
 			// src and/or dst AS
 			// we need a second rbtree due to different shifts for src and dst AS
@@ -2332,4 +2350,17 @@ int i;
 	return 256;
 
 } // End of Get_fwd_status_id
+
+static char *stripWord(char *word) {
+	char *w = strdup(word);
+
+	// strip " or " from begin/end of string
+	int i=0;
+	for (i=1; w[i]!= 0x27 && w[i] != 0x22; i++){
+		w[i-1]=w[i];
+	}
+	w[i-1] = '\0';
+
+	return w;
+} // End of stripWord
 

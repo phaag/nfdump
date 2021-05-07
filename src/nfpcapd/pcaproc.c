@@ -261,11 +261,6 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
 		dbg_printf("Fragmented packet: first segement: ip_off: %u, frag_offset: %u\n",
 			ip_off, frag_offset);
 		Node = New_Node();
-		if ( !Node ) {
-			packetParam->proc_stat.skipped++;
-			LogError("Node allocation error - skip packet");
-			return NULL;
-		}
 		Node->t_first.tv_sec  = hdr->ts.tv_sec;
 		Node->t_first.tv_usec = hdr->ts.tv_usec;
 		Node->t_last.tv_sec   = hdr->ts.tv_sec;
@@ -276,7 +271,7 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
 		Node->dst_addr.v4	  = ntohl(ip->ip_dst.s_addr);
 		Node->src_port		  = ntohs(ip->ip_id);
 		Node->dst_port		  = 0;
-		Node->flags			  = FRAG_NODE;
+		Node->nodeType		  = FRAG_NODE;
 
 		if ( Insert_Node(Node) != NULL ) {
 			dbg_printf("IP fragment: initial node already exists! Skip!\n");
@@ -631,12 +626,6 @@ static unsigned pkg_cnt = 0;
 			inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)));
 
 		Node = New_Node();
-		if ( !Node ) {
-			packetParam->proc_stat.skipped++;
-			LogError("Node allocation error - skip packet");
-			return;
-		}
-
 		Node->version		  = AF_INET6;
 		Node->t_first.tv_sec  = hdr->ts.tv_sec;
 		Node->t_first.tv_usec = hdr->ts.tv_usec;
@@ -691,12 +680,6 @@ static unsigned pkg_cnt = 0;
 		} else {
 
 			Node = New_Node();
-			if ( !Node ) {
-				packetParam->proc_stat.skipped++;
-				LogError("Node allocation error - skip packet");
-				return;
-			}
-
 			Node->version		  = AF_INET;
 			Node->t_first.tv_sec  = hdr->ts.tv_sec;
 			Node->t_first.tv_usec = hdr->ts.tv_usec;
@@ -714,11 +697,12 @@ static unsigned pkg_cnt = 0;
 	}
 
 	// fill ipv4/ipv6 node with extracted data
-	Node->vlanID  = vlanID;
-	Node->srcMac  = srcMac;
-	Node->dstMac  = dstMac;
-	Node->packets = 1;
-	Node->proto   = proto;
+	Node->vlanID   = vlanID;
+	Node->srcMac   = srcMac;
+	Node->dstMac   = dstMac;
+	Node->packets  = 1;
+	Node->proto    = proto;
+	Node->nodeType = FLOW_NODE;
 	// bytes = number of bytes on wire - data link data
 	dbg_printf("Payload: %td bytes, Full packet: %u bytes\n", eodata - dataptr, Node->bytes);
 

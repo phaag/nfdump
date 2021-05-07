@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2020, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -34,9 +34,7 @@
 #include "config.h"
 
 #include <sys/types.h>
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
 
 #include "rbtree.h"
 
@@ -54,7 +52,7 @@
 /* 
  * Definitions
  */
-enum { CMP_EQ = 0, CMP_GT, CMP_LT, CMP_GE, CMP_LE, CMP_IDENT, CMP_FLAGS, CMP_IPLIST, CMP_ULLIST };
+enum { CMP_EQ = 0, CMP_GT, CMP_LT, CMP_GE, CMP_LE, CMP_IDENT, CMP_FLAGS, CMP_IPLIST, CMP_ULLIST, CMP_PAYLOAD};
 
 /*
  * filter functions:

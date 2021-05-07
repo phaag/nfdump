@@ -191,6 +191,8 @@ end				{ return END;		/* NAT port block end */ }
 step			{ return STEP;		/* NAT port block step */ }
 size			{ return SIZE;		/* NAT port block size */ }
 nip				{ return NIP; 		/* NSEL filter */ }
+payload			{ return PAYLOAD;  /* payload filter */ }
+content			{ return CONTENT;  /* payload filter */ }
 and|"&&"		{ return AND; }
 or|"||"			{ return OR; }
 not|"!"			{ return NOT; }
@@ -205,6 +207,14 @@ not|"!"			{ return NOT; }
 [a-zA-Z0-9_:\.\-]+ { 
 					yylval.s = strdup(yytext);
 					return STRING; 
+				}
+'[ -~]+' 		{ 
+					yylval.s = strdup(yytext);
+					return WORD; 
+				}
+\"[ -~]+\" 		{ 
+					yylval.s = strdup(yytext);
+					return WORD; 
 				}
 \n				{ lineno++; }
 .				{ return yytext[0]; }
@@ -292,7 +302,6 @@ int ScreenIdentString(char *string) {
 		c++;
 	}
 	return 1;
-
 
 } // End of ScreenIdentString
 

@@ -544,7 +544,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 					}
 
 					processed++;
-					if ( HasGeoDB ) {
+					if ( HasGeoDB && Engine->geoFilter ) {
 						AddGeoInfo(master_record);
 					}
 					// Time based filter

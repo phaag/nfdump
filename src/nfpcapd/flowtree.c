@@ -46,8 +46,6 @@
 #include "util.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "bookkeeper.h"
-#include "collector.h"
 #include "flowtree.h"
 
 static int ExtendCache(void);
@@ -107,15 +105,8 @@ struct FlowNode *node;
 	}
 
 	node = FlowNode_FreeList;
-	if ( node == NULL ) {
-		// should never happen , as we were waiting for a free node
-		LogError("*** Software ERROR *** New_Node() unexpected error in %s line %d: %s: %u\n", 
-			__FILE__, __LINE__, "Node list exhausted", NumFlows);
-		pthread_mutex_unlock(&m_FreeList);
-		return NULL;
-	}
 	if ( node->memflag != NODE_FREE ) {
-		LogError("*** Software ERROR *** New_Node() unexpected error in %s line %d: %s\n", 
+		LogError("New_Node() unexpected error in %s line %d: %s\n", 
 			__FILE__, __LINE__, "Tried to allocate a non free Node");
 		abort();
 	}
@@ -372,7 +363,7 @@ uint32_t n = NumFlows;
 	for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
 		nxt = RB_NEXT(FlowTree, FlowTree, node);
 		Remove_Node(node);
-		if ( node->flags == FRAG_NODE ) {
+		if ( node->nodeType == FRAG_NODE ) {
 			Free_Node(node);
 		} else {
 			Push_Node(NodeList, node);
@@ -384,6 +375,7 @@ uint32_t n = NumFlows;
 
 	node = New_Node();
 	node->timestamp = when;
+	node->nodeType  = SIGNAL_NODE;
 	node->fin		= SIGNAL_DONE;
 	Push_Node(NodeList, node);
 
@@ -409,9 +401,9 @@ struct FlowNode *node, *nxt;
 			 // active timeout
 			 (when - node->t_first.tv_sec) > expireActiveTimeout  ||
 			 // fragment assembly timeout
-			 (node->flags == FRAG_NODE && (when - node->t_last.tv_sec) > 15)) {
+			 (node->nodeType == FRAG_NODE && (when - node->t_last.tv_sec) > 15)) {
 			Remove_Node(node);
-			if ( node->flags == FRAG_NODE ) {
+			if ( node->nodeType == FRAG_NODE ) {
 				fragCnt++;
 				Free_Node(node);
 			} else {
@@ -532,6 +524,7 @@ void Push_SyncNode(NodeList_t *NodeList, time_t timestamp) {
 
 	struct FlowNode	*Node = New_Node();
 	Node->timestamp = timestamp;
+	Node->nodeType  = SIGNAL_NODE;
 	Node->fin		= SIGNAL_SYNC;
 	Push_Node(NodeList, Node);
 

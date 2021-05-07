@@ -61,7 +61,7 @@ typedef struct ipLocationInfo_s {
 	double	 latitude;
 	double	 longitude;
 	uint32_t accuracy;
-} ipLocaltionInfo_t;
+} ipLocationInfo_t;
 
 typedef struct ipV4Node_s {
 	// key
@@ -69,7 +69,7 @@ typedef struct ipV4Node_s {
 	uint32_t netmask;
 
 	// value
-	ipLocaltionInfo_t info;
+	ipLocationInfo_t info;
 } ipV4Node_t;
 
 typedef struct ipV6Node_s {
@@ -79,7 +79,7 @@ typedef struct ipV6Node_s {
 	uint64_t netmask[2];
 
 	// value
-	ipLocaltionInfo_t info;
+	ipLocationInfo_t info;
 } ipV6Node_t;
 
 typedef struct asV4Node_s {
@@ -89,6 +89,7 @@ typedef struct asV4Node_s {
 
 	// value
 	uint32_t as;
+	char	 orgName[64];
 } asV4Node_t;
 
 typedef struct asV6Node_s {
@@ -99,6 +100,7 @@ typedef struct asV6Node_s {
 
 	// value
 	uint32_t as;
+	char	 orgName[64];
 } asV6Node_t;
 
 #define LocalInfoElementID 1
@@ -131,8 +133,6 @@ void LookupLocation(uint64_t ip[2], char *location, size_t len);
 
 uint32_t LookupAS(uint64_t ip[2]);
 
-void DoTest(char *ip);
-void DoLoop(void);
-void DoLoop2(void);
+void LookupWhois(char *ip);
 
 #endif

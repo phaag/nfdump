@@ -39,12 +39,14 @@
 #include <sys/stat.h>
 #include <dirent.h>
 #include <errno.h>
+#include <ctype.h>
 #include <string.h>
 #include <strings.h>
 #include <arpa/inet.h>
 
 #include "util.h"
 #include "nffile.h"
+#include "ipconv.h"
 #include "maxmind.h"
 
 static void usage(char *name) {
@@ -109,23 +111,18 @@ static int LoadMaps(char *dirName) {
 	
 	if (CityLocationFile) {
 		loadLocalMap(CityLocationFile);
-		printf("Local map loaded\n");
 	}
 	if (CityBlocksIPv4File) {
 		loadIPV4tree(CityBlocksIPv4File);
-		printf("IP Tree loaded\n");
 	}
 	if (CityBlocksIPv6File) {
 		loadIPV6tree(CityBlocksIPv6File);
-		printf("IP Tree loaded\n");
 	}
 	if (ASNBlocksIPv4File) {
 		loadASV4tree(ASNBlocksIPv4File);
-		printf("AS Tree loaded\n");
 	}
 	if (ASNBlocksIPv6File) {
 		loadASV6tree(ASNBlocksIPv6File);
-		printf("ASV6 Tree loaded\n");
 	}
 
 	if (chdir(cwd) < 0) {
@@ -146,12 +143,92 @@ static uint32_t getTick() {
     return theTick;
 }
 
+
+// Return a pointer to the trimmed string
+static char *string_trim(char *s) {
+	while (isspace((unsigned char) *s)) s++;
+	if (*s) {
+		char *p = s;
+		while (*p) p++;
+		while (isspace((unsigned char) *(--p)));
+		p[1] = '\0';
+	}
+
+	return s;
+} // end of string_trim
+
+static int valid_ipv4(char *s) {
+
+	char *c = s;
+	while (*c) {
+		if(!isdigit(*c) && *c != '.') {
+			return 0;
+		}
+		c++; //point to next character
+	}
+
+	c = strdup(s);
+	int numbers = 0;
+	char *sep = ".";
+	char *brkt;
+	char *ns = strtok_r(c, sep, &brkt);
+	while (ns) {
+		int num = atoi(ns);
+		if ( num > 255 ) {
+			free(c);
+			return 0;
+		}
+		numbers++;
+		ns = strtok_r(NULL, sep, &brkt);
+	}
+
+	free(c);
+	return numbers == 4;
+} 
+
+static int valid_ipv6(char *s) {
+
+	char *c = s;
+	while (*c) {
+		if(!isxdigit(*c) && *c != ':') {
+			return 0;
+		}
+		c++; //point to next character
+	}
+	if (strchr(s, ':') == NULL) {
+		return 0;
+	}
+	c = strdup(s);
+	int numbers = 0;
+	char *sep = ":";
+	char *brkt;
+	char *ns = strtok_r(c, sep, &brkt);
+	while (ns) {
+		int num = atoi(ns);
+		if ( num > 65535 ) {
+			free(c);
+			return 0;
+		}
+		numbers++;
+		ns = strtok_r(NULL, sep, &brkt);
+	}
+
+	free(c);
+	uint64_t u[2];
+	if ( inet_pton(PF_INET6, s, u) != 1 ) {
+		return 0;
+	}
+
+	return 1;
+} 
+
 int main(int argc, char **argv) {
 
 	char *dirName = NULL;
+	char *geoFile = getenv("NFGEODB");
 	char *wfile	  = "mmc.nf";
 	int c;
-	while ((c = getopt(argc, argv, "hd:w:")) != EOF) {
+	while ((c = getopt(argc, argv, "hd:G:w:")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -159,11 +236,16 @@ int main(int argc, char **argv) {
 				break;
 			case 'd':
 				if ( !CheckPath(optarg, S_IFDIR) )
-					exit(254);
+					exit(EXIT_FAILURE);
 				dirName = strdup(optarg);
 				break;
 			case 'w':
 				wfile = optarg;
+				break;
+            case 'G':
+                if ( !CheckPath(optarg, S_IFREG) )
+                    exit(EXIT_FAILURE);
+                geoFile = strdup(optarg);
 				break;
 			default:
 				usage(argv[0]);
@@ -171,53 +253,66 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	if (dirName == NULL) {
+	if ( !Init_nffile(NULL) || !Init_MaxMind() )
+		exit(EXIT_FAILURE);
+
+	if (dirName && wfile) {
+		if ( LoadMaps(dirName) == 0 || SaveMaxMind(wfile) == 0) {
+        	exit(EXIT_FAILURE);
+		}
+       	exit(EXIT_SUCCESS);
+	}
+
+	if ( geoFile == NULL ) {
 		usage(argv[0]);
 		exit(0);
 	}
 
-	if ( !Init_nffile(NULL) || !Init_MaxMind() )
-		exit(254);
+	if ( !LoadMaxMind(geoFile) ) {
+       	exit(EXIT_FAILURE);
+	}
 
+	if (argc - optind > 0) {
+    	while (argc - optind > 0) {
+        	char *arg = argv[optind++];
+			if (strlen(arg) < 16 && (valid_ipv4(arg) || valid_ipv6(arg))) { 
+				LookupWhois(arg);
+			}
+    	}
+	} else {
+		char *line = NULL;
+		size_t linecap = 0;
+		ssize_t lineLen;
+		while ((lineLen = getline(&line, &linecap, stdin)) > 0) {
+			if (lineLen > 1024) {
+				LogError("Line length error");
+       			exit(EXIT_FAILURE);
+			}
+			char *eol = strchr(line, '\n');
+			*eol = '\0';
+			char *sep = " ";
+			char *word, *brkt;
+			word = strtok_r(line, sep, &brkt);
+			while (word) {
+				if (valid_ipv4(word) || valid_ipv6(word)) { 
+					LookupWhois(string_trim(word));
+				}
+				word = strtok_r(NULL, sep, &brkt);
+			}
+		}
+	}
+/*
 	uint32_t t1 = getTick();
 	LoadMaps(dirName);
 	uint32_t t2 = getTick();
 	printf("Load CSV time: %u\n", t2-t1);
 
-	DoTest("80.219.226.184");
-	DoTest("152.88.1.5");
-	DoTest("2001:620:0:ff::5c");
-	DoTest("2a04:4e42:1b::323");
-	DoTest("2002:521c:8016::521c:8016");
-	printf("Dump trees\n");
+	LookupWhois("80.219.226.184");
+	LookupWhois("152.88.1.5");
+	LookupWhois("2001:620:0:ff::5c");
+	LookupWhois("2a04:4e42:1b::323");
+	LookupWhois("2002:521c:8016::521c:8016");
 
-	t1 = getTick();
-	SaveMaxMind(wfile);
-	t2 = getTick();
-	printf("Save to file time: %u\n", t2-t1);
-
- 	Init_MaxMind();
-	printf("Load trees\n");
-	t1 = getTick();
-	LoadMaxMind(wfile);
-	t2 = getTick();
-	printf("Load from file time: %u\n", t2-t1);
-
-	DoTest("80.219.226.184");
-	DoTest("2001:620:0:ff::5c");
-	DoTest("2a04:4e42:1b::323");
-	SaveMaxMind(wfile);
-
-
-	t1 = getTick();
-	DoLoop();
-	t2 = getTick();
-	printf("Loop IPv4 %u\n", t2-t1);
-
-	t1 = getTick();
-	DoLoop2();
-	t2 = getTick();
-	printf("Loop IPv6 %u\n", t2-t1);
-
+*/
 	return 0;
 }

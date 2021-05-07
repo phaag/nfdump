@@ -4,6 +4,10 @@ TESTS = nftest runtest.sh
 
 AM_CPPFLAGS = -I.. -I../lib $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb
+AM_LDFLAGS  = -L../lib
+
+LDADD = $(DEPS_LIBS)
+
 
 nfgen_SOURCES = nfgen.c
 nfgen_LDADD = ../lib/libnfdump.la

@@ -32,11 +32,9 @@
 #include "config.h"
 
 #include <stdio.h>
-#ifdef HAVE_STDDEF_H
 #include <stddef.h>
-#endif
-
 #include <stdarg.h>
+#include <stdint.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -44,18 +42,10 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#ifdef sun
-#include <netinet/ip_compat.h>
-#endif
-
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #include <errno.h>
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER)	((size_t) &((TYPE *) 0)->MEMBER)
@@ -912,6 +902,13 @@ value64_t	v;
 
 	ret = check_filter_block("dst geo AB", &flow_record, 0);
 	ret = check_filter_block("dst geo CD", &flow_record, 1);
+
+	flow_record.inPayload = "GET /index.html HTTP/1.1\r\n";
+	flow_record.inPayloadLength = 26;
+
+	ret = check_filter_block("payload content GET", &flow_record, 1);
+	ret = check_filter_block("payload content 'GET /index'", &flow_record, 1);
+	ret = check_filter_block("payload content POST", &flow_record, 0);
 
 	// NSEL/ASA related tests
 #ifdef NSEL

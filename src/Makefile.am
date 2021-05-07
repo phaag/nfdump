@@ -10,8 +10,10 @@ bin_PROGRAMS += mmc
 endif
 
 AM_CPPFLAGS = -Ilib $(DEPS_CFLAGS)
-LDADD = $(DEPS_LIBS)
 AM_LDFLAGS  = -Llib
+
+LDADD = $(DEPS_LIBS)
+
 
 #Add extra debug info for gdb
 AM_CFLAGS = -ggdb 

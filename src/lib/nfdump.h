@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -33,14 +33,8 @@
 
 #include "config.h"
 
-#ifdef WORDS_BIGENDIAN
-#	error "Big endian CPU not supported"
-#endif
-
 #include <sys/types.h>
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
 
 #define V4 ip_addr._v4
 #define V6 ip_addr._v6
@@ -725,12 +719,13 @@ typedef struct master_record_s {
 
 	uint32_t inPayloadLength;
 	uint32_t outPayloadLength;
+#	define OffsetPayload			(offsetof(master_record_t, inPayloadLength) >> 3)
 	char *inPayload;
 	char *outPayload;
 
 	// last entry in master record 
 	char *label;
-#	define Offset_MR_LAST	offsetof(master_record_t, label)
+#	define Offset_MR_LAST	(offsetof(master_record_t, label) >> 3)
 } master_record_t;
 
 

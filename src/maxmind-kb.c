@@ -351,7 +351,11 @@ int loadIPV4tree(char *fileName) {
 					char *cidr = strchr(field, '/');
 					*cidr = '\0';
 					uint32_t net, netBits, mask;
-					inet_pton(PF_INET, field, &net);
+					int ret = inet_pton(PF_INET, field, &net);
+					if ( ret != 1 ) {
+						LogError("Not an IPv4 network: %s\n", field);
+						continue;
+					}
 					netBits = atoi(++cidr);
 					mask = 0xffffffff << (32 - netBits);
 					ipV4Node.network = ntohl(net);
@@ -425,7 +429,11 @@ int loadIPV6tree(char *fileName) {
 					*cidr = '\0';
 					uint32_t netBits;
 					uint64_t net[2], mask[2];
-					inet_pton(PF_INET6, field, net);
+					int ret = inet_pton(PF_INET6, field, net);
+					if ( ret != 1 ) {
+						LogError("Not an IPv6 network: %s\n", field);
+						continue;
+					}
 					netBits = atoi(++cidr);
 
 					if ( netBits > 64 ) {
@@ -478,7 +486,7 @@ int loadIPV6tree(char *fileName) {
 	fclose(fp);
 	return 1;
 
-} // End of loadIPV4tree
+} // End of loadIPV6tree
 
 int loadASV4tree(char *fileName) {
 
@@ -505,19 +513,27 @@ int loadASV4tree(char *fileName) {
 		while ((field = strsep(&l, ",")) != NULL) {
 			// printf("field: %s\n", field);
 			switch (i) {
-				case(0): {
+				case(0): { // cidr
 					char *cidr = strchr(field, '/');
 					*cidr = '\0';
 					uint32_t net, netBits, mask;
-					inet_pton(PF_INET, field, &net);
+					int ret = inet_pton(PF_INET, field, &net);
+					if ( ret != 1 ) {
+						LogError("Not an IPv4 network: %s\n", field);
+						continue;
+					}
 					netBits = atoi(++cidr);
 					mask = 0xffffffff << (32 - netBits);
 					// printf("ip: 0x%x, bits: %u, mask: 0x%x\n", net, netBits, mask);
 					asV4Node.network = ntohl(net);
 					asV4Node.netmask = mask;
 					} break;
-				case 1: // geoname_id
+				case 1: // AS
 					asV4Node.as = atoi(field);
+					break;
+				case 2: // org name
+					strncpy(asV4Node.orgName, field, 64);
+					asV4Node.orgName[63] = '\0';
 					break;
 			}
 			i++;
@@ -569,7 +585,11 @@ int loadASV6tree(char *fileName) {
 					*cidr = '\0';
 					uint32_t netBits;
 					uint64_t net[2], mask[2];
-					inet_pton(PF_INET6, field, net);
+					int ret = inet_pton(PF_INET6, field, net);
+					if ( ret != 1 ) {
+						LogError("Not an IPv4 network: %s\n", field);
+						continue;
+					}
 					netBits = atoi(++cidr);
 
 					if ( netBits > 64 ) {
@@ -588,6 +608,10 @@ int loadASV6tree(char *fileName) {
 					} break;
 				case 1: // geoname_id
 					asV6Node.as = atoi(field);
+					break;
+				case 2: // org name
+					strncpy(asV6Node.orgName, field, 64);
+					asV6Node.orgName[63] = '\0';
 					break;
 			}
 			i++;
@@ -952,7 +976,7 @@ void LookupCountry(uint64_t ip[2], char *country) {
 		return;
 	}
 
-	ipLocaltionInfo_t info = {0};
+	ipLocationInfo_t info = {0};
 	if ( ip[0] == 0 ) { // IPv4
 		ipV4Node_t ipSearch = {
 			.network = ip[1],
@@ -1008,7 +1032,7 @@ void LookupLocation(uint64_t ip[2], char *location, size_t len) {
 		return;
 	}
 
-	ipLocaltionInfo_t info = {0};
+	ipLocationInfo_t info = {0};
 	if ( ip[0] == 0 ) { // IPv4
 		ipV4Node_t ipSearch = {
 			.network = ip[1],
@@ -1037,9 +1061,9 @@ void LookupLocation(uint64_t ip[2], char *location, size_t len) {
 	} 
 
 	locationInfo_t locationInfo = kh_value(mmHandle->localMap, k);
-	snprintf(location, len, "%s/%s/%s long/lat: %.4f/%-.4f, accuracy: %u", 
+	snprintf(location, len, "%s/%s/%s long/lat: %.4f/%-.4f", 
 		locationInfo.continent, locationInfo.country, locationInfo.city,
-		info.longitude, info.latitude, info.accuracy);
+		info.longitude, info.latitude);
 
 } // End of LookupLocation
 
@@ -1067,151 +1091,72 @@ uint32_t LookupAS(uint64_t ip[2]) {
 
 } // End of LookupAS
 
-void DoTest(char *ip) {
+void LookupWhois(char *ip) {
 
-	printf("Test %s\n", ip);
-	// test 
 	uint32_t as = 0;
-	ipLocaltionInfo_t info = {0};
+	char *asOrg = NULL;
+	ipV4Node_t *ipV4Node;
+	ipV6Node_t *ipV6Node;
+	ipLocationInfo_t info = {0};
 	if ( strchr(ip, ':') != NULL ) {
 		// IPv6
 		uint64_t network[2];
 		ipV6Node_t ipSearch = {0};
 		asV6Node_t asSearch = {0};
-		inet_pton(PF_INET6, ip, network);
+		int ret = inet_pton(PF_INET6, ip, network);
+		if (ret != 1)
+			return;
 		ipSearch.network[0] = ntohll(network[0]);
 		asSearch.network[0] = ntohll(network[0]);
 		ipSearch.network[1] = ntohll(network[1]);
 		asSearch.network[1] = ntohll(network[1]);
 
-		ipV6Node_t *ipV6Node = kb_getp(ipV6Tree, mmHandle->ipV6Tree, &ipSearch);
-		if ( !ipV6Node ) {
-			LogError("IPV6 not found");
-		} else {
+		ipV6Node = kb_getp(ipV6Tree, mmHandle->ipV6Tree, &ipSearch);
+		if ( ipV6Node ) {
 			info = ipV6Node->info;
 		}
 
 		asV6Node_t *asV6Node = kb_getp(asV6Tree, mmHandle->asV6Tree, &asSearch);
-		if ( !asV6Node ) {
-			LogError("AS not found");
-		} else {
+		if ( asV6Node ) {
 			as = asV6Node->as;
+			asOrg = asV6Node->orgName;
 		}
 
 	} else {
 		// IPv4
 		uint32_t net;
-		inet_pton(PF_INET, ip, &net);
+		int ret = inet_pton(PF_INET, ip, &net);
+		if (ret != 1)
+			return;
 		ipV4Node_t ipSearch = {
 			.network = ntohl(net),
 			.netmask = 0
 		};
-		ipV4Node_t *ipV4Node = kb_getp(ipV4Tree, mmHandle->ipV4Tree, &ipSearch);
-		if ( !ipV4Node ) {
-			LogError("IPV4 not found");
-		} else {
+		ipV4Node = kb_getp(ipV4Tree, mmHandle->ipV4Tree, &ipSearch);
+		if ( ipV4Node ) {
 			info = ipV4Node->info;
 		}
 
-		inet_pton(PF_INET, ip, &net);
 		asV4Node_t asSearch = {
 			.network = ntohl(net),
 			.netmask = 0
 		};
 		asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
-		if ( !asV4Node ) {
-			LogError("AS not found");
-		} else {
+		if ( asV4Node ) {
 			as = asV4Node->as;
+			asOrg = asV4Node->orgName;
 		}
 	}
-	printf("localID of IP is %u, as: %u\n", info.localID, as);
 
 	locationKey_t locationKey = { .key = info.localID, .hash = 0};
  	khint_t k = kh_get(localMap, mmHandle->localMap, locationKey); 
   	if (k == kh_end(mmHandle->localMap)) {
-		LogError("Local info for ID: %u not found", info.localID);
+		printf("%-7u | %-24s | %-32s | no information\n", as, ip, asOrg == NULL ? "private" : asOrg);
 	} else {
 		locationInfo_t locationInfo = kh_value(mmHandle->localMap, k);
-		printf("localID: %d %s/%s/%s long/lat: %8.4f/%-8.4f, accuracy: %u, AS: %u\n", 
-			locationInfo.localID, locationInfo.continent, locationInfo.country, locationInfo.city,
-			info.longitude, info.latitude, info.accuracy, as);
+		printf("%-7u | %-24s | %-32s | %s/%s/%s long/lat: %8.4f/%-8.4f\n", as, ip, asOrg == NULL ? "private" : asOrg,
+			locationInfo.continent, locationInfo.country, locationInfo.city,
+			info.longitude, info.latitude);
 	}
 
-/*
-	kbitr_t itr;
-	uint32_t cnt = 0;
-	kb_itr_first(ipV4Tree, ipV4Tree, &itr); // get an iterator pointing to the first
-	for (; kb_itr_valid(&itr); kb_itr_next(ipV4Tree, ipV4Tree, &itr)) { // move on
-		ipV4Node = &kb_itr_key(ipV4Node_t, &itr);
-		uint32_t network = htonl(ipV4Node->network);
-		char ipa[32];
-		inet_ntop(AF_INET, &network, ipa, sizeof(ipa));
-		printf("network: %s, mask: 0x%x\n", ipa, ipV4Node->netmask);
-		cnt++;
-	}
-	printf("Dump IP tree done. %u entries\n", cnt);
-
-	cnt = 0;
-	asV4Node_t *asV4Node = NULL;
-	kb_itr_first(asV4Tree, asV4Tree, &itr); // get an iterator pointing to the first
-	for (; kb_itr_valid(&itr); kb_itr_next(asV4Tree, asV4Tree, &itr)) { // move on
-		asV4Node = &kb_itr_key(asV4Node_t, &itr);
-		uint32_t network = htonl(asV4Node->network);
-		char ipa[32];
-		inet_ntop(AF_INET, &network, ipa, sizeof(ipa));
-		printf("network: %s, mask: 0x%x\n", ipa, asV4Node->netmask);
-		cnt++;
-	}
-	printf("Dump AS tree done. %u entries\n", cnt);
-
-	for (khint_t k = kh_begin(localMap); k != kh_end(localMap); ++k) { // traverse
-		locationInfo_t locationInfo;
-    	if (kh_exist(localMap, k)) { // test if a bucket contains data
-      		locationInfo = kh_value(localMap, k);
-			printf("localID: %d %s/%s/%s\n", locationInfo.localID, locationInfo.continent,
-				locationInfo.country, locationInfo.city);
-		}
-	}
-*/
-
-} // End of DoTest
-
-void DoLoop(void) {
-
-	uint32_t net;
-	inet_pton(PF_INET, "130.59.1.30", &net);
-	ipV4Node_t ipSearch = {
-		.network = ntohl(net),
-		.netmask = 0
-	};
-	for (int i=0; i< 1000000; i++ ) {
-	ipV4Node_t *ipV4Node = kb_getp(ipV4Tree, mmHandle->ipV4Tree, &ipSearch);
-	if ( !ipV4Node ) {
-		LogError("IPV4 not found");
-	}
-	}
-
-
-
-}
-
-void DoLoop2(void) {
-
-	uint64_t network[2];
-	ipV6Node_t ipSearch = {0};
-	asV6Node_t asSearch = {0};
-	inet_pton(PF_INET6, "2001:620:0:ff::5c", network);
-	ipSearch.network[0] = ntohll(network[0]);
-	asSearch.network[0] = ntohll(network[0]);
-	ipSearch.network[1] = ntohll(network[1]);
-	asSearch.network[1] = ntohll(network[1]);
-
-	for (int i=0; i< 1000000; i++ ) {
-	ipV6Node_t *ipV6Node = kb_getp(ipV6Tree, mmHandle->ipV6Tree, &ipSearch);
-	if ( !ipV6Node ) {
-		LogError("IPV6 not found");
-	}
-	}
-
-}
+} // End of LookupWhois
