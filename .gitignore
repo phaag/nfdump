@@ -80,13 +80,14 @@ src/.version/
 /src/nfdump
 /src/nfexpire
 /src/nfreplay
+/src/geolookup
 /src/nfpcapd/nfpcapd
 /src/sflow/sfcapd
 /src/nfsen/nfprofile
 /src/nfsen/nftrack
 src/test/nfgen
 src/test/nftest
-/ft2nfdump/ft2nfdump
+src/ft2nfdump/ft2nfdump
 
 # Generated docs
 /doc/doxygen-build.stamp

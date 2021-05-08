@@ -162,6 +162,9 @@ char errbuf[PCAP_ERRBUF_SIZE];
 		case DLT_EN10MB:
 			param->linkoffset = 14;
 			break;
+#ifndef DLT_LINUX_SLL
+#define DLT_LINUX_SLL   113
+#endif
 		case DLT_LINUX_SLL:
 			param->linkoffset = 16;
 			break;

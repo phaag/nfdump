@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2020, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -31,13 +31,8 @@
 #ifndef _QUEUE_H
 #define _QUEUE_H 1
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
+#include <pthread.h>
 
 #define QUEUE_FULL	 (void *)-1
 #define QUEUE_EMPTY	 (void *)-2

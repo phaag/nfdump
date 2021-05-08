@@ -86,10 +86,6 @@
 #define TO_MS			100
 #define DEFAULT_DIR     "/var/tmp"
 
-#ifndef DLT_LINUX_SLL
-#define DLT_LINUX_SLL   113
-#endif
-
 static int verbose = 0;
 static int done = 0;
 /*
@@ -315,6 +311,9 @@ char errbuf[PCAP_ERRBUF_SIZE];	/* Error string */
 		case DLT_EN10MB: 
 			linkoffset = 14; 
 			break;
+#ifndef DLT_LINUX_SLL
+#define DLT_LINUX_SLL   113
+#endif
 		case DLT_LINUX_SLL: 
 			linkoffset = 16; 
 			break;

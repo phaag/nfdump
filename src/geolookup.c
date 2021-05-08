@@ -28,8 +28,6 @@
  *  
  */
 
-#include "config.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -37,6 +35,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
 #include <dirent.h>
 #include <errno.h>
 #include <ctype.h>
@@ -51,9 +50,10 @@
 
 static void usage(char *name) {
         printf("usage %s [options] \n"
-                    "-h\t\tthis text you see right here\n"
-                    "-d <dir>\tDirectory containing the maxmind .csv files.\n"
-                    "-w <file>\tName of output file.\n"
+                    "-h\t\tthis text you see right here.\n"
+                    "-G <dir>\tmaxmind GeoDB in nfdump format to lookup info.\n"
+                    "-d <dir>\tDirectory containing the maxmind .csv files to convert into nfdump GeoDB.\n"
+                    "-w <file>\tName of nfdump GeoDB file.\n"
                     , name);
 } /* usage */
 
@@ -283,6 +283,7 @@ int main(int argc, char **argv) {
 		char *line = NULL;
 		size_t linecap = 0;
 		ssize_t lineLen;
+		// read each line - trimm \n
 		while ((lineLen = getline(&line, &linecap, stdin)) > 0) {
 			if (lineLen > 1024) {
 				LogError("Line length error");
@@ -290,6 +291,8 @@ int main(int argc, char **argv) {
 			}
 			char *eol = strchr(line, '\n');
 			*eol = '\0';
+
+			// split ' ' separated words and check, if it's an IPv4/v6
 			char *sep = " ";
 			char *word, *brkt;
 			word = strtok_r(line, sep, &brkt);

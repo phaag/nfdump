@@ -1,5 +1,5 @@
 
-SUBDIRS = src/lib . src src/test man doc 
+SUBDIRS = src/lib . src src/test
 
 if SFLOW
 SUBDIRS += src/sflow
@@ -16,5 +16,7 @@ endif
 if NFPROFILE
 SUBDIRS += src/nfsen
 endif
+
+SUBDIRS += man doc
 
 EXTRA_DIST = CreateSubHierarchy.pl LICENSE BSD-license.txt extra/PortTracker.pm extra/nfdump.spec bootstrap

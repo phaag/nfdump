@@ -138,7 +138,7 @@ AM_CONDITIONAL(FT2NFDUMP, false)
 )
 
 AC_ARG_ENABLE(maxmind,
-[  --enable-maxmind        Build mmc to convert the MaxMind GeoDB; default is NO],
+[  --enable-maxmind        Build geolookup for MaxMind GeoDB; default is NO],
 AM_CONDITIONAL(MAXMIND, true)
 ,
 AM_CONDITIONAL(MAXMIND, false)
