@@ -127,6 +127,10 @@ static void readExtendedProxySocket6(SFSample *sample);
 static void readExtendedDecap(SFSample *sample, char *prefix);
 static void readExtendedVNI(SFSample *sample, char *prefix);
 static void readExtendedTCPInfo(SFSample *sample);
+static void readExtendedEntities(SFSample *sample);
+static void readExtendedEgressQueue(SFSample *sample);
+static void readExtendedTransitDelay(SFSample *sample);
+static void readExtendedQueueDepth(SFSample *sample);
 static void readFlowSample_v2v4(SFSample *sample, FlowSource_t *fs, int verbose);
 static void readFlowSample(SFSample *sample, int expanded, FlowSource_t *fs, int verbose);
 
@@ -2090,6 +2094,53 @@ static void readExtendedTCPInfo(SFSample *sample)
   sf_log_next32(sample, "tcpinfo_rtt_uS_min");
 }
 
+/*_________________----------------------------__________________
+  _________________    readExtendedEntities    __________________
+  -----------------____________________________------------------
+*/
+
+static void readExtendedEntities(SFSample *sample)
+{
+  dbg_printf("extendedType entities\n");
+  sf_log_next32(sample, "entities_src_class");
+  sf_log_next32(sample, "entities_src_index");
+  sf_log_next32(sample, "entities_dst_class");
+  sf_log_next32(sample, "entities_dst_index");
+}
+
+/*_________________----------------------------__________________
+  _________________    readExtendedEgressQueue __________________
+  -----------------____________________________------------------
+*/
+
+static void readExtendedEgressQueue(SFSample *sample)
+{
+  dbg_printf("extendedType egress_queue\n");
+  sf_log_next32(sample, "egress_queue_id");
+}
+
+/*_________________----------------------------__________________
+  _________________  readExtendedTransitDelay  __________________
+  -----------------____________________________------------------
+*/
+
+static void readExtendedTransitDelay(SFSample *sample)
+{
+  dbg_printf("extendedType transit_delay\n");
+  sf_log_next32(sample, "transit_delay_nS");
+}
+
+/*_________________----------------------------__________________
+  _________________  readExtendedQueueDepth    __________________
+  -----------------____________________________------------------
+*/
+
+static void readExtendedQueueDepth(SFSample *sample)
+{
+  dbg_printf("extendedType queue_depth\n");
+  sf_log_next32(sample, "queue_depth_bytes");
+}
+
 #ifdef DEVEL
 /*_________________---------------------------__________________
   _________________  readCounters_generic     __________________
@@ -3537,6 +3588,10 @@ uint8_t *sampleStart;
 			case SFLFLOW_EX_VNI_OUT: readExtendedVNI(sample, "out_"); break;
 			case SFLFLOW_EX_VNI_IN: readExtendedVNI(sample, "in_"); break;
 			case SFLFLOW_EX_TCP_INFO: readExtendedTCPInfo(sample); break;
+			case SFLFLOW_EX_ENTITIES: readExtendedEntities(sample); break;
+			case SFLFLOW_EX_EGRESS_Q: readExtendedEgressQueue(sample); break;
+			case SFLFLOW_EX_TRANSIT: readExtendedTransitDelay(sample); break;
+			case SFLFLOW_EX_Q_DEPTH: readExtendedQueueDepth(sample); break;
 			default: skipTLVRecord(sample, tag, length, "flow_sample_element"); break;
 			}
 			lengthCheck(sample, "flow_sample_element", start, length);
