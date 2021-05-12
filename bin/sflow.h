@@ -416,6 +416,18 @@ typedef struct  _SFLExtended_TCP_info {
 
 #define  XDRSIZ_SFLEXTENDED_TCP_INFO 48
 
+  /* Physical or virtual host description
+     opaque = flow_data; enterprise = 0; format = 2210
+     Set Data source to all zeroes if unknown  */
+typedef struct _SFLExtended_entities {
+  uint32_t src_dsClass; /* Data Source associated with packet source */
+  uint32_t src_dsIndex;
+  uint32_t dst_dsClass; /* Data Source associated with packet destination */
+  uint32_t dst_dsIndex;
+} SFLExtended_entities;
+
+#define XDRSIZ_SFLEXTENDED_ENTITIES 16
+
 /* Extended socket information,
    Must be filled in for all application transactions associated with a network socket
    Omit if transaction associated with non-network IPC  */
@@ -599,6 +611,30 @@ typedef struct _SFLExtended_decap {
     uint32_t innerHeaderOffset;
 } SFLExtended_decap;
 
+/* Selected egress queue */
+/* Output port number must be provided in enclosing structure */
+/* opaque = flow_data; enterprise = 0; format = 1036 */
+typedef struct {
+  unsigned int queue;  /* eqress queue number selected for sampled packet */
+} SFLExtended_egress_queue;
+#define XDRSIZ_SFLEXTENDED_EGRESS_Q 4
+
+/* Delay for sampled packet traversing switch */
+/* opaque = flow_data; enterprise = 0; format = 1039 */
+typedef struct {
+  unsigned int delay; /* transit delay in nanoseconds
+			 0xffffffff indicates value >= 0xffffffff */
+} SFLExtended_transit_delay;
+#define XDRSIZ_SFLEXTENDED_TRANSIT 4
+
+/* Queue depth for sampled packet traversing switch */
+/* extended_egress_queue structure must be included */
+/* opaque = flow_data; enterprise = 0; format = 1040 */
+typedef struct {
+  unsigned int depth;   /* queue depth in bytes */
+} SFLExtended_queue_depth;
+#define XDRSIZ_SFLEXTENDED_Q_DEPTH 4
+
 enum SFLFlow_type_tag {
   /* enterprise = 0, format = ... */
   SFLFLOW_HEADER    = 1,      /* Packet headers are sampled */
@@ -632,6 +668,9 @@ enum SFLFlow_type_tag {
     SFLFLOW_EX_DECAP_IN        = 1028,
     SFLFLOW_EX_VNI_OUT         = 1029,
     SFLFLOW_EX_VNI_IN          = 1030,
+  SFLFLOW_EX_EGRESS_Q          = 1036,
+  SFLFLOW_EX_TRANSIT           = 1039,
+  SFLFLOW_EX_Q_DEPTH           = 1040,
   SFLFLOW_EX_SOCKET4       = 2100,
   SFLFLOW_EX_SOCKET6       = 2101,
   SFLFLOW_EX_PROXYSOCKET4  = 2102,
@@ -644,6 +683,7 @@ enum SFLFlow_type_tag {
   SFLFLOW_APP_ACTOR_TGT    = 2205, /* target */
   SFLFLOW_HTTP2            = 2206,
   SFLFLOW_EX_TCP_INFO      = 2209,
+  SFLFLOW_EX_ENTITIES      = 2210,
 };
 
 typedef union _SFLFlow_type {
@@ -677,6 +717,11 @@ typedef union _SFLFlow_type {
   SFLExtended_socket_ipv6 socket6;
   SFLExtended_vni tunnel_vni;
   SFLExtended_decap tunnel_decap;
+  SFLExtended_TCP_info tcp_info;
+  SFLExtended_entities entities;
+  SFLExtended_egress_queue egress_queue;
+  SFLExtended_queue_depth queue_depth;
+  SFLExtended_transit_delay transit_delay;
 } SFLFlow_type;
 
 typedef struct _SFLFlow_sample_element {
