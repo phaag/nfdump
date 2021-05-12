@@ -661,6 +661,7 @@ void *p;
 	ret = check_filter_block("engine-id 6", &flow_record, 1);
 	ret = check_filter_block("engine-id 7", &flow_record, 0);
 	
+	flow_record.prot = IPPROTO_TCP;
 	flow_record.tcp_flags = 1;
 	ret = check_filter_block("flags F", &flow_record, 1);
 	ret = check_filter_block("flags S", &flow_record, 0);
