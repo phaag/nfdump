@@ -354,7 +354,19 @@ AC_CHECK_HEADERS(pcap-bpf.h net/bpf.h)
 
 AC_CHECK_HEADERS(sys/types.h netinet/in.h arpa/nameser.h arpa/nameser_compat.h netdb.h resolv.h netinet/in_systm.h,
                  [], [],
-)
+[[#ifdef HAVE_SYS_TYPES_H
+#  include <sys/types.h>
+#endif
+#ifdef HAVE_NETINET_IN_H
+#  include <netinet/in.h>   /* inet_ functions / structs */
+#endif
+#ifdef HAVE_ARPA_NAMESER_H
+#  include <arpa/nameser.h> /* DNS HEADER struct */
+#endif
+#ifdef HAVE_NETDB_H
+#  include <netdb.h>
+#endif]])
+
 
 AC_CHECK_HEADERS([bzlib.h])
 if test "$ac_cv_header_bzlib_h" = no; then

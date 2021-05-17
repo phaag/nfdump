@@ -72,4 +72,6 @@ char *EventString(int event);
 
 char *EventXString(int xevent);
 
+void DumpHex(FILE *stream, const void* data, size_t size);
+
 #endif // _OUTPUT_UTIL_H

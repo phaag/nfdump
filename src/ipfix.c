@@ -1067,7 +1067,6 @@ uint8_t		*inBuff;
 	sequencer_t *sequencer = &(template->sequencer);
 
 	dbg_printf("[%u] Process data flowset size: %u\n", exporter->info.id, size_left);
-printf("Sequencer inLength: %zu, outLength: %zu\n", sequencer->inLength, sequencer->outLength);
 	// Check if sampling is announced
 	sampling_rate = 1;
 
@@ -1474,7 +1473,6 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
 			// PrintNbarRecord(nbarHeader);
 		} else {
 			printf("Invalid nbar information - skip record\n");
-		}
 #endif
 
 

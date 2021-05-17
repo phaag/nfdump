@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -61,8 +61,8 @@
 #	define ntohll(n)	(n)
 #	define htonll(n)	(n)
 #else
-#	define ntohll(n)	(((uint64_t)ntohl(n)) << 32) + ntohl((n) >> 32)
-#	define htonll(n)	(((uint64_t)htonl(n)) << 32) + htonl((n) >> 32)
+#	define ntohll(n)	((((uint64_t)ntohl(n)) << 32) + (ntohl((n) >> 32)))
+#	define htonll(n)	((((uint64_t)htonl(n)) << 32) + (htonl((n) >> 32)))
 #endif
 #endif
 

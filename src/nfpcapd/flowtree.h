@@ -48,6 +48,12 @@
 #define v4 ip_addr._v4
 #define v6 ip_addr._v6
 
+typedef struct flowTreeStat_s {
+	size_t activeNodes;
+	size_t flowNodes;
+	size_t fragNodes;
+} flowTreeStat_t;
+
 struct FlowNode {
 	// tree
 	RB_ENTRY(FlowNode) entry;
@@ -164,8 +170,6 @@ void Push_Node(NodeList_t *NodeList, struct FlowNode *node);
 struct FlowNode *Pop_Node(NodeList_t *NodeList);
 
 void Push_SyncNode(NodeList_t *NodeList, time_t timestamp);
-
-void DumpNodeStat(NodeList_t *NodeList);
 
 void DumpList(NodeList_t *NodeList);
 

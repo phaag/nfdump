@@ -33,6 +33,7 @@
 
 #include <time.h>
 
+#include "nfnet.h"
 #include "collector.h"
 #include "flowtree.h"
 
@@ -45,11 +46,18 @@ typedef struct flowParam_s {
 
 	// arguments
 	NodeList_t *NodeList;		// pop new nodes from this list
-	FlowSource_t *fs;
 	int	t_win;
+
+	// flow file
+	FlowSource_t *fs;
 	int	subdir_index;
 	int	compress;
+
+	// send flows
+	repeater_t *sendHost;
+
 	// options
+	int printRecord;
 	int extendedFlow;
 	int addPayload;
 } flowParam_t;

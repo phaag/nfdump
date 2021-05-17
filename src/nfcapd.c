@@ -74,6 +74,7 @@
 #include "netflow_v1.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
+#include "netflow_pcapd.h"
 #include "ipfix.h"
 
 #ifdef HAVE_FTS_H
@@ -140,7 +141,6 @@ static void usage(char *name) {
 					"-l basdir \tset the output directory. (no default) \n"
 					"-S subdir\tSub directory format. see nfcapd(1) for format\n"
 					"-I Ident\tset the ident string for stat file. (default 'none')\n"
-					"-H Add port histogram data to flow file.(default 'no')\n"
 					"-n Ident,IP,logdir\tAdd this flow source - multiple streams\n" 
 					"-N sourceFile\tAdd flows from sourceFile\n"
 					"-M dir \t\tSet the output directory for dynamic sources.\n"
@@ -361,7 +361,7 @@ ssize_t		cnt;
 void 		*in_buff;
 srecord_t	*commbuff;
 
-	if ( !Init_v1(verbose) || !Init_v5_v7_input(verbose, default_sampling, overwrite_sampling) || 
+	if ( !Init_v1(verbose) || !Init_v5_v7_input(verbose, default_sampling, overwrite_sampling) || !Init_pcapd(verbose) ||
 		 !Init_v9(verbose, default_sampling, overwrite_sampling) || !Init_IPFIX(verbose, default_sampling, overwrite_sampling) )
 		return;
 
@@ -668,23 +668,9 @@ srecord_t	*commbuff;
 			case 10: 
 				Process_IPFIX(in_buff, cnt, fs);
 				break;
-			case 255:
-				// blast test header
-				if ( verbose ) {
-					uint16_t count = ntohs(nf_header->count);
-					if ( blast_cnt != count ) {
-							// LogError("Mismatch blast check: Expected %u got %u\n", blast_cnt, count);
-						blast_cnt = count;
-						blast_failures++;
-					} else {
-						blast_cnt++;
-					}
-					if ( blast_cnt == 65535 ) {
-						LogError("Total missed packets: %u", blast_failures);
-						done = 1;
-					}
-					break;
-				}
+			case 240: 
+				Process_pcapd(in_buff, cnt, fs);
+				break;
 			default:
 				// data error, while reading data from socket
 				LogError("Ident: %s, Error reading netflow header: Unexpected netflow version %i", fs->Ident, version);
@@ -696,7 +682,6 @@ srecord_t	*commbuff;
 		}
 		// each Process_xx function has to process the entire input buffer, therefore it's empty now.
 		export_packets++;
-
 	}
 
 	if ( verbose && blast_failures ) {
@@ -760,7 +745,7 @@ char	*pcap_file = NULL;
 	FlowSource		= NULL;
 	dynsrcdir		= NULL;
 
-	while ((c = getopt(argc, argv, "46ef:whEVI:DB:b:jl:J:M:n:N:p:P:R:S:s:t:x:Xru:g:yzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ef:whEVI:DB:b:jl:J:M:n:N:p:P:R:S:s:T:t:x:Xru:g:yzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);

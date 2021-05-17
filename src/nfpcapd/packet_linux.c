@@ -370,8 +370,8 @@ packetParam_t *packetParam = (packetParam_t *)args;
 		queue_close(packetParam->flushQueue);
 	}
 
-	CloseSocket(packetParam);
 	ReportStat(packetParam);
+	CloseSocket(packetParam);
 
 	// Tell parent we are gone
 	pthread_kill(packetParam->parent, SIGUSR1);

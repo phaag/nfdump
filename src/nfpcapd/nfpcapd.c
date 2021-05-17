@@ -77,6 +77,7 @@
 #include "flowtree.h"
 #include "pcapdump.h"
 #include "flowdump.h"
+#include "flowsend.h"
 #include "pcaproc.h"
 
 #define TIME_WINDOW     300
@@ -84,7 +85,6 @@
 #define TIMEOUT         500
 #define FILTER          "ip"
 #define TO_MS			100
-#define DEFAULT_DIR     "/var/tmp"
 
 static int verbose = 0;
 static int done = 0;
@@ -136,6 +136,7 @@ static void usage(char *name) {
 					"-e active,inactive\tset the active,inactive flow expire time (s) - default 300,60\n"
 					"-o options \tAdd flow options, separated with ','. Available: 'fat', 'payload'\n"
 					"-l flowdir \tset the flow output directory. (no default) \n"
+					"-H host[/port]\tSend flows to host or IP address/port. Default port 9995.\n"
 					"-p pcapdir \tset the pcapdir directory. (optional) \n"
 					"-S subdir\tSub directory format. see nfcapd(1) for format\n"
 					"-I Ident\tset the ident string for stat file. (default 'none')\n"
@@ -144,7 +145,7 @@ static void usage(char *name) {
 					"-z\t\tLZO compress flows in output file.\n"
 					"-y\t\tLZ4 compress flows in output file.\n"
 					"-j\t\tBZ2 compress flows in output file.\n"
-					"-E\t\tPrint extended format of netflow data. for debugging purpose only.\n"
+					"-v\t\tverbose logging.\n"
 					"-D\t\tdetach from terminal (daemonize)\n"
 	, name);
 } // End of usage
@@ -398,16 +399,18 @@ static int scanOptions(flowParam_t *flowParam, char *options) {
 int main(int argc, char *argv[]) {
 sigset_t			signal_set;
 struct sigaction	sa;
-int c, snaplen, err, do_daemonize;
+int c, snaplen, bufflen, err, do_daemonize;
 int subdir_index, compress, expire, cache_size, buff_size;
 int activeTimeout, inactiveTimeout;
 dirstat_t 		*dirstat;
+repeater_t		*sendHost;
 time_t 			t_win;
 char 			*device, *pcapfile, *filter, *datadir, *pcap_datadir, *pidfile, *options;
 char			*Ident, *userid, *groupid;
 char			*time_extension;
 
 	snaplen			= 1522;
+	bufflen			= 0;
 	do_daemonize	= 0;
 	launcher_pid	= 0;
 	device			= NULL;
@@ -415,9 +418,10 @@ char			*time_extension;
 	filter			= FILTER;
 	pidfile			= NULL;
 	t_win			= TIME_WINDOW;
-	datadir			= DEFAULT_DIR;
+	datadir			= NULL;
 	pcap_datadir	= NULL;
 	options			= NULL;
+	sendHost		= NULL;
 	userid			= groupid = NULL;
 	Ident			= "none";
 	time_extension	= "%Y%m%d%H%M";
@@ -429,7 +433,7 @@ char			*time_extension;
 	buff_size		= 20;
 	activeTimeout	= 0;
 	inactiveTimeout	= 0;
-	while ((c = getopt(argc, argv, "B:DEI:b:e:g:hi:j:r:s:l:o:p:P:t:u:S:Vyz")) != EOF) {
+	while ((c = getopt(argc, argv, "B:DI:b:e:g:hH:i:j:r:s:l:o:p:P:t:u:S:vVyz")) != EOF) {
 		switch (c) {
 			struct stat fstat;
 			case 'h':
@@ -462,6 +466,28 @@ char			*time_extension;
 					exit(EXIT_FAILURE);
 				}
 				break;
+			case 'H': {
+				if (sendHost) {
+					LogError("ERROR: Host to send flows already defined.");
+					exit(EXIT_FAILURE);
+				} 
+				if (strlen(optarg)>255) {
+					LogError("ERROR: Argument size error.");
+					exit(EXIT_FAILURE);
+				} 
+				sendHost = calloc(1, sizeof(repeater_t));
+				char *port;
+				char *sep = strchr(optarg, '/');
+				if ( sep ) {
+					*sep = '\0';
+					port = sep + 1;
+				} else {
+					port = "9995";
+				}
+				sendHost->family   = AF_UNSPEC;
+				sendHost->hostname = strdup(optarg);
+				sendHost->port 	   = strdup(port);
+				} break;
 			case 'i':
 				device = optarg;
 				break;
@@ -572,8 +598,8 @@ char			*time_extension;
 			case 'S':
 				subdir_index = atoi(optarg);
 				break;
-			case 'E':
-				verbose = 1;
+			case 'v':
+				verbose++;
 				break;
 			case 'V':
 				printf("%s: Version: %s",argv[0], nfdump_version);
@@ -595,6 +621,7 @@ char			*time_extension;
 
 	if ( (device && pcapfile) || (!device && !pcapfile)) {
 		LogError("Specify either a device or a pcapfile");
+		usage(argv[0]);
 		exit(EXIT_FAILURE);
 	}
 
@@ -606,11 +633,28 @@ char			*time_extension;
 		exit(EXIT_FAILURE);
 	}
 
-	
+	if ( (datadir && sendHost) || (!datadir && !sendHost) ) {
+		LogError("Specify either a local directory or a remote host to dump flows.");
+		exit(EXIT_FAILURE);
+	}
+
+	if ( sendHost ) {
+		int p = atoi(sendHost->port);
+		if ( p <= 0 || p > 655535 ) {
+			LogError("ERROR: Port to send flows is not a regular port.");
+			exit(EXIT_FAILURE);
+		}
+		sendHost->sockfd = Unicast_send_socket(sendHost->hostname, sendHost->port, 
+								sendHost->family, bufflen, &(sendHost->addr), &(sendHost->addrlen));
+		if ( sendHost->sockfd <= 0 )
+			exit(EXIT_FAILURE);
+		dbg_printf("Replay flows to host: %s port: %s\n", sendHost->hostname, sendHost->port);
+		flowParam.sendHost = sendHost;
+	} 
+
 	int buffsize = 64*1024;
 	int ret;
 	void *(*packet_thread)(void *) = NULL;
-
 	if ( pcapfile ) {
 		packetParam.live = 0;
 		ret = setup_pcap_file(&packetParam, pcapfile, filter, snaplen);
@@ -636,20 +680,35 @@ char			*time_extension;
 
 	SetPriv(userid, groupid);
 
-	if (pcap_datadir && access(pcap_datadir, W_OK) < 0) {
-		LogError("access() failed for %s: %s", pcap_datadir, strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
-	if (access(datadir, W_OK) < 0) {
-		LogError("access() failed for %s: %s", datadir, strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-
 	FlowSource_t *fs = NULL;
-	if ( datadir != NULL && !AddDefaultFlowSource(&fs, Ident, datadir) ) {
-		LogError("Failed to add default data collector directory");
-		exit(EXIT_FAILURE);
+	if ( datadir ) {
+		if (pcap_datadir && access(pcap_datadir, W_OK) < 0) {
+			LogError("access() failed for %s: %s", pcap_datadir, strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+
+		if (access(datadir, W_OK) < 0) {
+			LogError("access() failed for %s: %s", datadir, strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+
+		if ( datadir != NULL && !AddDefaultFlowSource(&fs, Ident, datadir) ) {
+			LogError("Failed to add default data collector directory");
+			exit(EXIT_FAILURE);
+		}
+
+		if ( !Init_nffile(NULL) )
+			exit(EXIT_FAILURE);
+
+		if ( subdir_index && !InitHierPath(subdir_index) ) {
+			pcap_close(packetParam.pcap_dev);
+			exit(EXIT_FAILURE);
+		}
+
+		if ( InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid(), launcher_pid) != BOOKKEEPER_OK ) {
+			LogError("initialize bookkeeper failed.");
+			exit(EXIT_FAILURE);
+		}
 	}
 
 	if ( !Init_FlowTree(cache_size, activeTimeout, inactiveTimeout)) {
@@ -662,17 +721,7 @@ char			*time_extension;
 		exit(EXIT_FAILURE);
 	}
 
-	if ( !Init_nffile(NULL) )
-		exit(EXIT_FAILURE);
-
-
-	if ( subdir_index && !InitHierPath(subdir_index) ) {
-		pcap_close(packetParam.pcap_dev);
-		exit(EXIT_FAILURE);
-	}
-
 	if ( do_daemonize ) {
-		verbose = 0;
 		daemonize();
 	}
 
@@ -680,12 +729,6 @@ char			*time_extension;
 		if ( check_pid(pidfile) != 0 || write_pid(pidfile) == 0 )
 		pcap_close(packetParam.pcap_dev);
 		exit(EXIT_FAILURE);
-	}
-
-	if ( InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid(), launcher_pid) != BOOKKEEPER_OK ) {
-			LogError("initialize bookkeeper failed.");
-			pcap_close(packetParam.pcap_dev);
-			exit(EXIT_FAILURE);
 	}
 
 	LogInfo("Startup.");
@@ -737,7 +780,12 @@ char			*time_extension;
 	flowParam.subdir_index	  = subdir_index;
 	flowParam.parent		  = pthread_self();
 	flowParam.NodeList	   	  = NewNodeList();
-	err = pthread_create(&flowParam.tid, NULL, flow_thread, (void *)&flowParam);
+	flowParam.printRecord	  = (do_daemonize == 0) && (verbose > 2);
+	if ( sendHost ) {
+		err = pthread_create(&flowParam.tid, NULL, sendflow_thread, (void *)&flowParam);
+	} else {
+		err = pthread_create(&flowParam.tid, NULL, flow_thread, (void *)&flowParam);
+	}
 	if ( err ) {
 		LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 		exit(EXIT_FAILURE);
@@ -777,13 +825,14 @@ char			*time_extension;
    	pthread_join(flowParam.tid, NULL);
 	dbg_printf("Flow thread joined\n");
 
-	if ( expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK ) {
-		UpdateBookStat(dirstat, fs->bookkeeper);
-		WriteStatInfo(dirstat);
-		LogInfo("Updating statinfo in directory '%s'", datadir);
+	if ( datadir ) {
+		if ( expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK ) {
+			UpdateBookStat(dirstat, fs->bookkeeper);
+			WriteStatInfo(dirstat);
+			LogInfo("Updating statinfo in directory '%s'", datadir);
+		}
+		ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
 	}
-
-	ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
 
 	LogInfo("Total: Processed: %u, skipped: %u, short caplen: %u, unknown: %u\n", 
 		packetParam.proc_stat.packets, packetParam.proc_stat.skipped,

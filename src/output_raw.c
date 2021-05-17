@@ -34,14 +34,12 @@
 #include <stddef.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <stdint.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
+#include <ctype.h>
 #include <string.h>
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #include "util.h"
 #include "nfdump.h"
@@ -57,35 +55,6 @@
 
 // record counter 
 static uint32_t recordCount;
-
-static void DumpHex(FILE *stream, const void* data, size_t size) {
-	char ascii[17];
-	size_t i, j;
-	ascii[16] = '\0';
-	for (i = 0; i < size; ++i) {
-		fprintf(stream, "%02X ", ((unsigned char*)data)[i]);
-		if (((unsigned char*)data)[i] >= ' ' && ((unsigned char*)data)[i] <= '~') {
-			ascii[i % 16] = ((unsigned char*)data)[i];
-		} else {
-			ascii[i % 16] = '.';
-		}
-		if ((i+1) % 8 == 0 || i+1 == size) {
-			fprintf(stream, " ");
-			if ((i+1) % 16 == 0) {
-				fprintf(stream, "|  %s \n", ascii);
-			} else if (i+1 == size) {
-				ascii[(i+1) % 16] = '\0';
-				if ((i+1) % 16 <= 8) {
-					fprintf(stream, " ");
-				}
-				for (j = (i+1) % 16; j < 16; ++j) {
-					fprintf(stream, "   ");
-				}
-				fprintf(stream, "|  %s \n", ascii);
-			}
-		}
-	}
-}
 
 static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
 char datestr1[64], datestr2[64], datestr3[64];
@@ -537,11 +506,25 @@ static void stringsEXinPayload(FILE *stream, master_record_t *r) {
 	fprintf(stream,
 "  in payload   =        %10u\n"
 , r->inPayloadLength);
-	if ( r->srcPort == 53 ||  r->dstPort == 53) {
+	if (r->srcPort == 53 || r->dstPort == 53) {
 		content_decode_dns((uint8_t *)r->inPayload, r->inPayloadLength);
+	} else if (r->srcPort == 80 || r->dstPort == 80) {
+		int ascii = 1;
+		int max = r->inPayloadLength > 512 ? 512 : r->inPayloadLength;
+		for(int i=0; i<max; i++) {
+			if ( (r->inPayload[i] < ' ' || r->inPayload[i] > '~') && r->inPayload[i] != '\n' && r->inPayload[i] != '\r') {
+				ascii = 0;
+			}
+		}
+		if (ascii) {
+			fprintf(stream, "%.*s\n", max, r->inPayload);
+		} else {
+			DumpHex(stream, r->inPayload, r->inPayloadLength > 512 ? 512 : r->inPayloadLength);
+		}
 	} else {
 		DumpHex(stream, r->inPayload, r->inPayloadLength > 512 ? 512 : r->inPayloadLength);
 	}
+
 } // End of stringsEXinPayload
 
 static void stringsEXoutPayload(FILE *stream, master_record_t *r) {
@@ -552,41 +535,24 @@ static void stringsEXoutPayload(FILE *stream, master_record_t *r) {
 	DumpHex(stream, r->outPayload, r->outPayloadLength > 512 ? 512 : r->outPayloadLength);
 	if ( r->srcPort == 53 ||  r->dstPort == 53) {
 		content_decode_dns((uint8_t *)r->outPayload, r->outPayloadLength);
+	} else if (r->srcPort == 80 || r->dstPort == 80) {
+		int ascii = 1;
+		int max = r->outPayloadLength > 512 ? 512 : r->outPayloadLength;
+		for(int i=0; i<max; i++) {
+			if ( (r->outPayload[i] < ' ' || r->outPayload[i] > '~') && r->outPayload[i] != '\n' && r->outPayload[i] != '\r') {
+				ascii = 0;
+			}
+		}
+		if (ascii) {
+			fprintf(stream, "%.*s\n", max, r->outPayload);
+		} else {
+			DumpHex(stream, r->outPayload, r->outPayloadLength > 512 ? 512 : r->outPayloadLength);
+		}
+	} else {
+		DumpHex(stream, r->outPayload, r->outPayloadLength > 512 ? 512 : r->outPayloadLength);
 	}
 
 } // End of stringsEXoutPayload
-
-static void stringsEXdnsInfo(FILE *stream, master_record_t *r) {
-/*
-	char *rrCode = "undef";
-	switch (r->RRsection) {
-		case 0:
-			rrCode = "query section";
-			break;
-		case 1:
-			rrCode = "answer section";
-			break;
-		case 2:
-			rrCode = "name server section";
-			break;
-		case 3:
-			rrCode = "additional section";
-			break;
-	}
-	fprintf(stream,
-"  dns type     =               %3u %s\n"
-"  dns query    =        %10u\n"
-"  dns resouce  =               %3u %s\n"
-"  dns auth     =        %10u\n"
-"  dns ID       =        %10u\n"
-"  dns TTL      =        %10u\n"
-"  dns Qname    =               %3u %s\n"
-, r->QueryResponse, r->QueryResponse == 0 ? "query" : "response", r->QueryType
-, r->RRsection, rrCode, r->Authoritative, r->ID, r->TTL
-, r->QnameLength, r->QnameLength ? r->Qname : "<empty>");
-*/
-} // End of stringsEXdnsInfo
-
 
 void raw_prolog(void) {
 	recordCount = 0;

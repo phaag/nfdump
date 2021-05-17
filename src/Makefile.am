@@ -32,6 +32,7 @@ collector = collector.c collector.h
 nfv1 = netflow_v1.c netflow_v1.h
 nfv5v7 = netflow_v5_v7.c netflow_v5_v7.h
 nfv9 = netflow_v9.c netflow_v9.h fnf.h
+nfpcapd = netflow_pcapd.c netflow_pcapd.h
 ipfix = ipfix.c ipfix.h fnf.h
 nfstatfile = nfstatfile.c nfstatfile.h
 nflowcache = nflowcache.c nflowcache.h memhandle.h 
@@ -50,7 +51,7 @@ nfreplay_LDADD = lib/libnfdump.la
 
 nfcapd_SOURCES = nfcapd.c \
 	$(nfstatfile) $(launch) \
-	$(nfnet) $(collector) $(nfv1) $(nfv5v7) $(nfv9) $(ipfix) $(bookkeeper) $(expire)
+	$(nfnet) $(collector) $(nfv1) $(nfv5v7) $(nfv9) $(ipfix) $(nfpcapd) $(bookkeeper) $(expire)
 nfcapd_LDADD = lib/libnfdump.la
 nfcapd_LDFLAGS = -Llib
 

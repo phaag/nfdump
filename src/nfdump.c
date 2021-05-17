@@ -459,7 +459,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 		convertedV2 = calloc(1, 4096);	// one size fits all
 		if ( !convertedV2 ) {
 			LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 	}
 
@@ -520,7 +520,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 			record_header_t	*process_ptr = record_ptr;
 			if ( (sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t)) ) {
 				LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
-				exit(255);
+				exit(EXIT_FAILURE);
 			}
 			sumSize += record_ptr->size;
 
@@ -529,7 +529,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 				case CommonRecordType: {
 					int match;
 					memset((void *)master_record, 0, sizeof(master_record_t));
-					if ( record_ptr->type == CommonRecordType ) {
+					if (__builtin_expect(record_ptr->type == CommonRecordType, 0) ) {
 						if ( !ExpandRecord_v2(record_ptr, master_record)) {
 							goto NEXT;
 						}
@@ -544,7 +544,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 					}
 
 					processed++;
-					if ( HasGeoDB && Engine->geoFilter ) {
+					if ( Engine->geoFilter ) {
 						AddGeoInfo(master_record);
 					}
 					// Time based filter
@@ -595,7 +595,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 							// mutually exclusive conditions should prevent executing this code
 							// this is buggy!
 							printf("Bug! - this code should never get executed in file %s line %d\n", __FILE__, __LINE__);
-							exit(255);
+							exit(EXIT_FAILURE);
 						}
 					} // sort_flows - else
 					} break; 
@@ -603,7 +603,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 					extension_map_t *map = (extension_map_t *)record_ptr;
 					if ( Insert_Extension_Map(extension_map_list, map) < 0 ) {
 						LogError("Corrupt data file. Unable to decode at %s line %d\n", __FILE__, __LINE__);
-						exit(255);
+						exit(EXIT_FAILURE);
 					}
 					} break;
 				case ExporterInfoRecordType: {
@@ -728,7 +728,7 @@ flist_t 	flist;
 	outputParams	= calloc(1, sizeof(outputParams_t));
 	if ( !outputParams ) {
 		LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-		exit(255);
+		exit(EXIT_FAILURE);
 	}
 	outputParams->topN = -1;
 
@@ -737,7 +737,7 @@ flist_t 	flist;
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
-				exit(0);
+				exit(EXIT_SUCCESS);
 				break;
 			case 'a':
 				aggregate = 1;
@@ -745,15 +745,15 @@ flist_t 	flist;
 			case 'A':
 				if (strlen(optarg) > 64) {
 					LogError("Aggregate mask format length error");
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				if (aggregate_mask) {
 					LogError("Multiple aggregation masks not allowed");
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				aggr_fmt = ParseAggregateMask(optarg);
 				if (!aggr_fmt) {
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				aggregate_mask = 1;
 				break;
@@ -761,7 +761,7 @@ flist_t 	flist;
 				GuessDir = 1;
 			case 'b':
 				if ( !SetBidirAggregation() ) {
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				bidir	  = 1;
 				// implies
@@ -770,23 +770,23 @@ flist_t 	flist;
 			case 'D':
 				nameserver = optarg;
 				if ( !set_nameserver(nameserver) ) {
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				break;
 			case 'E': {
 				if ( !InitExporterList() ) {
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				flist.single_file = strdup(optarg);
 				queue_t *fileList = SetupInputFileSequence(&flist);
 				if ( !fileList || !Init_nffile(fileList) )
-					exit(255);
+					exit(EXIT_FAILURE);
 				PrintExporters();
-				exit(0);
+				exit(EXIT_SUCCESS);
 				} break;
 			case 'G':
 				if ( !CheckPath(optarg, S_IFREG) )
-					exit(255);
+					exit(EXIT_FAILURE);
 				geo_file = strdup(optarg);
 				break;
 			case 'X':
@@ -801,21 +801,21 @@ flist_t 	flist;
 			case 'j':
 				if ( compress ) {
 					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				compress = BZ2_COMPRESSED;
 				break;
 			case 'y':
 				if ( compress ) {
 					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				compress = LZ4_COMPRESSED;
 				break;
 			case 'z':
 				if ( compress ) {
 					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				compress = LZO_COMPRESSED;
 				break;
@@ -823,13 +823,13 @@ flist_t 	flist;
 				limitRecords = atoi(optarg);
 				if ( !limitRecords ) {
 					LogError("Option -c needs a number > 0\n");
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				break;
 			case 's':
 				stat_type = optarg;
                 if ( !SetStat(stat_type, &element_stat, &flow_stat) ) {
-                    exit(255);
+                    exit(EXIT_FAILURE);
                 } 
 				break;
 			case 'V': {
@@ -840,14 +840,14 @@ flist_t 	flist;
 				e1 = "NSEL-NEL";
 #endif
 				printf("%s: Version: %s%s%s\n",argv[0], e1, e2, nfdump_version);
-				exit(0);
+				exit(EXIT_SUCCESS);
 				} break;
 			case 'l':
 				packet_limit_string = optarg;
 				break;
 			case 'K':
 				LogError("*** Anonymisation moved! Use nfanon to anonymise flows!");
-				exit(255);
+				exit(EXIT_FAILURE);
 				break;
 			case 'L':
 				byte_limit_string = optarg;
@@ -863,7 +863,7 @@ flist_t 	flist;
 				break;
 			case 'r':
 				if ( !CheckPath(optarg, S_IFREG) )
-					exit(255);
+					exit(EXIT_FAILURE);
 				flist.single_file = strdup(optarg);
 				break;
 			case 'm':
@@ -873,7 +873,7 @@ flist_t 	flist;
 				break;
 			case 'M':
 				if ( strlen(optarg) > MAXPATHLEN )
-					exit(255);
+					exit(EXIT_FAILURE);
 				flist.multiple_dirs = strdup(optarg);
 				break;
 			case 'I':
@@ -884,7 +884,7 @@ flist_t 	flist;
 				// limit input chars
 				if ( strlen(print_format) > 512 ) {
 					LogError("Length of ouput format string too big - > 512");
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				break;
 			case 'O': {	// stat order by
@@ -893,12 +893,12 @@ flist_t 	flist;
 				ret = Parse_PrintOrder(print_order);
 				if ( ret < 0 ) {
 					LogError("Unknown print order '%s'", print_order);
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				} break;
 			case 'R':
 				if ( strlen(optarg) > MAXPATHLEN )
-					exit(255);
+					exit(EXIT_FAILURE);
 				flist.multiple_files = strdup(optarg);
 				break;
 			case 'w':
@@ -908,7 +908,7 @@ flist_t 	flist;
 				outputParams->topN = atoi(optarg);
 				if ( outputParams->topN < 0 ) {
 					LogError("TopnN number %i out of range", outputParams->topN);
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				break;
 			case 'T':
@@ -919,14 +919,14 @@ flist_t 	flist;
 				Ident[IDENTLEN - 1] = 0;
 				if ( strchr(Ident, ' ') ) {
 					LogError("Ident must not contain spaces");
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				break;
 			case 'J':
 				ModifyCompress = atoi(optarg);
 				if ( (ModifyCompress < 0) || (ModifyCompress > 3) ) {
 					LogError("Expected -J <num>, 0: uncompressed, 1: LZO, 2: BZ2, 3: LZ4 compressed");
-					exit(255);
+					exit(EXIT_FAILURE);
 				}
 				break;
 			case 'x': {
@@ -934,28 +934,28 @@ flist_t 	flist;
 				flist.single_file = strdup(optarg);
 				queue_t *fileList = SetupInputFileSequence(&flist);
 				if ( !fileList || !Init_nffile(fileList) )
-					exit(255);
+					exit(EXIT_FAILURE);
 				DumpExMaps();
-				exit(0);
+				exit(EXIT_SUCCESS);
 				} break;
 			case 'v':
 				query_file = optarg;
 				if ( !QueryFile(query_file))
-					exit(255);
+					exit(EXIT_FAILURE);
 				else
-					exit(0);
+					exit(EXIT_SUCCESS);
 				break;
 			case '6':	// print long IPv6 addr
 				Setv6Mode(1);
 				break;
 			default:
 				usage(argv[0]);
-				exit(0);
+				exit(EXIT_SUCCESS);
 		}
 	}
 	if (argc - optind > 1) {
 		usage(argv[0]);
-		exit(255);
+		exit(EXIT_FAILURE);
 	} else {
 		filter = argv[optind];
 		FilterFilename = NULL;
@@ -964,23 +964,23 @@ flist_t 	flist;
 	if ( !filter && ffile ) {
 		if ( stat(ffile, &stat_buff) ) {
 			LogError("Can't stat filter file '%s': %s", ffile, strerror(errno));
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 		filter = (char *)malloc(stat_buff.st_size+1);
 		if ( !filter ) {
 			LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 		ffd = open(ffile, O_RDONLY);
 		if ( ffd < 0 ) {
 			LogError("Can't open filter file '%s': %s", ffile, strerror(errno));
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 		ret = read(ffd, (void *)filter, stat_buff.st_size);
 		if ( ret < 0   ) {
 			LogError("Error reading filter file %s: %s", ffile, strerror(errno));
 			close(ffd);
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 		filter[stat_buff.st_size] = 0;
 		close(ffd);
@@ -999,11 +999,11 @@ flist_t 	flist;
 	if ( fdump ) {
 		printf("StartNode: %i Engine: %s\n", Engine->StartNode, Engine->Extended ? "Extended" : "Fast");
 		DumpEngine(Engine);
-		exit(0);
+		exit(EXIT_SUCCESS);
 	}
 
 	if ( syntax_only )
-		exit(0);
+		exit(EXIT_SUCCESS);
 	
 	if ( outputParams->topN < 0 ) {
 		if ( flow_stat || element_stat ) {
@@ -1026,56 +1026,59 @@ flist_t 	flist;
 
 	extension_map_list = InitExtensionMaps(NEEDS_EXTENSION_LIST);
 	if ( !InitExporterList() ) {
-		exit(255);
+		exit(EXIT_FAILURE);
 	}
 
 	if ( tstring ) {
 		flist.timeWindow = ScanTimeFrame(tstring);
 		if ( !flist.timeWindow ) 
-			exit(255);
+			exit(EXIT_FAILURE);
 	}
 
 	queue_t *fileList = SetupInputFileSequence(&flist);
 	if ( !fileList || !Init_nffile(fileList) )
-		exit(255);
+		exit(EXIT_FAILURE);
 
 	if (geo_file == NULL) {
 		char *f = getenv("NFGEODB");
 		if ( f && !CheckPath(f, S_IFREG) ) {
 			LogError("Error reading geo location DB file %s", f);
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 		geo_file = f;
 	}
 	if ( geo_file ) {
 		if ( !Init_MaxMind() || !LoadMaxMind(geo_file) ) {
 			LogError("Error reading geo location DB file %s", geo_file);
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 		HasGeoDB = 1;
 	}
-
+	if ( HasGeoDB == 0 && Engine->geoFilter ) {
+		LogError("Can not filter according geo elements without a geo location DB");
+		exit(EXIT_FAILURE);
+	}
 	// Modify compression
 	if ( ModifyCompress >= 0 ) {
 		if ( !flist.single_file && !flist.multiple_files ) {
 			LogError("Expected -r <file> or -R <dir> to change compression\n");
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 		ModifyCompressFile(ModifyCompress);
-		exit(0);
+		exit(EXIT_SUCCESS);
 	}
 
 	// Change Ident only
 	if ( flist.single_file && strlen(Ident) > 0 ) {
 		ChangeIdent(flist.single_file, Ident);
-		exit(0);
+		exit(EXIT_SUCCESS);
 	}
 
 	if ( print_stat ) {
 		nffile_t *nffile;
 		if ( !flist.single_file && !flist.multiple_files && !flist.multiple_dirs) {
 			LogError("Expect data file(s).\n");
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 
 		memset((void *)&sum_stat, 0, sizeof(stat_record_t));
@@ -1095,7 +1098,7 @@ flist_t 	flist;
 			nffile = GetNextFile(nffile);
 		}
 		PrintStat(&sum_stat, ident);
-		exit(0);
+		exit(EXIT_SUCCESS);
 	}
 
 	// handle print mode
@@ -1107,7 +1110,7 @@ flist_t 	flist;
 			print_format = malloc(len);
 			if ( !print_format ) {
 				LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno) );
-				exit(255);
+				exit(EXIT_FAILURE);
 			}
 			snprintf(print_format, len, "fmt:%s %s %s",AggrPrependFmt, aggr_fmt, AggrAppendFmt );
 			print_format[len-1] = '\0';
@@ -1122,12 +1125,12 @@ flist_t 	flist;
 		char *format = &print_format[4];
 		if ( strlen(format) ) {
 			if ( !ParseOutputFormat(format, outputParams->printPlain, printmap) )
-				exit(255);
+				exit(EXIT_FAILURE);
 			print_record  = format_special;
 			print_prolog  = text_prolog;
 		} else {
 			LogError("Missing format description for user defined output format!\n");
-			exit(255);
+			exit(EXIT_FAILURE);
 		}
 	} else {
 		// predefined output format
@@ -1147,7 +1150,7 @@ flist_t 	flist;
 			if ( strncasecmp(print_format, printmap[i].printmode, MAXMODELEN) == 0 ) {
 				if ( printmap[i].Format ) {
 					if ( !ParseOutputFormat(printmap[i].Format, outputParams->printPlain, printmap) )
-						exit(255);
+						exit(EXIT_FAILURE);
 					// predefined custom format
 					print_record  = printmap[i].func_record;
 					print_prolog  = printmap[i].func_prolog;
@@ -1176,7 +1179,7 @@ flist_t 	flist;
 
 	if ( !print_record ) {
 		LogError("Unknown output mode '%s'\n", print_format);
-		exit(255);
+		exit(EXIT_FAILURE);
 	}
 
 	if ( aggregate && (flow_stat || element_stat) ) {
@@ -1186,7 +1189,7 @@ flist_t 	flist;
 
 	if ( print_order && flow_stat ) {
 		printf("-s record and -O (-m) are mutually exclusive options\n");
-		exit(255);
+		exit(EXIT_FAILURE);
 	}
 
 	if ((aggregate || flow_stat || print_order)  && !Init_FlowCache() )
@@ -1215,7 +1218,7 @@ flist_t 	flist;
 		if ( wfile ) {
 			nffile_t *nffile = OpenNewFile(wfile, NULL, compress, NOT_ENCRYPTED );
 			if ( !nffile ) 
-				exit(255);
+				exit(EXIT_FAILURE);
 			if ( ExportFlowTable(nffile, aggregate, bidir, GuessDir) ) {
 				CloseUpdateFile(nffile);	
 			} else {

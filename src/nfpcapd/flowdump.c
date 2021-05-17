@@ -58,7 +58,7 @@
 #include "queue.h"
 #include "flowdump.h"
 
-static int printRecord;
+static int printRecord = 0;
 #include "nffile_inline.c"
 
 #define UpdateRecordSize(s) recordSize += (s); \
@@ -223,10 +223,6 @@ FlowSource_t *fs = flowParam->fs;
 static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
 
 	char FullName[MAXPATHLEN];
-	uint32_t NumFlows = 0;
-
-	// flush all flows to disk
-	DumpNodeStat(flowParam->NodeList);
 
 	char *time_extension = "%Y%m%d%H%M";
 	struct tm *when = localtime(&timestamp);
@@ -305,9 +301,9 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
 		UpdateBooks(fs->bookkeeper, timestamp, 512*fstat.st_blocks);
 	}
 
-	LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Max Flows: %u, Fragments: %u", 
+	LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu", 
 		fs->Ident, (unsigned long long)nffile->stat_record->numflows, (unsigned long long)nffile->stat_record->numpackets, 
-		(unsigned long long)nffile->stat_record->numbytes, NumFlows, 0);
+		(unsigned long long)nffile->stat_record->numbytes);
 
 	// reset stats
 	fs->bad_packets = 0;
@@ -326,6 +322,7 @@ flowParam_t *flowParam = (flowParam_t *)thread_data;
 int compress	 	 = flowParam->compress;
 FlowSource_t *fs	 = flowParam->fs;
 
+	printRecord = flowParam->printRecord;
 	// prepare file
 	fs->nffile = OpenNewFile(fs->current, NULL, compress, NOT_ENCRYPTED);
 	if ( !fs->nffile ) {

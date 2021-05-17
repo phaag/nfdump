@@ -52,6 +52,8 @@ static int ExtendCache(void);
 
 static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2);
 
+static void DumpTreeStat(NodeList_t *NodeList);
+
 // Insert the IP RB tree code here
 RB_GENERATE(FlowTree, FlowNode, entry, FlowNodeCMP);
 
@@ -64,19 +66,20 @@ static uint32_t FlowCacheSize = 0;
 static time_t   lastExpire = 0;
 static uint32_t expireActiveTimeout = 300;
 static uint32_t expireInactiveTimeout = 60;
-static struct FlowNode *FlowElementCache;
+static struct FlowNode *FlowElementCache = NULL;
 
 // free list 
-static struct FlowNode *FlowNode_FreeList;
+static struct FlowNode *FlowNode_FreeList = NULL;
 static pthread_mutex_t m_FreeList = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  c_FreeList = PTHREAD_COND_INITIALIZER;
-static uint32_t	EmptyFreeList;
+static uint32_t	EmptyFreeList = 0;
 static uint32_t	EmptyFreeListEvents = 0;
-static uint32_t	Allocated;
+static uint32_t	Allocated = 0;
 
 // Flow tree
-static FlowTree_t *FlowTree;
+static FlowTree_t *FlowTree = NULL;
 static int NumFlows = 0;
+static flowTreeStat_t flowTreeStat = {0};
 
 // Simple unprotected list
 typedef struct FlowNode_list_s {
@@ -291,6 +294,9 @@ struct FlowNode *n;
 	if ( n ) { // existing node
 		return n;
 	} else {
+		flowTreeStat.activeNodes++;
+		if (node->nodeType == FLOW_NODE) flowTreeStat.flowNodes++;
+		else if (node->nodeType == FRAG_NODE) flowTreeStat.fragNodes++;
 		NumFlows++;
 		return NULL;
 	}
@@ -389,34 +395,36 @@ struct FlowNode *node, *nxt;
 	if ( NumFlows == 0 )
 		return 0;
 
-	uint32_t expireCnt = 0;
-	uint32_t fragCnt   = 0;
+	uint32_t flowCnt = 0;
+	uint32_t fragCnt = 0;
 	// Dump all incomplete flows to the file
 	nxt = NULL;
 	for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
 		nxt = RB_NEXT(FlowTree, FlowTree, node);
-		if ( when == 0 || 
-			 // inactive timeout
-			 (when - node->t_last.tv_sec) > expireInactiveTimeout || 
-			 // active timeout
-			 (when - node->t_first.tv_sec) > expireActiveTimeout  ||
-			 // fragment assembly timeout
-			 (node->nodeType == FRAG_NODE && (when - node->t_last.tv_sec) > 15)) {
-			Remove_Node(node);
-			if ( node->nodeType == FRAG_NODE ) {
-				fragCnt++;
-				Free_Node(node);
-			} else {
+		if ((node->nodeType == FLOW_NODE) &&
+			// inactive timeout
+			((when - node->t_last.tv_sec) > expireInactiveTimeout || 
+			// active timeout
+		    (when - node->t_first.tv_sec) > expireActiveTimeout || when == 0)) {
+				Remove_Node(node);
 				Push_Node(NodeList, node);
-			}
-			expireCnt++;
-		}
+				flowTreeStat.activeNodes--;
+				flowTreeStat.flowNodes--;
+				flowCnt++;
+		} else if ((node->nodeType == FRAG_NODE) &&
+			((when - node->t_last.tv_sec) > 15 || when == 0)) {
+				Remove_Node(node);
+				Free_Node(node);
+				flowTreeStat.activeNodes--;
+				flowTreeStat.fragNodes--;
+		} 
 	}
-	if ( expireCnt ) 
-		LogVerbose("Expired Nodes: %u, frag nodes: %u, in use: %u, total flows: %u", 
-			expireCnt, fragCnt, Allocated, NumFlows);
+
+	if ( flowCnt || fragCnt ) 
+		LogVerbose("Expired flow nodes: %u, expired frag nodes: %u, active tree nodes: %u, allocated nodes %u", 
+			flowCnt, fragCnt, flowTreeStat.activeNodes, Allocated);
 	
-	return NumFlows;
+	return flowCnt + fragCnt;
 } // End of Expire_FlowTree
 
 
@@ -454,11 +462,11 @@ void DisposeNodeList(NodeList_t *NodeList) {
 
 } // End of DisposeNodeList
 
-void DumpNodeStat(NodeList_t *NodeList) {
-	LogInfo("Nodes in use: %u, Flows: %u, Nodes list length: %u, Waiting for freelist: %u", 
-		Allocated, NumFlows, NodeList->length, EmptyFreeListEvents);
+static void DumpTreeStat(NodeList_t *NodeList) {
+	LogInfo("Nodes: in use: %u, Flows: %u, Frag: %u, Nodes list length: %u, Waiting for freelist: %u", 
+		Allocated, flowTreeStat.activeNodes, flowTreeStat.fragNodes, NodeList->length, EmptyFreeListEvents);
 	EmptyFreeListEvents = 0;
-} // End of DumpNodeStat
+} // End of DumpTreeStat
 
 
 void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
@@ -527,6 +535,7 @@ void Push_SyncNode(NodeList_t *NodeList, time_t timestamp) {
 	Node->nodeType  = SIGNAL_NODE;
 	Node->fin		= SIGNAL_SYNC;
 	Push_Node(NodeList, Node);
+	DumpTreeStat(NodeList);
 
 } // End of Push_SyncNode
 

@@ -42,6 +42,11 @@ typedef struct element_s {
 	void	*data;
 } element_t;
 
+typedef struct queueStat_s {
+	size_t		maxUsed;
+	size_t		length;
+} queueStat_t;
+
 typedef struct queue_s {
 	pthread_mutex_t mutex;
 	pthread_cond_t  cond;
@@ -54,8 +59,8 @@ typedef struct queue_s {
 	unsigned	c_wait;
 	unsigned	p_wait;
 	size_t		num_elements;
-	size_t		max_used;
 
+	queueStat_t	stat;
 	void		*element[1];
 } queue_t;
 
@@ -72,6 +77,8 @@ void queue_open(queue_t *queue);
 void queue_close(queue_t *queue);
 
 void queue_sync(queue_t *queue);
+
+queueStat_t queue_stat(queue_t *queue);
 
 size_t queue_length(queue_t *queue);
 

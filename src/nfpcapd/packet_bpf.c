@@ -155,7 +155,6 @@ int setup_bpf_live(packetParam_t *param, char *device, char *filter, int snaplen
 		close(bpf);
 		return -1;
 	}
-	LogError("datalink type=%u", dlt);
 
 	switch (dlt) {
 		case DLT_RAW:
@@ -211,12 +210,11 @@ struct bpf_stat pstat;
 	if (ioctl(param->bpf, BIOCGSTATS, &pstat) < 0) {
 		LogError("ioctl(BIOCGSTATS) failed: %s", strerror(errno));
 	} else {
-		LogInfo("Stat: received: %d, dropped by OS/Buffer: %d",
-			pstat.bs_recv - last_stat.bs_recv, pstat.bs_drop - last_stat.bs_drop);
 		last_stat = pstat;
 	}
 
-	LogInfo("Processed: %u, skipped: %u, short caplen: %u, unknown: %u", 
+	LogInfo("Packets kernel received: %d, dropped by OS/Buffer: %d, processed: %u, skipped: %u, short caplen: %u, unknown: %u", 
+		pstat.bs_recv - last_stat.bs_recv, pstat.bs_drop - last_stat.bs_drop, 
 		param->proc_stat.packets - proc_stat.packets, param->proc_stat.skipped - proc_stat.skipped,
 		param->proc_stat.short_snap - proc_stat.short_snap, param->proc_stat.unknown - proc_stat.unknown);
 
@@ -360,8 +358,8 @@ packetParam_t *packetParam = (packetParam_t *)args;
 		queue_close(packetParam->flushQueue);
 	}
 
-	CloseSocket(packetParam);
 	ReportStat(packetParam);
+	CloseSocket(packetParam);
 	packetParam->t_win = t_start;
 
 	// Tell parent we are gone

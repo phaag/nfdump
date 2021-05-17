@@ -115,6 +115,16 @@ size_t queue_length(queue_t *queue){
 
 } // End of queue_length
 
+queueStat_t queue_stat(queue_t *queue) {
+
+	pthread_mutex_lock(&(queue->mutex));
+	queueStat_t stat = queue->stat;
+	stat.length = queue->num_elements;
+	queue->stat.maxUsed = 0;
+	pthread_mutex_unlock(&(queue->mutex));
+	return stat;
+} // End of queue_stat
+
 uint32_t queue_done(queue_t *queue){
 
 	pthread_mutex_lock(&(queue->mutex));
@@ -164,8 +174,8 @@ void *queue_push(queue_t *queue, void *data) {
 			queue->num_elements++;
 			queue->next_free = ( queue->next_free + 1 ) & queue->mask;
 
-			if ( queue->max_used < queue->num_elements ) 
-				queue->max_used = queue->num_elements;
+			if ( queue->stat.maxUsed < queue->num_elements ) 
+				queue->stat.maxUsed = queue->num_elements;
 
 			if ( queue->c_wait ) {
 				pthread_cond_signal(&(queue->cond));

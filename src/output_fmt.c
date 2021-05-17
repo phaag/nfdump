@@ -54,6 +54,7 @@
 #include "maxmind.h"
 #include "output_util.h"
 #include "output_fmt.h"
+#include "content_dns.h"
 
 typedef void (*string_function_t)(FILE *, master_record_t *);
 
@@ -242,6 +243,12 @@ static void String_SrcLocation(FILE *stream, master_record_t *r);
 
 static void String_DstLocation(FILE *stream, master_record_t *r);
 
+static void String_inPayload(FILE *stream, master_record_t *r);
+
+static void String_outPayload(FILE *stream, master_record_t *r);
+
+static void String_NewLine(FILE *stream, master_record_t *r);
+
 #ifdef NSEL
 static void String_EventTime(FILE *stream, master_record_t *r);
 
@@ -370,6 +377,9 @@ static struct format_token_list_s {
 	{ "%dc", 0, "  ", 			 			String_DstCountry },	// dst IP 2 letter country code
 	{ "%sloc", 0, "Src IP location info",	String_SrcLocation },	// src IP geo location info
 	{ "%dloc", 0, "Src IP location info",	String_DstLocation },	// src IP geo location info
+	{ "%n", 0, "", 			 				String_NewLine },		// \n
+	{ "%ipl", 0, "", 			 			String_inPayload },		// in payload
+	{ "%opl", 0, "", 			 			String_outPayload },	// out payload
 
 #ifdef NSEL
 // NSEL specifics
@@ -718,6 +728,54 @@ static void String_LastSeenRaw(FILE *stream, master_record_t *r) {
 
 } // End of String_LastSeenRaw
 
+
+static void String_inPayload(FILE *stream, master_record_t *r) {
+	if (r->srcPort == 53 || r->dstPort == 53) {
+		content_decode_dns((uint8_t *)r->inPayload, r->inPayloadLength);
+	} else if (r->srcPort == 80 || r->dstPort == 80) {
+		int ascii = 1;
+		int max = r->inPayloadLength > 128 ? 128 : r->inPayloadLength;
+		for(int i=0; i<max; i++) {
+			if ( (r->inPayload[i] < ' ' || r->inPayload[i] > '~') && r->inPayload[i] != '\n' && r->inPayload[i] != '\r') {
+				ascii = 0;
+			}
+		}
+		if (ascii) {
+			fprintf(stream, "%.*s\n", max, r->inPayload);
+		} else {
+			DumpHex(stream, r->inPayload, r->inPayloadLength > 128 ? 128 : r->inPayloadLength);
+		}
+	} else {
+		DumpHex(stream, r->inPayload, r->inPayloadLength > 128 ? 128 : r->inPayloadLength);
+	}
+
+} // End of String_inPayload
+
+static void String_outPayload(FILE *stream, master_record_t *r) {
+	if (r->srcPort == 53 || r->dstPort == 53) {
+		content_decode_dns((uint8_t *)r->outPayload, r->outPayloadLength);
+	} else if (r->srcPort == 80 || r->dstPort == 80) {
+		int ascii = 1;
+		int max = r->outPayloadLength > 128 ? 128 : r->outPayloadLength;
+		for(int i=0; i<max; i++) {
+			if ( (r->outPayload[i] < ' ' || r->outPayload[i] > '~') && r->outPayload[i] != '\n' && r->outPayload[i] != '\r') {
+				ascii = 0;
+			}
+		}
+		if (ascii) {
+			fprintf(stream, "%.*s\n", max, r->outPayload);
+		} else {
+			DumpHex(stream, r->outPayload, r->outPayloadLength > 128 ? 128 : r->outPayloadLength);
+		}
+	} else {
+		DumpHex(stream, r->outPayload, r->outPayloadLength > 128 ? 128 : r->outPayloadLength);
+	}
+
+} // End of String_outPayload
+
+static void String_NewLine(FILE *stream, master_record_t *r) {
+	fprintf(stream, "\n");
+} // End of String_NewLine
 
 #ifdef NSEL
 static void String_EventTime(FILE *stream, master_record_t *r) {

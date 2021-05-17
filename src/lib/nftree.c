@@ -191,7 +191,7 @@ int	ret;
 	engine->ident	  = NULL;
 	engine->StartNode = StartNode;
 	engine->Extended  = Extended;
-	engine->geoFilter  = geoFilter;
+	engine->geoFilter = geoFilter;
 	engine->IdentList = IdentList;
 	engine->filter 	  = FilterTree;
 	if ( Extended ) 

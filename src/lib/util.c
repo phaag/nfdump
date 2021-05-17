@@ -165,8 +165,12 @@ int i;
 char *logname;
 
 	verbose = verbose_log;
-	if ( !want_syslog ) 
+	if ( !want_syslog ) {
+		if ( verbose ) {
+			LogInfo("Verbose log level: %u", verbose);
+		}
 		return 1;
+	}
 
 	if ( !facility || strlen(facility) > 32 ) {
 		fprintf(stderr, "Invalid syslog facility name '%s'!\n", facility);
@@ -243,7 +247,7 @@ void LogVerbose(char *format, ...) {
 va_list var_args;
 char string[512];
 
-	if ( verbose ) {
+	if ( verbose > 1 ) {
 		va_start(var_args, format);
 		vsnprintf(string, 511, format, var_args);
 		fprintf(stderr, "%s\n", string);
