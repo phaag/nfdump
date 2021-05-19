@@ -1241,7 +1241,7 @@ pcap_dev_t 		*pcap_dev;
 p_packet_thread_args_t *p_packet_thread_args;
 p_flow_thread_args_t *p_flow_thread_args;
 
-	snaplen			= 1526;
+	snaplen			= 1500;
 	do_daemonize	= 0;
 	launcher_pid	= 0;
 	device			= NULL;

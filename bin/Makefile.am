@@ -51,7 +51,6 @@ nfv1 = netflow_v1.c netflow_v1.h
 nfv9 = netflow_v9.c netflow_v9.h
 # pcaproc = pcaproc.c pcaproc.h flowtree.c flowtree.h ipfrag.c ipfrag.h malloc_hook.c
 pcaproc = pcaproc.c pcaproc.h flowtree.c flowtree.h ipfrag.c ipfrag.h
-content = content_dns.c content_dns.h
 netflow_pcap = netflow_pcap.c netflow_pcap.h
 ipfix = ipfix.c ipfix.h
 nfv5v7 = netflow_v5_v7.c netflow_v5_v7.h
@@ -91,7 +90,7 @@ nfcapd_LDADD = libnfdump.la
 nfpcapd_SOURCES = nfpcapd.c \
 	$(pcaproc) $(netflow_pcap) \
 	$(nfstatfile) $(launch) \
-	$(nfnet) $(collector) $(bookkeeper) $(expire) $(content)
+	$(nfnet) $(collector) $(bookkeeper) $(expire) 
 nfpcapd_LDADD = libnfdump.la
 
 if READPCAP

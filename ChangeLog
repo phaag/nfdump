@@ -1,3 +1,6 @@
+2021-05-19
+- Silence short packet logs due to small snaplen in pcaproc.c #221
+
 2021-05-05
 - Release 1.6.23
 

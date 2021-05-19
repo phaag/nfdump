@@ -71,7 +71,6 @@
 #include "flowtree.h"
 #include "ipfrag.h"
 #include "pcaproc.h"
-#include "content_dns.h"
 #include "netflow_pcap.h"
 
 struct pcap_timeval {
@@ -554,7 +553,7 @@ static unsigned pkg_cnt = 0;
 		offset = size_ip;	// offset point to end of IP header
 
 		if ( data_len < size_ip ) {
-			LogInfo("Packet: %u Length error: data_len: %u < size IPV4: %u, captured: %u, hdr len: %u",
+			dbg_printf("Packet: %u Length error: data_len: %u < size IPV4: %u, captured: %u, hdr len: %u\n",
 				pkg_cnt, data_len, size_ip, hdr->caplen, hdr->len);	
 			pcap_dev->proc_stat.short_snap++;
 			goto END_FUNC;
@@ -648,16 +647,7 @@ static unsigned pkg_cnt = 0;
 				Free_Node(Node);
 				break;
 			}
-			uint32_t size_udp_payload = ntohs(udp->uh_ulen) - 8;
 
-			if ( (bytes == payload_len ) && (payload_len - sizeof(struct udphdr)) < size_udp_payload ) {
-				LogInfo("UDP payload length error: Expected %u, have %u bytes, SRC %s, DST %s",
-					size_udp_payload, (payload_len - (unsigned)sizeof(struct udphdr)),
-					inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
-					inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
-				Free_Node(Node);
-				break;
-			}
 			payload = payload + sizeof(struct udphdr);
 			payload_len -= sizeof(struct udphdr);
 			dbg_printf("UDP: size: %u, SRC: %i, DST: %i\n",
@@ -668,11 +658,6 @@ static unsigned pkg_cnt = 0;
 			Node->src_port = ntohs(udp->uh_sport);
 			Node->dst_port = ntohs(udp->uh_dport);
 
-			if ( hdr->caplen == hdr->len ) {
-				// process payload of full packets
-				if ( (bytes == payload_len) && (Node->src_port == 53 || Node->dst_port == 53) )
- 					content_decode_dns(Node, payload, payload_len);
-			}
 			Push_Node(NodeList, Node);
 			} break;
 		case IPPROTO_TCP: {
@@ -681,12 +666,6 @@ static unsigned pkg_cnt = 0;
 			size_tcp = tcp->th_off << 2;
 
 			if ( payload_len < size_tcp ) {
-				LogInfo("TCP header length error: len: %u < size TCP header: %u, SRC %s, DST %s",
-					payload_len, size_tcp,
-					inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
-					inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
-                pcap_dev->proc_stat.short_snap++;
-
 				pcap_dev->proc_stat.short_snap++;
 				Free_Node(Node);
 				break;
@@ -735,8 +714,6 @@ static unsigned pkg_cnt = 0;
 			uint32_t size_inner_ip = sizeof(struct ip6_hdr);
 
 			if ( payload_len < size_inner_ip ) {
-				LogInfo("IPIPv6 tunnel header length error: len: %u < size inner IP: %u",
-					payload_len, size_inner_ip);	
 				pcap_dev->proc_stat.short_snap++;
 				Free_Node(Node);
 				goto END_FUNC;
@@ -760,8 +737,6 @@ static unsigned pkg_cnt = 0;
 			uint32_t size_inner_ip = (inner_ip->ip_hl << 2);
 
 			if ( payload_len < size_inner_ip ) {
-				LogInfo("IPIP tunnel header length error: len: %u < size inner IP: %u",
-					payload_len, size_inner_ip);	
 				pcap_dev->proc_stat.short_snap++;
 				Free_Node(Node);
 				break;
@@ -786,8 +761,6 @@ static unsigned pkg_cnt = 0;
 			uint32_t gre_hdr_size = sizeof(gre_hdr_t); // offset points to end of inner IP
 
 			if ( payload_len < gre_hdr_size ) {
-				LogError("GRE tunnel header length error: len: %u < size GRE hdr: %u",
-					payload_len, gre_hdr_size);	
 				pcap_dev->proc_stat.short_snap++;
 				Free_Node(Node);
 				break;
