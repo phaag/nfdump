@@ -116,7 +116,7 @@ The following config options are available:
 * __--enable-sflow__  
 Build sflow collector sfcpad; default is __NO__
 * __--enable-nfpcapd__  
-Build nfpcapd collector to create netflow data from interface traffic or precollected pcap traffic, similar to softflowd; default is __NO__
+Build nfpcapd collector to create netflow data from interface traffic or precollected pcap traffic; default is __NO__
 * __--enable-maxmind__  
 Build geolookup program; default is __NO__
 *  __--enable-nsel__   
@@ -171,9 +171,10 @@ scfapd collects sflow data and stores it into nfcapd comaptible files.
 "sfcapd includes sFlow(TM) code, freely available from https://github.com/sflow/sflowtool.
 
 __nfpcapd__ - pcap to netflow collector daemon  
-nfpcapd listens on a network interface, or reads precollected pcap traffic 
-and stores flow records into nfcapd comaptible files. It is nfcapd's
-companion to convert traffic directly into nfdump records.
+nfpcapd listens on a network interface, or reads precollected pcap traffic.
+It either stores locally flow records into nfcapd comaptible files or sends
+the flows to a remote nfcapd collector. It is nfcapd's companion to convert
+traffic directly into nfdump records.
 
 __geolookup__ - Geo location lookup program.
 geolookup converts Maxmind's .csv files into the nfdump vector DB. The 
