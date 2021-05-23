@@ -34,6 +34,10 @@ Nfdump 1.7.0 provides the same set of programs as 1.6.x and can be used almost
 as a drop-in replacement. This may change in future and older legacy programs
 may be removed. You can convert any old files from nfdump-1.6 to nfdump-1.7
 format by reading/writing files: __./nfdump -r old-flowfile -y -w new-flowfile__
+Please not, that only __nfdump__ may read older flow files. All other programs
+relay on the new file format.
+for compatibility, Nfsen specific binaries such as nfprofile and nftrack are
+still available with nfdump-1.7 but may be removed in future.
 
 ### Improvements
 A lot of old code has been removed and rewritten for Nfdump-1.7. 
@@ -53,6 +57,8 @@ improves compatibility with some exporters such as yaf and others.
 VLAN information if requested as well as the payload of the first packet. This
 creates a lot of new possibilities in oder to process and filter flows, such
 as __nfdump -r flowfile 'payload content POST'__
+nfpcapd can now store flow files locally or can sent them to a remote nfcapd
+collector.
 
 ### New programs
 The nfdump program suite has been extended by __geolookup__. It allows either
@@ -94,7 +100,6 @@ does not support the full IPFIX definition.
 
 ---
 
-
 ## Overview
 
 ### Building and config options
@@ -114,8 +119,13 @@ Build the flow-tools to nfdump converter; default is __NO__
 Build sflow collector sfcpad; default is __NO__
 * __--enable-nfprofile__  
 Build nfprofile used by NfSen; default is __NO__
+* __--enable-nfpcapd__  
+Build nfpcapd collector to create netflow data from interface traffic or precollected pcap traffic, similar to softflowd; default is __NO__
+* __--enable-maxmind__  
+Build geolookup program; default is __NO__
 * __--enable-nftrack__  
 Build nftrack used by PortTracker; default is __NO__
+
 
 Development and beta options
 
@@ -123,9 +133,6 @@ Development and beta options
 Insert lots of debug and development code into nfdump for testing and debugging; default is __NO__
 * __--enable-readpcap__  
 Add code to nfcapd to read flow data also from pcap files; default is __NO__  
-* __--enable-nfpcapd__  
-Build nfpcapd collector to create netflow data from interface traffic or precollected pcap traffic, similar to softflowd; default is __NO__
-
 
 ### The tools
 __nfcapd__ - netflow collector daemon.  
@@ -160,6 +167,13 @@ __nfpcapd__ - pcap to netflow collector daemon
 nfpcapd listens on a network interface, or reads precollected pcap traffic 
 and stores flow records into nfcapd comaptible files. It is nfcapd's
 companion to convert traffic directly into nfdump records.
+
+__geolookup__ - Geo location lookup program.
+geolookup converts Maxmind's .csv files into the nfdump vector DB. The 
+converted DB may be used as a standalone lookup tool, or be be used by
+nfdump in order to automatically lookup country and location. 
+Please not: You need a legitimate Maxmind account (free or payed) in 
+order to download the files.
 
 __sfcapd__ - sflow collector daemon  
 scfapd collects sflow data and stores it into nfcapd comaptible files.
