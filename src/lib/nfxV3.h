@@ -199,7 +199,8 @@ typedef struct EXflowMisc_s {
 #define OFFflowEndReason offsetof(EXflowMisc_t, flowEndReason)
 #define SIZEflowEndReason MemberSize(EXflowMisc_t, flowEndReason)
 	// allign bytes
-	uint8_t fill[2];
+	uint8_t revTcpFlags;
+	uint8_t fill;
 } EXflowMisc_t;
 #define EXflowMiscSize (sizeof(EXflowMisc_t) + sizeof(elementHeader_t))
 

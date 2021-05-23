@@ -97,6 +97,12 @@ char datestr1[64], datestr2[64], datestr3[64];
 , r->proto, ProtoString(r->proto, 0)
 , r->proto == IPPROTO_TCP ? r->tcp_flags : 0, FlagsString(r->proto == IPPROTO_TCP ? r->tcp_flags :0));
 
+	if ( r->revTcpFlags ) {
+		fprintf(stream, 
+"  revtcp flags =              0x%.2x %s\n"
+, r->proto == IPPROTO_TCP ? r->revTcpFlags : 0, FlagsString(r->proto == IPPROTO_TCP ? r->revTcpFlags :0));
+	}
+
 	if ( r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6 ) { // ICMP
 		fprintf(stream,
 "  ICMP         =              %2u.%-2u type.code\n"

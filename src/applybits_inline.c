@@ -73,6 +73,49 @@ static inline void ApplyNetMaskBits(master_record_t *flow_record, int apply_netb
 
 } // End of ApplyNetMaskBits
 
+static inline void SetNetMaskBits(EXipv4Flow_t *EXipv4Flow, EXipv6Flow_t *EXipv6Flow, EXflowMisc_t *EXflowMisc, int apply_netbits);
+
+static inline void SetNetMaskBits(EXipv4Flow_t *EXipv4Flow, EXipv6Flow_t *EXipv6Flow, EXflowMisc_t *EXflowMisc, int apply_netbits) {
+
+		if ( EXipv6Flow ) { // IPv6
+			if ( apply_netbits & 1 ) {
+				uint64_t mask;
+				uint32_t mask_bits = EXflowMisc->srcMask;
+				if ( mask_bits > 64 ) {
+                    mask = 0xffffffffffffffffLL << ( 128 - mask_bits );
+					EXipv6Flow->srcAddr[1] &= mask;
+                } else {
+                    mask = 0xffffffffffffffffLL << ( 64 - mask_bits );
+					EXipv6Flow->srcAddr[0] &= mask;
+					EXipv6Flow->srcAddr[1] = 0;
+                }
+			}
+			if ( apply_netbits & 2 ) {
+				uint64_t mask;
+				uint32_t mask_bits = EXflowMisc->dstMask;
+
+				if ( mask_bits > 64 ) {
+                    mask = 0xffffffffffffffffLL << ( 128 - mask_bits );
+					EXipv6Flow->dstAddr[1] &= mask;
+                } else {
+                    mask = 0xffffffffffffffffLL << ( 64 - mask_bits );
+					EXipv6Flow->dstAddr[0] &= mask;
+					EXipv6Flow->dstAddr[1] = 0;
+                }
+			}
+		} else if ( EXipv4Flow ) { // IPv4
+			if ( apply_netbits & 1 ) {
+				uint32_t srcmask = 0xffffffff << ( 32 - EXflowMisc->srcMask );
+				EXipv4Flow->srcAddr &= srcmask;
+			}
+			if ( apply_netbits & 2 ) {
+				uint32_t dstmask = 0xffffffff << ( 32 - EXflowMisc->dstMask );
+				EXipv4Flow->dstAddr &= dstmask;
+			}
+		}
+
+} // End of SetNetMaskBits
+
 static inline void ApplyAggrMask(master_record_t *record, master_record_t *mask) {
 uint64_t *r = (uint64_t *)record;
 uint64_t *m = (uint64_t *)mask;

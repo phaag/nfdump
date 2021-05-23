@@ -37,6 +37,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <stdint.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
@@ -44,10 +45,6 @@
 #include <ctype.h>
 #include <signal.h>
 #include <assert.h>
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #include "util.h"
 #include "nfdump.h"
@@ -146,7 +143,8 @@ typedef struct FlowHashRecord {
 		uint8_t *hashkey;
 	};
 	uint32_t hash;	// the full 32bit hash value - cached for khash resize
-	uint32_t fill;	// align
+	uint16_t inFlags;	// align
+	uint16_t outFlags;	// align
 
 	// flow counter parameters for FLOWS, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES
 	uint64_t counter[5];
@@ -213,7 +211,8 @@ static uint32_t PrintDirection = 0;
 static uint32_t	GuessDirection = 0;
 
 typedef struct FlowKey_s {
-	struct _ipv6_s ipaddr;
+	uint64_t srcAddr[2];
+	uint64_t dstAddr[2];
 	uint16_t srcPort;
 	uint16_t dstPort;
 	uint32_t proto;
@@ -267,7 +266,6 @@ static uint32_t	bidir_flows		  = 0;
 #include "nfdump_inline.c"
 #include "applybits_inline.c"
 #include "memhandle.c"
-#define NEED_PACKRECORD 1
 #include "nffile_inline.c"
 #include "heapsort_inline.c"
 
@@ -382,14 +380,20 @@ FlowKey_t *keyptr;
 	} else if ( swap_flow ) {
 		// default 5-tuple aggregation for bidirectional flows
 		keyptr = (FlowKey_t *)keymem;
-		keyptr->ipaddr 	= flow_record->ip_addr._v6;
+        keyptr->srcAddr[0]  = flow_record->V6.dstaddr[0];
+        keyptr->srcAddr[1]  = flow_record->V6.dstaddr[1];
+        keyptr->dstAddr[0]  = flow_record->V6.srcaddr[0];
+        keyptr->dstAddr[1]  = flow_record->V6.srcaddr[1];
 		keyptr->srcPort	= flow_record->dstPort;
 		keyptr->dstPort	= flow_record->srcPort;
 		keyptr->proto	= flow_record->proto;
 	} else {
 		// default 5-tuple aggregation
 		keyptr = (FlowKey_t *)keymem;
-		keyptr->ipaddr	= flow_record->ip_addr._v6;
+        keyptr->srcAddr[0]  = flow_record->V6.srcaddr[0];
+        keyptr->srcAddr[1]  = flow_record->V6.srcaddr[1];
+        keyptr->dstAddr[0]  = flow_record->V6.dstaddr[0];
+        keyptr->dstAddr[1]  = flow_record->V6.dstaddr[1];
 		keyptr->srcPort	= flow_record->srcPort;
 		keyptr->dstPort	= flow_record->dstPort;
 		keyptr->proto	= flow_record->proto;
@@ -871,8 +875,9 @@ FlowHashRecord_t r;
 		keymem = nfmalloc(hashKeyLen);
 	}
 	New_HashKey(keymem, flow_record, 0);
+	uint32_t forwardHash = SuperFastHash(keymem, hashKeyLen);
 	r.hashkey = keymem;
-	r.hash = SuperFastHash(keymem, hashKeyLen);
+	r.hash = forwardHash;
 
 	int ret;
 	khiter_t k = kh_get(FlowHash, FlowHash, r);
@@ -882,6 +887,7 @@ FlowHashRecord_t r;
 		kh_key(FlowHash,k).counter[INPACKETS]  += flow_record->inPackets;
 		kh_key(FlowHash,k).counter[OUTBYTES]   += flow_record->out_bytes;
 		kh_key(FlowHash,k).counter[OUTPACKETS] += flow_record->out_pkts;
+		kh_key(FlowHash,k).inFlags			   |= flow_record->tcp_flags;
 
 		if ( flow_record->msecFirst < kh_key(FlowHash,k).msecFirst ) {
 			kh_key(FlowHash,k).msecFirst = flow_record->msecFirst;
@@ -899,6 +905,7 @@ FlowHashRecord_t r;
 		kh_key(FlowHash,k).counter[OUTBYTES]   = flow_record->out_bytes;
 		kh_key(FlowHash,k).counter[OUTPACKETS] = flow_record->out_pkts;
 		kh_key(FlowHash,k).counter[FLOWS]      = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
+		kh_key(FlowHash,k).inFlags			   = flow_record->tcp_flags;
 
 		kh_key(FlowHash,k).msecFirst	  = flow_record->msecFirst;
 		kh_key(FlowHash,k).msecLast	  = flow_record->msecLast;
@@ -934,6 +941,7 @@ FlowHashRecord_t r;
 			kh_key(FlowHash,k).counter[OUTPACKETS] += flow_record->inPackets;
 			kh_key(FlowHash,k).counter[INBYTES]    += flow_record->out_bytes;
 			kh_key(FlowHash,k).counter[INPACKETS]  += flow_record->out_pkts;
+			kh_key(FlowHash,k).outFlags			   |= flow_record->tcp_flags;
 
 			if ( flow_record->msecFirst < kh_key(FlowHash,k).msecFirst ) {
 				kh_key(FlowHash,k).msecFirst = flow_record->msecFirst;
@@ -947,12 +955,14 @@ FlowHashRecord_t r;
 			// no bidir flow found 
 			// insert original flow into the cache
 			r.hashkey = keymem;
+			r.hash 	  = forwardHash;
 			k = kh_put(FlowHash, FlowHash, r, &ret);
 			kh_key(FlowHash,k).counter[INBYTES]	   = flow_record->inBytes;
 			kh_key(FlowHash,k).counter[INPACKETS]  = flow_record->inPackets;
 			kh_key(FlowHash,k).counter[OUTBYTES]   = flow_record->out_bytes;
 			kh_key(FlowHash,k).counter[OUTPACKETS] = flow_record->out_pkts;
 			kh_key(FlowHash,k).counter[FLOWS]	   = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
+			kh_key(FlowHash,k).inFlags			   = flow_record->tcp_flags;
 
 			kh_key(FlowHash,k).msecFirst = flow_record->msecFirst;
 			kh_key(FlowHash,k).msecLast	 = flow_record->msecLast;
@@ -996,6 +1006,7 @@ FlowHashRecord_t r;
 		kh_key(FlowHash,k).counter[INPACKETS]  += flow_record->inPackets;
 		kh_key(FlowHash,k).counter[OUTBYTES]   += flow_record->out_bytes;
 		kh_key(FlowHash,k).counter[OUTPACKETS] += flow_record->out_pkts;
+		kh_key(FlowHash,k).inFlags			   |= flow_record->tcp_flags;
 
 		if ( flow_record->msecFirst < kh_key(FlowHash,k).msecFirst ) {
 			kh_key(FlowHash,k).msecFirst = flow_record->msecFirst;
@@ -1012,6 +1023,7 @@ FlowHashRecord_t r;
 		kh_key(FlowHash,k).counter[OUTBYTES]   = flow_record->out_bytes;
 		kh_key(FlowHash,k).counter[OUTPACKETS] = flow_record->out_pkts;
 		kh_key(FlowHash,k).counter[FLOWS]      = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
+		kh_key(FlowHash,k).inFlags			   = flow_record->tcp_flags;
 
 		kh_key(FlowHash,k).msecFirst  = flow_record->msecFirst;
 		kh_key(FlowHash,k).msecLast	  = flow_record->msecLast;
@@ -1058,6 +1070,8 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 		flow_record.aggr_flows 	= r->counter[FLOWS];
 		flow_record.msecFirst	= r->msecFirst;
 		flow_record.msecLast	= r->msecLast;
+		flow_record.tcp_flags	= r->inFlags;
+		flow_record.revTcpFlags	= r->outFlags;
 
 		// apply IP mask from aggregation, to provide a pretty output
 		if ( aggregate_info.has_masks ) {
@@ -1084,9 +1098,9 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 // export SortList - apply possible aggregation mask to zero out aggregated fields
 static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, 
 	nffile_t *nffile, int GuessFlowDirection, int ascending) {
-master_record_t	*aggr_record_mask = aggregate_info.mask;
+// master_record_t	*aggr_record_mask = aggregate_info.mask;
 
-	for ( int i = 0; i < maxindex; i++ ) {
+	for (int i = 0; i < maxindex; i++) {
 		int j;
 
 		if ( ascending )
@@ -1094,47 +1108,107 @@ master_record_t	*aggr_record_mask = aggregate_info.mask;
 		else
 			j = maxindex -1 - i;
 
+		void *extensionList[MAXELEMENTS] = {0};
 		FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[j].record);
-		recordHeaderV3_t *raw_record = (r->flowrecord);
 
-		master_record_t	flow_record;
-		memset((void *)&flow_record, 0, sizeof(master_record_t));
-		ExpandRecord_v3(raw_record, &flow_record);
-
-		flow_record.inPackets	= r->counter[INPACKETS];
-		flow_record.inBytes 	= r->counter[INBYTES];
-		flow_record.out_pkts 	= r->counter[OUTPACKETS];
-		flow_record.out_bytes 	= r->counter[OUTBYTES];
-		flow_record.aggr_flows 	= r->counter[FLOWS];
-		flow_record.msecFirst	= r->msecFirst;
-		flow_record.msecLast	= r->msecLast;
-
-		// apply IP mask from aggregation, to provide a pretty output
-		if ( aggregate_info.has_masks ) {
-			flow_record.V6.srcaddr[0] &= aggregate_info.IPmask[0];
-			flow_record.V6.srcaddr[1] &= aggregate_info.IPmask[1];
-			flow_record.V6.dstaddr[0] &= aggregate_info.IPmask[2];
-			flow_record.V6.dstaddr[1] &= aggregate_info.IPmask[3];
+		recordHeaderV3_t *recordHeaderV3 = (r->flowrecord);
+		elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t)); 
+		// map all extensions
+		for (int i=0; i<recordHeaderV3->numElements; i++ ) {
+			extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
+			elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length); 
 		}
 
-		if ( aggregate_info.apply_netbits )
-			ApplyNetMaskBits(&flow_record, aggregate_info.apply_netbits);
+		// check if cntFlowID exists
+		int needSwap = 0;
+		EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)extensionList[EXgenericFlowID];
+		if (genericFlow != NULL) {
+			needSwap = NeedSwap(GuessFlowDirection, genericFlow);
+		}
+
+		int exCntSize = 0;
+		EXcntFlow_t *cntFlow = (EXcntFlow_t *)extensionList[EXcntFlowID];
+		if ((r->counter[OUTPACKETS] || r->counter[OUTBYTES] || r->counter[FLOWS]) && 
+			 cntFlow == NULL ) {
+				exCntSize = EXcntFlowSize;
+		}
+
+		if ( !CheckBufferSpace(nffile, recordHeaderV3->size + exCntSize) ) {
+			return;
+		}
+
+		// write record
+		memcpy(nffile->buff_ptr, (void *)recordHeaderV3, recordHeaderV3->size);
+		recordHeaderV3 = nffile->buff_ptr;
+
+		if ( exCntSize ) {
+			PushExtension(recordHeaderV3, EXcntFlow, cntFlow);
+			nffile->buff_ptr += recordHeaderV3->size;
+			nffile->block_header->size += recordHeaderV3->size;
+		} else {
+			nffile->buff_ptr += recordHeaderV3->size;
+			nffile->block_header->size += recordHeaderV3->size;
+		}
+		nffile->block_header->NumRecords++;
+
+		memset((void *)extensionList, 0, sizeof(extensionList));
+		// remap extension od written record
+		elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t)); 
+		for (int i=0; i<recordHeaderV3->numElements; i++ ) {
+			extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
+			elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length); 
+		}
+
+		genericFlow = (EXgenericFlow_t *)extensionList[EXgenericFlowID];
+		cntFlow = (EXcntFlow_t *)extensionList[EXcntFlowID];
+
+		if ( genericFlow && cntFlow ) {
+			genericFlow->inPackets = r->counter[INPACKETS];
+			genericFlow->inBytes   = r->counter[INBYTES];
+			cntFlow->outPackets	   = r->counter[OUTPACKETS];
+			cntFlow->outBytes	   = r->counter[OUTBYTES];
+			cntFlow->flows = r->counter[FLOWS];
+	
+			genericFlow->msecFirst = r->msecFirst;
+			genericFlow->msecLast  = r->msecLast;
+			genericFlow->tcpFlags  = r->inFlags;
+		}
+
+		EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)extensionList[EXipv4FlowID];
+		EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)extensionList[EXipv6FlowID];
+		// apply IP mask from aggregation, to provide a pretty output
+		if ( aggregate_info.has_masks ) {
+			if (ipv4Flow) {
+				ipv4Flow->srcAddr &= aggregate_info.IPmask[1];
+				ipv4Flow->dstAddr &= aggregate_info.IPmask[3];
+			} else if (ipv6Flow) {
+				ipv6Flow->srcAddr[0] &= aggregate_info.IPmask[0];
+				ipv6Flow->srcAddr[1] &= aggregate_info.IPmask[1];
+				ipv6Flow->dstAddr[0] &= aggregate_info.IPmask[2];
+				ipv6Flow->dstAddr[1] &= aggregate_info.IPmask[3];
+			}
+		}
+
+		EXflowMisc_t *flowMisc = (EXflowMisc_t *)extensionList[EXflowMiscID];
+		if (flowMisc) {
+			flowMisc->revTcpFlags = r->outFlags;
+			if ( aggregate_info.apply_netbits )
+				SetNetMaskBits(ipv4Flow, ipv6Flow, flowMisc, aggregate_info.apply_netbits);
+		}
+/*
 
 		if ( aggr_record_mask ) {
 			ApplyAggrMask(&flow_record, aggr_record_mask);
 		}
 
-		if ( NeedSwap(GuessFlowDirection, &flow_record) )
-			SwapFlow(&flow_record);
+*/
+		EXasRouting_t *asRouting = (EXasRouting_t *)extensionList[EXasRoutingID];
+		if (genericFlow && needSwap) {
+			SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, flowMisc, cntFlow, asRouting);
+		}
 
-		PackRecordV3(&flow_record, nffile);
-#ifdef DEVEL
-		char *string;
-		flow_record_to_raw((void *)&flow_record, &string, 0);
-		printf("%s\n", string);
-#endif
 		// Update statistics
-		UpdateStat(nffile->stat_record, &flow_record);
+		UpdateRawStat(nffile->stat_record, genericFlow, cntFlow);
 	}
 
 } // End of ExportSortList

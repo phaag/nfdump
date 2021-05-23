@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -231,16 +231,60 @@ nffile_t			*nffile;
 	SetIPaddress(&record,  PF_INET, "172.16.2.66", "192.168.170.101");
 	record.exElementList[i++] = EXflowMiscID; record.size += EXflowMiscSize;
 	record.numElements = i;
-	record.input 	 	= 32;
-	record.output 	 	= 33;
+	record.srcPort		= 80;
+	record.dstPort		= 22222;
+	record.input 	 	= 100;
+	record.output 	 	= 200;
 	record.src_mask		= 16;
 	record.dst_mask		= 24;
-	record.tcp_flags   	= 1;
+	record.tcp_flags   	= 2;
 	record.proto 	 	= IPPROTO_TCP;
 	record.dir			= 1;
-	UpdateRecord(&record);
 	PackRecordV3(&record, nffile);
 
+	record.msecFirst	+= 1000;
+	record.msecLast		+= 1000;
+	record.inPackets	+= 10;
+	record.inBytes		+= 1024;
+	record.tcp_flags   	= 16;
+	PackRecordV3(&record, nffile);
+
+	record.msecFirst	+= 1000;
+	record.msecLast		+= 1000;
+	record.inPackets	+= 10;
+	record.inBytes		+= 1024;
+	record.tcp_flags   	= 1;
+	PackRecordV3(&record, nffile);
+
+	SetIPaddress(&record,  PF_INET, "192.168.170.101", "172.16.2.66");
+	record.dstPort		= 80;
+	record.srcPort		= 22222;
+	record.input 	 	= 200;
+	record.output 	 	= 100;
+	record.src_mask		= 24;
+	record.dst_mask		= 16;
+	record.tcp_flags   	= 18;
+	record.proto 	 	= IPPROTO_TCP;
+	record.dir			= 2;
+	record.inPackets	= 10;
+	record.inBytes		= 1024;
+	PackRecordV3(&record, nffile);
+
+	record.msecFirst	+= 1000;
+	record.msecLast		+= 1000;
+	record.inPackets	+= 10;
+	record.inBytes		+= 1024;
+	record.tcp_flags   	= 16;
+	PackRecordV3(&record, nffile);
+
+	record.msecFirst	+= 1000;
+	record.msecLast		+= 1000;
+	record.inPackets	+= 10;
+	record.inBytes		+= 1024;
+	record.tcp_flags   	= 1;
+	PackRecordV3(&record, nffile);
+
+	SetIPaddress(&record,  PF_INET, "72.138.170.101", "42.16.32.6");
 	record.exElementList[i++] = EXcntFlowID; record.size += EXcntFlowSize;
 	record.numElements = i;
 	record.tcp_flags++;

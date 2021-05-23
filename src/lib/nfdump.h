@@ -222,7 +222,8 @@ typedef struct master_record_s {
 
 	uint8_t	biFlowDir;
 	uint8_t flowEndReason;
-	uint8_t fill[6];
+	uint8_t revTcpFlags;
+	uint8_t fill[5];
 #	define OffsetbiFlowDir	(offsetof(master_record_t, biFlowDir) >> 3)
 #ifdef WORDS_BIGENDIAN
 #	define MaskbiFlowDir    	0xff00000000000000LL

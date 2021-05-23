@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -93,3 +93,91 @@ static inline void UpdateStat(stat_record_t	*stat_record, master_record_t *maste
 			stat_record->msec_last = msec;
 
 } // End of UpdateStat
+
+static inline void UpdateRawStat(stat_record_t	*stat_record, EXgenericFlow_t *genericFlow, EXcntFlow_t *cntFlow);
+
+static inline void UpdateRawStat(stat_record_t	*stat_record, EXgenericFlow_t *genericFlow, EXcntFlow_t *cntFlow) {
+uint64_t inBytes, inPackets, outBytes, outPackets, flows;
+uint64_t msecFirst, msecLast;
+uint32_t proto;
+
+	if(genericFlow) {
+		proto	  = genericFlow->proto;
+		inPackets = genericFlow->inPackets;
+		inBytes   = genericFlow->inBytes;
+		msecFirst = genericFlow->msecFirst;
+		msecLast  = genericFlow->msecLast;
+	} else {
+		proto	  = 0;
+		inPackets = 0;
+		inBytes   = 0;
+		msecFirst = 0;
+		msecLast  = 0;
+	}
+	if (cntFlow) {
+		outPackets = cntFlow->outPackets;
+		outBytes   = cntFlow->outBytes;
+		flows	   = cntFlow->flows;
+	} else {
+		outPackets = 0;
+		outBytes   = 0;
+		flows	   = 1;
+	}
+
+	switch (proto) {
+		case IPPROTO_ICMP:
+		case IPPROTO_ICMPV6:
+			stat_record->numflows_icmp   += flows;
+			stat_record->numpackets_icmp += inPackets;
+			stat_record->numpackets_icmp += outPackets;
+			stat_record->numbytes_icmp   += inBytes;
+			stat_record->numbytes_icmp   += outBytes;
+			break;
+		case IPPROTO_TCP:
+			stat_record->numflows_tcp   += flows;
+			stat_record->numpackets_tcp += inPackets;
+			stat_record->numpackets_tcp += outPackets;
+			stat_record->numbytes_tcp   += inBytes;
+			stat_record->numbytes_tcp   += outBytes;
+			break;
+		case IPPROTO_UDP:
+			stat_record->numflows_udp   += flows;
+			stat_record->numpackets_udp += inPackets;
+			stat_record->numpackets_udp += outPackets;
+			stat_record->numbytes_udp   += inBytes;
+			stat_record->numbytes_udp   += outBytes;
+			break;
+		default:
+			stat_record->numflows_other   += flows;
+			stat_record->numpackets_other += inPackets;
+			stat_record->numpackets_other += outPackets;
+			stat_record->numbytes_other   += inBytes;
+			stat_record->numbytes_other   += outBytes;
+	}
+	stat_record->numflows   += flows;
+	stat_record->numpackets	+= inPackets;
+	stat_record->numpackets	+= outPackets;
+	stat_record->numbytes 	+= inBytes;
+	stat_record->numbytes 	+= outBytes;
+
+	uint32_t sec  = msecFirst / 1000LL;
+	uint32_t msec = msecFirst % 1000LL;
+	if ( sec < stat_record->first_seen ) {
+		stat_record->first_seen = sec;
+		stat_record->msec_first = msec;
+	}
+	if ( sec == stat_record->first_seen && 
+	 	msec < stat_record->msec_first ) 
+			stat_record->msec_first = msec;
+
+	sec  = msecLast / 1000LL;
+	msec = msecLast % 1000LL;
+	if ( sec > stat_record->last_seen ) {
+		stat_record->last_seen = sec;
+		stat_record->msec_last = msec;
+	}
+	if ( sec == stat_record->last_seen && 
+	 	msec > stat_record->msec_last ) 
+			stat_record->msec_last = msec;
+
+} // End of UpdateRawStat

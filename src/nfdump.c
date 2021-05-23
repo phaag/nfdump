@@ -1035,6 +1035,12 @@ flist_t 	flist;
 			exit(EXIT_FAILURE);
 	}
 
+	if ( flist.multiple_dirs == NULL && flist.single_file == NULL &&
+		 flist.multiple_files == NULL ) {
+		usage(argv[0]);
+		exit(EXIT_SUCCESS);
+	}
+
 	queue_t *fileList = SetupInputFileSequence(&flist);
 	if ( !fileList || !Init_nffile(fileList) )
 		exit(EXIT_FAILURE);
