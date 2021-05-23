@@ -36,8 +36,8 @@ may be removed. You can convert any old files from nfdump-1.6 to nfdump-1.7
 format by reading/writing files: __./nfdump -r old-flowfile -y -w new-flowfile__
 
 ### Improvements
-A lot of old code has been removed and rewritten for Nfdump-1.7. Additionally
-nfdump is now a multi-threaded program and uses parallel threads mainly for
+A lot of old code has been removed and rewritten for Nfdump-1.7. 
+- nfdump is now a multi-threaded program and uses parallel threads mainly for
 reading, writing and processing flows as well as for sorting. This may result
 in a 2 to 3 times faster flow processing, depending on the tasks. The speed
 improvement also heavily depends on the hardware (SSD/HD) and flow compression
