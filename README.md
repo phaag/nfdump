@@ -18,15 +18,15 @@ This Readme is still incomplete and will get improved.
 ---
 
 ## What's New
-Nfdump exists since 2004 and has got a lot of updates and new features over
-time. Usually this resulted in substantial changes in code and file format.
+Nfdump exists since 2004 and got a lot of updates and new features over
+time. Usually this results in substantial changes in code and the file format.
 All major version changes introduced a bunch of new things. Nfdump 1.7 is no 
 exception to this. 
 
 ### Compatibility
-Nfdump 1.7 reads and processes transparently files from nfdump-1.6.18 and newer
-and nfdump-1.6.x with minor restrictions. New files are always written in the
-new format for nfdump-1.7.x. Reading and processing 1.6.x files may introduce
+Nfdump 1.7 reads and processes transparently nfdump-1.6.18 files and newer
+and older nfdump-1.6.x with minor restrictions. New files are always written
+in the new format for nfdump-1.7.x. Reading and processing 1.6.x files may introduce
 a small format conversion penalty, depending on the task requested. Conversion
 is requested for any flow statistics, sorting and flow writing tasks. No
 format conversion is requesting for flow filtering and printing. 
@@ -43,12 +43,12 @@ in a 2 to 3 times faster flow processing, depending on the tasks. The speed
 improvement also heavily depends on the hardware (SSD/HD) and flow compression
 option. 
 
-For netflow v9 and IPFIX, nfdump now supports flexible length fields. This
+- For netflow v9 and IPFIX, nfdump now supports flexible length fields. This
 improves compatibility with some exporters such as yaf and others.
 
-Support for Cisco Network Based Application Recognition (NBAR).
+- Support for Cisco Network Based Application Recognition (NBAR).
 
-nfpcapd automatically uses TPACKET_V3 for Linux or direct BPF sockets for
+- nfpcapd automatically uses TPACKET_V3 for Linux or direct BPF sockets for
 *BSD. This improves packet processing. It adds new options to collect MAC and
 VLAN information if requested as well as the payload of the first packet. This
 creates a lot of new possibilities in oder to process and filter flows, such
