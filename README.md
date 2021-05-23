@@ -1,17 +1,73 @@
 # nfdump
 
 UNICORN is the development branch of nfdump.
-It implements all new changes towards nfdump 1.7
+It implements all new changes for nfdump 1.7
 
 __This is beta code. Use it at your own risk. The file format may be changed
 if required until the final release of nfdump-1.7__
 
-For production environments use stabe releases 1.6.22 or newer.
+For production environments use stabe releases 1.6.23 or newer.
 nfdump-1.7.x is compatible to nfdump-1.6.18, which means it can read files
 created with nfdump-1.6.18 or newer. Flow files created with earlier nfdump
 versions are not guaranteed to be fully processed. 
 
+If you are new to nfdump, see the Introduction and Overview chapters below.
+If you are already an experienced nfdump use, see the What's New chapter.
+This Readme is still incomplete and will get improved. 
+
 ---
+
+## What's New
+Nfdump exists since 2004 and has got a lot of updates and new features over
+time. Usually this resulted in substantial changes in code and file format.
+All major version changes introduced a bunch of new things. Nfdump 1.7 is no 
+exception to this. 
+
+### Compatibility
+Nfdump 1.7 reads and processes transparently files from nfdump-1.6.18 and newer
+and nfdump-1.6.x with minor restrictions. New files are always written in the
+new format for nfdump-1.7.x. Reading and processing 1.6.x files may introduce
+a small format conversion penalty, depending on the task requested. Conversion
+is requested for any flow statistics, sorting and flow writing tasks. No
+format conversion is requesting for flow filtering and printing. 
+Nfdump 1.7.0 provides the same set of programs as 1.6.x and can be used almost
+as a drop-in replacement. This may change in future and older legacy programs
+may be removed. You can convert any old files from nfdump-1.6 to nfdump-1.7
+format by reading/writing files: __./nfdump -r old-flowfile -y -w new-flowfile__
+
+### Improvements
+A lot of old code has been removed and rewritten for Nfdump-1.7. Additionally
+nfdump is now a multi-threaded program and uses parallel threads mainly for
+reading, writing and processing flows as well as for sorting. This may result
+in a 2 to 3 times faster flow processing, depending on the tasks. The speed
+improvement also heavily depends on the hardware (SSD/HD) and flow compression
+option. 
+
+For netflow v9 and IPFIX, nfdump now supports flexible length fields. This
+improves compatibility with some exporters such as yaf and others.
+
+Support for Cisco Network Based Application Recognition (NBAR).
+
+nfpcapd automatically uses TPACKET_V3 for Linux or direct BPF sockets for
+*BSD. This improves packet processing. It adds new options to collect MAC and
+VLAN information if requested as well as the payload of the first packet. This
+creates a lot of new possibilities in oder to process and filter flows, such
+as __nfdump -r flowfile 'payload content POST'__
+
+### New programs
+The nfdump program suite has been extended by __geolookup__. It allows either
+to enrich IP addresses by country codes/locations and may add potential
+missing AS information. Flows may be filtered according to country codes.
+geolookup may also be used as standalone program to lookup IPs for AS/Geo
+information, similar to the famous Team Cymru whois service. geolookup uses a
+local database, which allows to process as many requests as you have.
+In order to use geolookup, you need either a free or payed Maxmind account
+in order to convert the Maxmind .csv files into an nfdump vector data file. 
+__geolookup__ needs to be enabled when running configure: __--enable-maxmind__
+
+---
+
+## Introduction
 
 nfdump is a toolset in order to collect and process netflow and sflow data, sent from netflow/sflow compatible devices. 
 The toolset supports netflow __v1__, __v5/v7__,__v9__,__IPFIX__ and __SFLOW__.  nfdump supports IPv4 as well as IPv6.
