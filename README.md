@@ -109,23 +109,22 @@ Afterwards `./configure` `make` and `make install` should do the trick.
 
 The following config options are available:
 
+* __--enable-sflow__  
+Build sflow collector sfcpad; default is __NO__
+* __--enable-nfpcapd__  
+Build nfpcapd collector to create netflow data from interface traffic or precollected pcap traffic, similar to softflowd; default is __NO__
+* __--enable-maxmind__  
+Build geolookup program; default is __NO__
 *  __--enable-nsel__   
 Compile nfdump, to read and process NSEL/NEL event data; default is __NO__
 *  __--enable-jnat__   
 compile nfdump, to read and process JunOS NAT event logging __NO__
 * __--enable-ftconv__  
 Build the flow-tools to nfdump converter; default is __NO__
-* __--enable-sflow__  
-Build sflow collector sfcpad; default is __NO__
 * __--enable-nfprofile__  
 Build nfprofile used by NfSen; default is __NO__
-* __--enable-nfpcapd__  
-Build nfpcapd collector to create netflow data from interface traffic or precollected pcap traffic, similar to softflowd; default is __NO__
-* __--enable-maxmind__  
-Build geolookup program; default is __NO__
 * __--enable-nftrack__  
 Build nftrack used by PortTracker; default is __NO__
-
 
 Development and beta options
 
@@ -163,6 +162,10 @@ over the network to another host.
 
 #### Optional binaries:
 
+__sfcapd__ - sflow collector daemon  
+scfapd collects sflow data and stores it into nfcapd comaptible files.
+"sfcapd includes sFlow(TM) code, freely available from https://github.com/sflow/sflowtool.
+
 __nfpcapd__ - pcap to netflow collector daemon  
 nfpcapd listens on a network interface, or reads precollected pcap traffic 
 and stores flow records into nfcapd comaptible files. It is nfcapd's
@@ -175,9 +178,8 @@ nfdump in order to automatically lookup country and location.
 Please not: You need a legitimate Maxmind account (free or payed) in 
 order to download the files.
 
-__sfcapd__ - sflow collector daemon  
-scfapd collects sflow data and stores it into nfcapd comaptible files.
-"sfcapd includes sFlow(TM) code, freely available from https://github.com/sflow/sflowtool.
+__ft2nfdump__ - flow-tools flow converter  
+ft2nfdump converts flow-tools data into nfdump format. 
 
 __nfprofile__ - netflow profiler. Required by NfSen  
 Reads the netflow data from the files stored by nfcapd. Filters the 
@@ -185,9 +187,6 @@ netflow data according to the specified filter sets ( profiles ) and
 stores the filtered data into files for later use. 
 
 __nftrack__ - Port tracking decoder for NfSen plugin PortTracker.
-
-__ft2nfdump__ - flow-tools flow converter  
-ft2nfdump converts flow-tools data into nfdump format. 
 
 __nfreader__ - Framework for programmers  
 nfreader is a framework to read nfdump files for any other purpose.
