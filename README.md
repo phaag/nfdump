@@ -36,6 +36,10 @@ may be removed. You can convert any old files from nfdump-1.6 to nfdump-1.7
 format by reading/writing files: __./nfdump -r old-flowfile -y -w new-flowfile__
 Please not, that only __nfdump__ may read older flow files. All other programs
 relay on the new file format.
+The extension option -T in nfcapd/sfcapd has been removed. The binaries still
+accept this option for compatibility, but it's ignored. nfcapd and sfcapd
+collect and store automatically all known flow elements.
+
 for compatibility, Nfsen specific binaries such as nfprofile and nftrack are
 still available with nfdump-1.7 but may be removed in future.
 
