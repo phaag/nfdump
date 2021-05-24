@@ -1,4 +1,4 @@
-.TH nfpcapd 1 2019\-07\-25 "" ""
+.TH nfpcapd 1 2021\-05\-23 "" ""
 .SH NAME
 nfpcapd \- pcap capture to netflow daemon
 .SH SYNOPSIS
@@ -8,13 +8,16 @@ nfpcapd \- pcap capture to netflow daemon
 .B nfpcapd
 is the pcap capture daemon of the nfdump tools. It reads network
 packets from an interface or from a file and directly creates nfdump
-netflow records. This skips the step to send data in any netflow protocol
-to the nfcapd collector. It is nfcapd's pcap brother and shares many 
-options and generates the same type of files. nfpcapd likewise creates, 
-rotates and stores files. See nfpcap(1) for more information.
+records. Nfdump records are written either locally to a directory in 
+the same format as nfcapd, or can be forwarded to a nfcapd collector
+somwhere else in the network. Nfpcapd is nfcapd's pcap brother and
+shares many options and generates the same type of files. nfpcapd
+likewise creates, rotates and stores files. See also nfpcap(1) for more
+information on common option.
 .P
 nfpcapd optionally also stores pcap traffic data in separate files and
-uses the same rotation interval as for the netflow data. 
+uses the same rotation interval as for the netflow data. Storing pcap 
+traffic data file is only possible locally.
 .P
 nfpcapd is multithreaded and uses separate threads for packet, netflow
 and pcap processing.
@@ -29,15 +32,14 @@ Read and process packets from this file. This file is a pcap compatible
 file
 .TP 3
 .B -s \fIsnaplen
-Limit the snaplen on collected packets. The default is 1526 bytes. The
-snaplen needs to be large enough to process all required protocols.
+Limit the snaplen on collected packets. The default is 1522 bytes. The
+snaplen needs to be large enough to process all required protocols. The
+snaplen must not be smaller than 54 bytes.
 .TP 3
 .B -B \fIcachesize
-Sets the number of cache nodes required by the flow cache and packet
-processing. By default 500k nodes should be fine for normal networks.
-For busy networks double or tripple this value, which needs more memory.
-The cachesize is part of the balance between expire times and cache size.
-See the notes below.
+Sets the number of initial cache nodes required by the flow cache.
+By default the cache size is set to 512k nodes should be fine. If the
+cache runs out of nodes, new nodes are dynamically added.
 .TP 3
 .B -e \fIactive,inactive
 Sets the active and inactive flow expire values in s. The default ist 300,60.
@@ -67,17 +69,15 @@ to \fIbase_directory/sub_hierarchy\fR.
 Store network packets in pcap compatible files in this directory and rotate files
 the same as the flow files. Sub hierarchy directories are applied likewise.
 .TP 3
+.B -H \fI<host[/port]>
+Send nfdump records to a remote nfcapd collector. Default port is 9995.
+.TP 3
 .B -S \fI<num>
 Allows to specify an additional directory sub hierarchy to store 
 the data files. The default is 0, no sub hierarchy, which means the 
 files go directly in the base directory (\-l). The base directory (\-l) is
 concatenated with the specified sub hierarchy format to form the final 
 data directory.  For a full list of hierarchies see nfcapd(1).
-.TP 3
-.B -T \fI<extension list>
-This option is identical to nfcapd(1) for compatibility. For now only the standard 
-netflow record data as well as the latency extesion are supported. Other extensions
-are ignored.
 .TP 3
 .B -t \fIinterval
 Specifies the time interval in seconds to rotate files. The default value 
@@ -103,6 +103,13 @@ to use this option. Uid/Gid is switched after opening the reading device.
 .B -g \fIgroupid
 Change to the group \fIgroupid\fP as soon as possible. Only root is allowed 
 use this option. Uid/Gid is switched after opening the reading device.
+.TP 3
+.B -o option[,option]
+Adds options to nfpcapd. Two options are available:
+.br
+\fIfat\fP	     Add Mac addresses, optional Vlan and MPLS labels.
+.br
+\fIpayload\fP   Add the payload bytes of the first packet of a connection.
 .TP 3
 .B -j
 Compress flows. Use bz2 compression in output file. Note: not recommended while collecting
@@ -133,7 +140,7 @@ are reported at the end of every interval to syslog with level 'info'.
 .SH "EXAMPLES"
 Read packets from interface eth0
 .RS
-\fBnfpcapd \-i eth0 \-j \-D \-T all \-l /netflow/flows \-S 2 \-I any \-P /var/run/nfpcapd.pid\fP
+\fBnfpcapd \-i eth0 \-j \-D \-l /netflow/flows \-S 2 \-I any \-P /var/run/nfpcapd.pid\fP
 .RE
 .LP
 Read packets from interface mx0 and store also packets in pcap files.
@@ -141,24 +148,29 @@ Read packets from interface mx0 and store also packets in pcap files.
 \fBnfpcapd \-i vmx0 \-j \-D \-l /netflow/flows \-p /netflow/caps\fP
 .RE
 .LP
-For busy networks e.g. increase node buffer and apply more aggressive expire timeouts
+Send records to a remote host
 .RS
-\fBnfpcapd \-i eth1 \-j \-D \-l /netflow/flows -B 1048576 \-e 60,20\fP
+\fBnfpcapd \-i eth1 \-H 192.168.200.10/12344 \-D \-e 60,20\fP
 .RE
 .LP
 .SH NOTES
-The node cache buffer size and the expire values form a balanced system. The larger
-the expire values are, the more cache nodes are needed. Cache nodes are preallocated
-for performance reason. In case of a shortage of free nodes, the cache gets forcefully
-expired. If still no free nodes are available, the flow cache gets flushed to disk
-regardless any expire values. This results in a warning to increase the node cache size.
+nfpcapd can store records either locally or send it to a remote host but not
+both at the same time.
+.br
+If records are sent to a remote nfcapd process, both programs nfcapd and nfpcapd
+must be of the same endian architecture (both big or little endian). nfpcapd uses
+netflow version 240 for sending flows.
 .LP
 The flow cache is checked in regular 10s intervalls and expires flows according to the
-expire values. Expired flows are flushed to disk and nodes are freed up. The expire
-intervals are independant of the file rotation sequence.
+expire values. Expired flows are flushed and processed and nodes are freed up. 
+.LP
+A smaller snaplen may improve performance, but may result in loss of information. 
+The smallest snaplen of 54 bytes can process regular TCP/UDP/ICMP packets. In case 
+of Vlan or MPLS labels, not enough information may be abailable for correct protocol
+decoding. Nfdump records may be incomplete and and set to 0.
 .LP
 If IP packets are fragmented, they are reassembled before processing. All IP fragments
-need to be reassembled correctly in order to be passed to the next stage. If not all 
+need to be reassembled in order to be passed to the next stage. If not all 
 fragments are correctly assembled withing 15s since the first fragment arrived, all 
 fragments are discarded.
 

@@ -263,6 +263,7 @@ static void usage(char *name) {
 					"-n\t\tDefine number of top N for stat or sorted output.\n"
 					"-c\t\tLimit number of matching records\n"
 					"-D <dns>\tUse nameserver <dns> for host lookup.\n"
+					"-G <geoDB>\tUse this nfdump geoDB to lookup country/location.\n"
 					"-N\t\tPrint plain numbers\n"
 					"-s <expr>[/<order>]\tGenerate statistics for <expr> any valid record element.\n"
 					"\t\tand ordered by <order>: packets, bytes, flows, bps pps and bpp.\n"

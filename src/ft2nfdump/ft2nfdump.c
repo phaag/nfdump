@@ -97,6 +97,7 @@ void usage(char *name) {
 					"-r <file>\tread flow-tools records from file\n"
 					"-w <file>\twrite nfdump records to file\n"
 					"-j\t\tBZ2 compress flows in output file.\n"
+					"-y\t\tLZ4 compress flows in output file.\n"
 					"-z\t\tLZO compress flows in output file.\n"
 					"Convert flow-tools format to nfdump format:\n"
 					"ft2nfdump -r <flow-tools-data-file> -w <nfdump-file> [-z]\n"
@@ -309,23 +310,20 @@ char   *ftfile, *wfile;
 	wfile		= "-";
 	compress 	= NOT_COMPRESSED;
 
-	while ((i = getopt(argc, argv, "jzEVc:hr:w:?")) != -1)
+	while ((i = getopt(argc, argv, "jyzEVc:hr:w:?")) != -1)
 		switch (i) {
 			case 'h': /* help */
 				case '?':
 				usage(argv[0]);
 				exit (0);
 				break;
-		
 			case 'V':
 				printf("%s: Version: %s\n",argv[0], nfdump_version);
 				exit(0);
 				break;
-
 			case 'E':
 				extended = 1;
 				break;
-		
 			case 'c':	
 				limitflows = atoi(optarg);
 				if ( !limitflows ) {
@@ -333,15 +331,27 @@ char   *ftfile, *wfile;
 					exit(255);
 				}
 				break;
-
 			case 'j':
-				compress = LZO_COMPRESSED;
-				break;
-
-			case 'z':
+				if ( compress ) {
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+					exit(EXIT_FAILURE);
+				}
 				compress = BZ2_COMPRESSED;
 				break;
-
+			case 'y':
+				if ( compress ) {
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+					exit(EXIT_FAILURE);
+				}
+				compress = LZ4_COMPRESSED;
+				break;
+			case 'z':
+				if ( compress ) {
+					LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+					exit(EXIT_FAILURE);
+				}
+				compress = LZO_COMPRESSED;
+				break;
 			case 'r':
 				ftfile = optarg;
 				if ( (stat(ftfile, &statbuf) < 0 ) || !(statbuf.st_mode & S_IFREG) ) {
@@ -349,7 +359,6 @@ char   *ftfile, *wfile;
 					exit(255);
 				}
 				break;
-
 			case 'w':
 				wfile = optarg;
 				break;

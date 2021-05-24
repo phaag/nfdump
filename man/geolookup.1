@@ -1,0 +1,94 @@
+.TH geolookup 1 2021\-05\-23 "" ""
+.SH NAME
+geolookup \- country/location/AS lookup
+.SH SYNOPSIS
+.HP 5
+.B geolookup [options]
+.SH DESCRIPTION
+.B geolookup
+is used to lookup AS and geo location information of IP addresses.
+IP addresses are given either as optional arguments or can be piped 
+to stdin line by line. Geolookup also generates the required nfdump 
+geo database, based on Maxminds .cvs files. You need a valid Maxmind
+account in order to download either the free of payed versions of 
+the .csv file.
+.P
+.RS 3
+See https://www.maxmind.com/en/home for more information about Maxmind.
+.RE
+.PD
+.P
+geolookup has two modes of operation. 
+.P
+\fBo\fR geolookup reads a sequence of .csv Maxmind input files in a 
+directory specified by -d and generates the corresponding nfdump vector
+file, specified by -w <wfile>. This nfdump geoDB file is used for all 
+geo lookups by geolookup or any other nfdump program.
+.P
+\fBo\fR geolookup reads a sequence of IP addresses on the command line,
+or on <stdin> line be line and prints the geo information on <stdout>.
+
+.SH OPTIONS
+.TP 3
+.B -d \fIdatadir
+Reads all available Maxmind .csv files from \fIdatadir\fR.
+.TP 3
+.B -w \fIgeoDB
+Writes country/location/AS information in binary format to \fIgeoDB\fR.
+.TP 3
+.B -G \fIgeoDB
+Loads the \fIgeoDB\fR to perform lookups of IPs given as arguments or on <stdin>
+The path of \fIgeoDB\fR may also be given as environment variable \fINFGEODB\fR.
+The argument of -G overwrites the environment variable.
+.P
+.SH "RETURN VALUE"
+Returns 
+.PD 0
+.RS 4 
+0   No error. \fn
+.P
+255 Initialization failed.
+.P
+250 Internal error.
+.RE
+.PD
+.SH "EXAMPLES"
+.B Create country/location/AS DB
+.P
+Download the Maxmind .csv files and put them into a directory:
+.br
+GeoLite2-ASN-Blocks-IPv4.csv, GeoLite2-ASN-Blocks-IPv6.csv, GeoLite2-City-Blocks-IPv4.csv, GeoLite2-City-Blocks-IPv6.csv, GeoLite2-City-Locations-en.csv
+.P
+Maxmind offeres several languages for the City-Locations file. Choose one only.
+.P
+.B geolookup \-d datadir \-w mmdb.nf
+.P
+Processes all .cvs file found in datadir and writes the nfdump geoDB file.
+
+.B Lookup country/location/AS:
+.P
+.B geolookup \-G mmdb.nf 8.8.8.8 4.4.8.8
+.P 
+or
+.br
+.B export NFGEODB=mmdb.nf
+.br
+.B geolookup 8.8.8.8 4.4.8.8
+.P 
+.B Processing from <stdin>
+.br
+Each line on <stdin> is parsed for an IP address and processed. Lines may contain
+other information/text. A valid IP must be separated by non alpha characters.
+This mode allows to pipe statistics output from nfdump directly into geolookup.
+.br
+.B cat file | geolookup
+.br
+.B nfdump -r <file> -s ip/bytes -q | geolookup
+
+.SH NOTES
+None.
+.P
+.SH "SEE ALSO"
+nfdump(1)
+.SH BUGS
+

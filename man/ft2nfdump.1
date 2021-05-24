@@ -1,4 +1,4 @@
-.TH ft2nfdump 1 2009\-09\-09 "" ""
+.TH ft2nfdump 1 2021\-05\-23 "" ""
 .SH NAME
 ft2nfdump \- flow-tools data converter program
 .SH SYNOPSIS
@@ -19,10 +19,12 @@ Default: Read from stdin.
 .TP 3
 .B -w <nfdump-file>
 Write nfdump formatted file for converted netflow data
-Default: Write to stdout.
 .TP 3
 .B -j
 Compress flows. Use bz2 compression in output file. Space efficient methode
+.TP 3
+.B -y
+Compress flows. Use LZ4 compression in output file.
 .TP 3
 .B -z
 Compress flows. Use fast LZO1X\-1 compression in output file. Fastest method
@@ -50,9 +52,6 @@ Returns
 .PD
 .SH "EXAMPLES"
 .B flow-cat ft-v05.2015-05-01.* | ft2nfdump -j -w nfcap.20150501
-Convert files into nfdump format.
-.P
-.B flow-cat ft-v05.2001-05-01.* | ft2nfdump | nfdump -w nfcap.20010501
 Convert files into nfdump format.
 .P
 .B ft2nfdump -r ft-v05.2001-05-01 | nfdump -w nfcap.20010501

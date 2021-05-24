@@ -91,8 +91,6 @@ static void InitFormatParser(void);
 
 static void AddToken(int index, char *s);
 
-static void String_FlowFlags(FILE *stream, master_record_t *r);
-
 static void String_Version(FILE *stream, master_record_t *r);
 
 static void String_FirstSeen(FILE *stream, master_record_t *r);
@@ -300,7 +298,6 @@ static struct format_token_list_s {
 	char				*header;			// header line description
 	string_function_t	string_function;	// function generation output string
 } format_token_list[] = {
-	{ "%ff", 0, "Flow Flags", 				String_FlowFlags }, 	// flow flags in hex
 	{ "%nfv", 0, "Ver", 					String_Version }, 		// netflow version
 	{ "%tfs", 0, "Date first seen        ", String_FirstSeen },		// Start Time - first seen
 	{ "%ts",  0, "Date first seen        ", String_FirstSeen },		// Start Time - first seen
@@ -637,12 +634,6 @@ static char icmp_string[ICMPSTRLEN];
 } // End of ICMP_Port_decode
 
 /* functions, which create the individual strings for the output line */
-static void String_FlowFlags(FILE *stream, master_record_t *r) {
-
-	fprintf(stream, "0x%.2x", r->flags);
-
-} // End of String_FlowFlags
-
 static void String_Version(FILE *stream, master_record_t *r) {
 
 	char *type;

@@ -133,7 +133,6 @@ static void usage(char *name) {
 					"-h\t\tthis text you see right here\n"
 					"-u userid\tChange user to username\n"
 					"-g groupid\tChange group to groupname\n"
-					"-w\t\tSync file rotation with next 5min (default) interval\n"
 					"-t interval\tset the interval to rotate nfcapd files\n"
 					"-b host\t\tbind socket to host/IP addr\n"
 					"-J mcastgroup\tJoin multicast group <mcastgroup>\n"
@@ -144,7 +143,6 @@ static void usage(char *name) {
 					"-n Ident,IP,logdir\tAdd this flow source - multiple streams\n" 
 					"-N sourceFile\tAdd flows from sourceFile\n"
 					"-M dir \t\tSet the output directory for dynamic sources.\n"
-
 					"-P pidfile\tset the PID file\n"
 					"-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
 					"-s rate\tset default sampling rate (default 1)\n"
@@ -745,7 +743,7 @@ char	*pcap_file = NULL;
 	FlowSource		= NULL;
 	dynsrcdir		= NULL;
 
-	while ((c = getopt(argc, argv, "46ef:whEVI:DB:b:jl:J:M:n:N:p:P:R:S:s:T:t:x:Xru:g:yzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:jl:J:M:n:N:p:P:R:S:s:T:t:x:Xru:g:yzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -813,9 +811,6 @@ char	*pcap_file = NULL;
 			case 'N':
 				if ( AddFlowSourceFromFile(&FlowSource, optarg) ) 
 					exit(EXIT_FAILURE);
-				break;
-			case 'w':
-				// allow for compatibility - always sync timeslot
 				break;
 			case 'B':
 				bufflen = strtol(optarg, &checkptr, 10);
