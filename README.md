@@ -3,8 +3,8 @@
 UNICORN is the development branch of nfdump.
 It implements all new changes for nfdump 1.7
 
-__This is beta code. Use it at your own risk. The file format may be changed
-if required until the final release of nfdump-1.7__
+__This is beta code. Use it at your own risk. Changes are made as required
+until the final release of nfdump-1.7__
 
 For production environments use stabe releases 1.6.23 or newer.
 nfdump-1.7.x is compatible to nfdump-1.6.18, which means it can read files
