@@ -7,7 +7,7 @@ nfdump \- netflow display and analyze program
 .SH DESCRIPTION
 .B nfdump
 is the netflow display and analyzing program of the nfdump tool set. 
-It reads the netflow data from files stored by nfcapd/nfpcapd or sflowd
+It reads the netflow data from files stored by nfcapd/nfpcapd or sfcapd
 and processes the flows according to the options given. To a large extend
 the filter syntax is comparable to tcpdump and adapted for netflow data.
 Nfdump can also display many different top N flow and flow element statistics.
@@ -501,6 +501,10 @@ num: 0 uncompress, 1: LZO1X\-1, 2: bz2, 3: LZ4 compression
 .TP 3
 .B -Z
 Check filter syntax and exit. Sets the return value accordingly.
+.TP 3
+.B -T
+Tag IP addresses with a prepending cntrl-A character, to allow output parsers
+to hook in. Used by NfSen.
 .TP 3
 .B -X
 Compiles the filer syntax and dumps the filter engine table to stdout.

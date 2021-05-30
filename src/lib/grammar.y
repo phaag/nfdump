@@ -669,7 +669,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| ICMP_TYPE NUMBER {
 		if ( $2 > 255 ) {
-			yyerror("ICMP tpye of range 0..255");
+			yyerror("ICMP type of range 0..255");
 			YYABORT;
 		}
 		$$.self = Connect_AND(

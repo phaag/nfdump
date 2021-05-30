@@ -37,6 +37,10 @@ Set size limit for the directory. The specified \fIlimit\fR accepts values such
 as 100M, 100MB 1G 1.5G etc. Accpeted size factors are K, KB, M, MB, G, GB and T, TB. 
 If no factor is supplied bytes (B) is assumed. A value of 0 disables the max size limit.
 .TP 3
+.B -T \fIruntime
+Sets the max run time in seconds. Forces nfexpire to end it's task, even not yet completed.
+By default nfexpire runs until the task is done.
+.TP 3
 .B -t \fImaxlife_time
 Sets the max life time for files in the directory. The supplied \fImaxlife_time\fR 
 accepts values such as 31d, 240H 1.5d etc. Accpeted time scales are w (weeks) d (days)
@@ -87,7 +91,7 @@ using options \-u \-s \-t and \-w. If initially no limits are set, no files get 
 nfexpire can be run at any time to expire files. It automatically syncs up with the 
 files created by nfcapd in the mean time since the last expire run, if a nfcapd 
 collector process is running for that directory in question and expires the files 
-according the limits set.
+according the limits set. Nfexpire ends automatically, after \-T runtime seconds.
 .TP 0
 .B Limits
 Files are expired according to two limits: maximum disk space used by all files 

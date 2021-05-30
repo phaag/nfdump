@@ -114,7 +114,7 @@ Afterwards `./configure` `make` and `make install` should do the trick.
 The following config options are available:
 
 * __--enable-sflow__  
-Build sflow collector sfcpad; default is __NO__
+Build sflow collector sfcapd; default is __NO__
 * __--enable-nfpcapd__  
 Build nfpcapd collector to create netflow data from interface traffic or precollected pcap traffic; default is __NO__
 * __--enable-maxmind__  

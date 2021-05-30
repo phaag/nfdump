@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -80,6 +80,7 @@ static void usage(char *name) {
 					"-r datadir\tRescan data directory\n"
 					"-u datadir\tUpdate expire params from collector logging at <datadir>\n"
 					"-s size\t\tmax size: scales b bytes, k kilo, m mega, g giga t tera\n"
+					"-T runtime\tmaximum nfexpire run time: nfexpire terminates after this amount of seconds\n"
 					"-t lifetime\tmaximum life time of data: scales: w week, d day, H hour, M minute\n"
 					"-w watermark\tlow water mark in %% for expire.\n"
 					, name);
