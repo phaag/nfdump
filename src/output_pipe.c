@@ -83,7 +83,7 @@ master_record_t *r = (master_record_t *)record;
     da[2] = ( r->V6.dstaddr[1] >> 32 ) & 0xffffffffLL;
     da[3] = r->V6.dstaddr[1] & 0xffffffffLL;
 
-	fprintf(stream, "%i|%llu|%llu|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%llu|%llu",
+	fprintf(stream, "%i|%llu|%llu|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%u|%llu|%llu\n",
 		af, (long long unsigned)r->msecFirst, (long long unsigned)r->msecLast, r->proto, 
 		sa[0], sa[1], sa[2], sa[3], r->srcPort, da[0], da[1], da[2], da[3], r->dstPort, 
 		r->srcas, r->dstas, r->input, r->output,
