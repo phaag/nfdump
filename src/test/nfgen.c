@@ -63,9 +63,7 @@ static time_t	when;
 time_t offset  = 10;
 uint64_t msecs   = 10;
 
-#define NEED_PACKRECORD 1
 #include "nffile_inline.c"
-#undef NEED_PACKRECORD
 
 void *GenRecord(int af, void *buff_ptr, char *src_ip, char *dst_ip, int src_port, int dst_port, 
 	int proto, int tcp_flags, int tos, uint64_t packets, uint64_t bytes, int src_as, int dst_as);
@@ -79,6 +77,8 @@ static void SetRouterIPaddress(master_record_t *record, int af,  char *next_ip);
 static void SetBGPNextIPaddress(master_record_t *record, int af,  char *next_ip);
 
 static void UpdateRecord(master_record_t *record);
+
+static void PackRecordV3(master_record_t *master_record, nffile_t *nffile);
 
 static void SetIPaddress(master_record_t *record, int af,  char *src_ip, char *dst_ip) {
 
@@ -169,6 +169,207 @@ static void UpdateRecord(master_record_t *record) {
 
 } // End of UpdateRecord
 
+static void PackRecordV3(master_record_t *master_record, nffile_t *nffile) {
+uint32_t required;
+
+    required = master_record->size;
+
+    // flush current buffer to disc if not enough space
+    if ( !CheckBufferSpace(nffile, required) ) {
+        return;
+    }
+
+    // enough buffer space available at this point
+    AddV3Header(nffile->buff_ptr, v3Record);
+    v3Record->flags       = master_record->flags;
+    v3Record->engineType  = master_record->engine_type;
+    v3Record->engineID    = master_record->engine_id;
+
+    // first record header
+    for (int i=0; i<master_record->numElements; i++ ) {
+        dbg_printf("Pack extension %u\n", master_record->exElementList[i]);
+        switch (master_record->exElementList[i]) {
+            case EXnull:
+                fprintf(stderr, "PackRecordV3(): Found unexpected NULL extension\n");
+                break;
+            case EXgenericFlowID: {
+                PushExtension(v3Record, EXgenericFlow, genericFlow);
+                genericFlow->msecFirst = master_record->msecFirst;
+                genericFlow->msecLast  = master_record->msecLast;
+                genericFlow->msecReceived = master_record->msecReceived;
+                genericFlow->inPackets  = master_record->inPackets;
+                genericFlow->inBytes    = master_record->inBytes;
+                genericFlow->srcPort    = master_record->srcPort;
+                genericFlow->dstPort    = master_record->dstPort;
+                genericFlow->proto      = master_record->proto;
+                genericFlow->tcpFlags   = master_record->tcp_flags;
+                genericFlow->fwdStatus   = master_record->fwd_status;
+                genericFlow->srcTos      = master_record->tos;
+                } break;
+            case EXipv4FlowID: {
+                PushExtension(v3Record, EXipv4Flow, ipv4Flow);
+                ipv4Flow->srcAddr   = master_record->V4.srcaddr;
+                ipv4Flow->dstAddr   = master_record->V4.dstaddr;
+                } break;
+            case EXipv6FlowID: {
+                PushExtension(v3Record, EXipv6Flow, ipv6Flow);
+                ipv6Flow->srcAddr[0] = master_record->V6.srcaddr[0];
+                ipv6Flow->srcAddr[1] = master_record->V6.srcaddr[1];
+                ipv6Flow->dstAddr[0] = master_record->V6.dstaddr[0];
+                ipv6Flow->dstAddr[1] = master_record->V6.dstaddr[1];
+                } break;
+            case EXflowMiscID: {
+                PushExtension(v3Record, EXflowMisc, flowMisc);
+                flowMisc->input         = master_record->input;
+                flowMisc->output        = master_record->output;
+                flowMisc->dir           = master_record->dir;
+                flowMisc->dstTos        = master_record->dst_tos;
+                flowMisc->srcMask       = master_record->src_mask;
+                flowMisc->dstMask       = master_record->dst_mask;
+                flowMisc->biFlowDir     = master_record->biFlowDir;
+                flowMisc->flowEndReason = master_record->flowEndReason;
+                } break;
+            case EXcntFlowID: {
+                PushExtension(v3Record, EXcntFlow, cntFlow);
+                cntFlow->outPackets = master_record->out_pkts;
+                cntFlow->outBytes   = master_record->out_bytes;
+                cntFlow->flows      = master_record->aggr_flows;
+                } break;
+            case EXvLanID: {
+                PushExtension(v3Record, EXvLan, vLan);
+                vLan->srcVlan   = master_record->src_vlan;
+                vLan->dstVlan   = master_record->dst_vlan;
+                } break;
+            case EXasRoutingID: {
+                PushExtension(v3Record, EXasRouting, asRouting);
+                asRouting->srcAS    = master_record->srcas;
+                asRouting->dstAS    = master_record->dstas;
+                } break;
+            case EXbgpNextHopV4ID: {
+                PushExtension(v3Record, EXbgpNextHopV4, bgpNextHopV4);
+                bgpNextHopV4->ip = master_record->bgp_nexthop.V4;
+                } break;
+            case EXbgpNextHopV6ID: {
+                PushExtension(v3Record, EXbgpNextHopV6, bgpNextHopV6);
+                bgpNextHopV6->ip[0] = master_record->bgp_nexthop.V6[0];
+                bgpNextHopV6->ip[1] = master_record->bgp_nexthop.V6[1];
+                } break;
+            case EXipNextHopV4ID: {
+                PushExtension(v3Record, EXipNextHopV4, ipNextHopV4);
+                ipNextHopV4->ip = master_record->ip_nexthop.V4;
+                } break;
+            case EXipNextHopV6ID: {
+                PushExtension(v3Record, EXipNextHopV6, ipNextHopV6);
+                ipNextHopV6->ip[0] = master_record->ip_nexthop.V6[0];
+                ipNextHopV6->ip[1] = master_record->ip_nexthop.V6[1];
+                } break;
+            case EXipReceivedV4ID: {
+                PushExtension(v3Record, EXipReceivedV4, ipNextHopV4);
+                ipNextHopV4->ip = master_record->ip_router.V4;
+                } break;
+            case EXipReceivedV6ID: {
+                PushExtension(v3Record, EXipReceivedV6, ipNextHopV6);
+                ipNextHopV6->ip[0] = master_record->ip_router.V6[0];
+                ipNextHopV6->ip[1] = master_record->ip_router.V6[1];
+                } break;
+            case EXmplsLabelID: {
+                PushExtension(v3Record, EXmplsLabel, mplsLabel);
+                for (int j=0; j<10; j++) {
+                    mplsLabel->mplsLabel[j] = master_record->mpls_label[j];
+                }
+                } break;
+            case EXmacAddrID: {
+                PushExtension(v3Record, EXmacAddr, macAddr);
+                macAddr->inSrcMac   = master_record->in_src_mac;
+                macAddr->outDstMac  = master_record->out_dst_mac;
+                macAddr->inDstMac   = master_record->in_dst_mac;
+                macAddr->outSrcMac  = master_record->out_src_mac;
+                } break;
+            case EXasAdjacentID: {
+                PushExtension(v3Record, EXasAdjacent, asAdjacent);
+                asAdjacent->nextAdjacentAS = master_record->bgpNextAdjacentAS;
+                asAdjacent->prevAdjacentAS = master_record->bgpPrevAdjacentAS;
+                } break;
+            case EXlatencyID: {
+                PushExtension(v3Record, EXlatency, latency);
+                latency->usecClientNwDelay = master_record->client_nw_delay_usec;
+                latency->usecServerNwDelay = master_record->server_nw_delay_usec;
+                latency->usecApplLatency   = master_record->appl_latency_usec;
+                } break;
+#ifdef NSEL
+            case EXnselCommonID: {
+                PushExtension(v3Record, EXnselCommon, nselCommon);
+                nselCommon->msecEvent = master_record->msecEvent;
+                nselCommon->connID    = master_record->connID;
+                nselCommon->fwXevent  = master_record->fwXevent;
+                nselCommon->fwEvent   = master_record->event;
+                } break;
+            case EXnselXlateIPv4ID: {
+                PushExtension(v3Record, EXnselXlateIPv4, nselXlateIPv4);
+                nselXlateIPv4->xlateSrcAddr = master_record->xlate_src_ip.V4;
+                nselXlateIPv4->xlateDstAddr = master_record->xlate_dst_ip.V4;
+                } break;
+            case EXnselXlateIPv6ID: {
+                PushExtension(v3Record, EXnselXlateIPv6, nselXlateIPv6);
+                memcpy(nselXlateIPv6->xlateSrcAddr, master_record->xlate_src_ip.V6, 16);
+                memcpy(nselXlateIPv6->xlateDstAddr, master_record->xlate_dst_ip.V6, 16);
+                } break;
+            case EXnselXlatePortID: {
+                PushExtension(v3Record, EXnselXlatePort, nselXlatePort);
+                nselXlatePort->xlateSrcPort = master_record->xlate_src_port;
+                nselXlatePort->xlateDstPort = master_record->xlate_dst_port;
+                } break;
+            case EXnselAclID: {
+                PushExtension(v3Record, EXnselAcl, nselAcl);
+                nselAcl->ingressAcl[0] = htonl(master_record->ingressAcl[0]);
+                nselAcl->ingressAcl[1] = htonl(master_record->ingressAcl[1]);
+                nselAcl->ingressAcl[2] = htonl(master_record->ingressAcl[2]);
+                nselAcl->egressAcl[0] = htonl(master_record->egressAcl[0]);
+                nselAcl->egressAcl[1] = htonl(master_record->egressAcl[1]);
+                nselAcl->egressAcl[2] = htonl(master_record->egressAcl[2]);
+                } break;
+            case EXnselUserID: {
+                PushExtension(v3Record, EXnselUser, nselUser);
+                memcpy(nselUser->username, master_record->username, 65);
+                nselUser->username[65] = '\0';
+                } break;
+            case EXnelCommonID: {
+                PushExtension(v3Record, EXnelCommon, nelCommon);
+                nelCommon->msecEvent  = master_record->msecEvent;
+                nelCommon->natEvent   = master_record->event;
+                nelCommon->egressVrf  = master_record->egressVrf;
+                nelCommon->ingressVrf = master_record->ingressVrf;
+                } break;
+            case EXnelXlatePortID: {
+                PushExtension(v3Record, EXnelXlatePort, nelXlatePort);
+                nelXlatePort->blockStart = master_record->block_start;
+                nelXlatePort->blockEnd   = master_record->block_end;
+                nelXlatePort->blockStep  = master_record->block_step;
+                nelXlatePort->blockSize  = master_record->block_size;
+                } break;
+#endif
+            case EXnbarAppID: {
+                PushVarLengthExtension(v3Record, EXnbarApp, nbarApp, 4);
+                memcpy(nbarApp->id, master_record->nbarAppID, 4);
+            } break;
+            default:
+                fprintf(stderr, "PackRecordV3(): Unknown extension '%u'\n", master_record->exElementList[i]);
+        }
+        if ( v3Record->size > required ) {
+            fprintf(stderr, "PackRecordV3(): record size(%u) > expected(%u)'\n", v3Record->size, required);
+        }
+    }
+
+    if ( v3Record->size != required ) {
+        fprintf(stderr, "PackRecordV3(): record size(%u) != expected(%u)'\n", v3Record->size, required);
+    }
+    nffile->block_header->NumRecords++;
+    nffile->block_header->size += v3Record->size;
+    nffile->buff_ptr += v3Record->size;
+    dbg_assert( v3Record->size == required );
+
+} // End of PackRecordV3
+
 int main( int argc, char **argv ) {
 int i, c;
 master_record_t		record;
@@ -257,6 +458,8 @@ nffile_t			*nffile;
 	PackRecordV3(&record, nffile);
 
 	SetIPaddress(&record,  PF_INET, "192.168.170.101", "172.16.2.66");
+	record.msecFirst	+= 1;
+	record.msecLast		+= 1;
 	record.dstPort		= 80;
 	record.srcPort		= 22222;
 	record.input 	 	= 200;

@@ -857,6 +857,7 @@ FlowHashRecord_t	*record;
 	record->counter[OUTBYTES]	 = flow_record->out_bytes;
 	record->counter[OUTPACKETS]  = flow_record->out_pkts;
 	record->counter[FLOWS]	 	 = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
+	record->inFlags				 = flow_record->tcp_flags;
 	FlowList.NumRecords++;
 
 	record->next = NULL;
@@ -1128,7 +1129,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex,
 
 		int exCntSize = 0;
 		EXcntFlow_t *cntFlow = (EXcntFlow_t *)extensionList[EXcntFlowID];
-		if ((r->counter[OUTPACKETS] || r->counter[OUTBYTES] || r->counter[FLOWS]) && 
+		if ((r->counter[OUTPACKETS] || r->counter[OUTBYTES] || r->counter[FLOWS] != 1) && 
 			 cntFlow == NULL ) {
 				exCntSize = EXcntFlowSize;
 		}
@@ -1167,7 +1168,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex,
 			genericFlow->inBytes   = r->counter[INBYTES];
 			cntFlow->outPackets	   = r->counter[OUTPACKETS];
 			cntFlow->outBytes	   = r->counter[OUTBYTES];
-			cntFlow->flows = r->counter[FLOWS];
+			cntFlow->flows 		   = r->counter[FLOWS];
 	
 			genericFlow->msecFirst = r->msecFirst;
 			genericFlow->msecLast  = r->msecLast;

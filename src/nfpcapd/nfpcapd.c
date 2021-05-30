@@ -49,6 +49,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
+#include <libgen.h>
 #include <assert.h>
 
 #include <netinet/in.h>
@@ -584,16 +585,26 @@ char			*time_extension;
 				}
 				compress = LZO_COMPRESSED;
 				break;
-			case 'P':
-				if (strlen(optarg) > MAXPATHLEN) {
+			case 'P': {
+				if (strlen(optarg) > PATH_MAX) {
 					LogError("Length error for pid fie");
 					exit(EXIT_FAILURE);
 				}
-				pidfile = realpath(optarg, NULL);
-				if ( !pidfile ) {
+				char *dirName  = dirname(optarg);
+				char *fileName = basename(optarg);
+				dirName = realpath(dirName, NULL);
+				if ( !dirName ) {
 					LogError("realpath() pid file: %s", strerror(errno));
 					exit(EXIT_FAILURE);
 				}
+				size_t len = strlen(dirName) + strlen(fileName) + 2;
+				pidfile = malloc(len);
+				if ( !pidfile ) {
+					LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
+					exit(EXIT_FAILURE);
+				}
+				snprintf(pidfile, len, "%s/%s", dirName, fileName);
+				} break;
 				break;
 			case 'S':
 				subdir_index = atoi(optarg);

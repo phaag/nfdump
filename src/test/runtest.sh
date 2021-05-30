@@ -36,7 +36,7 @@ export TZ
 
 # Check for correct output
 rm -f test.*
-../nfgen 
+./nfgen 
 
 # verify test
 ../nfdump -v test.flows.nf

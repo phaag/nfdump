@@ -52,6 +52,7 @@
 #include <signal.h>
 #include <sys/mman.h>
 #include <string.h>
+#include <libgen.h>
 #include <errno.h>
 #include <dirent.h>
 
@@ -751,17 +752,26 @@ char	*pcap_file = NULL;
 			case 'p':
 				listenport = optarg;
 				break;
-			case 'P':
+			case 'P': {
 				if (strlen(optarg) > PATH_MAX) {
 					LogError("Length error for pid fie");
 					exit(EXIT_FAILURE);
 				}
-				pidfile = realpath(optarg, NULL);
-				if ( !pidfile ) {
+				char *dirName  = dirname(optarg);
+				char *fileName = basename(optarg);
+				dirName = realpath(dirName, NULL);
+				if ( !dirName ) {
 					LogError("realpath() pid file: %s", strerror(errno));
 					exit(EXIT_FAILURE);
 				}
-				break;
+				size_t len = strlen(dirName) + strlen(fileName) + 2;
+				pidfile = malloc(len);
+				if ( !pidfile ) {
+					LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
+					exit(EXIT_FAILURE);
+				}
+				snprintf(pidfile, len, "%s/%s", dirName, fileName);
+				} break;
 			case 'R': {
 				char *port, *hostname;
 				char *p = strchr(optarg, '/');
