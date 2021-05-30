@@ -230,17 +230,17 @@ are reported at the end of every interval to syslog with level 'info'.
 .SH "EXAMPLES"
 All flows are sent to port 9995 from all exporters and stored into a single file. All known v9 tags are taken.
 .RS
-\fBnfcapd \-z \-w \-D \-l /netflow/spool/allflows \-I any \-S 2 \-P /var/run/nfcapd.allflows.pid\fP
+\fBnfcapd \-z \-D \-l /netflow/spool/allflows \-I any \-S 2 \-P /var/run/nfcapd.allflows.pid\fP
 .RE
 .LP
 All flows from 2 different exporters are sent to port 8877 and stored in separate directory trees. All known v9 tags are taken. Input buffer size is set to 128000 bytes
 .RS
-\fBnfcapd \-z \-w \-D \-p 8877 \-n upstream,192.168.1.1,/netflow/spool/upstream \-n peer,192.168.2.1,/netflow/spool/peer \-S 2 \-B 128000\fP
+\fBnfcapd \-z \-D \-p 8877 \-n upstream,192.168.1.1,/netflow/spool/upstream \-n peer,192.168.2.1,/netflow/spool/peer \-S 2 \-B 128000\fP
 .RE
 .LP
 Only accept from from a single exporter and only extension 3,4 and 5 are accepted. Run a given command when files are rotated and automatically expire flows:
 .RS
-\fBnfcapd \-w \-D \-n upstream,192.168.1.1,/netflow/spool/upstream \-p 23456 \-B 128000 \-s 100 \-x '/path/command \-r %d/%f'  \-P /var/run/nfcapd/nfcapd.pid \-e\fP
+\fBnfcapd \-D \-n upstream,192.168.1.1,/netflow/spool/upstream \-p 23456 \-B 128000 \-s 100 \-x '/path/command \-r %d/%f'  \-P /var/run/nfcapd/nfcapd.pid \-e\fP
 .RE
 .LP
 .SH NOTES

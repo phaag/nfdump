@@ -124,7 +124,6 @@ static void usage(char *name) {
 					"-h\t\tthis text you see right here\n"
 					"-u userid\tChange user to userid\n"
 					"-g groupid\tChange group to groupid\n"
-					"-w\t\tSync file rotation with next 5min (default) interval\n"
 					"-t interval\tset the interval to rotate sfcapd files\n"
 					"-b host\t\tbind socket to host/IP addr\n"
 					"-J mcastgroup\tJoin multicast group <mcastgroup>\n"
@@ -633,7 +632,7 @@ FlowSource_t *fs;
 struct sigaction act;
 int		family, bufflen;
 time_t 	twin, t_start;
-int		sock, synctime, do_daemonize, expire, spec_time_extension, report_sequence;
+int		sock, o_daemonize, expire, spec_time_extension, report_sequence;
 int		subdir_index, compress;
 int		c, i;
 #ifdef PCAP
@@ -641,7 +640,7 @@ char	*pcap_file = NULL;
 #endif
 
 	receive_packet 	= recvfrom;
-	verbose = synctime = do_daemonize = 0;
+	verbose = do_daemonize = 0;
 	bufflen  		= 0;
 	family			= AF_UNSPEC;
 	launcher_pid	= 0;
@@ -667,7 +666,7 @@ char	*pcap_file = NULL;
 	Ident			= "none";
 	FlowSource		= NULL;
 
-	while ((c = getopt(argc, argv, "46ewhEVI:DB:b:f:jl:n:N:p:J:P:R:S:t:x:ru:g:yzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ehEVI:DB:b:f:jl:n:N:p:J:P:R:S:t:x:ru:g:yzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -715,9 +714,6 @@ char	*pcap_file = NULL;
 			case 'N':
 				if ( AddFlowSourceFromFile(&FlowSource, optarg) )
 					exit(EXIT_FAILURE);
-				break;
-			case 'w':
-				synctime = 1;
 				break;
 			case 'j':
 				if ( compress ) {
@@ -908,8 +904,7 @@ char	*pcap_file = NULL;
 	}
 
 	t_start = time(NULL);
-	if ( synctime )
-		t_start = t_start - ( t_start % twin);
+	t_start = t_start - ( t_start % twin);
 
 	if ( do_daemonize ) {
 		verbose = 0;

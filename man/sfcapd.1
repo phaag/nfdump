@@ -161,11 +161,6 @@ as netflow data is stored in the same type of extensions.
 Specifies the time interval in seconds to rotate files. The default value 
 is 300s ( 5min ). The smallest interval can be set to 2s.
 .TP 3
-.B -w
-Align file rotation with next n minute ( specified by -t ) interval. 
-Example: If interval is 5 min, sync at 0,5,10... wall clock minutes 
-Default: no alignment.
-.TP 3
 .B -x \fIcmd
 Run command \fIcmd\fR at the end of every interval, when a new file
 becomes available. The following command expansion is available:
@@ -237,12 +232,12 @@ are reported at the end of every interval to syslog with level 'info'.
 .SH "EXAMPLES"
 Compatible with old sfcapd 1.5.x:
 .RS
-\fBsfcapd -w -D -l /data/spool/router1 -p 6343 -B 128000 -I router1 -x '/path/some_app -r %d/%f'  -P /var/run/sfcapd/sfcapd.router1\fP
+\fBsfcapd -D -l /data/spool/router1 -p 6343 -B 128000 -I router1 -x '/path/some_app -r %d/%f'  -P /var/run/sfcapd/sfcapd.router1\fP
 .RE
 .P
 Selectively enabled sender:
 .RS
-\fBsfcapd -Tall -w -D -n router1,192.168.1.10,/data/spool/router1 -p 6343 -B 128000 -P /var/run/sfcapd/sfcapd.router1\fP
+\fBsfcapd -Tall -D -n router1,192.168.1.10,/data/spool/router1 -p 6343 -B 128000 -P /var/run/sfcapd/sfcapd.router1\fP
 .RE
 .P
 .SH NOTES
