@@ -632,7 +632,7 @@ FlowSource_t *fs;
 struct sigaction act;
 int		family, bufflen;
 time_t 	twin, t_start;
-int		sock, o_daemonize, expire, spec_time_extension, report_sequence;
+int		sock, do_daemonize, expire, spec_time_extension, report_sequence;
 int		subdir_index, compress;
 int		c, i;
 #ifdef PCAP
@@ -666,7 +666,7 @@ char	*pcap_file = NULL;
 	Ident			= "none";
 	FlowSource		= NULL;
 
-	while ((c = getopt(argc, argv, "46ehEVI:DB:b:f:jl:n:N:p:J:P:R:S:t:x:ru:g:yzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ehEVI:DB:b:f:jl:n:N:p:J:P:R:S:T:t:x:ru:g:yzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -797,6 +797,9 @@ char	*pcap_file = NULL;
 				break;
 			case 'S':
 				subdir_index = atoi(optarg);
+				break;
+			case 'T':
+				printf("Option -T no longer supported and ignored\n");
 				break;
 			case 't':
 				twin = atoi(optarg);

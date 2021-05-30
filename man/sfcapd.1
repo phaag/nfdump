@@ -105,58 +105,6 @@ data directory.  The following hierarchies are defined:
 .RE
 .PD
 .TP 3
-.B -T \fI<extension list>
-Specifies the list of extensions, to be stored in the flow file. 
-Regardless of the extension list, the following sflow data is stored per record:
-first, last, fwd status, tcp flags, proto, (src)tos, src port, dst port, src 
-ipaddr, dst ipaddr, in(packets), in(bytes). In addition sfcapd recognises the 
-extensions as described below. 
-.TP 2
-   Extensions:
-.PD 0
-.RS 4
-sflow extensions:
-.P
- 1 input/output interface SNMP numbers.
-.P
- 2 src/dst AS numbers.
-.P
- 3 src/dst mask, (dst)TOS, direction, 
-.P
- 4 Next hop IP addr
-.P
- 5 BGP next hop IP addr
-.P
- 6 src/dst vlan id labels
-.P
-10 in_src/out_dst MAC address
-.P
-
-By default extension 1 and 2 are selected, which provides compatibility with 
-earlier nfdump version.  Extensions can be added/deleted by specifying a ',' 
-separated list of extension ids. Each id may be prepended by an optional 
-sign +/\- to add or remove a given id from the extension list. The string 'all'
-means all extensions. Extensions 7\-9 are not available for sfcapd.
-.P
-
-.P
-Examples: 
-.P
-\-T all       Enables all possible extensions.
-.P
-\-T +3,+4     Adds extensions 3 and 4 to the defaults 1 and 2.
-.P
-\-T all,\-5,\-6 Set all extensions but 5 and 6
-.P
-\-T \-1,4      Removes default extension 1 and adds extension 4
-.P
-
-.P
-Note: Extensions are shared with the netflow collector nfcapd. Sflow as well
-as netflow data is stored in the same type of extensions.
-.RE
-.PD
-.TP 3
 .B -t \fIinterval
 Specifies the time interval in seconds to rotate files. The default value 
 is 300s ( 5min ). The smallest interval can be set to 2s.
@@ -237,7 +185,7 @@ Compatible with old sfcapd 1.5.x:
 .P
 Selectively enabled sender:
 .RS
-\fBsfcapd -Tall -D -n router1,192.168.1.10,/data/spool/router1 -p 6343 -B 128000 -P /var/run/sfcapd/sfcapd.router1\fP
+\fBsfcapd -D -n router1,192.168.1.10,/data/spool/router1 -p 6343 -B 128000 -P /var/run/sfcapd/sfcapd.router1\fP
 .RE
 .P
 .SH NOTES

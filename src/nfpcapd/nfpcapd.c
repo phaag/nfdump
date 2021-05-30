@@ -433,7 +433,7 @@ char			*time_extension;
 	buff_size		= 20;
 	activeTimeout	= 0;
 	inactiveTimeout	= 0;
-	while ((c = getopt(argc, argv, "B:DI:b:e:g:hH:i:j:r:s:l:o:p:P:t:u:S:vVyz")) != EOF) {
+	while ((c = getopt(argc, argv, "B:DI:b:e:g:hH:i:j:r:s:l:o:p:P:T:t:u:S:vVyz")) != EOF) {
 		switch (c) {
 			struct stat fstat;
 			case 'h':
@@ -597,6 +597,9 @@ char			*time_extension;
 				break;
 			case 'S':
 				subdir_index = atoi(optarg);
+				break;
+			case 'T':
+				printf("Option -T no longer supported and ignored\n");
 				break;
 			case 'v':
 				verbose++;
