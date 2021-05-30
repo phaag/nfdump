@@ -229,11 +229,12 @@ static int ProcessSubTemplate(sequencer_t *sequencer, uint16_t type,
 	if ( inLength < 1 )
 		return SEQ_ERROR;
 
-	dbg_printf("Process sub template\n");
-	// uint8_t Semantic = *((uint8_t *)inBuff);
+#ifdef DEVEL
+	printf("Process sub template\n");
+	uint8_t Semantic = *((uint8_t *)inBuff);
+#endif
 	inBuff++;
 	inLength--;
-	int Semantic = 0;
 	if ( type == subTemplateMultiListType ) {
 		dbg_printf("Semantic multilist template: %u\n", Semantic);
 		while ( inLength > 4 ) {
@@ -352,7 +353,9 @@ static int nestLevel = 0;
 		// check for skip sequence
 		if ( ExtID == EXnull && stackID == 0 ) {
 			uint16_t type = sequencer->sequenceTable[i].inputType;
+#ifdef DEVEL
 			DumpHex(inBuff,inLength);
+#endif
 			if (type == subTemplateListType || type == subTemplateMultiListType) {
 				dbg_printf("[%i:%i] Sub template %u, length %u: \n", nestLevel, i, type, inLength);
 				int ret = ProcessSubTemplate(sequencer, type, inBuff, inLength, outBuff, outSize, stack);
