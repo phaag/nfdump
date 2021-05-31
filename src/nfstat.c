@@ -970,11 +970,11 @@ char tag_string[2];
 
 	uint32_t bpp;
 	uint64_t pps, bps;
-	uint64_t duration = (StatData->msecLast - StatData->msecFirst);
+	double duration = (StatData->msecLast - StatData->msecFirst) / 1000.0;
 	if ( duration != 0 ) {
-		// * 1000 -> duration in msec
-		pps  = (1000 * count_packets) / duration;
-		bps  = (8 * 1000 * count_bytes) / duration;
+		// duration in sec
+		pps  = (count_packets) / duration;
+		bps  = (8 * count_bytes) / duration;
 	} else {
 		pps  = bps  = 0;
 	}
@@ -1001,18 +1001,18 @@ char tag_string[2];
 	char *protoStr = order_proto ? ProtoString(StatData->hashkey.proto, outputParams->printPlain) : "any";
 	if ( Getv6Mode() && ( type == IS_IPADDR ) ) {
 		printf("%s.%03u %9.3f %-5s %s%39s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", 
-			datestr, (unsigned)(StatData->msecFirst % 1000), duration / 1000.0,
+			datestr, (unsigned)(StatData->msecFirst % 1000), duration,
 			protoStr, tag_string, valstr, flows_str, flows_percent, 
 			packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str, bpp );
 	} else {
 		if (LoadedGeoDB) {
 			printf("%s.%03u %9.3f %-5s %s%21s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n",
-				datestr, (unsigned)(StatData->msecFirst % 1000), duration / 1000.0,
+				datestr, (unsigned)(StatData->msecFirst % 1000), duration,
 				protoStr, tag_string, valstr, flows_str, flows_percent, 
 				packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str, bpp );
 		} else {
 			printf("%s.%03u %9.3f %-5s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n",
-				datestr, (unsigned)(StatData->msecFirst % 1000), duration / 1000.0,
+				datestr, (unsigned)(StatData->msecFirst % 1000), duration,
 				protoStr, tag_string, valstr, flows_str, flows_percent, 
 				packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str, bpp );
 		}
@@ -1021,7 +1021,6 @@ char tag_string[2];
 } // End of PrintStatLine
 
 static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
-double		duration;
 uint64_t	count_flows, count_packets, count_bytes, _key[2];
 uint32_t	pps, bps, bpp;
 uint32_t	sa[4];
@@ -1046,7 +1045,7 @@ int			af;
     	sa[2] = ( _key[1] >> 32 ) & 0xffffffffLL;
     	sa[3] = _key[1] & 0xffffffffLL;
 	} 
-	duration = (StatData->msecLast - StatData->msecFirst);
+	double duration = (StatData->msecLast - StatData->msecFirst) / 1000.0;
 	
 	count_flows = flows_element(StatData, inout);
 	count_packets = packets_element(StatData, inout);
@@ -1085,7 +1084,7 @@ int			af;
 static void PrintCvsStatLine(stat_record_t	*stat, int printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
 char		valstr[40], datestr1[64], datestr2[64];
 uint64_t	count_flows, count_packets, count_bytes;
-double		duration, flows_percent, packets_percent, bytes_percent;
+double		flows_percent, packets_percent, bytes_percent;
 uint32_t	bpp;
 uint64_t	pps, bps;
 time_t		when;
@@ -1137,7 +1136,7 @@ struct tm	*tbuff;
 	packets_percent = stat->numpackets ? (double)(count_packets * 100 ) / (double)stat->numpackets : 0;
 	bytes_percent   = stat->numbytes ? (double)(count_bytes * 100 ) / (double)stat->numbytes : 0;
 
-	duration = (StatData->msecLast - StatData->msecFirst);
+	double duration = (StatData->msecLast - StatData->msecFirst) /1000.0;
 	
 	if ( duration != 0 ) {
 		pps  = (uint64_t)((double)count_packets / duration);
@@ -1169,7 +1168,7 @@ struct tm	*tbuff;
 	strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
 	printf("%s,%s,%.3f,%s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n",
-		datestr1, datestr2, duration/1000.0,
+		datestr1, datestr2, duration,
 		order_proto ? ProtoString(StatData->hashkey.proto, printPlain) : "any", valstr,
 		(long long unsigned)count_flows, flows_percent,
 		(long long unsigned)count_packets, packets_percent,
