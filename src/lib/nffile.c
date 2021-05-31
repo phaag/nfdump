@@ -108,6 +108,8 @@ static void FlushFile(nffile_t *nffile);
 
 static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2);
 
+static void UpdateStat(stat_record_t *s, stat_recordV1_t *sv1);
+
 static queue_t *mem_queue = NULL;
 static queue_t *fileQueue = NULL;
 
@@ -538,8 +540,7 @@ static nffile_t *NewFile(nffile_t *nffile) {
 		nffile->ident = NULL;
 	}
 	memset((void *)nffile->stat_record, 0, sizeof(stat_record_t));
-	nffile->stat_record->first_seen = 0x7fffffff;
-	nffile->stat_record->msec_first = 999;
+	nffile->stat_record->firstseen = 0x7fffffffffffffff;
 
 	nffile->block_header = NULL;
 	nffile->buff_ptr 	 = NULL;
@@ -656,12 +657,14 @@ int ret, fd;
 				nffile->ident = strdup(fileHeaderV1.ident);
 
 			// read v1 stat record
-			ret = read(nffile->fd, (void *)nffile->stat_record, sizeof(stat_record_t));
+			stat_recordV1_t stat_recordV1;
+			ret = read(nffile->fd, (void *)&stat_recordV1, sizeof(stat_recordV1_t));
 			if ( ret < 0 ) {
 				LogError("read() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 				CloseFile(nffile);
 				return NULL;
 			}
+			UpdateStat(nffile->stat_record, &stat_recordV1);
 		} else {
 			LogError("Open file %s: bad version: %u", filename, nffile->file_header->version );
 			CloseFile(nffile);
@@ -1721,19 +1724,40 @@ int ret;
 	printf("Version    : %u - %s %s\n", fileHeader.version, s, anon ? "anonymized" : "");
 	printf("Blocks     : %u\n", fileHeader.NumBlocks);
 
-	stat_record_t stat_record;
-	ret = read(fd, (void *)&stat_record, sizeof(stat_record_t));
+	stat_recordV1_t stat_recordV1;
+	ret = read(fd, (void *)&stat_recordV1, sizeof(stat_recordV1_t));
 	if ( ret < 0 ) {
 		LogError("read() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
 		return 0;
 	}
-	if ( ret != sizeof(stat_record_t)) {
-		LogError("Error reading v1 stat record - short read. Expected: %u, get %u", sizeof(stat_record_t), ret);
+	if ( ret != sizeof(stat_recordV1_t)) {
+		LogError("Error reading v1 stat record - short read. Expected: %u, get %u", sizeof(stat_recordV1_t), ret);
 		return 0;
 	}
  
 	return 1;
 } // End of QueryFileV1
+
+static void UpdateStat(stat_record_t *s, stat_recordV1_t *sv1) {
+	s->numflows = sv1->numflows;
+	s->numbytes = sv1->numbytes;
+	s->numpackets = sv1->numpackets;
+	s->numflows_tcp = sv1->numflows_tcp;
+	s->numflows_udp = sv1->numflows_udp;
+	s->numflows_icmp = sv1->numflows_icmp;
+	s->numflows_other = sv1->numflows_other;
+	s->numbytes_tcp = sv1->numbytes_tcp;
+	s->numbytes_udp = sv1->numbytes_udp;
+	s->numbytes_icmp = sv1->numbytes_icmp;
+	s->numbytes_other = sv1->numbytes_other;
+	s->numpackets_tcp = sv1->numpackets_tcp;
+	s->numpackets_udp = sv1->numpackets_udp;
+	s->numpackets_icmp = sv1->numpackets_icmp;
+	s->numpackets_other = sv1->numpackets_other;
+	s->firstseen = 1000LL * (uint64_t)sv1->first_seen + (uint64_t)sv1->msec_first;
+	s->lastseen = 1000LL * (uint64_t)sv1->last_seen + (uint64_t)sv1->msec_last;
+	s->sequence_failure = sv1->sequence_failure;
+} // End of UpdateStat
 
 // simple interface to get a stat record
 int GetStatRecord(char *filename, stat_record_t *stat_record) {
@@ -1773,11 +1797,11 @@ void PrintStat(stat_record_t *s, char *ident) {
 	printf("Bytes_udp: %llu\n", (unsigned long long)s->numbytes_udp);
 	printf("Bytes_icmp: %llu\n", (unsigned long long)s->numbytes_icmp);
 	printf("Bytes_other: %llu\n", (unsigned long long)s->numbytes_other);
-	printf("First: %u\n", s->first_seen);
-	printf("Last: %u\n", s->last_seen);
-	printf("msec_first: %u\n", s->msec_first);
-	printf("msec_last: %u\n", s->msec_last);
-	printf("Sequence failures: %u\n", s->sequence_failure);
+	printf("First: %llu\n", s->firstseen/1000LL);
+	printf("Last: %llu\n", s->lastseen/1000LL);
+	printf("msec_first: %llu\n", s->firstseen % 1000LL);
+	printf("msec_last: %llu\n", s->lastseen % 1000LL);
+	printf("Sequence failures: %llu\n", s->sequence_failure);
 } // End of PrintStat
 
 void SumStatRecords(stat_record_t *s1, stat_record_t *s2) {
@@ -1799,20 +1823,11 @@ void SumStatRecords(stat_record_t *s1, stat_record_t *s2) {
 	s1->numpackets_other	+= s2->numpackets_other;
 	s1->sequence_failure	+= s2->sequence_failure;
 
-	if ( s2->first_seen < s1->first_seen ) {
-		s1->first_seen = s2->first_seen;
-		s1->msec_first = s2->msec_first;
+	if ( s2->firstseen < s1->firstseen ) {
+		s1->firstseen = s2->firstseen;
 	}
-	if ( s2->first_seen == s1->first_seen && 
-		 s2->msec_first < s1->msec_first ) 
-			s1->msec_first = s2->msec_first;
-
-	if ( s2->last_seen > s1->last_seen ) {
-		s1->last_seen = s2->last_seen;
-		s1->msec_last = s2->msec_last;
+	if ( s2->lastseen > s1->lastseen ) {
+		s1->lastseen = s2->lastseen;
 	}
-	if ( s2->last_seen == s1->last_seen && 
-		 s2->msec_last > s1->msec_last ) 
-			s1->msec_last = s2->msec_last;
 
 } // End of SumStatRecords

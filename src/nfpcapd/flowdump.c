@@ -95,12 +95,12 @@ FlowSource_t *fs = flowParam->fs;
     	// pack V3 record
 		UpdateRecordSize(EXgenericFlowSize);
     	PushExtension(recordHeader, EXgenericFlow, genericFlow);
-    	genericFlow->msecFirst = (1000 * Node->t_first.tv_sec) + Node->t_first.tv_usec / 1000;
-    	genericFlow->msecLast  = (1000 * Node->t_last.tv_sec) + Node->t_last.tv_usec / 1000;
+    	genericFlow->msecFirst = (1000LL * (uint64_t)Node->t_first.tv_sec) + (uint64_t)Node->t_first.tv_usec / 1000LL;
+    	genericFlow->msecLast  = (1000LL * (uint64_t)Node->t_last.tv_sec) + (uint64_t)Node->t_last.tv_usec / 1000LL;
 
 		struct timeval now;
 		gettimeofday(&now, NULL);
-		genericFlow->msecReceived = now.tv_sec * 1000L + now.tv_usec / 1000;
+		genericFlow->msecReceived = (uint64_t)now.tv_sec * 1000LL + (uint64_t)now.tv_usec / 1000LL;
 
 		genericFlow->inPackets = Node->packets;
 		genericFlow->inBytes   = Node->bytes;
@@ -274,13 +274,11 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
 	// if no flows were collected, fs->last_seen is still 0
 	// set first_seen to start of this time slot, with twin window size.
 	if ( fs->msecLast == 0 ) {
-		fs->msecFirst = (uint64_t)1000 * (uint64_t)timestamp;
-		fs->msecLast  = (uint64_t)1000 * (uint64_t)(timestamp + flowParam->t_win);
+		fs->msecFirst = 1000LL * (uint64_t)timestamp;
+		fs->msecLast  = 1000LL * (uint64_t)(timestamp + flowParam->t_win);
 	}
-	nffile->stat_record->first_seen = fs->msecFirst/1000;
-	nffile->stat_record->msec_first	= fs->msecFirst - nffile->stat_record->first_seen*1000;
-	nffile->stat_record->last_seen 	= fs->msecLast/1000;
-	nffile->stat_record->msec_last	= fs->msecLast - nffile->stat_record->last_seen*1000;
+	nffile->stat_record->firstseen = fs->msecFirst;
+	nffile->stat_record->lastseen  = fs->msecLast;
 	
 	// Flush Exporter Stat to file
 	FlushExporterStats(fs);

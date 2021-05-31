@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -341,8 +341,8 @@ nffile_t *nffile;
 
 	memset((void *)&profile_channels[num_channels].stat_record, 0, sizeof(stat_record_t));
 
-	profile_channels[num_channels].stat_record.first_seen	= 0x7fffffff;
-	profile_channels[num_channels].stat_record.last_seen	= 0;
+	profile_channels[num_channels].stat_record.firstseen = 0x7fffffffffffffffLL;
+	profile_channels[num_channels].stat_record.lastseen	 = 0;
 
 	num_channels++;
 

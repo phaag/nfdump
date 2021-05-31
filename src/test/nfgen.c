@@ -161,8 +161,8 @@ static void UpdateRecord(master_record_t *record) {
 	offset += 10LL;
 
 	msecs += 100LL;
-	if ( msecs > 1000 )
-		msecs = msecs - 1000;
+	if ( msecs > 1000LL )
+		msecs = msecs - 1000LL;
 
 	record->engine_id++;
 	record->engine_type = offset;
@@ -450,8 +450,8 @@ nffile_t			*nffile;
 	record.tcp_flags   	= 16;
 	PackRecordV3(&record, nffile);
 
-	record.msecFirst	+= 1000;
-	record.msecLast		+= 1000;
+	record.msecFirst	+= 1000LL;
+	record.msecLast		+= 1000LL;
 	record.inPackets	+= 10;
 	record.inBytes		+= 1024;
 	record.tcp_flags   	= 1;
@@ -473,14 +473,14 @@ nffile_t			*nffile;
 	record.inBytes		= 1024;
 	PackRecordV3(&record, nffile);
 
-	record.msecFirst	+= 1000;
-	record.msecLast		+= 1000;
+	record.msecFirst	+= 1000LL;
+	record.msecLast		+= 1000LL;
 	record.inPackets	+= 10;
 	record.inBytes		+= 1024;
 	record.tcp_flags   	= 16;
 	PackRecordV3(&record, nffile);
 
-	record.msecFirst	+= 1000;
+	record.msecFirst	+= 1000LL;
 	record.msecLast		+= 1000;
 	record.inPackets	+= 10;
 	record.inBytes		+= 1024;

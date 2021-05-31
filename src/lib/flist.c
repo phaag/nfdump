@@ -1166,10 +1166,10 @@ static int CheckTimeWindow(char *filename) {
 		return 0;
 	}
 	
-	if ( searchWindow->last && searchWindow->last < stat_record.first_seen )
+	if ( searchWindow->last && searchWindow->last < (stat_record.firstseen/1000LL) )
 		return 0;
 	
-	if ( searchWindow->first && searchWindow->first > stat_record.last_seen )
+	if ( searchWindow->first && searchWindow->first > (stat_record.lastseen/1000LL) )
 		return 0;
 	
 	return 1;

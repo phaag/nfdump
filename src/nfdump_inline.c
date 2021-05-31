@@ -72,25 +72,12 @@ static inline void UpdateStat(stat_record_t	*stat_record, master_record_t *maste
 	stat_record->numbytes 	+= master_record->inBytes;
 	stat_record->numbytes 	+= master_record->out_bytes;
 
-	uint32_t sec  = master_record->msecFirst / 1000LL;
-	uint32_t msec = master_record->msecFirst % 1000LL;
-	if ( sec < stat_record->first_seen ) {
-		stat_record->first_seen = sec;
-		stat_record->msec_first = msec;
+	if ( master_record->msecFirst < stat_record->firstseen ) {
+		stat_record->firstseen = master_record->msecFirst;
 	}
-	if ( sec == stat_record->first_seen && 
-	 	msec < stat_record->msec_first ) 
-			stat_record->msec_first = msec;
-
-	sec  = master_record->msecLast / 1000LL;
-	msec = master_record->msecLast % 1000LL;
-	if ( sec > stat_record->last_seen ) {
-		stat_record->last_seen = sec;
-		stat_record->msec_last = msec;
+	if ( master_record->msecLast > stat_record->lastseen ) {
+		stat_record->lastseen = master_record->msecLast;
 	}
-	if ( sec == stat_record->last_seen && 
-	 	msec > stat_record->msec_last ) 
-			stat_record->msec_last = msec;
 
 } // End of UpdateStat
 
@@ -160,24 +147,11 @@ uint32_t proto;
 	stat_record->numbytes 	+= inBytes;
 	stat_record->numbytes 	+= outBytes;
 
-	uint32_t sec  = msecFirst / 1000LL;
-	uint32_t msec = msecFirst % 1000LL;
-	if ( sec < stat_record->first_seen ) {
-		stat_record->first_seen = sec;
-		stat_record->msec_first = msec;
+	if ( msecFirst < stat_record->firstseen ) {
+		stat_record->firstseen = msecFirst;
 	}
-	if ( sec == stat_record->first_seen && 
-	 	msec < stat_record->msec_first ) 
-			stat_record->msec_first = msec;
-
-	sec  = msecLast / 1000LL;
-	msec = msecLast % 1000LL;
-	if ( sec > stat_record->last_seen ) {
-		stat_record->last_seen = sec;
-		stat_record->msec_last = msec;
+	if ( msecLast > stat_record->lastseen ) {
+		stat_record->lastseen = msecLast;
 	}
-	if ( sec == stat_record->last_seen && 
-	 	msec > stat_record->msec_last ) 
-			stat_record->msec_last = msec;
 
 } // End of UpdateRawStat

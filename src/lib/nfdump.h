@@ -751,12 +751,10 @@ typedef struct stat_record_s {
     uint64_t    numpackets_icmp;
     uint64_t    numpackets_other;
     // time window
-    uint32_t    first_seen;
-    uint32_t    last_seen;
-    uint16_t    msec_first;
-    uint16_t    msec_last;
+    uint64_t    firstseen;
+    uint64_t    lastseen;
     // other
-    uint32_t    sequence_failure;
+    uint64_t    sequence_failure;
 } stat_record_t;
 
 #endif //_NFDUMP_H

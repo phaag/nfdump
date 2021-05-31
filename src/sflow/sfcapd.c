@@ -464,13 +464,11 @@ srecord_t	*commbuff;
 
 				// update stat record
 				if ( fs->msecLast == 0 ) {
-					fs->msecFirst = (uint64_t)1000 * (uint64_t)t_start;
-					fs->msecLast  = (uint64_t)1000 * (uint64_t)(t_start + twin);
+					fs->msecFirst = 1000LL * (uint64_t)t_start;
+					fs->msecLast  = 1000LL * (uint64_t)(t_start + twin);
 				}
-				nffile->stat_record->first_seen = fs->msecFirst/1000;
-				nffile->stat_record->msec_first	= fs->msecFirst - nffile->stat_record->first_seen*1000;
-				nffile->stat_record->last_seen 	= fs->msecLast/1000;
-				nffile->stat_record->msec_last	= fs->msecLast - nffile->stat_record->last_seen*1000;
+				nffile->stat_record->firstseen = fs->msecFirst;
+				nffile->stat_record->lastseen  = fs->msecLast;
 
 				// Flush Exporter Stat to file
 				FlushExporterStats(fs);

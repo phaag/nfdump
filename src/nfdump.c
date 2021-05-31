@@ -85,8 +85,8 @@ static uint64_t total_bytes = 0;
 static uint32_t processed = 0;
 static uint32_t passed	  = 0;
 static uint32_t HasGeoDB  = 0;
-static uint32_t skipped_blocks;
-static time_t 	t_first_flow, t_last_flow;
+static uint32_t skipped_blocks = 0;
+static uint64_t	t_first_flow, t_last_flow;
 
 extension_map_list_t *extension_map_list;
 
@@ -316,14 +316,13 @@ char 		byte_str[NUMBER_STRING_SIZE], packet_str[NUMBER_STRING_SIZE];
 char 		bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_STRING_SIZE];
 
 	bps = pps = bpp = 0;
-	if ( stat_record->last_seen ) {
-		duration = stat_record->last_seen - stat_record->first_seen;
-		duration += ((double)stat_record->msec_last - (double)stat_record->msec_first) / 1000.0;
+	if ( stat_record->lastseen ) {
+		duration = (stat_record->lastseen - stat_record->firstseen) / 1000.0;
 	} else {
 		// no flows to report
 		duration = 0;
 	}
-	if ( duration > 0 && stat_record->last_seen > 0 ) {
+	if ( duration > 0 && stat_record->lastseen > 0 ) {
 		bps = ( stat_record->numbytes << 3 ) / duration;	// bits per second. ( >> 3 ) -> * 8 to convert octets into bits
 		pps = stat_record->numpackets / duration;			// packets per second
 		bpp = stat_record->numpackets ? stat_record->numbytes / stat_record->numpackets : 0;    // Bytes per Packet
@@ -392,8 +391,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 
 	// time window of all matched flows
 	memset((void *)&stat_record, 0, sizeof(stat_record_t));
-	stat_record.first_seen = 0x7fffffff;
-	stat_record.msec_first = 999;
+	stat_record.firstseen = 0x7fffffffffffffffLL;
 
 	if ( timeWindow ) {
 		twin_msecFirst = timeWindow->first * 1000LL;
@@ -428,8 +426,8 @@ uint64_t twin_msecFirst, twin_msecLast;
 	}
 
 	// preset time window of all processed flows to the stat record in first flow file
-	t_first_flow = nffile_r->stat_record->first_seen;
-	t_last_flow  = nffile_r->stat_record->last_seen;
+	t_first_flow = nffile_r->stat_record->firstseen;
+	t_last_flow  = nffile_r->stat_record->lastseen;
 
 	// prepare output file if requested
 	if ( write_file ) {
@@ -487,10 +485,10 @@ uint64_t twin_msecFirst, twin_msecLast;
 					LogError("Unexpected end of file list\n");
 				} else {
 					// Update global time span window
-					if ( next->stat_record->first_seen < t_first_flow )
-						t_first_flow = next->stat_record->first_seen;
-					if ( next->stat_record->last_seen > t_last_flow ) 
-						t_last_flow = next->stat_record->last_seen;
+					if ( next->stat_record->firstseen < t_first_flow )
+						t_first_flow = next->stat_record->firstseen;
+					if ( next->stat_record->lastseen > t_last_flow ) 
+						t_last_flow = next->stat_record->lastseen;
 					// continue with next file
 				}
 				Engine->ident = nffile_r->ident;
@@ -1089,8 +1087,7 @@ flist_t 	flist;
 		}
 
 		memset((void *)&sum_stat, 0, sizeof(stat_record_t));
-		sum_stat.first_seen = 0x7fffffff;
-		sum_stat.msec_first = 999;
+		sum_stat.firstseen = 0x7fffffffffffffff;
 		nffile = GetNextFile(NULL);
 		if ( !nffile ) {
 			LogError("Error open file: %s\n", strerror(errno));
@@ -1257,6 +1254,8 @@ flist_t 	flist;
  					printf("Time window: <unknown>\n");
 				} else {
 					if ( timeWindow ) {
+						t_first_flow /= 1000LL;
+						t_last_flow /= 1000LL;
 						if ( timeWindow->first && (timeWindow->first > t_first_flow))
 							t_first_flow = timeWindow->first;
 						if ( timeWindow->last && (timeWindow->last < t_last_flow))
