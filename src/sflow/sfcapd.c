@@ -755,8 +755,10 @@ char	*pcap_file = NULL;
 					LogError("Length error for pid fie");
 					exit(EXIT_FAILURE);
 				}
-				char *dirName  = dirname(optarg);
-				char *fileName = basename(optarg);
+				char *dirc = strdup(optarg);
+				char *basec = strdup(optarg);
+				char *dirName  = dirname(dirc);
+				char *fileName = basename(basec);
 				dirName = realpath(dirName, NULL);
 				if ( !dirName ) {
 					LogError("realpath() pid file: %s", strerror(errno));
@@ -769,6 +771,8 @@ char	*pcap_file = NULL;
 					exit(EXIT_FAILURE);
 				}
 				snprintf(pidfile, len, "%s/%s", dirName, fileName);
+				free(dirc);
+				free(basec);
 				} break;
 			case 'R': {
 				char *port, *hostname;
