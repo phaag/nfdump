@@ -1801,7 +1801,7 @@ void PrintStat(stat_record_t *s, char *ident) {
 	printf("Last: %llu\n", s->lastseen/1000LL);
 	printf("msec_first: %llu\n", s->firstseen % 1000LL);
 	printf("msec_last: %llu\n", s->lastseen % 1000LL);
-	printf("Sequence failures: %llu\n", s->sequence_failure);
+	printf("Sequence failures: %llu\n", (unsigned long long)s->sequence_failure);
 } // End of PrintStat
 
 void SumStatRecords(stat_record_t *s1, stat_record_t *s2) {

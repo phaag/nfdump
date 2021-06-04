@@ -20,6 +20,12 @@
 */
 
 
+/* verify_pid
+ *
+ * Verify string, for a valid pid file
+ */
+char *verify_pid(char *pidfile);
+
 /* check_pid
  *
  * Reads the pid using read_pid and looks up the pid in the process
