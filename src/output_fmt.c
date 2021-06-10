@@ -52,6 +52,7 @@
 #include "nffile.h"
 #include "nfxV3.h"
 #include "maxmind.h"
+#include "nbar.h"
 #include "output_util.h"
 #include "output_fmt.h"
 #include "content_dns.h"
@@ -245,6 +246,10 @@ static void String_inPayload(FILE *stream, master_record_t *r);
 
 static void String_outPayload(FILE *stream, master_record_t *r);
 
+static void String_nbarID(FILE *stream, master_record_t *r);
+
+static void String_nbarName(FILE *stream, master_record_t *r);
+
 static void String_NewLine(FILE *stream, master_record_t *r);
 
 #ifdef NSEL
@@ -377,6 +382,8 @@ static struct format_token_list_s {
 	{ "%n", 0, "", 			 				String_NewLine },		// \n
 	{ "%ipl", 0, "", 			 			String_inPayload },		// in payload
 	{ "%opl", 0, "", 			 			String_outPayload },	// out payload
+	{ "%nbid", 0, "nbar ID", 			 	String_nbarID },		// nbar ID
+	{ "%nbnam", 0, "nbar name", 		 	String_nbarName },		// nbar Name
 
 #ifdef NSEL
 // NSEL specifics
@@ -763,6 +770,31 @@ static void String_outPayload(FILE *stream, master_record_t *r) {
 	}
 
 } // End of String_outPayload
+
+static void String_nbarID(FILE *stream, master_record_t *r) {
+union {
+        uint8_t     val8[4];
+        uint32_t    val32;
+}conv;
+
+	conv.val8[0] = 0;
+	conv.val8[1] = r->nbarAppID[1];
+	conv.val8[2] = r->nbarAppID[2];
+	conv.val8[3] = r->nbarAppID[3];
+
+	fprintf(stream, "%2u..%u" , r->nbarAppID[0], ntohl(conv.val32));
+
+} // End of String_nbarID
+
+static void String_nbarName(FILE *stream, master_record_t *r) {
+
+	char *name = GetNbarInfo(r->nbarAppID, 4);
+	if ( name == NULL) {
+		name = "<no info>";
+	} 
+	fprintf(stream, "%s" ,name);
+
+} // End of String_nbarName
 
 static void String_NewLine(FILE *stream, master_record_t *r) {
 	fprintf(stream, "\n");

@@ -43,10 +43,10 @@
 #include <string.h>
 #include <stdarg.h>
 
+#include "util.h"
 #include "khash.h"
 #include "nfxV3.h"
 #include "nbar.h"
-#include "util.h"
 
 typedef struct AppInfoHash_s {
 	uint32_t hash;	// the full 32bit hash value - cached for khash resize
@@ -99,11 +99,11 @@ static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo) {
 	khiter_t k;
 	k = kh_put(NbarAppInfoHash, NbarAppInfoHash, AppInfoHash, &ret);
 	if ( ret == 0 ) { // existing entry
-printf("KHASH existing entry: %u %d, hash: 0x%x\n", k, ret, kh_key(NbarAppInfoHash, k).hash);
+		dbg_printf("KHASH existing entry: %u %d, hash: 0x%x\n", k, ret, kh_key(NbarAppInfoHash, k).hash);
 		if ( kh_key(NbarAppInfoHash, k).data ) 
 			free(kh_key(NbarAppInfoHash, k).data);
 	} else {
-printf("KHASH new entry: %u, hash: 0x%x\n", k, kh_key(NbarAppInfoHash, k).hash);
+		dbg_printf("KHASH new entry: %u, hash: 0x%x\n", k, kh_key(NbarAppInfoHash, k).hash);
 	}
 	uint8_t *data = malloc(dataSize);
 	if ( !data ) {

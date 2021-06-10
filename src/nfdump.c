@@ -628,8 +628,10 @@ uint64_t twin_msecFirst, twin_msecLast;
 					} break;
 				case NbarRecordType: {
 					nbarRecordHeader_t *nbarRecord = (nbarRecordHeader_t *)record_ptr;
+#ifdef DEVEL
 					printf("Found nbar record: %u elements\n", nbarRecord->numElements);
 					PrintNbarRecord(nbarRecord);
+#endif
 					AddNbarRecord(nbarRecord);
 					} break;
 				case LegacyRecordType1:
@@ -1278,7 +1280,9 @@ flist_t 	flist;
 
 	} // else - no output
 
+#ifdef DEVEL
 	DumpNbarList();
+#endif
 
 	Dispose_FlowTable();
 	Dispose_StatTable();

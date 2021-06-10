@@ -484,17 +484,14 @@ static void stringsEXnelXlatePort(FILE *stream, master_record_t *r) {
 #endif
 static void stringsEXnbarApp(FILE *stream, master_record_t *r) {
 union {
-        uint8_t     val8[4];
-        uint32_t    val32;
+	uint8_t     val8[4];
+	uint32_t    val32;
 }conv;
 
 	char *name = GetNbarInfo(r->nbarAppID, 4);
 	if ( name == NULL) {
-		printf("No nbar app name\n");
 		name = "<no info>";
-	} else {
-		printf("Found nbar app name\n");
-	}
+	} 
 
 	conv.val8[0] = 0;
 	conv.val8[1] = r->nbarAppID[1];

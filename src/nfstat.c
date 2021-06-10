@@ -61,7 +61,7 @@
 #include "khash.h"
 #include "nfstat.h"
 
-enum { IS_NUMBER = 1, IS_IPADDR, IS_MACADDR, IS_MPLS_LBL, IS_LATENCY, IS_EVENT, IS_HEX};
+enum { IS_NUMBER = 1, IS_IPADDR, IS_MACADDR, IS_MPLS_LBL, IS_LATENCY, IS_EVENT, IS_HEX, IS_NBAR};
 
 struct flow_element_s {
 	uint32_t offset0;
@@ -279,6 +279,11 @@ struct StatParameter_s {
 	{ "al",	 "  Appl Latency", 
 		{ {0, OffsetAppLatency, MaskLatency, 0}, {0,0,0,0} },
 			1, IS_LATENCY },
+
+	{ "nbar", 	 "nbar", 
+		{ {0, OffsetNbarAppID, MaskNbarAppID, 0},	{0,0,0,0} },
+			1, IS_NBAR },
+
 
 #ifdef NSEL
 	{ "event", " Event", 
@@ -942,6 +947,22 @@ char tag_string[2];
 #endif
 		case IS_HEX: {
 			snprintf(valstr, 64, "0x%llx", (unsigned long long)StatData->hashkey.v1);
+		} break;
+		case IS_NBAR: {
+			union {
+				uint8_t     val8[4];
+				uint32_t    val32;
+			}conv;
+			conv.val32 = StatData->hashkey.v1;
+			uint8_t u = conv.val8[0];
+			conv.val8[0] = 0;
+/*
+			conv.val8[1] = r->nbarAppID[1];
+			conv.val8[2] = r->nbarAppID[2];
+			conv.val8[3] = r->nbarAppID[3];
+*/
+			snprintf(valstr, 64, "%2u..%u", u, ntohl(conv.val32));
+
 		} break;
 	}
 	valstr[63] = 0;
