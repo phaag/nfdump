@@ -136,13 +136,11 @@ uint32_t queue_done(queue_t *queue){
 } // End of queue_length
 
 void queue_sync(queue_t *queue) {
-struct timeval tv;
 unsigned usec = 0;
-
-   	tv.tv_sec = 0;
 
 	// wait till queue is closed and empty
 	while ( !queue_done(queue) ) {
+		struct timeval tv = {0};
 		// wait 1 usec
    		tv.tv_usec = usec;
 		if (usec < 1000) usec++;
@@ -152,6 +150,8 @@ unsigned usec = 0;
 	usec = 1;
 	// release all waiting threads, if any
 	while ( queue->c_wait || queue->p_wait ) {
+		struct timeval tv = {0};
+		tv.tv_usec = 1;
 		pthread_mutex_lock(&(queue->mutex));
 		pthread_cond_broadcast(&(queue->cond));
 		pthread_mutex_unlock(&(queue->mutex));
