@@ -23,7 +23,7 @@ nbar = nbar.c nbar.h
 
 output =  output_raw.h output_raw.c 
 output += output_json.c output_json.h output_csv.c output_csv.h output_pipe.c output_pipe.h
-output += output_fmt.c output_fmt.h content_dns.c content_dns.h
+output += output_fmt.c output_fmt.h content_dns.c content_dns.h ja3.h ja3.c md5.h md5.c
 
 nfprof = nfprof.c nfprof.h
 nfnet = nfnet.c nfnet.h

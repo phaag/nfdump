@@ -50,6 +50,7 @@
 #include "output_util.h"
 #include "output_raw.h"
 #include "content_dns.h"
+#include "ja3.h"
 
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
@@ -525,7 +526,30 @@ static void stringsEXinPayload(FILE *stream, master_record_t *r) {
 			DumpHex(stream, r->inPayload, r->inPayloadLength > 512 ? 512 : r->inPayloadLength);
 		}
 	} else {
-		DumpHex(stream, r->inPayload, r->inPayloadLength > 512 ? 512 : r->inPayloadLength);
+		ja3_t *ja3 = ja3Process((uint8_t *)r->inPayload, r->inPayloadLength);
+		if ( ja3 == NULL ) {
+			DumpHex(stream, r->inPayload, r->inPayloadLength > 512 ? 512 : r->inPayloadLength);
+			return;
+		}
+
+		uint8_t *u8 = (uint8_t *)ja3->md5Hash;
+		char out[33];
+		int i,j;
+		for (i=0, j=0; i<16; i++, j+=2 ) {
+				uint8_t ln = u8[i] & 0xF;
+				uint8_t hn = (u8[i] >> 4)  & 0xF;
+				out[j+1] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
+				out[j]   = hn <= 9 ? hn + '0' : hn + 'a' - 10;
+		}
+		out[32] = '\0';
+		if ( ja3->type == CLIENTja3 ) {
+	fprintf(stream,
+"  ja3 hash     = %s\n", out);
+		} else {
+	fprintf(stream,
+"  ja3s hash    = %s\n", out);
+		}
+		ja3Free(ja3);
 	}
 
 } // End of stringsEXinPayload
