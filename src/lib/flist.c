@@ -217,8 +217,6 @@ static struct entry_filter_s {
 #define NUM_PTR 16
 
 // module variables
-static timeWindow_t *searchWindow = NULL;
-
 static char	*first_file = NULL;
 static char *last_file  = NULL;
 
@@ -241,7 +239,7 @@ static char *VerifyFileRange(char *path, char *last_file);
 
 static void *FileLister_thr(void *arg);
 
-static int CheckTimeWindow(char *filename);
+static int CheckTimeWindow(char *filename, timeWindow_t *searchWindow);
 
 /* Functions */
 
@@ -871,9 +869,6 @@ queue_t *SetupInputFileSequence(flist_t *flist) {
 static void *FileLister_thr(void *arg) {
 flist_t *flist = (flist_t *)arg;
 char *single_file = flist->single_file;
-timeWindow_t *timeWindow = flist->timeWindow;
-
-	searchWindow = timeWindow;
 
 	first_file 	= NULL;
 	last_file  	= NULL;
@@ -890,7 +885,7 @@ timeWindow_t *timeWindow = flist->timeWindow;
 
 		if ( source_dirs.num_strings == 0 ) {
 			// single file -r
-			if ( CheckTimeWindow(single_file)) {
+			if ( CheckTimeWindow(single_file, flist->timeWindow)) {
 				queue_push(file_queue, strdup(single_file));
 			}
 		} else {
@@ -915,7 +910,7 @@ timeWindow_t *timeWindow = flist->timeWindow;
 						if ( sub_dir ) {	// subdir found
 							snprintf(s, MAXPATHLEN-1, "%s/%s/%s", source_dirs.list[i], sub_dir, single_file);
 							s[MAXPATHLEN-1] = '\0';
-							if ( CheckTimeWindow(s)) {
+							if ( CheckTimeWindow(s, flist->timeWindow)) {
 								queue_push(file_queue, strdup(s));
 							}
 						} else {	// no subdir found
@@ -929,7 +924,7 @@ timeWindow_t *timeWindow = flist->timeWindow;
 					if ( !S_ISREG(stat_buf.st_mode) ) {
 						LogError("Skip non file entry: '%s'", s);
 					} else {
-						if ( CheckTimeWindow(s)) {
+						if ( CheckTimeWindow(s, flist->timeWindow)) {
 							queue_push(file_queue, strdup(s));
 						}
 					}
@@ -937,20 +932,6 @@ timeWindow_t *timeWindow = flist->timeWindow;
 			}
 		}
 	} 
-
-/*
-	// if relative time window, calculate absolute time
-	if ( timeWindow ) {
-		if ( timeWindow->first && timeWindow->first <= 86400 ) {
-			timeWindow->last = globalWindow.first + timeWindow->first;
-			timeWindow->first = globalWindow.first;
-		}
-		if ( timeWindow->last && timeWindow->last <= 86400 ) {
-			timeWindow->first = globalWindow.last - timeWindow->last;
-			timeWindow->last = timeWindow->last;
-		}
-	}
-*/
 
 	queue_close(file_queue);
 	pthread_exit(NULL);
@@ -1155,7 +1136,7 @@ int done = 0;
 
 } // End of mkpath
 
-static int CheckTimeWindow(char *filename) {
+static int CheckTimeWindow(char *filename, timeWindow_t *searchWindow) {
 
 	// no time search window set
 	if ( !searchWindow ) 
@@ -1165,7 +1146,17 @@ static int CheckTimeWindow(char *filename) {
 	if ( !GetStatRecord(filename, &stat_record) ) {
 		return 0;
 	}
-	
+
+	// if relative time window, calculate absolute time
+	if ( searchWindow->first && searchWindow->first <= 604800 ) {
+		searchWindow->last  = stat_record.firstseen/1000LL + searchWindow->first;
+		searchWindow->first = stat_record.firstseen/1000LL;
+	}
+	if ( searchWindow->last && searchWindow->last <= 604800 ) {
+		searchWindow->first = stat_record.lastseen/1000LL - searchWindow->last;
+		searchWindow->last = 0;
+	}
+
 	if ( searchWindow->last && searchWindow->last < (stat_record.firstseen/1000LL) )
 		return 0;
 	

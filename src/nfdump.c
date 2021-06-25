@@ -687,7 +687,6 @@ printer_t 	   print_record;
 func_prolog_t  print_prolog;
 func_epilog_t  print_epilog;
 nfprof_t 	profile_data;
-timeWindow_t *timeWindow;
 char 		*wfile, *ffile, *filter, *tstring, *stat_type;
 char		*byte_limit_string, *packet_limit_string, *print_format;
 char		*print_order, *query_file, *geo_file, *nameserver, *aggr_fmt;
@@ -705,7 +704,6 @@ flist_t 	flist;
 	fdump = aggregate = 0;
 	aggregate_mask	= 0;
 	bidir			= 0;
-	timeWindow		= NULL;
 	syntax_only	    = 0;
 	flow_stat       = 0;
 	print_stat      = 0;
@@ -1212,7 +1210,7 @@ flist_t 	flist;
 
 	nfprof_start(&profile_data);
 	sum_stat = process_data(wfile, element_stat, aggregate || flow_stat, print_order != NULL,
-						print_record, timeWindow, 
+						print_record, flist.timeWindow, 
 						limitRecords, outputParams, compress);
 	nfprof_end(&profile_data, processed);
 	
@@ -1257,11 +1255,11 @@ flist_t 	flist;
 				} else {
 					t_first_flow /= 1000LL;
 					t_last_flow /= 1000LL;
-					if ( timeWindow ) {
-						if ( timeWindow->first && (timeWindow->first > t_first_flow))
-							t_first_flow = timeWindow->first;
-						if ( timeWindow->last && (timeWindow->last < t_last_flow))
-							t_last_flow = timeWindow->last;
+					if ( flist.timeWindow ) {
+						if ( flist.timeWindow->first && (flist.timeWindow->first > t_first_flow))
+							t_first_flow = flist.timeWindow->first;
+						if ( flist.timeWindow->last && (flist.timeWindow->last < t_last_flow))
+							t_last_flow = flist.timeWindow->last;
 					}
  					printf("Time window: %s\n", TimeString(t_first_flow, t_last_flow));
 				}
