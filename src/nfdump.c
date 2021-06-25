@@ -1255,9 +1255,9 @@ flist_t 	flist;
 				if ( t_last_flow == 0 ) {
  					printf("Time window: <unknown>\n");
 				} else {
+					t_first_flow /= 1000LL;
+					t_last_flow /= 1000LL;
 					if ( timeWindow ) {
-						t_first_flow /= 1000LL;
-						t_last_flow /= 1000LL;
 						if ( timeWindow->first && (timeWindow->first > t_first_flow))
 							t_first_flow = timeWindow->first;
 						if ( timeWindow->last && (timeWindow->last < t_last_flow))
