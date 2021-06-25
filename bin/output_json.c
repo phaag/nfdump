@@ -99,12 +99,12 @@ extension_map_t	*extension_map = r->map_ref;
 	when = r->first;
 	ts = localtime(&when);
 	strftime(datebuff, 63, "%Y-%m-%dT%H:%M:%S", ts);
-	asprintf(&datestr1, "%s.%u", datebuff, r->msec_first);
+	asprintf(&datestr1, "%s.%03u", datebuff, r->msec_first);
 
 	when = r->last;
 	ts = localtime(&when);
 	strftime(datebuff, 63, "%Y-%m-%dT%H:%M:%S", ts);
-	asprintf(&datestr2, "%s.%u", datebuff, r->msec_last);
+	asprintf(&datestr2, "%s.%03u", datebuff, r->msec_last);
 
 	String_Flags(record, flags_str);
 
