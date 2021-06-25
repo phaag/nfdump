@@ -75,9 +75,9 @@ char datebuff1[64], datebuff2[64], dateBuff3[64];
 	strftime(dateBuff3, 63, "%Y-%m-%dT%H:%M:%S", ts);
 
 	fprintf(stream, 
-"	\"first\" : \"%s.%u\",\n"
-"	\"last\" : \"%s.%u\",\n"
-"	\"received\" : \"%s.%u\",\n"
+"	\"first\" : \"%s.%03u\",\n"
+"	\"last\" : \"%s.%03u\",\n"
+"	\"received\" : \"%s.%03u\",\n"
 "	\"in_packets\" : %llu,\n"
 "	\"in_bytes\" : %llu,\n"
 	, datebuff1, (unsigned)(r->msecFirst % 1000LL)
