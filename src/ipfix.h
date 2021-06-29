@@ -231,7 +231,9 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_samplingInterval				 34
 #define IPFIX_samplingAlgorithm				 35
 
-// depricated 38, 39
+// deprecated, but for compatibility
+#define IPFIX_engineType					38
+#define IPFIX_engineId						39
 
 #define IPFIX_samplerId						48
 #define IPFIX_samplerMode					49

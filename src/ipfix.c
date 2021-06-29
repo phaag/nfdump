@@ -60,14 +60,16 @@
 
 
 // define stack slots
-#define STACK_NONE		0
-#define STACK_ICMP		1
-#define STACK_DSTPORT	2
-#define STACK_SAMPLER	3
-#define STACK_MSECFIRST	4
-#define STACK_MSECLAST	5
-#define STACK_SYSUPTIME	6
-#define STACK_MAX		7
+#define STACK_NONE		 0
+#define STACK_ICMP		 1
+#define STACK_DSTPORT	 2
+#define STACK_SAMPLER	 3
+#define STACK_MSECFIRST	 4
+#define STACK_MSECLAST	 5
+#define STACK_SYSUPTIME	 6
+#define STACK_ENGINETYPE 7
+#define STACK_ENGINEID	 8
+#define STACK_MAX		 9
 
 /*
  * 	All Obervation Domains from all exporter are stored in a linked list
@@ -168,24 +170,26 @@ static const struct ipfixTranslationMap_s {
 	{ IPFIX_mplsLabelStackSection10,     SIZEmplsLabel10,  EXmplsLabelID,     OFFmplsLabel10, STACK_NONE, "mpls label 10" },
 	{ IPFIX_DestinationMacAddress,       SIZEinDstMac,     EXmacAddrID,	      OFFinDstMac,	STACK_NONE, "in dst MAC addr" },
 	{ IPFIX_postSourceMacAddress,        SIZEoutSrcMac,    EXmacAddrID,	      OFFoutSrcMac,	STACK_NONE, "out src MAC addr" },
-	{ IPFIX_octetTotalCount,             SIZEinBytes,      EXgenericFlowID,       OFFinBytes, STACK_NONE, "input octetTotalCount" },
-	{ IPFIX_packetTotalCount,            SIZEinPackets,    EXgenericFlowID,       OFFinPackets, STACK_NONE, "input packetTotalCount" },
-	{ IPFIX_flowStartMilliseconds,       SIZEmsecFirst,    EXgenericFlowID,  OFFmsecFirst, STACK_NONE, "msec first" },
-	{ IPFIX_flowEndMilliseconds,         SIZEmsecLast,     EXgenericFlowID,  OFFmsecLast, 	STACK_NONE, "msec last" },
-	{ IPFIX_flowStartDeltaMicroseconds,  SIZEmsecFirst,    EXgenericFlowID,  OFFmsecFirst, STACK_NONE, "msec first" },
-	{ IPFIX_flowEndDeltaMicroseconds,    SIZEmsecLast,     EXgenericFlowID,  OFFmsecLast, 	STACK_NONE, "msec last" },
+	{ IPFIX_octetTotalCount,             SIZEinBytes,      EXgenericFlowID,   OFFinBytes, STACK_NONE, "input octetTotalCount" },
+	{ IPFIX_packetTotalCount,            SIZEinPackets,    EXgenericFlowID,   OFFinPackets, STACK_NONE, "input packetTotalCount" },
+	{ IPFIX_flowStartMilliseconds,       SIZEmsecFirst,    EXgenericFlowID,   OFFmsecFirst, STACK_NONE, "msec first" },
+	{ IPFIX_flowEndMilliseconds,         SIZEmsecLast,     EXgenericFlowID,   OFFmsecLast, 	STACK_NONE, "msec last" },
+	{ IPFIX_flowStartDeltaMicroseconds,  SIZEmsecFirst,    EXgenericFlowID,   OFFmsecFirst, STACK_NONE, "msec first" },
+	{ IPFIX_flowEndDeltaMicroseconds,    SIZEmsecLast,     EXgenericFlowID,   OFFmsecLast, 	STACK_NONE, "msec last" },
 	{ LOCAL_IPv4Received,                SIZEReceived4IP,  EXipReceivedV4ID,  OFFReceived4IP, STACK_NONE, "IPv4 exporter" },
 	{ LOCAL_IPv6Received,                SIZEReceived6IP,  EXipReceivedV6ID,  OFFReceived6IP, STACK_NONE, "IPv6 exporter" },
-	{ LOCAL_msecTimeReceived,            SIZEmsecReceived, EXgenericFlowID,  OFFmsecReceived, STACK_NONE, "msec time received"},
+	{ LOCAL_msecTimeReceived,            SIZEmsecReceived, EXgenericFlowID,   OFFmsecReceived, STACK_NONE, "msec time received"},
 	{ IPFIX_postOctetTotalCount,         SIZEoutBytes,     EXcntFlowID,       OFFoutBytes, STACK_NONE, "output octetTotalCount" },
 	{ IPFIX_postPacketTotalCount,        SIZEoutPackets,   EXcntFlowID,       OFFoutPackets, STACK_NONE, "output packetTotalCount" },
+	{ IPFIX_engineType,					 Stack_ONLY,       EXnull,			  0,			STACK_ENGINETYPE, "engine type" },
+	{ IPFIX_engineId,					 Stack_ONLY,       EXnull,			  0,			STACK_ENGINEID, "engine ID" },
 	{ NBAR_APPLICATION_ID,        		 SIZEnbarAppID,    EXnbarAppID,       OFFnbarAppID, STACK_NONE, "nbar application ID" },
 	// sampling
-	{ IPFIX_samplerId,					 Stack_ONLY,       EXnull,			  0,				STACK_SAMPLER, "sampler ID" },
-	{ IPFIX_selectorId,					 Stack_ONLY,       EXnull,			  0,				STACK_SAMPLER, "sampler ID" },
+	{ IPFIX_samplerId,					 Stack_ONLY,       EXnull,			  0,			STACK_SAMPLER, "sampler ID" },
+	{ IPFIX_selectorId,					 Stack_ONLY,       EXnull,			  0,			STACK_SAMPLER, "sampler ID" },
 	// payload
-	{ LOCAL_inPayload,					 VARLENGTH,       	EXinPayloadID,	  0,				STACK_NONE, "in payload" },
-	{ LOCAL_outPayload,					 VARLENGTH,       	EXoutPayloadID,	  0,				STACK_NONE, "out payload" },
+	{ LOCAL_inPayload,					 VARLENGTH,       	EXinPayloadID,	  0,			STACK_NONE, "in payload" },
+	{ LOCAL_outPayload,					 VARLENGTH,       	EXoutPayloadID,	  0,			STACK_NONE, "out payload" },
 
 	// End of table
 	{ 0,            0, 0,  0, STACK_NONE, NULL },
@@ -1108,8 +1112,6 @@ uint8_t		*inBuff;
 		AddV3Header(outBuff, recordHeaderV3);
 
 		// header data
-		recordHeaderV3->engineType	= 0; // XXX fix
-		recordHeaderV3->engineID	= 0; // XXX fix
 		recordHeaderV3->nfversion	= 10;
 		recordHeaderV3->exporterID	= exporter->info.sysid;
 
@@ -1145,6 +1147,9 @@ uint8_t		*inBuff;
 
 		dbg_printf("New record added with %u elements and size: %u, sequencer inLength: %lu, outLength: %lu\n", 
 			recordHeaderV3->numElements, recordHeaderV3->size, sequencer->inLength, sequencer->outLength);
+
+		recordHeaderV3->engineType	= stack[STACK_ENGINETYPE];
+		recordHeaderV3->engineID	= stack[STACK_ENGINEID];
 
 		// add router IP
 		if ( fs->sa_family == PF_INET6 ) {
@@ -1473,6 +1478,7 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
 			// PrintNbarRecord(nbarHeader);
 		} else {
 			printf("Invalid nbar information - skip record\n");
+		}
 #endif
 
 

@@ -233,7 +233,7 @@ void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 				dbg_printf("Add IPv4 route IP extension\n");
 			}
 
-			printf("Record: %u elements, size: %u\n\n", copiedV3->numElements, copiedV3->size);
+			dbg_printf("Record: %u elements, size: %u\n\n", copiedV3->numElements, copiedV3->size);
 
 
 			EXgenericFlow_t *genericFlow = GetExtension(recordHeaderV3, EXgenericFlowID);
