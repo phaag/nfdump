@@ -90,6 +90,11 @@ H				(0X|0x)[0-9A-Fa-f]+
 %%
 @include		 BEGIN(incl);
 
+[0-9A-Fa-f]{32}	{
+					yylval.s = strdup(yytext);
+					return MD5;
+				}
+
 [0-9]+			{ 
 					yylval.value = (uint64_t) strtoull(yytext,NULL,10);
 					return NUMBER;
@@ -194,8 +199,9 @@ end				{ return END;		/* NAT port block end */ }
 step			{ return STEP;		/* NAT port block step */ }
 size			{ return SIZE;		/* NAT port block size */ }
 nip				{ return NIP; 		/* NSEL filter */ }
-payload			{ return PAYLOAD;  /* payload filter */ }
-content			{ return CONTENT;  /* payload filter */ }
+payload			{ return PAYLOAD;  	/* payload filter */ }
+content			{ return CONTENT;	/* payload filter */ }
+ja3				{ return JA3; 		/* payload filter */ }
 and|"&&"		{ return AND; }
 or|"||"			{ return OR; }
 not|"!"			{ return NOT; }

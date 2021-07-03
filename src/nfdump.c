@@ -74,6 +74,7 @@
 #include "nflowcache.h"
 #include "nfstat.h"
 #include "ipconv.h"
+#include "ja3.h"
 
 extern char	*FilterFilename;
 
@@ -543,13 +544,22 @@ uint64_t twin_msecFirst, twin_msecLast;
 					}
 
 					processed++;
-					if ( Engine->geoFilter ) {
-						AddGeoInfo(master_record);
-					}
 					// Time based filter
 					// if no time filter is given, the result is always true
 					match = twin_msecFirst && 
 						(master_record->msecFirst < twin_msecFirst ||  master_record->msecLast > twin_msecLast) ? 0 : 1;
+
+					if ( Engine->geoFilter ) {
+						AddGeoInfo(master_record);
+					}
+
+					if ( master_record->inPayloadLength ) {
+						ja3_t *ja3 = ja3Process((uint8_t *)master_record->inPayload, master_record->inPayloadLength);
+						if ( ja3 ) {
+							memcpy((void *)master_record->ja3,ja3->md5Hash, 16);
+							ja3Free(ja3);
+						}
+					}
 
 					// filter netflow record with user supplied filter
 					if ( match ) 

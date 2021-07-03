@@ -140,8 +140,8 @@ char yyerror_buff[256];
 %token ASA DENIED XEVENT XNET XPORT INGRESS EGRESS ACL ACE XACE
 %token NAT ADD EVENT VRF NPORT NIP
 %token PBLOCK START END STEP SIZE
-%token PAYLOAD CONTENT
-%token <s> STRING WORD REASON
+%token PAYLOAD CONTENT JA3
+%token <s> STRING WORD REASON MD5
 %token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
 %type <value> expr
 %type <param> dqual term comp acl inout
@@ -1193,6 +1193,29 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		char *word = stripWord($3);
 		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_PAYLOAD, FUNC_NONE, word); 
 	} 
+
+	| PAYLOAD JA3 MD5 {
+		union {
+			uint8_t u8[16];
+			uint64_t u64[2];
+		} ja3;
+
+		if (strlen($3) != 32) {
+			yyerror("not a ja3 hash");
+			YYABORT;
+		}
+
+		char *pos = $3;
+		for(int count = 0; count < 16; count++) {
+			sscanf(pos, "%2hhx", &ja3.u8[count]);
+			pos += 2;
+		}
+
+		$$.self = Connect_AND(
+			NewBlock(OffsetJA3, MaskJA3, ja3.u64[0], CMP_EQ, FUNC_NONE, NULL ),
+			NewBlock(OffsetJA3+1, MaskJA3, ja3.u64[1], CMP_EQ, FUNC_NONE, NULL )
+		);
+	}
 
 	| dqual NIP IN '[' iplist ']' { 	
 #ifdef NSEL

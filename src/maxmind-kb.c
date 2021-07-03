@@ -383,7 +383,6 @@ int loadIPV4tree(char *fileName) {
 			}
 			i++;
 		}
-
 		cnt++;
         ipV4Node_t *node = kb_getp(ipV4Tree, ipV4Tree, &ipV4Node);
 		if ( node ) {
@@ -1152,12 +1151,12 @@ void LookupWhois(char *ip) {
 	locationKey_t locationKey = { .key = info.localID, .hash = 0};
  	khint_t k = kh_get(localMap, mmHandle->localMap, locationKey); 
   	if (k == kh_end(mmHandle->localMap)) {
-		printf("%-7u | %-24s | %-32s | no information\n", as, ip, asOrg == NULL ? "private" : asOrg);
+		printf("%-7u | %-24s | %-32s | no information | sat: %d\n", as, ip, asOrg == NULL ? "private" : asOrg, info.sat);
 	} else {
 		locationInfo_t locationInfo = kh_value(mmHandle->localMap, k);
-		printf("%-7u | %-24s | %-32s | %s/%s/%s long/lat: %8.4f/%-8.4f\n", as, ip, asOrg == NULL ? "private" : asOrg,
+		printf("%-7u | %-24s | %-32s | %s/%s/%s long/lat: %8.4f/%-8.4f | sat: %d\n", as, ip, asOrg == NULL ? "private" : asOrg,
 			locationInfo.continent, locationInfo.country, locationInfo.city,
-			info.longitude, info.latitude);
+			info.longitude, info.latitude, info.sat);
 	}
 
 } // End of LookupWhois

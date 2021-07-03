@@ -723,6 +723,9 @@ typedef struct master_record_s {
 #	define OffsetPayload			(offsetof(master_record_t, inPayloadLength) >> 3)
 	char *inPayload;
 	char *outPayload;
+	uint8_t ja3[16];
+#	define OffsetJA3			(offsetof(master_record_t, ja3) >> 3)
+#	define MaskJA3				0xffffffffffffffff
 
 	// last entry in master record 
 	char *label;

@@ -53,6 +53,7 @@
 #include "nfxV3.h"
 #include "maxmind.h"
 #include "nbar.h"
+#include "ja3.h"
 #include "output_util.h"
 #include "output_fmt.h"
 #include "content_dns.h"
@@ -250,6 +251,8 @@ static void String_nbarID(FILE *stream, master_record_t *r);
 
 static void String_nbarName(FILE *stream, master_record_t *r);
 
+static void String_ja3(FILE *stream, master_record_t *r);
+
 static void String_NewLine(FILE *stream, master_record_t *r);
 
 #ifdef NSEL
@@ -383,6 +386,7 @@ static struct format_token_list_s {
 	{ "%ipl", 0, "", 			 			String_inPayload },		// in payload
 	{ "%opl", 0, "", 			 			String_outPayload },	// out payload
 	{ "%nbid", 0, "nbar ID", 			 	String_nbarID },		// nbar ID
+	{ "%ja3", 0, "                             ja3", String_ja3 },	// ja3
 	{ "%nbnam", 0, "nbar name", 		 	String_nbarName },		// nbar Name
 
 #ifdef NSEL
@@ -795,6 +799,26 @@ static void String_nbarName(FILE *stream, master_record_t *r) {
 	fprintf(stream, "%s" ,name);
 
 } // End of String_nbarName
+
+static void String_ja3(FILE *stream, master_record_t *r) {
+	uint8_t zero[16] = {0};
+	if ( r->inPayloadLength == 0 || memcmp(r->ja3, zero, 16) == 0) {
+		fprintf(stream, "%32s" ,"");
+		return;
+	}
+
+	char out[33];
+	int i,j;
+	for (i=0, j=0; i<16; i++, j+=2 ) {
+			uint8_t ln = r->ja3[i] & 0xF;
+			uint8_t hn = (r->ja3[i] >> 4)  & 0xF;
+			out[j+1] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
+			out[j]   = hn <= 9 ? hn + '0' : hn + 'a' - 10;
+	}
+	out[32] = '\0';
+	fprintf(stream, "%32s" ,out);
+
+} // End of String_ja3
 
 static void String_NewLine(FILE *stream, master_record_t *r) {
 	fprintf(stream, "\n");

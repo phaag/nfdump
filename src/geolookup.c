@@ -134,16 +134,6 @@ static int LoadMaps(char *dirName) {
 
 } // End of LoadMaps
 
-static uint32_t getTick() {
-    struct timespec ts;
-    unsigned theTick = 0U;
-    clock_gettime( CLOCK_REALTIME, &ts );
-    theTick  = ts.tv_nsec / 1000000;
-    theTick += ts.tv_sec * 1000;
-    return theTick;
-}
-
-
 // Return a pointer to the trimmed string
 static char *string_trim(char *s) {
 	while (isspace((unsigned char) *s)) s++;
