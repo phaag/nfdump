@@ -366,6 +366,27 @@ double f1, f2, f3;
 
 } // End of stringsEXlatency
 
+static void String_ja3(FILE *stream, master_record_t *r) {
+	uint8_t zero[16] = {0};
+	if ( r->inPayloadLength == 0 || memcmp(r->ja3, zero, 16) == 0) {
+		return;
+	}
+
+	char out[33];
+	int i,j;
+	for (i=0, j=0; i<16; i++, j+=2 ) {
+			uint8_t ln = r->ja3[i] & 0xF;
+			uint8_t hn = (r->ja3[i] >> 4)  & 0xF;
+			out[j+1] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
+			out[j]   = hn <= 9 ? hn + '0' : hn + 'a' - 10;
+	}
+	out[32] = '\0';
+	fprintf(stream,
+"	\"ja3\" : %s,\n"
+,out);
+
+} // End of String_ja3
+
 #ifdef NSEL
 static void stringsEXnselCommon(FILE *stream, master_record_t *r) {
 char datestr[64];
@@ -604,6 +625,12 @@ master_record_t *r = (master_record_t *)record;
 				break;
 			case EXlatencyID:
 				stringsEXlatency(stream, r);
+				break;
+			case EXinPayloadID:
+				String_ja3(stream, r);
+				break;
+			case EXoutPayloadID:
+				String_ja3(stream, r);
 				break;
 #ifdef NSEL
 			case EXnselCommonID:

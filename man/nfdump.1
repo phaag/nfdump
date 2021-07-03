@@ -353,6 +353,8 @@ sysid     Statistic about Internal SysID of exporter
 .br
 nbar      Statistic about nbar ID
 .br
+ja3       Statistic about ja3 hashes
+.br
 
 .br
 NSEL/ASA statistics
@@ -761,6 +763,8 @@ and format specifier as described below
 .br
 \fB%nbid\fR     nbar ID
 .br
+\fB%ja3\fR      ja3 hash
+.br
 \fB%nbnam\fR    nbar name
 .br
 
@@ -1111,8 +1115,13 @@ If \fIcomp\fR is omitted, '=' is assumed.
 .br
 \fBpayload content "<string>"\fR
 .br
-select flows matching a given string in the payload. Use quotes or double quotes
+matches flows matching a given string in the payload. Use quotes or double quotes
 to select strings with spaces "GET /index.html"
+.br
+.P
+\fBpayload ja3 <md5 string>\fR
+.br
+matches flows with the given ja3 hash for SSL/TLS handshake.
 .br
 .RE
 .PD

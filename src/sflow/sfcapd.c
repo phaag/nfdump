@@ -871,7 +871,7 @@ char	*pcap_file = NULL;
 #ifdef PCAP
 	sock = 0;
 	if ( pcap_file ) {
-		printf("Setup pcap reader\n");
+		LogInfo("Setup pcap reader");
 		setup_packethandler(pcap_file, NULL);
 		receive_packet 	= NextPacket;
 	} else 

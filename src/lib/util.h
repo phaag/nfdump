@@ -124,6 +124,8 @@ char *UNIX2ISO(time_t t);
 
 time_t ISO2UNIX(char *timestring);
 
+uint32_t getTick(void);
+
 #define NUMBER_STRING_SIZE	32
 #define DONT_SCALE_NUMBER 0
 #define DO_SCALE_NUMBER   1

@@ -76,7 +76,6 @@ static int check_filter_block(char *filter, master_record_t *flow_record, int ex
 static void check_offset(char *text, pointer_addr_t offset, pointer_addr_t expect);
 
 static int check_filter_block(char *filter, master_record_t *flow_record, int expect) {
-int ret, i;
 uint64_t	*block = (uint64_t *)flow_record;
 
 	Engine = CompileFilter(filter);
@@ -86,7 +85,7 @@ uint64_t	*block = (uint64_t *)flow_record;
 
 	Engine->ident = CurrentIdent;
 	Engine->nfrecord = (uint64_t *)flow_record;
-	ret =  (*Engine->FilterEngine)(Engine);
+	int ret =  (*Engine->FilterEngine)(Engine);
 	if ( ret == expect ) {
 		printf("Success: Startnode: %i Numblocks: %i Extended: %i Filter: '%s'\n", Engine->StartNode, nblocks(), Engine->Extended, filter);
 	} else {
@@ -94,7 +93,7 @@ uint64_t	*block = (uint64_t *)flow_record;
 		DumpEngine(Engine);
 		printf("Expected: %i, Found: %i\n", expect, ret);
 		printf("Record:\n");
-		for(i=0; i <= (Offset_MR_LAST >> 3); i++) {
+		for(int i=0; i <= Offset_MR_LAST; i++) {
 			printf("%3i %.16llx\n", i, (long long)block[i]);
 		}
 		if ( Engine->IdentList ) {
@@ -911,6 +910,19 @@ value64_t	v;
 	ret = check_filter_block("payload content 'GET /index'", &flow_record, 1);
 	ret = check_filter_block("payload content POST", &flow_record, 0);
 
+
+	char *ja3s = "123456789abcdef0123456789abcdef0";
+	char *pos = ja3s;
+	uint8_t ja3[16];
+	for(int count = 0; count < 16; count++) {
+        sscanf(pos, "%2hhx", &ja3[count]);
+        pos += 2;
+    }
+
+	memcpy((void *)flow_record.ja3, (void *)ja3, 16);
+	ret = check_filter_block("payload ja3 123456789abcdef0123456789abcdef0", &flow_record, 1);
+	ret = check_filter_block("payload ja3 123456789abcdef0123456789abcdef1", &flow_record, 0);
+	ret = check_filter_block("payload ja3 023456789abcdef0123456789abcdef0", &flow_record, 0);
 	// NSEL/ASA related tests
 #ifdef NSEL
 	flow_record.event = NSEL_EVENT_IGNORE;
