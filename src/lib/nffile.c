@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -396,6 +396,7 @@ static int ReadAppendix(nffile_t *nffile) {
 					if ( record_header->size < IDENTLEN ) {
 						nffile->ident = strdup(data);
 					} else {
+						nffile->ident = NULL;
 						LogError("Error processing appendix ident record");
 					}
 					break;
@@ -704,7 +705,11 @@ nffile_t *OpenFile(char *filename, nffile_t *nffile){
 	pthread_t tid;
 	atomic_init(&nffile->worker, 0);
 	atomic_init(&nffile->terminate, 0);
-	pthread_create(&tid, NULL, nfreader, (void *)nffile);
+	int err = pthread_create(&tid, NULL, nfreader, (void *)nffile);
+	if ( err ) {
+		LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		return NULL;
+	}
 	return nffile;
 
 } // End of OpenFile
@@ -755,7 +760,11 @@ int 			fd;
 	pthread_t tid;
 	atomic_init(&nffile->worker, 0);
 	atomic_init(&nffile->terminate, 0);
-	pthread_create(&tid, NULL, nfwriter, (void *)nffile);
+	int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
+	if ( err ) {
+		LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		return NULL;
+	}
 	return nffile;
 
 } /* End of OpenNewFile */
@@ -814,6 +823,7 @@ static void FlushFile(nffile_t *nffile) {
 		if ( err ) {
 			LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		}
+		atomic_init(&nffile->worker, 0);
 	}
 
 } // End of FlushFile
@@ -925,7 +935,12 @@ nffile_t *GetNextFile(nffile_t *nffile) {
 		pthread_t tid;
 		atomic_init(&nffile->worker, 0);
 		atomic_init(&nffile->terminate, 0);
-		pthread_create(&tid, NULL, nfreader, (void *)nffile);
+		int err = pthread_create(&tid, NULL, nfreader, (void *)nffile);
+		if ( err ) {
+			LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+			return NULL;
+		}
+		pthread_detach(tid);
 		return nffile;
 	}
 
@@ -1187,7 +1202,6 @@ nffile_t *nffile = (nffile_t *)arg;
 	}
 
 	dbg_printf("nfwriter exit\n");
-	atomic_init(&nffile->worker, 0);
 	pthread_exit(NULL);
 
  	/* UNREACHED */

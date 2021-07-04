@@ -392,6 +392,7 @@ time_t 		now = time(NULL);
 				printf("Ok - you've beeen warned!\n");
 			} else {
 				printf("Expire canceled!\n");
+				free(expire_timelimit);
 				return;
 			}
 		}
