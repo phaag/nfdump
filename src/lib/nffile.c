@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2004-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -115,7 +114,7 @@ static queue_t *fileQueue = NULL;
 
 /* function definitions */
 
-#define QueueSize 16
+#define QueueSize 8
 
 int Init_nffile(queue_t *fileList) {
 	
@@ -376,9 +375,8 @@ static int ReadAppendix(nffile_t *nffile) {
 		size_t processed = 0;
 		dataBlock_t *block_header = nfread(nffile);
 		if ( !block_header ) {
-			LogError("Unable to read appendix block");
+			LogError("Unable to read appendix block of file: %s", nffile->fileName);
 			lseek(nffile->fd, currentPos, SEEK_SET);
-			queue_push(mem_queue, block_header);
 			return 0;
 		}
 		void *buff_ptr = (void *)((void *)block_header + sizeof(dataBlock_t));
@@ -532,6 +530,10 @@ static nffile_t *NewFile(nffile_t *nffile) {
 	nffile->fd	 	 = 0;
 	nffile->compat16 = 0;
 
+	if ( nffile->worker_buffer ) {
+		queue_push(mem_queue, nffile->worker_buffer);
+		nffile->worker_buffer = NULL;
+	}
 	if ( nffile->fileName ) {
 		free(nffile->fileName);
 		nffile->fileName = NULL;
@@ -546,8 +548,6 @@ static nffile_t *NewFile(nffile_t *nffile) {
 	nffile->block_header = NULL;
 	nffile->buff_ptr 	 = NULL;
 
-	queue_open(nffile->blockQueue);
-	
 	return nffile;
 
 } // End of NewFile
@@ -575,7 +575,6 @@ int ret, fd;
 			LogError("Error open file: %s", strerror(errno));
 			return NULL;
 		}
-
 	}
 
 	// initialise and/or allocate new nffile handle
@@ -584,8 +583,9 @@ int ret, fd;
 		return NULL;
 	}
 	nffile->fd = fd;
-	if ( filename )
-		nffile->fileName = strdup(filename);
+	if ( nffile->fileName )
+		free(nffile->fileName);
+	nffile->fileName = strdup(filename);
 
 	// assume file layout V2
 	ret = read(nffile->fd, (void *)nffile->file_header, sizeof(fileHeaderV2_t));
@@ -705,11 +705,13 @@ nffile_t *OpenFile(char *filename, nffile_t *nffile){
 	pthread_t tid;
 	atomic_init(&nffile->worker, 0);
 	atomic_init(&nffile->terminate, 0);
+	queue_open(nffile->blockQueue);
 	int err = pthread_create(&tid, NULL, nfreader, (void *)nffile);
-	if ( err ) {
+	if ( err && err != ESRCH) {
 		LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		return NULL;
 	}
+	atomic_init(&nffile->worker, tid);
 	return nffile;
 
 } // End of OpenFile
@@ -760,11 +762,13 @@ int 			fd;
 	pthread_t tid;
 	atomic_init(&nffile->worker, 0);
 	atomic_init(&nffile->terminate, 0);
+	queue_open(nffile->blockQueue);
 	int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
 	if ( err ) {
 		LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		return NULL;
 	}
+	atomic_init(&nffile->worker, tid);
 	return nffile;
 
 } /* End of OpenNewFile */
@@ -830,7 +834,7 @@ static void FlushFile(nffile_t *nffile) {
 
 void CloseFile(nffile_t *nffile){
 
-	if ( !nffile || nffile->fd == 0) 
+	if ( !nffile ) 
 		return;
 
 	// make sure all workers are gone
@@ -842,6 +846,11 @@ void CloseFile(nffile_t *nffile){
 		nffile->fd = 0;
 	}
 
+	if ( nffile->worker_buffer ) {
+		queue_push(mem_queue, nffile->worker_buffer);
+		nffile->worker_buffer = NULL;
+	}
+
 	if ( nffile->fileName ) {
 		free(nffile->fileName);
 		nffile->fileName = NULL;
@@ -850,6 +859,13 @@ void CloseFile(nffile_t *nffile){
 	if ( nffile->ident ) {
 		free(nffile->ident);
 		nffile->ident = NULL;
+	}
+
+	// clean queue
+	queue_close(nffile->blockQueue);
+	while (queue_length(nffile->blockQueue)) {
+		dataBlock_t *block_header = queue_pop(nffile->blockQueue);
+		queue_push(mem_queue, block_header);
 	}
 
 	nffile->file_header->NumBlocks = 0;
@@ -907,7 +923,9 @@ nffile_t *GetNextFile(nffile_t *nffile) {
 	// stdin ( current = 0 ) is not closed
 	if ( nffile ) {
 		CloseFile(nffile);
-	} 
+	} else {
+		nffile = NewFile(NULL);
+	}
 	
 	if ( !fileQueue ) {
 		LogError("GetNextFile() no file queue to process");
@@ -921,26 +939,9 @@ nffile_t *GetNextFile(nffile_t *nffile) {
 			return EMPTY_LIST;
 		}
 	
-#ifdef DEVEL
-		printf("Process: '%s'\n", nextFile);
-#endif
-		nffile = OpenFileStatic(nextFile, nffile);	// Open the file
-		if ( !nffile ) {
-			return NULL;
-		}
-
+		dbg_printf("Process: '%s'\n", nextFile);
+		nffile = OpenFile(nextFile, nffile);	// Open the file
 		free(nextFile);
-
-		// kick off nfreader
-		pthread_t tid;
-		atomic_init(&nffile->worker, 0);
-		atomic_init(&nffile->terminate, 0);
-		int err = pthread_create(&tid, NULL, nfreader, (void *)nffile);
-		if ( err ) {
-			LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-			return NULL;
-		}
-		pthread_detach(tid);
 		return nffile;
 	}
 
@@ -1055,14 +1056,11 @@ static dataBlock_t *nfread(nffile_t *nffile) {
 		return NULL;
 	}
 
-
 } // End of nfread
 
 __attribute__((noreturn)) void* nfreader(void *arg) {
 nffile_t *nffile = (nffile_t *)arg;
 
-	pthread_t self = pthread_self();
-	atomic_init(&nffile->worker, self);
 
 	int terminate  = atomic_load(&nffile->terminate);
 	int blockCount = 0;
@@ -1091,7 +1089,7 @@ nffile_t *nffile = (nffile_t *)arg;
 	dbg_printf("nfreader done - read %u blocks\n", blockCount);
 	dbg_printf("nfreader exit\n");
 
-	atomic_init(&nffile->worker, 0);
+	atomic_init(&nffile->terminate, 2);
 	pthread_exit(NULL);
 
 } // End of nfreader
@@ -1175,25 +1173,23 @@ __attribute__((noreturn)) void* nfwriter(void *arg) {
 nffile_t *nffile = (nffile_t *)arg;
 
 	dbg_printf("nfwriter enter\n");
-	pthread_t self = pthread_self();
-	atomic_init(&nffile->worker, self);
 	dataBlock_t *block_header;
 	while (1) {
 		block_header = queue_pop(nffile->blockQueue);
 		if ( block_header == QUEUE_CLOSED )	
 			break;
 
-		if ( block_header->size == 0 ) {
-			// empty block - return to Q
-			queue_push(mem_queue, block_header );
-			continue;
+		int ok = 1;
+		if ( block_header->size ) {
+			// block with data
+			dbg_printf("nfwriter write\n");
+			ok = nfwrite(nffile, block_header);
 		}
+		queue_push(mem_queue, block_header);
 
-		dbg_printf("nfwriter write\n");
-		if ( !nfwrite(nffile, block_header) )
+		if ( !ok ) 
 			break;
 
-		queue_push(mem_queue, block_header);
 	}
 
 	if ( nffile->worker_buffer ) {
@@ -1212,25 +1208,16 @@ static int SignalTerminate(nffile_t *nffile) {
 
 	// get worker tid
 	pthread_t tid = atomic_load(&nffile->worker);
-	if ( tid == 0 )
-		return 1;
-
-	// set terminate
-	atomic_init(&nffile->terminate, 1);
-
-	// close queue and signal any waiting thread
-	queue_close(nffile->blockQueue);
-	pthread_cond_signal(&(nffile->blockQueue->cond));
-
-	int err = pthread_join(tid, NULL);
-	if ( err ) {
-		LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-	}
-
-	// clean queue
-	while (queue_length(nffile->blockQueue)) {
-		dataBlock_t *block_header = queue_pop(nffile->blockQueue);
-		queue_push(mem_queue, block_header);
+	if ( tid ) {
+		// set terminate
+		atomic_init(&nffile->terminate, 1);
+		pthread_cond_signal(&(nffile->blockQueue->cond));
+		int err = pthread_join(tid, NULL);
+		if ( err && err != ESRCH) {
+			LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+		}
+		atomic_init(&nffile->worker, 0);
+		atomic_init(&nffile->terminate, 0);
 	}
 
 	return 1;
@@ -1313,7 +1300,6 @@ char 			outfile[MAXPATHLEN];
 		compression = nffile_r->file_header->compression;
 		if ( compression == compress ) {
 			printf("File %s is already same compression methode\n", nffile_r->fileName);
-			SignalTerminate(nffile_r);
 			continue;
 		}
 
@@ -1325,7 +1311,7 @@ char 			outfile[MAXPATHLEN];
 		nffile_w = OpenNewFile(outfile, NULL, compress, NOT_ENCRYPTED);
 		if ( !nffile_w ) {
 			DisposeFile(nffile_r);
-			break;;
+			break;
 		}
 
 		SetIdent(nffile_w, nffile_r->ident);

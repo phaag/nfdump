@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
- *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2004-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
