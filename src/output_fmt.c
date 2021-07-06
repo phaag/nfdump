@@ -733,7 +733,7 @@ static void String_LastSeenRaw(FILE *stream, master_record_t *r) {
 
 static void String_inPayload(FILE *stream, master_record_t *r) {
 	if (r->srcPort == 53 || r->dstPort == 53) {
-		content_decode_dns((uint8_t *)r->inPayload, r->inPayloadLength);
+		content_decode_dns(r->proto, (uint8_t *)r->inPayload, r->inPayloadLength);
 	} else if (r->srcPort == 80 || r->dstPort == 80) {
 		int ascii = 1;
 		int max = r->inPayloadLength > 128 ? 128 : r->inPayloadLength;
@@ -755,7 +755,7 @@ static void String_inPayload(FILE *stream, master_record_t *r) {
 
 static void String_outPayload(FILE *stream, master_record_t *r) {
 	if (r->srcPort == 53 || r->dstPort == 53) {
-		content_decode_dns((uint8_t *)r->outPayload, r->outPayloadLength);
+		content_decode_dns(r->proto, (uint8_t *)r->outPayload, r->outPayloadLength);
 	} else if (r->srcPort == 80 || r->dstPort == 80) {
 		int ascii = 1;
 		int max = r->outPayloadLength > 128 ? 128 : r->outPayloadLength;

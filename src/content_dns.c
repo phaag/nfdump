@@ -1,3 +1,4 @@
+/* vi: set sw=4 ts=4: */
 /*
  *  Copyright (c) 2013-2021, Peter Haag
  *  All rights reserved.
@@ -141,7 +142,7 @@ typedef struct dns_srv_st {
 static void *_a_rr(void **p) {
 struct in_addr in;
 
-	in.s_addr = ntohl(Get_val32(*p)); *p += 4;
+	in.s_addr = ntohl(Get_val32(*p));
     return strdup(inet_ntoa(in));
 }
 
@@ -155,16 +156,56 @@ uint64_t sa6[2];
     return strdup(addr);
 }
 
-void content_decode_dns(uint8_t *payload, uint32_t payload_size) {
-dns_header_t *dns_header = (dns_header_t *)payload;
+static char *typeToChar(uint16_t type) {
+static char unknown[16];
+
+	switch (type) {
+		case 1:
+			return "A";
+			break;
+		case 2:
+			return "NS";
+			break;
+		case 5:
+			return "CNAME";
+			break;
+		case 6:
+			return "SOA";
+			break;
+		case 15:
+			return "MX";
+			break;
+		case 16:
+			return "TXT";
+			break;
+		case 28:
+			return "AAAA";
+			break;
+		case 29:
+			return "LOC";
+			break;
+		default:
+			unknown[0] = '\0';
+			snprintf(unknown, 16, "%u", type);
+			return unknown;
+	}
+	/* not reached */
+
+} // End of typeToChar
+
+void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) {
 uint32_t qdcount, ancount;
 void *p, *eod;
 #define DN_LENGTH 256
 char	dn[DN_LENGTH];
 int i;
 
+	if ( proto == IPPROTO_TCP ) payload += 2;
+	dns_header_t *dns_header = (dns_header_t *)payload;
+
 	if ( payload_size < sizeof(dns_header_t) ) {
-		LogError("Unable to decode short DNS packet");
+		dn[0] = '\0';
+        printf("DNS: <Short packet>\n");
 		return;
 	}
 
@@ -179,24 +220,25 @@ int i;
 
     // reord pointer
     p = (void *)(payload + sizeof(dns_header_t));
-
+	uint32_t type, class, ttl;
 	for (i=0; i<qdcount && p < eod; i++ ) {
 		int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
 		if (len < 0) {
-            LogError("dn_expand() failed: %s", "");
+            printf("DNS query: decoding failed!\n");
+			return;
 		} 
-		printf("DNS Query %i: %s\n", i, dn);
-        p = (void *) (p + len + 4);	// + 4 bytes of fixed data in query
+        p += len;
+		type  = Get_val16(p); p += 2;
+		class = Get_val16(p); p += 2;
+		printf("DNS Query %i: %s type: %s, class: %u\n", i, dn, typeToChar(type), class);
 	}
 
 	for (i=0; i<ancount && p < eod; i++ ) {
-		uint32_t type, class, ttl;
         int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
-		// keep compiler happy
-		UNUSED(class);
-		UNUSED(ttl);
         if(len < 0) {
-            LogError("dn_expand() failed: %s", "");
+			dn[0] = '\0';
+			printf("DNS answer: decoding failed!\n");
+			return;
         }
 		printf("DNS Answer %i: %s ", i, dn);
 
@@ -208,7 +250,7 @@ int i;
 		ttl   = Get_val32(p); p += 4;
 		len   = Get_val16(p); p += 2;
 
-		printf(" Type: %u, class: %u, ttl: %u, len: %u ", type, class, ttl, len);
+		printf(" Type: %s, class: %u, ttl: %u, len: %u ", typeToChar(type), class, ttl, len);
         /* type-specific processing */
         switch(type) {
 			char *s;
@@ -220,6 +262,7 @@ int i;
                 s = _a_rr(&p);
 				printf("A: %s", s);
 				free(s);
+				p += 4;
                 break;
 #ifdef T_A6
             case T_A6:
@@ -230,9 +273,12 @@ int i;
             case ns_t_a6:
             case ns_t_aaaa:
 #endif
+
                 s = _aaaa_rr(&p);
 				printf("AAAA: %s", s);
 				free(s);
+				p += 16;
+
                 break;
 #ifdef T_CNAME
             case T_CNAME: 
@@ -242,7 +288,7 @@ int i;
 				{
         		int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
 				printf("CNAME: %s", dn);
-                p = (void *)(p + len);
+                p += len;
                 } break;
 #ifdef T_NS
             case T_NS: 
@@ -252,7 +298,7 @@ int i;
 				{
         		int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
 				printf("NS: %s", dn);
-                p = (void *)(p + len);
+                p += len;
                 } break;
 #ifdef T_SOA
             case T_SOA: 
@@ -262,12 +308,26 @@ int i;
 				{
         		int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
 				printf("SOA: %s", dn);
-                p = (void *)(p + len);
+                p += len;
                 } break;
+#ifdef T_TXT
+            case T_TXT: 
+#else
+			case ns_t_txt:
+#endif
+				if (len < 256 && (p + len) < eod) {
+					char r_txt[256];
+					r_txt[0] = '\0';
+					strncpy(r_txt, p+1, 256);
+					r_txt[255] = '\0';
+					printf("TXT: %s", r_txt);
+				}
+				p += len;
+                break;
 
             default:
 				printf("<unkn> %u", type);
-                p = (void *)(p + len);
+                p += len;
 
     	}
 		printf("\n");

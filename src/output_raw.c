@@ -511,7 +511,7 @@ static void stringsEXinPayload(FILE *stream, master_record_t *r) {
 "  in payload   =        %10u\n"
 , r->inPayloadLength);
 	if (r->srcPort == 53 || r->dstPort == 53) {
-		content_decode_dns((uint8_t *)r->inPayload, r->inPayloadLength);
+		content_decode_dns(r->proto, (uint8_t *)r->inPayload, r->inPayloadLength);
 	} else if (r->srcPort == 80 || r->dstPort == 80) {
 		int ascii = 1;
 		int max = r->inPayloadLength > 512 ? 512 : r->inPayloadLength;
@@ -561,7 +561,7 @@ static void stringsEXoutPayload(FILE *stream, master_record_t *r) {
 , r->outPayloadLength);
 	DumpHex(stream, r->outPayload, r->outPayloadLength > 512 ? 512 : r->outPayloadLength);
 	if ( r->srcPort == 53 ||  r->dstPort == 53) {
-		content_decode_dns((uint8_t *)r->outPayload, r->outPayloadLength);
+		content_decode_dns(r->proto, (uint8_t *)r->outPayload, r->outPayloadLength);
 	} else if (r->srcPort == 80 || r->dstPort == 80) {
 		int ascii = 1;
 		int max = r->outPayloadLength > 512 ? 512 : r->outPayloadLength;

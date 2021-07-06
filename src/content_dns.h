@@ -28,5 +28,5 @@
  *  
  */
 
-void content_decode_dns(uint8_t *payload, uint32_t payload_size);
+void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size);
 
