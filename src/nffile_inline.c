@@ -85,6 +85,7 @@ uint32_t size = sizeof(recordHeaderV3_t);
 	output_record->numElements = v3Record->numElements;
 	output_record->engine_type = v3Record->engineType;
 	output_record->engine_id = v3Record->engineID;
+	output_record->nfversion = v3Record->nfversion;
 
 	if ( v3Record->size < size ) {
 		LogError("ExpandRecord_v3() Unexpected size: '%u'", v3Record->size);

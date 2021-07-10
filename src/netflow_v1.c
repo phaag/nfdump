@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -122,7 +122,7 @@ static inline exporter_v1_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *
 #include "nffile_inline.c"
 
 int Init_v1(int verbose) {
-	printRecord = verbose;
+	printRecord = verbose > 2;
 	baseRecordSize = sizeof(recordHeaderV3_t) + EXgenericFlowSize + 
 				EXipv4FlowSize + EXflowMiscSize + EXipNextHopV4Size;
 

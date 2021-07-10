@@ -142,6 +142,7 @@ static void usage(char *name) {
 					"-e\t\tExpire data at each cycle.\n"
 					"-D\t\tFork to background\n"
 					"-E\t\tPrint extended format of sflow data. For debugging purpose only.\n"
+					"-v\t\tIncrease verbose level.\n"
 					"-4\t\tListen on IPv4 (default).\n"
 					"-6\t\tListen on IPv6.\n"
 					"-V\t\tPrint version and exit.\n"
@@ -666,7 +667,7 @@ char	*pcap_file = NULL;
 	Ident			= "none";
 	FlowSource		= NULL;
 
-	while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:jl:J:n:N:p:P:R:S:T:t:x:ru:g:yzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:jl:J:n:N:p:P:R:S:T:t:x:ru:g:vyzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -696,6 +697,10 @@ char	*pcap_file = NULL;
 				} break;
 			case 'E':
 				verbose = 1;
+				break;
+			case 'v':
+				if ( verbose < 4 ) 
+					verbose++;
 				break;
 			case 'V':
 				printf("%s: Version: %s\n",argv[0], nfdump_version);

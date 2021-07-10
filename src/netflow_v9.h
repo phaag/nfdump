@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -303,7 +303,7 @@ typedef struct common_header_s {
 #define IPFIX_ReverseInformationElement		29305
 
 /* prototypes */
-int Init_v9(int v, uint32_t sampling, uint32_t overwrite);
+int Init_v9(int verbose, uint32_t sampling, uint32_t overwrite);
 
 void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 

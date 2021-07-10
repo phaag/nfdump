@@ -154,6 +154,7 @@ static void usage(char *name) {
 					"-e\t\tExpire data at each cycle.\n"
 					"-D\t\tFork to background\n"
 					"-E\t\tPrint extended format of netflow data. For debugging purpose only.\n"
+					"-v\t\tIncrease verbose level.\n"
 					"-4\t\tListen on IPv4 (default).\n"
 					"-6\t\tListen on IPv6.\n"
 					"-V\t\tPrint version and exit.\n"
@@ -741,7 +742,7 @@ char	*pcap_file = NULL;
 	FlowSource		= NULL;
 	dynsrcdir		= NULL;
 
-	while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:jl:J:M:n:N:p:P:R:S:s:T:t:x:Xru:g:yzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:jl:J:M:n:N:p:P:R:S:s:T:t:x:Xru:g:vyzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -770,7 +771,11 @@ char	*pcap_file = NULL;
 #endif
 				} break;
 			case 'E':
-				verbose = 1;
+				verbose = 3;
+				break;
+			case 'v':
+				if ( verbose < 4 ) 
+					verbose++;
 				break;
 			case 'V':
 				printf("%s: Version: %s\n",argv[0], nfdump_version);

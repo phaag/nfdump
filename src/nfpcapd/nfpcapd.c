@@ -598,7 +598,8 @@ char			*time_extension;
 				printf("Option -T no longer supported and ignored\n");
 				break;
 			case 'v':
-				verbose++;
+				if ( verbose < 4 ) 
+					verbose++;
 				break;
 			case 'V':
 				printf("%s: Version: %s",argv[0], nfdump_version);

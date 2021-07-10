@@ -241,7 +241,7 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber);
 int Init_IPFIX(int verbose, uint32_t sampling, uint32_t overwrite) {
 int i;
 
-	printRecord = verbose;
+	printRecord = verbose > 2;
 	default_sampling   = sampling;
 	overwrite_sampling = overwrite;
 
@@ -361,7 +361,7 @@ sampler_t *sampler;
 		// no samplers so far 
 		sampler = (sampler_t *)malloc(sizeof(sampler_t));
 		if ( !sampler ) {
-			LogError( "Process_v9: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+			LogError( "Process_ipfix: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 			return;
 		}
 
@@ -408,7 +408,7 @@ sampler_t *sampler;
 				// end of sampler chain - insert new sampler
 				sampler->next = (sampler_t *)malloc(sizeof(sampler_t));
 				if ( !sampler->next ) {
-					LogError( "Process_v9: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
+					LogError( "Process_ipfix: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
 					return;
 				}
 				sampler = sampler->next;
@@ -1017,7 +1017,7 @@ uint16_t	tableID, field_count, scope_field_count, offset;
 		// if it exitsts - remove old template on exporter with same ID
 		templateList_t *template = newTemplate(exporter, tableID);
 		if ( !template ) {
-			LogError("Process_v9: abort template add: %s line %d", __FILE__, __LINE__);
+			LogError("Process_ipfix: abort template add: %s line %d", __FILE__, __LINE__);
 			return;
 		}
 		template->data = optionTemplate;

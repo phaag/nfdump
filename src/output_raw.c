@@ -597,7 +597,6 @@ char elementString[MAXELEMENTS * 5];
 	for (int i=0; i<r->numElements; i++) {
 		snprintf(elementString + strlen(elementString), sizeof(elementString) - strlen(elementString), "%u ", r->exElementList[i]);
 	}
-
 	char *type;
 	char version[8];
 	if ( TestFlag(r->flags, V3_FLAG_EVENT)) {

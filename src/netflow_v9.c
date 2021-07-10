@@ -354,10 +354,10 @@ static int CheckSendBufferSpace(size_t size, send_peer_t *peer);
 /* functions */
 
 #include "nffile_inline.c"
-int Init_v9(int v, uint32_t sampling, uint32_t overwrite) {
+int Init_v9(int verbose, uint32_t sampling, uint32_t overwrite) {
 int i;
 
-    printRecord		   = v;
+    printRecord		   = verbose > 2;
     default_sampling   = sampling;
     overwrite_sampling = overwrite;
     outTemplates = NULL;

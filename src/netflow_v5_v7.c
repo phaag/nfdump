@@ -185,7 +185,7 @@ int Init_v5_v7_input(int verbose, uint32_t sampling, uint32_t overwrite) {
 	assert(sizeof(netflow_v5_header_t) == NETFLOW_V5_HEADER_LENGTH);
 	assert(sizeof(netflow_v5_record_t) == NETFLOW_V5_RECORD_LENGTH);
 
-	printRecord		   = verbose;
+	printRecord		   = verbose > 2;
 	default_sampling   = sampling;
 	overwrite_sampling = overwrite;
 
