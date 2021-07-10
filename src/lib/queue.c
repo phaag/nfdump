@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2020, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -37,6 +37,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <unistd.h>
+#include <stdatomic.h>
 #include <arpa/inet.h>
 #include <errno.h>
 #include <signal.h>
@@ -74,6 +75,8 @@ queue_t *queue;
 
 	queue->length = length;
 	queue->mask   = length - 1;
+	atomic_init(&queue->c_wait, 0);
+	atomic_init(&queue->p_wait, 0);
 
 	return queue;
 
@@ -149,7 +152,7 @@ unsigned usec = 0;
 
 	usec = 1;
 	// release all waiting threads, if any
-	while ( queue->c_wait || queue->p_wait ) {
+	while ( atomic_load(&queue->c_wait) || atomic_load(&queue->p_wait) ) {
 		struct timeval tv = {0};
 		tv.tv_usec = 1;
 		pthread_mutex_lock(&(queue->mutex));
@@ -177,7 +180,7 @@ void *queue_push(queue_t *queue, void *data) {
 			if ( queue->stat.maxUsed < queue->num_elements ) 
 				queue->stat.maxUsed = queue->num_elements;
 
-			if ( queue->c_wait ) {
+			if ( atomic_load(&queue->c_wait) ) {
 				pthread_cond_signal(&(queue->cond));
 			}
 			pthread_mutex_unlock(&(queue->mutex));
@@ -214,9 +217,9 @@ void *queue_pop(queue_t *queue) {
 			pthread_mutex_unlock(&(queue->mutex));
 			return data;
 		} else {
-			queue->c_wait++;
+			atomic_fetch_add(&queue->c_wait, 1);
 			pthread_cond_wait(&(queue->cond), &(queue->mutex));
-			queue->c_wait--;
+			atomic_fetch_sub(&queue->c_wait, 1);
 		}
 	}
 

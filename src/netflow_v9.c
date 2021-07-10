@@ -2173,7 +2173,7 @@ int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer) {
 		// Different flowset ID - End data flowset and open new data flowset
 		CloseDataFlowset(peer);
 
-		if ( !CheckSendBufferSpace(template->record_length + sizeof(data_flowset_t), peer)) {
+		if ( !CheckSendBufferSpace(template->record_length + sizeof(data_flowset_t) + template->flowset_length, peer)) {
 			// request buffer flush first
 			dbg_printf("Flush Buffer #1\n");
 			return 1;

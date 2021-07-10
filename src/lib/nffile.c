@@ -109,31 +109,15 @@ static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2);
 
 static void UpdateStat(stat_record_t *s, stat_recordV1_t *sv1);
 
-static queue_t *mem_queue = NULL;
 static queue_t *fileQueue = NULL;
 
 /* function definitions */
 
-#define QueueSize 8
+#define QueueSize 4
 
 int Init_nffile(queue_t *fileList) {
 	
 	fileQueue = fileList;
-
-	mem_queue = queue_init(4 * QueueSize);
-	if ( !mem_queue ) 
-		return 0;
-
-	for (int i=0; i<(4 * QueueSize); i++) {
-		void *p = malloc(2 * BUFFSIZE);
-		if ( !p ) {
-			LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, 
-				strerror(errno) );
-			return 0;
-		}
-		queue_push(mem_queue, p);
-	}
-
 	if ( !LZO_initialize() ) {
 		LogError("Failed to initialize LZO");
 		return 0;
@@ -414,11 +398,11 @@ static int ReadAppendix(nffile_t *nffile) {
 			if ( processed > block_header->size ) {
 				LogError("Error processing appendix records: processed %u > block size %u", 
 					processed, block_header->size);
-				queue_push(mem_queue, block_header);
+				queue_push(nffile->blockQueue, block_header);
 				return 0;
 			}
 		}
-		queue_push(mem_queue, block_header);
+		queue_push(nffile->blockQueue, block_header);
 	}
 
 	// seek back to currentPos
@@ -451,7 +435,7 @@ static int WriteAppendix(nffile_t *nffile) {
 	if ( nffile->ident == NULL ) 
 		nffile->ident = strdup("none");
 
-	dataBlock_t *block_header = queue_pop(mem_queue);
+	dataBlock_t *block_header = queue_pop(nffile->blockQueue);
 	InitDataBlock(block_header);
 	void *buff_ptr = (void *)((void *)block_header + sizeof(dataBlock_t));
 	
@@ -480,7 +464,7 @@ static int WriteAppendix(nffile_t *nffile) {
 	buff_ptr += recordHeader->size;
 
 	nfwrite(nffile, block_header);
-	queue_push(mem_queue, block_header);
+	queue_push(nffile->blockQueue, block_header);
 
 	return 1;
 
@@ -516,12 +500,27 @@ static nffile_t *NewFile(nffile_t *nffile) {
 		nffile->buff_size = BUFFSIZE;
 		
 		// 
-		nffile->blockQueue = queue_init(QueueSize);
+		nffile->processQueue = queue_init(QueueSize);
+		if ( !nffile->processQueue ) {
+			return NULL;
+		}
+
+		nffile->blockQueue = queue_init(QueueSize+4);
 		if ( !nffile->blockQueue ) {
 			return NULL;
 		}
+		for (int i=0; i<(QueueSize+4); i++) {
+			void *p = malloc(2 * BUFFSIZE);
+			if ( !p ) {
+				LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, 
+					strerror(errno) );
+				return 0;
+			}
+			queue_push(nffile->blockQueue, p);
+		}
 	}
 
+assert(queue_length(nffile->blockQueue) == (QueueSize+4));
 	memset((void *)nffile->file_header, 0, sizeof(fileHeaderV2_t));
 	nffile->file_header->magic 	   = MAGIC;
 	nffile->file_header->version   = LAYOUT_VERSION_2;
@@ -530,10 +529,6 @@ static nffile_t *NewFile(nffile_t *nffile) {
 	nffile->fd	 	 = 0;
 	nffile->compat16 = 0;
 
-	if ( nffile->worker_buffer ) {
-		queue_push(mem_queue, nffile->worker_buffer);
-		nffile->worker_buffer = NULL;
-	}
 	if ( nffile->fileName ) {
 		free(nffile->fileName);
 		nffile->fileName = NULL;
@@ -547,6 +542,9 @@ static nffile_t *NewFile(nffile_t *nffile) {
 
 	nffile->block_header = NULL;
 	nffile->buff_ptr 	 = NULL;
+
+	nffile->worker = 0;
+	atomic_store(&nffile->terminate, 0);
 
 	return nffile;
 
@@ -703,15 +701,15 @@ nffile_t *OpenFile(char *filename, nffile_t *nffile){
 
 	// kick off nfreader
 	pthread_t tid;
-	atomic_init(&nffile->worker, 0);
-	atomic_init(&nffile->terminate, 0);
-	queue_open(nffile->blockQueue);
+	atomic_store(&nffile->terminate, 0);
+	queue_open(nffile->processQueue);
 	int err = pthread_create(&tid, NULL, nfreader, (void *)nffile);
-	if ( err && err != ESRCH) {
+	if ( err ) {
+		nffile->worker = 0;
 		LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		return NULL;
 	}
-	atomic_init(&nffile->worker, tid);
+	nffile->worker = tid;
 	return nffile;
 
 } // End of OpenFile
@@ -754,21 +752,21 @@ int 			fd;
 	}
 
 	// prepare buffer to write to
-	nffile->block_header = queue_pop(mem_queue);
+	nffile->block_header = queue_pop(nffile->blockQueue);
 	InitDataBlock(nffile->block_header);
 	nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(dataBlock_t));
 
 	// kick off nfwriter
 	pthread_t tid;
-	atomic_init(&nffile->worker, 0);
-	atomic_init(&nffile->terminate, 0);
-	queue_open(nffile->blockQueue);
+	atomic_store(&nffile->terminate, 0);
+	queue_open(nffile->processQueue);
 	int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
 	if ( err ) {
+		nffile->worker = 0;
 		LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		return NULL;
 	}
-	atomic_init(&nffile->worker, tid);
+	nffile->worker = tid;
 	return nffile;
 
 } /* End of OpenNewFile */
@@ -812,44 +810,37 @@ nffile_t		*nffile;
 static void FlushFile(nffile_t *nffile) {
 
 	if ( nffile->block_header->size ) {
-		queue_push(nffile->blockQueue, nffile->block_header);
+		queue_push(nffile->processQueue, nffile->block_header);
 		nffile->block_header = NULL;
 		nffile->buff_ptr	 = NULL;
 	}
 	// done - close queue
-	queue_close(nffile->blockQueue);
-	queue_sync(nffile->blockQueue);
+	queue_close(nffile->processQueue);
+	queue_sync(nffile->processQueue);
 
 	// wait for nfwriter to complete
-	pthread_t writer_tid = atomic_load(&nffile->worker);
-	if ( writer_tid ) {
-		int err = pthread_join(writer_tid, NULL);
+	if ( nffile->worker ) {
+		int err = pthread_join(nffile->worker, NULL);
 		if ( err ) {
 			LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		}
-		atomic_init(&nffile->worker, 0);
+		nffile->worker = 0;
 	}
 
 } // End of FlushFile
 
 void CloseFile(nffile_t *nffile){
 
-	if ( !nffile ) 
+	if ( !nffile || nffile->fd == 0) 
 		return;
 
 	// make sure all workers are gone
-	SignalTerminate(nffile);
-
-	// do not close stdout
-	if ( nffile->fd ) {
-		close(nffile->fd);
-		nffile->fd = 0;
+	if ( nffile->worker ) {
+		SignalTerminate(nffile);
 	}
 
-	if ( nffile->worker_buffer ) {
-		queue_push(mem_queue, nffile->worker_buffer);
-		nffile->worker_buffer = NULL;
-	}
+	close(nffile->fd);
+	nffile->fd = 0;
 
 	if ( nffile->fileName ) {
 		free(nffile->fileName);
@@ -862,10 +853,10 @@ void CloseFile(nffile_t *nffile){
 	}
 
 	// clean queue
-	queue_close(nffile->blockQueue);
-	while (queue_length(nffile->blockQueue)) {
-		dataBlock_t *block_header = queue_pop(nffile->blockQueue);
-		queue_push(mem_queue, block_header);
+	queue_close(nffile->processQueue);
+	while (queue_length(nffile->processQueue)) {
+		dataBlock_t *block_header = queue_pop(nffile->processQueue);
+		queue_push(nffile->blockQueue, block_header);
 	}
 
 	nffile->file_header->NumBlocks = 0;
@@ -894,7 +885,7 @@ int CloseUpdateFile(nffile_t *nffile) {
 	}
 
 	if ( nffile->block_header ) {
-		queue_push(mem_queue, nffile->block_header);
+		queue_push(nffile->blockQueue, nffile->block_header);
 		nffile->block_header = NULL;
 	}
 	CloseFile(nffile);
@@ -907,7 +898,7 @@ void DisposeFile(nffile_t *nffile) {
 
 	if ( nffile->fd > 0 )
 		CloseFile(nffile);
-	if ( nffile->block_header ) queue_push(mem_queue, nffile->block_header );
+	if ( nffile->block_header ) queue_push(nffile->blockQueue, nffile->block_header );
 	if ( nffile->file_header )  free(nffile->file_header);
 	if ( nffile->stat_record )  free(nffile->stat_record);
 	if ( nffile->ident ) 	    free(nffile->ident);
@@ -952,10 +943,10 @@ nffile_t *GetNextFile(nffile_t *nffile) {
 int ReadBlock(nffile_t *nffile) {
 
 	if ( nffile->block_header ) {
-		queue_push(mem_queue, nffile->block_header);
+		queue_push(nffile->blockQueue, nffile->block_header);
 	}
 
-	nffile->block_header = queue_pop(nffile->blockQueue);
+	nffile->block_header = queue_pop(nffile->processQueue);
 	if ( nffile->block_header == QUEUE_CLOSED ) {	// EOF
 		nffile->block_header = NULL;
 		return NF_EOF;
@@ -972,17 +963,15 @@ int ReadBlock(nffile_t *nffile) {
 // generic read und uncompress a data block from current position
 static dataBlock_t *nfread(nffile_t *nffile) {
 
-	if ( !nffile->worker_buffer ) {
-		nffile->worker_buffer = queue_pop(mem_queue);
-	}
-	dataBlock_t *block_header = nffile->worker_buffer;
-
-	int ret = read(nffile->fd, block_header, sizeof(dataBlock_t));
+	dataBlock_t *buff = queue_pop(nffile->blockQueue);
+	int ret = read(nffile->fd, buff, sizeof(dataBlock_t));
 	if ( ret == 0 ) { // EOF
+		queue_push(nffile->blockQueue, buff);
 		return NULL;
 	}
 		
 	if ( ret == -1 ) { // Error
+		queue_push(nffile->blockQueue, buff);
 		LogError("read() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		return NULL;
 	}
@@ -990,106 +979,114 @@ static dataBlock_t *nfread(nffile_t *nffile) {
 	// Check for sane buffer size
 	if ( ret != sizeof(dataBlock_t) ) {
 		// this is most likely a corrupt file
+		queue_push(nffile->blockQueue, buff);
 		LogError("Corrupt data file: Read %i bytes, requested %u", ret, sizeof(dataBlock_t));
 		return NULL;
 	}
 
 	dbg_printf("ReadBlock - type: %u, size: %u, numRecords: %u, flags: %u\n", 
-		block_header->type, block_header->size, 
-		block_header->NumRecords, block_header->flags);
+		buff->type, buff->size, 
+		buff->NumRecords, buff->flags);
 
-	if ( block_header->size > BUFFSIZE ||
-     	 block_header->size == 0 || block_header->NumRecords == 0) {
+	if ( buff->size > BUFFSIZE ||
+     	 buff->size == 0 || buff->NumRecords == 0) {
 		// this is most likely a corrupt file
-		LogError("Corrupt data file: Error buffer size %u", block_header->size);
+		LogError("Corrupt data file: Error buffer size %u", buff->size);
+		queue_push(nffile->blockQueue, buff);
 		return NULL;
 	}
 
 	int compression = nffile->file_header->compression;
 
-	dataBlock_t *buff = NULL;
-	void *p = (void *)((pointer_addr_t)block_header + sizeof(dataBlock_t));
-	dbg_printf("ReadBlock - read: %u\n", block_header->size);
-	ret = read(nffile->fd, p, block_header->size);
-	if ( ret == block_header->size ) {
+	void *p = (void *)((void *)buff + sizeof(dataBlock_t));
+	dbg_printf("ReadBlock - read: %u\n", buff->size);
+	ret = read(nffile->fd, p, buff->size);
+	if ( ret == buff->size ) {
+		dataBlock_t *block_header = NULL;
 		int failed = 0;
 		// we have the whole record and are done for now
 		switch (compression) {
 			case NOT_COMPRESSED:
-				buff = nffile->worker_buffer;
-				nffile->worker_buffer = NULL;
+				block_header = buff;
 				break;
 			case LZO_COMPRESSED: 
-				buff = queue_pop(mem_queue);
-				if ( Uncompress_Block_LZO(block_header, buff, nffile->buff_size) < 0 ) 
+				block_header = queue_pop(nffile->blockQueue);
+				if ( Uncompress_Block_LZO(buff, block_header, nffile->buff_size) < 0 ) 
 					failed = 1;
+				queue_push(nffile->blockQueue, buff);
 				break;
 			case LZ4_COMPRESSED: 
-				buff = queue_pop(mem_queue);
-				if ( Uncompress_Block_LZ4(block_header, buff, nffile->buff_size) < 0 ) 
+				block_header = queue_pop(nffile->blockQueue);
+				if ( Uncompress_Block_LZ4(buff, block_header, nffile->buff_size) < 0 ) 
 					failed = 1;
+				queue_push(nffile->blockQueue, buff);
 				break;
 			case BZ2_COMPRESSED: 
-				buff = queue_pop(mem_queue);
-				if ( Uncompress_Block_BZ2(block_header, buff, nffile->buff_size) < 0 )
+				block_header = queue_pop(nffile->blockQueue);
+				if ( Uncompress_Block_BZ2(buff, block_header, nffile->buff_size) < 0 )
 					failed = 1;
+				queue_push(nffile->blockQueue, buff);
 			break;
 		}
 
 		if ( failed ) {
-			queue_push(mem_queue, buff);
+			queue_push(nffile->blockQueue, block_header);
 			return NULL;
 		}
 		// success - done
-		return buff;
+		return block_header;
 		
 	} else if ( ret == 0 ) {
 		LogError("ReadBlock() Corrupt data file: Unexpected EOF while reading data block");
-		return NULL;
-
 	} else if ( ret == -1 ) {	// ERROR
 		LogError("read() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-		return NULL;
-
 	} else {
-		LogError("read() error: Short read: Expected: %u, received: %u\n", block_header->size, ret);
-		return NULL;
+		LogError("read() error: Short read: Expected: %u, received: %u\n", buff->size, ret);
 	}
+
+	queue_push(nffile->blockQueue, buff);
+	return NULL;
 
 } // End of nfread
 
 __attribute__((noreturn)) void* nfreader(void *arg) {
 nffile_t *nffile = (nffile_t *)arg;
 
-
 	int terminate  = atomic_load(&nffile->terminate);
 	int blockCount = 0;
 	dataBlock_t *block_header = NULL;
 	while ( !terminate && blockCount < nffile->file_header->NumBlocks ) {
 		block_header = nfread(nffile);
-		if ( !block_header ) 
+		if ( !block_header ) {
+			dbg_printf("block_header == NULL\n");
 			break;
+		}
 
-		blockCount++;
-		queue_push(nffile->blockQueue, (void *)block_header);
-		dbg_printf("ReadBlock - expanded: %u\n", block_header->size);
-		dbg_printf("Blocks: %u\n", blockCount);
+		if ( queue_push(nffile->processQueue, (void *)block_header) == QUEUE_CLOSED ) {
+			queue_push(nffile->blockQueue, block_header);
+			dbg_printf("nfreader - processQueue closed\n");
+			terminate = 1;
+		} else {
+			blockCount++;
+			terminate = atomic_load(&nffile->terminate);
+			dbg_printf("ReadBlock - expanded: %u\n", block_header->size);
+			dbg_printf("Blocks: %u\n", blockCount);
+		}
 
-		terminate = atomic_load(&nffile->terminate);
+#ifdef DEVEL
+		if (terminate) {
+			printf("Terminate nfreader by signal\n");
+		}
+#endif
 	} 
 
 	// eof or error ends processing
-	queue_close(nffile->blockQueue);
-
-	if ( nffile->worker_buffer ) {
-		queue_push(mem_queue, nffile->worker_buffer);
-		nffile->worker_buffer = NULL;
-	}
+	queue_close(nffile->processQueue);
 
 	dbg_printf("nfreader done - read %u blocks\n", blockCount);
 	dbg_printf("nfreader exit\n");
 
-	atomic_init(&nffile->terminate, 2);
+	atomic_store(&nffile->terminate, 2);
 	pthread_exit(NULL);
 
 } // End of nfreader
@@ -1099,9 +1096,9 @@ int WriteBlock(nffile_t *nffile) {
 	// empty blocks need not to be written
 	if ( nffile->block_header->size != 0 ) {
 		dbg_printf("WriteBlock - push block with size: %u\n", nffile->block_header->size);
-		queue_push(nffile->blockQueue, nffile->block_header);
+		queue_push(nffile->processQueue, nffile->block_header);
 
-		nffile->block_header = queue_pop(mem_queue);
+		nffile->block_header = queue_pop(nffile->blockQueue);
 	}
 	
 	InitDataBlock(nffile->block_header);
@@ -1117,54 +1114,52 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
 		return 1;
 	}
 
-	if ( !nffile->worker_buffer ) {
-		nffile->worker_buffer = queue_pop(mem_queue);
-	}
 	dbg_printf("nfwrite - write: %u\n", block_header->size);
 	
-	dataBlock_t *buff = NULL;
+	dataBlock_t *buff = queue_pop(nffile->blockQueue);
+	dataBlock_t *wptr = block_header;
 	int failed = 0;
 	// compress according file compression
 	int compression = nffile->file_header->compression;
 	dbg_printf("nfwrite - compression: %u\n", compression);
 	switch (compression) {
 		case NOT_COMPRESSED:
-			buff = block_header;
 			break;
 		case LZO_COMPRESSED: 
-			buff = nffile->worker_buffer;
-			if ( Compress_Block_LZO(block_header, nffile->worker_buffer, nffile->buff_size) < 0 )
+			if ( Compress_Block_LZO(block_header, buff, nffile->buff_size) < 0 )
 				failed = 1;
+			wptr = buff;
 			break;
 		case LZ4_COMPRESSED:
-			buff = nffile->worker_buffer;
-			if ( Compress_Block_LZ4(block_header, nffile->worker_buffer, nffile->buff_size) < 0 )
+			if ( Compress_Block_LZ4(block_header, buff, nffile->buff_size) < 0 )
 				failed = 1;
+			wptr = buff;
 			break;
 		case BZ2_COMPRESSED:
-			buff = nffile->worker_buffer;
-			if ( Compress_Block_BZ2(block_header, nffile->worker_buffer, nffile->buff_size) < 0 )
+			if ( Compress_Block_BZ2(block_header, buff, nffile->buff_size) < 0 )
 				failed = 1;
+			wptr = buff;
 			break;
 	}
 
 	if ( failed ) { // error
+		queue_push(nffile->blockQueue, buff);
 		return 0;
 	}
 
 	dbg_printf("WriteBlock - type: %u, size: %u, numRecords: %u, flags: %u\n", 
-		block_header->type, block_header->size, 
-		block_header->NumRecords, block_header->flags);
+		wptr->type, wptr->size, 
+		wptr->NumRecords, wptr->flags);
 
 	dbg_printf("nfwrite - compressed: %u\n", buff->size);
-	int ret = write(nffile->fd, (void *)buff, sizeof(dataBlock_t) + buff->size);
+	int ret = write(nffile->fd, (void *)wptr, sizeof(dataBlock_t) + wptr->size);
+	queue_push(nffile->blockQueue, buff);
 	if (ret < 0) {
 		LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		return 0;
 	} 
 
 	nffile->file_header->NumBlocks++;
-
 	return 1;
 
 } // End of nfwrite
@@ -1175,7 +1170,7 @@ nffile_t *nffile = (nffile_t *)arg;
 	dbg_printf("nfwriter enter\n");
 	dataBlock_t *block_header;
 	while (1) {
-		block_header = queue_pop(nffile->blockQueue);
+		block_header = queue_pop(nffile->processQueue);
 		if ( block_header == QUEUE_CLOSED )	
 			break;
 
@@ -1185,16 +1180,11 @@ nffile_t *nffile = (nffile_t *)arg;
 			dbg_printf("nfwriter write\n");
 			ok = nfwrite(nffile, block_header);
 		}
-		queue_push(mem_queue, block_header);
+		queue_push(nffile->blockQueue, block_header);
 
 		if ( !ok ) 
 			break;
 
-	}
-
-	if ( nffile->worker_buffer ) {
-		queue_push(mem_queue, nffile->worker_buffer);
-		nffile->worker_buffer = NULL;
 	}
 
 	dbg_printf("nfwriter exit\n");
@@ -1206,19 +1196,16 @@ nffile_t *nffile = (nffile_t *)arg;
 
 static int SignalTerminate(nffile_t *nffile) {
 
-	// get worker tid
-	pthread_t tid = atomic_load(&nffile->worker);
-	if ( tid ) {
-		// set terminate
-		atomic_init(&nffile->terminate, 1);
-		pthread_cond_signal(&(nffile->blockQueue->cond));
-		int err = pthread_join(tid, NULL);
-		if ( err && err != ESRCH) {
-			LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
-		}
-		atomic_init(&nffile->worker, 0);
-		atomic_init(&nffile->terminate, 0);
+	// set terminate
+	atomic_store(&nffile->terminate, 1);
+	queue_close(nffile->processQueue);
+	pthread_cond_signal(&(nffile->processQueue->cond));
+	int err = pthread_join(nffile->worker, NULL);
+	if ( err && err != ESRCH) {
+		LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
 	}
+	nffile->worker = 0;
+	atomic_store(&nffile->terminate, 0);
 
 	return 1;
 
@@ -1323,10 +1310,14 @@ char 			outfile[MAXPATHLEN];
 	
 		// push blocks to new file
 		while (1) {
-			dataBlock_t *block_header = queue_pop(nffile_r->blockQueue);
+			dataBlock_t *block_header = queue_pop(nffile_r->processQueue);
 			if ( block_header == QUEUE_CLOSED ) // EOF
 				break;
-			queue_push(nffile_w->blockQueue, block_header);
+			queue_push(nffile_w->processQueue, block_header);
+
+			// return block
+			dataBlock_t *block = queue_pop(nffile_w->blockQueue);
+			queue_push(nffile_r->blockQueue, block);
 		}
 
 		printf("File %s compression changed\n", nffile_r->fileName);
@@ -1443,10 +1434,10 @@ off_t	fsize;
 	}
 	nffile->fd = fd;
 	nffile->fileName = strdup(filename);
-	nffile->block_header = queue_pop(mem_queue);
+	nffile->block_header = queue_pop(nffile->blockQueue);
 	memcpy(nffile->file_header, &fileHeader, sizeof(fileHeader));
 
-	dataBlock_t *buff  = queue_pop(mem_queue);
+	dataBlock_t *buff  = queue_pop(nffile->blockQueue);
 
 	fsize = lseek(fd, 0, SEEK_CUR);
 

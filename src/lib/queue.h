@@ -32,6 +32,7 @@
 #define _QUEUE_H 1
 
 #include <stdint.h>
+#include <stdatomic.h>
 #include <pthread.h>
 
 #define QUEUE_FULL	 (void *)-1
@@ -56,8 +57,8 @@ typedef struct queue_s {
 	size_t		mask;
 	unsigned	next_free;
 	unsigned	next_avail;
-	unsigned	c_wait;
-	unsigned	p_wait;
+	_Atomic unsigned c_wait;
+	_Atomic unsigned p_wait;
 	size_t		num_elements;
 
 	queueStat_t	stat;

@@ -189,9 +189,8 @@ typedef struct nffile_s {
 	fileHeaderV2_t	*file_header;	// file header
 	int				fd;				// associated file descriptor
 	int				compat16;		// underlaying file is compat16
-	_Atomic pthread_t worker;		// nfread/nfwrite worker thread;
+	pthread_t 		worker;			// nfread/nfwrite worker thread;
 	_Atomic int		terminate;		// signal to terminate 
-	dataBlock_t		*worker_buffer;	// buffer ptr
 
 #define FILE_IS_COMPAT16(n) (n->compat16)
 #define NUM_BUFFS 2
@@ -201,7 +200,8 @@ typedef struct nffile_s {
 	dataBlock_t		*block_header;	// buffer ptr
 	void			*buff_ptr;		// pointer into buffer for read/write blocks/records
 
-	queue_t			*blockQueue;	// block Q
+	queue_t			*processQueue;	// blocks ready to be processed
+	queue_t			*blockQueue;	// empty blocks
 
 	stat_record_t 	*stat_record;	// flow stat record
 	char			*ident;			// source identifier
