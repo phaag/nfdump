@@ -549,24 +549,60 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 
+		// we need a rbtree for protocols using ports
+		ULongtree_t *rootProto = malloc(sizeof(ULongtree_t));
+		struct ULongListNode *nodeProto;
+		if ( rootProto == NULL) {
+			yyerror("malloc() error");
+			YYABORT;
+		}
+		RB_INIT(rootProto);
+		// array of protocols numbers
+		int64_t portProto[] = {6,17,33,132,136};
+		int ix;
+		for (ix=0; ix< (sizeof(portProto)/sizeof(int64_t)); ++ix) {
+			if ((nodeProto = malloc(sizeof(struct ULongListNode))) == NULL) {
+				yyerror("malloc() error");
+				YYABORT;
+			}
+			nodeProto->value = (portProto[ix] << ShiftProto) & MaskProto;
+			RB_INSERT(ULongtree, rootProto, nodeProto);
+		}
+
 		switch ( $1.direction ) {
 			case SOURCE:
-				$$.self = NewBlock(OffsetPort, MaskSrcPort, ($4 << ShiftSrcPort) & MaskSrcPort, $3.comp, FUNC_NONE, NULL );
+				$$.self = Connect_AND(
+					// imply srcport with a set of protocols using ports
+					NewBlock(OffsetProto, MaskProto, 0, CMP_ULLIST, FUNC_NONE, (void *)rootProto ),
+					NewBlock(OffsetPort, MaskSrcPort, ($4 << ShiftSrcPort) & MaskSrcPort, $3.comp, FUNC_NONE, NULL )
+				);
 				break;
 			case DESTINATION:
-				$$.self = NewBlock(OffsetPort, MaskDstPort, ($4 << ShiftDstPort) & MaskDstPort, $3.comp, FUNC_NONE, NULL );
+				$$.self = Connect_AND(
+					// imply dstport with a set of protocols using ports
+					NewBlock(OffsetProto, MaskProto, 0, CMP_ULLIST, FUNC_NONE, (void *)rootProto ),
+					NewBlock(OffsetPort, MaskDstPort, ($4 << ShiftDstPort) & MaskDstPort, $3.comp, FUNC_NONE, NULL )
+				);
 				break;
 			case DIR_UNSPEC:
 			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetPort, MaskSrcPort, ($4 << ShiftSrcPort) & MaskSrcPort, $3.comp, FUNC_NONE, NULL ),
-					NewBlock(OffsetPort, MaskDstPort, ($4 << ShiftDstPort) & MaskDstPort, $3.comp, FUNC_NONE, NULL )
+				$$.self = Connect_AND(
+					// imply (dst or src) port with a set of protocols using ports
+					NewBlock(OffsetProto, MaskProto, 0, CMP_ULLIST, FUNC_NONE, (void *)rootProto ),
+					Connect_OR(
+						NewBlock(OffsetPort, MaskSrcPort, ($4 << ShiftSrcPort) & MaskSrcPort, $3.comp, FUNC_NONE, NULL ),
+						NewBlock(OffsetPort, MaskDstPort, ($4 << ShiftDstPort) & MaskDstPort, $3.comp, FUNC_NONE, NULL )
+					)
 				);
 				break;
 			case SOURCE_AND_DESTINATION:
 				$$.self = Connect_AND(
-					NewBlock(OffsetPort, MaskSrcPort, ($4 << ShiftSrcPort) & MaskSrcPort, $3.comp, FUNC_NONE, NULL ),
-					NewBlock(OffsetPort, MaskDstPort, ($4 << ShiftDstPort) & MaskDstPort, $3.comp, FUNC_NONE, NULL )
+					// imply (dst and src) port with a set of protocols using ports
+					NewBlock(OffsetProto, MaskProto, 0, CMP_ULLIST, FUNC_NONE, (void *)rootProto ),
+					Connect_AND(
+						NewBlock(OffsetPort, MaskSrcPort, ($4 << ShiftSrcPort) & MaskSrcPort, $3.comp, FUNC_NONE, NULL ),
+						NewBlock(OffsetPort, MaskDstPort, ($4 << ShiftDstPort) & MaskDstPort, $3.comp, FUNC_NONE, NULL )
+					)
 				);
 				break;
 			default:
@@ -634,30 +670,66 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			}
 		}
 
+		// we need a rbtree for protocols using ports
+		ULongtree_t *rootProto = malloc(sizeof(ULongtree_t));
+		struct ULongListNode *nodeProto;
+		if ( rootProto == NULL) {
+			yyerror("malloc() error");
+			YYABORT;
+		}
+		RB_INIT(rootProto);
+		// array of protocols numbers
+		int64_t portProto[] = {6,17,33,132,136};
+		int ix;
+		for (ix=0; ix< (sizeof(portProto)/sizeof(int64_t)); ++ix) {
+			if ((nodeProto = malloc(sizeof(struct ULongListNode))) == NULL) {
+				yyerror("malloc() error");
+				YYABORT;
+			}
+			nodeProto->value = (portProto[ix] << ShiftProto) & MaskProto;
+			RB_INSERT(ULongtree, rootProto, nodeProto);
+		}
+
 		switch ( $1.direction ) {
 			case SOURCE:
 				RB_FOREACH(node, ULongtree, (ULongtree_t *)$5) {
 					node->value = (node->value << ShiftSrcPort) & MaskSrcPort;
 				}
-				$$.self = NewBlock(OffsetPort, MaskSrcPort, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 );
+				$$.self = Connect_AND(
+					// imply srcport in with a set of protocols using ports
+					NewBlock(OffsetProto, MaskProto, 0, CMP_ULLIST, FUNC_NONE, (void *)rootProto ),
+					NewBlock(OffsetPort, MaskSrcPort, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 )
+				);
 				break;
 			case DESTINATION:
 				RB_FOREACH(node, ULongtree, (ULongtree_t *)$5) {
 					node->value = (node->value << ShiftDstPort) & MaskDstPort;
 				}
-				$$.self = NewBlock(OffsetPort, MaskDstPort, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 );
+				$$.self = Connect_AND(
+					// imply dstport in with a set of protocols using ports
+					NewBlock(OffsetProto, MaskProto, 0, CMP_ULLIST, FUNC_NONE, (void *)rootProto ),
+					NewBlock(OffsetPort, MaskDstPort, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 )
+				);
 				break;
 			case DIR_UNSPEC:
 			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetPort, MaskSrcPort, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 ),
-					NewBlock(OffsetPort, MaskDstPort, 0, CMP_ULLIST, FUNC_NONE, (void *)root )
+				$$.self = Connect_AND(
+					// imply (dst or src) port in with a set of protocols using ports
+					NewBlock(OffsetProto, MaskProto, 0, CMP_ULLIST, FUNC_NONE, (void *)rootProto ),
+					Connect_OR(
+						NewBlock(OffsetPort, MaskSrcPort, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 ),
+						NewBlock(OffsetPort, MaskDstPort, 0, CMP_ULLIST, FUNC_NONE, (void *)root )
+					)
 				);
 				break;
 			case SOURCE_AND_DESTINATION:
 				$$.self = Connect_AND(
-					NewBlock(OffsetPort, MaskSrcPort, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 ),
-					NewBlock(OffsetPort, MaskDstPort, 0, CMP_ULLIST, FUNC_NONE, (void *)root )
+					// imply (dst and src) port in with a set of protocols using ports
+					NewBlock(OffsetProto, MaskProto, 0, CMP_ULLIST, FUNC_NONE, (void *)rootProto ),
+					Connect_AND(
+						NewBlock(OffsetPort, MaskSrcPort, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 ),
+						NewBlock(OffsetPort, MaskDstPort, 0, CMP_ULLIST, FUNC_NONE, (void *)root )
+					)
 				);
 				break;
 			default:
