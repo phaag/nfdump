@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -31,9 +31,11 @@
 #ifndef _OUTPUT_CSV_H
 #define _OUTPUT_CSV_H 1
 
-void csv_prolog(void);
+#include <stdbool.h>
 
-void csv_epilog(void);
+void csv_prolog(bool quiet);
+
+void csv_epilog(bool quiet);
 
 void flow_record_to_csv(void *record, char **s, int tag);
 

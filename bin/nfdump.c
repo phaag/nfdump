@@ -1126,8 +1126,8 @@ char 		Ident[IDENTLEN];
 	}
 
 
-	if ( !(flow_stat || element_stat || wfile || outputParams->quiet ) && print_prolog ) {
-		print_prolog();
+	if ( !(flow_stat || element_stat || wfile ) && print_prolog ) {
+		print_prolog(outputParams->quiet);
 	}
 
 	nfprof_start(&profile_data);
@@ -1170,7 +1170,7 @@ char 		Ident[IDENTLEN];
 	} 
 
 	if ( print_epilog ) {
-		print_epilog();
+		print_epilog(outputParams->quiet);
 	}
 	if ( !outputParams->quiet && !outputParams->modeJson ) {
 		if ( outputParams->modeCsv ) {

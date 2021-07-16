@@ -1,5 +1,5 @@
 /*  
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -1665,9 +1665,9 @@ uint32_t			maxindex, c;
 			else
 				printf("Top flows ordered by %s:\n", order_mode[order_index].string);
 		}
-		if ( record_header ) 
-			record_header();
 	}
+	if ( record_header ) 
+		record_header(outputParams->quiet);
 
 	PrintSortedFlowcache(SortList, maxindex, outputParams, 0, print_record, extension_map_list);
 
@@ -1693,9 +1693,9 @@ uint32_t			maxindex, c;
 					else
 						printf("Top flows ordered by %s:\n", order_mode[order_index].string);
 				}
-				if ( record_header ) 
-					record_header();
 			}
+			if ( record_header ) 
+				record_header(outputParams->quiet);
 			PrintSortedFlowcache(SortList, maxindex, outputParams, 0, print_record, extension_map_list);
 
 		}

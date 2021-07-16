@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2020, Peter Haag
+ *  Copyright (c) 2019-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -34,14 +34,11 @@
 #include <stddef.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <stdint.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
 #include <string.h>
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #include "util.h"
 #include "nfdump.h"
@@ -58,15 +55,16 @@ static char data_string[STRINGSIZE];
 // record counter 
 static uint32_t recordCount;
 
-void csv_prolog(void) {
+void csv_prolog(bool quiet) {
 	recordCount = 0;
 	memset(data_string, 0, STRINGSIZE);
-
+	if ( quiet )
+		return;
 	printf("ts,te,td,sa,da,sp,dp,pr,flg,fwd,stos,ipkt,ibyt,opkt,obyt,in,out,sas,das,smk,dmk,dtos,dir,nh,nhb,svln,dvln,ismc,odmc,idmc,osmc,mpls1,mpls2,mpls3,mpls4,mpls5,mpls6,mpls7,mpls8,mpls9,mpls10,cl,sl,al,ra,eng,exid,tr\n");
 
 } // End of csv_prolog
 
-void csv_epilog(void) {
+void csv_epilog(bool quiet) {
 
 } // End of csv_epilog
 

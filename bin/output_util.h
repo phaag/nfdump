@@ -34,8 +34,8 @@
 #include <stdbool.h>
 
 typedef void (*printer_t)(void *, char **, int);
-typedef void (*func_prolog_t)(void);
-typedef void (*func_epilog_t)(void);
+typedef void (*func_prolog_t)(bool quiet);
+typedef void (*func_epilog_t)(bool quiet);
 
 typedef struct outputParams_s {
 	bool printPlain;

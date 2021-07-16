@@ -76,13 +76,13 @@ static void String_Flags(master_record_t *r, char *string) {
 
 } // End of String_Flags
 
-void json_prolog(void) {
+void json_prolog(bool quiet) {
 	recordCount = 0;
 	memset(data_string, 0, STRINGSIZE);
 	printf("[\n");
 } // End of json_prolog
 
-void json_epilog(void) {
+void json_epilog(bool quiet) {
 	printf("]\n");
 } // End of json_epilog
 

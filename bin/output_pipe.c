@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2020, Peter Haag
+ *  Copyright (c) 2019-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -56,12 +56,12 @@ static char data_string[STRINGSIZE];
 // record counter 
 static uint32_t recordCount;
 
-void pipe_prolog(void) {
+void pipe_prolog(bool quiet) {
 	recordCount = 0;
 	memset(data_string, 0, STRINGSIZE);
 } // End of pipe_prolog
 
-void pipe_epilog(void) {
+void pipe_epilog(bool quiet) {
 	// empty
 } // End of pipe_epilog
 

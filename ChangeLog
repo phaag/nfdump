@@ -1,3 +1,6 @@
+2021-07-16
+- Fix issue #296 - broken json format with option -q
+
 2021-06-25
 - Fix json msec formating
 

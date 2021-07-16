@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -35,12 +35,9 @@
 #include "config.h"
 
 #include <sys/types.h>
-#include <time.h>
-
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
-
+#include <time.h>
+#include <stdbool.h>
 
 /* prototypes */
 
@@ -48,9 +45,9 @@ void Setv6Mode(int mode);
 
 int Getv6Mode(void);
 
-void text_prolog(void);
+void text_prolog(bool quiet);
 
-void text_epilog(void);
+void text_epilog(bool quiet);
 
 int ParseOutputFormat(char *format, int printPlain, printmap_t *printmap);
 

@@ -58,12 +58,12 @@ static char data_string[STRINGSIZE];
 // record counter 
 static uint32_t recordCount;
 
-void raw_prolog(void) {
+void raw_prolog(bool quiet) {
 	recordCount = 0;
 	memset(data_string, 0, STRINGSIZE);
 } // End of raw_prolog
 
-void raw_epilog(void) {
+void raw_epilog(bool quiet) {
 	// empty
 } // End of raw_epilog
 

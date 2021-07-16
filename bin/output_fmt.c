@@ -448,11 +448,13 @@ int	i, index;
 
 } // End of format_special 
 
-void text_prolog(void) {
+void text_prolog(bool quiet) {
+	if ( quiet )
+		return;
 	printf("%s\n", header_string);
 } // End of text_prolog
 
-void text_epilog(void) {
+void text_epilog(bool quiet) {
 	// empty
 } // End of text_epilog
 
