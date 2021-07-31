@@ -1,3 +1,8 @@
+2021-07-31
+- Fix nfdump man page #301
+- Fix minor bugs
+- Add NAT event record support for IPFIX. #298
+
 2021-07-16
 - Fix issue #296 - broken json format with option -q
 

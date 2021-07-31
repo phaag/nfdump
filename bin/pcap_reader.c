@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2021, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -112,7 +110,7 @@ bpf_u_int32		   netmask;
 	 *  standard 10MB and higher Ethernet.
 	 */
 	if (pcap_datalink(pcap_handle) != DLT_EN10MB) {
-		snprintf(errbuf, PCAP_ERRBUF_SIZE-1, "Snooping not an an ethernet.\n");
+		snprintf(errbuf, PCAP_ERRBUF_SIZE-1, "Snooping not on an ethernet.\n");
 	   	pcap_close(pcap_handle);
 		return NULL;
 	}

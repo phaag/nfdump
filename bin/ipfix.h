@@ -276,8 +276,17 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_flowStartDeltaMicroseconds	158
 #define IPFIX_flowEndDeltaMicroseconds		159
 #define IPFIX_SystemInitTimeMiliseconds		160
+#define IPFIX_flowDurationMilliseconds		161
 #define IPFIX_postOctetTotalCount	 	 	171
 #define IPFIX_postPacketTotalCount	 	 	172
+
+#define IPFIX_postNATSourceIPv4Address		225
+#define IPFIX_postNATDestinationIPv4Address	226
+#define IPFIX_postNAPTSourceTransportPort	227
+#define IPFIX_postNAPTDestinationTransportPort	228
+#define IPFIX_natEvent						230
+#define IPFIX_INGRESS_VRFID					234
+#define IPFIX_EGRESS_VRFID					235
 
 #define IPFIX_biflowDirection				239
 

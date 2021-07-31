@@ -102,12 +102,13 @@ typedef struct sequence_map_s {
 #define TimeMili		17
 #define SystemInitTime 	18
 #define TimeUnix 		19
-#define saveICMP 		20
-#define zero8			21
-#define zero16			22
-#define zero32			23
-#define zero64			24
-#define zero128			25
+#define Time64MiliDur	20
+#define saveICMP 		21
+#define zero8			22
+#define zero16			23
+#define zero32			24
+#define zero64			25
+#define zero128			26
 
 	uint32_t	id;				// sequence ID as defined above
 	uint16_t	skip_count;		// skip this number of bytes in input stream after reading
@@ -135,6 +136,7 @@ typedef struct input_translation_s {
 	int			delta_time;				// delta micro or absolute ms time stamps
 	uint64_t	flow_start;				// start time in msec
 	uint64_t	flow_end;				// end time in msec
+	uint64_t	duration;				// duration #161 in msec
 	uint64_t	SysUpTime;				// System Init Time #160 per record
 	int			HasTimeMili;			// Exporter sent relative time stamps
 	uint32_t	icmpTypeCode;			// ICMP type/code in data stream
@@ -207,14 +209,14 @@ static struct ipfix_element_map_s {
 	uint16_t	extension;	// maps into nfdump extension ID
 } ipfix_element_map[] = {
 	{0, 0, 0},
-	{ IPFIX_octetDeltaCount, 			 _8bytes, 	_8bytes,  move64_sampling, zero64, COMMON_BLOCK },
 	{ IPFIX_octetDeltaCount, 			 _4bytes, 	_8bytes,  move32_sampling, zero64, COMMON_BLOCK },
-	{ IPFIX_packetDeltaCount, 			 _8bytes, 	_8bytes,  move64_sampling, zero64, COMMON_BLOCK },
+	{ IPFIX_octetDeltaCount, 			 _8bytes, 	_8bytes,  move64_sampling, zero64, COMMON_BLOCK },
 	{ IPFIX_packetDeltaCount, 			 _4bytes, 	_8bytes,  move32_sampling, zero64, COMMON_BLOCK },
-	{ IPFIX_octetTotalCount, 			 _8bytes, 	_8bytes,  move64_sampling, zero64, COMMON_BLOCK },
+	{ IPFIX_packetDeltaCount, 			 _8bytes, 	_8bytes,  move64_sampling, zero64, COMMON_BLOCK },
 	{ IPFIX_octetTotalCount, 			 _4bytes, 	_8bytes,  move32_sampling, zero64, COMMON_BLOCK },
-	{ IPFIX_packetTotalCount, 			 _8bytes, 	_8bytes,  move64_sampling, zero64, COMMON_BLOCK },
+	{ IPFIX_octetTotalCount, 			 _8bytes, 	_8bytes,  move64_sampling, zero64, COMMON_BLOCK },
 	{ IPFIX_packetTotalCount, 			 _4bytes, 	_8bytes,  move32_sampling, zero64, COMMON_BLOCK },
+	{ IPFIX_packetTotalCount, 			 _8bytes, 	_8bytes,  move64_sampling, zero64, COMMON_BLOCK },
 	{ IPFIX_forwardingStatus, 	 		 _1byte,    _1byte,   move8, zero8, COMMON_BLOCK },
 	{ IPFIX_protocolIdentifier, 		 _1byte, 	_1byte,   move8,  zero8, COMMON_BLOCK },
 	{ IPFIX_ipClassOfService, 			 _1byte, 	_1byte,   move8, zero8, COMMON_BLOCK },
@@ -238,10 +240,10 @@ static struct ipfix_element_map_s {
 	{ IPFIX_bgpNextHopIPv4Address, 		 _4bytes, 	_4bytes,  move32, zero32, EX_NEXT_HOP_BGP_v4},
 	{ IPFIX_flowEndSysUpTime,			 _4bytes,   _4bytes,  TimeMili, nop, COMMON_BLOCK},
 	{ IPFIX_flowStartSysUpTime, 		 _4bytes, 	_4bytes,  TimeMili, nop, COMMON_BLOCK },
-	{ IPFIX_postOctetDeltaCount, 		 _8bytes, 	_8bytes,  move64, zero64, EX_OUT_BYTES_8 },
-	{ IPFIX_postOctetDeltaCount, 		 _4bytes, 	_4bytes,  move32, zero32, EX_OUT_BYTES_4 },
-	{ IPFIX_postPacketDeltaCount, 		 _8bytes, 	_8bytes,  move64, zero64, EX_OUT_PKG_8 },
-	{ IPFIX_postPacketDeltaCount, 		 _4bytes, 	_4bytes,  move32, zero32, EX_OUT_PKG_4 },
+	{ IPFIX_postOctetDeltaCount, 		 _8bytes, 	_8bytes,  move64_sampling, zero64, EX_OUT_BYTES_8 },
+	{ IPFIX_postOctetDeltaCount, 		 _4bytes, 	_8bytes,  move32_sampling, zero64, EX_OUT_BYTES_8 },
+	{ IPFIX_postPacketDeltaCount, 		 _8bytes, 	_8bytes,  move64_sampling, zero64, EX_OUT_PKG_8 },
+	{ IPFIX_postPacketDeltaCount, 		 _4bytes, 	_8bytes,  move32_sampling, zero64, EX_OUT_PKG_8 },
 	{ IPFIX_SourceIPv6Address, 			 _16bytes, 	_16bytes, move128, zero128, COMMON_BLOCK },
 	{ IPFIX_DestinationIPv6Address, 	 _16bytes, 	_16bytes, move128, zero128, COMMON_BLOCK },
 	{ IPFIX_SourceIPv6PrefixLength, 	 _1byte, 	_1byte,   move8, zero8, EX_MULIPLE },
@@ -270,14 +272,22 @@ static struct ipfix_element_map_s {
 	{ IPFIX_mplsLabelStackSection10, 	 _3bytes,   _4bytes,  move_mpls, zero32, EX_MPLS},
 	{ IPFIX_DestinationMacAddress, 		 _6bytes,   _8bytes,  move_mac, zero64, EX_MAC_2},
 	{ IPFIX_postSourceMacAddress, 		 _6bytes,   _8bytes,  move_mac, zero64, EX_MAC_2},
-	{ IPFIX_flowStartMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero64, COMMON_BLOCK},
-	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero64, COMMON_BLOCK},
+	{ IPFIX_flowStartMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, nop, COMMON_BLOCK},
+	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, nop, COMMON_BLOCK},
 	{ IPFIX_flowStartSeconds, 		 	 _4bytes,   _4bytes,  TimeUnix, zero32, COMMON_BLOCK},
 	{ IPFIX_flowEndSeconds,  	 		 _4bytes,   _4bytes,  TimeUnix, zero32, COMMON_BLOCK},
-	{ IPFIX_flowEndMilliseconds, 		 _8bytes,   _8bytes,  Time64Mili, zero64, COMMON_BLOCK},
 	{ IPFIX_flowStartDeltaMicroseconds,	 _4bytes,   _4bytes,  TimeDeltaMicro, zero32, COMMON_BLOCK},
 	{ IPFIX_flowEndDeltaMicroseconds, 	 _4bytes,   _4bytes,  TimeDeltaMicro, zero32, COMMON_BLOCK},
 	{ IPFIX_SystemInitTimeMiliseconds,	 _8bytes,   _8bytes,  SystemInitTime, nop, COMMON_BLOCK},
+	{ IPFIX_flowDurationMilliseconds,	 _4bytes,   _4bytes,  Time64MiliDur, nop, COMMON_BLOCK},
+	// NAT
+	{ IPFIX_natEvent,					 _1byte,	_1byte,	  move8, zero8,  EX_NEL_COMMON },
+	{ IPFIX_INGRESS_VRFID,				 _4bytes,	_4bytes,  move32, zero32, EX_NEL_COMMON },
+	{ IPFIX_EGRESS_VRFID,				 _4bytes,	_4bytes,  move32, zero32, EX_NEL_COMMON },
+	{ IPFIX_postNATSourceIPv4Address,	 _4bytes,   _4bytes,  move32, zero32, EX_NSEL_XLATE_IP_v4},
+	{ IPFIX_postNATDestinationIPv4Address,	 _4bytes,   _4bytes,  move32, zero32, EX_NSEL_XLATE_IP_v4},
+	{ IPFIX_postNAPTSourceTransportPort, _2bytes,	_2bytes,  move16,  zero16,  EX_NSEL_XLATE_PORTS },
+	{ IPFIX_postNAPTDestinationTransportPort, _2bytes,	_2bytes,  move16,  zero16,  EX_NSEL_XLATE_PORTS },
 	{0, 0, 0}
 };
 
@@ -454,7 +464,7 @@ uint32_t ObservationDomain = ntohl(ipfix_header->ObservationDomain);
 
 	dbg_printf("[%u] New exporter: SysID: %u, Observation domain %u from: %s:%u\n", 
 		ObservationDomain, (*e)->info.sysid, ObservationDomain, ipstr, fs->port);
-	LogInfo("Process_ipfix: New exporter: SysID: %u, Observation domain %u from: %s\n", 
+	LogInfo("Process_ipfix: New exporter: SysID: %u, Observation domain %u from: %s", 
 		(*e)->info.sysid, ObservationDomain, ipstr);
 
 
@@ -917,6 +927,7 @@ size_t				size_required;
 	} else if ( cache.lookup_info[IPFIX_flowStartMilliseconds].found ) {
 		PushSequence( table, IPFIX_flowStartMilliseconds, NULL, &table->flow_start);
 		PushSequence( table, IPFIX_flowEndMilliseconds, NULL, &table->flow_end);
+		PushSequence( table, IPFIX_flowDurationMilliseconds, NULL, &table->duration);
 		offset = BYTE_OFFSET_first + 8;
 		dbg_printf("Time stamp: flow start/end absolute milliseconds: %u/%u\n", 
 			IPFIX_flowStartMilliseconds, IPFIX_flowEndMilliseconds);
@@ -1042,16 +1053,16 @@ size_t				size_required;
 				PushSequence( table, IPFIX_postVlanId, &offset, NULL);
 				break;
 			case EX_OUT_PKG_4:
-				PushSequence( table, IPFIX_postPacketDeltaCount, &offset, NULL);
+				PushSequence( table, IPFIX_postPacketDeltaCount, &offset, &table->out_packets);
 				break;
 			case EX_OUT_PKG_8:
-				PushSequence( table, IPFIX_postPacketDeltaCount, &offset, NULL);
+				PushSequence( table, IPFIX_postPacketDeltaCount, &offset, &table->out_packets);
 				break;
 			case EX_OUT_BYTES_4:
-				PushSequence( table, IPFIX_postOctetDeltaCount, &offset, NULL);
+				PushSequence( table, IPFIX_postOctetDeltaCount, &offset, &table->out_bytes);
 				break;
 			case EX_OUT_BYTES_8:
-				PushSequence( table, IPFIX_postOctetDeltaCount, &offset, NULL);
+				PushSequence( table, IPFIX_postOctetDeltaCount, &offset, &table->out_bytes);
 				break;
 			case EX_AGGR_FLOWS_8:
 				break;
@@ -1074,6 +1085,20 @@ size_t				size_required;
 				PushSequence( table, IPFIX_mplsLabelStackSection8, &offset, NULL);
 				PushSequence( table, IPFIX_mplsLabelStackSection9, &offset, NULL);
 				PushSequence( table, IPFIX_mplsLabelStackSection10, &offset, NULL);
+				break;
+			case EX_NEL_COMMON:
+				PushSequence( table, IPFIX_natEvent, &offset, NULL);
+				offset += 3;
+				PushSequence( table, IPFIX_EGRESS_VRFID, &offset, NULL);
+				PushSequence( table, IPFIX_INGRESS_VRFID, &offset, NULL);
+				break;
+			case EX_NSEL_XLATE_IP_v4:
+				PushSequence( table, IPFIX_postNATSourceIPv4Address, &offset, NULL);
+				PushSequence( table, IPFIX_postNATDestinationIPv4Address, &offset, NULL);
+				break;
+			case EX_NSEL_XLATE_PORTS:
+				PushSequence( table, IPFIX_postNAPTSourceTransportPort, &offset, NULL);
+				PushSequence( table, IPFIX_postNAPTDestinationTransportPort, &offset, NULL);
 				break;
 			case EX_ROUTER_IP_v4:
 			case EX_ROUTER_IP_v6:
@@ -1798,7 +1823,6 @@ char				*string;
 		for ( i=0; i<table->number_of_sequences; i++ ) {
 			int output_offset = table->sequence[i].output_offset;
 			void *stack = table->sequence[i].stack;
-
 			if ( input_offset > size_left ) {
 				// overrun
 				LogError("Process ipfix: buffer overrun!! input_offset: %i > size left data buffer: %u", input_offset, size_left);
@@ -1894,12 +1918,14 @@ char				*string;
 				case Time64Mili:
 					{ uint64_t DateMiliseconds = Get_val64((void *)&in[input_offset]);
 					  *(uint64_t *)stack = DateMiliseconds;
-
+					} break;
+				case Time64MiliDur:
+					{ uint32_t Durartion = Get_val32((void *)&in[input_offset]);
+					  *(uint64_t *)stack = Durartion;
 					} break;
 				case TimeUnix:
 					{ uint64_t DateSeconds = Get_val32((void *)&in[input_offset]);
 					  *(uint64_t *)stack = DateSeconds *1000LL;
-
 					} break;
 				case TimeDeltaMicro:
 					{ uint64_t DeltaMicroSec = Get_val32((void *)&in[input_offset]);
@@ -1988,6 +2014,9 @@ char				*string;
 			table->flow_start += exporter->SysUpTime;
 			table->flow_end	  += exporter->SysUpTime;
 		}
+		if ( table->flow_start && table->duration && table->flow_end == 0 )
+			table->flow_end	  = table->flow_start + table->duration;
+
 		// split first/last time into epoch/msec values
 		data_record->first 		= table->flow_start / 1000;
 		data_record->msec_first = table->flow_start % 1000;
@@ -1999,7 +2028,7 @@ char				*string;
 		 * if either date is < 820454400 === 1.1.1996 (year of invention of netflow)
 		 * invalidates set start/end to 0
 		 */
-		if ( data_record->first < 820454400 || data_record->last < 820454400 ) {
+		if ( data_record->first < 820454400 || (data_record->last && data_record->last < 820454400) ) {
 			dbg_printf("Zero date < 19960101\n");
 			data_record->first 		= 0;
 			data_record->msec_first = 0;

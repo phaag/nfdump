@@ -62,7 +62,7 @@ rm -r test1.out test2.out
 
 # create tmp dir for flow replay
 if [ -d tmp ]; then
-	rm -f tmp/*
+	rm -rf tmp/*
 	rmdir tmp
 fi
 mkdir tmp

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2014-2020, Peter Haag
+ *  Copyright (c) 2014-2021, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -355,7 +355,7 @@ struct FlowNode *Node;
 	Node->packets++;
 	Node->bytes += NewNode->bytes;
 	Node->t_last = NewNode->t_last;
-	dbg_printf("Existing flow IP proto: %. Packets: %u, Bytes: %u\n",
+	dbg_printf("Existing flow IP proto: %u Packets: %u, Bytes: %u\n",
 		NewNode->proto, Node->packets, Node->bytes);
 
 	Free_Node(NewNode);
@@ -651,7 +651,7 @@ static unsigned pkg_cnt = 0;
 			payload = payload + sizeof(struct udphdr);
 			payload_len -= sizeof(struct udphdr);
 			dbg_printf("UDP: size: %u, SRC: %i, DST: %i\n",
-				size_udp_payload, ntohs(udp->uh_sport), ntohs(udp->uh_dport));
+				payload_len, ntohs(udp->uh_sport), ntohs(udp->uh_dport));
 
 			Node->bytes = payload_len;
 			Node->flags = 0;
