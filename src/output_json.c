@@ -38,14 +38,12 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
 #include <string.h>
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #include "util.h"
 #include "nfdump.h"
@@ -544,12 +542,14 @@ static void stringsEXnelXlatePort(FILE *stream, master_record_t *r) {
 } // End of stringsEXnelXlatePort
 #endif
 
-void json_prolog(void) {
+void json_prolog(bool quiet) {
 	recordCount = 0;
+	if ( quiet )
+		return;
 	printf("[\n");
 } // End of json_prolog
 
-void json_epilog(void) {
+void json_epilog(bool quiet) {
 	printf("]\n");
 } // End of json_epilog
 

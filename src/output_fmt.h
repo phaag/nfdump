@@ -35,12 +35,9 @@
 #include "config.h"
 
 #include <sys/types.h>
-#include <time.h>
-
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
-
+#include <stdbool.h>
+#include <time.h>
 
 /* prototypes */
 
@@ -48,9 +45,9 @@ void Setv6Mode(int mode);
 
 int Getv6Mode(void);
 
-void text_prolog(void);
+void text_prolog(bool quiet);
 
-void text_epilog(void);
+void text_epilog(bool quiet);
 
 int ParseOutputFormat(char *format, int printPlain, printmap_t *printmap);
 

@@ -1214,8 +1214,8 @@ flist_t 	flist;
 
 	SetLimits(element_stat || aggregate || flow_stat, packet_limit_string, byte_limit_string);
 
-	if ( !(flow_stat || element_stat || outputParams->quiet ) && print_prolog ) {
-		print_prolog();
+	if ( !(flow_stat || element_stat ) && print_prolog ) {
+		print_prolog(outputParams->quiet);
 	}
 
 	nfprof_start(&profile_data);
@@ -1254,7 +1254,7 @@ flist_t 	flist;
 	} 
 
 	if ( print_epilog ) {
-		print_epilog();
+		print_epilog(outputParams->quiet);
 	}
 	if ( !outputParams->quiet ) {
 		switch (outputParams->mode) {

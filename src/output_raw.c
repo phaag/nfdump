@@ -35,6 +35,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
@@ -581,11 +582,11 @@ static void stringsEXoutPayload(FILE *stream, master_record_t *r) {
 
 } // End of stringsEXoutPayload
 
-void raw_prolog(void) {
+void raw_prolog(bool quiet) {
 	recordCount = 0;
 } // End of pipe_prolog
 
-void raw_epilog(void) {
+void raw_epilog(bool quiet) {
 	// empty
 } // End of pipe_epilog
 
@@ -731,7 +732,7 @@ char elementString[MAXELEMENTS * 5];
 				stringsEXoutPayload(stream, r);
 				break;
 			default:
-				dbg_printf("Extension %i not yet implemented\n", r->exElementList[i]);
+				dbg_printf("Extension %i not decoded\n", r->exElementList[i]);
 		}
 		i++;
 	}

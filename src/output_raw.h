@@ -31,9 +31,11 @@
 #ifndef _OUTPUT_RAW_H
 #define _OUTPUT_RAW_H 1
 
-void raw_prolog(void);
+#include <stdbool.h>
 
-void raw_epilog(void);
+void raw_prolog(bool quiet);
+
+void raw_epilog(bool quiet);
 
 void flow_record_to_raw(FILE *stream, void *record, int tag);
 

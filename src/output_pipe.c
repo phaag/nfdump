@@ -34,14 +34,12 @@
 #include <stddef.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
 #include <string.h>
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #include "nfdump.h"
 #include "nffile.h"
@@ -53,11 +51,11 @@
 // record counter 
 static uint32_t recordCount;
 
-void pipe_prolog(void) {
+void pipe_prolog(bool quiet) {
 	recordCount = 0;
 } // End of pipe_prolog
 
-void pipe_epilog(void) {
+void pipe_epilog(bool quiet) {
 	// empty
 } // End of pipe_epilog
 

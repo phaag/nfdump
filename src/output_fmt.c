@@ -35,6 +35,8 @@
 #include <stddef.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <stdint.h>
+#include <stdbool.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <time.h>
@@ -42,10 +44,6 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <errno.h>
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #include "util.h"
 #include "nfdump.h"
@@ -472,11 +470,13 @@ master_record_t *r 		  = (master_record_t *)record;
 
 } // End of format_special 
 
-void text_prolog(void) {
+void text_prolog(bool quiet) {
+	if ( quiet )
+		return;
 	printf("%s\n", header_string);
 } // End of text_prolog
 
-void text_epilog(void) {
+void text_epilog(bool quiet) {
 	// empty
 } // End of text_epilog
 

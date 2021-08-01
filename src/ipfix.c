@@ -58,7 +58,6 @@
 #include "nbar.h"
 #include "ipfix.h"
 
-
 // define stack slots
 #define STACK_NONE		 0
 #define STACK_ICMP		 1
@@ -66,10 +65,11 @@
 #define STACK_SAMPLER	 3
 #define STACK_MSECFIRST	 4
 #define STACK_MSECLAST	 5
-#define STACK_SYSUPTIME	 6
-#define STACK_ENGINETYPE 7
-#define STACK_ENGINEID	 8
-#define STACK_MAX		 9
+#define STACK_DURATION	 6
+#define STACK_SYSUPTIME	 7
+#define STACK_ENGINETYPE 8
+#define STACK_ENGINEID	 9
+#define STACK_MAX		 10
 
 /*
  * 	All Obervation Domains from all exporter are stored in a linked list
@@ -176,6 +176,7 @@ static const struct ipfixTranslationMap_s {
 	{ IPFIX_flowEndMilliseconds,         SIZEmsecLast,     EXgenericFlowID,   OFFmsecLast, 	STACK_NONE, "msec last" },
 	{ IPFIX_flowStartDeltaMicroseconds,  SIZEmsecFirst,    EXgenericFlowID,   OFFmsecFirst, STACK_NONE, "msec first" },
 	{ IPFIX_flowEndDeltaMicroseconds,    SIZEmsecLast,     EXgenericFlowID,   OFFmsecLast, 	STACK_NONE, "msec last" },
+	{ IPFIX_flowDurationMilliseconds,    Stack_ONLY,	   EXnull,			  0,			STACK_DURATION, "duration msec" },
 	{ LOCAL_IPv4Received,                SIZEReceived4IP,  EXipReceivedV4ID,  OFFReceived4IP, STACK_NONE, "IPv4 exporter" },
 	{ LOCAL_IPv6Received,                SIZEReceived6IP,  EXipReceivedV6ID,  OFFReceived6IP, STACK_NONE, "IPv6 exporter" },
 	{ LOCAL_msecTimeReceived,            SIZEmsecReceived, EXgenericFlowID,   OFFmsecReceived, STACK_NONE, "msec time received"},
@@ -187,6 +188,15 @@ static const struct ipfixTranslationMap_s {
 	// sampling
 	{ IPFIX_samplerId,					 Stack_ONLY,       EXnull,			  0,			STACK_SAMPLER, "sampler ID" },
 	{ IPFIX_selectorId,					 Stack_ONLY,       EXnull,			  0,			STACK_SAMPLER, "sampler ID" },
+	// NAT
+	{ IPFIX_natEvent,					 SIZEnatEvent,	   EXnelCommonID,	  OFFnatEvent,	STACK_NONE, "NAT event" },
+	{ IPFIX_INGRESS_VRFID,				 SIZEingressVrf,   EXnelCommonID,	  OFFingressVrf, STACK_NONE, "ingress VRF ID" },
+	{ IPFIX_EGRESS_VRFID,				 SIZEegressVrf,	   EXnelCommonID,	  OFFegressVrf, STACK_NONE, "egress VRF ID" },
+	{ IPFIX_postNATSourceIPv4Address,	 SIZExlateSrc4Addr, EXnselXlateIPv4ID, OFFxlateSrc4Addr, STACK_NONE, "xlate src addr"},
+	{ IPFIX_postNATDestinationIPv4Address, SIZExlateDst4Addr, EXnselXlateIPv4ID, OFFxlateDst4Addr, STACK_NONE, "xlate dst addr"},
+	{ IPFIX_postNAPTSourceTransportPort, SIZExlateSrcPort,	EXnselXlatePortID,  OFFxlateSrcPort,  STACK_NONE,  "xlate src port" },
+	{ IPFIX_postNAPTDestinationTransportPort, SIZExlateDstPort,	EXnselXlatePortID, OFFxlateDstPort, STACK_NONE, "xlate dst port" },
+
 	// payload
 	{ LOCAL_inPayload,					 VARLENGTH,       	EXinPayloadID,	  0,			STACK_NONE, "in payload" },
 	{ LOCAL_outPayload,					 VARLENGTH,       	EXoutPayloadID,	  0,			STACK_NONE, "out payload" },
@@ -345,7 +355,7 @@ exporterDomain_t **e = (exporterDomain_t **)&(fs->exporter_data);
 
 	dbg_printf("[%u] New exporter: SysID: %u, Observation domain %u from: %s:%u\n", 
 		ObservationDomain, (*e)->info.sysid, ObservationDomain, ipstr, fs->port);
-	LogInfo("Process_ipfix: New exporter: SysID: %u, Observation domain %u from: %s\n", 
+	LogInfo("Process_ipfix: New exporter: SysID: %u, Observation domain %u from: %s", 
 		(*e)->info.sysid, ObservationDomain, ipstr);
 
 
@@ -711,15 +721,12 @@ int i;
 		// process all elements in this record
 		NextElement 	 = (ipfix_template_elements_std_t *)ipfix_template_record->elements;
 		for ( i=0; i<count; i++ ) {
-			uint16_t Type, Length;
-			int Enterprise;
-			uint32_t EnterpriseNumber;
-
-			Type   = ntohs(NextElement->Type);
-			Length = ntohs(NextElement->Length);
-			Enterprise = Type & 0x8000 ? 1 : 0;
+			uint16_t Type   = ntohs(NextElement->Type);
+			uint16_t Length = ntohs(NextElement->Length);
+			int Enterprise = Type & 0x8000 ? 1 : 0;
 			Type = Type & 0x7FFF;
 
+			uint32_t EnterpriseNumber = 0;
 			if ( Enterprise ) {
 				ipfix_template_elements_e_t *e = (ipfix_template_elements_e_t *)NextElement;
 				size_required += 4;	// ad 4 for enterprise value
@@ -742,10 +749,9 @@ int i;
 				NextElement = (ipfix_template_elements_std_t *)e;
 			} else {
 				dbg_printf("[%i] Enterprise: 0, Type: %u, Length %u\n", i, Type, Length);
-				EnterpriseNumber = 0;
 				NextElement++;
 			}
-			
+
 			commonFound += SetSequence(sequenceTable, numSequences, Type, Length, EnterpriseNumber);
 			numSequences++;
 		}
@@ -774,6 +780,7 @@ int i;
 		template->data = dataTemplate;
 		dataTemplate->extensionList = SetupSequencer(&(dataTemplate->sequencer), sequenceTable, numSequences);
 		dataTemplate->sequencer.templateID = id;
+
 		SetFlag(template->type, DATA_TEMPLATE);
 
 		relinkSequencerList(exporter);
@@ -1219,12 +1226,20 @@ uint8_t		*inBuff;
 		if ( sampling_rate != 1 )
 			SetFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED);
 
+		// NSEL (ASA) or NAT event record
+		if ( sequencer->offsetCache[EXnselCommonID] || sequencer->offsetCache[EXnelCommonID]) 
+			SetFlag(recordHeaderV3->flags, V3_FLAG_EVENT);
+
 		// update first_seen, last_seen
 		EXgenericFlow_t *genericFlow = sequencer->offsetCache[EXgenericFlowID];
 		if ( genericFlow ) {
 			// add time received
 			genericFlow->msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + 
 								  (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
+
+			// map duration to msecLast
+			if ( genericFlow->msecFirst && genericFlow->msecLast == 0 && stack[STACK_DURATION])
+				genericFlow->msecLast = genericFlow->msecFirst + stack[STACK_DURATION];
 
 			// if timestamps relative to sysupTime
 			// record sysuptime overwrites option template sysuptime
@@ -1245,6 +1260,11 @@ uint8_t		*inBuff;
 			dbg_printf("msecFrist: %llu\n", genericFlow->msecFirst);
 			dbg_printf("msecLast : %llu\n", genericFlow->msecLast);
 
+#ifdef NSEL
+			EXnelCommon_t *nelCommon = sequencer->offsetCache[EXnelCommonID];
+			if ( nelCommon && nelCommon->msecEvent == 0 )
+				nelCommon->msecEvent = genericFlow->msecFirst;
+#endif
 			// sampling
 			if ( sampling_rate > 1 ) {
   				genericFlow->inPackets *= (uint64_t)sampling_rate;

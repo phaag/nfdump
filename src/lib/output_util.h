@@ -34,8 +34,8 @@
 #include <stdbool.h>
 
 typedef void (*printer_t)(FILE *, void *, int);
-typedef void (*func_prolog_t)(void);
-typedef void (*func_epilog_t)(void);
+typedef void (*func_prolog_t)(bool quiet);
+typedef void (*func_epilog_t)(bool quiet);
 
 enum { MODE_PLAIN = 0, MODE_PIPE, MODE_JSON, MODE_CSV};
 typedef struct outputParams_s {

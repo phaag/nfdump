@@ -31,9 +31,11 @@
 #ifndef _OUTPUT_JSON_H
 #define _OUTPUT_JSON_H 1
 
-void json_prolog(void);
+#include <stdbool.h>
 
-void json_epilog(void);
+void json_prolog(bool quiet);
+
+void json_epilog(bool quiet);
 
 void flow_record_to_json(FILE *stream, void *record, int tag);
 

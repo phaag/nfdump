@@ -31,9 +31,11 @@
 #ifndef _OUTPUT_PIPE_H
 #define _OUTPUT_PIPE_H 1
 
-void pipe_prolog(void);
+#include <stdbool.h>
 
-void pipe_epilog(void);
+void pipe_prolog(bool quiet);
+
+void pipe_epilog(bool quiet);
 
 void flow_record_to_pipe(FILE *stream, void *record, int tag);
 

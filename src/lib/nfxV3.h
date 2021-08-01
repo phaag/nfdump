@@ -492,6 +492,7 @@ typedef struct EXnbarApp_s {
 } EXnbarApp_t;
 #define EXnbarAppSize (sizeof(EXnbarApp_t) - 1 + sizeof(elementHeader_t))
 
+#define EXlabelID_t elementHeader_t
 #define EXlabelID 28
 #define EXlabelSize sizeof(elementHeader_t)
 

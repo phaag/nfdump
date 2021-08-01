@@ -31,9 +31,11 @@
 #ifndef _OUTPUT_CSV_H
 #define _OUTPUT_CSV_H 1
 
-void csv_prolog(void);
+#include <stdbool.h>
 
-void csv_epilog(void);
+void csv_prolog(bool quiet);
+
+void csv_epilog(bool quiet);
 
 void flow_record_to_csv(FILE *stream, void *record, int tag);
 

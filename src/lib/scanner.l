@@ -105,19 +105,23 @@ H				(0X|0x)[0-9A-Fa-f]+
 					return NUMBER;
 				}
 
-[0-9]+[kmgt]{0,1}	{ 
+[0-9]+[kmgtKGMT]{0,1}	{ 
 					size_t len = strlen(yytext);
 					switch (yytext[len-1]) {
 						case 'k':
+						case 'K':
 							yylval.value = 1000LL * (uint64_t) strtoull(yytext,NULL,10);
 							break;
 						case 'm':
+						case 'M':
 							yylval.value = 1000LL * 1000LL * (uint64_t) strtoull(yytext,NULL,10);
 							break;
 						case 'g':
+						case 'G':
 							yylval.value = 1000LL * 1000LL * 1000LL * (uint64_t) strtoull(yytext,NULL,10);
 							break;
 						case 't':
+						case 'T':
 							yylval.value = 1000LL * 1000LL * 1000LL * 1000LL * (uint64_t) strtoull(yytext,NULL,10);
 							break;
 						default:

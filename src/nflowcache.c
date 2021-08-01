@@ -1253,9 +1253,9 @@ size_t	maxindex;
 					else
 						printf("Top flows ordered by %s:\n", order_mode[order_index].string);
 				}
-				if ( record_header ) 
-					record_header();
 			}
+			if ( record_header ) 
+				record_header(outputParams->quiet);
 			PrintSortList(SortList, maxindex, outputParams, 0, print_record, direction);
 		}
 	}

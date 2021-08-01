@@ -293,6 +293,18 @@ uint32_t size = sizeof(recordHeaderV3_t);
  					memcpy(output_record->nbarAppID, EXnbarApp->id, elementHeader->length - sizeof(elementHeader_t));
 				}
 			} break;
+			case EXlabelID: {
+				char *label = (char *)((void *)elementHeader + sizeof(elementHeader_t));
+				int labelLength = elementHeader->length - sizeof(elementHeader_t);
+				if ( labelLength <= 0 ) {
+					LogError("Invalid label data length");
+					output_record->label = NULL;
+				} else {
+					output_record->label = malloc(labelLength);
+					memcpy(output_record->label, label, labelLength);
+					output_record->label[labelLength-1] = '\0';
+				}
+			} break;
 			case EXinPayloadID: {
 				void *data = (void *)((void *)elementHeader + sizeof(elementHeader_t));
 				int dataLength = elementHeader->length - sizeof(elementHeader_t);
