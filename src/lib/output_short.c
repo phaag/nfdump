@@ -183,6 +183,83 @@ static void stringsEXcntFlow(FILE *stream, master_record_t *r) {
 
 } // End of stringEXcntFlow
 
+static void stringsEXvLan(FILE *stream, master_record_t *r) {
+
+	fprintf(stream,
+"  src vlan     =             %5u\n"
+"  dst vlan     =             %5u\n"
+, r->src_vlan, r->dst_vlan);
+
+} // End of stringsEXvLan
+
+static void stringsEXasRouting(FILE *stream, master_record_t *r) {
+
+	fprintf(stream,
+"  src as       =             %5u\n"
+"  dst as       =             %5u\n"
+, r->srcas, r->dstas);
+
+} // End of stringsEXasRouting
+
+static void stringsEXbgpNextHopV4(FILE *stream, master_record_t *r) {
+char ip[IP_STRING_LEN];
+
+	ip[0] = 0;
+	uint32_t i = htonl(r->bgp_nexthop.V4);
+	inet_ntop(AF_INET, &i, ip, sizeof(ip));
+	ip[IP_STRING_LEN-1] = 0;
+
+	fprintf(stream,
+"  bgp next hop =  %16s\n"
+, ip);
+
+} // End of stringsEXbgpNextHopV4
+
+static void stringsEXbgpNextHopV6(FILE *stream, master_record_t *r) {
+char ip[IP_STRING_LEN];
+uint64_t i[2];
+
+	i[0] = htonll(r->bgp_nexthop.V6[0]);
+	i[1] = htonll(r->bgp_nexthop.V6[1]);
+	inet_ntop(AF_INET6, i, ip, sizeof(ip));
+	ip[IP_STRING_LEN-1] = 0;
+
+	fprintf(stream,
+"  bgp next hop =  %16s\n"
+, ip);
+
+} // End of stringsEXbgpNextHopV6
+
+static void stringsEXipNextHopV4(FILE *stream, master_record_t *r) {
+char ip[IP_STRING_LEN];
+
+	ip[0] = 0;
+	uint32_t i = htonl(r->ip_nexthop.V4);
+	inet_ntop(AF_INET, &i, ip, sizeof(ip));
+	ip[IP_STRING_LEN-1] = 0;
+
+	fprintf(stream,
+"  ip next hop  =  %16s\n"
+, ip);
+
+} // End of stringsEXipNextHopV4
+
+static void stringsEXipNextHopV6(FILE *stream, master_record_t *r) {
+char ip[IP_STRING_LEN];
+uint64_t i[2];
+
+	i[0] = htonll(r->ip_nexthop.V6[0]);
+	i[1] = htonll(r->ip_nexthop.V6[1]);
+	inet_ntop(AF_INET6, i, ip, sizeof(ip));
+	ip[IP_STRING_LEN-1] = 0;
+
+	fprintf(stream,
+"  ip next hop  =  %16s\n"
+, ip);
+
+} // End of stringsEXipNextHopV6
+
+
 static void stringsEXipReceivedV4(FILE *stream, master_record_t *r) {
 char ip[IP_STRING_LEN];
 
@@ -282,6 +359,24 @@ char elementString[MAXELEMENTS * 5];
 				break;
 			case EXcntFlowID:
 				stringsEXcntFlow(stream, r);
+				break;
+			case EXvLanID:
+				stringsEXvLan(stream, r);
+				break;
+			case EXasRoutingID:
+				stringsEXasRouting(stream, r);
+				break;
+			case EXbgpNextHopV4ID:
+				stringsEXbgpNextHopV4(stream, r);
+				break;
+			case EXbgpNextHopV6ID:
+				stringsEXbgpNextHopV6(stream, r);
+				break;
+			case EXipNextHopV4ID:
+				stringsEXipNextHopV4(stream, r);
+				break;
+			case EXipNextHopV6ID:
+				stringsEXipNextHopV6(stream, r);
 				break;
 			case EXipReceivedV4ID:
 				stringsEXipReceivedV4(stream, r);

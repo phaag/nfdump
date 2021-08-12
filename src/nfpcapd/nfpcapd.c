@@ -618,6 +618,13 @@ char			*time_extension;
 		/* user specified a pcap filter */
 		filter = argv[optind];
 	}
+	if ( filter ) {
+		filter = strdup(filter);
+		if ( !filter ) {
+			LogError("strdup() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+			exit(EXIT_FAILURE);
+		}
+	}
 
 	if ( (device && pcapfile) || (!device && !pcapfile)) {
 		LogError("Specify either a device or a pcapfile");
