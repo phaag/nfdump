@@ -75,6 +75,7 @@
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
 #include "netflow_pcapd.h"
+#include "metric.h"
 #include "ipfix.h"
 
 #ifdef HAVE_FTS_H
@@ -1034,6 +1035,11 @@ char	*pcap_file = NULL;
 		exit(EXIT_FAILURE);
 	}
 
+	if ( metricsocket && !OpenMetric(metricsocket) ) {
+		close(sock);
+		exit(EXIT_FAILURE);
+	}
+
 	t_start = time(NULL);
 	t_start = t_start - ( t_start % twin);
 
@@ -1115,8 +1121,11 @@ char	*pcap_file = NULL;
 	LogInfo("Startup.");
 	run(receive_packet, sock, repeater, twin, t_start, report_sequence, subdir_index, 
 		time_extension, compress);
+
+	// shutdown
 	close(sock);
 	kill_launcher(launcher_pid);
+	CloseMetric();
 
 	fs = FlowSource;
 	while ( fs && fs->bookkeeper ) {

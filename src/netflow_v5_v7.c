@@ -57,6 +57,7 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
+#include "metric.h"
 #include "netflow_v5_v7.h"
 
 
@@ -498,6 +499,8 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 				fs->nffile->stat_record->numflows++;
 				fs->nffile->stat_record->numpackets	+= genericFlow->inPackets;
 				fs->nffile->stat_record->numbytes	+= genericFlow->inBytes;
+
+				UpdateMetric(fs->nffile, genericFlow);
 
 				if ( printRecord ) {
 					master_record_t master_record;

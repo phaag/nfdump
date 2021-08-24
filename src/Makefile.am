@@ -47,7 +47,7 @@ nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h khash.h blocksort.h blockso
 nfdump_LDADD = lib/libnfdump.la
 
 nfreplay_SOURCES = nfreplay.c $(nfprof) \
-	$(nfnet) $(collector) $(nfv1) $(nfv9) $(nfv5v7) $(ipfix)
+	$(nfnet) $(collector) $(nfv1) $(nfv9) $(nfv5v7) $(ipfix) $(metric)
 nfreplay_LDADD = lib/libnfdump.la
 
 nfcapd_SOURCES = nfcapd.c \

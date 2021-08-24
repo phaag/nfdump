@@ -57,6 +57,7 @@
 #include "fnf.h"
 #include "exporter.h"
 #include "nbar.h"
+#include "metric.h"
 #include "netflow_v9.h"
 
 // a few handy macros
@@ -1229,6 +1230,8 @@ uint8_t		*inBuff;
         	fs->nffile->stat_record->numflows++;
         	fs->nffile->stat_record->numpackets += genericFlow->inPackets;
         	fs->nffile->stat_record->numbytes   += genericFlow->inBytes;
+
+			UpdateMetric(fs->nffile, genericFlow);
 		}
 
    		EXcntFlow_t  *cntFlow  = sequencer->offsetCache[EXcntFlowID];
