@@ -57,10 +57,9 @@ static uint64_t uptime = 0;
 static metric_record_t *metric_record = NULL;
 static pthread_mutex_t mutex;
 
-int OpenMetric(char *path) {
+static int OpenSocket(void) {
 struct sockaddr_un addr;
 
-	socket_path = path;
 	if ( (fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
 		LogError("socket() failed on %s: %s", socket_path, strerror(errno));
 		return 0;
@@ -75,29 +74,33 @@ struct sockaddr_un addr;
 		fd = 0;
 		return 0;
 	}
+	return 1;
+}
+
+int OpenMetric(char *path) {
+
+	socket_path = path;
+	if ( !OpenSocket() ) {
+		return 0;
+	}
+	close(fd);
+	fd = 0;
 
 	metric_record = calloc(1, sizeof(metric_record_t));
 	if ( !metric_record ) {
 		LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-		close(fd);
-		fd = 0;
 		return 0;
 	}
 
 	if (pthread_mutex_init(&mutex, NULL) != 0) {
         LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-		close(fd);
-		fd = 0;
         return 0;
     }
 
-	
 	pthread_t tid;
 	int err = pthread_create(&tid, NULL, MetricThread, NULL);
 	if ( err ) {
 		LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-		close(fd);
-		fd = 0;
 		return 0;
 	}
 
@@ -107,11 +110,15 @@ struct sockaddr_un addr;
 
 int CloseMetric() {
 
-	if ( fd == 0 ) 
+	pthread_mutex_lock(&mutex);
+	if ( metric_record == NULL ) {
+		pthread_mutex_unlock(&mutex);
 		return 0;
-
+	}
 	metric_record_t *r = metric_record;
 	metric_record = NULL;
+	pthread_mutex_unlock(&mutex);
+
 	free(r);
 
 	return 0;
@@ -119,11 +126,14 @@ int CloseMetric() {
 } // End of CloseMetric
 
 void UpdateMetric(nffile_t *nffile, EXgenericFlow_t *genericFlow) {
-	if ( fd == 0 || metric_record == NULL)
+
+	pthread_mutex_lock(&mutex);
+	if ( metric_record == NULL) {
+		pthread_mutex_unlock(&mutex);
 		return;
+	}
 
 	// fill metric
-	pthread_mutex_lock(&mutex);
 	switch (genericFlow->proto) {
 		case IPPROTO_ICMPV6:
 		case IPPROTO_ICMP:
@@ -169,10 +179,11 @@ __attribute__((noreturn)) void* MetricThread(void *arg) {
 
 	while (1) {
 		sleep(10);
-		if ( metric_record == NULL ) 
-			break;
-
 		pthread_mutex_lock(&mutex);
+		if ( metric_record == NULL ) {
+			pthread_mutex_unlock(&mutex);
+			break;
+		}
 		metric_record_t *r = metric_record;
 		metric_record = record;
 		pthread_mutex_unlock(&mutex);
@@ -188,15 +199,17 @@ __attribute__((noreturn)) void* MetricThread(void *arg) {
 
 		// compose message
 		memcpy(message + sizeof(message_header_t), (void *)record, sizeof(metric_record_t));
-		int ret = write(fd, message, sizeof(message_header_t) + sizeof(metric_record_t));
-		if ( ret < 0 ) {
-			LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		if ( OpenSocket() ) {
+			int ret = write(fd, message, sizeof(message_header_t) + sizeof(metric_record_t));
+			if ( ret < 0 ) {
+				LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+			}
+			close(fd);
+			fd = 0;
 		}
 		memset((void *)record, 0, sizeof(metric_record_t));
 	}
 
-	close(fd);
-	fd = 0;
 	free(record);
 	free(message);
 	pthread_exit(NULL);
