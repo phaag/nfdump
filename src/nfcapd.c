@@ -142,6 +142,7 @@ static void usage(char *name) {
 					"-I Ident\tset the ident string for stat file. (default 'none')\n"
 					"-n Ident,IP,logdir\tAdd this flow source - multiple streams\n" 
 					"-N sourceFile\tAdd flows from sourceFile\n"
+					"-m socket\t\tEnable metric exporter on socket.\n"
 					"-M dir \t\tSet the output directory for dynamic sources.\n"
 					"-P pidfile\tset the PID file\n"
 					"-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
@@ -699,7 +700,7 @@ int main(int argc, char **argv) {
  
 char	*bindhost, *datadir, *launch_process;
 char	*userid, *groupid, *checkptr, *listenport, *mcastgroup;
-char	*Ident, *dynsrcdir, *time_extension, *pidfile;
+char	*Ident, *dynsrcdir, *time_extension, *pidfile, *metricsocket;
 packet_function_t receive_packet;
 repeater_t repeater[MAX_REPEATERS];
 FlowSource_t *fs;
@@ -741,8 +742,9 @@ char	*pcap_file = NULL;
 	Ident			= "none";
 	FlowSource		= NULL;
 	dynsrcdir		= NULL;
+	metricsocket	= NULL;
 
-	while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:jl:J:M:n:N:p:P:R:S:s:T:t:x:Xru:g:vyzZ")) != EOF) {
+	while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:jl:J:m:M:n:N:p:P:R:S:s:T:t:x:Xru:g:vyzZ")) != EOF) {
 		switch (c) {
 			case 'h':
 				usage(argv[0]);
@@ -785,15 +787,27 @@ char	*pcap_file = NULL;
 				do_daemonize = 1;
 				break;
 			case 'I':
-				Ident = strdup(optarg);
+				if (strlen(optarg) < 128) {
+					Ident = strdup(optarg);
+				} else {
+					LogError("ERROR: Ident length > 128");
+					exit(EXIT_FAILURE);
+				}
 				break;
-			case 'M': {
-				struct stat	fstat;
-				dynsrcdir = strdup(optarg);
-				if ( strlen(dynsrcdir) > MAXPATHLEN ) {
+			case 'm': 
+				if ( strlen(optarg) > MAXPATHLEN ) {
 					LogError("ERROR: Path too long!");
 					exit(EXIT_FAILURE);
 				}
+				metricsocket= strdup(optarg);
+				break;
+			case 'M': {
+				struct stat	fstat;
+				if ( strlen(optarg) > MAXPATHLEN ) {
+					LogError("ERROR: Path too long!");
+					exit(EXIT_FAILURE);
+				}
+				dynsrcdir = strdup(optarg);
 				if ( stat(dynsrcdir, &fstat) < 0 ) {
 					LogError("stat() failed on %s: %s", dynsrcdir, strerror(errno));
 					exit(EXIT_FAILURE);

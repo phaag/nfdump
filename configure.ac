@@ -18,6 +18,7 @@ CFLAGS="$CFLAGS -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declara
 
 LT_INIT
 
+
 dnl
 dnl Check to see if -latomic is need for GCC atomic built-ins.
 AC_DEFUN([OVS_CHECK_ATOMIC_LIBS],

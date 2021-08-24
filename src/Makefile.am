@@ -38,6 +38,7 @@ nfstatfile = nfstatfile.c nfstatfile.h
 nflowcache = nflowcache.c nflowcache.h memhandle.h 
 bookkeeper = bookkeeper.c bookkeeper.h
 expire= expire.c expire.h
+metric=metric.c metric.h
 launch = launch.c launch.h
 maxmind = maxmind.c maxmind.h
 
@@ -51,7 +52,7 @@ nfreplay_LDADD = lib/libnfdump.la
 
 nfcapd_SOURCES = nfcapd.c \
 	$(nfstatfile) $(launch) \
-	$(nfnet) $(collector) $(nfv1) $(nfv5v7) $(nfv9) $(ipfix) $(nfpcapd) $(bookkeeper) $(expire)
+	$(nfnet) $(collector) $(nfv1) $(nfv5v7) $(nfv9) $(ipfix) $(nfpcapd) $(bookkeeper) $(expire) $(metric)
 nfcapd_LDADD = lib/libnfdump.la
 nfcapd_LDFLAGS = -Llib
 
