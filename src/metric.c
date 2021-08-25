@@ -56,6 +56,7 @@ static int fd = 0;
 static uint64_t uptime = 0;
 static metric_record_t *metric_record = NULL;
 static pthread_mutex_t mutex;
+static pthread_t tid = 0;
 
 static int OpenSocket(void) {
 struct sockaddr_un addr;
@@ -97,12 +98,14 @@ int OpenMetric(char *path) {
         return 0;
     }
 
-	pthread_t tid;
 	int err = pthread_create(&tid, NULL, MetricThread, NULL);
 	if ( err ) {
 		LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		return 0;
 	}
+
+	// set ident - static for now
+	strncpy(metric_record->ident, "live", 5);
 
 	return 1;
 
@@ -118,6 +121,11 @@ int CloseMetric() {
 	metric_record_t *r = metric_record;
 	metric_record = NULL;
 	pthread_mutex_unlock(&mutex);
+
+	int err = pthread_join(tid, NULL);
+	if ( err ) {
+		LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+	}
 
 	free(r);
 
@@ -162,12 +170,9 @@ void UpdateMetric(nffile_t *nffile, EXgenericFlow_t *genericFlow) {
 
 __attribute__((noreturn)) void* MetricThread(void *arg) {
 
-	metric_record_t *record = calloc(1, sizeof(metric_record_t));
 	void *message = malloc(sizeof(metric_record_t)+4);
-	if ( !record ||!message ) {
+	if ( !message ) {
 		LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-		close(fd);
-		fd = 0;
 		pthread_exit(NULL);
 	}
 	message_header_t *message_header = (message_header_t *)message;
@@ -178,27 +183,25 @@ __attribute__((noreturn)) void* MetricThread(void *arg) {
 	uptime = (uint64_t)time(NULL) * 1000LL;
 
 	while (1) {
-		sleep(10);
+		sleep(5);
+
+		struct timeval te; 
+		gettimeofday(&te, NULL);
+		uint64_t milliseconds = te.tv_sec*1000LL + te.tv_usec/1000;
+
 		pthread_mutex_lock(&mutex);
 		if ( metric_record == NULL ) {
 			pthread_mutex_unlock(&mutex);
 			break;
 		}
-		metric_record_t *r = metric_record;
-		metric_record = record;
-		pthread_mutex_unlock(&mutex);
-		record = r;
 
-		struct timeval te; 
-		gettimeofday(&te, NULL);
-		uint64_t milliseconds = te.tv_sec*1000LL + te.tv_usec/1000;
-		record->uptime = milliseconds - uptime;
-
-		// set ident - static for now
-		strncpy(record->ident, "live", 5);
+		// update uptime
+		metric_record->uptime = milliseconds - uptime;
 
 		// compose message
-		memcpy(message + sizeof(message_header_t), (void *)record, sizeof(metric_record_t));
+		memcpy(message + sizeof(message_header_t), (void *)metric_record, sizeof(metric_record_t));
+		pthread_mutex_unlock(&mutex);
+
 		if ( OpenSocket() ) {
 			int ret = write(fd, message, sizeof(message_header_t) + sizeof(metric_record_t));
 			if ( ret < 0 ) {
@@ -207,10 +210,8 @@ __attribute__((noreturn)) void* MetricThread(void *arg) {
 			close(fd);
 			fd = 0;
 		}
-		memset((void *)record, 0, sizeof(metric_record_t));
 	}
 
-	free(record);
 	free(message);
 	pthread_exit(NULL);
 
