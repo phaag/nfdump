@@ -9,7 +9,7 @@ AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([subdir-objects])
 
 # Checks for programs.
-CFLAGS?="-g -O3"
+CFLAGS="-g -O3"
 AC_PROG_CC([clang gcc])
 AX_CHECK_C11
 CFLAGS="$CFLAGS -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wmissing-noreturn -fno-strict-aliasing"
