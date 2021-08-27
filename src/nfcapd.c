@@ -698,7 +698,6 @@ srecord_t	*commbuff;
 } /* End of run */
 
 int main(int argc, char **argv) {
- 
 char	*bindhost, *datadir, *launch_process;
 char	*userid, *groupid, *checkptr, *listenport, *mcastgroup;
 char	*Ident, *dynsrcdir, *time_extension, *pidfile, *metricsocket;

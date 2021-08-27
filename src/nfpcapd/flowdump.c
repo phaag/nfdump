@@ -54,7 +54,7 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
-
+#include "metric.h"
 #include "queue.h"
 #include "flowdump.h"
 
@@ -195,6 +195,8 @@ FlowSource_t *fs = flowParam->fs;
 		stat_record->numflows++;
 		stat_record->numpackets	+= genericFlow->inPackets;
 		stat_record->numbytes	+= genericFlow->inBytes;
+
+		UpdateMetric(fs->nffile, genericFlow);
 	
 		if ( printRecord ) {
 			master_record_t master_record;

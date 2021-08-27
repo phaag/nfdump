@@ -31,6 +31,8 @@
 #ifndef _METRIC_H
 #define _METRIC_H 1
 
+#include "nffile.h"
+
 typedef struct message_header_s {
 	char prefix;
 	uint8_t version;

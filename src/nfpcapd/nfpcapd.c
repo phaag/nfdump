@@ -80,6 +80,7 @@
 #include "flowdump.h"
 #include "flowsend.h"
 #include "pcaproc.h"
+#include "metric.h"
 
 #define TIME_WINDOW     300
 #define PROMISC         1
@@ -138,6 +139,7 @@ static void usage(char *name) {
 					"-o options \tAdd flow options, separated with ','. Available: 'fat', 'payload'\n"
 					"-l flowdir \tset the flow output directory. (no default) \n"
 					"-H host[/port]\tSend flows to host or IP address/port. Default port 9995.\n"
+					"-m socket\t\tEnable metric exporter on socket.\n"
 					"-p pcapdir \tset the pcapdir directory. (optional) \n"
 					"-S subdir\tSub directory format. see nfcapd(1) for format\n"
 					"-I Ident\tset the ident string for stat file. (default 'none')\n"
@@ -407,7 +409,7 @@ dirstat_t 		*dirstat;
 repeater_t		*sendHost;
 time_t 			t_win;
 char 			*device, *pcapfile, *filter, *datadir, *pcap_datadir, *pidfile, *options;
-char			*Ident, *userid, *groupid;
+char			*Ident, *userid, *groupid, *metricsocket;
 char			*time_extension;
 
 	snaplen			= 1522;
@@ -423,6 +425,7 @@ char			*time_extension;
 	pcap_datadir	= NULL;
 	options			= NULL;
 	sendHost		= NULL;
+	metricsocket	= NULL;
 	userid			= groupid = NULL;
 	Ident			= "none";
 	time_extension	= "%Y%m%d%H%M";
@@ -434,7 +437,7 @@ char			*time_extension;
 	buff_size		= 20;
 	activeTimeout	= 0;
 	inactiveTimeout	= 0;
-	while ((c = getopt(argc, argv, "B:DI:b:e:g:hH:i:j:r:s:l:o:p:P:T:t:u:S:vVyz")) != EOF) {
+	while ((c = getopt(argc, argv, "B:DI:b:e:g:hH:i:j:m:r:s:l:o:p:P:T:t:u:S:vVyz")) != EOF) {
 		switch (c) {
 			struct stat fstat;
 			case 'h':
@@ -458,7 +461,19 @@ char			*time_extension;
 				}
 				break;
 			case 'I':
-				Ident = strdup(optarg);
+				if (strlen(optarg) < 128) {
+					Ident = strdup(optarg);
+				} else {
+					LogError("ERROR: Ident length > 128");
+					exit(EXIT_FAILURE);
+				}
+				break;
+			case 'm': 
+				if ( strlen(optarg) > MAXPATHLEN ) {
+					LogError("ERROR: Path too long!");
+					exit(EXIT_FAILURE);
+				}
+				metricsocket= strdup(optarg);
 				break;
 			case 'b':
 				buff_size = atoi(optarg);
@@ -687,6 +702,10 @@ char			*time_extension;
 
 	SetPriv(userid, groupid);
 
+	if ( metricsocket && !OpenMetric(metricsocket) ) {
+		exit(EXIT_FAILURE);
+	}
+
 	FlowSource_t *fs = NULL;
 	if ( datadir ) {
 		if (pcap_datadir && access(pcap_datadir, W_OK) < 0) {
@@ -840,6 +859,8 @@ char			*time_extension;
 		}
 		ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
 	}
+
+	CloseMetric();
 
 	LogInfo("Total: Processed: %u, skipped: %u, short caplen: %u, unknown: %u\n", 
 		packetParam.proc_stat.packets, packetParam.proc_stat.skipped,

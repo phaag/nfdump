@@ -73,7 +73,7 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node);
 
 static int SendFlow(repeater_t *sendHost, pcapd_header_t *pcapd_header) {
 
-printf("Sending %u records\n", pcapd_header->numRecord); 
+	dbg_printf("Sending %u records\n", pcapd_header->numRecord); 
 	uint32_t length = pcapd_header->length;
 	pcapd_header->length = htons(pcapd_header->length);
 	pcapd_header->lastSequence = htonl(sequence++);

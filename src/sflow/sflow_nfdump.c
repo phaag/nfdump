@@ -62,6 +62,7 @@
 #include "nfdump.h"
 #include "nfxV3.h"
 #include "output_short.h"
+#include "metric.h"
 
 #include "sflow.h" /* sFlow v5 */
 #include "sflow_v2v4.h" /* sFlow v2/4 */
@@ -404,6 +405,8 @@ struct timeval now;
 	stat_record->numflows++;
 	stat_record->numpackets	+= genericFlow->inPackets;
 	stat_record->numbytes	+= genericFlow->inBytes;
+
+	UpdateMetric(fs->nffile, genericFlow);
 
 	if ( printRecord ) {
 		master_record_t master_record;
