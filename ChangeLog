@@ -1,3 +1,6 @@
+2021-08-27
+- Fix compile flags  #304
+
 2021-07-31
 - Fix nfdump man page #301
 - Fix minor bugs
