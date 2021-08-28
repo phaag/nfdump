@@ -702,7 +702,7 @@ char			*time_extension;
 
 	SetPriv(userid, groupid);
 
-	if ( metricsocket && !OpenMetric(metricsocket) ) {
+	if ( metricsocket && !OpenMetric(metricsocket, Ident) ) {
 		exit(EXIT_FAILURE);
 	}
 

@@ -1314,7 +1314,9 @@ uint8_t		*inBuff;
         	fs->nffile->stat_record->numpackets += genericFlow->inPackets;
         	fs->nffile->stat_record->numbytes   += genericFlow->inBytes;
 
-			UpdateMetric(fs->nffile, genericFlow);
+			uint32_t exporterIdent = (recordHeaderV3->exporterID << 16) |
+				(((recordHeaderV3->engineType << 8) | recordHeaderV3->engineID) << 16);
+			UpdateMetric(fs->nffile, exporterIdent, genericFlow);
 		}
 
 		EXcntFlow_t *cntFlow = sequencer->offsetCache[EXcntFlowID];

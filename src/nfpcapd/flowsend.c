@@ -54,6 +54,7 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
+#include "metric.h"
 
 #include "queue.h"
 #include "netflow_pcapd.h"

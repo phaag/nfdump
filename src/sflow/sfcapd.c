@@ -922,7 +922,7 @@ char	*pcap_file = NULL;
 		exit(EXIT_FAILURE);
 	}
 
-	if ( metricsocket && !OpenMetric(metricsocket) ) {
+	if ( metricsocket && !OpenMetric(metricsocket, Ident) ) {
 		close(sock);
 		exit(EXIT_FAILURE);
 	}

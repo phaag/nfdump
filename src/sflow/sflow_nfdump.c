@@ -406,7 +406,9 @@ struct timeval now;
 	stat_record->numpackets	+= genericFlow->inPackets;
 	stat_record->numbytes	+= genericFlow->inBytes;
 
-	UpdateMetric(fs->nffile, genericFlow);
+	uint32_t exporterIdent = (recordHeader->exporterID << 16) |
+		(((recordHeader->engineType << 8) | recordHeader->engineID) << 16);
+	UpdateMetric(fs->nffile, exporterIdent, genericFlow);
 
 	if ( printRecord ) {
 		master_record_t master_record;

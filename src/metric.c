@@ -45,22 +45,31 @@
 #include <errno.h>
 #include <pthread.h>
 
-#include "queue.h"
-#include "nfxV3.h"
-#include "nffile.h"
 #include "util.h"
+#include "nffile.h"
+#include "nfxV3.h"
 #include "metric.h"
 
 static char *socket_path = "/tmp/nfsen.sock";
 static int fd = 0;
-static uint64_t uptime = 0;
-static metric_record_t *metric_record = NULL;
-static pthread_mutex_t mutex;
+static _Atomic unsigned tstart = ATOMIC_VAR_INIT(0);
+
+// list of chained metric records
+static metric_chain_t *metric_list = NULL;
+
+// cache last metric record
+static metric_record_t *metricCache   = NULL;
+static uint64_t exporterIDcache = 0;
+static uint32_t numMetrics = 0;
+static char identCache[128];
+
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t tid = 0;
 
 static int OpenSocket(void) {
 struct sockaddr_un addr;
 
+	dbg_printf("Connect to UNIX socket\n");
 	if ( (fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
 		LogError("socket() failed on %s: %s", socket_path, strerror(errno));
 		return 0;
@@ -78,7 +87,36 @@ struct sockaddr_un addr;
 	return 1;
 }
 
-int OpenMetric(char *path) {
+static inline metric_record_t *GetMetric(uint32_t exporterID) {
+
+	metric_record_t *metric_record = NULL;
+	metric_chain_t *metric_chain = metric_list;
+	while ( metric_chain && metric_chain->record->exporterID != exporterID )
+		metric_chain = metric_chain->next;
+
+	if (metric_chain) {
+		dbg_printf("Found metric: %x\n", exporterID);
+		return metric_chain->record;
+	}
+
+	dbg_printf("New metric: %x\n", exporterID);
+	metric_chain  = malloc(sizeof(metric_chain_t));
+	metric_record = calloc(1, sizeof(metric_record_t));
+	if ( !metric_chain || !metric_record ) {
+		LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		return NULL;
+	}
+	numMetrics++;
+
+	metric_record->exporterID = exporterID;
+	metric_chain->record = metric_record;
+	metric_chain->next 	 = metric_list;
+	metric_list			 = metric_chain;
+	return metric_record;
+
+} // End of GetMetric
+
+int OpenMetric(char *path, char *ident) {
 
 	socket_path = path;
 	if ( !OpenSocket() ) {
@@ -87,25 +125,18 @@ int OpenMetric(char *path) {
 	close(fd);
 	fd = 0;
 
-	metric_record = calloc(1, sizeof(metric_record_t));
-	if ( !metric_record ) {
-		LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-		return 0;
-	}
+	// save ident
+	strncpy(identCache, ident, 128);
+	identCache[127] = '\0';
 
-	if (pthread_mutex_init(&mutex, NULL) != 0) {
-        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return 0;
-    }
-
+	// set start time of collector
+	atomic_init(&tstart, (uint64_t)time(NULL) * 1000LL);
 	int err = pthread_create(&tid, NULL, MetricThread, NULL);
 	if ( err ) {
 		LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		return 0;
 	}
-
-	// set ident - static for now
-	strncpy(metric_record->ident, "live", 5);
+	dbg_printf("Metric initialised\n");
 
 	return 1;
 
@@ -113,34 +144,59 @@ int OpenMetric(char *path) {
 
 int CloseMetric() {
 
+	dbg_printf("Close metric\n");
+
+	// signal MetricThread too terminate
+	atomic_init(&tstart, 0);
+
 	pthread_mutex_lock(&mutex);
-	if ( metric_record == NULL ) {
-		pthread_mutex_unlock(&mutex);
-		return 0;
+	metric_chain_t *metric_chain = metric_list;
+	while ( metric_chain ) {
+		free(metric_chain->record);
+		metric_chain_t *elem = metric_chain;
+		metric_chain = metric_chain->next;
+		free(elem);
 	}
-	metric_record_t *r = metric_record;
-	metric_record = NULL;
+	metric_list = NULL;
 	pthread_mutex_unlock(&mutex);
 
-	int err = pthread_join(tid, NULL);
-	if ( err ) {
-		LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+	if ( tid ) {
+		int err = pthread_join(tid, NULL);
+		if ( err ) {
+			LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		}
 	}
-
-	free(r);
 
 	return 0;
 
 } // End of CloseMetric
 
-void UpdateMetric(nffile_t *nffile, EXgenericFlow_t *genericFlow) {
+void UpdateMetric(nffile_t *nffile, uint32_t exporterID, EXgenericFlow_t *genericFlow) {
 
-	pthread_mutex_lock(&mutex);
-	if ( metric_record == NULL) {
-		pthread_mutex_unlock(&mutex);
+	dbg_printf("Update metric: exporter ID: %x\n", exporterID);
+
+	// if no MetricThread is running
+	if (atomic_load(&tstart) == 0)
 		return;
-	}
 
+	dbg_printf("Update metric\n");
+	pthread_mutex_lock(&mutex);
+	metric_record_t *metric_record = metricCache;
+	if ( exporterIDcache != exporterID || metricCache == NULL) {
+		dbg_printf("Get metric\n");
+		metric_record = GetMetric(exporterID);
+		if ( !metric_record ) {
+			pthread_mutex_unlock(&mutex);
+			return;
+		}
+		metricCache 	= metric_record;
+		exporterIDcache = exporterID;
+	}
+#ifdef DEVEL
+		else {
+			printf("Cached metric\n");
+		}
+#endif
 	// fill metric
 	switch (genericFlow->proto) {
 		case IPPROTO_ICMPV6:
@@ -170,7 +226,8 @@ void UpdateMetric(nffile_t *nffile, EXgenericFlow_t *genericFlow) {
 
 __attribute__((noreturn)) void* MetricThread(void *arg) {
 
-	void *message = malloc(sizeof(metric_record_t)+4);
+	dbg_printf("Started MetricThread\n");
+	void *message = malloc(sizeof(message_header_t) + sizeof(metric_record_t));
 	if ( !message ) {
 		LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		pthread_exit(NULL);
@@ -179,39 +236,75 @@ __attribute__((noreturn)) void* MetricThread(void *arg) {
 	message_header->prefix  = '@';
 	message_header->version = 1;
 	message_header->size    = sizeof(metric_record_t);
+	message_header->numMetrics = 1;
+	message_header->collectorID	= 111;
+	message_header->fill	= 0;
+	message_header->uptime	= 0;
+	strncpy(message_header->ident, identCache, 128);
+	identCache[127] = '\0';
 
-	uptime = (uint64_t)time(NULL) * 1000LL;
+	// number of allocated metric records in message
+	uint32_t cnt = 1;
 
 	while (1) {
 		sleep(5);
-
 		struct timeval te; 
 		gettimeofday(&te, NULL);
-		uint64_t milliseconds = te.tv_sec*1000LL + te.tv_usec/1000;
+		uint64_t now = te.tv_sec*1000LL + te.tv_usec/1000;
 
-		pthread_mutex_lock(&mutex);
-		if ( metric_record == NULL ) {
-			pthread_mutex_unlock(&mutex);
+		// check for end condition
+		uint64_t _tstart = atomic_load(&tstart);
+		if (_tstart == 0)
 			break;
+
+		if ( numMetrics == 0 ) {
+			dbg_printf("No metric available\n");
+			continue;
+		}
+
+		dbg_printf("Process %u metrics\n", numMetrics);
+		pthread_mutex_lock(&mutex);
+		if ( numMetrics > cnt ) {
+			dbg_printf("Expand message: %u -> %u\n", cnt, numMetrics);
+			void *_message = realloc(message, numMetrics * sizeof(metric_record_t)+sizeof(message_header_t));
+			if ( !_message ) {
+				pthread_mutex_unlock(&mutex);
+				LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+				pthread_exit(NULL);
+			}
+			message = _message;
+			message_header = (message_header_t *)message;
+			cnt = numMetrics;
+			message_header->size	   = cnt * sizeof(metric_record_t);
+			message_header->numMetrics = cnt;
 		}
 
 		// update uptime
-		metric_record->uptime = milliseconds - uptime;
+		message_header->uptime = now - _tstart;
 
-		// compose message
-		memcpy(message + sizeof(message_header_t), (void *)metric_record, sizeof(metric_record_t));
-		pthread_mutex_unlock(&mutex);
-
+		metric_chain_t *metric_chain = metric_list;
 		if ( OpenSocket() ) {
-			int ret = write(fd, message, sizeof(message_header_t) + sizeof(metric_record_t));
+			size_t offset = sizeof(message_header_t);
+			while ( metric_chain ) {
+				metric_record_t *metric_record = metric_chain->record;
+
+				dbg_printf("Copy metric\n");
+				// compose message
+				memcpy(message + offset, (void *)metric_record, sizeof(metric_record_t));
+				offset += sizeof(metric_record_t);
+
+				metric_chain = metric_chain->next;
+			}
+			int ret = write(fd, message, offset);
 			if ( ret < 0 ) {
 				LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 			}
 			close(fd);
 			fd = 0;
+			dbg_printf("Message sent\n");
 		}
+		pthread_mutex_unlock(&mutex);
 	}
-
 	free(message);
 	pthread_exit(NULL);
 

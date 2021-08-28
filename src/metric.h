@@ -37,13 +37,17 @@ typedef struct message_header_s {
 	char prefix;
 	uint8_t version;
 	uint16_t size;
+	uint16_t numMetrics;
+	uint16_t fill;
+	uint64_t collectorID;
+	uint64_t uptime;
+	char	ident[128];
 } message_header_t;
 
 typedef struct metric_record_s {
 	// Ident
-	char		ident[128];
-	//  uptime
-	uint64_t	uptime;
+	uint64_t	exporterID; // 32bit: exporter_id:16 engineType:8 engineID:*
+
     // flow stat
     uint64_t    numflows_tcp;
     uint64_t    numflows_udp;
@@ -61,11 +65,16 @@ typedef struct metric_record_s {
     uint64_t    numpackets_other;
 } metric_record_t;
 
-int OpenMetric(char *path);
+typedef struct metric_chain_s {
+	struct metric_chain_s *next;
+	metric_record_t *record;
+} metric_chain_t;
+
+int OpenMetric(char *path, char *ident);
 
 int CloseMetric(void);
 
-void UpdateMetric(nffile_t *nffile, EXgenericFlow_t *genericFlow);
+void UpdateMetric(nffile_t *nffile, uint32_t exporterID, EXgenericFlow_t *genericFlow);
 
 void* MetricThread(void *arg);
 

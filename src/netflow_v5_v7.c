@@ -500,7 +500,9 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 				fs->nffile->stat_record->numpackets	+= genericFlow->inPackets;
 				fs->nffile->stat_record->numbytes	+= genericFlow->inBytes;
 
-				UpdateMetric(fs->nffile, genericFlow);
+				uint32_t exporterIdent = (recordHeader->exporterID << 16) |
+					(((recordHeader->engineType << 8) | recordHeader->engineID) << 16);
+				UpdateMetric(fs->nffile, exporterIdent, genericFlow);
 
 				if ( printRecord ) {
 					master_record_t master_record;
