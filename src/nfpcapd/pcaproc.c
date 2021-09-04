@@ -62,9 +62,21 @@
 #include "flowtree.h"
 #include "pcaproc.h"
 
+typedef struct gre_flags_s {
+	int C:1;
+	int R:1;
+	int K:1;
+	int S:1;
+	int s:1;
+	int Recur:3;
+	int	A:1;
+	int flag:4;
+	int version:3;
+} gre_flags_t;
+
 typedef struct gre_hdr_s {
-  uint16_t flags;
-  uint16_t type;
+	uint16_t flags;
+ 	uint16_t type;
 } gre_hdr_t;
 
 typedef struct vlan_hdr_s {
@@ -571,12 +583,39 @@ static unsigned pkg_cnt = 0;
 						packetParam->proc_stat.skipped++;
 						goto END_FUNC;
 					}
-
 					// redo ethertype evaluation
 					goto REDO_LINK;
 					} break;
+				case 0x8864: {
+					uint8_t VersionType = *((uint8_t *)dataptr);
+					uint8_t Code		= *((uint8_t *)(dataptr+1));
+					uint16_t pppProto	= ntohs(*((uint16_t *)(dataptr+6)));
+					// uint16_t SessionID	= ntohs(*((uint16_t *)(dataptr21)));
+					if ( VersionType != 0x11 ) {
+						LogError("Unsupported ppp Version/Type: 0x%x", VersionType);
+						packetParam->proc_stat.skipped++;
+						goto END_FUNC;
+					}
+					if ( Code != 0 ) {
+						// skip packets other than session data
+						packetParam->proc_stat.skipped++;
+						goto END_FUNC;
+					}
+					if ( pppProto != 0x0021 /* v4 */ && pppProto != 0x0057 /* v6 */ ) {
+						LogError("Unsupported ppp proto: 0x%x", pppProto);
+						packetParam->proc_stat.skipped++;
+						goto END_FUNC;
+					}
+					dataptr += 8;
+				} break;
+				case 0x8863: {
+					// skip PPPoE discovery messages
+					packetParam->proc_stat.skipped++;
+					goto END_FUNC;
+				} break;
 				default:
 					// int	IEEE802 = ethertype <= 1500;
+					LogError("Unsupported ethertype: 0x%x", ethertype);
 					packetParam->proc_stat.skipped++;
 					goto END_FUNC;
 			}
@@ -625,7 +664,7 @@ static unsigned pkg_cnt = 0;
 			inet_ntop(AF_INET6, &ip6->ip6_src, s1, sizeof(s1)),
 			inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)));
 
-		Node = New_Node();
+		if ( !Node ) Node = New_Node();
 		Node->version		  = AF_INET6;
 		Node->t_first.tv_sec  = hdr->ts.tv_sec;
 		Node->t_first.tv_usec = hdr->ts.tv_usec;
@@ -679,7 +718,7 @@ static unsigned pkg_cnt = 0;
 			Node->payloadSize = 0;
 		} else {
 
-			Node = New_Node();
+			if ( !Node ) Node = New_Node();
 			Node->version		  = AF_INET;
 			Node->t_first.tv_sec  = hdr->ts.tv_sec;
 			Node->t_first.tv_usec = hdr->ts.tv_usec;
@@ -872,19 +911,55 @@ static unsigned pkg_cnt = 0;
 			} break;
 		case IPPROTO_GRE: {
 			gre_hdr_t *gre_hdr = (gre_hdr_t *)dataptr;
-			uint32_t gre_hdr_size = sizeof(gre_hdr_t); // offset points to end of inner IP
-			dataptr	 += gre_hdr_size;
+			ethertype = ntohs(gre_hdr->type);
+			dbg_printf("  GRE proto encapsulation: type: 0x%x\n", ethertype);
 
-			if ( (dataptr + gre_hdr_size) > eodata ) {
-				dbg_printf("  GRE tunnel Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
+			int optionSize = 0;
+			uint16_t gre_flags = ntohs(gre_hdr->flags);
+			uint16_t version = gre_flags & 0x7;
+
+			if ( version == 0 ) {
+				// XXX checksum, routing options not evaluated gre tunnel
+				dataptr	 += sizeof(gre_hdr_t);
+			} else if ( version == 1 ) {
+				uint16_t proto = ntohs(gre_hdr->type);
+				uint16_t callID = ntohs(*((uint16_t *)(dataptr +6)));
+				Node->dst_port = callID;
+				if ( proto != 0x880b ) {
+					LogError("Unexpected protocol in LLTP GRE header: 0x%x", proto);
+					packetParam->proc_stat.short_snap++;
+					Free_Node(Node);
+					goto END_FUNC;
+				}
+				// pptp - vpn
+				dataptr	 += sizeof(gre_hdr_t);
+				// 2 bytes key paload length, 2 byte call ID
+				optionSize += 4;
+				if ( gre_flags & 0x1000 ) // Sequence supplied
+					optionSize += 4;
+				if ( gre_flags & 0x80 ) // Ack number present ?
+					optionSize += 4;
+				dataptr	 += optionSize;
+
+				payloadSize = (ptrdiff_t)(eodata - dataptr);
+				if (payloadSize > 0 )
+					payload = (void *)dataptr;
+
+				ProcessOtherFlow(packetParam, Node, payload, payloadSize);
+				goto END_FUNC;
+			} else 	{
+				dbg_printf("  GRE version error: %u\n", version);
 				packetParam->proc_stat.short_snap++;
 				Free_Node(Node);
 				goto END_FUNC;
 			}
-			
-			dbg_printf("  GRE proto encapsulation: type: 0x%x\n", ethertype);
-			ethertype = ntohs(gre_hdr->type);
 
+			if ( dataptr > eodata ) {
+				dbg_printf("  GRE tunnel Short packet: %u\n", hdr->caplen);
+				packetParam->proc_stat.short_snap++;
+				Free_Node(Node);
+				goto END_FUNC;
+			}
 			// move IP to tun IP
 			Node->tun_src_addr = Node->src_addr;
 			Node->tun_dst_addr = Node->dst_addr;

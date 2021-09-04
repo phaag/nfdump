@@ -71,6 +71,19 @@ FlowSource_t *fs = flowParam->fs;
 
 	dbg_printf("Store Flow node\n");
 	
+	if ( Node->tun_proto ) {
+		struct FlowNode n = *Node;
+		n.proto = Node->tun_proto;
+		n.src_addr = Node->tun_src_addr;
+		n.dst_addr = Node->tun_dst_addr;
+		n.tun_proto = 0;
+		n.src_port = 0;
+		n.dst_port = 0;
+		n.bytes = 0;
+		n.packets = 0;
+		StorePcapFlow(flowParam, &n);
+	}
+
 	// output buffer size check for all expected records
 	uint32_t recordSize = 0;
 	do {

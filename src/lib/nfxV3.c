@@ -426,9 +426,8 @@ static int nestLevel = 0;
 				memcpy(out, inBuff, copyLen);
 			}
 		} else {
-			uint64_t v;		// up to 8 bytes
-			uint64_t vv[2];	// 16 bytes
-			v = 0;
+			uint64_t v	   = 0;		// up to 8 bytes
+			uint64_t vv[2] = {0};	// 16 bytes
 			memset(vv, 0, sizeof(vv));
 			switch (inLength) {
 				case 1:
