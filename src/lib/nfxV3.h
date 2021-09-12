@@ -1,31 +1,31 @@
 /*
  *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
- *  
- *  Redistribution and use in source and binary forms, with or without 
+ *
+ *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
- *  
- *   * Redistributions of source code must retain the above copyright notice, 
+ *
+ *   * Redistributions of source code must retain the above copyright notice,
  *     this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above copyright notice, 
- *     this list of conditions and the following disclaimer in the documentation 
+ *   * Redistributions in binary form must reproduce the above copyright notice,
+ *     this list of conditions and the following disclaimer in the documentation
  *     and/or other materials provided with the distribution.
- *   * Neither the name of the author nor the names of its contributors may be 
- *     used to endorse or promote products derived from this software without 
+ *   * Neither the name of the author nor the names of its contributors may be
+ *     used to endorse or promote products derived from this software without
  *     specific prior written permission.
- *  
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
- *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
- *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
- *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
- *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
- *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
- *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
- *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
- *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
- *  
+ *
  */
 
 #ifndef _NFXV3_H
@@ -40,7 +40,7 @@
 /*
  * V3 extension format
  * ===================
- * 
+ *
  * The goal of the V3 extension format:
  *  - simpler and more robust storage format.
  *  - independant of extension records. No specific ordering required.
@@ -84,7 +84,7 @@ typedef struct elementHeader_s {
 	uint16_t	length;
 } __attribute__((__packed__ )) elementHeader_t;
 
-// Identifier for new V3Record 
+// Identifier for new V3Record
 #define V3Record	11
 
 /*
@@ -404,8 +404,8 @@ typedef struct EXnselXlateIPv4_s {
 
 typedef struct EXnselXlateIPv6_s {
 #define EXnselXlateIPv6ID 21
-	uint64_t	xlateSrcAddr[2]; // NF_F_XLATE_SRC_ADDR_IPV6(281), 
-	uint64_t	xlateDstAddr[2]; // NF_F_XLATE_DST_ADDR_IPV6(282), 
+	uint64_t	xlateSrcAddr[2]; // NF_F_XLATE_SRC_ADDR_IPV6(281),
+	uint64_t	xlateDstAddr[2]; // NF_F_XLATE_DST_ADDR_IPV6(282),
 #define OFFxlateSrc6Addr offsetof(EXnselXlateIPv6_t, xlateSrcAddr)
 #define SIZExlateSrc6Addr MemberSize(EXnselXlateIPv6_t, xlateSrcAddr)
 #define OFFxlateDst6Addr offsetof(EXnselXlateIPv6_t, xlateDstAddr)
@@ -437,7 +437,7 @@ typedef struct EXnselAcl_s {
 
 typedef struct EXnselUser_s {
 #define EXnselUserID 24
-	char	 username[66]; // NF_F_USERNAME(40000), 
+	char	 username[66]; // NF_F_USERNAME(40000),
 	uint16_t fill2;
 #define OFFusername offsetof(EXnselUser_t, username)
 #define SIZEusername MemberSize(EXnselUser_t, username)
@@ -503,8 +503,34 @@ typedef struct EXnbarApp_s {
 #define EXoutPayloadID 30
 #define EXoutPayloadSize sizeof(elementHeader_t)
 
+typedef struct EXtunIPv4_s {
+#define EXtunIPv4ID 31
+	uint32_t	tunSrcAddr;
+	uint32_t	tunDstAddr;
+	uint32_t	tunProto;
+#define OFFtunSrc4Addr offsetof(EXtunIPv4_t, tunSrcAddr)
+#define SIZEtunSrc4Addr MemberSize(EXtunIPv4_t, tunSrcAddr)
+#define OFFtunDst4Addr offsetof(EXtunIPv4_t, tunDstAddr)
+#define SIZEtunDst4Addr MemberSize(EXtunIPv4_t, tunDstAddr)
+#define OFFtunProto offsetof(EXtunIPv4_t, tunProto)
+#define SIZEtunProto MemberSize(EXtunIPv4_t, tunProto)
+} EXtunIPv4_t;
+#define EXtunIPv4Size (sizeof(EXtunIPv4_t) + sizeof(elementHeader_t))
+
+typedef struct EXtunIPv6_s {
+#define EXtunIPv6ID 31
+	uint64_t	tunSrcAddr[2];
+	uint64_t	tunDstAddr[2];
+	uint32_t	tunProto;
+#define OFFtunSrc6Addr offsetof(EXtunIPv6_t, tunSrcAddr)
+#define SIZEtunSrc6Addr MemberSize(EXtunIPv6_t, tunSrcAddr)
+#define OFFtunDst6Addr offsetof(EXtunIPv6_t, tunDstAddr)
+#define SIZEtunDst6Addr MemberSize(EXtunIPv6_t, tunDstAddr)
+} EXtunIPv6_t;
+#define EXtunIPv6Size (sizeof(EXtunIPv6_t) + sizeof(elementHeader_t))
+
 // max possible elements
-#define MAXELEMENTS 31
+#define MAXELEMENTS 33
 
 #define PushExtension(h, x, v) { \
 	elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
@@ -515,7 +541,7 @@ typedef struct EXnbarApp_s {
 	memset(v, 0, sizeof(x ## _t)); \
 	h->numElements++; \
 	h->size += sizeof(x ## _t);
-	
+
 #define PushVarLengthExtension(h, x, v, s) { \
 	elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
 	elementHeader->type = x ## ID; \
@@ -525,7 +551,7 @@ typedef struct EXnbarApp_s {
 	memset(v, 0, s); \
 	h->numElements++; \
 	h->size += s;
-	
+
 #define PushVarLengthPointer(h, x, v, s) { \
 	elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
 	elementHeader->type = x ## ID; \
@@ -535,8 +561,8 @@ typedef struct EXnbarApp_s {
 	memset(v, 0, s); \
 	h->numElements++; \
 	h->size += s;
-	
-#define EXTENSION(s) { s ## ID, s ## Size, #s} 
+
+#define EXTENSION(s) { s ## ID, s ## Size, #s}
 
 static const struct extensionTable_s {
     uint32_t    id;         // id number
@@ -573,8 +599,15 @@ static const struct extensionTable_s {
 	EXTENSION(EXnbarApp),
 	EXTENSION(EXlabel),
 	EXTENSION(EXinPayload),
-	EXTENSION(EXoutPayload)
+	EXTENSION(EXoutPayload),
+	EXTENSION(EXtunIPv4),
+	EXTENSION(EXtunIPv6)
 };
+
+typedef struct record_map_s {
+	recordHeaderV3_t *recordHeader;
+	void			 *offsetMap[MAXELEMENTS];
+} record_map_t;
 
 typedef struct sequence_s {
 	uint16_t		inputType;

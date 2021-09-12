@@ -116,6 +116,21 @@ static inline metric_record_t *GetMetric(uint32_t exporterID) {
 
 } // End of GetMetric
 
+static inline void CalculateRates(metric_record_t *metric_record, time_t interval) {
+	metric_record->numflows_tcp		/= interval;
+	metric_record->numflows_udp		/= interval;
+	metric_record->numflows_icmp	/= interval;
+	metric_record->numflows_other	/= interval;
+	metric_record->numbytes_tcp		/= interval;
+	metric_record->numbytes_udp		/= interval;
+	metric_record->numbytes_icmp	/= interval;
+	metric_record->numbytes_other	/= interval;
+	metric_record->numpackets_tcp	/= interval;
+	metric_record->numpackets_udp	/= interval;
+	metric_record->numpackets_icmp	/= interval;
+	metric_record->numpackets_other	/= interval;
+} // End of CalculateRates
+
 int OpenMetric(char *path, char *ident) {
 
 	socket_path = path;
@@ -246,8 +261,9 @@ __attribute__((noreturn)) void* MetricThread(void *arg) {
 	// number of allocated metric records in message
 	uint32_t cnt = 1;
 
+	time_t interval = 60;
 	while (1) {
-		sleep(5);
+		sleep(interval);
 		struct timeval te; 
 		gettimeofday(&te, NULL);
 		uint64_t now = te.tv_sec*1000LL + te.tv_usec/1000;
@@ -287,10 +303,15 @@ __attribute__((noreturn)) void* MetricThread(void *arg) {
 			size_t offset = sizeof(message_header_t);
 			while ( metric_chain ) {
 				metric_record_t *metric_record = metric_chain->record;
+				CalculateRates(metric_record, interval);
 
 				dbg_printf("Copy metric\n");
 				// compose message
 				memcpy(message + offset, (void *)metric_record, sizeof(metric_record_t));
+				uint64_t exporterID = metric_record->exporterID;
+				memset((void *)metric_record, 0, sizeof(metric_record_t));
+				metric_record->exporterID = exporterID;
+
 				offset += sizeof(metric_record_t);
 
 				metric_chain = metric_chain->next;
