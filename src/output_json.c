@@ -385,6 +385,42 @@ static void String_ja3(FILE *stream, master_record_t *r) {
 
 } // End of String_ja3
 
+static void stringEXtunIPv4(FILE *stream, master_record_t *r) {
+char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+
+	uint32_t src = htonl(r->tun_src_ip.V4);
+	uint32_t dst = htonl(r->tun_dst_ip.V4);
+	inet_ntop(AF_INET, &src, as, sizeof(as));
+	inet_ntop(AF_INET, &dst, ds, sizeof(ds));
+
+	fprintf(stream,
+"	\"tun proto\" : %u,\n"
+"	\"src4_tun_ip\" : \"%s\",\n"
+"	\"dst4_tun_ip\" : \"%s\",\n"
+	, r->tun_proto, as, ds);
+
+} // End of stringEXtunIPv4
+
+static void stringEXtunIPv6(FILE *stream, master_record_t *r) {
+char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+uint64_t src[2];
+uint64_t dst[2];
+
+	src[0] = htonll(r->tun_src_ip.V6[0]);
+	src[1] = htonll(r->tun_src_ip.V6[1]);
+	dst[0] = htonll(r->tun_dst_ip.V6[0]);
+	dst[1] = htonll(r->tun_dst_ip.V6[1]);
+	inet_ntop(AF_INET6, &src, as, sizeof(as));
+	inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
+
+	fprintf(stream,
+"	\"tun proto\" : %u,\n"
+"	\"src6_tun_ip\" : \"%s\",\n"
+"	\"dst6_tun_ip\" : \"%s\",\n"
+	, r->tun_proto, as, ds);
+
+} // End of stringEXtunIPv6
+
 #ifdef NSEL
 static void stringsEXnselCommon(FILE *stream, master_record_t *r) {
 char datestr[64];
@@ -631,6 +667,12 @@ master_record_t *r = (master_record_t *)record;
 				break;
 			case EXoutPayloadID:
 				String_ja3(stream, r);
+				break;
+			case EXtunIPv4ID:
+				stringEXtunIPv4(stream, r);
+				break;
+			case EXtunIPv6ID:
+				stringEXtunIPv6(stream, r);
 				break;
 #ifdef NSEL
 			case EXnselCommonID:

@@ -77,6 +77,7 @@ struct FlowNode {
 	ip_addr_t	tun_src_addr;
 	ip_addr_t	tun_dst_addr;
 	uint8_t		tun_proto;
+	uint8_t		tun_ip_version;
 
 #define NODE_FREE	0xA5
 #define NODE_IN_USE	0x5A

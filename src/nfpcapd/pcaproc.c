@@ -881,6 +881,7 @@ static unsigned pkg_cnt = 0;
 			Node->tun_src_addr = Node->src_addr;
 			Node->tun_dst_addr = Node->dst_addr;
 			Node->tun_proto	= IPPROTO_IPIP;
+			Node->tun_ip_version = Node->version;
 
 			dbg_printf("  IPIPv6 tunnel - inner IPv6:\n");
 
@@ -902,6 +903,7 @@ static unsigned pkg_cnt = 0;
 			Node->tun_src_addr = Node->src_addr;
 			Node->tun_dst_addr = Node->dst_addr;
 			Node->tun_proto	= IPPROTO_IPIP;
+			Node->tun_ip_version = Node->version;
 
 			dbg_printf("  IPIP tunnel - inner IP:\n");
 
@@ -964,7 +966,7 @@ static unsigned pkg_cnt = 0;
 			Node->tun_src_addr = Node->src_addr;
 			Node->tun_dst_addr = Node->dst_addr;
 			Node->tun_proto	= IPPROTO_GRE;
-
+			Node->tun_ip_version = Node->version;
 			// redo IP proto evaluation
 			goto REDO_LINK;
 

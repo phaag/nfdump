@@ -453,6 +453,21 @@ int Getv6Mode(void) {
 void format_special(FILE *stream, void *record, int tag) {
 master_record_t *r 		  = (master_record_t *)record;
 
+	// if this flow is a tunnel, add a flow line with the tunnel IPs
+	if ( r->tun_ip_version ) {
+		master_record_t _r = {0};
+		_r.proto = r->tun_proto;
+		_r.V6.srcaddr[0] = r->tun_src_ip.V6[0];
+		_r.V6.srcaddr[1] = r->tun_src_ip.V6[1];
+		_r.V6.dstaddr[0] = r->tun_dst_ip.V6[0];
+		_r.V6.dstaddr[1] = r->tun_dst_ip.V6[1];
+		_r.msecFirst  = r->msecFirst;
+		_r.msecLast   = r->msecLast;
+		if ( r->tun_ip_version == 6 )
+			_r.mflags = V3_FLAG_IPV6_ADDR;
+		format_special(stream, (void *)&_r, tag);
+	}
+
 	do_tag		  = tag;
 	tag_string[0] = do_tag ? TAG_CHAR : '\0';
 	tag_string[1] = '\0';

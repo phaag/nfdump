@@ -518,7 +518,7 @@ typedef struct EXtunIPv4_s {
 #define EXtunIPv4Size (sizeof(EXtunIPv4_t) + sizeof(elementHeader_t))
 
 typedef struct EXtunIPv6_s {
-#define EXtunIPv6ID 31
+#define EXtunIPv6ID 32
 	uint64_t	tunSrcAddr[2];
 	uint64_t	tunDstAddr[2];
 	uint32_t	tunProto;

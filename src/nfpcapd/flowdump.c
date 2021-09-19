@@ -71,18 +71,6 @@ FlowSource_t *fs = flowParam->fs;
 
 	dbg_printf("Store Flow node\n");
 	
-	if ( Node->tun_proto ) {
-		struct FlowNode n = *Node;
-		n.proto = Node->tun_proto;
-		n.src_addr = Node->tun_src_addr;
-		n.dst_addr = Node->tun_dst_addr;
-		n.tun_proto = 0;
-		n.src_port = 0;
-		n.dst_port = 0;
-		n.bytes = 0;
-		n.packets = 0;
-		StorePcapFlow(flowParam, &n);
-	}
 
 	// output buffer size check for all expected records
 	uint32_t recordSize = 0;
@@ -174,6 +162,22 @@ FlowSource_t *fs = flowParam->fs;
 				PushVarLengthPointer(recordHeader, EXinPayload, inPayload, Node->payloadSize);
 				memcpy(inPayload, Node->payload, Node->payloadSize);
 			}
+		}
+
+		if ( Node->tun_ip_version == AF_INET) {
+			UpdateRecordSize(EXtunIPv4Size);
+			PushExtension(recordHeader, EXtunIPv4, tunIPv4);
+			tunIPv4->tunSrcAddr = Node->tun_src_addr.v4;
+			tunIPv4->tunDstAddr = Node->tun_dst_addr.v4;
+			tunIPv4->tunProto   = Node->tun_proto;
+		} else if ( Node->tun_ip_version == AF_INET6) {
+			UpdateRecordSize(EXtunIPv6Size);
+			PushExtension(recordHeader, EXtunIPv6, tunIPv6);
+			tunIPv6->tunSrcAddr[0] = Node->tun_src_addr.v6[0];
+			tunIPv6->tunSrcAddr[1] = Node->tun_src_addr.v6[1];
+			tunIPv6->tunDstAddr[0] = Node->tun_dst_addr.v6[0];
+			tunIPv6->tunDstAddr[1] = Node->tun_dst_addr.v6[1];
+			tunIPv6->tunProto   = Node->tun_proto;
 		}
 
 		// update first_seen, last_seen

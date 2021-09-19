@@ -139,7 +139,7 @@ static char *protoList[NumProtos] = {
 	"LARP",   // 91	Locus Address Resolution Protocol
 	"MTP",    // 92	Multicast Transport Protocol
 	"AX.25",  // 93	AX.25 Frames
-	"IPIP",	  // 94	IP-within-IP Encapsulation Protocol
+	"OS",	  // 94	KA9Q NOS compatible IP over IP tunneling
 	"MICP",   // 95	Mobile Internetworking Control Protocol
 	"SCCSP",  // 96	Semaphore Communications Sec. Protocol
 	"ETHIP",  // 97	Ethernet-within-IP Encapsulation

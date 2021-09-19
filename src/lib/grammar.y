@@ -132,7 +132,7 @@ char yyerror_buff[256];
 	void			*list;
 }
 
-%token ANY IP IF MAC MPLS TOS DIR FLAGS PROTO MASK NET PORT FWDSTAT IN OUT SRC DST EQ LT GT LE GE PREV NEXT
+%token ANY IP TUNIP IF MAC MPLS TOS DIR FLAGS TUN PROTO MASK NET PORT FWDSTAT IN OUT SRC DST EQ LT GT LE GE PREV NEXT
 %token IDENT ENGINE_TYPE ENGINE_ID AS GEO PACKETS BYTES FLOWS NFVERSION
 %token PPS BPS BPP DURATION NOT 
 %token IPV4 IPV6 BGPNEXTHOP ROUTER VLAN
@@ -212,6 +212,38 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		}
 		$$.self = NewBlock(OffsetProto, MaskProto, (proto << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL); 
 	}
+
+	| TUN PROTO NUMBER { 
+		int64_t	proto;
+		proto = $3;
+
+		if ( proto > 255 ) {
+			yyerror("Tunnel protocol number > 255");
+			YYABORT;
+		}
+		if ( proto < 0 ) {
+			yyerror("Unknown tunnel protocol");
+			YYABORT;
+		}
+		$$.self = NewBlock(OffsetTUNPROTO, MaskTUNPROTO, (proto << ShiftTUNPROTO)  & MaskTUNPROTO, CMP_EQ, FUNC_NONE, NULL); 
+
+	}
+
+	| TUN PROTO STRING { 
+		int64_t	proto;
+		proto = ProtoNum($3);
+
+		if ( proto > 255 ) {
+			yyerror("Tunnel protocol number > 255");
+			YYABORT;
+		}
+		if ( proto < 0 ) {
+			yyerror("Unknown tunnel protocol");
+			YYABORT;
+		}
+		$$.self = NewBlock(OffsetTUNPROTO, MaskTUNPROTO, (proto << ShiftTUNPROTO)  & MaskTUNPROTO, CMP_EQ, FUNC_NONE, NULL); 
+	}
+
 
 	| dqual PACKETS comp NUMBER { 
 
@@ -378,6 +410,52 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			$$.self = Invert(NewBlock(OffsetProto, 0, 0, CMP_EQ, FUNC_NONE, NULL )); 
 		} else {
 			uint64_t offsets[4] = {OffsetSrcIPv6a, OffsetSrcIPv6b, OffsetDstIPv6a, OffsetDstIPv6b };
+			if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
+				yyerror("incomplete IP address");
+				YYABORT;
+			}
+
+			switch ( $1.direction ) {
+				case SOURCE:
+				case DESTINATION:
+					$$.self = ChainHosts(offsets, IPstack, num_ip, $1.direction);
+					break;
+				case DIR_UNSPEC:
+				case SOURCE_OR_DESTINATION: {
+					uint32_t src = ChainHosts(offsets, IPstack, num_ip, SOURCE);
+					uint32_t dst = ChainHosts(offsets, IPstack, num_ip, DESTINATION);
+					$$.self = Connect_OR(src, dst);
+					} break;
+				case SOURCE_AND_DESTINATION: {
+					uint32_t src = ChainHosts(offsets, IPstack, num_ip, SOURCE);
+					uint32_t dst = ChainHosts(offsets, IPstack, num_ip, DESTINATION);
+					$$.self = Connect_AND(src, dst);
+					} break;
+				default:
+					yyerror("This token is not expected here!");
+					YYABORT;
+	
+			} // End of switch
+
+		}
+	}
+
+	| dqual TUNIP STRING { 	
+		int af, bytes, ret;
+
+		ret = parse_ip(&af, $3, IPstack, &bytes, ALLOW_LOOKUP, &num_ip);
+
+		if ( ret == 0 ) {
+			yyerror("Error parsing IP address.");
+			YYABORT;
+		}
+
+		// ret == -1 will never happen here, as ALLOW_LOOKUP is set
+		if ( ret == -2 ) {
+			// could not resolv host => 'not any'
+			$$.self = Invert(NewBlock(OffsetProto, 0, 0, CMP_EQ, FUNC_NONE, NULL )); 
+		} else {
+			uint64_t offsets[4] = {OffsetTUNSRCIP, OffsetTUNSRCIP+1, OffsetTUNDSTIP, OffsetTUNDSTIP+1 };
 			if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
 				yyerror("incomplete IP address");
 				YYABORT;

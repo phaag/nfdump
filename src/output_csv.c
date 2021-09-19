@@ -72,6 +72,19 @@ time_t		when;
 struct tm 	*ts;
 master_record_t *r = (master_record_t *)record;
 
+	// if this flow is a tunnel, add a flow line with the tunnel IPs
+	if ( r->tun_ip_version ) {
+		master_record_t _r = {0};
+		_r.proto = r->tun_proto;
+		memcpy((void *)_r.tun_src_ip.V6, r->tun_src_ip.V6, 16);
+		memcpy((void *)_r.tun_dst_ip.V6, r->tun_dst_ip.V6, 16);
+		_r.msecFirst  = r->msecFirst;
+		_r.msecLast   = r->msecLast;
+		if ( r->tun_ip_version == 6 )
+			_r.mflags = V3_FLAG_IPV6_ADDR;
+		flow_record_to_csv(stream, (void *)&_r, tag);
+	}
+
 	as[0] = 0;
 	ds[0] = 0;
 	if ( TestFlag(r->mflags,V3_FLAG_IPV6_ADDR ) != 0 ) {

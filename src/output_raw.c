@@ -124,10 +124,57 @@ char datestr1[64], datestr2[64], datestr3[64];
 
 } // End of EXgenericFlowID
 
+static void stringEXtunIPv4(FILE *stream, master_record_t *r) {
+char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+char sloc[128], dloc[128];
+
+	uint32_t src = htonl(r->tun_src_ip.V4);
+	uint32_t dst = htonl(r->tun_dst_ip.V4);
+	inet_ntop(AF_INET, &src, as, sizeof(as));
+	inet_ntop(AF_INET, &dst, ds, sizeof(ds));
+
+	LookupLocation(r->tun_src_ip.V6, sloc, 128);
+	LookupLocation(r->tun_dst_ip.V6, dloc, 128);
+	fprintf(stream,
+"  tun proto    =               %3u %s\n"
+"  tun src addr =  %16s%s%s\n"
+"  tun dst addr =  %16s%s%s\n"
+	, r->tun_proto, ProtoString(r->tun_proto, 0)
+	, as, strlen(sloc) ? ": " : "", sloc
+	, ds, strlen(dloc) ? ": " : "", dloc);
+
+} // End of stringEXtunIPv4
+
+static void stringEXtunIPv6(FILE *stream, master_record_t *r) {
+char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+uint64_t src[2], dst[2];
+char sloc[128], dloc[128];
+
+	src[0] = htonll(r->tun_src_ip.V6[0]);
+	src[1] = htonll(r->tun_src_ip.V6[1]);
+	dst[0] = htonll(r->tun_dst_ip.V6[0]);
+	dst[1] = htonll(r->tun_dst_ip.V6[1]);
+	inet_ntop(AF_INET6, &src, as, sizeof(as));
+	inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
+
+	LookupLocation(r->tun_src_ip.V6, sloc, 128);
+	LookupLocation(r->tun_dst_ip.V6, dloc, 128);
+	fprintf(stream,
+"  tun proto    =               %3u %s\n"
+"  tun src addr =  %16s%s%s\n"
+"  tun dst addr =  %16s%s%s\n"
+	, r->tun_proto, ProtoString(r->tun_proto, 0)
+	, as, strlen(sloc) ? ": " : "", sloc
+	, ds, strlen(dloc) ? ": " : "", dloc);
+
+} // End of stringEXtunIPv6
 
 static void stringsEXipv4Flow(FILE *stream, master_record_t *r) {
 char as[IP_STRING_LEN], ds[IP_STRING_LEN];
 char sloc[128], dloc[128];
+
+	if ( r->tun_ip_version == 4 ) stringEXtunIPv4(stream, r);
+	else if ( r->tun_ip_version == 6 ) stringEXtunIPv6(stream, r);
 
 	uint32_t src = htonl(r->V4.srcaddr);
 	uint32_t dst = htonl(r->V4.dstaddr);
@@ -149,6 +196,9 @@ char as[IP_STRING_LEN], ds[IP_STRING_LEN];
 uint64_t src[2], dst[2];
 char sloc[128], dloc[128];
 
+	if ( r->tun_ip_version == 4 ) stringEXtunIPv4(stream, r);
+	else if ( r->tun_ip_version == 6 ) stringEXtunIPv6(stream, r);
+
 	src[0] = htonll(r->V6.srcaddr[0]);
 	src[1] = htonll(r->V6.srcaddr[1]);
 	dst[0] = htonll(r->V6.dstaddr[0]);
@@ -165,6 +215,7 @@ char sloc[128], dloc[128];
 	, ds, strlen(dloc) ? ": " : "", dloc);
 
 } // End of stringsEXipv6Flow
+
 
 static void stringsEXflowMisc(FILE *stream, master_record_t *r) {
 char snet[IP_STRING_LEN], dnet[IP_STRING_LEN];
@@ -730,6 +781,10 @@ char elementString[MAXELEMENTS * 5];
 				break;
 			case EXoutPayloadID:
 				stringsEXoutPayload(stream, r);
+				break;
+			case EXtunIPv4ID:
+				break;
+			case EXtunIPv6ID:
 				break;
 			default:
 				dbg_printf("Extension %i not decoded\n", r->exElementList[i]);

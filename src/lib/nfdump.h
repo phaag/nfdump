@@ -540,6 +540,28 @@ typedef struct master_record_s {
 #   define MaskLatency          0xFFFFFFFFFFFFFFFFLL
 #   define ShiftLatency         0
 
+	ip_addr_t	tun_src_ip;		// ipv4  OffsetTUNSRCIP +1	0x0000'0000'ffff'ffff
+								// ipv6	 OffsetTUNSRCIP		0xffff'ffff'ffff'ffff
+								// ipv6	 OffsetTUNSRCIP		0xffff'ffff'ffff'ffff
+
+	ip_addr_t	tun_dst_ip;		// ipv4  OffsetTUNDSTIP +1	0x0000'0000'ffff'ffff
+								// ipv6	 OffsetTUNDSTIP		0xffff'ffff'ffff'ffff
+								// ipv6	 OffsetTUNDSTIP		0xffff'ffff'ffff'ffff
+#define OffsetTUNSRCIP     (offsetof(master_record_t, tun_src_ip) >> 3)
+#define OffsetTUNDSTIP     (offsetof(master_record_t, tun_dst_ip) >> 3)
+
+	uint32_t	tun_ip_version;	
+	uint32_t	tun_proto;
+#define OffsetTUNPROTO     (offsetof(master_record_t, tun_proto) >> 3)
+#ifdef WORDS_BIGENDIAN
+#	define MaskTUNPROTO		0x00000000FFFFFFFFLL
+#	define ShiftTUNPROTO	0
+
+#else
+#	define MaskTUNPROTO		0xFFFFFFFF00000000LL
+#	define ShiftTUNPROTO	32
+#endif
+
 	// NSEL extensions
 #ifdef NSEL 
 #define NSEL_BASE_OFFSET     (offsetof(master_record_t, connID) >> 3)

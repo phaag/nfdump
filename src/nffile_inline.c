@@ -331,6 +331,24 @@ uint32_t size = sizeof(recordHeaderV3_t);
 					memcpy(output_record->outPayload, data, dataLength);
 				}
 			} break;
+			case EXtunIPv4ID: {
+				EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				output_record->tun_src_ip.V6[0] = 0;
+				output_record->tun_src_ip.V6[1] = 0;
+				output_record->tun_dst_ip.V6[0] = 0;
+				output_record->tun_dst_ip.V6[1] = 0;
+				output_record->tun_src_ip.V4	= tunIPv4->tunSrcAddr;
+				output_record->tun_dst_ip.V4	= tunIPv4->tunDstAddr;
+				output_record->tun_ip_version	= 4;
+				output_record->tun_proto		= tunIPv4->tunProto;
+			} break;
+			case EXtunIPv6ID: {
+				EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)((void *)elementHeader + sizeof(elementHeader_t));
+				memcpy(output_record->tun_src_ip.V6, &(tunIPv6->tunSrcAddr), 16);
+				memcpy(output_record->tun_dst_ip.V6, &(tunIPv6->tunDstAddr), 16);
+				output_record->tun_ip_version	= 6;
+				output_record->tun_proto		= tunIPv6->tunProto;
+			} break;
 			default:
 				LogError("Unknown extension '%u'\n", elementHeader->type);
 		//		skip = 1;

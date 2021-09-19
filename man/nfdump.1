@@ -881,10 +881,15 @@ include the content of \fI<file>\fR into filter.
 .br 
 \fBproto <number>\fR 
 .br
+\fBtun proto <protocol>\fR 
+.br 
+\fBtun proto <number>\fR 
+.br
 where \fB<protocol>\fR is known protocol such as 
 \fBtcp\fR, \fBudp\fR, \fBicmp\fR, \fBicmp6\fR, \fBgre\fR, 
 \fBesp\fR, \fBah\fR, etc. or a valid protocol number: 
-\fB6\fR, \fB17\fR etc.
+\fB6\fR, \fB17\fR etc. I case of tunnel flows add
+\fBtun\fR to match the outer tunnel protocol. 
 .TP 4
 .I IP address
 .RS 4
@@ -892,10 +897,13 @@ where \fB<protocol>\fR is known protocol such as
 .br
 \fB[src|dst] host <ipaddr>\fR 
 .br
+\fB[src|dst] tunip <ipaddr>\fR
+.br
 with \fI<ipaddr>\fR as any valid IPv4, IPv6 address, or a fully qualified
 hostname.  In case of a hostname, the IP address is looked up in DNS. 
 If more than a single IP address is found, all IP addresses are chained 
-together. \fB(ip1 or ip2 or ip3 ... )\fR
+together. \fB(ip1 or ip2 or ip3 ... )\fR For tunnel flows use 
+\fBtunip\fR to match the outer tunnel IP.
 .P
 To check if an IP address is in a known IP list, use
 .br

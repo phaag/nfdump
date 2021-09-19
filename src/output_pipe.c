@@ -64,6 +64,19 @@ uint32_t	sa[4], da[4];
 int			af;
 master_record_t *r = (master_record_t *)record;
 
+	// if this flow is a tunnel, add a flow line with the tunnel IPs
+	if ( r->tun_ip_version ) {
+		master_record_t _r = {0};
+		_r.proto = r->tun_proto;
+		memcpy((void *)_r.tun_src_ip.V6, r->tun_src_ip.V6, 16);
+		memcpy((void *)_r.tun_dst_ip.V6, r->tun_dst_ip.V6, 16);
+		_r.msecFirst  = r->msecFirst;
+		_r.msecLast   = r->msecLast;
+		if ( r->tun_ip_version == 6 )
+			_r.mflags = V3_FLAG_IPV6_ADDR;
+		flow_record_to_pipe(stream, (void *)&_r, tag);
+	}
+
 	if ( TestFlag(r->mflags, V3_FLAG_IPV6_ADDR ) != 0 ) {
 		af = PF_INET6;
 	} else {	// IPv4

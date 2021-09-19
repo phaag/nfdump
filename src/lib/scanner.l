@@ -132,6 +132,7 @@ H				(0X|0x)[0-9A-Fa-f]+
 
 any				{ return ANY; }
 ip|host			{ return IP; }
+tunip			{ return TUNIP; }
 if				{ return IF; }
 mac				{ return MAC; }
 mpls			{ return MPLS; }
@@ -142,6 +143,7 @@ out				{ return OUT; }
 flags			{ return FLAGS; }
 nfversion		{ return NFVERSION; }
 proto			{ return PROTO; }
+tun				{ return TUN; }
 tos				{ return TOS; }
 dir				{ return DIR; }
 flowdir			{ return DIR; }

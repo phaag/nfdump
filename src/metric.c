@@ -262,12 +262,13 @@ __attribute__((noreturn)) void* MetricThread(void *arg) {
 	uint32_t cnt = 1;
 
 	time_t interval = 60;
+	time_t sleepTime = interval - (time(NULL) % interval);
 	while (1) {
-		sleep(interval);
+		sleep(sleepTime);
 		struct timeval te; 
 		gettimeofday(&te, NULL);
 		uint64_t now = te.tv_sec*1000LL + te.tv_usec/1000;
-
+		
 		// check for end condition
 		uint64_t _tstart = atomic_load(&tstart);
 		if (_tstart == 0)
@@ -275,6 +276,7 @@ __attribute__((noreturn)) void* MetricThread(void *arg) {
 
 		if ( numMetrics == 0 ) {
 			dbg_printf("No metric available\n");
+			sleepTime = interval - (time(NULL) % interval);
 			continue;
 		}
 
@@ -325,6 +327,7 @@ __attribute__((noreturn)) void* MetricThread(void *arg) {
 			dbg_printf("Message sent\n");
 		}
 		pthread_mutex_unlock(&mutex);
+		sleepTime = interval - (te.tv_sec % interval);
 	}
 	free(message);
 	pthread_exit(NULL);

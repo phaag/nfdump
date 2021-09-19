@@ -923,6 +923,50 @@ value64_t	v;
 	ret = check_filter_block("payload ja3 123456789abcdef0123456789abcdef0", &flow_record, 1);
 	ret = check_filter_block("payload ja3 123456789abcdef0123456789abcdef1", &flow_record, 0);
 	ret = check_filter_block("payload ja3 023456789abcdef0123456789abcdef0", &flow_record, 0);
+
+	flow_record.tun_src_ip.V6[0] = 0;
+	flow_record.tun_src_ip.V6[1] = 0;
+	flow_record.tun_src_ip.V4 = 0xac200710;
+	flow_record.tun_dst_ip.V6[0] = 0;
+	flow_record.tun_dst_ip.V6[1] = 0;
+	flow_record.tun_dst_ip.V4 = 0x0a0a0a0b;
+	ret = check_filter_block("src tunip 172.32.7.16", &flow_record, 1);
+	ret = check_filter_block("src tunip 172.32.7.15", &flow_record, 0);
+	ret = check_filter_block("dst tunip 10.10.10.11", &flow_record, 1);
+	ret = check_filter_block("dst tunip 10.10.10.12", &flow_record, 0);
+	ret = check_filter_block("tunip 172.32.7.16", &flow_record, 1);
+	ret = check_filter_block("tunip 10.10.10.11", &flow_record, 1);
+	ret = check_filter_block("tunip 172.32.7.15", &flow_record, 0);
+	ret = check_filter_block("tunip 10.10.10.12", &flow_record, 0);
+
+	inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", flow_record.tun_src_ip.V6);
+	flow_record.tun_src_ip.V6[0] = ntohll(flow_record.tun_src_ip.V6[0]);
+	flow_record.tun_src_ip.V6[1] = ntohll(flow_record.tun_src_ip.V6[1]);
+	ret = check_filter_block("src tunip fe80::2110:abcd:1235:ffff", &flow_record, 1);
+	ret = check_filter_block("src tunip fe80::2110:abcd:1235:fffe", &flow_record, 0);
+
+	flow_record.tun_src_ip.V6[0] = 0;
+	flow_record.tun_src_ip.V6[1] = 0;
+	inet_pton(PF_INET6, "fe80::2110:abcd:1235:fffe", flow_record.tun_dst_ip.V6);
+	flow_record.tun_dst_ip.V6[0] = ntohll(flow_record.tun_dst_ip.V6[0]);
+	flow_record.tun_dst_ip.V6[1] = ntohll(flow_record.tun_dst_ip.V6[1]);
+	ret = check_filter_block("dst tunip fe80::2110:abcd:1235:fffe", &flow_record, 1);
+	ret = check_filter_block("dst tunip fe80::2110:abcd:1235:fffc", &flow_record, 0);
+	flow_record.tun_src_ip.V6[0] = 0;
+	flow_record.tun_src_ip.V6[1] = 0;
+	flow_record.tun_dst_ip.V6[0] = 0;
+	flow_record.tun_dst_ip.V6[1] = 0;
+
+	flow_record.tun_proto = IPPROTO_GRE;
+	ret = check_filter_block("tun proto gre", &flow_record, 1);
+	ret = check_filter_block("tun proto 47", &flow_record, 1);
+	ret = check_filter_block("tun proto 42", &flow_record, 0);
+
+	flow_record.tun_proto = IPPROTO_IPIP;
+	ret = check_filter_block("tun proto ipip", &flow_record, 1);
+	ret = check_filter_block("tun proto 4", &flow_record, 1);
+	ret = check_filter_block("tun proto 5", &flow_record, 0);
+
 	// NSEL/ASA related tests
 #ifdef NSEL
 	flow_record.event = NSEL_EVENT_IGNORE;
