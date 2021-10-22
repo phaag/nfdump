@@ -513,7 +513,7 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode 
 
 void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, const u_char *data) {
 struct FlowNode	*Node = NULL;
-uint16_t	  version, ethertype, proto;
+uint16_t	  version, IPproto;
 char		  s1[64];
 char		  s2[64];
 static unsigned pkg_cnt = 0;
@@ -535,94 +535,142 @@ static unsigned pkg_cnt = 0;
 	uint32_t *mplsLabel = NULL;
 
 	// link layer processing
-	if ( packetParam->linktype == DLT_EN10MB ) {
-		memcpy(&dstMac, data, 6);
-		memcpy(&srcMac, data + 6, 6);
-		ethertype = data[12] << 0x08 | data[13];
-		REDO_LINK:
-			if (dataptr >= eodata) {
-				packetParam->proc_stat.short_snap++;
-				dbg_printf("Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
+	uint16_t protocol = 0;
+	switch (packetParam->linktype) {
+		case DLT_EN10MB:
+			memcpy(&dstMac, data, 6);
+			memcpy(&srcMac, data + 6, 6);
+			protocol = data[12] << 0x08 | data[13];
+			int	IEEE802 = protocol <= 1500;
+			if ( IEEE802 ) {
+				packetParam->proc_stat.skipped++;
 				return;
 			}
-			switch (ethertype) {
-				case 0x800:	 // IPv4
-				case 0x86DD: // IPv6
+			break;
+		case DLT_RAW:
+			protocol = 0x800;
+			break;
+		case DLT_PPP: 
+			protocol = 0x800;
+			break;
+		case DLT_PPP_SERIAL:
+			protocol = 0x800;
+			break;
+		case DLT_LOOP: 
+		case DLT_NULL: {
+			uint32_t header;
+			if ( packetParam->linktype == DLT_LOOP ) 
+				header = ntohl(*((uint32_t *)data));
+			else
+				header = *((uint32_t *)data);
+			switch (header) {
+				case 2:
+					protocol = 0x800;
 					break;
-				case 0x8100: { // VLAN
-					do {
-						vlan_hdr_t *vlan_hdr = (vlan_hdr_t *)dataptr; 
-						dbg_printf("VLAN ID: %u, type: 0x%x\n",
-							ntohs(vlan_hdr->vlan_id), ntohs(vlan_hdr->type) );
-						ethertype = ntohs(vlan_hdr->type);
-						vlanID = ntohs(vlan_hdr->vlan_id) & 0xFFF;
-						dataptr += 4;
-					} while ((dataptr < eodata) && ethertype == 0x8100 );
-			
-					// redo ethertype evaluation
-					goto REDO_LINK;
-					} break;
-				case 0x8847: { // MPLS
-					// unwind MPLS label stack
-					uint32_t *mpls;
-					mplsLabel = (uint32_t *)dataptr; // 1st label
-					do {
-						mpls = (uint32_t *)dataptr;
-						dbg_printf("MPLS label: %x\n", ntohl(*mpls) >> 8);
-						dataptr += 4;
-						numMPLS++;
-					} while ((dataptr < eodata) && ((ntohl(*mpls) & 0x100) == 0)); // check for Bottom of stack
-
-					uint8_t *nxHdr = (uint8_t *)dataptr;
-					if((*nxHdr >> 4) == 4)
-						ethertype = 0x0800;	// IPv4
-					else if((*nxHdr >> 4) == 6)
-						ethertype = 0x86DD;	// IPv6
-					else {
-						dbg_printf("Unsupported protocol: 0x%x\n", *nxHdr >> 4);
-						packetParam->proc_stat.skipped++;
-						goto END_FUNC;
-					}
-					// redo ethertype evaluation
-					goto REDO_LINK;
-					} break;
-				case 0x8864: {
-					uint8_t VersionType = *((uint8_t *)dataptr);
-					uint8_t Code		= *((uint8_t *)(dataptr+1));
-					uint16_t pppProto	= ntohs(*((uint16_t *)(dataptr+6)));
-					// uint16_t SessionID	= ntohs(*((uint16_t *)(dataptr21)));
-					if ( VersionType != 0x11 ) {
-						LogError("Unsupported ppp Version/Type: 0x%x", VersionType);
-						packetParam->proc_stat.skipped++;
-						goto END_FUNC;
-					}
-					if ( Code != 0 ) {
-						// skip packets other than session data
-						packetParam->proc_stat.skipped++;
-						goto END_FUNC;
-					}
-					if ( pppProto != 0x0021 /* v4 */ && pppProto != 0x0057 /* v6 */ ) {
-						LogError("Unsupported ppp proto: 0x%x", pppProto);
-						packetParam->proc_stat.skipped++;
-						goto END_FUNC;
-					}
-					dataptr += 8;
-				} break;
-				case 0x8863: {
-					// skip PPPoE discovery messages
-					packetParam->proc_stat.skipped++;
-					goto END_FUNC;
-				} break;
+				case 24:
+				case 28:
+				case 30:
+					protocol = 0x86DD;
+					break;
 				default:
-					// int	IEEE802 = ethertype <= 1500;
-					LogError("Unsupported ethertype: 0x%x", ethertype);
+					LogInfo("Unsupported DLT_NULL protocol: 0x%x, packet: %u", header, pkg_cnt);
+				return;
+			}
+			} break;
+		case DLT_LINUX_SLL: 
+			protocol = data[14] << 8 | data[15];
+			break;
+		case DLT_IEEE802_11: 
+			protocol = 0x800;
+			break;
+		default:
+			LogInfo("Unsupported link type: 0x%x, packet: %u", packetParam->linktype, pkg_cnt);
+			return;
+	}
+
+	REDO_LINK:
+		if (dataptr >= eodata) {
+			packetParam->proc_stat.short_snap++;
+			dbg_printf("Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
+			return;
+		}
+		switch (protocol) {
+			case 0x800:	 // IPv4
+			case 0x86DD: // IPv6
+				break;
+			case 0x8100: { // VLAN
+				do {
+					vlan_hdr_t *vlan_hdr = (vlan_hdr_t *)dataptr; 
+					dbg_printf("VLAN ID: %u, type: 0x%x\n",
+						ntohs(vlan_hdr->vlan_id), ntohs(vlan_hdr->type) );
+					protocol = ntohs(vlan_hdr->type);
+					vlanID = ntohs(vlan_hdr->vlan_id) & 0xFFF;
+					dataptr += 4;
+				} while ((dataptr < eodata) && protocol == 0x8100 );
+		
+				// redo protocol evaluation
+				goto REDO_LINK;
+				} break;
+			case 0x8847: { // MPLS
+				// unwind MPLS label stack
+				uint32_t *mpls;
+				mplsLabel = (uint32_t *)dataptr; // 1st label
+				do {
+					mpls = (uint32_t *)dataptr;
+					dbg_printf("MPLS label: %x\n", ntohl(*mpls) >> 8);
+					dataptr += 4;
+					numMPLS++;
+				} while ((dataptr < eodata) && ((ntohl(*mpls) & 0x100) == 0)); // check for Bottom of stack
+
+				uint8_t *nxHdr = (uint8_t *)dataptr;
+				if((*nxHdr >> 4) == 4)
+					protocol = 0x0800;	// IPv4
+				else if((*nxHdr >> 4) == 6)
+					protocol = 0x86DD;	// IPv6
+				else {
+					dbg_printf("Unsupported protocol: 0x%x\n", *nxHdr >> 4);
 					packetParam->proc_stat.skipped++;
 					goto END_FUNC;
-			}
-	} else if ( packetParam->linktype != DLT_RAW ) { // we can still process raw IP
-		LogInfo("Unsupported link type: 0x%x, packet: %u", packetParam->linktype, pkg_cnt);
-		return;
-	}
+				}
+				// redo protocol evaluation
+				goto REDO_LINK;
+				} break;
+			case 0x8864: {
+				uint8_t VersionType = *((uint8_t *)dataptr);
+				uint8_t Code		= *((uint8_t *)(dataptr+1));
+				uint16_t pppProto	= ntohs(*((uint16_t *)(dataptr+6)));
+				// uint16_t SessionID	= ntohs(*((uint16_t *)(dataptr21)));
+				if ( VersionType != 0x11 ) {
+					LogError("Unsupported ppp Version/Type: 0x%x", VersionType);
+					packetParam->proc_stat.skipped++;
+					goto END_FUNC;
+				}
+				if ( Code != 0 ) {
+					// skip packets other than session data
+					packetParam->proc_stat.skipped++;
+					goto END_FUNC;
+				}
+				if ( pppProto != 0x0021 /* v4 */ && pppProto != 0x0057 /* v6 */ ) {
+					LogError("Unsupported ppp proto: 0x%x", pppProto);
+					packetParam->proc_stat.skipped++;
+					goto END_FUNC;
+				}
+				dataptr += 8;
+			} break;
+			case 0x8863: {
+				// skip PPPoE discovery messages
+				packetParam->proc_stat.skipped++;
+				goto END_FUNC;
+			} break;
+			case 0x806:	 // skip ARP
+				goto END_FUNC;
+				break;
+			default:
+				// int	IEEE802 = protocol <= 1500;
+				LogError("Unsupported protocol: 0x%x", protocol);
+				packetParam->proc_stat.skipped++;
+				goto END_FUNC;
+		}
 
 	dbg_printf("Link layer processed: %td bytes, remaining: %td\n", (ptrdiff_t)(dataptr -(void *)data), eodata - dataptr);
 
@@ -659,7 +707,7 @@ static unsigned pkg_cnt = 0;
 		}
 
 		// ipv6 Extension headers not processed
-		proto = ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
+		IPproto = ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
 		dbg_printf("Packet IPv6, SRC %s, DST %s\n",
 			inet_ntop(AF_INET6, &ip6->ip6_src, s1, sizeof(s1)),
 			inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)));
@@ -695,7 +743,7 @@ static unsigned pkg_cnt = 0;
 			goto END_FUNC;
 		}
 
-		proto = ip->ip_p;
+		IPproto = ip->ip_p;
 		dbg_printf("Packet IPv4 SRC %s, DST %s\n",
 			inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
 			inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
@@ -740,7 +788,7 @@ static unsigned pkg_cnt = 0;
 	Node->srcMac   = srcMac;
 	Node->dstMac   = dstMac;
 	Node->packets  = 1;
-	Node->proto    = proto;
+	Node->proto    = IPproto;
 	Node->nodeType = FLOW_NODE;
 	// bytes = number of bytes on wire - data link data
 	dbg_printf("Payload: %td bytes, Full packet: %u bytes\n", eodata - dataptr, Node->bytes);
@@ -754,7 +802,7 @@ static unsigned pkg_cnt = 0;
 	}
 
 	// transport protocol processing
-	switch (proto) {
+	switch (IPproto) {
 		case IPPROTO_UDP: {
 			struct udphdr *udp = (struct udphdr *)dataptr;
 			dataptr += sizeof(struct udphdr);
@@ -913,8 +961,8 @@ static unsigned pkg_cnt = 0;
 			} break;
 		case IPPROTO_GRE: {
 			gre_hdr_t *gre_hdr = (gre_hdr_t *)dataptr;
-			ethertype = ntohs(gre_hdr->type);
-			dbg_printf("  GRE proto encapsulation: type: 0x%x\n", ethertype);
+			protocol = ntohs(gre_hdr->type);
+			dbg_printf("  GRE proto encapsulation: type: 0x%x\n", protocol);
 
 			int optionSize = 0;
 			uint16_t gre_flags = ntohs(gre_hdr->flags);
