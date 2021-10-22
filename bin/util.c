@@ -191,7 +191,7 @@ char string[512];
 	} else {
 		va_start(var_args, format);
 		vsnprintf(string, 511, format, var_args);
-		fprintf(stderr, "%s\n", string);
+		fprintf(stdout, "%s\n", string);
 		va_end(var_args);
 	}
 	

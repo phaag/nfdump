@@ -387,7 +387,7 @@ struct FlowNode	*Node;
 struct ip 	  *ip;
 void		  *payload, *defragmented;
 uint32_t	  size_ip, offset, data_len, payload_len, bytes;
-uint16_t	  version, ethertype, proto;
+uint16_t	  version, IPproto;
 char		  s1[64];
 char		  s2[64];
 static unsigned pkg_cnt = 0;
@@ -400,77 +400,117 @@ static unsigned pkg_cnt = 0;
 	defragmented = NULL;
 	Node = NULL;
 
-	if ( pcap_dev->linktype == DLT_EN10MB ) {
-		ethertype = data[12] << 0x08 | data[13];
-		int	IEEE802 = ethertype <= 1500;
-		if ( IEEE802 ) {
-			pcap_dev->proc_stat.skipped++;
-			return;
-		}
-		REDO_LINK:
-			switch (ethertype) {
-				case 0x800:	 // IPv4
-				case 0x86DD: // IPv6
+	uint16_t protocol = 0;
+	switch (pcap_dev->linktype) {
+		case DLT_EN10MB:
+			protocol = data[12] << 0x08 | data[13];
+			int	IEEE802 = protocol <= 1500;
+			if ( IEEE802 ) {
+				pcap_dev->proc_stat.skipped++;
+				return;
+			}
+			break;
+		case DLT_RAW:
+			protocol = 0x800;
+			break;
+		case DLT_PPP: 
+			protocol = 0x800;
+			break;
+		case DLT_PPP_SERIAL:
+			protocol = 0x800;
+			break;
+		case DLT_LOOP: 
+		case DLT_NULL: {
+			uint32_t header;
+			if ( pcap_dev->linktype == DLT_LOOP ) 
+				header = ntohl(*((uint32_t *)data));
+			else
+				header = *((uint32_t *)data);
+			switch (header) {
+				case 2:
+					protocol = 0x800;
 					break;
-				case 0x8100: {	// VLAN
-					do {
-						vlan_hdr_t *vlan_hdr = (vlan_hdr_t *)(data + offset);  // offset points to end of link layer
-						dbg_printf("VLAN ID: %u, type: 0x%x\n",
-							ntohs(vlan_hdr->vlan_id), ntohs(vlan_hdr->type) );
-						ethertype = ntohs(vlan_hdr->type);
-						offset += 4;
-					} while ( ethertype == 0x8100 );
-			
-					// redo ethertype evaluation
-					goto REDO_LINK;
-					} break;
-				case 0x8847: { // MPLS
-					// unwind MPLS label stack
-					uint32_t *mpls = (uint32_t *)(data + offset);
-					offset += 4;
-					dbg_printf("MPLS label: %x\n", ntohl(*mpls) >> 8);
-					while ((offset < hdr->caplen) && ((ntohl(*mpls) & 0x100) == 0)) { // check for Bottom of stack
-						offset += 4;
-						mpls++;
-						dbg_printf("MPLS label: %x\n", ntohl(*mpls) >> 8);
-					}
-					uint8_t *hdr = (uint8_t *)data + offset;
-					if((*hdr >> 4) == 4)
-						ethertype = 0x0800;	// IPv4
-					else if((*hdr >> 4) == 6)
-						ethertype = 0x86DD;	// IPv6
-					else {
-						LogInfo("Unsupported protocol: 0x%x", *hdr >> 4);
-						goto END_FUNC;
-					}
-
-					// redo ethertype evaluation
-					goto REDO_LINK;
-					} break;
-				case 0x26:	 // ?? multicast router termination ??
-				case 0x32:	
-				case 0x806:	 // skip ARP
-				case 0x4305: // B.A.T.M.A.N. BATADV
-				case 0x886f: // MS NLB heartbeat
-				case 0x88a2: // ATA over ethernet
-				case 0x88cc: // CISCO LLDP
-				case 0x9000: // Loop
-				case 0x9003: 
-				case 0x8808: // Ethernet flow control
-				case 0x880b: // PPP - rfc 7042
-				case 0x6558: // Ethernet Bridge
-					pcap_dev->proc_stat.skipped++;
-					goto END_FUNC;
+				case 24:
+				case 28:
+				case 30:
+					protocol = 0x86DD;
 					break;
 				default:
-					pcap_dev->proc_stat.unknown++;
-					LogInfo("Unsupported ether type: 0x%x, packet: %u", ethertype, pkg_cnt);
-					goto END_FUNC;
+					LogInfo("Unsupported DLT_NULL protocol: 0x%x, packet: %u", header, pkg_cnt);
+				return;
 			}
-	} else if ( pcap_dev->linktype != DLT_RAW ) { // we can still process raw IP
-		LogInfo("Unsupported link type: 0x%x, packet: %u", pcap_dev->linktype, pkg_cnt);
-		return;
+			} break;
+		case DLT_LINUX_SLL: 
+			protocol = data[14] << 8 | data[15];
+			break;
+		case DLT_IEEE802_11: 
+			protocol = 0x800;
+			break;
+		default:
+			LogInfo("Unsupported link type: 0x%x, packet: %u", pcap_dev->linktype, pkg_cnt);
+			return;
 	}
+
+	REDO_LINK:
+		switch (protocol) {
+			case 0x800:	 // IPv4
+			case 0x86DD: // IPv6
+				break;
+			case 0x8100: {	// VLAN
+				do {
+					vlan_hdr_t *vlan_hdr = (vlan_hdr_t *)(data + offset);  // offset points to end of link layer
+					dbg_printf("VLAN ID: %u, type: 0x%x\n",
+						ntohs(vlan_hdr->vlan_id), ntohs(vlan_hdr->type) );
+					protocol = ntohs(vlan_hdr->type);
+					offset += 4;
+				} while ( protocol == 0x8100 );
+		
+				// redo protocol evaluation
+				goto REDO_LINK;
+				} break;
+			case 0x8847: { // MPLS
+				// unwind MPLS label stack
+				uint32_t *mpls = (uint32_t *)(data + offset);
+				offset += 4;
+				dbg_printf("MPLS label: %x\n", ntohl(*mpls) >> 8);
+				while ((offset < hdr->caplen) && ((ntohl(*mpls) & 0x100) == 0)) { // check for Bottom of stack
+					offset += 4;
+					mpls++;
+					dbg_printf("MPLS label: %x\n", ntohl(*mpls) >> 8);
+				}
+				uint8_t *hdr = (uint8_t *)data + offset;
+				if((*hdr >> 4) == 4)
+					protocol = 0x0800;	// IPv4
+				else if((*hdr >> 4) == 6)
+					protocol = 0x86DD;	// IPv6
+				else {
+					LogInfo("Unsupported protocol: 0x%x", *hdr >> 4);
+					goto END_FUNC;
+				}
+
+				// redo protocol evaluation
+				goto REDO_LINK;
+				} break;
+			case 0x26:	 // ?? multicast router termination ??
+			case 0x32:	
+			case 0x806:	 // skip ARP
+			case 0x4305: // B.A.T.M.A.N. BATADV
+			case 0x886f: // MS NLB heartbeat
+			case 0x88a2: // ATA over ethernet
+			case 0x88cc: // CISCO LLDP
+			case 0x9000: // Loop
+			case 0x9003: 
+			case 0x8808: // Ethernet flow control
+			case 0x880b: // PPP - rfc 7042
+			case 0x6558: // Ethernet Bridge
+				pcap_dev->proc_stat.skipped++;
+				goto END_FUNC;
+				break;
+			default:
+				pcap_dev->proc_stat.unknown++;
+				LogInfo("Unsupported ether type: 0x%x, packet: %u", protocol, pkg_cnt);
+				goto END_FUNC;
+		}
 
 	if (hdr->caplen < offset) {
 		pcap_dev->proc_stat.short_snap++;
@@ -509,7 +549,7 @@ static unsigned pkg_cnt = 0;
 		}
 
 		// XXX Extension headers not processed
-		proto		= ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
+		IPproto		= ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
 		payload_len = bytes = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);
 
 		if (data_len < (payload_len + size_ip) ) {
@@ -564,7 +604,7 @@ static unsigned pkg_cnt = 0;
 
 		payload_len -= size_ip;	// ajust length compatibel IPv6
 		payload = (void *)ip + size_ip;
-		proto   = ip->ip_p;
+		IPproto   = ip->ip_p;
 
 		if (data_len < (payload_len + size_ip) ) {
 			// capture len was limited - so adapt payload_len
@@ -631,11 +671,11 @@ static unsigned pkg_cnt = 0;
 
 	Node->packets = 1;
 	Node->bytes   = bytes;
-	Node->proto   = proto;
+	Node->proto   = IPproto;
 	dbg_printf("Payload: %u bytes, Full packet: %u bytes\n", payload_len, bytes);
 
 	// TCP/UDP decoding
-	switch (proto) {
+	switch (IPproto) {
 		case IPPROTO_UDP: {
 			struct udphdr *udp = (struct udphdr *)payload;
 			uint16_t UDPlen = ntohs(udp->uh_ulen);
@@ -766,8 +806,8 @@ static unsigned pkg_cnt = 0;
 				break;
 			}
 
-			dbg_printf("GRE proto encapsulation: type: 0x%x\n", ethertype);
-			ethertype = ntohs(gre_hdr->type);
+			dbg_printf("GRE proto encapsulation: type: 0x%x\n", protocol);
+			protocol = ntohs(gre_hdr->type);
 			offset   = gre_hdr_size;
 			data 	 = payload;
 			data_len = payload_len;
@@ -791,7 +831,7 @@ static unsigned pkg_cnt = 0;
 	if ( defragmented ) {
 		free(defragmented);
 		defragmented = NULL;
-		dbg_printf("Defragmented buffer freed for proto %u", proto);	
+		dbg_printf("Defragmented buffer freed for proto %u", IPproto);	
 	}
 
 

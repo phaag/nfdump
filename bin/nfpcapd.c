@@ -54,7 +54,6 @@
 #include <signal.h>
 #include <string.h>
 #include <assert.h>
-// #include <mcheck.h>
 
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
@@ -480,6 +479,9 @@ uint32_t	linkoffset, linktype;
 			break;
 		case DLT_PPP: 
 			linkoffset = 2;
+			break;
+		case DLT_PPP_SERIAL:
+			linkoffset = 4;
 			break;
 		case DLT_NULL: 
 			linkoffset = 4;
