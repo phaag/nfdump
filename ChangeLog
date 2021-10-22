@@ -1,3 +1,6 @@
+2021-10-22
+- Fix link handling in nfpcapd
+
 2021-08-27
 - Fix compile flags  #304
 
