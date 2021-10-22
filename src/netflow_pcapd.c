@@ -279,10 +279,7 @@ void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 			exporter->flows++;
 
 			if ( printRecord ) {
-				master_record_t master_record;
-				memset((void *)&master_record, 0, sizeof(master_record_t));
-				ExpandRecord_v3(copiedV3, &master_record);
-			 	flow_record_short(stdout, &master_record, 0);
+			 	flow_record_short(stdout, copiedV3);
 			}
 
 			// update size_left

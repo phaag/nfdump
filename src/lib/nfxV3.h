@@ -125,16 +125,19 @@ typedef struct EXgenericFlow_s {
  	uint16_t srcPort;
 	union {
 		uint16_t dstPort;
-		uint8_t icmp[2];
+		struct {
+			uint8_t icmpType;
+			uint8_t icmpCode;
+		};
 	};
 #define OFFsrcPort offsetof(EXgenericFlow_t, srcPort)
 #define SIZEsrcPort MemberSize(EXgenericFlow_t, srcPort)
 #define OFFdstPort offsetof(EXgenericFlow_t, dstPort)
 #define SIZEdstPort MemberSize(EXgenericFlow_t, dstPort)
-#define OFFicmpCode offsetof(EXgenericFlow_t, icmp[0])
-#define SIZEicmpCode MemberSize(EXgenericFlow_t, icmp[0])
-#define OFFicmpType offsetof(EXgenericFlow_t, icmp[1])
-#define SIZEicmpType MemberSize(EXgenericFlow_t, icmp[1])
+#define OFFicmpCode offsetof(EXgenericFlow_t, icmpCode)
+#define SIZEicmpCode MemberSize(EXgenericFlow_t, icmpCode)
+#define OFFicmpType offsetof(EXgenericFlow_t, icmpType)
+#define SIZEicmpType MemberSize(EXgenericFlow_t, icmpType)
   	uint8_t	 proto;
 #define OFFproto offsetof(EXgenericFlow_t, proto)
 #define SIZEproto MemberSize(EXgenericFlow_t, proto)

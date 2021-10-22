@@ -306,6 +306,9 @@ char errbuf[PCAP_ERRBUF_SIZE];	/* Error string */
 		case DLT_PPP: 
 			linkoffset = 2;
 			break;
+		case DLT_PPP_SERIAL:
+			linkoffset = 4;
+			break;
 		case DLT_NULL: 
 			linkoffset = 4;
 			break;

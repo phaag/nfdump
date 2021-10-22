@@ -218,10 +218,7 @@ FlowSource_t *fs = flowParam->fs;
 		UpdateMetric(fs->nffile, exporterIdent, genericFlow);
 	
 		if ( printRecord ) {
-			master_record_t master_record;
-			memset((void *)&master_record, 0, sizeof(master_record_t));
-			ExpandRecord_v3(recordHeader, &master_record);
-	 		flow_record_short(stdout, &master_record, 0);
+	 		flow_record_short(stdout, recordHeader);
 		}
 
 		// update file record size ( -> output buffer size )

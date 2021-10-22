@@ -35,6 +35,10 @@
 *~
 *.bak
 
+# vscode files
+.vscode
+.vscode/*
+
 # Automake generated files
 *Makefile
 *Makefile.in

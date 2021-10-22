@@ -354,10 +354,7 @@ exporter_v1_t 		*exporter;
 				fs->nffile->stat_record->numbytes	+= genericFlow->inBytes;
 
 				if ( printRecord ) {
-					master_record_t master_record;
-					memset((void *)&master_record, 0, sizeof(master_record_t));
-					ExpandRecord_v3(recordHeader, &master_record);
-				 	flow_record_short(stdout, &master_record, 0);
+				 	flow_record_short(stdout, recordHeader);
 				}
 
 				// advance output buffer

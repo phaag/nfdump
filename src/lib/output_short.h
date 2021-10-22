@@ -31,6 +31,6 @@
 #ifndef _OUTPUT_SHORT_H
 #define _OUTPUT_SHORT_H 1
 
-void flow_record_short(FILE *stream, void *record, int tag);
+void flow_record_short(FILE *stream, recordHeaderV3_t *recordHeaderV3);
 
 #endif // _OUTPUT_SHORT_H
