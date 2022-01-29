@@ -553,7 +553,7 @@ uint64_t twin_msecFirst, twin_msecLast;
 						AddGeoInfo(master_record);
 					}
 
-					if ( master_record->inPayloadLength ) {
+					if ( master_record->inPayloadLength && Engine->ja3Filter) {
 						ja3_t *ja3 = ja3Process((uint8_t *)master_record->inPayload, master_record->inPayloadLength);
 						if ( ja3 ) {
 							memcpy((void *)master_record->ja3,ja3->md5Hash, 16);

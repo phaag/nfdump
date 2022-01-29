@@ -96,7 +96,8 @@ static struct flow_procs_map_s {
 uint64_t *IPstack = NULL;
 uint32_t StartNode;
 uint16_t Extended;
-uint16_t geoFilter = 0;;
+uint8_t geoFilter = 0;
+uint8_t ja3Filter = 0;
 
 // 128bit compare for IPv6 
 static int IPNodeCMP(struct IPListNode *e1, struct IPListNode *e2) {
@@ -192,6 +193,7 @@ int	ret;
 	engine->StartNode = StartNode;
 	engine->Extended  = Extended;
 	engine->geoFilter = geoFilter;
+	engine->ja3Filter = ja3Filter;
 	engine->IdentList = IdentList;
 	engine->filter 	  = FilterTree;
 	if ( Extended ) 

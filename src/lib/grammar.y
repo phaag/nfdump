@@ -82,7 +82,8 @@ extern int 			lineno;
 extern char 		*yytext;
 extern uint64_t		*IPstack;
 extern uint32_t	StartNode;
-extern uint16_t	geoFilter;
+extern uint8_t	geoFilter;
+extern uint8_t	ja3Filter;
 extern int (*FilterEngine)(uint32_t *);
 extern char	*FilterFilename;
 
@@ -1293,6 +1294,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			NewBlock(OffsetJA3, MaskJA3, ja3.u64[0], CMP_EQ, FUNC_NONE, NULL ),
 			NewBlock(OffsetJA3+1, MaskJA3, ja3.u64[1], CMP_EQ, FUNC_NONE, NULL )
 		);
+		ja3Filter = 1;
 	}
 
 	| dqual NIP IN '[' iplist ']' { 	

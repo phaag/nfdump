@@ -816,10 +816,22 @@ static void String_nbarName(FILE *stream, master_record_t *r) {
 } // End of String_nbarName
 
 static void String_ja3(FILE *stream, master_record_t *r) {
+
 	uint8_t zero[16] = {0};
-	if ( r->inPayloadLength == 0 || memcmp(r->ja3, zero, 16) == 0) {
-		fprintf(stream, "%32s" ,"");
-		return;
+	if ( memcmp(r->ja3, zero, 16) == 0) {
+		if ( r->inPayloadLength == 0 ) {
+			fprintf(stream, "%32s" ,"");
+			return;
+		} else {
+			ja3_t *ja3 = ja3Process((uint8_t *)r->inPayload, r->inPayloadLength);
+            if ( ja3 ) {
+				memcpy((void *)r->ja3,ja3->md5Hash, 16);
+				ja3Free(ja3);
+            } else {
+				fprintf(stream, "%32s" ,"ja3 error");
+				return;
+			}
+		}
 	}
 
 	char out[33];

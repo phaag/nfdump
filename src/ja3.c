@@ -91,15 +91,23 @@ static int checkGREASE(uint16_t val) {
 } // End of checkGrease
 
 #define CheckSize(s, n) { if ((n)>(s)) { \
-	LogError("%s handshake length error: line: %u", __FUNCTION__, __LINE__);\
 	return 0;}\
 	dbg_printf("Size left: %zu, check for: %u\n", (s), (n));\
 	(s) -= (n);\
 }
 
+#define CheckStringSize(s, l) { if ((s) < (l)) { \
+	LogError("sLen error in %s line %d: %s\n", __FILE__, __LINE__, ""); \
+abort(); \
+	return NULL; \
+	} else { \
+		(s) -= (l); \
+	} \
+}
+
 char *ja3Hash(ja3_t *ja3) {
 
-	size_t sLen = 5 * (1+1 + LenArray(ja3->cipherSuites)+1 + LenArray(ja3->extensions)+1
+	size_t sLen = 6 * (1+1 + LenArray(ja3->cipherSuites)+1 + LenArray(ja3->extensions)+1
 						 + LenArray(ja3->ellipticCurves)+1 + LenArray(ja3->ellipticCurvesPF)+1) +1; // +1 '\0'
 
 	ja3->ja3String = calloc(1, sLen);
@@ -111,19 +119,19 @@ char *ja3Hash(ja3_t *ja3) {
 	snprintf(s, sLen, "%u,", ja3->version);
 	size_t len = strlen(s);
 	s += len;
-
+	sLen = sLen - 1 - len;
 	for (int i=0; i<LenArray(ja3->cipherSuites); i++ ) {
-		snprintf(s, sLen-len, "%u-", ja3->cipherSuites.array[i]);
-		len = strlen(s);
+		len = snprintf(s, sLen, "%u-", ja3->cipherSuites.array[i]);
 		s += len;
+		CheckStringSize(sLen, len);
 	}
 	if (LenArray(ja3->cipherSuites)) --s;
 	*s++ = ',';
 
 	for (int i=0; i<LenArray(ja3->extensions); i++ ) {
-		snprintf(s, sLen-len, "%u-", ja3->extensions.array[i]);
-		len = strlen(s);
+		len = snprintf(s, sLen, "%u-", ja3->extensions.array[i]);
 		s += len;
+		CheckStringSize(sLen, len);
 	}
 	if (LenArray(ja3->extensions)) --s;
 
@@ -133,19 +141,24 @@ char *ja3Hash(ja3_t *ja3) {
 		*s++ = ',';
 
 		for (int i=0; i<LenArray(ja3->ellipticCurves); i++ ) {
-			snprintf(s, sLen-len, "%u-", ja3->ellipticCurves.array[i]);
-			len = strlen(s);
+			len = snprintf(s, sLen, "%u-", ja3->ellipticCurves.array[i]);
 			s += len;
+			CheckStringSize(sLen, len);
 		}
 		if (LenArray(ja3->ellipticCurves)) --s;
 		*s++ = ',';
 
 		for (int i=0; i<LenArray(ja3->ellipticCurvesPF); i++ ) {
-			snprintf(s, sLen-len, "%u-", ja3->ellipticCurvesPF.array[i]);
-			len = strlen(s);
+			len = snprintf(s, sLen, "%u-", ja3->ellipticCurvesPF.array[i]);
 			s += len;
+			CheckStringSize(sLen, len);
 		}
 		if (LenArray(ja3->ellipticCurvesPF)) --s;
+	}
+
+	if ( sLen == 0 ) {
+		LogError("sLen error in %s line %d: %s\n", __FILE__, __LINE__, "Size == 0");
+		return NULL;
 	}
 
 	*s++ = '\0';
@@ -464,12 +477,12 @@ ja3_t *ja3Process(uint8_t *data, size_t len) {
 		case 1: // ClientHello
 			ja3->type = CLIENTja3;
 			ok = ja3ParseClientHandshake(ja3, data+9, messageLength);
-			ja3Hash(ja3);
+			if ( ok ) ja3Hash(ja3);
 			break;
 		case 2: // ServerHello
 			ja3->type = SERVERja3s;
 			ok = ja3ParseServerHandshake(ja3, data+9, messageLength);
-			ja3Hash(ja3);
+			if ( ok ) ja3Hash(ja3);
 			break;
 		default:
 			dbg_printf("ja3 process: Message type not ClientHello or ServerHello: %u\n", messageType);

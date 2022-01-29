@@ -69,7 +69,8 @@ typedef struct FilterEngine_data_s {
 	FilterBlock_t	*filter;
 	uint32_t		StartNode;
 	uint16_t 		Extended;
-	uint16_t 		geoFilter;
+	uint8_t 		geoFilter;
+	uint8_t 		ja3Filter;
 	char			**IdentList;
 	uint64_t		*nfrecord;
 	char			*label;
