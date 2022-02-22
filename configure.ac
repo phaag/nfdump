@@ -8,8 +8,11 @@ AC_INIT(nfdump, 1.6.23, peter@people.ops-trust.net)
 AC_CONFIG_HEADER([config.h])
 AM_INIT_AUTOMAKE([subdir-objects])
 
+if test "x$CFLAGS" = "x"; then
+    CFLAGS="-g -O3"
+fi 
+
 # Checks for programs.
-CFLAGS="-g -O3"
 AC_PROG_CC([clang gcc])
 AX_CHECK_C11
 CFLAGS="$CFLAGS -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wmissing-noreturn -fno-strict-aliasing"
