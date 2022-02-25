@@ -1,3 +1,6 @@
+2022-02-25
+- Cleanup automake files. Fixes #304. 
+
 2021-10-22
 - Fix link handling in nfpcapd
 

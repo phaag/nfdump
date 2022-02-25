@@ -1,12 +1,13 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.59)
+AC_PREREQ([2.71])
 AC_REVISION($Revision: 244 $)dnl 
-AC_INIT(nfdump, 1.6.23, peter@people.ops-trust.net)
+AC_INIT([nfdump],[1.6.23],[peter@people.ops-trust.net])
 
-AC_CONFIG_HEADER([config.h])
+AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE([subdir-objects])
+AC_CONFIG_MACRO_DIRS([m4])
 
 if test "x$CFLAGS" = "x"; then
     CFLAGS="-g -O3"
@@ -15,7 +16,12 @@ fi
 # Checks for programs.
 AC_PROG_CC([clang gcc])
 AX_CHECK_C11
-CFLAGS="$CFLAGS -Wall -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wmissing-noreturn -fno-strict-aliasing"
+AX_APPEND_FLAG([-Wall], [CFLAGS])
+AX_APPEND_FLAG([-Wstrict-prototypes], [CFLAGS])
+AX_APPEND_FLAG([-Wmissing-prototypes], [CFLAGS])
+AX_APPEND_FLAG([-Wmissing-declarations], [CFLAGS])
+AX_APPEND_FLAG([-Wmissing-noreturn], [CFLAGS])
+AX_APPEND_FLAG([-fno-strict-aliasing], [CFLAGS])
 
 LT_INIT
 
@@ -59,7 +65,7 @@ if test "${enable_fixtimebug}" = "yes" ; then
 fi
 
 AC_PROG_YACC
-AC_PROG_LEX
+AC_PROG_LEX(yywrap)
 which $LEX > /dev/null 2>&1
 if test $? = 1; then
 	AC_MSG_ERROR(No lex or flex found on system)
@@ -312,7 +318,11 @@ AC_LINK_IFELSE(
 
 # Checks for header files.
 AC_HEADER_DIRENT
-AC_HEADER_STDC
+# Autoupdate added the next two lines to ensure that your configure
+# script's behavior did not change.  They are probably safe to remove.
+AC_CHECK_INCLUDES_DEFAULT
+AC_PROG_EGREP
+
 AC_CHECK_HEADERS(stdio_ext.h)
 AC_CHECK_HEADERS([nameser8_compat.h])
 AC_CHECK_HEADERS([features.h arpa/inet.h fcntl.h netinet/in.h fts.h stdint.h stdlib.h stddef.h string.h sys/socket.h syslog.h unistd.h iso/limits_iso.h])
@@ -404,17 +414,14 @@ AC_CHECK_FUNCS(memcmp memcpy memmove memset)
 AC_MSG_CHECKING([for union semun])
 AC_CACHE_VAL(ac_cv_struct_semun,
 	[
-		AC_TRY_COMPILE(
-		[
+		AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 			#include <sys/types.h>
 	 		#include <sys/ipc.h>
 			#include <sys/sem.h>;
-		],
-		[
+		]], [[
 			union semun semdat;
-		],
-		ac_cv_struct_semun=yes, ac_cv_struct_semun=no
-		)
+		]])],[ac_cv_struct_semun=yes],[ac_cv_struct_semun=no
+		])
 	]
 )
 
@@ -424,7 +431,7 @@ if test "$ac_cv_struct_semun" = "yes"; then
 fi
 
 AC_MSG_CHECKING(for the %z format string in printf())
-AC_TRY_RUN([
+AC_RUN_IFELSE([AC_LANG_SOURCE([[
 #include <stdio.h>
 #include <sys/types.h>
 
@@ -438,28 +445,38 @@ char	string[16];
 
 	return i == 5 ? 0 : 1;
 }
-],
-[
+]])],[
 	AC_MSG_RESULT(yes)
 	AC_DEFINE([HAVE_SIZE_T_Z_FORMAT], [1],
                                       [Define to 1 if you have a printf() that supports the %z format string.])
-],
-[
+],[
 	AC_MSG_RESULT(no)
-],
-[
+],[
 	AC_MSG_RESULT(no)
-]
-)
 
+])
+
+AC_CONFIG_FILES([Makefile bin/Makefile man/Makefile])
+AC_CONFIG_FILES([doc/Makefile])
 AC_PATH_PROG([DOXYGEN], [doxygen], [])
 AM_CONDITIONAL([HAVE_DOXYGEN], [test -n "$DOXYGEN"])
 AM_COND_IF([HAVE_DOXYGEN], AC_CONFIG_FILES([doc/Doxyfile]))
-AC_OUTPUT(doc/Makefile)
+AC_OUTPUT
 
-#AC_CONFIG_FILES([Makefile])
-AC_OUTPUT(Makefile bin/Makefile man/Makefile)
-
+echo ""
+echo "----------------------------------"
+echo " Build Settings for ${PACKAGE_TARNAME} v${PACKAGE_VERSION}"
+echo "----------------------------------"
+echo "  host type            = $host_os"
+echo "  install dir          = $prefix"
+echo "  CC                   = $CC"
+echo "  CFLAGS               = $AM_CFLAGS $CFLAGS"
+echo "  CPPFLAGS             = $AM_CPPFLAGS $CPPFLAGS"
+echo "  LDFLAGS              = $AM_LDFLAGS $LDFLAGS"
+echo "  LIBS                 = $LIBS"
+echo "----------------------------------"
+echo ""
+echo " You can run ./make now." 
 echo ""
 echo "* Many thanks for using nfdump tools"
 echo "* Please send bug reports back to me: peter@people.ops-trust.net"
