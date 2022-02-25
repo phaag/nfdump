@@ -1,3 +1,4 @@
+- Cleanup/update automake files
 - Unify all timestamps to msec 
 - Sync GuessDir from master
 - add output parameter struct
