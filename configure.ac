@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.71])
+AC_PREREQ([2.69])
 AC_REVISION($Revision: 244 $)dnl 
 AC_INIT([nfdump],[1.6.23],[peter@people.ops-trust.net])
 
@@ -47,7 +47,7 @@ if test "${enable_jnat}" = "yes" ; then
 fi
 
 if test "${enable_nsel}" = "yes" -a "${enable_jnat}" = "yes"; then
-	AC_MSG_ERROR(You can use only one of --enable-nsel or --enable-jnat. CISCO and Juniper are not compatible.)
+	AC_MSG_ERROR([You can use only one of --enable-nsel or --enable-jnat. CISCO and Juniper are not compatible.])
 fi
 
 AC_ARG_ENABLE(nel,
@@ -287,7 +287,6 @@ AC_SUBST(FT_INCLUDES)
 AC_SUBST(FT_LDFLAGS)
 AC_SUBST(LFLAGS)
 
-
 # Checks for libraries.
 AC_CHECK_FUNCS(gethostbyname,,[AC_CHECK_LIB(nsl,gethostbyname,,[AC_CHECK_LIB(socket,gethostbyname)])])
 AC_CHECK_FUNCS(setsockopt,,[AC_CHECK_LIB(socket,setsockopt)])
@@ -447,8 +446,7 @@ char	string[16];
 }
 ]])],[
 	AC_MSG_RESULT(yes)
-	AC_DEFINE([HAVE_SIZE_T_Z_FORMAT], [1],
-                                      [Define to 1 if you have a printf() that supports the %z format string.])
+	AC_DEFINE([HAVE_SIZE_T_Z_FORMAT], [1], [Define to 1 if you have a printf() that supports the %z format string.])
 ],[
 	AC_MSG_RESULT(no)
 ],[

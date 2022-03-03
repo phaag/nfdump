@@ -1,3 +1,6 @@
+2022-03-03
+- Make configure.ac autoconf 2.69 compatible
+
 2022-02-25
 - Cleanup automake files. Fixes #304. 
 
