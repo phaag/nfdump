@@ -50,7 +50,6 @@
 #include "util.h"
 
 static char *socket_path = "/tmp/nfsen.sock";
-static int fd = 0;
 static _Atomic unsigned tstart = ATOMIC_VAR_INIT(0);
 
 // list of chained metric records
@@ -69,6 +68,7 @@ static int OpenSocket(void) {
     struct sockaddr_un addr;
 
     dbg_printf("Connect to UNIX socket\n");
+    int fd;
     if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
         LogError("socket() failed on %s: %s", socket_path, strerror(errno));
         return 0;
@@ -83,7 +83,7 @@ static int OpenSocket(void) {
         fd = 0;
         return 0;
     }
-    return 1;
+    return fd;
 }
 
 static inline metric_record_t *GetMetric(uint32_t exporterID) {
@@ -130,11 +130,12 @@ static inline void CalculateRates(metric_record_t *metric_record, time_t interva
 
 int OpenMetric(char *path, char *ident, int interval) {
     socket_path = path;
-    if (!OpenSocket()) {
-        return 0;
+    int fd = OpenSocket();
+    if (fd == 0) {
+        LogInfo("metric socket unreachable");
+    } else {
+        close(fd);
     }
-    close(fd);
-    fd = 0;
 
     // save ident
     strncpy(identCache, ident, 128);
@@ -293,7 +294,8 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
         message_header->timeStamp = now;
 
         metric_chain_t *metric_chain = metric_list;
-        if (OpenSocket()) {
+        int fd = OpenSocket();
+        if (fd) {
             size_t offset = sizeof(message_header_t);
             while (metric_chain) {
                 metric_record_t *metric_record = metric_chain->record;
@@ -315,8 +317,9 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
                 LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             }
             close(fd);
-            fd = 0;
             dbg_printf("Message sent\n");
+        } else {
+            LogError("metric socket unreachable");
         }
         pthread_mutex_unlock(&mutex);
         sleepTime = interval - (te.tv_sec % interval);
