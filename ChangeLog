@@ -1,3 +1,5 @@
+- Update metric. Make collector main clock reference
+- Switch to VS code as editor
 - Cleanup/update automake files
 - Unify all timestamps to msec 
 - Sync GuessDir from master

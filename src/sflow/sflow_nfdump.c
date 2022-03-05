@@ -95,8 +95,7 @@ static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
 
 void Init_sflow(int verbose) {
     printRecord = verbose;
-    recordBaseSize =
-        EXgenericFlowSize + EXflowMiscSize + EXasRoutingSize + EXvLanSize + EXmacAddrSize;
+    recordBaseSize = EXgenericFlowSize + EXflowMiscSize + EXasRoutingSize + EXvLanSize + EXmacAddrSize;
     numBaseElements = 5;
 
 }  // End of Init_sflow
@@ -128,8 +127,7 @@ void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
 }  // End of Process_sflow
 
-static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId,
-                                     uint32_t meanSkipCount) {
+static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint32_t meanSkipCount) {
     exporter_sflow_t **e = (exporter_sflow_t **)&(fs->exporter_data);
     sampler_t *sampler;
 #define IP_STRING_LEN 40
@@ -137,8 +135,8 @@ static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId,
 
     // search the appropriate exporter engine
     while (*e) {
-        if ((*e)->info.id == agentSubId && (*e)->info.version == SFLOW_VERSION &&
-            (*e)->info.ip.V6[0] == fs->ip.V6[0] && (*e)->info.ip.V6[1] == fs->ip.V6[1])
+        if ((*e)->info.id == agentSubId && (*e)->info.version == SFLOW_VERSION && (*e)->info.ip.V6[0] == fs->ip.V6[0] &&
+            (*e)->info.ip.V6[1] == fs->ip.V6[1])
             return *e;
         e = &((*e)->next);
     }
@@ -193,10 +191,8 @@ static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId,
     sampler->info.exporter_sysid = (*e)->info.sysid;
     AppendToBuffer(fs->nffile, &(sampler->info.header), sampler->info.header.size);
 
-    dbg_printf("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s\n",
-               (*e)->info.sysid, agentSubId, meanSkipCount, ipstr);
-    LogInfo("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s",
-            (*e)->info.sysid, agentSubId, meanSkipCount, ipstr);
+    dbg_printf("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s\n", (*e)->info.sysid, agentSubId, meanSkipCount, ipstr);
+    LogInfo("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s", (*e)->info.sysid, agentSubId, meanSkipCount, ipstr);
 
     return (*e);
 
@@ -285,8 +281,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     genericFlow->tcpFlags = sample->dcd_tcpFlags;
     genericFlow->srcPort = (uint16_t)sample->dcd_sport;
     genericFlow->dstPort = (uint16_t)sample->dcd_dport;
-    genericFlow->msecReceived = (uint64_t)((uint64_t)fs->received.tv_sec * 1000LL) +
-                                (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
+    genericFlow->msecReceived = (uint64_t)((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
     genericFlow->inPackets = sample->meanSkipCount;
     genericFlow->inBytes = sample->meanSkipCount * sample->sampledPacketSize;
     genericFlow->srcTos = sample->dcd_ipTos;
@@ -405,9 +400,8 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     stat_record->numpackets += genericFlow->inPackets;
     stat_record->numbytes += genericFlow->inBytes;
 
-    uint32_t exporterIdent = (recordHeader->exporterID << 16) |
-                             (((recordHeader->engineType << 8) | recordHeader->engineID) << 16);
-    UpdateMetric(fs->nffile, exporterIdent, genericFlow);
+    uint32_t exporterIdent = (recordHeader->exporterID << 16) | (((recordHeader->engineType << 8) | recordHeader->engineID) << 16);
+    UpdateMetric(exporterIdent, genericFlow);
 
     if (printRecord) {
         flow_record_short(stdout, recordHeader);

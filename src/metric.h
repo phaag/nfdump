@@ -39,8 +39,8 @@ typedef struct message_header_s {
     uint8_t version;
     uint16_t size;
     uint16_t numMetrics;
-    uint16_t fill;
-    uint64_t collectorID;
+    uint16_t interval;
+    uint64_t timeStamp;
     uint64_t uptime;
     char ident[128];
 } message_header_t;
@@ -71,11 +71,11 @@ typedef struct metric_chain_s {
     metric_record_t *record;
 } metric_chain_t;
 
-int OpenMetric(char *path, char *ident);
+int OpenMetric(char *path, char *ident, int interval);
 
 int CloseMetric(void);
 
-void UpdateMetric(nffile_t *nffile, uint32_t exporterID, EXgenericFlow_t *genericFlow);
+void UpdateMetric(uint32_t exporterID, EXgenericFlow_t *genericFlow);
 
 void *MetricThread(void *arg);
 

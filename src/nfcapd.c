@@ -98,7 +98,7 @@ static int verbose = 0;
 static uint32_t default_sampling = 1;
 static uint32_t overwrite_sampling = 0;
 
-extern uint32_t default_sampling;  // the default sampling rate when nothing else applies. set by -S
+extern uint32_t default_sampling;    // the default sampling rate when nothing else applies. set by -S
 extern uint32_t overwrite_sampling;  // unconditionally overwrite sampling rate with rate rate -S
 
 // Define a generic type to get data from socket or pcap file
@@ -124,9 +124,8 @@ static void daemonize(void);
 
 static void SetPriv(char *userid, char *groupid);
 
-static void run(packet_function_t receive_packet, int socket, repeater_t *repeater, time_t twin,
-                time_t t_begin, int report_seq, int use_subdirs, char *time_extension,
-                int compress);
+static void run(packet_function_t receive_packet, int socket, repeater_t *repeater, time_t twin, time_t t_begin, int report_seq, int use_subdirs,
+                char *time_extension, int compress);
 
 /* Functions */
 static void usage(char *name) {
@@ -144,6 +143,7 @@ static void usage(char *name) {
         "-I Ident\tset the ident string for stat file. (default 'none')\n"
         "-n Ident,IP,logdir\tAdd this flow source - multiple streams\n"
         "-N sourceFile\tAdd flows from sourceFile\n"
+        "-i interval\tMetric interval in s for metric exporter\n"
         "-m socket\t\tEnable metric exporter on socket.\n"
         "-M dir \t\tSet the output directory for dynamic sources.\n"
         "-P pidfile\tset the PID file\n"
@@ -312,8 +312,7 @@ static void SetPriv(char *userid, char *groupid) {
 
         err = setgid(newgid);
         if (err) {
-            LogError("Can't set group id %ld for group '%s': %s", (long)newgid, groupid,
-                     strerror(errno));
+            LogError("Can't set group id %ld for group '%s': %s", (long)newgid, groupid, strerror(errno));
             exit(EXIT_FAILURE);
         }
     }
@@ -321,8 +320,7 @@ static void SetPriv(char *userid, char *groupid) {
     if (newuid) {
         err = setuid(newuid);
         if (err) {
-            LogError("Can't set user id %ld for user '%s': %s", (long)newuid, userid,
-                     strerror(errno));
+            LogError("Can't set user id %ld for user '%s': %s", (long)newuid, userid, strerror(errno));
             exit(EXIT_FAILURE);
         }
     }
@@ -343,9 +341,8 @@ static void format_file_block_header(dataBlock_t *header) {
 #include "collector_inline.c"
 #include "nffile_inline.c"
 
-static void run(packet_function_t receive_packet, int socket, repeater_t *repeater, time_t twin,
-                time_t t_begin, int report_seq, int use_subdirs, char *time_extension,
-                int compress) {
+static void run(packet_function_t receive_packet, int socket, repeater_t *repeater, time_t twin, time_t t_begin, int report_seq, int use_subdirs,
+                char *time_extension, int compress) {
     common_flow_header_t *nf_header;
     FlowSource_t *fs;
     struct sockaddr_storage nf_sender;
@@ -358,15 +355,13 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
     void *in_buff;
     srecord_t *commbuff;
 
-    if (!Init_v1(verbose) || !Init_v5_v7_input(verbose, default_sampling, overwrite_sampling) ||
-        !Init_pcapd(verbose) || !Init_v9(verbose, default_sampling, overwrite_sampling) ||
-        !Init_IPFIX(verbose, default_sampling, overwrite_sampling))
+    if (!Init_v1(verbose) || !Init_v5_v7_input(verbose, default_sampling, overwrite_sampling) || !Init_pcapd(verbose) ||
+        !Init_v9(verbose, default_sampling, overwrite_sampling) || !Init_IPFIX(verbose, default_sampling, overwrite_sampling))
         return;
 
     in_buff = malloc(NETWORK_INPUT_BUFF_SIZE);
     if (!in_buff) {
-        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__,
-                 strerror(errno));
+        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
 
@@ -416,14 +411,12 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
         if (!done) {
 #ifdef PCAP
             // Debug code to read from pcap file, or from socket
-            cnt = receive_packet(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0,
-                                 (struct sockaddr *)&nf_sender, &nf_sender_size);
+            cnt = receive_packet(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&nf_sender, &nf_sender_size);
 
             // in case of reading from file EOF => -2
             if (cnt == -2) done = 1;
 #else
-            cnt = recvfrom(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0,
-                           (struct sockaddr *)&nf_sender, &nf_sender_size);
+            cnt = recvfrom(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&nf_sender, &nf_sender_size);
 #endif
 
             if (cnt == -1 && errno != EINTR) {
@@ -434,8 +427,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
             i = 0;
             while (repeater[i].hostname && (i < MAX_REPEATERS)) {
                 ssize_t len;
-                len = sendto(repeater[i].sockfd, in_buff, cnt, 0,
-                             (struct sockaddr *)&(repeater[i].addr), repeater[i].addrlen);
+                len = sendto(repeater[i].sockfd, in_buff, cnt, 0, (struct sockaddr *)&(repeater[i].addr), repeater[i].addrlen);
                 if (len < 0) {
                     LogError("ERROR: sendto(): %s", strerror(errno));
                 }
@@ -485,11 +477,9 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 // prepare filename
                 if (subdir) {
                     if (SetupSubDir(fs->datadir, subdir, error, 255)) {
-                        snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/%s/nfcapd.%s", fs->datadir,
-                                 subdir, fmt);
+                        snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/%s/nfcapd.%s", fs->datadir, subdir, fmt);
                     } else {
-                        LogError("Ident: %s, Failed to create sub hier directories: %s", fs->Ident,
-                                 error);
+                        LogError("Ident: %s, Failed to create sub hier directories: %s", fs->Ident, error);
                         // skip subdir - put flows directly into current directory
                         snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/nfcapd.%s", fs->datadir, fmt);
                     }
@@ -534,10 +524,8 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 LogInfo(
                     "Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Sequence Errors: %u, Bad "
                     "Packets: %u",
-                    fs->Ident, (unsigned long long)nffile->stat_record->numflows,
-                    (unsigned long long)nffile->stat_record->numpackets,
-                    (unsigned long long)nffile->stat_record->numbytes,
-                    nffile->stat_record->sequence_failure, fs->bad_packets);
+                    fs->Ident, (unsigned long long)nffile->stat_record->numflows, (unsigned long long)nffile->stat_record->numpackets,
+                    (unsigned long long)nffile->stat_record->numbytes, nffile->stat_record->sequence_failure, fs->bad_packets);
 
                 // reset stats
                 fs->bad_packets = 0;
@@ -609,8 +597,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 break;
             else {
                 /* this should never be executed as it should be caught in other places */
-                LogError("error condition in '%s', line '%d', cnt: %i", __FILE__, __LINE__,
-                         (int)cnt);
+                LogError("error condition in '%s', line '%d', cnt: %i", __FILE__, __LINE__, (int)cnt);
                 continue;
             }
         }
@@ -627,8 +614,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 ignored_packets++;
                 continue;
             }
-            if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid(), launcher_pid) !=
-                BOOKKEEPER_OK) {
+            if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid(), launcher_pid) != BOOKKEEPER_OK) {
                 LogError("Failed to initialise bookkeeper for new source");
                 // fatal error
                 return;
@@ -642,9 +628,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
 
         /* check for too little data - cnt must be > 0 at this point */
         if (cnt < sizeof(common_flow_header_t)) {
-            LogError(
-                "Ident: %s, Data length error: too little data for common netflow header. cnt: %i",
-                fs->Ident, (int)cnt);
+            LogError("Ident: %s, Data length error: too little data for common netflow header. cnt: %i", fs->Ident, (int)cnt);
             fs->bad_packets++;
             continue;
         }
@@ -671,8 +655,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 break;
             default:
                 // data error, while reading data from socket
-                LogError("Ident: %s, Error reading netflow header: Unexpected netflow version %i",
-                         fs->Ident, version);
+                LogError("Ident: %s, Error reading netflow header: Unexpected netflow version %i", fs->Ident, version);
                 fs->bad_packets++;
                 continue;
 
@@ -701,12 +684,12 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
 int main(int argc, char **argv) {
     char *bindhost, *datadir, *launch_process;
     char *userid, *groupid, *checkptr, *listenport, *mcastgroup;
-    char *Ident, *dynsrcdir, *time_extension, *pidfile, *metricsocket;
+    char *Ident, *dynsrcdir, *time_extension, *pidfile, *metricSocket;
     packet_function_t receive_packet;
     repeater_t repeater[MAX_REPEATERS];
     FlowSource_t *fs;
     struct sigaction act;
-    int family, bufflen;
+    int family, bufflen, metricInterval;
     time_t twin, t_start;
     int sock, do_daemonize, expire, spec_time_extension, report_sequence;
     int subdir_index, sampling_rate, compress;
@@ -743,10 +726,10 @@ int main(int argc, char **argv) {
     Ident = "none";
     FlowSource = NULL;
     dynsrcdir = NULL;
-    metricsocket = NULL;
+    metricSocket = NULL;
+    metricInterval = 60;
 
-    while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:jl:J:m:M:n:N:p:P:R:S:s:T:t:x:Xru:g:vyzZ")) !=
-           EOF) {
+    while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:ji:l:J:m:M:n:N:p:P:R:S:s:T:t:x:Xru:g:vyzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -787,12 +770,14 @@ int main(int argc, char **argv) {
             case 'D':
                 do_daemonize = 1;
                 break;
-            case 'I':
-                if (strlen(optarg) < 128) {
-                    Ident = strdup(optarg);
-                } else {
-                    LogError("ERROR: Ident length > 128");
+            case 'i':
+                metricInterval = atoi(optarg);
+                if (metricInterval < 10) {
+                    LogError("metric interval < 10s not allowed");
                     exit(EXIT_FAILURE);
+                }
+                if (metricInterval > twin) {
+                    LogInfo("metric interval %d > twin %d", metricInterval, twin);
                 }
                 break;
             case 'm':
@@ -800,7 +785,7 @@ int main(int argc, char **argv) {
                     LogError("ERROR: Path too long!");
                     exit(EXIT_FAILURE);
                 }
-                metricsocket = strdup(optarg);
+                metricSocket = strdup(optarg);
                 break;
             case 'M': {
                 struct stat fstat;
@@ -875,8 +860,7 @@ int main(int argc, char **argv) {
             case 's':
                 // a negative sampling rate is set as the overwrite sampling rate
                 sampling_rate = (int)strtol(optarg, (char **)NULL, 10);
-                if ((sampling_rate == 0) || (sampling_rate < 0 && sampling_rate < -10000000) ||
-                    (sampling_rate > 0 && sampling_rate > 10000000)) {
+                if ((sampling_rate == 0) || (sampling_rate < 0 && sampling_rate < -10000000) || (sampling_rate > 0 && sampling_rate > 10000000)) {
                     LogError("Invalid sampling rate: %s", optarg);
                     exit(EXIT_FAILURE);
                 }
@@ -911,24 +895,21 @@ int main(int argc, char **argv) {
                 break;
             case 'j':
                 if (compress) {
-                    LogError(
-                        "Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(EXIT_FAILURE);
                 }
                 compress = BZ2_COMPRESSED;
                 break;
             case 'y':
                 if (compress) {
-                    LogError(
-                        "Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(EXIT_FAILURE);
                 }
                 compress = LZ4_COMPRESSED;
                 break;
             case 'z':
                 if (compress) {
-                    LogError(
-                        "Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(EXIT_FAILURE);
                 }
                 compress = LZO_COMPRESSED;
@@ -968,8 +949,7 @@ int main(int argc, char **argv) {
         LogError("ERROR, Missing -n (-l/-I) or -M source definitions");
         exit(EXIT_FAILURE);
     }
-    if (FlowSource == NULL && datadir != NULL &&
-        !AddDefaultFlowSource(&FlowSource, Ident, datadir)) {
+    if (FlowSource == NULL && datadir != NULL && !AddDefaultFlowSource(&FlowSource, Ident, datadir)) {
         LogError("Failed to add default data collector directory");
         exit(EXIT_FAILURE);
     }
@@ -1012,8 +992,7 @@ int main(int argc, char **argv) {
     i = 0;
     while (repeater[i].hostname && (i < MAX_REPEATERS)) {
         repeater[i].sockfd =
-            Unicast_send_socket(repeater[i].hostname, repeater[i].port, repeater[i].family, bufflen,
-                                &repeater[i].addr, &repeater[i].addrlen);
+            Unicast_send_socket(repeater[i].hostname, repeater[i].port, repeater[i].family, bufflen, &repeater[i].addr, &repeater[i].addrlen);
         if (repeater[i].sockfd <= 0) exit(EXIT_FAILURE);
         LogInfo("Replay flows to host: %s port: %s", repeater[i].hostname, repeater[i].port);
         i++;
@@ -1033,7 +1012,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (metricsocket && !OpenMetric(metricsocket, Ident)) {
+    if (metricSocket && !OpenMetric(metricSocket, Ident, metricInterval)) {
         close(sock);
         exit(EXIT_FAILURE);
     }
@@ -1112,8 +1091,7 @@ int main(int argc, char **argv) {
     sigaction(SIGCHLD, &act, NULL);
 
     LogInfo("Startup.");
-    run(receive_packet, sock, repeater, twin, t_start, report_sequence, subdir_index,
-        time_extension, compress);
+    run(receive_packet, sock, repeater, twin, t_start, report_sequence, subdir_index, time_extension, compress);
 
     // shutdown
     close(sock);
