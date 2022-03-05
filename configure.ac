@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.71])
+AC_PREREQ([2.69])
 AC_REVISION($Revision: 244 $)dnl 
 AC_INIT([nfdump],[1.7.0],[peter@people.ops-trust.net])
 

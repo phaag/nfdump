@@ -1,3 +1,4 @@
+- Compatibility to autoconf 2.69
 - Update metric. Make collector main clock reference
 - Switch to VS code as editor
 - Cleanup/update automake files
