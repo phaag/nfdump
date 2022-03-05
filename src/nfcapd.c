@@ -770,6 +770,14 @@ int main(int argc, char **argv) {
             case 'D':
                 do_daemonize = 1;
                 break;
+            case 'I':
+                if (strlen(optarg) < 128) {
+                    Ident = strdup(optarg);
+                } else {
+                    LogError("ERROR: Ident length > 128");
+                    exit(EXIT_FAILURE);
+                }
+                break;
             case 'i':
                 metricInterval = atoi(optarg);
                 if (metricInterval < 10) {
