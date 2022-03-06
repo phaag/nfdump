@@ -107,7 +107,8 @@ typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *
 /* module limited globals */
 static FlowSource_t *FlowSource;
 
-static int done, launcher_alive, periodic_trigger, launcher_pid;
+static int done = 0;
+static int launcher_alive, periodic_trigger, launcher_pid;
 
 static const char *nfdump_version = VERSION;
 
@@ -1020,11 +1021,6 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (metricSocket && !OpenMetric(metricSocket, Ident, metricInterval)) {
-        close(sock);
-        exit(EXIT_FAILURE);
-    }
-
     t_start = time(NULL);
     t_start = t_start - (t_start % twin);
 
@@ -1037,7 +1033,11 @@ int main(int argc, char **argv) {
         if (check_pid(pidfile) != 0 || write_pid(pidfile) == 0) exit(EXIT_FAILURE);
     }
 
-    done = 0;
+    if (metricSocket && !OpenMetric(metricSocket, Ident, metricInterval)) {
+        close(sock);
+        exit(EXIT_FAILURE);
+    }
+
     if (launch_process || expire) {
         // create laucher comm memory struct
         shmem = mmap(0, sizeof(srecord_t), PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
