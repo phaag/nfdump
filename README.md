@@ -223,15 +223,15 @@ for your model.
 A generic Cisco sample configuration enabling NetFlow on an interface:
 
     ip address 192.168.92.162 255.255.255.224
-	 interface fastethernet 0/0
-	 ip route-cache flow
+     interface fastethernet 0/0
+     ip route-cache flow
 
 To tell the router where to send the NetFlow data, enter the following 
 global configuration command:
 
 	ip flow-export 192.168.92.218 9995
 	ip flow-export version 5 
-
+	
 	ip flow-cache timeout active 5
 
 This breaks up long-lived flows into 5-minute segments. You can choose 
@@ -419,6 +419,11 @@ netflow record is automatically multiplied by the sampling rate. The total numbe
 flows is not changed as this is not accurate enough. (Small flows versus large flows)
 
 ### InfluxDB
+
+This is considered legacy and will be removed in future releases. Please consider to use [nfinflux](https://github.com/phaag/nfinflux) to import data into InfluxDB.
+
+Legacy:
+
 You can send nfprofile stats data to an influxdb database. The data are the same of rrd files.
 For enable this option you need libcurl dev package installed, use --enable-influxdb for configure the project and the nfprofile command should be invoked with option: -i <influxurl> . 
 Example: -i http://localhost:8086/write?db=mydb&u=user&p=pass 
