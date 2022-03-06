@@ -57,12 +57,16 @@ improves compatibility with some exporters such as yaf and others.
 - Support for Cisco Network Based Application Recognition (NBAR).
 
 - nfpcapd automatically uses TPACKET_V3 for Linux or direct BPF sockets for
-*BSD. This improves packet processing. It adds new options to collect MAC and
-VLAN information if requested as well as the payload of the first packet. This
-creates a lot of new possibilities in oder to process and filter flows, such
-as __nfdump -r flowfile 'payload content POST'__
-nfpcapd can now store flow files locally or can sent them to a remote nfcapd
-collector.
+  *BSD. This improves packet processing. It adds new options to collect MAC and
+  VLAN information if requested as well as the payload of the first packet. This
+  creates a lot of new possibilities in oder to process and filter flows, such
+  as __nfdump -r flowfile 'payload content POST'__
+  nfpcapd can now store flow files locally or can sent them to a remote nfcapd
+  collector.
+
+- Exports every 60s (by default) summary statistics (metric) to a UNIX socket. The corresponding program may be nfinflux to insert these metrics into an influxDB.
+
+  Use **-m </path/to/socket>** to enable metric export
 
 ### New programs
 The nfdump program suite has been extended by __geolookup__. It allows either
@@ -291,15 +295,15 @@ for your model.
 A generic Cisco sample configuration enabling NetFlow on an interface:
 
     ip address 192.168.92.162 255.255.255.224
-	 interface fastethernet 0/0
-	 ip route-cache flow
+     interface fastethernet 0/0
+     ip route-cache flow
 
 To tell the router where to send the NetFlow data, enter the following 
 global configuration command:
 
 	ip flow-export 192.168.92.218 9995
 	ip flow-export version 5 
-
+	
 	ip flow-cache timeout active 5
 
 This breaks up long-lived flows into 5-minute segments. You can choose 

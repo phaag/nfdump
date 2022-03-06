@@ -1278,7 +1278,7 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
             fs->nffile->stat_record->numpackets += genericFlow->inPackets;
             fs->nffile->stat_record->numbytes += genericFlow->inBytes;
 
-            uint32_t exporterIdent = (recordHeaderV3->exporterID << 16) | (((recordHeaderV3->engineType << 8) | recordHeaderV3->engineID) << 16);
+            uint32_t exporterIdent = MetricExpporterID(recordHeaderV3);
             UpdateMetric(exporterIdent, genericFlow);
         }
 

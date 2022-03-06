@@ -496,7 +496,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             fs->nffile->stat_record->numpackets += genericFlow->inPackets;
             fs->nffile->stat_record->numbytes += genericFlow->inBytes;
 
-            uint32_t exporterIdent = (recordHeader->exporterID << 16) | (((recordHeader->engineType << 8) | recordHeader->engineID) << 16);
+            uint32_t exporterIdent = MetricExpporterID(recordHeader);
             UpdateMetric(exporterIdent, genericFlow);
 
             if (printRecord) {

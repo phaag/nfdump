@@ -211,7 +211,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         stat_record->numpackets += genericFlow->inPackets;
         stat_record->numbytes += genericFlow->inBytes;
 
-        uint32_t exporterIdent = (recordHeader->exporterID << 16) | (((recordHeader->engineType << 8) | recordHeader->engineID) << 16);
+        uint32_t exporterIdent = MetricExpporterID(recordHeader);
         UpdateMetric(exporterIdent, genericFlow);
 
         if (printRecord) {
