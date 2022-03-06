@@ -309,13 +309,13 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
                 offset += sizeof(metric_record_t);
 
                 metric_chain = metric_chain->next;
+                LogInfo("Message sent for '%s', exporter: %d\n", identCache, exporterID);
             }
             int ret = write(fd, message, offset);
             if (ret < 0) {
                 LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             }
             close(fd);
-            dbg_printf("Message sent\n");
         } else {
             LogError("metric socket unreachable");
         }
