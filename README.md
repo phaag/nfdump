@@ -64,7 +64,7 @@ improves compatibility with some exporters such as yaf and others.
   nfpcapd can now store flow files locally or can sent them to a remote nfcapd
   collector.
 
-- Exports every 60s (by default) summary statistics (metric) to a UNIX socket. The corresponding program may be nfinflux to insert these metrics into an influxDB.
+- Exports every 60s (by default) summary statistics (metric) to a UNIX socket. The corresponding program may be [nfinflux](https://github.com/phaag/nfinflux) to insert these metrics into an influxDB.
 
   Use **-m </path/to/socket>** to enable metric export
 

@@ -145,7 +145,7 @@ int OpenMetric(char *path, char *ident, int interval) {
         LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
-    dbg_printf("Metric initialised\n");
+    LogInfo("Metric initialized");
 
     return 1;
 
