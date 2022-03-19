@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,6 +31,7 @@
 #include "metric.h"
 
 #include <errno.h>
+#include <math.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
@@ -113,18 +114,18 @@ static inline metric_record_t *GetMetric(uint32_t exporterID) {
 }  // End of GetMetric
 
 static inline void CalculateRates(metric_record_t *metric_record, time_t interval) {
-    metric_record->numflows_tcp /= interval;
-    metric_record->numflows_udp /= interval;
-    metric_record->numflows_icmp /= interval;
-    metric_record->numflows_other /= interval;
-    metric_record->numbytes_tcp /= interval;
-    metric_record->numbytes_udp /= interval;
-    metric_record->numbytes_icmp /= interval;
-    metric_record->numbytes_other /= interval;
-    metric_record->numpackets_tcp /= interval;
-    metric_record->numpackets_udp /= interval;
-    metric_record->numpackets_icmp /= interval;
-    metric_record->numpackets_other /= interval;
+    metric_record->numflows_tcp = ceil((double)metric_record->numflows_tcp / (double)interval);
+    metric_record->numflows_udp = ceil((double)metric_record->numflows_udp / (double)interval);
+    metric_record->numflows_icmp = ceil((double)metric_record->numflows_icmp / (double)interval);
+    metric_record->numflows_other = ceil((double)metric_record->numflows_other / (double)interval);
+    metric_record->numbytes_tcp = ceil((double)metric_record->numbytes_tcp / (double)interval);
+    metric_record->numbytes_udp = ceil((double)metric_record->numbytes_udp / (double)interval);
+    metric_record->numbytes_icmp = ceil((double)metric_record->numbytes_icmp / (double)interval);
+    metric_record->numbytes_other = ceil((double)metric_record->numbytes_other / (double)interval);
+    metric_record->numpackets_tcp = ceil((double)metric_record->numpackets_tcp / (double)interval);
+    metric_record->numpackets_udp = ceil((double)metric_record->numpackets_udp / (double)interval);
+    metric_record->numpackets_icmp = ceil((double)metric_record->numpackets_icmp / (double)interval);
+    metric_record->numpackets_other = ceil((double)metric_record->numpackets_other / (double)interval);
 }  // End of CalculateRates
 
 int OpenMetric(char *path, char *ident, int interval) {
@@ -253,12 +254,15 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
     // number of allocated metric records in message
     uint32_t cnt = 1;
 
-    time_t sleepTime = interval - (time(NULL) % interval);
+    struct timespec sleepTime;
+    struct timeval te;
+    gettimeofday(&te, NULL);
+    sleepTime.tv_sec = interval - (te.tv_sec % interval) - 1;
+    sleepTime.tv_nsec = 1000000000LL - 1000LL * te.tv_usec;
+
     while (1) {
-        sleep(sleepTime);
-        struct timeval te;
+        nanosleep(&sleepTime, NULL);
         gettimeofday(&te, NULL);
-        uint64_t now = te.tv_sec * 1000LL + te.tv_usec / 1000;
 
         // check for end condition
         uint64_t _tstart = atomic_load(&tstart);
@@ -266,7 +270,8 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
 
         if (numMetrics == 0) {
             dbg_printf("No metric available\n");
-            sleepTime = interval - (time(NULL) % interval);
+            sleepTime.tv_sec = interval - (te.tv_sec % interval) - 1;
+            sleepTime.tv_nsec = 1000000000LL - 1000LL * te.tv_usec;
             continue;
         }
 
@@ -288,8 +293,9 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
         }
 
         // update uptime
-        message_header->uptime = now - _tstart;
-        message_header->timeStamp = now;
+        message_header->uptime = te.tv_sec - _tstart;
+        // update timestamp rounded correctly to the inteval slot
+        message_header->timeStamp = 1000L * (te.tv_sec - (te.tv_sec % interval));
 
         metric_chain_t *metric_chain = metric_list;
         int fd = OpenSocket();
@@ -320,7 +326,10 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
             LogError("metric socket unreachable");
         }
         pthread_mutex_unlock(&mutex);
-        sleepTime = interval - (te.tv_sec % interval);
+
+        gettimeofday(&te, NULL);
+        sleepTime.tv_sec = interval - (te.tv_sec % interval) - 1;
+        sleepTime.tv_nsec = 1000000000LL - 1000LL * te.tv_usec;
     }
     free(message);
     pthread_exit(NULL);
