@@ -21,7 +21,7 @@ nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h \
 	$(pcaproc) $(pcapdump) $(flowdump) $(flowsend) \
 	$(nfstatfile) \
 	$(nfnet) $(collector) $(bookkeeper) $(expire) $(metric)
-nfpcapd_LDADD = ../lib/libnfdump.la
+nfpcapd_LDADD = ../lib/libnfdump.la -lm
 if BSDBPF
 nfpcapd_SOURCES += packet_bpf.c
 AM_CPPFLAGS += -DUSE_BPFSOCKET
