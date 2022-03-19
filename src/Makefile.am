@@ -48,12 +48,12 @@ nfdump_LDADD = lib/libnfdump.la
 
 nfreplay_SOURCES = nfreplay.c $(nfprof) \
 	$(nfnet) $(collector) $(nfv1) $(nfv9) $(nfv5v7) $(ipfix) $(metric)
-nfreplay_LDADD = lib/libnfdump.la
+nfreplay_LDADD = lib/libnfdump.la -lm
 
 nfcapd_SOURCES = nfcapd.c \
 	$(nfstatfile) $(launch) \
 	$(nfnet) $(collector) $(nfv1) $(nfv5v7) $(nfv9) $(ipfix) $(nfpcapd) $(bookkeeper) $(expire) $(metric)
-nfcapd_LDADD = lib/libnfdump.la
+nfcapd_LDADD = lib/libnfdump.la -lm
 nfcapd_LDFLAGS = -Llib
 
 if READPCAP

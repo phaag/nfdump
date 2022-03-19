@@ -15,7 +15,7 @@ metric = ../metric.c ../metric.h
 sfcapd_SOURCES = sfcapd.c sflow_nfdump.c sflow_nfdump.h sflow.h sflow_v2v4.h sflow_process.c  sflow_process.h\
 	$(nfstatfile) $(launch) \
 	$(nfnet) $(collector) $(bookkeeper) $(expire) $(metric)
-sfcapd_LDADD = ../lib/libnfdump.la
+sfcapd_LDADD = ../lib/libnfdump.la -lm
 
 if READPCAP
 sfcapd_CFLAGS = -DPCAP
