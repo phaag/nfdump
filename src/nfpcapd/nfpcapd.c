@@ -704,10 +704,6 @@ int main(int argc, char *argv[]) {
 
     SetPriv(userid, groupid);
 
-    if (metricsocket && !OpenMetric(metricsocket, Ident, metricInterval)) {
-        exit(EXIT_FAILURE);
-    }
-
     FlowSource_t *fs = NULL;
     if (datadir) {
         if (pcap_datadir && access(pcap_datadir, W_OK) < 0) {
@@ -754,6 +750,10 @@ int main(int argc, char *argv[]) {
 
     if (pidfile) {
         if (check_pid(pidfile) != 0 || write_pid(pidfile) == 0) pcap_close(packetParam.pcap_dev);
+        exit(EXIT_FAILURE);
+    }
+
+    if (metricsocket && !OpenMetric(metricsocket, metricInterval)) {
         exit(EXIT_FAILURE);
     }
 

@@ -1033,7 +1033,7 @@ int main(int argc, char **argv) {
         if (check_pid(pidfile) != 0 || write_pid(pidfile) == 0) exit(EXIT_FAILURE);
     }
 
-    if (metricSocket && !OpenMetric(metricSocket, Ident, metricInterval)) {
+    if (metricSocket && !OpenMetric(metricSocket, metricInterval)) {
         close(sock);
         exit(EXIT_FAILURE);
     }

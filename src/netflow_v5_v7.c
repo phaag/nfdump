@@ -497,7 +497,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             fs->nffile->stat_record->numbytes += genericFlow->inBytes;
 
             uint32_t exporterIdent = MetricExpporterID(recordHeader);
-            UpdateMetric(exporterIdent, genericFlow);
+            UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
 
             if (printRecord) {
                 flow_record_short(stdout, recordHeader);

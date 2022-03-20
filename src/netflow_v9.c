@@ -1197,7 +1197,7 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
             fs->nffile->stat_record->numbytes += genericFlow->inBytes;
 
             uint32_t exporterIdent = MetricExpporterID(recordHeaderV3);
-            UpdateMetric(exporterIdent, genericFlow);
+            UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
         }
 
         EXcntFlow_t *cntFlow = sequencer->offsetCache[EXcntFlowID];

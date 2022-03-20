@@ -1279,7 +1279,7 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
             fs->nffile->stat_record->numbytes += genericFlow->inBytes;
 
             uint32_t exporterIdent = MetricExpporterID(recordHeaderV3);
-            UpdateMetric(exporterIdent, genericFlow);
+            UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
         }
 
         EXcntFlow_t *cntFlow = sequencer->offsetCache[EXcntFlowID];

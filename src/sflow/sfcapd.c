@@ -912,11 +912,6 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (metricsocket && !OpenMetric(metricsocket, Ident, metricInterval)) {
-        close(sock);
-        exit(EXIT_FAILURE);
-    }
-
     t_start = time(NULL);
     t_start = t_start - (t_start % twin);
 
@@ -929,6 +924,10 @@ int main(int argc, char **argv) {
         if (check_pid(pidfile) != 0 || write_pid(pidfile) == 0) exit(EXIT_FAILURE);
     }
 
+    if (metricsocket && !OpenMetric(metricsocket, metricInterval)) {
+        close(sock);
+        exit(EXIT_FAILURE);
+    }
     done = 0;
     if (launch_process || expire) {
         // create laucher comm memory struct

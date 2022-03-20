@@ -212,7 +212,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         stat_record->numbytes += genericFlow->inBytes;
 
         uint32_t exporterIdent = MetricExpporterID(recordHeader);
-        UpdateMetric(exporterIdent, genericFlow);
+        UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
 
         if (printRecord) {
             flow_record_short(stdout, recordHeader);

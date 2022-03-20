@@ -59,9 +59,7 @@ static metric_chain_t *metric_list = NULL;
 
 // cache last metric record
 static metric_record_t *metricCache = NULL;
-static uint64_t exporterIDcache = 0;
 static uint32_t numMetrics = 0;
-static char identCache[128];
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_t tid = 0;
@@ -87,16 +85,16 @@ static int OpenSocket(void) {
     return fd;
 }
 
-static inline metric_record_t *GetMetric(uint32_t exporterID) {
+static inline metric_record_t *GetMetric(char *ident, uint32_t exporterID) {
     metric_chain_t *metric_chain = metric_list;
-    while (metric_chain && metric_chain->record->exporterID != exporterID) metric_chain = metric_chain->next;
+    while (metric_chain && strncmp(metric_chain->record->ident, ident, 128)) metric_chain = metric_chain->next;
 
     if (metric_chain) {
         dbg_printf("Found metric: %x\n", exporterID);
         return metric_chain->record;
     }
 
-    dbg_printf("New metric: %x\n", exporterID);
+    dbg_printf("New metric: %s, %x\n", ident, exporterID);
     metric_chain = malloc(sizeof(metric_chain_t));
     metric_record_t *metric_record = calloc(1, sizeof(metric_record_t));
     if (!metric_chain || !metric_record) {
@@ -104,7 +102,7 @@ static inline metric_record_t *GetMetric(uint32_t exporterID) {
         return NULL;
     }
     numMetrics++;
-
+    strncpy(metric_record->ident, ident, 128);
     metric_record->exporterID = exporterID;
     metric_chain->record = metric_record;
     metric_chain->next = metric_list;
@@ -113,22 +111,7 @@ static inline metric_record_t *GetMetric(uint32_t exporterID) {
 
 }  // End of GetMetric
 
-static inline void CalculateRates(metric_record_t *metric_record, time_t interval) {
-    metric_record->numflows_tcp = ceil((double)metric_record->numflows_tcp / (double)interval);
-    metric_record->numflows_udp = ceil((double)metric_record->numflows_udp / (double)interval);
-    metric_record->numflows_icmp = ceil((double)metric_record->numflows_icmp / (double)interval);
-    metric_record->numflows_other = ceil((double)metric_record->numflows_other / (double)interval);
-    metric_record->numbytes_tcp = ceil((double)metric_record->numbytes_tcp / (double)interval);
-    metric_record->numbytes_udp = ceil((double)metric_record->numbytes_udp / (double)interval);
-    metric_record->numbytes_icmp = ceil((double)metric_record->numbytes_icmp / (double)interval);
-    metric_record->numbytes_other = ceil((double)metric_record->numbytes_other / (double)interval);
-    metric_record->numpackets_tcp = ceil((double)metric_record->numpackets_tcp / (double)interval);
-    metric_record->numpackets_udp = ceil((double)metric_record->numpackets_udp / (double)interval);
-    metric_record->numpackets_icmp = ceil((double)metric_record->numpackets_icmp / (double)interval);
-    metric_record->numpackets_other = ceil((double)metric_record->numpackets_other / (double)interval);
-}  // End of CalculateRates
-
-int OpenMetric(char *path, char *ident, int interval) {
+int OpenMetric(char *path, int interval) {
     socket_path = path;
     int fd = OpenSocket();
     if (fd == 0) {
@@ -136,10 +119,6 @@ int OpenMetric(char *path, char *ident, int interval) {
     } else {
         close(fd);
     }
-
-    // save ident
-    strncpy(identCache, ident, 128);
-    identCache[127] = '\0';
 
     int err = pthread_create(&tid, NULL, MetricThread, NULL);
     if (err) {
@@ -178,7 +157,7 @@ int CloseMetric() {
 
 }  // End of CloseMetric
 
-void UpdateMetric(uint32_t exporterID, EXgenericFlow_t *genericFlow) {
+void UpdateMetric(char *ident, uint32_t exporterID, EXgenericFlow_t *genericFlow) {
     dbg_printf("Update metric: exporter ID: %x\n", exporterID);
 
     // if no MetricThread is running
@@ -187,15 +166,14 @@ void UpdateMetric(uint32_t exporterID, EXgenericFlow_t *genericFlow) {
     dbg_printf("Update metric\n");
     pthread_mutex_lock(&mutex);
     metric_record_t *metric_record = metricCache;
-    if (exporterIDcache != exporterID || metricCache == NULL) {
+    if (metric_record == NULL || strncmp(metric_record->ident, ident, 128) != 0) {
         dbg_printf("Get metric\n");
-        metric_record = GetMetric(exporterID);
+        metric_record = GetMetric(ident, exporterID);
         if (!metric_record) {
             pthread_mutex_unlock(&mutex);
             return;
         }
         metricCache = metric_record;
-        exporterIDcache = exporterID;
     }
 #ifdef DEVEL
     else {
@@ -245,8 +223,6 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
     message_header->timeStamp = 0;
     message_header->interval = interval;
     message_header->uptime = 0;
-    strncpy(message_header->ident, identCache, 128);
-    identCache[127] = '\0';
 
     // set start time of collector
     atomic_init(&tstart, (uint64_t)time(NULL) * 1000LL);
@@ -303,19 +279,21 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
             size_t offset = sizeof(message_header_t);
             while (metric_chain) {
                 metric_record_t *metric_record = metric_chain->record;
-                CalculateRates(metric_record, interval);
 
                 dbg_printf("Copy metric\n");
                 // compose message
                 memcpy(message + offset, (void *)metric_record, sizeof(metric_record_t));
                 uint64_t exporterID = metric_record->exporterID;
+                char ident[128];
+                strncpy(ident, metric_record->ident, 128);
                 memset((void *)metric_record, 0, sizeof(metric_record_t));
                 metric_record->exporterID = exporterID;
+                strncpy(metric_record->ident, ident, 128);
 
                 offset += sizeof(metric_record_t);
 
                 metric_chain = metric_chain->next;
-                LogInfo("Message sent for '%s', exporter: %d\n", identCache, exporterID);
+                LogInfo("Message sent for '%s', exporter: %d\n", metric_record->ident, exporterID);
             }
             int ret = write(fd, message, offset);
             if (ret < 0) {

@@ -42,11 +42,11 @@ typedef struct message_header_s {
     uint16_t interval;
     uint64_t timeStamp;
     uint64_t uptime;
-    char ident[128];
 } message_header_t;
 
 typedef struct metric_record_s {
     // Ident
+    char ident[128];
     uint64_t exporterID;  // 32bit: exporter_id:16 engineType:8 engineID:*
 
     // flow stat
@@ -71,11 +71,11 @@ typedef struct metric_chain_s {
     metric_record_t *record;
 } metric_chain_t;
 
-int OpenMetric(char *path, char *ident, int interval);
+int OpenMetric(char *path, int interval);
 
 int CloseMetric(void);
 
-void UpdateMetric(uint32_t exporterID, EXgenericFlow_t *genericFlow);
+void UpdateMetric(char *ident, uint32_t exporterID, EXgenericFlow_t *genericFlow);
 
 void *MetricThread(void *arg);
 
