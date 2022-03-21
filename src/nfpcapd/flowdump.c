@@ -354,6 +354,8 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
                 pthread_kill(flowParam->parent, SIGUSR1);
                 break;
             }
+            SetIdent(fs->nffile, fs->Ident);
+
             // Dump all exporters to the buffer
             FlushStdRecords(fs);
 

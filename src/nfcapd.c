@@ -539,6 +539,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                         LogError("killed due to fatal error: ident: %s", fs->Ident);
                         break;
                     }
+                    SetIdent(fs->nffile, fs->Ident);
 
                     // Dump all exporters/samplers to the buffer
                     FlushStdRecords(fs);
@@ -625,6 +626,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 LogError("Failed to open new collector file");
                 return;
             }
+            SetIdent(fs->nffile, fs->Ident);
         }
 
         /* check for too little data - cnt must be > 0 at this point */
