@@ -1,3 +1,7 @@
+2022-03-26
+- Update Makefile.am with ACLOCAL_AMFLAGS: #336
+- Update Doxigen.in file: #332
+
 2022-03-11
 - Fix cmd line processinf in nfanon. #328
 
