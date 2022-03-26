@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.69])
 AC_REVISION($Revision: 244 $)dnl 
-AC_INIT([nfdump],[1.6.23],[peter@people.ops-trust.net])
+AC_INIT([nfdump],[1.6.24],[peter@people.ops-trust.net])
 
 AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE([subdir-objects])
