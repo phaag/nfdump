@@ -1,5 +1,7 @@
-2022-03-26
+2022-04-023
+-	Fix #333 with NSEL event record sending flow icmp
 
+2022-03-26
 -   Release 1.6.24
 
 2022-03-26
