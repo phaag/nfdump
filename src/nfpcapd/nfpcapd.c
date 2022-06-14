@@ -313,9 +313,6 @@ static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, 
         case DLT_EN10MB:
             linkoffset = 14;
             break;
-#ifndef DLT_LINUX_SLL
-#define DLT_LINUX_SLL 113
-#endif
         case DLT_LINUX_SLL:
             linkoffset = 16;
             break;

@@ -134,6 +134,9 @@ int OpenMetric(char *path, int interval) {
 int CloseMetric() {
     dbg_printf("Close metric\n");
 
+    // if no MetricThread is running
+    if (atomic_load(&tstart) == 0) return 0;
+
     // signal MetricThread too terminate
     atomic_init(&tstart, 0);
     int status = pthread_kill(tid, SIGINT);

@@ -18,6 +18,6 @@ output = output_util.c output_util.h output_short.c output_short.h
 
 lib_LTLIBRARIES = libnfdump.la
 libnfdump_la_SOURCES = $(util) $(pidfile) $(filelzo) $(nffile) $(nflist) $(filter) $(output)
-libnfdump_la_LDFLAGS = -release 1.7.0
+libnfdump_la_LDFLAGS = -release @VERSION@
 
 CLEANFILES = lex.yy.c grammar.c grammar.h scanner.c scanner.h *.gch
