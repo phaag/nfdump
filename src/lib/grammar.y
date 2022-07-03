@@ -142,6 +142,7 @@ char yyerror_buff[256];
 %token NAT ADD EVENT VRF NPORT NIP
 %token PBLOCK START END STEP SIZE
 %token PAYLOAD CONTENT JA3
+%token OBSERVATION DOMAIN POINT ID
 %token <s> STRING WORD REASON MD5
 %token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
 %type <value> expr
@@ -2014,6 +2015,14 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 		$$.self = NewBlock(OffsetDir, MaskDir, (dir << ShiftDir) & MaskDir, CMP_EQ, FUNC_NONE, NULL);
 
+	}
+
+	| OBSERVATION DOMAIN ID NUMBER {
+		$$.self = NewBlock(OffsetObservationDomainID, MaskObservationDomainID, ($4 << ShiftObservationDomainID) & MaskObservationDomainID, CMP_EQ, FUNC_NONE, NULL);
+	}
+
+	| OBSERVATION POINT ID NUMBER {
+		$$.self = NewBlock(OffsetObservationPointID, MaskObservationPointID, ($4 << ShiftObservationPointID) & MaskObservationPointID, CMP_EQ, FUNC_NONE, NULL);
 	}
 
 /* iplist definition */

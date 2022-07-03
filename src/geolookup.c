@@ -1,311 +1,306 @@
 /*
  *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
- *  
- *  Redistribution and use in source and binary forms, with or without 
+ *
+ *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
- *  
- *   * Redistributions of source code must retain the above copyright notice, 
+ *
+ *   * Redistributions of source code must retain the above copyright notice,
  *     this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above copyright notice, 
- *     this list of conditions and the following disclaimer in the documentation 
+ *   * Redistributions in binary form must reproduce the above copyright notice,
+ *     this list of conditions and the following disclaimer in the documentation
  *     and/or other materials provided with the distribution.
- *   * Neither the name of the author nor the names of its contributors may be 
- *     used to endorse or promote products derived from this software without 
+ *   * Neither the name of the author nor the names of its contributors may be
+ *     used to endorse or promote products derived from this software without
  *     specific prior written permission.
- *  
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
- *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
- *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
- *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
- *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
- *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
- *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
- *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
- *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
- *  
+ *
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <stdint.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
-#include <ctype.h>
+#include <fcntl.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#include "util.h"
-#include "nffile.h"
 #include "ipconv.h"
 #include "maxmind.h"
+#include "nffile.h"
+#include "util.h"
 
 static void usage(char *name) {
-        printf("usage %s [options] \n"
-                    "-h\t\tthis text you see right here.\n"
-                    "-G <dir>\tmaxmind GeoDB in nfdump format to lookup info.\n"
-                    "-d <dir>\tDirectory containing the maxmind .csv files to convert into nfdump GeoDB.\n"
-                    "-w <file>\tName of nfdump GeoDB file.\n"
-                    , name);
+    printf(
+        "usage %s [options] \n"
+        "-h\t\tthis text you see right here.\n"
+        "-G <dir>\tmaxmind GeoDB in nfdump format to lookup info.\n"
+        "-d <dir>\tDirectory containing the maxmind .csv files to convert into nfdump GeoDB.\n"
+        "-w <file>\tName of nfdump GeoDB file.\n",
+        name);
 } /* usage */
 
 static int LoadMaps(char *dirName) {
-
-	DIR *dp = opendir (dirName);
-	if (dp == NULL) {
-		LogError("opendir() error: %s", strerror(errno));
-		return 0;
-	}
-	char *cwd = getcwd(NULL, 0);
-	if (cwd == NULL) {
-		LogError("getcwd() error: %s", strerror(errno));
-		return 0;
-	}
-	if (chdir(dirName) < 0) {
-		LogError("chdir() error: %s", strerror(errno));
-		return 0;
-	}
-	char *CityLocationFile   = NULL;
-	char *CityBlocksIPv4File = NULL;
-	char *CityBlocksIPv6File = NULL;
-	char *ASNBlocksIPv4File  = NULL;
-	char *ASNBlocksIPv6File  = NULL;
-	struct dirent *ep;
-	for (ep = readdir(dp); ep != NULL; ep = readdir(dp)) {
-		struct stat stat_buf;
-		if (stat(ep->d_name, &stat_buf) < 0) {
-			LogError("stat() error: %s", strerror(errno));
-			return 0;
-		}
-		if (!S_ISREG(stat_buf.st_mode) ) {
+    DIR *dp = opendir(dirName);
+    if (dp == NULL) {
+        LogError("opendir() error: %s", strerror(errno));
+        return 0;
+    }
+    char *cwd = getcwd(NULL, 0);
+    if (cwd == NULL) {
+        LogError("getcwd() error: %s", strerror(errno));
+        return 0;
+    }
+    if (chdir(dirName) < 0) {
+        LogError("chdir() error: %s", strerror(errno));
+        return 0;
+    }
+    char *CityLocationFile = NULL;
+    char *CityBlocksIPv4File = NULL;
+    char *CityBlocksIPv6File = NULL;
+    char *ASNBlocksIPv4File = NULL;
+    char *ASNBlocksIPv6File = NULL;
+    struct dirent *ep;
+    for (ep = readdir(dp); ep != NULL; ep = readdir(dp)) {
+        struct stat stat_buf;
+        if (stat(ep->d_name, &stat_buf) < 0) {
+            LogError("stat() error: %s", strerror(errno));
+            return 0;
+        }
+        if (!S_ISREG(stat_buf.st_mode)) {
             LogError("Skip non file entry: %s", ep->d_name);
             continue;
         }
-		char *extension = strstr(ep->d_name, ".csv");
-		if (extension == NULL) {
-			LogError("Skip non .csv file: %s",  ep->d_name);
-			continue;
-		}
-		if (strstr(ep->d_name, "-City-Locations-") != NULL)
-			CityLocationFile = strdup(ep->d_name);
-		else if (strstr(ep->d_name, "-City-Blocks-IPv4.csv") != NULL)
-			CityBlocksIPv4File = strdup(ep->d_name);
-		else if (strstr(ep->d_name, "-City-Blocks-IPv6.csv") != NULL)
-			CityBlocksIPv6File = strdup(ep->d_name);
-		else if (strstr(ep->d_name, "-ASN-Blocks-IPv4.csv") != NULL)
-			ASNBlocksIPv4File = strdup(ep->d_name);
-		else if (strstr(ep->d_name, "-ASN-Blocks-IPv6.csv") != NULL)
-			ASNBlocksIPv6File = strdup(ep->d_name);
+        char *extension = strstr(ep->d_name, ".csv");
+        if (extension == NULL) {
+            LogError("Skip non .csv file: %s", ep->d_name);
+            continue;
+        }
+        if (strstr(ep->d_name, "-City-Locations-") != NULL)
+            CityLocationFile = strdup(ep->d_name);
+        else if (strstr(ep->d_name, "-City-Blocks-IPv4.csv") != NULL)
+            CityBlocksIPv4File = strdup(ep->d_name);
+        else if (strstr(ep->d_name, "-City-Blocks-IPv6.csv") != NULL)
+            CityBlocksIPv6File = strdup(ep->d_name);
+        else if (strstr(ep->d_name, "-ASN-Blocks-IPv4.csv") != NULL)
+            ASNBlocksIPv4File = strdup(ep->d_name);
+        else if (strstr(ep->d_name, "-ASN-Blocks-IPv6.csv") != NULL)
+            ASNBlocksIPv6File = strdup(ep->d_name);
 
-		printf("Found entry: %s\n", ep->d_name);
-	}
-	closedir(dp);
-	
-	if (CityLocationFile) {
-		loadLocalMap(CityLocationFile);
-	}
-	if (CityBlocksIPv4File) {
-		loadIPV4tree(CityBlocksIPv4File);
-	}
-	if (CityBlocksIPv6File) {
-		loadIPV6tree(CityBlocksIPv6File);
-	}
-	if (ASNBlocksIPv4File) {
-		loadASV4tree(ASNBlocksIPv4File);
-	}
-	if (ASNBlocksIPv6File) {
-		loadASV6tree(ASNBlocksIPv6File);
-	}
+        printf("Found entry: %s\n", ep->d_name);
+    }
+    closedir(dp);
 
-	if (chdir(cwd) < 0) {
-		LogError("chdir() error: %s", strerror(errno));
-		return 0;
-	}
+    if (CityLocationFile) {
+        loadLocalMap(CityLocationFile);
+    }
+    if (CityBlocksIPv4File) {
+        loadIPV4tree(CityBlocksIPv4File);
+    }
+    if (CityBlocksIPv6File) {
+        loadIPV6tree(CityBlocksIPv6File);
+    }
+    if (ASNBlocksIPv4File) {
+        loadASV4tree(ASNBlocksIPv4File);
+    }
+    if (ASNBlocksIPv6File) {
+        loadASV6tree(ASNBlocksIPv6File);
+    }
 
-	return 1;
+    if (chdir(cwd) < 0) {
+        LogError("chdir() error: %s", strerror(errno));
+        return 0;
+    }
 
-} // End of LoadMaps
+    return 1;
+
+}  // End of LoadMaps
 
 // Return a pointer to the trimmed string
 static char *string_trim(char *s) {
-	while (isspace((unsigned char) *s)) s++;
-	if (*s) {
-		char *p = s;
-		while (*p) p++;
-		while (isspace((unsigned char) *(--p)));
-		p[1] = '\0';
-	}
+    while (isspace((unsigned char)*s)) s++;
+    if (*s) {
+        char *p = s;
+        while (*p) p++;
+        while (isspace((unsigned char)*(--p)))
+            ;
+        p[1] = '\0';
+    }
 
-	return s;
-} // end of string_trim
+    return s;
+}  // end of string_trim
 
 static int valid_ipv4(char *s) {
+    char *c = s;
+    while (*c) {
+        if (!isdigit(*c) && *c != '.') {
+            return 0;
+        }
+        c++;  // point to next character
+    }
 
-	char *c = s;
-	while (*c) {
-		if(!isdigit(*c) && *c != '.') {
-			return 0;
-		}
-		c++; //point to next character
-	}
+    c = strdup(s);
+    int numbers = 0;
+    char *sep = ".";
+    char *brkt;
+    char *ns = strtok_r(c, sep, &brkt);
+    while (ns) {
+        int num = atoi(ns);
+        if (num > 255) {
+            free(c);
+            return 0;
+        }
+        numbers++;
+        ns = strtok_r(NULL, sep, &brkt);
+    }
 
-	c = strdup(s);
-	int numbers = 0;
-	char *sep = ".";
-	char *brkt;
-	char *ns = strtok_r(c, sep, &brkt);
-	while (ns) {
-		int num = atoi(ns);
-		if ( num > 255 ) {
-			free(c);
-			return 0;
-		}
-		numbers++;
-		ns = strtok_r(NULL, sep, &brkt);
-	}
-
-	free(c);
-	return numbers == 4;
-} 
+    free(c);
+    return numbers == 4;
+}
 
 static int valid_ipv6(char *s) {
+    char *c = s;
+    while (*c) {
+        if (!isxdigit(*c) && *c != ':') {
+            return 0;
+        }
+        c++;  // point to next character
+    }
+    if (strchr(s, ':') == NULL) {
+        return 0;
+    }
+    c = strdup(s);
+    int numbers = 0;
+    char *sep = ":";
+    char *brkt;
+    char *ns = strtok_r(c, sep, &brkt);
+    while (ns) {
+        int num = atoi(ns);
+        if (num > 65535) {
+            free(c);
+            return 0;
+        }
+        numbers++;
+        ns = strtok_r(NULL, sep, &brkt);
+    }
 
-	char *c = s;
-	while (*c) {
-		if(!isxdigit(*c) && *c != ':') {
-			return 0;
-		}
-		c++; //point to next character
-	}
-	if (strchr(s, ':') == NULL) {
-		return 0;
-	}
-	c = strdup(s);
-	int numbers = 0;
-	char *sep = ":";
-	char *brkt;
-	char *ns = strtok_r(c, sep, &brkt);
-	while (ns) {
-		int num = atoi(ns);
-		if ( num > 65535 ) {
-			free(c);
-			return 0;
-		}
-		numbers++;
-		ns = strtok_r(NULL, sep, &brkt);
-	}
+    free(c);
+    uint64_t u[2];
+    if (inet_pton(PF_INET6, s, u) != 1) {
+        return 0;
+    }
 
-	free(c);
-	uint64_t u[2];
-	if ( inet_pton(PF_INET6, s, u) != 1 ) {
-		return 0;
-	}
-
-	return 1;
-} 
+    return 1;
+}
 
 int main(int argc, char **argv) {
-
-	char *dirName = NULL;
-	char *geoFile = getenv("NFGEODB");
-	char *wfile	  = "mmc.nf";
-	int c;
-	while ((c = getopt(argc, argv, "hd:G:w:")) != EOF) {
-		switch (c) {
-			case 'h':
-				usage(argv[0]);
-				exit(0);
-				break;
-			case 'd':
-				if ( !CheckPath(optarg, S_IFDIR) )
-					exit(EXIT_FAILURE);
-				dirName = strdup(optarg);
-				break;
-			case 'w':
-				wfile = optarg;
-				break;
+    char *dirName = NULL;
+    char *geoFile = getenv("NFGEODB");
+    char *wfile = "mmc.nf";
+    int c;
+    while ((c = getopt(argc, argv, "hd:G:w:")) != EOF) {
+        switch (c) {
+            case 'h':
+                usage(argv[0]);
+                exit(0);
+                break;
+            case 'd':
+                if (!CheckPath(optarg, S_IFDIR)) exit(EXIT_FAILURE);
+                dirName = strdup(optarg);
+                break;
+            case 'w':
+                wfile = optarg;
+                break;
             case 'G':
-                if ( !CheckPath(optarg, S_IFREG) )
-                    exit(EXIT_FAILURE);
+                if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 geoFile = strdup(optarg);
-				break;
-			default:
-				usage(argv[0]);
-				exit(0);
-		}
-	}
+                break;
+            default:
+                usage(argv[0]);
+                exit(0);
+        }
+    }
 
-	if ( !Init_nffile(NULL) || !Init_MaxMind() )
-		exit(EXIT_FAILURE);
+    if (!Init_nffile(NULL) || !Init_MaxMind()) exit(EXIT_FAILURE);
 
-	if (dirName && wfile) {
-		if ( LoadMaps(dirName) == 0 || SaveMaxMind(wfile) == 0) {
-        	exit(EXIT_FAILURE);
-		}
-       	exit(EXIT_SUCCESS);
-	}
+    if (dirName && wfile) {
+        if (LoadMaps(dirName) == 0 || SaveMaxMind(wfile) == 0) {
+            exit(EXIT_FAILURE);
+        }
+        exit(EXIT_SUCCESS);
+    }
 
-	if ( geoFile == NULL ) {
-		usage(argv[0]);
-		exit(0);
-	}
+    if (geoFile == NULL) {
+        usage(argv[0]);
+        exit(0);
+    }
 
-	if ( !LoadMaxMind(geoFile) ) {
-       	exit(EXIT_FAILURE);
-	}
+    if (!LoadMaxMind(geoFile)) {
+        exit(EXIT_FAILURE);
+    }
 
-	if (argc - optind > 0) {
-    	while (argc - optind > 0) {
-        	char *arg = argv[optind++];
-			if (strlen(arg) < 16 && (valid_ipv4(arg) || valid_ipv6(arg))) { 
-				LookupWhois(arg);
-			}
-    	}
-	} else {
-		char *line = NULL;
-		size_t linecap = 0;
-		ssize_t lineLen;
-		// read each line - trimm \n
-		while ((lineLen = getline(&line, &linecap, stdin)) > 0) {
-			if (lineLen > 1024) {
-				LogError("Line length error");
-       			exit(EXIT_FAILURE);
-			}
-			char *eol = strchr(line, '\n');
-			*eol = '\0';
+    if (argc - optind > 0) {
+        while (argc - optind > 0) {
+            char *arg = argv[optind++];
+            if (strlen(arg) < 16 && (valid_ipv4(arg) || valid_ipv6(arg))) {
+                LookupWhois(arg);
+            }
+        }
+    } else {
+        char *line = NULL;
+        size_t linecap = 0;
+        ssize_t lineLen;
+        // read each line - trimm \n
+        while ((lineLen = getline(&line, &linecap, stdin)) > 0) {
+            if (lineLen > 1024) {
+                LogError("Line length error");
+                exit(EXIT_FAILURE);
+            }
+            char *eol = strchr(line, '\n');
+            *eol = '\0';
 
-			// split ' ' separated words and check, if it's an IPv4/v6
-			char *sep = " ";
-			char *word, *brkt;
-			word = strtok_r(line, sep, &brkt);
-			while (word) {
-				if (valid_ipv4(word) || valid_ipv6(word)) { 
-					LookupWhois(string_trim(word));
-				}
-				word = strtok_r(NULL, sep, &brkt);
-			}
-		}
-	}
-/*
-	uint32_t t1 = getTick();
-	LoadMaps(dirName);
-	uint32_t t2 = getTick();
-	printf("Load CSV time: %u\n", t2-t1);
+            // split ' ' separated words and check, if it's an IPv4/v6
+            char *sep = " ";
+            char *word, *brkt;
+            word = strtok_r(line, sep, &brkt);
+            while (word) {
+                if (valid_ipv4(word) || valid_ipv6(word)) {
+                    LookupWhois(string_trim(word));
+                }
+                word = strtok_r(NULL, sep, &brkt);
+            }
+        }
+    }
+    /*
+            uint32_t t1 = getTick();
+            LoadMaps(dirName);
+            uint32_t t2 = getTick();
+            printf("Load CSV time: %u\n", t2-t1);
 
-	LookupWhois("80.219.226.184");
-	LookupWhois("152.88.1.5");
-	LookupWhois("2001:620:0:ff::5c");
-	LookupWhois("2a04:4e42:1b::323");
-	LookupWhois("2002:521c:8016::521c:8016");
+            LookupWhois("80.219.226.184");
+            LookupWhois("152.88.1.5");
+            LookupWhois("2001:620:0:ff::5c");
+            LookupWhois("2a04:4e42:1b::323");
+            LookupWhois("2002:521c:8016::521c:8016");
 
-*/
-	return 0;
+    */
+    return 0;
 }

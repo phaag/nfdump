@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2021, Peter Haag
+ *  Copyright (c) 2012-2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -186,6 +186,8 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_engineType, Stack_ONLY, EXnull, 0, STACK_ENGINETYPE, "engine type"},
     {IPFIX_engineId, Stack_ONLY, EXnull, 0, STACK_ENGINEID, "engine ID"},
     {NBAR_APPLICATION_ID, SIZEnbarAppID, EXnbarAppID, OFFnbarAppID, STACK_NONE, "nbar application ID"},
+    {IPFIX_observationDomainId, SIZEdomainID, EXobservationID, OFFdomainID, STACK_NONE, "observation domainID"},
+    {IPFIX_observationPointId, SIZEpointID, EXobservationID, OFFpointID, STACK_NONE, "observation pointID"},
     // sampling
     {IPFIX_samplerId, Stack_ONLY, EXnull, 0, STACK_SAMPLER, "sampler ID"},
     {IPFIX_selectorId, Stack_ONLY, EXnull, 0, STACK_SAMPLER, "sampler ID"},
@@ -1289,6 +1291,12 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
                 fs->nffile->stat_record->numpackets += cntFlow->outPackets;
                 fs->nffile->stat_record->numbytes += cntFlow->outBytes;
             }
+        }
+
+        // if observation extension is used but no domainID, take it from the ipfix header
+        EXobservation_t *observation = sequencer->offsetCache[EXobservationID];
+        if (observation) {
+            if (observation->domainID == 0) observation->domainID = exporter->info.id;
         }
 
         if (printRecord) {

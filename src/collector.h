@@ -2,93 +2,97 @@
  *  Copyright (c) 2009-2020, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
- *  
- *  Redistribution and use in source and binary forms, with or without 
+ *
+ *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
- *  
- *   * Redistributions of source code must retain the above copyright notice, 
+ *
+ *   * Redistributions of source code must retain the above copyright notice,
  *     this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above copyright notice, 
- *     this list of conditions and the following disclaimer in the documentation 
+ *   * Redistributions in binary form must reproduce the above copyright notice,
+ *     this list of conditions and the following disclaimer in the documentation
  *     and/or other materials provided with the distribution.
- *   * Neither the name of the author nor the names of its contributors may be 
- *     used to endorse or promote products derived from this software without 
+ *   * Neither the name of the author nor the names of its contributors may be
+ *     used to endorse or promote products derived from this software without
  *     specific prior written permission.
- *  
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" 
- *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE 
- *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
- *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE 
- *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
- *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS 
- *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
- *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) 
- *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+ *
+ *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+ *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
- *  
+ *
  */
 
 #ifndef _COLLECTOR_H
 #define _COLLECTOR_H 1
 
-#include "config.h"
-
 #include <sys/types.h>
+
+#include "config.h"
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 #endif
-#include <sys/socket.h>
 #include <netinet/in.h>
+#include <sys/socket.h>
 
-#include "exporter.h"
 #include "bookkeeper.h"
+#include "exporter.h"
 #include "nffile.h"
 
-#define FNAME_SIZE  256
+#define FNAME_SIZE 256
 
 /* common minimum netflow header for all versions */
 typedef struct common_flow_header {
-  uint16_t  version;
-  uint16_t  count;
+    uint16_t version;
+    uint16_t count;
 } common_flow_header_t;
 
 typedef struct FlowSource_s {
-	// link
-	struct FlowSource_s *next;
+    // link
+    struct FlowSource_s *next;
 
-	// exporter identifiers
-	char 				Ident[IDENTLEN];
-	ip_addr_t			ip;
-	uint32_t			sa_family;
-	in_port_t			port;
+    // exporter identifiers
+    char Ident[IDENTLEN];
+    ip_addr_t ip;
+    uint32_t sa_family;
+    in_port_t port;
 
-	int					any_source;
-	bookkeeper_t 		*bookkeeper;
+    int any_source;
+    bookkeeper_t *bookkeeper;
 
-	// all about data storage
-	char				*datadir;		// where to store data for this source
-	char				*current;		// current file name - typically nfcad.current.pid
-	nffile_t			*nffile;		// the writing file handle
+    // all about data storage
+    char *datadir;     // where to store data for this source
+    char *current;     // current file name - typically nfcad.current.pid
+    nffile_t *nffile;  // the writing file handle
 
-	// statistical data per source
-	uint32_t			bad_packets;
-	uint64_t			msecFirst;		// in msec 
-	uint64_t			msecLast;		// in msec
+    // statistical data per source
+    uint32_t bad_packets;
+    uint64_t msecFirst;  // in msec
+    uint64_t msecLast;   // in msec
 
-	// Any exporter specific data
-	exporter_t			*exporter_data;
-	uint32_t			exporter_count;
-	struct timeval		received;
+    // Any exporter specific data
+    exporter_t *exporter_data;
+    uint32_t exporter_count;
+    struct timeval received;
 
 } FlowSource_t;
 
 /* input buffer size, to read data from the network */
-#define NETWORK_INPUT_BUFF_SIZE 65535	// Maximum UDP message size
+#define NETWORK_INPUT_BUFF_SIZE 65535  // Maximum UDP message size
 
 #define UpdateFirstLast(fs, First, Last) \
-	if ( (First) < (fs)->msecFirst ) { (fs)->msecFirst = (First); } \
-	if ( (Last) > (fs)->msecLast ) { (fs)->msecLast = (Last); }
+    if ((First) < (fs)->msecFirst) {     \
+        (fs)->msecFirst = (First);       \
+    }                                    \
+    if ((Last) > (fs)->msecLast) {       \
+        (fs)->msecLast = (Last);         \
+    }
 
 // prototypes
 int AddFlowSource(FlowSource_t **FlowSource, char *ident);
@@ -108,17 +112,17 @@ void FlushExporterStats(FlowSource_t *fs);
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter);
 
 /* Default time window in seconds to rotate files */
-#define TIME_WINDOW	  	300
+#define TIME_WINDOW 300
 
-/* overdue time: 
+/* overdue time:
  * if nfcapd does not get any data, wake up the receive system call
  * at least after OVERDUE_TIME seconds after the time window
  */
-#define OVERDUE_TIME	10
+#define OVERDUE_TIME 10
 
 // time nfcapd will wait for launcher to terminate
 #define LAUNCHER_TIMEOUT 60
 
 #define SYSLOG_FACILITY "daemon"
 
-#endif //_COLLECTOR_H
+#endif  //_COLLECTOR_H

@@ -206,6 +206,10 @@ mpls10     MPLS label 10
 .br
 router     Exporting router's IP
 .br
+odid       observation domain ID
+.br
+opid       observation point ID
+.br
 xsrcip     X-late source IP address, if compiled with NSEL support
 .br
 xdstip     X-late destination IP address, if compiled with NSEL support
@@ -354,6 +358,10 @@ sysid     Statistic about Internal SysID of exporter
 nbar      Statistic about nbar ID
 .br
 ja3       Statistic about ja3 hashes
+.br
+odid      Statistic about observation domain ID
+.br
+opid      Statistic about observation point ID
 .br
 
 .br
@@ -767,6 +775,10 @@ and format specifier as described below
 .br
 \fB%nbnam\fR    nbar name
 .br
+\fB%odid\fR     observation domainID
+.br
+\fB%opid\fR     observation pointID
+.br
 
 .br
 NSEL specific formats
@@ -1130,6 +1142,19 @@ to select strings with spaces "GET /index.html"
 \fBpayload ja3 <md5 string>\fR
 .br
 matches flows with the given ja3 hash for SSL/TLS handshake.
+.br
+.RE
+.PD
+
+.I observation filters
+.RS 4
+\fBobservation domain id [comp] <number>\fR
+.br
+Select/compare observation domain id
+.P
+\fBobservation point id [comp] <number>\fR
+.br
+Select/compare observation point id
 .br
 .RE
 .PD

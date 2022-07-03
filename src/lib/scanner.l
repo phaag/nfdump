@@ -181,7 +181,11 @@ server			{ return SERVER; }
 app				{ return APP; }
 latency			{ return LATENCY; }
 sysid			{ return SYSID; }
- 
+observation { return OBSERVATION; } 
+domain { return DOMAIN; }
+point { return POINT; }
+id { return ID;}
+
 asa				{ return ASA; 		/* NSEL filter */ }
 event			{ return EVENT; 	/* NEL/NSEL filter */ }
 ignore|invalid|create|add|term|delete|deny	{ 	/* NSEL filter */
