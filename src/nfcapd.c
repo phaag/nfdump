@@ -506,7 +506,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
 
                 // if rename fails, we are in big trouble, as we need to get rid of the old .current
                 // file otherwise, we will loose flows and can not continue collecting new flows
-                if (rename(fs->current, nfcapd_filename) < 0) {
+                if (RenameAppend(fs->current, nfcapd_filename) < 0) {
                     LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
                     if (launcher_pid) commbuff->failed = 1;
 

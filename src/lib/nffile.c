@@ -62,8 +62,7 @@
 #include "util.h"
 
 // LZO params
-#define HEAP_ALLOC(var, size) \
-    lzo_align_t __LZO_MMODEL var[((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t)]
+#define HEAP_ALLOC(var, size) lzo_align_t __LZO_MMODEL var[((size) + (sizeof(lzo_align_t) - 1)) / sizeof(lzo_align_t)]
 
 #define InitDataBlock(a) \
     (a)->NumRecords = 0; \
@@ -180,8 +179,7 @@ static int Compress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, siz
     r = lzo1x_1_compress(in, in_len, out, &out_len, wrkmem);
 
     if (r != LZO_E_OK) {
-        LogError("Compress_Block_LZO() error compression failed in %s line %d: LZ4 : %d", __FILE__,
-                 __LINE__, r);
+        LogError("Compress_Block_LZO() error compression failed in %s line %d: LZ4 : %d", __FILE__, __LINE__, r);
         return -1;
     }
 
@@ -211,8 +209,7 @@ static int Uncompress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, s
     }
     r = lzo1x_decompress_safe(in, in_len, out, &out_len, NULL);
     if (r != LZO_E_OK) {
-        LogError("Uncompress_Block_LZO() error decompression failed in %s line %d: LZO error: %d",
-                 __FILE__, __LINE__, r);
+        LogError("Uncompress_Block_LZO() error decompression failed in %s line %d: LZO error: %d", __FILE__, __LINE__, r);
         return -1;
     }
 
@@ -231,14 +228,11 @@ static int Compress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, siz
 
     int out_len = LZ4_compress_default(in, out, in_len, block_size);
     if (out_len == 0) {
-        LogError(
-            "Compress_Block_LZ4() error compression aborted in %s line %d: LZ4 : buffer too small",
-            __FILE__, __LINE__);
+        LogError("Compress_Block_LZ4() error compression aborted in %s line %d: LZ4 : buffer too small", __FILE__, __LINE__);
         return -1;
     }
     if (out_len < 0) {
-        LogError("Compress_Block_LZ4() error compression failed in %s line %d: LZ4 : %d", __FILE__,
-                 __LINE__, out_len);
+        LogError("Compress_Block_LZ4() error compression failed in %s line %d: LZ4 : %d", __FILE__, __LINE__, out_len);
         return -1;
     }
 
@@ -257,14 +251,11 @@ static int Uncompress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, s
 
     int out_len = LZ4_decompress_safe(in, out, in_len, block_size);
     if (out_len == 0) {
-        LogError(
-            "LZ4_decompress_safe() error compression aborted in %s line %d: LZ4 : buffer too small",
-            __FILE__, __LINE__);
+        LogError("LZ4_decompress_safe() error compression aborted in %s line %d: LZ4 : buffer too small", __FILE__, __LINE__);
         return -1;
     }
     if (out_len < 0) {
-        LogError("LZ4_decompress_safe() error compression failed in %s line %d: LZ4 : %d", __FILE__,
-                 __LINE__, out_len);
+        LogError("LZ4_decompress_safe() error compression failed in %s line %d: LZ4 : %d", __FILE__, __LINE__, out_len);
         return -1;
     }
 
@@ -291,8 +282,7 @@ static int Compress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, siz
         int r = BZ2_bzCompress(&bs, BZ_FINISH);
         if (r == BZ_FINISH_OK) continue;
         if (r != BZ_STREAM_END) {
-            LogError("Compress_Block_BZ2() error compression failed in %s line %d: LZ4 : %d",
-                     __FILE__, __LINE__, r);
+            LogError("Compress_Block_BZ2() error compression failed in %s line %d: LZ4 : %d", __FILE__, __LINE__, r);
             return -1;
         }
         break;
@@ -370,8 +360,7 @@ static int ReadAppendix(nffile_t *nffile) {
             record_header_t *record_header = (record_header_t *)buff_ptr;
             void *data = (void *)record_header + sizeof(record_header_t);
             uint16_t dataSize = record_header->size - sizeof(record_header_t);
-            dbg_printf("appendix record: %u - type: %u, size: %u\n", j, record_header->type,
-                       record_header->size);
+            dbg_printf("appendix record: %u - type: %u, size: %u\n", j, record_header->type, record_header->size);
             switch (record_header->type) {
                 case TYPE_IDENT:
                     dbg_printf("Read ident from appendix block\n");
@@ -397,8 +386,7 @@ static int ReadAppendix(nffile_t *nffile) {
             processed += record_header->size;
             buff_ptr += record_header->size;
             if (processed > block_header->size) {
-                LogError("Error processing appendix records: processed %u > block size %u",
-                         processed, block_header->size);
+                LogError("Error processing appendix records: processed %u > block size %u", processed, block_header->size);
                 queue_push(nffile->blockQueue, block_header);
                 return 0;
             }
@@ -593,8 +581,7 @@ static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
     }
 
     if (nffile->file_header->magic != MAGIC) {
-        LogError("Open file '%s': bad magic: 0x%X", filename ? filename : "<stdin>",
-                 nffile->file_header->magic);
+        LogError("Open file '%s': bad magic: 0x%X", filename ? filename : "<stdin>", nffile->file_header->magic);
         CloseFile(nffile);
         return NULL;
     }
@@ -736,8 +723,7 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int compress, int encryp
     nffile->file_header->compression = compress;
     nffile->file_header->encryption = encryption;
 
-    if (write(nffile->fd, (void *)nffile->file_header, sizeof(fileHeaderV2_t)) <
-        sizeof(fileHeaderV2_t)) {
+    if (write(nffile->fd, (void *)nffile->file_header, sizeof(fileHeaderV2_t)) < sizeof(fileHeaderV2_t)) {
         LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         close(nffile->fd);
         nffile->fd = 0;
@@ -773,7 +759,7 @@ nffile_t *AppendFile(char *filename) {
 
     // file is valid - re-open the file mode RDWR
     close(nffile->fd);
-    nffile->fd = open(filename, O_RDWR | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    nffile->fd = open(filename, O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (nffile->fd < 0) {
         LogError("Failed to open file (rw) %s: '%s'", filename, strerror(errno));
         DisposeFile(nffile);
@@ -781,7 +767,7 @@ nffile_t *AppendFile(char *filename) {
     }
 
     if (nffile->file_header->offAppendix) {
-        // seek to  end of data blocks
+        // seek to  end of data blocks => append new blocks
         if (lseek(nffile->fd, nffile->file_header->offAppendix, SEEK_SET) < 0) {
             LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             DisposeFile(nffile);
@@ -795,9 +781,74 @@ nffile_t *AppendFile(char *filename) {
             return NULL;
         }
     }
+
+    // prepare buffer to write to
+    nffile->block_header = queue_pop(nffile->blockQueue);
+    InitDataBlock(nffile->block_header);
+    nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(dataBlock_t));
+
+    // kick off nfwriter
+    pthread_t tid;
+    atomic_store(&nffile->terminate, 0);
+    queue_open(nffile->processQueue);
+    int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
+    if (err) {
+        nffile->worker = 0;
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+    nffile->worker = tid;
     return nffile;
 
 } /* End of AppendFile */
+
+int RenameAppend(char *oldName, char *newName) {
+    struct stat fstat;
+
+    int ret = stat(newName, &fstat);
+    if (ret == 0) {
+        // path exists
+        if (S_ISREG(fstat.st_mode)) {
+            // file exists already - concat them
+            nffile_t *nffile_w = AppendFile(newName);
+            if (!nffile_w) return -1;
+            nffile_t *nffile_r = OpenFile(oldName, NULL);
+            if (!nffile_r) return 0;
+
+            // append data blocks
+            while (1) {
+                dataBlock_t *block_header = queue_pop(nffile_r->processQueue);
+                if (block_header == QUEUE_CLOSED)  // EOF
+                    break;
+                queue_push(nffile_w->processQueue, block_header);
+
+                // return block
+                dataBlock_t *block = queue_pop(nffile_w->blockQueue);
+                queue_push(nffile_r->blockQueue, block);
+            }
+
+            // sum stat_records
+            SumStatRecords(nffile_w->stat_record, nffile_r->stat_record);
+            CloseUpdateFile(nffile_w);
+            DisposeFile(nffile_w);
+
+            CloseFile(nffile_r);
+            DisposeFile(nffile_r);
+
+            return unlink(oldName);
+        } else {
+            LogError("Path exists and is not a regular file: %s", newName);
+            return -1;
+        }
+    } else {
+        // does not exist
+        return rename(oldName, newName);
+    }
+
+    // unreached
+    return 0;
+
+}  // End of RenameAppend
 
 static void FlushFile(nffile_t *nffile) {
     if (nffile->block_header->size) {
@@ -967,8 +1018,7 @@ static dataBlock_t *nfread(nffile_t *nffile) {
         return NULL;
     }
 
-    dbg_printf("ReadBlock - type: %u, size: %u, numRecords: %u, flags: %u\n", buff->type,
-               buff->size, buff->NumRecords, buff->flags);
+    dbg_printf("ReadBlock - type: %u, size: %u, numRecords: %u, flags: %u\n", buff->type, buff->size, buff->NumRecords, buff->flags);
 
     if (buff->size > BUFFSIZE || buff->size == 0 || buff->NumRecords == 0) {
         // this is most likely a corrupt file
@@ -1120,8 +1170,7 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
         return 0;
     }
 
-    dbg_printf("WriteBlock - type: %u, size: %u, numRecords: %u, flags: %u\n", wptr->type,
-               wptr->size, wptr->NumRecords, wptr->flags);
+    dbg_printf("WriteBlock - type: %u, size: %u, numRecords: %u, flags: %u\n", wptr->type, wptr->size, wptr->NumRecords, wptr->flags);
 
     dbg_printf("nfwrite - compressed: %u\n", buff->size);
     int ret = write(nffile->fd, (void *)wptr, sizeof(dataBlock_t) + wptr->size);
@@ -1467,9 +1516,8 @@ int QueryFile(char *filename) {
             return 0;
         }
 
-        dbg_printf("Checking block %i, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks,
-                   nffile->block_header->type, nffile->block_header->size,
-                   nffile->block_header->flags, nffile->block_header->NumRecords);
+        dbg_printf("Checking block %i, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, nffile->block_header->type,
+                   nffile->block_header->size, nffile->block_header->flags, nffile->block_header->NumRecords);
         int compression = nffile->file_header->compression;
         if (TestFlag(nffile->block_header->flags, FLAG_BLOCK_UNCOMPRESSED)) {
             compression = NOT_COMPRESSED;
@@ -1484,8 +1532,7 @@ int QueryFile(char *filename) {
         }
 
         if (ret == 0) {
-            LogError("Unexpected eof. Expected %u blocks, counted %i", fileHeader.NumBlocks,
-                     numBlocks);
+            LogError("Unexpected eof. Expected %u blocks, counted %i", fileHeader.NumBlocks, numBlocks);
             close(fd);
             return 0;
         }
@@ -1528,9 +1575,8 @@ int QueryFile(char *filename) {
             } break;
         }
 
-        dbg_printf("Uncompressed block %i, type: %u, size: %u, flags: 0x%x, records: %u\n",
-                   numBlocks, nffile->block_header->type, nffile->block_header->size,
-                   nffile->block_header->flags, nffile->block_header->NumRecords);
+        dbg_printf("Uncompressed block %i, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, nffile->block_header->type,
+                   nffile->block_header->size, nffile->block_header->flags, nffile->block_header->NumRecords);
 
         nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(dataBlock_t));
 
@@ -1540,15 +1586,13 @@ int QueryFile(char *filename) {
         if (nffile->block_header->type == DATA_BLOCK_TYPE_4) {  // array block
             recordHeader_t *recordHeader = (recordHeader_t *)nffile->buff_ptr;
             blockSize += sizeof(recordHeader_t);
-            LogError("Array block: Record type: %u, size: %u", recordHeader->type,
-                     recordHeader->size);
+            LogError("Array block: Record type: %u, size: %u", recordHeader->type, recordHeader->size);
             while (blockSize < nffile->block_header->size) {
                 blockSize += recordHeader->size;
                 numRecords++;
             }
             if (blockSize != nffile->block_header->size) {
-                LogError("Error in block: %u, couted array size: %u != header size: %u\n",
-                         numBlocks, blockSize, nffile->block_header->size);
+                LogError("Error in block: %u, couted array size: %u != header size: %u\n", numBlocks, blockSize, nffile->block_header->size);
                 close(fd);
                 return 0;
             }
@@ -1557,21 +1601,17 @@ int QueryFile(char *filename) {
                 recordHeader_t *recordHeader = (recordHeader_t *)nffile->buff_ptr;
                 numRecords++;
                 if ((blockSize + recordHeader->size) > nffile->block_header->size) {
-                    LogError("Record size %u extends beyond block size: %u",
-                             blockSize + recordHeader->size, nffile->block_header->size);
+                    LogError("Record size %u extends beyond block size: %u", blockSize + recordHeader->size, nffile->block_header->size);
                     close(fd);
                     return 0;
                 }
                 blockSize += recordHeader->size;
 
-                dbg_printf("Record %i, type: %u, size: %u - block size: %u\n", numRecords,
-                           recordHeader->type, recordHeader->size, blockSize);
+                dbg_printf("Record %i, type: %u, size: %u - block size: %u\n", numRecords, recordHeader->type, recordHeader->size, blockSize);
 
                 if (recordHeader->size < sizeof(recordHeader_t)) {
-                    LogError("Error in block: %u, record: %u: record size %u below header size",
-                             numBlocks, numRecords, recordHeader->size);
-                    LogError("Record %i, type: %u, size: %u - block size: %u\n", numRecords,
-                             recordHeader->type, recordHeader->size, blockSize);
+                    LogError("Error in block: %u, record: %u: record size %u below header size", numBlocks, numRecords, recordHeader->size);
+                    LogError("Record %i, type: %u, size: %u - block size: %u\n", numRecords, recordHeader->type, recordHeader->size, blockSize);
                     close(fd);
                     return 0;
                 }
@@ -1579,8 +1619,7 @@ int QueryFile(char *filename) {
             }
         }
         if (numRecords != nffile->block_header->NumRecords) {
-            LogError("Block %u num records %u != counted records: %u", i,
-                     nffile->block_header->NumRecords, numRecords);
+            LogError("Block %u num records %u != counted records: %u", i, nffile->block_header->NumRecords, numRecords);
             close(fd);
             return 0;
         }
@@ -1595,8 +1634,7 @@ int QueryFile(char *filename) {
         if (i + 1 == fileHeader.NumBlocks) {
             fsize = lseek(fd, 0, SEEK_CUR);
             if (fileHeader.appendixBlocks && fsize != fileHeader.offAppendix) {
-                LogError("Invalid appendix offset - Expected: %u, found: %u",
-                         fileHeader.offAppendix, fsize);
+                LogError("Invalid appendix offset - Expected: %u, found: %u", fileHeader.offAppendix, fsize);
                 close(fd);
                 return 0;
             }
@@ -1650,8 +1688,7 @@ static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2) {
     int anon = TestFlag(fileHeader.flags, FLAG_ANONYMIZED);
     ClearFlag(fileHeader.flags, FLAG_ANONYMIZED);
 
-    if ((TestFlag(fileHeader.flags, FLAG_LZO_COMPRESSED) +
-         TestFlag(fileHeader.flags, FLAG_LZ4_COMPRESSED) +
+    if ((TestFlag(fileHeader.flags, FLAG_LZO_COMPRESSED) + TestFlag(fileHeader.flags, FLAG_LZ4_COMPRESSED) +
          TestFlag(fileHeader.flags, FLAG_BZ2_COMPRESSED)) > FLAG_LZ4_COMPRESSED) {
         LogError("Multiple v1 compression flags: 0x%x", fileHeader.flags & COMPRESSION_MASK);
         return 0;
@@ -1682,8 +1719,7 @@ static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2) {
         return 0;
     }
     if (ret != sizeof(stat_recordV1_t)) {
-        LogError("Error reading v1 stat record - short read. Expected: %u, get %u",
-                 sizeof(stat_recordV1_t), ret);
+        LogError("Error reading v1 stat record - short read. Expected: %u, get %u", sizeof(stat_recordV1_t), ret);
         return 0;
     }
 

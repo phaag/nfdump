@@ -284,6 +284,8 @@ void CloseFile(nffile_t *nffile);
 
 int CloseUpdateFile(nffile_t *nffile);
 
+int RenameAppend(char *oldName, char *newName);
+
 nffile_t *GetNextFile(nffile_t *nffile);
 
 int ReadBlock(nffile_t *nffile);

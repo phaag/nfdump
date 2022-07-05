@@ -299,7 +299,7 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
 
     // if rename fails, we are in big trouble, as we need to get rid of the old .current file
     // otherwise, we will loose flows and can not continue collecting new flows
-    if (rename(fs->current, FullName) < 0) {
+    if (RenameAppend(fs->current, FullName) < 0) {
         LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
         LogError("Ident: %s, Serious Problem! Fix manually", fs->Ident);
         // we do not update the books here, as the file failed to rename properly
