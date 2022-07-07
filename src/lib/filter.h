@@ -51,7 +51,7 @@
 /*
  * Definitions
  */
-enum { CMP_EQ = 0, CMP_GT, CMP_LT, CMP_GE, CMP_LE, CMP_IDENT, CMP_FLAGS, CMP_IPLIST, CMP_ULLIST, CMP_PAYLOAD };
+enum { CMP_EQ = 0, CMP_GT, CMP_LT, CMP_GE, CMP_LE, CMP_IDENT, CMP_FLOWLABEL, CMP_FLAGS, CMP_IPLIST, CMP_ULLIST, CMP_PAYLOAD };
 
 /*
  * filter functions:
@@ -69,7 +69,7 @@ enum {
     FUNC_DURATION, /* function code for duration ( in miliseconds ) filter function */
     FUNC_MPLS_EOS, /* function code for matching End of MPLS Stack label */
     FUNC_MPLS_ANY, /* function code for matching any MPLS label */
-    FUNC_PBLOCK    /* function code for matching ports against pblock start */
+    FUNC_PBLOCK,   /* function code for matching ports against pblock start */
 };
 
 typedef struct FilterParam {

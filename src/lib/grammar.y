@@ -134,7 +134,7 @@ char yyerror_buff[256];
 }
 
 %token ANY IP TUNIP IF MAC MPLS TOS DIR FLAGS TUN PROTO MASK NET PORT FWDSTAT IN OUT SRC DST EQ LT GT LE GE PREV NEXT
-%token IDENT ENGINE_TYPE ENGINE_ID AS GEO PACKETS BYTES FLOWS NFVERSION
+%token IDENT ENGINE_TYPE ENGINE_ID AS GEO PACKETS BYTES FLOWS LABEL NFVERSION
 %token PPS BPS BPP DURATION NOT 
 %token IPV4 IPV6 BGPNEXTHOP ROUTER VLAN
 %token CLIENT SERVER APP LATENCY SYSID
@@ -797,6 +797,16 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	}
  
+
+| LABEL STRING {	
+		if ( strlen($2) > 16 ) {
+			yyerror("Size flowlabel of range 1..16");
+			YYABORT;
+		}
+
+		$$.self = NewBlock(0, 0, 0, CMP_FLOWLABEL, FUNC_NONE, (void *)strdup($2)); 
+	}
+
 	| ASA EVENT REASON {
 #ifdef NSEL
 		if ( strncasecmp($3,"ignore", 6) == 0) {

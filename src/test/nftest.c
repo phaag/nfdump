@@ -975,6 +975,11 @@ int main(int argc, char **argv) {
     ret = check_filter_block("observation point id 0xabcabcabc", &flow_record, 1);
     ret = check_filter_block("observation point id 12345", &flow_record, 0);
 
+    ret = check_filter_block("flowlabel NewLabel", &flow_record, 0);
+    flow_record.label = "NewLabel";
+    ret = check_filter_block("flowlabel NewLabel", &flow_record, 1);
+    ret = check_filter_block("flowlabel none", &flow_record, 0);
+
     // NSEL/ASA related tests
 #ifdef NSEL
     flow_record.event = NSEL_EVENT_IGNORE;

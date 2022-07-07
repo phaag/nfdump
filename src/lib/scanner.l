@@ -153,6 +153,7 @@ as				{ return AS; }
 geo				{ return GEO; }
 packets			{ return PACKETS; }
 bytes			{ return BYTES; }
+flowlabel	{ return LABEL; }
 flows			{ return FLOWS; }
 bpp				{ return BPP; }
 bps				{ return BPS; }
