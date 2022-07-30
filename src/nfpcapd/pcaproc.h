@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
+ *  Copyright (c) 2014-2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -47,8 +46,25 @@
 #include "collector.h"
 #include "packet_pcap.h"
 
+// define potential missing types
 #ifndef DLT_LINUX_SLL
 #define DLT_LINUX_SLL 113
+#endif
+
+#ifndef ETHERTYPE_TRANSETHER
+#define ETHERTYPE_TRANSETHER 0x6558
+#endif
+
+#ifndef ETHERTYPE_MPLS
+#define ETHERTYPE_MPLS 0x8847
+#endif
+
+#ifndef ETHERTYPE_PPPOE
+#define ETHERTYPE_PPPOE 0x8864
+#endif
+
+#ifndef ETHERTYPE_PPPOEDISC
+#define ETHERTYPE_PPPOEDISC 0x8863
 #endif
 
 typedef struct pcapfile_s {
