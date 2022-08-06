@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -45,7 +45,6 @@
 #include <sys/types.h>
 #include <time.h>
 
-#include "config.h"
 #include "content_dns.h"
 #include "ja3.h"
 #include "maxmind.h"
@@ -106,6 +105,8 @@ static void String_LastSeenRaw(FILE *stream, master_record_t *r);
 static void String_ReceivedRaw(FILE *stream, master_record_t *r);
 
 static void String_Duration(FILE *stream, master_record_t *r);
+
+static void String_Duration_Seconds(FILE *stream, master_record_t *r);
 
 static void String_Protocol(FILE *stream, master_record_t *r);
 
@@ -317,6 +318,7 @@ static struct format_token_list_s {
     {"%tr", 0, "Date flow received     ", String_Received},             // Received Time
     {"%trr", 0, "Date flow received (raw)  ", String_ReceivedRaw},      // Received Time, seconds
     {"%td", 0, " Duration", String_Duration},                           // Duration
+    {"%tds", 0, " Duration", String_Duration_Seconds},                  // Duration always in seconds
     {"%exp", 0, "Exp ID", String_ExpSysID},                             // Exporter SysID
     {"%pr", 0, "Proto", String_Protocol},                               // Protocol
     {"%sa", 1, "     Src IP Addr", String_SrcAddr},                     // Source Address
@@ -861,7 +863,16 @@ static void String_EventTime(FILE *stream, master_record_t *r) {
 }  // End of String_EventTime
 #endif
 
-static void String_Duration(FILE *stream, master_record_t *r) { fprintf(stream, "%9.3f", duration); }  // End of String_Duration
+static void String_Duration(FILE *stream, master_record_t *r) {
+    if (printPlain) {
+        fprintf(stream, "%16.3f", duration);
+    } else {
+        char *s = DurationString(duration);
+        fprintf(stream, "%s", s);
+    }
+}  // End of String_Duration
+
+static void String_Duration_Seconds(FILE *stream, master_record_t *r) { fprintf(stream, "%16.3f", duration); }  // End of String_Duration_Seconds
 
 static void String_Protocol(FILE *stream, master_record_t *r) {
     fprintf(stream, "%-5s", ProtoString(r->proto, printPlain));
