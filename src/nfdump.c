@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -277,7 +277,8 @@ static void usage(char *name) {
         "-l <expr>\tSet limit on packets for line and packed output format.\n"
         "\t\tkey: 32 character string or 64 digit hex string starting with 0x.\n"
         "-L <expr>\tSet limit on bytes for line and packed output format.\n"
-        "-I \t\tPrint netflow summary statistics info from file, specified by -r.\n"
+        "-I \t\tPrint netflow summary statistics info from file or range of files (-r, -R).\n"
+        "-s \t\tPrint gnuplot stat line for each nfcapd file (-r, -R).\n"
         "-M <expr>\tRead input from multiple directories.\n"
         "\t\t/dir/dir1:dir2:dir3 Read the same files from '/dir/dir1' '/dir/dir2' and "
         "'/dir/dir3'.\n"
@@ -694,7 +695,7 @@ int main(int argc, char **argv) {
     char *print_order, *query_file, *geo_file, *nameserver, *aggr_fmt;
     int c, ffd, ret, element_stat, fdump;
     int i, flow_stat, aggregate, aggregate_mask, bidir;
-    int print_stat, syntax_only, compress;
+    int print_stat, gnuplot_stat, syntax_only, compress;
     int GuessDir, ModifyCompress;
     uint32_t limitRecords;
     char Ident[IDENTLEN];
@@ -709,6 +710,7 @@ int main(int argc, char **argv) {
     syntax_only = 0;
     flow_stat = 0;
     print_stat = 0;
+    gnuplot_stat = 0;
     element_stat = 0;
     limitRecords = 0;
     skipped_blocks = 0;
@@ -734,7 +736,7 @@ int main(int argc, char **argv) {
     outputParams->topN = -1;
 
     Ident[0] = '\0';
-    while ((c = getopt(argc, argv, "6aA:Bbc:D:E:G:s:hn:i:jf:qyzr:v:w:J:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:D:E:G:s:ghn:i:jf:qyzr:v:w:J:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -784,6 +786,9 @@ int main(int argc, char **argv) {
                 PrintExporters();
                 exit(EXIT_SUCCESS);
             } break;
+            case 'g':
+                gnuplot_stat = 1;
+                break;
             case 'G':
                 if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 geo_file = strdup(optarg);
@@ -1091,6 +1096,27 @@ int main(int argc, char **argv) {
             nffile = GetNextFile(nffile);
         }
         PrintStat(&sum_stat, ident);
+        free(ident);
+        exit(EXIT_SUCCESS);
+    }
+
+    if (gnuplot_stat) {
+        nffile_t *nffile;
+        if (!flist.single_file && !flist.multiple_files && !flist.multiple_dirs) {
+            LogError("Expect data file(s).\n");
+            exit(EXIT_FAILURE);
+        }
+
+        nffile = GetNextFile(NULL);
+        if (!nffile) {
+            LogError("Error open file: %s\n", strerror(errno));
+            exit(250);
+        }
+        printf("# yyyy-mm-dd HH:MM:SS,flows,packets,bytes\n");
+        while (nffile && nffile != EMPTY_LIST) {
+            PrintGNUplotSumStat(nffile);
+            nffile = GetNextFile(nffile);
+        }
         exit(EXIT_SUCCESS);
     }
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2004-2021, Peter Haag
+ *  Copyright (c) 2004-2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -1815,3 +1815,17 @@ void SumStatRecords(stat_record_t *s1, stat_record_t *s2) {
     }
 
 }  // End of SumStatRecords
+
+void PrintGNUplotSumStat(nffile_t *nffile) {
+    char *dateString = strstr(nffile->fileName, "nfcapd.");
+    if (dateString) {
+        dateString += 7;
+        time_t when = ISO2UNIX(dateString);
+        struct tm *ts = localtime(&when);
+        char datestr[64];
+        strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", ts);
+        printf("%s,%llu,%llu,%llu\n", datestr, nffile->stat_record->numflows, nffile->stat_record->numpackets, nffile->stat_record->numbytes);
+    } else {
+        printf("No datstring\n");
+    }
+}  // End of PrintGNUplotSumStat
