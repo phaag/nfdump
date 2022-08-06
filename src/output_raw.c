@@ -629,9 +629,18 @@ void flow_record_to_raw(FILE *stream, void *record, int tag) {
         }
     }
 
+    if (r->flowCount) {
+        fprintf(stream,
+                "\n"
+                "Flow Record: \n"
+                "  RecordCount  =             %5u\n",
+                r->flowCount);
+    } else {
+        fprintf(stream,
+                "\n"
+                "Flow Record: \n");
+    }
     fprintf(stream,
-            "\n"
-            "Flow Record: \n"
             "  Flags        =              0x%.2x %s%s%s, %s\n"
             "  Elements     =             %5u: %s\n"
             "  size         =             %5u\n"

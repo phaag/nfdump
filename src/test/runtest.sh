@@ -68,7 +68,7 @@ diff -u test.2.out nftest.1.out
 
 # test tstart sort order
 ../nfdump -r test.2.flows.nf -q -O tstart -o raw > test.3.out
-diff -u test.3.out nftest.1.out
+diff -u test.3.out nftest.2.out
 
 # test write descending sorted flow table
 ../nfdump -r test.flows.nf -O tstart -z -w test.4.flows.nf
@@ -80,7 +80,7 @@ diff -u test.4.out nftest.1.out
 ../nfdump -r test.flows.nf -q -O bytes -o raw > test.5.out
 ../nfdump -r test.flows.nf -O bytes -z -w test.5.flows.nf
 ../nfdump -v test.5.flows.nf > /dev/null
-../nfdump -r test.5.flows.nf -q -o raw > test.5-2.out
+../nfdump -r test.5.flows.nf -q -o raw | grep -v RecordCount > test.5-2.out
 diff -u test.5.out test.5-2.out
 
 # create testdir dir for flow replay

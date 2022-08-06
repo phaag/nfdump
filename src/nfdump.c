@@ -540,6 +540,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                     }
 
                     processed++;
+                    master_record->flowCount = processed;
                     // Time based filter
                     // if no time filter is given, the result is always true
                     match = twin_msecFirst && (master_record->msecFirst < twin_msecFirst || master_record->msecLast > twin_msecLast) ? 0 : 1;

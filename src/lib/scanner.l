@@ -142,6 +142,7 @@ out				{ return OUT; }
 
 flags			{ return FLAGS; }
 nfversion		{ return NFVERSION; }
+count		{ return COUNT; }
 proto			{ return PROTO; }
 tun				{ return TUN; }
 tos				{ return TOS; }

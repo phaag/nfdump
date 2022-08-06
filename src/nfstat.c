@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -872,7 +872,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
 
     char *protoStr = order_proto ? ProtoString(StatData->hashkey.proto, outputParams->printPlain) : "any";
     char dStr[64];
-    if ( outputParams->printPlain )
+    if (outputParams->printPlain)
         snprintf(dStr, 64, "%16.3f", duration);
     else
         snprintf(dStr, 64, "%s", DurationString(duration));
@@ -882,13 +882,13 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
                protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str, bpp);
     } else {
         if (LoadedGeoDB) {
-            printf("%s.%03u %9s %-5s %s%21s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(StatData->msecFirst % 1000),
-                   dStr, protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str,
-                   bps_str, bpp);
+            printf("%s.%03u %9s %-5s %s%21s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(StatData->msecFirst % 1000), dStr,
+                   protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str,
+                   bpp);
         } else {
-            printf("%s.%03u %9s %-5s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(StatData->msecFirst % 1000),
-                   dStr, protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str,
-                   bps_str, bpp);
+            printf("%s.%03u %9s %-5s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(StatData->msecFirst % 1000), dStr,
+                   protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str,
+                   bpp);
         }
     }
 
@@ -1066,17 +1066,20 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, pri
                     }
                     if (Getv6Mode() && (type == IS_IPADDR)) {
                         printf(
-                            "Date first seen                 Duration Proto %39s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      bps   bpp\n",
+                            "Date first seen                 Duration Proto %39s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      bps   "
+                            "bpp\n",
                             StatParameters[stat].HeaderInfo);
                     } else {
                         if (LoadedGeoDB) {
                             printf(
-                                "Date first seen                 Duration Proto %21s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      bps   "
+                                "Date first seen                 Duration Proto %21s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
+                                "bps   "
                                 "bpp\n",
                                 StatParameters[stat].HeaderInfo);
                         } else {
                             printf(
-                                "Date first seen                 Duration Proto %17s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      bps   "
+                                "Date first seen                 Duration Proto %17s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
+                                "bps   "
                                 "bpp\n",
                                 StatParameters[stat].HeaderInfo);
                         }

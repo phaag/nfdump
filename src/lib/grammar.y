@@ -134,7 +134,7 @@ char yyerror_buff[256];
 }
 
 %token ANY IP TUNIP IF MAC MPLS TOS DIR FLAGS TUN PROTO MASK NET PORT FWDSTAT IN OUT SRC DST EQ LT GT LE GE PREV NEXT
-%token IDENT ENGINE_TYPE ENGINE_ID AS GEO PACKETS BYTES FLOWS LABEL NFVERSION
+%token IDENT ENGINE_TYPE ENGINE_ID AS GEO PACKETS BYTES FLOWS LABEL NFVERSION COUNT
 %token PPS BPS BPP DURATION NOT 
 %token IPV4 IPV6 BGPNEXTHOP ROUTER VLAN
 %token CLIENT SERVER APP LATENCY SYSID
@@ -300,6 +300,10 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| DURATION comp NUMBER {	
 		$$.self = NewBlock(0, AnyMask, $3, $2.comp, FUNC_DURATION, NULL); 
+	}
+
+	| COUNT comp NUMBER {	
+		$$.self = NewBlock(OffsetFlowCount, MaskFlowCount, ($3 << ShiftFlowCount) & MaskFlowCount, $2.comp, FUNC_NONE, NULL); 
 	}
 
 	| dqual TOS comp NUMBER {	

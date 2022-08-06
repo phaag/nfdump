@@ -617,6 +617,8 @@ and format specifier as described below
 .RS 3
 \fB%<format>\fR Inserts the predefined \fBformat\fR at this position. e.g. \fB%line\fR
 .br
+\fB%cnt\fR      Record counter. Dynamically assigned.
+.br
 \fB%nfv\fR      Netflow version. 
 .br
 \fB%ts\fR       Start Time \- first seen
@@ -882,6 +884,12 @@ expr \fBand\fR expr, expr \fBor\fR expr, \fBnot\fR expr and \fB(\fR expr \fB)\fR
 \fB@include <file>\fR
 .br
 include the content of \fI<file>\fR into filter.
+.TP 4
+.I record count
+\fBcount\fR  [comp] <num>\fR
+.br
+with \fI<num>\fR any valid record number. 
+All records get a dynamically increased number assigned, as they are read from the file stream.
 .TP 4
 .I ip version
 \fBinet\fR  or \fBipv4\fR for IPv4

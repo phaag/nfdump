@@ -92,6 +92,8 @@ static void AddToken(int index, char *s);
 
 static void String_Version(FILE *stream, master_record_t *r);
 
+static void String_FlowCount(FILE *stream, master_record_t *r);
+
 static void String_FirstSeen(FILE *stream, master_record_t *r);
 
 static void String_LastSeen(FILE *stream, master_record_t *r);
@@ -310,6 +312,7 @@ static struct format_token_list_s {
     string_function_t string_function;  // function generation output string
 } format_token_list[] = {
     {"%nfv", 0, "Ver", String_Version},                                 // netflow version
+    {"%cnt", 0, "Count", String_FlowCount},                             // flow count
     {"%tfs", 0, "Date first seen        ", String_FirstSeen},           // Start Time - first seen
     {"%ts", 0, "Date first seen        ", String_FirstSeen},            // Start Time - first seen
     {"%tsr", 0, "Date first seen (raw)    ", String_FirstSeenRaw},      // Start Time - first seen, seconds
@@ -681,6 +684,8 @@ static void String_Version(FILE *stream, master_record_t *r) {
     }
 
 }  // End of String_Version
+
+static void String_FlowCount(FILE *stream, master_record_t *r) { fprintf(stream, "%5u", r->flowCount); }  // End of String_FlowCount
 
 static void String_FirstSeen(FILE *stream, master_record_t *r) {
     time_t tt;

@@ -980,6 +980,11 @@ int main(int argc, char **argv) {
     ret = check_filter_block("flowlabel NewLabel", &flow_record, 1);
     ret = check_filter_block("flowlabel none", &flow_record, 0);
 
+    flow_record.flowCount = 11;
+    ret = check_filter_block("count 11", &flow_record, 1);
+    ret = check_filter_block("count 10", &flow_record, 0);
+    ret = check_filter_block("count > 10", &flow_record, 1);
+
     // NSEL/ASA related tests
 #ifdef NSEL
     flow_record.event = NSEL_EVENT_IGNORE;
