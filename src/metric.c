@@ -102,7 +102,7 @@ static inline metric_record_t *GetMetric(char *ident, uint32_t exporterID) {
         return NULL;
     }
     numMetrics++;
-    strncpy(metric_record->ident, ident, 128);
+    strncpy(metric_record->ident, ident, 127);
     metric_record->exporterID = exporterID;
     metric_chain->record = metric_record;
     metric_chain->next = metric_list;

@@ -848,7 +848,7 @@ static void String_observationDomainID(FILE *stream, master_record_t *r) {
 }  // End of String_observationDomainID
 
 static void String_observationPointID(FILE *stream, master_record_t *r) {
-    fprintf(stream, "0x%010llx", r->observationPointID);
+    fprintf(stream, "0x%010llx", (long long unsigned)r->observationPointID);
 }  // End of String_observationPointID
 
 static void String_NewLine(FILE *stream, master_record_t *r) { fprintf(stream, "\n"); }  // End of String_NewLine

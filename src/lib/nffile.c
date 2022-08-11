@@ -1824,7 +1824,8 @@ void PrintGNUplotSumStat(nffile_t *nffile) {
         struct tm *ts = localtime(&when);
         char datestr[64];
         strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", ts);
-        printf("%s,%llu,%llu,%llu\n", datestr, nffile->stat_record->numflows, nffile->stat_record->numpackets, nffile->stat_record->numbytes);
+        printf("%s,%llu,%llu,%llu\n", datestr, (long long unsigned)nffile->stat_record->numflows, (long long unsigned)nffile->stat_record->numpackets,
+               (long long unsigned)nffile->stat_record->numbytes);
     } else {
         printf("No datstring\n");
     }

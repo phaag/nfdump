@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2021, Peter Haag
+ *  Copyright (c) 2019-2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -409,7 +409,7 @@ static void stringsEXobservation(FILE *stream, master_record_t *r) {
     fprintf(stream,
             "	\"observationDoaminID\" : %u,\n"
             "	\"observationPointID\" : %llu,\n",
-            r->observationDomainID, r->observationPointID);
+            r->observationDomainID, (long long unsigned)r->observationPointID);
 
 }  // End of stringsEXasRouting
 
