@@ -39,6 +39,7 @@
 #include <sys/types.h>
 
 #include "config.h"
+#include "cregex/cregex.h"
 #include "filter.h"
 #include "ipconv.h"
 #include "nfdump.h"
@@ -508,6 +509,17 @@ int RunExtendedFilter(FilterEngine_t *engine) {
 
                 if (r->inPayload != NULL && string != NULL) {
                     evaluate = strstr(r->inPayload, string) != NULL ? 1 : 0;
+                } else {
+                    evaluate = 0;
+                }
+            } break;
+            case CMP_REGEX: {
+                const char *matches[1] = {0};
+                master_record_t *r = (master_record_t *)engine->nfrecord;
+                cregex_program_t *program = (cregex_program_t *)engine->filter[index].data;
+
+                if (r->inPayload != NULL && program != NULL) {
+                    evaluate = cregex_program_run(program, r->inPayload, matches, 1) > 0;
                 } else {
                     evaluate = 0;
                 }

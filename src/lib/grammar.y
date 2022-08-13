@@ -51,6 +51,7 @@
 #include "nffile.h"
 #include "nftree.h"
 #include "ipconv.h"
+#include "cregex/cregex.h"
 
 #define AnyMask 0xffffffffffffffffLL
 
@@ -143,7 +144,7 @@ char yyerror_buff[256];
 %token PBLOCK START END STEP SIZE
 %token PAYLOAD CONTENT JA3
 %token OBSERVATION DOMAIN POINT ID
-%token <s> STRING WORD REASON MD5
+%token <s> STRING WORD REGEX REASON MD5
 %token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
 %type <value> expr
 %type <param> dqual term comp acl inout
@@ -1271,6 +1272,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 #endif
 	}
 
+
 	| PAYLOAD CONTENT STRING {
 		if (strlen($3)>64) {
 			yyerror("word too long");
@@ -1286,6 +1288,23 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		}
 		char *word = stripWord($3);
 		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_PAYLOAD, FUNC_NONE, word); 
+	} 
+
+| PAYLOAD CONTENT REGEX {
+		if (strlen($3)>64) {
+			yyerror("word too long");
+			YYABORT;
+		}
+		char *word = stripWord($3);
+		cregex_node_t *node = cregex_parse(word);
+		if ( !node ) {
+			yyerror("failed to parse regex");
+		}
+		cregex_program_t *program = cregex_compile_node(node);
+		if ( !program ) {
+			yyerror("failed to compile regex");
+		}
+		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_REGEX, FUNC_NONE, (char *)program); 
 	} 
 
 	| PAYLOAD JA3 MD5 {
@@ -2490,12 +2509,11 @@ int i;
 static char *stripWord(char *word) {
 	char *w = strdup(word);
 
-	// strip " or " from begin/end of string
-	int i=0;
-	for (i=1; w[i]!= 0x27 && w[i] != 0x22; i++){
-		w[i-1]=w[i];
-	}
-	w[i-1] = '\0';
+	// strip ", ' and /' from begin/end of string
+	if ( w[0] == 0x27 || w[0] == 0x22 || w[0] == 0x2f ) w++;
+  size_t last = strlen(w) -1;
+
+	if ( w[last] == 0x27 || w[last] == 0x22 || w[last] == 0x2f ) w[last] = '\0';
 
 	return w;
 } // End of stripWord

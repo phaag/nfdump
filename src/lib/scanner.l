@@ -237,6 +237,10 @@ not|"!"			{ return NOT; }
 					yylval.s = strdup(yytext);
 					return WORD; 
 				}
+\/[ -~]+\/ 		{ 
+					yylval.s = strdup(yytext);
+					return REGEX; 
+				}
 \n				{ lineno++; }
 .				{ return yytext[0]; }
 			

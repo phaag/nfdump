@@ -15,9 +15,10 @@ nffile = nffile.c nffile.h nffileV2.h queue.c queue.h nfx.c nfx.h nfxV3.h nfxV3.
 nflist = flist.c flist.h fts_compat.c fts_compat.h
 filter = grammar.y scanner.l nftree.c nftree.h ipconv.c ipconv.h rbtree.h klist.h filter.h
 output = output_util.c output_util.h output_short.c output_short.h
+regex = cregex/compile.c cregex/parse.c cregex/vm.c 
 
 lib_LTLIBRARIES = libnfdump.la
-libnfdump_la_SOURCES = $(util) $(pidfile) $(filelzo) $(nffile) $(nflist) $(filter) $(output)
+libnfdump_la_SOURCES = $(util) $(pidfile) $(filelzo) $(nffile) $(nflist) $(filter) $(output) $(regex)
 libnfdump_la_LDFLAGS = -release @VERSION@
 
 CLEANFILES = lex.yy.c grammar.c grammar.h scanner.c scanner.h *.gch

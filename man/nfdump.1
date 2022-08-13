@@ -1,4 +1,4 @@
-.TH nfdump 1 2009\-09\-09 "" ""
+.TH nfdump 1 2022\-08\-13 "" ""
 .SH NAME
 nfdump \- netflow display and analyze program
 .SH SYNOPSIS
@@ -1145,6 +1145,21 @@ If \fIcomp\fR is omitted, '=' is assumed.
 .br
 matches flows matching a given string in the payload. Use quotes or double quotes
 to select strings with spaces "GET /index.html"
+.br
+.P
+\fBpayload content /regex/\fR
+.br
+matches flows matching a given regex in the payload. 
+.br
+^ and $ anchors
+.br
+. match any single character
+.br
+[...] and [^...] character classes
+.br
+?, *, +, and {x,y} greedy quantifiers
+.br
+??, *?, +?, and {x,y}? non-greedy quantifiers
 .br
 .P
 \fBpayload ja3 <md5 string>\fR
