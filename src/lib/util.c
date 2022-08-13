@@ -97,7 +97,7 @@ double t(void) {
 /*
 ** usleep(3) implemented with select.
 */
-void xsleep(long usec) {
+void xsleep(suseconds_t usec) {
     struct timeval tv;
 
     tv.tv_sec = 0;
@@ -237,10 +237,9 @@ void LogVerbose(char *format, ...) {
 }  // End of LogVerbose
 
 static int check_number(char *s, int len) {
-    int i;
-    int l = strlen(s);
+    size_t l = strlen(s);
 
-    for (i = 0; i < l; i++) {
+    for (int i = 0; i < l; i++) {
         if (s[i] < '0' || s[i] > '9') {
             LogError("Time format error at '%s': unexpected character: '%c'.\n", s, s[i]);
             return 0;
@@ -547,11 +546,10 @@ time_t ISO2UNIX(char *timestring) {
 
 }  // End of ISO2UNIX
 
-uint32_t getTick(void) {
+long getTick(void) {
     struct timespec ts;
-    unsigned theTick = 0U;
     clock_gettime(CLOCK_REALTIME, &ts);
-    theTick = ts.tv_nsec / 1000000;
+    long theTick = ts.tv_nsec / 1000000;
     theTick += ts.tv_sec * 1000;
     return theTick;
 }
@@ -635,7 +633,7 @@ void format_number(uint64_t num, char *s, int plain, int fixed_width) {
 
 }  // End of format_number
 
-void inet_ntop_mask(uint32_t ipv4, int mask, char *s, size_t sSize) {
+void inet_ntop_mask(uint32_t ipv4, int mask, char *s, socklen_t sSize) {
     if (mask) {
         ipv4 &= 0xffffffffL << (32 - mask);
         ipv4 = htonl(ipv4);
@@ -646,7 +644,7 @@ void inet_ntop_mask(uint32_t ipv4, int mask, char *s, size_t sSize) {
 
 }  // End of inet_ntop_mask
 
-void inet6_ntop_mask(uint64_t ipv6[2], int mask, char *s, size_t sSize) {
+void inet6_ntop_mask(uint64_t ipv6[2], int mask, char *s, socklen_t sSize) {
     uint64_t ip[2];
 
     ip[0] = ipv6[0];

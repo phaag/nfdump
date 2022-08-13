@@ -341,11 +341,8 @@ uint32_t Invert(uint32_t a) {
  * node 'b' was connected to 'a'. update node 'a' supernode data
  */
 static void UpdateList(uint32_t a, uint32_t b) {
-    size_t s;
-    uint32_t i, j;
-
     /* numblocks contains the number of blocks in the superblock */
-    s = FilterTree[a].numblocks + FilterTree[b].numblocks;
+    uint32_t s = FilterTree[a].numblocks + FilterTree[b].numblocks;
     FilterTree[a].blocklist = (uint32_t *)realloc(FilterTree[a].blocklist, s * sizeof(uint32_t));
     if (!FilterTree[a].blocklist) {
         fprintf(stderr, "Memory allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
@@ -353,14 +350,14 @@ static void UpdateList(uint32_t a, uint32_t b) {
     }
 
     /* connect list of node 'b' after list of node 'a' */
-    j = FilterTree[a].numblocks;
-    for (i = 0; i < FilterTree[b].numblocks; i++) {
+    uint32_t j = FilterTree[a].numblocks;
+    for (int i = 0; i < FilterTree[b].numblocks; i++) {
         FilterTree[a].blocklist[j + i] = FilterTree[b].blocklist[i];
     }
     FilterTree[a].numblocks = s;
 
     /* set superblock info of all children to new superblock */
-    for (i = 0; i < FilterTree[a].numblocks; i++) {
+    for (int i = 0; i < FilterTree[a].numblocks; i++) {
         j = FilterTree[a].blocklist[i];
         FilterTree[j].superblock = a;
     }

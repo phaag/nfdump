@@ -534,7 +534,7 @@ static nffile_t *NewFile(nffile_t *nffile) {
 
 static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
     struct stat stat_buf;
-    int ret, fd;
+    int fd = 0;
 
     if (filename == NULL) {
         return NULL;
@@ -567,7 +567,7 @@ static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
     nffile->fileName = strdup(filename);
 
     // assume file layout V2
-    ret = read(nffile->fd, (void *)nffile->file_header, sizeof(fileHeaderV2_t));
+    ssize_t ret = read(nffile->fd, (void *)nffile->file_header, sizeof(fileHeaderV2_t));
     if (ret < 1) {
         LogError("read() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         CloseFile(nffile);
@@ -998,7 +998,7 @@ int ReadBlock(nffile_t *nffile) {
 // generic read und uncompress a data block from current position
 static dataBlock_t *nfread(nffile_t *nffile) {
     dataBlock_t *buff = queue_pop(nffile->blockQueue);
-    int ret = read(nffile->fd, buff, sizeof(dataBlock_t));
+    ssize_t ret = read(nffile->fd, buff, sizeof(dataBlock_t));
     if (ret == 0) {  // EOF
         queue_push(nffile->blockQueue, buff);
         return NULL;
@@ -1173,7 +1173,7 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
     dbg_printf("WriteBlock - type: %u, size: %u, numRecords: %u, flags: %u\n", wptr->type, wptr->size, wptr->NumRecords, wptr->flags);
 
     dbg_printf("nfwrite - compressed: %u\n", buff->size);
-    int ret = write(nffile->fd, (void *)wptr, sizeof(dataBlock_t) + wptr->size);
+    ssize_t ret = write(nffile->fd, (void *)wptr, sizeof(dataBlock_t) + wptr->size);
     queue_push(nffile->blockQueue, buff);
     if (ret < 0) {
         LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -1662,7 +1662,6 @@ int QueryFile(char *filename) {
 
 static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2) {
     struct stat stat_buf;
-    int ret;
 
     if (fstat(fd, &stat_buf)) {
         LogError("Can't fstat: %s", strerror(errno));
@@ -1671,7 +1670,7 @@ static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2) {
 
     fileHeaderV1_t fileHeader;
     // set file size to current position ( file header )
-    ret = read(fd, (void *)&fileHeader, sizeof(fileHeaderV1_t));
+    ssize_t ret = read(fd, (void *)&fileHeader, sizeof(fileHeaderV1_t));
     if (ret < 1) {
         LogError("read() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;

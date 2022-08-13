@@ -38,11 +38,12 @@
 #include <stdint.h>
 #endif
 
+#include <sys/socket.h>
 #include <time.h>
 
 #ifdef DEVEL
-#include <stdio.h>
 #include <assert.h>
+#include <stdio.h>
 #define dbg_printf(...) printf(__VA_ARGS__)
 #define dbg_assert(a) assert(a)
 #define dbg(a) a
@@ -101,7 +102,7 @@ typedef struct timeWindow_s {
 
 double t(void);
 
-void xsleep(long usec);
+void xsleep(suseconds_t usec);
 
 int CheckPath(char *path, unsigned type);
 
@@ -127,7 +128,7 @@ char *UNIX2ISO(time_t t);
 
 time_t ISO2UNIX(char *timestring);
 
-uint32_t getTick(void);
+long getTick(void);
 
 char *DurationString(double duration);
 
@@ -140,9 +141,9 @@ void format_number(uint64_t num, char *s, int plain, int fixed_width);
 
 void Setv6Mode(int mode);
 
-void inet_ntop_mask(uint32_t ipv4, int mask, char *s, size_t sSize);
+void inet_ntop_mask(uint32_t ipv4, int mask, char *s, socklen_t sSize);
 
-void inet6_ntop_mask(uint64_t ipv6[2], int mask, char *s, size_t sSize);
+void inet6_ntop_mask(uint64_t ipv6[2], int mask, char *s, socklen_t sSize);
 
 #define UTF8_ACCEPT 0
 #define UTF8_REJECT 1

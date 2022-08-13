@@ -158,7 +158,6 @@ static data_row *process(char *filter) {
 nffile_t	*nffile;
 int i, done, ret;
 data_row * 	port_table;
-uint64_t total_bytes; 
 
 	nffile = GetNextFile(NULL);
 	if ( !nffile ) {
@@ -188,7 +187,6 @@ uint64_t total_bytes;
 	// is expanded into this record
 	Engine->nfrecord = (uint64_t *)master_record;
 
-	total_bytes = 0;
 	done	 	= 0;
 	while ( !done ) {
 
@@ -216,9 +214,6 @@ uint64_t total_bytes;
 				continue;
 
                 } break; // not really needed
-            default:
-                // successfully read block
-                total_bytes += ret;
         }
 
 		if ( nffile->block_header->type != DATA_BLOCK_TYPE_2 && 

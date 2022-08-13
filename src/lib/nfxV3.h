@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -635,7 +635,7 @@ uint16_t *SetupSequencer(sequencer_t *sequencer, sequence_t *sequenceTable, uint
 
 void ClearSequencer(sequencer_t *sequencer);
 
-int CalcOutRecordSize(sequencer_t *sequencer, void *in, size_t inSize);
+size_t CalcOutRecordSize(sequencer_t *sequencer, void *in, size_t inSize);
 
 int SequencerRun(sequencer_t *sequencer, void *inBuff, size_t inSize, void *outBuff, size_t outSize, uint64_t *stack);
 

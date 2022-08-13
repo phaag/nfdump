@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2021, Peter Haag
+ *  Copyright (c) 2012-2022, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -316,7 +316,7 @@ int ScreenIdentString(char *string) {
 	char *c;
 
 	// ident[a-zA-Z0-9_\-]+ { 
-	int len = strlen(string);
+	size_t len = strlen(string);
 	if ( len == 0 || len > 255 ) 
 		return 0;
 	

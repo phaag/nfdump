@@ -909,6 +909,7 @@ int main(int argc, char **argv) {
 
     ret = check_filter_block("payload content /GET|POST/", &flow_record, 1);
     ret = check_filter_block("payload content /HT{1,3}P/[0-9].[0-9]/", &flow_record, 1);
+    ret = check_filter_block("payload content /QT{1,3}P/[0-9].[0-9]/", &flow_record, 0);
     ret = check_filter_block("payload content 'GET /index'", &flow_record, 1);
     ret = check_filter_block("payload content POST", &flow_record, 0);
 

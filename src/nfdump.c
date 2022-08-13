@@ -693,8 +693,8 @@ int main(int argc, char **argv) {
     char *wfile, *ffile, *filter, *tstring, *stat_type;
     char *byte_limit_string, *packet_limit_string, *print_format;
     char *print_order, *query_file, *geo_file, *nameserver, *aggr_fmt;
-    int c, ffd, ret, element_stat, fdump;
-    int i, flow_stat, aggregate, aggregate_mask, bidir;
+    int ffd, element_stat, fdump;
+    int flow_stat, aggregate, aggregate_mask, bidir;
     int print_stat, gnuplot_stat, syntax_only, compress;
     int GuessDir, ModifyCompress;
     uint32_t limitRecords;
@@ -736,6 +736,7 @@ int main(int argc, char **argv) {
     outputParams->topN = -1;
 
     Ident[0] = '\0';
+    int c;
     while ((c = getopt(argc, argv, "6aA:Bbc:D:E:G:s:ghn:i:jf:qyzr:v:w:J:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
         switch (c) {
             case 'h':
@@ -976,7 +977,7 @@ int main(int argc, char **argv) {
             LogError("Can't open filter file '%s': %s", ffile, strerror(errno));
             exit(EXIT_FAILURE);
         }
-        ret = read(ffd, (void *)filter, stat_buff.st_size);
+        ssize_t ret = read(ffd, (void *)filter, stat_buff.st_size);
         if (ret < 0) {
             LogError("Error reading filter file %s: %s", ffile, strerror(errno));
             close(ffd);
@@ -1125,7 +1126,7 @@ int main(int argc, char **argv) {
         // automatically select an appropriate output format for custom aggregation
         // aggr_fmt is compiled by ParseAggregateMask
         if (aggr_fmt) {
-            int len = strlen(AggrPrependFmt) + strlen(aggr_fmt) + strlen(AggrAppendFmt) + 7;  // +7 for 'fmt:', 2 spaces and '\0'
+            size_t len = strlen(AggrPrependFmt) + strlen(aggr_fmt) + strlen(AggrAppendFmt) + 7;  // +7 for 'fmt:', 2 spaces and '\0'
             print_format = malloc(len);
             if (!print_format) {
                 LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
@@ -1154,7 +1155,7 @@ int main(int argc, char **argv) {
         // predefined output format
 
         // Check for long_v6 mode
-        i = strlen(print_format);
+        size_t i = strlen(print_format);
         if (i > 2) {
             if (print_format[i - 1] == '6') {
                 Setv6Mode(1);
