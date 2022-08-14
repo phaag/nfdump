@@ -745,45 +745,46 @@ static void String_LastSeenRaw(FILE *stream, master_record_t *r) {
 }  // End of String_LastSeenRaw
 
 static void String_inPayload(FILE *stream, master_record_t *r) {
+    int max = r->inPayloadLength > 256 ? 256 : r->inPayloadLength;
     if (r->srcPort == 53 || r->dstPort == 53) {
-        content_decode_dns(r->proto, (uint8_t *)r->inPayload, r->inPayloadLength);
+        content_decode_dns(stream, r->proto, (uint8_t *)r->inPayload, r->inPayloadLength);
     } else if (r->srcPort == 80 || r->dstPort == 80) {
         int ascii = 1;
-        int max = r->inPayloadLength > 128 ? 128 : r->inPayloadLength;
         for (int i = 0; i < max; i++) {
-            if ((r->inPayload[i] < ' ' || r->inPayload[i] > '~') && r->inPayload[i] != '\n' && r->inPayload[i] != '\r') {
+            if ((r->inPayload[i] < ' ' || r->inPayload[i] > '~') && r->inPayload[i] != '\n' && r->inPayload[i] != '\r' && r->inPayload[i] != 0x09) {
                 ascii = 0;
             }
         }
         if (ascii) {
             fprintf(stream, "%.*s\n", max, r->inPayload);
         } else {
-            DumpHex(stream, r->inPayload, r->inPayloadLength > 128 ? 128 : r->inPayloadLength);
+            DumpHex(stream, r->inPayload, max);
         }
     } else {
-        DumpHex(stream, r->inPayload, r->inPayloadLength > 128 ? 128 : r->inPayloadLength);
+        DumpHex(stream, r->inPayload, max);
     }
 
 }  // End of String_inPayload
 
 static void String_outPayload(FILE *stream, master_record_t *r) {
+    int max = r->inPayloadLength > 256 ? 256 : r->inPayloadLength;
     if (r->srcPort == 53 || r->dstPort == 53) {
-        content_decode_dns(r->proto, (uint8_t *)r->outPayload, r->outPayloadLength);
+        content_decode_dns(stream, r->proto, (uint8_t *)r->outPayload, r->outPayloadLength);
     } else if (r->srcPort == 80 || r->dstPort == 80) {
         int ascii = 1;
-        int max = r->outPayloadLength > 128 ? 128 : r->outPayloadLength;
         for (int i = 0; i < max; i++) {
-            if ((r->outPayload[i] < ' ' || r->outPayload[i] > '~') && r->outPayload[i] != '\n' && r->outPayload[i] != '\r') {
+            if ((r->outPayload[i] < ' ' || r->outPayload[i] > '~') && r->outPayload[i] != '\n' && r->outPayload[i] != '\r' &&
+                r->outPayload[i] != 0x09) {
                 ascii = 0;
             }
         }
         if (ascii) {
             fprintf(stream, "%.*s\n", max, r->outPayload);
         } else {
-            DumpHex(stream, r->outPayload, r->outPayloadLength > 128 ? 128 : r->outPayloadLength);
+            DumpHex(stream, r->outPayload, max);
         }
     } else {
-        DumpHex(stream, r->outPayload, r->outPayloadLength > 128 ? 128 : r->outPayloadLength);
+        DumpHex(stream, r->outPayload, max);
     }
 
 }  // End of String_outPayload

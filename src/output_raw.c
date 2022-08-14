@@ -525,27 +525,39 @@ static void stringsEXnbarApp(FILE *stream, master_record_t *r) {
 
 }  // End of stringsEXnbarAppID
 
+static void inoutPayload(FILE *stream, master_record_t *r, char *payload, uint32_t length);
+
 static void stringsEXinPayload(FILE *stream, master_record_t *r) {
     fprintf(stream, "  in payload   =        %10u\n", r->inPayloadLength);
+    inoutPayload(stream, r, r->inPayload, r->inPayloadLength);
+}  // End of stringsEXinPayload
+
+static void stringsEXoutPayload(FILE *stream, master_record_t *r) {
+    fprintf(stream, "  out payload  =        %10u\n", r->outPayloadLength);
+    inoutPayload(stream, r, r->outPayload, r->outPayloadLength);
+}  // end of stringsExoutPayload
+
+static void inoutPayload(FILE *stream, master_record_t *r, char *payload, uint32_t length) {
+    // int max = length > 1024 ? 1024 : length;
+    int max = length;
     if (r->srcPort == 53 || r->dstPort == 53) {
-        content_decode_dns(r->proto, (uint8_t *)r->inPayload, r->inPayloadLength);
+        content_decode_dns(stream, r->proto, (uint8_t *)payload, length);
     } else if (r->srcPort == 80 || r->dstPort == 80) {
         int ascii = 1;
-        int max = r->inPayloadLength > 512 ? 512 : r->inPayloadLength;
         for (int i = 0; i < max; i++) {
-            if ((r->inPayload[i] < ' ' || r->inPayload[i] > '~') && r->inPayload[i] != '\n' && r->inPayload[i] != '\r') {
+            if ((payload[i] < ' ' || payload[i] > '~') && payload[i] != '\n' && payload[i] != '\r' && payload[i] != 0x09) {
                 ascii = 0;
             }
         }
         if (ascii) {
-            fprintf(stream, "%.*s\n", max, r->inPayload);
+            fprintf(stream, "%.*s\n", max, payload);
         } else {
-            DumpHex(stream, r->inPayload, r->inPayloadLength > 512 ? 512 : r->inPayloadLength);
+            DumpHex(stream, payload, max);
         }
     } else {
-        ja3_t *ja3 = ja3Process((uint8_t *)r->inPayload, r->inPayloadLength);
+        ja3_t *ja3 = ja3Process((uint8_t *)payload, length);
         if (ja3 == NULL) {
-            DumpHex(stream, r->inPayload, r->inPayloadLength > 512 ? 512 : r->inPayloadLength);
+            DumpHex(stream, payload, max);
             return;
         }
 
@@ -566,31 +578,6 @@ static void stringsEXinPayload(FILE *stream, master_record_t *r) {
         }
         ja3Free(ja3);
     }
-
-}  // End of stringsEXinPayload
-
-static void stringsEXoutPayload(FILE *stream, master_record_t *r) {
-    fprintf(stream, "  out payload  =        %10u\n", r->outPayloadLength);
-    DumpHex(stream, r->outPayload, r->outPayloadLength > 512 ? 512 : r->outPayloadLength);
-    if (r->srcPort == 53 || r->dstPort == 53) {
-        content_decode_dns(r->proto, (uint8_t *)r->outPayload, r->outPayloadLength);
-    } else if (r->srcPort == 80 || r->dstPort == 80) {
-        int ascii = 1;
-        int max = r->outPayloadLength > 512 ? 512 : r->outPayloadLength;
-        for (int i = 0; i < max; i++) {
-            if ((r->outPayload[i] < ' ' || r->outPayload[i] > '~') && r->outPayload[i] != '\n' && r->outPayload[i] != '\r') {
-                ascii = 0;
-            }
-        }
-        if (ascii) {
-            fprintf(stream, "%.*s\n", max, r->outPayload);
-        } else {
-            DumpHex(stream, r->outPayload, r->outPayloadLength > 512 ? 512 : r->outPayloadLength);
-        }
-    } else {
-        DumpHex(stream, r->outPayload, r->outPayloadLength > 512 ? 512 : r->outPayloadLength);
-    }
-
 }  // End of stringsEXoutPayload
 
 void raw_prolog(bool quiet) { recordCount = 0; }  // End of pipe_prolog

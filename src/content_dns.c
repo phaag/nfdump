@@ -1,6 +1,6 @@
 /* vi: set sw=4 ts=4: */
 /*
- *  Copyright (c) 2013-2021, Peter Haag
+ *  Copyright (c) 2013-2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -192,7 +192,7 @@ static char *typeToChar(uint16_t type) {
 
 }  // End of typeToChar
 
-void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) {
+void content_decode_dns(FILE *stream, uint8_t proto, uint8_t *payload, uint32_t payload_size) {
     uint32_t qdcount, ancount;
     void *p, *eod;
 #define DN_LENGTH 256
@@ -204,7 +204,7 @@ void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) 
 
     if (payload_size < sizeof(dns_header_t)) {
         dn[0] = '\0';
-        printf("DNS: <Short packet>\n");
+        fprintf(stream, "DNS: <Short packet>\n");
         return;
     }
 
@@ -212,7 +212,7 @@ void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) 
     qdcount = ntohs(dns_header->qdcount);
     // number of answer packets
     ancount = ntohs(dns_header->ancount);
-    // printf("DNS Queries: %u, Answers: %u\n", qdcount, ancount);
+    // fprintf(stream,"DNS Queries: %u, Answers: %u\n", qdcount, ancount);
 
     // end of dns packet
     eod = (void *)(payload + payload_size);
@@ -223,7 +223,7 @@ void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) 
     for (i = 0; i < qdcount && p < eod; i++) {
         int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
         if (len < 0) {
-            printf("DNS query: decoding failed!\n");
+            fprintf(stream, "DNS query: decoding failed!\n");
             return;
         }
         p += len;
@@ -231,17 +231,17 @@ void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) 
         p += 2;
         class = Get_val16(p);
         p += 2;
-        printf("DNS Query %i: %s type: %s, class: %u\n", i, dn, typeToChar(type), class);
+        fprintf(stream, "DNS Query %i: %s type: %s, class: %u\n", i, dn, typeToChar(type), class);
     }
 
     for (i = 0; i < ancount && p < eod; i++) {
         int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
         if (len < 0) {
             dn[0] = '\0';
-            printf("DNS answer: decoding failed!\n");
+            fprintf(stream, "DNS answer: decoding failed!\n");
             return;
         }
-        printf("DNS Answer %i: %s ", i, dn);
+        fprintf(stream, "DNS Answer %i: %s ", i, dn);
 
         p += len;
 
@@ -255,7 +255,7 @@ void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) 
         len = Get_val16(p);
         p += 2;
 
-        printf(" Type: %s, class: %u, ttl: %u, len: %u ", typeToChar(type), class, ttl, len);
+        fprintf(stream, " Type: %s, class: %u, ttl: %u, len: %u ", typeToChar(type), class, ttl, len);
         /* type-specific processing */
         switch (type) {
             char *s;
@@ -265,7 +265,7 @@ void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) 
             case ns_t_a:
 #endif
                 s = _a_rr(&p);
-                printf("A: %s", s);
+                fprintf(stream, "A: %s", s);
                 free(s);
                 p += 4;
                 break;
@@ -280,7 +280,7 @@ void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) 
 #endif
 
                 s = _aaaa_rr(&p);
-                printf("AAAA: %s", s);
+                fprintf(stream, "AAAA: %s", s);
                 free(s);
                 p += 16;
 
@@ -292,7 +292,7 @@ void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) 
 #endif
             {
                 int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
-                printf("CNAME: %s", dn);
+                fprintf(stream, "CNAME: %s", dn);
                 p += len;
             } break;
 #ifdef T_NS
@@ -302,7 +302,7 @@ void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) 
 #endif
             {
                 int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
-                printf("NS: %s", dn);
+                fprintf(stream, "NS: %s", dn);
                 p += len;
             } break;
 #ifdef T_SOA
@@ -312,7 +312,7 @@ void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) 
 #endif
             {
                 int32_t len = dn_expand(payload, eod, p, dn, DN_LENGTH);
-                printf("SOA: %s", dn);
+                fprintf(stream, "SOA: %s", dn);
                 p += len;
             } break;
 #ifdef T_TXT
@@ -325,16 +325,16 @@ void content_decode_dns(uint8_t proto, uint8_t *payload, uint32_t payload_size) 
                     r_txt[0] = '\0';
                     strncpy(r_txt, p + 1, 256);
                     r_txt[255] = '\0';
-                    printf("TXT: %s", r_txt);
+                    fprintf(stream, "TXT: %s", r_txt);
                 }
                 p += len;
                 break;
 
             default:
-                printf("<unkn> %u", type);
+                fprintf(stream, "<unkn> %u", type);
                 p += len;
         }
-        printf("\n");
+        fprintf(stream, "\n");
     }
 
 }  // End of content_decode_dns
