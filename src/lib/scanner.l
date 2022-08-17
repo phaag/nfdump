@@ -229,6 +229,14 @@ not|"!"			{ return NOT; }
 					yylval.s = strdup(yytext);
 					return STRING; 
 				}
+'\/[ -~]+\/' 		{ 
+					yylval.s = strdup(yytext);
+					return REGEX; 
+				}
+"\/[ -~]+\/" 		{ 
+					yylval.s = strdup(yytext);
+					return REGEX; 
+				}
 '[ -~]+' 		{ 
 					yylval.s = strdup(yytext);
 					return WORD; 
@@ -236,10 +244,6 @@ not|"!"			{ return NOT; }
 \"[ -~]+\" 		{ 
 					yylval.s = strdup(yytext);
 					return WORD; 
-				}
-\/[ -~]+\/ 		{ 
-					yylval.s = strdup(yytext);
-					return REGEX; 
 				}
 \n				{ lineno++; }
 .				{ return yytext[0]; }

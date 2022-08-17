@@ -1295,7 +1295,9 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			yyerror("word too long");
 			YYABORT;
 		}
+		// strip ' or " and /
 		char *word = stripWord($3);
+		word = stripWord(word);
 		cregex_node_t *node = cregex_parse(word);
 		if ( !node ) {
 			yyerror("failed to parse regex");
