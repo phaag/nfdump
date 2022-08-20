@@ -320,8 +320,8 @@ static struct format_token_list_s {
     {"%ter", 0, "Date last seen (raw)     ", String_LastSeenRaw},       // End Time - first seen, seconds
     {"%tr", 0, "Date flow received     ", String_Received},             // Received Time
     {"%trr", 0, "Date flow received (raw)  ", String_ReceivedRaw},      // Received Time, seconds
-    {"%td", 0, " Duration", String_Duration},                           // Duration
-    {"%tds", 0, " Duration", String_Duration_Seconds},                  // Duration always in seconds
+    {"%td", 0, "    Duration    ", String_Duration},                    // Duration
+    {"%tds", 0, "    Duration    ", String_Duration_Seconds},           // Duration always in seconds
     {"%exp", 0, "Exp ID", String_ExpSysID},                             // Exporter SysID
     {"%pr", 0, "Proto", String_Protocol},                               // Protocol
     {"%sa", 1, "     Src IP Addr", String_SrcAddr},                     // Source Address

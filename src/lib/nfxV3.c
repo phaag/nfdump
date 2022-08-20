@@ -408,41 +408,40 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
                 memcpy(out, inBuff, copyLen);
             }
         } else {
-            uint64_t v = 0;        // up to 8 bytes
-            uint64_t vv[2] = {0};  // 16 bytes
-            memset(vv, 0, sizeof(vv));
+            uint64_t valBuff[2];
+            memset(valBuff, 0, sizeof(valBuff));
             switch (inLength) {
                 case 1:
-                    v = ((uint8_t *)inBuff)[0];
+                    valBuff[0] = ((uint8_t *)inBuff)[0];
                     break;
                 case 2:
-                    v = Get_val16(inBuff);
+                    valBuff[0] = Get_val16(inBuff);
                     break;
                 case 3:
-                    v = Get_val24(inBuff);
+                    valBuff[0] = Get_val24(inBuff);
                     break;
                 case 4:
-                    v = Get_val32(inBuff);
+                    valBuff[0] = Get_val32(inBuff);
                     break;
                 case 5:
-                    v = Get_val40(inBuff);
+                    valBuff[0] = Get_val40(inBuff);
                     break;
                 case 6:
-                    v = Get_val48(inBuff);
+                    valBuff[0] = Get_val48(inBuff);
                     break;
                 case 7:
-                    v = Get_val56(inBuff);
+                    valBuff[0] = Get_val56(inBuff);
                     break;
                 case 8:
-                    v = Get_val64(inBuff);
+                    valBuff[0] = Get_val64(inBuff);
                     break;
                 case 16:
-                    vv[0] = Get_val64(inBuff);
-                    vv[1] = Get_val64(inBuff + 8);
+                    valBuff[0] = Get_val64(inBuff);
+                    valBuff[1] = Get_val64(inBuff + 8);
                     break;
                 default:
                     // for length 9, 10, 11 and 12
-                    memcpy(vv, inBuff, inLength);
+                    memcpy(valBuff, inBuff, inLength);
                     break;
             }
 #ifdef DEVEL
@@ -452,10 +451,10 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
 
             if (sequencer->sequenceTable[i].inputLength == 16)
                 printf("[%i] Type: %u, read length: %u, val: %llx %llx, outLength: %u\n", i, sequencer->sequenceTable[i].inputType,
-                       sequencer->sequenceTable[i].inputLength, (long long unsigned)vv[0], (long long unsigned)vv[1], outLength);
+                       sequencer->sequenceTable[i].inputLength, (long long unsigned)valBuff[0], (long long unsigned)valBuff[1], outLength);
 #endif
             if (stackID && stack) {
-                stack[stackID] = v;
+                stack[stackID] = valBuff[0];
                 dbg_printf("Stack value %llu in slot %u\n", (long long unsigned)v, stackID);
             }
 
@@ -466,29 +465,29 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
                     break;
                 case 1: {
                     uint8_t *d = (uint8_t *)(outRecord + sequencer->sequenceTable[i].offsetRel);
-                    *d = v;
+                    *d = valBuff[0];
                 } break;
                 case 2: {
                     uint16_t *d = (uint16_t *)(outRecord + sequencer->sequenceTable[i].offsetRel);
-                    *d = v;
+                    *d = valBuff[0];
                 } break;
                 case 4: {
                     uint32_t *d = (uint32_t *)(outRecord + sequencer->sequenceTable[i].offsetRel);
-                    *d = v;
+                    *d = valBuff[0];
                 } break;
                 case 8: {
                     uint64_t *d = (uint64_t *)(outRecord + sequencer->sequenceTable[i].offsetRel);
-                    *d = v;
+                    *d = valBuff[0];
                 } break;
                 case 16: {
                     uint64_t *d = (uint64_t *)(outRecord + sequencer->sequenceTable[i].offsetRel);
-                    memcpy(d, vv, 16);
+                    memcpy(d, valBuff, 16);
                 } break;
                 default: {
                     // for length 9, 10, 11 and 12
                     uint8_t *d = (uint8_t *)(outRecord + sequencer->sequenceTable[i].offsetRel);
                     uint32_t copyLen = inLength < outLength ? inLength : outLength;
-                    memcpy(d, vv, copyLen);
+                    memcpy(d, valBuff, copyLen);
                 }
             }
         }
