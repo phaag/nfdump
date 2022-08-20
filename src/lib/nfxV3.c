@@ -192,10 +192,10 @@ size_t CalcOutRecordSize(sequencer_t *sequencer, void *in, size_t inSize) {
     size_t length;
     if (sequencer->outLength == 0) {
         length = 1024;
-        dbg_printf("Dyn record length: %u\n", length);
+        dbg_printf("Dyn record length: %zu\n", length);
     } else {
         length = sequencer->outLength;
-        dbg_printf("Fix record length: %u\n", length);
+        dbg_printf("Fix record length: %zu\n", length);
     }
 
     return length;
@@ -274,7 +274,7 @@ static int ProcessSubTemplate(sequencer_t *sequencer, uint16_t type, void *inBuf
 }  // End of ProcessSubTemplate
 
 // SequencerRun requires calling CalcOutRecordSize first
-int SequencerRun(sequencer_t *sequencer, void *inBuff, size_t inSize, void *outBuff, size_t outSize, uint64_t *stack) {
+int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void *outBuff, size_t outSize, uint64_t *stack) {
     static int nestLevel = 0;
 
     nestLevel++;
