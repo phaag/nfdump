@@ -33,7 +33,15 @@
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
+
+#include "config.h"
+#ifdef HAVE_NET_ETHERNET_H
 #include <net/ethernet.h>
+#endif
+#ifdef HAVE_NET_ETHERTYPES_H
+#include <net/ethertypes.h>
+#endif
+
 #include <netinet/icmp6.h>
 #include <netinet/in.h>
 #include <netinet/in_systm.h>

@@ -237,10 +237,9 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
     char FullName[MAXPATHLEN];
 
-    char *time_extension = "%Y%m%d%H%M";
     struct tm *when = localtime(&timestamp);
     char fmt[24];
-    strftime(fmt, sizeof(fmt), time_extension, when);
+    strftime(fmt, sizeof(fmt), flowParam->extensionFormat, when);
 
     FlowSource_t *fs = flowParam->fs;
     nffile_t *nffile = fs->nffile;

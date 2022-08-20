@@ -217,7 +217,7 @@ static sequencer_t *GetSubTemplateSequencer(sequencer_t *sequencer, uint16_t tem
     }
 }
 
-static int ProcessSubTemplate(sequencer_t *sequencer, uint16_t type, void *inBuff, uint16_t inLength, void *outBuff, size_t outSize,
+static int ProcessSubTemplate(sequencer_t *sequencer, uint16_t type, const void *inBuff, uint16_t inLength, void *outBuff, size_t outSize,
                               uint64_t *stack) {
     if (inLength < 1) return SEQ_ERROR;
 

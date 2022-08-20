@@ -650,6 +650,8 @@ int main(int argc, char *argv[]) {
     flushParam_t flushParam = {0};
     packetParam_t packetParam = {0};
     flowParam_t flowParam = {0};
+    flushParam.extensionFormat = time_extension;
+    flowParam.extensionFormat = time_extension;
 
     if (options && scanOptions(&flowParam, options) < 0) {
         exit(EXIT_FAILURE);
@@ -779,7 +781,6 @@ int main(int argc, char *argv[]) {
     if (pcap_datadir) {
         flushParam.pcap_dev = packetParam.pcap_dev;
         flushParam.archivedir = pcap_datadir;
-        flushParam.use_UTC = 0;
         if (InitBufferQueues(&flushParam) < 0) {
             exit(EXIT_FAILURE);
         }

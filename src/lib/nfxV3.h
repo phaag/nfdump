@@ -637,7 +637,7 @@ void ClearSequencer(sequencer_t *sequencer);
 
 size_t CalcOutRecordSize(sequencer_t *sequencer, void *in, size_t inSize);
 
-int SequencerRun(sequencer_t *sequencer, void *inBuff, size_t inSize, void *outBuff, size_t outSize, uint64_t *stack);
+int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void *outBuff, size_t outSize, uint64_t *stack);
 
 void PrintSequencer(sequencer_t *sequencer);
 
