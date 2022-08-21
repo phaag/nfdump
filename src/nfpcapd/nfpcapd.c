@@ -781,6 +781,7 @@ int main(int argc, char *argv[]) {
     if (pcap_datadir) {
         flushParam.pcap_dev = packetParam.pcap_dev;
         flushParam.archivedir = pcap_datadir;
+        flushParam.subdir_index = subdir_index;
         if (InitBufferQueues(&flushParam) < 0) {
             exit(EXIT_FAILURE);
         }

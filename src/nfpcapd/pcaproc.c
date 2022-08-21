@@ -586,6 +586,11 @@ REDO_LINK:
         return;
     }
     dbg_printf("Next protocol: 0x%x\n", protocol);
+    int IEEE802 = protocol <= 1500;
+    if (IEEE802) {
+        packetParam->proc_stat.skipped++;
+        return;
+    }
     switch (protocol) {
         case ETHERTYPE_IP:    // IPv4
         case ETHERTYPE_IPV6:  // IPv6
@@ -619,7 +624,7 @@ REDO_LINK:
             else if ((*nxHdr >> 4) == 6)
                 protocol = ETHERTYPE_IPV6;  // IPv6
             else {
-                dbg_printf("Unsupported protocol: 0x%x\n", *nxHdr >> 4);
+                dbg_printf("Unsupported protocol in mpls: 0x%x\n", *nxHdr >> 4);
                 packetParam->proc_stat.skipped++;
                 goto END_FUNC;
             }
@@ -668,12 +673,14 @@ REDO_LINK:
             packetParam->proc_stat.skipped++;
             goto END_FUNC;
         } break;
-        case ETHERTYPE_ARP:  // skip ARP
+        case ETHERTYPE_ARP:       // skip ARP
+        case ETHERTYPE_LOOPBACK:  // skip Loopback
+        case ETHERTYPE_LLDP:      // skip LLDP
             goto END_FUNC;
             break;
         default:
             // int	IEEE802 = protocol <= 1500;
-            LogError("Unsupported protocol: 0x%x", protocol);
+            LogError("Unsupported link protocol: 0x%x, packet: %u", protocol, pkg_cnt);
             packetParam->proc_stat.skipped++;
             goto END_FUNC;
     }

@@ -35,8 +35,17 @@
 #include "config.h"
 #endif
 
+#include "config.h"
+
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
+#endif
+
+#ifdef HAVE_NET_ETHERNET_H
+#include <net/ethernet.h>
+#endif
+#ifdef HAVE_NET_ETHERTYPES_H
+#include <net/ethertypes.h>
 #endif
 
 #include <pcap.h>
@@ -65,6 +74,14 @@
 
 #ifndef ETHERTYPE_PPPOEDISC
 #define ETHERTYPE_PPPOEDISC 0x8863
+#endif
+
+#ifndef ETHERTYPE_LLDP
+#define ETHERTYPE_LLDP 0x88CC
+#endif
+
+#ifndef ETHERTYPE_LOOPBACK
+#define ETHERTYPE_LOOPBACK 0x9000
 #endif
 
 typedef struct pcapfile_s {
