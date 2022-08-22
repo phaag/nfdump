@@ -502,12 +502,25 @@ int RunExtendedFilter(FilterEngine_t *engine) {
             } break;
             case CMP_PAYLOAD: {
                 master_record_t *r = (master_record_t *)engine->nfrecord;
+                char *data = r->inPayload;
                 char *string = (char *)engine->filter[index].data;
+                uint32_t len = r->inPayloadLength;
 
+                evaluate = 0;
                 if (r->inPayload != NULL && string != NULL) {
-                    evaluate = strstr(r->inPayload, string) != NULL ? 1 : 0;
-                } else {
-                    evaluate = 0;
+                    // find any string in data, even beyond '\0' bytes
+                    int m = 0;
+                    for (int i = 0; i < len; i++) {
+                        if (data[i] == string[m]) {
+                            m++;
+                            if (string[m] == '\0') {
+                                evaluate = 1;
+                                break;
+                            }
+                        } else {
+                            m = 0;
+                        }
+                    }
                 }
             } break;
             case CMP_REGEX: {
