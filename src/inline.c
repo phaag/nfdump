@@ -73,160 +73,60 @@ static inline void Put_val48(uint64_t v, void *p);
 static inline void Put_val64(uint64_t v, void *p);
 
 static inline uint16_t Get_val16(const void *p) {
-    const uint8_t *in = (uint8_t *)p;
-    type_mask_t mask;
-    mask.val64 = 0;
+    const uint16_t *in = (uint16_t *)p;
 
-#ifdef WORDS_BIGENDIAN
-    mask.val8[0] = in[0];
-    mask.val8[1] = in[1];
-#else
-    mask.val8[0] = in[1];
-    mask.val8[1] = in[0];
-#endif
-    return mask.val16[0];
+    return ntohs(*in);
 
 }  // End of Get_val16
 
 static inline uint32_t Get_val24(const void *p) {
     const uint8_t *in = (uint8_t *)p;
-    type_mask_t mask;
-    mask.val64 = 0;
 
-#ifdef WORDS_BIGENDIAN
-    mask.val8[1] = in[0];
-    mask.val8[2] = in[1];
-    mask.val8[3] = in[2];
-#else
-    mask.val8[0] = in[2];
-    mask.val8[1] = in[1];
-    mask.val8[2] = in[0];
-#endif
-    return mask.val32[0];
+    uint64_t r = 0;
+    for (size_t i = 0; i < 3; ++i) r = (r << 8) + *in++;
+    return r;
 
 }  // End of Get_val24
 
 static inline uint32_t Get_val32(const void *p) {
-    const uint8_t *in = (uint8_t *)p;
-    type_mask_t mask;
-    mask.val64 = 0;
+    const uint32_t *in = (uint32_t *)p;
 
-#ifdef WORDS_BIGENDIAN
-    mask.val8[0] = in[0];
-    mask.val8[1] = in[1];
-    mask.val8[2] = in[2];
-    mask.val8[3] = in[3];
-#else
-    mask.val8[0] = in[3];
-    mask.val8[1] = in[2];
-    mask.val8[2] = in[1];
-    mask.val8[3] = in[0];
-#endif
-
-    return mask.val32[0];
+    return ntohl(*in);
 
 }  // End of Get_val32
 
 static inline uint64_t Get_val40(const void *p) {
     const uint8_t *in = (uint8_t *)p;
-    type_mask_t mask;
-    mask.val64 = 0;
 
-#ifdef WORDS_BIGENDIAN
-    mask.val8[3] = in[0];
-    mask.val8[4] = in[1];
-    mask.val8[5] = in[2];
-    mask.val8[6] = in[3];
-    mask.val8[7] = in[4];
-#else
-    mask.val8[0] = in[4];
-    mask.val8[1] = in[3];
-    mask.val8[2] = in[2];
-    mask.val8[3] = in[1];
-    mask.val8[4] = in[0];
-#endif
-
-    return mask.val64;
+    uint64_t r = 0;
+    for (size_t i = 0; i < 5; ++i) r = (r << 8) + *in++;
+    return r;
 
 }  // End of Get_val40
 
 static inline uint64_t Get_val48(const void *p) {
     const uint8_t *in = (uint8_t *)p;
-    type_mask_t mask;
-    mask.val64 = 0;
 
-#ifdef WORDS_BIGENDIAN
-    mask.val8[2] = in[0];
-    mask.val8[3] = in[1];
-    mask.val8[4] = in[2];
-    mask.val8[5] = in[3];
-    mask.val8[6] = in[4];
-    mask.val8[7] = in[5];
-#else
-    mask.val8[0] = in[5];
-    mask.val8[1] = in[4];
-    mask.val8[2] = in[3];
-    mask.val8[3] = in[2];
-    mask.val8[4] = in[1];
-    mask.val8[5] = in[0];
-#endif
+    uint64_t r = 0;
+    for (size_t i = 0; i < 6; ++i) r = (r << 8) + *in++;
 
-    return mask.val64;
+    return r;
 
 }  // End of Get_val48
 
 static inline uint64_t Get_val56(const void *p) {
     const uint8_t *in = (uint8_t *)p;
-    type_mask_t mask;
-    mask.val64 = 0;
 
-#ifdef WORDS_BIGENDIAN
-    mask.val8[1] = in[0];
-    mask.val8[2] = in[1];
-    mask.val8[3] = in[2];
-    mask.val8[4] = in[3];
-    mask.val8[5] = in[4];
-    mask.val8[6] = in[5];
-    mask.val8[7] = in[6];
-#else
-    mask.val8[0] = in[6];
-    mask.val8[1] = in[5];
-    mask.val8[2] = in[4];
-    mask.val8[3] = in[3];
-    mask.val8[4] = in[2];
-    mask.val8[5] = in[1];
-    mask.val8[6] = in[0];
-#endif
-
-    return mask.val64;
+    uint64_t r = 0;
+    for (size_t i = 0; i < 7; ++i) r = (r << 8) + *in++;
+    return r;
 
 }  // End of Get_val56
 
 static inline uint64_t Get_val64(const void *p) {
-    const uint8_t *in = (uint8_t *)p;
-    type_mask_t mask;
+    const uint64_t *in = (uint64_t *)p;
 
-#ifdef WORDS_BIGENDIAN
-    mask.val8[0] = in[0];
-    mask.val8[1] = in[1];
-    mask.val8[2] = in[2];
-    mask.val8[3] = in[3];
-    mask.val8[4] = in[4];
-    mask.val8[5] = in[5];
-    mask.val8[6] = in[6];
-    mask.val8[7] = in[7];
-#else
-    mask.val8[0] = in[7];
-    mask.val8[1] = in[6];
-    mask.val8[2] = in[5];
-    mask.val8[3] = in[4];
-    mask.val8[4] = in[3];
-    mask.val8[5] = in[2];
-    mask.val8[6] = in[1];
-    mask.val8[7] = in[0];
-#endif
-
-    return mask.val64;
+    return ntohll(*in);
 
 }  // End of Get_val64
 
