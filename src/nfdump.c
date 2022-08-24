@@ -314,6 +314,12 @@ static void flow_record_to_null(FILE *stream, void *record, int tag) {
     // empty - do not list any flows
 }  // End of flow_record_to_null
 
+static inline void ClearMasterRecord(master_record_t *record) {
+    if (record->inPayload) free(record->inPayload);
+    if (record->outPayload) free(record->outPayload);
+    memset((void *)record, 0, sizeof(master_record_t));
+}  // End of ClearMasterRecord
+
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams) {
     static double duration;
     uint64_t bps, pps, bpp;
@@ -459,7 +465,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
     }
     Engine->ident = nffile_r->ident;
 
-    master_record_t *master_record = malloc(sizeof(master_record_t));
+    master_record_t *master_record = calloc(1, sizeof(master_record_t));
     if (!master_record) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return stat_record;
@@ -528,7 +534,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                 case V3Record:
                 case CommonRecordType: {
                     int match;
-                    memset((void *)master_record, 0, sizeof(master_record_t));
+                    ClearMasterRecord(master_record);
                     if (__builtin_expect(record_ptr->type == CommonRecordType, 0)) {
                         if (!ExpandRecord_v2(record_ptr, master_record)) {
                             goto NEXT;
