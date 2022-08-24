@@ -608,7 +608,7 @@ void Add_FlowStatOrder(uint32_t order, uint32_t direction) {
     PrintDirection = direction;
 }  // End of Add_FlowStatOrder
 
-char *ParseAggregateMask(char *arg) {
+char *ParseAggregateMask(char *arg, int hasGeoDB) {
     struct aggregate_table_s *a;
     uint64_t mask[2];
     char *aggr_fmt;
@@ -627,6 +627,10 @@ char *ParseAggregateMask(char *arg) {
 
     size_t fmt_len = 0;
     for (int i = 0; aggregate_table[i].aggregate_token != NULL; i++) {
+        if (hasGeoDB && aggregate_table[i].fmt) {
+            if (strcmp(aggregate_table[i].fmt, "%sa") == 0) aggregate_table[i].fmt = "%gsa";
+            if (strcmp(aggregate_table[i].fmt, "%da") == 0) aggregate_table[i].fmt = "%gda";
+        }
         if (aggregate_table[i].fmt) fmt_len += (strlen(aggregate_table[i].fmt) + 1);
     }
     fmt_len++;  // trailing '\0'

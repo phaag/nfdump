@@ -178,6 +178,7 @@ extern exporter_t **exporter_list;
 #else
 #define DefaultMode "line"
 #endif
+#define DefaultGeoMode "gline"
 
 /* The appropriate header line is compiled automatically.
  *
@@ -761,10 +762,7 @@ int main(int argc, char **argv) {
                     LogError("Multiple aggregation masks not allowed");
                     exit(EXIT_FAILURE);
                 }
-                aggr_fmt = ParseAggregateMask(optarg);
-                if (!aggr_fmt) {
-                    exit(EXIT_FAILURE);
-                }
+                aggr_fmt = optarg;
                 aggregate_mask = 1;
                 break;
             case 'B':
@@ -1042,9 +1040,6 @@ int main(int argc, char **argv) {
         exit(EXIT_SUCCESS);
     }
 
-    queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(fileList)) exit(EXIT_FAILURE);
-
     if (geo_file == NULL) {
         char *f = getenv("NFGEODB");
         if (f && !CheckPath(f, S_IFREG)) {
@@ -1064,6 +1059,16 @@ int main(int argc, char **argv) {
         LogError("Can not filter according geo elements without a geo location DB");
         exit(EXIT_FAILURE);
     }
+    if (aggr_fmt) {
+        aggr_fmt = ParseAggregateMask(aggr_fmt, HasGeoDB);
+        if (!aggr_fmt) {
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    queue_t *fileList = SetupInputFileSequence(&flist);
+    if (!fileList || !Init_nffile(fileList)) exit(EXIT_FAILURE);
+
     // Modify compression
     if (ModifyCompress >= 0) {
         if (!flist.single_file && !flist.multiple_files) {
@@ -1143,7 +1148,7 @@ int main(int argc, char **argv) {
         } else if (bidir) {
             print_format = "biline";
         } else
-            print_format = DefaultMode;
+            print_format = HasGeoDB ? DefaultGeoMode : DefaultMode;
     }
 
     if (strncasecmp(print_format, "fmt:", 4) == 0) {

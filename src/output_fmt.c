@@ -116,13 +116,17 @@ static void String_SrcAddr(FILE *stream, master_record_t *r);
 
 static void String_DstAddr(FILE *stream, master_record_t *r);
 
+static void String_SrcGeoAddr(FILE *stream, master_record_t *r);
+
+static void String_DstGeoAddr(FILE *stream, master_record_t *r);
+
 static void String_SrcAddrPort(FILE *stream, master_record_t *r);
 
 static void String_DstAddrPort(FILE *stream, master_record_t *r);
 
-static void String_SrcAddrLocPort(FILE *stream, master_record_t *r);
+static void String_SrcAddrGeoPort(FILE *stream, master_record_t *r);
 
-static void String_DstAddrLocPort(FILE *stream, master_record_t *r);
+static void String_DstAddrGeoPort(FILE *stream, master_record_t *r);
 
 static void String_SrcNet(FILE *stream, master_record_t *r);
 
@@ -326,6 +330,8 @@ static struct format_token_list_s {
     {"%pr", 0, "Proto", String_Protocol},                               // Protocol
     {"%sa", 1, "     Src IP Addr", String_SrcAddr},                     // Source Address
     {"%da", 1, "     Dst IP Addr", String_DstAddr},                     // Destination Address
+    {"%gsa", 1, "     Src IP Addr(..)", String_SrcGeoAddr},             // Source Address
+    {"%gda", 1, "     Dst IP Addr(..)", String_DstGeoAddr},             // Destination Address
     {"%sn", 1, "        Src Network", String_SrcNet},                   // Source Address applied source netmask
     {"%dn", 1, "        Dst Network", String_DstNet},                   // Destination Address applied source netmask
     {"%nh", 1, "     Next-hop IP", String_NextHop},                     // Next-hop IP Address
@@ -333,8 +339,8 @@ static struct format_token_list_s {
     {"%ra", 1, "       Router IP", String_RouterIP},                    // Router IP Address
     {"%sap", 1, "     Src IP Addr:Port ", String_SrcAddrPort},          // Source Address:Port
     {"%dap", 1, "     Dst IP Addr:Port ", String_DstAddrPort},          // Destination Address:Port
-    {"%gsap", 1, "     Src IP Addr(..):Port ", String_SrcAddrLocPort},  // Source Address(geo):Port
-    {"%gdap", 1, "     Dst IP Addr(..):Port ", String_DstAddrLocPort},  // Destination Address(geo):Port
+    {"%gsap", 1, "     Src IP Addr(..):Port ", String_SrcAddrGeoPort},  // Source Address(geo):Port
+    {"%gdap", 1, "     Dst IP Addr(..):Port ", String_DstAddrGeoPort},  // Destination Address(geo):Port
     {"%sp", 0, "Src Pt", String_SrcPort},                               // Source Port
     {"%dp", 0, "Dst Pt", String_DstPort},                               // Destination Port
     {"%it", 0, "ICMP-T", String_ICMP_type},                             // ICMP type
@@ -910,6 +916,36 @@ static void String_SrcAddr(FILE *stream, master_record_t *r) {
 
 }  // End of String_SrcAddr
 
+static void String_SrcGeoAddr(FILE *stream, master_record_t *r) {
+    char tmp_str[IP_STRING_LEN];
+    char country[4] = {0};
+
+    tmp_str[0] = 0;
+    if ((r->mflags & V3_FLAG_IPV6_ADDR) != 0) {  // IPv6
+        uint64_t ip[2];
+
+        ip[0] = htonll(r->V6.srcaddr[0]);
+        ip[1] = htonll(r->V6.srcaddr[1]);
+        inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
+        if (!long_v6) {
+            CondenseV6(tmp_str);
+        }
+        country[0] = ' ';
+        country[1] = ' ';
+    } else {  // IPv4
+        uint32_t ip;
+        ip = htonl(r->V4.srcaddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        LookupCountry(r->V6.srcaddr, country);
+    }
+    tmp_str[IP_STRING_LEN - 1] = 0;
+    if (long_v6)
+        fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, country);
+    else
+        fprintf(stream, "%s%16s(%s)", tag_string, tmp_str, country);
+
+}  // End of String_SrcGeoAddr
+
 static void String_SrcAddrPort(FILE *stream, master_record_t *r) {
     char tmp_str[IP_STRING_LEN], portchar;
 
@@ -939,7 +975,7 @@ static void String_SrcAddrPort(FILE *stream, master_record_t *r) {
 
 }  // End of String_SrcAddrPort
 
-static void String_SrcAddrLocPort(FILE *stream, master_record_t *r) {
+static void String_SrcAddrGeoPort(FILE *stream, master_record_t *r) {
     char tmp_str[IP_STRING_LEN], portchar, country[4];
 
     tmp_str[0] = 0;
@@ -970,7 +1006,7 @@ static void String_SrcAddrLocPort(FILE *stream, master_record_t *r) {
     else
         fprintf(stream, "%s%16s(%s)%c%-5i", tag_string, tmp_str, country, portchar, r->srcPort);
 
-}  // End of String_SrcAddrLocPort
+}  // End of String_SrcAddrGeoPort
 
 static void String_DstAddr(FILE *stream, master_record_t *r) {
     char tmp_str[IP_STRING_LEN];
@@ -997,6 +1033,36 @@ static void String_DstAddr(FILE *stream, master_record_t *r) {
         fprintf(stream, "%s%16s", tag_string, tmp_str);
 
 }  // End of String_DstAddr
+
+static void String_DstGeoAddr(FILE *stream, master_record_t *r) {
+    char tmp_str[IP_STRING_LEN];
+    char country[4] = {0};
+
+    tmp_str[0] = 0;
+    if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
+        uint64_t ip[2];
+
+        ip[0] = htonll(r->V6.dstaddr[0]);
+        ip[1] = htonll(r->V6.dstaddr[1]);
+        inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
+        if (!long_v6) {
+            CondenseV6(tmp_str);
+        }
+        country[0] = ' ';
+        country[1] = ' ';
+    } else {  // IPv4
+        uint32_t ip;
+        ip = htonl(r->V4.dstaddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        LookupCountry(r->V6.dstaddr, country);
+    }
+    tmp_str[IP_STRING_LEN - 1] = 0;
+    if (long_v6)
+        fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, country);
+    else
+        fprintf(stream, "%s%16s(%s)", tag_string, tmp_str, country);
+
+}  // End of String_DstGeoAddr
 
 static void String_NextHop(FILE *stream, master_record_t *r) {
     char tmp_str[IP_STRING_LEN];
@@ -1105,7 +1171,7 @@ static void String_DstAddrPort(FILE *stream, master_record_t *r) {
 
 }  // End of String_DstAddrPort
 
-static void String_DstAddrLocPort(FILE *stream, master_record_t *r) {
+static void String_DstAddrGeoPort(FILE *stream, master_record_t *r) {
     char tmp_str[IP_STRING_LEN], portchar, country[4];
 
     tmp_str[0] = 0;
@@ -1136,7 +1202,7 @@ static void String_DstAddrLocPort(FILE *stream, master_record_t *r) {
     else
         fprintf(stream, "%s%16s(%s)%c%-5s", tag_string, tmp_str, country, portchar, ICMP_Port_decode(r));
 
-}  // End of String_DstAddrLocPort
+}  // End of String_DstAddrGeoPort
 
 static void String_SrcNet(FILE *stream, master_record_t *r) {
     char tmp_str[IP_STRING_LEN];
