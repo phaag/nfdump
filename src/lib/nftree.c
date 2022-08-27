@@ -39,12 +39,12 @@
 #include <sys/types.h>
 
 #include "config.h"
-#include "cregex/cregex.h"
 #include "filter.h"
 #include "ipconv.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "rbtree.h"
+#include "sgregex/sgregex.h"
 
 /*
  * netflow filter engine
@@ -524,12 +524,10 @@ int RunExtendedFilter(FilterEngine_t *engine) {
                 }
             } break;
             case CMP_REGEX: {
-                const char *matches[1] = {0};
                 master_record_t *r = (master_record_t *)engine->nfrecord;
-                cregex_program_t *program = (cregex_program_t *)engine->filter[index].data;
-
+                srx_Context *program = (srx_Context *)engine->filter[index].data;
                 if (r->inPayload != NULL && program != NULL) {
-                    evaluate = cregex_program_run(program, r->inPayload, matches, 1) > 0;
+                    evaluate = srx_MatchExt(program, r->inPayload, r->inPayloadLength, 0);
                 } else {
                     evaluate = 0;
                 }

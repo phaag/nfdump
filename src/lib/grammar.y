@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016-2021, Peter Haag
+ *  Copyright (c) 2016-2022, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -51,7 +51,7 @@
 #include "nffile.h"
 #include "nftree.h"
 #include "ipconv.h"
-#include "cregex/cregex.h"
+#include "sgregex/sgregex.h"
 
 #define AnyMask 0xffffffffffffffffLL
 
@@ -142,9 +142,9 @@ char yyerror_buff[256];
 %token ASA DENIED XEVENT XNET XPORT INGRESS EGRESS ACL ACE XACE
 %token NAT ADD EVENT VRF NPORT NIP
 %token PBLOCK START END STEP SIZE
-%token PAYLOAD CONTENT JA3
+%token PAYLOAD CONTENT REGEX JA3
 %token OBSERVATION DOMAIN POINT ID
-%token <s> STRING WORD REGEX REASON MD5
+%token <s> STRING WORD REASON MD5
 %token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
 %type <value> expr
 %type <param> dqual term comp acl inout
@@ -1290,22 +1290,37 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_PAYLOAD, FUNC_NONE, word); 
 	} 
 
-| PAYLOAD CONTENT REGEX {
+| PAYLOAD REGEX WORD {
 		if (strlen($3)>64) {
 			yyerror("word too long");
 			YYABORT;
 		}
-		// strip ' or " and /
+		// strip ' or " 
 		char *word = stripWord($3);
-		word = stripWord(word);
-		cregex_node_t *node = cregex_parse(word);
-		if ( !node ) {
-			yyerror("failed to parse regex");
-		}
-		cregex_program_t *program = cregex_compile_node(node);
+
+		int err[2];
+		srx_Context *program = srx_CreateExt(word, strlen(word), "", err, NULL, NULL);
 		if ( !program ) {
 			yyerror("failed to compile regex");
 		}
+
+		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_REGEX, FUNC_NONE, (char *)program); 
+	} 
+
+| PAYLOAD REGEX WORD STRING{
+		if (strlen($3)>64) {
+			yyerror("word too long");
+			YYABORT;
+		}
+		// strip ' or " 
+		char *word = stripWord($3);
+
+		int err[2];
+		srx_Context *program = srx_CreateExt(word, strlen(word), $4, err, NULL, NULL);
+		if ( !program ) {
+			yyerror("failed to compile regex");
+		}
+
 		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_REGEX, FUNC_NONE, (char *)program); 
 	} 
 

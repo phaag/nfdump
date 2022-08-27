@@ -194,8 +194,8 @@ ignore|invalid|create|add|term|delete|deny	{ 	/* NSEL filter */
 					yylval.s = strdup(yytext);
 					return REASON; 
 				}
-denied			{ return DENIED; 	/* NSEL filter */ }
-xevent			{ return XEVENT; 	/* NSEL filter */ }
+denied		{ return DENIED; 	/* NSEL filter */ }
+xevent		{ return XEVENT; 	/* NSEL filter */ }
 xip				{ return NIP; 		/* NSEL filter */ }
 xnet			{ return XNET; 		/* NSEL filter */ }
 xport			{ return XPORT; 	/* NSEL filter */ }
@@ -205,19 +205,20 @@ xace			{ return XACE; 		/* NSEL filter */ }
 nat 			{ return NAT; 		/* NEL filter */ }
 vrf 			{ return VRF; 		/* NEL filter */ }
 nport			{ return NPORT; 	/* NEL filter */ }
-pblock			{ return PBLOCK;	/* NAT port block */ }
+pblock		{ return PBLOCK;	/* NAT port block */ }
 start			{ return START;		/* NAT port block start */ }
 end				{ return END;		/* NAT port block end */ }
 step			{ return STEP;		/* NAT port block step */ }
 size			{ return SIZE;		/* NAT port block size */ }
 nip				{ return NIP; 		/* NSEL filter */ }
-payload			{ return PAYLOAD;  	/* payload filter */ }
-content			{ return CONTENT;	/* payload filter */ }
+payload		{ return PAYLOAD;  	/* payload filter */ }
+content		{ return CONTENT;	/* payload filter */ }
+regex			{ return REGEX;	/* payload filter */ }
 ja3				{ return JA3; 		/* payload filter */ }
 and|"&&"		{ return AND; }
 or|"||"			{ return OR; }
 not|"!"			{ return NOT; }
-"="|"=="|eq		{ return EQ; }
+"="|"=="|eq	{ return EQ; }
 ">"|gt			{ return GT; }
 "<"|lt			{ return LT; }
 ">="|ge			{ return GE; }
@@ -229,23 +230,15 @@ not|"!"			{ return NOT; }
 					yylval.s = strdup(yytext);
 					return STRING; 
 				}
-'\/[ -~]+\/' 		{ 
-					yylval.s = strdup(yytext);
-					return REGEX; 
-				}
-"\/[ -~]+\/" 		{ 
-					yylval.s = strdup(yytext);
-					return REGEX; 
-				}
-'[ -~]+' 		{ 
+'[ -~]+' { 
 					yylval.s = strdup(yytext);
 					return WORD; 
 				}
-\"[ -~]+\" 		{ 
+\"[ -~]+\" { 
 					yylval.s = strdup(yytext);
 					return WORD; 
 				}
-\n				{ lineno++; }
+\n			{ lineno++; }
 .				{ return yytext[0]; }
 			
 	 
