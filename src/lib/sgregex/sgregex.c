@@ -170,7 +170,7 @@ static int rxMatchCharset(const rxChar* ch, const rxChar* charset, size_t cslen,
     return 0;
 }
 
-void rxDumpToFile(rxInstr* instrs, rxChar* chars, FILE* fp) {
+static void rxDumpToFile(rxInstr* instrs, rxChar* chars, FILE* fp) {
     size_t i;
     rxInstr* ip = instrs;
     fprintf(fp, "instructions\n{\n");

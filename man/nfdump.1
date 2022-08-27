@@ -1137,32 +1137,49 @@ If \fIcomp\fR is omitted, '=' is assumed.
 .P
 .I payload filters
 .RS 4
-\fBpayload content <string>\fR
-.br
 \fBpayload content '<string>'\fR
 .br
 \fBpayload content "<string>"\fR
 .br
-matches flows matching a given string in the payload. Use quotes or double quotes
-to select strings with spaces "GET /index.html"
+Flows matching a given string in the payload. Use quotes or double quotes around the string
 .br
 .P
-\fBpayload content '/regex/'\fR
+\fBpayload regex 'regex'\fR
 .br
-\fBpayload content "/regex/"\fR
+\fBpayload regex 'regex' <flags>\fR
 .br
-matches flows matching a given regex in the payload. 
+\fBpayload regex "regex"\fR
 .br
-^ and $ anchors
+\fBpayload regex "regex" <flags>\fR
 .br
-. match any single character
+Flows matching a given regex in the payload. Use quotes or double quotes around the regex.
 .br
-[...] and [^...] character classes
+.P
+Syntax:
 .br
-?, *, +, and {x,y} greedy quantifiers
+\fB(...)\fR subexpressions/capture ranges
 .br
-??, *?, +?, and {x,y}? non-greedy quantifiers
+\fB|\fR the "or" operator
 .br
+\fB^\fR and \fB$\fR anchors
+.br
+\fB.\fR match any single character
+.br
+\fB[...]\fR and \fB[^...]\fR character classes
+.br
+\fB?, *, +,\fR simple quantifiers
+.br
+\fB*?, +?, ??\fR lazy quantifiers
+.br
+\fB{<num>}, {<num1>,<num2>}\fR complex quantifiers
+.br
+optional flags: [mis]
+.br
+\fBm\fR multiline
+.br
+\fBi\fR case insensitive matching
+.br
+\fBs\fR "." includes newlines
 .P
 \fBpayload ja3 <md5 string>\fR
 .br
