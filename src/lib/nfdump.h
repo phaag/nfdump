@@ -343,17 +343,17 @@ typedef struct master_record_s {
     char dst_geo[4];
 #define OffsetGeo (offsetof(master_record_t, src_geo) >> 3)
 #ifdef WORDS_BIGENDIAN
-#define MaskSrcGeo 0x00ffffff00000000LL
+#define MaskSrcGeo 0xffffffff00000000LL
 #define ShiftSrcGeo 32
 
-#define MaskDstGeo 0x0000000000ffffffLL
+#define MaskDstGeo 0x00000000ffffffffLL
 #define ShiftDstGeo 0
 
 #else
-#define MaskSrcGeo 0x0000000000ffffffLL
+#define MaskSrcGeo 0x00000000ffffffffLL
 #define ShiftSrcGeo 0
 
-#define MaskDstGeo 0x00ffffff00000000LL
+#define MaskDstGeo 0xffffffff00000000LL
 #define ShiftDstGeo 32
 #endif
 

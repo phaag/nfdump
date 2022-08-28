@@ -60,7 +60,7 @@
 #include "output_util.h"
 #include "util.h"
 
-enum { IS_NUMBER = 1, IS_HEXNUMBER, IS_IPADDR, IS_MACADDR, IS_MPLS_LBL, IS_LATENCY, IS_EVENT, IS_HEX, IS_NBAR, IS_JA3 };
+enum { IS_NUMBER = 1, IS_HEXNUMBER, IS_IPADDR, IS_MACADDR, IS_MPLS_LBL, IS_LATENCY, IS_EVENT, IS_HEX, IS_NBAR, IS_JA3, IS_GEO };
 
 struct flow_element_s {
     uint32_t offset0;
@@ -86,6 +86,12 @@ struct StatParameter_s {
     {"dstip", "Dst IP Addr", {{OffsetDstIPv6a, OffsetDstIPv6b, MaskIPv6, 0}, {0, 0, 0, 0}}, 1, IS_IPADDR},
 
     {"ip", "IP Addr", {{OffsetSrcIPv6a, OffsetSrcIPv6b, MaskIPv6, 0}, {OffsetDstIPv6a, OffsetDstIPv6b, MaskIPv6}}, 2, IS_IPADDR},
+
+    {"srcgeo", "Src Geo", {{0, OffsetGeo, MaskSrcGeo, ShiftSrcGeo}, {0, 0, 0, 0}}, 1, IS_GEO},
+
+    {"dstgeo", "Dst Geo", {{0, OffsetGeo, MaskDstGeo, ShiftDstGeo}, {0, 0, 0, 0}}, 1, IS_GEO},
+
+    {"geo", "Geo", {{0, OffsetGeo, MaskSrcGeo, ShiftSrcGeo}, {0, OffsetGeo, MaskDstGeo, ShiftDstGeo}}, 2, IS_GEO},
 
     {"nhip", "Nexthop IP", {{OffsetNexthopv6a, OffsetNexthopv6b, MaskIPv6, 0}, {0, 0, 0, 0}}, 1, IS_IPADDR},
 
@@ -533,7 +539,9 @@ int SetStat(char *str, int *element_stat, int *flow_stat) {
             StatRequest[NumStats].order_proto = order_proto;
             StatRequest[NumStats].direction = direction;
             NumStats++;
-            *element_stat = 1;
+            SetFlag(*element_stat, FLAG_STAT);
+            if (StatParameters[StatType].type == IS_JA3) SetFlag(*element_stat, FLAG_JA3);
+            if (StatParameters[StatType].type == IS_GEO) SetFlag(*element_stat, FLAG_GEO);
         }
         return 1;
     } else {
@@ -694,7 +702,7 @@ void AddElementStat(master_record_t *flow_record) {
             }
         }  // for the number of elements in this stat type
     }      // for every requested -s stat
-}  // AddStat
+}  // AddElementStat
 
 static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, StatRecord_t *StatData, int type, int order_proto, int inout) {
     char valstr[64];
@@ -815,6 +823,9 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
             valstr[32] = '\0';
 
         } break;
+        case IS_GEO: {
+            snprintf(valstr, 64, "%s", (char *)&(StatData->hashkey.v1));
+        }
     }
     valstr[63] = 0;
 

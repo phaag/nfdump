@@ -930,15 +930,14 @@ static void String_SrcGeoAddr(FILE *stream, master_record_t *r) {
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-        country[0] = ' ';
-        country[1] = ' ';
     } else {  // IPv4
         uint32_t ip;
         ip = htonl(r->V4.srcaddr);
         inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
-        LookupCountry(r->V6.srcaddr, country);
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
+    LookupCountry(r->V6.srcaddr, country);
+
     if (long_v6)
         fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, country);
     else
@@ -989,17 +988,14 @@ static void String_SrcAddrGeoPort(FILE *stream, master_record_t *r) {
             CondenseV6(tmp_str);
         }
         portchar = '.';
-        country[0] = ' ';
-        country[1] = ' ';
-        country[2] = '\0';
     } else {  // IPv4
         uint32_t ip;
         ip = htonl(r->V4.srcaddr);
         inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
         portchar = ':';
-        LookupCountry(r->V6.srcaddr, country);
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
+    LookupCountry(r->V6.srcaddr, country);
 
     if (long_v6)
         fprintf(stream, "%s%39s(%s)%c%-5i", tag_string, tmp_str, country, portchar, r->srcPort);
@@ -1048,15 +1044,14 @@ static void String_DstGeoAddr(FILE *stream, master_record_t *r) {
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-        country[0] = ' ';
-        country[1] = ' ';
     } else {  // IPv4
         uint32_t ip;
         ip = htonl(r->V4.dstaddr);
         inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
-        LookupCountry(r->V6.dstaddr, country);
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
+    LookupCountry(r->V6.dstaddr, country);
+
     if (long_v6)
         fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, country);
     else
@@ -1185,17 +1180,14 @@ static void String_DstAddrGeoPort(FILE *stream, master_record_t *r) {
             CondenseV6(tmp_str);
         }
         portchar = '.';
-        country[0] = ' ';
-        country[1] = ' ';
-        country[2] = '\0';
     } else {  // IPv4
         uint32_t ip;
         ip = htonl(r->V4.dstaddr);
         inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
         portchar = ':';
-        LookupCountry(r->V6.dstaddr, country);
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
+    LookupCountry(r->V6.dstaddr, country);
 
     if (long_v6)
         fprintf(stream, "%s%39s(%s)%c%-5s", tag_string, tmp_str, country, portchar, ICMP_Port_decode(r));

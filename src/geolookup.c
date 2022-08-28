@@ -249,11 +249,12 @@ int main(int argc, char **argv) {
     }
 
     if (geoFile == NULL) {
-        usage(argv[0]);
-        exit(0);
+        LogError("Missing nfdump geo DB. -G or NFGEODB env required");
+        exit(EXIT_FAILURE);
     }
 
     if (!LoadMaxMind(geoFile)) {
+        LogError("Failed to load nfdump geo DB");
         exit(EXIT_FAILURE);
     }
 
@@ -289,18 +290,13 @@ int main(int argc, char **argv) {
             }
         }
     }
+
     /*
-            uint32_t t1 = getTick();
-            LoadMaps(dirName);
-            uint32_t t2 = getTick();
-            printf("Load CSV time: %u\n", t2-t1);
-
-            LookupWhois("80.219.226.184");
-            LookupWhois("152.88.1.5");
-            LookupWhois("2001:620:0:ff::5c");
-            LookupWhois("2a04:4e42:1b::323");
-            LookupWhois("2002:521c:8016::521c:8016");
-
+        LookupWhois("80.219.226.184");
+        LookupWhois("152.88.1.5");
+        LookupWhois("2001:620:0:ff::5c");
+        LookupWhois("2a04:4e42:1b::323");
+        LookupWhois("2002:521c:8016::521c:8016");
     */
     return 0;
 }

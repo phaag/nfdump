@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -43,15 +43,12 @@
 #include "output_fmt.h"
 #include "output_util.h"
 
-/*
-typedef struct SortElement {
-        void 		*record;
-    uint64_t	count;
-} SortElement_t;
-*/
-
 #define ASCENDING 1
 #define DESCENDING 0
+
+#define FLAG_STAT 0x1
+#define FLAG_JA3 0x2
+#define FLAG_GEO 0x4
 
 /* Function prototypes */
 void SetLimits(int stat, char *packet_limit_string, char *byte_limit_string);

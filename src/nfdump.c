@@ -595,6 +595,18 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                             AddElementStat(master_record);
                         }
                     } else if (element_stat) {
+                        if (TestFlag(element_stat, FLAG_JA3) && master_record->ja3[0] == 0) {
+                            // if we need ja3, calculate ja3 if payload exists and ja3 not yet set by filter
+                            ja3_t *ja3 = ja3Process((uint8_t *)master_record->inPayload, master_record->inPayloadLength);
+                            if (ja3) {
+                                memcpy((void *)master_record->ja3, ja3->md5Hash, 16);
+                                ja3Free(ja3);
+                            }
+                        }
+                        // if we need geo, lookup geo if not yet set by filter
+                        if (TestFlag(element_stat, FLAG_GEO) && master_record->src_geo[0] == '\0') {
+                            AddGeoInfo(master_record);
+                        }
                         AddElementStat(master_record);
                     } else if (sort_flows) {
                         InsertFlow(process_ptr, master_record);

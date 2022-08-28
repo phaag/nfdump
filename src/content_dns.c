@@ -329,7 +329,12 @@ void content_decode_dns(FILE *stream, uint8_t proto, uint8_t *payload, uint32_t 
                 }
                 p += len;
                 break;
-
+#ifndef T_RRSIG
+#define T_RRSIG 46
+#endif
+            case T_RRSIG:
+                fprintf(stream, "RRSIG: %s", "<Signature for a DNSSEC-secured record>");
+                break;
             default:
                 fprintf(stream, "<unkn> %u", type);
                 p += len;
