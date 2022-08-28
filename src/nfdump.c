@@ -234,6 +234,22 @@ printmap_t printmap[] = {{"raw", flow_record_to_raw, raw_prolog, raw_epilog, NUL
 // compare at most 16 chars
 #define MAXMODELEN 16
 
+#define MaxPathCheck(p)                           \
+    if (strlen((p)) > MAXPATHLEN) {               \
+        LogError("Path length > %d", MAXPATHLEN); \
+        exit(EXIT_FAILURE);                       \
+    }
+
+#define MaxStringLen(s, l)                                    \
+    do {                                                      \
+        int i = 0;                                            \
+        while (s[i] != '\0' && i < l) i++;                    \
+        if (i == l) {                                         \
+            LogError("Input string error. L'/ength > %d", l); \
+            exit(EXIT_FAILURE);                               \
+        }                                                     \
+    } while (0);
+
 /* Function Prototypes */
 static void usage(char *name);
 
@@ -553,22 +569,23 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                     // if no time filter is given, the result is always true
                     match = twin_msecFirst && (master_record->msecFirst < twin_msecFirst || master_record->msecLast > twin_msecLast) ? 0 : 1;
 
-                    if (Engine->geoFilter) {
-                        AddGeoInfo(master_record);
-                    }
-
-                    if (master_record->inPayloadLength && Engine->ja3Filter) {
-                        ja3_t *ja3 = ja3Process((uint8_t *)master_record->inPayload, master_record->inPayloadLength);
-                        if (ja3) {
-                            memcpy((void *)master_record->ja3, ja3->md5Hash, 16);
-                            ja3Free(ja3);
+                    if (match) {
+                        if (Engine->geoFilter) {
+                            AddGeoInfo(master_record);
                         }
+
+                        if (master_record->inPayloadLength && Engine->ja3Filter) {
+                            ja3_t *ja3 = ja3Process((uint8_t *)master_record->inPayload, master_record->inPayloadLength);
+                            if (ja3) {
+                                memcpy((void *)master_record->ja3, ja3->md5Hash, 16);
+                                ja3Free(ja3);
+                            }
+                        }
+
+                        // filter netflow record with user supplied filter
+                        match = (*Engine->FilterEngine)(Engine);
+                        //						match = dofilter(master_record);
                     }
-
-                    // filter netflow record with user supplied filter
-                    if (match) match = (*Engine->FilterEngine)(Engine);
-                    //						match = dofilter(master_record);
-
                     if (match == 0) {  // record failed to pass all filters
                         // go to next record
                         goto NEXT;
@@ -756,7 +773,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:D:E:G:s:ghn:i:jf:qyzr:v:w:J:K:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:D:E:G:s:ghn:i:jf:qyzr:v:w:J:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -766,6 +783,7 @@ int main(int argc, char **argv) {
                 aggregate = 1;
                 break;
             case 'A':
+                MaxStringLen(optarg, 64);
                 if (strlen(optarg) > 64) {
                     LogError("Aggregate mask format length error");
                     exit(EXIT_FAILURE);
@@ -788,12 +806,14 @@ int main(int argc, char **argv) {
                 aggregate = 1;
                 break;
             case 'D':
+                MaxStringLen(optarg, 2);
                 nameserver = optarg;
                 if (!set_nameserver(nameserver)) {
                     exit(EXIT_FAILURE);
                 }
                 break;
             case 'E': {
+                MaxPathCheck(optarg);
                 if (!InitExporterList()) {
                     exit(EXIT_FAILURE);
                 }
@@ -807,6 +827,7 @@ int main(int argc, char **argv) {
                 gnuplot_stat = 1;
                 break;
             case 'G':
+                MaxPathCheck(optarg);
                 if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 geo_file = strdup(optarg);
                 break;
@@ -841,6 +862,7 @@ int main(int argc, char **argv) {
                 compress = LZO_COMPRESSED;
                 break;
             case 'c':
+                MaxStringLen(optarg, 16);
                 limitRecords = atoi(optarg);
                 if (!limitRecords) {
                     LogError("Option -c needs a number > 0\n");
@@ -848,6 +870,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 's':
+                MaxStringLen(optarg, 64);
                 stat_type = optarg;
                 if (!SetStat(stat_type, &element_stat, &flow_stat)) {
                     exit(EXIT_FAILURE);
@@ -864,27 +887,34 @@ int main(int argc, char **argv) {
                 exit(EXIT_SUCCESS);
             } break;
             case 'l':
+                MaxStringLen(optarg, 128);
                 packet_limit_string = optarg;
                 break;
-            case 'K':
-                LogError("*** Anonymisation moved! Use nfanon to anonymise flows!");
-                exit(EXIT_FAILURE);
-                break;
             case 'L':
+                MaxStringLen(optarg, 128);
                 byte_limit_string = optarg;
                 break;
             case 'N':
                 outputParams->printPlain = 1;
                 break;
             case 'f':
+                MaxPathCheck(optarg);
                 ffile = optarg;
                 break;
             case 't':
+                MaxStringLen(optarg, 32);
                 tstring = optarg;
                 break;
             case 'r':
-                if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
-                flist.single_file = strdup(optarg);
+                MaxPathCheck(optarg);
+                if (CheckPath(optarg, S_IFREG)) {
+                    flist.single_file = strdup(optarg);
+                } else if (CheckPath(optarg, S_IFDIR)) {
+                    flist.multiple_files = strdup(optarg);
+                } else {
+                    LogError("%s is not a file or directory", optarg);
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'm':
                 print_order = "tstart";
@@ -892,21 +922,19 @@ int main(int argc, char **argv) {
                 LogError("Option -m deprecated. Use '-O tstart' instead");
                 break;
             case 'M':
-                if (strlen(optarg) > MAXPATHLEN) exit(EXIT_FAILURE);
+                MaxPathCheck(optarg);
                 flist.multiple_dirs = strdup(optarg);
                 break;
             case 'I':
                 print_stat++;
                 break;
             case 'o':  // output mode
+                MaxStringLen(optarg, 512);
                 print_format = optarg;
                 // limit input chars
-                if (strlen(print_format) > 512) {
-                    LogError("Length of ouput format string too big - > 512");
-                    exit(EXIT_FAILURE);
-                }
                 break;
             case 'O': {  // stat order by
+                MaxStringLen(optarg, 32);
                 int ret;
                 print_order = optarg;
                 ret = Parse_PrintOrder(print_order);
@@ -916,13 +944,19 @@ int main(int argc, char **argv) {
                 }
             } break;
             case 'R':
-                if (strlen(optarg) > MAXPATHLEN) exit(EXIT_FAILURE);
-                flist.multiple_files = strdup(optarg);
+                MaxPathCheck(optarg);
+                if (!flist.multiple_files) {
+                    flist.multiple_files = strdup(optarg);
+                } else {
+                    LogError("Multiple files option already set: %s", flist.multiple_files);
+                }
                 break;
             case 'w':
+                MaxPathCheck(optarg);
                 wfile = optarg;
                 break;
             case 'n':
+                MaxStringLen(optarg, 16);
                 outputParams->topN = atoi(optarg);
                 if (outputParams->topN < 0) {
                     LogError("TopnN number %i out of range", outputParams->topN);
@@ -933,6 +967,7 @@ int main(int argc, char **argv) {
                 outputParams->doTag = 1;
                 break;
             case 'i':
+                MaxStringLen(optarg, IDENTLEN);
                 strncpy(Ident, optarg, IDENTLEN);
                 Ident[IDENTLEN - 1] = 0;
                 if (strchr(Ident, ' ')) {
@@ -941,6 +976,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'J':
+                MaxStringLen(optarg, 8);
                 ModifyCompress = atoi(optarg);
                 if ((ModifyCompress < 0) || (ModifyCompress > 3)) {
                     LogError("Expected -J <num>, 0: uncompressed, 1: LZO, 2: BZ2, 3: LZ4 compressed");
@@ -948,6 +984,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'x': {
+                MaxPathCheck(optarg);
                 InitExtensionMaps(NO_EXTENSION_LIST);
                 flist.single_file = strdup(optarg);
                 queue_t *fileList = SetupInputFileSequence(&flist);
@@ -956,6 +993,7 @@ int main(int argc, char **argv) {
                 exit(EXIT_SUCCESS);
             } break;
             case 'v':
+                MaxPathCheck(optarg);
                 query_file = optarg;
                 if (!QueryFile(query_file))
                     exit(EXIT_FAILURE);

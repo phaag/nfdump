@@ -109,6 +109,8 @@ void xsleep(suseconds_t usec) {
 int CheckPath(char *path, unsigned type) {
     struct stat fstat;
 
+    if (!path) return 0;
+
     if (strlen(path) >= MAXPATHLEN) {
         LogError("File or directory name too long");
         return 0;
@@ -122,7 +124,6 @@ int CheckPath(char *path, unsigned type) {
 
     if (type) {
         if (!(fstat.st_mode & type)) {
-            LogError("Type err for %s\n", path);
             return 0;
         } else {
             return 1;

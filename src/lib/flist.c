@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -810,9 +810,10 @@ queue_t *SetupInputFileSequence(flist_t *flist) {
     }
 
     if (flist->single_file && flist->multiple_files) {
-        LogError("-r and -R are mutually exclusive. Please specify either -r or -R\n");
+        LogError("-r and -R are mutually exclusive. Please specify either -r or -R");
         return NULL;
     }
+
     if (flist->multiple_dirs && !(flist->single_file || flist->multiple_files)) {
         LogError("-M needs either -r or -R to specify the file or file list. Add '-R .' for all files in the directories.\n");
         return NULL;
