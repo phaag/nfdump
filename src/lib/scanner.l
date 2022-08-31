@@ -90,11 +90,6 @@ H				(0X|0x)[0-9A-Fa-f]+
 %%
 @include		 BEGIN(incl);
 
-[0-9A-Fa-f]{32}	{
-					yylval.s = strdup(yytext);
-					return MD5;
-				}
-
 [0-9]+			{ 
 					yylval.value = (uint64_t) strtoull(yytext,NULL,10);
 					return NUMBER;

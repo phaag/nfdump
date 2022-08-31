@@ -903,6 +903,7 @@ int main(int argc, char **argv) {
 
     ret = check_filter_block("dst geo AB", &flow_record, 0);
     ret = check_filter_block("dst geo CD", &flow_record, 1);
+    ret = check_filter_block("dst geo cd", &flow_record, 1);
 
     flow_record.inPayload = "GET /index.html HTTP/1.1\r\n";
     flow_record.inPayloadLength = strlen((char *)flow_record.inPayload);
@@ -927,6 +928,9 @@ int main(int argc, char **argv) {
     ret = check_filter_block("payload ja3 123456789abcdef0123456789abcdef0", &flow_record, 1);
     ret = check_filter_block("payload ja3 123456789abcdef0123456789abcdef1", &flow_record, 0);
     ret = check_filter_block("payload ja3 023456789abcdef0123456789abcdef0", &flow_record, 0);
+    ret = check_filter_block("payload ja3 defined", &flow_record, 1);
+    memset((void *)flow_record.ja3, 0, 16);
+    ret = check_filter_block("payload ja3 defined", &flow_record, 0);
 
     flow_record.tun_src_ip.V6[0] = 0;
     flow_record.tun_src_ip.V6[1] = 0;

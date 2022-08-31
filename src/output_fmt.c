@@ -258,6 +258,8 @@ static void String_nbarName(FILE *stream, master_record_t *r);
 
 static void String_ja3(FILE *stream, master_record_t *r);
 
+static void String_sniName(FILE *stream, master_record_t *r);
+
 static void String_observationDomainID(FILE *stream, master_record_t *r);
 
 static void String_observationPointID(FILE *stream, master_record_t *r);
@@ -401,6 +403,7 @@ static struct format_token_list_s {
     {"%opl", 0, "", String_outPayload},                           // out payload
     {"%nbid", 0, "nbar ID", String_nbarID},                       // nbar ID
     {"%ja3", 0, "                             ja3", String_ja3},  // ja3
+    {"%sni", 0, "sni name", String_sniName},                      // TLS sni Name
     {"%nbnam", 0, "nbar name", String_nbarName},                  // nbar Name
     {"%odid", 0, "obsDomainID", String_observationDomainID},      // observation domainID
     {"%opid", 0, "  obsPointID", String_observationPointID},      // observation pointID
@@ -754,18 +757,16 @@ static void String_inPayload(FILE *stream, master_record_t *r) {
     int max = r->inPayloadLength > 256 ? 256 : r->inPayloadLength;
     if (r->srcPort == 53 || r->dstPort == 53) {
         content_decode_dns(stream, r->proto, (uint8_t *)r->inPayload, r->inPayloadLength);
-    } else if (r->srcPort == 80 || r->dstPort == 80) {
-        int ascii = 1;
-        for (int i = 0; i < max; i++) {
-            if ((r->inPayload[i] < ' ' || r->inPayload[i] > '~') && r->inPayload[i] != '\n' && r->inPayload[i] != '\r' && r->inPayload[i] != 0x09) {
-                ascii = 0;
-            }
+    }
+    int ascii = 1;
+    for (int i = 0; i < max; i++) {
+        if ((r->inPayload[i] < ' ' || r->inPayload[i] > '~') && r->inPayload[i] != '\n' && r->inPayload[i] != '\r' && r->inPayload[i] != 0x09) {
+            ascii = 0;
+            break;
         }
-        if (ascii) {
-            fprintf(stream, "%.*s\n", max, r->inPayload);
-        } else {
-            DumpHex(stream, r->inPayload, max);
-        }
+    }
+    if (ascii) {
+        fprintf(stream, "%.*s\n", max, r->inPayload);
     } else {
         DumpHex(stream, r->inPayload, max);
     }
@@ -776,19 +777,16 @@ static void String_outPayload(FILE *stream, master_record_t *r) {
     int max = r->inPayloadLength > 256 ? 256 : r->inPayloadLength;
     if (r->srcPort == 53 || r->dstPort == 53) {
         content_decode_dns(stream, r->proto, (uint8_t *)r->outPayload, r->outPayloadLength);
-    } else if (r->srcPort == 80 || r->dstPort == 80) {
-        int ascii = 1;
-        for (int i = 0; i < max; i++) {
-            if ((r->outPayload[i] < ' ' || r->outPayload[i] > '~') && r->outPayload[i] != '\n' && r->outPayload[i] != '\r' &&
-                r->outPayload[i] != 0x09) {
-                ascii = 0;
-            }
+    }
+    int ascii = 1;
+    for (int i = 0; i < max; i++) {
+        if ((r->outPayload[i] < ' ' || r->outPayload[i] > '~') && r->outPayload[i] != '\n' && r->outPayload[i] != '\r' && r->outPayload[i] != 0x09) {
+            ascii = 0;
+            break;
         }
-        if (ascii) {
-            fprintf(stream, "%.*s\n", max, r->outPayload);
-        } else {
-            DumpHex(stream, r->outPayload, max);
-        }
+    }
+    if (ascii) {
+        fprintf(stream, "%.*s\n", max, r->outPayload);
     } else {
         DumpHex(stream, r->outPayload, max);
     }
@@ -849,6 +847,21 @@ static void String_ja3(FILE *stream, master_record_t *r) {
     fprintf(stream, "%32s", out);
 
 }  // End of String_ja3
+
+static void String_sniName(FILE *stream, master_record_t *r) {
+    if (r->inPayloadLength == 0) {
+        fprintf(stream, "%6s", "");
+        return;
+    } else {
+        ja3_t *ja3 = ja3Process((uint8_t *)r->inPayload, r->inPayloadLength);
+        if (ja3) {
+            fprintf(stream, "%6s", ja3->sniName);
+            ja3Free(ja3);
+        } else {
+            fprintf(stream, "%6s", "");
+        }
+    }
+}  // End of String_sniName
 
 static void String_observationDomainID(FILE *stream, master_record_t *r) {
     fprintf(stream, "0x%09u", r->observationDomainID);

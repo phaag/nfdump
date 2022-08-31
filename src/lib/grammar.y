@@ -70,6 +70,8 @@ static uint32_t Get_fwd_status_id(char *status);
 
 static char *stripWord(char *word);
 
+static int IsMD5(char *string);
+
 enum { DIR_UNSPEC = 1, 
 	   SOURCE, DESTINATION, SOURCE_AND_DESTINATION, SOURCE_OR_DESTINATION, 
 	   DIR_IN, DIR_OUT, 
@@ -144,7 +146,7 @@ char yyerror_buff[256];
 %token PBLOCK START END STEP SIZE
 %token PAYLOAD CONTENT REGEX JA3
 %token OBSERVATION DOMAIN POINT ID
-%token <s> STRING WORD REASON MD5
+%token <s> STRING WORD REASON
 %token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
 %type <value> expr
 %type <param> dqual term comp acl inout
@@ -1324,27 +1326,35 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_REGEX, FUNC_NONE, (char *)program); 
 	} 
 
-	| PAYLOAD JA3 MD5 {
+	| PAYLOAD JA3 STRING {
 		union {
 			uint8_t u8[16];
 			uint64_t u64[2];
 		} ja3;
 
-		if (strlen($3) != 32) {
-			yyerror("not a ja3 hash");
-			YYABORT;
-		}
+		if ( strcasecmp($3, "defined") == 0) {
+			ja3.u64[0] = 0;
+			ja3.u64[1] = 0;
+			$$.self = Invert(Connect_AND(
+				NewBlock(OffsetJA3, MaskJA3, ja3.u64[0], CMP_EQ, FUNC_NONE, NULL ),
+				NewBlock(OffsetJA3+1, MaskJA3, ja3.u64[1], CMP_EQ, FUNC_NONE, NULL )
+			));
+		} else {
+			if (!IsMD5($3)) {
+				yyerror("not a ja3 hash");
+				YYABORT;
+			}
 
-		char *pos = $3;
-		for(int count = 0; count < 16; count++) {
-			sscanf(pos, "%2hhx", &ja3.u8[count]);
-			pos += 2;
+			char *pos = $3;
+			for(int count = 0; count < 16; count++) {
+				sscanf(pos, "%2hhx", &ja3.u8[count]);
+				pos += 2;
+			}
+			$$.self = Connect_AND(
+				NewBlock(OffsetJA3, MaskJA3, ja3.u64[0], CMP_EQ, FUNC_NONE, NULL ),
+				NewBlock(OffsetJA3+1, MaskJA3, ja3.u64[1], CMP_EQ, FUNC_NONE, NULL )
+			);
 		}
-
-		$$.self = Connect_AND(
-			NewBlock(OffsetJA3, MaskJA3, ja3.u64[0], CMP_EQ, FUNC_NONE, NULL ),
-			NewBlock(OffsetJA3+1, MaskJA3, ja3.u64[1], CMP_EQ, FUNC_NONE, NULL )
-		);
 		ja3Filter = 1;
 	}
 
@@ -1432,8 +1442,8 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			uint64_t u;
 		} v;
 		v.u = 0;
-		v.c[0] = $3[0];
-		v.c[1] = $3[1];
+		v.c[0] = toupper($3[0]);
+		v.c[1] = toupper($3[1]);
 		switch ( $1.direction ) {
 			case SOURCE:
 				$$.self = NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL );
@@ -2535,3 +2545,14 @@ static char *stripWord(char *word) {
 	return w;
 } // End of stripWord
 
+static int IsMD5(char *string) {
+
+	int i = 0;
+	for (i=0; i<32; i++) {
+		char c = string[i];
+		if ( c == '\0' || !isxdigit(c))
+		return 0;
+	}
+	return string[i] == '\0';
+
+} // End of IsMD5

@@ -775,6 +775,8 @@ and format specifier as described below
 .br
 \fB%ja3\fR      ja3 hash
 .br
+\fB%sni\fR      sni name in tls handshake
+.br
 \fB%nbnam\fR    nbar name
 .br
 \fB%odid\fR     observation domainID
@@ -1184,6 +1186,10 @@ optional flags: [mis]
 \fBpayload ja3 <md5 string>\fR
 .br
 matches flows with the given ja3 hash for SSL/TLS handshake.
+.br
+\fBpayload ja3 defined\fR
+.br
+matches flows having any valid ja3 hash for SSL/TLS handshake.
 .br
 .RE
 .PD

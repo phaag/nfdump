@@ -538,43 +538,39 @@ static void stringsEXoutPayload(FILE *stream, master_record_t *r) {
 }  // end of stringsExoutPayload
 
 static void inoutPayload(FILE *stream, master_record_t *r, char *payload, uint32_t length) {
-    // int max = length > 1024 ? 1024 : length;
     int max = length;
     if (r->srcPort == 53 || r->dstPort == 53) {
         content_decode_dns(stream, r->proto, (uint8_t *)payload, length);
     }
-    if (r->srcPort == 80 || r->dstPort == 80) {
-        int ascii = 1;
-        for (int i = 0; i < max; i++) {
-            if ((payload[i] < ' ' || payload[i] > '~') && payload[i] != '\n' && payload[i] != '\r' && payload[i] != 0x09) {
-                ascii = 0;
-            }
+    int ascii = 1;
+    for (int i = 0; i < max; i++) {
+        if ((payload[i] < ' ' || payload[i] > '~') && payload[i] != '\n' && payload[i] != '\r' && payload[i] != 0x09) {
+            ascii = 0;
         }
-        if (ascii) {
-            fprintf(stream, "%.*s\n", max, payload);
+    }
+    if (ascii) {
+        fprintf(stream, "%.*s\n", max, payload);
+    }
+    ja3_t *ja3 = ja3Process((uint8_t *)payload, length);
+    if (ja3 != NULL) {
+        uint8_t *u8 = (uint8_t *)ja3->md5Hash;
+        char out[33];
+        int i, j;
+        for (i = 0, j = 0; i < 16; i++, j += 2) {
+            uint8_t ln = u8[i] & 0xF;
+            uint8_t hn = (u8[i] >> 4) & 0xF;
+            out[j + 1] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
+            out[j] = hn <= 9 ? hn + '0' : hn + 'a' - 10;
+        }
+        out[32] = '\0';
+        if (ja3->type == CLIENTja3) {
+            fprintf(stream, "  ja3 hash     = %s\n", out);
         } else {
-            DumpHex(stream, payload, max);
+            fprintf(stream, "  ja3s hash    = %s\n", out);
         }
-    } else {
-        ja3_t *ja3 = ja3Process((uint8_t *)payload, length);
-        if (ja3 != NULL) {
-            uint8_t *u8 = (uint8_t *)ja3->md5Hash;
-            char out[33];
-            int i, j;
-            for (i = 0, j = 0; i < 16; i++, j += 2) {
-                uint8_t ln = u8[i] & 0xF;
-                uint8_t hn = (u8[i] >> 4) & 0xF;
-                out[j + 1] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
-                out[j] = hn <= 9 ? hn + '0' : hn + 'a' - 10;
-            }
-            out[32] = '\0';
-            if (ja3->type == CLIENTja3) {
-                fprintf(stream, "  ja3 hash     = %s\n", out);
-            } else {
-                fprintf(stream, "  ja3s hash    = %s\n", out);
-            }
-            ja3Free(ja3);
-        }
+        if (ja3->sniName[0]) fprintf(stream, "  sni name     = %s\n", ja3->sniName);
+
+        ja3Free(ja3);
     }
     DumpHex(stream, payload, max);
 }  // End of stringsEXoutPayload
