@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -150,11 +150,13 @@ static char *string_trim(char *s) {
 
 static int valid_ipv4(char *s) {
     char *c = s;
+    int i = 0;
     while (*c) {
-        if (!isdigit(*c) && *c != '.') {
+        if ((!isdigit(*c) && *c != '.') || i > 15) {
             return 0;
         }
-        c++;  // point to next character
+        c++;
+        i++;
     }
 
     c = strdup(s);
@@ -178,8 +180,9 @@ static int valid_ipv4(char *s) {
 
 static int valid_ipv6(char *s) {
     char *c = s;
+    int i = 0;
     while (*c) {
-        if (!isxdigit(*c) && *c != ':') {
+        if ((!isxdigit(*c) && *c != ':') || i > 39) {
             return 0;
         }
         c++;  // point to next character
@@ -189,9 +192,8 @@ static int valid_ipv6(char *s) {
     }
     c = strdup(s);
     int numbers = 0;
-    char *sep = ":";
     char *brkt;
-    char *ns = strtok_r(c, sep, &brkt);
+    char *ns = strtok_r(c, ":", &brkt);
     while (ns) {
         int num = atoi(ns);
         if (num > 65535) {
@@ -199,7 +201,7 @@ static int valid_ipv6(char *s) {
             return 0;
         }
         numbers++;
-        ns = strtok_r(NULL, sep, &brkt);
+        ns = strtok_r(NULL, ":", &brkt);
     }
 
     free(c);
@@ -261,8 +263,11 @@ int main(int argc, char **argv) {
     if (argc - optind > 0) {
         while (argc - optind > 0) {
             char *arg = argv[optind++];
-            if (strlen(arg) < 16 && (valid_ipv4(arg) || valid_ipv6(arg))) {
+            if (strlen(arg) > 2 && (valid_ipv4(arg) || valid_ipv6(arg))) {
                 LookupWhois(arg);
+            } else {
+                LogError("Not a valid IPv4 or IPv6: ", arg);
+                exit(EXIT_FAILURE);
             }
         }
     } else {
