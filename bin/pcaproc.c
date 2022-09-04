@@ -440,6 +440,9 @@ static unsigned pkg_cnt = 0;
 				return;
 			}
 			} break;
+#ifndef DLT_LINUX_SLL
+#define DLT_LINUX_SLL 113
+#endif
 		case DLT_LINUX_SLL: 
 			protocol = data[14] << 8 | data[15];
 			break;
