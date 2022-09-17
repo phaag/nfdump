@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,13 +31,12 @@
 #ifndef _OUTPUT_RAW_H
 #define _OUTPUT_RAW_H 1
 
-#include <stdbool.h>
 #include <stdio.h>
 
-void raw_prolog(bool quiet);
+void raw_prolog(void);
 
-void raw_epilog(bool quiet);
+void raw_epilog(void);
 
-void flow_record_to_raw(FILE *stream, void *record, int tag);
+void raw_record(FILE *stream, void *record, int tag);
 
 #endif  // _OUTPUT_RAW_H

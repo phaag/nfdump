@@ -69,11 +69,7 @@
 #include "nftree.h"
 #include "nfx.h"
 #include "nfxV3.h"
-#include "output_csv.h"
-#include "output_json.h"
-#include "output_pipe.h"
-#include "output_raw.h"
-#include "output_util.h"
+#include "output.h"
 #include "util.h"
 
 extern char *FilterFilename;
@@ -85,154 +81,17 @@ const char *nfdump_version = VERSION;
 static uint64_t total_bytes = 0;
 static uint32_t processed = 0;
 static uint32_t passed = 0;
-static uint32_t HasGeoDB = 0;
+static bool HasGeoDB = false;
 static uint32_t skipped_blocks = 0;
 static uint64_t t_first_flow, t_last_flow;
 
 extension_map_list_t *extension_map_list;
 
 extern exporter_t **exporter_list;
-/*
- * Output Formats:
- * User defined output formats can be compiled into nfdump, for easy access
- * The format has the same syntax as describe in nfdump(1) -o fmt:<format>
- *
- * A format description consists of a single line containing arbitrary strings
- * and format specifier as described below:
- *
- * 	%ts		// Start Time - first seen
- * 	%te		// End Time	- last seen
- * 	%td		// Duration
- * 	%pr		// Protocol
- * 	%sa		// Source Address
- * 	%da		// Destination Address
- * 	%sap	// Source Address:Port
- * 	%dap	// Destination Address:Port
- * 	%sp		// Source Port
- * 	%dp		// Destination Port
- *  %nh		// Next-hop IP Address
- *  %nhb	// BGP Next-hop IP Address
- * 	%sas	// Source AS
- * 	%das	// Destination AS
- * 	%in		// Input Interface num
- * 	%out	// Output Interface num
- * 	%pkt	// Packets - default input
- * 	%ipkt	// Input Packets
- * 	%opkt	// Output Packets
- * 	%byt	// Bytes - default input
- * 	%ibyt	// Input Bytes
- * 	%obyt	// Output Bytes
- * 	%fl		// Flows
- * 	%flg	// TCP Flags
- * 	%tos	// Tos - Default src
- * 	%stos	// Src Tos
- * 	%dtos	// Dst Tos
- * 	%dir	// Direction: ingress, egress
- * 	%smk	// Src mask
- * 	%dmk	// Dst mask
- * 	%fwd	// Forwarding Status
- * 	%svln	// Src Vlan
- * 	%dvln	// Dst Vlan
- * 	%ismc	// Input Src Mac Addr
- * 	%odmc	// Output Dst Mac Addr
- * 	%idmc	// Output Src Mac Addr
- * 	%osmc	// Input Dst Mac Addr
- * 	%mpls1	// MPLS label 1
- * 	%mpls2	// MPLS label 2
- * 	%mpls3	// MPLS label 3
- * 	%mpls4	// MPLS label 4
- * 	%mpls5	// MPLS label 5
- * 	%mpls6	// MPLS label 6
- * 	%mpls7	// MPLS label 7
- * 	%mpls8	// MPLS label 8
- * 	%mpls9	// MPLS label 9
- * 	%mpls10	// MPLS label 10
- *
- * 	%bps	// bps - bits per second
- * 	%pps	// pps - packets per second
- * 	%bpp	// bps - Bytes per package
- *
- * The nfdump standard output formats line, long and extended are defined as follows:
- */
-
-#define FORMAT_line "%ts %td %pr %sap -> %dap %pkt %byt %fl"
-
-#define FORMAT_gline "%ts %td %pr %gsap -> %gdap %pkt %byt %fl"
-
-#define FORMAT_long "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %fl"
-
-#define FORMAT_glong "%ts %td %pr %gsap -> %gdap %flg %tos %pkt %byt %fl"
-
-#define FORMAT_extended "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %pps %bps %bpp %fl"
-
-#define FORMAT_biline "%ts %td %pr %sap <-> %dap %opkt %ipkt %obyt %ibyt %fl"
-
-#define FORMAT_bilong "%ts %td %pr %sap <-> %dap %flg %tos %opkt %ipkt %obyt %ibyt %fl"
-
-#define FORMAT_nsel "%tevt %evt %xevt %pr %sap -> %dap %xsap -> %xdap %ibyt %obyt"
-
-#define FORMAT_nel "%tevt %nevt %pr %sap -> %dap %nsap -> %ndap"
-
-#ifdef NSEL
-#define DefaultMode "nsel"
-#else
-#define DefaultMode "line"
-#endif
-#define DefaultGeoMode "gline"
-
-/* The appropriate header line is compiled automatically.
- *
- * For each defined output format a v6 long format automatically exists as well e.g.
- * line -> line6, long -> long6, extended -> extended6
- * v6 long formats need more space to print IP addresses, as IPv6 addresses are printed in full
- * length, where as in standard output format IPv6 addresses are condensed for better readability.
- *
- * Define your own output format and compile it into nfdumnp:
- * 1. Define your output format string.
- * 2. Test the format using standard syntax -o "fmt:<your format>"
- * 3. Create a #define statement for your output format, similar than the standard output formats
- * above.
- * 4. Add another line into the printmap[] struct below BEFORE the last NULL line for you format:
- *    { "formatname", format_special, FORMAT_definition, NULL },
- *   The first parameter is the name of your format as recognized on the command line as -o
- * <formatname> The second parameter is always 'format_special' - the printing function. The third
- * parameter is your format definition as defined in #define. The forth parameter is always NULL for
- * user defined formats.
- * 5. Recompile nfdump
- */
-
-static void flow_record_to_null(FILE *stream, void *record, int tag);
-
-// Assign print functions for all output options -o
-// Teminated with a NULL record
-printmap_t printmap[] = {{"raw", flow_record_to_raw, raw_prolog, raw_epilog, NULL},
-                         {"line", format_special, text_prolog, text_epilog, FORMAT_line},
-                         {"gline", format_special, text_prolog, text_epilog, FORMAT_gline},
-                         {"long", format_special, text_prolog, text_epilog, FORMAT_long},
-                         {"glong", format_special, text_prolog, text_epilog, FORMAT_glong},
-                         {"extended", format_special, text_prolog, text_epilog, FORMAT_extended},
-                         {"biline", format_special, text_prolog, text_epilog, FORMAT_biline},
-                         {"bilong", format_special, text_prolog, text_epilog, FORMAT_bilong},
-                         {"pipe", flow_record_to_pipe, pipe_prolog, pipe_epilog, NULL},
-                         {"json", flow_record_to_json, json_prolog, json_epilog, NULL},
-                         {"csv", flow_record_to_csv, csv_prolog, csv_epilog, NULL},
-                         {"null", flow_record_to_null, text_prolog, text_epilog, NULL},
-#ifdef NSEL
-                         {"nsel", format_special, text_prolog, text_epilog, FORMAT_nsel},
-                         {"nel", format_special, text_prolog, text_epilog, FORMAT_nel},
-#endif
-
-                         // add your formats here
-
-                         // This is always the last line
-                         {NULL, NULL, NULL, NULL, ""}};
 
 // For automatic output format generation in case of custom aggregation
 #define AggrPrependFmt "%ts %td "
 #define AggrAppendFmt "%pkt %byt %bps %bpp %fl"
-
-// compare at most 16 chars
-#define MAXMODELEN 16
 
 #define CheckArgLen(s, l)                                     \
     do {                                                      \
@@ -249,8 +108,8 @@ static void usage(char *name);
 
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams);
 
-static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows, printer_t print_record, timeWindow_t *timeWindow,
-                                  uint64_t limitRecords, outputParams_t *outputParams, int compress);
+static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows, RecordPrinter_t print_record,
+                                  timeWindow_t *timeWindow, uint64_t limitRecords, outputParams_t *outputParams, int compress);
 
 /* Functions */
 
@@ -320,10 +179,6 @@ static void usage(char *name) {
         "\t\tyyyy/MM/dd.hh:mm:ss[-yyyy/MM/dd.hh:mm:ss]\n",
         name);
 } /* usage */
-
-static void flow_record_to_null(FILE *stream, void *record, int tag) {
-    // empty - do not list any flows
-}  // End of flow_record_to_null
 
 static inline void ClearMasterRecord(master_record_t *record) {
     if (record->inPayload) free(record->inPayload);
@@ -416,8 +271,8 @@ static inline record_header_t *AddFlowLabel(record_header_t *record, char *label
     return (record_header_t *)tmpRecord;
 }
 
-static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows, printer_t print_record, timeWindow_t *timeWindow,
-                                  uint64_t limitRecords, outputParams_t *outputParams, int compress) {
+static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows, RecordPrinter_t print_record,
+                                  timeWindow_t *timeWindow, uint64_t limitRecords, outputParams_t *outputParams, int compress) {
     nffile_t *nffile_w, *nffile_r;
     stat_record_t stat_record;
     uint64_t twin_msecFirst, twin_msecLast;
@@ -716,13 +571,11 @@ int main(int argc, char **argv) {
     struct stat stat_buff;
     stat_record_t sum_stat;
     outputParams_t *outputParams;
-    printer_t print_record;
-    func_prolog_t print_prolog;
-    func_epilog_t print_epilog;
+    RecordPrinter_t print_record;
     nfprof_t profile_data;
     char *wfile, *ffile, *filter, *tstring, *stat_type;
     char *byte_limit_string, *packet_limit_string, *print_format;
-    char *print_order, *query_file, *geo_file, *nameserver, *aggr_fmt;
+    char *print_order, *query_file, *geo_file, *configFile, *nameserver, *aggr_fmt;
     int ffd, element_stat, fdump;
     int flow_stat, aggregate, aggregate_mask, bidir;
     int print_stat, gnuplot_stat, syntax_only, compress;
@@ -746,12 +599,11 @@ int main(int argc, char **argv) {
     skipped_blocks = 0;
     compress = NOT_COMPRESSED;
     GuessDir = 0;
+    configFile = NULL;
     nameserver = NULL;
 
     print_format = NULL;
     print_record = NULL;
-    print_prolog = NULL;
-    print_epilog = NULL;
     print_order = NULL;
     query_file = NULL;
     geo_file = NULL;
@@ -767,7 +619,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:D:E:G:s:ghn:i:jf:qyzr:v:w:J:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:ghn:i:jf:qyzr:v:w:J:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -798,6 +650,10 @@ int main(int argc, char **argv) {
                 bidir = 1;
                 // implies
                 aggregate = 1;
+                break;
+            case 'C':
+                CheckArgLen(optarg, MAXPATHLEN);
+                configFile = optarg;
                 break;
             case 'D':
                 CheckArgLen(optarg, 2);
@@ -1008,6 +864,7 @@ int main(int argc, char **argv) {
         size_t filterSize = strlen(filter);
         while (argc - optind > 0) {
             char *arg = argv[optind++];
+            CheckArgLen(arg, 128);
             filterSize += strlen(arg);
             filter = realloc(filter, filterSize + 1);
             if (!filter) {
@@ -1060,6 +917,8 @@ int main(int argc, char **argv) {
 
     if (syntax_only) exit(EXIT_SUCCESS);
 
+    configFile = getenv("NFCONF");
+
     if (outputParams->topN < 0) {
         if (flow_stat || element_stat) {
             outputParams->topN = 10;
@@ -1106,9 +965,9 @@ int main(int argc, char **argv) {
             LogError("Error reading geo location DB file %s", geo_file);
             exit(EXIT_FAILURE);
         }
-        HasGeoDB = 1;
+        HasGeoDB = true;
     }
-    if (HasGeoDB == 0 && Engine->geoFilter) {
+    if (HasGeoDB && Engine->geoFilter) {
         LogError("Can not filter according geo elements without a geo location DB");
         exit(EXIT_FAILURE);
     }
@@ -1200,65 +1059,10 @@ int main(int argc, char **argv) {
             print_format[len - 1] = '\0';
         } else if (bidir) {
             print_format = "biline";
-        } else
-            print_format = HasGeoDB ? DefaultGeoMode : DefaultMode;
-    }
-
-    if (strncasecmp(print_format, "fmt:", 4) == 0) {
-        // special user defined output format
-        char *format = &print_format[4];
-        if (strlen(format)) {
-            if (!ParseOutputFormat(format, outputParams->printPlain, printmap)) exit(EXIT_FAILURE);
-            print_record = format_special;
-            print_prolog = text_prolog;
-        } else {
-            LogError("Missing format description for user defined output format!\n");
-            exit(EXIT_FAILURE);
-        }
-    } else {
-        // predefined output format
-
-        // Check for long_v6 mode
-        size_t i = strlen(print_format);
-        if (i > 2) {
-            if (print_format[i - 1] == '6') {
-                Setv6Mode(1);
-                print_format[i - 1] = '\0';
-            } else
-                Setv6Mode(0);
-        }
-
-        i = 0;
-        while (printmap[i].printmode) {
-            if (strncasecmp(print_format, printmap[i].printmode, MAXMODELEN) == 0) {
-                if (printmap[i].Format) {
-                    if (!ParseOutputFormat(printmap[i].Format, outputParams->printPlain, printmap)) exit(EXIT_FAILURE);
-                    // predefined custom format
-                    print_record = printmap[i].func_record;
-                    print_prolog = printmap[i].func_prolog;
-                    print_epilog = printmap[i].func_epilog;
-                } else {
-                    // To support the pipe output format for element stats - check for pipe, and
-                    // remember this
-                    if (strncasecmp(print_format, "pipe", MAXMODELEN) == 0) {
-                        outputParams->mode = MODE_PIPE;
-                    } else if (strncasecmp(print_format, "csv", MAXMODELEN) == 0) {
-                        outputParams->mode = MODE_CSV;
-                    } else if (strncasecmp(print_format, "json", MAXMODELEN) == 0) {
-                        outputParams->mode = MODE_JSON;
-                    } else {
-                        outputParams->mode = MODE_PLAIN;
-                    }
-                    // predefined static format
-                    print_record = printmap[i].func_record;
-                    print_prolog = printmap[i].func_prolog;
-                    print_epilog = printmap[i].func_epilog;
-                }
-                break;
-            }
-            i++;
         }
     }
+
+    print_record = SetupOutputMode(print_format, outputParams, HasGeoDB);
 
     if (!print_record) {
         LogError("Unknown output mode '%s'\n", print_format);
@@ -1281,8 +1085,8 @@ int main(int argc, char **argv) {
 
     SetLimits(element_stat || aggregate || flow_stat, packet_limit_string, byte_limit_string);
 
-    if (!(flow_stat || element_stat) && print_prolog) {
-        print_prolog(outputParams->quiet);
+    if (!(flow_stat || element_stat)) {
+        PrintProlog(outputParams);
     }
 
     nfprof_start(&profile_data);
@@ -1311,16 +1115,15 @@ int main(int argc, char **argv) {
     }
 
     if (flow_stat) {
-        PrintFlowStat(print_prolog, print_record, outputParams);
+        PrintFlowStat(print_record, outputParams);
     }
 
     if (element_stat) {
         PrintElementStat(&sum_stat, outputParams, print_record);
     }
 
-    if (print_epilog) {
-        print_epilog(outputParams->quiet);
-    }
+    PrintEpilog(outputParams);
+
     if (!outputParams->quiet) {
         switch (outputParams->mode) {
             case MODE_PLAIN:

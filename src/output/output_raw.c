@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2021, Peter Haag
+ *  Copyright (c) 2019-2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -33,7 +33,6 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <netinet/in.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -575,13 +574,16 @@ static void inoutPayload(FILE *stream, master_record_t *r, char *payload, uint32
     DumpHex(stream, payload, max);
 }  // End of stringsEXoutPayload
 
-void raw_prolog(bool quiet) { recordCount = 0; }  // End of pipe_prolog
+void raw_prolog(void) {
+    // empty prolog
+    recordCount = 0;
+}  // End of pipe_prolog
 
-void raw_epilog(bool quiet) {
-    // empty
+void raw_epilog(void) {
+    // empty epilog
 }  // End of pipe_epilog
 
-void flow_record_to_raw(FILE *stream, void *record, int tag) {
+void raw_record(FILE *stream, void *record, int tag) {
     master_record_t *r = (master_record_t *)record;
     char elementString[MAXELEMENTS * 5];
 
@@ -742,4 +744,4 @@ void flow_record_to_raw(FILE *stream, void *record, int tag) {
         i++;
     }
 
-}  // flow_record_to_raw
+}  // raw_record

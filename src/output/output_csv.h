@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -29,32 +28,15 @@
  *
  */
 
-#ifndef _OUTPUT_FMT_H
-#define _OUTPUT_FMT_H 1
+#ifndef _OUTPUT_CSV_H
+#define _OUTPUT_CSV_H 1
 
-#include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
-#include <sys/types.h>
-#include <time.h>
 
-#include "config.h"
-#include "output_util.h"
+void csv_prolog(void);
 
-/* prototypes */
+void csv_epilog(void);
 
-void Setv6Mode(int mode);
+void csv_record(FILE *stream, void *record, int tag);
 
-int Getv6Mode(void);
-
-void text_prolog(bool quiet);
-
-void text_epilog(bool quiet);
-
-int ParseOutputFormat(char *format, int printPlain, printmap_t *printmap);
-
-void format_special(FILE *stream, void *record, int tag);
-
-#define TAG_CHAR ''
-
-#endif  //_OUTPUT_FMT_H
+#endif  // _OUTPUT_CSV_H

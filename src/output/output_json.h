@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -29,21 +28,13 @@
  *
  */
 
-#ifndef _NFTRACK_RRD_H
-#define _NFTRACK_RRD_H 1
+#ifndef _OUTPUT_JSON_H
+#define _OUTPUT_JSON_H 1
 
-#include <time.h>
+void json_prolog(void);
 
-#include "nftrack_stat.h"
+void json_epilog(void);
 
-int CreateRRDBs(char *path, time_t when);
+void flow_record_to_json(FILE *stream, void *record, int tag);
 
-int RRD_StoreDataRow(char *path, char *iso_time, data_row *row);
-
-data_row *RRD_GetDataRow(char *path, time_t when);
-
-time_t RRD_LastUpdate(char *path);
-
-time_t RRD_First(char *path);
-
-#endif
+#endif  // _OUTPUT_JSON_H

@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -29,21 +28,15 @@
  *
  */
 
-#ifndef _NFTRACK_RRD_H
-#define _NFTRACK_RRD_H 1
+#ifndef _OUTPUT_PIPE_H
+#define _OUTPUT_PIPE_H 1
 
-#include <time.h>
+#include <stdio.h>
 
-#include "nftrack_stat.h"
+void pipe_prolog(void);
 
-int CreateRRDBs(char *path, time_t when);
+void pipe_epilog(void);
 
-int RRD_StoreDataRow(char *path, char *iso_time, data_row *row);
+void pipe_record(FILE *stream, void *record, int tag);
 
-data_row *RRD_GetDataRow(char *path, time_t when);
-
-time_t RRD_LastUpdate(char *path);
-
-time_t RRD_First(char *path);
-
-#endif
+#endif  // _OUTPUT_PIPE_H

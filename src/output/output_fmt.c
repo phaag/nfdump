@@ -35,7 +35,6 @@
 #include <ctype.h>
 #include <errno.h>
 #include <netinet/in.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -464,7 +463,7 @@ void Setv6Mode(int mode) { long_v6 += mode; }
 
 int Getv6Mode(void) { return long_v6; }
 
-void format_special(FILE *stream, void *record, int tag) {
+void fmt_record(FILE *stream, void *record, int tag) {
     master_record_t *r = (master_record_t *)record;
 
     // if this flow is a tunnel, add a flow line with the tunnel IPs
@@ -478,7 +477,7 @@ void format_special(FILE *stream, void *record, int tag) {
         _r.msecFirst = r->msecFirst;
         _r.msecLast = r->msecLast;
         if (r->tun_ip_version == 6) _r.mflags = V3_FLAG_IPV6_ADDR;
-        format_special(stream, (void *)&_r, tag);
+        fmt_record(stream, (void *)&_r, tag);
     }
 
     do_tag = tag;
@@ -496,16 +495,16 @@ void format_special(FILE *stream, void *record, int tag) {
     }
     fprintf(stream, "\n");
 
-}  // End of format_special
+}  // End of fmt_record
 
-void text_prolog(bool quiet) {
-    if (quiet) return;
+void fmt_prolog(void) {
+    // header
     printf("%s\n", header_string);
-}  // End of text_prolog
+}  // End of fmt_prolog
 
-void text_epilog(bool quiet) {
+void fmt_epilog(void) {
     // empty
-}  // End of text_epilog
+}  // End of fmt_epilog
 
 static void InitFormatParser(void) {
     max_format_index = max_token_index = BLOCK_SIZE;

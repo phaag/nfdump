@@ -40,7 +40,7 @@
 #endif
 
 #include "nffile.h"
-#include "output_util.h"
+#include "output.h"
 
 #define NeedSwap(GuessDir, r)                                                                                     \
     (GuessDir && ((r)->proto == IPPROTO_TCP || (r)->proto == IPPROTO_UDP) &&                                      \
@@ -147,9 +147,9 @@ void InsertFlow(void *raw_record, master_record_t *flow_record);
 
 void AddFlowCache(void *raw_record, master_record_t *flow_record);
 
-void PrintFlowTable(printer_t print_record, outputParams_t *outputParams, int GuessDir);
+void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, int GuessDir);
 
-void PrintFlowStat(func_prolog_t record_header, printer_t print_record, outputParams_t *outputParams);
+void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams);
 
 int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir);
 

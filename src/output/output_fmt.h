@@ -1,5 +1,6 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,16 +29,56 @@
  *
  */
 
-#ifndef _OUTPUT_CSV_H
-#define _OUTPUT_CSV_H 1
+#ifndef _OUTPUT_FMT_H
+#define _OUTPUT_FMT_H 1
 
-#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <time.h>
 
-void csv_prolog(bool quiet);
+#include "config.h"
+#include "output.h"
 
-void csv_epilog(bool quiet);
+#define FORMAT_line "%ts %td %pr %sap -> %dap %pkt %byt %fl"
 
-void flow_record_to_csv(FILE *stream, void *record, int tag);
+#define FORMAT_gline "%ts %td %pr %gsap -> %gdap %pkt %byt %fl"
 
-#endif  // _OUTPUT_CSV_H
+#define FORMAT_long "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %fl"
+
+#define FORMAT_glong "%ts %td %pr %gsap -> %gdap %flg %tos %pkt %byt %fl"
+
+#define FORMAT_extended "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %pps %bps %bpp %fl"
+
+#define FORMAT_biline "%ts %td %pr %sap <-> %dap %opkt %ipkt %obyt %ibyt %fl"
+
+#define FORMAT_bilong "%ts %td %pr %sap <-> %dap %flg %tos %opkt %ipkt %obyt %ibyt %fl"
+
+#define FORMAT_nsel "%tevt %evt %xevt %pr %sap -> %dap %xsap -> %xdap %ibyt %obyt"
+
+#define FORMAT_nel "%tevt %nevt %pr %sap -> %dap %nsap -> %ndap"
+
+#ifdef NSEL
+#define DefaultMode "nsel"
+#else
+#define DefaultMode "line"
+#endif
+#define DefaultGeoMode "gline"
+
+/* prototypes */
+
+void Setv6Mode(int mode);
+
+int Getv6Mode(void);
+
+void fmt_prolog(void);
+
+void fmt_epilog(void);
+
+int ParseOutputFormat(char *format, int printPlain, printmap_t *printmap);
+
+void fmt_record(FILE *stream, void *record, int tag);
+
+#define TAG_CHAR ''
+
+#endif  //_OUTPUT_FMT_H

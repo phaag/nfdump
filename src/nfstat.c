@@ -57,6 +57,7 @@
 #include "nffile.h"
 #include "nflowcache.h"
 #include "nfxV3.h"
+#include "output_fmt.h"
 #include "output_util.h"
 #include "util.h"
 
@@ -1053,7 +1054,7 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *
 
 }  // End of PrintCvsStatLine
 
-void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, printer_t print_record) {
+void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, RecordPrinter_t print_record) {
     uint32_t numflows;
 
     numflows = 0;

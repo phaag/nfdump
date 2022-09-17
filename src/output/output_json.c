@@ -35,7 +35,6 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -585,13 +584,16 @@ static void stringsEXnelXlatePort(FILE *stream, master_record_t *r) {
 }  // End of stringsEXnelXlatePort
 #endif
 
-void json_prolog(bool quiet) {
+void json_prolog(void) {
     recordCount = 0;
-    if (quiet) return;
+    // open json
     printf("[\n");
 }  // End of json_prolog
 
-void json_epilog(bool quiet) { printf("]\n"); }  // End of json_epilog
+void json_epilog(void) {
+    // close json
+    printf("]\n");
+}  // End of json_epilog
 
 void flow_record_to_json(FILE *stream, void *record, int tag) {
     master_record_t *r = (master_record_t *)record;

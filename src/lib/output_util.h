@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2021, Peter Haag
+ *  Copyright (c) 2019-2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,29 +31,8 @@
 #ifndef _OUTPUT_UTIL_H
 #define _OUTPUT_UTIL_H 1
 
-#include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
-
-typedef void (*printer_t)(FILE *, void *, int);
-typedef void (*func_prolog_t)(bool quiet);
-typedef void (*func_epilog_t)(bool quiet);
-
-enum { MODE_PLAIN = 0, MODE_PIPE, MODE_JSON, MODE_CSV };
-typedef struct outputParams_s {
-    bool printPlain;
-    bool doTag;
-    bool quiet;
-    int mode;
-    int topN;
-} outputParams_t;
-
-typedef struct printmap_s {
-    char *printmode;            // name of the output format
-    printer_t func_record;      // prints the record
-    func_prolog_t func_prolog;  // prints the output prolog
-    func_epilog_t func_epilog;  // prints the output epilog
-    char *Format;               // output format definition
-} printmap_t;
 
 char *ProtoString(uint8_t protoNum, uint32_t plainNumbers);
 

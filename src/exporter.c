@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2020, Peter Haag
+ *  Copyright (c) 2012-2022, Peter Haag
  *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
@@ -310,7 +310,6 @@ void PrintExporters(void) {
     nffile_t *nffile;
     record_header_t *record;
     uint32_t skipped_blocks;
-    uint64_t total_bytes;
 
     printf("Exporters:\n");
 
@@ -319,7 +318,6 @@ void PrintExporters(void) {
         return;
     }
 
-    total_bytes = 0;
     skipped_blocks = 0;
     done = 0;
     while (!done) {
@@ -343,9 +341,8 @@ void PrintExporters(void) {
                 continue;
                 break;
 
-            default:
+                // default:
                 // successfully read block
-                total_bytes += ret;
         }
 
         if (nffile->block_header->type != DATA_BLOCK_TYPE_2 && nffile->block_header->type != DATA_BLOCK_TYPE_3) {

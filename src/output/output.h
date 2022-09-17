@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -29,21 +28,39 @@
  *
  */
 
-#ifndef _NFTRACK_RRD_H
-#define _NFTRACK_RRD_H 1
+#ifndef _OUTPUT_H
+#define _OUTPUT_H 1
 
-#include <time.h>
+#include <stdbool.h>
+#include <stdio.h>
 
-#include "nftrack_stat.h"
+typedef void (*RecordPrinter_t)(FILE *, void *, int);
+typedef void (*PrologPrinter_t)(void);
+typedef void (*EpilogPrinter_t)(void);
 
-int CreateRRDBs(char *path, time_t when);
+enum { MODE_PLAIN = 0, MODE_PIPE, MODE_JSON, MODE_CSV };
+typedef struct outputParams_s {
+    bool printPlain;
+    bool doTag;
+    bool quiet;
+    int mode;
+    int topN;
+} outputParams_t;
 
-int RRD_StoreDataRow(char *path, char *iso_time, data_row *row);
+typedef struct printmap_s {
+    char *printmode;              // name of the output format
+    RecordPrinter_t func_record;  // prints the record
+    PrologPrinter_t func_prolog;  // prints the output prolog
+    PrologPrinter_t func_epilog;  // prints the output epilog
+    char *Format;                 // output format definition
+} printmap_t;
 
-data_row *RRD_GetDataRow(char *path, time_t when);
+void AddFormat(char *name, char *fmtString);
 
-time_t RRD_LastUpdate(char *path);
+RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams, bool HasGeoDB);
 
-time_t RRD_First(char *path);
+void PrintProlog(outputParams_t *outputParams);
+
+void PrintEpilog(outputParams_t *outputParams);
 
 #endif

@@ -55,7 +55,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
-#include "output_raw.h"
+#include "output.h"
 #include "util.h"
 
 typedef struct aggregate_param_s {
@@ -281,7 +281,7 @@ static SortElement_t *GetSortList(size_t *size);
 static master_record_t *SetAggregateMask(void);
 
 static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
-                                 printer_t print_record, int ascending);
+                                 RecordPrinter_t print_record, int ascending);
 
 static inline uint32_t SuperFastHash(const char *data, int len) {
     uint32_t hash = len;
@@ -1019,7 +1019,7 @@ void AddFlowCache(void *raw_record, master_record_t *flow_record) {
 
 // print SortList - apply possible aggregation mask to zero out aggregated fields
 static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
-                                 printer_t print_record, int ascending) {
+                                 RecordPrinter_t print_record, int ascending) {
     master_record_t *aggr_record_mask = aggregate_info.mask;
 
     int max = maxindex;
@@ -1185,7 +1185,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
 }  // End of ExportSortList
 
 // print -s record/xx statistics with as many print orders as required
-void PrintFlowStat(func_prolog_t record_header, printer_t print_record, outputParams_t *outputParams) {
+void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
     size_t maxindex;
 
     // Get sort array
@@ -1223,7 +1223,7 @@ void PrintFlowStat(func_prolog_t record_header, printer_t print_record, outputPa
                         printf("Top flows ordered by %s:\n", order_mode[order_index].string);
                 }
             }
-            if (record_header) record_header(outputParams->quiet);
+            PrintProlog(outputParams);
             PrintSortList(SortList, maxindex, outputParams, 0, print_record, direction);
         }
     }
@@ -1231,7 +1231,7 @@ void PrintFlowStat(func_prolog_t record_header, printer_t print_record, outputPa
 }  // End of PrintFlowStat
 
 // print Flow cache
-void PrintFlowTable(printer_t print_record, outputParams_t *outputParams, int GuessDir) {
+void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, int GuessDir) {
     GuessDirection = GuessDir;
 
     size_t maxindex;

@@ -32,16 +32,12 @@
 #ifndef _NFSTAT_H
 #define _NFSTAT_H 1
 
+#include <stdint.h>
 #include <sys/types.h>
 
 #include "config.h"
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
-#include "nffile.h"
-#include "output_fmt.h"
-#include "output_util.h"
+#include "nfdump.h"
+#include "output.h"
 
 #define ASCENDING 1
 #define DESCENDING 0
@@ -61,8 +57,8 @@ int SetStat(char *str, int *element_stat, int *flow_stat);
 
 void AddElementStat(master_record_t *flow_record);
 
-void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, printer_t print_record);
+void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, RecordPrinter_t print_record);
 
-void PrintSortedFlows(printer_t print_record, uint32_t limitflows, int tag);
+void PrintSortedFlows(RecordPrinter_t print_record, uint32_t limitflows, int tag);
 
 #endif  //_NFSTAT_H

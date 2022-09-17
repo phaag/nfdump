@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2021, Peter Haag
+ *  Copyright (c) 2019-2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,6 @@
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -53,18 +52,17 @@
 // record counter
 static uint32_t recordCount;
 
-void csv_prolog(bool quiet) {
+void csv_prolog(void) {
     recordCount = 0;
-    if (quiet) return;
     printf(
         "ts,te,td,sa,da,sp,dp,pr,flg,fwd,stos,ipkt,ibyt,opkt,obyt,in,out,sas,das,smk,dmk,dtos,dir,nh,nhb,svln,dvln,ismc,odmc,idmc,osmc,mpls1,mpls2,"
         "mpls3,mpls4,mpls5,mpls6,mpls7,mpls8,mpls9,mpls10,cl,sl,al,ra,eng,exid,tr\n");
 
 }  // End of csv_prolog
 
-void csv_epilog(bool quiet) {}  // End of csv_epilog
+void csv_epilog(void) {}  // End of csv_epilog
 
-void flow_record_to_csv(FILE *stream, void *record, int tag) {
+void csv_record(FILE *stream, void *record, int tag) {
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
     char datestr1[64], datestr2[64], datestr3[64];
     char s_snet[IP_STRING_LEN], s_dnet[IP_STRING_LEN];
@@ -81,7 +79,7 @@ void flow_record_to_csv(FILE *stream, void *record, int tag) {
         _r.msecFirst = r->msecFirst;
         _r.msecLast = r->msecLast;
         if (r->tun_ip_version == 6) _r.mflags = V3_FLAG_IPV6_ADDR;
-        flow_record_to_csv(stream, (void *)&_r, tag);
+        csv_record(stream, (void *)&_r, tag);
     }
 
     as[0] = 0;
@@ -241,4 +239,4 @@ void flow_record_to_csv(FILE *stream, void *record, int tag) {
 
     fprintf(stream, "%s.%03llu\n", datestr3, (long long unsigned)r->msecReceived % 1000LL);
 
-}  // End of flow_record_to_csv
+}  // End of csv_record
