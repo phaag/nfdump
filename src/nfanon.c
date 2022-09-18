@@ -35,6 +35,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,11 +47,6 @@
 #include <unistd.h>
 
 #include "config.h"
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "exporter.h"
 #include "flist.h"
 #include "nbar.h"
@@ -424,6 +420,7 @@ int main(int argc, char **argv) {
                 if (!InitLog(0, "argv[0]", optarg, 0)) exit(255);
                 break;
             case 'r':
+                CheckArgLen(optarg, MAXPATHLEN);
                 if (!CheckPath(optarg, S_IFREG)) exit(255);
                 flist.single_file = strdup(optarg);
                 break;

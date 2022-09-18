@@ -32,14 +32,11 @@
 #ifndef _UTIL_H
 #define _UTIL_H 1
 
-#include "config.h"
-
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
-
 #include <sys/socket.h>
 #include <time.h>
+
+#include "config.h"
 
 #ifdef DEVEL
 #include <assert.h>
@@ -104,7 +101,15 @@ double t(void);
 
 void xsleep(suseconds_t usec);
 
+void CheckArgLen(char *arg, size_t len);
+
 int CheckPath(char *path, unsigned type);
+
+#define PATH_ERROR -1
+#define PATH_NOTEXIST 0
+#define PATH_WRONGTYPE 1
+#define PATH_OK 2
+int TestPath(char *path, unsigned type);
 
 void EndLog(void);
 

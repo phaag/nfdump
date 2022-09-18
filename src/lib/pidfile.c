@@ -26,23 +26,24 @@
  *	First version (v0.2) released
  */
 
-#include <stdio.h>
-#include <unistd.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <sys/file.h>
-#include <string.h>
-#include <errno.h>
-#include <signal.h>
-#include <sys/types.h>
-#include <sys/param.h>
-#include <fcntl.h>
-#include <libgen.h>
-
-#include "util.h"
 #include "pidfile.h"
 
-static pid_t read_pid (char *pidfile);
+#include <errno.h>
+#include <fcntl.h>
+#include <libgen.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/file.h>
+#include <sys/param.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include "util.h"
+
+static pid_t read_pid(char *pidfile);
 
 /* read_pid
  *
@@ -50,46 +51,45 @@ static pid_t read_pid (char *pidfile);
  * 0 is returned if either there's no pidfile, it's empty
  * or no pid can be read.
  */
-static pid_t read_pid (char *pidfile) {
-FILE *f;
-pid_t pid;
+static pid_t read_pid(char *pidfile) {
+    FILE *f;
+    pid_t pid;
 
-	if (!(f=fopen(pidfile,"r")))
-		return 0;
-	fscanf(f,"%d", &pid);
-	fclose(f);
-	return pid;
-} // read_pid
+    if (!(f = fopen(pidfile, "r"))) return 0;
+    fscanf(f, "%d", &pid);
+    fclose(f);
+    return pid;
+}  // read_pid
 
 char *verify_pid(char *pidfile) {
-	if (strlen(pidfile) > PATH_MAX) {
-		LogError("Path too long for pid file.");
-		return NULL;
-	}
-	char c1[PATH_MAX];
-	char c2[PATH_MAX];
-	strncpy(c1, pidfile, PATH_MAX);
-	strncpy(c2, pidfile, PATH_MAX);
+    if (strlen(pidfile) > PATH_MAX) {
+        LogError("Path too long for pid file.");
+        return NULL;
+    }
+    char c1[PATH_MAX];
+    char c2[PATH_MAX];
+    strncpy(c1, pidfile, PATH_MAX);
+    strncpy(c2, pidfile, PATH_MAX);
 
-	char *dirName  = dirname(c1);
-	char *fileName = basename(c2);
-	dirName = realpath(dirName, NULL);
-	if ( !dirName ) {
-		LogError("realpath() pid file: %s", strerror(errno));
-		return NULL;
-	}
-	
-	size_t len = strlen(dirName) + strlen(fileName) + 2;
-	pidfile = malloc(len);
-	if ( !pidfile ) {
-		LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno) );
-		return NULL;
-	}
-	snprintf(pidfile, len, "%s/%s", dirName, fileName);
-	free(dirName);
-	return pidfile;
+    char *dirName = dirname(c1);
+    char *fileName = basename(c2);
+    dirName = realpath(dirName, NULL);
+    if (!dirName) {
+        LogError("realpath() pid file: %s", strerror(errno));
+        return NULL;
+    }
 
-} // End of verify_pid
+    size_t len = strlen(dirName) + strlen(fileName) + 2;
+    pidfile = malloc(len);
+    if (!pidfile) {
+        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+    snprintf(pidfile, len, "%s/%s", dirName, fileName);
+    free(dirName);
+    return pidfile;
+
+}  // End of verify_pid
 
 /* check_pid
  *
@@ -97,81 +97,75 @@ char *verify_pid(char *pidfile) {
  * table (using /proc) to determine if the process already exists. If
  * so pid is returned, otherwise 0.
  */
-pid_t check_pid (char *pidfile) {
+pid_t check_pid(char *pidfile) {
+    pid_t pid = read_pid(pidfile);
 
-	pid_t pid = read_pid(pidfile);
+    /* Amazing ! _I_ am already holding the pid file... */
+    if ((!pid) || (pid == getpid())) return 0;
 
-	/* Amazing ! _I_ am already holding the pid file... */
-	if ((!pid) || (pid == getpid ()))
-		return 0;
+    /*
+     * The 'standard' method of doing this is to try and do a 'fake' kill
+     * of the process.  If an ESRCH error is returned the process cannot
+     * be found -- GW
+     */
+    /* But... errno is usually changed only on error.. */
+    errno = 0;
+    if (kill(pid, 0) && errno == ESRCH) return 0;
 
-  /*
-   * The 'standard' method of doing this is to try and do a 'fake' kill
-   * of the process.  If an ESRCH error is returned the process cannot
-   * be found -- GW
-   */
-  /* But... errno is usually changed only on error.. */
-	errno = 0;
-	if (kill(pid, 0) && errno == ESRCH)
-		return 0;
-
-	return pid;
-} // check_pid
+    return pid;
+}  // check_pid
 
 /* write_pid
  *
  * Writes the pid to the specified file. If that fails 0 is
  * returned, otherwise the pid.
  */
-pid_t write_pid (char *pidfile) {
-FILE *f;
-int fd;
-pid_t pid;
+pid_t write_pid(char *pidfile) {
+    FILE *f;
+    int fd;
+    pid_t pid;
 
-	if ( ((fd = open(pidfile, O_RDWR|O_CREAT, 0644)) == -1)
-		|| ((f = fdopen(fd, "r+")) == NULL) ) {
-		LogError("Can't open or create %s: %s", pidfile, strerror(errno));
-		return 0;
-	}
-  
-	if (flock(fd, LOCK_EX|LOCK_NB) == -1) {
-		fscanf(f, "%d", &pid);
-		fclose(f);
-		LogError("flock(): Can't lock. lock is held by pid %d", pid);
-		return 0;
-	}
+    if (((fd = open(pidfile, O_RDWR | O_CREAT, 0644)) == -1) || ((f = fdopen(fd, "r+")) == NULL)) {
+        LogError("Can't open or create %s: %s", pidfile, strerror(errno));
+        return 0;
+    }
 
-	pid = getpid();
-	if (!fprintf(f,"%d\n", pid)) {
-		LogError("Can't write pid , %s", strerror(errno));
-		close(fd);
-		return 0;
-	}
-	fflush(f);
+    if (flock(fd, LOCK_EX | LOCK_NB) == -1) {
+        fscanf(f, "%d", &pid);
+        fclose(f);
+        LogError("flock(): Can't lock. lock is held by pid %d", pid);
+        return 0;
+    }
 
-	if (flock(fd, LOCK_UN) == -1) {
-		LogError("Can't unlock pidfile %s, %s", pidfile, strerror(errno));
-		close(fd);
-		return 0;
-	}
-	close(fd);
+    pid = getpid();
+    if (!fprintf(f, "%d\n", pid)) {
+        LogError("Can't write pid , %s", strerror(errno));
+        close(fd);
+        return 0;
+    }
+    fflush(f);
 
-	return pid;
-} // write_pid
+    if (flock(fd, LOCK_UN) == -1) {
+        LogError("Can't unlock pidfile %s, %s", pidfile, strerror(errno));
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    return pid;
+}  // write_pid
 
 /* remove_pid
  *
- * Remove the the pid file. Make sure we held it. 
+ * Remove the the pid file. Make sure we held it.
  * Return the result from unlink(2)
  */
-int remove_pid (char *pidfile) {
-
-	pid_t pid = read_pid(pidfile);
-	if (pid == getpid ()) {
-  		return unlink (pidfile);
-	} else {
-		LogError("Pid file is held by pid %d", pid);
-		return -1;
-	}
-} // remove_pid
-  
+int remove_pid(char *pidfile) {
+    pid_t pid = read_pid(pidfile);
+    if (pid == getpid()) {
+        return unlink(pidfile);
+    } else {
+        LogError("Pid file is held by pid %d", pid);
+        return -1;
+    }
+}  // remove_pid

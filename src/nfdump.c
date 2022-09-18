@@ -61,6 +61,7 @@
 #include "nbar.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
+#include "nfconf.h"
 #include "nffile.h"
 #include "nflowcache.h"
 #include "nfnet.h"
@@ -93,16 +94,6 @@ extern exporter_t **exporter_list;
 #define AggrPrependFmt "%ts %td "
 #define AggrAppendFmt "%pkt %byt %bps %bpp %fl"
 
-#define CheckArgLen(s, l)                                     \
-    do {                                                      \
-        int i = 0;                                            \
-        while (s[i] != '\0' && i < l) i++;                    \
-        if (i == l) {                                         \
-            LogError("Input string error. L'/ength > %d", l); \
-            exit(EXIT_FAILURE);                               \
-        }                                                     \
-    } while (0);
-
 /* Function Prototypes */
 static void usage(char *name);
 
@@ -127,6 +118,7 @@ static void usage(char *name) {
         "\t\tor subnet aggregation: srcip4/24, srcip6/64.\n"
         "-b\t\tAggregate netflow records as bidirectional flows.\n"
         "-B\t\tAggregate netflow records as bidirectional flows - Guess direction.\n"
+        "-C <file>\tRead optional config file.\n"
         "-r <file>\tread input from file\n"
         "-w <file>\twrite output to file\n"
         "-f\t\tread netflow filter from file\n"
@@ -222,12 +214,6 @@ static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParam
     }
 
 }  // End of PrintSummary
-
-__attribute__((noinline, unused)) static int dofilter(master_record_t *master_record);
-static int dofilter(master_record_t *master_record) {
-    return (master_record->srcPort == 107 || master_record->dstPort == 107 || master_record->srcPort == 106 || master_record->dstPort == 106 ||
-            master_record->srcPort == 105 || master_record->dstPort == 105);
-}
 
 static inline void AddGeoInfo(master_record_t *master_record) {
     LookupCountry(master_record->V6.srcaddr, master_record->src_geo);
@@ -599,16 +585,17 @@ int main(int argc, char **argv) {
     skipped_blocks = 0;
     compress = NOT_COMPRESSED;
     GuessDir = 0;
-    configFile = NULL;
     nameserver = NULL;
 
     print_format = NULL;
     print_record = NULL;
     print_order = NULL;
     query_file = NULL;
-    geo_file = NULL;
     ModifyCompress = -1;
     aggr_fmt = NULL;
+
+    configFile = getenv("NFCONF");
+    geo_file = getenv("NFGEODB");
 
     outputParams = calloc(1, sizeof(outputParams_t));
     if (!outputParams) {
@@ -653,6 +640,7 @@ int main(int argc, char **argv) {
                 break;
             case 'C':
                 CheckArgLen(optarg, MAXPATHLEN);
+                if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 configFile = optarg;
                 break;
             case 'D':
@@ -757,9 +745,9 @@ int main(int argc, char **argv) {
                 break;
             case 'r':
                 CheckArgLen(optarg, MAXPATHLEN);
-                if (CheckPath(optarg, S_IFREG)) {
+                if (TestPath(optarg, S_IFREG) == PATH_OK) {
                     flist.single_file = strdup(optarg);
-                } else if (CheckPath(optarg, S_IFDIR)) {
+                } else if (TestPath(optarg, S_IFDIR) == PATH_OK) {
                     flist.multiple_files = strdup(optarg);
                 } else {
                     LogError("%s is not a file or directory", optarg);
@@ -917,7 +905,7 @@ int main(int argc, char **argv) {
 
     if (syntax_only) exit(EXIT_SUCCESS);
 
-    configFile = getenv("NFCONF");
+    if (ConfOpen(configFile, "nfdump") < 0) exit(EXIT_FAILURE);
 
     if (outputParams->topN < 0) {
         if (flow_stat || element_stat) {
@@ -953,21 +941,16 @@ int main(int argc, char **argv) {
     }
 
     if (geo_file == NULL) {
-        char *f = getenv("NFGEODB");
-        if (f && !CheckPath(f, S_IFREG)) {
-            LogError("Error reading geo location DB file %s", f);
-            exit(EXIT_FAILURE);
-        }
-        geo_file = f;
+        geo_file = ConfGetString("geodb.path");
     }
     if (geo_file) {
-        if (!Init_MaxMind() || !LoadMaxMind(geo_file)) {
+        if (!CheckPath(geo_file, S_IFREG) || !Init_MaxMind() || !LoadMaxMind(geo_file)) {
             LogError("Error reading geo location DB file %s", geo_file);
             exit(EXIT_FAILURE);
         }
         HasGeoDB = true;
     }
-    if (HasGeoDB && Engine->geoFilter) {
+    if (!HasGeoDB && Engine->geoFilter) {
         LogError("Can not filter according geo elements without a geo location DB");
         exit(EXIT_FAILURE);
     }

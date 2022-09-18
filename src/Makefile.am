@@ -9,7 +9,7 @@ if MAXMIND
 bin_PROGRAMS += geolookup
 endif
 
-AM_CPPFLAGS = -Ilib -Ioutput $(DEPS_CFLAGS)
+AM_CPPFLAGS = -Ilib -Ioutput -Iconf $(DEPS_CFLAGS)
 AM_LDFLAGS  = -Llib 
 
 LDADD = $(DEPS_LIBS)
@@ -40,7 +40,7 @@ maxmind = maxmind.c maxmind.h
 
 nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h khash.h blocksort.h blocksort.c  \
 	$(exporter) $(nbar) $(maxmind) $(nflowcache) $(nfprof)
-nfdump_LDADD = lib/libnfdump.la output/liboutput.a
+nfdump_LDADD = lib/libnfdump.la output/liboutput.a conf/libconf.a
 
 nfreplay_SOURCES = nfreplay.c $(nfprof) \
 	$(nfnet) $(collector) $(nfv1) $(nfv9) $(nfv5v7) $(ipfix) $(metric)

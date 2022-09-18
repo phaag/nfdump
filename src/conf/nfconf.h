@@ -28,61 +28,16 @@
  *
  */
 
-#ifndef _QUEUE_H
-#define _QUEUE_H 1
+#ifndef _NFCONF_H
+#define _NFCONF_H 1
 
-#include <pthread.h>
-#include <stdatomic.h>
 #include <stdint.h>
+#include <stdio.h>
 
-#define QUEUE_FULL (void *)-1
-#define QUEUE_EMPTY (void *)-2
-#define QUEUE_CLOSED (void *)-3
+int ConfOpen(char *filename, char *section);
 
-typedef struct element_s {
-    void *data;
-} element_t;
+int ConfGetFMTentry(char **key, char **value);
 
-typedef struct queueStat_s {
-    size_t maxUsed;
-    size_t length;
-} queueStat_t;
+char *ConfGetString(char *key);
 
-typedef struct queue_s {
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    uint32_t closed;
-
-    size_t length;
-    size_t mask;
-    unsigned next_free;
-    unsigned next_avail;
-    _Atomic unsigned c_wait;
-    _Atomic unsigned p_wait;
-    size_t num_elements;
-
-    queueStat_t stat;
-    void *element[1];
-} queue_t;
-
-queue_t *queue_init(size_t length);
-
-void queue_free(queue_t *queue);
-
-void *queue_push(queue_t *queue, void *data);
-
-void *queue_pop(queue_t *queue);
-
-void queue_open(queue_t *queue);
-
-void queue_close(queue_t *queue);
-
-void queue_sync(queue_t *queue);
-
-queueStat_t queue_stat(queue_t *queue);
-
-size_t queue_length(queue_t *queue);
-
-uint32_t queue_done(queue_t *queue);
-
-#endif  // _QUEUE_H
+#endif

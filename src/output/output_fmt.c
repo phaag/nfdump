@@ -1542,20 +1542,16 @@ static void String_bpp(FILE *stream, master_record_t *r) {
 static void String_ExpSysID(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->exporter_sysid); }  // End of String_ExpSysID
 
 static void String_SrcCountry(FILE *stream, master_record_t *r) {
-    if ((r->mflags & V3_FLAG_IPV6_ADDR) != 0) {  // IPv6
-        fprintf(stream, "  ");
-    } else {  // IPv4
-        fprintf(stream, "%s", r->src_geo);
-    }
+    char country[4];
+    LookupCountry(r->V6.srcaddr, country);
+    fprintf(stream, "%2s", country);
 
 }  // End of String_SrcCountry
 
 static void String_DstCountry(FILE *stream, master_record_t *r) {
-    if ((r->mflags & V3_FLAG_IPV6_ADDR) != 0) {  // IPv6
-        fprintf(stream, "  ");
-    } else {  // IPv4
-        fprintf(stream, "%s", r->dst_geo);
-    }
+    char country[4];
+    LookupCountry(r->V6.dstaddr, country);
+    fprintf(stream, "%2s", country);
 
 }  // End of String_DstCountry
 

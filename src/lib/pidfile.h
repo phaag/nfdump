@@ -19,6 +19,7 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111, USA.
 */
 
+#include <unistd.h>
 
 /* verify_pid
  *
@@ -32,18 +33,18 @@ char *verify_pid(char *pidfile);
  * table (using /proc) to determine if the process already exists. If
  * so 1 is returned, otherwise 0.
  */
-pid_t check_pid (char *pidfile);
+pid_t check_pid(char *pidfile);
 
 /* write_pid
  *
  * Writes the pid to the specified file. If that fails 0 is
  * returned, otherwise the pid.
  */
-pid_t write_pid (char *pidfile);
+pid_t write_pid(char *pidfile);
 
 /* remove_pid
  *
  * Remove the the specified file. The result from unlink(2)
  * is returned
  */
-int remove_pid (char *pidfile);
+int remove_pid(char *pidfile);

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,9 +28,7 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#include "queue.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -38,16 +36,13 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <stdatomic.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
-#include "queue.h"
+#include "config.h"
 #include "util.h"
 
 queue_t *queue_init(size_t length) {

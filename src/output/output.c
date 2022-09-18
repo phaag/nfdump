@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <strings.h>
 
+#include "nfconf.h"
 #include "output_csv.h"
 #include "output_fmt.h"
 #include "output_json.h"
@@ -97,7 +98,8 @@ void AddFormat(char *name, char *fmtString) {
             printmap[i].func_record = fmt_record;
             printmap[i].func_prolog = fmt_prolog;
             printmap[i].func_epilog = fmt_epilog;
-            printf("Overwrite format: %s\n", name);
+            dbg_printf("Overwrite format: %s\n", name);
+            free(name);
             return;
         }
         i++;
@@ -111,14 +113,34 @@ void AddFormat(char *name, char *fmtString) {
         printmap[i].func_epilog = fmt_epilog;
         i++;
         printmap[i].printmode = NULL;
-        printf("Insert format: %s\n", name);
+        dbg_printf("Insert format: %s\n", name);
     } else {
         LogError("Number of print format slots exhaustet: %d", MAXFORMATS);
     }
 }  // End of AddFormat
 
+static void UpdateFormatList() {
+    char *key = NULL;
+    char *value = NULL;
+
+    int ret;
+    do {
+        ret = ConfGetFMTentry(&key, &value);
+        if (ret > 0) {
+            dbg_printf("key: %s, value %s\n", key, value);
+            AddFormat(key, value);
+        } else {
+            break;
+        }
+    } while (1);
+
+}  // End of UpdateFormatList
+
 RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams, bool HasGeoDB) {
     RecordPrinter_t print_record = NULL;
+
+    // get user defined fmt formats from config file
+    UpdateFormatList();
 
     if (print_format == NULL) print_format = HasGeoDB ? DefaultGeoMode : DefaultMode;
 

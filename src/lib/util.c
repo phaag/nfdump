@@ -106,36 +106,86 @@ void xsleep(suseconds_t usec) {
     select(0, NULL, NULL, NULL, &tv);
 }
 
-int CheckPath(char *path, unsigned type) {
+// Check cmd line argument length
+// exit on failure
+void CheckArgLen(char *arg, size_t len) {
+    size_t i = 0;
+    while (arg[i] != '\0' && i < len) i++;
+    if (i == len) {
+        fprintf(stderr, "Input string error. Length > %zu\n", len);
+        exit(EXIT_FAILURE);
+        // unreached
+    }
+}  // End of CheckArgLen
+
+/*
+ * test for file or directory
+ * returns:
+ * -1 error
+ *  0 does not exists
+ *  1 exists, but wrong type
+ *  2 exists, ok
+ */
+int TestPath(char *path, unsigned type) {
     struct stat fstat;
 
-    if (!path) return 0;
+    if (!path) {
+        LogError("NULL file name in %s line %d", __FILE__, __LINE__);
+        return -1;
+    }
 
     if (strlen(path) >= MAXPATHLEN) {
-        LogError("File or directory name too long");
-        return 0;
+        LogError("MAXPATHLEN error in %s line %d", __FILE__, __LINE__);
+        return -1;
     }
 
     if (stat(path, &fstat)) {
-        LogError("No such file or directory: %s", path);
-        LogError("stat(%s) error in %s line %d: %s", path, __FILE__, __LINE__, strerror(errno));
-        return 0;
+        if (errno == ENOENT) {
+            return 0;
+        } else {
+            LogError("stat(%s) error in %s line %d: %s", path, __FILE__, __LINE__, strerror(errno));
+            return -1;
+        }
     }
 
     if (type) {
         if (!(fstat.st_mode & type)) {
-            return 0;
-        } else {
             return 1;
+        } else {
+            return 2;
         }
     } else if (S_ISREG(fstat.st_mode) || S_ISDIR(fstat.st_mode)) {
-        return 1;
+        return 2;
     } else {
         LogError("Not a file or directory: %s", path);
-        return 0;
+        return -1;
     }
 
     /* NOTREACHED */
+}  // End of TestPath
+
+/*
+ * check for existing file or directory
+ * returns:
+ *  0 does not exists or error
+ *  1 exists
+ */
+int CheckPath(char *path, unsigned type) {
+    int ret = TestPath(path, type);
+    switch (ret) {
+        case 0:
+            LogError("path does not exist: %s", path);
+            break;
+        case 1:
+            if (type && type == S_IFREG)
+                LogError("not a regular file: %s", path);
+            else if (type && type == S_IFDIR)
+                LogError("not a directory: %s", path);
+            else
+                LogError("path is not a file or directory: %s", path);
+            break;
+    }
+    return ret == 2 ? 1 : 0;
 }  // End of CheckPath
 
 void EndLog() {
