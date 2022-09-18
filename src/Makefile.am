@@ -1,6 +1,5 @@
 
-bin_PROGRAMS = nfcapd nfdump nfreplay nfexpire nfanon
-check_PROGRAMS = nfreader
+bin_PROGRAMS = nfcapd nfdump nfreplay nfexpire 
 
 EXTRA_DIST = applybits_inline.c nffile_inline.c nffile_compat.c collector_inline.c 
 EXTRA_DIST += inline.c memhandle.c nfdump_inline.c heapsort_inline.c 
@@ -13,13 +12,10 @@ AM_CFLAGS = -ggdb
 AM_CPPFLAGS = -Ilib -Ioutput -Iconf -Inetflow $(DEPS_CFLAGS)
 AM_LDFLAGS  = -Llib 
 
-
 exporter = exporter.c exporter.h
 nbar = nbar.c nbar.h
-
 nfprof = nfprof.c nfprof.h
 nfnet = nfnet.c nfnet.h
-anon = panonymizer.c panonymizer.h rijndael.c rijndael.h
 collector = collector.c collector.h
 nfpcapd = netflow_pcapd.c netflow_pcapd.h
 nfstatfile = nfstatfile.c nfstatfile.h
@@ -50,12 +46,6 @@ nfcapd_SOURCES += pcap_reader.c pcap_reader.h
 nfcapd_LDADD += -lpcap 
 endif
 
-nfreader_SOURCES = nfreader.c 
-nfreader_LDADD = lib/libnfdump.la
-
-nfanon_SOURCES = nfanon.c $(anon)
-nfanon_LDADD = lib/libnfdump.la
-
 nfexpire_SOURCES = nfexpire.c \
 	$(bookkeeper) $(expire) $(nfstatfile)
 nfexpire_LDADD = lib/libnfdump.la @FTS_OBJ@
@@ -66,5 +56,5 @@ geolookup_LDADD = lib/libnfdump.la
 endif
 
 check_DIST = inline.c collector_inline.c nffile_inline.c nfdump_inline.c heapsort_inline.c applybits_inline.c 
-check_DIST += parse_csv.pl AddExtension.txt
+
 CLEANFILES = $(check_PROGRAMS) *.gch

@@ -36,6 +36,7 @@
 #include <errno.h>
 #include <netinet/in.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,20 +44,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
-#include "bookkeeper.h"
-#include "collector.h"
 #include "exporter.h"
-#include "ipfix.h"
-#include "netflow_v1.h"
-#include "netflow_v5_v7.h"
-#include "netflow_v9.h"
 #include "nfdump.h"
-#include "nffile.h"
-#include "nfnet.h"
 #include "nfxV3.h"
 #include "util.h"
 

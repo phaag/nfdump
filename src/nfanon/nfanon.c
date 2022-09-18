@@ -53,9 +53,9 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
-#include "output_raw.h"
 #include "panonymizer.h"
 #include "util.h"
+
 /* Function Prototypes */
 static void usage(char *name);
 
