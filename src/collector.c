@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -29,14 +29,13 @@
  *
  */
 
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
+#include "collector.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -47,12 +46,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "bookkeeper.h"
-#include "collector.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nffile_inline.c"
@@ -102,26 +96,26 @@ int AddFlowSource(FlowSource_t **FlowSource, char *ident) {
         source = &((*source)->next);
     }
     if (has_any_source) {
-        fprintf(stderr, "Ambiguous idents not allowed\n");
+        LogError("Ambiguous idents not allowed");
         return 0;
     }
 
     *source = (FlowSource_t *)calloc(1, sizeof(FlowSource_t));
     if (!*source) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
 
     // separate IP address from ident
     if ((p = strchr(ident, ',')) == NULL) {
-        fprintf(stderr, "Syntax error for netflow source definition. Expect -n ident,IP,path\n");
+        LogError("Syntax error for netflow source definition. Expect -n ident,IP,path");
         return 0;
     }
     *p++ = '\0';
 
     // separate path from IP
     if ((q = strchr(p, ',')) == NULL) {
-        fprintf(stderr, "Syntax error for netflow source definition. Expect -n ident,IP,path\n");
+        LogError("Syntax error for netflow source definition. Expect -n ident,IP,path");
         return 0;
     }
     *q++ = '\0';
@@ -142,47 +136,47 @@ int AddFlowSource(FlowSource_t **FlowSource, char *ident) {
     }
     switch (ok) {
         case 0:
-            fprintf(stderr, "Unparsable IP address: %s\n", p);
+            LogError("Unparsable IP address: %s", p);
             return 0;
         case 1:
             // success
             break;
         case -1:
-            fprintf(stderr, "Error while parsing IP address: %s\n", strerror(errno));
+            LogError("Error while parsing IP address: %s", strerror(errno));
             return 0;
             break;
     }
 
     // fill in ident
     if (strlen(ident) >= IDENTLEN) {
-        fprintf(stderr, "Source identifier too long: %s\n", ident);
+        LogError("Source identifier too long: %s", ident);
         return 0;
     }
     if (strchr(ident, ' ')) {
-        fprintf(stderr, "Illegal characters in ident %s\n", ident);
+        LogError("Illegal characters in ident %s", ident);
         exit(255);
     }
     strncpy((*source)->Ident, ident, IDENTLEN - 1);
     (*source)->Ident[IDENTLEN - 1] = '\0';
 
     if (strlen(q) >= MAXPATHLEN) {
-        fprintf(stderr, "Path too long: %s\n", q);
+        LogError("Path too long: %s\n", q);
         exit(255);
     }
 
     char *path = realpath(q, NULL);
     if (!path) {
-        fprintf(stderr, "realpath() error %s: %s\n", q, strerror(errno));
+        LogError("realpath() error %s: %s", q, strerror(errno));
         return 0;
     }
 
     // check for existing path
     if (stat(path, &fstat)) {
-        fprintf(stderr, "stat() error %s: %s\n", path, strerror(errno));
+        LogError("stat() error %s: %s", path, strerror(errno));
         return 0;
     }
     if (!(fstat.st_mode & S_IFDIR)) {
-        fprintf(stderr, "Not a directory: %s\n", path);
+        LogError("Not a directory: %s", path);
         return 0;
     }
 
@@ -191,12 +185,12 @@ int AddFlowSource(FlowSource_t **FlowSource, char *ident) {
 
     // cache current collector file
     if (snprintf(s, MAXPATHLEN - 1, "%s/%s.%lu", (*source)->datadir, NF_DUMPFILE, (unsigned long)getpid()) >= (MAXPATHLEN - 1)) {
-        fprintf(stderr, "Path too long: %s\n", q);
+        LogError("Path too long: %s", q);
         return 0;
     }
     (*source)->current = strdup(s);
     if (!(*source)->current) {
-        fprintf(stderr, "strdup() error: %s\n", strerror(errno));
+        LogError("strdup() error: %s", strerror(errno));
         return 0;
     }
 
@@ -211,22 +205,22 @@ int AddFlowSourceFromFile(FlowSource_t **FlowSource, char *path) {
     int ret = 0;
 
     if (strlen(path) >= MAXPATHLEN) {
-        fprintf(stderr, "Path too long: %s\n", path);
+        LogError("Path too long: %s", path);
         return 1;
     }
 
     if (stat(path, &fstat)) {
-        fprintf(stderr, "stat() error %s: %s\n", path, strerror(errno));
+        LogError("stat() error %s: %s", path, strerror(errno));
         return 2;
     }
     if (!(fstat.st_mode & S_IFREG)) {
-        fprintf(stderr, "Not a file: %s\n", path);
+        LogError("Not a file: %s", path);
         return 3;
     }
 
     inputfile = fopen(path, "r");
     if (NULL == inputfile) {
-        fprintf(stderr, "Cannot open file %s: %s\n", path, strerror(errno));
+        LogError("Cannot open file %s: %s", path, strerror(errno));
         return 4;
     }
 
@@ -237,13 +231,13 @@ int AddFlowSourceFromFile(FlowSource_t **FlowSource, char *path) {
         if (entry[len - 1] == '\n' || entry[len - 1] == '\r') entry[len - 1] = 0;
 
         if (!AddFlowSource(FlowSource, entry)) {
-            fprintf(stderr, "Could not add flow source %s\n", entry);
+            LogError("Could not add flow source %s", entry);
             ret = 5;
         }
     }
 
     if (fclose(inputfile)) {
-        fprintf(stderr, "Cannot close file %s: %s\n", path, strerror(errno));
+        LogError("Cannot close file %s: %s", path, strerror(errno));
         return 6;
     }
 
@@ -258,7 +252,7 @@ int AddDefaultFlowSource(FlowSource_t **FlowSource, char *ident, char *path) {
 
     *FlowSource = (FlowSource_t *)calloc(1, sizeof(FlowSource_t));
     if (!*FlowSource) {
-        fprintf(stderr, "calloc() allocation error: %s\n", strerror(errno));
+        LogError("calloc() allocation error: %s", strerror(errno));
         return 0;
     }
     (*FlowSource)->next = NULL;
@@ -269,46 +263,46 @@ int AddDefaultFlowSource(FlowSource_t **FlowSource, char *ident, char *path) {
 
     // fill in ident
     if (strlen(ident) >= IDENTLEN) {
-        fprintf(stderr, "Source identifier too long: %s\n", ident);
+        LogError("Source identifier too long: %s", ident);
         return 0;
     }
     if (strchr(ident, ' ')) {
-        fprintf(stderr, "Illegal characters in ident %s\n", ident);
+        LogError("Illegal characters in ident %s", ident);
         return 0;
     }
     strncpy((*FlowSource)->Ident, ident, IDENTLEN - 1);
     (*FlowSource)->Ident[IDENTLEN - 1] = '\0';
 
     if (strlen(path) >= MAXPATHLEN) {
-        fprintf(stderr, "Path too long: %s\n", path);
+        LogError("Path too long: %s", path);
         return 0;
     }
 
     // check for existing path
     if (stat(path, &fstat)) {
-        fprintf(stderr, "stat() error %s: %s\n", path, strerror(errno));
+        LogError("stat() error %s: %s", path, strerror(errno));
         return 0;
     }
     if (!(fstat.st_mode & S_IFDIR)) {
-        fprintf(stderr, "No such directory: %s\n", path);
+        LogError("No such directory: %s", path);
         return 0;
     }
 
     // remember path
     (*FlowSource)->datadir = strdup(path);
     if (!(*FlowSource)->datadir) {
-        fprintf(stderr, "strdup() error: %s\n", strerror(errno));
+        LogError("strdup() error: %s", strerror(errno));
         return 0;
     }
 
     // cache current collector file
     if (snprintf(s, MAXPATHLEN - 1, "%s/%s.%lu", (*FlowSource)->datadir, NF_DUMPFILE, (unsigned long)getpid()) >= (MAXPATHLEN - 1)) {
-        fprintf(stderr, "Path too long: %s\n", path);
+        LogError("Path too long: %s", path);
         return 0;
     }
     (*FlowSource)->current = strdup(s);
     if (!(*FlowSource)->current) {
-        fprintf(stderr, "strdup() error: %s\n", strerror(errno));
+        LogError("strdup() error: %s", strerror(errno));
         return 0;
     }
 
@@ -339,7 +333,7 @@ FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storag
 
     *source = (FlowSource_t *)calloc(1, sizeof(FlowSource_t));
     if (!*source) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
     (*source)->next = NULL;
@@ -420,7 +414,7 @@ FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storag
 
     err = mkdir(path, 0755);
     if (err != 0 && errno != EEXIST) {
-        LogError("mkdir() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("mkdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         free(*source);
         *source = NULL;
         return NULL;
@@ -428,7 +422,7 @@ FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storag
     (*source)->datadir = strdup(path);
 
     if (snprintf(path, MAXPATHLEN - 1, "%s/%s.%lu", (*source)->datadir, NF_DUMPFILE, (unsigned long)getpid()) >= (MAXPATHLEN - 1)) {
-        fprintf(stderr, "Path too long: %s\n", path);
+        LogError("Path too long: %s\n", path);
         free(*source);
         *source = NULL;
         return NULL;
@@ -538,7 +532,7 @@ void FlushExporterStats(FlowSource_t *fs) {
     free(exporter_stats);
 
     if (i != fs->exporter_count) {
-        LogError("ERROR: exporter stats: Expected %u records, but found %u in %s line %d: %s\n", fs->exporter_count, i, __FILE__, __LINE__,
+        LogError("ERROR: exporter stats: Expected %u records, but found %u in %s line %d: %s", fs->exporter_count, i, __FILE__, __LINE__,
                  strerror(errno));
     }
 

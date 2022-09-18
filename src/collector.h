@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -32,16 +32,13 @@
 #ifndef _COLLECTOR_H
 #define _COLLECTOR_H 1
 
+#include <netinet/in.h>
+#include <stdint.h>
+#include <sys/socket.h>
 #include <sys/types.h>
 
-#include "config.h"
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-#include <netinet/in.h>
-#include <sys/socket.h>
-
 #include "bookkeeper.h"
+#include "config.h"
 #include "exporter.h"
 #include "nffile.h"
 
