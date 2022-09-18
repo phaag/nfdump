@@ -131,7 +131,7 @@ export MallocCorruptionAbort=1
 ../nfdump -r test.flows.nf -s record 'host 172.16.2.66'
 ../nfdump -r test.flows.nf -w test.7.flows.nf 'host 172.16.2.66'
 ../nfdump -r test.flows.nf -O tstart -w test.8.flows.nf 'host 172.16.2.66'
-../nfanon -K abcdefghijklmnopqrstuvwxyz012345 -r test.flows.nf -w test.9.flows.nf
+../nfanon/nfanon -K abcdefghijklmnopqrstuvwxyz012345 -r test.flows.nf -w test.9.flows.nf
 ../nfdump -q -r test.9.flows.nf -o raw > test.9.out
 rm -f testdir/nfcapd.* test*.out test*.flows.nf
 [ -d testdir ] && rmdir testdir

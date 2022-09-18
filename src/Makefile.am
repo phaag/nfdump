@@ -4,12 +4,8 @@ bin_PROGRAMS = nfcapd nfdump nfreplay nfexpire
 EXTRA_DIST = applybits_inline.c nffile_inline.c nffile_compat.c collector_inline.c 
 EXTRA_DIST += inline.c memhandle.c nfdump_inline.c heapsort_inline.c 
 
-if MAXMIND
-bin_PROGRAMS += geolookup
-endif
-
 AM_CFLAGS = -ggdb 
-AM_CPPFLAGS = -Ilib -Ioutput -Iconf -Inetflow $(DEPS_CFLAGS)
+AM_CPPFLAGS = -Ilib -Ioutput -Iconf -Inetflow -Imaxmind $(DEPS_CFLAGS)
 AM_LDFLAGS  = -Llib 
 
 exporter = exporter.c exporter.h
@@ -24,11 +20,10 @@ bookkeeper = bookkeeper.c bookkeeper.h
 expire= expire.c expire.h
 metric=metric.c metric.h
 launch = launch.c launch.h
-maxmind = maxmind.c maxmind.h
 
 nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h khash.h blocksort.h blocksort.c  \
-	$(exporter) $(nbar) $(maxmind) $(nflowcache) $(nfprof)
-nfdump_LDADD = lib/libnfdump.la output/liboutput.a conf/libconf.a
+	$(exporter) $(nbar) $(nflowcache) $(nfprof)
+nfdump_LDADD = lib/libnfdump.la output/liboutput.a conf/libconf.a maxmind/libmaxmind.a
 
 nfreplay_SOURCES = nfreplay.c $(nfprof) \
 	$(nfnet) $(collector) $(metric)
@@ -49,11 +44,6 @@ endif
 nfexpire_SOURCES = nfexpire.c \
 	$(bookkeeper) $(expire) $(nfstatfile)
 nfexpire_LDADD = lib/libnfdump.la @FTS_OBJ@
-
-if MAXMIND
-geolookup_SOURCES = geolookup.c $(maxmind)
-geolookup_LDADD = lib/libnfdump.la 
-endif
 
 check_DIST = inline.c collector_inline.c nffile_inline.c nfdump_inline.c heapsort_inline.c applybits_inline.c 
 

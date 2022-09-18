@@ -1284,9 +1284,19 @@ static void String_ICMP_code(FILE *stream, master_record_t *r) {
 
 }  // End of String_ICMP_code
 
-static void String_SrcAS(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->srcas); }  // End of String_SrcAS
+static void String_SrcAS(FILE *stream, master_record_t *r) {
+    int as = r->srcas;
+    if (as == 0) as = LookupAS(r->V6.srcaddr);
 
-static void String_DstAS(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->dstas); }  // End of String_DstAS
+    fprintf(stream, "%6u", as);
+}  // End of String_SrcAS
+
+static void String_DstAS(FILE *stream, master_record_t *r) {
+    int as = r->dstas;
+    if (as == 0) as = LookupAS(r->V6.dstaddr);
+
+    fprintf(stream, "%6u", as);
+}  // End of String_DstAS
 
 static void String_NextAS(FILE *stream, master_record_t *r) { fprintf(stream, " %6u", r->bgpNextAdjacentAS); }  // End of String_NextAS
 
