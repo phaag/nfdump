@@ -9,14 +9,10 @@ if MAXMIND
 bin_PROGRAMS += geolookup
 endif
 
+AM_CFLAGS = -ggdb 
 AM_CPPFLAGS = -Ilib -Ioutput -Iconf -Inetflow $(DEPS_CFLAGS)
 AM_LDFLAGS  = -Llib 
 
-LDADD = $(DEPS_LIBS)
-
-
-#Add extra debug info for gdb
-AM_CFLAGS = -ggdb 
 
 exporter = exporter.c exporter.h
 nbar = nbar.c nbar.h
@@ -39,7 +35,7 @@ nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h khash.h blocksort.h blockso
 nfdump_LDADD = lib/libnfdump.la output/liboutput.a conf/libconf.a
 
 nfreplay_SOURCES = nfreplay.c $(nfprof) \
-	$(nfnet) $(collector)  $(metric)
+	$(nfnet) $(collector) $(metric)
 nfreplay_LDADD = lib/libnfdump.la netflow/libnetflow.a -lm
 
 nfcapd_SOURCES = nfcapd.c \
@@ -53,7 +49,6 @@ nfcapd_CFLAGS = -DPCAP
 nfcapd_SOURCES += pcap_reader.c pcap_reader.h
 nfcapd_LDADD += -lpcap 
 endif
-
 
 nfreader_SOURCES = nfreader.c 
 nfreader_LDADD = lib/libnfdump.la

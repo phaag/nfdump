@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -53,6 +53,7 @@
 #include "nffile.h"
 #include "nftrack_rrd.h"
 #include "nftree.h"
+#include "nfxV3.h"
 #include "util.h"
 
 // We have 288 slot ( 1 day ) for stat record

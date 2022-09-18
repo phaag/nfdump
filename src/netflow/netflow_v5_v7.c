@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -29,14 +29,13 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#include "netflow_v5_v7.h"
 
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,15 +43,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
 #include "metric.h"
-#include "netflow_v5_v7.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"

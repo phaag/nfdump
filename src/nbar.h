@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2020, Peter Haag
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -32,7 +32,6 @@
 #define _NBAR_H 1
 
 #include "config.h"
-#include "fnf.h"
 #include "nffile.h"
 
 // record type definition

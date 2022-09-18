@@ -49,7 +49,6 @@
 #include "bookkeeper.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nffile_inline.c"
 #include "nfxV3.h"
 #include "util.h"
 
@@ -59,6 +58,8 @@ static char *DynamicSourcesDir = NULL;
 
 /* local prototypes */
 static uint32_t AssignExporterID(void);
+
+#include "nffile_inline.c"
 
 /* local functions */
 static uint32_t AssignExporterID(void) {

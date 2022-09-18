@@ -51,6 +51,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfstatfile.h"
+#include "nfxV3.h"
 #include "profile.h"
 #include "util.h"
 
