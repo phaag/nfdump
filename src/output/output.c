@@ -144,13 +144,15 @@ RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams
 
     if (print_format == NULL) print_format = HasGeoDB ? DefaultGeoMode : DefaultMode;
 
-    if (strncasecmp(print_format, "fmt:", 4) == 0) {
+    if (strncasecmp(print_format, "fmt:", 4) == 0 || print_format[0] == '%') {
         // special user defined output format
-        char *format = &print_format[4];
+        char *format = &print_format[4];                    // for 'fmt:%xxx'
+        if (print_format[0] == '%') format = print_format;  // for '%xxx' - forgot to add fmt:
         if (strlen(format)) {
             if (!ParseOutputFormat(format, outputParams->printPlain, printmap)) exit(EXIT_FAILURE);
             print_record = fmt_record;
             print_prolog = fmt_prolog;
+            print_epilog = fmt_epilog;
         } else {
             LogError("Missing format description for user defined output format!\n");
             exit(EXIT_FAILURE);
