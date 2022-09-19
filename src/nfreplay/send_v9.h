@@ -32,7 +32,7 @@
 #define _SEND_V5_H 1
 
 #include "nfdump.h"
-#include "nfnet.h"
+#include "send_net.h"
 
 #define NF_F_FLOW_CREATE_TIME_MSEC 152
 #define NF_F_FLOW_END_TIME_MSEC 153

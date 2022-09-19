@@ -1,8 +1,5 @@
 /*
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -36,8 +33,6 @@
 
 #include <sys/socket.h>
 
-#include "config.h"
-
 /* Definitions */
 
 #define UDP_PACKET_SIZE 1472
@@ -56,23 +51,7 @@ typedef struct send_peer_s {
     void *endp;
 } send_peer_t;
 
-typedef struct repeater_s {
-    char *hostname;
-    char *port;
-    struct sockaddr_storage addr;
-    int addrlen;
-    int family;
-    int sockfd;
-} repeater_t;
-
-#define MAX_REPEATERS 8
-
 /* Function prototypes */
-
-int Unicast_receive_socket(const char *bindhost, const char *listenport, int family, int sockbuflen);
-
-int Multicast_receive_socket(const char *hostname, const char *listenport, int family, int sockbuflen);
-
 int Unicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
                         int *addrlen);
 

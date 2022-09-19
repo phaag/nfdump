@@ -45,8 +45,8 @@
 // #include "exporter.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfnet.h"
 #include "nfxV3.h"
+#include "send_net.h"
 #include "util.h"
 
 #define NF9_TEMPLATE_FLOWSET_ID 0

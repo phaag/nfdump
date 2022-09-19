@@ -1,5 +1,6 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,14 +29,36 @@
  *
  */
 
-#ifndef _SEND_V5_H
-#define _SEND_V5_H 1
+#ifndef _NFNET_H
+#define _NFNET_H 1
 
-#include "nfdump.h"
-#include "send_net.h"
+#include <sys/socket.h>
 
-void Init_v5_v7_output(send_peer_t *peer);
+/* Definitions */
 
-int Add_v5_output_record(master_record_t *master_record, send_peer_t *peer);
+#define UDP_PACKET_SIZE 1472
 
-#endif
+typedef struct repeater_s {
+    char *hostname;
+    char *port;
+    struct sockaddr_storage addr;
+    int addrlen;
+    int family;
+    int sockfd;
+} repeater_t;
+
+#define MAX_REPEATERS 8
+
+/* Function prototypes */
+
+int Unicast_receive_socket(const char *bindhost, const char *listenport, int family, int sockbuflen);
+
+int Multicast_receive_socket(const char *hostname, const char *listenport, int family, int sockbuflen);
+
+int Unicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
+                        int *addrlen);
+
+int Multicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
+                          int *addrlen);
+
+#endif  //_NFNET_H
