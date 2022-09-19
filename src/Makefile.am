@@ -5,7 +5,7 @@ EXTRA_DIST = applybits_inline.c nffile_inline.c nffile_compat.c collector_inline
 EXTRA_DIST += inline.c memhandle.c nfdump_inline.c heapsort_inline.c 
 
 AM_CFLAGS = -ggdb 
-AM_CPPFLAGS = -Ilib -Ioutput -Iconf -Inetflow -Imaxmind $(DEPS_CFLAGS)
+AM_CPPFLAGS = -Iinclude -Ilib -Ioutput -Iconf -Inetflow -Imaxmind $(DEPS_CFLAGS)
 AM_LDFLAGS  = -Llib 
 
 exporter = exporter.c exporter.h

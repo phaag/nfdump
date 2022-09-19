@@ -2,7 +2,7 @@
 BUILT_SOURCES = grammar.h
 AM_YFLAGS = -d
 
-AM_CPPFLAGS = -I.. $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb 
 
 LDADD = $(DEPS_LIBS)

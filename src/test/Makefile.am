@@ -2,7 +2,7 @@
 check_PROGRAMS = nftest nfgen
 TESTS = nftest runtest.sh
 
-AM_CPPFLAGS = -I.. -I../lib -I../netflow $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../lib -I../netflow $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb
 AM_LDFLAGS  = -L../lib
 

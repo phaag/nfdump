@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,10 +31,12 @@
 #ifndef _NFDUMP_H
 #define _NFDUMP_H 1
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 #include <stdint.h>
 #include <sys/types.h>
-
-#include "config.h"
 
 #define V4 ip_addr._v4
 #define V6 ip_addr._v6

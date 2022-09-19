@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I.. -I../lib $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../lib $(DEPS_CFLAGS)
 
 noinst_LIBRARIES = libconf.a
 

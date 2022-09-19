@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = sfcapd
 
-AM_CPPFLAGS = -I.. -I../lib $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../lib $(DEPS_CFLAGS)
 AM_LDFLAGS  = -L../lib
 
 collector = ../collector.c ../collector.h
