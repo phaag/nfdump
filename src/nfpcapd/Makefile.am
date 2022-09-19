@@ -1,26 +1,21 @@
 
 bin_PROGRAMS = nfpcapd
 
-AM_CPPFLAGS = -I.. -I../include -I../lib $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../lib -I../collector $(DEPS_CFLAGS)
 AM_LDFLAGS  = -L../lib
 
 LDADD = $(DEPS_LIBS)
 
-collector = ../collector.c ../collector.h
-nfstatfile = ../nfstatfile.c ../nfstatfile.h
-bookkeeper = ../bookkeeper.c ../bookkeeper.h
 pcapdump = pcapdump.c pcapdump.h 
 flowdump = flowdump.c flowdump.h
 flowsend = flowsend.c flowsend.h
 pcaproc = pcaproc.c pcaproc.h flowtree.c flowtree.h 
 nfnet = ../nfnet.c ../nfnet.h
-metric = ../metric.c ../metric.h
+expire= ../expire.c ../expire.h
 
 nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h \
-	$(pcaproc) $(pcapdump) $(flowdump) $(flowsend) \
-	$(nfstatfile) \
-	$(nfnet) $(collector) $(bookkeeper) $(metric)
-nfpcapd_LDADD = ../lib/libnfdump.la -lm
+	$(pcaproc) $(pcapdump) $(flowdump) $(flowsend) $(nfnet) $(expire)
+nfpcapd_LDADD = ../lib/libnfdump.la ../collector/libcollector.a -lm
 if BSDBPF
 nfpcapd_SOURCES += packet_bpf.c
 AM_CPPFLAGS += -DUSE_BPFSOCKET

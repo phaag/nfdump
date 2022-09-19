@@ -47,9 +47,7 @@
 #include <stdint.h>
 #endif
 
-#include "bookkeeper.h"
 #include "collector.h"
-#include "exporter.h"
 #include "metric.h"
 #include "netflow_v1.h"
 #include "nfdump.h"

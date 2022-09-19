@@ -43,8 +43,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "bookkeeper.h"
-#include "config.h"
 #include "exporter.h"
 #include "ipconv.h"
 #include "nbar.h"

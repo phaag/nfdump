@@ -29,9 +29,13 @@
  *
  */
 
+#include "profile.h"
+
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <rrd.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,19 +46,10 @@
 #include <unistd.h>
 
 #include "config.h"
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
-#include <rrd.h>
-
 #include "flist.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfstatfile.h"
 #include "nftree.h"
-#include "profile.h"
 #include "rbtree.h"
 #include "util.h"
 

@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../lib $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../lib -I../collector $(DEPS_CFLAGS)
 AM_LDFLAGS  = -L../lib
 
 bin_PROGRAMS = 
@@ -12,7 +12,7 @@ if NFTRACK
 bin_PROGRAMS += nftrack
 endif
 
-nfstatfile = ../nfstatfile.c ../nfstatfile.h
+nfstatfile = ../collector/nfstatfile.c ../collector/nfstatfile.h
 exporter = ../exporter.c ../exporter.h
 
 nfprofile_SOURCES = nfprofile.c profile.c profile.h $(nfstatfile) $(exporter)
