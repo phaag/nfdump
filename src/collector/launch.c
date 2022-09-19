@@ -269,7 +269,7 @@ static void do_expire(char *datadir) {
     if (bookkeeper_stat == BOOKKEEPER_OK) {
         bookkeeper_t tmp_books;
         ClearBooks(books, &tmp_books);
-        UpdateBookStat(dirstat, &tmp_books);
+        UpdateDirStat(dirstat, &tmp_books);
         ReleaseBookkeeper(books, DETACH_ONLY);
     } else {
         LogError("Error %i: can't access book keeping records", ret);

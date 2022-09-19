@@ -10,10 +10,9 @@ pcapdump = pcapdump.c pcapdump.h
 flowdump = flowdump.c flowdump.h
 flowsend = flowsend.c flowsend.h
 pcaproc = pcaproc.c pcaproc.h flowtree.c flowtree.h 
-expire= ../expire.c ../expire.h
 
 nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h \
-	$(pcaproc) $(pcapdump) $(flowdump) $(flowsend) $(expire)
+	$(pcaproc) $(pcapdump) $(flowdump) $(flowsend)
 nfpcapd_LDADD = ../lib/libnfdump.la ../collector/libcollector.a -lm
 if BSDBPF
 nfpcapd_SOURCES += packet_bpf.c

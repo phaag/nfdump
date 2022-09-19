@@ -852,7 +852,7 @@ int main(int argc, char *argv[]) {
 
     if (datadir) {
         if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
-            UpdateBookStat(dirstat, fs->bookkeeper);
+            UpdateDirStat(dirstat, fs->bookkeeper);
             WriteStatInfo(dirstat);
             LogInfo("Updating statinfo in directory '%s'", datadir);
         }

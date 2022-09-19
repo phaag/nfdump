@@ -72,6 +72,6 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
 
 void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize, uint64_t maxlife, uint32_t runtime);
 
-void UpdateBookStat(dirstat_t *dirstat, bookkeeper_t *books);
+void UpdateDirStat(dirstat_t *dirstat, bookkeeper_t *books);
 
 #endif  //_EXPIRE_H

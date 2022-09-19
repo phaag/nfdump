@@ -1112,7 +1112,7 @@ int main(int argc, char **argv) {
         dirstat_t *dirstat;
         // if we do not auto expire and there is a stat file, update the stats before we leave
         if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
-            UpdateBookStat(dirstat, fs->bookkeeper);
+            UpdateDirStat(dirstat, fs->bookkeeper);
             WriteStatInfo(dirstat);
             LogInfo("Updating statinfo in directory '%s'", datadir);
         }

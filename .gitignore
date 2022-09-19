@@ -85,10 +85,12 @@ src/.version/
 /src/nfdump/nfdump
 /src/nfexpire
 /src/geolookup
+/src/nfcapd/nfcapd
 /src/nfpcapd/nfpcapd
 /src/sflow/sfcapd
 /src/nfsen/nfprofile
 src/nfreplay/nfreplay
+src/nfexpire/nfexpire
 src/nfanon/nfanon
 src/maxmind/geolookup
 /src/nfsen/nftrack

@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = nfanon
 
-AM_CPPFLAGS = -I.. -I../include -I../lib -I../nfdump -I../inline $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline $(DEPS_CFLAGS)
 AM_LDFLAGS  = -L../lib
 
 LDADD = $(DEPS_LIBS)

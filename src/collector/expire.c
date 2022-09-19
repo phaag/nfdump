@@ -733,7 +733,7 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
 
 }  // End of ExpireProfile
 
-void UpdateBookStat(dirstat_t *dirstat, bookkeeper_t *books) {
+void UpdateDirStat(dirstat_t *dirstat, bookkeeper_t *books) {
     if (books->numfiles) {
         /* prevent some faults and dublicates:
          * book records can never be timewise smaller than directory records => fishy!
@@ -750,4 +750,4 @@ void UpdateBookStat(dirstat_t *dirstat, bookkeeper_t *books) {
         dirstat->filesize += books->filesize;
     }
 
-}  // End of UpdateBookStat
+}  // End of UpdateDirStat
