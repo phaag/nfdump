@@ -63,6 +63,8 @@
 *tags
 *.dirstamp
 *.deps/
+src/.libs/
+src/*/.libs/
 src/.version/
 /config.h
 /config.log
@@ -86,6 +88,9 @@ src/.version/
 /src/nfpcapd/nfpcapd
 /src/sflow/sfcapd
 /src/nfsen/nfprofile
+src/nfreplay/nfreplay
+src/nfanon/nfanon
+src/maxmind/geolookup
 /src/nfsen/nftrack
 src/test/nfgen
 src/test/nftest
