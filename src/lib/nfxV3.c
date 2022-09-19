@@ -140,7 +140,7 @@ uint16_t *SetupSequencer(sequencer_t *sequencer, sequence_t *sequenceTable, uint
     }
 
     sequencer->numElements = 0;
-    for (int i = 1; i < MAXELEMENTS; i++) {
+    for (int i = 1; i < MAXEXTENSIONS; i++) {
         if (sequencer->ExtSize[i]) {
             sequencer->outLength += sequencer->ExtSize[i];
             sequencer->numElements++;
@@ -170,7 +170,7 @@ uint16_t *SetupSequencer(sequencer_t *sequencer, sequence_t *sequenceTable, uint
         return NULL;
     }
     int j = 0;
-    for (int i = 1; i < MAXELEMENTS; i++) {
+    for (int i = 1; i < MAXEXTENSIONS; i++) {
         if (sequencer->ExtSize[i]) {
             dbg_printf("%u -> %d %s size: %u\n", j, i, extensionTable[i].name, sequencer->ExtSize[i]);
             extensionList[j++] = i;
@@ -296,7 +296,7 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
     dbg_printf("[%u] v3 header size: %u\n", nestLevel, recordHeaderV3->size);
 
     // clear cache
-    memset((void *)sequencer->offsetCache, 0, MAXELEMENTS * sizeof(void *));
+    memset((void *)sequencer->offsetCache, 0, MAXEXTENSIONS * sizeof(void *));
 
     uint32_t totalInLength = 0;
     uint32_t totalOutLength = 0;
@@ -510,7 +510,7 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
 
 void PrintSequencer(sequencer_t *sequencer) {
     printf("TemplateID       : %u\n", sequencer->templateID);
-    printf("Max elements     : %i\n", MAXELEMENTS);
+    printf("Max elements     : %i\n", MAXEXTENSIONS);
     printf("Num elements     : %u\n", sequencer->numElements);
     printf("Num sequences    : %u\n", sequencer->numSequences);
     printf("Has VarInLength  : %s\n", sequencer->inLength == 0 ? "true" : "false");

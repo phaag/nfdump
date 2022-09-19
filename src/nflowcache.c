@@ -1081,7 +1081,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
         else
             j = maxindex - 1 - i;
 
-        void *extensionList[MAXELEMENTS] = {0};
+        void *extensionList[MAXEXTENSIONS] = {0};
         FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[j].record);
 
         recordHeaderV3_t *recordHeaderV3 = (r->flowrecord);

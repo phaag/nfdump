@@ -83,7 +83,7 @@ typedef struct outTemplates_s {
     // match template with mater record
     uint32_t size;
     uint16_t numExtensions;
-    uint16_t exElementList[MAXELEMENTS];
+    uint16_t exElementList[MAXEXTENSIONS];
 
     //
     time_t time_sent;

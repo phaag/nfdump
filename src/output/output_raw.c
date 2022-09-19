@@ -585,7 +585,7 @@ void raw_epilog(void) {
 
 void raw_record(FILE *stream, void *record, int tag) {
     master_record_t *r = (master_record_t *)record;
-    char elementString[MAXELEMENTS * 5];
+    char elementString[MAXEXTENSIONS * 5];
 
     elementString[0] = '\0';
     for (int i = 0; i < r->numElements; i++) {

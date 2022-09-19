@@ -544,7 +544,7 @@ typedef struct EXobservation_s {
 #define EXobservationSize (sizeof(EXobservation_t) + sizeof(elementHeader_t))
 
 // max possible elements
-#define MAXELEMENTS 34
+#define MAXEXTENSIONS 34
 
 #define PushExtension(h, x, v)                                                     \
     {                                                                              \
@@ -600,7 +600,7 @@ static const struct extensionTable_s {
 
 typedef struct record_map_s {
     recordHeaderV3_t *recordHeader;
-    void *offsetMap[MAXELEMENTS];
+    void *offsetMap[MAXEXTENSIONS];
 } record_map_t;
 
 typedef struct sequence_s {
@@ -617,10 +617,10 @@ typedef struct sequence_s {
 
 typedef struct sequencer_s {
     struct sequencer_s *next;
-    void *offsetCache[MAXELEMENTS];
+    void *offsetCache[MAXEXTENSIONS];
     sequence_t *sequenceTable;
     uint16_t templateID;
-    uint16_t ExtSize[MAXELEMENTS];
+    uint16_t ExtSize[MAXEXTENSIONS];
     uint32_t numSequences;
     uint32_t numElements;
     size_t inLength;

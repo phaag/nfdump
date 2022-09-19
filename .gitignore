@@ -79,11 +79,9 @@ src/.version/
 /src/lib/grammar.c
 /src/lib/grammar.h
 /src/lib/scanner.c
-/src/nfanon
 /src/nfcapd
 /src/nfdump
 /src/nfexpire
-/src/nfreplay
 /src/geolookup
 /src/nfpcapd/nfpcapd
 /src/sflow/sfcapd

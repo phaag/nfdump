@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -384,20 +384,20 @@ static void stringsEXipReceivedV6(FILE *stream, record_map_t *r) {
 }  // End of stringsEXipReceivedV6
 
 typedef void (*funcPrintRecord_t)(FILE *, record_map_t *r);
-static funcPrintRecord_t funcPrintRecord[MAXELEMENTS] = {NULL,
-                                                         stringEXgenericFlow,
-                                                         stringsEXipv4Flow,
-                                                         stringsEXipv6Flow,
-                                                         stringsEXflowMisc,
-                                                         stringsEXcntFlow,
-                                                         stringsEXvLan,
-                                                         stringsEXasRouting,
-                                                         stringsEXbgpNextHopV4,
-                                                         stringsEXbgpNextHopV6,
-                                                         stringsEXipNextHopV4,
-                                                         stringsEXipNextHopV6,
-                                                         stringsEXipReceivedV4,
-                                                         stringsEXipReceivedV6};
+static funcPrintRecord_t funcPrintRecord[MAXEXTENSIONS] = {NULL,
+                                                           stringEXgenericFlow,
+                                                           stringsEXipv4Flow,
+                                                           stringsEXipv6Flow,
+                                                           stringsEXflowMisc,
+                                                           stringsEXcntFlow,
+                                                           stringsEXvLan,
+                                                           stringsEXasRouting,
+                                                           stringsEXbgpNextHopV4,
+                                                           stringsEXbgpNextHopV6,
+                                                           stringsEXipNextHopV4,
+                                                           stringsEXipNextHopV6,
+                                                           stringsEXipReceivedV4,
+                                                           stringsEXipReceivedV6};
 
 void flow_record_short(FILE *stream, recordHeaderV3_t *recordHeaderV3) {
     record_map_t record_map = {0};
@@ -413,9 +413,9 @@ void flow_record_short(FILE *stream, recordHeaderV3_t *recordHeaderV3) {
         elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
     }
 
-    char elementString[MAXELEMENTS * 5];
+    char elementString[MAXEXTENSIONS * 5];
     elementString[0] = '\0';
-    for (int i = 0; i < MAXELEMENTS; i++) {
+    for (int i = 0; i < MAXEXTENSIONS; i++) {
         if (record_map.offsetMap[i]) snprintf(elementString + strlen(elementString), sizeof(elementString) - strlen(elementString), "%u ", i);
     }
 
@@ -454,7 +454,7 @@ void flow_record_short(FILE *stream, recordHeaderV3_t *recordHeaderV3) {
             TestFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED) ? "Sampled" : "Unsampled", recordHeaderV3->numElements, elementString,
             recordHeaderV3->size, recordHeaderV3->engineType, recordHeaderV3->engineID, recordHeaderV3->exporterID);
 
-    for (int i = 0; i < MAXELEMENTS; i++) {
+    for (int i = 0; i < MAXEXTENSIONS; i++) {
         if (record_map.offsetMap[i] && funcPrintRecord[i]) funcPrintRecord[i](stream, &record_map);
     }
 

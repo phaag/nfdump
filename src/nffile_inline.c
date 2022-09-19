@@ -96,7 +96,7 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
     for (int i = 0; i < v3Record->numElements; i++) {
         int skip = 0;
         dbg_printf("[%i] next extension: %u: %s\n", i, elementHeader->type,
-                   elementHeader->type < MAXELEMENTS ? extensionTable[elementHeader->type].name : "<unknown>");
+                   elementHeader->type < MAXEXTENSIONS ? extensionTable[elementHeader->type].name : "<unknown>");
         switch (elementHeader->type) {
             case EXnull:
                 fprintf(stderr, "ExpandRecord_v3() Found unexpected NULL extension\n");
@@ -396,8 +396,8 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
     // at least one flow
     if (output_record->aggr_flows == 0) output_record->aggr_flows = 1;
 
-    if (output_record->numElements > MAXELEMENTS) {
-        LogError("Number of elements %u exceeds max number defined %u", output_record->numElements, MAXELEMENTS);
+    if (output_record->numElements > MAXEXTENSIONS) {
+        LogError("Number of elements %u exceeds max number defined %u", output_record->numElements, MAXEXTENSIONS);
         exit(255);
     }
 }  // End of ExpandRecord_v3

@@ -100,7 +100,7 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
     for (int i = 0; i < v3Record->numElements; i++) {
         uint64_t anon_ip[2];
         dbg_printf("[%i] next extension: %u: %s\n", i, elementHeader->type,
-                   elementHeader->type < MAXELEMENTS ? extensionTable[elementHeader->type].name : "<unknown>");
+                   elementHeader->type < MAXEXTENSIONS ? extensionTable[elementHeader->type].name : "<unknown>");
         switch (elementHeader->type) {
             case EXnull:
                 break;
