@@ -50,7 +50,6 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "config.h"
-#include "exporter.h"
 #include "khash.h"
 #include "maxmind.h"
 #include "nfdump.h"

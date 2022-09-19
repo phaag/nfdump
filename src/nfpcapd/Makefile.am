@@ -9,7 +9,6 @@ LDADD = $(DEPS_LIBS)
 collector = ../collector.c ../collector.h
 nfstatfile = ../nfstatfile.c ../nfstatfile.h
 bookkeeper = ../bookkeeper.c ../bookkeeper.h
-expire= ../expire.c ../expire.h
 pcapdump = pcapdump.c pcapdump.h 
 flowdump = flowdump.c flowdump.h
 flowsend = flowsend.c flowsend.h
@@ -20,7 +19,7 @@ metric = ../metric.c ../metric.h
 nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h \
 	$(pcaproc) $(pcapdump) $(flowdump) $(flowsend) \
 	$(nfstatfile) \
-	$(nfnet) $(collector) $(bookkeeper) $(expire) $(metric)
+	$(nfnet) $(collector) $(bookkeeper) $(metric)
 nfpcapd_LDADD = ../lib/libnfdump.la -lm
 if BSDBPF
 nfpcapd_SOURCES += packet_bpf.c
