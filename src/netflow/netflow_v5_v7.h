@@ -47,8 +47,4 @@ int Init_v5_v7_input(int verbose, uint32_t sampling, uint32_t overwrite);
 
 void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 
-void Init_v5_v7_output(send_peer_t *peer);
-
-int Add_v5_output_record(master_record_t *master_record, send_peer_t *peer);
-
 #endif  //_NETFLOW_V5_V7_H

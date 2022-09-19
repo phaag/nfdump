@@ -56,14 +56,14 @@
 #include "bookkeeper.h"
 #include "flist.h"
 #include "nbar.h"
-#include "netflow_v5_v7.h"
-#include "netflow_v9.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
 #include "nfprof.h"
 #include "nftree.h"
 #include "nfxV3.h"
+#include "send_v5.h"
+#include "send_v9.h"
 #include "util.h"
 
 #define DEFAULTCISCOPORT "9995"
@@ -86,8 +86,6 @@ static send_peer_t peer;
 
 /* Function Prototypes */
 static void usage(char *name);
-
-static void send_blast(unsigned int delay);
 
 static void send_data(timeWindow_t *timeWindow, uint32_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
 
@@ -136,51 +134,6 @@ static int FlushBuffer(int confirm) {
     }
     return sendto(peer.sockfd, peer.send_buffer, len, 0, (struct sockaddr *)&(peer.addr), peer.addrlen);
 }  // End of FlushBuffer
-
-static void send_blast(unsigned int delay) {
-    common_flow_header_t *header;
-    nfprof_t profile_data;
-    int i, ret;
-    u_long usec, sec;
-    double fps;
-
-    peer.send_buffer = malloc(1400);
-    if (!peer.send_buffer) {
-        perror("Memory allocation error");
-        close(peer.sockfd);
-        return;
-    }
-    header = (common_flow_header_t *)peer.send_buffer;
-    header->version = htons(255);
-    nfprof_start(&profile_data);
-    for (i = 0; i < 65535; i++) {
-        header->count = htons(i);
-        ret = sendto(peer.sockfd, peer.send_buffer, 1400, 0, (struct sockaddr *)&peer.addr, peer.addrlen);
-        if (ret < 0 || ret != 1400) {
-            perror("Error sending data");
-        }
-
-        if (delay) {
-            // sleep as specified
-            usleep(delay);
-        }
-    }
-    nfprof_end(&profile_data, 8 * 65535 * 1400);
-
-    usec = profile_data.used.ru_utime.tv_usec + profile_data.used.ru_stime.tv_usec;
-    sec = profile_data.used.ru_utime.tv_sec + profile_data.used.ru_stime.tv_sec;
-
-    if (usec > 1000000) usec -= 1000000, ++sec;
-
-    if (profile_data.tend.tv_usec < profile_data.tstart.tv_usec) profile_data.tend.tv_usec += 1000000, --profile_data.tend.tv_sec;
-
-    usec = profile_data.tend.tv_usec - profile_data.tstart.tv_usec;
-    sec = profile_data.tend.tv_sec - profile_data.tstart.tv_sec;
-    fps = (double)profile_data.numflows / ((double)sec + ((double)usec / 1000000));
-
-    fprintf(stdout, "Wall: %lu.%-3.3lus bps: %-10.1f\n", sec, usec / 1000, fps);
-
-}  // End of send_blast
 
 static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
     nffile_t *nffile;
@@ -405,7 +358,7 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
 int main(int argc, char **argv) {
     struct stat stat_buff;
     char *ffile, *filter, *tstring;
-    int c, confirm, ffd, ret, blast, netflow_version, distribution;
+    int c, confirm, ffd, ret, netflow_version, distribution;
     unsigned int delay, count, sockbuff_size;
     timeWindow_t *timeWindow;
     flist_t flist;
@@ -424,18 +377,14 @@ int main(int argc, char **argv) {
     count = 0;
     sockbuff_size = 0;
     netflow_version = 5;
-    blast = 0;
     verbose = 0;
     confirm = 0;
     distribution = 0;
-    while ((c = getopt(argc, argv, "46BEhH:i:K:L:p:d:c:b:j:r:f:t:v:z:VY")) != EOF) {
+    while ((c = getopt(argc, argv, "46EhH:i:K:L:p:d:c:b:j:r:f:t:v:z:VY")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
                 exit(0);
-                break;
-            case 'B':
-                blast = 1;
                 break;
             case 'E':
                 verbose = 1;
@@ -566,11 +515,6 @@ int main(int argc, char **argv) {
         peer.sockfd = Unicast_send_socket(peer.hostname, peer.port, peer.family, sockbuff_size, &peer.addr, &peer.addrlen);
     if (peer.sockfd <= 0) {
         exit(255);
-    }
-
-    if (blast) {
-        send_blast(delay);
-        exit(0);
     }
 
     if (tstring) {

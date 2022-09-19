@@ -301,10 +301,4 @@ int Init_v9(int verbose, uint32_t sampling, uint32_t overwrite);
 
 void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 
-int Init_v9_output(send_peer_t *peer);
-
-int Close_v9_output(send_peer_t *peer);
-
-int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer);
-
 #endif  //_NETFLOW_V9_H 1

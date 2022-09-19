@@ -1,5 +1,5 @@
 
-bin_PROGRAMS = nfcapd nfdump nfreplay nfexpire 
+bin_PROGRAMS = nfcapd nfdump nfexpire 
 
 EXTRA_DIST = applybits_inline.c nffile_inline.c nffile_compat.c collector_inline.c 
 EXTRA_DIST += inline.c memhandle.c nfdump_inline.c heapsort_inline.c 
@@ -24,10 +24,6 @@ launch = launch.c launch.h
 nfdump_SOURCES = nfdump.c nfdump.h nfstat.c nfstat.h khash.h blocksort.h blocksort.c  \
 	$(exporter) $(nbar) $(nflowcache) $(nfprof)
 nfdump_LDADD = lib/libnfdump.la output/liboutput.a conf/libconf.a maxmind/libmaxmind.a
-
-nfreplay_SOURCES = nfreplay.c $(nfprof) \
-	$(nfnet) $(collector) $(metric)
-nfreplay_LDADD = lib/libnfdump.la netflow/libnetflow.a -lm
 
 nfcapd_SOURCES = nfcapd.c \
 	$(nfstatfile) $(launch) \

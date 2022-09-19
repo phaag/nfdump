@@ -44,7 +44,6 @@
 #include <time.h>
 #include <unistd.h>
 
-//#include "exporter.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
