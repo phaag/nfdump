@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -45,7 +45,6 @@
 
 #include "bookkeeper.h"
 #include "collector.h"
-#include "exporter.h"
 #include "metric.h"
 #include "netflow_pcapd.h"
 #include "nfdump.h"

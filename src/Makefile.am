@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = nfcapd nfdump nfexpire 
 
-EXTRA_DIST = applybits_inline.c nffile_inline.c nffile_compat.c collector_inline.c 
+EXTRA_DIST = applybits_inline.c nffile_inline.c nffile_compat.c 
 EXTRA_DIST += inline.c memhandle.c nfdump_inline.c heapsort_inline.c 
 
 AM_CFLAGS = -ggdb 

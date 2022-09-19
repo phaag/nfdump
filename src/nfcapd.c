@@ -61,7 +61,6 @@
 
 #include "bookkeeper.h"
 #include "collector.h"
-#include "exporter.h"
 #include "flist.h"
 #include "ipfix.h"
 #include "launch.h"
