@@ -638,8 +638,12 @@ int main(int argc, char **argv) {
                 break;
             case 'C':
                 CheckArgLen(optarg, MAXPATHLEN);
-                if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
-                configFile = optarg;
+                if (strcmp(optarg, "null") == 0) {
+                    configFile = optarg;
+                } else {
+                    if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
+                    configFile = optarg;
+                }
                 break;
             case 'D':
                 CheckArgLen(optarg, 2);

@@ -68,13 +68,25 @@ static void ConfInventory(void);
  *  1 successfully read config
  */
 int ConfOpen(char *filename, char *section) {
+    // if read prevented
+    if (filename && strcmp(filename, "null") == 0) return 0;
+
     // if no config file is given, check for default
     // silently return if not found
     if (filename == NULL) {
-        if (TestPath(NFCONF_FILE, S_IFREG) == PATH_NOTEXIST)
+        if (TestPath(NFCONF_FILE, S_IFREG) == PATH_NOTEXIST) {
             return 0;
-        else
+        } else {
+#ifdef CONFIGDIR
+            // supplied at compile time
+            size_t len = sizeof(CONFIGDIR) + 1 + 11 + 1;  // path + '/' + nfdump.conf + '\0'
+            filename = calloc(1, len);
+            snprintf(filename, len, "%s/%s", CONFIGDIR, "nfdump.conf");
+#else
+            // hard coded default
             filename = NFCONF_FILE;
+#endif
+        }
     }
 
     // path must exist
