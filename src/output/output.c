@@ -33,6 +33,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <strings.h>
 
 #include "nfconf.h"
@@ -76,6 +77,8 @@ printmap_t printmap[MAXFORMATS] = {{"raw", raw_record, raw_prolog, raw_epilog, N
 
 static PrologPrinter_t print_prolog;  // prints the output prolog
 static PrologPrinter_t print_epilog;  // prints the output epilog
+
+static void UpdateFormatList(void);
 
 static void null_record(FILE *stream, void *record, int tag) {
     // empty - do not list any flows

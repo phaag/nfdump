@@ -30,6 +30,7 @@
 
 #include "send_v5.h"
 
+#include <arpa/inet.h>
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>

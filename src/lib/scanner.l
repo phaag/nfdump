@@ -80,7 +80,7 @@ char	*FilterFilename = NULL;;
 
 static void __attribute__((noreturn)) yy_fatal_error (yyconst char msg[]);
 
-static void __attribute__((unused))yyunput (int c, char * yy_bp);
+// static void __attribute__((unused))yyunput (int c, char * yy_bp);
 
 %}
 
