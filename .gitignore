@@ -80,7 +80,7 @@ src/.version/
 /src/lib/grammar.h
 /src/lib/scanner.c
 /src/nfcapd
-/src/nfdump
+/src/nfdump/nfdump
 /src/nfexpire
 /src/geolookup
 /src/nfpcapd/nfpcapd

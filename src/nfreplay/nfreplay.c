@@ -43,6 +43,7 @@
 #include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -57,7 +58,6 @@
 #include "nbar.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfprof.h"
 #include "nftree.h"
 #include "nfxV3.h"
 #include "send_net.h"

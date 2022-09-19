@@ -1,6 +1,6 @@
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = src/lib src/output src/conf src/netflow src/collector src/maxmind src/nfanon src/nfreplay . src src/test src/nfreader
+SUBDIRS = src/lib src/output src/conf src/netflow src/collector src/maxmind src/nfdump src/nfanon src/nfreplay . src src/test src/nfreader src/inline src/include
 
 if SFLOW
 SUBDIRS += src/sflow
@@ -20,4 +20,4 @@ endif
 
 SUBDIRS += man doc
 
-EXTRA_DIST = CreateSubHierarchy.pl LICENSE BSD-license.txt extra/PortTracker.pm extra/nfdump.spec bootstrap
+EXTRA_DIST = extra/CreateSubHierarchy.pl LICENSE BSD-license.txt extra/PortTracker.pm extra/nfdump.spec bootstrap

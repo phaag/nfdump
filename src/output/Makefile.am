@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../lib -I../conf -I../maxmind $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../lib -I../conf -I../maxmind -I../inline $(DEPS_CFLAGS)
 
 noinst_LIBRARIES = liboutput.a
 

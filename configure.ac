@@ -503,8 +503,8 @@ AC_OUTPUT
 
 AC_CONFIG_FILES([Makefile src/lib/Makefile src/Makefile src/test/Makefile
 	src/output/Makefile src/conf/Makefile src/netflow/Makefile src/collector/Makefile
-	src/maxmind/Makefile src/nfanon/Makefile src/nfreplay/Makefile src/nfreader/Makefile 
-	man/Makefile])
+	src/maxmind/Makefile src/nfdump/Makefile src/nfanon/Makefile src/nfreplay/Makefile
+	src/nfreader/Makefile src/inline/Makefile src/include/Makefile man/Makefile ])
 
 if test "x$enable_ftconv" = "xyes"; then
     AC_CONFIG_FILES([src/ft2nfdump/Makefile])

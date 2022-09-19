@@ -50,8 +50,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "bookkeeper.h"
-#include "collector.h"
 #include "config.h"
 #include "exporter.h"
 #include "flist.h"
