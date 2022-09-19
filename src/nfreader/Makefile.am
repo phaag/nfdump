@@ -1,5 +1,5 @@
 
-check_PROGRAMS = nfreader
+EXTRA_PROGRAMS = nfreader
 
 AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline $(DEPS_CFLAGS)
 AM_LDFLAGS  = -L../lib
