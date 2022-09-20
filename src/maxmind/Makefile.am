@@ -5,6 +5,7 @@ noinst_LIBRARIES = libmaxmind.a
 
 if MAXMIND
 bin_PROGRAMS = geolookup
+bin_SCRIPTS = updateGeoDB.sh
 endif
 
 libmaxmind_a_SOURCES = maxmind.c maxmind.h
