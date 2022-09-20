@@ -40,7 +40,9 @@
 #include "toml.h"
 #include "util.h"
 
-static void tableInfo(int spaces, toml_table_t *table) {
+static void tableInfo(int spaces, toml_table_t *table);
+
+__attribute__((unused)) static void tableInfo(int spaces, toml_table_t *table) {
     const char *key = toml_table_key(table);
     int kvPairs = toml_table_nkval(table);
     int numArrays = toml_table_narr(table);
@@ -96,7 +98,7 @@ int ConfOpen(char *filename, char *section) {
     if (!fp) {
         return errno;
     }
-    char errbuf[200];
+    char errbuf[256];
     toml_table_t *conf = toml_parse_file(fp, errbuf, sizeof(errbuf));
     fclose(fp);
 

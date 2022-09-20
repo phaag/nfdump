@@ -45,6 +45,7 @@
 
 #include "ipconv.h"
 #include "maxmind.h"
+#include "nfconf.h"
 #include "nffile.h"
 #include "util.h"
 
@@ -248,6 +249,11 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
         exit(EXIT_SUCCESS);
+    }
+
+    if (geoFile == NULL) {
+        if (ConfOpen(NULL, "nfdump") < 0) exit(EXIT_FAILURE);
+        geoFile = ConfGetString("geodb.path");
     }
 
     if (geoFile == NULL) {

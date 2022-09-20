@@ -2,7 +2,9 @@
 AM_CPPFLAGS = -I.. -I../include -I../lib $(DEPS_CFLAGS) -DCONFIGDIR=\"$(sysconfdir)\"
 
 nfconfdir=$(sysconfdir)
-nfconf_DATA = nfdump.conf
+nfconf_DATA = nfdump.conf.dist
+
+EXTRA_DIST = nfdump.conf.dist
 
 noinst_LIBRARIES = libconf.a
 
