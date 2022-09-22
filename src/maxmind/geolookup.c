@@ -302,12 +302,5 @@ int main(int argc, char **argv) {
         }
     }
 
-    /*
-        LookupWhois("80.219.226.184");
-        LookupWhois("152.88.1.5");
-        LookupWhois("2001:620:0:ff::5c");
-        LookupWhois("2a04:4e42:1b::323");
-        LookupWhois("2002:521c:8016::521c:8016");
-    */
     return 0;
 }

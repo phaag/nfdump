@@ -1,94 +1,130 @@
-.TH geolookup 1 2021\-05\-23 "" ""
-.SH NAME
-geolookup \- country/location/AS lookup
-.SH SYNOPSIS
-.HP 5
-.B geolookup [options]
-.SH DESCRIPTION
-.B geolookup
-is used to lookup AS and geo location information of IP addresses.
-IP addresses are given either as optional arguments or can be piped 
-to stdin line by line. Geolookup also generates the required nfdump 
-geo database, based on Maxminds .cvs files. You need a valid Maxmind
-account in order to download either the free of payed versions of 
-the .csv file.
-.P
-.RS 3
-See https://www.maxmind.com/en/home for more information about Maxmind.
-.RE
-.PD
-.P
-geolookup has two modes of operation. 
-.P
-\fBo\fR geolookup reads a sequence of .csv Maxmind input files in a 
-directory specified by -d and generates the corresponding nfdump vector
-file, specified by -w <wfile>. This nfdump geoDB file is used for all 
-geo lookups by geolookup or any other nfdump program.
-.P
-\fBo\fR geolookup reads a sequence of IP addresses on the command line,
-or on <stdin> line be line and prints the geo information on <stdout>.
-
-.SH OPTIONS
-.TP 3
-.B -d \fIdatadir
-Reads all available Maxmind .csv files from \fIdatadir\fR.
-.TP 3
-.B -w \fIgeoDB
-Writes country/location/AS information in binary format to \fIgeoDB\fR.
-.TP 3
-.B -G \fIgeoDB
-Loads the \fIgeoDB\fR to perform lookups of IPs given as arguments or on <stdin>
-The path of \fIgeoDB\fR may also be given as environment variable \fINFGEODB\fR.
-The argument of -G overwrites the environment variable.
-.P
-.SH "RETURN VALUE"
-Returns 
-.PD 0
-.RS 4 
-0   No error. \fn
-.P
-255 Initialization failed.
-.P
-250 Internal error.
-.RE
-.PD
-.SH "EXAMPLES"
-.B Create country/location/AS DB
-.P
-Download the Maxmind .csv files and put them into a directory:
-.br
+.\" Copyright (c) 2022, Peter Haag
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions are met:
+.\"
+.\"  * Redistributions of source code must retain the above copyright notice,
+.\"    this list of conditions and the following disclaimer.
+.\"  * Redistributions in binary form must reproduce the above copyright notice,
+.\"    this list of conditions and the following disclaimer in the documentation
+.\"    and/or other materials provided with the distribution.
+.\"  * Neither the name of the author nor the names of its contributors may be
+.\"    used to endorse or promote products derived from this software without
+.\"    specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+.\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+.\" LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd $Mdocdate$
+.Dt GEOLOOKUP 1
+.Os
+.Sh NAME
+.Nm geolookup
+.Nd geo location lookup for IP addresses
+.Sh SYNOPSIS
+.Nm 
+.Op Fl G Ar geofile
+.Ar iplist
+.Nm
+.Fl d Ar directory
+.Fl w Ar geofile
+.Sh DESCRIPTION
+.Nm 
+is a tool to lookup AS and geo location information of one or more IP addresses. You need
+to create a lookup database first, in order to use
+.Nm
+.Pp
+.Nm
+is also used to create the nfdump formatted lookup database file from the maxmind csv files.
+You need to have a maxmind account at https://maxmind.com, in order to download the relevant
+csv file. See below for building instructions.
+.Pp
+.Nm
+accepts a list of IP addresses either on the command line, separated by spaces
+or on
+.Ar stdin
+line by line. The IP address on each line can be embedded in a string separated be
+spaces on the left and right, therefore it can read the piped output from another tool.
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl d Ar directory
+Use the csv files in 
+.Ar directory
+to build the binary lookup database file. With this argument
+.Nm
+creates a new binary lookup database file.
+.It Fl w Ar geofile
+Name of the new lookup database file.
+.It Fl G Ar geofile
+Use the binary geofile as lookup database for the current AS and location lookups.
+.El
+.Pp
+To specify the geo lookup database 
+.Nm
+searches at the following places:
+.Bl -bullet -compact
+.It
+If the default
+.Ar nfdump(1)
+configuration file exists, it reads the tag
+.Ar geodb.path
+.It
+If the environment variable
+.Ar NFGEODB
+is set, use this setting as lookup database.
+.It
+The command line argument
+.Fl G
+.El
+If multiple locations are given, the environment variable
+.Ar NFGEODB
+overwrites the nfdump config file and the command line option
+.Fl G
+overwrites the environment variable
+.Ar NFGEODB .
+.Sh RETURN VALUES
+.Nm
+returns 0 on success and 255 otherwise.
+.Sh ENVIRONMENT
+.Nm
+reads the environment variable
+.Ar NFGEODB
+.Sh EXAMPLES
+To create a lookup database, you need an account at
+.Ar https://maxmind.com.
+It works with the paid GeoDB as well as with the free GeoLite2 csv files. The easiest way for creating or 
+updating the binary lookup database is the use of the script
+.Ar updateGeoDB.sh
+provided with all other nfdump files. Insert your license key and run the script. This creates a new lookup databse.
+.Pp
+If you want to do it manually follow these steps:
+.Bl -enum -compact
+.It
+Log into https://maxmind.com and download the corresponding csv files: GeoLite2-ASN-CSV and GeoLite2-City-CSV
+.It
+Unpack the zip files and put the following csv files into a newly created build directory:
 GeoLite2-ASN-Blocks-IPv4.csv, GeoLite2-ASN-Blocks-IPv6.csv, GeoLite2-City-Blocks-IPv4.csv, GeoLite2-City-Blocks-IPv6.csv, GeoLite2-City-Locations-en.csv
-.P
-Maxmind offeres several languages for the City-Locations file. Choose one only.
-.P
-.B geolookup \-d datadir \-w mmdb.nf
-.P
-Processes all .cvs file found in datadir and writes the nfdump geoDB file.
-
-.B Lookup country/location/AS:
-.P
-.B geolookup \-G mmdb.nf 8.8.8.8 4.4.8.8
-.P 
-or
-.br
-.B export NFGEODB=mmdb.nf
-.br
-.B geolookup 8.8.8.8 4.4.8.8
-.P 
-.B Processing from <stdin>
-.br
-Each line on <stdin> is parsed for an IP address and processed. Lines may contain
-other information/text. A valid IP must be separated by non alpha characters.
-This mode allows to pipe statistics output from nfdump directly into geolookup.
-.br
-.B cat file | geolookup
-.br
-.B nfdump -r <file> -s ip/bytes -q | geolookup
-
-.SH NOTES
-None.
-.P
-.SH "SEE ALSO"
-nfdump(1)
-.SH BUGS
+Maxmind offeres several languages for the City-Locations file. Choose only one.
+.It
+.Nm
+.Fl d Ar builddir Fl w Ar geofile
+.It 
+Move the lookup database to the final location.
+.El
+.Sh SEE ALSO
+.Ar nfdump
+has already builtin lookup options to decorate the text output with geo location and AS information.
+.Pp
+.Xr nfdump 1
 
