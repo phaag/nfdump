@@ -592,7 +592,7 @@ int main(int argc, char **argv) {
     ModifyCompress = -1;
     aggr_fmt = NULL;
 
-    configFile = getenv("NFCONF");
+    configFile = NULL;
     geo_file = getenv("NFGEODB");
 
     outputParams = calloc(1, sizeof(outputParams_t));

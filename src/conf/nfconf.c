@@ -73,21 +73,23 @@ int ConfOpen(char *filename, char *section) {
     // if read prevented
     if (filename && strcmp(filename, "null") == 0) return 0;
 
+    // try to read NFCONF environment
+    if (filename == NULL) filename = getenv("NFCONF");
+
     // if no config file is given, check for default
     // silently return if not found
     if (filename == NULL) {
+#ifdef CONFIGDIR
+        // supplied at compile time
+        size_t len = sizeof(CONFIGDIR) + 1 + 11 + 1;  // path + '/' + nfdump.conf + '\0'
+        filename = calloc(1, len);
+        snprintf(filename, len, "%s/%s", CONFIGDIR, "nfdump.conf");
+#else
+        // hard coded default
+        filename = NFCONF_FILE;
+#endif
         if (TestPath(NFCONF_FILE, S_IFREG) == PATH_NOTEXIST) {
             return 0;
-        } else {
-#ifdef CONFIGDIR
-            // supplied at compile time
-            size_t len = sizeof(CONFIGDIR) + 1 + 11 + 1;  // path + '/' + nfdump.conf + '\0'
-            filename = calloc(1, len);
-            snprintf(filename, len, "%s/%s", CONFIGDIR, "nfdump.conf");
-#else
-            // hard coded default
-            filename = NFCONF_FILE;
-#endif
         }
     }
 
