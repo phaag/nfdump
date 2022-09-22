@@ -303,7 +303,7 @@ int main(int argc, char **argv) {
     limitflows = 0;
     ftfile = NULL;
     wfile = "-";
-    compress = NOT_COMPRESSED;
+    compress = LZ4_COMPRESSED;
 
     while ((i = getopt(argc, argv, "jyzEVc:hr:w:?")) != -1) switch (i) {
             case 'h': /* help */

@@ -1,64 +1,88 @@
-.TH ft2nfdump 1 2021\-05\-23 "" ""
-.SH NAME
-ft2nfdump \- flow-tools data converter program
-.SH SYNOPSIS
-.HP 5
-.B ft2nfdump [options]
-.SH DESCRIPTION
-.B ft2nfdump
-is the flow-tools converter program to read, convert and store netflow
-data, created with the flow-tools package. It works either as a pipe filter
-or reads flow-tools data format directly from file and exports nfdump data format
-at stdout.
-
-.SH OPTIONS
-.TP 3
-.B -r <flow-tools-file>
-Read flow-tools formatted netflow data from file \fIflow-tools-file.
-Default: Read from stdin.
-.TP 3
-.B -w <nfdump-file>
-Write nfdump formatted file for converted netflow data
-.TP 3
-.B -j
-Compress flows. Use bz2 compression in output file. Space efficient methode
-.TP 3
-.B -y
-Compress flows. Use LZ4 compression in output file.
-.TP 3
-.B -z
-Compress flows. Use fast LZO1X\-1 compression in output file. Fastest method
-.TP 3
-.B -c \fInum
-Read only \fBnum\fR flows from input file.
-.TP 3
-.B -E
-Print raw netflow records to stdout. This option is for debugging purpose 
-only, to see any incoming netflow data. Compatible to option -E in nfcapd.
-.TP 3
-.B -V
+\" Copyright (c) 2022, Peter Haag
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions are met:
+.\"
+.\"  * Redistributions of source code must retain the above copyright notice,
+.\"    this list of conditions and the following disclaimer.
+.\"  * Redistributions in binary form must reproduce the above copyright notice,
+.\"    this list of conditions and the following disclaimer in the documentation
+.\"    and/or other materials provided with the distribution.
+.\"  * Neither the name of the author nor the names of its contributors may be
+.\"    used to endorse or promote products derived from this software without
+.\"    specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+.\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+.\" LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd $Mdocdate$
+.Dt FT2NFDUMP 1
+.Os
+.Sh NAME
+.Nm ft2nfdump
+.Nd convert flow-tools files to nfdump format.
+.Sh SYNOPSIS
+.Nm 
+.Op Fl r Ar ftfile
+.Fl w Ar nffile
+.Op Fl Ar z
+.Op Fl Ar j
+.Op Fl Ar y
+.Op Fl E
+.Op Fl c Ar num
+.Nm
+.Op Fl Ar hV
+.Sh DESCRIPTION
+.Nm
+is the flow-tools converter program to read, convert and store netflow data, created
+with the flow-tools package. It works either as a pipe filter or reads flow-tools data
+directly from a file and exports nfdump data to a file.
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl r Ar ftfile
+Read the flow-tools netflow data from file
+.Ar ftfile
+If this argument is missing,
+.Nm
+expects the data at
+.Ar stdin
+(pipe filter)
+.It Fl w Ar nffile
+Writes netflow data to
+.Ar nffile
+.It Fl z
+Compress flows using LZO1X-1 compression. Fastest method
+.It Fl y
+Compress flows using LZ4 compression. Default if no other option is given.
+.It Fl j
+Compress flows using bz2 compression. Slowest but best compression.
+.It Fl c Ar num
+Limit the number of flows to the first
+.Ar num
+flow records.
+.It Fl E
+Additionally print flows to
+.Ar stdout
+This option allows you to check for the correct flow conversion and should not be needed
+for normal operation.
+.It Fl V
 Print ft2nfdump version and exit.
-.TP 3
-.B -h
-Print help text on stdout with all options and exit.
-.SH "RETURN VALUE"
-Returns 
-.PD 0
-.RS 4 
-0   No error. \fn
-.P
-255 Conversion failed.
-.RE
-.PD
-.SH "EXAMPLES"
-.B flow-cat ft-v05.2015-05-01.* | ft2nfdump -j -w nfcap.20150501
-Convert files into nfdump format.
-.P
-.B ft2nfdump -r ft-v05.2001-05-01 | nfdump -w nfcap.20010501
-Convert files into nfdump format.
-.P
-.SH NOTES
-.P
-.SH "SEE ALSO"
-nfcapd(1), nfdump(1), nfprofile(1), nfreplay(1)
-.SH BUGS
+.It Fl h
+Print help text to stdout and exit.
+.El
+.Sh RETURN VALUES
+.Nm
+returns 0 on success and 255 otherwise.
+.Sh SEE ALSO
+.Xr nfdump 1
