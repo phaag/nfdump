@@ -1,84 +1,91 @@
-.TH nfanon 1 2021\-05\-23 "" ""
-.SH NAME
-nfanon \- netflow anonymisation
-.SH SYNOPSIS
-.HP 5
-.B nfanon [options]
-.SH DESCRIPTION
-.B nfanon
-is used to anonymise all IP addresses ( src, dst, next hop, router IP etc. )
-in the netflow records using the CryptoPAn (Cryptography\-based  Prefix\-preserving 
-Anonymization) module. The key \fI-K\fR is used to initialize the Rijndael cipher. 
-The key is either a 32 character string, or a 64 hex digit string starting with 0x. 
-.P
-.RS 3
-See http://www.cc.gatech.edu/computing/Telecomm/cryptopan/ for 
-more information about CryptoPAn.
-.RE
-.PD
-.P
-nfanon has several modes of
-operation. 
-.P
-\fBo\fR nfanon reads a sequence of input files, specified by -r, -R and -M
-and anonymises the flows in the given files. The input file arguments
-have the same syntax and meaning as nfdump(1).
-.P
-\fBo\fR nfanon reads a sequence of input files, specified by -r, -R and -M.
-All anonymised flows are written to a single file specified by -w.
-
-.SH OPTIONS
-.TP 3
-.B -r \fIinputfile
-Read input data from \fIinputfile\fR. Default is read from stdin.
-.TP 3
-.B -R \fIexpr
-Read input from a sequence of files in the same directory. \fIexpr\fR
-may be one of:
-.PD 0
-.RS 4
-/any/\fIdir\fR          Read recursively all files in directory \fIdir\fR.
-.P
-/dir/\fIfile\fR         Read all files beginning with \fIfile\fR.
-.P
-/dir/\fIfile1:file2\fR  Read all files from \fIfile1\fR to \fIfile2\fR.
-
-.P
-Note: files are read in alphabetical sequence.
-.RE
-.PD
-.TP 3
-.B -M \fIexpr
-Read input from multiple directories. \fIexpr\fR looks like:
-\fI/any/path/to/dir1:dir2:dir3\fR etc. and will be expanded to the
-directories: \fI/any/path/to/dir1\fR, \fI/any/path/to/dir2\fR and 
-\fI/any/path/to/dir3\fR Any number of colon separated directories may 
-be given. The files to read are specified by \-r or \-R and are expected 
-to exist in all the given directories.  The options \-r and \-R must 
-not contain any directory part when used in conjunction with \-M.
-.TP 3
-.B -w \fIoutputfile
-If specified writes anonymised netflow records to \fIoutputfile\fR.
-.TP 3
-.B -K \fIkey
-The key is used to initialize the Rijndael cipher. \fIkey\fR is either 
-a 32 character string, or a 64 hex digit string starting with 0x. 
-.P
-.SH "RETURN VALUE"
-Returns 
-.PD 0
-.RS 4 
-0   No error. \fn
-.P
-255 Initialization failed.
-.P
-250 Internal error.
-.RE
-.PD
-.SH NOTES
-None.
-.P
-.SH "SEE ALSO"
-nfdump(1)
-.SH BUGS
-
+\" Copyright (c) 2022, Peter Haag
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions are met:
+.\"
+.\"  * Redistributions of source code must retain the above copyright notice,
+.\"    this list of conditions and the following disclaimer.
+.\"  * Redistributions in binary form must reproduce the above copyright notice,
+.\"    this list of conditions and the following disclaimer in the documentation
+.\"    and/or other materials provided with the distribution.
+.\"  * Neither the name of the author nor the names of its contributors may be
+.\"    used to endorse or promote products derived from this software without
+.\"    specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+.\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+.\" LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd $Mdocdate$
+.Dt NFANON 1
+.Os
+.Sh NAME
+.Nm nfanon
+.Nd anonymize the IP adresses 
+.Sh SYNOPSIS
+.Nm 
+.Fl r Ar path
+.Op Fl w Ar nffile
+.Fl K Ar key
+.Op Fl q
+.Op Fl h
+.Sh DESCRIPTION
+.Nm
+anonimizes all IP adresses ( src, dst, next hop, router IP etc. ) in the netflow 
+records using the CryptoPAn (Cryptography-based  Prefix-preserving Anonymization)
+module. The key -K is used to initialize the Rijndael cipher. The key is either 
+a 32 character string, or a 64 hex digit string starting with 0x. See 
+https://en.wikipedia.org/wiki/Crypto-PAn for more information on CryptoPAn.
+.Pp
+The source specified by argument
+.Fl r Ar path
+may point to a single nfdump file or to a directory containing many nfdump files.
+All files in a directory are processed recursively.
+.Pp
+If the output argument
+.Fl w Ar nffile
+is given, all anonimized records are written into that single file, even if the 
+source is a directory. If no argument
+.Fl w
+is specified, 
+.Nm
+overwrites the original source file with the anonymized flow records.
+If the source is a directory, each flow file is anonymized respectively.
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl r Ar path
+Path to read flow files to anonymize. Path may point to a single file or a directory
+containing many flow files.
+.It Op Fl w Ar nffile
+File name to write anonymized flow records to. If this argument is missing, the source
+file name is taken, which means the original file is overwritten.
+.It Fl k Ar key
+.Ar key
+is either a 32 character string, or a 64 char hex string starting with 0x. This key
+is used to initialize the anonymizer.
+.It Fl q
+.Nm
+prints the file name to be processed and an actifivy spinner. This option disables both.
+.It Fl h
+Print help text to stdout and exit.
+.El
+.Sh EXAMPLES
+To create a random 64 character hex string you may use the following command:
+.Dl % xxd -u -l 32 -p -c 64 /dev/urandom
+.Ed
+Use the resulting output as key, prepended with 0x as -K argument.
+.Sh RETURN VALUES
+.Nm
+returns 0 on success and 255 otherwise.
+.Sh SEE ALSO
+.Xr nfdump 1
