@@ -138,7 +138,7 @@ static void usage(char *name) {
         "-b host\t\tbind socket to host/IP addr\n"
         "-J mcastgroup\tJoin multicast group <mcastgroup>\n"
         "-p portnum\tlisten on port portnum\n"
-        "-l basdir \tset the output directory. (no default) \n"
+        "-w flowdir \tset the output directory to store the flows.\n"
         "-S subdir\tSub directory format. see nfcapd(1) for format\n"
         "-I Ident\tset the ident string for stat file. (default 'none')\n"
         "-n Ident,IP,logdir\tAdd this flow source - multiple streams\n"
@@ -731,7 +731,7 @@ int main(int argc, char **argv) {
     metricSocket = NULL;
     metricInterval = 60;
 
-    while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:ji:l:J:m:M:n:N:p:P:R:S:s:T:t:x:Xru:g:vyzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:ji:l:J:m:M:n:N:p:P:R:S:s:T:t:x:Xru:g:vw:yzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -876,6 +876,8 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'l':
+                LogInfo("-l is a legacy option and may get removed in future. Please use -w next time");
+            case 'w':
                 if (!CheckPath(optarg, S_IFDIR)) exit(EXIT_FAILURE);
 
                 datadir = realpath(optarg, NULL);

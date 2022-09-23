@@ -432,7 +432,7 @@ int main(int argc, char *argv[]) {
     buff_size = 20;
     activeTimeout = 0;
     inactiveTimeout = 0;
-    while ((c = getopt(argc, argv, "B:DI:b:e:g:hH:i:j:m:r:s:l:o:p:P:T:t:u:S:vVyz")) != EOF) {
+    while ((c = getopt(argc, argv, "B:DI:b:e:g:hH:i:j:m:r:s:l:o:p:P:T:t:u:S:vVw:yz")) != EOF) {
         switch (c) {
             struct stat fstat;
             case 'h':
@@ -503,6 +503,8 @@ int main(int argc, char *argv[]) {
                 device = optarg;
                 break;
             case 'l':
+                LogInfo("-l is a legacy option and may get removed in future. Please use -w next time");
+            case 'w':
                 datadir = optarg;
                 err = stat(datadir, &fstat);
                 if (!(fstat.st_mode & S_IFDIR)) {

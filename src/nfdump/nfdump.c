@@ -668,7 +668,7 @@ int main(int argc, char **argv) {
                 break;
             case 'G':
                 CheckArgLen(optarg, MAXPATHLEN);
-                if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
+                if (strcmp(optarg, "none") != 0 && !CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 geo_file = strdup(optarg);
                 break;
             case 'X':
@@ -944,6 +944,9 @@ int main(int argc, char **argv) {
 
     if (geo_file == NULL) {
         geo_file = ConfGetString("geodb.path");
+    }
+    if (geo_file && strcmp(geo_file, "none") == 0) {
+        geo_file = NULL;
     }
     if (geo_file) {
         if (!CheckPath(geo_file, S_IFREG) || !Init_MaxMind() || !LoadMaxMind(geo_file)) {

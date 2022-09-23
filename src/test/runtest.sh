@@ -38,7 +38,8 @@ export TZ
 rm -f test.*
 ./nfgen
 
-NFDUMP=../nfdump/nfdump
+# prevent any default goelookup for testing
+NFDUMP="../nfdump/nfdump -G none"
 
 # verify test
 $NFDUMP -v test.flows.nf
@@ -95,7 +96,7 @@ mkdir testdir
 # Start nfcapd on localhost and replay flows
 echo
 echo -n Starting nfcapd ...
-../nfcapd/nfcapd -p 65530 -l testdir -D -P testdir/pidfile
+../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile
 sleep 1
 echo done.
 echo -n Replay flows ...
