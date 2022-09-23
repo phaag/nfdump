@@ -62,7 +62,7 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record);
 
 static inline void WriteAnonRecord(nffile_t *wfile, recordHeaderV3_t *v3Record);
 
-static void process_data(void *wfile);
+static void process_data(void *wfile, int verbose);
 
 /* Functions */
 
@@ -71,11 +71,10 @@ static void process_data(void *wfile);
 static void usage(char *name) {
     printf(
         "usage %s [options] \n"
-        "-h\t\tthis text you see right here\n"
+        "-h\t\tthis text you see right here.\n"
         "-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>.\n"
-        "-r\t\tread input from file\n"
-        "-M <expr>\tRead input from multiple directories.\n"
-        "-R <expr>\tRead input from sequence of files.\n"
+        "-q\t\tDo not print progress spinnen and filenames.\n"
+        "-r <path>\tread input from single file or all files in directory.\n"
         "-w <file>\tName of output file. Defaults to input file.\n",
         name);
 } /* usage */
@@ -237,14 +236,11 @@ static inline void WriteAnonRecord(nffile_t *wfile, recordHeaderV3_t *v3Record) 
 
 }  // End of WriteAnonRecord
 
-static void process_data(void *wfile) {
+static void process_data(void *wfile, int verbose) {
+    const char spinner[4] = {'|', '/', '-', '\\'};
     nffile_t *nffile_r;
     nffile_t *nffile_w;
-    int i, done, ret, cnt, verbose;
     char outfile[MAXPATHLEN], *cfile;
-
-    cnt = 1;
-    verbose = 1;
 
     // Get the first file handle
     nffile_r = GetNextFile(NULL);
@@ -257,6 +253,7 @@ static void process_data(void *wfile) {
         return;
     }
 
+    int cnt = 1;
     cfile = nffile_r->fileName;
     if (!cfile) {
         LogError("(NULL) input file name error in %s line %d\n", __FILE__, __LINE__);
@@ -284,11 +281,15 @@ static void process_data(void *wfile) {
     SetIdent(nffile_w, FILE_IDENT(nffile_r));
     memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
 
-    done = 0;
+    int blk_count = 0;
+    int done = 0;
     while (!done) {
         // get next data block from file
-        ret = ReadBlock(nffile_r);
-
+        int ret = ReadBlock(nffile_r);
+        if (verbose) {
+            printf("\r%c", spinner[blk_count & 0x3]);
+            blk_count++;
+        }
         switch (ret) {
             case NF_CORRUPT:
             case NF_ERROR:
@@ -319,7 +320,7 @@ static void process_data(void *wfile) {
                     LogError("(NULL) input file name error in %s line %d\n", __FILE__, __LINE__);
                     return;
                 }
-                printf(" %i Processing %s\r", cnt++, cfile);
+                if (verbose) printf(" %i Processing %s\r", cnt++, cfile);
 
                 if (wfile == NULL) {
                     snprintf(outfile, MAXPATHLEN - 1, "%s-tmp", cfile);
@@ -350,7 +351,7 @@ static void process_data(void *wfile) {
 
         record_header_t *record_ptr = nffile_r->buff_ptr;
         uint32_t sumSize = 0;
-        for (i = 0; i < nffile_r->block_header->NumRecords; i++) {
+        for (int i = 0; i < nffile_r->block_header->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
                 exit(255);
@@ -388,20 +389,18 @@ static void process_data(void *wfile) {
         DisposeFile(nffile_r);
     }
 
-    LogError("Processed %i files", --cnt);
+    if (verbose) LogError("Processed %i files", --cnt);
 
 }  // End of process_data
 
 int main(int argc, char **argv) {
-    char *wfile;
-    int c;
-    char CryptoPAnKey[32];
-    flist_t flist;
+    char *wfile = NULL;
+    char CryptoPAnKey[32] = {0};
+    flist_t flist = {0};
 
-    memset((void *)CryptoPAnKey, 0, sizeof(CryptoPAnKey));
-    memset((void *)&flist, 0, sizeof(flist));
-    wfile = NULL;
-    while ((c = getopt(argc, argv, "hK:L:r:M:R:w:")) != EOF) {
+    int verbose = 1;
+    int c;
+    while ((c = getopt(argc, argv, "hK:L:qr:w:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -409,6 +408,7 @@ int main(int argc, char **argv) {
                 break;
                 break;
             case 'K':
+                CheckArgLen(optarg, 66);
                 if (!ParseCryptoPAnKey(optarg, CryptoPAnKey)) {
                     LogError("Invalid key '%s' for CryptoPAn", optarg);
                     exit(255);
@@ -418,18 +418,19 @@ int main(int argc, char **argv) {
             case 'L':
                 if (!InitLog(0, "argv[0]", optarg, 0)) exit(255);
                 break;
+            case 'q':
+                verbose = 0;
+                break;
             case 'r':
                 CheckArgLen(optarg, MAXPATHLEN);
-                if (!CheckPath(optarg, S_IFREG)) exit(255);
-                flist.single_file = strdup(optarg);
-                break;
-            case 'M':
-                if (!CheckPath(optarg, S_IFDIR)) exit(255);
-                flist.multiple_dirs = strdup(optarg);
-                break;
-            case 'R':
-                if (!CheckPath(optarg, S_IFDIR)) exit(255);
-                flist.multiple_files = strdup(optarg);
+                if (TestPath(optarg, S_IFREG) == PATH_OK) {
+                    flist.single_file = strdup(optarg);
+                } else if (TestPath(optarg, S_IFDIR) == PATH_OK) {
+                    flist.multiple_files = strdup(optarg);
+                } else {
+                    LogError("%s is not a file or directory", optarg);
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'w':
                 wfile = optarg;
@@ -441,14 +442,17 @@ int main(int argc, char **argv) {
     }
 
     if (CryptoPAnKey[0] == '\0') {
-        LogError("Expect -K <key> - 32 bytes key");
+        LogError("Expect -K <key>");
+        usage(argv[0]);
         exit(255);
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!fileList || !Init_nffile(fileList)) exit(255);
 
-    process_data(wfile);
+    // make stdout unbuffered for progress pointer
+    setvbuf(stdout, (char *)NULL, _IONBF, 0);
+    process_data(wfile, verbose);
 
     return 0;
 }

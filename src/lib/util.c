@@ -111,7 +111,7 @@ void xsleep(suseconds_t usec) {
 void CheckArgLen(char *arg, size_t len) {
     size_t i = 0;
     while (arg[i] != '\0' && i < len) i++;
-    if (i == len) {
+    if (i > len) {
         fprintf(stderr, "Input string error. Length > %zu\n", len);
         exit(EXIT_FAILURE);
         // unreached
