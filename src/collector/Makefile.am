@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline -I../conf $(DEPS_CFLAGS)
 
 EXTRA_DIST = collector_inline.c 
 

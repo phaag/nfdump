@@ -42,6 +42,8 @@
 #include "exporter.h"
 #include "nffile.h"
 
+#define ANYIP NULL
+
 #define FNAME_SIZE 256
 
 /* common minimum netflow header for all versions */
@@ -92,11 +94,11 @@ typedef struct FlowSource_s {
     }
 
 // prototypes
-int AddFlowSource(FlowSource_t **FlowSource, char *ident);
+int AddFlowSource(FlowSource_t **FlowSource, char *ident, char *ip, char *flowpath);
 
-int AddFlowSourceFromFile(FlowSource_t **FlowSource, char *path);
+int AddFlowSourceConfig(FlowSource_t **FlowSource);
 
-int AddDefaultFlowSource(FlowSource_t **FlowSource, char *ident, char *path);
+int AddFlowSourceString(FlowSource_t **FlowSource, char *argument);
 
 int SetDynamicSourcesDir(FlowSource_t **FlowSource, char *dir);
 

@@ -27,8 +27,13 @@ fmt.geolong = "%ts %td %pr %sc %sap -> %dc %dap %flg %pkt %byt %fl"
 # if you use maxmind DB for geo location
 # geodb.path = "/var/db/mmdb.nf"
 
-# default stat
-stat.num = 10
-
 [nfcapd]
 net.port = 9995
+
+# define multiple netflow exporters
+# the identification string follow the toke 'exporter'
+# 
+# exporter.<ident> = ["ip", "flowdir"]
+# 
+exporter.upstream = ["192.168.1.1", "/var/nflow/upstream"]
+exporter.peer = ["192.168.1.10", "/var/nflow/peer"]

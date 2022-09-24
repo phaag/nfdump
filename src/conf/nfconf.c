@@ -120,6 +120,7 @@ int ConfOpen(char *filename, char *section) {
     nfconfFile.conf = conf;
     nfconfFile.sectionConf = sectionConf;
 
+    // ConfInventory();
     return 1;
 }  // ConfOpen
 
@@ -137,7 +138,6 @@ int ConfGetFMTentry(char **key, char **value) {
     if (!fmtConf) {
         fmtConf = toml_table_in(nfconfFile.sectionConf, "fmt");
         if (!fmtConf) {
-            fmtConf = NULL;
             *key = NULL;
             *value = NULL;
             return -1;
@@ -154,10 +154,7 @@ int ConfGetFMTentry(char **key, char **value) {
     toml_datum_t fmtData = toml_string_in(fmtConf, fmtName);
     if (fmtData.ok) {
         dbg_printf("fmt: %s -> %s\n", fmtName, fmtData.u.s);
-        *key = strdup(fmtName);
         *value = strdup(fmtData.u.s);
-        i++;
-        return i;
     } else {
         i = 0;
         *key = NULL;
@@ -165,7 +162,69 @@ int ConfGetFMTentry(char **key, char **value) {
         return 0;
     }
 
+    *key = strdup(fmtName);
+    i++;
+    return i;
+
 }  // End of ConfGetFMTentry
+
+#define RETURN_FAILED \
+    *ident = NULL;    \
+    *ip = NULL;       \
+    *flowdir = NULL;  \
+    return -1;
+// recursive iterate exporter entries from config file
+// return
+//     0 if end of list
+//     i for entry
+//    -1 for error
+int ConfGetExporter(char **ident, char **ip, char **flowdir) {
+    static toml_table_t *exporterList = NULL;
+    static int i = 0;
+
+    if (!nfconfFile.valid) return 0;
+
+    if (!exporterList) {
+        exporterList = toml_table_in(nfconfFile.sectionConf, "exporter");
+        if (!exporterList) {
+            RETURN_FAILED;
+        }
+    }
+
+    // get next config
+    const char *exporterName = toml_key_in(exporterList, i);
+    if (!exporterName) {
+        i = 0;
+        *ident = NULL;
+        *ip = NULL;
+        *flowdir = NULL;
+        return 0;
+    }
+
+    // get array of exporter
+    toml_array_t *exporterArray = toml_array_in(exporterList, exporterName);
+    if (!exporterArray) {
+        RETURN_FAILED;
+    }
+
+    toml_datum_t ipData = toml_string_at(exporterArray, 0);
+    if (ipData.ok) {
+        *ip = strdup(ipData.u.s);
+    } else {
+        RETURN_FAILED;
+    }
+
+    toml_datum_t flowDirData = toml_string_at(exporterArray, 1);
+    if (flowDirData.ok) {
+        *flowdir = strdup(flowDirData.u.s);
+    } else {
+        RETURN_FAILED;
+    }
+    *ident = strdup(exporterName);
+    i++;
+    return i;
+
+}  // end of ConfGetExporter
 
 char *ConfGetString(char *key) {
     if (!nfconfFile.valid) return NULL;

@@ -69,6 +69,7 @@
 #include "netflow_v1.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
+#include "nfconf.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
@@ -139,10 +140,10 @@ static void usage(char *name) {
         "-J mcastgroup\tJoin multicast group <mcastgroup>\n"
         "-p portnum\tlisten on port portnum\n"
         "-w flowdir \tset the output directory to store the flows.\n"
+        "-C <file>\tRead optional config file.\n"
         "-S subdir\tSub directory format. see nfcapd(1) for format\n"
         "-I Ident\tset the ident string for stat file. (default 'none')\n"
         "-n Ident,IP,logdir\tAdd this flow source - multiple streams\n"
-        "-N sourceFile\tAdd flows from sourceFile\n"
         "-i interval\tMetric interval in s for metric exporter\n"
         "-m socket\t\tEnable metric exporter on socket.\n"
         "-M dir \t\tSet the output directory for dynamic sources.\n"
@@ -686,7 +687,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
 int main(int argc, char **argv) {
     char *bindhost, *datadir, *launch_process;
     char *userid, *groupid, *checkptr, *listenport, *mcastgroup;
-    char *Ident, *dynsrcdir, *time_extension, *pidfile, *metricSocket;
+    char *Ident, *dynsrcdir, *time_extension, *pidfile, *configFile, *metricSocket;
     packet_function_t receive_packet;
     repeater_t repeater[MAX_REPEATERS];
     FlowSource_t *fs;
@@ -725,13 +726,14 @@ int main(int argc, char **argv) {
     for (i = 0; i < MAX_REPEATERS; i++) {
         repeater[i].family = AF_UNSPEC;
     }
+    configFile = NULL;
     Ident = "none";
     FlowSource = NULL;
     dynsrcdir = NULL;
     metricSocket = NULL;
     metricInterval = 60;
 
-    while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:ji:l:J:m:M:n:N:p:P:R:S:s:T:t:x:Xru:g:vw:yzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "46B:b:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:rRs::S:t:T:u:vVw:x:yzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -742,6 +744,15 @@ int main(int argc, char **argv) {
                 break;
             case 'g':
                 groupid = optarg;
+                break;
+            case 'C':
+                CheckArgLen(optarg, MAXPATHLEN);
+                if (strcmp(optarg, "null") == 0) {
+                    configFile = optarg;
+                } else {
+                    if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
+                    configFile = optarg;
+                }
                 break;
             case 'e':
                 expire = 1;
@@ -818,10 +829,7 @@ int main(int argc, char **argv) {
                 }
             } break;
             case 'n':
-                if (AddFlowSource(&FlowSource, optarg) != 1) exit(EXIT_FAILURE);
-                break;
-            case 'N':
-                if (AddFlowSourceFromFile(&FlowSource, optarg)) exit(EXIT_FAILURE);
+                if (AddFlowSourceString(&FlowSource, optarg) != 1) exit(EXIT_FAILURE);
                 break;
             case 'B':
                 bufflen = strtol(optarg, &checkptr, 10);
@@ -957,12 +965,17 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (FlowSource == NULL && datadir == NULL && dynsrcdir == NULL) {
-        LogError("ERROR, Missing -n (-l/-I) or -M source definitions");
+    if (ConfOpen(configFile, "nfcapd") < 0) exit(EXIT_FAILURE);
+
+    if (datadir && !AddFlowSource(&FlowSource, Ident, ANYIP, datadir)) {
+        LogError("Failed to add default data collector directory");
         exit(EXIT_FAILURE);
     }
-    if (FlowSource == NULL && datadir != NULL && !AddDefaultFlowSource(&FlowSource, Ident, datadir)) {
-        LogError("Failed to add default data collector directory");
+
+    if (!AddFlowSourceConfig(&FlowSource)) exit(EXIT_FAILURE);
+
+    if (FlowSource == NULL && datadir == NULL && dynsrcdir == NULL) {
+        LogError("ERROR, No source configurations found");
         exit(EXIT_FAILURE);
     }
 

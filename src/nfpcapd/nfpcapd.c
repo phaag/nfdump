@@ -69,6 +69,7 @@
 #include "flowsend.h"
 #include "flowtree.h"
 #include "metric.h"
+#include "nfconf.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
@@ -134,7 +135,8 @@ static void usage(char *name) {
         "-s snaplen\tset the snapshot length - default 1522\n"
         "-e active,inactive\tset the active,inactive flow expire time (s) - default 300,60\n"
         "-o options \tAdd flow options, separated with ','. Available: 'fat', 'payload'\n"
-        "-l flowdir \tset the flow output directory. (no default) \n"
+        "-w flowdir \tset the flow output directory. (no default) \n"
+        "-C <file>\tRead optional config file.\n"
         "-H host[/port]\tSend flows to host or IP address/port. Default port 9995.\n"
         "-m socket\t\tEnable metric exporter on socket.\n"
         "-p pcapdir \tset the pcapdir directory. (optional) \n"
@@ -402,7 +404,7 @@ int main(int argc, char *argv[]) {
     dirstat_t *dirstat;
     repeater_t *sendHost;
     time_t t_win;
-    char *device, *pcapfile, *filter, *datadir, *pcap_datadir, *pidfile, *options;
+    char *device, *pcapfile, *filter, *datadir, *pcap_datadir, *pidfile, *configFile, *options;
     char *Ident, *userid, *groupid, *metricsocket;
     char *time_extension;
 
@@ -422,6 +424,7 @@ int main(int argc, char *argv[]) {
     metricsocket = NULL;
     metricInterval = 60;
     userid = groupid = NULL;
+    configFile = NULL;
     Ident = "none";
     time_extension = "%Y%m%d%H%M";
     subdir_index = 0;
@@ -432,7 +435,7 @@ int main(int argc, char *argv[]) {
     buff_size = 20;
     activeTimeout = 0;
     inactiveTimeout = 0;
-    while ((c = getopt(argc, argv, "B:DI:b:e:g:hH:i:j:m:r:s:l:o:p:P:T:t:u:S:vVw:yz")) != EOF) {
+    while ((c = getopt(argc, argv, "b:B:C:De:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:vVw:yz")) != EOF) {
         switch (c) {
             struct stat fstat;
             case 'h':
@@ -444,6 +447,15 @@ int main(int argc, char *argv[]) {
                 break;
             case 'g':
                 groupid = optarg;
+                break;
+            case 'C':
+                CheckArgLen(optarg, MAXPATHLEN);
+                if (strcmp(optarg, "null") == 0) {
+                    configFile = optarg;
+                } else {
+                    if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
+                    configFile = optarg;
+                }
                 break;
             case 'D':
                 do_daemonize = 1;
@@ -635,6 +647,9 @@ int main(int argc, char *argv[]) {
         /* user specified a pcap filter */
         filter = argv[optind];
     }
+
+    if (ConfOpen(configFile, "nfpcapd") < 0) exit(EXIT_FAILURE);
+
     if (filter) {
         filter = strdup(filter);
         if (!filter) {
@@ -717,7 +732,7 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
 
-        if (datadir != NULL && !AddDefaultFlowSource(&fs, Ident, datadir)) {
+        if (datadir && !AddFlowSource(&fs, Ident, ANYIP, datadir)) {
             LogError("Failed to add default data collector directory");
             exit(EXIT_FAILURE);
         }

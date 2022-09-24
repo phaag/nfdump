@@ -38,6 +38,8 @@ int ConfOpen(char *filename, char *section);
 
 int ConfGetFMTentry(char **key, char **value);
 
+int ConfGetExporter(char **ident, char **ip, char **flowdir);
+
 char *ConfGetString(char *key);
 
 #endif

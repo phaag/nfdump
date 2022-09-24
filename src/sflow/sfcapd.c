@@ -64,6 +64,7 @@
 #include "flist.h"
 #include "launch.h"
 #include "metric.h"
+#include "nfconf.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
@@ -129,10 +130,10 @@ static void usage(char *name) {
         "-J mcastgroup\tJoin multicast group <mcastgroup>\n"
         "-p portnum\tlisten on port portnum\n"
         "-w flowdir \tset the output directory to store the flows.\n"
+        "-C <file>\tRead optional config file.\n"
         "-S subdir\tSub directory format. see nfcapd(1) for format\n"
         "-I Ident\tset the ident string for stat file. (default 'none')\n"
-        "-n Ident,IP,logdir\tAdd this flow source - multiple streams\n"
-        "-N sourceFile\tAdd flows from sourceFile\n"
+        "-n Ident,IP,flowdir\tAdd this flow source - multiple streams\n"
         "-i interval\tMetric interval in s for metric exporter\n"
         "-m socket\t\tEnable metric exporter on socket.\n"
         "-P pidfile\tset the PID file\n"
@@ -614,7 +615,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
 int main(int argc, char **argv) {
     char *bindhost, *datadir, *launch_process;
     char *userid, *groupid, *checkptr, *listenport, *mcastgroup;
-    char *Ident, *time_extension, *pidfile, *metricsocket;
+    char *Ident, *time_extension, *pidfile, *configFile, *metricsocket;
     packet_function_t receive_packet;
     repeater_t repeater[MAX_REPEATERS];
     FlowSource_t *fs;
@@ -652,12 +653,13 @@ int main(int argc, char **argv) {
     for (i = 0; i < MAX_REPEATERS; i++) {
         repeater[i].family = AF_UNSPEC;
     }
+    configFile = NULL;
     Ident = "none";
     FlowSource = NULL;
     metricsocket = NULL;
     metricInterval = 60;
 
-    while ((c = getopt(argc, argv, "46ef:hEVI:DB:b:ji:l:J:m:n:N:p:P:R:S:T:t:x:ru:g:vw:yzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "46b:B:C:DeEf:g:hI:i:jJ:l:m:n:p:P:rR:S:T:t:u:vVw:x:yzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -668,6 +670,15 @@ int main(int argc, char **argv) {
                 break;
             case 'g':
                 groupid = optarg;
+                break;
+            case 'C':
+                CheckArgLen(optarg, MAXPATHLEN);
+                if (strcmp(optarg, "null") == 0) {
+                    configFile = optarg;
+                } else {
+                    if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
+                    configFile = optarg;
+                }
                 break;
             case 'e':
                 expire = 1;
@@ -724,10 +735,7 @@ int main(int argc, char **argv) {
                 metricsocket = strdup(optarg);
                 break;
             case 'n':
-                if (AddFlowSource(&FlowSource, optarg) != 1) exit(EXIT_FAILURE);
-                break;
-            case 'N':
-                if (AddFlowSourceFromFile(&FlowSource, optarg)) exit(EXIT_FAILURE);
+                if (AddFlowSourceString(&FlowSource, optarg) != 1) exit(EXIT_FAILURE);
                 break;
             case 'B':
                 bufflen = strtol(optarg, &checkptr, 10);
@@ -855,12 +863,17 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (FlowSource == NULL && datadir == NULL) {
-        LogError("ERROR, Missing -n (-l/-I) source definitions");
+    if (ConfOpen(configFile, "sfcapd") < 0) exit(EXIT_FAILURE);
+
+    if (datadir && !AddFlowSource(&FlowSource, Ident, ANYIP, datadir)) {
+        LogError("Failed to add default data collector directory");
         exit(EXIT_FAILURE);
     }
-    if (FlowSource == NULL && !AddDefaultFlowSource(&FlowSource, Ident, datadir)) {
-        LogError("Failed to add default data collector directory");
+
+    if (!AddFlowSourceConfig(&FlowSource)) exit(EXIT_FAILURE);
+
+    if (FlowSource == NULL) {
+        LogError("ERROR, No source configurations found");
         exit(EXIT_FAILURE);
     }
 
