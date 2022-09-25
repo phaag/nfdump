@@ -1,91 +1,134 @@
-.TH nfreplay 1 2009\-09\-09 "" ""
-.SH NAME
-nfreplay \- netflow replay program
-.SH SYNOPSIS
-.HP 5
-.B nfreplay [options] [filter]
-.SH DESCRIPTION
-.B nfreplay
-is the netflow replay program of the nfdump tool set. 
-It reads data from files stored by nfcapd and sents the netflow
-data to a host or a multicat group. The filter syntax is equivalent 
-to nfdump. If a filter is supplied, only the matching flows are sent. 
-See the nfdump(1) man page for a detailed description of the filter 
-syntax. All records are sent as netflow version 5.
-
-.SH OPTIONS
-.TP 3
-.B -H \fIremotehost
+\" Copyright (c) 2022, Peter Haag
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions are met:
+.\"
+.\"  * Redistributions of source code must retain the above copyright notice,
+.\"    this list of conditions and the following disclaimer.
+.\"  * Redistributions in binary form must reproduce the above copyright notice,
+.\"    this list of conditions and the following disclaimer in the documentation
+.\"    and/or other materials provided with the distribution.
+.\"  * Neither the name of the author nor the names of its contributors may be
+.\"    used to endorse or promote products derived from this software without
+.\"    specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+.\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+.\" LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd $Mdocdate$
+.Dt NFREPLAY 1
+.Os
+.Sh NAME
+.Nm nfreplay
+.Nd replay binary flow files as netflow version v5 or v9 to a remote host
+.Sh SYNOPSIS
+.Nm 
+.Fl r Ar flowfile
+.Fl H Ar remotehost
+.Fl p Ar port
+.Op Fl j Ar mcastgroup
+.Op Fl 4
+.Op Fl 6
+.Op Fl v Ar version
+.Op Fl d Ar usec
+.Op Fl b Ar buffsize
+.Op Fl z Ar num
+.Op Fl c Ar num
+.Op Fl v
+.Op Fl H
+.Op Ar filter
+.Sh DESCRIPTION
+.Nm
+reads binary flow files stored by any nfdump collector and sents the flow records
+to a remote host or a multicat group. 
+.Pp
+.Nm
+sends the data as netflow v5 or v9 to the remote location.
+.Pp
+.Nm
+accepts a filter to limit the flows to be sent. The filter syntax is equivalent to
+nfdump. 
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl r Ar flowfile
+Read input data from
+.Ar flowfile.
+.It Fl H Ar remotehost
 Send all flows to this remote host. Accepts a symbolic name or a IPv4/IPv6 
-IP address.  Defaults to IPv4 localhost 127.0.0.1.
-.TP 3
-.B -j \fImcastgroup
+IP address.
+.It Fl j Ar mcastgroup
 Join this multicast group and send all flows to this group host. Accepts a 
 symbolic name or multicast IPv4/IPv6 IP address.
-.TP 3
-.B -p \fIport
+.It Fl p Ar port
 Send all flows to this port on the remote side. Default is 9995.
-.TP 3
-.B -4
-Forces nfreplay to send flows to a IPv4 address only. Can be used together with \-i
-if the remote host has an IPv4 and IPv6 address record.
-.TP 3
-.B -6
-Forces nfreplay to send flows to a IPv6 address only. Can be used together with \-i
-if the remote host has an IPv4 and IPv6 address record.
-.TP 3
-.B -v \fInum
-Send flows as netflow version \fInum\fR. \fB5\fR and \fB9\fR are supported. The
-default is sending the flows as netflow version 5. In version 5 mode, IPv6 flows, 
-are skipped and 64bit counters are truncated to 32bit. 
-.TP 3
-.B -d \fIusec
-Delay each record by \fIusec\fR mirco seconds, to avoid overrun on the remote
-side. Default is 10.
-.TP 3
-.B -b \fIbuffersize
-Set send buffer size in bytes. Useful for large data to transfer. Default is
-system dependent.
-.TP 3
-.B -r \fIinputfile
-Read input data from \fIinputfile\fR. Default is read from stdin.
-.TP 3
-.B -t \fItimewin
-Send only flows, which fall in the time window \fItimewin\fR, where
-\fItimewin\fR is YYYY/MM/dd.hh:mm:ss[\-YYYY/MM/dd.hh:mm:ss]. Any parts of
-the time spec may be omitted e.g YYYY/MM/dd expands to 
-YYYY/MM/dd.00:00:00\-YYYY/MM/dd.23:59:59 and sends all flow from a 
-given day.
-.TP 3
-.B -z \fInum
+.It Fl 4
+Forces
+.Nm
+to send flows to a IPv4 address only. Can be used if the remote host has
+an IPv4 and IPv6 address record.
+.It Fl 6
+Forces
+.Nm
+to send flows to a IPv6 address only. Can be used if the remote host has
+an IPv4 and IPv6 address record.
+.It Fl v Ar version
+Send flows as netflow version
+.Ar version . 
+Version V5 and v9 are supported. In v5 mode, all additional elements to a 
+stadard v5 record are skipped and 64bit counters are truncated to 32bit. 
+The default is v9. 
+.It Fl u Ar usec
+Delay each record by
+.Ar usec
+mirco seconds, to avoid overrun on the remote host. Default is 10usec.
+.It Fl B Ar buffsize
+Set send buffer to
+.Ar buffsize
+size in bytes. Useful to buffer larger data transfers.
+.It Fl z Ar num
 Flows are sent with their "real distribution" acrross time (with a speed coefficient)
--z 1 : 5 minutes of records will be sent in 5 minutes.
--z 20 : 5 minutes of record will be sent in 5/20 = 0.25 minutes.
-.TP 3
-.B -c \fInum
-Limit number of records to send to the first \fInum\fR flows.
-.TP 3
-.B -V
-Print nfreplay version and exit.
-.TP 3
-.B -h
+.Bl -item -compact
+.It
+.Fl z
+1 : 5 minutes of records will be sent in 5 minutes.
+.IT
+.Fl
+z
+20 : 5 minutes of record will be sent in 5/20 = 0.25 minutes.
+.El
+.It Fl c Ar num
+Limit number of records to send to the first 
+.Ar num
+flows.
+.It Fl V
+Print
+.Nm 
+version and exit.
+.It Fl h
 Print help text on stdout with all options and exit.
-.SH "RETURN VALUE"
-Returns 
-.PD 0
-.RS 4 
-0   No error. \fn
-.P
+.El
+.Sh RETURN VALUES
+.Bl -item -compact
+.Nm
+returns
+.It
 255 Initialization failed.
-.P
+.It
 254 Error in filter syntax.
-.P
+.It
 250 Internal error.
-.RE
-.PD
-.SH NOTES
-.P
-.SH "SEE ALSO"
-nfcapd(1), nfdump(1), nfprofile(1)
-.SH BUGS
-
+.El
+.Sh SEE ALSO
+.Xr nfdump 1
+.Xr nfcapd 1
