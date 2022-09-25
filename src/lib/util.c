@@ -63,7 +63,7 @@
 
 /* Global vars */
 
-static int verbose = 0;
+static int verbose = 4;
 
 /* Function prototypes */
 static int check_number(char *s, int len);

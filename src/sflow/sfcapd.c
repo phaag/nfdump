@@ -33,10 +33,8 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <grp.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <pwd.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -51,7 +49,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
-#include <unistd.h>
 
 #include "config.h"
 
@@ -61,6 +58,7 @@
 
 #include "bookkeeper.h"
 #include "collector.h"
+#include "daemon.h"
 #include "flist.h"
 #include "launch.h"
 #include "metric.h"
@@ -111,10 +109,6 @@ static void IntHandler(int signal);
 
 static inline FlowSource_t *GetFlowSource(struct sockaddr_storage *ss);
 
-static void daemonize(void);
-
-static void SetPriv(char *userid, char *groupid);
-
 static void run(packet_function_t receive_packet, int socket, repeater_t *repeater, time_t twin, time_t t_begin, int report_seq, int use_subdirs,
                 char *time_extension, int compress);
 
@@ -136,6 +130,7 @@ static void usage(char *name) {
         "-n Ident,IP,flowdir\tAdd this flow source - multiple streams\n"
         "-i interval\tMetric interval in s for metric exporter\n"
         "-m socket\t\tEnable metric exporter on socket.\n"
+        "-M dir \t\tSet the output directory for dynamic sources.\n"
         "-P pidfile\tset the PID file\n"
         "-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
         "-x process\tlaunch process after a new file becomes available\n"
@@ -210,111 +205,6 @@ static void IntHandler(int signal) {
     }
 
 } /* End of IntHandler */
-
-static void daemonize(void) {
-    int fd;
-    switch (fork()) {
-        case 0:
-            // child
-            break;
-        case -1:
-            // error
-            LogError("fork() error: %s", strerror(errno));
-            exit(EXIT_SUCCESS);
-            break;
-        default:
-            // parent
-            _exit(EXIT_SUCCESS);
-    }
-
-    if (setsid() < 0) {
-        LogError("setsid() error: %s", strerror(errno));
-        exit(EXIT_SUCCESS);
-    }
-
-    // Double fork
-    switch (fork()) {
-        case 0:
-            // child
-            break;
-        case -1:
-            // error
-            LogError("fork() error: %s", strerror(errno));
-            exit(EXIT_SUCCESS);
-            break;
-        default:
-            // parent
-            _exit(EXIT_SUCCESS);
-    }
-
-    fd = open("/dev/null", O_RDONLY);
-    if (fd != 0) {
-        dup2(fd, 0);
-        close(fd);
-    }
-    fd = open("/dev/null", O_WRONLY);
-    if (fd != 1) {
-        dup2(fd, 1);
-        close(fd);
-    }
-    fd = open("/dev/null", O_WRONLY);
-    if (fd != 2) {
-        dup2(fd, 2);
-        close(fd);
-    }
-
-}  // End of daemonize
-
-static void SetPriv(char *userid, char *groupid) {
-    struct passwd *pw_entry;
-    struct group *gr_entry;
-    uid_t myuid, newuid, newgid;
-    int err;
-
-    if (userid == 0 && groupid == 0) return;
-
-    newuid = newgid = 0;
-    myuid = getuid();
-    if (myuid != 0) {
-        LogError("Only root wants to change uid/gid");
-        exit(EXIT_FAILURE);
-    }
-
-    if (userid) {
-        pw_entry = getpwnam(userid);
-        newuid = pw_entry ? pw_entry->pw_uid : atol(userid);
-
-        if (newuid == 0) {
-            LogError("Invalid user '%s'", userid);
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    if (groupid) {
-        gr_entry = getgrnam(groupid);
-        newgid = gr_entry ? gr_entry->gr_gid : atol(groupid);
-
-        if (newgid == 0) {
-            LogError("Invalid group '%s'", groupid);
-            exit(EXIT_FAILURE);
-        }
-
-        err = setgid(newgid);
-        if (err) {
-            LogError("Can't set group id %ld for group '%s': %s", (long)newgid, groupid, strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    if (newuid) {
-        err = setuid(newuid);
-        if (err) {
-            LogError("Can't set user id %ld for user '%s': %s", (long)newuid, userid, strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-    }
-
-}  // End of SetPriv
 
 #include "collector_inline.c"
 #include "nffile_inline.c"
@@ -615,7 +505,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
 int main(int argc, char **argv) {
     char *bindhost, *datadir, *launch_process;
     char *userid, *groupid, *checkptr, *listenport, *mcastgroup;
-    char *Ident, *time_extension, *pidfile, *configFile, *metricsocket;
+    char *Ident, *dynFlowDir, *time_extension, *pidfile, *configFile, *metricsocket;
     packet_function_t receive_packet;
     repeater_t repeater[MAX_REPEATERS];
     FlowSource_t *fs;
@@ -656,10 +546,11 @@ int main(int argc, char **argv) {
     configFile = NULL;
     Ident = "none";
     FlowSource = NULL;
+    dynFlowDir = NULL;
     metricsocket = NULL;
     metricInterval = 60;
 
-    while ((c = getopt(argc, argv, "46b:B:C:DeEf:g:hI:i:jJ:l:m:n:p:P:rR:S:T:t:u:vVw:x:yzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "46b:B:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:rR:S:T:t:u:vVw:x:yzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -673,7 +564,7 @@ int main(int argc, char **argv) {
                 break;
             case 'C':
                 CheckArgLen(optarg, MAXPATHLEN);
-                if (strcmp(optarg, "null") == 0) {
+                if (strcmp(optarg, NOCONF) == 0) {
                     configFile = optarg;
                 } else {
                     if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
@@ -733,6 +624,18 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 metricsocket = strdup(optarg);
+                break;
+            case 'M':
+                CheckArgLen(optarg, MAXPATHLEN);
+                dynFlowDir = strdup(optarg);
+                if (!CheckPath(dynFlowDir, S_IFDIR)) {
+                    LogError("No valid directory: %s", dynFlowDir);
+                    exit(EXIT_FAILURE);
+                }
+                if (!SetDynamicSourcesDir(&FlowSource, dynFlowDir)) {
+                    LogError("Failed to add dynamic flowdir");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'n':
                 if (AddFlowSourceString(&FlowSource, optarg) != 1) exit(EXIT_FAILURE);

@@ -32,7 +32,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <grp.h>
 #include <libgen.h>
 #include <netinet/in.h>
 #include <netinet/in_systm.h>
@@ -43,7 +42,6 @@
 #include <netinet/udp.h>
 #include <pcap.h>
 #include <pthread.h>
-#include <pwd.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -62,6 +60,7 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "config.h"
+#include "daemon.h"
 #include "expire.h"
 #include "exporter.h"
 #include "flist.h"
@@ -106,11 +105,7 @@ uint32_t linkoffset;
  */
 static void usage(char *name);
 
-static void daemonize(void);
-
 static void Interrupt_handler(int sig);
-
-static void SetPriv(char *userid, char *groupid);
 
 static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, int snaplen);
 
@@ -161,111 +156,6 @@ static void Interrupt_handler(int sig) {
     done = 1;
 
 }  // End of signal_handler
-
-static void daemonize(void) {
-    int fd;
-    switch (fork()) {
-        case 0:
-            // child
-            break;
-        case -1:
-            // error
-            LogError("fork() error: %s", strerror(errno));
-            exit(EXIT_SUCCESS);
-            break;
-        default:
-            // parent
-            _exit(EXIT_SUCCESS);
-    }
-
-    if (setsid() < 0) {
-        LogError("setsid() error: %s", strerror(errno));
-        exit(EXIT_SUCCESS);
-    }
-
-    // Double fork
-    switch (fork()) {
-        case 0:
-            // child
-            break;
-        case -1:
-            // error
-            LogError("fork() error: %s", strerror(errno));
-            exit(EXIT_SUCCESS);
-            break;
-        default:
-            // parent
-            _exit(EXIT_SUCCESS);
-    }
-
-    fd = open("/dev/null", O_RDONLY);
-    if (fd != 0) {
-        dup2(fd, 0);
-        close(fd);
-    }
-    fd = open("/dev/null", O_WRONLY);
-    if (fd != 1) {
-        dup2(fd, 1);
-        close(fd);
-    }
-    fd = open("/dev/null", O_WRONLY);
-    if (fd != 2) {
-        dup2(fd, 2);
-        close(fd);
-    }
-
-}  // End of daemonize
-
-static void SetPriv(char *userid, char *groupid) {
-    struct passwd *pw_entry;
-    struct group *gr_entry;
-    uid_t myuid, newuid, newgid;
-    int err;
-
-    if (userid == 0 && groupid == 0) return;
-
-    newuid = newgid = 0;
-    myuid = getuid();
-    if (myuid != 0) {
-        LogError("Only root wants to change uid/gid");
-        exit(EXIT_FAILURE);
-    }
-
-    if (userid) {
-        pw_entry = getpwnam(userid);
-        newuid = pw_entry ? pw_entry->pw_uid : atol(userid);
-
-        if (newuid == 0) {
-            LogError("Invalid user '%s'", userid);
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    if (groupid) {
-        gr_entry = getgrnam(groupid);
-        newgid = gr_entry ? gr_entry->gr_gid : atol(groupid);
-
-        if (newgid == 0) {
-            LogError("Invalid group '%s'", groupid);
-            exit(EXIT_FAILURE);
-        }
-
-        err = setgid(newgid);
-        if (err) {
-            LogError("Can't set group id %ld for group '%s': %s", (long)newgid, groupid, strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    if (newuid) {
-        err = setuid(newuid);
-        if (err) {
-            LogError("Can't set user id %ld for user '%s': %s", (long)newuid, userid, strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-    }
-
-}  // End of SetPriv
 
 static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, int snaplen) {
     pcap_t *handle;

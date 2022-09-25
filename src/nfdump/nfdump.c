@@ -638,7 +638,7 @@ int main(int argc, char **argv) {
                 break;
             case 'C':
                 CheckArgLen(optarg, MAXPATHLEN);
-                if (strcmp(optarg, "null") == 0) {
+                if (strcmp(optarg, NOCONF) == 0) {
                     configFile = optarg;
                 } else {
                     if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);

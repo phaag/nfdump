@@ -1,5 +1,5 @@
 #
-# nfdump config file
+# Sample nfdump config file
 
 [nfdump]
 # format definitions
@@ -28,12 +28,10 @@ fmt.geolong = "%ts %td %pr %sc %sap -> %dc %dap %flg %pkt %byt %fl"
 # geodb.path = "/var/db/mmdb.nf"
 
 [nfcapd]
-net.port = 9995
-
 # define multiple netflow exporters
 # the identification string follow the toke 'exporter'
 # 
 # exporter.<ident> = ["ip", "flowdir"]
 # 
-exporter.upstream = ["192.168.1.1", "/var/nflow/upstream"]
-exporter.peer = ["192.168.1.10", "/var/nflow/peer"]
+# exporter.upstream = ["192.168.1.1", "/var/nflow/upstream"]
+# exporter.peer = ["192.168.1.10", "/var/nflow/peer"]

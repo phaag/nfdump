@@ -33,10 +33,8 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <grp.h>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <pwd.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -51,7 +49,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <time.h>
-#include <unistd.h>
 
 #include "config.h"
 
@@ -61,6 +58,7 @@
 
 #include "bookkeeper.h"
 #include "collector.h"
+#include "daemon.h"
 #include "flist.h"
 #include "ipfix.h"
 #include "launch.h"
@@ -120,10 +118,6 @@ static void kill_launcher(int pid);
 static void IntHandler(int signal);
 
 static inline FlowSource_t *GetFlowSource(struct sockaddr_storage *ss);
-
-static void daemonize(void);
-
-static void SetPriv(char *userid, char *groupid);
 
 static void run(packet_function_t receive_packet, int socket, repeater_t *repeater, time_t twin, time_t t_begin, int report_seq, int use_subdirs,
                 char *time_extension, int compress);
@@ -222,111 +216,6 @@ static void IntHandler(int signal) {
     }
 
 } /* End of IntHandler */
-
-static void daemonize(void) {
-    int fd;
-    switch (fork()) {
-        case 0:
-            // child
-            break;
-        case -1:
-            // error
-            LogError("fork() error: %s", strerror(errno));
-            exit(EXIT_SUCCESS);
-            break;
-        default:
-            // parent
-            _exit(EXIT_SUCCESS);
-    }
-
-    if (setsid() < 0) {
-        LogError("setsid() error: %s", strerror(errno));
-        exit(EXIT_SUCCESS);
-    }
-
-    // Double fork
-    switch (fork()) {
-        case 0:
-            // child
-            break;
-        case -1:
-            // error
-            LogError("fork() error: %s", strerror(errno));
-            exit(EXIT_SUCCESS);
-            break;
-        default:
-            // parent
-            _exit(EXIT_SUCCESS);
-    }
-
-    fd = open("/dev/null", O_RDONLY);
-    if (fd != 0) {
-        dup2(fd, 0);
-        close(fd);
-    }
-    fd = open("/dev/null", O_WRONLY);
-    if (fd != 1) {
-        dup2(fd, 1);
-        close(fd);
-    }
-    fd = open("/dev/null", O_WRONLY);
-    if (fd != 2) {
-        dup2(fd, 2);
-        close(fd);
-    }
-
-}  // End of daemonize
-
-static void SetPriv(char *userid, char *groupid) {
-    struct passwd *pw_entry;
-    struct group *gr_entry;
-    uid_t myuid, newuid, newgid;
-    int err;
-
-    if (userid == 0 && groupid == 0) return;
-
-    newuid = newgid = 0;
-    myuid = getuid();
-    if (myuid != 0) {
-        LogError("Only root wants to change uid/gid");
-        exit(EXIT_FAILURE);
-    }
-
-    if (userid) {
-        pw_entry = getpwnam(userid);
-        newuid = pw_entry ? pw_entry->pw_uid : atol(userid);
-
-        if (newuid == 0) {
-            LogError("Invalid user '%s'", userid);
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    if (groupid) {
-        gr_entry = getgrnam(groupid);
-        newgid = gr_entry ? gr_entry->gr_gid : atol(groupid);
-
-        if (newgid == 0) {
-            LogError("Invalid group '%s'", groupid);
-            exit(EXIT_FAILURE);
-        }
-
-        err = setgid(newgid);
-        if (err) {
-            LogError("Can't set group id %ld for group '%s': %s", (long)newgid, groupid, strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    if (newuid) {
-        err = setuid(newuid);
-        if (err) {
-            LogError("Can't set user id %ld for user '%s': %s", (long)newuid, userid, strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-    }
-
-}  // End of SetPriv
 
 static void format_file_block_header(dataBlock_t *header) {
     printf(
@@ -687,7 +576,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
 int main(int argc, char **argv) {
     char *bindhost, *datadir, *launch_process;
     char *userid, *groupid, *checkptr, *listenport, *mcastgroup;
-    char *Ident, *dynsrcdir, *time_extension, *pidfile, *configFile, *metricSocket;
+    char *Ident, *dynFlowDir, *time_extension, *pidfile, *configFile, *metricSocket;
     packet_function_t receive_packet;
     repeater_t repeater[MAX_REPEATERS];
     FlowSource_t *fs;
@@ -729,7 +618,7 @@ int main(int argc, char **argv) {
     configFile = NULL;
     Ident = "none";
     FlowSource = NULL;
-    dynsrcdir = NULL;
+    dynFlowDir = NULL;
     metricSocket = NULL;
     metricInterval = 60;
 
@@ -747,7 +636,7 @@ int main(int argc, char **argv) {
                 break;
             case 'C':
                 CheckArgLen(optarg, MAXPATHLEN);
-                if (strcmp(optarg, "null") == 0) {
+                if (strcmp(optarg, NOCONF) == 0) {
                     configFile = optarg;
                 } else {
                     if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
@@ -784,12 +673,7 @@ int main(int argc, char **argv) {
                 do_daemonize = 1;
                 break;
             case 'I':
-                if (strlen(optarg) < 128) {
-                    Ident = strdup(optarg);
-                } else {
-                    LogError("ERROR: Ident length > 128");
-                    exit(EXIT_FAILURE);
-                }
+                CheckArgLen(optarg, 128);
                 break;
             case 'i':
                 metricInterval = atoi(optarg);
@@ -802,34 +686,26 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'm':
-                if (strlen(optarg) > MAXPATHLEN) {
-                    LogError("ERROR: Path too long!");
-                    exit(EXIT_FAILURE);
-                }
+                CheckArgLen(optarg, MAXPATHLEN);
                 metricSocket = strdup(optarg);
                 break;
-            case 'M': {
-                struct stat fstat;
-                if (strlen(optarg) > MAXPATHLEN) {
-                    LogError("ERROR: Path too long!");
+            case 'M':
+                CheckArgLen(optarg, MAXPATHLEN);
+                dynFlowDir = strdup(optarg);
+                if (!CheckPath(dynFlowDir, S_IFDIR)) {
+                    LogError("No valid directory: %s", dynFlowDir);
                     exit(EXIT_FAILURE);
                 }
-                dynsrcdir = strdup(optarg);
-                if (stat(dynsrcdir, &fstat) < 0) {
-                    LogError("stat() failed on %s: %s", dynsrcdir, strerror(errno));
+                if (!SetDynamicSourcesDir(&FlowSource, dynFlowDir)) {
+                    LogError("Failed to add dynamic flowdir");
                     exit(EXIT_FAILURE);
                 }
-                if (!(fstat.st_mode & S_IFDIR)) {
-                    LogError("No such directory: %s", dynsrcdir);
-                    break;
-                }
-                if (!SetDynamicSourcesDir(&FlowSource, dynsrcdir)) {
-                    LogError("-l, -M and -n are mutually exclusive");
-                    break;
-                }
-            } break;
+                break;
             case 'n':
-                if (AddFlowSourceString(&FlowSource, optarg) != 1) exit(EXIT_FAILURE);
+                if (!AddFlowSourceString(&FlowSource, optarg)) {
+                    LogError("Failed to add flow source");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'B':
                 bufflen = strtol(optarg, &checkptr, 10);
@@ -886,8 +762,10 @@ int main(int argc, char **argv) {
             case 'l':
                 LogInfo("-l is a legacy option and may get removed in future. Please use -w next time");
             case 'w':
-                if (!CheckPath(optarg, S_IFDIR)) exit(EXIT_FAILURE);
-
+                if (!CheckPath(optarg, S_IFDIR)) {
+                    LogError("No valid directory: %s", optarg);
+                    exit(EXIT_FAILURE);
+                }
                 datadir = realpath(optarg, NULL);
                 if (!datadir) {
                     LogError("realpath() failed on %s: %s", optarg, strerror(errno));
@@ -972,9 +850,12 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (!AddFlowSourceConfig(&FlowSource)) exit(EXIT_FAILURE);
+    if (!AddFlowSourceConfig(&FlowSource)) {
+        LogError("Failed to add exporter from config file");
+        exit(EXIT_FAILURE);
+    }
 
-    if (FlowSource == NULL && datadir == NULL && dynsrcdir == NULL) {
+    if (FlowSource == NULL && datadir == NULL && dynFlowDir == NULL) {
         LogError("ERROR, No source configurations found");
         exit(EXIT_FAILURE);
     }

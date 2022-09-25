@@ -34,6 +34,8 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#define NOCONF "none"
+
 int ConfOpen(char *filename, char *section);
 
 int ConfGetFMTentry(char **key, char **value);

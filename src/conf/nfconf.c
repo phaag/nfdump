@@ -71,7 +71,7 @@ static void ConfInventory(void);
  */
 int ConfOpen(char *filename, char *section) {
     // if read prevented
-    if (filename && strcmp(filename, "null") == 0) return 0;
+    if (filename && strcmp(filename, NOCONF) == 0) return 0;
 
     // try to read NFCONF environment
     if (filename == NULL) filename = getenv("NFCONF");

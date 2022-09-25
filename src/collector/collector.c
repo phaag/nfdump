@@ -76,7 +76,10 @@ static uint32_t AssignExporterID(void) {
 /* global functions */
 
 int SetDynamicSourcesDir(FlowSource_t **FlowSource, char *dir) {
-    if (*FlowSource) return 0;
+    if (*FlowSource) {
+        LogError("Can not mix IP specific and any IP sources");
+        return 0;
+    }
 
     DynamicSourcesDir = dir;
     return 1;
@@ -106,7 +109,10 @@ int AddFlowSource(FlowSource_t **FlowSource, char *ident, char *ip, char *flowpa
     int has_any_source = 0;
     int num_sources = 0;
 
-    if (DynamicSourcesDir) return 0;
+    if (DynamicSourcesDir) {
+        LogError("Can not mix IP specific and any IP sources");
+        return 0;
+    }
 
     source = FlowSource;
     while (*source) {
@@ -171,7 +177,6 @@ int AddFlowSource(FlowSource_t **FlowSource, char *ident, char *ip, char *flowpa
 
     // flowpath
     if (!CheckPath(flowpath, S_IFDIR)) {
-        LogError("Invalid path: %s", flowpath);
         return 0;
     }
 
@@ -196,6 +201,7 @@ int AddFlowSource(FlowSource_t **FlowSource, char *ident, char *ip, char *flowpa
         return 0;
     }
 
+    LogVerbose("Add flow source: ident: %s, IP: %s, flowdir: %s", ident, ip ? ip : "any IP", flowpath);
     return 1;
 
 }  // End of AddFlowSource
