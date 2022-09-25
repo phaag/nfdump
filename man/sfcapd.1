@@ -1,212 +1,288 @@
-.TH sfcapd 1 2009\-09\-09 "" ""
-.SH NAME
-sfcapd \- sflow capture daemon
-.SH SYNOPSIS
-.HP 5
-.B sfcapd [options]
-.SH DESCRIPTION
-.B sfcapd
-is the sflow capture daemon of the nfdump tools. It reads sflow
-data from the network and stores it into nfcapd compatible files. 
-The output file is automatically rotated and renamed every n 
-minutes - typically 5 min - according the timestamp YYYYMMddhhmm 
-of the interval e.g. nfcapd.201907110845 contains the data from 
-July 11th 2019 08:45 onward. sfcapd supports sFlow version 4 and 
-5 datagrams. If the time interval is smaller then 60s, the naming 
-extends to seconds e.g. nfcapd.20190711084510.
-.P
-Sflow is an industry standard developed by InMon Corporation.
-For more information see http://sflow.org.
-.SH OPTIONS
-.TP 3
-.B -p \fIportnum
-Specifies the port number to listen. Default port is 6343
-.TP 3
-.B -b \fIbindhost
-Specifies the hostname/IPv4/IPv6 address to bind for listening. Can be an IP
-address or a hostname, resolving to an IP address attached to an interface.
-Defaults to any available IPv4 interface, if not specified.
-.TP 3
-.B -4
-Forces sfcapd to listen on IPv4 addresses only. Can be used together with -b
-if a hostname has an IPv4 and IPv6 address record. Depending on the socket
-implementation \-6 also accepts IPv4 data.
-.TP 3
-.B -6
-Forces sfcapd to listen on IPv6 addresses only. Can be used together with -b
-if a hostname has an IPv4 and IPv6 address record.
-.TP 3
-.B -j \fIMulticastGroup
-Join the specified IPv6 or IPv6 multicast group for listening. 
-.TP 3
-.B -R \fIhost[/port}
-Enable packet repeater. Send all incoming packets to another \fIhost\fR and \fIport\fR.
-\fIhost\fR is either a valid IPv4/IPv6 address, or a valid simbolic hostname, which resolves to 
-a IPv6 or IPv4 address. \fIport\fR may be omitted and defaults to port 6343. Note: Due to IPv4/IPv6
-accepted addresses the port separator is '/'. Up to 8 repeaters my be defined.
-.TP 3
-.B -I \fIIdentString ( capital letter i )
-Specifies an ident string, which describes the source e.g. the 
-name of the router. This string is put into the stat record to identify
-the source. Default is 'none'. This is for compatibility with nfdump 1.5.x
-and used to specify a single sflow source. See \fI\-n
-.TP 3
-.B -l \fIbase_directory ( letter ell )
-Specifies the base directory to store the output files. 
-If a sub hierarchy is specified with \-S the final directory is concatenated 
-to \fIbase_directory/sub_hierarchy\fR. This is for compatibility with nfdump 1.5.x
-and used to specify a single sflow source. See \fI\-n
-.TP 3
-.B -n \fI<Ident,IP,base_directory>
-Configures an sflow source named \fIIdent\fR and identified by source IP address \fIIP\fR.
-The base directory for the flow files is \fIbase_directory\fR. If a sub hierarchy is specified with \-S 
-the final directory is concatenated to \fIbase_directory/sub_hierarchy. Multiple netflow 
-sources can be specified. All data is sent to the same port specified by \fI\-p\fR.
-Note: You must not mix \-n option with \-I and \-l. Use either syntax.
-.TP 3
-.B -N \fI<file>
-Specifies the \fIfile\fR to read to add multiple netflow sources. The file is expected to contain
-one netflow source per line based on the same syntax than the -n option. Comments are not interpreted.
-Ident collision are not handled if -N is specified multiple times.
-.TP 3
-.B -f \fI<pcap_file>
-Read sflow packets from a give \fIpcap_file\fR instead of the network. This 
-requires sfcapd to be compiled with the pcap option and is intended for debugging only.
-.TP 3
-.B -S \fI<num>
-Allows to specify an additional directory sub hierarchy to store 
-the data files. The default is 0, no sub hierarchy, which means the 
-files go directly in the base directory (-l). The base directory (-l) is
-concatenated with the specified sub hierarchy format to form the final 
-data directory.  The following hierarchies are defined:
-.PD 0
-.RS 4
- 0 default     no hierarchy levels
-.P
- 1 %Y/%m/%d    year/month/day
-.P
- 2 %Y/%m/%d/%H year/month/day/hour
-.P
- 3 %Y/%W/%u    year/week_of_year/day_of_week
-.P
- 4 %Y/%W/%u/%H year/week_of_year/day_of_week/hour
-.P
- 5 %Y/%W/%u    year/week_of_year/day_of_week
-.P
- 6 %Y/%W/%u/%H year/week_of_year/day_of_week/hour
-.P
- 7 %Y/%j       year/day-of-year
-.P
- 8 %Y/%j/%H    year/day-of-year/hour
-.P
- 9 %Y-%m-%d    year-month-day
-.P
-10 %Y-%m-%d/%H year-month-day/hour
-.RE
-.PD
-.TP 3
-.B -t \fIinterval
-Specifies the time interval in seconds to rotate files. The default value 
-is 300s ( 5min ). The smallest interval can be set to 2s.
-.TP 3
-.B -x \fIcmd
-Run command \fIcmd\fR at the end of every interval, when a new file
-becomes available. The following command expansion is available:
-.PD 0
-.RS 4
-%f	Replaced by the file name e.g nfcapd.200407110845 inluding any
-.P
-     sub hierarchy. ( 2004/07/11/nfcapd.200407110845 )
-.P
-%d	Replaced by the directory where the file is located.
-.P
-%t	Replaced by the time ISO format e.g. 200407110845.
-.P
-%u	Replaced by the UNIX time format.
-.P
-%i	Replaced ident string given by -I
-.RE
-.PD
-.TP 3
-.B -e 
-Auto expire files at every cycle. \fImax lifetime\fP and \fImax filesize\fP
-are defined using nfexpire(1)
-.TP 3
-.B -P \fIpidfile
-Specify name of pidfile. Default is no pidfile.
-.TP 3
-.B -D
-Daemon mode: fork to background and detach from terminal.
-Nfcapd terminates on signal TERM, INT and HUP.
-.TP 3
-.B -u \fIuserid
-Change to the user \fIuserid\fP as soon as possible. Only root is allowed
-to use this option.
-.TP 3
-.B -g \fIgroupid
-Change to the group \fIgroupid\fP as soon as possible. Only root is allowed 
-use this option.
-.TP 3
-.B -B \fIbufflen
-Specifies the socket input buffer length in bytes. For high volume traffic 
-( near GB traffic ) it is recommended to set this value as high as possible 
-( typically > 100k ), otherwise you risk to lose packets. The default 
-is OS ( and kernel )  dependent.
-.TP 3
-.B -v
-Increase verbose level by 1. ay be given multiple times.
-.TP 3
-.B -E
-Print data records in nfdump raw format to stdout. This option is for 
-debugging purpose only, to see how incoming sflow data is processed and stored.
-.TP 3
-.B -j
-Compress flows. Use bz2 compression in output file. Note: not recommended while collecting
-.TP 3
-.B -y
-Compress flows. Use LZ4 compression in output file.
-.TP 3
-.B -z
-Compress flows. Use fast LZO1X-1 compression in output file.
-.TP 3
-.B -V
-Print sfcapd version and exit.
-.TP 3
-.B -h
-Print help text to stdout with all options and exit.
-.SH "RETURN VALUE"
-Returns 0 on success, or 255 if initialization failed.
-.SH "LOGGING"
-sfcapd logs to syslog with SYSLOG_FACILITY LOG_DAEMON
-For normal operation level 'warning' should be fine. 
-More information is reported at level 'info' and 'debug'.
-.P
-A small statistic about the collected flows, as well as errors
-are reported at the end of every interval to syslog with level 'info'.
-.SH "EXAMPLES"
-Compatible with old sfcapd 1.5.x:
-.RS
-\fBsfcapd -D -l /data/spool/router1 -p 6343 -B 128000 -I router1 -x '/path/some_app -r %d/%f'  -P /var/run/sfcapd/sfcapd.router1\fP
-.RE
-.P
-Selectively enabled sender:
-.RS
-\fBsfcapd -D -n router1,192.168.1.10,/data/spool/router1 -p 6343 -B 128000 -P /var/run/sfcapd/sfcapd.router1\fP
-.RE
-.P
-.SH NOTES
-sfcapd automatically scales the packets and bytes according the sampling rate.
-.P
-Even with sflow version 4 and 5 support, not all available sflow elements 
-are stored in the data files. As of this version, sfcpad supports the the same
-shared fields as extensions, as it's netflow companion nfcapd for netflow version 
-v9. See nfcapd(1). More fields will be supported in future.
-.P
-The format of the data files is version independent and compatible nfcapd collected data.
-.P
-Socket buffer: Setting the socket buffer size is system dependent. 
-When starting up, sfcapd returns the number of bytes the buffer was 
-actually set. This is done by reading back the buffer size and may 
-differ from what you requested. 
-.SH "SEE ALSO"
-nfcapd(1), nfdump(1), nfprofile(1), nfreplay(1)
+\" Copyright (c) 2022, Peter Haag
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions are met:
+.\"
+.\"  * Redistributions of source code must retain the above copyright notice,
+.\"    this list of conditions and the following disclaimer.
+.\"  * Redistributions in binary form must reproduce the above copyright notice,
+.\"    this list of conditions and the following disclaimer in the documentation
+.\"    and/or other materials provided with the distribution.
+.\"  * Neither the name of the author nor the names of its contributors may be
+.\"    used to endorse or promote products derived from this software without
+.\"    specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+.\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+.\" LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd $Mdocdate$
+.Dt SFCAPD 1
+.Os
+.Sh NAME
+.Nm sfcapd
+.Nd sflow collector for sflow version v2/v4 and v5
+.Sh SYNOPSIS
+.Nm 
+.Fl w Ar flowdir
+.Op Fl C Ar config
+.Op Fl z
+.Op Fl y
+.Op Fl j
+.Op Fl D
+.Op Fl u Ar userid
+.Op Fl g Ar groupid
+.Op Fl S Ar num
+.Op Fl t Ar interval
+.Op Fl P Ar pidfile
+.Op Fl p Ar port
+.Op Fl I Ar ident
+.Op Fl b Ar bindhost
+.Op Fl 4
+.Op Fl 6
+.Op Fl j Ar mcastgroup
+.Op Fl R Ar repeater
+.Op Fl B Ar buffsize
+.Op Fl n Ar sourceparam
+.Op Fl M Ar multiflowdir
+.Op Fl i Ar metricrate
+.Op Fl m Ar metricpath
+.Op Fl e
+.Op Fl x Ar command
+.Op Fl E
+.Op Fl v
+.Op Fl V
+.Sh DESCRIPTION
+.Nm
+reads sflow data from the network and stores the records into binary formated files. The sflow implementation
+is based of sflowtool. The packet samples are converted into netflow compatible records.
+.Pp
+If you want to collect netflow data, please have a look at
+.Ar nfcapd
+which is also part of the nfdump tools. 
+.Pp
+Sflow is an industry standard developed by InMon Corporation.  For more information see http://sflow.org.
+.Pp
+.Nm 
+is the twin of
+.Ar nfcapd
+and supports the same feature set. See also 
+.Ar nfcapd(1)
+for more details.
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl w Ar flowdir
+Set the flow directory to store the output files. If a sub hierarchy is specified with
+.Fl S
+the final directory is concatenated to flowdir/subdir.
+.It Fl C Ar config
+Reads additional configuration parameters from
+.Ar config
+file.
+.Nm
+tries to read the config file from the install default path 
+.Ar $prefix/etc/
+which may be overwritten by the environment variable
+.Ar NFCONF
+, which again is overwritten by this option
+.Fl C.
+If
+.Fl C Ar none
+is specified, then no config file is read, even if found in the search path.
+.It Fl p Ar portnum
+Set the port number to listen. Default port is 9995
+.It Fl b Ar bindhost
+Specifies the hostname/IPv4/IPv6 address to bind for listening. This can be an IP address or a hostname, 
+resolving to a local IP address.
+.It Fl 4
+Forces
+.Nm
+to listen on IPv4 addresses only. Can be used together with -b if a hostname has IPv4 and IPv6 addresses.
+.It Fl 6
+Forces
+.Nm
+to listen on IPv6 addresses only. Can be used together with -b if a hostname has IPv4 and IPv6 addresses.
+.It Fl J Ar mcastgroup
+Join the specified IPv4 or IPv6 multicast group for listening.
+.It Fl R Ar host[/port]
+Enables the packet repeater. All incoming packets are sent additionally to another
+.Ar host
+and
+.Ar port .
+.Ar host
+is either a valid IPv4/IPv6 address, or a symbolic hostname, which resolves to a valid IP address.
+.Ar port
+may be omitted and defaults to 9995. Note: As IPv4/IPv6 are accepted the host/port separator is '/'.
+Up to 8 additional repeaters my be defined. Use this methode to daisy chain collectors.
+.It Fl I Ar ident
+Sets
+.Ar ident
+as identification string for the current source. This string is written into the output file to identify
+the source. Default is 'none'. If you have multiple sources, see option
+.Fl n
+below.
+.It Fl n Ar ident,IP,flowdir
+Configures a netflow source identified by the string
+.Ar ident, IP flowdir
+If you have multiple sources per collector, add multiple
+.Fl n
+options. All exporters send the flows to the same port
+.Fl p .
+Do not mix single source configuration 
+.Fl I
+with multiple 
+.Fl n
+options. 
+.It Fl M Ar flowdir
+Set the flow directory for dynamic allocated exporters. New exporters are dynamically added when sending data.
+All exporters send netflow data to the same port and IP. For each dynamically added source, a new sub directory
+is created under 
+.Ar flowdir
+with the name of the IP address of the exporter. All '.' and ':" in IP addresses are replaced be '-'. 
+.Fl D
+Set daemon mode: fork to background and detach from terminal.
+.Nm
+terminates on signal TERM, INT or HUP.
+.It Fl P Ar pidfile
+Writes the running process ID into
+.Ar pidfilw .
+Use this option to integrate
+.Nm
+in start/stop files.
+.It Fl u Ar userid
+Drop privileges of running process to user
+.Ar userid .
+.Nm
+needs to be started as user root.
+.It Fl g Ar groupid
+Drop privileges of running process to group
+.Ar groupid .
+.Nm
+needs to be started as user root.
+.It Fl B Ar bufflen
+Sets the network socket input buffer to
+.Ar bufflen
+bytes. For high volume traffic it is recommended to raise this value to typically > 100k,
+otherwise you risk to lose packets. The default is OS (and kernel) dependent.
+.It Fl S Ar num
+Adds an additional directory sub hierarchy to store the data files. The default is 0, no 
+sub hierarchy, which means all files go directly into
+.Ar flowdir .
+The 
+.Ar flowdir
+is concatenated with the specified sub hierarchy format to create the final data directory.
+The following hierarchies are defined:
+.Bl -item -compact
+.It
+0 default     no hierarchy levels
+.It
+1 %Y/%m/%d    year/month/day
+.It
+2 %Y/%m/%d/%H year/month/day/hour
+.It
+3 %Y/%W/%u    year/week_of_year/day_of_week
+.It
+4 %Y/%W/%u/%H year/week_of_year/day_of_week/hour
+.It
+5 %Y/%j       year/day-of-year
+.It
+6 %Y/%j/%H    year/day-of-year/hour
+.It
+7 %Y-%m-%d    year-month-day
+.It
+8 %Y-%m-%d/%H year-month-day/hour
+.El
+.It Fl t Ar interval
+Sets the time interval in seconds to rotate files. The default value is 300s ( 5min ).
+The smallest available interval is 2s.
+.It Fl z
+Compress flow files with LZO1X-1 compression. Fastest compression.
+.It Fl y
+Compress flow files with LZ4 compression. Fast and efficient.
+.It Fl j
+Compress flow files with bz2 compression. Slow but most efficient. It is not recommended 
+to use bz2 in a real time capturing.
+.It Fl e
+Sets auto-expire mode. At the end of every rotate interval
+.Fl t
+.Nm
+runs an expire cycle to delete files according to max lifetime and max filesize as defined by nfexpire(1)
+.It Fl x Ar command
+At the end of every
+.Fl t
+interval and after the file rotate has completed, 
+.Nm
+runs the command
+.Ar command .
+The string for
+.Ar command
+may contain the following place holders, which are expanded bevore running:
+.Bl -item -compact
+.It
+%f   File name of new data file inluding any sub hierarchy.
+.It
+%d   Top 
+.Ar flowdir .
+The full path of the new file is: %d/%f
+.It
+%t   Time slot string in ISO format e.g. 201107110845.
+.It
+%u   Time slot string in UNIX time format.
+.It
+%i   Identification string
+.Ar ident
+string supplied by
+.Fl I
+.El
+.It Fl m Ar metricpath
+Enables the flow metric exporter. Flow metric information is sent to the UNIX socket
+.Ar metricpath
+at the rate specified by
+.Fl i
+This option may by used to export flow metric information to other systems such as InfluxDB or Prometheus.
+Please note: The flow metric does not include the full record. Only the flow statistics is sent.
+.It Fl i Ar metricrate
+Sets the interval for the flow metric exporter. This interval may be different from the file rotation
+interval
+.Ar t 
+and is therefore independant from file rotation.
+.It Fl v
+Increase verbose level by 1. The verbose level may be increased for debugging purpose up to 3.
+.It Fl E
+Equal to -v -v -v. Print netflow records in block format to stdout. Please note, that not all elements
+are printed, which are available in the flow record. To inspect all elements, use
+.Ar nfdump
+.Fl o Ar raw
+This option is for debugging purpose only, to verify if incoming netflow data is processed correctly.
+.It Fl V
+Print
+.Nm 
+version and exit.
+.It Fl h
+Print help text on stdout with all options and exit.
+.El
+.Sh RETURN VALUES
+.Nm
+returns 0 on success and 255 if initialization failed.
+.Sh SEE ALSO
+http://sflow.org
+.Pp
+https://sflow.org/developers/licensing.php
+.Pp
+https://github.com/sflow/sflowtool
+.Pp
+.Xr nfdump 1
+.Xr nfcapd 1
+.Xr nfpcapd 1
+.Sh BUGS
+No software without bugs! Please report any bugs back to me.

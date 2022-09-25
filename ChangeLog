@@ -1,12 +1,2 @@
-- Compatibility to autoconf 2.69
-- Update metric. Make collector main clock reference
-- Switch to VS code as editor
-- Cleanup/update automake files
-- Unify all timestamps to msec 
-- Sync GuessDir from master
-- add output parameter struct
-- Introduce file layout V2. Adappt for new record format.
-- Cleanup lots of old stuff
-
-2020-02-23
-- Create unicorn repo for working towards nfdump-1.7.x
+2022-09-28
+- nfdump-1.7.0 - unicorn release
