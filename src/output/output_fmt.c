@@ -863,7 +863,7 @@ static void String_sniName(FILE *stream, master_record_t *r) {
 }  // End of String_sniName
 
 static void String_observationDomainID(FILE *stream, master_record_t *r) {
-    fprintf(stream, "0x%09u", r->observationDomainID);
+    fprintf(stream, "0x%09x", r->observationDomainID);
 }  // End of String_observationDomainID
 
 static void String_observationPointID(FILE *stream, master_record_t *r) {
