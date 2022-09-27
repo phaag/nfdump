@@ -1,50 +1,68 @@
 # nfdump
 
-UNICORN is the development branch of nfdump.
-It implements all new changes for nfdump 1.7
+nfdump-1.7.x or nfdump **unicorn** is the new release of nfdump.
 
-__This is beta code. Use it at your own risk. Changes are made as required
-until the final release of nfdump-1.7__
+nfdump-1.6.24 receives bug fixes, but will no longer get new features.
 
-For production environments use stabe releases 1.6.23 or newer.
-nfdump-1.7.x is compatible to nfdump-1.6.18, which means it can read files
-created with nfdump-1.6.18 or newer. Flow files created with earlier nfdump
-versions are not guaranteed to be fully processed. 
+## Introduction
 
-If you are new to nfdump, see the Introduction and Overview chapters below.
-If you are already an experienced nfdump use, see the What's New chapter.
-This Readme is still incomplete and will get improved. 
+nfdump is a toolset in order to collect and process netflow/ipfix and sflow data, sent from netflow/sflow compatible devices.
 
----
+The toolset contains several collectors to collect flow data:
 
-## What's New
-Nfdump exists since 2004 and got a lot of updates and new features over
-time. Usually this results in substantial changes in code and the file format.
-All major version changes introduced a bunch of new things. Nfdump 1.7 is no 
-exception to this. 
+- nfcapd supports netflow __v1__, __v5/v7__, __v9__ and __IPFIX__
+- sfcapd supports **sflow**. 
+- nfpcapd converts pcap data read from a host interface or from pcap files.
+
+The collected flow data is stored into files and can be process afterwards.
+nfdump processes and lists the flows in many different output formats and
+can create a wide range of statistics.
+
+**nfdump** has a very powerful flow filter to process flows. The filter syn‐
+tax is very similar to tcpdump, but adapted and extended for flow filter‐
+ing. A flow filter may also contain arrays of *many thousand IP addresses*
+etc. to search for specific records.
+
+**nfdump** can aggreagte flows according to a user defined number of ele‐
+ments. This masks certain elements and allows to sum up flow records
+matching the same values.
+
+The combination of flow *filtering* and *aggregation* as input for any flow
+statistics allows **complex flow processing**. Pre‐filtered and aggregated
+flow data may also be written back into a binary flow file, which again
+may be processed with nfdump
+
+**nfdump** can enrich the listing of flows with **geo location** information and
+**AS** information, unless AS information is already available in the flow
+records. IP addresses can be tagged with a two letter **country code**, or
+with a longer location label containing the geographic region, country
+and city.  The geo location and AS information is retrieved from the
+optional **geoDB** database, created by the geolookup program from the nfdump
+tools.  geolookup uses the **Maxmind** database GeoDB or GeoLite2 to create a
+binary lookup database for nfdump Please check the geolooup(1) man page
+for more details.
 
 ### Compatibility
-Nfdump 1.7 reads and processes transparently nfdump-1.6.18 files and newer
-and older nfdump-1.6.x with minor restrictions. New files are always written
-in the new format for nfdump-1.7.x. Reading and processing 1.6.x files may introduce
-a small format conversion penalty, depending on the task requested. Conversion
-is requested for any flow statistics, sorting and flow writing tasks. No
-format conversion is requesting for flow filtering and printing. 
-Nfdump 1.7.0 provides the same set of programs as 1.6.x and can be used almost
+You may use nfdump-1.6.24 oder nfdump-1.7.x, depending on your needs. 
+nfdump-1.7.x is compatible to nfdump-1.6.18, which means it can read files 
+created with nfdump-1.6.18 or newer. Flow files created with earlier nfdump
+versions may not contain all flow elements. If you have older files, it is
+recommended to use nfdump-1.6.17 to update the records.
+
+Nfdump 1.7.x provides the same set of programs as 1.6.x and can be used almost
 as a drop-in replacement. This may change in future and older legacy programs
 may be removed. You can convert any old files from nfdump-1.6 to nfdump-1.7
 format by reading/writing files: __./nfdump -r old-flowfile -y -w new-flowfile__
-Please not, that only __nfdump__ may read older flow files. All other programs
+
+Please note, that only __nfdump__ may read older flow files. All other programs
 relay on the new file format.
-The extension option -T in nfcapd/sfcapd has been removed. The binaries still
-accept this option for compatibility, but it's ignored. nfcapd and sfcapd
-collect and store automatically all known flow elements.
 
-for compatibility, Nfsen specific binaries such as nfprofile and nftrack are
-still available with nfdump-1.7 but may be removed in future.
+Although nfdump-1.7.x ist mostly compatible with old Nfsen, it not recommended
+to replace nfdump iin your NfSen installation. However, all specific binaries such 
+as nfprofile and nftrack are still available with nfdump-1.7 but may be removed
+in future.
 
-### Improvements
-A lot of old code has been removed and rewritten for Nfdump-1.7. 
+### Improvements 
 - nfdump is now a multi-threaded program and uses parallel threads mainly for
 reading, writing and processing flows as well as for sorting. This may result
 in a 2 to 3 times faster flow processing, depending on the tasks. The speed
@@ -56,17 +74,20 @@ improves compatibility with some exporters such as yaf and others.
 
 - Support for Cisco Network Based Application Recognition (NBAR).
 
+- Supports Maxmind geo location information to tag/geolocate IP addresses
+  and AS numbers.
+
 - nfpcapd automatically uses TPACKET_V3 for Linux or direct BPF sockets for
   *BSD. This improves packet processing. It adds new options to collect MAC and
   VLAN information if requested as well as the payload of the first packet. This
   creates a lot of new possibilities in oder to process and filter flows, such
-  as __nfdump -r flowfile 'payload content POST'__
+  as __nfdump -r flowfile 'payload content "POST"'__
   nfpcapd can now store flow files locally or can sent them to a remote nfcapd
   collector.
 
-- Exports every 60s (by default) summary statistics (metric) to a UNIX socket. The corresponding program may be [nfinflux](https://github.com/phaag/nfinflux) to insert these metrics into an influxDB.
-
-  Use **-m </path/to/socket>** to enable metric export
+- Metric exports: By default, every 60s a flow summary statistics  can be sent
+  to a UNIX socket. The corresponding program may be [nfinflux](https://github.com/phaag/nfinflux) to insert 
+  these metrics into an influxDB or [nfexporter](https://github.com/phaag/nfexporter) for Prometheus monitoring.
 
 ### New programs
 The nfdump program suite has been extended by __geolookup__. It allows either
@@ -81,12 +102,7 @@ __geolookup__ needs to be enabled when running configure: __--enable-maxmind__
 
 ---
 
-## Introduction
 
-nfdump is a toolset in order to collect and process netflow and sflow data, sent from netflow/sflow compatible devices. 
-The toolset supports netflow __v1__, __v5/v7__,__v9__,__IPFIX__ and __SFLOW__.  nfdump supports IPv4 as well as IPv6.
-
----
 
 ## NSEL/ASA, NEL/NAT support
 
@@ -95,20 +111,9 @@ __NSEL__ (Network Event Security Logging) as well as NEL (NAT Event Logging) are
 __Jun OS NAT Event Logging__ is mostly compatible with CISCO's NAT Event Logging - mostly - it needs another data interpretation.
 See __--enable-jnat__ below
 
----
 
-## IPFIX
 
-nfdump contains an IPFIX module for decoding IPFIX flow data. It
-does not support the full IPFIX definition.
-
-* Supports basically same feature set of elements as netflow_v9 module
-* Only UDP traffic is accepted no TCP/SCTP
-* If you would like to see more IPFIX support, please contact me. 
-
----
-
-## Overview
+## Installation
 
 ### Building and config options
 
@@ -265,19 +270,20 @@ It's recommended to have multiple collector on busy networks for
 each source.
 Example: Start two collectors on different ports:
 
-	nfcapd -w -D -S 2 -B 1024000 -l /flow_base_dir/router1 -p 23456
-	nfcapd -w -D -S 2 -B 1024000 -l /flow_base_dir/router2 -p 23457
+	nfcapd -D -S 2 -B 1024000 -w /flow_base_dir/router1 -p 23456
+	nfcapd -D -S 2 -B 1024000 -w /flow_base_dir/router2 -p 23457
 
 nfcapd can handle multiple flow sources.
 All sources can go into a single file or can be split:
 
 All into the same file:
 
-	nfcapd -w -D -S 2 -l /flow_base_dir/routers -p 23456
+	nfcapd -D -S 2 -w /flow_base_dir/routers -p 23456
 
 Collected on one port and split per source:
 
-	nfcapd -w -D -S 2 -n router1,172.16.17.18,/flow_base_dir/router1 \-n router2,172.16.17.20,/flow_base_dir/router2 -p 23456
+	nfcapd -D -S 2 -n router1,172.16.17.18,/flow_base_dir/router1 \
+		-n router2,172.16.17.20,/flow_base_dir/router2 -p 23456
 
 See nfcapd(1) for a detailed explanation of all options.
 
@@ -361,145 +367,20 @@ supports the following fields. This list can be found in netflow_v9.h
 
 ### Flowset record types
 
-Tag | ID
-----|---
-NF9_IN_BYTES | 1
-IN_PACKETS | 2
-NF9_FLOWS_AGGR | 3
-NF9_IN_PROTOCOL | 4
-NF9_SRC_TOS | 5
-NF9_TCP_FLAGS | 6
-NF9_L4_SRC_PORT | 7
-NF9_IPV4_SRC_ADDR | 8
-NF9_SRC_MASK | 9
-NF9_INPUT_SNMP | 10
-NF9_L4_DST_PORT | 11
-NF9_IPV4_DST_ADDR | 12
-NF9_DST_MASK | 13
-NF9_OUTPUT_SNMP | 14
-NF9_V4_NEXT_HOP | 15
-NF9_SRC_AS  | 16
-NF9_DST_AS  | 17
-NF9_BGP_V4_NEXT_HOP | 	18
-NF9_LAST_SWITCHED | 21
-NF9_FIRST_SWITCHED | 22
-NF9_OUT_BYTES | 23
-NF9_OUT_PKTS | 24
-NF9_IPV6_SRC_ADDR | 27
-NF9_IPV6_DST_ADDR | 28
-NF9_IPV6_SRC_MASK | 29
-NF9_IPV6_DST_MASK | 30
-NF9_IPV6_FLOW_LABEL | 31
-NF9_ICMP_TYPE | 32
-NF9_SAMPLING_INTERVAL | 34
-NF9_SAMPLING_ALGORITHM | 35
-NF9_ENGINE_TYPE | 38
-NF9_ENGINE_ID | 39
-NF9_FLOW_SAMPLER_ID | 48 
-FLOW_SAMPLER_MODE  | 49 
-NF9_FLOW_SAMPLER_RANDOM_INTERVAL | 50
-NF9_MIN_TTL | 52
-NF9_MAX_TTL | 53
-NF9_IPV4_IDENT | 54
-NF9_DST_TOS | 55
-NF9_IN_SRC_MAC | 56
-NF9_OUT_DST_MAC | 57
-NF9_SRC_VLAN | 58
-NF9_DST_VLAN | 59
-NF9_DIRECTION | 61
-NF9_V6_NEXT_HOP | 62 
-NF9_BPG_V6_NEXT_HOP | 63 
-// NF9_V6_OPTION_HEADERS | 64
-NF9_MPLS_LABEL_1 | 70
-NF9_MPLS_LABEL_2 | 71
-NF9_MPLS_LABEL_3 | 72
-NF9_MPLS_LABEL_4 | 73
-NF9_MPLS_LABEL_5 | 74
-NF9_MPLS_LABEL_6 | 75
-NF9_MPLS_LABEL_7 | 76
-NF9_MPLS_LABEL_8 | 77
-NF9_MPLS_LABEL_9 | 78
-NF9_MPLS_LABEL_10 | 79
-NF9_IN_DST_MAC | 80
-NF9_OUT_SRC_MAC | 81
-NF9_FORWARDING_STATUS | 89
-NF9_BGP_ADJ_NEXT_AS  | 128
-NF9_BGP_ADJ_PREV_AS  | 129
-
-### CISCO ASA NSEL extension - Network Security Event Logging__
-Tag | ID
-----|---
-NF_F_FLOW_BYTES | 85
-NF_F_CONN_ID | 148
-NF_F_FLOW_CREATE_TIME_MSEC | 152
-NF_F_ICMP_TYPE | 176
-NF_F_ICMP_CODE | 177
-NF_F_ICMP_TYPE_IPV6 | 178
-NF_F_ICMP_CODE_IPV6 | 179
-NF_F_FWD_FLOW_DELTA_BYTES | 231
-NF_F_REV_FLOW_DELTA_BYTES | 232
-NF_F_FW_EVENT84 | 		233
-NF_F_EVENT_TIME_MSEC | 323
-NF_F_INGRESS_ACL_ID | 33000
-NF_F_EGRESS_ACL_ID | 33001
-NF_F_FW_EXT_EVENT | 33002
-NF_F_USERNAME | 40000
-NF_F_XLATE_SRC_ADDR_IPV4 | 40001
-NF_F_XLATE_DST_ADDR_IPV4 | 40002
-NF_F_XLATE_SRC_PORT | 40003
-NF_F_XLATE_DST_PORT | 40004
-NF_F_FW_EVENT | 40005
-
-### Cisco ASR 1000 series NEL extension - Nat Event Logging__
-Tag | ID
-----|---
-NF_N_NAT_EVENT | 230
-NF_N_INGRESS_VRFID | 234
-NF_N_EGRESS_VRFID | 235
-NF_N_NAT_INSIDE_GLOBAL_IPV4 | 225
-NF_N_NAT_OUTSIDE_GLOBAL_IPV4 | 226
-NF_N_POST_NAPT_SRC_PORT | 	227
-NF_N_POST_NAPT_DST_PORT | 	228
-
-### latency extensions for nfpcapd and nprobe__
-Tag | ID
-----|---
-NF9_NPROBE_CLIENT_NW_DELAY_SEC | 57554
-NF9_NPROBE_CLIENT_NW_DELAY_USEC | 57555
-NF9_NPROBE_SERVER_NW_DELAY_SEC | 57556
-NF9_NPROBE_SERVER_NW_DELAY_USEC | 57557
-NF9_NPROBE_APPL_LATENCY_SEC | 	57558
-NF9_NPROBE_APPL_LATENCY_USEC | 57559
-
-32 and 64 bit counters are supported for any counters. However, internally
-nfdump stores packets and bytes counters always as 64bit counters. 
-16 and 32 bit AS numbers are supported.
+Links
 
 Extensions: nfcapd supports a large number of v9 tags. It automatically add
 extensions to store data for v9/IPFIX elements which are supported.
 
 ### Sampling
-By default, the sampling rate is set to 1 (unsampled) or to 
-any given value specified by the -s cmd line option. If sampling information is found 
-in the netflow stream, it overwrites the default value. Sampling is automatically 
-recognised when announced in v9 option templates (tags #48, #49, #50 ), (tag #34, #35)
-or in the unofficial v5 header hack. 
-Note: Not all platforms (or IOS versions) support exporting sampling information in 
-netflow data, even if sampling is configured. The number of bytes/packets in each 
+By default, the sampling rate is set to 1 (unsampled) or to any given value specified 
+by the -s cmd line option. If sampling information is found in the netflow stream, 
+it overwrites the default value. Sampling is automatically recognised when announced 
+in v9 option templates (tags #48, #49, #50 ), (tag #34, #35) or in the unofficial v5 
+header hack. 
+Note: Not all platforms (or CISCO IOS versions) support exporting sampling information
+in netflow data, even if sampling is configured. The number of bytes/packets in each 
 netflow record is automatically multiplied by the sampling rate. The total number of 
 flows is not changed as this is not accurate enough. (Small flows versus large flows)
 
-### InfluxDB
-You can send nfprofile stats data to an influxdb database. The data are the same of rrd files.
-For enable this option you need libcurl dev package installed, use --enable-influxdb for configure the project and the nfprofile command should be invoked with option: -i <influxurl> . 
-Example: -i http://localhost:8086/write?db=mydb&u=user&p=pass 
-The parameters for auth (&u=user&p=pass) are optional.
-Then you get the stats data on influxdb mydb in the measurement nfsen_stats.
-
-For put the stats of live profile you need to apply a patch to nfsen (in extra/nfsen) and add in nfsen.conf the option:
-	$influxdb_url="http://mydbhost.local:8086/write?db=nfsen";
-as example I added a preconfigured grafana dashboard in extra/grafana/Nfsen_Stats.json .
-
----
-
-For more information, see the GitHub Wiki
+For more information, see the GitHub Wiki.
