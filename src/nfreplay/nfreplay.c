@@ -375,7 +375,7 @@ int main(int argc, char **argv) {
     delay = 1;
     count = 0;
     sockbuff_size = 0;
-    netflow_version = 5;
+    netflow_version = 9;
     verbose = 0;
     confirm = 0;
     distribution = 0;

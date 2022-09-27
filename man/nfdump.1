@@ -1,1356 +1,1749 @@
-.TH nfdump 1 2022\-08\-13 "" ""
-.SH NAME
-nfdump \- netflow display and analyze program
-.SH SYNOPSIS
-.HP 5
-.B nfdump [options] [filter]
-.SH DESCRIPTION
-.B nfdump
-is the netflow display and analyzing program of the nfdump tool set. 
-It reads the netflow data from files stored by nfcapd/nfpcapd or sfcapd
-and processes the flows according to the options given. To a large extend
-the filter syntax is comparable to tcpdump and adapted for netflow data.
-Nfdump can also display many different top N flow and flow element statistics.
-
-.SH OPTIONS
-.TP 3
-.B -r \fIinputfile
-Read input data from \fIinputfile\fR.
-.TP 3
-.B -R \fIexpr
-Read input from a sequence of files in the same directory. \fIexpr\fR
-may be one of:
-.PD 0
-.RS 4
-/any/\fIdir\fR          Read recursively all files in directory \fIdir\fR.
-.P
-/dir/\fIfile\fR         Read all files beginning with \fIfile\fR.
-.P
-/dir/\fIfile1:file2\fR  Read all files from \fIfile1\fR to \fIfile2\fR.
-
-.P
-When using in combination with a sub hierarchy:
-.P
-/dir/\fIsub1/sub2/file1:sub3/sub4/file2\fR
-.P
-Read all files from \fIsub1/sub2/file1\fR 
-\fIsub3/sub4/file2\fR iterating over all required hierarchy levels.
-
-.P
-Note: files are read in alphabetical order.
-.RE
-.PD
-.TP 3
-.B -M \fIexpr
-Read input from multiple directories. \fIexpr\fR looks like:
-\fI/any/path/to/dir1:dir2:dir3\fR etc. and will be expanded to the
-directories: \fI/any/path/to/dir1\fR, \fI/any/path/to/dir2\fR and 
-\fI/any/path/to/dir3\fR Any number of colon separated directories may 
-be given. The files to read are specified by \-r or \-R and are expected 
-to exist in all the given directories.  The options \-r and \-R must 
-not contain any directory part when used in conjunction with \-M.
-.TP 3
-.B -m
-deprecated option. Use -O tstart instead.
-.TP 3
-.B -O \fIorder
-Set sort order to print flows or aggregated flows. \fIorder\fR can be:
-.RS 5
-flows    Sort according to the number of flows
-.br
-packets  Sort according to (in)packets
-.br
-ipkg     Same as packets
-.br
-opkg     Sort according to output packets
-.br
-bytes    Sort according to (in)bytes
-.br
-ibyte    Same as bytes
-.br
-obyte    Sort according to output bytes
-.br
-pps      Sort according to (in)packets per second
-.br
-ipps     Same as ipps
-.br
-opps     Sort according to out packets per second
-.br
-bps      Sort according to (in)bytes per second
-.br
-ibps     Same as bps
-.br
-obps     Sort according to output bytes per second
-.br
-bpp      Sort according to (in)bytes per packet
-.br
-ibpp     Same as bpp
-.br
-obpp     Sort according to output packets
-.br
-tstart   Sort according to start time of flow - former -m
-.br
-tend     Sort according to end time of flows
-.RE
-.TP 3
-.B -w \fIoutputfile
-If specified writes binary netflow records to \fIoutputfile\fR ready
-to be processed again with nfdump. The default output is ASCII on
-stdout. In combination with options \-m, \-a, \-b, and \-B write aggregated
-and/or sorted flow cache in binary format to disk.
-.TP 3
-.B -f \fIfilterfile
-Reads the filter syntax from \fIfilterfile\fR. Note: Any filter specified
-directly on the command line takes precedence over \-f.
-.TP 3
-.B -t \fItimewin
-Process only flows which fall in the time window \fItimewin\fR, where
-\fItimewin\fR is YYYY/MM/dd.hh:mm:ss[\-YYYY/MM/dd.hh:mm:ss]. Any parts of
-the time spec may be omitted e.g YYYY/MM/dd expands to 
-YYYY/MM/dd.00:00:00\-infinity and processes all flow from a given day 
-onwards. The time window may also be specified as +/\- n. In this case
-it is relativ to the beginning or end of all flows. +10 means the first
-10 seconds of all flows, \-10 means the last 10 seconds of all flows.
-.TP 3
-.B -c \fInum
-Limit the number of records to \fInum\fR flows which passed the nfdump filter.
-.TP 3
-.B -a
-Aggregate netflow data. Aggregation is done at connection level by taking 
-the 5\-tuple protocol, srcip, dstip, srcport and dstport.
-.TP 3
-.B -A \fIaggregation 
-Similar to Flexible Netflow (FNF), netflow records can be aggregated 
-by any number of given v9 fields. \fIaggregation\fR is a ',' separated list
-of recognised tags from the following list:
-.RS 5
-proto      IP protocol
-.br
-srcip      Source IP address
-.br
-dstip      Destination IP address
-.br
-srcip4/net IPv4 source IP address with applied netmask 
-.br
-srcip6/net IPv6 source IP address with applied netmask
-.br
-dstip4/net IPv4 destination IP address with applied netmask
-.br
-dstip6/net IPv6 destination IP address with applied netmask
-.br
-srcnet     Apply netmask srcmask in netflow record for source IP 
-.br
-dstnet     Apply netmask dstmask in netflow record for dest IP
-.br
-srcport    Source port
-.br
-dstport    Destination port
-.br
-srcmask    Source mask
-.br
-dstmask    Destination mask
-.br
-srcvlan    Source vlan label
-.br
-dstvlan    Destination vlan label
-.br
-srcas      Source AS number
-.br
-dstas      Destination AS number
-.br
-nextas     BGP Next AS
-.br
-prevas     BGP Previous AS
-.br
-inif       SNMP input interface number
-.br
-outif      SNMP output interface number
-.br
-next       IP next hop
-.br
-bgpnext    BGP next hop
-.br
-insrcmac   In source MAC address
-.br
-outdstmac  out destination MAC address
-.br
-indstmac   In destintation MAC address
-.br
-outsrcmac  Out source MAC address
-.br
-tos        Source type of service
-.br
-srctos     Source type of Service
-.br
-dsttos     Destination type of Service
-.br
-mpls1      MPLS label 1
-.br
-mpls2      MPLS label 2
-.br
-mpls3      MPLS label 3
-.br
-mpls4      MPLS label 4
-.br
-mpls5      MPLS label 5
-.br
-mpls6      MPLS label 6
-.br
-mpls7      MPLS label 7
-.br
-mpls8      MPLS label 8
-.br
-mpls9      MPLS label 9
-.br
-mpls10     MPLS label 10
-.br
-router     Exporting router's IP
-.br
-odid       observation domain ID
-.br
-opid       observation point ID
-.br
-xsrcip     X-late source IP address, if compiled with NSEL support
-.br
-xdstip     X-late destination IP address, if compiled with NSEL support
-.br
-xsrcport   X-late source port, if compiled with NSEL support
-.br
-xdstport   X-late destination port, if compiled with NSEL support
-.RE
-.RS 3
-.P
-nfdump automatically compiles an appropriate output format for the selected
-aggregation unless an explicit output format is given. The automatic output
-format is identical to \fB\-o 'fmt:%ts %td <fields> %pkt %byt %bps %bpp %fl'\fR
+\" Copyright (c) 2022, Peter Haag
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions are met:
+.\"
+.\"  * Redistributions of source code must retain the above copyright notice,
+.\"    this list of conditions and the following disclaimer.
+.\"  * Redistributions in binary form must reproduce the above copyright notice,
+.\"    this list of conditions and the following disclaimer in the documentation
+.\"    and/or other materials provided with the distribution.
+.\"  * Neither the name of the author nor the names of its contributors may be
+.\"    used to endorse or promote products derived from this software without
+.\"    specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+.\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+.\" LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd $Mdocdate$
+.Dt NFDUMP 1
+.Os
+.Sh NAME
+.Nm nfdump
+.Nd flow display and analysis program
+.Sh SYNOPSIS
+.Nm
+.Fl r Ar flowpath
+.Op Fl w Ar outfile
+.Op Fl f Ar filterfile
+.Op Fl C Ar config
+.Op Fl R Ar filelist
+.Op Fl M Ar dirlist
+.Op Fl O Ar order
+.Op Fl t Ar timewin
+.Op Fl c Ar num
+.Op Fl a
+.Op Fl A Ar aggregation
+.Op Fl b
+.Op Fl B
+.Op Fl I
+.Op Fl D Ar nameserver
+.Op Fl G Ar geoDB
+.Op Fl s Ar statistic
+.Op Fl n Ar num
+.Op Fl o Ar format
+.Op Fl 6
+.Op Fl q
+.Op Fl N
+.Op Fl i Ar ident
+.Op Fl v Ar flowfile
+.Op Fl E Ar flowfile
+.Op Fl x Ar flowfile
+.Op Fl z
+.Op Fl y
+.Op Fl j
+.Op Fl J Ar num
+.Op Fl X
+.Op Fl Z
+.Op Fl T
+.Op Fl V
+.Op Fl h
+.Op filter
+.Sh DESCRIPTION
+.Nm
+reads the flow data from one or more binary files, created by any nfdump collector
+.Ar nfcapd, nfpcapd
+and
+.Ar sfcapd .
+It processes and lists the flows in many different output formats and can create a wide
+range of statistics.
+.Pp
+.Nm
+has a very powerful flow filter to process flows. The filter syntax is very similar
+to tcpdump, but adapted and extended for flow filtering. A flow filter may also contain
+arrays of many thousand IP addresses etc. to search for specific records.
+.Pp
+.Nm
+can aggreagte flows according to a user defined number of elements. This masks certain
+elements and allows to sum up flow records matching the same values.
+.Pp
+The combination of flow filtering and aggregation as input for any flow statistics
+allows complex flow processing. Pre-filtered and aggregated flow data may also be
+written back into a binary flow file, which again may be processed with
+.Nm
+.Pp
+.Nm
+can enrich the listing of flows with geo location information and AS information,
+unless AS information is already available in the flow records. IP addresses can be
+tagged with a two letter country code, or with a longer location label containing
+the geographic region, country and city.  The geo location and AS information is
+retrieved from the optional
+.Ar geoDB
+database, created by the
+.Ar geolookup
+program from the nfdump tools.
+.Ar geolookup
+uses the
+.Ar Maxmind
+database
+.Ar GeoDB
+or
+.Ar GeoLite2
+to create a binary lookup database for
+.Nm
+Please check the
+.Ar geolooup(1)
+man page for more details.
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl r Ar flowpath
+Reads flow records from this path.
+.Ar flowpath
+may be a single file, or a directory containing any number of flow files or sub
+directories.  All files are processed in the order, as listed by the OS.
+.It Fl w Ar outfile
+Writes all processed records into
+.Ar outfile
+instead of printing. The
+.Ar flowfile
+is a binary flow file and may be processed again with
+.Nm
+This can be useful to limit flows according to a flow filter and/or specific flow
+aggregation.
+.It Fl f Ar filterfile
+Reads the flow filter from
+.Ar filterfile.
+This can be useful for very long or structured filters, with comments and long lists.
+.Ar Note:
+Any filter specified directly on the command line takes precedence over the
+.Ar filterfile.
+.It Fl C Ar config
+Read more options from file
+.Ar config.
+.Nm
+tries to read by default
+.Ar %prefix/etc/nfdump.config.
+This may be overwritten by the environment valiable
+.Ar NFCONF
+which again may be overwritten by this option
+.Fl C.
+In order to prevent reading any config file, even if it would exist set
+.Fl C
+.Sy none.
+A config file is not required, but may be handy for often used output formats etc.
+.It Fl O Ar order
+Sets an output order for records to be printed as text output. This order applies
+after all records processing, such as filtering, and aggregation and before printing.
+.Bl -tag -width "duration" -compact
+.It Cm flows
+Sort according to the number of flows
+.It Cm packets
+Sort according to (in)packets
+.It Cm ipkg
+Same as packets
+.It Cm opkg
+Sort according to output packets
+.It Cm bytes
+Sort according to (in)bytes
+.It Cm ibyte
+Same as bytes
+.It Cm obyte
+Sort according to output bytes
+.It Cm pps
+Sort according to (in)packets per second
+.It Cm ipps
+Same as ipps
+.It Cm opps
+Sort according to out packets per second
+.It Cm bps
+Sort according to (in)bytes per second
+.It Cm ibps
+Same as bps
+.It Cm obps
+Sort according to output bytes per second
+.It Cm bpp
+Sort according to (in)bytes per packet
+.It Cm ibpp
+Same as bpp
+.It Cm obpp
+Sort according to output packets
+.It Cm tstart
+Sort according to start time of flow - former -m
+.It Cm tend
+Sort according to end time of flows
+.It Cm duration
+Sort according to duration of flows
+.El
+.It Fl t Ar timewin
+Set time window to process flows. This option is considered legacy andmay be replaced
+with a
+.Ar filter
+primitiv
+in future rleases. The time window is specified as: YYYY/MM/dd.hh:mm:ss[-YYYY/MM/dd.hh:mm:ss].
+Any parts of the time spec may be omitted e.g YYYY/MM/dd expands to YYYY/MM/dd.00:00:00-infinity
+and processes all flow from a given day onwards. The time window may also be specified as +/- n.
+In this case it is relativ to the beginning or end of all flows. +10 means the first 10 seconds
+of all flows, -10 means the last 10 seconds of all flows.
+.It Fl c Ar num
+Limit the number of records to be processed to the first
+.Ar num
+records, which passwd the
+.Ar filter.
+.It Fl a
+Aggregate flow records. The default aggregation is done at connection level by taking the 5-tuple
+.Ar protocol, srcip, dstip, srcport
+and
+.Ar dstport.
+This way of aggregation may be overwritten by option
+.Fl A
+.It Fl A Ar aggregation
+Sets the list of elements in a flow record to be aggregated.
+.Ar aggregation
+is a ',' separated list of any number of v9/ipfix elements. The following elements are accepted:
+.Bl -tag -width "srcip4/net" -compact
+.It Cm proto
+IP protocol
+.It Cm srcip
+Source IP address
+.It Cm dstip
+Destination IP address
+.It Cm srcip4/net
+IPv4 source IP address with applied netmask
+.It Cm srcip6/net
+IPv6 source IP address with applied netmask
+.It Cm dstip4/net
+IPv4 destination IP address with applied netmask
+.It Cm dstip6/net
+IPv6 destination IP address with applied netmask
+.It Cm srcnet
+Apply netmask srcmask in netflow record for source IP
+.It Cm dstnet
+Apply netmask dstmask in netflow record for dest IP
+.It Cm srcport
+Source port
+.It Cm dstport
+Destination port
+.It Cm srcmask
+Source mask
+.It Cm dstmask
+Destination mask
+.It Cm srcvlan
+Source vlan label
+.It Cm dstvlan
+Destination vlan label
+.It Cm srcas
+Source AS number
+.It Cm dstas
+Destination AS number
+.It Cm nextas
+BGP Next AS
+.It Cm prevas
+BGP Previous AS
+.It Cm inif
+SNMP input interface number
+.It Cm outif
+SNMP output interface number
+.It Cm next
+IP next hop
+.It Cm bgpnext
+BGP next hop
+.It Cm insrcmac
+In source MAC address
+.It Cm outdstmac
+out destination MAC address
+.It Cm indstmac
+In destintation MAC address
+.It Cm outsrcmac
+Out source MAC address
+.It Cm tos
+Source type of service
+.It Cm srctos
+Source type of Service
+.It Cm dsttos
+Destination type of Service
+.It Cm mpls1
+MPLS label 1
+.It Cm mpls2
+MPLS label 2
+.It Cm mpls3
+MPLS label 3
+.It Cm mpls4
+MPLS label 4
+.It Cm mpls5
+MPLS label 5
+.It Cm mpls6
+MPLS label 6
+.It Cm mpls7
+MPLS label 7
+.It Cm mpls8
+MPLS label 8
+.It Cm mpls9
+MPLS label 9
+.It Cm mpls10
+MPLS label 10
+.It Cm router
+IP address of exporting router
+.It Cm odid
+observation domain ID
+.It Cm opid
+observation point ID
+.It Cm xsrcip
+X-late source IP address, if compiled with NSEL support
+.It Cm xdstip
+X-late destination IP address, if compiled with NSEL support
+.It Cm xsrcport
+X-late source port, if compiled with NSEL support
+.It Cm xdstport
+X-late destination port, if compiled with NSEL support
+.El
+.Pp
+.Nm
+automatically compiles the appropriate output format for the selected aggregation elements
+unless an explicit output format
+.Fl o
+is given. The automatic output format is identical to
+.Pp
+.Dl -o 'fmt:%ts %td <fields> %pkt %byt %bps %bpp %fl'
+.Pp
 where <fields> represents the selected aggregation tags.
-.P
-Example:
-.RS 3
-\fB \-A proto,srcip,dstport\fR
-.P
-\fB \-A srcas,dstas\fR
-.P
-.RE
-.RE
-.TP 3
-.B -b
-Aggregate netflow records as bidirectional flows. Automatically implies \-a. 
-Aggregation is done on connection level by taking the 5\-tuple protocol, srcip, 
-dstip, srcport and dstport, or the reverse order for the corresponding connection 
-flow. Input and output packets/bytes are counted and reported separately. Both 
-flows are merged into a single record. An appropriate output format is selected 
-automatically, which may be overwritten by any \-o format option.
-.TP 3
-.B -B
-Like \-b but automagically swaps flows if src port is < dst port 
-for TCP and UDP flows and src port < 1024 and dst port > 1024.
-as some exporters do not care sending the flows in proper order. Other
-flows are not affected. It's considered to be a conveniency option. 
-.TP 3
-.B -I
-Print flow statistics from file specified by \-r, or timeslot specified by \-R/\-M. 
-.TP 3
-.B -D \fIdns
-Set \fIdns\fR as nameserver to look up hostnames.
-.TP 3
-.B -G \fIgeoDB
-Use this \fIgeoDB\fR file to lookup country/location/AS information. This file
-was created with geolookup. If no specific output format is specified, nfdump
-selects \fIgline\fR as output format, to add country code to line format. See
-output formats below.
-.TP 3
-.B -s \fIstatistic[:p][/orderby]
-Generate the Top N flow or flow element statistic. \fIstatistic\fR can be:
-.RS 5
-record    Statistic about aggregated netflow records.
-.br
-srcip     Statistic about source IP addresses
-.br
-dstip     Statistic about destination IP addresses
-.br
-ip        Statistic about any (source or destination) IP addresses
-.br
-nhip      Statistic about next hop IP addresses
-.br
-nhbip     Statistic about BGP next hop IP addresses
-.br
-router    Statistic about exporting router IP address
-.br
-srcport   Statistic about source ports
-.br
-dstport   Statistic about destination ports
-.br
-port      Statistic about any (source or destination) ports
-.br
-tos       Statistic about type of service \- default src
-.br
-srctos    Statistic about src type of service
-.br
-dsttos    Statistic about dst type of service
-.br
-dir       Statistic about flow directions ingress/egress
-.br
-srcas     Statistic about source AS numbers
-.br
-dstas     Statistic about destination AS numbers
-.br
-as        Statistic about any (source or destination) AS numbers
-.br
-inif      Statistic about input interface
-.br
-outif     Statistic about output interface
-.br
-if        Statistic about any interface
-.br
-srcmask   Statistic about src mask
-.br
-dstmask   Statistic about dst mask
-.br
-srcvlan   Statistic about src vlan label
-.br
-dstvlan   Statistic about dst vlan label
-.br
-vlan      Statistic about any vlan label
-.br
-insrcmac  Statistic about input src MAC address
-.br
-outdstmac Statistic about output dst MAC address
-.br
-indstmac  Statistic about input dst MAC address
-.br
-outsrcmac Statistic about output src MAC address
-.br
-srcmac    Statistic about any src MAC address
-.br
-dstmac    Statistic about any dst MAC address
-.br
-inmac     Statistic about any input MAC address
-.br
-outmac    Statistic about any output MAC address
-.br
-mask      Statistic about any mask
-.br
-proto     Statistic about IP protocols
-.br
-mpls1     Statistic about MPLS label 1
-.br
-mpls2     Statistic about MPLS label 2
-.br
-mpls3     Statistic about MPLS label 3
-.br
-mpls4     Statistic about MPLS label 4
-.br
-mpls5     Statistic about MPLS label 5
-.br
-mpls6     Statistic about MPLS label 6
-.br
-mpls7     Statistic about MPLS label 7
-.br
-mpls8     Statistic about MPLS label 8
-.br
-mpls9     Statistic about MPLS label 9
-.br
-mpls10    Statistic about MPLS label 10
-.br
-sysid     Statistic about Internal SysID of exporter
-.br
-nbar      Statistic about nbar ID
-.br
-ja3       Statistic about ja3 hashes
-.br
-odid      Statistic about observation domain ID
-.br
-opid      Statistic about observation point ID
-.br
-
-.br
+.It Fl b
+Aggregate flow records as bidirectional flows. This automatically implies -a.  Aggregation
+is done on connection level by taking the 5-tuple
+.Ar protocol, srcip, dstip, srcport
+and
+.Ar dstport
+The reverse order applies for the corresponding reverse flow. Input and output packets/bytes
+are counted and reported separately. Both flows are merged into a single record with corresponding
+input and output counters. An appropriate output format is selected automatically, which may be
+overwritten by any
+.Fl o Ar format
+option.
+.It Fl B
+Similar to option
+.Fl b
+but tries to guess the correct client to server direction. Automagically swaps flows if
+src port is < dst port for TCP and UDP flows and src port < 1024 and dst port > 1024.
+Some exporters do not really care sending the flows in proper order.
+It's considered to be a conveniency option.
+.It Fl I
+Print flow statistics of a single file or the summary of all the files specified by
+.Fl r Ar flowpath.
+.It Fl g
+Print for each flow file given by
+.Fl r Ar flowpath
+a one line summary, which can be easily used by gnu plot.
+.It Fl D Ar nameserver
+Sets the
+.Ar nameserver
+to translate hostnames into IP addresses in filter expressions. See
+.Ar filter
+below for more details.
+.It Fl G Ar geoDB
+Use
+.Ar geoDB
+as geo lookup DB for geo location and AS lookups.
+.Nm
+tries to read the environment variable
+.Ar NFGEODB
+for the path of
+.Ar geoDB.
+The option
+.Fl G
+overwrites
+.Ar NFGEODB.
+In order to prevent reading any
+.Ar geoDB
+file, even if it would exist set
+.Fl G
+.Sy none.
+.It Fl s Ar statistic Op Ar :p Op Ar /orderby
+Generate the Top N flow record or flow element statistic. By optionally adding
+.Sy :p
+to
+.Ar statistic,
+the statistic is additionally split up into the transport layer protocols.
+By default the statistic is transport protocol independent.
+Each
+.Ar statistic
+may be ordered by the optional parameter
+.Ar orderby
+This can be
+.Sy flows, packets, bytes, pps, bps
+or
+.Sy bpp.
+You may specify more than one
+.Ar orderby
+option, which results in the same statistic but ordered differently. If no orderby
+is given, the statistic is ordered by flows. You can specify as many -s flow element
+statistics as needed on the command line for the same run.
+.Pp
+.Ar statistic
+can be:
+.Pp
+.Bl -tag -width "outsrcmac" -compact
+.It Cm record
+aggregated netflow records.
+.It Cm srcip
+source IP addresses
+.It Cm dstip
+destination IP addresses
+.It Cm ip
+any (src or dst) IP addresses
+.It Cm nhip
+next hop IP addresses
+.It Cm nhbip
+BGP next hop IP addresses
+.It Cm router
+exporting router IP address
+.It Cm srcport
+source ports
+.It Cm dstport
+destination ports
+.It Cm port
+any (source or destination) ports
+.It Cm tos
+type of service - default src
+.It Cm srctos
+src type of service
+.It Cm dsttos
+dst type of service
+.It Cm dir
+flow directions ingress/egress
+.It Cm srcas
+source AS numbers
+.It Cm dstas
+destination AS numbers
+.It Cm as
+any (source or destination) AS numbers
+.It Cm inif
+input interface
+.It Cm outif
+output interface
+.It Cm if
+any interface
+.It Cm srcmask
+src mask
+.It Cm dstmask
+dst mask
+.It Cm srcvlan
+src vlan label
+.It Cm dstvlan
+dst vlan label
+.It Cm vlan
+any vlan label
+.It Cm insrcmac
+input src MAC address
+.It Cm outdstmac
+output dst MAC address
+.It Cm indstmac
+input dst MAC address
+.It Cm outsrcmac
+output src MAC address
+.It Cm srcmac
+any src MAC address
+.It Cm dstmac
+any dst MAC address
+.It Cm inmac
+any input MAC address
+.It Cm outmac
+any output MAC address
+.It Cm mask
+any mask
+.It Cm proto
+IP protocols
+.It Cm mpls1
+MPLS label 1
+.It Cm mpls2
+MPLS label 2
+.It Cm mpls3
+MPLS label 3
+.It Cm mpls4
+MPLS label 4
+.It Cm mpls5
+MPLS label 5
+.It Cm mpls6
+MPLS label 6
+.It Cm mpls7
+MPLS label 7
+.It Cm mpls8
+MPLS label 8
+.It Cm mpls9
+MPLS label 9
+.It Cm mpls10
+MPLS label 10
+.It Cm sysid
+Internal SysID of exporter
+.It Cm nbar
+nbar ID
+.It Cm ja3
+ja3 hashes
+.It Cm odid
+observation domain ID
+.It Cm opid
+observation point ID
+.It
+.Pp
 NSEL/ASA statistics
-.br
-event     NSEL/ASA event
-.br
-xevent    NSEL/ASA extended event
-.br
-xsrcip    NSEL/ASA translated src IP address
-.br
-xsrcport  NSEL/ASA translated src port
-.br
-xdstip    NSEL/ASA translated dst IP address
-.br
-xdstport  NSEL/ASA translated dst port
-.br
-iacl      NSEL/ASA ingress ACL
-.br
-iace      NSEL/ASA ingress ACE
-.br
-ixace     NSEL/ASA ingress xACE
-.br
-eacl      NSEL/ASA egress ACL
-.br
-eace      NSEL/ASA egress ACE
-.br
-exace     NSEL/ASA egress xACE
-.br
-
-.br
+.It Cm event
+NSEL/ASA event
+.It Cm xevent
+NSEL/ASA extended event
+.It Cm xsrcip
+NSEL/ASA translated src IP address
+.It Cm xsrcport
+NSEL/ASA translated src port
+.It Cm xdstip
+NSEL/ASA translated dst IP address
+.It Cm xdstport
+NSEL/ASA translated dst port
+.It Cm iacl
+NSEL/ASA ingress ACL
+.It Cm iace
+NSEL/ASA ingress ACE
+.It Cm ixace
+NSEL/ASA ingress xACE
+.It Cm eacl
+NSEL/ASA egress ACL
+.It Cm eace
+NSEL/ASA egress ACE
+.It Cm exace
+NSEL/ASA egress xACE
+.It
+.Pp
 NAT statistics
-.br
-nevent    NAT event
-.br
-vrf/ivrf  NAT ingress vrf
-.br
-evrf      NAT egress vrf
-.br
-nsrcip    NAT src IP address
-.br
-nsrcport  NAT src port
-.br
-ndstip    NAT dst IP address
-.br
-ndstport  NAT dst port
-.br
-.RE
-.RS 3
-.P
-By adding \fI:p\fR to the statistic name, the resulting statistic is split up into
-transport layer protocols. Default is transport protocol independent statistics.
-.P
-\fIorderby\fR is optional and specifies the order by which the statistics are
-ordered and can be \fIflows\fR, \fIpackets\fR, \fIbytes\fR, \fIpps\fR, \fIbps\fR 
-or \fIbpp\fR. You may specify more than one \fIorderby\fR which results in the 
-same statistic but ordered differently. If no \fIorderby\fR is given, statistics 
-are ordered by \fIflows\fR.
-You can specify as many \-s flow element statistics as needed on the command line for the 
-same run. 
-.P
-Example:
-.RS 3
-\fB\-s srcip \-s ip/flows \-s dstport/pps/packets/bytes \-s record/bytes\fR
-.RE
-.RE
-.PP
-.TP 3
-.B -n \fInum
-For record statistics (-s .. ): Define the number for the Top N. Defaults to 10. 
-Use -n 0 to list all records.
-.br
-For record sorting and aggregation (-a .. -O ..): Limit the records to the first 
-top \fInum\fR sorted records.
-if not specified or -n 0 is given, all records are listed.
-.TP 3
-.B -o \fIformat
-Selects the output format to print flows or flow record statistics (\-s record). The following 
-formats are available:
-.RS 5
-raw      Print full flow record on multiple lines.
-.br
-line     Print each flow on one line. Default format.
-.br
-long     Print each flow on one line with more details
-.br
-biline   Same as line, but for bidir flows
-.br
-bilong   Same as long, but for bidir flows
-.br
-gline    Same as line, but add country code to IPs
-.br
-glong    Same as long, but add country code to IPs
-.br
-extended Print each flow on one line with even more details.
-.br
-nsel     Print each NSEL event on one line. Default if NSEL/NAT
-.br
-nel      Print each NAT event on one line. 
-.br
-json     Print full record as separate json object.
-.br
-csv      Legacy .csv format - use json instead.
-.br
-pipe     Legacy '|' separated format - use json instead.
-.br
-fmt:\fIformat\fR
-User defined output format.
-.RE
-.RS 3
-For each defined output format except \-o fmt:<format> an IPv6 long output format exists.
-\fBline6, long6 and extended6\fR. See \fIoutput formats\fR below for more information.
-.RE
-.PD
-.TP 3
-.B -q
-Be quiet. Suppress the header line and the statistics at the bottom.
-.TP 3
-.B -N
-Print plain numbers in output. Easier for post\-parsing.
-.TP 3
-.B -i \fIident
-Change ident label in file, specified by \-r to \fIident
-.TP 3
-.B -v \fIfile
-Verify \fIfile\fR. Print data file version, number of blocks 
-and compression status.
-.TP 3
-.B -E \flfile
-Print exporter/sampler list found in \fIfile\fR. In case of
-a nfcapd collector file, additional statistics per exporter 
-are printed with number of flows, packets and sequence errors.
-.TP 3
-.B -x \flfile
-Scan and print extension maps located in file \flfile\fR
-.TP 3
-.B -j
-Compress flows. Use bz2 compression in output file. Space efficient method
-.TP 3
-.B -y
-Compress flows. Use LZ4 compression in output file. Time efficient method
-.TP 3
-.B -z
-Compress flows. Use fast LZO1X\-1 compression in output file. Time efficient method
-.TP 3
-.B -J \flnum\fR
-Change compression for file(s) given by -r <file> or -R <dir>
-num: 0 uncompress, 1: LZO1X\-1, 2: bz2, 3: LZ4 compression
-.TP 3
-.B -Z
-Check filter syntax and exit. Sets the return value accordingly.
-.TP 3
-.B -T
-Tag IP addresses with a prepending cntrl-A character, to allow output parsers
-to hook in. Used by NfSen.
-.TP 3
-.B -X
-Compiles the filer syntax and dumps the filter engine table to stdout.
-This is for debugging purpose only.
-.TP 3
-.B -V
-Print nfdump version and exit.
-.TP 3
-.B -h
+.It Cm nevent
+NAT event
+.It Cm vrf/ivrf
+NAT ingress vrf
+.It Cm evrf
+NAT egress vrf
+.It Cm nsrcip
+NAT src IP address
+.It Cm nsrcport
+NAT src port
+.It Cm ndstip
+NAT dst IP address
+.It Cm ndstport
+NAT dst port
+.El
+.Pp Example:
+.Pp
+.Dl % nfdump -s srcip -s ip/flows/bytes -s record/bytes
+.Pp
+.It Fl n Ar num
+Set the number of records to be printed to
+.Ar num.
+This option applies to
+.Fl s
+statistics as well as to ordered output
+.Fl O or aggreated records
+.Fl a
+The default is set to 10 for statistics and unlimited for the other use cases. To disable the limit, set
+.Ar num
+to 0.
+.It Fl o Ar format
+Sets the output format to print flow records.
+.Nm has many different output formats already predefined.
+.Ar format may be one of the options below:
+.Pp
+.Bl -tag -width "extended " -compact
+.It Cm raw
+Print the full flow record on multiple lines. This prints all available information.
+.It Cm fmt: Ar user
+Print the flow records according the format
+.Ar user.
+This is a very flexible and powerful way to format flow records. See the section
+.Sy OUTPUT
+below for more details on how to compile your own format.
+.It Cm json
+Print full record as a separate json object.
+.It Cm csv
+Legacy .csv format - will get removed in future releases. Please use
+.Sy json
+instead.
+.It Cm pipe
+Legacy '|' separated format - will get removed in future releases. Please use
+.Sy json
+instead.
+.El
+.Pp
+Already predefined fmt formats:
+.Pp
+.Bl -tag -width "extended" -compact
+.It Cm line
+Print each flow on one line. Default format.
+.It Cm long
+Print each flow on one line with more details
+.It Cm biline
+Same as
+.Ar line,
+but for bi-directional flows
+.It Cm bilong
+Same as
+.Ar long,
+but for bi-directional flows
+.It Cm gline
+Same as
+.Ar line,
+but add country code to IPs. If a geoDB file is supplied
+this is the default output format
+.It Cm glong
+Same as
+.Ar long,
+but add country code to IPs
+.It Cm extended
+Print each flow on one line with even more details.
+.It Cm nsel
+Print format for NSEL event records. Default format if NSEL/NAT
+support has been compiled in.
+.It Cm nel
+Print format for NAT event records.
+.El
+.Pp
+The
+.Nm
+config file may contain additional formats. If you want to add new formats or
+change existing ones, check the config file.
+.Pp
+IPv6 addresses are printed condensed in any
+.Sy fmt
+defined format to prevent cluttering the output with large blank blocks. A condensed IPV6 uses max 16 characters. If it is
+longer, then the middle part of the IP is cut out and replaced be "..". For previewing an output, this fits most needs.
+For a listing with the full IPV6 addresses add option
+.Fl 6.
+.It Fl 6
+Print full length of IPv6 addresses in output instead of condensed.
+.It Fl q
+Quiet mode. Suppress the header line and the statistics at the bottom of text outputs.
+.It Fl N
+Print plain numbers in output without scaling. Easier for output parsing with 3rd party tools.
+.It Fl i Ar ident
+Change the ident label in the file, specified by
+.Fl r
+to
+.Ar ident
+.It Fl v Ar flowfile
+Verify the consistency of
+.Ar flowfile
+and print the file parameters and number of records.
+.It Fl E Ar flowfile
+Print the exporter and sampler list if found in
+.Ar flowfile.
+Additional statistics per exporter are printed with number of flows, packets and sequence errors.
+.It Fl x Ar flowfile
+This options works on nfdump version 1.6.x files only and may get removed in future.
+Scans and prints extension maps located in
+.Ar flowfile
+.It Fl z
+Compress flow files with LZO1X-1 compression. Fastest compression.
+.It Fl y
+Compress flow files with LZ4 compression. Fast and efficient.
+.It Fl j
+Compress flow files with bz2 compression. Slow but most efficient. May be used
+for archiving files or if you are really short of spce.
+.It Fl J Ar num
+Change compression for any number of files given by option
+.Fl r Ar flowpath
+num: 0 uncompress, 1: LZO1X-1, 2: bz2, 3: LZ4 compression. This option may be used
+for archiving flow files and changing the compression to use less disk space.
+.It Fl X
+Compiles the
+.Ar filter
+syntax and dumps the filter engine table to stdout. This is for debugging purpose only.
+.It Fl Z
+Check
+.Ar filter
+syntax and exit. Sets the return value accordingly.
+.It Fl R Ar filelist
+Select a range of files. This option is mainly used by old NfSen and documented here
+as legacy opton.
+.Bl -item -compact
+.It
+/any/dir          Read recursively all files in directory dir.
+.It
+/dir/file         Read all files beginning with file.
+.It
+/dir/file1:file2  Read all files from file1 to file2.
+.El
+When using in combination with a sub hierarchy:
+/dir/sub1/sub2/file1:sub3/sub4/file2
+Read all files from sub1/sub2/file1 sub3/sub4/file2 iterating over all required hierarchy levels.
+Note: files are read in alphabetical order.
+.It Fl M Ar dirlist
+Read the same file hierarchy from multiple directories. This option is mainly used by
+old NfSen and documented here as legacy option.
+Example: /any/path/to/dir1:dir2:dir3 etc. and will be expanded to the directories:
+/any/path/to/dir1, /any/path/to/dir2 and /any/path/to/dir3. Any number of colon separated
+directories may be given. The files to read are specified by -r or -R and are expected to
+exist in all the given directories. The options -r and -R must not contain any directories
+when used in combination with -M.
+.It Fl T
+Tag IP addresses with a prepending cntrl-A character, to allow output parsers to hook in.
+This option is mainly used by old NfSen and documented here as legacy option.
+.It Fl V
+Print
+.Nm
+version and exit.
+.It Fl h
 Print help text on stdout with all options and exit.
-.SH "RETURN VALUE"
-Returns 
-.PD 0
-.RS 4 
-0   No error. \fn
-.P
-255 Initialization failed.
-.P
-254 Error in filter syntax.
-.P
-250 Internal error.
-.RE
-.PD
-.SH "OUTPUT FORMATS"
-The output format \fBraw\fR prints each flow record on multiple lines, including
-all information available in the record. This is the most detailed view on a 
-flow. 
-.P
-Other output formats print each flow on a single line. Predefined output formats are
-\fBline\fR, \fBlong\fR and \fBextended\fR
-The output format \fBline\fR is the default output format when no format is specified.
-It limits the imformation to the connection details as well as number of packets, 
-bytes and flows.
-.P
-The output format \fBlong\fR is identical to the format \fBline\fR, and includes
-additional information such as TCP flags and Type of Service.
-.P
-The output format \fBextended\fR is identical to the format \fBlong\fR, and includes
-additional computed information such as \fBpps\fR, \fBbps\fR and \fBbpp\fR.
-.P
-\fIFields:\fR
-.P
-.RS 3
-\fBDate flow start:\fR Start time the flow was first seen. ISO 8601 format 
-including milliseconds.
-.P
-\fBDuration:\fR Duration of the flow in seconds and milliseconds. 
-If flows are aggregated, \fIduration\fR is the time span over the 
-entire period of time from first seen to last seen.
-.P
-\fBProto:\fR Protocol used in the connection.
-.P
-\fBSrc IP Addr:Port:\fR Source IP address and source port.
-.P
-\fBDst IP Addr:Port:\fR Destination IP address and destination port.
-In case of ICMP, port is decoded as type.code.
-.P
-\fBFlags:\fR TCP flags OR-ed of the connection.
-.P
-\fBTos:\fR Type of service.
-.P
-\fBPackets:\fR The number of packets in this flow. If flows are 
-aggregated, the packets are summed up. 
-.P
-\fBBytes:\fR The number of bytes in this flow. If flows are aggregated, 
-the bytes are summed up.
-.P
-\fBpps:\fR The calculated packets per second: number of packets / duration. 
-If flows are aggregated this results in the average pps during this period of time.
-.P
-\fBbps:\fR The calculated bits per second: 8 * number of bytes / duration. If flows
-are aggregated this results in the average bps during this period of time.
-.P
-\fBBpp:\fR The calculated bytes per packet: number of bytes / number of packets. If flows
-are aggregated this results in the average bpp during this period of time.
-.P
-\fBFlows:\fR Number of flows. If flows are listed only, this number is always 1. If flows
-are aggregated, this shows the number of flows aggregated in this one record.
-.RE
-.PD
-.P
-Numbers larger than 1'000'000 (1000*1000), are scaled to 4 digits and one decimal digit including the
-scaling factor \fBM\fR, \fBG\fR or \fBT\fR for cleaner output, e.g. \fB923.4 M\fR
-.P
-To make the output more readable, IPv6 addresses are shrinked down to 16 characters. The seven
-leftmost and seven rightmost digits connected with two dots \fB'..'\fR are displayed in any normal 
-output formats. To display the full IPv6 address, use the appropriate long format, which is the format
-name followed by a \fB6\fR. 
-.P 
-Example: \fB\-o line\fR displays an IPv6 address as \fB2001:23..80:d01e\fR where the format 
-\fB\-o line6\fR displays the IPv6 address in full length \fB2001:234:aabb::211:24ff:fe80:d01e\fR.
-The combination of \fB\-o line \-6\fR is equivalent to \fB\-o line6\fR.
-.P
-The output format \fBfmt:<format>\fR allows you to define your own output format.
-A format description \fBformat\fR consists of a single line containing arbitrary strings
-and format specifier as described below
-.P
-.RS 3
-\fB%<format>\fR Inserts the predefined \fBformat\fR at this position. e.g. \fB%line\fR
-.br
-\fB%cnt\fR      Record counter. Dynamically assigned.
-.br
-\fB%nfv\fR      Netflow version. 
-.br
-\fB%ts\fR       Start Time \- first seen
-.br
-\fB%tfs\fR      First seen - identical to %ts
-.br
-\fB%tsr\fR      Start Time, but in fractional seconds since the epoch (1970-01-01)
-.br
-\fB%te\fR       End Time \- last seen
-.br
-\fB%ter\fR      End Time, in fractional seconds
-.br
-\fB%tr\fR       Time the flow was received by the collector
-.br
-\fB%trr\fR      Time the flow was received, in fractional seconds
-.br
-\fB%td\fR       Duration
-.br
-\fB%pr\fR       Protocol
-.br
-\fB%exp\fR      Exporter ID
-.br
-\fB%eng\fR      Engine Type/ID
-.br
-\fB%lbl\fR      Flowlabel
-.br
-\fB%sa\fR       Source Address
-.br
-\fB%da\fR       Destination Address
-.br
-\fB%sap\fR      Source Address:Port
-.br
-\fB%dap\fR      Destination Address:Port
-.br
-\fB%gsap\fR     Source Address(country):Port
-.br
-\fB%gdap\fR     Destination Address(country):Port
-.br
-\fB%sp\fR       Source Port
-.br
-\fB%dp\fR       Destination Port
-.br
-\fB%it\fR       ICMP-type
-.br
-\fB%ic\fR       ICMP-code
-.br
-\fB%sn\fR       Source Network, mask applied
-.br
-\fB%dn\fR       Destination Network, mask applied
-.br
-\fB%nh\fR       Next\-hop IP Address
-.br
-\fB%nhb\fR      BGP Next\-hop IP Address
-.br
-\fB%ra\fR       Router IP Address
-.br
-\fB%sas\fR      Source AS
-.br
-\fB%das\fR      Destination AS
-.br
-\fB%nas\fR      Next AS
-.br
-\fB%pas\fR      Previous AS
-.br
-\fB%in\fR       Input Interface num
-.br
-\fB%out\fR      Output Interface num
-.br
-\fB%pkt\fR      Packets \- default input
-.br
-\fB%ipkt\fR     Input Packets
-.br
-\fB%opkt\fR     Output Packets
-.br
-\fB%byt\fR      Bytes \- default input
-.br
-\fB%ibyt\fR     Input Bytes
-.br
-\fB%obyt\fR     Output Bytes
-.br
-\fB%fl\fR       Flows
-.br
-\fB%flg\fR      TCP Flags
-.br
-\fB%tos\fR      Tos \- default src
-.br
-\fB%stos\fR     Src Tos
-.br
-\fB%dtos\fR     Dst Tos
-.br
-\fB%dir\fR      Direction: ingress, egress
-.br
-\fB%smk\fR      Src mask
-.br
-\fB%dmk\fR      Dst mask
-.br
-\fB%fwd\fR      Forwarding Status
-.br
-\fB%svln\fR     Src vlan label
-.br
-\fB%dvln\fR     Dst vlan label
-.br
-\fB%ismc\fR     Input Src Mac Addr
-.br
-\fB%odmc\fR     Output Dst Mac Addr
-.br
-\fB%idmc\fR     Input Dst Mac Addr
-.br
-\fB%osmc\fR     Output Src Mac Addr
-.br
-\fB%mpls1\fR    MPLS label 1
-.br
-\fB%mpls2\fR    MPLS label 2
-.br
-\fB%mpls3\fR    MPLS label 3
-.br
-\fB%mpls4\fR    MPLS label 4
-.br
-\fB%mpls5\fR    MPLS label 5
-.br
-\fB%mpls6\fR    MPLS label 6
-.br
-\fB%mpls7\fR    MPLS label 7
-.br
-\fB%mpls8\fR    MPLS label 8
-.br
-\fB%mpls9\fR    MPLS label 9
-.br
-\fB%mpls10\fR   MPLS label 10
-.br
-\fB%mpls\fR     MPLS labels 1-10
-.br
-\fB%bps\fR      bps \- bits per second
-.br
-\fB%pps\fR      pps \- packets per second
-.br
-\fB%bpp\fR      bps \- Bytes per package
-.br
-\fB%sc\fR       src IP 2 letter country code
-.br
-\fB%dc\fR       dst IP 2 letter country code
-.br
-\fB%sloc\fR     src IP geo location info
-.br
-\fB%dloc\fR     dst IP geo location info
-.br
-\fB%n\fR        new line char \\n
-.br
-\fB%ipl\fR      input payload
-.br
-\fB%opl\fR      ouput payload
-.br
-\fB%nbid\fR     nbar ID
-.br
-\fB%ja3\fR      ja3 hash
-.br
-\fB%sni\fR      sni name in tls handshake
-.br
-\fB%nbnam\fR    nbar name
-.br
-\fB%odid\fR     observation domainID
-.br
-\fB%opid\fR     observation pointID
-.br
-
-.br
-NSEL specific formats
-.br
-\fB%nfc\fR      NSEL connection ID
-.br
-\fB%evt\fR      NSEL event
-.br
-\fB%xevt\fR     NSEL extended event
-.br
-\fB%sgt\fR      NSEL Source security group tag
-.br
-\fB%msec\fR     NSEL event time in msec
-.br
-\fB%iacl\fR     NSEL ingress ACL
-.br
-\fB%eacl\fR     NSEL egress ACL
-.br
-\fB%xsa\fR      NSEL XLATE src IP address
-.br
-\fB%xda\fR      NSEL XLATE dst IP address
-.br
-\fB%xsp\fR      NSEL XLATE src port
-.br
-\fB%xdp\fR      NSEL SLATE dst port
-.br
-\fB%xsap\fR     Xlate Source Address:Port
-.br
-\fB%xdap\fR     Xlate Destination Address:Port
-.br
-\fB%uname\fR    NSEL user name
-.br
-
-.br
-NEL/NAT specific formats
-.br
-\fB%nevt\fR     NAT event - same as %evt
-.br
-\fB%ivrf\fR     NAT ingress VRF ID 
-.br
-\fB%evrf\fR     NAT egress VRF ID 
-.br
-\fB%nsa\fR      NAT src IP address
-.br
-\fB%nda\fR      NAT dst IP address
-.br
-\fB%nsp\fR      NAT src port
-.br
-\fB%ndp\fR      NAT dst port
-.br
-\fB%pbstart\fR  NAT pool block start
-.br
-\fB%pbend\fR    NAT pool block end
-.br
-\fB%pbstep\fR   NAT pool block step
-.br
-\fB%pbsize\fR   NAT pool block size
-.br
-
-.br
-Nprobe formats
-.br
-\fB%cl\fR       Client latency
-.br
-\fB%sl\fR       Server latency
-.br
-\fB%al\fR       Application latency
-.br
-
-.RE
-.PD
-.P
-
-Example: the standard output format \fBlong\fR can be created as
-.RS 3
-\fB\-o "fmt:%ts %td %pr %sap \-> %dap %flg %tos %pkt %byt %fl"\fR
-.RE
-.P
-You may also define your own output format and have it compiled into nfdump.
-See nfdump.c section \fBOutput Formats\fR for more details.
-.P
-The \fBjson\fR output format is intended to be read by another program for 
-further processing. if should be compatible by any other program acepting json
-records.
-.P
-.SH "FILTER"
-The filter syntax is similar to the well known pcap library used by tcpdump.
-The filter can be either specified on the command line after all options or 
-in a separate file. It can span several lines. Anything after a '#' is treated as a 
-comment and ignored to the end of the line. There is virtually no limit in 
-the length of the filter expression. All keywords are case insensitive.
-.P Syntax
-Any filter consists of one or more expressions \fIexpr\fR. Any number of \fIexpr\fR
-can be linked together:
-.P
-expr \fBand\fR expr, expr \fBor\fR expr, \fBnot\fR expr and \fB(\fR expr \fB)\fR.
-.P
-\fIExpr\fR can be one of the following filter primitives:
-.TP 4
-.I include
-\fB@include <file>\fR
-.br
-include the content of \fI<file>\fR into filter.
-.TP 4
-.I record count
-\fBcount\fR  [comp] <num>\fR
-.br
-with \fI<num>\fR any valid record number. 
-All records get a dynamically increased number assigned, as they are read from the file stream.
-.TP 4
-.I ip version
-\fBinet\fR  or \fBipv4\fR for IPv4
-.br
-\fBinet6\fR or \fBipv6\fR for IPv6
-.TP 4
-.I protocol
-\fBproto <protocol>\fR 
-.br 
-\fBproto <number>\fR 
-.br
-\fBtun proto <protocol>\fR 
-.br 
-\fBtun proto <number>\fR 
-.br
-where \fB<protocol>\fR is known protocol such as 
-\fBtcp\fR, \fBudp\fR, \fBicmp\fR, \fBicmp6\fR, \fBgre\fR, 
-\fBesp\fR, \fBah\fR, etc. or a valid protocol number: 
-\fB6\fR, \fB17\fR etc. I case of tunnel flows add
-\fBtun\fR to match the outer tunnel protocol. 
-.TP 4
-.I IP address
-.RS 4
-\fB[src|dst] ip <ipaddr>\fR
-.br
-\fB[src|dst] host <ipaddr>\fR 
-.br
-\fB[src|dst] tunip <ipaddr>\fR
-.br
-with \fI<ipaddr>\fR as any valid IPv4, IPv6 address, or a fully qualified
-hostname.  In case of a hostname, the IP address is looked up in DNS. 
-If more than a single IP address is found, all IP addresses are chained 
-together. \fB(ip1 or ip2 or ip3 ... )\fR For tunnel flows use 
-\fBtunip\fR to match the outer tunnel IP.
-.P
-To check if an IP address is in a known IP list, use
-.br
-\fB[src|dst] ip in [ <iplist> ] \fR
-.br
-\fB[src|dst] host in [ <iplist> ]  \fR
-.br
-\fI<iplist>\fR is a space or comma separated list of individual \fB<ipaddr>\fR or 
-fully qualified hostnames, which are looked up in DNS. If more than a 
-single IP address is found, all IP addresses are put into the list.
-.RE
-.PD
-.TP 4
-.I [src|dst]
-IP addresses, networks, ports, AS numbers etc. can be specifically selected
-by using a direction qualifier, such as \fbsrc\fR or \fBdst\fR.
-They can also be used in combination with \fBand\fR and \fBor\fR.
-such as \fBsrc and dst ip ..\fR. 
-.TP 4
-.I network
-\fB[src|dst] net a.b.c.d m.n.r.s\fR
-.br
-Select the IPv4 network \fIa.b.c.d\fR with netmask \fIm.n.r.s\fR.
-.br
-
-.br
-\fB[src|dst] net <net>/<num>\fR
-.br
-with \fI<net>\fR as a valid IPv4 or IPv6 network and \fI<num>\fR as mask bits. 
-The number of mask bits must match the appropriate address family in IPv4 or 
-IPv6. Networks may be abbreviated such as 172.16/16 if they are unambiguous.
-.RE
-.TP 4 
-.I Port
-.RS 4
-\fB[src|dst] port [comp] <num>\fR
-.br
-with \fI<num>\fR as any valid port number.  If \fIcomp\fR is omitted, 
- '=' is assumed. \fIcomp\fR is explained in more details below.
-.br
-\fB[src|dst] port in [ <portlist> ] \fR
-.br
-A port can be compared against a know list, where \fB<portlist>\fR is a 
-space separated list of individual port numbers.
-.RE
-.TP 4 
-.I ICMP
-.RS 4
-\fBicmp\-type <num>\fR 
-.br
-\fBicmp\-code <num>\fR
-.br
-with \fI<num>\fR as a valid icmp type/code. This automatically implies 
-\fBproto icmp\fR.
-.RE
-.TP 4 
-.I Router ID
-.RS 4
-\fBengine\-type <num>\fR 
-.br
-\fBengine\-id <num>\fR
-.br
-\fBsysid <num>\fR
-.br
-with \fI<num>\fR as a valid router engine type/id or exporter ID(0..255).
-.RE
-.TP 4 
-.I Interface
-\fB[in|out] if <num>\fR
-.br
-Select input or output or either interface ID, with \fInum\fR as the SNMP interface number. 
-.br
-Example: \fBin if 3\fR
-.TP 4
-.I AS numbers
-\fB[src|dst|prev|next] as [comp] <num>\fR
-.br
-Selects source, destination, previous, next or any AS number
-with \fI<num>\fR as any valid as number. 32-bit AS numbers are supported. If 
-\fIcomp\fR is omitted, '=' is assumed. \fIcomp\fR is explained in more details below.
-.br
-
-.br
-\fB[src|dst|prev|next] as in [ <ASlist> ] \fR
-.br
-An AS number can be compared against a know list, where \fB<ASlist>\fR is a 
-space or comma separated list of individual AS numbers.
-.RE
-.TP 4
-.I Prefix mask bits 
-\fB[src|dst] mask <bits>\fR
-.br
-with \fI<bits>\fR as any valid prefix mask bit value.
-.TP 4
-.I Vlan labels
-\fB[src|dst] vlan <num>\fR
-.br
-with \fI<num>\fR as any valid vlan label.
-.TP 4
-.I Flags
-\fBflags <tcpflags>\fR
-.br
-with \fI<tcpflags>\fR as a combination of:
-.RS 7
-A    ACK.
-.br
-S    SYN.
-.br
-F    FIN.
-.br
-R    Reset.
-.br
-P    Push.
-.br
-U    Urgent.
-.br
-X    All flags on.
-.RE
-The ordering of the flags is not relevant. Flags not mentioned are treated as don't care.
-In order to get those flows with only the SYN flag set, use the syntax '\fBflags S and not
-flags AFRPU\fR'.
-.TP 4
-.I Next hop IP
-\fBnext ip <ipaddr>\fR
-.br
-with \fI<ipaddr>\fR as IPv4/IPv6 IP address of next hop router.
-.TP 4
-.I Next\-hop router's IP in the BGP domain
-\fBbgpnext ip <ipaddr>\fR
-.br
-with \fI<ipaddr>\fR as IPv4/IPv6 next\-hop router's IP in the BGP domain. ( v9 #18 )
-.TP 4
-.I Router IP
-.br
-\fBrouter ip <ipaddr>\fR 
-.br
-Filter the flows according the IP address of the exporting router.
-.TP 4
-.I
-MAC addresses
-\fB[InOutSrcDst] mac <addr>\fR
-.br
-With \fI<addr>\fR any valid MAC address. \fBmac\fR can be made more specific 
-by using any combination of a direction specifier as defined by CISCO v9.
-\fBin src\fR, \fBin dst\fR, \fBout src\fR, \fBout dst\fR.
-.TP 4
-.I MPLS labels
-\fBmpls label<n> [comp] <num>\fR
-.br
-With \fI<n>\fR as any mpls label number 1..10. Filters exactly specified label<n>.
-.br
-\fBmpls eos [comp] <num>\fR
-.br
-.br
-Filters End of Stack label for a given value \fI<num>\fR.
-.br
-\fBmpls exp<n> [comp] <bits>\fR
-.br
-Filters experimental bits of label \fI<n>\fR with \fI<bits>\fR 0..7.
-.TP 4 
-.I Packets
-\fBpackets [comp] <num> [scale]\fR
-.br
-To filter for netflow records with a specific packet count.
-.br
-Example: \fBpackets > 1k\fR
-.TP 4 
-.I Bytes
-\fBbytes [comp] <num> [scale]\fR
-.br
-To filter for netflow records with a specific byte count.
-.br
-Example: \fBbytes 46\fR filters all empty IPv4 packets
-.TP 4
-.I Aggregated flows
-\fBflows [comp] <num> [scale]\fR
-.br
-To filter for netflow records with a specific number of aggregated flows.
-.TP 4 
-.I Type of Service (TOS)
-\fI[SourceDestination]\fR \fBtos <num>\fR
-.br
-With \fI<num>\fR 0..255. For compatibility with nfdump 1.5.x:
-\fBtos <num>\fR is equivalent with \fBsrc tos <num>\fR
-.TP 4 
-.I Packets per second: Calculated value.
-\fBpps\fR \fI[comp]\fR \fInum\fR \fI[scale]\fR
-.br
-To filter for flows with specific packets per second.
-.TP 4 
-.I Duration: Calculated value
-\fBduration\fR \fI[comp]\fR \fInum\fR
-.br
-To filter for flows with specific duration in milliseconds.
-.TP 4 
-.I Bits per second: Calculated value.
-\fBbps\fR \fI[comp]\fR \fInum\fR \fI[scale]\fR
-.br
-To filter for flows with specific bytes per second.
-.TP 4 
-.I Bytes per packet: Calculated value.
-\fBbpp\fR \fI[comp]\fR \fInum\fR \fI[scale]\fR
-.br
-To filter for flows with specific bytes per packet.
-.TP 4
-\fIscale\fR scaling factor. Maybe \fIk\fR \fIm\fR \fIg\fR. Factor is 1000
-.TP 4
-\fIcomp\fR The following comparators are supported:
-.B =, ==, >, <, >=, <=,  EQ, LT, GT, LE, GE .
-If \fIcomp\fR is omitted, '=' is assumed.
-.P
-.I payload filters
-.RS 4
-\fBpayload content '<string>'\fR
-.br
-\fBpayload content "<string>"\fR
-.br
-Flows matching a given string in the payload. Use quotes or double quotes around the string
-.br
-.P
-\fBpayload regex 'regex'\fR
-.br
-\fBpayload regex 'regex' <flags>\fR
-.br
-\fBpayload regex "regex"\fR
-.br
-\fBpayload regex "regex" <flags>\fR
-.br
-Flows matching a given regex in the payload. Use quotes or double quotes around the regex.
-.br
-.P
-Syntax:
-.br
-\fB(...)\fR subexpressions/capture ranges
-.br
-\fB|\fR the "or" operator
-.br
-\fB^\fR and \fB$\fR anchors
-.br
-\fB.\fR match any single character
-.br
-\fB[...]\fR and \fB[^...]\fR character classes
-.br
-\fB?, *, +,\fR simple quantifiers
-.br
-\fB*?, +?, ??\fR lazy quantifiers
-.br
-\fB{<num>}, {<num1>,<num2>}\fR complex quantifiers
-.br
-optional flags: [mis]
-.br
-\fBm\fR multiline
-.br
-\fBi\fR case insensitive matching
-.br
-\fBs\fR "." includes newlines
-.P
-\fBpayload ja3 <md5 string>\fR
-.br
-matches flows with the given ja3 hash for SSL/TLS handshake.
-.br
-\fBpayload ja3 defined\fR
-.br
-matches flows having any valid ja3 hash for SSL/TLS handshake.
-.br
-.RE
-.PD
-
-.I observation filters
-.RS 4
-\fBobservation domain id [comp] <number>\fR
-.br
-Select/compare observation domain id
-.P
-\fBobservation point id [comp] <number>\fR
-.br
-Select/compare observation point id
-.br
-.RE
-.PD
-
-.TP 4
-\fBNSEL/ASA specific filters:\fR
-.P
-.I NSEL/ASA Event
-.RS 4
-\fBasa event <ignore|create|term|delete|deny>\fR
-.br
-\fBasa event [comp] <number>\fR
-.br
-select NSEL/ASA event by name or number. If given as number it can be compared with a number
-.br
-.RE
-.PD
-.TP 4
-.I NSEL/ASA denied reason
-.RS 4
-\fBasa event denied <ingress|egress|interface|nosyn>\fR
-.br
-Select a NSEL/ASA denied event by type
-.RE
-.PD
-.TP 4
-.I NSEL/ASA extended events
-.RS 4
-\fBasa xevent [comp] <num>\fR
-.br
-Select an extended NSEL ASA event by number, or optionally compared by a number.
-.RE
-.PD
-.TP 4
-.I X-late IP addresses and ports
-.RS 4
-\fB[src|dst] xip <ip>\fr
-.br
-Select the translated IP address
-.P
-\fB[src|dst] xnet <net>/<num>\fR
-.br
-with \fI<net>\fR as a valid translated IPv4 or IPv6 network and \fI<num>\fR as mask bits. 
-The number of mask bits must match the appropriate address family in IPv4 or 
-IPv6. Networks may be abbreviated such as 172.16/16 if they are unambiguous.
-.P
-\fB[src|dst] xport <port>\fR
-.br
-Select the translated port
-.RE
-.PD
-.TP 4
-.I NSEL/ASA ingress/egress
-.RS 4
-\fBingress <ACL|ACE|XACE> [comp] number
-.br
-Select/compare an ingress ACL
-.P
-\fBegress ACL [comp] <number>\fR
-.br
-Select/compare an egress ACL
-.P
-
-.RE
-.PD
-.TP 4
-\fBNEL specific NAT filters:\fR
-.P
-.I NAT Event
-.RS 4
-\fBnat event <add|delete>\fR
-.br
-\fBnat event [comp] <number>\fR
-.br
-select NEL NAT event by name or number. If given as number it can be compared with a number
-.br
-.RE
-.PD
-.TP 4
-.I NEL NAT ip addresses and ports
-.RS 4
-\fB[src|dst] nip <ip>
-.br
-Select the NAT IP address
-.P
-\fB[src|dst] nport <port>
-.br
-Select the NAT port
-.RE
-.PD
-.TP 4
-.I NEL NAT vrf
-\fBingress vrf <num>\fR
-.br
-Select the vrf
-.RE
-.PD
-
-.SH "Flowlabel"
-One or more specific filter expressions can be assigned a flowlabel in order to identify
-the flow in the output according to the label. A flowlabel has the form \fB%LabelName\fR and is 
-appended or prepended to a filter expression in braces. It may have up to 16 characters. 
-Example: \fB(ip 8.8.8.8) %GoogleDNS\fR. If a filter matches, with a labeled expressions, 
-and that expression is in the matching filter path, the label can be printed in the output, 
-using the \fB%%lbl\fR format token. See OUTPUT FORMATS.
-Example: Add flowlabel to end of 'line' format: 
-.br
-\fB./nfdump -r <file> -o 'fmt:%line %lbl" ..\fR
-.br
-Note: A filter may have multiple matching paths - for example \fBproto tcp or ip 8.8.8.8\fR
-The shortest path which evaluates successfully wins. Other paths are skipped, which means 
-that flowlabels are not printed in not evaluated filter paths. A filter may contain multiple 
-flowlabels. The flowlabel of the last matching expression in the winning path is printed.
-Flowlabels are most useful in large and complex filters stored in one or multiple files, 
-to better read the flow output list. 
-.br
-Example: \fB(ip in [172.16.1.0/24]) %ISP_1 or (ip in [172.16.16.0/24]) %IPS_2 or %GoogleDNS((proto udp or proto tcp) and ip 8.8.8.8)
-.br
-.SH "EXAMPLES"
-.B nfdump \-r /and/dir/nfcapd.201907110845 \-c 100 'proto tcp and ( src ip 172.16.17.18 or dst ip 172.16.17.19 )'
-Dumps the first 100 netflow records which match the given filter.
-.P
-.B nfdump \-r /and/dir/nfcapd.201907110845 \-G /var/lib/mmc.nf 
-Prints flows in line format including the 2 letter countery code of src/dst IP addresses.
-.P
-.B nfdump \-r /and/dir/nfcapd.201907110845 \-B
-Map matching flows as bi-directional single flow.
-.P
-.B nfdump \-R /and/dir/nfcapd.201907110845:nfcapd.200407110945 'host 192.168.1.2'
-Dumps all netflow records of host 192.168.1.2 from July 11 08:45 \- 09:45
-.P
-.B nfdump \-M /to/and/dir1:dir2 \-R nfcapd.200407110845:nfcapd.200407110945  \-s record \-n 20
-Generates the Top 20 statistics from 08:45 to 09:45 from 3 sources
-.P
-.B nfdump \-r /and/dir/nfcapd.201907110845 \-s record \-n 20 \-o extended
-Generates the Top 20 statistics, extended output format
-.P
-.B nfdump \-r /and/dir/nfcapd.201907110845 \-s record \-n 20 'in if 5 and bps > 10k'
-Generates the Top 20 statistics from flows coming from interface with SNMP index of 5
-.P
-.B nfdump \-r /and/dir/nfcapd.201907110845 'inet6 and proto tcp and ( src port > 1024 and dst port 80 )
-Dumps all port 80 IPv6 connections to any web server.
-.SH NOTES
-Generating the statistics for data files of a few hundred MB is no problem. However,
-be careful if you want to create statistics of several GB of data. This may consume a lot
-of memory and can take a while. Flow anonymization has moved into nfanon.
-.SH "SEE ALSO"
-nfcapd(1), nfpcapd(1), nfanon(1), geolookup(1)
-.SH BUGS
-There is still the famous last bug. Please report them \- all the last bugs \- back to me.
-
+.El
+.Pp
+.Ar filter
+selects, which records will be further processed. If no filter is given, all
+records will be processed. Otherwise, only those flows matching the filter
+will be processed. Any IP address in a filter may be specified as IPv4 or IPv6.
+.Pp
+The filter syntax is similar to tcpdump but adapted and extended for flow records.
+The filter can be either specified on the command line after all options or in a
+separate file. It can span several lines. Anything after a '#' is treated as a
+comment and ignored to the end of the line. There is virtually no limit in the
+length of the filter expression. All keywords are case insensitive.
+.Pp
+A single filter primitiv filters a single element of a flow record.
+A filter consists of one or more primitives, which are linked together:
+.Pp
+.Dl Ar expr Sy and Ar expr
+.Dl Ar expr Sy or Ar expr
+.Dl Sy not Ar expr Sy and Ar (expr)
+.Pp
+Possible filter primitives:
+.Bl -tag -width "## spacer       ##" -compact
+.It Cm @include Ar file
+Expands the content of
+.Ar file
+into the current filter
+.Pp
+.It Cm count Ar comp number
+True if the comparison with the record counter matches
+.Ar number
+Each record gets assigned a record number at the time it is
+read from file. Therefore this record number is not unique and
+may change, depending on the order files are read.
+.It Cm ident Ar string
+True if the record ident field matches
+.Ar string.
+This filter can be used to filter out different sources.
+.Pp
+.It Cm inet
+.It Cm ipv4
+True if source and destination IP of a record are IPv4 IPs.
+.Pp
+.It Cm inet6
+.It Cm ipv6
+True if source and destination IP of a record are IPv6 IPs.
+.Pp
+.It Cm proto Ar protocol
+True if the record protocol field matches
+.Ar protocol. protocol
+can be a symbolic name such as
+.Cm tcp ,
+.Cm udp ,
+.Cm icmp ,
+.Cm ah ,
+.Cm esp ,
+.Cm ipip ,
+and many more or a protocol number, such as 6, 17 for protocol
+.Sy tcp
+and
+.Sy udp .
+.Pp
+.It Cm tun proto Ar protocol
+True if the record tunnel protocol field matches
+.Ar protocol. protocol may be a symbolic name or protocol number.
+.Pp
+.It Cm ip Ar ipaddr
+.It Cm src ip Ar ipaddr
+.It Cm dst ip Ar ipaddr
+True if the respective IP field of the record matches
+.Ar ipaddr . ipaddr
+may be an IPv4 or IPv6 address or a symbolic hostname. In this case
+a DNS lookup resolves the hostname to one or more IP addresses. If
+more than one IP results, all IPs are chained together in an
+.Cm or
+chain. (IP or IP or IP).
+If
+.Cm ip
+is not specified with
+.Cm src
+or
+.Cm dst
+the source or destination IP may match.
+.It Cm host Ar ipaddr
+.Cm host
+is just a synonym for
+.Cm ip
+(See above)
+.Pp
+.It Cm ip in Ar [ iplist ]
+.It Cm src in ip Ar [ iplist ]
+.It Cm dst ip Ar [ iplist ]
+True if the respective IP field of the record is in
+.Ar iplist. iplist
+is a space or ',' separated list of IP addresses or networks in CIDR notation.
+This is the prefered way to search in large list of IP addresses and networks
+and is much more efficient than to chain all IP addresses together.
+(IP1 or IP2 or IP3). The
+.Ar iplist
+may contain several hundreds to thousand IPs and/or networks. For just a few IPs use an
+.Cm or
+chain, otherwise use an
+.Ar iplist
+If
+.Cm ip
+is not specified with
+.Cm src
+or
+.Cm dst
+the source or destination IP may match.
+.Pp
+.It Cm net Ar network netmask
+.It Cm src net Ar network netmask
+.It Cm dst net Ar network netmask
+.It Cm net Ar network/netbits
+.It Cm src net Ar network/netbits
+.It Cm dst net Ar network/netbits
+True if the respective IP field of the record matches the
+.Ar network
+if the corresponding
+.Ar netmask
+or
+.Ar netbits
+are applied to the IP address.
+If
+.Cm net
+is not specified with
+.Cm src
+or
+.Cm dst
+the source or destination IP may match.
+.Pp
+.It Cm geo Ar geoloc
+.It Cm src geo Ar geocode
+.It Cm dst geo Ar geocode
+True, if the 2-letter country code resolved by geolookup of the source or destination IP address matches
+.Ar geocode.
+This filter works only, if a valid geoDB is specified. See geo location option above. The 2-letter
+country code corresponds to the maxmin DB definitions. if
+.Cm geo
+is not specified with
+.Cm src
+or
+.Cm dst
+the source or destination geo location code may match.
+.Pp
+.It Cm tunip Ar ipaddr
+.It Cm src tunip Ar ipaddr
+.It Cm dst tunip Ar ipaddr
+True if the respective tunnel IP field of the record matches
+.Ar ipaddr .
+If
+.Cm tunip
+is not specified with
+.Cm src
+or
+.Cm dst
+the source or destination tunnel IP may match.
+.Pp
+.It Cm port Ar comp num
+.It Cm src port Ar comp num
+.It Cm dst port Ar comp num
+True if the comparison of the respective port field matches
+.Ar num
+See
+.Ar comp
+for the comparator details. If
+.Cm port
+is not specified with
+.Cm src
+or
+.Cm dst
+the source or destination port may match.
+.Pp
+.It Cm port in Ar [ portlist ]
+.It Cm src port in Ar [ portlist ]
+.It Cm dst port in Ar [ portlist ]
+True if the respective port field of the record is in
+.Ar portlist. portlist
+is a space or ',' separated list of port numbers.  This is the
+prefered way to search in large list of port numbers and is much
+more efficient than to chain all ports together. (PORT1 or PORT2 or PORT3).
+.Ar portlist
+may contain several hundreds to thousand of port numbers.
+If
+.Cm port
+is not specified with
+.Cm src
+or
+.Cm dst
+the source or destination port may match.
+.Pp
+.It Cm icmp-type Ar num
+.It Cm icmp-code Ar num
+True if the respective icmp field of the record matches
+.Ar num.
+This automatically implies
+.Cm proto icmp.
+.Pp
+.It Cm engine-type Ar num
+.It Cm engine-id Ar num
+.It Cm sysid Ar num
+True if the respective fields of the record matches
+.Ar num
+engine type and ID are set by the exporting device, sysid refers
+to the
+.Nm
+collector internal assigned number. See also option
+.Fl E
+above.
+.Pp
+.It Cm if Ar num
+.It Cm in if Ar num
+.It Cm out if Ar num
+True if the respective interface fields of the record matches
+.Ar num.
+This ID may correspond to the SNMP ID of the interface but depends
+on the exporter.
+If
+.Cm if
+is not specified with
+.Cm in
+or
+.Cm out
+the input or output interface may match.
+.Pp
+.It Cm as Ar comp num
+.It Cm src as Ar comp num
+.It Cm dst as Ar comp num
+.It Cm prev as Ar comp num
+.It Cm next as Ar comp num
+True if the comparison of the respective AS fields matches
+.As num
+.Nm
+supports 32-bit AS numbers every where.
+Without
+.CM src, dst, prev
+or
+.CM next
+the source or destination AS may match. See
+.Ar comp
+for the comparator details.
+.Pp
+.It Cm as in Ar [ aslist ]
+.It Cm src as in Ar [ aslist ]
+.It Cm dst as in Ar [ aslist ]
+.It Cm prev as in Ar [ aslist ]
+.It Cm next as in Ar [ aslist ]
+True if the respective AS field of the record is in
+.Ar aslist. aslist
+is a space or ',' separated list of AS numbers.  This is the
+prefered way to search in large list of AS numbers and is much
+more efficient than to chain all ports together.
+.Ar aslist
+may contain several hundreds to thousand of AS numbers.
+If
+.Cm as
+is not specified with
+.Cm src, dst, prev
+or
+.Cm next
+the source or destination AS may match.
+.Pp
+.It Cm mask Ar bits
+.It Cm src mask Ar bits
+.It Cm dst mask Ar bits
+True if the respective mask bit field of the record matches
+.Ar bits
+If
+.Cm mask
+is not specified with
+.Cm src
+or
+.Cm dst
+the source or destination mask bits may match.
+.Pp
+.It Cm vlan Ar num
+.It Cm src vlan Ar num
+.It Cm dst vlan Ar num
+True if the respective vlan field of the record matches
+.Ar num
+If
+.Cm vlan
+is not specified with
+.Cm src
+or
+.Cm dst
+the source or destination vlan may match.
+.Pp
+.It Cm flags Ar tcpflags
+True if the respective tcp flags field of the record matches
+any of the given
+.Ar tcpflags. tcpflags
+is a string combination of all flags to be tested:
+.Bl -tag -width "## " -offset indent -compact
+.It Cm A
+ACK.
+.It Cm S
+SYN.
+.It Cm F
+FIN.
+.It Cm R
+Reset.
+.It Cm P
+Push.
+.It Cm U
+Urgent.
+.It Cm X
+All flags on.
+.El
+The order of the flags within
+.Ar tcpflags
+is not relevant. Flags not mentioned are treated as don't care. In order
+to get those flows with only the SYN flag set, use the syntax
+.Pp
+.Dl flags S and not flags AFRPU
+.Pp
+.It Cm router ip Ar ipaddr
+True if the ip address of the sending router matches
+.Ar ipaddr
+as valid IPv4/IPv6 address.
+.Pp
+.It Cm next ip Ar ipaddr
+True if the field next-ip of the record matches
+.Ar ipaddr
+as valid IPv4/IPv6 address.
+.Pp
+.It Cm bgpnext ip Ar ipaddr
+True if the field bgpnext-ip of the record matches
+.Ar ipaddr
+as valid IPv4/IPv6 address.
+.Pp
+.It Cm mac Ar macaddr
+.It Cm in mac Ar macaddr
+.It Cm in src mac Ar macaddr
+.It Cm in dst mac Ar macaddr
+.It Cm out mac Ar macaddr
+.It Cm out src mac Ar macaddr
+.It Cm out dst mac Ar macaddr
+True if the respective mac address field of the record matches
+.Ar macaddr
+By prepending
+.Cm mac
+with any combination of a direction specifier as defined by CISCO v9
+the test is limited to those
+.Cm mac
+addresses only. Otherwise multiple matches are possible. Without any
+specifiers any
+.Cm mac
+address is tested against
+.Ar macaddr
+.Pp
+.It Cm mpls labelN Ar comp number
+True if the comparison of the mpls label
+.Cm N
+with
+.Cm N
+as mpls label number 1..10 matches
+.Ar number
+Filters according a specific number in the mpls label stack.
+.Pp
+.It Cm mpls eos Ar comp number
+True if the comparison of the end of stack mpls label matches
+.Ar number
+.Pp
+.It Cm mpls expN Ar comp number
+True if the comparison of the experimental bits 0..7 of mpls label
+.Cm N
+with
+.Cm N
+as mpls label number 1..10 matches
+.Ar number
+.Pp
+.It Cm packets Ar comp num
+.It Cm in packets Ar comp num
+.It Cm out packets Ar comp num
+True if the comparison of the packet counter in the flow record matches
+.Ar num. num
+may contain any valid scaling factor such as
+.Ar k, m, g
+Example: packets > 1k. For a single flow
+.Cm packets
+and
+.Cm in packets
+is equivalent and describes the number of packets from source to destination.
+In case of a bi-directional flow (sent by an exporter or combined by option
+.Fl -B
+) the packet counter for the reverse flow can be tested with
+.Cm out packet
+.Pp
+.It Cm bytes Ar comp num
+.It Cm in bytes Ar comp num
+.It Cm out bytes Ar comp num
+True if the comparison of the byte counter in the flow record matches
+.Ar num. num
+may contain any valid scaling factor such as
+.Ar k, m, g
+Example: bytes > 1k
+.Cm bytes
+and
+.Cm in bytes
+is equivalent and describes the number of bytes from source to destination.
+In case of a bi-directional flow (sent by an exporter or combined by option
+.Fl -B
+) the byte counter for the reverse flow can be tested with
+.Cm out bytes
+.Pp
+.It Cm flow Ar comp num
+True if the comparison of the flow counter in the flow record matches
+.Ar num. num
+may contain any valid scaling factor such as
+.Ar k, m, g
+For each received flow, the flow counter is set to 1, unless the exporter
+sends this information. If multiple flows are aggregated, this counter is
+increased respectively.
+.Pp
+.It Cm tos Ar num
+True if the type of service field of the flow record matches
+.Ar num
+.Pp
+.It Cm flowdir Ar direction
+True, if the flow direction field in the flow record matches
+.Ar direction. direction
+may be
+.Ar ingress, egress, 0
+for ingress, or
+.Ar 1
+for egress
+.Pp
+.It Cm duration Ar comp time
+True if the calculated duration of a flow (tend - tstart) compares to
+.Ar time.
+The duration is specified in msec (milliseconds)
+.Pp
+.It Cm pps Ar comp num
+True if the calculated value of in-packets/duration (packets per second)
+compares with the number
+.Ar num. num
+may contain any valid scaling factor such as
+.Ar k, m, g
+.Pp
+.It Cm bps Ar comp num
+True if the calculated value of 8*in-bytes/duration (bits per second)
+compares with the number
+.Ar num. num
+may contain any valid scaling factor such as
+.Ar k, m, g
+.Pp
+.It Cm bpp Ar comp num
+True if the calculated value of in-bytes/in-packets (bytes per packet)
+compares with the number
+.Ar num. num
+may contain any valid scaling factor such as
+.Ar k, m, g
+.Pp
+.It Cm observation domain id Ar comp number
+.It Cm observation point id Ar comp number
+True if the comparison of the observation domain ID or point ID field
+respectively matches
+.Ar number
+.Pp
+.It payload filters
+Some exporters, such as
+.Cm yaf
+or the nfdump collector
+.Cm nfpcap can send payload data along the netflow information. If such
+payloads are sent it can be filtered according the filter primitives below:
+.Pp
+.It Cm payload content Ar 'string'
+True if the string
+.Ar string
+is found in the payload data.
+.Ar string
+must be quoted with single or double quotes: 'string',
+.Dq string
+.Pp
+.It Cm payload regex Ar 'regex'
+.It Cm payload regex Ar 'regex' flags
+True if
+.Ar regex
+matches the payload data.
+.Cm regex
+searches over the full payload length. A '\0' byte does not stop the match process.
+.Ar regex
+must be quoted with single or double quotes: 'regex' or
+.Dq regex
+The regex engine understands the following reduced syntax:
+.Pp
+.Bl -item -offset indent -compact
+.It
+.Sy (...)
+subexpressions/capture ranges
+.It
+.Sy |
+the "or" operator
+.It
+.Sy ^and
+.Sy $
+anchors
+.It
+. match any single character
+.It
+.Sy [...]
+and
+.Sy [^...]
+character classes
+.It
+.Sy ?, *, +,
+simple quantifiers
+.It
+.Sy *?, +?, ??
+lazy quantifiers
+.It
+.Sy {<num>}, {<num1>,<num2>}
+complex quantifiers
+.El
+.Pp
+.Ar flags
+are otional can be:
+.Bl -item -offset indent -compact
+.It
+.Sy m
+multiline
+.It
+.Sy i
+case insensitive matching
+.It
+.Sy s
+'.' includes newlines
+.El
+.Pp
+.It Cm payload ja3 Ar md5string
+True, if the payload contains the start of an SSL/TLS handshake and the
+calculated jas value of the handshake matches
+.Ar md5string
+.Pp
+.It Cm payload ja3 defined
+True, if the payload contains the start of an SSL/TLS handshake and a
+valid ja3 value can be calculated. Useful to mask out all flow records
+with no SSL/TLS traffic in order to generate a
+.Fl s
+.Sy ja3
+statistic.
+.Pp
+.It nprobe implemented elements
+.Pp
+.It Cm client latency Ar comp time
+.It Cm server latency Ar comp time
+True, if the respective latency field in the flow record compares to
+.Ar time. time
+is specified in msec.
+.Pp
+.It CISCO ASA, network security event logging (NSEL) and NAT event logging (NEL) specific filters:
+.It NSEL specific filters:
+.Pp
+.It Cm asa event Ar event
+True if the NSEL event type of an event record matches
+.Ar event
+which may be:
+.Ar ignore, create, term, delete, deny
+.Pp
+.It Cm asa event Ar comp number
+True if the comparison of the NSEL event type of an event records matches
+.Ar number
+as a number.
+.Pp
+.It Cm asa event denied Ar reason
+True if the event denied type of an event records matches
+.Ar reason
+which may be
+.Ar ingress, egress, interface, nosyn
+.Pp
+.It Cm asa xevent Ar comp num
+True, if the comparison of the extended event field of the event record matches
+.Ar num
+.Pp
+.It Cm xip Ar ipaddr
+.It Cm src xip Ar ipaddr
+.It Cm dst xip Ar ipaddr
+True, if the field of the translated source or destination IP address matches
+.Ar ipaddr
+if
+.Cm xip
+is specified without
+.Cm src
+or
+.Cm dst
+both IP addresses may match.
+.Pp
+.It Cm xport Ar ipaddr
+.It Cm src xport Ar ipaddr
+.It Cm dst xport Ar ipaddr
+True, if the field of the translated source or destination IP address matches
+.Ar ipaddr
+if
+.Cm xport
+is specified without
+.Cm src
+or
+.Cm dst
+both ports may match.
+.Pp
+.It Cm xnet Ar network/mask
+.It Cm src xnet Ar network/mask
+.It Cm dst xnet Ar network/mask
+True if the translated source or destination IP address matches
+.Ar network
+if mask
+.Ar mask
+is applied.
+if
+.Cm xnet
+is specified without
+.Cm src
+or
+.Cm dst
+both IP addresses may match.
+.Pp
+.It Cm ingress ACL Ar comp number
+.It Cm ingress ACE Ar comp number
+.It Cm ingress XACE Ar comp number
+True if the comparison of the respective ingress field matches
+.Ar number
+.Pp
+.It Cm egress ACL Ar comp number
+True if the comparison of the egress field matches
+.Ar number
+.Pp
+.It NEL specific filters:
+.It Cm nat event Cm event
+True if the NEL event type of an event record matches
+.Ar event. event
+may be
+.Ar add, delete
+.Pp
+.It Cm nat event Ar comp number
+True if the comparison of the NEL event type of an event records matches
+.Ar number
+as a number.
+.Pp
+.It Cm nip Ar ipaddr
+.It Cm src nip Ar ipaddr
+.It Cm dst nip Ar ipaddr
+True, if the field of the nat source or destination IP address matches
+.Ar ipaddr
+if
+.Cm nip
+is specified without
+.Cm src
+or
+.Cm dst
+both IP addresses may match.
+.Pp
+It Cm nport Ar number
+.It Cm src nport Ar number
+.It Cm dst nport Ar number
+True, if the field of the nat source or destination port matches
+.Ar number
+if
+.Cm nip
+is specified without
+.Cm src
+or
+.Cm dst
+both ports may match.
+.Pp
+.It Cm ingress vrf Ar number
+True, if the field of the ingess vrf field of the event record matches
+.Ar number
+.Pp
+.It Cm pblock start Ar comp number
+.It Cm pblock step Ar comp number
+.It Cm pblock end Ar comp number
+True if the comparison of the start, step or end of the NAT port block in the event record matches
+.Ar number
+.It Cm port in pblock
+.It Cm src port in pblock
+.It Cm dst port in pblock
+True, if the source or destination port field matches the NAT port block range
+.Pp
+.It Ar comp
+Many filter elements support the comparison with a number.
+The following comparators are supported for each of those filters:
+.Cm =, ==, >, <, >=, <=
+To prevent collisions with bash interpretion, alternative comparators
+are available:
+.Cm EQ, LT, GT, LE, GE
+If comp is omitted, '==' is assumed.
+.Pp
+.El
+.Sh OUTPUT FORMAT
+This section describes how output formats are compiled.
+.Nm
+has a lot of already pre-defined output formats such as
+.Ar raw, json, csv
+etc. One line formats as described for option
+.Fl o
+can be compiled from various elements of a flow record. As a flow record can contains man different
+elements it is often useful to compile an output format for spcific needs.
+.Pp
+.Ss Format description
+The output format is specified by
+.Cm -o Do fmt: Ar string Dc
+.Ar string
+contains the field
+.Ar tags
+to be printed as well as other characters if needed. A
+.Ar tag
+starts with a
+.Cm %
+sign followed by the field name.
+.Ar tags
+are separated by spaces from other tags. Characters or other strings, not starting with a
+.Cm %
+sign are copied literally to the output.
+.Pp
+Example:
+.Dl Fl o Do fmt:%ts %td %pr %sap -> %dap %pkt %byt %fl Dc
+.Pp
+This is the definition of the predined format
+.Cm line.
+It adds the elements
+.Ar tstart duration protocol source IP address/port
+followed by the literal characters -> and
+.Ar destination ip address/port packets, bytes, flows
+counter. Depending on the task, different output formats are required to see the required fields of
+a flow record. You can either extend a predefined format or specifiy a new one at the command line.
+.Pp
+Example: Extend the predefined format
+.Cm long
+with the the IP address of the sending router
+.Dl Fl o Do fmt:%long %ra Dc
+.Pp
+Predefined formats can be extended by simply add their name with a
+.Cm %
+sign somewhere in the format string. As described under the output option
+.Fl o
+.Pp
+.Ss Format definition
+.Nm
+has already many formats predefined. Most of the time, these format are good enough. Sometimes
+you may need different formats, which can be compiled as described above. In order to prevent
+adding the same often used output format each time you run
+.Nm
+a new output format may be define in the config file
+.Ar nfdump.conf
+The file
+nfdump.conf.dist
+contains the definition of the already hard coded formats. These may be uncommented and changed
+according to the specific needs. New formats may be added using the following sytax:
+.Pp
+.Dl fmt.newname = Do fmt:%ts %td %pr %sap -> %dap %pkt %byt %fl Dc
+.Pp
+with
+.Ar newname
+any new or existing definition of output formats. Existing formats are overwriten with the
+new definition.
+.Pp
+.Ss Tag definition
+The following list contains all tags, which are available to compile the output format:
+.Pp
+.Bl -tag -width "##    ##" -offset indent -compact
+.It Cm %<format>
+Inserts the predefined format at this position. e.g. %line
+.It Cm %cnt
+Record counter. record numbers are assigned dynamically assigned while reading
+readed from file.
+.It Cm %nfv
+Netflow version.
+.It Cm %ts
+Start Time - first seen
+.It Cm %tfs
+First seen - identical to %ts
+.It Cm %tsr
+Start Time, but in fractional seconds since the epoch (1970-01-01) UNIX format.
+.It Cm %te
+End Time - last seen
+.It Cm %ter
+End Time, in fractional seconds
+.It Cm %tr
+Time the flow was received by the collector
+.It Cm %trr
+Time the flow was received, in fractional seconds
+.It Cm %td
+Duration of flow. Displayed in ddHHMMSS.msec
+.It Cm %pr
+Transort protocol
+.It Cm %exp
+Exporter ID
+.It Cm %eng
+Engine Type/ID
+.It Cm %lbl
+Flowlabel
+.It Cm %sa
+Source Address
+.It Cm %da
+Destination Address
+.It Cm %sap
+Source Address:Port
+.It Cm %dap
+Destination Address:Port
+.It Cm %gsap
+Source Address(country code):Port
+.It Cm %gdap
+Destination Address(country code):Port
+.It Cm %sp
+Source Port
+.It Cm %dp
+Destination Port
+.It Cm %it
+ICMP-type
+.It Cm %ic
+ICMP-code
+.It Cm %sn
+Source Network, mask applied
+.It Cm %dn
+Destination Network, mask applied
+.It Cm %nh
+Next-hop IP Address
+.It Cm %nhb
+BGP Next-hop IP Address
+.It Cm %ra
+Router IP Address
+.It Cm %sas
+Source AS
+.It Cm %das
+Destination AS
+.It Cm %nas
+Next AS
+.It Cm %pas
+Previous AS
+.It Cm %in
+Input Interface num
+.It Cm %out
+Output Interface num
+.It Cm %pkt
+Packets - default input
+.It Cm %ipkt
+Input Packets
+.It Cm %opkt
+Output Packets
+.It Cm %byt
+Bytes - default input
+.It Cm %ibyt
+Input Bytes
+.It Cm %obyt
+Output Bytes
+.It Cm %fl
+Flows
+.It Cm %flg
+TCP Flags
+.It Cm %tos
+Tos - default src
+.It Cm %stos
+Src Tos
+.It Cm %dtos
+Dst Tos
+.It Cm %dir
+Direction: ingress, egress
+.It Cm %smk
+Src mask
+.It Cm %dmk
+Dst mask
+.It Cm %fwd
+Forwarding Status
+.It Cm %svln
+Src vlan label
+.It Cm %dvln
+Dst vlan label
+.It Cm %ismc
+Input Src Mac Addr
+.It Cm %odmc
+Output Dst Mac Addr
+.It Cm %idmc
+Input Dst Mac Addr
+.It Cm %osmc
+Output Src Mac Addr
+.It Cm %mpls1
+MPLS label 1
+.It Cm %mpls2
+MPLS label 2
+.It Cm %mpls3
+MPLS label 3
+.It Cm %mpls4
+MPLS label 4
+.It Cm %mpls5
+MPLS label 5
+.It Cm %mpls6
+MPLS label 6
+.It Cm %mpls7
+MPLS label 7
+.It Cm %mpls8
+MPLS label 8
+.It Cm %mpls9
+MPLS label 9
+.It Cm %mpls10
+MPLS label 10
+.It Cm %mpls
+MPLS labels 1-10
+.It Cm %bps
+bps - bits per second
+.It Cm %pps
+pps - packets per second
+.It Cm %bpp
+bps - Bytes per package
+.It Cm %sc
+src IP 2 letter country code
+.It Cm %dc
+dst IP 2 letter country code
+.It Cm %sloc
+src IP geo location info
+.It Cm %dloc
+dst IP geo location info
+.It Cm %n
+new line char \\n
+.It Cm %ipl
+input payload
+.It Cm %opl
+ouput payload
+.It Cm %nbid
+nbar ID
+.It Cm %ja3
+ja3 hash
+.It Cm %sni
+sni name in tls handshake
+.It Cm %nbnam
+nbar name
+.It Cm %odid
+observation domainID
+.It Cm %opid
+observation pointID
+.Pp
+.It NSEL specific formats
+.It Cm %nfc
+NSEL connection ID
+.It Cm %evt
+NSEL event
+.It Cm %xevt
+NSEL extended event
+.It Cm %sgt
+NSEL Source security group tag
+.It Cm %msec
+NSEL event time in msec
+.It Cm %iacl
+NSEL ingress ACL
+.It Cm %eacl
+NSEL egress ACL
+.It Cm %xsa
+NSEL XLATE src IP address
+.It Cm %xda
+NSEL XLATE dst IP address
+.It Cm %xsp
+NSEL XLATE src port
+.It Cm %xdp
+NSEL SLATE dst port
+.It Cm %xsap
+Xlate Source Address:Port
+.It Cm %xdap
+Xlate Destination Address:Port
+.It Cm %uname
+NSEL user name
+.Pp
+.It NEL/NAT specific formats
+.It Cm %nevt
+NAT event - same as %evt
+.It Cm %ivrf
+NAT ingress VRF ID
+.It Cm %evrf
+NAT egress VRF ID
+.It Cm %nsa
+NAT src IP address
+.It Cm %nda
+NAT dst IP address
+.It Cm %nsp
+NAT src port
+.It Cm %ndp
+NAT dst port
+.It Cm %pbstart
+NAT pool block start
+.It Cm %pbend
+NAT pool block end
+.It Cm %pbstep
+NAT pool block step
+.It Cm %pbsize
+NAT pool block size
+.Pp
+.It Nprobe formats
+.It Cm %cl
+Client latency
+.It Cm %sl
+Server latency
+.It Cm %al
+Application latency
+.El
+.Sh EXAMPLES
+.Nm
+processes files created by any previous version of nfdump 1.6.x with some limitations
+for versions < 1.6.17. In order to convert flow files to the new 1.7.x binary format
+use the following command to read//write files:
+.Pp
+.Dl % nfdump -r oldfile -w newfile
+.Pp
+Print a statistic about the top 20 IP adresses, once sorted by flows and once by bytes
+.Pp
+.Dl % nfdump -r flowfile -s ip/flows/bytes -n 20
+.Pp
+Print two statistics, one about the source IP and one about the destination IP address
+limited to flow with either source or destination port 443
+.Pp
+.Dl % nfdump -r flowfile -s srcip/bytes -s dstip/bytes -n 20 'port 443'
+.Pp
+Print a statistic about the IP pairs, which exchanged most traffic.
+.Pp
+.Dl % nfdump -r flowfile -s record/bytes -A srcip,dstip
+.Pp
+Print all flows in raw format with a HTTP header in the payload even if flow is not on port 80.
+.Pp
+.Dl % nfdump -r flowfile -o raw Do payload regex 'GET|POST' Dc
+.Pp
+Print a statistic about all ja3 md5 sums for those flows, which a valid ja3 can be calculated
+.Pp
+.Dl % nfdump -r flowfile -s ja5 -n 0 'payload ja3 defined'
+.Pp
+Aggregate all flows and write the result back to a binary file, sorted by the start time
+.Pp
+.Dl % nfdump -r flowfile -a -Otstart -w newfile
+.Pp
+.Sh RETURN VALUES
+.Nm
+returns 0 on success and 255 if processing failed.
+.Sh SEE ALSO
+https://www.iana.org/assignments/ipfix/ipfix.xhtml
+.Pp
+https://www.cisco.com/en/US/technologies/tk648/tk362/technologies_white_paper09186a00800a3db9.html
+.Pp
+.Xr nfcapd 1
+.Xr nfpcapd 1
+.Xr sfcapd 1
+.Xr geolookup 1
+.Sh BUGS
+No software without bugs! Please report any bugs back to me.
