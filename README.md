@@ -1,6 +1,8 @@
 # nfdump
 
-Stable Release v1.6.24
+Archieved branch of nfdump  v1.6.x. This branch  will get bug fixes if needed, but no new features
+
+Please use nfdump-1.7.x from master branch
 
 See the Changelog file for all changes in release 1.6.24
 

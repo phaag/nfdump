@@ -1,4 +1,7 @@
-2022-04-023
+2022-09-28
+-	Archive branch for nfdump-1.6.x
+
+2022-04-23
 -	Fix #333 with NSEL event record sending flow icmp
 
 2022-03-26
