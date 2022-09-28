@@ -40,7 +40,6 @@
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <uuid/uuid.h>
 
 #include "util.h"
 
