@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -62,7 +62,7 @@ typedef struct fileHeaderV2_s {
 #define LAYOUT_VERSION_2	2
 
 	uint32_t	nfdversion;			// version of nfdump created this file
-#define NFDVERSION 0x010700FF
+#define NFDVERSION 0x01070001
 									// 4bytes 1.6.19-1 0x01061301 
 	time_t		created;			// file create time
 
