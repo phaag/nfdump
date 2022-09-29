@@ -59,27 +59,27 @@ typedef void (*string_function_t)(master_record_t *, char *);
 static struct token_list_s {
 	string_function_t	string_function;	// function generation output string
 	char				*string_buffer;		// buffer for output string
-} *token_list;
+} *token_list = NULL;
 
 static int	max_token_index	= 0;
 static int	token_index		= 0;
 
 #define BLOCK_SIZE	32
 
-static char **format_list;		// ordered list of all individual strings formating the output line
+static char **format_list = NULL;		// ordered list of all individual strings formating the output line
 static int	max_format_index	= 0;
 static int	format_index		= 0;
 
 static int		do_tag 		 = 0;
 static int 		long_v6 	 = 0;
 static int		printPlain	 = 0;
-static double	duration;
+static double	duration	 = 0;
 
 #define STRINGSIZE 10240
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
-static char header_string[STRINGSIZE];
-static char data_string[STRINGSIZE];
+static char header_string[STRINGSIZE] = {0};
+static char data_string[STRINGSIZE] = {0};
 
 // tag 
 static char tag_string[2];
@@ -578,9 +578,9 @@ int	i, remaining;
 					if ( strncmp(format_token_list[i].token, c, len) == 0 ) {	// token found
 						AddToken(i);
 						if ( long_v6 && format_token_list[i].is_address )
-							snprintf(h, STRINGSIZE-1-strlen(h), "%23s%s", "", format_token_list[i].header);
+							snprintf(h, STRINGSIZE-1-strlen(header_string), "%23s%s", "", format_token_list[i].header);
 						else
-							snprintf(h, STRINGSIZE-1-strlen(h), "%s", format_token_list[i].header);
+							snprintf(h, STRINGSIZE-1-strlen(header_string), "%s", format_token_list[i].header);
 						h += strlen(h);
 						c[len] = p;
 						c += len;
@@ -599,23 +599,23 @@ int	i, remaining;
 		} else {			// it's a static string
 			/* a static string goes up to next '%' or end of string */
 			char *p = strchr(c, '%');
-			char format[32];
+			char printFormat[32];
 			if ( p ) {
 				// p points to next '%' token
 				*p = '\0';
 				AddString(strdup(c));
-				snprintf(format, 31, "%%%zus", strlen(c));
-				format[31] = '\0';
-				snprintf(h, STRINGSIZE-1-strlen(h), format, "");
+				snprintf(printFormat, 31, "%%%zus", strlen(c));
+				printFormat[31] = '\0';
+				snprintf(h, STRINGSIZE-1-strlen(header_string), printFormat, "");
 				h += strlen(h);
 				*p = '%';
 				c = p;
 			} else {
 				// static string up to end of format string
 				AddString(strdup(c));
-				snprintf(format, 31, "%%%zus", strlen(c));
-				format[31] = '\0';
-				snprintf(h, STRINGSIZE-1-strlen(h), format, "");
+				snprintf(printFormat, 31, "%%%zus", strlen(c));
+				printFormat[31] = '\0';
+				snprintf(h, STRINGSIZE-1-strlen(header_string), printFormat, "");
 				h += strlen(h);
 				*c = '\0';
 			}
