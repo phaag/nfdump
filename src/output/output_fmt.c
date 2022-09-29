@@ -604,9 +604,9 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
                     if (strncmp(format_token_list[i].token, c, len) == 0) {  // token found
                         AddToken(i, NULL);
                         if (long_v6 && format_token_list[i].is_address)
-                            snprintf(h, STRINGSIZE - 1 - strlen(h), "%23s%s", "", format_token_list[i].header);
+                            snprintf(h, STRINGSIZE - 1 - strlen(header_string), "%23s%s", "", format_token_list[i].header);
                         else
-                            snprintf(h, STRINGSIZE - 1 - strlen(h), "%s", format_token_list[i].header);
+                            snprintf(h, STRINGSIZE - 1 - strlen(header_string), "%s", format_token_list[i].header);
                         h += strlen(h);
                         c[len] = p;
                         c += len;
