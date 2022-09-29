@@ -59,28 +59,28 @@ typedef void (*string_function_t)(FILE *, master_record_t *);
 static struct token_list_s {
     string_function_t string_function;  // function printing result to stream
     char *string_buffer;                // buffer for static output string
-} * token_list;
+} *token_list = NULL;
 
 static int max_token_index = 0;
 static int token_index = 0;
 
 #define BLOCK_SIZE 32
 
-static char **format_list;  // ordered list of all individual strings formating the output line
+static char **format_list = NULL;  // ordered list of all individual strings formating the output line
 static int max_format_index = 0;
 
 static int do_tag = 0;
 static int long_v6 = 0;
 static int printPlain = 0;
-static double duration;
+static double duration = 0;
 
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
 #define STRINGSIZE 10240
-static char header_string[STRINGSIZE];
+static char header_string[STRINGSIZE] = {'\0'};
 
 // tag
-static char tag_string[2];
+static char tag_string[2] = {'\0'};
 
 /* prototypes */
 static char *ICMP_Port_decode(master_record_t *r);
@@ -508,8 +508,8 @@ void fmt_epilog(void) {
 
 static void InitFormatParser(void) {
     max_format_index = max_token_index = BLOCK_SIZE;
-    format_list = (char **)malloc(max_format_index * sizeof(char *));
-    token_list = (struct token_list_s *)malloc(max_token_index * sizeof(struct token_list_s));
+    format_list = (char **)calloc(1, max_format_index * sizeof(char *));
+    token_list = (struct token_list_s *)calloc(1, max_token_index * sizeof(struct token_list_s));
     if (!format_list || !token_list) {
         fprintf(stderr, "Memory allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         exit(255);
@@ -625,23 +625,23 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
         } else {  // it's a static string
             /* a static string goes up to next '%' or end of string */
             char *p = strchr(c, '%');
-            char format[32];
+            char printFormat[32];
             if (p) {
                 // p points to next '%' token
                 *p = '\0';
                 AddToken(0, strdup(c));
-                snprintf(format, 31, "%%%zus", strlen(c));
-                format[31] = '\0';
-                snprintf(h, STRINGSIZE - 1 - strlen(h), format, "");
+                snprintf(printFormat, 31, "%%%zus", strlen(c));
+                printFormat[31] = '\0';
+                snprintf(h, STRINGSIZE - 1 - strlen(header_string), printFormat, "");
                 h += strlen(h);
                 *p = '%';
                 c = p;
             } else {
                 // static string up to end of format string
                 AddToken(0, strdup(c));
-                snprintf(format, 31, "%%%zus", strlen(c));
-                format[31] = '\0';
-                snprintf(h, STRINGSIZE - 1 - strlen(h), format, "");
+                snprintf(printFormat, 31, "%%%zus", strlen(c));
+                printFormat[31] = '\0';
+                snprintf(h, STRINGSIZE - 1 - strlen(header_string), printFormat, "");
                 h += strlen(h);
                 *c = '\0';
             }
