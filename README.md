@@ -65,8 +65,8 @@ in future.
 ### Improvements 
 - nfdump is now a multi-threaded program and uses parallel threads mainly for
 reading, writing and processing flows as well as for sorting. This may result
-in a 2 to 3 times faster flow processing, depending on the tasks. The speed
-improvement also heavily depends on the hardware (SSD/HD) and flow compression
+in faster flow processing, depending on the tasks. The speedimprovement 
+also heavily depends on the hardware (SSD/HD) and flow compression
 option. 
 
 - For netflow v9 and IPFIX, nfdump now supports flexible length fields. This
