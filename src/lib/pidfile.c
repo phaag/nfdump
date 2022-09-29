@@ -53,10 +53,10 @@ static pid_t read_pid(char *pidfile);
  */
 static pid_t read_pid(char *pidfile) {
     FILE *f;
-    pid_t pid;
+    pid_t pid = 0;
 
     if (!(f = fopen(pidfile, "r"))) return 0;
-    fscanf(f, "%d", &pid);
+    if (fscanf(f, "%d", &pid) == 0) pid = 0;
     fclose(f);
     return pid;
 }  // read_pid
@@ -123,7 +123,7 @@ pid_t check_pid(char *pidfile) {
 pid_t write_pid(char *pidfile) {
     FILE *f;
     int fd;
-    pid_t pid;
+    pid_t pid = 0;
 
     if (((fd = open(pidfile, O_RDWR | O_CREAT, 0644)) == -1) || ((f = fdopen(fd, "r+")) == NULL)) {
         LogError("Can't open or create %s: %s", pidfile, strerror(errno));
@@ -131,7 +131,7 @@ pid_t write_pid(char *pidfile) {
     }
 
     if (flock(fd, LOCK_EX | LOCK_NB) == -1) {
-        fscanf(f, "%d", &pid);
+        if (fscanf(f, "%d", &pid) == 0) pid = 0;
         fclose(f);
         LogError("flock(): Can't lock. lock is held by pid %d", pid);
         return 0;
