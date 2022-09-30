@@ -7,6 +7,6 @@ AM_LDFLAGS  = -L../lib
 LDADD = $(DEPS_LIBS)
 
 nfexpire_SOURCES = nfexpire.c 
-nfexpire_LDADD = ../lib/libnfdump.la ../collector/libcollector.a @FTS_OBJ@
+nfexpire_LDADD = ../lib/libnfdump.la ../collector/libcollector.a
 
 CLEANFILES = *.gch

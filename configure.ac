@@ -74,7 +74,7 @@ if test "${enable_fixtimebug}" = "yes" ; then
 fi
 
 AC_PROG_YACC
-AC_PROG_LEX(yywrap)
+AC_PROG_LEX(noyywrap)
 which $LEX > /dev/null 2>&1
 if test $? = 1; then
 	AC_MSG_ERROR(No lex or flex found on system)
@@ -388,8 +388,10 @@ fi
 
 if test "$ac_cv_header_fts_h" != yes; then
 	FTS_OBJ=fts_compat.o
+  AM_CONDITIONAL(NEEDFTSCOMPAT, true)
+else 
+  AM_CONDITIONAL(NEEDFTSCOMPAT, false)
 fi
-AC_SUBST(FTS_OBJ)
 
 
 # Checks for typedefs, structures, and compiler characteristics.
@@ -507,6 +509,7 @@ AC_CONFIG_FILES([Makefile src/lib/Makefile src/Makefile src/test/Makefile
 	src/nfanon/Makefile src/nfreplay/Makefile src/nfreader/Makefile 
 	src/inline/Makefile src/include/Makefile man/Makefile ])
 
+
 if test "x$enable_ftconv" = "xyes"; then
     AC_CONFIG_FILES([src/ft2nfdump/Makefile])
 fi
@@ -536,6 +539,11 @@ echo "  CFLAGS               = $AM_CFLAGS $CFLAGS"
 echo "  CPPFLAGS             = $AM_CPPFLAGS $CPPFLAGS"
 echo "  LDFLAGS              = $AM_LDFLAGS $LDFLAGS"
 echo "  LIBS                 = $LIBS"
+echo "  Build geolookup      = $enable_maxmind"
+echo "  Build sflow          = $enable_sflow"
+echo "  Build nfpcapd        = $enable_nfpcapd"
+echo "  Build flowtools conv = $enable_ftconv"
+echo "  Build nfprofile      = $enable_nfprofile"
 echo "----------------------------------"
 echo ""
 echo " You can run ./make now." 

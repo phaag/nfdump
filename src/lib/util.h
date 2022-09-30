@@ -34,6 +34,7 @@
 
 #include <stdint.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <time.h>
 
 #include "config.h"
