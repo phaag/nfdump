@@ -1,7 +1,5 @@
 #
-# Ubuntu Dockerfile
-#
-# https://github.com/dockerfile/ubuntu
+# Example Ubuntu Dockerfile
 #
 
 # Pull base image.
@@ -32,9 +30,9 @@ RUN apt-get update && apt-get install -y \
   rm -rf /var/lib/apt/lists/*
 
 RUN cd /usr/src &&
-  wget https://github.com/phaag/nfdump/archive/refs/tags/v.$NFDUMP_VERSION.tar.gz &&
-  tar xfz v.$NFDUMP_VERSION.tar.gz &&
-  cd nfdump-v.$NFDUMP_VERSION &&
+  wget https://github.com/phaag/nfdump/archive/refs/tags/v$NFDUMP_VERSION.tar.gz &&
+  tar xfz v$NFDUMP_VERSION.tar.gz &&
+  cd nfdump-$NFDUMP_VERSION &&
   ./autogen.sh &&
   ./configure --enable-nfpcapd --enable-maxmind --enable-sflow &&
   make &&
