@@ -1,2 +1,8 @@
+2022-09-30
+-	nfdump-1.7.0.1 - fix build issues
+-	Add docker file for alpine Linux
+-	Update docker file for ubuntu
+-	Fix build issues on various Linuxes
+
 2022-09-28
 - nfdump-1.7.0 - unicorn released

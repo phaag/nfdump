@@ -1,0 +1,27 @@
+FROM alpine:3
+
+ARG NFDUMP_VERSION=1.7.0.1
+
+WORKDIR /tmp
+
+ADD https://github.com/phaag/nfdump/archive/refs/tags/v.$NFDUMP_VERSION.tar.gz /tmp
+RUN \
+  apk add --no-cache build-base gcc abuild binutils binutils-doc gcc-doc make &&
+  apk add --no-cache libtool bzip2-dev libpcap-dev flex bison &&
+  apk add --no-cache autoconf automake m4 pkgconfig
+
+RUN \
+  tar xfz v.$NFDUMP_VERSION.tar.gz &&
+  cd /tmp/nfdump-v.$NFDUMP_VERSION &&
+  ./autogen.sh &&
+  ./configure --enable-maxmind --enable-nfpcapd --enable-sflow=yes &&
+  make &&
+  cd /tmp/nfdump-v.$NFDUMP_VERSION && make install &&
+  cd .. &&
+  rm -rf nfdump-v.$NFDUMP_VERSION &&
+  rm /tmp/v.$NFDUMP_VERSION.tar.gz &&
+  apk del build-deps
+
+VOLUME /data
+
+CMD ["nfcapd", "-w", "/data", "-S", "1", "-y", "-p", "9999"]
