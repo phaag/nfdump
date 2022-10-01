@@ -289,8 +289,8 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
             case EXnbarAppID: {
                 EXnbarApp_t *EXnbarApp = (EXnbarApp_t *)((void *)elementHeader + sizeof(elementHeader_t));
                 // the byte array is stored in full length but only 4 byte IDs are
-                // defined - skip everything else
-                if (elementHeader->length > 12) {  // 8 + 4header
+                // defined by CISCO - we support up to 8 bytes - skip everything else
+                if (elementHeader->length > 12) {  // 8 + 4 header
                     LogError("nbar application ID length %u > 8 bytes not supported", elementHeader->length);
                 } else {
                     memcpy(output_record->nbarAppID, EXnbarApp->id, elementHeader->length - sizeof(elementHeader_t));

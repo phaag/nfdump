@@ -111,9 +111,9 @@ int ConfOpen(char *filename, char *section) {
 
     toml_table_t *sectionConf = toml_table_in(conf, section);
     if (!sectionConf) {
-        printf("Failed to parse config file %s: No section [nfdump] found\n", filename);
+        // printf("Failed to parse config file %s: No section [%s] found\n", filename, section);
         free(conf);
-        return -1;
+        return 0;
     }
 
     nfconfFile.valid = 1;

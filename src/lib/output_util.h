@@ -32,7 +32,6 @@
 #define _OUTPUT_UTIL_H 1
 
 #include <stdint.h>
-#include <stdio.h>
 
 char *ProtoString(uint8_t protoNum, uint32_t plainNumbers);
 
@@ -51,7 +50,5 @@ char *FwEventString(int event);
 char *EventString(int event);
 
 char *EventXString(int xevent);
-
-void DumpHex(FILE *stream, const void *data, size_t size);
 
 #endif  // _OUTPUT_UTIL_H

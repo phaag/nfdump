@@ -47,37 +47,6 @@
 
 #include "inline.c"
 
-static void DumpHex(const void *data, size_t size);
-
-__attribute__((unused)) static void DumpHex(const void *data, size_t size) {
-    char ascii[17];
-    size_t i, j;
-    ascii[16] = '\0';
-    for (i = 0; i < size; ++i) {
-        printf("%02X ", ((unsigned char *)data)[i]);
-        if (((unsigned char *)data)[i] >= ' ' && ((unsigned char *)data)[i] <= '~') {
-            ascii[i % 16] = ((unsigned char *)data)[i];
-        } else {
-            ascii[i % 16] = '.';
-        }
-        if ((i + 1) % 8 == 0 || i + 1 == size) {
-            printf(" ");
-            if ((i + 1) % 16 == 0) {
-                printf("|  %s \n", ascii);
-            } else if (i + 1 == size) {
-                ascii[(i + 1) % 16] = '\0';
-                if ((i + 1) % 16 <= 8) {
-                    printf(" ");
-                }
-                for (j = (i + 1) % 16; j < 16; ++j) {
-                    printf("   ");
-                }
-                printf("|  %s \n", ascii);
-            }
-        }
-    }
-}
-
 static void CompactSequencer(sequencer_t *sequencer) {
     int i = 0;
     while (i < sequencer->numSequences) {
@@ -338,7 +307,7 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
         if (ExtID == EXnull && stackID == 0) {
             uint16_t type = sequencer->sequenceTable[i].inputType;
 #ifdef DEVEL
-            DumpHex(inBuff, inLength);
+            DumpHex(stdout, inBuff, inLength);
 #endif
             if (type == subTemplateListType || type == subTemplateMultiListType) {
                 dbg_printf("[%i:%i] Sub template %u, length %u: \n", nestLevel, i, type, inLength);
@@ -445,17 +414,12 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
                     break;
             }
 #ifdef DEVEL
-            if (sequencer->sequenceTable[i].inputLength <= 8)
-                printf("[%i] Type: %u, read length: %u, val: %llu, outLength: %u\n", i, sequencer->sequenceTable[i].inputType,
-                       sequencer->sequenceTable[i].inputLength, (long long unsigned)v, outLength);
-
-            if (sequencer->sequenceTable[i].inputLength == 16)
-                printf("[%i] Type: %u, read length: %u, val: %llx %llx, outLength: %u\n", i, sequencer->sequenceTable[i].inputType,
-                       sequencer->sequenceTable[i].inputLength, (long long unsigned)valBuff[0], (long long unsigned)valBuff[1], outLength);
+            printf("[%i] Type: %u, read length: %u, val: %llx %llx, outLength: %u\n", i, sequencer->sequenceTable[i].inputType,
+                   sequencer->sequenceTable[i].inputLength, (long long unsigned)valBuff[0], (long long unsigned)valBuff[1], outLength);
 #endif
             if (stackID && stack) {
                 stack[stackID] = valBuff[0];
-                dbg_printf("Stack value %llu in slot %u\n", (long long unsigned)v, stackID);
+                dbg_printf("Stack value %llu in slot %u\n", (long long unsigned)valBuff[0], stackID);
             }
 
             switch (outLength) {
