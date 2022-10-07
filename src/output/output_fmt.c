@@ -796,19 +796,37 @@ static void String_nbarID(FILE *stream, master_record_t *r) {
     union {
         uint8_t val8[4];
         uint32_t val32;
-    } conv;
+    } pen;
 
-    conv.val8[0] = 0;
-    conv.val8[1] = r->nbarAppID[1];
-    conv.val8[2] = r->nbarAppID[2];
-    conv.val8[3] = r->nbarAppID[3];
+    if (r->nbarAppID[0] == 20) {  // PEN - private enterprise number
+        pen.val8[0] = r->nbarAppID[4];
+        pen.val8[1] = r->nbarAppID[3];
+        pen.val8[2] = r->nbarAppID[2];
+        pen.val8[3] = r->nbarAppID[1];
 
-    fprintf(stream, "%2u..%u", r->nbarAppID[0], ntohl(conv.val32));
+        int selector = 0;
+        int length = r->nbarAppIDlen;
+        int index = 5;
+        while (index < length) {
+            selector = (selector << 8) | r->nbarAppID[index];
+            index++;
+        }
+        fprintf(stream, "%2u..%u..%u", r->nbarAppID[0], pen.val32, selector);
+    } else {
+        int selector = 0;
+        int length = r->nbarAppIDlen;
+        int index = 1;
+        while (index < length) {
+            selector = (selector << 8) | r->nbarAppID[index];
+            index++;
+        }
+        fprintf(stream, "%2u..%u", r->nbarAppID[0], selector);
+    }
 
 }  // End of String_nbarID
 
 static void String_nbarName(FILE *stream, master_record_t *r) {
-    char *name = GetNbarInfo(r->nbarAppID, 4);
+    char *name = GetNbarInfo(r->nbarAppID, r->nbarAppIDlen);
     if (name == NULL) {
         name = "<no info>";
     }

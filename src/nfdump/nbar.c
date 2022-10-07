@@ -183,9 +183,9 @@ void DumpNbarList(void) {
         if (kh_exist(NbarAppInfoHash, k)) {
             AppInfoHash_t *r = &kh_key(NbarAppInfoHash, k);
             uint8_t *p = r->data;
-            //			printf("id   length: %u\n", r->app_id_length);
-            //			printf("name length: %u\n", r->app_name_length);
-            //			printf("desc length: %u\n", r->app_desc_length);
+            printf("id   length: %xu\n", r->app_id_length);
+            printf("name length: %u\n", r->app_name_length);
+            printf("desc length: %u\n", r->app_desc_length);
             printf("ID: ");
             if (r->app_id_length) {
                 for (int i = 0; i < r->app_id_length; i++) printf("%02X ", *((uint8_t *)p++));

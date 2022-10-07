@@ -38,6 +38,8 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "nfxV3.h"
+
 #define V4 ip_addr._v4
 #define V6 ip_addr._v6
 
@@ -739,25 +741,11 @@ typedef struct master_record_s {
 
 #endif
 
-    // nbar AppID - actect array
-    uint8_t nbarAppID[8];  // 0xffff'ffff'ffff'ffff
-#define OffsetNbarAppID (offsetof(master_record_t, nbarAppID) >> 3)
-#define MaskNbarAppID 0xffffffffffffffff
-
-    uint16_t exElementList[64];  // XXX fix number of elements
-
     // reference to exporter
     exporter_info_record_t *exp_ref;
 
-    uint32_t inPayloadLength;
-    uint32_t outPayloadLength;
-#define OffsetPayload (offsetof(master_record_t, inPayloadLength) >> 3)
-    char *inPayload;
-    char *outPayload;
-    uint8_t ja3[16];
-#define OffsetJA3 (offsetof(master_record_t, ja3) >> 3)
-#define MaskJA3 0xffffffffffffffff
-
+    uint64_t observationPointID;
+    uint32_t observationDomainID;
 #define OffsetObservationDomainID (offsetof(master_record_t, observationDomainID) >> 3)
 #define OffsetObservationPointID (offsetof(master_record_t, observationPointID) >> 3)
 #define MaskObservationPointID 0xffffffffffffffff
@@ -770,9 +758,26 @@ typedef struct master_record_s {
 #define ShiftObservationDomainID 0
 #endif
 
-    uint64_t observationPointID;
-    uint32_t observationDomainID;
-    uint32_t observationFill;
+    // nbar AppID
+    uint16_t nbarAppIDlen;
+    uint8_t nbarAppID[10];
+#define OffsetNbarAppID (offsetof(master_record_t, nbarAppID) >> 3)
+#define MaskNbarAppID 0xffffffffffffffff
+
+    // payload data
+    uint32_t inPayloadLength;
+    uint32_t outPayloadLength;
+#define OffsetPayload (offsetof(master_record_t, inPayloadLength) >> 3)
+    char *inPayload;
+    char *outPayload;
+
+    // ja3 from payload
+    uint8_t ja3[16];
+#define OffsetJA3 (offsetof(master_record_t, ja3) >> 3)
+#define MaskJA3 0xffffffffffffffff
+
+    uint16_t exElementList[MAXEXTENSIONS];
+
     // last entry in master record
     char *label;
 #define Offset_MR_LAST (offsetof(master_record_t, label) >> 3)

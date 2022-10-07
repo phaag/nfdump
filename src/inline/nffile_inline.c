@@ -94,7 +94,6 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
     // first record header
     elementHeader = (elementHeader_t *)(p + sizeof(recordHeaderV3_t));
     for (int i = 0; i < v3Record->numElements; i++) {
-        int skip = 0;
         dbg_printf("[%i] next extension: %u: %s\n", i, elementHeader->type,
                    elementHeader->type < MAXEXTENSIONS ? extensionTable[elementHeader->type].name : "<unknown>");
         switch (elementHeader->type) {
@@ -285,15 +284,27 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
                 output_record->block_step = nelXlatePort->blockStep;
                 output_record->block_size = nelXlatePort->blockSize;
             } break;
+#else
+            case EXnselCommonID:
+            case EXnselXlateIPv4ID:
+            case EXnselXlateIPv6ID:
+            case EXnselXlatePortID:
+            case EXnselAclID:
+            case EXnselUserID:
+            case EXnelCommonID:
+            case EXnelXlatePortID:
+                LogError("Skip nsel extension: '%u' - nsel options not compiled", elementHeader->type);
+                break;
 #endif
             case EXnbarAppID: {
                 EXnbarApp_t *EXnbarApp = (EXnbarApp_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                // the byte array is stored in full length but only 4 byte IDs are
-                // defined by CISCO - we support up to 8 bytes - skip everything else
-                if (elementHeader->length > 12) {  // 8 + 4 header
-                    LogError("nbar application ID length %u > 8 bytes not supported", elementHeader->length);
+                // the byte array is stored in full length
+                // we support up to 12 bytes - skip everything else
+                if (elementHeader->length > 14) {  // 10 + 4 header
+                    LogError("nbar application ID length %u > 10 bytes not supported", elementHeader->length - 4);
                 } else {
                     memcpy(output_record->nbarAppID, EXnbarApp->id, elementHeader->length - sizeof(elementHeader_t));
+                    output_record->nbarAppIDlen = elementHeader->length - 4;
                 }
             } break;
             case EXlabelID: {
@@ -353,30 +364,22 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
                 output_record->tun_proto = tunIPv6->tunProto;
             } break;
             default:
-                LogError("Unknown extension '%u'\n", elementHeader->type);
-                //		skip = 1;
+                LogError("Unknown extension '%u'", elementHeader->type);
         }
 
-        if (!skip) {
-            // unordered element list
-            // output_record->exElementList[i] = elementHeader->type;
-
-            // insert element in order to list
-            int j = 0;
-            uint32_t val = elementHeader->type;
-            while (j < i) {
-                if (val < output_record->exElementList[j]) {
-                    uint32_t _tmp = output_record->exElementList[j];
-                    output_record->exElementList[j] = val;
-                    val = _tmp;
-                }
-                j++;
+        // unordered element list
+        // insert element in order to list
+        int j = 0;
+        uint32_t val = elementHeader->type;
+        while (j < i) {
+            if (val < output_record->exElementList[j]) {
+                uint32_t _tmp = output_record->exElementList[j];
+                output_record->exElementList[j] = val;
+                val = _tmp;
             }
-            output_record->exElementList[j] = val;
-
-        } else {
-            skip = 0;
+            j++;
         }
+        output_record->exElementList[j] = val;
 
         size += elementHeader->length;
         elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);

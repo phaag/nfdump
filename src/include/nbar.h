@@ -34,9 +34,6 @@
 #include "config.h"
 #include "nffile.h"
 
-// record type definition
-#define NbarRecordType 12
-
 typedef struct nbarRecordHeader_s {
     // record header
     uint16_t type;

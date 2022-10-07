@@ -86,6 +86,8 @@ typedef struct elementHeader_s {
 
 // Identifier for new V3Record
 #define V3Record 11
+// record type definition
+#define NbarRecordType 12
 
 /*
  * Extension elements
