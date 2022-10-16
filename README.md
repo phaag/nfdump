@@ -1,10 +1,10 @@
 # nfdump
 
-Archieved branch of nfdump  v1.6.x. This branch  will get bug fixes if needed, but no new features
+Archieved branch of nfdump  v1.6.x. This branch  will get bug fixes if needed, but no new features. The last release for v1.6.x is [nfdump-1.6.25.](https://github.com/phaag/nfdump/releases/tag/v1.6.25)
 
-Please use nfdump-1.7.x from master branch
+Please use the latest [release](https://github.com/phaag/nfdump/releases/tag/v1.7.0.1) of nfdump-1.7.x from master branch.
 
-See the Changelog file for all changes in release 1.6.24
+See the Changelog file for all changes.
 
 nfdump is a toolset in order to collect and process netflow and sflow data, sent from netflow/sflow compatible devices. The toolset supports netflow **v1**, **v5/v7**,**v9**,**IPFIX** and **SFLOW**. nfdump supports IPv4 as well as IPv6.
 
@@ -178,7 +178,7 @@ To tell the router where to send the NetFlow data, enter the following global co
 
     ip flow-export 192.168.92.218 9995
     ip flow-export version 5
-
+    
     ip flow-cache timeout active 5
 
 This breaks up long-lived flows into 5-minute segments. You can choose any number of minutes between 1 and 60;
