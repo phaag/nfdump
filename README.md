@@ -2,7 +2,7 @@
 
 nfdump-1.7.x or nfdump **unicorn** is the new release of nfdump.
 
-nfdump-1.6.24 receives bug fixes, but will no longer get new features.
+nfdump-1.6.x receives bug fixes, but will no longer get new features. The latest release for nfdump-1.6.x is [nfdump-1.6.25](https://github.com/phaag/nfdump/releases/tag/v1.6.25). 
 
 ## Introduction
 

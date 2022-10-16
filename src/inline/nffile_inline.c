@@ -299,9 +299,9 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
             case EXnbarAppID: {
                 EXnbarApp_t *EXnbarApp = (EXnbarApp_t *)((void *)elementHeader + sizeof(elementHeader_t));
                 // the byte array is stored in full length
-                // we support up to 12 bytes - skip everything else
-                if (elementHeader->length > 14) {  // 10 + 4 header
-                    LogError("nbar application ID length %u > 10 bytes not supported", elementHeader->length - 4);
+                // we support up to 11 bytes - skip everything else
+                if (elementHeader->length > 15) {  // 11 + 4 header
+                    LogError("nbar application ID length %u > 11 bytes not supported", elementHeader->length - 4);
                 } else {
                     memcpy(output_record->nbarAppID, EXnbarApp->id, elementHeader->length - sizeof(elementHeader_t));
                     output_record->nbarAppIDlen = elementHeader->length - 4;
