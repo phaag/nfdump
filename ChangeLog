@@ -1,3 +1,6 @@
+2022-10-22
+-	Release 1.6.25
+
 2022-09-29
 -	Fix var initializer and snprintf length problem in output_fmt"
 
