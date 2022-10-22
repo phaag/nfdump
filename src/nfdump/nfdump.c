@@ -138,7 +138,7 @@ static void usage(char *name) {
         "\t\tkey: 32 character string or 64 digit hex string starting with 0x.\n"
         "-L <expr>\tSet limit on bytes for line and packed output format.\n"
         "-I \t\tPrint netflow summary statistics info from file or range of files (-r, -R).\n"
-        "-s \t\tPrint gnuplot stat line for each nfcapd file (-r, -R).\n"
+        "-g \t\tPrint gnuplot stat line for each nfcapd file (-r, -R).\n"
         "-M <expr>\tRead input from multiple directories.\n"
         "\t\t/dir/dir1:dir2:dir3 Read the same files from '/dir/dir1' '/dir/dir2' and "
         "'/dir/dir3'.\n"

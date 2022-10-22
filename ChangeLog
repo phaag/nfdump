@@ -1,8 +1,11 @@
+2022-10-22
+-	Fix #370. Help shows correct option -g
+
 2022-10-07
-- Improve nbar handling. Add private enterprise number decoding
+-	Improve nbar handling. Add private enterprise number decoding
 
 2022-10-03
-- Merge pull request #357
+-	Merge pull request #357
 
 2022-09-30
 -	nfdump-1.7.0.1 - fix build issues
@@ -11,4 +14,4 @@
 -	Fix build issues on various Linuxes
 
 2022-09-28
-- nfdump-1.7.0 - unicorn released
+-	nfdump-1.7.0 - unicorn released
