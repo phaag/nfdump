@@ -307,7 +307,7 @@ int loadLocalMap(char *fileName) {
         }
 
         int absent;
-        locationKey_t locationKey = {.key = locationInfo.localID, .hash = 0};
+        locationKey_t locationKey = {.key = locationInfo.localID};
         khint_t k = kh_put(localMap, localMap, locationKey, &absent);
         if (!absent) {
             LogError("Duplicate entry: %u", locationInfo.localID);
@@ -875,7 +875,7 @@ int LoadMaxMind(char *fileName) {
                 locationInfo_t *locationInfo = (locationInfo_t *)arrayElement;
                 for (int i = 0; i < nffile->block_header->NumRecords; i++) {
                     int absent;
-                    locationKey_t locationKey = {.key = locationInfo->localID, .hash = 0};
+                    locationKey_t locationKey = {.key = locationInfo->localID};
                     khint_t k = kh_put(localMap, mmHandle->localMap, locationKey, &absent);
                     if (!absent) {
                         LogError("Duplicate location entry: %u", locationInfo->localID);
@@ -981,7 +981,7 @@ void LookupCountry(uint64_t ip[2], char *country) {
         }
         info = ipV6Node->info;
     }
-    locationKey_t locationKey = {.key = info.localID, .hash = 0};
+    locationKey_t locationKey = {.key = info.localID};
     khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
     if (k == kh_end(mmHandle->localMap)) {
         country[0] = '.';
@@ -1028,7 +1028,7 @@ void LookupLocation(uint64_t ip[2], char *location, size_t len) {
         info = ipV6Node->info;
     }
 
-    locationKey_t locationKey = {.key = info.localID, .hash = 0};
+    locationKey_t locationKey = {.key = info.localID};
     khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
     if (k == kh_end(mmHandle->localMap)) {
         return;
@@ -1107,7 +1107,7 @@ void LookupWhois(char *ip) {
         }
     }
 
-    locationKey_t locationKey = {.key = info.localID, .hash = 0};
+    locationKey_t locationKey = {.key = info.localID};
     khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
     if (k == kh_end(mmHandle->localMap)) {
         printf("%-7u | %-24s | %-32s | no information | sat: %d\n", as, ip, asOrg == NULL ? "private" : asOrg, info.sat);

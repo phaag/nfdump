@@ -41,7 +41,7 @@
 
 typedef struct locationKey_s {
 	khint32_t key;
-	uint32_t hash;	// the full 32bit hash value - cached for khash resize
+	// uint32_t hash;	// the full 32bit hash value - cached for khash resize
 } locationKey_t;
 
 #define CityLength 36
