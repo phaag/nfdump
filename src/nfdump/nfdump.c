@@ -747,14 +747,7 @@ int main(int argc, char **argv) {
                 break;
             case 'r':
                 CheckArgLen(optarg, MAXPATHLEN);
-                if (TestPath(optarg, S_IFREG) == PATH_OK) {
-                    flist.single_file = strdup(optarg);
-                } else if (TestPath(optarg, S_IFDIR) == PATH_OK) {
-                    flist.multiple_files = strdup(optarg);
-                } else {
-                    LogError("%s is not a file or directory", optarg);
-                    exit(EXIT_FAILURE);
-                }
+                flist.single_file = strdup(optarg);
                 break;
             case 'm':
                 print_order = "tstart";

@@ -1,5 +1,6 @@
 2022-10-22
--	Fix #370. Help shows correct option -g
+-	Fix #370. Help shows correct option -A
+-	Fix #369. Legacy -M for NfSen works again
 
 2022-10-07
 -	Improve nbar handling. Add private enterprise number decoding

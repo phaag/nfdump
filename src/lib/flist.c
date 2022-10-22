@@ -35,6 +35,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,10 +46,6 @@
 #include <unistd.h>
 
 #include "config.h"
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #ifdef HAVE_FTS_H
 #include <fts.h>
@@ -70,8 +67,9 @@
 /*
  * Select a single file
  * --------------------
- * -r [/]path/to/single_file
- * Select a single file: absolute or relativ path to a single file.
+ * -r [/]path/to/entry
+ * entry: single file : Select a single file: absolute or relativ path to a single file.
+ * entry: directory   : Select recursively all files in this directory. Same as -R /path/to/directory
  * Recursive: no
  *
  * Selecting a range of files
@@ -817,6 +815,18 @@ queue_t *SetupInputFileSequence(flist_t *flist) {
     if (flist->multiple_dirs && !(flist->single_file || flist->multiple_files)) {
         LogError("-M needs either -r or -R to specify the file or file list. Add '-R .' for all files in the directories.\n");
         return NULL;
+    }
+
+    if (flist->multiple_dirs == NULL && flist->single_file) {
+        // if -r is directory use it for -R
+        if (TestPath(flist->single_file, S_IFDIR) == PATH_OK) {
+            flist->multiple_files = flist->single_file;
+            flist->single_file = NULL;
+        } else if (TestPath(flist->single_file, S_IFREG) < PATH_OK) {
+            // not a regular file
+            LogError("%s is not a file or directory", flist->single_file);
+            return NULL;
+        }
     }
 
     file_queue = queue_init(64);
