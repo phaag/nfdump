@@ -48,7 +48,6 @@
 #include "util.h"
 
 typedef struct AppInfoHash_s {
-    uint32_t hash;  // the full 32bit hash value - cached for khash resize
     uint16_t app_id_length;
     uint16_t app_name_length;
     uint16_t app_desc_length;
@@ -81,7 +80,7 @@ static kh_inline khint_t __HashFunc(const AppInfoHash_t record) {
 KHASH_INIT(NbarAppInfoHash, AppInfoHash_t, char, 0, __HashFunc, __HashEqual)
 static khash_t(NbarAppInfoHash) *NbarAppInfoHash = NULL;
 
-static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo) {
+static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo, uint8_t *nbarData) {
     size_t dataSize = nbarAppInfo->app_id_length + nbarAppInfo->app_name_length + nbarAppInfo->app_desc_length;
     if (dataSize == 0 || dataSize > 4096) {
         LogError("InsertNbarAppInfo(): in %s line %d: data size error %uz\n", __FILE__, __LINE__, dataSize);
@@ -90,30 +89,52 @@ static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo) {
     AppInfoHash_t AppInfoHash;
     memset((void *)&AppInfoHash, 0, sizeof(AppInfoHash_t));
     AppInfoHash.app_id_length = nbarAppInfo->app_id_length;
-    AppInfoHash.data = nbarAppInfo->data;
+    AppInfoHash.data = nbarData;
 
     int ret;
     khiter_t k;
     k = kh_put(NbarAppInfoHash, NbarAppInfoHash, AppInfoHash, &ret);
     if (ret == 0) {  // existing entry
-        dbg_printf("KHASH existing entry: %u %d, hash: 0x%x\n", k, ret, kh_key(NbarAppInfoHash, k).hash);
+        dbg_printf("KHASH existing entry: %u %d\n", k, ret);
         if (kh_key(NbarAppInfoHash, k).data) free(kh_key(NbarAppInfoHash, k).data);
     } else {
-        dbg_printf("KHASH new entry: %u, hash: 0x%x\n", k, kh_key(NbarAppInfoHash, k).hash);
+        dbg_printf("KHASH new entry: %u\n", k);
     }
     uint8_t *data = malloc(dataSize);
     if (!data) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return;
     }
-    memcpy(data, nbarAppInfo->data, dataSize);
+    memcpy(data, nbarData, dataSize);
     kh_key(NbarAppInfoHash, k).app_name_length = nbarAppInfo->app_name_length;
     kh_key(NbarAppInfoHash, k).app_desc_length = nbarAppInfo->app_desc_length;
     kh_key(NbarAppInfoHash, k).data = data;
 
 }  // end of InsertNbarAppInfo
 
-int AddNbarRecord(nbarRecordHeader_t *nbarRecord) {
+/*
+ * nbar record storage has been impoved - read older nbar records correctly
+ */
+static int AddOldNbarRecord(arrayRecordHeader_t *nbarRecord) {
+    dbg_printf("Old nbar record:\n");
+    elementHeader_t *elementHeader = (elementHeader_t *)((void *)nbarRecord + sizeof(arrayRecordHeader_t));
+    for (int i = 0; i < nbarRecord->numElements; i++) {
+        switch (elementHeader->type) {
+            case NbarAppInfoID: {
+                NbarAppInfo_t *NbarAppInfo = (NbarAppInfo_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                uint8_t *nbarData = (uint8_t *)((void *)NbarAppInfo + sizeof(NbarAppInfo_t));
+                InsertNbarAppInfo(NbarAppInfo, nbarData);
+            } break;
+            default:
+                printf("Unknown nbar element id: %u\n", elementHeader->type);
+        }
+    }
+
+    return 0;
+
+}  // End of AddNbarRecord
+
+int AddNbarRecord(arrayRecordHeader_t *nbarRecord) {
     if (NbarAppInfoHash == NULL) {
         NbarAppInfoHash = kh_init(NbarAppInfoHash);
         if (!NbarAppInfoHash) {
@@ -122,16 +143,14 @@ int AddNbarRecord(nbarRecordHeader_t *nbarRecord) {
         }
     }
 
-    elementHeader_t *elementHeader = (elementHeader_t *)((void *)nbarRecord + sizeof(nbarRecordHeader_t));
+    // old buggy nbarRecord
+    if (nbarRecord->elementSize == 0) return AddOldNbarRecord(nbarRecord);
+
+    NbarAppInfo_t *NbarAppInfo = (NbarAppInfo_t *)((void *)nbarRecord + sizeof(arrayRecordHeader_t));
+    uint8_t *nbarData = (uint8_t *)((void *)NbarAppInfo + sizeof(NbarAppInfo_t));
     for (int i = 0; i < nbarRecord->numElements; i++) {
-        switch (elementHeader->type) {
-            case NbarAppInfoID: {
-                NbarAppInfo_t *nbarAppInfo = (NbarAppInfo_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                InsertNbarAppInfo(nbarAppInfo);
-            } break;
-            default:
-                printf("Unknown nbar element id: %u\n", elementHeader->type);
-        }
+        InsertNbarAppInfo(NbarAppInfo, nbarData);
+        nbarData += nbarRecord->elementSize;
     }
 
     return 0;
@@ -209,32 +228,28 @@ void DumpNbarList(void) {
 
 }  // End of DumpNbarList
 
-void PrintNbarRecord(nbarRecordHeader_t *nbarRecord) {
+void PrintNbarRecord(arrayRecordHeader_t *nbarRecord) {
     dbg_printf("Nbar record: %u elements\n", nbarRecord->numElements);
+    dbg_printf("Nbar Element size: %u\n", nbarRecord->elementSize);
+    if (nbarRecord->elementSize == 0) {
+        dbg_printf("Old nbar record");
+        return;
+    }
 
-    elementHeader_t *elementHeader = (elementHeader_t *)((void *)nbarRecord + sizeof(nbarRecordHeader_t));
+    NbarAppInfo_t *NbarAppInfo = (NbarAppInfo_t *)((void *)nbarRecord + sizeof(arrayRecordHeader_t));
+    printf("id   length: %u\n", NbarAppInfo->app_id_length);
+    printf("name length: %u\n", NbarAppInfo->app_name_length);
+    printf("desc length: %u\n", NbarAppInfo->app_desc_length);
+    uint8_t *nbarData = (uint8_t *)((void *)NbarAppInfo + sizeof(NbarAppInfo_t));
     for (int i = 0; i < nbarRecord->numElements; i++) {
-        printf("Element   id: %u\n", elementHeader->type);
-        printf("Element size: %u\n", elementHeader->length);
-        switch (elementHeader->type) {
-            case NbarAppInfoID: {
-                NbarAppInfo_t *nbarAppInfo = (NbarAppInfo_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                uint8_t *p = nbarAppInfo->data;
-                printf("id   length: %u\n", nbarAppInfo->app_id_length);
-                printf("name length: %u\n", nbarAppInfo->app_name_length);
-                printf("desc length: %u\n", nbarAppInfo->app_desc_length);
-                printf("ID: ");
-                for (int i = 0; i < nbarAppInfo->app_id_length; i++) printf("%02X ", *((uint8_t *)p++));
-                printf("\n");
+        uint8_t *p = nbarData + i * nbarRecord->elementSize;
+        printf("ID: ");
+        for (int i = 0; i < NbarAppInfo->app_id_length; i++) printf("%02X ", *((uint8_t *)p++));
+        printf("\n");
 
-                printf("Name: %s\n", p);
-                p += nbarAppInfo->app_name_length;
-                printf("Desc: %s\n\n", p);
-
-            } break;
-            default:
-                printf("Unknown nbar element id: %u\n", elementHeader->type);
-        }
+        printf("Name: %s\n", p);
+        p += NbarAppInfo->app_name_length;
+        printf("Desc: %s\n\n", p);
     }
 
 }  // End of PrintNbarRecord

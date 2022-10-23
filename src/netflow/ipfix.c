@@ -1393,45 +1393,46 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
     // map input buffer as a byte array
     uint8_t *inBuff = (uint8_t *)(data_flowset + 4);  // skip flowset header
     // data size
-    size_t nbar_data_size = nbarOption->id.length + nbarOption->name.length + nbarOption->desc.length;
+    size_t data_size = nbarOption->id.length + nbarOption->name.length + nbarOption->desc.length;
     // size of record
-    size_t nbar_option_size = nbarOption->scopeSize + nbar_data_size;
+    size_t option_size = nbarOption->scopeSize + data_size;
     // number of records in data
-    int numRecords = size_left / nbar_option_size;
-    dbg_printf("[%u] nbar option data - records: %u, size: %zu\n", exporter->info.id, numRecords, nbar_option_size);
+    int numRecords = size_left / option_size;
+    dbg_printf("[%u] nbar option data - records: %u, size: %zu\n", exporter->info.id, numRecords, option_size);
 
-    if (numRecords == 0 || nbar_option_size == 0 || nbar_option_size > size_left) {
-        LogError("Process_nbar_option: nbar option size error: option size: %u, size left: %u", nbar_option_size, size_left);
+    if (numRecords == 0 || option_size == 0 || option_size > size_left) {
+        LogError("Process_nbar_option: nbar option size error: option size: %u, size left: %u", option_size, size_left);
         return;
     }
 
-    size_t nbar_total_size = numRecords * (sizeof(nbarRecordHeader_t) + sizeof(NbarAppInfo_t) + nbar_data_size);
-    size_t align = nbar_total_size & 0x3;
+    size_t elementSize = sizeof(NbarAppInfo_t) + data_size;
+    size_t align = elementSize & 0x3;
     if (align) {
-        nbar_total_size += 4 - align;
+        elementSize += 4 - align;
     }
+    size_t total_size = sizeof(arrayRecordHeader_t) + numRecords * elementSize;
+    dbg_printf("nbar elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
 
     // output buffer size check for all expected records
-    if (!CheckBufferSpace(fs->nffile, nbar_total_size)) {
+    if (!CheckBufferSpace(fs->nffile, total_size)) {
         // fishy! - should never happen. maybe disk full?
         LogError("Process_nbar_option: output buffer size error. Abort nbar record processing");
         return;
     }
 
     void *outBuff = fs->nffile->buff_ptr;
+    // push nbar header
+    AddArrayHeader(outBuff, nbarHeader, NbarRecordType, elementSize);
 
     int cnt = 0;
-    while (size_left >= nbar_option_size) {
-        // push nbar header
-        AddNbarHeader(outBuff, nbarHeader);
-
+    while (size_left >= option_size) {
         // push nbar app info record
-        PushNbarVarLengthExtension(nbarHeader, NbarAppInfo, nbar_record, sizeof(NbarAppInfo_t) + nbar_data_size);
+        PushArrayVarElement(nbarHeader, NbarAppInfo, nbar_record, elementSize);
 
         nbar_record->app_id_length = nbarOption->id.length;
         nbar_record->app_name_length = nbarOption->name.length;
         nbar_record->app_desc_length = nbarOption->desc.length;
-        uint8_t *p = nbar_record->data;
+        uint8_t *p = (uint8_t *)((void *)(nbar_record + sizeof(NbarAppInfo_t)));
         int err = 0;
 
         // copy data
@@ -1469,22 +1470,29 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
 #endif
 
         // in case of an err we do no store this record
-        if (err == 0) {
-            outBuff += nbarHeader->size;
-            fs->nffile->block_header->NumRecords++;
+        if (err != 0) {
+            nbarHeader->numElements--;
+            nbarHeader->size -= elementSize;
         }
-        inBuff += nbar_option_size;
-        size_left -= nbar_option_size;
+        inBuff += option_size;
+        size_left -= option_size;
+
+        inBuff += option_size;
+        size_left -= option_size;
     }
 
-    // update file record size ( -> output buffer size )
-    fs->nffile->block_header->size += (void *)outBuff - fs->nffile->buff_ptr;
-    fs->nffile->buff_ptr = (void *)outBuff;
+    // update data block header
+    fs->nffile->block_header->size += nbarHeader->size;
+    fs->nffile->block_header->NumRecords++;
+    fs->nffile->buff_ptr += nbarHeader->size;
 
     if (size_left > 7) {
         LogInfo("Proces nbar data record - %u extra bytes", size_left);
     }
     processed_records++;
+
+    dbg_printf("nbar processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nbarHeader->size,
+               nbarHeader->type, nbarHeader->numElements, nbarHeader->elementSize);
 
 }  // End of Process_ipfix_nbar_option_data
 

@@ -501,12 +501,16 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                     }
                 } break;
                 case NbarRecordType: {
-                    nbarRecordHeader_t *nbarRecord = (nbarRecordHeader_t *)record_ptr;
+                    arrayRecordHeader_t *nbarRecord = (arrayRecordHeader_t *)record_ptr;
 #ifdef DEVEL
                     printf("Found nbar record: %u elements\n", nbarRecord->numElements);
                     PrintNbarRecord(nbarRecord);
 #endif
                     AddNbarRecord(nbarRecord);
+                } break;
+                case IfNameRecordType: {
+                } break;
+                case VrfNameRecordType: {
                 } break;
                 case LegacyRecordType1:
                 case LegacyRecordType2:

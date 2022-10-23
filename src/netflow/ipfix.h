@@ -268,6 +268,11 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_octetTotalCount 85
 #define IPFIX_packetTotalCount 86
 #define IPFIX_forwardingStatus 89
+
+#define NBAR_APPLICATION_DESC 94
+#define NBAR_APPLICATION_ID 95
+#define NBAR_APPLICATION_NAME 96
+
 #define IPFIX_flowEndReason 136
 #define IPFIX_observationPointId 138
 #define IPFIX_icmpTypeCodeIPv6 139

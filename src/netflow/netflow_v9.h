@@ -224,8 +224,14 @@ typedef struct common_header_s {
 #define NF9_MPLS_LABEL_10 79
 #define NF9_IN_DST_MAC 80
 #define NF9_OUT_SRC_MAC 81
+#define NF9_INTERFACEDESCRIPTION 83
 
 #define NF9_FORWARDING_STATUS 89
+
+// nbar
+#define NBAR_APPLICATION_DESC 94
+#define NBAR_APPLICATION_ID 95
+#define NBAR_APPLICATION_NAME 96
 
 #define NF_F_BGP_ADJ_NEXT_AS 128
 #define NF_F_BGP_ADJ_PREV_AS 129
@@ -271,10 +277,13 @@ typedef struct common_header_s {
 #define NF_F_INITIATORPACKETS 298
 #define NF_F_RESPONDERPACKETS 299
 
-// Cisco ASR 1000 series NEL extension - Nat Event Logging
-#define NF_N_NAT_EVENT 230
+// Cisco ASR 1000 / IOS-XR option templates for vrf names
 #define NF_N_INGRESS_VRFID 234
 #define NF_N_EGRESS_VRFID 235
+#define NF_N_VRFNAME 236
+
+// Cisco ASR 1000 series NEL extension - Nat Event Logging
+#define NF_N_NAT_EVENT 230
 #define NF_F_XLATE_PORT_BLOCK_START 361
 #define NF_F_XLATE_PORT_BLOCK_END 362
 #define NF_F_XLATE_PORT_BLOCK_STEP 363
