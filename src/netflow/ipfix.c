@@ -1405,12 +1405,12 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
         return;
     }
 
-    size_t elementSize = sizeof(NbarAppInfo_t) + data_size;
+    size_t elementSize = data_size;
     size_t align = elementSize & 0x3;
     if (align) {
         elementSize += 4 - align;
     }
-    size_t total_size = sizeof(arrayRecordHeader_t) + numRecords * elementSize;
+    size_t total_size = sizeof(arrayRecordHeader_t) + sizeof(NbarAppInfo_t) + numRecords * elementSize;
     dbg_printf("nbar elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
 
     // output buffer size check for all expected records
@@ -1424,25 +1424,30 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
     // push nbar header
     AddArrayHeader(outBuff, nbarHeader, NbarRecordType, elementSize);
 
+    // put array info descripter next
+    NbarAppInfo_t *NbarInfo = (NbarAppInfo_t *)(outBuff + sizeof(arrayRecordHeader_t));
+    nbarHeader->size += sizeof(NbarAppInfo_t);
+
+    // info record for each element in array
+    NbarInfo->app_id_length = nbarOption->id.length;
+    NbarInfo->app_name_length = nbarOption->name.length;
+    NbarInfo->app_desc_length = nbarOption->desc.length;
+
     int cnt = 0;
     while (size_left >= option_size) {
         // push nbar app info record
-        PushArrayVarElement(nbarHeader, NbarAppInfo, nbar_record, elementSize);
-
-        nbar_record->app_id_length = nbarOption->id.length;
-        nbar_record->app_name_length = nbarOption->name.length;
-        nbar_record->app_desc_length = nbarOption->desc.length;
-        uint8_t *p = (uint8_t *)((void *)(nbar_record + sizeof(NbarAppInfo_t)));
-        int err = 0;
+        uint8_t *p;
+        PushArrayNextElement(nbarHeader, p, uint8_t);
 
         // copy data
-        //  id octet array
+        // id octet array
         memcpy(p, inBuff + nbarOption->id.offset, nbarOption->id.length);
         p += nbarOption->id.length;
 
         // name string
         memcpy(p, inBuff + nbarOption->name.offset, nbarOption->name.length);
         uint32_t state = UTF8_ACCEPT;
+        int err = 0;
         if (validate_utf8(&state, (char *)p, nbarOption->name.length) == UTF8_REJECT) {
             LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar name");
             err = 1;
@@ -1476,9 +1481,6 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
         }
         inBuff += option_size;
         size_left -= option_size;
-
-        inBuff += option_size;
-        size_left -= option_size;
     }
 
     // update data block header
@@ -1493,7 +1495,6 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
 
     dbg_printf("nbar processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nbarHeader->size,
                nbarHeader->type, nbarHeader->numElements, nbarHeader->elementSize);
-
 }  // End of Process_ipfix_nbar_option_data
 
 static void Process_ipfix_SysUpTime_option_data(exporterDomain_t *exporter, templateList_t *template, void *data_flowset) {
