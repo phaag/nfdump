@@ -87,7 +87,7 @@ static struct aggregate_table_s {
                        {"xsrcip", {8, OffsetXLATESRCv6a, MaskIPv6, ShiftIPv6}, -1, 0, "%xsa"},
                        {"xsrcip", {8, OffsetXLATESRCv6b, MaskIPv6, ShiftIPv6}, -1, 0, NULL},
                        {"xdstip", {8, OffsetXLATEDSTv6a, MaskIPv6, ShiftIPv6}, -1, 0, "%xda"},
-                       {"xdstip", {8, OffsetXLATESRCv6b, MaskIPv6, ShiftIPv6}, -1, 0, NULL},
+                       {"xdstip", {8, OffsetXLATEDSTv6b, MaskIPv6, ShiftIPv6}, -1, 0, NULL},
                        {"xsrcport", {2, OffsetXLATEPort, MaskXLATESRCPORT, ShiftXLATESRCPORT}, -1, 0, "%xsp"},
                        {"xdstport", {2, OffsetXLATEPort, MaskXLATEDSTPORT, ShiftXLATEDSTPORT}, -1, 0, "%xdp"},
 #endif
