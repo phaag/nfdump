@@ -778,7 +778,7 @@ void Getsource_dirs(char *dirs) {
             // p point to a dir name
             snprintf(path, 1023, "%s/%s", dirprefix, p);
             path[MAXPATHLEN - 1] = 0;
-            if (!CheckPath(dirs, S_IFDIR)) {
+            if (!CheckPath(path, S_IFDIR)) {
                 LogError("Not a directory: '%s'", path);
                 return;
             }
