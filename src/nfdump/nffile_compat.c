@@ -362,8 +362,9 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
                 PushExtension(recordHeader, EXnelCommon, nelCommon);
                 nelCommon->natEvent = tpl->nat_event;
                 recordHeader->flags = FW_EVENT;
-                nelCommon->egressVrf = tpl->egress_vrfid;
-                nelCommon->ingressVrf = tpl->ingress_vrfid;
+                PushExtension(recordHeader, EXvrf, vrf);
+                vrf->egressVrf = tpl->egress_vrfid;
+                vrf->ingressVrf = tpl->ingress_vrfid;
                 p = (void *)tpl->data;
             } break;
             case EX_NEL_GLOBAL_IP_v4: {

@@ -45,6 +45,7 @@
 #include <time.h>
 
 #include "content_dns.h"
+#include "ifvrf.h"
 #include "ja3.h"
 #include "maxmind.h"
 #include "nbar.h"
@@ -155,7 +156,11 @@ static void String_PrevAS(FILE *stream, master_record_t *r);
 
 static void String_Input(FILE *stream, master_record_t *r);
 
+static void String_InputName(FILE *stream, master_record_t *r);
+
 static void String_Output(FILE *stream, master_record_t *r);
+
+static void String_OutputName(FILE *stream, master_record_t *r);
 
 static void String_InPackets(FILE *stream, master_record_t *r);
 
@@ -263,6 +268,14 @@ static void String_observationDomainID(FILE *stream, master_record_t *r);
 
 static void String_observationPointID(FILE *stream, master_record_t *r);
 
+static void String_ivrf(FILE *stream, master_record_t *r);
+
+static void String_ivrfName(FILE *stream, master_record_t *r);
+
+static void String_evrf(FILE *stream, master_record_t *r);
+
+static void String_evrfName(FILE *stream, master_record_t *r);
+
 static void String_NewLine(FILE *stream, master_record_t *r);
 
 #ifdef NSEL
@@ -296,10 +309,6 @@ static void String_xlateDstAddrPort(FILE *stream, master_record_t *r);
 
 static void String_userName(FILE *stream, master_record_t *r);
 
-static void String_ivrf(FILE *stream, master_record_t *r);
-
-static void String_evrf(FILE *stream, master_record_t *r);
-
 static void String_PortBlockStart(FILE *stream, master_record_t *r);
 
 static void String_PortBlockEnd(FILE *stream, master_record_t *r);
@@ -311,146 +320,151 @@ static void String_PortBlockSize(FILE *stream, master_record_t *r);
 #endif
 
 static struct format_token_list_s {
-    char *token;                        // token
-    int is_address;                     // is an IP address
-    char *header;                       // header line description
-    string_function_t string_function;  // function generation output string
-} format_token_list[] = {
-    {"%nfv", 0, "Ver", String_Version},                                 // netflow version
-    {"%cnt", 0, "Count", String_FlowCount},                             // flow count
-    {"%tfs", 0, "Date first seen        ", String_FirstSeen},           // Start Time - first seen
-    {"%ts", 0, "Date first seen        ", String_FirstSeen},            // Start Time - first seen
-    {"%tsr", 0, "Date first seen (raw)    ", String_FirstSeenRaw},      // Start Time - first seen, seconds
-    {"%te", 0, "Date last seen         ", String_LastSeen},             // End Time	- last seen
-    {"%ter", 0, "Date last seen (raw)     ", String_LastSeenRaw},       // End Time - first seen, seconds
-    {"%tr", 0, "Date flow received     ", String_Received},             // Received Time
-    {"%trr", 0, "Date flow received (raw)  ", String_ReceivedRaw},      // Received Time, seconds
-    {"%td", 0, "    Duration    ", String_Duration},                    // Duration
-    {"%tds", 0, "    Duration    ", String_Duration_Seconds},           // Duration always in seconds
-    {"%exp", 0, "Exp ID", String_ExpSysID},                             // Exporter SysID
-    {"%pr", 0, "Proto", String_Protocol},                               // Protocol
-    {"%sa", 1, "     Src IP Addr", String_SrcAddr},                     // Source Address
-    {"%da", 1, "     Dst IP Addr", String_DstAddr},                     // Destination Address
-    {"%gsa", 1, "     Src IP Addr(..)", String_SrcGeoAddr},             // Source Address
-    {"%gda", 1, "     Dst IP Addr(..)", String_DstGeoAddr},             // Destination Address
-    {"%sn", 1, "        Src Network", String_SrcNet},                   // Source Address applied source netmask
-    {"%dn", 1, "        Dst Network", String_DstNet},                   // Destination Address applied source netmask
-    {"%nh", 1, "     Next-hop IP", String_NextHop},                     // Next-hop IP Address
-    {"%nhb", 1, " BGP next-hop IP", String_BGPNextHop},                 // BGP Next-hop IP Address
-    {"%ra", 1, "       Router IP", String_RouterIP},                    // Router IP Address
-    {"%sap", 1, "     Src IP Addr:Port ", String_SrcAddrPort},          // Source Address:Port
-    {"%dap", 1, "     Dst IP Addr:Port ", String_DstAddrPort},          // Destination Address:Port
-    {"%gsap", 1, "     Src IP Addr(..):Port ", String_SrcAddrGeoPort},  // Source Address(geo):Port
-    {"%gdap", 1, "     Dst IP Addr(..):Port ", String_DstAddrGeoPort},  // Destination Address(geo):Port
-    {"%sp", 0, "Src Pt", String_SrcPort},                               // Source Port
-    {"%dp", 0, "Dst Pt", String_DstPort},                               // Destination Port
-    {"%it", 0, "ICMP-T", String_ICMP_type},                             // ICMP type
-    {"%ic", 0, "ICMP-C", String_ICMP_code},                             // ICMP code
-    {"%sas", 0, "Src AS", String_SrcAS},                                // Source AS
-    {"%das", 0, "Dst AS", String_DstAS},                                // Destination AS
-    {"%nas", 0, "Next AS", String_NextAS},                              // Next AS
-    {"%pas", 0, "Prev AS", String_PrevAS},                              // Previous AS
-    {"%in", 0, " Input", String_Input},                                 // Input Interface num
-    {"%out", 0, "Output", String_Output},                               // Output Interface num
-    {"%pkt", 0, " Packets", String_InPackets},                          // Packets - default input - compat
-    {"%ipkt", 0, "  In Pkt", String_InPackets},                         // In Packets
-    {"%opkt", 0, " Out Pkt", String_OutPackets},                        // Out Packets
-    {"%byt", 0, "   Bytes", String_InBytes},                            // Bytes - default input - compat
-    {"%ibyt", 0, " In Byte", String_InBytes},                           // In Bytes
-    {"%obyt", 0, "Out Byte", String_OutBytes},                          // In Bytes
-    {"%fl", 0, "Flows", String_Flows},                                  // Flows
-    {"%flg", 0, "   Flags", String_Flags},                              // TCP Flags
-    {"%tos", 0, "Tos", String_Tos},                                     // Tos - compat
-    {"%stos", 0, "STos", String_SrcTos},                                // Tos - Src tos
-    {"%dtos", 0, "DTos", String_DstTos},                                // Tos - Dst tos
-    {"%dir", 0, "Dir", String_Dir},                                     // Direction: ingress, egress
-    {"%smk", 0, "SMask", String_SrcMask},                               // Src mask
-    {"%dmk", 0, "DMask", String_DstMask},                               // Dst mask
-    {"%fwd", 0, "Fwd", String_FwdStatus},                               // Forwarding Status
-    {"%bfd", 0, "Bfd", String_BiFlowDir},                               // BiFlow Direction
-    {"%end", 0, "End", String_FlowEndReason},                           // Flow End Reason
-    {"%svln", 0, "SVlan", String_SrcVlan},                              // Src Vlan
-    {"%dvln", 0, "DVlan", String_DstVlan},                              // Dst Vlan
-    {"%ismc", 0, "  In src MAC Addr", String_InSrcMac},                 // Input Src Mac Addr
-    {"%odmc", 0, " Out dst MAC Addr", String_OutDstMac},                // Output Dst Mac Addr
-    {"%idmc", 0, "  In dst MAC Addr", String_InDstMac},                 // Input Dst Mac Addr
-    {"%osmc", 0, " Out src MAC Addr", String_OutSrcMac},                // Output Src Mac Addr
-    {"%mpls1", 0, " MPLS lbl 1 ", String_MPLS_1},                       // MPLS Label 1
-    {"%mpls2", 0, " MPLS lbl 2 ", String_MPLS_2},                       // MPLS Label 2
-    {"%mpls3", 0, " MPLS lbl 3 ", String_MPLS_3},                       // MPLS Label 3
-    {"%mpls4", 0, " MPLS lbl 4 ", String_MPLS_4},                       // MPLS Label 4
-    {"%mpls5", 0, " MPLS lbl 5 ", String_MPLS_5},                       // MPLS Label 5
-    {"%mpls6", 0, " MPLS lbl 6 ", String_MPLS_6},                       // MPLS Label 6
-    {"%mpls7", 0, " MPLS lbl 7 ", String_MPLS_7},                       // MPLS Label 7
-    {"%mpls8", 0, " MPLS lbl 8 ", String_MPLS_8},                       // MPLS Label 8
-    {"%mpls9", 0, " MPLS lbl 9 ", String_MPLS_9},                       // MPLS Label 9
-    {"%mpls10", 0, " MPLS lbl 10", String_MPLS_10},                     // MPLS Label 10
-    {"%mpls", 0, "                                               MPLS labels 1-10                                                                   ",
-     String_MPLSs},  // All MPLS labels
-    //
-    {"%bps", 0, "     bps", String_bps},                          // bps - bits per second
-    {"%pps", 0, "     pps", String_pps},                          // pps - packets per second
-    {"%bpp", 0, "   Bpp", String_bpp},                            // bpp - Bytes per package
-    {"%eng", 0, " engine", String_Engine},                        // Engine Type/ID
-    {"%lbl", 0, "           label", String_Label},                // Flow Label
-    {"%sc", 0, "  ", String_SrcCountry},                          // src IP 2 letter country code
-    {"%dc", 0, "  ", String_DstCountry},                          // dst IP 2 letter country code
-    {"%sloc", 0, "Src IP location info", String_SrcLocation},     // src IP geo location info
-    {"%dloc", 0, "Src IP location info", String_DstLocation},     // src IP geo location info
-    {"%n", 0, "", String_NewLine},                                // \n
-    {"%ipl", 0, "", String_inPayload},                            // in payload
-    {"%opl", 0, "", String_outPayload},                           // out payload
-    {"%nbid", 0, "nbar ID", String_nbarID},                       // nbar ID
-    {"%ja3", 0, "                             ja3", String_ja3},  // ja3
-    {"%sni", 0, "sni name", String_sniName},                      // TLS sni Name
-    {"%nbnam", 0, "nbar name", String_nbarName},                  // nbar Name
-    {"%odid", 0, "obsDomainID", String_observationDomainID},      // observation domainID
-    {"%opid", 0, "  obsPointID", String_observationPointID},      // observation pointID
+    char *token;                                                                             // token
+    int is_address;                                                                          // is an IP address
+    char *header;                                                                            // header line description
+    string_function_t string_function;                                                       // function generation output string
+} format_token_list[] = {{"%nfv", 0, "Ver", String_Version},                                 // netflow version
+                         {"%cnt", 0, "Count", String_FlowCount},                             // flow count
+                         {"%tfs", 0, "Date first seen        ", String_FirstSeen},           // Start Time - first seen
+                         {"%ts", 0, "Date first seen        ", String_FirstSeen},            // Start Time - first seen
+                         {"%tsr", 0, "Date first seen (raw)    ", String_FirstSeenRaw},      // Start Time - first seen, seconds
+                         {"%te", 0, "Date last seen         ", String_LastSeen},             // End Time	- last seen
+                         {"%ter", 0, "Date last seen (raw)     ", String_LastSeenRaw},       // End Time - first seen, seconds
+                         {"%tr", 0, "Date flow received     ", String_Received},             // Received Time
+                         {"%trr", 0, "Date flow received (raw)  ", String_ReceivedRaw},      // Received Time, seconds
+                         {"%td", 0, "    Duration    ", String_Duration},                    // Duration
+                         {"%tds", 0, "    Duration    ", String_Duration_Seconds},           // Duration always in seconds
+                         {"%exp", 0, "Exp ID", String_ExpSysID},                             // Exporter SysID
+                         {"%pr", 0, "Proto", String_Protocol},                               // Protocol
+                         {"%sa", 1, "     Src IP Addr", String_SrcAddr},                     // Source Address
+                         {"%da", 1, "     Dst IP Addr", String_DstAddr},                     // Destination Address
+                         {"%gsa", 1, "     Src IP Addr(..)", String_SrcGeoAddr},             // Source Address
+                         {"%gda", 1, "     Dst IP Addr(..)", String_DstGeoAddr},             // Destination Address
+                         {"%sn", 1, "        Src Network", String_SrcNet},                   // Source Address applied source netmask
+                         {"%dn", 1, "        Dst Network", String_DstNet},                   // Destination Address applied source netmask
+                         {"%nh", 1, "     Next-hop IP", String_NextHop},                     // Next-hop IP Address
+                         {"%nhb", 1, " BGP next-hop IP", String_BGPNextHop},                 // BGP Next-hop IP Address
+                         {"%ra", 1, "       Router IP", String_RouterIP},                    // Router IP Address
+                         {"%sap", 1, "     Src IP Addr:Port ", String_SrcAddrPort},          // Source Address:Port
+                         {"%dap", 1, "     Dst IP Addr:Port ", String_DstAddrPort},          // Destination Address:Port
+                         {"%gsap", 1, "     Src IP Addr(..):Port ", String_SrcAddrGeoPort},  // Source Address(geo):Port
+                         {"%gdap", 1, "     Dst IP Addr(..):Port ", String_DstAddrGeoPort},  // Destination Address(geo):Port
+                         {"%sp", 0, "Src Pt", String_SrcPort},                               // Source Port
+                         {"%dp", 0, "Dst Pt", String_DstPort},                               // Destination Port
+                         {"%it", 0, "ICMP-T", String_ICMP_type},                             // ICMP type
+                         {"%ic", 0, "ICMP-C", String_ICMP_code},                             // ICMP code
+                         {"%sas", 0, "Src AS", String_SrcAS},                                // Source AS
+                         {"%das", 0, "Dst AS", String_DstAS},                                // Destination AS
+                         {"%nas", 0, "Next AS", String_NextAS},                              // Next AS
+                         {"%pas", 0, "Prev AS", String_PrevAS},                              // Previous AS
+                         {"%in", 0, " Input", String_Input},                                 // Input Interface num
+                         {"%inam", 0, " Input interface name", String_InputName},            // Input Interface name
+                         {"%out", 0, "Output", String_Output},                               // Output Interface num
+                         {"%onam", 0, "Output interface name", String_OutputName},           // Output Interface name
+                         {"%pkt", 0, " Packets", String_InPackets},                          // Packets - default input - compat
+                         {"%ipkt", 0, "  In Pkt", String_InPackets},                         // In Packets
+                         {"%opkt", 0, " Out Pkt", String_OutPackets},                        // Out Packets
+                         {"%byt", 0, "   Bytes", String_InBytes},                            // Bytes - default input - compat
+                         {"%ibyt", 0, " In Byte", String_InBytes},                           // In Bytes
+                         {"%obyt", 0, "Out Byte", String_OutBytes},                          // In Bytes
+                         {"%fl", 0, "Flows", String_Flows},                                  // Flows
+                         {"%flg", 0, "   Flags", String_Flags},                              // TCP Flags
+                         {"%tos", 0, "Tos", String_Tos},                                     // Tos - compat
+                         {"%stos", 0, "STos", String_SrcTos},                                // Tos - Src tos
+                         {"%dtos", 0, "DTos", String_DstTos},                                // Tos - Dst tos
+                         {"%dir", 0, "Dir", String_Dir},                                     // Direction: ingress, egress
+                         {"%smk", 0, "SMask", String_SrcMask},                               // Src mask
+                         {"%dmk", 0, "DMask", String_DstMask},                               // Dst mask
+                         {"%fwd", 0, "Fwd", String_FwdStatus},                               // Forwarding Status
+                         {"%bfd", 0, "Bfd", String_BiFlowDir},                               // BiFlow Direction
+                         {"%end", 0, "End", String_FlowEndReason},                           // Flow End Reason
+                         {"%svln", 0, "SVlan", String_SrcVlan},                              // Src Vlan
+                         {"%dvln", 0, "DVlan", String_DstVlan},                              // Dst Vlan
+                         {"%ismc", 0, "  In src MAC Addr", String_InSrcMac},                 // Input Src Mac Addr
+                         {"%odmc", 0, " Out dst MAC Addr", String_OutDstMac},                // Output Dst Mac Addr
+                         {"%idmc", 0, "  In dst MAC Addr", String_InDstMac},                 // Input Dst Mac Addr
+                         {"%osmc", 0, " Out src MAC Addr", String_OutSrcMac},                // Output Src Mac Addr
+                         {"%mpls1", 0, " MPLS lbl 1 ", String_MPLS_1},                       // MPLS Label 1
+                         {"%mpls2", 0, " MPLS lbl 2 ", String_MPLS_2},                       // MPLS Label 2
+                         {"%mpls3", 0, " MPLS lbl 3 ", String_MPLS_3},                       // MPLS Label 3
+                         {"%mpls4", 0, " MPLS lbl 4 ", String_MPLS_4},                       // MPLS Label 4
+                         {"%mpls5", 0, " MPLS lbl 5 ", String_MPLS_5},                       // MPLS Label 5
+                         {"%mpls6", 0, " MPLS lbl 6 ", String_MPLS_6},                       // MPLS Label 6
+                         {"%mpls7", 0, " MPLS lbl 7 ", String_MPLS_7},                       // MPLS Label 7
+                         {"%mpls8", 0, " MPLS lbl 8 ", String_MPLS_8},                       // MPLS Label 8
+                         {"%mpls9", 0, " MPLS lbl 9 ", String_MPLS_9},                       // MPLS Label 9
+                         {"%mpls10", 0, " MPLS lbl 10", String_MPLS_10},                     // MPLS Label 10
+                         {"%mpls", 0,
+                          "                                               MPLS labels 1-10                                                  "
+                          "                 ",
+                          String_MPLSs},  // All MPLS labels
+                         //
+                         {"%bps", 0, "     bps", String_bps},                          // bps - bits per second
+                         {"%pps", 0, "     pps", String_pps},                          // pps - packets per second
+                         {"%bpp", 0, "   Bpp", String_bpp},                            // bpp - Bytes per package
+                         {"%eng", 0, " engine", String_Engine},                        // Engine Type/ID
+                         {"%lbl", 0, "           label", String_Label},                // Flow Label
+                         {"%sc", 0, "  ", String_SrcCountry},                          // src IP 2 letter country code
+                         {"%dc", 0, "  ", String_DstCountry},                          // dst IP 2 letter country code
+                         {"%sloc", 0, "Src IP location info", String_SrcLocation},     // src IP geo location info
+                         {"%dloc", 0, "Src IP location info", String_DstLocation},     // src IP geo location info
+                         {"%n", 0, "", String_NewLine},                                // \n
+                         {"%ipl", 0, "", String_inPayload},                            // in payload
+                         {"%opl", 0, "", String_outPayload},                           // out payload
+                         {"%nbid", 0, "nbar ID", String_nbarID},                       // nbar ID
+                         {"%ja3", 0, "                             ja3", String_ja3},  // ja3
+                         {"%sni", 0, "sni name", String_sniName},                      // TLS sni Name
+                         {"%nbnam", 0, "nbar name", String_nbarName},                  // nbar Name
+                         {"%odid", 0, "obsDomainID", String_observationDomainID},      // observation domainID
+                         {"%opid", 0, "  obsPointID", String_observationPointID},      // observation pointID
+                         {"%vrf", 0, "  I-VRF-ID", String_ivrf},                       // ingress vrf ID - compatible
+                         {"%ivrf", 0, "  I-VRF-ID", String_ivrf},                      // ingress vrf ID
+                         {"%ivrfnam", 0, "  I-VRF-Name", String_ivrfName},             // ingress vrf name
+                         {"%evrf", 0, "  E-VRF-ID", String_evrf},                      // egress vrf ID
+                         {"%evrfnam", 0, "  E-VRF-Name", String_evrfName},             // egress vrf name
 
 #ifdef NSEL
-    // NSEL specifics
-    {"%nfc", 0, "   Conn-ID", String_nfc},                            // NSEL connection ID
-    {"%tevt", 0, "Event time             ", String_EventTime},        // NSEL Flow start time
-    {"%evt", 0, " Event", String_evt},                                // NSEL event
-    {"%xevt", 0, " XEvent", String_xevt},                             // NSEL xevent
-    {"%sgt", 0, "  SGT  ", String_sgt},                               // NSEL xevent
-    {"%msec", 0, "   Event Time", String_msecEvent},                  // NSEL event time in msec
-    {"%iacl", 0, "Ingress ACL                     ", String_iacl},    // NSEL ingress ACL
-    {"%eacl", 0, "Egress ACL                      ", String_eacl},    // NSEL egress ACL
-    {"%xsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NSEL XLATE src IP
-    {"%xda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NSEL XLATE dst IP
-    {"%xsp", 0, "XsPort", String_xlateSrcPort},                       // NSEL XLATE src port
-    {"%xdp", 0, "XdPort", String_xlateDstPort},                       // NSEL SLATE dst port
-    {"%xsap", 1, "   X-Src IP Addr:Port ", String_xlateSrcAddrPort},  // Xlate Source Address:Port
-    {"%xdap", 1, "   X-Dst IP Addr:Port ", String_xlateDstAddrPort},  // Xlate Destination Address:Port
-    {"%uname", 0, "UserName", String_userName},                       // NSEL user name
+                         // NSEL specifics
+                         {"%nfc", 0, "   Conn-ID", String_nfc},                            // NSEL connection ID
+                         {"%tevt", 0, "Event time             ", String_EventTime},        // NSEL Flow start time
+                         {"%evt", 0, " Event", String_evt},                                // NSEL event
+                         {"%xevt", 0, " XEvent", String_xevt},                             // NSEL xevent
+                         {"%sgt", 0, "  SGT  ", String_sgt},                               // NSEL xevent
+                         {"%msec", 0, "   Event Time", String_msecEvent},                  // NSEL event time in msec
+                         {"%iacl", 0, "Ingress ACL                     ", String_iacl},    // NSEL ingress ACL
+                         {"%eacl", 0, "Egress ACL                      ", String_eacl},    // NSEL egress ACL
+                         {"%xsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NSEL XLATE src IP
+                         {"%xda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NSEL XLATE dst IP
+                         {"%xsp", 0, "XsPort", String_xlateSrcPort},                       // NSEL XLATE src port
+                         {"%xdp", 0, "XdPort", String_xlateDstPort},                       // NSEL SLATE dst port
+                         {"%xsap", 1, "   X-Src IP Addr:Port ", String_xlateSrcAddrPort},  // Xlate Source Address:Port
+                         {"%xdap", 1, "   X-Dst IP Addr:Port ", String_xlateDstAddrPort},  // Xlate Destination Address:Port
+                         {"%uname", 0, "UserName", String_userName},                       // NSEL user name
 
-    // NEL
-    // for v.1.6.10 compatibility, keep NEL specific addr/port format tokens
-    {"%nevt", 0, " Event", String_evt},                               // NAT event
-    {"%vrf", 0, "  I-VRF-ID", String_ivrf},                           // NAT ivrf ID - compatible
-    {"%ivrf", 0, "  I-VRF-ID", String_ivrf},                          // NAT ivrf ID
-    {"%evrf", 0, "  E-VRF-ID", String_evrf},                          // NAT ivrf ID
-    {"%nsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NAT XLATE src IP
-    {"%nda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NAT XLATE dst IP
-    {"%nsp", 0, "XsPort", String_xlateSrcPort},                       // NAT XLATE src port
-    {"%ndp", 0, "XdPort", String_xlateDstPort},                       // NAT SLATE dst port
-    {"%nsap", 1, "   X-Src IP Addr:Port ", String_xlateSrcAddrPort},  // NAT Xlate Source Address:Port
-    {"%ndap", 1, "   X-Dst IP Addr:Port ", String_xlateDstAddrPort},  // NAT Xlate Destination Address:Port
+                         // NEL
+                         // for v.1.6.10 compatibility, keep NEL specific addr/port format tokens
+                         {"%nevt", 0, " Event", String_evt},                               // NAT event
+                         {"%nsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NAT XLATE src IP
+                         {"%nda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NAT XLATE dst IP
+                         {"%nsp", 0, "XsPort", String_xlateSrcPort},                       // NAT XLATE src port
+                         {"%ndp", 0, "XdPort", String_xlateDstPort},                       // NAT SLATE dst port
+                         {"%nsap", 1, "   X-Src IP Addr:Port ", String_xlateSrcAddrPort},  // NAT Xlate Source Address:Port
+                         {"%ndap", 1, "   X-Dst IP Addr:Port ", String_xlateDstAddrPort},  // NAT Xlate Destination Address:Port
 
-    // Port block allocation
-    {"%pbstart", 0, "Pb-Start", String_PortBlockStart},  // Port block start
-    {"%pbend", 0, "Pb-End", String_PortBlockEnd},        // Port block end
-    {"%pbstep", 0, "Pb-Step", String_PortBlockStep},     // Port block step
-    {"%pbsize", 0, "Pb-Size", String_PortBlockSize},     // Port block size
+                         // Port block allocation
+                         {"%pbstart", 0, "Pb-Start", String_PortBlockStart},  // Port block start
+                         {"%pbend", 0, "Pb-End", String_PortBlockEnd},        // Port block end
+                         {"%pbstep", 0, "Pb-Step", String_PortBlockStep},     // Port block step
+                         {"%pbsize", 0, "Pb-Size", String_PortBlockSize},     // Port block size
 #endif
 
-    // latency extension for nfpcapd and nprobe
-    {"%cl", 0, "C Latency", String_ClientLatency},  // client latency
-    {"%sl", 0, "S latency", String_ServerLatency},  // server latency
-    {"%al", 0, "A latency", String_AppLatency},     // app latency
+                         // latency extension for nfpcapd and nprobe
+                         {"%cl", 0, "C Latency", String_ClientLatency},  // client latency
+                         {"%sl", 0, "S latency", String_ServerLatency},  // server latency
+                         {"%al", 0, "A latency", String_AppLatency},     // app latency
 
-    {NULL, 0, NULL, NULL}};
+                         {NULL, 0, NULL, NULL}};
 
 /* each of the tokens above must not generate output strings larger than this */
 #define MAX_STRING_LENGTH 256
@@ -1322,7 +1336,17 @@ static void String_PrevAS(FILE *stream, master_record_t *r) { fprintf(stream, " 
 
 static void String_Input(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->input); }  // End of String_Input
 
+static void String_InputName(FILE *stream, master_record_t *r) {
+    char ifName[128];
+    fprintf(stream, "%s", GetIfName(r->input, ifName, sizeof(ifName)));
+}  // End of String_InputName
+
 static void String_Output(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->output); }  // End of String_Output
+
+static void String_OutputName(FILE *stream, master_record_t *r) {
+    char ifName[128];
+    fprintf(stream, "%s", GetIfName(r->output, ifName, sizeof(ifName)));
+}  // End of String_OutputName
 
 static void String_InPackets(FILE *stream, master_record_t *r) {
     char s[NUMBER_STRING_SIZE];
@@ -1484,7 +1508,9 @@ static void String_MPLS_10(FILE *stream, master_record_t *r) {
 }  // End of String_MPLS
 
 static void String_MPLSs(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u ",
+    fprintf(stream,
+            "%8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u "
+            "%8u-%1u-%1u %8u-%1u-%1u ",
             r->mpls_label[0] >> 4, (r->mpls_label[0] & 0xF) >> 1, r->mpls_label[0] & 1, r->mpls_label[1] >> 4, (r->mpls_label[1] & 0xF) >> 1,
             r->mpls_label[1] & 1, r->mpls_label[2] >> 4, (r->mpls_label[2] & 0xF) >> 1, r->mpls_label[2] & 1, r->mpls_label[3] >> 4,
             (r->mpls_label[3] & 0xF) >> 1, r->mpls_label[3] & 1, r->mpls_label[4] >> 4, (r->mpls_label[4] & 0xF) >> 1, r->mpls_label[4] & 1,
@@ -1606,6 +1632,20 @@ static void String_DstLocation(FILE *stream, master_record_t *r) {
     }
 
 }  // End of String_DstLocation
+
+static void String_ivrf(FILE *stream, master_record_t *r) { fprintf(stream, "%10u", r->ingressVrf); }  // End of String_ivrf
+
+static void String_evrf(FILE *stream, master_record_t *r) { fprintf(stream, "%10u", r->egressVrf); }  // End of String_evrf
+
+static void String_ivrfName(FILE *stream, master_record_t *r) {
+    char vrfName[128];
+    fprintf(stream, "%s", GetVrfName(r->ingressVrf, vrfName, sizeof(vrfName)));
+}  // End of String_ivrfName
+
+static void String_evrfName(FILE *stream, master_record_t *r) {
+    char vrfName[128];
+    fprintf(stream, "%s", GetVrfName(r->egressVrf, vrfName, sizeof(vrfName)));
+}  // End of String_evrfName
 
 #ifdef NSEL
 static void String_nfc(FILE *stream, master_record_t *r) { fprintf(stream, "%10u", r->connID); }  // End of String_nfc
@@ -1763,10 +1803,6 @@ static void String_userName(FILE *stream, master_record_t *r) {
         fprintf(stream, "%s", r->username);
 
 }  // End of String_userName
-
-static void String_ivrf(FILE *stream, master_record_t *r) { fprintf(stream, "%10u", r->ingressVrf); }  // End of String_ivrf
-
-static void String_evrf(FILE *stream, master_record_t *r) { fprintf(stream, "%10u", r->egressVrf); }  // End of String_evrf
 
 static void String_PortBlockStart(FILE *stream, master_record_t *r) { fprintf(stream, "%7u", r->block_start); }  // End of String_PortBlockStart
 

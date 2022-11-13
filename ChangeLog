@@ -1,3 +1,6 @@
+2022-10-23
+-	Rework nbar code. Use new array records and fix nbar bug in older versions.
+
 2022-10-22
 -	Fix #370. Help shows correct option -A
 -	Fix #369. Legacy -M for NfSen works again

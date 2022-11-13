@@ -67,6 +67,12 @@ typedef struct optionTag_s {
     uint16_t length;
 } optionTag_t;
 
+struct nameOptionList_s {
+    uint16_t scopeSize;
+    optionTag_t ingress;
+    optionTag_t name;
+};
+
 typedef struct optionTemplate_s {
     uint64_t flags;  // info about this option template
     struct samplerOption_s {
@@ -96,21 +102,13 @@ typedef struct optionTemplate_s {
         optionTag_t desc;
     } nbarOption;
 
+// ifname option
 #define IFNAMEOPTION 64
-    // ifname option
-    struct ifnameOptionList_s {
-        uint16_t scopeSize;
-        optionTag_t ingress;
-        optionTag_t name;
-    } ifnameOption;
+    struct nameOptionList_s ifnameOption;
 
+// vrfname option
 #define VRFNAMEOPTION 128
-    // vrfname option
-    struct vrfnameOptionList_s {
-        uint16_t scopeSize;
-        optionTag_t ingress;
-        optionTag_t name;
-    } vrfnameOption;
+    struct nameOptionList_s vrfnameOption;
 
 #define SYSUPOPTION 256
     optionTag_t SysUpOption;

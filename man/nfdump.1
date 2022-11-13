@@ -442,6 +442,10 @@ input interface
 output interface
 .It Cm if
 any interface
+.It Cm inam
+input interface name
+.It Cm onam
+output interface name
 .It Cm srcmask
 src mask
 .It Cm dstmask
@@ -502,6 +506,14 @@ ja3 hashes
 observation domain ID
 .It Cm opid
 observation point ID
+.It Cm vrf/ivrf
+ingress vrf
+.It Cm evrf
+egress vrf
+.It Cm ivrfnam
+ingress vrf name
+.It Cm evrfnam
+egress vrf name
 .It
 .Pp
 NSEL/ASA statistics
@@ -534,10 +546,6 @@ NSEL/ASA egress xACE
 NAT statistics
 .It Cm nevent
 NAT event
-.It Cm vrf/ivrf
-NAT ingress vrf
-.It Cm evrf
-NAT egress vrf
 .It Cm nsrcip
 NAT src IP address
 .It Cm nsrcport

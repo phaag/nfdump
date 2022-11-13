@@ -191,10 +191,10 @@ static const struct ipfixTranslationMap_s {
     // sampling
     {IPFIX_samplerId, Stack_ONLY, EXnull, 0, STACK_SAMPLER, "sampler ID"},
     {IPFIX_selectorId, Stack_ONLY, EXnull, 0, STACK_SAMPLER, "sampler ID"},
+    {IPFIX_INGRESS_VRFID, SIZEingressVrf, EXvrfID, OFFingressVrf, STACK_NONE, "ingress VRF ID"},
+    {IPFIX_EGRESS_VRFID, SIZEegressVrf, EXvrfID, OFFegressVrf, STACK_NONE, "egress VRF ID"},
     // NAT
     {IPFIX_natEvent, SIZEnatEvent, EXnelCommonID, OFFnatEvent, STACK_NONE, "NAT event"},
-    {IPFIX_INGRESS_VRFID, SIZEingressVrf, EXnelCommonID, OFFingressVrf, STACK_NONE, "ingress VRF ID"},
-    {IPFIX_EGRESS_VRFID, SIZEegressVrf, EXnelCommonID, OFFegressVrf, STACK_NONE, "egress VRF ID"},
     {IPFIX_postNATSourceIPv4Address, SIZExlateSrc4Addr, EXnselXlateIPv4ID, OFFxlateSrc4Addr, STACK_NONE, "xlate src addr"},
     {IPFIX_postNATDestinationIPv4Address, SIZExlateDst4Addr, EXnselXlateIPv4ID, OFFxlateDst4Addr, STACK_NONE, "xlate dst addr"},
     {IPFIX_postNAPTSourceTransportPort, SIZExlateSrcPort, EXnselXlatePortID, OFFxlateSrcPort, STACK_NONE, "xlate src port"},

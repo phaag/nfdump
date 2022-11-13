@@ -301,7 +301,8 @@ static void stringsEXipReceivedV6(FILE *stream, master_record_t *r) {
 
 static void stringsEXmplsLabel(FILE *stream, master_record_t *r) {
     for (int i = 0; i < 10; i++) {
-        fprintf(stream, "	\"mpls_%u\" : \"%u-%u-%u\",\n", i + 1, r->mpls_label[i] >> 4, (r->mpls_label[i] & 0xF) >> 1, r->mpls_label[i] & 1);
+        fprintf(stream, "	\"mpls_%u\" : \"%u-%u-%u\",\n", i + 1, r->mpls_label[i] >> 4, (r->mpls_label[i] & 0xF) >> 1,
+                r->mpls_label[i] & 1);
     }
 
 }  // End of stringsEXipReceivedV6
@@ -321,8 +322,8 @@ static void stringsEXmacAddr(FILE *stream, master_record_t *r) {
             "	\"out_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n"
             "	\"in_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n"
             "	\"out_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n",
-            mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0], mac3[5], mac3[4], mac3[3],
-            mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
+            mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0],
+            mac3[5], mac3[4], mac3[3], mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
 
 }  // End of stringsEXmacAddr
 
@@ -410,7 +411,15 @@ static void stringsEXobservation(FILE *stream, master_record_t *r) {
             "	\"observationPointID\" : %llu,\n",
             r->observationDomainID, (long long unsigned)r->observationPointID);
 
-}  // End of stringsEXasRouting
+}  // End of stringsEXobservation
+
+static void stringsEXvrf(FILE *stream, master_record_t *r) {
+    fprintf(stream,
+            "	\"ingress_vrf\" : \"%u\",\n"
+            "	\"egress_vrf\" : \"%u\",\n",
+            r->ingressVrf, r->egressVrf);
+
+}  // End of stringsEXvrf
 
 #ifdef NSEL
 static void stringsEXnselCommon(FILE *stream, master_record_t *r) {
@@ -429,8 +438,8 @@ static void stringsEXnselCommon(FILE *stream, master_record_t *r) {
             "	\"event\" : \"%s\",\n"
             "	\"xevent_id\" : \"%u\",\n"
             "	\"t_event\" : \"%s.%llu\",\n",
-            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event), r->fwXevent, datestr,
-            r->msecEvent % 1000LL);
+            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event),
+            r->fwXevent, datestr, r->msecEvent % 1000LL);
 
 }  // End of stringsEXnselCommon
 
@@ -608,7 +617,8 @@ void flow_record_to_json(FILE *stream, void *record, int tag) {
             "	\"type\" : \"%s\",\n"
             "	\"sampled\" : %u,\n"
             "	\"export_sysid\" : %u,\n",
-            TestFlag(r->flags, V3_FLAG_EVENT) ? "EVENT" : "FLOW", TestFlag(r->flags, V3_FLAG_SAMPLED) ? 1 : 0, r->exporter_sysid);
+            TestFlag(r->flags, V3_FLAG_EVENT) ? "EVENT" : "FLOW", TestFlag(r->flags, V3_FLAG_SAMPLED) ? 1 : 0,
+            r->exporter_sysid);
 
     int i = 0;
     while (r->exElementList[i]) {
@@ -681,6 +691,9 @@ void flow_record_to_json(FILE *stream, void *record, int tag) {
                 break;
             case EXobservationID:
                 stringsEXobservation(stream, r);
+                break;
+            case EXvrfID:
+                stringsEXvrf(stream, r);
                 break;
 #ifdef NSEL
             case EXnselCommonID:

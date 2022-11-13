@@ -223,11 +223,11 @@ static const struct v9TranslationMap_s {
     {NF_F_INGRESS_ACL_ID, SIZEingressAcl, NumberCopy, EXnselAclID, OFFingressAcl, STACK_NONE, "ingress ACL ID"},
     {NF_F_EGRESS_ACL_ID, SIZEegressAcl, NumberCopy, EXnselAclID, OFFegressAcl, STACK_NONE, "egress ACL ID"},
     {NF_F_USERNAME, SIZEusername, NumberCopy, EXnselUserID, OFFusername, STACK_NONE, "AAA username"},
-    // NEL
+    {NF_N_INGRESS_VRFID, SIZEingressVrf, NumberCopy, EXvrfID, OFFingressVrf, STACK_NONE, "ingress VRF ID"},
+    {NF_N_EGRESS_VRFID, SIZEegressVrf, NumberCopy, EXvrfID, OFFegressVrf, STACK_NONE, "egress VRF ID"},
 
+    // NEL
     {NF_N_NAT_EVENT, SIZEnatEvent, NumberCopy, EXnelCommonID, OFFnatEvent, STACK_NONE, "NAT event"},
-    {NF_N_INGRESS_VRFID, SIZEingressVrf, NumberCopy, EXnelCommonID, OFFingressVrf, STACK_NONE, "ingress VRF ID"},
-    {NF_N_EGRESS_VRFID, SIZEegressVrf, NumberCopy, EXnelCommonID, OFFegressVrf, STACK_NONE, "egress VRF ID"},
     {NF_N_NATPOOL_ID, SIZEnatPoolID, NumberCopy, EXnelCommonID, OFFnatPoolID, STACK_NONE, "nat pool ID"},
     {NF_F_XLATE_PORT_BLOCK_START, SIZEnelblockStart, NumberCopy, EXnelXlatePortID, OFFnelblockStart, STACK_NONE, "NAT block start"},
     {NF_F_XLATE_PORT_BLOCK_END, SIZEnelblockEnd, NumberCopy, EXnelXlatePortID, OFFnelblockEnd, STACK_NONE, "NAT block end"},
@@ -282,6 +282,8 @@ static void Process_v9_sampler_option_data(exporterDomain_t *exporter, FlowSourc
 
 static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t *fs, templateList_t *template, void *data_flowset);
 
+static void Process_v9_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_t *fs, int type, templateList_t *template, void *data_flowset);
+
 static inline exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t exporter_id);
 
 /* functions */
@@ -313,10 +315,12 @@ static void ProcessOptionFlowset(exporterDomain_t *exporter, FlowSource_t *fs, t
 
     if (TestFlag(template->type, IFNAME_TEMPLATE)) {
         dbg_printf("Found ifname option data\n");
+        Process_v9_ifvrf_option_data(exporter, fs, IFNAME_TEMPLATE, template, data_flowset);
     }
 
     if (TestFlag(template->type, VRFNAME_TEMPLATE)) {
         dbg_printf("Found vrfname option data\n");
+        Process_v9_ifvrf_option_data(exporter, fs, VRFNAME_TEMPLATE, template, data_flowset);
     }
 
 }  // End of ProcessOptionFlowset
@@ -714,15 +718,15 @@ static inline void Process_v9_option_templates(exporterDomain_t *exporter, void 
 
     struct samplerOption_s *samplerOption = &(optionTemplate->samplerOption);
     struct nbarOptionList_s *nbarOption = &(optionTemplate->nbarOption);
-    struct ifnameOptionList_s *ifnameOptionList = &(optionTemplate->ifnameOption);
-    struct vrfnameOptionList_s *vrfnameOptionList = &(optionTemplate->vrfnameOption);
+    struct nameOptionList_s *ifnameOptionList = &(optionTemplate->ifnameOption);
+    struct nameOptionList_s *vrfnameOptionList = &(optionTemplate->vrfnameOption);
 
     for (; i < (nr_scopes + nr_options); i++) {
         uint16_t type = Get_val16(p);
         p = p + 2;
         uint16_t length = Get_val16(p);
         p = p + 2;
-        dbg_printf("Option field Type: %u, length %u\n", type, length);
+        dbg_printf("Option field Type: %u, offset: %u, length %u\n", type, offset, length);
 
         switch (type) {
             // general sampling
@@ -798,8 +802,8 @@ static inline void Process_v9_option_templates(exporterDomain_t *exporter, void 
 
             // vrfname
             case NF_N_INGRESS_VRFID:
-                ifnameOptionList->ingress.length = length;
-                ifnameOptionList->ingress.offset = offset;
+                vrfnameOptionList->ingress.length = length;
+                vrfnameOptionList->ingress.offset = offset;
                 SetFlag(optionTemplate->flags, VRFNAMEOPTION);
                 dbg_printf(" Vrfname ingress option found\n");
                 break;
@@ -1416,6 +1420,131 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
                nbarHeader->type, nbarHeader->numElements, nbarHeader->elementSize);
 
 }  // End of Process_v9_nbar_option_data
+
+static void Process_v9_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_t *fs, int type, templateList_t *template, void *data_flowset) {
+    uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4;  // -4 for data flowset header -> id and length
+    dbg_printf("[%u] Process ifvrf option data flowset size: %u\n", exporter->info.id, size_left);
+
+    uint32_t recordType = 0;
+    optionTemplate_t *optionTemplate = (optionTemplate_t *)template->data;
+    struct nameOptionList_s *nameOption = NULL;
+    switch (type) {
+        case IFNAME_TEMPLATE:
+            nameOption = &(optionTemplate->ifnameOption);
+            recordType = IfNameRecordType;
+            dbg_printf("[%u] Process if name option data flowset size: %u\n", exporter->info.id, size_left);
+            break;
+        case VRFNAME_TEMPLATE:
+            nameOption = &(optionTemplate->vrfnameOption);
+            recordType = VrfNameRecordType;
+            dbg_printf("[%u] Process vrf name option data flowset size: %u\n", exporter->info.id, size_left);
+            break;
+        default:
+            LogError("Unknown array record type: %d", type);
+            return;
+
+            // unreached
+            break;
+    }
+
+    // map input buffer as a byte array
+    uint8_t *inBuff = (uint8_t *)(data_flowset + 4);  // skip flowset header
+    // data size
+    size_t data_size = nameOption->name.length + sizeof(uint32_t);
+    // size of record
+    size_t option_size = nameOption->scopeSize + data_size;
+    // number of records in data
+    int numRecords = size_left / option_size;
+    dbg_printf("[%u] name option data - records: %u, size: %zu\n", exporter->info.id, numRecords, option_size);
+
+    if (numRecords == 0 || option_size == 0 || option_size > size_left) {
+        LogError("Process_ifvrf_option: nbar option size error: option size: %u, size left: %u", option_size, size_left);
+        return;
+    }
+
+    size_t elementSize = data_size;
+    size_t align = elementSize & 0x3;
+    if (align) {
+        elementSize += 4 - align;
+    }
+    size_t total_size = sizeof(arrayRecordHeader_t) + sizeof(uint32_t) + numRecords * elementSize;
+    dbg_printf("name elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
+
+    // output buffer size check for all expected records
+    if (!CheckBufferSpace(fs->nffile, total_size)) {
+        // fishy! - should never happen. maybe disk full?
+        LogError("Process_ifvrf_option: output buffer size error. Abort nbar record processing");
+        return;
+    }
+
+    void *outBuff = fs->nffile->buff_ptr;
+    // push nbar header
+    AddArrayHeader(outBuff, nameHeader, recordType, elementSize);
+
+    // put array info descripter next
+    uint32_t *nameSize = (uint32_t *)(outBuff + sizeof(arrayRecordHeader_t));
+    nameHeader->size += sizeof(uint32_t);
+
+    // info record for each element in array
+    *nameSize = nameOption->name.length;
+
+    int cnt = 0;
+    while (size_left >= option_size) {
+        // push nbar app info record
+        uint8_t *p;
+        PushArrayNextElement(nameHeader, p, uint8_t);
+
+        // copy data
+        // ingress ID
+        uint32_t val = 0;
+        for (int i = 0; i < nameOption->ingress.length; i++) val = (val << 8) + *((uint8_t *)(inBuff + nameOption->ingress.offset + i));
+
+        uint32_t *ingress = (uint32_t *)p;
+        *ingress = val;
+        p += sizeof(uint32_t);
+
+        // name string
+        memcpy(p, inBuff + nameOption->name.offset, nameOption->name.length);
+        uint32_t state = UTF8_ACCEPT;
+        int err = 0;
+        if (validate_utf8(&state, (char *)p, nameOption->name.length) == UTF8_REJECT) {
+            LogError("Process_name_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 if/vrf name");
+            err = 1;
+        }
+        p[nameOption->name.length - 1] = '\0';
+#ifdef DEVEL
+        if (err == 0) {
+            printf("name record: %d: ingress: %d, %s\n", cnt, val, p);
+        } else {
+            printf("Invalid name information - skip record\n");
+        }
+#endif
+        p += nameOption->name.length;
+        cnt++;
+
+        // in case of an err we do no store this record
+        if (err != 0) {
+            nameHeader->numElements--;
+            nameHeader->size -= elementSize;
+        }
+        inBuff += option_size;
+        size_left -= option_size;
+    }
+
+    // update data block header
+    fs->nffile->block_header->size += nameHeader->size;
+    fs->nffile->block_header->NumRecords++;
+    fs->nffile->buff_ptr += nameHeader->size;
+
+    if (size_left > 7) {
+        LogInfo("Proces ifvrf data record - %u extra bytes", size_left);
+    }
+    processed_records++;
+
+    dbg_printf("if/vrf name processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nameHeader->size,
+               nameHeader->type, nameHeader->numElements, nameHeader->elementSize);
+
+}  // End of Process_v9_ifvrf_option_data
 
 void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     exporterDomain_t *exporter;

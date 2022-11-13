@@ -699,12 +699,7 @@ typedef struct master_record_s {
 #define NAT_BASE_OFFSET (offsetof(master_record_t, ingressVrf) >> 3)
     // common block
 #define OffsetNELcommon NEL_BASE_OFFSET
-#define OffsetIVRFID NAT_BASE_OFFSET
-#define OffsetEVRFID NAT_BASE_OFFSET
 #define OffsetPortBlock NAT_BASE_OFFSET + 1
-    uint32_t ingressVrf;  // OffsetIVRFID	   0xffff'ffff'0000'0000
-    uint32_t egressVrf;   // OffsetEVRFID	   0x0000'0000'ffff'ffff
-
     // Port block allocation
     uint16_t block_start;  // OffsetPortBlock 0xffff'0000'0000'0000
     uint16_t block_end;    // OffsetPortBlock 0x0000'ffff'0000'0000
@@ -739,6 +734,23 @@ typedef struct master_record_s {
 #define ShiftPortBlockSize 48
 #endif
 
+#endif
+
+// ingress/egress
+#define OffsetIVRFID (offsetof(master_record_t, ingressVrf) >> 3)
+#define OffsetEVRFID (offsetof(master_record_t, egressVrf) >> 3)
+    uint32_t ingressVrf;  // OffsetIVRFID	   0xffff'ffff'0000'0000
+    uint32_t egressVrf;   // OffsetEVRFID	   0x0000'0000'ffff'ffff
+#ifdef WORDS_BIGENDIAN
+#define MaskIVRFID 0xFFFFFFFF00000000LL
+#define ShiftIVRFID 32
+#define MaskEVRFID 0x00000000FFFFFFFFLL
+#define ShiftEVRFID 0
+#else
+#define MaskIVRFID 0x00000000FFFFFFFFLL
+#define ShiftIVRFID 0
+#define MaskEVRFID 0xFFFFFFFF00000000LL
+#define ShiftEVRFID 32
 #endif
 
     // reference to exporter

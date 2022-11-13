@@ -14,9 +14,10 @@ sort = blocksort.h blocksort.c
 nfprof = nfprof.h nfprof.c
 exporter = exporter.c
 nbar = nbar.c 
+ifvrf = ifvrf.c 
 
 nfdump_SOURCES = nfdump.c spin_lock.h \
-	$(exporter) $(nbar) $(nfstat) $(nflowcache) $(nfprof) $(sort)
+	$(exporter) $(nbar) $(ifvrf) $(nfstat) $(nflowcache) $(nfprof) $(sort)
 nfdump_LDADD = ../lib/libnfdump.la ../output/liboutput.a ../conf/libconf.a ../maxmind/libmaxmind.a
 
 CLEANFILES = *.gch

@@ -90,6 +90,7 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
         abort();
     }
 
+    int compatVRF = 0;
     dbg_printf("Record announces %u extensions with total size %u\n", v3Record->numElements, v3Record->size);
     // first record header
     elementHeader = (elementHeader_t *)(p + sizeof(recordHeaderV3_t));
@@ -226,6 +227,12 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
                 output_record->observationDomainID = observation->domainID;
                 output_record->observationPointID = observation->pointID;
             } break;
+            case EXvrfID: {
+                EXvrf_t *vrf = (EXvrf_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                output_record->egressVrf = vrf->egressVrf;
+                output_record->ingressVrf = vrf->ingressVrf;
+            } break;
+
 #ifdef NSEL
             case EXnselCommonID: {
                 EXnselCommon_t *nselCommon = (EXnselCommon_t *)((void *)elementHeader + sizeof(elementHeader_t));
@@ -236,7 +243,8 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
                 output_record->msecEvent = nselCommon->msecEvent;
             } break;
             case EXnselXlateIPv4ID: {
-                EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                EXnselXlateIPv4_t *nselXlateIPv4 =
+                    (EXnselXlateIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
                 output_record->xlate_src_ip.V6[0] = 0;
                 output_record->xlate_src_ip.V6[1] = 0;
                 output_record->xlate_src_ip.V4 = nselXlateIPv4->xlateSrcAddr;
@@ -246,13 +254,15 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
                 output_record->xlate_flags = 0;
             } break;
             case EXnselXlateIPv6ID: {
-                EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                EXnselXlateIPv6_t *nselXlateIPv6 =
+                    (EXnselXlateIPv6_t *)((void *)elementHeader + sizeof(elementHeader_t));
                 memcpy(output_record->xlate_src_ip.V6, &(nselXlateIPv6->xlateSrcAddr), 16);
                 memcpy(output_record->xlate_dst_ip.V6, &(nselXlateIPv6->xlateDstAddr), 16);
                 output_record->xlate_flags = 1;
             } break;
             case EXnselXlatePortID: {
-                EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                EXnselXlatePort_t *nselXlatePort =
+                    (EXnselXlatePort_t *)((void *)elementHeader + sizeof(elementHeader_t));
                 output_record->xlate_src_port = nselXlatePort->xlateSrcPort;
                 output_record->xlate_dst_port = nselXlatePort->xlateDstPort;
             } break;
@@ -270,12 +280,22 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
                 memcpy(output_record->username, nselUser->username, 66);
             } break;
             case EXnelCommonID: {
-                EXnelCommon_t *nelCommon = (EXnelCommon_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                output_record->msecEvent = nelCommon->msecEvent;
-                output_record->event = nelCommon->natEvent;
-                output_record->event_flag = NAT_EVENT;
-                output_record->egressVrf = nelCommon->egressVrf;
-                output_record->ingressVrf = nelCommon->ingressVrf;
+                // check for compat record in older files
+                if (elementHeader->length == EXnelCommonCompatSize) {
+                    EXnelCommonCompat_t *nelCommon =
+                        (EXnelCommonCompat_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                    output_record->msecEvent = nelCommon->msecEvent;
+                    output_record->event = nelCommon->natEvent;
+                    output_record->event_flag = NAT_EVENT;
+                    output_record->egressVrf = nelCommon->egressVrf;
+                    output_record->ingressVrf = nelCommon->ingressVrf;
+                    compatVRF = 1;
+                } else {
+                    EXnelCommon_t *nelCommon = (EXnelCommon_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                    output_record->msecEvent = nelCommon->msecEvent;
+                    output_record->event = nelCommon->natEvent;
+                    output_record->event_flag = NAT_EVENT;
+                }
             } break;
             case EXnelXlatePortID: {
                 EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)((void *)elementHeader + sizeof(elementHeader_t));
@@ -285,13 +305,25 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
                 output_record->block_size = nelXlatePort->blockSize;
             } break;
 #else
+            case EXnelCommonID:
+                // check for compat record in older files
+                if (elementHeader->length == EXnelCommonCompatSize) {
+                    EXnelCommonCompat_t *nelCommon =
+                        (EXnelCommonCompat_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                    output_record->egressVrf = nelCommon->egressVrf;
+                    output_record->ingressVrf = nelCommon->ingressVrf;
+                    // we use only vrf info - so pretend new EXvrfID
+                    elementHeader->type = EXvrfID;
+                } else {
+                    LogError("Skip nsel extension: '%u' - nsel options not compiled", elementHeader->type);
+                }
+                break;
             case EXnselCommonID:
             case EXnselXlateIPv4ID:
             case EXnselXlateIPv6ID:
             case EXnselXlatePortID:
             case EXnselAclID:
             case EXnselUserID:
-            case EXnelCommonID:
             case EXnelXlatePortID:
                 LogError("Skip nsel extension: '%u' - nsel options not compiled", elementHeader->type);
                 break;
@@ -398,6 +430,33 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
 
     // at least one flow
     if (output_record->aggr_flows == 0) output_record->aggr_flows = 1;
+
+    // old EXnelCommon was split into separate vrf extension. So add EXvrf
+    // to be removed 2023 - get rid of compat code
+    if (compatVRF) {
+        int j = 0;
+        uint32_t val = EXvrfID;
+        printf("insert EXvrf: %u\n", val);
+        while (j < output_record->numElements) {
+            if (val < output_record->exElementList[j]) {
+                uint32_t _tmp = output_record->exElementList[j];
+                output_record->exElementList[j] = val;
+                val = _tmp;
+            }
+            j++;
+        }
+        output_record->exElementList[j] = val;
+        output_record->numElements++;
+    }
+
+#ifdef DEVEL
+    printf("Ordered extensions: %u\n", output_record->numElements);
+    for (int i = 0; i <= output_record->numElements; i++) {
+        int type = output_record->exElementList[i];
+        printf("[%i] next extension: %u: %s\n", i, type,
+               type < MAXEXTENSIONS ? extensionTable[type].name : "<unknown>");
+    }
+#endif
 
     if (output_record->numElements > MAXEXTENSIONS) {
         LogError("Number of elements %u exceeds max number defined %u", output_record->numElements, MAXEXTENSIONS);

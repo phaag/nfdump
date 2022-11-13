@@ -486,6 +486,23 @@ typedef struct EXnselUser_s {
 // NEL
 typedef struct EXnelCommon_s {
 #define EXnelCommonID 25
+    uint64_t msecEvent;  // NF_F_EVENT_TIME_MSEC(323)
+    uint32_t natPoolID;  // NF_N_NATPOOL_ID(283)
+    uint8_t natEvent;    // NAT_EVENT(230)
+    uint8_t fill1;
+    uint16_t fill2;
+#define OFFnelMsecEvent offsetof(EXnelCommon_t, msecEvent)
+#define SIZEnelMsecEvent MemberSize(EXnelCommon_t, msecEvent)
+#define OFFnatPoolID offsetof(EXnelCommon_t, natPoolID)
+#define SIZEnatPoolID MemberSize(EXnelCommon_t, natPoolID)
+#define OFFnatEvent offsetof(EXnelCommon_t, natEvent)
+#define SIZEnatEvent MemberSize(EXnelCommon_t, natEvent)
+} EXnelCommon_t;
+#define EXnelCommonSize (sizeof(EXnelCommon_t) + sizeof(elementHeader_t))
+
+// comapt record includes vrf fields
+// no longer used, but old data may exist
+typedef struct EXnelCommonCompat_s {
     uint64_t msecEvent;   // NF_F_EVENT_TIME_MSEC(323)
     uint32_t egressVrf;   // NF_N_EGRESS_VRFID(235)
     uint32_t ingressVrf;  // NF_N_INGRESS_VRFID(234)
@@ -493,18 +510,8 @@ typedef struct EXnelCommon_s {
     uint8_t natEvent;     // NAT_EVENT(230)
     uint8_t fill1;
     uint16_t fill2;
-#define OFFnelMsecEvent offsetof(EXnelCommon_t, msecEvent)
-#define SIZEnelMsecEvent MemberSize(EXnelCommon_t, msecEvent)
-#define OFFegressVrf offsetof(EXnelCommon_t, egressVrf)
-#define SIZEegressVrf MemberSize(EXnelCommon_t, egressVrf)
-#define OFFingressVrf offsetof(EXnelCommon_t, ingressVrf)
-#define SIZEingressVrf MemberSize(EXnelCommon_t, ingressVrf)
-#define OFFnatPoolID offsetof(EXnelCommon_t, natPoolID)
-#define SIZEnatPoolID MemberSize(EXnelCommon_t, natPoolID)
-#define OFFnatEvent offsetof(EXnelCommon_t, natEvent)
-#define SIZEnatEvent MemberSize(EXnelCommon_t, natEvent)
-} EXnelCommon_t;
-#define EXnelCommonSize (sizeof(EXnelCommon_t) + sizeof(elementHeader_t))
+} EXnelCommonCompat_t;
+#define EXnelCommonCompatSize (sizeof(EXnelCommonCompat_t) + sizeof(elementHeader_t))
 
 typedef struct EXnelXlatePort_s {
 #define EXnelXlatePortID 26
@@ -597,8 +604,19 @@ typedef struct EXvrfname_s {
 } EXvrfname_t;
 #define EXvrfnameSize (sizeof(EXvrfname_t) - 1 + sizeof(elementHeader_t))
 
+typedef struct EXvrf_s {
+#define EXvrfID 36
+    uint32_t egressVrf;   // EGRESS_VRFID(235)
+    uint32_t ingressVrf;  // INGRESS_VRFID(234)
+#define OFFegressVrf offsetof(EXvrf_t, egressVrf)
+#define SIZEegressVrf MemberSize(EXvrf_t, egressVrf)
+#define OFFingressVrf offsetof(EXvrf_t, ingressVrf)
+#define SIZEingressVrf MemberSize(EXvrf_t, ingressVrf)
+} EXvrf_t;
+#define EXvrfSize (sizeof(EXvrf_t) + sizeof(elementHeader_t))
+
 // max possible elements
-#define MAXEXTENSIONS 36
+#define MAXEXTENSIONS 37
 
 #define PushExtension(h, x, v)                                                     \
     {                                                                              \
@@ -643,15 +661,43 @@ static const struct extensionTable_s {
     uint32_t id;    // id number
     uint32_t size;  // number of bytes incl. header, 0xFFFF for dyn length
     char *name;     // name of extension
-} extensionTable[] = {{0, 0, "ExNull"},           EXTENSION(EXgenericFlow),   EXTENSION(EXipv4Flow),      EXTENSION(EXipv6Flow),
-                      EXTENSION(EXflowMisc),      EXTENSION(EXcntFlow),       EXTENSION(EXvLan),          EXTENSION(EXasRouting),
-                      EXTENSION(EXbgpNextHopV4),  EXTENSION(EXbgpNextHopV6),  EXTENSION(EXipNextHopV4),   EXTENSION(EXipNextHopV6),
-                      EXTENSION(EXipReceivedV4),  EXTENSION(EXipReceivedV6),  EXTENSION(EXmplsLabel),     EXTENSION(EXmacAddr),
-                      EXTENSION(EXasAdjacent),    EXTENSION(EXlatency),       EXTENSION(EXsamplerInfo),   EXTENSION(EXnselCommon),
-                      EXTENSION(EXnselXlateIPv4), EXTENSION(EXnselXlateIPv6), EXTENSION(EXnselXlatePort), EXTENSION(EXnselAcl),
-                      EXTENSION(EXnselUser),      EXTENSION(EXnelCommon),     EXTENSION(EXnelXlatePort),  EXTENSION(EXnbarApp),
-                      EXTENSION(EXlabel),         EXTENSION(EXinPayload),     EXTENSION(EXoutPayload),    EXTENSION(EXtunIPv4),
-                      EXTENSION(EXtunIPv6),       EXTENSION(EXobservation),   EXTENSION(EXifname),        EXTENSION(EXvrfname)};
+} extensionTable[] = {{0, 0, "ExNull"},
+                      EXTENSION(EXgenericFlow),
+                      EXTENSION(EXipv4Flow),
+                      EXTENSION(EXipv6Flow),
+                      EXTENSION(EXflowMisc),
+                      EXTENSION(EXcntFlow),
+                      EXTENSION(EXvLan),
+                      EXTENSION(EXasRouting),
+                      EXTENSION(EXbgpNextHopV4),
+                      EXTENSION(EXbgpNextHopV6),
+                      EXTENSION(EXipNextHopV4),
+                      EXTENSION(EXipNextHopV6),
+                      EXTENSION(EXipReceivedV4),
+                      EXTENSION(EXipReceivedV6),
+                      EXTENSION(EXmplsLabel),
+                      EXTENSION(EXmacAddr),
+                      EXTENSION(EXasAdjacent),
+                      EXTENSION(EXlatency),
+                      EXTENSION(EXsamplerInfo),
+                      EXTENSION(EXnselCommon),
+                      EXTENSION(EXnselXlateIPv4),
+                      EXTENSION(EXnselXlateIPv6),
+                      EXTENSION(EXnselXlatePort),
+                      EXTENSION(EXnselAcl),
+                      EXTENSION(EXnselUser),
+                      EXTENSION(EXnelCommon),
+                      EXTENSION(EXnelXlatePort),
+                      EXTENSION(EXnbarApp),
+                      EXTENSION(EXlabel),
+                      EXTENSION(EXinPayload),
+                      EXTENSION(EXoutPayload),
+                      EXTENSION(EXtunIPv4),
+                      EXTENSION(EXtunIPv6),
+                      EXTENSION(EXobservation),
+                      EXTENSION(EXifname),
+                      EXTENSION(EXvrfname),
+                      EXTENSION(EXvrf)};
 
 typedef struct record_map_s {
     recordHeaderV3_t *recordHeader;

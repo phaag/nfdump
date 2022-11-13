@@ -43,6 +43,7 @@
 
 #include "config.h"
 #include "content_dns.h"
+#include "ifvrf.h"
 #include "ja3.h"
 #include "maxmind.h"
 #include "nbar.h"
@@ -92,8 +93,9 @@ static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
             "  received at  =     %13llu [%s.%03llu]\n"
             "  proto        =               %3u %s\n"
             "  tcp flags    =              0x%.2x %s\n",
-            (long long unsigned)r->msecFirst, datestr1, r->msecFirst % 1000LL, (long long unsigned)r->msecLast, datestr2, r->msecLast % 1000LL,
-            (long long unsigned)r->msecReceived, datestr3, (long long unsigned)r->msecReceived % 1000L, r->proto, ProtoString(r->proto, 0),
+            (long long unsigned)r->msecFirst, datestr1, r->msecFirst % 1000LL, (long long unsigned)r->msecLast,
+            datestr2, r->msecLast % 1000LL, (long long unsigned)r->msecReceived, datestr3,
+            (long long unsigned)r->msecReceived % 1000L, r->proto, ProtoString(r->proto, 0),
             r->proto == IPPROTO_TCP ? r->tcp_flags : 0, FlagsString(r->proto == IPPROTO_TCP ? r->tcp_flags : 0));
 
     if (r->revTcpFlags) {
@@ -133,7 +135,8 @@ static void stringEXtunIPv4(FILE *stream, master_record_t *r) {
             "  tun proto    =               %3u %s\n"
             "  tun src addr =  %16s%s%s\n"
             "  tun dst addr =  %16s%s%s\n",
-            r->tun_proto, ProtoString(r->tun_proto, 0), as, strlen(sloc) ? ": " : "", sloc, ds, strlen(dloc) ? ": " : "", dloc);
+            r->tun_proto, ProtoString(r->tun_proto, 0), as, strlen(sloc) ? ": " : "", sloc, ds,
+            strlen(dloc) ? ": " : "", dloc);
 
 }  // End of stringEXtunIPv4
 
@@ -155,7 +158,8 @@ static void stringEXtunIPv6(FILE *stream, master_record_t *r) {
             "  tun proto    =               %3u %s\n"
             "  tun src addr =  %16s%s%s\n"
             "  tun dst addr =  %16s%s%s\n",
-            r->tun_proto, ProtoString(r->tun_proto, 0), as, strlen(sloc) ? ": " : "", sloc, ds, strlen(dloc) ? ": " : "", dloc);
+            r->tun_proto, ProtoString(r->tun_proto, 0), as, strlen(sloc) ? ": " : "", sloc, ds,
+            strlen(dloc) ? ": " : "", dloc);
 
 }  // End of stringEXtunIPv6
 
@@ -221,9 +225,15 @@ static void stringsEXflowMisc(FILE *stream, master_record_t *r) {
         inet_ntop_mask(r->V4.dstaddr, r->dst_mask, dnet, sizeof(dnet));
     }
 
+    char ifInName[128];
+    GetIfName(r->input, ifInName, sizeof(ifInName));
+
+    char ifOutName[128];
+    GetIfName(r->output, ifOutName, sizeof(ifOutName));
+
     fprintf(stream,
-            "  input        =          %8u\n"
-            "  output       =          %8u\n"
+            "  input        =          %8u%s\n"
+            "  output       =          %8u%s\n"
             "  src mask     =             %5u %s/%u\n"
             "  dst mask     =             %5u %s/%u\n"
             "  fwd status   =               %3u\n"
@@ -231,8 +241,9 @@ static void stringsEXflowMisc(FILE *stream, master_record_t *r) {
             "  direction    =               %3u\n"
             "  biFlow Dir   =              0x%.2x %s\n"
             "  end reason   =              0x%.2x %s\n",
-            r->input, r->output, r->src_mask, snet, r->src_mask, r->dst_mask, dnet, r->dst_mask, r->fwd_status, r->tos, r->dir, r->biFlowDir,
-            biFlowString(r->biFlowDir), r->flowEndReason, FlowEndString(r->flowEndReason));
+            r->input, ifInName, r->output, ifOutName, r->src_mask, snet, r->src_mask, r->dst_mask, dnet, r->dst_mask,
+            r->fwd_status, r->tos, r->dir, r->biFlowDir, biFlowString(r->biFlowDir), r->flowEndReason,
+            FlowEndString(r->flowEndReason));
 
 }  // End of stringsEXflowMisc
 
@@ -339,8 +350,8 @@ static void stringsEXipReceivedV6(FILE *stream, master_record_t *r) {
 static void stringsEXmplsLabel(FILE *stream, master_record_t *r) {
     for (int i = 0; i < 10; i++) {
         if (r->mpls_label[i] != 0) {
-            fprintf(stream, "  MPLS Lbl %2u  =      %8u-%1u-%1u\n", i + 1, r->mpls_label[i] >> 4, (r->mpls_label[i] & 0xF) >> 1,
-                    r->mpls_label[i] & 1);
+            fprintf(stream, "  MPLS Lbl %2u  =      %8u-%1u-%1u\n", i + 1, r->mpls_label[i] >> 4,
+                    (r->mpls_label[i] & 0xF) >> 1, r->mpls_label[i] & 1);
         }
     }
 
@@ -361,8 +372,8 @@ static void stringsEXmacAddr(FILE *stream, master_record_t *r) {
             "  out dst mac  = %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n"
             "  in dst mac   = %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n"
             "  out src mac  = %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n",
-            mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0], mac3[5], mac3[4], mac3[3],
-            mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
+            mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0],
+            mac3[5], mac3[4], mac3[3], mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
 
 }  // End of stringsEXmacAddr
 
@@ -397,6 +408,20 @@ static void stringsEXobservation(FILE *stream, master_record_t *r) {
 
 }  // End of stringEXcntFlow
 
+static void stringsEXvrf(FILE *stream, master_record_t *r) {
+    char vrfIngressName[128];
+    GetVrfName(r->ingressVrf, vrfIngressName, sizeof(vrfIngressName));
+
+    char vrfEgressName[128];
+    GetVrfName(r->egressVrf, vrfEgressName, sizeof(vrfEgressName));
+
+    fprintf(stream,
+            "  ingress VRF  =        %10u%s\n"
+            "  egress VRF   =        %10u%s\n",
+            r->ingressVrf, vrfIngressName, r->egressVrf, vrfEgressName);
+
+}  // End of stringsEXvrf
+
 #ifdef NSEL
 static void stringsEXnselCommon(FILE *stream, master_record_t *r) {
     char datestr[64];
@@ -413,8 +438,9 @@ static void stringsEXnselCommon(FILE *stream, master_record_t *r) {
             "  fw event     =             %5u: %s\n"
             "  fw ext event =             %5u: %s\n"
             "  Event time   =     %13llu [%s.%03llu]\n",
-            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event), r->fwXevent, EventXString(r->fwXevent),
-            (long long unsigned)r->msecEvent, datestr, (long long unsigned)(r->msecEvent % 1000L));
+            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event),
+            r->fwXevent, EventXString(r->fwXevent), (long long unsigned)r->msecEvent, datestr,
+            (long long unsigned)(r->msecEvent % 1000L));
 
 }  // End of stringsEXnselCommon
 
@@ -483,13 +509,12 @@ static void stringsEXnelCommon(FILE *stream, master_record_t *r) {
         struct tm *ts = localtime(&when);
         strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", ts);
     }
+
     fprintf(stream,
             "  nat event    =             %5u: %s\n"
-            "  Event time   =     %13llu [%s.%03llu]\n"
-            "  ingress VRF  =        %10u\n"
-            "  egress VRF   =        %10u\n",
-            r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event), (long long unsigned)r->msecEvent, datestr,
-            (long long unsigned)(r->msecEvent % 1000L), r->ingressVrf, r->egressVrf);
+            "  Event time   =     %13llu [%s.%03llu]\n",
+            r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event),
+            (long long unsigned)r->msecEvent, datestr, (long long unsigned)(r->msecEvent % 1000L));
 
 }  // End of stringsEXnelCommon
 
@@ -607,7 +632,8 @@ void raw_record(FILE *stream, void *record, int tag) {
 
     elementString[0] = '\0';
     for (int i = 0; i < r->numElements; i++) {
-        snprintf(elementString + strlen(elementString), sizeof(elementString) - strlen(elementString), "%u ", r->exElementList[i]);
+        snprintf(elementString + strlen(elementString), sizeof(elementString) - strlen(elementString), "%u ",
+                 r->exElementList[i]);
     }
     char *type;
     char version[8];
@@ -650,8 +676,8 @@ void raw_record(FILE *stream, void *record, int tag) {
             "  engine ID    =             %5u\n"
             "  export sysid =             %5u\n",
             r->flags, type, version, TestFlag(r->flags, V3_FLAG_ANON) ? " Anonymized" : "",
-            TestFlag(r->flags, V3_FLAG_SAMPLED) ? "Sampled" : "Unsampled", r->numElements, elementString, r->size, r->engine_type, r->engine_id,
-            r->exporter_sysid);
+            TestFlag(r->flags, V3_FLAG_SAMPLED) ? "Sampled" : "Unsampled", r->numElements, elementString, r->size,
+            r->engine_type, r->engine_id, r->exporter_sysid);
 
     if (r->label) {
         fprintf(stream, "  Label        =  %16s\n", r->label);
@@ -716,6 +742,9 @@ void raw_record(FILE *stream, void *record, int tag) {
                 break;
             case EXobservationID:
                 stringsEXobservation(stream, r);
+                break;
+            case EXvrfID:
+                stringsEXvrf(stream, r);
                 break;
 #ifdef NSEL
             case EXnselCommonID:

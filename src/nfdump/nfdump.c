@@ -53,6 +53,7 @@
 #include "config.h"
 #include "exporter.h"
 #include "flist.h"
+#include "ifvrf.h"
 #include "ipconv.h"
 #include "ja3.h"
 #include "maxmind.h"
@@ -509,8 +510,13 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                     AddNbarRecord(nbarRecord);
                 } break;
                 case IfNameRecordType: {
+                    arrayRecordHeader_t *arrayRecordHeader = (arrayRecordHeader_t *)record_ptr;
+                    AddIfNameRecord(arrayRecordHeader);
                 } break;
+
                 case VrfNameRecordType: {
+                    arrayRecordHeader_t *arrayRecordHeader = (arrayRecordHeader_t *)record_ptr;
+                    AddVrfNameRecord(arrayRecordHeader);
                 } break;
                 case LegacyRecordType1:
                 case LegacyRecordType2:

@@ -663,6 +663,22 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	}
 
+| INGRESS VRF comp NUMBER {
+		if ( $4 > 0xFFFFFFFFLL ) {
+			yyerror("Invalid ingress vrf ID");
+			YYABORT;
+		}
+		$$.self = NewBlock(OffsetIVRFID, MaskIVRFID, ( $4 << ShiftIVRFID) & MaskIVRFID, $3.comp, FUNC_NONE, NULL );
+	}
+
+	| EGRESS VRF comp NUMBER {
+		if ( $4 > 0xFFFFFFFFLL ) {
+			yyerror("Invalid egress vrf ID");
+			YYABORT;
+		}
+		$$.self = NewBlock(OffsetEVRFID, MaskEVRFID, ( $4 << ShiftEVRFID) & MaskEVRFID, $3.comp, FUNC_NONE, NULL );
+	}
+
 	| dqual PORT IN PBLOCK {	
 #ifdef NSEL
 		switch ( $1.direction ) {
@@ -1107,31 +1123,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 #endif
 	}
 
-	| INGRESS VRF comp NUMBER {
-#ifdef NSEL
-		if ( $4 > 0xFFFFFFFFLL ) {
-			yyerror("Invalid ingress vrf ID");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetIVRFID, MaskIVRFID, ( $4 << ShiftIVRFID) & MaskIVRFID, $3.comp, FUNC_NONE, NULL );
-#else
-		yyerror("NAT filters not available");
-		YYABORT;
-#endif
-	}
-
-	| EGRESS VRF comp NUMBER {
-#ifdef NSEL
-		if ( $4 > 0xFFFFFFFFLL ) {
-			yyerror("Invalid egress vrf ID");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetEVRFID, MaskEVRFID, ( $4 << ShiftEVRFID) & MaskEVRFID, $3.comp, FUNC_NONE, NULL );
-#else
-		yyerror("NAT filters not available");
-		YYABORT;
-#endif
-	}
+	
 
 	| PBLOCK START comp NUMBER {
 #ifdef NSEL
