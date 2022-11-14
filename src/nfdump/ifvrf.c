@@ -66,7 +66,6 @@ int AddIfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
     dbg_printf("If name array, type: %u, size: %u, elemSize: %u, numElem: %u\n", arrayRecordHeader->type, arrayRecordHeader->size,
                arrayRecordHeader->elementSize, arrayRecordHeader->numElements);
     uint32_t *val = ((void *)arrayRecordHeader + sizeof(arrayRecordHeader_t));
-    printf("Size: %u\n", *val);
     void *p = (void *)((void *)val + 4);
     for (int i = 0; i < arrayRecordHeader->numElements; i++) {
         uint32_t *ingress = (uint32_t *)p;
@@ -100,7 +99,6 @@ int AddVrfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
     dbg_printf("Vrf name array, type: %u, size: %u, elemSize: %u, numElem: %u\n", arrayRecordHeader->type, arrayRecordHeader->size,
                arrayRecordHeader->elementSize, arrayRecordHeader->numElements);
     uint32_t *val = ((void *)arrayRecordHeader + sizeof(arrayRecordHeader_t));
-    printf("Size: %u\n", *val);
     void *p = (void *)((void *)val + 4);
     for (int i = 0; i < arrayRecordHeader->numElements; i++) {
         uint32_t *ingress = (uint32_t *)p;
