@@ -129,7 +129,7 @@ static const struct v9TranslationMap_s {
     uint16_t id;  // v9 element id
 #define Stack_ONLY 0
     uint16_t outputLength;  // output length in extension ID
-    uint16_t copyMode;      // extension ID
+    uint16_t copyMode;      // number or byte copy
     uint16_t extensionID;   // extension ID
     uint32_t offsetRel;     // offset rel. to extension start of struct
     uint32_t stackID;       // save value in stack slot, if needed
@@ -1170,19 +1170,6 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
                 // end time in msecs
                 genericFlow->msecLast = (uint64_t)Last + exporter->boot_time;
             }
-            /*
-                        // if timestamps relative to sysupTime
-                        // record sysuptime overwrites option template sysuptime
-                        if (stack[STACK_SYSUPTIME] && stack[STACK_MSECFIRST]) {
-                            dbg_printf("Calculate first/last from record SysUpTime\n");
-                            genericFlow->msecFirst = stack[STACK_SYSUPTIME] + stack[STACK_MSECFIRST];
-                            genericFlow->msecLast = stack[STACK_SYSUPTIME] + stack[STACK_MSECLAST];
-                        } else if (exporter->SysUpTime && stack[STACK_MSECFIRST]) {
-                            dbg_printf("Calculate first/last from option SysUpTime\n");
-                            genericFlow->msecFirst = exporter->SysUpTime + stack[STACK_MSECFIRST];
-                            genericFlow->msecLast = exporter->SysUpTime + stack[STACK_MSECLAST];
-                        }
-            */
 
             if (genericFlow->msecFirst < fs->msecFirst) fs->msecFirst = genericFlow->msecFirst;
             if (genericFlow->msecLast > fs->msecLast) fs->msecLast = genericFlow->msecLast;

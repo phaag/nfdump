@@ -310,6 +310,8 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_samplingPacketInterval 305
 #define IPFIX_samplingPacketSpace 306
 
+#define IPFIX_observationTimeMilliseconds 323
+
 // Private Enterprise Numbers
 #define IPFIX_ReverseInformationElement 29305
 
