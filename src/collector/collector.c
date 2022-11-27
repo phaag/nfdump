@@ -390,7 +390,7 @@ void FlushStdRecords(FlowSource_t *fs) {
         sampler_t *sampler = e->sampler;
         AppendToBuffer(fs->nffile, (void *)&(e->info), e->info.header.size);
         while (sampler) {
-            AppendToBuffer(fs->nffile, (void *)&(sampler->info), sampler->info.header.size);
+            AppendToBuffer(fs->nffile, (void *)&(sampler->record), sampler->record.size);
             sampler = sampler->next;
         }
         e = e->next;

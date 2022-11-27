@@ -160,8 +160,7 @@ typedef struct exporter_v5_s {
 
 /* module limited globals */
 static int printRecord;
-static uint32_t default_sampling;
-static uint32_t overwrite_sampling;
+static int32_t defaultSampling;
 static uint32_t baseRecordSize;
 
 // function prototypes
@@ -169,17 +168,23 @@ static exporter_v5_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *header)
 
 #include "nffile_inline.c"
 
-int Init_v5_v7_input(int verbose, uint32_t sampling, uint32_t overwrite) {
+int Init_v5_v7(int verbose, int32_t sampling) {
     assert(sizeof(netflow_v5_header_t) == NETFLOW_V5_HEADER_LENGTH);
     assert(sizeof(netflow_v5_record_t) == NETFLOW_V5_RECORD_LENGTH);
 
     printRecord = verbose > 2;
-    default_sampling = sampling;
-    overwrite_sampling = overwrite;
+    defaultSampling = sampling;
+
+    if (sampling < 0) {
+        LogInfo("Init v5/v7: Overwrite sampling: %d", -defaultSampling);
+        dbg_printf("Init v5/v7: Overwrite sampling: %d\n", -defaultSampling);
+    } else {
+        LogInfo("Init v5/v7: Default sampling: %d", defaultSampling);
+        dbg_printf("Init v5/v7: Default sampling: %d\n", defaultSampling);
+    }
 
     baseRecordSize = sizeof(recordHeaderV3_t) + EXgenericFlowSize + EXipv4FlowSize + EXflowMiscSize + EXasRoutingSize + EXipNextHopV4Size;
 
-    LogInfo("Init v5/v7");
     return 1;
 
 }  // End of Init_v5_input
@@ -201,12 +206,11 @@ static inline exporter_v5_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *
     }
 
     // nothing found
-    *e = (exporter_v5_t *)malloc(sizeof(exporter_v5_t));
+    *e = (exporter_v5_t *)calloc(1, sizeof(exporter_v5_t));
     if (!(*e)) {
         LogError("Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
-    memset((void *)(*e), 0, sizeof(exporter_v5_t));
     (*e)->next = NULL;
     (*e)->info.header.type = ExporterInfoRecordType;
     (*e)->info.header.size = sizeof(exporter_info_record_t);
@@ -236,34 +240,54 @@ static inline exporter_v5_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *
 
     FlushInfoExporter(fs, &((*e)->info));
 
-    sampler = (sampler_t *)malloc(sizeof(sampler_t));
-    if (!sampler) {
-        LogError("Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-        return NULL;
+    // sampling
+    int32_t id = 0;
+    uint32_t algorithm = 0;
+    uint32_t interval = 0x3fff & ntohs(header->sampling_interval);
+    dbg_printf("Extracted header sampling: algorithm: %u, interval: %u\n", algorithm, interval);
+    if (defaultSampling < 0) {
+        id = SAMPLER_OVERWRITE;
+        interval = -defaultSampling;
+        dbg_printf("Use overwrite sampling: %u\n", interval);
+    } else if (interval > 0) {
+        id = SAMPLER_GENERIC;
+        algorithm = (0xC000 & ntohs(header->sampling_interval)) >> 14;
+        dbg_printf("Use generic sampling: %u\n", interval);
+    } else if (defaultSampling > 1) {
+        id = SAMPLER_DEFAULT;
+        interval = defaultSampling;
+        dbg_printf("Use default sampling: %u\n", interval);
     }
-    (*e)->sampler = sampler;
 
-    sampler->info.header.type = SamplerInfoRecordType;
-    sampler->info.header.size = sizeof(sampler_info_record_t);
-    sampler->info.id = -1;
-    sampler->info.mode = (0xC000 & ntohs(header->sampling_interval)) >> 14;
-    sampler->info.interval = 0x3fff & ntohs(header->sampling_interval);
-    sampler->next = NULL;
+    // sampler assigned ?
+    if (id != 0) {
+        interval--;
+        sampler = (sampler_t *)malloc(sizeof(sampler_t));
+        if (!sampler) {
+            LogError("Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
+        (*e)->sampler = sampler;
 
-    // default is global default_sampling ( user defined or unsampled => 1 )
-    if (sampler->info.interval == 0) sampler->info.interval = default_sampling;
+        sampler->next = NULL;
+        sampler->record.type = SamplerRecordType;
+        sampler->record.size = sizeof(sampler_record_t);
+        sampler->record.exporter_sysid = (*e)->info.sysid;
+        sampler->record.id = id;
+        sampler->record.packetInterval = 1;
+        sampler->record.algorithm = algorithm;
+        sampler->record.spaceInterval = interval;
 
-    sampler->info.exporter_sysid = (*e)->info.sysid;
-    AppendToBuffer(fs->nffile, &(sampler->info.header), sampler->info.header.size);
+        AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
 
-    LogInfo(
-        "Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s, Sampling Mode: %i, "
-        "Sampling Interval: %u\n",
-        (*e)->info.sysid, (engine_tag & 0xFF), ((engine_tag >> 8) & 0xFF), ipstr, sampler->info.mode, sampler->info.interval);
-
-    if (overwrite_sampling > 0) {
-        sampler->info.interval = overwrite_sampling;
-        LogInfo("Process_v5: Hard overwrite sampling rate: %u\n", sampler->info.interval);
+        LogInfo(
+            "Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s, algorithm: %i, "
+            "packet interval: 1, packet space: %u\n",
+            (*e)->info.sysid, (engine_tag & 0xFF), ((engine_tag >> 8) & 0xFF), ipstr, algorithm, interval);
+    } else {
+        (*e)->sampler = NULL;
+        LogInfo("Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s", (*e)->info.sysid, (engine_tag & 0xFF),
+                ((engine_tag >> 8) & 0xFF), ipstr);
     }
 
     return (*e);
@@ -444,9 +468,9 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             }
 
             // sampling
-            if (exporter->sampler->info.interval > 1) {
-                genericFlow->inPackets *= (uint64_t)exporter->sampler->info.interval;
-                genericFlow->inBytes *= (uint64_t)exporter->sampler->info.interval;
+            if (exporter->sampler && exporter->sampler->record.spaceInterval > 1) {
+                genericFlow->inPackets *= (uint64_t)(exporter->sampler->record.spaceInterval + 1);
+                genericFlow->inBytes *= (uint64_t)(exporter->sampler->record.spaceInterval + 1);
                 SetFlag(recordHeader->flags, V3_FLAG_SAMPLED);
             }
 

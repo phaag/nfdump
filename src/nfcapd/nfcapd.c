@@ -93,11 +93,6 @@
 
 static void *shmem = NULL;
 static int verbose = 0;
-static uint32_t default_sampling = 1;
-static uint32_t overwrite_sampling = 0;
-
-extern uint32_t default_sampling;    // the default sampling rate when nothing else applies. set by -S
-extern uint32_t overwrite_sampling;  // unconditionally overwrite sampling rate with rate rate -S
 
 // Define a generic type to get data from socket or pcap file
 typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *, socklen_t *);
@@ -244,10 +239,6 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
     ssize_t cnt;
     void *in_buff;
     srecord_t *commbuff;
-
-    if (!Init_v1(verbose) || !Init_v5_v7_input(verbose, default_sampling, overwrite_sampling) || !Init_pcapd(verbose) ||
-        !Init_v9(verbose, default_sampling, overwrite_sampling) || !Init_IPFIX(verbose, default_sampling, overwrite_sampling))
-        return;
 
     in_buff = malloc(NETWORK_INPUT_BUFF_SIZE);
     if (!in_buff) {
@@ -904,14 +895,12 @@ int main(int argc, char **argv) {
         i++;
     }
 
-    if (sampling_rate < 0) {
-        default_sampling = -sampling_rate;
-        overwrite_sampling = default_sampling;
-    } else {
-        default_sampling = sampling_rate;
-    }
-
     SetPriv(userid, groupid);
+
+    if (!Init_v1(verbose) || !Init_v5_v7(verbose, sampling_rate) || !Init_pcapd(verbose) || !Init_v9(verbose, sampling_rate) ||
+        !Init_IPFIX(verbose, sampling_rate)) {
+        exit(EXIT_FAILURE);
+    }
 
     if (subdir_index && !InitHierPath(subdir_index)) {
         close(sock);

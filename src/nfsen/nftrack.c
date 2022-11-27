@@ -249,7 +249,7 @@ static data_row *process(char *filter) {
                 } break;
                 case ExporterInfoRecordType:
                 case ExporterStatRecordType:
-                case SamplerInfoRecordType:
+                case SamplerRecordType:
                 case NbarRecordType:
                     // Silently skip exporter records
                     break;

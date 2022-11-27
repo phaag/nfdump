@@ -216,8 +216,8 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                         LogError("Failed to add Exporter Record\n");
                     }
                 } break;
-                case SamplerInfoRecordType: {
-                    int err = AddSamplerInfo((sampler_info_record_t *)record_ptr);
+                case SamplerRecordType: {
+                    int err = AddSamplerInfo((sampler_record_t *)record_ptr);
                     if (err != 0) {
                         int j;
                         for (j = 0; j < num_channels; j++) {

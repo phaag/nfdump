@@ -294,7 +294,7 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
                 case LegacyRecordType2:
                 case ExporterInfoRecordType:
                 case ExporterStatRecordType:
-                case SamplerInfoRecordType:
+                case SamplerRecordType:
                 case NbarRecordType:
                     // Silently skip exporter/sampler records
                     break;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -43,7 +43,7 @@
 #include "nfnet.h"
 
 /* prototypes */
-int Init_v5_v7_input(int verbose, uint32_t sampling, uint32_t overwrite);
+int Init_v5_v7(int verbose, int32_t sampling);
 
 void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 

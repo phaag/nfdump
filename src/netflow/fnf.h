@@ -84,16 +84,18 @@ typedef struct optionTemplate_s {
 #define SAMPLER302 4
 #define SAMPLER304 8
 #define SAMPLER305 16
-#define SAMPLERMASK 0x1C
-#define SAMPLERFLAGS 0x1C
+#define SAMPLER306 32
+#define SAMPLERMASK 0x2C
+#define SAMPLERFLAGS 0x2C
 
         // sampling offset/length values
-        optionTag_t id;
-        optionTag_t mode;
-        optionTag_t interval;
+        optionTag_t id;              // tag #302 papped #48
+        optionTag_t algorithm;       // tag #304 mapped #35, #49
+        optionTag_t packetInterval;  // tag #305
+        optionTag_t spaceInterval;   // tag #306 mapped #34, #50
     } samplerOption;
 
-#define NBAROPTIONS 32
+#define NBAROPTIONS 64
     // nbar option data
     struct nbarOptionList_s {
         uint16_t scopeSize;
@@ -103,14 +105,14 @@ typedef struct optionTemplate_s {
     } nbarOption;
 
 // ifname option
-#define IFNAMEOPTION 64
+#define IFNAMEOPTION 128
     struct nameOptionList_s ifnameOption;
 
 // vrfname option
-#define VRFNAMEOPTION 128
+#define VRFNAMEOPTION 256
     struct nameOptionList_s vrfnameOption;
 
-#define SYSUPOPTION 256
+#define SYSUPOPTION 512
     optionTag_t SysUpOption;
 
 } optionTemplate_t;
@@ -125,7 +127,7 @@ typedef struct optionTemplate_s {
 #define GET_OPTION_TEMPLATE_FIELD_COUNT(p) (Get_val16((void *)((p) + 2)))
 #define GET_OPTION_TEMPLATE_SCOPE_FIELD_COUNT(p) (Get_val16((void *)((p) + 4)))
 
-#define CHECK_OPTION_DATA(avail, tag) ((tag.offset + tag.length) <= avail)
+#define CHECK_OPTION_DATA(avail, tag) ((tag.length > 0) && (tag.offset + tag.length) <= avail)
 
 #define DYN_FIELD_LENGTH 65535
 

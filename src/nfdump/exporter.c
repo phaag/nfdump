@@ -162,16 +162,31 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
     return 1;
 }  // End of AddExporterInfo
 
-int AddSamplerInfo(sampler_info_record_t *sampler_record) {
+int AddSamplerInfo(sampler_record_t *sampler_record) {
     uint32_t id;
     sampler_t **sampler;
 
-    if (sampler_record->header.size != sizeof(sampler_info_record_t)) {
+    if (sampler_record->size != sizeof(sampler_record_t) && sampler_record->size != sizeof(samplerV0_record_t)) {
         LogError("Corrupt sampler record in %s line %d\n", __FILE__, __LINE__);
         return 0;
     }
 
-    id = sampler_record->exporter_sysid;
+    sampler_record_t *record = sampler_record;
+    if (sampler_record->size == sizeof(samplerV0_record_t)) {
+        samplerV0_record_t *samplerV0_record = (samplerV0_record_t *)sampler_record;
+        sampler_record_t convert_record;
+
+        convert_record.type = SamplerRecordType;
+        convert_record.size = sizeof(sampler_record_t);
+        convert_record.exporter_sysid = samplerV0_record->exporter_sysid;
+        convert_record.id = samplerV0_record->id;
+        convert_record.algorithm = samplerV0_record->algorithm;
+        convert_record.packetInterval = 1;
+        convert_record.spaceInterval = samplerV0_record->interval - 1;
+        record = &convert_record;
+    }
+
+    id = record->exporter_sysid;
     if (id >= MAX_EXPORTERS) {
         LogError("Corrupt sampler record in %s line %d\n", __FILE__, __LINE__);
         return 0;
@@ -181,12 +196,13 @@ int AddSamplerInfo(sampler_info_record_t *sampler_record) {
         LogError("Exporter SysID: %u not found! - Skip sampler record", id);
         return 0;
     }
+
     sampler = &exporter_list[id]->sampler;
     while (*sampler) {
-        if (memcmp((void *)&(*sampler)->info, (void *)sampler_record, sizeof(sampler_info_record_t)) == 0) {
+        if (memcmp((void *)&(*sampler)->record, (void *)record, sizeof(sampler_record_t)) == 0) {
             // Found identical sampler already registered
-            dbg_printf("Identical sampler already registered: Exporter SysID: %u, Sampler: id: %i, mode: %u, interval: %u\n",
-                       sampler_record->exporter_sysid, sampler_record->id, sampler_record->mode, sampler_record->interval);
+            dbg_printf("Identical sampler already registered: %u, algorithm: %u, packet interval: %u, packet space: %u\n", record->exporter_sysid,
+                       record->algorithm, record->packetInterval, record->spaceInterval);
             return 2;
         }
         sampler = &((*sampler)->next);
@@ -198,19 +214,19 @@ int AddSamplerInfo(sampler_info_record_t *sampler_record) {
         return 0;
     }
     (*sampler)->next = NULL;
-    sampler_record->exporter_sysid = exporter_list[id]->info.sysid;
+    record->exporter_sysid = exporter_list[id]->info.sysid;
 
-    memcpy((void *)&(*sampler)->info, (void *)sampler_record, sizeof(sampler_info_record_t));
+    memcpy((void *)&(*sampler)->record, (void *)record, sizeof(sampler_record_t));
     dbg_printf("Insert sampler record for exporter at slot %i:\n", id);
 
 #ifdef DEVEL
     {
         if (sampler_record->id < 0) {
-            printf("Exporter SysID: %u,	Generic Sampler: mode: %u, interval: %u\n", sampler_record->exporter_sysid, sampler_record->mode,
-                   sampler_record->interval);
+            printf("Exporter SysID: %u,	Generic Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", record->exporter_sysid,
+                   record->algorithm, record->packetInterval, record->spaceInterval);
         } else {
-            printf("Exporter SysID: %u, Sampler: id: %i, mode: %u, interval: %u\n", sampler_record->exporter_sysid, sampler_record->id,
-                   sampler_record->mode, sampler_record->interval);
+            printf("Exporter SysID: %u,	Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", record->exporter_sysid, record->algorithm,
+                   record->packetInterval, record->spaceInterval);
         }
     }
 #endif
@@ -285,7 +301,7 @@ void ExportExporterList(nffile_t *nffile) {
 
         sampler = exporter_list[i]->sampler;
         while (sampler) {
-            AppendToBuffer(nffile, (void *)&(sampler->info), sampler->info.header.size);
+            AppendToBuffer(nffile, (void *)&(sampler->record), sampler->record.size);
             sampler = sampler->next;
         }
 
@@ -356,8 +372,8 @@ void PrintExporters(void) {
                 case ExporterStatRecordType:
                     AddExporterStat((exporter_stats_record_t *)record);
                     break;
-                case SamplerInfoRecordType:
-                    if (!AddSamplerInfo((sampler_info_record_t *)record)) {
+                case SamplerRecordType:
+                    if (!AddSamplerInfo((sampler_record_t *)record)) {
                         LogError("Failed to add Sampler Record\n");
                     }
                     break;
@@ -411,12 +427,22 @@ void PrintExporters(void) {
 
         sampler = exporter_list[i]->sampler;
         while (sampler) {
-            if (sampler->info.id < 0) {
-                printf("	Sampler for Exporter SysID: %u,	Generic Sampler: mode: %u, interval: %u\n", sampler->info.exporter_sysid,
-                       sampler->info.mode, sampler->info.interval);
-            } else {
-                printf("	Sampler for Exporter SysID: %u, Sampler: id: %i, mode: %u, interval: %u\n", sampler->info.exporter_sysid,
-                       sampler->info.id, sampler->info.mode, sampler->info.interval);
+            switch (sampler->record.id) {
+                case SAMPLER_OVERWRITE:
+                    printf("    Sampler: Static overwrite Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", sampler->record.algorithm,
+                           sampler->record.packetInterval, sampler->record.spaceInterval);
+                    break;
+                case SAMPLER_DEFAULT:
+                    printf("    Sampler: Static default Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", sampler->record.algorithm,
+                           sampler->record.packetInterval, sampler->record.spaceInterval);
+                    break;
+                case SAMPLER_GENERIC:
+                    printf("    Sampler: Generic Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", sampler->record.algorithm,
+                           sampler->record.packetInterval, sampler->record.spaceInterval);
+                    break;
+                default:
+                    printf("    Sampler: Assigned Sampler: id: %lld, algorithm: %u, packet interval: %u, packet space: %u\n", sampler->record.id,
+                           sampler->record.algorithm, sampler->record.packetInterval, sampler->record.spaceInterval);
             }
             sampler = sampler->next;
         }

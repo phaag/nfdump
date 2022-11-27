@@ -493,8 +493,8 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                 case ExporterStatRecordType:
                     AddExporterStat((exporter_stats_record_t *)record_ptr);
                     break;
-                case SamplerInfoRecordType: {
-                    int ret = AddSamplerInfo((sampler_info_record_t *)record_ptr);
+                case SamplerRecordType: {
+                    int ret = AddSamplerInfo((sampler_record_t *)record_ptr);
                     if (ret != 0) {
                         if (write_file && ret == 1) AppendToBuffer(nffile_w, (void *)record_ptr, record_ptr->size);
                     } else {

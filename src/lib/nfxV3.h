@@ -36,6 +36,7 @@
 #include <sys/types.h>
 
 #include "config.h"
+#include "id.h"
 
 /*
  * V3 extension format
@@ -114,14 +115,6 @@ typedef struct elementHeader_s {
     uint16_t type;
     uint16_t length;
 } __attribute__((__packed__)) elementHeader_t;
-
-// Identifier for new V3Record
-#define V3Record 11
-
-// record type definition
-#define NbarRecordType 12
-#define IfNameRecordType 13
-#define VrfNameRecordType 14
 
 /*
  * Extension elements

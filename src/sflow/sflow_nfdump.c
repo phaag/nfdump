@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
+ *  Copyright (c) 2009-2022, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -180,16 +180,17 @@ static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
     }
     (*e)->sampler = sampler;
 
-    sampler->info.header.type = SamplerInfoRecordType;
-    sampler->info.header.size = sizeof(sampler_info_record_t);
-    sampler->info.id = -1;
-    sampler->info.mode = 0;
-    sampler->info.interval = meanSkipCount;
+    sampler->record.type = SamplerRecordType;
+    sampler->record.size = sizeof(sampler_record_t);
+    sampler->record.id = -1;
+    sampler->record.algorithm = 0;
+    sampler->record.packetInterval = 1;
+    sampler->record.spaceInterval = meanSkipCount - 1;
     sampler->next = NULL;
 
     FlushInfoExporter(fs, &((*e)->info));
-    sampler->info.exporter_sysid = (*e)->info.sysid;
-    AppendToBuffer(fs->nffile, &(sampler->info.header), sampler->info.header.size);
+    sampler->record.exporter_sysid = (*e)->info.sysid;
+    AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
 
     dbg_printf("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s\n", (*e)->info.sysid, agentSubId, meanSkipCount, ipstr);
     LogInfo("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s", (*e)->info.sysid, agentSubId, meanSkipCount, ipstr);

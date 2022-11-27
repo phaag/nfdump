@@ -60,7 +60,7 @@ if test "${enable_nsel}" = "yes" -a "${enable_jnat}" = "yes"; then
 fi
 
 AC_ARG_ENABLE(nel,
-[  --enable-nel            (depricated) compile nfdump, to read and process NAT/NSEL/NEL event data; default is NO])
+[  --enable-nel            (deprecated) compile nfdump, to read and process NAT/NSEL/NEL event data; default is NO])
 
 if test "${enable_nel}" = "yes" ; then
 	CFLAGS="$CFLAGS -DNSEL"

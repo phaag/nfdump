@@ -100,28 +100,66 @@ typedef struct exporter_stats_record_s {
 } exporter_stats_record_t;
 
 /*
+ * sampler record for deprecated tags #34, #34, #48 records and mapped records
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
  * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
  * |  0 |       record type == 9      |             size            |                             id                            |
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  1 |                          interval                         |             mode            |       exporter_sysid        |
+ * |  1 |                          interval                         |          algorithm          |       exporter_sysid        |
  * +----+--------------+--------------+--------------+-----------------------------+--------------+--------------+--------------+
  */
-typedef struct sampler_info_record_s {
-    record_header_t header;
+typedef struct samplerV0_record_s {
+    // record header
+    uint16_t type;
+    uint16_t size;
 
     // sampler data
-    int32_t id;               // id assigned by the exporting device
-    uint32_t interval;        // sampling interval
-    uint16_t mode;            // sampling mode
+    int32_t id;               // #48 id assigned by the exporting device
+    uint32_t interval;        // #34 sampling interval
+    uint16_t algorithm;       // #35 sampling algorithm
     uint16_t exporter_sysid;  // internal reference to exporter
+} samplerV0_record_t;
 
-} sampler_info_record_t;
+/*
+ * sampler record for new records tags #302, #304, #305, #306
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  0 |       record type == x      |             size            |       exporter_sysid        |          algorithm          |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  1 |                                                           id                                                          |
+ * +----+--------------+--------------+--------------+-----------------------------+--------------+--------------+--------------+
+ * |  2 |                      packet interval                      |                       packet space                        |
+ * +----+--------------+--------------+--------------+-----------------------------+--------------+--------------+--------------+
+ *
+ * old sampler data is mapped into new sampler record:
+ * #302 = #48
+ * #304 = #35
+ * #305 = #34 - 1
+ * #306 = 1
+ */
 
+typedef struct sampler_record_s {
+    // record header
+    uint16_t type;
+    uint16_t size;
+
+    // sampler data
+    uint16_t exporter_sysid;  // internal reference to exporter
+    uint16_t algorithm;       // #304 sampling algorithm
+    int64_t id;               // #302 id assigned by the exporting device or
+#define SAMPLER_OVERWRITE -3
+#define SAMPLER_DEFAULT -2
+#define SAMPLER_GENERIC -1
+    uint32_t packetInterval;  // #305 packet interval
+    uint32_t spaceInterval;   // #306 packet space
+} sampler_record_t;
+
+// linked sampler v0 or v1 list
 typedef struct sampler_s {
     struct sampler_s *next;
-    sampler_info_record_t info;  // sampler record nffile
+    sampler_record_t record;  // sampler record nffile
 } sampler_t;
 
 typedef struct exporter_s {
@@ -168,7 +206,7 @@ int InitExporterList(void);
 
 int AddExporterInfo(exporter_info_record_t *exporter_record);
 
-int AddSamplerInfo(sampler_info_record_t *sampler_record);
+int AddSamplerInfo(sampler_record_t *sampler_record);
 
 int AddExporterStat(exporter_stats_record_t *stat_record);
 

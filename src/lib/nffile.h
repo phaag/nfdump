@@ -40,6 +40,7 @@
 #endif
 
 #include "flist.h"
+#include "id.h"
 #include "nfdump.h"
 #include "nffileV2.h"
 #include "queue.h"
@@ -227,24 +228,6 @@ typedef struct nffile_s {
  * Type 3: xstat - port histogram record
  * Type 4: xstat - bpp histogram record
  */
-
-#define CommonRecordV0Type 1
-#define ExtensionMapType 2
-#define PortHistogramType 3
-#define BppHistogramType 4
-
-// Legacy records
-#define LegacyRecordType1 5
-#define LegacyRecordType2 6
-
-// exporter/sampler types
-#define ExporterInfoRecordType 7
-#define ExporterStatRecordType 8
-#define SamplerInfoRecordType 9
-
-// nfdump 1.6.x CommonRecordType	10
-// V3Record							11
-// nbar record						12
 
 typedef struct record_header_s {
     // record header

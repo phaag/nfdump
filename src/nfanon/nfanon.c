@@ -365,7 +365,7 @@ static void process_data(void *wfile, int verbose) {
                     break;
                 case ExporterInfoRecordType:
                 case ExporterStatRecordType:
-                case SamplerInfoRecordType:
+                case SamplerRecordType:
                 case NbarRecordType:
                     // Silently skip exporter/sampler records
                     break;

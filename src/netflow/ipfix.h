@@ -265,6 +265,7 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_mplsLabelStackSection10 79
 #define IPFIX_DestinationMacAddress 80
 #define IPFIX_postSourceMacAddress 81
+#define IPFIX_interfaceDescription 83
 #define IPFIX_octetTotalCount 85
 #define IPFIX_packetTotalCount 86
 #define IPFIX_forwardingStatus 89
@@ -295,6 +296,7 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_natEvent 230
 #define IPFIX_INGRESS_VRFID 234
 #define IPFIX_EGRESS_VRFID 235
+#define IPFIX_VRFname 236
 
 #define IPFIX_biflowDirection 239
 
@@ -306,6 +308,7 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_selectorId 302
 #define IPFIX_selectorAlgorithm 304
 #define IPFIX_samplingPacketInterval 305
+#define IPFIX_samplingPacketSpace 306
 
 // Private Enterprise Numbers
 #define IPFIX_ReverseInformationElement 29305
@@ -329,7 +332,7 @@ typedef struct ipfix_template_elements_e_s {
 #define VENDOR_BIT_REVERSE 0x4000
 
 /* prototypes */
-int Init_IPFIX(int verbose, uint32_t sampling, uint32_t overwrite);
+int Init_IPFIX(int verbose, int32_t sampling);
 
 void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 

@@ -190,12 +190,13 @@ typedef struct common_header_s {
 #define NF9_ENGINE_ID 39
 
 #define NF9_FLOW_SAMPLER_ID 48
-#define FLOW_SAMPLER_MODE 49
+#define NF9_FLOW_SAMPLER_MODE 49
 #define NF9_FLOW_SAMPLER_RANDOM_INTERVAL 50
 
-#define NF_SELECTOR_ID 302
-#define NF_SELECTOR_ALGORITHM 304
-#define NF_SAMPLING_INTERVAL 305
+#define SELECTOR_ID 302
+#define SELECTOR_ALGORITHM 304
+#define SAMPLING_PACKET_INTERVAL 305
+#define SAMPLING_SPACE_INTERVAL 306
 
 // #define NF9_MIN_TTL			52
 // #define NF9_MAX_TTL			53
@@ -225,6 +226,8 @@ typedef struct common_header_s {
 #define NF9_IN_DST_MAC 80
 #define NF9_OUT_SRC_MAC 81
 #define NF9_INTERFACEDESCRIPTION 83
+#define NF_F_FLOW_BYTES 85
+#define NF_F_FLOW_PACKETS 86
 
 #define NF9_FORWARDING_STATUS 89
 
@@ -233,61 +236,59 @@ typedef struct common_header_s {
 #define NBAR_APPLICATION_ID 95
 #define NBAR_APPLICATION_NAME 96
 
+// IPFIX elements in v9 ( # > 127 )
 #define NF_F_BGP_ADJ_NEXT_AS 128
 #define NF_F_BGP_ADJ_PREV_AS 129
 #define NF_F_dot1qVlanId 243
 #define NF_F_postDot1qVlanId 254
 
-// CISCO ASA NSEL extension - Network Security Event Logging
-#define NF_F_FLOW_BYTES 85
-#define NF_F_FLOW_PACKETS 86
+// CISCO ASA NSEL/NEL extension - Network Security Event Logging
 #define NF_F_CONN_ID 148
 #define NF_F_FLOW_CREATE_TIME_MSEC 152
 #define NF_F_FLOW_END_TIME_MSEC 153
+#define SystemInitTimeMiliseconds 160
 #define NF_F_ICMP_TYPE 176
 #define NF_F_ICMP_CODE 177
 #define NF_F_ICMP_TYPE_IPV6 178
 #define NF_F_ICMP_CODE_IPV6 179
-#define NF_F_FWD_FLOW_DELTA_BYTES 231
-#define NF_F_REV_FLOW_DELTA_BYTES 232
-#define NF_F_EVENT_TIME_MSEC 323
-#define NF_F_INGRESS_ACL_ID 33000
-#define NF_F_EGRESS_ACL_ID 33001
-#define NF_F_FW_EXT_EVENT 33002
-#define NF_F_USERNAME 40000
 
 #define NF_F_XLATE_SRC_ADDR_IPV4 225
 #define NF_F_XLATE_DST_ADDR_IPV4 226
 #define NF_F_XLATE_SRC_PORT 227
 #define NF_F_XLATE_DST_PORT 228
+
+#define NF_N_NAT_EVENT 230
+#define NF_F_FWD_FLOW_DELTA_BYTES 231
+#define NF_F_REV_FLOW_DELTA_BYTES 232
+#define NF_F_FW_EVENT 233
+#define NF_N_INGRESS_VRFID 234
+#define NF_N_EGRESS_VRFID 235
+#define NF_N_VRFNAME 236
+
+#define NF_F_EVENT_TIME_MSEC 323
+
 #define NF_F_XLATE_SRC_ADDR_IPV6 281
 #define NF_F_XLATE_DST_ADDR_IPV6 282
 #define NF_N_NATPOOL_ID 283
-#define NF_F_FW_EVENT 233
 
-// ASA 8.4 compat elements
+#define NF_F_INITIATORPACKETS 298
+#define NF_F_RESPONDERPACKETS 299
+
+#define NF_F_XLATE_PORT_BLOCK_START 361
+#define NF_F_XLATE_PORT_BLOCK_END 362
+#define NF_F_XLATE_PORT_BLOCK_STEP 363
+#define NF_F_XLATE_PORT_BLOCK_SIZE 364
+
+#define NF_F_INGRESS_ACL_ID 33000
+#define NF_F_EGRESS_ACL_ID 33001
+#define NF_F_FW_EXT_EVENT 33002
+
+#define NF_F_USERNAME 40000
 #define NF_F_XLATE_SRC_ADDR_84 40001
 #define NF_F_XLATE_DST_ADDR_84 40002
 #define NF_F_XLATE_SRC_PORT_84 40003
 #define NF_F_XLATE_DST_PORT_84 40004
 #define NF_F_FW_EVENT_84 40005
-
-// ASA 9.x packet counters: initiatorPackets and responderPackets
-// see https://www.iana.org/assignments/ipfix/ipfix.xhtml
-#define NF_F_INITIATORPACKETS 298
-#define NF_F_RESPONDERPACKETS 299
-
-// Cisco ASR 1000 / IOS-XR option templates for vrf names
-#define NF_N_INGRESS_VRFID 234
-#define NF_N_EGRESS_VRFID 235
-#define NF_N_VRFNAME 236
-
-// Cisco ASR 1000 series NEL extension - Nat Event Logging
-#define NF_N_NAT_EVENT 230
-#define NF_F_XLATE_PORT_BLOCK_START 361
-#define NF_F_XLATE_PORT_BLOCK_END 362
-#define NF_F_XLATE_PORT_BLOCK_STEP 363
-#define NF_F_XLATE_PORT_BLOCK_SIZE 364
 
 // nprobe latency extensions
 #define NF_NPROBE_CLIENT_NW_DELAY_SEC 57554
@@ -306,7 +307,7 @@ typedef struct common_header_s {
 #define IPFIX_ReverseInformationElement 29305
 
 /* prototypes */
-int Init_v9(int verbose, uint32_t sampling, uint32_t overwrite);
+int Init_v9(int verbose, int32_t sampling);
 
 void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 
