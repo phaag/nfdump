@@ -88,7 +88,7 @@ int ConfOpen(char *filename, char *section) {
         // hard coded default
         filename = NFCONF_FILE;
 #endif
-        if (TestPath(NFCONF_FILE, S_IFREG) == PATH_NOTEXIST) {
+        if (TestPath(NFCONF_FILE, S_IFREG) == PATH_NOTEXISTS) {
             return 0;
         }
     }
