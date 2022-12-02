@@ -66,6 +66,7 @@
 #include "flowtree.h"
 #include "nfdump.h"
 #include "nffile.h"
+#include "nflog.h"
 #include "util.h"
 
 typedef struct gre_flags_s {
@@ -564,7 +565,7 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
                     protocol = 0x86DD;
                     break;
                 default:
-                    LogInfo("Unsupported DLT_NULL protocol: 0x%x, packet: %u", header, pkg_cnt);
+                    LogInfo("Packet: %u: unsupported DLT_NULL protocol: 0x%x, packet: %u", pkg_cnt, header);
                     return;
             }
         } break;
@@ -574,8 +575,43 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
         case DLT_IEEE802_11:
             protocol = 0x800;
             break;
+        case DLT_NFLOG: {
+            DumpHex(stdout, dataptr, hdr->caplen);
+            nflog_hdr_t *nflog_hdr = (nflog_hdr_t *)dataptr;
+            if (nflog_hdr->nflog_version != 0) {
+                LogInfo("Packet: %u: unsupported NFLOG version: %d", pkg_cnt, nflog_hdr->nflog_version);
+                return;
+            }
+            dbg_printf("NFLOG: %s, rid: %u\n", nflog_hdr->nflog_family == 2 ? "IPv4" : "IPv6", ntohs(nflog_hdr->nflog_rid));
+            // TLVs following
+            dataptr += sizeof(nflog_hdr_t);
+            while (dataptr < eodata) {
+                nflog_tlv_t *tlv = (nflog_tlv_t *)(dataptr);
+                dbg_printf("NFLOG: tlv type: %u, length: %u\n", tlv->tlv_type, tlv->tlv_length);
+
+                size_t size = tlv->tlv_length;
+                if (size % 4 != 0) size += 4 - size % 4;
+                if (size < sizeof(nflog_tlv_t)) {
+                    LogInfo("Packet: %u: NFLOG: tlv size error: %u", pkg_cnt, size);
+                    return;
+                }
+
+                if (tlv->tlv_type == NFULA_PAYLOAD) {
+                    /*
+                     * This TLV's data is the packet payload.
+                     * Skip past the TLV header, and break out
+                     * of the loop so we print the packet data.
+                     */
+                    dataptr += sizeof(nflog_tlv_t);
+                    protocol = 0x800;
+                    break;
+                }
+
+                dataptr += size;
+            }
+        } break;
         default:
-            LogInfo("Unsupported link type: 0x%x, packet: %u", packetParam->linktype, pkg_cnt);
+            LogInfo("Packet: %u: unsupported link type: 0x%x, packet: %u", pkg_cnt, packetParam->linktype);
             return;
     }
 
@@ -730,7 +766,7 @@ REDO_IPPROTO:
         Node->t_first.tv_usec = hdr->ts.tv_usec;
         Node->t_last.tv_sec = hdr->ts.tv_sec;
         Node->t_last.tv_usec = hdr->ts.tv_usec;
-        Node->bytes = hdr->len - packetParam->linkoffset;
+        Node->bytes = ntohs(ip6->ip6_plen) + size_ip;
 
         // keep compiler happy - get's optimized out anyway
         void *p = (void *)&ip6->ip6_src;
@@ -781,7 +817,7 @@ REDO_IPPROTO:
             Node->t_first.tv_usec = hdr->ts.tv_usec;
             Node->t_last.tv_sec = hdr->ts.tv_sec;
             Node->t_last.tv_usec = hdr->ts.tv_usec;
-            Node->bytes = hdr->len - packetParam->linkoffset;
+            Node->bytes = ntohs(ip->ip_len);
 
             Node->src_addr.v4 = ntohl(ip->ip_src.s_addr);
             Node->dst_addr.v4 = ntohl(ip->ip_dst.s_addr);

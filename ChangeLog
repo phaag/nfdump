@@ -1,4 +1,5 @@
 2022-12-02
+-	Implement NFLOG link layer.
 -	Fix #381. pcap overwrite fixed.
 -	Fix #380. string validation
 -	Fix #377. Rework sampling code in general. Switch to packet interval/space notation.  Map older sampling to new notation.
