@@ -31,6 +31,7 @@
 #include "pcapdump.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -83,9 +84,39 @@ static int OpenDumpFile(flushParam_t *param) {
 
 }  // End of OpenDumpFile
 
+static void packet_handler(u_char *dumpfile, const struct pcap_pkthdr *header, const u_char *pkt_data) {
+    pcap_dump(dumpfile, header, pkt_data);  // store a packet to the dump file
+    return;
+}
+
+static int appendPcap(char *existFile, char *appendFile) {
+    char errbuff[256];
+    pcap_t *pcapAppend = pcap_open_offline(appendFile, errbuff);
+    if (!pcapAppend) {
+        LogError("Failed to open existing pcap");
+        return 0;
+    }
+
+    int snaplen = pcap_snapshot(pcapAppend);
+    pcap_t *pcapExist = pcap_open_dead(DLT_EN10MB, snaplen);
+    pcap_dumper_t *dumper = pcap_dump_open_append(pcapExist, existFile);
+    if (dumper == NULL) {
+        printf("Append failed: %s\n", pcap_geterr(pcapExist));
+        return 0;
+    }
+
+    pcap_loop(pcapAppend, 0, packet_handler, (unsigned char *)dumper);
+
+    /* close */
+    pcap_close(pcapAppend);
+    pcap_close(pcapExist);
+    pcap_dump_close(dumper);
+
+    return 1;
+}
+
 static int CloseDumpFile(flushParam_t *param, time_t t_start) {
     struct tm *when;
-    int err;
     char datefile[MAXPATHLEN];
 
     if (param->pd == NULL) return 1;
@@ -111,10 +142,23 @@ static int CloseDumpFile(flushParam_t *param, time_t t_start) {
         snprintf(datefile, MAXPATHLEN - 1, "%s/pcap.%s", param->archivedir, fmt);
     }
 
-    dbg_printf("CloseDumpFile() %s -> %s\n", pcap_dumpfile, datefile);
-    err = rename(pcap_dumpfile, datefile);
-    if (err) {
-        LogError("rename() failed: %s", strerror(errno));
+    int fileStat = TestPath(datefile, S_IFREG);
+    if (fileStat == PATH_NOTEXISTS) {
+        // file does not exist
+        dbg_printf("CloseDumpFile() %s -> %s\n", pcap_dumpfile, datefile);
+        int err = rename(pcap_dumpfile, datefile);
+        if (err) {
+            LogError("rename() failed: %s", strerror(errno));
+        }
+    } else if (fileStat == PATH_OK) {
+        // file exists - append pcap
+        dbg_printf("CloseDumpFile() append %s -> %s\n", pcap_dumpfile, datefile);
+        if (!appendPcap(datefile, pcap_dumpfile)) {
+            LogError("Failed to append pcapfile");
+        }
+        unlink(pcap_dumpfile);
+    } else {
+        LogError("CloseDumpFile() TestPath() failed: %d", fileStat);
     }
 
     return 0;

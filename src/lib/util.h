@@ -108,7 +108,7 @@ void CheckArgLen(char *arg, size_t len);
 int CheckPath(char *path, unsigned type);
 
 #define PATH_ERROR -1
-#define PATH_NOTEXIST 0
+#define PATH_NOTEXISTS 0
 #define PATH_WRONGTYPE 1
 #define PATH_OK 2
 int TestPath(char *path, unsigned type);
