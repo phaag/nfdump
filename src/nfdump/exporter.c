@@ -163,18 +163,15 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
 }  // End of AddExporterInfo
 
 int AddSamplerInfo(sampler_record_t *sampler_record) {
-    uint32_t id;
-    sampler_t **sampler;
-
     if (sampler_record->size != sizeof(sampler_record_t) && sampler_record->size != sizeof(samplerV0_record_t)) {
         LogError("Corrupt sampler record in %s line %d\n", __FILE__, __LINE__);
         return 0;
     }
 
+    sampler_record_t convert_record = {0};
     sampler_record_t *record = sampler_record;
     if (sampler_record->size == sizeof(samplerV0_record_t)) {
         samplerV0_record_t *samplerV0_record = (samplerV0_record_t *)sampler_record;
-        sampler_record_t convert_record;
 
         convert_record.type = SamplerRecordType;
         convert_record.size = sizeof(sampler_record_t);
@@ -186,7 +183,7 @@ int AddSamplerInfo(sampler_record_t *sampler_record) {
         record = &convert_record;
     }
 
-    id = record->exporter_sysid;
+    uint32_t id = record->exporter_sysid;
     if (id >= MAX_EXPORTERS) {
         LogError("Corrupt sampler record in %s line %d\n", __FILE__, __LINE__);
         return 0;
@@ -197,7 +194,7 @@ int AddSamplerInfo(sampler_record_t *sampler_record) {
         return 0;
     }
 
-    sampler = &exporter_list[id]->sampler;
+    sampler_t **sampler = &exporter_list[id]->sampler;
     while (*sampler) {
         if (memcmp((void *)&(*sampler)->record, (void *)record, sizeof(sampler_record_t)) == 0) {
             // Found identical sampler already registered
