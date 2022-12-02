@@ -73,17 +73,13 @@ int InitExporterList(void) {
 }  // End of InitExporterList
 
 int AddExporterInfo(exporter_info_record_t *exporter_record) {
-    uint32_t id;
-    int i;
-    char *p1, *p2;
-
     if (exporter_record->header.size != sizeof(exporter_info_record_t)) {
         LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
         return 0;
     }
 
     // sanity check
-    id = exporter_record->sysid;
+    uint32_t id = exporter_record->sysid;
     if (id >= MAX_EXPORTERS) {
         LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
         return 0;
@@ -125,9 +121,9 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
     // SPARC gcc fails here, if we use directly a pointer to the struct.
     // SPARC barfs and core dumps otherwise
     // memcpy((void *)&(exporter_list[id]->info), (void *)exporter_record, sizeof(exporter_info_record_t));
-    p1 = (char *)&(exporter_list[id]->info);
-    p2 = (char *)exporter_record;
-    for (i = 0; i < sizeof(exporter_info_record_t); i++) *p1++ = *p2++;
+    char *p1 = (char *)&(exporter_list[id]->info);
+    char *p2 = (char *)exporter_record;
+    for (int i = 0; i < sizeof(exporter_info_record_t); i++) *p1++ = *p2++;
 
     dbg_printf("Insert exporter record in Slot: %i, Sysid: %u\n", id, exporter_record->sysid);
 
@@ -232,22 +228,20 @@ int AddSamplerInfo(sampler_record_t *sampler_record) {
 }  // End of AddSamplerInfo
 
 int AddExporterStat(exporter_stats_record_t *stat_record) {
-    int i, use_copy;
-    exporter_stats_record_t *rec;
-    size_t required;
-
     if (stat_record->header.size < sizeof(exporter_stats_record_t)) {
         LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
         return 0;
     }
 
-    required = sizeof(exporter_stats_record_t) + (stat_record->stat_count - 1) * sizeof(struct exporter_stat_s);
+    size_t required = sizeof(exporter_stats_record_t) + (stat_record->stat_count - 1) * sizeof(struct exporter_stat_s);
     if ((stat_record->stat_count == 0) || (stat_record->header.size != required)) {
         LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
         return 0;
     }
 
     // 64bit counters can be potentially unaligned
+    int use_copy;
+    exporter_stats_record_t *rec;
     if (((ptrdiff_t)stat_record & 0x7) != 0) {
         rec = malloc(stat_record->header.size);
         if (!rec) {
@@ -261,7 +255,7 @@ int AddExporterStat(exporter_stats_record_t *stat_record) {
         use_copy = 0;
     }
 
-    for (i = 0; i < rec->stat_count; i++) {
+    for (int i = 0; i < rec->stat_count; i++) {
         uint32_t id = rec->stat[i].sysid;
         if (id >= MAX_EXPORTERS) {
             LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
@@ -285,10 +279,8 @@ int AddExporterStat(exporter_stats_record_t *stat_record) {
 }  // End of AddExporterStat
 
 void ExportExporterList(nffile_t *nffile) {
-    int i;
-
     // sysid 0 unused -> no exporter available
-    i = 1;
+    int i = 1;
     while (i < MAX_EXPORTERS && exporter_list[i] != NULL) {
         exporter_info_record_t *exporter;
         sampler_t *sampler;
@@ -308,25 +300,19 @@ void ExportExporterList(nffile_t *nffile) {
 }  // End of ExportExporterList
 
 void PrintExporters(void) {
-    int i, done, found = 0;
-    nffile_t *nffile;
-    record_header_t *record;
-    uint32_t skipped_blocks;
-
     printf("Exporters:\n");
 
-    nffile = GetNextFile(NULL);
+    nffile_t *nffile = GetNextFile(NULL);
     if (!nffile) {
         return;
     }
 
-    skipped_blocks = 0;
-    done = 0;
+    uint32_t skipped_blocks = 0;
+    int done = 0;
+    int found = 0;
     while (!done) {
-        int i, ret;
-
         // get next data block from file
-        ret = ReadBlock(nffile);
+        int ret = ReadBlock(nffile);
         switch (ret) {
             case NF_CORRUPT:
             case NF_ERROR:
@@ -353,8 +339,8 @@ void PrintExporters(void) {
             continue;
         }
 
-        record = (record_header_t *)nffile->buff_ptr;
-        for (i = 0; i < nffile->block_header->NumRecords; i++) {
+        record_header_t *record = (record_header_t *)nffile->buff_ptr;
+        for (int i = 0; i < nffile->block_header->NumRecords; i++) {
             switch (record->type) {
                 case LegacyRecordType1:
                 case LegacyRecordType2:
@@ -387,7 +373,7 @@ void PrintExporters(void) {
     }
 
     printf("\n");
-    i = 1;
+    int i = 1;
     while (i < MAX_EXPORTERS && exporter_list[i] != NULL) {
 #define IP_STRING_LEN 40
         char ipstr[IP_STRING_LEN];

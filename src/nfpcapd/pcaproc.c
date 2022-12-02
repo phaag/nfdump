@@ -576,7 +576,6 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
             protocol = 0x800;
             break;
         case DLT_NFLOG: {
-            DumpHex(stdout, dataptr, hdr->caplen);
             nflog_hdr_t *nflog_hdr = (nflog_hdr_t *)dataptr;
             if (nflog_hdr->nflog_version != 0) {
                 LogInfo("Packet: %u: unsupported NFLOG version: %d", pkg_cnt, nflog_hdr->nflog_version);
