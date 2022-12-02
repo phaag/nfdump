@@ -396,7 +396,6 @@ void PrintExporters(void) {
         char ipstr[IP_STRING_LEN];
 
         exporter_info_record_t *exporter;
-        sampler_t *sampler;
 
         exporter = &exporter_list[i]->info;
         if (exporter->sa_family == AF_INET) {
@@ -425,7 +424,7 @@ void PrintExporters(void) {
             printf("**** Exporter IP version unknown ****\n");
         }
 
-        sampler = exporter_list[i]->sampler;
+        sampler_t *sampler = exporter_list[i]->sampler;
         while (sampler) {
             switch (sampler->record.id) {
                 case SAMPLER_OVERWRITE:
@@ -441,8 +440,8 @@ void PrintExporters(void) {
                            sampler->record.packetInterval, sampler->record.spaceInterval);
                     break;
                 default:
-                    printf("    Sampler: Assigned Sampler: id: %lld, algorithm: %u, packet interval: %u, packet space: %u\n", sampler->record.id,
-                           sampler->record.algorithm, sampler->record.packetInterval, sampler->record.spaceInterval);
+                    printf("    Sampler: Assigned Sampler: id: %lld, algorithm: %u, packet interval: %u, packet space: %u\n",
+                           (long long)sampler->record.id, sampler->record.algorithm, sampler->record.packetInterval, sampler->record.spaceInterval);
             }
             sampler = sampler->next;
         }

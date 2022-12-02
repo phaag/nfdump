@@ -216,7 +216,7 @@ static const struct ipfixTranslationMap_s {
     {LOCAL_outPayload, VARLENGTH, NumberCopy, EXoutPayloadID, 0, STACK_NONE, "out payload"},
 
     // End of table
-    {0, 0, 0, 0, STACK_NONE, NULL},
+    {0, 0, 0, 0, 0, STACK_NONE, NULL},
 
 };
 
