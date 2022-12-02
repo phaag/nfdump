@@ -1435,7 +1435,7 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
         // description string
         memcpy(p, inBuff + nbarOption->desc.offset, nbarOption->desc.length);
         state = UTF8_ACCEPT;
-        if (validate_utf8(&state, (char *)p, nbarOption->name.length) == UTF8_REJECT) {
+        if (validate_utf8(&state, (char *)p, nbarOption->desc.length) == UTF8_REJECT) {
             LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar description");
             err = 1;
         }
