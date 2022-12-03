@@ -577,6 +577,11 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
             break;
         case DLT_NFLOG: {
             nflog_hdr_t *nflog_hdr = (nflog_hdr_t *)dataptr;
+            if (hdr->caplen < sizeof(nflog_hdr_t)) {
+                LogInfo("Packet: %u: NFLOG: not enough data", pkg_cnt);
+                return;
+            }
+
             if (nflog_hdr->nflog_version != 0) {
                 LogInfo("Packet: %u: unsupported NFLOG version: %d", pkg_cnt, nflog_hdr->nflog_version);
                 return;
@@ -596,11 +601,6 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
                 }
 
                 if (tlv->tlv_type == NFULA_PAYLOAD) {
-                    /*
-                     * This TLV's data is the packet payload.
-                     * Skip past the TLV header, and break out
-                     * of the loop so we print the packet data.
-                     */
                     dataptr += sizeof(nflog_tlv_t);
                     protocol = 0x800;
                     break;
