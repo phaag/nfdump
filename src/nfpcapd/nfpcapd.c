@@ -214,6 +214,9 @@ static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, 
         case DLT_NFLOG:
             linkoffset = 0;
             break;
+        case DLT_PFLOG:
+            linkoffset = 0;
+            break;
         default:
             LogError("Unsupported data link type %i", linktype);
             return -1;

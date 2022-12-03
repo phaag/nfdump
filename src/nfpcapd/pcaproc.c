@@ -67,6 +67,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nflog.h"
+#include "pflog.h"
 #include "util.h"
 
 typedef struct gre_flags_s {
@@ -359,7 +360,7 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
         }
 
         // in case it's a FIN/RST only packet - immediately flush it
-        if (NewNode->fin == FIN_NODE) {
+        if (NewNode->signal == SIGNAL_FIN) {
             // flush node to flow thread
             Remove_Node(NewNode);
             Push_Node(packetParam->NodeList, NewNode);
@@ -395,9 +396,9 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
         Node->payloadSize = payloadSize;
     }
 
-    if (NewNode->fin == FIN_NODE) {
+    if (NewNode->signal == SIGNAL_FIN) {
         // flush node
-        Node->fin = FIN_NODE;
+        Node->signal = SIGNAL_FIN;
         // flush node to flow thread
         Remove_Node(Node);
         Push_Node(packetParam->NodeList, Node);
@@ -525,6 +526,9 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
     uint64_t dstMac = 0;
     uint32_t numMPLS = 0;
     uint32_t *mplsLabel = NULL;
+    uint32_t ruleNr = 0;
+    uint8_t action = 0;
+    uint8_t reason = 0;
 
     // link layer processing
     uint16_t protocol = 0;
@@ -608,6 +612,19 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
 
                 dataptr += size;
             }
+            case DLT_PFLOG: {
+                pflog_hdr_t *pfloghdr = (pflog_hdr_t *)dataptr;
+                if (hdr->caplen < PFLOG_HDRLEN) {
+                    LogInfo("Packet: %u: PFLOG: not enough data", pkg_cnt);
+                    return;
+                }
+                ruleNr = pfloghdr->rulenr;
+                action = pfloghdr->action;
+                reason = pfloghdr->reason;
+
+                protocol = 0x800;
+                dataptr += PFLOG_HDRLEN;
+            } break;
         } break;
         default:
             LogInfo("Packet: %u: unsupported link type: 0x%x, packet: %u", pkg_cnt, packetParam->linktype);
@@ -834,6 +851,9 @@ REDO_IPPROTO:
     Node->packets = 1;
     Node->proto = IPproto;
     Node->nodeType = FLOW_NODE;
+    Node->ruleNr = ruleNr;
+    Node->action = action;
+    Node->reason = reason;
     // bytes = number of bytes on wire - data link data
     dbg_printf("Payload: %td bytes, Full packet: %u bytes\n", eodata - dataptr, Node->bytes);
 

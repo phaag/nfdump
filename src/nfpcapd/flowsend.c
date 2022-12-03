@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -235,9 +235,9 @@ __attribute__((noreturn)) void *sendflow_thread(void *thread_data) {
     printRecord = flowParam->printRecord;
     while (1) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
-        if (Node->fin == SIGNAL_SYNC) {
+        if (Node->signal == SIGNAL_SYNC) {
             // skip
-        } else if (Node->fin == SIGNAL_DONE) {
+        } else if (Node->signal == SIGNAL_DONE) {
             CloseSender(flowParam, Node->timestamp);
             break;
         } else {

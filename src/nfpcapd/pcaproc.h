@@ -64,6 +64,10 @@
 #define DLT_NFLOG 239
 #endif
 
+#ifndef DLT_PFLOG
+#define DLT_PFLOG 117
+#endif
+
 #ifndef ETHERTYPE_TRANSETHER
 #define ETHERTYPE_TRANSETHER 0x6558
 #endif

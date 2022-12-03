@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -345,7 +345,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
     fs->msecLast = 0;
     while (1) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
-        if (Node->fin == SIGNAL_SYNC) {
+        if (Node->signal == SIGNAL_SYNC) {
             CloseFlowFile(flowParam, Node->timestamp);
             fs->nffile = OpenNewFile(fs->current, fs->nffile, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
@@ -358,7 +358,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
             // Dump all exporters to the buffer
             FlushStdRecords(fs);
 
-        } else if (Node->fin == SIGNAL_DONE) {
+        } else if (Node->signal == SIGNAL_DONE) {
             CloseFlowFile(flowParam, Node->timestamp);
             break;
         } else {
