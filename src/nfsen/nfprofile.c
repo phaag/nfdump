@@ -484,11 +484,11 @@ int main(int argc, char **argv) {
                 tslot = atoi(optarg);
                 break;
             case 'M':
-                if (!CheckPath(optarg, S_IFDIR)) exit(255);
+                CheckArgLen(optarg, MAXPATHLEN);
                 flist.multiple_dirs = strdup(optarg);
                 break;
             case 'r':
-                if (!CheckPath(optarg, S_IFREG)) exit(255);
+                CheckArgLen(optarg, MAXPATHLEN);
                 flist.single_file = strdup(optarg);
                 break;
             case 'j':
