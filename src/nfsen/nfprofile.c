@@ -141,11 +141,14 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                 nffile_t *next = GetNextFile(nffile);
                 if (next == EMPTY_LIST) {
                     done = 1;
+                    continue;
                 }
                 if (next == NULL) {
                     done = 1;
+                    continue;
                     LogError("Unexpected end of file list\n");
                 }
+
                 strncpy(Ident, FILE_IDENT(nffile), IDENTLEN);
                 Ident[IDENTLEN - 1] = '\0';
                 for (int j = 0; j < num_channels; j++) {
