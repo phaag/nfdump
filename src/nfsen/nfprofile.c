@@ -89,7 +89,9 @@ static void usage(char *name) {
         "-s\t\tprofile subdir.\n"
         "-Z\t\tCheck filter syntax and exit.\n"
         "-S subdir\tSub directory format. see nfcapd(1) for format\n"
-        "-z\t\tCompress flows in output file.\n"
+        "-z\t\tLZO compress flows in output file.\n"
+        "-y\t\tLZ4 compress flows in output file.\n"
+        "-j\t\tBZ2 compress flows in output file.\n"
 #ifdef HAVE_INFLUXDB
         "-i <influxurl>\tInfluxdb url for stats (example: http://localhost:8086/write?db=mydb&u=pippo&p=paperino)\n"
 #endif
