@@ -93,11 +93,9 @@ static int check_filter_block(char *filter, master_record_t *flow_record, int ex
     Engine->nfrecord = (uint64_t *)flow_record;
     int ret = (*Engine->FilterEngine)(Engine);
     if (ret == expect) {
-        printf("Success: Startnode: %i Numblocks: %i Extended: %i Filter: '%s'\n", Engine->StartNode, nblocks(),
-               Engine->Extended, filter);
+        printf("Success: Startnode: %i Numblocks: %i Extended: %i Filter: '%s'\n", Engine->StartNode, nblocks(), Engine->Extended, filter);
     } else {
-        printf("**** FAILED **** Startnode: %i Numblocks: %i Extended: %i Filter: '%s'\n", Engine->StartNode, nblocks(),
-               Engine->Extended, filter);
+        printf("**** FAILED **** Startnode: %i Numblocks: %i Extended: %i Filter: '%s'\n", Engine->StartNode, nblocks(), Engine->Extended, filter);
         DumpEngine(Engine);
         printf("Expected: %i, Found: %i\n", expect, ret);
         printf("Record:\n");
@@ -116,8 +114,7 @@ static void check_offset(char *text, pointer_addr_t offset, pointer_addr_t expec
     if (offset == expect) {
         printf("Success: %s: %llu\n", text, (unsigned long long)expect);
     } else {
-        printf("**** FAILED **** %s expected %llu, evaluated %llu\n", text, (unsigned long long)expect,
-               (unsigned long long)offset);
+        printf("**** FAILED **** %s expected %llu, evaluated %llu\n", text, (unsigned long long)expect, (unsigned long long)offset);
         // useless to continue
         exit(255);
     }
@@ -157,26 +154,16 @@ int main(int argc, char **argv) {
     memset((void *)&flow_record, 0, sizeof(master_record_t));
     blocks = (uint64_t *)&flow_record;
 
-    check_offset("Src AS   Offset",
-                 (unsigned int)((pointer_addr_t)&flow_record.srcas - (pointer_addr_t)&blocks[OffsetAS]), 0);
-    check_offset("Dst AS   Offset",
-                 (unsigned int)((pointer_addr_t)&flow_record.dstas - (pointer_addr_t)&blocks[OffsetAS]), 4);
-    check_offset("Src Port Offset",
-                 (unsigned int)((pointer_addr_t)&flow_record.srcPort - (pointer_addr_t)&blocks[OffsetPort]), 0);
-    check_offset("Dst Port Offset",
-                 (unsigned int)((pointer_addr_t)&flow_record.dstPort - (pointer_addr_t)&blocks[OffsetPort]), 2);
-    check_offset("Status   Offset",
-                 (unsigned int)((pointer_addr_t)&flow_record.fwd_status - (pointer_addr_t)&blocks[OffsetStatus]), 4);
-    check_offset("Flags    Offset",
-                 (unsigned int)((pointer_addr_t)&flow_record.tcp_flags - (pointer_addr_t)&blocks[OffsetFlags]), 5);
-    check_offset("Protocol Offset",
-                 (unsigned int)((pointer_addr_t)&flow_record.proto - (pointer_addr_t)&blocks[OffsetProto]), 6);
-    check_offset("tos      Offset",
-                 (unsigned int)((pointer_addr_t)&flow_record.tos - (pointer_addr_t)&blocks[OffsetTos]), 7);
-    check_offset("packets  Offset",
-                 (unsigned int)((pointer_addr_t)&flow_record.inPackets - (pointer_addr_t)&blocks[OffsetPackets]), 0);
-    check_offset("bytes    Offset",
-                 (unsigned int)((pointer_addr_t)&flow_record.inBytes - (pointer_addr_t)&blocks[OffsetBytes]), 0);
+    check_offset("Src AS   Offset", (unsigned int)((pointer_addr_t)&flow_record.srcas - (pointer_addr_t)&blocks[OffsetAS]), 0);
+    check_offset("Dst AS   Offset", (unsigned int)((pointer_addr_t)&flow_record.dstas - (pointer_addr_t)&blocks[OffsetAS]), 4);
+    check_offset("Src Port Offset", (unsigned int)((pointer_addr_t)&flow_record.srcPort - (pointer_addr_t)&blocks[OffsetPort]), 0);
+    check_offset("Dst Port Offset", (unsigned int)((pointer_addr_t)&flow_record.dstPort - (pointer_addr_t)&blocks[OffsetPort]), 2);
+    check_offset("Status   Offset", (unsigned int)((pointer_addr_t)&flow_record.fwd_status - (pointer_addr_t)&blocks[OffsetStatus]), 4);
+    check_offset("Flags    Offset", (unsigned int)((pointer_addr_t)&flow_record.tcp_flags - (pointer_addr_t)&blocks[OffsetFlags]), 5);
+    check_offset("Protocol Offset", (unsigned int)((pointer_addr_t)&flow_record.proto - (pointer_addr_t)&blocks[OffsetProto]), 6);
+    check_offset("tos      Offset", (unsigned int)((pointer_addr_t)&flow_record.tos - (pointer_addr_t)&blocks[OffsetTos]), 7);
+    check_offset("packets  Offset", (unsigned int)((pointer_addr_t)&flow_record.inPackets - (pointer_addr_t)&blocks[OffsetPackets]), 0);
+    check_offset("bytes    Offset", (unsigned int)((pointer_addr_t)&flow_record.inBytes - (pointer_addr_t)&blocks[OffsetBytes]), 0);
 
 #ifdef HAVE_SIZE_T_Z_FORMAT
     printf("Pointer  Size : %zu\n", sizeof(blocks));
@@ -936,7 +923,6 @@ int main(int argc, char **argv) {
         sscanf(pos, "%2hhx", &ja3[count]);
         pos += 2;
     }
-
     memcpy((void *)flow_record.ja3, (void *)ja3, 16);
     ret = check_filter_block("payload ja3 123456789abcdef0123456789abcdef0", &flow_record, 1);
     ret = check_filter_block("payload ja3 123456789abcdef0123456789abcdef1", &flow_record, 0);

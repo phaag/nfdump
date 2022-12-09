@@ -751,15 +751,13 @@ typedef struct master_record_s {
 #define ShiftEVRFID 32
 #endif
 
-    // reference to exporter
-    exporter_info_record_t *exp_ref;
-
     uint64_t observationPointID;
     uint32_t observationDomainID;
-#define OffsetObservationDomainID (offsetof(master_record_t, observationDomainID) >> 3)
+    uint32_t align;
 #define OffsetObservationPointID (offsetof(master_record_t, observationPointID) >> 3)
 #define MaskObservationPointID 0xffffffffffffffff
 #define ShiftObservationPointID 0
+#define OffsetObservationDomainID (offsetof(master_record_t, observationDomainID) >> 3)
 #ifdef WORDS_BIGENDIAN
 #define MaskObservationDomainID 0xffffffff00000000LL
 #define ShiftObservationDomainID 32
@@ -770,23 +768,27 @@ typedef struct master_record_s {
 
     // nbar AppID
     uint8_t nbarAppIDlen;
-    uint8_t nbarAppID[11];
+    uint8_t nbarAppID[15];
 #define OffsetNbarAppID (offsetof(master_record_t, nbarAppID) >> 3)
 #define MaskNbarAppID 0xffffffffffffffff
-
-    // payload data
-    uint32_t inPayloadLength;
-    uint32_t outPayloadLength;
-#define OffsetPayload (offsetof(master_record_t, inPayloadLength) >> 3)
-    char *inPayload;
-    char *outPayload;
 
     // ja3 from payload
     uint8_t ja3[16];
 #define OffsetJA3 (offsetof(master_record_t, ja3) >> 3)
 #define MaskJA3 0xffffffffffffffff
 
+    // payload data
+    uint32_t inPayloadLength;
+    uint32_t outPayloadLength;
+#define OffsetPayload (offsetof(master_record_t, inPayloadLength) >> 3)
+
+    char *inPayload;
+    char *outPayload;
+
     uint16_t exElementList[MAXEXTENSIONS];
+
+    // reference to exporter
+    exporter_info_record_t *exp_ref;
 
     // last entry in master record
     char *label;

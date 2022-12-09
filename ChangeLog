@@ -1,5 +1,6 @@
 2022-12-9
 -	Fix #384 bug when compile with --enable-nsel
+-	Fix #385 bug - i386 32bit alignment 
 
 2022-12-02
 -	Implement NFLOG link layer.
