@@ -65,7 +65,7 @@ if test "${enable_fixtimebug}" = "yes" ; then
 fi
 
 AC_PROG_YACC
-AC_PROG_LEX(yywrap)
+AC_PROG_LEX(noyywrap)
 which $LEX > /dev/null 2>&1
 if test $? = 1; then
 	AC_MSG_ERROR(No lex or flex found on system)
