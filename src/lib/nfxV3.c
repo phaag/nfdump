@@ -479,8 +479,8 @@ void PrintSequencer(sequencer_t *sequencer) {
     printf("Num sequences    : %u\n", sequencer->numSequences);
     printf("Has VarInLength  : %s\n", sequencer->inLength == 0 ? "true" : "false");
     printf("Has VarOutLength : %s\n", sequencer->outLength == 0 ? "true" : "false");
-    printf("Inlength         : %lu\n", sequencer->inLength);
-    printf("Outlength        : %lu\n", sequencer->outLength);
+    printf("Inlength         : %zu\n", sequencer->inLength);
+    printf("Outlength        : %zu\n", sequencer->outLength);
     printf("Sequences\n");
     for (int i = 0; i < sequencer->numSequences; i++) {
         int extID = sequencer->sequenceTable[i].extensionID;
