@@ -281,6 +281,11 @@ static void PackRecordV3(master_record_t *master_record, nffile_t *nffile) {
                 latency->usecServerNwDelay = master_record->server_nw_delay_usec;
                 latency->usecApplLatency = master_record->appl_latency_usec;
             } break;
+            case EXvrfID: {
+                PushExtension(v3Record, EXvrf, vrf);
+                vrf->egressVrf = master_record->egressVrf;
+                vrf->ingressVrf = master_record->ingressVrf;
+            } break;
 #ifdef NSEL
             case EXnselCommonID: {
                 PushExtension(v3Record, EXnselCommon, nselCommon);
@@ -322,8 +327,6 @@ static void PackRecordV3(master_record_t *master_record, nffile_t *nffile) {
                 PushExtension(v3Record, EXnelCommon, nelCommon);
                 nelCommon->msecEvent = master_record->msecEvent;
                 nelCommon->natEvent = master_record->event;
-                nelCommon->egressVrf = master_record->egressVrf;
-                nelCommon->ingressVrf = master_record->ingressVrf;
             } break;
             case EXnelXlatePortID: {
                 PushExtension(v3Record, EXnelXlatePort, nelXlatePort);

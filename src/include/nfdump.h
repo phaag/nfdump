@@ -696,10 +696,8 @@ typedef struct master_record_s {
 
     // NAT extensions
     // NAT event is mapped into ASA event
-#define NAT_BASE_OFFSET (offsetof(master_record_t, ingressVrf) >> 3)
     // common block
-#define OffsetNELcommon NEL_BASE_OFFSET
-#define OffsetPortBlock NAT_BASE_OFFSET + 1
+#define OffsetPortBlock (offsetof(master_record_t, block_start) >> 3)
     // Port block allocation
     uint16_t block_start;  // OffsetPortBlock 0xffff'0000'0000'0000
     uint16_t block_end;    // OffsetPortBlock 0x0000'ffff'0000'0000

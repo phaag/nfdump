@@ -1,3 +1,6 @@
+2022-12-9
+-	Fix #384 bug when compile with --enable-nsel
+
 2022-12-02
 -	Implement NFLOG link layer.
 -	Fix #381. pcap overwrite fixed.
