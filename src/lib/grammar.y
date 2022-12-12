@@ -1388,7 +1388,8 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 
-		geoFilter = 1;
+		// ASN not necessarily depends on GEO information database. Some routers add the ASN number to the flow records
+		// geoFilter = 1;
 		switch ( $1.direction ) {
 			case SOURCE:
 				$$.self = NewBlock(OffsetAS, MaskSrcAS, ($4 << ShiftSrcAS) & MaskSrcAS, $3.comp, FUNC_NONE, NULL );
@@ -1467,7 +1468,8 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		struct ULongListNode *node;
 		ULongtree_t *root = NULL;
 
-		geoFilter = 1;
+		// ASN not necessarily depends on GEO information database. Some routers add the ASN number to the flow records
+		// geoFilter = 1;
 		if ( $1.direction == DIR_UNSPEC || $1.direction == SOURCE_OR_DESTINATION || $1.direction == SOURCE_AND_DESTINATION ) {
 			// src and/or dst AS
 			// we need a second rbtree due to different shifts for src and dst AS
