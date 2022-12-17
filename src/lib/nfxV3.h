@@ -608,8 +608,22 @@ typedef struct EXvrf_s {
 } EXvrf_t;
 #define EXvrfSize (sizeof(EXvrf_t) + sizeof(elementHeader_t))
 
+typedef struct EXpfinfo_s {
+#define EXpfinfoID 37
+    uint8_t action;
+    uint8_t reason;
+    uint8_t dir;
+    uint8_t rewritten;
+    uint32_t rulenr;
+    uint32_t subrulenr;
+    uint32_t uid;
+    uint32_t pid;
+    char ifname[1];
+} EXpfinfo_t;
+#define EXpfinfoSize (sizeof(EXpfinfo_t) - 1 + sizeof(elementHeader_t))
+
 // max possible elements
-#define MAXEXTENSIONS 37
+#define MAXEXTENSIONS 38
 
 #define PushExtension(h, x, v)                                                     \
     {                                                                              \
@@ -654,43 +668,15 @@ static const struct extensionTable_s {
     uint32_t id;    // id number
     uint32_t size;  // number of bytes incl. header, 0xFFFF for dyn length
     char *name;     // name of extension
-} extensionTable[] = {{0, 0, "ExNull"},
-                      EXTENSION(EXgenericFlow),
-                      EXTENSION(EXipv4Flow),
-                      EXTENSION(EXipv6Flow),
-                      EXTENSION(EXflowMisc),
-                      EXTENSION(EXcntFlow),
-                      EXTENSION(EXvLan),
-                      EXTENSION(EXasRouting),
-                      EXTENSION(EXbgpNextHopV4),
-                      EXTENSION(EXbgpNextHopV6),
-                      EXTENSION(EXipNextHopV4),
-                      EXTENSION(EXipNextHopV6),
-                      EXTENSION(EXipReceivedV4),
-                      EXTENSION(EXipReceivedV6),
-                      EXTENSION(EXmplsLabel),
-                      EXTENSION(EXmacAddr),
-                      EXTENSION(EXasAdjacent),
-                      EXTENSION(EXlatency),
-                      EXTENSION(EXsamplerInfo),
-                      EXTENSION(EXnselCommon),
-                      EXTENSION(EXnselXlateIPv4),
-                      EXTENSION(EXnselXlateIPv6),
-                      EXTENSION(EXnselXlatePort),
-                      EXTENSION(EXnselAcl),
-                      EXTENSION(EXnselUser),
-                      EXTENSION(EXnelCommon),
-                      EXTENSION(EXnelXlatePort),
-                      EXTENSION(EXnbarApp),
-                      EXTENSION(EXlabel),
-                      EXTENSION(EXinPayload),
-                      EXTENSION(EXoutPayload),
-                      EXTENSION(EXtunIPv4),
-                      EXTENSION(EXtunIPv6),
-                      EXTENSION(EXobservation),
-                      EXTENSION(EXifname),
-                      EXTENSION(EXvrfname),
-                      EXTENSION(EXvrf)};
+} extensionTable[] = {
+    {0, 0, "ExNull"},           EXTENSION(EXgenericFlow),   EXTENSION(EXipv4Flow),      EXTENSION(EXipv6Flow),     EXTENSION(EXflowMisc),
+    EXTENSION(EXcntFlow),       EXTENSION(EXvLan),          EXTENSION(EXasRouting),     EXTENSION(EXbgpNextHopV4), EXTENSION(EXbgpNextHopV6),
+    EXTENSION(EXipNextHopV4),   EXTENSION(EXipNextHopV6),   EXTENSION(EXipReceivedV4),  EXTENSION(EXipReceivedV6), EXTENSION(EXmplsLabel),
+    EXTENSION(EXmacAddr),       EXTENSION(EXasAdjacent),    EXTENSION(EXlatency),       EXTENSION(EXsamplerInfo),  EXTENSION(EXnselCommon),
+    EXTENSION(EXnselXlateIPv4), EXTENSION(EXnselXlateIPv6), EXTENSION(EXnselXlatePort), EXTENSION(EXnselAcl),      EXTENSION(EXnselUser),
+    EXTENSION(EXnelCommon),     EXTENSION(EXnelXlatePort),  EXTENSION(EXnbarApp),       EXTENSION(EXlabel),        EXTENSION(EXinPayload),
+    EXTENSION(EXoutPayload),    EXTENSION(EXtunIPv4),       EXTENSION(EXtunIPv6),       EXTENSION(EXobservation),  EXTENSION(EXifname),
+    EXTENSION(EXvrfname),       EXTENSION(EXvrf),           EXTENSION(EXpfinfo)};
 
 typedef struct record_map_s {
     recordHeaderV3_t *recordHeader;

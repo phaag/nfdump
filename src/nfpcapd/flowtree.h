@@ -39,7 +39,6 @@
 #include <time.h>
 
 #include "config.h"
-#include "flowtree.h"
 #include "nfdump.h"
 #include "rbtree.h"
 
