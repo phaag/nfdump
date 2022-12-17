@@ -851,7 +851,7 @@ int RenameAppend(char *oldName, char *newName) {
 }  // End of RenameAppend
 
 static void FlushFile(nffile_t *nffile) {
-    if (nffile->block_header->size) {
+    if (nffile->block_header && nffile->block_header->size) {
         queue_push(nffile->processQueue, nffile->block_header);
         nffile->block_header = NULL;
         nffile->buff_ptr = NULL;
@@ -1251,6 +1251,7 @@ int ChangeIdent(char *filename, char *Ident) {
         return 0;
     }
 
+    printf("%s ident: %s -> %s\n", filename, nffile->ident ? nffile->ident : "<null>", Ident);
     SetIdent(nffile, Ident);
 
     // seek to end of data
