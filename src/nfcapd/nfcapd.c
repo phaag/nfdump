@@ -132,7 +132,7 @@ static void usage(char *name) {
         "-C <file>\tRead optional config file.\n"
         "-S subdir\tSub directory format. see nfcapd(1) for format\n"
         "-I Ident\tset the ident string for stat file. (default 'none')\n"
-        "-n Ident,IP,logdir\tAdd this flow source - multiple streams\n"
+        "-n Ident,IP,flowdir\tAdd this flow source - multiple streams\n"
         "-i interval\tMetric interval in s for metric exporter\n"
         "-m socket\t\tEnable metric exporter on socket.\n"
         "-M dir \t\tSet the output directory for dynamic sources.\n"
@@ -665,6 +665,7 @@ int main(int argc, char **argv) {
                 break;
             case 'I':
                 CheckArgLen(optarg, 128);
+                Ident = strdup(optarg);
                 break;
             case 'i':
                 metricInterval = atoi(optarg);

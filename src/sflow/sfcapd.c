@@ -96,7 +96,8 @@ typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *
 /* module limited globals */
 static FlowSource_t *FlowSource;
 
-static int done, launcher_alive, periodic_trigger, launcher_pid;
+static int done = 0;
+static int launcher_alive, periodic_trigger, launcher_pid;
 
 static const char *nfdump_version = VERSION;
 
@@ -220,8 +221,6 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
     ssize_t cnt;
     void *in_buff;
     srecord_t *commbuff;
-
-    Init_sflow(verbose);
 
     in_buff = malloc(NETWORK_INPUT_BUFF_SIZE);
     if (!in_buff) {
@@ -467,9 +466,23 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
         // get flow source record for current packet, identified by sender IP address
         fs = GetFlowSource(&sf_sender);
         if (fs == NULL) {
-            LogError("Skip UDP packet. Ignored packets so far %u packets", ignored_packets);
-            ignored_packets++;
-            continue;
+            fs = AddDynamicSource(&FlowSource, &sf_sender);
+            if (fs == NULL) {
+                LogError("Skip UDP packet. Ignored packets so far %u packets", ignored_packets);
+                ignored_packets++;
+                continue;
+            }
+            if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid(), launcher_pid) != BOOKKEEPER_OK) {
+                LogError("Failed to initialise bookkeeper for new source");
+                // fatal error
+                return;
+            }
+            fs->nffile = OpenNewFile(fs->current, NULL, compress, NOT_ENCRYPTED);
+            if (!fs->nffile) {
+                LogError("Failed to open new collector file");
+                return;
+            }
+            SetIdent(fs->nffile, fs->Ident);
         }
 
         /* check for too little data - cnt must be > 0 at this point */
@@ -505,7 +518,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
 int main(int argc, char **argv) {
     char *bindhost, *datadir, *launch_process;
     char *userid, *groupid, *checkptr, *listenport, *mcastgroup;
-    char *Ident, *dynFlowDir, *time_extension, *pidfile, *configFile, *metricsocket;
+    char *Ident, *dynFlowDir, *time_extension, *pidfile, *configFile, *metricSocket;
     packet_function_t receive_packet;
     repeater_t repeater[MAX_REPEATERS];
     FlowSource_t *fs;
@@ -547,7 +560,7 @@ int main(int argc, char **argv) {
     Ident = "none";
     FlowSource = NULL;
     dynFlowDir = NULL;
-    metricsocket = NULL;
+    metricSocket = NULL;
     metricInterval = 60;
 
     while ((c = getopt(argc, argv, "46b:B:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:rR:S:T:t:u:vVw:x:yzZ")) != EOF) {
@@ -588,7 +601,7 @@ int main(int argc, char **argv) {
 #endif
             } break;
             case 'E':
-                verbose = 1;
+                verbose = 3;
                 break;
             case 'v':
                 if (verbose < 4) verbose++;
@@ -601,12 +614,8 @@ int main(int argc, char **argv) {
                 do_daemonize = 1;
                 break;
             case 'I':
-                if (strlen(optarg) < 128) {
-                    Ident = strdup(optarg);
-                } else {
-                    LogError("ERROR: Ident length > 128");
-                    exit(EXIT_FAILURE);
-                }
+                CheckArgLen(optarg, 128);
+                Ident = strdup(optarg);
                 break;
             case 'i':
                 metricInterval = atoi(optarg);
@@ -619,11 +628,8 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'm':
-                if (strlen(optarg) > MAXPATHLEN) {
-                    LogError("ERROR: Path too long!");
-                    exit(EXIT_FAILURE);
-                }
-                metricsocket = strdup(optarg);
+                CheckArgLen(optarg, MAXPATHLEN);
+                metricSocket = strdup(optarg);
                 break;
             case 'M':
                 CheckArgLen(optarg, MAXPATHLEN);
@@ -638,7 +644,10 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'n':
-                if (AddFlowSourceString(&FlowSource, optarg) != 1) exit(EXIT_FAILURE);
+                if (!AddFlowSourceString(&FlowSource, optarg)) {
+                    LogError("Failed to add flow source");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'B':
                 bufflen = strtol(optarg, &checkptr, 10);
@@ -687,8 +696,10 @@ int main(int argc, char **argv) {
             case 'l':
                 LogInfo("-l is a legacy option and may get removed in future. Please use -w next time");
             case 'w':
-                if (!CheckPath(optarg, S_IFDIR)) exit(EXIT_FAILURE);
-
+                if (!CheckPath(optarg, S_IFDIR)) {
+                    LogError("No valid directory: %s", optarg);
+                    exit(EXIT_FAILURE);
+                }
                 datadir = realpath(optarg, NULL);
                 if (!datadir) {
                     LogError("realpath() failed on %s: %s", optarg, strerror(errno));
@@ -773,9 +784,12 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (!AddFlowSourceConfig(&FlowSource)) exit(EXIT_FAILURE);
+    if (!AddFlowSourceConfig(&FlowSource)) {
+        LogError("Failed to add exporter from config file");
+        exit(EXIT_FAILURE);
+    }
 
-    if (FlowSource == NULL) {
+    if (FlowSource == NULL && datadir == NULL && dynFlowDir == NULL) {
         LogError("ERROR, No source configurations found");
         exit(EXIT_FAILURE);
     }
@@ -800,7 +814,7 @@ int main(int argc, char **argv) {
 #ifdef PCAP
     sock = 0;
     if (pcap_file) {
-        LogInfo("Setup pcap reader");
+        printf("Setup pcap reader\n");
         setup_packethandler(pcap_file, NULL);
         receive_packet = NextPacket;
     } else
@@ -826,6 +840,8 @@ int main(int argc, char **argv) {
 
     SetPriv(userid, groupid);
 
+    Init_sflow(verbose);
+
     if (subdir_index && !InitHierPath(subdir_index)) {
         close(sock);
         exit(EXIT_FAILURE);
@@ -843,7 +859,7 @@ int main(int argc, char **argv) {
         if (check_pid(pidfile) != 0 || write_pid(pidfile) == 0) exit(EXIT_FAILURE);
     }
 
-    if (metricsocket && !OpenMetric(metricsocket, metricInterval)) {
+    if (metricSocket && !OpenMetric(metricSocket, metricInterval)) {
         close(sock);
         exit(EXIT_FAILURE);
     }

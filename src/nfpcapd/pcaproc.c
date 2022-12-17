@@ -342,6 +342,16 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
     return NULL;
 }  // End of ProcessIPfrag
 
+static inline void AddPayload(struct FlowNode *Node, void *payload, size_t payloadSize) {
+    Node->payload = malloc(payloadSize);
+    if (!Node->payload) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    } else {
+        memcpy(Node->payload, payload, payloadSize);
+        Node->payloadSize = payloadSize;
+    }
+}
+
 static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
     struct FlowNode *Node;
 
@@ -354,9 +364,7 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
 
         if (payloadSize && packetParam->addPayload) {
             dbg_printf("New TCP flow: Set payload of size: %zu\n", payloadSize);
-            NewNode->payload = malloc(payloadSize);
-            memcpy(NewNode->payload, payload, payloadSize);
-            NewNode->payloadSize = payloadSize;
+            AddPayload(NewNode, payload, payloadSize);
         }
 
         // in case it's a FIN/RST only packet - immediately flush it
@@ -391,9 +399,7 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
 
     if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
         dbg_printf("Existing TCP flow: Set payload of size: %zu\n", payloadSize);
-        Node->payload = malloc(payloadSize);
-        memcpy(Node->payload, payload, payloadSize);
-        Node->payloadSize = payloadSize;
+        AddPayload(Node, payload, payloadSize);
     }
 
     if (NewNode->signal == SIGNAL_FIN) {
@@ -417,9 +423,7 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *N
         // flush node to flow thread
         if (payloadSize && packetParam->addPayload) {
             dbg_printf("UDP DNS flow: payload size: %zu\n", payloadSize);
-            NewNode->payload = malloc(payloadSize);
-            memcpy(NewNode->payload, payload, payloadSize);
-            NewNode->payloadSize = payloadSize;
+            AddPayload(NewNode, payload, payloadSize);
         }
         Push_Node(packetParam->NodeList, NewNode);
         return;
@@ -431,9 +435,7 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *N
         dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
         if (payloadSize && packetParam->addPayload) {
             dbg_printf("New UDP flow: Set payload of size: %zu\n", payloadSize);
-            NewNode->payload = malloc(payloadSize);
-            memcpy(NewNode->payload, payload, payloadSize);
-            NewNode->payloadSize = payloadSize;
+            AddPayload(NewNode, payload, payloadSize);
         }
         return;
     }
@@ -447,9 +449,7 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *N
 
     if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
         dbg_printf("Existing UDP flow: Set payload of size: %u\n", NewNode->payloadSize);
-        Node->payload = malloc(payloadSize);
-        memcpy(Node->payload, payload, payloadSize);
-        Node->payloadSize = payloadSize;
+        AddPayload(Node, payload, payloadSize);
     }
 
     Free_Node(NewNode);
@@ -461,9 +461,7 @@ static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *
     dbg_printf("Flush ICMP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
     if (payloadSize && packetParam->addPayload) {
         dbg_printf("ICMP flow: payload size: %zu\n", payloadSize);
-        NewNode->payload = malloc(payloadSize);
-        memcpy(NewNode->payload, payload, payloadSize);
-        NewNode->payloadSize = payloadSize;
+        AddPayload(NewNode, payload, payloadSize);
     }
     Push_Node(packetParam->NodeList, NewNode);
 
@@ -479,9 +477,7 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode 
         dbg_printf("New flow IP proto: %u. Packets: %u, Bytes: %u\n", NewNode->flowKey.proto, NewNode->packets, NewNode->bytes);
         if (payloadSize && packetParam->addPayload) {
             dbg_printf("flow: payload size: %zu\n", payloadSize);
-            NewNode->payload = malloc(payloadSize);
-            memcpy(NewNode->payload, payload, payloadSize);
-            NewNode->payloadSize = payloadSize;
+            AddPayload(NewNode, payload, payloadSize);
         }
         return;
     }
@@ -495,9 +491,7 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode 
 
     if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
         dbg_printf("Existing UDP flow: Set payload of size: %u\n", NewNode->payloadSize);
-        Node->payload = malloc(payloadSize);
-        memcpy(Node->payload, payload, payloadSize);
-        Node->payloadSize = payloadSize;
+        AddPayload(Node, payload, payloadSize);
     }
 
     Free_Node(NewNode);
