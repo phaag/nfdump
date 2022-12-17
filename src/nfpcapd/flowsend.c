@@ -132,23 +132,23 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         genericFlow->inPackets = Node->packets;
         genericFlow->inBytes = Node->bytes;
 
-        genericFlow->proto = Node->proto;
         genericFlow->tcpFlags = Node->flags;
-        genericFlow->srcPort = Node->src_port;
-        genericFlow->dstPort = Node->dst_port;
+        genericFlow->proto = Node->flowKey.proto;
+        genericFlow->srcPort = Node->flowKey.src_port;
+        genericFlow->dstPort = Node->flowKey.dst_port;
 
-        if (Node->version == AF_INET6) {
+        if (Node->flowKey.version == AF_INET6) {
             UpdateRecordSize(EXipv6FlowSize);
             PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
-            ipv6Flow->srcAddr[0] = Node->src_addr.v6[0];
-            ipv6Flow->srcAddr[1] = Node->src_addr.v6[1];
-            ipv6Flow->dstAddr[0] = Node->dst_addr.v6[0];
-            ipv6Flow->dstAddr[1] = Node->dst_addr.v6[1];
+            ipv6Flow->srcAddr[0] = Node->flowKey.src_addr.v6[0];
+            ipv6Flow->srcAddr[1] = Node->flowKey.src_addr.v6[1];
+            ipv6Flow->dstAddr[0] = Node->flowKey.dst_addr.v6[0];
+            ipv6Flow->dstAddr[1] = Node->flowKey.dst_addr.v6[1];
         } else {
             UpdateRecordSize(EXipv4FlowSize);
             PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
-            ipv4Flow->srcAddr = Node->src_addr.v4;
-            ipv4Flow->dstAddr = Node->dst_addr.v4;
+            ipv4Flow->srcAddr = Node->flowKey.src_addr.v4;
+            ipv4Flow->dstAddr = Node->flowKey.dst_addr.v4;
         }
 
         if (flowParam->extendedFlow) {
@@ -173,7 +173,7 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
                 }
             }
 
-            if (Node->proto == IPPROTO_TCP) {
+            if (Node->flowKey.proto == IPPROTO_TCP) {
                 UpdateRecordSize(EXlatencySize);
                 PushExtension(recordHeader, EXlatency, latency);
                 latency->usecClientNwDelay = Node->latency.client;

@@ -278,12 +278,12 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
         Node->t_first.tv_usec = hdr->ts.tv_usec;
         Node->t_last.tv_sec = hdr->ts.tv_sec;
         Node->t_last.tv_usec = hdr->ts.tv_usec;
-        Node->version = AF_INET;
-        Node->proto = ip->ip_p;
-        Node->src_addr.v4 = ntohl(ip->ip_src.s_addr);
-        Node->dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
-        Node->src_port = ntohs(ip->ip_id);
-        Node->dst_port = 0;
+        Node->flowKey.version = AF_INET;
+        Node->flowKey.proto = ip->ip_p;
+        Node->flowKey.src_addr.v4 = ntohl(ip->ip_src.s_addr);
+        Node->flowKey.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
+        Node->flowKey.src_port = ntohs(ip->ip_id);
+        Node->flowKey.dst_port = 0;
         Node->nodeType = FRAG_NODE;
 
         if (Insert_Node(Node) != NULL) {
@@ -302,12 +302,12 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
         }
     } else {
         struct FlowNode FindNode = {0};
-        FindNode.version = AF_INET;
-        FindNode.proto = ip->ip_p;
-        FindNode.src_addr.v4 = ntohl(ip->ip_src.s_addr);
-        FindNode.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
-        FindNode.src_port = ntohs(ip->ip_id);
-        FindNode.dst_port = 0;
+        FindNode.flowKey.version = AF_INET;
+        FindNode.flowKey.proto = ip->ip_p;
+        FindNode.flowKey.src_addr.v4 = ntohl(ip->ip_src.s_addr);
+        FindNode.flowKey.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
+        FindNode.flowKey.src_port = ntohs(ip->ip_id);
+        FindNode.flowKey.dst_port = 0;
 
         Node = Lookup_Node(&FindNode);
         if (!Node) {
@@ -413,7 +413,7 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *N
 
     assert(NewNode->memflag == NODE_IN_USE);
     // Flush DNS queries directly
-    if (NewNode->src_port == 53 || NewNode->dst_port == 53) {
+    if (NewNode->flowKey.src_port == 53 || NewNode->flowKey.dst_port == 53) {
         // flush node to flow thread
         if (payloadSize && packetParam->addPayload) {
             dbg_printf("UDP DNS flow: payload size: %zu\n", payloadSize);
@@ -476,7 +476,7 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode 
     struct FlowNode *Node = Insert_Node(NewNode);
     // if insert fails, the existing node is returned -> flow exists already
     if (Node == NULL) {
-        dbg_printf("New flow IP proto: %u. Packets: %u, Bytes: %u\n", NewNode->proto, NewNode->packets, NewNode->bytes);
+        dbg_printf("New flow IP proto: %u. Packets: %u, Bytes: %u\n", NewNode->flowKey.proto, NewNode->packets, NewNode->bytes);
         if (payloadSize && packetParam->addPayload) {
             dbg_printf("flow: payload size: %zu\n", payloadSize);
             NewNode->payload = malloc(payloadSize);
@@ -491,7 +491,7 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode 
     Node->packets++;
     Node->bytes += NewNode->bytes;
     Node->t_last = NewNode->t_last;
-    dbg_printf("Existing flow IP proto: %u Packets: %u, Bytes: %u\n", NewNode->proto, Node->packets, Node->bytes);
+    dbg_printf("Existing flow IP proto: %u Packets: %u, Bytes: %u\n", NewNode->flowKey.proto, Node->packets, Node->bytes);
 
     if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
         dbg_printf("Existing UDP flow: Set payload of size: %u\n", NewNode->payloadSize);
@@ -777,23 +777,24 @@ REDO_IPPROTO:
                    inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)));
 
         if (!Node) Node = New_Node();
-        Node->version = AF_INET6;
+        Node->flowKey.version = AF_INET6;
         Node->t_first.tv_sec = hdr->ts.tv_sec;
         Node->t_first.tv_usec = hdr->ts.tv_usec;
         Node->t_last.tv_sec = hdr->ts.tv_sec;
         Node->t_last.tv_usec = hdr->ts.tv_usec;
         Node->bytes = ntohs(ip6->ip6_plen) + size_ip;
+        //  Node->pfInfo = malloc(64);
 
         // keep compiler happy - get's optimized out anyway
         void *p = (void *)&ip6->ip6_src;
         uint64_t *addr = (uint64_t *)p;
-        Node->src_addr.v6[0] = ntohll(addr[0]);
-        Node->src_addr.v6[1] = ntohll(addr[1]);
+        Node->flowKey.src_addr.v6[0] = ntohll(addr[0]);
+        Node->flowKey.src_addr.v6[1] = ntohll(addr[1]);
 
         p = (void *)&ip6->ip6_dst;
         addr = (uint64_t *)p;
-        Node->dst_addr.v6[0] = ntohll(addr[0]);
-        Node->dst_addr.v6[1] = ntohll(addr[1]);
+        Node->flowKey.dst_addr.v6[0] = ntohll(addr[0]);
+        Node->flowKey.dst_addr.v6[1] = ntohll(addr[1]);
 
     } else if (version == 4) {
         uint16_t ip_off = ntohs(ip->ip_off);
@@ -828,15 +829,15 @@ REDO_IPPROTO:
             Node->payloadSize = 0;
         } else {
             if (!Node) Node = New_Node();
-            Node->version = AF_INET;
+            Node->flowKey.version = AF_INET;
             Node->t_first.tv_sec = hdr->ts.tv_sec;
             Node->t_first.tv_usec = hdr->ts.tv_usec;
             Node->t_last.tv_sec = hdr->ts.tv_sec;
             Node->t_last.tv_usec = hdr->ts.tv_usec;
             Node->bytes = ntohs(ip->ip_len);
 
-            Node->src_addr.v4 = ntohl(ip->ip_src.s_addr);
-            Node->dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
+            Node->flowKey.src_addr.v4 = ntohl(ip->ip_src.s_addr);
+            Node->flowKey.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
         }
     } else {
         dbg_printf("ProcessPacket() Unsupported protocol version: %i\n", version);
@@ -849,7 +850,7 @@ REDO_IPPROTO:
     Node->srcMac = srcMac;
     Node->dstMac = dstMac;
     Node->packets = 1;
-    Node->proto = IPproto;
+    Node->flowKey.proto = IPproto;
     Node->nodeType = FLOW_NODE;
     Node->ruleNr = ruleNr;
     Node->action = action;
@@ -889,8 +890,8 @@ REDO_IPPROTO:
             dbg_printf("  UDP: size: %u, SRC: %i, DST: %i\n", UDPlen, ntohs(udp->uh_sport), ntohs(udp->uh_dport));
 
             Node->flags = 0;
-            Node->src_port = ntohs(udp->uh_sport);
-            Node->dst_port = ntohs(udp->uh_dport);
+            Node->flowKey.src_port = ntohs(udp->uh_sport);
+            Node->flowKey.dst_port = ntohs(udp->uh_dport);
 
             dbg_assert(dataptr <= eodata);
             payloadSize = (ptrdiff_t)(eodata - dataptr);
@@ -927,8 +928,8 @@ REDO_IPPROTO:
 #endif
 
             Node->flags = tcp->th_flags;
-            Node->src_port = ntohs(tcp->th_sport);
-            Node->dst_port = ntohs(tcp->th_dport);
+            Node->flowKey.src_port = ntohs(tcp->th_sport);
+            Node->flowKey.dst_port = ntohs(tcp->th_dport);
             ProcessTCPFlow(packetParam, Node, payload, payloadSize);
 
         } break;
@@ -947,7 +948,7 @@ REDO_IPPROTO:
             payloadSize = (ptrdiff_t)(eodata - dataptr);
             if (payloadSize > 0) payload = (void *)dataptr;
 
-            Node->dst_port = (icmp->icmp_type << 8) + icmp->icmp_code;
+            Node->flowKey.dst_port = (icmp->icmp_type << 8) + icmp->icmp_code;
             dbg_printf("  IPv%d ICMP proto: %u, type: %u, code: %u\n", version, ip->ip_p, icmp->icmp_type, icmp->icmp_code);
             ProcessICMPFlow(packetParam, Node, payload, payloadSize);
         } break;
@@ -966,7 +967,7 @@ REDO_IPPROTO:
             payloadSize = (ptrdiff_t)(eodata - dataptr);
             if (payloadSize > 0) payload = (void *)dataptr;
 
-            Node->dst_port = (icmp6->icmp6_type << 8) + icmp6->icmp6_code;
+            Node->flowKey.dst_port = (icmp6->icmp6_type << 8) + icmp6->icmp6_code;
             dbg_printf("  IPv%d ICMP proto: %u, type: %u, code: %u\n", version, ip->ip_p, icmp6->icmp6_type, icmp6->icmp6_code);
             ProcessICMPFlow(packetParam, Node, payload, payloadSize);
         } break;
@@ -981,10 +982,10 @@ REDO_IPPROTO:
             }
 
             // move IP to tun IP
-            Node->tun_src_addr = Node->src_addr;
-            Node->tun_dst_addr = Node->dst_addr;
+            Node->tun_src_addr = Node->flowKey.src_addr;
+            Node->tun_dst_addr = Node->flowKey.dst_addr;
             Node->tun_proto = IPPROTO_IPIP;
-            Node->tun_ip_version = Node->version;
+            Node->tun_ip_version = Node->flowKey.version;
 
             dbg_printf("  IPIPv6 tunnel - inner IPv6:\n");
 
@@ -1003,10 +1004,10 @@ REDO_IPPROTO:
             }
 
             // move IP to tun IP
-            Node->tun_src_addr = Node->src_addr;
-            Node->tun_dst_addr = Node->dst_addr;
+            Node->tun_src_addr = Node->flowKey.src_addr;
+            Node->tun_dst_addr = Node->flowKey.dst_addr;
             Node->tun_proto = IPPROTO_IPIP;
-            Node->tun_ip_version = Node->version;
+            Node->tun_ip_version = Node->flowKey.version;
 
             dbg_printf("  IPIP tunnel - inner IP:\n");
 
@@ -1030,7 +1031,7 @@ REDO_IPPROTO:
             } else if (version == 1) {
                 uint16_t proto = ntohs(gre_hdr->type);
                 uint16_t callID = ntohs(*((uint16_t *)(dataptr + 6)));
-                Node->dst_port = callID;
+                Node->flowKey.dst_port = callID;
                 if (proto != 0x880b) {
                     LogError("Unexpected protocol in LLTP GRE header: 0x%x", proto);
                     packetParam->proc_stat.short_snap++;
@@ -1066,10 +1067,10 @@ REDO_IPPROTO:
                 goto END_FUNC;
             }
             // move IP to tun IP
-            Node->tun_src_addr = Node->src_addr;
-            Node->tun_dst_addr = Node->dst_addr;
+            Node->tun_src_addr = Node->flowKey.src_addr;
+            Node->tun_dst_addr = Node->flowKey.dst_addr;
             Node->tun_proto = IPPROTO_GRE;
-            Node->tun_ip_version = Node->version;
+            Node->tun_ip_version = Node->flowKey.version;
             // redo IP proto evaluation
             goto REDO_LINK;
 

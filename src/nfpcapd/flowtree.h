@@ -61,16 +61,18 @@ struct FlowNode {
     struct FlowNode *right;
 
     // flow key
-    // IP addr
-    ip_addr_t src_addr;
-    ip_addr_t dst_addr;
+    struct flowKey_s {
+        // IP addr
+        ip_addr_t src_addr;
+        ip_addr_t dst_addr;
 
-    uint16_t src_port;
-    uint16_t dst_port;
-    uint8_t proto;
-    uint8_t version;
+        uint16_t src_port;
+        uint16_t dst_port;
+        uint8_t proto;
+        uint8_t version;
+        uint16_t _ALIGN;  // empty but aligned
+    } flowKey;
     // End of flow key
-    uint16_t _ENDKEY_;  // empty but aligned
 
 #define NODE_FREE 0xA5
 #define NODE_IN_USE 0x5A
@@ -111,6 +113,7 @@ struct FlowNode {
     uint32_t packets;  // summed up number of packets
     uint32_t bytes;    // summed up number of bytes
 
+    void *pfInfo;
     void *payload;         // payload
     uint32_t payloadSize;  // Size of payload
     uint32_t mpls[10];

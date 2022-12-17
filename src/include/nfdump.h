@@ -768,7 +768,8 @@ typedef struct master_record_s {
 
     // nbar AppID
     uint8_t nbarAppIDlen;
-    uint8_t nbarAppID[15];
+#define MAX_NBAR_LENGTH 15
+    uint8_t nbarAppID[MAX_NBAR_LENGTH];
 #define OffsetNbarAppID (offsetof(master_record_t, nbarAppID) >> 3)
 #define MaskNbarAppID 0xffffffffffffffff
 
