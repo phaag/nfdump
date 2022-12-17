@@ -358,14 +358,16 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
         }
     }
 
-    if (sample->agent_addr.type == SFLADDRESSTYPE_IP_V4) {
-        PushExtension(recordHeader, EXipReceivedV4, received);
-        received->ip = ntohl(sample->agent_addr.address.ip_v4.addr);
+    // add router IP
+    if (fs->sa_family == PF_INET6) {
+        PushExtension(recordHeader, EXipReceivedV6, ipReceivedV6);
+        ipReceivedV6->ip[0] = fs->ip.V6[0];
+        ipReceivedV6->ip[1] = fs->ip.V6[1];
+        dbg_printf("Add IPv6 route IP extension\n");
     } else {
-        uint64_t *addr = (void *)sample->agent_addr.address.ip_v6.addr;
-        PushExtension(recordHeader, EXipReceivedV6, receivedIP);
-        receivedIP->ip[0] = ntohll(addr[0]);
-        receivedIP->ip[1] = ntohll(addr[1]);
+        PushExtension(recordHeader, EXipReceivedV4, ipReceivedV4);
+        ipReceivedV4->ip = fs->ip.V4;
+        dbg_printf("Add IPv4 route IP extension\n");
     }
 
     // update first_seen, last_seen
@@ -410,7 +412,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
 
     // update file record size ( -> output buffer size )
     fs->nffile->block_header->NumRecords++;
-    fs->nffile->block_header->size += recordSize;
+    fs->nffile->block_header->size += recordHeader->size;
 
     dbg_assert(recordHeader->size == recordSize);
 
