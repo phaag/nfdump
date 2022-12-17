@@ -55,6 +55,7 @@
 #include "nfnet.h"
 #include "nfxV3.h"
 #include "output_short.h"
+#include "pflog.h"
 #include "queue.h"
 #include "util.h"
 
@@ -132,12 +133,14 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
                 vlan->dstVlan = Node->vlanID;
             }
 
-            UpdateRecordSize(EXmacAddrSize);
-            PushExtension(recordHeader, EXmacAddr, macAddr);
-            macAddr->inSrcMac = ntohll(Node->srcMac) >> 16;
-            macAddr->outDstMac = ntohll(Node->dstMac) >> 16;
-            macAddr->inDstMac = 0;
-            macAddr->outSrcMac = 0;
+            if (Node->srcMac) {
+                UpdateRecordSize(EXmacAddrSize);
+                PushExtension(recordHeader, EXmacAddr, macAddr);
+                macAddr->inSrcMac = ntohll(Node->srcMac) >> 16;
+                macAddr->outDstMac = ntohll(Node->dstMac) >> 16;
+                macAddr->inDstMac = 0;
+                macAddr->outSrcMac = 0;
+            }
 
             if (Node->mpls[0]) {
                 UpdateRecordSize(EXmplsLabelSize);
@@ -147,12 +150,36 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
                 }
             }
 
-            if (Node->flowKey.proto == IPPROTO_TCP) {
+            if (Node->flowKey.proto == IPPROTO_TCP && Node->latency.application) {
                 UpdateRecordSize(EXlatencySize);
                 PushExtension(recordHeader, EXlatency, latency);
                 latency->usecClientNwDelay = Node->latency.client;
                 latency->usecServerNwDelay = Node->latency.server;
                 latency->usecApplLatency = Node->latency.application;
+            }
+
+            if (Node->pflog) {
+                pflog_hdr_t *pflog = (pflog_hdr_t *)Node->pflog;
+                size_t ifnameLen = strnlen(pflog->ifname, IFNAMSIZ);
+                if (ifnameLen) {
+                    ifnameLen++;  // add terminating '\0'
+                }
+                size_t align = ifnameLen & 0x3;
+                if (align) {
+                    ifnameLen += 4 - align;
+                }
+
+                UpdateRecordSize(EXpfinfoSize + ifnameLen);
+                PushVarLengthExtension(recordHeader, EXpfinfo, pfinfo, ifnameLen);
+                pfinfo->action = pflog->action;
+                pfinfo->reason = pflog->reason;
+                pfinfo->dir = pflog->dir;
+                pfinfo->rewritten = pflog->rewritten;
+                pfinfo->uid = ntohl(pflog->uid);
+                pfinfo->pid = ntohl(pflog->pid);
+                pfinfo->rulenr = ntohl(pflog->rulenr);
+                pfinfo->subrulenr = ntohl(pflog->subrulenr);
+                memcpy(pfinfo->ifname, pflog->ifname, ifnameLen);
             }
         }
 

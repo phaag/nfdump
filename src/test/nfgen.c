@@ -337,8 +337,8 @@ static void PackRecordV3(master_record_t *master_record, nffile_t *nffile) {
             } break;
 #endif
             case EXnbarAppID: {
-                PushVarLengthExtension(v3Record, EXnbarApp, nbarApp, 4);
-                memcpy(nbarApp->id, master_record->nbarAppID, 4);
+                PushVarLengthPointer(v3Record, EXnbarApp, nbarApp, 4);
+                memcpy(nbarApp, master_record->nbarAppID, 4);
             } break;
             default:
                 fprintf(stderr, "PackRecordV3(): Unknown extension '%u'\n", master_record->exElementList[i]);

@@ -67,6 +67,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nflog.h"
+#include "nfxV3.h"
 #include "pflog.h"
 #include "util.h"
 
@@ -520,9 +521,7 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
     uint64_t dstMac = 0;
     uint32_t numMPLS = 0;
     uint32_t *mplsLabel = NULL;
-    uint32_t ruleNr = 0;
-    uint8_t action = 0;
-    uint8_t reason = 0;
+    pflog_hdr_t *pflog = NULL;
 
     // link layer processing
     uint16_t protocol = 0;
@@ -612,9 +611,8 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
                     LogInfo("Packet: %u: PFLOG: not enough data", pkg_cnt);
                     return;
                 }
-                ruleNr = pfloghdr->rulenr;
-                action = pfloghdr->action;
-                reason = pfloghdr->reason;
+                pflog = malloc(sizeof(pflog_hdr_t));
+                memcpy(pflog, pfloghdr, sizeof(pflog_hdr_t));
 
                 protocol = 0x800;
                 dataptr += PFLOG_HDRLEN;
@@ -777,7 +775,6 @@ REDO_IPPROTO:
         Node->t_last.tv_sec = hdr->ts.tv_sec;
         Node->t_last.tv_usec = hdr->ts.tv_usec;
         Node->bytes = ntohs(ip6->ip6_plen) + size_ip;
-        //  Node->pfInfo = malloc(64);
 
         // keep compiler happy - get's optimized out anyway
         void *p = (void *)&ip6->ip6_src;
@@ -846,9 +843,8 @@ REDO_IPPROTO:
     Node->packets = 1;
     Node->flowKey.proto = IPproto;
     Node->nodeType = FLOW_NODE;
-    Node->ruleNr = ruleNr;
-    Node->action = action;
-    Node->reason = reason;
+    Node->pflog = pflog;
+
     // bytes = number of bytes on wire - data link data
     dbg_printf("Payload: %td bytes, Full packet: %u bytes\n", eodata - dataptr, Node->bytes);
 

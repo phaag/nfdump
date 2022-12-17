@@ -391,6 +391,17 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
                 output_record->tun_ip_version = 6;
                 output_record->tun_proto = tunIPv6->tunProto;
             } break;
+            case EXpfinfoID: {
+                EXpfinfo_t *pfinfo = (EXpfinfo_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                output_record->pfAction = pfinfo->action;
+                output_record->pfReason = pfinfo->reason;
+                output_record->pfDir = pfinfo->dir;
+                output_record->pfRewritten = pfinfo->rewritten;
+                output_record->pfRulenr = pfinfo->rulenr;
+                size_t nameLen = sizeof(output_record->pfIfName);
+                strncpy(output_record->pfIfName, pfinfo->ifname, nameLen);
+                output_record->pfIfName[nameLen - 1] = '\0';
+            } break;
             default:
                 LogError("Unknown extension '%u'", elementHeader->type);
         }

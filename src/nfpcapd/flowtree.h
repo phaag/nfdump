@@ -40,6 +40,7 @@
 
 #include "config.h"
 #include "nfdump.h"
+#include "nfxV3.h"
 #include "rbtree.h"
 
 #define v4 ip_addr._v4
@@ -112,7 +113,7 @@ struct FlowNode {
     uint32_t packets;  // summed up number of packets
     uint32_t bytes;    // summed up number of bytes
 
-    void *pfInfo;
+    void *pflog;
     void *payload;         // payload
     uint32_t payloadSize;  // Size of payload
     uint32_t mpls[10];

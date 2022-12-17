@@ -137,7 +137,7 @@ void Free_Node(struct FlowNode *node) {
     }
 
     if (node->payload) free(node->payload);
-    if (node->pfInfo) free(node->pfInfo);
+    if (node->pflog) free(node->pflog);
 
     dbg_assert(node->left == NULL);
     dbg_assert(node->right == NULL);
@@ -263,9 +263,7 @@ static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2) {
     return i;
 }  // End of FlowNodeCMP
 
-struct FlowNode *Lookup_Node(struct FlowNode *node) {
-    return RB_FIND(FlowTree, FlowTree, node);
-}  // End of Lookup_FlowTree
+struct FlowNode *Lookup_Node(struct FlowNode *node) { return RB_FIND(FlowTree, FlowTree, node); }  // End of Lookup_FlowTree
 
 struct FlowNode *Insert_Node(struct FlowNode *node) {
     struct FlowNode *n;

@@ -778,6 +778,31 @@ typedef struct master_record_s {
 #define OffsetJA3 (offsetof(master_record_t, ja3) >> 3)
 #define MaskJA3 0xffffffffffffffff
 
+    // pflog
+    uint8_t pfAction;
+    uint8_t pfReason;
+    uint8_t pfDir;
+    uint8_t pfRewritten;
+    uint32_t pfRulenr;
+    char pfIfName[8];
+#define OffsetPfInfo (offsetof(master_record_t, pfAction) >> 3)
+#define OffsetPfIfname (offsetof(master_record_t, pfIfName) >> 3)
+#ifdef WORDS_BIGENDIAN
+#define MaskPfAction 0xff00000000000000
+#define ShiftPfAction 56
+#define MaskPfReason 0x00ff000000000000
+#define ShiftPfReason 48
+#define MaskPfRulenr 0x000000000000ffff
+#define ShiftRulenr 0
+#else
+#define MaskPfAction 0x00000000000000ffLL
+#define ShiftPfAction 0
+#define MaskReason 0x000000000000ff00LL
+#define ShiftReason 8
+#define MaskRulenr 0xffff000000000000LL
+#define ShiftRulenr 48
+#endif
+
     // payload data
     uint32_t inPayloadLength;
     uint32_t outPayloadLength;

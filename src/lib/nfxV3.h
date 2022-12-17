@@ -525,11 +525,11 @@ typedef struct EXnelXlatePort_s {
 
 typedef struct EXnbarApp_s {
 #define EXnbarAppID 27
-    uint8_t id[1];
+    uint8_t id[4];
 #define OFFnbarAppID offsetof(EXnbarApp_t, id)
 #define SIZEnbarAppID VARLENGTH
 } EXnbarApp_t;
-#define EXnbarAppSize (sizeof(EXnbarApp_t) - 1 + sizeof(elementHeader_t))
+#define EXnbarAppSize (sizeof(EXnbarApp_t) - 4 + sizeof(elementHeader_t))
 
 #define EXlabelID_t elementHeader_t
 #define EXlabelID 28
@@ -582,20 +582,20 @@ typedef struct EXobservation_s {
 typedef struct EXifname_s {
 #define EXifnameID 34
     uint32_t ingress;
-    uint8_t name[1];
+    uint8_t name[4];
 #define OFFifnameID offsetof(EXifname_t, id)
 #define SIZEifnameID VARLENGTH
 } EXifname_t;
-#define EXifnameSize (sizeof(EXifname_t) - 1 + sizeof(elementHeader_t))
+#define EXifnameSize (sizeof(EXifname_t) - 4 + sizeof(elementHeader_t))
 
 typedef struct EXvrfname_s {
 #define EXvrfnameID 35
     uint32_t ingress;
-    uint8_t name[1];
+    uint8_t name[4];
 #define OFFvrfnameID offsetof(EXvrfname_t, id)
 #define SIZEvrfnameID VARLENGTH
 } EXvrfname_t;
-#define EXvrfnameSize (sizeof(EXvrfname_t) - 1 + sizeof(elementHeader_t))
+#define EXvrfnameSize (sizeof(EXvrfname_t) - 4 + sizeof(elementHeader_t))
 
 typedef struct EXvrf_s {
 #define EXvrfID 36
@@ -618,13 +618,17 @@ typedef struct EXpfinfo_s {
     uint32_t subrulenr;
     uint32_t uid;
     uint32_t pid;
-    char ifname[1];
+    char ifname[4];
 } EXpfinfo_t;
-#define EXpfinfoSize (sizeof(EXpfinfo_t) - 1 + sizeof(elementHeader_t))
+#define EXpfinfoSize (sizeof(EXpfinfo_t) - 4 + sizeof(elementHeader_t))
 
 // max possible elements
 #define MAXEXTENSIONS 38
 
+// push a fixed length extension to the v3 record
+// h v3 record header
+// x Extension
+// v variable of type Extension
 #define PushExtension(h, x, v)                                                     \
     {                                                                              \
         elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
@@ -637,23 +641,32 @@ typedef struct EXpfinfo_s {
     h->numElements++;                                                              \
     h->size += sizeof(x##_t);
 
+// push a var length extension to the v3 record
+// h v3 record header
+// x Extension
+// v variable of type Extension
+// s additional var length size
 #define PushVarLengthExtension(h, x, v, s)                                         \
     {                                                                              \
         elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
         elementHeader->type = x##ID;                                               \
-        elementHeader->length = x##Size;                                           \
-        h->size += sizeof(elementHeader_t);                                        \
+        elementHeader->length = x##Size + s;                                       \
     }                                                                              \
-    x##_t *v = (x##_t *)((void *)h + h->size);                                     \
-    memset(v, 0, s);                                                               \
+    x##_t *v = (x##_t *)((void *)h + h->size + sizeof(elementHeader_t));           \
+    memset(v, 0, x##Size + s - sizeof(elementHeader_t));                           \
     h->numElements++;                                                              \
-    h->size += s;
+    h->size += x##Size + s;
 
+// push a var extension to the v3 record
+// h v3 record header
+// x Extension - just an element header
+// v pointer to the memory os size s
+// s var length size
 #define PushVarLengthPointer(h, x, v, s)                                           \
     {                                                                              \
         elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
         elementHeader->type = x##ID;                                               \
-        elementHeader->length = x##Size + s;                                       \
+        elementHeader->length = sizeof(elementHeader_t) + s;                       \
         h->size += sizeof(elementHeader_t);                                        \
     }                                                                              \
     void *v = ((void *)h + h->size);                                               \
