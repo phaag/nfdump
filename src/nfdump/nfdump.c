@@ -445,6 +445,9 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                     if (flow_stat) {
                         AddFlowCache(process_ptr, master_record);
                         if (element_stat) {
+                            if (TestFlag(element_stat, FLAG_GEO) && TestFlag(master_record->mflags, V3_FLAG_ENRICHED) == 0) {
+                                AddGeoInfo(master_record);
+                            }
                             AddElementStat(master_record);
                         }
                     } else if (element_stat) {
@@ -457,7 +460,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                             }
                         }
                         // if we need geo, lookup geo if not yet set by filter
-                        if (TestFlag(element_stat, FLAG_GEO) && master_record->src_geo[0] == '\0') {
+                        if (TestFlag(element_stat, FLAG_GEO) && TestFlag(master_record->mflags, V3_FLAG_ENRICHED) == 0) {
                             AddGeoInfo(master_record);
                         }
                         AddElementStat(master_record);

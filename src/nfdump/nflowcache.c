@@ -979,6 +979,7 @@ void AddFlowCache(void *raw_record, master_record_t *flow_record) {
         LookupCountry(flow_record->V6.dstaddr, flow_record->dst_geo);
         if (flow_record->srcas == 0) flow_record->srcas = LookupAS(flow_record->V6.srcaddr);
         if (flow_record->dstas == 0) flow_record->dstas = LookupAS(flow_record->V6.dstaddr);
+        SetFlag(flow_record->mflags, V3_FLAG_ENRICHED);
     }
     if (bidir_flows) return AddBidirFlow(raw_record, flow_record);
 

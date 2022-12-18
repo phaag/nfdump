@@ -786,7 +786,7 @@ typedef struct master_record_s {
     uint8_t pfDir;
     uint8_t pfRewritten;
     uint32_t pfRulenr;
-    char pfIfName[8];
+    char pfIfName[16];
 #define OffsetPfInfo (offsetof(master_record_t, pfAction) >> 3)
 #define OffsetPfIfname (offsetof(master_record_t, pfIfName) >> 3)
 #ifdef WORDS_BIGENDIAN

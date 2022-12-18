@@ -185,8 +185,14 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
         if (flowParam->addPayload) {
             if (Node->payloadSize) {
-                UpdateRecordSize(EXinPayloadSize + Node->payloadSize);
-                PushVarLengthPointer(recordHeader, EXinPayload, inPayload, Node->payloadSize);
+                size_t payloadSize = Node->payloadSize;
+                size_t align = payloadSize & 0x3;
+                if (align) {
+                    payloadSize += 4 - align;
+                }
+
+                UpdateRecordSize(EXinPayloadSize + payloadSize);
+                PushVarLengthPointer(recordHeader, EXinPayload, inPayload, payloadSize);
                 memcpy(inPayload, Node->payload, Node->payloadSize);
             }
         }
