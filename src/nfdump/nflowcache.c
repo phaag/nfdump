@@ -51,6 +51,7 @@
 #include "exporter.h"
 #include "khash.h"
 #include "klist.h"
+#include "maxmind.h"
 #include "memhandle.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -207,6 +208,7 @@ static uint32_t FlowStat_order = 0;  // bit field for multiple print orders
 static uint32_t PrintOrder = 0;      // -O selected print order - index into order_mode
 static uint32_t PrintDirection = 0;
 static uint32_t GuessDirection = 0;
+static uint32_t doGeoLookup = 0;
 
 typedef struct FlowKey_s {
     uint64_t srcAddr[2];
@@ -721,7 +723,9 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
             if (strcasecmp(p, "dstnet") == 0) {
                 aggregate_info.apply_netbits |= 2;
             }
-
+            if (hasGeoDB && (strcasecmp(p, "srcas") == 0 || strcasecmp(p, "dstas") == 0)) {
+                doGeoLookup = 1;
+            }
             do {
                 int i = a->merge;
                 if (i != -1) {
@@ -1039,7 +1043,12 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
         master_record_t flow_record;
         memset((void *)&flow_record, 0, sizeof(master_record_t));
         ExpandRecord_v3(raw_record, &flow_record);
-
+        if (doGeoLookup) {
+            LookupCountry(flow_record.V6.srcaddr, flow_record.src_geo);
+            LookupCountry(flow_record.V6.dstaddr, flow_record.dst_geo);
+            if (flow_record.srcas == 0) flow_record.srcas = LookupAS(flow_record.V6.srcaddr);
+            if (flow_record.dstas == 0) flow_record.dstas = LookupAS(flow_record.V6.dstaddr);
+        }
         flow_record.inPackets = r->counter[INPACKETS];
         flow_record.inBytes = r->counter[INBYTES];
         flow_record.out_pkts = r->counter[OUTPACKETS];

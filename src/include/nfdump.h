@@ -70,13 +70,15 @@ typedef struct master_record_s {
     // common information from all netflow versions
     // 							// interpreted as uint64_t[]
 
-    uint8_t flags;      // 0xff00 0000 0000 0000
+    uint8_t flags;  // 0xff00 0000 0000 0000
+    // copy of V3 records flags
     uint8_t nfversion;  // 0x00ff 0000 0000 0000
     uint16_t mflags;    // 0x0000'ffff'0000'0000
 #define V3_FLAG_IPV6_ADDR 1
 #define V3_FLAG_IPV6_NH 2
 #define V3_FLAG_IPV6_NHB 4
 #define V3_FLAG_IPV6_EXP 8
+#define V3_FLAG_ENRICHED 128
     uint16_t size;         // 0x0000'0000'ffff'0000
     uint16_t numElements;  // 0x0000'0000'0000'ffff
 

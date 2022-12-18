@@ -215,6 +215,7 @@ static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParam
 }  // End of PrintSummary
 
 static inline void AddGeoInfo(master_record_t *master_record) {
+    if (!HasGeoDB || TestFlag(master_record->mflags, V3_FLAG_ENRICHED)) return;
     LookupCountry(master_record->V6.srcaddr, master_record->src_geo);
     LookupCountry(master_record->V6.dstaddr, master_record->dst_geo);
     if (master_record->srcas == 0) master_record->srcas = LookupAS(master_record->V6.srcaddr);
@@ -237,6 +238,7 @@ static inline void AddGeoInfo(master_record_t *master_record) {
         master_record->exElementList[j] = val;
         master_record->numElements++;
     }
+    SetFlag(master_record->mflags, V3_FLAG_ENRICHED);
 
 }  // End of AddGeoInfo
 
@@ -957,6 +959,7 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
         HasGeoDB = true;
+        outputParams->hasGeoDB = true;
     }
     if (!HasGeoDB && Engine->geoFilter) {
         LogError("Can not filter according geo elements without a geo location DB");
@@ -1053,7 +1056,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    print_record = SetupOutputMode(print_format, outputParams, HasGeoDB);
+    print_record = SetupOutputMode(print_format, outputParams);
 
     if (!print_record) {
         LogError("Unknown output mode '%s'\n", print_format);
