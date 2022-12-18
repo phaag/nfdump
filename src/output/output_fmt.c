@@ -1612,24 +1612,16 @@ static void String_DstCountry(FILE *stream, master_record_t *r) {
 static void String_SrcLocation(FILE *stream, master_record_t *r) {
     char location[128];
 
-    if ((r->mflags & V3_FLAG_IPV6_ADDR) != 0) {  // IPv6
-        fprintf(stream, "  ");
-    } else {  // IPv4
-        LookupLocation(r->V6.srcaddr, location, 128);
-        fprintf(stream, "%s", location);
-    }
+    LookupLocation(r->V6.srcaddr, location, 128);
+    fprintf(stream, "%s", location);
 
 }  // End of String_SrcLocation
 
 static void String_DstLocation(FILE *stream, master_record_t *r) {
     char location[128];
 
-    if ((r->mflags & V3_FLAG_IPV6_ADDR) != 0) {  // IPv6
-        fprintf(stream, "  ");
-    } else {  // IPv4
-        LookupLocation(r->V6.dstaddr, location, 128);
-        fprintf(stream, "%s", location);
-    }
+    LookupLocation(r->V6.dstaddr, location, 128);
+    fprintf(stream, "%s", location);
 
 }  // End of String_DstLocation
 
