@@ -405,8 +405,8 @@ static struct format_token_list_s {
                          {"%bpp", 0, "   Bpp", String_bpp},                            // bpp - Bytes per package
                          {"%eng", 0, " engine", String_Engine},                        // Engine Type/ID
                          {"%lbl", 0, "           label", String_Label},                // Flow Label
-                         {"%sc", 0, "  ", String_SrcCountry},                          // src IP 2 letter country code
-                         {"%dc", 0, "  ", String_DstCountry},                          // dst IP 2 letter country code
+                         {"%sc", 0, "SC", String_SrcCountry},                          // src IP 2 letter country code
+                         {"%dc", 0, "DC", String_DstCountry},                          // dst IP 2 letter country code
                          {"%sloc", 0, "Src IP location info", String_SrcLocation},     // src IP geo location info
                          {"%dloc", 0, "Src IP location info", String_DstLocation},     // src IP geo location info
                          {"%n", 0, "", String_NewLine},                                // \n
@@ -962,7 +962,6 @@ static void String_SrcAddr(FILE *stream, master_record_t *r) {
 
 static void String_SrcGeoAddr(FILE *stream, master_record_t *r) {
     char tmp_str[IP_STRING_LEN];
-    char country[4] = {0};
 
     tmp_str[0] = 0;
     if ((r->mflags & V3_FLAG_IPV6_ADDR) != 0) {  // IPv6
@@ -980,12 +979,12 @@ static void String_SrcGeoAddr(FILE *stream, master_record_t *r) {
         inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
-    LookupCountry(r->V6.srcaddr, country);
+    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.srcaddr, r->src_geo);
 
     if (long_v6)
-        fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, country);
+        fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, r->src_geo);
     else
-        fprintf(stream, "%s%16s(%s)", tag_string, tmp_str, country);
+        fprintf(stream, "%s%16s(%s)", tag_string, tmp_str, r->src_geo);
 
 }  // End of String_SrcGeoAddr
 
@@ -1019,7 +1018,7 @@ static void String_SrcAddrPort(FILE *stream, master_record_t *r) {
 }  // End of String_SrcAddrPort
 
 static void String_SrcAddrGeoPort(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN], portchar, country[4];
+    char tmp_str[IP_STRING_LEN], portchar;
 
     tmp_str[0] = 0;
     if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
@@ -1039,12 +1038,12 @@ static void String_SrcAddrGeoPort(FILE *stream, master_record_t *r) {
         portchar = ':';
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
-    LookupCountry(r->V6.srcaddr, country);
+    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.srcaddr, r->src_geo);
 
     if (long_v6)
-        fprintf(stream, "%s%39s(%s)%c%-5i", tag_string, tmp_str, country, portchar, r->srcPort);
+        fprintf(stream, "%s%39s(%s)%c%-5i", tag_string, tmp_str, r->src_geo, portchar, r->srcPort);
     else
-        fprintf(stream, "%s%16s(%s)%c%-5i", tag_string, tmp_str, country, portchar, r->srcPort);
+        fprintf(stream, "%s%16s(%s)%c%-5i", tag_string, tmp_str, r->src_geo, portchar, r->srcPort);
 
 }  // End of String_SrcAddrGeoPort
 
@@ -1076,7 +1075,6 @@ static void String_DstAddr(FILE *stream, master_record_t *r) {
 
 static void String_DstGeoAddr(FILE *stream, master_record_t *r) {
     char tmp_str[IP_STRING_LEN];
-    char country[4] = {0};
 
     tmp_str[0] = 0;
     if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
@@ -1094,12 +1092,12 @@ static void String_DstGeoAddr(FILE *stream, master_record_t *r) {
         inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
-    LookupCountry(r->V6.dstaddr, country);
+    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.dstaddr, r->dst_geo);
 
     if (long_v6)
-        fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, country);
+        fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, r->dst_geo);
     else
-        fprintf(stream, "%s%16s(%s)", tag_string, tmp_str, country);
+        fprintf(stream, "%s%16s(%s)", tag_string, tmp_str, r->dst_geo);
 
 }  // End of String_DstGeoAddr
 
@@ -1211,7 +1209,7 @@ static void String_DstAddrPort(FILE *stream, master_record_t *r) {
 }  // End of String_DstAddrPort
 
 static void String_DstAddrGeoPort(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN], portchar, country[4];
+    char tmp_str[IP_STRING_LEN], portchar;
 
     tmp_str[0] = 0;
     if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
@@ -1231,12 +1229,12 @@ static void String_DstAddrGeoPort(FILE *stream, master_record_t *r) {
         portchar = ':';
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
-    LookupCountry(r->V6.dstaddr, country);
+    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.dstaddr, r->dst_geo);
 
     if (long_v6)
-        fprintf(stream, "%s%39s(%s)%c%-5s", tag_string, tmp_str, country, portchar, ICMP_Port_decode(r));
+        fprintf(stream, "%s%39s(%s)%c%-5s", tag_string, tmp_str, r->dst_geo, portchar, ICMP_Port_decode(r));
     else
-        fprintf(stream, "%s%16s(%s)%c%-5s", tag_string, tmp_str, country, portchar, ICMP_Port_decode(r));
+        fprintf(stream, "%s%16s(%s)%c%-5s", tag_string, tmp_str, r->dst_geo, portchar, ICMP_Port_decode(r));
 
 }  // End of String_DstAddrGeoPort
 
@@ -1317,17 +1315,15 @@ static void String_ICMP_code(FILE *stream, master_record_t *r) {
 }  // End of String_ICMP_code
 
 static void String_SrcAS(FILE *stream, master_record_t *r) {
-    int as = r->srcas;
-    if (as == 0) as = LookupAS(r->V6.srcaddr);
+    if (r->srcas == 0) r->srcas = LookupAS(r->V6.srcaddr);
 
-    fprintf(stream, "%6u", as);
+    fprintf(stream, "%6u", r->srcas);
 }  // End of String_SrcAS
 
 static void String_DstAS(FILE *stream, master_record_t *r) {
-    int as = r->dstas;
-    if (as == 0) as = LookupAS(r->V6.dstaddr);
+    if (r->dstas == 0) r->dstas = LookupAS(r->V6.dstaddr);
 
-    fprintf(stream, "%6u", as);
+    fprintf(stream, "%6u", r->dstas);
 }  // End of String_DstAS
 
 static void String_NextAS(FILE *stream, master_record_t *r) { fprintf(stream, " %6u", r->bgpNextAdjacentAS); }  // End of String_NextAS
@@ -1596,16 +1592,14 @@ static void String_bpp(FILE *stream, master_record_t *r) {
 static void String_ExpSysID(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->exporter_sysid); }  // End of String_ExpSysID
 
 static void String_SrcCountry(FILE *stream, master_record_t *r) {
-    char country[4];
-    LookupCountry(r->V6.srcaddr, country);
-    fprintf(stream, "%2s", country);
+    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.srcaddr, r->src_geo);
+    fprintf(stream, "%2s", r->src_geo);
 
 }  // End of String_SrcCountry
 
 static void String_DstCountry(FILE *stream, master_record_t *r) {
-    char country[4];
-    LookupCountry(r->V6.dstaddr, country);
-    fprintf(stream, "%2s", country);
+    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.dstaddr, r->dst_geo);
+    fprintf(stream, "%2s", r->dst_geo);
 
 }  // End of String_DstCountry
 

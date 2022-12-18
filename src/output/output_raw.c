@@ -261,6 +261,8 @@ static void stringsEXvLan(FILE *stream, master_record_t *r) {
 }  // End of stringsEXvLan
 
 static void stringsEXasRouting(FILE *stream, master_record_t *r) {
+    if (r->srcas == 0) r->srcas = LookupAS(r->V6.srcaddr);
+    if (r->dstas == 0) r->dstas = LookupAS(r->V6.dstaddr);
     fprintf(stream,
             "  src as       =             %5u\n"
             "  dst as       =             %5u\n",
