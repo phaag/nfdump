@@ -123,7 +123,7 @@ int Init_v1(int verbose) {
     printRecord = verbose > 2;
     baseRecordSize = sizeof(recordHeaderV3_t) + EXgenericFlowSize + EXipv4FlowSize + EXflowMiscSize + EXipNextHopV4Size;
 
-    LogInfo("Init v1");
+    LogVerbose("Init v1");
     return 1;
 }  // End of Init_v1
 

@@ -210,7 +210,7 @@ static void cmd_execute(char **args) {
     int pid;
 
     // Get a child process.
-    LogInfo("Launcher: fork child.");
+    LogVerbose("Launcher: fork child.");
     if ((pid = fork()) < 0) {
         LogError("Can't fork: %s", strerror(errno));
         return;
@@ -223,7 +223,7 @@ static void cmd_execute(char **args) {
     }
 
     // we are the parent
-    LogInfo("Launcher: child exec done.");
+    LogVerbose("Launcher: child exec done.");
     /* empty */
 
 }  // End of cmd_execute
@@ -382,10 +382,10 @@ void launcher(void *commbuff, FlowSource_t *FlowSource, char *process, int expir
             }
         }
         if (child_exit) {
-            LogInfo("launcher child exit %d children.", child_exit);
+            LogVerbose("launcher child exit %d children.", child_exit);
             while ((pid = waitpid(-1, &stat, WNOHANG)) > 0) {
                 if (WIFEXITED(stat)) {
-                    LogInfo("launcher child %i exit status: %i", pid, WEXITSTATUS(stat));
+                    LogVerbose("launcher child %i exit status: %i", pid, WEXITSTATUS(stat));
                 }
                 if (WIFSIGNALED(stat)) {
                     LogError("launcher child %i died due to signal %i", pid, WTERMSIG(stat));
@@ -393,7 +393,7 @@ void launcher(void *commbuff, FlowSource_t *FlowSource, char *process, int expir
 
                 child_exit--;
             }
-            LogInfo("launcher waiting children done. %d children", child_exit);
+            LogVerbose("launcher waiting children done. %d children", child_exit);
             child_exit = 0;
         }
         if (done) {

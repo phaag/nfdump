@@ -213,14 +213,7 @@ static void IntHandler(int signal) {
 } /* End of IntHandler */
 
 static void format_file_block_header(dataBlock_t *header) {
-    printf(
-        "\n"
-        "File Block Header: \n"
-        "  Type       	 =  %10u\n"
-        "  Size          =  %10u\n"
-        "  NumRecords    =  %10u\n",
-        header->type, header->size, header->NumRecords);
-
+    printf("File Block Header: type: %u, size: %u, NumRecords: %u\n", header->type, header->size, header->NumRecords);
 }  // End of format_file_block_header
 
 #include "collector_inline.c"
@@ -350,8 +343,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 char error[255];
                 nffile_t *nffile = fs->nffile;
 
-                if (verbose) {
-                    // Dump to stdout
+                if (verbose > 1) {
                     format_file_block_header(nffile->block_header);
                 }
 
@@ -446,13 +438,13 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 commbuff->fname[MAXPATHLEN - 1] = '\0';
 
                 if (launcher_alive) {
-                    LogInfo("Signal launcher");
+                    LogVerbose("Signal launcher");
                     kill(launcher_pid, SIGHUP);
                 } else
                     LogError("ERROR: Launcher died unexpectedly!");
             }
 
-            LogInfo("Total ignored packets: %u", ignored_packets);
+            if (ignored_packets) LogInfo("Total ignored packets: %u", ignored_packets);
             ignored_packets = 0;
 
             if (done) break;
@@ -752,7 +744,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'l':
-                LogInfo("-l is a legacy option and may get removed in future. Please use -w next time");
+                LogError("-l is a legacy option and may get removed in future. Please use -w to set output directory");
             case 'w':
                 if (!CheckPath(optarg, S_IFDIR)) {
                     LogError("No valid directory: %s", optarg);
@@ -892,7 +884,7 @@ int main(int argc, char **argv) {
         repeater[i].sockfd =
             Unicast_send_socket(repeater[i].hostname, repeater[i].port, repeater[i].family, bufflen, &repeater[i].addr, &repeater[i].addrlen);
         if (repeater[i].sockfd <= 0) exit(EXIT_FAILURE);
-        LogInfo("Replay flows to host: %s port: %s", repeater[i].hostname, repeater[i].port);
+        LogVerbose("Replay flows to host: %s port: %s", repeater[i].hostname, repeater[i].port);
         i++;
     }
 
@@ -950,7 +942,7 @@ int main(int argc, char **argv) {
             default:
                 // parent
                 launcher_alive = 1;
-                LogInfo("Launcher[%i] forked", launcher_pid);
+                LogVerbose("Launcher[%i] forked", launcher_pid);
         }
     }
 
@@ -985,7 +977,7 @@ int main(int argc, char **argv) {
     sigaction(SIGALRM, &act, NULL);
     sigaction(SIGCHLD, &act, NULL);
 
-    LogInfo("Startup.");
+    LogInfo("Startup nfcapd.");
     run(receive_packet, sock, repeater, twin, t_start, report_sequence, subdir_index, time_extension, compress);
 
     // shutdown
@@ -1000,7 +992,7 @@ int main(int argc, char **argv) {
         if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
             UpdateDirStat(dirstat, fs->bookkeeper);
             WriteStatInfo(dirstat);
-            LogInfo("Updating statinfo in directory '%s'", datadir);
+            LogVerbose("Updating statinfo in directory '%s'", datadir);
         }
 
         ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);

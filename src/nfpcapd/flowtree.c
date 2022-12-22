@@ -341,7 +341,6 @@ int Link_RevNode(struct FlowNode *node) {
 
 uint32_t Flush_FlowTree(NodeList_t *NodeList, time_t when) {
     struct FlowNode *node, *nxt;
-    uint32_t n = NumFlows;
 
     // Dump all incomplete flows to the file
     nxt = NULL;
@@ -354,8 +353,6 @@ uint32_t Flush_FlowTree(NodeList_t *NodeList, time_t when) {
             Push_Node(NodeList, node);
         }
     }
-
-    if (NumFlows != 0) LogInfo("Flush_FlowTree() flushed flows: %u\n", NumFlows);
 
     node = New_Node();
     node->timestamp = when;

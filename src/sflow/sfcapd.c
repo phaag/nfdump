@@ -207,6 +207,10 @@ static void IntHandler(int signal) {
 
 } /* End of IntHandler */
 
+static void format_file_block_header(dataBlock_t *header) {
+    printf("File Block Header: type: %u, size: %u, NumRecords: %u\n", header->type, header->size, header->NumRecords);
+}  // End of format_file_block_header
+
 #include "collector_inline.c"
 #include "nffile_inline.c"
 
@@ -331,6 +335,10 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 char error[255];
                 nffile_t *nffile = fs->nffile;
 
+                if (verbose > 1) {
+                    format_file_block_header(nffile->block_header);
+                }
+
                 // prepare filename
                 if (subdir) {
                     if (SetupSubDir(fs->datadir, subdir, error, 255)) {
@@ -428,7 +436,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                     LogError("ERROR: Launcher died unexpectedly!");
             }
 
-            LogInfo("Total ignored packets: %u", ignored_packets);
+            if (ignored_packets) LogInfo("Total ignored packets: %u", ignored_packets);
             ignored_packets = 0;
 
             if (done) break;
@@ -694,7 +702,7 @@ int main(int argc, char **argv) {
                 report_sequence = 1;
                 break;
             case 'l':
-                LogInfo("-l is a legacy option and may get removed in future. Please use -w next time");
+                LogError("-l is a legacy option and may get removed in future. Please use -w to set output directory");
             case 'w':
                 if (!CheckPath(optarg, S_IFDIR)) {
                     LogError("No valid directory: %s", optarg);
@@ -924,7 +932,7 @@ int main(int argc, char **argv) {
     sigaction(SIGALRM, &act, NULL);
     sigaction(SIGCHLD, &act, NULL);
 
-    LogInfo("Startup.");
+    LogInfo("Startup sfcapd.");
     run(receive_packet, sock, repeater, twin, t_start, report_sequence, subdir_index, time_extension, compress);
     close(sock);
     kill_launcher(launcher_pid);
@@ -937,7 +945,7 @@ int main(int argc, char **argv) {
         if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
             UpdateDirStat(dirstat, fs->bookkeeper);
             WriteStatInfo(dirstat);
-            LogInfo("Updating statinfo in directory '%s'", datadir);
+            LogVerbose("Updating statinfo in directory '%s'", datadir);
         }
 
         ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);

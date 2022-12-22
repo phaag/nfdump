@@ -177,10 +177,8 @@ int Init_v5_v7(int verbose, int32_t sampling) {
 
     if (sampling < 0) {
         LogInfo("Init v5/v7: Overwrite sampling: %d", -defaultSampling);
-        dbg_printf("Init v5/v7: Overwrite sampling: %d\n", -defaultSampling);
     } else {
         LogInfo("Init v5/v7: Default sampling: %d", defaultSampling);
-        dbg_printf("Init v5/v7: Default sampling: %d\n", defaultSampling);
     }
 
     baseRecordSize = sizeof(recordHeaderV3_t) + EXgenericFlowSize + EXipv4FlowSize + EXflowMiscSize + EXasRoutingSize + EXipNextHopV4Size;

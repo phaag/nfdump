@@ -196,6 +196,10 @@ int InitLog(int want_syslog, char *name, char *facility, int verbose_log) {
     int i;
     char *logname;
 
+#ifdef DEVEL
+    verbose_log = 2;
+#endif
+
     verbose = verbose_log;
     if (!want_syslog) {
         if (verbose) {
@@ -265,7 +269,7 @@ void LogInfo(char *format, ...) {
         va_end(var_args);
         syslog(LOG_INFO, "%s", string);
         dbg_printf("%s\n", string);
-    } else if (verbose) {
+    } else {
         va_start(var_args, format);
         vsnprintf(string, 511, format, var_args);
         fprintf(stderr, "%s\n", string);

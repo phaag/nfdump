@@ -411,15 +411,12 @@ int main(int argc, char *argv[]) {
                 device = optarg;
                 break;
             case 'l':
-                LogInfo("-l is a legacy option and may get removed in future. Please use -w next time");
+                LogError("-l is a legacy option and may get removed in future. Please use -w to set output directory");
             case 'w':
                 datadir = optarg;
                 err = stat(datadir, &fstat);
                 if (!(fstat.st_mode & S_IFDIR)) {
-                    LogError(
-                        "No such directory: "
-                        "'%s'",
-                        datadir);
+                    LogError("No valid directory: '%s'", datadir);
                     break;
                 }
                 break;
@@ -669,7 +666,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    LogInfo("Startup.");
+    LogInfo("Startup nfpcapd.");
     // prepare signal mask for all threads
     // block signals, as they are handled by the main thread
     // mask is inherited by all threads
@@ -767,7 +764,7 @@ int main(int argc, char *argv[]) {
         if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
             UpdateDirStat(dirstat, fs->bookkeeper);
             WriteStatInfo(dirstat);
-            LogInfo("Updating statinfo in directory '%s'", datadir);
+            LogVerbose("Updating statinfo in directory '%s'", datadir);
         }
         ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
     }
