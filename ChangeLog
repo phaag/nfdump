@@ -1,3 +1,26 @@
+2022-12-22
+- 	Fix #393 consistent logging
+
+2022-12-20
+-	Remove extra ':' in getopt of nfcapd.
+
+2022-12-18 
+-	Add feature #391. Add country code addgregation
+-	Fix #392. Fix format options with IPv6
+-	Fix #390. Aggregation not working for GeoDB's enriched AS data
+
+2022-12-17
+-	Add OpenBSD pflog decoding in nfpcapd and nfdump
+-	Add pfinfo extension
+-	Fix Ident change
+-	Sync nfcapd, sfcapd code. Cleanup pcaproc
+-	Fix #389 receiving IPv4 on IPv6 socket in sfcapd
+-	Code cleanup in nfpcapd
+
+2022-12-09
+-	Code cleanup
+-	Fix #385 bug - i386 32bit alignment
+
 2022-12-9
 -	Fix #384 bug when compile with --enable-nsel
 -	Fix #385 bug - i386 32bit alignment 
