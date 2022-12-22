@@ -605,7 +605,7 @@ int main(int argc, char **argv) {
     metricSocket = NULL;
     metricInterval = 60;
 
-    while ((c = getopt(argc, argv, "46B:b:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:rRs::S:t:T:u:vVw:x:yzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "46B:b:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:rRs:S:t:T:u:vVw:x:yzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
