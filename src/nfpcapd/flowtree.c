@@ -360,7 +360,7 @@ uint32_t Flush_FlowTree(NodeList_t *NodeList, time_t when) {
     node->signal = SIGNAL_DONE;
     Push_Node(NodeList, node);
 
-    return n;
+    return 0;
 
 }  // End of Flush_FlowTree
 
