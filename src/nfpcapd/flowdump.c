@@ -180,6 +180,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
                 pfinfo->rulenr = ntohl(pflog->rulenr);
                 pfinfo->subrulenr = ntohl(pflog->subrulenr);
                 memcpy(pfinfo->ifname, pflog->ifname, ifnameLen);
+                SetFlag(recordHeader->flags, V3_FLAG_EVENT);
             }
         }
 
