@@ -322,7 +322,7 @@ void launcher(void *commbuff, FlowSource_t *FlowSource, char *process, int expir
         TestRecord.tstring[MAXTIMESTRING - 1] = 0;
         TestRecord.tstamp = 1;
 
-        // checkk valid command expansion
+        // check valid command expansion
         fs = FlowSource;
         cmd = cmd_expand(&TestRecord, fs->Ident, fs->datadir, process);
         if (cmd == NULL) {
