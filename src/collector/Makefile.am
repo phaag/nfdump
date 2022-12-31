@@ -5,7 +5,8 @@ EXTRA_DIST = collector_inline.c
 
 noinst_LIBRARIES = libcollector.a
 
-libcollector_a_SOURCES = bookkeeper.c bookkeeper.h launch.h launch.c \
+libcollector_a_SOURCES = privsep.c privsep.h launch.h launch.c \
+  bookkeeper.c bookkeeper.h \ 
 	collector.c collector.h nfnet.h nfnet.c nfstatfile.c nfstatfile.h \
 	expire.c expire.h metric.c metric.h
 

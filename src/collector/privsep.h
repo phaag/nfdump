@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -29,17 +28,50 @@
  *
  */
 
-#ifndef _LAUNCH_H
-#define _LAUNCH_H 1
+#ifndef _PRIVSEP_H
+#define _PRIVSEP_H 1
 
-#include <sys/param.h>
-#include <time.h>
+#include <pthread.h>
+#include <stdint.h>
 
-#include "collector.h"
-#include "config.h"
+typedef struct message_s {
+    uint16_t type;
+    uint16_t length;
+} message_t;
 
-int StartupLauncher(char *launch_process, int expire);
+typedef struct messageList {
+    struct messageList *next;
+    message_t *message;
+} messageList_t;
 
-int SendLauncherMessage(int pfd, time_t t_start, char *subdir, char *fmt, char *datadir, char *ident);
+typedef struct messageQueue_s {
+    messageList_t *head;
+    messageList_t *tail;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    uint32_t length;
+} messageQueue_t;
 
-#endif  //_LAUNCH_H
+#define PRIVMSG_NULL 0
+#define PRIVMSG_LAUNCH 1
+#define PRIVMSG_EXIT 0xFFFF
+#define PRIVMSG_FLUSH 0xFFFE
+
+typedef void (*messageFunc_t)(message_t *, void *);
+
+typedef struct thread_arg_s {
+    messageFunc_t messageFunc;
+    void *extraArg;
+} thread_arg_t;
+
+void *pipeReader(void *arg);
+
+messageQueue_t *NewMessageQueue(void);
+
+void pushMessage(messageQueue_t *messageQueue, message_t *message);
+
+void pushMessageFunc(message_t *message, void *extraArg);
+
+message_t *getMessage(messageQueue_t *messageQueue);
+
+#endif
