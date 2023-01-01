@@ -110,8 +110,8 @@ static void IntHandler(int signal);
 
 static inline FlowSource_t *GetFlowSource(struct sockaddr_storage *ss);
 
-static void run(packet_function_t receive_packet, int socket, int pfd, repeater_t *repeater, time_t twin, time_t t_begin, int report_seq,
-                int use_subdirs, char *time_extension, int compress);
+static void run(packet_function_t receive_packet, int socket, int pfd, repeater_t *repeater, time_t twin, time_t t_begin, int use_subdirs,
+                char *time_extension, int compress);
 
 /* Functions */
 static void usage(char *name) {
@@ -205,8 +205,8 @@ static void format_file_block_header(dataBlock_t *header) {
 #include "collector_inline.c"
 #include "nffile_inline.c"
 
-static void run(packet_function_t receive_packet, int socket, int pfd, repeater_t *repeater, time_t twin, time_t t_begin, int report_seq,
-                int use_subdirs, char *time_extension, int compress) {
+static void run(packet_function_t receive_packet, int socket, int pfd, repeater_t *repeater, time_t twin, time_t t_begin, int use_subdirs,
+                char *time_extension, int compress) {
     FlowSource_t *fs;
     struct sockaddr_storage sf_sender;
     socklen_t sf_sender_size = sizeof(sf_sender);
@@ -505,7 +505,7 @@ int main(int argc, char **argv) {
     FlowSource_t *fs;
     int family, bufflen, metricInterval;
     time_t twin;
-    int sock, do_daemonize, expire, spec_time_extension, report_sequence;
+    int sock, do_daemonize, expire, spec_time_extension;
     int subdir_index, compress;
 #ifdef PCAP
     char *pcap_file = NULL;
@@ -516,7 +516,6 @@ int main(int argc, char **argv) {
     bufflen = 0;
     family = AF_UNSPEC;
     launcher_pid = 0;
-    report_sequence = 0;
     listenport = DEFAULTSFLOWPORT;
     bindhost = NULL;
     mcastgroup = NULL;
@@ -542,7 +541,7 @@ int main(int argc, char **argv) {
     metricInterval = 60;
 
     int c;
-    while ((c = getopt(argc, argv, "46b:B:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:rR:S:T:t:u:vVw:x:yzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "46b:B:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:S:T:t:u:vVw:x:yzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -671,9 +670,6 @@ int main(int argc, char **argv) {
 
                 break;
             }
-            case 'r':
-                report_sequence = 1;
-                break;
             case 'l':
                 LogError("-l is a legacy option and may get removed in future. Please use -w to set output directory");
             case 'w':
@@ -914,7 +910,7 @@ int main(int argc, char **argv) {
     sigaction(SIGCHLD, &act, NULL);
 
     LogInfo("Startup sfcapd.");
-    run(receive_packet, sock, pfd[1], repeater, twin, t_start, report_sequence, subdir_index, time_extension, compress);
+    run(receive_packet, sock, pfd[1], repeater, twin, t_start, subdir_index, time_extension, compress);
 
     // shutdown
     close(sock);
