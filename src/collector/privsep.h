@@ -33,6 +33,7 @@
 
 #include <pthread.h>
 #include <stdint.h>
+#include <unistd.h>
 
 typedef struct message_s {
     uint16_t type;
@@ -54,6 +55,7 @@ typedef struct messageQueue_s {
 
 #define PRIVMSG_NULL 0
 #define PRIVMSG_LAUNCH 1
+#define PRIVMSG_REPEAT 2
 #define PRIVMSG_EXIT 0xFFFF
 #define PRIVMSG_FLUSH 0xFFFE
 
@@ -73,5 +75,7 @@ void pushMessage(messageQueue_t *messageQueue, message_t *message);
 void pushMessageFunc(message_t *message, void *extraArg);
 
 message_t *getMessage(messageQueue_t *messageQueue);
+
+int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname);
 
 #endif

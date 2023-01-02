@@ -197,7 +197,7 @@ int InitLog(int want_syslog, char *name, char *facility, int verbose_log) {
     char *logname;
 
 #ifdef DEVEL
-    verbose_log = 2;
+    verbose_log = 4;
 #endif
 
     verbose = verbose_log;
@@ -281,7 +281,6 @@ void LogInfo(char *format, ...) {
 void LogVerbose(char *format, ...) {
     va_list var_args;
     char string[512];
-
     if (verbose > 1) {
         va_start(var_args, format);
         vsnprintf(string, 511, format, var_args);

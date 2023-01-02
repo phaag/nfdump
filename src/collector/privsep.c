@@ -203,16 +203,17 @@ __attribute__((noreturn)) void *pipeReader(void *arg) {
                         dbg_printf("FlushMessage received\n");
                         break;
                     case PRIVMSG_LAUNCH:
+                    case PRIVMSG_REPEAT:
                         thread_arg->messageFunc(message, thread_arg->extraArg);
                         break;
                     case PRIVMSG_EXIT:
                         done = 1;
-                        // make sure the launcher get known the done signal
+                        // make sure the pipeReader() get known the done signal
                         // push exit message
                         thread_arg->messageFunc(message, thread_arg->extraArg);
                         break;
                     default:
-                        LogError("launcher received unknown message type: %u", message->type);
+                        LogError("pipeReader() received unknown message type: %u", message->type);
                 }
 
                 // advance message pointer, calculate remaining bytes
@@ -235,3 +236,37 @@ __attribute__((noreturn)) void *pipeReader(void *arg) {
 
     /* UNREACHED */
 }  // End of pipereader
+
+int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname) {
+    *child_pid = 0;
+
+    int pfd[2] = {0};
+    pipe(pfd);
+
+    if ((*child_pid = fork()) == -1) {
+        LogError("fork() error in '%s', line '%d'", __FILE__, __LINE__);
+        exit(1);
+    }
+
+    if (*child_pid == 0) {
+        // child
+        close(pfd[1]);
+        close(0);
+        dup(pfd[0]);
+        int i;
+        char **privargv = calloc(argc + 3, sizeof(char *));
+        privargv[0] = argv[0];
+        for (i = 1; i < argc; i++) privargv[i] = argv[i];
+        privargv[i++] = "privsep";
+        privargv[i++] = privname;
+        privargv[i++] = NULL;
+        execvp(privargv[0], privargv);
+        LogError("execvp() privsep '%s' failed: %s\n", privargv[0], strerror(errno));
+        _exit(errno);
+    }
+
+    // parent
+    close(pfd[0]);
+    LogVerbose("Privsep child forked: %d", *child_pid);
+    return pfd[1];
+}

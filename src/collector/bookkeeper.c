@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2016, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -31,13 +29,10 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,9 +45,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
+#include "config.h"
 
 #ifndef HAVE_SEMUN
 union semun {
@@ -141,7 +134,7 @@ static inline bookkeeper_list_t *Get_bookkeeper_list_entry(bookkeeper_t *bookkee
 
 }  // End of Get_bookkeeper_list_entry
 
-int InitBookkeeper(bookkeeper_t **bookkeeper, char *path, pid_t nfcapd_pid, pid_t launcher_pid) {
+int InitBookkeeper(bookkeeper_t **bookkeeper, char *path, pid_t nfcapd_pid) {
     int sem_key, shm_key, shm_id, sem_id;
     union semun sem_val;
     bookkeeper_list_t **bookkeeper_list_entry;
@@ -228,7 +221,6 @@ int InitBookkeeper(bookkeeper_t **bookkeeper, char *path, pid_t nfcapd_pid, pid_
     }
     // at this point we now have a valid record and can proceed
     (*bookkeeper)->nfcapd_pid = nfcapd_pid;
-    (*bookkeeper)->launcher_pid = launcher_pid;
     (*bookkeeper)->sequence++;
 
     // create semaphore
@@ -572,11 +564,7 @@ void PrintBooks(bookkeeper_t *bookkeeper) {
 
     sem_lock(bookkeeper_list_entry->sem_id);
     printf("Collector process: %lu\n", (unsigned long)bookkeeper->nfcapd_pid);
-    if (bookkeeper->launcher_pid)
-        printf("Launcher process: %lu\n", (unsigned long)bookkeeper->launcher_pid);
-    else
-        printf("Launcher process: <none>\n");
-    printf("Record sequence : %llu\n", (unsigned long long)bookkeeper->sequence);
+    printf("Record sequence  : %llu\n", (unsigned long long)bookkeeper->sequence);
 
     t = bookkeeper->first;
     ts = localtime(&t);

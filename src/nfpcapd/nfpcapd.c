@@ -76,6 +76,7 @@
 #include "pcapdump.h"
 #include "pcaproc.h"
 #include "pidfile.h"
+#include "repeater.h"
 #include "util.h"
 
 #define TIME_WINDOW 300
@@ -637,7 +638,7 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
 
-        if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid(), launcher_pid) != BOOKKEEPER_OK) {
+        if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
             LogError("initialize bookkeeper failed.");
             exit(EXIT_FAILURE);
         }

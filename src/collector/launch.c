@@ -473,9 +473,7 @@ int SendLauncherMessage(int pfd, time_t t_start, char *subdir, char *fmt, char *
 }
 
 int StartupLauncher(char *launch_process, int expire) {
-    dbg_printf("StartupLauncher()\n");
-
-    LogInfo("Laucher: %s, expire: %d\n", launch_process, expire);
+    LogInfo("StartupLauncher(): %s, expire: %d", launch_process, expire);
 
     messageQueue_t *messageQueue = NewMessageQueue();
     if (!messageQueue) return 0;
@@ -506,6 +504,6 @@ int StartupLauncher(char *launch_process, int expire) {
         LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
     }
 
-    dbg_printf("End StartupLauncher()\n");
+    LogVerbose("End StartupLauncher()");
     return 1;
 }  // End of StartupLauncher
