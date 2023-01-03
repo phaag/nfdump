@@ -267,6 +267,6 @@ int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname) {
 
     // parent
     close(pfd[0]);
-    LogVerbose("Privsep child forked: %d", *child_pid);
+    LogVerbose("Privsep child %s forked: %d", privname, *child_pid);
     return pfd[1];
 }

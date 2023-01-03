@@ -32,6 +32,8 @@
 #ifndef _NFNET_H
 #define _NFNET_H 1
 
+#include <netinet/in.h>
+#include <netinet/ip.h>
 #include <sys/socket.h>
 
 /* Definitions */
@@ -49,5 +51,9 @@ int Unicast_send_socket(const char *hostname, const char *listenport, int family
 
 int Multicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
                           int *addrlen);
+
+int Raw_send_socket(int sockbuflen);
+
+int LookupHost(char *hostname, char *port, struct sockaddr_in *addr);
 
 #endif  //_NFNET_H

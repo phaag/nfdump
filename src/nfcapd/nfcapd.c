@@ -140,6 +140,7 @@ static void usage(char *name) {
         "-M dir \t\tSet the output directory for dynamic sources.\n"
         "-P pidfile\tset the PID file\n"
         "-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
+        "-A\t\tEnable source address spoofing for packet repeater -R.\n"
         "-s rate\tset default sampling rate (default 1)\n"
         "-x process\tlaunch process after a new file becomes available\n"
         "-z\t\tLZO compress flows in output file.\n"
@@ -172,7 +173,7 @@ static void signalPrivsepChild(pid_t child_pid, int pfd) {
 
     int stat = 0;
     if ((ret = waitpid(child_pid, &stat, 0)) == -1) {
-        if (!gotSIGCHLD) LogError("wait for privsep child failed: %s %i", strerror(errno), ret);
+        if (!gotSIGCHLD) LogError("wait for privsep child failed: %s", strerror(errno));
     } else {
         if (WIFEXITED(stat)) {
             LogInfo("privsep child exit status: %i", WEXITSTATUS(stat));
@@ -196,7 +197,9 @@ static void IntHandler(int signal) {
             done = 1;
             break;
         case SIGCHLD:
-            gotSIGCHLD = 1;
+            gotSIGCHLD++;
+            break;
+        case SIGPIPE:
             break;
         default:
             // ignore everything we don't know
@@ -205,6 +208,26 @@ static void IntHandler(int signal) {
 
 } /* End of IntHandler */
 
+static void ChildDied(void) {
+    if (gotSIGCHLD) {
+        int stat = 0;
+        pid_t pid = waitpid(-1, &stat, 0);
+        if (pid == -1) {
+            if (!gotSIGCHLD) LogError("wait for privsep child failed: %s", strerror(errno));
+        } else {
+            if (WIFEXITED(stat)) {
+                LogInfo("privsep child[%u] exit status: %i", pid, WEXITSTATUS(stat));
+            }
+            if (WIFSIGNALED(stat)) {
+                LogError("privsep child[%u] terminated due to signal %i", pid, WTERMSIG(stat));
+            }
+            LogError("privsep child[%u] terminated with status: pid, 0x%x", pid, stat);
+        }
+        gotSIGCHLD--;
+    }
+
+}  // End of ChildDied
+
 static void format_file_block_header(dataBlock_t *header) {
     printf("File Block Header: type: %u, size: %u, NumRecords: %u\n", header->type, header->size, header->NumRecords);
 }  // End of format_file_block_header
@@ -212,26 +235,39 @@ static void format_file_block_header(dataBlock_t *header) {
 #include "collector_inline.c"
 #include "nffile_inline.c"
 
-static void SendRepeaterMessage(int fd, void *in_buff, size_t cnt) {
+static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockaddr_storage *sender, socklen_t sender_size) {
     message_t message;
     message.type = PRIVMSG_REPEAT;
     message.length = cnt + sizeof(message_t);
 
-    struct iovec vector[2];
+    repeater_message_t repeater_message;
+    repeater_message.packet_size = cnt;
+    repeater_message.storage_size = sender_size;
+    repeater_message.addr = *sender;
+
+    struct iovec vector[3];
     size_t len;
     vector[0].iov_base = &message;
-    vector[0].iov_len = sizeof(message);
-    len = sizeof(message);
+    vector[0].iov_len = sizeof(message_t);
+    len = sizeof(message_t);
 
-    vector[1].iov_base = in_buff;
-    vector[1].iov_len = cnt;
+    vector[1].iov_base = &repeater_message;
+    vector[1].iov_len = sizeof(repeater_message_t);
+    len += sizeof(repeater_message_t);
+
+    vector[2].iov_base = in_buff;
+    vector[2].iov_len = cnt;
     len += cnt;
 
     message.length = len;
-    ssize_t ret = writev(fd, vector, 2);
+    ssize_t ret = writev(fd, vector, 3);
     if (ret < 0) {
         LogError("Failed to send repeater message: %s", strerror(errno));
+        return errno;
+    } else {
+        printf("Sent message to repeater: %u\n", message.length);
     }
+    return 0;
 }
 
 static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, int use_subdirs, char *time_extension,
@@ -457,8 +493,9 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 // signaled to terminate - exit from loop
                 break;
             } else {
-                /* this should never be executed as it should be caught in other places */
-                LogError("error condition in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
+                // A child could have died
+                ChildDied();
+                LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
                 continue;
             }
         }
@@ -468,7 +505,11 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
         // repeat this packet
         if (rfd) {
-            SendRepeaterMessage(rfd, in_buff, cnt);
+            if (SendRepeaterMessage(rfd, in_buff, cnt, &nf_sender, nf_sender_size) != 0) {
+                LogError("Disable packet repeater due to errors");
+                close(rfd);
+                rfd = 0;
+            }
         }
 
         // get flow source record for current packet, identified by sender IP address
@@ -555,7 +596,7 @@ int main(int argc, char **argv) {
     int family, bufflen, metricInterval;
     time_t twin;
     int sock, do_daemonize, expire, spec_time_extension;
-    int subdir_index, sampling_rate, compress;
+    int subdir_index, sampling_rate, compress, srcSpoofing;
 #ifdef PCAP
     char *pcap_file = NULL;
 #endif
@@ -579,9 +620,7 @@ int main(int argc, char **argv) {
     sampling_rate = 1;
     compress = NOT_COMPRESSED;
     memset((void *)&repeater, 0, sizeof(repeater));
-    for (int i = 0; i < MAX_REPEATERS; i++) {
-        repeater[i].family = AF_UNSPEC;
-    }
+    srcSpoofing = 0;
     configFile = NULL;
     Ident = "none";
     FlowSource = NULL;
@@ -590,7 +629,7 @@ int main(int argc, char **argv) {
     metricInterval = 60;
 
     int c;
-    while ((c = getopt(argc, argv, "46B:b:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVw:x:yzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVw:x:yzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -699,14 +738,13 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'R': {
+                CheckArgLen(optarg, 128);
                 char *hostname = strdup(optarg);
-                char *port;
+                char *port = DEFAULTCISCOPORT;
                 char *p = strchr(hostname, '/');
                 if (p) {
                     *p++ = '\0';
                     port = p;
-                } else {
-                    port = DEFAULTCISCOPORT;
                 }
                 int i = 0;
                 while (repeater[i].hostname && (i < MAX_REPEATERS)) i++;
@@ -719,6 +757,9 @@ int main(int argc, char **argv) {
 
                 break;
             }
+            case 'A':
+                srcSpoofing = 1;
+                break;
             case 's':
                 // a negative sampling rate is set as the overwrite sampling rate
                 sampling_rate = (int)strtol(optarg, (char **)NULL, 10);
@@ -818,7 +859,7 @@ int main(int argc, char **argv) {
                 exit(ret);
             } else if (strcmp(argv[optind + 1], "repeater") == 0) {
                 dbg_printf("nfcapd repeater launched\n");
-                int ret = StartupRepeater(repeater, bufflen, userid, groupid);
+                int ret = StartupRepeater(repeater, bufflen, srcSpoofing, userid, groupid);
                 exit(ret);
             } else {
                 usage(argv[0]);
@@ -948,6 +989,7 @@ int main(int argc, char **argv) {
     sigaction(SIGHUP, &act, NULL);
     sigaction(SIGALRM, &act, NULL);
     sigaction(SIGCHLD, &act, NULL);
+    sigaction(SIGPIPE, &act, NULL);
 
     LogInfo("Startup nfcapd.");
     run(receive_packet, sock, pfd, rfd, twin, t_start, subdir_index, time_extension, compress);

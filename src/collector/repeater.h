@@ -31,6 +31,8 @@
 #ifndef _REPEATER_H
 #define _REPEATER_H 1
 
+#include <netinet/in.h>
+#include <netinet/ip.h>
 #include <sys/socket.h>
 
 #define MAX_REPEATERS 8
@@ -40,10 +42,15 @@ typedef struct repeater_s {
     char *port;
     struct sockaddr_storage addr;
     int addrlen;
-    int family;
     int sockfd;
 } repeater_t;
 
-int StartupRepeater(repeater_t *repeater, int bufflen, char *userid, char *groupid);
+typedef struct repeater_message_s {
+    int packet_size;
+    socklen_t storage_size;
+    struct sockaddr_storage addr;
+} repeater_message_t;
+
+int StartupRepeater(repeater_t *repeater, int bufflen, int srcSpoofing, char *userid, char *groupid);
 
 #endif

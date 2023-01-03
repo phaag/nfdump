@@ -51,6 +51,7 @@
 .Op Fl 6
 .Op Fl j Ar mcastgroup
 .Op Fl R Ar repeater
+.Op Fl A
 .Op Fl B Ar buffsize
 .Op Fl n Ar sourceparam
 .Op Fl M Ar multiflowdir
@@ -124,6 +125,12 @@ is either a valid IPv4/IPv6 address, or a symbolic hostname, which resolves to a
 .Ar port
 may be omitted and defaults to 9995. Note: As IPv4/IPv6 are accepted the host/port separator is '/'.
 Up to 8 additional repeaters my be defined. Use this methode to daisy chain collectors.
+.It Fl A
+Sets source address spoofing mode for the repeater. The source address of the repeated packages
+is set to the original IP address. This needs
+.Nm
+to be started with root privileges. Please note, that source spoofing may be blocked by firewalls or
+routers in your network.
 .It Fl I Ar ident
 Sets
 .Ar ident

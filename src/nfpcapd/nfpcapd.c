@@ -404,7 +404,6 @@ int main(int argc, char *argv[]) {
                 } else {
                     port = "9995";
                 }
-                sendHost->family = AF_UNSPEC;
                 sendHost->hostname = strdup(optarg);
                 sendHost->port = strdup(port);
             } break;
@@ -579,8 +578,7 @@ int main(int argc, char *argv[]) {
             LogError("ERROR: Port to send flows is not a regular port.");
             exit(EXIT_FAILURE);
         }
-        sendHost->sockfd =
-            Unicast_send_socket(sendHost->hostname, sendHost->port, sendHost->family, bufflen, &(sendHost->addr), &(sendHost->addrlen));
+        sendHost->sockfd = Unicast_send_socket(sendHost->hostname, sendHost->port, AF_UNSPEC, bufflen, &(sendHost->addr), &(sendHost->addrlen));
         if (sendHost->sockfd <= 0) exit(EXIT_FAILURE);
         dbg_printf("Replay flows to host: %s port: %s\n", sendHost->hostname, sendHost->port);
         flowParam.sendHost = sendHost;

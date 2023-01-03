@@ -410,7 +410,7 @@ static inline exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t exporter_
         dbg_printf("Add static sampler for default sampling: %u\n", defaultSampling);
     }
 
-    LogInfo("Process_v9: New v9 exporter: SysID: %u, Domain: %u, IP: %s\n", (*e)->info.sysid, exporter_id, ipstr);
+    LogInfo("Process_v9: New v9 exporter: SysID: %u, Domain: %u, IP: %s", (*e)->info.sysid, exporter_id, ipstr);
 
     return (*e);
 

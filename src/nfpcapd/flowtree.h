@@ -31,6 +31,7 @@
 #ifndef _FLOWTREE_H
 #define _FLOWTREE_H 1
 
+#include <pthread.h>
 #include <signal.h>
 #include <stdatomic.h>
 #include <stdint.h>
