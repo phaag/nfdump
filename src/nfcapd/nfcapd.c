@@ -265,10 +265,10 @@ static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockadd
         LogError("Failed to send repeater message: %s", strerror(errno));
         return errno;
     } else {
-        printf("Sent message to repeater: %u\n", message.length);
+        dbg_printf("Sent message to repeater: %u\n", message.length);
     }
     return 0;
-}
+}  // End of SendRepeaterMessage
 
 static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, int use_subdirs, char *time_extension,
                 int compress) {

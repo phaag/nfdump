@@ -260,7 +260,7 @@ static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockadd
         LogError("Failed to send repeater message: %s", strerror(errno));
         return errno;
     } else {
-        printf("Sent message to repeater: %u\n", message.length);
+        dbg_printf("Sent message to repeater: %u\n", message.length);
     }
     return 0;
 }  // End of SendRepeaterMessage
