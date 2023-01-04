@@ -90,6 +90,48 @@ static void packet_handler(u_char *dumpfile, const struct pcap_pkthdr *header, c
     return;
 }
 
+#ifndef HAVEPCAPAPPEND
+/*
+ * minimal implementation if libpcap does not include this library call
+ */
+static pcap_dumper_t *pcap_dump_open_append(pcap_t *p, const char *fname) {
+    FILE *f;
+    int amt_read;
+    struct pcap_file_header ph;
+
+    f = fopen(fname, "r+");
+    if (f == NULL) {
+        LogError("%s: %s", fname, pcap_strerror(errno));
+        return (NULL);
+    }
+
+    /* Read the header and make sure it's of the same linktype. */
+    amt_read = fread(&ph, 1, sizeof(ph), f);
+    if (amt_read != sizeof(ph)) {
+        if (ferror(f)) {
+            LogError("%s: %s", fname, pcap_strerror(errno));
+            return (NULL);
+        } else if (feof(f) && amt_read > 0) {
+            LogError("%s: truncated pcap file header", fname);
+            return (NULL);
+        }
+    }
+
+    /*
+     * If a header is already present and doesn't match the linktype,
+     * return an error.
+     */
+    int linktype = pcap_datalink(p);
+    if (amt_read > 0 && linktype != ph.linktype) {
+        LogError("%s: invalid linktype, cannot append to file", fname);
+        return (NULL);
+    }
+
+    fseek(f, 0, SEEK_END);
+    return ((pcap_dumper_t *)f);
+}
+#endif
+
 static int appendPcap(char *existFile, char *appendFile) {
     char errbuff[256];
     pcap_t *pcapAppend = pcap_open_offline(appendFile, errbuff);
