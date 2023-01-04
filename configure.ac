@@ -262,7 +262,7 @@ PCAP_LIBS="-lpcap"
 AC_SUBST(PCAP_LIBS)
 ]
 , AC_MSG_ERROR(Can not link libpcap. Please specify --with-pcappath=.. configure failed! ))
-	AC_CHECK_LIB(pcap, pcap_dump_open_append, AM_CONDITIONAL(HAVEPCAPAPPEND, true))
+	AC_CHECK_LIB(pcap, pcap_dump_open_append, AM_CONDITIONAL(HAVEPCAPAPPEND, true), AM_CONDITIONAL(HAVEPCAPAPPEND, false))
 	AC_CHECK_HEADERS([pcap.h])
 	if test "$ac_cv_header_pcap_h" = yes; then
 		AM_CONDITIONAL(BUILDNFPCAPD, true)
