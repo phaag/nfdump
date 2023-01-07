@@ -615,23 +615,13 @@ static void inoutPayload(FILE *stream, master_record_t *r, char *payload, uint32
 }  // End of stringsEXoutPayload
 
 static void stringsEXpfinfo(FILE *stream, master_record_t *r) {
-    const char *pf_reasons[] = {"match",          "bad-offset",    "fragment",    "short",     "normalize",
-                                "memory)",        "bad-timestamp", "congestion",  "ip-option", "proto-cksum",
-                                "state-mismatch", "state-insert",  "state-limit", "src-limit", "synproxy"};
-
-    const char *reason;
-    if (r->pfReason <= 14)
-        reason = pf_reasons[r->pfReason];
-    else
-        reason = "<unknown>";
-
     fprintf(stream,
             "  pflog ifname =          %8s\n"
-            "  pflog action =             %5s\n"
-            "  pflog reason =             %5u/%s\n"
+            "  pflog action =             %5s/%u\n"
+            "  pflog reason =             %5s/%u\n"
             "  pflog direct =             %5s\n"
             "  pflog rulenr =             %5u\n",
-            r->pfIfName, r->pfAction ? "block" : "pass", r->pfReason, reason, r->pfDir ? "in" : "out", r->pfRulenr);
+            r->pfIfName, pfAction(r->pfAction), r->pfAction, pfReason(r->pfReason), r->pfReason, r->pfDir ? "in" : "out", r->pfRulenr);
 
 }  // End of stringsEXpfinfo
 

@@ -182,6 +182,11 @@ observation { return OBSERVATION; }
 domain { return DOMAIN; }
 point { return POINT; }
 id { return ID;}
+pf { return PF;}
+action { return ACTION;}
+reason { return REASON;}
+rule { return RULE;}
+interface { return INTERFACE;}
 
 asa				{ return ASA; 		/* NSEL filter */ }
 event			{ return EVENT; 	/* NEL/NSEL filter */ }

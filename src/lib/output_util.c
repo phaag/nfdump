@@ -395,3 +395,51 @@ char *EventXString(int xevent) {
 
     // not reached
 }  // End of EventXString
+
+// definitions for OpenBSD pflog
+const char *pf_actions[] = {"pass",  "block",    "scrub", "noscrub", "nat",    "nonat", "binat", "nobinat", "rdr",
+                            "nordr", "synblock", "defer", "match",   "divert", "rt",    "afrt",  NULL};
+
+const char *pf_reasons[] = {"match",         "bad-offset", "fragment",  "short",       "normalize",      "memory)",
+                            "bad-timestamp", "congestion", "ip-option", "proto-cksum", "state-mismatch", "state-insert",
+                            "state-limit",   "src-limit",  "synproxy",  "translate",   "no-route",       NULL};
+
+const char *pfAction(int action) {
+    const char *a = "<undef>";
+    if (action >= 0 && action <= 15) a = pf_actions[action];
+    return a;
+}  // End of pfAction
+
+int pfActionNr(char *action) {
+    int i = 0;
+    while (pf_actions[i] && strcasecmp(pf_actions[i], action) != 0) i++;
+    return pf_actions[i] != NULL ? i : -1;
+}  // End of pfActionNr
+
+void pfListActions(void) {
+    int i = 0;
+    while (pf_actions[i]) {
+        printf("%s ", pf_actions[i++]);
+    }
+    printf("\n");
+}  // End of pfListActions
+
+const char *pfReason(int reason) {
+    const char *r = "<undef>";
+    if (reason >= 0 && reason <= 16) r = pf_reasons[reason];
+    return r;
+}  // End of pfReason
+
+int pfReasonNr(char *reason) {
+    int i = 0;
+    while (pf_reasons[i] && strcasecmp(pf_reasons[i], reason) != 0) i++;
+    return pf_reasons[i] != NULL ? i : -1;
+}  // End of pfReasonNr
+
+void pfListReasons(void) {
+    int i = 0;
+    while (pf_reasons[i]) {
+        printf("%s ", pf_reasons[i++]);
+    }
+    printf("\n");
+}  // End of pfListReasons

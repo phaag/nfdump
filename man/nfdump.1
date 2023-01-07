@@ -1262,6 +1262,29 @@ with no SSL/TLS traffic in order to generate a
 .Sy ja3
 statistic.
 .Pp
+.It OpenBSD pflog implemented elements
+.Pp
+.It Cm pf action Ar action
+True, if the respective pflog action field compares to one of
+.Ar pass, block, scrub, noscrub, nat, nonat, binat, nobinat, rdr,
+.Ar nordr, synblock, defer, match, divert, rt, afrt
+.It Cm pf reason Ar reason
+True, if the respective pflog reason field compares to one of
+.Ar match, bad-offset, fragment, short, normalize, memory,
+.Ar bad-timestamp, congestion, ip-option, proto-cksum, state-mismatch, state-insert,
+.Ar state-limit, src-limit, synproxy, translate, no-route
+.It Cm pf rule Ar ruleNr
+True, if the respective pflog rule number field matches
+.Ar ruleNr
+.It Cm pf dir Ar in|out
+True, if the respective pflog rule direction field matches
+.Ar in
+or
+.Ar out
+.It Cm pf interface Ar interfaceName
+True, if the respective pflog rule interface name field matches the string 
+.Ar interfaceName
+.Pp
 .It nprobe implemented elements
 .Pp
 .It Cm client latency Ar comp time

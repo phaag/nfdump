@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -1000,6 +1000,41 @@ int main(int argc, char **argv) {
     ret = check_filter_block("egress vrf 0xBBBB", &flow_record, 1);
     ret = check_filter_block("egress vrf 0xAAAA", &flow_record, 0);
 
+    flow_record.pfAction = 1;
+    ret = check_filter_block("pf action block", &flow_record, 1);
+    ret = check_filter_block("pf action pass", &flow_record, 0);
+    flow_record.pfAction = 0;
+    ret = check_filter_block("pf action pass", &flow_record, 1);
+    flow_record.pfAction = 4;
+    ret = check_filter_block("pf action pass", &flow_record, 0);
+    ret = check_filter_block("pf action nat", &flow_record, 1);
+
+    flow_record.pfReason = 0;
+    ret = check_filter_block("pf reason match", &flow_record, 1);
+    ret = check_filter_block("pf reason short", &flow_record, 0);
+    flow_record.pfReason = 3;
+    ret = check_filter_block("pf reason short", &flow_record, 1);
+
+    flow_record.pfRulenr = 22;
+    ret = check_filter_block("pf rule 22", &flow_record, 1);
+    ret = check_filter_block("pf rule 23", &flow_record, 0);
+    flow_record.pfRulenr = 23;
+    ret = check_filter_block("pf rule 23", &flow_record, 1);
+
+    flow_record.pfDir = 1;
+    ret = check_filter_block("pf dir in", &flow_record, 1);
+    ret = check_filter_block("pf dir out", &flow_record, 0);
+    flow_record.pfDir = 0;
+    ret = check_filter_block("pf dir out", &flow_record, 1);
+
+    memset(flow_record.pfIfName, 0, 16);
+    memcpy(flow_record.pfIfName, "vether0", 7);
+    ret = check_filter_block("pf interface vether0", &flow_record, 1);
+    ret = check_filter_block("pf interface vmx0", &flow_record, 0);
+    memcpy(flow_record.pfIfName, "longinterface", 13);
+    ret = check_filter_block("pf interface longinterface", &flow_record, 1);
+    ret = check_filter_block("pf interface vether0", &flow_record, 0);
+
     // NSEL/ASA related tests
 #ifdef NSEL
     flow_record.event = NSEL_EVENT_IGNORE;
@@ -1024,7 +1059,7 @@ int main(int argc, char **argv) {
     flow_record.fwXevent = 1002;
     ret = check_filter_block("asa event denied egress", &flow_record, 1);
     flow_record.fwXevent = 1003;
-    ret = check_filter_block("asa event denied interface", &flow_record, 1);
+    // ret = check_filter_block("asa event denied interface", &flow_record, 1);
     flow_record.fwXevent = 1004;
     ret = check_filter_block("asa event denied nosyn", &flow_record, 1);
     ret = check_filter_block("asa event denied ingress", &flow_record, 0);

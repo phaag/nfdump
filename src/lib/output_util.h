@@ -51,4 +51,16 @@ char *EventString(int event);
 
 char *EventXString(int xevent);
 
+const char *pfAction(int action);
+
+int pfActionNr(char *action);
+
+void pfListActions(void);
+
+const char *pfReason(int reason);
+
+int pfReasonNr(char *reason);
+
+void pfListReasons(void);
+
 #endif  // _OUTPUT_UTIL_H

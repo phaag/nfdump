@@ -1,3 +1,6 @@
+2023-01-07
+-	Implement OpenBSD pflog filters elements and -o fmt print tokens
+
 2023-01-03
 -	Implement source IP address spoofing for the packet repeater. See #248
     The source spoofing is enabled with new option -A.

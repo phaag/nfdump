@@ -146,6 +146,7 @@ char yyerror_buff[256];
 %token PBLOCK START END STEP SIZE
 %token PAYLOAD CONTENT REGEX JA3
 %token OBSERVATION DOMAIN POINT ID
+%token PF ACTION REASON RULE INTERFACE
 %token <s> STRING WORD REASON
 %token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
 %type <value> expr
@@ -678,6 +679,67 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		}
 		$$.self = NewBlock(OffsetEVRFID, MaskEVRFID, ( $4 << ShiftEVRFID) & MaskEVRFID, $3.comp, FUNC_NONE, NULL );
 	}
+
+| PF ACTION STRING {
+			int index = pfActionNr($3);
+			if ( index < 0 ) {
+				yyerror("Invalid pf action");
+				printf("Possible pf action values: ");
+				pfListActions();
+			} else {
+				$$.self = NewBlock(OffsetPfInfo, MaskPfAction, ( index << ShiftPfAction) & MaskPfAction, CMP_EQ, FUNC_NONE, NULL );
+			}
+}
+
+| PF ACTION NAT {
+			int index = pfActionNr("nat");
+			if ( index < 0 ) {
+				yyerror("Invalid pf action");
+				printf("Possible pf action values: ");
+				pfListActions();
+			} else {
+				$$.self = NewBlock(OffsetPfInfo, MaskPfAction, ( index << ShiftPfAction) & MaskPfAction, CMP_EQ, FUNC_NONE, NULL );
+			}
+}
+
+| PF REASON STRING {
+			int index = pfReasonNr($3);
+			if ( index < 0 ) {
+				yyerror("Invalid pf reason");
+				printf("Possible pf reason values: ");
+				pfListReasons();
+			} else {
+				$$.self = NewBlock(OffsetPfInfo, MaskPfReason, ( index << ShiftPfReason) & MaskPfReason, CMP_EQ, FUNC_NONE, NULL );
+			}
+}
+
+| PF INTERFACE STRING {
+	union {
+		char ifName[16];
+		uint64_t val[2];
+	} ifValue = {0};
+	size_t len = strlen($3);
+	if ( len > 15 ) {
+				yyerror("Invalid pf interface name length");
+	}
+	memcpy(ifValue.ifName, $3, len);
+	$$.self = Connect_AND(
+					NewBlock(OffsetPfIfname, MaskPfIfname, ifValue.val[0], CMP_EQ, FUNC_NONE, NULL ),
+					NewBlock(OffsetPfIfname+1, MaskPfIfname, ifValue.val[1], CMP_EQ, FUNC_NONE, NULL )
+				);
+}
+
+| PF RULE NUMBER {
+	$$.self = NewBlock(OffsetPfInfo, MaskPfRulenr, ( $3 << ShiftPfRulenr) & MaskPfRulenr, CMP_EQ, FUNC_NONE, NULL );
+}
+
+| PF DIR IN {
+	$$.self = NewBlock(OffsetPfInfo, MaskPfDir, ( 1 << ShiftPfDir) & MaskPfDir, CMP_EQ, FUNC_NONE, NULL );
+}
+
+| PF DIR OUT {
+	$$.self = NewBlock(OffsetPfInfo, MaskPfDir, ( 0 << ShiftPfDir) & MaskPfDir, CMP_EQ, FUNC_NONE, NULL );
+}
 
 	| dqual PORT IN PBLOCK {	
 #ifdef NSEL

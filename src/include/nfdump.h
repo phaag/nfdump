@@ -789,20 +789,25 @@ typedef struct master_record_s {
     char pfIfName[16];
 #define OffsetPfInfo (offsetof(master_record_t, pfAction) >> 3)
 #define OffsetPfIfname (offsetof(master_record_t, pfIfName) >> 3)
+#define MaskPfIfname 0xffffffffffffffff
 #ifdef WORDS_BIGENDIAN
 #define MaskPfAction 0xff00000000000000
 #define ShiftPfAction 56
 #define MaskPfReason 0x00ff000000000000
 #define ShiftPfReason 48
-#define MaskPfRulenr 0x000000000000ffff
-#define ShiftRulenr 0
+#define MaskPfDir 0x0000ff0000000000
+#define ShiftPfDir 40
+#define MaskPfRulenr 0x00000000ffffffff
+#define ShiftPfRulenr 0
 #else
 #define MaskPfAction 0x00000000000000ffLL
 #define ShiftPfAction 0
-#define MaskReason 0x000000000000ff00LL
-#define ShiftReason 8
-#define MaskRulenr 0xffff000000000000LL
-#define ShiftRulenr 48
+#define MaskPfReason 0x000000000000ff00LL
+#define ShiftPfReason 8
+#define MaskPfDir 0x0000000000ff0000LL
+#define ShiftPfDir 16
+#define MaskPfRulenr 0xffffffff00000000LL
+#define ShiftPfRulenr 32
 #endif
 
     // payload data

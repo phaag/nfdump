@@ -278,6 +278,16 @@ static void String_evrfName(FILE *stream, master_record_t *r);
 
 static void String_NewLine(FILE *stream, master_record_t *r);
 
+static void String_pfIfName(FILE *stream, master_record_t *r);
+
+static void String_pfAction(FILE *stream, master_record_t *r);
+
+static void String_pfReason(FILE *stream, master_record_t *r);
+
+static void String_pfdir(FILE *stream, master_record_t *r);
+
+static void String_pfrule(FILE *stream, master_record_t *r);
+
 #ifdef NSEL
 static void String_EventTime(FILE *stream, master_record_t *r);
 
@@ -423,6 +433,12 @@ static struct format_token_list_s {
                          {"%ivrfnam", 0, "  I-VRF-Name", String_ivrfName},             // ingress vrf name
                          {"%evrf", 0, "  E-VRF-ID", String_evrf},                      // egress vrf ID
                          {"%evrfnam", 0, "  E-VRF-Name", String_evrfName},             // egress vrf name
+
+                         {"%pfifn", 0, "interface", String_pfIfName},  // pflog ifname
+                         {"%pfact", 0, "action", String_pfAction},     // pflog action
+                         {"%pfrea", 0, "reason", String_pfReason},     // pflog reason
+                         {"%pfdir", 0, "dir", String_pfdir},           // pflog direction
+                         {"%pfrule", 0, "rule", String_pfrule},        // pflog rule
 
 #ifdef NSEL
                          // NSEL specifics
@@ -1632,6 +1648,31 @@ static void String_evrfName(FILE *stream, master_record_t *r) {
     char vrfName[128];
     fprintf(stream, "%s", GetVrfName(r->egressVrf, vrfName, sizeof(vrfName)));
 }  // End of String_evrfName
+
+static void String_pfIfName(FILE *stream, master_record_t *r) {
+    //
+    fprintf(stream, "%9s", r->pfIfName);
+}  // End of String_pfIfName
+
+static void String_pfAction(FILE *stream, master_record_t *r) {
+    //
+    fprintf(stream, "%6s", pfAction(r->pfAction));
+}  // End of String_pfAction
+
+static void String_pfReason(FILE *stream, master_record_t *r) {
+    //
+    fprintf(stream, "%6s", pfReason(r->pfReason));
+}  // End of String_pfReason
+
+static void String_pfdir(FILE *stream, master_record_t *r) {
+    //
+    fprintf(stream, "%3s", r->pfDir ? "in" : "out");
+}  // End of String_pfdir
+
+static void String_pfrule(FILE *stream, master_record_t *r) {
+    //
+    fprintf(stream, "%4u", r->pfRulenr);
+}  // End of String_pfrule
 
 #ifdef NSEL
 static void String_nfc(FILE *stream, master_record_t *r) { fprintf(stream, "%10u", r->connID); }  // End of String_nfc
