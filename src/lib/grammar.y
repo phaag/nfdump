@@ -146,7 +146,7 @@ char yyerror_buff[256];
 %token PBLOCK START END STEP SIZE
 %token PAYLOAD CONTENT REGEX JA3
 %token OBSERVATION DOMAIN POINT ID
-%token PF ACTION REASON RULE INTERFACE
+%token PF PFACTION PFREASON RULE INTERFACE
 %token <s> STRING WORD REASON
 %token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
 %type <value> expr
@@ -680,7 +680,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = NewBlock(OffsetEVRFID, MaskEVRFID, ( $4 << ShiftEVRFID) & MaskEVRFID, $3.comp, FUNC_NONE, NULL );
 	}
 
-| PF ACTION STRING {
+| PF PFACTION STRING {
 			int index = pfActionNr($3);
 			if ( index < 0 ) {
 				yyerror("Invalid pf action");
@@ -691,7 +691,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			}
 }
 
-| PF ACTION NAT {
+| PF PFACTION NAT {
 			int index = pfActionNr("nat");
 			if ( index < 0 ) {
 				yyerror("Invalid pf action");
@@ -702,7 +702,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			}
 }
 
-| PF REASON STRING {
+| PF PFREASON STRING {
 			int index = pfReasonNr($3);
 			if ( index < 0 ) {
 				yyerror("Invalid pf reason");

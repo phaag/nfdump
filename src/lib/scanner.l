@@ -183,8 +183,8 @@ domain { return DOMAIN; }
 point { return POINT; }
 id { return ID;}
 pf { return PF;}
-action { return ACTION;}
-reason { return REASON;}
+action { return PFACTION;}
+reason { return PFREASON;}
 rule { return RULE;}
 interface { return INTERFACE;}
 
