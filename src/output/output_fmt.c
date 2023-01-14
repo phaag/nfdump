@@ -541,7 +541,7 @@ static void InitFormatParser(void) {
     format_list = (char **)calloc(1, max_format_index * sizeof(char *));
     token_list = (struct token_list_s *)calloc(1, max_token_index * sizeof(struct token_list_s));
     if (!format_list || !token_list) {
-        fprintf(stderr, "Memory allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(255);
     }
 
@@ -552,7 +552,7 @@ static void AddToken(int index, char *s) {
         max_token_index += BLOCK_SIZE;
         token_list = (struct token_list_s *)realloc(token_list, max_token_index * sizeof(struct token_list_s));
         if (!token_list) {
-            fprintf(stderr, "Memory allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
     }
@@ -568,6 +568,9 @@ static void AddToken(int index, char *s) {
 
 }  // End of AddToken
 
+/*
+ * expand predefined print format into given format, such as -o fmt "%line %ipl"
+ */
 static char *RecursiveReplace(char *format, printmap_t *printmap) {
     int i = 0;
 
@@ -583,7 +586,7 @@ static char *RecursiveReplace(char *format, printmap_t *printmap) {
                     int newlen = strlen(format) + strlen(printmap[i].Format);
                     r = malloc(newlen);
                     if (!r) {
-                        LogError("malloc() allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+                        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
                         exit(255);
                     }
                     s[0] = '\0';
@@ -611,8 +614,8 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
 
     s = strdup(format);
     if (!s) {
-        fprintf(stderr, "Memory allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-        exit(255);
+        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return 0l
     }
     s = RecursiveReplace(s, printmap);
     c = s;
@@ -648,7 +651,7 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
                 i++;
             }
             if (format_token_list[i].token == NULL) {
-                fprintf(stderr, "Output format parse error at: %s\n", c);
+                LogError("Output format parse error at: %s", c);
                 free(s);
                 return 0;
             }
