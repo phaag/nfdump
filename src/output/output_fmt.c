@@ -615,7 +615,7 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
     s = strdup(format);
     if (!s) {
         LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return 0l
+        return 0;
     }
     s = RecursiveReplace(s, printmap);
     c = s;
