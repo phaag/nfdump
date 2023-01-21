@@ -378,7 +378,7 @@ int main(int argc, char **argv) {
 
     if (!Init_nffile(NULL)) exit(254);
 
-    nffile = OpenNewFile("test.flows.nf", NULL, NOT_COMPRESSED, 0);
+    nffile = OpenNewFile("test.flows.nf", NULL, CREATOR_UNKNOWN, NOT_COMPRESSED, 0);
     if (!nffile) {
         exit(255);
     }
