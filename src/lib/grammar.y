@@ -137,7 +137,7 @@ char yyerror_buff[256];
 }
 
 %token ANY IP TUNIP IF MAC MPLS TOS DIR FLAGS TUN PROTO MASK NET PORT FWDSTAT IN OUT SRC DST EQ LT GT LE GE PREV NEXT
-%token IDENT ENGINE_TYPE ENGINE_ID AS GEO PACKETS BYTES FLOWS LABEL NFVERSION COUNT
+%token IDENT ENGINE_TYPE ENGINE_ID EXPORTER AS GEO PACKETS BYTES FLOWS LABEL NFVERSION COUNT
 %token PPS BPS BPP DURATION NOT 
 %token IPV4 IPV6 BGPNEXTHOP ROUTER VLAN
 %token CLIENT SERVER APP LATENCY SYSID
@@ -829,7 +829,6 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 				yyerror("This token is not expected here!");
 				YYABORT;
 		} // End of switch
-
 	}
 
 	| ICMP_TYPE NUMBER {
@@ -845,7 +844,6 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			),
 			NewBlock(OffsetICMP, MaskICMPtype, ($2 << ShiftICMPtype) & MaskICMPtype, CMP_EQ, FUNC_NONE, NULL )
 		);
-
 	}
 
 	| ICMP_CODE NUMBER {
@@ -861,7 +859,6 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			),
 			NewBlock(OffsetICMP, MaskICMPcode, ($2 << ShiftICMPcode) & MaskICMPcode, CMP_EQ, FUNC_NONE, NULL )
 		);
-
 	}
 
 	| ENGINE_TYPE comp NUMBER {
@@ -870,7 +867,6 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 		$$.self = NewBlock(OffsetRouterID, MaskEngineType, ($3 << ShiftEngineType) & MaskEngineType, $2.comp, FUNC_NONE, NULL);
-
 	}
 
 	| ENGINE_ID comp NUMBER {
@@ -879,7 +875,14 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 		$$.self = NewBlock(OffsetRouterID, MaskEngineID, ($3 << ShiftEngineID) & MaskEngineID, $2.comp, FUNC_NONE, NULL);
-
+	}
+ 
+	| EXPORTER comp NUMBER {
+		if ( $3 > 65535 ) {
+			yyerror("Exporter ID of range 0..65535");
+			YYABORT;
+		}
+		$$.self = NewBlock(OffsetExporterSysID, MaskExporterSysID, ($3 << ShiftExporterSysID) & MaskExporterSysID, $2.comp, FUNC_NONE, NULL);
 	}
  
 

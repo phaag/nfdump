@@ -161,6 +161,7 @@ icmp-type		{ return ICMP_TYPE; }
 icmp-code		{ return ICMP_CODE; }
 engine-type		{ return ENGINE_TYPE; }
 engine-id		{ return ENGINE_ID; }
+exporter	{ return EXPORTER; }
 src				{ return SRC; }
 dst				{ return DST; }
 next			{ return NEXT; }

@@ -546,6 +546,11 @@ int main(int argc, char **argv) {
     ret = check_filter_block("engine-id 6", &flow_record, 1);
     ret = check_filter_block("engine-id 7", &flow_record, 0);
 
+    flow_record.exporter_sysid = 5;
+    ret = check_filter_block("exporter 5", &flow_record, 1);
+    ret = check_filter_block("exporter 6", &flow_record, 0);
+    ret = check_filter_block("exporter < 6", &flow_record, 1);
+
     flow_record.proto = IPPROTO_TCP;
     flow_record.tcp_flags = 1;
     ret = check_filter_block("flags F", &flow_record, 1);

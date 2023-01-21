@@ -859,12 +859,10 @@ int main(int argc, char **argv) {
 
     if (argc - optind > 0) {
         filter = strdup(argv[optind++]);
-        size_t filterSize = strlen(filter);
         while (argc - optind > 0) {
             char *arg = argv[optind++];
             CheckArgLen(arg, 128);
-            filterSize += strlen(arg);
-            filter = realloc(filter, filterSize + 1);
+            filter = realloc(filter, strlen(filter) + strlen(arg) + 2);
             if (!filter) {
                 LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 exit(EXIT_FAILURE);
