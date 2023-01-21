@@ -1,5 +1,19 @@
+2023-01-21
+-	Add creator tag in nffile header
+-	Fix filter concat bug. Add exporter filter
+
+2023-01-17
+-	Update output_fmt.c {{Peter Haag}}
+
+2023-01-14
+-	Fix #396. Code cleanup
+
+2023-01-08
+-	Fix CentOS compile issue
+
 2023-01-07
 -	Implement OpenBSD pflog filters elements and -o fmt print tokens
+-	Add pflog fmt tokens in man page {{Peter Haag}}
 
 2023-01-03
 -	Implement source IP address spoofing for the packet repeater. See #248

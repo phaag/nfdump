@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2004-2022, Peter Haag
+ *  Copyright (c) 2004-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -69,6 +69,8 @@
     (a)->size = 0;       \
     (a)->flags = 0;      \
     (a)->type = DATA_BLOCK_TYPE_3;
+
+static const char *nf_creator[MAX_CREATOR] = {"unknown", "nfcapd", "nfpcapd", "sfcapd", "nfdump", "nfanon", "nfprofile", "geolookup", "ft2nfdump"};
 
 /* function prototypes */
 static HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
@@ -693,7 +695,7 @@ nffile_t *OpenFile(char *filename, nffile_t *nffile) {
 
 }  // End of OpenFile
 
-nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int compress, int encryption) {
+nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compress, int encryption) {
     int fd;
 
     if (encryption != NOT_ENCRYPTED) {
@@ -722,6 +724,7 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int compress, int encryp
     nffile->file_header->created = time(NULL);
     nffile->file_header->compression = compress;
     nffile->file_header->encryption = encryption;
+    nffile->file_header->creator = creator;
 
     if (write(nffile->fd, (void *)nffile->file_header, sizeof(fileHeaderV2_t)) < sizeof(fileHeaderV2_t)) {
         LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -1309,7 +1312,7 @@ void ModifyCompressFile(int compress) {
         outfile[MAXPATHLEN - 1] = '\0';
 
         // allocate output file
-        nffile_w = OpenNewFile(outfile, NULL, compress, NOT_ENCRYPTED);
+        nffile_w = OpenNewFile(outfile, NULL, FILE_CREATOR(nffile_r), compress, NOT_ENCRYPTED);
         if (!nffile_w) {
             DisposeFile(nffile_r);
             break;
@@ -1422,10 +1425,16 @@ int QueryFile(char *filename) {
             return 0;
         }
 
+        if (fileHeader.creator >= MAX_CREATOR) {
+            LogError("Creator ID %u out of range - set creator to unknown.", fileHeader.creator);
+            fileHeader.creator = CREATOR_UNKNOWN;
+        }
+
         struct tm *tbuff = localtime(&fileHeader.created);
         char t1[64];
         strftime(t1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
         printf("Created    : %s\n", t1);
+        printf("Created by : %s\n", nf_creator[fileHeader.creator]);
         printf("nfdump     : %x\n", fileHeader.nfdversion);
         printf("encryption : %s\n", fileHeader.encryption ? "yes" : "no");
         printf("Appdx blks : %u\n", fileHeader.appendixBlocks);

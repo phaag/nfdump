@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -366,7 +366,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
 
     printRecord = flowParam->printRecord;
     // prepare file
-    fs->nffile = OpenNewFile(fs->current, NULL, compress, NOT_ENCRYPTED);
+    fs->nffile = OpenNewFile(fs->current, NULL, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
     if (!fs->nffile) {
         pthread_kill(flowParam->parent, SIGUSR1);
         pthread_exit((void *)flowParam);
@@ -381,7 +381,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
         if (Node->signal == SIGNAL_SYNC) {
             CloseFlowFile(flowParam, Node->timestamp);
-            fs->nffile = OpenNewFile(fs->current, fs->nffile, compress, NOT_ENCRYPTED);
+            fs->nffile = OpenNewFile(fs->current, fs->nffile, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
                 LogError("Fatal: OpenNewFile() failed for ident: %s", fs->Ident);
                 pthread_kill(flowParam->parent, SIGUSR1);

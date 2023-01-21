@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -306,7 +306,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
 
     // prepare output file if requested
     if (write_file) {
-        nffile_w = OpenNewFile(wfile, NULL, compress, NOT_ENCRYPTED);
+        nffile_w = OpenNewFile(wfile, NULL, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
         if (!nffile_w) {
             if (nffile_r) {
                 CloseFile(nffile_r);
@@ -1095,7 +1095,7 @@ int main(int argc, char **argv) {
 
     if (aggregate || print_order) {
         if (wfile) {
-            nffile_t *nffile = OpenNewFile(wfile, NULL, compress, NOT_ENCRYPTED);
+            nffile_t *nffile = OpenNewFile(wfile, NULL, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
             if (!nffile) exit(EXIT_FAILURE);
             if (ExportFlowTable(nffile, aggregate, bidir, GuessDir)) {
                 CloseUpdateFile(nffile);

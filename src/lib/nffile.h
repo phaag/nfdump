@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2004-2022, Peter Haag
+ *  Copyright (c) 2004-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -246,7 +246,7 @@ void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
 nffile_t *OpenFile(char *filename, nffile_t *nffile);
 
-nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int compress, int encryption);
+nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compress, int encryption);
 
 nffile_t *AppendFile(char *filename);
 

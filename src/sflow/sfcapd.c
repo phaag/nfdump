@@ -286,7 +286,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
     fs = FlowSource;
     while (fs) {
         // prepare file
-        fs->nffile = OpenNewFile(fs->current, NULL, compress, NOT_ENCRYPTED);
+        fs->nffile = OpenNewFile(fs->current, NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
         if (!fs->nffile) {
             return;
         }
@@ -432,7 +432,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 fs->msecLast = 0;
 
                 if (!done) {
-                    fs->nffile = OpenNewFile(fs->current, fs->nffile, compress, NOT_ENCRYPTED);
+                    fs->nffile = OpenNewFile(fs->current, fs->nffile, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
                     if (!fs->nffile) {
                         LogError("killed due to fatal error: ident: %s", fs->Ident);
                         break;
@@ -517,7 +517,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 // fatal error
                 return;
             }
-            fs->nffile = OpenNewFile(fs->current, NULL, compress, NOT_ENCRYPTED);
+            fs->nffile = OpenNewFile(fs->current, NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
                 LogError("Failed to open new collector file");
                 return;

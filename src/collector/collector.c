@@ -439,7 +439,6 @@ void FlushExporterStats(FlowSource_t *fs) {
 #endif
         // reset counters
         e->sequence_failure = 0;
-        e->padding_errors = 0;
         e->packets = 0;
         e->flows = 0;
 

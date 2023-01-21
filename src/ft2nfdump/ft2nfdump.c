@@ -1,6 +1,6 @@
 /*
  *  All rights reserved.
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  Copyright (c) 2001 Mark Fullmer and The Ohio State University
  *  All rights reserved.
@@ -169,7 +169,7 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
     nffile_t *nffile;
 
     char *ident = "flow-tools";
-    nffile = OpenNewFile(wfile, NULL, compress, NOT_ENCRYPTED);
+    nffile = OpenNewFile(wfile, NULL, CREATOR_FT2NFDUMP, compress, NOT_ENCRYPTED);
     if (!nffile) {
         LogError("OpenNewFile() failed.");
         return 1;

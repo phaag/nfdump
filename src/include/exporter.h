@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2022, Peter Haag
+ *  Copyright (c) 2012-2023, Peter Haag
  *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
@@ -172,7 +172,7 @@ typedef struct exporter_s {
     uint64_t packets;           // number of packets sent by this exporter
     uint64_t flows;             // number of flow records sent by this exporter
     uint32_t sequence_failure;  // number of sequence failues
-    uint32_t padding_errors;    // number of sequence failues
+                                // uint32_t padding_errors;    // number of sequence failues
 
     sampler_t *sampler;  // list of samplers associated with this exporter
 
