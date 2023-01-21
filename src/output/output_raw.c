@@ -62,20 +62,40 @@ static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
     char datestr1[64], datestr2[64], datestr3[64];
 
     struct tm *ts;
-    time_t when = r->msecFirst / 1000LL;
-    if (when == 0) {
-        strncpy(datestr1, "<unknown>", 63);
-    } else {
-        ts = localtime(&when);
-        strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
-    }
+    time_t when;
 
-    when = r->msecLast / 1000LL;
-    if (when == 0) {
-        strncpy(datestr2, "<unknown>", 63);
+    if (TestFlag(r->flags, V3_FLAG_EVENT)) {
+        uint64_t eventTime = r->msecEvent ? r->msecEvent : r->msecFirst;
+        when = eventTime / 1000LL;
+        if (when == 0) {
+            strncpy(datestr1, "<unknown>", 63);
+        } else {
+            ts = localtime(&when);
+            strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
+        }
+        fprintf(stream, "  Event time   =     %13llu [%s.%03llu]\n", (long long unsigned)eventTime, datestr1, eventTime % 1000LL);
+
     } else {
-        ts = localtime(&when);
-        strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
+        when = r->msecFirst / 1000LL;
+        if (when == 0) {
+            strncpy(datestr1, "<unknown>", 63);
+        } else {
+            ts = localtime(&when);
+            strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
+        }
+
+        when = r->msecLast / 1000LL;
+        if (when == 0) {
+            strncpy(datestr2, "<unknown>", 63);
+        } else {
+            ts = localtime(&when);
+            strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
+        }
+
+        fprintf(stream,
+                "  first        =     %13llu [%s.%03llu]\n"
+                "  last         =     %13llu [%s.%03llu]\n",
+                (long long unsigned)r->msecFirst, datestr1, r->msecFirst % 1000LL, (long long unsigned)r->msecLast, datestr2, r->msecLast % 1000LL);
     }
 
     if (r->msecReceived) {
@@ -88,12 +108,9 @@ static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
     }
 
     fprintf(stream,
-            "  first        =     %13llu [%s.%03llu]\n"
-            "  last         =     %13llu [%s.%03llu]\n"
             "  received at  =     %13llu [%s.%03llu]\n"
             "  proto        =               %3u %s\n"
             "  tcp flags    =              0x%.2x %s\n",
-            (long long unsigned)r->msecFirst, datestr1, r->msecFirst % 1000LL, (long long unsigned)r->msecLast, datestr2, r->msecLast % 1000LL,
             (long long unsigned)r->msecReceived, datestr3, (long long unsigned)r->msecReceived % 1000L, r->proto, ProtoString(r->proto, 0),
             r->proto == IPPROTO_TCP ? r->tcp_flags : 0, FlagsString(r->proto == IPPROTO_TCP ? r->tcp_flags : 0));
 
@@ -497,21 +514,7 @@ static void stringsEXnselUserID(FILE *stream, master_record_t *r) {
 }  // End of stringsEXnselUserID
 
 static void stringsEXnelCommon(FILE *stream, master_record_t *r) {
-    char datestr[64];
-
-    time_t when = r->msecEvent / 1000LL;
-    if (when == 0) {
-        strncpy(datestr, "<unknown>", 63);
-    } else {
-        struct tm *ts = localtime(&when);
-        strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", ts);
-    }
-
-    fprintf(stream,
-            "  nat event    =             %5u: %s\n"
-            "  Event time   =     %13llu [%s.%03llu]\n",
-            r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event), (long long unsigned)r->msecEvent, datestr,
-            (long long unsigned)(r->msecEvent % 1000L));
+    fprintf(stream, "  nat event    =             %5u: %s\n", r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event));
 
 }  // End of stringsEXnelCommon
 
