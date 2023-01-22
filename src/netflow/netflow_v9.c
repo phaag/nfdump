@@ -1239,11 +1239,19 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
         EXnselCommon_t *nselCommon = sequencer->offsetCache[EXnselCommonID];
         if (nselCommon) {
             nselCommon->msecEvent = stack[STACK_MSEC];
+            if (genericFlow) {
+                genericFlow->msecFirst = stack[STACK_MSEC];
+                genericFlow->msecLast = stack[STACK_MSEC];
+            }
             SetFlag(recordHeaderV3->flags, V3_FLAG_EVENT);
         }
         EXnelCommon_t *nelCommon = sequencer->offsetCache[EXnelCommonID];
         if (nelCommon) {
             nelCommon->msecEvent = stack[STACK_MSEC];
+            if (genericFlow) {
+                genericFlow->msecFirst = stack[STACK_MSEC];
+                genericFlow->msecLast = stack[STACK_MSEC];
+            }
             SetFlag(recordHeaderV3->flags, V3_FLAG_EVENT);
         }
 
