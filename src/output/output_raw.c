@@ -65,7 +65,10 @@ static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
     time_t when;
 
     if (TestFlag(r->flags, V3_FLAG_EVENT)) {
-        uint64_t eventTime = r->msecEvent ? r->msecEvent : r->msecFirst;
+        uint64_t eventTime = r->msecFirst;
+#ifdef NSEL
+        if (r->msecEvent) eventTime = r->msecEvent;
+#endif
         when = eventTime / 1000LL;
         if (when == 0) {
             strncpy(datestr1, "<unknown>", 63);
