@@ -40,10 +40,10 @@ char *versionString(void) {
 
     char *nsel = "";
 #ifdef NSEL
-    nsel = "-NSEL-NEL";
+    nsel = " NSEL-NEL";
 #endif
 
-    snprintf(version_string, 128, "Version: %s%s %s Date: %s", VERSION, nsel, VCS_TRACK_HASH, VCS_TRACK_DATE);
+    snprintf(version_string, 128, "Version: %s-%s%s, Date: %s", VERSION, VCS_TRACK_HASH, nsel, VCS_TRACK_DATE);
     version_string[127] = '\0';
 
     return version_string;
