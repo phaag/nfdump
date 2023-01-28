@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2013-2022, Peter Haag
+ *  Copyright (c) 2013-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -78,6 +78,7 @@
 #include "pidfile.h"
 #include "repeater.h"
 #include "util.h"
+#include "version.h"
 
 #define TIME_WINDOW 300
 #define PROMISC 1
@@ -91,8 +92,6 @@ static int done = 0;
  * global static var: used by interrupt routine
  */
 #define PCAP_DUMPFILE "pcap.current"
-
-static const char *nfdump_version = VERSION;
 
 static int launcher_pid;
 static pthread_mutex_t m_done = PTHREAD_MUTEX_INITIALIZER;
@@ -524,7 +523,7 @@ int main(int argc, char *argv[]) {
                 if (verbose < 4) verbose++;
                 break;
             case 'V':
-                printf("%s: Version: %s", argv[0], nfdump_version);
+                printf("%s: %s\n", argv[0], versionString());
                 exit(EXIT_SUCCESS);
                 break;
             default:

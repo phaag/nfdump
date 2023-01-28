@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -52,13 +52,12 @@
 #include "nfxV3.h"
 #include "profile.h"
 #include "util.h"
+#include "version.h"
 
 /* Global */
 char Ident[IDENTLEN];
 
 /* Local Variables */
-static const char *nfdump_version = VERSION;
-
 #ifdef HAVE_INFLUXDB
 char influxdb_url[1024] = "";
 #endif
@@ -479,7 +478,7 @@ int main(int argc, char **argv) {
                 subdir_index = atoi(optarg);
                 break;
             case 'V':
-                printf("%s: Version: %s\n", argv[0], nfdump_version);
+                printf("%s: %s\n", argv[0], versionString());
                 exit(0);
                 break;
             case 'f':

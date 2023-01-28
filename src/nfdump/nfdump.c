@@ -71,12 +71,12 @@
 #include "nfxV3.h"
 #include "output.h"
 #include "util.h"
+#include "version.h"
 
 extern char *FilterFilename;
 
 /* Local Variables */
 static FilterEngine_t *Engine;
-const char *nfdump_version = VERSION;
 
 static uint64_t total_bytes = 0;
 static uint32_t processed = 0;
@@ -732,13 +732,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'V': {
-                char *e1, *e2;
-                e1 = "";
-                e2 = "";
-#ifdef NSEL
-                e1 = "NSEL-NEL";
-#endif
-                printf("%s: Version: %s%s%s\n", argv[0], e1, e2, nfdump_version);
+                printf("%s: %s\n", argv[0], versionString());
                 exit(EXIT_SUCCESS);
             } break;
             case 'l':

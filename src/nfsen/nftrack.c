@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -55,6 +55,7 @@
 #include "nftree.h"
 #include "nfxV3.h"
 #include "util.h"
+#include "version.h"
 
 // We have 288 slot ( 1 day ) for stat record
 #define AVG_STAT 1
@@ -63,9 +64,6 @@
 FilterEngine_t *Engine;
 int byte_mode, packet_mode;
 uint32_t byte_limit, packet_limit;  // needed for linking purpose only
-
-/* Local Variables */
-static const char *nfdump_version = VERSION;
 
 /* Function Prototypes */
 static void usage(char *name);
@@ -352,7 +350,7 @@ int main(int argc, char **argv) {
                 AvStat = 1;
                 break;
             case 'V':
-                printf("%s: Version: %s\n", argv[0], nfdump_version);
+                printf("%s: %s\n", argv[0], versionString());
                 exit(0);
                 break;
             default:

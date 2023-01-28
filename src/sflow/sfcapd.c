@@ -72,6 +72,7 @@
 #include "privsep.h"
 #include "repeater.h"
 #include "util.h"
+#include "version.h"
 
 #ifdef HAVE_FTS_H
 #include <fts.h>
@@ -100,8 +101,6 @@ static FlowSource_t *FlowSource;
 static int done = 0;
 static int gotSIGCHLD = 0;
 static int periodic_trigger;
-
-static const char *nfdump_version = VERSION;
 
 /* Local function Prototypes */
 static void usage(char *name);
@@ -638,7 +637,7 @@ int main(int argc, char **argv) {
                 if (verbose < 4) verbose++;
                 break;
             case 'V':
-                printf("%s: Version: %s\n", argv[0], nfdump_version);
+                printf("%s: %s\n", argv[0], versionString());
                 exit(EXIT_SUCCESS);
                 break;
             case 'D':

@@ -61,11 +61,10 @@
 #include "nfxV3.h"
 #include "output_short.h"
 #include "util.h"
+#include "version.h"
 
 /* Global defines */
 #define MAXRECORDS 30
-
-const char *nfdump_version = VERSION;
 
 static bool HasFlows = false;
 
@@ -312,7 +311,7 @@ int main(int argc, char **argv) {
                 exit(0);
                 break;
             case 'V':
-                printf("%s: Version: %s\n", argv[0], nfdump_version);
+                printf("%s: %s\n", argv[0], versionString());
                 exit(0);
                 break;
             case 'E':
