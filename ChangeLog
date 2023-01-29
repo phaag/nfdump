@@ -1,3 +1,6 @@
+2023-01-29
+-	Move fwd_status in correct block in output_raw
+
 2023-01-28
 -	Add unique version string
 

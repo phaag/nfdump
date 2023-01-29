@@ -128,8 +128,9 @@ static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
         fprintf(stream,
                 "  src port     =             %5u\n"
                 "  dst port     =             %5u\n"
-                "  src tos      =               %3u\n",
-                r->srcPort, r->dstPort, r->tos);
+                "  src tos      =               %3u\n"
+                "  fwd status   =               %3u\n",
+                r->srcPort, r->dstPort, r->tos, r->fwd_status);
     }
 
     fprintf(stream,
@@ -253,13 +254,12 @@ static void stringsEXflowMisc(FILE *stream, master_record_t *r) {
             "  output       =          %8u%s\n"
             "  src mask     =             %5u %s/%u\n"
             "  dst mask     =             %5u %s/%u\n"
-            "  fwd status   =               %3u\n"
             "  dst tos      =               %3u\n"
             "  direction    =               %3u\n"
             "  biFlow Dir   =              0x%.2x %s\n"
             "  end reason   =              0x%.2x %s\n",
-            r->input, ifInName, r->output, ifOutName, r->src_mask, snet, r->src_mask, r->dst_mask, dnet, r->dst_mask, r->fwd_status, r->tos, r->dir,
-            r->biFlowDir, biFlowString(r->biFlowDir), r->flowEndReason, FlowEndString(r->flowEndReason));
+            r->input, ifInName, r->output, ifOutName, r->src_mask, snet, r->src_mask, r->dst_mask, dnet, r->dst_mask, r->tos, r->dir, r->biFlowDir,
+            biFlowString(r->biFlowDir), r->flowEndReason, FlowEndString(r->flowEndReason));
 
 }  // End of stringsEXflowMisc
 
