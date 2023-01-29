@@ -2,15 +2,19 @@
 
 echo Creating vcs_track.h
 f="vcs_track.h"
-date=$(git show -s --format=%ci)
+date=$(date +'%c')
 
 if [ -d ../../.git ]; then
+  # git clone - should have git command too
   if [ -x "$(command -v git)" ]; then
     hash=$(git rev-parse --short HEAD)
+    date=$(git show -s --format=%ci)
   else
-    hash="unkn"
+    # has git directory but no git command ..
+    hash="git"
   fi
 else
+  # no git directory - most likely release
   hash="release"
 fi
 
