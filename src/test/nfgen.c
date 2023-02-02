@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -337,8 +337,8 @@ static void PackRecordV3(master_record_t *master_record, nffile_t *nffile) {
             } break;
 #endif
             case EXnbarAppID: {
-                PushVarLengthExtension(v3Record, EXnbarApp, nbarApp, 4);
-                memcpy(nbarApp->id, master_record->nbarAppID, 4);
+                PushVarLengthPointer(v3Record, EXnbarApp, nbarApp, 4);
+                memcpy(nbarApp, master_record->nbarAppID, 4);
             } break;
             default:
                 fprintf(stderr, "PackRecordV3(): Unknown extension '%u'\n", master_record->exElementList[i]);
@@ -378,7 +378,7 @@ int main(int argc, char **argv) {
 
     if (!Init_nffile(NULL)) exit(254);
 
-    nffile = OpenNewFile("test.flows.nf", NULL, NOT_COMPRESSED, 0);
+    nffile = OpenNewFile("test.flows.nf", NULL, CREATOR_UNKNOWN, NOT_COMPRESSED, 0);
     if (!nffile) {
         exit(255);
     }

@@ -115,7 +115,7 @@ int OpenMetric(char *path, int interval) {
     socket_path = path;
     int fd = OpenSocket();
     if (fd == 0) {
-        LogInfo("metric socket unreachable");
+        LogError("metric socket unreachable");
     } else {
         close(fd);
     }
@@ -296,7 +296,7 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
                 offset += sizeof(metric_record_t);
 
                 metric_chain = metric_chain->next;
-                LogInfo("Message sent for '%s', exporter: %d\n", metric_record->ident, exporterID);
+                LogVerbose("Message sent for '%s', exporter: %d\n", metric_record->ident, exporterID);
             }
             ssize_t ret = write(fd, message, offset);
             if (ret < 0) {

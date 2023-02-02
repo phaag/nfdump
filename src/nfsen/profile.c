@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -286,7 +286,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
 
         ofile = strdup(path);
 
-        nffile = OpenNewFile(path, NULL, compress, NOT_ENCRYPTED);
+        nffile = OpenNewFile(path, NULL, CREATOR_NFPROFILE, compress, NOT_ENCRYPTED);
         if (!nffile) {
             return;
         }

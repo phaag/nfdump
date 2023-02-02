@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2022, Peter Haag
+ *  Copyright (c) 2022, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,39 +28,54 @@
  *
  */
 
-#ifndef _OUTPUT_UTIL_H
-#define _OUTPUT_UTIL_H 1
+#ifndef _PRIVSEP_H
+#define _PRIVSEP_H 1
 
+#include <pthread.h>
 #include <stdint.h>
+#include <unistd.h>
 
-char *ProtoString(uint8_t protoNum, uint32_t plainNumbers);
+typedef struct message_s {
+    uint16_t type;
+    uint16_t length;
+} message_t;
 
-int ProtoNum(char *protoString);
+typedef struct messageList {
+    struct messageList *next;
+    message_t *message;
+} messageList_t;
 
-char *FlagsString(uint16_t flags);
+typedef struct messageQueue_s {
+    messageList_t *head;
+    messageList_t *tail;
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+    uint32_t length;
+} messageQueue_t;
 
-char *biFlowString(uint8_t biFlow);
+#define PRIVMSG_NULL 0
+#define PRIVMSG_LAUNCH 1
+#define PRIVMSG_REPEAT 2
+#define PRIVMSG_EXIT 0xFFFF
+#define PRIVMSG_FLUSH 0xFFFE
 
-char *FlowEndString(uint8_t biFlow);
+typedef void (*messageFunc_t)(message_t *, void *);
 
-void CondenseV6(char *s);
+typedef struct thread_arg_s {
+    messageFunc_t messageFunc;
+    void *extraArg;
+} thread_arg_t;
 
-char *FwEventString(int event);
+void *pipeReader(void *arg);
 
-char *EventString(int event);
+messageQueue_t *NewMessageQueue(void);
 
-char *EventXString(int xevent);
+void pushMessage(messageQueue_t *messageQueue, message_t *message);
 
-const char *pfAction(int action);
+void pushMessageFunc(message_t *message, void *extraArg);
 
-int pfActionNr(char *action);
+message_t *getMessage(messageQueue_t *messageQueue);
 
-void pfListActions(void);
+int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname);
 
-const char *pfReason(int reason);
-
-int pfReasonNr(char *reason);
-
-void pfListReasons(void);
-
-#endif  // _OUTPUT_UTIL_H
+#endif

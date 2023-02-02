@@ -525,11 +525,11 @@ typedef struct EXnelXlatePort_s {
 
 typedef struct EXnbarApp_s {
 #define EXnbarAppID 27
-    uint8_t id[1];
+    uint8_t id[4];
 #define OFFnbarAppID offsetof(EXnbarApp_t, id)
 #define SIZEnbarAppID VARLENGTH
 } EXnbarApp_t;
-#define EXnbarAppSize (sizeof(EXnbarApp_t) - 1 + sizeof(elementHeader_t))
+#define EXnbarAppSize (sizeof(EXnbarApp_t) - 4 + sizeof(elementHeader_t))
 
 #define EXlabelID_t elementHeader_t
 #define EXlabelID 28
@@ -582,20 +582,20 @@ typedef struct EXobservation_s {
 typedef struct EXifname_s {
 #define EXifnameID 34
     uint32_t ingress;
-    uint8_t name[1];
+    uint8_t name[4];
 #define OFFifnameID offsetof(EXifname_t, id)
 #define SIZEifnameID VARLENGTH
 } EXifname_t;
-#define EXifnameSize (sizeof(EXifname_t) - 1 + sizeof(elementHeader_t))
+#define EXifnameSize (sizeof(EXifname_t) - 4 + sizeof(elementHeader_t))
 
 typedef struct EXvrfname_s {
 #define EXvrfnameID 35
     uint32_t ingress;
-    uint8_t name[1];
+    uint8_t name[4];
 #define OFFvrfnameID offsetof(EXvrfname_t, id)
 #define SIZEvrfnameID VARLENGTH
 } EXvrfname_t;
-#define EXvrfnameSize (sizeof(EXvrfname_t) - 1 + sizeof(elementHeader_t))
+#define EXvrfnameSize (sizeof(EXvrfname_t) - 4 + sizeof(elementHeader_t))
 
 typedef struct EXvrf_s {
 #define EXvrfID 36
@@ -608,9 +608,27 @@ typedef struct EXvrf_s {
 } EXvrf_t;
 #define EXvrfSize (sizeof(EXvrf_t) + sizeof(elementHeader_t))
 
-// max possible elements
-#define MAXEXTENSIONS 37
+typedef struct EXpfinfo_s {
+#define EXpfinfoID 37
+    uint8_t action;
+    uint8_t reason;
+    uint8_t dir;
+    uint8_t rewritten;
+    uint32_t rulenr;
+    uint32_t subrulenr;
+    uint32_t uid;
+    uint32_t pid;
+    char ifname[4];
+} EXpfinfo_t;
+#define EXpfinfoSize (sizeof(EXpfinfo_t) - 4 + sizeof(elementHeader_t))
 
+// max possible elements
+#define MAXEXTENSIONS 38
+
+// push a fixed length extension to the v3 record
+// h v3 record header
+// x Extension
+// v variable of type Extension
 #define PushExtension(h, x, v)                                                     \
     {                                                                              \
         elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
@@ -623,23 +641,32 @@ typedef struct EXvrf_s {
     h->numElements++;                                                              \
     h->size += sizeof(x##_t);
 
+// push a var length extension to the v3 record
+// h v3 record header
+// x Extension
+// v variable of type Extension
+// s additional var length size
 #define PushVarLengthExtension(h, x, v, s)                                         \
     {                                                                              \
         elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
         elementHeader->type = x##ID;                                               \
-        elementHeader->length = x##Size;                                           \
-        h->size += sizeof(elementHeader_t);                                        \
+        elementHeader->length = x##Size + s;                                       \
     }                                                                              \
-    x##_t *v = (x##_t *)((void *)h + h->size);                                     \
-    memset(v, 0, s);                                                               \
+    x##_t *v = (x##_t *)((void *)h + h->size + sizeof(elementHeader_t));           \
+    memset(v, 0, x##Size + s - sizeof(elementHeader_t));                           \
     h->numElements++;                                                              \
-    h->size += s;
+    h->size += x##Size + s;
 
+// push a var extension to the v3 record
+// h v3 record header
+// x Extension - just an element header
+// v pointer to the memory os size s
+// s var length size
 #define PushVarLengthPointer(h, x, v, s)                                           \
     {                                                                              \
         elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
         elementHeader->type = x##ID;                                               \
-        elementHeader->length = x##Size + s;                                       \
+        elementHeader->length = sizeof(elementHeader_t) + s;                       \
         h->size += sizeof(elementHeader_t);                                        \
     }                                                                              \
     void *v = ((void *)h + h->size);                                               \
@@ -654,43 +681,15 @@ static const struct extensionTable_s {
     uint32_t id;    // id number
     uint32_t size;  // number of bytes incl. header, 0xFFFF for dyn length
     char *name;     // name of extension
-} extensionTable[] = {{0, 0, "ExNull"},
-                      EXTENSION(EXgenericFlow),
-                      EXTENSION(EXipv4Flow),
-                      EXTENSION(EXipv6Flow),
-                      EXTENSION(EXflowMisc),
-                      EXTENSION(EXcntFlow),
-                      EXTENSION(EXvLan),
-                      EXTENSION(EXasRouting),
-                      EXTENSION(EXbgpNextHopV4),
-                      EXTENSION(EXbgpNextHopV6),
-                      EXTENSION(EXipNextHopV4),
-                      EXTENSION(EXipNextHopV6),
-                      EXTENSION(EXipReceivedV4),
-                      EXTENSION(EXipReceivedV6),
-                      EXTENSION(EXmplsLabel),
-                      EXTENSION(EXmacAddr),
-                      EXTENSION(EXasAdjacent),
-                      EXTENSION(EXlatency),
-                      EXTENSION(EXsamplerInfo),
-                      EXTENSION(EXnselCommon),
-                      EXTENSION(EXnselXlateIPv4),
-                      EXTENSION(EXnselXlateIPv6),
-                      EXTENSION(EXnselXlatePort),
-                      EXTENSION(EXnselAcl),
-                      EXTENSION(EXnselUser),
-                      EXTENSION(EXnelCommon),
-                      EXTENSION(EXnelXlatePort),
-                      EXTENSION(EXnbarApp),
-                      EXTENSION(EXlabel),
-                      EXTENSION(EXinPayload),
-                      EXTENSION(EXoutPayload),
-                      EXTENSION(EXtunIPv4),
-                      EXTENSION(EXtunIPv6),
-                      EXTENSION(EXobservation),
-                      EXTENSION(EXifname),
-                      EXTENSION(EXvrfname),
-                      EXTENSION(EXvrf)};
+} extensionTable[] = {
+    {0, 0, "ExNull"},           EXTENSION(EXgenericFlow),   EXTENSION(EXipv4Flow),      EXTENSION(EXipv6Flow),     EXTENSION(EXflowMisc),
+    EXTENSION(EXcntFlow),       EXTENSION(EXvLan),          EXTENSION(EXasRouting),     EXTENSION(EXbgpNextHopV4), EXTENSION(EXbgpNextHopV6),
+    EXTENSION(EXipNextHopV4),   EXTENSION(EXipNextHopV6),   EXTENSION(EXipReceivedV4),  EXTENSION(EXipReceivedV6), EXTENSION(EXmplsLabel),
+    EXTENSION(EXmacAddr),       EXTENSION(EXasAdjacent),    EXTENSION(EXlatency),       EXTENSION(EXsamplerInfo),  EXTENSION(EXnselCommon),
+    EXTENSION(EXnselXlateIPv4), EXTENSION(EXnselXlateIPv6), EXTENSION(EXnselXlatePort), EXTENSION(EXnselAcl),      EXTENSION(EXnselUser),
+    EXTENSION(EXnelCommon),     EXTENSION(EXnelXlatePort),  EXTENSION(EXnbarApp),       EXTENSION(EXlabel),        EXTENSION(EXinPayload),
+    EXTENSION(EXoutPayload),    EXTENSION(EXtunIPv4),       EXTENSION(EXtunIPv6),       EXTENSION(EXobservation),  EXTENSION(EXifname),
+    EXTENSION(EXvrfname),       EXTENSION(EXvrf),           EXTENSION(EXpfinfo)};
 
 typedef struct record_map_s {
     recordHeaderV3_t *recordHeader;

@@ -137,7 +137,7 @@ char yyerror_buff[256];
 }
 
 %token ANY IP TUNIP IF MAC MPLS TOS DIR FLAGS TUN PROTO MASK NET PORT FWDSTAT IN OUT SRC DST EQ LT GT LE GE PREV NEXT
-%token IDENT ENGINE_TYPE ENGINE_ID AS GEO PACKETS BYTES FLOWS LABEL NFVERSION COUNT
+%token IDENT ENGINE_TYPE ENGINE_ID EXPORTER AS GEO PACKETS BYTES FLOWS LABEL NFVERSION COUNT
 %token PPS BPS BPP DURATION NOT 
 %token IPV4 IPV6 BGPNEXTHOP ROUTER VLAN
 %token CLIENT SERVER APP LATENCY SYSID
@@ -146,6 +146,7 @@ char yyerror_buff[256];
 %token PBLOCK START END STEP SIZE
 %token PAYLOAD CONTENT REGEX JA3
 %token OBSERVATION DOMAIN POINT ID
+%token PF PFACTION PFREASON RULE INTERFACE
 %token <s> STRING WORD REASON
 %token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
 %type <value> expr
@@ -679,6 +680,67 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = NewBlock(OffsetEVRFID, MaskEVRFID, ( $4 << ShiftEVRFID) & MaskEVRFID, $3.comp, FUNC_NONE, NULL );
 	}
 
+| PF PFACTION STRING {
+			int index = pfActionNr($3);
+			if ( index < 0 ) {
+				yyerror("Invalid pf action");
+				printf("Possible pf action values: ");
+				pfListActions();
+			} else {
+				$$.self = NewBlock(OffsetPfInfo, MaskPfAction, ( index << ShiftPfAction) & MaskPfAction, CMP_EQ, FUNC_NONE, NULL );
+			}
+}
+
+| PF PFACTION NAT {
+			int index = pfActionNr("nat");
+			if ( index < 0 ) {
+				yyerror("Invalid pf action");
+				printf("Possible pf action values: ");
+				pfListActions();
+			} else {
+				$$.self = NewBlock(OffsetPfInfo, MaskPfAction, ( index << ShiftPfAction) & MaskPfAction, CMP_EQ, FUNC_NONE, NULL );
+			}
+}
+
+| PF PFREASON STRING {
+			int index = pfReasonNr($3);
+			if ( index < 0 ) {
+				yyerror("Invalid pf reason");
+				printf("Possible pf reason values: ");
+				pfListReasons();
+			} else {
+				$$.self = NewBlock(OffsetPfInfo, MaskPfReason, ( index << ShiftPfReason) & MaskPfReason, CMP_EQ, FUNC_NONE, NULL );
+			}
+}
+
+| PF INTERFACE STRING {
+	union {
+		char ifName[16];
+		uint64_t val[2];
+	} ifValue = {0};
+	size_t len = strlen($3);
+	if ( len > 15 ) {
+				yyerror("Invalid pf interface name length");
+	}
+	memcpy(ifValue.ifName, $3, len);
+	$$.self = Connect_AND(
+					NewBlock(OffsetPfIfname, MaskPfIfname, ifValue.val[0], CMP_EQ, FUNC_NONE, NULL ),
+					NewBlock(OffsetPfIfname+1, MaskPfIfname, ifValue.val[1], CMP_EQ, FUNC_NONE, NULL )
+				);
+}
+
+| PF RULE NUMBER {
+	$$.self = NewBlock(OffsetPfInfo, MaskPfRulenr, ( $3 << ShiftPfRulenr) & MaskPfRulenr, CMP_EQ, FUNC_NONE, NULL );
+}
+
+| PF DIR IN {
+	$$.self = NewBlock(OffsetPfInfo, MaskPfDir, ( 1 << ShiftPfDir) & MaskPfDir, CMP_EQ, FUNC_NONE, NULL );
+}
+
+| PF DIR OUT {
+	$$.self = NewBlock(OffsetPfInfo, MaskPfDir, ( 0 << ShiftPfDir) & MaskPfDir, CMP_EQ, FUNC_NONE, NULL );
+}
+
 	| dqual PORT IN PBLOCK {	
 #ifdef NSEL
 		switch ( $1.direction ) {
@@ -767,7 +829,6 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 				yyerror("This token is not expected here!");
 				YYABORT;
 		} // End of switch
-
 	}
 
 	| ICMP_TYPE NUMBER {
@@ -783,7 +844,6 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			),
 			NewBlock(OffsetICMP, MaskICMPtype, ($2 << ShiftICMPtype) & MaskICMPtype, CMP_EQ, FUNC_NONE, NULL )
 		);
-
 	}
 
 	| ICMP_CODE NUMBER {
@@ -799,7 +859,6 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			),
 			NewBlock(OffsetICMP, MaskICMPcode, ($2 << ShiftICMPcode) & MaskICMPcode, CMP_EQ, FUNC_NONE, NULL )
 		);
-
 	}
 
 	| ENGINE_TYPE comp NUMBER {
@@ -808,7 +867,6 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 		$$.self = NewBlock(OffsetRouterID, MaskEngineType, ($3 << ShiftEngineType) & MaskEngineType, $2.comp, FUNC_NONE, NULL);
-
 	}
 
 	| ENGINE_ID comp NUMBER {
@@ -817,7 +875,14 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 		$$.self = NewBlock(OffsetRouterID, MaskEngineID, ($3 << ShiftEngineID) & MaskEngineID, $2.comp, FUNC_NONE, NULL);
-
+	}
+ 
+	| EXPORTER comp NUMBER {
+		if ( $3 > 65535 ) {
+			yyerror("Exporter ID of range 0..65535");
+			YYABORT;
+		}
+		$$.self = NewBlock(OffsetExporterSysID, MaskExporterSysID, ($3 << ShiftExporterSysID) & MaskExporterSysID, $2.comp, FUNC_NONE, NULL);
 	}
  
 

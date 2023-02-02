@@ -53,17 +53,6 @@
 
 #define MAXBLOCKS 1024
 
-/****
-typedef struct FilterList_s {
-    FilterBlock_t *FilterTree;
-    uint32_t memblocks;
-    uint32_t numBlocks;
-} FilterList_t;
-
-static FilterList_t FilterList[8];
-static currentFilter = 0;
-****/
-
 static FilterBlock_t *FilterTree;
 static uint32_t memblocks;
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2022, Peter Haag
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,39 +28,29 @@
  *
  */
 
-#ifndef _OUTPUT_UTIL_H
-#define _OUTPUT_UTIL_H 1
+#ifndef _REPEATER_H
+#define _REPEATER_H 1
 
-#include <stdint.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <sys/socket.h>
 
-char *ProtoString(uint8_t protoNum, uint32_t plainNumbers);
+#define MAX_REPEATERS 8
 
-int ProtoNum(char *protoString);
+typedef struct repeater_s {
+    char *hostname;
+    char *port;
+    struct sockaddr_storage addr;
+    int addrlen;
+    int sockfd;
+} repeater_t;
 
-char *FlagsString(uint16_t flags);
+typedef struct repeater_message_s {
+    int packet_size;
+    socklen_t storage_size;
+    struct sockaddr_storage addr;
+} repeater_message_t;
 
-char *biFlowString(uint8_t biFlow);
+int StartupRepeater(repeater_t *repeater, int bufflen, int srcSpoofing, char *userid, char *groupid);
 
-char *FlowEndString(uint8_t biFlow);
-
-void CondenseV6(char *s);
-
-char *FwEventString(int event);
-
-char *EventString(int event);
-
-char *EventXString(int xevent);
-
-const char *pfAction(int action);
-
-int pfActionNr(char *action);
-
-void pfListActions(void);
-
-const char *pfReason(int reason);
-
-int pfReasonNr(char *reason);
-
-void pfListReasons(void);
-
-#endif  // _OUTPUT_UTIL_H
+#endif

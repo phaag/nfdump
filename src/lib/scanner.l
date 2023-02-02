@@ -161,6 +161,7 @@ icmp-type		{ return ICMP_TYPE; }
 icmp-code		{ return ICMP_CODE; }
 engine-type		{ return ENGINE_TYPE; }
 engine-id		{ return ENGINE_ID; }
+exporter	{ return EXPORTER; }
 src				{ return SRC; }
 dst				{ return DST; }
 next			{ return NEXT; }
@@ -182,6 +183,11 @@ observation { return OBSERVATION; }
 domain { return DOMAIN; }
 point { return POINT; }
 id { return ID;}
+pf { return PF;}
+action { return PFACTION;}
+reason { return PFREASON;}
+rule { return RULE;}
+interface { return INTERFACE;}
 
 asa				{ return ASA; 		/* NSEL filter */ }
 event			{ return EVENT; 	/* NEL/NSEL filter */ }

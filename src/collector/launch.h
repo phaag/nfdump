@@ -38,15 +38,8 @@
 #include "collector.h"
 #include "config.h"
 
-#define MAXTIMESTRING 64
+int StartupLauncher(char *launch_process, int expire);
 
-typedef struct srecord_s {
-    char fname[MAXPATHLEN];       // %f file name
-    char tstring[MAXTIMESTRING];  // %t 14 needed for YYYYmmddHHMMSS + opt. timezone
-    time_t tstamp;                // UNIX time stamp
-    int failed;                   // in case of an error
-} srecord_t;
-
-void launcher(void *commbuff, FlowSource_t *FlowSource, char *process, int expire);
+int SendLauncherMessage(int pfd, time_t t_start, char *subdir, char *fmt, char *datadir, char *ident);
 
 #endif  //_LAUNCH_H

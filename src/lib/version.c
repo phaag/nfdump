@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,39 +28,23 @@
  *
  */
 
-#ifndef _OUTPUT_UTIL_H
-#define _OUTPUT_UTIL_H 1
+#include "version.h"
 
-#include <stdint.h>
+#include <stdio.h>
 
-char *ProtoString(uint8_t protoNum, uint32_t plainNumbers);
+#include "config.h"
+#include "vcs_track.h"
 
-int ProtoNum(char *protoString);
+char *versionString(void) {
+    static char version_string[128];
 
-char *FlagsString(uint16_t flags);
+    char *nsel = "";
+#ifdef NSEL
+    nsel = " NSEL-NEL";
+#endif
 
-char *biFlowString(uint8_t biFlow);
+    snprintf(version_string, 128, "Version: %s-%s%s, Date: %s", VERSION, VCS_TRACK_HASH, nsel, VCS_TRACK_DATE);
+    version_string[127] = '\0';
 
-char *FlowEndString(uint8_t biFlow);
-
-void CondenseV6(char *s);
-
-char *FwEventString(int event);
-
-char *EventString(int event);
-
-char *EventXString(int xevent);
-
-const char *pfAction(int action);
-
-int pfActionNr(char *action);
-
-void pfListActions(void);
-
-const char *pfReason(int reason);
-
-int pfReasonNr(char *reason);
-
-void pfListReasons(void);
-
-#endif  // _OUTPUT_UTIL_H
+    return version_string;
+}

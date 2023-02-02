@@ -139,13 +139,13 @@ static void UpdateFormatList() {
 
 }  // End of UpdateFormatList
 
-RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams, bool HasGeoDB) {
+RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams) {
     RecordPrinter_t print_record = NULL;
 
     // get user defined fmt formats from config file
     UpdateFormatList();
 
-    if (print_format == NULL) print_format = HasGeoDB ? DefaultGeoMode : DefaultMode;
+    if (print_format == NULL) print_format = outputParams->hasGeoDB ? DefaultGeoMode : DefaultMode;
 
     if (strncasecmp(print_format, "fmt:", 4) == 0 || print_format[0] == '%') {
         // special user defined output format

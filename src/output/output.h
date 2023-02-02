@@ -43,6 +43,7 @@ typedef struct outputParams_s {
     bool printPlain;
     bool doTag;
     bool quiet;
+    bool hasGeoDB;
     int mode;
     int topN;
 } outputParams_t;
@@ -57,7 +58,7 @@ typedef struct printmap_s {
 
 void AddFormat(char *name, char *fmtString);
 
-RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams, bool HasGeoDB);
+RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams);
 
 void PrintProlog(outputParams_t *outputParams);
 

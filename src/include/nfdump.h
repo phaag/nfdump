@@ -70,13 +70,15 @@ typedef struct master_record_s {
     // common information from all netflow versions
     // 							// interpreted as uint64_t[]
 
-    uint8_t flags;      // 0xff00 0000 0000 0000
+    uint8_t flags;  // 0xff00 0000 0000 0000
+    // copy of V3 records flags
     uint8_t nfversion;  // 0x00ff 0000 0000 0000
     uint16_t mflags;    // 0x0000'ffff'0000'0000
 #define V3_FLAG_IPV6_ADDR 1
 #define V3_FLAG_IPV6_NH 2
 #define V3_FLAG_IPV6_NHB 4
 #define V3_FLAG_IPV6_EXP 8
+#define V3_FLAG_ENRICHED 128
     uint16_t size;         // 0x0000'0000'ffff'0000
     uint16_t numElements;  // 0x0000'0000'0000'ffff
 
@@ -768,7 +770,8 @@ typedef struct master_record_s {
 
     // nbar AppID
     uint8_t nbarAppIDlen;
-    uint8_t nbarAppID[15];
+#define MAX_NBAR_LENGTH 15
+    uint8_t nbarAppID[MAX_NBAR_LENGTH];
 #define OffsetNbarAppID (offsetof(master_record_t, nbarAppID) >> 3)
 #define MaskNbarAppID 0xffffffffffffffff
 
@@ -776,6 +779,36 @@ typedef struct master_record_s {
     uint8_t ja3[16];
 #define OffsetJA3 (offsetof(master_record_t, ja3) >> 3)
 #define MaskJA3 0xffffffffffffffff
+
+    // pflog
+    uint8_t pfAction;
+    uint8_t pfReason;
+    uint8_t pfDir;
+    uint8_t pfRewritten;
+    uint32_t pfRulenr;
+    char pfIfName[16];
+#define OffsetPfInfo (offsetof(master_record_t, pfAction) >> 3)
+#define OffsetPfIfname (offsetof(master_record_t, pfIfName) >> 3)
+#define MaskPfIfname 0xffffffffffffffff
+#ifdef WORDS_BIGENDIAN
+#define MaskPfAction 0xff00000000000000
+#define ShiftPfAction 56
+#define MaskPfReason 0x00ff000000000000
+#define ShiftPfReason 48
+#define MaskPfDir 0x0000ff0000000000
+#define ShiftPfDir 40
+#define MaskPfRulenr 0x00000000ffffffff
+#define ShiftPfRulenr 0
+#else
+#define MaskPfAction 0x00000000000000ffLL
+#define ShiftPfAction 0
+#define MaskPfReason 0x000000000000ff00LL
+#define ShiftPfReason 8
+#define MaskPfDir 0x0000000000ff0000LL
+#define ShiftPfDir 16
+#define MaskPfRulenr 0xffffffff00000000LL
+#define ShiftPfRulenr 32
+#endif
 
     // payload data
     uint32_t inPayloadLength;

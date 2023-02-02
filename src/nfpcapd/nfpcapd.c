@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2013-2022, Peter Haag
+ *  Copyright (c) 2013-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -76,7 +76,9 @@
 #include "pcapdump.h"
 #include "pcaproc.h"
 #include "pidfile.h"
+#include "repeater.h"
 #include "util.h"
+#include "version.h"
 
 #define TIME_WINDOW 300
 #define PROMISC 1
@@ -90,8 +92,6 @@ static int done = 0;
  * global static var: used by interrupt routine
  */
 #define PCAP_DUMPFILE "pcap.current"
-
-static const char *nfdump_version = VERSION;
 
 static int launcher_pid;
 static pthread_mutex_t m_done = PTHREAD_MUTEX_INITIALIZER;
@@ -403,7 +403,6 @@ int main(int argc, char *argv[]) {
                 } else {
                     port = "9995";
                 }
-                sendHost->family = AF_UNSPEC;
                 sendHost->hostname = strdup(optarg);
                 sendHost->port = strdup(port);
             } break;
@@ -411,15 +410,12 @@ int main(int argc, char *argv[]) {
                 device = optarg;
                 break;
             case 'l':
-                LogInfo("-l is a legacy option and may get removed in future. Please use -w next time");
+                LogError("-l is a legacy option and may get removed in future. Please use -w to set output directory");
             case 'w':
                 datadir = optarg;
                 err = stat(datadir, &fstat);
                 if (!(fstat.st_mode & S_IFDIR)) {
-                    LogError(
-                        "No such directory: "
-                        "'%s'",
-                        datadir);
+                    LogError("No valid directory: '%s'", datadir);
                     break;
                 }
                 break;
@@ -527,7 +523,7 @@ int main(int argc, char *argv[]) {
                 if (verbose < 4) verbose++;
                 break;
             case 'V':
-                printf("%s: Version: %s", argv[0], nfdump_version);
+                printf("%s: %s\n", argv[0], versionString());
                 exit(EXIT_SUCCESS);
                 break;
             default:
@@ -581,8 +577,7 @@ int main(int argc, char *argv[]) {
             LogError("ERROR: Port to send flows is not a regular port.");
             exit(EXIT_FAILURE);
         }
-        sendHost->sockfd =
-            Unicast_send_socket(sendHost->hostname, sendHost->port, sendHost->family, bufflen, &(sendHost->addr), &(sendHost->addrlen));
+        sendHost->sockfd = Unicast_send_socket(sendHost->hostname, sendHost->port, AF_UNSPEC, bufflen, &(sendHost->addr), &(sendHost->addrlen));
         if (sendHost->sockfd <= 0) exit(EXIT_FAILURE);
         dbg_printf("Replay flows to host: %s port: %s\n", sendHost->hostname, sendHost->port);
         flowParam.sendHost = sendHost;
@@ -640,7 +635,7 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
 
-        if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid(), launcher_pid) != BOOKKEEPER_OK) {
+        if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
             LogError("initialize bookkeeper failed.");
             exit(EXIT_FAILURE);
         }
@@ -669,7 +664,7 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    LogInfo("Startup.");
+    LogInfo("Startup nfpcapd.");
     // prepare signal mask for all threads
     // block signals, as they are handled by the main thread
     // mask is inherited by all threads
@@ -767,7 +762,7 @@ int main(int argc, char *argv[]) {
         if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
             UpdateDirStat(dirstat, fs->bookkeeper);
             WriteStatInfo(dirstat);
-            LogInfo("Updating statinfo in directory '%s'", datadir);
+            LogVerbose("Updating statinfo in directory '%s'", datadir);
         }
         ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
     }

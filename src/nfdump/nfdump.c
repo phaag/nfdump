@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -71,12 +71,12 @@
 #include "nfxV3.h"
 #include "output.h"
 #include "util.h"
+#include "version.h"
 
 extern char *FilterFilename;
 
 /* Local Variables */
 static FilterEngine_t *Engine;
-const char *nfdump_version = VERSION;
 
 static uint64_t total_bytes = 0;
 static uint32_t processed = 0;
@@ -215,6 +215,7 @@ static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParam
 }  // End of PrintSummary
 
 static inline void AddGeoInfo(master_record_t *master_record) {
+    if (!HasGeoDB || TestFlag(master_record->mflags, V3_FLAG_ENRICHED)) return;
     LookupCountry(master_record->V6.srcaddr, master_record->src_geo);
     LookupCountry(master_record->V6.dstaddr, master_record->dst_geo);
     if (master_record->srcas == 0) master_record->srcas = LookupAS(master_record->V6.srcaddr);
@@ -237,6 +238,7 @@ static inline void AddGeoInfo(master_record_t *master_record) {
         master_record->exElementList[j] = val;
         master_record->numElements++;
     }
+    SetFlag(master_record->mflags, V3_FLAG_ENRICHED);
 
 }  // End of AddGeoInfo
 
@@ -304,7 +306,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
 
     // prepare output file if requested
     if (write_file) {
-        nffile_w = OpenNewFile(wfile, NULL, compress, NOT_ENCRYPTED);
+        nffile_w = OpenNewFile(wfile, NULL, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
         if (!nffile_w) {
             if (nffile_r) {
                 CloseFile(nffile_r);
@@ -443,6 +445,9 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                     if (flow_stat) {
                         AddFlowCache(process_ptr, master_record);
                         if (element_stat) {
+                            if (TestFlag(element_stat, FLAG_GEO) && TestFlag(master_record->mflags, V3_FLAG_ENRICHED) == 0) {
+                                AddGeoInfo(master_record);
+                            }
                             AddElementStat(master_record);
                         }
                     } else if (element_stat) {
@@ -455,7 +460,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                             }
                         }
                         // if we need geo, lookup geo if not yet set by filter
-                        if (TestFlag(element_stat, FLAG_GEO) && master_record->src_geo[0] == '\0') {
+                        if (TestFlag(element_stat, FLAG_GEO) && TestFlag(master_record->mflags, V3_FLAG_ENRICHED) == 0) {
                             AddGeoInfo(master_record);
                         }
                         AddElementStat(master_record);
@@ -727,13 +732,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'V': {
-                char *e1, *e2;
-                e1 = "";
-                e2 = "";
-#ifdef NSEL
-                e1 = "NSEL-NEL";
-#endif
-                printf("%s: Version: %s%s%s\n", argv[0], e1, e2, nfdump_version);
+                printf("%s: %s\n", argv[0], versionString());
                 exit(EXIT_SUCCESS);
             } break;
             case 'l':
@@ -854,12 +853,10 @@ int main(int argc, char **argv) {
 
     if (argc - optind > 0) {
         filter = strdup(argv[optind++]);
-        size_t filterSize = strlen(filter);
         while (argc - optind > 0) {
             char *arg = argv[optind++];
             CheckArgLen(arg, 128);
-            filterSize += strlen(arg);
-            filter = realloc(filter, filterSize + 1);
+            filter = realloc(filter, strlen(filter) + strlen(arg) + 2);
             if (!filter) {
                 LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 exit(EXIT_FAILURE);
@@ -957,6 +954,7 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
         HasGeoDB = true;
+        outputParams->hasGeoDB = true;
     }
     if (!HasGeoDB && Engine->geoFilter) {
         LogError("Can not filter according geo elements without a geo location DB");
@@ -1053,7 +1051,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    print_record = SetupOutputMode(print_format, outputParams, HasGeoDB);
+    print_record = SetupOutputMode(print_format, outputParams);
 
     if (!print_record) {
         LogError("Unknown output mode '%s'\n", print_format);
@@ -1091,7 +1089,7 @@ int main(int argc, char **argv) {
 
     if (aggregate || print_order) {
         if (wfile) {
-            nffile_t *nffile = OpenNewFile(wfile, NULL, compress, NOT_ENCRYPTED);
+            nffile_t *nffile = OpenNewFile(wfile, NULL, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
             if (!nffile) exit(EXIT_FAILURE);
             if (ExportFlowTable(nffile, aggregate, bidir, GuessDir)) {
                 CloseUpdateFile(nffile);

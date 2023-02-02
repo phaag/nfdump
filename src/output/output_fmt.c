@@ -278,6 +278,16 @@ static void String_evrfName(FILE *stream, master_record_t *r);
 
 static void String_NewLine(FILE *stream, master_record_t *r);
 
+static void String_pfIfName(FILE *stream, master_record_t *r);
+
+static void String_pfAction(FILE *stream, master_record_t *r);
+
+static void String_pfReason(FILE *stream, master_record_t *r);
+
+static void String_pfdir(FILE *stream, master_record_t *r);
+
+static void String_pfrule(FILE *stream, master_record_t *r);
+
 #ifdef NSEL
 static void String_EventTime(FILE *stream, master_record_t *r);
 
@@ -405,8 +415,8 @@ static struct format_token_list_s {
                          {"%bpp", 0, "   Bpp", String_bpp},                            // bpp - Bytes per package
                          {"%eng", 0, " engine", String_Engine},                        // Engine Type/ID
                          {"%lbl", 0, "           label", String_Label},                // Flow Label
-                         {"%sc", 0, "  ", String_SrcCountry},                          // src IP 2 letter country code
-                         {"%dc", 0, "  ", String_DstCountry},                          // dst IP 2 letter country code
+                         {"%sc", 0, "SC", String_SrcCountry},                          // src IP 2 letter country code
+                         {"%dc", 0, "DC", String_DstCountry},                          // dst IP 2 letter country code
                          {"%sloc", 0, "Src IP location info", String_SrcLocation},     // src IP geo location info
                          {"%dloc", 0, "Src IP location info", String_DstLocation},     // src IP geo location info
                          {"%n", 0, "", String_NewLine},                                // \n
@@ -423,6 +433,12 @@ static struct format_token_list_s {
                          {"%ivrfnam", 0, "  I-VRF-Name", String_ivrfName},             // ingress vrf name
                          {"%evrf", 0, "  E-VRF-ID", String_evrf},                      // egress vrf ID
                          {"%evrfnam", 0, "  E-VRF-Name", String_evrfName},             // egress vrf name
+
+                         {"%pfifn", 0, "interface", String_pfIfName},  // pflog ifname
+                         {"%pfact", 0, "action", String_pfAction},     // pflog action
+                         {"%pfrea", 0, "reason", String_pfReason},     // pflog reason
+                         {"%pfdir", 0, "dir", String_pfdir},           // pflog direction
+                         {"%pfrule", 0, "rule", String_pfrule},        // pflog rule
 
 #ifdef NSEL
                          // NSEL specifics
@@ -525,7 +541,7 @@ static void InitFormatParser(void) {
     format_list = (char **)calloc(1, max_format_index * sizeof(char *));
     token_list = (struct token_list_s *)calloc(1, max_token_index * sizeof(struct token_list_s));
     if (!format_list || !token_list) {
-        fprintf(stderr, "Memory allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(255);
     }
 
@@ -536,7 +552,7 @@ static void AddToken(int index, char *s) {
         max_token_index += BLOCK_SIZE;
         token_list = (struct token_list_s *)realloc(token_list, max_token_index * sizeof(struct token_list_s));
         if (!token_list) {
-            fprintf(stderr, "Memory allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
     }
@@ -552,6 +568,9 @@ static void AddToken(int index, char *s) {
 
 }  // End of AddToken
 
+/*
+ * expand predefined print format into given format, such as -o fmt "%line %ipl"
+ */
 static char *RecursiveReplace(char *format, printmap_t *printmap) {
     int i = 0;
 
@@ -567,7 +586,7 @@ static char *RecursiveReplace(char *format, printmap_t *printmap) {
                     int newlen = strlen(format) + strlen(printmap[i].Format);
                     r = malloc(newlen);
                     if (!r) {
-                        LogError("malloc() allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+                        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
                         exit(255);
                     }
                     s[0] = '\0';
@@ -595,8 +614,8 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
 
     s = strdup(format);
     if (!s) {
-        fprintf(stderr, "Memory allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-        exit(255);
+        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return 0;
     }
     s = RecursiveReplace(s, printmap);
     c = s;
@@ -632,7 +651,7 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
                 i++;
             }
             if (format_token_list[i].token == NULL) {
-                fprintf(stderr, "Output format parse error at: %s\n", c);
+                LogError("Output format parse error at: %s", c);
                 free(s);
                 return 0;
             }
@@ -962,7 +981,6 @@ static void String_SrcAddr(FILE *stream, master_record_t *r) {
 
 static void String_SrcGeoAddr(FILE *stream, master_record_t *r) {
     char tmp_str[IP_STRING_LEN];
-    char country[4] = {0};
 
     tmp_str[0] = 0;
     if ((r->mflags & V3_FLAG_IPV6_ADDR) != 0) {  // IPv6
@@ -980,12 +998,12 @@ static void String_SrcGeoAddr(FILE *stream, master_record_t *r) {
         inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
-    LookupCountry(r->V6.srcaddr, country);
+    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.srcaddr, r->src_geo);
 
     if (long_v6)
-        fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, country);
+        fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, r->src_geo);
     else
-        fprintf(stream, "%s%16s(%s)", tag_string, tmp_str, country);
+        fprintf(stream, "%s%16s(%s)", tag_string, tmp_str, r->src_geo);
 
 }  // End of String_SrcGeoAddr
 
@@ -1019,7 +1037,7 @@ static void String_SrcAddrPort(FILE *stream, master_record_t *r) {
 }  // End of String_SrcAddrPort
 
 static void String_SrcAddrGeoPort(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN], portchar, country[4];
+    char tmp_str[IP_STRING_LEN], portchar;
 
     tmp_str[0] = 0;
     if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
@@ -1039,12 +1057,12 @@ static void String_SrcAddrGeoPort(FILE *stream, master_record_t *r) {
         portchar = ':';
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
-    LookupCountry(r->V6.srcaddr, country);
+    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.srcaddr, r->src_geo);
 
     if (long_v6)
-        fprintf(stream, "%s%39s(%s)%c%-5i", tag_string, tmp_str, country, portchar, r->srcPort);
+        fprintf(stream, "%s%39s(%s)%c%-5i", tag_string, tmp_str, r->src_geo, portchar, r->srcPort);
     else
-        fprintf(stream, "%s%16s(%s)%c%-5i", tag_string, tmp_str, country, portchar, r->srcPort);
+        fprintf(stream, "%s%16s(%s)%c%-5i", tag_string, tmp_str, r->src_geo, portchar, r->srcPort);
 
 }  // End of String_SrcAddrGeoPort
 
@@ -1076,7 +1094,6 @@ static void String_DstAddr(FILE *stream, master_record_t *r) {
 
 static void String_DstGeoAddr(FILE *stream, master_record_t *r) {
     char tmp_str[IP_STRING_LEN];
-    char country[4] = {0};
 
     tmp_str[0] = 0;
     if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
@@ -1094,12 +1111,12 @@ static void String_DstGeoAddr(FILE *stream, master_record_t *r) {
         inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
-    LookupCountry(r->V6.dstaddr, country);
+    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.dstaddr, r->dst_geo);
 
     if (long_v6)
-        fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, country);
+        fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, r->dst_geo);
     else
-        fprintf(stream, "%s%16s(%s)", tag_string, tmp_str, country);
+        fprintf(stream, "%s%16s(%s)", tag_string, tmp_str, r->dst_geo);
 
 }  // End of String_DstGeoAddr
 
@@ -1211,7 +1228,7 @@ static void String_DstAddrPort(FILE *stream, master_record_t *r) {
 }  // End of String_DstAddrPort
 
 static void String_DstAddrGeoPort(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN], portchar, country[4];
+    char tmp_str[IP_STRING_LEN], portchar;
 
     tmp_str[0] = 0;
     if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
@@ -1231,12 +1248,12 @@ static void String_DstAddrGeoPort(FILE *stream, master_record_t *r) {
         portchar = ':';
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
-    LookupCountry(r->V6.dstaddr, country);
+    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.dstaddr, r->dst_geo);
 
     if (long_v6)
-        fprintf(stream, "%s%39s(%s)%c%-5s", tag_string, tmp_str, country, portchar, ICMP_Port_decode(r));
+        fprintf(stream, "%s%39s(%s)%c%-5s", tag_string, tmp_str, r->dst_geo, portchar, ICMP_Port_decode(r));
     else
-        fprintf(stream, "%s%16s(%s)%c%-5s", tag_string, tmp_str, country, portchar, ICMP_Port_decode(r));
+        fprintf(stream, "%s%16s(%s)%c%-5s", tag_string, tmp_str, r->dst_geo, portchar, ICMP_Port_decode(r));
 
 }  // End of String_DstAddrGeoPort
 
@@ -1317,17 +1334,15 @@ static void String_ICMP_code(FILE *stream, master_record_t *r) {
 }  // End of String_ICMP_code
 
 static void String_SrcAS(FILE *stream, master_record_t *r) {
-    int as = r->srcas;
-    if (as == 0) as = LookupAS(r->V6.srcaddr);
+    if (r->srcas == 0) r->srcas = LookupAS(r->V6.srcaddr);
 
-    fprintf(stream, "%6u", as);
+    fprintf(stream, "%6u", r->srcas);
 }  // End of String_SrcAS
 
 static void String_DstAS(FILE *stream, master_record_t *r) {
-    int as = r->dstas;
-    if (as == 0) as = LookupAS(r->V6.dstaddr);
+    if (r->dstas == 0) r->dstas = LookupAS(r->V6.dstaddr);
 
-    fprintf(stream, "%6u", as);
+    fprintf(stream, "%6u", r->dstas);
 }  // End of String_DstAS
 
 static void String_NextAS(FILE *stream, master_record_t *r) { fprintf(stream, " %6u", r->bgpNextAdjacentAS); }  // End of String_NextAS
@@ -1596,40 +1611,30 @@ static void String_bpp(FILE *stream, master_record_t *r) {
 static void String_ExpSysID(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->exporter_sysid); }  // End of String_ExpSysID
 
 static void String_SrcCountry(FILE *stream, master_record_t *r) {
-    char country[4];
-    LookupCountry(r->V6.srcaddr, country);
-    fprintf(stream, "%2s", country);
+    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.srcaddr, r->src_geo);
+    fprintf(stream, "%2s", r->src_geo);
 
 }  // End of String_SrcCountry
 
 static void String_DstCountry(FILE *stream, master_record_t *r) {
-    char country[4];
-    LookupCountry(r->V6.dstaddr, country);
-    fprintf(stream, "%2s", country);
+    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.dstaddr, r->dst_geo);
+    fprintf(stream, "%2s", r->dst_geo);
 
 }  // End of String_DstCountry
 
 static void String_SrcLocation(FILE *stream, master_record_t *r) {
     char location[128];
 
-    if ((r->mflags & V3_FLAG_IPV6_ADDR) != 0) {  // IPv6
-        fprintf(stream, "  ");
-    } else {  // IPv4
-        LookupLocation(r->V6.srcaddr, location, 128);
-        fprintf(stream, "%s", location);
-    }
+    LookupLocation(r->V6.srcaddr, location, 128);
+    fprintf(stream, "%s", location);
 
 }  // End of String_SrcLocation
 
 static void String_DstLocation(FILE *stream, master_record_t *r) {
     char location[128];
 
-    if ((r->mflags & V3_FLAG_IPV6_ADDR) != 0) {  // IPv6
-        fprintf(stream, "  ");
-    } else {  // IPv4
-        LookupLocation(r->V6.dstaddr, location, 128);
-        fprintf(stream, "%s", location);
-    }
+    LookupLocation(r->V6.dstaddr, location, 128);
+    fprintf(stream, "%s", location);
 
 }  // End of String_DstLocation
 
@@ -1646,6 +1651,31 @@ static void String_evrfName(FILE *stream, master_record_t *r) {
     char vrfName[128];
     fprintf(stream, "%s", GetVrfName(r->egressVrf, vrfName, sizeof(vrfName)));
 }  // End of String_evrfName
+
+static void String_pfIfName(FILE *stream, master_record_t *r) {
+    //
+    fprintf(stream, "%9s", r->pfIfName);
+}  // End of String_pfIfName
+
+static void String_pfAction(FILE *stream, master_record_t *r) {
+    //
+    fprintf(stream, "%6s", pfAction(r->pfAction));
+}  // End of String_pfAction
+
+static void String_pfReason(FILE *stream, master_record_t *r) {
+    //
+    fprintf(stream, "%6s", pfReason(r->pfReason));
+}  // End of String_pfReason
+
+static void String_pfdir(FILE *stream, master_record_t *r) {
+    //
+    fprintf(stream, "%3s", r->pfDir ? "in" : "out");
+}  // End of String_pfdir
+
+static void String_pfrule(FILE *stream, master_record_t *r) {
+    //
+    fprintf(stream, "%4u", r->pfRulenr);
+}  // End of String_pfrule
 
 #ifdef NSEL
 static void String_nfc(FILE *stream, master_record_t *r) { fprintf(stream, "%10u", r->connID); }  // End of String_nfc

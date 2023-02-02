@@ -22,6 +22,7 @@
 # define any new format
 # fmt.newformat = "%ts ...."
 fmt.geolong = "%ts %td %pr %sc %sap -> %dc %dap %flg %pkt %byt %fl"
+fmt.pfline = "fmt:%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt %byt"
 
 # geodb
 # if you use maxmind DB for geo location

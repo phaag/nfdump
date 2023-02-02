@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -266,9 +266,9 @@ static void process_data(void *wfile, int verbose) {
     }
 
     if (wfile)
-        nffile_w = OpenNewFile(wfile, NULL, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
+        nffile_w = OpenNewFile(wfile, NULL, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
     else
-        nffile_w = OpenNewFile(outfile, NULL, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
+        nffile_w = OpenNewFile(outfile, NULL, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
 
     if (!nffile_w) {
         if (nffile_r) {
@@ -326,7 +326,7 @@ static void process_data(void *wfile, int verbose) {
                     snprintf(outfile, MAXPATHLEN - 1, "%s-tmp", cfile);
                     outfile[MAXPATHLEN - 1] = '\0';
 
-                    nffile_w = OpenNewFile(outfile, nffile_w, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
+                    nffile_w = OpenNewFile(outfile, nffile_w, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
                     if (!nffile_w) {
                         if (nffile_r) {
                             DisposeFile(nffile_r);

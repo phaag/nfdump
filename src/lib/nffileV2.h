@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -61,8 +61,9 @@ typedef struct fileHeaderV2_s {
 #define LAYOUT_VERSION_2 2
 
     uint32_t nfdversion;  // version of nfdump created this file
-#define NFDVERSION 0x01070001
-                          // 4bytes 1.6.19-1 0x01061301
+#define NFDVERSION 0xF1070100
+                          // 4bytes 1.7.1-1 0x01070101
+                          // 4bytes 1.7.1-1 0xF1070101 - git repo based on 1.7.1
     time_t created;  // file create time
 
     uint8_t compression;
@@ -75,13 +76,24 @@ typedef struct fileHeaderV2_s {
 #define NOT_ENCRYPTED 0
     uint16_t appendixBlocks;  // number of blocks to read from appendix
                               // on open file for internal data structs
-    uint32_t unused;          // unused 0	- reserved for future use
-    off_t offAppendix;        // offset in file for appendix blocks with additional data
+    uint32_t creator;         // program created this file
+#define CREATOR_UNKNOWN 0
+#define CREATOR_NFCAPD 1
+#define CREATOR_NFPCAPD 2
+#define CREATOR_SFCAPD 3
+#define CREATOR_NFDUMP 4
+#define CREATOR_NFANON 5
+#define CREATOR_NFPROFILE 6
+#define CREATOR_LOOKUP 7
+#define CREATOR_FT2NFDUMP 8
+#define MAX_CREATOR 9
+    off_t offAppendix;  // offset in file for appendix blocks with additional data
 
     uint32_t BlockSize;  // max block size of data blocks
     uint32_t NumBlocks;  // number of data blocks in file
 } fileHeaderV2_t;
 
+#define FILE_CREATOR(n) ((n)->file_header->creator)
 #define FILE_COMPRESSION(n) ((n)->file_header->compression)
 #define FILE_ENCRYPTION(n) ((n)->file_header->encryption)
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -55,6 +55,7 @@
 #include "nfnet.h"
 #include "nfxV3.h"
 #include "output_short.h"
+#include "pflog.h"
 #include "queue.h"
 #include "util.h"
 
@@ -106,23 +107,23 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         genericFlow->inPackets = Node->packets;
         genericFlow->inBytes = Node->bytes;
 
-        genericFlow->proto = Node->proto;
         genericFlow->tcpFlags = Node->flags;
-        genericFlow->srcPort = Node->src_port;
-        genericFlow->dstPort = Node->dst_port;
+        genericFlow->proto = Node->flowKey.proto;
+        genericFlow->srcPort = Node->flowKey.src_port;
+        genericFlow->dstPort = Node->flowKey.dst_port;
 
-        if (Node->version == AF_INET6) {
+        if (Node->flowKey.version == AF_INET6) {
             UpdateRecordSize(EXipv6FlowSize);
             PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
-            ipv6Flow->srcAddr[0] = Node->src_addr.v6[0];
-            ipv6Flow->srcAddr[1] = Node->src_addr.v6[1];
-            ipv6Flow->dstAddr[0] = Node->dst_addr.v6[0];
-            ipv6Flow->dstAddr[1] = Node->dst_addr.v6[1];
+            ipv6Flow->srcAddr[0] = Node->flowKey.src_addr.v6[0];
+            ipv6Flow->srcAddr[1] = Node->flowKey.src_addr.v6[1];
+            ipv6Flow->dstAddr[0] = Node->flowKey.dst_addr.v6[0];
+            ipv6Flow->dstAddr[1] = Node->flowKey.dst_addr.v6[1];
         } else {
             UpdateRecordSize(EXipv4FlowSize);
             PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
-            ipv4Flow->srcAddr = Node->src_addr.v4;
-            ipv4Flow->dstAddr = Node->dst_addr.v4;
+            ipv4Flow->srcAddr = Node->flowKey.src_addr.v4;
+            ipv4Flow->dstAddr = Node->flowKey.dst_addr.v4;
         }
 
         if (flowParam->extendedFlow) {
@@ -132,12 +133,14 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
                 vlan->dstVlan = Node->vlanID;
             }
 
-            UpdateRecordSize(EXmacAddrSize);
-            PushExtension(recordHeader, EXmacAddr, macAddr);
-            macAddr->inSrcMac = ntohll(Node->srcMac) >> 16;
-            macAddr->outDstMac = ntohll(Node->dstMac) >> 16;
-            macAddr->inDstMac = 0;
-            macAddr->outSrcMac = 0;
+            if (Node->srcMac) {
+                UpdateRecordSize(EXmacAddrSize);
+                PushExtension(recordHeader, EXmacAddr, macAddr);
+                macAddr->inSrcMac = ntohll(Node->srcMac) >> 16;
+                macAddr->outDstMac = ntohll(Node->dstMac) >> 16;
+                macAddr->inDstMac = 0;
+                macAddr->outSrcMac = 0;
+            }
 
             if (Node->mpls[0]) {
                 UpdateRecordSize(EXmplsLabelSize);
@@ -147,19 +150,50 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
                 }
             }
 
-            if (Node->proto == IPPROTO_TCP) {
+            if (Node->flowKey.proto == IPPROTO_TCP && Node->latency.application) {
                 UpdateRecordSize(EXlatencySize);
                 PushExtension(recordHeader, EXlatency, latency);
                 latency->usecClientNwDelay = Node->latency.client;
                 latency->usecServerNwDelay = Node->latency.server;
                 latency->usecApplLatency = Node->latency.application;
             }
+
+            if (Node->pflog) {
+                pflog_hdr_t *pflog = (pflog_hdr_t *)Node->pflog;
+                size_t ifnameLen = strnlen(pflog->ifname, IFNAMSIZ);
+                if (ifnameLen) {
+                    ifnameLen++;  // add terminating '\0'
+                }
+                size_t align = ifnameLen & 0x3;
+                if (align) {
+                    ifnameLen += 4 - align;
+                }
+
+                UpdateRecordSize(EXpfinfoSize + ifnameLen);
+                PushVarLengthExtension(recordHeader, EXpfinfo, pfinfo, ifnameLen);
+                pfinfo->action = pflog->action;
+                pfinfo->reason = pflog->reason;
+                pfinfo->dir = pflog->dir;
+                pfinfo->rewritten = pflog->rewritten;
+                pfinfo->uid = ntohl(pflog->uid);
+                pfinfo->pid = ntohl(pflog->pid);
+                pfinfo->rulenr = ntohl(pflog->rulenr);
+                pfinfo->subrulenr = ntohl(pflog->subrulenr);
+                memcpy(pfinfo->ifname, pflog->ifname, ifnameLen);
+                SetFlag(recordHeader->flags, V3_FLAG_EVENT);
+            }
         }
 
         if (flowParam->addPayload) {
             if (Node->payloadSize) {
-                UpdateRecordSize(EXinPayloadSize + Node->payloadSize);
-                PushVarLengthPointer(recordHeader, EXinPayload, inPayload, Node->payloadSize);
+                size_t payloadSize = Node->payloadSize;
+                size_t align = payloadSize & 0x3;
+                if (align) {
+                    payloadSize += 4 - align;
+                }
+
+                UpdateRecordSize(EXinPayloadSize + payloadSize);
+                PushVarLengthPointer(recordHeader, EXinPayload, inPayload, payloadSize);
                 memcpy(inPayload, Node->payload, Node->payloadSize);
             }
         }
@@ -332,7 +366,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
 
     printRecord = flowParam->printRecord;
     // prepare file
-    fs->nffile = OpenNewFile(fs->current, NULL, compress, NOT_ENCRYPTED);
+    fs->nffile = OpenNewFile(fs->current, NULL, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
     if (!fs->nffile) {
         pthread_kill(flowParam->parent, SIGUSR1);
         pthread_exit((void *)flowParam);
@@ -347,7 +381,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
         if (Node->signal == SIGNAL_SYNC) {
             CloseFlowFile(flowParam, Node->timestamp);
-            fs->nffile = OpenNewFile(fs->current, fs->nffile, compress, NOT_ENCRYPTED);
+            fs->nffile = OpenNewFile(fs->current, fs->nffile, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
                 LogError("Fatal: OpenNewFile() failed for ident: %s", fs->Ident);
                 pthread_kill(flowParam->parent, SIGUSR1);

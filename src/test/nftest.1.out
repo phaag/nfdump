@@ -24,6 +24,7 @@ Flow Record:
   src port     =                20
   dst port     =                22
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                 2
   in bytes     =              2048
 
@@ -43,6 +44,7 @@ Flow Record:
   src port     =                30
   dst port     =                33
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                 3
   in bytes     =              3072
   src addr     =       172.16.1.66
@@ -64,6 +66,7 @@ Flow Record:
   src port     =                40
   dst port     =                44
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                 4
   in bytes     =              4096
   src addr     =  fe80::2110:abcd:1234:0
@@ -85,6 +88,7 @@ Flow Record:
   src port     =                80
   dst port     =             22222
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                 4
   in bytes     =              4096
   src addr     =       172.16.2.66
@@ -93,7 +97,6 @@ Flow Record:
   output       =               200
   src mask     =                16 172.16.0.0/16
   dst mask     =                24 192.168.170.0/24
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 1
   biFlow Dir   =              0x00 
@@ -115,6 +118,7 @@ Flow Record:
   src port     =                80
   dst port     =             22222
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                14
   in bytes     =              5120
   src addr     =       172.16.2.66
@@ -123,7 +127,6 @@ Flow Record:
   output       =               200
   src mask     =                16 172.16.0.0/16
   dst mask     =                24 192.168.170.0/24
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 1
   biFlow Dir   =              0x00 
@@ -145,6 +148,7 @@ Flow Record:
   src port     =                80
   dst port     =             22222
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                24
   in bytes     =              6144
   src addr     =       172.16.2.66
@@ -153,7 +157,6 @@ Flow Record:
   output       =               200
   src mask     =                16 172.16.0.0/16
   dst mask     =                24 192.168.170.0/24
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 1
   biFlow Dir   =              0x00 
@@ -175,6 +178,7 @@ Flow Record:
   src port     =             22222
   dst port     =                80
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                10
   in bytes     =              1024
   src addr     =   192.168.170.101
@@ -183,7 +187,6 @@ Flow Record:
   output       =               100
   src mask     =                24 192.168.170.0/24
   dst mask     =                16 172.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 
@@ -205,6 +208,7 @@ Flow Record:
   src port     =             22222
   dst port     =                80
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                20
   in bytes     =              2048
   src addr     =   192.168.170.101
@@ -213,7 +217,6 @@ Flow Record:
   output       =               100
   src mask     =                24 192.168.170.0/24
   dst mask     =                16 172.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 
@@ -235,6 +238,7 @@ Flow Record:
   src port     =             22222
   dst port     =                80
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                30
   in bytes     =              3072
   src addr     =   192.168.170.101
@@ -243,7 +247,6 @@ Flow Record:
   output       =               100
   src mask     =                24 192.168.170.0/24
   dst mask     =                16 172.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 
@@ -265,6 +268,7 @@ Flow Record:
   src port     =             22232
   dst port     =                91
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                31
   in bytes     =              4096
   src addr     =    72.138.170.101
@@ -273,7 +277,6 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 
@@ -298,6 +301,7 @@ Flow Record:
   src port     =             22242
   dst port     =               102
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                32
   in bytes     =              5120
   src addr     =    72.138.170.101
@@ -306,7 +310,6 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 
@@ -333,6 +336,7 @@ Flow Record:
   src port     =             22252
   dst port     =               113
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                33
   in bytes     =              6144
   src addr     =    72.138.170.101
@@ -341,7 +345,6 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 
@@ -370,6 +373,7 @@ Flow Record:
   src port     =             22262
   dst port     =               124
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                34
   in bytes     =              7168
   src addr     =    72.138.170.101
@@ -378,7 +382,6 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 
@@ -408,6 +411,7 @@ Flow Record:
   src port     =             22272
   dst port     =               135
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                35
   in bytes     =              8192
   src addr     =    72.138.170.101
@@ -416,7 +420,6 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 
@@ -447,6 +450,7 @@ Flow Record:
   src port     =             22282
   dst port     =               146
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                36
   in bytes     =              9216
   src addr     =    72.138.170.101
@@ -455,7 +459,6 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 
@@ -487,6 +490,7 @@ Flow Record:
   src port     =             22292
   dst port     =               157
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                37
   in bytes     =             10240
   src addr     =    72.138.170.101
@@ -495,7 +499,6 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 
@@ -537,6 +540,7 @@ Flow Record:
   src port     =             22302
   dst port     =               168
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                38
   in bytes     =             11264
   src addr     =    72.138.170.101
@@ -545,7 +549,6 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 
@@ -591,6 +594,7 @@ Flow Record:
   src port     =             22312
   dst port     =               179
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                39
   in bytes     =             12288
   src addr     =    72.138.170.101
@@ -599,7 +603,6 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 
@@ -647,6 +650,7 @@ Flow Record:
   src port     =             22322
   dst port     =               190
   src tos      =                 3
+  fwd status   =                 1
   in packets   =                40
   in bytes     =             13312
   src addr     =    72.138.170.101
@@ -655,7 +659,6 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  fwd status   =                 1
   dst tos      =                 3
   direction    =                 2
   biFlow Dir   =              0x00 

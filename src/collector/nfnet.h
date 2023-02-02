@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -32,22 +32,13 @@
 #ifndef _NFNET_H
 #define _NFNET_H 1
 
+#include <netinet/in.h>
+#include <netinet/ip.h>
 #include <sys/socket.h>
 
 /* Definitions */
 
 #define UDP_PACKET_SIZE 1472
-
-typedef struct repeater_s {
-    char *hostname;
-    char *port;
-    struct sockaddr_storage addr;
-    int addrlen;
-    int family;
-    int sockfd;
-} repeater_t;
-
-#define MAX_REPEATERS 8
 
 /* Function prototypes */
 
@@ -60,5 +51,9 @@ int Unicast_send_socket(const char *hostname, const char *listenport, int family
 
 int Multicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
                           int *addrlen);
+
+int Raw_send_socket(int sockbuflen);
+
+int LookupHost(char *hostname, char *port, struct sockaddr_in *addr);
 
 #endif  //_NFNET_H

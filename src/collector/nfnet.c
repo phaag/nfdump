@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -34,6 +34,7 @@
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <netinet/ip.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,7 +65,6 @@ int Unicast_receive_socket(const char *bindhost, const char *listenport, int fam
     int error, p, sockfd;
 
     if (!listenport) {
-        fprintf(stderr, "listen port required!\n");
         LogError("listen port required!");
         return -1;
     }
@@ -88,7 +88,6 @@ int Unicast_receive_socket(const char *bindhost, const char *listenport, int fam
 
     error = getaddrinfo(bindhost, listenport, &hints, &res);
     if (error) {
-        fprintf(stderr, "getaddrinfo error: [%s]\n", gai_strerror(error));
         LogError("getaddrinfo error: [%s]", gai_strerror(error));
         return -1;
     }
@@ -125,7 +124,6 @@ int Unicast_receive_socket(const char *bindhost, const char *listenport, int fam
 
     if (sockfd < 0) {
         freeaddrinfo(ressave);
-        fprintf(stderr, "Could not open the requested socket: %s\n", strerror(errno));
         LogError("Receive socket error: could not open the requested socket: %s", strerror(errno));
         return -1;
     }
@@ -143,7 +141,6 @@ int Unicast_receive_socket(const char *bindhost, const char *listenport, int fam
         getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &p, &optlen);
         LogInfo("Standard setsockopt, SO_RCVBUF is %i Requested length is %i bytes", p, sockbuflen);
         if ((setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &sockbuflen, sizeof(sockbuflen)) != 0)) {
-            fprintf(stderr, "setsockopt(SO_RCVBUF,%d): %s\n", sockbuflen, strerror(errno));
             LogError("setsockopt(SO_RCVBUF,%d): %s", sockbuflen, strerror(errno));
             close(sockfd);
             return -1;
@@ -239,7 +236,6 @@ int Multicast_receive_socket(const char *hostname, const char *listenport, int f
     int p, error, sockfd;
 
     if (!listenport) {
-        fprintf(stderr, "listen port required!\n");
         LogError("listen port required!");
         return -1;
     }
@@ -251,7 +247,6 @@ int Multicast_receive_socket(const char *hostname, const char *listenport, int f
     error = getaddrinfo(hostname, listenport, &hints, &res);
 
     if (error) {
-        fprintf(stderr, "getaddrinfo error:: [%s]\n", gai_strerror(error));
         LogError("getaddrinfo error:: [%s]", gai_strerror(error));
         return -1;
     }
@@ -276,14 +271,12 @@ int Multicast_receive_socket(const char *hostname, const char *listenport, int f
 
     if (sockfd < 0) {
         // nothing found - bye bye
-        fprintf(stderr, "Could not create a socket for [%s:%s]\n", hostname, listenport);
         LogError("Could not create a socket for [%s:%s]", hostname, listenport);
         freeaddrinfo(ressave);
         return -1;
     }
 
     if (isMulticast((struct sockaddr_storage *)res->ai_addr) < 0) {
-        fprintf(stderr, "Not a multicast address [%s]\n", hostname);
         LogError("Not a multicast address [%s]", hostname);
         freeaddrinfo(ressave);
         return -1;
@@ -293,7 +286,6 @@ int Multicast_receive_socket(const char *hostname, const char *listenport, int f
 
     sockfd = socket(res->ai_family, SOCK_DGRAM, 0);
     if (bind(sockfd, res->ai_addr, res->ai_addrlen) < 0) {
-        fprintf(stderr, "bind: %s\n", strerror(errno));
         LogError("bind: %s", strerror(errno));
         close(sockfd);
         freeaddrinfo(ressave);
@@ -320,7 +312,6 @@ int Multicast_receive_socket(const char *hostname, const char *listenport, int f
         getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &p, &optlen);
         LogInfo("Standard setsockopt, SO_RCVBUF is %i Requested length is %i bytes", p, sockbuflen);
         if ((setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &sockbuflen, sizeof(sockbuflen)) != 0)) {
-            fprintf(stderr, "setsockopt(SO_RCVBUF,%d): %s\n", sockbuflen, strerror(errno));
             LogError("setsockopt(SO_RCVBUF,%d): %s", sockbuflen, strerror(errno));
             close(sockfd);
             return -1;
@@ -340,7 +331,6 @@ int Multicast_send_socket(const char *hostname, const char *listenport, int fami
     int error, sockfd;
 
     if (!listenport || !hostname) {
-        fprintf(stderr, "hostname and listen port required!\n");
         LogError("hostname and listen port required!");
         return -1;
     }
@@ -352,7 +342,6 @@ int Multicast_send_socket(const char *hostname, const char *listenport, int fami
     error = getaddrinfo(hostname, listenport, &hints, &res);
 
     if (error) {
-        fprintf(stderr, "getaddrinfo error:: [%s]\n", gai_strerror(error));
         LogError("getaddrinfo error:: [%s]", gai_strerror(error));
         return -1;
     }
@@ -377,14 +366,12 @@ int Multicast_send_socket(const char *hostname, const char *listenport, int fami
 
     if (sockfd < 0) {
         // nothing found - bye bye
-        fprintf(stderr, "Could not create a socket for [%s:%s]\n", hostname, listenport);
         LogError("Could not create a socket for [%s:%s]", hostname, listenport);
         freeaddrinfo(ressave);
         return -1;
     }
 
     if (isMulticast((struct sockaddr_storage *)res->ai_addr) < 0) {
-        fprintf(stderr, "Not a multicast address [%s]\n", hostname);
         LogError("Not a multicast address [%s]", hostname);
         freeaddrinfo(ressave);
         return -1;
@@ -409,10 +396,7 @@ int Multicast_send_socket(const char *hostname, const char *listenport, int fami
 } /* End of Multicast_send_socket */
 
 static int joinGroup(int sockfd, int loopBack, int mcastTTL, struct sockaddr_storage *addr) {
-    int ret, err;
-
-    ret = -1;
-
+    int ret = -1;
     switch (addr->ss_family) {
         case AF_INET: {
             struct ip_mreq mreq;
@@ -420,9 +404,8 @@ static int joinGroup(int sockfd, int loopBack, int mcastTTL, struct sockaddr_sto
             mreq.imr_multiaddr.s_addr = ((struct sockaddr_in *)addr)->sin_addr.s_addr;
             mreq.imr_interface.s_addr = INADDR_ANY;
 
-            err = setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const void *)&mreq, sizeof(mreq));
+            int err = setsockopt(sockfd, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const void *)&mreq, sizeof(mreq));
             if (err) {
-                fprintf(stderr, "setsockopt IP_ADD_MEMBERSHIP: %s\n", strerror(errno));
                 LogError("setsockopt IP_ADD_MEMBERSHIP: %s", strerror(errno));
                 break;
             }
@@ -435,9 +418,8 @@ static int joinGroup(int sockfd, int loopBack, int mcastTTL, struct sockaddr_sto
             memcpy(&mreq6.ipv6mr_multiaddr, &(((struct sockaddr_in6 *)addr)->sin6_addr), sizeof(struct in6_addr));
             mreq6.ipv6mr_interface = 0;
 
-            err = setsockopt(sockfd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq6, sizeof(mreq6));
+            int err = setsockopt(sockfd, IPPROTO_IPV6, IPV6_JOIN_GROUP, &mreq6, sizeof(mreq6));
             if (err) {
-                fprintf(stderr, "setsockopt IPV6_JOIN_GROUP: %s\n", strerror(errno));
                 LogError("setsockopt IPV6_JOIN_GROUP: %s", strerror(errno));
                 break;
             }
@@ -451,9 +433,7 @@ static int joinGroup(int sockfd, int loopBack, int mcastTTL, struct sockaddr_sto
 } /* joinGroup */
 
 static int isMulticast(struct sockaddr_storage *addr) {
-    int ret;
-
-    ret = -1;
+    int ret = -1;
     switch (addr->ss_family) {
         case AF_INET: {
             struct sockaddr_in *addr4 = (struct sockaddr_in *)addr;
@@ -469,3 +449,59 @@ static int isMulticast(struct sockaddr_storage *addr) {
 
     return ret;
 } /* End of isMulticast */
+
+int Raw_send_socket(int sockbuflen) {
+    int sock = socket(PF_INET, SOCK_RAW, IPPROTO_RAW);
+    if (sock == -1) {
+        LogError("socket(PF_INET, SOCK_RAW, IPPROTO_RAW) error: %s", strerror(errno));
+        return 0;
+    }
+
+    int on = 1;
+    if (setsockopt(sock, IPPROTO_IP, IP_HDRINCL, (void *)&on, sizeof(on)) < 0) {
+        LogError("setsockopt(IP_HDRINCL,%d): %s", on, strerror(errno));
+        close(sock);
+        return 0;
+    }
+
+    if (sockbuflen > 0) {
+        if (setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (void *)&sockbuflen, sizeof sockbuflen) == -1) {
+            LogError("setsockopt(SO_SNDBUF,%ld): %s", sockbuflen, strerror(errno));
+            close(sock);
+            return 0;
+        }
+    }
+
+    return sock;
+
+}  // End of Raw_send_socket
+
+int LookupHost(char *hostname, char *port, struct sockaddr_in *addr) {
+    if (!hostname || !port) {
+        LogError("hostname and listen port required!");
+        return -1;
+    }
+
+    // create socket
+    struct addrinfo hints = {0};
+    struct addrinfo *res;
+
+    // for IP spoofing, we support only IPv4
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+
+    int error = getaddrinfo(hostname, port, &hints, &res);
+    if (error) {
+        LogError("getaddrinfo() error: %s", gai_strerror(error));
+        return -1;
+    }
+    while (res) {
+        if (res->ai_family == AF_INET) {
+            struct sockaddr_in *sa = (struct sockaddr_in *)res->ai_addr;
+            *addr = *sa;
+            break;
+        }
+        res = res->ai_next;
+    }
+    return res ? 0 : -1;
+}  // End of LookupHost

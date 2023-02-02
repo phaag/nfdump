@@ -1,5 +1,5 @@
 
-BUILT_SOURCES = grammar.h
+BUILT_SOURCES = grammar.h vcs_track.h
 AM_YFLAGS = -d
 
 AM_CPPFLAGS = -I.. -I../include -I../inline $(DEPS_CFLAGS)
@@ -11,7 +11,7 @@ LDADD = $(DEPS_LIBS)
 util = util.c util.h
 pidfile = pidfile.c pidfile.h
 filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h
-nffile = nffile.c nffile.h nffileV2.h queue.c queue.h nfx.c nfx.h nfxV3.h nfxV3.c
+nffile = nffile.c nffile.h nffileV2.h queue.c queue.h nfx.c nfx.h nfxV3.h nfxV3.c id.h
 
 if NEEDFTSCOMPAT
 nflist = flist.c flist.h fts_compat.c fts_compat.h
@@ -22,9 +22,15 @@ filter = grammar.y scanner.l nftree.c nftree.h ipconv.c ipconv.h rbtree.h filter
 output = output_util.c output_util.h output_short.c output_short.h
 regex = sgregex/sgregex.c sgregex/sgregex.h
 daemon = daemon.c daemon.h 
+version = version.c version.h
+
+vcs_track.h: Makefile
+	./gen_version.sh
 
 lib_LTLIBRARIES = libnfdump.la
-libnfdump_la_SOURCES = $(util) $(pidfile) $(filelzo) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon)
+libnfdump_la_SOURCES = $(util) $(pidfile) $(filelzo) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(version) vcs_track.h
 libnfdump_la_LDFLAGS = -release @VERSION@
 
-CLEANFILES = lex.yy.c grammar.c grammar.h scanner.c scanner.h *.gch
+EXTRA_DIST = gen_version.sh
+
+CLEANFILES = lex.yy.c grammar.c grammar.h scanner.c scanner.h vcs_track.h *.gch

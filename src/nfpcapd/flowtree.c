@@ -137,6 +137,7 @@ void Free_Node(struct FlowNode *node) {
     }
 
     if (node->payload) free(node->payload);
+    if (node->pflog) free(node->pflog);
 
     dbg_assert(node->left == NULL);
     dbg_assert(node->right == NULL);
@@ -258,20 +259,11 @@ void CacheCheck(NodeList_t *NodeList, time_t when) {
 }  // End of CacheCheck
 
 static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2) {
-    uint64_t *a = e1->src_addr.v6;
-    uint64_t *b = e2->src_addr.v6;
-    int i;
-
-#define CMPLEN (offsetof(struct FlowNode, _ENDKEY_) - offsetof(struct FlowNode, src_addr))
-
-    i = memcmp((void *)a, (void *)b, CMPLEN);
+    int i = memcmp((void *)&e1->flowKey, (void *)&e2->flowKey, sizeof(e1->flowKey));
     return i;
-
 }  // End of FlowNodeCMP
 
-struct FlowNode *Lookup_Node(struct FlowNode *node) {
-    return RB_FIND(FlowTree, FlowTree, node);
-}  // End of Lookup_FlowTree
+struct FlowNode *Lookup_Node(struct FlowNode *node) { return RB_FIND(FlowTree, FlowTree, node); }  // End of Lookup_FlowTree
 
 struct FlowNode *Insert_Node(struct FlowNode *node) {
     struct FlowNode *n;
@@ -322,12 +314,7 @@ int Link_RevNode(struct FlowNode *node) {
 
     dbg_printf("Link node: ");
     dbg_assert(node->rev_node == NULL);
-    lookup_node.src_addr = node->dst_addr;
-    lookup_node.dst_addr = node->src_addr;
-    lookup_node.src_port = node->dst_port;
-    lookup_node.dst_port = node->src_port;
-    lookup_node.version = node->version;
-    lookup_node.proto = node->proto;
+    lookup_node.flowKey = node->flowKey;
     rev_node = Lookup_Node(&lookup_node);
     if (rev_node) {
         dbg_printf("Found revnode ");
@@ -354,7 +341,6 @@ int Link_RevNode(struct FlowNode *node) {
 
 uint32_t Flush_FlowTree(NodeList_t *NodeList, time_t when) {
     struct FlowNode *node, *nxt;
-    uint32_t n = NumFlows;
 
     // Dump all incomplete flows to the file
     nxt = NULL;
@@ -368,15 +354,13 @@ uint32_t Flush_FlowTree(NodeList_t *NodeList, time_t when) {
         }
     }
 
-    if (NumFlows != 0) LogInfo("Flush_FlowTree() flushed flows: %u\n", NumFlows);
-
     node = New_Node();
     node->timestamp = when;
     node->nodeType = SIGNAL_NODE;
     node->signal = SIGNAL_DONE;
     Push_Node(NodeList, node);
 
-    return n;
+    return 0;
 
 }  // End of Flush_FlowTree
 

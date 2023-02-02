@@ -29,11 +29,8 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <errno.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -44,10 +41,11 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/uio.h>
 #include <sys/wait.h>
-#include <unistd.h>
 
 #include "bookkeeper.h"
+#include "config.h"
 #include "nfstatfile.h"
 
 #ifdef HAVE_FTS_H
@@ -66,19 +64,43 @@
 #include "launch.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "util.h"
+#include "privsep.h"
 
 #define DEVEL 1
+#include "util.h"
 
-static int done, launch, child_exit;
+typedef struct launcher_message_s {
+    time_t timeslot;
+    uint32_t lenFilename;
+    uint32_t lenFlowdir;
+    uint32_t lenIsotime;
+    uint32_t lenIdent;
+    uint32_t lenAlign;
+} launcher_message_t;
+
+typedef struct launcher_args_s {
+    time_t timeslot;
+    char *filename;
+    char *flowdir;
+    char *isotime;
+    char *ident;
+} launcher_args_t;
+
+static int done = 0;
+static int child_exit = 0;
+static pthread_t killtid = 0;
 
 static void SignalHandler(int signal);
 
-static char *cmd_expand(srecord_t *InfoRecord, char *ident, char *datadir, char *process);
+static char *cmd_expand(char *launch_process, launcher_args_t *launcher_args);
 
 static void cmd_parse(char *buf, char **args);
 
 static void cmd_execute(char **args);
+
+static void processMessage(message_t *message, launcher_args_t *launcher_args);
+
+static void launcher(messageQueue_t *messageQueue, char *launch_process, int expire);
 
 static void do_expire(char *datadir);
 
@@ -88,13 +110,8 @@ static void do_expire(char *datadir);
 static void SignalHandler(int signal) {
     switch (signal) {
         case SIGTERM:
-            // in case the process will not terminate, we
-            // kill the process directly after the 2nd TERM signal
-            if (done > 1) exit(234);
-            done++;
-            break;
-        case SIGHUP:
-            launch = 1;
+            done = 1;
+            pthread_kill(killtid, SIGINT);
             break;
         case SIGCHLD:
             child_exit++;
@@ -108,37 +125,35 @@ static void SignalHandler(int signal) {
  * expand the memory needed in the command string and replace placeholders
  * prevent endless expansion
  */
-static char *cmd_expand(srecord_t *InfoRecord, char *ident, char *datadir, char *process) {
-    char *q, *s, tmp[16];
-    int i;
-
-    q = strdup(process);
+static char *cmd_expand(char *launch_process, launcher_args_t *launcher_args) {
+    char *q = strdup(launch_process);
     if (!q) {
         LogError("strdup() error in %s:%i: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
-    i = 0;
 
+    int i = 0;
     while (q[i]) {
+        char *s, tmp[16];
         if ((q[i] == '%') && q[i + 1]) {
             // replace the %x var
             switch (q[i + 1]) {
                 case 'd':
-                    s = datadir;
+                    s = launcher_args->flowdir;
                     break;
                 case 'f':
-                    s = InfoRecord->fname;
+                    s = launcher_args->filename;
                     break;
                 case 't':
-                    s = InfoRecord->tstring;
+                    s = launcher_args->isotime;
                     break;
                 case 'u':
-                    snprintf(tmp, 16, "%lli", (long long)InfoRecord->tstamp);
+                    snprintf(tmp, 16, "%lli", (long long)launcher_args->timeslot);
                     tmp[15] = 0;
                     s = tmp;
                     break;
                 case 'i':
-                    s = ident;
+                    s = launcher_args->ident;
                     break;
                 default:
                     LogError("Unknown format token '%%%c'", q[i + 1]);
@@ -210,21 +225,19 @@ static void cmd_execute(char **args) {
     int pid;
 
     // Get a child process.
-    LogInfo("Launcher: fork child.");
     if ((pid = fork()) < 0) {
         LogError("Can't fork: %s", strerror(errno));
         return;
     }
 
-    if (pid == 0) {  // we are the child
+    if (pid == 0) {
+        // child process
         execvp(*args, args);
         LogError("Can't execvp: %s: %s", args[0], strerror(errno));
         _exit(1);
     }
 
-    // we are the parent
-    LogInfo("Launcher: child exec done.");
-    /* empty */
+    // parent process
 
 }  // End of cmd_execute
 
@@ -299,93 +312,82 @@ static void do_expire(char *datadir) {
 
 }  // End of do_expire
 
-void launcher(void *commbuff, FlowSource_t *FlowSource, char *process, int expire) {
-    FlowSource_t *fs;
-    struct sigaction act;
-    char *args[MAXARGS];
-    int pid, stat;
-    srecord_t *InfoRecord;
+void processMessage(message_t *message, launcher_args_t *launcher_args) {
+    void *p = message;
+    p += sizeof(message_t);
 
-    InfoRecord = (srecord_t *)commbuff;
+    memset(launcher_args, 0, sizeof(launcher_args_t));
 
-    LogInfo("Launcher: Startup. auto-expire %s", expire ? "enabled" : "off");
-    done = launch = child_exit = 0;
+    launcher_message_t *lm = (launcher_message_t *)p;
+    size_t len = sizeof(message_t) + sizeof(launcher_message_t);
+    len += lm->lenFilename + lm->lenFlowdir + lm->lenIsotime + lm->lenIdent + lm->lenAlign;
 
-    // process may be NULL, if we only expire data files
-    if (process) {
-        char *cmd = NULL;
-        srecord_t TestRecord;
-        // check for valid command expansion
-        strncpy(TestRecord.fname, "test", MAXPATHLEN - 1);
-        TestRecord.fname[MAXPATHLEN - 1] = 0;
-        strncpy(TestRecord.tstring, "20190711084500", MAXTIMESTRING - 1);
-        TestRecord.tstring[MAXTIMESTRING - 1] = 0;
-        TestRecord.tstamp = 1;
-
-        // checkk valid command expansion
-        fs = FlowSource;
-        cmd = cmd_expand(&TestRecord, fs->Ident, fs->datadir, process);
-        if (cmd == NULL) {
-            LogError("Launcher: ident: %s, Unable to expand command: '%s'", fs->Ident, process);
-            exit(255);
-        }
-        free(cmd);
+    if (message->length < len) {
+        LogError("Message size error: Expected: %zu, have: %u\n", len, message->length);
+        return;
     }
 
-    /* Signal handling */
-    memset((void *)&act, 0, sizeof(struct sigaction));
-    act.sa_handler = SignalHandler;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;
-    sigaction(SIGCHLD, &act, NULL);  // child process terminated
-    sigaction(SIGTERM, &act, NULL);  // we are done
-    sigaction(SIGINT, &act, NULL);   // we are done
-    sigaction(SIGHUP, &act, NULL);   // run command
+    p += sizeof(launcher_message_t);
 
+    launcher_args->filename = p;
+    launcher_args->filename[lm->lenFilename - 1] = '\0';
+    p += lm->lenFilename;
+
+    launcher_args->flowdir = p;
+    launcher_args->flowdir[lm->lenFlowdir - 1] = '\0';
+    p += lm->lenFlowdir;
+
+    launcher_args->isotime = p;
+    launcher_args->isotime[lm->lenIsotime - 1] = '\0';
+    p += lm->lenIsotime;
+
+    launcher_args->ident = p;
+    launcher_args->ident[lm->lenIdent - 1] = '\0';
+    p += lm->lenIdent;
+
+}  // End of processMessage
+
+static void launcher(messageQueue_t *messageQueue, char *launch_process, int expire) {
     while (!done) {
-        // sleep until we get signaled
-        dbg_printf("Launcher: Sleeping");
-        select(0, NULL, NULL, NULL, NULL);
-        dbg_printf("Launcher: Wakeup");
-        if (launch) {  // SIGHUP
-            launch = 0;
-
-            if (process) {
-                char *cmd = NULL;
-
-                fs = FlowSource;
-                while (fs) {
-                    // Expand % placeholders
-                    cmd = cmd_expand(InfoRecord, fs->Ident, fs->datadir, process);
-                    if (cmd == NULL) {
-                        LogError("Launcher: ident: %s, Unable to expand command: '%s'", fs->Ident, process);
-                        continue;
-                    }
-                    dbg_printf("Launcher: ident: %s run command: '%s'", fs->Ident, cmd);
-
-                    // prepare args array
-                    cmd_parse(cmd, args);
-                    if (args[0]) cmd_execute(args);
-
-                    // do not flood the system with new processes
-                    sleep(1);
-                    // else cmd_parse already reported the error
-                    free(cmd);
-                    fs = fs->next;
-                }
-            }
-
-            fs = FlowSource;
-            while (fs) {
-                if (expire) do_expire(fs->datadir);
-                fs = fs->next;
-            }
+        message_t *message = getMessage(messageQueue);
+        if (message == (message_t *)-1) {
+            done = 1;
+            return;
         }
+
+        LogVerbose("Launcher: process next message");
+        launcher_args_t launcher_args;
+        processMessage(message, &launcher_args);
+
+        // may be NULL, if we only expire data files
+        if (launch_process) {
+            char *cmd = NULL;
+
+            // check valid command expansion
+            cmd = cmd_expand(launch_process, &launcher_args);
+            if (cmd == NULL) {
+                LogError("Launcher: ident: %s, Unable to expand command: '%s'", launcher_args.ident, launch_process);
+                done = 1;
+                return;
+            }
+            LogVerbose("Launcher: ident: %s run command: '%s'", launcher_args.ident, cmd);
+
+            // prepare args array
+            char *args[MAXARGS];
+            cmd_parse(cmd, args);
+            if (args[0]) cmd_execute(args);
+
+            free(cmd);
+        }
+        if (expire) do_expire(launcher_args.flowdir);
+
         if (child_exit) {
-            LogInfo("launcher child exit %d children.", child_exit);
+            LogVerbose("%d child process(es) terminated", child_exit);
+            int stat;
+            pid_t pid;
             while ((pid = waitpid(-1, &stat, WNOHANG)) > 0) {
                 if (WIFEXITED(stat)) {
-                    LogInfo("launcher child %i exit status: %i", pid, WEXITSTATUS(stat));
+                    LogVerbose("launcher child %i exit status: %i", pid, WEXITSTATUS(stat));
                 }
                 if (WIFSIGNALED(stat)) {
                     LogError("launcher child %i died due to signal %i", pid, WTERMSIG(stat));
@@ -393,17 +395,115 @@ void launcher(void *commbuff, FlowSource_t *FlowSource, char *process, int expir
 
                 child_exit--;
             }
-            LogInfo("launcher waiting children done. %d children", child_exit);
             child_exit = 0;
-        }
-        if (done) {
-            LogInfo("Launcher: Terminating.");
         }
     }
 
-    waitpid(-1, &stat, 0);
-
     // we are done
-    LogInfo("Launcher: exit.");
+    LogInfo("Launcher: Terminating.");
 
 }  // End of launcher
+
+#define AddVector(v, s, l)         \
+    v[i].iov_base = s;             \
+    l = strlen(v[i].iov_base) + 1; \
+    v[i++].iov_len = l;
+
+int SendLauncherMessage(int pfd, time_t t_start, char *subdir, char *fmt, char *datadir, char *ident) {
+    char fname[MAXPATHLEN];
+    if (subdir) {
+        snprintf(fname, MAXPATHLEN - 1, "%s/nfcapd.%s", subdir, fmt);
+    } else {
+        snprintf(fname, MAXPATHLEN - 1, "nfcapd.%s", fmt);
+    }
+    fname[MAXPATHLEN - 1] = '\0';
+
+    dbg_printf("Launcher arguments: Time: %ld, t: %s, f: %s, d: %s, i: %s\n", t_start, fmt, fname, datadir, ident);
+
+    message_t message;
+    message.type = PRIVMSG_LAUNCH;
+
+    launcher_message_t launcher_message;
+    launcher_message.timeslot = t_start;
+
+    struct iovec vector[8];
+
+    int i = 0;
+    vector[i].iov_base = &message;
+    vector[i++].iov_len = sizeof(message);
+
+    vector[i].iov_base = &launcher_message;
+    vector[i++].iov_len = sizeof(launcher_message);
+
+    size_t argLen = 0;
+    size_t len = sizeof(message_t) + sizeof(launcher_message);
+
+    AddVector(vector, fname, argLen);
+    launcher_message.lenFilename = argLen;
+    len += argLen;
+
+    AddVector(vector, datadir, argLen);
+    launcher_message.lenFlowdir = argLen;
+    len += argLen;
+
+    AddVector(vector, fmt, argLen);
+    launcher_message.lenIsotime = argLen;
+    len += argLen;
+
+    AddVector(vector, ident, argLen);
+    launcher_message.lenIdent = argLen;
+    len += argLen;
+
+    size_t align = len & 0x3;
+    if (align) {
+        launcher_message.lenAlign = 4 - align;
+        len += launcher_message.lenAlign;
+        vector[i].iov_base = &align;
+        vector[i++].iov_len = launcher_message.lenAlign;
+    } else {
+        launcher_message.lenAlign = 0;
+    }
+
+    message.length = len;
+    ssize_t ret = writev(pfd, vector, i);
+    if (ret < 0) {
+        LogError("Failed to send launcher message: %s", strerror(errno));
+    }
+    return ret;
+}
+
+int StartupLauncher(char *launch_process, int expire) {
+    LogInfo("StartupLauncher(): %s, expire: %d", launch_process, expire);
+
+    messageQueue_t *messageQueue = NewMessageQueue();
+    if (!messageQueue) return 0;
+
+    /* Signal handling */
+    struct sigaction act;
+    memset((void *)&act, 0, sizeof(struct sigaction));
+    act.sa_handler = SignalHandler;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = 0;
+    sigaction(SIGTERM, &act, NULL);
+    sigaction(SIGCHLD, &act, NULL);
+
+    thread_arg_t thread_arg = {0};
+    thread_arg.messageFunc = pushMessageFunc;
+    thread_arg.extraArg = (void *)messageQueue;
+    pthread_t tid;
+    int err = pthread_create(&killtid, NULL, pipeReader, (void *)&thread_arg);
+    if (err) {
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return 0;
+    }
+    tid = killtid;
+
+    launcher(messageQueue, launch_process, expire);
+    err = pthread_join(tid, NULL);
+    if (err) {
+        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    }
+
+    LogVerbose("End StartupLauncher()");
+    return 1;
+}  // End of StartupLauncher

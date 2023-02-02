@@ -1,7 +1,5 @@
 /*
- *  Copyright (c) 2017, Peter Haag
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -34,14 +32,12 @@
 #ifndef _BOOKKEEPER_H
 #define _BOOKKEEPER_H 1
 
-#include <sys/types.h>
-
-#include "config.h"
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
+#include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+
+#include "config.h"
 
 enum { BOOKKEEPER_OK = 0, ERR_FAILED, ERR_NOTEXISTS, ERR_PATHACCESS, ERR_EXISTS };
 
@@ -51,7 +47,6 @@ enum { BOOKKEEPER_OK = 0, ERR_FAILED, ERR_NOTEXISTS, ERR_PATHACCESS, ERR_EXISTS 
 typedef struct bookkeeper_s {
     // collector infos
     pid_t nfcapd_pid;
-    pid_t launcher_pid;
 
     // track info
     uint64_t sequence;
@@ -79,7 +74,7 @@ typedef struct bookkeeper_list_s {
 } bookkeeper_list_t;
 
 /* function prototypes */
-int InitBookkeeper(bookkeeper_t **bookkeeper, char *path, pid_t nfcapd_pid, pid_t launcher_pid);
+int InitBookkeeper(bookkeeper_t **bookkeeper, char *path, pid_t nfcapd_pid);
 
 int AccessBookkeeper(bookkeeper_t **bookkeeper, char *path);
 

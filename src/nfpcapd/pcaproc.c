@@ -67,6 +67,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nflog.h"
+#include "nfxV3.h"
 #include "pflog.h"
 #include "util.h"
 
@@ -278,12 +279,12 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
         Node->t_first.tv_usec = hdr->ts.tv_usec;
         Node->t_last.tv_sec = hdr->ts.tv_sec;
         Node->t_last.tv_usec = hdr->ts.tv_usec;
-        Node->version = AF_INET;
-        Node->proto = ip->ip_p;
-        Node->src_addr.v4 = ntohl(ip->ip_src.s_addr);
-        Node->dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
-        Node->src_port = ntohs(ip->ip_id);
-        Node->dst_port = 0;
+        Node->flowKey.version = AF_INET;
+        Node->flowKey.proto = ip->ip_p;
+        Node->flowKey.src_addr.v4 = ntohl(ip->ip_src.s_addr);
+        Node->flowKey.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
+        Node->flowKey.src_port = ntohs(ip->ip_id);
+        Node->flowKey.dst_port = 0;
         Node->nodeType = FRAG_NODE;
 
         if (Insert_Node(Node) != NULL) {
@@ -302,12 +303,12 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
         }
     } else {
         struct FlowNode FindNode = {0};
-        FindNode.version = AF_INET;
-        FindNode.proto = ip->ip_p;
-        FindNode.src_addr.v4 = ntohl(ip->ip_src.s_addr);
-        FindNode.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
-        FindNode.src_port = ntohs(ip->ip_id);
-        FindNode.dst_port = 0;
+        FindNode.flowKey.version = AF_INET;
+        FindNode.flowKey.proto = ip->ip_p;
+        FindNode.flowKey.src_addr.v4 = ntohl(ip->ip_src.s_addr);
+        FindNode.flowKey.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
+        FindNode.flowKey.src_port = ntohs(ip->ip_id);
+        FindNode.flowKey.dst_port = 0;
 
         Node = Lookup_Node(&FindNode);
         if (!Node) {
@@ -342,6 +343,16 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
     return NULL;
 }  // End of ProcessIPfrag
 
+static inline void AddPayload(struct FlowNode *Node, void *payload, size_t payloadSize) {
+    Node->payload = malloc(payloadSize);
+    if (!Node->payload) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    } else {
+        memcpy(Node->payload, payload, payloadSize);
+        Node->payloadSize = payloadSize;
+    }
+}
+
 static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
     struct FlowNode *Node;
 
@@ -354,9 +365,7 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
 
         if (payloadSize && packetParam->addPayload) {
             dbg_printf("New TCP flow: Set payload of size: %zu\n", payloadSize);
-            NewNode->payload = malloc(payloadSize);
-            memcpy(NewNode->payload, payload, payloadSize);
-            NewNode->payloadSize = payloadSize;
+            AddPayload(NewNode, payload, payloadSize);
         }
 
         // in case it's a FIN/RST only packet - immediately flush it
@@ -391,9 +400,7 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
 
     if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
         dbg_printf("Existing TCP flow: Set payload of size: %zu\n", payloadSize);
-        Node->payload = malloc(payloadSize);
-        memcpy(Node->payload, payload, payloadSize);
-        Node->payloadSize = payloadSize;
+        AddPayload(Node, payload, payloadSize);
     }
 
     if (NewNode->signal == SIGNAL_FIN) {
@@ -413,13 +420,11 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *N
 
     assert(NewNode->memflag == NODE_IN_USE);
     // Flush DNS queries directly
-    if (NewNode->src_port == 53 || NewNode->dst_port == 53) {
+    if (NewNode->flowKey.src_port == 53 || NewNode->flowKey.dst_port == 53) {
         // flush node to flow thread
         if (payloadSize && packetParam->addPayload) {
             dbg_printf("UDP DNS flow: payload size: %zu\n", payloadSize);
-            NewNode->payload = malloc(payloadSize);
-            memcpy(NewNode->payload, payload, payloadSize);
-            NewNode->payloadSize = payloadSize;
+            AddPayload(NewNode, payload, payloadSize);
         }
         Push_Node(packetParam->NodeList, NewNode);
         return;
@@ -431,9 +436,7 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *N
         dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
         if (payloadSize && packetParam->addPayload) {
             dbg_printf("New UDP flow: Set payload of size: %zu\n", payloadSize);
-            NewNode->payload = malloc(payloadSize);
-            memcpy(NewNode->payload, payload, payloadSize);
-            NewNode->payloadSize = payloadSize;
+            AddPayload(NewNode, payload, payloadSize);
         }
         return;
     }
@@ -447,9 +450,7 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *N
 
     if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
         dbg_printf("Existing UDP flow: Set payload of size: %u\n", NewNode->payloadSize);
-        Node->payload = malloc(payloadSize);
-        memcpy(Node->payload, payload, payloadSize);
-        Node->payloadSize = payloadSize;
+        AddPayload(Node, payload, payloadSize);
     }
 
     Free_Node(NewNode);
@@ -461,9 +462,7 @@ static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *
     dbg_printf("Flush ICMP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
     if (payloadSize && packetParam->addPayload) {
         dbg_printf("ICMP flow: payload size: %zu\n", payloadSize);
-        NewNode->payload = malloc(payloadSize);
-        memcpy(NewNode->payload, payload, payloadSize);
-        NewNode->payloadSize = payloadSize;
+        AddPayload(NewNode, payload, payloadSize);
     }
     Push_Node(packetParam->NodeList, NewNode);
 
@@ -476,12 +475,10 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode 
     struct FlowNode *Node = Insert_Node(NewNode);
     // if insert fails, the existing node is returned -> flow exists already
     if (Node == NULL) {
-        dbg_printf("New flow IP proto: %u. Packets: %u, Bytes: %u\n", NewNode->proto, NewNode->packets, NewNode->bytes);
+        dbg_printf("New flow IP proto: %u. Packets: %u, Bytes: %u\n", NewNode->flowKey.proto, NewNode->packets, NewNode->bytes);
         if (payloadSize && packetParam->addPayload) {
             dbg_printf("flow: payload size: %zu\n", payloadSize);
-            NewNode->payload = malloc(payloadSize);
-            memcpy(NewNode->payload, payload, payloadSize);
-            NewNode->payloadSize = payloadSize;
+            AddPayload(NewNode, payload, payloadSize);
         }
         return;
     }
@@ -491,13 +488,11 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode 
     Node->packets++;
     Node->bytes += NewNode->bytes;
     Node->t_last = NewNode->t_last;
-    dbg_printf("Existing flow IP proto: %u Packets: %u, Bytes: %u\n", NewNode->proto, Node->packets, Node->bytes);
+    dbg_printf("Existing flow IP proto: %u Packets: %u, Bytes: %u\n", NewNode->flowKey.proto, Node->packets, Node->bytes);
 
     if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
         dbg_printf("Existing UDP flow: Set payload of size: %u\n", NewNode->payloadSize);
-        Node->payload = malloc(payloadSize);
-        memcpy(Node->payload, payload, payloadSize);
-        Node->payloadSize = payloadSize;
+        AddPayload(Node, payload, payloadSize);
     }
 
     Free_Node(NewNode);
@@ -526,9 +521,7 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
     uint64_t dstMac = 0;
     uint32_t numMPLS = 0;
     uint32_t *mplsLabel = NULL;
-    uint32_t ruleNr = 0;
-    uint8_t action = 0;
-    uint8_t reason = 0;
+    pflog_hdr_t *pflog = NULL;
 
     // link layer processing
     uint16_t protocol = 0;
@@ -618,9 +611,8 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
                     LogInfo("Packet: %u: PFLOG: not enough data", pkg_cnt);
                     return;
                 }
-                ruleNr = pfloghdr->rulenr;
-                action = pfloghdr->action;
-                reason = pfloghdr->reason;
+                pflog = malloc(sizeof(pflog_hdr_t));
+                memcpy(pflog, pfloghdr, sizeof(pflog_hdr_t));
 
                 protocol = 0x800;
                 dataptr += PFLOG_HDRLEN;
@@ -777,7 +769,7 @@ REDO_IPPROTO:
                    inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)));
 
         if (!Node) Node = New_Node();
-        Node->version = AF_INET6;
+        Node->flowKey.version = AF_INET6;
         Node->t_first.tv_sec = hdr->ts.tv_sec;
         Node->t_first.tv_usec = hdr->ts.tv_usec;
         Node->t_last.tv_sec = hdr->ts.tv_sec;
@@ -787,13 +779,13 @@ REDO_IPPROTO:
         // keep compiler happy - get's optimized out anyway
         void *p = (void *)&ip6->ip6_src;
         uint64_t *addr = (uint64_t *)p;
-        Node->src_addr.v6[0] = ntohll(addr[0]);
-        Node->src_addr.v6[1] = ntohll(addr[1]);
+        Node->flowKey.src_addr.v6[0] = ntohll(addr[0]);
+        Node->flowKey.src_addr.v6[1] = ntohll(addr[1]);
 
         p = (void *)&ip6->ip6_dst;
         addr = (uint64_t *)p;
-        Node->dst_addr.v6[0] = ntohll(addr[0]);
-        Node->dst_addr.v6[1] = ntohll(addr[1]);
+        Node->flowKey.dst_addr.v6[0] = ntohll(addr[0]);
+        Node->flowKey.dst_addr.v6[1] = ntohll(addr[1]);
 
     } else if (version == 4) {
         uint16_t ip_off = ntohs(ip->ip_off);
@@ -828,15 +820,15 @@ REDO_IPPROTO:
             Node->payloadSize = 0;
         } else {
             if (!Node) Node = New_Node();
-            Node->version = AF_INET;
+            Node->flowKey.version = AF_INET;
             Node->t_first.tv_sec = hdr->ts.tv_sec;
             Node->t_first.tv_usec = hdr->ts.tv_usec;
             Node->t_last.tv_sec = hdr->ts.tv_sec;
             Node->t_last.tv_usec = hdr->ts.tv_usec;
             Node->bytes = ntohs(ip->ip_len);
 
-            Node->src_addr.v4 = ntohl(ip->ip_src.s_addr);
-            Node->dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
+            Node->flowKey.src_addr.v4 = ntohl(ip->ip_src.s_addr);
+            Node->flowKey.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
         }
     } else {
         dbg_printf("ProcessPacket() Unsupported protocol version: %i\n", version);
@@ -849,11 +841,10 @@ REDO_IPPROTO:
     Node->srcMac = srcMac;
     Node->dstMac = dstMac;
     Node->packets = 1;
-    Node->proto = IPproto;
+    Node->flowKey.proto = IPproto;
     Node->nodeType = FLOW_NODE;
-    Node->ruleNr = ruleNr;
-    Node->action = action;
-    Node->reason = reason;
+    Node->pflog = pflog;
+
     // bytes = number of bytes on wire - data link data
     dbg_printf("Payload: %td bytes, Full packet: %u bytes\n", eodata - dataptr, Node->bytes);
 
@@ -889,8 +880,8 @@ REDO_IPPROTO:
             dbg_printf("  UDP: size: %u, SRC: %i, DST: %i\n", UDPlen, ntohs(udp->uh_sport), ntohs(udp->uh_dport));
 
             Node->flags = 0;
-            Node->src_port = ntohs(udp->uh_sport);
-            Node->dst_port = ntohs(udp->uh_dport);
+            Node->flowKey.src_port = ntohs(udp->uh_sport);
+            Node->flowKey.dst_port = ntohs(udp->uh_dport);
 
             dbg_assert(dataptr <= eodata);
             payloadSize = (ptrdiff_t)(eodata - dataptr);
@@ -927,8 +918,8 @@ REDO_IPPROTO:
 #endif
 
             Node->flags = tcp->th_flags;
-            Node->src_port = ntohs(tcp->th_sport);
-            Node->dst_port = ntohs(tcp->th_dport);
+            Node->flowKey.src_port = ntohs(tcp->th_sport);
+            Node->flowKey.dst_port = ntohs(tcp->th_dport);
             ProcessTCPFlow(packetParam, Node, payload, payloadSize);
 
         } break;
@@ -947,7 +938,7 @@ REDO_IPPROTO:
             payloadSize = (ptrdiff_t)(eodata - dataptr);
             if (payloadSize > 0) payload = (void *)dataptr;
 
-            Node->dst_port = (icmp->icmp_type << 8) + icmp->icmp_code;
+            Node->flowKey.dst_port = (icmp->icmp_type << 8) + icmp->icmp_code;
             dbg_printf("  IPv%d ICMP proto: %u, type: %u, code: %u\n", version, ip->ip_p, icmp->icmp_type, icmp->icmp_code);
             ProcessICMPFlow(packetParam, Node, payload, payloadSize);
         } break;
@@ -966,7 +957,7 @@ REDO_IPPROTO:
             payloadSize = (ptrdiff_t)(eodata - dataptr);
             if (payloadSize > 0) payload = (void *)dataptr;
 
-            Node->dst_port = (icmp6->icmp6_type << 8) + icmp6->icmp6_code;
+            Node->flowKey.dst_port = (icmp6->icmp6_type << 8) + icmp6->icmp6_code;
             dbg_printf("  IPv%d ICMP proto: %u, type: %u, code: %u\n", version, ip->ip_p, icmp6->icmp6_type, icmp6->icmp6_code);
             ProcessICMPFlow(packetParam, Node, payload, payloadSize);
         } break;
@@ -981,10 +972,10 @@ REDO_IPPROTO:
             }
 
             // move IP to tun IP
-            Node->tun_src_addr = Node->src_addr;
-            Node->tun_dst_addr = Node->dst_addr;
+            Node->tun_src_addr = Node->flowKey.src_addr;
+            Node->tun_dst_addr = Node->flowKey.dst_addr;
             Node->tun_proto = IPPROTO_IPIP;
-            Node->tun_ip_version = Node->version;
+            Node->tun_ip_version = Node->flowKey.version;
 
             dbg_printf("  IPIPv6 tunnel - inner IPv6:\n");
 
@@ -1003,10 +994,10 @@ REDO_IPPROTO:
             }
 
             // move IP to tun IP
-            Node->tun_src_addr = Node->src_addr;
-            Node->tun_dst_addr = Node->dst_addr;
+            Node->tun_src_addr = Node->flowKey.src_addr;
+            Node->tun_dst_addr = Node->flowKey.dst_addr;
             Node->tun_proto = IPPROTO_IPIP;
-            Node->tun_ip_version = Node->version;
+            Node->tun_ip_version = Node->flowKey.version;
 
             dbg_printf("  IPIP tunnel - inner IP:\n");
 
@@ -1030,7 +1021,7 @@ REDO_IPPROTO:
             } else if (version == 1) {
                 uint16_t proto = ntohs(gre_hdr->type);
                 uint16_t callID = ntohs(*((uint16_t *)(dataptr + 6)));
-                Node->dst_port = callID;
+                Node->flowKey.dst_port = callID;
                 if (proto != 0x880b) {
                     LogError("Unexpected protocol in LLTP GRE header: 0x%x", proto);
                     packetParam->proc_stat.short_snap++;
@@ -1066,10 +1057,10 @@ REDO_IPPROTO:
                 goto END_FUNC;
             }
             // move IP to tun IP
-            Node->tun_src_addr = Node->src_addr;
-            Node->tun_dst_addr = Node->dst_addr;
+            Node->tun_src_addr = Node->flowKey.src_addr;
+            Node->tun_dst_addr = Node->flowKey.dst_addr;
             Node->tun_proto = IPPROTO_GRE;
-            Node->tun_ip_version = Node->version;
+            Node->tun_ip_version = Node->flowKey.version;
             // redo IP proto evaluation
             goto REDO_LINK;
 

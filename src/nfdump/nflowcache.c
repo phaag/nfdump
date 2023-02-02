@@ -51,6 +51,7 @@
 #include "exporter.h"
 #include "khash.h"
 #include "klist.h"
+#include "maxmind.h"
 #include "memhandle.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -70,70 +71,73 @@ static struct aggregate_table_s {
     aggregate_param_t param;  // the parameter array
     int merge;                // apply bis mask? => -1 no, otherwise index of mask[] array
     int active;               // is this parameter set?
+    int geoLookup;            // may require geolookup
     char *fmt;                // for automatic output format generation
-} aggregate_table[] = {{"srcip4", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, 0, 0, "%sa"},
-                       {"srcip4", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, NULL},
-                       {"srcip6", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, 0, 0, "%sa"},
-                       {"srcip6", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, NULL},
-                       {"srcnet", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, "%sn"},
-                       {"srcnet", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, NULL},
-                       {"dstnet", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, "%dn"},
-                       {"dstnet", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, NULL},
-                       {"srcip", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, "%sa"},
-                       {"srcip", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, NULL},
-                       {"dstip", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, "%da"},
-                       {"dstip", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, NULL},
+} aggregate_table[] = {{"srcip4", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, 0, 0, 0, "%sa"},
+                       {"srcip4", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, 0, NULL},
+                       {"srcip6", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, 0, 0, 0, "%sa"},
+                       {"srcip6", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, 0, NULL},
+                       {"srcnet", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%sn"},
+                       {"srcnet", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
+                       {"dstnet", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%dn"},
+                       {"dstnet", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
+                       {"srcip", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%sa"},
+                       {"srcip", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
+                       {"dstip", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%da"},
+                       {"dstip", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
 #ifdef NSEL
-                       {"xsrcip", {8, OffsetXLATESRCv6a, MaskIPv6, ShiftIPv6}, -1, 0, "%xsa"},
-                       {"xsrcip", {8, OffsetXLATESRCv6b, MaskIPv6, ShiftIPv6}, -1, 0, NULL},
-                       {"xdstip", {8, OffsetXLATEDSTv6a, MaskIPv6, ShiftIPv6}, -1, 0, "%xda"},
-                       {"xdstip", {8, OffsetXLATEDSTv6b, MaskIPv6, ShiftIPv6}, -1, 0, NULL},
-                       {"xsrcport", {2, OffsetXLATEPort, MaskXLATESRCPORT, ShiftXLATESRCPORT}, -1, 0, "%xsp"},
-                       {"xdstport", {2, OffsetXLATEPort, MaskXLATEDSTPORT, ShiftXLATEDSTPORT}, -1, 0, "%xdp"},
+                       {"xsrcip", {8, OffsetXLATESRCv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%xsa"},
+                       {"xsrcip", {8, OffsetXLATESRCv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
+                       {"xdstip", {8, OffsetXLATEDSTv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%xda"},
+                       {"xdstip", {8, OffsetXLATEDSTv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
+                       {"xsrcport", {2, OffsetXLATEPort, MaskXLATESRCPORT, ShiftXLATESRCPORT}, -1, 0, 0, "%xsp"},
+                       {"xdstport", {2, OffsetXLATEPort, MaskXLATEDSTPORT, ShiftXLATEDSTPORT}, -1, 0, 0, "%xdp"},
 #endif
-                       {"dstip4", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, 0, 0, "%da"},
-                       {"dstip4", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, NULL},
-                       {"dstip6", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, 0, 0, "%da"},
-                       {"dstip6", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, NULL},
-                       {"next", {8, OffsetNexthopv6a, MaskIPv6, ShiftIPv6}, -1, 0, "%nh"},
-                       {"next", {8, OffsetNexthopv6b, MaskIPv6, ShiftIPv6}, -1, 0, NULL},
-                       {"bgpnext", {8, OffsetBGPNexthopv6a, MaskIPv6, ShiftIPv6}, -1, 0, "%nhb"},
-                       {"bgpnext", {8, OffsetBGPNexthopv6b, MaskIPv6, ShiftIPv6}, -1, 0, NULL},
-                       {"router", {8, OffsetRouterv6a, MaskIPv6, ShiftIPv6}, -1, 0, "%ra"},
-                       {"router", {8, OffsetRouterv6b, MaskIPv6, ShiftIPv6}, -1, 0, NULL},
-                       {"insrcmac", {8, OffsetInSrcMAC, MaskMac, ShiftIPv6}, -1, 0, "%ismc"},
-                       {"outdstmac", {8, OffsetOutDstMAC, MaskMac, ShiftIPv6}, -1, 0, "%odmc"},
-                       {"indstmac", {8, OffsetInDstMAC, MaskMac, ShiftIPv6}, -1, 0, "%idmc"},
-                       {"outsrcmac", {8, OffsetOutSrcMAC, MaskMac, ShiftIPv6}, -1, 0, "%osmc"},
-                       {"srcas", {4, OffsetAS, MaskSrcAS, ShiftSrcAS}, -1, 0, "%sas"},
-                       {"dstas", {4, OffsetAS, MaskDstAS, ShiftDstAS}, -1, 0, "%das"},
-                       {"nextas", {4, OffsetBGPadj, MaskBGPadjNext, ShiftBGPadjNext}, -1, 0, "%nas"},
-                       {"prevas", {4, OffsetBGPadj, MaskBGPadjPrev, ShiftBGPadjPrev}, -1, 0, "%pas"},
-                       {"inif", {4, OffsetInOut, MaskInput, ShiftInput}, -1, 0, "%in"},
-                       {"outif", {4, OffsetInOut, MaskOutput, ShiftOutput}, -1, 0, "%out"},
-                       {"mpls1", {4, OffsetMPLS12, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, "%mpls1"},
-                       {"mpls2", {4, OffsetMPLS12, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, "%mpls2"},
-                       {"mpls3", {4, OffsetMPLS34, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, "%mpls3"},
-                       {"mpls4", {4, OffsetMPLS34, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, "%mpls4"},
-                       {"mpls5", {4, OffsetMPLS56, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, "%mpls5"},
-                       {"mpls6", {4, OffsetMPLS56, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, "%mpls6"},
-                       {"mpls7", {4, OffsetMPLS78, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, "%mpls7"},
-                       {"mpls8", {4, OffsetMPLS78, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, "%mpls8"},
-                       {"mpls9", {4, OffsetMPLS910, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, "%mpls9"},
-                       {"mpls10", {4, OffsetMPLS910, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, "%mpls10"},
-                       {"srcport", {2, OffsetPort, MaskSrcPort, ShiftSrcPort}, -1, 0, "%sp"},
-                       {"dstport", {2, OffsetPort, MaskDstPort, ShiftDstPort}, -1, 0, "%dp"},
-                       {"srcvlan", {2, OffsetVlan, MaskSrcVlan, ShiftSrcVlan}, -1, 0, "%svln"},
-                       {"dstvlan", {2, OffsetVlan, MaskDstVlan, ShiftDstVlan}, -1, 0, "%dvln"},
-                       {"srcmask", {1, OffsetMask, MaskSrcMask, ShiftSrcMask}, -1, 0, "%smk"},
-                       {"dstmask", {1, OffsetMask, MaskDstMask, ShiftDstMask}, -1, 0, "%dmk"},
-                       {"proto", {1, OffsetProto, MaskProto, ShiftProto}, -1, 0, "%pr"},
-                       {"tos", {1, OffsetTos, MaskTos, ShiftTos}, -1, 0, "%tos"},
-                       {"srctos", {1, OffsetTos, MaskTos, ShiftTos}, -1, 0, "%stos"},
-                       {"dsttos", {1, OffsetDstTos, MaskDstTos, ShiftDstTos}, -1, 0, "%dtos"},
-                       {"odid", {1, OffsetObservationDomainID, MaskObservationDomainID, ShiftObservationDomainID}, -1, 0, "%odid"},
-                       {"opid", {1, OffsetObservationPointID, MaskObservationPointID, ShiftObservationPointID}, -1, 0, "%opid"},
-                       {NULL, {0, 0, 0, 0}, 0, 0, NULL}};
+                       {"dstip4", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, 0, 0, 0, "%da"},
+                       {"dstip4", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, 0, NULL},
+                       {"dstip6", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, 0, 0, 0, "%da"},
+                       {"dstip6", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, 0, NULL},
+                       {"next", {8, OffsetNexthopv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%nh"},
+                       {"next", {8, OffsetNexthopv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
+                       {"bgpnext", {8, OffsetBGPNexthopv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%nhb"},
+                       {"bgpnext", {8, OffsetBGPNexthopv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
+                       {"router", {8, OffsetRouterv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%ra"},
+                       {"router", {8, OffsetRouterv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
+                       {"insrcmac", {8, OffsetInSrcMAC, MaskMac, ShiftIPv6}, -1, 0, 0, "%ismc"},
+                       {"outdstmac", {8, OffsetOutDstMAC, MaskMac, ShiftIPv6}, -1, 0, 0, "%odmc"},
+                       {"indstmac", {8, OffsetInDstMAC, MaskMac, ShiftIPv6}, -1, 0, 0, "%idmc"},
+                       {"outsrcmac", {8, OffsetOutSrcMAC, MaskMac, ShiftIPv6}, -1, 0, 0, "%osmc"},
+                       {"srcas", {4, OffsetAS, MaskSrcAS, ShiftSrcAS}, -1, 0, 1, "%sas"},
+                       {"dstas", {4, OffsetAS, MaskDstAS, ShiftDstAS}, -1, 0, 1, "%das"},
+                       {"nextas", {4, OffsetBGPadj, MaskBGPadjNext, ShiftBGPadjNext}, -1, 0, 0, "%nas"},
+                       {"prevas", {4, OffsetBGPadj, MaskBGPadjPrev, ShiftBGPadjPrev}, -1, 0, 0, "%pas"},
+                       {"inif", {4, OffsetInOut, MaskInput, ShiftInput}, -1, 0, 0, "%in"},
+                       {"outif", {4, OffsetInOut, MaskOutput, ShiftOutput}, -1, 0, 0, "%out"},
+                       {"mpls1", {4, OffsetMPLS12, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, 0, "%mpls1"},
+                       {"mpls2", {4, OffsetMPLS12, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, 0, "%mpls2"},
+                       {"mpls3", {4, OffsetMPLS34, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, 0, "%mpls3"},
+                       {"mpls4", {4, OffsetMPLS34, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, 0, "%mpls4"},
+                       {"mpls5", {4, OffsetMPLS56, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, 0, "%mpls5"},
+                       {"mpls6", {4, OffsetMPLS56, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, 0, "%mpls6"},
+                       {"mpls7", {4, OffsetMPLS78, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, 0, "%mpls7"},
+                       {"mpls8", {4, OffsetMPLS78, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, 0, "%mpls8"},
+                       {"mpls9", {4, OffsetMPLS910, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, 0, "%mpls9"},
+                       {"mpls10", {4, OffsetMPLS910, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, 0, "%mpls10"},
+                       {"srcport", {2, OffsetPort, MaskSrcPort, ShiftSrcPort}, -1, 0, 0, "%sp"},
+                       {"dstport", {2, OffsetPort, MaskDstPort, ShiftDstPort}, -1, 0, 0, "%dp"},
+                       {"srcvlan", {2, OffsetVlan, MaskSrcVlan, ShiftSrcVlan}, -1, 0, 0, "%svln"},
+                       {"dstvlan", {2, OffsetVlan, MaskDstVlan, ShiftDstVlan}, -1, 0, 0, "%dvln"},
+                       {"srcmask", {1, OffsetMask, MaskSrcMask, ShiftSrcMask}, -1, 0, 0, "%smk"},
+                       {"dstmask", {1, OffsetMask, MaskDstMask, ShiftDstMask}, -1, 0, 0, "%dmk"},
+                       {"proto", {1, OffsetProto, MaskProto, ShiftProto}, -1, 0, 0, "%pr"},
+                       {"tos", {1, OffsetTos, MaskTos, ShiftTos}, -1, 0, 0, "%tos"},
+                       {"srctos", {1, OffsetTos, MaskTos, ShiftTos}, -1, 0, 0, "%stos"},
+                       {"dsttos", {1, OffsetDstTos, MaskDstTos, ShiftDstTos}, -1, 0, 0, "%dtos"},
+                       {"odid", {1, OffsetObservationDomainID, MaskObservationDomainID, ShiftObservationDomainID}, -1, 0, 0, "%odid"},
+                       {"opid", {1, OffsetObservationPointID, MaskObservationPointID, ShiftObservationPointID}, -1, 0, 0, "%opid"},
+                       {"srcgeo", {4, OffsetGeo, MaskSrcGeo, ShiftSrcGeo}, -1, 0, 1, "%sc"},
+                       {"dstgeo", {4, OffsetGeo, MaskDstGeo, ShiftDstGeo}, -1, 0, 1, "%dc"},
+                       {NULL, {0, 0, 0, 0}, 0, 0, 0, NULL}};
 
 /* Element of the flow hash ( cache ) */
 typedef struct FlowHashRecord {
@@ -207,6 +211,7 @@ static uint32_t FlowStat_order = 0;  // bit field for multiple print orders
 static uint32_t PrintOrder = 0;      // -O selected print order - index into order_mode
 static uint32_t PrintDirection = 0;
 static uint32_t GuessDirection = 0;
+static uint32_t doGeoLookup = 0;
 
 typedef struct FlowKey_s {
     uint64_t srcAddr[2];
@@ -721,7 +726,9 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
             if (strcasecmp(p, "dstnet") == 0) {
                 aggregate_info.apply_netbits |= 2;
             }
-
+            if (hasGeoDB) {
+                doGeoLookup += a->geoLookup;
+            }
             do {
                 int i = a->merge;
                 if (i != -1) {
@@ -967,6 +974,13 @@ void AddFlowCache(void *raw_record, master_record_t *flow_record) {
     static void *keymem = NULL;
     FlowHashRecord_t r;
 
+    if (doGeoLookup && TestFlag(flow_record->mflags, V3_FLAG_ENRICHED) == 0) {
+        LookupCountry(flow_record->V6.srcaddr, flow_record->src_geo);
+        LookupCountry(flow_record->V6.dstaddr, flow_record->dst_geo);
+        if (flow_record->srcas == 0) flow_record->srcas = LookupAS(flow_record->V6.srcaddr);
+        if (flow_record->dstas == 0) flow_record->dstas = LookupAS(flow_record->V6.dstaddr);
+        SetFlag(flow_record->mflags, V3_FLAG_ENRICHED);
+    }
     if (bidir_flows) return AddBidirFlow(raw_record, flow_record);
 
     if (keymem == NULL) {
@@ -1039,7 +1053,13 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
         master_record_t flow_record;
         memset((void *)&flow_record, 0, sizeof(master_record_t));
         ExpandRecord_v3(raw_record, &flow_record);
-
+        if (doGeoLookup) {
+            LookupCountry(flow_record.V6.srcaddr, flow_record.src_geo);
+            LookupCountry(flow_record.V6.dstaddr, flow_record.dst_geo);
+            if (flow_record.srcas == 0) flow_record.srcas = LookupAS(flow_record.V6.srcaddr);
+            if (flow_record.dstas == 0) flow_record.dstas = LookupAS(flow_record.V6.dstaddr);
+            SetFlag(flow_record.mflags, V3_FLAG_ENRICHED);
+        }
         flow_record.inPackets = r->counter[INPACKETS];
         flow_record.inBytes = r->counter[INBYTES];
         flow_record.out_pkts = r->counter[OUTPACKETS];

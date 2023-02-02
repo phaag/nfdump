@@ -62,20 +62,43 @@ static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
     char datestr1[64], datestr2[64], datestr3[64];
 
     struct tm *ts;
-    time_t when = r->msecFirst / 1000LL;
-    if (when == 0) {
-        strncpy(datestr1, "<unknown>", 63);
-    } else {
-        ts = localtime(&when);
-        strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
-    }
+    time_t when;
 
-    when = r->msecLast / 1000LL;
-    if (when == 0) {
-        strncpy(datestr2, "<unknown>", 63);
+    if (TestFlag(r->flags, V3_FLAG_EVENT)) {
+        uint64_t eventTime = r->msecFirst;
+#ifdef NSEL
+        if (r->msecEvent) eventTime = r->msecEvent;
+#endif
+        when = eventTime / 1000LL;
+        if (when == 0) {
+            strncpy(datestr1, "<unknown>", 63);
+        } else {
+            ts = localtime(&when);
+            strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
+        }
+        fprintf(stream, "  Event time   =     %13llu [%s.%03llu]\n", (long long unsigned)eventTime, datestr1, eventTime % 1000LL);
+
     } else {
-        ts = localtime(&when);
-        strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
+        when = r->msecFirst / 1000LL;
+        if (when == 0) {
+            strncpy(datestr1, "<unknown>", 63);
+        } else {
+            ts = localtime(&when);
+            strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
+        }
+
+        when = r->msecLast / 1000LL;
+        if (when == 0) {
+            strncpy(datestr2, "<unknown>", 63);
+        } else {
+            ts = localtime(&when);
+            strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
+        }
+
+        fprintf(stream,
+                "  first        =     %13llu [%s.%03llu]\n"
+                "  last         =     %13llu [%s.%03llu]\n",
+                (long long unsigned)r->msecFirst, datestr1, r->msecFirst % 1000LL, (long long unsigned)r->msecLast, datestr2, r->msecLast % 1000LL);
     }
 
     if (r->msecReceived) {
@@ -88,14 +111,10 @@ static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
     }
 
     fprintf(stream,
-            "  first        =     %13llu [%s.%03llu]\n"
-            "  last         =     %13llu [%s.%03llu]\n"
             "  received at  =     %13llu [%s.%03llu]\n"
             "  proto        =               %3u %s\n"
             "  tcp flags    =              0x%.2x %s\n",
-            (long long unsigned)r->msecFirst, datestr1, r->msecFirst % 1000LL, (long long unsigned)r->msecLast,
-            datestr2, r->msecLast % 1000LL, (long long unsigned)r->msecReceived, datestr3,
-            (long long unsigned)r->msecReceived % 1000L, r->proto, ProtoString(r->proto, 0),
+            (long long unsigned)r->msecReceived, datestr3, (long long unsigned)r->msecReceived % 1000L, r->proto, ProtoString(r->proto, 0),
             r->proto == IPPROTO_TCP ? r->tcp_flags : 0, FlagsString(r->proto == IPPROTO_TCP ? r->tcp_flags : 0));
 
     if (r->revTcpFlags) {
@@ -109,8 +128,9 @@ static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
         fprintf(stream,
                 "  src port     =             %5u\n"
                 "  dst port     =             %5u\n"
-                "  src tos      =               %3u\n",
-                r->srcPort, r->dstPort, r->tos);
+                "  src tos      =               %3u\n"
+                "  fwd status   =               %3u\n",
+                r->srcPort, r->dstPort, r->tos, r->fwd_status);
     }
 
     fprintf(stream,
@@ -135,8 +155,7 @@ static void stringEXtunIPv4(FILE *stream, master_record_t *r) {
             "  tun proto    =               %3u %s\n"
             "  tun src addr =  %16s%s%s\n"
             "  tun dst addr =  %16s%s%s\n",
-            r->tun_proto, ProtoString(r->tun_proto, 0), as, strlen(sloc) ? ": " : "", sloc, ds,
-            strlen(dloc) ? ": " : "", dloc);
+            r->tun_proto, ProtoString(r->tun_proto, 0), as, strlen(sloc) ? ": " : "", sloc, ds, strlen(dloc) ? ": " : "", dloc);
 
 }  // End of stringEXtunIPv4
 
@@ -158,8 +177,7 @@ static void stringEXtunIPv6(FILE *stream, master_record_t *r) {
             "  tun proto    =               %3u %s\n"
             "  tun src addr =  %16s%s%s\n"
             "  tun dst addr =  %16s%s%s\n",
-            r->tun_proto, ProtoString(r->tun_proto, 0), as, strlen(sloc) ? ": " : "", sloc, ds,
-            strlen(dloc) ? ": " : "", dloc);
+            r->tun_proto, ProtoString(r->tun_proto, 0), as, strlen(sloc) ? ": " : "", sloc, ds, strlen(dloc) ? ": " : "", dloc);
 
 }  // End of stringEXtunIPv6
 
@@ -236,14 +254,12 @@ static void stringsEXflowMisc(FILE *stream, master_record_t *r) {
             "  output       =          %8u%s\n"
             "  src mask     =             %5u %s/%u\n"
             "  dst mask     =             %5u %s/%u\n"
-            "  fwd status   =               %3u\n"
             "  dst tos      =               %3u\n"
             "  direction    =               %3u\n"
             "  biFlow Dir   =              0x%.2x %s\n"
             "  end reason   =              0x%.2x %s\n",
-            r->input, ifInName, r->output, ifOutName, r->src_mask, snet, r->src_mask, r->dst_mask, dnet, r->dst_mask,
-            r->fwd_status, r->tos, r->dir, r->biFlowDir, biFlowString(r->biFlowDir), r->flowEndReason,
-            FlowEndString(r->flowEndReason));
+            r->input, ifInName, r->output, ifOutName, r->src_mask, snet, r->src_mask, r->dst_mask, dnet, r->dst_mask, r->tos, r->dir, r->biFlowDir,
+            biFlowString(r->biFlowDir), r->flowEndReason, FlowEndString(r->flowEndReason));
 
 }  // End of stringsEXflowMisc
 
@@ -265,6 +281,8 @@ static void stringsEXvLan(FILE *stream, master_record_t *r) {
 }  // End of stringsEXvLan
 
 static void stringsEXasRouting(FILE *stream, master_record_t *r) {
+    if (r->srcas == 0) r->srcas = LookupAS(r->V6.srcaddr);
+    if (r->dstas == 0) r->dstas = LookupAS(r->V6.dstaddr);
     fprintf(stream,
             "  src as       =             %5u\n"
             "  dst as       =             %5u\n",
@@ -350,8 +368,8 @@ static void stringsEXipReceivedV6(FILE *stream, master_record_t *r) {
 static void stringsEXmplsLabel(FILE *stream, master_record_t *r) {
     for (int i = 0; i < 10; i++) {
         if (r->mpls_label[i] != 0) {
-            fprintf(stream, "  MPLS Lbl %2u  =      %8u-%1u-%1u\n", i + 1, r->mpls_label[i] >> 4,
-                    (r->mpls_label[i] & 0xF) >> 1, r->mpls_label[i] & 1);
+            fprintf(stream, "  MPLS Lbl %2u  =      %8u-%1u-%1u\n", i + 1, r->mpls_label[i] >> 4, (r->mpls_label[i] & 0xF) >> 1,
+                    r->mpls_label[i] & 1);
         }
     }
 
@@ -372,8 +390,8 @@ static void stringsEXmacAddr(FILE *stream, master_record_t *r) {
             "  out dst mac  = %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n"
             "  in dst mac   = %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n"
             "  out src mac  = %.2x:%.2x:%.2x:%.2x:%.2x:%.2x\n",
-            mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0],
-            mac3[5], mac3[4], mac3[3], mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
+            mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0], mac3[5], mac3[4], mac3[3],
+            mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
 
 }  // End of stringsEXmacAddr
 
@@ -438,9 +456,8 @@ static void stringsEXnselCommon(FILE *stream, master_record_t *r) {
             "  fw event     =             %5u: %s\n"
             "  fw ext event =             %5u: %s\n"
             "  Event time   =     %13llu [%s.%03llu]\n",
-            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event),
-            r->fwXevent, EventXString(r->fwXevent), (long long unsigned)r->msecEvent, datestr,
-            (long long unsigned)(r->msecEvent % 1000L));
+            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event), r->fwXevent, EventXString(r->fwXevent),
+            (long long unsigned)r->msecEvent, datestr, (long long unsigned)(r->msecEvent % 1000L));
 
 }  // End of stringsEXnselCommon
 
@@ -500,21 +517,7 @@ static void stringsEXnselUserID(FILE *stream, master_record_t *r) {
 }  // End of stringsEXnselUserID
 
 static void stringsEXnelCommon(FILE *stream, master_record_t *r) {
-    char datestr[64];
-
-    time_t when = r->msecEvent / 1000LL;
-    if (when == 0) {
-        strncpy(datestr, "<unknown>", 63);
-    } else {
-        struct tm *ts = localtime(&when);
-        strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", ts);
-    }
-
-    fprintf(stream,
-            "  nat event    =             %5u: %s\n"
-            "  Event time   =     %13llu [%s.%03llu]\n",
-            r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event),
-            (long long unsigned)r->msecEvent, datestr, (long long unsigned)(r->msecEvent % 1000L));
+    fprintf(stream, "  nat event    =             %5u: %s\n", r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event));
 
 }  // End of stringsEXnelCommon
 
@@ -617,6 +620,17 @@ static void inoutPayload(FILE *stream, master_record_t *r, char *payload, uint32
     DumpHex(stream, payload, max);
 }  // End of stringsEXoutPayload
 
+static void stringsEXpfinfo(FILE *stream, master_record_t *r) {
+    fprintf(stream,
+            "  pflog ifname =          %8s\n"
+            "  pflog action =             %5s/%u\n"
+            "  pflog reason =             %5s/%u\n"
+            "  pflog direct =             %5s\n"
+            "  pflog rulenr =             %5u\n",
+            r->pfIfName, pfAction(r->pfAction), r->pfAction, pfReason(r->pfReason), r->pfReason, r->pfDir ? "in" : "out", r->pfRulenr);
+
+}  // End of stringsEXpfinfo
+
 void raw_prolog(void) {
     // empty prolog
     recordCount = 0;
@@ -632,8 +646,7 @@ void raw_record(FILE *stream, void *record, int tag) {
 
     elementString[0] = '\0';
     for (int i = 0; i < r->numElements; i++) {
-        snprintf(elementString + strlen(elementString), sizeof(elementString) - strlen(elementString), "%u ",
-                 r->exElementList[i]);
+        snprintf(elementString + strlen(elementString), sizeof(elementString) - strlen(elementString), "%u ", r->exElementList[i]);
     }
     char *type;
     char version[8];
@@ -676,8 +689,8 @@ void raw_record(FILE *stream, void *record, int tag) {
             "  engine ID    =             %5u\n"
             "  export sysid =             %5u\n",
             r->flags, type, version, TestFlag(r->flags, V3_FLAG_ANON) ? " Anonymized" : "",
-            TestFlag(r->flags, V3_FLAG_SAMPLED) ? "Sampled" : "Unsampled", r->numElements, elementString, r->size,
-            r->engine_type, r->engine_id, r->exporter_sysid);
+            TestFlag(r->flags, V3_FLAG_SAMPLED) ? "Sampled" : "Unsampled", r->numElements, elementString, r->size, r->engine_type, r->engine_id,
+            r->exporter_sysid);
 
     if (r->label) {
         fprintf(stream, "  Label        =  %16s\n", r->label);
@@ -784,6 +797,9 @@ void raw_record(FILE *stream, void *record, int tag) {
             case EXtunIPv4ID:
                 break;
             case EXtunIPv6ID:
+                break;
+            case EXpfinfoID:
+                stringsEXpfinfo(stream, r);
                 break;
             default:
                 dbg_printf("Extension %i not decoded\n", r->exElementList[i]);

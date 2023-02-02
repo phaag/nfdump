@@ -302,7 +302,7 @@ static char *printAddress(SFLAddress *address, char *buf, int bufLen) {
                      b[7], b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]);
         } break;
         default:
-            sprintf(buf, "-");
+            snprintf(buf, bufLen, "-");
     }
     return buf;
 }  // End of printAddress

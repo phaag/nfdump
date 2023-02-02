@@ -1,6 +1,6 @@
 /*
  *  All rights reserved.
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  Copyright (c) 2001 Mark Fullmer and The Ohio State University
  *  All rights reserved.
@@ -61,11 +61,10 @@
 #include "nfxV3.h"
 #include "output_short.h"
 #include "util.h"
+#include "version.h"
 
 /* Global defines */
 #define MAXRECORDS 30
-
-const char *nfdump_version = VERSION;
 
 static bool HasFlows = false;
 
@@ -169,7 +168,7 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
     nffile_t *nffile;
 
     char *ident = "flow-tools";
-    nffile = OpenNewFile(wfile, NULL, compress, NOT_ENCRYPTED);
+    nffile = OpenNewFile(wfile, NULL, CREATOR_FT2NFDUMP, compress, NOT_ENCRYPTED);
     if (!nffile) {
         LogError("OpenNewFile() failed.");
         return 1;
@@ -312,7 +311,7 @@ int main(int argc, char **argv) {
                 exit(0);
                 break;
             case 'V':
-                printf("%s: Version: %s\n", argv[0], nfdump_version);
+                printf("%s: %s\n", argv[0], versionString());
                 exit(0);
                 break;
             case 'E':

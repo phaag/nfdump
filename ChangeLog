@@ -1,3 +1,71 @@
+2023-01-29
+-	Move fwd_status in correct block in output_raw
+
+2023-01-28
+-	Add unique version string
+
+2023-01-21
+-	Add creator tag in nffile header
+-	Fix filter concat bug. Add exporter filter
+
+2023-01-17
+-	Update output_fmt.c {{Peter Haag}}
+
+2023-01-14
+-	Fix #396. Code cleanup
+
+2023-01-08
+-	Fix CentOS compile issue
+
+2023-01-07
+-	Implement OpenBSD pflog filters elements and -o fmt print tokens
+-	Add pflog fmt tokens in man page {{Peter Haag}}
+
+2023-01-03
+-	Implement source IP address spoofing for the packet repeater. See #248
+    The source spoofing is enabled with new option -A.
+
+2023-01-02
+-	Replace old packet repeater code with more modern privsep code
+
+2023-01-01
+-	Remove old code
+
+2022-12-31
+-	Replace old launcher startup code with more modern privsep code
+
+2022-12-29
+-	Fix compile issue #395 on Alpine Linux
+
+2022-12-24
+-	V1.7.1
+
+2022-12-23
+-	Fix #394. Event labeling.
+
+2022-12-22
+- 	Fix #393 consistent logging
+
+2022-12-20
+-	Remove extra ':' in getopt of nfcapd.
+
+2022-12-18 
+-	Add feature #391. Add country code addgregation
+-	Fix #392. Fix format options with IPv6
+-	Fix #390. Aggregation not working for GeoDB's enriched AS data
+
+2022-12-17
+-	Add OpenBSD pflog decoding in nfpcapd and nfdump
+-	Add pfinfo extension
+-	Fix Ident change
+-	Sync nfcapd, sfcapd code. Cleanup pcaproc
+-	Fix #389 receiving IPv4 on IPv6 socket in sfcapd
+-	Code cleanup in nfpcapd
+
+2022-12-09
+-	Code cleanup
+-	Fix #385 bug - i386 32bit alignment
+
 2022-12-9
 -	Fix #384 bug when compile with --enable-nsel
 -	Fix #385 bug - i386 32bit alignment 

@@ -3,7 +3,7 @@
 
 AC_PREREQ([2.69])
 AC_REVISION($Revision: 244 $)dnl 
-AC_INIT([nfdump],[1.7.0],[peter@people.ops-trust.net])
+AC_INIT([nfdump],[1.7.1],[peter@people.ops-trust.net])
 
 AC_CONFIG_HEADERS([config.h])
 AM_INIT_AUTOMAKE([subdir-objects])
@@ -262,6 +262,7 @@ PCAP_LIBS="-lpcap"
 AC_SUBST(PCAP_LIBS)
 ]
 , AC_MSG_ERROR(Can not link libpcap. Please specify --with-pcappath=.. configure failed! ))
+	AC_CHECK_LIB(pcap, pcap_dump_open_append, AM_CONDITIONAL(HAVEPCAPAPPEND, true))
 	AC_CHECK_HEADERS([pcap.h])
 	if test "$ac_cv_header_pcap_h" = yes; then
 		AM_CONDITIONAL(BUILDNFPCAPD, true)
@@ -282,6 +283,7 @@ AC_SUBST(PCAP_LIBS)
 ]
 ,
 AM_CONDITIONAL(BUILDNFPCAPD, false)
+AM_CONDITIONAL(HAVEPCAPAPPEND, false)
 )
 
 ## Check for BSD socket or TPACKET_V3

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,39 +28,9 @@
  *
  */
 
-#ifndef _OUTPUT_UTIL_H
-#define _OUTPUT_UTIL_H 1
+#ifndef __VERSION_H
+#define __VERSION_H 1
 
-#include <stdint.h>
+char *versionString(void);
 
-char *ProtoString(uint8_t protoNum, uint32_t plainNumbers);
-
-int ProtoNum(char *protoString);
-
-char *FlagsString(uint16_t flags);
-
-char *biFlowString(uint8_t biFlow);
-
-char *FlowEndString(uint8_t biFlow);
-
-void CondenseV6(char *s);
-
-char *FwEventString(int event);
-
-char *EventString(int event);
-
-char *EventXString(int xevent);
-
-const char *pfAction(int action);
-
-int pfActionNr(char *action);
-
-void pfListActions(void);
-
-const char *pfReason(int reason);
-
-int pfReasonNr(char *reason);
-
-void pfListReasons(void);
-
-#endif  // _OUTPUT_UTIL_H
+#endif

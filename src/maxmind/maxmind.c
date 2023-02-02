@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2021-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -810,7 +810,11 @@ static int StoreASV6tree(nffile_t *nffile) {
 }  // End of StoreASV6tree
 
 int SaveMaxMind(char *fileName) {
-    nffile_t *nffile = OpenNewFile(fileName, NULL, LZ4_COMPRESSED, NOT_ENCRYPTED);
+    nffile_t *nffile = OpenNewFile(fileName, NULL, CREATOR_LOOKUP, LZ4_COMPRESSED, NOT_ENCRYPTED);
+    if (!nffile) {
+        LogError("OpenNewFile() failed.");
+        return 0;
+    }
 
     StoreLocalMap(nffile);
     WriteBlock(nffile);

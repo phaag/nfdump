@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -41,12 +41,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <sys/uio.h>
 #include <sys/wait.h>
 #include <time.h>
 
@@ -69,7 +69,10 @@
 #include "nfstatfile.h"
 #include "nfxV3.h"
 #include "pidfile.h"
+#include "privsep.h"
+#include "repeater.h"
 #include "util.h"
+#include "version.h"
 
 #ifdef HAVE_FTS_H
 #include <fts.h>
@@ -87,7 +90,6 @@
 
 #define DEFAULTSFLOWPORT "6343"
 
-static void *shmem = NULL;
 static int verbose = 0;
 
 // Define a generic type to get data from socket or pcap file
@@ -96,21 +98,21 @@ typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *
 /* module limited globals */
 static FlowSource_t *FlowSource;
 
-static int done, launcher_alive, periodic_trigger, launcher_pid;
-
-static const char *nfdump_version = VERSION;
+static int done = 0;
+static int gotSIGCHLD = 0;
+static int periodic_trigger;
 
 /* Local function Prototypes */
 static void usage(char *name);
 
-static void kill_launcher(int pid);
+static void signalPrivsepChild(pid_t child_pid, int pfd);
 
 static void IntHandler(int signal);
 
 static inline FlowSource_t *GetFlowSource(struct sockaddr_storage *ss);
 
-static void run(packet_function_t receive_packet, int socket, repeater_t *repeater, time_t twin, time_t t_begin, int report_seq, int use_subdirs,
-                char *time_extension, int compress);
+static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, int use_subdirs, char *time_extension,
+                int compress);
 
 /* Functions */
 static void usage(char *name) {
@@ -133,6 +135,7 @@ static void usage(char *name) {
         "-M dir \t\tSet the output directory for dynamic sources.\n"
         "-P pidfile\tset the PID file\n"
         "-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
+        "-A\t\tEnable source address spoofing for packet repeater -R.\n"
         "-x process\tlaunch process after a new file becomes available\n"
         "-z\t\tLZO compress flows in output file.\n"
         "-y\t\tLZ4 compress flows in output file.\n"
@@ -149,42 +152,33 @@ static void usage(char *name) {
         name);
 }  // End of usage
 
-void kill_launcher(int pid) {
-    int stat, i;
-    pid_t ret;
+static void signalPrivsepChild(pid_t child_pid, int pfd) {
+    if (pfd == 0) return;
 
-    if (pid == 0) return;
+    message_t message;
+    message.type = PRIVMSG_EXIT;
+    message.length = sizeof(message);
+    ssize_t ret = write(pfd, &message, sizeof(message));
 
-    if (launcher_alive) {
-        LogInfo("Signal launcher[%i] to terminate.", pid);
-        kill(pid, SIGTERM);
-
-        // wait for launcher to teminate
-        for (i = 0; i < LAUNCHER_TIMEOUT; i++) {
-            if (!launcher_alive) break;
-            sleep(1);
-        }
-        if (i >= LAUNCHER_TIMEOUT) {
-            LogError("Launcher does not want to terminate - signal again");
-            kill(pid, SIGTERM);
-            sleep(1);
-        }
-    } else {
-        LogError("launcher[%i] already dead", pid);
+    if (ret < 0) {
+        LogError("Failed to send exit message for privsep child. pipe write: %s", strerror(errno));
+        kill(child_pid, SIGTERM);
     }
 
-    if ((ret = waitpid(pid, &stat, 0)) == -1) {
-        LogError("wait for launcher failed: %s %i", strerror(errno), ret);
+    int stat = 0;
+    if ((ret = waitpid(child_pid, &stat, 0)) == -1) {
+        if (!gotSIGCHLD) LogError("wait for privsep child failed: %s %i", strerror(errno), ret);
     } else {
         if (WIFEXITED(stat)) {
-            LogInfo("launcher exit status: %i", WEXITSTATUS(stat));
+            LogInfo("privsep child exit status: %i", WEXITSTATUS(stat));
         }
         if (WIFSIGNALED(stat)) {
-            LogError("launcher terminated due to signal %i", WTERMSIG(stat));
+            LogError("privsep child terminated due to signal %i", WTERMSIG(stat));
         }
+        LogVerbose("privsep child terminated with status: 0x%x", stat);
     }
 
-}  // End of kill_launcher
+}  // End of signalPrivsepChild
 
 static void IntHandler(int signal) {
     switch (signal) {
@@ -197,7 +191,9 @@ static void IntHandler(int signal) {
             done = 1;
             break;
         case SIGCHLD:
-            launcher_alive = 0;
+            gotSIGCHLD = 0;
+            break;
+        case SIGPIPE:
             break;
         default:
             // ignore everything we don't know
@@ -206,22 +202,78 @@ static void IntHandler(int signal) {
 
 } /* End of IntHandler */
 
+static void ChildDied(void) {
+    if (gotSIGCHLD) {
+        int stat = 0;
+        pid_t pid = waitpid(-1, &stat, 0);
+        if (pid == -1) {
+            if (!gotSIGCHLD) LogError("wait for privsep child failed: %s", strerror(errno));
+        } else {
+            if (WIFEXITED(stat)) {
+                LogInfo("privsep child[%u] exit status: %i", pid, WEXITSTATUS(stat));
+            }
+            if (WIFSIGNALED(stat)) {
+                LogError("privsep child[%u] terminated due to signal %i", pid, WTERMSIG(stat));
+            }
+            LogError("privsep child[%u] terminated with status: pid, 0x%x", pid, stat);
+        }
+        gotSIGCHLD--;
+    }
+
+}  // End of ChildDied
+
+static void format_file_block_header(dataBlock_t *header) {
+    printf("File Block Header: type: %u, size: %u, NumRecords: %u\n", header->type, header->size, header->NumRecords);
+}  // End of format_file_block_header
+
 #include "collector_inline.c"
 #include "nffile_inline.c"
 
-static void run(packet_function_t receive_packet, int socket, repeater_t *repeater, time_t twin, time_t t_begin, int report_seq, int use_subdirs,
-                char *time_extension, int compress) {
+static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockaddr_storage *sender, socklen_t sender_size) {
+    message_t message;
+    message.type = PRIVMSG_REPEAT;
+    message.length = cnt + sizeof(message_t);
+
+    repeater_message_t repeater_message;
+    repeater_message.packet_size = cnt;
+    repeater_message.storage_size = sender_size;
+    repeater_message.addr = *sender;
+
+    struct iovec vector[3];
+    size_t len;
+    vector[0].iov_base = &message;
+    vector[0].iov_len = sizeof(message_t);
+    len = sizeof(message_t);
+
+    vector[1].iov_base = &repeater_message;
+    vector[1].iov_len = sizeof(repeater_message_t);
+    len += sizeof(repeater_message_t);
+
+    vector[2].iov_base = in_buff;
+    vector[2].iov_len = cnt;
+    len += cnt;
+
+    message.length = len;
+    ssize_t ret = writev(fd, vector, 3);
+    if (ret < 0) {
+        LogError("Failed to send repeater message: %s", strerror(errno));
+        return errno;
+    } else {
+        dbg_printf("Sent message to repeater: %u\n", message.length);
+    }
+    return 0;
+}  // End of SendRepeaterMessage
+
+static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, int use_subdirs, char *time_extension,
+                int compress) {
     FlowSource_t *fs;
     struct sockaddr_storage sf_sender;
     socklen_t sf_sender_size = sizeof(sf_sender);
     time_t t_start, t_now;
     uint64_t export_packets;
-    uint32_t blast_cnt, blast_failures, ignored_packets;
+    uint32_t blast_cnt, ignored_packets;
     ssize_t cnt;
     void *in_buff;
-    srecord_t *commbuff;
-
-    Init_sflow(verbose);
 
     in_buff = malloc(NETWORK_INPUT_BUFF_SIZE);
     if (!in_buff) {
@@ -229,14 +281,11 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
         return;
     }
 
-    // init vars
-    commbuff = (srecord_t *)shmem;
-
     // Init each sflow source output data buffer
     fs = FlowSource;
     while (fs) {
         // prepare file
-        fs->nffile = OpenNewFile(fs->current, NULL, compress, NOT_ENCRYPTED);
+        fs->nffile = OpenNewFile(fs->current, NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
         if (!fs->nffile) {
             return;
         }
@@ -251,7 +300,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
         fs = fs->next;
     }
 
-    export_packets = blast_cnt = blast_failures = 0;
+    export_packets = blast_cnt = 0;
     t_start = t_begin;
 
     cnt = 0;
@@ -268,7 +317,6 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
      */
     while (1) {
         struct timeval tv;
-        int i;
 
         /* read next bunch of data into beginn of input buffer */
         if (!done) {
@@ -286,16 +334,6 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 LogError("ERROR: recvfrom: %s", strerror(errno));
                 continue;
             }
-
-            i = 0;
-            while (repeater[i].hostname && (i < MAX_REPEATERS)) {
-                ssize_t len;
-                len = sendto(repeater[i].sockfd, in_buff, cnt, 0, (struct sockaddr *)&(repeater[i].addr), repeater[i].addrlen);
-                if (len < 0) {
-                    LogError("ERROR: sendto(): %s", strerror(errno));
-                }
-                i++;
-            }
         }
 
         /* Periodic file renaming, if time limit reached or if we are done.  */
@@ -305,7 +343,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
 
         if (((t_now - t_start) >= twin) || done) {
             struct tm *now;
-            char *subdir, fmt[MAXTIMESTRING];
+            char *subdir, fmt[32];
 
             alarm(0);
             now = localtime(&t_start);
@@ -331,6 +369,10 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 char nfcapd_filename[MAXPATHLEN];
                 char error[255];
                 nffile_t *nffile = fs->nffile;
+
+                if (verbose > 1) {
+                    format_file_block_header(nffile->block_header);
+                }
 
                 // prepare filename
                 if (subdir) {
@@ -365,13 +407,11 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 // file otherwise, we will loose flows and can not continue collecting new flows
                 if (RenameAppend(fs->current, nfcapd_filename) < 0) {
                     LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
-                    if (launcher_pid) commbuff->failed = 1;
 
                     // we do not update the books here, as the file failed to rename properly
                     // otherwise the books may be wrong
                 } else {
                     struct stat fstat;
-                    if (launcher_pid) commbuff->failed = 0;
 
                     // Update books
                     stat(nfcapd_filename, &fstat);
@@ -391,7 +431,7 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 fs->msecLast = 0;
 
                 if (!done) {
-                    fs->nffile = OpenNewFile(fs->current, fs->nffile, compress, NOT_ENCRYPTED);
+                    fs->nffile = OpenNewFile(fs->current, fs->nffile, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
                     if (!fs->nffile) {
                         LogError("killed due to fatal error: ident: %s", fs->Ident);
                         break;
@@ -402,34 +442,22 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                     FlushStdRecords(fs);
                 }
 
+                // trigger launcher if required
+                if (pfd) {
+                    // Send launcher message
+                    if (SendLauncherMessage(pfd, t_start, subdir, fmt, fs->datadir, fs->Ident) < 0) {
+                        LogError("Failed to send launcher message");
+                    } else {
+                        LogVerbose("Send launcher message");
+                    }
+                }
+
                 // next flow source
                 fs = fs->next;
 
             }  // end of while (fs)
 
-            // trigger launcher if required
-            if (launcher_pid) {
-                // Signal launcher
-
-                strncpy(commbuff->tstring, fmt, MAXTIMESTRING);
-                commbuff->tstring[MAXTIMESTRING - 1] = '\0';
-
-                commbuff->tstamp = t_start;
-                if (subdir) {
-                    snprintf(commbuff->fname, MAXPATHLEN - 1, "%s/nfcapd.%s", subdir, fmt);
-                } else {
-                    snprintf(commbuff->fname, MAXPATHLEN - 1, "nfcapd.%s", fmt);
-                }
-                commbuff->fname[MAXPATHLEN - 1] = '\0';
-
-                if (launcher_alive) {
-                    LogInfo("Signal launcher");
-                    kill(launcher_pid, SIGHUP);
-                } else
-                    LogError("ERROR: Launcher died unexpectedly!");
-            }
-
-            LogInfo("Total ignored packets: %u", ignored_packets);
+            if (ignored_packets) LogInfo("Total ignored packets: %u", ignored_packets);
             ignored_packets = 0;
 
             if (done) break;
@@ -455,8 +483,9 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
                 // signaled to terminate - exit from loop
                 break;
             else {
-                /* this should never be executed as it should be caught in other places */
-                LogError("error condition in '%s', line '%d', cnt: %i", __FILE__, __LINE__, (int)cnt);
+                // A child could have died
+                ChildDied();
+                LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
                 continue;
             }
         }
@@ -464,12 +493,35 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
         /* enough data? */
         if (cnt == 0) continue;
 
+        // repeat this packet
+        if (rfd) {
+            if (SendRepeaterMessage(rfd, in_buff, cnt, &sf_sender, sf_sender_size) != 0) {
+                LogError("Disable packet repeater due to errors");
+                close(rfd);
+                rfd = 0;
+            }
+        }
+
         // get flow source record for current packet, identified by sender IP address
         fs = GetFlowSource(&sf_sender);
         if (fs == NULL) {
-            LogError("Skip UDP packet. Ignored packets so far %u packets", ignored_packets);
-            ignored_packets++;
-            continue;
+            fs = AddDynamicSource(&FlowSource, &sf_sender);
+            if (fs == NULL) {
+                LogError("Skip UDP packet. Ignored packets so far %u packets", ignored_packets);
+                ignored_packets++;
+                continue;
+            }
+            if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
+                LogError("Failed to initialise bookkeeper for new source");
+                // fatal error
+                return;
+            }
+            fs->nffile = OpenNewFile(fs->current, NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+            if (!fs->nffile) {
+                LogError("Failed to open new collector file");
+                return;
+            }
+            SetIdent(fs->nffile, fs->Ident);
         }
 
         /* check for too little data - cnt must be > 0 at this point */
@@ -488,9 +540,6 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
         export_packets++;
     }
 
-    if (verbose && blast_failures) {
-        LogError("Total missed packets: %u", blast_failures);
-    }
     free(in_buff);
 
     fs = FlowSource;
@@ -504,17 +553,15 @@ static void run(packet_function_t receive_packet, int socket, repeater_t *repeat
 
 int main(int argc, char **argv) {
     char *bindhost, *datadir, *launch_process;
-    char *userid, *groupid, *checkptr, *listenport, *mcastgroup;
-    char *Ident, *dynFlowDir, *time_extension, *pidfile, *configFile, *metricsocket;
+    char *userid, *groupid, *listenport, *mcastgroup;
+    char *Ident, *dynFlowDir, *time_extension, *pidfile, *configFile, *metricSocket;
     packet_function_t receive_packet;
     repeater_t repeater[MAX_REPEATERS];
     FlowSource_t *fs;
-    struct sigaction act;
     int family, bufflen, metricInterval;
-    time_t twin, t_start;
-    int sock, do_daemonize, expire, spec_time_extension, report_sequence;
-    int subdir_index, compress;
-    int c, i;
+    time_t twin;
+    int sock, do_daemonize, expire, spec_time_extension;
+    int subdir_index, compress, srcSpoofing;
 #ifdef PCAP
     char *pcap_file = NULL;
 #endif
@@ -523,9 +570,6 @@ int main(int argc, char **argv) {
     verbose = do_daemonize = 0;
     bufflen = 0;
     family = AF_UNSPEC;
-    launcher_pid = 0;
-    launcher_alive = 0;
-    report_sequence = 0;
     listenport = DEFAULTSFLOWPORT;
     bindhost = NULL;
     mcastgroup = NULL;
@@ -540,17 +584,16 @@ int main(int argc, char **argv) {
     expire = 0;
     compress = NOT_COMPRESSED;
     memset((void *)&repeater, 0, sizeof(repeater));
-    for (i = 0; i < MAX_REPEATERS; i++) {
-        repeater[i].family = AF_UNSPEC;
-    }
+    srcSpoofing = 0;
     configFile = NULL;
     Ident = "none";
     FlowSource = NULL;
     dynFlowDir = NULL;
-    metricsocket = NULL;
+    metricSocket = NULL;
     metricInterval = 60;
 
-    while ((c = getopt(argc, argv, "46b:B:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:rR:S:T:t:u:vVw:x:yzZ")) != EOF) {
+    int c;
+    while ((c = getopt(argc, argv, "46AB:b:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:S:T:t:u:vVw:x:yzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -588,25 +631,21 @@ int main(int argc, char **argv) {
 #endif
             } break;
             case 'E':
-                verbose = 1;
+                verbose = 3;
                 break;
             case 'v':
                 if (verbose < 4) verbose++;
                 break;
             case 'V':
-                printf("%s: Version: %s\n", argv[0], nfdump_version);
+                printf("%s: %s\n", argv[0], versionString());
                 exit(EXIT_SUCCESS);
                 break;
             case 'D':
                 do_daemonize = 1;
                 break;
             case 'I':
-                if (strlen(optarg) < 128) {
-                    Ident = strdup(optarg);
-                } else {
-                    LogError("ERROR: Ident length > 128");
-                    exit(EXIT_FAILURE);
-                }
+                CheckArgLen(optarg, 128);
+                Ident = strdup(optarg);
                 break;
             case 'i':
                 metricInterval = atoi(optarg);
@@ -619,11 +658,8 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'm':
-                if (strlen(optarg) > MAXPATHLEN) {
-                    LogError("ERROR: Path too long!");
-                    exit(EXIT_FAILURE);
-                }
-                metricsocket = strdup(optarg);
+                CheckArgLen(optarg, MAXPATHLEN);
+                metricSocket = strdup(optarg);
                 break;
             case 'M':
                 CheckArgLen(optarg, MAXPATHLEN);
@@ -638,13 +674,18 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'n':
-                if (AddFlowSourceString(&FlowSource, optarg) != 1) exit(EXIT_FAILURE);
+                if (!AddFlowSourceString(&FlowSource, optarg)) {
+                    LogError("Failed to add flow source");
+                    exit(EXIT_FAILURE);
+                }
                 break;
-            case 'B':
+            case 'B': {
+                char *checkptr = NULL;
                 bufflen = strtol(optarg, &checkptr, 10);
                 if ((checkptr != NULL && *checkptr == 0) && bufflen > 0) break;
                 LogError("Argument error for -B");
                 exit(EXIT_FAILURE);
+            } break;
             case 'b':
                 bindhost = optarg;
                 break;
@@ -661,16 +702,15 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'R': {
-                char *port, *hostname;
-                char *p = strchr(optarg, '/');
-                int i = 0;
+                CheckArgLen(optarg, 128);
+                char *hostname = strdup(optarg);
+                char *port = DEFAULTSFLOWPORT;
+                char *p = strchr(hostname, '/');
                 if (p) {
                     *p++ = '\0';
-                    port = strdup(p);
-                } else {
-                    port = DEFAULTSFLOWPORT;
+                    port = p;
                 }
-                hostname = strdup(optarg);
+                int i = 0;
                 while (repeater[i].hostname && (i < MAX_REPEATERS)) i++;
                 if (i == MAX_REPEATERS) {
                     LogError("Too many packet repeaters! Max: %i repeaters allowed", MAX_REPEATERS);
@@ -681,14 +721,16 @@ int main(int argc, char **argv) {
 
                 break;
             }
-            case 'r':
-                report_sequence = 1;
+            case 'A':
+                srcSpoofing = 1;
                 break;
             case 'l':
-                LogInfo("-l is a legacy option and may get removed in future. Please use -w next time");
+                LogError("-l is a legacy option and may get removed in future. Please use -w to set output directory");
             case 'w':
-                if (!CheckPath(optarg, S_IFDIR)) exit(EXIT_FAILURE);
-
+                if (!CheckPath(optarg, S_IFDIR)) {
+                    LogError("No valid directory: %s", optarg);
+                    exit(EXIT_FAILURE);
+                }
                 datadir = realpath(optarg, NULL);
                 if (!datadir) {
                     LogError("realpath() failed on %s: %s", optarg, strerror(errno));
@@ -761,9 +803,25 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (argc - optind > 1) {
-        usage(argv[0]);
+    if (!InitLog(do_daemonize, argv[0], SYSLOG_FACILITY, verbose)) {
         exit(EXIT_FAILURE);
+    }
+
+    if ((argc - optind) >= 2) {
+        if (strcmp(argv[optind], "privsep") == 0) {
+            if (strcmp(argv[optind + 1], "launcher") == 0) {
+                dbg_printf("sfcapd privsep launched\n");
+                int ret = StartupLauncher(launch_process, expire);
+                exit(ret);
+            } else if (strcmp(argv[optind + 1], "repeater") == 0) {
+                dbg_printf("sfcapd repeater launched\n");
+                int ret = StartupRepeater(repeater, bufflen, srcSpoofing, userid, groupid);
+                exit(ret);
+            } else {
+                usage(argv[0]);
+                exit(EXIT_FAILURE);
+            }
+        }
     }
 
     if (ConfOpen(configFile, "sfcapd") < 0) exit(EXIT_FAILURE);
@@ -773,19 +831,18 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (!AddFlowSourceConfig(&FlowSource)) exit(EXIT_FAILURE);
+    if (!AddFlowSourceConfig(&FlowSource)) {
+        LogError("Failed to add exporter from config file");
+        exit(EXIT_FAILURE);
+    }
 
-    if (FlowSource == NULL) {
+    if (FlowSource == NULL && datadir == NULL && dynFlowDir == NULL) {
         LogError("ERROR, No source configurations found");
         exit(EXIT_FAILURE);
     }
 
     if (bindhost && mcastgroup) {
         LogError("ERROR, -b and -j are mutually exclusive!!");
-        exit(EXIT_FAILURE);
-    }
-
-    if (!InitLog(do_daemonize, argv[0], SYSLOG_FACILITY, verbose)) {
         exit(EXIT_FAILURE);
     }
 
@@ -800,7 +857,7 @@ int main(int argc, char **argv) {
 #ifdef PCAP
     sock = 0;
     if (pcap_file) {
-        LogInfo("Setup pcap reader");
+        printf("Setup pcap reader\n");
         setup_packethandler(pcap_file, NULL);
         receive_packet = NextPacket;
     } else
@@ -815,23 +872,22 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    i = 0;
-    while (repeater[i].hostname && (i < MAX_REPEATERS)) {
-        repeater[i].sockfd =
-            Unicast_send_socket(repeater[i].hostname, repeater[i].port, repeater[i].family, bufflen, &repeater[i].addr, &repeater[i].addrlen);
-        if (repeater[i].sockfd <= 0) exit(EXIT_FAILURE);
-        LogInfo("Replay flows to host: %s port: %s", repeater[i].hostname, repeater[i].port);
-        i++;
+    pid_t repeater_pid = 0;
+    int rfd = 0;
+    if (repeater[0].hostname) {
+        rfd = PrivsepFork(argc, argv, &repeater_pid, "repeater");
     }
 
     SetPriv(userid, groupid);
+
+    Init_sflow(verbose);
 
     if (subdir_index && !InitHierPath(subdir_index)) {
         close(sock);
         exit(EXIT_FAILURE);
     }
 
-    t_start = time(NULL);
+    time_t t_start = time(NULL);
     t_start = t_start - (t_start % twin);
 
     if (do_daemonize) {
@@ -843,43 +899,20 @@ int main(int argc, char **argv) {
         if (check_pid(pidfile) != 0 || write_pid(pidfile) == 0) exit(EXIT_FAILURE);
     }
 
-    if (metricsocket && !OpenMetric(metricsocket, metricInterval)) {
+    if (metricSocket && !OpenMetric(metricSocket, metricInterval)) {
         close(sock);
         exit(EXIT_FAILURE);
     }
-    done = 0;
-    if (launch_process || expire) {
-        // create laucher comm memory struct
-        shmem = mmap(0, sizeof(srecord_t), PROT_READ | PROT_WRITE, MAP_ANON | MAP_SHARED, -1, 0);
-        if (shmem == MAP_FAILED) {
-            LogError("mmap() error in %s:%i: %s", __FILE__, __LINE__, strerror(errno));
-            close(sock);
-            exit(EXIT_FAILURE);
-        }
 
-        launcher_pid = fork();
-        switch (launcher_pid) {
-            case 0:
-                // child
-                close(sock);
-                launcher(shmem, FlowSource, launch_process, expire);
-                _exit(EXIT_SUCCESS);
-                break;
-            case -1:
-                LogError("fork() error: %s", strerror(errno));
-                if (pidfile) remove_pid(pidfile);
-                exit(EXIT_FAILURE);
-                break;
-            default:
-                // parent
-                launcher_alive = 1;
-                LogInfo("Launcher[%i] forked", launcher_pid);
-        }
+    int launcher_pid = 0;
+    int pfd = 0;
+    if (launch_process || expire) {
+        pfd = PrivsepFork(argc, argv, &launcher_pid, "launcher");
     }
 
     fs = FlowSource;
     while (fs) {
-        if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid(), launcher_pid) != BOOKKEEPER_OK) {
+        if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
             LogError("initialize bookkeeper failed");
 
             // release all already allocated bookkeepers
@@ -889,7 +922,8 @@ int main(int argc, char **argv) {
                 fs = fs->next;
             }
             close(sock);
-            if (launcher_pid) kill_launcher(launcher_pid);
+            signalPrivsepChild(launcher_pid, pfd);
+            signalPrivsepChild(repeater_pid, rfd);
             if (pidfile) remove_pid(pidfile);
             exit(EXIT_FAILURE);
         }
@@ -898,6 +932,7 @@ int main(int argc, char **argv) {
     }
 
     /* Signal handling */
+    struct sigaction act;
     memset((void *)&act, 0, sizeof(struct sigaction));
     act.sa_handler = IntHandler;
     sigemptyset(&act.sa_mask);
@@ -907,11 +942,15 @@ int main(int argc, char **argv) {
     sigaction(SIGHUP, &act, NULL);
     sigaction(SIGALRM, &act, NULL);
     sigaction(SIGCHLD, &act, NULL);
+    sigaction(SIGPIPE, &act, NULL);
 
-    LogInfo("Startup.");
-    run(receive_packet, sock, repeater, twin, t_start, report_sequence, subdir_index, time_extension, compress);
+    LogInfo("Startup sfcapd.");
+    run(receive_packet, sock, pfd, rfd, twin, t_start, subdir_index, time_extension, compress);
+
+    // shutdown
     close(sock);
-    kill_launcher(launcher_pid);
+    signalPrivsepChild(launcher_pid, pfd);
+    signalPrivsepChild(repeater_pid, rfd);
     CloseMetric();
 
     fs = FlowSource;
@@ -921,7 +960,7 @@ int main(int argc, char **argv) {
         if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
             UpdateDirStat(dirstat, fs->bookkeeper);
             WriteStatInfo(dirstat);
-            LogInfo("Updating statinfo in directory '%s'", datadir);
+            LogVerbose("Updating statinfo in directory '%s'", datadir);
         }
 
         ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);

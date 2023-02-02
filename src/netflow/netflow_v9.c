@@ -308,10 +308,8 @@ int Init_v9(int verbose, int32_t sampling) {
 
     if (sampling < 0) {
         LogInfo("Init v9: Max number of v9 tags: %u, overwrite sampling: %d", i, -defaultSampling);
-        dbg_printf("Initv9: Overwrite sampling: %d\n", -defaultSampling);
     } else {
         LogInfo("Init v9: Max number of v9 tags: %u, default sampling: %d", i, defaultSampling);
-        dbg_printf("Initv9: Default sampling: %d\n", defaultSampling);
     }
 
     return 1;
@@ -412,8 +410,7 @@ static inline exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t exporter_
         dbg_printf("Add static sampler for default sampling: %u\n", defaultSampling);
     }
 
-    dbg_printf("Process_v9: New v9 exporter: SysID: %u, Domain: %u, IP: %s\n", (*e)->info.sysid, exporter_id, ipstr);
-    LogInfo("Process_v9: New v9 exporter: SysID: %u, Domain: %u, IP: %s\n", (*e)->info.sysid, exporter_id, ipstr);
+    LogInfo("Process_v9: New v9 exporter: SysID: %u, Domain: %u, IP: %s", (*e)->info.sysid, exporter_id, ipstr);
 
     return (*e);
 
@@ -441,8 +438,6 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
         AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
         LogInfo("Add new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id, sampler_record->algorithm,
                 sampler_record->packetInterval, sampler_record->spaceInterval);
-        dbg_printf("Add new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id, sampler_record->algorithm,
-                   sampler_record->packetInterval, sampler_record->spaceInterval);
 
     } else {
         sampler = exporter->sampler;
@@ -458,8 +453,6 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
                     AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
                     LogInfo("Update existing sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
                             sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
-                    dbg_printf("Update existing sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id,
-                               sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
                 } else {
                     dbg_printf("Sampler unchanged!\n");
                 }
@@ -485,8 +478,6 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
                 AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
                 LogInfo("Append new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
                         sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
-                dbg_printf("Append new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id,
-                           sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
                 break;
             }
 
@@ -1063,7 +1054,7 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
                 }
 
                 // request new and empty buffer
-                LogInfo("Process v9: Sequencer run - resize output buffer");
+                LogVerbose("Process v9: Sequencer run - resize output buffer");
                 buffAvail = CheckBufferSpace(fs->nffile, buffAvail + 1);
                 if (buffAvail == 0) {
                     // this should really never occur, because the buffer gets flushed ealier
@@ -1248,10 +1239,20 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
         EXnselCommon_t *nselCommon = sequencer->offsetCache[EXnselCommonID];
         if (nselCommon) {
             nselCommon->msecEvent = stack[STACK_MSEC];
+            if (genericFlow) {
+                genericFlow->msecFirst = stack[STACK_MSEC];
+                genericFlow->msecLast = stack[STACK_MSEC];
+            }
+            SetFlag(recordHeaderV3->flags, V3_FLAG_EVENT);
         }
         EXnelCommon_t *nelCommon = sequencer->offsetCache[EXnelCommonID];
         if (nelCommon) {
             nelCommon->msecEvent = stack[STACK_MSEC];
+            if (genericFlow) {
+                genericFlow->msecFirst = stack[STACK_MSEC];
+                genericFlow->msecLast = stack[STACK_MSEC];
+            }
+            SetFlag(recordHeaderV3->flags, V3_FLAG_EVENT);
         }
 
         // nprobe latency
@@ -1466,7 +1467,7 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
     fs->nffile->buff_ptr += nbarHeader->size;
 
     if (size_left > 7) {
-        LogInfo("Proces nbar data record - %u extra bytes", size_left);
+        LogVerbose("Proces nbar data record - %u extra bytes", size_left);
     }
     processed_records++;
 
@@ -1591,7 +1592,7 @@ static void Process_v9_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_
     fs->nffile->buff_ptr += nameHeader->size;
 
     if (size_left > 7) {
-        LogInfo("Proces ifvrf data record - %u extra bytes", size_left);
+        LogVerbose("Proces ifvrf data record - %u extra bytes", size_left);
     }
     processed_records++;
 

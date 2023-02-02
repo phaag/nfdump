@@ -96,7 +96,7 @@ mkdir testdir
 # Start nfcapd on localhost and replay flows
 echo
 echo -n Starting nfcapd ...
-../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile
+../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent
 sleep 1
 echo done.
 echo -n Replay flows ...
@@ -136,6 +136,7 @@ $NFDUMP -r test.flows.nf -w test.7.flows.nf 'host 172.16.2.66'
 $NFDUMP -r test.flows.nf -O tstart -w test.8.flows.nf 'host 172.16.2.66'
 ../nfanon/nfanon -K abcdefghijklmnopqrstuvwxyz012345 -r test.flows.nf -w test.9.flows.nf
 $NFDUMP -q -r test.9.flows.nf -o raw >test.9.out
+$NFDUMP -r testdir/nfcapd.* -i NewIdent
 rm -f testdir/nfcapd.* test*.out test*.flows.nf
 [ -d testdir ] && rmdir testdir
 [ -d memck.$$ ] && rm -rf memck.$$
