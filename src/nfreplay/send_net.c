@@ -82,23 +82,6 @@ int Unicast_send_socket(const char *shostname, const char *dhostname, const char
         if (sockfd < 0) {
             LogError("socket() error: could not open the requested socket: %s", strerror(errno));
         } else {
-            if (shostname) {
-                memset(&shints, 0, sizeof(struct addrinfo));
-                shints.ai_family = hints.ai_family;
-                shints.ai_socktype = hints.ai_socktype;
-                error = getaddrinfo(shostname, "0", &shints, &sres);
-                if (error) {
-                    LogError("getaddrinfo(%s) error: %s", shostname, gai_strerror(error));
-                    return -1;
-                }
-                printf("Hacemos el bind(%s)\n", shostname);
-                if (bind(sockfd, sres->ai_addr, sres->ai_addrlen) < 0) {
-                    LogError("bind(%s) error: %s", shostname, strerror(errno));
-                    return -1;
-                }
-                sressave = sres;
-            }
-
             // socket call was successsful
             if (connect(sockfd, res->ai_addr, res->ai_addrlen) < 0) {
                 // unsuccessful connect :(
@@ -110,10 +93,26 @@ int Unicast_send_socket(const char *shostname, const char *dhostname, const char
                 close(sockfd);
                 // ok - we need now an unconnected socket
                 sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+                // Now let's bind it if a source address has been specified
+                if (shostname) {
+                    memset(&shints, 0, sizeof(struct addrinfo));
+                    shints.ai_family = hints.ai_family;
+                    shints.ai_socktype = hints.ai_socktype;
+                    error = getaddrinfo(shostname, "0", &shints, &sres);
+                    if (error) {
+                        LogError("getaddrinfo(%s) error: %s", shostname, gai_strerror(error));
+                        return -1;
+                    }
+                    printf("Hacemos el bind(%s)\n", shostname);
+                    if (bind(sockfd, sres->ai_addr, sres->ai_addrlen) < 0) {
+                        LogError("bind(%s) error: %s", shostname, strerror(errno));
+                        return -1;
+                    }
+                    sressave = sres;
+                }
                 break;
             }
         }
-
         res = res->ai_next;
     }
 
@@ -125,6 +124,7 @@ int Unicast_send_socket(const char *shostname, const char *dhostname, const char
     *addrlen = res->ai_addrlen;
     memcpy(daddr, res->ai_addr, res->ai_addrlen);
     freeaddrinfo(ressave);
+    freeaddrinfo(sressave);
 
     // Set socket write buffer. Need to be root!
     if (wmem_size > 0) {
@@ -189,11 +189,27 @@ int Multicast_send_socket(const char *shostname, const char *dhostname, const ch
             res = res->ai_next;
             continue;
         }
-
         // we found a valid socket and are done in this loop
         break;
     }
 
+    // Bind() it if a source address was specified
+    if (shostname) {
+        memset(&shints, 0, sizeof(struct addrinfo));
+        shints.ai_family = hints.ai_family;
+        shints.ai_socktype = hints.ai_socktype;
+        error = getaddrinfo(shostname, "0", &shints, &sres);
+        if (error) {
+            LogError("getaddrinfo(%s) error: %s", shostname, gai_strerror(error));
+            return -1;
+        }
+        printf("Hacemos el bind(%s)\n", shostname);
+        if (bind(sockfd, sres->ai_addr, sres->ai_addrlen) < 0) {
+            LogError("bind(%s) error: %s", shostname, strerror(errno));
+            return -1;
+        }
+        sressave = sres;
+    }
     if (sockfd < 0) {
         // nothing found - bye bye
         fprintf(stderr, "Could not create a socket for [%s:%s]\n", dhostname, listenport);
