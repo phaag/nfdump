@@ -36,6 +36,7 @@
 .Fl r Ar flowfile
 .Fl H Ar remotehost
 .Fl p Ar port
+.Op Fl S Ar sourceaddress
 .Op Fl j Ar mcastgroup
 .Op Fl 4
 .Op Fl 6
@@ -72,6 +73,8 @@ Join this multicast group and send all flows to this group host. Accepts a
 symbolic name or multicast IPv4/IPv6 IP address.
 .It Fl p Ar port
 Send all flows to this port on the remote side. Default is 9995.
+.It Fl S Ar sourceaddress
+Source address used when sending Netflow data. Default is automatic address selection.
 .It Fl 4
 Forces
 .Nm
