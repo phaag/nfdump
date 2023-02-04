@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2022, Peter Haag
+ *  Copyright (c) 2019-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -44,6 +44,7 @@
 #include <sys/types.h>
 #include <time.h>
 
+#include "maxmind.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
@@ -101,23 +102,29 @@ static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
 
 static void stringsEXipv4Flow(FILE *stream, master_record_t *r) {
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char sloc[128], dloc[128];
 
     uint32_t src = htonl(r->V4.srcaddr);
     uint32_t dst = htonl(r->V4.dstaddr);
     inet_ntop(AF_INET, &src, as, sizeof(as));
     inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
+    LookupLocation(r->V6.srcaddr, sloc, 128);
+    LookupLocation(r->V6.dstaddr, dloc, 128);
+
     fprintf(stream,
             "	\"src4_addr\" : \"%s\",\n"
-            "	\"dst4_addr\" : \"%s\",\n",
-            as, ds);
+            "	\"dst4_addr\" : \"%s\",\n"
+            "	\"src_geo\" : \"%s\",\n"
+            "	\"dst_geo\" : \"%s\",\n",
+            as, ds, sloc, dloc);
 
 }  // End of stringsEXipv4Flow
 
 static void stringsEXipv6Flow(FILE *stream, master_record_t *r) {
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
-    uint64_t src[2];
-    uint64_t dst[2];
+    char sloc[128], dloc[128];
+    uint64_t src[2], dst[2];
 
     src[0] = htonll(r->V6.srcaddr[0]);
     src[1] = htonll(r->V6.srcaddr[1]);
@@ -126,10 +133,15 @@ static void stringsEXipv6Flow(FILE *stream, master_record_t *r) {
     inet_ntop(AF_INET6, &src, as, sizeof(as));
     inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
 
+    LookupLocation(r->V6.srcaddr, sloc, 128);
+    LookupLocation(r->V6.dstaddr, dloc, 128);
+
     fprintf(stream,
             "	\"src6_addr\" : \"%s\",\n"
-            "	\"dst6_addr\" : \"%s\",\n",
-            as, ds);
+            "	\"dst6_addr\" : \"%s\",\n"
+            "	\"src_geo\" : \"%s\",\n"
+            "	\"dst_geo\" : \"%s\",\n",
+            as, ds, sloc, dloc);
 
 }  // End of stringsEXipv6Flow
 
@@ -301,8 +313,7 @@ static void stringsEXipReceivedV6(FILE *stream, master_record_t *r) {
 
 static void stringsEXmplsLabel(FILE *stream, master_record_t *r) {
     for (int i = 0; i < 10; i++) {
-        fprintf(stream, "	\"mpls_%u\" : \"%u-%u-%u\",\n", i + 1, r->mpls_label[i] >> 4, (r->mpls_label[i] & 0xF) >> 1,
-                r->mpls_label[i] & 1);
+        fprintf(stream, "	\"mpls_%u\" : \"%u-%u-%u\",\n", i + 1, r->mpls_label[i] >> 4, (r->mpls_label[i] & 0xF) >> 1, r->mpls_label[i] & 1);
     }
 
 }  // End of stringsEXipReceivedV6
@@ -322,8 +333,8 @@ static void stringsEXmacAddr(FILE *stream, master_record_t *r) {
             "	\"out_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n"
             "	\"in_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n"
             "	\"out_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n",
-            mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0],
-            mac3[5], mac3[4], mac3[3], mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
+            mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0], mac3[5], mac3[4], mac3[3],
+            mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
 
 }  // End of stringsEXmacAddr
 
@@ -438,8 +449,8 @@ static void stringsEXnselCommon(FILE *stream, master_record_t *r) {
             "	\"event\" : \"%s\",\n"
             "	\"xevent_id\" : \"%u\",\n"
             "	\"t_event\" : \"%s.%llu\",\n",
-            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event),
-            r->fwXevent, datestr, r->msecEvent % 1000LL);
+            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event), r->fwXevent, datestr,
+            r->msecEvent % 1000LL);
 
 }  // End of stringsEXnselCommon
 
@@ -617,8 +628,7 @@ void flow_record_to_json(FILE *stream, void *record, int tag) {
             "	\"type\" : \"%s\",\n"
             "	\"sampled\" : %u,\n"
             "	\"export_sysid\" : %u,\n",
-            TestFlag(r->flags, V3_FLAG_EVENT) ? "EVENT" : "FLOW", TestFlag(r->flags, V3_FLAG_SAMPLED) ? 1 : 0,
-            r->exporter_sysid);
+            TestFlag(r->flags, V3_FLAG_EVENT) ? "EVENT" : "FLOW", TestFlag(r->flags, V3_FLAG_SAMPLED) ? 1 : 0, r->exporter_sysid);
 
     int i = 0;
     while (r->exElementList[i]) {
