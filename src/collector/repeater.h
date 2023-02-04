@@ -31,6 +31,13 @@
 #ifndef _REPEATER_H
 #define _REPEATER_H 1
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
+#ifdef FIX_INCLUDE
+#include <sys/types.h>
+#endif
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <sys/socket.h>
