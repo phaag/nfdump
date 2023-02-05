@@ -35,7 +35,6 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "config.h"
 #include "id.h"
 
 /*
@@ -122,14 +121,6 @@ typedef struct elementHeader_s {
 
 #define EXnull 0
 
-/*
-#define str(s) #s lose(s)
-#define foo 4
-str (foo)
-expands to `"foo" lose(4)'.
-#define FOO(A) ({int retval; retval = do_something(A); retval;})
-*/
-
 #define MemberSize(type, member) sizeof(((type *)0)->member)
 
 #define VARLENGTH 0xFFFF
@@ -152,6 +143,9 @@ typedef struct EXgenericFlow_s {
 #define OFFinBytes offsetof(EXgenericFlow_t, inBytes)
 #define SIZEinBytes MemberSize(EXgenericFlow_t, inBytes)
     uint16_t srcPort;
+#ifdef GOLANG
+    uint16_t dstPort;
+#else
     union {
         uint16_t dstPort;
         struct {
@@ -159,6 +153,7 @@ typedef struct EXgenericFlow_s {
             uint8_t icmpCode;
         };
     };
+#endif
 #define OFFsrcPort offsetof(EXgenericFlow_t, srcPort)
 #define SIZEsrcPort MemberSize(EXgenericFlow_t, srcPort)
 #define OFFdstPort offsetof(EXgenericFlow_t, dstPort)

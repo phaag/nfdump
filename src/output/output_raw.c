@@ -181,7 +181,7 @@ static void stringEXtunIPv6(FILE *stream, master_record_t *r) {
 
 }  // End of stringEXtunIPv6
 
-static void stringEXipv4Flow(FILE *stream, master_record_t *r) {
+static void stringsEXipv4Flow(FILE *stream, master_record_t *r) {
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
     char sloc[128], dloc[128];
 
@@ -202,9 +202,9 @@ static void stringEXipv4Flow(FILE *stream, master_record_t *r) {
             "  dst addr     =  %16s%s%s\n",
             as, strlen(sloc) ? ": " : "", sloc, ds, strlen(dloc) ? ": " : "", dloc);
 
-}  // End of stringEXipv4Flow
+}  // End of stringsEXipv4Flow
 
-static void stringEXipv6Flow(FILE *stream, master_record_t *r) {
+static void stringsEXipv6Flow(FILE *stream, master_record_t *r) {
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
     uint64_t src[2], dst[2];
     char sloc[128], dloc[128];
@@ -228,9 +228,9 @@ static void stringEXipv6Flow(FILE *stream, master_record_t *r) {
             "  dst addr     =  %16s%s%s\n",
             as, strlen(sloc) ? ": " : "", sloc, ds, strlen(dloc) ? ": " : "", dloc);
 
-}  // End of stringEXipv6Flow
+}  // End of stringsEXipv6Flow
 
-static void stringEXflowMisc(FILE *stream, master_record_t *r) {
+static void stringsEXflowMisc(FILE *stream, master_record_t *r) {
     char snet[IP_STRING_LEN], dnet[IP_STRING_LEN];
 
     if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {
@@ -258,12 +258,12 @@ static void stringEXflowMisc(FILE *stream, master_record_t *r) {
             "  direction    =               %3u\n"
             "  biFlow Dir   =              0x%.2x %s\n"
             "  end reason   =              0x%.2x %s\n",
-            r->input, ifInName, r->output, ifOutName, r->src_mask, snet, r->src_mask, r->dst_mask, dnet, r->dst_mask, r->tos, r->dir, r->biFlowDir,
-            biFlowString(r->biFlowDir), r->flowEndReason, FlowEndString(r->flowEndReason));
+            r->input, ifInName, r->output, ifOutName, r->src_mask, snet, r->src_mask, r->dst_mask, dnet, r->dst_mask, r->dst_tos, r->dir,
+            r->biFlowDir, biFlowString(r->biFlowDir), r->flowEndReason, FlowEndString(r->flowEndReason));
 
-}  // End of stringEXflowMisc
+}  // End of stringsEXflowMisc
 
-static void stringEXcntFlow(FILE *stream, master_record_t *r) {
+static void stringsEXcntFlow(FILE *stream, master_record_t *r) {
     fprintf(stream,
             "  out packets  =        %10llu\n"
             "  out bytes    =        %10llu\n"
@@ -272,15 +272,15 @@ static void stringEXcntFlow(FILE *stream, master_record_t *r) {
 
 }  // End of stringEXcntFlow
 
-static void stringEXvLan(FILE *stream, master_record_t *r) {
+static void stringsEXvLan(FILE *stream, master_record_t *r) {
     fprintf(stream,
             "  src vlan     =             %5u\n"
             "  dst vlan     =             %5u\n",
             r->src_vlan, r->dst_vlan);
 
-}  // End of stringEXvLan
+}  // End of stringsEXvLan
 
-static void stringEXasRouting(FILE *stream, master_record_t *r) {
+static void stringsEXasRouting(FILE *stream, master_record_t *r) {
     if (r->srcas == 0) r->srcas = LookupAS(r->V6.srcaddr);
     if (r->dstas == 0) r->dstas = LookupAS(r->V6.dstaddr);
     fprintf(stream,
@@ -288,9 +288,9 @@ static void stringEXasRouting(FILE *stream, master_record_t *r) {
             "  dst as       =             %5u\n",
             r->srcas, r->dstas);
 
-}  // End of stringEXasRouting
+}  // End of stringsEXasRouting
 
-static void stringEXbgpNextHopV4(FILE *stream, master_record_t *r) {
+static void stringsEXbgpNextHopV4(FILE *stream, master_record_t *r) {
     char ip[IP_STRING_LEN];
 
     ip[0] = 0;
@@ -300,9 +300,9 @@ static void stringEXbgpNextHopV4(FILE *stream, master_record_t *r) {
 
     fprintf(stream, "  bgp next hop =  %16s\n", ip);
 
-}  // End of stringEXbgpNextHopV4
+}  // End of stringsEXbgpNextHopV4
 
-static void stringEXbgpNextHopV6(FILE *stream, master_record_t *r) {
+static void stringsEXbgpNextHopV6(FILE *stream, master_record_t *r) {
     char ip[IP_STRING_LEN];
     uint64_t i[2];
 
@@ -313,9 +313,9 @@ static void stringEXbgpNextHopV6(FILE *stream, master_record_t *r) {
 
     fprintf(stream, "  bgp next hop =  %16s\n", ip);
 
-}  // End of stringEXbgpNextHopV6
+}  // End of stringsEXbgpNextHopV6
 
-static void stringEXipNextHopV4(FILE *stream, master_record_t *r) {
+static void stringsEXipNextHopV4(FILE *stream, master_record_t *r) {
     char ip[IP_STRING_LEN];
 
     ip[0] = 0;
@@ -325,9 +325,9 @@ static void stringEXipNextHopV4(FILE *stream, master_record_t *r) {
 
     fprintf(stream, "  ip next hop  =  %16s\n", ip);
 
-}  // End of stringEXipNextHopV4
+}  // End of stringsEXipNextHopV4
 
-static void stringEXipNextHopV6(FILE *stream, master_record_t *r) {
+static void stringsEXipNextHopV6(FILE *stream, master_record_t *r) {
     char ip[IP_STRING_LEN];
     uint64_t i[2];
 
@@ -338,9 +338,9 @@ static void stringEXipNextHopV6(FILE *stream, master_record_t *r) {
 
     fprintf(stream, "  ip next hop  =  %16s\n", ip);
 
-}  // End of stringEXipNextHopV6
+}  // End of stringsEXipNextHopV6
 
-static void stringEXipReceivedV4(FILE *stream, master_record_t *r) {
+static void stringsEXipReceivedV4(FILE *stream, master_record_t *r) {
     char ip[IP_STRING_LEN];
 
     ip[0] = 0;
@@ -350,9 +350,9 @@ static void stringEXipReceivedV4(FILE *stream, master_record_t *r) {
 
     fprintf(stream, "  ip exporter  =  %16s\n", ip);
 
-}  // End of stringEXipReceivedV4
+}  // End of stringsEXipReceivedV4
 
-static void stringEXipReceivedV6(FILE *stream, master_record_t *r) {
+static void stringsEXipReceivedV6(FILE *stream, master_record_t *r) {
     char ip[IP_STRING_LEN];
     uint64_t i[2];
 
@@ -363,9 +363,9 @@ static void stringEXipReceivedV6(FILE *stream, master_record_t *r) {
 
     fprintf(stream, "  ip exporter  =  %16s\n", ip);
 
-}  // End of stringEXipReceivedV6
+}  // End of stringsEXipReceivedV6
 
-static void stringEXmplsLabel(FILE *stream, master_record_t *r) {
+static void stringsEXmplsLabel(FILE *stream, master_record_t *r) {
     for (int i = 0; i < 10; i++) {
         if (r->mpls_label[i] != 0) {
             fprintf(stream, "  MPLS Lbl %2u  =      %8u-%1u-%1u\n", i + 1, r->mpls_label[i] >> 4, (r->mpls_label[i] & 0xF) >> 1,
@@ -373,9 +373,9 @@ static void stringEXmplsLabel(FILE *stream, master_record_t *r) {
         }
     }
 
-}  // End of stringEXipReceivedV6
+}  // End of stringsEXipReceivedV6
 
-static void stringEXmacAddr(FILE *stream, master_record_t *r) {
+static void stringsEXmacAddr(FILE *stream, master_record_t *r) {
     uint8_t mac1[6], mac2[6], mac3[6], mac4[6];
 
     for (int i = 0; i < 6; i++) {
@@ -393,17 +393,17 @@ static void stringEXmacAddr(FILE *stream, master_record_t *r) {
             mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0], mac3[5], mac3[4], mac3[3],
             mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
 
-}  // End of stringEXmacAddr
+}  // End of stringsEXmacAddr
 
-static void stringEXasAdjacent(FILE *stream, master_record_t *r) {
+static void stringsEXasAdjacent(FILE *stream, master_record_t *r) {
     fprintf(stream,
             "  bgp next as  =             %5u\n"
             "  bgp prev as  =             %5u\n",
             r->bgpNextAdjacentAS, r->bgpPrevAdjacentAS);
 
-}  // End of stringEXasAdjacent
+}  // End of stringsEXasAdjacent
 
-static void stringEXlatency(FILE *stream, master_record_t *r) {
+static void stringsEXlatency(FILE *stream, master_record_t *r) {
     double f1, f2, f3;
 
     f1 = (double)r->client_nw_delay_usec / 1000.0;
@@ -416,9 +416,9 @@ static void stringEXlatency(FILE *stream, master_record_t *r) {
             "  app latency  =         %9.3f ms\n",
             f1, f2, f3);
 
-}  // End of stringEXlatency
+}  // End of stringsEXlatency
 
-static void stringEXobservation(FILE *stream, master_record_t *r) {
+static void stringsEXobservation(FILE *stream, master_record_t *r) {
     fprintf(stream,
             "  obs domainID =         0x%05x\n"
             "  obs pointID  =      0x%010llx\n",
@@ -426,7 +426,7 @@ static void stringEXobservation(FILE *stream, master_record_t *r) {
 
 }  // End of stringEXcntFlow
 
-static void stringEXvrf(FILE *stream, master_record_t *r) {
+static void stringsEXvrf(FILE *stream, master_record_t *r) {
     char vrfIngressName[128];
     GetVrfName(r->ingressVrf, vrfIngressName, sizeof(vrfIngressName));
 
@@ -438,10 +438,10 @@ static void stringEXvrf(FILE *stream, master_record_t *r) {
             "  egress VRF   =        %10u%s\n",
             r->ingressVrf, vrfIngressName, r->egressVrf, vrfEgressName);
 
-}  // End of stringEXvrf
+}  // End of stringsEXvrf
 
 #ifdef NSEL
-static void stringEXnselCommon(FILE *stream, master_record_t *r) {
+static void stringsEXnselCommon(FILE *stream, master_record_t *r) {
     char datestr[64];
 
     time_t when = r->msecEvent / 1000LL;
@@ -459,9 +459,9 @@ static void stringEXnselCommon(FILE *stream, master_record_t *r) {
             r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event), r->fwXevent, EventXString(r->fwXevent),
             (long long unsigned)r->msecEvent, datestr, (long long unsigned)(r->msecEvent % 1000L));
 
-}  // End of stringEXnselCommon
+}  // End of stringsEXnselCommon
 
-static void stringEXnselXlateIPv4(FILE *stream, master_record_t *r) {
+static void stringsEXnselXlateIPv4(FILE *stream, master_record_t *r) {
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
 
     uint32_t src = htonl(r->xlate_src_ip.V4);
@@ -474,9 +474,9 @@ static void stringEXnselXlateIPv4(FILE *stream, master_record_t *r) {
             "  dst xlt ip   =  %16s\n",
             as, ds);
 
-}  // End of stringEXnselXlateIPv4
+}  // End of stringsEXnselXlateIPv4
 
-static void stringEXnselXlateIPv6(FILE *stream, master_record_t *r) {
+static void stringsEXnselXlateIPv6(FILE *stream, master_record_t *r) {
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
     uint64_t src[2];
     uint64_t dst[2];
@@ -493,35 +493,35 @@ static void stringEXnselXlateIPv6(FILE *stream, master_record_t *r) {
             "  dst xlt ip   =  %16s\n",
             as, ds);
 
-}  // End of stringEXnselXlateIPv4
+}  // End of stringsEXnselXlateIPv4
 
-static void stringEXnselXlatePort(FILE *stream, master_record_t *r) {
+static void stringsEXnselXlatePort(FILE *stream, master_record_t *r) {
     fprintf(stream,
             "  src xlt port =             %5u\n"
             "  dst xlt port =             %5u\n",
             r->xlate_src_port, r->xlate_dst_port);
 
-}  // End of stringEXnselXlatePort
+}  // End of stringsEXnselXlatePort
 
-static void stringEXnselAcl(FILE *stream, master_record_t *r) {
+static void stringsEXnselAcl(FILE *stream, master_record_t *r) {
     fprintf(stream,
             "  Ingress ACL  =       0x%x/0x%x/0x%x\n"
             "  Egress ACL   =       0x%x/0x%x/0x%x\n",
             r->ingressAcl[0], r->ingressAcl[1], r->ingressAcl[2], r->egressAcl[0], r->egressAcl[1], r->egressAcl[2]);
 
-}  // End of stringEXnselAcl
+}  // End of stringsEXnselAcl
 
-static void stringEXnselUserID(FILE *stream, master_record_t *r) {
+static void stringsEXnselUserID(FILE *stream, master_record_t *r) {
     fprintf(stream, "  username     =       %s\n", r->username);
 
-}  // End of stringEXnselUserID
+}  // End of stringsEXnselUserID
 
-static void stringEXnelCommon(FILE *stream, master_record_t *r) {
+static void stringsEXnelCommon(FILE *stream, master_record_t *r) {
     fprintf(stream, "  nat event    =             %5u: %s\n", r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event));
 
-}  // End of stringEXnelCommon
+}  // End of stringsEXnelCommon
 
-static void stringEXnelXlatePort(FILE *stream, master_record_t *r) {
+static void stringsEXnelXlatePort(FILE *stream, master_record_t *r) {
     fprintf(stream,
             "  pblock start =             %5u\n"
             "  pblock end   =             %5u\n"
@@ -529,10 +529,10 @@ static void stringEXnelXlatePort(FILE *stream, master_record_t *r) {
             "  pblock size  =             %5u\n",
             r->block_start, r->block_end, r->block_step, r->block_size);
 
-}  // End of stringEXnelXlatePort
+}  // End of stringsEXnelXlatePort
 
 #endif
-static void stringEXnbarApp(FILE *stream, master_record_t *r) {
+static void stringsEXnbarApp(FILE *stream, master_record_t *r) {
     union {
         uint8_t val8[4];
         uint32_t val32;
@@ -568,19 +568,19 @@ static void stringEXnbarApp(FILE *stream, master_record_t *r) {
         fprintf(stream, "  app ID       =             %2u..%u: %s\n", r->nbarAppID[0], selector, name);
     }
 
-}  // End of stringEXnbarAppID
+}  // End of stringsEXnbarAppID
 
 static void inoutPayload(FILE *stream, master_record_t *r, char *payload, uint32_t length);
 
-static void stringEXinPayload(FILE *stream, master_record_t *r) {
+static void stringsEXinPayload(FILE *stream, master_record_t *r) {
     fprintf(stream, "  in payload   =        %10u\n", r->inPayloadLength);
     inoutPayload(stream, r, r->inPayload, r->inPayloadLength);
-}  // End of stringEXinPayload
+}  // End of stringsEXinPayload
 
-static void stringEXoutPayload(FILE *stream, master_record_t *r) {
+static void stringsEXoutPayload(FILE *stream, master_record_t *r) {
     fprintf(stream, "  out payload  =        %10u\n", r->outPayloadLength);
     inoutPayload(stream, r, r->outPayload, r->outPayloadLength);
-}  // end of stringEXoutPayload
+}  // end of stringsExoutPayload
 
 static void inoutPayload(FILE *stream, master_record_t *r, char *payload, uint32_t length) {
     int max = length;
@@ -618,9 +618,9 @@ static void inoutPayload(FILE *stream, master_record_t *r, char *payload, uint32
         ja3Free(ja3);
     }
     DumpHex(stream, payload, max);
-}  // End of stringEXoutPayload
+}  // End of stringsEXoutPayload
 
-static void stringEXpfinfo(FILE *stream, master_record_t *r) {
+static void stringsEXpfinfo(FILE *stream, master_record_t *r) {
     fprintf(stream,
             "  pflog ifname =          %8s\n"
             "  pflog action =             %5s/%u\n"
@@ -629,7 +629,7 @@ static void stringEXpfinfo(FILE *stream, master_record_t *r) {
             "  pflog rulenr =             %5u\n",
             r->pfIfName, pfAction(r->pfAction), r->pfAction, pfReason(r->pfReason), r->pfReason, r->pfDir ? "in" : "out", r->pfRulenr);
 
-}  // End of stringEXpfinfo
+}  // End of stringsEXpfinfo
 
 void raw_prolog(void) {
     // empty prolog
@@ -706,100 +706,100 @@ void raw_record(FILE *stream, void *record, int tag) {
                 stringEXgenericFlow(stream, r);
                 break;
             case EXipv4FlowID:
-                stringEXipv4Flow(stream, r);
+                stringsEXipv4Flow(stream, r);
                 break;
             case EXipv6FlowID:
-                stringEXipv6Flow(stream, r);
+                stringsEXipv6Flow(stream, r);
                 break;
             case EXflowMiscID:
-                stringEXflowMisc(stream, r);
+                stringsEXflowMisc(stream, r);
                 break;
             case EXcntFlowID:
-                stringEXcntFlow(stream, r);
+                stringsEXcntFlow(stream, r);
                 break;
             case EXvLanID:
-                stringEXvLan(stream, r);
+                stringsEXvLan(stream, r);
                 break;
             case EXasRoutingID:
-                stringEXasRouting(stream, r);
+                stringsEXasRouting(stream, r);
                 break;
             case EXbgpNextHopV4ID:
-                stringEXbgpNextHopV4(stream, r);
+                stringsEXbgpNextHopV4(stream, r);
                 break;
             case EXbgpNextHopV6ID:
-                stringEXbgpNextHopV6(stream, r);
+                stringsEXbgpNextHopV6(stream, r);
                 break;
             case EXipNextHopV4ID:
-                stringEXipNextHopV4(stream, r);
+                stringsEXipNextHopV4(stream, r);
                 break;
             case EXipNextHopV6ID:
-                stringEXipNextHopV6(stream, r);
+                stringsEXipNextHopV6(stream, r);
                 break;
             case EXipReceivedV4ID:
-                stringEXipReceivedV4(stream, r);
+                stringsEXipReceivedV4(stream, r);
                 break;
             case EXipReceivedV6ID:
-                stringEXipReceivedV6(stream, r);
+                stringsEXipReceivedV6(stream, r);
                 break;
             case EXmplsLabelID:
-                stringEXmplsLabel(stream, r);
+                stringsEXmplsLabel(stream, r);
                 break;
             case EXmacAddrID:
-                stringEXmacAddr(stream, r);
+                stringsEXmacAddr(stream, r);
                 break;
             case EXasAdjacentID:
-                stringEXasAdjacent(stream, r);
+                stringsEXasAdjacent(stream, r);
                 break;
             case EXlatencyID:
-                stringEXlatency(stream, r);
+                stringsEXlatency(stream, r);
                 break;
             case EXobservationID:
-                stringEXobservation(stream, r);
+                stringsEXobservation(stream, r);
                 break;
             case EXvrfID:
-                stringEXvrf(stream, r);
+                stringsEXvrf(stream, r);
                 break;
 #ifdef NSEL
             case EXnselCommonID:
-                stringEXnselCommon(stream, r);
+                stringsEXnselCommon(stream, r);
                 break;
             case EXnselXlateIPv4ID:
-                stringEXnselXlateIPv4(stream, r);
+                stringsEXnselXlateIPv4(stream, r);
                 break;
             case EXnselXlateIPv6ID:
-                stringEXnselXlateIPv6(stream, r);
+                stringsEXnselXlateIPv6(stream, r);
                 break;
             case EXnselXlatePortID:
-                stringEXnselXlatePort(stream, r);
+                stringsEXnselXlatePort(stream, r);
                 break;
             case EXnselAclID:
-                stringEXnselAcl(stream, r);
+                stringsEXnselAcl(stream, r);
                 break;
             case EXnselUserID:
-                stringEXnselUserID(stream, r);
+                stringsEXnselUserID(stream, r);
                 break;
             case EXnelCommonID:
-                stringEXnelCommon(stream, r);
+                stringsEXnelCommon(stream, r);
                 break;
             case EXnelXlatePortID:
-                stringEXnelXlatePort(stream, r);
+                stringsEXnelXlatePort(stream, r);
                 break;
 #endif
             case EXnbarAppID:
-                stringEXnbarApp(stream, r);
+                stringsEXnbarApp(stream, r);
                 break;
             case EXinPayloadID:
-                stringEXinPayload(stream, r);
+                stringsEXinPayload(stream, r);
                 break;
             case EXoutPayloadID:
-                stringEXoutPayload(stream, r);
+                stringsEXoutPayload(stream, r);
                 break;
             case EXtunIPv4ID:
                 break;
             case EXtunIPv6ID:
                 break;
             case EXpfinfoID:
-                stringEXpfinfo(stream, r);
+                stringsEXpfinfo(stream, r);
                 break;
             default:
                 dbg_printf("Extension %i not decoded\n", r->exElementList[i]);
