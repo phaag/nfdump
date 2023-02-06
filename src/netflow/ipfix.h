@@ -288,6 +288,10 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_flowDurationMilliseconds 161
 #define IPFIX_postOctetTotalCount 171
 #define IPFIX_postPacketTotalCount 172
+#define IPFIX_icmpTypeV4 176
+#define IPFIX_icmpCodeV4 177
+#define IPFIX_icmpTypeV6 178
+#define IPFIX_icmpCodeV6 179
 
 #define IPFIX_postNATSourceIPv4Address 225
 #define IPFIX_postNATDestinationIPv4Address 226

@@ -262,7 +262,7 @@ PCAP_LIBS="-lpcap"
 AC_SUBST(PCAP_LIBS)
 ]
 , AC_MSG_ERROR(Can not link libpcap. Please specify --with-pcappath=.. configure failed! ))
-	AC_CHECK_LIB(pcap, pcap_dump_open_append, AM_CONDITIONAL(HAVEPCAPAPPEND, true))
+	AC_CHECK_LIB(pcap, pcap_dump_open_append, AM_CONDITIONAL(HAVEPCAPAPPEND, true), AM_CONDITIONAL(HAVEPCAPAPPEND, false))
 	AC_CHECK_HEADERS([pcap.h])
 	if test "$ac_cv_header_pcap_h" = yes; then
 		AM_CONDITIONAL(BUILDNFPCAPD, true)
@@ -471,6 +471,33 @@ AC_CACHE_VAL(ac_cv_struct_semun,
 AC_MSG_RESULT($ac_cv_struct_semun)
 if test "$ac_cv_struct_semun" = "yes"; then
 	AC_DEFINE(HAVE_SEMUN, 1, [Define if sys/sem.h defines struct semun])
+fi
+
+AC_MSG_CHECKING([whether netinet/ip.h needs extra include])
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+                #include <netinet/in.h>
+                #include <netinet/ip.h>
+                #include <sys/sem.h>;
+        ]], [[ ]])],[ac_fix_include_order=no],[ac_fix_include_order=yes]
+)
+
+AC_MSG_RESULT($ac_fix_include_order)
+if test "$ac_fix_include_order" = "yes"; then
+        AC_DEFINE(FIX_INCLUDE, 1, [Fix sys/stat.h include])
+fi
+
+
+AC_MSG_CHECKING([for correct include order in ip.h ])
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+                #include <netinet/in.h>
+                #include <netinet/ip.h>
+                #include <sys/sem.h>;
+        ]], [[ ]])],[ac_fix_include_order=no],[ac_fix_include_order=yes]
+)
+
+AC_MSG_RESULT($ac_fix_include_order)
+if test "$ac_fix_include_order" = "yes"; then
+        AC_DEFINE(FIX_INCLUDE, 1, [Fix sys/stat.h include])
 fi
 
 AC_MSG_CHECKING(for the %z format string in printf())

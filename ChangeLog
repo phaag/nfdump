@@ -1,3 +1,9 @@
+2023-02-04
+-	Fix FreeBSD include bug. #407
+-	Add geo info in JSON output when using GeoDB.  #402
+-	Fix 408. Interchanged time stamps
+-	Add icmp type/code elements 176, 177, 178, 179
+
 2023-01-29
 -	Move fwd_status in correct block in output_raw
 

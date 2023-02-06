@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2014-2022, Peter Haag
+ *  Copyright (c) 2014-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -35,11 +35,10 @@
 #include "config.h"
 #endif
 
-#include "config.h"
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
+#ifdef FIX_INCLUDE
+#include <sys/types.h>
 #endif
+#include <stdint.h>
 
 #ifdef HAVE_NET_ETHERNET_H
 #include <net/ethernet.h>

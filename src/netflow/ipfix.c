@@ -63,6 +63,8 @@
 enum {
     STACK_NONE = 0,
     STACK_ICMP,
+    STACK_ICMPTYPE,
+    STACK_ICMPCODE,
     STACK_DSTPORT,
     STACK_SAMPLER,
     STACK_MSECFIRST,
@@ -148,8 +150,8 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_bgpSourceAsNumber, SIZEsrcAS, NumberCopy, EXasRoutingID, OFFsrcAS, STACK_NONE, "src AS"},
     {IPFIX_bgpDestinationAsNumber, SIZEdstAS, NumberCopy, EXasRoutingID, OFFdstAS, STACK_NONE, "dst AS"},
     {IPFIX_bgpNextHopIPv4Address, SIZEbgp4NextIP, NumberCopy, EXbgpNextHopV4ID, OFFbgp4NextIP, STACK_NONE, "IPv4 bgp next hop"},
-    {IPFIX_flowEndSysUpTime, Stack_ONLY, NumberCopy, EXnull, 0, STACK_MSECFIRST, "msec last SysupTime"},
-    {IPFIX_flowStartSysUpTime, Stack_ONLY, NumberCopy, EXnull, 0, STACK_MSECLAST, "msec first SysupTime"},
+    {IPFIX_flowEndSysUpTime, Stack_ONLY, NumberCopy, EXnull, 0, STACK_MSECLAST, "msec last SysupTime"},
+    {IPFIX_flowStartSysUpTime, Stack_ONLY, NumberCopy, EXnull, 0, STACK_MSECFIRST, "msec first SysupTime"},
     {IPFIX_SystemInitTimeMiliseconds, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SYSUPTIME, "SysupTime msec"},
     {IPFIX_postOctetDeltaCount, SIZEoutBytes, NumberCopy, EXcntFlowID, OFFoutBytes, STACK_NONE, "output bytes delta counter"},
     {IPFIX_postPacketDeltaCount, SIZEoutPackets, NumberCopy, EXcntFlowID, OFFoutPackets, STACK_NONE, "output packet delta counter"},
@@ -159,6 +161,10 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_DestinationIPv6PrefixLength, SIZEdstMask, NumberCopy, EXflowMiscID, OFFdstMask, STACK_NONE, "dst mask bits"},
     {IPFIX_icmpTypeCodeIPv4, SIZEdstPort, NumberCopy, EXgenericFlowID, OFFdstPort, STACK_ICMP, "icmp v4 type/code"},
     {IPFIX_icmpTypeCodeIPv6, SIZEdstPort, NumberCopy, EXgenericFlowID, OFFdstPort, STACK_ICMP, "icmp v6 type/code"},
+    {IPFIX_icmpTypeV4, SIZEicmpCode, Stack_ONLY, EXgenericFlowID, OFFicmpType, STACK_ICMPTYPE, "icmp v4 type"},
+    {IPFIX_icmpCodeV4, SIZEicmpType, Stack_ONLY, EXgenericFlowID, OFFicmpCode, STACK_ICMPCODE, "icmp v4 code"},
+    {IPFIX_icmpTypeV6, SIZEicmpCode, Stack_ONLY, EXgenericFlowID, OFFicmpType, STACK_ICMPTYPE, "icmp v6 type"},
+    {IPFIX_icmpCodeV6, SIZEicmpType, Stack_ONLY, EXgenericFlowID, OFFicmpCode, STACK_ICMPCODE, "icmp v6 code"},
     {IPFIX_postIpClassOfService, SIZEdstTos, NumberCopy, EXflowMiscID, OFFdstTos, STACK_NONE, "post IP class of Service"},
     {IPFIX_SourceMacAddress, SIZEinSrcMac, NumberCopy, EXmacAddrID, OFFinSrcMac, STACK_NONE, "in src MAC addr"},
     {IPFIX_postDestinationMacAddress, SIZEoutDstMac, NumberCopy, EXmacAddrID, OFFoutDstMac, STACK_NONE, "out dst MAC addr"},
@@ -1358,6 +1364,9 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
                     }
                     if (stack[STACK_ICMP] != 0) {
                         genericFlow->dstPort = stack[STACK_ICMP];
+                    }
+                    if (stack[STACK_ICMPTYPE] != 0 || stack[STACK_ICMPCODE]) {
+                        genericFlow->dstPort = (stack[STACK_ICMPTYPE] << 8) + stack[STACK_ICMPCODE];
                     }
                     break;
                 case IPPROTO_TCP:

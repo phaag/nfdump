@@ -92,7 +92,7 @@ Flow Record:
   output       =               200
   src mask     =                16 172.16.0.0/16
   dst mask     =                24 192.168.170.0/24
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 1
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -121,7 +121,7 @@ Flow Record:
   output       =               200
   src mask     =                16 172.16.0.0/16
   dst mask     =                24 192.168.170.0/24
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 1
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -150,7 +150,7 @@ Flow Record:
   output       =               200
   src mask     =                16 172.16.0.0/16
   dst mask     =                24 192.168.170.0/24
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 1
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -179,7 +179,7 @@ Flow Record:
   output       =               100
   src mask     =                24 192.168.170.0/24
   dst mask     =                16 172.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -208,7 +208,7 @@ Flow Record:
   output       =               100
   src mask     =                24 192.168.170.0/24
   dst mask     =                16 172.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -237,7 +237,7 @@ Flow Record:
   output       =               100
   src mask     =                24 192.168.170.0/24
   dst mask     =                16 172.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -266,7 +266,7 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -298,7 +298,7 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -332,7 +332,7 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -368,7 +368,7 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -405,7 +405,7 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -443,7 +443,7 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -482,7 +482,7 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -531,7 +531,7 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -584,7 +584,7 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
@@ -639,7 +639,7 @@ Flow Record:
   output       =               100
   src mask     =                24 72.138.170.0/24
   dst mask     =                16 42.16.0.0/16
-  dst tos      =                 3
+  dst tos      =                 4
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
