@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -64,6 +64,7 @@
 #include "send_v5.h"
 #include "send_v9.h"
 #include "util.h"
+#include "version.h"
 
 #define DEFAULTCISCOPORT "9995"
 #define DEFAULTHOSTNAME "127.0.0.1"
@@ -78,7 +79,6 @@
 
 /* Local Variables */
 static int verbose;
-static const char *nfdump_version = VERSION;
 static FilterEngine_t *Engine;
 
 static send_peer_t peer;
@@ -391,7 +391,7 @@ int main(int argc, char **argv) {
                 verbose = 1;
                 break;
             case 'V':
-                printf("%s: Version: %s\n", argv[0], nfdump_version);
+                printf("%s: %s\n", argv[0], versionString());
                 exit(0);
                 break;
             case 'Y':
