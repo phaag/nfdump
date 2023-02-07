@@ -1,5 +1,7 @@
 # nfdump
 
+[![buildtest](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml)
+
 nfdump-1.7.x or nfdump **unicorn** is the new release of nfdump.
 
 nfdump-1.6.x receives bug fixes, but will no longer get new features. The latest release for nfdump-1.6.x is [nfdump-1.6.25](https://github.com/phaag/nfdump/releases/tag/v1.6.25). 
