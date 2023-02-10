@@ -109,6 +109,10 @@ void xsleep(suseconds_t usec) {
 // Check cmd line argument length
 // exit on failure
 void CheckArgLen(char *arg, size_t len) {
+    if (arg == NULL) {
+        fprintf(stderr, "Input string error. Expected argument\n");
+        exit(EXIT_FAILURE);
+    }
     size_t i = 0;
     while (arg[i] != '\0' && i < len) i++;
     if (i > len) {

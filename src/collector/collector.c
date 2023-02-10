@@ -211,17 +211,18 @@ int AddFlowSourceString(FlowSource_t **FlowSource, char *argument) {
     char *ip = NULL;
     // separate IP address from ident
     if ((ip = strchr(ident, ',')) == NULL) {
-        LogError("Syntax error for netflow source definition. Expect -n ident,IP,path");
+        LogError("Argument error for netflow source definition. Expect -n ident,IP,path. Found: %s", argument);
+        return 0;
+    }
+
+    char *s = ip;
+    char *flowpath = NULL;
+    // separate path from IP
+    if ((flowpath = strchr(s + 1, ',')) == NULL) {
+        LogError("Argument error for netflow source definition. Expect -n ident,IP,path. Found: %s", argument);
         return 0;
     }
     *ip++ = '\0';
-
-    char *flowpath = NULL;
-    // separate path from IP
-    if ((flowpath = strchr(ip, ',')) == NULL) {
-        LogError("Syntax error for netflow source definition. Expect -n ident,IP,path");
-        return 0;
-    }
     *flowpath++ = '\0';
 
     return AddFlowSource(FlowSource, ident, ip, flowpath);

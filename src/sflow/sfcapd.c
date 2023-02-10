@@ -674,7 +674,8 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'n':
-                if (!AddFlowSourceString(&FlowSource, optarg)) {
+                CheckArgLen(optarg, MAXPATHLEN);
+                if (!AddFlowSourceString(&FlowSource, strdup(optarg))) {
                     LogError("Failed to add flow source");
                     exit(EXIT_FAILURE);
                 }
