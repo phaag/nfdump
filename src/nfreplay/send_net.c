@@ -50,14 +50,38 @@ static int isMulticast(struct sockaddr_storage *addr);
 
 static int joinGroup(int sockfd, int loopBack, int mcastTTL, struct sockaddr_storage *addr);
 
+static int setSourceAddress(int sockfd, const char *srcaddr, int family, int socktype);
+
+
+int setSourceAddress(int sockfd, const char *shostname, int family, int socktype) {
+    struct addrinfo shints, *sres;
+    int error;
+
+    memset(&shints, 0, sizeof(struct addrinfo));
+    shints.ai_family = family;
+    shints.ai_socktype = socktype;
+    error = getaddrinfo(shostname, "0", &shints, &sres);
+    if (error) {
+        LogError("getaddrinfo(%s) error: %s", shostname, gai_strerror(error));
+        return -1;
+    }
+    printf("Hacemos el bind(%s)\n", shostname);
+    if (bind(sockfd, sres->ai_addr, sres->ai_addrlen) < 0) {
+        LogError("bind(%s) error: %s", shostname, strerror(errno));
+        return -1;
+    }
+    freeaddrinfo(sres);
+    return 0;
+}
+
 /* function definitions */
-int Unicast_send_socket(const char *hostname, const char *sendport, int family, unsigned int wmem_size, struct sockaddr_storage *addr, int *addrlen) {
+int Unicast_send_socket(const char *shostname, const char *dhostname, const char *sendport, int family, unsigned int wmem_size, struct sockaddr_storage *saddr, struct sockaddr_storage *daddr, int *addrlen) {
     struct addrinfo hints, *res, *ressave;
     int error, sockfd;
     unsigned int wmem_actual;
     socklen_t optlen;
 
-    if (!hostname || !sendport) {
+    if (!dhostname || !sendport) {
         LogError("hostname and listen port required!");
         return -1;
     }
@@ -68,9 +92,9 @@ int Unicast_send_socket(const char *hostname, const char *sendport, int family, 
     hints.ai_family = family;
     hints.ai_socktype = SOCK_DGRAM;
 
-    error = getaddrinfo(hostname, sendport, &hints, &res);
+    error = getaddrinfo(dhostname, sendport, &hints, &res);
     if (error) {
-        LogError("getaddrinfo() error: %s", gai_strerror(error));
+        LogError("getaddrinfo(%s) error: %s", dhostname, gai_strerror(error));
         return -1;
     }
 
@@ -103,8 +127,14 @@ int Unicast_send_socket(const char *hostname, const char *sendport, int family, 
         return -1;
     }
 
+    if (shostname != NULL ) {
+        if (setSourceAddress(sockfd, shostname, family, SOCK_DGRAM) == -1) {
+            freeaddrinfo(ressave);
+            return -1;
+        }
+    }
     *addrlen = res->ai_addrlen;
-    memcpy(addr, res->ai_addr, res->ai_addrlen);
+    memcpy(daddr, res->ai_addr, res->ai_addrlen);
     freeaddrinfo(ressave);
 
     // Set socket write buffer. Need to be root!
@@ -127,12 +157,12 @@ int Unicast_send_socket(const char *hostname, const char *sendport, int family, 
 
 }  // End of Unicast_send_socket
 
-int Multicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
+int Multicast_send_socket(const char *shostname, const char *dhostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *saddr, struct sockaddr_storage *daddr,
                           int *addrlen) {
     struct addrinfo hints, *res, *ressave;
     int error, sockfd;
 
-    if (!listenport || !hostname) {
+    if (!listenport || !dhostname) {
         fprintf(stderr, "hostname and listen port required!\n");
         LogError("hostname and listen port required!");
         return -1;
@@ -142,7 +172,7 @@ int Multicast_send_socket(const char *hostname, const char *listenport, int fami
     hints.ai_family = family;
     hints.ai_socktype = SOCK_DGRAM;
 
-    error = getaddrinfo(hostname, listenport, &hints, &res);
+    error = getaddrinfo(dhostname, listenport, &hints, &res);
 
     if (error) {
         fprintf(stderr, "getaddrinfo error:: [%s]\n", gai_strerror(error));
@@ -154,7 +184,6 @@ int Multicast_send_socket(const char *hostname, const char *listenport, int fami
        Try open socket with each address getaddrinfo returned,
        until we get a valid listening socket.
     */
-
     sockfd = -1;
     ressave = res;
     while (res) {
@@ -163,22 +192,22 @@ int Multicast_send_socket(const char *hostname, const char *listenport, int fami
             res = res->ai_next;
             continue;
         }
-
         // we found a valid socket and are done in this loop
         break;
     }
 
+    
     if (sockfd < 0) {
         // nothing found - bye bye
-        fprintf(stderr, "Could not create a socket for [%s:%s]\n", hostname, listenport);
-        LogError("Could not create a socket for [%s:%s]", hostname, listenport);
+        fprintf(stderr, "Could not create a socket for [%s:%s]\n", dhostname, listenport);
+        LogError("Could not create a socket for [%s:%s]", dhostname, listenport);
         freeaddrinfo(ressave);
         return -1;
     }
 
     if (isMulticast((struct sockaddr_storage *)res->ai_addr) < 0) {
-        fprintf(stderr, "Not a multicast address [%s]\n", hostname);
-        LogError("Not a multicast address [%s]", hostname);
+        fprintf(stderr, "Not a multicast address [%s]\n", dhostname);
+        LogError("Not a multicast address [%s]", dhostname);
         freeaddrinfo(ressave);
         return -1;
     }
@@ -186,8 +215,14 @@ int Multicast_send_socket(const char *hostname, const char *listenport, int fami
     close(sockfd);
     sockfd = socket(res->ai_family, SOCK_DGRAM, 0);
 
+    if (shostname != NULL) {
+        if (setSourceAddress(sockfd, shostname, family, SOCK_DGRAM) == -1) {
+            freeaddrinfo(ressave);
+            return -1;
+        }
+    }
     *addrlen = res->ai_addrlen;
-    memcpy(addr, res->ai_addr, res->ai_addrlen);
+    memcpy(daddr, res->ai_addr, res->ai_addrlen);
 
     if (joinGroup(sockfd, 1, 1, (struct sockaddr_storage *)res->ai_addr) < 0) {
         close(sockfd);
