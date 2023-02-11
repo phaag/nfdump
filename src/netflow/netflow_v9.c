@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -810,7 +810,7 @@ static inline void Process_v9_option_templates(exporterDomain_t *exporter, void 
         dbg_printf("Option field Type: %u, offset: %u, length %u\n", type, offset, length);
 
         switch (type) {
-            // general sampling
+            // Old std sampling tags
             case NF9_SAMPLING_INTERVAL:  // #34
                 samplerOption->spaceInterval.length = length;
                 samplerOption->spaceInterval.offset = offset;
@@ -824,7 +824,8 @@ static inline void Process_v9_option_templates(exporterDomain_t *exporter, void 
                 dbg_printf(" Sampling #35 found\n");
                 break;
 
-            // individual samplers
+            // New std sampling, individual sammplers (sampling ID)
+            // Map old individual samplers
             case NF9_FLOW_SAMPLER_ID:  // #48 deprecated - fall through
                 dbg_printf(" Sampling #48 found\n");
             case SELECTOR_ID:  // #302
@@ -928,11 +929,14 @@ static inline void Process_v9_option_templates(exporterDomain_t *exporter, void 
         }
         template->data = optionTemplate;
 
-        if ((optionTemplate->flags & SAMPLERMASK) == SAMPLER306) {
-            dbg_printf("[%u] Sampler information found\n", exporter->info.id);
+        if ((optionTemplate->flags & SAMPLERFLAGS) == SAMPLERFLAGS) {
+            dbg_printf("[%u] New Sampler information found\n", exporter->info.id);
             SetFlag(template->type, SAMPLER_TEMPLATE);
-        } else if ((optionTemplate->flags & STDMASK) == STDSAMPLING34) {
-            dbg_printf("[%u] Std sampling information found\n", exporter->info.id);
+        } else if ((optionTemplate->flags & SAMPLERSTDFLAGS) == SAMPLERSTDFLAGS) {
+            dbg_printf("[%u] New std sampling information found\n", exporter->info.id);
+            SetFlag(template->type, SAMPLER_TEMPLATE);
+        } else if ((optionTemplate->flags & STDMASK) == STDFLAGS) {
+            dbg_printf("[%u] Old std sampling information found\n", exporter->info.id);
             SetFlag(template->type, SAMPLER_TEMPLATE);
         } else {
             dbg_printf("[%u] No Sampling information found\n", exporter->info.id);
@@ -1298,10 +1302,9 @@ static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, Fl
     optionTemplate_t *optionTemplate = (optionTemplate_t *)template->data;
     struct samplerOption_s *samplerOption = &(optionTemplate->samplerOption);
 
-    if ((optionTemplate->flags & SAMPLERMASK) != 0) {
+    if ((optionTemplate->flags & SAMPLERSTDFLAGS) != 0) {
         sampler_record_t sampler_record = {0};
 
-        sampler_record.id = 0;
         if (CHECK_OPTION_DATA(size_left, samplerOption->id)) {
             sampler_record.id = Get_val(in, samplerOption->id.offset, samplerOption->id.length);
         }
@@ -1327,9 +1330,16 @@ static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, Fl
                 LogError("Process_v9_option: Zero sampling interval -> sampling == 1", __FILE__, __LINE__);
             }
         }
+
         dbg_printf("Extracted Sampler data:\n");
-        dbg_printf("ID : %lld, algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.id, sampler_record.algorithm,
-                   sampler_record.packetInterval, sampler_record.spaceInterval);
+        if (sampler_record.id == 0) {
+            sampler_record.id = SAMPLER_GENERIC;
+            dbg_printf("New std sampler: algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.algorithm,
+                       sampler_record.packetInterval, sampler_record.spaceInterval);
+        } else {
+            dbg_printf("ID : %lld, algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.id, sampler_record.algorithm,
+                       sampler_record.packetInterval, sampler_record.spaceInterval);
+        }
 
         InsertSampler(fs, exporter, &sampler_record);
         return;

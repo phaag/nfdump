@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2022, Peter Haag
+ *  Copyright (c) 2012-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -76,20 +76,35 @@ struct nameOptionList_s {
 typedef struct optionTemplate_s {
     uint64_t flags;  // info about this option template
     struct samplerOption_s {
+// old sampler tags:
+//  #34, #34
 #define STDSAMPLING34 1
 #define STDSAMPLING35 2
 #define STDMASK 0x3
 #define STDFLAGS 0x3
 
+// mapped sampler tags:
+// #48 -> #302
+// #49 -> #304
+// #50 -> #306
+
+// new sampler tags
+// Sampler ID
 #define SAMPLER302 4
+// sampler parameter
 #define SAMPLER304 8
 #define SAMPLER305 16
 #define SAMPLER306 32
-#define SAMPLERMASK 0x2C
+
+#define SAMPLERMASK 0x3C
+
+// #302 #304 #306 for individual sampler ID per exporter process
 #define SAMPLERFLAGS 0x2C
+// #302 and #306 for individual sampler ID per exporter process
+#define SAMPLERSTDFLAGS 0x28
 
         // sampling offset/length values
-        optionTag_t id;              // tag #302 papped #48
+        optionTag_t id;              // tag #302 mapped #48
         optionTag_t algorithm;       // tag #304 mapped #35, #49
         optionTag_t packetInterval;  // tag #305
         optionTag_t spaceInterval;   // tag #306 mapped #34, #50

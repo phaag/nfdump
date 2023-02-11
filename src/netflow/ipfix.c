@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2022, Peter Haag
+ *  Copyright (c) 2012-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -137,6 +137,7 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_deltaFlowCount, SIZEflows, NumberCopy, EXcntFlowID, OFFflows, STACK_NONE, "deltaFlowCount"},
     {IPFIX_protocolIdentifier, SIZEproto, NumberCopy, EXgenericFlowID, OFFproto, STACK_NONE, "proto"},
     {IPFIX_ipClassOfService, SIZEsrcTos, NumberCopy, EXgenericFlowID, OFFsrcTos, STACK_NONE, "src tos"},
+    {IPFIX_forwardingStatus, SIZEfwdStatus, NumberCopy, EXgenericFlowID, OFFfwdStatus, STACK_NONE, "forwarding status"},
     {IPFIX_tcpControlBits, SIZEtcpFlags, NumberCopy, EXgenericFlowID, OFFtcpFlags, STACK_NONE, "TCP flags"},
     {IPFIX_SourceTransportPort, SIZEsrcPort, NumberCopy, EXgenericFlowID, OFFsrcPort, STACK_NONE, "src port"},
     {IPFIX_SourceIPv4Address, SIZEsrc4Addr, NumberCopy, EXipv4FlowID, OFFsrc4Addr, STACK_NONE, "src IPv4"},
@@ -983,7 +984,7 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
         }
 
         switch (type) {
-            // general sampling
+            // Old std sampling tags
             case IPFIX_samplingInterval:  // #34
                 samplerOption->spaceInterval.length = length;
                 samplerOption->spaceInterval.offset = offset;
@@ -997,9 +998,10 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
                 dbg_printf(" Sampling #35 found\n");
                 break;
 
-            // individual samplers
+            // New std sampling, individual sammplers (sampling ID)
+            // Map old individual samplers
             case IPFIX_samplerId:  // #48 deprecated - fall through
-                dbg_printf(" Sampling #48 found\n");
+                dbg_printf(" Sampling #48 map to #302\n");
             case IPFIX_selectorId:  // #302
                 samplerOption->id.length = length;
                 samplerOption->id.offset = offset;
@@ -1101,11 +1103,14 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
         }
         template->data = optionTemplate;
 
-        if ((optionTemplate->flags & SAMPLERMASK) == SAMPLER306) {
-            dbg_printf("[%u] Sampler information found\n", exporter->info.id);
+        if ((optionTemplate->flags & SAMPLERFLAGS) == SAMPLERFLAGS) {
+            dbg_printf("[%u] New Sampler information found\n", exporter->info.id);
             SetFlag(template->type, SAMPLER_TEMPLATE);
-        } else if ((optionTemplate->flags & STDMASK) == STDSAMPLING34) {
-            dbg_printf("[%u] Std sampling information found\n", exporter->info.id);
+        } else if ((optionTemplate->flags & SAMPLERSTDFLAGS) == SAMPLERSTDFLAGS) {
+            dbg_printf("[%u] New std sampling information found\n", exporter->info.id);
+            SetFlag(template->type, SAMPLER_TEMPLATE);
+        } else if ((optionTemplate->flags & STDMASK) == STDFLAGS) {
+            dbg_printf("[%u] Old std sampling information found\n", exporter->info.id);
             SetFlag(template->type, SAMPLER_TEMPLATE);
         } else {
             dbg_printf("[%u] No Sampling information found\n", exporter->info.id);
@@ -1449,7 +1454,7 @@ static inline void Process_ipfix_sampler_option_data(exporterDomain_t *exporter,
     optionTemplate_t *optionTemplate = (optionTemplate_t *)template->data;
     struct samplerOption_s *samplerOption = &(optionTemplate->samplerOption);
 
-    if ((optionTemplate->flags & SAMPLERMASK) != 0) {
+    if ((optionTemplate->flags & SAMPLERSTDFLAGS) != 0) {
         sampler_record_t sampler_record = {0};
 
         if (CHECK_OPTION_DATA(size_left, samplerOption->id)) {
@@ -1474,9 +1479,16 @@ static inline void Process_ipfix_sampler_option_data(exporterDomain_t *exporter,
                 LogError("Process_ipfix_option: Zero sampling interval -> sampling == 1", __FILE__, __LINE__);
             }
         }
+
         dbg_printf("Extracted Sampler data:\n");
-        dbg_printf("ID : %lld, algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.id, sampler_record.algorithm,
-                   sampler_record.packetInterval, sampler_record.spaceInterval);
+        if (sampler_record.id == 0) {
+            sampler_record.id = SAMPLER_GENERIC;
+            dbg_printf("New std sampler: algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.algorithm,
+                       sampler_record.packetInterval, sampler_record.spaceInterval);
+        } else {
+            dbg_printf("ID : %lld, algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.id, sampler_record.algorithm,
+                       sampler_record.packetInterval, sampler_record.spaceInterval);
+        }
 
         InsertSampler(fs, exporter, &sampler_record);
         return;
