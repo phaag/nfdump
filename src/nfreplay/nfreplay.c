@@ -107,6 +107,7 @@ static void usage(char *name) {
         "-6\t\tForce IPv6 protocol.\n"
         "-L <log>\tLog to syslog facility <log>\n"
         "-p <port>\tTarget port default 9995\n"
+        "-S <ip>\tSource IP address for sending flows\n"
         "-d <usec>\tDelay in usec between packets. default 10\n"
         "-c <cnt>\tPacket count. default send all packets\n"
         "-b <bsize>\tSend buffer size.\n"
@@ -131,7 +132,7 @@ static int FlushBuffer(int confirm) {
         fflush(stdout);
         fgetc(stdin);
     }
-    return sendto(peer.sockfd, peer.send_buffer, len, 0, (struct sockaddr *)&(peer.addr), peer.addrlen);
+    return sendto(peer.sockfd, peer.send_buffer, len, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
 }  // End of FlushBuffer
 
 static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
@@ -367,6 +368,7 @@ int main(int argc, char **argv) {
     timeWindow = NULL;
 
     peer.hostname = NULL;
+    peer.shostname = NULL;
     peer.port = DEFAULTCISCOPORT;
     peer.mcast = 0;
     peer.family = AF_UNSPEC;
@@ -379,7 +381,7 @@ int main(int argc, char **argv) {
     verbose = 0;
     confirm = 0;
     distribution = 0;
-    while ((c = getopt(argc, argv, "46EhH:i:K:L:p:d:c:b:j:r:f:t:v:z:VY")) != EOF) {
+    while ((c = getopt(argc, argv, "46EhH:i:K:L:p:S:d:c:b:j:r:f:t:v:z:VY")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -418,6 +420,9 @@ int main(int argc, char **argv) {
                 break;
             case 'p':
                 peer.port = strdup(optarg);
+                break;
+            case 'S':
+                peer.shostname = strdup(optarg);
                 break;
             case 'd':
                 delay = atoi(optarg);
@@ -509,9 +514,9 @@ int main(int argc, char **argv) {
     if (!Engine) exit(254);
 
     if (peer.mcast)
-        peer.sockfd = Multicast_send_socket(peer.hostname, peer.port, peer.family, sockbuff_size, &peer.addr, &peer.addrlen);
+        peer.sockfd = Multicast_send_socket(peer.shostname, peer.hostname, peer.port, peer.family, sockbuff_size, &peer.srcaddr, &peer.dstaddr, &peer.addrlen);
     else
-        peer.sockfd = Unicast_send_socket(peer.hostname, peer.port, peer.family, sockbuff_size, &peer.addr, &peer.addrlen);
+        peer.sockfd = Unicast_send_socket(peer.shostname, peer.hostname, peer.port, peer.family, sockbuff_size, &peer.srcaddr, &peer.dstaddr, &peer.addrlen);
     if (peer.sockfd <= 0) {
         exit(255);
     }

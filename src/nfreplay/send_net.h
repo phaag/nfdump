@@ -38,12 +38,13 @@
 #define UDP_PACKET_SIZE 1472
 
 typedef struct send_peer_s {
-    struct sockaddr_storage addr;
+    struct sockaddr_storage srcaddr, dstaddr;
     int addrlen;
     int sockfd;
     int family;
     char *port;
     char *hostname;
+    char *shostname;
     int mcast;
     int flush;
     void *send_buffer;
@@ -52,10 +53,10 @@ typedef struct send_peer_s {
 } send_peer_t;
 
 /* Function prototypes */
-int Unicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
+int Unicast_send_socket(const char *shostname, const char *dhostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *saddr, struct sockaddr_storage *daddr,
                         int *addrlen);
 
-int Multicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
+int Multicast_send_socket(const char *shostname, const char *dhostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *saddr, struct sockaddr_storage *daddr,
                           int *addrlen);
 
 #endif  //_NFNET_H
