@@ -107,7 +107,7 @@ static void usage(char *name) {
         "-6\t\tForce IPv6 protocol.\n"
         "-L <log>\tLog to syslog facility <log>\n"
         "-p <port>\tTarget port default 9995\n"
-        "-S <ip>\t Source IP address for sending flows\n"
+        "-S <ip>\tSource IP address for sending flows\n"
         "-d <usec>\tDelay in usec between packets. default 10\n"
         "-c <cnt>\tPacket count. default send all packets\n"
         "-b <bsize>\tSend buffer size.\n"
@@ -368,7 +368,7 @@ int main(int argc, char **argv) {
     timeWindow = NULL;
 
     peer.hostname = NULL;
-    peer.shostname = NULL;            /* Source address not specified by default */
+    peer.shostname = NULL;
     peer.port = DEFAULTCISCOPORT;
     peer.mcast = 0;
     peer.family = AF_UNSPEC;
@@ -391,7 +391,7 @@ int main(int argc, char **argv) {
                 verbose = 1;
                 break;
             case 'V':
-                printf("%s: Version: %s\n", argv[0], nfdump_version);
+                printf("%s: %s\n", argv[0], versionString());
                 exit(0);
                 break;
             case 'Y':
