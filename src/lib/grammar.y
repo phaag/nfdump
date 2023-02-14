@@ -1493,7 +1493,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		}
 
-		geoFilter = 1;
+		geoFilter = 2;
 		union {
 			char c[8];
 			uint64_t u;
