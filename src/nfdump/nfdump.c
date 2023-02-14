@@ -956,7 +956,7 @@ int main(int argc, char **argv) {
         HasGeoDB = true;
         outputParams->hasGeoDB = true;
     }
-    if (!HasGeoDB && Engine->geoFilter) {
+    if (!HasGeoDB && Engine->geoFilter > 1) {
         LogError("Can not filter according geo elements without a geo location DB");
         exit(EXIT_FAILURE);
     }
