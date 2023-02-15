@@ -448,7 +448,7 @@ static uint64_t pps_record(FlowHashRecord_t *record, int inout) {
 }  // End of pps_record
 
 static uint64_t bps_record(FlowHashRecord_t *record, int inout) {
-    uint64_t duration = record->msecLast - record->msecLast;
+    uint64_t duration = record->msecLast - record->msecFirst;
     if (duration == 0)
         return 0;
     else {
