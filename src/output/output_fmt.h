@@ -54,9 +54,9 @@
 
 #define FORMAT_bilong "%ts %td %pr %sap <-> %dap %flg %tos %opkt %ipkt %obyt %ibyt %fl"
 
-#define FORMAT_nsel "%tevt %evt %xevt %pr %sap -> %dap %xsap -> %xdap %ibyt %obyt"
+#define FORMAT_nsel "%ts %evt %xevt %pr %sap -> %dap %xsap -> %xdap %ibyt %obyt"
 
-#define FORMAT_nel "%tevt %nevt %pr %sap -> %dap %nsap -> %ndap"
+#define FORMAT_nel "%ts %nevt %pr %sap -> %dap %nsap -> %ndap"
 
 #ifdef NSEL
 #define DefaultMode "nsel"

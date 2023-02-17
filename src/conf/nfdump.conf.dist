@@ -16,8 +16,8 @@
 # fmt.bilong = "%ts %td %pr %sap <-> %dap %flg %tos %opkt %ipkt %obyt %ibyt %fl"
 
 # if compiled for nsel/nel support
-# fmt.nsel = "%tevt %evt %xevt %pr %sap -> %dap %xsap -> %xdap %ibyt %obyt"
-# fmt.nel = "%tevt %nevt %pr %sap -> %dap %nsap -> %ndap"
+# fmt.nsel = "%ts %evt %xevt %pr %sap -> %dap %xsap -> %xdap %ibyt %obyt"
+# fmt.nel = "%ts %nevt %pr %sap -> %dap %nsap -> %ndap"
 
 # define any new format
 # fmt.newformat = "%ts ...."

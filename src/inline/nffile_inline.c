@@ -241,8 +241,6 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
                 output_record->event = nselCommon->fwEvent;
                 output_record->fwXevent = nselCommon->fwXevent;
                 output_record->msecEvent = nselCommon->msecEvent;
-                if (output_record->msecFirst == 0) output_record->msecFirst = nselCommon->msecEvent;
-                if (output_record->msecLast == 0) output_record->msecFirst = nselCommon->msecEvent;
             } break;
             case EXnselXlateIPv4ID: {
                 EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
@@ -294,8 +292,6 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
                     output_record->event = nelCommon->natEvent;
                     output_record->event_flag = NAT_EVENT;
                 }
-                if (output_record->msecFirst == 0) output_record->msecFirst = output_record->msecEvent;
-                if (output_record->msecLast == 0) output_record->msecLast = output_record->msecEvent;
             } break;
             case EXnelXlatePortID: {
                 EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)((void *)elementHeader + sizeof(elementHeader_t));
@@ -459,6 +455,11 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
         output_record->exElementList[j] = val;
         output_record->numElements++;
     }
+
+#ifdef NSEL
+    if (output_record->msecFirst == 0) output_record->msecFirst = output_record->msecEvent;
+    if (output_record->msecLast == 0) output_record->msecFirst = output_record->msecEvent;
+#endif
 
 #ifdef DEVEL
     printf("Ordered extensions: %u\n", output_record->numElements);
