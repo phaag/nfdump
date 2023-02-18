@@ -1369,8 +1369,7 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
                     }
                     if (stack[STACK_ICMP] != 0) {
                         genericFlow->dstPort = stack[STACK_ICMP];
-                    }
-                    if (stack[STACK_ICMPTYPE] != 0 || stack[STACK_ICMPCODE]) {
+                    } else if (stack[STACK_ICMPTYPE] != 0 || stack[STACK_ICMPCODE] != 0) {
                         genericFlow->dstPort = (stack[STACK_ICMPTYPE] << 8) + stack[STACK_ICMPCODE];
                     }
                     break;

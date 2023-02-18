@@ -1196,11 +1196,9 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
                     if (stack[STACK_ICMP] != 0) {
                         // icmp type/code element #32
                         genericFlow->dstPort = stack[STACK_ICMP];
-                    } else if (stack[STACK_ICMP_TYPE] || stack[STACK_ICMP_CODE]) {
+                    } else if (stack[STACK_ICMP_TYPE] != 0 || stack[STACK_ICMP_CODE] != 0) {
                         // icmp type and code elements #176 #177 #178 #179
-                        genericFlow->dstPort = 256 * stack[STACK_ICMP_TYPE] + stack[STACK_ICMP_CODE];
-                    } else {
-                        genericFlow->dstPort = 0;
+                        genericFlow->dstPort = (stack[STACK_ICMP_TYPE] << 8) + stack[STACK_ICMP_CODE];
                     }
                     break;
                 case IPPROTO_TCP:
