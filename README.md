@@ -44,6 +44,8 @@ tools.  geolookup uses the **Maxmind** database GeoDB or GeoLite2 to create a
 binary lookup database for nfdump Please check the geolooup(1) man page
 for more details.
 
+There is also a [go-nfdump](https://github.com/phaag/go-nfdump) module to read nfdump flows files in Golang. 
+
 ### Compatibility
 You may use nfdump-1.6.24 oder nfdump-1.7.x, depending on your needs. 
 nfdump-1.7.x is compatible to nfdump-1.6.18, which means it can read files 
