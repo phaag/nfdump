@@ -374,7 +374,11 @@ void PrintExporters(void) {
 
     printf("\n");
     int i = 1;
-    while (i < MAX_EXPORTERS && exporter_list[i] != NULL) {
+    while (i < MAX_EXPORTERS) {
+        if (exporter_list[i] == NULL) {
+            i++;
+            continue;
+        }
 #define IP_STRING_LEN 40
         char ipstr[IP_STRING_LEN];
 
