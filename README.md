@@ -47,7 +47,7 @@ for more details.
 There is also a [go-nfdump](https://github.com/phaag/go-nfdump) module to read nfdump flows files in Golang. 
 
 ### Compatibility
-You may use nfdump-1.6.24 older nfdump-1.7.x, depending on your needs. 
+You may use nfdump-1.6.24 or nfdump-1.7.x, depending on your needs. 
 nfdump-1.7.x is compatible to nfdump-1.6.18, which means it can read files 
 created with nfdump-1.6.18 or newer. Flow files created with earlier nfdump
 versions may not contain all flow elements. If you have older files, it is
