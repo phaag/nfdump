@@ -44,7 +44,7 @@
  * ===========================
  * Each data file starts with a file header, which identifies the file as an nfdump data file.
  * The magic 16bit integer at the beginning of each file must read 0xA50C. This also guarantees
- * that endian dependant files are read correct.
+ * that endian dependent files are read correct.
  *
  * Principal layout, recognized as LAYOUT_VERSION_2:
  *

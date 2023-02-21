@@ -538,7 +538,7 @@ int RunExtendedFilter(FilterEngine_t *engine) {
             }
             index = engine->filter[index].OnTrue;
         } else {
-            // filter expression does not match - clear previous label if abailable
+            // filter expression does not match - clear previous label if available
             if (engine->label) engine->label = NULL;
             index = engine->filter[index].OnFalse;
         }

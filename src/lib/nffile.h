@@ -81,7 +81,7 @@
  * ===========================
  * Each data file starts with a file header, which identifies the file as an nfdump data file.
  * The magic 16bit integer at the beginning of each file must read 0xA50C. This also guarantees
- * that endian dependant files are read correct.
+ * that endian dependent files are read correct.
  *
  * Principal layout, recognized as LAYOUT_VERSION_1:
  *
@@ -125,7 +125,7 @@ typedef struct fileHeaderV1_s {
 
 /*
  * In file layout format 1: After the file header an
- * inplicit stat record follows, which contains the statistics
+ * implicit stat record follows, which contains the statistics
  * information about all netflow records in this file.
  */
 
@@ -188,7 +188,7 @@ typedef struct data_block_header_s {
 typedef struct nffile_s {
     fileHeaderV2_t *file_header;  // file header
     int fd;                       // associated file descriptor
-    int compat16;                 // underlaying file is compat16
+    int compat16;                 // underlying file is compat16
     pthread_t worker;             // nfread/nfwrite worker thread;
     _Atomic int terminate;        // signal to terminate
 

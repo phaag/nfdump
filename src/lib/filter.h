@@ -57,7 +57,7 @@ enum { CMP_EQ = 0, CMP_GT, CMP_LT, CMP_GE, CMP_LE, CMP_IDENT, CMP_FLOWLABEL, CMP
  * filter functions:
  * For some filter functions, netflow records need to be processed first in order to filter them
  * This involves all data not directly available in the netflow record, such as packets per second etc.
- * Filter speed is a bit slower due to extra netflow processsing
+ * Filter speed is a bit slower due to extra netflow processing
  * The sequence of the enum values must correspond with the entries in the flow_procs array
  */
 
@@ -66,7 +66,7 @@ enum {
     FUNC_PPS,      /* function code for pps ( packet per second ) filter function */
     FUNC_BPS,      /* function code for bps ( bits per second ) filter function */
     FUNC_BPP,      /* function code for bpp ( bytes per packet ) filter function */
-    FUNC_DURATION, /* function code for duration ( in miliseconds ) filter function */
+    FUNC_DURATION, /* function code for duration ( in milliseconds ) filter function */
     FUNC_MPLS_EOS, /* function code for matching End of MPLS Stack label */
     FUNC_MPLS_ANY, /* function code for matching any MPLS label */
     FUNC_PBLOCK,   /* function code for matching ports against pblock start */

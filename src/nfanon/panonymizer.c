@@ -135,7 +135,7 @@ int ParseCryptoPAnKey(char *s, char *key) {
 
 }  // End of ParseCryptoPAnKey
 
-// Anonymization funtion
+// Anonymization function
 uint32_t anonymize(const uint32_t orig_addr) {
     uint8_t rin_output[16];
     uint8_t rin_input[16];
@@ -171,7 +171,7 @@ uint32_t anonymize(const uint32_t orig_addr) {
         // Combination: the bits are combined into a pseudorandom one-time-pad
         result |= (rin_output[0] >> 7) << (31 - pos);
     }
-    // XOR the orginal address with the pseudorandom one-time-pad
+    // XOR the original address with the pseudorandom one-time-pad
     return result ^ orig_addr;
 }
 
@@ -211,7 +211,7 @@ void anonymize_v6(const uint64_t orig_addr[2], uint64_t *anon_addr) {
         // Combination: the bits are combined into a pseudorandom one-time-pad
         result[left_byte] |= (rin_output[0] >> 7) << bit_num;
     }
-    // XOR the orginal address with the pseudorandom one-time-pad
+    // XOR the original address with the pseudorandom one-time-pad
     anon_addr[0] ^= orig_addr[0];
     anon_addr[1] ^= orig_addr[1];
 }

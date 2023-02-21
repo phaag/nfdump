@@ -30,7 +30,7 @@ fmt.pfline = "fmt:%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap 
 
 [nfcapd]
 # define multiple netflow exporters
-# the identification string follow the toke 'exporter'
+# the identification string follow the token 'exporter'
 # 
 # exporter.<ident> = ["ip", "flowdir"]
 # 

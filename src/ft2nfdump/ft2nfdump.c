@@ -29,7 +29,7 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- *  Flow-Tools related code taken from flow-tools-0.67 cretated by Mark Fullmer
+ *  Flow-Tools related code taken from flow-tools-0.67 created by Mark Fullmer
  *
  */
 

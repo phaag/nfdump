@@ -94,7 +94,7 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         } else {
             // exporters not identical - move current slot
             int i;
-            // search first emty slot at the top of the list
+            // search first empty slot at the top of the list
             for (i = id + 1; i < MAX_EXPORTERS && exporter_list[i] != NULL; i++) {
                 ;
             }

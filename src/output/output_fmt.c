@@ -67,7 +67,7 @@ static int token_index = 0;
 
 #define BLOCK_SIZE 32
 
-static char **format_list = NULL;  // ordered list of all individual strings formating the output line
+static char **format_list = NULL;  // ordered list of all individual strings formatting the output line
 static int max_format_index = 0;
 
 static int do_tag = 0;

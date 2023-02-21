@@ -296,7 +296,7 @@ void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
 
         ssize_t len = read(packetParam->bpf, packetParam->bpfBuffer, packetParam->bpfBufferSize);
         if (len <= 0) {     // error or eof
-            if (len < 0) {  // error other than interupted system call
+            if (len < 0) {  // error other than interrupted system call
                 LogError("read() bpf socket failed: %s", strerror(errno));
                 pthread_kill(packetParam->parent, SIGUSR1);
             }

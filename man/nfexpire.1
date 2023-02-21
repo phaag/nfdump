@@ -58,7 +58,7 @@ or
 )
 .Pp
 .Nm
-is used to setup the expire parameters (maintainance mode) or to actually run the expire
+is used to setup the expire parameters (maintenance mode) or to actually run the expire
 process (expire mode) based on these parameters. The expire process can be triggered by either
 a cron job, by the collector process itself (nfcapd, sfcapd auto expire mode), or by running
 .Nm
@@ -78,7 +78,7 @@ argument for
 .Nm
 corresponds to the
 .Ar -l
-argument on the collector comman line.
+argument on the collector command line.
 .Pp
 The options are as follows:
 .Bl -tag -width Ds
@@ -92,7 +92,7 @@ active data directory used by any collector, the statistics are updated automati
 .It Fl r Ar directory
 Rescans the data directory, even if a statistics file already exist. This command
 can be used to update the statistics after a disk full event, after manually changing
-the compression of the files, or if files have beed deleted manually or manipulated
+the compression of the files, or if files have been deleted manually or manipulated
 otherwise.
 .It Fl e Ar directory
 Expire data files according to the parameters

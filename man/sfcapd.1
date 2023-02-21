@@ -64,7 +64,7 @@
 .Op Fl V
 .Sh DESCRIPTION
 .Nm
-reads sflow data from the network and stores the records into binary formated files. The sflow implementation
+reads sflow data from the network and stores the records into binary formatted files. The sflow implementation
 is based of sflowtool. The packet samples are converted into netflow compatible records.
 .Pp
 If you want to collect netflow data, please have a look at
@@ -124,7 +124,7 @@ and
 is either a valid IPv4/IPv6 address, or a symbolic hostname, which resolves to a valid IP address.
 .Ar port
 may be omitted and defaults to 9995. Note: As IPv4/IPv6 are accepted the host/port separator is '/'.
-Up to 8 additional repeaters my be defined. Use this methode to daisy chain collectors.
+Up to 8 additional repeaters my be defined. Use this method to daisy chain collectors.
 .It Fl A
 Sets source address spoofing mode for the repeater. The source address of the repeated packages
 is set to the original IP address. This needs
@@ -233,10 +233,10 @@ runs the command
 .Ar command .
 The string for
 .Ar command
-may contain the following place holders, which are expanded bevore running:
+may contain the following place holders, which are expanded before running:
 .Bl -item -compact
 .It
-%f   File name of new data file inluding any sub hierarchy.
+%f   File name of new data file including any sub hierarchy.
 .It
 %d   Top 
 .Ar flowdir .
@@ -262,7 +262,7 @@ Please note: The flow metric does not include the full record. Only the flow sta
 Sets the interval for the flow metric exporter. This interval may be different from the file rotation
 interval
 .Ar t 
-and is therefore independant from file rotation.
+and is therefore independent from file rotation.
 .It Fl v
 Increase verbose level by 1. The verbose level may be increased for debugging purpose up to 3.
 .It Fl E

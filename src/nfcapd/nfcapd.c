@@ -330,7 +330,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
     while (1) {
         struct timeval tv;
 
-        /* read next bunch of data into beginn of input buffer */
+        /* read next bunch of data into begin of input buffer */
         if (!done) {
 #ifdef PCAP
             // Debug code to read from pcap file, or from socket

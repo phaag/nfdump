@@ -387,7 +387,7 @@ int main(int argc, char *argv[]) {
             case 'b':
                 buff_size = atoi(optarg);
                 if (buff_size <= 0 || buff_size > 2047) {
-                    LogError("ERROR: Buffer size in MB must be betwee 0..2047 (2GB max)");
+                    LogError("ERROR: Buffer size in MB must be between 0..2047 (2GB max)");
                     exit(EXIT_FAILURE);
                 }
                 break;
