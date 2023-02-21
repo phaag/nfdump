@@ -43,7 +43,7 @@
  *
  * The goal of the V3 extension format:
  *  - simpler and more robust storage format.
- *  - independant of extension records. No specific ordering required.
+ *  - independent of extension records. No specific ordering required.
  *    makes it much easier for multi theaded data processing.
  *  - more flexible record handling, allows variable length records/
  *
@@ -225,7 +225,7 @@ typedef struct EXflowMisc_s {
     uint8_t flowEndReason;
 #define OFFflowEndReason offsetof(EXflowMisc_t, flowEndReason)
 #define SIZEflowEndReason MemberSize(EXflowMisc_t, flowEndReason)
-    // allign bytes
+    // align bytes
     uint8_t revTcpFlags;
     uint8_t fill;
 } EXflowMisc_t;

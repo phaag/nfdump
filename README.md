@@ -47,7 +47,7 @@ for more details.
 There is also a [go-nfdump](https://github.com/phaag/go-nfdump) module to read nfdump flows files in Golang. 
 
 ### Compatibility
-You may use nfdump-1.6.24 oder nfdump-1.7.x, depending on your needs. 
+You may use nfdump-1.6.24 older nfdump-1.7.x, depending on your needs. 
 nfdump-1.7.x is compatible to nfdump-1.6.18, which means it can read files 
 created with nfdump-1.6.18 or newer. Flow files created with earlier nfdump
 versions may not contain all flow elements. If you have older files, it is
@@ -61,8 +61,8 @@ format by reading/writing files: __./nfdump -r old-flowfile -y -w new-flowfile__
 Please note, that only __nfdump__ may read older flow files. All other programs
 relay on the new file format.
 
-Although nfdump-1.7.x ist mostly compatible with old Nfsen, it not recommended
-to replace nfdump iin your NfSen installation. However, all specific binaries such 
+Although nfdump-1.7.x is mostly compatible with old Nfsen, it not recommended
+to replace nfdump in your NfSen installation. However, all specific binaries such 
 as nfprofile and nftrack are still available with nfdump-1.7 but may be removed
 in future.
 
@@ -84,7 +84,7 @@ improves compatibility with some exporters such as yaf and others.
 - nfpcapd automatically uses TPACKET_V3 for Linux or direct BPF sockets for
   *BSD. This improves packet processing. It adds new options to collect MAC and
   VLAN information if requested as well as the payload of the first packet. This
-  creates a lot of new possibilities in oder to process and filter flows, such
+  creates a lot of new possibilities in order to process and filter flows, such
   as __nfdump -r flowfile 'payload content "POST"'__
   nfpcapd can now store flow files locally or can sent them to a remote nfcapd
   collector.
@@ -100,7 +100,7 @@ missing AS information. Flows may be filtered according to country codes.
 geolookup may also be used as standalone program to lookup IPs for AS/Geo
 information, similar to the famous Team Cymru whois service. geolookup uses a
 local database, which allows to process as many requests as you have.
-In order to use geolookup, you need either a free or payed Maxmind account
+In order to use geolookup, you need either a free or paid Maxmind account
 in order to convert the Maxmind .csv files into an nfdump vector data file. 
 __geolookup__ needs to be enabled when running configure: __--enable-maxmind__
 
@@ -198,12 +198,12 @@ over the network to another host.
 #### Optional binaries:
 
 __sfcapd__ - sflow collector daemon  
-scfapd collects sflow data and stores it into nfcapd comaptible files.
+scfapd collects sflow data and stores it into nfcapd compatible files.
 "sfcapd includes sFlow(TM) code, freely available from https://github.com/sflow/sflowtool.
 
 __nfpcapd__ - pcap to netflow collector daemon  
 nfpcapd listens on a network interface, or reads precollected pcap traffic.
-It either stores locally flow records into nfcapd comaptible files or sends
+It either stores locally flow records into nfcapd compatible files or sends
 the flows to a remote nfcapd collector. It is nfcapd's companion to convert
 traffic directly into nfdump records.
 
@@ -211,7 +211,7 @@ __geolookup__ - Geo location lookup program.
 geolookup converts Maxmind's .csv files into the nfdump vector DB. The 
 converted DB may be used as a standalone lookup tool, or be be used by
 nfdump in order to automatically lookup country and location. 
-Please not: You need a legitimate Maxmind account (free or payed) in 
+Please not: You need a legitimate Maxmind account (free or paid) in 
 order to download the files.
 
 __ft2nfdump__ - flow-tools flow converter  

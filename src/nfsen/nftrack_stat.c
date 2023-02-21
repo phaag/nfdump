@@ -257,7 +257,7 @@ int UpdateStat(data_row *row, time_t when) {
         LogError("Too many slots aggregated: %i. Expected max. %i", stat_header.av_num, MAX_SLOTS);
         LogError("Stat: Num : %i", stat_header.av_num);
         LogError("Stat: last: %s", ctime(&stat_header.last));
-        // should not happend - anyway consider stat record to be corrupt - > clear
+        // should not happen - anyway consider stat record to be corrupt - > clear
         ClearStat();
     }
 
@@ -267,7 +267,7 @@ int UpdateStat(data_row *row, time_t when) {
         LogError("Stat: Num : %i", stat_header.av_num);
         LogError("Stat: last: %s", ctime(&stat_header.last));
         LogError("RRD : last: %s", ctime(&last_rrd));
-        // should not happend - anyway consider stat record to be corrupt - > clear
+        // should not happen - anyway consider stat record to be corrupt - > clear
         ClearStat();
     }
 

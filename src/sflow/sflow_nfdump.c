@@ -78,7 +78,7 @@ typedef struct exporter_sflow_s {
 
     uint64_t packets;           // number of packets sent by this exporter
     uint64_t flows;             // number of flow records sent by this exporter
-    uint32_t sequence_failure;  // number of sequence failues
+    uint32_t sequence_failure;  // number of sequence failures
 
     sampler_t *sampler;
 

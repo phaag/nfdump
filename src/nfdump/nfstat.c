@@ -1068,7 +1068,7 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
             if (order & order_bit) {
                 SortElement_t *topN_element_list = StatTopN(outputParams->topN, &numflows, hash_num, order_index, direction);
 
-                // this output formating is pretty ugly - and needs to be cleaned up - improved
+                // this output formatting is pretty ugly - and needs to be cleaned up - improved
                 if (outputParams->mode == MODE_PLAIN && !outputParams->quiet) {
                     if (outputParams->topN != 0) {
                         printf("Top %i %s ordered by %s:\n", outputParams->topN, StatParameters[stat].HeaderInfo, order_mode[order_index].string);

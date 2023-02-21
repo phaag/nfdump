@@ -454,12 +454,12 @@ timeWindow_t *ScanTimeFrame(char *tstring) {
         errno = 0;
         long sec = strtol(tstring, &invalid, 10);
         if (sec == 0 && errno != 0) {
-            LogError("Invald time string %s: %s", tstring, strerror(errno));
+            LogError("Invalid time string %s: %s", tstring, strerror(errno));
             free(timeWindow);
             return NULL;
         }
         if (invalid && strlen(invalid) > 0) {
-            LogError("Invald time string %s at %c", tstring, *invalid);
+            LogError("Invalid time string %s at %c", tstring, *invalid);
             free(timeWindow);
             return NULL;
         }

@@ -125,7 +125,7 @@ typedef struct _SFLSampled_ipv6 {
 /* Extended switch data */
 
 typedef struct _SFLExtended_switch {
-  uint32_t src_vlan;       /* The 802.1Q VLAN id of incomming frame */
+  uint32_t src_vlan;       /* The 802.1Q VLAN id of incoming frame */
   uint32_t src_priority;   /* The 802.1p priority */
   uint32_t dst_vlan;       /* The 802.1Q VLAN id of outgoing frame */
   uint32_t dst_priority;   /* The 802.1p priority */
@@ -213,7 +213,7 @@ typedef struct _SFLExtended_mpls {
   /* Extended NAT data
      Packet header records report addresses as seen at the sFlowDataSource.
      The extended_nat structure reports on translated source and/or destination
-     addesses for this packet. If an address was not translated it should
+     addresses for this packet. If an address was not translated it should
      be equal to that reported for the header. */
 
 typedef struct _SFLExtended_nat {
@@ -226,7 +226,7 @@ typedef struct _SFLExtended_nat_port {
   uint32_t dst_port;
 } SFLExtended_nat_port;
 
-  /* additional Extended MPLS stucts */
+  /* additional Extended MPLS structs */
 
 typedef struct _SFLExtended_mpls_tunnel {
    SFLString tunnel_lsp_name;  /* Tunnel name */
@@ -358,7 +358,7 @@ typedef struct _SFLExtended_wifi_tx {
   SFL_IEEE80211_version version;    /* version */
   uint32_t transmissions;   /* number of transmissions for sampled
 				packet.
-				0 = unkown
+				0 = unknown
 				1 = packet was successfully transmitted
 				on first attempt
 				n > 1 = n - 1 retransmissions */
@@ -988,7 +988,7 @@ typedef struct _SFLHost_cpu_counters {
   uint32_t cpu_speed;  /* speed in MHz of CPU */
   uint32_t uptime;     /* seconds since last reboot */
   uint32_t cpu_user;   /* time executing in user mode processes (ms) */
-  uint32_t cpu_nice;   /* time executing niced processs (ms) */
+  uint32_t cpu_nice;   /* time executing niced process (ms) */
   uint32_t cpu_system; /* time executing kernel mode processes (ms) */
   uint32_t cpu_idle;   /* idle time (ms) */
   uint32_t cpu_wio;    /* time waiting for I/O to complete (ms) */
@@ -1407,7 +1407,7 @@ typedef struct _SFLVdi_counters {
   uint32_t audio_tx_bytes;    /* total bytes of audio data sent */
   uint32_t audio_tx_limit;    /* administrative limit on audio transmission
 				 bandwidth (in bits per second) */
-  uint32_t img_rx_bytes;      /* total bytes of imaging data recieved */
+  uint32_t img_rx_bytes;      /* total bytes of imaging data received */
   uint32_t img_tx_bytes;      /* total bytes of imaging data sent */
   uint32_t img_frames;        /* total image frames encoded */
   uint32_t img_qual_min;      /* minimum image encoding quality across

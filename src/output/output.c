@@ -55,7 +55,7 @@ static void null_prolog(void);
 static void null_epilog(void);
 
 // Assign print functions for all output options -o
-// Teminated with a NULL record
+// Terminated with a NULL record
 printmap_t printmap[MAXFORMATS] = {{"raw", raw_record, raw_prolog, raw_epilog, NULL},
                                    {"line", fmt_record, fmt_prolog, fmt_epilog, FORMAT_line},
                                    {"gline", fmt_record, fmt_prolog, fmt_epilog, FORMAT_gline},

@@ -142,8 +142,8 @@ typedef struct exporter_v5_s {
 
     uint64_t packets;           // number of packets sent by this exporter
     uint64_t flows;             // number of flow records sent by this exporter
-    uint32_t sequence_failure;  // number of sequence failues
-    uint32_t padding_errors;    // number of sequence failues
+    uint32_t sequence_failure;  // number of sequence failures
+    uint32_t padding_errors;    // number of sequence failures
 
     sampler_t *sampler;  // list of samplers associated with this exporter
     // end of struct exporter_s
@@ -520,7 +520,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             v5_record = (netflow_v5_record_t *)((pointer_addr_t)v5_record + rawRecordSize);
 
             if (recordHeader->size > exporter->outRecordSize) {
-                LogError("Process_v5: Record size check failed! Exptected: %u, counted: %u\n", exporter->outRecordSize, recordHeader->size);
+                LogError("Process_v5: Record size check failed! Expected: %u, counted: %u\n", exporter->outRecordSize, recordHeader->size);
                 return;
             }
 

@@ -152,7 +152,7 @@ static uint16_t udp_sum_calc(uint16_t len_udp, uint32_t src_addr, uint16_t src_p
     /* one's compliment the sum */
     sum = ~sum;
 
-    /* finally, return the 16bit network formated checksum */
+    /* finally, return the 16bit network formatted checksum */
     return ((uint16_t)htons(sum));
 };
 

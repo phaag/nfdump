@@ -154,7 +154,7 @@ channel_t *GetChannelList(char *datadir, int is_profile, int do_rescan) {
                 break;
             case STATFILE_OK:
                 break;
-            case ERR_NOSTATFILE:  // first rescan bevore expire, if no file exists
+            case ERR_NOSTATFILE:  // first rescan before expire, if no file exists
                 if (do_rescan == 0) {
                     printf("Force rebuild to create stat record in %s\n", (*c)->datadir);
                     (*c)->do_rescan = 1;
@@ -306,7 +306,7 @@ int main(int argc, char **argv) {
         while (current_channel) {
             if (current_channel->books_stat == BOOKKEEPER_OK) {
                 bookkeeper_t tmp_books;
-                printf("Include nfcapd bookeeping record in %s\n", current_channel->datadir);
+                printf("Include nfcapd bookkeeping record in %s\n", current_channel->datadir);
                 ClearBooks(current_channel->books, &tmp_books);
                 UpdateDirStat(current_channel->dirstat, &tmp_books);
                 if (current_channel->dirstat->status == FORCE_REBUILD) current_channel->do_rescan = 1;
@@ -324,8 +324,8 @@ int main(int argc, char **argv) {
 
             /* detect new files: If nfcapd adds a new file while we are rescanning the directory
              * this results in inconsistent data for the rescan. Therefore check at the begin and end
-             * of the rescan for the sequence number, which reflects the accesss/change to the bookkeeping record
-             * It's assumed, that such an event does not occure more than once. However, loop 3 times max
+             * of the rescan for the sequence number, which reflects the access/change to the bookkeeping record
+             * It's assumed, that such an event does not occur more than once. However, loop 3 times max
              */
             for (i = 0; i < 3; i++) {
                 last_sequence = BookSequence(current_channel->books);
@@ -345,7 +345,7 @@ int main(int argc, char **argv) {
             }
             printf("done.\n");
             if (current_channel->books_stat == BOOKKEEPER_OK) {
-                printf("Updating nfcapd bookeeping records\n");
+                printf("Updating nfcapd bookkeeping records\n");
                 ClearBooks(channel->books, NULL);
             }
         }
@@ -423,7 +423,7 @@ int main(int argc, char **argv) {
                 print_stat = 1;
                 break;
             default:
-                // should never be reached as already cought earlier
+                // should never be reached as already caught earlier
                 printf("Error %i while connecting to collector\n", channel->books_stat);
         }
         if (channel->status == OK || channel->status == NOFILES) WriteStatInfo(channel->dirstat);
@@ -438,7 +438,7 @@ int main(int argc, char **argv) {
                 printf("No collector process running for directory: '%s'\n", channel->datadir);
                 break;
             default:
-                // should never be reached as already cought earlier
+                // should never be reached as already caught earlier
                 printf("Error %i while connecting to collector\n", channel->books_stat);
         }
     }

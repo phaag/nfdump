@@ -47,7 +47,7 @@ use Getopt::Std;
 
 our(    
     $opt_l,     # Data directory
-    $opt_S,     # Sub hierarchy format. Correspondes to -S to nfcapd. See nfcapd(1)
+    $opt_S,     # Sub hierarchy format. Corresponds to -S to nfcapd. See nfcapd(1)
 );
 
 getopts('l:S:');
@@ -69,7 +69,7 @@ my @subdir_formats = (
 sub usage {
 	print "$0 [options]\n",
 		  " -l datadir	Data directory\n",
-		  " -S <num>	Sub hierarchy format. Correspondes to -S to nfcapd. See nfcapd(1)\n",
+		  " -S <num>	Sub hierarchy format. Corresponds to -S to nfcapd. See nfcapd(1)\n",
 	"\n";
 	exit(0);
 }
@@ -77,7 +77,7 @@ sub usage {
 sub ISO2UNIX {
     my $isotime = shift;
 
-    $isotime =~ s/\-//g;    # allow '-' to structur time string
+    $isotime =~ s/\-//g;    # allow '-' to structure time string
 
     # 2004 02 13 12 45 /
     my $sec = 0;

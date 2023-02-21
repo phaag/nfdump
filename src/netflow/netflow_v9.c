@@ -91,7 +91,7 @@ typedef struct exporterDomain_s {
 
     uint64_t packets;           // number of packets sent by this exporter
     uint64_t flows;             // number of flow records sent by this exporter
-    uint32_t sequence_failure;  // number of sequence failues
+    uint32_t sequence_failure;  // number of sequence failures
 
     // sampling information:
     // each flow source may have several sampler applied:
@@ -636,7 +636,7 @@ static inline void Process_v9_templates(exporterDomain_t *exporter, void *DataPt
             num_v9tags++;
 
             int index = LookupElement(Type, EnterpriseNumber);
-            if (index < 0) {  // not found - enter skip seqence
+            if (index < 0) {  // not found - enter skip sequence
                 sequenceTable[numSequences].inputType = Type;
                 sequenceTable[numSequences].inputLength = Length;
                 sequenceTable[numSequences].extensionID = EXnull;
@@ -706,7 +706,7 @@ static inline void Process_v9_templates(exporterDomain_t *exporter, void *DataPt
         // update size left of this flowset
         size_left -= size_required;
         if (size_left < 4) {
-            // pading
+            // padding
             dbg_printf("Skip %u bytes padding\n", size_left);
             return;
         }
@@ -1018,7 +1018,7 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
         uint32_t outRecordSize = CalcOutRecordSize(sequencer, inBuff, size_left);
         int buffAvail = CheckBufferSpace(fs->nffile, sizeof(recordHeaderV3_t) + outRecordSize + receivedSize);
         if (buffAvail == 0) {
-            // this should really never occur, because the buffer gets flushed ealier
+            // this should really never occur, because the buffer gets flushed earlier
             LogError("Process_v9: output buffer size error. Skip ipfix record processing");
             dbg_printf("Process_v9: output buffer size error. Skip ipfix record processing");
             return;
@@ -1061,7 +1061,7 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
                 LogVerbose("Process v9: Sequencer run - resize output buffer");
                 buffAvail = CheckBufferSpace(fs->nffile, buffAvail + 1);
                 if (buffAvail == 0) {
-                    // this should really never occur, because the buffer gets flushed ealier
+                    // this should really never occur, because the buffer gets flushed earlier
                     LogError("Process_v9: output buffer size error. Skip ipfix record processing");
                     dbg_printf("Process_v9: output buffer size error. Skip ipfix record processing");
                     return;
@@ -1410,7 +1410,7 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
     // push nbar header
     AddArrayHeader(outBuff, nbarHeader, NbarRecordType, elementSize);
 
-    // put array info descripter next
+    // put array info descriptor next
     NbarAppInfo_t *NbarInfo = (NbarAppInfo_t *)(outBuff + sizeof(arrayRecordHeader_t));
     nbarHeader->size += sizeof(NbarAppInfo_t);
 
@@ -1475,7 +1475,7 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
     fs->nffile->buff_ptr += nbarHeader->size;
 
     if (size_left > 7) {
-        LogVerbose("Proces nbar data record - %u extra bytes", size_left);
+        LogVerbose("Process nbar data record - %u extra bytes", size_left);
     }
     processed_records++;
 
@@ -1544,7 +1544,7 @@ static void Process_v9_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_
     // push nbar header
     AddArrayHeader(outBuff, nameHeader, recordType, elementSize);
 
-    // put array info descripter next
+    // put array info descriptor next
     uint32_t *nameSize = (uint32_t *)(outBuff + sizeof(arrayRecordHeader_t));
     nameHeader->size += sizeof(uint32_t);
 
@@ -1600,7 +1600,7 @@ static void Process_v9_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_
     fs->nffile->buff_ptr += nameHeader->size;
 
     if (size_left > 7) {
-        LogVerbose("Proces ifvrf data record - %u extra bytes", size_left);
+        LogVerbose("Process ifvrf data record - %u extra bytes", size_left);
     }
     processed_records++;
 

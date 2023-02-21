@@ -195,7 +195,7 @@ int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInacti
             return 0;
         }
         expireActiveTimeout = expireActive;
-        LogInfo("Set active flow expire timout to %us", expireActiveTimeout);
+        LogInfo("Set active flow expire timeout to %us", expireActiveTimeout);
     }
 
     if (expireInactive) {
@@ -204,7 +204,7 @@ int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInacti
             return 0;
         }
         expireInactiveTimeout = expireInactive;
-        LogInfo("Set inactive flow expire timout to %us", expireInactiveTimeout);
+        LogInfo("Set inactive flow expire timeout to %us", expireInactiveTimeout);
     }
 
     FlowTree = malloc(sizeof(FlowTree_t));
@@ -326,8 +326,8 @@ int Link_RevNode(struct FlowNode *node) {
             rev_node->rev_node = node;
             dbg_printf(" - linked\n");
         } else {
-            dbg_printf("Rev-node != NULL skip linking - inconsitency\n");
-            LogError("Rev-node != NULL skip linking - inconsitency\n");
+            dbg_printf("Rev-node != NULL skip linking - inconsistency\n");
+            LogError("Rev-node != NULL skip linking - inconsistency\n");
         }
         return 1;
     } else {
