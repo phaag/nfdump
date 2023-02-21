@@ -781,7 +781,7 @@ static void String_FirstSeenRaw(FILE *stream, master_record_t *r) {
 
 static void String_LastSeenRaw(FILE *stream, master_record_t *r) {
     /* snprintf does write \0, and the max is INCL the terminating \0 */
-    fprintf(stream, "%llu.%03llu", r->msecLast / 1000LL, r->msecLast % 100LL);
+    fprintf(stream, "%llu.%03llu", r->msecLast / 1000LL, r->msecLast % 1000LL);
 
 }  // End of String_LastSeenRaw
 
