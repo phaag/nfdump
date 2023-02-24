@@ -81,6 +81,7 @@ src/.version/
 /src/lib/grammar.c
 /src/lib/grammar.h
 /src/lib/scanner.c
+/src/lib/vcs_track.h
 /src/nfdump/nfdump
 /src/geolookup
 /src/nfcapd/nfcapd
