@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -492,9 +492,6 @@ static inline int ExpandRecord_v2(record_header_t *record_ptr, master_record_t *
         output_record->exp_ref = NULL;
     }
     output_record->label = NULL;
-
-    // map icmp type/code in it's own vars
-    output_record->icmp = output_record->dstPort;
 
     // Required extension 1 - IP addresses
     if (TestFlag(input_record->flags, FLAG_IPV6_ADDR)) {  // IPv6

@@ -111,8 +111,18 @@ typedef struct master_record_s {
     uint64_t inBytes;    // 0xffff'ffff'ffff'ffff
 
     uint16_t srcPort;  // 0xffff'0000'0000'0000
-    uint16_t dstPort;  // 0x0000'ffff'0000'0000
-
+    union {
+        uint16_t dstPort;  // 0x0000'ffff'0000'0000
+        struct {
+#ifdef WORDS_BIGENDIAN
+            uint8_t icmpType;  // 0x0000'ff00'0000'0000
+            uint8_t icmpCode;  // 0x0000'00ff'0000'0000
+#else
+            uint8_t icmpCode;
+            uint8_t icmpType;
+#endif
+        };
+    };
     uint8_t fwd_status;  // 0x0000'0000'ff00'0000
     uint8_t tcp_flags;   // 0x0000'0000'00ff'0000
     uint8_t proto;       // 0x0000'0000'0000'ff00
@@ -121,6 +131,7 @@ typedef struct master_record_s {
 #define OffsetPackets (offsetof(master_record_t, inPackets) >> 3)
 #define OffsetBytes (offsetof(master_record_t, inBytes) >> 3)
 #define OffsetPort (offsetof(master_record_t, srcPort) >> 3)
+#define OffsetICMP (offsetof(master_record_t, srcPort) >> 3)
 #define OffsetStatus (offsetof(master_record_t, fwd_status) >> 3)
 #define OffsetFlags (offsetof(master_record_t, tcp_flags) >> 3)
 #define OffsetProto (offsetof(master_record_t, proto) >> 3)
@@ -137,6 +148,12 @@ typedef struct master_record_s {
 
 #define MaskDstPort 0x0000ffff00000000LL
 #define ShiftDstPort 32
+
+#define MaskICMPtype 0x000000ff00000000LL
+#define ShiftICMPtype 32
+
+#define MaskICMPcode 0x0000ff0000000000LL
+#define ShiftICMPcode 40
 
 #define MaskStatus 0x00000000ff000000LL
 #define ShiftStatus 24
@@ -157,6 +174,12 @@ typedef struct master_record_s {
 #define MaskDstPort 0x00000000ffff0000LL
 #define ShiftDstPort 16
 
+#define MaskICMPtype 0x00000000ff000000LL
+#define ShiftICMPtype 24
+
+#define MaskICMPcode 0x0000000000ff0000LL
+#define ShiftICMPcode 16
+
 #define MaskStatus 0x000000ff00000000LL
 #define ShiftStatus 32
 
@@ -174,23 +197,10 @@ typedef struct master_record_s {
     uint8_t engine_type;      // 0x0000'ff00'0000'0000
     uint8_t engine_id;        // 0x0000'00ff'0000'0000
     uint16_t sec_group_tag;   // 0x0000'0000'ffff'0000
-
-    union {
-        struct {
-#ifdef WORDS_BIGENDIAN
-            uint8_t icmp_type;  // 0x0000'0000'0000'ff00
-            uint8_t icmp_code;  // 0x0000'0000'0000'00ff
-#else
-            uint8_t icmp_code;
-            uint8_t icmp_type;
-#endif
-        };
-        uint16_t icmp;
-    };
+    uint16_t unused;
 
 #define OffsetExporterSysID (offsetof(master_record_t, exporter_sysid) >> 3)
 #define OffsetRouterID (offsetof(master_record_t, engine_type) >> 3)
-#define OffsetICMP (offsetof(master_record_t, icmp) >> 3)
 
 #ifdef WORDS_BIGENDIAN
 #define MaskExporterSysID 0xffff000000000000LL
@@ -202,12 +212,6 @@ typedef struct master_record_s {
 #define MaskEngineID 0x000000FF00000000LL
 #define ShiftEngineID 32
 
-#define MaskICMPtype 0x000000000000ff00LL
-#define ShiftICMPtype 8
-
-#define MaskICMPcode 0x00000000000000ffLL
-#define ShiftICMPcode 0
-
 #else
 #define MaskExporterSysID 0x000000000000ffffLL
 #define ShiftExporterSysID 0
@@ -218,11 +222,6 @@ typedef struct master_record_s {
 #define MaskEngineID 0x00000000FF000000LL
 #define ShiftEngineID 24
 
-#define MaskICMPtype 0xff00000000000000LL
-#define ShiftICMPtype 56
-
-#define MaskICMPcode 0x00ff000000000000LL
-#define ShiftICMPcode 48
 #endif
 
     uint8_t biFlowDir;
@@ -576,11 +575,11 @@ typedef struct master_record_s {
 #define ShiftTUNPROTO 32
 #endif
 
-    // NSEL extensions
+// NSEL extensions
 #ifdef NSEL
 #define NSEL_BASE_OFFSET (offsetof(master_record_t, connID) >> 3)
 
-    // common block
+// common block
 #define OffsetConnID NSEL_BASE_OFFSET
 #define OffsetNATevent NSEL_BASE_OFFSET
     uint32_t connID;  // index OffsetConnID    0xffff'ffff'0000'0000
@@ -611,7 +610,7 @@ typedef struct master_record_s {
 
 #endif
 
-    // xlate ip/port
+// xlate ip/port
 #define OffsetXLATEPort NSEL_BASE_OFFSET + 2
     uint16_t xlate_src_port;  // index OffsetXLATEPort 0xffff'0000'0000'0000
     uint16_t xlate_dst_port;  // index OffsetXLATEPort 0x0000'ffff'0000'0000
@@ -651,7 +650,7 @@ typedef struct master_record_s {
 
 #endif
 
-    // ingress/egress ACL id
+// ingress/egress ACL id
 #define OffsetIngressAclId NSEL_BASE_OFFSET + 7
 #define OffsetIngressAceId NSEL_BASE_OFFSET + 7
 #define OffsetIngressGrpId NSEL_BASE_OFFSET + 8
@@ -692,13 +691,13 @@ typedef struct master_record_s {
 #define ShiftEgressGrpId 32
 #endif
 
-    // username
+// username
 #define OffsetUsername NSEL_BASE_OFFSET + 10
     char username[72];
 
-    // NAT extensions
-    // NAT event is mapped into ASA event
-    // common block
+// NAT extensions
+// NAT event is mapped into ASA event
+// common block
 #define OffsetPortBlock (offsetof(master_record_t, block_start) >> 3)
     // Port block allocation
     uint16_t block_start;  // OffsetPortBlock 0xffff'0000'0000'0000
@@ -818,14 +817,15 @@ typedef struct master_record_s {
     char *inPayload;
     char *outPayload;
 
+    // last entry in master record
+    char *label;
+#define Offset_MR_LAST (offsetof(master_record_t, label) >> 3)
+
+    // list of all extensions in raw record
     uint16_t exElementList[MAXEXTENSIONS];
 
     // reference to exporter
     exporter_info_record_t *exp_ref;
-
-    // last entry in master record
-    char *label;
-#define Offset_MR_LAST (offsetof(master_record_t, label) >> 3)
 } master_record_t;
 
 typedef struct stat_record_s {

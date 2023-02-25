@@ -217,35 +217,32 @@ int main(int argc, char **argv) {
 
     flow_record.srcPort = 0xaaaa;
     flow_record.proto = IPPROTO_ICMP;
-    flow_record.dstPort = 0xaffa;  // -> icmp type 175, code 250
-    flow_record.icmp = flow_record.dstPort;
-    flow_record.dstPort = 0xbbbb;
+    // -> icmp type 175, code 250
+    flow_record.dstPort = 175 * 256 + 250;
     ret = check_filter_block("icmp-type 175", &flow_record, 1);
     ret = check_filter_block("icmp-type 176", &flow_record, 0);
     ret = check_filter_block("icmp-code 250", &flow_record, 1);
     ret = check_filter_block("icmp-code 251", &flow_record, 0);
 
-    if (flow_record.icmp_type != 175 && flow_record.icmp_code != 250) {
+    if (flow_record.icmpType != 175 && flow_record.icmpCode != 250) {
         printf("**** FAILED **** ICMP type check failed!\n");
-        printf("ICMP type: %u, code: %u\n", flow_record.icmp_type, flow_record.icmp_code);
+        printf("ICMP type: %u, code: %u\n", flow_record.icmpType, flow_record.icmpCode);
         exit(255);
     }
 
     flow_record.dstPort = 3 << 8;  // -> icmp type 3
-    flow_record.icmp = flow_record.dstPort;
-    if (flow_record.icmp_type != 3) {
+    if (flow_record.icmpType != 3) {
         printf("**** FAILED **** ICMP type check failed!\n");
-        printf("ICMP type: %u, code: %u\n", flow_record.icmp_type, flow_record.icmp_code);
+        printf("ICMP type: %u, code: %u\n", flow_record.icmpType, flow_record.icmpCode);
         exit(255);
     }
     ret = check_filter_block("icmp-type 3", &flow_record, 1);
     ret = check_filter_block("icmp-type 4", &flow_record, 0);
 
     flow_record.dstPort = 8;  // -> icmp code 8
-    flow_record.icmp = flow_record.dstPort;
-    if (flow_record.icmp_code != 8) {
+    if (flow_record.icmpCode != 8) {
         printf("**** FAILED **** ICMP code check failed!\n");
-        printf("ICMP type: %u, code: %u\n", flow_record.icmp_type, flow_record.icmp_code);
+        printf("ICMP type: %u, code: %u\n", flow_record.icmpType, flow_record.icmpCode);
         exit(255);
     }
     ret = check_filter_block("icmp-code 8", &flow_record, 1);

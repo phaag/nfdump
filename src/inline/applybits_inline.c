@@ -118,8 +118,7 @@ static inline void ApplyAggrMask(master_record_t *record, master_record_t *mask)
     uint64_t *r = (uint64_t *)record;
     uint64_t *m = (uint64_t *)mask;
 
-    int max_offset = Offset_MR_LAST;
-    for (int i = 2; i < max_offset; i++) {
+    for (int i = INDEX_BASE; i < Offset_MR_LAST; i++) {
         r[i] &= m[i];
     }
 

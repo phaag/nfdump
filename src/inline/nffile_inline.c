@@ -429,7 +429,6 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
         }
     }
     // map icmp type/code in it's own vars
-    output_record->icmp = output_record->dstPort;
     if (size != v3Record->size) {
         LogError("Record size info: '%u' not equal sum extensions: '%u'", v3Record->size, size);
         exit(255);

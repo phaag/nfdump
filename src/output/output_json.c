@@ -87,7 +87,7 @@ static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
                 "	\"icmp_type\" : %u,\n"
                 "	\"icmp_code\" : %u,\n"
                 "	\"src_tos\" : %u,\n",
-                r->proto, r->icmp_type, r->icmp_code, r->tos);
+                r->proto, r->icmpType, r->icmpCode, r->tos);
     } else {
         fprintf(stream,
                 "	\"proto\" : %u,\n"

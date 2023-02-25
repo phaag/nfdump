@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -691,7 +691,7 @@ static char *ICMP_Port_decode(master_record_t *r) {
     static char icmp_string[ICMPSTRLEN];
 
     if (r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6) {  // ICMP
-        snprintf(icmp_string, ICMPSTRLEN - 1, "%u.%u", r->icmp_type, r->icmp_code);
+        snprintf(icmp_string, ICMPSTRLEN - 1, "%u.%u", r->icmpType, r->icmpCode);
     } else {  // dst port
         snprintf(icmp_string, ICMPSTRLEN - 1, "%u", r->dstPort);
     }
@@ -1318,19 +1318,13 @@ static void String_SrcPort(FILE *stream, master_record_t *r) { fprintf(stream, "
 static void String_DstPort(FILE *stream, master_record_t *r) { fprintf(stream, "%6s", ICMP_Port_decode(r)); }  // End of String_DstPort
 
 static void String_ICMP_type(FILE *stream, master_record_t *r) {
-    uint8_t type;
-
-    type = (r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6) ? r->icmp_type : 0;
-    fprintf(stream, "%6u", type);
-
+    // Force printing type regardless of protocol
+    fprintf(stream, "%6u", r->icmpType);
 }  // End of String_ICMP_type
 
 static void String_ICMP_code(FILE *stream, master_record_t *r) {
-    uint8_t code;
-
-    code = (r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6) ? r->icmp_code : 0;
-    fprintf(stream, "%6u", code);
-
+    // Force printing code regardless of protocol
+    fprintf(stream, "%6u", r->icmpCode);
 }  // End of String_ICMP_code
 
 static void String_SrcAS(FILE *stream, master_record_t *r) {

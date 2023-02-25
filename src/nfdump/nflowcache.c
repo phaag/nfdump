@@ -650,13 +650,9 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
     aggregate_info.apply_netbits = 0;
     aggregate_info.has_masks = 0;
     aggregate_info.IPmask[0] = 0xffffffffffffffffLL;
-    ;
     aggregate_info.IPmask[1] = 0xffffffffffffffffLL;
-    ;
     aggregate_info.IPmask[2] = 0xffffffffffffffffLL;
-    ;
     aggregate_info.IPmask[3] = 0xffffffffffffffffLL;
-    ;
 
     // separate tokens
     char *p = strtok(arg, ",");
@@ -1038,7 +1034,6 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
 
     int max = maxindex;
     if (outputParams->topN && outputParams->topN < maxindex) max = outputParams->topN;
-
     for (int i = 0; i < max; i++) {
         int j;
 
@@ -1048,11 +1043,12 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
             j = maxindex - 1 - i;
 
         FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[j].record);
-        recordHeaderV3_t *raw_record = (r->flowrecord);
+        recordHeaderV3_t *_raw_record = (r->flowrecord);
 
         master_record_t flow_record;
         memset((void *)&flow_record, 0, sizeof(master_record_t));
-        ExpandRecord_v3(raw_record, &flow_record);
+        ExpandRecord_v3(_raw_record, &flow_record);
+
         if (doGeoLookup) {
             LookupCountry(flow_record.V6.srcaddr, flow_record.src_geo);
             LookupCountry(flow_record.V6.dstaddr, flow_record.dst_geo);

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2022, Peter Haag
+ *  Copyright (c) 2019-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -123,7 +123,7 @@ static void stringEXgenericFlow(FILE *stream, master_record_t *r) {
     }
 
     if (r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6) {  // ICMP
-        fprintf(stream, "  ICMP         =              %2u.%-2u type.code\n", r->icmp_type, r->icmp_code);
+        fprintf(stream, "  ICMP         =              %2u.%-2u type.code\n", r->icmpType, r->icmpCode);
     } else {
         fprintf(stream,
                 "  src port     =             %5u\n"
