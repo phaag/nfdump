@@ -59,6 +59,19 @@
 #include "pcap_reader.h"
 #include "util.h"
 
+// define potential missing types
+#ifndef DLT_LINUX_SLL
+#define DLT_LINUX_SLL 113
+#endif
+
+#ifndef DLT_NFLOG
+#define DLT_NFLOG 239
+#endif
+
+#ifndef DLT_PFLOG
+#define DLT_PFLOG 117
+#endif
+
 static pcap_t *pcap_handle;
 static int linktype = 0;
 static int linkoffset = 0;
