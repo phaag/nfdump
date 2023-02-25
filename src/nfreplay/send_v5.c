@@ -86,8 +86,8 @@ typedef struct exporter_v5_s {
 
     uint64_t packets;           // number of packets sent by this exporter
     uint64_t flows;             // number of flow records sent by this exporter
-    uint32_t sequence_failure;  // number of sequence failues
-    uint32_t padding_errors;    // number of sequence failues
+    uint32_t sequence_failure;  // number of sequence failures
+    uint32_t padding_errors;    // number of sequence failures
 
     sampler_t *sampler;  // list of samplers associated with this exporter
     // end of struct exporter_s
@@ -150,7 +150,7 @@ int Add_v5_output_record(master_record_t *master_record, send_peer_t *peer) {
     // set device boot time to 1 day back of tstart of first flow
     if (output_engine.first) {  // first time a record is added
         // boot time is set one day back - assuming that the start time of every flow does not start
-        // ealier
+        // earlier
         msecBoot = ((master_record->msecFirst / 1000LL) - 86400LL) * 1000LL;
         cnt = 0;
         output_engine.first = 0;

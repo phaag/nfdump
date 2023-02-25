@@ -10,7 +10,7 @@ is the pcap capture daemon of the nfdump tools. It reads network
 packets from an interface or from a file and directly creates nfdump
 records. Nfdump records are written either locally to a directory in 
 the same format as nfcapd, or can be forwarded to a nfcapd collector
-somwhere else in the network. Nfpcapd is nfcapd's pcap brother and
+somewhere else in the network. Nfpcapd is nfcapd's pcap brother and
 shares many options and generates the same type of files. nfpcapd
 likewise creates, rotates and stores files. See also nfpcap(1) for more
 information on common option.
@@ -42,16 +42,16 @@ By default the cache size is set to 512k nodes should be fine. If the
 cache runs out of nodes, new nodes are dynamically added.
 .TP 3
 .B -e \fIactive,inactive
-Sets the active and inactive flow expire values in s. The default ist 300,60.
+Sets the active and inactive flow expire values in s. The default is 300,60.
 .br
 .B Active timeout:
 A flow gets flushed to disk after this period even if it
 is still active. As a rule of thumb, it should correspond with the -t rotation 
-value, in order to reflect continous traffic in the flow files. 
+value, in order to reflect continuous traffic in the flow files. 
 .br
 .B Inactive timeout:
 A flow gets flushed to disk after being inactive for this 
-number of seconds. It frees up node recources.
+number of seconds. It frees up node resources.
 .br
 On busy networks these values can be set to more aggressive timeouts. 
 .TP 3
@@ -81,7 +81,7 @@ data directory.  For a full list of hierarchies see nfcapd(1).
 .TP 3
 .B -t \fIinterval
 Specifies the time interval in seconds to rotate files. The default value 
-is 300s ( 5min ). The smallest interval can be set to 2s. The intervalls are in sync 
+is 300s ( 5min ). The smallest interval can be set to 2s. The intervals are in sync 
 with wall clock.
 .TP 3
 .B -P \fIpidfile
@@ -93,8 +93,8 @@ Nfpcapd terminates on signal TERM, INT and HUP.
 .TP 3
 .B -E
 Verbose flow printing. Print flows on stdout, when flushed to disk.
-Use verbose printing only for debugging purpose in oder to see if your
-setup works. Running nfpcapd in verbose mode limits processing bandwith!
+Use verbose printing only for debugging purpose in order to see if your
+setup works. Running nfpcapd in verbose mode limits processing bandwidth!
 .TP 3
 .B -u \fIuserid
 Change to the user \fIuserid\fP as soon as possible. Only root is allowed
@@ -161,17 +161,17 @@ If records are sent to a remote nfcapd process, both programs nfcapd and nfpcapd
 must be of the same endian architecture (both big or little endian). nfpcapd uses
 netflow version 240 for sending flows.
 .LP
-The flow cache is checked in regular 10s intervalls and expires flows according to the
+The flow cache is checked in regular 10s intervals and expires flows according to the
 expire values. Expired flows are flushed and processed and nodes are freed up. 
 .LP
 A smaller snaplen may improve performance, but may result in loss of information. 
 The smallest snaplen of 54 bytes can process regular TCP/UDP/ICMP packets. In case 
-of Vlan or MPLS labels, not enough information may be abailable for correct protocol
+of Vlan or MPLS labels, not enough information may be available for correct protocol
 decoding. Nfdump records may be incomplete and and set to 0.
 .LP
 If IP packets are fragmented, they are reassembled before processing. All IP fragments
 need to be reassembled in order to be passed to the next stage. If not all 
-fragments are correctly assembled withing 15s since the first fragment arrived, all 
+fragments are correctly assembled within 15s since the first fragment arrived, all 
 fragments are discarded.
 
 .SH "SEE ALSO"

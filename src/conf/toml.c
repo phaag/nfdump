@@ -78,7 +78,7 @@ static char *STRDUP(const char *s) {
 
 // some old platforms define strndup macro -- drop it.
 #undef strndup
-#define strndup(x) error - forbiden - use STRNDUP instead
+#define strndup(x) error - forbidden - use STRNDUP instead
 
 static char *STRNDUP(const char *s, size_t n) {
   size_t len = strnlen(s, n);

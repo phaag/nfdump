@@ -78,7 +78,7 @@ enum {
 };
 
 /*
- * 	All Obervation Domains from all exporter are stored in a linked list
+ * 	All Observation Domains from all exporter are stored in a linked list
  *	which uniquely can identify each exporter/Observation Domain
  */
 typedef struct exporterDomain_s {
@@ -89,7 +89,7 @@ typedef struct exporterDomain_s {
 
     uint64_t packets;           // number of packets sent by this exporter
     uint64_t flows;             // number of flow records sent by this exporter
-    uint32_t sequence_failure;  // number of sequence failues
+    uint32_t sequence_failure;  // number of sequence failures
 
     // sampling information:
     // each flow source may have several sampler applied:
@@ -671,7 +671,7 @@ static void Process_ipfix_templates(exporterDomain_t *exporter, void *flowset_he
 static inline int SetSequence(sequence_t *sequenceTable, uint32_t numSequences, uint16_t Type, uint16_t Length, uint16_t EnterpriseNumber) {
     int found = 0;
     int index = LookupElement(Type, EnterpriseNumber);
-    if (index < 0) {  // not found - enter skip seqence
+    if (index < 0) {  // not found - enter skip sequence
         if ((EnterpriseNumber == 0) && (Type == IPFIX_subTemplateList || Type == IPFIX_subTemplateMultiList)) {
             sequenceTable[numSequences].inputType = Type;
             dbg_printf(" Add sequence for sub template type: %u, enterprise: %u, length: %u\n", Type, EnterpriseNumber, Length);
@@ -820,7 +820,7 @@ static void Process_ipfix_template_add(exporterDomain_t *exporter, void *DataPtr
         size_left -= size_required;
         DataPtr = DataPtr + size_required + 4;  // +4 for header
         if (size_left < 4) {
-            // pading
+            // padding
             dbg_printf("Skip %u bytes padding\n", size_left);
             size_left = 0;
         }
@@ -855,7 +855,7 @@ static void Process_ipfix_template_withdraw(exporterDomain_t *exporter, void *Da
 
         DataPtr = DataPtr + 4;
         if (size_left < 4) {
-            // pading
+            // padding
             dbg_printf("Skip %u bytes padding\n", size_left);
             size_left = 0;
         }
@@ -1193,7 +1193,7 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
 
         int buffAvail = CheckBufferSpace(fs->nffile, sizeof(recordHeaderV3_t) + outRecordSize + receivedSize);
         if (buffAvail == 0) {
-            // this should really never occur, because the buffer gets flushed ealier
+            // this should really never occur, because the buffer gets flushed earlier
             LogError("Process_ipfix: output buffer size error. Skip ipfix record processing");
             dbg_printf("Process_ipfix: output buffer size error. Skip ipfix record processing");
             return;
@@ -1234,7 +1234,7 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
                 LogInfo("Process ipfix: Sequencer run - resize output buffer");
                 buffAvail = CheckBufferSpace(fs->nffile, buffAvail + 1);
                 if (buffAvail == 0) {
-                    // this should really never occur, because the buffer gets flushed ealier
+                    // this should really never occur, because the buffer gets flushed earlier
                     LogError("Process_ipfix: output buffer size error. Skip ipfix record processing");
                     dbg_printf("Process_ipfix: output buffer size error. Skip ipfix record processing");
                     return;
@@ -1560,7 +1560,7 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
     // push nbar header
     AddArrayHeader(outBuff, nbarHeader, NbarRecordType, elementSize);
 
-    // put array info descripter next
+    // put array info descriptor next
     NbarAppInfo_t *NbarInfo = (NbarAppInfo_t *)(outBuff + sizeof(arrayRecordHeader_t));
     nbarHeader->size += sizeof(NbarAppInfo_t);
 
@@ -1625,7 +1625,7 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
     fs->nffile->buff_ptr += nbarHeader->size;
 
     if (size_left > 7) {
-        LogInfo("Proces nbar data record - %u extra bytes", size_left);
+        LogInfo("Process nbar data record - %u extra bytes", size_left);
     }
     processed_records++;
 
@@ -1693,7 +1693,7 @@ static void Process_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_t *
     // push nbar header
     AddArrayHeader(outBuff, nameHeader, recordType, elementSize);
 
-    // put array info descripter next
+    // put array info descriptor next
     uint32_t *nameSize = (uint32_t *)(outBuff + sizeof(arrayRecordHeader_t));
     nameHeader->size += sizeof(uint32_t);
 
@@ -1749,7 +1749,7 @@ static void Process_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_t *
     fs->nffile->buff_ptr += nameHeader->size;
 
     if (size_left > 7) {
-        LogInfo("Proces ifvrf data record - %u extra bytes", size_left);
+        LogInfo("Process ifvrf data record - %u extra bytes", size_left);
     }
     processed_records++;
 

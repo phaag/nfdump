@@ -199,11 +199,11 @@ Sort according to duration of flows
 Set time window to process flows. This option is considered legacy andmay be replaced
 with a
 .Ar filter
-primitiv
+primitive
 in future rleases. The time window is specified as: YYYY/MM/dd.hh:mm:ss[-YYYY/MM/dd.hh:mm:ss].
 Any parts of the time spec may be omitted e.g YYYY/MM/dd expands to YYYY/MM/dd.00:00:00-infinity
 and processes all flow from a given day onwards. The time window may also be specified as +/- n.
-In this case it is relativ to the beginning or end of all flows. +10 means the first 10 seconds
+In this case it is relative to the beginning or end of all flows. +10 means the first 10 seconds
 of all flows, -10 means the last 10 seconds of all flows.
 .It Fl c Ar num
 Limit the number of records to be processed to the first
@@ -273,7 +273,7 @@ In source MAC address
 .It Cm outdstmac
 out destination MAC address
 .It Cm indstmac
-In destintation MAC address
+In destination MAC address
 .It Cm outsrcmac
 Out source MAC address
 .It Cm tos
@@ -569,7 +569,7 @@ Set the number of records to be printed to
 This option applies to
 .Fl s
 statistics as well as to ordered output
-.Fl O or aggreated records
+.Fl O or aggregated records
 .Fl a
 The default is set to 10 for statistics and unlimited for the other use cases. To disable the limit, set
 .Ar num
@@ -689,7 +689,7 @@ Check
 syntax and exit. Sets the return value accordingly.
 .It Fl R Ar filelist
 Select a range of files. This option is mainly used by old NfSen and documented here
-as legacy opton.
+as legacy option.
 .Bl -item -compact
 .It
 /any/dir          Read recursively all files in directory dir.
@@ -732,7 +732,7 @@ separate file. It can span several lines. Anything after a '#' is treated as a
 comment and ignored to the end of the line. There is virtually no limit in the
 length of the filter expression. All keywords are case insensitive.
 .Pp
-A single filter primitiv filters a single element of a flow record.
+A single filter primitive filters a single element of a flow record.
 A filter consists of one or more primitives, which are linked together:
 .Pp
 .Dl Ar expr Sy and Ar expr
@@ -813,7 +813,7 @@ is just a synonym for
 True if the respective IP field of the record is in
 .Ar iplist. iplist
 is a space or ',' separated list of IP addresses or networks in CIDR notation.
-This is the prefered way to search in large list of IP addresses and networks
+This is the preferred way to search in large list of IP addresses and networks
 and is much more efficient than to chain all IP addresses together.
 (IP1 or IP2 or IP3). The
 .Ar iplist
@@ -898,7 +898,7 @@ the source or destination port may match.
 True if the respective port field of the record is in
 .Ar portlist. portlist
 is a space or ',' separated list of port numbers.  This is the
-prefered way to search in large list of port numbers and is much
+preferred way to search in large list of port numbers and is much
 more efficient than to chain all ports together. (PORT1 or PORT2 or PORT3).
 .Ar portlist
 may contain several hundreds to thousand of port numbers.
@@ -969,7 +969,7 @@ for the comparator details.
 True if the respective AS field of the record is in
 .Ar aslist. aslist
 is a space or ',' separated list of AS numbers.  This is the
-prefered way to search in large list of AS numbers and is much
+preferred way to search in large list of AS numbers and is much
 more efficient than to chain all ports together.
 .Ar aslist
 may contain several hundreds to thousand of AS numbers.
@@ -1236,7 +1236,7 @@ complex quantifiers
 .El
 .Pp
 .Ar flags
-are otional can be:
+are optional can be:
 .Bl -item -offset indent -compact
 .It
 .Sy m
@@ -1425,7 +1425,7 @@ True, if the source or destination port field matches the NAT port block range
 Many filter elements support the comparison with a number.
 The following comparators are supported for each of those filters:
 .Cm =, ==, >, <, >=, <=
-To prevent collisions with bash interpretion, alternative comparators
+To prevent collisions with bash interpretation, alternative comparators
 are available:
 .Cm EQ, LT, GT, LE, GE
 If comp is omitted, '==' is assumed.
@@ -1439,7 +1439,7 @@ has a lot of already pre-defined output formats such as
 etc. One line formats as described for option
 .Fl o
 can be compiled from various elements of a flow record. As a flow record can contains man different
-elements it is often useful to compile an output format for spcific needs.
+elements it is often useful to compile an output format for specific needs.
 .Pp
 .Ss Format description
 The output format is specified by
@@ -1467,7 +1467,7 @@ It adds the elements
 followed by the literal characters -> and
 .Ar destination ip address/port packets, bytes, flows
 counter. Depending on the task, different output formats are required to see the required fields of
-a flow record. You can either extend a predefined format or specifiy a new one at the command line.
+a flow record. You can either extend a predefined format or specify a new one at the command line.
 .Pp
 Example: Extend the predefined format
 .Cm long
@@ -1490,13 +1490,13 @@ a new output format may be define in the config file
 The file
 nfdump.conf.dist
 contains the definition of the already hard coded formats. These may be uncommented and changed
-according to the specific needs. New formats may be added using the following sytax:
+according to the specific needs. New formats may be added using the following syntax:
 .Pp
 .Dl fmt.newname = Do fmt:%ts %td %pr %sap -> %dap %pkt %byt %fl Dc
 .Pp
 with
 .Ar newname
-any new or existing definition of output formats. Existing formats are overwriten with the
+any new or existing definition of output formats. Existing formats are overwritten with the
 new definition.
 .Pp
 .Ss Tag definition
@@ -1507,7 +1507,7 @@ The following list contains all tags, which are available to compile the output 
 Inserts the predefined format at this position. e.g. %line
 .It Cm %cnt
 Record counter. record numbers are assigned dynamically assigned while reading
-readed from file.
+read from file.
 .It Cm %nfv
 Netflow version.
 .It Cm %ts
@@ -1659,7 +1659,7 @@ new line char \\n
 .It Cm %ipl
 input payload
 .It Cm %opl
-ouput payload
+output payload
 .It Cm %nbid
 nbar ID
 .It Cm %ja3
@@ -1755,7 +1755,7 @@ use the following command to read//write files:
 .Pp
 .Dl % nfdump -r oldfile -w newfile
 .Pp
-Print a statistic about the top 20 IP adresses, once sorted by flows and once by bytes
+Print a statistic about the top 20 IP addresses, once sorted by flows and once by bytes
 .Pp
 .Dl % nfdump -r flowfile -s ip/flows/bytes -n 20
 .Pp

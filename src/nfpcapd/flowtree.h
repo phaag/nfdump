@@ -77,7 +77,7 @@ struct FlowNode {
 
 #define NODE_FREE 0xA5
 #define NODE_IN_USE 0x5A
-    uint8_t memflag;  // internal houskeeping flag
+    uint8_t memflag;  // internal housekeeping flag
 #define FLOW_NODE 1
 #define SIGNAL_NODE 2
 #define FRAG_NODE 3

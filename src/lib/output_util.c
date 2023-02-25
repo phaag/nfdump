@@ -346,7 +346,7 @@ char *FwEventString(int event) {
             break;
 #endif
         default:
-            return "UNKNOW";
+            return "UNKNOWN";
     }
 
 }  // End of FwEventString
@@ -363,7 +363,7 @@ char *EventString(int event) {
             return "DELETE";
             break;
         default:
-            return "UNKNOW";
+            return "UNKNOWN";
     }
 
 }  // End of EventString

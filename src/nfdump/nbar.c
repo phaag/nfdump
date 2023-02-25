@@ -113,7 +113,7 @@ static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo, uint8_t *nbarData) {
 }  // end of InsertNbarAppInfo
 
 /*
- * nbar record storage has been impoved - read older nbar records correctly
+ * nbar record storage has been improved - read older nbar records correctly
  */
 static int AddOldNbarRecord(arrayRecordHeader_t *nbarRecord) {
     dbg_printf("Old nbar record:\n");

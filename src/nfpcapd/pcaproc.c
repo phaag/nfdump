@@ -273,7 +273,7 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
     struct FlowNode *Node = NULL;
     if (frag_offset == 0) {
         // first fragment in sequence
-        dbg_printf("Fragmented packet: first segement: ip_off: %u, frag_offset: %u\n", ip_off, frag_offset);
+        dbg_printf("Fragmented packet: first segment: ip_off: %u, frag_offset: %u\n", ip_off, frag_offset);
         Node = New_Node();
         Node->t_first.tv_sec = hdr->ts.tv_sec;
         Node->t_first.tv_usec = hdr->ts.tv_usec;
@@ -316,7 +316,7 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
             return NULL;
         }
 
-        if ((ip_off & IP_MF) && frag_offset) dbg_printf("Fragmented packet: middle segement: ip_off: %u, frag_offset: %u\n", ip_off, frag_offset);
+        if ((ip_off & IP_MF) && frag_offset) dbg_printf("Fragmented packet: middle segment: ip_off: %u, frag_offset: %u\n", ip_off, frag_offset);
     }
 
     void *dataptr = (void *)ip + size_ip;
@@ -335,7 +335,7 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
         // last fragment - export node
         Node->payloadSize = frag_offset + len;
         Node->bytes = size_ip + Node->payloadSize;
-        dbg_printf("Fragmented packet: last segement: ip_off: %u, frag_offset: %u, total len: %u\n", ip_off, frag_offset, Node->payloadSize);
+        dbg_printf("Fragmented packet: last segment: ip_off: %u, frag_offset: %u, total len: %u\n", ip_off, frag_offset, Node->payloadSize);
         Remove_Node(Node);
         return Node;
     }
@@ -776,7 +776,7 @@ REDO_IPPROTO:
         Node->t_last.tv_usec = hdr->ts.tv_usec;
         Node->bytes = ntohs(ip6->ip6_plen) + size_ip;
 
-        // keep compiler happy - get's optimized out anyway
+        // keep compiler happy - gets optimized out anyway
         void *p = (void *)&ip6->ip6_src;
         uint64_t *addr = (uint64_t *)p;
         Node->flowKey.src_addr.v6[0] = ntohll(addr[0]);

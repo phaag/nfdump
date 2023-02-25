@@ -76,7 +76,7 @@ typedef struct value64_s {
 static char *CurrentIdent;
 static FilterEngine_t *Engine;
 
-/* exported fuctions */
+/* exported functions */
 static int check_filter_block(char *filter, master_record_t *flow_record, int expect);
 
 static void check_offset(char *text, pointer_addr_t offset, pointer_addr_t expect);

@@ -105,7 +105,7 @@ int Unicast_receive_socket(const char *bindhost, const char *listenport, int fam
         sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 
         if (!(sockfd < 0)) {
-            // socket call was successfull
+            // socket call was successful
 
             if (bind(sockfd, res->ai_addr, res->ai_addrlen) == 0) {
                 if (res->ai_family == AF_INET) LogInfo("Bound to IPv4 host/IP: %s, Port: %s", bindhost == NULL ? "any" : bindhost, listenport);
@@ -299,7 +299,7 @@ int Multicast_receive_socket(const char *hostname, const char *listenport, int f
     }
 
     if (res->ai_family == AF_INET) LogInfo("Joined IPv4 multicast group: %s Port: %s", hostname, listenport);
-    if (res->ai_family == AF_INET6) LogInfo("Joined IPv6 multicat group: %s Port: %s", hostname, listenport);
+    if (res->ai_family == AF_INET6) LogInfo("Joined IPv6 multicast group: %s Port: %s", hostname, listenport);
 
     freeaddrinfo(ressave);
 

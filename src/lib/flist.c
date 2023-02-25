@@ -68,24 +68,24 @@
  * Select a single file
  * --------------------
  * -r [/]path/to/entry
- * entry: single file : Select a single file: absolute or relativ path to a single file.
+ * entry: single file : Select a single file: absolute or relative path to a single file.
  * entry: directory   : Select recursively all files in this directory. Same as -R /path/to/directory
  * Recursive: no
  *
  * Selecting a range of files
  * --------------------------
  * -R [/]path/to/first_file
- *  Select a range of files in directory specified by absolut or relative path [/]path/to/
+ *  Select a range of files in directory specified by absolute or relative path [/]path/to/
  *  Files are selected in alphabetical order starting with 'first_file' to the end of
  *  the directory.
  *
  * -R [/]path/to/first_file:last_file
- *  Select a range of files in directory specified by absolut or relative path [/]path/to/
+ *  Select a range of files in directory specified by absolute or relative path [/]path/to/
  *  Files are selected in alphabetical order starting with 'first_file' and ending with
  *  'last_file'.
  *
  * -R [/]path/to/directory
- *	Select all files in alphabetical order in directory specified by absolut or relative
+ *	Select all files in alphabetical order in directory specified by absolute or relative
  *	path [/]path/to/directory
  *
  * Selecting files over multiple sources
@@ -127,8 +127,8 @@
  *
  *
  * Hierarchical file organinisation:
- * For performance reasons, files may be store in various sub directries instead of a
- * single directory. These sub directories are assumed to be created in alpabetical order.
+ * For performance reasons, files may be store in various sub directories instead of a
+ * single directory. These sub directories are assumed to be created in alphabetical order.
  * For example daily sub directories: 2006/04/01 .. 2006/04/30 as created by nfcapd with
  * option -S %y/%m/%d
  *
@@ -138,23 +138,23 @@
  * Selecting a range of files in a hierarchical file layout
  * --------------------------------------------------------
  * -R [/]path/to/sub1/sub2/first_file
- *  Select a range of files in directory specified by absolut or relative path
+ *  Select a range of files in directory specified by absolute or relative path
  *  [/]path/to/sub1/sub2/. Files are selected in alphabetical order starting with
  *  'first_file' to the end of the directory. The hierarchy has no impact here.
  *
  * -R [/]path/to/first_sub1/first_sub2/first_file:last_sub1/last_sub2/last_file
- *  Select a range of files over multiple sub directories starting at absolut or
+ *  Select a range of files over multiple sub directories starting at absolute or
  *  relative path [/]path/to/first_sub1/first_sub2/first_file up to and including
  *  [/]path/to/last_sub1/last_sub2/last_file. Files are selected in alphabetical
- *  order by iterating over the required sub directory hierachy
+ *  order by iterating over the required sub directory hierarchy
  *	Example:
  *	-R /path/to/2006/03/31/nfcapd.200603312300:2006/04/01/nfcapd.200604010600
  *
  * -R [/]path/to/directory
- *	Select all files in alphabetical order in directory specified by absolut or relative
+ *	Select all files in alphabetical order in directory specified by absolute or relative
  *	path [/]path/to/directory, identical to flat layout
  *
- * The same methode applies for selecting a range of files over multiple sub directories
+ * The same method applies for selecting a range of files over multiple sub directories
  * and multiple sources.
  *
  * Example:
@@ -523,7 +523,7 @@ static void GetFileList(char *path) {
                 if (p) {
                     // path is [/]path/to/any/first_file:last_file
                     *p++ = '\0';
-                    // path is the direcory containing all the files
+                    // path is the directory containing all the files
                     InsertString(&source_dirs, path);
                     first_file = strdup(p);
                 } else {
@@ -550,7 +550,7 @@ static void GetFileList(char *path) {
                 if (p) {
                     // path is [/]path/to/any/file
                     *p++ = '\0';
-                    // path is the direcory containing all the files
+                    // path is the directory containing all the files
                     InsertString(&source_dirs, path);
                     first_file = strdup(p);
                 } else {
@@ -752,7 +752,7 @@ static void GetFileList(char *path) {
  * 		/any/path/dir2
  * 		/any/path/dir3
  * 	/any/path is dir prefix, which may be NULL e.g. dir1:dir2:dir3:...
- * 	dir1, dir2 etc entrys
+ * 	dir1, dir2 etc entries
  */
 void Getsource_dirs(char *dirs) {
     char *p, *q, *dirprefix;

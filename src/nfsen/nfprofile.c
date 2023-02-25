@@ -304,7 +304,7 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
 
         s = line;
 
-        // savety check: if no separator found loop to next line
+        // safety check: if no separator found loop to next line
         if (!p) {
             LogError("Incomplete line - channel skipped.\n");
             continue;
@@ -326,7 +326,7 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
         (*list)->profilegroup = strdup(s);
         (*list)->profilename = strdup(q);
 
-        // savety check: if no separator found loop to next line
+        // safety check: if no separator found loop to next line
         if (!p) {
             LogError("Incomplete line - channel skipped.\n");
             continue;
@@ -351,7 +351,7 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
 
         (*list)->profiletype = (int)strtol(q, (char **)NULL, 10);
 
-        // savety check: if no separator found loop to next line
+        // safety check: if no separator found loop to next line
         if (!p) {
             LogError("Incomplete line - channel skipped.\n");
             continue;

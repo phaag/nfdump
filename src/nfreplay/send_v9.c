@@ -80,7 +80,7 @@ typedef struct data_flowset_s {
 
 typedef struct outTemplates_s {
     struct outTemplates_s *next;
-    // match template with mater record
+    // match template with master record
     uint32_t size;
     uint16_t numExtensions;
     uint16_t exElementList[MAXEXTENSIONS];
@@ -240,7 +240,7 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
     uint16_t dstMaskType = 0;
     for (int i = 0; i < master_record->numElements; i++) {
         if (count >= numV9Elements) {
-            LogError("Panic! %s line %d: %s", __FILE__, __LINE__, "Numer of elements too big");
+            LogError("Panic! %s line %d: %s", __FILE__, __LINE__, "Number of elements too big");
             exit(255);
         }
         dbg_printf("extension %i: %u\n", i, master_record->exElementList[i]);
@@ -674,7 +674,7 @@ int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer) {
     if (!sender_data->header.v9_header->unix_secs) {  // first time a record is added
         dbg_printf("First time setup\n");
         // boot time is set one day back - assuming that the start time of every flow does not start
-        // ealier
+        // earlier
         uint64_t boot_time = master_record->msecFirst - 86400LL * 1000LL;
         uint32_t unix_secs = boot_time / 1000LL;
         sender_data->header.v9_header->unix_secs = htonl(unix_secs);

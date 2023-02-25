@@ -89,7 +89,7 @@ typedef struct dns_header_s {
     /* fields in third byte */
     unsigned qr : 1;     /* response flag */
     unsigned opcode : 4; /* purpose of message */
-    unsigned aa : 1;     /* authoritive answer */
+    unsigned aa : 1;     /* authoritative answer */
     unsigned tc : 1;     /* truncated message */
     unsigned rd : 1;     /* recursion desired */
                          /* fields in fourth byte */
@@ -100,7 +100,7 @@ typedef struct dns_header_s {
     /* fields in third byte */
     unsigned rd : 1;     /* recursion desired */
     unsigned tc : 1;     /* truncated message */
-    unsigned aa : 1;     /* authoritive answer */
+    unsigned aa : 1;     /* authoritative answer */
     unsigned opcode : 4; /* purpose of message */
     unsigned qr : 1;     /* response flag */
                          /* fields in fourth byte */
@@ -217,7 +217,7 @@ void content_decode_dns(FILE *stream, uint8_t proto, uint8_t *payload, uint32_t 
     // end of dns packet
     eod = (void *)(payload + payload_size);
 
-    // reord pointer
+    // record pointer
     p = (void *)(payload + sizeof(dns_header_t));
     uint32_t type, class, ttl;
     for (i = 0; i < qdcount && p < eod; i++) {

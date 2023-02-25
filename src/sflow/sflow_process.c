@@ -684,7 +684,7 @@ static void decodeIPLayer4(SFSample *sample, uint8_t *ptr) {
             dbg_printf("UDPBytes %u\n", sample->udp_pduLen);
             sample->offsetToPayload = ptr + sizeof(udp) - sample->header;
         } break;
-        default: /* some other protcol */
+        default: /* some other protocol */
             sample->offsetToPayload = ptr - sample->header;
             break;
     }
@@ -1603,7 +1603,7 @@ static void readFlowSample_IPv4(SFSample *sample, char *prefix) {
                 dbg_printf("%s UDPSrcPort %u\n", prefix, sample->dcd_sport);
                 dbg_printf("%s UDPDstPort %u\n", prefix, sample->dcd_dport);
                 break;
-            default: /* some other protcol */
+            default: /* some other protocol */
                 break;
         }
     }
@@ -1659,7 +1659,7 @@ static void readFlowSample_IPv6(SFSample *sample, char *prefix) {
                 dbg_printf("%s UDPSrcPort %u\n", prefix, sample->dcd_sport);
                 dbg_printf("%s UDPDstPort %u\n", prefix, sample->dcd_dport);
                 break;
-            default: /* some other protcol */
+            default: /* some other protocol */
                 break;
         }
     }
@@ -3636,7 +3636,7 @@ void readSFlowDatagram(SFSample *sample, FlowSource_t *fs, int verbose) {
             LogError("SFLOW: readSFlowDatagram() unexpected end of datagram after sample %d of %d\n", samp, samplesInPacket);
             return;
         }
-        /* just read the tag, then call the approriate decode fn */
+        /* just read the tag, then call the appropriate decode fn */
         sample->elementType = 0;
         sample->sampleType = getData32(sample);
         dbg_printf("startSample ----------------------\n");

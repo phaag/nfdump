@@ -103,7 +103,7 @@ Index: bin/nfsend
 +
  my $arg = shift @ARGV;
  $arg = '' unless defined $arg;
- die "Unknow argument '$arg'" if $arg ne '' && $arg ne 'once';
+ die "Unknown argument '$arg'" if $arg ne '' && $arg ne 'once';
 Index: libexec/NfConf.pm
 ===================================================================
 --- libexec/NfConf.pm	(revision 27)

@@ -92,7 +92,7 @@ typedef struct exporter_stats_record_s {
 
     struct exporter_stat_s {
         uint32_t sysid;             // identifies the exporter
-        uint32_t sequence_failure;  // number of sequence failues
+        uint32_t sequence_failure;  // number of sequence failures
         uint64_t packets;           // number of packets sent by this exporter
         uint64_t flows;             // number of flow records sent by this exporter
     } stat[1];
@@ -171,8 +171,8 @@ typedef struct exporter_s {
 
     uint64_t packets;           // number of packets sent by this exporter
     uint64_t flows;             // number of flow records sent by this exporter
-    uint32_t sequence_failure;  // number of sequence failues
-                                // uint32_t padding_errors;    // number of sequence failues
+    uint32_t sequence_failure;  // number of sequence failures
+                                // uint32_t padding_errors;    // number of sequence failures
 
     sampler_t *sampler;  // list of samplers associated with this exporter
 

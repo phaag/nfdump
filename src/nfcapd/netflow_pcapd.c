@@ -63,8 +63,8 @@ typedef struct exporter_pcapd_s {
 
     uint64_t packets;           // number of packets sent by this exporter
     uint64_t flows;             // number of flow records sent by this exporter
-    uint32_t sequence_failure;  // number of sequence failues
-    uint32_t padding_errors;    // number of sequence failues
+    uint32_t sequence_failure;  // number of sequence failures
+    uint32_t padding_errors;    // number of sequence failures
 
     sampler_t *sampler;  // list of samplers associated with this exporter
                          // end of struct exporter_s

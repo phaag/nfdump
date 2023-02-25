@@ -205,7 +205,7 @@ int InitBookkeeper(bookkeeper_t **bookkeeper, char *path, pid_t nfcapd_pid) {
                 LogError("semop() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 return ERR_FAILED;
         }
-        // we now create a new segement, this hould not fail now
+        // we now create a new segment, this should not fail now
         shm_id = shmget(shm_key, sizeof(bookkeeper_t), IPC_CREAT | 0600);
         if (shm_id == -1) {
             // but did anyway - give up
@@ -226,7 +226,7 @@ int InitBookkeeper(bookkeeper_t **bookkeeper, char *path, pid_t nfcapd_pid) {
     // create semaphore
 
     sem_key = hash(path, 1);
-    // this should never fail, as we aleady got a key for the shared memory
+    // this should never fail, as we already got a key for the shared memory
     if (sem_key == -1) {
         // .. but catch it anyway .. and release shared memory. something is fishy
         struct shmid_ds buf;
@@ -325,7 +325,7 @@ int AccessBookkeeper(bookkeeper_t **bookkeeper, char *path) {
 
     // create semaphore
     sem_key = hash(path, 1);
-    // this should never fail, as we aleady got a key for the shared memory
+    // this should never fail, as we already got a key for the shared memory
     if (sem_key == -1) {
         // .. but catch it anyway .. and release shared memory. something is fishy
         return ERR_FAILED;

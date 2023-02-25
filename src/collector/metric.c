@@ -273,7 +273,7 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
 
         // update uptime
         message_header->uptime = te.tv_sec - _tstart;
-        // update timestamp rounded correctly to the inteval slot
+        // update timestamp rounded correctly to the interval slot
         message_header->timeStamp = 1000L * (te.tv_sec - (te.tv_sec % interval));
 
         metric_chain_t *metric_chain = metric_list;

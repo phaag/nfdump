@@ -195,7 +195,7 @@ typedef struct ipfix_template_elements_e_s {
 #define _16bytes 16
 
 #define SKIP_ELEMENT 0
-// IPFIX std element definitios
+// IPFIX std element definitions
 // Flowset record types
 #define IPFIX_octetDeltaCount 1
 #define IPFIX_packetDeltaCount 2

@@ -305,7 +305,7 @@ void RescanDir(char *dir, dirstat_t *dirstat) {
                 case FTS_D:
                     // skip all '.' entries as well as hidden directories
                     if (ftsent->fts_level > 0 && ftsent->fts_name[0] == '.') fts_set(fts, ftsent, FTS_SKIP);
-                    // any valid dirctory need to start with a digit ( %Y -> year )
+                    // any valid directory need to start with a digit ( %Y -> year )
                     if (ftsent->fts_level > 0 && !isdigit(ftsent->fts_name[0])) fts_set(fts, ftsent, FTS_SKIP);
                     break;
                 case FTS_DP:
@@ -430,7 +430,7 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
                 }
 
                 // expire time-wise if needed
-                // this part of the code is executed only when size-wise is fullfilled
+                // this part of the code is executed only when size-wise is fulfilled
                 if (!lifetime_done) {
                     if (expire_timelimit && strcmp(p, expire_timelimit) < 0) {
                         if (unlink(ftsent->fts_path) == 0) {
@@ -638,7 +638,7 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
         } else if (!lifetime_done) {
             dbg_printf("	Time expire \n");
             // expire time-wise if needed
-            // this part of the code is executed only when size-wise is already fullfilled
+            // this part of the code is executed only when size-wise is already fulfilled
             if (strcmp(p, expire_timelimit) < 0) {
                 // need to delete this file
                 if (unlink(expire_channel->ftsent->fts_path) == 0) {
@@ -718,7 +718,7 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
             expire_channel->dirstat->first = expire_channel->dirstat->last;
             if (expire_channel->dirstat->numfiles) {
                 // if channel is empty, no files must be reported, but rebuild is done anyway
-                LogError("Inconsitency detected in channel %s. Will rebuild automatically.\n", expire_channel->datadir);
+                LogError("Inconsistency detected in channel %s. Will rebuild automatically.\n", expire_channel->datadir);
                 LogError("No more files found, but %llu expected.\n", expire_channel->dirstat->numfiles);
             }
             expire_channel->dirstat->numfiles = 0;
@@ -735,7 +735,7 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
 
 void UpdateDirStat(dirstat_t *dirstat, bookkeeper_t *books) {
     if (books->numfiles) {
-        /* prevent some faults and dublicates:
+        /* prevent some faults and duplicates:
          * book records can never be timewise smaller than directory records => fishy!
          * in case book records == directory records, the user stopped and restarted nfcapd
          * this is not necessarily wrong, but results in overwriting an existing file

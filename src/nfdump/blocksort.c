@@ -66,7 +66,7 @@ static void *sort_thr(void *arg);
 
 void insert_sort(SortRecord_t *left, SortRecord_t *right) {
     // put minimum to left position, so we can save
-    // one inner loop comparsion for insert sort
+    // one inner loop comparison for insert sort
     for (SortRecord_t *pi = left + 1; pi <= right; pi++) {
         if (pi->count < left->count) {
             swap(*pi, *left);

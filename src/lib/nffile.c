@@ -1303,7 +1303,7 @@ void ModifyCompressFile(int compress) {
 
         compression = nffile_r->file_header->compression;
         if (compression == compress) {
-            printf("File %s is already same compression methode\n", nffile_r->fileName);
+            printf("File %s is already same compression method\n", nffile_r->fileName);
             continue;
         }
 
@@ -1481,7 +1481,7 @@ int QueryFile(char *filename) {
             return 0;
         }
 
-        // Should never happen, as catched already in first check, but test it anyway ..
+        // Should never happen, as caught already in first check, but test it anyway ..
         if (ret == 0) {
             LogError("Unexpected eof. Expected %u blocks, counted %i", fileHeader.NumBlocks, i);
             close(fd);
@@ -1561,7 +1561,7 @@ int QueryFile(char *filename) {
                 nffile->block_header = buff;
                 buff = b;
                 if (Uncompress_Block_LZO(buff, nffile->block_header, nffile->buff_size) < 0) {
-                    LogError("LZO decommpress failed");
+                    LogError("LZO decompress failed");
                     return 0;
                 }
             } break;
@@ -1570,7 +1570,7 @@ int QueryFile(char *filename) {
                 nffile->block_header = buff;
                 buff = b;
                 if (Uncompress_Block_LZ4(buff, nffile->block_header, nffile->buff_size) < 0) {
-                    LogError("LZ4 decommpress failed");
+                    LogError("LZ4 decompress failed");
                     return 0;
                 }
             } break;
@@ -1579,7 +1579,7 @@ int QueryFile(char *filename) {
                 nffile->block_header = buff;
                 buff = b;
                 if (Uncompress_Block_BZ2(buff, nffile->block_header, nffile->buff_size) < 0) {
-                    LogError("Bzip2 decommpress failed");
+                    LogError("Bzip2 decompress failed");
                     return 0;
                 }
             } break;
@@ -1602,7 +1602,7 @@ int QueryFile(char *filename) {
                 numRecords++;
             }
             if (blockSize != nffile->block_header->size) {
-                LogError("Error in block: %u, couted array size: %u != header size: %u\n", numBlocks, blockSize, nffile->block_header->size);
+                LogError("Error in block: %u, counted array size: %u != header size: %u\n", numBlocks, blockSize, nffile->block_header->size);
                 close(fd);
                 return 0;
             }

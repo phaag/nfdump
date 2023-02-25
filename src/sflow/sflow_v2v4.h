@@ -110,7 +110,7 @@ typedef union _INMPacket_data_type {
 /* Extended switch data */
 
 typedef struct _INMExtended_switch {
-  uint32_t src_vlan;       /* The 802.1Q VLAN id of incomming frame */
+  uint32_t src_vlan;       /* The 802.1Q VLAN id of incoming frame */
   uint32_t src_priority;   /* The 802.1p priority */
   uint32_t dst_vlan;       /* The 802.1Q VLAN id of outgoing frame */
   uint32_t dst_priority;   /* The 802.1p priority */
