@@ -681,7 +681,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 	}
 
 | PF PFACTION STRING {
-			int index = pfActionNr($3);
+			uint64_t index = pfActionNr($3);
 			if ( index < 0 ) {
 				yyerror("Invalid pf action");
 				printf("Possible pf action values: ");
@@ -692,7 +692,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 }
 
 | PF PFACTION NAT {
-			int index = pfActionNr("nat");
+			uint64_t index = pfActionNr("nat");
 			if ( index < 0 ) {
 				yyerror("Invalid pf action");
 				printf("Possible pf action values: ");
@@ -703,7 +703,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 }
 
 | PF PFREASON STRING {
-			int index = pfReasonNr($3);
+			uint64_t index = pfReasonNr($3);
 			if ( index < 0 ) {
 				yyerror("Invalid pf reason");
 				printf("Possible pf reason values: ");
@@ -734,11 +734,11 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 }
 
 | PF DIR IN {
-	$$.self = NewBlock(OffsetPfInfo, MaskPfDir, ( 1 << ShiftPfDir) & MaskPfDir, CMP_EQ, FUNC_NONE, NULL );
+	$$.self = NewBlock(OffsetPfInfo, MaskPfDir, ( 1LL << ShiftPfDir) & MaskPfDir, CMP_EQ, FUNC_NONE, NULL );
 }
 
 | PF DIR OUT {
-	$$.self = NewBlock(OffsetPfInfo, MaskPfDir, ( 0 << ShiftPfDir) & MaskPfDir, CMP_EQ, FUNC_NONE, NULL );
+	$$.self = NewBlock(OffsetPfInfo, MaskPfDir, ( 0LL << ShiftPfDir) & MaskPfDir, CMP_EQ, FUNC_NONE, NULL );
 }
 
 	| dqual PORT IN PBLOCK {	
@@ -1499,8 +1499,13 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			uint64_t u;
 		} v;
 		v.u = 0;
-		v.c[0] = toupper($3[0]);
-		v.c[1] = toupper($3[1]);
+#ifdef WORDS_BIGENDIAN
+                v.c[4] = toupper($3[0]);
+                v.c[5] = toupper($3[1]);
+#else
+                v.c[0] = toupper($3[0]);
+                v.c[1] = toupper($3[1]);
+#endif
 		switch ( $1.direction ) {
 			case SOURCE:
 				$$.self = NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL );

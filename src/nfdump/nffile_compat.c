@@ -844,7 +844,8 @@ static inline int ExpandRecord_v2(record_header_t *record_ptr, master_record_t *
                 output_record->event = tpl->fw_event;
                 output_record->event_flag = FW_EVENT;
                 output_record->fwXevent = tpl->fw_xevent;
-                output_record->icmp = tpl->nsel_icmp;
+                if ((output_record->proto == IPPROTO_ICMP || output_record->proto == IPPROTO_ICMPV6) && output_record->dstPort == 0)
+                    output_record->dstPort = tpl->nsel_icmp;
                 output_record->sec_group_tag = tpl->sec_group_tag;
                 p = (void *)tpl->data;
             } break;
