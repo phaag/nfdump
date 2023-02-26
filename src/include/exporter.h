@@ -37,6 +37,69 @@
 #include "nffile.h"
 
 /*
+ * sampler record for deprecated tags #34, #34, #48 records and mapped records
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  0 |       record type == 9      |             size            |                             id                            |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  1 |                          interval                         |          algorithm          |       exporter_sysid        |
+ * +----+--------------+--------------+--------------+-----------------------------+--------------+--------------+--------------+
+ */
+typedef struct samplerV0_record_s {
+    // record header
+    uint16_t type;
+    uint16_t size;
+
+    // sampler data
+    int32_t id;               // #48 id assigned by the exporting device
+    uint32_t interval;        // #34 sampling interval
+    uint16_t algorithm;       // #35 sampling algorithm
+    uint16_t exporter_sysid;  // internal reference to exporter
+} samplerV0_record_t;
+
+/*
+ * sampler record for new records tags #302, #304, #305, #306
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  0 |       record type == 15     |             size            |       exporter_sysid        |          algorithm          |
+ * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
+ * |  1 |                                                           id                                                          |
+ * +----+--------------+--------------+--------------+-----------------------------+--------------+--------------+--------------+
+ * |  2 |                      packet interval                      |                       packet space                        |
+ * +----+--------------+--------------+--------------+-----------------------------+--------------+--------------+--------------+
+ *
+ * old sampler data is mapped into new sampler record:
+ * #302 = #48
+ * #304 = #35
+ * #305 = #34 - 1
+ * #306 = 1
+ */
+
+typedef struct sampler_record_s {
+    // record header
+    uint16_t type;
+    uint16_t size;
+
+    // sampler data
+    uint16_t exporter_sysid;  // internal reference to exporter
+    uint16_t algorithm;       // #304 sampling algorithm
+    int64_t id;               // #302 id assigned by the exporting device or
+#define SAMPLER_OVERWRITE -3
+#define SAMPLER_DEFAULT -2
+#define SAMPLER_GENERIC -1
+    uint32_t packetInterval;  // #305 packet interval
+    uint32_t spaceInterval;   // #306 packet space
+} sampler_record_t;
+
+// linked sampler v0 or v1 list
+typedef struct sampler_s {
+    struct sampler_s *next;
+    sampler_record_t record;  // sampler record nffile
+} sampler_t;
+
+/*
  *
  * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
  * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
@@ -99,69 +162,6 @@ typedef struct exporter_stats_record_s {
 
 } exporter_stats_record_t;
 
-/*
- * sampler record for deprecated tags #34, #34, #48 records and mapped records
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  0 |       record type == 9      |             size            |                             id                            |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  1 |                          interval                         |          algorithm          |       exporter_sysid        |
- * +----+--------------+--------------+--------------+-----------------------------+--------------+--------------+--------------+
- */
-typedef struct samplerV0_record_s {
-    // record header
-    uint16_t type;
-    uint16_t size;
-
-    // sampler data
-    int32_t id;               // #48 id assigned by the exporting device
-    uint32_t interval;        // #34 sampling interval
-    uint16_t algorithm;       // #35 sampling algorithm
-    uint16_t exporter_sysid;  // internal reference to exporter
-} samplerV0_record_t;
-
-/*
- * sampler record for new records tags #302, #304, #305, #306
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  - |	     0     |      1       |      2       |      3       |      4       |      5       |      6       |      7       |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  0 |       record type == x      |             size            |       exporter_sysid        |          algorithm          |
- * +----+--------------+--------------+--------------+--------------+--------------+--------------+--------------+--------------+
- * |  1 |                                                           id                                                          |
- * +----+--------------+--------------+--------------+-----------------------------+--------------+--------------+--------------+
- * |  2 |                      packet interval                      |                       packet space                        |
- * +----+--------------+--------------+--------------+-----------------------------+--------------+--------------+--------------+
- *
- * old sampler data is mapped into new sampler record:
- * #302 = #48
- * #304 = #35
- * #305 = #34 - 1
- * #306 = 1
- */
-
-typedef struct sampler_record_s {
-    // record header
-    uint16_t type;
-    uint16_t size;
-
-    // sampler data
-    uint16_t exporter_sysid;  // internal reference to exporter
-    uint16_t algorithm;       // #304 sampling algorithm
-    int64_t id;               // #302 id assigned by the exporting device or
-#define SAMPLER_OVERWRITE -3
-#define SAMPLER_DEFAULT -2
-#define SAMPLER_GENERIC -1
-    uint32_t packetInterval;  // #305 packet interval
-    uint32_t spaceInterval;   // #306 packet space
-} sampler_record_t;
-
-// linked sampler v0 or v1 list
-typedef struct sampler_s {
-    struct sampler_s *next;
-    sampler_record_t record;  // sampler record nffile
-} sampler_t;
-
 typedef struct exporter_s {
     // linked chain
     struct exporter_s *next;
@@ -177,30 +177,6 @@ typedef struct exporter_s {
     sampler_t *sampler;  // list of samplers associated with this exporter
 
 } exporter_t;
-/*
-typedef struct samplerOption_s {
-        struct samplerOption_s *next;
-        uint32_t	tableID;	// table id
-#define STDSAMPLING34	1
-#define STDSAMPLING35	2
-#define STDMASK			0x3
-#define STDFLAGS		0x3
-
-#define SAMPLER302		4
-#define SAMPLER304		8
-#define SAMPLER305		16
-#define SAMPLERMASK		0x1C
-#define SAMPLERFLAGS	0x1C
-
-        uint32_t	flags;		// info about this map
-
-        // sampling offset/length values
-        optionTag_t id;
-        optionTag_t mode;
-        optionTag_t interval;
-
-} samplerOption_t;
-*/
 
 int InitExporterList(void);
 
@@ -211,6 +187,8 @@ int AddSamplerInfo(sampler_record_t *sampler_record);
 int AddExporterStat(exporter_stats_record_t *stat_record);
 
 void ExportExporterList(nffile_t *nffile);
+
+exporter_t *GetExporterInfo(int exporterID);
 
 void PrintExporters(void);
 

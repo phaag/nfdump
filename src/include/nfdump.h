@@ -197,7 +197,8 @@ typedef struct master_record_s {
     uint8_t engine_type;      // 0x0000'ff00'0000'0000
     uint8_t engine_id;        // 0x0000'00ff'0000'0000
     uint16_t sec_group_tag;   // 0x0000'0000'ffff'0000
-    uint16_t unused;
+    uint16_t exporterSampler;
+    uint64_t selectorID;
 
 #define OffsetExporterSysID (offsetof(master_record_t, exporter_sysid) >> 3)
 #define OffsetRouterID (offsetof(master_record_t, engine_type) >> 3)

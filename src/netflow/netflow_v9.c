@@ -248,8 +248,8 @@ static const struct v9TranslationMap_s {
     {NBAR_APPLICATION_ID, SIZEnbarAppID, ByteCopy, EXnbarAppID, OFFnbarAppID, STACK_NONE, "nbar application ID"},
 
     // sampling
-    {NF9_FLOW_SAMPLER_ID, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SAMPLER, "sampler ID"},
-    {SELECTOR_ID, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SAMPLER, "sampler ID"},
+    {NF9_FLOW_SAMPLER_ID, SIZEsampID, NumberCopy, EXsamplerInfoID, OFFsampID, STACK_SAMPLER, "sampler ID"},
+    {SELECTOR_ID, SIZEsampID, NumberCopy, EXsamplerInfoID, OFFsampID, STACK_SAMPLER, "sampler ID"},
 
     // End of table
     {0, 0, 0, 0, 0, STACK_NONE, NULL},
@@ -1114,6 +1114,11 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
             if (sampler->record.id == SAMPLER_DEFAULT) defaultSampler = sampler;
             if (sampler->record.id == SAMPLER_GENERIC) genericSampler = sampler;
             sampler = sampler->next;
+        }
+
+        EXsamplerInfo_t *samplerInfo = (EXsamplerInfo_t *)sequencer->offsetCache[EXsamplerInfoID];
+        if (samplerInfo) {
+            samplerInfo->exporter_sysid = exporter->info.sysid;
         }
 
         if (overwriteSampler) {

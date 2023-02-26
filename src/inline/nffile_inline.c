@@ -222,6 +222,11 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
                 output_record->server_nw_delay_usec = latency->usecServerNwDelay;
                 output_record->appl_latency_usec = latency->usecApplLatency;
             } break;
+            case EXsamplerInfoID: {
+                EXsamplerInfo_t *samplerInfo = (EXsamplerInfo_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                output_record->exporterSampler = samplerInfo->exporter_sysid;
+                output_record->selectorID = samplerInfo->selectorID;
+            } break;
             case EXobservationID: {
                 EXobservation_t *observation = (EXobservation_t *)((void *)elementHeader + sizeof(elementHeader_t));
                 output_record->observationDomainID = observation->domainID;

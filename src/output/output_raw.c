@@ -43,6 +43,7 @@
 
 #include "config.h"
 #include "content_dns.h"
+#include "exporter.h"
 #include "ifvrf.h"
 #include "ja3.h"
 #include "maxmind.h"
@@ -418,6 +419,30 @@ static void stringsEXlatency(FILE *stream, master_record_t *r) {
 
 }  // End of stringsEXlatency
 
+static void stringsEXsampler(FILE *stream, master_record_t *r) {
+    uint16_t exporterID = r->exporterSampler;
+
+    exporter_t *exporter = GetExporterInfo(exporterID);
+    if (exporter != NULL) {
+        sampler_t *sampler = exporter->sampler;
+        while (sampler) {
+            if (sampler->record.id == r->selectorID) break;
+            sampler = sampler->next;
+        }
+        if (sampler != NULL) {
+            fprintf(stream,
+                    "  samplingID   =             %5llu\n"
+                    "  pk Interval  =             %5u\n"
+                    "  sp Interval  =             %5u\n",
+                    r->selectorID, sampler->record.packetInterval, sampler->record.spaceInterval);
+        } else {
+            fprintf(stream, "  samplingID   =             %5llu\n", r->selectorID);
+        }
+    } else {
+        fprintf(stream, "  samplingID   =             %5llu\n", r->selectorID);
+    }
+}  // End of stringsEXsampler
+
 static void stringsEXobservation(FILE *stream, master_record_t *r) {
     fprintf(stream,
             "  obs domainID =         0x%05x\n"
@@ -752,6 +777,9 @@ void raw_record(FILE *stream, void *record, int tag) {
                 break;
             case EXlatencyID:
                 stringsEXlatency(stream, r);
+                break;
+            case EXsamplerInfoID:
+                stringsEXsampler(stream, r);
                 break;
             case EXobservationID:
                 stringsEXobservation(stream, r);

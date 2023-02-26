@@ -385,16 +385,11 @@ typedef struct EXlatency_s {
 
 typedef struct EXsamplerInfo_s {
 #define EXsamplerInfoID 18
-    int32_t id;               // id assigned by the exporting device
-    uint32_t interval;        // sampling interval
-    uint16_t mode;            // sampling mode
+    uint64_t selectorID;      // #302 id assigned by the exporting device
     uint16_t exporter_sysid;  // internal reference to exporter
-#define OFFsampID offsetof(EXsamplerInfo_t, id)
-#define SIZEsampID MemberSize(EXsamplerInfo_t, id)
-#define OFFsampInterval offsetof(EXsamplerInfo_t, interval)
-#define SIZEsampInterval MemberSize(EXsamplerInfo_t, interval)
-#define OFFsampMode offsetof(EXsamplerInfo_t, mode)
-#define SIZEsampMode MemberSize(EXsamplerInfo_t, mode)
+    uint16_t align;
+#define OFFsampID offsetof(EXsamplerInfo_t, selectorID)
+#define SIZEsampID MemberSize(EXsamplerInfo_t, selectorID)
 #define OFFsampExporter offsetof(EXsamplerInfo_t, exporter_sysid)
 #define SIZEsampExporter MemberSize(EXsamplerInfo_t, exporter_sysid)
 } EXsamplerInfo_t;

@@ -206,8 +206,8 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_observationDomainId, SIZEdomainID, NumberCopy, EXobservationID, OFFdomainID, STACK_NONE, "observation domainID"},
     {IPFIX_observationPointId, SIZEpointID, NumberCopy, EXobservationID, OFFpointID, STACK_NONE, "observation pointID"},
     // sampling
-    {IPFIX_samplerId, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SAMPLER, "sampler ID"},
-    {IPFIX_selectorId, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SAMPLER, "sampler ID"},
+    {IPFIX_samplerId, SIZEsampID, NumberCopy, EXsamplerInfoID, OFFsampID, STACK_SAMPLER, "sampler ID"},
+    {IPFIX_selectorId, SIZEsampID, NumberCopy, EXsamplerInfoID, OFFsampID, STACK_SAMPLER, "sampler ID"},
     {IPFIX_INGRESS_VRFID, SIZEingressVrf, NumberCopy, EXvrfID, OFFingressVrf, STACK_NONE, "ingress VRF ID"},
     {IPFIX_EGRESS_VRFID, SIZEegressVrf, NumberCopy, EXvrfID, OFFegressVrf, STACK_NONE, "egress VRF ID"},
     // NAT
@@ -1288,6 +1288,11 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
             if (sampler->record.id == SAMPLER_DEFAULT) defaultSampler = sampler;
             if (sampler->record.id == SAMPLER_GENERIC) genericSampler = sampler;
             sampler = sampler->next;
+        }
+
+        EXsamplerInfo_t *samplerInfo = (EXsamplerInfo_t *)sequencer->offsetCache[EXsamplerInfoID];
+        if (samplerInfo) {
+            samplerInfo->exporter_sysid = exporter->info.sysid;
         }
 
         if (overwriteSampler) {

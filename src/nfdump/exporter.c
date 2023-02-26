@@ -278,6 +278,16 @@ int AddExporterStat(exporter_stats_record_t *stat_record) {
 
 }  // End of AddExporterStat
 
+exporter_t *GetExporterInfo(int exporterID) {
+    if (exporterID >= MAX_EXPORTERS) {
+        LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
+        return NULL;
+    }
+
+    return exporter_list[exporterID];
+
+}  // End of GetExporter
+
 void ExportExporterList(nffile_t *nffile) {
     // sysid 0 unused -> no exporter available
     int i = 1;
