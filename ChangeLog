@@ -1,5 +1,6 @@
 2023-02-26
 -	Fix #423 and cleanup ICMP handling.
+-	Wire sampling extension for individual sampling
 
 2023-02-18
 -	Fix #415. ICMP decoding in netflow v9
