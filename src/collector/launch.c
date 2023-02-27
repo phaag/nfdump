@@ -329,6 +329,7 @@ void processMessage(message_t *message, launcher_args_t *launcher_args) {
 
     p += sizeof(launcher_message_t);
 
+    launcher_args->timeslot = lm->timeslot;
     launcher_args->filename = p;
     launcher_args->filename[lm->lenFilename - 1] = '\0';
     p += lm->lenFilename;
