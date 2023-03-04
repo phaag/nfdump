@@ -71,8 +71,6 @@
 #include "collector.h"
 #include "launch.h"
 
-#define DEVEL 1
-
 static int done, launch, child_exit;
 
 static void SignalHandler(int signal);
