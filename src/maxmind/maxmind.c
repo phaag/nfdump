@@ -500,38 +500,48 @@ int loadASV4tree(char *fileName) {
         *eol = '\0';
         // printf("%s\n", line);
         asV4Node_t asV4Node;
-        char *l = line;
-        char *field = NULL;
-        int i = 0;
-        while ((field = strsep(&l, ",")) != NULL) {
-            // printf("field: %s\n", field);
-            switch (i) {
-                case (0): {  // cidr
-                    char *cidr = strchr(field, '/');
-                    *cidr = '\0';
-                    uint32_t net, netBits, mask;
-                    int ret = inet_pton(PF_INET, field, &net);
-                    if (ret != 1) {
-                        LogError("Not an IPv4 network: %s\n", field);
-                        continue;
-                    }
-                    netBits = atoi(++cidr);
-                    mask = 0xffffffff << (32 - netBits);
-                    // printf("ip: 0x%x, bits: %u, mask: 0x%x\n", net, netBits, mask);
-                    asV4Node.network = ntohl(net);
-                    asV4Node.netmask = mask;
-                } break;
-                case 1:  // AS
-                    asV4Node.as = atoi(field);
-                    break;
-                case 2:  // org name
-                    strncpy(asV4Node.orgName, field, 64);
-                    asV4Node.orgName[63] = '\0';
-                    break;
-            }
-            i++;
-        }
+        char *field = line;
+        char *sep = NULL;
 
+        // extract cidr
+        sep = strchr(field, ',');
+        if (!sep) {
+            LogError("Parse cidr in ASv4 file: %s: failed", fileName);
+            return 0;
+        }
+        *sep++ = '\0';
+
+        // cidr
+        char *cidr = strchr(field, '/');
+        *cidr = '\0';
+        uint32_t net, netBits, mask;
+        int ret = inet_pton(PF_INET, field, &net);
+        if (ret != 1) {
+            LogError("Not an IPv4 network: %s\n", field);
+            continue;
+        }
+        netBits = atoi(++cidr);
+        mask = 0xffffffff << (32 - netBits);
+        // printf("ip: 0x%x, bits: %u, mask: 0x%x\n", net, netBits, mask);
+        asV4Node.network = ntohl(net);
+        asV4Node.netmask = mask;
+        field = sep;
+
+        // extract AS
+        sep = strchr(field, ',');
+        if (!sep) {
+            LogError("Parse AS in ASv4 file: %s: failed", fileName);
+            return 0;
+        }
+        *sep++ = '\0';
+        asV4Node.as = atoi(field);
+        field = sep;
+
+        // extract org name
+        strncpy(asV4Node.orgName, field, orgNameLength);
+        asV4Node.orgName[orgNameLength - 1] = '\0';
+
+        // insert node
         cnt++;
         asV4Node_t *node = kb_getp(asV4Tree, asV4Tree, &asV4Node);
         if (node) {
@@ -565,48 +575,57 @@ int loadASV6tree(char *fileName) {
         *eol = '\0';
         // printf("%s\n", line);
         asV6Node_t asV6Node;
-        char *l = line;
-        char *field = NULL;
-        int i = 0;
-        while ((field = strsep(&l, ",")) != NULL) {
-            // printf("field: %s\n", field);
-            switch (i) {
-                case (0): {
-                    char *cidr = strchr(field, '/');
-                    *cidr = '\0';
-                    uint32_t netBits;
-                    uint64_t net[2], mask[2];
-                    int ret = inet_pton(PF_INET6, field, net);
-                    if (ret != 1) {
-                        LogError("Not an IPv4 network: %s\n", field);
-                        continue;
-                    }
-                    netBits = atoi(++cidr);
+        char *field = line;
+        char *sep = NULL;
 
-                    if (netBits > 64) {
-                        mask[0] = 0xffffffffffffffffLL;
-                        mask[1] = 0xffffffffffffffffLL << (64 - netBits);
-                    } else {
-                        mask[0] = 0xffffffffffffffffLL << (64 - netBits);
-                        mask[1] = 0;
-                    }
-
-                    // printf("ip: 0x%x, bits: %u, mask: 0x%x\n", net, netBits, mask);
-                    asV6Node.network[0] = ntohll(net[0]);
-                    asV6Node.network[1] = ntohll(net[1]);
-                    asV6Node.netmask[0] = mask[0];
-                    asV6Node.netmask[1] = mask[1];
-                } break;
-                case 1:  // geoname_id
-                    asV6Node.as = atoi(field);
-                    break;
-                case 2:  // org name
-                    strncpy(asV6Node.orgName, field, 64);
-                    asV6Node.orgName[63] = '\0';
-                    break;
-            }
-            i++;
+        // extract cidr
+        sep = strchr(field, ',');
+        if (!sep) {
+            LogError("Parse cidr in ASv6 file: %s: failed", fileName);
+            return 0;
         }
+        *sep++ = '\0';
+
+        // cidr
+        char *cidr = strchr(field, '/');
+        *cidr = '\0';
+        uint32_t netBits;
+        uint64_t net[2], mask[2];
+        int ret = inet_pton(PF_INET6, field, net);
+        if (ret != 1) {
+            LogError("Not an IPv6 network: %s\n", field);
+            continue;
+        }
+        netBits = atoi(++cidr);
+
+        if (netBits > 64) {
+            mask[0] = 0xffffffffffffffffLL;
+            mask[1] = 0xffffffffffffffffLL << (64 - netBits);
+        } else {
+            mask[0] = 0xffffffffffffffffLL << (64 - netBits);
+            mask[1] = 0;
+        }
+
+        // printf("ip: 0x%x, bits: %u, mask: 0x%x\n", net, netBits, mask);
+        asV6Node.network[0] = ntohll(net[0]);
+        asV6Node.network[1] = ntohll(net[1]);
+        asV6Node.netmask[0] = mask[0];
+        asV6Node.netmask[1] = mask[1];
+        field = sep;
+
+        // extract AS
+        sep = strchr(field, ',');
+        if (!sep) {
+            LogError("Parse AS in ASv4 file: %s: failed", fileName);
+            return 0;
+        }
+        *sep++ = '\0';
+        asV6Node.as = atoi(field);
+        field = sep;
+
+        // extract org name
+        strncpy(asV6Node.orgName, field, orgNameLength);
+        asV6Node.orgName[orgNameLength - 1] = '\0';
 
         cnt++;
         asV6Node_t *node = kb_getp(asV6Tree, asV6Tree, &asV6Node);
@@ -870,7 +889,7 @@ int LoadMaxMind(char *fileName) {
         size_t expected = (arrayHeader->size * nffile->block_header->NumRecords) + sizeof(record_header_t);
         if (expected != nffile->block_header->size) {
             LogError("Array size calculated: %u != expected: %u for element: %u", expected, nffile->block_header->size, arrayHeader->type);
-            continue;
+            return 0;
         }
 
         switch (arrayHeader->type) {
@@ -920,6 +939,7 @@ int LoadMaxMind(char *fileName) {
             case ASV4treeElementID: {
                 kbtree_t(asV4Tree) *asV4Tree = mmHandle->asV4Tree;
                 asV4Node_t *asV4Node = (asV4Node_t *)arrayElement;
+
                 for (int i = 0; i < nffile->block_header->NumRecords; i++) {
                     asV4Node_t *node = kb_getp(asV4Tree, asV4Tree, asV4Node);
                     if (node) {
