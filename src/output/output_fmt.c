@@ -418,7 +418,7 @@ static struct format_token_list_s {
                          {"%sc", 0, "SC", String_SrcCountry},                          // src IP 2 letter country code
                          {"%dc", 0, "DC", String_DstCountry},                          // dst IP 2 letter country code
                          {"%sloc", 0, "Src IP location info", String_SrcLocation},     // src IP geo location info
-                         {"%dloc", 0, "Src IP location info", String_DstLocation},     // src IP geo location info
+                         {"%dloc", 0, "Dst IP location info", String_DstLocation},     // dst IP geo location info
                          {"%n", 0, "", String_NewLine},                                // \n
                          {"%ipl", 0, "", String_inPayload},                            // in payload
                          {"%opl", 0, "", String_outPayload},                           // out payload
