@@ -252,6 +252,10 @@ static void String_SrcLocation(FILE *stream, master_record_t *r);
 
 static void String_DstLocation(FILE *stream, master_record_t *r);
 
+static void String_SrcASorganisation(FILE *stream, master_record_t *r);
+
+static void String_DstASorganisation(FILE *stream, master_record_t *r);
+
 static void String_inPayload(FILE *stream, master_record_t *r);
 
 static void String_outPayload(FILE *stream, master_record_t *r);
@@ -410,29 +414,31 @@ static struct format_token_list_s {
                           "                 ",
                           String_MPLSs},  // All MPLS labels
                          //
-                         {"%bps", 0, "     bps", String_bps},                          // bps - bits per second
-                         {"%pps", 0, "     pps", String_pps},                          // pps - packets per second
-                         {"%bpp", 0, "   Bpp", String_bpp},                            // bpp - Bytes per package
-                         {"%eng", 0, " engine", String_Engine},                        // Engine Type/ID
-                         {"%lbl", 0, "           label", String_Label},                // Flow Label
-                         {"%sc", 0, "SC", String_SrcCountry},                          // src IP 2 letter country code
-                         {"%dc", 0, "DC", String_DstCountry},                          // dst IP 2 letter country code
-                         {"%sloc", 0, "Src IP location info", String_SrcLocation},     // src IP geo location info
-                         {"%dloc", 0, "Dst IP location info", String_DstLocation},     // dst IP geo location info
-                         {"%n", 0, "", String_NewLine},                                // \n
-                         {"%ipl", 0, "", String_inPayload},                            // in payload
-                         {"%opl", 0, "", String_outPayload},                           // out payload
-                         {"%nbid", 0, "nbar ID", String_nbarID},                       // nbar ID
-                         {"%ja3", 0, "                             ja3", String_ja3},  // ja3
-                         {"%sni", 0, "sni name", String_sniName},                      // TLS sni Name
-                         {"%nbnam", 0, "nbar name", String_nbarName},                  // nbar Name
-                         {"%odid", 0, "obsDomainID", String_observationDomainID},      // observation domainID
-                         {"%opid", 0, "  obsPointID", String_observationPointID},      // observation pointID
-                         {"%vrf", 0, "  I-VRF-ID", String_ivrf},                       // ingress vrf ID - compatible
-                         {"%ivrf", 0, "  I-VRF-ID", String_ivrf},                      // ingress vrf ID
-                         {"%ivrfnam", 0, "  I-VRF-Name", String_ivrfName},             // ingress vrf name
-                         {"%evrf", 0, "  E-VRF-ID", String_evrf},                      // egress vrf ID
-                         {"%evrfnam", 0, "  E-VRF-Name", String_evrfName},             // egress vrf name
+                         {"%bps", 0, "     bps", String_bps},                            // bps - bits per second
+                         {"%pps", 0, "     pps", String_pps},                            // pps - packets per second
+                         {"%bpp", 0, "   Bpp", String_bpp},                              // bpp - Bytes per package
+                         {"%eng", 0, " engine", String_Engine},                          // Engine Type/ID
+                         {"%lbl", 0, "           label", String_Label},                  // Flow Label
+                         {"%sc", 0, "SC", String_SrcCountry},                            // src IP 2 letter country code
+                         {"%dc", 0, "DC", String_DstCountry},                            // dst IP 2 letter country code
+                         {"%sloc", 0, "Src IP location info", String_SrcLocation},       // src IP geo location info
+                         {"%dloc", 0, "Dst IP location info", String_DstLocation},       // dst IP geo location info
+                         {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},  // src IP AS organistaion string
+                         {"%dasn", 0, "Dst AS organisation", String_DstASorganisation},  // dst IP AS organisation string
+                         {"%n", 0, "", String_NewLine},                                  // \n
+                         {"%ipl", 0, "", String_inPayload},                              // in payload
+                         {"%opl", 0, "", String_outPayload},                             // out payload
+                         {"%nbid", 0, "nbar ID", String_nbarID},                         // nbar ID
+                         {"%ja3", 0, "                             ja3", String_ja3},    // ja3
+                         {"%sni", 0, "sni name", String_sniName},                        // TLS sni Name
+                         {"%nbnam", 0, "nbar name", String_nbarName},                    // nbar Name
+                         {"%odid", 0, "obsDomainID", String_observationDomainID},        // observation domainID
+                         {"%opid", 0, "  obsPointID", String_observationPointID},        // observation pointID
+                         {"%vrf", 0, "  I-VRF-ID", String_ivrf},                         // ingress vrf ID - compatible
+                         {"%ivrf", 0, "  I-VRF-ID", String_ivrf},                        // ingress vrf ID
+                         {"%ivrfnam", 0, "  I-VRF-Name", String_ivrfName},               // ingress vrf name
+                         {"%evrf", 0, "  E-VRF-ID", String_evrf},                        // egress vrf ID
+                         {"%evrfnam", 0, "  E-VRF-Name", String_evrfName},               // egress vrf name
 
                          {"%pfifn", 0, "interface", String_pfIfName},  // pflog ifname
                          {"%pfact", 0, "action", String_pfAction},     // pflog action
@@ -1630,6 +1636,14 @@ static void String_DstLocation(FILE *stream, master_record_t *r) {
     LookupLocation(r->V6.dstaddr, location, 128);
     fprintf(stream, "%s", location);
 
+}  // End of String_DstLocation
+
+static void String_SrcASorganisation(FILE *stream, master_record_t *r) {
+    fprintf(stream, "%s", LookupASorg(r->V6.srcaddr));
+}  // End of String_SrcLocation
+
+static void String_DstASorganisation(FILE *stream, master_record_t *r) {
+    fprintf(stream, "%s", LookupASorg(r->V6.dstaddr));
 }  // End of String_DstLocation
 
 static void String_ivrf(FILE *stream, master_record_t *r) { fprintf(stream, "%10u", r->ingressVrf); }  // End of String_ivrf

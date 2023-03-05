@@ -133,6 +133,8 @@ void LookupLocation(uint64_t ip[2], char *location, size_t len);
 
 uint32_t LookupAS(uint64_t ip[2]);
 
+const char *LookupASorg(uint64_t ip[2]);
+
 void LookupWhois(char *ip);
 
 #endif

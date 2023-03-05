@@ -1090,8 +1090,29 @@ uint32_t LookupAS(uint64_t ip[2]) {
         asV6Node_t *asV6Node = kb_getp(asV6Tree, mmHandle->asV6Tree, &asV6Search);
         return asV6Node == NULL ? 0 : asV6Node->as;
     }
+    // unreached
 
 }  // End of LookupAS
+
+const char *LookupASorg(uint64_t ip[2]) {
+    if (!mmHandle) {
+        return "";
+    }
+
+    if (ip[0] == 0) {  // IPv4
+        asV4Node_t asSearch = {.network = ip[1], .netmask = 0};
+        asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
+        return asV4Node == NULL ? "" : asV4Node->orgName;
+    } else {  // IPv6
+        asV6Node_t asV6Search = {0};
+        asV6Search.network[0] = ip[0];
+        asV6Search.network[1] = ip[1];
+        asV6Node_t *asV6Node = kb_getp(asV6Tree, mmHandle->asV6Tree, &asV6Search);
+        return asV6Node == NULL ? "" : asV6Node->orgName;
+    }
+    // unreached
+
+}  // End of LookupASorg
 
 void LookupWhois(char *ip) {
     uint32_t as = 0;
