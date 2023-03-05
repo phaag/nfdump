@@ -329,14 +329,16 @@ int Init_v9(int verbose, int32_t sampling, char *extensionList) {
         }
     }
 
-    int i;
-    for (i = 0; v9TranslationMap[i].name != NULL; i++) {
+    int tagsEnabled = 0;
+    for (int i = 0; v9TranslationMap[i].name != NULL; i++) {
+        int extID = v9TranslationMap[i].extensionID;
+        if (ExtensionsEnabled[extID]) tagsEnabled++;
     }
 
     if (sampling < 0) {
-        LogInfo("Init v9: Max number of v9 tags: %u, overwrite sampling: %d", i, -defaultSampling);
+        LogInfo("Init v9: Max number of v9 tags enabled: %u, overwrite sampling: %d", tagsEnabled, -defaultSampling);
     } else {
-        LogInfo("Init v9: Max number of v9 tags: %u, default sampling: %d", i, defaultSampling);
+        LogInfo("Init v9: Max number of v9 tags enabled: %u, default sampling: %d", tagsEnabled, defaultSampling);
     }
 
     return 1;
