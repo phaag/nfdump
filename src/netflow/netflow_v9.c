@@ -299,13 +299,9 @@ int Init_v9(int verbose, int32_t sampling, char *extensionList) {
 
     defaultSampling = sampling;
 
-    int i;
-    for (i = 0; v9TranslationMap[i].name != NULL; i++) {
-    }
-
     if (extensionList) {
         // Disable all extensions
-        for (i = 0; i < MAXEXTENSIONS; i++) {
+        for (int i = 0; i < MAXEXTENSIONS; i++) {
             ExtensionsEnabled[i] = 0;
         }
 
@@ -328,15 +324,15 @@ int Init_v9(int verbose, int32_t sampling, char *extensionList) {
     } else {
         // Enable all extensions
         dbg_printf("Enable all extensions\n");
-        for (i = 0; i < MAXEXTENSIONS; i++) {
+        for (int i = 0; i < MAXEXTENSIONS; i++) {
             ExtensionsEnabled[i] = 1;
         }
     }
 
     if (sampling < 0) {
-        LogInfo("Init v9: Max number of v9 tags: %u, overwrite sampling: %d", i, -defaultSampling);
+        LogInfo("Init v9: Max number of v9 tags: %u, overwrite sampling: %d", MAXEXTENSIONS, -defaultSampling);
     } else {
-        LogInfo("Init v9: Max number of v9 tags: %u, default sampling: %d", i, defaultSampling);
+        LogInfo("Init v9: Max number of v9 tags: %u, default sampling: %d", MAXEXTENSIONS, defaultSampling);
     }
 
     return 1;
@@ -361,7 +357,7 @@ static int LookupElement(uint16_t type, int EnterpriseNumber) {
             return -1;
     }
 
-    int i = 1;
+    int i = 0;
     while (v9TranslationMap[i].name != NULL) {
         if (v9TranslationMap[i].id == type) {
             int extID = v9TranslationMap[i].extensionID;

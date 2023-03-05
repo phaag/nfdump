@@ -273,13 +273,9 @@ int Init_IPFIX(int verbose, int32_t sampling, char *extensionList) {
 
     defaultSampling = sampling;
 
-    int i;
-    for (i = 0; ipfixTranslationMap[i].name != NULL; i++) {
-    }
-
     if (extensionList) {
         // Disable all extensions
-        for (i = 0; i < MAXEXTENSIONS; i++) {
+        for (int i = 0; i < MAXEXTENSIONS; i++) {
             ExtensionsEnabled[i] = 0;
         }
 
@@ -302,16 +298,16 @@ int Init_IPFIX(int verbose, int32_t sampling, char *extensionList) {
     } else {
         // Enable all extensions
         dbg_printf("Enable all extensions\n");
-        for (i = 0; i < MAXEXTENSIONS; i++) {
+        for (int i = 0; i < MAXEXTENSIONS; i++) {
             ExtensionsEnabled[i] = 1;
         }
     }
 
     if (sampling < 0) {
-        LogInfo("Init IPFIX: Max number of ipfix tags: %u, overwrite sampling: %d", i, -defaultSampling);
+        LogInfo("Init IPFIX: Max number of ipfix tags: %u, overwrite sampling: %d", MAXEXTENSIONS, -defaultSampling);
         dbg_printf("Initv9: Overwrite sampling: %d\n", -defaultSampling);
     } else {
-        LogInfo("Init IPFIX: Max number of ipfix tags: %u, default sampling: %d", i, defaultSampling);
+        LogInfo("Init IPFIX: Max number of ipfix tags: %u, default sampling: %d", MAXEXTENSIONS, defaultSampling);
         dbg_printf("Initv9: Default sampling: %d\n", defaultSampling);
     }
 
@@ -351,7 +347,7 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
             return -1;
     }
 
-    int i = 1;
+    int i = 0;
     while (ipfixTranslationMap[i].name != NULL) {
         if (ipfixTranslationMap[i].id == type) {
             int extID = ipfixTranslationMap[i].extensionID;
