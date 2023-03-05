@@ -303,11 +303,15 @@ int Init_IPFIX(int verbose, int32_t sampling, char *extensionList) {
         }
     }
 
+    int i;
+    for (i = 0; ipfixTranslationMap[i].name != NULL; i++) {
+    }
+
     if (sampling < 0) {
-        LogInfo("Init IPFIX: Max number of ipfix tags: %u, overwrite sampling: %d", MAXEXTENSIONS, -defaultSampling);
+        LogInfo("Init IPFIX: Max number of ipfix tags: %u, overwrite sampling: %d", i, -defaultSampling);
         dbg_printf("Initv9: Overwrite sampling: %d\n", -defaultSampling);
     } else {
-        LogInfo("Init IPFIX: Max number of ipfix tags: %u, default sampling: %d", MAXEXTENSIONS, defaultSampling);
+        LogInfo("Init IPFIX: Max number of ipfix tags: %u, default sampling: %d", i, defaultSampling);
         dbg_printf("Initv9: Default sampling: %d\n", defaultSampling);
     }
 
