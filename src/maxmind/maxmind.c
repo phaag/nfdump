@@ -56,6 +56,12 @@
 #define kh_hash_func(key) (khint32_t)(key.key)
 #define kh_hash_equal(a, b) ((a.key) == (b.key))
 
+#define arrayTyoeCheck(type)                                                 \
+    if (arrayHeader->size != sizeof(type##_t)) {                             \
+        LogError("Size check failed for %s - rebuild nfdump geo DB", #type); \
+        return 0;                                                            \
+    }
+
 KHASH_INIT(localMap, locationKey_t, locationInfo_t, 1, kh_hash_func, kh_hash_equal)
 
 // ipV4Tree node compare function
@@ -896,6 +902,7 @@ int LoadMaxMind(char *fileName) {
             case LocalInfoElementID: {
                 // khash_t(localMap) *localMap = mmHandle->localMap;
                 locationInfo_t *locationInfo = (locationInfo_t *)arrayElement;
+                arrayTyoeCheck(locationInfo);
                 for (int i = 0; i < nffile->block_header->NumRecords; i++) {
                     int absent;
                     locationKey_t locationKey = {.key = locationInfo->localID};
@@ -912,6 +919,7 @@ int LoadMaxMind(char *fileName) {
             case IPV4treeElementID: {
                 kbtree_t(ipV4Tree) *ipV4Tree = mmHandle->ipV4Tree;
                 ipV4Node_t *ipV4Node = (ipV4Node_t *)arrayElement;
+                arrayTyoeCheck(ipV4Node);
                 for (int i = 0; i < nffile->block_header->NumRecords; i++) {
                     ipV4Node_t *node = kb_getp(ipV4Tree, ipV4Tree, ipV4Node);
                     if (node) {
@@ -925,6 +933,7 @@ int LoadMaxMind(char *fileName) {
             case IPV6treeElementID: {
                 kbtree_t(ipV6Tree) *ipV6Tree = mmHandle->ipV6Tree;
                 ipV6Node_t *ipV6Node = (ipV6Node_t *)arrayElement;
+                arrayTyoeCheck(ipV6Node);
                 for (int i = 0; i < nffile->block_header->NumRecords; i++) {
                     ipV6Node_t *node = kb_getp(ipV6Tree, ipV6Tree, ipV6Node);
                     if (node) {
@@ -939,7 +948,7 @@ int LoadMaxMind(char *fileName) {
             case ASV4treeElementID: {
                 kbtree_t(asV4Tree) *asV4Tree = mmHandle->asV4Tree;
                 asV4Node_t *asV4Node = (asV4Node_t *)arrayElement;
-
+                arrayTyoeCheck(asV4Node);
                 for (int i = 0; i < nffile->block_header->NumRecords; i++) {
                     asV4Node_t *node = kb_getp(asV4Tree, asV4Tree, asV4Node);
                     if (node) {
@@ -953,6 +962,7 @@ int LoadMaxMind(char *fileName) {
             case ASV6treeElementID: {
                 kbtree_t(asV6Tree) *asV6Tree = mmHandle->asV6Tree;
                 asV6Node_t *asV6Node = (asV6Node_t *)arrayElement;
+                arrayTyoeCheck(asV6Node);
                 for (int i = 0; i < nffile->block_header->NumRecords; i++) {
                     asV6Node_t *node = kb_getp(asV6Tree, asV6Tree, asV6Node);
                     if (node) {
