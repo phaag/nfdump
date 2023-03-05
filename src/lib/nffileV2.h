@@ -106,6 +106,22 @@ typedef struct fileHeaderV2_s {
  * and data block properties. The struct is compatible with type 2 data records
  */
 
+/*
+ * datablock type 3 is used for all individual records
+ *   +------------+----------+----------+----------+-----+----------+
+ *   |Blockheader | record 0 | record 1 | record 2 | ... | record n |
+ *   +------------+----------+----------+----------+-----+----------+
+ * each record with its own record header and structure
+ *
+ * datablock type 4 is used as an array block - all records are of the same type
+ *   +------------+--------------+----------+----------+-----+----------+
+ *   |Blockheader | recordheader | record 1 | record 2 | ... | record n |
+ *   +------------+--------------+----------+----------+-----+----------+
+ * the record header describes the record type and size, followed by all
+ * array elements without any header. The number of array elements is
+ * NumRecords in the block header
+ *
+ */
 typedef struct dataBlock_s {
     uint32_t NumRecords;  // size of this block in bytes without this header
     uint32_t size;        // size of this block in bytes without this header

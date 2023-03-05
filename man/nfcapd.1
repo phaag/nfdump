@@ -60,6 +60,7 @@
 .Op Fl m Ar metricpath
 .Op Fl e
 .Op Fl x Ar command
+.Op Fl X Ar extensionList
 .Op Fl E
 .Op Fl v
 .Op Fl V
@@ -290,6 +291,15 @@ The full path of the new file is: %d/%f
 string supplied by
 .Fl I
 .El
+.It Fl X Ar extensionList
+.Ar extensionList
+is a ',' separated list of extensions to be stored by
+.Nm .
+The numbers correspond to the extension list in nfxV3.h. By default extensions are added 
+dynamically to store all data sent by the exporter. If
+.Ar extensionList 
+is given, only those elements matching the extension are processed and stored. Usually this
+option is not needed, unless for specific requirements.
 .It Fl m Ar metricpath
 Enables the flow metric exporter. Flow metric information is sent to the UNIX socket
 .Ar metricpath

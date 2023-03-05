@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -338,7 +338,7 @@ typedef struct ipfix_template_elements_e_s {
 #define VENDOR_BIT_REVERSE 0x4000
 
 /* prototypes */
-int Init_IPFIX(int verbose, int32_t sampling);
+int Init_IPFIX(int verbose, int32_t sampling, char *extensionList);
 
 void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -45,6 +45,20 @@
 #define ANYIP NULL
 
 #define FNAME_SIZE 256
+
+/* Default time window in seconds to rotate files */
+#define TIME_WINDOW 300
+
+/* overdue time:
+ * if nfcapd does not get any data, wake up the receive system call
+ * at least after OVERDUE_TIME seconds after the time window
+ */
+#define OVERDUE_TIME 10
+
+// time nfcapd will wait for launcher to terminate
+#define LAUNCHER_TIMEOUT 60
+
+#define SYSLOG_FACILITY "daemon"
 
 /* common minimum netflow header for all versions */
 typedef struct common_flow_header {
@@ -110,18 +124,6 @@ void FlushExporterStats(FlowSource_t *fs);
 
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter);
 
-/* Default time window in seconds to rotate files */
-#define TIME_WINDOW 300
-
-/* overdue time:
- * if nfcapd does not get any data, wake up the receive system call
- * at least after OVERDUE_TIME seconds after the time window
- */
-#define OVERDUE_TIME 10
-
-// time nfcapd will wait for launcher to terminate
-#define LAUNCHER_TIMEOUT 60
-
-#define SYSLOG_FACILITY "daemon"
+int ScanExtension(char *extensionList);
 
 #endif  //_COLLECTOR_H

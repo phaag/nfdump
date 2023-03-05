@@ -155,6 +155,7 @@ static void usage(char *name) {
         "-v\t\tIncrease verbose level.\n"
         "-4\t\tListen on IPv4 (default).\n"
         "-6\t\tListen on IPv6.\n"
+        "-X <extlist>\t',' separated list of extensions (numbers). Default all extensions.\n"
         "-V\t\tPrint version and exit.\n"
         "-Z\t\tAdd timezone offset to filename.\n",
         name);
@@ -592,6 +593,7 @@ int main(int argc, char **argv) {
     char *bindhost, *datadir, *launch_process;
     char *userid, *groupid, *listenport, *mcastgroup;
     char *Ident, *dynFlowDir, *time_extension, *pidfile, *configFile, *metricSocket;
+    char *extensionList;
     packet_function_t receive_packet;
     repeater_t repeater[MAX_REPEATERS];
     FlowSource_t *fs;
@@ -629,9 +631,10 @@ int main(int argc, char **argv) {
     dynFlowDir = NULL;
     metricSocket = NULL;
     metricInterval = 60;
+    extensionList = NULL;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVw:x:yzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVw:x:X:yzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -801,7 +804,12 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'x':
+                CheckArgLen(optarg, 256);
                 launch_process = optarg;
+                break;
+            case 'X':
+                CheckArgLen(optarg, 128);
+                extensionList = strdup(optarg);
                 break;
             case 'j':
                 if (compress) {
@@ -868,6 +876,9 @@ int main(int argc, char **argv) {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
             }
+        } else {
+            usage(argv[0]);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -927,8 +938,8 @@ int main(int argc, char **argv) {
 
     SetPriv(userid, groupid);
 
-    if (!Init_v1(verbose) || !Init_v5_v7(verbose, sampling_rate) || !Init_pcapd(verbose) || !Init_v9(verbose, sampling_rate) ||
-        !Init_IPFIX(verbose, sampling_rate)) {
+    if (!Init_v1(verbose) || !Init_v5_v7(verbose, sampling_rate) || !Init_pcapd(verbose) || !Init_v9(verbose, sampling_rate, extensionList) ||
+        !Init_IPFIX(verbose, sampling_rate, extensionList)) {
         exit(EXIT_FAILURE);
     }
 

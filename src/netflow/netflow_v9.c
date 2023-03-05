@@ -29,9 +29,12 @@
  *
  */
 
+#include "netflow_v9.h"
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -40,19 +43,13 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "config.h"
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "bookkeeper.h"
 #include "collector.h"
+#include "config.h"
 #include "exporter.h"
 #include "fnf.h"
 #include "metric.h"
 #include "nbar.h"
-#include "netflow_v9.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
@@ -124,6 +121,8 @@ typedef struct exporterDomain_s {
     templateList_t *template;
 
 } exporterDomain_t;
+
+static int ExtensionsEnabled[MAXEXTENSIONS];
 
 static const struct v9TranslationMap_s {
     uint16_t id;  // v9 element id
@@ -273,8 +272,6 @@ static int printRecord;
 static int32_t defaultSampling;
 
 /* local function prototypes */
-static void ProcessOptionFlowset(exporterDomain_t *exporter, FlowSource_t *fs, templateList_t *templateList, void *data_flowset);
-
 static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_record_t *sampler_record);
 
 static inline void Process_v9_templates(exporterDomain_t *exporter, void *template_flowset, FlowSource_t *fs);
@@ -297,13 +294,43 @@ static inline exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t exporter_
 
 #include "nffile_inline.c"
 
-int Init_v9(int verbose, int32_t sampling) {
+int Init_v9(int verbose, int32_t sampling, char *extensionList) {
     printRecord = verbose > 2;
 
     defaultSampling = sampling;
 
     int i;
     for (i = 0; v9TranslationMap[i].name != NULL; i++) {
+    }
+
+    if (extensionList) {
+        // Disable all extensions
+        for (i = 0; i < MAXEXTENSIONS; i++) {
+            ExtensionsEnabled[i] = 0;
+        }
+
+        // get enabled extensions from string
+        int extID = ScanExtension(extensionList);
+        while (extID > 0) {
+            dbg_printf("Enable extension %d\n", extID);
+            ExtensionsEnabled[extID] = 1;
+            extID = ScanExtension(NULL);
+        }
+
+        if (extID == -1) {
+            LogError("Failed to scan extension list.");
+            return 0;
+        }
+
+        // make sure extension 1 is enabled
+        ExtensionsEnabled[1] = 1;
+
+    } else {
+        // Enable all extensions
+        dbg_printf("Enable all extensions\n");
+        for (i = 0; i < MAXEXTENSIONS; i++) {
+            ExtensionsEnabled[i] = 1;
+        }
     }
 
     if (sampling < 0) {
@@ -334,9 +361,18 @@ static int LookupElement(uint16_t type, int EnterpriseNumber) {
             return -1;
     }
 
-    int i = 0;
+    int i = 1;
     while (v9TranslationMap[i].name != NULL) {
-        if (v9TranslationMap[i].id == type) return i;
+        if (v9TranslationMap[i].id == type) {
+            int extID = v9TranslationMap[i].extensionID;
+            if (ExtensionsEnabled[extID]) {
+                return i;
+            } else {
+                dbg_printf("Extension %d not enabled\n", extID);
+                return -1;
+            }
+        }
+
         i++;
     }
 
@@ -1002,9 +1038,9 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
     // reserve space in output stream for EXipReceivedVx
     uint32_t receivedSize = 0;
     if (fs->sa_family == PF_INET6)
-        receivedSize = EXipReceivedV6Size;
+        receivedSize = ExtensionsEnabled[EXipReceivedV6ID] ? EXipReceivedV6Size : 0;
     else
-        receivedSize = EXipReceivedV4Size;
+        receivedSize = ExtensionsEnabled[EXipReceivedV4ID] ? EXipReceivedV4Size : 0;
 
     while (size_left > 0) {
         void *outBuff;
@@ -1077,14 +1113,22 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
 
         // add router IP
         if (fs->sa_family == PF_INET6) {
-            PushExtension(recordHeaderV3, EXipReceivedV6, ipReceivedV6);
-            ipReceivedV6->ip[0] = fs->ip.V6[0];
-            ipReceivedV6->ip[1] = fs->ip.V6[1];
-            dbg_printf("Add IPv6 route IP extension\n");
+            if (ExtensionsEnabled[EXipReceivedV6ID]) {
+                PushExtension(recordHeaderV3, EXipReceivedV6, ipReceivedV6);
+                ipReceivedV6->ip[0] = fs->ip.V6[0];
+                ipReceivedV6->ip[1] = fs->ip.V6[1];
+                dbg_printf("Add IPv6 route IP extension\n");
+            } else {
+                dbg_printf("IPv6 route IP extension not enabled\n");
+            }
         } else {
-            PushExtension(recordHeaderV3, EXipReceivedV4, ipReceivedV4);
-            ipReceivedV4->ip = fs->ip.V4;
-            dbg_printf("Add IPv4 route IP extension\n");
+            if (ExtensionsEnabled[EXipReceivedV4ID]) {
+                PushExtension(recordHeaderV3, EXipReceivedV4, ipReceivedV4);
+                ipReceivedV4->ip = fs->ip.V4;
+                dbg_printf("Add IPv4 route IP extension\n");
+            } else {
+                dbg_printf("IPv4 route IP extension not enabled\n");
+            }
         }
 
         dbg_printf("Record: %u elements, size: %u\n", recordHeaderV3->numElements, recordHeaderV3->size);

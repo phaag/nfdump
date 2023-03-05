@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -32,6 +32,7 @@
 #include "collector.h"
 
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <stdarg.h>
@@ -455,3 +456,39 @@ void FlushExporterStats(FlowSource_t *fs) {
     }
 
 }  // End of FlushExporterStats
+
+int ScanExtension(char *extensionList) {
+    static char *s = NULL;
+    static char *list = NULL;
+
+    // first call - initialise string
+    if (extensionList) {
+        list = strdup(extensionList);
+        s = list;
+    }
+
+    // no list - error
+    if (list == NULL) return -1;
+
+    // last entry
+    if (s == NULL) return 0;
+    if (*s == '\0') return 0;
+
+    // scan next extension number
+    while (*s && isspace(*s)) s++;
+
+    // next separator
+    char *q = strchr(s, ',');
+    if (q) *q++ = '\0';
+    int num = atoi(s);
+
+    // wrong range of extension
+    if (num == 0 || num >= MAXEXTENSIONS) {
+        s = list = NULL;
+        return -1;
+    }
+
+    s = q;
+    return num;
+
+}  // End of ScanExtension

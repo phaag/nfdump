@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -93,7 +93,7 @@ static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
 #include "inline.c"
 #include "nffile_inline.c"
 
-void Init_sflow(int verbose) {
+void Init_sflow(int verbose, char *extensionList) {
     printRecord = verbose;
     recordBaseSize = EXgenericFlowSize + EXflowMiscSize + EXasRoutingSize + EXvLanSize + EXmacAddrSize;
     numBaseElements = 5;

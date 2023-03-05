@@ -28,9 +28,12 @@
  *
  */
 
+#include "ipfix.h"
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,17 +42,11 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "config.h"
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "bookkeeper.h"
 #include "collector.h"
+#include "config.h"
 #include "exporter.h"
 #include "fnf.h"
-#include "ipfix.h"
 #include "metric.h"
 #include "nbar.h"
 #include "nfdump.h"
@@ -121,6 +118,8 @@ typedef struct exporterDomain_s {
     templateList_t *template;
 
 } exporterDomain_t;
+
+static int ExtensionsEnabled[MAXEXTENSIONS];
 
 static const struct ipfixTranslationMap_s {
     uint16_t id;  // IPFIX element id
@@ -269,13 +268,43 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber);
 #include "inline.c"
 #include "nffile_inline.c"
 
-int Init_IPFIX(int verbose, int32_t sampling) {
+int Init_IPFIX(int verbose, int32_t sampling, char *extensionList) {
     printRecord = verbose > 2;
 
     defaultSampling = sampling;
 
     int i;
     for (i = 0; ipfixTranslationMap[i].name != NULL; i++) {
+    }
+
+    if (extensionList) {
+        // Disable all extensions
+        for (i = 0; i < MAXEXTENSIONS; i++) {
+            ExtensionsEnabled[i] = 0;
+        }
+
+        // get enabled extensions from string
+        int extID = ScanExtension(extensionList);
+        while (extID > 0) {
+            dbg_printf("Enable extension %d\n", extID);
+            ExtensionsEnabled[extID] = 1;
+            extID = ScanExtension(NULL);
+        }
+
+        if (extID == -1) {
+            LogError("Failed to scan extension list.");
+            return 0;
+        }
+
+        // make sure extension 1 is enabled
+        ExtensionsEnabled[1] = 1;
+
+    } else {
+        // Enable all extensions
+        dbg_printf("Enable all extensions\n");
+        for (i = 0; i < MAXEXTENSIONS; i++) {
+            ExtensionsEnabled[i] = 1;
+        }
     }
 
     if (sampling < 0) {
@@ -322,9 +351,17 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
             return -1;
     }
 
-    int i = 0;
+    int i = 1;
     while (ipfixTranslationMap[i].name != NULL) {
-        if (ipfixTranslationMap[i].id == type) return i;
+        if (ipfixTranslationMap[i].id == type) {
+            int extID = ipfixTranslationMap[i].extensionID;
+            if (ExtensionsEnabled[extID]) {
+                return i;
+            } else {
+                dbg_printf("Extension %d not enabled\n", extID);
+                return -1;
+            }
+        }
         i++;
     }
 
@@ -1176,9 +1213,9 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
     // reserve space in output stream for EXipReceivedVx
     uint32_t receivedSize = 0;
     if (fs->sa_family == PF_INET6)
-        receivedSize = EXipReceivedV6Size;
+        receivedSize = ExtensionsEnabled[EXipReceivedV6ID] ? EXipReceivedV6Size : 0;
     else
-        receivedSize = EXipReceivedV4Size;
+        receivedSize = ExtensionsEnabled[EXipReceivedV4ID] ? EXipReceivedV4Size : 0;
 
     while (size_left > 0) {
         void *outBuff;
@@ -1253,14 +1290,22 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
 
         // add router IP
         if (fs->sa_family == PF_INET6) {
-            PushExtension(recordHeaderV3, EXipReceivedV6, ipReceivedV6);
-            ipReceivedV6->ip[0] = fs->ip.V6[0];
-            ipReceivedV6->ip[1] = fs->ip.V6[1];
-            dbg_printf("Add IPv6 route IP extension\n");
+            if (ExtensionsEnabled[EXipReceivedV6ID]) {
+                PushExtension(recordHeaderV3, EXipReceivedV6, ipReceivedV6);
+                ipReceivedV6->ip[0] = fs->ip.V6[0];
+                ipReceivedV6->ip[1] = fs->ip.V6[1];
+                dbg_printf("Add IPv6 route IP extension\n");
+            } else {
+                dbg_printf("IPv6 route IP extension not enabled\n");
+            }
         } else {
-            PushExtension(recordHeaderV3, EXipReceivedV4, ipReceivedV4);
-            ipReceivedV4->ip = fs->ip.V4;
-            dbg_printf("Add IPv4 route IP extension\n");
+            if (ExtensionsEnabled[EXipReceivedV4ID]) {
+                PushExtension(recordHeaderV3, EXipReceivedV4, ipReceivedV4);
+                ipReceivedV4->ip = fs->ip.V4;
+                dbg_printf("Add IPv4 route IP extension\n");
+            } else {
+                dbg_printf("IPv4 route IP extension not enabled\n");
+            }
         }
 
         dbg_printf("Record: %u elements, size: %u\n", recordHeaderV3->numElements, recordHeaderV3->size);
