@@ -728,6 +728,7 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, 64);
                 stat_type = optarg;
                 if (!SetStat(stat_type, &element_stat, &flow_stat)) {
+                    ListStatTypes();
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -782,6 +783,7 @@ int main(int argc, char **argv) {
                 ret = Parse_PrintOrder(print_order);
                 if (ret < 0) {
                     LogError("Unknown print order '%s'", print_order);
+                    ListPrintOrder();
                     exit(EXIT_FAILURE);
                 }
             } break;

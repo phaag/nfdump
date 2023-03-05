@@ -59,6 +59,8 @@ void AddElementStat(master_record_t *flow_record);
 
 void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, RecordPrinter_t print_record);
 
-void PrintSortedFlows(RecordPrinter_t print_record, uint32_t limitflows, int tag);
+void ListPrintOrder(void);
+
+void ListStatTypes(void);
 
 #endif  //_NFSTAT_H

@@ -499,6 +499,16 @@ void Setv6Mode(int mode) { long_v6 += mode; }
 
 int Getv6Mode(void) { return long_v6; }
 
+static void ListOutputFormats(void) {
+    printf("Available format elements:");
+    for (int i = 0; format_token_list[i].token != NULL; i++) {
+        if ((i & 0xf) == 0) printf("\n");
+        printf("%s ", format_token_list[i].token);
+    }
+    printf("- See also nfdump(1)\n");
+
+}  // End of ListOutputFormats
+
 void fmt_record(FILE *stream, void *record, int tag) {
     master_record_t *r = (master_record_t *)record;
 
@@ -659,6 +669,7 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
             if (format_token_list[i].token == NULL) {
                 LogError("Output format parse error at: %s", c);
                 free(s);
+                ListOutputFormats();
                 return 0;
             }
         } else {  // it's a static string

@@ -1196,3 +1196,20 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
     return topN_list;
 
 }  // End of StatTopN
+
+void ListPrintOrder() {
+    printf("Available print order:\n");
+    for (int i = 0; order_mode[i].string != NULL; i++) {
+        printf("%s ", order_mode[i].string);
+    }
+    printf("- See also nfdump(1)\n");
+}  // End of ListPrintOrder
+
+void ListStatTypes() {
+    printf("Available element statistics:");
+    for (int i = 0; StatParameters[i].statname != NULL; i++) {
+        if ((i & 0xf) == 0) printf("\n");
+        printf("%s ", StatParameters[i].statname);
+    }
+    printf("- See also nfdump(1)\n");
+}  // End of ListStatTypes
