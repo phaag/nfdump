@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -840,6 +840,7 @@ void InsertFlow(void *raw_record, master_record_t *flow_record) {
     record->counter[OUTPACKETS] = flow_record->out_pkts;
     record->counter[FLOWS] = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
     record->inFlags = flow_record->tcp_flags;
+    record->outFlags = 0;
     FlowList.NumRecords++;
 
     record->next = NULL;
@@ -889,6 +890,7 @@ static void AddBidirFlow(void *raw_record, master_record_t *flow_record) {
         kh_key(FlowHash, k).counter[OUTPACKETS] = flow_record->out_pkts;
         kh_key(FlowHash, k).counter[FLOWS] = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
         kh_key(FlowHash, k).inFlags = flow_record->tcp_flags;
+        kh_key(FlowHash, k).outFlags = 0;
 
         kh_key(FlowHash, k).msecFirst = flow_record->msecFirst;
         kh_key(FlowHash, k).msecLast = flow_record->msecLast;
@@ -946,6 +948,7 @@ static void AddBidirFlow(void *raw_record, master_record_t *flow_record) {
             kh_key(FlowHash, k).counter[OUTPACKETS] = flow_record->out_pkts;
             kh_key(FlowHash, k).counter[FLOWS] = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
             kh_key(FlowHash, k).inFlags = flow_record->tcp_flags;
+            kh_key(FlowHash, k).outFlags = 0;
 
             kh_key(FlowHash, k).msecFirst = flow_record->msecFirst;
             kh_key(FlowHash, k).msecLast = flow_record->msecLast;
@@ -1013,6 +1016,7 @@ void AddFlowCache(void *raw_record, master_record_t *flow_record) {
         kh_key(FlowHash, k).counter[OUTPACKETS] = flow_record->out_pkts;
         kh_key(FlowHash, k).counter[FLOWS] = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
         kh_key(FlowHash, k).inFlags = flow_record->tcp_flags;
+        kh_key(FlowHash, k).outFlags = 0;
 
         kh_key(FlowHash, k).msecFirst = flow_record->msecFirst;
         kh_key(FlowHash, k).msecLast = flow_record->msecLast;
@@ -1182,13 +1186,6 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
             flowMisc->revTcpFlags = r->outFlags;
             if (aggregate_info.apply_netbits) SetNetMaskBits(ipv4Flow, ipv6Flow, flowMisc, aggregate_info.apply_netbits);
         }
-        /*
-
-                        if ( aggr_record_mask ) {
-                                ApplyAggrMask(&flow_record, aggr_record_mask);
-                        }
-
-        */
         EXasRouting_t *asRouting = (EXasRouting_t *)extensionList[EXasRoutingID];
         if (genericFlow && needSwap) {
             SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, flowMisc, cntFlow, asRouting);
