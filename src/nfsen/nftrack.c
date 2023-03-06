@@ -296,11 +296,11 @@ int main(int argc, char **argv) {
                 DBinit = 1;
                 break;
             case 'M':
-                if (!CheckPath(optarg, S_IFDIR)) exit(255);
+                CheckArgLen(optarg, MAXPATHLEN);
                 flist.multiple_dirs = strdup(optarg);
                 break;
             case 'R':
-                if (!CheckPath(optarg, S_IFDIR)) exit(255);
+                CheckArgLen(optarg, MAXPATHLEN);
                 flist.multiple_files = strdup(optarg);
                 break;
             case 'd':
@@ -325,7 +325,7 @@ int main(int argc, char **argv) {
                 output_mode = 1;
                 break;
             case 'r':
-                if (!CheckPath(optarg, S_IFREG)) exit(255);
+                CheckArgLen(optarg, MAXPATHLEN);
                 flist.single_file = strdup(optarg);
                 break;
             case 'w':
