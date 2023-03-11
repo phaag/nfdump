@@ -417,6 +417,7 @@ AC_FUNC_REALLOC
 AC_FUNC_STAT
 AC_FUNC_STRFTIME
 AC_CHECK_FUNCS(inet_ntoa socket strchr strdup strerror strrchr strstr scandir)
+AC_CHECK_FUNCS(setresgid setresuid)
 
 dnl The res_search may be in libsocket as well, and if it is
 dnl make sure to check for dn_skipname in libresolv, or if res_search

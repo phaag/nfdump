@@ -727,6 +727,10 @@ int main(int argc, char **argv) {
             }
             case 'A':
                 srcSpoofing = 1;
+                if (RunAsRoot() == 0) {
+                    LogError("Src IP spoofing requires process to start as root");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'l':
                 LogError("-l is a legacy option and may get removed in future. Please use -w to set output directory");

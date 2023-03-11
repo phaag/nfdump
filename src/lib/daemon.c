@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -97,17 +97,21 @@ void daemonize(void) {
 
 }  // End of daemonize
 
+int RunAsRoot(void) {
+    uid_t myuid = getuid();
+    return myuid == 0;
+}  // end of RunAsRoot
+
 void SetPriv(char *userid, char *groupid) {
     struct passwd *pw_entry;
     struct group *gr_entry;
-    uid_t myuid, newuid, newgid;
+    uid_t newuid, newgid;
     int err;
 
     if (userid == 0 && groupid == 0) return;
 
     newuid = newgid = 0;
-    myuid = getuid();
-    if (myuid != 0) {
+    if (RunAsRoot() == 0) {
         LogError("Process not started as root - can not change uid/gid");
         exit(EXIT_FAILURE);
     }
@@ -131,15 +135,14 @@ void SetPriv(char *userid, char *groupid) {
             exit(EXIT_FAILURE);
         }
 
-        err = setgid(newgid);
-        if (err) {
+        if (setgroups(1, &newgid) == -1 || setresgid(newgid, newgid, newgid) == -1) {
             LogError("Can't set group id %ld for group '%s': %s", (long)newgid, groupid, strerror(errno));
             exit(EXIT_FAILURE);
         }
     }
 
     if (newuid) {
-        err = setuid(newuid);
+        err = setresuid(newuid, newuid, newuid);
         if (err) {
             LogError("Can't set user id %ld for user '%s': %s", (long)newuid, userid, strerror(errno));
             exit(EXIT_FAILURE);

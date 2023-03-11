@@ -765,6 +765,10 @@ int main(int argc, char **argv) {
             }
             case 'A':
                 srcSpoofing = 1;
+                if (RunAsRoot() == 0) {
+                    LogError("Src IP spoofing requires process to start as root");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 's':
                 // a negative sampling rate is set as the overwrite sampling rate

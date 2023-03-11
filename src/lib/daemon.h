@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,7 +31,19 @@
 #ifndef _DAEMON_H
 #define _DAEMON_H 1
 
+#include "config.h"
+
+#ifndef HAVE_SETRESGID
+#define setresgid(rgid, egid, sgid) setgid(rgid)
+#endif
+
+#ifndef HAVE_SETRESUID
+#define setresuid(ruid, euid, suid) setuid(ruid)
+#endif
+
 void daemonize(void);
+
+int RunAsRoot(void);
 
 void SetPriv(char *userid, char *groupid);
 
