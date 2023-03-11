@@ -76,6 +76,8 @@
 #define DLT_PFLOG 117
 #endif
 
+#define PROTO_ERSPAN 0x88be
+
 static pcap_t *pcap_handle;
 static int linktype = 0;
 static int linkoffset = 0;
@@ -84,6 +86,11 @@ typedef struct vlan_hdr_s {
     uint16_t vlan_id;
     uint16_t type;
 } vlan_hdr_t;
+
+typedef struct gre_hdr_s {
+    uint16_t flags;
+    uint16_t type;
+} gre_hdr_t;
 
 /*
  * Function prototypes
@@ -240,6 +247,7 @@ REDO_LINK:
     }
 
     struct ip *ip = NULL;
+REDO_PROTO:
     switch (protocol) {
         case ETHERTYPE_IP:
             /* IPv4 */
@@ -258,7 +266,7 @@ REDO_LINK:
                 dataptr += 4;
             } while ((dataptr < eodata) && protocol == 0x8100);
 
-            goto REDO_LINK;
+            goto REDO_PROTO;
             break;
         default:
             /* We're not bothering with 802.3 or anything else */
@@ -295,6 +303,18 @@ REDO_LINK:
             in_sock->sin_port = udp->uh_sport;
             return packet_len;
             // unreached
+        } break;
+        case IPPROTO_GRE: {
+            gre_hdr_t *gre_hdr = (gre_hdr_t *)((void *)ip + (ip->ip_hl << 0x02));
+            protocol = ntohs(gre_hdr->type);
+            if (protocol == PROTO_ERSPAN) {
+                dbg_printf("ERSPAN found\n");
+                linktype = DLT_EN10MB;
+                data = ((void *)ip + (ip->ip_hl << 0x02)) + 4;
+                dataptr = data + 14;
+                goto REDO_LINK;
+            }
+            dbg_printf("  GRE proto encapsulation: type: 0x%x\n", protocol);
         } break;
         default:
             /* no default */
