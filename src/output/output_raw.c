@@ -434,12 +434,12 @@ static void stringsEXsampler(FILE *stream, master_record_t *r) {
                     "  samplingID   =             %5llu\n"
                     "  pk Interval  =             %5u\n"
                     "  sp Interval  =             %5u\n",
-                    r->selectorID, sampler->record.packetInterval, sampler->record.spaceInterval);
+                    (unsigned long long)r->selectorID, sampler->record.packetInterval, sampler->record.spaceInterval);
         } else {
-            fprintf(stream, "  samplingID   =             %5llu\n", r->selectorID);
+            fprintf(stream, "  samplingID   =             %5llu\n", (unsigned long long)r->selectorID);
         }
     } else {
-        fprintf(stream, "  samplingID   =             %5llu\n", r->selectorID);
+        fprintf(stream, "  samplingID   =             %5llu\n", (unsigned long long)r->selectorID);
     }
 }  // End of stringsEXsampler
 
