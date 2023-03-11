@@ -29,9 +29,13 @@
  */
 
 #include "config.h"
+
 #ifdef HAVE_NET_ETHERNET_H
+// FreeBSD needs sys/types in include ethernet.h
 #include <net/ethernet.h>
+#include <sys/types.h>
 #endif
+
 #ifdef HAVE_NET_ETHERTYPES_H
 #include <net/ethertypes.h>
 #endif
