@@ -133,6 +133,7 @@ static const struct ipfixTranslationMap_s {
 } ipfixTranslationMap[] = {
     {IPFIX_octetDeltaCount, SIZEinBytes, NumberCopy, EXgenericFlowID, OFFinBytes, STACK_NONE, "octetDeltaCount"},
     {IPFIX_packetDeltaCount, SIZEinPackets, NumberCopy, EXgenericFlowID, OFFinPackets, STACK_NONE, "packetDeltaCount"},
+    {IPFIX_initiatorPackets, SIZEinPackets, NumberCopy, EXgenericFlowID, OFFinPackets, STACK_NONE, "initiator packets"},
     {IPFIX_deltaFlowCount, SIZEflows, NumberCopy, EXcntFlowID, OFFflows, STACK_NONE, "deltaFlowCount"},
     {IPFIX_protocolIdentifier, SIZEproto, NumberCopy, EXgenericFlowID, OFFproto, STACK_NONE, "proto"},
     {IPFIX_ipClassOfService, SIZEsrcTos, NumberCopy, EXgenericFlowID, OFFsrcTos, STACK_NONE, "src tos"},
@@ -155,6 +156,8 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_SystemInitTimeMiliseconds, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SYSUPTIME, "SysupTime msec"},
     {IPFIX_postOctetDeltaCount, SIZEoutBytes, NumberCopy, EXcntFlowID, OFFoutBytes, STACK_NONE, "output bytes delta counter"},
     {IPFIX_postPacketDeltaCount, SIZEoutPackets, NumberCopy, EXcntFlowID, OFFoutPackets, STACK_NONE, "output packet delta counter"},
+    {IPFIX_responderPackets, SIZEoutPackets, NumberCopy, EXcntFlowID, OFFoutPackets, STACK_NONE, "responder packets"},
+    {IPFIX_newconnections, SIZEflows, NumberCopy, EXcntFlowID, OFFflows, STACK_NONE, "connections"},
     {IPFIX_SourceIPv6Address, SIZEsrc6Addr, NumberCopy, EXipv6FlowID, OFFsrc6Addr, STACK_NONE, "IPv6 src addr"},
     {IPFIX_DestinationIPv6Address, SIZEdst6Addr, NumberCopy, EXipv6FlowID, OFFdst6Addr, STACK_NONE, "IPv6 dst addr"},
     {IPFIX_SourceIPv6PrefixLength, SIZEsrcMask, NumberCopy, EXflowMiscID, OFFsrcMask, STACK_NONE, "src mask bits"},
@@ -324,6 +327,30 @@ int Init_IPFIX(int verbose, int32_t sampling, char *extensionList) {
 static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
     switch (EnterpriseNumber) {
         case 0:  // no Enterprise value
+            break;
+        case 9:  // CiscoSystem
+            switch (type) {
+                case 12236:  // client ipv4 address
+                    dbg_printf(" CISCO enterprise client IP type: %u\n", type);
+                    type = IPFIX_SourceIPv4Address;
+                    break;
+                case 12237:  // server ipv4 address
+                    dbg_printf(" CISCO enterprise server IP type: %u\n", type);
+                    type = IPFIX_DestinationIPv4Address;
+                    break;
+                case 12241:  // server transport port
+                    dbg_printf(" CISCO enterprise server port type: %u\n", type);
+                    type = IPFIX_DestinationTransportPort;
+                    break;
+                case 8337:  //  server counter bytes network
+                    dbg_printf(" CISCO enterprise server bytes type: %u\n", type);
+                    type = IPFIX_octetDeltaCount;
+                    break;
+                case 8338:  //  client counter bytes network
+                    dbg_printf(" CISCO enterprise client bytes type: %u\n", type);
+                    type = IPFIX_postOctetDeltaCount;
+                    break;
+            }
             break;
         case 6871:  // yaf CERT Coordination Centre
             // map yaf types here

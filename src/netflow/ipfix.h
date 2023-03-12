@@ -305,8 +305,13 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_biflowDirection 239
 
 // sub template IDs
+#define IPFIX_newconnections 278
 #define IPFIX_subTemplateList 292
 #define IPFIX_subTemplateMultiList 293
+
+// bidir flows
+#define IPFIX_initiatorPackets 298
+#define IPFIX_responderPackets 299
 
 // sampling
 #define IPFIX_selectorId 302

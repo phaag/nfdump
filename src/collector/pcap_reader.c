@@ -77,6 +77,7 @@
 #endif
 
 #define PROTO_ERSPAN 0x88be
+#define PROTO_ERSPANIII 0x22be
 
 static pcap_t *pcap_handle;
 static int linktype = 0;
@@ -92,13 +93,27 @@ typedef struct gre_hdr_s {
     uint16_t type;
 } gre_hdr_t;
 
+typedef struct erspan_hdr_s {
+#ifdef WORDS_BIGENDIAN
+    uint8_t ver : 4, vlan_upper : 4;
+    uint8_t vlan : 8;
+    uint8_t cos : 3, en : 2, t : 1, session_id_upper : 2;
+    uint8_t session_id : 8;
+#else
+    uint8_t vlan_upper : 4, ver : 4;
+    uint8_t vlan : 8;
+    uint8_t session_id_upper : 2, t : 1, en : 2, cos : 3;
+    uint8_t session_id : 8;
+#endif
+} erspan_hdr_t;
+
 /*
  * Function prototypes
  */
 
 static pcap_t *setup_pcap(char *fname, char *filter, char *errbuf);
 
-static ssize_t decode_packet(struct pcap_pkthdr *hdr, u_char *pkt, void *buffer, struct sockaddr *sock);
+static ssize_t decode_packet(struct pcap_pkthdr *hdr, u_char *pcap_pkgdata, void *buffer, size_t buffer_size, struct sockaddr *sock);
 
 /*
  * function definitions
@@ -113,7 +128,10 @@ static pcap_t *setup_pcap(char *fname, char *filter, char *errbuf) {
      *  Open the packet capturing file
      */
     pcap_handle = pcap_open_offline(fname, errbuf);
-    if (!pcap_handle) return NULL;
+    if (!pcap_handle) {
+        LogError("pcap_open_offline(): %s", errbuf);
+        return NULL;
+    }
 
     netmask = 0;
     /* apply filters if any are requested */
@@ -177,28 +195,32 @@ static pcap_t *setup_pcap(char *fname, char *filter, char *errbuf) {
 
 } /* setup_pcap */
 
-static ssize_t decode_packet(struct pcap_pkthdr *hdr, u_char *data, void *buffer, struct sockaddr *sock) {
+static ssize_t decode_packet(struct pcap_pkthdr *hdr, u_char *pcap_pkgdata, void *buffer, size_t buffer_size, struct sockaddr *sock) {
     struct sockaddr_in *in_sock = (struct sockaddr_in *)sock;
     static unsigned pkg_cnt = 0;
 
     pkg_cnt++;
 
     // snaplen is minimum 54 bytes
-    void *dataptr = (void *)data + linkoffset;  // after link header
-    void *eodata = (void *)data + hdr->caplen;
+    uint8_t *data = (uint8_t *)pcap_pkgdata;
+    uint8_t *eodata = (uint8_t *)pcap_pkgdata + hdr->caplen;
 
-    u_int length = hdr->len;
+    // make sure, we have full packate capture
     if (hdr->len > hdr->caplen) {
         printf("Short packet - missing: %u bytes\n", hdr->len - hdr->caplen);
-        return 0;
+        return -1;
     }
 
     uint16_t protocol = 0;
 
+    int nextType = linktype;
+    int nextOffset = linkoffset;
+
 REDO_LINK:
     // link layer processing
-    switch (linktype) {
+    switch (nextType) {
         case DLT_EN10MB:
+            // 0 - 11 mac addr
             protocol = data[12] << 0x08 | data[13];
             int IEEE802 = protocol <= 1500;
             if (IEEE802) {
@@ -246,13 +268,19 @@ REDO_LINK:
             return 0;
     }
 
+    // adjust data after link
+    data += nextOffset;
+
     struct ip *ip = NULL;
 REDO_PROTO:
+    if (data >= eodata) {
+        dbg_printf("Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
+        return -1;
+    }
     switch (protocol) {
         case ETHERTYPE_IP:
             /* IPv4 */
-            ip = (struct ip *)dataptr;  // offset points to end of link layer
-            length -= linkoffset;
+            ip = (struct ip *)data;  // offset points to end of link layer
             in_sock->sin_family = AF_INET;
             in_sock->sin_addr = ip->ip_src;
 #ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
@@ -261,10 +289,10 @@ REDO_PROTO:
             break;
         case ETHERTYPE_VLAN:  // VLAN
             do {
-                vlan_hdr_t *vlan_hdr = (vlan_hdr_t *)dataptr;
+                vlan_hdr_t *vlan_hdr = (vlan_hdr_t *)data;
                 protocol = ntohs(vlan_hdr->type);
-                dataptr += 4;
-            } while ((dataptr < eodata) && protocol == 0x8100);
+                data += 4;
+            } while ((data < eodata) && protocol == 0x8100);
 
             goto REDO_PROTO;
             break;
@@ -277,44 +305,58 @@ REDO_PROTO:
     /* for the moment we handle only IPv4 */
     if (!ip || ip->ip_v != 4) return 0;
 
-    u_short len = ntohs(ip->ip_len);
-    u_int hlen = ip->ip_hl; /* header length */
     // u_int version = ip->ip_v; /* ip version */
 
     /* check header length */
-    if (hlen < 5) {
-        LogError("bad-hlen %d", hlen);
+    if (ip->ip_hl < 5) {
+        LogError("bad-hlen %d", ip->ip_hl);
         return 0;
     }
 
-    /* see if we have as much packet as we should */
-    if (length < len) {
-        LogError("\ntruncated IP - %d bytes missing", len - length);
-        return 0;
-    }
-
+    size_t ipHLen = (ip->ip_hl << 0x02);
+    data += ipHLen;
     switch (ip->ip_p) {
         case IPPROTO_UDP: {
-            struct udphdr *udp = (struct udphdr *)((void *)ip + (ip->ip_hl << 0x02));
+            struct udphdr *udp = (struct udphdr *)((void *)data);
             unsigned int packet_len = ntohs(udp->uh_ulen) - 8;
             void *payload = (void *)((void *)udp + sizeof(struct udphdr));
 
+            if (packet_len > buffer_size) {
+                LogError("Buffer size error: %u > %zu", packet_len, buffer_size);
+                return -1;
+            }
             memcpy(buffer, payload, packet_len);
             in_sock->sin_port = udp->uh_sport;
             return packet_len;
             // unreached
         } break;
         case IPPROTO_GRE: {
-            gre_hdr_t *gre_hdr = (gre_hdr_t *)((void *)ip + (ip->ip_hl << 0x02));
+            gre_hdr_t *gre_hdr = (gre_hdr_t *)((void *)data);
+
+            uint16_t gre_flags = ntohs(gre_hdr->flags);
             protocol = ntohs(gre_hdr->type);
+            data += sizeof(gre_hdr_t);
+
+            dbg_printf("  GRE proto encapsulation: type: 0x%x\n", protocol);
+            uint32_t *sequence = NULL;
+            if (gre_flags & 0x1000) {  // Sequence supplied
+                sequence = (uint32_t *)(data);
+                dbg_printf("GRE sequence: %u\n", ntohl(*sequence));
+                data += 4;
+            }
+
+            // erspan_hdr_t *erspan_hdr = NULL;
             if (protocol == PROTO_ERSPAN) {
-                dbg_printf("ERSPAN found\n");
-                linktype = DLT_EN10MB;
-                data = ((void *)ip + (ip->ip_hl << 0x02)) + 4;
-                dataptr = data + 14;
+                if (sequence) {
+                    // erspan_hdr = (erspan_hdr_t *)data;
+                    data += sizeof(erspan_hdr_t);
+                    dbg_printf("ERSPAN II found\n");
+                } else {
+                    dbg_printf("ERSPAN found\n");
+                }
+                nextType = DLT_EN10MB;
                 goto REDO_LINK;
             }
-            dbg_printf("  GRE proto encapsulation: type: 0x%x\n", protocol);
         } break;
         default:
             /* no default */
@@ -346,5 +388,5 @@ ssize_t NextPacket(int fill1, void *buffer, size_t buffer_size, int fill2, struc
     if (i != 1) return -2;
 
     *size = sizeof(struct sockaddr_in);
-    return decode_packet(header, pkt_data, buffer, sock);
+    return decode_packet(header, pkt_data, buffer, buffer_size, sock);
 }
