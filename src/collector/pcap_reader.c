@@ -313,8 +313,8 @@ REDO_PROTO:
         return 0;
     }
 
-    size_t ipHLen = (ip->ip_hl << 0x02);
-    data += ipHLen;
+    // add IP header length
+    data += (ip->ip_hl << 0x02);
     switch (ip->ip_p) {
         case IPPROTO_UDP: {
             struct udphdr *udp = (struct udphdr *)((void *)data);
