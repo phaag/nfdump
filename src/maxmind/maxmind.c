@@ -1044,7 +1044,8 @@ void LookupLocation(uint64_t ip[2], char *location, size_t len) {
     }
 
     ipLocationInfo_t info = {0};
-    if (ip[0] == 0) {  // IPv4
+    uint64_t ipMask = 0xFFFFFFFF00000000LL;
+    if (ip[0] == 0 && ((ip[1] & ipMask) == 0)) {  // IPv4
         ipV4Node_t ipSearch = {.network = ip[1], .netmask = 0};
         ipV4Node_t *ipV4Node = kb_getp(ipV4Tree, mmHandle->ipV4Tree, &ipSearch);
         if (!ipV4Node) {
@@ -1079,7 +1080,8 @@ uint32_t LookupAS(uint64_t ip[2]) {
         return 0;
     }
 
-    if (ip[0] == 0) {  // IPv4
+    uint64_t ipMask = 0xFFFFFFFF00000000LL;
+    if (ip[0] == 0 && ((ip[1] & ipMask) == 0)) {  // IPv4
         asV4Node_t asSearch = {.network = ip[1], .netmask = 0};
         asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
         return asV4Node == NULL ? 0 : asV4Node->as;
@@ -1099,7 +1101,8 @@ const char *LookupASorg(uint64_t ip[2]) {
         return "";
     }
 
-    if (ip[0] == 0) {  // IPv4
+    uint64_t ipMask = 0xFFFFFFFF00000000LL;
+    if (ip[0] == 0 && ((ip[1] & ipMask) == 0)) {  // IPv4
         asV4Node_t asSearch = {.network = ip[1], .netmask = 0};
         asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
         return asV4Node == NULL ? "" : asV4Node->orgName;
