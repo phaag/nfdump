@@ -1180,6 +1180,11 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
         } else if ((optionTemplate->flags & STDMASK) == STDFLAGS) {
             dbg_printf("[%u] Old std sampling information found\n", exporter->info.id);
             SetFlag(template->type, SAMPLER_TEMPLATE);
+        } else if ((optionTemplate->flags & STDSAMPLING34) == STDSAMPLING34) {
+            dbg_printf("[%u] Old std sampling information found - missing algorithm\n", exporter->info.id);
+            samplerOption->algorithm.length = 0;
+            samplerOption->algorithm.offset = 0;
+            SetFlag(template->type, SAMPLER_TEMPLATE);
         } else {
             dbg_printf("[%u] No Sampling information found\n", exporter->info.id);
         }
