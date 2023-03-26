@@ -35,6 +35,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1093,6 +1094,11 @@ static dataBlock_t *nfread(nffile_t *nffile) {
 __attribute__((noreturn)) void *nfreader(void *arg) {
     nffile_t *nffile = (nffile_t *)arg;
 
+    /* Signal handling */
+    sigset_t set = {0};
+    sigfillset(&set);
+    pthread_sigmask(SIG_SETMASK, &set, NULL);
+
     int terminate = atomic_load(&nffile->terminate);
     int blockCount = 0;
     dataBlock_t *block_header = NULL;
@@ -1202,6 +1208,11 @@ __attribute__((noreturn)) void *nfwriter(void *arg) {
     nffile_t *nffile = (nffile_t *)arg;
 
     dbg_printf("nfwriter enter\n");
+    /* disable signal handling */
+    sigset_t set = {0};
+    sigfillset(&set);
+    pthread_sigmask(SIG_SETMASK, &set, NULL);
+
     dataBlock_t *block_header;
     while (1) {
         block_header = queue_pop(nffile->processQueue);
