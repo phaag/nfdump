@@ -944,6 +944,16 @@ void DisposeFile(nffile_t *nffile) {
     if (nffile->ident) free(nffile->ident);
     if (nffile->fileName) free(nffile->fileName);
 
+    for (size_t queueLen = queue_length(nffile->blockQueue); queueLen > 0; queueLen--) {
+        void *p = queue_pop(nffile->blockQueue);
+        if (p) free(p);
+    }
+
+    for (size_t queueLen = queue_length(nffile->processQueue); queueLen > 0; queueLen--) {
+        void *p = queue_pop(nffile->processQueue);
+        if (p) free(p);
+    }
+
     free(nffile);
 
 }  // End of DisposeFile

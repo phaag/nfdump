@@ -640,6 +640,7 @@ static void removeTemplate(exporterDomain_t *exporter, uint16_t id) {
     if (template->type == DATA_TEMPLATE) {
         dataTemplate_t *dataTemplate = (dataTemplate_t *)template->data;
         ClearSequencer(&(dataTemplate->sequencer));
+        if (dataTemplate->extensionList) free(dataTemplate->extensionList);
     }
     free(template->data);
     free(template);
@@ -661,6 +662,7 @@ static void removeAllTemplates(exporterDomain_t *exporter) {
         if (template->type == DATA_TEMPLATE) {
             dataTemplate_t *dataTemplate = (dataTemplate_t *)template->data;
             ClearSequencer(&(dataTemplate->sequencer));
+            if (dataTemplate->extensionList) free(dataTemplate->extensionList);
         }
         free(template->data);
         free(template);
