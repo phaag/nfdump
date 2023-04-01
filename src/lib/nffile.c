@@ -151,8 +151,8 @@ static int LZO_initialize(void) {
 }  // End of LZO_initialize
 
 static int LZ4_initialize(void) {
-    int lz4_buff_size = LZ4_compressBound(BUFFSIZE + sizeof(dataBlock_t));
-    if (lz4_buff_size > (2 * BUFFSIZE)) {
+    int lz4_buff_size = LZ4_compressBound(WRITE_BUFFSIZE);
+    if (lz4_buff_size > (BUFFSIZE - sizeof(dataBlock_t))) {
         LogError("LZ4_compressBound() error in %s line %d: Buffer too small", __FILE__, __LINE__);
         return 0;
     }
@@ -496,7 +496,7 @@ static nffile_t *NewFile(nffile_t *nffile) {
             return NULL;
         }
         for (int i = 0; i < (QueueSize + 4); i++) {
-            void *p = malloc(2 * BUFFSIZE);
+            void *p = malloc(BUFFSIZE);
             if (!p) {
                 LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 return 0;
@@ -1034,7 +1034,7 @@ static dataBlock_t *nfread(nffile_t *nffile) {
 
     dbg_printf("ReadBlock - type: %u, size: %u, numRecords: %u, flags: %u\n", buff->type, buff->size, buff->NumRecords, buff->flags);
 
-    if (buff->size > BUFFSIZE || buff->size == 0 || buff->NumRecords == 0) {
+    if (buff->size > (BUFFSIZE - sizeof(dataBlock_t)) || buff->size == 0 || buff->NumRecords == 0) {
         // this is most likely a corrupt file
         LogError("Corrupt data file: Error buffer size %u", buff->size);
         queue_push(nffile->blockQueue, buff);
@@ -1535,7 +1535,7 @@ int QueryFile(char *filename) {
                 return 0;
         }
 
-        if ((nffile->block_header->size) > BUFFSIZE) {
+        if ((nffile->block_header->size) > (BUFFSIZE - sizeof(dataBlock_t))) {
             LogError("Expected to seek beyond EOF! File corrupted");
             close(fd);
             return 0;

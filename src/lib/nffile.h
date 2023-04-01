@@ -59,14 +59,15 @@
  * used to cache flows before writing to disk. size: tradeoff between
  * size and time to flush to disk. Do not delay collector with long I/O
  */
-#define WRITE_BUFFSIZE 1048576
+#define ONEMB 1048576
+#define WRITE_BUFFSIZE 2 * ONEMB
 
 /*
  * use this buffer size to allocate memory for the output buffer
  * data other than flow records, such as histograms, may be larger than
  * WRITE_BUFFSIZE and have potentially more time to flush to disk
  */
-#define BUFFSIZE (5 * WRITE_BUFFSIZE)
+#define BUFFSIZE (5 * ONEMB)
 
 /* if the output buffer reaches this limit, it gets flushed. This means,
  * that 0.5MB input data may produce max 1MB data in output buffer, otherwise
