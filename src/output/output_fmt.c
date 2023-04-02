@@ -635,7 +635,6 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
     }
     s = RecursiveReplace(s, printmap);
     c = s;
-
     h = header_string;
     *h = '\0';
     while (*c) {
@@ -646,7 +645,7 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
                 int len = strlen(format_token_list[i].token);
 
                 // a token is separated by either a space, another token, or end of string
-                if (remaining >= len && !isalpha((int)c[len])) {
+                if (remaining >= len && !isalnum((int)c[len])) {
                     // separator found a expected position
                     char p = c[len];  // save separator;
                     c[len] = '\0';
