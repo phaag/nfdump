@@ -183,7 +183,7 @@ static int valid_ipv6(char *s) {
     char *c = s;
     int i = 0;
     while (*c) {
-        if ((!isxdigit(*c) && *c != ':') || i > 39) {
+        if ((!isxdigit(*c) && *c != ':' && *c != '.') || i > 39) {
             return 0;
         }
         c++;  // point to next character

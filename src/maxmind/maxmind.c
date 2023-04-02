@@ -653,7 +653,6 @@ static int StoreLocalMap(nffile_t *nffile) {
 
     void *outBuff = nffile->buff_ptr;
     size_t size = 0;
-    unsigned cnt = 0;
     for (khint_t k = kh_begin(localMap); k != kh_end(localMap); ++k) {  // traverse
         locationInfo_t locationInfo;
         if (kh_exist(localMap, k)) {  // test if a bucket contains data
@@ -675,7 +674,6 @@ static int StoreLocalMap(nffile_t *nffile) {
                 outBuff += sizeof(recordHeader_t);
             }
             memcpy(outBuff, &locationInfo, sizeof(locationInfo));
-            cnt++;
             outBuff += sizeof(locationInfo_t);
             size -= sizeof(locationInfo_t);
             nffile->block_header->size += sizeof(locationInfo_t);
@@ -864,7 +862,6 @@ int LoadMaxMind(char *fileName) {
     if (!nffile) {
         return 0;
     }
-    unsigned cnt = 0;
     int done = 0;
     while (!done) {
         // get next data block from file
@@ -913,7 +910,6 @@ int LoadMaxMind(char *fileName) {
                         kh_value(mmHandle->localMap, k) = *locationInfo;
                     }
                     locationInfo++;
-                    cnt++;
                 }
             } break;
             case IPV4treeElementID: {
@@ -1135,15 +1131,26 @@ void LookupWhois(char *ip) {
         ipSearch.network[1] = ntohll(network[1]);
         asSearch.network[1] = ntohll(network[1]);
 
-        ipV6Node = kb_getp(ipV6Tree, mmHandle->ipV6Tree, &ipSearch);
-        if (ipV6Node) {
-            info = ipV6Node->info;
-        }
+        uint64_t testv4v6 = ipSearch.network[1] & 0xFFFFFFFF00000000LL;
+        if (ipSearch.network[0] == 0 && (testv4v6 == 0LL || testv4v6 == 0x0000ffff00000000LL)) {
+            uint32_t net = ipSearch.network[1];
+            asV4Node_t asSearch = {.network = net, .netmask = 0};
+            asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
+            if (asV4Node) {
+                as = asV4Node->as;
+                asOrg = asV4Node->orgName;
+            }
+        } else {
+            ipV6Node = kb_getp(ipV6Tree, mmHandle->ipV6Tree, &ipSearch);
+            if (ipV6Node) {
+                info = ipV6Node->info;
+            }
 
-        asV6Node_t *asV6Node = kb_getp(asV6Tree, mmHandle->asV6Tree, &asSearch);
-        if (asV6Node) {
-            as = asV6Node->as;
-            asOrg = asV6Node->orgName;
+            asV6Node_t *asV6Node = kb_getp(asV6Tree, mmHandle->asV6Tree, &asSearch);
+            if (asV6Node) {
+                as = asV6Node->as;
+                asOrg = asV6Node->orgName;
+            }
         }
 
     } else {
