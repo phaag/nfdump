@@ -933,7 +933,7 @@ int main(int argc, char **argv) {
         receive_packet = NextPacket;
     } else if (pcap_device) {
         printf("Setup pcap device reader\n");
-        if (!setup_pcap_live(pcap_device, NULL)) {
+        if (!setup_pcap_live(pcap_device, NULL, bufflen)) {
             LogError("Setup pcap device failed.");
             exit(EXIT_FAILURE);
         }
