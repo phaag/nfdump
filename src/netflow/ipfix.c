@@ -1655,7 +1655,7 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
     NbarInfo->app_name_length = nbarOption->name.length;
     NbarInfo->app_desc_length = nbarOption->desc.length;
 
-    int cnt = 0;
+    dbg(int cnt = 0);
     while (size_left >= option_size) {
         // push nbar app info record
         uint8_t *p;
@@ -1686,8 +1686,8 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
         }
         p[nbarOption->desc.length - 1] = '\0';
 
-        cnt++;
 #ifdef DEVEL
+        cnt++;
         if (err == 0) {
             printf("nbar record: %d: \n", cnt);
             // PrintNbarRecord(nbarHeader);
@@ -1786,7 +1786,7 @@ static void Process_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_t *
     // info record for each element in array
     *nameSize = nameOption->name.length;
 
-    int cnt = 0;
+    dbg(int cnt = 0);
     while (size_left >= option_size) {
         // push nbar app info record
         uint8_t *p;
@@ -1816,9 +1816,9 @@ static void Process_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_t *
         } else {
             printf("Invalid name information - skip record\n");
         }
+        cnt++;
 #endif
         p += nameOption->name.length;
-        cnt++;
 
         // in case of an err we do no store this record
         if (err != 0) {

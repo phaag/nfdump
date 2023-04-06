@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -192,7 +192,6 @@ static int valid_ipv6(char *s) {
         return 0;
     }
     c = strdup(s);
-    int numbers = 0;
     char *brkt;
     char *ns = strtok_r(c, ":", &brkt);
     while (ns) {
@@ -201,7 +200,6 @@ static int valid_ipv6(char *s) {
             free(c);
             return 0;
         }
-        numbers++;
         ns = strtok_r(NULL, ":", &brkt);
     }
 

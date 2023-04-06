@@ -221,43 +221,34 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     }
 
     uint32_t recordSize = recordBaseSize;
-    uint32_t numElements = numBaseElements;
     if (sample->gotIPV6) {
         recordSize += EXipv6FlowSize;
     } else {
         recordSize += EXipv4FlowSize;
     }
-    numElements++;
 
     if (sample->mpls_num_labels > 0) {
         recordSize += EXmplsLabelSize;
-        numElements++;
     }
 
     if (sample->nextHop.type == SFLADDRESSTYPE_IP_V4) {
         recordSize += EXipNextHopV4Size;
-        numElements++;
     }
     if (sample->nextHop.type == SFLADDRESSTYPE_IP_V6) {
         recordSize += EXipNextHopV6Size;
-        numElements++;
     }
 
     if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V4) {
         recordSize += EXbgpNextHopV4Size;
-        numElements++;
     }
     if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V6) {
         recordSize += EXbgpNextHopV6Size;
-        numElements++;
     }
 
     if (fs->sa_family == AF_INET6) {
         recordSize += EXipReceivedV6Size;
-        numElements++;
     } else {
         recordSize += EXipReceivedV4Size;
-        numElements++;
     }
 
     recordSize += sizeof(recordHeaderV3_t);

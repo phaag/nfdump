@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -84,11 +84,11 @@ static void null_record(FILE *stream, void *record, int tag) {
     // empty - do not list any flows
 }  // End of null_record
 
-static void null_prolog() {
+static void null_prolog(void) {
     // empty prolog
 }  // End of null_prolog
 
-static void null_epilog() {
+static void null_epilog(void) {
     // empty epilog
 }  // End of null_epilog
 
@@ -122,7 +122,7 @@ void AddFormat(char *name, char *fmtString) {
     }
 }  // End of AddFormat
 
-static void UpdateFormatList() {
+static void UpdateFormatList(void) {
     char *key = NULL;
     char *value = NULL;
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -516,7 +516,7 @@ int Init_StatTable(void) {
 
 }  // End of Init_StatTable
 
-void Dispose_StatTable() { nfalloc_free(); }  // End of Dispose_Tables
+void Dispose_StatTable(void) { nfalloc_free(); }  // End of Dispose_Tables
 
 int SetStat(char *str, int *element_stat, int *flow_stat) {
     if (NumStats == MaxStats) {
@@ -1197,7 +1197,7 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
 
 }  // End of StatTopN
 
-void ListPrintOrder() {
+void ListPrintOrder(void) {
     printf("Available print order:\n");
     for (int i = 0; order_mode[i].string != NULL; i++) {
         printf("%s ", order_mode[i].string);
@@ -1205,7 +1205,7 @@ void ListPrintOrder() {
     printf("- See also nfdump(1)\n");
 }  // End of ListPrintOrder
 
-void ListStatTypes() {
+void ListStatTypes(void) {
     printf("Available element statistics:");
     for (int i = 0; StatParameters[i].statname != NULL; i++) {
         if ((i & 0xf) == 0) printf("\n");

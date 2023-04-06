@@ -317,7 +317,6 @@ void PrintExporters(void) {
         return;
     }
 
-    uint32_t skipped_blocks = 0;
     int done = 0;
     int found = 0;
     while (!done) {
@@ -344,7 +343,6 @@ void PrintExporters(void) {
         }
 
         if (nffile->block_header->type != DATA_BLOCK_TYPE_2 && nffile->block_header->type != DATA_BLOCK_TYPE_3) {
-            skipped_blocks++;
             printf("Skip unknown block type: %u\n", nffile->block_header->type);
             continue;
         }

@@ -622,7 +622,7 @@ static void removeTemplate(exporterDomain_t *exporter, uint16_t id) {
 
 static inline void Process_v9_templates(exporterDomain_t *exporter, void *DataPtr, FlowSource_t *fs) {
     void *template;
-    uint32_t size_left, size_required, num_v9tags;
+    uint32_t size_left, size_required;
     int i;
 
     size_left = GET_FLOWSET_LENGTH(DataPtr);
@@ -653,8 +653,6 @@ static inline void Process_v9_templates(exporterDomain_t *exporter, void *DataPt
             return;
         }
 
-        num_v9tags = 0;  // number of optional v9 tags
-
         sequence_t *sequenceTable = malloc((count + 4) * sizeof(sequence_t));  // + 2 for IP and time received
         if (!sequenceTable) {
             LogError("Process_v9: malloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -672,7 +670,6 @@ static inline void Process_v9_templates(exporterDomain_t *exporter, void *DataPt
             p = p + 2;
             Length = Get_val16(p);
             p = p + 2;
-            num_v9tags++;
 
             int index = LookupElement(Type, EnterpriseNumber);
             if (index < 0) {  // not found - enter skip sequence
@@ -1471,7 +1468,7 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
     NbarInfo->app_name_length = nbarOption->name.length;
     NbarInfo->app_desc_length = nbarOption->desc.length;
 
-    int cnt = 0;
+    dbg(int cnt = 0);
     while (size_left >= option_size) {
         // push nbar app info record
         uint8_t *p;
@@ -1502,8 +1499,8 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
         }
         p[nbarOption->desc.length - 1] = '\0';
 
-        cnt++;
 #ifdef DEVEL
+        cnt++;
         if (err == 0) {
             printf("nbar record: %d: \n", cnt);
             // PrintNbarRecord(nbarHeader);
@@ -1603,7 +1600,7 @@ static void Process_v9_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_
     // info record for each element in array
     *nameSize = nameOption->name.length;
 
-    int cnt = 0;
+    dbg(int cnt = 0);
     while (size_left >= option_size) {
         // push nbar app info record
         uint8_t *p;
@@ -1633,9 +1630,9 @@ static void Process_v9_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_
         } else {
             printf("Invalid name information - skip record\n");
         }
+        cnt++;
 #endif
         p += nameOption->name.length;
-        cnt++;
 
         // in case of an err we do no store this record
         if (err != 0) {

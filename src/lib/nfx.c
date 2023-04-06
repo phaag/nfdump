@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -355,7 +355,6 @@ void DumpExMaps(void) {
         return;
     }
 
-    uint32_t skipped_blocks = 0;
     int cnt = 0;
     int done = 0;
     while (!done) {
@@ -385,7 +384,6 @@ void DumpExMaps(void) {
         }
 
         if (nffile->block_header->type != DATA_BLOCK_TYPE_2) {
-            skipped_blocks++;
             continue;
         }
 

@@ -33,9 +33,15 @@
 #include "config.h"
 #endif
 
+#ifndef SYSLOG_NAMES
+#define SYSLOG_NAMES 1
+#endif
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,19 +51,9 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
+#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
-
-#ifndef SYSLOG_NAMES
-#define SYSLOG_NAMES 1
-#endif
-
-#include <stdarg.h>
-#include <syslog.h>
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #include "util.h"
 
@@ -192,7 +188,7 @@ int CheckPath(char *path, unsigned type) {
     return ret == 2 ? 1 : 0;
 }  // End of CheckPath
 
-void EndLog() {
+void EndLog(void) {
     if (use_syslog) closelog();
 }  // End of CloseLog
 

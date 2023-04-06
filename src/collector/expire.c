@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,10 +54,6 @@
 #define fts_open fts_open_compat
 #define fts_read fts_read_compat
 #define fts_set fts_set_compat
-#endif
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
 #endif
 
 #include "bookkeeper.h"
@@ -547,7 +544,7 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
     int size_done, lifetime_done, done;
     char *expire_timelimit = "";
     time_t now = time(NULL);
-    uint64_t sizelimit, num_expired;
+    uint64_t sizelimit;
 
     if (!channel) return;
 
@@ -566,8 +563,6 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
     size_done = maxsize == 0 || current_stat->filesize < maxsize;
     sizelimit = (current_stat->low_water * maxsize) / 100;
     lifetime_done = maxlife == 0 || (now - current_stat->first) < maxlife;
-
-    num_expired = 0;
 
     PrepareDirLists(channel);
     if (runtime) alarm(runtime);
@@ -625,7 +620,6 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
                     expire_channel->ftsent->fts_number--;
 
                     file_removed = 1;
-                    num_expired++;
                 } else {
                     LogError("unlink() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
                 }
@@ -654,7 +648,6 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
                     expire_channel->ftsent->fts_number--;
 
                     file_removed = 1;
-                    num_expired++;
                 } else {
                     LogError("unlink() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
                 }

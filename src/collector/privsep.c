@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -59,7 +59,7 @@ static void IntHandler(int signal) {
     }
 }  // End of IntHandler
 
-messageQueue_t *NewMessageQueue() {
+messageQueue_t *NewMessageQueue(void) {
     messageQueue_t *messageQueue = calloc(1, sizeof(messageQueue_t));
     if (!messageQueue) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));

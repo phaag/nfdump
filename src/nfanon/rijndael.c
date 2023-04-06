@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -1233,7 +1233,7 @@ void keySched(uint8_t key[_MAX_KEY_COLUMNS][4]) {
     }
 }
 
-void keyEncToDec() {
+void keyEncToDec(void) {
     int r;
     uint8_t *w;
 

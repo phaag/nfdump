@@ -60,7 +60,6 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#define DEVEL 1
 #include "pcap_reader.h"
 #include "util.h"
 
@@ -328,11 +327,13 @@ REDO_PROTO:
             if (protocol == PROTO_ERSPAN) {
                 if (sequence) {
                     // erspan_hdr = (erspan_hdr_t *)data;
+#ifdef DEVEL
                     dbg_printf("ERSPAN II found\n");
                     uint16_t erspanHdr = ntohs(*((uint16_t *)data));
                     uint16_t version = (erspanHdr & 0xF000) >> 12;
                     uint16_t vlanID = erspanHdr & 0x0FFF;
                     dbg_printf("GRE sequence: %u, Version: %u, vladID: %u\n", sequence, version, vlanID);
+#endif
                     // erspan header size for type II = 8 bytes
                     data += 8;
                 } else {
