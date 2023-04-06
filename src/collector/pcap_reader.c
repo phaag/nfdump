@@ -60,6 +60,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#define DEVEL 1
 #include "pcap_reader.h"
 #include "util.h"
 
@@ -93,25 +94,11 @@ typedef struct gre_hdr_s {
     uint16_t type;
 } gre_hdr_t;
 
-typedef struct erspan_hdr_s {
-#ifdef WORDS_BIGENDIAN
-    uint8_t ver : 4, vlan_upper : 4;
-    uint8_t vlan : 8;
-    uint8_t cos : 3, en : 2, t : 1, session_id_upper : 2;
-    uint8_t session_id : 8;
-#else
-    uint8_t vlan_upper : 4, ver : 4;
-    uint8_t vlan : 8;
-    uint8_t session_id_upper : 2, t : 1, en : 2, cos : 3;
-    uint8_t session_id : 8;
-#endif
-} erspan_hdr_t;
-
 /*
  * Function prototypes
  */
 
-static pcap_t *setup_pcap(char *fname, char *filter, char *errbuf);
+static int setup_pcap(char *filter);
 
 static ssize_t decode_packet(struct pcap_pkthdr *hdr, u_char *pcap_pkgdata, void *buffer, size_t buffer_size, struct sockaddr *sock);
 
@@ -119,34 +106,27 @@ static ssize_t decode_packet(struct pcap_pkthdr *hdr, u_char *pcap_pkgdata, void
  * function definitions
  */
 
-static pcap_t *setup_pcap(char *fname, char *filter, char *errbuf) {
+// set filter if requested
+// set linktype and offset
+static int setup_pcap(char *filter) {
     struct bpf_program filter_code;
 
     bpf_u_int32 netmask;
-
-    /*
-     *  Open the packet capturing file
-     */
-    pcap_handle = pcap_open_offline(fname, errbuf);
-    if (!pcap_handle) {
-        LogError("pcap_open_offline(): %s", errbuf);
-        return NULL;
-    }
 
     netmask = 0;
     /* apply filters if any are requested */
     if (filter) {
         if (pcap_compile(pcap_handle, &filter_code, filter, 1, netmask) == -1) {
             /* pcap does not fill in the error code on pcap_compile */
-            snprintf(errbuf, PCAP_ERRBUF_SIZE, "pcap_compile() failed: %s\n", pcap_geterr(pcap_handle));
+            LogError("pcap_compile() failed: %s\n", pcap_geterr(pcap_handle));
             pcap_close(pcap_handle);
-            return NULL;
+            return 0;
         }
         if (pcap_setfilter(pcap_handle, &filter_code) == -1) {
             /* pcap does not fill in the error code on pcap_compile */
-            snprintf(errbuf, PCAP_ERRBUF_SIZE, "pcap_setfilter() failed: %s\n", pcap_geterr(pcap_handle));
+            LogError("pcap_setfilter() failed: %s\n", pcap_geterr(pcap_handle));
             pcap_close(pcap_handle);
-            return NULL;
+            return 0;
         }
     }
 
@@ -187,11 +167,11 @@ static pcap_t *setup_pcap(char *fname, char *filter, char *errbuf) {
             linkoffset = 0;
             break;
         default:
-            snprintf(errbuf, PCAP_ERRBUF_SIZE - 1, "Snooping not on an ethernet.\n");
+            LogError("Unknown pcap linktype: %u", linktype);
             pcap_close(pcap_handle);
-            return NULL;
+            return 0;
     }
-    return pcap_handle;
+    return 1;
 
 } /* setup_pcap */
 
@@ -337,7 +317,7 @@ REDO_PROTO:
             protocol = ntohs(gre_hdr->type);
             data += sizeof(gre_hdr_t);
 
-            dbg_printf("  GRE proto encapsulation: type: 0x%x\n", protocol);
+            dbg_printf("GRE proto encapsulation: type: 0x%x\n", protocol);
             uint32_t *sequence = NULL;
             if (gre_flags & 0x1000) {  // Sequence supplied
                 sequence = (uint32_t *)(data);
@@ -345,12 +325,16 @@ REDO_PROTO:
                 data += 4;
             }
 
-            // erspan_hdr_t *erspan_hdr = NULL;
             if (protocol == PROTO_ERSPAN) {
                 if (sequence) {
                     // erspan_hdr = (erspan_hdr_t *)data;
-                    data += sizeof(erspan_hdr_t);
                     dbg_printf("ERSPAN II found\n");
+                    uint16_t erspanHdr = ntohs(*((uint16_t *)data));
+                    uint16_t version = (erspanHdr & 0xF000) >> 12;
+                    uint16_t vlanID = erspanHdr & 0x0FFF;
+                    dbg_printf("GRE sequence: %u, Version: %u, vladID: %u\n", sequence, version, vlanID);
+                    // erspan header size for type II = 8 bytes
+                    data += 8;
                 } else {
                     dbg_printf("ERSPAN found\n");
                 }
@@ -367,16 +351,86 @@ REDO_PROTO:
 
 } /* decode_packet */
 
-void setup_packethandler(char *fname, char *filter) {
+// live device
+int setup_pcap_live(char *device, char *filter) {
+    pcap_t *p;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    pcap_handle = setup_pcap(fname, filter, errbuf);
-    if (!pcap_handle) {
-        LogError("Can't init pcap: %s", errbuf);
-        exit(255);
+    errbuf[0] = '\0';
+    pcap_handle = NULL;
+
+    /*
+     *  Open the packet capturing device with the following values:
+     *
+     *  SNAPLEN: User defined or 1600 bytes
+     *  PROMISC: on
+     *  The interface needs to be in promiscuous mode to capture all
+     *		network traffic on the localnet.
+     *  TO_MS: 100ms
+     *		this value specifies how long to wait, if a packet arrives
+     *		until the application may request it. longer time have the advantage
+     * 		in processing multiple packets - less interrupts but more packet loss
+     */
+    p = pcap_create(device, errbuf);
+    if (!p) {
+        LogError("pcap_create() failed on %s: %s", device, errbuf);
+        return 0;
     }
 
-} /* End of setup_packethandler */
+    int snaplen = 1900;
+    if (pcap_set_snaplen(p, snaplen)) {
+        LogError("pcap_set_snaplen() failed: %s", pcap_geterr(p));
+        pcap_close(p);
+        return 0;
+    }
+
+    int promisc = 1;
+    if (pcap_set_promisc(p, promisc)) {
+        LogError("pcap_set_promisc() failed: %s", pcap_geterr(p));
+        pcap_close(p);
+        return 0;
+    }
+
+    int to_ms = 100;
+    if (pcap_set_timeout(p, to_ms)) {
+        LogError("pcap_set_timeout() failed: %s", pcap_geterr(p));
+        pcap_close(p);
+        return 0;
+    }
+
+    int buffsize = 256 * 1024;
+    if (pcap_set_buffer_size(p, buffsize) < 0) {
+        LogError("pcap_set_buffer_size() failed: %s", pcap_geterr(p));
+        pcap_close(p);
+        return 0;
+    }
+
+    if (pcap_activate(p)) {
+        LogError("pcap_activate() failed: %s", pcap_geterr(p));
+        pcap_close(p);
+        return 0;
+    }
+    pcap_handle = p;
+
+    return setup_pcap(filter);
+
+} /* setup_pcap_live */
+
+int setup_pcap_offline(char *fname, char *filter) {
+    char errbuf[PCAP_ERRBUF_SIZE];
+
+    /*
+     *  Open the packet capturing file
+     */
+    pcap_handle = pcap_open_offline(fname, errbuf);
+    if (!pcap_handle) {
+        LogError("pcap_open_offline(): %s", errbuf);
+        return 0;
+    }
+
+    return setup_pcap(filter);
+
+} /* End of setup_pcap_offline */
 
 ssize_t NextPacket(int fill1, void *buffer, size_t buffer_size, int fill2, struct sockaddr *sock, socklen_t *size) {
     // ssize_t NextPacket(void *buffer, size_t buffer_size) {

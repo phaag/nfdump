@@ -125,6 +125,10 @@ static void usage(char *name) {
         "-b host\t\tbind socket to host/IP addr\n"
         "-J mcastgroup\tJoin multicast group <mcastgroup>\n"
         "-p portnum\tlisten on port portnum\n"
+#ifdef PCAP
+        "-f pcapfile\tRead network data from pcap file.\n"
+        "-d device\tRead network data from device (interface).\n"
+#endif
         "-w flowdir \tset the output directory to store the flows.\n"
         "-C <file>\tRead optional config file.\n"
         "-S subdir\tSub directory format. see nfcapd(1) for format\n"
@@ -271,8 +275,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
     struct sockaddr_storage sf_sender;
     socklen_t sf_sender_size = sizeof(sf_sender);
     time_t t_start, t_now;
-    uint64_t export_packets;
-    uint32_t blast_cnt, ignored_packets;
+    uint32_t ignored_packets;
     ssize_t cnt;
     void *in_buff;
 
@@ -301,7 +304,6 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
         fs = fs->next;
     }
 
-    export_packets = blast_cnt = 0;
     t_start = t_begin;
 
     cnt = 0;
@@ -538,7 +540,6 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
         // each Process_xx function has to process the entire input buffer, therefore it's empty
         // now.
-        export_packets++;
     }
 
     free(in_buff);
@@ -566,6 +567,7 @@ int main(int argc, char **argv) {
     int subdir_index, compress, srcSpoofing;
 #ifdef PCAP
     char *pcap_file = NULL;
+    char *pcap_device = NULL;
 #endif
 
     receive_packet = recvfrom;
@@ -596,7 +598,7 @@ int main(int argc, char **argv) {
     extensionList = NULL;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:S:T:t:u:vVw:x:X:yzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:S:T:t:u:vVw:x:X:yzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -620,8 +622,8 @@ int main(int argc, char **argv) {
             case 'e':
                 expire = 1;
                 break;
-            case 'f': {
 #ifdef PCAP
+            case 'f': {
                 struct stat fstat;
                 pcap_file = optarg;
                 stat(pcap_file, &fstat);
@@ -629,10 +631,17 @@ int main(int argc, char **argv) {
                     LogError("Not a regular file: %s", pcap_file);
                     exit(254);
                 }
-#else
-                LogError("PCAP reader not compiled! Option ignored!");
-#endif
             } break;
+            case 'd':
+                CheckArgLen(optarg, 32);
+                pcap_device = strdup(optarg);
+                break;
+#else
+            case 'f':
+            case 'd':
+                LogError("Reading data from pcap file/device not compiled! Option ignored!");
+                break;
+#endif
             case 'E':
                 verbose = 3;
                 break;
@@ -874,7 +883,17 @@ int main(int argc, char **argv) {
     sock = 0;
     if (pcap_file) {
         printf("Setup pcap reader\n");
-        setup_packethandler(pcap_file, NULL);
+        if (!setup_pcap_offline(pcap_file, NULL)) {
+            LogError("Setup pcap offline failed.");
+            exit(EXIT_FAILURE);
+        }
+        receive_packet = NextPacket;
+    } else if (pcap_device) {
+        printf("Setup pcap device reader\n");
+        if (!setup_pcap_live(pcap_device, NULL)) {
+            LogError("Setup pcap device failed.");
+            exit(EXIT_FAILURE);
+        }
         receive_packet = NextPacket;
     } else
 #endif
