@@ -204,7 +204,7 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_postPacketTotalCount, SIZEoutPackets, NumberCopy, EXcntFlowID, OFFoutPackets, STACK_NONE, "output packetTotalCount"},
     {IPFIX_engineType, Stack_ONLY, NumberCopy, EXnull, 0, STACK_ENGINETYPE, "engine type"},
     {IPFIX_engineId, Stack_ONLY, NumberCopy, EXnull, 0, STACK_ENGINEID, "engine ID"},
-    {NBAR_APPLICATION_ID, SIZEnbarAppID, NumberCopy, EXnbarAppID, OFFnbarAppID, STACK_NONE, "nbar application ID"},
+    {NBAR_APPLICATION_ID, SIZEnbarAppID, ByteCopy, EXnbarAppID, OFFnbarAppID, STACK_NONE, "nbar application ID"},
     {IPFIX_observationDomainId, SIZEdomainID, NumberCopy, EXobservationID, OFFdomainID, STACK_NONE, "observation domainID"},
     {IPFIX_observationPointId, SIZEpointID, NumberCopy, EXobservationID, OFFpointID, STACK_NONE, "observation pointID"},
     // sampling
@@ -935,7 +935,7 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
     uint8_t *option_template;
     uint32_t size_left, size_required;
     // uint32_t nr_scopes, nr_options;
-    uint16_t tableID, field_count, scope_field_count, offset;
+    uint16_t tableID, field_count, scope_field_count;
 
     size_left = GET_FLOWSET_LENGTH(option_template_flowset) - 4;  // -4 for flowset header -> id and length
     if (size_left < 6) {
@@ -977,36 +977,7 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
         return;
     }
 
-    int i;
-    offset = 0;
-    for (i = 0; i < scope_field_count; i++) {
-        uint16_t id, length;
-        int Enterprise;
-
-        if (size_left && size_left < 4) {
-            LogError("Process_ipfix [%u] Template size error at %s line %u", exporter->info.id, __FILE__, __LINE__, strerror(errno));
-            return;
-        }
-        id = Get_val16(option_template);
-        option_template += 2;
-        length = Get_val16(option_template);
-        option_template += 2;
-        size_left -= 4;
-        Enterprise = id & 0x8000 ? 1 : 0;
-        if (Enterprise) {
-            size_required += 4;
-            if (size_left < 4) {
-                dbg_printf("option template length error: size left %u too small\n", size_left);
-                return;
-            }
-            option_template += 4;
-            size_left -= 4;
-            dbg_printf(" [%i] Enterprise: 1, scope id: %u, scope length %u enterprise value: %u\n", i, id, length, Get_val32(option_template));
-        } else {
-            dbg_printf(" [%i] Enterprise: 0, scope id: %u, scope length %u\n", i, id, length);
-        }
-        offset += length;
-    }
+    uint16_t offset = 0;
 
     removeTemplate(exporter, tableID);
     optionTemplate_t *optionTemplate = (optionTemplate_t *)calloc(1, sizeof(optionTemplate_t));
@@ -1015,15 +986,13 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
         return;
     }
 
-    uint16_t scopeSize = offset;
-    dbg_printf("Scope size: %u\n", scopeSize);
-
+    uint16_t scopeSize = 0;
     struct samplerOption_s *samplerOption = &(optionTemplate->samplerOption);
     struct nbarOptionList_s *nbarOption = &(optionTemplate->nbarOption);
     struct nameOptionList_s *ifnameOptionList = &(optionTemplate->ifnameOption);
     struct nameOptionList_s *vrfnameOptionList = &(optionTemplate->vrfnameOption);
 
-    for (; i < field_count; i++) {
+    for (int i = 0; i < field_count; i++) {
         uint32_t enterprise_value;
         uint16_t type, length;
         int Enterprise;
@@ -1035,6 +1004,11 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
         length = Get_val16(option_template);
         option_template += 2;
         size_left -= 4;
+        if (i < scope_field_count) {
+            scopeSize += length;
+            dbg_printf("Scope field\n");
+        }
+
         Enterprise = type & 0x8000 ? 1 : 0;
         if (Enterprise) {
             size_required += 4;
@@ -1691,6 +1665,10 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
 #ifdef DEVEL
         cnt++;
         if (err == 0) {
+            printf("nbar record: %d, ", cnt);
+            uint8_t *u = (uint8_t *)(p - nbarOption->name.length - nbarOption->id.length);
+            for (int i = 0; i < nbarOption->id.length; i++) printf("%02X ", *((uint8_t *)u++));
+
             printf("nbar record: %d, name: %s, desc: %s\n", cnt, p - nbarOption->name.length, p);
         } else {
             printf("Invalid nbar information - skip record\n");
