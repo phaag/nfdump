@@ -1430,7 +1430,7 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
     // data size
     size_t data_size = nbarOption->id.length + nbarOption->name.length + nbarOption->desc.length;
     // size of record
-    size_t option_size = nbarOption->scopeSize + data_size;
+    size_t option_size = optionTemplate->optionSize;
     // number of records in data
     int numRecords = size_left / option_size;
     dbg_printf("[%u] nbar option data - records: %u, size: %zu\n", exporter->info.id, numRecords, option_size);
@@ -1564,7 +1564,7 @@ static void Process_v9_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_
     // data size
     size_t data_size = nameOption->name.length + sizeof(uint32_t);
     // size of record
-    size_t option_size = nameOption->scopeSize + data_size;
+    size_t option_size = optionTemplate->optionSize;
     // number of records in data
     int numRecords = size_left / option_size;
     dbg_printf("[%u] name option data - records: %u, size: %zu\n", exporter->info.id, numRecords, option_size);

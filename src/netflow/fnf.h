@@ -74,7 +74,8 @@ struct nameOptionList_s {
 };
 
 typedef struct optionTemplate_s {
-    uint64_t flags;  // info about this option template
+    uint64_t flags;       // info about this option template
+    uint64_t optionSize;  // size of all option data per record
     struct samplerOption_s {
 // old sampler tags:
 //  #34, #34
