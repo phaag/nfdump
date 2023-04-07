@@ -1016,6 +1016,7 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
     }
 
     uint16_t scopeSize = offset;
+    dbg_printf("Scope size: %u\n", scopeSize);
 
     struct samplerOption_s *samplerOption = &(optionTemplate->samplerOption);
     struct nbarOptionList_s *nbarOption = &(optionTemplate->nbarOption);
@@ -1191,9 +1192,10 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
 
         if (TestFlag(optionTemplate->flags, NBAROPTIONS)) {
             dbg_printf("[%u] found nbar options\n", exporter->info.id);
-            dbg_printf("[%u] id   length: %u\n", exporter->info.id, nbarOption->id.length);
-            dbg_printf("[%u] name length: %u\n", exporter->info.id, nbarOption->name.length);
-            dbg_printf("[%u] desc length: %u\n", exporter->info.id, nbarOption->desc.length);
+            dbg_printf("[%u] id   length: %u, offset: %u\n", exporter->info.id, nbarOption->id.length, nbarOption->id.offset);
+            dbg_printf("[%u] name length: %u, offset: %u\n", exporter->info.id, nbarOption->name.length, nbarOption->name.offset);
+            dbg_printf("[%u] desc length: %u, offset: %u\n", exporter->info.id, nbarOption->desc.length, nbarOption->desc.offset);
+            optionTemplate->nbarOption.scopeSize = scopeSize;
             SetFlag(template->type, NBAR_TEMPLATE);
         } else {
             dbg_printf("[%u] No nbar information found\n", exporter->info.id);
@@ -1654,6 +1656,7 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
     NbarInfo->app_id_length = nbarOption->id.length;
     NbarInfo->app_name_length = nbarOption->name.length;
     NbarInfo->app_desc_length = nbarOption->desc.length;
+    dbg_printf("NBAR idLength: %u, nameLength: %u, descLength: %u\n", nbarOption->id.length, nbarOption->name.length, nbarOption->desc.length);
 
     dbg(int cnt = 0);
     while (size_left >= option_size) {
@@ -1680,12 +1683,11 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
         // description string
         memcpy(p, inBuff + nbarOption->desc.offset, nbarOption->desc.length);
         state = UTF8_ACCEPT;
-        if (validate_utf8(&state, (char *)p, nbarOption->name.length) == UTF8_REJECT) {
+        if (validate_utf8(&state, (char *)p, nbarOption->desc.length) == UTF8_REJECT) {
             LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar description");
             err = 1;
         }
         p[nbarOption->desc.length - 1] = '\0';
-
 #ifdef DEVEL
         cnt++;
         if (err == 0) {
