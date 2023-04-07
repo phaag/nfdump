@@ -954,8 +954,9 @@ static inline void Process_v9_option_templates(exporterDomain_t *exporter, void 
         }
         offset += length;
     }
+    optionTemplate->optionSize = offset;
 
-    dbg_printf("\n[%u] Option flags: %llx\n", exporter->info.id, optionTemplate->flags);
+    dbg_printf("\n[%u] Option size: %llu, flags: %llx\n", exporter->info.id, optionTemplate->optionSize, optionTemplate->flags);
     if (optionTemplate->flags) {
         // if it exitsts - remove old template on exporter with same ID
         templateList_t *template = newTemplate(exporter, tableID);
@@ -1502,8 +1503,7 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
 #ifdef DEVEL
         cnt++;
         if (err == 0) {
-            printf("nbar record: %d: \n", cnt);
-            // PrintNbarRecord(nbarHeader);
+            printf("nbar record: %d, name: %s, desc: %s\n", cnt, p - nbarOption->name.length, p);
         } else {
             printf("Invalid nbar information - skip record\n");
         }

@@ -1692,8 +1692,7 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
 #ifdef DEVEL
         cnt++;
         if (err == 0) {
-            printf("nbar record: %d: \n", cnt);
-            // PrintNbarRecord(nbarHeader);
+            printf("nbar record: %d, name: %s, desc: %s\n", cnt, p - nbarOption->name.length, p);
         } else {
             printf("Invalid nbar information - skip record\n");
         }
