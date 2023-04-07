@@ -346,6 +346,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_NSEL_USER_MAX: {
                 tpl_ext_43_t *tpl = (tpl_ext_43_t *)p;
                 PushExtension(recordHeader, EXnselUser, nselUser);
+                tpl->username[65] = '\0';  // truncate old username
                 strncpy((void *)nselUser->username, (void *)tpl->username, 65);
                 nselUser->username[65] = '\0';
                 p = (void *)tpl->data;
@@ -353,8 +354,8 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_NSEL_USER: {
                 tpl_ext_42_t *tpl = (tpl_ext_42_t *)p;
                 PushExtension(recordHeader, EXnselUser, nselUser);
-                strncpy((void *)nselUser->username, (void *)tpl->username, 24);
-                nselUser->username[25] = '\0';
+                strncpy((void *)nselUser->username, (void *)tpl->username, 65);
+                nselUser->username[65] = '\0';
                 p = (void *)tpl->data;
             } break;
             case EX_NEL_COMMON: {

@@ -1664,7 +1664,6 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
         // push nbar app info record
         uint8_t *p;
         PushArrayNextElement(nbarHeader, p, uint8_t);
-
         // copy data
         // id octet array
         memcpy(p, inBuff + nbarOption->id.offset, nbarOption->id.length);
