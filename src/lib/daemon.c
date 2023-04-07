@@ -39,6 +39,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
+// some linux are picky
+#define __USE_GNU
 #include <unistd.h>
 
 #include "util.h"
