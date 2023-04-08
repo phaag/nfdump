@@ -794,56 +794,26 @@ static inline void Process_v9_option_templates(exporterDomain_t *exporter, void 
         return;
     }
 
-    int i;
-    uint16_t offset = 0;
     p = option_template + 6;  // start of length/type data
-    for (i = 0; i < nr_scopes; i++) {
-#ifdef DEVEL
-        uint16_t type = Get_val16(p);
-#endif
-        p = p + 2;
-
-        uint16_t length = Get_val16(p);
-        p = p + 2;
-        offset += length;
-#ifdef DEVEL
-        printf("Scope field: Type ");
-        switch (type) {
-            case 1:
-                printf("(1) - System");
-                break;
-            case 2:
-                printf("(2) - Interface");
-                break;
-            case 3:
-                printf("(3) - Line Card");
-                break;
-            case 4:
-                printf("(4) - NetFlow Cache");
-                break;
-            case 5:
-                printf("(5) - Template");
-                break;
-            default:
-                printf("(%u) - Unknown", type);
-                break;
-        }
-        printf(", length %u\n", length);
-#endif
-    }
-    uint16_t scopeSize = offset;
 
     struct samplerOption_s *samplerOption = &(optionTemplate->samplerOption);
     struct nbarOptionList_s *nbarOption = &(optionTemplate->nbarOption);
     struct nameOptionList_s *ifnameOptionList = &(optionTemplate->ifnameOption);
     struct nameOptionList_s *vrfnameOptionList = &(optionTemplate->vrfnameOption);
 
-    for (; i < (nr_scopes + nr_options); i++) {
+    uint16_t scopeSize = 0;
+    uint16_t offset = 0;
+    for (int i = 0; i < (nr_scopes + nr_options); i++) {
         uint16_t type = Get_val16(p);
         p = p + 2;
         uint16_t length = Get_val16(p);
         p = p + 2;
-        dbg_printf("Option field Type: %u, offset: %u, length %u\n", type, offset, length);
+        if (i < nr_scopes) {
+            scopeSize += length;
+            dbg_printf("Scope field Type: %u, offset: %u, length %u\n", type, offset, length);
+        } else {
+            dbg_printf("Option field Type: %u, offset: %u, length %u\n", type, offset, length);
+        }
 
         switch (type) {
             // Old std sampling tags

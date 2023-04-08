@@ -977,8 +977,6 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
         return;
     }
 
-    uint16_t offset = 0;
-
     removeTemplate(exporter, tableID);
     optionTemplate_t *optionTemplate = (optionTemplate_t *)calloc(1, sizeof(optionTemplate_t));
     if (!optionTemplate) {
@@ -986,12 +984,13 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
         return;
     }
 
-    uint16_t scopeSize = 0;
     struct samplerOption_s *samplerOption = &(optionTemplate->samplerOption);
     struct nbarOptionList_s *nbarOption = &(optionTemplate->nbarOption);
     struct nameOptionList_s *ifnameOptionList = &(optionTemplate->ifnameOption);
     struct nameOptionList_s *vrfnameOptionList = &(optionTemplate->vrfnameOption);
 
+    uint16_t scopeSize = 0;
+    uint16_t offset = 0;
     for (int i = 0; i < field_count; i++) {
         uint32_t enterprise_value;
         uint16_t type, length;
@@ -1006,7 +1005,9 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
         size_left -= 4;
         if (i < scope_field_count) {
             scopeSize += length;
-            dbg_printf("Scope field\n");
+            dbg_printf("Scope field Type: %u, offset: %u, length %u\n", type, offset, length);
+        } else {
+            dbg_printf("Option field Type: %u, offset: %u, length %u\n", type, offset, length);
         }
 
         Enterprise = type & 0x8000 ? 1 : 0;
