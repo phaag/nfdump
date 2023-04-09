@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2014-2022, Peter Haag
+ *  Copyright (c) 2014-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -525,7 +525,9 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
 
     // link layer processing
     uint16_t protocol = 0;
-    switch (packetParam->linktype) {
+    uint32_t linktype = packetParam->linktype;
+REDO_LINK:
+    switch (linktype) {
         case DLT_EN10MB:
             memcpy(&dstMac, data, 6);
             memcpy(&srcMac, data + 6, 6);
@@ -548,7 +550,7 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
         case DLT_LOOP:
         case DLT_NULL: {
             uint32_t header;
-            if (packetParam->linktype == DLT_LOOP)
+            if (linktype == DLT_LOOP)
                 header = ntohl(*((uint32_t *)data));
             else
                 header = *((uint32_t *)data);
@@ -619,11 +621,11 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
             } break;
         } break;
         default:
-            LogInfo("Packet: %u: unsupported link type: 0x%x, packet: %u", pkg_cnt, packetParam->linktype);
+            LogInfo("Packet: %u: unsupported link type: 0x%x, packet: %u", pkg_cnt, linktype);
             return;
     }
 
-REDO_LINK:
+REDO_LINK_PROTO:
     if (dataptr >= eodata) {
         packetParam->proc_stat.short_snap++;
         dbg_printf("Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
@@ -649,7 +651,7 @@ REDO_LINK:
             } while ((dataptr < eodata) && protocol == 0x8100);
 
             // redo protocol evaluation
-            goto REDO_LINK;
+            goto REDO_LINK_PROTO;
         } break;
         case ETHERTYPE_MPLS: {  // MPLS
             // unwind MPLS label stack
@@ -673,7 +675,7 @@ REDO_LINK:
                 goto END_FUNC;
             }
             // redo protocol evaluation
-            goto REDO_LINK;
+            goto REDO_LINK_PROTO;
         } break;
         case ETHERTYPE_TRANSETHER: {  // GRE ethernet bridge
             dbg_printf("  GRE tap tunnel\n");
@@ -688,7 +690,7 @@ REDO_LINK:
             uint16_t *nextProtocol = (uint16_t *)dataptr;
             dataptr += 2;
             protocol = ntohs(*nextProtocol);
-            goto REDO_LINK;
+            goto REDO_LINK_PROTO;
         } break;
         case ETHERTYPE_PPPOE: {
             uint8_t VersionType = *((uint8_t *)dataptr);
@@ -1009,12 +1011,30 @@ REDO_IPPROTO:
         case 0x6558: {
             gre_hdr_t *gre_hdr = (gre_hdr_t *)dataptr;
             protocol = ntohs(gre_hdr->type);
+            uint16_t gre_flags = ntohs(gre_hdr->flags);
             dbg_printf("  GRE proto encapsulation: type: 0x%x\n", protocol);
 
-            int optionSize = 0;
-            uint16_t gre_flags = ntohs(gre_hdr->flags);
-            uint16_t version = gre_flags & 0x7;
+            if (protocol == PROTO_ERSPAN) {
+                // unwrap gre hdr
+                dataptr += sizeof(gre_hdr_t);
+                // uint32_t *sequence = NULL;
+                if (gre_flags & 0x1000) {  // Sequence supplied
+                    // sequence = (uint32_t *)(dataptr);
+                    dbg_printf("GRE sequence: %u\n", ntohl(*sequence));
+                    // unwrap sequence
+                    dataptr += 4;
+                    // unwrap erspan hdr
+                    dataptr += 8;
+                }
+                // inner ethernet packet
+                linktype = DLT_EN10MB;
+                data = dataptr;
+                dataptr += 14;  // link offset
+                goto REDO_LINK;
+            }
 
+            int optionSize = 0;
+            uint16_t version = gre_flags & 0x7;
             if (version == 0) {
                 // XXX checksum, routing options not evaluated gre tunnel
                 dataptr += sizeof(gre_hdr_t);
@@ -1062,7 +1082,7 @@ REDO_IPPROTO:
             Node->tun_proto = IPPROTO_GRE;
             Node->tun_ip_version = Node->flowKey.version;
             // redo IP proto evaluation
-            goto REDO_LINK;
+            goto REDO_LINK_PROTO;
 
         } break;
         default:

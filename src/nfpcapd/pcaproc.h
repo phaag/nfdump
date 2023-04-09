@@ -91,6 +91,8 @@
 #define ETHERTYPE_LOOPBACK 0x9000
 #endif
 
+#define PROTO_ERSPAN 0x88be
+
 typedef struct pcapfile_s {
     void *data_buffer;
     void *data_ptr;
