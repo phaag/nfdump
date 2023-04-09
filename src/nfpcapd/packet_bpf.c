@@ -162,11 +162,9 @@ int setup_bpf_live(packetParam_t *param, char *device, char *filter, int snaplen
     switch (dlt) {
         case DLT_RAW:
             param->linktype = DLT_RAW;
-            param->linkoffset = 0;
             break;
         case DLT_EN10MB:
             param->linktype = DLT_EN10MB;
-            param->linkoffset = 14;
             break;
         default:
             LogError("Unsupported datalink type: %u", dlt);

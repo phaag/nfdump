@@ -511,8 +511,8 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
     dbg_printf("\nNext Packet: %u, cap len:%u, len: %u\n", pkg_cnt, hdr->caplen, hdr->len);
 
     // snaplen is minimum 54 bytes
-    void *dataptr = (void *)data + packetParam->linkoffset;  /// after ethernet header
-    void *eodata = (void *)data + hdr->caplen;
+    uint8_t *dataptr = (uint8_t *)data;
+    uint8_t *eodata = (uint8_t *)data + hdr->caplen;
     void *defragmented = NULL;
     void *payload = NULL;
     size_t payloadSize = 0;
@@ -529,31 +529,48 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
 REDO_LINK:
     switch (linktype) {
         case DLT_EN10MB:
-            memcpy(&dstMac, data, 6);
-            memcpy(&srcMac, data + 6, 6);
-            protocol = data[12] << 0x08 | data[13];
+            memcpy(&dstMac, dataptr, 6);
+            memcpy(&srcMac, dataptr + 6, 6);
+            protocol = dataptr[12] << 0x08 | dataptr[13];
             int IEEE802 = protocol <= 1500;
             if (IEEE802) {
                 packetParam->proc_stat.skipped++;
                 return;
             }
+            // unwrap link layer
+            dataptr += 14;
+            dbg_printf("Linktype: DLT_EN10MB\n");
             break;
         case DLT_RAW:
             protocol = 0x800;
+            dbg_printf("Linktype: DLT_RAW\n");
             break;
         case DLT_PPP:
             protocol = 0x800;
+            // unwrap link layer
+            dataptr += 2;
+            dbg_printf("Linktype: DLT_PPP\n");
             break;
         case DLT_PPP_SERIAL:
             protocol = 0x800;
+            // unwrap link layer
+            dataptr += 4;
+            dbg_printf("Linktype: DLT_PPP_SERIAL\n");
             break;
         case DLT_LOOP:
         case DLT_NULL: {
             uint32_t header;
-            if (linktype == DLT_LOOP)
-                header = ntohl(*((uint32_t *)data));
-            else
-                header = *((uint32_t *)data);
+            if (linktype == DLT_LOOP) {
+                header = ntohl(*((uint32_t *)dataptr));
+                // unwrap link layer
+                dataptr += 14;
+                dbg_printf("Linktype: DLT_LOOP\n");
+            } else {
+                header = *((uint32_t *)dataptr);
+                // unwrap link layer
+                dataptr += 4;
+                dbg_printf("Linktype: DLT_NULL\n");
+            }
             switch (header) {
                 case 2:
                     protocol = 0x800;
@@ -569,10 +586,16 @@ REDO_LINK:
             }
         } break;
         case DLT_LINUX_SLL:
-            protocol = data[14] << 8 | data[15];
+            protocol = dataptr[14] << 8 | dataptr[15];
+            // unwrap link layer
+            dataptr += 16;
+            dbg_printf("Linktype: DLT_LINUX_SSL\n");
             break;
         case DLT_IEEE802_11:
             protocol = 0x800;
+            // unwrap link layer
+            dataptr += 22;
+            dbg_printf("Linktype: DLT_IEEE802_11\n");
             break;
         case DLT_NFLOG: {
             nflog_hdr_t *nflog_hdr = (nflog_hdr_t *)dataptr;
@@ -585,6 +608,7 @@ REDO_LINK:
                 LogInfo("Packet: %u: unsupported NFLOG version: %d", pkg_cnt, nflog_hdr->nflog_version);
                 return;
             }
+            dbg_printf("Linktype: DLT_NFLOG\n");
             dbg_printf("NFLOG: %s, rid: %u\n", nflog_hdr->nflog_family == 2 ? "IPv4" : "IPv6", ntohs(nflog_hdr->nflog_rid));
             // TLVs following
             dataptr += sizeof(nflog_hdr_t);
@@ -607,18 +631,19 @@ REDO_LINK:
 
                 dataptr += size;
             }
-            case DLT_PFLOG: {
-                pflog_hdr_t *pfloghdr = (pflog_hdr_t *)dataptr;
-                if (hdr->caplen < PFLOG_HDRLEN) {
-                    LogInfo("Packet: %u: PFLOG: not enough data", pkg_cnt);
-                    return;
-                }
-                pflog = malloc(sizeof(pflog_hdr_t));
-                memcpy(pflog, pfloghdr, sizeof(pflog_hdr_t));
+        } break;
+        case DLT_PFLOG: {
+            pflog_hdr_t *pfloghdr = (pflog_hdr_t *)dataptr;
+            if (hdr->caplen < PFLOG_HDRLEN) {
+                LogInfo("Packet: %u: PFLOG: not enough data", pkg_cnt);
+                return;
+            }
+            pflog = malloc(sizeof(pflog_hdr_t));
+            memcpy(pflog, pfloghdr, sizeof(pflog_hdr_t));
 
-                protocol = 0x800;
-                dataptr += PFLOG_HDRLEN;
-            } break;
+            protocol = 0x800;
+            dataptr += PFLOG_HDRLEN;
+            dbg_printf("Linktype: DLT_PFLOG\n");
         } break;
         default:
             LogInfo("Packet: %u: unsupported link type: 0x%x, packet: %u", pkg_cnt, linktype);
@@ -731,7 +756,7 @@ REDO_LINK_PROTO:
             goto END_FUNC;
     }
 
-    dbg_printf("Link layer processed: %td bytes, remaining: %td\n", (ptrdiff_t)(dataptr - (void *)data), eodata - dataptr);
+    dbg_printf("Link layer processed: %td bytes, remaining: %td\n", (ptrdiff_t)(dataptr - (uint8_t *)data), eodata - dataptr);
 
     // link layer, vpn and mpls header removed
     if (dataptr >= eodata) {
@@ -1017,10 +1042,12 @@ REDO_IPPROTO:
             if (protocol == PROTO_ERSPAN) {
                 // unwrap gre hdr
                 dataptr += sizeof(gre_hdr_t);
-                // uint32_t *sequence = NULL;
                 if (gre_flags & 0x1000) {  // Sequence supplied
-                    // sequence = (uint32_t *)(dataptr);
-                    dbg_printf("GRE sequence: %u\n", ntohl(*sequence));
+#ifdef DEVEL
+                    uint32_t *sequence = NULL;
+                    sequence = (uint32_t *)(dataptr);
+                    printf("GRE sequence: %u\n", ntohl(*sequence));
+#endif
                     // unwrap sequence
                     dataptr += 4;
                     // unwrap erspan hdr
@@ -1028,8 +1055,6 @@ REDO_IPPROTO:
                 }
                 // inner ethernet packet
                 linktype = DLT_EN10MB;
-                data = dataptr;
-                dataptr += 14;  // link offset
                 goto REDO_LINK;
             }
 

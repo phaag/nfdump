@@ -190,38 +190,18 @@ static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, 
         }
     }
 
-    linkoffset = 0;
     linktype = pcap_datalink(handle);
     switch (linktype) {
         case DLT_RAW:
-            linkoffset = 0;
-            break;
         case DLT_PPP:
-            linkoffset = 2;
-            break;
         case DLT_PPP_SERIAL:
-            linkoffset = 4;
-            break;
         case DLT_NULL:
-            linkoffset = 4;
-            break;
         case DLT_LOOP:
-            linkoffset = 14;
-            break;
         case DLT_EN10MB:
-            linkoffset = 14;
-            break;
         case DLT_LINUX_SLL:
-            linkoffset = 16;
-            break;
         case DLT_IEEE802_11:
-            linkoffset = 22;
-            break;
         case DLT_NFLOG:
-            linkoffset = 0;
-            break;
         case DLT_PFLOG:
-            linkoffset = 0;
             break;
         default:
             LogError("Unsupported data link type %i", linktype);
@@ -229,7 +209,6 @@ static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, 
     }
 
     param->pcap_dev = handle;
-    param->linkoffset = linkoffset;
     param->snaplen = snaplen;
     param->linktype = linktype;
 
