@@ -234,7 +234,7 @@ static inline void AddGeoInfo(master_record_t *master_record) {
         }
         j++;
     }
-    if (val != EXasRoutingID) {
+    if (j == master_record->numElements) {
         master_record->exElementList[j] = val;
         master_record->numElements++;
     }
