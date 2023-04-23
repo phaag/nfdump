@@ -45,6 +45,7 @@
 .Op Fl t Ar interval
 .Op Fl P Ar pidfile
 .Op Fl p Ar port
+.Op Fl d Ar device
 .Op Fl I Ar ident
 .Op Fl b Ar bindhost
 .Op Fl 4
@@ -133,6 +134,10 @@ If
 is specified, then no config file is read, even if found in the search path.
 .It Fl p Ar portnum
 Set the port number to listen. Default port is 9995
+.It Fl d Ar interface
+Reads flow data from an erspan encoded datalink. All traffic sent to this 
+.Ar interface
+is interpreted as flow data stream.
 .It Fl b Ar bindhost
 Specifies the hostname/IPv4/IPv6 address to bind for listening. This can be an IP address or a hostname, 
 resolving to a local IP address.
