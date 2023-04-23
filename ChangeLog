@@ -1,4 +1,6 @@
 2023-04-23
+-   Release v1.7.2
+-   Fix Makefiles for make dist
 -   Update nfcapd/sfcapd man pages for erspan data link
 
 2023-04-15

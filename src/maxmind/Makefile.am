@@ -16,3 +16,5 @@ geolookup_LDADD = ../lib/libnfdump.la ../conf/libconf.a libmaxmind.a
 endif
 
 CLEANFILES = *.gch
+
+EXTRA_DIST = updateGeoDB.sh
