@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = nfpcapd
 
-AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline -I../collector -I../conf $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline -I../collector -I../netflow -I../conf $(DEPS_CFLAGS)
 AM_LDFLAGS  = -L../lib
 
 LDADD = $(DEPS_LIBS)

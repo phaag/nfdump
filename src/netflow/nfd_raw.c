@@ -46,7 +46,7 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "metric.h"
-#include "netflow_pcapd.h"
+#include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
@@ -74,7 +74,7 @@ typedef struct exporter_pcapd_s {
 /* module limited globals */
 static int printRecord;
 
-static inline exporter_pcapd_t *getExporter(FlowSource_t *fs, pcapd_header_t *header);
+static inline exporter_pcapd_t *getExporter(FlowSource_t *fs, nfd_header_t *header);
 
 /* functions */
 
@@ -85,7 +85,7 @@ int Init_pcapd(int verbose) {
     return 1;
 }  // End of Init_pcapd
 
-static inline exporter_pcapd_t *getExporter(FlowSource_t *fs, pcapd_header_t *header) {
+static inline exporter_pcapd_t *getExporter(FlowSource_t *fs, nfd_header_t *header) {
     exporter_pcapd_t **e = (exporter_pcapd_t **)&(fs->exporter_data);
     uint16_t version = ntohs(header->version);
 #define IP_STRING_LEN 40
@@ -156,7 +156,7 @@ static void *GetExtension(recordHeaderV3_t *recordHeader, int extensionID) {
 
 void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // map pacpd data structure to input buffer
-    pcapd_header_t *pcapd_header = (pcapd_header_t *)in_buff;
+    nfd_header_t *pcapd_header = (nfd_header_t *)in_buff;
 
     exporter_pcapd_t *exporter = getExporter(fs, pcapd_header);
     if (!exporter) {
@@ -182,7 +182,7 @@ void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     uint32_t numRecords = 0;
     dbg_printf("Process nfd packet: %llu, size: %zd, recordCnt: %u\n", exporter->packets, in_buff_cnt, count);
 
-    if ((sizeof(pcapd_header_t) + sizeof(recordHeaderV3_t)) > size_left) {
+    if ((sizeof(nfd_header_t) + sizeof(recordHeaderV3_t)) > size_left) {
         LogError("Process_pcapd: Not enough data.");
         dbg_printf("Process_pcapd: Not enough data.");
         return;
@@ -190,8 +190,8 @@ void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
     int buffAvail = 0;
     // 1st record
-    recordHeaderV3_t *recordHeaderV3 = in_buff + sizeof(pcapd_header_t);
-    size_left -= sizeof(pcapd_header_t);
+    recordHeaderV3_t *recordHeaderV3 = in_buff + sizeof(nfd_header_t);
+    size_left -= sizeof(nfd_header_t);
     do {
         // output buffer size check
         dbg_printf("Next record - type: %u, size: %u\n", recordHeaderV3->type, recordHeaderV3->size);

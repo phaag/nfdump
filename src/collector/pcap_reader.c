@@ -334,7 +334,7 @@ REDO_PROTO:
                     uint16_t erspanHdr = ntohs(*((uint16_t *)data));
                     uint16_t version = (erspanHdr & 0xF000) >> 12;
                     uint16_t vlanID = erspanHdr & 0x0FFF;
-                    dbg_printf("GRE sequence: %u, Version: %u, vladID: %u\n", sequence, version, vlanID);
+                    dbg_printf("GRE sequence: %u, Version: %u, vladID: %u\n", *sequence, version, vlanID);
 #endif
                     // erspan header size for type II = 8 bytes
                     data += 8;

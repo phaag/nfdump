@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@
 #include "exporter.h"
 #include "flowdump.h"
 #include "metric.h"
-#include "netflow_pcapd.h"
+#include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
@@ -72,7 +72,7 @@ static uint32_t sequence = 0;
 
 static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node);
 
-static int SendFlow(repeater_t *sendHost, pcapd_header_t *pcapd_header) {
+static int SendFlow(repeater_t *sendHost, nfd_header_t *pcapd_header) {
     dbg_printf("Sending %u records\n", pcapd_header->numRecord);
     uint32_t length = pcapd_header->length;
     pcapd_header->length = htons(pcapd_header->length);
@@ -86,7 +86,7 @@ static int SendFlow(repeater_t *sendHost, pcapd_header_t *pcapd_header) {
     }
 
     // init new header
-    pcapd_header->length = sizeof(pcapd_header_t);
+    pcapd_header->length = sizeof(nfd_header_t);
     pcapd_header->numRecord = 0;
 
     return 0;
@@ -98,7 +98,7 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
     dbg_printf("Send Flow node\n");
 
-    pcapd_header_t *pcapd_header = (pcapd_header_t *)sendBuffer;
+    nfd_header_t *pcapd_header = (nfd_header_t *)sendBuffer;
     void *buffPtr = sendBuffer + pcapd_header->length;
     uint32_t recordSize = 0;
     do {
@@ -226,10 +226,10 @@ __attribute__((noreturn)) void *sendflow_thread(void *thread_data) {
     flowParam_t *flowParam = (flowParam_t *)thread_data;
 
     sendBuffer = malloc(65535);
-    pcapd_header_t *pcapd_header = (pcapd_header_t *)sendBuffer;
-    memset((void *)pcapd_header, 0, sizeof(pcapd_header_t));
+    nfd_header_t *pcapd_header = (nfd_header_t *)sendBuffer;
+    memset((void *)pcapd_header, 0, sizeof(nfd_header_t));
     pcapd_header->version = htons(240);
-    pcapd_header->length = sizeof(pcapd_header_t);
+    pcapd_header->length = sizeof(nfd_header_t);
     pcapd_header->lastSequence = 1;
 
     printRecord = flowParam->printRecord;
