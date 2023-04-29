@@ -77,11 +77,21 @@
 #define FPURGE fpurge
 #endif
 
+typedef struct nfd_header {
+    uint16_t version;       // set to 250 for pcapd
+    uint16_t length;        // Total length incl. this header. up to 65535 bytes
+    uint32_t exportTime;    // UNIX epoch export Time of flow.
+    uint32_t lastSequence;  // Incremental sequence counter modulo 2^32 of all pcapd Data Records
+    uint32_t numRecord;     // number of pcapd records in this packet
+} nfd_header_t;
+
 /* Local Variables */
-static int verbose;
+static int verbose = 0;
 static FilterEngine_t *Engine;
 
 static send_peer_t peer;
+static uint32_t recordCnt = 0;
+static uint32_t sequence = 0;
 
 /* Function Prototypes */
 static void usage(char *name);
@@ -89,6 +99,10 @@ static void usage(char *name);
 static void send_data(timeWindow_t *timeWindow, uint32_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
 
 static int FlushBuffer(int confirm);
+
+static void Close_nfd_output(send_peer_t *peer);
+
+static int Add_nfd_output_record(record_header_t *record_header, send_peer_t *peer);
 
 /* Functions */
 
@@ -120,9 +134,65 @@ static void usage(char *name) {
         name);
 } /* usage */
 
+void Close_nfd_output(send_peer_t *peer) {
+    size_t len = (pointer_addr_t)peer->buff_ptr - (pointer_addr_t)peer->send_buffer;
+    if (len > 0) {
+        // flush last packet
+        nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
+        nfd_header->version = htons(240);
+        nfd_header->length = htons(len);
+        sequence++;
+        dbg_printf("Flush buffer: size: %zu, count: %u, sequence: %u\n", len, recordCnt, sequence);
+        nfd_header->lastSequence = htonl(sequence);
+        nfd_header->numRecord = htonl(recordCnt);
+        recordCnt = 0;
+        peer->flush = 1;
+    } else {
+        peer->flush = 0;
+    }
+
+}  // End of Close_nfd_output
+
+int Add_nfd_output_record(record_header_t *record_header, send_peer_t *peer) {
+#ifdef DEVEL
+    size_t len = (pointer_addr_t)peer->buff_ptr - (pointer_addr_t)peer->send_buffer;
+    printf("Buffer size: %zu, Record count: %u\n", len, recordCnt);
+#endif
+
+    if (peer->buff_ptr == peer->send_buffer) {
+        // empty buffer - add nfd_header
+        peer->buff_ptr = peer->buff_ptr + sizeof(nfd_header_t);
+    }
+
+    // record_header == NULL -> no record to add, but flush buffer
+    if ((peer->buff_ptr + record_header->size) >= peer->endp) {
+        // flush packet first
+        size_t len = (pointer_addr_t)peer->buff_ptr - (pointer_addr_t)peer->send_buffer;
+
+        nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
+        nfd_header->version = htons(240);
+        nfd_header->length = htons(len);
+        sequence++;
+        dbg_printf("Flush buffer: size: %zu, count: %u, sequence: %u\n", len, recordCnt, sequence);
+        nfd_header->lastSequence = htonl(sequence);
+        nfd_header->numRecord = htonl(recordCnt);
+        recordCnt = 0;
+        peer->flush = 1;
+        return 1;
+    }
+    dbg_printf("Add record - type: %u, size: %u\n", record_header->type, record_header->size);
+    memcpy(peer->buff_ptr, (void *)record_header, record_header->size);
+    peer->buff_ptr += record_header->size;
+    recordCnt++;
+    return 0;
+
+}  // End of Add_nfd_output_record
+
 static int FlushBuffer(int confirm) {
-    size_t len = (pointer_addr_t)peer.buff_ptr - (pointer_addr_t)peer.send_buffer;
     static unsigned long cnt = 1;
+
+    size_t len = (pointer_addr_t)peer.buff_ptr - (pointer_addr_t)peer.send_buffer;
+    if (len == 0) return 0;
 
     peer.flush = 0;
     peer.buff_ptr = peer.send_buffer;
@@ -137,8 +207,7 @@ static int FlushBuffer(int confirm) {
 
 static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
     nffile_t *nffile;
-    int i, done, ret, again;
-    uint32_t numflows, cnt;
+    int again;
     uint64_t twin_msecFirst, twin_msecLast;
 
     // z-parameter variables
@@ -178,14 +247,18 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
     peer.buff_ptr = peer.send_buffer;
     peer.endp = (void *)((pointer_addr_t)peer.send_buffer + UDP_PACKET_SIZE - 1);
 
-    if (netflow_version == 5) {
-        Init_v5_v7_output(&peer);
-    } else {
-        if (!Init_v9_output(&peer)) return;
+    dbg_printf("Init output protocol version: %u\n", netflow_version);
+    switch (netflow_version) {
+        case 5:
+            Init_v5_v7_output(&peer);
+            break;
+        case 9:
+            if (!Init_v9_output(&peer)) return;
+            break;
     }
 
-    numflows = 0;
-    done = 0;
+    uint32_t numflows = 0;
+    int done = 0;
 
     // setup Filter Engine to point to master_record, as any record read from file
     // is expanded into this record
@@ -193,10 +266,9 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
     Engine->nfrecord = (uint64_t *)master_record;
     Engine->ident = nffile->ident;
 
-    cnt = 0;
     while (!done) {
         // get next data block from file
-        ret = ReadBlock(nffile);
+        int ret = ReadBlock(nffile);
 
         switch (ret) {
             case NF_CORRUPT:
@@ -231,7 +303,7 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
         // and added to the output buffer
         record_header_t *record_ptr = nffile->buff_ptr;
         uint32_t sumSize = 0;
-        for (i = 0; i < nffile->block_header->NumRecords; i++) {
+        for (int i = 0; i < nffile->block_header->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
                 exit(255);
@@ -257,12 +329,18 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
                     }
                     // Records passed filter -> continue record processing
 
-                    if (netflow_version == 5)
-                        again = Add_v5_output_record(master_record, &peer);
-                    else
-                        again = Add_v9_output_record(master_record, &peer);
+                    switch (netflow_version) {
+                        case 5:
+                            again = Add_v5_output_record(master_record, &peer);
+                            break;
+                        case 9:
+                            again = Add_v9_output_record(master_record, &peer);
+                            break;
+                        case 250:
+                            again = Add_nfd_output_record(record_ptr, &peer);
+                            break;
+                    }
 
-                    cnt++;
                     numflows++;
 
                     if (peer.flush) {
@@ -279,15 +357,20 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
                             // sleep as specified
                             usleep(delay);
                         }
-                        cnt = 0;
                     }
 
                     if (again) {
-                        if (netflow_version == 5)
-                            Add_v5_output_record(master_record, &peer);
-                        else
-                            Add_v9_output_record(master_record, &peer);
-                        cnt++;
+                        switch (netflow_version) {
+                            case 5:
+                                again = Add_v5_output_record(master_record, &peer);
+                                break;
+                            case 9:
+                                again = Add_v9_output_record(master_record, &peer);
+                                break;
+                            case 250:
+                                again = Add_nfd_output_record(record_ptr, &peer);
+                                break;
+                        }
                     }
 
                 } break;
@@ -335,14 +418,20 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
     }  // while
 
     // flush still remaining records
-    if ((netflow_version == 9 && Close_v9_output(&peer)) || cnt) {
-        ret = FlushBuffer(confirm);
-
-        if (ret < 0) {
-            perror("Error sending data");
-        }
-
-    }  // if cnt
+    switch (netflow_version) {
+        case 5:
+            break;
+        case 9:
+            Close_v9_output(&peer);
+            break;
+        case 250:
+            Close_nfd_output(&peer);
+            break;
+    }
+    int ret = FlushBuffer(confirm);
+    if (ret < 0) {
+        LogError("Error flushing send buffer");
+    }
 
     if (nffile) {
         CloseFile(nffile);
@@ -429,8 +518,8 @@ int main(int argc, char **argv) {
                 break;
             case 'v':
                 netflow_version = atoi(optarg);
-                if (netflow_version != 5 && netflow_version != 9) {
-                    LogError("Invalid netflow version: %s. Accept only 5 or 9!\n", optarg);
+                if (netflow_version != 5 && netflow_version != 9 && netflow_version != 250) {
+                    LogError("Invalid netflow version: %s. Accept only 5 or 9 or 250", optarg);
                     exit(255);
                 }
                 break;
@@ -514,9 +603,11 @@ int main(int argc, char **argv) {
     if (!Engine) exit(254);
 
     if (peer.mcast)
-        peer.sockfd = Multicast_send_socket(peer.shostname, peer.hostname, peer.port, peer.family, sockbuff_size, &peer.srcaddr, &peer.dstaddr, &peer.addrlen);
+        peer.sockfd =
+            Multicast_send_socket(peer.shostname, peer.hostname, peer.port, peer.family, sockbuff_size, &peer.srcaddr, &peer.dstaddr, &peer.addrlen);
     else
-        peer.sockfd = Unicast_send_socket(peer.shostname, peer.hostname, peer.port, peer.family, sockbuff_size, &peer.srcaddr, &peer.dstaddr, &peer.addrlen);
+        peer.sockfd =
+            Unicast_send_socket(peer.shostname, peer.hostname, peer.port, peer.family, sockbuff_size, &peer.srcaddr, &peer.dstaddr, &peer.addrlen);
     if (peer.sockfd <= 0) {
         exit(255);
     }

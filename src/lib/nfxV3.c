@@ -490,3 +490,56 @@ void PrintSequencer(sequencer_t *sequencer) {
     }
     printf("\n");
 }
+
+int VerifyV3Record(recordHeaderV3_t *recordHeader) {
+    if (recordHeader->type != V3Record) {
+        dbg_printf("VerifyV3 - not a V3 type: %u\n", recordHeader->type);
+        return 0;
+    }
+
+    if (recordHeader->size < sizeof(recordHeaderV3_t)) {
+        dbg_printf("VerifyV3 - size error: %u\n", recordHeader->size);
+        return 0;
+    }
+
+    // length of all extensions
+    int32_t rlen = recordHeader->size - sizeof(recordHeaderV3_t);
+
+#ifdef DEVEL
+    printf("V3 record: size: %u, numElements: %u\n", recordHeader->size, recordHeader->numElements);
+    printf("flags: %u, nfversion: %u\n", recordHeader->flags, recordHeader->nfversion);
+    printf("engineType: %u, engineID: %u\n", recordHeader->engineType, recordHeader->engineID);
+    printf("ext length: %d\n", rlen);
+#endif
+
+    int cnt = 0;
+    elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeader + sizeof(recordHeaderV3_t));
+    for (int i = 0; i < recordHeader->numElements; i++) {
+        if (elementHeader->length > rlen) {
+            dbg_printf("VerifyV3 - element length error - left: %u, length: %u\n", rlen, elementHeader->length);
+            return 0;
+        }
+        if (elementHeader->type >= MAXEXTENSIONS) {
+            dbg_printf("VerifyV3 - element type error: %u\n", elementHeader->type);
+            return 0;
+        }
+        dbg_printf("VerifyV3 - Next element: %u, length: %u\n", elementHeader->type, elementHeader->length);
+        rlen -= elementHeader->length;
+        cnt++;
+        // next element
+        elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
+    }
+
+    if (rlen != 0) {
+        dbg_printf("VerifyV3 - record length error - diff: %d\n", rlen);
+        return 0;
+    }
+
+    if (cnt != recordHeader->numElements) {
+        dbg_printf("VerifyV3 - num element error: counted: %u, announced: %u\n", cnt, recordHeader->numElements);
+        return 0;
+    }
+
+    return 1;
+
+}  // end of VerifyV3Record

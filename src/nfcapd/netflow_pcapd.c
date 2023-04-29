@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -144,7 +144,7 @@ static void *GetExtension(recordHeaderV3_t *recordHeader, int extensionID) {
         if (elementHeader->type == extensionID) {
             extension = (void *)elementHeader + sizeof(elementHeader_t);
         } else {
-            // prevent potential endloess loop with buggy record
+            // prevent potential endless loop with buggy record
             if (elementHeader->length == 0) return NULL;
             recSize += elementHeader->length;
             elementHeader = (elementHeader_t *)recordHeader + recSize;
@@ -180,6 +180,7 @@ void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
     uint16_t count = ntohl(pcapd_header->numRecord);
     uint32_t numRecords = 0;
+    dbg_printf("Process nfd packet: %llu, size: %zd, recordCnt: %u\n", exporter->packets, in_buff_cnt, count);
 
     if ((sizeof(pcapd_header_t) + sizeof(recordHeaderV3_t)) > size_left) {
         LogError("Process_pcapd: Not enough data.");
@@ -193,11 +194,17 @@ void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     size_left -= sizeof(pcapd_header_t);
     do {
         // output buffer size check
+        dbg_printf("Next record - type: %u, size: %u\n", recordHeaderV3->type, recordHeaderV3->size);
+        // verify received record.
+        if (VerifyV3Record(recordHeaderV3) == 0) {
+            LogError("Malformed nfd record received");
+            return;
+        }
+
         if (recordHeaderV3->size > buffAvail) {
             buffAvail = CheckBufferSpace(fs->nffile, recordHeaderV3->size + receivedSize);
             if (buffAvail == 0) {
                 LogError("Process_pcapd: output buffer size error.");
-                dbg_printf("Process_pcapd: output buffer size error.");
                 return;
             }
         }
@@ -215,15 +222,21 @@ void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         recordHeaderV3_t *copiedV3 = fs->nffile->buff_ptr;
         // add router IP
 
-        if (fs->sa_family == PF_INET6) {
-            PushExtension(copiedV3, EXipReceivedV6, ipReceivedV6);
-            ipReceivedV6->ip[0] = fs->ip.V6[0];
-            ipReceivedV6->ip[1] = fs->ip.V6[1];
-            dbg_printf("Add IPv6 route IP extension\n");
+        if (GetExtension(recordHeaderV3, EXipReceivedV4ID) == NULL && GetExtension(recordHeaderV3, EXipReceivedV6ID) == NULL) {
+            // no ip received extension
+            // push IP received
+            if (fs->sa_family == PF_INET6) {
+                PushExtension(copiedV3, EXipReceivedV6, ipReceivedV6);
+                ipReceivedV6->ip[0] = fs->ip.V6[0];
+                ipReceivedV6->ip[1] = fs->ip.V6[1];
+                dbg_printf("Add IPv6 route IP extension\n");
+            } else {
+                PushExtension(copiedV3, EXipReceivedV4, ipReceivedV4);
+                ipReceivedV4->ip = fs->ip.V4;
+                dbg_printf("Add IPv4 route IP extension\n");
+            }
         } else {
-            PushExtension(copiedV3, EXipReceivedV4, ipReceivedV4);
-            ipReceivedV4->ip = fs->ip.V4;
-            dbg_printf("Add IPv4 route IP extension\n");
+            dbg_printf("Found existing IP received extension\n");
         }
 
         dbg_printf("Record: %u elements, size: %u\n\n", copiedV3->numElements, copiedV3->size);

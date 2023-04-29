@@ -724,4 +724,6 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
 
 void PrintSequencer(sequencer_t *sequencer);
 
+int VerifyV3Record(recordHeaderV3_t *recordHeader);
+
 #endif  //_NFXV3_H

@@ -39,7 +39,7 @@
 typedef struct pcapd_header {
     uint16_t version;       // set to 250 for pcapd
     uint16_t length;        // Total length incl. this header. up to 65535 bytes
-    uint32_t exportTime;    // UNIC epoch export Time of flow.
+    uint32_t exportTime;    // UNIX epoch export Time of flow.
     uint32_t lastSequence;  // Incremental sequence counter modulo 2^32 of all pcapd Data Records
     uint32_t numRecord;     // number of pcapd records in this packet
 } pcapd_header_t;
