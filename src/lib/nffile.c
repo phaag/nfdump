@@ -172,13 +172,12 @@ static void BZ2_prep_stream(bz_stream *bs) {
 static int Compress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size) {
     unsigned char __LZO_MMODEL *in;
     unsigned char __LZO_MMODEL *out;
-    lzo_uint in_len;
-    lzo_uint out_len;
     int r;
 
     in = (unsigned char __LZO_MMODEL *)((void *)in_block + sizeof(dataBlock_t));
     out = (unsigned char __LZO_MMODEL *)((void *)out_block + sizeof(dataBlock_t));
-    in_len = in_block->size;
+    lzo_uint in_len = in_block->size;
+    lzo_uint out_len = 0;
     r = lzo1x_1_compress(in, in_len, out, &out_len, wrkmem);
 
     if (r != LZO_E_OK) {
@@ -1162,13 +1161,14 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
     dbg_printf("nfwrite - write: %u\n", block_header->size);
 
     dataBlock_t *buff = queue_pop(nffile->blockQueue);
-    dataBlock_t *wptr = block_header;
+    dataBlock_t *wptr = NULL;
     int failed = 0;
     // compress according file compression
     int compression = nffile->file_header->compression;
     dbg_printf("nfwrite - compression: %u\n", compression);
     switch (compression) {
         case NOT_COMPRESSED:
+            wptr = block_header;
             break;
         case LZO_COMPRESSED:
             if (Compress_Block_LZO(block_header, buff, nffile->buff_size) < 0) failed = 1;
@@ -1189,9 +1189,9 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
         return 0;
     }
 
-    dbg_printf("WriteBlock - type: %u, size: %u, numRecords: %u, flags: %u\n", wptr->type, wptr->size, wptr->NumRecords, wptr->flags);
+    dbg_printf("WriteBlock - type: %u, size: %u, compressed: %u, numRecords: %u, flags: %u\n", wptr->type, block_header->size, ->size,
+               wptr->NumRecords, wptr->flags);
 
-    dbg_printf("nfwrite - compressed: %u\n", buff->size);
     ssize_t ret = write(nffile->fd, (void *)wptr, sizeof(dataBlock_t) + wptr->size);
     queue_push(nffile->blockQueue, buff);
     if (ret < 0) {

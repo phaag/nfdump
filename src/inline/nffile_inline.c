@@ -49,8 +49,8 @@ static inline size_t CheckBufferSpace(nffile_t *nffile, size_t required) {
 
     // flush current buffer to disc
     if ((nffile->block_header->size + required) > WRITE_BUFFSIZE) {
-        // this should never happen, but catch it anyway
         if (required > WRITE_BUFFSIZE) {
+            // this should never happen, but catch it anyway
             LogError("Required buffer size %zu too big for output buffer!", required);
             return 0;
         }
