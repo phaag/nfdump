@@ -560,8 +560,9 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
             case 10:
                 Process_IPFIX(in_buff, cnt, fs);
                 break;
-            case 240:
-                Process_pcapd(in_buff, cnt, fs);
+            case 240:  // will get removed
+            case 250:
+                Process_nfd(in_buff, cnt, fs);
                 break;
             default:
                 // data error, while reading data from socket

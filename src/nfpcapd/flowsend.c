@@ -228,7 +228,7 @@ __attribute__((noreturn)) void *sendflow_thread(void *thread_data) {
     sendBuffer = malloc(65535);
     nfd_header_t *pcapd_header = (nfd_header_t *)sendBuffer;
     memset((void *)pcapd_header, 0, sizeof(nfd_header_t));
-    pcapd_header->version = htons(240);
+    pcapd_header->version = htons(250);
     pcapd_header->length = sizeof(nfd_header_t);
     pcapd_header->lastSequence = 1;
 

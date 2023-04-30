@@ -1463,7 +1463,7 @@ int QueryFile(char *filename, int verbose) {
 
         if (verbose) {
             printf("Blocksize  : %u\n", fileHeader.BlockSize);
-            printf("OffsetApp  : %lld\n", fileHeader.offAppendix);
+            printf("OffsetApp  : %lld\n", (long long)fileHeader.offAppendix);
         }
 
         if (fileHeader.offAppendix >= stat_buf.st_size) {

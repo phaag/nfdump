@@ -100,7 +100,7 @@ static inline exporter_nfd_t *getExporter(FlowSource_t *fs, nfd_header_t *header
     // nothing found
     *e = (exporter_nfd_t *)malloc(sizeof(exporter_nfd_t));
     if (!(*e)) {
-        LogError("Process_pcapd: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("Process_nfd: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
     memset((void *)(*e), 0, sizeof(exporter_nfd_t));
@@ -130,7 +130,7 @@ static inline exporter_nfd_t *getExporter(FlowSource_t *fs, nfd_header_t *header
 
     FlushInfoExporter(fs, &((*e)->info));
 
-    LogInfo("Process_pcapd: SysID: %u, New exporter: IP: %s\n", (*e)->info.sysid, ipstr);
+    LogInfo("Process_nfd: SysID: %u, New exporter: IP: %s\n", (*e)->info.sysid, ipstr);
 
     return (*e);
 
@@ -156,13 +156,13 @@ static void *GetExtension(recordHeaderV3_t *recordHeader, int extensionID) {
 
 }  // End of GetExtension
 
-void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
+void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // map pacpd data structure to input buffer
     nfd_header_t *pcapd_header = (nfd_header_t *)in_buff;
 
     exporter_nfd_t *exporter = getExporter(fs, pcapd_header);
     if (!exporter) {
-        LogError("Process_pcapd: NULL Exporter: Skip pcapd record processing");
+        LogError("Process_nfd: NULL Exporter: Skip pcapd record processing");
         return;
     }
     exporter->packets++;
@@ -185,8 +185,8 @@ void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     dbg_printf("Process nfd packet: %llu, size: %zd, recordCnt: %u\n", exporter->packets, in_buff_cnt, count);
 
     if ((sizeof(nfd_header_t) + sizeof(recordHeaderV3_t)) > size_left) {
-        LogError("Process_pcapd: Not enough data.");
-        dbg_printf("Process_pcapd: Not enough data.");
+        LogError("Process_nfd: Not enough data.");
+        dbg_printf("Process_nfd: Not enough data.");
         return;
     }
 
@@ -206,14 +206,14 @@ void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         if (recordHeaderV3->size > buffAvail) {
             buffAvail = CheckBufferSpace(fs->nffile, recordHeaderV3->size + receivedSize);
             if (buffAvail == 0) {
-                LogError("Process_pcapd: output buffer size error.");
+                LogError("Process_nfd: output buffer size error.");
                 return;
             }
         }
 
         if (recordHeaderV3->size > size_left) {
-            LogError("Process_pcapd: record size error.");
-            dbg_printf("Process_pcapd: record size error.");
+            LogError("Process_nfd: record size error.");
+            dbg_printf("Process_nfd: record size error.");
             return;
         }
 
@@ -306,10 +306,10 @@ void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         recordHeaderV3 = (recordHeaderV3_t *)((void *)recordHeaderV3 + recordHeaderV3->size);
     } while (size_left > sizeof(recordHeaderV3_t));
 
-    if (size_left) LogInfo("Process_pcapd(): bytes left in buffer: %zu", size_left);
+    if (size_left) LogInfo("Process_nfd(): bytes left in buffer: %zu", size_left);
 
-    if (numRecords != count) LogInfo("Process_pcapd(): expected %u records, processd: %u", count, numRecords);
+    if (numRecords != count) LogInfo("Process_nfd(): expected %u records, processd: %u", count, numRecords);
 
     return;
 
-} /* End of Process_pcapd */
+} /* End of Process_nfd */

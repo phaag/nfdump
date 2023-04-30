@@ -47,6 +47,6 @@ typedef struct nfd_header {
 /* prototypes */
 int Init_pcapd(int verbose);
 
-void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
+void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 
 #endif  // _NFD_RAW_H
