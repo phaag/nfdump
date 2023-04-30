@@ -56,6 +56,7 @@
 
 #include "flist.h"
 #include "nbar.h"
+#include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nftree.h"
@@ -76,14 +77,6 @@
 #ifdef HAVE_FPURGE
 #define FPURGE fpurge
 #endif
-
-typedef struct nfd_header {
-    uint16_t version;       // set to 250 for nfd raw
-    uint16_t length;        // Total length incl. this header. up to 65535 bytes
-    uint32_t exportTime;    // UNIX epoch export Time of flow.
-    uint32_t lastSequence;  // Incremental sequence counter modulo 2^32 of all pcapd Data Records
-    uint32_t numRecord;     // number of pcapd records in this packet
-} nfd_header_t;
 
 /* Local Variables */
 static int verbose = 0;
@@ -139,7 +132,7 @@ void Close_nfd_output(send_peer_t *peer) {
     if (len > 0) {
         // flush last packet
         nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
-        nfd_header->version = htons(250);
+        nfd_header->version = htons(NFD_PROTOCOL);
         nfd_header->length = htons(len);
         sequence++;
         dbg_printf("Flush buffer: size: %zu, count: %u, sequence: %u\n", len, recordCnt, sequence);
@@ -170,7 +163,7 @@ int Add_nfd_output_record(record_header_t *record_header, send_peer_t *peer) {
         size_t len = (pointer_addr_t)peer->buff_ptr - (pointer_addr_t)peer->send_buffer;
 
         nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
-        nfd_header->version = htons(250);
+        nfd_header->version = htons(NFD_PROTOCOL);
         nfd_header->length = htons(len);
         sequence++;
         dbg_printf("Flush buffer: size: %zu, count: %u, sequence: %u\n", len, recordCnt, sequence);
