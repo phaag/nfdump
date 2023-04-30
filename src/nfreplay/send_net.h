@@ -35,7 +35,8 @@
 
 /* Definitions */
 
-#define UDP_PACKET_SIZE 1472
+#define UDP_PACKET_SIZE 4096
+#define ETHER_PACKET_SIZE 1472
 
 typedef struct send_peer_s {
     struct sockaddr_storage srcaddr, dstaddr;
@@ -53,10 +54,10 @@ typedef struct send_peer_s {
 } send_peer_t;
 
 /* Function prototypes */
-int Unicast_send_socket(const char *shostname, const char *dhostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *saddr, struct sockaddr_storage *daddr,
-                        int *addrlen);
+int Unicast_send_socket(const char *shostname, const char *dhostname, const char *listenport, int family, unsigned int wmem_size,
+                        struct sockaddr_storage *saddr, struct sockaddr_storage *daddr, int *addrlen);
 
-int Multicast_send_socket(const char *shostname, const char *dhostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *saddr, struct sockaddr_storage *daddr,
-                          int *addrlen);
+int Multicast_send_socket(const char *shostname, const char *dhostname, const char *listenport, int family, unsigned int wmem_size,
+                          struct sockaddr_storage *saddr, struct sockaddr_storage *daddr, int *addrlen);
 
 #endif  //_NFNET_H

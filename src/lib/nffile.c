@@ -1467,7 +1467,7 @@ int QueryFile(char *filename, int verbose) {
         }
 
         if (fileHeader.offAppendix >= stat_buf.st_size) {
-            LogError("Invalid appendix offset: %lld, file size: %lld", fileHeader.offAppendix, stat_buf.st_size);
+            LogError("Invalid appendix offset: %lld, file size: %lld", (long long)fileHeader.offAppendix, stat_buf.st_size);
             close(fd);
             return 0;
         }
@@ -1552,8 +1552,8 @@ int QueryFile(char *filename, int verbose) {
         }
 
         if (verbose) {
-            printf("Checking block %i, offset: %lld, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, fpos, nffile->block_header->type,
-                   nffile->block_header->size, nffile->block_header->flags, nffile->block_header->NumRecords);
+            printf("Checking block %i, offset: %lld, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, (long long)fpos,
+                   nffile->block_header->type, nffile->block_header->size, nffile->block_header->flags, nffile->block_header->NumRecords);
         }
         int compression = nffile->file_header->compression;
         if (TestFlag(nffile->block_header->flags, FLAG_BLOCK_UNCOMPRESSED)) {

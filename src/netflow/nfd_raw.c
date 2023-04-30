@@ -140,14 +140,16 @@ static void *GetExtension(recordHeaderV3_t *recordHeader, int extensionID) {
     size_t recSize = sizeof(recordHeaderV3_t);
     elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeader + recSize);
     void *extension = NULL;
+    dbg_printf("Check for extension: %u\n", extensionID);
     while (extension == NULL && recSize < recordHeader->size) {
+        dbg_printf("Next extension: %u, size: %u\n", elementHeader->type, elementHeader->length);
         if (elementHeader->type == extensionID) {
             extension = (void *)elementHeader + sizeof(elementHeader_t);
         } else {
             // prevent potential endless loop with buggy record
             if (elementHeader->length == 0) return NULL;
             recSize += elementHeader->length;
-            elementHeader = (elementHeader_t *)recordHeader + recSize;
+            elementHeader = (elementHeader_t *)((void *)recordHeader + recSize);
         }
     }
     return extension;
@@ -302,7 +304,6 @@ void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
         // advance input buffer to next flow record
         recordHeaderV3 = (recordHeaderV3_t *)((void *)recordHeaderV3 + recordHeaderV3->size);
-
     } while (size_left > sizeof(recordHeaderV3_t));
 
     if (size_left) LogInfo("Process_pcapd(): bytes left in buffer: %zu", size_left);
