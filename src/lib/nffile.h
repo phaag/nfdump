@@ -257,7 +257,7 @@ void PrintStat(stat_record_t *s, char *ident);
 
 void PrintGNUplotSumStat(nffile_t *nffile);
 
-int QueryFile(char *filename);
+int QueryFile(char *filename, int verbose);
 
 int GetStatRecord(char *filename, stat_record_t *stat_record);
 

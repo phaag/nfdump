@@ -54,9 +54,9 @@
 #include "output_short.h"
 #include "util.h"
 
-typedef struct exporter_pcapd_s {
+typedef struct exporter_nfd_s {
     // struct exporter_s
-    struct exporter_pcapd_s *next;
+    struct exporter_nfd_s *next;
 
     // exporter information
     exporter_info_record_t info;  // exporter record nffile
@@ -69,12 +69,12 @@ typedef struct exporter_pcapd_s {
     sampler_t *sampler;  // list of samplers associated with this exporter
                          // end of struct exporter_s
 
-} exporter_pcapd_t;
+} exporter_nfd_t;
 
 /* module limited globals */
 static int printRecord;
 
-static inline exporter_pcapd_t *getExporter(FlowSource_t *fs, nfd_header_t *header);
+static inline exporter_nfd_t *getExporter(FlowSource_t *fs, nfd_header_t *header);
 
 /* functions */
 
@@ -85,8 +85,8 @@ int Init_pcapd(int verbose) {
     return 1;
 }  // End of Init_pcapd
 
-static inline exporter_pcapd_t *getExporter(FlowSource_t *fs, nfd_header_t *header) {
-    exporter_pcapd_t **e = (exporter_pcapd_t **)&(fs->exporter_data);
+static inline exporter_nfd_t *getExporter(FlowSource_t *fs, nfd_header_t *header) {
+    exporter_nfd_t **e = (exporter_nfd_t **)&(fs->exporter_data);
     uint16_t version = ntohs(header->version);
 #define IP_STRING_LEN 40
     char ipstr[IP_STRING_LEN];
@@ -98,12 +98,12 @@ static inline exporter_pcapd_t *getExporter(FlowSource_t *fs, nfd_header_t *head
     }
 
     // nothing found
-    *e = (exporter_pcapd_t *)malloc(sizeof(exporter_pcapd_t));
+    *e = (exporter_nfd_t *)malloc(sizeof(exporter_nfd_t));
     if (!(*e)) {
         LogError("Process_pcapd: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
-    memset((void *)(*e), 0, sizeof(exporter_pcapd_t));
+    memset((void *)(*e), 0, sizeof(exporter_nfd_t));
     (*e)->next = NULL;
     (*e)->info.header.type = ExporterInfoRecordType;
     (*e)->info.header.size = sizeof(exporter_info_record_t);
@@ -158,7 +158,7 @@ void Process_pcapd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // map pacpd data structure to input buffer
     nfd_header_t *pcapd_header = (nfd_header_t *)in_buff;
 
-    exporter_pcapd_t *exporter = getExporter(fs, pcapd_header);
+    exporter_nfd_t *exporter = getExporter(fs, pcapd_header);
     if (!exporter) {
         LogError("Process_pcapd: NULL Exporter: Skip pcapd record processing");
         return;

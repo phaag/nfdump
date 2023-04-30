@@ -1372,13 +1372,13 @@ void ModifyCompressFile(int compress) {
 
 }  // End of ModifyCompressFile
 
-int QueryFile(char *filename) {
+int QueryFile(char *filename, int verbose) {
     int fd;
     uint32_t totalRecords, numBlocks, type1, type2, type3, type4;
     struct stat stat_buf;
     ssize_t ret;
-    off_t fsize;
 
+    dbg_printf("Query mode verbose: %d\n", verbose);
     if (!Init_nffile(NULL)) return 0;
 
     type1 = type2 = type3 = type4 = 0;
@@ -1461,8 +1461,13 @@ int QueryFile(char *filename) {
         printf("Appdx blks : %u\n", fileHeader.appendixBlocks);
         printf("Data blks  : %u\n", fileHeader.NumBlocks);
 
+        if (verbose) {
+            printf("Blocksize  : %u\n", fileHeader.BlockSize);
+            printf("OffsetApp  : %lld\n", fileHeader.offAppendix);
+        }
+
         if (fileHeader.offAppendix >= stat_buf.st_size) {
-            LogError("Invalid appendix offset: %u", fileHeader.offAppendix);
+            LogError("Invalid appendix offset: %lld, file size: %lld", fileHeader.offAppendix, stat_buf.st_size);
             close(fd);
             return 0;
         }
@@ -1481,16 +1486,16 @@ int QueryFile(char *filename) {
 
     dataBlock_t *buff = queue_pop(nffile->blockQueue);
 
-    fsize = lseek(fd, 0, SEEK_CUR);
-
     printf("Checking data blocks\n");
-    setvbuf(stdout, (char *)NULL, _IONBF, 0);
+    if (verbose == 0) setvbuf(stdout, (char *)NULL, _IONBF, 0);
+
     for (int i = 0; i < fileHeader.NumBlocks + fileHeader.appendixBlocks; i++) {
-#ifndef DEVEL
-        char spinner[] = {'|', '/', '-', '\\'};
-        if ((numBlocks & 0x7) == 0) printf(" %c\r", spinner[(numBlocks >> 3) & 0x2]);
-#endif
-        if ((fsize + sizeof(dataBlock_t)) > stat_buf.st_size) {
+        if (verbose == 0) {
+            char spinner[] = {'|', '/', '-', '\\'};
+            if (verbose == 0 && ((numBlocks & 0x7) == 0)) printf(" %c\r", spinner[(numBlocks >> 3) & 0x2]);
+        }
+        off_t fpos = lseek(fd, 0, SEEK_CUR);
+        if ((fpos + sizeof(dataBlock_t)) > stat_buf.st_size) {
             LogError("Unexpected read beyond EOF! File corrupted");
             LogError("Expected %u blocks, counted %i", fileHeader.NumBlocks, i);
             break;
@@ -1513,7 +1518,6 @@ int QueryFile(char *filename) {
             close(fd);
             return 0;
         }
-        fsize += ret;
         numBlocks++;
 
         switch (nffile->block_header->type) {
@@ -1541,14 +1545,16 @@ int QueryFile(char *filename) {
             return 0;
         }
 
-        if ((fsize + nffile->block_header->size) > stat_buf.st_size) {
+        if ((fpos + sizeof(dataBlock_t) + nffile->block_header->size) > stat_buf.st_size) {
             LogError("Expected to seek beyond EOF! File corrupted");
             close(fd);
             return 0;
         }
 
-        dbg_printf("Checking block %i, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, nffile->block_header->type,
+        if (verbose) {
+            printf("Checking block %i, offset: %lld, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, fpos, nffile->block_header->type,
                    nffile->block_header->size, nffile->block_header->flags, nffile->block_header->NumRecords);
+        }
         int compression = nffile->file_header->compression;
         if (TestFlag(nffile->block_header->flags, FLAG_BLOCK_UNCOMPRESSED)) {
             compression = NOT_COMPRESSED;
@@ -1572,8 +1578,8 @@ int QueryFile(char *filename) {
             close(fd);
             return 0;
         }
-        fsize += ret;
 
+        int failed = 0;
         switch (compression) {
             case NOT_COMPRESSED:
                 break;
@@ -1583,7 +1589,7 @@ int QueryFile(char *filename) {
                 buff = b;
                 if (Uncompress_Block_LZO(buff, nffile->block_header, nffile->buff_size) < 0) {
                     LogError("LZO decompress failed");
-                    return 0;
+                    failed = 1;
                 }
             } break;
             case LZ4_COMPRESSED: {
@@ -1592,7 +1598,7 @@ int QueryFile(char *filename) {
                 buff = b;
                 if (Uncompress_Block_LZ4(buff, nffile->block_header, nffile->buff_size) < 0) {
                     LogError("LZ4 decompress failed");
-                    return 0;
+                    failed = 1;
                 }
             } break;
             case BZ2_COMPRESSED: {
@@ -1601,12 +1607,15 @@ int QueryFile(char *filename) {
                 buff = b;
                 if (Uncompress_Block_BZ2(buff, nffile->block_header, nffile->buff_size) < 0) {
                     LogError("Bzip2 decompress failed");
-                    return 0;
+                    failed = 1;
                 }
             } break;
         }
 
-        dbg_printf("Uncompressed block %i, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, nffile->block_header->type,
+        if (failed) continue;
+
+        if (verbose)
+            printf("Uncompressed block %i, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, nffile->block_header->type,
                    nffile->block_header->size, nffile->block_header->flags, nffile->block_header->NumRecords);
 
         nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(dataBlock_t));
@@ -1636,9 +1645,21 @@ int QueryFile(char *filename) {
                     close(fd);
                     return 0;
                 }
-                blockSize += recordHeader->size;
 
-                dbg_printf("Record %i, type: %u, size: %u - block size: %u\n", numRecords, recordHeader->type, recordHeader->size, blockSize);
+                if (recordHeader->type > MaxRecordID && recordHeader->type < 32767) {
+                    LogError("Unknown record type %u", recordHeader->type);
+                }
+
+                if (verbose) {
+                    printf("Record %i, type: %u, size: %u - block offset: %u", numRecords, recordHeader->type, recordHeader->size, blockSize);
+                    if (recordHeader->type == V3Record) {
+                        if (VerifyV3Record((recordHeaderV3_t *)recordHeader) == 0) {
+                            printf(" ** malformed **");
+                        }
+                    }
+                    printf("\n");
+                }
+                blockSize += recordHeader->size;
 
                 if (recordHeader->size < sizeof(recordHeader_t)) {
                     LogError("Error in block: %u, record: %u: record size %u below header size", numBlocks, numRecords, recordHeader->size);
@@ -1663,7 +1684,7 @@ int QueryFile(char *filename) {
         }
 
         if (i + 1 == fileHeader.NumBlocks) {
-            fsize = lseek(fd, 0, SEEK_CUR);
+            off_t fsize = lseek(fd, 0, SEEK_CUR);
             if (fileHeader.appendixBlocks && fsize != fileHeader.offAppendix) {
                 LogError("Invalid appendix offset - Expected: %u, found: %u", fileHeader.offAppendix, fsize);
                 close(fd);
@@ -1673,7 +1694,7 @@ int QueryFile(char *filename) {
         }
     }
 
-    fsize = lseek(fd, 0, SEEK_CUR);
+    off_t fsize = lseek(fd, 0, SEEK_CUR);
     if (fsize < stat_buf.st_size) {
         LogError("Extra data detected after regular blocks: %i bytes", stat_buf.st_size - fsize);
     }

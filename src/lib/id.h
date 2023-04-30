@@ -60,6 +60,6 @@
 
 #define SamplerRecordType 15
 
-#define MaxRecordID 14
+#define MaxRecordID 15
 
 #endif

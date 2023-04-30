@@ -839,7 +839,7 @@ int main(int argc, char **argv) {
             case 'v':
                 CheckArgLen(optarg, MAXPATHLEN);
                 query_file = optarg;
-                if (!QueryFile(query_file))
+                if (!QueryFile(query_file, fdump))
                     exit(EXIT_FAILURE);
                 else
                     exit(EXIT_SUCCESS);

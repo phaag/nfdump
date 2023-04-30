@@ -207,7 +207,6 @@ static int FlushBuffer(int confirm) {
 
 static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
     nffile_t *nffile;
-    int again;
     uint64_t twin_msecFirst, twin_msecLast;
 
     // z-parameter variables
@@ -329,6 +328,7 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
                     }
                     // Records passed filter -> continue record processing
 
+                    int again;
                     switch (netflow_version) {
                         case 5:
                             again = Add_v5_output_record(master_record, &peer);
