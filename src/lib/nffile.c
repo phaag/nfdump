@@ -1069,7 +1069,6 @@ static dataBlock_t *nfread(nffile_t *nffile) {
 
         if (failed) {
             FreeDataBlock(block_header);
-            FreeDataBlock(buff);
             return NULL;
         }
         // success - done
@@ -1160,41 +1159,41 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
     dbg_printf("nfwrite - write: %u\n", block_header->size);
 
     dataBlock_t *buff = NULL;
+    dataBlock_t *wptr = NULL;
     int failed = 0;
     // compress according file compression
     int compression = nffile->file_header->compression;
     dbg_printf("nfwrite - compression: %u\n", compression);
     switch (compression) {
         case NOT_COMPRESSED:
-            buff = block_header;
+            wptr = block_header;
             break;
         case LZO_COMPRESSED:
             buff = NewDataBlock();
             if (Compress_Block_LZO(block_header, buff, nffile->buff_size) < 0) failed = 1;
-            FreeDataBlock(block_header);
+            wptr = buff;
             break;
         case LZ4_COMPRESSED:
             buff = NewDataBlock();
             if (Compress_Block_LZ4(block_header, buff, nffile->buff_size) < 0) failed = 1;
-            FreeDataBlock(block_header);
+            wptr = buff;
             break;
         case BZ2_COMPRESSED:
             buff = NewDataBlock();
             if (Compress_Block_BZ2(block_header, buff, nffile->buff_size) < 0) failed = 1;
-            FreeDataBlock(block_header);
+            wptr = buff;
             break;
     }
 
     if (failed) {  // error
         FreeDataBlock(buff);
-        FreeDataBlock(block_header);
         return 0;
     }
 
     dbg_printf("WriteBlock - type: %u, size: %u, compressed: %u, numRecords: %u, flags: %u\n", wptr->type, block_header->size, ->size,
                wptr->NumRecords, wptr->flags);
 
-    ssize_t ret = write(nffile->fd, (void *)buff, sizeof(dataBlock_t) + buff->size);
+    ssize_t ret = write(nffile->fd, (void *)wptr, sizeof(dataBlock_t) + wptr->size);
     FreeDataBlock(buff);
     if (ret < 0) {
         LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -1226,6 +1225,7 @@ __attribute__((noreturn)) void *nfwriter(void *arg) {
             dbg_printf("nfwriter write\n");
             ok = nfwrite(nffile, block_header);
         }
+        FreeDataBlock(block_header);
 
         if (!ok) break;
     }
