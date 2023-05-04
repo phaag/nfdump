@@ -202,7 +202,7 @@ typedef struct nffile_s {
     void *buff_ptr;             // pointer into buffer for read/write blocks/records
 
     queue_t *processQueue;  // blocks ready to be processed
-    queue_t *blockQueue;    // empty blocks
+    // queue_t *blockQueue;    // empty blocks
 
     stat_record_t *stat_record;  // flow stat record
     char *ident;                 // source identifier
