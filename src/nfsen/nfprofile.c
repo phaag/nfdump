@@ -99,11 +99,7 @@ static void usage(char *name) {
 } /* usage */
 
 static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot) {
-    nffile_t *nffile;
-    FilterEngine_t *engine;
-    int i, j, done, ret;
-
-    nffile = GetNextFile(NULL);
+    nffile_t *nffile = GetNextFile(NULL);
     if (!nffile) {
         LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return;
@@ -125,10 +121,10 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
         return;
     }
 
-    done = 0;
+    int done = 0;
     while (!done) {
         // get next data block from file
-        ret = ReadBlock(nffile);
+        int ret = ReadBlock(nffile);
 
         switch (ret) {
             case NF_CORRUPT:
@@ -167,7 +163,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
 
         record_header_t *record_ptr = nffile->buff_ptr;
         uint32_t sumSize = 0;
-        for (i = 0; i < nffile->block_header->NumRecords; i++) {
+        for (int i = 0; i < nffile->block_header->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
                 exit(255);
@@ -179,12 +175,12 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                     memset((void *)master_record, 0, sizeof(master_record_t));
                     ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
 
-                    for (j = 0; j < num_channels; j++) {
+                    for (int j = 0; j < num_channels; j++) {
                         int match;
 
                         // apply profile filter
                         (channels[j].engine)->nfrecord = (uint64_t *)master_record;
-                        engine = channels[j].engine;
+                        FilterEngine_t *engine = channels[j].engine;
                         match = (*engine->FilterEngine)(engine);
 
                         // if profile filter failed -> next profile
@@ -194,7 +190,6 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
 
                         // update statistics
                         UpdateStat(&channels[j].stat_record, master_record);
-                        if (channels[j].nffile) UpdateStat(channels[j].nffile->stat_record, master_record);
 
                         // do we need to write data to new file - shadow profiles do not have files.
                         // check if we need to flush the output buffer
@@ -209,8 +204,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                 case ExporterInfoRecordType: {
                     int err = AddExporterInfo((exporter_info_record_t *)record_ptr);
                     if (err != 0) {
-                        int j;
-                        for (j = 0; j < num_channels; j++) {
+                        for (int j = 0; j < num_channels; j++) {
                             if (channels[j].nffile != NULL && err == 1) {
                                 // flush new exporter
                                 AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
@@ -223,8 +217,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                 case SamplerRecordType: {
                     int err = AddSamplerInfo((sampler_record_t *)record_ptr);
                     if (err != 0) {
-                        int j;
-                        for (j = 0; j < num_channels; j++) {
+                        for (int j = 0; j < num_channels; j++) {
                             if (channels[j].nffile != NULL && err == 1) {
                                 // flush new map
                                 AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
@@ -250,25 +243,30 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
         }  // End of for all umRecords
     }      // End of while !done
 
+    // Close input
+    CloseFile(nffile);
+    DisposeFile(nffile);
+
     // do we need to write data to new file - shadow profiles do not have files.
-    for (j = 0; j < num_channels; j++) {
+    for (int j = 0; j < num_channels; j++) {
         if (channels[j].nffile != NULL) {
             // flush output buffer
             if (channels[j].nffile->block_header->NumRecords) {
                 if (WriteBlock(channels[j].nffile) <= 0) {
-                    LogError("Failed to write output buffer to disk: '%s'", strerror(errno));
+                    LogError("Failed to flush output buffer to disk: '%s'", strerror(errno));
                 }
             }
+            *channels[j].nffile->stat_record = channels[j].stat_record;
+            CloseUpdateFile(channels[j].nffile);
+            DisposeFile(channels[j].nffile);
+            channels[j].nffile = NULL;
         }
     }
-    CloseFile(nffile);
-    DisposeFile(nffile);
 
 }  // End of process_data
 
 static profile_param_info_t *ParseParams(char *profile_datadir) {
-    struct stat stat_buf;
-    char line[512], path[MAXPATHLEN], *p, *q, *s;
+    char line[512], path[MAXPATHLEN];
     profile_param_info_t *profile_list;
     profile_param_info_t **list = &profile_list;
 
@@ -294,15 +292,15 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
         // delete '\n' at the end of line
         // format of stdin config line:
         // <profilegroup>#<profilename>#<profiletype>#<channelname>#<channel_sourcelist>
-        p = strchr(line, '\n');
+        char *p = strchr(line, '\n');
         if (p) *p = '\0';
         LogInfo("Process line '%s'\n", line);
 
-        q = line;
+        char *q = line;
         p = strchr(q, '#');
         if (p) *p = '\0';
 
-        s = line;
+        char *s = line;
 
         // safety check: if no separator found loop to next line
         if (!p) {
@@ -318,6 +316,8 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
 
         snprintf(path, MAXPATHLEN - 1, "%s/%s/%s", profile_datadir, s, q);
         path[MAXPATHLEN - 1] = '\0';
+
+        struct stat stat_buf;
         if (stat(path, &stat_buf) || !S_ISDIR(stat_buf.st_mode)) {
             LogError("profile '%s' not found in group %s. Skipped.\n", q, s);
             continue;

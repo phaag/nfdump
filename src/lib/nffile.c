@@ -28,6 +28,8 @@
  *
  */
 
+#include "nffile.h"
+
 #include <arpa/inet.h>
 #include <assert.h>
 #include <bzlib.h>
@@ -37,6 +39,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdatomic.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -49,16 +52,10 @@
 #include <unistd.h>
 
 #include "config.h"
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "flist.h"
 #include "lz4.h"
 #include "minilzo.h"
 #include "nfdump.h"
-#include "nffile.h"
 #include "nffileV2.h"
 #include "util.h"
 
@@ -190,7 +187,7 @@ static int Compress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, siz
     }
 
     // copy header
-    memcpy((void *)out_block, (void *)in_block, sizeof(dataBlock_t));
+    *out_block = *in_block;
     out_block->size = out_len;
 
     return 1;
@@ -220,7 +217,7 @@ static int Uncompress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, s
     }
 
     // copy header
-    memcpy((void *)out_block, (void *)in_block, sizeof(dataBlock_t));
+    *out_block = *in_block;
     out_block->size = out_len;
 
     return 1;
@@ -243,7 +240,7 @@ static int Compress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, siz
     }
 
     // copy header
-    memcpy((void *)out_block, (void *)in_block, sizeof(dataBlock_t));
+    *out_block = *in_block;
     out_block->size = out_len;
 
     return 1;
@@ -266,7 +263,7 @@ static int Uncompress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, s
     }
 
     // copy header
-    memcpy((void *)out_block, (void *)in_block, sizeof(dataBlock_t));
+    *out_block = *in_block;
     out_block->size = out_len;
 
     return 1;
@@ -295,7 +292,7 @@ static int Compress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, siz
     }
 
     // copy header
-    memcpy((void *)out_block, (void *)in_block, sizeof(dataBlock_t));
+    *out_block = *in_block;
     out_block->size = bs.total_out_lo32;
 
     BZ2_bzCompressEnd(&bs);
@@ -328,7 +325,7 @@ static int Uncompress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, s
     }
 
     // copy header
-    memcpy((void *)out_block, (void *)in_block, sizeof(dataBlock_t));
+    *out_block = *in_block;
     out_block->size = bs.total_out_lo32;
 
     BZ2_bzDecompressEnd(&bs);
@@ -894,8 +891,6 @@ void CloseFile(nffile_t *nffile) {
         nffile->ident = NULL;
     }
 
-    // XXX process queue must be empty
-    // assert()
     // clean queue
     queue_close(nffile->processQueue);
     while (queue_length(nffile->processQueue)) {
@@ -919,7 +914,7 @@ int CloseUpdateFile(nffile_t *nffile) {
         return 0;
     }
 
-    // NumBlock are plain data block - subtract appendix blocks
+    // NumBlocks are plain data blocks - subtract appendix blocks
     nffile->file_header->NumBlocks -= nffile->file_header->appendixBlocks;
 
     if (write(nffile->fd, (void *)nffile->file_header, sizeof(fileHeaderV2_t)) <= 0) {

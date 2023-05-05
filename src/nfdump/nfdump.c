@@ -552,13 +552,10 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
             }
         }
 
-        /* Stat info */
-        if (write_file) {
-            /* Copy stat info and close file */
-            memcpy((void *)nffile_w->stat_record, (void *)&stat_record, sizeof(stat_record_t));
-            CloseUpdateFile(nffile_w);
-            DisposeFile(nffile_w);
-        }  // else stdout
+        /* Copy stat info and close file */
+        memcpy((void *)nffile_w->stat_record, (void *)&stat_record, sizeof(stat_record_t));
+        CloseUpdateFile(nffile_w);
+        DisposeFile(nffile_w);
     }
 
     DisposeFile(nffile_r);

@@ -339,10 +339,6 @@ void CloseChannels(time_t tslot, int compress) {
 
     for (num = 0; num < num_channels; num++) {
         if (profile_channels[num].ofile) {
-            CloseUpdateFile(profile_channels[num].nffile);
-            DisposeFile(profile_channels[num].nffile);
-            profile_channels[num].nffile = NULL;
-
             stat(profile_channels[num].ofile, &fstat);
             ReadStatInfo(profile_channels[num].dirstat_path, &dirstat, CREATE_AND_LOCK);
 
