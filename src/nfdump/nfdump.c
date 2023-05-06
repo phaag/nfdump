@@ -941,31 +941,6 @@ int main(int argc, char **argv) {
         exit(EXIT_SUCCESS);
     }
 
-    if (geo_file == NULL) {
-        geo_file = ConfGetString("geodb.path");
-    }
-    if (geo_file && strcmp(geo_file, "none") == 0) {
-        geo_file = NULL;
-    }
-    if (geo_file) {
-        if (!CheckPath(geo_file, S_IFREG) || !Init_MaxMind() || !LoadMaxMind(geo_file)) {
-            LogError("Error reading geo location DB file %s", geo_file);
-            exit(EXIT_FAILURE);
-        }
-        HasGeoDB = true;
-        outputParams->hasGeoDB = true;
-    }
-    if (!HasGeoDB && Engine->geoFilter > 1) {
-        LogError("Can not filter according geo elements without a geo location DB");
-        exit(EXIT_FAILURE);
-    }
-    if (aggr_fmt) {
-        aggr_fmt = ParseAggregateMask(aggr_fmt, HasGeoDB);
-        if (!aggr_fmt) {
-            exit(EXIT_FAILURE);
-        }
-    }
-
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!fileList || !Init_nffile(fileList)) exit(EXIT_FAILURE);
 
@@ -1010,6 +985,32 @@ int main(int argc, char **argv) {
         PrintStat(&sum_stat, ident);
         free(ident);
         exit(EXIT_SUCCESS);
+    }
+
+    if (geo_file == NULL) {
+        geo_file = ConfGetString("geodb.path");
+    }
+    if (geo_file && strcmp(geo_file, "none") == 0) {
+        geo_file = NULL;
+    }
+    if (geo_file) {
+        if (!CheckPath(geo_file, S_IFREG) || !Init_MaxMind() || !LoadMaxMind(geo_file)) {
+            LogError("Error reading geo location DB file %s", geo_file);
+            exit(EXIT_FAILURE);
+        }
+        HasGeoDB = true;
+        outputParams->hasGeoDB = true;
+    }
+    if (!HasGeoDB && Engine->geoFilter > 1) {
+        LogError("Can not filter according geo elements without a geo location DB");
+        exit(EXIT_FAILURE);
+    }
+
+    if (aggr_fmt) {
+        aggr_fmt = ParseAggregateMask(aggr_fmt, HasGeoDB);
+        if (!aggr_fmt) {
+            exit(EXIT_FAILURE);
+        }
     }
 
     if (gnuplot_stat) {
