@@ -121,7 +121,7 @@ static queue_t *fileQueue = NULL;
 
 #define QueueSize 4
 
-static _Atomic unsigned numBlocks;
+static _Atomic unsigned blocksInUse;
 
 int Init_nffile(queue_t *fileList) {
     fileQueue = fileList;
@@ -137,15 +137,14 @@ int Init_nffile(queue_t *fileList) {
         LogError("Failed to initialize BZ2");
         return 0;
     }
-    numBlocks = 0;
-    atomic_init(&numBlocks, 0);
+    atomic_init(&blocksInUse, 0);
 
     return 1;
 
 }  // End of Init_nffile
 
 unsigned ReportBlocks(void) {
-    unsigned inUse = atomic_load(&numBlocks);
+    unsigned inUse = atomic_load(&blocksInUse);
     return inUse;
 }
 
@@ -351,7 +350,7 @@ static dataBlock_t *NewDataBlock(void) {
         return NULL;
     }
     InitDataBlock(dataBlock);
-    atomic_fetch_add(&numBlocks, 1);
+    atomic_fetch_add(&blocksInUse, 1);
     return dataBlock;
 
 }  // End of NewDataBlock
@@ -360,7 +359,7 @@ static void FreeDataBlock(dataBlock_t *dataBlock) {
     // Release block
     if (dataBlock) {
         free((void *)dataBlock);
-        atomic_fetch_sub(&numBlocks, 1);
+        atomic_fetch_sub(&blocksInUse, 1);
     }
 }  // End of FreeDataBlock
 
