@@ -201,8 +201,7 @@ typedef struct nffile_s {
     dataBlock_t *block_header;  // buffer ptr
     void *buff_ptr;             // pointer into buffer for read/write blocks/records
 
-    queue_t *processQueue;  // blocks ready to be processed
-    // queue_t *blockQueue;    // empty blocks
+    queue_t *processQueue;  // blocks ready to be processed. Connects consumer/producer threads
 
     stat_record_t *stat_record;  // flow stat record
     char *ident;                 // source identifier
@@ -242,6 +241,8 @@ typedef struct record_header_s {
  */
 
 int Init_nffile(queue_t *fileList);
+
+unsigned ReportBlocks(void);
 
 void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 

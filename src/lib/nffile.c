@@ -121,6 +121,8 @@ static queue_t *fileQueue = NULL;
 
 #define QueueSize 4
 
+static _Atomic unsigned numBlocks;
+
 int Init_nffile(queue_t *fileList) {
     fileQueue = fileList;
     if (!LZO_initialize()) {
@@ -135,9 +137,17 @@ int Init_nffile(queue_t *fileList) {
         LogError("Failed to initialize BZ2");
         return 0;
     }
+    numBlocks = 0;
+    atomic_init(&numBlocks, 0);
+
     return 1;
 
 }  // End of Init_nffile
+
+unsigned ReportBlocks(void) {
+    unsigned inUse = atomic_load(&numBlocks);
+    return inUse;
+}
 
 static int LZO_initialize(void) {
     if (lzo_init() != LZO_E_OK) {
@@ -341,13 +351,17 @@ static dataBlock_t *NewDataBlock(void) {
         return NULL;
     }
     InitDataBlock(dataBlock);
+    atomic_fetch_add(&numBlocks, 1);
     return dataBlock;
 
 }  // End of NewDataBlock
 
 static void FreeDataBlock(dataBlock_t *dataBlock) {
     // Release block
-    if (dataBlock) free((void *)dataBlock);
+    if (dataBlock) {
+        free((void *)dataBlock);
+        atomic_fetch_sub(&numBlocks, 1);
+    }
 }  // End of FreeDataBlock
 
 static int ReadAppendix(nffile_t *nffile) {

@@ -431,11 +431,9 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 }
 
                 // log stats
-                LogInfo(
-                    "Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Sequence Errors: %u, Bad "
-                    "Packets: %u",
-                    fs->Ident, (unsigned long long)nffile->stat_record->numflows, (unsigned long long)nffile->stat_record->numpackets,
-                    (unsigned long long)nffile->stat_record->numbytes, nffile->stat_record->sequence_failure, fs->bad_packets);
+                LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Sequence Errors: %u, Bad Packets: %u, Blocks: %u", fs->Ident,
+                        (unsigned long long)nffile->stat_record->numflows, (unsigned long long)nffile->stat_record->numpackets,
+                        (unsigned long long)nffile->stat_record->numbytes, nffile->stat_record->sequence_failure, fs->bad_packets, ReportBlocks());
 
                 // reset stats
                 fs->bad_packets = 0;
