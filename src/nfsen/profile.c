@@ -108,31 +108,23 @@ unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_
 
 static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, profile_param_info_t *profile_param, int subdir_index,
                                  char *filterfile, char *filename, int verify_only, int compress) {
-    FilterEngine_t *engine;
-    struct stat stat_buf;
-    char *p, *filter, *subdir, *wfile, *ofile, *rrdfile, *source_filter;
-    char path[MAXPATHLEN];
-    int ffd, ret;
-    size_t filter_size;
-    nffile_t *nffile;
-
-    ofile = wfile = NULL;
-    nffile = NULL;
-
     /*
      * Compile the complete filter:
      * this consists of the source list and the filter stored in the file
      */
+    char path[MAXPATHLEN];
     snprintf(path, MAXPATHLEN - 1, "%s/%s/%s/%s-%s", profile_statdir, profile_param->profilegroup, profile_param->profilename,
              profile_param->channelname, filterfile);
     path[MAXPATHLEN - 1] = '\0';
 
+    struct stat stat_buf;
     if (stat(path, &stat_buf) || !S_ISREG(stat_buf.st_mode)) {
         LogError("Skipping channel %s in profile '%s' group '%s'. No profile filter found.\n", profile_param->channelname, profile_param->profilename,
                  profile_param->profilegroup);
         return;
     }
 
+    char *source_filter = NULL;
     // prepare source filter for this channel
     if (profile_param->channel_sourcelist) {
         // we have a channel_sourcelist: channel1|channel2|channel3
@@ -143,6 +135,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
         int num_sources = 1;  // at least one source, otherwise we would not be in this code
 
         q = profile_param->channel_sourcelist;
+        char *p = NULL;
         while ((p = strchr(q, '|')) != NULL) {
             num_sources++;
             q = p;
@@ -182,23 +175,23 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
         // no source filter - therefore pattern is '(' filter ')'
         source_filter = "(";
 
-    filter_size = stat_buf.st_size + strlen(source_filter) + 2;  // +2 : ')\0' at the end of the filter
+    size_t filter_size = stat_buf.st_size + strlen(source_filter) + 2;  // +2 : ')\0' at the end of the filter
 
-    filter = (char *)malloc(filter_size);
+    char *filter = (char *)malloc(filter_size);
     if (!filter) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         exit(255);
     }
-    ffd = open(path, O_RDONLY);
+    int ffd = open(path, O_RDONLY);
     if (ffd < 0) {
         LogError("Can't open file '%s' for reading: %s\n", path, strerror(errno));
         return;
     }
 
     strncpy(filter, source_filter, filter_size - 1);
-    p = filter + strlen(source_filter);
+    char *p = filter + strlen(source_filter);
 
-    ret = read(ffd, (void *)p, stat_buf.st_size);
+    int ret = read(ffd, (void *)p, stat_buf.st_size);
     if (ret < 0) {
         LogError("Can't read from file '%s': %s\n", path, strerror(errno));
         close(ffd);
@@ -213,7 +206,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
     if (verify_only)
         printf("Check filter for channel %s in profile '%s' in group '%s': ", profile_param->channelname, profile_param->profilename,
                profile_param->profilegroup);
-    engine = CompileFilter(filter);
+    FilterEngine_t *engine = CompileFilter(filter);
 
     if (!engine) {
         printf("\n");
@@ -244,7 +237,10 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
     }
 
     // check for subdir hierarchy
-    subdir = NULL;
+    char *subdir = NULL;
+    char *ofile = NULL;
+    char *wfile = NULL;
+    nffile_t *nffile = NULL;
     if ((profile_param->profiletype & 4) == 0) {  // no shadow profile
         int is_alert = (profile_param->profiletype & 8) == 8;
         if (!is_alert && subdir_index && strlen(filename) == 19 && (strncmp(filename, "nfcapd.", 7) == 0)) {
@@ -296,7 +292,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
     snprintf(path, MAXPATHLEN - 1, "%s/%s/%s/%s.rrd", profile_statdir, profile_param->profilegroup, profile_param->profilename,
              profile_param->channelname);
     path[MAXPATHLEN - 1] = '\0';
-    rrdfile = strdup(path);
+    char *rrdfile = strdup(path);
 
     snprintf(path, MAXPATHLEN, "%s/%s/%s/%s", profile_datadir, profile_param->profilegroup, profile_param->profilename, profile_param->channelname);
     path[MAXPATHLEN - 1] = '\0';
@@ -333,12 +329,10 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
 }  // End of SetupProfileChannels
 
 void CloseChannels(time_t tslot, int compress) {
-    dirstat_t *dirstat;
-    struct stat fstat;
-    unsigned int num;
-
-    for (num = 0; num < num_channels; num++) {
+    for (unsigned num = 0; num < num_channels; num++) {
         if (profile_channels[num].ofile) {
+            struct stat fstat;
+            dirstat_t *dirstat;
             stat(profile_channels[num].ofile, &fstat);
             ReadStatInfo(profile_channels[num].dirstat_path, &dirstat, CREATE_AND_LOCK);
 
@@ -365,20 +359,18 @@ void CloseChannels(time_t tslot, int compress) {
 }  // End of CloseChannels
 
 void UpdateRRD(time_t tslot, profile_channel_info_t *channel) {
-    char *rrd_arg[10], buff[1024];
-    char *template, *s;
-    int i, len, argc, buffsize;
     stat_record_t stat_record = channel->stat_record;
 
-    template =
+    char *template =
         "flows:flows_tcp:flows_udp:flows_icmp:flows_other:packets:packets_tcp:packets_udp:packets_icmp:packets_other:traffic:traffic_tcp:traffic_udp:"
         "traffic_icmp:traffic_other";
 
-    argc = 0;
-
-    buffsize = 1024;
-    s = buff;
-    len = snprintf(s, buffsize, "%llu:", (long long unsigned)tslot);
+#define MAXBUFF 1024
+    int buffsize = MAXBUFF;
+    char buff[MAXBUFF];
+    char *s = buff;
+    *s = '\0';
+    int len = snprintf(s, buffsize, "%llu:", (long long unsigned)tslot);
     buffsize -= len;
     s += len;
     len = snprintf(s, buffsize, "%llu:", (long long unsigned)stat_record.numflows);
@@ -429,9 +421,10 @@ void UpdateRRD(time_t tslot, profile_channel_info_t *channel) {
     buffsize -= len;
     s += len;
 
-    buff[1023] = '\0';
+    buff[MAXBUFF - 1] = '\0';
     // Create arg vector
-    argc = 0;
+    int argc = 0;
+    char *rrd_arg[10];
     rrd_arg[argc++] = "update";
     rrd_arg[argc++] = channel->rrdfile;
     rrd_arg[argc++] = "--template";
@@ -442,7 +435,8 @@ void UpdateRRD(time_t tslot, profile_channel_info_t *channel) {
     optind = 0;
     opterr = 0;
     rrd_clear_error();
-    if ((i = rrd_update(argc, rrd_arg))) {
+    int i = 0;
+    if ((i = rrd_update(argc, rrd_arg)) != 0) {
         LogError("RRD: %s Insert Error: %d %s\n", channel->rrdfile, i, rrd_get_error());
     }
 
