@@ -16,7 +16,7 @@ fi
 
 # Checks for programs.
 AC_PROG_CC([clang gcc])
-AX_CHECK_C11
+AX_CHECK_C17
 AX_APPEND_FLAG([-Wall], [CFLAGS])
 AX_APPEND_FLAG([-Wstrict-prototypes], [CFLAGS])
 AX_APPEND_FLAG([-Wmissing-prototypes], [CFLAGS])
