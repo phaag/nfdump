@@ -179,6 +179,13 @@ char *ipFieldNames[] = {"network",
 
 #include "nffile_inline.c"
 
+static void stripLine(char *line) {
+    char *eol = strchr(line, '\r');
+    if (eol) *eol = '\0';
+    eol = strchr(line, '\n');
+    if (eol) *eol = '\0';
+}  // End of stripLine
+
 static FILE *checkFile(char *fileName, char **fieldNames) {
     FILE *fp = fopen(fileName, "r");
     if (!fp) {
@@ -196,9 +203,7 @@ static FILE *checkFile(char *fileName, char **fieldNames) {
         LogError("getline() error: %s", strerror(errno));
         return NULL;
     }
-    char *eol = strchr(line, '\n');
-    *eol = '\0';
-
+    stripLine(line);
     // parse and check header line
     int i = 0;
     char *field = NULL;
@@ -254,8 +259,7 @@ int loadLocalMap(char *fileName) {
     ssize_t lineLen;
     while ((lineLen = getline(&line, &linecap, fp)) > 0) {
         locationInfo_t locationInfo;
-        char *eol = strchr(line, '\n');
-        *eol = '\0';
+        stripLine(line);
         char *countryName = NULL;
         char *divisionName = NULL;
         char *l = line;
@@ -341,8 +345,7 @@ int loadIPV4tree(char *fileName) {
     size_t linecap = 0;
     ssize_t lineLen;
     while ((lineLen = getline(&line, &linecap, fp)) > 0) {
-        char *eol = strchr(line, '\n');
-        *eol = '\0';
+        stripLine(line);
         // printf("%s\n", line);
         ipV4Node_t ipV4Node;
         char *l = line;
@@ -415,8 +418,7 @@ int loadIPV6tree(char *fileName) {
     size_t linecap = 0;
     ssize_t lineLen;
     while ((lineLen = getline(&line, &linecap, fp)) > 0) {
-        char *eol = strchr(line, '\n');
-        *eol = '\0';
+        stripLine(line);
         // printf("%s\n", line);
         ipV6Node_t ipV6Node;
         char *l = line;
@@ -502,8 +504,7 @@ int loadASV4tree(char *fileName) {
     size_t linecap = 0;
     ssize_t lineLen;
     while ((lineLen = getline(&line, &linecap, fp)) > 0) {
-        char *eol = strchr(line, '\n');
-        *eol = '\0';
+        stripLine(line);
         // printf("%s\n", line);
         asV4Node_t asV4Node;
         char *field = line;
@@ -577,8 +578,7 @@ int loadASV6tree(char *fileName) {
     size_t linecap = 0;
     ssize_t lineLen;
     while ((lineLen = getline(&line, &linecap, fp)) > 0) {
-        char *eol = strchr(line, '\n');
-        *eol = '\0';
+        stripLine(line);
         // printf("%s\n", line);
         asV6Node_t asV6Node;
         char *field = line;
