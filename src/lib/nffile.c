@@ -880,6 +880,7 @@ static void FlushFile(nffile_t *nffile) {
         }
         nffile->worker = 0;
     }
+    fsync(nffile->fd);
 
 }  // End of FlushFile
 
@@ -939,6 +940,13 @@ int CloseUpdateFile(nffile_t *nffile) {
         FreeDataBlock(nffile->block_header);
         nffile->block_header = NULL;
     }
+
+    if (lseek(nffile->fd, 0, SEEK_END) < 0) {
+        LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        close(nffile->fd);
+        return 0;
+    }
+    fsync(nffile->fd);
     CloseFile(nffile);
 
     return 1;
