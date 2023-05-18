@@ -358,6 +358,16 @@ void UpdateChannels(time_t tslot) {
 
 }  // End of UpdateChannels
 
+void VerifyFiles(void) {
+    for (unsigned num = 0; num < num_channels; num++) {
+        if (profile_channels[num].wfile) {
+            int err = QueryFile(profile_channels[num].wfile, 1);
+            LogError("Veryfied %s: err: %d\n", profile_channels[num].wfile, err);
+        }
+    }
+
+}  // End of VerifyFiles
+
 void UpdateRRD(time_t tslot, profile_channel_info_t *channel) {
     stat_record_t stat_record = channel->stat_record;
 

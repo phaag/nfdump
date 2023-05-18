@@ -614,6 +614,8 @@ int main(int argc, char **argv) {
     process_data(GetChannelInfoList(), num_channels, tslot);
 
     UpdateChannels(tslot);
-
+#if 0
+    VerifyFiles();
+#endif
     return 0;
 }

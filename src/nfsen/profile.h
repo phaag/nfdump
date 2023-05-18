@@ -71,6 +71,8 @@ void UpdateChannels(time_t tslot);
 
 void UpdateRRD(time_t tslot, profile_channel_info_t *channel);
 
+void VerifyFiles(void);
+
 #ifdef HAVE_INFLUXDB
 void UpdateInfluxDB(time_t tslot, profile_channel_info_t *channel);
 #endif
