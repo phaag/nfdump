@@ -452,7 +452,7 @@ int main(int argc, char **argv) {
 
     // default file names
     ffile = "filter.txt";
-    while ((c = getopt(argc, argv, "D:HIL:p:P:hi:f:J;r:n:M:S:t:VzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "D:HIp:P:hi:f:J;r:n:M:S:t:VzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -466,9 +466,6 @@ int main(int argc, char **argv) {
                 break;
             case 'I':
                 stdin_profile_params = 1;
-                break;
-            case 'L':
-                if (!InitLog(0, "nfprofile", optarg, 0)) exit(255);
                 break;
             case 'Z':
                 syntax_only = 1;
@@ -536,6 +533,10 @@ int main(int argc, char **argv) {
                 usage(argv[0]);
                 exit(0);
         }
+    }
+
+    if (!InitLog(1, argv[0], "daemon", 1)) {
+        exit(EXIT_FAILURE);
     }
 
     if (subdir_index && !InitHierPath(subdir_index)) {
