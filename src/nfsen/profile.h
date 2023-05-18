@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -67,7 +67,7 @@ unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_
 
 profile_channel_info_t *GetChannelInfoList(void);
 
-void CloseChannels(time_t tslot, int compress);
+void UpdateChannels(time_t tslot);
 
 void UpdateRRD(time_t tslot, profile_channel_info_t *channel);
 

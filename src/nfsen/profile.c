@@ -328,7 +328,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
 
 }  // End of SetupProfileChannels
 
-void CloseChannels(time_t tslot, int compress) {
+void UpdateChannels(time_t tslot) {
     for (unsigned num = 0; num < num_channels; num++) {
         if (profile_channels[num].ofile) {
             struct stat fstat;
@@ -356,7 +356,7 @@ void CloseChannels(time_t tslot, int compress) {
         }
     }
 
-}  // End of CloseChannels
+}  // End of UpdateChannels
 
 void UpdateRRD(time_t tslot, profile_channel_info_t *channel) {
     stat_record_t stat_record = channel->stat_record;

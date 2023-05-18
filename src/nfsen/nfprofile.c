@@ -248,6 +248,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
     DisposeFile(nffile);
 
     // do we need to write data to new file - shadow profiles do not have files.
+    // write all used blocks first, then close the files
     for (int j = 0; j < num_channels; j++) {
         if (channels[j].nffile != NULL) {
             // flush output buffer
@@ -257,6 +258,10 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                 }
             }
             *channels[j].nffile->stat_record = channels[j].stat_record;
+        }
+    }
+    for (int j = 0; j < num_channels; j++) {
+        if (channels[j].nffile != NULL) {
             CloseUpdateFile(channels[j].nffile);
             DisposeFile(channels[j].nffile);
             channels[j].nffile = NULL;
@@ -608,7 +613,7 @@ int main(int argc, char **argv) {
 
     process_data(GetChannelInfoList(), num_channels, tslot);
 
-    CloseChannels(tslot, compress);
+    UpdateChannels(tslot);
 
     return 0;
 }
