@@ -187,7 +187,7 @@ static int Compress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, siz
     lzo_uint in_len = in_block->size;
     lzo_uint out_len = 0;
 
-    static HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
+    HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
     r = lzo1x_1_compress(in, in_len, out, &out_len, wrkmem);
 
     if (r != LZO_E_OK) {
