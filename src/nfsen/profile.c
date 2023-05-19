@@ -61,7 +61,6 @@ static char influxdb_measurement[] = "nfsen_stats";
 
 /* imported vars */
 extern char yyerror_buff[256];
-extern char Ident[IDENTLEN];
 
 static profile_channel_info_t *profile_channels;
 static unsigned int num_channels;
@@ -95,7 +94,7 @@ unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_
     num_channels = 0;
     profile_param = profile_list;
     while (profile_param) {
-        LogInfo("Setup channel '%s' in profile '%s' group '%s', channellist '%s'\n", profile_param->channelname, profile_param->profilename,
+        LogInfo("Setup channel '%s' in profile '%s' group '%s', channellist '%s'", profile_param->channelname, profile_param->profilename,
                 profile_param->profilegroup, profile_param->channel_sourcelist);
 
         SetupProfileChannels(profile_datadir, profile_statdir, profile_param, subdir_index, filterfile, filename, verify_only, compress);
@@ -286,7 +285,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
         if (!nffile) {
             return;
         }
-        SetIdent(nffile, Ident);
+        SetIdent(nffile, profile_param->channelname);
     }
 
     snprintf(path, MAXPATHLEN - 1, "%s/%s/%s/%s.rrd", profile_statdir, profile_param->profilegroup, profile_param->profilename,

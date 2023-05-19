@@ -101,11 +101,11 @@ static void usage(char *name) {
 static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot) {
     nffile_t *nffile = GetNextFile(NULL);
     if (!nffile) {
-        LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("GetNextFile() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
     if (nffile == EMPTY_LIST) {
-        LogError("Empty file list. No files to process\n");
+        LogError("Empty file list. No files to process");
         return;
     }
 
@@ -115,9 +115,9 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
         (channels[j].engine)->ident = Ident;
     }
 
-    master_record_t *master_record = malloc(sizeof(master_record_t));
+    master_record_t *master_record = calloc(1, sizeof(master_record_t));
     if (!master_record) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
 
@@ -130,9 +130,9 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
             case NF_CORRUPT:
             case NF_ERROR:
                 if (ret == NF_CORRUPT)
-                    LogError("Skip corrupt data file '%s'\n", nffile->fileName);
+                    LogError("Skip corrupt data file '%s'", nffile->fileName);
                 else
-                    LogError("Read error in file '%s': %s\n", nffile->fileName, strerror(errno));
+                    LogError("Read error in file '%s': %s", nffile->fileName, strerror(errno));
                 // fall through - get next file in chain
             case NF_EOF: {
                 nffile_t *next = GetNextFile(nffile);
@@ -143,7 +143,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                 if (next == NULL) {
                     done = 1;
                     continue;
-                    LogError("Unexpected end of file list\n");
+                    LogError("Unexpected end of file list");
                 }
 
                 strncpy(Ident, FILE_IDENT(nffile), IDENTLEN);
@@ -157,7 +157,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
         }
 
         if (nffile->block_header->type != DATA_BLOCK_TYPE_2 && nffile->block_header->type != DATA_BLOCK_TYPE_3) {
-            LogError("Can't process block type %u. Skip block.\n", nffile->block_header->type);
+            LogError("Can't process block type %u. Skip block", nffile->block_header->type);
             continue;
         }
 
@@ -165,14 +165,14 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
         uint32_t sumSize = 0;
         for (int i = 0; i < nffile->block_header->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t))) {
-                LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
+                LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 exit(255);
             }
             sumSize += record_ptr->size;
 
             switch (record_ptr->type) {
                 case V3Record:
-                    memset((void *)master_record, 0, sizeof(master_record_t));
+                    ClearMasterRecord(master_record);
                     ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
 
                     for (int j = 0; j < num_channels; j++) {
@@ -211,7 +211,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                             }
                         }
                     } else {
-                        LogError("Failed to add Exporter Record\n");
+                        LogError("Failed to add Exporter Record");
                     }
                 } break;
                 case SamplerRecordType: {
@@ -224,7 +224,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                             }
                         }
                     } else {
-                        LogError("Failed to add Sampler Record\n");
+                        LogError("Failed to add Sampler Record");
                     }
                 } break;
                 case NbarRecordType:
@@ -234,7 +234,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                     // Silently skip exporter records
                     break;
                 default: {
-                    LogError("Skip unknown record type %i\n", record_ptr->type);
+                    LogError("Skip unknown record type %i", record_ptr->type);
                 }
             }
             // Advance pointer by number of bytes for netflow record
@@ -283,7 +283,7 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
         // else we come from a continue statement with illegal data - overwrite
 
         if (!*list) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return NULL;
         }
 
@@ -309,7 +309,7 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
 
         // safety check: if no separator found loop to next line
         if (!p) {
-            LogError("Incomplete line - channel skipped.\n");
+            LogError("Incomplete line - channel skipped");
             continue;
         }
 
@@ -324,7 +324,7 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
 
         struct stat stat_buf;
         if (stat(path, &stat_buf) || !S_ISDIR(stat_buf.st_mode)) {
-            LogError("profile '%s' not found in group %s. Skipped.\n", q, s);
+            LogError("profile '%s' not found in group %s. Skipped", q, s);
             continue;
         }
 
@@ -333,7 +333,7 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
 
         // safety check: if no separator found loop to next line
         if (!p) {
-            LogError("Incomplete line - channel skipped.\n");
+            LogError("Incomplete line - channel skipped");
             continue;
         }
 
@@ -346,7 +346,7 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
         s = q;
         while (*s) {
             if (*s < '0' || *s > '9') {
-                LogError("Not a valid number: %s\n", q);
+                LogError("Not a valid number: %s", q);
                 s = NULL;
                 break;
             }
@@ -358,7 +358,7 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
 
         // safety check: if no separator found loop to next line
         if (!p) {
-            LogError("Incomplete line - channel skipped.\n");
+            LogError("Incomplete line - channel skipped");
             continue;
         }
 
@@ -371,14 +371,14 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
         snprintf(path, MAXPATHLEN - 1, "%s/%s/%s/%s", profile_datadir, (*list)->profilegroup, (*list)->profilename, q);
         path[MAXPATHLEN - 1] = '\0';
         if (stat(path, &stat_buf) || !S_ISDIR(stat_buf.st_mode)) {
-            LogError("channel '%s' in profile '%s' not found. Skipped.\n", q, (*list)->profilename);
+            LogError("channel '%s' in profile '%s' not found. Skipped", q, (*list)->profilename);
             continue;
         }
 
         (*list)->channelname = strdup(q);
 
         if (!p) {
-            LogError("Incomplete line - Skipped.\n");
+            LogError("Incomplete line - Skipped");
             continue;
         }
 
@@ -433,7 +433,7 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
 int main(int argc, char **argv) {
     unsigned int num_channels, compress;
     profile_param_info_t *profile_list;
-    char *ffile, *filename;
+    char *ffile, *filename, *syslog_facility;
     char *profile_datadir, *profile_statdir, *nameserver;
     int c, syntax_only, subdir_index, stdin_profile_params;
     time_t tslot;
@@ -449,16 +449,18 @@ int main(int argc, char **argv) {
     profile_list = NULL;
     nameserver = NULL;
     stdin_profile_params = 0;
+    syslog_facility = "daemon";
 
     // default file names
     ffile = "filter.txt";
-    while ((c = getopt(argc, argv, "D:HIp:P:hi:f:J;r:n:M:S:t:VzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "D:Ip:P:hi:f:jr:L:M:S:t:VyzZ")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
                 exit(0);
                 break;
             case 'D':
+                CheckArgLen(optarg, 64);
                 nameserver = optarg;
                 if (!set_nameserver(nameserver)) {
                     exit(255);
@@ -467,16 +469,23 @@ int main(int argc, char **argv) {
             case 'I':
                 stdin_profile_params = 1;
                 break;
+            case 'L':
+                CheckArgLen(optarg, 32);
+                syslog_facility = strdup(optarg);
+                break;
             case 'Z':
                 syntax_only = 1;
                 break;
             case 'p':
+                CheckArgLen(optarg, MAXPATHLEN);
                 profile_datadir = optarg;
                 break;
             case 'P':
+                CheckArgLen(optarg, MAXPATHLEN);
                 profile_statdir = optarg;
                 break;
             case 'S':
+                CheckArgLen(optarg, 2);
                 subdir_index = atoi(optarg);
                 break;
             case 'V':
@@ -484,9 +493,11 @@ int main(int argc, char **argv) {
                 exit(0);
                 break;
             case 'f':
+                CheckArgLen(optarg, MAXPATHLEN);
                 ffile = optarg;
                 break;
             case 't':
+                CheckArgLen(optarg, 32);
                 tslot = atoi(optarg);
                 break;
             case 'M':
@@ -499,21 +510,21 @@ int main(int argc, char **argv) {
                 break;
             case 'j':
                 if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
+                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(255);
                 }
                 compress = BZ2_COMPRESSED;
                 break;
             case 'y':
                 if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
+                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(255);
                 }
                 compress = LZ4_COMPRESSED;
                 break;
             case 'z':
                 if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression\n");
+                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(255);
                 }
                 compress = LZO_COMPRESSED;
@@ -523,7 +534,7 @@ int main(int argc, char **argv) {
                 if (optarg != NULL)
                     strncpy(influxdb_url, optarg, 1024);
                 else {
-                    LogError("Missing argument for -i <influx URL>\n");
+                    LogError("Missing argument for -i <influx URL>");
                     exit(255);
                 }
                 influxdb_url[1023] = '\0';
@@ -535,7 +546,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!InitLog(1, argv[0], "daemon", 1)) {
+    if (!InitLog(1, argv[0], syslog_facility, 1)) {
         exit(EXIT_FAILURE);
     }
 
@@ -544,7 +555,7 @@ int main(int argc, char **argv) {
     }
 
     if (!profile_datadir) {
-        LogError("Profile data directory required!\n");
+        LogError("Profile data directory required!");
         exit(255);
     }
 
@@ -554,7 +565,7 @@ int main(int argc, char **argv) {
 
     struct stat stat_buf;
     if (stat(profile_datadir, &stat_buf) || !S_ISDIR(stat_buf.st_mode)) {
-        LogError("'%s' not a directory\n", profile_datadir);
+        LogError("'%s' not a directory", profile_datadir);
         exit(255);
     }
 
@@ -571,13 +582,13 @@ int main(int argc, char **argv) {
     } else {
         char *p;
         if (flist.single_file == NULL) {
-            LogError("-r filename required!\n");
+            LogError("-r filename required!");
             exit(255);
         }
         p = strrchr(flist.single_file, '/');
         filename = p == NULL ? flist.single_file : ++p;
         if (strlen(filename) == 0) {
-            LogError("Filename error: zero length filename\n");
+            LogError("Filename error: zero length filename");
             exit(254);
         }
     }
@@ -591,7 +602,7 @@ int main(int argc, char **argv) {
 
     // nothing to do
     if (num_channels == 0) {
-        LogInfo("No channels to process.\n");
+        LogInfo("No channels to process");
         return 0;
     }
 
@@ -601,7 +612,7 @@ int main(int argc, char **argv) {
     }
 
     if (!flist.single_file) {
-        LogError("Input file (-r) required!\n");
+        LogError("Input file (-r) required!");
         exit(255);
     }
 

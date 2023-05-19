@@ -171,12 +171,6 @@ static void usage(char *name) {
         name);
 } /* usage */
 
-static inline void ClearMasterRecord(master_record_t *record) {
-    if (record->inPayload) free(record->inPayload);
-    if (record->outPayload) free(record->outPayload);
-    memset((void *)record, 0, sizeof(master_record_t));
-}  // End of ClearMasterRecord
-
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams) {
     static double duration;
     uint64_t bps, pps, bpp;
@@ -658,7 +652,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'D':
-                CheckArgLen(optarg, 2);
+                CheckArgLen(optarg, 64);
                 nameserver = optarg;
                 if (!set_nameserver(nameserver)) {
                     exit(EXIT_FAILURE);

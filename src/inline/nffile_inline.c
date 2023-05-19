@@ -33,6 +33,8 @@ static inline size_t CheckBufferSpace(nffile_t *nffile, size_t required);
 
 static inline void AppendToBuffer(nffile_t *nffile, void *record, size_t required);
 
+static inline void ClearMasterRecord(master_record_t *record);
+
 static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *output_record);
 
 #ifdef NEED_PACKRECORD
@@ -65,6 +67,12 @@ static inline size_t CheckBufferSpace(nffile_t *nffile, size_t required) {
     return WRITE_BUFFSIZE - nffile->block_header->size;
 
 }  // End of CheckBufferSpace
+
+static inline void ClearMasterRecord(master_record_t *record) {
+    if (record->inPayload) free(record->inPayload);
+    if (record->outPayload) free(record->outPayload);
+    memset((void *)record, 0, sizeof(master_record_t));
+}  // End of ClearMasterRecord
 
 static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *output_record) {
     elementHeader_t *elementHeader;

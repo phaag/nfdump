@@ -71,8 +71,6 @@
 static const char *nf_creator[MAX_CREATOR] = {"unknown", "nfcapd", "nfpcapd", "sfcapd", "nfdump", "nfanon", "nfprofile", "geolookup", "ft2nfdump"};
 
 /* function prototypes */
-static HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
-
 static int LZO_initialize(void);
 
 static int LZ4_initialize(void);
@@ -188,6 +186,8 @@ static int Compress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, siz
     out = (unsigned char __LZO_MMODEL *)((void *)out_block + sizeof(dataBlock_t));
     lzo_uint in_len = in_block->size;
     lzo_uint out_len = 0;
+
+    static HEAP_ALLOC(wrkmem, LZO1X_1_MEM_COMPRESS);
     r = lzo1x_1_compress(in, in_len, out, &out_len, wrkmem);
 
     if (r != LZO_E_OK) {
@@ -966,6 +966,7 @@ void DisposeFile(nffile_t *nffile) {
         FreeDataBlock(p);
     }
 
+    queue_free(nffile->processQueue);
     free(nffile);
 
 }  // End of DisposeFile
@@ -1706,6 +1707,8 @@ int QueryFile(char *filename, int verbose) {
             if (fileHeader.appendixBlocks) printf("Checking appendix blocks\n");
         }
     }
+
+    FreeDataBlock(buff);
 
     off_t fsize = lseek(fd, 0, SEEK_CUR);
     if (fsize < stat_buf.st_size) {
