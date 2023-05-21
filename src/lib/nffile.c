@@ -146,10 +146,12 @@ int ParseCompression(char *arg) {
     if (arg == NULL) {
         return LZO_COMPRESSED;
     }
-    if (arg[0] != '=' || strlen(arg) > 16) {
+
+    if (arg[0] == '=') arg++;
+
+    if (strlen(arg) > 16) {
         return -1;
     }
-    arg++;
 
     for (int i = 0; arg[i]; i++) {
         arg[i] = tolower(arg[i]);
