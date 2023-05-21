@@ -132,9 +132,9 @@ static void usage(char *name) {
         "-i <ident>\tChange Ident to <ident> in file given by -r.\n"
         "-J <num>\tModify file compression: 0: uncompressed - 1: LZO - 2: BZ2 - 3: LZ4 "
         "compressed.\n"
-        "-z\t\tLZO compress flows in output file. Used in combination with -w.\n"
-        "-y\t\tLZ4 compress flows in output file. Used in combination with -w.\n"
-        "-j\t\tBZ2 compress flows in output file. Used in combination with -w.\n"
+        "-z=lzo\t\tLZO compress flows in output file.\n"
+        "-z=lz4\t\tLZ4 compress flows in output file.\n"
+        "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-l <expr>\tSet limit on packets for line and packed output format.\n"
         "\t\tkey: 32 character string or 64 digit hex string starting with 0x.\n"
         "-L <expr>\tSet limit on bytes for line and packed output format.\n"
@@ -610,7 +610,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:ghn:i:jf:qyzr:v:w:J:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:ghn:i:jf:qyz::r:v:w:J:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -705,13 +705,21 @@ int main(int argc, char **argv) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(EXIT_FAILURE);
                 }
-                compress = LZO_COMPRESSED;
+                if (optarg == NULL) {
+                    compress = LZO_COMPRESSED;
+                } else {
+                    compress = ParseCompression(optarg);
+                }
+                if (compress == -1) {
+                    LogError("Usage for option -z: set -z=lzo, -z=lz4 or -z=bz2 for valid compression formats");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'c':
                 CheckArgLen(optarg, 16);
                 limitRecords = atoi(optarg);
                 if (!limitRecords) {
-                    LogError("Option -c needs a number > 0\n");
+                    LogError("Option -c needs a number > 0");
                     exit(EXIT_FAILURE);
                 }
                 break;

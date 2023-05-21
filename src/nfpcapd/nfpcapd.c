@@ -145,9 +145,9 @@ static void usage(char *name) {
         "-I Ident\tset the ident string for stat file. (default 'none')\n"
         "-P pidfile\tset the PID file\n"
         "-t time frame\tset the time window to rotate pcap/nfcapd file\n"
-        "-z\t\tLZO compress flows in output file.\n"
-        "-y\t\tLZ4 compress flows in output file.\n"
-        "-j\t\tBZ2 compress flows in output file.\n"
+        "-z=lzo\t\tLZO compress flows in output file.\n"
+        "-z=lz4\t\tLZ4 compress flows in output file.\n"
+        "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-v\t\tverbose logging.\n"
         "-D\t\tdetach from terminal (daemonize)\n",
         name);
@@ -316,7 +316,7 @@ int main(int argc, char *argv[]) {
     buff_size = 20;
     activeTimeout = 0;
     inactiveTimeout = 0;
-    while ((c = getopt(argc, argv, "b:B:C:De:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:vVw:yz")) != EOF) {
+    while ((c = getopt(argc, argv, "b:B:C:De:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:vVw:yz::")) != EOF) {
         switch (c) {
             struct stat fstat;
             case 'h':
@@ -487,10 +487,18 @@ int main(int argc, char *argv[]) {
                 break;
             case 'z':
                 if (compress) {
-                    LogError("Use either -z for LZO or -j for BZ2 compression, but not both");
+                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(EXIT_FAILURE);
                 }
-                compress = LZO_COMPRESSED;
+                if (optarg == NULL) {
+                    compress = LZO_COMPRESSED;
+                } else {
+                    compress = ParseCompression(optarg);
+                }
+                if (compress == -1) {
+                    LogError("Usage for option -z: set -z=lzo, -z=lz4 or -z=bz2 for valid compression formats");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'P':
                 pidfile = verify_pid(optarg);

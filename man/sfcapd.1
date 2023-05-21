@@ -1,4 +1,4 @@
-\" Copyright (c) 2022, Peter Haag
+\" Copyright (c) 2023, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -217,11 +217,11 @@ The following hierarchies are defined:
 .It Fl t Ar interval
 Sets the time interval in seconds to rotate files. The default value is 300s ( 5min ).
 The smallest available interval is 2s.
-.It Fl z
+.It Fl z=lzo
 Compress flow files with LZO1X-1 compression. Fastest compression.
-.It Fl y
+.It Fl z=lz4
 Compress flow files with LZ4 compression. Fast and efficient.
-.It Fl j
+.It Fl z=bz2
 Compress flow files with bz2 compression. Slow but most efficient. It is not recommended 
 to use bz2 in a real time capturing.
 .It Fl e

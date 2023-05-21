@@ -88,9 +88,9 @@ static void usage(char *name) {
         "-s\t\tprofile subdir.\n"
         "-Z\t\tCheck filter syntax and exit.\n"
         "-S subdir\tSub directory format. see nfcapd(1) for format\n"
-        "-z\t\tLZO compress flows in output file.\n"
-        "-y\t\tLZ4 compress flows in output file.\n"
-        "-j\t\tBZ2 compress flows in output file.\n"
+        "-z=lzo\t\tLZO compress flows in output file.\n"
+        "-z=lz4\t\tLZ4 compress flows in output file.\n"
+        "-z=bz2\t\tBZIP2 compress flows in output file.\n"
 #ifdef HAVE_INFLUXDB
         "-i <influxurl>\tInfluxdb url for stats (example: http://localhost:8086/write?db=mydb&u=pippo&p=paperino)\n"
 #endif
@@ -453,7 +453,7 @@ int main(int argc, char **argv) {
 
     // default file names
     ffile = "filter.txt";
-    while ((c = getopt(argc, argv, "D:Ip:P:hi:f:jr:L:M:S:t:VyzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "D:Ip:P:hi:f:jr:L:M:S:t:Vyz::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -525,9 +525,17 @@ int main(int argc, char **argv) {
             case 'z':
                 if (compress) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
-                    exit(255);
+                    exit(EXIT_FAILURE);
                 }
-                compress = LZO_COMPRESSED;
+                if (optarg == NULL) {
+                    compress = LZO_COMPRESSED;
+                } else {
+                    compress = ParseCompression(optarg);
+                }
+                if (compress == -1) {
+                    LogError("Usage for option -z: set -z=lzo, -z=lz4 or -z=bz2 for valid compression formats");
+                    exit(EXIT_FAILURE);
+                }
                 break;
 #ifdef HAVE_INFLUXDB
             case 'i':

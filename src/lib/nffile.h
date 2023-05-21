@@ -242,6 +242,8 @@ typedef struct record_header_s {
 
 int Init_nffile(queue_t *fileList);
 
+int ParseCompression(char *arg);
+
 unsigned ReportBlocks(void);
 
 void SumStatRecords(stat_record_t *s1, stat_record_t *s2);

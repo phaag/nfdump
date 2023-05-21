@@ -33,6 +33,7 @@
 #include <arpa/inet.h>
 #include <assert.h>
 #include <bzlib.h>
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
@@ -140,6 +141,25 @@ int Init_nffile(queue_t *fileList) {
     return 1;
 
 }  // End of Init_nffile
+
+int ParseCompression(char *arg) {
+    if (arg == NULL || arg[0] != '=' || strlen(arg) > 16) {
+        return -1;
+    }
+    arg++;
+
+    for (int i = 0; arg[i]; i++) {
+        arg[i] = tolower(arg[i]);
+    }
+
+    if (strcmp(arg, "lzo") == 0) return LZO_COMPRESSED;
+    if (strcmp(arg, "lz4") == 0) return LZ4_COMPRESSED;
+    if (strcmp(arg, "bz2") == 0 || strcmp(arg, "bzip2") == 0) return BZ2_COMPRESSED;
+
+    // anything else is invalid
+    return -1;
+
+}  // End of ParseCompression
 
 unsigned ReportBlocks(void) {
     unsigned inUse = atomic_load(&blocksInUse);

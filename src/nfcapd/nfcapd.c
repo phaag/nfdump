@@ -146,9 +146,9 @@ static void usage(char *name) {
         "-A\t\tEnable source address spoofing for packet repeater -R.\n"
         "-s rate\tset default sampling rate (default 1)\n"
         "-x process\tlaunch process after a new file becomes available\n"
-        "-z\t\tLZO compress flows in output file.\n"
-        "-y\t\tLZ4 compress flows in output file.\n"
-        "-j\t\tBZ2 compress flows in output file.\n"
+        "-z=lzo\t\tLZO compress flows in output file.\n"
+        "-z=lz4\t\tLZ4 compress flows in output file.\n"
+        "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-B bufflen\tSet socket buffer to bufflen bytes\n"
         "-e\t\tExpire data at each cycle.\n"
         "-D\t\tFork to background\n"
@@ -631,7 +631,7 @@ int main(int argc, char **argv) {
     extensionList = NULL;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVw:x:X:yzZ")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVw:x:X:yz::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -838,7 +838,15 @@ int main(int argc, char **argv) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(EXIT_FAILURE);
                 }
-                compress = LZO_COMPRESSED;
+                if (optarg == NULL) {
+                    compress = LZO_COMPRESSED;
+                } else {
+                    compress = ParseCompression(optarg);
+                }
+                if (compress == -1) {
+                    LogError("Usage for option -z: set -z=lzo, -z=lz4 or -z=bz2 for valid compression formats");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'Z':
                 time_extension = "%Y%m%d%H%M%z";

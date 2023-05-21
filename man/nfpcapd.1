@@ -1,4 +1,4 @@
-.TH nfpcapd 1 2021\-05\-23 "" ""
+.TH nfpcapd 1 2023\-05\-23 "" ""
 .SH NAME
 nfpcapd \- pcap capture to netflow daemon
 .SH SYNOPSIS
@@ -111,14 +111,14 @@ Adds options to nfpcapd. Two options are available:
 .br
 \fIpayload\fP   Add the payload bytes of the first packet of a connection.
 .TP 3
-.B -j
-Compress flows. Use bz2 compression in output file. Note: not recommended while collecting
+.B -z=lzo
+Compress flows. Use fast LZO1X\-1 compression in output file.
 .TP 3
-.B -y
+.B -z=lz4
 Compress flows. Use LZ4 compression in output file.
 .TP 3
-.B -z
-Compress flows. Use fast LZO1X\-1 compression in output file.
+.B -z=bz2
+Compress flows. Use bz2 compression in output file. Note: not recommended while collecting
 .TP 3
 .B -V
 Print nfpcapd version and exit.

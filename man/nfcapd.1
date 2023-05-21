@@ -1,4 +1,4 @@
-\" Copyright (c) 2022, Peter Haag
+\" Copyright (c) 2023, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -259,9 +259,11 @@ The sampling rate is used to multiply the number of packets and bytes in a recor
 note, this may vary from other volume counters such as SNMP etc.
 .It Fl z
 Compress flow files with LZO1X-1 compression. Fastest compression.
-.It Fl y
+.It Fl z=lzo
+Compress flow files with LZO1X-1 compression. Fastest compression.
+.It Fl z=lz4
 Compress flow files with LZ4 compression. Fast and efficient.
-.It Fl j
+.It Fl z=bz2
 Compress flow files with bz2 compression. Slow but most efficient. It is not recommended 
 to use bz2 in a real time capturing.
 .It Fl e

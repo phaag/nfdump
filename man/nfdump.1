@@ -1,4 +1,4 @@
-\" Copyright (c) 2022, Peter Haag
+\" Copyright (c) 2023, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -667,11 +667,11 @@ Additional statistics per exporter are printed with number of flows, packets and
 This options works on nfdump version 1.6.x files only and may get removed in future.
 Scans and prints extension maps located in
 .Ar flowfile
-.It Fl z
+.It Fl z=lzo
 Compress flow files with LZO1X-1 compression. Fastest compression.
-.It Fl y
+.It Fl z=lz4
 Compress flow files with LZ4 compression. Fast and efficient.
-.It Fl j
+.It Fl z=bz2
 Compress flow files with bz2 compression. Slow but most efficient. May be used
 for archiving files or if you are really short of spce.
 .It Fl J Ar num
