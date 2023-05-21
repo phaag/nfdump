@@ -533,6 +533,11 @@ int main(int argc, char *argv[]) {
         filter = argv[optind];
     }
 
+    if (argc == 1) {
+        usage(argv[0]);
+        exit(EXIT_SUCCESS);
+    }
+
     if (ConfOpen(configFile, "nfpcapd") < 0) exit(EXIT_FAILURE);
 
     if (filter) {

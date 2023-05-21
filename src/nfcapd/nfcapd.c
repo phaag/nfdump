@@ -878,6 +878,11 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    if (argc == 1) {
+        usage(argv[0]);
+        exit(EXIT_SUCCESS);
+    }
+
     if ((argc - optind) >= 2) {
         if (strcmp(argv[optind], "privsep") == 0) {
             if (strcmp(argv[optind + 1], "launcher") == 0) {
