@@ -60,7 +60,7 @@
 .Op Fl E Ar flowfile
 .Op Fl x Ar flowfile
 .Op Fl z=<compress>
-.Op Fl J Ar num
+.Op Fl J Ar compress
 .Op Fl X
 .Op Fl Z
 .Op Fl T
@@ -672,10 +672,12 @@ Compress flow files with LZ4 compression. Fast and efficient.
 .It Fl z=bz2
 Compress flow files with bz2 compression. Slow but most efficient. May be used
 for archiving files or if you are really short of spce.
-.It Fl J Ar num
+.It Fl J Ar compress
 Change compression for any number of files given by option
 .Fl r Ar flowpath
-num: 0 uncompress, 1: LZO1X-1, 2: bz2, 3: LZ4 compression. This option may be used
+Set 
+.Ar compress
+to 0 for no compression or to any of: 1 or LZO, 2 or BZ2, 3 or LZ4. This option may be used
 for archiving flow files and changing the compression to use less disk space.
 .It Fl X
 Compiles the

@@ -143,7 +143,10 @@ int Init_nffile(queue_t *fileList) {
 }  // End of Init_nffile
 
 int ParseCompression(char *arg) {
-    if (arg == NULL || arg[0] != '=' || strlen(arg) > 16) {
+    if (arg == NULL) {
+        return LZO_COMPRESSED;
+    }
+    if (arg[0] != '=' || strlen(arg) > 16) {
         return -1;
     }
     arg++;
@@ -152,9 +155,10 @@ int ParseCompression(char *arg) {
         arg[i] = tolower(arg[i]);
     }
 
-    if (strcmp(arg, "lzo") == 0) return LZO_COMPRESSED;
-    if (strcmp(arg, "lz4") == 0) return LZ4_COMPRESSED;
-    if (strcmp(arg, "bz2") == 0 || strcmp(arg, "bzip2") == 0) return BZ2_COMPRESSED;
+    if (strcmp(arg, "0") == 0) return NOT_COMPRESSED;
+    if (strcmp(arg, "lzo") == 0 || strcmp(arg, "1") == 0) return LZO_COMPRESSED;
+    if (strcmp(arg, "lz4") == 0 || strcmp(arg, "3") == 0) return LZ4_COMPRESSED;
+    if (strcmp(arg, "bz2") == 0 || strcmp(arg, "bzip2") == 0 || strcmp(arg, "2") == 0) return BZ2_COMPRESSED;
 
     // anything else is invalid
     return -1;

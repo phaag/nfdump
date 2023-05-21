@@ -819,10 +819,9 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'J':
-                CheckArgLen(optarg, 8);
-                ModifyCompress = atoi(optarg);
-                if ((ModifyCompress < 0) || (ModifyCompress > 3)) {
-                    LogError("Expected -J <num>, 0: uncompressed, 1: LZO, 2: BZ2, 3: LZ4 compressed");
+                ModifyCompress = ParseCompression(optarg);
+                if (ModifyCompress < 0) {
+                    LogError("Expected -J <arg>, 0 for uncompressed, 1, LZO, 2, BZ2, 3, LZ4");
                     exit(EXIT_FAILURE);
                 }
                 break;
