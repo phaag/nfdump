@@ -58,11 +58,11 @@
 /* Function Prototypes */
 static void usage(char *name);
 
-static inline void AnonRecord(recordHeaderV3_t *v3Record);
+static inline void AnonRecord(recordHeaderV3_t *, bool, bool, bool);
 
 static inline void WriteAnonRecord(nffile_t *wfile, recordHeaderV3_t *v3Record);
 
-static void process_data(void *wfile, int verbose);
+static void process_data(void *, int, bool, bool, bool);
 
 /* Functions */
 
@@ -75,11 +75,29 @@ static void usage(char *name) {
         "-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>.\n"
         "-q\t\tDo not print progress spinnen and filenames.\n"
         "-r <path>\tread input from single file or all files in directory.\n"
-        "-w <file>\tName of output file. Defaults to input file.\n",
+        "-w <file>\tName of output file. Defaults to input file.\n"
+        "-s\tPreserve source address.\n"
+        "-d\tPreserve destination address.\n"
+        "-p\tMap anonymized IP addresses to private range.\n",
         name);
 } /* usage */
 
-static inline void AnonRecord(recordHeaderV3_t *v3Record) {
+static inline void map_private_v4(uint32_t *a) {
+  *a &= 0x00ffffff;
+  *a |= 0x0a000000;
+}
+
+static inline void map_private_v6(uint64_t (*a)[2]) {
+  (*a)[0] &= 0x00ffffffffffffff;
+  (*a)[0] |= 0xfd00000000000000;
+}
+
+static inline void AnonRecord(
+  recordHeaderV3_t *v3Record,
+  bool preserve_source,
+  bool preserve_destination,
+  bool map_private
+) {
     elementHeader_t *elementHeader;
     uint32_t size = sizeof(recordHeaderV3_t);
 
@@ -106,18 +124,34 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
                 break;
             case EXipv4FlowID: {
                 EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                ipv4Flow->srcAddr = anonymize(ipv4Flow->srcAddr);
-                ipv4Flow->dstAddr = anonymize(ipv4Flow->dstAddr);
+                if (!preserve_source) {
+                  ipv4Flow->srcAddr = anonymize(ipv4Flow->srcAddr);
+                  if (map_private)
+                    map_private_v4(&ipv4Flow->srcAddr);
+                }
+                if (!preserve_destination) {
+                  ipv4Flow->dstAddr = anonymize(ipv4Flow->dstAddr);
+                  if (map_private)
+                    map_private_v4(&ipv4Flow->dstAddr);
+                }
             } break;
             case EXipv6FlowID: {
                 EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                anonymize_v6(ipv6Flow->srcAddr, anon_ip);
-                ipv6Flow->srcAddr[0] = anon_ip[0];
-                ipv6Flow->srcAddr[1] = anon_ip[1];
+                if (!preserve_source) {
+                  anonymize_v6(ipv6Flow->srcAddr, anon_ip);
+                  ipv6Flow->srcAddr[0] = anon_ip[0];
+                  ipv6Flow->srcAddr[1] = anon_ip[1];
+                  if (map_private)
+                    map_private_v6(&ipv6Flow->srcAddr);
+                }
 
-                anonymize_v6(ipv6Flow->srcAddr, anon_ip);
-                ipv6Flow->dstAddr[0] = anon_ip[0];
-                ipv6Flow->dstAddr[1] = anon_ip[1];
+                if (!preserve_destination) {
+                  anonymize_v6(ipv6Flow->srcAddr, anon_ip);
+                  ipv6Flow->dstAddr[0] = anon_ip[0];
+                  ipv6Flow->dstAddr[1] = anon_ip[1];
+                  if (map_private)
+                    map_private_v6(&ipv6Flow->dstAddr);
+                }
             } break;
             case EXflowMiscID:
                 break;
@@ -127,38 +161,64 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
                 break;
             case EXasRoutingID: {
                 EXasRouting_t *asRouting = (EXasRouting_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                asRouting->srcAS = 0;
-                asRouting->dstAS = 0;
+                if (!preserve_source)
+                  asRouting->srcAS = 0;
+                if (!preserve_destination)
+                  asRouting->dstAS = 0;
             } break;
             case EXbgpNextHopV4ID: {
                 EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                bgpNextHopV4->ip = anonymize(bgpNextHopV4->ip);
+                if (!preserve_destination) {
+                  bgpNextHopV4->ip = anonymize(bgpNextHopV4->ip);
+                  if (map_private)
+                    map_private_v4(&bgpNextHopV4->ip);
+                }
             } break;
             case EXbgpNextHopV6ID: {
                 EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                anonymize_v6(bgpNextHopV6->ip, anon_ip);
-                bgpNextHopV6->ip[0] = anon_ip[0];
-                bgpNextHopV6->ip[1] = anon_ip[1];
+                if (!preserve_destination) {
+                  anonymize_v6(bgpNextHopV6->ip, anon_ip);
+                  bgpNextHopV6->ip[0] = anon_ip[0];
+                  bgpNextHopV6->ip[1] = anon_ip[1];
+                  if (map_private)
+                    map_private_v6(&bgpNextHopV6->ip);
+                }
             } break;
             case EXipNextHopV4ID: {
                 EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                ipNextHopV4->ip = anonymize(ipNextHopV4->ip);
+                if (!preserve_destination) {
+                  ipNextHopV4->ip = anonymize(ipNextHopV4->ip);
+                  if (map_private)
+                    map_private_v4(&ipNextHopV4->ip);
+                }
             } break;
             case EXipNextHopV6ID: {
                 EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                anonymize_v6(ipNextHopV6->ip, anon_ip);
-                ipNextHopV6->ip[0] = anon_ip[0];
-                ipNextHopV6->ip[1] = anon_ip[1];
+                if (!preserve_destination) {
+                  anonymize_v6(ipNextHopV6->ip, anon_ip);
+                  ipNextHopV6->ip[0] = anon_ip[0];
+                  ipNextHopV6->ip[1] = anon_ip[1];
+                  if (map_private)
+                    map_private_v6(&ipNextHopV6->ip);
+                }
             } break;
             case EXipReceivedV4ID: {
                 EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                ipNextHopV4->ip = anonymize(ipNextHopV4->ip);
+                if (!preserve_source) {
+                  ipNextHopV4->ip = anonymize(ipNextHopV4->ip);
+                  if (map_private)
+                    map_private_v4(&ipNextHopV4->ip);
+                }
             } break;
             case EXipReceivedV6ID: {
                 EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                anonymize_v6(ipReceivedV6->ip, anon_ip);
-                ipReceivedV6->ip[0] = anon_ip[0];
-                ipReceivedV6->ip[1] = anon_ip[1];
+                if (!preserve_source) {
+                  anonymize_v6(ipReceivedV6->ip, anon_ip);
+                  ipReceivedV6->ip[0] = anon_ip[0];
+                  ipReceivedV6->ip[1] = anon_ip[1];
+                  if (map_private)
+                    map_private_v6(&ipReceivedV6->ip);
+                }
             } break;
             case EXmplsLabelID:
                 break;
@@ -166,8 +226,10 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
                 break;
             case EXasAdjacentID: {
                 EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                asAdjacent->nextAdjacentAS = 0;
-                asAdjacent->prevAdjacentAS = 0;
+                if (!preserve_destination)
+                  asAdjacent->nextAdjacentAS = 0;
+                if (!preserve_source)
+                  asAdjacent->prevAdjacentAS = 0;
             } break;
             case EXlatencyID:
                 break;
@@ -176,18 +238,34 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
                 break;
             case EXnselXlateIPv4ID: {
                 EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                nselXlateIPv4->xlateSrcAddr = anonymize(nselXlateIPv4->xlateSrcAddr);
-                nselXlateIPv4->xlateDstAddr = anonymize(nselXlateIPv4->xlateDstAddr);
+                if (!preserve_source) {
+                  nselXlateIPv4->xlateSrcAddr = anonymize(nselXlateIPv4->xlateSrcAddr);
+                  if (map_private)
+                    map_private_v4(&nselXlateIPv4->xlateSrcAddr);
+                }
+                if (!preserve_destination) {
+                  nselXlateIPv4->xlateDstAddr = anonymize(nselXlateIPv4->xlateDstAddr);
+                  if (map_private)
+                    map_private_v4(&nselXlateIPv4->xlateDstAddr);
+                }
             } break;
             case EXnselXlateIPv6ID: {
                 EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                anonymize_v6(nselXlateIPv6->xlateSrcAddr, anon_ip);
-                nselXlateIPv6->xlateSrcAddr[0] = anon_ip[0];
-                nselXlateIPv6->xlateSrcAddr[1] = anon_ip[1];
+                if (!preserve_source) {
+                  anonymize_v6(nselXlateIPv6->xlateSrcAddr, anon_ip);
+                  nselXlateIPv6->xlateSrcAddr[0] = anon_ip[0];
+                  nselXlateIPv6->xlateSrcAddr[1] = anon_ip[1];
+                  if (map_private)
+                    map_private_v6(&nselXlateIPv6->xlateSrcAddr);
+                }
 
-                anonymize_v6(nselXlateIPv6->xlateDstAddr, anon_ip);
-                nselXlateIPv6->xlateDstAddr[0] = anon_ip[0];
-                nselXlateIPv6->xlateDstAddr[1] = anon_ip[1];
+                if (!preserve_destination) {
+                  anonymize_v6(nselXlateIPv6->xlateDstAddr, anon_ip);
+                  nselXlateIPv6->xlateDstAddr[0] = anon_ip[0];
+                  nselXlateIPv6->xlateDstAddr[1] = anon_ip[1];
+                  if (map_private)
+                    map_private_v6(&nselXlateIPv6->xlateDstAddr);
+                }
             } break;
             case EXnselXlatePortID:
                 break;
@@ -236,7 +314,13 @@ static inline void WriteAnonRecord(nffile_t *wfile, recordHeaderV3_t *v3Record) 
 
 }  // End of WriteAnonRecord
 
-static void process_data(void *wfile, int verbose) {
+static void process_data(
+  void *wfile,
+  int verbose,
+  bool preserve_source,
+  bool preserve_destination,
+  bool map_private
+) {
     const char spinner[4] = {'|', '/', '-', '\\'};
     nffile_t *nffile_r;
     nffile_t *nffile_w;
@@ -360,7 +444,7 @@ static void process_data(void *wfile, int verbose) {
 
             switch (record_ptr->type) {
                 case V3Record:
-                    AnonRecord((recordHeaderV3_t *)record_ptr);
+                    AnonRecord((recordHeaderV3_t *)record_ptr, preserve_source, preserve_destination, map_private);
                     WriteAnonRecord(nffile_w, (recordHeaderV3_t *)record_ptr);
                     break;
                 case ExporterInfoRecordType:
@@ -397,10 +481,13 @@ int main(int argc, char **argv) {
     char *wfile = NULL;
     char CryptoPAnKey[32] = {0};
     flist_t flist = {0};
+    bool preserve_source = false;
+    bool preserve_destination = false;
+    bool map_private = false;
 
     int verbose = 1;
     int c;
-    while ((c = getopt(argc, argv, "hK:L:qr:w:")) != EOF) {
+    while ((c = getopt(argc, argv, "hK:L:qr:w:c:sdp")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -435,6 +522,15 @@ int main(int argc, char **argv) {
             case 'w':
                 wfile = optarg;
                 break;
+            case 's':
+                preserve_source = true;
+                break;
+            case 'd':
+                preserve_destination = true;
+                break;
+            case 'p':
+                map_private = true;
+                break;
             default:
                 usage(argv[0]);
                 exit(0);
@@ -452,7 +548,7 @@ int main(int argc, char **argv) {
 
     // make stdout unbuffered for progress pointer
     setvbuf(stdout, (char *)NULL, _IONBF, 0);
-    process_data(wfile, verbose);
+    process_data(wfile, verbose, preserve_source, preserve_destination, map_private);
 
     return 0;
 }
