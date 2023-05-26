@@ -153,15 +153,23 @@ int ParseCompression(char *arg, uint32_t *level) {
         return -1;
     }
 
+    *level = 0;
     char *s = strchr(arg, ':');
-    if (*s) {
+    if (s) {
         *s++ = '\0';
-        *level = 0;
         uint32_t l = 0;
         while (*s && isdigit(*s)) {
             l = 10 * l + (*s++ - 0x30);
         }
-        if (l < 100) *level = l;
+        if (*s) {
+            LogError("Invalid compression level: %s", s);
+            return -1;
+        }
+        if (l > 100) {
+            LogError("Invalid compression level: %u", l);
+            return -1;
+        }
+        *level = l;
     }
 
     for (int i = 0; arg[i]; i++) {

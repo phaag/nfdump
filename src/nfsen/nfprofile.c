@@ -89,8 +89,8 @@ static void usage(char *name) {
         "-Z\t\tCheck filter syntax and exit.\n"
         "-S subdir\tSub directory format. see nfcapd(1) for format\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
-        "-z=lz4\t\tLZ4 compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
+        "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
 #ifdef HAVE_INFLUXDB
         "-i <influxurl>\tInfluxdb url for stats (example: http://localhost:8086/write?db=mydb&u=pippo&p=paperino)\n"
 #endif
