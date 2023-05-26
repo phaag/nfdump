@@ -142,7 +142,7 @@ int Init_nffile(queue_t *fileList) {
 
 }  // End of Init_nffile
 
-int ParseCompression(char *arg) {
+int ParseCompression(char *arg, uint32_t *level) {
     if (arg == NULL) {
         return LZO_COMPRESSED;
     }
@@ -151,6 +151,17 @@ int ParseCompression(char *arg) {
 
     if (strlen(arg) > 16) {
         return -1;
+    }
+
+    char *s = strchr(arg, ':');
+    if (*s) {
+        *s++ = '\0';
+        *level = 0;
+        uint32_t l = 0;
+        while (*s && isdigit(*s)) {
+            l = 10 * l + (*s++ - 0x30);
+        }
+        if (l < 100) *level = l;
     }
 
     for (int i = 0; arg[i]; i++) {

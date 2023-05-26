@@ -432,6 +432,7 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
 
 int main(int argc, char **argv) {
     unsigned int num_channels, compress;
+    uint32_t compression_level;
     profile_param_info_t *profile_list;
     char *ffile, *filename, *syslog_facility;
     char *profile_datadir, *profile_statdir, *nameserver;
@@ -445,6 +446,7 @@ int main(int argc, char **argv) {
     tslot = 0;
     syntax_only = 0;
     compress = NOT_COMPRESSED;
+    compression_level = 0;
     subdir_index = 0;
     profile_list = NULL;
     nameserver = NULL;
@@ -530,7 +532,7 @@ int main(int argc, char **argv) {
                 if (optarg == NULL) {
                     compress = LZO_COMPRESSED;
                 } else {
-                    compress = ParseCompression(optarg);
+                    compress = ParseCompression(optarg, &compression_level);
                 }
                 if (compress == -1) {
                     LogError("Usage for option -z: set -z=lzo, -z=lz4 or -z=bz2 for valid compression formats");
