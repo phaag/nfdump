@@ -10,7 +10,7 @@ LDADD = $(DEPS_LIBS)
 # libnfdump sources
 util = util.c util.h
 pidfile = pidfile.c pidfile.h
-filelzo = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h
+compress = minilzo.c minilzo.h lzoconf.h lzodefs.h lz4.c lz4.h lz4hc.c lz4hc.h
 nffile = nffile.c nffile.h nffileV2.h queue.c queue.h nfx.c nfx.h nfxV3.h nfxV3.c id.h
 
 if NEEDFTSCOMPAT
@@ -28,7 +28,7 @@ vcs_track.h: Makefile
 	./gen_version.sh
 
 lib_LTLIBRARIES = libnfdump.la
-libnfdump_la_SOURCES = $(util) $(pidfile) $(filelzo) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(version) vcs_track.h
+libnfdump_la_SOURCES = $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(version) vcs_track.h
 libnfdump_la_LDFLAGS = -release @VERSION@
 
 EXTRA_DIST = gen_version.sh

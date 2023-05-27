@@ -55,6 +55,7 @@
 #include "config.h"
 #include "flist.h"
 #include "lz4.h"
+#include "lz4hc.h"
 #include "minilzo.h"
 #include "nfdump.h"
 #include "nffileV2.h"
@@ -84,7 +85,7 @@ static int Compress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, siz
 
 static int Uncompress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size);
 
-static int Compress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size);
+static int Compress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size, int level);
 
 static int Uncompress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size);
 
@@ -142,7 +143,7 @@ int Init_nffile(queue_t *fileList) {
 
 }  // End of Init_nffile
 
-int ParseCompression(char *arg, uint32_t *level) {
+int ParseCompression(char *arg) {
     if (arg == NULL) {
         return LZO_COMPRESSED;
     }
@@ -153,23 +154,21 @@ int ParseCompression(char *arg, uint32_t *level) {
         return -1;
     }
 
-    *level = 0;
+    int level = 0;
     char *s = strchr(arg, ':');
     if (s) {
         *s++ = '\0';
-        uint32_t l = 0;
         while (*s && isdigit(*s)) {
-            l = 10 * l + (*s++ - 0x30);
+            level = 10 * level + (*s++ - 0x30);
         }
         if (*s) {
             LogError("Invalid compression level: %s", s);
             return -1;
         }
-        if (l > 100) {
-            LogError("Invalid compression level: %u", l);
+        if (level > 100) {
+            LogError("Invalid compression level: %u", level);
             return -1;
         }
-        *level = l;
     }
 
     for (int i = 0; arg[i]; i++) {
@@ -178,7 +177,14 @@ int ParseCompression(char *arg, uint32_t *level) {
 
     if (strcmp(arg, "0") == 0) return NOT_COMPRESSED;
     if (strcmp(arg, "lzo") == 0 || strcmp(arg, "1") == 0) return LZO_COMPRESSED;
-    if (strcmp(arg, "lz4") == 0 || strcmp(arg, "3") == 0) return LZ4_COMPRESSED;
+    if (strcmp(arg, "lz4") == 0 || strcmp(arg, "3") == 0) {
+        if (level <= LZ4HC_CLEVEL_MAX) {
+            return (level << 16) | LZ4_COMPRESSED;
+        } else {
+            LogError("LZ4 max compression level is %d", LZ4HC_CLEVEL_MAX);
+            return -1;
+        }
+    }
     if (strcmp(arg, "bz2") == 0 || strcmp(arg, "bzip2") == 0 || strcmp(arg, "2") == 0) return BZ2_COMPRESSED;
 
     // anything else is invalid
@@ -278,12 +284,17 @@ static int Uncompress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, s
 
 }  // End of Uncompress_Block_LZO
 
-static int Compress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size) {
+static int Compress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size, int level) {
     const char *in = (const char *)((void *)in_block + sizeof(dataBlock_t));
     char *out = (char *)((void *)out_block + sizeof(dataBlock_t));
     int in_len = in_block->size;
 
-    int out_len = LZ4_compress_default(in, out, in_len, block_size);
+    int out_len;
+    if (level > LZ4HC_CLEVEL_MIN)
+        out_len = LZ4_compress_HC(in, out, in_len, block_size, level);
+    else
+        out_len = LZ4_compress_default(in, out, in_len, block_size);
+
     if (out_len == 0) {
         LogError("Compress_Block_LZ4() error compression aborted in %s line %d: LZ4 : buffer too small", __FILE__, __LINE__);
         return -1;
@@ -1248,7 +1259,7 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
             break;
         case LZ4_COMPRESSED:
             buff = NewDataBlock();
-            if (Compress_Block_LZ4(block_header, buff, nffile->buff_size) < 0) failed = 1;
+            if (Compress_Block_LZ4(block_header, buff, nffile->buff_size, level) < 0) failed = 1;
             wptr = buff;
             break;
         case BZ2_COMPRESSED:

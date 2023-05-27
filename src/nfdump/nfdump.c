@@ -570,7 +570,7 @@ int main(int argc, char **argv) {
     int flow_stat, aggregate, aggregate_mask, bidir;
     int print_stat, gnuplot_stat, syntax_only, compress;
     int GuessDir, ModifyCompress;
-    uint32_t limitRecords, compression_level;
+    uint32_t limitRecords;
     char Ident[IDENTLEN];
     flist_t flist;
 
@@ -588,7 +588,6 @@ int main(int argc, char **argv) {
     limitRecords = 0;
     skipped_blocks = 0;
     compress = NOT_COMPRESSED;
-    compression_level = 0;
     GuessDir = 0;
     nameserver = NULL;
 
@@ -709,7 +708,7 @@ int main(int argc, char **argv) {
                 if (optarg == NULL) {
                     compress = LZO_COMPRESSED;
                 } else {
-                    compress = ParseCompression(optarg, &compression_level);
+                    compress = ParseCompression(optarg);
                 }
                 if (compress == -1) {
                     LogError("Usage for option -z: set -z=lzo, -z=lz4 or -z=bz2 for valid compression formats");
@@ -820,7 +819,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'J':
-                ModifyCompress = ParseCompression(optarg, &compression_level);
+                ModifyCompress = ParseCompression(optarg);
                 if (ModifyCompress < 0) {
                     LogError("Expected -J <arg>, 0 for uncompressed, 1, LZO, 2, BZ2, 3, LZ4");
                     exit(EXIT_FAILURE);

@@ -244,7 +244,7 @@ typedef struct record_header_s {
 
 int Init_nffile(queue_t *fileList);
 
-int ParseCompression(char *arg, uint32_t *level);
+int ParseCompression(char *arg);
 
 unsigned ReportBlocks(void);
 

@@ -565,7 +565,6 @@ int main(int argc, char **argv) {
     time_t twin;
     int sock, do_daemonize, expire, spec_time_extension;
     int subdir_index, compress, srcSpoofing;
-    uint32_t compression_level;
 #ifdef PCAP
     char *pcap_file = NULL;
     char *pcap_device = NULL;
@@ -588,7 +587,6 @@ int main(int argc, char **argv) {
     spec_time_extension = 0;
     expire = 0;
     compress = NOT_COMPRESSED;
-    compression_level = 0;
     memset((void *)&repeater, 0, sizeof(repeater));
     srcSpoofing = 0;
     configFile = NULL;
@@ -802,7 +800,7 @@ int main(int argc, char **argv) {
                 if (optarg == NULL) {
                     compress = LZO_COMPRESSED;
                 } else {
-                    compress = ParseCompression(optarg, &compression_level);
+                    compress = ParseCompression(optarg);
                 }
                 if (compress == -1) {
                     LogError("Usage for option -z: set -z=lzo, -z=lz4 or -z=bz2 for valid compression formats");

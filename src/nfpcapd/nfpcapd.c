@@ -288,7 +288,6 @@ int main(int argc, char *argv[]) {
     char *device, *pcapfile, *filter, *datadir, *pcap_datadir, *pidfile, *configFile, *options;
     char *Ident, *userid, *groupid, *metricsocket;
     char *time_extension;
-    uint32_t compression_level;
 
     snaplen = 1522;
     bufflen = 0;
@@ -311,7 +310,6 @@ int main(int argc, char *argv[]) {
     time_extension = "%Y%m%d%H%M";
     subdir_index = 0;
     compress = NOT_COMPRESSED;
-    compression_level = 0;
     verbose = 0;
     expire = 0;
     cache_size = 0;
@@ -495,7 +493,7 @@ int main(int argc, char *argv[]) {
                 if (optarg == NULL) {
                     compress = LZO_COMPRESSED;
                 } else {
-                    compress = ParseCompression(optarg, &compression_level);
+                    compress = ParseCompression(optarg);
                 }
                 if (compress == -1) {
                     LogError("Usage for option -z: set -z=lzo, -z=lz4 or -z=bz2 for valid compression formats");
