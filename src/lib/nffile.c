@@ -56,6 +56,9 @@
 #include "flist.h"
 #include "lz4.h"
 #include "lz4hc.h"
+#ifdef HAVE_BZLIB_H
+#include <zstd.h>
+#endif
 #include "minilzo.h"
 #include "nfdump.h"
 #include "nffileV2.h"
@@ -79,6 +82,10 @@ static int LZ4_initialize(void);
 
 static int BZ2_initialize(void);
 
+#ifdef HAVE_ZSTDLIB
+static int ZSTD_initialize(void);
+#endif
+
 static void BZ2_prep_stream(bz_stream *);
 
 static int Compress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size);
@@ -90,6 +97,12 @@ static int Compress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, siz
 static int Uncompress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size);
 
 static int Compress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size);
+
+#ifdef HAVE_ZSTDLIB
+static int Compress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size, int level);
+
+static int Uncompress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size);
+#endif
 
 static int Uncompress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size);
 
@@ -137,6 +150,13 @@ int Init_nffile(queue_t *fileList) {
         LogError("Failed to initialize BZ2");
         return 0;
     }
+#ifdef HAVE_ZSTDLIB
+    if (!ZSTD_initialize()) {
+        LogError("Failed to initialize ZSTD");
+        return 0;
+    }
+#endif
+
     atomic_init(&blocksInUse, 0);
 
     return 1;
@@ -186,6 +206,21 @@ int ParseCompression(char *arg) {
         }
     }
     if (strcmp(arg, "bz2") == 0 || strcmp(arg, "bzip2") == 0 || strcmp(arg, "2") == 0) return BZ2_COMPRESSED;
+#ifdef HAVE_ZSTDLIB
+    if (strcmp(arg, "zstd") == 0 || strcmp(arg, "4") == 0) {
+        if (level <= ZSTD_maxCLevel()) {
+            return (level << 16) | ZSTD_COMPRESSED;
+        } else {
+            LogError("ZSTD max compression level is %d", ZSTD_maxCLevel());
+            return -1;
+        }
+    }
+#else
+    if (strcmp(arg, "zstd") == 0) {
+        LogError("ZSTD compression not enabled");
+        return -1;
+    }
+#endif
 
     // anything else is invalid
     return -1;
@@ -215,7 +250,6 @@ static int LZ4_initialize(void) {
         LogError("LZ4_compressBound() error in %s line %d: Buffer too small", __FILE__, __LINE__);
         return 0;
     }
-
     return 1;
 
 }  // End of LZ4_initialize
@@ -227,6 +261,18 @@ static void BZ2_prep_stream(bz_stream *bs) {
     bs->bzfree = NULL;
     bs->opaque = NULL;
 }  // End of BZ2_prep_stream
+
+#ifdef HAVE_ZSTDLIB
+static int ZSTD_initialize(void) {
+    size_t const cBuffSize = ZSTD_compressBound(WRITE_BUFFSIZE);
+    if (cBuffSize > (BUFFSIZE - sizeof(dataBlock_t))) {
+        LogError("LZSTD_compressBound() error in %s line %d: Buffer too small", __FILE__, __LINE__);
+        return 0;
+    }
+    return 1;
+
+}  // End of ZSTD_initialize
+#endif
 
 static int Compress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size) {
     unsigned char __LZO_MMODEL *in;
@@ -398,6 +444,49 @@ static int Uncompress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, s
     return 1;
 
 }  // End of Uncompress_Block_BZ2
+
+#ifdef HAVE_ZSTDLIB
+static int Compress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size, int level) {
+    const char *in = (const char *)((void *)in_block + sizeof(dataBlock_t));
+    char *out = (char *)((void *)out_block + sizeof(dataBlock_t));
+    int in_len = in_block->size;
+
+    int out_len;
+    if (level == 0) level = ZSTD_CLEVEL_DEFAULT;
+
+    out_len = ZSTD_compress(out, block_size, in, in_len, level);
+
+    if (ZSTD_isError(out_len)) {
+        LogError("Compress_Block_ZSTD() error compression aborted in %s line %d: LZ4 : buffer too small", __FILE__, __LINE__);
+        return -1;
+    }
+
+    // copy header
+    *out_block = *in_block;
+    out_block->size = out_len;
+
+    return 1;
+
+}  // End of Compress_Block_ZSTD
+
+static int Uncompress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size) {
+    const char *in = (const char *)((void *)in_block + sizeof(dataBlock_t));
+    char *out = (char *)((void *)out_block + sizeof(dataBlock_t));
+    int in_len = in_block->size;
+
+    size_t out_len = ZSTD_decompress(out, block_size, in, in_len);
+    if (ZSTD_isError(out_len)) {
+        LogError("LZ4_decompress_safe() error compression aborted in %s line %d: LZ4 : buffer too small", __FILE__, __LINE__);
+        return -1;
+    }
+
+    // copy header
+    *out_block = *in_block;
+    out_block->size = out_len;
+
+    return 1;
+}  // End of Uncompress_Block_ZSTD
+#endif
 
 static dataBlock_t *NewDataBlock(void) {
     dataBlock_t *dataBlock = malloc(BUFFSIZE);
@@ -733,6 +822,14 @@ static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
         return NULL;
     }
 
+#ifndef HAVE_ZSTDLIB
+    if (nffile->file_header->compression == ZSTD_COMPRESSED) {
+        LogError("Open file %s: ZSTD compression not enabled");
+        CloseFile(nffile);
+        return NULL;
+    }
+#endif
+
     if (nffile->file_header->appendixBlocks) {
         if (nffile->file_header->offAppendix < stat_buf.st_size) {
             ReadAppendix(nffile);
@@ -781,6 +878,14 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
         LogError("Unknown encryption ID: %i", encryption);
         return NULL;
     }
+
+#ifndef HAVE_ZSTDLIB
+    if ((compress & 0xFFFF) == ZSTD_COMPRESSED) {
+        LogError("Open file %s: ZSTD compressionnot enabled");
+        CloseFile(nffile);
+        return NULL;
+    }
+#endif
 
     fd = open(filename, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (fd < 0) {
@@ -1148,6 +1253,13 @@ static dataBlock_t *nfread(nffile_t *nffile) {
                 if (Uncompress_Block_BZ2(buff, block_header, nffile->buff_size) < 0) failed = 1;
                 FreeDataBlock(buff);
                 break;
+#ifdef HAVE_ZSTDLIB
+            case ZSTD_COMPRESSED:
+                block_header = NewDataBlock();
+                if (Uncompress_Block_ZSTD(buff, block_header, nffile->buff_size) < 0) failed = 1;
+                FreeDataBlock(buff);
+                break;
+#endif
         }
 
         if (failed) {
@@ -1267,6 +1379,13 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
             if (Compress_Block_BZ2(block_header, buff, nffile->buff_size) < 0) failed = 1;
             wptr = buff;
             break;
+#ifdef HAVE_ZSTDLIB
+        case ZSTD_COMPRESSED:
+            buff = NewDataBlock();
+            if (Compress_Block_ZSTD(block_header, buff, nffile->buff_size, level) < 0) failed = 1;
+            wptr = buff;
+            break;
+#endif
     }
 
     if (failed) {  // error
@@ -1507,17 +1626,18 @@ int QueryFile(char *filename, int verbose) {
             return 0;
         }
 
-        if (fileHeader.compression > LZ4_COMPRESSED) {
+        if (fileHeader.compression > ZSTD_COMPRESSED) {
             LogError("Unknown compression: %u", fileHeader.compression);
             close(fd);
             return 0;
         }
 
         printf("Version    : %u - %s\n", fileHeader.version,
-               fileHeader.compression == LZO_COMPRESSED   ? "lzo compressed"
-               : fileHeader.compression == LZ4_COMPRESSED ? "lz4 compressed"
-               : fileHeader.compression == BZ2_COMPRESSED ? "bz2 compressed"
-                                                          : "not compressed");
+               fileHeader.compression == LZO_COMPRESSED    ? "lzo compressed"
+               : fileHeader.compression == LZ4_COMPRESSED  ? "lz4 compressed"
+               : fileHeader.compression == ZSTD_COMPRESSED ? "zstd compressed"
+               : fileHeader.compression == BZ2_COMPRESSED  ? "bz2 compressed"
+                                                           : "not compressed");
 
         if (fileHeader.encryption != NOT_ENCRYPTED) {
             LogError("Unknown encryption: %u", fileHeader.encryption);
@@ -1552,6 +1672,13 @@ int QueryFile(char *filename, int verbose) {
         }
     }
 
+#ifndef HAVE_ZSTDLIB
+    if (fileHeader.compression == ZSTD_COMPRESSED) {
+        LogError("Open file %s: ZSTD compression not enabled");
+        CloseFile(nffile);
+        return NULL;
+    }
+#endif
     // first check ok - abstract nffile level
     nffile_t *nffile = NewFile(NULL);
     if (!nffile) {

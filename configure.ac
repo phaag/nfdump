@@ -85,6 +85,13 @@ if test "x$ac_cv_prog_LEX" = "xflex"; then
 	LFLAGS=-i
 fi
 
+AC_ARG_WITH(zstdpath,
+[  --with-zstdpath=PATH    Expect libzstd installed in PATH; default /usr/local],
+	CPPFLAGS="${CPPFLAGS} -I${with_zstdpath}/include"
+	LDFLAGS="${LDFLAGS} -L${with_zstdpath}/lib"
+,
+)
+
 # Check if we need to build the flow-tools converter
 # FIXME? This should use flow-tools-dev if possible, not local sources.. 
 AC_ARG_WITH(ftpath,
@@ -99,7 +106,7 @@ WHERE_FTPATH="/usr/local/flow-tools/"
 )
 
 AC_ARG_WITH(rrdpath,
-[  --with-rrdpath=PATH      Expect RRD installed in PATH; default /usr/local],
+[  --with-rrdpath=PATH     Expect RRD installed in PATH; default /usr/local],
 if test "x$with_rrdpath" = "xyes" ; then
 	CPPFLAGS="${CPPFLAGS} -I/usr/local/include"
 	LDFLAGS="${LDFLAGS} -L/usr/local/lib"
@@ -111,7 +118,7 @@ fi
 )
 
 AC_ARG_WITH(pcappath,
-[  --with-pcappath=PATH      Expect libpcap installed in PATH; default /usr/local],
+[  --with-pcappath=PATH    Expect libpcap installed in PATH; default /usr/local],
 if test "x$with_pcappath" = "xyes" ; then
 	CPPFLAGS="${CPPFLAGS} -I/usr/local/include"
 	LDFLAGS="${LDFLAGS} -L/usr/local/lib"
@@ -388,6 +395,8 @@ if test "$ac_cv_header_bzlib_h" = no; then
 	AC_MSG_ERROR(Required bzlib.h header file not found!)
 fi
 
+AC_CHECK_HEADERS([zstd.h])
+
 if test "$ac_cv_header_fts_h" != yes; then
 	FTS_OBJ=fts_compat.o
   AM_CONDITIONAL(NEEDFTSCOMPAT, true)
@@ -435,6 +444,13 @@ AC_CHECK_LIB(socket, res_search, [
   AC_CHECK_LIB(resolv, __dn_skipname)
  ]) 
 ])
+
+if test "$ac_cv_header_zstd_h" = "yes"; then
+AC_CHECK_LIB(zstd, ZSTD_decompress, [
+ LIBS="$LIBS -lzstd"
+ AC_DEFINE(HAVE_ZSTDLIB,1,[ ])
+ ], [])
+fi
 
 AC_CHECK_LIB(bz2, BZ2_bzCompressInit, [
  LIBS="$LIBS -lbz2"
@@ -569,6 +585,7 @@ echo "  CFLAGS               = $AM_CFLAGS $CFLAGS"
 echo "  CPPFLAGS             = $AM_CPPFLAGS $CPPFLAGS"
 echo "  LDFLAGS              = $AM_LDFLAGS $LDFLAGS"
 echo "  LIBS                 = $LIBS"
+echo "  Enable libzstd       = $ac_cv_lib_zstd_ZSTD_decompress"
 echo "  Build geolookup      = $enable_maxmind"
 echo "  Build sflow          = $enable_sflow"
 echo "  Build nfpcapd        = $enable_nfpcapd"

@@ -130,7 +130,7 @@ static void usage(char *name) {
         "\t\tand ordered by <order>: packets, bytes, flows, bps pps and bpp.\n"
         "-q\t\tQuiet: Do not print the header and bottom stat lines.\n"
         "-i <ident>\tChange Ident to <ident> in file given by -r.\n"
-        "-J <num>\tModify file compression: 0: uncompressed - 1: LZO - 2: BZ2 - 3: LZ4 "
+        "-J <num>\tModify file compression: 0: uncompressed - 1: LZO - 2: BZ2 - 3: LZ4 - 4: ZSTD"
         "compressed.\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"

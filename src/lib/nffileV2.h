@@ -71,7 +71,7 @@ typedef struct fileHeaderV2_s {
 #define LZO_COMPRESSED 1
 #define BZ2_COMPRESSED 2
 #define LZ4_COMPRESSED 3
-#define LZSTD_COMPRESSED 4
+#define ZSTD_COMPRESSED 4
 
     uint8_t encryption;
 #define NOT_ENCRYPTED 0
