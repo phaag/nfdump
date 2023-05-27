@@ -693,6 +693,8 @@ static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
 #endif
             nffile->file_header->created = stat_buf.st_mtim.tv_sec;
             nffile->file_header->compression = FILEV1_COMPRESSION(&fileHeaderV1);
+            nffile->compression = nffile->file_header->compression;
+            nffile->compression_level = 0;
             nffile->file_header->encryption = NOT_ENCRYPTED;
             nffile->file_header->NumBlocks = fileHeaderV1.NumBlocks;
             if (strlen(fileHeaderV1.ident) > 0) nffile->ident = strdup(fileHeaderV1.ident);
@@ -755,6 +757,12 @@ nffile_t *OpenFile(char *filename, nffile_t *nffile) {
 
 }  // End of OpenFile
 
+// Create a new nffile
+//  filename   : full path of file to create
+//  nffile     : Use nffile handle and initialize it accordingly. If NULL a new handle is alocated
+//  creater    : Creator ID
+//  compress   : Compression alforithm and level. Lower 16bit: algo. Upper 16bit level
+//  encryption : Encryption algorithm used.
 nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compress, int encryption) {
     int fd;
 
@@ -782,7 +790,9 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
     nffile->file_header->version = LAYOUT_VERSION_2;
     nffile->file_header->nfdversion = NFDVERSION;
     nffile->file_header->created = time(NULL);
-    nffile->file_header->compression = compress;
+    nffile->file_header->compression = compress & 0xFFFF;
+    nffile->compression = nffile->file_header->compression;
+    nffile->compression_level = (compress >> 16) & 0xFFFF;
     nffile->file_header->encryption = encryption;
     nffile->file_header->creator = creator;
 
@@ -1224,7 +1234,8 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
     dataBlock_t *wptr = NULL;
     int failed = 0;
     // compress according file compression
-    int compression = nffile->file_header->compression;
+    int compression = nffile->compression;
+    int level = nffile->compression_level;
     dbg_printf("nfwrite - compression: %u\n", compression);
     switch (compression) {
         case NOT_COMPRESSED:
@@ -1373,7 +1384,6 @@ int ChangeIdent(char *filename, char *Ident) {
 }  // End of ChangeIdent
 
 void ModifyCompressFile(int compress) {
-    int compression;
     nffile_t *nffile_r, *nffile_w;
     stat_record_t *_s;
     char outfile[MAXPATHLEN];
@@ -1385,8 +1395,7 @@ void ModifyCompressFile(int compress) {
         // last file
         if (!nffile_r || (nffile_r == EMPTY_LIST)) break;
 
-        compression = nffile_r->file_header->compression;
-        if (compression == compress) {
+        if (nffile_r->file_header->compression == (compress & 0xFFFF)) {
             printf("File %s is already same compression method\n", nffile_r->fileName);
             continue;
         }

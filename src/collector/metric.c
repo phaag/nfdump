@@ -52,7 +52,7 @@
 #include "util.h"
 
 static char *socket_path = NULL;
-static _Atomic unsigned tstart = ATOMIC_VAR_INIT(0);
+static _Atomic unsigned tstart = 0;
 
 // list of chained metric records
 static metric_chain_t *metric_list = NULL;
