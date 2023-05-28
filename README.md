@@ -437,3 +437,5 @@ netflow record is automatically multiplied by the sampling rate. The total numbe
 flows is not changed as this is not accurate enough. (Small flows versus large flows)
 
 For more information, see the GitHub Wiki.
+
+If you like this project your company may consider sponsoring it :) https://github.com/sponsors/phaag
