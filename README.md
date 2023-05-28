@@ -2,9 +2,7 @@
 
 [![buildtest](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml)
 
-nfdump-1.7.x or nfdump **unicorn** is the new release of nfdump.
-
-nfdump-1.6.x receives bug fixes, but will no longer get new features. The latest release for nfdump-1.6.x is [nfdump-1.6.25](https://github.com/phaag/nfdump/releases/tag/v1.6.25). 
+nfdump-1.7.x or nfdump **unicorn** is the next release of nfdump.
 
 ## Introduction
 
@@ -47,7 +45,6 @@ for more details.
 There is also a [go-nfdump](https://github.com/phaag/go-nfdump) module to read nfdump flows files in Golang. 
 
 ### Compatibility
-You may use nfdump-1.6.24 or nfdump-1.7.x, depending on your needs. 
 nfdump-1.7.x is compatible to nfdump-1.6.18, which means it can read files 
 created with nfdump-1.6.18 or newer. Flow files created with earlier nfdump
 versions may not contain all flow elements. If you have older files, it is
@@ -58,13 +55,9 @@ as a drop-in replacement. This may change in future and older legacy programs
 may be removed. You can convert any old files from nfdump-1.6 to nfdump-1.7
 format by reading/writing files: __./nfdump -r old-flowfile -y -w new-flowfile__
 
-Please note, that only __nfdump__ may read older flow files. All other programs
-relay on the new file format.
+Please note, that only __nfdump__ may read older flow files. All other programs relay on the new file format.
 
-Although nfdump-1.7.x is mostly compatible with old Nfsen, it not recommended
-to replace nfdump in your NfSen installation. However, all specific binaries such 
-as nfprofile and nftrack are still available with nfdump-1.7 but may be removed
-in future.
+Note for NfSen users:  If you use NfSen, you must upgrade NfSen to the latest Github version https://github.com/phaag/nfsen. All specific binaries such as nfprofile and nftrack are still available with nfdump-1.7 but may be removed in future.
 
 ### Improvements 
 - nfdump is now a multi-threaded program and uses parallel threads mainly for
@@ -153,7 +146,9 @@ Build geolookup program; default is __NO__
 *  __--enable-nsel__   
 Compile nfdump, to read and process NSEL/NEL event data; default is __NO__
 *  __--enable-jnat__   
-compile nfdump, to read and process JunOS NAT event logging __NO__
+Compile nfdump, to read and process JunOS NAT event logging __NO__
+* __--with-zstdpath=PATH__
+Expect libzstd installed in **PATH**; default __/usr/local__
 * __--enable-ftconv__  
 Build the flow-tools to nfdump converter; default is __NO__
 * __--enable-nfprofile__  
@@ -239,21 +234,27 @@ More fields may be integrated in future versions of sfcapd.
 ---
 
 ### Compression
-Binary data files can optionally be compressed using either the fast LZO1X-1 compression, 
-LZ4 or the efficient but slow bzip2 method. 
-If you compress automatically flows while they are collected, LZO1X-1 or LZ4 methods are
-recommended. bzip2 uses about 30 times more CPU than LZO1X-1. Use bzip2 to archive netflow
+Binary data files can optionally be compressed using either LZO1X-1, LZ4, ZSTD or bzip2 compression 
+LZO is fastest but less efficient, LZ4 and ZSTD are fast and pretty efficient and bzip2 is slow but efficient. 
+
+Recommendation: If you compress automatically flows while they are collected, use LZ4 **-z=lz4**
+as a standard. 
+
+Notes: Bzip2 uses about 30 times more CPU than LZO1X-1. Use bzip2 to archive netflow
 data, which may reduce the disk usage again by a factor of 2. The compression of flow files 
-can be changed any time with nfdump -J <num>
+can be changed any time with nfdump -J <algo[:level]>. You may also apply compression levels to lz4 and zstd such as **-z=zstd:9** or **-z=lz4:5** to improve efficiency at the cose of more CPU and slower compression speed. 
+
 For more details on each methde, see:
 
 LZO1X-1: http://www.oberhumer.com/opensource/lzo
 
 LZ4: https://github.com/lz4/lz4
 
+ZSTD: https://github.com/facebook/zstd
+
 bzip2: http://www.bzip.org
 
-You can check the compression speed for your system by running ./nftest <path/to/an/existing/netflow/file>. 
+
 
 ---
 
@@ -381,9 +382,39 @@ Internally nfdump does all processing IP protocol independent, which means
 everything works for IPv4 as well as IPv6 addresses.
 See the nfdump(1) man page for details. 
 
-netflow version 9:
-nfcapd supports a large range of netflow v9 tags. Version 1.6 nfdump 
-supports the following fields. This list can be found in netflow_v9.h
+netflow version 9 and infix:
+nfcapd supports a large range of netflow v9 and ipfix tags. Version 1.7 of nfdump 
+also supports FNF - flexible netflow, subtemplates and understands a few specific exporters such as **yaf**.
+
+### sfcpad
+
+This collector collects sflow https://www.sflow.org exports. It is largely identical to nfcapd except it only understands sflow packets. 
+
+### nfpcapd
+
+This collector is able to listen on a host interface and generates netflow data from the network data stream on that interface. It make use of **PACKET_RX_RING** to read packets on an interface device level (**TPACKETV3**) on Linux hosts or of the **BPF** interface - Berkeley Packet Filter on ***BSD** hosts which provides raw access to data link layers. Nfpcapd builds an internal netflow cache which is periodically written to disk or forwarded to an nfcapd server. As a special feature, nfpcpad may collect the first few bytes of a network connection, if requested to do so ( **-o payload**), which allows filter and evaluate the flows with nfdump later. 
+
+Listen on eth0 and store the flows locally. Set flow cache active timeout to 60s, inactive tiemout to 30s: 
+
+```
+nfpcapd -D -S 2 -w /var/flows -i eth0 -e 60,30 -u daemon -g daemon
+```
+
+Listen on eth0 and forward flow data to nfcapd running on a remote host. Add tunnel infos, MAC addr, vlan labels and first packet payload to the flows:
+
+```
+nfpcapd -D -S 2 -H 192.168.168.40 -i eth0 -e 60,30 -o fat,payload -u daemon -g daemon
+```
+
+In order to evaluate the payload, nfdump has some rudimentory payload decoder for DNS, ja3, ja3s and a few other.
+
+Alternatively nfpcapd can also convert existing cap files into flow data:
+
+```
+nfpcapd -S 2 -w /var/flows -r pcapfile.pcap -e 60,30 -o fat,payload
+```
+
+
 
 ---
 
@@ -396,11 +427,11 @@ extensions to store data for v9/IPFIX elements which are supported.
 
 ### Sampling
 By default, the sampling rate is set to 1 (unsampled) or to any given value specified 
-by the -s cmd line option. If sampling information is found in the netflow stream, 
+by the **-s** cmd line option. If sampling information is found in the netflow stream, 
 it overwrites the default value. Sampling is automatically recognised when announced 
-in v9 option templates (tags #48, #49, #50 ), (tag #34, #35) or in the unofficial v5 
-header hack. 
-Note: Not all platforms (or CISCO IOS versions) support exporting sampling information
+in v9/ipfix option templates with tags set (**#302, #304, #305, #306**),  ( **#48, #49, #50** ), ( **#34, #35**)or in the unofficial v5 header hack. The sampling data is stored in the sampling **PacketInterval/PacketSpace** model. If announced differently, it is converted accordingly.
+
+Note: Not all platforms (or vendor software versions) support exporting sampling information
 in netflow data, even if sampling is configured. The number of bytes/packets in each 
 netflow record is automatically multiplied by the sampling rate. The total number of 
 flows is not changed as this is not accurate enough. (Small flows versus large flows)
