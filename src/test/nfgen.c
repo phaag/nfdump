@@ -376,7 +376,7 @@ int main(int argc, char **argv) {
 
     memset((void *)&record, 0, sizeof(record));
 
-    if (!Init_nffile(NULL)) exit(254);
+    if (!Init_nffile(1, NULL)) exit(254);
 
     nffile = OpenNewFile("test.flows.nf", NULL, CREATOR_UNKNOWN, NOT_COMPRESSED, 0);
     if (!nffile) {

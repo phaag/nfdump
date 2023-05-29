@@ -444,7 +444,7 @@ int main(int argc, char **argv) {
     port_table = NULL;
     if (flist.multiple_dirs || flist.multiple_files || flist.single_file) {
         queue_t *fileList = SetupInputFileSequence(&flist);
-        if (!Init_nffile(fileList)) exit(254);
+        if (!Init_nffile(DEFAULTWORKERS, fileList)) exit(254);
         port_table = process(filter);
         //		Lister(port_table);
         if (!port_table) {

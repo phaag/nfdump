@@ -629,7 +629,7 @@ int main(int argc, char **argv) {
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(fileList)) exit(254);
+    if (!fileList || !Init_nffile(DEFAULTWORKERS, fileList)) exit(254);
 
     process_data(GetChannelInfoList(), num_channels, tslot);
 

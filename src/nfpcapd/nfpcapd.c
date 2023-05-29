@@ -626,7 +626,7 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
 
-        if (!Init_nffile(NULL)) exit(EXIT_FAILURE);
+        if (!Init_nffile(0, NULL)) exit(EXIT_FAILURE);
 
         if (subdir_index && !InitHierPath(subdir_index)) {
             pcap_close(packetParam.pcap_dev);

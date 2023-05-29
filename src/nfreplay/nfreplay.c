@@ -611,7 +611,7 @@ int main(int argc, char **argv) {
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!Init_nffile(fileList)) exit(254);
+    if (!Init_nffile(1, fileList)) exit(254);
 
     send_data(timeWindow, count, delay, confirm, netflow_version, distribution);
 

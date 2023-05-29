@@ -448,7 +448,7 @@ int main(int argc, char **argv) {
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(fileList)) exit(255);
+    if (!fileList || !Init_nffile(0, fileList)) exit(255);
 
     // make stdout unbuffered for progress pointer
     setvbuf(stdout, (char *)NULL, _IONBF, 0);

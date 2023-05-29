@@ -376,7 +376,7 @@ int main(int argc, char **argv) {
         fd = 0;
     }
 
-    if (!Init_nffile(NULL)) exit(254);
+    if (!Init_nffile(0, NULL)) exit(254);
 
     /* read from fd */
     if (ftio_init(&ftio, fd, FT_IO_FLAG_READ) < 0) fterr_errx(1, "ftio_init(): failed");

@@ -240,7 +240,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!Init_nffile(NULL) || !Init_MaxMind()) exit(EXIT_FAILURE);
+    if (!Init_nffile(1, NULL) || !Init_MaxMind()) exit(EXIT_FAILURE);
 
     if (dirName && wfile) {
         if (LoadMaps(dirName) == 0 || SaveMaxMind(wfile) == 0) {

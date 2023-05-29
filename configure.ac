@@ -66,13 +66,6 @@ if test "${enable_nel}" = "yes" ; then
 	CFLAGS="$CFLAGS -DNSEL"
 fi
 
-AC_ARG_ENABLE(fixtimebug,
-[  --enable-fixtimebug       enable code for swap time bug of some v5 exporters; default is NO])
-
-if test "${enable_fixtimebug}" = "yes" ; then
-	CFLAGS="$CFLAGS -DFIXTIMEBUG"
-fi
-
 AC_PROG_YACC
 AC_PROG_LEX(noyywrap)
 which $LEX > /dev/null 2>&1

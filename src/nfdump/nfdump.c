@@ -163,6 +163,7 @@ static void usage(char *name) {
         "\t\t\tmode may be extended by '6' for full IPv6 listing. e.g.long6, extended6.\n"
         "-E <file>\tPrint exporter and sampling info for collected flows.\n"
         "-v <file>\tverify netflow data file. Print version and blocks.\n"
+        "-W <num>\tNumber of working threads. Default number of cores online.\n"
         "-x <file>\tverify extension records in netflow data file.\n"
         "-X\t\tDump Filtertable and exit (debug option).\n"
         "-Z\t\tCheck filter syntax and exit.\n"
@@ -568,7 +569,7 @@ int main(int argc, char **argv) {
     char *print_order, *query_file, *geo_file, *configFile, *nameserver, *aggr_fmt;
     int ffd, element_stat, fdump;
     int flow_stat, aggregate, aggregate_mask, bidir;
-    int print_stat, gnuplot_stat, syntax_only, compress;
+    int print_stat, gnuplot_stat, syntax_only, compress, worker;
     int GuessDir, ModifyCompress;
     uint32_t limitRecords;
     char Ident[IDENTLEN];
@@ -588,6 +589,7 @@ int main(int argc, char **argv) {
     limitRecords = 0;
     skipped_blocks = 0;
     compress = NOT_COMPRESSED;
+    worker = 0;
     GuessDir = 0;
     nameserver = NULL;
 
@@ -610,7 +612,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:ghn:i:jf:qyz::r:v:w:J:M:NImO:R:XZt:TVv:x:l:L:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:ghn:i:jf:qyz::r:v:w:J:M:NImO:R:XZt:TVv:W:x:l:L:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -665,7 +667,7 @@ int main(int argc, char **argv) {
                 }
                 flist.single_file = strdup(optarg);
                 queue_t *fileList = SetupInputFileSequence(&flist);
-                if (!fileList || !Init_nffile(fileList)) exit(EXIT_FAILURE);
+                if (!fileList || !Init_nffile(1, fileList)) exit(EXIT_FAILURE);
                 PrintExporters();
                 exit(EXIT_SUCCESS);
             } break;
@@ -830,7 +832,7 @@ int main(int argc, char **argv) {
                 InitExtensionMaps(NO_EXTENSION_LIST);
                 flist.single_file = strdup(optarg);
                 queue_t *fileList = SetupInputFileSequence(&flist);
-                if (!fileList || !Init_nffile(fileList)) exit(EXIT_FAILURE);
+                if (!fileList || !Init_nffile(1, fileList)) exit(EXIT_FAILURE);
                 DumpExMaps();
                 exit(EXIT_SUCCESS);
             } break;
@@ -841,6 +843,14 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 else
                     exit(EXIT_SUCCESS);
+                break;
+            case 'W':
+                CheckArgLen(optarg, 16);
+                worker = atoi(optarg);
+                if (worker <= 0 || worker > MAXWORKERS) {
+                    LogError("Number of working threads out of range 1..%d", MAXWORKERS);
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case '6':  // print long IPv6 addr
                 Setv6Mode(1);
@@ -943,7 +953,7 @@ int main(int argc, char **argv) {
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(fileList)) exit(EXIT_FAILURE);
+    if (!fileList || !Init_nffile(worker, fileList)) exit(EXIT_FAILURE);
 
     // Modify compression
     if (ModifyCompress >= 0) {

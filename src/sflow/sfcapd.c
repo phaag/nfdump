@@ -884,7 +884,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (!Init_nffile(NULL)) exit(254);
+    if (!Init_nffile(0, NULL)) exit(254);
 
     if (expire && spec_time_extension) {
         LogError("ERROR, -Z timezone extension breaks expire -e");

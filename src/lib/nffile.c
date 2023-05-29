@@ -32,7 +32,9 @@
 
 #include <arpa/inet.h>
 #include <assert.h>
+#ifdef HAVE_BZLIB_H
 #include <bzlib.h>
+#endif
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -56,7 +58,7 @@
 #include "flist.h"
 #include "lz4.h"
 #include "lz4hc.h"
-#ifdef HAVE_BZLIB_H
+#ifdef HAVE_ZSTDLIB
 #include <zstd.h>
 #endif
 #include "minilzo.h"
@@ -138,7 +140,7 @@ static queue_t *fileQueue = NULL;
 
 static _Atomic unsigned blocksInUse;
 
-int Init_nffile(queue_t *fileList) {
+int Init_nffile(int workers, queue_t *fileList) {
     fileQueue = fileList;
     if (!LZO_initialize()) {
         LogError("Failed to initialize LZO");
@@ -160,7 +162,12 @@ int Init_nffile(queue_t *fileList) {
 #endif
 
     atomic_init(&blocksInUse, 0);
-    long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
+    long CoresOnline;
+    if (workers)
+        CoresOnline = workers;
+    else
+        CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
+
     if (CoresOnline < 0) {
         LogError("sysconf() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         CoresOnline = DEFAULTWORKERS;
@@ -830,7 +837,7 @@ static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
 
 #ifndef HAVE_ZSTDLIB
     if (nffile->file_header->compression == ZSTD_COMPRESSED) {
-        LogError("Open file %s: ZSTD compression not enabled");
+        LogError("ZSTD compression not enabled. Skip file: %s", filename);
         CloseFile(nffile);
         return NULL;
     }
@@ -1602,7 +1609,7 @@ int QueryFile(char *filename, int verbose) {
     ssize_t ret;
 
     dbg_printf("Query mode verbose: %d\n", verbose);
-    if (!Init_nffile(NULL)) return 0;
+    if (!Init_nffile(1, NULL)) return 0;
 
     type1 = type2 = type3 = type4 = 0;
     totalRecords = numBlocks = 0;
@@ -1699,9 +1706,9 @@ int QueryFile(char *filename, int verbose) {
 
 #ifndef HAVE_ZSTDLIB
     if (fileHeader.compression == ZSTD_COMPRESSED) {
-        LogError("Open file %s: ZSTD compression not enabled");
-        CloseFile(nffile);
-        return NULL;
+        LogError("ZSTD compression not enabled. Skip checking.");
+        close(fd);
+        return 0;
     }
 #endif
     // first check ok - abstract nffile level

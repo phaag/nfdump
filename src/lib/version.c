@@ -31,6 +31,7 @@
 #include "version.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include "config.h"
 #include "vcs_track.h"
@@ -43,7 +44,13 @@ char *versionString(void) {
     nsel = " NSEL-NEL";
 #endif
 
-    snprintf(version_string, 128, "Version: %s-%s%s, Date: %s", VERSION, VCS_TRACK_HASH, nsel, VCS_TRACK_DATE);
+    char *zstdlib = "";
+#ifdef HAVE_ZSTDLIB
+    zstdlib = " ZSTD";
+#endif
+
+    char *option = (strlen(nsel) + strlen(zstdlib)) > 0 ? "Options:" : "";
+    snprintf(version_string, 128, "Version: %s-%s %s%s%s Date: %s", VERSION, VCS_TRACK_HASH, option, nsel, zstdlib, VCS_TRACK_DATE);
     version_string[127] = '\0';
 
     return version_string;
