@@ -35,6 +35,9 @@
 #ifdef HAVE_BZLIB_H
 #include <bzlib.h>
 #endif
+#ifdef HAVE_ZSTDLIB
+#include <zstd.h>
+#endif
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -58,9 +61,6 @@
 #include "flist.h"
 #include "lz4.h"
 #include "lz4hc.h"
-#ifdef HAVE_ZSTDLIB
-#include <zstd.h>
-#endif
 #include "minilzo.h"
 #include "nfdump.h"
 #include "nffileV2.h"
@@ -396,6 +396,7 @@ static int Uncompress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, s
 
 }  // End of Uncompress_Block_LZ4
 
+#ifdef HAVE_BZLIB_H
 static int Compress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size) {
     bz_stream bs;
 
@@ -459,6 +460,7 @@ static int Uncompress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, s
     return 1;
 
 }  // End of Uncompress_Block_BZ2
+#endif
 
 #ifdef HAVE_ZSTDLIB
 static int Compress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size, int level) {
@@ -1566,6 +1568,11 @@ void ModifyCompressFile(int compress) {
         snprintf(outfile, MAXPATHLEN, "%s-tmp", nffile_r->fileName);
         outfile[MAXPATHLEN - 1] = '\0';
 
+        // compat 1.6.x files must read extensions first. With many writers
+        // this is not guaranteed. Therefore limit writers to 1
+        if (nffile_r->compat16) {
+            NumWorkers = 1;
+        }
         // allocate output file
         nffile_w = OpenNewFile(outfile, NULL, FILE_CREATOR(nffile_r), compress, NOT_ENCRYPTED);
         if (!nffile_w) {
@@ -1848,6 +1855,22 @@ int QueryFile(char *filename, int verbose) {
                     failed = 1;
                 }
             } break;
+            case ZSTD_COMPRESSED: {
+#ifdef HAVE_ZSTDLIB
+                dataBlock_t *b = nffile->block_header;
+                nffile->block_header = buff;
+                buff = b;
+                if (Uncompress_Block_ZSTD(buff, nffile->block_header, nffile->buff_size) < 0) {
+                    LogError("Zstd decompress failed");
+                    failed = 1;
+                }
+#else
+                LogError("Zstd compression not enabled");
+#endif
+            } break;
+            default:
+                LogError("Unknown compression: %d", compression);
+                failed = 1;
         }
 
         if (failed) continue;
