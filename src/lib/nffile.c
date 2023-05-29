@@ -75,6 +75,8 @@
 
 static const char *nf_creator[MAX_CREATOR] = {"unknown", "nfcapd", "nfpcapd", "sfcapd", "nfdump", "nfanon", "nfprofile", "geolookup", "ft2nfdump"};
 
+static unsigned NumWorkers = DEFAULTWORKERS;
+
 /* function prototypes */
 static int LZO_initialize(void);
 
@@ -158,7 +160,13 @@ int Init_nffile(queue_t *fileList) {
 #endif
 
     atomic_init(&blocksInUse, 0);
+    long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
+    if (CoresOnline < 0) {
+        LogError("sysconf() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        CoresOnline = DEFAULTWORKERS;
+    }
 
+    NumWorkers = CoresOnline > MAXWORKERS ? MAXWORKERS : CoresOnline;
     return 1;
 
 }  // End of Init_nffile
@@ -451,10 +459,8 @@ static int Compress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, si
     char *out = (char *)((void *)out_block + sizeof(dataBlock_t));
     int in_len = in_block->size;
 
-    int out_len;
     if (level == 0) level = ZSTD_CLEVEL_DEFAULT;
-
-    out_len = ZSTD_compress(out, block_size, in, in_len, level);
+    int out_len = ZSTD_compress(out, block_size, in, in_len, level);
 
     if (ZSTD_isError(out_len)) {
         LogError("Compress_Block_ZSTD() error compression aborted in %s line %d: LZ4 : buffer too small", __FILE__, __LINE__);
@@ -687,9 +693,9 @@ static nffile_t *NewFile(nffile_t *nffile) {
     nffile->block_header = NULL;
     nffile->buff_ptr = NULL;
 
-    nffile->worker = 0;
+    for (int i = 0; i < MAXWORKERS; i++) nffile->worker[i] = 0;
     atomic_store(&nffile->terminate, 0);
-
+    pthread_mutex_init(&nffile->wlock, NULL);
     return nffile;
 
 }  // End of NewFile
@@ -851,16 +857,17 @@ nffile_t *OpenFile(char *filename, nffile_t *nffile) {
     }
 
     // kick off nfreader
+    // there is only 1 reader thread -> slot 0
     pthread_t tid;
     atomic_store(&nffile->terminate, 0);
     queue_open(nffile->processQueue);
     int err = pthread_create(&tid, NULL, nfreader, (void *)nffile);
     if (err) {
-        nffile->worker = 0;
+        nffile->worker[0] = 0;
         LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
-    nffile->worker = tid;
+    nffile->worker[0] = tid;
     return nffile;
 
 }  // End of OpenFile
@@ -924,16 +931,21 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
     nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(dataBlock_t));
 
     // kick off nfwriter
-    pthread_t tid;
     atomic_store(&nffile->terminate, 0);
     queue_open(nffile->processQueue);
-    int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
-    if (err) {
-        nffile->worker = 0;
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
+
+    // if file is not compressed, 1 worker is fine.
+    unsigned NumThreads = nffile->file_header->compression == 0 ? 1 : NumWorkers;
+    for (unsigned i = 0; i < NumThreads; i++) {
+        pthread_t tid;
+        int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
+        if (err) {
+            nffile->worker[i] = 0;
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
+        nffile->worker[i] = tid;
     }
-    nffile->worker = tid;
     return nffile;
 
 } /* End of OpenNewFile */
@@ -974,17 +986,20 @@ nffile_t *AppendFile(char *filename) {
     nffile->block_header = NewDataBlock();
     nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(dataBlock_t));
 
-    // kick off nfwriter
-    pthread_t tid;
+    // kick off NumWorkers nfwriter threads
     atomic_store(&nffile->terminate, 0);
     queue_open(nffile->processQueue);
-    int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
-    if (err) {
-        nffile->worker = 0;
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
+
+    for (unsigned i = 0; i < NumWorkers; i++) {
+        pthread_t tid;
+        int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
+        if (err) {
+            nffile->worker[i] = 0;
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
+        nffile->worker[i] = tid;
     }
-    nffile->worker = tid;
     return nffile;
 
 } /* End of AppendFile */
@@ -1043,13 +1058,15 @@ static void FlushFile(nffile_t *nffile) {
     queue_close(nffile->processQueue);
     queue_sync(nffile->processQueue);
 
-    // wait for nfwriter to complete
-    if (nffile->worker) {
-        int err = pthread_join(nffile->worker, NULL);
-        if (err) {
-            LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    // wait for all nfwriter threads to complete
+    for (unsigned i = 0; i < NumWorkers; i++) {
+        if (nffile->worker[i]) {
+            int err = pthread_join(nffile->worker[i], NULL);
+            if (err) {
+                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            }
+            nffile->worker[i] = 0;
         }
-        nffile->worker = 0;
     }
     fsync(nffile->fd);
 
@@ -1059,8 +1076,10 @@ void CloseFile(nffile_t *nffile) {
     if (!nffile || nffile->fd == 0) return;
 
     // make sure all workers are gone
-    if (nffile->worker) {
-        SignalTerminate(nffile);
+    for (unsigned i = 0; i < NumWorkers; i++) {
+        if (nffile->worker[i]) {
+            SignalTerminate(nffile);
+        }
     }
 
     close(nffile->fd);
@@ -1396,14 +1415,17 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
     dbg_printf("WriteBlock - type: %u, size: %u, compressed: %u, numRecords: %u, flags: %u\n", wptr->type, block_header->size, ->size,
                wptr->NumRecords, wptr->flags);
 
+    pthread_mutex_lock(&nffile->wlock);
     ssize_t ret = write(nffile->fd, (void *)wptr, sizeof(dataBlock_t) + wptr->size);
     FreeDataBlock(buff);
     if (ret < 0) {
+        pthread_mutex_unlock(&nffile->wlock);
         LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
 
     nffile->file_header->NumBlocks++;
+    pthread_mutex_unlock(&nffile->wlock);
     return 1;
 
 }  // End of nfwrite
@@ -1444,12 +1466,15 @@ static int SignalTerminate(nffile_t *nffile) {
     // set terminate
     atomic_store(&nffile->terminate, 1);
     queue_close(nffile->processQueue);
-    pthread_cond_signal(&(nffile->processQueue->cond));
-    int err = pthread_join(nffile->worker, NULL);
-    if (err && err != ESRCH) {
-        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+
+    pthread_cond_broadcast(&(nffile->processQueue->cond));
+    for (unsigned i = 0; i < NumWorkers; i++) {
+        int err = pthread_join(nffile->worker[i], NULL);
+        if (err && err != ESRCH) {
+            LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+        }
+        nffile->worker[i] = 0;
     }
-    nffile->worker = 0;
     atomic_store(&nffile->terminate, 0);
 
     return 1;

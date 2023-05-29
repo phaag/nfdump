@@ -31,6 +31,7 @@
 #ifndef _NFFILE_H
 #define _NFFILE_H 1
 
+#include <pthread.h>
 #include <stddef.h>
 #include <sys/types.h>
 
@@ -182,17 +183,21 @@ typedef struct data_block_header_s {
                           // 2 - block compressed
 } data_block_headerV1_t;
 
+// allocate space for this number of workers
+#define MAXWORKERS 16
+// If number of CPUs can not be determined
+#define DEFAULTWORKERS 4
 /*
  * Generic file handle for reading/writing files
  * if a file is read only writeto and block_header are NULL
  */
 typedef struct nffile_s {
-    fileHeaderV2_t *file_header;  // file header
-    int fd;                       // associated file descriptor
-    int compat16;                 // underlying file is compat16
-    pthread_t worker;             // nfread/nfwrite worker thread;
-    _Atomic int terminate;        // signal to terminate
-
+    fileHeaderV2_t *file_header;   // file header
+    int fd;                        // associated file descriptor
+    int compat16;                  // underlying file is compat16
+    pthread_t worker[MAXWORKERS];  // nfread/nfwrite worker thread;
+    _Atomic int terminate;         // signal to terminate
+    pthread_mutex_t wlock;         // writer lock
 #define FILE_IS_COMPAT16(n) (n->compat16)
 #define NUM_BUFFS 2
     size_t buff_size;
