@@ -1600,8 +1600,11 @@ void ModifyCompressFile(int compress) {
             unlink(outfile);
             LogError("Failed to close file: '%s'", strerror(errno));
         } else {
-            unlink(nffile_r->fileName);
-            rename(outfile, nffile_r->fileName);
+            if (unlink(nffile_r->fileName)) {
+                LogError("unlink() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            } else if (rename(outfile, nffile_r->fileName)) {
+                LogError("rename() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            }
         }
 
         DisposeFile(nffile_w);
