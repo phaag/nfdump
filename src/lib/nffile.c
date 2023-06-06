@@ -1478,11 +1478,13 @@ static int SignalTerminate(nffile_t *nffile) {
 
     pthread_cond_broadcast(&(nffile->processQueue->cond));
     for (unsigned i = 0; i < NumWorkers; i++) {
-        int err = pthread_join(nffile->worker[i], NULL);
-        if (err && err != ESRCH) {
-            LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+        if (nffile->worker[i]) {
+            int err = pthread_join(nffile->worker[i], NULL);
+            if (err && err != ESRCH) {
+                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+            }
+            nffile->worker[i] = 0;
         }
-        nffile->worker[i] = 0;
     }
     atomic_store(&nffile->terminate, 0);
 
