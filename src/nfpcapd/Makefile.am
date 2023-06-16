@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = nfpcapd
 
-AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline -I../collector -I../netflow -I../conf $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline -I../collector -I../netflow -I../lib/conf $(DEPS_CFLAGS)
 AM_LDFLAGS  = -L../lib
 
 LDADD = $(DEPS_LIBS)
@@ -13,7 +13,7 @@ pcaproc = pcaproc.c pcaproc.h nflog.h pflog.h flowtree.c flowtree.h
 
 nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h \
 	$(pcaproc) $(pcapdump) $(flowdump) $(flowsend)
-nfpcapd_LDADD = ../lib/libnfdump.la ../collector/libcollector.a ../conf/libconf.a -lm
+nfpcapd_LDADD = ../lib/libnfdump.la ../collector/libcollector.a -lm
 if BSDBPF
 nfpcapd_SOURCES += packet_bpf.c
 AM_CPPFLAGS += -DUSE_BPFSOCKET
