@@ -29,13 +29,11 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #ifndef SYSLOG_NAMES
 #define SYSLOG_NAMES 1
 #endif
+
+#include "util.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -54,8 +52,6 @@
 #include <syslog.h>
 #include <time.h>
 #include <unistd.h>
-
-#include "util.h"
 
 /* Global vars */
 

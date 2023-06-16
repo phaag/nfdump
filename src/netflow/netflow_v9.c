@@ -383,8 +383,6 @@ static int LookupElement(uint16_t type, int EnterpriseNumber) {
 }  // End of LookupElement
 
 static inline exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t exporter_id) {
-#define IP_STRING_LEN 40
-    char ipstr[IP_STRING_LEN];
     exporterDomain_t **e = (exporterDomain_t **)&(fs->exporter_data);
 
     while (*e) {
@@ -393,17 +391,7 @@ static inline exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t exporter_
         e = &((*e)->next);
     }
 
-    if (fs->sa_family == AF_INET) {
-        uint32_t _ip = htonl(fs->ip.V4);
-        inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
-    } else if (fs->sa_family == AF_INET6) {
-        uint64_t _ip[2];
-        _ip[0] = htonll(fs->ip.V6[0]);
-        _ip[1] = htonll(fs->ip.V6[1]);
-        inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
-    } else {
-        strncpy(ipstr, "<unknown>", IP_STRING_LEN);
-    }
+    char *ipstr = GetExporterIP(fs);
 
     // nothing found
     *e = (exporterDomain_t *)calloc(1, sizeof(exporterDomain_t));

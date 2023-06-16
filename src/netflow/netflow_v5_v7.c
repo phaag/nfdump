@@ -192,8 +192,6 @@ static inline exporter_v5_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *
     sampler_t *sampler;
     uint16_t engine_tag = ntohs(header->engine_tag);
     uint16_t version = ntohs(header->version);
-#define IP_STRING_LEN 40
-    char ipstr[IP_STRING_LEN];
 
     // search the matching v5 exporter
     while (*e) {
@@ -222,17 +220,12 @@ static inline exporter_v5_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *
     (*e)->flows = 0;
     (*e)->first = 1;
 
+    char *ipstr = GetExporterIP(fs);
     if (fs->sa_family == PF_INET6) {
         (*e)->outRecordSize = baseRecordSize + EXipReceivedV6Size;
-        uint64_t _ip[2];
-        _ip[0] = htonll(fs->ip.V6[0]);
-        _ip[1] = htonll(fs->ip.V6[1]);
-        inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
         dbg_printf("Process_v5: New IPv6 exporter %s - add EXipReceivedV6\n", ipstr);
     } else {
         (*e)->outRecordSize = baseRecordSize + EXipReceivedV4Size;
-        uint32_t _ip = htonl(fs->ip.V4);
-        inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
         dbg_printf("Process_v5: New IPv4 exporter %s - add EXipReceivedV4\n", ipstr);
     }
 
@@ -322,15 +315,9 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
         // count check
         uint16_t count = ntohs(v5_header->count);
-        if (count > NETFLOW_V5_MAX_RECORDS) {
-            LogError("Process_v5: Unexpected record count in header: %i. Abort v5/v7 record processing", count);
-            fs->nffile->buff_ptr = outBuff;
-            return;
-        }
-
         // input buffer size check for all expected records
         if (size_left < (NETFLOW_V5_HEADER_LENGTH + count * rawRecordSize)) {
-            LogError("Process_v5: Not enough data to process v5 record. Abort v5/v7 record processing");
+            LogError("Process_v5: Exporter: %s Not enough data to process v5 record. Abort v5/v7 record processing", GetExporterIP(fs));
             fs->nffile->buff_ptr = outBuff;
             return;
         }
