@@ -6,7 +6,7 @@
 
 # pre-defined format, hard coded into nfdump
 # uncomment to redefine according your needs
-
+#
 # fmt.line = "%ts %td %pr %sap -> %dap %pkt %byt %fl"
 # fmt.gline = "%ts %td %pr %gsap -> %gdap %pkt %byt %fl"
 # fmt.long = "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %fl"
@@ -28,6 +28,12 @@ fmt.pfline = "fmt:%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap 
 # if you use maxmind DB for geo location
 # geodb.path = "/var/db/mmdb.nf"
 
+# MAXWORKERS
+# By default the number of writer threads is set to the number of cores online but not 
+# more than 16 threads to be polite to other processes. If you want to use more than
+# 16 cores on a beefy machine, change maxworkers.
+# maxworkers = 16
+
 [nfcapd]
 # define multiple netflow exporters
 # the identification string follow the token 'exporter'
@@ -36,3 +42,7 @@ fmt.pfline = "fmt:%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap 
 # 
 # exporter.upstream = ["192.168.1.1", "/var/nflow/upstream"]
 # exporter.peer = ["192.168.1.10", "/var/nflow/peer"]
+
+# MAXWORKERS
+# see maxworkers in section [nfdump]
+# maxworkers = 16

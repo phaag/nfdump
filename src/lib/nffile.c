@@ -62,6 +62,7 @@
 #include "lz4.h"
 #include "lz4hc.h"
 #include "minilzo.h"
+#include "nfconf.h"
 #include "nfdump.h"
 #include "nffileV2.h"
 #include "util.h"
@@ -173,7 +174,12 @@ int Init_nffile(int workers, queue_t *fileList) {
         CoresOnline = DEFAULTWORKERS;
     }
 
-    NumWorkers = CoresOnline > MAXWORKERS ? MAXWORKERS : CoresOnline;
+    int confMaxWorkers = ConfGetValue("maxworkers");
+    dbg_printf("MAXWORKERS: %d\n", confMaxWorkers);
+
+    if (confMaxWorkers <= 0) confMaxWorkers = MAXWORKERS;
+
+    NumWorkers = CoresOnline > confMaxWorkers ? confMaxWorkers : CoresOnline;
     return 1;
 
 }  // End of Init_nffile
