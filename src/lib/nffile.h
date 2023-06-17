@@ -211,7 +211,6 @@ typedef struct nffile_s {
     stat_record_t *stat_record;  // flow stat record
     char *ident;                 // source identifier
     char *fileName;              // file name
-    uint16_t compression;        // compression algo of underlaying file
     uint16_t compression_level;  // compression level, if available.
 } nffile_t;
 

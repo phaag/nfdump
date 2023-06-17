@@ -814,7 +814,6 @@ static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
 #endif
             nffile->file_header->created = stat_buf.st_mtim.tv_sec;
             nffile->file_header->compression = FILEV1_COMPRESSION(&fileHeaderV1);
-            nffile->compression = nffile->file_header->compression;
             nffile->compression_level = 0;
             nffile->file_header->encryption = NOT_ENCRYPTED;
             nffile->file_header->NumBlocks = fileHeaderV1.NumBlocks;
@@ -834,8 +833,6 @@ static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
             CloseFile(nffile);
             return NULL;
         }
-    } else {
-        nffile->compression = nffile->file_header->compression;
     }
     nffile->compat16 = 0;
 
@@ -931,7 +928,6 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
     nffile->file_header->nfdversion = NFDVERSION;
     nffile->file_header->created = time(NULL);
     nffile->file_header->compression = compress & 0xFFFF;
-    nffile->compression = nffile->file_header->compression;
     nffile->compression_level = (compress >> 16) & 0xFFFF;
     nffile->file_header->encryption = encryption;
     nffile->file_header->creator = creator;
@@ -1404,7 +1400,7 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
     dataBlock_t *wptr = NULL;
     int failed = 0;
     // compress according file compression
-    int compression = nffile->compression;
+    int compression = nffile->file_header->compression;
     int level = nffile->compression_level;
     dbg_printf("nfwrite - compression: %u\n", compression);
     switch (compression) {
