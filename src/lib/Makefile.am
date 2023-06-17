@@ -34,6 +34,9 @@ libnfdump_la_SOURCES = $(conf) $(util) $(pidfile) $(compress) $(nffile) $(nflist
 libnfdump_la_LDFLAGS = -release @VERSION@
  
 
-EXTRA_DIST = gen_version.sh
+EXTRA_DIST = gen_version.sh conf/nfdump.conf.dist
+
+nfconfdir=$(sysconfdir)
+nfconf_DATA = conf/nfdump.conf.dist
 
 CLEANFILES = lex.yy.c grammar.c grammar.h scanner.c scanner.h vcs_track.h *.gch
