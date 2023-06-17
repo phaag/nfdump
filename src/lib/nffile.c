@@ -834,6 +834,8 @@ static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
             CloseFile(nffile);
             return NULL;
         }
+    } else {
+        nffile->compression = nffile->file_header->compression;
     }
     nffile->compat16 = 0;
 
@@ -988,6 +990,13 @@ nffile_t *AppendFile(char *filename) {
             DisposeFile(nffile);
             return NULL;
         }
+        // cut off old appendix
+        if (ftruncate(nffile->fd, nffile->file_header->offAppendix) < 0) {
+            LogError("ftruncate() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            DisposeFile(nffile);
+            return NULL;
+        }
+
     } else {
         // if no appendix
         if (lseek(nffile->fd, 0, SEEK_END) < 0) {
@@ -997,15 +1006,15 @@ nffile_t *AppendFile(char *filename) {
         }
     }
 
-    // prepare buffer to write to
-    nffile->block_header = NewDataBlock();
-    nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(dataBlock_t));
+    // appending needs no block header
+    nffile->block_header = NULL;
 
     // kick off NumWorkers nfwriter threads
     atomic_store(&nffile->terminate, 0);
     queue_open(nffile->processQueue);
 
-    for (unsigned i = 0; i < NumWorkers; i++) {
+    unsigned NumThreads = nffile->file_header->compression == 0 ? 1 : NumWorkers;
+    for (unsigned i = 0; i < NumThreads; i++) {
         pthread_t tid;
         int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
         if (err) {
@@ -1029,6 +1038,7 @@ int RenameAppend(char *oldName, char *newName) {
             // file exists already - concat them
             nffile_t *nffile_w = AppendFile(newName);
             if (!nffile_w) return -1;
+
             nffile_t *nffile_r = OpenFile(oldName, NULL);
             if (!nffile_r) return 0;
 
@@ -1039,14 +1049,14 @@ int RenameAppend(char *oldName, char *newName) {
                     break;
                 queue_push(nffile_w->processQueue, block_header);
             }
+            CloseFile(nffile_r);
 
             // sum stat_records
             SumStatRecords(nffile_w->stat_record, nffile_r->stat_record);
+            DisposeFile(nffile_r);
+
             CloseUpdateFile(nffile_w);
             DisposeFile(nffile_w);
-
-            CloseFile(nffile_r);
-            DisposeFile(nffile_r);
 
             return unlink(oldName);
         } else {
@@ -1064,6 +1074,7 @@ int RenameAppend(char *oldName, char *newName) {
 }  // End of RenameAppend
 
 static void FlushFile(nffile_t *nffile) {
+    // push current block, let writers flush it to disk
     if (nffile->block_header && nffile->block_header->size) {
         queue_push(nffile->processQueue, nffile->block_header);
         nffile->block_header = NULL;
@@ -1071,9 +1082,11 @@ static void FlushFile(nffile_t *nffile) {
     }
     // done - close queue
     queue_close(nffile->processQueue);
+    // wait for queue to be empty
     queue_sync(nffile->processQueue);
+    // writers terminate, on queue closed and empty
 
-    // wait for all nfwriter threads to complete
+    // wait for all nfwriter threads to exit
     for (unsigned i = 0; i < NumWorkers; i++) {
         if (nffile->worker[i]) {
             int err = pthread_join(nffile->worker[i], NULL);
@@ -1427,7 +1440,7 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
         return 0;
     }
 
-    dbg_printf("WriteBlock - type: %u, size: %u, compressed: %u, numRecords: %u, flags: %u\n", wptr->type, block_header->size, ->size,
+    dbg_printf("WriteBlock - type: %u, size: %u, compressed: %u, numRecords: %u, flags: %u\n", wptr->type, block_header->size, compression,
                wptr->NumRecords, wptr->flags);
 
     pthread_mutex_lock(&nffile->wlock);
