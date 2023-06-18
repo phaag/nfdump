@@ -219,6 +219,10 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_postNATDestinationIPv4Address, SIZExlateDst4Addr, NumberCopy, EXnselXlateIPv4ID, OFFxlateDst4Addr, STACK_NONE, "xlate dst addr"},
     {IPFIX_postNAPTSourceTransportPort, SIZExlateSrcPort, NumberCopy, EXnselXlatePortID, OFFxlateSrcPort, STACK_NONE, "xlate src port"},
     {IPFIX_postNAPTDestinationTransportPort, SIZExlateDstPort, NumberCopy, EXnselXlatePortID, OFFxlateDstPort, STACK_NONE, "xlate dst port"},
+    // inline-monitoring inmon
+    // {IPFIX_dataLinkFrameSize, SIZEframeSize, NumberCopy, EXinmonID, OFFframeSize, STACK_NONE, "inmon frame size"},
+    // {IPFIX_dataLinkFrameType, SIZElinkType, NumberCopy, EXinmonID, OFFlinkType, STACK_NONE, "inmon link type"},
+    // {IPFIX_dataLinkFrameSection, SIZEframe, ByteCopy, EXinmonID, OFFframe, STACK_NONE, "inmon packet content"},
 
     // payload
     {LOCAL_inPayload, VARLENGTH, NumberCopy, EXinPayloadID, 0, STACK_NONE, "in payload"},

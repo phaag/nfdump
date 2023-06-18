@@ -656,6 +656,10 @@ static void stringsEXpfinfo(FILE *stream, master_record_t *r) {
 
 }  // End of stringsEXpfinfo
 
+static void stringsEXinmon(FILE *stream, master_record_t *r) {
+    fprintf(stream, "  inmon xxxxxx =             %5s\n", "none");
+}  // End of stringsEXinmon
+
 void raw_prolog(void) {
     // empty prolog
     recordCount = 0;
@@ -828,6 +832,9 @@ void raw_record(FILE *stream, void *record, int tag) {
                 break;
             case EXpfinfoID:
                 stringsEXpfinfo(stream, r);
+                break;
+            case EXinmonID:
+                stringsEXinmon(stream, r);
                 break;
             default:
                 dbg_printf("Extension %i not decoded\n", r->exElementList[i]);

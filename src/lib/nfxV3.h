@@ -612,8 +612,22 @@ typedef struct EXpfinfo_s {
 } EXpfinfo_t;
 #define EXpfinfoSize (sizeof(EXpfinfo_t) - 4 + sizeof(elementHeader_t))
 
+typedef struct EXinmon_s {
+#define EXinmonID 38
+    uint16_t frameSize;
+    uint16_t linkType;
+    uint8_t frame[4];
+} EXinmon_t;
+#define OFFframeSize offsetof(EXinmon_t, frameSize)
+#define SIZEframeSize MemberSize(EXinmon_t, frameSize)
+#define OFFlinkType offsetof(EXinmon_t, linkType)
+#define SIZElinkType MemberSize(EXinmon_t, linkType)
+#define OFFframe offsetof(EXinmon_t, frame)
+#define SIZEframe VARLENGTH
+#define EXinmonSize (sizeof(EXinmon_t) - 4 + sizeof(elementHeader_t))
+
 // max possible elements
-#define MAXEXTENSIONS 38
+#define MAXEXTENSIONS 39
 
 // push a fixed length extension to the v3 record
 // h v3 record header
@@ -679,7 +693,7 @@ static const struct extensionTable_s {
     EXTENSION(EXnselXlateIPv4), EXTENSION(EXnselXlateIPv6), EXTENSION(EXnselXlatePort), EXTENSION(EXnselAcl),      EXTENSION(EXnselUser),
     EXTENSION(EXnelCommon),     EXTENSION(EXnelXlatePort),  EXTENSION(EXnbarApp),       EXTENSION(EXlabel),        EXTENSION(EXinPayload),
     EXTENSION(EXoutPayload),    EXTENSION(EXtunIPv4),       EXTENSION(EXtunIPv6),       EXTENSION(EXobservation),  EXTENSION(EXifname),
-    EXTENSION(EXvrfname),       EXTENSION(EXvrf),           EXTENSION(EXpfinfo)};
+    EXTENSION(EXvrfname),       EXTENSION(EXvrf),           EXTENSION(EXpfinfo),        EXTENSION(EXinmon)};
 
 typedef struct record_map_s {
     recordHeaderV3_t *recordHeader;
