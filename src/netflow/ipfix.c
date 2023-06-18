@@ -220,9 +220,9 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_postNAPTSourceTransportPort, SIZExlateSrcPort, NumberCopy, EXnselXlatePortID, OFFxlateSrcPort, STACK_NONE, "xlate src port"},
     {IPFIX_postNAPTDestinationTransportPort, SIZExlateDstPort, NumberCopy, EXnselXlatePortID, OFFxlateDstPort, STACK_NONE, "xlate dst port"},
     // inline-monitoring inmon
-    // {IPFIX_dataLinkFrameSize, SIZEframeSize, NumberCopy, EXinmonID, OFFframeSize, STACK_NONE, "inmon frame size"},
-    // {IPFIX_dataLinkFrameType, SIZElinkType, NumberCopy, EXinmonID, OFFlinkType, STACK_NONE, "inmon link type"},
-    // {IPFIX_dataLinkFrameSection, SIZEframe, ByteCopy, EXinmonID, OFFframe, STACK_NONE, "inmon packet content"},
+    {IPFIX_dataLinkFrameSize, SIZEframeSize, NumberCopy, EXinmonMetaID, OFFframeSize, STACK_NONE, "inmon frame size"},
+    {IPFIX_dataLinkFrameType, SIZElinkType, NumberCopy, EXinmonMetaID, OFFlinkType, STACK_NONE, "inmon link type"},
+    {IPFIX_dataLinkFrameSection, SIZEpacket, ByteCopy, EXinmonFrameID, OFFpacket, STACK_NONE, "inmon packet content"},
 
     // payload
     {LOCAL_inPayload, VARLENGTH, NumberCopy, EXinPayloadID, 0, STACK_NONE, "in payload"},
@@ -1472,6 +1472,10 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
         EXobservation_t *observation = sequencer->offsetCache[EXobservationID];
         if (observation) {
             if (observation->domainID == 0) observation->domainID = exporter->info.id;
+        }
+
+        EXinmonFrame_t *inmonFrame = sequencer->offsetCache[EXinmonFrameID];
+        if (inmonFrame) {
         }
 
         if (printRecord) {

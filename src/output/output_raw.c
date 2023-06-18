@@ -833,7 +833,7 @@ void raw_record(FILE *stream, void *record, int tag) {
             case EXpfinfoID:
                 stringsEXpfinfo(stream, r);
                 break;
-            case EXinmonID:
+            case EXinmonMetaID:
                 stringsEXinmon(stream, r);
                 break;
             default:

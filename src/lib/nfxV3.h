@@ -569,23 +569,24 @@ typedef struct EXobservation_s {
 } EXobservation_t;
 #define EXobservationSize (sizeof(EXobservation_t) + sizeof(elementHeader_t))
 
-typedef struct EXifname_s {
-#define EXifnameID 34
-    uint32_t ingress;
-    uint8_t name[4];
-#define OFFifnameID offsetof(EXifname_t, id)
-#define SIZEifnameID VARLENGTH
-} EXifname_t;
-#define EXifnameSize (sizeof(EXifname_t) - 4 + sizeof(elementHeader_t))
+typedef struct EXinmonMeta_s {
+#define EXinmonMetaID 34
+    uint16_t frameSize;
+    uint16_t linkType;
+} EXinmonMeta_t;
+#define OFFframeSize offsetof(EXinmonMeta_t, frameSize)
+#define SIZEframeSize MemberSize(EXinmonMeta_t, frameSize)
+#define OFFlinkType offsetof(EXinmonMeta_t, linkType)
+#define SIZElinkType MemberSize(EXinmonMeta_t, linkType)
+#define EXinmonMetaSize (sizeof(EXinmonMeta_t) + sizeof(elementHeader_t))
 
-typedef struct EXvrfname_s {
-#define EXvrfnameID 35
-    uint32_t ingress;
-    uint8_t name[4];
-#define OFFvrfnameID offsetof(EXvrfname_t, id)
-#define SIZEvrfnameID VARLENGTH
-} EXvrfname_t;
-#define EXvrfnameSize (sizeof(EXvrfname_t) - 4 + sizeof(elementHeader_t))
+typedef struct EXinmonFrame_s {
+#define EXinmonFrameID 35
+    uint8_t packet[4];
+} EXinmonFrame_t;
+#define OFFpacket offsetof(EXinmonFrame_t, packet)
+#define SIZEpacket VARLENGTH
+#define EXinmonFrameSize (sizeof(EXinmonFrame_t) - 4 + sizeof(elementHeader_t))
 
 typedef struct EXvrf_s {
 #define EXvrfID 36
@@ -612,22 +613,8 @@ typedef struct EXpfinfo_s {
 } EXpfinfo_t;
 #define EXpfinfoSize (sizeof(EXpfinfo_t) - 4 + sizeof(elementHeader_t))
 
-typedef struct EXinmon_s {
-#define EXinmonID 38
-    uint16_t frameSize;
-    uint16_t linkType;
-    uint8_t frame[4];
-} EXinmon_t;
-#define OFFframeSize offsetof(EXinmon_t, frameSize)
-#define SIZEframeSize MemberSize(EXinmon_t, frameSize)
-#define OFFlinkType offsetof(EXinmon_t, linkType)
-#define SIZElinkType MemberSize(EXinmon_t, linkType)
-#define OFFframe offsetof(EXinmon_t, frame)
-#define SIZEframe VARLENGTH
-#define EXinmonSize (sizeof(EXinmon_t) - 4 + sizeof(elementHeader_t))
-
 // max possible elements
-#define MAXEXTENSIONS 39
+#define MAXEXTENSIONS 38
 
 // push a fixed length extension to the v3 record
 // h v3 record header
@@ -692,12 +679,12 @@ static const struct extensionTable_s {
     EXTENSION(EXmacAddr),       EXTENSION(EXasAdjacent),    EXTENSION(EXlatency),       EXTENSION(EXsamplerInfo),  EXTENSION(EXnselCommon),
     EXTENSION(EXnselXlateIPv4), EXTENSION(EXnselXlateIPv6), EXTENSION(EXnselXlatePort), EXTENSION(EXnselAcl),      EXTENSION(EXnselUser),
     EXTENSION(EXnelCommon),     EXTENSION(EXnelXlatePort),  EXTENSION(EXnbarApp),       EXTENSION(EXlabel),        EXTENSION(EXinPayload),
-    EXTENSION(EXoutPayload),    EXTENSION(EXtunIPv4),       EXTENSION(EXtunIPv6),       EXTENSION(EXobservation),  EXTENSION(EXifname),
-    EXTENSION(EXvrfname),       EXTENSION(EXvrf),           EXTENSION(EXpfinfo),        EXTENSION(EXinmon)};
+    EXTENSION(EXoutPayload),    EXTENSION(EXtunIPv4),       EXTENSION(EXtunIPv6),       EXTENSION(EXobservation),  EXTENSION(EXinmonMeta),
+    EXTENSION(EXinmonFrame),    EXTENSION(EXvrf),           EXTENSION(EXpfinfo)};
 
 typedef struct record_map_s {
     recordHeaderV3_t *recordHeader;
-    void *offsetMap[MAXEXTENSIONS];
+    elementHeader_t *offsetMap[MAXEXTENSIONS];
 } record_map_t;
 
 typedef struct sequence_s {
