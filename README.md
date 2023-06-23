@@ -117,23 +117,34 @@ See __--enable-jnat__ below
 The toolset is build upon the autotools framework. Run `./autogen.sh` first.
 Afterwards `./configure` `make` and `make install` should do the trick. 
 
-If you run CentOS 7.x you need to install a more recent compiler:
+For various older Linuxes need a more modern compiler:
+
+#### CentOS 7.x:
 
 ```c
-yum install centos-release-scl
+% yum install centos-release-scl
 ```
 
 Then you can install GCC 8 and its C++ compiler:
 
 ```c
-yum install devtoolset-8-gcc devtoolset-8-gcc-c++
+% yum install devtoolset-8-gcc devtoolset-8-gcc-c++
 ```
 
 To switch to a shell which defaults `gcc` and `g++` to this GCC version, use:
 
 ```c
-scl enable devtoolset-8 -- bash
+% scl enable devtoolset-8 -- bash
 ```
+
+#### Ubuntu 18.04 LTS:
+
+```c
+% sudo apt-get install clang-10
+% CC=clang-10 ./configure ...
+```
+
+
 
 The following config options are available:
 

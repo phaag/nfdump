@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline -I../conf $(DEPS_CFLAGS) -D_BSD_SOURCE -D_DEFAULT_SOURCE
+AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline -I../lib/conf $(DEPS_CFLAGS) -D_BSD_SOURCE -D_DEFAULT_SOURCE
 
 EXTRA_DIST = collector_inline.c 
 

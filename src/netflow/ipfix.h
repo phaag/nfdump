@@ -319,6 +319,11 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_samplingPacketInterval 305
 #define IPFIX_samplingPacketSpace 306
 
+// Juniper inline-monitoring
+#define IPFIX_dataLinkFrameSize 312
+#define IPFIX_dataLinkFrameSection 315
+#define IPFIX_dataLinkFrameType 408
+
 #define IPFIX_observationTimeMilliseconds 323
 
 // Private Enterprise Numbers

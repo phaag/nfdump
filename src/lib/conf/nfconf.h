@@ -44,4 +44,6 @@ int ConfGetExporter(char **ident, char **ip, char **flowdir);
 
 char *ConfGetString(char *key);
 
+int ConfGetValue(char *key);
+
 #endif

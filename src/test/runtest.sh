@@ -1,7 +1,7 @@
 #!/bin/sh
 #  This file is part of the nfdump project.
 #
-#  Copyright (c) 2009-2020, Peter Haag
+#  Copyright (c) 2009-2023, Peter Haag
 #  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
 #  All rights reserved.
 #
@@ -57,6 +57,11 @@ $NFDUMP -J 3 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
 $NFDUMP -J 2 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
 $NFDUMP -J 1 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
 $NFDUMP -J 0 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
+$NFDUMP -J lzo -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
+$NFDUMP -J lz4:5 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
+$NFDUMP -J bzip2 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
+$NFDUMP -J lz4:9 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
+$NFDUMP -J 0 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
 
 rm -f test.1.out
 $NFDUMP -r test.flows.nf -q -o raw >test.1.out
@@ -81,7 +86,7 @@ diff -u test.4.out nftest.1.out
 
 # test write ascending sorted flow table
 $NFDUMP -r test.flows.nf -q -O bytes -o raw >test.5.out
-$NFDUMP -r test.flows.nf -O bytes -z -w test.5.flows.nf
+$NFDUMP -r test.flows.nf -O bytes -z=lz4 -w test.5.flows.nf
 $NFDUMP -v test.5.flows.nf >/dev/null
 $NFDUMP -r test.5.flows.nf -q -o raw | grep -v RecordCount >test.5-2.out
 diff -u test.5.out test.5-2.out
@@ -93,10 +98,11 @@ if [ -d testdir ]; then
 fi
 mkdir testdir
 
+# Test flow collection
 # Start nfcapd on localhost and replay flows
 echo
 echo -n Starting nfcapd ...
-../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent
+../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -z=lz4
 sleep 1
 echo done.
 echo -n Replay flows ...
@@ -118,6 +124,45 @@ $NFDUMP -r test.flows.nf -q -o extended -6 'packets > 0' >test.6-1.out
 $NFDUMP -r testdir/nfcapd.* -q -o extended -6 >test.6-2.out
 
 diff test.6-1.out test.6-2.out
+
+# Test propper AppendRename
+# Start nfcapd on localhost and replay flows
+rm -f testdir/nfcapd.*
+echo
+echo -n Starting nfcapd ...
+../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
+sleep 1
+echo done.
+echo -n Replay flows ...
+../nfreplay/nfreplay -r test.flows.nf -v9 -H 127.0.0.1 -p 65530
+echo done.
+sleep 1
+
+echo -n Terminate nfcapd ...
+kill -TERM $(cat testdir/pidfile)
+sleep 1
+echo done.
+
+echo -n Starting nfcapd ...
+../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
+sleep 1
+echo done.
+echo -n Replay flows ...
+../nfreplay/nfreplay -r test.flows.nf -v9 -H 127.0.0.1 -p 65530
+echo done.
+sleep 1
+
+echo -n Terminate nfcapd ...
+kill -TERM $(cat testdir/pidfile)
+sleep 1
+echo done.
+
+if [ -f testdir/pidfile ]; then
+	echo nfcapd does not terminate
+	exit
+fi
+
+$NFDUMP -X -v testdir/nfcapd.* >/dev/null
 
 mkdir memck.$$
 # OpenBSD

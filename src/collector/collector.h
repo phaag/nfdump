@@ -126,4 +126,6 @@ int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter);
 
 int ScanExtension(char *extensionList);
 
+char *GetExporterIP(FlowSource_t *fs);
+
 #endif  //_COLLECTOR_H

@@ -253,11 +253,43 @@ char *ConfGetString(char *key) {
     free(k);
     if (Data.ok) {
         return strdup(Data.u.s);
-    } else
-        return NULL;
+    }
+    return NULL;
 
-    // unreached
 }  // End of ConfGetString
+
+int ConfGetValue(char *key) {
+    if (!nfconfFile.valid) return 0;
+
+    char *k = strdup(key);
+    key = k;
+
+    toml_table_t *table = nfconfFile.sectionConf;
+    char *p = strchr(key, '.');
+    while (p) {
+        *p = '\0';
+        table = toml_table_in(table, key);
+        if (!table) {
+            free(k);
+            return 0;
+        }
+        key = p + 1;
+        p = strchr(key, '.');
+    }
+    if (strlen(key) == 0) {
+        free(k);
+        return 0;
+    }
+
+    toml_datum_t Data = toml_int_in(table, key);
+    free(k);
+    if (Data.ok) {
+        return Data.u.i;
+    }
+
+    return 0;
+
+}  // End of ConfGetValue
 
 __attribute__((unused)) void ConfInventory(void) {
     if (!nfconfFile.conf) return;

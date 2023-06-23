@@ -492,3 +492,24 @@ int ScanExtension(char *extensionList) {
     return num;
 
 }  // End of ScanExtension
+
+char *GetExporterIP(FlowSource_t *fs) {
+#define IP_STRING_LEN 40
+    static char ipstr[IP_STRING_LEN];
+    ipstr[0] = '\0';
+
+    if (fs->sa_family == AF_INET) {
+        uint32_t _ip = htonl(fs->ip.V4);
+        inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
+    } else if (fs->sa_family == AF_INET6) {
+        uint64_t _ip[2];
+        _ip[0] = htonll(fs->ip.V6[0]);
+        _ip[1] = htonll(fs->ip.V6[1]);
+        inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
+    } else {
+        strncpy(ipstr, "<unknown>", IP_STRING_LEN);
+    }
+
+    return ipstr;
+
+}  // End of GetExporterIP

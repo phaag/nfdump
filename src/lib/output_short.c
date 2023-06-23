@@ -49,9 +49,10 @@
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
 static void stringEXgenericFlow(FILE *stream, record_map_t *r) {
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)r->offsetMap[EXgenericFlowID];
+    elementHeader_t *elementHeader = r->offsetMap[EXgenericFlowID];
+    if (!elementHeader) return;
 
-    if (!genericFlow) return;
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     char datestr1[64], datestr2[64], datestr3[64];
     struct tm *ts;
@@ -110,9 +111,10 @@ static void stringEXgenericFlow(FILE *stream, record_map_t *r) {
 }  // End of EXgenericFlowID
 
 static void stringEXtunIPv4(FILE *stream, record_map_t *r) {
-    EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)r->offsetMap[EXtunIPv4ID];
+    elementHeader_t *elementHeader = r->offsetMap[EXtunIPv4ID];
+    if (!elementHeader) return;
 
-    if (!tunIPv4) return;
+    EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
     char sloc[128], dloc[128];
@@ -134,9 +136,10 @@ static void stringEXtunIPv4(FILE *stream, record_map_t *r) {
 }  // End of stringEXtunIPv4
 
 static void stringEXtunIPv6(FILE *stream, record_map_t *r) {
-    EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)r->offsetMap[EXtunIPv6ID];
+    elementHeader_t *elementHeader = r->offsetMap[EXtunIPv6ID];
+    if (!elementHeader) return;
 
-    if (!tunIPv6) return;
+    EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
     uint64_t src[2], dst[2];
@@ -162,9 +165,10 @@ static void stringEXtunIPv6(FILE *stream, record_map_t *r) {
 }  // End of stringEXtunIPv6
 
 static void stringsEXipv4Flow(FILE *stream, record_map_t *r) {
-    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)r->offsetMap[EXipv4FlowID];
+    elementHeader_t *elementHeader = r->offsetMap[EXipv4FlowID];
+    if (!elementHeader) return;
 
-    if (!ipv4Flow) return;
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     if (r->offsetMap[EXtunIPv4ID])
         stringEXtunIPv4(stream, r);
@@ -185,9 +189,10 @@ static void stringsEXipv4Flow(FILE *stream, record_map_t *r) {
 }  // End of stringsEXipv4Flow
 
 static void stringsEXipv6Flow(FILE *stream, record_map_t *r) {
-    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)r->offsetMap[EXipv6FlowID];
+    elementHeader_t *elementHeader = r->offsetMap[EXipv6FlowID];
+    if (!elementHeader) return;
 
-    if (!ipv6Flow) return;
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     if (r->offsetMap[EXtunIPv4ID])
         stringEXtunIPv4(stream, r);
@@ -211,9 +216,10 @@ static void stringsEXipv6Flow(FILE *stream, record_map_t *r) {
 }  // End of stringsEXipv6Flow
 
 static void stringsEXflowMisc(FILE *stream, record_map_t *r) {
-    EXflowMisc_t *flowMisc = (EXflowMisc_t *)r->offsetMap[EXflowMiscID];
+    elementHeader_t *elementHeader = r->offsetMap[EXflowMiscID];
+    if (!elementHeader) return;
 
-    if (!flowMisc) return;
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     char snet[IP_STRING_LEN] = {0};
     char dnet[IP_STRING_LEN] = {0};
@@ -254,9 +260,10 @@ static void stringsEXflowMisc(FILE *stream, record_map_t *r) {
 }  // End of stringsEXflowMisc
 
 static void stringsEXcntFlow(FILE *stream, record_map_t *r) {
-    EXcntFlow_t *cntFlow = (EXcntFlow_t *)r->offsetMap[EXcntFlowID];
+    elementHeader_t *elementHeader = r->offsetMap[EXcntFlowID];
+    if (!elementHeader) return;
 
-    if (!cntFlow) return;
+    EXcntFlow_t *cntFlow = (EXcntFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     fprintf(stream,
             "  out packets  =        %10llu\n"
@@ -267,9 +274,10 @@ static void stringsEXcntFlow(FILE *stream, record_map_t *r) {
 }  // End of stringEXcntFlow
 
 static void stringsEXvLan(FILE *stream, record_map_t *r) {
-    EXvLan_t *vLan = (EXvLan_t *)r->offsetMap[EXvLanID];
+    elementHeader_t *elementHeader = r->offsetMap[EXvLanID];
+    if (!elementHeader) return;
 
-    if (!vLan) return;
+    EXvLan_t *vLan = (EXvLan_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     fprintf(stream,
             "  src vlan     =             %5u\n"
@@ -279,9 +287,10 @@ static void stringsEXvLan(FILE *stream, record_map_t *r) {
 }  // End of stringsEXvLan
 
 static void stringsEXasRouting(FILE *stream, record_map_t *r) {
-    EXasRouting_t *asRouting = (EXasRouting_t *)r->offsetMap[EXasRoutingID];
+    elementHeader_t *elementHeader = r->offsetMap[EXasRoutingID];
+    if (!elementHeader) return;
 
-    if (!asRouting) return;
+    EXasRouting_t *asRouting = (EXasRouting_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     fprintf(stream,
             "  src as       =             %5u\n"
@@ -291,9 +300,10 @@ static void stringsEXasRouting(FILE *stream, record_map_t *r) {
 }  // End of stringsEXasRouting
 
 static void stringsEXbgpNextHopV4(FILE *stream, record_map_t *r) {
-    EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)r->offsetMap[EXbgpNextHopV4ID];
+    elementHeader_t *elementHeader = r->offsetMap[EXbgpNextHopV4ID];
+    if (!elementHeader) return;
 
-    if (!bgpNextHopV4) return;
+    EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     char ip[IP_STRING_LEN];
     ip[0] = 0;
@@ -306,9 +316,10 @@ static void stringsEXbgpNextHopV4(FILE *stream, record_map_t *r) {
 }  // End of stringsEXbgpNextHopV4
 
 static void stringsEXbgpNextHopV6(FILE *stream, record_map_t *r) {
-    EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)r->offsetMap[EXbgpNextHopV6ID];
+    elementHeader_t *elementHeader = r->offsetMap[EXbgpNextHopV6ID];
+    if (!elementHeader) return;
 
-    if (!bgpNextHopV6) return;
+    EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     char ip[IP_STRING_LEN];
     uint64_t i[2];
@@ -322,9 +333,10 @@ static void stringsEXbgpNextHopV6(FILE *stream, record_map_t *r) {
 }  // End of stringsEXbgpNextHopV6
 
 static void stringsEXipNextHopV4(FILE *stream, record_map_t *r) {
-    EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)r->offsetMap[EXipNextHopV4ID];
+    elementHeader_t *elementHeader = r->offsetMap[EXipNextHopV4ID];
+    if (!elementHeader) return;
 
-    if (!ipNextHopV4) return;
+    EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     char ip[IP_STRING_LEN];
     ip[0] = 0;
@@ -337,9 +349,10 @@ static void stringsEXipNextHopV4(FILE *stream, record_map_t *r) {
 }  // End of stringsEXipNextHopV4
 
 static void stringsEXipNextHopV6(FILE *stream, record_map_t *r) {
-    EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)r->offsetMap[EXipNextHopV6ID];
+    elementHeader_t *elementHeader = r->offsetMap[EXipNextHopV6ID];
+    if (!elementHeader) return;
 
-    if (!ipNextHopV6) return;
+    EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     char ip[IP_STRING_LEN];
     uint64_t i[2];
@@ -353,9 +366,10 @@ static void stringsEXipNextHopV6(FILE *stream, record_map_t *r) {
 }  // End of stringsEXipNextHopV6
 
 static void stringsEXipReceivedV4(FILE *stream, record_map_t *r) {
-    EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)r->offsetMap[EXipReceivedV4ID];
+    elementHeader_t *elementHeader = r->offsetMap[EXipReceivedV4ID];
+    if (!elementHeader) return;
 
-    if (!ipReceivedV4) return;
+    EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     char ip[IP_STRING_LEN];
     ip[0] = 0;
@@ -368,9 +382,10 @@ static void stringsEXipReceivedV4(FILE *stream, record_map_t *r) {
 }  // End of stringsEXipReceivedV4
 
 static void stringsEXipReceivedV6(FILE *stream, record_map_t *r) {
-    EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)r->offsetMap[EXipReceivedV6ID];
+    elementHeader_t *elementHeader = r->offsetMap[EXipReceivedV6ID];
+    if (!elementHeader) return;
 
-    if (!ipReceivedV6) return;
+    EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
     char ip[IP_STRING_LEN];
     uint64_t i[2];
@@ -383,21 +398,95 @@ static void stringsEXipReceivedV6(FILE *stream, record_map_t *r) {
 
 }  // End of stringsEXipReceivedV6
 
+static void stringsEXinmonMeta(FILE *stream, record_map_t *r) {
+    elementHeader_t *elementHeader = r->offsetMap[EXinmonMetaID];
+    if (!elementHeader) return;
+
+    EXinmonMeta_t *inmonMeta = (EXinmonMeta_t *)((void *)elementHeader + sizeof(elementHeader_t));
+
+    fprintf(stream,
+            "  imon f-Size  =             %5u\n"
+            "  imon L-type  =             %5u\n",
+            inmonMeta->frameSize, inmonMeta->linkType);
+
+}  // End of stringsEXinmonMeta
+
+static void stringsEXinPayload(FILE *stream, record_map_t *r) {
+    elementHeader_t *elementHeader = r->offsetMap[EXinPayloadID];
+    if (!elementHeader) return;
+
+    void *payload = (void *)((void *)elementHeader + sizeof(elementHeader_t));
+
+    size_t len = elementHeader->length - sizeof(elementHeader_t);
+    fprintf(stream, "i-payload-len  =             %5zu\n", len);
+    DumpHex(stream, payload, len);
+
+}  // End of stringsEXinPayload
+
+static void stringsEXoutPayload(FILE *stream, record_map_t *r) {
+    elementHeader_t *elementHeader = r->offsetMap[EXoutPayloadID];
+    if (!elementHeader) return;
+
+    void *payload = (void *)((void *)elementHeader + sizeof(elementHeader_t));
+
+    size_t len = elementHeader->length - sizeof(elementHeader_t);
+    fprintf(stream, "o-payload-len  =             %5zu\n", len);
+    DumpHex(stream, payload, len);
+
+}  // End of stringsEXinPayload
+
+static void stringsEXinmonFrame(FILE *stream, record_map_t *r) {
+    elementHeader_t *elementHeader = r->offsetMap[EXinmonFrameID];
+    if (!elementHeader) return;
+
+    EXinmonFrame_t *inmonFrame = (EXinmonFrame_t *)((void *)elementHeader + sizeof(elementHeader_t));
+
+    size_t len = elementHeader->length - sizeof(elementHeader_t);
+    void *packet = inmonFrame;
+    fprintf(stream, "  imon F-len   =             %5zu\n", len);
+    DumpHex(stream, packet, len);
+
+}  // End of stringsEXinmonFrame
+
 typedef void (*funcPrintRecord_t)(FILE *, record_map_t *r);
-static funcPrintRecord_t funcPrintRecord[MAXEXTENSIONS] = {NULL,
-                                                           stringEXgenericFlow,
-                                                           stringsEXipv4Flow,
-                                                           stringsEXipv6Flow,
-                                                           stringsEXflowMisc,
-                                                           stringsEXcntFlow,
-                                                           stringsEXvLan,
-                                                           stringsEXasRouting,
-                                                           stringsEXbgpNextHopV4,
-                                                           stringsEXbgpNextHopV6,
-                                                           stringsEXipNextHopV4,
-                                                           stringsEXipNextHopV6,
-                                                           stringsEXipReceivedV4,
-                                                           stringsEXipReceivedV6};
+static funcPrintRecord_t funcPrintRecord[MAXEXTENSIONS] = {
+    NULL,
+    stringEXgenericFlow,
+    stringsEXipv4Flow,
+    stringsEXipv6Flow,
+    stringsEXflowMisc,
+    stringsEXcntFlow,
+    stringsEXvLan,
+    stringsEXasRouting,
+    stringsEXbgpNextHopV4,
+    stringsEXbgpNextHopV6,
+    stringsEXipNextHopV4,
+    stringsEXipNextHopV6,
+    stringsEXipReceivedV4,
+    stringsEXipReceivedV6,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    NULL,
+    stringsEXinPayload,
+    stringsEXoutPayload,
+    NULL,
+    NULL,
+    NULL,
+    stringsEXinmonMeta,
+    stringsEXinmonFrame,
+};
 
 void flow_record_short(FILE *stream, recordHeaderV3_t *recordHeaderV3) {
     record_map_t record_map = {0};
@@ -409,7 +498,7 @@ void flow_record_short(FILE *stream, recordHeaderV3_t *recordHeaderV3) {
     elementHeader_t *elementHeader = (elementHeader_t *)(p + sizeof(recordHeaderV3_t));
     for (int i = 0; i < recordHeaderV3->numElements; i++) {
         uint32_t type = elementHeader->type;
-        record_map.offsetMap[type] = (void *)(void *)elementHeader + sizeof(elementHeader_t);
+        record_map.offsetMap[type] = elementHeader;
         elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
     }
 

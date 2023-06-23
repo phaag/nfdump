@@ -543,7 +543,7 @@ AC_CONFIG_FILES([doc/Makefile])
 AC_OUTPUT
 
 AC_CONFIG_FILES([Makefile src/lib/Makefile src/Makefile src/test/Makefile
-	src/output/Makefile src/conf/Makefile src/netflow/Makefile src/collector/Makefile
+	src/output/Makefile src/netflow/Makefile src/collector/Makefile
 	src/maxmind/Makefile src/nfdump/Makefile src/nfcapd/Makefile src/nfexpire/Makefile 
 	src/nfanon/Makefile src/nfreplay/Makefile src/nfreader/Makefile 
 	src/inline/Makefile src/include/Makefile man/Makefile ])

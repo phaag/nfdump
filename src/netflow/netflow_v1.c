@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -130,8 +130,6 @@ int Init_v1(int verbose) {
 static inline exporter_v1_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *header) {
     exporter_v1_t **e = (exporter_v1_t **)&(fs->exporter_data);
     uint16_t version = ntohs(header->version);
-#define IP_STRING_LEN 40
-    char ipstr[IP_STRING_LEN];
 
     // search the matching v1 exporter
     while (*e) {
@@ -158,17 +156,12 @@ static inline exporter_v1_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *
     (*e)->flows = 0;
     (*e)->sequence_failure = 0;
 
+    char *ipstr = GetExporterIP(fs);
     if (fs->sa_family == PF_INET6) {
         (*e)->outRecordSize = baseRecordSize + EXipReceivedV6Size;
-        uint64_t _ip[2];
-        _ip[0] = htonll(fs->ip.V6[0]);
-        _ip[1] = htonll(fs->ip.V6[1]);
-        inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
         dbg_printf("Process_v1: New IPv6 exporter %s - add EXipReceivedV6\n", ipstr);
     } else {
         (*e)->outRecordSize = baseRecordSize + EXipReceivedV4Size;
-        uint32_t _ip = htonl(fs->ip.V4);
-        inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
         dbg_printf("Process_v1: New IPv4 exporter %s - add EXipReceivedV4\n", ipstr);
     }
 
