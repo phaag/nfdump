@@ -69,6 +69,8 @@ typedef struct recordHeaderV3_s {
 
     uint8_t nfversion;
 } recordHeaderV3_t;
+#define OFFtype offsetof(recordHeaderV3_t, type)
+#define SIZEtype MemberSize(recordHeaderV3_t, type)
 
 #define V3HeaderRecordSize sizeof(recordHeaderV3_t)
 #define AddV3Header(p, h)                        \
