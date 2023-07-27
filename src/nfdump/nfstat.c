@@ -542,6 +542,9 @@ int SetStat(char *str, int *element_stat, int *flow_stat) {
             SetFlag(*element_stat, FLAG_STAT);
             if (StatParameters[StatType].type == IS_JA3) SetFlag(*element_stat, FLAG_JA3);
             if (StatParameters[StatType].type == IS_GEO) SetFlag(*element_stat, FLAG_GEO);
+            char *statArg = StatParameters[StatType].statname;
+            size_t len = strlen(statArg);
+            if (statArg[len - 2] == 'a' && statArg[len - 1] == 's') SetFlag(*element_stat, FLAG_GEO);
         }
         return 1;
     } else {
