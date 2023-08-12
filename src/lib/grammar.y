@@ -2116,8 +2116,8 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 	}
 
 	| DIR NUMBER {
-		if ( $2 > 2 ) {
-			yyerror("Flow direction status of range 0, 1");
+		if ( $2 > 255 ) {
+			yyerror("Flow direction status > 255");
 			YYABORT;
 		}
 		$$.self = NewBlock(OffsetDir, MaskDir, ($2 << ShiftDir) & MaskDir, CMP_EQ, FUNC_NONE, NULL);

@@ -1474,8 +1474,10 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
             if (observation->domainID == 0) observation->domainID = exporter->info.id;
         }
 
+        // XXX decode packet content
         EXinmonFrame_t *inmonFrame = sequencer->offsetCache[EXinmonFrameID];
         if (inmonFrame) {
+            // decode packet
         }
 
         if (printRecord) {
