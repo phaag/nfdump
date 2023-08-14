@@ -215,9 +215,9 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             } break;
             case EX_NEXT_HOP_BGP_v6: {
                 tpl_ext_12_t *tpl = (tpl_ext_12_t *)p;
-                PushExtension(recordHeader, EXipReceivedV6, ipNextHopV6);
-                ipNextHopV6->ip[0] = tpl->bgp_nexthop[0];
-                ipNextHopV6->ip[1] = tpl->bgp_nexthop[1];
+                PushExtension(recordHeader, EXbgpNextHopV6, bgpNextHopV6);
+                bgpNextHopV6->ip[0] = tpl->bgp_nexthop[0];
+                bgpNextHopV6->ip[1] = tpl->bgp_nexthop[1];
                 p = (void *)tpl->data;
             } break;
             case EX_OUT_PKG_4: {

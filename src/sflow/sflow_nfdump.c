@@ -331,9 +331,9 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     }
     if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V6) {
         uint64_t *addr = (void *)sample->bgp_nextHop.address.ip_v6.addr;
-        PushExtension(recordHeader, EXipReceivedV6, ipNextHopV6);
-        ipNextHopV6->ip[0] = ntohll(addr[0]);
-        ipNextHopV6->ip[1] = ntohll(addr[1]);
+        PushExtension(recordHeader, EXbgpNextHopV6, bgpNextHopV6);
+        bgpNextHopV6->ip[0] = ntohll(addr[0]);
+        bgpNextHopV6->ip[1] = ntohll(addr[1]);
     }
 
     PushExtension(recordHeader, EXmacAddr, macAddr);
