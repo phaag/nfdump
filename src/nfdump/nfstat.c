@@ -909,8 +909,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
 }  // End of PrintStatLine
 
 static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
-    uint64_t count_flows, count_packets, count_bytes, _key[2];
-    uint32_t pps, bps, bpp;
+    uint64_t _key[2];
     uint32_t sa[4];
     int af;
 
@@ -935,12 +934,13 @@ static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto,
     }
     double duration = (StatData->msecLast - StatData->msecFirst) / 1000.0;
 
-    count_flows = flows_element(StatData, inout);
-    count_packets = packets_element(StatData, inout);
-    count_bytes = bytes_element(StatData, inout);
+    uint64_t count_flows = flows_element(StatData, inout);
+    uint64_t count_packets = packets_element(StatData, inout);
+    uint64_t count_bytes = bytes_element(StatData, inout);
+    uint64_t pps, bps, bpp;
     if (duration != 0) {
-        pps = (uint32_t)((double)count_packets / duration);
-        bps = (uint32_t)((double)(8 * count_bytes) / duration);
+        pps = (uint64_t)((double)count_packets / duration);
+        bps = (uint64_t)((double)(8 * count_bytes) / duration);
     } else {
         pps = bps = 0;
     }
@@ -955,13 +955,15 @@ static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto,
     }
 
     if (type == IS_IPADDR)
-        printf("%i|%llu|%llu|%u|%u|%u|%u|%u|%llu|%llu|%llu|%u|%u|%u\n", af, (long long unsigned)StatData->msecFirst,
+        printf("%i|%llu|%llu|%u|%u|%u|%u|%u|%llu|%llu|%llu|%llu|%llu|%llu\n", af, (long long unsigned)StatData->msecFirst,
                (long long unsigned)StatData->msecLast, StatData->hashkey.proto, sa[0], sa[1], sa[2], sa[3], (long long unsigned)count_flows,
-               (long long unsigned)count_packets, (long long unsigned)count_bytes, pps, bps, bpp);
+               (long long unsigned)count_packets, (long long unsigned)count_bytes, (long long unsigned)pps, (long long unsigned)bps,
+               (long long unsigned)bpp);
     else
-        printf("%i|%llu|%llu|%u|%llu|%llu|%llu|%llu|%u|%u|%u\n", af, (long long unsigned)StatData->msecFirst, (long long unsigned)StatData->msecLast,
-               StatData->hashkey.proto, (long long unsigned)_key[1], (long long unsigned)count_flows, (long long unsigned)count_packets,
-               (long long unsigned)count_bytes, pps, bps, bpp);
+        printf("%i|%llu|%llu|%u|%llu|%llu|%llu|%llu|%llu|%llu|%llu\n", af, (long long unsigned)StatData->msecFirst,
+               (long long unsigned)StatData->msecLast, StatData->hashkey.proto, (long long unsigned)_key[1], (long long unsigned)count_flows,
+               (long long unsigned)count_packets, (long long unsigned)count_bytes, (long long unsigned)pps, (long long unsigned)bps,
+               (long long unsigned)bpp);
 
 }  // End of PrintPipeStatLine
 
