@@ -241,10 +241,14 @@ int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname) {
     *child_pid = 0;
 
     int pfd[2] = {0};
-    pipe(pfd);
+
+    if (pipe(pfd) == -1) {
+        LogError("pipe() error: %s in '%s', line '%d'", strerror(errno), __FILE__, __LINE__);
+        exit(1);
+    }
 
     if ((*child_pid = fork()) == -1) {
-        LogError("fork() error in '%s', line '%d'", __FILE__, __LINE__);
+        LogError("fork() error: %s in '%s', line '%d'", strerror(errno), __FILE__, __LINE__);
         exit(1);
     }
 
