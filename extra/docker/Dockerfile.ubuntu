@@ -5,7 +5,7 @@
 # Pull base image.
 FROM ubuntu:latest
 
-ARG NFDUMP_VERSION=1.7.2
+ARG NFDUMP_VERSION=1.7.3
 
 #Expose netflow port
 EXPOSE 9995/udp
