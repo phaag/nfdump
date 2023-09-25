@@ -61,6 +61,7 @@
 .Op Fl e
 .Op Fl x Ar command
 .Op Fl X Ar extensionList
+.Op Fl W Ar workers
 .Op Fl E
 .Op Fl v
 .Op Fl V
@@ -256,15 +257,22 @@ In that case the announced sampling rate is applied. If
 is negative, this will hard overwrite any device specific announced sampling rates.
 The sampling rate is used to multiply the number of packets and bytes in a record. Please
 note, this may vary from other volume counters such as SNMP etc.
-.It Fl z
-Compress flow files with LZO1X-1 compression. Fastest compression.
 .It Fl z=lzo
 Compress flow files with LZO1X-1 compression. Fastest compression.
-.It Fl z=lz4
-Compress flow files with LZ4 compression. Fast and efficient.
 .It Fl z=bz2
 Compress flow files with bz2 compression. Slow but most efficient. It is not recommended 
 to use bz2 in a real time capturing.
+.It Fl z=lz4[:level]
+Compress flow files with LZ4 compression. Fast and efficient. Optional level should be between 1..10
+Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
+workers. See -W.
+.It Fl z=zstd[:level]
+Compress flow files with ZSTD compression. Fast and efficient. Optional level should be between 1..10
+Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
+workers. See -W.
+.It Fl W Ar num
+Sets the number of workers to compress flows. Defaults to 4. Must not be greater than the number of
+cores online. Useful for higher levels of compression for lz4 or zstd and large amount of flows per second.
 .It Fl e
 Sets auto-expire mode. At the end of every rotate interval
 .Fl t

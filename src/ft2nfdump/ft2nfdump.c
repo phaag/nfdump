@@ -95,9 +95,10 @@ void usage(char *name) {
         "-V\t\tPrint version and exit.\n"
         "-r <file>\tread flow-tools records from file\n"
         "-w <file>\twrite nfdump records to file\n"
-        "-j\t\tBZ2 compress flows in output file.\n"
-        "-y\t\tLZ4 compress flows in output file.\n"
-        "-z\t\tLZO compress flows in output file.\n"
+        "-z=lzo\t\tLZO compress flows in output file.\n"
+        "-z=bz2\t\tBZIP2 compress flows in output file.\n"
+        "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
+        "-z=zstd[:level]\tZSTD compress flows in output file.\n"
         "Convert flow-tools format to nfdump format:\n"
         "ft2nfdump -r <flow-tools-data-file> -w <nfdump-file> [-z]\n",
         name);
@@ -343,7 +344,15 @@ int main(int argc, char **argv) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(EXIT_FAILURE);
                 }
-                compress = LZO_COMPRESSED;
+                if (optarg == NULL) {
+                    compress = LZO_COMPRESSED;
+                } else {
+                    compress = ParseCompression(optarg);
+                }
+                if (compress == -1) {
+                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'r':
                 ftfile = optarg;

@@ -91,6 +91,7 @@ static void usage(char *name) {
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
+        "-z=zstd[:level]\tZSTD compress flows in output file.\n"
 #ifdef HAVE_INFLUXDB
         "-i <influxurl>\tInfluxdb url for stats (example: http://localhost:8086/write?db=mydb&u=pippo&p=paperino)\n"
 #endif
@@ -524,7 +525,7 @@ int main(int argc, char **argv) {
                 break;
             case 'z':
                 if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+                    LogError("Use one compression only: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
                 if (optarg == NULL) {
@@ -533,7 +534,7 @@ int main(int argc, char **argv) {
                     compress = ParseCompression(optarg);
                 }
                 if (compress == -1) {
-                    LogError("Usage for option -z: set -z=lzo, -z=lz4 or -z=bz2 for valid compression formats");
+                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
                 break;

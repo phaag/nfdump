@@ -146,8 +146,9 @@ static void usage(char *name) {
         "-P pidfile\tset the PID file\n"
         "-t time frame\tset the time window to rotate pcap/nfcapd file\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
-        "-z=lz4\t\tLZ4 compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
+        "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
+        "-z=zstd[:level]\tZSTD compress flows in output file.\n"
         "-v\t\tverbose logging.\n"
         "-D\t\tdetach from terminal (daemonize)\n",
         name);
@@ -281,7 +282,7 @@ int main(int argc, char *argv[]) {
     struct sigaction sa;
     int c, snaplen, bufflen, err, do_daemonize;
     int subdir_index, compress, expire, cache_size, buff_size;
-    int activeTimeout, inactiveTimeout, metricInterval;
+    int activeTimeout, inactiveTimeout, metricInterval, workers;
     dirstat_t *dirstat;
     repeater_t *sendHost;
     time_t t_win;
@@ -316,6 +317,8 @@ int main(int argc, char *argv[]) {
     buff_size = 20;
     activeTimeout = 0;
     inactiveTimeout = 0;
+    workers = 0;
+
     while ((c = getopt(argc, argv, "b:B:C:De:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:vVw:yz::")) != EOF) {
         switch (c) {
             struct stat fstat;
@@ -471,6 +474,14 @@ int main(int argc, char *argv[]) {
                     time_extension = "%Y%m%d%H%M%S";
                 }
                 break;
+            case 'W':
+                CheckArgLen(optarg, 16);
+                workers = atoi(optarg);
+                if (workers < 0 || workers > MAXWORKERS) {
+                    LogError("Number of working threads out of range 1..%d", MAXWORKERS);
+                    exit(EXIT_FAILURE);
+                }
+                break;
             case 'j':
                 if (compress) {
                     LogError("Use either -z for LZO or -j for BZ2 compression, but not both");
@@ -496,7 +507,7 @@ int main(int argc, char *argv[]) {
                     compress = ParseCompression(optarg);
                 }
                 if (compress == -1) {
-                    LogError("Usage for option -z: set -z=lzo, -z=lz4 or -z=bz2 for valid compression formats");
+                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -626,7 +637,7 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
 
-        if (!Init_nffile(0, NULL)) exit(EXIT_FAILURE);
+        if (!Init_nffile(workers, NULL)) exit(EXIT_FAILURE);
 
         if (subdir_index && !InitHierPath(subdir_index)) {
             pcap_close(packetParam.pcap_dev);

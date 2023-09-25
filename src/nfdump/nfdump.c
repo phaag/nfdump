@@ -135,6 +135,7 @@ static void usage(char *name) {
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
+        "-z=zstd[:level]\tZSTD compress flows in output file.\n"
         "-l <expr>\tSet limit on packets for line and packed output format.\n"
         "\t\tkey: 32 character string or 64 digit hex string starting with 0x.\n"
         "-L <expr>\tSet limit on bytes for line and packed output format.\n"
@@ -163,7 +164,7 @@ static void usage(char *name) {
         "\t\t\tmode may be extended by '6' for full IPv6 listing. e.g.long6, extended6.\n"
         "-E <file>\tPrint exporter and sampling info for collected flows.\n"
         "-v <file>\tverify netflow data file. Print version and blocks.\n"
-        "-W <num>\tNumber of working threads. Default number of cores online.\n"
+        "-W <num>\tOptionally set the number of workers to compress flows\n"
         "-x <file>\tverify extension records in netflow data file.\n"
         "-X\t\tDump Filtertable and exit (debug option).\n"
         "-Z\t\tCheck filter syntax and exit.\n"
@@ -690,21 +691,21 @@ int main(int argc, char **argv) {
                 break;
             case 'j':
                 if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+                    LogError("Use one compression only: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
                 compress = BZ2_COMPRESSED;
                 break;
             case 'y':
                 if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+                    LogError("Use one compression only: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
                 compress = LZ4_COMPRESSED;
                 break;
             case 'z':
                 if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+                    LogError("Use one compression only: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
                 if (optarg == NULL) {
@@ -713,7 +714,7 @@ int main(int argc, char **argv) {
                     compress = ParseCompression(optarg);
                 }
                 if (compress == -1) {
-                    LogError("Usage for option -z: set -z=lzo, -z=lz4 or -z=bz2 for valid compression formats");
+                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
                 break;

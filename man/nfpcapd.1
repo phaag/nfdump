@@ -114,11 +114,18 @@ Adds options to nfpcapd. Two options are available:
 .B -z=lzo
 Compress flows. Use fast LZO1X\-1 compression in output file.
 .TP 3
-.B -z=lz4
-Compress flows. Use LZ4 compression in output file.
-.TP 3
 .B -z=bz2
 Compress flows. Use bz2 compression in output file. Note: not recommended while collecting
+.TP 3
+.B -z=lz4[:level]
+Compress flows. Use LZ4 compression in output file.
+.TP 3
+.B -z=zstd[:level]
+Compress flows. Use zstd compression in output file.
+.TP 3
+.B -W \fIworkers
+Sets the number of workers to compress flows. Defaults to 4. Must not be greater than the number of
+cores online. Useful for higher levels of compression for lz4 or zstd and large amount of flows per second.
 .TP 3
 .B -V
 Print nfpcapd version and exit.

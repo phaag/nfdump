@@ -146,9 +146,11 @@ static void usage(char *name) {
         "-A\t\tEnable source address spoofing for packet repeater -R.\n"
         "-s rate\tset default sampling rate (default 1)\n"
         "-x process\tlaunch process after a new file becomes available\n"
+        "-W workers\toptionally set the number of workers to compress flows\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
+        "-z=zstd[:level]\tZSTD compress flows in output file.\n"
         "-B bufflen\tSet socket buffer to bufflen bytes\n"
         "-e\t\tExpire data at each cycle.\n"
         "-D\t\tFork to background\n"
@@ -595,7 +597,7 @@ int main(int argc, char **argv) {
     FlowSource_t *fs;
     int family, bufflen, metricInterval;
     time_t twin;
-    int sock, do_daemonize, expire, spec_time_extension;
+    int sock, do_daemonize, expire, spec_time_extension, workers;
     int subdir_index, sampling_rate, compress, srcSpoofing;
 #ifdef PCAP
     char *pcap_file = NULL;
@@ -629,9 +631,10 @@ int main(int argc, char **argv) {
     metricSocket = NULL;
     metricInterval = 60;
     extensionList = NULL;
+    workers = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVw:x:X:yz::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVW:w:x:X:yz::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -819,6 +822,14 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, 128);
                 extensionList = strdup(optarg);
                 break;
+            case 'W':
+                CheckArgLen(optarg, 16);
+                workers = atoi(optarg);
+                if (workers < 0 || workers > MAXWORKERS) {
+                    LogError("Number of working threads out of range 1..%d", MAXWORKERS);
+                    exit(EXIT_FAILURE);
+                }
+                break;
             case 'j':
                 if (compress) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
@@ -844,7 +855,7 @@ int main(int argc, char **argv) {
                     compress = ParseCompression(optarg);
                 }
                 if (compress == -1) {
-                    LogError("Usage for option -z: set -z=lzo, -z=lz4 or -z=bz2 for valid compression formats");
+                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -925,7 +936,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (!Init_nffile(0, NULL)) exit(254);
+    if (!Init_nffile(workers, NULL)) exit(254);
 
     if (expire && spec_time_extension) {
         LogError("ERROR, -Z timezone extension breaks expire -e");

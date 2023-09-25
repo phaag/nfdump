@@ -59,6 +59,7 @@
 .Op Fl v Ar flowfile
 .Op Fl E Ar flowfile
 .Op Fl x Ar flowfile
+.Op Fl W Ar workers
 .Op Fl z=<compress>
 .Op Fl J Ar compress
 .Op Fl X
@@ -667,11 +668,21 @@ Scans and prints extension maps located in
 .Ar flowfile
 .It Fl z=lzo
 Compress flow files with LZO1X-1 compression. Fastest compression.
-.It Fl z=lz4
-Compress flow files with LZ4 compression. Fast and efficient.
 .It Fl z=bz2
 Compress flow files with bz2 compression. Slow but most efficient. May be used
 for archiving files or if you are really short of spce.
+.It Fl z=lz4[:level]
+Compress flow files with LZ4 compression. Fast and efficient. Optional level should be between 1..10
+Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
+workers. See -W.
+.It Fl z=zstd[:level]
+Compress flow files with ZSTD compression. Fast and efficient. Optional level should be between 1..10
+Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
+workers. See -W.
+.It Fl W Ar num
+Sets the number of workers to compress flows. Defaults to 4. Must not be greater than the number of
+cores online. Useful for higher levels of compression for lz4 or zstd and large amount of flows per second.
+Please not, -W affects only writing flows.
 .It Fl J Ar compress
 Change compression for any number of files given by option
 .Fl r Ar flowpath
