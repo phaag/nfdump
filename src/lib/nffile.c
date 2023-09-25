@@ -163,23 +163,33 @@ int Init_nffile(int workers, queue_t *fileList) {
 #endif
 
     atomic_init(&blocksInUse, 0);
-    long CoresOnline;
-    if (workers)
-        CoresOnline = workers;
-    else
-        CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
 
+    // get conf value for maxworkers
+    int confMaxWorkers = ConfGetValue("maxworkers");
+    if (confMaxWorkers == 0) confMaxWorkers = DEFAULTWORKERS;
+
+    // set to default if not set
+    if (workers == 0) workers = confMaxWorkers;
+
+    long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
     if (CoresOnline < 0) {
-        LogError("sysconf() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("sysconf(_SC_NPROCESSORS_ONLN) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         CoresOnline = DEFAULTWORKERS;
     }
 
-    int confMaxWorkers = ConfGetValue("maxworkers");
-    dbg_printf("MAXWORKERS: %d\n", confMaxWorkers);
+    // no more than cores online
+    if (workers > CoresOnline) {
+        LogError("Number of workers should not be greater than number of cores online. %d is > %d", workers, CoresOnline);
+        workers = CoresOnline;
+    }
 
-    if (confMaxWorkers <= 0) confMaxWorkers = MAXWORKERS;
+    // no more than internal array limit
+    if (workers > MAXWORKERS) {
+        LogError("Number of workers is limited to %s", MAXWORKERS);
+        workers = MAXWORKERS;
+    }
 
-    NumWorkers = CoresOnline > confMaxWorkers ? confMaxWorkers : CoresOnline;
+    NumWorkers = workers;
     return 1;
 
 }  // End of Init_nffile

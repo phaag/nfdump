@@ -184,7 +184,7 @@ typedef struct data_block_header_s {
 } data_block_headerV1_t;
 
 // allocate space for this number of workers
-#define MAXWORKERS 16
+#define MAXWORKERS 64
 // If number of CPUs can not be determined
 #define DEFAULTWORKERS 4
 /*

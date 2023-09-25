@@ -847,7 +847,7 @@ int main(int argc, char **argv) {
             case 'W':
                 CheckArgLen(optarg, 16);
                 worker = atoi(optarg);
-                if (worker <= 0 || worker > MAXWORKERS) {
+                if (worker < 0 || worker > MAXWORKERS) {
                     LogError("Number of working threads out of range 1..%d", MAXWORKERS);
                     exit(EXIT_FAILURE);
                 }
