@@ -1725,6 +1725,11 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		int af, bytes, ret;
 		uint64_t	mask[2];
 
+		if ( $5 <= 0 || $5 > 128 ){
+			yyerror("Invalid prefix length");
+			YYABORT;
+		}
+
 		ret = parse_ip(&af, $3, IPstack, &bytes, STRICT_IP, &num_ip);
 		if ( ret == 0 ) {
 			yyerror("Invalid IP address");
@@ -1754,13 +1759,9 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 				mask[1] = 0;
 			}
 		}
-		// IP aadresses are stored in network representation 
-		mask[0]	 = mask[0];
-		mask[1]	 = mask[1];
 
 		IPstack[0] &= mask[0];
 		IPstack[1] &= mask[1];
-
 		switch ( $1.direction ) {
 			case SOURCE:
 				$$.self = Connect_AND(
@@ -1804,6 +1805,10 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 				YYABORT;
 		} // End of switch
 
+		if ( IPstack[0] == 0 && IPstack[1] == 0 && af == PF_INET6 ) {
+				yyerror("Can not filter on unspecified IP address");
+				YYABORT;
+		}
 	}
 
 	| dqual IF NUMBER {
