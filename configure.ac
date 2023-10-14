@@ -78,10 +78,30 @@ if test "x$ac_cv_prog_LEX" = "xflex"; then
 	LFLAGS=-i
 fi
 
+AC_ARG_WITH(lz4path,
+[  --with-lz4path=PATH     Expect liblz4 installed in PATH; default /usr/local],
+if test "x$with_lz4path" != "xno" ; then
+	CPPFLAGS="${CPPFLAGS} -I${with_lz4path}/include"
+	LDFLAGS="${LDFLAGS} -L${with_lz4path}/lib"
+fi
+,
+)
+
 AC_ARG_WITH(zstdpath,
 [  --with-zstdpath=PATH    Expect libzstd installed in PATH; default /usr/local],
+if test "x$with_zstdpath" != "xno" ; then
 	CPPFLAGS="${CPPFLAGS} -I${with_zstdpath}/include"
 	LDFLAGS="${LDFLAGS} -L${with_zstdpath}/lib"
+fi
+,
+)
+
+AC_ARG_WITH(bz2path,
+[  --with-bz2path=PATH     Expect libbz2 installed in PATH; default /usr/local],
+if test "x$with_bz2path" != "xno" ; then
+	CPPFLAGS="${CPPFLAGS} -I${with_bz2path}/include"
+	LDFLAGS="${LDFLAGS} -L${with_bz2path}/lib"
+fi
 ,
 )
 
@@ -141,18 +161,15 @@ if test -d "$WHERE_FTPATH"; then
 else
 	AC_MSG_ERROR(flow-tools directory '$WHERE_FTPATH' does not exists. Use --with-ftpath=PATH)
 fi
-AM_CONDITIONAL(FT2NFDUMP, true)
-,
-AM_CONDITIONAL(FT2NFDUMP, false)
+build_ftconv="yes" , build_ftconv="no"
 )
+AM_CONDITIONAL([FT2NFDUMP], [test "x$build_ftconv" = "xyes"])
 
 AC_ARG_ENABLE(maxmind,
 [  --enable-maxmind        Build geolookup for MaxMind GeoDB; default is NO],
-AM_CONDITIONAL(MAXMIND, true)
-,
-AM_CONDITIONAL(MAXMIND, false)
+use_maxmind="yes" , use_maxmind="no"
 )
-
+AM_CONDITIONAL([MAXMIND], [test "x$use_maxmind" = "xyes"])
 
 #Needs tidy
 AC_ARG_ENABLE(nfprofile,
@@ -168,7 +185,7 @@ AC_SUBST(RRD_LIBS)
 , AC_MSG_ERROR(Can not link librrd. Please specify --with-rrdpath=.. configure failed! ))
 	AC_CHECK_HEADERS([rrd.h])
 	if test "$ac_cv_header_rrd_h" = yes; then
-		AM_CONDITIONAL(NFPROFILE, true)
+		build_nfprofile="yes"
 	else
 		AC_MSG_ERROR(Required rrd.h header file not found!)
 	fi
@@ -185,8 +202,9 @@ AC_SUBST(RRD_LIBS)
 
 ]
 ,
-AM_CONDITIONAL(NFPROFILE, false)
+build_nfprofile="no"
 )
+AM_CONDITIONAL([NFPROFILE], [test "x$build_nfprofile" = "xyes"])
 
 AC_ARG_ENABLE(influxdb, [AS_HELP_STRING([--enable-influxdb], [enable stats to influxdb (default is no)])], [
    influxdb=${enableval} ], [influxdb=no])
@@ -244,7 +262,9 @@ AM_CONDITIONAL(NFTRACK, false)
 )
 
 AC_ARG_ENABLE(sflow,
-[  --enable-sflow          Build sflow collector sfcpad; default is NO])
+[  --enable-sflow          Build sflow collector sfcpad; default is NO],
+build_sflow="yes", build_sflow="no"
+)
 AM_CONDITIONAL(SFLOW, test "$enable_sflow" = yes)
 
 AC_ARG_ENABLE(readpcap,
@@ -265,7 +285,7 @@ AC_SUBST(PCAP_LIBS)
 	AC_CHECK_LIB(pcap, pcap_dump_open_append, AM_CONDITIONAL(HAVEPCAPAPPEND, true), AM_CONDITIONAL(HAVEPCAPAPPEND, false))
 	AC_CHECK_HEADERS([pcap.h])
 	if test "$ac_cv_header_pcap_h" = yes; then
-		AM_CONDITIONAL(BUILDNFPCAPD, true)
+		build_nfpcapd="yes"
 	else
 		AC_MSG_ERROR(Required pcap.h header file not found!)
 	fi
@@ -282,9 +302,10 @@ AC_SUBST(PCAP_LIBS)
 
 ]
 ,
-AM_CONDITIONAL(BUILDNFPCAPD, false)
 AM_CONDITIONAL(HAVEPCAPAPPEND, false)
+build_nfpcapd="no"
 )
+AM_CONDITIONAL(BUILDNFPCAPD, test "$build_nfpcapd" = yes)
 
 ## Check for BSD socket or TPACKET_V3
 AM_COND_IF([BUILDNFPCAPD],
@@ -383,12 +404,68 @@ AC_CHECK_HEADERS(sys/types.h netinet/in.h arpa/nameser.h arpa/nameser_compat.h n
 #endif]])
 
 
-AC_CHECK_HEADERS([bzlib.h])
-if test "$ac_cv_header_bzlib_h" = no; then
-	AC_MSG_ERROR(Required bzlib.h header file not found!)
+if test "x$with_lz4path" != "xno"; then 
+AC_CHECK_HEADER(lz4.h, [
+    AC_CHECK_LIB(lz4, LZ4_compress, [
+      AC_DEFINE(HAVE_LZ4, 1, [Define if you have lz4 library])
+ 			LIBS="$LIBS -llz4"
+  		AM_CONDITIONAL(LZ4EMBEDDED, false)
+			use_lz4="yes"
+    ], [
+  		AM_CONDITIONAL(LZ4EMBEDDED, true)
+			use_lz4="embedded"
+    ])
+  ], [
+  	AM_CONDITIONAL(LZ4EMBEDDED, true)
+		use_lz4="embedded"
+  ]
+) 
+else
+  	AM_CONDITIONAL(LZ4EMBEDDED, true)
+		use_lz4="embedded"
 fi
 
-AC_CHECK_HEADERS([zstd.h])
+if test "x$with_bz2path" != "xno"; then 
+AC_CHECK_HEADER(bzlib.h, [
+    AC_CHECK_LIB(bz2, BZ2_bzCompressInit, [
+      AC_DEFINE(HAVE_BZIP2, 1, [Define if you have bz2 library])
+ 			LIBS="$LIBS -lbz2"
+  		AM_CONDITIONAL(HAVE_BZIP2, true)
+			use_bzip2="yes"
+    ], [
+  		AM_CONDITIONAL(HAVE_BZIP2, false)
+			use_bzip2="no"
+    ])
+  ], [
+  	AM_CONDITIONAL(HAVE_BZIP2, false)
+		use_bzip2="no"
+  ]
+) 
+else
+  	AM_CONDITIONAL(HAVE_BZIP2, false)
+		use_bzip2="disabled"
+fi
+
+if test "x$with_zstdpath" != "xno"; then 
+AC_CHECK_HEADER(zstd.h, [
+    AC_CHECK_LIB(zstd, ZSTD_decompress, [
+      AC_DEFINE(HAVE_ZSTD, 1, [Define if you have zstd library])
+ 			LIBS="$LIBS -lzstd"
+  		AM_CONDITIONAL(HAVE_ZSTD, true)
+			use_zstd="yes"
+    ], [
+  		AM_CONDITIONAL(HAVE_ZSTD, false)
+			use_zstd="no"
+    ])
+  ], [
+  	AM_CONDITIONAL(HAVE_ZSTD, false)
+		use_zstd="no"
+  ]
+) 
+else
+  	AM_CONDITIONAL(HAVE_ZSTD, false)
+		use_zstd="disabled"
+fi
 
 if test "$ac_cv_header_fts_h" != yes; then
 	FTS_OBJ=fts_compat.o
@@ -437,17 +514,6 @@ AC_CHECK_LIB(socket, res_search, [
   AC_CHECK_LIB(resolv, __dn_skipname)
  ]) 
 ])
-
-if test "$ac_cv_header_zstd_h" = "yes"; then
-AC_CHECK_LIB(zstd, ZSTD_decompress, [
- LIBS="$LIBS -lzstd"
- AC_DEFINE(HAVE_ZSTDLIB,1,[ ])
- ], [])
-fi
-
-AC_CHECK_LIB(bz2, BZ2_bzCompressInit, [
- LIBS="$LIBS -lbz2"
- ], [])
 
 # lzo compression requirements
 AC_CHECK_TYPE(ptrdiff_t, long)
@@ -578,12 +644,14 @@ echo "  CFLAGS               = $AM_CFLAGS $CFLAGS"
 echo "  CPPFLAGS             = $AM_CPPFLAGS $CPPFLAGS"
 echo "  LDFLAGS              = $AM_LDFLAGS $LDFLAGS"
 echo "  LIBS                 = $LIBS"
-echo "  Enable libzstd       = $ac_cv_lib_zstd_ZSTD_decompress"
-echo "  Build geolookup      = $enable_maxmind"
-echo "  Build sflow          = $enable_sflow"
-echo "  Build nfpcapd        = $enable_nfpcapd"
-echo "  Build flowtools conv = $enable_ftconv"
-echo "  Build nfprofile      = $enable_nfprofile"
+echo "  Enable liblz4        = $use_lz4"
+echo "  Enable libbz2        = $use_bzip2"
+echo "  Enable libzstd       = $use_zstd"
+echo "  Build geolookup      = $use_maxmind"
+echo "  Build sflow          = $build_sflow"
+echo "  Build nfpcapd        = $build_nfpcapd"
+echo "  Build flowtools conv = $build_ftconv"
+echo "  Build nfprofile      = $build_nfprofile"
 echo "----------------------------------"
 echo ""
 echo " You can run ./make now." 

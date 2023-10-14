@@ -11,7 +11,9 @@ LDADD =  $(DEPS_LIBS)
 util = util.c util.h
 pidfile = pidfile.c pidfile.h
 compress = compress/minilzo.c compress/minilzo.h compress/lzoconf.h compress/lzodefs.h 
+if LZ4EMBEDDED
 compress += compress/lz4.c compress/lz4.h compress/lz4hc.c compress/lz4hc.h
+endif
 nffile = nffile.c nffile.h nffileV2.h queue.c queue.h nfx.c nfx.h nfxV3.h nfxV3.c id.h
 conf = conf/nfconf.c conf/nfconf.h conf/toml.c conf/toml.h
 

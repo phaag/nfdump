@@ -1,8 +1,7 @@
 #!/bin/sh
 #  This file is part of the nfdump project.
 #
-#  Copyright (c) 2009-2023, Peter Haag
-#  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+#  Copyright (c) 2023, Peter Haag
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -13,7 +12,7 @@
 #   * Redistributions in binary form must reproduce the above copyright notice,
 #     this list of conditions and the following disclaimer in the documentation
 #     and/or other materials provided with the distribution.
-#   * Neither the name of SWITCH nor the names of its contributors may be
+#   * Neither the name of Peter Haag nor the names of its contributors may be
 #     used to endorse or promote products derived from this software without
 #     specific prior written permission.
 #
@@ -34,36 +33,9 @@ set -e
 TZ=MET
 export TZ
 
-# Check for correct output
-rm -f test.*
-./nfgen
-
 # prevent any default goelookup for testing
 NFDUMP="../nfdump/nfdump -G none"
 
-# verify test
-$NFDUMP -v test.flows.nf
-
-# read test
-rm -f test1.out
-$NFDUMP -r test.flows.nf -q -o raw >test.1.out
-diff -u test.1.out nftest.1.out
-
-# compression tests
-$NFDUMP -J 0 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J 1 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J 2 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J 3 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J 2 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J 1 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J 0 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J lzo -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J lz4:5 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J bzip2 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J lz4:9 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J 0 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-
-rm -f test.1.out
 $NFDUMP -r test.flows.nf -q -o raw >test.1.out
 diff -u test.1.out nftest.1.out
 

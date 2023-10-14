@@ -1,6 +1,24 @@
 
 check_PROGRAMS = nftest nfgen
-TESTS = nftest runtest.sh
+TESTS = nftest runprepare.sh runlzo.sh runlz4.sh
+
+if HAVE_BZIP2
+TEST_BZIP2=yes
+TESTS += runbz2.sh
+endif
+
+if HAVE_ZSTD
+TEST_ZSTD=yes
+TESTS += runzstd.sh
+endif
+
+TESTS += runtest.sh
+
+AM_TESTS_ENVIRONMENT = \
+## Set enabled compression
+TEST_BZIP2="$(TEST_BZIP2)"; export TEST_BZIP2 \
+TEST_ZSTD="$(TEST_ZSTD)"; export TEST_ZSTD \
+;
 
 AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline -I../netflow -I../collector $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb
