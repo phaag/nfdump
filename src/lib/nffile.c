@@ -35,7 +35,7 @@
 #ifdef HAVE_BZIP2
 #include <bzlib.h>
 #endif
-#ifdef HAVE_ZSTDLIB
+#ifdef HAVE_ZSTD
 #include <zstd.h>
 #endif
 #ifdef HAVE_LZ4
@@ -245,7 +245,7 @@ int ParseCompression(char *arg) {
 #endif
 
     if (strcmp(arg, "zstd") == 0 || strcmp(arg, "4") == 0) {
-#ifdef HAVE_ZSTDLIB
+#ifdef HAVE_ZSTD
         if (level <= ZSTD_maxCLevel()) {
             return (level << 16) | ZSTD_COMPRESSED;
         } else {
@@ -294,7 +294,7 @@ static int LZ4_initialize(void) {
 static int BZ2_initialize(void) { return 1; }  // End of BZ2_initialize
 
 static int ZSTD_initialize(void) {
-#ifdef HAVE_ZSTDLIB
+#ifdef HAVE_ZSTD
     size_t const cBuffSize = ZSTD_compressBound(WRITE_BUFFSIZE);
     if (cBuffSize > (BUFFSIZE - sizeof(dataBlock_t))) {
         LogError("LZSTD_compressBound() error in %s line %d: Buffer too small", __FILE__, __LINE__);
@@ -483,7 +483,7 @@ static int Uncompress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, s
 }  // End of Uncompress_Block_BZ2
 
 static int Compress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size, int level) {
-#ifdef HAVE_ZSTDLIB
+#ifdef HAVE_ZSTD
     const char *in = (const char *)((void *)in_block + sizeof(dataBlock_t));
     char *out = (char *)((void *)out_block + sizeof(dataBlock_t));
     int in_len = in_block->size;
@@ -508,7 +508,7 @@ static int Compress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, si
 }  // End of Compress_Block_ZSTD
 
 static int Uncompress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size) {
-#ifdef HAVE_ZSTDLIB
+#ifdef HAVE_ZSTD
     const char *in = (const char *)((void *)in_block + sizeof(dataBlock_t));
     char *out = (char *)((void *)out_block + sizeof(dataBlock_t));
     int in_len = in_block->size;
@@ -862,7 +862,7 @@ static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
         return NULL;
     }
 
-#ifndef HAVE_ZSTDLIB
+#ifndef HAVE_ZSTD
     if (nffile->file_header->compression == ZSTD_COMPRESSED) {
         LogError("ZSTD compression not compiled in. Skip file: %s", filename);
         CloseFile(nffile);
@@ -928,7 +928,7 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
         return NULL;
     }
 
-#ifndef HAVE_ZSTDLIB
+#ifndef HAVE_ZSTD
     if ((compress & 0xFFFF) == ZSTD_COMPRESSED) {
         LogError("Open file %s: ZSTD compression not compiled in");
         CloseFile(nffile);
@@ -1763,7 +1763,7 @@ int QueryFile(char *filename, int verbose) {
         }
     }
 
-#ifndef HAVE_ZSTDLIB
+#ifndef HAVE_ZSTD
     if (fileHeader.compression == ZSTD_COMPRESSED) {
         LogError("ZSTD compression not compiled in. Skip checking.");
         close(fd);
