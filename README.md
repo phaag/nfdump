@@ -146,7 +146,7 @@ To switch to a shell which defaults `gcc` and `g++` to this GCC version, use:
 
 
 
-The following config options are available:
+The following config options are available: ( see ./configure --help for the complete list)
 
 * __--enable-sflow__  
 Build sflow collector sfcapd; default is __NO__
@@ -245,13 +245,28 @@ More fields may be integrated in future versions of sfcapd.
 ---
 
 ### Compression
-Binary data files can optionally be compressed using either LZO1X-1, LZ4, ZSTD or bzip2 compression 
+Binary data files can optionally be compressed by using either LZO1X-1, LZ4, ZSTD or bzip2 compression 
 LZO is fastest but less efficient, LZ4 and ZSTD are fast and pretty efficient and bzip2 is slow but efficient. 
 
-Recommendation: If you compress automatically flows while they are collected, use LZ4 **-z=lz4**
+By default LZO and LZ4 embedded without external dependancies. Bzip2 and ZSTD are optional libraries, which are automatically added, if they are found while configuring and compiling.
+
+The standard **configure** process checks for the installed libraries lz4, bz2 and zstd and enables them if they are found.
+**configure** understands the following options:
+
+```
+  --with-lz4path=PATH     Expect liblz4 installed in PATH; default /usr/local
+  --with-zstdpath=PATH    Expect libzstd installed in PATH; default /usr/local
+  --with-bz2path=PATH     Expect libbz2 installed in PATH; default /usr/local
+```
+
+If no option is given and no library is found that compression algorithm is disabled. For LZ4, if no library is found, the embedded version is used. Compression algorithms can also be explicitly disabled by setting `with-xxxpath=no` In the case of lz4, it disables the system installed version and uses the embedded one.
+
+**Recommendation**
+
+If you compress automatically flows while they are collected, use LZ4 **-z=lz4**
 as a standard. 
 
-Notes: Bzip2 uses about 30 times more CPU than LZO1X-1. Use bzip2 to archive netflow
+**Notes**: Bzip2 uses about 30 times more CPU than LZO1X-1. Use bzip2 to archive netflow
 data, which may reduce the disk usage again by a factor of 2. The compression of flow files 
 can be changed any time with nfdump -J <algo[:level]>. You may also apply compression levels to lz4 and zstd such as **-z=zstd:9** or **-z=lz4:5** to improve efficiency at the cose of more CPU and slower compression speed. 
 
