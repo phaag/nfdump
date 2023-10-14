@@ -45,12 +45,17 @@ char *versionString(void) {
 #endif
 
     char *zstdlib = "";
-#ifdef HAVE_ZSTDLIB
+#ifdef HAVE_ZSTD
     zstdlib = " ZSTD";
 #endif
 
+    char *bzlib = "";
+#ifdef HAVE_ZSTD
+    bzlib = " BZIP2";
+#endif
+
     char *option = (strlen(nsel) + strlen(zstdlib)) > 0 ? "Options:" : "";
-    snprintf(version_string, 128, "Version: %s-%s %s%s%s Date: %s", VERSION, VCS_TRACK_HASH, option, nsel, zstdlib, VCS_TRACK_DATE);
+    snprintf(version_string, 128, "Version: %s-%s %s%s%s%s Date: %s", VERSION, VCS_TRACK_HASH, option, nsel, zstdlib, bzlib, VCS_TRACK_DATE);
     version_string[127] = '\0';
 
     return version_string;

@@ -31,6 +31,8 @@
 #ifndef __VERSION_H
 #define __VERSION_H 1
 
+#include "config.h"
+
 char *versionString(void);
 
 #endif
