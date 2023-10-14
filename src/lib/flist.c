@@ -211,7 +211,7 @@ static queue_t *file_queue = NULL;
 
 /* Function prototypes */
 
-static void GetFileList(char *path);
+static void GetFileList(char *path, timeWindow_t *timeWindow);
 
 static void CleanPath(char *entry);
 
@@ -363,7 +363,7 @@ static void CreateDirListFilter(char *first_path, char *last_path, int file_list
 
 }  // End of CreateDirListFilter
 
-static void GetFileList(char *path) {
+static void GetFileList(char *path, timeWindow_t *timeWindow) {
     struct stat stat_buf;
     char *last_file_ptr, *first_path, *last_path;
     int levels_first_file, levels_last_file, file_list_level;
@@ -736,7 +736,9 @@ static void GetFileList(char *path) {
                      (dir_entry_filter[fts_level].last_entry && (strcmp(ftsent->fts_name, dir_entry_filter[fts_level].last_entry) > 0))))
                     continue;
 
-                queue_push(file_queue, strdup(ftsent->fts_path));
+                if (CheckTimeWindow(ftsent->fts_path, timeWindow)) {
+                    queue_push(file_queue, strdup(ftsent->fts_path));
+                }
                 break;
         }
     }
@@ -849,7 +851,7 @@ static void *FileLister_thr(void *arg) {
 
     if (flist->multiple_files) {
         // use multiple files
-        GetFileList(flist->multiple_files);
+        GetFileList(flist->multiple_files, flist->timeWindow);
     } else if (single_file) {
         CleanPath(single_file);
 
