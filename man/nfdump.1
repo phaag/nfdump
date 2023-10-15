@@ -718,7 +718,9 @@ Read the same file hierarchy from multiple directories. This option is mainly us
 old NfSen and documented here as legacy option.
 Example: /any/path/to/dir1:dir2:dir3 etc. and will be expanded to the directories:
 /any/path/to/dir1, /any/path/to/dir2 and /any/path/to/dir3. Any number of colon separated
-directories may be given. The files to read are specified by -r or -R and are expected to
+directories may be given. A path ending with a wildcard '@' such as /any/path/to@ will
+expand automatically in a list of all existing sub directories /any/path/to/dir1:dir2:dir3.
+The files to read are specified by -r or -R and are expected to
 exist in all the given directories. The options -r and -R must not contain any directories
 when used in combination with -M.
 .It Fl T

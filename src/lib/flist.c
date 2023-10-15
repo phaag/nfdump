@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -219,7 +219,11 @@ static void Getsource_dirs(char *dirs);
 
 static int mkpath(char *path, char *p, mode_t mode, mode_t dir_mode, char *error, size_t errlen);
 
+static char *SubDirList(char *path);
+
 static char *GuessSubDir(char *channeldir, char *filename);
+
+static char *ExpandWildcard(char *path);
 
 static char *VerifyFileRange(char *path, char *last_file);
 
@@ -362,6 +366,79 @@ static void CreateDirListFilter(char *first_path, char *last_path, int file_list
     //		file_list_level, dir_entry_filter[file_list_level].first_entry, dir_entry_filter[file_list_level].last_entry);
 
 }  // End of CreateDirListFilter
+
+static char *SubDirList(char *path) {
+    char *dirList = NULL;
+    struct dirent *dent;
+    DIR *srcdir = opendir(path);
+
+    if (srcdir == NULL) {
+        LogError("opendir() - can not open directory %s", path);
+        return NULL;
+    }
+
+    while ((dent = readdir(srcdir)) != NULL) {
+        struct stat st;
+        if (strcmp(dent->d_name, ".") == 0 || strcmp(dent->d_name, "..") == 0) continue;
+
+        if (fstatat(dirfd(srcdir), dent->d_name, &st, 0) < 0) {
+            LogError("fstatat() - can not stat %s", dent->d_name);
+            continue;
+        }
+
+        if (S_ISDIR(st.st_mode)) {
+            if (dirList == NULL) {
+                dirList = strdup(dent->d_name);
+            } else {
+                size_t len = strlen(dirList) + strlen(dent->d_name) + 2;
+                dirList = realloc(dirList, len);
+                if (dirList == NULL) {
+                    LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                    return NULL;
+                }
+                strcat(dirList, ":");
+                strcat(dirList, dent->d_name);
+            }
+        }
+    }
+    closedir(srcdir);
+    return dirList;
+}  // Endof SubDirList
+
+/*
+ * Check for directory wildcard:
+ * path: /any/path/dir@
+ * if wildcard is found - extend to directory list:
+ * /any/path/dir/dir1:dir2:dir3:dirN
+ * returns expanded directory string or NULL if no wildcard found
+ */
+static char *ExpandWildcard(char *path) {
+    char *q = strchr(path, ':');
+    size_t dirLen = strlen(path);
+    int wildcard = path[dirLen - 1] == '@';
+
+    if (q && wildcard) {
+        LogError("Can not process wildcard '@' and dirlist ':' in %s", path);
+        LogError("Remove wildcard");
+        path[dirLen - 1] = '\0';
+        return NULL;
+    }
+    if (wildcard == 0) return NULL;
+
+    // remove '@' and replace it by '/'
+    path[dirLen - 1] = '/';
+    char *dirList = SubDirList(path);
+    if (dirList == NULL) {
+        LogError("Can not expand wildcard in %s", path);
+        return NULL;
+    }
+    path = realloc(path, strlen(path) + strlen(dirList) + 1);
+    if (path == NULL) {
+        LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+    return strcat(path, dirList);
+}  // End of ExpandWildcard
 
 static void GetFileList(char *path, timeWindow_t *timeWindow) {
     struct stat stat_buf;
@@ -847,7 +924,13 @@ static void *FileLister_thr(void *arg) {
     last_file = NULL;
 
     InitStringlist(&source_dirs, NUM_PTR);
-    if (flist->multiple_dirs) Getsource_dirs(flist->multiple_dirs);
+    if (flist->multiple_dirs) {
+        char *expanded = ExpandWildcard(flist->multiple_dirs);
+        if (expanded) {
+            flist->multiple_dirs = expanded;
+        }
+        Getsource_dirs(flist->multiple_dirs);
+    }
 
     if (flist->multiple_files) {
         // use multiple files
