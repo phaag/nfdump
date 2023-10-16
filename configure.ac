@@ -144,7 +144,9 @@ fi
 
 #Tidz up? esp not using in source dist flow-tools
 AC_ARG_ENABLE(ftconv,
-[  --enable-ftconv         Build the flow-tools to nfdump converter; default is NO],
+[  --enable-ftconv         Build the flow-tools to nfdump converter; default is NO])
+
+AS_IF([test "x$enable_ftconv" = "xyes"],
 AC_CHECK_LIB(z, zlibVersion,,
 AC_MSG_ERROR(Link with "-lz" failed! (Need zlib >= 1.0.2))
 )
@@ -173,7 +175,9 @@ AM_CONDITIONAL([MAXMIND], [test "x$use_maxmind" = "xyes"])
 
 #Needs tidy
 AC_ARG_ENABLE(nfprofile,
-[  --enable-nfprofile      Build nfprofile used by NfSen; default is NO],
+[  --enable-nfprofile      Build nfprofile used by NfSen; default is NO])
+
+AS_IF([test "x$enable_nfprofile" = "xyes"],
 [ 
 	AC_CHECK_LIB(rrd, rrd_update,[
 cat >>config.h <<_ACEOF
@@ -229,7 +233,9 @@ AM_CONDITIONAL(INFLXDB, false)
 )
 
 AC_ARG_ENABLE(nftrack,
-[  --enable-nftrack      Build nftrack used by PortTracker; default is NO],
+[  --enable-nftrack      Build nftrack used by PortTracker; default is NO])
+
+AS_IF([test "x$enable_nftrack" = "xyes"],
 [ 
 	AC_CHECK_LIB(rrd, rrd_update,[
 cat >>config.h <<_ACEOF
@@ -272,7 +278,9 @@ AC_ARG_ENABLE(readpcap,
 AM_CONDITIONAL(READPCAP, test "$enable_readpcap" = yes)
 
 AC_ARG_ENABLE(nfpcapd,
-[  --enable-nfpcapd       Build nfpcapd collector to create netflow data from interface or pcap data; default is NO],
+[  --enable-nfpcapd       Build nfpcapd collector to create netflow data from interface or pcap data; default is NO])
+
+AS_IF([test "x$enable_nfpcapd" = "xyes"],
 [ 
 	AC_CHECK_LIB(pcap, pcap_create,[
 cat >>config.h <<_ACEOF
