@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,40 +28,13 @@
  *
  */
 
-#ifndef _OUTPUT_H
-#define _OUTPUT_H 1
+#ifndef _OUTPUT_NEWLINE_JSON_H
+#define _OUTPUT_NEWLINE_JSON_H 1
 
-#include <stdbool.h>
-#include <stdio.h>
+void newline_json_prolog(void);
 
-typedef void (*RecordPrinter_t)(FILE *, void *, int);
-typedef void (*PrologPrinter_t)(void);
-typedef void (*EpilogPrinter_t)(void);
+void newline_json_epilog(void);
 
-enum { MODE_PLAIN = 0, MODE_PIPE, MODE_JSON, MODE_CSV, MODE_NLJSON, };
-typedef struct outputParams_s {
-    bool printPlain;
-    bool doTag;
-    bool quiet;
-    bool hasGeoDB;
-    int mode;
-    int topN;
-} outputParams_t;
+void flow_record_to_newline_json(FILE *stream, void *record, int tag);
 
-typedef struct printmap_s {
-    char *printmode;              // name of the output format
-    RecordPrinter_t func_record;  // prints the record
-    PrologPrinter_t func_prolog;  // prints the output prolog
-    PrologPrinter_t func_epilog;  // prints the output epilog
-    char *Format;                 // output format definition
-} printmap_t;
-
-void AddFormat(char *name, char *fmtString);
-
-RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams);
-
-void PrintProlog(outputParams_t *outputParams);
-
-void PrintEpilog(outputParams_t *outputParams);
-
-#endif
+#endif // _OUTPUT_NEWLINE_JSON_H

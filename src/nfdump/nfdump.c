@@ -159,6 +159,7 @@ static void usage(char *name) {
         "\t\t extended Even more information.\n"
         "\t\t csv      ',' separated, machine parseable output format.\n"
         "\t\t json     json output format.\n"
+        "\t\t nljson   new line json format.\n"
         "\t\t pipe     '|' separated legacy machine parseable output format.\n"
         "\t\t null     no flow records, but statistics output.\n"
         "\t\t\tmode may be extended by '6' for full IPv6 listing. e.g.long6, extended6.\n"
@@ -1150,6 +1151,8 @@ int main(int argc, char **argv) {
                 PrintSummary(&sum_stat, outputParams);
                 break;
             case MODE_JSON:
+                break;
+            case MODE_NLJSON:
                 break;
         }
 
