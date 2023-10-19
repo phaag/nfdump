@@ -144,7 +144,9 @@ fi
 
 #Tidz up? esp not using in source dist flow-tools
 AC_ARG_ENABLE(ftconv,
-[  --enable-ftconv         Build the flow-tools to nfdump converter; default is NO],
+[  --enable-ftconv         Build the flow-tools to nfdump converter; default is NO])
+
+AS_IF([test "x$enable_ftconv" = "xyes"],
 AC_CHECK_LIB(z, zlibVersion,,
 AC_MSG_ERROR(Link with "-lz" failed! (Need zlib >= 1.0.2))
 )
@@ -166,14 +168,16 @@ build_ftconv="yes" , build_ftconv="no"
 AM_CONDITIONAL([FT2NFDUMP], [test "x$build_ftconv" = "xyes"])
 
 AC_ARG_ENABLE(maxmind,
-[  --enable-maxmind        Build geolookup for MaxMind GeoDB; default is NO],
-use_maxmind="yes" , use_maxmind="no"
-)
-AM_CONDITIONAL([MAXMIND], [test "x$use_maxmind" = "xyes"])
+[  --enable-maxmind        Build geolookup for MaxMind GeoDB; default is NO])
+
+build_maxmind="$enable_maxmind" # No dependencies
+AM_CONDITIONAL([MAXMIND], [test "x$build_maxmind" = "xyes"])
 
 #Needs tidy
 AC_ARG_ENABLE(nfprofile,
-[  --enable-nfprofile      Build nfprofile used by NfSen; default is NO],
+[  --enable-nfprofile      Build nfprofile used by NfSen; default is NO])
+
+AS_IF([test "x$enable_nfprofile" = "xyes"],
 [ 
 	AC_CHECK_LIB(rrd, rrd_update,[
 cat >>config.h <<_ACEOF
@@ -206,9 +210,9 @@ build_nfprofile="no"
 )
 AM_CONDITIONAL([NFPROFILE], [test "x$build_nfprofile" = "xyes"])
 
-AC_ARG_ENABLE(influxdb, [AS_HELP_STRING([--enable-influxdb], [enable stats to influxdb (default is no)])], [
-   influxdb=${enableval} ], [influxdb=no])
-AS_IF([test "x$influxdb" = xyes], [ 
+AC_ARG_ENABLE(influxdb, [AS_HELP_STRING([--enable-influxdb], [enable stats to influxdb (default is no)])])
+
+AS_IF([test "x$enable_influxdb" = xyes], [ 
 	PKG_CHECK_MODULES([curl], [libcurl],,
 	    [AC_MSG_ERROR([No pkg-config for libcurl])])
 	AC_SUBST(CURL_CFLAGS)
@@ -229,7 +233,9 @@ AM_CONDITIONAL(INFLXDB, false)
 )
 
 AC_ARG_ENABLE(nftrack,
-[  --enable-nftrack      Build nftrack used by PortTracker; default is NO],
+[  --enable-nftrack      Build nftrack used by PortTracker; default is NO])
+
+AS_IF([test "x$enable_nftrack" = "xyes"],
 [ 
 	AC_CHECK_LIB(rrd, rrd_update,[
 cat >>config.h <<_ACEOF
@@ -262,17 +268,19 @@ AM_CONDITIONAL(NFTRACK, false)
 )
 
 AC_ARG_ENABLE(sflow,
-[  --enable-sflow          Build sflow collector sfcpad; default is NO],
-build_sflow="yes", build_sflow="no"
-)
-AM_CONDITIONAL(SFLOW, test "$enable_sflow" = yes)
+[  --enable-sflow          Build sflow collector sfcpad; default is NO])
+
+build_sflow="$enable_sflow" # No dependencies
+AM_CONDITIONAL(SFLOW, test "$build_sflow" = yes)
 
 AC_ARG_ENABLE(readpcap,
 [  --enable-readpcap       Build nfcapd collector to read from pcap file instead of network data; default is NO])
 AM_CONDITIONAL(READPCAP, test "$enable_readpcap" = yes)
 
 AC_ARG_ENABLE(nfpcapd,
-[  --enable-nfpcapd       Build nfpcapd collector to create netflow data from interface or pcap data; default is NO],
+[  --enable-nfpcapd       Build nfpcapd collector to create netflow data from interface or pcap data; default is NO])
+
+AS_IF([test "x$enable_nfpcapd" = "xyes"],
 [ 
 	AC_CHECK_LIB(pcap, pcap_create,[
 cat >>config.h <<_ACEOF
@@ -619,15 +627,15 @@ if test "x$enable_ftconv" = "xyes"; then
     AC_CONFIG_FILES([src/ft2nfdump/Makefile])
 fi
 
-if test "x$enable_sflow" = "xyes"; then
+if test "x$build_sflow" = "xyes"; then
     AC_CONFIG_FILES([src/sflow/Makefile])
 fi
 
-if test "x$enable_nfpcapd" = "xyes"; then
+if test "x$build_nfpcapd" = "xyes"; then
     AC_CONFIG_FILES([src/nfpcapd/Makefile])
 fi
 
-if test "x$enable_nfprofile" = "xyes"; then
+if test "x$build_nfprofile" = "xyes"; then
     AC_CONFIG_FILES([src/nfsen/Makefile])
 fi
 
@@ -647,7 +655,7 @@ echo "  LIBS                 = $LIBS"
 echo "  Enable liblz4        = $use_lz4"
 echo "  Enable libbz2        = $use_bzip2"
 echo "  Enable libzstd       = $use_zstd"
-echo "  Build geolookup      = $use_maxmind"
+echo "  Build geolookup      = $build_maxmind"
 echo "  Build sflow          = $build_sflow"
 echo "  Build nfpcapd        = $build_nfpcapd"
 echo "  Build flowtools conv = $build_ftconv"
