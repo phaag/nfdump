@@ -211,7 +211,9 @@ static queue_t *file_queue = NULL;
 
 /* Function prototypes */
 
-static void GetFileList(char *path, timeWindow_t *timeWindow);
+static int CreateDirListFilter(char *first_path, char *last_path, int file_list_level);
+
+static int GetFileList(char *path, timeWindow_t *timeWindow);
 
 static void CleanPath(char *entry);
 
@@ -285,24 +287,24 @@ static int dirlevels(char *dir) {
 
 }  // End of dirlevels
 
-static void CreateDirListFilter(char *first_path, char *last_path, int file_list_level) {
+static int CreateDirListFilter(char *first_path, char *last_path, int file_list_level) {
     int i;
     char *p, *q, *first_mark, *last_mark;
 
-    //	printf("First Dir: '%s', first_path: '%s', last_path '%s', first_file '%s', last_file '%s', list_level: %i\n",
-    //			source_dirs.list[0], first_path, last_path, first_file, last_file, file_list_level);
+    dbg_printf("CreateDirListFilter() First Dir: '%s', first_path: '%s', last_path '%s', first_file '%s', last_file '%s', list_level: %i\n",
+               source_dirs.list[0], first_path, last_path, first_file, last_file, file_list_level);
 
-    if (file_list_level == 0) return;
+    if (file_list_level == 0) return 1;
 
     if (file_list_level < 0) {
         LogError("software error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        exit(250);
+        return 0;
     }
 
     dir_entry_filter = (struct entry_filter_s *)malloc((file_list_level + 1) * sizeof(struct entry_filter_s));
     if (!dir_entry_filter) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        exit(250);
+        return 0;
     }
 
     // first default entry - the directory itself
@@ -348,8 +350,7 @@ static void CreateDirListFilter(char *first_path, char *last_path, int file_list
             strcmp(dir_entry_filter[i].first_entry, dir_entry_filter[i].last_entry) > 0)
             LogError("WARNING: Entry '%s' > '%s'. Will not match anything!", dir_entry_filter[i].first_entry, dir_entry_filter[i].last_entry);
 
-        //		printf("%i first: '%s', last: '%s'\n",
-        //			i, dir_entry_filter[i].first_entry, dir_entry_filter[i].last_entry);
+        dbg_printf("%i first: '%s', last: '%s'\n", i, dir_entry_filter[i].first_entry, dir_entry_filter[i].last_entry);
     }
 
     // the last level - files are listed here
@@ -362,8 +363,10 @@ static void CreateDirListFilter(char *first_path, char *last_path, int file_list
         LogError("WARNING: File '%s' > '%s'. Will not match anything!", dir_entry_filter[file_list_level].first_entry,
                  dir_entry_filter[file_list_level].last_entry);
 
-    //	printf("%i first: '%s', last: '%s'\n",
-    //		file_list_level, dir_entry_filter[file_list_level].first_entry, dir_entry_filter[file_list_level].last_entry);
+    dbg_printf("%i first: '%s', last: '%s'\n", file_list_level, dir_entry_filter[file_list_level].first_entry,
+               dir_entry_filter[file_list_level].last_entry);
+
+    return 1;
 
 }  // End of CreateDirListFilter
 
@@ -440,7 +443,7 @@ static char *ExpandWildcard(char *path) {
     return strcat(path, dirList);
 }  // End of ExpandWildcard
 
-static void GetFileList(char *path, timeWindow_t *timeWindow) {
+static int GetFileList(char *path, timeWindow_t *timeWindow) {
     struct stat stat_buf;
     char *last_file_ptr, *first_path, *last_path;
     int levels_first_file, levels_last_file, file_list_level;
@@ -459,21 +462,21 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
         // make sure we have only a single ':' in path
         if (strrchr(path, ':') != last_file_ptr) {
             LogError("Multiple file separators ':' in path not allowed!");
-            exit(250);
+            return 0;
         }
         *last_file_ptr++ = '\0';
         // last_file_ptr points to last_file
 
         if (strlen(last_file_ptr) == 0) {
             LogError("Missing last file option after ':'!");
-            exit(250);
+            return 0;
         }
 
         CleanPath(last_file_ptr);
         // make sure last_file option is not a full path
         if (last_file_ptr[0] == '/') {
             LogError("Last file name in -R list must not start with '/'");
-            exit(250);
+            return 0;
         }
         // how may sub dir levels has last_file option?
         levels_last_file = dirlevels(last_file_ptr);
@@ -502,11 +505,11 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
         // stat this entry
         if (stat(path, &stat_buf)) {
             LogError("stat() error '%s': %s", path, strerror(errno));
-            exit(250);
+            return 0;
         }
         if (!S_ISDIR(stat_buf.st_mode) && !S_ISREG(stat_buf.st_mode)) {
             LogError("Not a file or directory: '%s'", path);
-            exit(250);
+            return 0;
         }
 
         // Check, how many levels of directory in path
@@ -518,7 +521,7 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
             // make sure first_file is a file
             if (S_ISDIR(stat_buf.st_mode)) {
                 LogError("Not a file: '%s'", path);
-                exit(250);
+                return 0;
             }
 
             if (levels_last_file) {
@@ -527,7 +530,7 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
                 // sub dir levels of first_file mus have at least the same number of levels as last_file
                 if (levels_first_file < levels_last_file) {
                     LogError("Number of sub dirs for sub level hierarchy for file list -R do not match");
-                    exit(250);
+                    return 0;
                 }
                 if (levels_first_file == levels_last_file) {
                     char *p, *q;
@@ -546,7 +549,7 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
                     if (!p || !q) {
                         // this should never happen
                         LogError("software error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-                        exit(250);
+                        return 0;
                     }
                     *p++ = '\0';
                     *q++ = '\0';
@@ -579,7 +582,7 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
                     if (!r || !s) {
                         // this must never happen
                         LogError("software error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-                        exit(250);
+                        return 0;
                     }
                     *r++ = '\0';
                     *s++ = '\0';
@@ -647,7 +650,7 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
         // multiple sources option -M given
         if (path[0] == '/') {
             LogError("File list -R must not start with '/' when combined with a source list -M");
-            exit(250);
+            return 0;
         }
 
         // special case for all files in directory
@@ -686,7 +689,7 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
                                 levels_last_file = dirlevels(last_file_ptr);
                             } else {
                                 LogError("'%s': %s", last_file_ptr, "File not found!");
-                                exit(250);
+                                return 0;
                             }
                         }
 
@@ -696,11 +699,11 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
                     }
                 } else {  // Any other stat error
                     LogError("stat() error '%s': %s", pathbuff, strerror(errno));
-                    exit(250);
+                    return 0;
                 }
             } else if (!S_ISREG(stat_buf.st_mode)) {
                 LogError("Not a file : '%s'", pathbuff);
-                exit(250);
+                return 0;
             }
 
             // Check, how many levels of directory in path
@@ -713,7 +716,7 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
                 // the number of sub dirs must be eqal for first_file and last_file
                 if (levels_first_file != levels_last_file) {
                     LogError("Number of sub dirs must agree in '%s' and '%s'", path, last_file_ptr);
-                    exit(250);
+                    return 0;
                 }
 
                 p = strrchr(path, '/');
@@ -759,10 +762,16 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
         }
     }
 
-    CreateDirListFilter(first_path, last_path, file_list_level);
+    if (!CreateDirListFilter(first_path, last_path, file_list_level)) {
+        return 0;
+    }
 
     // last entry must be NULL
     InsertString(&source_dirs, NULL);
+    if (!source_dirs.list) {
+        LogError("ERROR: No sourc dir at %s line %d", __FILE__, __LINE__);
+        return 0;
+    }
     fts = fts_open(source_dirs.list, FTS_LOGICAL, compare);
     sub_index = 0;
     while ((ftsent = fts_read(fts)) != NULL) {
@@ -776,12 +785,12 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
 
         if (dir_entry_filter && (fts_level > file_list_level)) {
             LogError("ERROR: fts_level error at %s line %d", __FILE__, __LINE__);
-            exit(250);
+            return 0;
         }
 
         if (ftsent->fts_pathlen < sub_index) {
             LogError("ERROR: fts_pathlen error at %s line %d", __FILE__, __LINE__);
-            exit(250);
+            return 0;
         }
         fts_path = &ftsent->fts_path[sub_index];
 
@@ -821,6 +830,7 @@ static void GetFileList(char *path, timeWindow_t *timeWindow) {
     }
     fts_close(fts);
 
+    return 1;
 }  // End of GetFileList
 
 /*
@@ -934,7 +944,10 @@ static void *FileLister_thr(void *arg) {
 
     if (flist->multiple_files) {
         // use multiple files
-        GetFileList(flist->multiple_files, flist->timeWindow);
+        if (!GetFileList(flist->multiple_files, flist->timeWindow)) {
+            queue_close(file_queue);
+            pthread_exit(NULL);
+        }
     } else if (single_file) {
         CleanPath(single_file);
 
@@ -949,13 +962,15 @@ static void *FileLister_thr(void *arg) {
 
             if (single_file[0] == '/') {
                 LogError("File -r must not start with '/', when combined with a source list -M");
-                exit(250);
+                queue_close(file_queue);
+                pthread_exit(NULL);
             }
 
             for (i = 0; i < source_dirs.num_strings; i++) {
                 char s[MAXPATHLEN];
                 struct stat stat_buf;
 
+                dbg_printf("Src dir: %d, %s\n", i, source_dirs.list[i]);
                 snprintf(s, MAXPATHLEN - 1, "%s/%s", source_dirs.list[i], single_file);
                 s[MAXPATHLEN - 1] = '\0';
                 if (stat(s, &stat_buf)) {
@@ -973,7 +988,8 @@ static void *FileLister_thr(void *arg) {
                         }
                     } else {  // Any other stat error
                         LogError("stat() error '%s': %s", s, strerror(errno));
-                        exit(250);
+                        queue_close(file_queue);
+                        pthread_exit(NULL);
                     }
                 } else {  // stat() successful
                     if (!S_ISREG(stat_buf.st_mode)) {
