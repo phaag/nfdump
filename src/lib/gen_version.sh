@@ -28,7 +28,7 @@
 
 echo Creating vcs_track.h
 f="vcs_track.h"
-date=$(date +'%c')
+date=$(date -r ../../configure.ac +'%c')
 
 if [ -d ../../.git ]; then
   # git clone - should have git command too
