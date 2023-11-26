@@ -1498,13 +1498,13 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 			YYABORT;
 		$$.self = slot;
 	}
-  dqual GEO ID {	
+  | dqual GEO ID {	
 		int slot = AddGeo($1.direction, "ID");
 		if ( slot == 0 )
 			YYABORT;
 		$$.self = slot;
 	}
-  dqual GEO LT {	
+  | dqual GEO LT {	
 		int slot = AddGeo($1.direction, "LT");
 		if ( slot == 0 )
 			YYABORT;
