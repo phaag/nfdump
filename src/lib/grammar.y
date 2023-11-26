@@ -1490,10 +1490,22 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 	}
 
 	// TODO: 
-	// ugly work around to match geo location "IN" to separate from token 'in'
+	// ugly quick work around to match geo location "IN" to separate from token 'in'
 	// fix needs redesign of the filter code
 	| dqual GEO IN {	
 		int slot = AddGeo($1.direction, "IN");
+		if ( slot == 0 )
+			YYABORT;
+		$$.self = slot;
+	}
+  dqual GEO ID {	
+		int slot = AddGeo($1.direction, "ID");
+		if ( slot == 0 )
+			YYABORT;
+		$$.self = slot;
+	}
+  dqual GEO LT {	
+		int slot = AddGeo($1.direction, "LT");
 		if ( slot == 0 )
 			YYABORT;
 		$$.self = slot;
