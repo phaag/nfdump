@@ -1,44 +1,51 @@
-Name: nfdump
-Summary: A set of command-line tools to collect and process netflow data
-Version: 1.6.19
-Release: 1
-License: BSD
-Group: Applications/System
-Source: %{name}-%{version}.tar.gz
-BuildRequires: flex
-BuildRoot: %{_tmppath}/%{name}-root
-Packager: Colin Bloch <fourthdown@gmail.com>
-Prefix: /usr
-Url: https://github.com/phaag/nfdump
+Name:		nfdump
+Version:	1.7.3
+Release:	%mkrel 0
+Summary:	NetFlow collecting and processing tools
+License:	BSD
+Packager:	Richard REY (Rexy)
+Group:		Networking/Other
+Source0:	%{name}-%{version}.tar.gz
+BuildRequires:	lib64rrdtool-devel
+BuildRoot:	%{_tmppath}/%{name}-root
+Url:		https://github.com/phaag/nfdump
 
 %description
-The nfdump tools collect and process netflow data on the command line.
-They are part of the NFSEN project, which is explained more detailed at
-http://www.terena.nl/tech/task-forces/tf-csirt/meeting12/nfsen-Haag.pdf
+nfdump is a toolset in order to collect and process netflow/ipfix and sflow data
+sent from netflow/sflow compatible devices.
+The toolset contains several collectors to collect flow data:
+- nfcapd supports netflow v1, v5/v7,v9 and IPFIX
+- sfcapd support sflow
+- nfpcapd converts pcap data read from a host interface or from pcap files.
+nfdump is now a multi-threaded program and uses parallel threads mainly for reading, writing and processing flows as well as for sorting.
 
 %prep
 rm -rf $RPM_BUILD_ROOT
-
 %setup -q
 
 %build
 ./autogen.sh
-./configure --prefix=$RPM_BUILD_ROOT/%{prefix} --libdir=$RPM_BUILD_ROOT/%{_libdir}
-make
+%define configure_args --enable-nfprofile --enable-nftrack --disable-rpath --disable-static
+%configure %{configure_args}
+%make_build
 
 %install
-make install
+%make_install
+chmod 0644 AUTHORS ChangeLog README.md
+rm -f %{buildroot}%{_libdir}/*.la
 
 %clean
 rm -rf $RPM_BUILD_ROOT
 
 %files
 %defattr(-,root,root)
-%doc INSTALL README.md ToDo BSD-license.txt AUTHORS ChangeLog
-%{prefix}/bin/*
-%{prefix}/share/man/man1/*
+%license LICENSE
+%doc AUTHORS ChangeLog README.md
+%{_bindir}/*
 %{_libdir}/*
+%{_sysconfdir}/*
+%{_mandir}/man1/*
 
 %changelog
-* Thu Jan 03 2019 Richard REY <Rexy>
-- Version 1.6.19 (used in ALCASAR 3.3.3)
+* Sun Nov 26 2023 Richard REY <Rexy>
+- Version 1.7.3 for ALCASAR 3.6.1
