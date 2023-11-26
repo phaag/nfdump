@@ -72,6 +72,8 @@ static char *stripWord(char *word);
 
 static int IsMD5(char *string);
 
+static int AddGeo(uint16_t direction, char *geoStr);
+
 enum { DIR_UNSPEC = 1, 
 	   SOURCE, DESTINATION, SOURCE_AND_DESTINATION, SOURCE_OR_DESTINATION, 
 	   DIR_IN, DIR_OUT, 
@@ -1487,50 +1489,21 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	}
 
-	| dqual GEO STRING {	
-		if ( strlen($3) != 2 ) {
-			yyerror("Need a two letter geo country code");
+	// TODO: 
+	// ugly work around to match geo location "IN" to separate from token 'in'
+	// fix needs redesign of the filter code
+	| dqual GEO IN {	
+		int slot = AddGeo($1.direction, "IN");
+		if ( slot == 0 )
 			YYABORT;
-		}
+		$$.self = slot;
+	}
 
-		geoFilter = 2;
-		union {
-			char c[8];
-			uint64_t u;
-		} v;
-		v.u = 0;
-#ifdef WORDS_BIGENDIAN
-                v.c[4] = toupper($3[0]);
-                v.c[5] = toupper($3[1]);
-#else
-                v.c[0] = toupper($3[0]);
-                v.c[1] = toupper($3[1]);
-#endif
-		switch ( $1.direction ) {
-			case SOURCE:
-				$$.self = NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL );
-				break;
-			case DESTINATION:
-				$$.self = NewBlock(OffsetGeo, MaskDstGeo, (v.u << ShiftDstGeo) & MaskDstGeo, CMP_EQ, FUNC_NONE, NULL);
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetGeo, MaskDstGeo, (v.u << ShiftDstGeo) & MaskDstGeo, CMP_EQ, FUNC_NONE, NULL)
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetGeo, MaskDstGeo, (v.u << ShiftDstGeo) & MaskDstGeo, CMP_EQ, FUNC_NONE, NULL)
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End of switch
-
+	| dqual GEO STRING {	
+		int slot = AddGeo($1.direction, $3);
+		if ( slot == 0 )
+			YYABORT;
+		$$.self = slot;
 	}
 
 	| dqual AS IN '[' ullist ']' { 	
@@ -2623,3 +2596,51 @@ static int IsMD5(char *string) {
 	return string[i] == '\0';
 
 } // End of IsMD5
+
+static int AddGeo(uint16_t direction, char *geoStr) {	
+		if ( strlen(geoStr) != 2 ) {
+			yyerror("Need a two letter geo country code");
+			return 0;
+		}
+
+		geoFilter = 2;
+		union {
+			char c[8];
+			uint64_t u;
+		} v;
+		v.u = 0;
+#ifdef WORDS_BIGENDIAN
+                v.c[4] = toupper(geoStr[0]);
+                v.c[5] = toupper(geoStr[1]);
+#else
+                v.c[0] = toupper(geoStr[0]);
+                v.c[1] = toupper(geoStr[1]);
+#endif
+		int slot = 0;
+		switch ( direction ) {
+			case SOURCE:
+				slot = NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL );
+				break;
+			case DESTINATION:
+				slot = NewBlock(OffsetGeo, MaskDstGeo, (v.u << ShiftDstGeo) & MaskDstGeo, CMP_EQ, FUNC_NONE, NULL);
+				break;
+			case DIR_UNSPEC:
+			case SOURCE_OR_DESTINATION:
+				slot = Connect_OR(
+					NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL ),
+					NewBlock(OffsetGeo, MaskDstGeo, (v.u << ShiftDstGeo) & MaskDstGeo, CMP_EQ, FUNC_NONE, NULL)
+				);
+				break;
+			case SOURCE_AND_DESTINATION:
+				slot = Connect_AND(
+					NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL ),
+					NewBlock(OffsetGeo, MaskDstGeo, (v.u << ShiftDstGeo) & MaskDstGeo, CMP_EQ, FUNC_NONE, NULL)
+				);
+				break;
+			default:
+				yyerror("This token is not expected here!");
+				return 0;
+		} // End of switch
+
+		return slot;
+	}
