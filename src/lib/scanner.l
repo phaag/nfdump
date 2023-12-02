@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2022, Peter Haag
+ *  Copyright (c) 2012-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -79,6 +79,8 @@ int include_stack_ptr = 0;
 char	*FilterFilename = NULL;;
 
 static void __attribute__((noreturn)) yy_fatal_error (yyconst char msg[]);
+
+static char *stripQuotes(char *word);
 
 // static void __attribute__((unused))yyunput (int c, char * yy_bp);
 
@@ -191,10 +193,6 @@ interface { return INTERFACE;}
 
 asa				{ return ASA; 		/* NSEL filter */ }
 event			{ return EVENT; 	/* NEL/NSEL filter */ }
-ignore|invalid|create|add|term|delete|deny	{ 	/* NSEL filter */
-					yylval.s = strdup(yytext);
-					return REASON; 
-				}
 denied		{ return DENIED; 	/* NSEL filter */ }
 xevent		{ return XEVENT; 	/* NSEL filter */ }
 xip				{ return NIP; 		/* NSEL filter */ }
@@ -228,16 +226,16 @@ not|"!"			{ return NOT; }
 [ \t]			{ ; }
 
 [a-zA-Z0-9_:\.\-]+ { 
-					yylval.s = strdup(yytext);
+					yylval.s = stripQuotes(yytext);
 					return STRING; 
 				}
-'[ -~]+' { 
-					yylval.s = strdup(yytext);
-					return WORD; 
+[']([ -~]{-}['])*['] {
+					yylval.s = stripQuotes(yytext);
+					return STRING; 
 				}
-\"[ -~]+\" { 
-					yylval.s = strdup(yytext);
-					return WORD; 
+["]([ -~]{-}["])*["] {
+					yylval.s = stripQuotes(yytext);
+					return STRING; 
 				}
 \n			{ lineno++; }
 .				{ return yytext[0]; }
@@ -328,4 +326,15 @@ int ScreenIdentString(char *string) {
 
 } // End of ScreenIdentString
 
+static char *stripQuotes(char *string) {
+	char *w = strdup(string);
+
+	// strip ", ' and /' from begin/end of string
+	if ( w[0] == 0x27 || w[0] == 0x22 || w[0] == 0x2f ) w++;
+  size_t last = strlen(w) -1;
+
+	if ( w[last] == 0x27 || w[last] == 0x22 || w[last] == 0x2f ) w[last] = '\0';
+
+	return w;
+} // End of stripQuotes
 

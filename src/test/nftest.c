@@ -86,6 +86,7 @@ static int check_filter_block(char *filter, master_record_t *flow_record, int ex
 
     Engine = CompileFilter(filter);
     if (!Engine) {
+        printf("Compile filter: %s failed.\n", filter);
         exit(254);
     }
 
@@ -95,7 +96,8 @@ static int check_filter_block(char *filter, master_record_t *flow_record, int ex
     if (ret == expect) {
         printf("Success: Startnode: %i Numblocks: %i Extended: %i Filter: '%s'\n", Engine->StartNode, nblocks(), Engine->Extended, filter);
     } else {
-        printf("**** FAILED **** Startnode: %i Numblocks: %i Extended: %i Filter: '%s'\n", Engine->StartNode, nblocks(), Engine->Extended, filter);
+        printf("**** FAILED **** Filter: '%s'\n", filter);
+        printf("Startnode: %i Numblocks: %i Extended: %i\n", Engine->StartNode, nblocks(), Engine->Extended);
         DumpEngine(Engine);
         printf("Expected: %i, Found: %i\n", expect, ret);
         printf("Record:\n");
@@ -571,6 +573,7 @@ int main(int argc, char **argv) {
     flow_record.tcp_flags = 63;
     ret = check_filter_block("flags X", &flow_record, 1);
 
+    ret = check_filter_block("not flags 'AS'", &flow_record, 0);
     ret = check_filter_block("not flags RF", &flow_record, 0);
 
     flow_record.tcp_flags = 3;  // flags SF
@@ -910,6 +913,7 @@ int main(int argc, char **argv) {
     flow_record.inPayload = "GET /index.html HTTP/1.1\r\n";
     flow_record.inPayloadLength = strlen((char *)flow_record.inPayload);
 
+    ret = check_filter_block("payload regex 'GET'", &flow_record, 1);
     ret = check_filter_block("payload regex '(GET|POST)'", &flow_record, 1);
     ret = check_filter_block("payload regex 'HT{1,3}P/[0-9].[0-9]'", &flow_record, 1);
     ret = check_filter_block("payload regex \"HT{1,3}P/[0-9].[0-9]\"", &flow_record, 1);

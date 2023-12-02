@@ -68,8 +68,6 @@ static int InitSymbols(void);
 
 static uint32_t Get_fwd_status_id(char *status);
 
-static char *stripWord(char *word);
-
 static int IsMD5(char *string);
 
 static int AddGeo(uint16_t direction, char *geoStr);
@@ -149,7 +147,7 @@ char yyerror_buff[256];
 %token PAYLOAD CONTENT REGEX JA3
 %token OBSERVATION DOMAIN POINT ID
 %token PF PFACTION PFREASON RULE INTERFACE
-%token <s> STRING WORD REASON
+%token <s> STRING 
 %token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
 %type <value> expr
 %type <param> dqual term comp acl inout
@@ -364,22 +362,10 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		);
 	}
 
-	| FLAGS AS	{	
-		// handle special case with 'AS' takes as flags. and not AS number
-		uint64_t fl = 0;
-		fl |= 16;
-		fl |= 2;
-		$$.self = Connect_AND(
-			// imply flags with proto TCP 
-			NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_TCP << ShiftProto) & MaskProto, CMP_EQ, FUNC_NONE, NULL),
-			NewBlock(OffsetFlags, (fl << ShiftFlags) & MaskFlags, (fl << ShiftFlags) & MaskFlags, CMP_FLAGS, FUNC_NONE, NULL)
-		);
-	}
-
 	| FLAGS STRING	{	
 		uint64_t fl = 0;
 		int cnt     = 0;
-		size_t		len = strlen($2);
+		size_t	len = strlen($2);
 
 		if ( len > 7 ) {
 			yyerror("Too many flags");
@@ -897,7 +883,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = NewBlock(0, 0, 0, CMP_FLOWLABEL, FUNC_NONE, (void *)strdup($2)); 
 	}
 
-	| ASA EVENT REASON {
+	| ASA EVENT STRING {
 #ifdef NSEL
 		if ( strncasecmp($3,"ignore", 6) == 0) {
 			$$.self = NewBlock(OffsetConnID, MaskFWevent, ( NSEL_EVENT_IGNORE << ShiftFWevent) & MaskFWevent, CMP_EQ, FUNC_NONE, NULL );
@@ -1159,7 +1145,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 #endif
 	}
 
-	| NAT EVENT REASON {
+	| NAT EVENT STRING {
 #ifdef NSEL
 		if ( strncasecmp($3,"invalid", 7) == 0) {
 			$$.self = NewBlock(OffsetNATevent, MasNATevent, ( NEL_EVENT_INVALID << ShiftNATevent) & MasNATevent, CMP_EQ, FUNC_NONE, NULL );
@@ -1342,25 +1328,22 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_PAYLOAD, FUNC_NONE, $3); 
 	} 
 
-	| PAYLOAD CONTENT WORD {
+	| PAYLOAD CONTENT STRING {
 		if (strlen($3)>64) {
 			yyerror("word too long");
 			YYABORT;
 		}
-		char *word = stripWord($3);
-		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_PAYLOAD, FUNC_NONE, word); 
+		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_PAYLOAD, FUNC_NONE, $3); 
 	} 
 
-| PAYLOAD REGEX WORD {
+| PAYLOAD REGEX STRING {
 		if (strlen($3)>64) {
 			yyerror("word too long");
 			YYABORT;
 		}
-		// strip ' or " 
-		char *word = stripWord($3);
 
 		int err[2];
-		srx_Context *program = srx_CreateExt(word, strlen(word), "", err, NULL, NULL);
+		srx_Context *program = srx_CreateExt($3, strlen($3), "", err, NULL, NULL);
 		if ( !program ) {
 			yyerror("failed to compile regex");
 		}
@@ -1368,16 +1351,14 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_REGEX, FUNC_NONE, (char *)program); 
 	} 
 
-| PAYLOAD REGEX WORD STRING{
+| PAYLOAD REGEX STRING STRING{
 		if (strlen($3)>64) {
 			yyerror("word too long");
 			YYABORT;
 		}
-		// strip ' or " 
-		char *word = stripWord($3);
 
 		int err[2];
-		srx_Context *program = srx_CreateExt(word, strlen(word), $4, err, NULL, NULL);
+		srx_Context *program = srx_CreateExt($3, strlen($3), $4, err, NULL, NULL);
 		if ( !program ) {
 			yyerror("failed to compile regex");
 		}
@@ -1487,28 +1468,6 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 				YYABORT;
 		} // End of switch
 
-	}
-
-	// TODO: 
-	// ugly quick work around to match geo location "IN" to separate from token 'in'
-	// fix needs redesign of the filter code
-	| dqual GEO IN {	
-		int slot = AddGeo($1.direction, "IN");
-		if ( slot == 0 )
-			YYABORT;
-		$$.self = slot;
-	}
-  | dqual GEO ID {	
-		int slot = AddGeo($1.direction, "ID");
-		if ( slot == 0 )
-			YYABORT;
-		$$.self = slot;
-	}
-  | dqual GEO LT {	
-		int slot = AddGeo($1.direction, "LT");
-		if ( slot == 0 )
-			YYABORT;
-		$$.self = slot;
 	}
 
 	| dqual GEO STRING {	
@@ -2584,18 +2543,6 @@ int i;
 	return 256;
 
 } // End of Get_fwd_status_id
-
-static char *stripWord(char *word) {
-	char *w = strdup(word);
-
-	// strip ", ' and /' from begin/end of string
-	if ( w[0] == 0x27 || w[0] == 0x22 || w[0] == 0x2f ) w++;
-  size_t last = strlen(w) -1;
-
-	if ( w[last] == 0x27 || w[last] == 0x22 || w[last] == 0x2f ) w[last] = '\0';
-
-	return w;
-} // End of stripWord
 
 static int IsMD5(char *string) {
 

@@ -752,6 +752,25 @@ A filter consists of one or more primitives, which are linked together:
 .Dl Ar expr Sy or Ar expr
 .Dl Sy not Ar expr Sy and Ar (expr)
 .Pp
+In all expressions, where a
+.Ar number
+is a valid argument, the
+.Ar number
+may be given as a normal decimal number or as a hex number prefixed by
+.Sy 0x
+such as
+.Sy 0x22.
+A decimal number may also contain a multiplication factor such as
+.Ar K, M, G, T
+which multiplies the number by the corresponding factor. For example
+.Ar 1K, 2G etc.
+.Pp
+String arguments may be single or double quoted or not quoted at all,
+if the string is not a reserved filter key word - 
+.Sy src geo CH
+but
+.Sy src geo 'IN'
+.Pp
 Possible filter primitives:
 .Bl -tag -width "## spacer       ##" -compact
 .It Cm @include Ar file
@@ -781,7 +800,7 @@ True if source and destination IP of a record are IPv6 IPs.
 .It Cm proto Ar protocol
 True if the record protocol field matches
 .Ar protocol. protocol
-can be a symbolic name such as
+can be a string such as
 .Cm tcp ,
 .Cm udp ,
 .Cm icmp ,
@@ -795,7 +814,7 @@ and
 .Pp
 .It Cm tun proto Ar protocol
 True if the record tunnel protocol field matches
-.Ar protocol. protocol may be a symbolic name or protocol number.
+.Ar protocol. protocol may be a string or protocol number.
 .Pp
 .It Cm ip Ar ipaddr
 .It Cm src ip Ar ipaddr
@@ -863,19 +882,21 @@ or
 .Cm dst
 the source or destination IP may match.
 .Pp
-.It Cm geo Ar geoloc
-.It Cm src geo Ar geocode
-.It Cm dst geo Ar geocode
+.It Cm geo Ar string
+.It Cm src geo Ar string
+.It Cm dst geo Ar string
 True, if the 2-letter country code resolved by geolookup of the source or destination IP address matches
-.Ar geocode.
+.Ar string.
 This filter works only, if a valid geoDB is specified. See geo location option above. The 2-letter
-country code corresponds to the maxmin DB definitions. if
+country code corresponds to the maxmind DB definitions. if
 .Cm geo
 is not specified with
 .Cm src
 or
 .Cm dst
-the source or destination geo location code may match.
+the source or destination geo location code may match. Please note: country codes, which match 
+.Nm
+filter language reserved words such as IN, LT etc must be explicitly quoted to be recoginzed as string.
 .Pp
 .It Cm tunip Ar ipaddr
 .It Cm src tunip Ar ipaddr
