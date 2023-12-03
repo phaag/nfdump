@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2017-2021, Peter Haag
+ *  Copyright (c) 2017-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -1269,8 +1269,10 @@ static void readExtendedNat(SFSample *sample) {
 
 static void readExtendedNatPort(SFSample *sample) {
     dbg_printf("extendedType NAT PORT\n");
-    sf_log_next32(sample, "nat_src_port");
-    sf_log_next32(sample, "nat_dst_port");
+    sample->nat_src_port = getData32(sample);
+    sample->nat_dst_port = getData32(sample);
+    dbg_printf("nat_src_port: %u\n", sample->nat_src_port);
+    dbg_printf("nat_dst_port: %u\n", sample->nat_dst_port);
 }
 
 /*_________________---------------------------__________________
