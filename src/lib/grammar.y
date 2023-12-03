@@ -1327,14 +1327,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		}
 		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_PAYLOAD, FUNC_NONE, $3); 
 	} 
-
-	| PAYLOAD CONTENT STRING {
-		if (strlen($3)>64) {
-			yyerror("word too long");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_PAYLOAD, FUNC_NONE, $3); 
-	} 
+	 
 
 | PAYLOAD REGEX STRING {
 		if (strlen($3)>64) {

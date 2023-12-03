@@ -441,7 +441,16 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     if (printRecord) {
         flow_record_short(stdout, recordHeader);
     }
-
+#ifdef DEVEL
+    printf("OffsetToPayload %d\n", sample->offsetToPayload);
+    void *p = (void *)sample->header + sample->offsetToPayload;
+    ssize_t len = sample->headerLen - sample->offsetToPayload;
+    dbg_printf("Payload length: %zd\n", len);
+    if (len > 0) {
+        dbg_printf("Payload length: %zd\n", len);
+        DumpHex(stdout, p, len);
+    }
+#endif
     // update file record size ( -> output buffer size )
     fs->nffile->block_header->NumRecords++;
     fs->nffile->block_header->size += recordHeader->size;
