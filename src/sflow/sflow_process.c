@@ -1948,11 +1948,9 @@ static void readExtendedProxySocket6(SFSample *sample) {
 */
 
 static void readExtendedDecap(SFSample *sample, char *prefix) {
-#ifdef DEVEL
     uint32_t offset = getData32(sample);
     dbg_printf("extendedType %sdecap\n", prefix);
     dbg_printf("%sdecap_inner_header_offset %u\n", prefix, offset);
-#endif
 }
 
 /*_________________----------------------------__________________
@@ -1961,11 +1959,9 @@ static void readExtendedDecap(SFSample *sample, char *prefix) {
 */
 
 static void readExtendedVNI(SFSample *sample, char *prefix) {
-#ifdef DEVEL
     uint32_t vni = getData32(sample);
     dbg_printf("extendedType %sVNI\n", prefix);
     dbg_printf("%sVNI %u\n", prefix, vni);
-#endif
 }
 
 /*_________________----------------------------__________________
