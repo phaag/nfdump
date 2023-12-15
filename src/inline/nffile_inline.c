@@ -470,7 +470,7 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
 
 #ifdef NSEL
     if (output_record->msecFirst == 0) output_record->msecFirst = output_record->msecEvent;
-    if (output_record->msecLast == 0) output_record->msecFirst = output_record->msecEvent;
+    if (output_record->msecLast == 0) output_record->msecLast = output_record->msecEvent;
 #endif
 
 #ifdef DEVEL
