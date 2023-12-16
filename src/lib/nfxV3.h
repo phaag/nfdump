@@ -71,6 +71,12 @@ typedef struct recordHeaderV3_s {
 } recordHeaderV3_t;
 #define OFFtype offsetof(recordHeaderV3_t, type)
 #define SIZEtype MemberSize(recordHeaderV3_t, type)
+#define OFFengineType offsetof(recordHeaderV3_t, engineType)
+#define SIZEengineType MemberSize(recordHeaderV3_t, engineType)
+#define OFFengineID offsetof(recordHeaderV3_t, engineID)
+#define SIZEengineID MemberSize(recordHeaderV3_t, engineID)
+#define OFFexporterID offsetof(recordHeaderV3_t, exporterID)
+#define SIZEexporterID MemberSize(recordHeaderV3_t, exporterID)
 
 #define V3HeaderRecordSize sizeof(recordHeaderV3_t)
 #define AddV3Header(p, h)                        \
