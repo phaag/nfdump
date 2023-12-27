@@ -450,7 +450,7 @@ static struct format_token_list_s {
                          // NSEL specifics
                          {"%nfc", 0, "   Conn-ID", String_nfc},                            // NSEL connection ID
                          {"%tevt", 0, "Event time             ", String_EventTime},        // NSEL Flow start time
-                         {"%evt", 0, " Event", String_evt},                                // NSEL event
+                         {"%evt", 0, "   Event", String_evt},                              // NSEL event
                          {"%xevt", 0, " XEvent", String_xevt},                             // NSEL xevent
                          {"%sgt", 0, "  SGT  ", String_sgt},                               // NSEL xevent
                          {"%msec", 0, "   Event Time", String_msecEvent},                  // NSEL event time in msec
@@ -466,7 +466,7 @@ static struct format_token_list_s {
 
                          // NEL
                          // for v.1.6.10 compatibility, keep NEL specific addr/port format tokens
-                         {"%nevt", 0, " Event", String_evt},                               // NAT event
+                         {"%nevt", 0, "   Event", String_evt},                             // NAT event
                          {"%nsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NAT XLATE src IP
                          {"%nda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NAT XLATE dst IP
                          {"%nsp", 0, "XsPort", String_xlateSrcPort},                       // NAT XLATE src port
@@ -1700,9 +1700,9 @@ static void String_nfc(FILE *stream, master_record_t *r) { fprintf(stream, "%10u
 
 static void String_evt(FILE *stream, master_record_t *r) {
     if (r->fwXevent) {
-        fprintf(stream, "%7s", FwEventString(r->event));
+        fprintf(stream, "%8s", FwEventString(r->event));
     } else {
-        fprintf(stream, "%7s", EventString(r->event));
+        fprintf(stream, "%8s", EventString(r->event, SHORTNAME));
     }
 
 }  // End of String_evt

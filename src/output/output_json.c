@@ -451,7 +451,7 @@ static void stringEXnselCommon(FILE *stream, master_record_t *r) {
             "	\"event\" : \"%s\",\n"
             "	\"xevent_id\" : \"%u\",\n"
             "	\"t_event\" : \"%s.%llu\",\n",
-            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event), r->fwXevent, datestr,
+            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event, LONGNAME), r->fwXevent, datestr,
             r->msecEvent % 1000LL);
 
 }  // End of stringEXnselCommon

@@ -481,8 +481,8 @@ static void stringsEXnselCommon(FILE *stream, master_record_t *r) {
             "  fw event     =             %5u: %s\n"
             "  fw ext event =             %5u: %s\n"
             "  Event time   =     %13llu [%s.%03llu]\n",
-            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event), r->fwXevent, EventXString(r->fwXevent),
-            (long long unsigned)r->msecEvent, datestr, (long long unsigned)(r->msecEvent % 1000L));
+            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event, LONGNAME), r->fwXevent,
+            EventXString(r->fwXevent), (long long unsigned)r->msecEvent, datestr, (long long unsigned)(r->msecEvent % 1000L));
 
 }  // End of stringsEXnselCommon
 
@@ -542,7 +542,8 @@ static void stringsEXnselUserID(FILE *stream, master_record_t *r) {
 }  // End of stringsEXnselUserID
 
 static void stringsEXnelCommon(FILE *stream, master_record_t *r) {
-    fprintf(stream, "  nat event    =             %5u: %s\n", r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event));
+    fprintf(stream, "  nat event    =             %5u: %s\n", r->event,
+            r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event, LONGNAME));
 
 }  // End of stringsEXnelCommon
 

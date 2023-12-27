@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2019-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -182,6 +182,57 @@ static char *protoList[NumProtos] = {
     "MPLS"    // 137	MPLS-in-IP
 };
 
+// RFC 8158, section 4.3, "Definition of NAT events"
+/*
+          +-------+------------------------------------+
+          | Value | Event Name                         |
+          +-------+------------------------------------+
+          | 0     | Reserved                           |
+          | 1     | NAT translation create (Historic)  |
+          | 2     | NAT translation delete (Historic)  |
+          | 3     | NAT Addresses exhausted            |
+          | 4     | NAT44 session create               |
+          | 5     | NAT44 session delete               |
+          | 6     | NAT64 session create               |
+          | 7     | NAT64 session delete               |
+          | 8     | NAT44 BIB create                   |
+          | 9     | NAT44 BIB delete                   |
+          | 10    | NAT64 BIB create                   |
+          | 11    | NAT64 BIB delete                   |
+          | 12    | NAT ports exhausted                |
+          | 13    | Quota Exceeded                     |
+          | 14    | Address binding create             |
+          | 15    | Address binding delete             |
+          | 16    | Port block allocation              |
+          | 17    | Port block de-allocation           |
+          | 18    | Threshold Reached                  |
+          +-------+------------------------------------+
+*/
+
+#define MAX_EVENTS 19
+static struct event_flags_s {
+    char *sname;
+    char *lname;
+} event_flags[MAX_EVENTS] = {{"INVALID", "INVALID"},
+                             {"ADD", "NAT translation create"},
+                             {"DELETE", "NAT translation delete"},
+                             {"EXHAUST", "NAT Addresses exhausted"},
+                             {"ADD44", "NAT44 session create"},
+                             {"DEL44", "NAT44 session delete"},
+                             {"ADD64", "NAT64 session create"},
+                             {"DEL64", "NAT64 session delete"},
+                             {"ADD44BIB", "NAT44 BIB create"},
+                             {"DEL44BIB", "NAT44 BIB delete"},
+                             {"ADD64BIB", "NAT64 BIB create"},
+                             {"DEL64BIB", "NAT64 BIB delete"},
+                             {"PEXHAUST", "NAT ports exhausted"},
+                             {"QUOTAEXH", "Quota Exceeded"},
+                             {"ADDADDR", "Address binding create"},
+                             {"DELADDR", "Address binding delete"},
+                             {"ADDPBLK", "Port block allocation"},
+                             {"DELPBLK", "Port block de-allocation"},
+                             {"THRESHLD", "Threshold Reached"}};
+
 char *ProtoString(uint8_t protoNum, uint32_t plainNumbers) {
     static char s[16];
 
@@ -351,20 +402,11 @@ char *FwEventString(int event) {
 
 }  // End of FwEventString
 
-char *EventString(int event) {
-    switch (event) {
-        case 0:
-            return "INVALID";
-            break;
-        case 1:
-            return "ADD";
-            break;
-        case 2:
-            return "DELETE";
-            break;
-        default:
-            return "UNKNOWN";
+char *EventString(int event, int longName) {
+    if (event >= MAX_EVENTS) {
+        event = 0;
     }
+    return longName ? event_flags[event].lname : event_flags[event].sname;
 
 }  // End of EventString
 

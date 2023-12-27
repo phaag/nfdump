@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2016-2022, Peter Haag
+ *  Copyright (c) 2016-2023, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *  
@@ -1329,7 +1329,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 	} 
 	 
 
-| PAYLOAD REGEX STRING {
+  | PAYLOAD REGEX STRING {
 		if (strlen($3)>64) {
 			yyerror("word too long");
 			YYABORT;
@@ -1344,7 +1344,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_REGEX, FUNC_NONE, (char *)program); 
 	} 
 
-| PAYLOAD REGEX STRING STRING{
+  | PAYLOAD REGEX STRING STRING{
 		if (strlen($3)>64) {
 			yyerror("word too long");
 			YYABORT;

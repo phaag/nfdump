@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2022, Peter Haag
+ *  Copyright (c) 2019-2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -47,7 +47,9 @@ void CondenseV6(char *s);
 
 char *FwEventString(int event);
 
-char *EventString(int event);
+#define SHORTNAME 0
+#define LONGNAME 1
+char *EventString(int event, int longName);
 
 char *EventXString(int xevent);
 
