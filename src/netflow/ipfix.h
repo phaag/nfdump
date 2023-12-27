@@ -319,6 +319,13 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_samplingPacketInterval 305
 #define IPFIX_samplingPacketSpace 306
 
+// cgNAT
+#define IPFIX_NATPOOL_ID 283
+#define IPFIX_PORT_BLOCK_START 361
+#define IPFIX_PORT_BLOCK_END 362
+#define IPFIX_PORT_BLOCK_STEP 363
+#define IPFIX_PORT_BLOCK_SIZE 364
+
 // Juniper inline-monitoring
 #define IPFIX_dataLinkFrameSize 312
 #define IPFIX_dataLinkFrameSection 315

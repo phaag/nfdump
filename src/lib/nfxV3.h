@@ -233,7 +233,6 @@ typedef struct EXflowMisc_s {
     uint8_t flowEndReason;
 #define OFFflowEndReason offsetof(EXflowMisc_t, flowEndReason)
 #define SIZEflowEndReason MemberSize(EXflowMisc_t, flowEndReason)
-    // align bytes
     uint8_t revTcpFlags;
     uint8_t fragmentFlags;  // XXX not yet implemented
 } EXflowMisc_t;

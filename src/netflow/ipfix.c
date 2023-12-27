@@ -219,6 +219,12 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_postNATDestinationIPv4Address, SIZExlateDst4Addr, NumberCopy, EXnselXlateIPv4ID, OFFxlateDst4Addr, STACK_NONE, "xlate dst addr"},
     {IPFIX_postNAPTSourceTransportPort, SIZExlateSrcPort, NumberCopy, EXnselXlatePortID, OFFxlateSrcPort, STACK_NONE, "xlate src port"},
     {IPFIX_postNAPTDestinationTransportPort, SIZExlateDstPort, NumberCopy, EXnselXlatePortID, OFFxlateDstPort, STACK_NONE, "xlate dst port"},
+    // cgNAT
+    {IPFIX_NATPOOL_ID, SIZEnatPoolID, NumberCopy, EXnelCommonID, OFFnatPoolID, STACK_NONE, "nat pool ID"},
+    {IPFIX_PORT_BLOCK_START, SIZEnelblockStart, NumberCopy, EXnelXlatePortID, OFFnelblockStart, STACK_NONE, "NAT block start"},
+    {IPFIX_PORT_BLOCK_END, SIZEnelblockEnd, NumberCopy, EXnelXlatePortID, OFFnelblockEnd, STACK_NONE, "NAT block end"},
+    {IPFIX_PORT_BLOCK_STEP, SIZEnelblockStep, NumberCopy, EXnelXlatePortID, OFFnelblockStep, STACK_NONE, "NAT block step"},
+    {IPFIX_PORT_BLOCK_SIZE, SIZEnelblockSize, NumberCopy, EXnelXlatePortID, OFFnelblockSize, STACK_NONE, "NAT block size"},
     // inline-monitoring inmon
     {IPFIX_dataLinkFrameSize, SIZEframeSize, NumberCopy, EXinmonMetaID, OFFframeSize, STACK_NONE, "inmon frame size"},
     {IPFIX_dataLinkFrameType, SIZElinkType, NumberCopy, EXinmonMetaID, OFFlinkType, STACK_NONE, "inmon link type"},
