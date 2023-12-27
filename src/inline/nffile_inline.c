@@ -153,6 +153,7 @@ static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *
                 output_record->output = flowMisc->output;
                 output_record->biFlowDir = flowMisc->biFlowDir;
                 output_record->flowEndReason = flowMisc->flowEndReason;
+                output_record->fragmentFlags = flowMisc->fragmentFlags;
             } break;
             case EXcntFlowID: {
                 EXcntFlow_t *cntFlow = (EXcntFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));

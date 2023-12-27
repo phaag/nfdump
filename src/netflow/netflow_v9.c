@@ -167,6 +167,7 @@ static const struct v9TranslationMap_s {
     {NF9_IPV6_DST_MASK, SIZEdstMask, NumberCopy, EXflowMiscID, OFFdstMask, STACK_NONE, "dst mask bits"},
     {NF9_ICMP, Stack_ONLY, NumberCopy, EXgenericFlowID, OFFdstPort, STACK_ICMP, "icmp type/code"},
     {NF9_DST_TOS, SIZEdstTos, NumberCopy, EXflowMiscID, OFFdstTos, STACK_NONE, "post IP class of Service"},
+    {NF_F_fragmentFlags, SIZEfragmentFlags, NumberCopy, EXflowMiscID, OFFfragmentFlags, STACK_NONE, "IP fragment flags"},
     {NF9_IN_SRC_MAC, SIZEinSrcMac, NumberCopy, EXmacAddrID, OFFinSrcMac, STACK_NONE, "in src MAC addr"},
     {NF9_OUT_DST_MAC, SIZEoutDstMac, NumberCopy, EXmacAddrID, OFFoutDstMac, STACK_NONE, "out dst MAC addr"},
     {NF9_SRC_VLAN, SIZEsrcVlan, NumberCopy, EXvLanID, OFFsrcVlan, STACK_NONE, "src VLAN ID"},

@@ -252,6 +252,8 @@ typedef struct common_header_s {
 #define NF_F_ICMP_TYPE_IPV6 178
 #define NF_F_ICMP_CODE_IPV6 179
 
+#define NF_F_fragmentFlags 197
+
 #define NF_F_XLATE_SRC_ADDR_IPV4 225
 #define NF_F_XLATE_DST_ADDR_IPV4 226
 #define NF_F_XLATE_SRC_PORT 227

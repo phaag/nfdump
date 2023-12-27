@@ -845,6 +845,7 @@ REDO_IPPROTO:
             eodata = dataptr + Node->payloadSize;
             Node->payload = NULL;
             Node->payloadSize = 0;
+            Node->fragmentFlags |= IP_MF;
         } else {
             if (!Node) Node = New_Node();
             Node->flowKey.version = AF_INET;
@@ -853,6 +854,7 @@ REDO_IPPROTO:
             Node->t_last.tv_sec = hdr->ts.tv_sec;
             Node->t_last.tv_usec = hdr->ts.tv_usec;
             Node->bytes = ntohs(ip->ip_len);
+            Node->fragmentFlags |= (ip_off & IP_DF);
 
             Node->flowKey.src_addr.v4 = ntohl(ip->ip_src.s_addr);
             Node->flowKey.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);

@@ -176,6 +176,7 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_flowDirection, SIZEdir, NumberCopy, EXflowMiscID, OFFdir, STACK_NONE, "flow direction"},
     {IPFIX_biflowDirection, SIZEbiFlowDir, NumberCopy, EXflowMiscID, OFFbiFlowDir, STACK_NONE, "biFlow direction"},
     {IPFIX_flowEndReason, SIZEflowEndReason, NumberCopy, EXflowMiscID, OFFflowEndReason, STACK_NONE, "Flow end reason"},
+    {IPFIX_fragmentFlags, SIZEfragmentFlags, NumberCopy, EXflowMiscID, OFFfragmentFlags, STACK_NONE, "IP fragment flags"},
     {IPFIX_ipNextHopIPv6Address, SIZENext6HopIP, NumberCopy, EXipNextHopV6ID, OFFNext6HopIP, STACK_NONE, "IPv6 next hop IP"},
     {IPFIX_bgpNextHopIPv6Address, SIZEbgp6NextIP, NumberCopy, EXbgpNextHopV6ID, OFFbgp6NextIP, STACK_NONE, "IPv6 bgp next hop IP"},
     {IPFIX_mplsTopLabelStackSection, SIZEmplsLabel1, NumberCopy, EXmplsLabelID, OFFmplsLabel1, STACK_NONE, "mpls label 1"},

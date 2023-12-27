@@ -250,6 +250,8 @@ static void stringsEXflowMisc(FILE *stream, master_record_t *r) {
     char ifOutName[128];
     GetIfName(r->output, ifOutName, sizeof(ifOutName));
 
+    char *DF = r->fragmentFlags & 0x40 ? "DF" : "  ";
+    char *MF = r->fragmentFlags & 0x20 ? "MF" : "  ";
     fprintf(stream,
             "  input        =          %8u%s\n"
             "  output       =          %8u%s\n"
@@ -258,9 +260,10 @@ static void stringsEXflowMisc(FILE *stream, master_record_t *r) {
             "  dst tos      =               %3u\n"
             "  direction    =               %3u\n"
             "  biFlow Dir   =              0x%.2x %s\n"
-            "  end reason   =              0x%.2x %s\n",
+            "  end reason   =              0x%.2x %s\n"
+            "  IPfrag flags =              0x%.2x %s %s\n",
             r->input, ifInName, r->output, ifOutName, r->src_mask, snet, r->src_mask, r->dst_mask, dnet, r->dst_mask, r->dst_tos, r->dir,
-            r->biFlowDir, biFlowString(r->biFlowDir), r->flowEndReason, FlowEndString(r->flowEndReason));
+            r->biFlowDir, biFlowString(r->biFlowDir), r->flowEndReason, FlowEndString(r->flowEndReason), r->fragmentFlags, DF, MF);
 
 }  // End of stringsEXflowMisc
 

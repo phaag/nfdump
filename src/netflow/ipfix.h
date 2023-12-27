@@ -293,6 +293,8 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_icmpTypeV6 178
 #define IPFIX_icmpCodeV6 179
 
+#define IPFIX_fragmentFlags 197
+
 #define IPFIX_postNATSourceIPv4Address 225
 #define IPFIX_postNATDestinationIPv4Address 226
 #define IPFIX_postNAPTSourceTransportPort 227
