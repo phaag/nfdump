@@ -101,6 +101,7 @@ Flow Record:
   direction    =                 1
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
 
 Flow Record: 
   RecordCount  =                 6
@@ -131,6 +132,7 @@ Flow Record:
   direction    =                 1
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
 
 Flow Record: 
   RecordCount  =                 7
@@ -161,6 +163,7 @@ Flow Record:
   direction    =                 1
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
 
 Flow Record: 
   RecordCount  =                 8
@@ -191,6 +194,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
 
 Flow Record: 
   RecordCount  =                 9
@@ -221,6 +225,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
 
 Flow Record: 
   RecordCount  =                10
@@ -251,6 +256,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
 
 Flow Record: 
   RecordCount  =                11
@@ -281,6 +287,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
   out packets  =               203
   out bytes    =               204
   aggr flows   =                 7
@@ -314,6 +321,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
   out packets  =               203
   out bytes    =               204
   aggr flows   =                 7
@@ -349,6 +357,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
   out packets  =               203
   out bytes    =               204
   aggr flows   =                 7
@@ -386,6 +395,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
   out packets  =               203
   out bytes    =               204
   aggr flows   =                 7
@@ -424,6 +434,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
   out packets  =               203
   out bytes    =               204
   aggr flows   =                 7
@@ -463,6 +474,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
   out packets  =               203
   out bytes    =               204
   aggr flows   =                 7
@@ -503,6 +515,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
   out packets  =               203
   out bytes    =               204
   aggr flows   =                 7
@@ -553,6 +566,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
   out packets  =               203
   out bytes    =               204
   aggr flows   =                 7
@@ -607,6 +621,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
   out packets  =               203
   out bytes    =               204
   aggr flows   =                 7
@@ -663,6 +678,7 @@ Flow Record:
   direction    =                 2
   biFlow Dir   =              0x00 
   end reason   =              0x00 
+  IPfrag flags =              0x00      
   out packets  =               203
   out bytes    =               204
   aggr flows   =                 7
