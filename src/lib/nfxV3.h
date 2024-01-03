@@ -534,7 +534,7 @@ typedef struct EXnbarApp_s {
 #define EXlabelID 28
 #define EXlabelSize sizeof(elementHeader_t)
 
-#define EXinPayload_t elementHeader_t
+#define EXinPayload_t void
 #define EXinPayloadID 29
 #define EXinPayloadSize sizeof(elementHeader_t)
 
@@ -550,8 +550,8 @@ typedef struct EXtunIPv4_s {
 #define SIZEtunSrc4Addr MemberSize(EXtunIPv4_t, tunSrcAddr)
 #define OFFtunDst4Addr offsetof(EXtunIPv4_t, tunDstAddr)
 #define SIZEtunDst4Addr MemberSize(EXtunIPv4_t, tunDstAddr)
-#define OFFtunProto offsetof(EXtunIPv4_t, tunProto)
-#define SIZEtunProto MemberSize(EXtunIPv4_t, tunProto)
+#define OFFtunProtoV4 offsetof(EXtunIPv4_t, tunProto)
+#define SIZEtunProtoV4 MemberSize(EXtunIPv4_t, tunProto)
 } EXtunIPv4_t;
 #define EXtunIPv4Size (sizeof(EXtunIPv4_t) + sizeof(elementHeader_t))
 
@@ -564,6 +564,8 @@ typedef struct EXtunIPv6_s {
 #define SIZEtunSrc6Addr MemberSize(EXtunIPv6_t, tunSrcAddr)
 #define OFFtunDst6Addr offsetof(EXtunIPv6_t, tunDstAddr)
 #define SIZEtunDst6Addr MemberSize(EXtunIPv6_t, tunDstAddr)
+#define OFFtunProtoV6 offsetof(EXtunIPv6_t, tunProto)
+#define SIZEtunProtoV6 MemberSize(EXtunIPv6_t, tunProto)
 } EXtunIPv6_t;
 #define EXtunIPv6Size (sizeof(EXtunIPv6_t) + sizeof(elementHeader_t))
 
@@ -620,6 +622,16 @@ typedef struct EXpfinfo_s {
     uint32_t pid;
     char ifname[4];
 } EXpfinfo_t;
+#define OFFpfAction offsetof(EXpfinfo_t, action)
+#define SIZEpfAction MemberSize(EXpfinfo_t, action)
+#define OFFpfReason offsetof(EXpfinfo_t, reason)
+#define SIZEpfReason MemberSize(EXpfinfo_t, reason)
+#define OFFpfDir offsetof(EXpfinfo_t, dir)
+#define SIZEpfDir MemberSize(EXpfinfo_t, dir)
+#define OFFpfIfName offsetof(EXpfinfo_t, ifname)
+#define SIZEpfIfName MemberSize(EXpfinfo_t, ifname)
+#define OFFpfRuleNr offsetof(EXpfinfo_t, rulenr)
+#define SIZEpfRuleNr MemberSize(EXpfinfo_t, rulenr)
 #define EXpfinfoSize (sizeof(EXpfinfo_t) - 4 + sizeof(elementHeader_t))
 
 // max possible elements
