@@ -87,7 +87,7 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
     void *eor = p + v3Record->size;
 
     if (v3Record->size < size) {
-        LogError("ExpandRecord_v3() Unexpected size: '%u'", v3Record->size);
+        LogError("v3Record - unexpected size: '%u'", v3Record->size);
         return;
     }
 
