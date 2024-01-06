@@ -65,6 +65,27 @@ typedef struct ip_addr_s {
 typedef struct exporter_info_record_s exporter_info_record_t;
 typedef struct extension_map_s extension_map_t;
 
+#define EXlocal MAXEXTENSIONS
+typedef struct recordHandle_s {
+    recordHeaderV3_t *recordHeaderV3;
+    void *extensionList[MAXEXTENSIONS + 1];
+    uint8_t ja3[16];
+#define OFFja3 offsetof(recordHandle_t, ja3)
+#define SIZEja3 MemberSize(recordHandle_t, ja3)
+    char geo[16];
+#define OFFgeo offsetof(recordHandle_t, geo)
+#define OFFgeoSrcIP offsetof(recordHandle_t, geo)
+#define OFFgeoDstIP offsetof(recordHandle_t, geo) + 2
+#define OFFgeoSrcNatIP offsetof(recordHandle_t, geo) + 4
+#define OFFgeoDstNatIP offsetof(recordHandle_t, geo) + 6
+#define OFFgeoSrcTunIP offsetof(recordHandle_t, geo) + 8
+#define OFFgeoDstTunIP offsetof(recordHandle_t, geo) + 10
+#define SizeGEOloc 2
+    uint32_t flowCount;
+#define OFFflowCount offsetof(recordHandle_t, flowCount)
+#define SIZEflowCount MemberSize(recordHandle_t, flowCount)
+} recordHandle_t;
+
 /* the master record contains all possible records unpacked */
 typedef struct master_record_s {
     // common information from all netflow versions

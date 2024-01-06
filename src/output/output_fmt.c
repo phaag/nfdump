@@ -563,6 +563,25 @@ static void InitFormatParser(void) {
 
 }  // End of InitFormatParser
 
+void CondenseV6(char *s) {
+    size_t len = strlen(s);
+    char *p, *q;
+
+    if (len <= 16) return;
+
+    // orig:      2001:620:1000:cafe:20e:35ff:fec0:fed5 len = 37
+    // condensed: 2001:62..e0:fed5
+    p = s + 7;
+    *p++ = '.';
+    *p++ = '.';
+    q = s + len - 7;
+    while (*q) {
+        *p++ = *q++;
+    }
+    *p = 0;
+
+}  // End of CondenseV6
+
 static void AddToken(int index, char *s) {
     if (token_index >= max_token_index) {  // no slot available - expand table
         max_token_index += BLOCK_SIZE;

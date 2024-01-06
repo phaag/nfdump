@@ -75,6 +75,8 @@ void fmt_prolog(void);
 
 void fmt_epilog(void);
 
+void CondenseV6(char *s);
+
 int ParseOutputFormat(char *format, int printPlain, printmap_t *printmap);
 
 void fmt_record(FILE *stream, void *record, int tag);

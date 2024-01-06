@@ -321,25 +321,6 @@ char *FlowEndString(uint8_t endReason) {
 
 }  // End of FlowEndString
 
-void CondenseV6(char *s) {
-    size_t len = strlen(s);
-    char *p, *q;
-
-    if (len <= 16) return;
-
-    // orig:      2001:620:1000:cafe:20e:35ff:fec0:fed5 len = 37
-    // condensed: 2001:62..e0:fed5
-    p = s + 7;
-    *p++ = '.';
-    *p++ = '.';
-    q = s + len - 7;
-    while (*q) {
-        *p++ = *q++;
-    }
-    *p = 0;
-
-}  // End of CondenseV6
-
 char *FwEventString(int event) {
     switch (event) {
 #ifdef JUNOS

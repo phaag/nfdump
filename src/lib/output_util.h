@@ -43,8 +43,6 @@ char *biFlowString(uint8_t biFlow);
 
 char *FlowEndString(uint8_t biFlow);
 
-void CondenseV6(char *s);
-
 char *FwEventString(int event);
 
 #define SHORTNAME 0
