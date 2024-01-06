@@ -45,6 +45,7 @@
 #include <unistd.h>
 
 #include "config.h"
+#include "userio.h"
 
 #ifndef offsetof
 #define offsetof(TYPE, MEMBER) ((size_t) & ((TYPE *)0)->MEMBER)

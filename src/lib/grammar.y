@@ -44,7 +44,7 @@
 #include <ctype.h>
 
 #include "util.h"
-#include "output_util.h"
+#include "userio.h"
 #include "rbtree.h"
 #include "filter.h"
 #include "nfdump.h"
@@ -67,8 +67,6 @@ static uint64_t VerifyMac(char *s);
 static int InitSymbols(void);
 
 static uint32_t Get_fwd_status_id(char *status);
-
-static int IsMD5(char *string);
 
 static int AddGeo(uint16_t direction, char *geoStr);
 
@@ -2536,18 +2534,6 @@ int i;
 	return 256;
 
 } // End of Get_fwd_status_id
-
-static int IsMD5(char *string) {
-
-	int i = 0;
-	for (i=0; i<32; i++) {
-		char c = string[i];
-		if ( c == '\0' || !isxdigit(c))
-		return 0;
-	}
-	return string[i] == '\0';
-
-} // End of IsMD5
 
 static int AddGeo(uint16_t direction, char *geoStr) {	
 		if ( strlen(geoStr) != 2 ) {

@@ -33,34 +33,10 @@
 
 #include <stdint.h>
 
-char *ProtoString(uint8_t protoNum, uint32_t plainNumbers);
-
-int ProtoNum(char *protoString);
-
 char *FlagsString(uint16_t flags);
 
 char *biFlowString(uint8_t biFlow);
 
 char *FlowEndString(uint8_t biFlow);
 
-char *FwEventString(int event);
-
-#define SHORTNAME 0
-#define LONGNAME 1
-char *EventString(int event, int longName);
-
-char *EventXString(int xevent);
-
-const char *pfAction(int action);
-
-int pfActionNr(char *action);
-
-void pfListActions(void);
-
-const char *pfReason(int reason);
-
-int pfReasonNr(char *reason);
-
-void pfListReasons(void);
-
-#endif  // _OUTPUT_UTIL_H
+#endif

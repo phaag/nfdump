@@ -44,6 +44,7 @@
 #include "nfdump.h"
 #include "nfxV3.h"
 #include "output_util.h"
+#include "userio.h"
 #include "util.h"
 
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)

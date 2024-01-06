@@ -52,6 +52,7 @@
 #include "nffile.h"
 #include "nfxV3.h"
 #include "output_util.h"
+#include "userio.h"
 #include "util.h"
 
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
@@ -484,8 +485,8 @@ static void stringsEXnselCommon(FILE *stream, master_record_t *r) {
             "  fw event     =             %5u: %s\n"
             "  fw ext event =             %5u: %s\n"
             "  Event time   =     %13llu [%s.%03llu]\n",
-            r->connID, r->event, r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event, LONGNAME), r->fwXevent,
-            EventXString(r->fwXevent), (long long unsigned)r->msecEvent, datestr, (long long unsigned)(r->msecEvent % 1000L));
+            r->connID, r->event, r->event_flag == FW_EVENT ? fwEventString(r->event) : natEventString(r->event, LONGNAME), r->fwXevent,
+            fwXEventString(r->fwXevent), (long long unsigned)r->msecEvent, datestr, (long long unsigned)(r->msecEvent % 1000L));
 
 }  // End of stringsEXnselCommon
 
@@ -546,7 +547,7 @@ static void stringsEXnselUserID(FILE *stream, master_record_t *r) {
 
 static void stringsEXnelCommon(FILE *stream, master_record_t *r) {
     fprintf(stream, "  nat event    =             %5u: %s\n", r->event,
-            r->event_flag == FW_EVENT ? FwEventString(r->event) : EventString(r->event, LONGNAME));
+            r->event_flag == FW_EVENT ? fwEventString(r->event) : natEventString(r->event, LONGNAME));
 
 }  // End of stringsEXnelCommon
 

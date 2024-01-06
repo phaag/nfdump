@@ -53,6 +53,7 @@
 #include "nffile.h"
 #include "nfxV3.h"
 #include "output_util.h"
+#include "userio.h"
 #include "util.h"
 
 typedef void (*string_function_t)(FILE *, master_record_t *);
@@ -1719,14 +1720,14 @@ static void String_nfc(FILE *stream, master_record_t *r) { fprintf(stream, "%10u
 
 static void String_evt(FILE *stream, master_record_t *r) {
     if (r->fwXevent) {
-        fprintf(stream, "%8s", FwEventString(r->event));
+        fprintf(stream, "%8s", fwEventString(r->event));
     } else {
-        fprintf(stream, "%8s", EventString(r->event, SHORTNAME));
+        fprintf(stream, "%8s", natEventString(r->event, SHORTNAME));
     }
 
 }  // End of String_evt
 
-static void String_xevt(FILE *stream, master_record_t *r) { fprintf(stream, "%7s", EventXString(r->fwXevent)); }  // End of String_xevt
+static void String_xevt(FILE *stream, master_record_t *r) { fprintf(stream, "%7s", fwXEventString(r->fwXevent)); }  // End of String_xevt
 
 static void String_sgt(FILE *stream, master_record_t *r) { fprintf(stream, "%5u", r->sec_group_tag); }  // End of String_sgt
 

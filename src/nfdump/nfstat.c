@@ -58,6 +58,7 @@
 #include "nfxV3.h"
 #include "output_fmt.h"
 #include "output_util.h"
+#include "userio.h"
 #include "util.h"
 
 enum { IS_NUMBER = 1, IS_HEXNUMBER, IS_IPADDR, IS_MACADDR, IS_MPLS_LBL, IS_LATENCY, IS_EVENT, IS_HEX, IS_NBAR, IS_JA3, IS_GEO };
