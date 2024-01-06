@@ -171,7 +171,6 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
             } break;
             case EXlatencyID:
                 break;
-#ifdef NSEL
             case EXnselCommonID:
                 break;
             case EXnselXlateIPv4ID: {
@@ -199,7 +198,6 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
                 break;
             case EXnelXlatePortID:
                 break;
-#endif
             case EXnbarAppID:
                 break;
             case EXinPayloadID:
