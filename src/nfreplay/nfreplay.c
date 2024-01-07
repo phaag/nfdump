@@ -249,23 +249,16 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
             break;
     }
 
-    uint32_t numflows = 0;
-    int done = 0;
-
-    // setup Filter Engine to point to master_record, as any record read from file
-    // is expanded into this record
-    master_record_t *master_record = malloc(sizeof(master_record_t));
-    /* XXX
-    Engine->nfrecord = (uint64_t *)master_record;
-    Engine->ident = nffile->ident;
-    */
-
-    uint32_t processed = 0;
+    master_record_t master_record;
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return;
     }
+
+    uint32_t numflows = 0;
+    uint32_t processed = 0;
+    int done = 0;
     while (!done) {
         // get next data block from file
         int ret = ReadBlock(nffile);
@@ -313,13 +306,19 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
             switch (record_ptr->type) {
                 case V3Record: {
                     int match;
-                    // memset((void *)master_record, 0, sizeof(master_record_t));
-                    // ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
                     processed++;
                     MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
+
                     // Time based filter
                     // if no time filter is given, the result is always true
-                    match = twin_msecFirst && (master_record->msecFirst < twin_msecFirst || master_record->msecLast > twin_msecLast) ? 0 : 1;
+                    if (twin_msecFirst) {
+                        EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+                        match = (genericFlow->msecFirst < twin_msecFirst || genericFlow->msecLast > twin_msecLast) ? 0 : 1;
+                    } else {
+                        match = 1;
+                    }
+
+                    // limit recordcount
                     match &= limitRecords ? numflows < limitRecords : 1;
 
                     // filter netflow record with user supplied filter
@@ -331,14 +330,15 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
                         goto NEXT;
                     }
                     // Records passed filter -> continue record processing
+                    ExpandRecord_v3((recordHeaderV3_t *)record_ptr, &master_record);
 
                     int again;
                     switch (netflow_version) {
                         case 5:
-                            again = Add_v5_output_record(master_record, &peer);
+                            again = Add_v5_output_record(&master_record, &peer);
                             break;
                         case 9:
-                            again = Add_v9_output_record(master_record, &peer);
+                            again = Add_v9_output_record(&master_record, &peer);
                             break;
                         case 250:
                             again = Add_nfd_output_record(record_ptr, &peer);
@@ -366,10 +366,10 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
                     if (again) {
                         switch (netflow_version) {
                             case 5:
-                                again = Add_v5_output_record(master_record, &peer);
+                                again = Add_v5_output_record(&master_record, &peer);
                                 break;
                             case 9:
-                                again = Add_v9_output_record(master_record, &peer);
+                                again = Add_v9_output_record(&master_record, &peer);
                                 break;
                             case 250:
                                 again = Add_nfd_output_record(record_ptr, &peer);
@@ -394,7 +394,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
             // z-parameter
             // first and last are line (tstart and tend) timestamp with milliseconds
             // first = (double)master_record->msecFirst / 1000.0;
-            double last = (double)master_record->msecLast / 1000.0;
+            double last = (double)master_record.msecLast / 1000.0;
 
             gettimeofday(&currentTime, NULL);
             double now = (double)currentTime.tv_sec + (double)currentTime.tv_usec / 1000000;
