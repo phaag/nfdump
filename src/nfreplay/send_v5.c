@@ -133,25 +133,27 @@ void Init_v5_v7_output(send_peer_t *peer) {
 
 }  // End of Init_v5_v7_output
 
-int Add_v5_output_record(master_record_t *master_record, send_peer_t *peer) {
+int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
     static uint64_t msecBoot = 0;  // in msec
     static int cnt = 0;
     uint32_t t1, t2;
 
     // Skip IPv6 records
-    if (TestFlag(master_record->mflags, V3_FLAG_IPV6_ADDR)) return 0;
+    if (recordHandle->extensionList[EXipv6FlowID]) return 0;
 
     // skip empty records and records without enough information for v5
-    if (master_record->numElements < 2 || (master_record->exElementList[0] != EXgenericFlowID || master_record->exElementList[1] != EXipv4FlowID)) {
+    if (recordHandle->extensionList[EXgenericFlowID] == NULL || recordHandle->extensionList[EXipv4FlowID] == NULL) {
         printf("Skip record\n");
         return 0;
     }
+
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     // set device boot time to 1 day back of tstart of first flow
     if (output_engine.first) {  // first time a record is added
         // boot time is set one day back - assuming that the start time of every flow does not start
         // earlier
-        msecBoot = ((master_record->msecFirst / 1000LL) - 86400LL) * 1000LL;
+        msecBoot = ((genericFlow->msecFirst / 1000LL) - 86400LL) * 1000LL;
         cnt = 0;
         output_engine.first = 0;
     }
@@ -164,52 +166,52 @@ int Add_v5_output_record(master_record_t *master_record, send_peer_t *peer) {
         output_engine.sequence += output_engine.last_count;
         v5_output_header->flow_sequence = htonl(output_engine.sequence);
 
-        uint32_t unix_secs = (master_record->msecLast / 1000LL) + 3600;
+        uint32_t unix_secs = (genericFlow->msecLast / 1000LL) + 3600;
         v5_output_header->unix_secs = htonl(unix_secs);
         v5_output_header->SysUptime = htonl((uint32_t)(unix_secs * 1000 - msecBoot));
     }
 
-    for (int i = 0; i < master_record->numElements; i++) {
-        switch (master_record->exElementList[i]) {
-            case EXgenericFlowID:
-                // #1
-                t1 = (uint32_t)(master_record->msecFirst - msecBoot);
-                t2 = (uint32_t)(master_record->msecLast - msecBoot);
-                v5_output_record->First = htonl(t1);
-                v5_output_record->Last = htonl(t2);
+    // EXgenericFlowID
+    t1 = (uint32_t)(genericFlow->msecFirst - msecBoot);
+    t2 = (uint32_t)(genericFlow->msecLast - msecBoot);
+    v5_output_record->First = htonl(t1);
+    v5_output_record->Last = htonl(t2);
 
-                v5_output_record->srcPort = htons(master_record->srcPort);
-                v5_output_record->dstPort = htons(master_record->dstPort);
-                v5_output_record->tcp_flags = master_record->tcp_flags;
-                v5_output_record->prot = master_record->proto;
-                v5_output_record->tos = master_record->tos;
+    v5_output_record->srcPort = htons(genericFlow->srcPort);
+    v5_output_record->dstPort = htons(genericFlow->dstPort);
+    v5_output_record->tcp_flags = genericFlow->tcpFlags;
+    v5_output_record->prot = genericFlow->proto;
+    v5_output_record->tos = genericFlow->srcTos;
 
-                // the 64bit counters are cut down to 32 bits for v5
-                v5_output_record->dPkts = htonl((uint32_t)master_record->inPackets);
-                v5_output_record->dOctets = htonl((uint32_t)master_record->inBytes);
-                break;
-            case EXipv4FlowID:
-                // #2
-                v5_output_record->srcaddr = htonl(master_record->V4.srcaddr);
-                v5_output_record->dstaddr = htonl(master_record->V4.dstaddr);
-                break;
-            case EXflowMiscID:
-                // #5
-                v5_output_record->input = htons(master_record->input);
-                v5_output_record->output = htons(master_record->output);
-                v5_output_record->src_mask = master_record->src_mask;
-                v5_output_record->dst_mask = master_record->dst_mask;
-                break;
-            case EXasRoutingID:
-                // #8
-                v5_output_record->src_as = htons(master_record->srcas);
-                v5_output_record->dst_as = htons(master_record->dstas);
-                break;
-            case EXipNextHopV4ID:
-                // #11
-                v5_output_record->nexthop = htonl(master_record->ip_nexthop.V4);
-                break;
-        }
+    // the 64bit counters are cut down to 32 bits for v5
+    v5_output_record->dPkts = htonl((uint32_t)genericFlow->inPackets);
+    v5_output_record->dOctets = htonl((uint32_t)genericFlow->inBytes);
+
+    // EXipv4FlowID
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    v5_output_record->srcaddr = htonl(ipv4Flow->srcAddr);
+    v5_output_record->dstaddr = htonl(ipv4Flow->dstAddr);
+
+    // EXflowMiscID
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    if (flowMisc) {
+        v5_output_record->input = htons(flowMisc->input);
+        v5_output_record->output = htons(flowMisc->output);
+        v5_output_record->src_mask = flowMisc->srcMask;
+        v5_output_record->dst_mask = flowMisc->dstMask;
+    }
+
+    // EXasRoutingID
+    EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
+    if (asRouting) {
+        v5_output_record->src_as = htons(asRouting->srcAS);
+        v5_output_record->dst_as = htons(asRouting->dstAS);
+    }
+
+    // EXipNextHopV4ID
+    EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)recordHandle->extensionList[EXipNextHopV4ID];
+    if (ipNextHopV4) {
+        v5_output_record->nexthop = htonl(ipNextHopV4->ip);
     }
 
     cnt++;

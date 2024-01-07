@@ -36,6 +36,6 @@
 
 void Init_v5_v7_output(send_peer_t *peer);
 
-int Add_v5_output_record(master_record_t *master_record, send_peer_t *peer);
+int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer);
 
 #endif

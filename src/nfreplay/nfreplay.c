@@ -281,7 +281,6 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
                     LogError("Unexpected end of file list\n");
                 }
                 // else continue with next file
-                // XXX Engine->ident = nffile->ident;
                 continue;
 
             } break;  // not really needed
@@ -335,7 +334,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
                     int again;
                     switch (netflow_version) {
                         case 5:
-                            again = Add_v5_output_record(&master_record, &peer);
+                            again = Add_v5_output_record(recordHandle, &peer);
                             break;
                         case 9:
                             again = Add_v9_output_record(&master_record, &peer);
@@ -366,7 +365,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
                     if (again) {
                         switch (netflow_version) {
                             case 5:
-                                again = Add_v5_output_record(&master_record, &peer);
+                                again = Add_v5_output_record(recordHandle, &peer);
                                 break;
                             case 9:
                                 again = Add_v9_output_record(&master_record, &peer);
