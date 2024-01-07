@@ -46,4 +46,6 @@ char *ConfGetString(char *key);
 
 int ConfGetValue(char *key);
 
+int SetNameserver(char *ns);
+
 #endif

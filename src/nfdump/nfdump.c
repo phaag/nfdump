@@ -54,7 +54,6 @@
 #include "exporter.h"
 #include "flist.h"
 #include "ifvrf.h"
-#include "ipconv.h"
 #include "ja3.h"
 #include "maxmind.h"
 #include "nbar.h"
@@ -657,7 +656,7 @@ int main(int argc, char **argv) {
             case 'D':
                 CheckArgLen(optarg, 64);
                 nameserver = optarg;
-                if (!set_nameserver(nameserver)) {
+                if (!SetNameserver(nameserver)) {
                     exit(EXIT_FAILURE);
                 }
                 break;

@@ -1,5 +1,5 @@
 
-BUILT_SOURCES = grammar.h vcs_track.h
+BUILT_SOURCES = filter/grammar.h vcs_track.h
 AM_YFLAGS = -d
 
 AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -Icompress $(DEPS_CFLAGS)
@@ -22,7 +22,7 @@ nflist = flist.c flist.h fts_compat.c fts_compat.h
 else 
 nflist = flist.c flist.h
 endif
-filter = grammar.y scanner.l nftree.c nftree.h ipconv.c ipconv.h rbtree.h filter.h
+filter = filter/grammar.y filter/scanner.l filter/nftree.c filter/nftree.h filter/ipconv.c filter/ipconv.h filter/rbtree.h filter/filter.h
 output = userio.c userio.h output_util.c output_util.h output_short.c output_short.h
 regex = sgregex/sgregex.c sgregex/sgregex.h
 daemon = daemon.c daemon.h 

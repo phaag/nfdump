@@ -44,8 +44,8 @@
 #include <unistd.h>
 
 #include "exporter.h"
-#include "ipconv.h"
 #include "nbar.h"
+#include "nfconf.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfstatfile.h"
@@ -463,7 +463,7 @@ int main(int argc, char **argv) {
             case 'D':
                 CheckArgLen(optarg, 64);
                 nameserver = optarg;
-                if (!set_nameserver(nameserver)) {
+                if (!SetNameserver(nameserver)) {
                     exit(255);
                 }
                 break;
