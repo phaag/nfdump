@@ -2,7 +2,7 @@
 
 [![buildtest](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml)
 
-nfdump-1.7.x or nfdump **unicorn** is the next release of nfdump.
+## This is a working branch for testing the new filter engine
 
 ## Introduction
 
