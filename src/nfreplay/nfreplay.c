@@ -54,12 +54,12 @@
 #include <stdio_ext.h>
 #endif
 
+#include "filter.h"
 #include "flist.h"
 #include "nbar.h"
 #include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nftree.h"
 #include "nfxV3.h"
 #include "send_net.h"
 #include "send_v5.h"
@@ -80,7 +80,6 @@
 
 /* Local Variables */
 static int verbose = 0;
-static FilterEngine_t *Engine;
 
 static send_peer_t peer;
 static uint32_t recordCnt = 0;
@@ -89,7 +88,7 @@ static uint32_t sequence = 0;
 /* Function Prototypes */
 static void usage(char *name);
 
-static void send_data(timeWindow_t *timeWindow, uint32_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
+static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
 
 static int FlushBuffer(int confirm);
 
@@ -198,7 +197,8 @@ static int FlushBuffer(int confirm) {
     return sendto(peer.sockfd, peer.send_buffer, len, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
 }  // End of FlushBuffer
 
-static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
+static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitRecords, unsigned int delay, int confirm, int netflow_version,
+                      int distribution) {
     nffile_t *nffile;
     uint64_t twin_msecFirst, twin_msecLast;
 
@@ -255,9 +255,17 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
     // setup Filter Engine to point to master_record, as any record read from file
     // is expanded into this record
     master_record_t *master_record = malloc(sizeof(master_record_t));
+    /* XXX
     Engine->nfrecord = (uint64_t *)master_record;
     Engine->ident = nffile->ident;
+    */
 
+    uint32_t processed = 0;
+    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    if (!recordHandle) {
+        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        return;
+    }
     while (!done) {
         // get next data block from file
         int ret = ReadBlock(nffile);
@@ -280,7 +288,7 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
                     LogError("Unexpected end of file list\n");
                 }
                 // else continue with next file
-                Engine->ident = nffile->ident;
+                // XXX Engine->ident = nffile->ident;
                 continue;
 
             } break;  // not really needed
@@ -305,15 +313,18 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
             switch (record_ptr->type) {
                 case V3Record: {
                     int match;
-                    memset((void *)master_record, 0, sizeof(master_record_t));
-                    ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
+                    // memset((void *)master_record, 0, sizeof(master_record_t));
+                    // ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
+                    processed++;
+                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
                     // Time based filter
                     // if no time filter is given, the result is always true
                     match = twin_msecFirst && (master_record->msecFirst < twin_msecFirst || master_record->msecLast > twin_msecLast) ? 0 : 1;
                     match &= limitRecords ? numflows < limitRecords : 1;
 
                     // filter netflow record with user supplied filter
-                    if (match) match = (*Engine->FilterEngine)(Engine);
+                    // XXX if (match) match = (*Engine->FilterEngine)(Engine);
+                    if (match) match = FilterRecord(engine, recordHandle, nffile->ident);
 
                     if (match == 0) {  // record failed to pass all filters
                         // go to next record
@@ -592,8 +603,8 @@ int main(int argc, char **argv) {
 
     if (!filter) filter = "any";
 
-    Engine = CompileFilter(filter);
-    if (!Engine) exit(254);
+    void *engine = CompileFilter(filter);
+    if (!engine) exit(254);
 
     if (peer.mcast)
         peer.sockfd =
@@ -613,7 +624,7 @@ int main(int argc, char **argv) {
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!Init_nffile(1, fileList)) exit(254);
 
-    send_data(timeWindow, count, delay, confirm, netflow_version, distribution);
+    send_data(engine, timeWindow, count, delay, confirm, netflow_version, distribution);
 
     return 0;
 }

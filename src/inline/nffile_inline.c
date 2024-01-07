@@ -33,6 +33,8 @@ static inline size_t CheckBufferSpace(nffile_t *nffile, size_t required);
 
 static inline void AppendToBuffer(nffile_t *nffile, void *record, size_t required);
 
+static inline void MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint32_t flowCount);
+
 static inline void ClearMasterRecord(master_record_t *record);
 
 static inline void ExpandRecord_v3(recordHeaderV3_t *v3Record, master_record_t *output_record);
@@ -67,6 +69,20 @@ static inline size_t CheckBufferSpace(nffile_t *nffile, size_t required) {
     return WRITE_BUFFSIZE - nffile->block_header->size;
 
 }  // End of CheckBufferSpace
+
+static inline void MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint32_t flowCount) {
+    handle->recordHeaderV3 = recordHeaderV3;
+
+    elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t));
+    // map all extensions
+    for (int i = 0; i < recordHeaderV3->numElements; i++) {
+        handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
+        elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
+    }
+    handle->extensionList[EXnull] = (void *)recordHeaderV3;
+    handle->extensionList[EXlocal] = (void *)handle;
+    handle->flowCount = flowCount;
+}
 
 static inline void ClearMasterRecord(master_record_t *record) {
     if (record->inPayload) free(record->inPayload);

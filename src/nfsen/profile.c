@@ -46,10 +46,10 @@
 #include <unistd.h>
 
 #include "config.h"
+#include "filter.h"
 #include "flist.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nftree.h"
 #include "rbtree.h"
 #include "util.h"
 
@@ -205,14 +205,14 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
     if (verify_only)
         printf("Check filter for channel %s in profile '%s' in group '%s': ", profile_param->channelname, profile_param->profilename,
                profile_param->profilegroup);
-    FilterEngine_t *engine = CompileFilter(filter);
+    void *engine = CompileFilter(filter);
 
     if (!engine) {
         printf("\n");
         LogError("*** Compiling filter failed for channel %s in profile '%s' in group '%s'.", profile_param->channelname, profile_param->profilename,
                  profile_param->profilegroup);
         LogError("*** File: %s", path);
-        LogError("*** Error: %s\n", yyerror_buff);
+        // XXX LogError("*** Error: %s\n", yyerror_buff);
         LogError("*** Failed Filter: %s", filter);
         free(filter);
         return;
@@ -221,6 +221,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
 
     if (verify_only) {
         printf("ok.\n");
+        DisposeFilter(engine);
         return;
     }
 

@@ -54,9 +54,6 @@
 #include "util.h"
 #include "version.h"
 
-/* Global */
-char Ident[IDENTLEN];
-
 /* Local Variables */
 #ifdef HAVE_INFLUXDB
 char influxdb_url[1024] = "";
@@ -110,18 +107,12 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
         return;
     }
 
-    strncpy(Ident, FILE_IDENT(nffile), IDENTLEN);
-    Ident[IDENTLEN - 1] = '\0';
-    for (int j = 0; j < num_channels; j++) {
-        (channels[j].engine)->ident = Ident;
-    }
-
-    master_record_t *master_record = calloc(1, sizeof(master_record_t));
-    if (!master_record) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    if (!recordHandle) {
+        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return;
     }
-
+    uint32_t processed = 0;
     int done = 0;
     while (!done) {
         // get next data block from file
@@ -147,11 +138,6 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                     LogError("Unexpected end of file list");
                 }
 
-                strncpy(Ident, FILE_IDENT(nffile), IDENTLEN);
-                Ident[IDENTLEN - 1] = '\0';
-                for (int j = 0; j < num_channels; j++) {
-                    (channels[j].engine)->ident = Ident;
-                }
                 continue;
 
             } break;  // not really needed
@@ -173,16 +159,15 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
 
             switch (record_ptr->type) {
                 case V3Record:
-                    ClearMasterRecord(master_record);
-                    ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
+                    processed++;
+                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
 
                     for (int j = 0; j < num_channels; j++) {
                         int match;
 
                         // apply profile filter
-                        (channels[j].engine)->nfrecord = (uint64_t *)master_record;
-                        FilterEngine_t *engine = channels[j].engine;
-                        match = (*engine->FilterEngine)(engine);
+                        void *engine = channels[j].engine;
+                        match = FilterRecord(engine, recordHandle, FILE_IDENT(nffile));
 
                         // if profile filter failed -> next profile
                         if (!match) continue;
@@ -190,7 +175,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                         // filter was successful -> continue record processing
 
                         // update statistics
-                        UpdateStat(&channels[j].stat_record, master_record);
+                        UpdateStatRecord(&channels[j].stat_record, recordHandle);
 
                         // do we need to write data to new file - shadow profiles do not have files.
                         // check if we need to flush the output buffer

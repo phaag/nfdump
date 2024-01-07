@@ -1143,6 +1143,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
         }
         nffile->block_header->NumRecords++;
 
+        // XXX
         memset((void *)extensionList, 0, sizeof(extensionList));
         // remap extension od written record
         elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t));

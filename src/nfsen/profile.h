@@ -32,9 +32,9 @@
 #ifndef _PROFILE_H
 #define _PROFILE_H 1
 
+#include "filter.h"
 #include "nffile.h"
 #include "nfstatfile.h"
-#include "nftree.h"
 
 typedef struct profile_param_info_s {
     struct profile_param_info_s *next;
@@ -46,7 +46,8 @@ typedef struct profile_param_info_s {
 } profile_param_info_t;
 
 typedef struct profile_channel_info_s {
-    FilterEngine_t *engine;
+    // XXX FilterEngine_t *engine;
+    void *engine;
     char *group;
     char *profile;
     char *channel;

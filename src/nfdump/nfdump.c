@@ -52,6 +52,7 @@
 
 #include "config.h"
 #include "exporter.h"
+#include "filter.h"
 #include "flist.h"
 #include "ifvrf.h"
 #include "ja3.h"
@@ -65,7 +66,6 @@
 #include "nfnet.h"
 #include "nfprof.h"
 #include "nfstat.h"
-#include "nftree.h"
 #include "nfx.h"
 #include "nfxV3.h"
 #include "output.h"
@@ -73,9 +73,6 @@
 #include "version.h"
 
 extern char *FilterFilename;
-
-/* Local Variables */
-static FilterEngine_t *Engine;
 
 static uint64_t total_bytes = 0;
 static uint32_t processed = 0;
@@ -97,7 +94,7 @@ static void usage(char *name);
 
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams);
 
-static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows, RecordPrinter_t print_record,
+static stat_record_t process_data(void *engine, char *wfile, int element_stat, int flow_stat, int sort_flows, RecordPrinter_t print_record,
                                   timeWindow_t *timeWindow, uint64_t limitRecords, outputParams_t *outputParams, int compress);
 
 /* Functions */
@@ -253,7 +250,7 @@ static inline record_header_t *AddFlowLabel(record_header_t *record, char *label
     return (record_header_t *)tmpRecord;
 }
 
-static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows, RecordPrinter_t print_record,
+static stat_record_t process_data(void *engine, char *wfile, int element_stat, int flow_stat, int sort_flows, RecordPrinter_t print_record,
                                   timeWindow_t *timeWindow, uint64_t limitRecords, outputParams_t *outputParams, int compress) {
     nffile_t *nffile_w, *nffile_r;
     stat_record_t stat_record;
@@ -311,7 +308,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
         }
         SetIdent(nffile_w, nffile_r->ident);
     }
-    Engine->ident = nffile_r->ident;
+    // XXX Engine->ident = nffile_r->ident;
 
     master_record_t *master_record = calloc(1, sizeof(master_record_t));
     if (!master_record) {
@@ -319,7 +316,12 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
         return stat_record;
     }
 
-    Engine->nfrecord = (uint64_t *)master_record;
+    // XXX Engine->nfrecord = (uint64_t *)master_record;
+    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    if (!recordHandle) {
+        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        return stat_record;
+    }
     int done = 0;
     while (!done) {
         int i, ret;
@@ -347,7 +349,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                     if (next->stat_record->lastseen > t_last_flow) t_last_flow = next->stat_record->lastseen;
                     // continue with next file
                 }
-                Engine->ident = nffile_r->ident;
+                // XXX Engine->ident = nffile_r->ident;
                 continue;
 
             } break;  // not really needed
@@ -382,7 +384,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                 case V3Record:
                 case CommonRecordType: {
                     int match;
-                    ClearMasterRecord(master_record);
+                    // XXX ClearMasterRecord(master_record);
                     if (__builtin_expect(record_ptr->type == CommonRecordType, 0)) {
                         if (!ExpandRecord_v2(record_ptr, master_record)) {
                             goto NEXT;
@@ -391,16 +393,18 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                         process_ptr = ConvertRecordV2((common_record_t *)record_ptr);
                         if (!process_ptr) goto NEXT;
                     } else {
-                        ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
+                        // XXX ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
+                        processed++;
+                        MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
                     }
 
-                    processed++;
-                    master_record->flowCount = processed;
+                    // master_record->flowCount = processed;
                     // Time based filter
                     // if no time filter is given, the result is always true
                     match = twin_msecFirst && (master_record->msecFirst < twin_msecFirst || master_record->msecLast > twin_msecLast) ? 0 : 1;
 
                     if (match) {
+                        /* XXX
                         if (Engine->geoFilter) {
                             AddGeoInfo(master_record);
                         }
@@ -412,9 +416,11 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                                 ja3Free(ja3);
                             }
                         }
+                        */
 
                         // filter netflow record with user supplied filter
-                        match = (*Engine->FilterEngine)(Engine);
+                        // match = (*Engine->FilterEngine)(Engine);
+                        match = FilterRecord(engine, recordHandle, nffile_r->ident);
                         //						match = dofilter(master_record);
                     }
                     if (match == 0) {  // record failed to pass all filters
@@ -426,16 +432,18 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                     // check if we are done, if -c option was set
                     if (limitRecords) done = passed >= limitRecords;
 
-                    // Records passed filter -> continue record processing
-                    // Update statistics
-                    if (Engine->label) {
-                        master_record->label = Engine->label;
-                        process_ptr = AddFlowLabel(process_ptr, Engine->label);
-                    }
+                        // Records passed filter -> continue record processing
+                        // Update statistics
+                        /*
+                        if (Engine->label) {
+                            master_record->label = Engine->label;
+                            process_ptr = AddFlowLabel(process_ptr, Engine->label);
+                        }
+                        */
 #ifdef DEVEL
                     if (Engine->label) printf("Flow has label: %s\n", Engine->label);
 #endif
-                    UpdateStat(&stat_record, master_record);
+                    UpdateStatRecord(&stat_record, recordHandle);
 
                     if (flow_stat) {
                         AddFlowCache(process_ptr, master_record);
@@ -906,12 +914,11 @@ int main(int argc, char **argv) {
     // if no filter is given, set the default ip filter which passes through every flow
     if (!filter || strlen(filter) == 0) filter = "any";
 
-    Engine = CompileFilter(filter);
-    if (!Engine) exit(254);
+    void *engine = CompileFilter(filter);
+    if (!engine) exit(254);
 
     if (fdump) {
-        printf("StartNode: %i Engine: %s\n", Engine->StartNode, Engine->Extended ? "Extended" : "Fast");
-        DumpEngine(Engine);
+        DumpEngine(engine);
         exit(EXIT_SUCCESS);
     }
 
@@ -1012,10 +1019,12 @@ int main(int argc, char **argv) {
         HasGeoDB = true;
         outputParams->hasGeoDB = true;
     }
+    /* XXX
     if (!HasGeoDB && Engine->geoFilter > 1) {
         LogError("Can not filter according geo elements without a geo location DB");
         exit(EXIT_FAILURE);
     }
+    */
 
     if (aggr_fmt) {
         aggr_fmt = ParseAggregateMask(aggr_fmt, HasGeoDB);
@@ -1090,7 +1099,7 @@ int main(int argc, char **argv) {
     }
 
     nfprof_start(&profile_data);
-    sum_stat = process_data(wfile, element_stat, aggregate || flow_stat, print_order != NULL, print_record, flist.timeWindow, limitRecords,
+    sum_stat = process_data(engine, wfile, element_stat, aggregate || flow_stat, print_order != NULL, print_record, flist.timeWindow, limitRecords,
                             outputParams, compress);
     nfprof_end(&profile_data, processed);
 

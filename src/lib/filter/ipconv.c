@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
- *  Copyright (c) 2008-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -27,24 +26,7 @@
  *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  *  POSSIBILITY OF SUCH DAMAGE.
  *
- * Copyright (c) 1996 by Internet Software Consortium.
- *
- * Permission to use, copy, modify, and distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS" AND INTERNET SOFTWARE CONSORTIUM DISCLAIMS
- * ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES
- * OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL INTERNET SOFTWARE
- * CONSORTIUM BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL
- * DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR
- * PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS
- * ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS
- * SOFTWARE.
- *
  */
-
-#include "ipconv.h"
 
 #include <arpa/inet.h>
 #include <arpa/nameser.h>
@@ -59,168 +41,69 @@
 #include <sys/types.h>
 
 #include "config.h"
-#include "nfdump.h"
-#include "nffile.h"
+
+#ifdef HAVE_RESOLV_H
+#include <resolv.h>
+#endif
+
+#include "ipconv.h"
 #include "util.h"
 
-static int parse_ipv4(const char *src, uint32_t *dst, int *bytes);
-static int parse_ipv6(const char *src, uint64_t *dst, int *bytes);
-static int lookup_host(const char *hostname, uint64_t *iplist, uint32_t *num_ip);
+static int lookup_host(const char *hostname, ipStack_t *ipStack);
 
-int parse_ip(int *af, const char *src, uint64_t *dst, int *bytes, int lookup, uint32_t *num_ip) {
+int parseIP(const char *src, ipStack_t *ipStack, int lookup) {
     char *alpha = "abcdefghijklmnopqrstuvwxzyABCDEFGHIJKLMNOPQRSTUVWXZY";
-    uint32_t v4addr;
-    int ret;
 
+    int af = 0;
     // check for IPv6 address
     if (strchr(src, ':') != NULL) {
-        *af = PF_INET6;
+        af = PF_INET6;
         // check for alpha chars -> hostname -> lookup
     } else if (strpbrk(src, alpha)) {
-        *af = 0;
+        af = 0;
         if (lookup == STRICT_IP)
             return -1;
         else
-            return lookup_host(src, dst, num_ip);
+            return lookup_host(src, ipStack);
         // it's IPv4
     } else
-        *af = PF_INET;
+        af = PF_INET;
 
-    *num_ip = 1;
-    switch (*af) {
-        case AF_INET:
-            ret = (parse_ipv4(src, &v4addr, bytes));
-            dst[0] = 0;
-            dst[1] = ntohl(v4addr) & 0xffffffffLL;
-            return ret;
-            break;
-        case AF_INET6:
-            ret = (parse_ipv6(src, dst, bytes));
-            dst[0] = ntohll(dst[0]);
-            dst[1] = ntohll(dst[1]);
-            return ret;
-            break;
-    }
-    /* NOTREACHED */
-
-    return 0;
-}
-
-static int parse_ipv4(const char *src, uint32_t *dst, int *bytes) {
-    static const char digits[] = "0123456789";
-    int saw_digit, ch;
-    uint8_t tmp[4], *tp;
-
-    saw_digit = 0;
-    *bytes = 0;
-    *(tp = tmp) = 0;
-    memset(tmp, 0, sizeof(tmp));
-    while ((ch = *src++) != '\0') {
-        const char *pch;
-
-        if ((pch = strchr(digits, ch)) != NULL) {
-            long new = *tp * 10 + (pch - digits);
-
-            if (new > 255) return (0);
-            if (!saw_digit) {
-                if (++(*bytes) > 4) return (0);
-                saw_digit = 1;
+    int numIP = 0;
+    switch (af) {
+        case PF_INET: {
+            uint32_t v4addr = 0;
+            int ret = inet_pton(PF_INET, src, &v4addr);
+            if (ret > 0) {
+                numIP = 1;
+                ipStack[0].af = af;
+                ipStack[0].ipaddr[0] = 0;
+                ipStack[0].ipaddr[1] = ntohl(v4addr);
+            } else {
+                return ret;
             }
-            *tp = new;
-        } else if (ch == '.' && saw_digit) {
-            if (*bytes == 4) return (0);
-            *++tp = 0;
-            saw_digit = 0;
-            if (!(*src)) return 0;
-        } else
-            return (0);
-    }
-
-    memcpy(dst, tmp, sizeof(tmp));
-    return (1);
-}
-
-static int parse_ipv6(const char *src, uint64_t *dst, int *bytes) {
-    static const char xdigits_l[] = "0123456789abcdef", xdigits_u[] = "0123456789ABCDEF";
-    uint8_t tmp[16], *tp, *endp, *colonp;
-    const char *xdigits, *curtok;
-    int ch, saw_xdigit;
-    u_int val;
-
-    memset((tp = tmp), '\0', sizeof(tmp));
-    endp = tp + sizeof(tmp);
-    colonp = NULL;
-    /* Leading :: requires some special handling. */
-    if (*src == ':')
-        if (*++src != ':') return (0);
-    curtok = src;
-    saw_xdigit = 0;
-    val = 0;
-    while ((ch = *src++) != '\0') {
-        const char *pch;
-
-        if ((pch = strchr((xdigits = xdigits_l), ch)) == NULL) pch = strchr((xdigits = xdigits_u), ch);
-        if (pch != NULL) {
-            val <<= 4;
-            val |= (pch - xdigits);
-            if (val > 0xffff) return (0);
-            saw_xdigit = 1;
-            continue;
-        }
-        if (ch == ':') {
-            curtok = src;
-            if (!saw_xdigit) {
-                if (colonp) return (0);
-                colonp = tp;
-                continue;
-            } else if (*src == '\0') {
-                return (0);
+        } break;
+        case PF_INET6: {
+            uint64_t dst[2];
+            int ret = inet_pton(PF_INET6, src, dst);
+            if (ret > 0) {
+                numIP = 1;
+                ipStack[0].af = af;
+                ipStack[0].ipaddr[0] = ntohll(dst[0]);
+                ipStack[0].ipaddr[1] = ntohll(dst[1]);
+            } else {
+                return ret;
             }
-            if (tp + sizeof(uint16_t) > endp) return (0);
-            *tp++ = (u_char)(val >> 8) & 0xff;
-            *tp++ = (u_char)val & 0xff;
-            saw_xdigit = 0;
-            val = 0;
-            continue;
-        }
-        if (ch == '.' && ((tp + 4) <= endp) && parse_ipv4(curtok, (uint32_t *)tp, bytes) > 0) {
-            tp += 4;
-            saw_xdigit = 0;
-            break; /* '\0' was seen by parse_ipv4(). */
-        }
-        return (0);
+        } break;
     }
-    if (saw_xdigit) {
-        if (tp + sizeof(uint16_t) > endp) return (0);
-        *tp++ = (u_char)(val >> 8) & 0xff;
-        *tp++ = (u_char)val & 0xff;
-    }
-    if (colonp != NULL) {
-        /*
-         * Since some memmove()'s erroneously fail to handle
-         * overlapping regions, we'll do the shift by hand.
-         */
-        const long n = tp - colonp;
-        int i;
-
-        for (i = 1; i <= n; i++) {
-            endp[-i] = colonp[n - i];
-            colonp[n - i] = 0;
-        }
-        tp = endp;
-    }
-    *bytes = 16 - (endp - tp);
-
-    memcpy(dst, tmp, sizeof(tmp));
-    return (1);
+    return numIP;
 }
 
-static int lookup_host(const char *hostname, uint64_t *iplist, uint32_t *num_ip) {
+static int lookup_host(const char *hostname, ipStack_t *ipStack) {
     struct addrinfo hints, *res, *r;
-    int errcode, i, len;
+    int errcode, len;
     char addrstr[128];
     char reverse[256];
-    void *ptr;
 
     printf("Resolving %s ...\n", hostname);
 
@@ -236,28 +119,30 @@ static int lookup_host(const char *hostname, uint64_t *iplist, uint32_t *num_ip)
     }
 
     // count the number of records found
-    *num_ip = 0;
+    uint32_t numIP = 0;
 
     // remember res for later free()
     r = res;
 
-    i = 0;
+    void *ptr;
     while (res) {
-        if (*num_ip >= MAXHOSTS) {
-            printf("Too man IP addresses in DNS response\n");
-            return 1;
+        if (numIP >= MAXHOSTS) {
+            fprintf(stderr, "Too man IP addresses in DNS response\n");
+            return numIP;
         }
         switch (res->ai_family) {
             case PF_INET:
                 ptr = &(((struct sockaddr_in *)res->ai_addr)->sin_addr);
-                iplist[i++] = 0;
-                iplist[i++] = ntohl(*(uint32_t *)ptr) & 0xffffffffLL;
+                ipStack[numIP].af = PF_INET;
+                ipStack[numIP].ipaddr[0] = 0;
+                ipStack[numIP].ipaddr[1] = ntohl(*(uint32_t *)ptr) & 0xffffffffLL;
                 len = sizeof(struct sockaddr_in);
                 break;
             case AF_INET6:
                 ptr = &((struct sockaddr_in6 *)res->ai_addr)->sin6_addr;
-                iplist[i++] = ntohll(((uint64_t *)ptr)[0]);
-                iplist[i++] = ntohll(((uint64_t *)ptr)[1]);
+                ipStack[numIP].af = PF_INET6;
+                ipStack[numIP].ipaddr[0] = ntohll(((uint64_t *)ptr)[0]);
+                ipStack[numIP].ipaddr[1] = ntohll(((uint64_t *)ptr)[1]);
                 len = sizeof(struct sockaddr_in6);
                 break;
             default: {
@@ -273,45 +158,73 @@ static int lookup_host(const char *hostname, uint64_t *iplist, uint32_t *num_ip)
             // fprintf(stderr, "Failed to reverse lookup %s: %s\n", addrstr, gai_strerror(errcode));
         }
 
-        printf("IPv%d address: %s (%s)\n", res->ai_family == PF_INET6 ? 6 : 4, addrstr, reverse);
+        dbg_printf("IPv%d address: %s (%s)\n", res->ai_family == PF_INET6 ? 6 : 4, addrstr, reverse);
         res = res->ai_next;
-        (*num_ip)++;
+        numIP++;
     }
 
     freeaddrinfo(r);
-    return 1;
+    return numIP;
 
 }  // End of lookup_host
 
-/*
-int main( int argc, char **argv ) {
+int set_nameserver(char *ns) {
+    struct hostent *host;
 
-char	*s, t[64];
-uint64_t	anyaddr[2];
-uint32_t	 num_ip;
-int af, ret, bytes;
-
-
-        s = argv[1];
-        if (argc == 3 && !set_nameserver(argv[2]) )
-                        return 0;
-
-        lookup_host(s, &num_ip);
+    res_init();
+    host = gethostbyname(ns);
+    if (host == NULL) {
+        (void)fprintf(stderr, "Can not resolv nameserver %s: %s\n", ns, hstrerror(h_errno));
         return 0;
+    }
+    (void)memcpy((void *)&_res.nsaddr_list[0].sin_addr, (void *)host->h_addr_list[0], (size_t)host->h_length);
+    _res.nscount = 1;
+    return 1;
 
-        ret = parse_ip(&af, s, anyaddr, &bytes);
-        if ( ret != 1 ) {
-                printf("Parse failed!\n");
-                return 0;
-        }
+}  // End of set_nameserver
 
-        if ( af == PF_INET )
-                inet_ntop(af, &(((uint32_t *)anyaddr)[3]), t, 64);
-        else
-                inet_ntop(af, anyaddr, t, 64);
+uint64_t Str2Mac(char *macStr) {
+    uint8_t values[6];
+    if (sscanf(macStr, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx", &values[0], &values[1], &values[2], &values[3], &values[4], &values[5]) != 6) {
+        return 0;
+    }
 
-        printf("Convert back: %s => %s %i bytes\n", s, t, bytes);
+    uint64_t macVal = 0;
+    for (int i = 0; i < 6; i++) {
+        macVal = macVal << 8 | values[i];
+    }
 
+    return macVal;
 }
 
-*/
+#ifdef MAIN
+
+static void checkHost(char *s) {
+    ipStack_t ipStack[MAXHOSTS];
+
+    int numIP = parse_ip(s, ipStack, ALLOW_LOOKUP);
+    if (numIP < 0)
+        printf("Lookup: %s, ret: %d: %s\n", s, numIP, strerror(errno));
+    else
+        printf("Lookup: %s, numIP: %u\n", s, numIP);
+
+    for (int i = 0; i < numIP; i++) {
+        printf("%d: af: %u, 0x%llx 0x%llx\n", i + 1, ipStack[i].af, ipStack[i].ipaddr[0], ipStack[i].ipaddr[1]);
+    }
+    printf("\n");
+}
+
+int main(int argc, char **argv) {
+    checkHost("1.2.3.4");
+    checkHost("1.2.3.400");
+    checkHost("1.2.3.4.5");
+    checkHost("0.2.3.4");
+
+    checkHost("2001:620:0:ff::5c");
+    checkHost("::ffff:1.2.3.4");
+
+    checkHost("www.google.ch");
+    checkHost("www.cnn.ch");
+    checkHost("unresovled");
+}
+#endif

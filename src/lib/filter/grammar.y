@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2016-2023, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -31,125 +30,155 @@
 
 %{
 
-#include "config.h"
-
 #include <stdio.h>
 #include <sys/types.h>
-#include <sys/socket.h>
 #include <stdint.h>
-#include <netinet/in.h>
 #include <string.h>
+#include <stdarg.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <errno.h>
 #include <ctype.h>
+#include <arpa/inet.h>
 
-#include "util.h"
-#include "userio.h"
-#include "rbtree.h"
 #include "filter.h"
-#include "nfdump.h"
-#include "nffile.h"
-#include "nftree.h"
+#include "userio.h"
+#include "nfxV3.h"
 #include "ipconv.h"
-#include "sgregex/sgregex.h"
+#include "sgregex.h"
 
 #define AnyMask 0xffffffffffffffffLL
+
+const data_t NULLPtr = {NULL};
 
 /*
  * function prototypes
  */
-static void  yyerror(char *msg);
-
-static uint32_t ChainHosts(uint64_t *offsets, uint64_t *hostlist, int num_records, int type);
-
-static uint64_t VerifyMac(char *s);
-
-static int InitSymbols(void);
-
-static uint32_t Get_fwd_status_id(char *status);
-
-static int AddGeo(uint16_t direction, char *geoStr);
-
-enum { DIR_UNSPEC = 1, 
-	   SOURCE, DESTINATION, SOURCE_AND_DESTINATION, SOURCE_OR_DESTINATION, 
-	   DIR_IN, DIR_OUT, 
-	   IN_SRC, IN_DST, OUT_SRC, OUT_DST, 
-	   ADJ_PREV, ADJ_NEXT };
-
-enum { IS_START = 0, IS_END };
+static void  yyerror(char *msg, ...);
 
 /* var defs */
 extern int 			lineno;
 extern char 		*yytext;
-extern uint64_t		*IPstack;
 extern uint32_t	StartNode;
-extern uint8_t	geoFilter;
-extern uint8_t	ja3Filter;
-extern int (*FilterEngine)(uint32_t *);
-extern char	*FilterFilename;
+extern char *FilterFilename;
 
-static uint32_t num_ip;
+static ipStack_t ipStack[MAXHOSTS];
 
-static struct fwd_status_def_s {
-	uint32_t	id;
-	char		*name;
-} fwd_status_def_list[] = {
-	{ 0,	"Ukwn"}, 	// Unknown
-	{ 1,	"Forw"}, 	// Normal forwarding
-	{ 2,	"Frag"}, 	// Fragmented
-	{ 16,	"Drop"}, 	// Drop
-	{ 17,	"DaclD"},	// Drop ACL deny
-	{ 18,	"Daclp"},	// Drop ACL drop
-	{ 19,	"Noroute"},	// Unroutable
-	{ 20,	"Dadj"}, 	// Drop Adjacency
-	{ 21,	"Dfrag"}, 	// Drop Fragmentation & DF set
-	{ 22,	"Dbadh"}, 	// Drop Bad header checksum
-	{ 23,	"Dbadtlen"}, // Drop Bad total Length
-	{ 24,	"Dbadhlen"}, // Drop Bad Header Length
-	{ 25,	"DbadTTL"}, // Drop bad TTL
-	{ 26,	"Dpolicy"}, // Drop Policer
-	{ 27,	"Dwred"}, 	// Drop WRED
-	{ 28,	"Drpf"}, 	// Drop RPF
-	{ 29,	"Dforus"}, 	// Drop For us
-	{ 30,	"DbadOf"}, 	// Drop Bad output interface
-	{ 31,	"Dhw"}, 	// Drop Hardware
-	{ 128,	"Term"}, 	// Terminate
-	{ 129,	"Tadj"}, 	// Terminate Punt Adjacency
-	{ 130,	"TincAdj"}, // Terminate Incomplete Adjacency
-	{ 131,	"Tforus"}, 	// Terminate For us
-	{ 0,	NULL}		// Last entry
-};
+static uint32_t ChainHosts(ipStack_t *ipStack, int numIP, int direction);
 
-static char **fwd_status = NULL;
+static int AddIdent(char *ident);
 
-char yyerror_buff[256];
+static int AddEngineNum(char *type, uint16_t comp, uint64_t num);
 
-#define MPLSMAX 0x00ffffff
+static int AddExporterNum(char *type, uint16_t comp, uint64_t num);
+
+static int AddProto(direction_t direction, char *protoStr, uint64_t protoNum);
+
+static int AddPortNumber(direction_t direction, uint16_t comp, uint64_t port);
+
+static int AddICMP(char *type, uint16_t comp, uint64_t number);
+
+static int AddAsNumber(direction_t direction, uint16_t comp, uint64_t as);
+
+static int AddFlagsNumber(direction_t direction, uint16_t comp, uint64_t flags);
+
+static int AddFlagsString(direction_t direction, char *flags);
+
+static int AddTosNumber(direction_t direction, uint16_t comp, uint64_t tos);
+
+static int AddPackets(direction_t direction, uint16_t comp, uint64_t packets);
+
+static int AddBytes(direction_t direction, uint16_t comp, uint64_t bytes);
+
+static int AddFwdStatNum(uint16_t comp, uint64_t num);
+
+static int AddFwdStatString(char *string);
+
+static int AddIP(direction_t direction, char *IPstr);
+
+static int AddIPlist(direction_t direction, void *IPstr);
+
+static int AddNet(direction_t direction, char *IPstr, char *maskStr);
+
+static int AddNetPrefix(direction_t direction, char *IPstr, uint64_t mask);
+
+static int AddInterfaceNumber(direction_t direction, uint64_t num);
+
+static int AddVlanNumber(direction_t direction, uint64_t num);
+
+static int AddMaskNumber(direction_t direction, uint64_t num);
+
+static int AddFlowDir(direction_t direction, int64_t dirNum);
+
+static int AddMPLS(char *type, uint16_t comp, uint64_t value);
+
+static int AddMAC(direction_t direction, char *macString);
+
+static int AddLatency(char *type, uint16_t comp, uint64_t number);
+
+static int AddASAString(char *event, char *asaStr);
+
+static int AddASA(char *event, uint16_t comp, uint64_t number);
+
+static int AddASApblock(direction_t direction, char *arg);
+
+static int AddNATString(char *event, char *asaStr);
+
+static int AddNAT(char *event, uint16_t comp, uint64_t number);
+
+static int AddNatPortBlocks(char *type, char *subtype, uint16_t comp, uint64_t number);
+
+static int AddACL(direction_t direction, uint16_t comp, uint64_t number);
+
+static int AddPayload(char *type, char *arg, char *opt);
+
+static int AddGeo(direction_t direction, char *geo);
+
+static int AddObservation(char *type, char *subType, uint16_t comp, uint64_t number);
+
+static int AddVRF(direction_t direction, uint16_t comp, uint64_t number);
+
+static int AddPFString(char *type, char *arg);
+
+static int AddPFNumber(char *type, uint16_t comp, uint64_t number);
+
+static void *NewIplist(char *IPstr, int prefix);
+
+static void *NewU64list(uint64_t num);
+
+static int InsertIPlist(void *IPlist, char *IPstr, int64_t prefix);
+
+static int InsertU64list(void *U64list, uint64_t num);
+
+static int AddPortList(direction_t direction, void *U64List);
+
+static int AddASList(direction_t direction, void *U64List);
+
 %}
 
 %union {
-	uint64_t		value;
-	char			*s;
+	uint64_t			value;
+	char					*s;
 	FilterParam_t	param;
-	void			*list;
+	void					*list;
 }
 
-%token ANY IP TUNIP IF MAC MPLS TOS DIR FLAGS TUN PROTO MASK NET PORT FWDSTAT IN OUT SRC DST EQ LT GT LE GE PREV NEXT
-%token IDENT ENGINE_TYPE ENGINE_ID EXPORTER AS GEO PACKETS BYTES FLOWS LABEL NFVERSION COUNT
-%token PPS BPS BPP DURATION NOT 
-%token IPV4 IPV6 BGPNEXTHOP ROUTER VLAN
-%token CLIENT SERVER APP LATENCY SYSID
-%token ASA DENIED XEVENT XNET XPORT INGRESS EGRESS ACL ACE XACE
-%token NAT ADD EVENT VRF NPORT NIP
-%token PBLOCK START END STEP SIZE
-%token PAYLOAD CONTENT REGEX JA3
-%token OBSERVATION DOMAIN POINT ID
-%token PF PFACTION PFREASON RULE INTERFACE
-%token <s> STRING 
-%token <value> NUMBER PORTNUM ICMP_TYPE ICMP_CODE
+%token EQ LT GT LE GE
+%token ANY NOT IDENT COUNT
+%token IP IPV4 IPV6 NET
+%token SRC DST IN OUT PREV NEXT BGP ROUTER INGRESS EGRESS
+%token NAT XLATE TUN
+%token ENGINE ENGINETYPE ENGINEID EXPORTER
+%token DURATION PPS BPS BPP FLAGS
+%token PROTO PORT AS IF VLAN MPLS MAC ICMP ICMPTYPE ICMPCODE
+%token PACKETS BYTES FLOWS 
+%token MASK FLOWDIR TOS FWDSTAT LATENCY ASA ACL PAYLOAD GEO VRF
+%token OBSERVATION PF
+%token <s> STRING
+%token <value> NUMBER
 %type <value> expr
-%type <param> dqual term comp acl inout
-%type <list> iplist ullist
+%type <param> dqual term comp
+%type <list> iplist u64list
 
 %left	'+' OR
 %left	'*' AND
@@ -163,2178 +192,301 @@ prog: 		/* empty */
 	;
 
 term:	ANY { /* this is an unconditionally true expression, as a filter applies in any case */
-		$$.self = NewBlock(OffsetProto, 0, 0, CMP_EQ, FUNC_NONE, (void *)-1 ); 
-	}
-
-	| IDENT STRING {	
-		if ( !ScreenIdentString($2) ) {
-			yyerror("Illegal ident string");
-			YYABORT;
-		}
-
-		uint32_t	index = AddIdent($2);
-		$$.self = NewBlock(0, 0, index, CMP_IDENT, FUNC_NONE, NULL ); 
+		data_t data = {.dataVal=1};
+		$$.self = NewElement(EXnull, 0, 0, 0, CMP_EQ, FUNC_NONE, data);
 	}
 
 	| IPV4 { 
-		$$.self = NewBlock(OffsetRecordMFlags, (1LL << ShiftRecordMFlags)  & MaskRecordMFlags, 
-					(0LL << ShiftRecordMFlags)  & MaskRecordMFlags, CMP_EQ, FUNC_NONE, NULL); 
+		$$.self = NewElement(EXipv4FlowID, OFFsrc4Addr, 0, 0, CMP_EQ, FUNC_NONE, NULLPtr); 
 	}
 
 	| IPV6 { 
-		$$.self = NewBlock(OffsetRecordMFlags, (1LL << ShiftRecordMFlags)  & MaskRecordMFlags, 
-					(1LL << ShiftRecordMFlags)  & MaskRecordMFlags, CMP_EQ, FUNC_NONE, NULL); 
+		$$.self = NewElement(EXipv6FlowID, OFFsrc6Addr, 0, 0, CMP_EQ, FUNC_NONE, NULLPtr); 
 	}
 
-	| PROTO NUMBER { 
-		int64_t	proto;
-		proto = $2;
-
-		if ( proto > 255 ) {
-			yyerror("Protocol number > 255");
-			YYABORT;
-		}
-		if ( proto < 0 ) {
-			yyerror("Unknown protocol");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetProto, MaskProto, (proto << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL); 
-
-	}
-
-	| PROTO STRING { 
-		int64_t	proto;
-		proto = ProtoNum($2);
-
-		if ( proto > 255 ) {
-			yyerror("Protocol number > 255");
-			YYABORT;
-		}
-		if ( proto < 0 ) {
-			yyerror("Unknown protocol");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetProto, MaskProto, (proto << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL); 
-	}
-
-	| TUN PROTO NUMBER { 
-		int64_t	proto;
-		proto = $3;
-
-		if ( proto > 255 ) {
-			yyerror("Tunnel protocol number > 255");
-			YYABORT;
-		}
-		if ( proto < 0 ) {
-			yyerror("Unknown tunnel protocol");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetTUNPROTO, MaskTUNPROTO, (proto << ShiftTUNPROTO)  & MaskTUNPROTO, CMP_EQ, FUNC_NONE, NULL); 
-
-	}
-
-	| TUN PROTO STRING { 
-		int64_t	proto;
-		proto = ProtoNum($3);
-
-		if ( proto > 255 ) {
-			yyerror("Tunnel protocol number > 255");
-			YYABORT;
-		}
-		if ( proto < 0 ) {
-			yyerror("Unknown tunnel protocol");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetTUNPROTO, MaskTUNPROTO, (proto << ShiftTUNPROTO)  & MaskTUNPROTO, CMP_EQ, FUNC_NONE, NULL); 
-	}
-
-
-	| dqual PACKETS comp NUMBER { 
-
-		switch ( $1.direction ) {
-			case DIR_UNSPEC:
-			case DIR_IN: 
-				$$.self = NewBlock(OffsetPackets, MaskPackets, $4, $3.comp, FUNC_NONE, NULL); 
-				break;
-			case DIR_OUT: 
-				$$.self = NewBlock(OffsetOutPackets, MaskPackets, $4, $3.comp, FUNC_NONE, NULL); 
-				break;
-			default:
-				/* should never happen */
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End of switch
-
-	}
-
-	| dqual BYTES comp NUMBER {	
-
-		switch ( $1.direction ) {
-			case DIR_UNSPEC:
-			case DIR_IN: 
-				$$.self = NewBlock(OffsetBytes, MaskBytes, $4, $3.comp, FUNC_NONE, NULL); 
-				break;
-			case DIR_OUT: 
-				$$.self = NewBlock(OffsetOutBytes, MaskBytes, $4, $3.comp, FUNC_NONE, NULL); 
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End of switch
-
-	}
-
-	| FLOWS comp NUMBER {	
-			$$.self = NewBlock(OffsetAggrFlows, MaskFlows, $3, $2.comp, FUNC_NONE, NULL); 
-	}
-
-	| PPS comp NUMBER {	
-		$$.self = NewBlock(0, AnyMask, $3, $2.comp, FUNC_PPS, NULL); 
-	}
-
-	| BPS comp NUMBER {	
-		$$.self = NewBlock(0, AnyMask, $3, $2.comp, FUNC_BPS, NULL); 
-	}
-
-	| BPP comp NUMBER {	
-		$$.self = NewBlock(0, AnyMask, $3, $2.comp, FUNC_BPP, NULL); 
-	}
-
-	| DURATION comp NUMBER {	
-		$$.self = NewBlock(0, AnyMask, $3, $2.comp, FUNC_DURATION, NULL); 
-	}
-
-	| COUNT comp NUMBER {	
-		$$.self = NewBlock(OffsetFlowCount, MaskFlowCount, ($3 << ShiftFlowCount) & MaskFlowCount, $2.comp, FUNC_NONE, NULL); 
-	}
-
-	| dqual TOS comp NUMBER {	
-		if ( $4 > 255 ) {
-			yyerror("TOS must be 0..255");
-			YYABORT;
-		}
-
-		switch ( $1.direction ) {
-			case DIR_UNSPEC:
-			case SOURCE:
-				$$.self = NewBlock(OffsetTos, MaskTos, ($4 << ShiftTos) & MaskTos, $3.comp, FUNC_NONE, NULL); 
-				break;
-			case DESTINATION:
-				$$.self = NewBlock(OffsetDstTos, MaskDstTos, ($4 << ShiftDstTos) & MaskDstTos, $3.comp, FUNC_NONE, NULL); 
-				break;
-			case SOURCE_OR_DESTINATION: 
-				$$.self = Connect_OR(
-					NewBlock(OffsetTos, MaskTos, ($4 << ShiftTos) & MaskTos, $3.comp, FUNC_NONE, NULL),
-					NewBlock(OffsetDstTos, MaskDstTos, ($4 << ShiftDstTos) & MaskDstTos, $3.comp, FUNC_NONE, NULL)
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetTos, MaskTos, ($4 << ShiftTos) & MaskTos, $3.comp, FUNC_NONE, NULL),
-					NewBlock(OffsetDstTos, MaskDstTos, ($4 << ShiftDstTos) & MaskDstTos, $3.comp, FUNC_NONE, NULL)
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-			}
-	}
-
-	| NFVERSION comp NUMBER	{	
-		if ( $3 > 10 ) {
-			yyerror("Netflow version must be <= 10");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetRecordVersion, MaskRecordVersion, ($3 << ShiftRecordVersion) & MaskRecordVersion, $2.comp, FUNC_NONE, NULL); 
-	}
-
-	| FLAGS comp NUMBER	{	
-		if ( $3 > 63 ) {
-			yyerror("Flags must be 0..63");
-			YYABORT;
-		}
-		$$.self = Connect_AND(
-			// imply flags with proto TCP
-			NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_TCP << ShiftProto) & MaskProto, CMP_EQ, FUNC_NONE, NULL),
-			NewBlock(OffsetFlags, MaskFlags, ($3 << ShiftFlags) & MaskFlags, $2.comp, FUNC_NONE, NULL)
-		);
-	}
-
-	| FLAGS STRING	{	
-		uint64_t fl = 0;
-		int cnt     = 0;
-		size_t	len = strlen($2);
-
-		if ( len > 7 ) {
-			yyerror("Too many flags");
-			YYABORT;
-		}
-
-		if ( strchr($2, 'F') ) { fl |=  1; cnt++; }
-		if ( strchr($2, 'S') ) { fl |=  2; cnt++; }
-		if ( strchr($2, 'R') ) { fl |=  4; cnt++; }
-		if ( strchr($2, 'P') ) { fl |=  8; cnt++; }
-		if ( strchr($2, 'A') ) { fl |=  16; cnt++; }
-		if ( strchr($2, 'U') ) { fl |=  32; cnt++; }
-		if ( strchr($2, 'X') ) { fl =  63; cnt++; }
-
-		if ( cnt != len ) {
-			yyerror("Too many flags");
-			YYABORT;
-		}
-
-		$$.self = Connect_AND(
-			// imply flags with proto TCP
-			NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_TCP << ShiftProto) & MaskProto, CMP_EQ, FUNC_NONE, NULL),
-			NewBlock(OffsetFlags, (fl << ShiftFlags) & MaskFlags, (fl << ShiftFlags) & MaskFlags, CMP_FLAGS, FUNC_NONE, NULL)
-		);
-	}
-
-	| dqual IP STRING { 	
-		int af, bytes, ret;
-
-		ret = parse_ip(&af, $3, IPstack, &bytes, ALLOW_LOOKUP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Error parsing IP address.");
-			YYABORT;
-		}
-
-		// ret == -1 will never happen here, as ALLOW_LOOKUP is set
-		if ( ret == -2 ) {
-			// could not resolv host => 'not any'
-			$$.self = Invert(NewBlock(OffsetProto, 0, 0, CMP_EQ, FUNC_NONE, NULL )); 
-		} else {
-			uint64_t offsets[4] = {OffsetSrcIPv6a, OffsetSrcIPv6b, OffsetDstIPv6a, OffsetDstIPv6b };
-			if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
-				yyerror("incomplete IP address");
-				YYABORT;
-			}
-
-			switch ( $1.direction ) {
-				case SOURCE:
-				case DESTINATION:
-					$$.self = ChainHosts(offsets, IPstack, num_ip, $1.direction);
-					break;
-				case DIR_UNSPEC:
-				case SOURCE_OR_DESTINATION: {
-					uint32_t src = ChainHosts(offsets, IPstack, num_ip, SOURCE);
-					uint32_t dst = ChainHosts(offsets, IPstack, num_ip, DESTINATION);
-					$$.self = Connect_OR(src, dst);
-					} break;
-				case SOURCE_AND_DESTINATION: {
-					uint32_t src = ChainHosts(offsets, IPstack, num_ip, SOURCE);
-					uint32_t dst = ChainHosts(offsets, IPstack, num_ip, DESTINATION);
-					$$.self = Connect_AND(src, dst);
-					} break;
-				default:
-					yyerror("This token is not expected here!");
-					YYABORT;
-	
-			} // End of switch
-
-		}
-	}
-
-	| dqual TUNIP STRING { 	
-		int af, bytes, ret;
-
-		ret = parse_ip(&af, $3, IPstack, &bytes, ALLOW_LOOKUP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Error parsing IP address.");
-			YYABORT;
-		}
-
-		// ret == -1 will never happen here, as ALLOW_LOOKUP is set
-		if ( ret == -2 ) {
-			// could not resolv host => 'not any'
-			$$.self = Invert(NewBlock(OffsetProto, 0, 0, CMP_EQ, FUNC_NONE, NULL )); 
-		} else {
-			uint64_t offsets[4] = {OffsetTUNSRCIP, OffsetTUNSRCIP+1, OffsetTUNDSTIP, OffsetTUNDSTIP+1 };
-			if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
-				yyerror("incomplete IP address");
-				YYABORT;
-			}
-
-			switch ( $1.direction ) {
-				case SOURCE:
-				case DESTINATION:
-					$$.self = ChainHosts(offsets, IPstack, num_ip, $1.direction);
-					break;
-				case DIR_UNSPEC:
-				case SOURCE_OR_DESTINATION: {
-					uint32_t src = ChainHosts(offsets, IPstack, num_ip, SOURCE);
-					uint32_t dst = ChainHosts(offsets, IPstack, num_ip, DESTINATION);
-					$$.self = Connect_OR(src, dst);
-					} break;
-				case SOURCE_AND_DESTINATION: {
-					uint32_t src = ChainHosts(offsets, IPstack, num_ip, SOURCE);
-					uint32_t dst = ChainHosts(offsets, IPstack, num_ip, DESTINATION);
-					$$.self = Connect_AND(src, dst);
-					} break;
-				default:
-					yyerror("This token is not expected here!");
-					YYABORT;
-	
-			} // End of switch
-
-		}
-	}
-
-	| dqual IP IN '[' iplist ']' { 	
-
-		switch ( $1.direction ) {
-			case SOURCE:
-				$$.self = NewBlock(OffsetSrcIPv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 );
-				break;
-			case DESTINATION:
-				$$.self = NewBlock(OffsetDstIPv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 );
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetSrcIPv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 ),
-					NewBlock(OffsetDstIPv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 )
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetSrcIPv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 ),
-					NewBlock(OffsetDstIPv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 )
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		}
-	}
-
-	| NEXT IP STRING { 	
-		int af, bytes, ret;
-
-		ret = parse_ip(&af, $3, IPstack, &bytes, STRICT_IP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Error parsing IP address.");
-			YYABORT;
-		}
-
-		if ( ret == -1 ) {
-			yyerror("IP address required - hostname not allowed here.");
-			YYABORT;
-		}
-		// ret == -2 will never happen here, as STRICT_IP is set
-
-		if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
-			yyerror("incomplete IP address");
-			YYABORT;
-		}
-
-		$$.self = Connect_AND(
-			NewBlock(OffsetNexthopv6b, MaskIPv6, IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-			NewBlock(OffsetNexthopv6a, MaskIPv6, IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-		);
-	}
-
-	| NEXT IP IN '[' iplist ']' { 	
-
-		$$.self = NewBlock(OffsetNexthopv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 );
-
-	}
-
-	| BGPNEXTHOP IP STRING { 	
-		int af, bytes, ret;
-
-		ret = parse_ip(&af, $3, IPstack, &bytes, STRICT_IP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Error parsing IP address.");
-			YYABORT;
-		}
-
-		if ( ret == -1 ) {
-			yyerror("IP address required - hostname not allowed here.");
-			YYABORT;
-		}
-		// ret == -2 will never happen here, as STRICT_IP is set
-
-		if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
-			yyerror("incomplete IP address");
-			YYABORT;
-		}
-
-		$$.self = Connect_AND(
-			NewBlock(OffsetBGPNexthopv6b, MaskIPv6, IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-			NewBlock(OffsetBGPNexthopv6a, MaskIPv6, IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-		);
-	}
-
-	| ROUTER IP STRING { 	
-		int af, bytes, ret;
-
-		ret = parse_ip(&af, $3, IPstack, &bytes, STRICT_IP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Error parsing IP address.");
-			YYABORT;
-		}
-
-		if ( ret == -1 ) {
-			yyerror("IP address required - hostname not allowed here.");
-			YYABORT;
-		}
-		// ret == -2 will never happen here, as STRICT_IP is set
-
-		if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
-			yyerror("incomplete IP address");
-			YYABORT;
-		}
-
-		$$.self = Connect_AND(
-			NewBlock(OffsetRouterv6b, MaskIPv6, IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-			NewBlock(OffsetRouterv6a, MaskIPv6, IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-		);
-	}
-
-	| CLIENT LATENCY comp NUMBER { 	
-		$$.self = NewBlock(OffsetClientLatency, MaskLatency, $4, $3.comp, FUNC_NONE, NULL); 
-	}
-
-	| SERVER LATENCY comp NUMBER { 	
-		$$.self = NewBlock(OffsetServerLatency, MaskLatency, $4, $3.comp, FUNC_NONE, NULL); 
-	}
-
-	| APP LATENCY comp NUMBER { 	
-		$$.self = NewBlock(OffsetAppLatency, MaskLatency, $4, $3.comp, FUNC_NONE, NULL); 
-	}
-
-	| SYSID NUMBER { 	
-		if ( $2 > 255 ) {
-			yyerror("Router SysID expected between be 1..255");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetExporterSysID, MaskExporterSysID, ($2 << ShiftExporterSysID) & MaskExporterSysID, CMP_EQ, FUNC_NONE, NULL); 
-	}
-
-	| dqual PORT comp NUMBER {	
-		if ( $4 > 65535 ) {
-			yyerror("Port outside of range 0..65535");
-			YYABORT;
-		}
-
-		switch ( $1.direction ) {
-			case SOURCE:
-				$$.self = NewBlock(OffsetPort, MaskSrcPort, ($4 << ShiftSrcPort) & MaskSrcPort, $3.comp, FUNC_NONE, NULL );
-				break;
-			case DESTINATION:
-				$$.self = NewBlock(OffsetPort, MaskDstPort, ($4 << ShiftDstPort) & MaskDstPort, $3.comp, FUNC_NONE, NULL );
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetPort, MaskSrcPort, ($4 << ShiftSrcPort) & MaskSrcPort, $3.comp, FUNC_NONE, NULL ),
-					NewBlock(OffsetPort, MaskDstPort, ($4 << ShiftDstPort) & MaskDstPort, $3.comp, FUNC_NONE, NULL )
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetPort, MaskSrcPort, ($4 << ShiftSrcPort) & MaskSrcPort, $3.comp, FUNC_NONE, NULL ),
-					NewBlock(OffsetPort, MaskDstPort, ($4 << ShiftDstPort) & MaskDstPort, $3.comp, FUNC_NONE, NULL )
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End switch
-
-	}
-
-| INGRESS VRF comp NUMBER {
-		if ( $4 > 0xFFFFFFFFLL ) {
-			yyerror("Invalid ingress vrf ID");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetIVRFID, MaskIVRFID, ( $4 << ShiftIVRFID) & MaskIVRFID, $3.comp, FUNC_NONE, NULL );
-	}
-
-	| EGRESS VRF comp NUMBER {
-		if ( $4 > 0xFFFFFFFFLL ) {
-			yyerror("Invalid egress vrf ID");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetEVRFID, MaskEVRFID, ( $4 << ShiftEVRFID) & MaskEVRFID, $3.comp, FUNC_NONE, NULL );
-	}
-
-| PF PFACTION STRING {
-			uint64_t index = pfActionNr($3);
-			if ( index < 0 ) {
-				yyerror("Invalid pf action");
-				printf("Possible pf action values: ");
-				pfListActions();
-			} else {
-				$$.self = NewBlock(OffsetPfInfo, MaskPfAction, ( index << ShiftPfAction) & MaskPfAction, CMP_EQ, FUNC_NONE, NULL );
-			}
-}
-
-| PF PFACTION NAT {
-			uint64_t index = pfActionNr("nat");
-			if ( index < 0 ) {
-				yyerror("Invalid pf action");
-				printf("Possible pf action values: ");
-				pfListActions();
-			} else {
-				$$.self = NewBlock(OffsetPfInfo, MaskPfAction, ( index << ShiftPfAction) & MaskPfAction, CMP_EQ, FUNC_NONE, NULL );
-			}
-}
-
-| PF PFREASON STRING {
-			uint64_t index = pfReasonNr($3);
-			if ( index < 0 ) {
-				yyerror("Invalid pf reason");
-				printf("Possible pf reason values: ");
-				pfListReasons();
-			} else {
-				$$.self = NewBlock(OffsetPfInfo, MaskPfReason, ( index << ShiftPfReason) & MaskPfReason, CMP_EQ, FUNC_NONE, NULL );
-			}
-}
-
-| PF INTERFACE STRING {
-	union {
-		char ifName[16];
-		uint64_t val[2];
-	} ifValue = {0};
-	size_t len = strlen($3);
-	if ( len > 15 ) {
-				yyerror("Invalid pf interface name length");
-	}
-	memcpy(ifValue.ifName, $3, len);
-	$$.self = Connect_AND(
-					NewBlock(OffsetPfIfname, MaskPfIfname, ifValue.val[0], CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetPfIfname+1, MaskPfIfname, ifValue.val[1], CMP_EQ, FUNC_NONE, NULL )
-				);
-}
-
-| PF RULE NUMBER {
-	$$.self = NewBlock(OffsetPfInfo, MaskPfRulenr, ( $3 << ShiftPfRulenr) & MaskPfRulenr, CMP_EQ, FUNC_NONE, NULL );
-}
-
-| PF DIR IN {
-	$$.self = NewBlock(OffsetPfInfo, MaskPfDir, ( 1LL << ShiftPfDir) & MaskPfDir, CMP_EQ, FUNC_NONE, NULL );
-}
-
-| PF DIR OUT {
-	$$.self = NewBlock(OffsetPfInfo, MaskPfDir, ( 0LL << ShiftPfDir) & MaskPfDir, CMP_EQ, FUNC_NONE, NULL );
-}
-
-	| dqual PORT IN PBLOCK {	
-#ifdef NSEL
-		switch ( $1.direction ) {
-			case SOURCE:
-					$$.self = NewBlock(OffsetPort, MaskSrcPort, ShiftSrcPort, CMP_EQ, FUNC_PBLOCK, NULL );
-				break;
-			case DESTINATION:
-					$$.self = NewBlock(OffsetPort, MaskDstPort, ShiftDstPort, CMP_EQ, FUNC_PBLOCK, NULL );
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetPort, MaskSrcPort, ShiftSrcPort, CMP_EQ, FUNC_PBLOCK, NULL ),
-					NewBlock(OffsetPort, MaskDstPort, ShiftDstPort, CMP_EQ, FUNC_PBLOCK, NULL )
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End switch
-
-#else
-		yyerror("NAT filters not available");
-		YYABORT;
-#endif
-	}
-
-	| dqual PORT IN '[' ullist ']' { 	
-		struct ULongListNode *node;
-		ULongtree_t *root = NULL;
-
-		if ( $1.direction == DIR_UNSPEC || $1.direction == SOURCE_OR_DESTINATION || $1.direction == SOURCE_AND_DESTINATION ) {
-			// src and/or dst port
-			// we need a second rbtree due to different shifts for src and dst ports
-			root = malloc(sizeof(ULongtree_t));
-
-			struct ULongListNode *n;
-			if ( root == NULL) {
-				yyerror("malloc() error");
-				YYABORT;
-			}
-			RB_INIT(root);
-
-			RB_FOREACH(node, ULongtree, (ULongtree_t *)$5) {
-				if ( node->value > 65535 ) {
-					yyerror("Port outside of range 0..65535");
-					YYABORT;
-				}
-				if ((n = malloc(sizeof(struct ULongListNode))) == NULL) {
-					yyerror("malloc() error");
-					YYABORT;
-				}
-				n->value 	= (node->value << ShiftDstPort) & MaskDstPort;
-				node->value = (node->value << ShiftSrcPort) & MaskSrcPort;
-				RB_INSERT(ULongtree, root, n);
-			}
-		}
-
-		switch ( $1.direction ) {
-			case SOURCE:
-				RB_FOREACH(node, ULongtree, (ULongtree_t *)$5) {
-					node->value = (node->value << ShiftSrcPort) & MaskSrcPort;
-				}
-				$$.self = NewBlock(OffsetPort, MaskSrcPort, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 );
-				break;
-			case DESTINATION:
-				RB_FOREACH(node, ULongtree, (ULongtree_t *)$5) {
-					node->value = (node->value << ShiftDstPort) & MaskDstPort;
-				}
-				$$.self = NewBlock(OffsetPort, MaskDstPort, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 );
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetPort, MaskSrcPort, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 ),
-					NewBlock(OffsetPort, MaskDstPort, 0, CMP_ULLIST, FUNC_NONE, (void *)root )
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetPort, MaskSrcPort, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 ),
-					NewBlock(OffsetPort, MaskDstPort, 0, CMP_ULLIST, FUNC_NONE, (void *)root )
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End of switch
-	}
-
-	| ICMP_TYPE NUMBER {
-		if ( $2 > 255 ) {
-			yyerror("ICMP type of range 0..255");
-			YYABORT;
-		}
-		$$.self = Connect_AND(
-			// imply ICMP-TYPE with a proto ICMP block
-			Connect_OR (
-				NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_ICMP << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL), 
-				NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_ICMPV6 << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL)
-			),
-			NewBlock(OffsetICMP, MaskICMPtype, ($2 << ShiftICMPtype) & MaskICMPtype, CMP_EQ, FUNC_NONE, NULL )
-		);
-	}
-
-	| ICMP_CODE NUMBER {
-		if ( $2 > 255 ) {
-			yyerror("ICMP code of range 0..255");
-			YYABORT;
-		}
-		$$.self = Connect_AND(
-			// imply ICMP-CODE with a proto ICMP block
-			Connect_OR (
-				NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_ICMP << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL), 
-				NewBlock(OffsetProto, MaskProto, ((uint64_t)IPPROTO_ICMPV6 << ShiftProto)  & MaskProto, CMP_EQ, FUNC_NONE, NULL)
-			),
-			NewBlock(OffsetICMP, MaskICMPcode, ($2 << ShiftICMPcode) & MaskICMPcode, CMP_EQ, FUNC_NONE, NULL )
-		);
-	}
-
-	| ENGINE_TYPE comp NUMBER {
-		if ( $3 > 255 ) {
-			yyerror("Engine type of range 0..255");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetRouterID, MaskEngineType, ($3 << ShiftEngineType) & MaskEngineType, $2.comp, FUNC_NONE, NULL);
-	}
-
-	| ENGINE_ID comp NUMBER {
-		if ( $3 > 255 ) {
-			yyerror("Engine ID of range 0..255");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetRouterID, MaskEngineID, ($3 << ShiftEngineID) & MaskEngineID, $2.comp, FUNC_NONE, NULL);
-	}
- 
-	| EXPORTER comp NUMBER {
-		if ( $3 > 65535 ) {
-			yyerror("Exporter ID of range 0..65535");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetExporterSysID, MaskExporterSysID, ($3 << ShiftExporterSysID) & MaskExporterSysID, $2.comp, FUNC_NONE, NULL);
-	}
- 
-
-| LABEL STRING {	
-		if ( strlen($2) > 16 ) {
-			yyerror("Size flowlabel of range 1..16");
-			YYABORT;
-		}
-
-		$$.self = NewBlock(0, 0, 0, CMP_FLOWLABEL, FUNC_NONE, (void *)strdup($2)); 
-	}
-
-	| ASA EVENT STRING {
-#ifdef NSEL
-		if ( strncasecmp($3,"ignore", 6) == 0) {
-			$$.self = NewBlock(OffsetConnID, MaskFWevent, ( NSEL_EVENT_IGNORE << ShiftFWevent) & MaskFWevent, CMP_EQ, FUNC_NONE, NULL );
-		} else if( strncasecmp($3,"create", 6) == 0) {
-			$$.self = NewBlock(OffsetConnID, MaskFWevent, ( NSEL_EVENT_CREATE << ShiftFWevent) & MaskFWevent, CMP_EQ, FUNC_NONE, NULL );
-		} else if( strncasecmp($3,"term", 4) == 0 || strncasecmp($3,"delete", 6) == 0) {
-			$$.self = NewBlock(OffsetConnID, MaskFWevent, ( NSEL_EVENT_DELETE << ShiftFWevent) & MaskFWevent, CMP_EQ, FUNC_NONE, NULL );
-		} else if  (strncasecmp($3,"deny", 4) == 0) {
-			$$.self = NewBlock(OffsetConnID, MaskFWevent, ( NSEL_EVENT_DENIED << ShiftFWevent) & MaskFWevent, CMP_EQ, FUNC_NONE, NULL );
-		} else if  (strncasecmp($3,"alert", 5) == 0) {
-			$$.self = NewBlock(OffsetConnID, MaskFWevent, ( NSEL_EVENT_ALERT << ShiftFWevent) & MaskFWevent, CMP_EQ, FUNC_NONE, NULL );
-		} else if  (strncasecmp($3,"update", 6) == 0) {
-			$$.self = NewBlock(OffsetConnID, MaskFWevent, ( NSEL_EVENT_UPDATE << ShiftFWevent) & MaskFWevent, CMP_EQ, FUNC_NONE, NULL );
-		} else {
-			yyerror("Unknown asa event");
-			YYABORT;
-		}
-#else
-		yyerror("NSEL/ASA filters not available");
-		YYABORT;
-#endif
-	}
-
-	| ASA EVENT comp NUMBER {
-#ifdef NSEL
-		if ( $4 > 255 ) {
-			yyerror("Invalid xevent ID");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetConnID, MaskFWevent, ( $4 << ShiftFWevent) & MaskFWevent, $3.comp, FUNC_NONE, NULL );
-#else
-		yyerror("NSEL/ASA filters not available");
-		YYABORT;
-#endif
-	}
-
-	| ASA EVENT DENIED inout {
-#ifdef NSEL
-		uint64_t xevent = 0;
-		if ( $4.inout == INGRESS ) {
-			xevent = 1001;
-		} else if ( $4.inout == EGRESS ) {
-			xevent = 1002;
-		} else {
-				yyerror("Invalid inout token");
-				YYABORT;
-		}
-		$$.self = Connect_AND(
-			NewBlock(OffsetConnID, MaskFWevent, ( NSEL_EVENT_DENIED << ShiftFWevent) & MaskFWevent, CMP_EQ, FUNC_NONE, NULL ),
-			NewBlock(OffsetConnID, MaskFWXevent, ( xevent << ShiftFWXevent) & MaskFWXevent, CMP_EQ, FUNC_NONE, NULL )
-		);
-#else
-		yyerror("NSEL/ASA filters not available");
-		YYABORT;
-#endif
-	}
-	| ASA EVENT DENIED STRING {
-#ifdef NSEL
-		uint64_t xevent = 0;
-		if( strncasecmp($4,"interface", 9) == 0) {
-			xevent = 1003;
-		} else if( strncasecmp($4,"nosyn", 5) == 0) {
-			xevent = 1004;
-		} else {
-			xevent = (uint64_t)strtol($4, (char **)NULL, 10);
-			if ( (xevent == 0 && errno == EINVAL) || xevent > 65535 ) {
-				yyerror("Invalid xevent ID");
-				YYABORT;
-			}
-		}
-		$$.self = Connect_AND(
-			NewBlock(OffsetConnID, MaskFWevent, ( NSEL_EVENT_DENIED << ShiftFWevent) & MaskFWevent, CMP_EQ, FUNC_NONE, NULL ),
-			NewBlock(OffsetConnID, MaskFWXevent, ( xevent << ShiftFWXevent) & MaskFWXevent, CMP_EQ, FUNC_NONE, NULL )
-		);
-#else
-		yyerror("NSEL/ASA filters not available");
-		YYABORT;
-#endif
-	}
-
-	| ASA XEVENT comp NUMBER {
-#ifdef NSEL
-		if ( $4 > 65535 ) {
-			yyerror("Invalid xevent ID");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetConnID, MaskFWXevent, ( $4 << ShiftFWXevent) & MaskFWXevent, $3.comp, FUNC_NONE, NULL );
-#else
-		yyerror("NSEL/ASA filters not available");
-		YYABORT;
-#endif
-	}
-
-	| dqual XNET STRING '/' NUMBER { 
-#ifdef NSEL
-		int af, bytes, ret;
-		uint64_t	mask[2];
-
-		ret = parse_ip(&af, $3, IPstack, &bytes, STRICT_IP, &num_ip);
-		if ( ret == 0 ) {
-			yyerror("Invalid IP address");
-			YYABORT;
-		}
-		if ( ret == -1 ) {
-			yyerror("IP address required - hostname not allowed here.");
-			YYABORT;
-		}
-		// ret == -2 will never happen here, as STRICT_IP is set
-
-
-		if ( $5 > (bytes*8) ) {
-			yyerror("Too many netbits for this IP address");
-			YYABORT;
-		}
-
-		if ( af == PF_INET ) {
-			mask[0] = 0xffffffffffffffffLL;
-			mask[1] = 0xffffffffffffffffLL << ( 32 - $5 );
-		} else {	// PF_INET6
-			if ( $5 > 64 ) {
-				mask[0] = 0xffffffffffffffffLL;
-				mask[1] = 0xffffffffffffffffLL << ( 128 - $5 );
-			} else {
-				mask[0] = 0xffffffffffffffffLL << ( 64 - $5 );
-				mask[1] = 0;
-			}
-		}
-		// IP aadresses are stored in network representation 
-		mask[0]	 = mask[0];
-		mask[1]	 = mask[1];
-
-		IPstack[0] &= mask[0];
-		IPstack[1] &= mask[1];
-
-		switch ( $1.direction ) {
-			case SOURCE:
-				$$.self = Connect_AND(
-					NewBlock(OffsetXLATESRCv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetXLATESRCv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-				);
-				break;
-			case DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetXLATEDSTv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetXLATEDSTv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-				);
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					Connect_AND(
-						NewBlock(OffsetXLATESRCv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetXLATESRCv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-					),
-					Connect_AND(
-						NewBlock(OffsetXLATEDSTv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetXLATEDSTv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-					)
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					Connect_AND(
-						NewBlock(OffsetXLATESRCv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetXLATESRCv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-					),
-					Connect_AND(
-						NewBlock(OffsetXLATEDSTv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetXLATEDSTv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-					)
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End of switch
-
-#else
-		yyerror("NSEL/ASA filters not available");
-		YYABORT;
-#endif
-	}
-
-	| dqual XPORT comp NUMBER {	
-#ifdef NSEL
-		if ( $4 > 65535 ) {
-			yyerror("Port outside of range 0..65535");
-			YYABORT;
-		}
-
-		switch ( $1.direction ) {
-			case SOURCE:
-				$$.self = NewBlock(OffsetXLATEPort, MaskXLATESRCPORT, ($4 << ShiftXLATESRCPORT) & MaskXLATESRCPORT, $3.comp, FUNC_NONE, NULL );
-				break;
-			case DESTINATION:
-				$$.self = NewBlock(OffsetXLATEPort, MaskXLATEDSTPORT, ($4 << ShiftXLATEDSTPORT) & MaskXLATEDSTPORT, $3.comp, FUNC_NONE, NULL );
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetXLATEPort, MaskXLATESRCPORT, ($4 << ShiftXLATESRCPORT) & MaskXLATESRCPORT, $3.comp, FUNC_NONE, NULL ),
-					NewBlock(OffsetXLATEPort, MaskXLATEDSTPORT, ($4 << ShiftXLATEDSTPORT) & MaskXLATEDSTPORT, $3.comp, FUNC_NONE, NULL )
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetXLATEPort, MaskXLATESRCPORT, ($4 << ShiftXLATESRCPORT) & MaskXLATESRCPORT, $3.comp, FUNC_NONE, NULL ),
-					NewBlock(OffsetXLATEPort, MaskXLATEDSTPORT, ($4 << ShiftXLATEDSTPORT) & MaskXLATEDSTPORT, $3.comp, FUNC_NONE, NULL )
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End switch
-#else
-		yyerror("NSEL/ASA filters not available");
-		YYABORT;
-#endif
-
-	}
-
-	| inout acl comp NUMBER {
-#ifdef NSEL
-		uint64_t offset, mask, shift;
-		if ( $1.inout == INGRESS ) {
-			switch ($2.acl) {
-				case ACL:
-					offset = OffsetIngressAclId;
-					mask   = MaskIngressAclId;	
-					shift  = ShiftIngressAclId;
-					break;
-				case ACE:
-					offset = OffsetIngressAceId;
-					mask   = MaskIngressAceId;	
-					shift  = ShiftIngressAceId;
-					break;
-				case XACE:
-					offset = OffsetIngressGrpId;
-					mask   = MaskIngressGrpId;	
-					shift  = ShiftIngressGrpId;
-					break;
-				default:
-					yyerror("Invalid ACL specifier");
-					YYABORT;
-			}
-		} else if ( $1.inout == EGRESS && $$.acl == ACL ) {
-			offset = OffsetEgressAclId;
-			mask   = MaskEgressAclId;	
-			shift  = ShiftEgressAclId;
-		} else {
-			yyerror("ingress/egress syntax error");
-			YYABORT;
-		}
-		$$.self = NewBlock(offset, mask, ($4 << shift) & mask , $3.comp, FUNC_NONE, NULL );
-
-#else
-		yyerror("NSEL/ASA filters not available");
-		YYABORT;
-#endif
-	}
-
-	| NAT EVENT STRING {
-#ifdef NSEL
-		if ( strncasecmp($3,"invalid", 7) == 0) {
-			$$.self = NewBlock(OffsetNATevent, MasNATevent, ( NEL_EVENT_INVALID << ShiftNATevent) & MasNATevent, CMP_EQ, FUNC_NONE, NULL );
-		} else if( strncasecmp($3,"add", 3) == 0 || strncasecmp($3,"create", 6) == 0) {
-			$$.self = NewBlock(OffsetNATevent, MasNATevent, ( NEL_EVENT_ADD << ShiftNATevent) & MasNATevent, CMP_EQ, FUNC_NONE, NULL );
-		} else if( strncasecmp($3,"delete", 6) == 0) {
-			$$.self = NewBlock(OffsetNATevent, MasNATevent, ( NEL_EVENT_DELETE << ShiftNATevent) & MasNATevent, CMP_EQ, FUNC_NONE, NULL );
-		} else {
-			yyerror("Unknown nat event");
-			YYABORT;
-		}
-#else
-		yyerror("NAT filters not available");
-		YYABORT;
-#endif
-	}
-
-	| NAT EVENT comp NUMBER {
-#ifdef NSEL
-		if ( $4 > 255 ) {
-			yyerror("Invalid event ID");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetNATevent, MasNATevent, ( $4 << ShiftNATevent) & MasNATevent, $3.comp, FUNC_NONE, NULL );
-#else
-		yyerror("NAT filters not available");
-		YYABORT;
-#endif
-	}
-
-	
-
-	| PBLOCK START comp NUMBER {
-#ifdef NSEL
-		if ( $4 > 65536 ) {
-			yyerror("Invalid port");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetPortBlock, MaskPortBlockStart, ( $4 << ShiftPortBlockStart) & MaskPortBlockStart, $3.comp, FUNC_NONE, NULL );
-#else
-		yyerror("NAT filters not available");
-		YYABORT;
-#endif
-	}
-
-	| PBLOCK END comp NUMBER {
-#ifdef NSEL
-		if ( $4 > 65536 ) {
-			yyerror("Invalid port");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetPortBlock, MaskPortBlockEnd, ( $4 << ShiftPortBlockEnd) & MaskPortBlockEnd, $3.comp, FUNC_NONE, NULL );
-#else
-		yyerror("NAT filters not available");
-		YYABORT;
-#endif
-	}
-
-	| PBLOCK STEP comp NUMBER {
-#ifdef NSEL
-		if ( $4 > 65536 ) {
-			yyerror("Invalid port");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetPortBlock, MaskPortBlockStep, ( $4 << ShiftPortBlockStep) & MaskPortBlockStep, $3.comp, FUNC_NONE, NULL );
-#else
-		yyerror("NAT filters not available");
-		YYABORT;
-#endif
-	}
-
-	| PBLOCK SIZE comp NUMBER {
-#ifdef NSEL
-		if ( $4 > 65536 ) {
-			yyerror("Invalid port");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetPortBlock, MaskPortBlockSize, ( $4 << ShiftPortBlockSize) & MaskPortBlockSize, $3.comp, FUNC_NONE, NULL );
-#else
-		yyerror("NAT filters not available");
-		YYABORT;
-#endif
-	}
-
-	| dqual NPORT comp NUMBER {	
-#ifdef NSEL
-		if ( $4 > 65535 ) {
-			yyerror("Port outside of range 0..65535");
-			YYABORT;
-		}
-
-		switch ( $1.direction ) {
-			case SOURCE:
-				$$.self = NewBlock(OffsetXLATEPort, MaskXLATESRCPORT, ($4 << ShiftXLATESRCPORT) & MaskXLATESRCPORT, $3.comp, FUNC_NONE, NULL );
-				break;
-			case DESTINATION:
-				$$.self = NewBlock(OffsetXLATEPort, MaskXLATEDSTPORT, ($4 << ShiftXLATEDSTPORT) & MaskXLATEDSTPORT, $3.comp, FUNC_NONE, NULL );
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetXLATEPort, MaskXLATESRCPORT, ($4 << ShiftXLATESRCPORT) & MaskXLATESRCPORT, $3.comp, FUNC_NONE, NULL ),
-					NewBlock(OffsetXLATEPort, MaskXLATEDSTPORT, ($4 << ShiftXLATEDSTPORT) & MaskXLATEDSTPORT, $3.comp, FUNC_NONE, NULL )
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetXLATEPort, MaskXLATESRCPORT, ($4 << ShiftXLATESRCPORT) & MaskXLATESRCPORT, $3.comp, FUNC_NONE, NULL ),
-					NewBlock(OffsetXLATEPort, MaskXLATEDSTPORT, ($4 << ShiftXLATEDSTPORT) & MaskXLATEDSTPORT, $3.comp, FUNC_NONE, NULL )
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End switch
-#else
-		yyerror("NEL/NAT filters not available");
-		YYABORT;
-#endif
-
+	| IDENT STRING {
+	  $$.self  = AddIdent($2); if ( $$.self < 0 ) YYABORT;
 	}
 
-	| dqual NIP STRING { 	
-#ifdef NSEL
-		int af, bytes, ret;
-
-		ret = parse_ip(&af, $3, IPstack, &bytes, ALLOW_LOOKUP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Error parsing IP address.");
-			YYABORT;
-		}
-
-		// ret == -1 will never happen here, as ALLOW_LOOKUP is set
-		if ( ret == -2 ) {
-			// could not resolv host => 'not any'
-			$$.self = Invert(NewBlock(OffsetProto, 0, 0, CMP_EQ, FUNC_NONE, NULL )); 
-		} else {
-			uint64_t offsets[4] = {OffsetXLATESRCv6a, OffsetXLATESRCv6b, OffsetXLATEDSTv6a, OffsetXLATEDSTv6b };
-			if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
-				yyerror("incomplete IP address");
-				YYABORT;
-			}
-
-			switch ( $1.direction ) {
-				case SOURCE:
-				case DESTINATION:
-					$$.self = ChainHosts(offsets, IPstack, num_ip, $1.direction);
-					break;
-				case DIR_UNSPEC:
-				case SOURCE_OR_DESTINATION: {
-					uint32_t src = ChainHosts(offsets, IPstack, num_ip, SOURCE);
-					uint32_t dst = ChainHosts(offsets, IPstack, num_ip, DESTINATION);
-					$$.self = Connect_OR(src, dst);
-					} break;
-				case SOURCE_AND_DESTINATION: {
-					uint32_t src = ChainHosts(offsets, IPstack, num_ip, SOURCE);
-					uint32_t dst = ChainHosts(offsets, IPstack, num_ip, DESTINATION);
-					$$.self = Connect_AND(src, dst);
-					} break;
-				default:
-					yyerror("This token is not expected here!");
-					YYABORT;
-	
-			} // End of switch
-
-		}
-#else
-		yyerror("NSEL/ASA filters not available");
-		YYABORT;
-#endif
+	| COUNT comp NUMBER {
+		$$.self = NewElement(EXlocal, OFFflowCount, SIZEflowCount, $3, $2.comp, FUNC_NONE, NULLPtr); 
 	}
-
-
-	| PAYLOAD CONTENT STRING {
-		if (strlen($3)>64) {
-			yyerror("word too long");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_PAYLOAD, FUNC_NONE, $3); 
-	} 
-	 
 
-  | PAYLOAD REGEX STRING {
-		if (strlen($3)>64) {
-			yyerror("word too long");
-			YYABORT;
-		}
+	| ENGINETYPE comp NUMBER {
+	  $$.self  = AddEngineNum("type", $2.comp, $3); if ( $$.self < 0 ) YYABORT;
+  }
 
-		int err[2];
-		srx_Context *program = srx_CreateExt($3, strlen($3), "", err, NULL, NULL);
-		if ( !program ) {
-			yyerror("failed to compile regex");
-		}
-
-		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_REGEX, FUNC_NONE, (char *)program); 
-	} 
-
-  | PAYLOAD REGEX STRING STRING{
-		if (strlen($3)>64) {
-			yyerror("word too long");
-			YYABORT;
-		}
-
-		int err[2];
-		srx_Context *program = srx_CreateExt($3, strlen($3), $4, err, NULL, NULL);
-		if ( !program ) {
-			yyerror("failed to compile regex");
-		}
-
-		$$.self = NewBlock(OffsetPayload, 0, 0, CMP_REGEX, FUNC_NONE, (char *)program); 
-	} 
-
-	| PAYLOAD JA3 STRING {
-		union {
-			uint8_t u8[16];
-			uint64_t u64[2];
-		} ja3;
-
-		if ( strcasecmp($3, "defined") == 0) {
-			ja3.u64[0] = 0;
-			ja3.u64[1] = 0;
-			$$.self = Invert(Connect_AND(
-				NewBlock(OffsetJA3, MaskJA3, ja3.u64[0], CMP_EQ, FUNC_NONE, NULL ),
-				NewBlock(OffsetJA3+1, MaskJA3, ja3.u64[1], CMP_EQ, FUNC_NONE, NULL )
-			));
-		} else {
-			if (!IsMD5($3)) {
-				yyerror("not a ja3 hash");
-				YYABORT;
-			}
-
-			char *pos = $3;
-			for(int count = 0; count < 16; count++) {
-				sscanf(pos, "%2hhx", &ja3.u8[count]);
-				pos += 2;
-			}
-			$$.self = Connect_AND(
-				NewBlock(OffsetJA3, MaskJA3, ja3.u64[0], CMP_EQ, FUNC_NONE, NULL ),
-				NewBlock(OffsetJA3+1, MaskJA3, ja3.u64[1], CMP_EQ, FUNC_NONE, NULL )
-			);
-		}
-		ja3Filter = 1;
+	| ENGINEID comp NUMBER {
+	  $$.self  = AddEngineNum("id", $2.comp, $3); if ( $$.self < 0 ) YYABORT;
 	}
 
-	| dqual NIP IN '[' iplist ']' { 	
-#ifdef NSEL
-		switch ( $1.direction ) {
-			case SOURCE:
-				$$.self = NewBlock(OffsetXLATESRCv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 );
-				break;
-			case DESTINATION:
-				$$.self = NewBlock(OffsetXLATEDSTv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 );
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetXLATESRCv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 ),
-					NewBlock(OffsetXLATEDSTv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 )
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetXLATESRCv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 ),
-					NewBlock(OffsetXLATEDSTv6a, MaskIPv6, 0 , CMP_IPLIST, FUNC_NONE, (void *)$5 )
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		}
-#else
-		yyerror("NSEL/ASA filters not available");
-		YYABORT;
-#endif
+	| ENGINE STRING comp NUMBER {
+		$$.self  = AddEngineNum($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
 
-	| dqual AS comp NUMBER {	
-		if ( $4 > 0xfFFFFFFF ) {
-			yyerror("AS number of range");
-			YYABORT;
-		}
+	| EXPORTER STRING comp NUMBER {
+	  $$.self  = AddExporterNum($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
+  }
 
-		geoFilter = 1;
-		switch ( $1.direction ) {
-			case SOURCE:
-				$$.self = NewBlock(OffsetAS, MaskSrcAS, ($4 << ShiftSrcAS) & MaskSrcAS, $3.comp, FUNC_NONE, NULL );
-				break;
-			case DESTINATION:
-				$$.self = NewBlock(OffsetAS, MaskDstAS, ($4 << ShiftDstAS) & MaskDstAS, $3.comp, FUNC_NONE, NULL);
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetAS, MaskSrcAS, ($4 << ShiftSrcAS) & MaskSrcAS, $3.comp, FUNC_NONE, NULL ),
-					NewBlock(OffsetAS, MaskDstAS, ($4 << ShiftDstAS) & MaskDstAS, $3.comp, FUNC_NONE, NULL)
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetAS, MaskSrcAS, ($4 << ShiftSrcAS) & MaskSrcAS, $3.comp, FUNC_NONE, NULL ),
-					NewBlock(OffsetAS, MaskDstAS, ($4 << ShiftDstAS) & MaskDstAS, $3.comp, FUNC_NONE, NULL)
-				);
-				break;
-			case ADJ_PREV:
-				$$.self = NewBlock(OffsetBGPadj, MaskBGPadjPrev, ($4 << ShiftBGPadjPrev) & MaskBGPadjPrev, $3.comp, FUNC_NONE, NULL );
-				break;
-			case ADJ_NEXT:
-				$$.self = NewBlock(OffsetBGPadj, MaskBGPadjNext, ($4 << ShiftBGPadjNext) & MaskBGPadjNext, $3.comp, FUNC_NONE, NULL );
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End of switch
-
-	}
-
-	| dqual GEO STRING {	
-		int slot = AddGeo($1.direction, $3);
-		if ( slot == 0 )
-			YYABORT;
-		$$.self = slot;
+  | dqual PROTO NUMBER { 
+		$$.self = AddProto($1.direction, NULL, $3); if ( $$.self < 0 ) YYABORT; 
 	}
-
-	| dqual AS IN '[' ullist ']' { 	
-		struct ULongListNode *node;
-		ULongtree_t *root = NULL;
-
-		geoFilter = 1;
-		if ( $1.direction == DIR_UNSPEC || $1.direction == SOURCE_OR_DESTINATION || $1.direction == SOURCE_AND_DESTINATION ) {
-			// src and/or dst AS
-			// we need a second rbtree due to different shifts for src and dst AS
-			root = malloc(sizeof(ULongtree_t));
-
-			struct ULongListNode *n;
-			if ( root == NULL) {
-				yyerror("malloc() error");
-				YYABORT;
-			}
-			RB_INIT(root);
-
-			RB_FOREACH(node, ULongtree, (ULongtree_t *)$5) {
-				if ( node->value > 0xFFFFFFFFLL ) {
-					yyerror("AS number of range");
-					YYABORT;
-				}
-				if ((n = malloc(sizeof(struct ULongListNode))) == NULL) {
-					yyerror("malloc() error");
-					YYABORT;
-				}
-				n->value 	= (node->value << ShiftDstAS) & MaskDstAS;
-				node->value = (node->value << ShiftSrcAS) & MaskSrcAS;
-				RB_INSERT(ULongtree, root, n);
-			}
-		}
 
-		switch ( $1.direction ) {
-			case SOURCE:
-				RB_FOREACH(node, ULongtree, (ULongtree_t *)$5) {
-					node->value = (node->value << ShiftSrcAS) & MaskSrcAS;
-				}
-				$$.self = NewBlock(OffsetAS, MaskSrcAS, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 );
-				break;
-			case DESTINATION:
-				RB_FOREACH(node, ULongtree, (ULongtree_t *)$5) {
-					node->value = (node->value << ShiftDstAS) & MaskDstAS;
-				}
-				$$.self = NewBlock(OffsetAS, MaskDstAS, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 );
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetAS, MaskSrcAS, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 ),
-					NewBlock(OffsetAS, MaskDstAS, 0, CMP_ULLIST, FUNC_NONE, (void *)root )
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetAS, MaskSrcAS, 0, CMP_ULLIST, FUNC_NONE, (void *)$5 ),
-					NewBlock(OffsetAS, MaskDstAS, 0, CMP_ULLIST, FUNC_NONE, (void *)root )
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		}
-
+  | dqual PROTO STRING {
+		$$.self = AddProto($1.direction, $3, 0); if ( $$.self < 0 ) YYABORT;
 	}
-
-	| dqual MASK NUMBER {	
-		if ( $3 > 255 ) {
-			yyerror("Mask outside of range 0..255");
-			YYABORT;
-		}
-
-		switch ( $1.direction ) {
-			case SOURCE:
-				$$.self = NewBlock(OffsetMask, MaskSrcMask, ($3 << ShiftSrcMask) & MaskSrcMask, CMP_EQ, FUNC_NONE, NULL );
-				break;
-			case DESTINATION:
-				$$.self = NewBlock(OffsetMask, MaskDstMask, ($3 << ShiftDstMask) & MaskDstMask, CMP_EQ, FUNC_NONE, NULL );
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetMask, MaskSrcMask, ($3 << ShiftSrcMask) & MaskSrcMask, CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetMask, MaskDstMask, ($3 << ShiftDstMask) & MaskDstMask, CMP_EQ, FUNC_NONE, NULL )
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetMask, MaskSrcMask, ($3 << ShiftSrcMask) & MaskSrcMask, CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetMask, MaskDstMask, ($3 << ShiftDstMask) & MaskDstMask, CMP_EQ, FUNC_NONE, NULL )
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End switch
 
+	| dqual PORT comp NUMBER {
+		$$.self = AddPortNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
 	}
-
-	| dqual NET STRING STRING { 
-		int af, bytes, ret;
-		uint64_t	mask[2];
-		ret = parse_ip(&af, $3, IPstack, &bytes, STRICT_IP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Invalid IP address");
-			YYABORT;
-		}
-		
-		if ( ret == -1 ) {
-			yyerror("IP address required - hostname not allowed here.");
-			YYABORT;
-		}
-		// ret == -2 will never happen here, as STRICT_IP is set
-
-		if ( af != PF_INET ) {
-			yyerror("IP netmask syntax valid only for IPv4");
-			YYABORT;
-		}
-		if ( bytes != 4 ) {
-			yyerror("Need complete IP address");
-			YYABORT;
-		}
-
-		ret = parse_ip(&af, $4, mask, &bytes, STRICT_IP, &num_ip);
-		if ( ret == 0 ) {
-			yyerror("Invalid IP address");
-			YYABORT;
-		}
-		if ( ret == -1 ) {
-			yyerror("IP address required - hostname not allowed here.");
-			YYABORT;
-		}
-		// ret == -2 will never happen here, as STRICT_IP is set
 
-		if ( af != PF_INET || bytes != 4 ) {
-			yyerror("Invalid netmask for IPv4 address");
-			YYABORT;
-		}
-
-		IPstack[0] &= mask[0];
-		IPstack[1] &= mask[1];
-
-		switch ( $1.direction ) {
-			case SOURCE:
-				$$.self = Connect_AND(
-					NewBlock(OffsetSrcIPv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetSrcIPv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-				);
-				break;
-			case DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetDstIPv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetDstIPv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-				);
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					Connect_AND(
-						NewBlock(OffsetSrcIPv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetSrcIPv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-					),
-					Connect_AND(
-						NewBlock(OffsetDstIPv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetDstIPv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-					)
-				);		
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					Connect_AND(
-						NewBlock(OffsetSrcIPv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetSrcIPv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-					),
-					Connect_AND(
-						NewBlock(OffsetDstIPv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetDstIPv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-					)
-				);
-				break;
-			default:
-				/* should never happen */
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End of switch
-
+	| ICMPTYPE comp NUMBER {
+		$$.self = AddICMP("type", $2.comp, $3); if ( $$.self < 0 ) YYABORT; 
 	}
-
-	| dqual NET STRING '/' NUMBER { 
-		int af, bytes, ret;
-		uint64_t	mask[2];
-
-		if ( $5 <= 0 || $5 > 128 ){
-			yyerror("Invalid prefix length");
-			YYABORT;
-		}
-
-		ret = parse_ip(&af, $3, IPstack, &bytes, STRICT_IP, &num_ip);
-		if ( ret == 0 ) {
-			yyerror("Invalid IP address");
-			YYABORT;
-		}
-		if ( ret == -1 ) {
-			yyerror("IP address required - hostname not allowed here.");
-			YYABORT;
-		}
-		// ret == -2 will never happen here, as STRICT_IP is set
-
 
-		if ( $5 > (bytes*8) ) {
-			yyerror("Too many netbits for this IP address");
-			YYABORT;
-		}
-
-		if ( af == PF_INET ) {
-			mask[0] = 0xffffffffffffffffLL;
-			mask[1] = 0xffffffffffffffffLL << ( 32 - $5 );
-		} else {	// PF_INET6
-			if ( $5 > 64 ) {
-				mask[0] = 0xffffffffffffffffLL;
-				mask[1] = 0xffffffffffffffffLL << ( 128 - $5 );
-			} else {
-				mask[0] = 0xffffffffffffffffLL << ( 64 - $5 );
-				mask[1] = 0;
-			}
-		}
-
-		IPstack[0] &= mask[0];
-		IPstack[1] &= mask[1];
-		switch ( $1.direction ) {
-			case SOURCE:
-				$$.self = Connect_AND(
-					NewBlock(OffsetSrcIPv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetSrcIPv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-				);
-				break;
-			case DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetDstIPv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetDstIPv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-				);
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					Connect_AND(
-						NewBlock(OffsetSrcIPv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetSrcIPv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-					),
-					Connect_AND(
-						NewBlock(OffsetDstIPv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetDstIPv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-					)
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					Connect_AND(
-						NewBlock(OffsetSrcIPv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetSrcIPv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-					),
-					Connect_AND(
-						NewBlock(OffsetDstIPv6b, mask[1], IPstack[1] , CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetDstIPv6a, mask[0], IPstack[0] , CMP_EQ, FUNC_NONE, NULL )
-					)
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End of switch
-
-		if ( IPstack[0] == 0 && IPstack[1] == 0 && af == PF_INET6 ) {
-				yyerror("Can not filter on unspecified IP address");
-				YYABORT;
-		}
+	| ICMPCODE comp NUMBER {
+		$$.self = AddICMP("code", $2.comp, $3); if ( $$.self < 0 ) YYABORT; 
 	}
 
-	| dqual IF NUMBER {
-		if ( $3 > 0xffffffffLL ) {
-			yyerror("Input interface number must 0..2^32");
-			YYABORT;
-		}
-
-		switch ( $1.direction ) {
-			case DIR_UNSPEC:
-				$$.self = Connect_OR(
-					NewBlock(OffsetInOut, MaskInput, ($3 << ShiftInput) & MaskInput, CMP_EQ, FUNC_NONE, NULL),
-					NewBlock(OffsetInOut, MaskOutput, ($3 << ShiftOutput) & MaskOutput, CMP_EQ, FUNC_NONE, NULL)
-				);
-				break;
-			case DIR_IN: 
-				$$.self = NewBlock(OffsetInOut, MaskInput, ($3 << ShiftInput) & MaskInput, CMP_EQ, FUNC_NONE, NULL); 
-				break;
-			case DIR_OUT: 
-				$$.self = NewBlock(OffsetInOut, MaskOutput, ($3 << ShiftOutput) & MaskOutput, CMP_EQ, FUNC_NONE, NULL); 
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End of switch
-
+	| ICMP STRING comp NUMBER {
+		$$.self  = AddICMP($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
-	
-	| dqual VLAN NUMBER {	
-		if ( $3 > 65535 ) {
-			yyerror("VLAN number of range 0..65535");
-			YYABORT;
-		}
 
-		switch ( $1.direction ) {
-			case SOURCE:
-				$$.self = NewBlock(OffsetVlan, MaskSrcVlan, ($3 << ShiftSrcVlan) & MaskSrcVlan, CMP_EQ, FUNC_NONE, NULL );
-				break;
-			case DESTINATION:
-				$$.self = NewBlock(OffsetVlan, MaskDstVlan, ($3 << ShiftDstVlan) & MaskDstVlan, CMP_EQ, FUNC_NONE, NULL);
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				$$.self = Connect_OR(
-					NewBlock(OffsetVlan, MaskSrcVlan, ($3 << ShiftSrcVlan) & MaskSrcVlan, CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetVlan, MaskDstVlan, ($3 << ShiftDstVlan) & MaskDstVlan, CMP_EQ, FUNC_NONE, NULL)
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				$$.self = Connect_AND(
-					NewBlock(OffsetVlan, MaskSrcVlan, ($3 << ShiftSrcVlan) & MaskSrcVlan, CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetVlan, MaskDstVlan, ($3 << ShiftDstVlan) & MaskDstVlan, CMP_EQ, FUNC_NONE, NULL)
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End of switch
-
+	| dqual FLAGS comp NUMBER {
+		$$.self = AddFlagsNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
 
-	| dqual MAC STRING {
-		uint64_t	mac = VerifyMac($3);
-		if ( mac == 0 ) {
-			yyerror("Invalid MAC address format");
-			YYABORT;
-		}
-		switch ( $1.direction ) {
-			case DIR_UNSPEC: {
-					uint32_t in, out;
-					in  = Connect_OR(
-						NewBlock(OffsetInSrcMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetInDstMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL )
-					);
-					out  = Connect_OR(
-						NewBlock(OffsetOutSrcMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetOutDstMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL )
-					);
-					$$.self = Connect_OR(in, out);
-					} break;
-			case DIR_IN:
-					$$.self = Connect_OR(
-						NewBlock(OffsetInSrcMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetInDstMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL )
-					);
-					break;
-			case DIR_OUT:
-					$$.self = Connect_OR(
-						NewBlock(OffsetOutSrcMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetOutDstMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL )
-					);
-					break;
-			case SOURCE:
-					$$.self = Connect_OR(
-						NewBlock(OffsetInSrcMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetOutSrcMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL )
-					);
-					break;
-			case DESTINATION:
-					$$.self = Connect_OR(
-						NewBlock(OffsetInDstMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL ),
-						NewBlock(OffsetOutDstMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL )
-					);
-					break;
-			case IN_SRC: 
-					$$.self = NewBlock(OffsetInSrcMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL );
-					break;
-			case IN_DST: 
-					$$.self = NewBlock(OffsetInDstMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL );
-					break;
-			case OUT_SRC: 
-					$$.self = NewBlock(OffsetOutSrcMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL );
-					break;
-			case OUT_DST:
-					$$.self = NewBlock(OffsetOutDstMAC, MaskMac, mac, CMP_EQ, FUNC_NONE, NULL );
-					break;
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				YYABORT;
-		} // End of switch
+	| dqual FLAGS STRING {
+		$$.self = AddFlagsString($1.direction, $3); if ( $$.self < 0 ) YYABORT;
 	}
-
-	| MPLS STRING comp NUMBER {	
-		if ( $4 > MPLSMAX ) {
-			yyerror("MPLS value out of range");
-			YYABORT;
-		}
 
-		// search for label1 - label10
-		if ( strncasecmp($2, "label", 5) == 0 ) {
-			uint64_t mask;
-			uint32_t offset, shift;
-			char *s = &$2[5];
-			if ( *s == '\0' ) {
-				yyerror("Missing label number");
-				YYABORT;
-			}
-			int i = (int)strtol(s, (char **)NULL, 10);
-
-			switch (i) {
-				case 1:
-					offset	= OffsetMPLS12;
-					mask	= MaskMPLSlabelOdd;
-					shift	= ShiftMPLSlabelOdd;
-					break;
-				case 2:
-					offset	= OffsetMPLS12;
-					mask	= MaskMPLSlabelEven;
-					shift	= ShiftMPLSlabelEven;
-					break;
-				case 3:
-					offset	= OffsetMPLS34;
-					mask	= MaskMPLSlabelOdd;
-					shift	= ShiftMPLSlabelOdd;
-					break;
-				case 4:
-					offset	= OffsetMPLS34;
-					mask	= MaskMPLSlabelEven;
-					shift	= ShiftMPLSlabelEven;
-					break;
-				case 5:
-					offset	= OffsetMPLS56;
-					mask	= MaskMPLSlabelOdd;
-					shift	= ShiftMPLSlabelOdd;
-					break;
-				case 6:
-					offset	= OffsetMPLS56;
-					mask	= MaskMPLSlabelEven;
-					shift	= ShiftMPLSlabelEven;
-					break;
-				case 7:
-					offset	= OffsetMPLS78;
-					mask	= MaskMPLSlabelOdd;
-					shift	= ShiftMPLSlabelOdd;
-					break;
-				case 8:
-					offset	= OffsetMPLS78;
-					mask	= MaskMPLSlabelEven;
-					shift	= ShiftMPLSlabelEven;
-					break;
-				case 9:
-					offset	= OffsetMPLS910;
-					mask	= MaskMPLSlabelOdd;
-					shift	= ShiftMPLSlabelOdd;
-					break;
-				case 10:
-					offset	= OffsetMPLS910;
-					mask	= MaskMPLSlabelEven;
-					shift	= ShiftMPLSlabelEven;
-					break;
-				default: 
-					yyerror("MPLS label out of range 1..10");
-					YYABORT;
-			}
-			$$.self = NewBlock(offset, mask, ($4 << shift) & mask, $3.comp, FUNC_NONE, NULL );
-
-		} else if ( strcasecmp($2, "eos") == 0 ) {
-			// match End of Stack label 
-			$$.self = NewBlock(0, AnyMask, $4 << 4, $3.comp, FUNC_MPLS_EOS, NULL );
-
-		} else if ( strncasecmp($2, "exp", 3) == 0 ) {
-			uint64_t mask;
-			uint32_t offset, shift;
-			char *s = &$2[3];
-			if ( *s == '\0' ) {
-				yyerror("Missing label number");
-				YYABORT;
-			}
-			int i = (int)strtol(s, (char **)NULL, 10);
-
-			if ( $4 > 7 ) {
-				yyerror("MPLS exp value out of range");
-				YYABORT;
-			}
-
-			switch (i) {
-				case 1:
-					offset	= OffsetMPLS12;
-					mask	= MaskMPLSexpOdd;
-					shift	= ShiftMPLSexpOdd;
-					break;
-				case 2:
-					offset	= OffsetMPLS12;
-					mask	= MaskMPLSexpEven;
-					shift	= ShiftMPLSexpEven;
-					break;
-				case 3:
-					offset	= OffsetMPLS34;
-					mask	= MaskMPLSexpOdd;
-					shift	= ShiftMPLSexpOdd;
-					break;
-				case 4:
-					offset	= OffsetMPLS34;
-					mask	= MaskMPLSexpEven;
-					shift	= ShiftMPLSexpEven;
-					break;
-				case 5:
-					offset	= OffsetMPLS56;
-					mask	= MaskMPLSexpOdd;
-					shift	= ShiftMPLSexpOdd;
-					break;
-				case 6:
-					offset	= OffsetMPLS56;
-					mask	= MaskMPLSexpEven;
-					shift	= ShiftMPLSexpEven;
-					break;
-				case 7:
-					offset	= OffsetMPLS78;
-					mask	= MaskMPLSexpOdd;
-					shift	= ShiftMPLSexpOdd;
-					break;
-				case 8:
-					offset	= OffsetMPLS78;
-					mask	= MaskMPLSexpEven;
-					shift	= ShiftMPLSexpEven;
-					break;
-				case 9:
-					offset	= OffsetMPLS910;
-					mask	= MaskMPLSexpOdd;
-					shift	= ShiftMPLSexpOdd;
-					break;
-				case 10:
-					offset	= OffsetMPLS910;
-					mask	= MaskMPLSexpEven;
-					shift	= ShiftMPLSexpEven;
-					break;
-				default: 
-					yyerror("MPLS label out of range 1..10");
-					YYABORT;
-			}
-			$$.self = NewBlock(offset, mask, $4 << shift, $3.comp, FUNC_NONE, NULL );
-
-		} else {
-			yyerror("Unknown MPLS option");
-			YYABORT;
-		}
+	| dqual TOS comp NUMBER {
+	  $$.self = AddTosNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
-	| MPLS ANY NUMBER {	
-		uint32_t *opt = malloc(sizeof(uint32_t));
-		if ( $3 > MPLSMAX ) {
-			yyerror("MPLS value out of range");
-			YYABORT;
-		}
-		if ( opt == NULL) {
-			yyerror("malloc() error");
-			YYABORT;
-		}
-		*opt = $3 << 4;
-		$$.self = NewBlock(0, AnyMask, $3 << 4, CMP_EQ, FUNC_MPLS_ANY, opt );
 
-	}
-	| FWDSTAT NUMBER {
-		if ( $2 > 255 ) {
-			yyerror("Forwarding status of range 0..255");
-			YYABORT;
-		}
-		$$.self = NewBlock(OffsetStatus, MaskStatus, ($2 << ShiftStatus) & MaskStatus, CMP_EQ, FUNC_NONE, NULL);
+	| FWDSTAT comp NUMBER {
+	  $$.self = AddFwdStatNum($2.comp, $3); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| FWDSTAT STRING {
-		uint64_t id = Get_fwd_status_id($2);
-		if (id == 256 ) {
-			yyerror("Unknown forwarding status");
-			YYABORT;
+	  $$.self = AddFwdStatString($2); if ( $$.self < 0 ) YYABORT;
+  }
+
+	| DURATION comp NUMBER {
+		$$.self = NewElement(EXgenericFlowID, 0, SIZEmsecLast, $3, $2.comp, FUNC_DURATION, NULLPtr); 
+	}
+
+	| PPS comp NUMBER {
+		$$.self = NewElement(EXgenericFlowID, 0, SIZEmsecLast, $3, $2.comp, FUNC_PPS, NULLPtr);
+	}
+
+	| BPS comp NUMBER {
+		$$.self = NewElement(EXgenericFlowID, 0, SIZEmsecLast, $3, $2.comp, FUNC_BPS, NULLPtr);
+	}
+
+	| BPP comp NUMBER {
+		$$.self = NewElement(EXgenericFlowID, 0, SIZEmsecLast, $3, $2.comp, FUNC_BPP, NULLPtr); 
+	}
+
+	| dqual PACKETS comp NUMBER {
+		$$.self = AddPackets($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| FLOWS comp NUMBER {
+		$$.self = NewElement(EXcntFlowID, OFFflows, SIZEflows, $3, $2.comp, FUNC_NONE, NULLPtr); 
+	}
+
+	| dqual BYTES comp NUMBER {
+		$$.self = AddBytes($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| dqual IP STRING { 	
+		$$.self = AddIP($1.direction, $3); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| dqual NET STRING STRING {
+		$$.self = AddNet($1.direction, $3, $4); if ( $$.self < 0 ) YYABORT;
+	} 
+
+	| dqual NET STRING '/' NUMBER {
+		$$.self = AddNetPrefix($1.direction, $3, $5); if ( $$.self < 0 ) YYABORT;
+	} 
+
+	| dqual IF NUMBER {
+		$$.self = AddInterfaceNumber($1.direction, $3); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| dqual VLAN NUMBER {
+		$$.self = AddVlanNumber($1.direction, $3); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| dqual AS comp NUMBER {
+		$$.self = AddAsNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
+	}
+
+	| dqual MASK NUMBER {
+		$$.self = AddMaskNumber($1.direction, $3); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| FLOWDIR NUMBER {
+		$$.self = AddFlowDir(DIR_UNSPEC, $2); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| FLOWDIR dqual {
+		$$.self = AddFlowDir($2.direction, -1); if ( $$.self < 0 ) YYABORT;
+  }
+
+	| MPLS STRING comp NUMBER {	
+		$$.self = AddMPLS($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
+	}
+
+	| MPLS ANY comp NUMBER {	
+		$$.self = AddMPLS("any", $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
+	}
+
+	| dqual MAC STRING {	
+		$$.self = AddMAC($1.direction, $3); if ( $$.self < 0 ) YYABORT; 
+	}
+
+	| STRING LATENCY comp NUMBER {
+		$$.self = AddLatency($1, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
+	}
+
+	| ASA STRING STRING {
+		$$.self = AddASAString($2, $3); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| ASA STRING dqual {
+		switch ($3.direction) {
+			case DIR_INGRESS:
+				$$.self = AddASAString($2, "ingress");
+				break;
+			case DIR_EGRESS:
+				$$.self = AddASAString($2, "egress");
+				break;
+			default:
+				$$.self = -1;
+				yyerror("Unknown direction specifier");
 		}
-
-		$$.self = NewBlock(OffsetStatus, MaskStatus, (id << ShiftStatus) & MaskStatus, CMP_EQ, FUNC_NONE, NULL);
-
+		if ( $$.self < 0 ) YYABORT;
 	}
 
-	| DIR NUMBER {
-		if ( $2 > 255 ) {
-			yyerror("Flow direction status > 255");
-			YYABORT;
+	| ASA STRING comp NUMBER{
+		$$.self = AddASA($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
+	}
+
+	| dqual PORT IN NAT STRING {
+		$$.self = AddASApblock($1.direction, $5); if ( $$.self < 0 ) YYABORT; 
+	}
+
+	| dqual ACL comp NUMBER {
+		$$.self = AddACL($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
+	}
+
+	| NAT STRING STRING {
+		$$.self = AddNATString($2, $3); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| NAT STRING STRING comp NUMBER {
+		$$.self = AddNatPortBlocks($2, $3, $4.comp, $5); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| NAT STRING comp NUMBER {
+		$$.self = AddNAT($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
+	}
+
+	| PAYLOAD STRING STRING {
+		$$.self = AddPayload($2, $3, NULL); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| PAYLOAD STRING STRING STRING {
+		$$.self = AddPayload($2, $3, $4); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| dqual GEO STRING {
+		$$.self = AddGeo($1.direction, $3); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| OBSERVATION STRING STRING comp NUMBER {
+		$$.self = AddObservation($2, $3, $4.comp, $5); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| dqual VRF comp NUMBER {
+		$$.self = AddVRF($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| PF STRING STRING {
+		$$.self = AddPFString($2, $3); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| PF STRING comp NUMBER {
+		$$.self = AddPFNumber($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| PF STRING dqual {
+		switch ($3.direction) {
+			case DIR_IN:
+				$$.self = AddPFString($2, "in");
+				break;
+			case DIR_OUT:
+				$$.self = AddPFString($2, "out");
+				break;
+			case DIR_UNSPEC_NAT:
+				$$.self = AddPFString($2, "nat");
+				break;
+			default:
+				$$.self = -1;
+				yyerror("Unknown direction specifier");
 		}
-		$$.self = NewBlock(OffsetDir, MaskDir, ($2 << ShiftDir) & MaskDir, CMP_EQ, FUNC_NONE, NULL);
-
+		if ( $$.self < 0 ) YYABORT;
 	}
 
-	| DIR inout {
-		uint64_t dir = 0xFF;
-		if ( $2.inout == INGRESS )
-			dir = 0;
-		else if ( $2.inout == EGRESS )
-			dir = 1;
-		else {
-			yyerror("Flow direction status of range ingress, egress");
-			YYABORT;
-		}
-
-		$$.self = NewBlock(OffsetDir, MaskDir, (dir << ShiftDir) & MaskDir, CMP_EQ, FUNC_NONE, NULL);
-
+	| dqual IP IN '[' iplist ']' { 	
+		$$.self = AddIPlist($1.direction, $5); if ( $$.self < 0 ) YYABORT;
 	}
 
-	| OBSERVATION DOMAIN ID NUMBER {
-		$$.self = NewBlock(OffsetObservationDomainID, MaskObservationDomainID, ($4 << ShiftObservationDomainID) & MaskObservationDomainID, CMP_EQ, FUNC_NONE, NULL);
+	| dqual PORT IN '[' u64list ']' {
+		$$.self = AddPortList($1.direction, $5); if ( $$.self < 0 ) YYABORT;
 	}
 
-	| OBSERVATION POINT ID NUMBER {
-		$$.self = NewBlock(OffsetObservationPointID, MaskObservationPointID, ($4 << ShiftObservationPointID) & MaskObservationPointID, CMP_EQ, FUNC_NONE, NULL);
+	| dqual AS IN '[' u64list ']' {
+		$$.self = AddASList($1.direction, $5); if ( $$.self < 0 ) YYABORT;
 	}
+	;
 
 /* iplist definition */
 iplist:	STRING	{ 
-		int i, af, bytes, ret;
-		struct IPListNode *node;
-
-		IPlist_t *root = malloc(sizeof(IPlist_t));
-
-		if ( root == NULL) {
-			yyerror("malloc() error");
-			YYABORT;
-		}
-		RB_INIT(root);
-
-		ret = parse_ip(&af, $1, IPstack, &bytes, ALLOW_LOOKUP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Invalid IP address");
-			YYABORT;
-		}
-		// ret == -1 will never happen here, as ALLOW_LOOKUP is set
-		
-		if ( ret != -2 ) {
-			if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
-				yyerror("incomplete IP address");
-				YYABORT;
-			}
-
-			for ( i=0; i<num_ip; i++ ) {
-				if ((node = malloc(sizeof(struct IPListNode))) == NULL) {
-					yyerror("malloc() error");
-					YYABORT;
-				}
-				node->ip[0] = IPstack[2*i];
-				node->ip[1] = IPstack[2*i+1];
-				node->mask[0] = 0xffffffffffffffffLL;
-				node->mask[1] = 0xffffffffffffffffLL;
-				RB_INSERT(IPtree, root, node);
-			}
-
-		}
-		$$ = (void *)root;
-
+		$$ = NewIplist($1, -1); if ( $$ == NULL ) YYABORT;
 	}
 
-iplist:	STRING '/' NUMBER	{ 
-		int af, bytes, ret;
-		struct IPListNode *node;
-
-		IPlist_t *root = malloc(sizeof(IPlist_t));
-
-		if ( root == NULL) {
-			yyerror("malloc() error");
-			YYABORT;
-		}
-		RB_INIT(root);
-
-		ret = parse_ip(&af, $1, IPstack, &bytes, STRICT_IP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Invalid IP address");
-			YYABORT;
-		}
-		// ret == -1 will never happen here, as ALLOW_LOOKUP is set
-		
-		if ( ret != -2 ) {
-			if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
-				yyerror("incomplete IP address");
-				YYABORT;
-			}
-
-			if ((node = malloc(sizeof(struct IPListNode))) == NULL) {
-				yyerror("malloc() error");
-				YYABORT;
-			}
-
-			if ( af == PF_INET ) {
-				node->mask[0] = 0xffffffffffffffffLL;
-				node->mask[1] = 0xffffffffffffffffLL << ( 32 - $3 );
-			} else {	// PF_INET6
-				if ( $3 > 64 ) {
-					node->mask[0] = 0xffffffffffffffffLL;
-					node->mask[1] = 0xffffffffffffffffLL << ( 128 - $3 );
-				} else {
-					node->mask[0] = 0xffffffffffffffffLL << ( 64 - $3 );
-					node->mask[1] = 0;
-				}
-			}
-
-			node->ip[0] = IPstack[0] & node->mask[0];
-			node->ip[1] = IPstack[1] & node->mask[1];
-
-			RB_INSERT(IPtree, root, node);
-
-		}
-		$$ = (void *)root;
-
+	| STRING '/' NUMBER	{ 
+		$$ = NewIplist($1, $3); if ( $$ == NULL ) YYABORT;
 	}
 
 	| iplist STRING { 
-		int i, af, bytes, ret;
-		struct IPListNode *node;
-
-		ret = parse_ip(&af, $2, IPstack, &bytes, ALLOW_LOOKUP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Invalid IP address");
-			YYABORT;
-		}
-		if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
-			yyerror("incomplete IP address");
-			YYABORT;
-		}
-
-		// ret == - 2 means lookup failure
-		if ( ret != -2 ) {
-			for ( i=0; i<num_ip; i++ ) {
-				if ((node = malloc(sizeof(struct IPListNode))) == NULL) {
-					yyerror("malloc() error");
-					YYABORT;
-				}
-				node->ip[0] = IPstack[2*i];
-				node->ip[1] = IPstack[2*i+1];
-				node->mask[0] = 0xffffffffffffffffLL;
-				node->mask[1] = 0xffffffffffffffffLL;
-	
-				RB_INSERT(IPtree, (IPlist_t *)$$, node);
-			}
-		}
+		if (InsertIPlist($1, $2, -1) == 0 ) YYABORT;
 	}
+
 	| iplist ',' STRING { 
-		int i, af, bytes, ret;
-		struct IPListNode *node;
-
-		ret = parse_ip(&af, $3, IPstack, &bytes, ALLOW_LOOKUP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Invalid IP address");
-			YYABORT;
-		}
-		if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
-			yyerror("incomplete IP address");
-			YYABORT;
-		}
-
-		// ret == - 2 means lookup failure
-		if ( ret != -2 ) {
-			for ( i=0; i<num_ip; i++ ) {
-				if ((node = malloc(sizeof(struct IPListNode))) == NULL) {
-					yyerror("malloc() error");
-					YYABORT;
-				}
-				node->ip[0] = IPstack[2*i];
-				node->ip[1] = IPstack[2*i+1];
-				node->mask[0] = 0xffffffffffffffffLL;
-				node->mask[1] = 0xffffffffffffffffLL;
-	
-				RB_INSERT(IPtree, (IPlist_t *)$$, node);
-			}
-		}
+		if (InsertIPlist($1, $3, -1) == 0 ) YYABORT;
 	}
 
-	| iplist STRING '/' NUMBER  { 
-		int af, bytes, ret;
-		struct IPListNode *node;
-
-		ret = parse_ip(&af, $2, IPstack, &bytes, STRICT_IP, &num_ip);
-
-		if ( ret == 0 ) {
-			yyerror("Invalid IP address");
-			YYABORT;
-		}
-		if ( af && (( af == PF_INET && bytes != 4 ) || ( af == PF_INET6 && bytes != 16 ))) {
-			yyerror("incomplete IP address");
-			YYABORT;
-		}
-
-		// ret == - 2 means lookup failure
-		if ( ret != -2 ) {
-			if ((node = malloc(sizeof(struct IPListNode))) == NULL) {
-				yyerror("malloc() error");
-				YYABORT;
-			}
-			if ( af == PF_INET ) {
-				node->mask[0] = 0xffffffffffffffffLL;
-				node->mask[1] = 0xffffffffffffffffLL << ( 32 - $4 );
-			} else {	// PF_INET6
-				if ( $4 > 64 ) {
-					node->mask[0] = 0xffffffffffffffffLL;
-					node->mask[1] = 0xffffffffffffffffLL << ( 128 - $4 );
-				} else {
-					node->mask[0] = 0xffffffffffffffffLL << ( 64 - $4 );
-					node->mask[1] = 0;
-				}
-			}
-
-			node->ip[0] = IPstack[0] & node->mask[0];
-			node->ip[1] = IPstack[1] & node->mask[1];
-
-			RB_INSERT(IPtree, (IPlist_t *)$$, node);
-		}
+	| iplist STRING '/' NUMBER	{ 
+		if (InsertIPlist($1, $2, $4) == 0 ) YYABORT;
 	}
-
 	;
 
-/* ULlist definition */
-ullist:	NUMBER	{ 
-		struct ULongListNode *node;
-
-		ULongtree_t *root = malloc(sizeof(ULongtree_t));
-
-		if ( root == NULL) {
-			yyerror("malloc() error");
-			YYABORT;
-		}
-		RB_INIT(root);
-
-		if ((node = malloc(sizeof(struct ULongListNode))) == NULL) {
-			yyerror("malloc() error");
-			YYABORT;
-		}
-		node->value = $1;
-
-		RB_INSERT(ULongtree, root, node);
-		$$ = (void *)root;
+u64list: NUMBER { 
+		$$ = NewU64list($1); if ( $$ == NULL ) YYABORT;
 	}
 
-	| ullist NUMBER { 
-		struct ULongListNode *node;
-
-		if ((node = malloc(sizeof(struct ULongListNode))) == NULL) {
-			yyerror("malloc() error");
-			YYABORT;
-		}
-		node->value = $2;
-		RB_INSERT(ULongtree, (ULongtree_t *)$$, node);
+	| u64list NUMBER { 
+		if (InsertU64list($1, $2) == 0 ) YYABORT;
 	}
 
-	| ullist ',' NUMBER { 
-		struct ULongListNode *node;
-
-		if ((node = malloc(sizeof(struct ULongListNode))) == NULL) {
-			yyerror("malloc() error");
-			YYABORT;
-		}
-		node->value = $3;
-		RB_INSERT(ULongtree, (ULongtree_t *)$$, node);
+	| u64list ',' NUMBER { 
+		if (InsertU64list($1, $3) == 0 ) YYABORT;
 	}
-
 	;
 
 /* comparator qualifiers */
@@ -2346,239 +498,1480 @@ comp:				{ $$.comp = CMP_EQ; }
 	| GE			{ $$.comp = CMP_GE; }
 	;
 
-/* 'direction' qualifiers */
-dqual:	  			{ $$.direction = DIR_UNSPEC;  			 }
-	| SRC			{ $$.direction = SOURCE;				 }
-	| DST			{ $$.direction = DESTINATION;			 }
-	| SRC OR DST 	{ $$.direction = SOURCE_OR_DESTINATION;  }
-	| DST OR SRC	{ $$.direction = SOURCE_OR_DESTINATION;  }
-	| SRC AND DST	{ $$.direction = SOURCE_AND_DESTINATION; }
-	| DST AND SRC	{ $$.direction = SOURCE_AND_DESTINATION; }
-	| IN			{ $$.direction = DIR_IN;				 }
-	| OUT			{ $$.direction = DIR_OUT;				 }
-	| IN SRC		{ $$.direction = IN_SRC;				 }
-	| IN DST		{ $$.direction = IN_DST;				 }
-	| OUT SRC		{ $$.direction = OUT_SRC;				 }
-	| OUT DST		{ $$.direction = OUT_DST;				 }
-	| PREV			{ $$.direction = ADJ_PREV;				 }
-	| NEXT			{ $$.direction = ADJ_NEXT;				 }
+/* direction qualifiers for direction related elements or specifier for elements */
+dqual:	   	 { $$.direction = DIR_UNSPEC;   }
+	| SRC			 { $$.direction = DIR_SRC;      }
+	| DST			 { $$.direction = DIR_DST;      }
+	| SRC NAT	 { $$.direction = DIR_SRC_NAT;	}
+	| DST	NAT  { $$.direction = DIR_DST_NAT;	}
+	| SRC TUN	 { $$.direction = DIR_SRC_TUN;	}
+	| DST	TUN  { $$.direction = DIR_DST_TUN;	}
+	| NAT  		 { $$.direction = DIR_UNSPEC_NAT;	}
+	| TUN  		 { $$.direction = DIR_UNSPEC_TUN;	}
+	| IN			 { $$.direction = DIR_IN;				}
+	| OUT			 { $$.direction = DIR_OUT;			}
+	| IN SRC	 { $$.direction = DIR_IN_SRC;   }
+	| IN DST	 { $$.direction = DIR_IN_DST;   }
+	| OUT SRC	 { $$.direction = DIR_OUT_SRC;	}
+	| OUT DST	 { $$.direction = DIR_OUT_DST;  }
+	| INGRESS	 { $$.direction = DIR_INGRESS;  }
+	| EGRESS	 { $$.direction = DIR_EGRESS;   }
+	| PREV		 { $$.direction = DIR_PREV;     }
+	| NEXT		 { $$.direction = DIR_NEXT;     }
+	| BGP NEXT { $$.direction = BGP_NEXT;     }
+	| ROUTER	 { $$.direction = SRC_ROUTER;   }
+	| EXPORTER { $$.direction = SRC_ROUTER;   }
 	;
 
-inout: INGRESS		{ $$.inout	= INGRESS;	}
-	|  EGRESS		{ $$.inout	= EGRESS;   }
-	;
-
-acl:	ACL			{ $$.acl = ACL; 	}
-	|	ACE			{ $$.acl = ACE;		}
-	|	XACE		{ $$.acl = XACE;	}
-	;
-
-expr:	term		{ $$ = $1.self;        }
-	| expr OR  expr	{ $$ = Connect_OR($1, $3);  }
-	| expr AND expr	{ $$ = Connect_AND($1, $3); }
-	| NOT expr	%prec NEGATE	{ $$ = Invert($2);			}
+expr:	term				{ $$ = $1.self;        			 }
+	| expr OR  expr	{ $$ = Connect_OR($1, $3);   }
+	| expr AND expr	{ $$ = Connect_AND($1, $3);  }
+	| NOT expr	%prec NEGATE	{ $$ = Invert($2); }
 	| '(' expr ')'	{ $$ = $2; }
-	| '(' expr ')' '%' STRING	{ 
-		$$ = $2; 
-		if ( strlen($5) > 16 ) {
-			yyerror("Error: Maximum 16 chars allowed for flowlabel");
-			YYABORT;
-		} else {
-			AddLabel($2, $5);
-		}
-	}
-	| '%' STRING '(' expr ')' { 
-		$$ = $4; 
-		if ( strlen($2) > 16 ) {
-			yyerror("Error: Maximum 16 chars allowed for flowlabel");
-			YYABORT;
-		} else {
-			AddLabel($4, $2);
-		}
-	}
 	;
 
 %%
 
-static void  yyerror(char *msg) {
+static void yyerror(char *msg, ...) {
+	char msgStr[128];
 
-	if ( FilterFilename )
-		snprintf(yyerror_buff, 255 ,"File '%s' line %d: %s at '%s'", FilterFilename, lineno, msg, yytext);
-	else 
-		snprintf(yyerror_buff, 255, "Line %d: %s at '%s'", lineno, msg, yytext);
+	va_list var_args;
+  va_start(var_args, msg);
+	vsnprintf(msgStr, 127, msg, var_args);
+  va_end(var_args);
+	msgStr[127] = '\0';
 
-	yyerror_buff[255] = '\0';
-	fprintf(stderr, "%s\n", yyerror_buff);
-
+	if ( FilterFilename ) {
+		printf("File '%s' line %d: %s at '%s'\n", FilterFilename, lineno, msgStr, yytext);
+	} else {
+		printf("Line %d: %s at '%s'\n", lineno, msgStr, yytext);
+	}
 } /* End of yyerror */
 
-static uint32_t ChainHosts(uint64_t *offsets, uint64_t *hostlist, int num_records, int type) {
-uint32_t offset_a, offset_b, i, j, block;
-	if ( type == SOURCE ) {
-		offset_a = offsets[0];
-		offset_b = offsets[1];
-	} else {
-		offset_a = offsets[2];
-		offset_b = offsets[3];
-	}
+static uint32_t NewIPElement(ipStack_t *ipStack, int direction, int comp, data_t *data) {
 
-	i = 0;
-	block = Connect_AND(
-				NewBlock(offset_b, MaskIPv6, hostlist[i+1] , CMP_EQ, FUNC_NONE, NULL ),
-				NewBlock(offset_a, MaskIPv6, hostlist[i] , CMP_EQ, FUNC_NONE, NULL )
-			);
-	i += 2;
-	for ( j=1; j<num_records; j++ ) {
-		uint32_t b = Connect_AND(
-				NewBlock(offset_b, MaskIPv6, hostlist[i+1] , CMP_EQ, FUNC_NONE, NULL ),
-				NewBlock(offset_a, MaskIPv6, hostlist[i] , CMP_EQ, FUNC_NONE, NULL )
-			);
-		block = Connect_OR(block, b);
-		i += 2;
+	int block = -1;
+
+	if ( ipStack->af == PF_INET ) {
+		// handle IPv4 addr element
+		switch ( direction ) {
+			case DIR_SRC:
+				block = NewElement(EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				break;
+			case DIR_DST:
+				block = NewElement(EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				break;
+			case DIR_SRC_NAT:
+				block = NewElement(EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				break;
+			case DIR_DST_NAT:
+				block = NewElement(EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				break;
+			case DIR_SRC_TUN:
+				block = NewElement(EXtunIPv4ID, OFFtunSrc4Addr, SIZEtunSrc4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				break;
+			case DIR_DST_TUN:
+				block = NewElement(EXtunIPv4ID, OFFtunDst4Addr, SIZEtunDst4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				break;
+			case DIR_NEXT:
+				block = NewElement(EXipNextHopV4ID, OFFNext4HopIP, SIZENext4HopIP, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				break;
+			case BGP_NEXT:
+				block = NewElement(EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				break;
+			case SRC_ROUTER:
+				block = NewElement(EXipReceivedV4ID, OFFReceived4IP, SIZEReceived4IP, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				break;
+		} // End of switch
+
+	} else {
+		// handle IPv6 addr element
+		int v6_1, v6_2 = 0;
+		switch ( direction ) {
+			case DIR_SRC:
+				v6_1 = NewElement(EXipv6FlowID, OFFsrc6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXipv6FlowID, OFFsrc6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				break;
+			case DIR_DST:
+				v6_1 = NewElement(EXipv6FlowID, OFFdst6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXipv6FlowID, OFFdst6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				break;
+			case DIR_SRC_NAT:
+				v6_1 = NewElement(EXnselXlateIPv6ID, OFFxlateSrc6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXnselXlateIPv6ID, OFFxlateSrc6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				break;
+			case DIR_DST_NAT:
+				v6_1 = NewElement(EXnselXlateIPv6ID, OFFxlateDst6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXnselXlateIPv6ID, OFFxlateDst6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				break;
+			case DIR_SRC_TUN:
+				v6_1 = NewElement(EXtunIPv6ID, OFFtunSrc6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXtunIPv6ID, OFFtunSrc6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				break;
+			case DIR_DST_TUN:
+				v6_1 = NewElement(EXtunIPv6ID, OFFtunDst6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXtunIPv6ID, OFFtunDst6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				break;
+			case DIR_NEXT:
+				v6_1 = NewElement(EXipNextHopV6ID, OFFNext6HopIP, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXipNextHopV6ID, OFFNext6HopIP + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				break;
+			case BGP_NEXT:
+				v6_1 = NewElement(EXbgpNextHopV6ID, OFFbgp6NextIP, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXbgpNextHopV6ID, OFFbgp6NextIP + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				break;
+			case SRC_ROUTER:
+				v6_1 = NewElement(EXipReceivedV6ID, OFFReceived6IP, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXipReceivedV6ID, OFFReceived6IP + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				break;
+		} // End of switch
+
+		// IPv6
+		if ( v6_1 && v6_2 )
+			block = Connect_AND(v6_1, v6_2);
+
 	}
 
 	return block;
+} // NewIPElement
 
+static uint32_t ChainHosts(ipStack_t *ipStack, int numIP, int direction) {
+
+	data_t data[2] = { NULLPtr, NULLPtr };
+
+	uint32_t final = 0;
+	int i = 0;
+	do {
+		// chain multiple IPs
+		int block = NewIPElement(&ipStack[i], direction, CMP_EQ, data);
+		final = final == 0 ? block : Connect_OR(final, block);
+
+	} while (++i < numIP);
+	
+	return final;
 } // End of ChainHosts
 
-uint64_t VerifyMac(char *s) {
-uint64_t mac;
-size_t slen = strlen(s);
-long l;
-char *p, *q, *r;
-int i;
+static int AddIdent(char *ident) {
+	char *c;
 
-	if ( slen > 17 )
-		return 0; 
-
-	for (i=0; i<slen; i++ ) {
-		if ( !isxdigit(s[i]) && s[i] != ':' ) 
-			return 0;
+	// ident[a-zA-Z0-9_\-]+ { 
+	size_t len = strlen(ident);
+	if ( len == 0 || len > 255 ) {
+		yyerror("Invalid ident string: %s", ident);
+		return -1;
 	}
-
-	p = strdup(s);
-	if ( !p ) {
-		yyerror("malloc() error");
-		return 0;
-	}
-
-	mac = 0;
-	i = 0;	// number of MAC octets must be 6
-	r = p;
-	q = strchr(r, ':');
-	while ( r && i < 6 ) {
-		if ( q ) 
-			*q = '\0';
-		l = strtol(r, NULL, 16);
-		if ( (i == 0 && errno == EINVAL) ) {
-			free(p);
+	
+	c = &ident[0];
+	while ( *c ) {
+		if ( *c != '_' && *c != '-' && !isalnum(*c) ) {
+			yyerror("Invalid char in ident string: %s: %c", ident, *c);
 			return 0;
 		}
-		if ( l > 255 ) {
-			free(p);
+		c++;
+	}
+	
+	data_t data = {.dataPtr = strdup(ident)};
+	return NewElement(EXnull, 0, 0, 0, CMP_IDENT, FUNC_NONE, data); 
+
+} // End of AddIdent
+
+static int AddProto(direction_t direction, char *protoStr, uint64_t protoNum) {
+
+	if ( protoNum > 255 ) {
+		yyerror("Protocol %d out of range", protoNum);
+		return -1;
+	}
+
+	if ( protoStr != NULL ) {
+		protoNum = ProtoNum(protoStr);
+  	if ( protoNum == -1 ) {
+	  	yyerror("Unknown protocol: %s", protoStr);
+			Protoinfo(protoStr);
+			return -1;
+  	}
+	}
+
+	if ( direction == DIR_UNSPEC ) {
+		return NewElement(EXgenericFlowID, OFFproto, SIZEproto, protoNum, CMP_EQ, FUNC_NONE, NULLPtr); 
+	} else if ( direction == DIR_UNSPEC_TUN ) {
+		return Connect_OR(
+			NewElement(EXtunIPv4ID, OFFtunProtoV4, SIZEtunProtoV4, protoNum, CMP_EQ, FUNC_NONE, NULLPtr),
+			NewElement(EXtunIPv6ID, OFFtunProtoV6, SIZEtunProtoV6, protoNum, CMP_EQ, FUNC_NONE, NULLPtr)
+		);
+	} else {
+	  	yyerror("Unknown protocol specifier");
+			return -1;
+	}
+} // End of AddProtoString
+
+static int AddEngineNum(char *type, uint16_t comp, uint64_t num) {
+	if ( num > 255 ) {
+		yyerror("Engine argument %d of range 0..255", num);
+		return -1;
+  }
+
+	int ret = -1;
+	if ( strcasecmp(type, "type") == 0 ) {
+		ret = NewElement(EXnull, OFFengineType, SIZEengineType, num, comp, FUNC_NONE, NULLPtr);
+	} else if ( strcasecmp(type, "id") == 0 ) {
+		ret = NewElement(EXnull, OFFengineID, SIZEengineID, num, comp, FUNC_NONE, NULLPtr);
+	}
+
+	return ret;
+} // End of AddEngineNum
+
+static int AddExporterNum(char *type, uint16_t comp, uint64_t num) {
+	if ( num > 65535 ) {
+	  yyerror("Exporter argument %d of range 0..65535", num);
+		return -1;
+	}
+
+	int ret = -1;
+  if ((strcasecmp(type, "id") == 0 ) || (strcasecmp(type, "sysid") == 0)) {
+		ret = NewElement(EXnull, OFFexporterID, SIZEexporterID, num, comp, FUNC_NONE, NULLPtr);
+	} else {
+	  yyerror("Unknown exporter argument: %s", type);
+	}
+
+	return ret;
+} // End of AddExporterNum
+
+static int AddPortNumber(direction_t direction, uint16_t comp, uint64_t port) {
+	if ( port > 65535 ) {
+		  yyerror("Port number: %d out of range", port);
+			return -1;
+	}
+
+	int ret = -1;
+  switch ( direction ) {
+	  case DIR_SRC:
+		  ret = NewElement(EXgenericFlowID, OFFsrcPort, SIZEsrcPort, port, comp, FUNC_NONE, NULLPtr);
+		  break;
+	  case DIR_DST:
+		  ret = NewElement(EXgenericFlowID, OFFdstPort, SIZEdstPort, port, comp, FUNC_NONE, NULLPtr);
+		  break;
+	  case DIR_SRC_NAT:
+		  ret = NewElement(EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, port, comp, FUNC_NONE, NULLPtr);
+		  break;
+	  case DIR_DST_NAT:
+		  ret = NewElement(EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, port, comp, FUNC_NONE, NULLPtr);
+		  break;
+	  case DIR_UNSPEC:
+		  ret = Connect_OR(
+			  NewElement(EXgenericFlowID, OFFsrcPort, SIZEsrcPort, port, comp, FUNC_NONE, NULLPtr),
+			  NewElement(EXgenericFlowID, OFFdstPort, SIZEdstPort, port, comp, FUNC_NONE, NULLPtr)
+		  );
+		  break;
+	  case DIR_UNSPEC_NAT:
+		  ret = Connect_OR(
+		  	NewElement(EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, port, comp, FUNC_NONE, NULLPtr),
+		  	NewElement(EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, port, comp, FUNC_NONE, NULLPtr)
+		  );
+		  break;
+	  default:
+		  yyerror("Unknown direction");
+  } // End switch
+
+	return ret;
+} // End of AddPortNumber
+
+static int AddICMP(char *type, uint16_t comp, uint64_t number) {
+	if ( number > 255 ) {
+		  yyerror("ICMP argument of range 0..255");
+			return -1;
+  }
+
+	int ret = -1;
+	// imply ICMP-TYPE with a proto ICMP block
+	int protoICMP = Connect_OR (
+			  NewElement(EXgenericFlowID, OFFproto, SIZEproto, IPPROTO_ICMP, CMP_EQ, FUNC_NONE, NULLPtr), 
+			  NewElement(EXgenericFlowID, OFFproto, SIZEproto, IPPROTO_ICMPV6, CMP_EQ, FUNC_NONE, NULLPtr)
+		  );
+	if ( strcasecmp(type, "type") == 0 ) {
+		ret = Connect_AND(
+			protoICMP,
+		  NewElement(EXgenericFlowID, OFFicmpType, SIZEicmpType, number, comp, FUNC_NONE, NULLPtr)
+	  );
+	} else if ( strcasecmp(type, "code") == 0 ) {
+		ret = Connect_AND(
+			protoICMP,
+			NewElement(EXgenericFlowID, OFFicmpCode, SIZEicmpCode, number, comp, FUNC_NONE, NULLPtr)
+	  );
+	} 
+
+	return ret;
+} // End of AddICMP
+
+static int AddFlagsNumber(direction_t direction, uint16_t comp, uint64_t flags) {
+	if ( flags > 255 ) {
+		  yyerror("flags number > 255");
+			return -1;
+	}
+
+	// direction ignored
+
+	return Connect_AND(
+	  // imply flags with proto TCP
+	  NewElement(EXgenericFlowID, OFFproto, SIZEproto, IPPROTO_TCP, CMP_EQ, FUNC_NONE, NULLPtr), 
+	  NewElement(EXgenericFlowID, OFFtcpFlags, SIZEtcpFlags, flags, comp, FUNC_NONE, NULLPtr)
+  );
+} // End of AddFlagsNumber
+
+static int AddFlagsString(direction_t direction, char *flags) {
+	size_t len = strlen(flags);
+  if ( len > 10 ) {
+	  yyerror("Flags string error");
+		return -1;
+  }
+
+	int strict = 0;
+	if ( flags[0] == '=') {
+	  strict = 1;
+	  len--;
+  }
+
+  int cnt     = 0;
+  uint64_t fl = 0;
+  if ( strchr(flags, 'F') ) { fl |=  1; cnt++; }
+  if ( strchr(flags, 'S') ) { fl |=  2; cnt++; }
+  if ( strchr(flags, 'R') ) { fl |=  4; cnt++; }
+  if ( strchr(flags, 'P') ) { fl |=  8; cnt++; }
+  if ( strchr(flags, 'A') ) { fl |=  16; cnt++; }
+  if ( strchr(flags, 'U') ) { fl |=  32; cnt++; }
+  if ( strchr(flags, 'E') ) { fl |=  64; cnt++; }
+  if ( strchr(flags, 'C') ) { fl |= 128; cnt++; }
+  if ( strchr(flags, 'X') ) { fl =  63; cnt++; }
+
+  if ( cnt != len ) {
+	  yyerror("Unknown flags");
+		return -1;
+  }
+
+  if (strict) {
+		return AddFlagsNumber(direction, CMP_EQ, fl);
+  } else {
+		return AddFlagsNumber(direction, CMP_FLAGS, fl);
+  }
+
+	// unreached
+} // End of AddFlagsString
+
+static int AddTosNumber(direction_t direction, uint16_t comp, uint64_t tos) {
+	if ( tos > 255 ) {
+		yyerror("Tos number out of range");
+		return -1;
+  }
+
+	int ret = -1;
+  switch (direction) {
+	  case DIR_UNSPEC:
+	  case DIR_SRC: 
+		  ret = NewElement(EXgenericFlowID, OFFsrcTos, SIZEsrcTos, tos, comp, FUNC_NONE, NULLPtr);
+		  break;
+	  case DIR_DST: 
+		  ret = NewElement(EXflowMiscID, OFFdstTos, SIZEdstTos, tos, comp, FUNC_NONE, NULLPtr);
+		  break;
+	  default:
+		  yyerror("syntax error");
+  } // End of switch
+
+	return ret;
+} // End of AddTosNumber
+
+static int AddPackets(direction_t direction, uint16_t comp, uint64_t packets) {
+
+	int ret = -1;
+	switch ( direction ) {
+		case DIR_UNSPEC:
+	  case DIR_IN: 
+		  ret = NewElement(EXgenericFlowID, OFFinPackets, SIZEinPackets, packets, comp, FUNC_NONE, NULLPtr); 
+		  break;
+	  case DIR_OUT: 
+		  ret = NewElement(EXgenericFlowID, OFFoutPackets, SIZEoutPackets, packets, comp, FUNC_NONE, NULLPtr); 
+		break;
+	  default:
+		  yyerror("Invalid direction for packets");
+	} // End of switch
+	return ret;
+} // End of AddPackets
+
+static int AddBytes(direction_t direction, uint16_t comp, uint64_t bytes) {
+	int ret = -1;
+	switch ( direction ) {
+	  case DIR_UNSPEC:
+	  case DIR_IN: 
+		  ret = NewElement(EXgenericFlowID, OFFinBytes, SIZEinBytes, bytes, comp, FUNC_NONE, NULLPtr); 
+		  break;
+	  case DIR_OUT: 
+		  ret = NewElement(EXgenericFlowID, OFFoutBytes, SIZEoutBytes, bytes, comp, FUNC_NONE, NULLPtr); 
+		  break;
+	  default:
+		  yyerror("Invalid direction for bytes");
+	 } // End of switch
+	 return ret;
+} // End of AddBytes
+
+static int AddFwdStatNum(uint16_t comp, uint64_t num) {
+	if ( num > 255 ) {
+	  yyerror("Forwarding status: %d our of range", num);
+		return -1;
+	}
+
+	return NewElement(EXgenericFlowID, OFFfwdStatus, SIZEfwdStatus, num, comp, FUNC_NONE, NULLPtr);
+} // End of AddFwdStatNum
+
+static int AddFwdStatString(char *string) {
+	int	fwdStatus = fwdStatusNum(string);
+	if ( fwdStatus < 0 ) {
+	  fwdStatusInfo();
+	  yyerror("Unkown forwarding status: %s", string);
+		return -1;
+	}
+
+	return NewElement(EXgenericFlowID, OFFfwdStatus, SIZEfwdStatus, fwdStatus, CMP_EQ, FUNC_NONE, NULLPtr);
+} // End of AddFwdStatString
+
+static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
+	if ( strncasecmp(type, "label", 5) == 0 ) {
+		char *s = type + 5;
+		if ( *s == '\0' ) {
+			yyerror("Missing mpls stack number for label");
+			return -1;
+		}
+		int lnum = (int)strtol(s, (char **)NULL, 10);
+		data_t labelIndex = { .dataVal = lnum};
+		return NewElement(EXmplsLabelID, 0, 0, value, comp, FUNC_MPLS_LABEL, labelIndex);
+	} else if ( strcasecmp(type, "any") == 0 ) {
+		data_t labelValue = { .dataVal = value};
+		return NewElement(EXmplsLabelID, value, 0, value, comp, FUNC_MPLS_ANY, labelValue);
+	} else if ( strcasecmp(type, "eos") == 0 ) {
+		// match End of Stack label 
+		return NewElement(EXmplsLabelID, 0, 0, value, comp, FUNC_MPLS_EOS, NULLPtr);
+	} else if ( strncasecmp(type, "exp", 3) == 0 ) {
+		char *s = type + 3;
+		if ( *s == '\0' ) {
+			yyerror("Missing mpls stack number for exp value");
+			return -1;
+		}
+		int lnum = (int)strtol(s, (char **)NULL, 10);
+		return NewElement(EXmplsLabelID, lnum, 0, value, comp, FUNC_MPLS_EXP, NULLPtr);
+	} else {
+			yyerror("Unknown mpls argument: %s", type);
+			return -1;
+	}
+
+	// unreached
+	return -1;
+} // End of AddMPLS
+
+static int AddMAC(direction_t direction, char *macString) {
+
+	uint64_t macVal = Str2Mac(macString);
+	if ( macVal == 0 ) return -1;
+
+	switch (direction) {
+		case DIR_IN_SRC:
+			return NewElement(EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_IN_DST:
+			return NewElement(EXmacAddrID, OFFinDstMac, SIZEinDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_OUT_SRC:
+			return NewElement(EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_OUT_DST:
+			return NewElement(EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_SRC:
+			return Connect_OR (
+				NewElement(EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
+				NewElement(EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			break;
+		case DIR_DST:
+			return Connect_OR (
+				NewElement(EXmacAddrID, OFFinDstMac, SIZEinDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
+				NewElement(EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			break;
+		case DIR_IN:
+			return Connect_OR (
+				NewElement(EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
+				NewElement(EXmacAddrID, OFFinDstMac, SIZEinDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			break;
+		case DIR_OUT:
+			return Connect_OR (
+				NewElement(EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
+				NewElement(EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			break;
+		case DIR_UNSPEC: {
+				int in = Connect_OR (
+					NewElement(EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
+					NewElement(EXmacAddrID, OFFinDstMac, SIZEinDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
+				);
+				int out = Connect_OR (
+					NewElement(EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr),
+					NewElement(EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, macVal, CMP_EQ, FUNC_NONE, NULLPtr)
+				);
+				return Connect_OR(in, out);
+			} break;
+		default:
+			yyerror("Unknown mac argument");
+			return -1;
+	}
+
+	// unreached
+	return -1;
+} // End of AddMAC
+
+static int AddLatency(char *type, uint16_t comp, uint64_t number) {
+
+	int ret = -1;
+	if ( strcasecmp(type, "client") == 0 ) {
+			ret =  NewElement(EXlatencyID, OFFusecClientNwDelay, SIZEusecClientNwDelay, number, comp, FUNC_NONE, NULLPtr);
+	} if ( strcasecmp(type, "server") == 0 ) {
+			ret =  NewElement(EXlatencyID, OFFusecServerNwDelay, SIZEusecServerNwDelay, number, comp, FUNC_NONE, NULLPtr);
+	} if ( strcasecmp(type, "app") == 0 ) { 
+			ret =  NewElement(EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, number, comp, FUNC_NONE, NULLPtr);
+	}	
+
+	return ret;
+} // End of AddLatency
+
+static int AddASAString(char *event, char *asaStr) {
+
+	if (strcasecmp(event, "event") == 0) {
+		int eventNum = fwEventID(asaStr);
+		if ( eventNum < 0 ) {
+			yyerror("Invalid ASA event type: %s", asaStr);
+			return -1;
+		}
+		return NewElement(EXnselCommonID, OFFfwEvent, SIZEfwEvent, eventNum, CMP_EQ, FUNC_NONE, NULLPtr);
+	} else if (strcasecmp(event, "denied") == 0) {
+		int eventNum = fwXEventID(asaStr);
+		if ( eventNum < 0 ) {
+			yyerror("Invalid ASA Xevent type: %s", asaStr);
+			return -1;
+		}
+		return NewElement(EXnselCommonID, OFFfwXevent, SIZEfwXevent, eventNum, CMP_EQ, FUNC_NONE, NULLPtr);
+	} else if (strcasecmp(event, "user") == 0) {
+		if ( strlen(asaStr) > 65 ) {
+			yyerror("Length of ASA user name: %s > 65 chars", asaStr);
+			return -1;
+		}
+		data_t data = {.dataPtr = strdup(asaStr)};
+		return NewElement(EXnselUserID, OFFusername, 0, 0, CMP_STRING, FUNC_NONE, data);
+	}
+
+	yyerror("Invalid ASA type: %s", event);
+	return -1;
+
+} // End of AddASAString
+
+static int AddASA(char *event, uint16_t comp, uint64_t number) {
+
+	if ( strcasecmp(event, "event") == 0 ) {
+		if ( number > 5 ) {
+			yyerror("Invalid event number %llu. Expected 0..5", number);
+			return -1;
+		}
+		return NewElement(EXnselCommonID, OFFfwEvent, SIZEfwEvent, number, comp, FUNC_NONE, NULLPtr);
+	} else if ( strcasecmp(event, "xevent") == 0 ) {
+		return NewElement(EXnselCommonID, OFFfwXevent, SIZEfwXevent, number, comp, FUNC_NONE, NULLPtr);
+	}
+
+	yyerror("Invalid ASA type: %s", event);
+	return -1;
+
+} // End of AddASA
+
+static int AddACL(direction_t direction, uint16_t comp, uint64_t number) {
+
+	uint32_t offset = 0;
+	switch (direction) {
+		case DIR_INGRESS:
+			offset = OFFingressAcl;
+			break;
+		case DIR_EGRESS:
+			offset = OFFegressAcl;
+			break;
+		default:
+			yyerror("Invalid ACL direction");
+			return -1;
+	}
+	
+	uint32_t acl[3];
+	acl[0] = NewElement(EXnselAclID, offset, sizeof(uint32_t), number, comp, FUNC_NONE, NULLPtr);
+	acl[1] = NewElement(EXnselAclID, offset + sizeof(uint32_t), sizeof(uint32_t), number, comp, FUNC_NONE, NULLPtr);
+	acl[2] = NewElement(EXnselAclID, offset + 2*sizeof(uint32_t), sizeof(uint32_t), number, comp, FUNC_NONE, NULLPtr);
+	return Connect_OR (
+		Connect_OR(acl[0], acl[1]), acl[2]
+	);
+	return -1;
+
+} // End of AddASA
+
+static int AddASApblock(direction_t direction, char *arg) {
+
+	if (strcasecmp(arg, "pblock") != 0) {
+			yyerror("Invalid port block: %s", arg);
+			return -1;
+	}
+
+	int ret = -1;
+	switch (direction) {
+		case DIR_SRC:
+		  ret = NewElement(EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 1, CMP_EQ, FUNC_PBLOCK, NULLPtr);
+		  break;
+	  case DIR_DST:
+		  ret = NewElement(EXgenericFlowID, OFFdstPort, SIZEdstPort, 1, CMP_EQ, FUNC_PBLOCK, NULLPtr);
+		  break;
+	  case DIR_UNSPEC:
+		  ret = Connect_OR(
+			  NewElement(EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 1, CMP_EQ, FUNC_PBLOCK, NULLPtr),
+			  NewElement(EXgenericFlowID, OFFdstPort, SIZEdstPort, 1, CMP_EQ, FUNC_PBLOCK, NULLPtr)
+		  );
+		  break;
+		default:
+			yyerror("Invalid port direction");
+	}
+
+	return ret;
+} // End of AddASApblock
+
+static int AddNATString(char *event, char *natStr) {
+
+	if (strcasecmp(event, "event") == 0) {
+		int eventNum = natEventNum(natStr);
+		if ( eventNum < 0 ) {
+			yyerror("Invalid NAT event type: %s", natStr);
+			natEventInfo();
+			return -1;
+		}
+		return NewElement(EXnelCommonID, OFFnatEvent, SIZEnatEvent, eventNum, CMP_EQ, FUNC_NONE, NULLPtr);
+	} 
+
+	yyerror("Invalid NAT type: %s", event);
+	return -1;
+
+} // End of AddNATString
+
+static int AddNAT(char *event, uint16_t comp, uint64_t number) {
+
+	if (strcasecmp(event, "event") == 0) {
+		if ( number > MAX_NAT_EVENTS ) {
+			yyerror("NAT event: %llu out of range\n", number);
+			return -1;
+		}
+		return NewElement(EXnelCommonID, OFFnatEvent, SIZEnatEvent, number, comp, FUNC_NONE, NULLPtr);
+	} 
+
+	return -1;
+} // End of AddNAT
+
+static int AddNatPortBlocks(char *type, char *subtype, uint16_t comp, uint64_t number) {
+
+	uint32_t offset = 0;
+	if (strcasecmp(type, "pblock") == 0) {
+		if (strcasecmp(subtype, "start") == 0) {
+			offset = OFFnelblockStart;
+		} else if (strcasecmp(subtype, "end") == 0) {
+			offset = OFFnelblockEnd;
+		} else if (strcasecmp(subtype, "step") == 0) {
+			offset = OFFnelblockStep;
+		} else if (strcasecmp(subtype, "size") == 0) {
+			offset = OFFnelblockSize;
+		} else {
+			yyerror("Unknown port block argument: %s\n", subtype);
+			return -1;
+		}
+	} else {
+			yyerror("Unknown NAT argument: %s\n", type);
+			return -1;
+	}
+
+	return NewElement(EXnelXlatePortID, offset, SIZEnelblockStart, number, comp, FUNC_NONE, NULLPtr);
+	return -1;
+} // End of AddNatPortBlocks
+
+static int AddPayload(char *type, char *arg, char *opt) {
+
+	if (strcasecmp(type, "content") == 0) {
+		data_t data = {.dataPtr = arg};
+		return NewElement(EXinPayloadID, 0, 0, 0, CMP_PAYLOAD, FUNC_NONE, data);
+	} else if (strcasecmp(type, "regex") == 0) {
+		int err[2];
+		char *regexArg = opt ? opt : "";
+		srx_Context *program = srx_CreateExt(arg, strlen(arg), regexArg, err, NULL, NULL);
+		if ( !program ) {
+			yyerror("failed to compile regex: %s", arg);
+			return -1;
+		}
+		data_t data = {.dataPtr = program};
+		return NewElement(EXinPayloadID, 0, 0, 0, CMP_REGEX, FUNC_NONE, data);
+	} else if (strcasecmp(type, "ja3") == 0) {
+			uint8_t *md5 = calloc(1,16);
+			if (!md5) {
+				yyerror("malloc() for md5 failed");
+				return -1;
+			}
+			data_t data = {.dataPtr=md5};
+			if (strcasecmp(arg, "defined") == 0) {
+				return Invert(NewElement(EXlocal, OFFja3, SIZEja3, 0, CMP_BINARY, FUNC_NONE, data));
+			} else {
+				if (IsMD5(arg) == 0) {
+					yyerror("ja3 string %s is not an MD5 sum", arg);
+					free(md5);
+					return -1;
+				}
+				for(int count = 0; count < 16; count++) {
+					sscanf(arg, "%2hhx", &md5[count]);
+					arg += 2;
+				}
+				return NewElement(EXlocal, OFFja3, SIZEja3, 0, CMP_BINARY, FUNC_NONE, data);
+			}
+	} else {
+		yyerror("Unknown PAYLOAD argument: %s\n", type);
+		return -1;
+	}
+
+	return -1;
+} // End of AddPayload
+
+static int AddGeo(direction_t direction, char *geo) {
+
+	if ( strlen(geo) != 2 ) {
+			yyerror("Unknown Geo country: %s. Need a two letter country code.", geo);
+			return -1;
+	}
+
+	int ret = -1;
+	uint64_t geoVal = toupper(geo[0]) + (toupper(geo[1]) << 8);
+	switch (direction) {
+		case DIR_SRC:
+			ret = NewElement(EXlocal, OFFgeoSrcIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_DST:
+			ret = NewElement(EXlocal, OFFgeoDstIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_SRC_NAT:
+			ret = NewElement(EXlocal, OFFgeoSrcNatIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_DST_NAT:
+			ret = NewElement(EXlocal, OFFgeoDstNatIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_SRC_TUN:
+			ret = NewElement(EXlocal, OFFgeoSrcTunIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_DST_TUN:
+			ret = NewElement(EXlocal, OFFgeoDstTunIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_UNSPEC: {
+			ret = Connect_OR(
+				NewElement(EXlocal, OFFgeoSrcIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr),
+				NewElement(EXlocal, OFFgeoDstIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			} break;
+		case DIR_UNSPEC_NAT: {
+			ret = Connect_OR(
+				NewElement(EXlocal, OFFgeoSrcNatIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr),
+				NewElement(EXlocal, OFFgeoDstNatIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			} break;
+		case DIR_UNSPEC_TUN: {
+			ret = Connect_OR(
+				NewElement(EXlocal, OFFgeoSrcTunIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr),
+				NewElement(EXlocal, OFFgeoDstTunIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			} break;
+		default:
+			yyerror("Unknown Geo specifier");
+	}
+
+	return ret;
+} // End of AddGeo
+
+static int AddObservation(char *type, char *subType, uint16_t comp, uint64_t number) {
+
+	if (strcasecmp(subType, "id") != 0) {
+			yyerror("Unknown observation specifier: %s", subType);
+			return -1;
+	}
+	int ret = -1;
+	if (strcasecmp(type, "domain") == 0) {
+		ret =  NewElement(EXobservationID, OFFdomainID, SIZEdomainID, number, comp, FUNC_NONE, NULLPtr);
+	} else if (strcasecmp(type, "point") == 0) {
+		ret =  NewElement(EXobservationID, OFFpointID, SIZEpointID, number, comp, FUNC_NONE, NULLPtr);
+	} else {
+		yyerror("Unknown observation specifier: %s", type);
+	}
+
+	return ret;
+} // End of AddObservation
+
+static int AddVRF(direction_t direction, uint16_t comp, uint64_t number) {
+
+	int ret = -1;
+	switch(direction) {
+		case DIR_INGRESS:
+			ret =  NewElement(EXvrfID, OFFingressVrf, SIZEingressVrf, number, comp, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_EGRESS:
+			ret =  NewElement(EXvrfID, OFFegressVrf, SIZEegressVrf, number, comp, FUNC_NONE, NULLPtr);
+			break;
+		default:
+			yyerror("Unknown vrf specifier");
+	}
+
+	return ret;
+} // End of AddVRF
+
+static int AddPFString(char *type, char *arg) {
+
+	int ret = -1;
+	if (strcasecmp(type, "action") == 0) {
+		int pfAction = pfActionNr(arg);
+		if ( pfAction < 0 ) {
+				yyerror("Invalid pf action: %s", arg);
+				printf("Possible pf action values: ");
+				pfListActions();
+			} else {
+				ret = NewElement(EXpfinfoID, OFFpfAction, SIZEpfAction, pfAction, CMP_EQ, FUNC_NONE, NULLPtr);
+			}
+	} else if (strcasecmp(type, "reason") == 0) {
+		int pfReason = pfReasonNr(arg);
+			if ( pfReason < 0 ) {
+				yyerror("Invalid pf reason: %s", arg);
+				printf("Possible pf reason values: ");
+				pfListReasons();
+			} else {
+				ret = NewElement(EXpfinfoID, OFFpfReason, SIZEpfReason, pfReason, CMP_EQ, FUNC_NONE, NULLPtr);
+			}
+	} else if (strcasecmp(type, "dir") == 0) {
+		int pfDir = strcasecmp(arg, "in") == 0 ? 1: 0;
+		ret = NewElement(EXpfinfoID, OFFpfDir, SIZEpfDir, pfDir, CMP_EQ, FUNC_NONE, NULLPtr);
+	} else if (strcasecmp(type, "interface") == 0) {
+		data_t data = {.dataPtr=strdup(arg)};
+		ret = NewElement(EXpfinfoID, OFFpfIfName, SIZEpfIfName, 0, CMP_STRING, FUNC_NONE, data);
+	} else {
+		yyerror("Invalid pf argument: %s", type);
+	}
+	return ret;
+} // End of AddPFString
+
+static int AddPFNumber(char *type, uint16_t comp, uint64_t number) {
+
+	int ret = -1;
+	if (strcasecmp(type, "rule") == 0) {
+		ret = NewElement(EXpfinfoID, OFFpfRuleNr, SIZEpfRuleNr, number, comp, FUNC_NONE, NULLPtr);
+	} else {
+		yyerror("Invalid pf argument: %s", type);
+	}
+
+	return ret;
+} // End of AddPFNumber
+
+static int AddIP(direction_t direction, char *IPstr) {
+
+	int lookupMode = 0;
+	switch ( direction ) {
+			case DIR_SRC:
+			case DIR_DST:
+			case DIR_UNSPEC:
+				lookupMode = ALLOW_LOOKUP;
+			default:
+				lookupMode = STRICT_IP;
+	} // End of switch
+
+	int numIP = parseIP(IPstr, ipStack, lookupMode);
+	if ( numIP <= 0)  {
+		yyerror("Can not parse/lookup %s to an IP address", IPstr);
+		return -1;
+	}
+
+	int ret = -1;
+	switch ( direction ) {
+		case DIR_SRC:
+		case DIR_DST:
+		case DIR_SRC_NAT:
+		case DIR_DST_NAT:
+		case DIR_SRC_TUN:
+		case DIR_DST_TUN:
+		case DIR_NEXT:
+		case BGP_NEXT:
+		case SRC_ROUTER:
+			ret = ChainHosts(ipStack, numIP, direction);
+			break;
+		case DIR_UNSPEC: {
+			uint32_t src = ChainHosts(ipStack, numIP, DIR_SRC);
+			uint32_t dst = ChainHosts(ipStack, numIP, DIR_DST);
+			ret = Connect_OR(src, dst);
+			} break;
+		case DIR_UNSPEC_NAT: {
+			uint32_t src = ChainHosts(ipStack, numIP, DIR_SRC_NAT);
+			uint32_t dst = ChainHosts(ipStack, numIP, DIR_DST_NAT);
+			ret = Connect_OR(src, dst);
+			} break;
+		case DIR_UNSPEC_TUN: {
+			uint32_t src = ChainHosts(ipStack, numIP, DIR_SRC_TUN);
+			uint32_t dst = ChainHosts(ipStack, numIP, DIR_DST_TUN);
+			ret = Connect_OR(src, dst);
+			} break;
+		default:
+			yyerror("Unknown direction for IP address");
+	} // End of switch
+
+	return ret;
+} // End of AddIP
+
+static int AddNet(direction_t direction, char *IPstr, char *maskStr) {
+	
+	int numIP = parseIP(IPstr, ipStack, STRICT_IP);
+	if (numIP <= 0)  {
+		yyerror("Can not parse/lookup %s to an IP address", IPstr);
+		return -1;
+	}
+
+	ipStack_t	mask;
+	numIP = parseIP(maskStr, &mask, STRICT_IP);
+	if (numIP <= 0)  {
+		yyerror("Can not parse %s as IP mask", maskStr);
+		return -1;
+	}
+
+	if (ipStack[0].af != PF_INET || mask.af != PF_INET) {
+		yyerror("Net address %s and netmask: %s must be IPv4", IPstr, maskStr);
+		return -1;
+	}
+
+	data_t data = {.dataVal = mask.ipaddr[1]};
+
+	int ret = -1;
+	switch ( direction ) {
+		case DIR_SRC:
+		case DIR_DST:
+		case DIR_SRC_NAT:
+		case DIR_DST_NAT:
+		case DIR_SRC_TUN:
+		case DIR_DST_TUN:
+		case DIR_NEXT:
+		case BGP_NEXT:
+		case SRC_ROUTER:
+			ret = NewIPElement(&ipStack[0], direction, CMP_NET, &data);
+			break;
+		case DIR_UNSPEC: {
+			uint32_t src = NewIPElement(&ipStack[0], DIR_SRC, CMP_NET, &data);
+			uint32_t dst = NewIPElement(&ipStack[0], DIR_DST, CMP_NET, &data);
+			ret = Connect_OR(src, dst);
+			} break;
+		case DIR_UNSPEC_NAT: {
+			uint32_t src = NewIPElement(&ipStack[0], DIR_SRC_NAT, CMP_NET, &data);
+			uint32_t dst = NewIPElement(&ipStack[0], DIR_DST_NAT, CMP_NET, &data);
+			ret = Connect_OR(src, dst);
+			} break;
+		case DIR_UNSPEC_TUN: {
+			uint32_t src = NewIPElement(&ipStack[0], DIR_SRC_TUN, CMP_NET, &data);
+			uint32_t dst = NewIPElement(&ipStack[0], DIR_DST_TUN, CMP_NET, &data);
+			ret = Connect_OR(src, dst);
+			} break;
+		default:
+			yyerror("Unknown direction for IP address");
+	} // End of switch
+
+	return ret;
+} // End of AddNet
+
+static int AddNetPrefix(direction_t direction, char *IPstr, uint64_t prefix) {
+	int numIP = parseIP(IPstr, ipStack, STRICT_IP);
+	if (numIP <= 0)  {
+		yyerror("Can not parse/lookup %s to an IP address", IPstr);
+		return -1;
+	}
+
+	data_t data[2];
+	if (ipStack[0].af == PF_INET) {
+		// IPv4 
+		if (prefix >32 ) {
+			yyerror("Prefix %llu out of range for IPv4 address", prefix);
+			return -1;
+		}
+		data[0].dataVal = 0xffffffffffffffffLL << (32 - prefix);
+	} else {
+		// IPv6
+		if (prefix >128 ) {
+			yyerror("Prefix %llu out of range for IPv6 address", prefix);
+			return -1;
+		}
+		if ( prefix > 64 ) {
+			data[0].dataVal = 0xffffffffffffffffLL;
+			data[1].dataVal = 0xffffffffffffffffLL << (128 - prefix);
+		} else {
+			data[0].dataVal = 0xffffffffffffffffLL << (64 - prefix);
+			data[1].dataVal = 0;
+		}
+	}
+
+	int ret = -1;
+	switch (direction) {
+		case DIR_SRC:
+		case DIR_DST:
+		case DIR_SRC_NAT:
+		case DIR_DST_NAT:
+		case DIR_SRC_TUN:
+		case DIR_DST_TUN:
+		case DIR_NEXT:
+		case BGP_NEXT:
+		case SRC_ROUTER:
+			ret = NewIPElement(&ipStack[0], direction, CMP_NET, data);
+			break;
+		case DIR_UNSPEC: {
+			uint32_t src = NewIPElement(&ipStack[0], DIR_SRC, CMP_NET, data);
+			uint32_t dst = NewIPElement(&ipStack[0], DIR_DST, CMP_NET, data);
+			ret = Connect_OR(src, dst);
+			} break;
+		case DIR_UNSPEC_NAT: {
+			uint32_t src = NewIPElement(&ipStack[0], DIR_SRC_NAT, CMP_NET, data);
+			uint32_t dst = NewIPElement(&ipStack[0], DIR_DST_NAT, CMP_NET, data);
+			ret = Connect_OR(src, dst);
+			} break;
+		case DIR_UNSPEC_TUN: {
+			uint32_t src = NewIPElement(&ipStack[0], DIR_SRC_TUN, CMP_NET, data);
+			uint32_t dst = NewIPElement(&ipStack[0], DIR_DST_TUN, CMP_NET, data);
+			ret = Connect_OR(src, dst);
+			} break;
+		default:
+			yyerror("Unknown direction for IP address");
+	} // End of switch
+
+	return ret;
+} // End of AddNetPrefix
+
+static int AddIPlist(direction_t direction, void *IPlist) {
+	int ret = -1;
+	data_t IPlistData = {IPlist};
+	switch ( direction ) {
+		case DIR_SRC:
+			ret = Connect_OR(
+				NewElement(EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
+			break;
+		case DIR_DST:
+			ret = Connect_OR(
+				NewElement(EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
+			break;
+		case DIR_SRC_NAT:
+			ret = Connect_OR(
+				NewElement(EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
+			break;
+		case DIR_DST_NAT:
+			ret = Connect_OR(
+				NewElement(EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
+			break;
+		case DIR_SRC_TUN:
+			ret = Connect_OR(
+				NewElement(EXtunIPv4ID, OFFtunSrc4Addr, SIZEtunSrc4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXtunIPv6ID, OFFtunSrc6Addr, SIZEtunSrc6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
+			break;
+		case DIR_DST_TUN:
+			ret = Connect_OR(
+				NewElement(EXtunIPv4ID, OFFtunDst4Addr, SIZEtunDst4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXtunIPv6ID, OFFtunDst6Addr, SIZEtunDst6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
+			break;
+		case DIR_NEXT:
+			ret = Connect_OR(
+				NewElement(EXipNextHopV4ID, OFFNext4HopIP, SIZENext4HopIP, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXipNextHopV6ID, OFFNext6HopIP, SIZENext6HopIP, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
+			break;
+		case DIR_UNSPEC: {
+			int v4 = Connect_OR(
+				NewElement(EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData) 
+			);
+			int v6 = Connect_OR(
+				NewElement(EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData),
+				NewElement(EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
+			ret = Connect_OR(v4, v6);
+		} break;
+		case DIR_UNSPEC_NAT: {
+			int v4 = Connect_OR(
+				NewElement(EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData) 
+			);
+			int v6 = Connect_OR(
+				NewElement(EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData),
+				NewElement(EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
+			ret = Connect_OR(v4, v6);
+		} break;
+		case DIR_UNSPEC_TUN: {
+			int v4 = Connect_OR(
+				NewElement(EXtunIPv4ID, OFFtunSrc4Addr, SIZEtunSrc4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXtunIPv4ID, OFFtunDst4Addr, SIZEtunDst4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
+			int v6 = Connect_OR(
+				NewElement(EXtunIPv6ID, OFFtunSrc6Addr, SIZEtunSrc6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData),
+				NewElement(EXtunIPv6ID, OFFtunDst6Addr, SIZEtunDst6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+			);
+			ret = Connect_OR(v4, v6);
+		} break;
+		default:
+			yyerror("Unknown direction for IP list");
+	}
+
+	return ret;
+} // AddIPlist
+
+static struct IPListNode *mkNode(ipStack_t ipStack, int64_t prefix) {
+
+	struct IPListNode *node = malloc(sizeof(struct IPListNode));
+	if (node == NULL) {
+		yyerror("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		return NULL;
+	}
+
+	node->ip[0] = ipStack.ipaddr[0];
+	node->ip[1] = ipStack.ipaddr[1];
+	node->mask[0] = 0xffffffffffffffffLL;
+	node->mask[1] = 0xffffffffffffffffLL;
+
+	if ( prefix > 0 ) {
+		if (ipStack.af == PF_INET) {
+		// IPv4 
+			if (prefix >32 ) {
+				yyerror("Prefix %llu out of range for IPv4 address", prefix);
+				return NULL;
+			}
+			node->mask[0] = 0;
+			node->mask[1] = 0xffffffffffffffffLL << (32 - prefix);
+		} else {
+			// IPv6
+			if (prefix >128 ) {
+				yyerror("Prefix %llu out of range for IPv6 address", prefix);
+				return NULL;
+			}
+			if ( prefix > 64 ) {
+				node->mask[0] = 0xffffffffffffffffLL;
+				node->mask[1] = 0xffffffffffffffffLL << (128 - prefix);
+			} else {
+				node->mask[0] = 0xffffffffffffffffLL << (64 - prefix);
+				node->mask[1] = 0;
+			}
+		}
+	}
+	return node;
+}
+
+static void *NewIplist(char *IPstr, int prefix) {
+	IPlist_t *root = malloc(sizeof(IPlist_t));
+	if (root == NULL) {
+		yyerror("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		return NULL;
+	}
+	RB_INIT(root);
+
+	int numIP = parseIP(IPstr, ipStack, ALLOW_LOOKUP);
+	if ( numIP <= 0 ) {
+		yyerror("Can not parse/resolve %s to an IP address", IPstr);
+		free(root);
+		return NULL;
+	}
+		
+	for (int i=0; i<numIP; i++ ) {
+	  struct IPListNode *node = mkNode(ipStack[i], prefix);
+		if ( node ) {
+			RB_INSERT(IPtree, root, node);
+		} else {
+			free(root);
+			return NULL;
+		}
+	}
+
+	return root;
+} // End of NewIPlist
+
+static int InsertIPlist(void *IPlist, char *IPstr, int64_t prefix) {
+	int numIP = parseIP(IPstr, ipStack, ALLOW_LOOKUP);
+	if ( numIP <= 0 ) {
+		// ret == - 2 means lookup failure
+		yyerror("Can not parse/resolve %s to an IP address", IPstr);
+		return 0;
+	}
+
+	for (int i=0; i<numIP; i++ ) {
+		struct IPListNode *node = mkNode(ipStack[i], prefix);
+		if ( node ) {
+			RB_INSERT(IPtree, (IPlist_t *)IPlist, node);
+		} else {
 			return 0;
 		}
-
-		mac = ( mac << 8 ) | (l & 0xFF );
-		i++;
-
-		if ( q ) {
-			r = ++q;
-			q = strchr(r, ':');
-		} else 
-			r = NULL;
-	}
-
-	if ( i != 6 )
-		return 0;
-
-	return mac;
-
-} // End of VerifyMac
-
-static int InitSymbols(void) {
-int i;
-
-	// already initialised?
-	if ( fwd_status )
-		return 1;
-
-	// fill fwd status cache table
-	fwd_status = ( char **)calloc(256, sizeof(char *));
-	if ( !fwd_status ) {
-		fprintf(stderr, "malloc(): %s line %d: %s", __FILE__, __LINE__, strerror (errno));
-		return 0;
-	}
-	i=0;
-	while ( fwd_status_def_list[i].name ) {
-		uint32_t j = fwd_status_def_list[i].id;
-		fwd_status[j] = fwd_status_def_list[i].name;
-		i++;
 	}
 	return 1;
+} // End of InsertIPlist
 
-} // End of InitSymbols
-
-static uint32_t Get_fwd_status_id(char *status) {
-int i;
-
-	if ( !fwd_status && !InitSymbols() )
-		yyerror("malloc() error");
-
-	i = 0;
-	while ( i < 256 ) {
-		if ( fwd_status[i] && strcasecmp(fwd_status[i], status) == 0 ) 
-			return i;
-		i++;
+static void *NewU64list(uint64_t num) {
+	U64List_t *root = malloc(sizeof(U64List_t));
+	if (root == NULL) {
+		yyerror("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		return NULL;
 	}
-	return 256;
+	RB_INIT(root);
 
-} // End of Get_fwd_status_id
+  struct U64ListNode *node;
+	if ((node = malloc(sizeof(struct U64ListNode))) == NULL) {
+		yyerror("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		free(root);
+		return NULL;
+	}
+	node->value = num;
+	RB_INSERT(U64tree, root, node);
 
-static int AddGeo(uint16_t direction, char *geoStr) {	
-		if ( strlen(geoStr) != 2 ) {
-			yyerror("Need a two letter geo country code");
-			return 0;
+	return root;
+} // End of NewU64list
+
+static int InsertU64list(void *U64list, uint64_t num) {
+	
+	struct U64ListNode *node;
+	if ((node = malloc(sizeof(struct U64ListNode))) == NULL) {
+		yyerror("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		return 0;
+	}
+	node->value = num;
+	RB_INSERT(U64tree, U64list, node);
+
+	return 1;
+} // End of InsertU64list
+
+static int AddPortList(direction_t direction, void *U64List) {
+
+	// check, that each element is a valid port number
+	struct U64ListNode *node;
+	RB_FOREACH(node, U64tree, (U64List_t *)U64List) {
+		if ( node->value > 65535 ) {
+			yyerror("Port: %llu outside of range 0..65535", node->value);
+			return -1;
 		}
-
-		geoFilter = 2;
-		union {
-			char c[8];
-			uint64_t u;
-		} v;
-		v.u = 0;
-#ifdef WORDS_BIGENDIAN
-                v.c[4] = toupper(geoStr[0]);
-                v.c[5] = toupper(geoStr[1]);
-#else
-                v.c[0] = toupper(geoStr[0]);
-                v.c[1] = toupper(geoStr[1]);
-#endif
-		int slot = 0;
-		switch ( direction ) {
-			case SOURCE:
-				slot = NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL );
-				break;
-			case DESTINATION:
-				slot = NewBlock(OffsetGeo, MaskDstGeo, (v.u << ShiftDstGeo) & MaskDstGeo, CMP_EQ, FUNC_NONE, NULL);
-				break;
-			case DIR_UNSPEC:
-			case SOURCE_OR_DESTINATION:
-				slot = Connect_OR(
-					NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetGeo, MaskDstGeo, (v.u << ShiftDstGeo) & MaskDstGeo, CMP_EQ, FUNC_NONE, NULL)
-				);
-				break;
-			case SOURCE_AND_DESTINATION:
-				slot = Connect_AND(
-					NewBlock(OffsetGeo, MaskSrcGeo, (v.u << ShiftSrcGeo) & MaskSrcGeo, CMP_EQ, FUNC_NONE, NULL ),
-					NewBlock(OffsetGeo, MaskDstGeo, (v.u << ShiftDstGeo) & MaskDstGeo, CMP_EQ, FUNC_NONE, NULL)
-				);
-				break;
-			default:
-				yyerror("This token is not expected here!");
-				return 0;
-		} // End of switch
-
-		return slot;
 	}
+
+	data_t U64ListPtr = {U64List};
+	int ret = -1;
+  switch ( direction ) {
+	  case DIR_SRC:
+		  ret = NewElement(EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  break;
+	  case DIR_DST:
+		  ret = NewElement(EXgenericFlowID, OFFdstPort, SIZEdstPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  break;
+	  case DIR_UNSPEC:
+		  ret = Connect_OR(
+			  NewElement(EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr),
+				NewElement(EXgenericFlowID, OFFdstPort, SIZEdstPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr)
+		  );
+		  break;
+		case DIR_SRC_NAT:
+		  ret = NewElement(EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  break;
+	  case DIR_DST_NAT:
+		  ret = NewElement(EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  break;
+	  case DIR_UNSPEC_NAT:
+		  ret = Connect_OR(
+		  	NewElement(EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr),
+		  	NewElement(EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr )
+		  );
+		  break;
+	  default:
+		  yyerror("Unknown direction");
+  } // End switch
+
+	return ret;
+} // AddPortList
+
+static int AddASList(direction_t direction, void *U64List) {
+
+	// check, that each element is a valid AS number
+	struct U64ListNode *node;
+	RB_FOREACH(node, U64tree, (U64List_t *)U64List) {
+		if ( node->value > 0xFFFFFFFFLL ) {
+			yyerror("AS: %llu outside of range 32bit", node->value);
+			return -1;
+		}
+	}
+
+	data_t U64ListPtr = {U64List};
+	int ret = -1;
+  switch ( direction ) {
+	  case DIR_SRC:
+		  ret = NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  break;
+	  case DIR_DST:
+		  ret = NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  break;
+	  case DIR_UNSPEC:
+		  ret = Connect_OR(
+			  NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr),
+			  NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr)
+		  );
+		  break;
+		case DIR_NEXT:
+		  ret = NewElement(EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+			break;
+		case DIR_PREV:
+		  ret = NewElement(EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  break;
+	  default:
+			yyerror("Unknown direction");
+  } // End of switch
+
+	return ret;
+} // AddASList
+
+static int AddInterfaceNumber(direction_t direction, uint64_t num) {
+	if ( num > 0xffffffffLL ) {
+		yyerror("Interface number out of range 0..2^32");
+		return -1;
+	}
+
+	int ret = -1;
+	switch ( direction ) {
+		case DIR_UNSPEC:
+			ret = Connect_OR(
+				NewElement(EXflowMiscID, OFFinput, SIZEinput, num, CMP_EQ, FUNC_NONE, NULLPtr),
+				NewElement(EXflowMiscID, OFFoutput, SIZEoutput, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			break;
+		case DIR_IN: 
+			ret = NewElement(EXflowMiscID, OFFinput, SIZEinput, num, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_OUT: 
+			ret = NewElement(EXflowMiscID, OFFoutput, SIZEoutput, num, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		default:
+			yyerror("Unknown interface direction");
+	} // End of switch
+
+	return ret;
+} // End of AddInterfaceNumber
+
+static int AddVlanNumber(direction_t direction, uint64_t num) {
+	if ( num > 0xffffffffLL ) {
+		yyerror("Vlan number out of range 32bit");
+		return -1;
+	}
+
+	int ret = -1;
+	switch ( direction ) {
+		case DIR_UNSPEC:
+			ret = Connect_OR(
+				NewElement(EXvLanID, OFFsrcVlan, SIZEsrcVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
+				NewElement(EXvLanID, OFFdstVlan, SIZEdstVlan, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			break;
+		case DIR_SRC: 
+			ret = NewElement(EXvLanID, OFFsrcVlan, SIZEsrcVlan, num, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_DST: 
+			ret = NewElement(EXvLanID, OFFdstVlan, SIZEdstVlan, num, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		default:
+			yyerror("Unknown vlan direction");
+	} // End of switch
+
+	return ret;
+} // End of AddVlanNumber
+
+static int AddAsNumber(direction_t direction, uint16_t comp, uint64_t as) {
+	if (as < 0 || as > 65535 ) {
+		yyerror("AS number of range");
+		return -1;
+  }
+
+	int ret = -1;
+  switch ( direction ) {
+	  case DIR_SRC:
+		  ret = NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_NONE, NULLPtr);
+		  break;
+	  case DIR_DST:
+		  ret = NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, as, comp, FUNC_NONE, NULLPtr);
+		  break;
+	  case DIR_UNSPEC:
+		  ret = Connect_OR(
+			  NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_NONE, NULLPtr),
+			  NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, as, comp, FUNC_NONE, NULLPtr)
+		  );
+			break;
+		case DIR_NEXT:
+		  ret = NewElement(EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, as, comp, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_PREV:
+		  ret = NewElement(EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, as, comp, FUNC_NONE, NULLPtr);
+		  break;
+	  default:
+			yyerror("Unknown direction");
+  } // End of switch
+
+	return ret;
+} // End of AddAsNumber
+
+static int AddMaskNumber(direction_t direction, uint64_t num) {
+	if ( num > 255 ) {
+		yyerror("Mas %d out of range 0..255", num);
+		return -1;
+	}
+
+	int ret = -1;
+	switch ( direction ) {
+		case DIR_UNSPEC:
+			ret = Connect_OR(
+				NewElement(EXflowMiscID, OFFsrcMask, SIZEsrcMask, num, CMP_EQ, FUNC_NONE, NULLPtr),
+				NewElement(EXflowMiscID, OFFdstMask, SIZEdstMask, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			break;
+		case DIR_SRC: 
+			ret = NewElement(EXflowMiscID, OFFsrcMask, SIZEsrcMask, num, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_DST: 
+			ret = NewElement(EXflowMiscID, OFFdstMask, SIZEdstMask, num, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		default:
+			yyerror("Invalid direction for mask");
+	} // End of switch
+
+	return ret;
+} // End of AddMaskNumber
+
+static int AddFlowDir(direction_t direction, int64_t dirNum) {
+
+	int ret = -1;
+	switch (direction) {
+		case DIR_INGRESS:
+	  	ret = NewElement(EXflowMiscID, OFFdir, SIZEdir, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_EGRESS:
+	  	ret = NewElement(EXflowMiscID, OFFdir, SIZEdir, 1, CMP_EQ, FUNC_NONE, NULLPtr);
+			break;
+		case DIR_UNSPEC:
+			if (dirNum != 0 && dirNum != 1) {
+	 			yyerror("Unknown flowdir: %d", dirNum);
+			} else {
+	  		ret = NewElement(EXflowMiscID, OFFdir, SIZEdir, dirNum, CMP_EQ, FUNC_NONE, NULLPtr);
+			}
+			break;
+		default:
+	 			yyerror("Unknown flowdir");
+	}
+
+	return ret;
+} // End of AddFlowDirString

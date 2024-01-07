@@ -2,7 +2,7 @@
 BUILT_SOURCES = filter/grammar.h vcs_track.h
 AM_YFLAGS = -d
 
-AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -Icompress $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -Isgregex -Icompress $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb 
 
 LDADD =  $(DEPS_LIBS)
@@ -22,7 +22,7 @@ nflist = flist.c flist.h fts_compat.c fts_compat.h
 else 
 nflist = flist.c flist.h
 endif
-filter = filter/grammar.y filter/scanner.l filter/nftree.c filter/nftree.h filter/ipconv.c filter/ipconv.h filter/rbtree.h filter/filter.h
+filter = filter/grammar.y filter/scanner.l filter/filter.c filter/filter.h filter/ipconv.c filter/ipconv.h rbtree.h
 output = userio.c userio.h output_util.c output_util.h output_short.c output_short.h
 regex = sgregex/sgregex.c sgregex/sgregex.h
 daemon = daemon.c daemon.h 
@@ -41,4 +41,4 @@ EXTRA_DIST = gen_version.sh conf/nfdump.conf.dist
 nfconfdir=$(sysconfdir)
 nfconf_DATA = conf/nfdump.conf.dist
 
-CLEANFILES = lex.yy.c grammar.c grammar.h scanner.c scanner.h vcs_track.h *.gch
+CLEANFILES = filter/lex.yy.c filter/grammar.c filter/grammar.h filter/scanner.c filter/scanner.h vcs_track.h *.gch

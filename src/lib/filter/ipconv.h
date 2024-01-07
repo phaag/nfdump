@@ -1,6 +1,5 @@
 /*
  *  Copyright (c) 2023, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -35,9 +34,18 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-int parse_ip(int *af, const char *src, uint64_t *dst, int *bytes, int lookup, uint32_t *num_ip);
+typedef struct ipStack_s {
+    int af;
+    uint64_t ipaddr[2];
+} ipStack_t;
 
-#define MAXHOSTS 512
+int parseIP(const char *src, ipStack_t *ipStack, int lookup);
+
+int set_nameserver(char *ns);
+
+uint64_t Str2Mac(char *macStr);
+
+#define MAXHOSTS 1024
 
 #define STRICT_IP 0
 #define ALLOW_LOOKUP 1
