@@ -126,7 +126,7 @@ static uint32_t numV9Elements = 53;
  * functions for sending netflow v9 records
  */
 
-static outTemplate_t *GetOutputTemplate(master_record_t *master_record);
+static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle);
 
 static void Append_Record(send_peer_t *peer, master_record_t *master_record);
 
@@ -180,7 +180,7 @@ int Close_v9_output(send_peer_t *peer) {
 
 }  // End of Close_v9_output
 
-static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
+static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
     outTemplate_t **t;
     template_flowset_t *flowset;
     uint32_t template_id, count, record_length;
@@ -662,12 +662,14 @@ static int CheckSendBufferSpace(size_t size, send_peer_t *peer) {
 
 }  // End of CheckBufferSpace
 
-int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer) {
+int Add_v9_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
+    master_record_t *master_record = NULL;
     time_t now = time(NULL);
 
     dbg_printf("\nNext packet\n");
-    if (master_record->numElements == 0) {
-        dbg_printf("Skip record with 0 extensions\n\n");
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    if (recordHandle->numElements == 0 || !genericFlow) {
+        dbg_printf("Skip record with 0 extensions\n");
         return 0;
     }
 
@@ -675,7 +677,7 @@ int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer) {
         dbg_printf("First time setup\n");
         // boot time is set one day back - assuming that the start time of every flow does not start
         // earlier
-        uint64_t boot_time = master_record->msecFirst - 86400LL * 1000LL;
+        uint64_t boot_time = genericFlow->msecFirst - 86400LL * 1000LL;
         uint32_t unix_secs = boot_time / 1000LL;
         sender_data->header.v9_header->unix_secs = htonl(unix_secs);
     }
@@ -685,7 +687,7 @@ int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer) {
         peer->buff_ptr = (void *)((void *)sender_data->header.v9_header + sizeof(v9Header_t));
     }
 
-    outTemplate_t *template = GetOutputTemplate(master_record);
+    outTemplate_t *template = GetOutputTemplate(recordHandle);
     if ((sender_data->data_flowset_id != template->template_id) || template->needs_refresh) {
         // Different flowset ID - End data flowset and open new data flowset
         CloseDataFlowset(peer);

@@ -337,7 +337,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
                             again = Add_v5_output_record(recordHandle, &peer);
                             break;
                         case 9:
-                            again = Add_v9_output_record(&master_record, &peer);
+                            again = Add_v9_output_record(recordHandle, &peer);
                             break;
                         case 250:
                             again = Add_nfd_output_record(record_ptr, &peer);
@@ -368,7 +368,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
                                 again = Add_v5_output_record(recordHandle, &peer);
                                 break;
                             case 9:
-                                again = Add_v9_output_record(&master_record, &peer);
+                                again = Add_v9_output_record(recordHandle, &peer);
                                 break;
                             case 250:
                                 again = Add_nfd_output_record(record_ptr, &peer);

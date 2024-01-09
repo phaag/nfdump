@@ -82,6 +82,7 @@ static inline void MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *rec
     handle->extensionList[EXnull] = (void *)recordHeaderV3;
     handle->extensionList[EXlocal] = (void *)handle;
     handle->flowCount = flowCount;
+    handle->numElements = recordHeaderV3->numElements;
 }
 
 static inline void ClearMasterRecord(master_record_t *record) {

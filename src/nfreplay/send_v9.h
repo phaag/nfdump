@@ -102,6 +102,6 @@ int Init_v9_output(send_peer_t *peer);
 
 int Close_v9_output(send_peer_t *peer);
 
-int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer);
+int Add_v9_output_record(recordHandle_t *recordHandle, send_peer_t *peer);
 
 #endif  // _SEND_V9_H
