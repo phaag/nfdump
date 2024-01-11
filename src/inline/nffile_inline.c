@@ -76,8 +76,13 @@ static inline void MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *rec
     elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t));
     // map all extensions
     for (int i = 0; i < recordHeaderV3->numElements; i++) {
-        handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
-        elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
+        if (elementHeader->type < MAXEXTENSIONS) {
+            handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
+            elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
+            handle->elementsBits |= 1 << elementHeader->type;
+        } else {
+            LogError("Unknown extension '%u'", elementHeader->type);
+        }
     }
     handle->extensionList[EXnull] = (void *)recordHeaderV3;
     handle->extensionList[EXlocal] = (void *)handle;

@@ -249,7 +249,6 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
             break;
     }
 
-    master_record_t master_record;
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
@@ -329,7 +328,6 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
                         goto NEXT;
                     }
                     // Records passed filter -> continue record processing
-                    ExpandRecord_v3((recordHeaderV3_t *)record_ptr, &master_record);
 
                     int again;
                     switch (netflow_version) {
@@ -392,8 +390,10 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
 
             // z-parameter
             // first and last are line (tstart and tend) timestamp with milliseconds
-            // first = (double)master_record->msecFirst / 1000.0;
-            double last = (double)master_record.msecLast / 1000.0;
+            // first = (double)genericFlow->msecFirst / 1000.0;
+            double last = 0.0;
+            EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+            if (genericFlow) last = (double)genericFlow->msecLast / 1000.0;
 
             gettimeofday(&currentTime, NULL);
             double now = (double)currentTime.tv_sec + (double)currentTime.tv_usec / 1000000;
