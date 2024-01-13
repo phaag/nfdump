@@ -213,75 +213,91 @@ void csv_record(FILE *stream, void *record, int tag) {
     as[IP_STRING_LEN - 1] = 0;
     fprintf(stream, ",%s", as);
 
-    master_record_t *r = (master_record_t *)record;
-
-    // EX_VLAN:
-    fprintf(stream, ",%u,%u", r->src_vlan, r->dst_vlan);
-
-    // case EX_MAC_1:
-    uint8_t mac1[6], mac2[6];
-    for (int i = 0; i < 6; i++) {
-        mac1[i] = (r->in_src_mac >> (i * 8)) & 0xFF;
+    uint32_t srcVlan = 0;
+    uint32_t dstVlan = 0;
+    EXvLan_t *vLan = (EXvLan_t *)recordHandle->extensionList[EXvLanID];
+    if (vLan) {
+        srcVlan = vLan->srcVlan;
+        dstVlan = vLan->dstVlan;
     }
-    for (int i = 0; i < 6; i++) {
-        mac2[i] = (r->out_dst_mac >> (i * 8)) & 0xFF;
+    fprintf(stream, ",%u,%u", srcVlan, dstVlan);
+
+    EXmacAddr_t *macAddr = (EXmacAddr_t *)recordHandle->extensionList[EXmacAddrID];
+    uint8_t mac1[6] = {0};
+    uint8_t mac2[6] = {0};
+    if (macAddr) {
+        for (int i = 0; i < 6; i++) {
+            mac1[i] = (macAddr->inSrcMac >> (i * 8)) & 0xFF;
+        }
+        for (int i = 0; i < 6; i++) {
+            mac2[i] = (macAddr->outDstMac >> (i * 8)) & 0xFF;
+        }
+
+        fprintf(stream, ",%.2x:%.2x:%.2x:%.2x:%.2x:%.2x,%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5],
+                mac2[4], mac2[3], mac2[2], mac2[1], mac2[0]);
+
+        for (int i = 0; i < 6; i++) {
+            mac1[i] = (macAddr->inDstMac >> (i * 8)) & 0xFF;
+        }
+        for (int i = 0; i < 6; i++) {
+            mac2[i] = (macAddr->outSrcMac >> (i * 8)) & 0xFF;
+        }
+
+        fprintf(stream, ",%.2x:%.2x:%.2x:%.2x:%.2x:%.2x,%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5],
+                mac2[4], mac2[3], mac2[2], mac2[1], mac2[0]);
+
+    } else {
+        fprintf(stream, ",%.2x:%.2x:%.2x:%.2x:%.2x:%.2x,%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5],
+                mac2[4], mac2[3], mac2[2], mac2[1], mac2[0]);
+        fprintf(stream, ",%.2x:%.2x:%.2x:%.2x:%.2x:%.2x,%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5],
+                mac2[4], mac2[3], mac2[2], mac2[1], mac2[0]);
     }
 
-    fprintf(stream, ",%.2x:%.2x:%.2x:%.2x:%.2x:%.2x,%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5],
-            mac2[4], mac2[3], mac2[2], mac2[1], mac2[0]);
-
-    // EX_MAC_2:
-    for (int i = 0; i < 6; i++) {
-        mac1[i] = (r->in_dst_mac >> (i * 8)) & 0xFF;
-    }
-    for (int i = 0; i < 6; i++) {
-        mac2[i] = (r->out_src_mac >> (i * 8)) & 0xFF;
-    }
-
-    fprintf(stream, ",%.2x:%.2x:%.2x:%.2x:%.2x:%.2x,%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5],
-            mac2[4], mac2[3], mac2[2], mac2[1], mac2[0]);
-
-    // EX_MPLS:
-    for (int i = 0; i < 10; i++) {
-        fprintf(stream, ",%u-%1u-%1u", r->mpls_label[i] >> 4, (r->mpls_label[i] & 0xF) >> 1, r->mpls_label[i] & 1);
+    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)recordHandle->extensionList[EXmplsLabelID];
+    if (mplsLabel) {
+        for (int i = 0; i < 10; i++) {
+            fprintf(stream, ",%u-%1u-%1u", mplsLabel->mplsLabel[i] >> 4, (mplsLabel->mplsLabel[i] & 0xF) >> 1, mplsLabel->mplsLabel[i] & 1);
+        }
+    } else {
+        for (int i = 0; i < 10; i++) {
+            fprintf(stream, ",%u-%1u-%1u", 0, 0, 0);
+        }
     }
 
-    double f1, f2, f3;
-    f1 = (double)r->client_nw_delay_usec / 1000.0;
-    f2 = (double)r->server_nw_delay_usec / 1000.0;
-    f3 = (double)r->appl_latency_usec / 1000.0;
-
+    EXlatency_t *latency = (EXlatency_t *)recordHandle->extensionList[EXlatencyID];
+    double f1 = 0.0, f2 = 0.0, f3 = 0.0;
+    if (latency) {
+        f1 = (double)latency->usecClientNwDelay / 1000.0;
+        f2 = (double)latency->usecServerNwDelay / 1000.0;
+        f3 = (double)latency->usecApplLatency / 1000.0;
+    }
     fprintf(stream, ",%9.3f,%9.3f,%9.3f", f1, f2, f3);
 
-    // EX_ROUTER_IP_v4:
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_EXP) != 0) {
-        // EX_NEXT_HOP_v6:
-        as[0] = 0;
-        r->ip_router.V6[0] = htonll(r->ip_router.V6[0]);
-        r->ip_router.V6[1] = htonll(r->ip_router.V6[1]);
-        inet_ntop(AF_INET6, r->ip_router.V6, as, sizeof(as));
-        as[IP_STRING_LEN - 1] = 0;
-        fprintf(stream, ",%s", as);
+    as[0] = 0;
+    EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)recordHandle->extensionList[EXipReceivedV4ID];
+    EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)recordHandle->extensionList[EXipReceivedV6ID];
+    if (ipReceivedV4) {
+        ipv4 = htonl(ipReceivedV4->ip);
+        inet_ntop(AF_INET, &ipv4, as, sizeof(as));
+    } else if (ipReceivedV6) {
+        ipv6[0] = htonll(ipReceivedV6->ip[0]);
+        ipv6[1] = htonll(ipReceivedV6->ip[1]);
+        inet_ntop(AF_INET6, ipv6, as, sizeof(as));
     } else {
-        // EX_NEXT_HOP_v4:
-        as[0] = 0;
-        r->ip_router.V4 = htonl(r->ip_router.V4);
-        inet_ntop(AF_INET, &r->ip_router.V4, as, sizeof(as));
-        as[IP_STRING_LEN - 1] = 0;
-        fprintf(stream, ",%s", as);
+        ipv4 = 0;
+        inet_ntop(AF_INET, &ipv4, as, sizeof(as));
     }
+    as[IP_STRING_LEN - 1] = 0;
+    fprintf(stream, ",%s", as);
 
-    // EX_ROUTER_ID
-    fprintf(stream, ",%u/%u", r->engine_type, r->engine_id);
-
-    // Exporter SysID
-    fprintf(stream, ",%u", r->exporter_sysid);
+    fprintf(stream, ",%u/%u,%u", recordHandle->recordHeaderV3->engineType, recordHandle->recordHeaderV3->engineID,
+            recordHandle->recordHeaderV3->exporterID);
 
     // Date flow received
-    when = r->msecReceived / 1000LL;
+    when = genericFlow->msecReceived / 1000LL;
     ts = localtime(&when);
     strftime(datestr3, 63, ",%Y-%m-%d %H:%M:%S", ts);
 
-    fprintf(stream, "%s.%03llu\n", datestr3, (long long unsigned)r->msecReceived % 1000LL);
+    fprintf(stream, "%s.%03llu\n", datestr3, (long long unsigned)genericFlow->msecReceived % 1000LL);
 
 }  // End of csv_record
