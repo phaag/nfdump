@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -40,7 +40,6 @@
 #include "output_csv.h"
 #include "output_fmt.h"
 #include "output_json.h"
-#include "output_pipe.h"
 #include "output_raw.h"
 #include "util.h"
 
@@ -64,7 +63,6 @@ printmap_t printmap[MAXFORMATS] = {{"raw", raw_record, raw_prolog, raw_epilog, N
                                    {"extended", fmt_record, fmt_prolog, fmt_epilog, FORMAT_extended},
                                    {"biline", fmt_record, fmt_prolog, fmt_epilog, FORMAT_biline},
                                    {"bilong", fmt_record, fmt_prolog, fmt_epilog, FORMAT_bilong},
-                                   {"pipe", pipe_record, pipe_prolog, pipe_epilog, NULL},
                                    {"json", flow_record_to_json, json_prolog, json_epilog, NULL},
                                    {"csv", csv_record, csv_prolog, csv_epilog, NULL},
                                    {"null", null_record, null_prolog, null_epilog, NULL},
