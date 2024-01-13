@@ -1364,13 +1364,13 @@ static void String_ICMP_code(FILE *stream, master_record_t *r) {
 }  // End of String_ICMP_code
 
 static void String_SrcAS(FILE *stream, master_record_t *r) {
-    if (r->srcas == 0) r->srcas = LookupAS(r->V6.srcaddr);
+    // XXX if (r->srcas == 0) r->srcas = LookupAS(r->V6.srcaddr);
 
     fprintf(stream, "%6u", r->srcas);
 }  // End of String_SrcAS
 
 static void String_DstAS(FILE *stream, master_record_t *r) {
-    if (r->dstas == 0) r->dstas = LookupAS(r->V6.dstaddr);
+    // XXX if (r->dstas == 0) r->dstas = LookupAS(r->V6.dstaddr);
 
     fprintf(stream, "%6u", r->dstas);
 }  // End of String_DstAS
@@ -1655,7 +1655,7 @@ static void String_DstCountry(FILE *stream, master_record_t *r) {
 static void String_SrcLocation(FILE *stream, master_record_t *r) {
     char location[128];
 
-    LookupLocation(r->V6.srcaddr, location, 128);
+    // XXX LookupLocation(r->V6.srcaddr, location, 128);
     fprintf(stream, "%s", location);
 
 }  // End of String_SrcLocation
@@ -1663,7 +1663,7 @@ static void String_SrcLocation(FILE *stream, master_record_t *r) {
 static void String_DstLocation(FILE *stream, master_record_t *r) {
     char location[128];
 
-    LookupLocation(r->V6.dstaddr, location, 128);
+    // XXX LookupLocation(r->V6.dstaddr, location, 128);
     fprintf(stream, "%s", location);
 
 }  // End of String_DstLocation

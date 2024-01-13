@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -129,9 +129,13 @@ int LoadMaxMind(char *fileName);
 
 void LookupCountry(uint64_t ip[2], char *country);
 
-void LookupLocation(uint64_t ip[2], char *location, size_t len);
+void LookupV4Location(uint32_t ip, char *location, size_t len);
 
-uint32_t LookupAS(uint64_t ip[2]);
+void LookupV6Location(uint64_t ip[2], char *location, size_t len);
+
+uint32_t LookupV4AS(uint32_t ip);
+
+uint32_t LookupV6AS(uint64_t ip[2]);
 
 const char *LookupASorg(uint64_t ip[2]);
 

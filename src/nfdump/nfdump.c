@@ -210,8 +210,8 @@ static inline void AddGeoInfo(master_record_t *master_record) {
     if (!HasGeoDB || TestFlag(master_record->mflags, V3_FLAG_ENRICHED)) return;
     LookupCountry(master_record->V6.srcaddr, master_record->src_geo);
     LookupCountry(master_record->V6.dstaddr, master_record->dst_geo);
-    if (master_record->srcas == 0) master_record->srcas = LookupAS(master_record->V6.srcaddr);
-    if (master_record->dstas == 0) master_record->dstas = LookupAS(master_record->V6.dstaddr);
+    // XXX if (master_record->srcas == 0) master_record->srcas = LookupAS(master_record->V6.srcaddr);
+    // XXX if (master_record->dstas == 0) master_record->dstas = LookupAS(master_record->V6.dstaddr);
     // insert AS element in order to list
     int j = 0;
     uint32_t val = EXasRoutingID;

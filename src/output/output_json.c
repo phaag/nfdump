@@ -110,8 +110,8 @@ static void stringEXipv4Flow(FILE *stream, master_record_t *r) {
     inet_ntop(AF_INET, &src, as, sizeof(as));
     inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
-    LookupLocation(r->V6.srcaddr, sloc, 128);
-    LookupLocation(r->V6.dstaddr, dloc, 128);
+    LookupV4Location(r->V4.srcaddr, sloc, 128);
+    LookupV4Location(r->V4.dstaddr, dloc, 128);
 
     fprintf(stream,
             "	\"src4_addr\" : \"%s\",\n"
@@ -134,8 +134,8 @@ static void stringEXipv6Flow(FILE *stream, master_record_t *r) {
     inet_ntop(AF_INET6, &src, as, sizeof(as));
     inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
 
-    LookupLocation(r->V6.srcaddr, sloc, 128);
-    LookupLocation(r->V6.dstaddr, dloc, 128);
+    LookupV6Location(r->V6.srcaddr, sloc, 128);
+    LookupV6Location(r->V6.dstaddr, dloc, 128);
 
     fprintf(stream,
             "	\"src6_addr\" : \"%s\",\n"
@@ -230,8 +230,8 @@ static void stringEXvLan(FILE *stream, master_record_t *r) {
 }  // End of stringEXvLan
 
 static void stringEXasRouting(FILE *stream, master_record_t *r) {
-    if (r->srcas == 0) r->srcas = LookupAS(r->V6.srcaddr);
-    if (r->dstas == 0) r->dstas = LookupAS(r->V6.dstaddr);
+    // XXX if (r->srcas == 0) r->srcas = LookupAS(r->V6.srcaddr);
+    // XXX if (r->dstas == 0) r->dstas = LookupAS(r->V6.dstaddr);
     fprintf(stream,
             "	\"src_as\" : %u,\n"
             "	\"dst_as\" : %u,\n",

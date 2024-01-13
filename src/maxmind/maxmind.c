@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021-2023, Peter Haag
+ *  Copyright (c) 2021-2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -1033,31 +1033,19 @@ void LookupCountry(uint64_t ip[2], char *country) {
     */
 }  // End of LookupCountry
 
-void LookupLocation(uint64_t ip[2], char *location, size_t len) {
+void LookupV4Location(uint32_t ip, char *location, size_t len) {
     location[0] = '\0';
     if (!mmHandle) {
         return;
     }
 
     ipLocationInfo_t info = {0};
-    uint64_t ipMask = 0xFFFFFFFF00000000LL;
-    if (ip[0] == 0 && ((ip[1] & ipMask) == 0)) {  // IPv4
-        ipV4Node_t ipSearch = {.network = ip[1], .netmask = 0};
-        ipV4Node_t *ipV4Node = kb_getp(ipV4Tree, mmHandle->ipV4Tree, &ipSearch);
-        if (!ipV4Node) {
-            return;
-        }
-        info = ipV4Node->info;
-    } else {
-        ipV6Node_t ipSearch = {0};
-        ipSearch.network[0] = ip[0];
-        ipSearch.network[1] = ip[1];
-        ipV6Node_t *ipV6Node = kb_getp(ipV6Tree, mmHandle->ipV6Tree, &ipSearch);
-        if (!ipV6Node) {
-            return;
-        }
-        info = ipV6Node->info;
+    ipV4Node_t ipSearch = {.network = ip, .netmask = 0};
+    ipV4Node_t *ipV4Node = kb_getp(ipV4Tree, mmHandle->ipV4Tree, &ipSearch);
+    if (!ipV4Node) {
+        return;
     }
+    info = ipV4Node->info;
 
     locationKey_t locationKey = {.key = info.localID};
     khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
@@ -1069,28 +1057,60 @@ void LookupLocation(uint64_t ip[2], char *location, size_t len) {
     snprintf(location, len, "%s/%s/%s long/lat: %.4f/%-.4f", locationInfo.continent, locationInfo.country, locationInfo.city, info.longitude,
              info.latitude);
 
-}  // End of LookupLocation
+}  // End of LookupV4Location
 
-uint32_t LookupAS(uint64_t ip[2]) {
+void LookupV6Location(uint64_t ip[2], char *location, size_t len) {
+    location[0] = '\0';
+    if (!mmHandle) {
+        return;
+    }
+
+    ipLocationInfo_t info = {0};
+
+    ipV6Node_t ipSearch = {0};
+    ipSearch.network[0] = ip[0];
+    ipSearch.network[1] = ip[1];
+    ipV6Node_t *ipV6Node = kb_getp(ipV6Tree, mmHandle->ipV6Tree, &ipSearch);
+    if (!ipV6Node) {
+        return;
+    }
+    info = ipV6Node->info;
+
+    locationKey_t locationKey = {.key = info.localID};
+    khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
+    if (k == kh_end(mmHandle->localMap)) {
+        return;
+    }
+
+    locationInfo_t locationInfo = kh_value(mmHandle->localMap, k);
+    snprintf(location, len, "%s/%s/%s long/lat: %.4f/%-.4f", locationInfo.continent, locationInfo.country, locationInfo.city, info.longitude,
+             info.latitude);
+
+}  // End of LookupV6Location
+
+uint32_t LookupV4AS(uint32_t ip) {
     if (!mmHandle) {
         return 0;
     }
 
-    uint64_t ipMask = 0xFFFFFFFF00000000LL;
-    if (ip[0] == 0 && ((ip[1] & ipMask) == 0)) {  // IPv4
-        asV4Node_t asSearch = {.network = ip[1], .netmask = 0};
-        asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
-        return asV4Node == NULL ? 0 : asV4Node->as;
-    } else {  // IPv6
-        asV6Node_t asV6Search = {0};
-        asV6Search.network[0] = ip[0];
-        asV6Search.network[1] = ip[1];
-        asV6Node_t *asV6Node = kb_getp(asV6Tree, mmHandle->asV6Tree, &asV6Search);
-        return asV6Node == NULL ? 0 : asV6Node->as;
-    }
-    // unreached
+    asV4Node_t asSearch = {.network = ip, .netmask = 0};
+    asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
+    return asV4Node == NULL ? 0 : asV4Node->as;
 
-}  // End of LookupAS
+}  // End of LookupV4AS
+
+uint32_t LookupV6AS(uint64_t ip[2]) {
+    if (!mmHandle) {
+        return 0;
+    }
+
+    asV6Node_t asV6Search = {0};
+    asV6Search.network[0] = ip[0];
+    asV6Search.network[1] = ip[1];
+    asV6Node_t *asV6Node = kb_getp(asV6Tree, mmHandle->asV6Tree, &asV6Search);
+    return asV6Node == NULL ? 0 : asV6Node->as;
+
+}  // End of LookupV6AS
 
 const char *LookupASorg(uint64_t ip[2]) {
     if (!mmHandle) {

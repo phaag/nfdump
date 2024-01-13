@@ -538,6 +538,7 @@ typedef struct EXnbarApp_s {
 #define EXinPayloadID 29
 #define EXinPayloadSize sizeof(elementHeader_t)
 
+#define EXoutPayload_t void
 #define EXoutPayloadID 30
 #define EXoutPayloadSize sizeof(elementHeader_t)
 
