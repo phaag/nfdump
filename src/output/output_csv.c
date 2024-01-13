@@ -31,10 +31,12 @@
 #include "output_csv.h"
 
 #include <arpa/inet.h>
+#include <errno.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -50,11 +52,7 @@
 
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
-// record counter
-static uint32_t recordCount;
-
 void csv_prolog(void) {
-    recordCount = 0;
     printf(
         "ts,te,td,sa,da,sp,dp,pr,flg,fwd,stos,ipkt,ibyt,opkt,obyt,in,out,sas,das,smk,dmk,dtos,dir,nh,nhb,svln,dvln,ismc,odmc,idmc,osmc,mpls1,mpls2,"
         "mpls3,mpls4,mpls5,mpls6,mpls7,mpls8,mpls9,mpls10,cl,sl,al,ra,eng,exid,tr\n");
@@ -64,117 +62,163 @@ void csv_prolog(void) {
 void csv_epilog(void) {}  // End of csv_epilog
 
 void csv_record(FILE *stream, void *record, int tag) {
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
-    char datestr1[64], datestr2[64], datestr3[64];
-    char s_snet[IP_STRING_LEN], s_dnet[IP_STRING_LEN];
-    time_t when;
-    struct tm *ts;
-    master_record_t *r = (master_record_t *)record;
+    recordHandle_t *recordHandle = (recordHandle_t *)record;
+
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    if (!genericFlow) return;
 
     // if this flow is a tunnel, add a flow line with the tunnel IPs
-    if (r->tun_ip_version) {
-        master_record_t _r = {0};
-        _r.proto = r->tun_proto;
-        memcpy((void *)_r.tun_src_ip.V6, r->tun_src_ip.V6, 16);
-        memcpy((void *)_r.tun_dst_ip.V6, r->tun_dst_ip.V6, 16);
-        _r.msecFirst = r->msecFirst;
-        _r.msecLast = r->msecLast;
-        if (r->tun_ip_version == 6) _r.mflags = V3_FLAG_IPV6_ADDR;
-        csv_record(stream, (void *)&_r, tag);
+    EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
+    EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
+    if (tunIPv4 || tunIPv6) {
+        size_t len = V3HeaderRecordSize + EXgenericFlowSize + EXipv6FlowSize;
+        void *p = malloc(len);
+        if (!p) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        AddV3Header(p, v3TunHeader);
+        PushExtension(v3TunHeader, EXgenericFlow, tunGenericFlow);
+        memcpy((void *)tunGenericFlow, (void *)genericFlow, sizeof(EXgenericFlow_t));
+        if (tunIPv4) {
+            tunGenericFlow->proto = tunIPv4->tunProto;
+            PushExtension(v3TunHeader, EXipv4Flow, tunIPv4Flow);
+            tunIPv4Flow->srcAddr = tunIPv4->tunSrcAddr;
+            tunIPv4Flow->dstAddr = tunIPv4->tunDstAddr;
+        } else {
+            tunGenericFlow->proto = tunIPv6->tunProto;
+            PushExtension(v3TunHeader, EXipv6Flow, tunIPv6Flow);
+            tunIPv6Flow->srcAddr[0] = tunIPv6->tunSrcAddr[0];
+            tunIPv6Flow->srcAddr[1] = tunIPv6->tunSrcAddr[1];
+            tunIPv6Flow->dstAddr[0] = tunIPv6->tunDstAddr[0];
+            tunIPv6Flow->dstAddr[1] = tunIPv6->tunDstAddr[1];
+        }
+        csv_record(stream, p, tag);
+        free(p);
     }
 
+    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
     as[0] = 0;
     ds[0] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR) != 0) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    if (ipv4Flow) {
+        // IPv4
+        uint32_t snet, dnet;
+        snet = htonl(ipv4Flow->srcAddr);
+        dnet = htonl(ipv4Flow->dstAddr);
+        inet_ntop(AF_INET, &snet, as, sizeof(as));
+        inet_ntop(AF_INET, &dnet, ds, sizeof(ds));
+    }
+
+    if (ipv6Flow) {
         uint64_t snet[2];
         uint64_t dnet[2];
 
-        snet[0] = htonll(r->V6.srcaddr[0]);
-        snet[1] = htonll(r->V6.srcaddr[1]);
-        dnet[0] = htonll(r->V6.dstaddr[0]);
-        dnet[1] = htonll(r->V6.dstaddr[1]);
+        snet[0] = htonll(ipv6Flow->srcAddr[0]);
+        snet[1] = htonll(ipv6Flow->srcAddr[1]);
+        dnet[0] = htonll(ipv6Flow->dstAddr[0]);
+        dnet[1] = htonll(ipv6Flow->dstAddr[1]);
         inet_ntop(AF_INET6, snet, as, sizeof(as));
         inet_ntop(AF_INET6, dnet, ds, sizeof(ds));
-
-        inet6_ntop_mask(r->V6.srcaddr, r->src_mask, s_snet, sizeof(s_snet));
-        inet6_ntop_mask(r->V6.dstaddr, r->dst_mask, s_dnet, sizeof(s_dnet));
-
-    } else {  // IPv4
-        uint32_t snet, dnet;
-        snet = htonl(r->V4.srcaddr);
-        dnet = htonl(r->V4.dstaddr);
-        inet_ntop(AF_INET, &snet, as, sizeof(as));
-        inet_ntop(AF_INET, &dnet, ds, sizeof(ds));
-
-        inet_ntop_mask(r->V4.srcaddr, r->src_mask, s_snet, sizeof(s_snet));
-        inet_ntop_mask(r->V4.dstaddr, r->dst_mask, s_dnet, sizeof(s_dnet));
     }
+
     as[IP_STRING_LEN - 1] = 0;
     ds[IP_STRING_LEN - 1] = 0;
 
-    when = r->msecFirst / 1000LL;
-    ts = localtime(&when);
+    char datestr1[64], datestr2[64], datestr3[64];
+    time_t when = genericFlow->msecFirst / 1000LL;
+    struct tm *ts = localtime(&when);
     strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
 
-    when = r->msecLast / 1000LL;
+    when = genericFlow->msecLast / 1000LL;
     ts = localtime(&when);
     strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
 
-    double duration = (double)(r->msecLast - r->msecFirst) / 1000.0;
+    double duration = (double)(genericFlow->msecLast - genericFlow->msecFirst) / 1000.0;
 
-    fprintf(stream, "%s,%s,%.3f,%s,%s,%u,%u,%s,%s,%u,%u,%llu,%llu,%llu,%llu", datestr1, datestr2, duration, as, ds, r->srcPort, r->dstPort,
-            ProtoString(r->proto, 0), FlagsString(r->tcp_flags), r->fwd_status, r->tos, (unsigned long long)r->inPackets,
-            (unsigned long long)r->inBytes, (long long unsigned)r->out_pkts, (long long unsigned)r->out_bytes);
-
-    // EX_IO_SNMP_2:
-    // EX_IO_SNMP_4:
-    fprintf(stream, ",%u,%u", r->input, r->output);
-
-    // EX_AS_2:
-    // EX_AS_4:
-    fprintf(stream, ",%u,%u", r->srcas, r->dstas);
-
-    // EX_MULIPLE:
-    fprintf(stream, ",%u,%u,%u,%u", r->src_mask, r->dst_mask, r->dst_tos, r->dir);
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_NH) != 0) {  // IPv6
-        // EX_NEXT_HOP_v6:
-        as[0] = 0;
-        r->ip_nexthop.V6[0] = htonll(r->ip_nexthop.V6[0]);
-        r->ip_nexthop.V6[1] = htonll(r->ip_nexthop.V6[1]);
-        inet_ntop(AF_INET6, r->ip_nexthop.V6, as, sizeof(as));
-        as[IP_STRING_LEN - 1] = 0;
-        fprintf(stream, ",%s", as);
-    } else {
-        // EX_NEXT_HOP_v4:
-        as[0] = 0;
-        r->ip_nexthop.V4 = htonl(r->ip_nexthop.V4);
-        inet_ntop(AF_INET, &r->ip_nexthop.V4, as, sizeof(as));
-        as[IP_STRING_LEN - 1] = 0;
-        fprintf(stream, ",%s", as);
+    EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
+    uint64_t outPackets = 0;
+    uint64_t outBytes = 0;
+    if (cntFlow) {
+        outPackets = cntFlow->outPackets;
+        outBytes = cntFlow->outBytes;
     }
 
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_NHB) != 0) {  // IPv6
-        // EX_NEXT_HOP_BGP_v6:
-        as[0] = 0;
-        r->bgp_nexthop.V6[0] = htonll(r->bgp_nexthop.V6[0]);
-        r->bgp_nexthop.V6[1] = htonll(r->bgp_nexthop.V6[1]);
-        inet_ntop(AF_INET6, r->ip_nexthop.V6, as, sizeof(as));
-        as[IP_STRING_LEN - 1] = 0;
-        fprintf(stream, ",%s", as);
-    } else {
-        // 	EX_NEXT_HOP_BGP_v4:
-        as[0] = 0;
-        r->bgp_nexthop.V4 = htonl(r->bgp_nexthop.V4);
-        inet_ntop(AF_INET, &r->bgp_nexthop.V4, as, sizeof(as));
-        as[IP_STRING_LEN - 1] = 0;
-        fprintf(stream, ",%s", as);
+    fprintf(stream, "%s,%s,%.3f,%s,%s,%u,%u,%s,%s,%u,%u,%llu,%llu,%llu,%llu", datestr1, datestr2, duration, as, ds, genericFlow->srcPort,
+            genericFlow->dstPort, ProtoString(genericFlow->proto, 0), FlagsString(genericFlow->tcpFlags), genericFlow->fwdStatus, genericFlow->srcTos,
+            (unsigned long long)genericFlow->inPackets, (unsigned long long)genericFlow->inBytes, (long long unsigned)outPackets,
+            (long long unsigned)outBytes);
+
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint32_t input = 0;
+    uint32_t output = 0;
+    uint32_t srcMask = 0;
+    uint32_t dstMask = 0;
+    uint8_t dir = 0;
+    uint8_t dstTos = 0;
+    if (flowMisc) {
+        input = flowMisc->input;
+        output = flowMisc->output;
+        srcMask = flowMisc->srcMask;
+        dstMask = flowMisc->dstMask;
+        dir = flowMisc->dir;
+        dstTos = flowMisc->dstTos;
     }
+
+    EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
+    uint32_t srcAS = 0;
+    uint32_t dstAS = 0;
+    if (asRouting) {
+        srcAS = asRouting->srcAS;
+        dstAS = asRouting->dstAS;
+    }
+
+    fprintf(stream, ",%u,%u,%u,%u,%u,%u,%u,%u", input, output, srcAS, dstAS, srcMask, dstMask, dstTos, dir);
+
+    as[0] = 0;
+    uint32_t ipv4 = 0;
+    uint64_t ipv6[2];
+
+    EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)recordHandle->extensionList[EXipNextHopV4ID];
+    EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)recordHandle->extensionList[EXipNextHopV6ID];
+    if (ipNextHopV4) {
+        ipv4 = htonl(ipNextHopV4->ip);
+        inet_ntop(AF_INET, &ipv4, as, sizeof(as));
+    } else if (ipNextHopV6) {
+        ipv6[0] = htonll(ipNextHopV6->ip[0]);
+        ipv6[1] = htonll(ipNextHopV6->ip[1]);
+        inet_ntop(AF_INET6, ipv6, as, sizeof(as));
+    } else {
+        ipv4 = 0;
+        inet_ntop(AF_INET, &ipv4, as, sizeof(as));
+    }
+    as[IP_STRING_LEN - 1] = 0;
+    fprintf(stream, ",%s", as);
+
+    as[0] = 0;
+    EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)recordHandle->extensionList[EXbgpNextHopV4ID];
+    EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)recordHandle->extensionList[EXbgpNextHopV6ID];
+    if (bgpNextHopV4) {
+        ipv4 = htonl(bgpNextHopV4->ip);
+        inet_ntop(AF_INET, &ipv4, as, sizeof(as));
+    } else if (bgpNextHopV6) {
+        ipv6[0] = htonll(bgpNextHopV6->ip[0]);
+        ipv6[1] = htonll(bgpNextHopV6->ip[1]);
+        inet_ntop(AF_INET6, ipv6, as, sizeof(as));
+    } else {
+        ipv4 = 0;
+        inet_ntop(AF_INET, &ipv4, as, sizeof(as));
+    }
+    as[IP_STRING_LEN - 1] = 0;
+    fprintf(stream, ",%s", as);
+
+    master_record_t *r = (master_record_t *)record;
 
     // EX_VLAN:
     fprintf(stream, ",%u,%u", r->src_vlan, r->dst_vlan);
 
     // case EX_MAC_1:
-
     uint8_t mac1[6], mac2[6];
     for (int i = 0; i < 6; i++) {
         mac1[i] = (r->in_src_mac >> (i * 8)) & 0xFF;
