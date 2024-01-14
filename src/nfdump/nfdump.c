@@ -208,8 +208,8 @@ static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParam
 
 static inline void AddGeoInfo(master_record_t *master_record) {
     if (!HasGeoDB || TestFlag(master_record->mflags, V3_FLAG_ENRICHED)) return;
-    LookupCountry(master_record->V6.srcaddr, master_record->src_geo);
-    LookupCountry(master_record->V6.dstaddr, master_record->dst_geo);
+    // XXX LookupCountry(master_record->V6.srcaddr, master_record->src_geo);
+    // XXX LookupCountry(master_record->V6.dstaddr, master_record->dst_geo);
     // XXX if (master_record->srcas == 0) master_record->srcas = LookupAS(master_record->V6.srcaddr);
     // XXX if (master_record->dstas == 0) master_record->dstas = LookupAS(master_record->V6.dstaddr);
     // insert AS element in order to list

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -974,8 +974,8 @@ void AddFlowCache(void *raw_record, master_record_t *flow_record) {
     FlowHashRecord_t r;
 
     if (doGeoLookup && TestFlag(flow_record->mflags, V3_FLAG_ENRICHED) == 0) {
-        LookupCountry(flow_record->V6.srcaddr, flow_record->src_geo);
-        LookupCountry(flow_record->V6.dstaddr, flow_record->dst_geo);
+        // XXX LookupCountry(flow_record->V6.srcaddr, flow_record->src_geo);
+        // XXX LookupCountry(flow_record->V6.dstaddr, flow_record->dst_geo);
         // XXX if (flow_record->srcas == 0) flow_record->srcas = LookupAS(flow_record->V6.srcaddr);
         // XXX if (flow_record->dstas == 0) flow_record->dstas = LookupAS(flow_record->V6.dstaddr);
         SetFlag(flow_record->mflags, V3_FLAG_ENRICHED);
@@ -1054,8 +1054,8 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
         ExpandRecord_v3(_raw_record, &flow_record);
 
         if (doGeoLookup) {
-            LookupCountry(flow_record.V6.srcaddr, flow_record.src_geo);
-            LookupCountry(flow_record.V6.dstaddr, flow_record.dst_geo);
+            // XXX LookupCountry(flow_record.V6.srcaddr, flow_record.src_geo);
+            // XXX LookupCountry(flow_record.V6.dstaddr, flow_record.dst_geo);
             // XXX if (flow_record.srcas == 0) flow_record.srcas = LookupAS(flow_record.V6.srcaddr);
             // XXX if (flow_record.dstas == 0) flow_record.dstas = LookupAS(flow_record.V6.dstaddr);
             SetFlag(flow_record.mflags, V3_FLAG_ENRICHED);

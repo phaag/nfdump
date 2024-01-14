@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -54,6 +54,8 @@ typedef struct ja3_s {
     char *ja3String;
     uint32_t md5Hash[4];
 } ja3_t;
+
+char *ja3HashString(ja3_t *ja3);
 
 void ja3Print(ja3_t *ja3);
 

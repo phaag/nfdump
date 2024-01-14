@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2023, Peter Haag
+ *  Copyright (c) 2019-2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -396,22 +396,28 @@ static void stringEXlatency(FILE *stream, void *extensionRecord) {
 
 }  // End of stringEXlatency
 
-static void String_ja3(FILE *stream, void *extensionRecord) {
+static void String_ja3(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord) {
     EXinPayload_t *payload = (EXinPayload_t *)extensionRecord;
-    elementHeader_t *elementHeader = (elementHeader_t *)(extensionRecord - sizeof(elementHeader_t));
-    uint32_t payloadLength = elementHeader->length - sizeof(elementHeader_t);
+    uint32_t payloadLength = ExtensionLength(payload);
 
-    ja3_t *ja3 = ja3Process((uint8_t *)payload, payloadLength);
-
-    uint8_t zero[16] = {0};
-    if (payloadLength == 0 || ja3 == NULL || memcmp((void *)ja3->md5Hash, (void *)zero, 16) == 0) {
+    if (payloadLength == 0) {
         return;
     }
 
-    fprintf(stream,
-            "	\"ja3\" : %s,\n"
-            "	\"sni\" : %s,\n",
-            ja3->ja3String, ja3->sniName);
+    ja3_t *ja3 = (ja3_t *)recordHandle->ja3Info;
+    if (recordHandle->ja3Info == NULL) {
+        ja3 = ja3Process((uint8_t *)payload, payloadLength);
+        if (ja3) {
+            recordHandle->ja3Info = (void *)ja3;
+            memcpy((void *)recordHandle->ja3, ja3->md5Hash, sizeof(recordHandle->ja3));
+        }
+    }
+
+    if (ja3) {
+        fprintf(stream, "	\"ja3 string\" : %s,\n", ja3->ja3String);
+        fprintf(stream, "	\"ja3 hash\" : %s,\n", ja3HashString(ja3));
+        if (ja3->sniName[0]) fprintf(stream, "	\"sni\" : %s,\n", ja3->sniName);
+    }
 
 }  // End of String_ja3
 
@@ -676,10 +682,10 @@ void flow_record_to_json(FILE *stream, void *record, int tag) {
                 stringEXlatency(stream, ptr);
                 break;
             case EXinPayloadID:
-                String_ja3(stream, ptr);
+                String_ja3(stream, recordHandle, ptr);
                 break;
             case EXoutPayloadID:
-                String_ja3(stream, ptr);
+                String_ja3(stream, recordHandle, ptr);
                 break;
             case EXtunIPv4ID:
                 stringEXtunIPv4(stream, ptr);

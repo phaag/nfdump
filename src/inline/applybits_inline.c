@@ -30,6 +30,31 @@
  *
  */
 
+static inline uint32_t ApplyV4NetMaskBits(uint32_t ip, uint32_t maskBits);
+
+static inline uint32_t ApplyV4NetMaskBits(uint32_t ip, uint32_t maskBits) {
+    uint32_t srcMask = 0xffffffff << (32 - maskBits);
+    return (ip &= srcMask);
+}  // End of ApplyV4NetMaskBits
+
+static inline uint64_t *ApplyV6NetMaskBits(uint64_t *ip, uint32_t maskBits);
+
+static inline uint64_t *ApplyV6NetMaskBits(uint64_t *ip, uint32_t maskBits) {
+    static uint64_t net[2];
+    uint64_t mask;
+    if (maskBits > 64) {
+        mask = 0xffffffffffffffffLL << (128 - maskBits);
+        net[0] = ip[0];
+        net[1] = ip[1] & mask;
+    } else {
+        mask = 0xffffffffffffffffLL << (64 - maskBits);
+        net[0] = ip[0] & mask;
+        net[1] = 0;
+    }
+    return net;
+
+}  // End of ApplyV6NetMaskBits
+
 static inline void ApplyNetMaskBits(master_record_t *flow_record, int apply_netbits);
 
 static inline void ApplyNetMaskBits(master_record_t *flow_record, int apply_netbits) {

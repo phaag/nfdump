@@ -617,8 +617,7 @@ static void stringsEXnelXlatePort(FILE *stream, void *extensionRecord) {
 
 static void stringsEXnbarApp(FILE *stream, void *extensionRecord) {
     uint8_t *nbar = (uint8_t *)extensionRecord;
-    elementHeader_t *elementHeader = (elementHeader_t *)(extensionRecord - sizeof(elementHeader_t));
-    uint32_t nbarAppIDlen = elementHeader->length - sizeof(elementHeader_t);
+    uint32_t nbarAppIDlen = ExtensionLength(nbar);
 
     union {
         uint8_t val8[4];
@@ -637,18 +636,16 @@ static void stringsEXnbarApp(FILE *stream, void *extensionRecord) {
         pen.val8[3] = nbar[1];
 
         int selector = 0;
-        int length = nbarAppIDlen;
         int index = 5;
-        while (index < length) {
+        while (index < nbarAppIDlen) {
             selector = (selector << 8) | nbar[index];
             index++;
         }
         fprintf(stream, "  app ID       =             %2u..%u..%u: %s\n", nbar[0], pen.val32, selector, name);
     } else {
         int selector = 0;
-        int length = nbarAppIDlen;
         int index = 1;
-        while (index < length) {
+        while (index < nbarAppIDlen) {
             selector = (selector << 8) | nbar[index];
             index++;
         }
@@ -661,8 +658,7 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
 
 static void stringsEXinPayload(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord) {
     EXinPayload_t *inPayload = (EXinPayload_t *)extensionRecord;
-    elementHeader_t *elementHeader = (elementHeader_t *)(extensionRecord - sizeof(elementHeader_t));
-    uint32_t payloadLength = elementHeader->length - sizeof(elementHeader_t);
+    uint32_t payloadLength = ExtensionLength(inPayload);
 
     fprintf(stream, "  in payload   =        %10u\n", payloadLength);
     inoutPayload(stream, recordHandle, inPayload, payloadLength);
@@ -670,8 +666,7 @@ static void stringsEXinPayload(FILE *stream, recordHandle_t *recordHandle, void 
 
 static void stringsEXoutPayload(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord) {
     EXoutPayload_t *outPayload = (EXoutPayload_t *)extensionRecord;
-    elementHeader_t *elementHeader = (elementHeader_t *)(extensionRecord - sizeof(elementHeader_t));
-    uint32_t payloadLength = elementHeader->length - sizeof(elementHeader_t);
+    uint32_t payloadLength = ExtensionLength(outPayload);
 
     fprintf(stream, "  out payload  =        %10u\n", payloadLength);
     inoutPayload(stream, recordHandle, outPayload, payloadLength);
@@ -691,30 +686,30 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
             ascii = 0;
         }
     }
+
     if (ascii) {
         fprintf(stream, "%.*s\n", max, payload);
-    }
-    ja3_t *ja3 = ja3Process((uint8_t *)payload, length);
-    if (ja3 != NULL) {
-        uint8_t *u8 = (uint8_t *)ja3->md5Hash;
-        char out[33];
-        int i, j;
-        for (i = 0, j = 0; i < 16; i++, j += 2) {
-            uint8_t ln = u8[i] & 0xF;
-            uint8_t hn = (u8[i] >> 4) & 0xF;
-            out[j + 1] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
-            out[j] = hn <= 9 ? hn + '0' : hn + 'a' - 10;
-        }
-        out[32] = '\0';
-        if (ja3->type == CLIENTja3) {
-            fprintf(stream, "  ja3 hash     = %s\n", out);
-        } else {
-            fprintf(stream, "  ja3s hash    = %s\n", out);
-        }
-        if (ja3->sniName[0]) fprintf(stream, "  sni name     = %s\n", ja3->sniName);
+    } else {
+        ja3_t *ja3 = (ja3_t *)recordHandle->ja3Info;
 
-        ja3Free(ja3);
+        if (ja3 == NULL) {
+            ja3 = ja3Process((uint8_t *)payload, length);
+            if (ja3) {
+                recordHandle->ja3Info = (void *)ja3;
+                memcpy((void *)recordHandle->ja3, ja3->md5Hash, sizeof(recordHandle->ja3));
+            }
+        }
+        if (ja3 != NULL) {
+            fprintf(stream, "  ja3 string   = %s\n", ja3->ja3String);
+            if (ja3->type == CLIENTja3) {
+                fprintf(stream, "  ja3 hash     = %s\n", ja3HashString(ja3));
+            } else {
+                fprintf(stream, "  ja3s hash    = %s\n", ja3HashString(ja3));
+            }
+            if (ja3->sniName[0]) fprintf(stream, "  sni name     = %s\n", ja3->sniName);
+        }
     }
+
     DumpHex(stream, payload, max);
 }  // End of inoutPayload
 

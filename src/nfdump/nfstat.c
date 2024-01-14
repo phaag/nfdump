@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -734,7 +734,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
                     char ipstr[40], country[4];
                     ip[0] = StatData->hashkey.v0;
                     ip[1] = StatData->hashkey.v1;
-                    LookupCountry(ip, country);
+                    // XXX LookupCountry(ip, country);
                     inet_ntop(AF_INET6, _key, ipstr, sizeof(ipstr));
                     if (!Getv6Mode()) CondenseV6(ipstr);
                     snprintf(valstr, 64, "%s(%s)", ipstr, country);
@@ -750,7 +750,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
                     inet_ntop(AF_INET, &ipv4, ipstr, sizeof(ipstr));
                     ip[0] = 0;
                     ip[1] = StatData->hashkey.v1;
-                    LookupCountry(ip, country);
+                    // XXX LookupCountry(ip, country);
                     snprintf(valstr, 40, "%s(%s)", ipstr, country);
                 } else {
                     inet_ntop(AF_INET, &ipv4, valstr, sizeof(valstr));

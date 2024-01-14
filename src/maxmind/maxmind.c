@@ -979,51 +979,67 @@ int LoadMaxMind(char *fileName) {
     return 1;
 }  // End of LoadMaxMind
 
-void LookupCountry(uint64_t ip[2], char *country) {
+void LookupV4Country(uint32_t ip, char *country) {
     if (!mmHandle) {
         country[0] = '.';
         country[1] = '.';
-        country[2] = '\0';
         return;
     }
 
     ipLocationInfo_t info = {0};
-    if (ip[0] == 0) {  // IPv4
-        ipV4Node_t ipSearch = {.network = ip[1], .netmask = 0};
-        ipV4Node_t *ipV4Node = kb_getp(ipV4Tree, mmHandle->ipV4Tree, &ipSearch);
-        if (!ipV4Node) {
-            country[0] = '.';
-            country[1] = '.';
-            country[2] = '\0';
-            return;
-        }
-        info = ipV4Node->info;
-    } else {
-        ipV6Node_t ipSearch = {0};
-        ipSearch.network[0] = ip[0];
-        ipSearch.network[1] = ip[1];
-        ipV6Node_t *ipV6Node = kb_getp(ipV6Tree, mmHandle->ipV6Tree, &ipSearch);
-        if (!ipV6Node) {
-            country[0] = '.';
-            country[1] = '.';
-            country[2] = '\0';
-            return;
-        }
-        info = ipV6Node->info;
+    ipV4Node_t ipSearch = {.network = ip, .netmask = 0};
+    ipV4Node_t *ipV4Node = kb_getp(ipV4Tree, mmHandle->ipV4Tree, &ipSearch);
+    if (!ipV4Node) {
+        country[0] = '.';
+        country[1] = '.';
+        return;
     }
+    info = ipV4Node->info;
+
     locationKey_t locationKey = {.key = info.localID};
     khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
     if (k == kh_end(mmHandle->localMap)) {
         country[0] = '.';
         country[1] = '.';
-        country[2] = '\0';
         return;
     }
 
     locationInfo_t locationInfo = kh_value(mmHandle->localMap, k);
     country[0] = locationInfo.country[0];
     country[1] = locationInfo.country[1];
-    country[2] = '\0';
+
+}  // End of LookupV4Country
+
+void LookupV6Country(uint64_t ip[2], char *country) {
+    if (!mmHandle) {
+        country[0] = '.';
+        country[1] = '.';
+        return;
+    }
+
+    ipLocationInfo_t info = {0};
+    ipV6Node_t ipSearch = {0};
+    ipSearch.network[0] = ip[0];
+    ipSearch.network[1] = ip[1];
+    ipV6Node_t *ipV6Node = kb_getp(ipV6Tree, mmHandle->ipV6Tree, &ipSearch);
+    if (!ipV6Node) {
+        country[0] = '.';
+        country[1] = '.';
+        return;
+    }
+    info = ipV6Node->info;
+
+    locationKey_t locationKey = {.key = info.localID};
+    khint_t k = kh_get(localMap, mmHandle->localMap, locationKey);
+    if (k == kh_end(mmHandle->localMap)) {
+        country[0] = '.';
+        country[1] = '.';
+        return;
+    }
+
+    locationInfo_t locationInfo = kh_value(mmHandle->localMap, k);
+    country[0] = locationInfo.country[0];
+    country[1] = locationInfo.country[1];
 
     /*
             printf("localID: %d %s/%s/%s long/lat: %8.4f/%-8.4f, accuracy: %u, AS: %u\n",
@@ -1031,7 +1047,7 @@ void LookupCountry(uint64_t ip[2], char *country) {
                     ipV4Node->longitude, ipV4Node->latitude, ipV4Node->accuracy, as);
             }
     */
-}  // End of LookupCountry
+}  // End of LookupV6Country
 
 void LookupV4Location(uint32_t ip, char *location, size_t len) {
     location[0] = '\0';
@@ -1112,26 +1128,28 @@ uint32_t LookupV6AS(uint64_t ip[2]) {
 
 }  // End of LookupV6AS
 
-const char *LookupASorg(uint64_t ip[2]) {
+const char *LookupV4ASorg(uint32_t ip) {
     if (!mmHandle) {
         return "";
     }
 
-    uint64_t ipMask = 0xFFFFFFFF00000000LL;
-    if (ip[0] == 0 && ((ip[1] & ipMask) == 0)) {  // IPv4
-        asV4Node_t asSearch = {.network = ip[1], .netmask = 0};
-        asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
-        return asV4Node == NULL ? "" : asV4Node->orgName;
-    } else {  // IPv6
-        asV6Node_t asV6Search = {0};
-        asV6Search.network[0] = ip[0];
-        asV6Search.network[1] = ip[1];
-        asV6Node_t *asV6Node = kb_getp(asV6Tree, mmHandle->asV6Tree, &asV6Search);
-        return asV6Node == NULL ? "" : asV6Node->orgName;
-    }
-    // unreached
+    asV4Node_t asSearch = {.network = ip, .netmask = 0};
+    asV4Node_t *asV4Node = kb_getp(asV4Tree, mmHandle->asV4Tree, &asSearch);
+    return asV4Node == NULL ? "" : asV4Node->orgName;
+}  // End of LookupV4ASorg
 
-}  // End of LookupASorg
+const char *LookupV6ASorg(uint64_t ip[2]) {
+    if (!mmHandle) {
+        return "";
+    }
+
+    asV6Node_t asV6Search = {0};
+    asV6Search.network[0] = ip[0];
+    asV6Search.network[1] = ip[1];
+    asV6Node_t *asV6Node = kb_getp(asV6Tree, mmHandle->asV6Tree, &asV6Search);
+    return asV6Node == NULL ? "" : asV6Node->orgName;
+
+}  // End of LookupV6ASorg
 
 void LookupWhois(char *ip) {
     uint32_t as = 0;

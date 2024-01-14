@@ -127,7 +127,9 @@ int SaveMaxMind(char *fileName);
 
 int LoadMaxMind(char *fileName);
 
-void LookupCountry(uint64_t ip[2], char *country);
+void LookupV4Country(uint32_t ip, char *country);
+
+void LookupV6Country(uint64_t ip[2], char *country);
 
 void LookupV4Location(uint32_t ip, char *location, size_t len);
 
@@ -137,7 +139,9 @@ uint32_t LookupV4AS(uint32_t ip);
 
 uint32_t LookupV6AS(uint64_t ip[2]);
 
-const char *LookupASorg(uint64_t ip[2]);
+const char *LookupV4ASorg(uint32_t ip);
+
+const char *LookupV6ASorg(uint64_t ip[2]);
 
 void LookupWhois(char *ip);
 
