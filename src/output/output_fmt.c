@@ -1719,7 +1719,7 @@ static void String_pfrule(FILE *stream, master_record_t *r) {
 static void String_nfc(FILE *stream, master_record_t *r) { fprintf(stream, "%10u", r->connID); }  // End of String_nfc
 
 static void String_evt(FILE *stream, master_record_t *r) {
-    if (r->fwXevent) {
+    if (r->event_flag == FW_EVENT) {
         fprintf(stream, "%8s", fwEventString(r->event));
     } else {
         fprintf(stream, "%8s", natEventString(r->event, SHORTNAME));
