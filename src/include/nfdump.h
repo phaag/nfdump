@@ -102,7 +102,6 @@ typedef struct master_record_s {
 #define V3_FLAG_IPV6_NH 2
 #define V3_FLAG_IPV6_NHB 4
 #define V3_FLAG_IPV6_EXP 8
-#define V3_FLAG_ENRICHED 128
     uint16_t size;         // 0x0000'0000'ffff'0000
     uint16_t numElements;  // 0x0000'0000'0000'ffff
 

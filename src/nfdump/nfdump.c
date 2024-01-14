@@ -206,31 +206,26 @@ static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParam
 
 }  // End of PrintSummary
 
-static inline void AddGeoInfo(master_record_t *master_record) {
-    if (!HasGeoDB || TestFlag(master_record->mflags, V3_FLAG_ENRICHED)) return;
-    // XXX LookupCountry(master_record->V6.srcaddr, master_record->src_geo);
-    // XXX LookupCountry(master_record->V6.dstaddr, master_record->dst_geo);
-    // XXX if (master_record->srcas == 0) master_record->srcas = LookupAS(master_record->V6.srcaddr);
-    // XXX if (master_record->dstas == 0) master_record->dstas = LookupAS(master_record->V6.dstaddr);
-    // insert AS element in order to list
-    int j = 0;
-    uint32_t val = EXasRoutingID;
-    while (j < master_record->numElements) {
-        if (EXasRoutingID == master_record->exElementList[j]) {
-            break;
-        }
-        if (val < master_record->exElementList[j]) {
-            uint32_t _tmp = master_record->exElementList[j];
-            master_record->exElementList[j] = val;
-            val = _tmp;
-        }
-        j++;
+static inline void AddGeoInfo(recordHandle_t *recordHandle) {
+    if (!HasGeoDB || TestFlag(recordHandle->recordHeaderV3->flags, V3_FLAG_ENRICHED)) return;
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
+
+    if (ipv4Flow) {
+        LookupV4Country(ipv4Flow->srcAddr, &recordHandle->geo[0]);
+        LookupV4Country(ipv4Flow->dstAddr, &recordHandle->geo[2]);
     }
-    if (j == master_record->numElements) {
-        master_record->exElementList[j] = val;
-        master_record->numElements++;
+    if (ipv6Flow) {
+        LookupV6Country(ipv6Flow->srcAddr, &recordHandle->geo[0]);
+        LookupV6Country(ipv6Flow->dstAddr, &recordHandle->geo[2]);
     }
-    SetFlag(master_record->mflags, V3_FLAG_ENRICHED);
+    if (asRouting) {
+        if (asRouting->srcAS == 0) asRouting->srcAS = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : LookupV6AS(ipv6Flow->srcAddr);
+        if (asRouting->dstAS == 0) asRouting->dstAS = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : LookupV6AS(ipv6Flow->dstAddr);
+    }
+
+    SetFlag(recordHandle->recordHeaderV3->flags, V3_FLAG_ENRICHED);
 
 }  // End of AddGeoInfo
 
@@ -255,6 +250,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
     nffile_t *nffile_w, *nffile_r;
     stat_record_t stat_record;
     uint64_t twin_msecFirst, twin_msecLast;
+    twin_msecFirst = twin_msecLast = 0;
 
     // time window of all matched flows
     memset((void *)&stat_record, 0, sizeof(stat_record_t));
@@ -266,8 +262,6 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
             twin_msecLast = timeWindow->last * 1000LL;
         else
             twin_msecLast = 0x7FFFFFFFFFFFFFFFLL;
-    } else {
-        twin_msecFirst = twin_msecLast = 0;
     }
 
     // do not print flows when doing any stats are sorting
@@ -398,15 +392,23 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                         MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
                     }
 
-                    // master_record->flowCount = processed;
                     // Time based filter
                     // if no time filter is given, the result is always true
-                    match = twin_msecFirst && (master_record->msecFirst < twin_msecFirst || master_record->msecLast > twin_msecLast) ? 0 : 1;
+                    if (timeWindow) {
+                        EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+                        if (genericFlow) {
+                            match = (genericFlow->msecFirst < twin_msecFirst || genericFlow->msecLast > twin_msecLast) ? 0 : 1;
+                        } else {
+                            match = 0;
+                        }
+                    } else {
+                        match = 1;
+                    }
 
                     if (match) {
                         /* XXX
                         if (Engine->geoFilter) {
-                            AddGeoInfo(master_record);
+                            AddGeoInfo(recordHandle);
                         }
 
                         if (master_record->inPayloadLength && Engine->ja3Filter) {
@@ -421,7 +423,6 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                         // filter netflow record with user supplied filter
                         // match = (*Engine->FilterEngine)(Engine);
                         match = FilterRecord(engine, recordHandle, nffile_r->ident);
-                        //						match = dofilter(master_record);
                     }
                     if (match == 0) {  // record failed to pass all filters
                         // go to next record
@@ -446,10 +447,10 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                     UpdateStatRecord(&stat_record, recordHandle);
 
                     if (flow_stat) {
-                        AddFlowCache(process_ptr, master_record);
+                        AddFlowCache(recordHandle);
                         if (element_stat) {
                             if (TestFlag(element_stat, FLAG_GEO) && TestFlag(master_record->mflags, V3_FLAG_ENRICHED) == 0) {
-                                AddGeoInfo(master_record);
+                                AddGeoInfo(recordHandle);
                             }
                             AddElementStat(master_record);
                         }
@@ -464,11 +465,11 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                         }
                         // if we need geo, lookup geo if not yet set by filter
                         if (TestFlag(element_stat, FLAG_GEO) && TestFlag(master_record->mflags, V3_FLAG_ENRICHED) == 0) {
-                            AddGeoInfo(master_record);
+                            AddGeoInfo(recordHandle);
                         }
                         AddElementStat(master_record);
                     } else if (sort_flows) {
-                        InsertFlow(process_ptr, master_record);
+                        InsertFlow(recordHandle);
                     } else {
                         if (write_file) {
                             AppendToBuffer(nffile_w, (void *)process_ptr, process_ptr->size);

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -32,13 +32,11 @@
 #ifndef _NFLOWCACHE_H
 #define _NFLOWCACHE_H 1
 
+#include <stdint.h>
 #include <sys/types.h>
 
 #include "config.h"
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
+#include "nfdump.h"
 #include "nffile.h"
 #include "output.h"
 
@@ -143,9 +141,9 @@ void Add_FlowStatOrder(uint32_t order, uint32_t direction);
 
 int SetStat(char *str, int *element_stat, int *flow_stat);
 
-void InsertFlow(void *raw_record, master_record_t *flow_record);
+void InsertFlow(recordHandle_t *recordHandle);
 
-void AddFlowCache(void *raw_record, master_record_t *flow_record);
+void AddFlowCache(recordHandle_t *recordHandle);
 
 void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, int GuessDir);
 
