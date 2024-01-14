@@ -475,7 +475,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                             AppendToBuffer(nffile_w, (void *)process_ptr, process_ptr->size);
                         } else if (print_record) {
                             // if we need to print out this record
-                            print_record(stdout, master_record, outputParams->doTag);
+                            print_record(stdout, recordHandle, outputParams->doTag);
                         } else {
                             // mutually exclusive conditions should prevent executing this code
                             // this is buggy!

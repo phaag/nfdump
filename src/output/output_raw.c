@@ -751,7 +751,7 @@ void raw_record(FILE *stream, void *record, int tag) {
     char elementString[MAXEXTENSIONS * 5];
 
     elementString[0] = '\0';
-    for (int i = 0; i < MAXEXTENSIONS; i++) {
+    for (int i = 1; i < MAXEXTENSIONS; i++) {
         if (recordHandle->extensionList[i]) snprintf(elementString + strlen(elementString), sizeof(elementString) - strlen(elementString), "%u ", i);
     }
 
@@ -808,7 +808,7 @@ void raw_record(FILE *stream, void *record, int tag) {
         void *ptr = recordHandle->extensionList[i];
         switch (i) {
             case EXnull:
-                fprintf(stderr, "Found unexpected NULL extension \n");
+                if (ptr != recordHeaderV3) fprintf(stderr, "Found unexpected NULL extension \n");
                 break;
             case EXgenericFlowID:
                 stringEXgenericFlow(stream, recordHandle, ptr);

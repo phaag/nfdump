@@ -628,7 +628,7 @@ void flow_record_to_json(FILE *stream, void *record, int tag) {
 
         switch (i) {
             case EXnull:
-                fprintf(stderr, "Found unexpected NULL extension \n");
+                if (ptr != recordHeaderV3) fprintf(stderr, "Found unexpected NULL extension \n");
                 break;
             case EXgenericFlowID:
                 stringEXgenericFlow(stream, ptr);

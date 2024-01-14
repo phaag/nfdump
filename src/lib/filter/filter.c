@@ -41,7 +41,6 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
-#define DEVEL
 #include "filter.h"
 #include "sgregex.h"
 #include "util.h"
@@ -671,7 +670,7 @@ void *CompileFilter(char *FilterSyntax) {
     FilterTree = NULL;
     engine->filterFunction = Extended ? RunExtendedFilter : RunFilterFast;
 
-    printf("Engine: %s\n", engine->Extended ? "extended" : "fast");
+    dbg_printf("Engine: %s\n", engine->Extended ? "extended" : "fast");
 
     return (void *)engine;
 
