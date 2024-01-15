@@ -159,8 +159,13 @@ typedef struct EXgenericFlow_s {
     union {
         uint16_t dstPort;
         struct {
+#ifdef WORDS_BIGENDIAN
             uint8_t icmpType;
             uint8_t icmpCode;
+#else
+            uint8_t icmpCode;
+            uint8_t icmpType;
+#endif
         };
     };
 #endif
