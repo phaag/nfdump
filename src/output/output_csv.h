@@ -33,10 +33,12 @@
 
 #include <stdio.h>
 
+#include "nfdump.h"
+
 void csv_prolog(void);
 
 void csv_epilog(void);
 
-void csv_record(FILE *stream, void *record, int tag);
+void csv_record(FILE *stream, recordHandle_t *recordHandle, int tag);
 
 #endif  // _OUTPUT_CSV_H

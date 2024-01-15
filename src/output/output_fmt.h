@@ -38,6 +38,7 @@
 #include <time.h>
 
 #include "config.h"
+#include "nfdump.h"
 #include "output.h"
 
 #define FORMAT_line "%ts %td %pr %sap -> %dap %pkt %byt %fl"
@@ -79,7 +80,7 @@ void CondenseV6(char *s);
 
 int ParseOutputFormat(char *format, int printPlain, printmap_t *printmap);
 
-void fmt_record(FILE *stream, void *record, int tag);
+void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag);
 
 #define TAG_CHAR ''
 

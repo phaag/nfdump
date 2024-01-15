@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2022, Peter Haag
+ *  Copyright (c) 2019-2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -61,9 +61,7 @@ void csv_prolog(void) {
 
 void csv_epilog(void) {}  // End of csv_epilog
 
-void csv_record(FILE *stream, void *record, int tag) {
-    recordHandle_t *recordHandle = (recordHandle_t *)record;
-
+void csv_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     if (!genericFlow) return;
 

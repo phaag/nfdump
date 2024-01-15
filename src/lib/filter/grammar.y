@@ -236,6 +236,10 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = AddProto($1.direction, $3, 0); if ( $$.self < 0 ) YYABORT;
 	}
 
+  | dqual PROTO ICMP {
+		$$.self = AddProto($1.direction, "icmp", 0); if ( $$.self < 0 ) YYABORT;
+	}
+
 	| dqual PORT comp NUMBER {
 		$$.self = AddPortNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
 	}

@@ -34,7 +34,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-typedef void (*RecordPrinter_t)(FILE *, void *, int);
+#include "nfdump.h"
+
+typedef void (*RecordPrinter_t)(FILE *, recordHandle_t *, int);
 typedef void (*PrologPrinter_t)(void);
 typedef void (*EpilogPrinter_t)(void);
 

@@ -37,6 +37,7 @@
 #include <strings.h>
 
 #include "nfconf.h"
+#include "nfdump.h"
 #include "output_csv.h"
 #include "output_fmt.h"
 #include "output_json.h"
@@ -47,7 +48,7 @@
 #define MAXMODELEN 16
 #define MAXFORMATS 64
 
-static void null_record(FILE *stream, void *record, int tag);
+static void null_record(FILE *stream, recordHandle_t *record, int tag);
 
 static void null_prolog(void);
 
@@ -78,7 +79,7 @@ static PrologPrinter_t print_epilog;  // prints the output epilog
 
 static void UpdateFormatList(void);
 
-static void null_record(FILE *stream, void *record, int tag) {
+static void null_record(FILE *stream, recordHandle_t *record, int tag) {
     // empty - do not list any flows
 }  // End of null_record
 

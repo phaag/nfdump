@@ -502,13 +502,12 @@ static void ListOutputFormats(void) {
 
 }  // End of ListOutputFormats
 
-void fmt_record(FILE *stream, void *record, int tag) {
-    recordHandle_t *recordHandle = (recordHandle_t *)record;
-
-    // if this flow is a tunnel, add a flow line with the tunnel IPs
+void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
     EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
+
+    // if this flow is a tunnel, add a flow line with the tunnel IPs
     if (genericFlow && (tunIPv4 || tunIPv6)) {
         size_t len = V3HeaderRecordSize + EXgenericFlowSize + EXipv6FlowSize;
         void *p = malloc(len);
@@ -783,8 +782,16 @@ static void String_FlowCount(FILE *stream, recordHandle_t *recordHandle) {
 
 static void String_FirstSeen(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
+    EXnelCommon_t *nelCommon = (EXnelCommon_t *)recordHandle->extensionList[EXnelCommonID];
 
     uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
+    if (msecFirst == 0 && nselCommon) {
+        msecFirst = nselCommon->msecEvent;
+    }
+    if (msecFirst == 0 && nelCommon) {
+        msecFirst = nelCommon->msecEvent;
+    }
     time_t tt = msecFirst / 1000LL;
     struct tm *ts = localtime(&tt);
     char s[128];

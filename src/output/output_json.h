@@ -31,10 +31,12 @@
 #ifndef _OUTPUT_JSON_H
 #define _OUTPUT_JSON_H 1
 
+#include "nfdump.h"
+
 void json_prolog(void);
 
 void json_epilog(void);
 
-void flow_record_to_json(FILE *stream, void *record, int tag);
+void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag);
 
 #endif  // _OUTPUT_JSON_H

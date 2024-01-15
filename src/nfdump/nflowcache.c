@@ -1104,36 +1104,55 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
     int max = maxindex;
     if (outputParams->topN && outputParams->topN < maxindex) max = outputParams->topN;
     for (int i = 0; i < max; i++) {
-        int j;
-
-        if (ascending)
-            j = i;
-        else
-            j = maxindex - 1 - i;
+        int j = ascending ? i : maxindex - 1 - i;
 
         FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[j].record);
-        recordHeaderV3_t *_raw_record = (r->flowrecord);
+        recordHeaderV3_t *v3record = (r->flowrecord);
 
-        master_record_t flow_record;
-        memset((void *)&flow_record, 0, sizeof(master_record_t));
-        ExpandRecord_v3(_raw_record, &flow_record);
+        recordHandle_t recordHandle = {0};
+        EXcntFlow_t tmpCntFlow = {0};
+        MapRecordHandle(&recordHandle, v3record, i);
+        EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
+        EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
+        EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
+        EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
+        EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle.extensionList[EXasRoutingID];
 
         if (doGeoLookup) {
-            // XXX LookupCountry(flow_record.V6.srcaddr, flow_record.src_geo);
-            // XXX LookupCountry(flow_record.V6.dstaddr, flow_record.dst_geo);
-            // XXX if (flow_record.srcas == 0) flow_record.srcas = LookupAS(flow_record.V6.srcaddr);
-            // XXX if (flow_record.dstas == 0) flow_record.dstas = LookupAS(flow_record.V6.dstaddr);
-            SetFlag(flow_record.mflags, V3_FLAG_ENRICHED);
+            if (ipv4Flow) {
+                LookupV4Country(ipv4Flow->srcAddr, recordHandle.geo);
+                LookupV4Country(ipv4Flow->dstAddr, &recordHandle.geo[2]);
+            }
+            if (ipv6Flow) {
+                LookupV6Country(ipv6Flow->srcAddr, recordHandle.geo);
+                LookupV6Country(ipv6Flow->dstAddr, &recordHandle.geo[2]);
+            }
+            if (asRouting) {
+                if (asRouting->srcAS == 0) asRouting->srcAS = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : LookupV6AS(ipv6Flow->srcAddr);
+                if (asRouting->dstAS == 0) asRouting->dstAS = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : LookupV6AS(ipv6Flow->dstAddr);
+            }
+            SetFlag(v3record->flags, V3_FLAG_ENRICHED);
         }
-        flow_record.inPackets = r->counter[INPACKETS];
-        flow_record.inBytes = r->counter[INBYTES];
-        flow_record.out_pkts = r->counter[OUTPACKETS];
-        flow_record.out_bytes = r->counter[OUTBYTES];
-        flow_record.aggr_flows = r->counter[FLOWS];
-        flow_record.msecFirst = r->msecFirst;
-        flow_record.msecLast = r->msecLast;
-        flow_record.tcp_flags = r->inFlags;
-        flow_record.revTcpFlags = r->outFlags;
+        genericFlow->inPackets = r->counter[INPACKETS];
+        genericFlow->inBytes = r->counter[INBYTES];
+        genericFlow->msecFirst = r->msecFirst;
+        genericFlow->msecLast = r->msecLast;
+        genericFlow->tcpFlags = r->inFlags;
+        if (r->counter[OUTPACKETS]) {
+            if (cntFlow) {
+                cntFlow->outPackets = r->counter[OUTPACKETS];
+                cntFlow->outBytes = r->counter[OUTBYTES];
+                cntFlow->flows = r->counter[FLOWS];
+            } else {
+                recordHandle.extensionList[EXcntFlowID] = &tmpCntFlow;
+                tmpCntFlow.outPackets = r->counter[OUTPACKETS];
+                tmpCntFlow.outBytes = r->counter[OUTBYTES];
+                tmpCntFlow.flows = r->counter[FLOWS];
+            }
+        }
+
+        /*
+        // XXX flow_record.revTcpFlags = r->outFlags;
 
         // apply IP mask from aggregation, to provide a pretty output
         if (aggregate_info.has_masks) {
@@ -1148,16 +1167,15 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
         if (aggr_record_mask) ApplyAggrMask(&flow_record, aggr_record_mask);
 
         if (NeedSwap(GuessFlowDirection, &flow_record)) SwapFlow(&flow_record);
+        */
 
-        print_record(stdout, &flow_record, outputParams->doTag);
+        print_record(stdout, &recordHandle, outputParams->doTag);
     }
 
 }  // End of PrintSortList
 
 // export SortList - apply possible aggregation mask to zero out aggregated fields
 static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nffile_t *nffile, int GuessFlowDirection, int ascending) {
-    // master_record_t	*aggr_record_mask = aggregate_info.mask;
-
     for (int i = 0; i < maxindex; i++) {
         int j;
 
@@ -1166,24 +1184,20 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
         else
             j = maxindex - 1 - i;
 
-        void *extensionList[MAXEXTENSIONS] = {0};
+        recordHandle_t recordHandle = {0};
         FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[j].record);
 
         recordHeaderV3_t *recordHeaderV3 = (r->flowrecord);
-        elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t));
         // map all extensions
-        for (int i = 0; i < recordHeaderV3->numElements; i++) {
-            extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
-            elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
-        }
+        MapRecordHandle(&recordHandle, recordHeaderV3, i);
 
         // check if cntFlowID exists
         int needSwap = 0;
-        EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)extensionList[EXgenericFlowID];
+        EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
         needSwap = NeedSwap(GuessFlowDirection, genericFlow);
 
         int exCntSize = 0;
-        EXcntFlow_t *cntFlow = (EXcntFlow_t *)extensionList[EXcntFlowID];
+        EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
         if ((r->counter[OUTPACKETS] || r->counter[OUTBYTES] || r->counter[FLOWS] != 1) && cntFlow == NULL) {
             exCntSize = EXcntFlowSize;
         }
@@ -1206,17 +1220,9 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
         }
         nffile->block_header->NumRecords++;
 
-        // XXX
-        memset((void *)extensionList, 0, sizeof(extensionList));
-        // remap extension od written record
-        elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t));
-        for (int i = 0; i < recordHeaderV3->numElements; i++) {
-            extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
-            elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
-        }
-
-        genericFlow = (EXgenericFlow_t *)extensionList[EXgenericFlowID];
-        cntFlow = (EXcntFlow_t *)extensionList[EXcntFlowID];
+        MapRecordHandle(&recordHandle, recordHeaderV3, i);
+        genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
+        cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
 
         if (genericFlow && cntFlow) {
             genericFlow->inPackets = r->counter[INPACKETS];
@@ -1230,8 +1236,8 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
             genericFlow->tcpFlags = r->inFlags;
         }
 
-        EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)extensionList[EXipv4FlowID];
-        EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)extensionList[EXipv6FlowID];
+        EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
+        EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
         // apply IP mask from aggregation, to provide a pretty output
         if (aggregate_info.has_masks) {
             if (ipv4Flow) {
@@ -1245,12 +1251,12 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
             }
         }
 
-        EXflowMisc_t *flowMisc = (EXflowMisc_t *)extensionList[EXflowMiscID];
+        EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
         if (flowMisc) {
             flowMisc->revTcpFlags = r->outFlags;
             if (aggregate_info.apply_netbits) SetNetMaskBits(ipv4Flow, ipv6Flow, flowMisc, aggregate_info.apply_netbits);
         }
-        EXasRouting_t *asRouting = (EXasRouting_t *)extensionList[EXasRoutingID];
+        EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle.extensionList[EXasRoutingID];
         if (needSwap) {
             SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, flowMisc, cntFlow, asRouting);
         }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -33,10 +33,12 @@
 
 #include <stdio.h>
 
+#include "nfdump.h"
+
 void raw_prolog(void);
 
 void raw_epilog(void);
 
-void raw_record(FILE *stream, void *record, int tag);
+void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag);
 
 #endif  // _OUTPUT_RAW_H

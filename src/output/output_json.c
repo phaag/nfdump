@@ -603,8 +603,7 @@ void json_epilog(void) {
     printf("]\n");
 }  // End of json_epilog
 
-void flow_record_to_json(FILE *stream, void *record, int tag) {
-    recordHandle_t *recordHandle = (recordHandle_t *)record;
+void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag) {
     recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
 
     if (recordCount) {

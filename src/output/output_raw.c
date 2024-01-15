@@ -744,8 +744,7 @@ void raw_epilog(void) {
     // empty epilog
 }  // End of pipe_epilog
 
-void raw_record(FILE *stream, void *record, int tag) {
-    recordHandle_t *recordHandle = (recordHandle_t *)record;
+void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
     recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
 
     char elementString[MAXEXTENSIONS * 5];
