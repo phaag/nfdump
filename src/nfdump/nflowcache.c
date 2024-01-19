@@ -46,6 +46,7 @@
 #include <sys/types.h>
 #include <time.h>
 
+#define DEVEL 1
 #include "blocksort.h"
 #include "config.h"
 #include "exporter.h"
@@ -68,16 +69,15 @@ typedef struct aggregate_param_s {
 static struct aggregate_table_s {
     char *aggregate_token;    // name of aggregation parameter
     aggregate_param_t param;  // the parameter array
-    int merge;                // apply bis mask? => -1 no, otherwise index of mask[] array
     int active;               // is this parameter set?
     int geoLookup;            // may require geolookup
     char *fmt;                // for automatic output format generation
 } aggregate_table[] = {
-    {"srcip4", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr}, 0, 0, 0, "%sa"},
-    {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr}, 0, 0, 0, "%da"},
-    {"srcport", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort}, -1, 0, 0, "%sp"},
-    {"dstport", {EXgenericFlowID, OFFdstPort, SIZEdstPort}, -1, 0, 0, "%dp"},
-    {"proto", {EXgenericFlowID, OFFproto, SIZEproto}, -1, 0, 0, "%pr"},
+    {"srcip4", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr}, 0, 0, "%sa"},
+    {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr}, 0, 0, "%da"},
+    {"srcport", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort}, 0, 0, "%sp"},
+    {"dstport", {EXgenericFlowID, OFFdstPort, SIZEdstPort}, 0, 0, "%dp"},
+    {"proto", {EXgenericFlowID, OFFproto, SIZEproto}, 0, 0, "%pr"},
     /*
                            {"srcip6", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, 0, 0, 0, "%sa"},
                            {"srcip6", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, 0, NULL},
@@ -136,7 +136,7 @@ static struct aggregate_table_s {
                            {"srcgeo", {4, OffsetGeo, MaskSrcGeo, ShiftSrcGeo}, -1, 0, 1, "%sc"},
                            {"dstgeo", {4, OffsetGeo, MaskDstGeo, ShiftDstGeo}, -1, 0, 1, "%dc"},
     */
-    {NULL, {0, 0, 0}, 0, 0, 0, NULL}};
+    {NULL, {0, 0, 0}, 0, 0, NULL}};
 
 /* Element of the flow hash ( cache ) */
 typedef struct FlowHashRecord {
@@ -253,12 +253,13 @@ static struct FlowList_s {
 
 static struct aggregate_info_s {
     aggregate_param_t *stack;
-    master_record_t *mask;
-
-    uint64_t IPmask[4];  // 0-1 srcIP, 2-3 dstIP
+    int stackSize;
+    uint32_t srcV4Mask;
+    uint32_t dstV4Mask;
+    uint64_t srcV6Mask[2];
+    uint64_t dstV6Mask[2];
     int has_masks;
     int apply_netbits;  // bit 0: src, bit 1: dst
-
 } aggregate_info = {0};
 
 static uint32_t bidir_flows = 0;
@@ -344,13 +345,13 @@ static inline void New_HashKey(void *keymem, recordHandle_t *recordHandle, int s
 
     // apply src/dst mask bits if requested
     if (aggregate_info.apply_netbits) {
-        //     ApplyNetMaskBits(flow_record, aggregate_info.apply_netbits);
+        ApplyNetMaskBits(recordHandle, aggregate_info.apply_netbits);
     }
 
-    if (aggregate_info.stack) {
+    if (aggregate_info.stackSize) {
         // custom user aggregation
         aggregate_param_t *aggr_param = aggregate_info.stack;
-        while (aggr_param->extID) {
+        for (int i = 0; i < aggregate_info.stackSize; i++) {
             void *inPtr = recordHandle->extensionList[aggr_param->extID] + aggr_param->offset;
             uint64_t inVal = 0;
             switch (aggr_param->length) {
@@ -642,7 +643,6 @@ void Add_FlowStatOrder(uint32_t order, uint32_t direction) {
 
 char *ParseAggregateMask(char *arg, int hasGeoDB) {
     struct aggregate_table_s *a;
-    uint64_t mask[2];
     char *aggr_fmt;
 
     if (bidir_flows) {
@@ -676,11 +676,15 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
 
     aggregate_info.apply_netbits = 0;
     aggregate_info.has_masks = 0;
-    aggregate_info.IPmask[0] = 0xffffffffffffffffLL;
-    aggregate_info.IPmask[1] = 0xffffffffffffffffLL;
-    aggregate_info.IPmask[2] = 0xffffffffffffffffLL;
-    aggregate_info.IPmask[3] = 0xffffffffffffffffLL;
+    aggregate_info.srcV4Mask = 0xFFFFFFFF;
+    aggregate_info.dstV4Mask = 0xFFFFFFFF;
+    aggregate_info.srcV6Mask[0] = 0xffffffffffffffffLL;
+    aggregate_info.srcV6Mask[1] = 0xffffffffffffffffLL;
+    aggregate_info.dstV6Mask[0] = 0xffffffffffffffffLL;
+    aggregate_info.dstV6Mask[1] = 0xffffffffffffffffLL;
 
+    uint32_t v4Mask = 0xffffffff;
+    uint64_t v6Mask[2] = {0xffffffffffffffffLL, 0xffffffffffffffffLL};
     // separate tokens
     char *p = strtok(arg, ",");
     while (p) {
@@ -702,8 +706,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
                     LogError("Subnet mask length '%d' out of range for IPv4", subnet);
                     return NULL;
                 }
-                mask[0] = 0xffffffffffffffffLL;
-                mask[1] = 0xffffffffffffffffLL << (32 - subnet);
+                v4Mask = 0xffffffff << (32 - subnet);
 
             } else if (*n == '6') {
                 // IPv6
@@ -713,11 +716,11 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
                 }
 
                 if (subnet > 64) {
-                    mask[0] = 0xffffffffffffffffLL;
-                    mask[1] = 0xffffffffffffffffLL << (64 - subnet);
+                    v6Mask[0] = 0xffffffffffffffffLL;
+                    v6Mask[1] = 0xffffffffffffffffLL << (64 - subnet);
                 } else {
-                    mask[0] = 0xffffffffffffffffLL << (64 - subnet);
-                    mask[1] = 0;
+                    v6Mask[0] = 0xffffffffffffffffLL << (64 - subnet);
+                    v6Mask[1] = 0;
                 }
             } else {
                 // rubbish
@@ -753,8 +756,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
                 doGeoLookup += a->geoLookup;
             }
             do {
-                int i = a->merge;
-                if (i != -1) {
+                if (a->merge != -1) {
                     if (has_mask) {
                         // XXX a->param.mask = mask[i];
                     } else {
@@ -768,7 +770,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
                     }
                 }
                 a->active = 1;
-                // XXX hashKeyLen += a->param.size;
+                hashKeyLen += a->param.length;
                 stack_count++;
                 a++;
             } while (a->aggregate_token && (strcasecmp(p, a->aggregate_token) == 0));
@@ -777,12 +779,14 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
                 aggregate_info.has_masks = 1;
                 switch (p[0]) {
                     case 's':
-                        aggregate_info.IPmask[0] = mask[0];
-                        aggregate_info.IPmask[1] = mask[1];
+                        aggregate_info.srcV4Mask = v4Mask;
+                        aggregate_info.srcV6Mask[0] = v6Mask[0];
+                        aggregate_info.srcV6Mask[1] = v6Mask[1];
                         break;
                     case 'd':
-                        aggregate_info.IPmask[2] = mask[0];
-                        aggregate_info.IPmask[3] = mask[1];
+                        aggregate_info.dstV4Mask = v4Mask;
+                        aggregate_info.dstV6Mask[0] = v6Mask[0];
+                        aggregate_info.dstV6Mask[1] = v6Mask[1];
                         break;
                 }
             }
@@ -800,6 +804,11 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
     }
 
     aggregate_info.stack = (aggregate_param_t *)malloc((stack_count + 1) * sizeof(aggregate_param_t));
+    if (!aggregate_info.stack) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(255);
+    }
+    aggregate_info.stackSize = stack_count;
 
     stack_count = 0;
     a = aggregate_table;
@@ -810,8 +819,6 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
         }
         a++;
     }
-    // final '0' record
-    aggregate_info.stack[stack_count] = a->param;
 
     dbg_printf("Aggregate key len: %zu bytes\n", hashKeyLen);
     dbg_printf("Aggregate format string: '%s'\n", aggr_fmt);
@@ -820,21 +827,22 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
     if (aggregate_info.stack) {
         aggregate_param_t *aggr_param = aggregate_info.stack;
         printf("Aggregate stack:\n");
-        while (aggr_param->size) {
-            printf("Offset: %u, Mask: %llx, Shift: %llu\n", aggr_param->offset, (long long unsigned)aggr_param->mask,
-                   (long long unsigned)aggr_param->shift);
+        for (int i = 0; i < aggregate_info.stackSize; i++) {
+            printf("ExtID: %u, Offset: %u, Length: %u\n", aggr_param->extID, aggr_param->offset, aggr_param->length);
             aggr_param++;
         }  // while
     }
     printf("Has IP mask: %i %i\n", has_mask, aggregate_info.has_masks);
-    printf("Mask 0: 0x%llx\n", (unsigned long long)aggregate_info.IPmask[0]);
-    printf("Mask 1: 0x%llx\n", (unsigned long long)aggregate_info.IPmask[1]);
-    printf("Mask 2: 0x%llx\n", (unsigned long long)aggregate_info.IPmask[2]);
-    printf("Mask 3: 0x%llx\n", (unsigned long long)aggregate_info.IPmask[3]);
+    printf("Src v4mask  : 0x%x\n", aggregate_info.srcV4Mask);
+    printf("Dst v4mask  : 0x%x\n", aggregate_info.dstV4Mask);
+    printf("Src v6mask 0: 0x%llx\n", (unsigned long long)aggregate_info.srcV6Mask[0]);
+    printf("Src v6mask 1: 0x%llx\n", (unsigned long long)aggregate_info.srcV6Mask[1]);
+    printf("Dst v6mask 0: 0x%llx\n", (unsigned long long)aggregate_info.dstV6Mask[0]);
+    printf("Dst v6mask 1: 0x%llx\n", (unsigned long long)aggregate_info.dstV6Mask[1]);
 
 #endif
 
-    aggregate_info.mask = SetAggregateMask();
+    // XXX aggregate_info.mask = SetAggregateMask();
 
     return aggr_fmt;
 }  // End of ParseAggregateMask
@@ -1039,10 +1047,25 @@ void AddFlowCache(recordHandle_t *recordHandle) {
     FlowHashRecord_t r;
 
     if (doGeoLookup && TestFlag(record->flags, V3_FLAG_ENRICHED) == 0) {
-        // XXX LookupCountry(flow_record->V6.srcaddr, flow_record->src_geo);
-        // XXX LookupCountry(flow_record->V6.dstaddr, flow_record->dst_geo);
-        // XXX if (flow_record->srcas == 0) flow_record->srcas = LookupAS(flow_record->V6.srcaddr);
-        // XXX if (flow_record->dstas == 0) flow_record->dstas = LookupAS(flow_record->V6.dstaddr);
+        EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+        EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+        EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
+        if (ipv4Flow) {
+            LookupV4Country(ipv4Flow->srcAddr, &recordHandle->geo[0]);
+            LookupV4Country(ipv4Flow->dstAddr, &recordHandle->geo[2]);
+            if (asRouting) {
+                if (asRouting->srcAS == 0) asRouting->srcAS = LookupV4AS(ipv4Flow->srcAddr);
+                if (asRouting->dstAS == 0) asRouting->dstAS = LookupV4AS(ipv4Flow->dstAddr);
+            }
+        }
+        if (ipv6Flow) {
+            LookupV6Country(ipv6Flow->srcAddr, &recordHandle->geo[0]);
+            LookupV6Country(ipv6Flow->dstAddr, &recordHandle->geo[2]);
+            if (asRouting) {
+                if (asRouting->srcAS == 0) asRouting->srcAS = LookupV6AS(ipv6Flow->srcAddr);
+                if (asRouting->dstAS == 0) asRouting->dstAS = LookupV6AS(ipv6Flow->dstAddr);
+            }
+        }
         SetFlag(record->flags, V3_FLAG_ENRICHED);
     }
     if (bidir_flows) return AddBidirFlow(recordHandle);
@@ -1053,7 +1076,6 @@ void AddFlowCache(recordHandle_t *recordHandle) {
     New_HashKey(keymem, recordHandle, 0);
     r.hashkey = keymem;
     r.hash = SuperFastHash(keymem, hashKeyLen);
-    // r.hash = (uint32_t)flow_record->dstPort << 16 | flow_record->srcPort;
 
     int ret;
     khiter_t k = kh_put(FlowHash, FlowHash, r, &ret);
@@ -1099,7 +1121,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
 // print SortList - apply possible aggregation mask to zero out aggregated fields
 static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
                                  RecordPrinter_t print_record, int ascending) {
-    master_record_t *aggr_record_mask = aggregate_info.mask;
+    // XXX master_record_t *aggr_record_mask = aggregate_info.mask;
 
     int max = maxindex;
     if (outputParams->topN && outputParams->topN < maxindex) max = outputParams->topN;
@@ -1177,28 +1199,15 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
 // export SortList - apply possible aggregation mask to zero out aggregated fields
 static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nffile_t *nffile, int GuessFlowDirection, int ascending) {
     for (int i = 0; i < maxindex; i++) {
-        int j;
+        int j = ascending ? i : maxindex - 1 - i;
 
-        if (ascending)
-            j = i;
-        else
-            j = maxindex - 1 - i;
-
-        recordHandle_t recordHandle = {0};
         FlowHashRecord_t *r = (FlowHashRecord_t *)(SortList[j].record);
 
         recordHeaderV3_t *recordHeaderV3 = (r->flowrecord);
-        // map all extensions
-        MapRecordHandle(&recordHandle, recordHeaderV3, i);
 
-        // check if cntFlowID exists
-        int needSwap = 0;
-        EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
-        needSwap = NeedSwap(GuessFlowDirection, genericFlow);
-
+        // check, if we need cntFlow extension
         int exCntSize = 0;
-        EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
-        if ((r->counter[OUTPACKETS] || r->counter[OUTBYTES] || r->counter[FLOWS] != 1) && cntFlow == NULL) {
+        if (r->counter[OUTPACKETS] || r->counter[OUTBYTES] || r->counter[FLOWS] != 1) {
             exCntSize = EXcntFlowSize;
         }
 
@@ -1208,10 +1217,18 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
 
         // write record
         memcpy(nffile->buff_ptr, (void *)recordHeaderV3, recordHeaderV3->size);
+        // remap header to written memory
         recordHeaderV3 = nffile->buff_ptr;
 
-        if (exCntSize) {
-            PushExtension(recordHeaderV3, EXcntFlow, cntFlow);
+        recordHandle_t recordHandle = {0};
+        MapRecordHandle(&recordHandle, recordHeaderV3, i);
+
+        // check if cntFlow already exists
+        EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
+
+        if (cntFlow == NULL && exCntSize) {
+            PushExtension(recordHeaderV3, EXcntFlow, extPtr);
+            cntFlow = extPtr;
             nffile->buff_ptr += recordHeaderV3->size;
             nffile->block_header->size += recordHeaderV3->size;
         } else {
@@ -1220,20 +1237,18 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
         }
         nffile->block_header->NumRecords++;
 
-        MapRecordHandle(&recordHandle, recordHeaderV3, i);
-        genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
-        cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
-
-        if (genericFlow && cntFlow) {
+        EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
+        if (genericFlow) {
             genericFlow->inPackets = r->counter[INPACKETS];
             genericFlow->inBytes = r->counter[INBYTES];
-            cntFlow->outPackets = r->counter[OUTPACKETS];
-            cntFlow->outBytes = r->counter[OUTBYTES];
-            cntFlow->flows = r->counter[FLOWS];
-
             genericFlow->msecFirst = r->msecFirst;
             genericFlow->msecLast = r->msecLast;
             genericFlow->tcpFlags = r->inFlags;
+        }
+        if (cntFlow) {
+            cntFlow->outPackets = r->counter[OUTPACKETS];
+            cntFlow->outBytes = r->counter[OUTBYTES];
+            cntFlow->flows = r->counter[FLOWS];
         }
 
         EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
@@ -1241,13 +1256,13 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
         // apply IP mask from aggregation, to provide a pretty output
         if (aggregate_info.has_masks) {
             if (ipv4Flow) {
-                ipv4Flow->srcAddr &= aggregate_info.IPmask[1];
-                ipv4Flow->dstAddr &= aggregate_info.IPmask[3];
+                ipv4Flow->srcAddr &= aggregate_info.srcV4Mask;
+                ipv4Flow->dstAddr &= aggregate_info.dstV4Mask;
             } else if (ipv6Flow) {
-                ipv6Flow->srcAddr[0] &= aggregate_info.IPmask[0];
-                ipv6Flow->srcAddr[1] &= aggregate_info.IPmask[1];
-                ipv6Flow->dstAddr[0] &= aggregate_info.IPmask[2];
-                ipv6Flow->dstAddr[1] &= aggregate_info.IPmask[3];
+                ipv6Flow->srcAddr[0] &= aggregate_info.srcV6Mask[0];
+                ipv6Flow->srcAddr[1] &= aggregate_info.srcV6Mask[1];
+                ipv6Flow->dstAddr[0] &= aggregate_info.dstV6Mask[0];
+                ipv6Flow->dstAddr[1] &= aggregate_info.dstV6Mask[1];
             }
         }
 
@@ -1257,6 +1272,8 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
             if (aggregate_info.apply_netbits) SetNetMaskBits(ipv4Flow, ipv6Flow, flowMisc, aggregate_info.apply_netbits);
         }
         EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle.extensionList[EXasRoutingID];
+
+        int needSwap = NeedSwap(GuessFlowDirection, genericFlow);
         if (needSwap) {
             SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, flowMisc, cntFlow, asRouting);
         }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -55,43 +55,55 @@ static inline uint64_t *ApplyV6NetMaskBits(uint64_t *ip, uint32_t maskBits) {
 
 }  // End of ApplyV6NetMaskBits
 
-static inline void ApplyNetMaskBits(master_record_t *flow_record, int apply_netbits);
+static inline void ApplyNetMaskBits(recordHandle_t *recordHandle, int apply_netbits);
 
-static inline void ApplyNetMaskBits(master_record_t *flow_record, int apply_netbits) {
-    if ((flow_record->mflags & V3_FLAG_IPV6_ADDR) != 0) {  // IPv6
+static inline void ApplyNetMaskBits(recordHandle_t *recordHandle, int apply_netbits) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+
+    uint32_t srcMask = 0;
+    uint32_t dstMask = 0;
+    if (flowMisc) {
+        srcMask = flowMisc->srcMask;
+        dstMask = flowMisc->dstMask;
+    }
+
+    if (ipv4Flow) {
+        if (apply_netbits & 1) {
+            uint32_t srcmask = 0xffffffff << (32 - srcMask);
+            ipv4Flow->srcAddr &= srcmask;
+        }
+        if (apply_netbits & 2) {
+            uint32_t dstmask = 0xffffffff << (32 - dstMask);
+            ipv4Flow->dstAddr &= dstmask;
+        }
+
+    } else if (ipv6Flow) {
         if (apply_netbits & 1) {
             uint64_t mask;
-            uint32_t mask_bits = flow_record->src_mask;
+            uint32_t mask_bits = srcMask;
             if (mask_bits > 64) {
                 mask = 0xffffffffffffffffLL << (128 - mask_bits);
-                flow_record->V6.srcaddr[1] &= mask;
+                ipv6Flow->srcAddr[1] &= mask;
             } else {
                 mask = 0xffffffffffffffffLL << (64 - mask_bits);
-                flow_record->V6.srcaddr[0] &= mask;
-                flow_record->V6.srcaddr[1] = 0;
+                ipv6Flow->srcAddr[0] &= mask;
+                ipv6Flow->srcAddr[1] = 0;
             }
         }
         if (apply_netbits & 2) {
             uint64_t mask;
-            uint32_t mask_bits = flow_record->dst_mask;
+            uint32_t mask_bits = dstMask;
 
             if (mask_bits > 64) {
                 mask = 0xffffffffffffffffLL << (128 - mask_bits);
-                flow_record->V6.dstaddr[1] &= mask;
+                ipv6Flow->dstAddr[1] &= mask;
             } else {
                 mask = 0xffffffffffffffffLL << (64 - mask_bits);
-                flow_record->V6.dstaddr[0] &= mask;
-                flow_record->V6.dstaddr[1] = 0;
+                ipv6Flow->dstAddr[0] &= mask;
+                ipv6Flow->dstAddr[1] = 0;
             }
-        }
-    } else {  // IPv4
-        if (apply_netbits & 1) {
-            uint32_t srcmask = 0xffffffff << (32 - flow_record->src_mask);
-            flow_record->V4.srcaddr &= srcmask;
-        }
-        if (apply_netbits & 2) {
-            uint32_t dstmask = 0xffffffff << (32 - flow_record->dst_mask);
-            flow_record->V4.dstaddr &= dstmask;
         }
     }
 

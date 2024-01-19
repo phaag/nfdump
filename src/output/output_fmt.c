@@ -782,16 +782,8 @@ static void String_FlowCount(FILE *stream, recordHandle_t *recordHandle) {
 
 static void String_FirstSeen(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
-    EXnelCommon_t *nelCommon = (EXnelCommon_t *)recordHandle->extensionList[EXnelCommonID];
 
     uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
-    if (msecFirst == 0 && nselCommon) {
-        msecFirst = nselCommon->msecEvent;
-    }
-    if (msecFirst == 0 && nelCommon) {
-        msecFirst = nelCommon->msecEvent;
-    }
     time_t tt = msecFirst / 1000LL;
     struct tm *ts = localtime(&tt);
     char s[128];
