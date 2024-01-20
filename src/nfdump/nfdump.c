@@ -442,7 +442,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                         }
                         */
 #ifdef DEVEL
-                    if (Engine->label) printf("Flow has label: %s\n", Engine->label);
+                        // XXX if (Engine->label) printf("Flow has label: %s\n", Engine->label);
 #endif
                     UpdateStatRecord(&stat_record, recordHandle);
 

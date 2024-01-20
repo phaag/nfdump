@@ -87,6 +87,10 @@ static char tag_string[2] = {'\0'};
 /* prototypes */
 static char *ICMP_Port_decode(EXgenericFlow_t *genericFlow);
 
+static inline uint32_t ApplyV4NetMaskBits(uint32_t ip, uint32_t maskBits);
+
+static inline uint64_t *ApplyV6NetMaskBits(uint64_t *ip, uint32_t maskBits);
+
 static void InitFormatParser(void);
 
 static void AddToken(int index, char *s);
@@ -484,8 +488,6 @@ static struct format_token_list_s {
 /* each of the tokens above must not generate output strings larger than this */
 #define MAX_STRING_LENGTH 256
 
-#include "applybits_inline.c"
-
 /* functions */
 
 void Setv6Mode(int mode) { long_v6 += mode; }
@@ -590,6 +592,27 @@ void CondenseV6(char *s) {
     *p = 0;
 
 }  // End of CondenseV6
+
+static inline uint32_t ApplyV4NetMaskBits(uint32_t ip, uint32_t maskBits) {
+    uint32_t srcMask = 0xffffffff << (32 - maskBits);
+    return (ip &= srcMask);
+}  // End of ApplyV4NetMaskBits
+
+static inline uint64_t *ApplyV6NetMaskBits(uint64_t *ip, uint32_t maskBits) {
+    static uint64_t net[2];
+    uint64_t mask;
+    if (maskBits > 64) {
+        mask = 0xffffffffffffffffLL << (128 - maskBits);
+        net[0] = ip[0];
+        net[1] = ip[1] & mask;
+    } else {
+        mask = 0xffffffffffffffffLL << (64 - maskBits);
+        net[0] = ip[0] & mask;
+        net[1] = 0;
+    }
+    return net;
+
+}  // End of ApplyV6NetMaskBits
 
 static void AddToken(int index, char *s) {
     if (token_index >= max_token_index) {  // no slot available - expand table

@@ -46,7 +46,6 @@
 #include <sys/types.h>
 #include <time.h>
 
-#define DEVEL 1
 #include "blocksort.h"
 #include "config.h"
 #include "exporter.h"
@@ -66,20 +65,23 @@ typedef struct aggregate_param_s {
     uint32_t length;  // size of parameter in bytes
 } aggregate_param_t;
 
-typedef struct maskArray_s {
+#define MaxMaskArraySize 16
+static struct maskArray_s {
     uint32_t v4Mask;
     uint64_t v6Mask[2];
-} maskArray_t;
+} maskArray[MaxMaskArraySize] = {0};
+uint32_t maskIndex = 0;
 
-static struct aggregate_table_s {
+static struct aggregationElement_s {
     char *aggrElement;        // name of aggregation parameter
     aggregate_param_t param;  // the parameter array
     uint8_t active;           // this entry will be applied
     uint8_t geoLookup;        // may require geolookup, if empty
     uint8_t netmaskID;        // index into mask array for mask to apply
+                              // 255 : use srcMask, dstMask from flow record
     uint8_t allowMask;        // element may have a netmask -> /prefix
     char *fmt;                // for automatic output format generation
-} aggregate_table[] = {
+} aggregationTable[] = {
     {"proto", {EXgenericFlowID, OFFproto, SIZEproto}, 0, 0, 0, 0, "%pr"},
     {"srcip4", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr}, 0, 0, 0, 1, "%sa"},
     {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr}, 0, 0, 0, 1, "%da"},
@@ -258,20 +260,11 @@ static struct FlowList_s {
     size_t NumRecords;
 } FlowList;
 
-static struct aggregate_info_s {
-    aggregate_param_t *stack;
-    int stackSize;
-    uint32_t srcV4Mask;
-    uint32_t dstV4Mask;
-    uint64_t srcV6Mask[2];
-    uint64_t dstV6Mask[2];
-    int has_masks;
-    int apply_netbits;  // bit 0: src, bit 1: dst
-} aggregate_info = {0};
+#define MaxAggrStackSize 64
+int aggregateInfo[MaxAggrStackSize] = {0};
 
 static uint32_t bidir_flows = 0;
 
-#include "applybits_inline.c"
 #include "heapsort_inline.c"
 #include "memhandle.c"
 #include "nfdump_inline.c"
@@ -290,10 +283,12 @@ static inline void New_HashKey(void *keymem, recordHandle_t *recordHandle, int s
 
 static SortElement_t *GetSortList(size_t *size);
 
-static master_record_t *SetAggregateMask(void);
+static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationElement_s *aggregationElement);
 
-static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
-                                 RecordPrinter_t print_record, int ascending);
+static void SetNetMaskBits(EXipv4Flow_t *EXipv4Flow, EXipv6Flow_t *EXipv6Flow, EXflowMisc_t *EXflowMisc, int apply_netbits);
+
+static void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
+                          RecordPrinter_t print_record, int ascending);
 
 static inline uint32_t SuperFastHash(const char *data, int len) {
     uint32_t hash = len;
@@ -350,50 +345,44 @@ static inline void New_HashKey(void *keymem, recordHandle_t *recordHandle, int s
 
     FlowKey_t *keyptr;
 
-    // apply src/dst mask bits if requested
-    if (aggregate_info.apply_netbits) {
-        ApplyNetMaskBits(recordHandle, aggregate_info.apply_netbits);
-    }
-
-    if (aggregate_info.stackSize) {
+    if (aggregateInfo[0] >= 0) {
         // custom user aggregation
-        aggregate_param_t *aggr_param = aggregate_info.stack;
-        for (int i = 0; i < aggregate_info.stackSize; i++) {
-            void *inPtr = recordHandle->extensionList[aggr_param->extID] + aggr_param->offset;
-            uint64_t inVal = 0;
-            switch (aggr_param->length) {
+        for (int i = 0; aggregateInfo[i] >= 0; i++) {
+            // apply src/dst mask bits if requested
+            if (aggregationTable[i].netmaskID == 0xFF) {
+                ApplyNetMaskBits(recordHandle, &aggregationTable[i]);
+            }
+            aggregate_param_t *param = &aggregationTable[i].param;
+            void *inPtr = recordHandle->extensionList[param->extID] + param->offset;
+            switch (param->length) {
                 case 0:
                     break;
                 case 1: {
-                    uint8_t *_v = (uint8_t *)keymem;
-                    inVal = *((uint8_t *)inPtr);
-                    *_v = inVal;
+                    *((uint8_t *)keymem) = *((uint8_t *)inPtr);
                     keymem += sizeof(uint8_t);
                 } break;
                 case 2: {
-                    uint16_t *_v = (uint16_t *)keymem;
-                    inVal = *((uint16_t *)inPtr);
-                    *_v = inVal;
+                    *((uint16_t *)keymem) = *((uint16_t *)inPtr);
                     keymem += sizeof(uint16_t);
                 } break;
                 case 4: {
-                    uint32_t *_v = (uint32_t *)keymem;
-                    inVal = *((uint32_t *)inPtr);
-                    *_v = inVal;
+                    *((uint32_t *)keymem) = *((uint32_t *)inPtr);
                     keymem += sizeof(uint32_t);
                 } break;
                 case 8: {
-                    uint64_t *_v = (uint64_t *)keymem;
-                    inVal = *((uint64_t *)inPtr);
-                    *_v = inVal;
+                    *((uint64_t *)keymem) = *((uint64_t *)inPtr);
+                    keymem += sizeof(uint64_t);
+                } break;
+                case 16: {
+                    ((uint64_t *)keymem)[0] = ((uint64_t *)inPtr)[0];
+                    ((uint64_t *)keymem)[1] = ((uint64_t *)inPtr)[1];
                     keymem += sizeof(uint64_t);
                 } break;
                 default:
-                    fprintf(stderr, "Panic: Software error in %s line %d\n", __FILE__, __LINE__);
-                    exit(255);
+                    memcpy((void *)keymem, inPtr, param->length);
             }
-            aggr_param++;
-        }  // while
+        }
+
     } else if (swap_flow) {
         // default 5-tuple aggregation for bidirectional flows
         keyptr = (FlowKey_t *)keymem;
@@ -505,45 +494,98 @@ static uint64_t tend_record(FlowHashRecord_t *record, int inout) { return record
 
 static uint64_t duration_record(FlowHashRecord_t *record, int inout) { return record->msecLast - record->msecFirst; }  // End of duration_record
 
-static master_record_t *SetAggregateMask(void) {
-    master_record_t *aggr_record_mask = NULL;
+static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationElement_s *aggregationElement) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
 
-    if (aggregate_info.stack) {
-        /* XXX
-        uint64_t *r;
-        aggregate_param_t *aggr_param = aggregate_info.stack;
-
-        aggr_record_mask = (master_record_t *)calloc(1, sizeof(master_record_t));
-        if (!aggr_record_mask) {
-            fprintf(stderr, "malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-            return 0;
-        }
-
-        r = (uint64_t *)aggr_record_mask;
-        while (aggr_param->size) {
-            int offset = aggr_param->offset;
-            r[offset] |= aggr_param->mask;
-            aggr_param++;
-        }
-
-        // not really needed, but preset it anyway
-        r[0] = 0xffffffffffffffffLL;
-        r[1] = 0xffffffffffffffffLL;
-        aggr_record_mask->inPackets = 0xffffffffffffffffLL;
-        aggr_record_mask->inBytes = 0xffffffffffffffffLL;
-        aggr_record_mask->out_pkts = 0xffffffffffffffffLL;
-        aggr_record_mask->out_bytes = 0xffffffffffffffffLL;
-        aggr_record_mask->aggr_flows = 0xffffffffffffffffLL;
-        aggr_record_mask->msecLast = 0xffffffffffffffffLL;
-        */
+    uint32_t srcMask = 0;
+    uint32_t dstMask = 0;
+    if (flowMisc) {
+        srcMask = flowMisc->srcMask;
+        dstMask = flowMisc->dstMask;
     }
 
-    return aggr_record_mask;
+    if (ipv4Flow && aggregationElement->param.extID == EXipv4FlowID) {
+        if (aggregationElement->param.offset == OFFsrc4Addr) {
+            uint32_t srcmask = 0xffffffff << (32 - srcMask);
+            ipv4Flow->srcAddr &= srcmask;
+        }
+        if (aggregationElement->param.offset == OFFdst4Addr) {
+            uint32_t dstmask = 0xffffffff << (32 - dstMask);
+            ipv4Flow->dstAddr &= dstmask;
+        }
 
-}  // End of SetAggregateMask
+    } else if (ipv6Flow && aggregationElement->param.extID == EXipv6FlowID) {
+        if (aggregationElement->param.offset == OFFsrc6Addr) {
+            uint32_t mask_bits = srcMask;
+            if (mask_bits > 64) {
+                uint64_t mask = 0xffffffffffffffffLL << (128 - mask_bits);
+                ipv6Flow->srcAddr[1] &= mask;
+            } else {
+                uint64_t mask = 0xffffffffffffffffLL << (64 - mask_bits);
+                ipv6Flow->srcAddr[0] &= mask;
+                ipv6Flow->srcAddr[1] = 0;
+            }
+        }
+        if (aggregationElement->param.offset == OFFdst6Addr) {
+            uint32_t mask_bits = dstMask;
+            if (mask_bits > 64) {
+                uint64_t mask = 0xffffffffffffffffLL << (128 - mask_bits);
+                ipv6Flow->dstAddr[1] &= mask;
+            } else {
+                uint64_t mask = 0xffffffffffffffffLL << (64 - mask_bits);
+                ipv6Flow->dstAddr[0] &= mask;
+                ipv6Flow->dstAddr[1] = 0;
+            }
+        }
+    }
+
+}  // End of ApplyNetMaskBits
+
+static void SetNetMaskBits(EXipv4Flow_t *EXipv4Flow, EXipv6Flow_t *EXipv6Flow, EXflowMisc_t *EXflowMisc, int apply_netbits) {
+    if (EXipv6Flow) {  // IPv6
+        if (apply_netbits & 1) {
+            uint64_t mask;
+            uint32_t mask_bits = EXflowMisc->srcMask;
+            if (mask_bits > 64) {
+                mask = 0xffffffffffffffffLL << (128 - mask_bits);
+                EXipv6Flow->srcAddr[1] &= mask;
+            } else {
+                mask = 0xffffffffffffffffLL << (64 - mask_bits);
+                EXipv6Flow->srcAddr[0] &= mask;
+                EXipv6Flow->srcAddr[1] = 0;
+            }
+        }
+        if (apply_netbits & 2) {
+            uint64_t mask;
+            uint32_t mask_bits = EXflowMisc->dstMask;
+
+            if (mask_bits > 64) {
+                mask = 0xffffffffffffffffLL << (128 - mask_bits);
+                EXipv6Flow->dstAddr[1] &= mask;
+            } else {
+                mask = 0xffffffffffffffffLL << (64 - mask_bits);
+                EXipv6Flow->dstAddr[0] &= mask;
+                EXipv6Flow->dstAddr[1] = 0;
+            }
+        }
+    } else if (EXipv4Flow) {  // IPv4
+        if (apply_netbits & 1) {
+            uint32_t srcmask = 0xffffffff << (32 - EXflowMisc->srcMask);
+            EXipv4Flow->srcAddr &= srcmask;
+        }
+        if (apply_netbits & 2) {
+            uint32_t dstmask = 0xffffffff << (32 - EXflowMisc->dstMask);
+            EXipv4Flow->dstAddr &= dstmask;
+        }
+    }
+
+}  // End of SetNetMaskBits
 
 // return a linear list of aggregated/listed flows for later sorting
 static SortElement_t *GetSortList(size_t *size) {
+    dbg_printf("Enter %s\n", __func__);
     SortElement_t *list;
 
     size_t hashSize = kh_size(FlowHash);
@@ -608,6 +650,7 @@ void Dispose_FlowTable(void) { nfalloc_free(); }  // End of Dispose_FlowTable
 
 // Parse flow cache print order -O
 int Parse_PrintOrder(char *order) {
+    dbg_printf("Enter %s\n", __func__);
     int direction = -1;
     char *r = strchr(order, ':');
     if (r) {
@@ -644,50 +687,40 @@ int Parse_PrintOrder(char *order) {
 // multiple sort orders may be given - each order adds the
 // corresoponding bit
 void Add_FlowStatOrder(uint32_t order, uint32_t direction) {
+    dbg_printf("Enter %s\n", __func__);
     FlowStat_order |= order;
     PrintDirection = direction;
 }  // End of Add_FlowStatOrder
 
 char *ParseAggregateMask(char *arg, int hasGeoDB) {
-    struct aggregate_table_s *a;
-    char *aggr_fmt;
-
+    dbg_printf("Enter %s\n", __func__);
     if (bidir_flows) {
         LogError("Can not set custom aggregation in bidir mode");
         return NULL;
     }
 
-    uint32_t stack_count = 0;
-    uint32_t subnet = 0;
+    uint32_t elementCount = 0;
+    aggregateInfo[0] = -1;
 
     hashKeyLen = 0;
-    memset((void *)&aggregate_info, 0, sizeof(aggregate_info));
+    memset((void *)&aggregateInfo, 0, sizeof(aggregateInfo));
 
     size_t fmt_len = 0;
-    for (int i = 0; aggregate_table[i].aggrElement != NULL; i++) {
-        if (hasGeoDB && aggregate_table[i].fmt) {
-            if (strcmp(aggregate_table[i].fmt, "%sa") == 0) aggregate_table[i].fmt = "%gsa";
-            if (strcmp(aggregate_table[i].fmt, "%da") == 0) aggregate_table[i].fmt = "%gda";
+    for (int i = 0; aggregationTable[i].aggrElement != NULL; i++) {
+        if (hasGeoDB && aggregationTable[i].fmt) {
+            if (strcmp(aggregationTable[i].fmt, "%sa") == 0) aggregationTable[i].fmt = "%gsa";
+            if (strcmp(aggregationTable[i].fmt, "%da") == 0) aggregationTable[i].fmt = "%gda";
         }
-        if (aggregate_table[i].fmt) fmt_len += (strlen(aggregate_table[i].fmt) + 1);
+        if (aggregationTable[i].fmt) fmt_len += (strlen(aggregationTable[i].fmt) + 1);
     }
-    fmt_len++;  // trailing '\0'
+    fmt_len++;  // max fmt string len incl. trailing '\0'
 
-    aggr_fmt = malloc(fmt_len);
+    char *aggr_fmt = malloc(fmt_len);
     if (!aggr_fmt) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
     aggr_fmt[0] = '\0';
-
-    aggregate_info.apply_netbits = 0;
-    aggregate_info.has_masks = 0;
-    aggregate_info.srcV4Mask = 0xFFFFFFFF;
-    aggregate_info.dstV4Mask = 0xFFFFFFFF;
-    aggregate_info.srcV6Mask[0] = 0xffffffffffffffffLL;
-    aggregate_info.srcV6Mask[1] = 0xffffffffffffffffLL;
-    aggregate_info.dstV6Mask[0] = 0xffffffffffffffffLL;
-    aggregate_info.dstV6Mask[1] = 0xffffffffffffffffLL;
 
     uint32_t has_mask = 0;
     uint32_t v4Mask = 0xffffffff;
@@ -701,7 +734,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
             char *n;
 
             *q = 0;
-            subnet = atoi(q + 1);
+            uint32_t subnet = atoi(q + 1);
 
             // get IP version
             n = &(p[strlen(p) - 1]);
@@ -737,134 +770,86 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
             }
         }
 
-        a = aggregate_table;
-        while (a->aggrElement && (strcasecmp(p, a->aggrElement) != 0)) a++;
-        if (a->aggrElement == NULL) {
+        int index = 0;
+        while (aggregationTable[index].aggrElement && (strcasecmp(p, aggregationTable[index].aggrElement) != 0)) index++;
+
+        if (aggregationTable[index].aggrElement == NULL) {
             LogError("Unknown aggregation field '%s'", p);
             return NULL;
         }
 
-        if (a->active) {
-            LogError("Duplicate aggregation mask: %s", p);
+        if (aggregationTable[index].active) {
+            LogError("Duplicate aggregation element: %s", p);
             return NULL;
         }
 
-        if (a->fmt != NULL) {
-            strncat(aggr_fmt, a->fmt, fmt_len);
-            fmt_len -= strlen(a->fmt);
+        if (has_mask) {
+            if (aggregationTable[index].allowMask == 0) {
+                LogError("Element %s does not take any netmask", p);
+                return NULL;
+            }
+        }
+
+        if (aggregationTable[index].fmt != NULL) {
+            strncat(aggr_fmt, aggregationTable[index].fmt, fmt_len);
+            fmt_len -= strlen(aggregationTable[index].fmt);
             strncat(aggr_fmt, " ", fmt_len);
             fmt_len -= 1;
         }
 
-        if (strcasecmp(p, "srcnet") == 0) {
-            aggregate_info.apply_netbits |= 1;
-        }
-        if (strcasecmp(p, "dstnet") == 0) {
-            aggregate_info.apply_netbits |= 2;
-        }
         if (hasGeoDB) {
-            doGeoLookup += a->geoLookup;
+            doGeoLookup += aggregationTable[index].geoLookup;
         }
-        do {
-            if (a->merge != -1) {
-                if (has_mask) {
-                    // XXX a->param.mask = mask[i];
-                } else {
-                    LogError("'%s' needs number of subnet bits to aggregate", p);
-                    return NULL;
-                }
-            } else {
-                if (has_mask) {
-                    LogError("'%s' No subnet bits allowed here", p);
-                    return NULL;
-                }
-            }
-            a->active = 1;
-            hashKeyLen += a->param.length;
-            stack_count++;
-            a++;
-        } while (a->aggrElement && (strcasecmp(p, a->aggrElement) == 0));
 
-        if (has_mask) {
-            aggregate_info.has_masks = 1;
-            switch (p[0]) {
-                case 's':
-                    aggregate_info.srcV4Mask = v4Mask;
-                    aggregate_info.srcV6Mask[0] = v6Mask[0];
-                    aggregate_info.srcV6Mask[1] = v6Mask[1];
-                    break;
-                case 'd':
-                    aggregate_info.dstV4Mask = v4Mask;
-                    aggregate_info.dstV6Mask[0] = v6Mask[0];
-                    aggregate_info.dstV6Mask[1] = v6Mask[1];
-                    break;
+        do {
+            if (has_mask) {
+                maskArray[maskIndex].v4Mask = v4Mask;
+                maskArray[maskIndex].v6Mask[0] = v6Mask[0];
+                maskArray[maskIndex].v6Mask[1] = v6Mask[1];
+                aggregationTable[index].netmaskID = maskIndex;
+                maskIndex++;
             }
-        }
+            aggregationTable[index].active = 1;
+            aggregateInfo[elementCount++] = index;
+            hashKeyLen += aggregationTable[index].param.length;
+            index++;
+        } while (aggregationTable[index].aggrElement && (strcasecmp(p, aggregationTable[index].aggrElement) == 0));
 
         p = strtok(NULL, ",");
     }
 
-    if (stack_count == 0) {
+    if (elementCount == 0) {
         LogError("No aggregation specified!");
         return NULL;
     }
-
-    aggregate_info.stack = (aggregate_param_t *)malloc((stack_count + 1) * sizeof(aggregate_param_t));
-    if (!aggregate_info.stack) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        exit(255);
-    }
-    aggregate_info.stackSize = stack_count;
-
-    stack_count = 0;
-    a = aggregate_table;
-    while (a->aggrElement) {
-        if (a->active) {
-            aggregate_info.stack[stack_count++] = a->param;
-            dbg_printf("Set aggregate param: %s\n", a->aggrElement);
-        }
-        a++;
-    }
+    aggregateInfo[elementCount] = -1;
 
     dbg_printf("Aggregate key len: %zu bytes\n", hashKeyLen);
     dbg_printf("Aggregate format string: '%s'\n", aggr_fmt);
 
 #ifdef DEVEL
-    if (aggregate_info.stack) {
-        aggregate_param_t *aggr_param = aggregate_info.stack;
-        printf("Aggregate stack:\n");
-        for (int i = 0; i < aggregate_info.stackSize; i++) {
-            printf("ExtID: %u, Offset: %u, Length: %u\n", aggr_param->extID, aggr_param->offset, aggr_param->length);
-            aggr_param++;
-        }  // while
+    printf("Aggregate stack:\n");
+    for (int i = 0; aggregateInfo[i] >= 0; i++) {
+        int32_t index = aggregateInfo[i];
+        printf("Slot: %d, Element: %s, ExtID: %u, Offset: %u, Length: %u\n", index, aggregationTable[index].aggrElement,
+               aggregationTable[index].param.extID, aggregationTable[index].param.offset, aggregationTable[index].param.length);
+        printf("Has IP mask: %i\n", aggregationTable[index].netmaskID);
+        if (aggregationTable[index].netmaskID && aggregationTable[index].netmaskID != 0xFF) {
+            uint32_t maskIndex = aggregationTable[index].netmaskID;
+            printf("v4mask  : 0x%x\n", maskArray[maskIndex].v4Mask);
+            printf("v6mask  : 0x%llx 0x%llx\n", maskArray[maskIndex].v6Mask[0], maskArray[maskIndex].v6Mask[1]);
+        }
     }
-    printf("Has IP mask: %i %i\n", has_mask, aggregate_info.has_masks);
-    printf("Src v4mask  : 0x%x\n", aggregate_info.srcV4Mask);
-    printf("Dst v4mask  : 0x%x\n", aggregate_info.dstV4Mask);
-    printf("Src v6mask 0: 0x%llx\n", (unsigned long long)aggregate_info.srcV6Mask[0]);
-    printf("Src v6mask 1: 0x%llx\n", (unsigned long long)aggregate_info.srcV6Mask[1]);
-    printf("Dst v6mask 0: 0x%llx\n", (unsigned long long)aggregate_info.dstV6Mask[0]);
-    printf("Dst v6mask 1: 0x%llx\n", (unsigned long long)aggregate_info.dstV6Mask[1]);
 
 #endif
 
-    // XXX aggregate_info.mask = SetAggregateMask();
+    // XXX aggregateInfo.mask = SetAggregateMask();
 
     return aggr_fmt;
 }  // End of ParseAggregateMask
 
-int SetBidirAggregation(void) {
-    if (aggregate_info.stack) {
-        LogError("Can not set bidir mode with custom aggregation mask");
-        return 0;
-    }
-    bidir_flows = 1;
-
-    return 1;
-
-}  // End of SetBidirAggregation
-
 void InsertFlow(recordHandle_t *recordHandle) {
+    dbg_printf("Enter %s\n", __func__);
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     if (!genericFlow) return;
 
@@ -901,6 +886,7 @@ void InsertFlow(recordHandle_t *recordHandle) {
 }  // End of InsertFlow
 
 static void AddBidirFlow(recordHandle_t *recordHandle) {
+    dbg_printf("Enter %s\n", __func__);
     recordHeaderV3_t *record = recordHandle->recordHeaderV3;
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
@@ -1033,6 +1019,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
 }  // End of AddBidirFlow
 
 void AddFlowCache(recordHandle_t *recordHandle) {
+    dbg_printf("Enter %s\n", __func__);
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     if (!genericFlow) return;
 
@@ -1127,8 +1114,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
 // print SortList - apply possible aggregation mask to zero out aggregated fields
 static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
                                  RecordPrinter_t print_record, int ascending) {
-    // XXX master_record_t *aggr_record_mask = aggregate_info.mask;
-
+    dbg_printf("Enter %s\n", __func__);
     int max = maxindex;
     if (outputParams->topN && outputParams->topN < maxindex) max = outputParams->topN;
     for (int i = 0; i < max; i++) {
@@ -1183,14 +1169,14 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
         // XXX flow_record.revTcpFlags = r->outFlags;
 
         // apply IP mask from aggregation, to provide a pretty output
-        if (aggregate_info.has_masks) {
-            flow_record.V6.srcaddr[0] &= aggregate_info.IPmask[0];
-            flow_record.V6.srcaddr[1] &= aggregate_info.IPmask[1];
-            flow_record.V6.dstaddr[0] &= aggregate_info.IPmask[2];
-            flow_record.V6.dstaddr[1] &= aggregate_info.IPmask[3];
+        if (aggregateInfo.has_masks) {
+            flow_record.V6.srcaddr[0] &= aggregateInfo.IPmask[0];
+            flow_record.V6.srcaddr[1] &= aggregateInfo.IPmask[1];
+            flow_record.V6.dstaddr[0] &= aggregateInfo.IPmask[2];
+            flow_record.V6.dstaddr[1] &= aggregateInfo.IPmask[3];
         }
 
-        if (aggregate_info.apply_netbits) ApplyNetMaskBits(&flow_record, aggregate_info.apply_netbits);
+        if (aggregateInfo.apply_netbits) ApplyNetMaskBits(&flow_record, aggregateInfo.apply_netbits);
 
         if (aggr_record_mask) ApplyAggrMask(&flow_record, aggr_record_mask);
 
@@ -1204,6 +1190,7 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
 
 // export SortList - apply possible aggregation mask to zero out aggregated fields
 static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nffile_t *nffile, int GuessFlowDirection, int ascending) {
+    dbg_printf("Enter %s\n", __func__);
     for (int i = 0; i < maxindex; i++) {
         int j = ascending ? i : maxindex - 1 - i;
 
@@ -1259,23 +1246,26 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
 
         EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
         EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
+        /* XXX
+        // mask already applied when storing flow
         // apply IP mask from aggregation, to provide a pretty output
-        if (aggregate_info.has_masks) {
+        if (aggregateInfo.has_masks) {
             if (ipv4Flow) {
-                ipv4Flow->srcAddr &= aggregate_info.srcV4Mask;
-                ipv4Flow->dstAddr &= aggregate_info.dstV4Mask;
+                ipv4Flow->srcAddr &= aggregateInfo.srcV4Mask;
+                ipv4Flow->dstAddr &= aggregateInfo.dstV4Mask;
             } else if (ipv6Flow) {
-                ipv6Flow->srcAddr[0] &= aggregate_info.srcV6Mask[0];
-                ipv6Flow->srcAddr[1] &= aggregate_info.srcV6Mask[1];
-                ipv6Flow->dstAddr[0] &= aggregate_info.dstV6Mask[0];
-                ipv6Flow->dstAddr[1] &= aggregate_info.dstV6Mask[1];
+                ipv6Flow->srcAddr[0] &= aggregateInfo.srcV6Mask[0];
+                ipv6Flow->srcAddr[1] &= aggregateInfo.srcV6Mask[1];
+                ipv6Flow->dstAddr[0] &= aggregateInfo.dstV6Mask[0];
+                ipv6Flow->dstAddr[1] &= aggregateInfo.dstV6Mask[1];
             }
         }
+        */
 
         EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
         if (flowMisc) {
             flowMisc->revTcpFlags = r->outFlags;
-            if (aggregate_info.apply_netbits) SetNetMaskBits(ipv4Flow, ipv6Flow, flowMisc, aggregate_info.apply_netbits);
+            // XXX if (aggregateInfo.apply_netbits) SetNetMaskBits(ipv4Flow, ipv6Flow, flowMisc, aggregateInfo.apply_netbits);
         }
         EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle.extensionList[EXasRoutingID];
 
@@ -1290,8 +1280,22 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
 
 }  // End of ExportSortList
 
+int SetBidirAggregation(void) {
+    dbg_printf("Enter %s\n", __func__);
+    if (aggregateInfo[0] != -1) {
+        LogError("Can not set bidir mode with custom aggregation mask");
+        return 0;
+    }
+
+    bidir_flows = 1;
+
+    return 1;
+
+}  // End of SetBidirAggregation
+
 // print -s record/xx statistics with as many print orders as required
 void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
+    dbg_printf("Enter %s\n", __func__);
     size_t maxindex;
 
     // Get sort array
@@ -1338,6 +1342,7 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
 
 // print Flow cache
 void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, int GuessDir) {
+    dbg_printf("Enter %s\n", __func__);
     GuessDirection = GuessDir;
 
     size_t maxindex;
@@ -1368,6 +1373,7 @@ void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, 
 }  // End of PrintFlowTable
 
 int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
+    dbg_printf("Enter %s\n", __func__);
     GuessDirection = GuessDir;
 
     ExportExporterList(nffile);
