@@ -66,18 +66,29 @@ typedef struct aggregate_param_s {
     uint32_t length;  // size of parameter in bytes
 } aggregate_param_t;
 
+typedef struct maskArray_s {
+    uint32_t v4Mask;
+    uint64_t v6Mask[2];
+} maskArray_t;
+
 static struct aggregate_table_s {
-    char *aggregate_token;    // name of aggregation parameter
+    char *aggrElement;        // name of aggregation parameter
     aggregate_param_t param;  // the parameter array
-    int active;               // is this parameter set?
-    int geoLookup;            // may require geolookup
+    uint8_t active;           // this entry will be applied
+    uint8_t geoLookup;        // may require geolookup, if empty
+    uint8_t netmaskID;        // index into mask array for mask to apply
+    uint8_t allowMask;        // element may have a netmask -> /prefix
     char *fmt;                // for automatic output format generation
 } aggregate_table[] = {
-    {"srcip4", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr}, 0, 0, "%sa"},
-    {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr}, 0, 0, "%da"},
-    {"srcport", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort}, 0, 0, "%sp"},
-    {"dstport", {EXgenericFlowID, OFFdstPort, SIZEdstPort}, 0, 0, "%dp"},
-    {"proto", {EXgenericFlowID, OFFproto, SIZEproto}, 0, 0, "%pr"},
+    {"proto", {EXgenericFlowID, OFFproto, SIZEproto}, 0, 0, 0, 0, "%pr"},
+    {"srcip4", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr}, 0, 0, 0, 1, "%sa"},
+    {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr}, 0, 0, 0, 1, "%da"},
+    {"srcip", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr}, 0, 0, 0, 1, "%sa"},
+    {"srcip", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr}, 0, 0, 0, 1, NULL},
+    {"dstip", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr}, 0, 0, 0, 1, "%da"},
+    {"dstip", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr}, 0, 0, 0, 1, NULL},
+    {"srcport", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort}, 0, 0, 0, 0, "%sp"},
+    {"dstport", {EXgenericFlowID, OFFdstPort, SIZEdstPort}, 0, 0, 0, 0, "%dp"},
     /*
                            {"srcip6", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, 0, 0, 0, "%sa"},
                            {"srcip6", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, 0, NULL},
@@ -85,10 +96,6 @@ static struct aggregate_table_s {
                            {"srcnet", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
                            {"dstnet", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%dn"},
                            {"dstnet", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
-                           {"srcip", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%sa"},
-                           {"srcip", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
-                           {"dstip", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%da"},
-                           {"dstip", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
                            {"xsrcip", {8, OffsetXLATESRCv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%xsa"},
                            {"xsrcip", {8, OffsetXLATESRCv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
                            {"xdstip", {8, OffsetXLATEDSTv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%xda"},
@@ -136,7 +143,7 @@ static struct aggregate_table_s {
                            {"srcgeo", {4, OffsetGeo, MaskSrcGeo, ShiftSrcGeo}, -1, 0, 1, "%sc"},
                            {"dstgeo", {4, OffsetGeo, MaskDstGeo, ShiftDstGeo}, -1, 0, 1, "%dc"},
     */
-    {NULL, {0, 0, 0}, 0, 0, NULL}};
+    {NULL, {0, 0, 0}, 0, 0, 0, 0, NULL}};
 
 /* Element of the flow hash ( cache ) */
 typedef struct FlowHashRecord {
@@ -652,13 +659,12 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
 
     uint32_t stack_count = 0;
     uint32_t subnet = 0;
-    uint32_t has_mask = 0;
 
     hashKeyLen = 0;
     memset((void *)&aggregate_info, 0, sizeof(aggregate_info));
 
     size_t fmt_len = 0;
-    for (int i = 0; aggregate_table[i].aggregate_token != NULL; i++) {
+    for (int i = 0; aggregate_table[i].aggrElement != NULL; i++) {
         if (hasGeoDB && aggregate_table[i].fmt) {
             if (strcmp(aggregate_table[i].fmt, "%sa") == 0) aggregate_table[i].fmt = "%gsa";
             if (strcmp(aggregate_table[i].fmt, "%da") == 0) aggregate_table[i].fmt = "%gda";
@@ -683,6 +689,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
     aggregate_info.dstV6Mask[0] = 0xffffffffffffffffLL;
     aggregate_info.dstV6Mask[1] = 0xffffffffffffffffLL;
 
+    uint32_t has_mask = 0;
     uint32_t v4Mask = 0xffffffff;
     uint64_t v6Mask[2] = {0xffffffffffffffffLL, 0xffffffffffffffffLL};
     // separate tokens
@@ -692,8 +699,6 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
         char *q = strchr(p, '/');
         if (q) {
             char *n;
-
-            has_mask = 1;
 
             *q = 0;
             subnet = atoi(q + 1);
@@ -707,6 +712,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
                     return NULL;
                 }
                 v4Mask = 0xffffffff << (32 - subnet);
+                has_mask = 1;
 
             } else if (*n == '6') {
                 // IPv6
@@ -722,77 +728,77 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
                     v6Mask[0] = 0xffffffffffffffffLL << (64 - subnet);
                     v6Mask[1] = 0;
                 }
+                has_mask = 1;
             } else {
                 // rubbish
                 *q = '/';
                 LogError("Need src4/dst4 or src6/dst6 for IPv4 or IPv6 to aggregate with explicit netmask: '%s'", p);
                 return NULL;
             }
-        } else {
-            has_mask = 0;
         }
 
         a = aggregate_table;
-        while (a->aggregate_token && (strcasecmp(p, a->aggregate_token) != 0)) a++;
+        while (a->aggrElement && (strcasecmp(p, a->aggrElement) != 0)) a++;
+        if (a->aggrElement == NULL) {
+            LogError("Unknown aggregation field '%s'", p);
+            return NULL;
+        }
 
         if (a->active) {
             LogError("Duplicate aggregation mask: %s", p);
             return NULL;
-        } else if (a->aggregate_token != NULL) {
-            if (a->fmt != NULL) {
-                strncat(aggr_fmt, a->fmt, fmt_len);
-                fmt_len -= strlen(a->fmt);
-                strncat(aggr_fmt, " ", fmt_len);
-                fmt_len -= 1;
-            }
+        }
 
-            if (strcasecmp(p, "srcnet") == 0) {
-                aggregate_info.apply_netbits |= 1;
-            }
-            if (strcasecmp(p, "dstnet") == 0) {
-                aggregate_info.apply_netbits |= 2;
-            }
-            if (hasGeoDB) {
-                doGeoLookup += a->geoLookup;
-            }
-            do {
-                if (a->merge != -1) {
-                    if (has_mask) {
-                        // XXX a->param.mask = mask[i];
-                    } else {
-                        LogError("'%s' needs number of subnet bits to aggregate", p);
-                        return NULL;
-                    }
+        if (a->fmt != NULL) {
+            strncat(aggr_fmt, a->fmt, fmt_len);
+            fmt_len -= strlen(a->fmt);
+            strncat(aggr_fmt, " ", fmt_len);
+            fmt_len -= 1;
+        }
+
+        if (strcasecmp(p, "srcnet") == 0) {
+            aggregate_info.apply_netbits |= 1;
+        }
+        if (strcasecmp(p, "dstnet") == 0) {
+            aggregate_info.apply_netbits |= 2;
+        }
+        if (hasGeoDB) {
+            doGeoLookup += a->geoLookup;
+        }
+        do {
+            if (a->merge != -1) {
+                if (has_mask) {
+                    // XXX a->param.mask = mask[i];
                 } else {
-                    if (has_mask) {
-                        LogError("'%s' No subnet bits allowed here", p);
-                        return NULL;
-                    }
+                    LogError("'%s' needs number of subnet bits to aggregate", p);
+                    return NULL;
                 }
-                a->active = 1;
-                hashKeyLen += a->param.length;
-                stack_count++;
-                a++;
-            } while (a->aggregate_token && (strcasecmp(p, a->aggregate_token) == 0));
-
-            if (has_mask) {
-                aggregate_info.has_masks = 1;
-                switch (p[0]) {
-                    case 's':
-                        aggregate_info.srcV4Mask = v4Mask;
-                        aggregate_info.srcV6Mask[0] = v6Mask[0];
-                        aggregate_info.srcV6Mask[1] = v6Mask[1];
-                        break;
-                    case 'd':
-                        aggregate_info.dstV4Mask = v4Mask;
-                        aggregate_info.dstV6Mask[0] = v6Mask[0];
-                        aggregate_info.dstV6Mask[1] = v6Mask[1];
-                        break;
+            } else {
+                if (has_mask) {
+                    LogError("'%s' No subnet bits allowed here", p);
+                    return NULL;
                 }
             }
-        } else {
-            LogError("Unknown aggregation field '%s'", p);
-            return NULL;
+            a->active = 1;
+            hashKeyLen += a->param.length;
+            stack_count++;
+            a++;
+        } while (a->aggrElement && (strcasecmp(p, a->aggrElement) == 0));
+
+        if (has_mask) {
+            aggregate_info.has_masks = 1;
+            switch (p[0]) {
+                case 's':
+                    aggregate_info.srcV4Mask = v4Mask;
+                    aggregate_info.srcV6Mask[0] = v6Mask[0];
+                    aggregate_info.srcV6Mask[1] = v6Mask[1];
+                    break;
+                case 'd':
+                    aggregate_info.dstV4Mask = v4Mask;
+                    aggregate_info.dstV6Mask[0] = v6Mask[0];
+                    aggregate_info.dstV6Mask[1] = v6Mask[1];
+                    break;
+            }
         }
 
         p = strtok(NULL, ",");
@@ -812,10 +818,10 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
 
     stack_count = 0;
     a = aggregate_table;
-    while (a->aggregate_token) {
+    while (a->aggrElement) {
         if (a->active) {
             aggregate_info.stack[stack_count++] = a->param;
-            dbg_printf("Set aggregate param: %s\n", a->aggregate_token);
+            dbg_printf("Set aggregate param: %s\n", a->aggrElement);
         }
         a++;
     }
