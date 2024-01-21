@@ -225,6 +225,20 @@ static inline void AddGeoInfo(recordHandle_t *recordHandle) {
 
 }  // End of AddGeoInfo
 
+static inline void AddJa3Info(recordHandle_t *recordHandle) {
+    uint8_t *payload = (uint8_t *)recordHandle->extensionList[EXinPayloadID];
+    uint32_t payloadLength = ExtensionLength(payload);
+
+    if (payload == NULL) return;
+
+    ja3_t *ja3 = ja3Process(payload, payloadLength);
+    if (ja3) {
+        memcpy((void *)recordHandle->ja3, ja3->md5Hash, 16);
+        ja3Free(ja3);
+    }
+
+}  // End of AddJa3Info
+
 static inline record_header_t *AddFlowLabel(record_header_t *record, char *label) {
 #define TMPSIZE 65536
     static char tmpRecord[TMPSIZE];
@@ -298,15 +312,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
         }
         SetIdent(nffile_w, nffile_r->ident);
     }
-    // XXX Engine->ident = nffile_r->ident;
 
-    master_record_t *master_record = calloc(1, sizeof(master_record_t));
-    if (!master_record) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-        return stat_record;
-    }
-
-    // XXX Engine->nfrecord = (uint64_t *)master_record;
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
@@ -339,7 +345,6 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                     if (next->stat_record->lastseen > t_last_flow) t_last_flow = next->stat_record->lastseen;
                     // continue with next file
                 }
-                // XXX Engine->ident = nffile_r->ident;
                 continue;
 
             } break;  // not really needed
@@ -376,7 +381,8 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                     int match;
                     // XXX ClearMasterRecord(master_record);
                     if (__builtin_expect(record_ptr->type == CommonRecordType, 0)) {
-                        if (!ExpandRecord_v2(record_ptr, master_record)) {
+                        master_record_t master_record = {0};
+                        if (!ExpandRecord_v2(record_ptr, &master_record)) {
                             goto NEXT;
                         }
                         dbg_printf("Convert v2 record\n");
@@ -442,28 +448,24 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
 #endif
                     UpdateStatRecord(&stat_record, recordHandle);
 
+                    recordHeaderV3_t *v3Record = (recordHeaderV3_t *)record_ptr;
                     if (flow_stat) {
                         AddFlowCache(recordHandle);
                         if (element_stat) {
-                            if (TestFlag(element_stat, FLAG_GEO) && TestFlag(master_record->mflags, V3_FLAG_ENRICHED) == 0) {
+                            if (TestFlag(element_stat, FLAG_GEO) && TestFlag(v3Record->flags, V3_FLAG_ENRICHED) == 0) {
                                 AddGeoInfo(recordHandle);
                             }
-                            AddElementStat(master_record);
+                            AddElementStat(recordHandle);
                         }
                     } else if (element_stat) {
-                        if (TestFlag(element_stat, FLAG_JA3) && master_record->ja3[0] == 0) {
-                            // if we need ja3, calculate ja3 if payload exists and ja3 not yet set by filter
-                            ja3_t *ja3 = ja3Process((uint8_t *)master_record->inPayload, master_record->inPayloadLength);
-                            if (ja3) {
-                                memcpy((void *)master_record->ja3, ja3->md5Hash, 16);
-                                ja3Free(ja3);
-                            }
+                        if (TestFlag(element_stat, FLAG_JA3) && recordHandle->ja3[0] == 0) {
+                            AddJa3Info(recordHandle);
                         }
                         // if we need geo, lookup geo if not yet set by filter
-                        if (TestFlag(element_stat, FLAG_GEO) && TestFlag(master_record->mflags, V3_FLAG_ENRICHED) == 0) {
+                        if (TestFlag(element_stat, FLAG_GEO) && TestFlag(v3Record->flags, V3_FLAG_ENRICHED) == 0) {
                             AddGeoInfo(recordHandle);
                         }
-                        AddElementStat(master_record);
+                        AddElementStat(recordHandle);
                     } else if (sort_flows) {
                         InsertFlow(recordHandle);
                     } else {

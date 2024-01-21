@@ -55,7 +55,7 @@ void Dispose_StatTable(void);
 
 int SetStat(char *str, int *element_stat, int *flow_stat);
 
-void AddElementStat(master_record_t *flow_record);
+void AddElementStat(recordHandle_t *recordHandle);
 
 void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, RecordPrinter_t print_record);
 
