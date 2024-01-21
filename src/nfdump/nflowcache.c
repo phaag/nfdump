@@ -85,6 +85,8 @@ static struct aggregationElement_s {
     {"proto", {EXgenericFlowID, OFFproto, SIZEproto}, 0, 0, 0, 0, "%pr"},
     {"srcip4", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr}, 0, 0, 0, 1, "%sa"},
     {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr}, 0, 0, 0, 1, "%da"},
+    {"srcip6", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc4Addr}, 0, 0, 0, 1, "%sa"},
+    {"dstip6", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr}, 0, 0, 0, 1, "%da"},
     {"srcip", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr}, 0, 0, 0, 1, "%sa"},
     {"srcip", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr}, 0, 0, 0, 1, NULL},
     {"dstip", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr}, 0, 0, 0, 1, "%da"},
@@ -92,8 +94,6 @@ static struct aggregationElement_s {
     {"srcport", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort}, 0, 0, 0, 0, "%sp"},
     {"dstport", {EXgenericFlowID, OFFdstPort, SIZEdstPort}, 0, 0, 0, 0, "%dp"},
     /*
-                           {"srcip6", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, 0, 0, 0, "%sa"},
-                           {"srcip6", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, 0, NULL},
                            {"srcnet", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%sn"},
                            {"srcnet", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
                            {"dstnet", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%dn"},
@@ -154,9 +154,10 @@ typedef struct FlowHashRecord {
         struct FlowHashRecord *next;
         uint8_t *hashkey;
     };
-    uint32_t hash;      // the full 32bit hash value - cached for khash resize
-    uint16_t inFlags;   // align
-    uint16_t outFlags;  // align
+    uint32_t hash;     // the full 32bit hash value - cached for khash resize
+    uint16_t hashLen;  // lenhth of hashKey
+    uint8_t inFlags;   // tcp in flags
+    uint8_t outFlags;  // tcp out flags
 
     // flow counter parameters for FLOWS, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES
     uint64_t counter[5];
@@ -229,6 +230,15 @@ typedef struct FlowKey_s {
     uint32_t proto;
 } FlowKey_t;
 
+typedef struct FlowKeyV4_s {
+    uint16_t af;
+    uint16_t proto;
+    uint16_t srcPort;
+    uint16_t dstPort;
+    uint32_t srcAddr;
+    uint32_t dstAddr;
+} FlowKeyV4_t;
+
 // definitions for khash flow cache
 typedef const uint8_t *hashkey_t;  // hash key - byte sequence
 static size_t hashKeyLen = 0;      // length of hash_key
@@ -279,7 +289,7 @@ static uint32_t bidir_flows = 0;
 #define get16bits(d) ((((uint32_t)(((const uint8_t *)(d))[1])) << 8) + (uint32_t)(((const uint8_t *)(d))[0]))
 #endif
 
-static inline void New_HashKey(void *keymem, recordHandle_t *recordHandle, int swap_flow);
+static inline void *New_HashKey(void *keymem, recordHandle_t *recordHandle, int swap_flow);
 
 static SortElement_t *GetSortList(size_t *size);
 
@@ -338,21 +348,22 @@ static inline uint32_t SuperFastHash(const char *data, int len) {
     return hash;
 }
 
-static inline void New_HashKey(void *keymem, recordHandle_t *recordHandle, int swap_flow) {
+static inline void *New_HashKey(void *keymem, recordHandle_t *recordHandle, int swap_flow) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
-    FlowKey_t *keyptr;
-
+    dbg_printf("NewHash: %d\n", aggregateInfo[0]);
     if (aggregateInfo[0] >= 0) {
         // custom user aggregation
         for (int i = 0; aggregateInfo[i] >= 0; i++) {
             // apply src/dst mask bits if requested
-            if (aggregationTable[i].netmaskID == 0xFF) {
-                ApplyNetMaskBits(recordHandle, &aggregationTable[i]);
+            uint32_t tableIndex = aggregateInfo[i];
+            if (aggregationTable[tableIndex].netmaskID == 0xFF) {
+                ApplyNetMaskBits(recordHandle, &aggregationTable[tableIndex]);
             }
-            aggregate_param_t *param = &aggregationTable[i].param;
+            aggregate_param_t *param = &aggregationTable[tableIndex].param;
+            if (recordHandle->extensionList[param->extID] == NULL) continue;
             void *inPtr = recordHandle->extensionList[param->extID] + param->offset;
             switch (param->length) {
                 case 0:
@@ -363,6 +374,7 @@ static inline void New_HashKey(void *keymem, recordHandle_t *recordHandle, int s
                 } break;
                 case 2: {
                     *((uint16_t *)keymem) = *((uint16_t *)inPtr);
+                    dbg_printf("val16: %u\n", *((uint16_t *)inPtr));
                     keymem += sizeof(uint16_t);
                 } break;
                 case 4: {
@@ -385,7 +397,8 @@ static inline void New_HashKey(void *keymem, recordHandle_t *recordHandle, int s
 
     } else if (swap_flow) {
         // default 5-tuple aggregation for bidirectional flows
-        keyptr = (FlowKey_t *)keymem;
+        FlowKey_t *keyptr = (FlowKey_t *)keymem;
+        keymem += sizeof(FlowKey_t);
 
         if (ipv4Flow) {
             keyptr->srcAddr[0] = 0;
@@ -405,7 +418,8 @@ static inline void New_HashKey(void *keymem, recordHandle_t *recordHandle, int s
         }
     } else {
         // default 5-tuple aggregation
-        keyptr = (FlowKey_t *)keymem;
+        FlowKey_t *keyptr = (FlowKey_t *)keymem;
+        keymem += sizeof(FlowKey_t);
         if (ipv4Flow) {
             keyptr->srcAddr[0] = 0;
             keyptr->srcAddr[1] = ipv4Flow->srcAddr;
@@ -423,6 +437,8 @@ static inline void New_HashKey(void *keymem, recordHandle_t *recordHandle, int s
             keyptr->proto = genericFlow->proto;
         }
     }
+
+    return keymem;
 
 }  // End of New_HashKey
 
@@ -801,7 +817,9 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
             doGeoLookup += aggregationTable[index].geoLookup;
         }
 
+        size_t len = 0;
         do {
+            // loop over alternate extensions and select longest length for hashkey
             if (has_mask) {
                 maskArray[maskIndex].v4Mask = v4Mask;
                 maskArray[maskIndex].v6Mask[0] = v6Mask[0];
@@ -811,9 +829,11 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
             }
             aggregationTable[index].active = 1;
             aggregateInfo[elementCount++] = index;
-            hashKeyLen += aggregationTable[index].param.length;
+            if (aggregationTable[index].param.length > len) len = aggregationTable[index].param.length;
             index++;
         } while (aggregationTable[index].aggrElement && (strcasecmp(p, aggregationTable[index].aggrElement) == 0));
+
+        hashKeyLen += len;
 
         p = strtok(NULL, ",");
     }
@@ -824,10 +844,10 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
     }
     aggregateInfo[elementCount] = -1;
 
-    dbg_printf("Aggregate key len: %zu bytes\n", hashKeyLen);
-    dbg_printf("Aggregate format string: '%s'\n", aggr_fmt);
-
 #ifdef DEVEL
+    printf("Aggregate key len: %zu bytes\n", hashKeyLen);
+    printf("Aggregate format string: '%s'\n", aggr_fmt);
+
     printf("Aggregate stack:\n");
     for (int i = 0; aggregateInfo[i] >= 0; i++) {
         int32_t index = aggregateInfo[i];
@@ -1066,7 +1086,14 @@ void AddFlowCache(recordHandle_t *recordHandle) {
     if (keymem == NULL) {
         keymem = nfmalloc(hashKeyLen);
     }
-    New_HashKey(keymem, recordHandle, 0);
+    void *endOfKey = New_HashKey(keymem, recordHandle, 0);
+    dbg_printf("Key diff: %zu, len: %zu\n", endOfKey - keymem, hashKeyLen);
+    /*
+if ((keymem + hashKeyLen) < (endOfKey)) {
+} else {
+
+}
+    */
     r.hashkey = keymem;
     r.hash = SuperFastHash(keymem, hashKeyLen);
 

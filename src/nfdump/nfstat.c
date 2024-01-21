@@ -330,7 +330,6 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *
 
 static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, int direction);
 
-#include "applybits_inline.c"
 #include "heapsort_inline.c"
 #include "memhandle.c"
 
