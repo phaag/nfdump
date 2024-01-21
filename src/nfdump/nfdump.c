@@ -85,10 +85,6 @@ extension_map_list_t *extension_map_list;
 
 extern exporter_t **exporter_list;
 
-// For automatic output format generation in case of custom aggregation
-#define AggrPrependFmt "%ts %td "
-#define AggrAppendFmt "%pkt %byt %bps %bpp %fl"
-
 /* Function Prototypes */
 static void usage(char *name);
 
@@ -652,6 +648,7 @@ int main(int argc, char **argv) {
                 bidir = 1;
                 // implies
                 aggregate = 1;
+                print_format = "biline";
                 break;
             case 'C':
                 CheckArgLen(optarg, MAXPATHLEN);
@@ -1028,8 +1025,9 @@ int main(int argc, char **argv) {
     */
 
     if (aggr_fmt) {
-        aggr_fmt = ParseAggregateMask(aggr_fmt, HasGeoDB);
-        if (!aggr_fmt) {
+        // custom aggregation mask overwrites any output format
+        print_format = ParseAggregateMask(aggr_fmt, HasGeoDB);
+        if (!print_format) {
             exit(EXIT_FAILURE);
         }
     }
@@ -1052,24 +1050,6 @@ int main(int argc, char **argv) {
             nffile = GetNextFile(nffile);
         }
         exit(EXIT_SUCCESS);
-    }
-
-    // handle print mode
-    if (!print_format) {
-        // automatically select an appropriate output format for custom aggregation
-        // aggr_fmt is compiled by ParseAggregateMask
-        if (aggr_fmt) {
-            size_t len = strlen(AggrPrependFmt) + strlen(aggr_fmt) + strlen(AggrAppendFmt) + 7;  // +7 for 'fmt:', 2 spaces and '\0'
-            print_format = malloc(len);
-            if (!print_format) {
-                LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-                exit(EXIT_FAILURE);
-            }
-            snprintf(print_format, len, "fmt:%s %s %s", AggrPrependFmt, aggr_fmt, AggrAppendFmt);
-            print_format[len - 1] = '\0';
-        } else if (bidir) {
-            print_format = "biline";
-        }
     }
 
     print_record = SetupOutputMode(print_format, outputParams);

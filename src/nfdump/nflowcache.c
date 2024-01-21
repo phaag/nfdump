@@ -61,8 +61,9 @@
 
 typedef struct aggregate_param_s {
     uint32_t extID;   // extension ID
-    uint32_t offset;  // offset in master record
-    uint32_t length;  // size of parameter in bytes
+    uint32_t offset;  // offset in extension
+    uint32_t length;  // size of element in bytes
+    uint32_t af;      // af family, or 0 if not applicable
 } aggregate_param_t;
 
 #define MaxMaskArraySize 16
@@ -72,80 +73,78 @@ static struct maskArray_s {
 } maskArray[MaxMaskArraySize] = {0};
 uint32_t maskIndex = 0;
 
+// For automatic output format generation in case of custom aggregation
+#define AggrPrependFmt "%ts %td "
+#define AggrAppendFmt "%pkt %byt %bps %bpp %fl"
+
 static struct aggregationElement_s {
     char *aggrElement;        // name of aggregation parameter
     aggregate_param_t param;  // the parameter array
     uint8_t active;           // this entry will be applied
     uint8_t geoLookup;        // may require geolookup, if empty
     uint8_t netmaskID;        // index into mask array for mask to apply
-                              // 255 : use srcMask, dstMask from flow record
+                              // 0xFF : use srcMask, dstMask from flow record
     uint8_t allowMask;        // element may have a netmask -> /prefix
     char *fmt;                // for automatic output format generation
-} aggregationTable[] = {
-    {"proto", {EXgenericFlowID, OFFproto, SIZEproto}, 0, 0, 0, 0, "%pr"},
-    {"srcip4", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr}, 0, 0, 0, 1, "%sa"},
-    {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr}, 0, 0, 0, 1, "%da"},
-    {"srcip6", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc4Addr}, 0, 0, 0, 1, "%sa"},
-    {"dstip6", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr}, 0, 0, 0, 1, "%da"},
-    {"srcip", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr}, 0, 0, 0, 1, "%sa"},
-    {"srcip", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr}, 0, 0, 0, 1, NULL},
-    {"dstip", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr}, 0, 0, 0, 1, "%da"},
-    {"dstip", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr}, 0, 0, 0, 1, NULL},
-    {"srcport", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort}, 0, 0, 0, 0, "%sp"},
-    {"dstport", {EXgenericFlowID, OFFdstPort, SIZEdstPort}, 0, 0, 0, 0, "%dp"},
-    /*
-                           {"srcnet", {8, OffsetSrcIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%sn"},
-                           {"srcnet", {8, OffsetSrcIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
-                           {"dstnet", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%dn"},
-                           {"dstnet", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
-                           {"xsrcip", {8, OffsetXLATESRCv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%xsa"},
-                           {"xsrcip", {8, OffsetXLATESRCv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
-                           {"xdstip", {8, OffsetXLATEDSTv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%xda"},
-                           {"xdstip", {8, OffsetXLATEDSTv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
-                           {"xsrcport", {2, OffsetXLATEPort, MaskXLATESRCPORT, ShiftXLATESRCPORT}, -1, 0, 0, "%xsp"},
-                           {"xdstport", {2, OffsetXLATEPort, MaskXLATEDSTPORT, ShiftXLATEDSTPORT}, -1, 0, 0, "%xdp"},
-                           {"dstip4", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, 0, NULL},
-                           {"dstip6", {8, OffsetDstIPv6a, MaskIPv6, ShiftIPv6}, 0, 0, 0, "%da"},
-                           {"dstip6", {8, OffsetDstIPv6b, MaskIPv6, ShiftIPv6}, 1, 0, 0, NULL},
-                           {"next", {8, OffsetNexthopv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%nh"},
-                           {"next", {8, OffsetNexthopv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
-                           {"bgpnext", {8, OffsetBGPNexthopv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%nhb"},
-                           {"bgpnext", {8, OffsetBGPNexthopv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
-                           {"router", {8, OffsetRouterv6a, MaskIPv6, ShiftIPv6}, -1, 0, 0, "%ra"},
-                           {"router", {8, OffsetRouterv6b, MaskIPv6, ShiftIPv6}, -1, 0, 0, NULL},
-                           {"insrcmac", {8, OffsetInSrcMAC, MaskMac, ShiftIPv6}, -1, 0, 0, "%ismc"},
-                           {"outdstmac", {8, OffsetOutDstMAC, MaskMac, ShiftIPv6}, -1, 0, 0, "%odmc"},
-                           {"indstmac", {8, OffsetInDstMAC, MaskMac, ShiftIPv6}, -1, 0, 0, "%idmc"},
-                           {"outsrcmac", {8, OffsetOutSrcMAC, MaskMac, ShiftIPv6}, -1, 0, 0, "%osmc"},
-                           {"srcas", {4, OffsetAS, MaskSrcAS, ShiftSrcAS}, -1, 0, 1, "%sas"},
-                           {"dstas", {4, OffsetAS, MaskDstAS, ShiftDstAS}, -1, 0, 1, "%das"},
-                           {"nextas", {4, OffsetBGPadj, MaskBGPadjNext, ShiftBGPadjNext}, -1, 0, 0, "%nas"},
-                           {"prevas", {4, OffsetBGPadj, MaskBGPadjPrev, ShiftBGPadjPrev}, -1, 0, 0, "%pas"},
-                           {"inif", {4, OffsetInOut, MaskInput, ShiftInput}, -1, 0, 0, "%in"},
-                           {"outif", {4, OffsetInOut, MaskOutput, ShiftOutput}, -1, 0, 0, "%out"},
-                           {"mpls1", {4, OffsetMPLS12, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, 0, "%mpls1"},
-                           {"mpls2", {4, OffsetMPLS12, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, 0, "%mpls2"},
-                           {"mpls3", {4, OffsetMPLS34, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, 0, "%mpls3"},
-                           {"mpls4", {4, OffsetMPLS34, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, 0, "%mpls4"},
-                           {"mpls5", {4, OffsetMPLS56, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, 0, "%mpls5"},
-                           {"mpls6", {4, OffsetMPLS56, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, 0, "%mpls6"},
-                           {"mpls7", {4, OffsetMPLS78, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, 0, "%mpls7"},
-                           {"mpls8", {4, OffsetMPLS78, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, 0, "%mpls8"},
-                           {"mpls9", {4, OffsetMPLS910, MaskMPLSlabelOdd, ShiftMPLSlabelOdd}, -1, 0, 0, "%mpls9"},
-                           {"mpls10", {4, OffsetMPLS910, MaskMPLSlabelEven, ShiftMPLSlabelEven}, -1, 0, 0, "%mpls10"},
-                           {"srcvlan", {2, OffsetVlan, MaskSrcVlan, ShiftSrcVlan}, -1, 0, 0, "%svln"},
-                           {"dstvlan", {2, OffsetVlan, MaskDstVlan, ShiftDstVlan}, -1, 0, 0, "%dvln"},
-                           {"srcmask", {1, OffsetMask, MaskSrcMask, ShiftSrcMask}, -1, 0, 0, "%smk"},
-                           {"dstmask", {1, OffsetMask, MaskDstMask, ShiftDstMask}, -1, 0, 0, "%dmk"},
-                           {"tos", {1, OffsetTos, MaskTos, ShiftTos}, -1, 0, 0, "%tos"},
-                           {"srctos", {1, OffsetTos, MaskTos, ShiftTos}, -1, 0, 0, "%stos"},
-                           {"dsttos", {1, OffsetDstTos, MaskDstTos, ShiftDstTos}, -1, 0, 0, "%dtos"},
-                           {"odid", {1, OffsetObservationDomainID, MaskObservationDomainID, ShiftObservationDomainID}, -1, 0, 0, "%odid"},
-                           {"opid", {1, OffsetObservationPointID, MaskObservationPointID, ShiftObservationPointID}, -1, 0, 0, "%opid"},
-                           {"srcgeo", {4, OffsetGeo, MaskSrcGeo, ShiftSrcGeo}, -1, 0, 1, "%sc"},
-                           {"dstgeo", {4, OffsetGeo, MaskDstGeo, ShiftDstGeo}, -1, 0, 1, "%dc"},
-    */
-    {NULL, {0, 0, 0}, 0, 0, 0, 0, NULL}};
+} aggregationTable[] = {{"proto", {EXgenericFlowID, OFFproto, SIZEproto, 0}, 0, 0, 0, 0, "%pr"},
+                        {"srcport", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, 0, 0, 0, 0, "%sp"},
+                        {"dstport", {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, 0, 0, 0, 0, "%dp"},
+                        {"tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, 0, 0, 0, 0, "%tos"},
+                        {"srctos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, 0, 0, 0, 0, "%stos"},
+                        {"srcip4", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, 0, 0, 1, "%sa"},
+                        {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, 0, 0, 1, "%da"},
+                        {"srcip6", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc4Addr, AF_INET6}, 0, 0, 0, 1, "%sa"},
+                        {"dstip6", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, 0, 0, 1, "%da"},
+                        {"srcip", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, 0, 0, 1, "%sa"},
+                        {"srcip", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, 0, 0, 0, 1, NULL},
+                        {"dstip", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, 0, 0, 1, "%da"},
+                        {"dstip", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, 0, 0, 1, NULL},
+                        {"srcnet", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, 0, 0xFF, 0, "%sn"},
+                        {"srcnet", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, 0, 0, 0xFF, 0, NULL},
+                        {"dstnet", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, 0, 0xFF, 0, "%dn"},
+                        {"dstnet", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, 0, 0xFF, 0, NULL},
+                        {"xsrcip", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, 0, 0, 0, 1, "%xsa"},
+                        {"xsrcip", {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, 0, 0, 0, 1, NULL},
+                        {"xdstip", {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, 0, 0, 0, 1, "%xda"},
+                        {"xdstip", {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, 0, 0, 0, 1, NULL},
+                        {"xsrcport", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, 0, 0, 0, 0, "%xsp"},
+                        {"xdstport", {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, 0, 0, 0, 0, "%xdp"},
+                        {"next", {EXipNextHopV4ID, OFFNext4HopIP, SIZENext4HopIP, AF_INET}, 0, 0, 0, 1, "%nh"},
+                        {"next", {EXipNextHopV6ID, OFFNext6HopIP, SIZENext6HopIP, AF_INET6}, 0, 0, 0, 1, NULL},
+                        {"bgpnext", {EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, AF_INET}, 0, 0, 0, 1, "%nhb"},
+                        {"bgpnext", {EXbgpNextHopV6ID, OFFbgp6NextIP, SIZEbgp6NextIP, AF_INET6}, 0, 0, 0, 1, NULL},
+                        {"router", {EXipReceivedV4ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, 0, 0, 0, 1, "%ra"},
+                        {"router", {EXipReceivedV6ID, OFFReceived6IP, SIZEReceived6IP, AF_INET6}, 0, 0, 0, 1, NULL},
+                        {"insrcmac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, 0, 0, 0, 0, "%ismc"},
+                        {"outdstmac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, 0, 0, 0, 0, "%domc"},
+                        {"indstmac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, 0, 0, 0, 0, "%idmc"},
+                        {"outsrcmac", {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, 0, 0, 0, 0, "%osmc"},
+                        {"srcas", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, 0, 1, 0, 0, "%sas"},
+                        {"dstas", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, 0, 1, 0, 0, "%das"},
+                        {"nextas", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, 0, 0, 0, 0, "%nas"},
+                        {"prevas", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, 0, 0, 0, 0, "%pas"},
+                        {"inif", {EXflowMiscID, OFFinput, SIZEinput, 0}, 0, 0, 0, 0, "%in"},
+                        {"outif", {EXflowMiscID, OFFoutput, SIZEoutput, 0}, 0, 0, 0, 0, "%out"},
+                        {"srcmask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, 0, 1, 0, 0, "%smk"},
+                        {"dstmask", {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, 0, 1, 0, 0, "%dmk"},
+                        {"dsttos", {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, 0, 0, 0, 0, "%dtos"},
+                        {"mpls1", {EXmplsLabelID, OFFmplsLabel1, SIZEmplsLabel1, 0}, 0, 0, 0, 0, "%mpls1"},
+                        {"mpls2", {EXmplsLabelID, OFFmplsLabel2, SIZEmplsLabel2, 0}, 0, 0, 0, 0, "%mpls2"},
+                        {"mpls3", {EXmplsLabelID, OFFmplsLabel3, SIZEmplsLabel3, 0}, 0, 0, 0, 0, "%mpls3"},
+                        {"mpls4", {EXmplsLabelID, OFFmplsLabel4, SIZEmplsLabel4, 0}, 0, 0, 0, 0, "%mpls4"},
+                        {"mpls5", {EXmplsLabelID, OFFmplsLabel5, SIZEmplsLabel5, 0}, 0, 0, 0, 0, "%mpls5"},
+                        {"mpls6", {EXmplsLabelID, OFFmplsLabel6, SIZEmplsLabel6, 0}, 0, 0, 0, 0, "%mpls6"},
+                        {"mpls7", {EXmplsLabelID, OFFmplsLabel7, SIZEmplsLabel7, 0}, 0, 0, 0, 0, "%mpls7"},
+                        {"mpls8", {EXmplsLabelID, OFFmplsLabel8, SIZEmplsLabel8, 0}, 0, 0, 0, 0, "%mpls8"},
+                        {"mpls9", {EXmplsLabelID, OFFmplsLabel9, SIZEmplsLabel9, 0}, 0, 0, 0, 0, "%mpls9"},
+                        {"mpls10", {EXmplsLabelID, OFFmplsLabel10, SIZEmplsLabel10, 0}, 0, 0, 0, 0, "%mpls10"},
+                        {"srcvlan", {EXvLanID, OFFsrcVlan, SIZEsrcVlan, 0}, 0, 1, 0, 0, "%svln"},
+                        {"dstvlan", {EXvLanID, OFFdstVlan, SIZEdstVlan, 0}, 0, 1, 0, 0, "%dvln"},
+                        {"odid", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, 0, 0, 0, 0, "%odid"},
+                        {"opid", {EXobservationID, OFFpointID, SIZEpointID, 0}, 0, 0, 0, 0, "%opid"},
+                        {"srcgeo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, 0, 1, 0, 0, "%sc"},
+                        {"dstgeo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, 0, 1, 0, 0, "%dc"},
+                        {NULL, {0, 0, 0}, 0, 0, 0, 0, NULL}};
 
 /* Element of the flow hash ( cache ) */
 typedef struct FlowHashRecord {
@@ -222,26 +221,26 @@ static uint32_t PrintDirection = 0;
 static uint32_t GuessDirection = 0;
 static uint32_t doGeoLookup = 0;
 
-typedef struct FlowKey_s {
-    uint64_t srcAddr[2];
-    uint64_t dstAddr[2];
+typedef struct FlowKeyV6_s {
+    uint16_t af;
     uint16_t srcPort;
     uint16_t dstPort;
-    uint32_t proto;
-} FlowKey_t;
+    uint16_t proto;
+    uint64_t srcAddr[2];
+    uint64_t dstAddr[2];
+} FlowKeyV6_t;
 
 typedef struct FlowKeyV4_s {
     uint16_t af;
-    uint16_t proto;
     uint16_t srcPort;
     uint16_t dstPort;
+    uint16_t proto;
     uint32_t srcAddr;
     uint32_t dstAddr;
 } FlowKeyV4_t;
 
 // definitions for khash flow cache
-typedef const uint8_t *hashkey_t;  // hash key - byte sequence
-static size_t hashKeyLen = 0;      // length of hash_key
+typedef uint8_t *hashkey_t;  // hash key - byte sequence
 
 static inline uint32_t SuperFastHash(const char *data, int len);
 
@@ -255,7 +254,7 @@ static kh_inline khint_t __HashFunc(const FlowHashRecord_t record) {
 
 // compare func - compare two hash keys
 static kh_inline khint_t __HashEqual(FlowHashRecord_t r1, FlowHashRecord_t r2) {
-    return r1.hash == r2.hash && memcmp((void *)r1.hashkey, (void *)r2.hashkey, hashKeyLen) == 0;
+    return r1.hash == r2.hash && r1.hashLen == r2.hashLen && memcmp((void *)r1.hashkey, (void *)r2.hashkey, r2.hashLen) == 0;
 }
 // insert FlowHash definitions/code
 KHASH_INIT(FlowHash, FlowHashRecord_t, char, 0, __HashFunc, __HashEqual)
@@ -271,7 +270,11 @@ static struct FlowList_s {
 } FlowList;
 
 #define MaxAggrStackSize 64
-int aggregateInfo[MaxAggrStackSize] = {0};
+static int aggregateInfo[MaxAggrStackSize] = {0};
+static void *keymemV4 = NULL;
+static void *keymemV6 = NULL;
+static size_t keymenV4Len = 0;
+static size_t keymenV6Len = 0;
 
 static uint32_t bidir_flows = 0;
 
@@ -291,14 +294,37 @@ static uint32_t bidir_flows = 0;
 
 static inline void *New_HashKey(void *keymem, recordHandle_t *recordHandle, int swap_flow);
 
+static inline int NeedSwap(int GuessDir, void *genericFlowKey);
+
 static SortElement_t *GetSortList(size_t *size);
 
 static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationElement_s *aggregationElement);
 
-static void SetNetMaskBits(EXipv4Flow_t *EXipv4Flow, EXipv6Flow_t *EXipv6Flow, EXflowMisc_t *EXflowMisc, int apply_netbits);
-
 static void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
                           RecordPrinter_t print_record, int ascending);
+
+static inline int NeedSwap(int GuessDir, void *genericFlowKey) {
+    if (GuessDir == 0) return 0;
+
+    uint16_t *af = (uint16_t *)genericFlowKey;
+    if (*af == AF_INET) {
+        FlowKeyV4_t *flowKey = (FlowKeyV4_t *)genericFlowKey;
+        if ((flowKey->proto == IPPROTO_TCP || flowKey->proto == IPPROTO_UDP) &&
+            (((flowKey->srcPort < 1024) && (flowKey->dstPort >= 1024)) || ((flowKey->srcPort < 32768) && (flowKey->dstPort >= 32768)) ||
+             ((flowKey->srcPort < 49152) && (flowKey->dstPort >= 49152))))
+            return 1;
+        else
+            return 0;
+    } else {
+        FlowKeyV6_t *flowKey = (FlowKeyV6_t *)genericFlowKey;
+        if ((flowKey->proto == IPPROTO_TCP || flowKey->proto == IPPROTO_UDP) &&
+            (((flowKey->srcPort < 1024) && (flowKey->dstPort >= 1024)) || ((flowKey->srcPort < 32768) && (flowKey->dstPort >= 32768)) ||
+             ((flowKey->srcPort < 49152) && (flowKey->dstPort >= 49152))))
+            return 1;
+        else
+            return 0;
+    }
+}  // End of NeedSwap
 
 static inline uint32_t SuperFastHash(const char *data, int len) {
     uint32_t hash = len;
@@ -397,44 +423,46 @@ static inline void *New_HashKey(void *keymem, recordHandle_t *recordHandle, int 
 
     } else if (swap_flow) {
         // default 5-tuple aggregation for bidirectional flows
-        FlowKey_t *keyptr = (FlowKey_t *)keymem;
-        keymem += sizeof(FlowKey_t);
 
         if (ipv4Flow) {
-            keyptr->srcAddr[0] = 0;
-            keyptr->srcAddr[1] = ipv4Flow->dstAddr;
-            keyptr->dstAddr[0] = 0;
-            keyptr->dstAddr[1] = ipv4Flow->srcAddr;
+            FlowKeyV4_t *keyptr = (FlowKeyV4_t *)keymem;
+            keyptr->srcAddr = ipv4Flow->dstAddr;
+            keyptr->dstAddr = ipv4Flow->srcAddr;
+            keyptr->srcPort = genericFlow->dstPort;
+            keyptr->dstPort = genericFlow->srcPort;
+            keyptr->proto = genericFlow->proto;
+            keymem += sizeof(FlowKeyV4_t);
         } else if (ipv6Flow) {
+            FlowKeyV6_t *keyptr = (FlowKeyV6_t *)keymem;
             keyptr->srcAddr[0] = ipv6Flow->dstAddr[0];
             keyptr->srcAddr[1] = ipv6Flow->dstAddr[1];
             keyptr->dstAddr[0] = ipv6Flow->srcAddr[0];
             keyptr->dstAddr[1] = ipv6Flow->srcAddr[1];
-        }
-        if (genericFlow) {
             keyptr->srcPort = genericFlow->dstPort;
             keyptr->dstPort = genericFlow->srcPort;
             keyptr->proto = genericFlow->proto;
+            keymem += sizeof(FlowKeyV6_t);
         }
     } else {
         // default 5-tuple aggregation
-        FlowKey_t *keyptr = (FlowKey_t *)keymem;
-        keymem += sizeof(FlowKey_t);
         if (ipv4Flow) {
-            keyptr->srcAddr[0] = 0;
-            keyptr->srcAddr[1] = ipv4Flow->srcAddr;
-            keyptr->dstAddr[0] = 0;
-            keyptr->dstAddr[1] = ipv4Flow->dstAddr;
+            FlowKeyV4_t *keyptr = (FlowKeyV4_t *)keymem;
+            keyptr->srcAddr = ipv4Flow->srcAddr;
+            keyptr->dstAddr = ipv4Flow->dstAddr;
+            keyptr->srcPort = genericFlow->srcPort;
+            keyptr->dstPort = genericFlow->dstPort;
+            keyptr->proto = genericFlow->proto;
+            keymem += sizeof(FlowKeyV4_t);
         } else if (ipv6Flow) {
+            FlowKeyV6_t *keyptr = (FlowKeyV6_t *)keymem;
             keyptr->srcAddr[0] = ipv6Flow->srcAddr[0];
             keyptr->srcAddr[1] = ipv6Flow->srcAddr[1];
             keyptr->dstAddr[0] = ipv6Flow->dstAddr[0];
             keyptr->dstAddr[1] = ipv6Flow->dstAddr[1];
-        }
-        if (genericFlow) {
             keyptr->srcPort = genericFlow->srcPort;
             keyptr->dstPort = genericFlow->dstPort;
             keyptr->proto = genericFlow->proto;
+            keymem += sizeof(FlowKeyV6_t);
         }
     }
 
@@ -447,7 +475,7 @@ static uint64_t null_record(FlowHashRecord_t *record, int inout) { return 0; }
 static uint64_t flows_record(FlowHashRecord_t *record, int inout) { return record->counter[FLOWS]; }
 
 static uint64_t packets_record(FlowHashRecord_t *record, int inout) {
-    if (NeedSwap(GuessDirection, (FlowKey_t *)record->hashkey)) {
+    if (NeedSwap(GuessDirection, record->hashkey)) {
         if (inout == IN)
             inout = OUT;
         else if (inout == OUT)
@@ -462,7 +490,7 @@ static uint64_t packets_record(FlowHashRecord_t *record, int inout) {
 }
 
 static uint64_t bytes_record(FlowHashRecord_t *record, int inout) {
-    if (NeedSwap(GuessDirection, (FlowKey_t *)record->hashkey)) {
+    if (NeedSwap(GuessDirection, record->hashkey)) {
         if (inout == IN)
             inout = OUT;
         else if (inout == OUT)
@@ -559,46 +587,6 @@ static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationEle
 
 }  // End of ApplyNetMaskBits
 
-static void SetNetMaskBits(EXipv4Flow_t *EXipv4Flow, EXipv6Flow_t *EXipv6Flow, EXflowMisc_t *EXflowMisc, int apply_netbits) {
-    if (EXipv6Flow) {  // IPv6
-        if (apply_netbits & 1) {
-            uint64_t mask;
-            uint32_t mask_bits = EXflowMisc->srcMask;
-            if (mask_bits > 64) {
-                mask = 0xffffffffffffffffLL << (128 - mask_bits);
-                EXipv6Flow->srcAddr[1] &= mask;
-            } else {
-                mask = 0xffffffffffffffffLL << (64 - mask_bits);
-                EXipv6Flow->srcAddr[0] &= mask;
-                EXipv6Flow->srcAddr[1] = 0;
-            }
-        }
-        if (apply_netbits & 2) {
-            uint64_t mask;
-            uint32_t mask_bits = EXflowMisc->dstMask;
-
-            if (mask_bits > 64) {
-                mask = 0xffffffffffffffffLL << (128 - mask_bits);
-                EXipv6Flow->dstAddr[1] &= mask;
-            } else {
-                mask = 0xffffffffffffffffLL << (64 - mask_bits);
-                EXipv6Flow->dstAddr[0] &= mask;
-                EXipv6Flow->dstAddr[1] = 0;
-            }
-        }
-    } else if (EXipv4Flow) {  // IPv4
-        if (apply_netbits & 1) {
-            uint32_t srcmask = 0xffffffff << (32 - EXflowMisc->srcMask);
-            EXipv4Flow->srcAddr &= srcmask;
-        }
-        if (apply_netbits & 2) {
-            uint32_t dstmask = 0xffffffff << (32 - EXflowMisc->dstMask);
-            EXipv4Flow->dstAddr &= dstmask;
-        }
-    }
-
-}  // End of SetNetMaskBits
-
 // return a linear list of aggregated/listed flows for later sorting
 static SortElement_t *GetSortList(size_t *size) {
     dbg_printf("Enter %s\n", __func__);
@@ -650,14 +638,16 @@ static SortElement_t *GetSortList(size_t *size) {
 int Init_FlowCache(void) {
     if (!nfalloc_Init(0)) return 0;
 
-    if (!hashKeyLen) hashKeyLen = sizeof(FlowKey_t);
-
     FlowHash = kh_init(FlowHash);
 
     FlowList.head = NULL;
     FlowList.tail = &FlowList.head;
     FlowList.NumRecords = 0;
 
+    keymenV4Len = sizeof(FlowKeyV4_t);
+    keymenV6Len = sizeof(FlowKeyV6_t);
+
+    aggregateInfo[0] = -1;
     return 1;
 
 }  // End of Init_FlowCache
@@ -718,7 +708,8 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
     uint32_t elementCount = 0;
     aggregateInfo[0] = -1;
 
-    hashKeyLen = 0;
+    keymenV4Len = 0;
+    keymenV6Len = 0;
     memset((void *)&aggregateInfo, 0, sizeof(aggregateInfo));
 
     size_t fmt_len = 0;
@@ -731,12 +722,16 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
     }
     fmt_len++;  // max fmt string len incl. trailing '\0'
 
+    // add format prepend and append length
+    fmt_len += strlen(AggrPrependFmt) + strlen(AggrAppendFmt) + 6;  // +6 for 'fmt:', 2 spaces
+
     char *aggr_fmt = malloc(fmt_len);
     if (!aggr_fmt) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
     aggr_fmt[0] = '\0';
+    fmt_len -= snprintf(aggr_fmt, fmt_len, "fmt:%s ", AggrPrependFmt);
 
     uint32_t has_mask = 0;
     uint32_t v4Mask = 0xffffffff;
@@ -817,9 +812,12 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
             doGeoLookup += aggregationTable[index].geoLookup;
         }
 
-        size_t len = 0;
         do {
-            // loop over alternate extensions and select longest length for hashkey
+            // loop over alternate extensions v4/v6
+            if (maskIndex >= MaxMaskArraySize) {
+                LogError("Too many netmasks");
+                return NULL;
+            }
             if (has_mask) {
                 maskArray[maskIndex].v4Mask = v4Mask;
                 maskArray[maskIndex].v6Mask[0] = v6Mask[0];
@@ -829,11 +827,17 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
             }
             aggregationTable[index].active = 1;
             aggregateInfo[elementCount++] = index;
-            if (aggregationTable[index].param.length > len) len = aggregationTable[index].param.length;
+            size_t len = aggregationTable[index].param.length;
+            if (aggregationTable[index].param.af == AF_INET) {
+                keymenV4Len += len;
+            } else if (aggregationTable[index].param.af == AF_INET6) {
+                keymenV6Len += len;
+            } else {
+                keymenV4Len += len;
+                keymenV6Len += len;
+            }
             index++;
         } while (aggregationTable[index].aggrElement && (strcasecmp(p, aggregationTable[index].aggrElement) == 0));
-
-        hashKeyLen += len;
 
         p = strtok(NULL, ",");
     }
@@ -845,7 +849,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
     aggregateInfo[elementCount] = -1;
 
 #ifdef DEVEL
-    printf("Aggregate key len: %zu bytes\n", hashKeyLen);
+    printf("Aggregate key:  v4len: %zu, v6len: %zu bytes\n", keymenV4Len, keymenV6Len);
     printf("Aggregate format string: '%s'\n", aggr_fmt);
 
     printf("Aggregate stack:\n");
@@ -863,8 +867,9 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
 
 #endif
 
-    // XXX aggregateInfo.mask = SetAggregateMask();
-
+    strncat(aggr_fmt, " ", fmt_len);
+    fmt_len--;
+    strncat(aggr_fmt, AggrAppendFmt, fmt_len);
     return aggr_fmt;
 }  // End of ParseAggregateMask
 
@@ -909,6 +914,8 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
     dbg_printf("Enter %s\n", __func__);
     recordHeaderV3_t *record = recordHandle->recordHeaderV3;
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
     uint64_t inPackets = genericFlow->inPackets;
     uint64_t inBytes = genericFlow->inBytes;
@@ -921,16 +928,25 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         aggrFlows = cntFlow->flows;
     }
 
-    static void *keymem = NULL;
     static void *bidirkeymem = NULL;
-    FlowHashRecord_t r;
 
-    if (keymem == NULL) {
-        keymem = nfmalloc(hashKeyLen);
+    size_t keyLen = 0;
+    void **keymem = NULL;
+    if (ipv4Flow) {
+        keymem = &keymemV4;
+        keyLen = keymenV4Len;
+    } else if (ipv6Flow) {
+        keymem = &keymemV6;
+        keyLen = keymenV6Len;
     }
-    New_HashKey(keymem, recordHandle, 0);
-    uint32_t forwardHash = SuperFastHash(keymem, hashKeyLen);
-    r.hashkey = keymem;
+    if (*keymem == NULL) *keymem = nfmalloc(keyLen);
+
+    New_HashKey(*keymem, recordHandle, 0);
+    uint32_t forwardHash = SuperFastHash(*keymem, keyLen);
+
+    FlowHashRecord_t r;
+    r.hashkey = *keymem;
+    r.hashLen = keyLen;
     r.hash = forwardHash;
 
     int ret;
@@ -974,20 +990,21 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         kh_key(FlowHash, k).flowrecord = p;
 
         // keymen got part of the cache
-        keymem = NULL;
+        *keymem = NULL;
     } else {
         // for bidir flows do
 
         // generate reverse hash key to search for bidir flow
         // we need it only to lookup
         if (bidirkeymem == NULL) {
-            bidirkeymem = nfmalloc(hashKeyLen);
+            bidirkeymem = nfmalloc(keymenV6Len);
         }
 
         // generate the hash key for reverse record (bidir)
         New_HashKey(bidirkeymem, recordHandle, 1);
         r.hashkey = bidirkeymem;
-        r.hash = SuperFastHash(bidirkeymem, hashKeyLen);
+        r.hashLen = keyLen;
+        r.hash = SuperFastHash(bidirkeymem, keyLen);
 
         k = kh_get(FlowHash, FlowHash, r);
         if (k != kh_end(FlowHash)) {
@@ -1009,8 +1026,9 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         } else {
             // no bidir flow found
             // insert original flow into the cache
-            r.hashkey = keymem;
+            r.hashkey = *keymem;
             r.hash = forwardHash;
+            r.hashLen = keyLen;
             k = kh_put(FlowHash, FlowHash, r, &ret);
             kh_key(FlowHash, k).counter[INBYTES] = inBytes;
             kh_key(FlowHash, k).counter[INPACKETS] = inPackets;
@@ -1032,7 +1050,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
             kh_key(FlowHash, k).flowrecord = p;
 
             // keymen got part of the cache
-            keymem = NULL;
+            *keymem = NULL;
         }
     }
 
@@ -1043,6 +1061,8 @@ void AddFlowCache(recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     if (!genericFlow) return;
 
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
     uint64_t inPackets = genericFlow->inPackets;
     uint64_t inBytes = genericFlow->inBytes;
@@ -1056,12 +1076,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
     }
 
     recordHeaderV3_t *record = recordHandle->recordHeaderV3;
-    static void *keymem = NULL;
-    FlowHashRecord_t r;
-
     if (doGeoLookup && TestFlag(record->flags, V3_FLAG_ENRICHED) == 0) {
-        EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
-        EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
         EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
         if (ipv4Flow) {
             LookupV4Country(ipv4Flow->srcAddr, &recordHandle->geo[0]);
@@ -1083,19 +1098,29 @@ void AddFlowCache(recordHandle_t *recordHandle) {
     }
     if (bidir_flows) return AddBidirFlow(recordHandle);
 
-    if (keymem == NULL) {
-        keymem = nfmalloc(hashKeyLen);
+    size_t keyLen = 0;
+    void **keymem = NULL;
+    if (ipv4Flow) {
+        keymem = &keymemV4;
+        keyLen = keymenV4Len;
+    } else if (ipv6Flow) {
+        keymem = &keymemV6;
+        keyLen = keymenV6Len;
     }
-    void *endOfKey = New_HashKey(keymem, recordHandle, 0);
-    dbg_printf("Key diff: %zu, len: %zu\n", endOfKey - keymem, hashKeyLen);
-    /*
-if ((keymem + hashKeyLen) < (endOfKey)) {
-} else {
 
-}
-    */
-    r.hashkey = keymem;
-    r.hash = SuperFastHash(keymem, hashKeyLen);
+    if (*keymem == NULL) *keymem = nfmalloc(keyLen);
+
+#ifdef DEVEL
+    void *endOfKey = New_HashKey(*keymem, recordHandle, 0);
+    dbg_printf("Key diff: %zu, len: %zu\n", endOfKey - *keymem, keyLen);
+#else
+    New_HashKey(*keymem, recordHandle, 0);
+#endif
+
+    FlowHashRecord_t r;
+    r.hashkey = *keymem;
+    r.hashLen = keyLen;
+    r.hash = SuperFastHash(*keymem, keyLen);
 
     int ret;
     khiter_t k = kh_put(FlowHash, FlowHash, r, &ret);
@@ -1133,7 +1158,7 @@ if ((keymem + hashKeyLen) < (endOfKey)) {
         kh_key(FlowHash, k).flowrecord = p;
 
         // keymen got part of the cache
-        keymem = NULL;
+        *keymem = NULL;
     }
 
 }  // End of AddFlow

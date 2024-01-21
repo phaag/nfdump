@@ -40,11 +40,6 @@
 #include "nffile.h"
 #include "output.h"
 
-#define NeedSwap(GuessDir, r)                                                                                     \
-    (GuessDir && ((r)->proto == IPPROTO_TCP || (r)->proto == IPPROTO_UDP) &&                                      \
-     ((((r)->srcPort < 1024) && ((r)->dstPort >= 1024)) || (((r)->srcPort < 32768) && ((r)->dstPort >= 32768)) || \
-      (((r)->srcPort < 49152) && ((r)->dstPort >= 49152))))
-
 #define SwapFlow(r)                              \
     {                                            \
         uint64_t _tmp_ip[2];                     \
