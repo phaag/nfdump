@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2017-2023, Peter Haag
+ *  Copyright (c) 2017-2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@
 #include "collector.h"
 #include "sflow_process.h"
 
-void Init_sflow(int verbose, char *extensionList);
+int Init_sflow(int verbose, char *extensionList);
 
 void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 

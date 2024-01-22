@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -84,20 +84,67 @@ typedef struct exporter_sflow_s {
 
 } exporter_sflow_t;
 
-static int printRecord = 0;
-static uint32_t recordBaseSize;
-static uint32_t numBaseElements;
+static int PrintRecord = 0;
+
+static int ExtensionsEnabled[MAXEXTENSIONS];
+uint32_t BaseRecordSize = EXgenericFlowSize;
 
 static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint32_t meanSkipCount);
 
 #include "inline.c"
 #include "nffile_inline.c"
 
-void Init_sflow(int verbose, char *extensionList) {
-    printRecord = verbose;
-    recordBaseSize = EXgenericFlowSize + EXflowMiscSize + EXasRoutingSize + EXvLanSize + EXmacAddrSize;
-    numBaseElements = 5;
+int Init_sflow(int verbose, char *extensionList) {
+    PrintRecord = verbose;
 
+    if (extensionList) {
+        // Disable all extensions
+        for (int i = 0; i < MAXEXTENSIONS; i++) {
+            ExtensionsEnabled[i] = 0;
+        }
+
+        // get enabled extensions from string
+        int extID = ScanExtension(extensionList);
+        while (extID > 0) {
+            dbg_printf("Enable extension %d\n", extID);
+            ExtensionsEnabled[extID] = 1;
+            extID = ScanExtension(NULL);
+        }
+
+        if (extID == -1) {
+            LogError("Failed to scan extension list.");
+            return 0;
+        }
+
+        // make sure extension 1 is enabled
+        ExtensionsEnabled[1] = 1;
+
+    } else {
+        // Enable all extensions
+        dbg_printf("Enable all extensions\n");
+        for (int i = 0; i < MAXEXTENSIONS; i++) {
+            ExtensionsEnabled[i] = 1;
+        }
+    }
+
+    // extension available in all flows
+    if (ExtensionsEnabled[EXflowMiscID]) {
+        BaseRecordSize += EXflowMiscSize;
+    }
+    if (ExtensionsEnabled[EXvLanID]) {
+        BaseRecordSize += EXvLanSize;
+    }
+    if (ExtensionsEnabled[EXasRoutingID]) {
+        BaseRecordSize += EXasRoutingSize;
+    }
+    if (ExtensionsEnabled[EXmacAddrID]) {
+        BaseRecordSize += EXmacAddrSize;
+    }
+    if (ExtensionsEnabled[EXmplsLabelID]) {
+        BaseRecordSize += EXmplsLabelSize;
+    }
+
+    return 1;
 }  // End of Init_sflow
 
 // called by sfcapd for each packet
@@ -117,7 +164,7 @@ void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         // TRY
         sample.datap = (uint32_t *)sample.rawSample;
         sample.endp = (u_char *)sample.rawSample + sample.rawSampleLen;
-        readSFlowDatagram(&sample, fs, printRecord);
+        readSFlowDatagram(&sample, fs, PrintRecord);
     } else {
         // CATCH
         dbg_printf("SFLOW: caught exception: %d\n", exceptionVal);
@@ -220,43 +267,49 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
         sample->dcd_dport = 0;
     }
 
-    uint32_t recordSize = recordBaseSize;
-    if (sample->gotIPV6) {
+    uint32_t recordSize = BaseRecordSize;
+    if (sample->gotIPV6 && ExtensionsEnabled[EXipv6FlowID]) {
         recordSize += EXipv6FlowSize;
-    } else {
+    }
+
+    if (sample->gotIPV4 && ExtensionsEnabled[EXipv4FlowID]) {
         recordSize += EXipv4FlowSize;
     }
 
-    if (sample->mpls_num_labels > 0) {
+    if (sample->mpls_num_labels > 0 && ExtensionsEnabled[EXmplsLabelID]) {
         recordSize += EXmplsLabelSize;
     }
 
-    if (sample->nextHop.type == SFLADDRESSTYPE_IP_V4) {
+    if (sample->nextHop.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXipNextHopV4ID]) {
         recordSize += EXipNextHopV4Size;
     }
-    if (sample->nextHop.type == SFLADDRESSTYPE_IP_V6) {
+    if (sample->nextHop.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXipNextHopV6ID]) {
         recordSize += EXipNextHopV6Size;
     }
 
-    if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V4) {
+    if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXbgpNextHopV4ID]) {
         recordSize += EXbgpNextHopV4Size;
     }
-    if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V6) {
+    if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXbgpNextHopV6ID]) {
         recordSize += EXbgpNextHopV6Size;
     }
 
     if ((sample->extended_data_tag & SASAMPLE_EXTENDED_DATA_NAT) != 0) {
-        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V4) {
-            recordSize += (EXnselXlateIPv4Size + EXnselXlatePortSize);
+        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXnselXlateIPv4ID]) {
+            recordSize += EXnselXlateIPv4Size;
         }
-        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V6) {
-            recordSize += (EXnselXlateIPv6Size + EXnselXlatePortSize);
+        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXnselXlateIPv6ID]) {
+            recordSize += EXnselXlateIPv6Size;
+        }
+        if (ExtensionsEnabled[EXnselXlatePortID]) {
+            recordSize += EXnselXlatePortSize;
         }
     }
 
-    if (fs->sa_family == AF_INET6) {
+    if (fs->sa_family == AF_INET6 && ExtensionsEnabled[EXipReceivedV6ID]) {
         recordSize += EXipReceivedV6Size;
-    } else {
+    }
+    if (fs->sa_family == AF_INET && ExtensionsEnabled[EXipReceivedV4ID]) {
         recordSize += EXipReceivedV4Size;
     }
 
@@ -287,7 +340,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     genericFlow->inBytes = sample->meanSkipCount * sample->sampledPacketSize;
     genericFlow->srcTos = sample->dcd_ipTos;
 
-    if (sample->gotIPV6) {
+    if (sample->gotIPV6 && ExtensionsEnabled[EXipv6FlowID]) {
         PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
         SetFlag(recordHeader->flags, V3_FLAG_IPV6_ADDR);
 
@@ -302,101 +355,113 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
         ipv6Flow->dstAddr[0] = ntohll(*u);
         u = (uint64_t *)&(b[8]);
         ipv6Flow->dstAddr[1] = ntohll(*u);
-
-    } else {
+    }
+    if (sample->gotIPV4 && ExtensionsEnabled[EXipv4FlowID]) {
         PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
         ipv4Flow->srcAddr = ntohl(sample->dcd_srcIP.s_addr);
         ipv4Flow->dstAddr = ntohl(sample->dcd_dstIP.s_addr);
     }
 
-    PushExtension(recordHeader, EXflowMisc, flowMisc);
-    flowMisc->input = sample->inputPort;
-    flowMisc->output = sample->outputPort;
-    flowMisc->srcMask = sample->srcMask;
-    flowMisc->dstMask = sample->dstMask;
+    if (ExtensionsEnabled[EXflowMiscID]) {
+        PushExtension(recordHeader, EXflowMisc, flowMisc);
+        flowMisc->input = sample->inputPort;
+        flowMisc->output = sample->outputPort;
+        flowMisc->srcMask = sample->srcMask;
+        flowMisc->dstMask = sample->dstMask;
+    }
 
-    PushExtension(recordHeader, EXvLan, vLan);
-    vLan->srcVlan = sample->in_vlan;
-    vLan->dstVlan = sample->out_vlan;
+    if (ExtensionsEnabled[EXvLanID]) {
+        PushExtension(recordHeader, EXvLan, vLan);
+        vLan->srcVlan = sample->in_vlan;
+        vLan->dstVlan = sample->out_vlan;
+    }
 
-    PushExtension(recordHeader, EXasRouting, asRouting);
-    asRouting->srcAS = sample->src_as;
-    asRouting->dstAS = sample->dst_as;
+    if (ExtensionsEnabled[EXasRoutingID]) {
+        PushExtension(recordHeader, EXasRouting, asRouting);
+        asRouting->srcAS = sample->src_as;
+        asRouting->dstAS = sample->dst_as;
+    }
 
-    if (sample->nextHop.type == SFLADDRESSTYPE_IP_V4) {
+    if (sample->nextHop.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXipNextHopV4ID]) {
         PushExtension(recordHeader, EXipNextHopV4, ipNextHopV4);
         ipNextHopV4->ip = ntohl(sample->nextHop.address.ip_v4.addr);
     }
-    if (sample->nextHop.type == SFLADDRESSTYPE_IP_V6) {
+    if (sample->nextHop.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXipNextHopV6ID]) {
         uint64_t *addr = (uint64_t *)sample->nextHop.address.ip_v6.addr;
         PushExtension(recordHeader, EXipNextHopV6, ipNextHopV6);
         ipNextHopV6->ip[0] = ntohll(addr[0]);
         ipNextHopV6->ip[1] = ntohll(addr[1]);
     }
 
-    if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V4) {
+    if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXbgpNextHopV4ID]) {
         PushExtension(recordHeader, EXbgpNextHopV4, bgpNextHopV4);
         bgpNextHopV4->ip = ntohl(sample->bgp_nextHop.address.ip_v4.addr);
     }
-    if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V6) {
+    if (sample->bgp_nextHop.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXbgpNextHopV6ID]) {
         uint64_t *addr = (void *)sample->bgp_nextHop.address.ip_v6.addr;
         PushExtension(recordHeader, EXipReceivedV6, ipNextHopV6);
         ipNextHopV6->ip[0] = ntohll(addr[0]);
         ipNextHopV6->ip[1] = ntohll(addr[1]);
     }
 
-    PushExtension(recordHeader, EXmacAddr, macAddr);
-    macAddr->inSrcMac = Get_val48((void *)&sample->eth_src);
-    macAddr->outDstMac = Get_val48((void *)&sample->eth_dst);
-    macAddr->inDstMac = 0;
-    macAddr->outSrcMac = 0;
+    if (ExtensionsEnabled[EXmacAddrID]) {
+        PushExtension(recordHeader, EXmacAddr, macAddr);
+        macAddr->inSrcMac = Get_val48((void *)&sample->eth_src);
+        macAddr->outDstMac = Get_val48((void *)&sample->eth_dst);
+        macAddr->inDstMac = 0;
+        macAddr->outSrcMac = 0;
+    }
 
-    if (sample->mpls_num_labels > 0) {
-        PushExtension(recordHeader, EXmplsLabel, mplsLabel);
-        for (int i = 0; i < sample->mpls_num_labels; i++) {
-            mplsLabel->mplsLabel[i] = sample->mpls_label[i];
+    if (ExtensionsEnabled[EXmplsLabelID]) {
+        if (sample->mpls_num_labels > 0) {
+            PushExtension(recordHeader, EXmplsLabel, mplsLabel);
+            for (int i = 0; i < sample->mpls_num_labels; i++) {
+                mplsLabel->mplsLabel[i] = sample->mpls_label[i];
+            }
         }
     }
 
     if ((sample->extended_data_tag & SASAMPLE_EXTENDED_DATA_NAT) != 0) {
         switch (sample->nat_src.type) {
             case SFLADDRESSTYPE_IP_V4:
-                dbg_printf("NAT v4 addr\n");
-                PushExtension(recordHeader, EXnselXlateIPv4, nselXlateIPv4);
-                nselXlateIPv4->xlateSrcAddr = ntohl(sample->nat_src.address.ip_v4.addr);
-                nselXlateIPv4->xlateDstAddr = ntohl(sample->nat_dst.address.ip_v4.addr);
-
-                PushExtension(recordHeader, EXnselXlatePort, nselXlatePort);
-                nselXlatePort->xlateSrcPort = sample->nat_src_port;
-                nselXlatePort->xlateDstPort = sample->nat_dst_port;
+                if (ExtensionsEnabled[EXnselXlateIPv4ID]) {
+                    dbg_printf("NAT v4 addr\n");
+                    PushExtension(recordHeader, EXnselXlateIPv4, nselXlateIPv4);
+                    nselXlateIPv4->xlateSrcAddr = ntohl(sample->nat_src.address.ip_v4.addr);
+                    nselXlateIPv4->xlateDstAddr = ntohl(sample->nat_dst.address.ip_v4.addr);
+                }
                 break;
             case SFLADDRESSTYPE_IP_V6: {
-                dbg_printf("NAT v6 addr\n");
-                PushExtension(recordHeader, EXnselXlateIPv6, nselXlateIPv6);
-                uint64_t *addr = (void *)sample->nat_src.address.ip_v6.addr;
-                nselXlateIPv6->xlateSrcAddr[0] = ntohll(addr[0]);
-                nselXlateIPv6->xlateSrcAddr[1] = ntohll(addr[1]);
-                addr = (void *)sample->nat_dst.address.ip_v6.addr;
-                nselXlateIPv6->xlateDstAddr[0] = ntohll(addr[0]);
-                nselXlateIPv6->xlateDstAddr[1] = ntohll(addr[1]);
-
-                PushExtension(recordHeader, EXnselXlatePort, nselXlatePort);
-                nselXlatePort->xlateSrcPort = sample->nat_src_port;
-                nselXlatePort->xlateDstPort = sample->nat_dst_port;
+                if (ExtensionsEnabled[EXnselXlateIPv6ID]) {
+                    dbg_printf("NAT v6 addr\n");
+                    PushExtension(recordHeader, EXnselXlateIPv6, nselXlateIPv6);
+                    uint64_t *addr = (void *)sample->nat_src.address.ip_v6.addr;
+                    nselXlateIPv6->xlateSrcAddr[0] = ntohll(addr[0]);
+                    nselXlateIPv6->xlateSrcAddr[1] = ntohll(addr[1]);
+                    addr = (void *)sample->nat_dst.address.ip_v6.addr;
+                    nselXlateIPv6->xlateDstAddr[0] = ntohll(addr[0]);
+                    nselXlateIPv6->xlateDstAddr[1] = ntohll(addr[1]);
+                }
             } break;
             default:
                 /* undefined address type - bail out */
                 LogError("SFLOW: getAddress() unknown address type = %d\n", sample->nat_src.type);
         }
+        if (ExtensionsEnabled[EXnselXlatePortID]) {
+            PushExtension(recordHeader, EXnselXlatePort, nselXlatePort);
+            nselXlatePort->xlateSrcPort = sample->nat_src_port;
+            nselXlatePort->xlateDstPort = sample->nat_dst_port;
+        }
     }
 
     // add router IP
-    if (fs->sa_family == PF_INET6) {
+    if (fs->sa_family == PF_INET6 && ExtensionsEnabled[EXipReceivedV6ID]) {
         PushExtension(recordHeader, EXipReceivedV6, ipReceivedV6);
         ipReceivedV6->ip[0] = fs->ip.V6[0];
         ipReceivedV6->ip[1] = fs->ip.V6[1];
         dbg_printf("Add IPv6 route IP extension\n");
-    } else {
+    }
+    if (fs->sa_family == PF_INET && ExtensionsEnabled[EXipReceivedV4ID]) {
         PushExtension(recordHeader, EXipReceivedV4, ipReceivedV4);
         ipReceivedV4->ip = fs->ip.V4;
         dbg_printf("Add IPv4 route IP extension\n");
@@ -438,7 +503,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     uint32_t exporterIdent = MetricExpporterID(recordHeader);
     UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
 
-    if (printRecord) {
+    if (PrintRecord) {
         flow_record_short(stdout, recordHeader);
     }
 #ifdef DEVEL
