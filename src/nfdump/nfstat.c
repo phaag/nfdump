@@ -61,33 +61,37 @@
 #include "userio.h"
 #include "util.h"
 
-enum { IS_NUMBER = 1, IS_HEXNUMBER, IS_IPADDR, IS_MACADDR, IS_MPLS_LBL, IS_LATENCY, IS_EVENT, IS_HEX, IS_NBAR, IS_JA3, IS_GEO };
+typedef enum { IS_NUMBER = 1, IS_HEXNUMBER, IS_IPADDR, IS_MACADDR, IS_MPLS_LBL, IS_LATENCY, IS_EVENT, IS_HEX, IS_NBAR, IS_JA3, IS_GEO } elementType_t;
 
-struct flow_element_s {
-    uint32_t extID;  // extension ID
-    uint32_t offset0;
-    uint32_t offset1;  // offset in master record block, as uint64_t array
-    uint32_t length;   // number of bits to shift right to get final value
-};
+typedef struct flow_element_s {
+    uint32_t extID;   // extension ID
+    uint32_t offset;  // offset in extension
+    uint32_t length;  // size of element in bytes
+    uint32_t af;      // af family, or 0 if not applicable
+} flow_element_t;
 
+/*
+ *
+ */
 struct StatParameter_s {
-    char *statname;                    // name of -s option
-    char *HeaderInfo;                  // How to name the field in the output header line
-    struct flow_element_s element[2];  // what element(s) in flow record is used for statistics.
-                                       // need 2 elements to be able to get src/dst stats in one stat record
-    uint8_t num_elem;                  // number of elements used. 1 or 2
-    uint8_t type;                      // Type of element: Number, IP address, MAC address etc.
+    char *statname;          // name of -s option
+    char *HeaderInfo;        // How to name the field in the output header line
+    flow_element_t element;  // what element in flow record is used for statistics.
+    elementType_t type;      // Type of element: Number, IP address, MAC address etc.
 } StatParameters[] = {
     // flow record stat
-    {"record", "", {{0, 0, 0, 0}, {0, 0, 0, 0}}, 1, 0},
+    {"record", "", {0, 0, 0, 0}, 0},
 
-    // 9 possible flow element stats
-    {"srcip", "Src IP Addr", {{OffsetSrcIPv6a, OffsetSrcIPv6b, MaskIPv6, 0}, {0, 0, 0, 0}}, 1, IS_IPADDR},
-
-    {"dstip", "Dst IP Addr", {{OffsetDstIPv6a, OffsetDstIPv6b, MaskIPv6, 0}, {0, 0, 0, 0}}, 1, IS_IPADDR},
+    {"srcip", "Src IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR},
+    {"srcip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR},
+    {"dstip", "Dst IP Addr", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR},
+    {"srcip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR},
+    {"ip", "Src IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR},
+    {"ip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR},
+    {"ip", "Dst IP Addr", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR},
+    {"ip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR},
 
     /*
-        {"ip", "IP Addr", {{OffsetSrcIPv6a, OffsetSrcIPv6b, MaskIPv6, 0}, {OffsetDstIPv6a, OffsetDstIPv6b, MaskIPv6}}, 2, IS_IPADDR},
 
         {"srcgeo", "Src Geo", {{0, OffsetGeo, MaskSrcGeo, ShiftSrcGeo}, {0, 0, 0, 0}}, 1, IS_GEO},
 
@@ -236,7 +240,7 @@ struct StatParameter_s {
 
     */
 
-    {NULL, NULL, {{0, 0, 0, 0}, {0, 0, 0, 0}}, 1, 0}};
+    {NULL, NULL, {0, 0, 0, 0}, 0}};
 
 // key for element stat
 typedef struct hashkey_s {
@@ -270,35 +274,35 @@ static inline uint64_t bps_element(StatRecord_t *record, int inout);
 static inline uint64_t bpp_element(StatRecord_t *record, int inout);
 
 enum CntIndices { FLOWS = 0, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES };
-enum FlowDir { IN = 0, OUT, INOUT };
+typedef enum flowDir { IN = 0, OUT, INOUT } flowDir_t;
 
-static struct order_mode_s {
-    char *string;                           // Stat name
-    int inout;                              // use IN or OUT or INOUT packets/bytes
-    order_proc_element_t element_function;  // Function to call for element stats
-} order_mode[] = {{"-", 0, null_element},   // empty entry 0
-                  {"flows", IN, flows_element},
-                  {"packets", INOUT, packets_element},
-                  {"ipkg", IN, packets_element},
-                  {"opkg", OUT, packets_element},
-                  {"bytes", INOUT, bytes_element},
-                  {"ibyte", IN, bytes_element},
-                  {"obyte", OUT, bytes_element},
-                  {"pps", INOUT, pps_element},
-                  {"ipps", IN, pps_element},
-                  {"opps", OUT, pps_element},
-                  {"bps", INOUT, bps_element},
-                  {"ibps", IN, bps_element},
-                  {"obps", OUT, bps_element},
-                  {"bpp", INOUT, bpp_element},
-                  {"ibpp", IN, bpp_element},
-                  {"obpp", OUT, bpp_element},
-                  {NULL, 0, NULL}};
+static struct orderByTable_s {
+    char *string;                            // Stat name
+    flowDir_t inout;                         // use IN or OUT or INOUT packets/bytes
+    order_proc_element_t element_function;   // Function to call for element stats
+} orderByTable[] = {{"-", 0, null_element},  // empty entry 0
+                    {"flows", IN, flows_element},
+                    {"packets", INOUT, packets_element},
+                    {"ipkg", IN, packets_element},
+                    {"opkg", OUT, packets_element},
+                    {"bytes", INOUT, bytes_element},
+                    {"ibyte", IN, bytes_element},
+                    {"obyte", OUT, bytes_element},
+                    {"pps", INOUT, pps_element},
+                    {"ipps", IN, pps_element},
+                    {"opps", OUT, pps_element},
+                    {"bps", INOUT, bps_element},
+                    {"ibps", IN, bps_element},
+                    {"obps", OUT, bps_element},
+                    {"bpp", INOUT, bpp_element},
+                    {"ibpp", IN, bpp_element},
+                    {"obpp", OUT, bpp_element},
+                    {NULL, 0, NULL}};
 
 #define MaxStats 8
 struct StatRequest_s {
-    uint32_t order_bits;  // bit field for multiple print orders
-    int16_t StatType;     // index into StatParameters
+    uint32_t orderBy;     // bit field for multiple print orders
+    uint8_t StatType[6];  // index into StatParameters
     uint8_t order_proto;  // protocol separated statistics
     uint8_t direction;    // sort ascending/descending
 } StatRequest[MaxStats];  // This number should do it for a single run
@@ -317,10 +321,12 @@ static uint64_t byte_limit, packet_limit;
 static int byte_mode, packet_mode;
 enum { NONE = 0, LESS, MORE };
 
-/* function prototypes */
-static int ParseStatString(char *str, int16_t *StatType, int *flow_stat, uint16_t *order_proto, uint32_t *order_bits, uint32_t *direction);
+typedef enum statResult { FlowStat = 0, ElementStat, ErrorStat } statResult_t;
 
-static int ParseListOrder(char *s, uint32_t *order_bits, uint32_t *direction);
+/* function prototypes */
+static statResult_t ParseStatString(char *str, struct StatRequest_s *request);
+
+static int ParseListOrder(char *s, struct StatRequest_s *request);
 
 static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, StatRecord_t *StatData, int type, int order_proto, int inout);
 
@@ -519,25 +525,23 @@ int Init_StatTable(void) {
 void Dispose_StatTable(void) { nfalloc_free(); }  // End of Dispose_Tables
 
 int SetStat(char *str, int *element_stat, int *flow_stat) {
+    int ret = 0;
     if (NumStats == MaxStats) {
-        fprintf(stderr, "Too many stat options! Stats are limited to %i stats per single run!\n", MaxStats);
-        return 0;
+        LogError("Too many stat options! Stats are limited to %i stats per single run", MaxStats);
+        return ret;
     }
 
-    int is_flow_stat = 0;
     uint32_t direction = DESCENDING;
     int16_t StatType = 0;
-    uint16_t order_proto = 0;
-    uint32_t order_bits = 0;
-    if (ParseStatString(str, &StatType, &is_flow_stat, &order_proto, &order_bits, &direction)) {
-        if (is_flow_stat) {
+    uint32_t orderBy = 0;
+    statResult_t result = ParseStatString(str, &StatRequest[NumStats]);
+    switch (result) {
+        case FlowStat:
             *flow_stat = 1;
-            Add_FlowStatOrder(order_bits, direction);
-        } else {
-            StatRequest[NumStats].StatType = StatType;
-            StatRequest[NumStats].order_bits = order_bits;
-            StatRequest[NumStats].order_proto = order_proto;
-            StatRequest[NumStats].direction = direction;
+            Add_FlowStatOrder(orderBy, direction);
+            ret = 1;
+            break;
+        case ElementStat:
             NumStats++;
             SetFlag(*element_stat, FLAG_STAT);
             if (StatParameters[StatType].type == IS_JA3) SetFlag(*element_stat, FLAG_JA3);
@@ -545,23 +549,19 @@ int SetStat(char *str, int *element_stat, int *flow_stat) {
             char *statArg = StatParameters[StatType].statname;
             size_t len = strlen(statArg);
             if (statArg[len - 2] == 'a' && statArg[len - 1] == 's') SetFlag(*element_stat, FLAG_GEO);
-        }
-        return 1;
-    } else {
-        fprintf(stderr, "Unknown stat: '%s'!\n", str);
-        return 0;
+            ret = 1;
+            break;
+        case ErrorStat:
+            LogError("Unknown stat: '%s", str);
+            ret = 0;
     }
 
+    return ret;
 }  // End of SetStat
 
-static int ParseListOrder(char *s, uint32_t *order_bits, uint32_t *direction) {
-    char *q;
-    uint32_t bitset;
-
-    bitset = 0;
+static int ParseListOrder(char *s, struct StatRequest_s *request) {
     while (s) {
-        int i;
-        q = strchr(s, '/');
+        char *q = strchr(s, '/');
         if (q) *q = 0;
 
         char *r = strchr(s, ':');
@@ -569,31 +569,33 @@ static int ParseListOrder(char *s, uint32_t *order_bits, uint32_t *direction) {
             *r++ = 0;
             switch (*r) {
                 case 'a':
-                    *direction = ASCENDING;
+                    request->direction = ASCENDING;
                     break;
                 case 'd':
-                    *direction = DESCENDING;
+                    request->direction = DESCENDING;
                     break;
                 default:
                     return -1;
             }
         } else {
-            *direction = DESCENDING;
+            request->direction = DESCENDING;
         }
 
-        i = 0;
-        while (order_mode[i].string) {
-            if (strcasecmp(order_mode[i].string, s) == 0) break;
+        uint32_t bitset = 0;
+        int i = 0;
+        while (orderByTable[i].string) {
+            if (strcasecmp(orderByTable[i].string, s) == 0) break;
             i++;
         }
-        if (order_mode[i].string) {
+        if (orderByTable[i].string) {
             bitset |= (1 << i);
         } else {
+            LogError("Unknown order option /%s", s);
             return 0;
         }
 
         if (!q) {
-            *order_bits = bitset;
+            request->orderBy = bitset;
             return 1;
         }
         s = ++q;
@@ -604,104 +606,144 @@ static int ParseListOrder(char *s, uint32_t *order_bits, uint32_t *direction) {
 
 }  // End of ParseListOrder
 
-static int ParseStatString(char *str, int16_t *StatType, int *flow_stat, uint16_t *order_proto, uint32_t *order_bits, uint32_t *direction) {
-    char *s, *p, *q, *r;
-    int i = 0;
-
-    if (NumStats >= MaxStats) return 0;
-
-    s = strdup(str);
-    q = strchr(s, '/');
-    if (q) *q = 0;
-
-    *order_proto = 0;
-    p = strchr(s, ':');
-    if (p) {
-        *p = 0;
-        *order_proto = 1;
+/*
+ * an stat string -s <stat> looks like
+ * -s <elem>[:p][/orderby[:<dir]]
+ * elem: any statname string in StatParameters
+ *  optional :p split statistic into protocols tcp/udp/icmp etc.
+ *  optional orderBy: order statistic by string in orderByTable
+ *  optional :dir a: ascending d:descending
+ */
+static statResult_t ParseStatString(char *str, struct StatRequest_s *request) {
+    char *s = strdup(str);
+    char *optOrder = strchr(s, '/');
+    if (optOrder) {
+        // orderBy given
+        *optOrder++ = 0;
+    } else {
+        // no orderBy given - default order applies;
+        optOrder = "/flows";  // default to flows
     }
 
-    i = 0;
+    request->order_proto = 0;
+    char *optProto = strchr(s, ':');
+    if (optProto) {
+        *optProto++ = 0;
+        if (optProto[0] == 'p' && optProto[1] == '\0') {
+            LogError("Unknown statistic option :%s in %s", optProto, s);
+            request->order_proto = 1;
+        } else {
+            free(s);
+            return ErrorStat;
+        }
+    }
+
+    // check if one or more orders are given
+    if (ParseListOrder(optOrder, request) == 0) {
+        LogError("Unknown statistic option /%s in %s", optOrder, s);
+        free(s);
+        return ErrorStat;
+    }
+
+    if (strcasecmp(s, "record") == 0) {
+        free(s);
+        return FlowStat;
+    }
+
+    if (strcasecmp(s, "proto") == 0) request->order_proto = 1;
+
+    int i = 0;
+    int numStat = 0;
     // check for a valid stat name
     while (StatParameters[i].statname) {
-        if (strncasecmp(s, StatParameters[i].statname, 16) == 0) {
-            // set flag if it's the flow record stat request
-            *flow_stat = strncasecmp(s, "record", 16) == 0;
-            break;
+        if (strcasecmp(s, StatParameters[i].statname) == 0) {
+            request->StatType[numStat++] = i;
         }
         i++;
     }
 
-    // if so - initialize type and order_bits
-    if (StatParameters[i].statname) {
-        *StatType = i;
-        if (strncasecmp(StatParameters[i].statname, "proto", 16) == 0) *order_proto = 1;
-    } else {
+    if (numStat == 0) {
+        LogError("Unknown statistic: %s", s);
         free(s);
-        return 0;
+        return ErrorStat;
     }
 
-    // no order is given - default order applies;
-    if (!q) {
-        q = "/flows";  // default to flows
-    }
-
-    // check if one or more orders are given
-    r = ++q;
-    if (ParseListOrder(r, order_bits, direction) == 1) {
-        free(s);
-        return 1;
-    } else {
-        free(s);
-        return 0;
-    }
+    return ElementStat;
 
 }  // End of ParseStatString
 
 void AddElementStat(recordHandle_t *recordHandle) {
-    int j, i;
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    if (!genericFlow) return;
 
     // for every requested -s stat do
-    for (j = 0; j < NumStats; j++) {
-        int stat = StatRequest[j].StatType;
-        int order_proto = StatRequest[j].order_proto;
+    for (int i = 0; i < NumStats; i++) {
+        hashkey_t hashkey = {0};
         // for the number of elements in this stat type
-        for (i = 0; i < StatParameters[stat].num_elem; i++) {
-            uint32_t offset = StatParameters[stat].element[i].offset1;
-            uint64_t mask = StatParameters[stat].element[i].mask;
-            uint32_t shift = StatParameters[stat].element[i].shift;
+        for (int index = 0; StatRequest[i].StatType[index] != 0; index++) {
+            uint32_t extID = StatParameters[index].element.extID;
+            uint32_t offset = StatParameters[index].element.offset;
+            uint32_t length = StatParameters[index].element.length;
 
-            hashkey_t hashkey;
-            hashkey.v1 = (((uint64_t *)flow_record)[offset] & mask) >> shift;
-            offset = StatParameters[stat].element[i].offset0;
-            hashkey.v0 = offset ? ((uint64_t *)flow_record)[offset] : 0;
-            hashkey.proto = order_proto ? flow_record->proto : 0;
+            if (recordHandle->extensionList[extID] == NULL) continue;
+            void *inPtr = recordHandle->extensionList[extID] + offset;
+            switch (length) {
+                case 0:
+                    break;
+                case 1: {
+                    hashkey.v1 = *((uint8_t *)inPtr);
+                } break;
+                case 2: {
+                    hashkey.v1 = *((uint16_t *)inPtr);
+                } break;
+                case 4: {
+                    hashkey.v1 = *((uint32_t *)inPtr);
+                } break;
+                case 8: {
+                    hashkey.v1 = *((uint64_t *)inPtr);
+                } break;
+                case 16: {
+                    hashkey.v1 = ((uint64_t *)inPtr)[0];
+                    hashkey.v0 = ((uint64_t *)inPtr)[1];
+                } break;
+                default:
+                    LogError("Invalud stat element size: %d", length);
+            }
 
+            EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
+            uint64_t outBytes = 0;
+            uint64_t outPackets = 0;
+            uint64_t numFlows = 1;
+            if (cntFlow) {
+                outBytes = cntFlow->outBytes;
+                outPackets = cntFlow->outPackets;
+                numFlows = cntFlow->flows;
+            }
             int ret;
-            khiter_t k = kh_put(ElementHash, ElementKHash[j], hashkey, &ret);
+            khiter_t k = kh_put(ElementHash, ElementKHash[i], hashkey, &ret);
             if (ret == 0) {
-                kh_value(ElementKHash[j], k).counter[INBYTES] += flow_record->inBytes;
-                kh_value(ElementKHash[j], k).counter[INPACKETS] += flow_record->inPackets;
-                kh_value(ElementKHash[j], k).counter[OUTBYTES] += flow_record->out_bytes;
-                kh_value(ElementKHash[j], k).counter[OUTPACKETS] += flow_record->out_pkts;
+                kh_value(ElementKHash[i], k).counter[INBYTES] += genericFlow->inBytes;
+                kh_value(ElementKHash[i], k).counter[INPACKETS] += genericFlow->inPackets;
+                kh_value(ElementKHash[i], k).counter[OUTBYTES] += outBytes;
+                kh_value(ElementKHash[i], k).counter[OUTPACKETS] += outPackets;
 
-                if (flow_record->msecFirst < kh_value(ElementKHash[j], k).msecFirst) {
-                    kh_value(ElementKHash[j], k).msecFirst = flow_record->msecFirst;
+                if (genericFlow->msecFirst < kh_value(ElementKHash[i], k).msecFirst) {
+                    kh_value(ElementKHash[i], k).msecFirst = genericFlow->msecFirst;
                 }
-                if (flow_record->msecLast > kh_value(ElementKHash[j], k).msecLast) {
-                    kh_value(ElementKHash[j], k).msecLast = flow_record->msecLast;
+                if (genericFlow->msecLast > kh_value(ElementKHash[i], k).msecLast) {
+                    kh_value(ElementKHash[i], k).msecLast = genericFlow->msecLast;
                 }
-                kh_value(ElementKHash[j], k).counter[FLOWS] += flow_record->aggr_flows ? flow_record->aggr_flows : 1;
+                kh_value(ElementKHash[i], k).counter[FLOWS] += numFlows;
 
             } else {
-                kh_value(ElementKHash[j], k).counter[INBYTES] = flow_record->inBytes;
-                kh_value(ElementKHash[j], k).counter[INPACKETS] = flow_record->inPackets;
-                kh_value(ElementKHash[j], k).counter[OUTBYTES] = flow_record->out_bytes;
-                kh_value(ElementKHash[j], k).counter[OUTPACKETS] = flow_record->out_pkts;
-                kh_value(ElementKHash[j], k).msecFirst = flow_record->msecFirst;
-                kh_value(ElementKHash[j], k).msecLast = flow_record->msecLast;
-                kh_value(ElementKHash[j], k).counter[FLOWS] = flow_record->aggr_flows ? flow_record->aggr_flows : 1;
-                kh_value(ElementKHash[j], k).hashkey = hashkey;
+                kh_value(ElementKHash[i], k).counter[INBYTES] = genericFlow->inBytes;
+                kh_value(ElementKHash[i], k).counter[INPACKETS] = genericFlow->inPackets;
+                kh_value(ElementKHash[i], k).counter[OUTBYTES] = outBytes;
+                kh_value(ElementKHash[i], k).counter[OUTPACKETS] = outPackets;
+                kh_value(ElementKHash[i], k).msecFirst = genericFlow->msecFirst;
+                kh_value(ElementKHash[i], k).msecLast = genericFlow->msecLast;
+                kh_value(ElementKHash[i], k).counter[FLOWS] = numFlows;
+                kh_value(ElementKHash[i], k).hashkey = hashkey;
             }
         }  // for the number of elements in this stat type
     }      // for every requested -s stat
@@ -1064,11 +1106,11 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
     numflows = 0;
     // for every requested -s stat do
     for (int hash_num = 0; hash_num < NumStats; hash_num++) {
-        int stat = StatRequest[hash_num].StatType;
-        int order = StatRequest[hash_num].order_bits;
+        int stat = StatRequest[hash_num].StatType[0];
+        int order = StatRequest[hash_num].orderBy;
         int direction = StatRequest[hash_num].direction;
         int type = StatParameters[stat].type;
-        for (int order_index = 0; order_mode[order_index].string != NULL; order_index++) {
+        for (int order_index = 0; orderByTable[order_index].string != NULL; order_index++) {
             unsigned int order_bit = (1 << order_index);
             if (order & order_bit) {
                 SortElement_t *topN_element_list = StatTopN(outputParams->topN, &numflows, hash_num, order_index, direction);
@@ -1076,9 +1118,9 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                 // this output formatting is pretty ugly - and needs to be cleaned up - improved
                 if (outputParams->mode == MODE_PLAIN && !outputParams->quiet) {
                     if (outputParams->topN != 0) {
-                        printf("Top %i %s ordered by %s:\n", outputParams->topN, StatParameters[stat].HeaderInfo, order_mode[order_index].string);
+                        printf("Top %i %s ordered by %s:\n", outputParams->topN, StatParameters[stat].HeaderInfo, orderByTable[order_index].string);
                     } else {
-                        printf("Top %s ordered by %s:\n", StatParameters[stat].HeaderInfo, order_mode[order_index].string);
+                        printf("Top %s ordered by %s:\n", StatParameters[stat].HeaderInfo, orderByTable[order_index].string);
                     }
                     if (Getv6Mode() && (type == IS_IPADDR)) {
                         printf(
@@ -1103,9 +1145,9 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                 }
 
                 if (outputParams->mode == MODE_CSV) {
-                    if (order_mode[order_index].inout == IN)
+                    if (orderByTable[order_index].inout == IN)
                         printf("ts,te,td,pr,val,fl,flP,ipkt,ipktP,ibyt,ibytP,ipps,ibps,ibpp\n");
-                    else if (order_mode[order_index].inout == OUT)
+                    else if (orderByTable[order_index].inout == OUT)
                         printf("ts,te,td,pr,val,fl,flP,opkt,opktP,obyt,obytP,opps,obps,obpp\n");
                     else
                         printf("ts,te,td,pr,val,fl,flP,pkt,pktP,byt,bytP,pps,bps,bpp\n");
@@ -1118,15 +1160,15 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                     switch (outputParams->mode) {
                         case MODE_PLAIN:
                             PrintStatLine(sum_stat, outputParams, (StatRecord_t *)topN_element_list[i].record, type,
-                                          StatRequest[hash_num].order_proto, order_mode[order_index].inout);
+                                          StatRequest[hash_num].order_proto, orderByTable[order_index].inout);
                             break;
                         case MODE_PIPE:
                             PrintPipeStatLine((StatRecord_t *)topN_element_list[i].record, type, StatRequest[hash_num].order_proto,
-                                              outputParams->doTag, order_mode[order_index].inout);
+                                              outputParams->doTag, orderByTable[order_index].inout);
                             break;
                         case MODE_CSV:
                             PrintCvsStatLine(sum_stat, outputParams->printPlain, (StatRecord_t *)topN_element_list[i].record, type,
-                                             StatRequest[hash_num].order_proto, outputParams->doTag, order_mode[order_index].inout);
+                                             StatRequest[hash_num].order_proto, outputParams->doTag, orderByTable[order_index].inout);
                             break;
                         case MODE_JSON:
                             printf("Not yet implemented output format\n");
@@ -1162,18 +1204,18 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
 
             // we want to sort only those flows which pass the packet or byte limits
             if (byte_limit) {
-                uint64_t value = bytes_element(r, order_mode[order].inout);
+                uint64_t value = bytes_element(r, orderByTable[order].inout);
                 if ((byte_mode == LESS && value >= byte_limit) || (byte_mode == MORE && value <= byte_limit)) {
                     continue;
                 }
             }
             if (packet_limit) {
-                uint64_t value = packets_element(r, order_mode[order].inout);
+                uint64_t value = packets_element(r, orderByTable[order].inout);
                 if ((packet_mode == LESS && value >= packet_limit) || (packet_mode == MORE && value <= packet_limit)) {
                     continue;
                 }
             }
-            topN_list[c].count = order_mode[order].element_function(r, order_mode[order].inout);
+            topN_list[c].count = orderByTable[order].element_function(r, orderByTable[order].inout);
             topN_list[c].record = (void *)r;
             c++;
         }
@@ -1204,8 +1246,8 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
 
 void ListPrintOrder(void) {
     printf("Available print order:\n");
-    for (int i = 0; order_mode[i].string != NULL; i++) {
-        printf("%s ", order_mode[i].string);
+    for (int i = 0; orderByTable[i].string != NULL; i++) {
+        printf("%s ", orderByTable[i].string);
     }
     printf("- See also nfdump(1)\n");
 }  // End of ListPrintOrder
