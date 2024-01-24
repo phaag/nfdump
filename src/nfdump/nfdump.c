@@ -572,7 +572,7 @@ int main(int argc, char **argv) {
     RecordPrinter_t print_record;
     nfprof_t profile_data;
     char *wfile, *ffile, *filter, *tstring, *stat_type;
-    char *byte_limit_string, *packet_limit_string, *print_format;
+    char *print_format;
     char *print_order, *query_file, *geo_file, *configFile, *nameserver, *aggr_fmt;
     int ffd, element_stat, fdump;
     int flow_stat, aggregate, aggregate_mask, bidir;
@@ -584,7 +584,6 @@ int main(int argc, char **argv) {
 
     memset((void *)&flist, 0, sizeof(flist));
     wfile = ffile = filter = tstring = stat_type = NULL;
-    byte_limit_string = packet_limit_string = NULL;
     fdump = aggregate = 0;
     aggregate_mask = 0;
     bidir = 0;
@@ -619,7 +618,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:ghn:i:jf:qyz::r:v:w:J:M:NImO:R:XZt:TVv:W:x:l:L:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:ghn:i:jf:qyz::r:v:w:J:M:NImO:R:XZt:TVv:W:x:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -745,14 +744,6 @@ int main(int argc, char **argv) {
                 printf("%s: %s\n", argv[0], versionString());
                 exit(EXIT_SUCCESS);
             } break;
-            case 'l':
-                CheckArgLen(optarg, 128);
-                packet_limit_string = optarg;
-                break;
-            case 'L':
-                CheckArgLen(optarg, 128);
-                byte_limit_string = optarg;
-                break;
             case 'N':
                 outputParams->printPlain = 1;
                 break;
@@ -1074,8 +1065,6 @@ int main(int argc, char **argv) {
     if ((aggregate || flow_stat || print_order) && !Init_FlowCache()) exit(250);
 
     if (element_stat && !Init_StatTable()) exit(250);
-
-    SetLimits(element_stat || aggregate || flow_stat, packet_limit_string, byte_limit_string);
 
     if (!(flow_stat || element_stat)) {
         PrintProlog(outputParams);

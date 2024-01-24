@@ -302,16 +302,16 @@ typedef struct EXbgpNextHopV6_s {
 typedef struct EXipNextHopV4_s {
 #define EXipNextHopV4ID 10
     uint32_t ip;
-#define OFFNext4HopIP offsetof(EXipNextHopV4_t, ip)
-#define SIZENext4HopIP MemberSize(EXipNextHopV4_t, ip)
+#define OFFNextHopV4IP offsetof(EXipNextHopV4_t, ip)
+#define SIZENextHopV4IP MemberSize(EXipNextHopV4_t, ip)
 } EXipNextHopV4_t;
 #define EXipNextHopV4Size (sizeof(EXipNextHopV4_t) + sizeof(elementHeader_t))
 
 typedef struct EXipNextHopV6_s {
 #define EXipNextHopV6ID 11
     uint64_t ip[2];
-#define OFFNext6HopIP offsetof(EXipNextHopV6_t, ip)
-#define SIZENext6HopIP MemberSize(EXipNextHopV6_t, ip)
+#define OFFNextHopV6IP offsetof(EXipNextHopV6_t, ip)
+#define SIZENextHopV6IP MemberSize(EXipNextHopV6_t, ip)
 } EXipNextHopV6_t;
 #define EXipNextHopV6Size (sizeof(EXipNextHopV6_t) + sizeof(elementHeader_t))
 

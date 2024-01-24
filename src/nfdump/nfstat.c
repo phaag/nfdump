@@ -61,7 +61,20 @@
 #include "userio.h"
 #include "util.h"
 
-typedef enum { IS_NUMBER = 1, IS_HEXNUMBER, IS_IPADDR, IS_MACADDR, IS_MPLS_LBL, IS_LATENCY, IS_EVENT, IS_HEX, IS_NBAR, IS_JA3, IS_GEO } elementType_t;
+typedef enum {
+    NONE = 0,
+    IS_NUMBER,
+    IS_HEXNUMBER,
+    IS_IPADDR,
+    IS_MACADDR,
+    IS_MPLS_LBL,
+    IS_LATENCY,
+    IS_EVENT,
+    IS_HEX,
+    IS_NBAR,
+    IS_JA3,
+    IS_GEO
+} elementType_t;
 
 typedef struct flow_element_s {
     uint32_t extID;   // extension ID
@@ -86,20 +99,18 @@ struct StatParameter_s {
     {"srcip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR},
     {"dstip", "Dst IP Addr", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR},
     {"srcip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR},
-    {"ip", "Src IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR},
+    {"ip", "    IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR},
     {"ip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR},
-    {"ip", "Dst IP Addr", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR},
+    {"ip", NULL, {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR},
     {"ip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR},
+    {"srcgeo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO},
+    {"dstgeo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO},
+    {"geo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO},
+    {"geo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO},
+    {"nhip", "Nexthop IP", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, IS_IPADDR},
+    {"nhip", NULL, {EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, AF_INET6}, IS_IPADDR},
 
     /*
-
-        {"srcgeo", "Src Geo", {{0, OffsetGeo, MaskSrcGeo, ShiftSrcGeo}, {0, 0, 0, 0}}, 1, IS_GEO},
-
-        {"dstgeo", "Dst Geo", {{0, OffsetGeo, MaskDstGeo, ShiftDstGeo}, {0, 0, 0, 0}}, 1, IS_GEO},
-
-        {"geo", "Geo", {{0, OffsetGeo, MaskSrcGeo, ShiftSrcGeo}, {0, OffsetGeo, MaskDstGeo, ShiftDstGeo}}, 2, IS_GEO},
-
-        {"nhip", "Nexthop IP", {{OffsetNexthopv6a, OffsetNexthopv6b, MaskIPv6, 0}, {0, 0, 0, 0}}, 1, IS_IPADDR},
 
         {"nhbip", "Nexthop BGP IP", {{OffsetBGPNexthopv6a, OffsetBGPNexthopv6b, MaskIPv6, 0}, {0, 0, 0, 0}}, 1, IS_IPADDR},
 
@@ -263,18 +274,18 @@ typedef struct StatRecord {
  * pps, bps and bpp are not directly available in the flow/stat record
  * therefore we need a function to calculate these values
  */
-typedef uint64_t (*order_proc_element_t)(StatRecord_t *, int);
+typedef enum flowDir { IN = 0, OUT, INOUT } flowDir_t;
+typedef uint64_t (*order_proc_element_t)(StatRecord_t *, flowDir_t);
 
-static inline uint64_t null_element(StatRecord_t *record, int inout);
-static inline uint64_t flows_element(StatRecord_t *record, int inout);
-static inline uint64_t packets_element(StatRecord_t *record, int inout);
-static inline uint64_t bytes_element(StatRecord_t *record, int inout);
-static inline uint64_t pps_element(StatRecord_t *record, int inout);
-static inline uint64_t bps_element(StatRecord_t *record, int inout);
-static inline uint64_t bpp_element(StatRecord_t *record, int inout);
+static inline uint64_t null_element(StatRecord_t *record, flowDir_t inout);
+static inline uint64_t flows_element(StatRecord_t *record, flowDir_t inout);
+static inline uint64_t packets_element(StatRecord_t *record, flowDir_t inout);
+static inline uint64_t bytes_element(StatRecord_t *record, flowDir_t inout);
+static inline uint64_t pps_element(StatRecord_t *record, flowDir_t inout);
+static inline uint64_t bps_element(StatRecord_t *record, flowDir_t inout);
+static inline uint64_t bpp_element(StatRecord_t *record, flowDir_t inout);
 
 enum CntIndices { FLOWS = 0, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES };
-typedef enum flowDir { IN = 0, OUT, INOUT } flowDir_t;
 
 static struct orderByTable_s {
     char *string;                            // Stat name
@@ -317,9 +328,6 @@ KHASH_INIT(ElementHash, hashkey_t, StatRecord_t, 1, kh_key_hash_func, kh_key_has
 static khash_t(ElementHash) * ElementKHash[MaxStats];
 
 static uint32_t LoadedGeoDB = 0;
-static uint64_t byte_limit, packet_limit;
-static int byte_mode, packet_mode;
-enum { NONE = 0, LESS, MORE };
 
 typedef enum statResult { FlowStat = 0, ElementStat, ErrorStat } statResult_t;
 
@@ -339,11 +347,11 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
 #include "heapsort_inline.c"
 #include "memhandle.c"
 
-static uint64_t null_element(StatRecord_t *record, int inout) { return 0; }
+static uint64_t null_element(StatRecord_t *record, flowDir_t inout) { return 0; }
 
-static uint64_t flows_element(StatRecord_t *record, int inout) { return record->counter[FLOWS]; }
+static uint64_t flows_element(StatRecord_t *record, flowDir_t inout) { return record->counter[FLOWS]; }
 
-static uint64_t packets_element(StatRecord_t *record, int inout) {
+static uint64_t packets_element(StatRecord_t *record, flowDir_t inout) {
     if (inout == IN)
         return record->counter[INPACKETS];
     else if (inout == OUT)
@@ -352,7 +360,7 @@ static uint64_t packets_element(StatRecord_t *record, int inout) {
         return record->counter[INPACKETS] + record->counter[OUTPACKETS];
 }
 
-static uint64_t bytes_element(StatRecord_t *record, int inout) {
+static uint64_t bytes_element(StatRecord_t *record, flowDir_t inout) {
     if (inout == IN)
         return record->counter[INBYTES];
     else if (inout == OUT)
@@ -361,7 +369,7 @@ static uint64_t bytes_element(StatRecord_t *record, int inout) {
         return record->counter[INBYTES] + record->counter[OUTBYTES];
 }
 
-static uint64_t pps_element(StatRecord_t *record, int inout) {
+static uint64_t pps_element(StatRecord_t *record, flowDir_t inout) {
     uint64_t duration;
     uint64_t packets;
 
@@ -376,7 +384,7 @@ static uint64_t pps_element(StatRecord_t *record, int inout) {
 
 }  // End of pps_element
 
-static uint64_t bps_element(StatRecord_t *record, int inout) {
+static uint64_t bps_element(StatRecord_t *record, flowDir_t inout) {
     uint64_t duration;
     uint64_t bytes;
 
@@ -390,124 +398,13 @@ static uint64_t bps_element(StatRecord_t *record, int inout) {
 
 }  // End of bps_element
 
-static uint64_t bpp_element(StatRecord_t *record, int inout) {
+static uint64_t bpp_element(StatRecord_t *record, flowDir_t inout) {
     uint64_t packets = packets_element(record, inout);
     uint64_t bytes = bytes_element(record, inout);
 
     return packets ? bytes / packets : 0;
 
 }  // End of bpp_element
-
-void SetLimits(int stat, char *packet_limit_string, char *byte_limit_string) {
-    char *s, c;
-    uint32_t len, scale;
-
-    if ((stat == 0) && (packet_limit_string || byte_limit_string)) {
-        fprintf(stderr, "Options -l and -L do not make sense for plain packet dumps.\n");
-        fprintf(stderr, "Use -l and -L together with -s -S or -a.\n");
-        fprintf(stderr, "Use netflow filter syntax to limit the number of packets and bytes in netflow records.\n");
-        exit(250);
-    }
-    packet_limit = byte_limit = 0;
-    if (packet_limit_string) {
-        switch (packet_limit_string[0]) {
-            case '-':
-                packet_mode = LESS;
-                s = &packet_limit_string[1];
-                break;
-            case '+':
-                packet_mode = MORE;
-                s = &packet_limit_string[1];
-                break;
-            default:
-                if (!isdigit((int)packet_limit_string[0])) {
-                    fprintf(stderr, "Can't understand '%s'\n", packet_limit_string);
-                    exit(250);
-                }
-                packet_mode = MORE;
-                s = packet_limit_string;
-        }
-        len = strlen(packet_limit_string);
-        c = packet_limit_string[len - 1];
-        switch (c) {
-            case 'B':
-            case 'b':
-                scale = 1;
-                break;
-            case 'K':
-            case 'k':
-                scale = 1000;
-                break;
-            case 'M':
-            case 'm':
-                scale = 1000 * 1000;
-                break;
-            case 'G':
-            case 'g':
-                scale = 1000 * 1000 * 1000;
-                break;
-            default:
-                scale = 1;
-                if (isalpha((int)c)) {
-                    fprintf(stderr, "Can't understand '%c' in '%s'\n", c, packet_limit_string);
-                    exit(250);
-                }
-        }
-        packet_limit = (uint64_t)atol(s) * (uint64_t)scale;
-    }
-
-    if (byte_limit_string) {
-        switch (byte_limit_string[0]) {
-            case '-':
-                byte_mode = LESS;
-                s = &byte_limit_string[1];
-                break;
-            case '+':
-                byte_mode = MORE;
-                s = &byte_limit_string[1];
-                break;
-            default:
-                if (!isdigit((int)byte_limit_string[0])) {
-                    fprintf(stderr, "Can't understand '%s'\n", byte_limit_string);
-                    exit(250);
-                }
-                byte_mode = MORE;
-                s = byte_limit_string;
-        }
-        len = strlen(byte_limit_string);
-        c = byte_limit_string[len - 1];
-        switch (c) {
-            case 'B':
-            case 'b':
-                scale = 1;
-                break;
-            case 'K':
-            case 'k':
-                scale = 1000;
-                break;
-            case 'M':
-            case 'm':
-                scale = 1000 * 1000;
-                break;
-            case 'G':
-            case 'g':
-                scale = 1000 * 1000 * 1000;
-                break;
-            default:
-                if (isalpha((int)c)) {
-                    fprintf(stderr, "Can't understand '%c' in '%s'\n", c, byte_limit_string);
-                    exit(250);
-                }
-                scale = 1;
-        }
-        byte_limit = (uint64_t)atol(s) * (uint64_t)scale;
-    }
-
-    if (byte_limit) printf("Byte limit: %c %llu bytes\n", byte_mode == LESS ? '<' : '>', (long long unsigned)byte_limit);
-
-    if (packet_limit) printf("Packet limit: %c %llu packets\n", packet_mode == LESS ? '<' : '>', (long long unsigned)packet_limit);
-
-}  // End of SetLimits
 
 int Init_StatTable(void) {
     if (!nfalloc_Init(8 * 1024 * 1024)) return 0;
@@ -751,10 +648,9 @@ void AddElementStat(recordHandle_t *recordHandle) {
 
 static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, StatRecord_t *StatData, int type, int order_proto, int inout) {
     char valstr[64];
-    char tag_string[2];
+    valstr[0] = '\0';
 
-    tag_string[0] = '\0';
-    tag_string[1] = '\0';
+    char tag_string[2] = {'\0', '\0'};
     switch (type) {
         case NONE:
             break;
@@ -799,9 +695,8 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
             }
             break;
         case IS_MACADDR: {
-            int i;
             uint8_t mac[6];
-            for (i = 0; i < 6; i++) {
+            for (int i = 0; i < 6; i++) {
                 mac[i] = ((unsigned long long)StatData->hashkey.v1 >> (i * 8)) & 0xFF;
             }
             snprintf(valstr, 64, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
@@ -814,7 +709,6 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
         case IS_LATENCY: {
             snprintf(valstr, 64, "      %9.3f", (double)((double)StatData->hashkey.v1 / 1000.0));
         } break;
-#ifdef NSEL
         case IS_EVENT: {
             long long unsigned event = StatData->hashkey.v1;
             char *s;
@@ -836,7 +730,6 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
             }
             snprintf(valstr, 64, "      %6s", s);
         } break;
-#endif
         case IS_HEX: {
             snprintf(valstr, 64, "0x%llx", (unsigned long long)StatData->hashkey.v1);
         } break;
@@ -951,14 +844,12 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
 }  // End of PrintStatLine
 
 static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
-    uint64_t _key[2];
-    uint32_t sa[4];
-    int af;
+    uint32_t sa[4] = {0};
 
-    sa[0] = sa[1] = sa[2] = sa[3] = 0;
-    af = AF_UNSPEC;
+    uint64_t _key[2];
     _key[0] = StatData->hashkey.v0;
     _key[1] = StatData->hashkey.v1;
+    int af = AF_UNSPEC;
     if (type == IS_IPADDR) {
         if (StatData->hashkey.v0 != 0) {  // IPv6
             _key[0] = htonll(StatData->hashkey.v0);
@@ -1010,13 +901,7 @@ static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto,
 }  // End of PrintPipeStatLine
 
 static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
-    char valstr[40], datestr1[64], datestr2[64];
-    uint64_t count_flows, count_packets, count_bytes;
-    double flows_percent, packets_percent, bytes_percent;
-    uint32_t bpp;
-    uint64_t pps, bps;
-    time_t when;
-    struct tm *tbuff;
+    char valstr[40];
 
     switch (type) {
         case NONE:
@@ -1054,16 +939,17 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *
 
     valstr[39] = 0;
 
-    count_flows = StatData->counter[FLOWS];
-    count_packets = packets_element(StatData, inout);
-    count_bytes = bytes_element(StatData, inout);
+    uint64_t count_flows = StatData->counter[FLOWS];
+    uint64_t count_packets = packets_element(StatData, inout);
+    uint64_t count_bytes = bytes_element(StatData, inout);
 
-    flows_percent = stat->numflows ? (double)(count_flows * 100) / (double)stat->numflows : 0;
-    packets_percent = stat->numpackets ? (double)(count_packets * 100) / (double)stat->numpackets : 0;
-    bytes_percent = stat->numbytes ? (double)(count_bytes * 100) / (double)stat->numbytes : 0;
+    double flows_percent = stat->numflows ? (double)(count_flows * 100) / (double)stat->numflows : 0;
+    double packets_percent = stat->numpackets ? (double)(count_packets * 100) / (double)stat->numpackets : 0;
+    double bytes_percent = stat->numbytes ? (double)(count_bytes * 100) / (double)stat->numbytes : 0;
 
     double duration = (StatData->msecLast - StatData->msecFirst) / 1000.0;
 
+    uint64_t pps, bps;
     if (duration != 0) {
         pps = (uint64_t)((double)count_packets / duration);
         bps = (uint64_t)((double)(8 * count_bytes) / duration);
@@ -1071,18 +957,20 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *
         pps = bps = 0;
     }
 
+    uint32_t bpp;
     if (count_packets) {
         bpp = count_bytes / count_packets;
     } else {
         bpp = 0;
     }
 
-    when = StatData->msecFirst / 1000;
-    tbuff = localtime(&when);
+    time_t when = StatData->msecFirst / 1000;
+    struct tm *tbuff = localtime(&when);
     if (!tbuff) {
         perror("Error time convert");
         exit(250);
     }
+    char datestr1[64];
     strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
     when = StatData->msecLast / 1000;
@@ -1091,6 +979,7 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *
         perror("Error time convert");
         exit(250);
     }
+    char datestr2[64];
     strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
     printf("%s,%s,%.3f,%s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n", datestr1, datestr2, duration,
@@ -1101,9 +990,8 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *
 }  // End of PrintCvsStatLine
 
 void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, RecordPrinter_t print_record) {
-    uint32_t numflows;
+    uint32_t numflows = 0;
 
-    numflows = 0;
     // for every requested -s stat do
     for (int hash_num = 0; hash_num < NumStats; hash_num++) {
         int stat = StatRequest[hash_num].StatType[0];
@@ -1201,20 +1089,6 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
     for (khiter_t k = kh_begin(ElementKHash[hash_num]); k != kh_end(ElementKHash[hash_num]); ++k) {  // traverse
         if (kh_exist(ElementKHash[hash_num], k)) {
             StatRecord_t *r = &kh_value(ElementKHash[hash_num], k);
-
-            // we want to sort only those flows which pass the packet or byte limits
-            if (byte_limit) {
-                uint64_t value = bytes_element(r, orderByTable[order].inout);
-                if ((byte_mode == LESS && value >= byte_limit) || (byte_mode == MORE && value <= byte_limit)) {
-                    continue;
-                }
-            }
-            if (packet_limit) {
-                uint64_t value = packets_element(r, orderByTable[order].inout);
-                if ((packet_mode == LESS && value >= packet_limit) || (packet_mode == MORE && value <= packet_limit)) {
-                    continue;
-                }
-            }
             topN_list[c].count = orderByTable[order].element_function(r, orderByTable[order].inout);
             topN_list[c].record = (void *)r;
             c++;

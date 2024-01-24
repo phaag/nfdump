@@ -578,7 +578,7 @@ static uint32_t NewIPElement(ipStack_t *ipStack, int direction, int comp, data_t
 				block = NewElement(EXtunIPv4ID, OFFtunDst4Addr, SIZEtunDst4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
 			case DIR_NEXT:
-				block = NewElement(EXipNextHopV4ID, OFFNext4HopIP, SIZENext4HopIP, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				block = NewElement(EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
 			case BGP_NEXT:
 				block = NewElement(EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
@@ -617,8 +617,8 @@ static uint32_t NewIPElement(ipStack_t *ipStack, int direction, int comp, data_t
 				v6_2 = NewElement(EXtunIPv6ID, OFFtunDst6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case DIR_NEXT:
-				v6_1 = NewElement(EXipNextHopV6ID, OFFNext6HopIP, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
-				v6_2 = NewElement(EXipNextHopV6ID, OFFNext6HopIP + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				v6_1 = NewElement(EXipNextHopV6ID, OFFNextHopV6IP, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXipNextHopV6ID, OFFNextHopV6IP + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case BGP_NEXT:
 				v6_1 = NewElement(EXbgpNextHopV6ID, OFFbgp6NextIP, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
@@ -1594,8 +1594,8 @@ static int AddIPlist(direction_t direction, void *IPlist) {
 			break;
 		case DIR_NEXT:
 			ret = Connect_OR(
-				NewElement(EXipNextHopV4ID, OFFNext4HopIP, SIZENext4HopIP, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
-				NewElement(EXipNextHopV6ID, OFFNext6HopIP, SIZENext6HopIP, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+				NewElement(EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
 			);
 			break;
 		case DIR_UNSPEC: {

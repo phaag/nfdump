@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -47,8 +47,6 @@
 #define FLAG_GEO 0x4
 
 /* Function prototypes */
-void SetLimits(int stat, char *packet_limit_string, char *byte_limit_string);
-
 int Init_StatTable(void);
 
 void Dispose_StatTable(void);

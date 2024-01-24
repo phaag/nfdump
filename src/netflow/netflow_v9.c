@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -153,7 +153,7 @@ static const struct v9TranslationMap_s {
     {NF9_IPV4_DST_ADDR, SIZEdst4Addr, NumberCopy, EXipv4FlowID, OFFdst4Addr, STACK_NONE, "dst IPv4"},
     {NF9_DST_MASK, SIZEdstMask, NumberCopy, EXflowMiscID, OFFdstMask, STACK_NONE, "dst mask IPv4"},
     {NF9_OUTPUT_SNMP, SIZEoutput, NumberCopy, EXflowMiscID, OFFoutput, STACK_NONE, "output interface"},
-    {NF9_V4_NEXT_HOP, SIZENext4HopIP, NumberCopy, EXipNextHopV4ID, OFFNext4HopIP, STACK_NONE, "IPv4 next hop"},
+    {NF9_V4_NEXT_HOP, SIZENextHopV4IP, NumberCopy, EXipNextHopV4ID, OFFNextHopV4IP, STACK_NONE, "IPv4 next hop"},
     {NF9_SRC_AS, SIZEsrcAS, NumberCopy, EXasRoutingID, OFFsrcAS, STACK_NONE, "src AS"},
     {NF9_DST_AS, SIZEdstAS, NumberCopy, EXasRoutingID, OFFdstAS, STACK_NONE, "dst AS"},
     {NF9_BGP_V4_NEXT_HOP, SIZEbgp4NextIP, NumberCopy, EXbgpNextHopV4ID, OFFbgp4NextIP, STACK_NONE, "IPv4 bgp next hop"},
@@ -175,7 +175,7 @@ static const struct v9TranslationMap_s {
     {NF_F_dot1qVlanId, SIZEsrcVlan, NumberCopy, EXvLanID, OFFsrcVlan, STACK_NONE, "src VLAN ID"},
     {NF_F_postDot1qVlanId, SIZEdstVlan, NumberCopy, EXvLanID, OFFdstVlan, STACK_NONE, "dst VLAN ID"},
     {NF9_DIRECTION, SIZEdir, NumberCopy, EXflowMiscID, OFFdir, STACK_NONE, "flow direction"},
-    {NF9_V6_NEXT_HOP, SIZENext6HopIP, NumberCopy, EXipNextHopV6ID, OFFNext6HopIP, STACK_NONE, "IPv6 next hop IP"},
+    {NF9_V6_NEXT_HOP, SIZENextHopV6IP, NumberCopy, EXipNextHopV6ID, OFFNextHopV6IP, STACK_NONE, "IPv6 next hop IP"},
     {NF9_BPG_V6_NEXT_HOP, SIZEbgp6NextIP, NumberCopy, EXbgpNextHopV6ID, OFFbgp6NextIP, STACK_NONE, "IPv6 bgp next hop IP"},
     {NF_F_BGP_ADJ_NEXT_AS, SIZEnextAdjacentAS, NumberCopy, EXasAdjacentID, OFFnextAdjacentAS, STACK_NONE, "bgb adj next AS"},
     {NF_F_BGP_ADJ_PREV_AS, SIZEprevAdjacentAS, NumberCopy, EXasAdjacentID, OFFprevAdjacentAS, STACK_NONE, "bgb adj prev AS"},
