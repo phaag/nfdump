@@ -90,13 +90,13 @@ static inline void MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *rec
     handle->numElements = recordHeaderV3->numElements;
 
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)handle->extensionList[EXgenericFlowID];
-    if (genericFlow->msecFirst == 0) {
+    if (genericFlow && genericFlow->msecFirst == 0) {
         EXnselCommon_t *nselCommon = (EXnselCommon_t *)handle->extensionList[EXnselCommonID];
         if (nselCommon) {
             genericFlow->msecFirst = nselCommon->msecEvent;
         } else {
             EXnelCommon_t *nelCommon = (EXnelCommon_t *)handle->extensionList[EXnelCommonID];
-            genericFlow->msecFirst = nelCommon->msecEvent;
+            if (nelCommon) genericFlow->msecFirst = nelCommon->msecEvent;
         }
     }
 }
