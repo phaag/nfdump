@@ -109,147 +109,94 @@ struct StatParameter_s {
     {"geo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO},
     {"nhip", "Nexthop IP", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, IS_IPADDR},
     {"nhip", NULL, {EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, AF_INET6}, IS_IPADDR},
-
-    /*
-
-        {"nhbip", "Nexthop BGP IP", {{OffsetBGPNexthopv6a, OffsetBGPNexthopv6b, MaskIPv6, 0}, {0, 0, 0, 0}}, 1, IS_IPADDR},
-
-        {"router", "Router IP", {{OffsetRouterv6a, OffsetRouterv6b, MaskIPv6, 0}, {0, 0, 0, 0}}, 1, IS_IPADDR},
-
-        {"srcport", "Src Port", {{0, OffsetPort, MaskSrcPort, ShiftSrcPort}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"dstport", "Dst Port", {{0, OffsetPort, MaskDstPort, ShiftDstPort}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"port", "Port", {{0, OffsetPort, MaskSrcPort, ShiftSrcPort}, {0, OffsetPort, MaskDstPort, ShiftDstPort}}, 2, IS_NUMBER},
-
-        {"proto", "Protocol", {{0, OffsetProto, MaskProto, ShiftProto}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"tos", "Tos", {{0, OffsetTos, MaskTos, ShiftTos}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"srctos", "Tos", {{0, OffsetTos, MaskTos, ShiftTos}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"dsttos", "Dst Tos", {{0, OffsetDstTos, MaskDstTos, ShiftDstTos}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"dir", "Dir", {{0, OffsetDir, MaskDir, ShiftDir}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"srcas", "Src AS", {{0, OffsetAS, MaskSrcAS, ShiftSrcAS}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"dstas", "Dst AS", {{0, OffsetAS, MaskDstAS, ShiftDstAS}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"prevas", "Prev AS", {{0, OffsetBGPadj, MaskBGPadjPrev, ShiftBGPadjPrev}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"nextas", "Next AS", {{0, OffsetBGPadj, MaskBGPadjNext, ShiftBGPadjNext}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"as", "AS", {{0, OffsetAS, MaskSrcAS, ShiftSrcAS}, {0, OffsetAS, MaskDstAS, ShiftDstAS}}, 2, IS_NUMBER},
-
-        {"inif", "Input If", {{0, OffsetInOut, MaskInput, ShiftInput}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"outif", "Output If", {{0, OffsetInOut, MaskOutput, ShiftOutput}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"if", "In/Out If", {{0, OffsetInOut, MaskInput, ShiftInput}, {0, OffsetInOut, MaskOutput, ShiftOutput}}, 2, IS_NUMBER},
-
-        {"srcmask", "Src Mask", {{0, OffsetMask, MaskSrcMask, ShiftSrcMask}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"dstmask", "Dst Mask", {{0, OffsetMask, MaskDstMask, ShiftDstMask}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"mask", "Mask", {{0, OffsetMask, MaskSrcMask, ShiftSrcMask}, {0, OffsetMask, MaskDstMask, ShiftDstMask}}, 2, IS_NUMBER},
-
-        {"srcvlan", "Src Vlan", {{0, OffsetVlan, MaskSrcVlan, ShiftSrcVlan}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"dstvlan", "Dst Vlan", {{0, OffsetVlan, MaskDstVlan, ShiftDstVlan}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"vlan", "Vlan", {{0, OffsetVlan, MaskSrcVlan, ShiftSrcVlan}, {0, OffsetVlan, MaskDstVlan, ShiftDstVlan}}, 2, IS_NUMBER},
-
-        {"insrcmac", "In Src Mac", {{0, OffsetInSrcMAC, MaskMac, 0}, {0, 0, 0, 0}}, 1, IS_MACADDR},
-
-        {"outdstmac", "Out Dst Mac", {{0, OffsetOutDstMAC, MaskMac, 0}, {0, 0, 0, 0}}, 1, IS_MACADDR},
-
-        {"indstmac", "In Dst Mac", {{0, OffsetInDstMAC, MaskMac, 0}, {0, 0, 0, 0}}, 1, IS_MACADDR},
-
-        {"outsrcmac", "Out Src Mac", {{0, OffsetOutSrcMAC, MaskMac, 0}, {0, 0, 0, 0}}, 1, IS_MACADDR},
-
-        {"srcmac", "Src Mac", {{0, OffsetInSrcMAC, MaskMac, 0}, {0, OffsetOutSrcMAC, MaskMac, 0}}, 2, IS_MACADDR},
-
-        {"dstmac", "Dst Mac", {{0, OffsetOutDstMAC, MaskMac, 0}, {0, OffsetInDstMAC, MaskMac, 0}}, 2, IS_MACADDR},
-
-        {"inmac", "In Src Mac", {{0, OffsetInSrcMAC, MaskMac, 0}, {0, OffsetInDstMAC, MaskMac, 0}}, 1, IS_MACADDR},
-
-        {"outmac", "Out Src Mac", {{0, OffsetOutSrcMAC, MaskMac, 0}, {0, OffsetOutDstMAC, MaskMac, 0}}, 2, IS_MACADDR},
-
-        {"mpls1", " MPLS lab 1", {{0, OffsetMPLS12, MaskMPLSlabelOdd, 0}, {0, 0, 0, 0}}, 1, IS_MPLS_LBL},
-
-        {"mpls2", " MPLS lab 2", {{0, OffsetMPLS12, MaskMPLSlabelEven, 0}, {0, 0, 0, 0}}, 1, IS_MPLS_LBL},
-
-        {"mpls3", " MPLS lab 3", {{0, OffsetMPLS34, MaskMPLSlabelOdd, 0}, {0, 0, 0, 0}}, 1, IS_MPLS_LBL},
-
-        {"mpls4", " MPLS lab 4", {{0, OffsetMPLS34, MaskMPLSlabelEven, 0}, {0, 0, 0, 0}}, 1, IS_MPLS_LBL},
-
-        {"mpls5", " MPLS lab 5", {{0, OffsetMPLS56, MaskMPLSlabelOdd, 0}, {0, 0, 0, 0}}, 1, IS_MPLS_LBL},
-
-        {"mpls6", " MPLS lab 6", {{0, OffsetMPLS56, MaskMPLSlabelEven, 0}, {0, 0, 0, 0}}, 1, IS_MPLS_LBL},
-
-        {"mpls7", " MPLS lab 7", {{0, OffsetMPLS78, MaskMPLSlabelOdd, 0}, {0, 0, 0, 0}}, 1, IS_MPLS_LBL},
-
-        {"mpls8", " MPLS lab 8", {{0, OffsetMPLS78, MaskMPLSlabelEven, 0}, {0, 0, 0, 0}}, 1, IS_MPLS_LBL},
-
-        {"mpls9", " MPLS lab 9", {{0, OffsetMPLS910, MaskMPLSlabelOdd, 0}, {0, 0, 0, 0}}, 1, IS_MPLS_LBL},
-
-        {"mpls10", "MPLS lab 10", {{0, OffsetMPLS910, MaskMPLSlabelEven, 0}, {0, 0, 0, 0}}, 1, IS_MPLS_LBL},
-
-        {"cl", "Client Latency", {{0, OffsetClientLatency, MaskLatency, 0}, {0, 0, 0, 0}}, 1, IS_LATENCY},
-
-        {"sl", "Server Latency", {{0, OffsetServerLatency, MaskLatency, 0}, {0, 0, 0, 0}}, 1, IS_LATENCY},
-
-        {"al", "  Appl Latency", {{0, OffsetAppLatency, MaskLatency, 0}, {0, 0, 0, 0}}, 1, IS_LATENCY},
-
-        {"nbar", "nbar", {{0, OffsetNbarAppID, MaskNbarAppID, 0}, {0, 0, 0, 0}}, 1, IS_NBAR},
-
-        {"ja3", "                             ja3", {{OffsetJA3, OffsetJA3 + 1, MaskJA3, 0}, {0, 0, 0, 0}}, 1, IS_JA3},
-
-        {"odid", "obs domainID", {{0, OffsetObservationDomainID, MaskObservationDomainID, 0}, {0, 0, 0, 0}}, 1, IS_HEXNUMBER},
-
-        {"opid", " obs PointID", {{0, OffsetObservationPointID, MaskObservationPointID, 0}, {0, 0, 0, 0}}, 1, IS_HEXNUMBER},
-
-        {"event", " Event", {{0, OffsetConnID, MaskFWevent, ShiftFWevent}, {0, 0, 0, 0}}, 1, IS_EVENT},
-
-        {"nevent", " Event", {{0, OffsetConnID, MaskFWevent, ShiftFWevent}, {0, 0, 0, 0}}, 1, IS_EVENT},
-
-        {"xevent", "X-Event", {{0, OffsetConnID, MaskFWXevent, ShiftFWXevent}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"xsrcip", "X-Src IP Addr", {{OffsetXLATESRCv6a, OffsetXLATESRCv6b, MaskIPv6, 0}, {0, 0, 0, 0}}, 1, IS_IPADDR},
-
-        {"xdstip", "X-Dst IP Addr", {{OffsetXLATEDSTv6a, OffsetXLATEDSTv6b, MaskIPv6, 0}, {0, 0, 0, 0}}, 1, IS_IPADDR},
-
-        {"xsrcport", " X-Src Port", {{0, OffsetXLATEPort, MaskXLATESRCPORT, ShiftXLATESRCPORT}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"xdstport", " X-Dst Port", {{0, OffsetXLATEPort, MaskXLATEDSTPORT, ShiftXLATEDSTPORT}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"iacl", "Ingress ACL", {{0, OffsetIngressAclId, MaskIngressAclId, ShiftIngressAclId}, {0, 0, 0, 0}}, 1, IS_HEX},
-
-        {"iace", "Ingress ACE", {{0, OffsetIngressAceId, MaskIngressAceId, ShiftIngressAceId}, {0, 0, 0, 0}}, 1, IS_HEX},
-
-        {"ixace", "Ingress xACE", {{0, OffsetIngressGrpId, MaskIngressGrpId, ShiftIngressGrpId}, {0, 0, 0, 0}}, 1, IS_HEX},
-
-        {"eacl", "Egress ACL", {{0, OffsetEgressAclId, MaskEgressAclId, ShiftEgressAclId}, {0, 0, 0, 0}}, 1, IS_HEX},
-
-        {"eace", "Egress ACE", {{0, OffsetEgressAceId, MaskEgressAceId, ShiftEgressAceId}, {0, 0, 0, 0}}, 1, IS_HEX},
-
-        {"exace", "Egress xACE", {{0, OffsetEgressGrpId, MaskEgressGrpId, ShiftEgressGrpId}, {0, 0, 0, 0}}, 1, IS_HEX},
-
-        {"ivrf", " I-vrf-ID", {{0, OffsetIVRFID, MaskIVRFID, ShiftIVRFID}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"evrf", " E-vrf-ID", {{0, OffsetEVRFID, MaskEVRFID, ShiftEVRFID}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        // keep the following stats strings for compate v1.6.10 -> merged NSEL
-        {"nsrcip", "X-Src IP Addr", {{OffsetXLATESRCv6a, OffsetXLATESRCv6b, MaskIPv6, 0}, {0, 0, 0, 0}}, 1, IS_IPADDR},
-
-        {"ndstip", "X-Dst IP Addr", {{OffsetXLATEDSTv6a, OffsetXLATEDSTv6b, MaskIPv6, 0}, {0, 0, 0, 0}}, 1, IS_IPADDR},
-
-        {"nsrcport", " X-Src Port", {{0, OffsetXLATEPort, MaskXLATESRCPORT, ShiftXLATESRCPORT}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-        {"ndstport", " X-Dst Port", {{0, OffsetXLATEPort, MaskXLATEDSTPORT, ShiftXLATEDSTPORT}, {0, 0, 0, 0}}, 1, IS_NUMBER},
-
-    */
+    {"nhbip", "Nexthop BGP IP", {EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, AF_INET}, IS_IPADDR},
+    {"nhbip", NULL, {EXbgpNextHopV6ID, OFFbgp6NextIP, SIZEbgp6NextIP, AF_INET}, IS_IPADDR},
+    {"router", "Router IP", {EXipReceivedV4ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, IS_IPADDR},
+    {"router", NULL, {EXipReceivedV6ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, IS_IPADDR},
+    {"srcport", "Src Port", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, IS_NUMBER},
+    {"dstport", "Dst Port", {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, IS_NUMBER},
+    {"port", "Port", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, IS_NUMBER},
+    {"port", NULL, {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, IS_NUMBER},
+    {"proto", "Protocol", {EXgenericFlowID, OFFproto, SIZEproto, 0}, IS_NUMBER},
+    {"srctos", "Src Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER},
+    {"dsttos", "Dst Tos", {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER},
+    {"tos", "Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER},
+    {"tos", NULL, {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER},
+    {"dir", "Dir", {EXgenericFlowID, OFFdir, SIZEdir, 0}, IS_NUMBER},
+    {"srcas", "Src AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER},
+    {"dstas", "Dst AS", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER},
+    {"as", "AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER},
+    {"as", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER},
+    {"prevas", "Prev AS", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, IS_NUMBER},
+    {"nextas", "Next AS", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, IS_NUMBER},
+    {"inif", "Input If", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER},
+    {"outif", "Output If", {EXflowMiscID, OFFoutput, SIZEoutput, 0}, IS_NUMBER},
+    {"if", "Interface", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER},
+    {"if", NULL, {EXflowMiscID, OFFoutput, SIZEoutput, 0}, IS_NUMBER},
+    {"srcmask", "Src Mask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, IS_NUMBER},
+    {"dstmask", "Dst Mask", {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER},
+    {"mask", "Mask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, IS_NUMBER},
+    {"mask", NULL, {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER},
+    {"srcvlan", "Src Vlan", {EXvLanID, OFFsrcVlan, SIZEsrcVlan, 0}, IS_NUMBER},
+    {"dstvlan", "Dst Vlan", {EXvLanID, OFFdstVlan, SIZEdstVlan, 0}, IS_NUMBER},
+    {"vlan", "Vlan", {EXvLanID, OFFsrcVlan, SIZEsrcVlan, 0}, IS_NUMBER},
+    {"vlan", NULL, {EXvLanID, OFFdstVlan, SIZEdstVlan, 0}, IS_NUMBER},
+    {"insrcmac", "In Src Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR},
+    {"outdstmac", "Out Dst Mac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR},
+    {"indstmac", "In Dst Mac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR},
+    {"outsrcmac", "Out Src Mac", {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR},
+    {"srcmac", "Src Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR},
+    {"srcmac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR},
+    {"dstmac", "Dst Mac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR},
+    {"dstmac", NULL, {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR},
+    {"inmac", "In Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR},
+    {"inmac", NULL, {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR},
+    {"outmac", "Out Mac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR},
+    {"outmac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR},
+    {"mac", "Mac Addr", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR},
+    {"mac", NULL, {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR},
+    {"mac", NULL, {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR},
+    {"mac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR},
+    {"mpls1", "MPLS label 1", {EXmplsLabelID, OFFmplsLabel1, SIZEmplsLabel1, 0}, IS_MPLS_LBL},
+    {"mpls2", "MPLS label 2", {EXmplsLabelID, OFFmplsLabel2, SIZEmplsLabel2, 0}, IS_MPLS_LBL},
+    {"mpls3", "MPLS label 3", {EXmplsLabelID, OFFmplsLabel3, SIZEmplsLabel3, 0}, IS_MPLS_LBL},
+    {"mpls4", "MPLS label 4", {EXmplsLabelID, OFFmplsLabel4, SIZEmplsLabel4, 0}, IS_MPLS_LBL},
+    {"mpls5", "MPLS label 5", {EXmplsLabelID, OFFmplsLabel5, SIZEmplsLabel5, 0}, IS_MPLS_LBL},
+    {"mpls6", "MPLS label 6", {EXmplsLabelID, OFFmplsLabel6, SIZEmplsLabel6, 0}, IS_MPLS_LBL},
+    {"mpls7", "MPLS label 7", {EXmplsLabelID, OFFmplsLabel7, SIZEmplsLabel7, 0}, IS_MPLS_LBL},
+    {"mpls8", "MPLS label 8", {EXmplsLabelID, OFFmplsLabel8, SIZEmplsLabel8, 0}, IS_MPLS_LBL},
+    {"mpls9", "MPLS label 9", {EXmplsLabelID, OFFmplsLabel9, SIZEmplsLabel9, 0}, IS_MPLS_LBL},
+    {"mpls10", "MPLS label 10", {EXmplsLabelID, OFFmplsLabel10, SIZEmplsLabel10, 0}, IS_MPLS_LBL},
+    {"cl", "Client Latency", {EXlatencyID, OFFusecClientNwDelay, SIZEusecClientNwDelay, 0}, IS_LATENCY},
+    {"sl", "Server Latency", {EXlatencyID, OFFusecServerNwDelay, SIZEusecServerNwDelay, 0}, IS_LATENCY},
+    {"al", "Application Latency", {EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, 0}, IS_LATENCY},
+    {"nbar", "Nbar", {EXnbarAppID, OFFnbarAppID, SIZEnbarAppID, 0}, IS_NBAR},
+    {"ja3", "                             ja3", {EXlocal, OFFja3, SIZEja3, 0}, IS_JA3},
+    {"odid", "Obs DomainID", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, IS_HEXNUMBER},
+    {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER},
+    {"event", " Event", {EXnselCommonID, OFFfwEvent, SIZEfwEvent, 0}, IS_EVENT},
+    {"xevent", " Event", {EXnselCommonID, OFFfwXevent, SIZEfwXevent, 0}, IS_NUMBER},
+    {"nat", "NAT Event", {EXnelCommonID, OFFnatEvent, SIZEnatEvent, 0}, IS_EVENT},
+    {"xsrcip", "X-Src IP Addr", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR},
+    {"xsrcip", NULL, {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR},
+    {"xdstip", "X-Dst IP Addr", {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR},
+    {"xdstip", NULL, {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, IS_IPADDR},
+    {"xip", "X-IP Addr", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR},
+    {"xip", NULL, {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR},
+    {"xip", NULL, {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR},
+    {"xip", NULL, {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, IS_IPADDR},
+    {"xsrcport", "X-Src Port", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, IS_NUMBER},
+    {"xdstport", "X-Dst Port", {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, IS_NUMBER},
+    {"xport", "X-Port", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, IS_NUMBER},
+    {"xport", NULL, {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, IS_NUMBER},
+    {"iacl", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX},
+    {"eacl", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX},
+    // {"iace", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX},
+    // {"eace", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX},
+    // {"ixace", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX},
+    // {"exace", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX},
+    {"ivrf", "I-vrf ID", {EXvrfID, OFFingressVrf, SIZEingressVrf, 0}, IS_NUMBER},
+    {"evrf", "E-vrf ID", {EXvrfID, OFFegressVrf, SIZEegressVrf, 0}, IS_NUMBER},
 
     {NULL, NULL, {0, 0, 0, 0}, 0}};
 
