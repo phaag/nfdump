@@ -289,7 +289,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
 
     if (sample->gotIPV6) {
         PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
-        SetFlag(recordHeader->flags, V3_FLAG_IPV6_ADDR);
+        // XXX SetFlag(recordHeader->flags, V3_FLAG_IPV6_ADDR);
 
         u_char *b = sample->ipsrc.address.ip_v6.addr;
         uint64_t *u = (uint64_t *)b;

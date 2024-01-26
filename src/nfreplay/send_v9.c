@@ -231,7 +231,7 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
     count++;
     record_length += 2;
 
-    dbg_printf("Generate template for %u extensions\n", master_record->numElements);
+    dbg_printf("Generate template for %u extensions\n", recordHandle->numElements);
     // iterate over all extensions
     uint16_t srcMaskType = 0;
     uint16_t dstMaskType = 0;

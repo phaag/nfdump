@@ -61,6 +61,7 @@
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
 #include "nfconf.h"
+#include "nfdump_1_6_x.h"
 #include "nffile.h"
 #include "nflowcache.h"
 #include "nfnet.h"
@@ -320,9 +321,8 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
     }
     int done = 0;
     while (!done) {
-        int i, ret;
         // get next data block from file
-        ret = ReadBlock(nffile_r);
+        int ret = ReadBlock(nffile_r);
 
         switch (ret) {
             case NF_CORRUPT:
@@ -367,7 +367,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
         uint32_t sumSize = 0;
         record_header_t *record_ptr = nffile_r->buff_ptr;
         dbg_printf("Block has %i records\n", nffile_r->block_header->NumRecords);
-        for (i = 0; i < nffile_r->block_header->NumRecords && !done; i++) {
+        for (int i = 0; i < nffile_r->block_header->NumRecords && !done; i++) {
             record_header_t *process_ptr = record_ptr;
             if ((sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
@@ -379,19 +379,12 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                 case V3Record:
                 case CommonRecordType: {
                     int match;
-                    // XXX ClearMasterRecord(master_record);
                     if (__builtin_expect(record_ptr->type == CommonRecordType, 0)) {
-                        master_record_t master_record = {0};
-                        if (!ExpandRecord_v2(record_ptr, &master_record)) {
-                            goto NEXT;
-                        }
-                        dbg_printf("Convert v2 record\n");
+                        dbg_printf("Convert nufump 1.6.x v2 record\n");
                         process_ptr = ConvertRecordV2((common_record_t *)record_ptr);
                         if (!process_ptr) goto NEXT;
                     } else {
-                        // XXX ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
-                        processed++;
-                        MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
+                        MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, ++processed);
                     }
 
                     // Time based filter
@@ -423,7 +416,6 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                         */
 
                         // filter netflow record with user supplied filter
-                        // match = (*Engine->FilterEngine)(Engine);
                         match = FilterRecord(engine, recordHandle, nffile_r->ident);
                     }
                     if (match == 0) {  // record failed to pass all filters

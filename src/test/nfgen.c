@@ -201,11 +201,17 @@ static void RemoveExtension(recordHandle_t *recordHandle, int extID) {
         if (elementHeader->type == extID) {
             startPtr = (void *)elementHeader;
             endPtr = startPtr + elementHeader->length;
+            break;
         }
+        elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
     }
     if (startPtr != NULL) {
         memmove(startPtr, endPtr, size);
+        v3Record->numElements--;
+        v3Record->size -= elementHeader->length;
     }
+    MapRecordHandle(recordHandle, v3Record, recordHandle->flowCount);
+
 }  // end of RemoveExtension
 
 int main(int argc, char **argv) {
@@ -225,55 +231,69 @@ int main(int argc, char **argv) {
         exit(255);
     }
 
+    uint32_t recordCount = 1;
     // add v3 header
     AddV3Header(record, v3Record);
-    MapRecordHandle(recordHandle, v3Record, 1);
-
+    MapRecordHandle(recordHandle, v3Record, recordCount++);
     // Start with empty record
+    StoreRecord(recordHandle, nffile);
+
+    // fill record Header
+    v3Record->engineType = 10;
+    v3Record->engineID = 128;
+    v3Record->exporterID = 3;
+    recordHandle->flowCount++;
     StoreRecord(recordHandle, nffile);
 
     // EXgenericFlowID
     PushExtension(v3Record, EXgenericFlow, genericFlow);
-    genericFlow->fwdStatus = 1;
-    genericFlow->tcpFlags = 2;
-    genericFlow->srcTos = 3;
-    genericFlow->srcPort = 12335;
-    genericFlow->dstPort = 432;
+    MapRecordHandle(recordHandle, v3Record, recordCount++);
+    genericFlow->msecFirst = 1000LL * when + 234LL;
+    genericFlow->msecLast = genericFlow->msecFirst + 2000LL;
+    genericFlow->msecReceived = 1000LL * when + 1;
     genericFlow->inPackets = 1;
     genericFlow->inBytes = 222;
+    genericFlow->srcPort = 12345;
+    genericFlow->dstPort = 433;
     genericFlow->proto = IPPROTO_TCP;
-    UpdateRecord(recordHandle);
+    genericFlow->tcpFlags = 2;
+    genericFlow->fwdStatus = 1;
+    genericFlow->srcTos = 3;
+    recordHandle->flowCount++;
     StoreRecord(recordHandle, nffile);
 
     // EXipv4FlowID
     PushExtension(v3Record, EXipv4Flow, ipv4Flow);
-    UpdateRecord(recordHandle);
+    MapRecordHandle(recordHandle, v3Record, recordCount++);
     SetIPaddress(recordHandle, PF_INET, "172.16.1.66", "192.168.170.100");
     StoreRecord(recordHandle, nffile);
 
     // EXipv6FlowID
     PushExtension(v3Record, EXipv6Flow, ipv6Flow);
-    UpdateRecord(recordHandle);
+    MapRecordHandle(recordHandle, v3Record, recordCount++);
     SetIPaddress(recordHandle, PF_INET6, "fe80::2110:abcd:1234:0", "fe80::2110:abcd:1235:4321");
+    // this record has a v4 and a v6 addr extension
     StoreRecord(recordHandle, nffile);
 
+    // remove v6 extension
     RemoveExtension(recordHandle, EXipv6FlowID);
 
     // EXflowMiscID
     PushExtension(v3Record, EXflowMisc, flowMisc);
-    UpdateRecord(recordHandle);
+    MapRecordHandle(recordHandle, v3Record, recordCount++);
     SetIPaddress(recordHandle, PF_INET, "172.16.2.66", "192.168.170.101");
 
-    genericFlow->srcPort = 80;
-    genericFlow->dstPort = 22222;
     flowMisc->input = 100;
     flowMisc->output = 200;
     flowMisc->srcMask = 16;
     flowMisc->dstMask = 24;
     flowMisc->dir = 1;
-    genericFlow->tcpFlags = 2;
+    flowMisc->dstTos = 4;
+    flowMisc->biFlowDir = 0;
+    genericFlow->srcPort = 80;
+    genericFlow->dstPort = 22222;
+    genericFlow->tcpFlags = 3;
     genericFlow->proto = IPPROTO_TCP;
-    UpdateRecord(recordHandle);
     StoreRecord(recordHandle, nffile);
 
     genericFlow->msecFirst += 1000LL;

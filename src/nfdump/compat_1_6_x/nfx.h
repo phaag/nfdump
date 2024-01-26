@@ -34,12 +34,8 @@
 
 #include <sys/types.h>
 
-#include "config.h"
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "id.h"
+#include "nfdump_1_6_x.h"
 #include "nffile.h"
 
 // MAX_EXTENSION_MAPS must be a power of 2
