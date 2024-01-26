@@ -34,7 +34,7 @@
  * It accepts the standard nfdump file select options -r, -M and -R
  * Therefore it allows you to loop over multiple files and process the netflow record.
  *
- * Insert your code in the process_data function after the call to ExpandRecord
+ * Insert your code in the process_data function
  * To build the binary: first compile nfdump as usual.
  * Then compile nfreader:
  *
@@ -90,6 +90,7 @@ static void usage(char *name) {
         name);
 } /* usage */
 
+// simple record printer
 static void print_record(recordHandle_t *recordHandle) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
