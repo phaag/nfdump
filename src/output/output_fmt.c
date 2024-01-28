@@ -807,12 +807,17 @@ static void String_FirstSeen(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
-    time_t tt = msecFirst / 1000LL;
-    struct tm *ts = localtime(&tt);
-    char s[128];
-    strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
-    s[127] = '\0';
-    fprintf(stream, "%s.%03u", s, (unsigned)(msecFirst % 1000LL));
+
+    if (msecFirst) {
+        time_t tt = msecFirst / 1000LL;
+        struct tm *ts = localtime(&tt);
+        char s[128];
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03u", s, (unsigned)(msecFirst % 1000LL));
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
 
 }  // End of String_FirstSeen
 
@@ -820,12 +825,17 @@ static void String_LastSeen(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     uint64_t msecLast = genericFlow ? genericFlow->msecLast : 0;
-    time_t tt = msecLast / 1000LL;
-    struct tm *ts = localtime(&tt);
-    char s[128];
-    strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
-    s[127] = '\0';
-    fprintf(stream, "%s.%03u", s, (unsigned)(msecLast % 1000LL));
+
+    if (msecLast) {
+        time_t tt = msecLast / 1000LL;
+        struct tm *ts = localtime(&tt);
+        char s[128];
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03u", s, (unsigned)(msecLast % 1000LL));
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
 
 }  // End of String_LastSeen
 
@@ -833,12 +843,17 @@ static void String_Received(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     uint64_t msecReceived = genericFlow ? genericFlow->msecReceived : 0;
-    time_t tt = msecReceived / 1000LL;
-    struct tm *ts = localtime(&tt);
-    char s[128];
-    strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
-    s[127] = '\0';
-    fprintf(stream, "%s.%03llu", s, msecReceived % 1000LL);
+
+    if (msecReceived) {
+        time_t tt = msecReceived / 1000LL;
+        struct tm *ts = localtime(&tt);
+        char s[128];
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03llu", s, msecReceived % 1000LL);
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
 
 }  // End of String_Received
 
@@ -1048,7 +1063,7 @@ static void String_EventTime(FILE *stream, recordHandle_t *recordHandle) {
         s[127] = '\0';
         fprintf(stream, "%s.%03llu", s, msecEvent % 1000LL);
     } else {
-        fprintf(stream, "%24s", "0.0");
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }
 
 }  // End of String_EventTime
