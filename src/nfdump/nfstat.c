@@ -466,7 +466,7 @@ static statResult_t ParseStatString(char *str, struct StatRequest_s *request) {
         *optOrder++ = 0;
     } else {
         // no orderBy given - default order applies;
-        optOrder = "/flows";  // default to flows
+        optOrder = strdup("flows");  // default to flows
     }
 
     request->order_proto = 0;

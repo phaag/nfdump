@@ -1177,7 +1177,7 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
 
         recordHandle_t recordHandle = {0};
         EXcntFlow_t tmpCntFlow = {0};
-        MapRecordHandle(&recordHandle, v3record, i);
+        MapRecordHandle(&recordHandle, v3record, i + 1);
         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
         EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
         EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
@@ -1266,7 +1266,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
         recordHeaderV3 = nffile->buff_ptr;
 
         recordHandle_t recordHandle = {0};
-        MapRecordHandle(&recordHandle, recordHeaderV3, i);
+        MapRecordHandle(&recordHandle, recordHeaderV3, i + 1);
 
         // check if cntFlow already exists
         EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];

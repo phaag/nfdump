@@ -420,6 +420,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                     }
                     if (match == 0) {  // record failed to pass all filters
                         // go to next record
+                        dbg_printf("No match: %u\n", ((recordHeaderV3_t *)record_ptr)->engineID);
                         goto NEXT;
                     }
 

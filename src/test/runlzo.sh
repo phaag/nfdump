@@ -1,7 +1,7 @@
 #!/bin/sh
 #  This file is part of the nfdump project.
 #
-#  Copyright (c) 2023, Peter Haag
+#  Copyright (c) 2023-2024, Peter Haag
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -37,7 +37,7 @@ export TZ
 NFDUMP="../nfdump/nfdump -G none"
 
 # lzo compression tests
-$NFDUMP -J 0 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J 1 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J 0 -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
-$NFDUMP -J lzo -r test.flows.nf && $NFDUMP -v test.flows.nf >/dev/null
+$NFDUMP -J 0 -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null
+$NFDUMP -J 1 -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null
+$NFDUMP -J 0 -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null
+$NFDUMP -J lzo -r dummy_flows.nf && $NFDUMP -v dummy_flows.nf >/dev/null

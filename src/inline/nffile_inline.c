@@ -31,7 +31,7 @@
 
 static inline size_t CheckBufferSpace(nffile_t *nffile, size_t required);
 
-static inline void MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint32_t flowCount);
+static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint32_t flowCount);
 
 static inline void AppendToBuffer(nffile_t *nffile, void *record, size_t required);
 
@@ -62,19 +62,20 @@ static inline size_t CheckBufferSpace(nffile_t *nffile, size_t required) {
 
 }  // End of CheckBufferSpace
 
-static inline void MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint32_t flowCount) {
+static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint32_t flowCount) {
     memset((void *)handle, 0, sizeof(recordHandle_t));
     handle->recordHeaderV3 = recordHeaderV3;
 
     elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t));
     // map all extensions
     for (int i = 0; i < recordHeaderV3->numElements; i++) {
-        if (elementHeader->type < MAXEXTENSIONS) {
+        if ((elementHeader->type > 0 && elementHeader->type < MAXEXTENSIONS) || elementHeader->length == 0) {
             handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
             elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
-            handle->elementsBits |= 1 << elementHeader->type;
+            handle->elementBits |= 1 << elementHeader->type;
         } else {
-            LogError("Unknown extension '%u'", elementHeader->type);
+            LogError("Invalid extension Type: %u, Length: %u", elementHeader->type, elementHeader->length);
+            return 0;
         }
     }
     handle->extensionList[EXnull] = (void *)recordHeaderV3;
@@ -92,6 +93,7 @@ static inline void MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *rec
             if (nelCommon) genericFlow->msecFirst = nelCommon->msecEvent;
         }
     }
+    return 1;
 }
 
 static inline void AppendToBuffer(nffile_t *nffile, void *record, size_t required) {

@@ -86,7 +86,7 @@ typedef struct recordHandle_s {
 #define OFFflowCount offsetof(recordHandle_t, flowCount)
 #define SIZEflowCount MemberSize(recordHandle_t, flowCount)
     uint32_t numElements;
-    uint64_t elementsBits;
+    uint64_t elementBits;
 } recordHandle_t;
 
 typedef struct stat_record_s {
