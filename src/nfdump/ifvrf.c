@@ -130,6 +130,8 @@ char *GetIfName(uint32_t ingress, char *name, size_t len) {
         } else {
             strncpy(name, " <ingress not found>", len);
         }
+    } else {
+        strncpy(name, " <no if name>", len);
     }
     return name;
 }
@@ -144,6 +146,8 @@ char *GetVrfName(uint32_t ingress, char *name, size_t len) {
         } else {
             strncpy(name, " <ingress not found>", len);
         }
+    } else {
+        strncpy(name, " <no vrf name>", len);
     }
     return name;
 }
