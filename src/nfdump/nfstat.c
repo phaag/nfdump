@@ -258,7 +258,7 @@ static struct orderByTable_s {
                     {NULL, 0, NULL}};
 
 #define MaxStats 8
-struct StatRequest_s {
+static struct StatRequest_s {
     uint32_t orderBy;     // bit field for multiple print orders
     uint8_t StatType[6];  // index into StatParameters
     uint8_t order_proto;  // protocol separated statistics
@@ -375,14 +375,13 @@ int SetStat(char *str, int *element_stat, int *flow_stat) {
         return ret;
     }
 
-    uint32_t direction = DESCENDING;
     int16_t StatType = 0;
-    uint32_t orderBy = 0;
+    StatRequest[NumStats].direction = DESCENDING;
     statResult_t result = ParseStatString(str, &StatRequest[NumStats]);
     switch (result) {
         case FlowStat:
             *flow_stat = 1;
-            Add_FlowStatOrder(orderBy, direction);
+            Add_FlowStatOrder(StatRequest[NumStats].orderBy, StatRequest[NumStats].direction);
             ret = 1;
             break;
         case ElementStat:
@@ -523,6 +522,7 @@ void AddElementStat(recordHandle_t *recordHandle) {
     // for every requested -s stat do
     for (int i = 0; i < NumStats; i++) {
         hashkey_t hashkey = {0};
+        hashkey.proto = StatRequest[i].order_proto ? genericFlow->proto : 0;
         // for the number of elements in this stat type
         for (int index = 0; StatRequest[i].StatType[index] != 0; index++) {
             uint32_t extID = StatParameters[index].element.extID;

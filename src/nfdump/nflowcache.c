@@ -1072,7 +1072,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
     if (cntFlow) {
         outPackets = cntFlow->outPackets;
         outBytes = cntFlow->outPackets;
-        aggrFlows = cntFlow->flows;
+        aggrFlows = cntFlow->flows ? cntFlow->flows : 1;
     }
 
     recordHeaderV3_t *record = recordHandle->recordHeaderV3;
@@ -1106,6 +1106,9 @@ void AddFlowCache(recordHandle_t *recordHandle) {
     } else if (ipv6Flow) {
         keymem = &keymemV6;
         keyLen = keymenV6Len;
+    } else {
+        // hmm .. a flow without IPs .. skip
+        return;
     }
 
     if (*keymem == NULL) *keymem = nfmalloc(keyLen);
@@ -1161,7 +1164,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
         *keymem = NULL;
     }
 
-}  // End of AddFlow
+}  // End of AddFlowCache
 
 // print SortList - apply possible aggregation mask to zero out aggregated fields
 static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
@@ -1181,8 +1184,12 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
         EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
         EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
-        EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
         EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle.extensionList[EXasRoutingID];
+        EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
+        if (cntFlow == NULL) {
+            recordHandle.extensionList[EXcntFlowID] = &tmpCntFlow;
+            cntFlow = &tmpCntFlow;
+        }
 
         if (doGeoLookup) {
             if (ipv4Flow) {
@@ -1204,18 +1211,9 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
         genericFlow->msecFirst = r->msecFirst;
         genericFlow->msecLast = r->msecLast;
         genericFlow->tcpFlags = r->inFlags;
-        if (r->counter[OUTPACKETS]) {
-            if (cntFlow) {
-                cntFlow->outPackets = r->counter[OUTPACKETS];
-                cntFlow->outBytes = r->counter[OUTBYTES];
-                cntFlow->flows = r->counter[FLOWS];
-            } else {
-                recordHandle.extensionList[EXcntFlowID] = &tmpCntFlow;
-                tmpCntFlow.outPackets = r->counter[OUTPACKETS];
-                tmpCntFlow.outBytes = r->counter[OUTBYTES];
-                tmpCntFlow.flows = r->counter[FLOWS];
-            }
-        }
+        cntFlow->outPackets = r->counter[OUTPACKETS];
+        cntFlow->outBytes = r->counter[OUTBYTES];
+        cntFlow->flows = r->counter[FLOWS];
 
         /*
         // XXX flow_record.revTcpFlags = r->outFlags;
