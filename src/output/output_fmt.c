@@ -343,13 +343,13 @@ static struct format_token_list_s {
                          {"%cnt", 0, "Count", String_FlowCount},                             // flow count
                          {"%tfs", 0, "Date first seen        ", String_FirstSeen},           // Start Time - first seen
                          {"%ts", 0, "Date first seen        ", String_FirstSeen},            // Start Time - first seen
-                         {"%tsr", 0, "Date first seen (raw)    ", String_FirstSeenRaw},      // Start Time - first seen, seconds
+                         {"%tsr", 0, "First seen raw", String_FirstSeenRaw},                 // Start Time - first seen, seconds
                          {"%te", 0, "Date last seen         ", String_LastSeen},             // End Time	- last seen
-                         {"%ter", 0, "Date last seen (raw)     ", String_LastSeenRaw},       // End Time - first seen, seconds
+                         {"%ter", 0, "Last seen raw ", String_LastSeenRaw},                  // End Time - first seen, seconds
                          {"%tr", 0, "Date flow received     ", String_Received},             // Received Time
-                         {"%trr", 0, "Date flow received (raw)  ", String_ReceivedRaw},      // Received Time, seconds
-                         {"%td", 0, "    Duration    ", String_Duration},                    // Duration
-                         {"%tds", 0, "    Duration    ", String_Duration_Seconds},           // Duration always in seconds
+                         {"%trr", 0, "Received raw  ", String_ReceivedRaw},                  // Received Time, seconds
+                         {"%td", 0, "Duration        ", String_Duration},                    // Duration
+                         {"%tds", 0, "Duration        ", String_Duration_Seconds},           // Duration always in seconds
                          {"%exp", 0, "Exp ID", String_ExpSysID},                             // Exporter SysID
                          {"%pr", 0, "Proto", String_Protocol},                               // Protocol
                          {"%sa", 1, "     Src IP Addr", String_SrcAddr},                     // Source Address
@@ -385,7 +385,7 @@ static struct format_token_list_s {
                          {"%obyt", 0, "Out Byte", String_OutBytes},                          // In Bytes
                          {"%fl", 0, "Flows", String_Flows},                                  // Flows
                          {"%flg", 0, "   Flags", String_Flags},                              // TCP Flags
-                         {"%tos", 0, "Tos", String_Tos},                                     // Tos - compat
+                         {"%tos", 0, "Tos ", String_Tos},                                    // Tos - compat
                          {"%stos", 0, "STos", String_SrcTos},                                // Tos - Src tos
                          {"%dtos", 0, "DTos", String_DstTos},                                // Tos - Dst tos
                          {"%dir", 0, "Dir", String_Dir},                                     // Direction: ingress, egress
@@ -769,11 +769,15 @@ static void String_FirstSeen(FILE *stream, master_record_t *r) {
     struct tm *ts;
     char s[128];
 
-    tt = r->msecFirst / 1000LL;
-    ts = localtime(&tt);
-    strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
-    s[127] = '\0';
-    fprintf(stream, "%s.%03u", s, (unsigned)(r->msecFirst % 1000LL));
+    if (r->msecFirst) {
+        tt = r->msecFirst / 1000LL;
+        ts = localtime(&tt);
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03u", s, (unsigned)(r->msecFirst % 1000LL));
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
 
 }  // End of String_FirstSeen
 
@@ -782,11 +786,15 @@ static void String_LastSeen(FILE *stream, master_record_t *r) {
     struct tm *ts;
     char s[128];
 
-    tt = r->msecLast / 1000LL;
-    ts = localtime(&tt);
-    strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
-    s[127] = '\0';
-    fprintf(stream, "%s.%03u", s, (unsigned)(r->msecLast % 1000LL));
+    if (r->msecLast) {
+        tt = r->msecLast / 1000LL;
+        ts = localtime(&tt);
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03u", s, (unsigned)(r->msecLast % 1000LL));
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
 
 }  // End of String_LastSeen
 
@@ -795,29 +803,30 @@ static void String_Received(FILE *stream, master_record_t *r) {
     struct tm *ts;
     char s[128];
 
-    tt = r->msecReceived / 1000LL;
-    ts = localtime(&tt);
-    strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
-    s[127] = '\0';
-    fprintf(stream, "%s.%03llu", s, r->msecReceived % 1000LL);
+    if (r->msecReceived) {
+        tt = r->msecReceived / 1000LL;
+        ts = localtime(&tt);
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03llu", s, r->msecReceived % 1000LL);
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
 
 }  // End of String_Received
 
 static void String_ReceivedRaw(FILE *stream, master_record_t *r) {
-    /* snprintf does write \0, and the max is INCL the terminating \0 */
-    fprintf(stream, "%.3f", r->msecReceived / 1000.0);
+    fprintf(stream, "%10llu.%03llu", r->msecReceived / 1000LL, r->msecReceived % 1000LL);
 
 }  // End of String_ReceivedRaw
 
 static void String_FirstSeenRaw(FILE *stream, master_record_t *r) {
-    /* snprintf does write \0, and the max is INCL the terminating \0 */
-    fprintf(stream, "%llu.%03llu", r->msecFirst / 1000LL, r->msecFirst % 1000LL);
+    fprintf(stream, "%10llu.%03llu", r->msecFirst / 1000LL, r->msecFirst % 1000LL);
 
 }  // End of String_FirstSeenRaw
 
 static void String_LastSeenRaw(FILE *stream, master_record_t *r) {
-    /* snprintf does write \0, and the max is INCL the terminating \0 */
-    fprintf(stream, "%llu.%03llu", r->msecLast / 1000LL, r->msecLast % 1000LL);
+    fprintf(stream, "%10llu.%03llu", r->msecLast / 1000LL, r->msecLast % 1000LL);
 
 }  // End of String_LastSeenRaw
 
@@ -1431,7 +1440,7 @@ static void String_Flows(FILE *stream, master_record_t *r) {
 
 }  // End of String_Flows
 
-static void String_Tos(FILE *stream, master_record_t *r) { fprintf(stream, "%3u", r->tos); }  // End of String_Tos
+static void String_Tos(FILE *stream, master_record_t *r) { fprintf(stream, "%4u", r->tos); }  // End of String_Tos
 
 static void String_SrcTos(FILE *stream, master_record_t *r) { fprintf(stream, "%4u", r->tos); }  // End of String_SrcTos
 
@@ -1712,7 +1721,7 @@ static void String_pfdir(FILE *stream, master_record_t *r) {
 
 static void String_pfrule(FILE *stream, master_record_t *r) {
     //
-    fprintf(stream, "%4u", r->pfRulenr);
+    fprintf(stream, "%3u", r->pfRulenr);
 }  // End of String_pfrule
 
 #ifdef NSEL
