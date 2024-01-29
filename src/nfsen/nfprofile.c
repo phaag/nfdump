@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -229,6 +229,15 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                     }
                 } break;
                 case NbarRecordType:
+                case IfNameRecordType:
+                case VrfNameRecordType:
+                    for (int j = 0; j < num_channels; j++) {
+                        if (channels[j].nffile != NULL && err == 1) {
+                            // flush new map
+                            AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
+                        }
+                    }
+                    break;
                 case LegacyRecordType1:
                 case LegacyRecordType2:
                 case ExporterStatRecordType:
