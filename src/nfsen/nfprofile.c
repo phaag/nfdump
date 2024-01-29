@@ -232,7 +232,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                 case IfNameRecordType:
                 case VrfNameRecordType:
                     for (int j = 0; j < num_channels; j++) {
-                        if (channels[j].nffile != NULL && err == 1) {
+                        if (channels[j].nffile != NULL) {
                             // flush new map
                             AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
                         }
