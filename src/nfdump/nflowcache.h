@@ -132,9 +132,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB);
 
 int SetBidirAggregation(void);
 
-void Add_FlowStatOrder(uint32_t order, uint32_t direction);
-
-int SetStat(char *str, int *element_stat, int *flow_stat);
+int SetRecordStat(char *statType, char *optOrder);
 
 void InsertFlow(recordHandle_t *recordHandle);
 

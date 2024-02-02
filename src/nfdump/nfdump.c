@@ -89,6 +89,8 @@ extern exporter_t **exporter_list;
 /* Function Prototypes */
 static void usage(char *name);
 
+static int SetStat(char *str, int *element_stat, int *flow_stat);
+
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams);
 
 static stat_record_t process_data(void *engine, char *wfile, int element_stat, int flow_stat, int sort_flows, RecordPrinter_t print_record,
@@ -239,6 +241,36 @@ static inline void AddJa3Info(recordHandle_t *recordHandle) {
     }
 
 }  // End of AddJa3Info
+
+static int SetStat(char *str, int *element_stat, int *flow_stat) {
+    char *statType = strdup(str);
+    char *optOrder = strchr(statType, '/');
+    if (optOrder) {
+        // orderBy given
+        *optOrder++ = 0;
+    }
+
+    int ret = 0;
+    if (strncasecmp(statType, "record", 6) == 0) {
+        if (SetRecordStat(statType, optOrder)) {
+            *flow_stat = 1;
+            ret = 1;
+        } else {
+            LogError("Failed to parse record stat option: %s", str);
+        }
+    } else {
+        if (SetElementStat(statType, optOrder)) {
+            *element_stat = 1;
+            ret = 1;
+        } else {
+            LogError("Failed to parse element stat option: %s", str);
+        }
+    }
+
+    free(statType);
+    return ret;
+
+}  // End of SetStat
 
 static inline record_header_t *AddFlowLabel(record_header_t *record, char *label) {
 #define TMPSIZE 65536

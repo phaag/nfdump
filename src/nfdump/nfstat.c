@@ -76,6 +76,10 @@ typedef enum {
     IS_GEO
 } elementType_t;
 
+typedef enum { NoGEOLOOKUP = 0, GEOLOOKUP, ASLOOKUP } geoLookup_t;
+
+typedef enum { DESCENDING = 0, ASCENDING } direction_t;
+
 typedef struct flow_element_s {
     uint32_t extID;   // extension ID
     uint32_t offset;  // offset in extension
@@ -91,114 +95,115 @@ struct StatParameter_s {
     char *HeaderInfo;        // How to name the field in the output header line
     flow_element_t element;  // what element in flow record is used for statistics.
     elementType_t type;      // Type of element: Number, IP address, MAC address etc.
+    geoLookup_t canLookup;   // if set, AS or geo info can be looked up
 } StatParameters[] = {
     // flow record stat
     {"record", "", {0, 0, 0, 0}, 0},
 
-    {"srcip", "Src IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR},
-    {"srcip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR},
-    {"dstip", "Dst IP Addr", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR},
-    {"srcip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR},
-    {"ip", "    IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR},
-    {"ip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR},
-    {"ip", NULL, {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR},
-    {"ip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR},
-    {"srcgeo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO},
-    {"dstgeo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO},
-    {"geo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO},
-    {"geo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO},
-    {"nhip", "Nexthop IP", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, IS_IPADDR},
-    {"nhip", NULL, {EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, AF_INET6}, IS_IPADDR},
-    {"nhbip", "Nexthop BGP IP", {EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, AF_INET}, IS_IPADDR},
-    {"nhbip", NULL, {EXbgpNextHopV6ID, OFFbgp6NextIP, SIZEbgp6NextIP, AF_INET}, IS_IPADDR},
-    {"router", "Router IP", {EXipReceivedV4ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, IS_IPADDR},
-    {"router", NULL, {EXipReceivedV6ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, IS_IPADDR},
-    {"srcport", "Src Port", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, IS_NUMBER},
-    {"dstport", "Dst Port", {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, IS_NUMBER},
-    {"port", "Port", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, IS_NUMBER},
-    {"port", NULL, {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, IS_NUMBER},
-    {"proto", "Protocol", {EXgenericFlowID, OFFproto, SIZEproto, 0}, IS_NUMBER},
-    {"srctos", "Src Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER},
-    {"dsttos", "Dst Tos", {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER},
-    {"tos", "Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER},
-    {"tos", NULL, {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER},
-    {"dir", "Dir", {EXgenericFlowID, OFFdir, SIZEdir, 0}, IS_NUMBER},
-    {"srcas", "Src AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER},
-    {"dstas", "Dst AS", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER},
-    {"as", "AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER},
-    {"as", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER},
-    {"prevas", "Prev AS", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, IS_NUMBER},
-    {"nextas", "Next AS", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, IS_NUMBER},
-    {"inif", "Input If", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER},
-    {"outif", "Output If", {EXflowMiscID, OFFoutput, SIZEoutput, 0}, IS_NUMBER},
-    {"if", "Interface", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER},
-    {"if", NULL, {EXflowMiscID, OFFoutput, SIZEoutput, 0}, IS_NUMBER},
-    {"srcmask", "Src Mask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, IS_NUMBER},
-    {"dstmask", "Dst Mask", {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER},
-    {"mask", "Mask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, IS_NUMBER},
-    {"mask", NULL, {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER},
-    {"srcvlan", "Src Vlan", {EXvLanID, OFFsrcVlan, SIZEsrcVlan, 0}, IS_NUMBER},
-    {"dstvlan", "Dst Vlan", {EXvLanID, OFFdstVlan, SIZEdstVlan, 0}, IS_NUMBER},
-    {"vlan", "Vlan", {EXvLanID, OFFsrcVlan, SIZEsrcVlan, 0}, IS_NUMBER},
-    {"vlan", NULL, {EXvLanID, OFFdstVlan, SIZEdstVlan, 0}, IS_NUMBER},
-    {"insrcmac", "In Src Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR},
-    {"outdstmac", "Out Dst Mac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR},
-    {"indstmac", "In Dst Mac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR},
-    {"outsrcmac", "Out Src Mac", {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR},
-    {"srcmac", "Src Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR},
-    {"srcmac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR},
-    {"dstmac", "Dst Mac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR},
-    {"dstmac", NULL, {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR},
-    {"inmac", "In Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR},
-    {"inmac", NULL, {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR},
-    {"outmac", "Out Mac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR},
-    {"outmac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR},
-    {"mac", "Mac Addr", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR},
-    {"mac", NULL, {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR},
-    {"mac", NULL, {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR},
-    {"mac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR},
-    {"mpls1", "MPLS label 1", {EXmplsLabelID, OFFmplsLabel1, SIZEmplsLabel1, 0}, IS_MPLS_LBL},
-    {"mpls2", "MPLS label 2", {EXmplsLabelID, OFFmplsLabel2, SIZEmplsLabel2, 0}, IS_MPLS_LBL},
-    {"mpls3", "MPLS label 3", {EXmplsLabelID, OFFmplsLabel3, SIZEmplsLabel3, 0}, IS_MPLS_LBL},
-    {"mpls4", "MPLS label 4", {EXmplsLabelID, OFFmplsLabel4, SIZEmplsLabel4, 0}, IS_MPLS_LBL},
-    {"mpls5", "MPLS label 5", {EXmplsLabelID, OFFmplsLabel5, SIZEmplsLabel5, 0}, IS_MPLS_LBL},
-    {"mpls6", "MPLS label 6", {EXmplsLabelID, OFFmplsLabel6, SIZEmplsLabel6, 0}, IS_MPLS_LBL},
-    {"mpls7", "MPLS label 7", {EXmplsLabelID, OFFmplsLabel7, SIZEmplsLabel7, 0}, IS_MPLS_LBL},
-    {"mpls8", "MPLS label 8", {EXmplsLabelID, OFFmplsLabel8, SIZEmplsLabel8, 0}, IS_MPLS_LBL},
-    {"mpls9", "MPLS label 9", {EXmplsLabelID, OFFmplsLabel9, SIZEmplsLabel9, 0}, IS_MPLS_LBL},
-    {"mpls10", "MPLS label 10", {EXmplsLabelID, OFFmplsLabel10, SIZEmplsLabel10, 0}, IS_MPLS_LBL},
-    {"cl", "Client Latency", {EXlatencyID, OFFusecClientNwDelay, SIZEusecClientNwDelay, 0}, IS_LATENCY},
-    {"sl", "Server Latency", {EXlatencyID, OFFusecServerNwDelay, SIZEusecServerNwDelay, 0}, IS_LATENCY},
-    {"al", "Application Latency", {EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, 0}, IS_LATENCY},
-    {"nbar", "Nbar", {EXnbarAppID, OFFnbarAppID, SIZEnbarAppID, 0}, IS_NBAR},
-    {"ja3", "                             ja3", {EXlocal, OFFja3, SIZEja3, 0}, IS_JA3},
-    {"odid", "Obs DomainID", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, IS_HEXNUMBER},
-    {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER},
-    {"event", " Event", {EXnselCommonID, OFFfwEvent, SIZEfwEvent, 0}, IS_EVENT},
-    {"xevent", " Event", {EXnselCommonID, OFFfwXevent, SIZEfwXevent, 0}, IS_NUMBER},
-    {"nat", "NAT Event", {EXnelCommonID, OFFnatEvent, SIZEnatEvent, 0}, IS_EVENT},
-    {"xsrcip", "X-Src IP Addr", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR},
-    {"xsrcip", NULL, {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR},
-    {"xdstip", "X-Dst IP Addr", {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR},
-    {"xdstip", NULL, {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, IS_IPADDR},
-    {"xip", "X-IP Addr", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR},
-    {"xip", NULL, {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR},
-    {"xip", NULL, {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR},
-    {"xip", NULL, {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, IS_IPADDR},
-    {"xsrcport", "X-Src Port", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, IS_NUMBER},
-    {"xdstport", "X-Dst Port", {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, IS_NUMBER},
-    {"xport", "X-Port", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, IS_NUMBER},
-    {"xport", NULL, {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, IS_NUMBER},
-    {"iacl", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX},
-    {"eacl", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX},
-    // {"iace", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX},
-    // {"eace", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX},
-    // {"ixace", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX},
-    // {"exace", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX},
-    {"ivrf", "I-vrf ID", {EXvrfID, OFFingressVrf, SIZEingressVrf, 0}, IS_NUMBER},
-    {"evrf", "E-vrf ID", {EXvrfID, OFFegressVrf, SIZEegressVrf, 0}, IS_NUMBER},
+    {"srcip", "Src IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"srcip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR, NoGEOLOOKUP},
+    {"dstip", "Dst IP Addr", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"srcip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR, NoGEOLOOKUP},
+    {"ip", "    IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"ip", NULL, {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"ip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR, NoGEOLOOKUP},
+    {"ip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR, NoGEOLOOKUP},
+    {"srcgeo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, GEOLOOKUP},
+    {"dstgeo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, GEOLOOKUP},
+    {"geo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, GEOLOOKUP},
+    {"geo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, GEOLOOKUP},
+    {"nhip", "Nexthop IP", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"nhip", NULL, {EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, AF_INET6}, IS_IPADDR, NoGEOLOOKUP},
+    {"nhbip", "Nexthop BGP IP", {EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"nhbip", NULL, {EXbgpNextHopV6ID, OFFbgp6NextIP, SIZEbgp6NextIP, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"router", "Router IP", {EXipReceivedV4ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"router", NULL, {EXipReceivedV6ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"srcport", "Src Port", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"dstport", "Dst Port", {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"port", "Port", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"port", NULL, {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"proto", "Protocol", {EXgenericFlowID, OFFproto, SIZEproto, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"srctos", "Src Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"dsttos", "Dst Tos", {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"tos", "Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"tos", NULL, {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"dir", "Dir", {EXgenericFlowID, OFFdir, SIZEdir, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"srcas", "Src AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, ASLOOKUP},
+    {"dstas", "Dst AS", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, ASLOOKUP},
+    {"as", "AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, ASLOOKUP},
+    {"as", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, ASLOOKUP},
+    {"prevas", "Prev AS", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, IS_NUMBER, ASLOOKUP},
+    {"nextas", "Next AS", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, IS_NUMBER, ASLOOKUP},
+    {"inif", "Input If", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"outif", "Output If", {EXflowMiscID, OFFoutput, SIZEoutput, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"if", "Interface", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"if", NULL, {EXflowMiscID, OFFoutput, SIZEoutput, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"srcmask", "Src Mask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"dstmask", "Dst Mask", {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"mask", "Mask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"mask", NULL, {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"srcvlan", "Src Vlan", {EXvLanID, OFFsrcVlan, SIZEsrcVlan, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"dstvlan", "Dst Vlan", {EXvLanID, OFFdstVlan, SIZEdstVlan, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"vlan", "Vlan", {EXvLanID, OFFsrcVlan, SIZEsrcVlan, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"vlan", NULL, {EXvLanID, OFFdstVlan, SIZEdstVlan, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"insrcmac", "In Src Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"outdstmac", "Out Dst Mac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"indstmac", "In Dst Mac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"outsrcmac", "Out Src Mac", {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"srcmac", "Src Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"srcmac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"dstmac", "Dst Mac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"dstmac", NULL, {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"inmac", "In Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"inmac", NULL, {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"outmac", "Out Mac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"outmac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"mac", "Mac Addr", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"mac", NULL, {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"mac", NULL, {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"mac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NoGEOLOOKUP},
+    {"mpls1", "MPLS label 1", {EXmplsLabelID, OFFmplsLabel1, SIZEmplsLabel1, 0}, IS_MPLS_LBL, NoGEOLOOKUP},
+    {"mpls2", "MPLS label 2", {EXmplsLabelID, OFFmplsLabel2, SIZEmplsLabel2, 0}, IS_MPLS_LBL, NoGEOLOOKUP},
+    {"mpls3", "MPLS label 3", {EXmplsLabelID, OFFmplsLabel3, SIZEmplsLabel3, 0}, IS_MPLS_LBL, NoGEOLOOKUP},
+    {"mpls4", "MPLS label 4", {EXmplsLabelID, OFFmplsLabel4, SIZEmplsLabel4, 0}, IS_MPLS_LBL, NoGEOLOOKUP},
+    {"mpls5", "MPLS label 5", {EXmplsLabelID, OFFmplsLabel5, SIZEmplsLabel5, 0}, IS_MPLS_LBL, NoGEOLOOKUP},
+    {"mpls6", "MPLS label 6", {EXmplsLabelID, OFFmplsLabel6, SIZEmplsLabel6, 0}, IS_MPLS_LBL, NoGEOLOOKUP},
+    {"mpls7", "MPLS label 7", {EXmplsLabelID, OFFmplsLabel7, SIZEmplsLabel7, 0}, IS_MPLS_LBL, NoGEOLOOKUP},
+    {"mpls8", "MPLS label 8", {EXmplsLabelID, OFFmplsLabel8, SIZEmplsLabel8, 0}, IS_MPLS_LBL, NoGEOLOOKUP},
+    {"mpls9", "MPLS label 9", {EXmplsLabelID, OFFmplsLabel9, SIZEmplsLabel9, 0}, IS_MPLS_LBL, NoGEOLOOKUP},
+    {"mpls10", "MPLS label 10", {EXmplsLabelID, OFFmplsLabel10, SIZEmplsLabel10, 0}, IS_MPLS_LBL, NoGEOLOOKUP},
+    {"cl", "Client Latency", {EXlatencyID, OFFusecClientNwDelay, SIZEusecClientNwDelay, 0}, IS_LATENCY, NoGEOLOOKUP},
+    {"sl", "Server Latency", {EXlatencyID, OFFusecServerNwDelay, SIZEusecServerNwDelay, 0}, IS_LATENCY, NoGEOLOOKUP},
+    {"al", "Application Latency", {EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, 0}, IS_LATENCY, NoGEOLOOKUP},
+    {"nbar", "Nbar", {EXnbarAppID, OFFnbarAppID, SIZEnbarAppID, 0}, IS_NBAR, NoGEOLOOKUP},
+    {"ja3", "                             ja3", {EXlocal, OFFja3, SIZEja3, 0}, IS_JA3, NoGEOLOOKUP},
+    {"odid", "Obs DomainID", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, IS_HEXNUMBER, NoGEOLOOKUP},
+    {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER, NoGEOLOOKUP},
+    {"event", " Event", {EXnselCommonID, OFFfwEvent, SIZEfwEvent, 0}, IS_EVENT, NoGEOLOOKUP},
+    {"xevent", " Event", {EXnselCommonID, OFFfwXevent, SIZEfwXevent, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"nat", "NAT Event", {EXnelCommonID, OFFnatEvent, SIZEnatEvent, 0}, IS_EVENT, NoGEOLOOKUP},
+    {"xsrcip", "X-Src IP Addr", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"xsrcip", NULL, {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR, NoGEOLOOKUP},
+    {"xdstip", "X-Dst IP Addr", {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"xdstip", NULL, {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, IS_IPADDR, NoGEOLOOKUP},
+    {"xip", "X-IP Addr", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"xip", NULL, {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR, NoGEOLOOKUP},
+    {"xip", NULL, {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
+    {"xip", NULL, {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, IS_IPADDR, NoGEOLOOKUP},
+    {"xsrcport", "X-Src Port", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"xdstport", "X-Dst Port", {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"xport", "X-Port", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"xport", NULL, {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"iacl", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX, NoGEOLOOKUP},
+    {"eacl", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX, NoGEOLOOKUP},
+    // {"iace", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX, NoGEOLOOKUP},
+    // {"eace", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX, NoGEOLOOKUP},
+    // {"ixace", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX, NoGEOLOOKUP},
+    // {"exace", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX, NoGEOLOOKUP},
+    {"ivrf", "I-vrf ID", {EXvrfID, OFFingressVrf, SIZEingressVrf, 0}, IS_NUMBER, NoGEOLOOKUP},
+    {"evrf", "E-vrf ID", {EXvrfID, OFFegressVrf, SIZEegressVrf, 0}, IS_NUMBER, NoGEOLOOKUP},
 
-    {NULL, NULL, {0, 0, 0, 0}, 0}};
+    {NULL, NULL, {0, 0, 0, 0}, 0, NoGEOLOOKUP}};
 
 // key for element stat
 typedef struct hashkey_s {
@@ -209,9 +214,13 @@ typedef struct hashkey_s {
 
 // khash record for element stat
 typedef struct StatRecord {
-    uint64_t counter[5];  // flows ipkg ibyte opkg obyte
     uint64_t msecFirst;
     uint64_t msecLast;
+    uint64_t inBytes;
+    uint64_t inPackets;
+    uint64_t outBytes;
+    uint64_t outPackets;
+    uint64_t flows;
 
     // add key for output processing
     hashkey_t hashkey;
@@ -259,10 +268,10 @@ static struct orderByTable_s {
 
 #define MaxStats 8
 static struct StatRequest_s {
-    uint32_t orderBy;     // bit field for multiple print orders
-    uint8_t StatType[6];  // index into StatParameters
+    uint32_t orderBy;     // bit field for multiple orders
+    uint32_t direction;   // bit field for sorting ascending/descending
+    uint8_t StatType;     // index into StatParameters
     uint8_t order_proto;  // protocol separated statistics
-    uint8_t direction;    // sort ascending/descending
 } StatRequest[MaxStats];  // This number should do it for a single run
 
 static uint32_t NumStats = 0;  // number of stats in StatRequest
@@ -276,12 +285,8 @@ static khash_t(ElementHash) * ElementKHash[MaxStats];
 
 static uint32_t LoadedGeoDB = 0;
 
-typedef enum statResult { FlowStat = 0, ElementStat, ErrorStat } statResult_t;
-
 /* function prototypes */
-static statResult_t ParseStatString(char *str, struct StatRequest_s *request);
-
-static int ParseListOrder(char *s, struct StatRequest_s *request);
+static int ParseListOrder(char *orderBy, struct StatRequest_s *request);
 
 static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, StatRecord_t *StatData, int type, int order_proto, int inout);
 
@@ -289,31 +294,31 @@ static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto,
 
 static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
 
-static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, int direction);
+static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, direction_t direction);
 
 #include "heapsort_inline.c"
 #include "memhandle.c"
 
 static uint64_t null_element(StatRecord_t *record, flowDir_t inout) { return 0; }
 
-static uint64_t flows_element(StatRecord_t *record, flowDir_t inout) { return record->counter[FLOWS]; }
+static uint64_t flows_element(StatRecord_t *record, flowDir_t inout) { return record->flows; }
 
 static uint64_t packets_element(StatRecord_t *record, flowDir_t inout) {
     if (inout == IN)
-        return record->counter[INPACKETS];
+        return record->inPackets;
     else if (inout == OUT)
-        return record->counter[OUTPACKETS];
+        return record->outPackets;
     else
-        return record->counter[INPACKETS] + record->counter[OUTPACKETS];
+        return record->inPackets + record->outPackets;
 }
 
 static uint64_t bytes_element(StatRecord_t *record, flowDir_t inout) {
     if (inout == IN)
-        return record->counter[INBYTES];
+        return record->inBytes;
     else if (inout == OUT)
-        return record->counter[OUTBYTES];
+        return record->outBytes;
     else
-        return record->counter[INBYTES] + record->counter[OUTBYTES];
+        return record->inBytes + record->outBytes;
 }
 
 static uint64_t pps_element(StatRecord_t *record, flowDir_t inout) {
@@ -356,92 +361,66 @@ static uint64_t bpp_element(StatRecord_t *record, flowDir_t inout) {
 int Init_StatTable(void) {
     if (!nfalloc_Init(8 * 1024 * 1024)) return 0;
 
-    for (int i = 0; i < NumStats; i++) {
+    for (int i = 0; i < MaxStats; i++) {
         ElementKHash[i] = kh_init(ElementHash);
     }
 
     LoadedGeoDB = Loaded_MaxMind();
 
+    // reset geo lookup, if no geo DB loaded
+    int i = 0;
+    if (LoadedGeoDB == 0) {
+        while (StatParameters[i].statname != NULL) StatParameters[i].canLookup = 0;
+    }
     return 1;
 
 }  // End of Init_StatTable
 
 void Dispose_StatTable(void) { nfalloc_free(); }  // End of Dispose_Tables
 
-int SetStat(char *str, int *element_stat, int *flow_stat) {
-    int ret = 0;
-    if (NumStats == MaxStats) {
-        LogError("Too many stat options! Stats are limited to %i stats per single run", MaxStats);
-        return ret;
-    }
+static int ParseListOrder(char *orderBy, struct StatRequest_s *request) {
+    request->orderBy = 0;
 
-    int16_t StatType = 0;
-    StatRequest[NumStats].direction = DESCENDING;
-    statResult_t result = ParseStatString(str, &StatRequest[NumStats]);
-    switch (result) {
-        case FlowStat:
-            *flow_stat = 1;
-            Add_FlowStatOrder(StatRequest[NumStats].orderBy, StatRequest[NumStats].direction);
-            ret = 1;
-            break;
-        case ElementStat:
-            NumStats++;
-            SetFlag(*element_stat, FLAG_STAT);
-            if (StatParameters[StatType].type == IS_JA3) SetFlag(*element_stat, FLAG_JA3);
-            if (StatParameters[StatType].type == IS_GEO) SetFlag(*element_stat, FLAG_GEO);
-            char *statArg = StatParameters[StatType].statname;
-            size_t len = strlen(statArg);
-            if (statArg[len - 2] == 'a' && statArg[len - 1] == 's') SetFlag(*element_stat, FLAG_GEO);
-            ret = 1;
-            break;
-        case ErrorStat:
-            LogError("Unknown stat: '%s", str);
-            ret = 0;
-    }
+    // default order mode
+    if (orderBy == NULL) orderBy = "flows";
 
-    return ret;
-}  // End of SetStat
-
-static int ParseListOrder(char *s, struct StatRequest_s *request) {
-    while (s) {
-        char *q = strchr(s, '/');
+    while (orderBy) {
+        char *q = strchr(orderBy, '/');
         if (q) *q = 0;
 
-        char *r = strchr(s, ':');
+        char *r = strchr(orderBy, ':');
+        direction_t direction;
         if (r) {
             *r++ = 0;
             switch (*r) {
                 case 'a':
-                    request->direction = ASCENDING;
+                    direction = ASCENDING;
                     break;
                 case 'd':
-                    request->direction = DESCENDING;
+                    direction = DESCENDING;
                     break;
                 default:
                     return -1;
             }
         } else {
-            request->direction = DESCENDING;
+            direction = DESCENDING;
         }
 
-        uint32_t bitset = 0;
         int i = 0;
         while (orderByTable[i].string) {
-            if (strcasecmp(orderByTable[i].string, s) == 0) break;
+            if (strcasecmp(orderByTable[i].string, orderBy) == 0) break;
             i++;
         }
-        if (orderByTable[i].string) {
-            bitset |= (1 << i);
-        } else {
-            LogError("Unknown order option /%s", s);
+        if (orderByTable[i].string == NULL) {
+            LogError("Unknown order option /%s", orderBy);
             return 0;
         }
-
-        if (!q) {
-            request->orderBy = bitset;
+        request->orderBy |= (1 << i);
+        request->direction |= (direction << i);
+        if (q == NULL) {
             return 1;
         }
-        s = ++q;
+        orderBy = ++q;
     }
 
     // not reached
@@ -457,63 +436,56 @@ static int ParseListOrder(char *s, struct StatRequest_s *request) {
  *  optional orderBy: order statistic by string in orderByTable
  *  optional :dir a: ascending d:descending
  */
-static statResult_t ParseStatString(char *str, struct StatRequest_s *request) {
-    char *s = strdup(str);
-    char *optOrder = strchr(s, '/');
-    if (optOrder) {
-        // orderBy given
-        *optOrder++ = 0;
-    } else {
-        // no orderBy given - default order applies;
-        optOrder = strdup("flows");  // default to flows
+int SetElementStat(char *elementStat, char *orderBy) {
+    if (NumStats == MaxStats) {
+        LogError("Too many stat options! Stats are limited to %i stats per single run", MaxStats);
+        return 0;
     }
 
+    struct StatRequest_s *request = &StatRequest[NumStats++];
     request->order_proto = 0;
-    char *optProto = strchr(s, ':');
+    char *optProto = strchr(elementStat, ':');
     if (optProto) {
         *optProto++ = 0;
         if (optProto[0] == 'p' && optProto[1] == '\0') {
-            LogError("Unknown statistic option :%s in %s", optProto, s);
             request->order_proto = 1;
         } else {
-            free(s);
-            return ErrorStat;
+            LogError("Unknown statistic option :%s in %s", optProto, elementStat);
+            return 0;
         }
     }
 
-    // check if one or more orders are given
-    if (ParseListOrder(optOrder, request) == 0) {
-        LogError("Unknown statistic option /%s in %s", optOrder, s);
-        free(s);
-        return ErrorStat;
-    }
-
-    if (strcasecmp(s, "record") == 0) {
-        free(s);
-        return FlowStat;
-    }
-
-    if (strcasecmp(s, "proto") == 0) request->order_proto = 1;
+    if (strcasecmp(elementStat, "proto") == 0) request->order_proto = 1;
 
     int i = 0;
-    int numStat = 0;
-    // check for a valid stat name
     while (StatParameters[i].statname) {
-        if (strcasecmp(s, StatParameters[i].statname) == 0) {
-            request->StatType[numStat++] = i;
+        if (strcasecmp(elementStat, StatParameters[i].statname) == 0) {
+            request->StatType = i;
+            break;
         }
         i++;
     }
 
-    if (numStat == 0) {
-        LogError("Unknown statistic: %s", s);
-        free(s);
-        return ErrorStat;
+    if (StatParameters[i].statname == NULL) {
+        LogError("Unknown statistic: %s", elementStat);
+        return 0;
     }
 
-    return ElementStat;
+    if (StatParameters[i].type == IS_JA3) SetFlag(*elementStat, FLAG_JA3);
+    if (StatParameters[i].type == IS_GEO) SetFlag(*elementStat, FLAG_GEO);
+    char *statArg = StatParameters[i].statname;
+    size_t len = strlen(statArg);
+    if (statArg[len - 2] == 'a' && statArg[len - 1] == 's') SetFlag(*elementStat, FLAG_GEO);
 
-}  // End of ParseStatString
+    // check if one or more orders are given
+    if (ParseListOrder(orderBy, request) == 0) {
+        LogError("Unknown statistic option /%s in %s", orderBy, elementStat);
+        return 0;
+    }
+
+    return 1;
+
+}  // End of SetElementStat
 
 void AddElementStat(recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
@@ -523,13 +495,17 @@ void AddElementStat(recordHandle_t *recordHandle) {
     for (int i = 0; i < NumStats; i++) {
         hashkey_t hashkey = {0};
         hashkey.proto = StatRequest[i].order_proto ? genericFlow->proto : 0;
+        int index = StatRequest[i].StatType;
         // for the number of elements in this stat type
-        for (int index = 0; StatRequest[i].StatType[index] != 0; index++) {
+        do {
             uint32_t extID = StatParameters[index].element.extID;
             uint32_t offset = StatParameters[index].element.offset;
             uint32_t length = StatParameters[index].element.length;
 
-            if (recordHandle->extensionList[extID] == NULL) continue;
+            if (recordHandle->extensionList[extID] == NULL) {
+                index++;
+                continue;
+            }
             void *inPtr = recordHandle->extensionList[extID] + offset;
             switch (length) {
                 case 0:
@@ -551,7 +527,7 @@ void AddElementStat(recordHandle_t *recordHandle) {
                     hashkey.v0 = ((uint64_t *)inPtr)[1];
                 } break;
                 default:
-                    LogError("Invalud stat element size: %d", length);
+                    LogError("Invalid stat element size: %d", length);
             }
 
             EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
@@ -561,15 +537,15 @@ void AddElementStat(recordHandle_t *recordHandle) {
             if (cntFlow) {
                 outBytes = cntFlow->outBytes;
                 outPackets = cntFlow->outPackets;
-                numFlows = cntFlow->flows;
+                numFlows = cntFlow->flows ? cntFlow->flows : 1;
             }
             int ret;
             khiter_t k = kh_put(ElementHash, ElementKHash[i], hashkey, &ret);
             if (ret == 0) {
-                kh_value(ElementKHash[i], k).counter[INBYTES] += genericFlow->inBytes;
-                kh_value(ElementKHash[i], k).counter[INPACKETS] += genericFlow->inPackets;
-                kh_value(ElementKHash[i], k).counter[OUTBYTES] += outBytes;
-                kh_value(ElementKHash[i], k).counter[OUTPACKETS] += outPackets;
+                kh_value(ElementKHash[i], k).inBytes += genericFlow->inBytes;
+                kh_value(ElementKHash[i], k).inPackets += genericFlow->inPackets;
+                kh_value(ElementKHash[i], k).outBytes += outBytes;
+                kh_value(ElementKHash[i], k).outPackets += outPackets;
 
                 if (genericFlow->msecFirst < kh_value(ElementKHash[i], k).msecFirst) {
                     kh_value(ElementKHash[i], k).msecFirst = genericFlow->msecFirst;
@@ -577,20 +553,21 @@ void AddElementStat(recordHandle_t *recordHandle) {
                 if (genericFlow->msecLast > kh_value(ElementKHash[i], k).msecLast) {
                     kh_value(ElementKHash[i], k).msecLast = genericFlow->msecLast;
                 }
-                kh_value(ElementKHash[i], k).counter[FLOWS] += numFlows;
+                kh_value(ElementKHash[i], k).flows += numFlows;
 
             } else {
-                kh_value(ElementKHash[i], k).counter[INBYTES] = genericFlow->inBytes;
-                kh_value(ElementKHash[i], k).counter[INPACKETS] = genericFlow->inPackets;
-                kh_value(ElementKHash[i], k).counter[OUTBYTES] = outBytes;
-                kh_value(ElementKHash[i], k).counter[OUTPACKETS] = outPackets;
+                kh_value(ElementKHash[i], k).inBytes = genericFlow->inBytes;
+                kh_value(ElementKHash[i], k).inPackets = genericFlow->inPackets;
+                kh_value(ElementKHash[i], k).outBytes = outBytes;
+                kh_value(ElementKHash[i], k).outPackets = outPackets;
                 kh_value(ElementKHash[i], k).msecFirst = genericFlow->msecFirst;
                 kh_value(ElementKHash[i], k).msecLast = genericFlow->msecLast;
-                kh_value(ElementKHash[i], k).counter[FLOWS] = numFlows;
+                kh_value(ElementKHash[i], k).flows = numFlows;
                 kh_value(ElementKHash[i], k).hashkey = hashkey;
             }
-        }  // for the number of elements in this stat type
-    }      // for every requested -s stat
+            index++;
+        } while (StatParameters[index].HeaderInfo == NULL);
+    }  // for every requested -s stat
 }  // AddElementStat
 
 static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, StatRecord_t *StatData, int type, int order_proto, int inout) {
@@ -609,16 +586,12 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
             break;
         case IS_IPADDR:
             tag_string[0] = outputParams->doTag ? TAG_CHAR : '\0';
-            uint64_t ip[2];
             if (StatData->hashkey.v0 != 0) {  // IPv6
-                uint64_t _key[2];
-                _key[0] = htonll(StatData->hashkey.v0);
-                _key[1] = htonll(StatData->hashkey.v1);
+                uint64_t _key[2] = {htonll(StatData->hashkey.v0), htonll(StatData->hashkey.v1)};
                 if (LoadedGeoDB) {
-                    char ipstr[40], country[4];
-                    ip[0] = StatData->hashkey.v0;
-                    ip[1] = StatData->hashkey.v1;
-                    // XXX LookupCountry(ip, country);
+                    char ipstr[40], country[4] = {0};
+                    uint64_t ip[2] = {StatData->hashkey.v0, StatData->hashkey.v1};
+                    LookupV6Country(ip, country);
                     inet_ntop(AF_INET6, _key, ipstr, sizeof(ipstr));
                     if (!Getv6Mode()) CondenseV6(ipstr);
                     snprintf(valstr, 64, "%s(%s)", ipstr, country);
@@ -630,11 +603,9 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
             } else {  // IPv4
                 uint32_t ipv4 = htonl(StatData->hashkey.v1);
                 if (LoadedGeoDB) {
-                    char ipstr[16], country[4];
+                    char ipstr[16], country[4] = {0};
                     inet_ntop(AF_INET, &ipv4, ipstr, sizeof(ipstr));
-                    ip[0] = 0;
-                    ip[1] = StatData->hashkey.v1;
-                    // XXX LookupCountry(ip, country);
+                    LookupV4Country(StatData->hashkey.v1, country);
                     snprintf(valstr, 40, "%s(%s)", ipstr, country);
                 } else {
                     inet_ntop(AF_INET, &ipv4, valstr, sizeof(valstr));
@@ -714,7 +685,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
     }
     valstr[63] = 0;
 
-    uint64_t count_flows = StatData->counter[FLOWS];
+    uint64_t count_flows = StatData->flows;
     uint64_t count_packets = packets_element(StatData, inout);
     uint64_t count_bytes = bytes_element(StatData, inout);
     char flows_str[NUMBER_STRING_SIZE], byte_str[NUMBER_STRING_SIZE], packets_str[NUMBER_STRING_SIZE];
@@ -886,7 +857,7 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *
 
     valstr[39] = 0;
 
-    uint64_t count_flows = StatData->counter[FLOWS];
+    uint64_t count_flows = StatData->flows;
     uint64_t count_packets = packets_element(StatData, inout);
     uint64_t count_bytes = bytes_element(StatData, inout);
 
@@ -941,13 +912,14 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
 
     // for every requested -s stat do
     for (int hash_num = 0; hash_num < NumStats; hash_num++) {
-        int stat = StatRequest[hash_num].StatType[0];
+        int stat = StatRequest[hash_num].StatType;
         int order = StatRequest[hash_num].orderBy;
-        int direction = StatRequest[hash_num].direction;
         int type = StatParameters[stat].type;
         for (int order_index = 0; orderByTable[order_index].string != NULL; order_index++) {
             unsigned int order_bit = (1 << order_index);
             if (order & order_bit) {
+                int direction = (StatRequest[hash_num].direction & order_bit) == 0 ? DESCENDING : ASCENDING;
+                dbg_printf("Get direction: %s\n", direction == ASCENDING ? "ASCENDING" : "DESCENDING");
                 SortElement_t *topN_element_list = StatTopN(outputParams->topN, &numflows, hash_num, order_index, direction);
 
                 // this output formatting is pretty ugly - and needs to be cleaned up - improved
@@ -988,36 +960,47 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                         printf("ts,te,td,pr,val,fl,flP,pkt,pktP,byt,bytP,pps,bps,bpp\n");
                 }
 
-                int j = numflows - outputParams->topN;
-                j = j < 0 ? 0 : j;
-                if (outputParams->topN == 0) j = 0;
-                for (int i = numflows - 1; i >= j; i--) {
+                int startIndex, endIndex, increment;
+                if (direction == ASCENDING) {
+                    startIndex = 0;
+                    endIndex = outputParams->topN;
+                    if (endIndex > numflows) endIndex = numflows;
+                    increment = 1;
+                } else {
+                    startIndex = numflows - 1;
+                    endIndex = numflows - 1 - outputParams->topN;
+                    if (endIndex < 0) endIndex = -1;
+                    increment = -1;
+                }
+                dbg_printf("Print stat table: start: %d, end: %d, incr: %d\n", startIndex, endIndex, increment);
+                int index = startIndex;
+                while (index != endIndex) {
                     switch (outputParams->mode) {
                         case MODE_PLAIN:
-                            PrintStatLine(sum_stat, outputParams, (StatRecord_t *)topN_element_list[i].record, type,
+                            PrintStatLine(sum_stat, outputParams, (StatRecord_t *)topN_element_list[index].record, type,
                                           StatRequest[hash_num].order_proto, orderByTable[order_index].inout);
                             break;
                         case MODE_PIPE:
-                            PrintPipeStatLine((StatRecord_t *)topN_element_list[i].record, type, StatRequest[hash_num].order_proto,
+                            PrintPipeStatLine((StatRecord_t *)topN_element_list[index].record, type, StatRequest[hash_num].order_proto,
                                               outputParams->doTag, orderByTable[order_index].inout);
                             break;
                         case MODE_CSV:
-                            PrintCvsStatLine(sum_stat, outputParams->printPlain, (StatRecord_t *)topN_element_list[i].record, type,
+                            PrintCvsStatLine(sum_stat, outputParams->printPlain, (StatRecord_t *)topN_element_list[index].record, type,
                                              StatRequest[hash_num].order_proto, outputParams->doTag, orderByTable[order_index].inout);
                             break;
                         case MODE_JSON:
                             printf("Not yet implemented output format\n");
                             break;
                     }
+                    index += increment;
                 }
                 free((void *)topN_element_list);
-                printf("\n");
             }
         }  // for every requested order
     }      // for every requested -s stat do
 }  // End of PrintElementStat
 
-static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, int direction) {
+static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, direction_t direction) {
     SortElement_t *topN_list;
     uint32_t c, maxindex;
 
@@ -1046,7 +1029,7 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
     dbg_printf("Sort %u flows\n", c);
 
 #ifdef DEVEL
-    for (int i = 0; i < maxindex; i++) printf("%i, %llu %llx\n", i, topN_list[i].count, (unsigned long long)topN_list[i].record);
+    for (int i = 0; i < maxindex; i++) printf("%i, %llu %p\n", i, topN_list[i].count, topN_list[i].record);
 #endif
 
     // Sorting makes only sense, when 2 or more flows are left
@@ -1074,10 +1057,17 @@ void ListPrintOrder(void) {
 }  // End of ListPrintOrder
 
 void ListStatTypes(void) {
+    int cnt = 0;
     printf("Available element statistics:");
     for (int i = 0; StatParameters[i].statname != NULL; i++) {
-        if ((i & 0xf) == 0) printf("\n");
-        printf("%s ", StatParameters[i].statname);
+        if ((cnt & 0x7) == 0) {
+            cnt++;
+            printf("\n");
+        }
+        if (StatParameters[i].HeaderInfo) {
+            cnt++;
+            printf("%s ", StatParameters[i].statname);
+        };
     }
     printf("- See also nfdump(1)\n");
 }  // End of ListStatTypes

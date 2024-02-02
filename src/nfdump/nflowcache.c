@@ -689,14 +689,66 @@ int Parse_PrintOrder(char *order) {
 
 }  // End of Parse_PrintOrder
 
-// set sort order is given by -s record - parsed in nfstat.c
-// multiple sort orders may be given - each order adds the
-// corresoponding bit
-void Add_FlowStatOrder(uint32_t order, uint32_t direction) {
-    dbg_printf("Enter %s\n", __func__);
-    FlowStat_order |= order;
-    PrintDirection = direction;
-}  // End of Add_FlowStatOrder
+int SetRecordStat(char *statType, char *optOrder) {
+    char *optProto = strchr(statType, ':');
+    if (optProto) {
+        *optProto++ = 0;
+        if (optProto[0] == 'p' && optProto[1] == '\0') {
+            // do nothing - compatibility only
+        } else {
+            LogError("Unknown statistic option :%s in %s", optProto, statType);
+            return 0;
+        }
+    }
+
+    // only record is supported
+    if (strcasecmp(statType, "record") != 0) {
+        LogError("Unknown statistic option :%s in %s", optProto, statType);
+        return 0;
+    }
+
+    if (optOrder == NULL) optOrder = "flows";
+
+    while (optOrder) {
+        char *q = strchr(optOrder, '/');
+        if (q) *q = 0;
+
+        char *r = strchr(optOrder, ':');
+        if (r) {
+            *r++ = 0;
+            switch (*r) {
+                case 'a':
+                    PrintDirection = ASCENDING;
+                    break;
+                case 'd':
+                    PrintDirection = DESCENDING;
+                    break;
+                default:
+                    return -1;
+            }
+        } else {
+            PrintDirection = DESCENDING;
+        }
+
+        int i = 0;
+        while (order_mode[i].string) {
+            if (strcasecmp(order_mode[i].string, optOrder) == 0) break;
+            i++;
+        }
+        if (order_mode[i].string == NULL) {
+            LogError("Unknown order option /%s", optOrder);
+            return 0;
+        }
+        FlowStat_order |= (1 << i);
+
+        if (q == NULL) {
+            return 1;
+        }
+        optOrder = ++q;
+    }
+
+    return 1;
+}  // End of SetRecordStat
 
 char *ParseAggregateMask(char *arg, int hasGeoDB) {
     dbg_printf("Enter %s\n", __func__);

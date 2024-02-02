@@ -39,9 +39,6 @@
 #include "nfdump.h"
 #include "output.h"
 
-#define ASCENDING 1
-#define DESCENDING 0
-
 #define FLAG_STAT 0x1
 #define FLAG_JA3 0x2
 #define FLAG_GEO 0x4
@@ -51,7 +48,7 @@ int Init_StatTable(void);
 
 void Dispose_StatTable(void);
 
-int SetStat(char *str, int *element_stat, int *flow_stat);
+int SetElementStat(char *elementStat, char *orderBy);
 
 void AddElementStat(recordHandle_t *recordHandle);
 
