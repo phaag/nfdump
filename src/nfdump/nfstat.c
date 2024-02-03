@@ -241,8 +241,6 @@ static inline uint64_t pps_element(StatRecord_t *record, flowDir_t inout);
 static inline uint64_t bps_element(StatRecord_t *record, flowDir_t inout);
 static inline uint64_t bpp_element(StatRecord_t *record, flowDir_t inout);
 
-enum CntIndices { FLOWS = 0, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES };
-
 static struct orderByTable_s {
     char *string;                            // Stat name
     flowDir_t inout;                         // use IN or OUT or INOUT packets/bytes
@@ -370,7 +368,10 @@ int Init_StatTable(void) {
     // reset geo lookup, if no geo DB loaded
     int i = 0;
     if (LoadedGeoDB == 0) {
-        while (StatParameters[i].statname != NULL) StatParameters[i].canLookup = 0;
+        while (StatParameters[i].statname != NULL) {
+            StatParameters[i].canLookup = 0;
+            i++;
+        }
     }
     return 1;
 
