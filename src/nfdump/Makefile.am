@@ -18,6 +18,6 @@ ifvrf = ifvrf.c
 
 nfdump_SOURCES = nfdump.c spin_lock.h \
 	$(exporter) $(nbar) $(ifvrf) $(nfstat) $(nflowcache) $(nfprof) $(sort)
-nfdump_LDADD = ../lib/libnfdump.la ../output/liboutput.a ../maxmind/libmaxmind.a
+nfdump_LDADD = ../output/liboutput.a  ../lib/libnfdump.la ../maxmind/libmaxmind.a
 
 CLEANFILES = *.gch
