@@ -23,7 +23,7 @@ else
 nflist = flist.c flist.h
 endif
 filter = grammar.y scanner.l nftree.c nftree.h ipconv.c ipconv.h rbtree.h filter.h
-output = userio.c userio.h output_util.c output_util.h output_short.c output_short.h
+output = userio.c userio.h output_short.c output_short.h
 regex = sgregex/sgregex.c sgregex/sgregex.h
 daemon = daemon.c daemon.h 
 version = version.c version.h
