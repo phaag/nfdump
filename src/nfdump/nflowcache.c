@@ -158,39 +158,42 @@ typedef struct FlowHashRecord {
     uint8_t inFlags;   // tcp in flags
     uint8_t outFlags;  // tcp out flags
 
-    // flow counter parameters for FLOWS, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES
-    uint64_t counter[5];
-
     // time info in msec
     uint64_t msecFirst;
     uint64_t msecLast;
+
+    // flow counter parameters for FLOWS, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES
+    uint64_t inPackets;
+    uint64_t inBytes;
+    uint64_t outPackets;
+    uint64_t outBytes;
+    uint64_t flows;
 
     recordHeaderV3_t *flowrecord;
 } FlowHashRecord_t;
 
 // printing order definitions
-enum CntIndices { FLOWS = 0, INPACKETS, INBYTES, OUTPACKETS, OUTBYTES };
-enum FlowDir { IN = 0, OUT, INOUT };
+typedef enum FlowDir { IN = 0, OUT, INOUT } flowDir_t;
 
-typedef uint64_t (*order_proc_record_t)(FlowHashRecord_t *, int);
+typedef uint64_t (*order_proc_record_t)(FlowHashRecord_t *, flowDir_t);
 
 // prototypes for order functions
-static inline uint64_t null_record(FlowHashRecord_t *record, int inout);
-static inline uint64_t flows_record(FlowHashRecord_t *record, int inout);
-static inline uint64_t packets_record(FlowHashRecord_t *record, int inout);
-static inline uint64_t bytes_record(FlowHashRecord_t *record, int inout);
-static inline uint64_t pps_record(FlowHashRecord_t *record, int inout);
-static inline uint64_t bps_record(FlowHashRecord_t *record, int inout);
-static inline uint64_t bpp_record(FlowHashRecord_t *record, int inout);
-static inline uint64_t tstart_record(FlowHashRecord_t *record, int inout);
-static inline uint64_t tend_record(FlowHashRecord_t *record, int inout);
-static inline uint64_t duration_record(FlowHashRecord_t *record, int inout);
+static inline uint64_t null_record(FlowHashRecord_t *record, flowDir_t inout);
+static inline uint64_t flows_record(FlowHashRecord_t *record, flowDir_t inout);
+static inline uint64_t packets_record(FlowHashRecord_t *record, flowDir_t inout);
+static inline uint64_t bytes_record(FlowHashRecord_t *record, flowDir_t inout);
+static inline uint64_t pps_record(FlowHashRecord_t *record, flowDir_t inout);
+static inline uint64_t bps_record(FlowHashRecord_t *record, flowDir_t inout);
+static inline uint64_t bpp_record(FlowHashRecord_t *record, flowDir_t inout);
+static inline uint64_t tstart_record(FlowHashRecord_t *record, flowDir_t inout);
+static inline uint64_t tend_record(FlowHashRecord_t *record, flowDir_t inout);
+static inline uint64_t duration_record(FlowHashRecord_t *record, flowDir_t inout);
 
 #define ASCENDING 1
 #define DESCENDING 0
 static struct order_mode_s {
     char *string;                            // Stat name
-    int inout;                               // use IN or OUT or INOUT packets/bytes
+    flowDir_t inout;                         // use IN or OUT or INOUT packets/bytes
     int direction;                           // ascending or descending
     order_proc_record_t record_function;     // Function to call for record stats
 } order_mode[] = {{"-", 0, 0, null_record},  // empty entry 0
@@ -238,6 +241,11 @@ typedef struct FlowKeyV4_s {
     uint32_t srcAddr;
     uint32_t dstAddr;
 } FlowKeyV4_t;
+
+typedef struct SortElement {
+    void *record;
+    uint64_t count;
+} SortElement_t;
 
 // definitions for khash flow cache
 typedef uint8_t *hashkey_t;  // hash key - byte sequence
@@ -470,11 +478,11 @@ static inline void *New_HashKey(void *keymem, recordHandle_t *recordHandle, int 
 
 }  // End of New_HashKey
 
-static uint64_t null_record(FlowHashRecord_t *record, int inout) { return 0; }
+static uint64_t null_record(FlowHashRecord_t *record, flowDir_t inout) { return 0; }
 
-static uint64_t flows_record(FlowHashRecord_t *record, int inout) { return record->counter[FLOWS]; }
+static uint64_t flows_record(FlowHashRecord_t *record, flowDir_t inout) { return record->flows; }
 
-static uint64_t packets_record(FlowHashRecord_t *record, int inout) {
+static uint64_t packets_record(FlowHashRecord_t *record, flowDir_t inout) {
     if (NeedSwap(GuessDirection, record->hashkey)) {
         if (inout == IN)
             inout = OUT;
@@ -482,14 +490,14 @@ static uint64_t packets_record(FlowHashRecord_t *record, int inout) {
             inout = IN;
     }
     if (inout == IN)
-        return record->counter[INPACKETS];
+        return record->inPackets;
     else if (inout == OUT)
-        return record->counter[OUTPACKETS];
+        return record->outPackets;
     else
-        return record->counter[INPACKETS] + record->counter[OUTPACKETS];
+        return record->inPackets + record->outPackets;
 }
 
-static uint64_t bytes_record(FlowHashRecord_t *record, int inout) {
+static uint64_t bytes_record(FlowHashRecord_t *record, flowDir_t inout) {
     if (NeedSwap(GuessDirection, record->hashkey)) {
         if (inout == IN)
             inout = OUT;
@@ -497,14 +505,14 @@ static uint64_t bytes_record(FlowHashRecord_t *record, int inout) {
             inout = IN;
     }
     if (inout == IN)
-        return record->counter[INBYTES];
+        return record->inBytes;
     else if (inout == OUT)
-        return record->counter[OUTBYTES];
+        return record->outBytes;
     else
-        return record->counter[INBYTES] + record->counter[OUTBYTES];
+        return record->inBytes + record->outBytes;
 }
 
-static uint64_t pps_record(FlowHashRecord_t *record, int inout) {
+static uint64_t pps_record(FlowHashRecord_t *record, flowDir_t inout) {
     /* duration in msec */
     uint64_t duration = record->msecLast - record->msecFirst;
     if (duration == 0)
@@ -515,7 +523,7 @@ static uint64_t pps_record(FlowHashRecord_t *record, int inout) {
     }
 }  // End of pps_record
 
-static uint64_t bps_record(FlowHashRecord_t *record, int inout) {
+static uint64_t bps_record(FlowHashRecord_t *record, flowDir_t inout) {
     uint64_t duration = record->msecLast - record->msecFirst;
     if (duration == 0)
         return 0;
@@ -525,18 +533,18 @@ static uint64_t bps_record(FlowHashRecord_t *record, int inout) {
     }
 }  // End of bps_record
 
-static uint64_t bpp_record(FlowHashRecord_t *record, int inout) {
+static uint64_t bpp_record(FlowHashRecord_t *record, flowDir_t inout) {
     uint64_t packets = packets_record(record, inout);
     uint64_t bytes = bytes_record(record, inout);
 
     return packets ? bytes / packets : 0;
 }  // End of bpp_record
 
-static uint64_t tstart_record(FlowHashRecord_t *record, int inout) { return record->msecFirst; }  // End of tstart_record
+static uint64_t tstart_record(FlowHashRecord_t *record, flowDir_t inout) { return record->msecFirst; }  // End of tstart_record
 
-static uint64_t tend_record(FlowHashRecord_t *record, int inout) { return record->msecLast; }  // End of tend_record
+static uint64_t tend_record(FlowHashRecord_t *record, flowDir_t inout) { return record->msecLast; }  // End of tend_record
 
-static uint64_t duration_record(FlowHashRecord_t *record, int inout) { return record->msecLast - record->msecFirst; }  // End of duration_record
+static uint64_t duration_record(FlowHashRecord_t *record, flowDir_t inout) { return record->msecLast - record->msecFirst; }  // End of duration_record
 
 static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationElement_s *aggregationElement) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
@@ -941,16 +949,16 @@ void InsertFlow(recordHandle_t *recordHandle) {
 
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
 
-    record->counter[INBYTES] = genericFlow->inBytes;
-    record->counter[INPACKETS] = genericFlow->inPackets;
+    record->inBytes = genericFlow->inBytes;
+    record->inPackets = genericFlow->inPackets;
     if (cntFlow) {
-        record->counter[OUTBYTES] = cntFlow->outBytes;
-        record->counter[OUTPACKETS] = cntFlow->outPackets;
-        record->counter[FLOWS] = cntFlow->flows;
+        record->outBytes = cntFlow->outBytes;
+        record->outPackets = cntFlow->outPackets;
+        record->flows = cntFlow->flows;
     } else {
-        record->counter[OUTBYTES] = 0;
-        record->counter[OUTPACKETS] = 0;
-        record->counter[FLOWS] = 1;
+        record->outBytes = 0;
+        record->outPackets = 0;
+        record->flows = 1;
     }
     record->inFlags = genericFlow->tcpFlags;
     record->outFlags = 0;
@@ -1005,10 +1013,10 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
     khiter_t k = kh_get(FlowHash, FlowHash, r);
     if (k != kh_end(FlowHash)) {
         // flow record found - best case! update all fields
-        kh_key(FlowHash, k).counter[INBYTES] += inBytes;
-        kh_key(FlowHash, k).counter[INPACKETS] += inPackets;
-        kh_key(FlowHash, k).counter[OUTBYTES] += outBytes;
-        kh_key(FlowHash, k).counter[OUTPACKETS] += outPackets;
+        kh_key(FlowHash, k).inBytes += inBytes;
+        kh_key(FlowHash, k).inPackets += inPackets;
+        kh_key(FlowHash, k).outBytes += outBytes;
+        kh_key(FlowHash, k).outPackets += outPackets;
         kh_key(FlowHash, k).inFlags |= genericFlow->tcpFlags;
 
         if (genericFlow->msecFirst < kh_key(FlowHash, k).msecFirst) {
@@ -1018,15 +1026,15 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
             kh_key(FlowHash, k).msecLast = genericFlow->msecLast;
         }
 
-        kh_key(FlowHash, k).counter[FLOWS] += aggrFlows;
+        kh_key(FlowHash, k).flows += aggrFlows;
     } else if (genericFlow->proto != IPPROTO_TCP && genericFlow->proto != IPPROTO_UDP) {
         // no flow record found and no TCP/UDP bidir flows. Insert flow record into hash
         k = kh_put(FlowHash, FlowHash, r, &ret);
-        kh_key(FlowHash, k).counter[INBYTES] = inBytes;
-        kh_key(FlowHash, k).counter[INPACKETS] = inPackets;
-        kh_key(FlowHash, k).counter[OUTBYTES] = outBytes;
-        kh_key(FlowHash, k).counter[OUTPACKETS] = outPackets;
-        kh_key(FlowHash, k).counter[FLOWS] = aggrFlows;
+        kh_key(FlowHash, k).inBytes = inBytes;
+        kh_key(FlowHash, k).inPackets = inPackets;
+        kh_key(FlowHash, k).outBytes = outBytes;
+        kh_key(FlowHash, k).outPackets = outPackets;
+        kh_key(FlowHash, k).flows = aggrFlows;
         kh_key(FlowHash, k).inFlags = genericFlow->tcpFlags;
         kh_key(FlowHash, k).outFlags = 0;
 
@@ -1061,10 +1069,10 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         k = kh_get(FlowHash, FlowHash, r);
         if (k != kh_end(FlowHash)) {
             // we found a corresponding flow - so update all fields in reverse direction
-            kh_key(FlowHash, k).counter[OUTBYTES] += inBytes;
-            kh_key(FlowHash, k).counter[OUTPACKETS] += inPackets;
-            kh_key(FlowHash, k).counter[INBYTES] += outBytes;
-            kh_key(FlowHash, k).counter[INPACKETS] += outPackets;
+            kh_key(FlowHash, k).outBytes += inBytes;
+            kh_key(FlowHash, k).outPackets += inPackets;
+            kh_key(FlowHash, k).inBytes += outBytes;
+            kh_key(FlowHash, k).inPackets += outPackets;
             kh_key(FlowHash, k).outFlags |= genericFlow->tcpFlags;
 
             if (genericFlow->msecFirst < kh_key(FlowHash, k).msecFirst) {
@@ -1074,7 +1082,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
                 kh_key(FlowHash, k).msecLast = genericFlow->msecLast;
             }
 
-            kh_key(FlowHash, k).counter[FLOWS] += aggrFlows;
+            kh_key(FlowHash, k).flows += aggrFlows;
         } else {
             // no bidir flow found
             // insert original flow into the cache
@@ -1082,11 +1090,11 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
             r.hash = forwardHash;
             r.hashLen = keyLen;
             k = kh_put(FlowHash, FlowHash, r, &ret);
-            kh_key(FlowHash, k).counter[INBYTES] = inBytes;
-            kh_key(FlowHash, k).counter[INPACKETS] = inPackets;
-            kh_key(FlowHash, k).counter[OUTBYTES] = outBytes;
-            kh_key(FlowHash, k).counter[OUTPACKETS] = outPackets;
-            kh_key(FlowHash, k).counter[FLOWS] = aggrFlows;
+            kh_key(FlowHash, k).inBytes = inBytes;
+            kh_key(FlowHash, k).inPackets = inPackets;
+            kh_key(FlowHash, k).outBytes = outBytes;
+            kh_key(FlowHash, k).outPackets = outPackets;
+            kh_key(FlowHash, k).flows = aggrFlows;
             kh_key(FlowHash, k).inFlags = genericFlow->tcpFlags;
             kh_key(FlowHash, k).outFlags = 0;
 
@@ -1181,10 +1189,10 @@ void AddFlowCache(recordHandle_t *recordHandle) {
     khiter_t k = kh_put(FlowHash, FlowHash, r, &ret);
     if (ret == 0) {
         // flow record found - best case! update all fields
-        kh_key(FlowHash, k).counter[INBYTES] += inBytes;
-        kh_key(FlowHash, k).counter[INPACKETS] += inPackets;
-        kh_key(FlowHash, k).counter[OUTBYTES] += outBytes;
-        kh_key(FlowHash, k).counter[OUTPACKETS] += outPackets;
+        kh_key(FlowHash, k).inBytes += inBytes;
+        kh_key(FlowHash, k).inPackets += inPackets;
+        kh_key(FlowHash, k).outBytes += outBytes;
+        kh_key(FlowHash, k).outPackets += outPackets;
         kh_key(FlowHash, k).inFlags |= genericFlow->tcpFlags;
 
         if (genericFlow->msecFirst < kh_key(FlowHash, k).msecFirst) {
@@ -1194,14 +1202,14 @@ void AddFlowCache(recordHandle_t *recordHandle) {
             kh_key(FlowHash, k).msecLast = genericFlow->msecLast;
         }
 
-        kh_key(FlowHash, k).counter[FLOWS] += aggrFlows;
+        kh_key(FlowHash, k).flows += aggrFlows;
     } else {
         // no flow record found and no TCP/UDP bidir flows. Insert flow record into hash
-        kh_key(FlowHash, k).counter[INBYTES] = inBytes;
-        kh_key(FlowHash, k).counter[INPACKETS] = inPackets;
-        kh_key(FlowHash, k).counter[OUTBYTES] = outBytes;
-        kh_key(FlowHash, k).counter[OUTPACKETS] = outPackets;
-        kh_key(FlowHash, k).counter[FLOWS] = aggrFlows;
+        kh_key(FlowHash, k).inBytes = inBytes;
+        kh_key(FlowHash, k).inPackets = inPackets;
+        kh_key(FlowHash, k).outBytes = outBytes;
+        kh_key(FlowHash, k).outPackets = outPackets;
+        kh_key(FlowHash, k).flows = aggrFlows;
         kh_key(FlowHash, k).inFlags = genericFlow->tcpFlags;
         kh_key(FlowHash, k).outFlags = 0;
 
@@ -1231,17 +1239,12 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
         recordHeaderV3_t *v3record = (r->flowrecord);
 
         recordHandle_t recordHandle = {0};
-        EXcntFlow_t tmpCntFlow = {0};
         MapRecordHandle(&recordHandle, v3record, i + 1);
         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
         EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
         EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
         EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle.extensionList[EXasRoutingID];
         EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
-        if (cntFlow == NULL) {
-            recordHandle.extensionList[EXcntFlowID] = &tmpCntFlow;
-            cntFlow = &tmpCntFlow;
-        }
 
         if (doGeoLookup) {
             if (ipv4Flow) {
@@ -1258,14 +1261,20 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
             }
             SetFlag(v3record->flags, V3_FLAG_ENRICHED);
         }
-        genericFlow->inPackets = r->counter[INPACKETS];
-        genericFlow->inBytes = r->counter[INBYTES];
+        genericFlow->inPackets = r->inPackets;
+        genericFlow->inBytes = r->inBytes;
         genericFlow->msecFirst = r->msecFirst;
         genericFlow->msecLast = r->msecLast;
         genericFlow->tcpFlags = r->inFlags;
-        cntFlow->outPackets = r->counter[OUTPACKETS];
-        cntFlow->outBytes = r->counter[OUTBYTES];
-        cntFlow->flows = r->counter[FLOWS];
+
+        EXcntFlow_t tmpCntFlow = {0};
+        if (cntFlow == NULL && (r->flows > 1 || r->outPackets)) {
+            recordHandle.extensionList[EXcntFlowID] = &tmpCntFlow;
+            cntFlow = &tmpCntFlow;
+            cntFlow->outPackets = r->outPackets;
+            cntFlow->outBytes = r->outBytes;
+            cntFlow->flows = r->flows;
+        }
 
         /*
         // XXX flow_record.revTcpFlags = r->outFlags;
@@ -1302,7 +1311,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
 
         // check, if we need cntFlow extension
         int exCntSize = 0;
-        if (r->counter[OUTPACKETS] || r->counter[OUTBYTES] || r->counter[FLOWS] != 1) {
+        if (r->outPackets || r->outBytes || r->flows > 1) {
             exCntSize = EXcntFlowSize;
         }
 
@@ -1334,16 +1343,16 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
 
         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
         if (genericFlow) {
-            genericFlow->inPackets = r->counter[INPACKETS];
-            genericFlow->inBytes = r->counter[INBYTES];
+            genericFlow->inPackets = r->inPackets;
+            genericFlow->inBytes = r->inBytes;
             genericFlow->msecFirst = r->msecFirst;
             genericFlow->msecLast = r->msecLast;
             genericFlow->tcpFlags = r->inFlags;
         }
         if (cntFlow) {
-            cntFlow->outPackets = r->counter[OUTPACKETS];
-            cntFlow->outBytes = r->counter[OUTBYTES];
-            cntFlow->flows = r->counter[FLOWS];
+            cntFlow->outPackets = r->outPackets;
+            cntFlow->outBytes = r->outBytes;
+            cntFlow->flows = r->flows;
         }
 
         EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];

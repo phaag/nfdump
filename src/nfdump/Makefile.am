@@ -19,6 +19,6 @@ compat = compat_1_6_x/nfx.h compat_1_6_x/nfx.c
 
 nfdump_SOURCES = nfdump.c spin_lock.h \
 	$(exporter) $(nbar) $(ifvrf) $(nfstat) $(nflowcache) $(nfprof) $(sort) $(compat)
-nfdump_LDADD = ../lib/libnfdump.la ../output/liboutput.a ../maxmind/libmaxmind.a
+nfdump_LDADD = ../output/liboutput.a  ../lib/libnfdump.la ../maxmind/libmaxmind.a
 
 CLEANFILES = *.gch

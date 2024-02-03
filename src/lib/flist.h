@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2021, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -36,8 +36,6 @@
 
 #include "queue.h"
 #include "util.h"
-
-#define EMPTY_LIST ((nffile_t *)-1)
 
 typedef struct flist_s {
     char *multiple_dirs;

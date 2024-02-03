@@ -33,15 +33,9 @@
 
 #include <pthread.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <sys/types.h>
 
-#include "config.h"
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
-#include "flist.h"
-#include "id.h"
 #include "nfdump.h"
 #include "nffileV2.h"
 #include "queue.h"
@@ -213,6 +207,9 @@ typedef struct nffile_s {
     char *fileName;              // file name
     uint16_t compression_level;  // compression level, if available.
 } nffile_t;
+
+// returnn value, if all files in list are processed
+#define EMPTY_LIST ((nffile_t *)-1)
 
 #define FILE_IDENT(n) ((n)->ident)
 

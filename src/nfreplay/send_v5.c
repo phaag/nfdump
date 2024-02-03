@@ -159,7 +159,7 @@ int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
     }
 
     if (cnt == 0) {
-        v5_output_record = (netflow_v5_record_t *)((pointer_addr_t)peer->send_buffer + NETFLOW_V5_HEADER_LENGTH);
+        v5_output_record = (netflow_v5_record_t *)(peer->send_buffer + NETFLOW_V5_HEADER_LENGTH);
         peer->buff_ptr = (void *)v5_output_record;
         memset(peer->buff_ptr, 0, NETFLOW_V5_MAX_RECORDS * NETFLOW_V5_RECORD_LENGTH);
 
@@ -217,7 +217,7 @@ int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
     cnt++;
 
     v5_output_header->count = htons(cnt);
-    peer->buff_ptr = (void *)((pointer_addr_t)peer->buff_ptr + NETFLOW_V5_RECORD_LENGTH);
+    peer->buff_ptr = (void *)(peer->buff_ptr + NETFLOW_V5_RECORD_LENGTH);
     v5_output_record++;
     if (cnt == NETFLOW_V5_MAX_RECORDS) {
         peer->flush = 1;

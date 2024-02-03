@@ -47,14 +47,10 @@
 #include <time.h>
 
 #include "blocksort.h"
-#include "bookkeeper.h"
-#include "collector.h"
 #include "config.h"
 #include "khash.h"
 #include "maxmind.h"
 #include "nfdump.h"
-#include "nffile.h"
-#include "nflowcache.h"
 #include "nfxV3.h"
 #include "output_fmt.h"
 #include "output_util.h"
@@ -86,6 +82,11 @@ typedef struct flow_element_s {
     uint32_t length;  // size of element in bytes
     uint32_t af;      // af family, or 0 if not applicable
 } flow_element_t;
+
+typedef struct SortElement {
+    void *record;
+    uint64_t count;
+} SortElement_t;
 
 /*
  *
@@ -965,12 +966,12 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                 if (direction == ASCENDING) {
                     startIndex = 0;
                     endIndex = outputParams->topN;
-                    if (endIndex > numflows) endIndex = numflows;
+                    if (endIndex > numflows || (outputParams->topN == 0)) endIndex = numflows;
                     increment = 1;
                 } else {
                     startIndex = numflows - 1;
                     endIndex = numflows - 1 - outputParams->topN;
-                    if (endIndex < 0) endIndex = -1;
+                    if (endIndex < 0 || (outputParams->topN == 0)) endIndex = -1;
                     increment = -1;
                 }
                 dbg_printf("Print stat table: start: %d, end: %d, incr: %d\n", startIndex, endIndex, increment);

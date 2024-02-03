@@ -44,6 +44,7 @@
 #include <unistd.h>
 
 #include "exporter.h"
+#include "flist.h"
 #include "nbar.h"
 #include "nfconf.h"
 #include "nfdump.h"

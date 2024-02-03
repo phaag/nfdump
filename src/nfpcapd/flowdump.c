@@ -49,6 +49,7 @@
 #include "collector.h"
 #include "config.h"
 #include "exporter.h"
+#include "flist.h"
 #include "metric.h"
 #include "nfdump.h"
 #include "nffile.h"

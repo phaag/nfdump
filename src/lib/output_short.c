@@ -43,11 +43,26 @@
 #include "config.h"
 #include "nfdump.h"
 #include "nfxV3.h"
-#include "output_util.h"
 #include "userio.h"
 #include "util.h"
 
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
+
+static char *FlagsString(uint16_t flags) {
+    static char string[16];
+
+    string[0] = flags & 128 ? 'C' : '.';  // Congestion window reduced -  CWR
+    string[1] = flags & 64 ? 'E' : '.';   // ECN-Echo
+    string[2] = flags & 32 ? 'U' : '.';   // Urgent
+    string[3] = flags & 16 ? 'A' : '.';   // Ack
+    string[4] = flags & 8 ? 'P' : '.';    // Push
+    string[5] = flags & 4 ? 'R' : '.';    // Reset
+    string[6] = flags & 2 ? 'S' : '.';    // Syn
+    string[7] = flags & 1 ? 'F' : '.';    // Fin
+    string[8] = '\0';
+
+    return string;
+}  // End of FlagsString
 
 static void stringEXgenericFlow(FILE *stream, record_map_t *r) {
     elementHeader_t *elementHeader = r->offsetMap[EXgenericFlowID];
@@ -253,10 +268,10 @@ static void stringsEXflowMisc(FILE *stream, record_map_t *r) {
             "  fwd status   =               %3u\n"
             "  dst tos      =               %3u\n"
             "  direction    =               %3u\n"
-            "  biFlow Dir   =              0x%.2x %s\n"
-            "  end reason   =              0x%.2x %s\n",
+            "  biFlow Dir   =              0x%.2x\n"
+            "  end reason   =              0x%.2x\n",
             flowMisc->input, flowMisc->output, flowMisc->srcMask, snet, flowMisc->srcMask, flowMisc->dstMask, dnet, flowMisc->dstMask, fwdStatus, tos,
-            flowMisc->dir, flowMisc->biFlowDir, biFlowString(flowMisc->biFlowDir), flowMisc->flowEndReason, FlowEndString(flowMisc->flowEndReason));
+            flowMisc->dir, flowMisc->biFlowDir, flowMisc->flowEndReason);
 
 }  // End of stringsEXflowMisc
 

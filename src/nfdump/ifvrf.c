@@ -122,32 +122,40 @@ int AddVrfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
 
 char *GetIfName(uint32_t ingress, char *name, size_t len) {
     name[0] = '\0';
-    if (ifTree && ingress != 0) {
-        nameNode_t nameNode = {.ingress = ingress, .name = NULL};
-        nameNode_t *node = kb_getp(ifTree, ifTree, &nameNode);
-        if (node) {
-            snprintf(name, len, " %s", node->name);
+    if (ifTree) {
+        if (ingress != 0) {
+            nameNode_t nameNode = {.ingress = ingress, .name = NULL};
+            nameNode_t *node = kb_getp(ifTree, ifTree, &nameNode);
+            if (node) {
+                snprintf(name, len, " %s", node->name);
+            } else {
+                strncpy(name, " <ingress not found>", len);
+            }
         } else {
-            strncpy(name, " <ingress not found>", len);
+            strncpy(name, " <no if name>", len);
         }
     } else {
-        strncpy(name, " <no if name>", len);
+        name[0] = '\0';
     }
     return name;
 }
 
 char *GetVrfName(uint32_t ingress, char *name, size_t len) {
     name[0] = '\0';
-    if (vrfTree && ingress != 0) {
-        nameNode_t nameNode = {.ingress = ingress, .name = NULL};
-        nameNode_t *node = kb_getp(vrfTree, vrfTree, &nameNode);
-        if (node) {
-            snprintf(name, len, " %s", node->name);
+    if (vrfTree) {
+        if (vrfTree && ingress != 0) {
+            nameNode_t nameNode = {.ingress = ingress, .name = NULL};
+            nameNode_t *node = kb_getp(vrfTree, vrfTree, &nameNode);
+            if (node) {
+                snprintf(name, len, " %s", node->name);
+            } else {
+                strncpy(name, " <ingress not found>", len);
+            }
         } else {
-            strncpy(name, " <ingress not found>", len);
+            strncpy(name, " <no vrf name>", len);
         }
     } else {
-        strncpy(name, " <no vrf name>", len);
+        name[0] = '\0';
     }
     return name;
 }

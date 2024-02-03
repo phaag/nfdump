@@ -31,12 +31,27 @@
 #ifndef _NFDUMP_H
 #define _NFDUMP_H 1
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
+#include <stddef.h>
 #include <stdint.h>
 #include <sys/types.h>
+
+#include "config.h"
+
+#ifndef __has_builtin       // Optional of course.
+#define __has_builtin(x) 0  // Compatibility with non-clang compilers.
+#endif
+
+#ifndef offsetof
+
+#if __has_builtin(__builtin_offsetof)
+#define offsetof(st, m) __builtin_offsetof(st, m)
+#endif
+
+#ifndef offsetof
+#define offsetof(st, m) ((size_t)((char *)&((st *)0)->m - (char *)0))
+#endif
+
+#endif
 
 #include "nfxV3.h"
 

@@ -117,11 +117,6 @@
         }                                                                          \
     }
 
-typedef struct SortElement {
-    void *record;
-    uint64_t count;
-} SortElement_t;
-
 int Init_FlowCache(void);
 
 void Dispose_FlowTable(void);
