@@ -939,7 +939,10 @@ int main(int argc, char **argv) {
 
     SetPriv(userid, groupid);
 
-    Init_sflow(verbose, extensionList);
+    if (!Init_sflow(verbose, extensionList)) {
+        LogError("Init_sflow() failed");
+        exit(EXIT_FAILURE);
+    }
 
     if (subdir_index && !InitHierPath(subdir_index)) {
         close(sock);

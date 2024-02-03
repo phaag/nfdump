@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2017-2023, Peter Haag
+ *  Copyright (c) 2017-2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -1948,7 +1948,7 @@ static void readExtendedProxySocket6(SFSample *sample) {
 */
 
 static void readExtendedDecap(SFSample *sample, char *prefix) {
-    uint32_t offset = getData32(sample);
+    uint32_t offset __attribute__((unused)) = getData32(sample);
     dbg_printf("extendedType %sdecap\n", prefix);
     dbg_printf("%sdecap_inner_header_offset %u\n", prefix, offset);
 }
@@ -1959,7 +1959,7 @@ static void readExtendedDecap(SFSample *sample, char *prefix) {
 */
 
 static void readExtendedVNI(SFSample *sample, char *prefix) {
-    uint32_t vni = getData32(sample);
+    uint32_t vni __attribute__((unused)) = getData32(sample);
     dbg_printf("extendedType %sVNI\n", prefix);
     dbg_printf("%sVNI %u\n", prefix, vni);
 }
