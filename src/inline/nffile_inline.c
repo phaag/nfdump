@@ -69,7 +69,7 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
     elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t));
     // map all extensions
     for (int i = 0; i < recordHeaderV3->numElements; i++) {
-        if ((elementHeader->type > 0 && elementHeader->type < MAXEXTENSIONS) || elementHeader->length == 0) {
+        if ((elementHeader->type > 0 && elementHeader->type < MAXEXTENSIONS) && elementHeader->length != 0) {
             handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
             elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
             handle->elementBits |= 1 << elementHeader->type;

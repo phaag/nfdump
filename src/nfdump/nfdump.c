@@ -412,12 +412,11 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                 case CommonRecordType: {
                     int match;
                     if (__builtin_expect(record_ptr->type == CommonRecordType, 0)) {
-                        dbg_printf("Convert nufump 1.6.x v2 record\n");
+                        dbg_printf("Convert nfdump 1.6.x v2 record\n");
                         process_ptr = ConvertRecordV2((common_record_t *)record_ptr);
                         if (!process_ptr) goto NEXT;
-                    } else {
-                        MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, ++processed);
                     }
+                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)process_ptr, ++processed);
 
                     // Time based filter
                     // if no time filter is given, the result is always true
@@ -562,7 +561,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
 
         NEXT:
             // Advance pointer by number of bytes for netflow record
-            record_ptr = (record_header_t *)((pointer_addr_t)record_ptr + record_ptr->size);
+            record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
 
         }  // for all records
 
@@ -668,9 +667,7 @@ int main(int argc, char **argv) {
             case 'B':
                 GuessDir = 1;
             case 'b':
-                if (!SetBidirAggregation()) {
-                    exit(EXIT_FAILURE);
-                }
+
                 bidir = 1;
                 // implies
                 aggregate = 1;
@@ -1042,6 +1039,17 @@ int main(int argc, char **argv) {
     }
     */
 
+    if ((aggregate || flow_stat || print_order) && !Init_FlowCache()) exit(250);
+
+    if (aggregate && (flow_stat || element_stat)) {
+        aggregate = 0;
+        LogError("Command line switch -s overwrites -a\n");
+    }
+
+    if (bidir && !SetBidirAggregation()) {
+        exit(EXIT_FAILURE);
+    }
+
     if (aggr_fmt) {
         // custom aggregation mask overwrites any output format
         print_format = ParseAggregateMask(aggr_fmt, HasGeoDB);
@@ -1049,6 +1057,7 @@ int main(int argc, char **argv) {
             exit(EXIT_FAILURE);
         }
     }
+    if (element_stat && !Init_StatTable()) exit(250);
 
     if (gnuplot_stat) {
         nffile_t *nffile;
@@ -1077,19 +1086,10 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (aggregate && (flow_stat || element_stat)) {
-        aggregate = 0;
-        LogError("Command line switch -s overwrites -a\n");
-    }
-
     if (print_order && flow_stat) {
         printf("-s record and -O (-m) are mutually exclusive options\n");
         exit(EXIT_FAILURE);
     }
-
-    if ((aggregate || flow_stat || print_order) && !Init_FlowCache()) exit(250);
-
-    if (element_stat && !Init_StatTable()) exit(250);
 
     if (!(flow_stat || element_stat)) {
         PrintProlog(outputParams);

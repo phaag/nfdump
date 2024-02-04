@@ -71,7 +71,8 @@ static struct maskArray_s {
     uint32_t v4Mask;
     uint64_t v6Mask[2];
 } maskArray[MaxMaskArraySize] = {0};
-uint32_t maskIndex = 0;
+// slot 0 empty
+uint32_t maskIndex = 1;
 
 // For automatic output format generation in case of custom aggregation
 #define AggrPrependFmt "%ts %td "
@@ -92,21 +93,21 @@ static struct aggregationElement_s {
                         {"tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, 0, 0, 0, 0, "%tos"},
                         {"srctos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, 0, 0, 0, 0, "%stos"},
                         {"srcip4", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, 0, 0, 1, "%sa"},
-                        {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, 0, 0, 1, "%da"},
+                        {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, 0, 0, 2, "%da"},
                         {"srcip6", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc4Addr, AF_INET6}, 0, 0, 0, 1, "%sa"},
-                        {"dstip6", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, 0, 0, 1, "%da"},
+                        {"dstip6", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, 0, 0, 2, "%da"},
                         {"srcip", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, 0, 0, 1, "%sa"},
                         {"srcip", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, 0, 0, 0, 1, NULL},
-                        {"dstip", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, 0, 0, 1, "%da"},
-                        {"dstip", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, 0, 0, 1, NULL},
+                        {"dstip", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, 0, 0, 2, "%da"},
+                        {"dstip", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, 0, 0, 2, NULL},
                         {"srcnet", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, 0, 0xFF, 0, "%sn"},
                         {"srcnet", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, 0, 0, 0xFF, 0, NULL},
                         {"dstnet", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, 0, 0xFF, 0, "%dn"},
                         {"dstnet", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, 0, 0xFF, 0, NULL},
                         {"xsrcip", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, 0, 0, 0, 1, "%xsa"},
                         {"xsrcip", {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, 0, 0, 0, 1, NULL},
-                        {"xdstip", {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, 0, 0, 0, 1, "%xda"},
-                        {"xdstip", {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, 0, 0, 0, 1, NULL},
+                        {"xdstip", {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, 0, 0, 0, 2, "%xda"},
+                        {"xdstip", {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, 0, 0, 0, 2, NULL},
                         {"xsrcport", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, 0, 0, 0, 0, "%xsp"},
                         {"xdstport", {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, 0, 0, 0, 0, "%xdp"},
                         {"next", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, 0, 0, 0, 1, "%nh"},
@@ -156,7 +157,7 @@ typedef struct FlowHashRecord {
     uint32_t hash;     // the full 32bit hash value - cached for khash resize
     uint16_t hashLen;  // lenhth of hashKey
     uint8_t inFlags;   // tcp in flags
-    uint8_t outFlags;  // tcp out flags
+    uint8_t outFlags;  // tcp out flags XXX unused currently
 
     // time info in msec
     uint64_t msecFirst;
@@ -275,7 +276,7 @@ static struct FlowList_s {
     FlowHashRecord_t *head;
     FlowHashRecord_t **tail;
     size_t NumRecords;
-} FlowList;
+} FlowList = {0};
 
 #define MaxAggrStackSize 64
 static int aggregateInfo[MaxAggrStackSize] = {0};
@@ -300,11 +301,18 @@ static uint32_t bidir_flows = 0;
 #define get16bits(d) ((((uint32_t)(((const uint8_t *)(d))[1])) << 8) + (uint32_t)(((const uint8_t *)(d))[0]))
 #endif
 
+#define NeedSwapGeneric(GuessDir, r)                                                                              \
+    (GuessDir && ((r)->proto == IPPROTO_TCP || (r)->proto == IPPROTO_UDP) &&                                      \
+     ((((r)->srcPort < 1024) && ((r)->dstPort >= 1024)) || (((r)->srcPort < 32768) && ((r)->dstPort >= 32768)) || \
+      (((r)->srcPort < 49152) && ((r)->dstPort >= 49152))))
+
 static inline void *New_HashKey(void *keymem, recordHandle_t *recordHandle, int swap_flow);
 
 static inline int NeedSwap(int GuessDir, void *genericFlowKey);
 
 static SortElement_t *GetSortList(size_t *size);
+
+static void ApplyAggregateMask(recordHandle_t *recordHandle, struct aggregationElement_s *aggregationElement);
 
 static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationElement_s *aggregationElement);
 
@@ -395,6 +403,8 @@ static inline void *New_HashKey(void *keymem, recordHandle_t *recordHandle, int 
             uint32_t tableIndex = aggregateInfo[i];
             if (aggregationTable[tableIndex].netmaskID == 0xFF) {
                 ApplyNetMaskBits(recordHandle, &aggregationTable[tableIndex]);
+            } else if (aggregationTable[tableIndex].netmaskID) {
+                ApplyAggregateMask(recordHandle, &aggregationTable[tableIndex]);
             }
             aggregate_param_t *param = &aggregationTable[tableIndex].param;
             if (recordHandle->extensionList[param->extID] == NULL) continue;
@@ -546,6 +556,30 @@ static uint64_t tend_record(FlowHashRecord_t *record, flowDir_t inout) { return 
 
 static uint64_t duration_record(FlowHashRecord_t *record, flowDir_t inout) { return record->msecLast - record->msecFirst; }  // End of duration_record
 
+static void ApplyAggregateMask(recordHandle_t *recordHandle, struct aggregationElement_s *aggregationElement) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    uint32_t maskIndex = aggregationElement->netmaskID;
+
+    if (ipv4Flow) {
+        if (aggregationElement->allowMask == 1) {
+            ipv4Flow->srcAddr &= maskArray[maskIndex].v4Mask;
+        } else if (aggregationElement->allowMask == 2) {
+            ipv4Flow->dstAddr &= maskArray[maskIndex].v4Mask;
+        }
+    } else if (ipv6Flow) {
+        if (aggregationElement->allowMask == 1) {
+            ipv6Flow->srcAddr[0] &= maskArray[maskIndex].v6Mask[0];
+            ipv6Flow->srcAddr[1] &= maskArray[maskIndex].v6Mask[1];
+        } else if (aggregationElement->allowMask == 2) {
+            ipv6Flow->dstAddr[0] &= maskArray[maskIndex].v6Mask[0];
+            ipv6Flow->dstAddr[1] &= maskArray[maskIndex].v6Mask[1];
+        }
+    }
+
+}  // End of ApplyAggregateMask
+
 static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationElement_s *aggregationElement) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
@@ -647,11 +681,7 @@ int Init_FlowCache(void) {
     if (!nfalloc_Init(0)) return 0;
 
     FlowHash = kh_init(FlowHash);
-
-    FlowList.head = NULL;
-    FlowList.tail = &FlowList.head;
-    FlowList.NumRecords = 0;
-
+    FlowList = (struct FlowList_s){.head = NULL, .tail = &FlowList.head, .NumRecords = 0};
     keymenV4Len = sizeof(FlowKeyV4_t);
     keymenV6Len = sizeof(FlowKeyV6_t);
 
@@ -793,22 +823,20 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
     aggr_fmt[0] = '\0';
     fmt_len -= snprintf(aggr_fmt, fmt_len, "fmt:%s ", AggrPrependFmt);
 
-    uint32_t has_mask = 0;
     uint32_t v4Mask = 0xffffffff;
     uint64_t v6Mask[2] = {0xffffffffffffffffLL, 0xffffffffffffffffLL};
     // separate tokens
     char *p = strtok(arg, ",");
     while (p) {
+        uint32_t has_mask = 0;
         // check for subnet bits
         char *q = strchr(p, '/');
         if (q) {
-            char *n;
-
             *q = 0;
             uint32_t subnet = atoi(q + 1);
 
             // get IP version
-            n = &(p[strlen(p) - 1]);
+            char *n = &(p[strlen(p) - 1]);
             if (*n == '4') {
                 // IPv4
                 if (subnet < 1 || subnet > 32) {
@@ -908,7 +936,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
     }
     aggregateInfo[elementCount] = -1;
 
-#ifdef DEVEL
+    // #ifdef DEVEL
     printf("Aggregate key:  v4len: %zu, v6len: %zu bytes\n", keymenV4Len, keymenV6Len);
     printf("Aggregate format string: '%s'\n", aggr_fmt);
 
@@ -917,15 +945,17 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
         int32_t index = aggregateInfo[i];
         printf("Slot: %d, Element: %s, ExtID: %u, Offset: %u, Length: %u\n", index, aggregationTable[index].aggrElement,
                aggregationTable[index].param.extID, aggregationTable[index].param.offset, aggregationTable[index].param.length);
-        printf("Has IP mask: %i\n", aggregationTable[index].netmaskID);
-        if (aggregationTable[index].netmaskID && aggregationTable[index].netmaskID != 0xFF) {
-            uint32_t maskIndex = aggregationTable[index].netmaskID;
-            printf("v4mask  : 0x%x\n", maskArray[maskIndex].v4Mask);
-            printf("v6mask  : 0x%llx 0x%llx\n", maskArray[maskIndex].v6Mask[0], maskArray[maskIndex].v6Mask[1]);
+        if (aggregationTable[index].netmaskID) {
+            printf("Has IP mask: %i\n", aggregationTable[index].netmaskID);
+            if (aggregationTable[index].netmaskID && aggregationTable[index].netmaskID != 0xFF) {
+                uint32_t maskIndex = aggregationTable[index].netmaskID;
+                printf("v4mask  : 0x%x\n", maskArray[maskIndex].v4Mask);
+                printf("v6mask  : 0x%llx 0x%llx\n", maskArray[maskIndex].v6Mask[0], maskArray[maskIndex].v6Mask[1]);
+            }
         }
     }
 
-#endif
+    // #endif
 
     strncat(aggr_fmt, " ", fmt_len);
     fmt_len--;
@@ -1276,23 +1306,10 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
             cntFlow->flows = r->flows;
         }
 
-        /*
-        // XXX flow_record.revTcpFlags = r->outFlags;
-
-        // apply IP mask from aggregation, to provide a pretty output
-        if (aggregateInfo.has_masks) {
-            flow_record.V6.srcaddr[0] &= aggregateInfo.IPmask[0];
-            flow_record.V6.srcaddr[1] &= aggregateInfo.IPmask[1];
-            flow_record.V6.dstaddr[0] &= aggregateInfo.IPmask[2];
-            flow_record.V6.dstaddr[1] &= aggregateInfo.IPmask[3];
+        if (NeedSwapGeneric(GuessFlowDirection, genericFlow)) {
+            EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
+            SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, flowMisc, cntFlow, asRouting);
         }
-
-        if (aggregateInfo.apply_netbits) ApplyNetMaskBits(&flow_record, aggregateInfo.apply_netbits);
-
-        if (aggr_record_mask) ApplyAggrMask(&flow_record, aggr_record_mask);
-
-        if (NeedSwap(GuessFlowDirection, &flow_record)) SwapFlow(&flow_record);
-        */
 
         print_record(stdout, &recordHandle, outputParams->doTag);
     }
@@ -1355,33 +1372,11 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
             cntFlow->flows = r->flows;
         }
 
-        EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
-        EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
-        /* XXX
-        // mask already applied when storing flow
-        // apply IP mask from aggregation, to provide a pretty output
-        if (aggregateInfo.has_masks) {
-            if (ipv4Flow) {
-                ipv4Flow->srcAddr &= aggregateInfo.srcV4Mask;
-                ipv4Flow->dstAddr &= aggregateInfo.dstV4Mask;
-            } else if (ipv6Flow) {
-                ipv6Flow->srcAddr[0] &= aggregateInfo.srcV6Mask[0];
-                ipv6Flow->srcAddr[1] &= aggregateInfo.srcV6Mask[1];
-                ipv6Flow->dstAddr[0] &= aggregateInfo.dstV6Mask[0];
-                ipv6Flow->dstAddr[1] &= aggregateInfo.dstV6Mask[1];
-            }
-        }
-        */
-
-        EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
-        if (flowMisc) {
-            flowMisc->revTcpFlags = r->outFlags;
-            // XXX if (aggregateInfo.apply_netbits) SetNetMaskBits(ipv4Flow, ipv6Flow, flowMisc, aggregateInfo.apply_netbits);
-        }
-        EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle.extensionList[EXasRoutingID];
-
-        int needSwap = NeedSwap(GuessFlowDirection, genericFlow);
-        if (needSwap) {
+        if (NeedSwapGeneric(GuessFlowDirection, genericFlow)) {
+            EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
+            EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
+            EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
+            EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle.extensionList[EXasRoutingID];
             SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, flowMisc, cntFlow, asRouting);
         }
 

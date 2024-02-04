@@ -32,7 +32,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record);
 
 static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
     // tmp buffer on stack
-    static char tmpRecord[65535];
+    static char tmpRecord[4096];
     record_header_t *record_ptr = (record_header_t *)tmpRecord;
     void *p = input_record->data;
 
@@ -44,6 +44,10 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
     }
     if (extension_map_list->slot[map_id] == NULL) {
         LogError("Corrupt data file. Missing extension map %u. Skip record.\n", input_record->ext_map);
+        return NULL;
+    }
+    if (input_record->size > 2048) {
+        LogError("Corrupt data file. record size %u. Skip record.\n", input_record->size);
         return NULL;
     }
     extension_info_t *extension_info = extension_map_list->slot[map_id];
@@ -300,11 +304,9 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
                 latency->usecApplLatency = tpl->appl_latency_usec;
                 p = (void *)tpl->data;
             } break;
-#ifdef NSEL
             case EX_NSEL_COMMON: {
                 tpl_ext_37_t *tpl = (tpl_ext_37_t *)p;
                 PushExtension(recordHeader, EXnselCommon, nselCommon);
-                recordHeader->flags = FW_EVENT;
                 nselCommon->msecEvent = tpl->event_time;
                 nselCommon->connID = tpl->conn_id;
                 nselCommon->fwXevent = tpl->fw_xevent;
@@ -359,7 +361,6 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
                 tpl_ext_46_t *tpl = (tpl_ext_46_t *)p;
                 PushExtension(recordHeader, EXnelCommon, nelCommon);
                 nelCommon->natEvent = tpl->nat_event;
-                recordHeader->flags = FW_EVENT;
                 PushExtension(recordHeader, EXvrf, vrf);
                 vrf->egressVrf = tpl->egress_vrfid;
                 vrf->ingressVrf = tpl->ingress_vrfid;
@@ -381,7 +382,6 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
                     nelXlatePort->blockEnd = nelXlatePort->blockStart + nelXlatePort->blockSize - 1;
                 p = (void *)tpl->data;
             } break;
-#endif
         }
     }
 
