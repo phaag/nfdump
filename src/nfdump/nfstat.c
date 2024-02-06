@@ -709,21 +709,18 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
         bytes_percent = 0;
     }
 
-    uint32_t bpp;
-    uint64_t pps, bps;
+    uint64_t pps = 0;
+    uint64_t bps = 0;
     double duration = (StatData->msecLast - StatData->msecFirst) / 1000.0;
     if (duration != 0) {
         // duration in sec
         pps = (count_packets) / duration;
         bps = (8 * count_bytes) / duration;
-    } else {
-        pps = bps = 0;
     }
 
+    uint32_t bpp = 0;
     if (count_packets) {
         bpp = count_bytes / count_packets;
-    } else {
-        bpp = 0;
     }
 
     char pps_str[NUMBER_STRING_SIZE], bps_str[NUMBER_STRING_SIZE];
@@ -1037,7 +1034,7 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
     // Sorting makes only sense, when 2 or more flows are left
     if (c >= 2) {
         if (c < 100)
-            heapSort(topN_list, c, topN, direction);
+            heapSort(topN_list, c, topN, DESCENDING);
         else
             blocksort((SortRecord_t *)topN_list, c);
     }

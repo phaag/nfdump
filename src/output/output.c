@@ -48,6 +48,31 @@
 #define MAXMODELEN 16
 #define MAXFORMATS 64
 
+#define FORMAT_line "%ts %td %pr %sap -> %dap %pkt %byt %fl"
+
+#define FORMAT_gline "%ts %td %pr %gsap -> %gdap %pkt %byt %fl"
+
+#define FORMAT_long "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %fl"
+
+#define FORMAT_glong "%ts %td %pr %gsap -> %gdap %flg %tos %pkt %byt %fl"
+
+#define FORMAT_extended "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %pps %bps %bpp %fl"
+
+#define FORMAT_biline "%ts %td %pr %sap <-> %dap %opkt %ipkt %obyt %ibyt %fl"
+
+#define FORMAT_bilong "%ts %td %pr %sap <-> %dap %flg %tos %opkt %ipkt %obyt %ibyt %fl"
+
+#define FORMAT_nsel "%ts %evt %xevt %pr %sap -> %dap %xsap -> %xdap %ibyt %obyt"
+
+#define FORMAT_nat "%ts %nevt %pr %sap -> %dap %nsap -> %ndap"
+
+#ifdef NSEL
+#define DefaultMode "nsel"
+#else
+#define DefaultMode "line"
+#endif
+#define DefaultGeoMode "gline"
+
 static void null_record(FILE *stream, recordHandle_t *record, int tag);
 
 static void null_prolog(void);
@@ -64,13 +89,12 @@ printmap_t printmap[MAXFORMATS] = {{"raw", raw_record, raw_prolog, raw_epilog, N
                                    {"extended", fmt_record, fmt_prolog, fmt_epilog, FORMAT_extended},
                                    {"biline", fmt_record, fmt_prolog, fmt_epilog, FORMAT_biline},
                                    {"bilong", fmt_record, fmt_prolog, fmt_epilog, FORMAT_bilong},
+                                   {"nsel", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nsel},
+                                   {"nat", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nat},
                                    {"json", flow_record_to_json, json_prolog, json_epilog, NULL},
                                    {"csv", csv_record, csv_prolog, csv_epilog, NULL},
                                    {"null", null_record, null_prolog, null_epilog, NULL},
-#ifdef NSEL
-                                   {"nsel", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nsel},
-                                   {"nel", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nel},
-#endif
+
                                    // This is always the last line
                                    {NULL, NULL, NULL, NULL, ""}};
 

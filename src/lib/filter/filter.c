@@ -447,34 +447,39 @@ static int RunFilterFast(FilterEngine_t *engine, recordHandle_t *handle) {
     int invert = 0;
     int evaluate = 0;
     while (index) {
-        uint64_t offset = engine->filter[index].offset;
+        size_t offset = engine->filter[index].offset;
         uint32_t extID = engine->filter[index].extID;
-        if (handle->extensionList[extID] == NULL) return 0;
-        void *inPtr = (void *)(handle->extensionList[extID] + offset);
-        dbg_assert(engine->filter[index].length <= 8);
-        uint64_t inVal = 0;
-        switch (engine->filter[index].length) {
-            case 0:
-                break;
-            case 1:
-                inVal = *((uint8_t *)inPtr);
-                break;
-            case 2:
-                inVal = *((uint16_t *)inPtr);
-                break;
-            case 4:
-                inVal = *((uint32_t *)inPtr);
-                break;
-            case 8:
-                inVal = *((uint64_t *)inPtr);
-                break;
-            default:
-                memcpy((void *)&inVal, inPtr, engine->filter[index].length);
-        }
+        void *inPtr = handle->extensionList[extID];
+        if (handle->extensionList[extID] == NULL) {
+            invert = 0;
+            evaluate = 0;
+        } else {
+            inPtr += offset;
+            uint64_t inVal = 0;
+            dbg_assert(engine->filter[index].length <= 8);
+            switch (engine->filter[index].length) {
+                case 0:
+                    break;
+                case 1:
+                    inVal = *((uint8_t *)inPtr);
+                    break;
+                case 2:
+                    inVal = *((uint16_t *)inPtr);
+                    break;
+                case 4:
+                    inVal = *((uint32_t *)inPtr);
+                    break;
+                case 8:
+                    inVal = *((uint64_t *)inPtr);
+                    break;
+                default:
+                    memcpy((void *)&inVal, inPtr, engine->filter[index].length);
+            }
 
-        // printf("Value: %.16llx, : %.16llx\n", (long long unsigned)inVal, engine->filter[index].value);
-        invert = engine->filter[index].invert;
-        evaluate = inVal == engine->filter[index].value;
+            // printf("Value: %.16llx, : %.16llx\n", (long long unsigned)inVal, engine->filter[index].value);
+            invert = engine->filter[index].invert;
+            evaluate = inVal == engine->filter[index].value;
+        }
         index = evaluate ? engine->filter[index].OnTrue : engine->filter[index].OnFalse;
     }
     return invert ? !evaluate : evaluate;
@@ -490,126 +495,132 @@ static int RunExtendedFilter(FilterEngine_t *engine, recordHandle_t *handle) {
         uint32_t offset = engine->filter[index].offset;
         uint32_t length = engine->filter[index].length;
         data_t data = engine->filter[index].data;
-        if (handle->extensionList[extID] == NULL) return 0;
-        invert = engine->filter[index].invert;
+
+        void *inPtr = handle->extensionList[extID];
 
         uint64_t inVal = 0;
-        if (engine->filter[index].function != NULL) {
-            inVal = engine->filter[index].function(offset, length, data, handle);
+        if (inPtr == NULL) {
+            invert = 0;
+            evaluate = 0;
         } else {
-            void *inPtr = (void *)(handle->extensionList[extID] + offset);
-            switch (length) {
-                case 0:
-                    break;
-                case 1:
-                    inVal = *((uint8_t *)inPtr);
-                    break;
-                case 2:
-                    inVal = *((uint16_t *)inPtr);
-                    break;
-                case 4:
-                    inVal = *((uint32_t *)inPtr);
-                    break;
-                case 8:
-                    inVal = *((uint64_t *)inPtr);
-                    break;
-                    // default:
-                    //  memcpy((void *)&inVal, inPtr, length);
-            }
-        }
-
-        switch (engine->filter[index].comp) {
-            case CMP_EQ:
-                evaluate = inVal == engine->filter[index].value;
-                break;
-            case CMP_GT:
-                evaluate = inVal > engine->filter[index].value;
-                break;
-            case CMP_LT:
-                evaluate = inVal < engine->filter[index].value;
-                break;
-            case CMP_GE:
-                evaluate = inVal >= engine->filter[index].value;
-                break;
-            case CMP_LE:
-                evaluate = inVal <= engine->filter[index].value;
-                break;
-            case CMP_FLAGS: {
-                evaluate = (inVal & engine->filter[index].value) == engine->filter[index].value;
-            } break;
-            case CMP_IDENT: {
-                char *inPtr = engine->ident;
-                char *str = (char *)data.dataPtr;
-                evaluate = str != NULL && (strcmp(inPtr, str) == 0 ? 1 : 0);
-            } break;
-            case CMP_STRING: {
-                char *inPtr = (char *)(handle->extensionList[extID] + offset);
-                char *str = (char *)data.dataPtr;
-                evaluate = str != NULL && (strcmp(inPtr, str) == 0 ? 1 : 0);
-            } break;
-            case CMP_BINARY: {
-                void *dataPtr = data.dataPtr;
+            invert = engine->filter[index].invert;
+            if (engine->filter[index].function != NULL) {
+                inVal = engine->filter[index].function(offset, length, data, handle);
+            } else {
                 void *inPtr = (void *)(handle->extensionList[extID] + offset);
-                evaluate = dataPtr != NULL && memcmp(dataPtr, inPtr, length) == 0;
-            } break;
-            case CMP_NET: {
-                uint64_t mask = data.dataVal;
-                evaluate = (inVal & mask) == engine->filter[index].value;
-            } break;
-            case CMP_IPLIST: {
-                struct IPListNode find;
-                printf("CMP_IPLIST: %llx, length: %d\n", inVal, length);
-                if (length == 4) {
-                    find.ip[0] = 0;
-                    find.ip[1] = inVal;
-                    find.mask[0] = 0xffffffffffffffffLL;
-                    find.mask[1] = 0xffffffffffffffffLL;
-                    evaluate = RB_FIND(IPtree, data.dataPtr, &find) != NULL;
-                } else if (length == 16) {
-                    find.ip[0] = *((uint64_t *)(handle->extensionList[extID] + offset));
-                    find.ip[1] = *((uint64_t *)(handle->extensionList[extID] + offset + 8));
-                    find.mask[0] = 0xffffffffffffffffLL;
-                    find.mask[1] = 0xffffffffffffffffLL;
-                    evaluate = RB_FIND(IPtree, data.dataPtr, &find) != NULL;
-                } else {
-                    evaluate = 0;
+                switch (length) {
+                    case 0:
+                        break;
+                    case 1:
+                        inVal = *((uint8_t *)inPtr);
+                        break;
+                    case 2:
+                        inVal = *((uint16_t *)inPtr);
+                        break;
+                    case 4:
+                        inVal = *((uint32_t *)inPtr);
+                        break;
+                    case 8:
+                        inVal = *((uint64_t *)inPtr);
+                        break;
+                        // default:
+                        //  memcpy((void *)&inVal, inPtr, length);
                 }
-            } break;
-            case CMP_U64LIST: {
-                struct U64ListNode find;
-                find.value = inVal;
-                evaluate = RB_FIND(U64tree, data.dataPtr, &find) != NULL;
-            } break;
-            case CMP_PAYLOAD: {
-                char *payload = (char *)(handle->extensionList[extID]);
-                char *string = (char *)engine->filter[index].data.dataPtr;
-                elementHeader_t *elementHeader = (elementHeader_t *)(payload - sizeof(elementHeader_t));
-                uint32_t len = elementHeader->length;
-                evaluate = 0;
-                if (string != NULL) {
-                    // find any string str in payload data inPtr, even beyond '\0' bytes
-                    int m = 0;
-                    for (int i = 0; i < len; i++) {
-                        if (payload[i] == string[m]) {
-                            m++;
-                            if (string[m] == '\0') {
-                                evaluate = 1;
-                                break;
+            }
+
+            switch (engine->filter[index].comp) {
+                case CMP_EQ:
+                    evaluate = inVal == engine->filter[index].value;
+                    break;
+                case CMP_GT:
+                    evaluate = inVal > engine->filter[index].value;
+                    break;
+                case CMP_LT:
+                    evaluate = inVal < engine->filter[index].value;
+                    break;
+                case CMP_GE:
+                    evaluate = inVal >= engine->filter[index].value;
+                    break;
+                case CMP_LE:
+                    evaluate = inVal <= engine->filter[index].value;
+                    break;
+                case CMP_FLAGS: {
+                    evaluate = (inVal & engine->filter[index].value) == engine->filter[index].value;
+                } break;
+                case CMP_IDENT: {
+                    char *inPtr = engine->ident;
+                    char *str = (char *)data.dataPtr;
+                    evaluate = str != NULL && (strcmp(inPtr, str) == 0 ? 1 : 0);
+                } break;
+                case CMP_STRING: {
+                    char *inPtr = (char *)(handle->extensionList[extID] + offset);
+                    char *str = (char *)data.dataPtr;
+                    evaluate = str != NULL && (strcmp(inPtr, str) == 0 ? 1 : 0);
+                } break;
+                case CMP_BINARY: {
+                    void *dataPtr = data.dataPtr;
+                    void *inPtr = (void *)(handle->extensionList[extID] + offset);
+                    evaluate = dataPtr != NULL && memcmp(dataPtr, inPtr, length) == 0;
+                } break;
+                case CMP_NET: {
+                    uint64_t mask = data.dataVal;
+                    evaluate = (inVal & mask) == engine->filter[index].value;
+                } break;
+                case CMP_IPLIST: {
+                    struct IPListNode find;
+                    dbg_printf("CMP_IPLIST: %llx, length: %d\n", inVal, length);
+                    if (length == 4) {
+                        find.ip[0] = 0;
+                        find.ip[1] = inVal;
+                        find.mask[0] = 0xffffffffffffffffLL;
+                        find.mask[1] = 0xffffffffffffffffLL;
+                        evaluate = RB_FIND(IPtree, data.dataPtr, &find) != NULL;
+                    } else if (length == 16) {
+                        find.ip[0] = *((uint64_t *)(handle->extensionList[extID] + offset));
+                        find.ip[1] = *((uint64_t *)(handle->extensionList[extID] + offset + 8));
+                        find.mask[0] = 0xffffffffffffffffLL;
+                        find.mask[1] = 0xffffffffffffffffLL;
+                        evaluate = RB_FIND(IPtree, data.dataPtr, &find) != NULL;
+                    } else {
+                        evaluate = 0;
+                    }
+                } break;
+                case CMP_U64LIST: {
+                    struct U64ListNode find;
+                    find.value = inVal;
+                    evaluate = RB_FIND(U64tree, data.dataPtr, &find) != NULL;
+                } break;
+                case CMP_PAYLOAD: {
+                    char *payload = (char *)(handle->extensionList[extID]);
+                    char *string = (char *)engine->filter[index].data.dataPtr;
+                    elementHeader_t *elementHeader = (elementHeader_t *)(payload - sizeof(elementHeader_t));
+                    uint32_t len = elementHeader->length;
+                    evaluate = 0;
+                    if (string != NULL) {
+                        // find any string str in payload data inPtr, even beyond '\0' bytes
+                        int m = 0;
+                        for (int i = 0; i < len; i++) {
+                            if (payload[i] == string[m]) {
+                                m++;
+                                if (string[m] == '\0') {
+                                    evaluate = 1;
+                                    break;
+                                }
+                            } else {
+                                m = 0;
                             }
-                        } else {
-                            m = 0;
                         }
                     }
-                }
-            } break;
-            case CMP_REGEX: {
-                srx_Context *program = (srx_Context *)data.dataPtr;
-                char *payload = (char *)(handle->extensionList[extID]);
-                elementHeader_t *elementHeader = (elementHeader_t *)(payload - sizeof(elementHeader_t));
-                uint32_t len = elementHeader->length;
+                } break;
+                case CMP_REGEX: {
+                    srx_Context *program = (srx_Context *)data.dataPtr;
+                    char *payload = (char *)(handle->extensionList[extID]);
+                    elementHeader_t *elementHeader = (elementHeader_t *)(payload - sizeof(elementHeader_t));
+                    uint32_t len = elementHeader->length;
 
-                evaluate = program != NULL && srx_MatchExt(program, payload, len, 0);
-            } break;
+                    evaluate = program != NULL && srx_MatchExt(program, payload, len, 0);
+                } break;
+            }
         }
         index = evaluate ? engine->filter[index].OnTrue : engine->filter[index].OnFalse;
     }

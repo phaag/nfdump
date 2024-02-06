@@ -599,7 +599,10 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
     tag_string[0] = do_tag ? TAG_CHAR : '\0';
     tag_string[1] = '\0';
 
-    if (genericFlow) duration = (genericFlow->msecLast - genericFlow->msecFirst) / 1000.0;
+    duration = 0;
+    if (genericFlow && genericFlow->msecLast) {
+        duration = (genericFlow->msecLast - genericFlow->msecFirst) / 1000.0;
+    }
     for (int i = 0; i < token_index; i++) {
         if (token_list[i].string_function) {
             token_list[i].string_function(stream, recordHandle);

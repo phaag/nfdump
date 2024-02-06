@@ -1350,12 +1350,9 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
         if (cntFlow == NULL && exCntSize) {
             PushExtension(recordHeaderV3, EXcntFlow, extPtr);
             cntFlow = extPtr;
-            nffile->buff_ptr += recordHeaderV3->size;
-            nffile->block_header->size += recordHeaderV3->size;
-        } else {
-            nffile->buff_ptr += recordHeaderV3->size;
-            nffile->block_header->size += recordHeaderV3->size;
         }
+        nffile->buff_ptr += recordHeaderV3->size;
+        nffile->block_header->size += recordHeaderV3->size;
         nffile->block_header->NumRecords++;
 
         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
@@ -1388,11 +1385,11 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
 
 int SetBidirAggregation(void) {
     dbg_printf("Enter %s\n", __func__);
+
     if (aggregateInfo[0] != -1) {
         LogError("Can not set bidir mode with custom aggregation mask");
         return 0;
     }
-
     bidir_flows = 1;
 
     return 1;
@@ -1422,11 +1419,9 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
                 SortList[i].count = order_mode[order_index].record_function(r, order_mode[order_index].inout);
             }
 
-            int direction = PrintDirection;
             if (maxindex > 2) {
                 if (maxindex < 100) {
-                    heapSort(SortList, maxindex, outputParams->topN, PrintDirection);
-                    direction = 0;
+                    heapSort(SortList, maxindex, outputParams->topN, DESCENDING);
                 } else {
                     blocksort((SortRecord_t *)SortList, maxindex);
                 }
@@ -1440,7 +1435,7 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
                 }
             }
             PrintProlog(outputParams);
-            PrintSortList(SortList, maxindex, outputParams, 0, print_record, direction);
+            PrintSortList(SortList, maxindex, outputParams, 0, print_record, PrintDirection);
         }
     }
 
@@ -1464,8 +1459,7 @@ void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, 
 
         if (maxindex >= 2) {
             if (maxindex < 100) {
-                heapSort(SortList, maxindex, 0, PrintDirection);
-                PrintDirection = 0;
+                heapSort(SortList, maxindex, 0, DESCENDING);
             } else {
                 blocksort((SortRecord_t *)SortList, maxindex);
             }
@@ -1497,8 +1491,7 @@ int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
 
         if (maxindex >= 2) {
             if (maxindex < 100) {
-                heapSort(SortList, maxindex, 0, PrintDirection);
-                PrintDirection = 0;
+                heapSort(SortList, maxindex, 0, DESCENDING);
             } else {
                 blocksort((SortRecord_t *)SortList, maxindex);
             }
