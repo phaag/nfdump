@@ -42,15 +42,19 @@
 #include <unistd.h>
 
 #include "filter.h"
+#include "maxmind.h"
 #include "sgregex.h"
 #include "util.h"
+
+#define MAXBLOCKS 1024
 
 static uint32_t memblocks;
 static uint32_t NumBlocks = 1; /* index 0 reserved */
 static int Extended = 0;
 uint32_t StartNode = 0;
+uint32_t HasGeoDB = 0;
 
-typedef uint64_t (*flow_proc_t)(uint32_t, uint32_t, data_t, recordHandle_t *);
+typedef uint64_t (*flow_proc_t)(void *, uint32_t, data_t, recordHandle_t *);
 
 typedef struct filterElement {
     /* Filter specific data */
@@ -64,6 +68,7 @@ typedef struct filterElement {
     uint32_t *blocklist; /* index array of blocks, belonging to
                                             this superblock */
 
+    uint32_t geoLookup;       /* info on geoLookup */
     uint32_t numblocks;       /* number of blocks in blocklist */
     uint32_t OnTrue, OnFalse; /* Jump Index for tree */
     int16_t invert;           /* Invert result of test */
@@ -90,15 +95,16 @@ static filterElement_t *FilterTree;
 static void UpdateList(uint32_t a, uint32_t b);
 
 /* flow processing functions */
-static uint64_t duration_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle);
-static uint64_t pps_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle);
-static uint64_t bps_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle);
-static uint64_t bpp_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle);
-static uint64_t mpls_label_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle);
-static uint64_t mpls_eos_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle);
-static uint64_t mpls_exp_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle);
-static uint64_t mpls_any_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle);
-static uint64_t pblock_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t duration_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t pps_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t bps_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t bpp_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t mpls_label_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t mpls_eos_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t mpls_exp_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t mpls_any_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
 /*
  * flow processing function table:
@@ -117,10 +123,9 @@ static struct flow_procs_map_s {
                       {FUNC_MPLS_EOS, "mpls eos", mpls_eos_function},
                       {FUNC_MPLS_EXP, "mpls exp", mpls_exp_function},
                       {FUNC_MPLS_ANY, "mpls any", mpls_any_function},
+                      {FUNC_MMAS_LOOKUP, "AS Lockup", mmASLookup_function},
                       {FUNC_PBLOCK, "pblock", pblock_function},
                       {0, NULL, NULL}};
-
-#define MAXBLOCKS 1024
 
 // 128bit compare for IPv6
 static int IPNodeCMP(struct IPListNode *e1, struct IPListNode *e2) {
@@ -157,14 +162,14 @@ RB_GENERATE(IPtree, IPListNode, entry, IPNodeCMP);
 // Insert the uint64_t RB tree code here
 RB_GENERATE(U64tree, U64ListNode, entry, U64NodeCMP);
 
-static uint64_t duration_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle) {
+static uint64_t duration_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)handle->extensionList[EXgenericFlowID];
 
     // duration in msec
     return genericFlow->msecLast - genericFlow->msecFirst;
 }  // End of duration_function
 
-static uint64_t pps_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle) {
+static uint64_t pps_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)handle->extensionList[EXgenericFlowID];
 
     /* duration in msec */
@@ -176,7 +181,7 @@ static uint64_t pps_function(uint32_t offset, uint32_t length, data_t data, reco
 
 }  // End of pps_function
 
-static uint64_t bps_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle) {
+static uint64_t bps_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)handle->extensionList[EXgenericFlowID];
 
     /* duration in msec */
@@ -189,14 +194,14 @@ static uint64_t bps_function(uint32_t offset, uint32_t length, data_t data, reco
 
 }  // End of bps_function
 
-static uint64_t bpp_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle) {
+static uint64_t bpp_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)handle->extensionList[EXgenericFlowID];
 
     return genericFlow->inPackets ? genericFlow->inBytes / genericFlow->inPackets : 0;
 
 }  // End of bpp_function
 
-static uint64_t mpls_label_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle) {
+static uint64_t mpls_label_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
     EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)handle->extensionList[EXmplsLabelID];
     int64_t labelID = data.dataVal;
 
@@ -204,7 +209,7 @@ static uint64_t mpls_label_function(uint32_t offset, uint32_t length, data_t dat
 
 }  // End of mpls_label_function
 
-static uint64_t mpls_eos_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle) {
+static uint64_t mpls_eos_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
     EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)handle->extensionList[EXmplsLabelID];
 
     // search for end of MPLS stack label
@@ -220,14 +225,15 @@ static uint64_t mpls_eos_function(uint32_t offset, uint32_t length, data_t data,
 
 }  // End of mpls_eos_function
 
-static uint64_t mpls_exp_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle) {
+static uint64_t mpls_exp_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
     EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)handle->extensionList[EXmplsLabelID];
 
+    uint32_t offset = data.dataVal;
     return (mplsLabel->mplsLabel[offset] >> 1) & 0x7;
 
 }  // End of mpls_exp_function
 
-static uint64_t mpls_any_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle) {
+static uint64_t mpls_any_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
     EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)handle->extensionList[EXmplsLabelID];
     int64_t labelValue = data.dataVal;
 
@@ -242,21 +248,98 @@ static uint64_t mpls_any_function(uint32_t offset, uint32_t length, data_t data,
     // if no match above, trick filter to fail with an invalid mpls label value
     return 0xFF000000;
 
+    uint32_t offset = data.dataVal;
     return mplsLabel->mplsLabel[offset] >> 4;
 
 }  // End of mpls_any_function
 
-static uint64_t pblock_function(uint32_t offset, uint32_t length, data_t data, recordHandle_t *handle) {
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)handle->extensionList[EXgenericFlowID];
+static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
     EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)handle->extensionList[EXnelXlatePortID];
 
-    if (!genericFlow || !nelXlatePort) return 0;
+    if (!nelXlatePort) return 0;
 
-    uint16_t port = offset == OFFsrcPort ? genericFlow->srcPort : genericFlow->dstPort;
+    uint16_t port = *((uint16_t *)dataPtr);
 
     return (port >= nelXlatePort->blockStart && port <= nelXlatePort->blockEnd);
 
 }  // End of pblock_function
+
+static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    uint32_t as = *((uint32_t *)dataPtr);
+    if (HasGeoDB == 0 || as != 0) return as;
+
+    if (ipv4Flow) {
+        as = LookupV4AS(ipv4Flow->srcAddr);
+    } else if (ipv6Flow) {
+        as = LookupV6AS(ipv6Flow->srcAddr);
+    }
+    *((uint32_t *)dataPtr) = as;
+    return as;
+}  // End of mmASLookup_function
+
+static int geoLookup(char *geoChar, uint64_t direction, recordHandle_t *recordHandle) {
+    geoChar[0] = geoChar[1] = '.';
+    switch (direction) {
+        case DIR_SRC: {
+            EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+            EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+            if (ipv4Flow) {
+                LookupV4Country(ipv4Flow->srcAddr, geoChar);
+            } else if (ipv6Flow) {
+                LookupV6Country(ipv6Flow->srcAddr, geoChar);
+            }
+        } break;
+        case DIR_DST: {
+            EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+            EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+            if (ipv4Flow) {
+                LookupV4Country(ipv4Flow->dstAddr, geoChar);
+            } else if (ipv6Flow) {
+                LookupV6Country(ipv6Flow->dstAddr, geoChar);
+            }
+        } break;
+        case DIR_SRC_NAT: {
+            EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
+            EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)recordHandle->extensionList[EXnselXlateIPv6ID];
+            if (nselXlateIPv4) {
+                LookupV4Country(nselXlateIPv4->xlateSrcAddr, geoChar);
+            } else if (nselXlateIPv6) {
+                LookupV6Country(nselXlateIPv6->xlateSrcAddr, geoChar);
+            }
+        } break;
+        case DIR_DST_NAT: {
+            EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
+            EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)recordHandle->extensionList[EXnselXlateIPv6ID];
+            if (nselXlateIPv4) {
+                LookupV4Country(nselXlateIPv4->xlateDstAddr, geoChar);
+            } else if (nselXlateIPv6) {
+                LookupV6Country(nselXlateIPv6->xlateDstAddr, geoChar);
+            }
+        } break;
+        case DIR_SRC_TUN: {
+            EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
+            EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
+            if (tunIPv4) {
+                LookupV4Country(tunIPv4->tunSrcAddr, geoChar);
+            } else if (tunIPv6) {
+                LookupV6Country(tunIPv6->tunSrcAddr, geoChar);
+            }
+        } break;
+        case DIR_DST_TUN: {
+            EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
+            EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
+            if (tunIPv4) {
+                LookupV4Country(tunIPv4->tunDstAddr, geoChar);
+            } else if (tunIPv6) {
+                LookupV6Country(tunIPv6->tunDstAddr, geoChar);
+            }
+        } break;
+    }
+    return *((uint16_t *)(geoChar));
+
+}  // ENd of geoLookup
 
 /*
  * Returns next free slot in blocklist
@@ -274,29 +357,32 @@ uint32_t NewElement(uint32_t extID, uint32_t offset, uint32_t length, uint64_t v
     }
     dbg_printf("New element: extID: %u, offset: %u, length: %u, value: %llu\n", extID, offset, length, value);
 
-    FilterTree[n].extID = extID;
-    FilterTree[n].offset = offset;
-    FilterTree[n].length = length;
-    FilterTree[n].value = value;
-    FilterTree[n].invert = 0;
-    FilterTree[n].OnTrue = 0;
-    FilterTree[n].OnFalse = 0;
-    FilterTree[n].comp = comp;
-    FilterTree[n].function = flow_procs_map[function].function;
-    FilterTree[n].fname = flow_procs_map[function].name;
-    FilterTree[n].label = NULL;
-    FilterTree[n].data = data;
-    if (comp > 0 || function > 0) Extended = 1;
-
     // sanity check
     if (function && flow_procs_map[function].filterNum != function) {
         LogError("Software error in %s line %d", __FILE__, __LINE__);
         exit(255);
     }
-    FilterTree[n].numblocks = 1;
-    FilterTree[n].blocklist = (uint32_t *)malloc(sizeof(uint32_t));
-    FilterTree[n].superblock = n;
+
+    FilterTree[n] = (filterElement_t){
+        .extID = extID,
+        .offset = offset,
+        .length = length,
+        .value = value,
+        .invert = 0,
+        .OnTrue = 0,
+        .OnFalse = 0,
+        .comp = comp,
+        .function = flow_procs_map[function].function,
+        .fname = flow_procs_map[function].name,
+        .label = NULL,
+        .data = data,
+        .numblocks = 1,
+        .blocklist = (uint32_t *)malloc(sizeof(uint32_t)),
+        .superblock = n,
+    };
     FilterTree[n].blocklist[0] = n;
+
+    if (comp > 0 || function > 0) Extended = 1;
     NumBlocks++;
     return n;
 
@@ -426,7 +512,7 @@ static void ClearFilter(void) {
     memset((void *)FilterTree, 0, MAXBLOCKS * sizeof(filterElement_t));
 } /* End of ClearFilter */
 
-static void InitTree(void) {
+static void InitFilter(void) {
     memblocks = 1;
     FilterTree = (filterElement_t *)malloc(MAXBLOCKS * sizeof(filterElement_t));
     if (!FilterTree) {
@@ -434,7 +520,7 @@ static void InitTree(void) {
         exit(255);
     }
     ClearFilter();
-}  // End of InitTree
+}  // End of InitFilter
 
 int FilterRecord(void *engine, recordHandle_t *handle, char *ident) {
     FilterEngine_t *filterEngine = (FilterEngine_t *)engine;
@@ -449,15 +535,70 @@ static int RunFilterFast(FilterEngine_t *engine, recordHandle_t *handle) {
     while (index) {
         size_t offset = engine->filter[index].offset;
         uint32_t extID = engine->filter[index].extID;
+        invert = engine->filter[index].invert;
+
         void *inPtr = handle->extensionList[extID];
-        if (handle->extensionList[extID] == NULL) {
-            invert = 0;
+        if (inPtr == NULL) {
             evaluate = 0;
+            index = engine->filter[index].OnFalse;
+            continue;
+        }
+        inPtr += offset;
+
+        uint64_t inVal = 0;
+        dbg_assert(engine->filter[index].length <= 8);
+        switch (engine->filter[index].length) {
+            case 0:
+                break;
+            case 1:
+                inVal = *((uint8_t *)inPtr);
+                break;
+            case 2:
+                inVal = *((uint16_t *)inPtr);
+                break;
+            case 4:
+                inVal = *((uint32_t *)inPtr);
+                break;
+            case 8:
+                inVal = *((uint64_t *)inPtr);
+                break;
+            default:
+                memcpy((void *)&inVal, inPtr, engine->filter[index].length);
+        }
+
+        // printf("Value: %.16llx, : %.16llx\n", (long long unsigned)inVal, engine->filter[index].value);
+        evaluate = inVal == engine->filter[index].value;
+        index = evaluate ? engine->filter[index].OnTrue : engine->filter[index].OnFalse;
+    }
+    return invert ? !evaluate : evaluate;
+
+}  // End of RunFilter
+
+static int RunExtendedFilter(FilterEngine_t *engine, recordHandle_t *handle) {
+    HasGeoDB = Loaded_MaxMind();
+    uint32_t index = engine->StartNode;
+    int evaluate = 0;
+    int invert = 0;
+    while (index) {
+        uint32_t extID = engine->filter[index].extID;
+        size_t offset = engine->filter[index].offset;
+        invert = engine->filter[index].invert;
+
+        void *inPtr = handle->extensionList[extID];
+        if (inPtr == NULL) {
+            evaluate = 0;
+            index = engine->filter[index].OnFalse;
+            continue;
+        }
+        inPtr += offset;
+
+        data_t data = engine->filter[index].data;
+        uint32_t length = engine->filter[index].length;
+        uint64_t inVal = 0;
+        if (engine->filter[index].function != NULL) {
+            inVal = engine->filter[index].function(inPtr, length, data, handle);
         } else {
-            inPtr += offset;
-            uint64_t inVal = 0;
-            dbg_assert(engine->filter[index].length <= 8);
-            switch (engine->filter[index].length) {
+            switch (length) {
                 case 0:
                     break;
                 case 1:
@@ -471,156 +612,101 @@ static int RunFilterFast(FilterEngine_t *engine, recordHandle_t *handle) {
                     break;
                 case 8:
                     inVal = *((uint64_t *)inPtr);
+                case 3:
+                case 5:
+                case 7:
+                    memcpy((void *)&inVal, inPtr, length);
                     break;
-                default:
-                    memcpy((void *)&inVal, inPtr, engine->filter[index].length);
             }
-
-            // printf("Value: %.16llx, : %.16llx\n", (long long unsigned)inVal, engine->filter[index].value);
-            invert = engine->filter[index].invert;
-            evaluate = inVal == engine->filter[index].value;
         }
-        index = evaluate ? engine->filter[index].OnTrue : engine->filter[index].OnFalse;
-    }
-    return invert ? !evaluate : evaluate;
 
-}  // End of RunFilter
-
-static int RunExtendedFilter(FilterEngine_t *engine, recordHandle_t *handle) {
-    uint32_t index = engine->StartNode;
-    int invert = 0;
-    int evaluate = 0;
-    while (index) {
-        uint32_t extID = engine->filter[index].extID;
-        uint32_t offset = engine->filter[index].offset;
-        uint32_t length = engine->filter[index].length;
-        data_t data = engine->filter[index].data;
-
-        void *inPtr = handle->extensionList[extID];
-
-        uint64_t inVal = 0;
-        if (inPtr == NULL) {
-            invert = 0;
-            evaluate = 0;
-        } else {
-            invert = engine->filter[index].invert;
-            if (engine->filter[index].function != NULL) {
-                inVal = engine->filter[index].function(offset, length, data, handle);
-            } else {
-                void *inPtr = (void *)(handle->extensionList[extID] + offset);
-                switch (length) {
-                    case 0:
-                        break;
-                    case 1:
-                        inVal = *((uint8_t *)inPtr);
-                        break;
-                    case 2:
-                        inVal = *((uint16_t *)inPtr);
-                        break;
-                    case 4:
-                        inVal = *((uint32_t *)inPtr);
-                        break;
-                    case 8:
-                        inVal = *((uint64_t *)inPtr);
-                        break;
-                        // default:
-                        //  memcpy((void *)&inVal, inPtr, length);
-                }
-            }
-
-            switch (engine->filter[index].comp) {
-                case CMP_EQ:
-                    evaluate = inVal == engine->filter[index].value;
-                    break;
-                case CMP_GT:
-                    evaluate = inVal > engine->filter[index].value;
-                    break;
-                case CMP_LT:
-                    evaluate = inVal < engine->filter[index].value;
-                    break;
-                case CMP_GE:
-                    evaluate = inVal >= engine->filter[index].value;
-                    break;
-                case CMP_LE:
-                    evaluate = inVal <= engine->filter[index].value;
-                    break;
-                case CMP_FLAGS: {
-                    evaluate = (inVal & engine->filter[index].value) == engine->filter[index].value;
-                } break;
-                case CMP_IDENT: {
-                    char *inPtr = engine->ident;
-                    char *str = (char *)data.dataPtr;
-                    evaluate = str != NULL && (strcmp(inPtr, str) == 0 ? 1 : 0);
-                } break;
-                case CMP_STRING: {
-                    char *inPtr = (char *)(handle->extensionList[extID] + offset);
-                    char *str = (char *)data.dataPtr;
-                    evaluate = str != NULL && (strcmp(inPtr, str) == 0 ? 1 : 0);
-                } break;
-                case CMP_BINARY: {
-                    void *dataPtr = data.dataPtr;
-                    void *inPtr = (void *)(handle->extensionList[extID] + offset);
-                    evaluate = dataPtr != NULL && memcmp(dataPtr, inPtr, length) == 0;
-                } break;
-                case CMP_NET: {
-                    uint64_t mask = data.dataVal;
-                    evaluate = (inVal & mask) == engine->filter[index].value;
-                } break;
-                case CMP_IPLIST: {
-                    struct IPListNode find;
-                    dbg_printf("CMP_IPLIST: %llx, length: %d\n", inVal, length);
-                    if (length == 4) {
-                        find.ip[0] = 0;
-                        find.ip[1] = inVal;
-                        find.mask[0] = 0xffffffffffffffffLL;
-                        find.mask[1] = 0xffffffffffffffffLL;
-                        evaluate = RB_FIND(IPtree, data.dataPtr, &find) != NULL;
-                    } else if (length == 16) {
-                        find.ip[0] = *((uint64_t *)(handle->extensionList[extID] + offset));
-                        find.ip[1] = *((uint64_t *)(handle->extensionList[extID] + offset + 8));
-                        find.mask[0] = 0xffffffffffffffffLL;
-                        find.mask[1] = 0xffffffffffffffffLL;
-                        evaluate = RB_FIND(IPtree, data.dataPtr, &find) != NULL;
-                    } else {
-                        evaluate = 0;
-                    }
-                } break;
-                case CMP_U64LIST: {
-                    struct U64ListNode find;
-                    find.value = inVal;
-                    evaluate = RB_FIND(U64tree, data.dataPtr, &find) != NULL;
-                } break;
-                case CMP_PAYLOAD: {
-                    char *payload = (char *)(handle->extensionList[extID]);
-                    char *string = (char *)engine->filter[index].data.dataPtr;
-                    elementHeader_t *elementHeader = (elementHeader_t *)(payload - sizeof(elementHeader_t));
-                    uint32_t len = elementHeader->length;
+        switch (engine->filter[index].comp) {
+            case CMP_EQ:
+                evaluate = inVal == engine->filter[index].value;
+                break;
+            case CMP_GT:
+                evaluate = inVal > engine->filter[index].value;
+                break;
+            case CMP_LT:
+                evaluate = inVal < engine->filter[index].value;
+                break;
+            case CMP_GE:
+                evaluate = inVal >= engine->filter[index].value;
+                break;
+            case CMP_LE:
+                evaluate = inVal <= engine->filter[index].value;
+                break;
+            case CMP_FLAGS: {
+                evaluate = (inVal & engine->filter[index].value) == engine->filter[index].value;
+            } break;
+            case CMP_IDENT: {
+                char *ident = engine->ident;
+                char *str = (char *)data.dataPtr;
+                evaluate = str != NULL && (strcmp(ident, str) == 0 ? 1 : 0);
+            } break;
+            case CMP_STRING: {
+                char *str = (char *)data.dataPtr;
+                evaluate = str != NULL && (strcmp(inPtr, str) == 0 ? 1 : 0);
+            } break;
+            case CMP_BINARY: {
+                void *dataPtr = data.dataPtr;
+                evaluate = dataPtr != NULL && memcmp(inPtr, dataPtr, length) == 0;
+            } break;
+            case CMP_NET: {
+                uint64_t mask = data.dataVal;
+                evaluate = (inVal & mask) == engine->filter[index].value;
+            } break;
+            case CMP_IPLIST: {
+                if (length == 4) {
+                    struct IPListNode find = {.ip[0] = 0, .ip[1] = inVal, .mask[0] = 0xffffffffffffffffLL, .mask[1] = 0xffffffffffffffffLL};
+                    evaluate = RB_FIND(IPtree, data.dataPtr, &find) != NULL;
+                } else if (length == 16) {
+                    struct IPListNode find = {.ip[0] = *((uint64_t *)inPtr),
+                                              .ip[1] = *((uint64_t *)(inPtr + 8)),
+                                              .mask[0] = 0xffffffffffffffffLL,
+                                              .mask[1] = 0xffffffffffffffffLL};
+                    evaluate = RB_FIND(IPtree, data.dataPtr, &find) != NULL;
+                } else {
                     evaluate = 0;
-                    if (string != NULL) {
-                        // find any string str in payload data inPtr, even beyond '\0' bytes
-                        int m = 0;
-                        for (int i = 0; i < len; i++) {
-                            if (payload[i] == string[m]) {
-                                m++;
-                                if (string[m] == '\0') {
-                                    evaluate = 1;
-                                    break;
-                                }
-                            } else {
-                                m = 0;
+                }
+            } break;
+            case CMP_U64LIST: {
+                struct U64ListNode find = {.value = inVal};
+                evaluate = RB_FIND(U64tree, data.dataPtr, &find) != NULL;
+            } break;
+            case CMP_PAYLOAD: {
+                char *payload = (char *)(handle->extensionList[extID]);
+                char *string = (char *)engine->filter[index].data.dataPtr;
+                uint32_t len = ExtensionLength(payload);
+                evaluate = 0;
+                if (string != NULL) {
+                    // find any string str in payload data inPtr, even beyond '\0' bytes
+                    int m = 0;
+                    for (int i = 0; i < len; i++) {
+                        if (payload[i] == string[m]) {
+                            m++;
+                            if (string[m] == '\0') {
+                                evaluate = 1;
+                                break;
                             }
+                        } else {
+                            m = 0;
                         }
                     }
-                } break;
-                case CMP_REGEX: {
-                    srx_Context *program = (srx_Context *)data.dataPtr;
-                    char *payload = (char *)(handle->extensionList[extID]);
-                    elementHeader_t *elementHeader = (elementHeader_t *)(payload - sizeof(elementHeader_t));
-                    uint32_t len = elementHeader->length;
+                }
+            } break;
+            case CMP_REGEX: {
+                srx_Context *program = (srx_Context *)data.dataPtr;
+                char *payload = (char *)(handle->extensionList[extID]);
+                uint32_t len = ExtensionLength(payload);
 
-                    evaluate = program != NULL && srx_MatchExt(program, payload, len, 0);
-                } break;
-            }
+                evaluate = program != NULL && srx_MatchExt(program, payload, len, 0);
+            } break;
+            case CMP_GEO: {
+                char *geoChar = (char *)inPtr;
+                if (HasGeoDB && geoChar[0] == '\0') inVal = geoLookup(geoChar, data.dataVal, handle);
+                evaluate = inVal == engine->filter[index].value;
+            } break;
         }
         index = evaluate ? engine->filter[index].OnTrue : engine->filter[index].OnFalse;
     }
@@ -659,7 +745,7 @@ char *ReadFilter(char *filename) {
 void *CompileFilter(char *FilterSyntax) {
     if (!FilterSyntax) return NULL;
 
-    InitTree();
+    InitFilter();
     lex_init(FilterSyntax);
     if (yyparse() != 0) {
         return NULL;

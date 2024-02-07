@@ -2,7 +2,7 @@
 BUILT_SOURCES = filter/grammar.h vcs_track.h
 AM_YFLAGS = -d
 
-AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -Isgregex -Icompress $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -I../maxmind -Isgregex -Icompress $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb 
 
 LDADD =  $(DEPS_LIBS)

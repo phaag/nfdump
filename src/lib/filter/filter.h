@@ -77,6 +77,7 @@ typedef enum {
     CMP_U64LIST,
     CMP_PAYLOAD,
     CMP_REGEX,
+    CMP_GEO,
 } comparator_t;
 
 typedef struct FilterParam {
@@ -93,16 +94,17 @@ typedef struct FilterParam {
  */
 
 typedef enum {
-    FUNC_NONE = 0,   /* no function - just plain filtering - just to be complete here */
-    FUNC_DURATION,   /* function code for duration ( in milliseconds ) filter function */
-    FUNC_PPS,        /* function code for pps ( packet per second ) filter function */
-    FUNC_BPS,        /* function code for bps ( bits per second ) filter function */
-    FUNC_BPP,        /* function code for bpp ( bytes per packet ) filter function */
-    FUNC_MPLS_LABEL, /* function code for matching an MPLS label */
-    FUNC_MPLS_EOS,   /* function code for matching End of MPLS Stack label */
-    FUNC_MPLS_EXP,   /* function code for matching experimantal value in label */
-    FUNC_MPLS_ANY,   /* function code for matching any MPLS label */
-    FUNC_PBLOCK,     /* function code for matching ports against pblock start */
+    FUNC_NONE = 0,     // no function - just plain filtering - just to be complete here
+    FUNC_DURATION,     // function code for duration ( in milliseconds ) filter function
+    FUNC_PPS,          // function code for pps ( packet per second ) filter function
+    FUNC_BPS,          // function code for bps ( bits per second ) filter function
+    FUNC_BPP,          // function code for bpp ( bytes per packet ) filter function
+    FUNC_MPLS_LABEL,   // function code for matching an MPLS label
+    FUNC_MPLS_EOS,     // function code for matching End of MPLS Stack label
+    FUNC_MPLS_EXP,     // function code for matching experimantal value in label
+    FUNC_MPLS_ANY,     // function code for matching any MPLS label
+    FUNC_PBLOCK,       // function code for matching ports against pblock start
+    FUNC_MMAS_LOOKUP,  // function code for optional maxmind AS lookup
 } filterFunction_t;
 
 #define FULLMASK FFFFFFFFFFFFFFFFLL

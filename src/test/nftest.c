@@ -444,6 +444,8 @@ static void runTest(void) {
     ipv6->srcAddr[1] = ntohll(v6[1]);
     ipv6->dstAddr[0] = 0;
     ipv6->dstAddr[1] = 0;
+    CheckFilter("src ip fe80::2110:abcd:1234:5678", recordHandle, 1);
+    CheckFilter("src ip in [fe80::2110:abcd:1234:5678]", recordHandle, 1);
     CheckFilter("src ip in [8.8.8.8 2.2.2.2 192.168.169.171]", recordHandle, 0);
     CheckFilter("src ip in [192.168.169.0/24]", recordHandle, 1);
     CheckFilter("src ip in [8.8.8.8 192.168.169.0/24]", recordHandle, 1);

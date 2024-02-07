@@ -947,7 +947,7 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
 		return NewElement(EXmplsLabelID, 0, 0, value, comp, FUNC_MPLS_LABEL, labelIndex);
 	} else if ( strcasecmp(type, "any") == 0 ) {
 		data_t labelValue = { .dataVal = value};
-		return NewElement(EXmplsLabelID, value, 0, value, comp, FUNC_MPLS_ANY, labelValue);
+		return NewElement(EXmplsLabelID, 0, 0, value, comp, FUNC_MPLS_ANY, labelValue);
 	} else if ( strcasecmp(type, "eos") == 0 ) {
 		// match End of Stack label 
 		return NewElement(EXmplsLabelID, 0, 0, value, comp, FUNC_MPLS_EOS, NULLPtr);
@@ -958,7 +958,8 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
 			return -1;
 		}
 		int lnum = (int)strtol(s, (char **)NULL, 10);
-		return NewElement(EXmplsLabelID, lnum, 0, value, comp, FUNC_MPLS_EXP, NULLPtr);
+		data_t data = {.dataVal = lnum};
+		return NewElement(EXmplsLabelID, 0, 0, value, comp, FUNC_MPLS_EXP, data);
 	} else {
 			yyerror("Unknown mpls argument: %s", type);
 			return -1;
@@ -1251,43 +1252,50 @@ static int AddGeo(direction_t direction, char *geo) {
 			return -1;
 	}
 
+	data_t data = {.dataVal = direction};
 	int ret = -1;
 	uint64_t geoVal = toupper(geo[0]) + (toupper(geo[1]) << 8);
 	switch (direction) {
 		case DIR_SRC:
-			ret = NewElement(EXlocal, OFFgeoSrcIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			ret = NewElement(EXlocal, OFFgeoSrcIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, data);
 			break;
 		case DIR_DST:
-			ret = NewElement(EXlocal, OFFgeoDstIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			ret = NewElement(EXlocal, OFFgeoDstIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, data);
 			break;
 		case DIR_SRC_NAT:
-			ret = NewElement(EXlocal, OFFgeoSrcNatIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			ret = NewElement(EXlocal, OFFgeoSrcNatIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, data);
 			break;
 		case DIR_DST_NAT:
-			ret = NewElement(EXlocal, OFFgeoDstNatIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			ret = NewElement(EXlocal, OFFgeoDstNatIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, data);
 			break;
 		case DIR_SRC_TUN:
-			ret = NewElement(EXlocal, OFFgeoSrcTunIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			ret = NewElement(EXlocal, OFFgeoSrcTunIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, data);
 			break;
 		case DIR_DST_TUN:
-			ret = NewElement(EXlocal, OFFgeoDstTunIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr);
+			ret = NewElement(EXlocal, OFFgeoDstTunIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, data);
 			break;
 		case DIR_UNSPEC: {
+			data_t srcData = {.dataVal = DIR_SRC};
+			data_t dstData = {.dataVal = DIR_DST};
 			ret = Connect_OR(
-				NewElement(EXlocal, OFFgeoSrcIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr),
-				NewElement(EXlocal, OFFgeoDstIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr)
+				NewElement(EXlocal, OFFgeoSrcIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, srcData),
+				NewElement(EXlocal, OFFgeoDstIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, dstData)
 			);
 			} break;
 		case DIR_UNSPEC_NAT: {
+			data_t srcData = {.dataVal = DIR_SRC_NAT};
+			data_t dstData = {.dataVal = DIR_DST_NAT};
 			ret = Connect_OR(
-				NewElement(EXlocal, OFFgeoSrcNatIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr),
-				NewElement(EXlocal, OFFgeoDstNatIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr)
+				NewElement(EXlocal, OFFgeoSrcNatIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, srcData),
+				NewElement(EXlocal, OFFgeoDstNatIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, dstData)
 			);
 			} break;
 		case DIR_UNSPEC_TUN: {
+			data_t srcData = {.dataVal = DIR_SRC_TUN};
+			data_t dstData = {.dataVal = DIR_DST_TUN};
 			ret = Connect_OR(
-				NewElement(EXlocal, OFFgeoSrcTunIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr),
-				NewElement(EXlocal, OFFgeoDstTunIP, SizeGEOloc, geoVal, CMP_EQ, FUNC_NONE, NULLPtr)
+				NewElement(EXlocal, OFFgeoSrcTunIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, srcData),
+				NewElement(EXlocal, OFFgeoDstTunIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, dstData)
 			);
 			} break;
 		default:
@@ -1905,22 +1913,22 @@ static int AddAsNumber(direction_t direction, uint16_t comp, uint64_t as) {
 	int ret = -1;
   switch ( direction ) {
 	  case DIR_SRC:
-		  ret = NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_NONE, NULLPtr);
+		  ret = NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_MMAS_LOOKUP, NULLPtr);
 		  break;
 	  case DIR_DST:
-		  ret = NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, as, comp, FUNC_NONE, NULLPtr);
+		  ret = NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, as, comp, FUNC_MMAS_LOOKUP , NULLPtr);
 		  break;
 	  case DIR_UNSPEC:
 		  ret = Connect_OR(
-			  NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_NONE, NULLPtr),
-			  NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, as, comp, FUNC_NONE, NULLPtr)
+			  NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_MMAS_LOOKUP, NULLPtr),
+			  NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, as, comp, FUNC_MMAS_LOOKUP , NULLPtr)
 		  );
 			break;
 		case DIR_NEXT:
-		  ret = NewElement(EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, as, comp, FUNC_NONE, NULLPtr);
+		  ret = NewElement(EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, as, comp, FUNC_MMAS_LOOKUP, NULLPtr);
 			break;
 		case DIR_PREV:
-		  ret = NewElement(EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, as, comp, FUNC_NONE, NULLPtr);
+		  ret = NewElement(EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, as, comp, FUNC_MMAS_LOOKUP, NULLPtr);
 		  break;
 	  default:
 			yyerror("Unknown direction");

@@ -30,7 +30,7 @@ nfgen_SOURCES = nfgen.c
 nfgen_LDADD = ../lib/libnfdump.la 
 
 nftest_SOURCES = nftest.c 
-nftest_LDADD = ../lib/libnfdump.la
+nftest_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a
 nftest_DEPENDENCIES = nfgen
 
 EXTRA_DIST = runtest.sh nftest.1.out nftest.2.out 
