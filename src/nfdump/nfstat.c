@@ -72,7 +72,7 @@ typedef enum {
     IS_GEO
 } elementType_t;
 
-typedef enum { NoGEOLOOKUP = 0, GEOLOOKUP, ASLOOKUP } geoLookup_t;
+typedef enum { NoGEOLOOKUP = 0, SRCGEOLOOKUP, DSTGEOLOOKUP, SRCASLOOKUP, DSTASLOOKUP, PREVASLOOKUP, NEXTASLOOKUP } geoLookup_t;
 
 typedef enum { DESCENDING = 0, ASCENDING } direction_t;
 
@@ -109,10 +109,10 @@ struct StatParameter_s {
     {"ip", NULL, {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
     {"ip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR, NoGEOLOOKUP},
     {"ip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR, NoGEOLOOKUP},
-    {"srcgeo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, GEOLOOKUP},
-    {"dstgeo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, GEOLOOKUP},
-    {"geo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, GEOLOOKUP},
-    {"geo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, GEOLOOKUP},
+    {"srcgeo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, SRCGEOLOOKUP},
+    {"dstgeo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, DSTGEOLOOKUP},
+    {"geo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, SRCGEOLOOKUP},
+    {"geo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, DSTGEOLOOKUP},
     {"nhip", "Nexthop IP", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
     {"nhip", NULL, {EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, AF_INET6}, IS_IPADDR, NoGEOLOOKUP},
     {"nhbip", "Nexthop BGP IP", {EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, AF_INET}, IS_IPADDR, NoGEOLOOKUP},
@@ -129,12 +129,12 @@ struct StatParameter_s {
     {"tos", "Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER, NoGEOLOOKUP},
     {"tos", NULL, {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NoGEOLOOKUP},
     {"dir", "Dir", {EXgenericFlowID, OFFdir, SIZEdir, 0}, IS_NUMBER, NoGEOLOOKUP},
-    {"srcas", "Src AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, ASLOOKUP},
-    {"dstas", "Dst AS", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, ASLOOKUP},
-    {"as", "AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, ASLOOKUP},
-    {"as", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, ASLOOKUP},
-    {"prevas", "Prev AS", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, IS_NUMBER, ASLOOKUP},
-    {"nextas", "Next AS", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, IS_NUMBER, ASLOOKUP},
+    {"srcas", "Src AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRCASLOOKUP},
+    {"dstas", "Dst AS", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DSTASLOOKUP},
+    {"as", "AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRCASLOOKUP},
+    {"as", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DSTASLOOKUP},
+    {"prevas", "Prev AS", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, IS_NUMBER, PREVASLOOKUP},
+    {"nextas", "Next AS", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, IS_NUMBER, NEXTASLOOKUP},
     {"inif", "Input If", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER, NoGEOLOOKUP},
     {"outif", "Output If", {EXflowMiscID, OFFoutput, SIZEoutput, 0}, IS_NUMBER, NoGEOLOOKUP},
     {"if", "Interface", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER, NoGEOLOOKUP},
@@ -489,6 +489,47 @@ int SetElementStat(char *elementStat, char *orderBy) {
 
 }  // End of SetElementStat
 
+static inline void AddGeoInfo(void *inPtr, geoLookup_t lookup, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    switch (lookup) {
+        case NoGEOLOOKUP:
+            return;
+            break;
+        case SRCGEOLOOKUP: {
+            char *geo = (char *)inPtr;
+            if (LoadedGeoDB == 0 || geo[0]) return;
+            if (ipv4Flow)
+                LookupV4Country(ipv4Flow->srcAddr, geo);
+            else if (ipv6Flow)
+                LookupV6Country(ipv6Flow->srcAddr, geo);
+        } break;
+        case DSTGEOLOOKUP: {
+            char *geo = (char *)inPtr;
+            if (LoadedGeoDB == 0 || geo[0]) return;
+            if (ipv4Flow)
+                LookupV4Country(ipv4Flow->dstAddr, inPtr);
+            else if (ipv6Flow)
+                LookupV6Country(ipv6Flow->dstAddr, inPtr);
+        } break;
+        case SRCASLOOKUP: {
+            uint32_t *as = (uint32_t *)inPtr;
+            if (LoadedGeoDB == 0 || *as) return;
+            *as = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->srcAddr) : 0);
+        } break;
+        case DSTASLOOKUP: {
+            uint32_t *as = (uint32_t *)inPtr;
+            if (LoadedGeoDB == 0 || *as) return;
+            *as = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->dstAddr) : 0);
+        } break;
+        case PREVASLOOKUP:
+            break;
+        case NEXTASLOOKUP:
+            break;
+    }
+}  // End of AddGeoInfo
+
 void AddElementStat(recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     if (!genericFlow) return;
@@ -501,14 +542,18 @@ void AddElementStat(recordHandle_t *recordHandle) {
         // for the number of elements in this stat type
         do {
             uint32_t extID = StatParameters[index].element.extID;
-            uint32_t offset = StatParameters[index].element.offset;
-            uint32_t length = StatParameters[index].element.length;
-
             if (recordHandle->extensionList[extID] == NULL) {
                 index++;
                 continue;
             }
+
+            uint32_t offset = StatParameters[index].element.offset;
+            uint32_t length = StatParameters[index].element.length;
+            geoLookup_t lookup = StatParameters[index].canLookup;
+
             void *inPtr = recordHandle->extensionList[extID] + offset;
+            AddGeoInfo(inPtr, lookup, recordHandle);
+
             switch (length) {
                 case 0:
                     break;
