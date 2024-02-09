@@ -732,7 +732,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
     uint64_t count_flows = StatData->flows;
     uint64_t count_packets = packets_element(StatData, inout);
     uint64_t count_bytes = bytes_element(StatData, inout);
-    char flows_str[NUMBER_STRING_SIZE], byte_str[NUMBER_STRING_SIZE], packets_str[NUMBER_STRING_SIZE];
+    numStr flows_str, byte_str, packets_str;
     format_number(count_flows, flows_str, outputParams->printPlain, FIXED_WIDTH);
     format_number(count_packets, packets_str, outputParams->printPlain, FIXED_WIDTH);
     format_number(count_bytes, byte_str, outputParams->printPlain, FIXED_WIDTH);
@@ -765,7 +765,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
         bpp = count_bytes / count_packets;
     }
 
-    char pps_str[NUMBER_STRING_SIZE], bps_str[NUMBER_STRING_SIZE];
+    numStr pps_str, bps_str;
     format_number(pps, pps_str, outputParams->printPlain, FIXED_WIDTH);
     format_number(bps, bps_str, outputParams->printPlain, FIXED_WIDTH);
 

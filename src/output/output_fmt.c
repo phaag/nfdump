@@ -1584,9 +1584,9 @@ static void String_InPackets(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     uint64_t packets = genericFlow ? genericFlow->inPackets : 0;
 
-    char s[NUMBER_STRING_SIZE];
-    format_number(packets, s, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", s);
+    numStr packetString;
+    format_number(packets, packetString, printPlain, FIXED_WIDTH);
+    fprintf(stream, "%8s", packetString);
 
 }  // End of String_InPackets
 
@@ -1594,9 +1594,9 @@ static void String_OutPackets(FILE *stream, recordHandle_t *recordHandle) {
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
     uint64_t packets = cntFlow ? cntFlow->outPackets : 0;
 
-    char s[NUMBER_STRING_SIZE];
-    format_number(packets, s, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", s);
+    numStr packetString;
+    format_number(packets, packetString, printPlain, FIXED_WIDTH);
+    fprintf(stream, "%8s", packetString);
 
 }  // End of String_OutPackets
 
@@ -1604,9 +1604,9 @@ static void String_InBytes(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     uint64_t bytes = genericFlow ? genericFlow->inBytes : 0;
 
-    char s[NUMBER_STRING_SIZE];
-    format_number(bytes, s, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", s);
+    numStr byteString;
+    format_number(bytes, byteString, printPlain, FIXED_WIDTH);
+    fprintf(stream, "%8s", byteString);
 
 }  // End of String_InBytes
 
@@ -1614,10 +1614,9 @@ static void String_OutBytes(FILE *stream, recordHandle_t *recordHandle) {
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
     uint64_t bytes = cntFlow ? cntFlow->outBytes : 0;
 
-    char s[NUMBER_STRING_SIZE];
-
-    format_number(bytes, s, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", s);
+    numStr byteString;
+    format_number(bytes, byteString, printPlain, FIXED_WIDTH);
+    fprintf(stream, "%8s", byteString);
 
 }  // End of String_OutBytes
 
@@ -1976,9 +1975,9 @@ static void String_bps(FILE *stream, recordHandle_t *recordHandle) {
         bps = ((inBytes << 3) / duration);  // bits per second. ( >> 3 ) -> * 8 to convert octets into bits
     }
 
-    char s[NUMBER_STRING_SIZE];
-    format_number(bps, s, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", s);
+    numStr bpsString;
+    format_number(bps, bpsString, printPlain, FIXED_WIDTH);
+    fprintf(stream, "%8s", bpsString);
 
 }  // End of String_bps
 
@@ -1991,9 +1990,9 @@ static void String_pps(FILE *stream, recordHandle_t *recordHandle) {
         pps = inPackets / duration;  // packets per second
     }
 
-    char s[NUMBER_STRING_SIZE];
-    format_number(pps, s, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", s);
+    numStr ppsString;
+    format_number(pps, ppsString, printPlain, FIXED_WIDTH);
+    fprintf(stream, "%8s", ppsString);
 
 }  // End of String_Duration
 

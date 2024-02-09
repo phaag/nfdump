@@ -170,8 +170,7 @@ static void usage(char *name) {
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams) {
     static double duration;
     uint64_t bps, pps, bpp;
-    char byte_str[NUMBER_STRING_SIZE], packet_str[NUMBER_STRING_SIZE];
-    char bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_STRING_SIZE];
+    numStr byte_str, packet_str, bps_str, pps_str, bpp_str;
 
     bps = pps = bpp = 0;
     if (stat_record->lastseen) {

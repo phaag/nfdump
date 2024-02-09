@@ -145,8 +145,8 @@ char *DurationString(double duration);
 #define VAR_LENGTH 0
 
 #define NUMBER_STRING_SIZE 32
-typedef char numStr_t[NUMBER_STRING_SIZE];
-void format_number(uint64_t num, char *s, int plain, int fixed_width);
+typedef char numStr[NUMBER_STRING_SIZE];
+void format_number(uint64_t num, numStr s, int plain, int fixed_width);
 
 void Setv6Mode(int mode);
 
