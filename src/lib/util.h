@@ -139,11 +139,13 @@ long getTick(void);
 
 char *DurationString(double duration);
 
-#define NUMBER_STRING_SIZE 32
 #define DONT_SCALE_NUMBER 0
 #define DO_SCALE_NUMBER 1
 #define FIXED_WIDTH 1
 #define VAR_LENGTH 0
+
+#define NUMBER_STRING_SIZE 32
+typedef char numStr_t[NUMBER_STRING_SIZE];
 void format_number(uint64_t num, char *s, int plain, int fixed_width);
 
 void Setv6Mode(int mode);

@@ -55,7 +55,6 @@
 #include "filter.h"
 #include "flist.h"
 #include "ifvrf.h"
-#include "ja3.h"
 #include "maxmind.h"
 #include "nbar.h"
 #include "netflow_v5_v7.h"
@@ -204,43 +203,6 @@ static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParam
     }
 
 }  // End of PrintSummary
-
-static inline void AddGeoInfo(recordHandle_t *recordHandle) {
-    if (!HasGeoDB || TestFlag(recordHandle->recordHeaderV3->flags, V3_FLAG_ENRICHED)) return;
-    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
-    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
-    EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
-
-    if (ipv4Flow) {
-        LookupV4Country(ipv4Flow->srcAddr, &recordHandle->geo[0]);
-        LookupV4Country(ipv4Flow->dstAddr, &recordHandle->geo[2]);
-    }
-    if (ipv6Flow) {
-        LookupV6Country(ipv6Flow->srcAddr, &recordHandle->geo[0]);
-        LookupV6Country(ipv6Flow->dstAddr, &recordHandle->geo[2]);
-    }
-    if (asRouting) {
-        if (asRouting->srcAS == 0) asRouting->srcAS = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : LookupV6AS(ipv6Flow->srcAddr);
-        if (asRouting->dstAS == 0) asRouting->dstAS = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : LookupV6AS(ipv6Flow->dstAddr);
-    }
-
-    SetFlag(recordHandle->recordHeaderV3->flags, V3_FLAG_ENRICHED);
-
-}  // End of AddGeoInfo
-
-static inline void AddJa3Info(recordHandle_t *recordHandle) {
-    uint8_t *payload = (uint8_t *)recordHandle->extensionList[EXinPayloadID];
-    uint32_t payloadLength = ExtensionLength(payload);
-
-    if (payload == NULL) return;
-
-    ja3_t *ja3 = ja3Process(payload, payloadLength);
-    if (ja3) {
-        memcpy((void *)recordHandle->ja3, ja3->md5Hash, 16);
-        ja3Free(ja3);
-    }
-
-}  // End of AddJa3Info
 
 static int SetStat(char *str, int *element_stat, int *flow_stat) {
     char *statType = strdup(str);
@@ -410,7 +372,6 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
             switch (record_ptr->type) {
                 case V3Record:
                 case CommonRecordType: {
-                    int match;
                     if (__builtin_expect(record_ptr->type == CommonRecordType, 0)) {
                         dbg_printf("Convert nfdump 1.6.x v2 record\n");
                         process_ptr = ConvertRecordV2((common_record_t *)record_ptr);
@@ -420,32 +381,17 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
 
                     // Time based filter
                     // if no time filter is given, the result is always true
+                    int match = 1;
                     if (timeWindow) {
                         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
                         if (genericFlow) {
-                            match = (genericFlow->msecFirst < twin_msecFirst || genericFlow->msecLast > twin_msecLast) ? 0 : 1;
+                            match = (genericFlow->msecFirst > twin_msecFirst && genericFlow->msecLast < twin_msecLast);
                         } else {
                             match = 0;
                         }
-                    } else {
-                        match = 1;
                     }
 
                     if (match) {
-                        /* XXX
-                        if (Engine->geoFilter) {
-                            AddGeoInfo(recordHandle);
-                        }
-
-                        if (master_record->inPayloadLength && Engine->ja3Filter) {
-                            ja3_t *ja3 = ja3Process((uint8_t *)master_record->inPayload, master_record->inPayloadLength);
-                            if (ja3) {
-                                memcpy((void *)master_record->ja3, ja3->md5Hash, 16);
-                                ja3Free(ja3);
-                            }
-                        }
-                        */
-
                         // filter netflow record with user supplied filter
                         match = FilterRecord(engine, recordHandle, nffile_r->ident);
                     }
@@ -472,23 +418,12 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
 #endif
                     UpdateStatRecord(&stat_record, recordHandle);
 
-                    recordHeaderV3_t *v3Record = (recordHeaderV3_t *)record_ptr;
                     if (flow_stat) {
                         AddFlowCache(recordHandle);
                         if (element_stat) {
-                            if (TestFlag(element_stat, FLAG_GEO) && TestFlag(v3Record->flags, V3_FLAG_ENRICHED) == 0) {
-                                AddGeoInfo(recordHandle);
-                            }
                             AddElementStat(recordHandle);
                         }
                     } else if (element_stat) {
-                        if (TestFlag(element_stat, FLAG_JA3) && recordHandle->ja3[0] == 0) {
-                            AddJa3Info(recordHandle);
-                        }
-                        // if we need geo, lookup geo if not yet set by filter
-                        if (TestFlag(element_stat, FLAG_GEO) && TestFlag(v3Record->flags, V3_FLAG_ENRICHED) == 0) {
-                            AddGeoInfo(recordHandle);
-                        }
                         AddElementStat(recordHandle);
                     } else if (sort_flows) {
                         InsertFlow(recordHandle);

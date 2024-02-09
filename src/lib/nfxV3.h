@@ -66,7 +66,6 @@ typedef struct recordHeaderV3_s {
 #define V3_FLAG_EVENT 1
 #define V3_FLAG_SAMPLED 2
 #define V3_FLAG_ANON 4
-#define V3_FLAG_ENRICHED 64
 #define V3_FLAG_PASSED 128
 
     uint8_t nfversion;

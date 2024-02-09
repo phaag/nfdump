@@ -49,6 +49,7 @@
 #include "blocksort.h"
 #include "config.h"
 #include "exporter.h"
+#include "ja3.h"
 #include "khash.h"
 #include "klist.h"
 #include "maxmind.h"
@@ -58,6 +59,8 @@
 #include "nfxV3.h"
 #include "output.h"
 #include "util.h"
+
+typedef enum { NOPREPROCESS = 0, SRC_GEO, DST_GEO, SRC_AS, DST_AS, JA3 } preprocess_t;
 
 typedef struct aggregate_param_s {
     uint32_t extID;   // extension ID
@@ -82,70 +85,70 @@ static struct aggregationElement_s {
     char *aggrElement;        // name of aggregation parameter
     aggregate_param_t param;  // the parameter array
     uint8_t active;           // this entry will be applied
-    uint8_t geoLookup;        // may require geolookup, if empty
+    preprocess_t preprocess;  // value may need some preprocessing
     uint8_t netmaskID;        // index into mask array for mask to apply
                               // 0xFF : use srcMask, dstMask from flow record
     uint8_t allowMask;        // element may have a netmask -> /prefix
     char *fmt;                // for automatic output format generation
-} aggregationTable[] = {{"proto", {EXgenericFlowID, OFFproto, SIZEproto, 0}, 0, 0, 0, 0, "%pr"},
-                        {"srcport", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, 0, 0, 0, 0, "%sp"},
-                        {"dstport", {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, 0, 0, 0, 0, "%dp"},
-                        {"tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, 0, 0, 0, 0, "%tos"},
-                        {"srctos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, 0, 0, 0, 0, "%stos"},
-                        {"srcip4", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, 0, 0, 1, "%sa"},
-                        {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, 0, 0, 2, "%da"},
-                        {"srcip6", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc4Addr, AF_INET6}, 0, 0, 0, 1, "%sa"},
-                        {"dstip6", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, 0, 0, 2, "%da"},
-                        {"srcip", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, 0, 0, 1, "%sa"},
-                        {"srcip", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, 0, 0, 0, 1, NULL},
-                        {"dstip", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, 0, 0, 2, "%da"},
-                        {"dstip", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, 0, 0, 2, NULL},
-                        {"srcnet", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, 0, 0xFF, 0, "%sn"},
-                        {"srcnet", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, 0, 0, 0xFF, 0, NULL},
-                        {"dstnet", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, 0, 0xFF, 0, "%dn"},
-                        {"dstnet", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, 0, 0xFF, 0, NULL},
-                        {"xsrcip", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, 0, 0, 0, 1, "%xsa"},
-                        {"xsrcip", {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, 0, 0, 0, 1, NULL},
-                        {"xdstip", {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, 0, 0, 0, 2, "%xda"},
-                        {"xdstip", {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, 0, 0, 0, 2, NULL},
-                        {"xsrcport", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, 0, 0, 0, 0, "%xsp"},
-                        {"xdstport", {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, 0, 0, 0, 0, "%xdp"},
-                        {"next", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, 0, 0, 0, 1, "%nh"},
-                        {"next", {EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, AF_INET6}, 0, 0, 0, 1, NULL},
-                        {"bgpnext", {EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, AF_INET}, 0, 0, 0, 1, "%nhb"},
-                        {"bgpnext", {EXbgpNextHopV6ID, OFFbgp6NextIP, SIZEbgp6NextIP, AF_INET6}, 0, 0, 0, 1, NULL},
-                        {"router", {EXipReceivedV4ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, 0, 0, 0, 1, "%ra"},
-                        {"router", {EXipReceivedV6ID, OFFReceived6IP, SIZEReceived6IP, AF_INET6}, 0, 0, 0, 1, NULL},
-                        {"insrcmac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, 0, 0, 0, 0, "%ismc"},
-                        {"outdstmac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, 0, 0, 0, 0, "%domc"},
-                        {"indstmac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, 0, 0, 0, 0, "%idmc"},
-                        {"outsrcmac", {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, 0, 0, 0, 0, "%osmc"},
-                        {"srcas", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, 0, 1, 0, 0, "%sas"},
-                        {"dstas", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, 0, 1, 0, 0, "%das"},
-                        {"nextas", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, 0, 0, 0, 0, "%nas"},
-                        {"prevas", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, 0, 0, 0, 0, "%pas"},
-                        {"inif", {EXflowMiscID, OFFinput, SIZEinput, 0}, 0, 0, 0, 0, "%in"},
-                        {"outif", {EXflowMiscID, OFFoutput, SIZEoutput, 0}, 0, 0, 0, 0, "%out"},
-                        {"srcmask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, 0, 1, 0, 0, "%smk"},
-                        {"dstmask", {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, 0, 1, 0, 0, "%dmk"},
-                        {"dsttos", {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, 0, 0, 0, 0, "%dtos"},
-                        {"mpls1", {EXmplsLabelID, OFFmplsLabel1, SIZEmplsLabel1, 0}, 0, 0, 0, 0, "%mpls1"},
-                        {"mpls2", {EXmplsLabelID, OFFmplsLabel2, SIZEmplsLabel2, 0}, 0, 0, 0, 0, "%mpls2"},
-                        {"mpls3", {EXmplsLabelID, OFFmplsLabel3, SIZEmplsLabel3, 0}, 0, 0, 0, 0, "%mpls3"},
-                        {"mpls4", {EXmplsLabelID, OFFmplsLabel4, SIZEmplsLabel4, 0}, 0, 0, 0, 0, "%mpls4"},
-                        {"mpls5", {EXmplsLabelID, OFFmplsLabel5, SIZEmplsLabel5, 0}, 0, 0, 0, 0, "%mpls5"},
-                        {"mpls6", {EXmplsLabelID, OFFmplsLabel6, SIZEmplsLabel6, 0}, 0, 0, 0, 0, "%mpls6"},
-                        {"mpls7", {EXmplsLabelID, OFFmplsLabel7, SIZEmplsLabel7, 0}, 0, 0, 0, 0, "%mpls7"},
-                        {"mpls8", {EXmplsLabelID, OFFmplsLabel8, SIZEmplsLabel8, 0}, 0, 0, 0, 0, "%mpls8"},
-                        {"mpls9", {EXmplsLabelID, OFFmplsLabel9, SIZEmplsLabel9, 0}, 0, 0, 0, 0, "%mpls9"},
-                        {"mpls10", {EXmplsLabelID, OFFmplsLabel10, SIZEmplsLabel10, 0}, 0, 0, 0, 0, "%mpls10"},
-                        {"srcvlan", {EXvLanID, OFFsrcVlan, SIZEsrcVlan, 0}, 0, 1, 0, 0, "%svln"},
-                        {"dstvlan", {EXvLanID, OFFdstVlan, SIZEdstVlan, 0}, 0, 1, 0, 0, "%dvln"},
-                        {"odid", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, 0, 0, 0, 0, "%odid"},
-                        {"opid", {EXobservationID, OFFpointID, SIZEpointID, 0}, 0, 0, 0, 0, "%opid"},
-                        {"srcgeo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, 0, 1, 0, 0, "%sc"},
-                        {"dstgeo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, 0, 1, 0, 0, "%dc"},
-                        {NULL, {0, 0, 0}, 0, 0, 0, 0, NULL}};
+} aggregationTable[] = {{"proto", {EXgenericFlowID, OFFproto, SIZEproto, 0}, 0, NOPREPROCESS, 0, 0, "%pr"},
+                        {"srcport", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, 0, NOPREPROCESS, 0, 0, "%sp"},
+                        {"dstport", {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, 0, NOPREPROCESS, 0, 0, "%dp"},
+                        {"tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, 0, NOPREPROCESS, 0, 0, "%tos"},
+                        {"srctos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, 0, NOPREPROCESS, 0, 0, "%stos"},
+                        {"srcip4", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, NOPREPROCESS, 0, 1, "%sa"},
+                        {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, NOPREPROCESS, 0, 2, "%da"},
+                        {"srcip6", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc4Addr, AF_INET6}, 0, NOPREPROCESS, 0, 1, "%sa"},
+                        {"dstip6", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, NOPREPROCESS, 0, 2, "%da"},
+                        {"srcip", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, NOPREPROCESS, 0, 1, "%sa"},
+                        {"srcip", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
+                        {"dstip", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, NOPREPROCESS, 0, 2, "%da"},
+                        {"dstip", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, NOPREPROCESS, 0, 2, NULL},
+                        {"srcnet", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, NOPREPROCESS, 0xFF, 0, "%sn"},
+                        {"srcnet", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, 0, NOPREPROCESS, 0xFF, 0, NULL},
+                        {"dstnet", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, NOPREPROCESS, 0xFF, 0, "%dn"},
+                        {"dstnet", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, NOPREPROCESS, 0xFF, 0, NULL},
+                        {"xsrcip", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, 0, NOPREPROCESS, 0, 1, "%xsa"},
+                        {"xsrcip", {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
+                        {"xdstip", {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, 0, NOPREPROCESS, 0, 2, "%xda"},
+                        {"xdstip", {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, 0, NOPREPROCESS, 0, 2, NULL},
+                        {"xsrcport", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, 0, NOPREPROCESS, 0, 0, "%xsp"},
+                        {"xdstport", {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, 0, NOPREPROCESS, 0, 0, "%xdp"},
+                        {"next", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, 0, NOPREPROCESS, 0, 1, "%nh"},
+                        {"next", {EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
+                        {"bgpnext", {EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, AF_INET}, 0, NOPREPROCESS, 0, 1, "%nhb"},
+                        {"bgpnext", {EXbgpNextHopV6ID, OFFbgp6NextIP, SIZEbgp6NextIP, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
+                        {"router", {EXipReceivedV4ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, 0, NOPREPROCESS, 0, 1, "%ra"},
+                        {"router", {EXipReceivedV6ID, OFFReceived6IP, SIZEReceived6IP, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
+                        {"insrcmac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, 0, NOPREPROCESS, 0, 0, "%ismc"},
+                        {"outdstmac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, 0, NOPREPROCESS, 0, 0, "%domc"},
+                        {"indstmac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, 0, NOPREPROCESS, 0, 0, "%idmc"},
+                        {"outsrcmac", {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, 0, NOPREPROCESS, 0, 0, "%osmc"},
+                        {"srcas", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, 0, SRC_AS, 0, 0, "%sas"},
+                        {"dstas", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, 0, DST_AS, 0, 0, "%das"},
+                        {"nextas", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, 0, NOPREPROCESS, 0, 0, "%nas"},
+                        {"prevas", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, 0, NOPREPROCESS, 0, 0, "%pas"},
+                        {"inif", {EXflowMiscID, OFFinput, SIZEinput, 0}, 0, NOPREPROCESS, 0, 0, "%in"},
+                        {"outif", {EXflowMiscID, OFFoutput, SIZEoutput, 0}, 0, NOPREPROCESS, 0, 0, "%out"},
+                        {"srcmask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, 0, NOPREPROCESS, 0, 0, "%smk"},
+                        {"dstmask", {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, 0, NOPREPROCESS, 0, 0, "%dmk"},
+                        {"dsttos", {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, 0, NOPREPROCESS, 0, 0, "%dtos"},
+                        {"mpls1", {EXmplsLabelID, OFFmplsLabel1, SIZEmplsLabel1, 0}, 0, NOPREPROCESS, 0, 0, "%mpls1"},
+                        {"mpls2", {EXmplsLabelID, OFFmplsLabel2, SIZEmplsLabel2, 0}, 0, NOPREPROCESS, 0, 0, "%mpls2"},
+                        {"mpls3", {EXmplsLabelID, OFFmplsLabel3, SIZEmplsLabel3, 0}, 0, NOPREPROCESS, 0, 0, "%mpls3"},
+                        {"mpls4", {EXmplsLabelID, OFFmplsLabel4, SIZEmplsLabel4, 0}, 0, NOPREPROCESS, 0, 0, "%mpls4"},
+                        {"mpls5", {EXmplsLabelID, OFFmplsLabel5, SIZEmplsLabel5, 0}, 0, NOPREPROCESS, 0, 0, "%mpls5"},
+                        {"mpls6", {EXmplsLabelID, OFFmplsLabel6, SIZEmplsLabel6, 0}, 0, NOPREPROCESS, 0, 0, "%mpls6"},
+                        {"mpls7", {EXmplsLabelID, OFFmplsLabel7, SIZEmplsLabel7, 0}, 0, NOPREPROCESS, 0, 0, "%mpls7"},
+                        {"mpls8", {EXmplsLabelID, OFFmplsLabel8, SIZEmplsLabel8, 0}, 0, NOPREPROCESS, 0, 0, "%mpls8"},
+                        {"mpls9", {EXmplsLabelID, OFFmplsLabel9, SIZEmplsLabel9, 0}, 0, NOPREPROCESS, 0, 0, "%mpls9"},
+                        {"mpls10", {EXmplsLabelID, OFFmplsLabel10, SIZEmplsLabel10, 0}, 0, NOPREPROCESS, 0, 0, "%mpls10"},
+                        {"srcvlan", {EXvLanID, OFFsrcVlan, SIZEsrcVlan, 0}, 0, NOPREPROCESS, 0, 0, "%svln"},
+                        {"dstvlan", {EXvLanID, OFFdstVlan, SIZEdstVlan, 0}, 0, NOPREPROCESS, 0, 0, "%dvln"},
+                        {"odid", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, 0, NOPREPROCESS, 0, 0, "%odid"},
+                        {"opid", {EXobservationID, OFFpointID, SIZEpointID, 0}, 0, NOPREPROCESS, 0, 0, "%opid"},
+                        {"srcgeo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, 0, SRC_GEO, 0, 0, "%sc"},
+                        {"dstgeo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, 0, DST_GEO, 0, 0, "%dc"},
+                        {NULL, {0, 0, 0}, 0, NOPREPROCESS, 0, 0, NULL}};
 
 /* Element of the flow hash ( cache ) */
 typedef struct FlowHashRecord {
@@ -223,7 +226,7 @@ static uint32_t FlowStat_order = 0;  // bit field for multiple print orders
 static uint32_t PrintOrder = 0;      // -O selected print order - index into order_mode
 static uint32_t PrintDirection = 0;
 static uint32_t GuessDirection = 0;
-static uint32_t doGeoLookup = 0;
+static uint32_t LoadedGeoDB = 0;
 
 typedef struct FlowKeyV6_s {
     uint16_t af;
@@ -342,6 +345,53 @@ static inline int NeedSwap(int GuessDir, void *genericFlowKey) {
     }
 }  // End of NeedSwap
 
+static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    switch (process) {
+        case NOPREPROCESS:
+            return;
+            break;
+        case SRC_GEO: {
+            char *geo = (char *)inPtr;
+            if (LoadedGeoDB == 0 || geo[0]) return;
+            if (ipv4Flow)
+                LookupV4Country(ipv4Flow->srcAddr, geo);
+            else if (ipv6Flow)
+                LookupV6Country(ipv6Flow->srcAddr, geo);
+        } break;
+        case DST_GEO: {
+            char *geo = (char *)inPtr;
+            if (LoadedGeoDB == 0 || geo[0]) return;
+            if (ipv4Flow)
+                LookupV4Country(ipv4Flow->dstAddr, geo);
+            else if (ipv6Flow)
+                LookupV6Country(ipv6Flow->dstAddr, geo);
+        } break;
+        case SRC_AS: {
+            uint32_t *as = (uint32_t *)inPtr;
+            if (LoadedGeoDB == 0 || *as) return;
+            *as = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->srcAddr) : 0);
+        } break;
+        case DST_AS: {
+            uint32_t *as = (uint32_t *)inPtr;
+            if (LoadedGeoDB == 0 || *as) return;
+            *as = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->dstAddr) : 0);
+        } break;
+        case JA3: {
+            EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
+            if (payload == NULL) return;
+            uint32_t payloadLength = ExtensionLength(payload);
+            ja3_t *ja3 = ja3Process(payload, payloadLength);
+            if (ja3) {
+                memcpy((void *)inPtr, ja3->md5Hash, 16);
+                ja3Free(ja3);
+            }
+        } break;
+    }
+}  // End of PreProcess
+
 static inline uint32_t SuperFastHash(const char *data, int len) {
     uint32_t hash = len;
 
@@ -407,8 +457,14 @@ static inline void *New_HashKey(void *keymem, recordHandle_t *recordHandle, int 
                 ApplyAggregateMask(recordHandle, &aggregationTable[tableIndex]);
             }
             aggregate_param_t *param = &aggregationTable[tableIndex].param;
-            if (recordHandle->extensionList[param->extID] == NULL) continue;
-            void *inPtr = recordHandle->extensionList[param->extID] + param->offset;
+
+            void *inPtr = recordHandle->extensionList[param->extID];
+            if (inPtr == NULL) continue;
+            inPtr += param->offset;
+
+            preprocess_t preprocess = aggregationTable[tableIndex].preprocess;
+            PreProcess(inPtr, preprocess, recordHandle);
+
             switch (param->length) {
                 case 0:
                     break;
@@ -686,6 +742,7 @@ int Init_FlowCache(void) {
     keymenV6Len = sizeof(FlowKeyV6_t);
 
     aggregateInfo[0] = -1;
+    LoadedGeoDB = Loaded_MaxMind();
     return 1;
 
 }  // End of Init_FlowCache
@@ -896,10 +953,6 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
             fmt_len -= 1;
         }
 
-        if (hasGeoDB) {
-            doGeoLookup += aggregationTable[index].geoLookup;
-        }
-
         do {
             // loop over alternate extensions v4/v6
             if (maskIndex >= MaxMaskArraySize) {
@@ -936,7 +989,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
     }
     aggregateInfo[elementCount] = -1;
 
-    // #ifdef DEVEL
+#ifdef DEVEL
     printf("Aggregate key:  v4len: %zu, v6len: %zu bytes\n", keymenV4Len, keymenV6Len);
     printf("Aggregate format string: '%s'\n", aggr_fmt);
 
@@ -955,7 +1008,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
         }
     }
 
-    // #endif
+#endif
 
     strncat(aggr_fmt, " ", fmt_len);
     fmt_len--;
@@ -1166,26 +1219,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
     }
 
     recordHeaderV3_t *record = recordHandle->recordHeaderV3;
-    if (doGeoLookup && TestFlag(record->flags, V3_FLAG_ENRICHED) == 0) {
-        EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
-        if (ipv4Flow) {
-            LookupV4Country(ipv4Flow->srcAddr, &recordHandle->geo[0]);
-            LookupV4Country(ipv4Flow->dstAddr, &recordHandle->geo[2]);
-            if (asRouting) {
-                if (asRouting->srcAS == 0) asRouting->srcAS = LookupV4AS(ipv4Flow->srcAddr);
-                if (asRouting->dstAS == 0) asRouting->dstAS = LookupV4AS(ipv4Flow->dstAddr);
-            }
-        }
-        if (ipv6Flow) {
-            LookupV6Country(ipv6Flow->srcAddr, &recordHandle->geo[0]);
-            LookupV6Country(ipv6Flow->dstAddr, &recordHandle->geo[2]);
-            if (asRouting) {
-                if (asRouting->srcAS == 0) asRouting->srcAS = LookupV6AS(ipv6Flow->srcAddr);
-                if (asRouting->dstAS == 0) asRouting->dstAS = LookupV6AS(ipv6Flow->dstAddr);
-            }
-        }
-        SetFlag(record->flags, V3_FLAG_ENRICHED);
-    }
+
     if (bidir_flows) return AddBidirFlow(recordHandle);
 
     size_t keyLen = 0;
@@ -1276,21 +1310,6 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
         EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle.extensionList[EXasRoutingID];
         EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle.extensionList[EXcntFlowID];
 
-        if (doGeoLookup) {
-            if (ipv4Flow) {
-                LookupV4Country(ipv4Flow->srcAddr, recordHandle.geo);
-                LookupV4Country(ipv4Flow->dstAddr, &recordHandle.geo[2]);
-            }
-            if (ipv6Flow) {
-                LookupV6Country(ipv6Flow->srcAddr, recordHandle.geo);
-                LookupV6Country(ipv6Flow->dstAddr, &recordHandle.geo[2]);
-            }
-            if (asRouting) {
-                if (asRouting->srcAS == 0) asRouting->srcAS = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : LookupV6AS(ipv6Flow->srcAddr);
-                if (asRouting->dstAS == 0) asRouting->dstAS = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : LookupV6AS(ipv6Flow->dstAddr);
-            }
-            SetFlag(v3record->flags, V3_FLAG_ENRICHED);
-        }
         genericFlow->inPackets = r->inPackets;
         genericFlow->inBytes = r->inBytes;
         genericFlow->msecFirst = r->msecFirst;
