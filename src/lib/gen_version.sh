@@ -1,5 +1,5 @@
 #!/bin/sh
-#  Copyright (c) 2023, Peter Haag
+#  Copyright (c) 2023-2024, Peter Haag
 #  All rights reserved.
 #
 #  Redistribution and use in source and binary forms, with or without
@@ -28,7 +28,6 @@
 
 echo Creating vcs_track.h
 f="vcs_track.h"
-date=$(date +'%c')
 
 if [ -d ../../.git ]; then
   # git clone - should have git command too
@@ -38,10 +37,12 @@ if [ -d ../../.git ]; then
   else
     # has git directory but no git command ..
     hash="git"
+    date=$(date +'%c')
   fi
 else
-  # no git directory - most likely release
+  # no git directory - most likely release - zip or tarball
   hash="release"
+  date="Sat Sep 02 12:49:52 2023"
 fi
 
 echo \#ifndef __VCS_TRACK_H__ >$f

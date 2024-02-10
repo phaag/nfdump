@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -321,7 +321,7 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
                     }
                     // Records passed filter -> continue record processing
 
-                    int again;
+                    int again = 0;
                     switch (netflow_version) {
                         case 5:
                             again = Add_v5_output_record(master_record, &peer);
