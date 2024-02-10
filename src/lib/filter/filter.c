@@ -123,8 +123,8 @@ static struct flow_procs_map_s {
                       {FUNC_MPLS_EOS, "mpls eos", mpls_eos_function},
                       {FUNC_MPLS_EXP, "mpls exp", mpls_exp_function},
                       {FUNC_MPLS_ANY, "mpls any", mpls_any_function},
-                      {FUNC_MMAS_LOOKUP, "AS Lockup", mmASLookup_function},
                       {FUNC_PBLOCK, "pblock", pblock_function},
+                      {FUNC_MMAS_LOOKUP, "AS Lockup", mmASLookup_function},
                       {0, NULL, NULL}};
 
 // 128bit compare for IPv6

@@ -233,22 +233,6 @@ static int SetStat(char *str, int *element_stat, int *flow_stat) {
 
 }  // End of SetStat
 
-static inline record_header_t *AddFlowLabel(record_header_t *record, char *label) {
-#define TMPSIZE 65536
-    static char tmpRecord[TMPSIZE];
-    size_t labelSize = strlen(label) + 1;
-    recordHeaderV3_t *recordHeaderV3 = (recordHeaderV3_t *)record;
-    if ((recordHeaderV3->size + sizeof(elementHeader_t) + labelSize) >= TMPSIZE) {
-        LogError("AddFlowLabel() error in %s line %d", __FILE__, __LINE__);
-        return record;
-    }
-    memcpy((void *)tmpRecord, (void *)record, recordHeaderV3->size);
-    recordHeaderV3 = (recordHeaderV3_t *)tmpRecord;
-    PushVarLengthPointer(recordHeaderV3, EXlabel, voidPtr, labelSize);
-    memcpy(voidPtr, (void *)label, labelSize);
-    return (record_header_t *)tmpRecord;
-}
-
 static stat_record_t process_data(void *engine, char *wfile, int element_stat, int flow_stat, int sort_flows, RecordPrinter_t print_record,
                                   timeWindow_t *timeWindow, uint64_t limitRecords, outputParams_t *outputParams, int compress) {
     nffile_t *nffile_w, *nffile_r;
@@ -966,12 +950,6 @@ int main(int argc, char **argv) {
         HasGeoDB = true;
         outputParams->hasGeoDB = true;
     }
-    /* XXX
-    if (!HasGeoDB && Engine->geoFilter > 1) {
-        LogError("Can not filter according geo elements without a geo location DB");
-        exit(EXIT_FAILURE);
-    }
-    */
 
     if ((aggregate || flow_stat || print_order) && !Init_FlowCache()) exit(250);
 

@@ -2196,12 +2196,22 @@ static void String_evt(FILE *stream, recordHandle_t *recordHandle) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
     EXnelCommon_t *nelCommon = (EXnelCommon_t *)recordHandle->extensionList[EXnelCommonID];
 
-    if (nselCommon) {
-        fprintf(stream, "%8s", fwEventString(nselCommon->fwEvent));
-    } else if (nelCommon) {
-        fprintf(stream, "%8s", natEventString(nelCommon->natEvent, SHORTNAME));
+    if (printPlain) {
+        uint32_t evtNum = 0;
+        if (nselCommon) {
+            evtNum = nselCommon->fwEvent;
+        } else if (nelCommon) {
+            evtNum = nelCommon->natEvent;
+        }
+        fprintf(stream, "%u", evtNum);
     } else {
-        fprintf(stream, "%8s", "<no-evt>");
+        char evtString = "<no-evt>";
+        if (nselCommon) {
+            evtString = fwEventString(nselCommon->fwEvent);
+        } else if (nelCommon) {
+            evtString = natEventString(nelCommon->natEvent, SHORTNAME);
+        }
+        fprintf(stream, "%8s", evtString);
     }
 
 }  // End of String_evt
