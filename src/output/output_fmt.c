@@ -2205,7 +2205,7 @@ static void String_evt(FILE *stream, recordHandle_t *recordHandle) {
         }
         fprintf(stream, "%u", evtNum);
     } else {
-        char evtString = "<no-evt>";
+        char *evtString = "<no-evt>";
         if (nselCommon) {
             evtString = fwEventString(nselCommon->fwEvent);
         } else if (nelCommon) {
