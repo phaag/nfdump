@@ -113,7 +113,7 @@ struct StatParameter_s {
     {"srcgeo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, SRC_GEO},
     {"dstgeo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, DST_GEO},
     {"geo", " Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, SRC_GEO},
-    {"geo", " Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, DST_GEO},
+    {"geo", NULL, {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, DST_GEO},
     {"nhip", "Nexthop IP", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, IS_IPADDR, NOPREPROCESS},
     {"nhip", NULL, {EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, AF_INET6}, IS_IPADDR, NOPREPROCESS},
     {"nhbip", "Nexthop BGP IP", {EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, AF_INET}, IS_IPADDR, NOPREPROCESS},
@@ -326,7 +326,7 @@ static uint64_t pps_element(StatRecord_t *record, flowDir_t inout) {
     uint64_t packets;
 
     /* duration in msec */
-    duration = record->msecLast - record->msecFirst;
+    duration = record->msecLast ? record->msecLast - record->msecFirst : 0;
     if (duration == 0)
         return 0;
     else {
@@ -340,7 +340,7 @@ static uint64_t bps_element(StatRecord_t *record, flowDir_t inout) {
     uint64_t duration;
     uint64_t bytes;
 
-    duration = record->msecLast - record->msecFirst;
+    duration = record->msecLast ? record->msecLast - record->msecFirst : 0;
     if (duration == 0)
         return 0;
     else {
@@ -753,7 +753,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
 
     uint64_t pps = 0;
     uint64_t bps = 0;
-    double duration = (StatData->msecLast - StatData->msecFirst) / 1000.0;
+    double duration = StatData->msecLast ? (StatData->msecLast - StatData->msecFirst) / 1000.0 : 0;
     if (duration != 0) {
         // duration in sec
         pps = (count_packets) / duration;
@@ -824,7 +824,7 @@ static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto,
         sa[2] = (_key[1] >> 32) & 0xffffffffLL;
         sa[3] = _key[1] & 0xffffffffLL;
     }
-    double duration = (StatData->msecLast - StatData->msecFirst) / 1000.0;
+    double duration = StatData->msecLast ? (StatData->msecLast - StatData->msecFirst) / 1000.0 : 0;
 
     uint64_t count_flows = flows_element(StatData, inout);
     uint64_t count_packets = packets_element(StatData, inout);
@@ -906,7 +906,7 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *
     double packets_percent = stat->numpackets ? (double)(count_packets * 100) / (double)stat->numpackets : 0;
     double bytes_percent = stat->numbytes ? (double)(count_bytes * 100) / (double)stat->numbytes : 0;
 
-    double duration = (StatData->msecLast - StatData->msecFirst) / 1000.0;
+    double duration = StatData->msecLast ? (StatData->msecLast - StatData->msecFirst) / 1000.0 : 0;
 
     uint64_t pps, bps;
     if (duration != 0) {
