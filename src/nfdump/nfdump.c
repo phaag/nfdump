@@ -570,8 +570,8 @@ int main(int argc, char **argv) {
                 aggregate = 1;
                 break;
             case 'A':
-                CheckArgLen(optarg, 64);
-                if (strlen(optarg) > 64) {
+                CheckArgLen(optarg, 128);
+                if (strlen(optarg) > 128) {
                     LogError("Aggregate mask format length error");
                     exit(EXIT_FAILURE);
                 }

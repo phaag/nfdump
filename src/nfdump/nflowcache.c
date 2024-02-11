@@ -505,6 +505,7 @@ static inline void *New_HashKey(void *keymem, recordHandle_t *recordHandle, int 
             keyptr->srcPort = genericFlow->dstPort;
             keyptr->dstPort = genericFlow->srcPort;
             keyptr->proto = genericFlow->proto;
+            keyptr->af = AF_INET;
             keymem += sizeof(FlowKeyV4_t);
         } else if (ipv6Flow) {
             FlowKeyV6_t *keyptr = (FlowKeyV6_t *)keymem;
@@ -515,6 +516,7 @@ static inline void *New_HashKey(void *keymem, recordHandle_t *recordHandle, int 
             keyptr->srcPort = genericFlow->dstPort;
             keyptr->dstPort = genericFlow->srcPort;
             keyptr->proto = genericFlow->proto;
+            keyptr->af = AF_INET6;
             keymem += sizeof(FlowKeyV6_t);
         }
     } else {
@@ -526,6 +528,7 @@ static inline void *New_HashKey(void *keymem, recordHandle_t *recordHandle, int 
             keyptr->srcPort = genericFlow->srcPort;
             keyptr->dstPort = genericFlow->dstPort;
             keyptr->proto = genericFlow->proto;
+            keyptr->af = AF_INET;
             keymem += sizeof(FlowKeyV4_t);
         } else if (ipv6Flow) {
             FlowKeyV6_t *keyptr = (FlowKeyV6_t *)keymem;
@@ -536,6 +539,7 @@ static inline void *New_HashKey(void *keymem, recordHandle_t *recordHandle, int 
             keyptr->srcPort = genericFlow->srcPort;
             keyptr->dstPort = genericFlow->dstPort;
             keyptr->proto = genericFlow->proto;
+            keyptr->af = AF_INET6;
             keymem += sizeof(FlowKeyV6_t);
         }
     }
@@ -1081,7 +1085,9 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
     } else if (ipv6Flow) {
         keymem = &keymemV6;
         keyLen = keymenV6Len;
-    }
+    } else
+        return;
+
     if (*keymem == NULL) *keymem = nfmalloc(keyLen);
 
     New_HashKey(*keymem, recordHandle, 0);
@@ -1239,7 +1245,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
 
 #ifdef DEVEL
     void *endOfKey = New_HashKey(*keymem, recordHandle, 0);
-    dbg_printf("Key diff: %zu, len: %zu\n", endOfKey - *keymem, keyLen);
+    printf("Key diff: %zu, len: %zu\n", endOfKey - *keymem, keyLen);
 #else
     New_HashKey(*keymem, recordHandle, 0);
 #endif

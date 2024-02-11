@@ -567,8 +567,8 @@ void AddElementStat(recordHandle_t *recordHandle) {
                     hashkey.v1 = *((uint64_t *)inPtr);
                 } break;
                 case 16: {
-                    hashkey.v1 = ((uint64_t *)inPtr)[0];
-                    hashkey.v0 = ((uint64_t *)inPtr)[1];
+                    hashkey.v0 = ((uint64_t *)inPtr)[0];
+                    hashkey.v1 = ((uint64_t *)inPtr)[1];
                 } break;
                 default:
                     LogError("Invalid stat element size: %d", length);
