@@ -522,9 +522,12 @@ int main(int argc, char **argv) {
     int GuessDir, ModifyCompress;
     uint32_t limitRecords;
     char Ident[IDENTLEN];
-    flist_t flist;
+    flist_t flist = {0};
 
-    memset((void *)&flist, 0, sizeof(flist));
+#ifdef DEVEL
+    long nprocs = sysconf(_SC_NPROCESSORS_ONLN);
+    printf("CPUs online %ld\n", nprocs);
+#endif
     wfile = ffile = filter = tstring = stat_type = NULL;
     fdump = aggregate = 0;
     aggregate_mask = 0;
