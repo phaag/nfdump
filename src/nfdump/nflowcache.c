@@ -203,11 +203,11 @@ static struct order_mode_s {
 } order_mode[] = {{"-", 0, 0, null_record},  // empty entry 0
                   {"flows", IN, DESCENDING, flows_record},
                   {"packets", INOUT, DESCENDING, packets_record},
-                  {"ipkg", IN, DESCENDING, packets_record},
-                  {"opkg", OUT, DESCENDING, packets_record},
+                  {"ipackets", IN, DESCENDING, packets_record},
+                  {"opackets", OUT, DESCENDING, packets_record},
                   {"bytes", INOUT, DESCENDING, bytes_record},
-                  {"ibyte", IN, DESCENDING, bytes_record},
-                  {"obyte", OUT, DESCENDING, bytes_record},
+                  {"ibytes", IN, DESCENDING, bytes_record},
+                  {"obytes", OUT, DESCENDING, bytes_record},
                   {"pps", INOUT, DESCENDING, pps_record},
                   {"ipps", IN, DESCENDING, pps_record},
                   {"opps", OUT, DESCENDING, pps_record},
@@ -584,7 +584,7 @@ static uint64_t bytes_record(FlowHashRecord_t *record, flowDir_t inout) {
 
 static uint64_t pps_record(FlowHashRecord_t *record, flowDir_t inout) {
     /* duration in msec */
-    uint64_t duration = record->msecLast - record->msecFirst;
+    uint64_t duration = record->msecLast ? record->msecLast - record->msecFirst : 0;
     if (duration == 0)
         return 0;
     else {
@@ -594,7 +594,7 @@ static uint64_t pps_record(FlowHashRecord_t *record, flowDir_t inout) {
 }  // End of pps_record
 
 static uint64_t bps_record(FlowHashRecord_t *record, flowDir_t inout) {
-    uint64_t duration = record->msecLast - record->msecFirst;
+    uint64_t duration = record->msecLast ? record->msecLast - record->msecFirst : 0;
     if (duration == 0)
         return 0;
     else {
@@ -614,7 +614,9 @@ static uint64_t tstart_record(FlowHashRecord_t *record, flowDir_t inout) { retur
 
 static uint64_t tend_record(FlowHashRecord_t *record, flowDir_t inout) { return record->msecLast; }  // End of tend_record
 
-static uint64_t duration_record(FlowHashRecord_t *record, flowDir_t inout) { return record->msecLast - record->msecFirst; }  // End of duration_record
+static uint64_t duration_record(FlowHashRecord_t *record, flowDir_t inout) {
+    return record->msecLast ? (record->msecLast - record->msecFirst) : 0;
+}  // End of duration_record
 
 static void ApplyAggregateMask(recordHandle_t *recordHandle, struct aggregationElement_s *aggregationElement) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
