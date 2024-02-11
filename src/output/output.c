@@ -206,11 +206,7 @@ RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams
                     print_prolog = printmap[i].func_prolog;
                     print_epilog = printmap[i].func_epilog;
                 } else {
-                    // To support the pipe output format for element stats - check for pipe, and
-                    // remember this
-                    if (strncasecmp(print_format, "pipe", MAXMODELEN) == 0) {
-                        outputParams->mode = MODE_PIPE;
-                    } else if (strncasecmp(print_format, "csv", MAXMODELEN) == 0) {
+                    if (strncasecmp(print_format, "csv", MAXMODELEN) == 0) {
                         outputParams->mode = MODE_CSV;
                     } else if (strncasecmp(print_format, "json", MAXMODELEN) == 0) {
                         outputParams->mode = MODE_JSON;

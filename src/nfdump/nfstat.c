@@ -290,8 +290,6 @@ static int ParseListOrder(char *orderBy, struct StatRequest_s *request);
 
 static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, StatRecord_t *StatData, int type, int order_proto, int inout);
 
-static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
-
 static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
 
 static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, direction_t direction);
@@ -802,63 +800,6 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
 
 }  // End of PrintStatLine
 
-static void PrintPipeStatLine(StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
-    uint32_t sa[4] = {0};
-
-    uint64_t _key[2];
-    _key[0] = StatData->hashkey.v0;
-    _key[1] = StatData->hashkey.v1;
-    int af = AF_UNSPEC;
-    if (type == IS_IPADDR) {
-        if (StatData->hashkey.v0 != 0) {  // IPv6
-            _key[0] = htonll(StatData->hashkey.v0);
-            _key[1] = htonll(StatData->hashkey.v1);
-            af = PF_INET6;
-
-        } else {  // IPv4
-            af = PF_INET;
-        }
-        // Make sure Endian does not screw us up
-        sa[0] = (_key[0] >> 32) & 0xffffffffLL;
-        sa[1] = _key[0] & 0xffffffffLL;
-        sa[2] = (_key[1] >> 32) & 0xffffffffLL;
-        sa[3] = _key[1] & 0xffffffffLL;
-    }
-    double duration = StatData->msecLast ? (StatData->msecLast - StatData->msecFirst) / 1000.0 : 0;
-
-    uint64_t count_flows = flows_element(StatData, inout);
-    uint64_t count_packets = packets_element(StatData, inout);
-    uint64_t count_bytes = bytes_element(StatData, inout);
-    uint64_t pps, bps, bpp;
-    if (duration != 0) {
-        pps = (uint64_t)((double)count_packets / duration);
-        bps = (uint64_t)((double)(8 * count_bytes) / duration);
-    } else {
-        pps = bps = 0;
-    }
-
-    if (count_packets)
-        bpp = count_bytes / count_packets;
-    else
-        bpp = 0;
-
-    if (!order_proto) {
-        StatData->hashkey.proto = 0;
-    }
-
-    if (type == IS_IPADDR)
-        printf("%i|%llu|%llu|%u|%u|%u|%u|%u|%llu|%llu|%llu|%llu|%llu|%llu\n", af, (long long unsigned)StatData->msecFirst,
-               (long long unsigned)StatData->msecLast, StatData->hashkey.proto, sa[0], sa[1], sa[2], sa[3], (long long unsigned)count_flows,
-               (long long unsigned)count_packets, (long long unsigned)count_bytes, (long long unsigned)pps, (long long unsigned)bps,
-               (long long unsigned)bpp);
-    else
-        printf("%i|%llu|%llu|%u|%llu|%llu|%llu|%llu|%llu|%llu|%llu\n", af, (long long unsigned)StatData->msecFirst,
-               (long long unsigned)StatData->msecLast, StatData->hashkey.proto, (long long unsigned)_key[1], (long long unsigned)count_flows,
-               (long long unsigned)count_packets, (long long unsigned)count_bytes, (long long unsigned)pps, (long long unsigned)bps,
-               (long long unsigned)bpp);
-
-}  // End of PrintPipeStatLine
-
 static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
     char valstr[40];
 
@@ -1020,10 +961,6 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                         case MODE_PLAIN:
                             PrintStatLine(sum_stat, outputParams, (StatRecord_t *)topN_element_list[index].record, type,
                                           StatRequest[hash_num].order_proto, orderByTable[order_index].inout);
-                            break;
-                        case MODE_PIPE:
-                            PrintPipeStatLine((StatRecord_t *)topN_element_list[index].record, type, StatRequest[hash_num].order_proto,
-                                              outputParams->doTag, orderByTable[order_index].inout);
                             break;
                         case MODE_CSV:
                             PrintCvsStatLine(sum_stat, outputParams->printPlain, (StatRecord_t *)topN_element_list[index].record, type,
