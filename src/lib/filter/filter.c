@@ -83,11 +83,8 @@ typedef struct FilterEngine_s {
     filterElement_t *filter;
     uint32_t StartNode;
     uint16_t Extended;
-    uint8_t geoFilter;
-    uint8_t ja3Filter;
     char *label;
-    char *ident;
-    int (*filterFunction)(struct FilterEngine_s *, recordHandle_t *);
+    int (*filterFunction)(const struct FilterEngine_s *, recordHandle_t *, const char *);
 } FilterEngine_t;
 
 static filterElement_t *FilterTree;
@@ -522,13 +519,12 @@ static void InitFilter(void) {
     ClearFilter();
 }  // End of InitFilter
 
-int FilterRecord(void *engine, recordHandle_t *handle, char *ident) {
+int FilterRecord(void *engine, recordHandle_t *handle, const char *ident) {
     FilterEngine_t *filterEngine = (FilterEngine_t *)engine;
-    filterEngine->ident = ident;
-    return filterEngine->filterFunction(filterEngine, handle);
+    return filterEngine->filterFunction(filterEngine, handle, ident);
 }  // End of FilterRecord
 
-static int RunFilterFast(FilterEngine_t *engine, recordHandle_t *handle) {
+static int RunFilterFast(const FilterEngine_t *engine, recordHandle_t *handle, const char *ident) {
     uint32_t index = engine->StartNode;
     int invert = 0;
     int evaluate = 0;
@@ -574,7 +570,7 @@ static int RunFilterFast(FilterEngine_t *engine, recordHandle_t *handle) {
 
 }  // End of RunFilter
 
-static int RunExtendedFilter(FilterEngine_t *engine, recordHandle_t *handle) {
+static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handle, const char *ident) {
     HasGeoDB = Loaded_MaxMind();
     uint32_t index = engine->StartNode;
     int evaluate = 0;
@@ -640,7 +636,6 @@ static int RunExtendedFilter(FilterEngine_t *engine, recordHandle_t *handle) {
                 evaluate = (inVal & engine->filter[index].value) == engine->filter[index].value;
             } break;
             case CMP_IDENT: {
-                char *ident = engine->ident;
                 char *str = (char *)data.dataPtr;
                 evaluate = str != NULL && (strcmp(ident, str) == 0 ? 1 : 0);
             } break;
@@ -757,15 +752,14 @@ void *CompileFilter(char *FilterSyntax) {
         LogError("Memory allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(255);
     }
-    engine->label = NULL;
-    engine->ident = NULL;
-    engine->StartNode = StartNode;
-    engine->Extended = Extended;
-    // XXX engine->geoFilter = geoFilter;
-    // XXX engine->ja3Filter = ja3Filter;
-    engine->filter = FilterTree;
+    *engine = (FilterEngine_t){
+        .label = NULL,
+        .StartNode = StartNode,
+        .Extended = Extended,
+        .filter = FilterTree,
+        .filterFunction = Extended ? RunExtendedFilter : RunFilterFast,
+    };
     FilterTree = NULL;
-    engine->filterFunction = Extended ? RunExtendedFilter : RunFilterFast;
 
     dbg_printf("Engine: %s\n", engine->Extended ? "extended" : "fast");
 

@@ -154,7 +154,7 @@ void *CompileFilter(char *FilterSyntax);
 
 void DisposeFilter(void *engine);
 
-int FilterRecord(void *engine, recordHandle_t *handle, char *ident);
+int FilterRecord(void *engine, recordHandle_t *handle, const char *ident);
 
 void DumpEngine(void *arg);
 
