@@ -44,11 +44,11 @@
 #include <sys/types.h>
 #include <time.h>
 
+#include "ja3.h"
 #include "maxmind.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
-#include "output/ja3.h"
 #include "output_json.h"
 #include "output_util.h"
 #include "userio.h"
