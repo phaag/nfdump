@@ -32,6 +32,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -807,7 +808,7 @@ void DumpEngine(void *arg) {
                 struct U64ListNode *node;
                 RB_FOREACH(node, U64tree, engine->filter[i].data.dataPtr) { printf("%.16llx \n", (unsigned long long)node->value); }
             } else
-                printf("Data: %llu - %llx\n", engine->filter[i].data.dataVal, engine->filter[i].data.dataVal);
+                printf("Data: %" PRIu64 " - %" PRIu64 "\n", engine->filter[i].data.dataVal, engine->filter[i].data.dataVal);
         }
         printf("\tBlocks: ");
         for (int j = 0; j < engine->filter[i].numblocks; j++) printf("%i ", engine->filter[i].blocklist[j]);

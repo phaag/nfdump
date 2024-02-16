@@ -32,6 +32,7 @@
 
 #include <stdio.h>
 #include <sys/types.h>
+#include <sys/socket.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdarg.h>
@@ -39,6 +40,7 @@
 #include <stddef.h>
 #include <errno.h>
 #include <ctype.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
 
 #include "filter.h"
