@@ -35,6 +35,8 @@ export TZ
 
 # prevent any default goelookup for testing
 NFDUMP="../nfdump/nfdump -G none"
+NFCAPD="../nfcapd/nfcapd"
+NFREPLAY="../nfreplay/nfreplay"
 
 $NFDUMP -r dummy_flows.nf -q -o raw >test.1.out
 diff -u test.1.out nftest.1.out
@@ -74,12 +76,11 @@ mkdir testdir
 # Start nfcapd on localhost and replay flows
 echo
 echo -n Starting nfcapd ...
-# ../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -z=lz4
-nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -z=lz4
+$NFCAPD -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -z=lz4
 sleep 1
 echo done.
 echo -n Replay flows ...
-../nfreplay/nfreplay -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530
+$NFREPLAY -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530
 echo done.
 sleep 1
 
@@ -103,12 +104,11 @@ diff test.6-1.out test.6-2.out
 rm -f testdir/nfcapd.*
 echo
 echo -n Starting nfcapd ...
-# ../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
-nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
+$NFCAPD -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
 sleep 1
 echo done.
 echo -n Replay flows ...
-../nfreplay/nfreplay -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530
+$NFREPLAY -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530
 echo done.
 sleep 1
 
@@ -118,12 +118,11 @@ sleep 1
 echo done.
 
 echo -n Starting nfcapd ...
-# ../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
-nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
+$NFCAPD -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
 sleep 1
 echo done.
 echo -n Replay flows ...
-../nfreplay/nfreplay -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530
+$NFREPLAY -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530
 echo done.
 sleep 1
 
