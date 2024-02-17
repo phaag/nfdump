@@ -801,8 +801,8 @@ void DumpEngine(void *arg) {
             if (engine->filter[i].comp == CMP_IPLIST) {
                 struct IPListNode *node;
                 RB_FOREACH(node, IPtree, engine->filter[i].data.dataPtr) {
-                    printf("value: %.16llx %.16llx mask: %.16llx %.16llx\n", (unsigned long long)node->ip[0], (unsigned long long)node->ip[1],
-                           (unsigned long long)node->mask[0], (unsigned long long)node->mask[1]);
+                    printf("value: %.16" PRIx64 " %.16" PRIx64 " mask: %.16" PRIx64 " %.16" PRIx64 "\n", node->ip[0], node->ip[1], node->mask[0],
+                           node->mask[1]);
                 }
             } else if (engine->filter[i].comp == CMP_U64LIST) {
                 struct U64ListNode *node;
