@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2012-2023, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2023, Peter Haag
  *  All rights reserved.
  *  
  *  Redistribution and use in source and binary forms, with or without 
@@ -33,25 +32,17 @@
 
 %{
 
-#include "config.h"
-
 #include <sys/types.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <limits.h>
 #include <ctype.h>
 
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "filter.h"
-#include "nftree.h"
 #include "grammar.h"
-
-extern char yyerror_buff[256];
 
 int lineno = 1;
 
@@ -78,9 +69,9 @@ int include_stack_ptr = 0;
 
 char	*FilterFilename = NULL;;
 
-static void __attribute__((noreturn)) yy_fatal_error (yyconst char msg[]);
-
 static char *stripQuotes(char *word);
+
+static void __attribute__((noreturn)) yy_fatal_error (yyconst char msg[]);
 
 // static void __attribute__((unused))yyunput (int c, char * yy_bp);
 
@@ -127,116 +118,98 @@ H				(0X|0x)[0-9A-Fa-f]+
 					return NUMBER;
 				}
 
-any				{ return ANY; }
-ip|host			{ return IP; }
-tunip			{ return TUNIP; }
-if				{ return IF; }
-mac				{ return MAC; }
-mpls			{ return MPLS; }
-in				{ return IN; }
+any				{ return ANY;  }
+ipv4			{ return IPV4; }
+ipv6			{ return IPV6; }
 ident			{ return IDENT; }
-out				{ return OUT; }
+count			{ return COUNT; }
+ip|host		{ return IP;   }
+net				{ return NET;  }
 
-flags			{ return FLAGS; }
-nfversion		{ return NFVERSION; }
-count		{ return COUNT; }
-proto			{ return PROTO; }
-tun				{ return TUN; }
-tos				{ return TOS; }
-dir				{ return DIR; }
-flowdir			{ return DIR; }
-net				{ return NET; }
-port			{ return PORT; }
-as				{ return AS; }
-geo				{ return GEO; }
-packets			{ return PACKETS; }
-bytes			{ return BYTES; }
-flowlabel	{ return LABEL; }
-flows			{ return FLOWS; }
-bpp				{ return BPP; }
-bps				{ return BPS; }
-pps				{ return PPS; }
-duration		{ return DURATION; }
-ipv4|inet		{ return IPV4; }
-ipv6|inet6		{ return IPV6; }
-icmp-type		{ return ICMP_TYPE; }
-icmp-code		{ return ICMP_CODE; }
-engine-type		{ return ENGINE_TYPE; }
-engine-id		{ return ENGINE_ID; }
-exporter	{ return EXPORTER; }
-src				{ return SRC; }
-dst				{ return DST; }
-next			{ return NEXT; }
-prev			{ return PREV; }
-ingress			{ return INGRESS; }
-egress			{ return EGRESS; }
-previous		{ return PREV; }
-bgpnext			{ return BGPNEXTHOP; }
-router			{ return ROUTER; }
-vlan			{ return VLAN; }
-mask			{ return MASK; }
-fwdstat			{ return FWDSTAT; }
-client			{ return CLIENT; }
-server			{ return SERVER; }
-app				{ return APP; }
-latency			{ return LATENCY; }
-sysid			{ return SYSID; }
-observation { return OBSERVATION; } 
-domain { return DOMAIN; }
-point { return POINT; }
-id { return ID;}
-pf { return PF;}
-action { return PFACTION;}
-reason { return PFREASON;}
-rule { return RULE;}
-interface { return INTERFACE;}
+src				{ return SRC;    }
+dst				{ return DST;    }
+in				{ return IN;     }
+out				{ return OUT;    }
+next			{ return NEXT;   }
+prev			{ return PREV;   }
+bgp				{ return BGP;    }
+router		{ return ROUTER; }
+nat		    { return NAT;    }
+xlate		  { return NAT;    }
+tun		    { return TUN;    }
+ingress		{ return INGRESS;}
+egress		{ return EGRESS; }
 
-asa				{ return ASA; 		/* NSEL filter */ }
-event			{ return EVENT; 	/* NEL/NSEL filter */ }
-denied		{ return DENIED; 	/* NSEL filter */ }
-xevent		{ return XEVENT; 	/* NSEL filter */ }
-xip				{ return NIP; 		/* NSEL filter */ }
-xnet			{ return XNET; 		/* NSEL filter */ }
-xport			{ return XPORT; 	/* NSEL filter */ }
-acl				{ return ACL; 		/* NSEL filter */ }
-ace				{ return ACE; 		/* NSEL filter */ }
-xace			{ return XACE; 		/* NSEL filter */ }
-nat 			{ return NAT; 		/* NEL filter */ }
-vrf 			{ return VRF; 		/* NEL filter */ }
-nport			{ return NPORT; 	/* NEL filter */ }
-pblock		{ return PBLOCK;	/* NAT port block */ }
-start			{ return START;		/* NAT port block start */ }
-end				{ return END;		/* NAT port block end */ }
-step			{ return STEP;		/* NAT port block step */ }
-size			{ return SIZE;		/* NAT port block size */ }
-nip				{ return NIP; 		/* NSEL filter */ }
-payload		{ return PAYLOAD;  	/* payload filter */ }
-content		{ return CONTENT;	/* payload filter */ }
-regex			{ return REGEX;	/* payload filter */ }
-ja3				{ return JA3; 		/* payload filter */ }
-and|"&&"		{ return AND; }
-or|"||"			{ return OR; }
-not|"!"			{ return NOT; }
-"="|"=="|eq	{ return EQ; }
-">"|gt			{ return GT; }
-"<"|lt			{ return LT; }
-">="|ge			{ return GE; }
-"<="|le			{ return LE; }
+and       { return AND; }
+or        { return OR;  }
+not|"!"		{ return NOT; }
+"="|"=="	{ return EQ;  }
+">"			  { return GT;  }
+"<"			  { return LT;  }
+">="			{ return GE;  }
+"<="			{ return LE;  }
+"eq"			{ return EQ;  }
+"gt"		  { return GT;  }
+"lt"		  { return LT;  }
+"ge"			{ return GE;  }
+"le"			{ return LE;  }
+
+"engine"      { return ENGINE;     }
+"engine-type" { return ENGINETYPE; }
+"engine-id"   { return ENGINEID;   }
+"exporter"    { return EXPORTER;   }
+
+"packets"  { return PACKETS;  }
+"bytes"    { return BYTES;    }
+"flows"    { return FLOWS;    }
+"duration" { return DURATION; }
+"pps"      { return PPS;      }
+"bps"      { return BPS;      }
+"bpp"      { return BPP;      } 
+
+"proto"     { return PROTO;    }
+"port"      { return PORT;     }
+"as"        { return AS;       }
+"vlan"      { return VLAN;     }
+"mpls"      { return MPLS;     }
+"mac"       { return MAC;      }
+"flags"     { return FLAGS;    }
+"icmp"      { return ICMP;     }
+"icmp-type" { return ICMPTYPE; }
+"icmp-code" { return ICMPCODE; }
+
+"if"        { return IF;      }
+"mask"      { return MASK;    }
+"flowdir"   { return FLOWDIR; }
+"latency"		{ return LATENCY; }
+"asa"       { return ASA;     }
+"acl"       { return ACL;     }
+"payload"   { return PAYLOAD; }
+"geo"       { return GEO;			}
+"vrf"       { return VRF;			}
+"pf" 				{ return PF;			}
+
+"observation" { return OBSERVATION; }
+
+"tos"     { return TOS;     }
+"fwdstat" { return FWDSTAT; }
+
 #.*				{ ; }
 [ \t]			{ ; }
 
-[a-zA-Z0-9_:\.\-]+ { 
-					yylval.s = stripQuotes(yytext);
-					return STRING; 
-				}
+[a-zA-Z0-9_:\.\-=]+ {
+                    yylval.s = stripQuotes(yytext);
+                    return STRING;
+                }
 [']([ -~]{-}['])*['] {
-					yylval.s = stripQuotes(yytext);
-					return STRING; 
-				}
+                    yylval.s = stripQuotes(yytext);
+                    return STRING;
+                }
 ["]([ -~]{-}["])*["] {
-					yylval.s = stripQuotes(yytext);
-					return STRING; 
-				}
+                    yylval.s = stripQuotes(yytext);
+                    return STRING;
+                }
+
 \n			{ lineno++; }
 .				{ return yytext[0]; }
 			
@@ -290,7 +263,6 @@ void lex_init(char *buf) {
 		in_buffer = buf;
 #endif
 		lineno = 1;
-		yyerror_buff[0] = '\0';
 }
 
 /*
@@ -308,33 +280,14 @@ int yywrap(void) {
 	return 1;
 }
 
-int ScreenIdentString(char *string) {
-	char *c;
-
-	// ident[a-zA-Z0-9_\-]+ { 
-	size_t len = strlen(string);
-	if ( len == 0 || len > 255 ) 
-		return 0;
-	
-	c = &string[0];
-	while ( *c ) {
-		if ( *c != '_' && *c != '-' && !isalnum(*c) ) 
-			return 0;
-		c++;
-	}
-	return 1;
-
-} // End of ScreenIdentString
-
 static char *stripQuotes(char *string) {
-	char *w = strdup(string);
+    char *w = strdup(string);
 
-	// strip ", ' and /' from begin/end of string
-	if ( w[0] == 0x27 || w[0] == 0x22 || w[0] == 0x2f ) w++;
+    // strip ", ' and /' from begin/end of string
+    if ( w[0] == 0x27 || w[0] == 0x22 || w[0] == 0x2f ) w++;
   size_t last = strlen(w) -1;
 
-	if ( w[last] == 0x27 || w[last] == 0x22 || w[last] == 0x2f ) w[last] = '\0';
+    if ( w[last] == 0x27 || w[last] == 0x22 || w[last] == 0x2f ) w[last] = '\0';
 
-	return w;
+    return w;
 } // End of stripQuotes
-

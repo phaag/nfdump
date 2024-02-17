@@ -63,7 +63,7 @@ queue_t *queue_init(size_t length) {
         return NULL;
     }
     if (pthread_cond_init(&queue->cond, NULL) != 0) {
-        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_cond_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 

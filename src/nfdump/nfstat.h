@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -39,23 +39,18 @@
 #include "nfdump.h"
 #include "output.h"
 
-#define ASCENDING 1
-#define DESCENDING 0
-
 #define FLAG_STAT 0x1
 #define FLAG_JA3 0x2
 #define FLAG_GEO 0x4
 
 /* Function prototypes */
-void SetLimits(int stat, char *packet_limit_string, char *byte_limit_string);
-
 int Init_StatTable(void);
 
 void Dispose_StatTable(void);
 
-int SetStat(char *str, int *element_stat, int *flow_stat);
+int SetElementStat(char *elementStat, char *orderBy);
 
-void AddElementStat(master_record_t *flow_record);
+void AddElementStat(recordHandle_t *recordHandle);
 
 void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, RecordPrinter_t print_record);
 

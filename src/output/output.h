@@ -34,11 +34,13 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-typedef void (*RecordPrinter_t)(FILE *, void *, int);
+#include "nfdump.h"
+
+typedef void (*RecordPrinter_t)(FILE *, recordHandle_t *, int);
 typedef void (*PrologPrinter_t)(void);
 typedef void (*EpilogPrinter_t)(void);
 
-enum { MODE_PLAIN = 0, MODE_PIPE, MODE_JSON, MODE_CSV };
+enum { MODE_PLAIN = 0, MODE_JSON, MODE_CSV };
 typedef struct outputParams_s {
     bool printPlain;
     bool doTag;

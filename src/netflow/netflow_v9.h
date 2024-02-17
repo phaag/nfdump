@@ -133,19 +133,6 @@ typedef struct common_header_s {
     uint16_t length;
 } common_header_t;
 
-#define _1byte 1
-#define _2bytes 2
-#define _3bytes 3
-#define _4bytes 4
-#define _6bytes 6
-#define _8bytes 8
-#define _12bytes 12
-#define _16bytes 16
-#define _20bytes 20
-#define _24bytes 24
-#define _65bytes 65
-#define _72bytes 72
-
 #define NF9_TEMPLATE_FLOWSET_ID 0
 #define NF9_OPTIONS_FLOWSET_ID 1
 #define NF9_MIN_RECORD_FLOWSET_ID 256

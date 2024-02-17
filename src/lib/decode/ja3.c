@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -373,6 +373,25 @@ static int ja3ParseServerHandshake(ja3_t *ja3, uint8_t *data, size_t len) {
 
 }  // End of ja3ParseServerHandshake
 
+char *ja3HashString(ja3_t *ja3) {
+    static char out[33];
+
+    if (ja3 == NULL) return "";
+
+    uint8_t *u8 = (uint8_t *)ja3->md5Hash;
+
+    int i, j;
+    for (i = 0, j = 0; i < 16; i++, j += 2) {
+        uint8_t ln = u8[i] & 0xF;
+        uint8_t hn = (u8[i] >> 4) & 0xF;
+        out[j + 1] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
+        out[j] = hn <= 9 ? hn + '0' : hn + 'a' - 10;
+    }
+    out[32] = '\0';
+
+    return out;
+}  // End of ja3HashString
+
 void ja3Print(ja3_t *ja3) {
     if (ja3->type == CLIENTja3)
         printf("ja3 client record for %s:\n", ja3->sniName);
@@ -404,22 +423,10 @@ void ja3Print(ja3_t *ja3) {
 
     if (ja3->ja3String) printf("string    : %s\n", ja3->ja3String);
 
-    uint8_t *u8 = (uint8_t *)ja3->md5Hash;
-    char out[33];
-
-    int i, j;
-    for (i = 0, j = 0; i < 16; i++, j += 2) {
-        uint8_t ln = u8[i] & 0xF;
-        uint8_t hn = (u8[i] >> 4) & 0xF;
-        out[j + 1] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
-        out[j] = hn <= 9 ? hn + '0' : hn + 'a' - 10;
-    }
-    out[32] = '\0';
-
     if (ja3->type == CLIENTja3)
-        printf("ja3 hash  : %s\n\n", out);
+        printf("ja3 hash  : %s\n\n", ja3HashString(ja3));
     else
-        printf("ja3s hash : %s\n\n", out);
+        printf("ja3s hash : %s\n\n", ja3HashString(ja3));
 
 }  // End of ja3Print
 

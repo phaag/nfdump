@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2022-2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -80,22 +80,17 @@ typedef struct data_flowset_s {
 
 typedef struct outTemplates_s {
     struct outTemplates_s *next;
-    // match template with master record
-    uint32_t size;
-    uint16_t numExtensions;
-    uint16_t exElementList[MAXEXTENSIONS];
-
-    //
-    time_t time_sent;
-    uint64_t record_count;  // number of data records sent with this template
-
-    uint32_t record_length;   // length of the data record resulting from this template
-    uint32_t flowset_length;  // length of the flowset record
+    time_t time_sent;         // time, last sent
     uint16_t template_id;     // id assigned to this template
     uint16_t needs_refresh;   // tagged for refreshing
+    uint16_t numExtensions;   // number of extension in record
+    uint16_t align;           // not used - memory alignment
+    uint64_t elementBits;     // active element in record
+    uint64_t record_count;    // number of data records sent with this template
+    uint32_t data_length;     // length of the data record resulting from this template
+    uint32_t flowset_length;  // length of the flowset record
 
-    // template flowset
-    template_flowset_t *template_flowset;
+    template_flowset_t *template_flowset;  // full template in network byte order for sending
 } outTemplate_t;
 
 typedef struct sender_data_s {
@@ -106,7 +101,7 @@ typedef struct sender_data_s {
         uint32_t sequence;
     } header;
 
-    data_flowset_t *data_flowset;  // start of data_flowset in buffer
+    data_flowset_t *data_flowset;  // full data template in network byte order for sending
     uint32_t data_flowset_id;      // id of current data flowset
 
 } sender_data_t;
@@ -116,9 +111,6 @@ typedef struct sender_data_s {
 static outTemplate_t *outTemplates = NULL;
 static sender_data_t *sender_data = NULL;
 
-// XXX fix
-static uint32_t numV9Elements = 53;
-
 // Get_valxx, a  macros
 #include "inline.c"
 
@@ -126,9 +118,9 @@ static uint32_t numV9Elements = 53;
  * functions for sending netflow v9 records
  */
 
-static outTemplate_t *GetOutputTemplate(master_record_t *master_record);
+static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle);
 
-static void Append_Record(send_peer_t *peer, master_record_t *master_record);
+static void Append_Record(send_peer_t *peer, recordHandle_t *recordHandle);
 
 static int Add_template_flowset(outTemplate_t *outTemplate, send_peer_t *peer);
 
@@ -180,19 +172,13 @@ int Close_v9_output(send_peer_t *peer) {
 
 }  // End of Close_v9_output
 
-static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
-    outTemplate_t **t;
-    template_flowset_t *flowset;
-    uint32_t template_id, count, record_length;
+static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
+    uint32_t template_id = 0;
 
-    template_id = 0;
-
-    t = &outTemplates;
+    outTemplate_t **t = &outTemplates;
     // search for the template, which corresponds to our flags and extension map
     while (*t) {
-        if ((*t)->size == master_record->size && (*t)->numExtensions == master_record->numElements) {
-            if (memcmp((void *)(*t)->exElementList, (void *)master_record->exElementList, 2 * master_record->numElements) == 0)
-                dbg_printf("Found existing output template id: %u\n", (*t)->template_id);
+        if (((*t)->elementBits == recordHandle->elementBits) && ((*t)->numExtensions == recordHandle->numElements)) {
             return *t;
         }
         template_id = (*t)->template_id;
@@ -208,9 +194,8 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
     }
     (*t)->next = NULL;
 
-    (*t)->size = master_record->size;
-    (*t)->numExtensions = master_record->numElements;
-    memcpy((*t)->exElementList, (void *)master_record->exElementList, 2 * master_record->numElements);
+    (*t)->elementBits = recordHandle->elementBits;
+    (*t)->numExtensions = recordHandle->numElements;
 
     if (template_id == 0)
         (*t)->template_id = NF9_MIN_RECORD_FLOWSET_ID;
@@ -219,32 +204,54 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
 
     (*t)->time_sent = 0;
     (*t)->record_count = 0;
+
     // add flowset array - includes one potential padding
-    (*t)->template_flowset = calloc(1, sizeof(template_flowset_t) + ((numV9Elements * 4)));
+    int32_t numV9Elements = 40;  // assume, this may be enough, otherwise expand table
+    (*t)->template_flowset = calloc(1, sizeof(template_flowset_t) + (numV9Elements * 4));
+    if (!(*t)->template_flowset) {
+        LogError("malloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(255);
+    }
+    template_flowset_t *flowset = (*t)->template_flowset;
 
-    count = 0;
-    record_length = 0;
-    flowset = (*t)->template_flowset;
-
+    // add two default elements
+    int32_t count = 0;
     flowset->field[count].type = htons(NF9_ENGINE_TYPE);
     flowset->field[count].length = htons(1);
     count++;
     flowset->field[count].type = htons(NF9_ENGINE_ID);
     flowset->field[count].length = htons(1);
     count++;
-    record_length += 2;
+    uint32_t data_length = 2;
 
-    dbg_printf("Generate template for %u extensions\n", master_record->numElements);
+    dbg_printf("Generate template for %u extensions\n", recordHandle->numElements);
     // iterate over all extensions
     uint16_t srcMaskType = 0;
     uint16_t dstMaskType = 0;
-    for (int i = 0; i < master_record->numElements; i++) {
-        if (count >= numV9Elements) {
-            LogError("Panic! %s line %d: %s", __FILE__, __LINE__, "Number of elements too big");
-            exit(255);
+    int added = 0;
+    for (int ext = 1; ext < MAXEXTENSIONS; ext++) {
+        if (added == recordHandle->numElements) break;
+        if (recordHandle->extensionList[ext] == 0) continue;
+
+        // dynmaically increase flowset table, if too little slots are left
+        if ((numV9Elements - count) < 15) {
+            dbg_printf("Expand flowset table\n");
+            numV9Elements += 20;
+            size_t newSize = sizeof(template_flowset_t) + (numV9Elements * 4);
+            (*t)->template_flowset = realloc((*t)->template_flowset, newSize);
+            if (!(*t)->template_flowset) {
+                LogError("malloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                exit(255);
+            }
+            // remap flowset
+            flowset = (*t)->template_flowset;
         }
-        dbg_printf("extension %i: %u\n", i, master_record->exElementList[i]);
-        switch (master_record->exElementList[i]) {
+        added++;
+        dbg_printf("Add extension: %d\n", ext);
+        switch (ext) {
+            case EXnull:
+                LogError("Unexpected NULL extension");
+                break;
             case EXgenericFlowID:
                 flowset->field[count].type = htons(NF_F_FLOW_CREATE_TIME_MSEC);
                 flowset->field[count].length = htons(8);
@@ -279,7 +286,7 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
                 flowset->field[count].type = htons(NF9_SRC_TOS);
                 flowset->field[count].length = htons(1);
                 count++;
-                record_length += 42;
+                data_length += 42;
                 break;
             case EXipv4FlowID:
                 flowset->field[count].type = htons(NF9_IPV4_SRC_ADDR);
@@ -288,7 +295,7 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
                 flowset->field[count].type = htons(NF9_IPV4_DST_ADDR);
                 flowset->field[count].length = htons(4);
                 count++;
-                record_length += 8;
+                data_length += 8;
                 srcMaskType = NF9_SRC_MASK;
                 dstMaskType = NF9_DST_MASK;
                 break;
@@ -299,7 +306,7 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
                 flowset->field[count].type = htons(NF9_IPV6_DST_ADDR);
                 flowset->field[count].length = htons(16);
                 count++;
-                record_length += 32;
+                data_length += 32;
                 srcMaskType = NF9_IPV6_SRC_MASK;
                 dstMaskType = NF9_IPV6_DST_MASK;
                 break;
@@ -322,7 +329,7 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
                 flowset->field[count].type = htons(NF9_DST_TOS);
                 flowset->field[count].length = htons(1);
                 count++;
-                record_length += 12;
+                data_length += 12;
                 break;
             case EXcntFlowID:
                 flowset->field[count].type = htons(NF9_FLOWS_AGGR);
@@ -334,7 +341,7 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
                 flowset->field[count].type = htons(NF9_OUT_BYTES);
                 flowset->field[count].length = htons(8);
                 count++;
-                record_length += 24;
+                data_length += 24;
                 break;
             case EXvLanID:
                 flowset->field[count].type = htons(NF9_SRC_VLAN);
@@ -343,7 +350,7 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
                 flowset->field[count].type = htons(NF9_DST_VLAN);
                 flowset->field[count].length = htons(2);
                 count++;
-                record_length += 4;
+                data_length += 4;
                 break;
             case EXasRoutingID:
                 flowset->field[count].type = htons(NF9_SRC_AS);
@@ -352,31 +359,31 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
                 flowset->field[count].type = htons(NF9_DST_AS);
                 flowset->field[count].length = htons(4);
                 count++;
-                record_length += 8;
+                data_length += 8;
                 break;
             case EXbgpNextHopV4ID:
                 flowset->field[count].type = htons(NF9_BGP_V4_NEXT_HOP);
                 flowset->field[count].length = htons(4);
                 count++;
-                record_length += 4;
+                data_length += 4;
                 break;
             case EXbgpNextHopV6ID:
                 flowset->field[count].type = htons(NF9_BPG_V6_NEXT_HOP);
                 flowset->field[count].length = htons(16);
                 count++;
-                record_length += 16;
+                data_length += 16;
                 break;
             case EXipNextHopV4ID:
                 flowset->field[count].type = htons(NF9_V4_NEXT_HOP);
                 flowset->field[count].length = htons(4);
                 count++;
-                record_length += 4;
+                data_length += 4;
                 break;
             case EXipNextHopV6ID:
                 flowset->field[count].type = htons(NF9_V6_NEXT_HOP);
                 flowset->field[count].length = htons(16);
                 count++;
-                record_length += 16;
+                data_length += 16;
                 break;
             case EXmplsLabelID:
                 flowset->field[count].type = htons(NF9_MPLS_LABEL_1);
@@ -409,7 +416,7 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
                 flowset->field[count].type = htons(NF9_MPLS_LABEL_10);
                 flowset->field[count].length = htons(3);
                 count++;
-                record_length += 30;
+                data_length += 30;
                 break;
             case EXmacAddrID:
                 flowset->field[count].type = htons(NF9_IN_SRC_MAC);
@@ -424,7 +431,7 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
                 flowset->field[count].type = htons(NF9_OUT_SRC_MAC);
                 flowset->field[count].length = htons(6);
                 count++;
-                record_length += 24;
+                data_length += 24;
                 break;
             case EXasAdjacentID:
                 flowset->field[count].type = htons(NF_F_BGP_ADJ_NEXT_AS);
@@ -433,7 +440,7 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
                 flowset->field[count].type = htons(NF_F_BGP_ADJ_PREV_AS);
                 flowset->field[count].length = htons(4);
                 count++;
-                record_length += 8;
+                data_length += 8;
                 break;
         }
     }
@@ -449,9 +456,9 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
     if (((*t)->flowset_length & 0x3) != 0) (*t)->flowset_length += (4 - ((*t)->flowset_length & 0x3));
     (*t)->template_flowset->length = htons((*t)->flowset_length);
 
-    (*t)->record_length = record_length;
+    (*t)->data_length = data_length;
 
-    dbg_printf("Created new template with id: %u, count: %u, record length: %u\n", (*t)->template_id, count, record_length);
+    dbg_printf("Created new template with id: %u, count: %u, record length: %u\n", (*t)->template_id, count, data_length);
     flowset->template_id = htons((*t)->template_id);
     flowset->count = htons(count);
 
@@ -465,145 +472,164 @@ static outTemplate_t *GetOutputTemplate(master_record_t *master_record) {
 
 }  // End of GetOutputTemplate
 
-static void Append_Record(send_peer_t *peer, master_record_t *master_record) {
+static void Append_Record(send_peer_t *peer, recordHandle_t *recordHandle) {
     uint8_t *p = (uint8_t *)peer->buff_ptr;
-    *p++ = master_record->engine_type;
-    *p++ = master_record->engine_id;
+    *p++ = recordHandle->recordHeaderV3->engineType;
+    *p++ = recordHandle->recordHeaderV3->engineID;
     peer->buff_ptr = (void *)p;
 
-    for (int i = 0; i < master_record->numElements; i++) {
-        switch (master_record->exElementList[i]) {
-            case EXgenericFlowID:
-                Put_val64(htonll(master_record->msecFirst), peer->buff_ptr);
+    int added = 0;
+    for (int ext = 1; ext < MAXEXTENSIONS; ext++) {
+        if (added == recordHandle->numElements) break;
+        void *elementPtr = recordHandle->extensionList[ext];
+        if (elementPtr == NULL) continue;
+        added++;
+        switch (ext) {
+            case EXgenericFlowID: {
+                EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)elementPtr;
+                Put_val64(htonll(genericFlow->msecFirst), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                Put_val64(htonll(master_record->msecLast), peer->buff_ptr);
+                Put_val64(htonll(genericFlow->msecLast), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                Put_val64(htonll(master_record->inPackets), peer->buff_ptr);
+                Put_val64(htonll(genericFlow->inPackets), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                Put_val64(htonll(master_record->inBytes), peer->buff_ptr);
+                Put_val64(htonll(genericFlow->inBytes), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                Put_val16(htons(master_record->srcPort), peer->buff_ptr);
+                Put_val16(htons(genericFlow->srcPort), peer->buff_ptr);
                 peer->buff_ptr += 2;
-                if (master_record->proto == IPPROTO_ICMP || master_record->proto == IPPROTO_ICMPV6) {
+                if (genericFlow->proto == IPPROTO_ICMP || genericFlow->proto == IPPROTO_ICMPV6) {
                     Put_val16(0, peer->buff_ptr);
                     peer->buff_ptr += 2;
-                    Put_val16(htons(master_record->dstPort), peer->buff_ptr);
+                    Put_val16(htons(genericFlow->dstPort), peer->buff_ptr);
                     peer->buff_ptr += 2;
                 } else {
-                    Put_val16(htons(master_record->dstPort), peer->buff_ptr);
+                    Put_val16(htons(genericFlow->dstPort), peer->buff_ptr);
                     peer->buff_ptr += 2;
                     Put_val16(0, peer->buff_ptr);
                     peer->buff_ptr += 2;
                 }
-                Put_val8(master_record->proto, peer->buff_ptr);
+                Put_val8(genericFlow->proto, peer->buff_ptr);
                 peer->buff_ptr += 1;
-                Put_val8(master_record->tcp_flags, peer->buff_ptr);
+                Put_val8(genericFlow->tcpFlags, peer->buff_ptr);
                 peer->buff_ptr += 1;
-                Put_val8(master_record->fwd_status, peer->buff_ptr);
+                Put_val8(genericFlow->fwdStatus, peer->buff_ptr);
                 peer->buff_ptr += 1;
-                Put_val8(master_record->tos, peer->buff_ptr);
+                Put_val8(genericFlow->srcTos, peer->buff_ptr);
                 peer->buff_ptr += 1;
-                break;
-            case EXipv4FlowID:
-                Put_val32(htonl(master_record->V4.srcaddr), peer->buff_ptr);
+            } break;
+            case EXipv4FlowID: {
+                EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)elementPtr;
+                Put_val32(htonl(ipv4Flow->srcAddr), peer->buff_ptr);
                 peer->buff_ptr += 4;
-                Put_val32(htonl(master_record->V4.dstaddr), peer->buff_ptr);
+                Put_val32(htonl(ipv4Flow->dstAddr), peer->buff_ptr);
                 peer->buff_ptr += 4;
-                break;
-            case EXipv6FlowID:
-                Put_val64(htonll(master_record->V6.srcaddr[0]), peer->buff_ptr);
+            } break;
+            case EXipv6FlowID: {
+                EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)elementPtr;
+                Put_val64(htonll(ipv6Flow->srcAddr[0]), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                Put_val64(htonll(master_record->V6.srcaddr[1]), peer->buff_ptr);
+                Put_val64(htonll(ipv6Flow->srcAddr[1]), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                Put_val64(htonll(master_record->V6.dstaddr[0]), peer->buff_ptr);
+                Put_val64(htonll(ipv6Flow->dstAddr[0]), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                Put_val64(htonll(master_record->V6.dstaddr[1]), peer->buff_ptr);
+                Put_val64(htonll(ipv6Flow->dstAddr[1]), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                break;
-            case EXflowMiscID:
-                Put_val32(htonl(master_record->input), peer->buff_ptr);
+            } break;
+            case EXflowMiscID: {
+                EXflowMisc_t *flowMisc = (EXflowMisc_t *)elementPtr;
+                Put_val32(htonl(flowMisc->input), peer->buff_ptr);
                 peer->buff_ptr += 4;
-                Put_val32(htonl(master_record->output), peer->buff_ptr);
+                Put_val32(htonl(flowMisc->output), peer->buff_ptr);
                 peer->buff_ptr += 4;
-                Put_val8(master_record->src_mask, peer->buff_ptr);
+                Put_val8(flowMisc->srcMask, peer->buff_ptr);
                 peer->buff_ptr += 1;
-                Put_val8(master_record->dst_mask, peer->buff_ptr);
+                Put_val8(flowMisc->dstMask, peer->buff_ptr);
                 peer->buff_ptr += 1;
-                Put_val8(master_record->dir, peer->buff_ptr);
+                Put_val8(flowMisc->dir, peer->buff_ptr);
                 peer->buff_ptr += 1;
-                Put_val8(master_record->dst_tos, peer->buff_ptr);
+                Put_val8(flowMisc->dstTos, peer->buff_ptr);
                 peer->buff_ptr += 1;
-                break;
-            case EXcntFlowID:
-                Put_val64(htonll(master_record->aggr_flows), peer->buff_ptr);
+            } break;
+            case EXcntFlowID: {
+                EXcntFlow_t *cntFlow = (EXcntFlow_t *)elementPtr;
+                Put_val64(htonll(cntFlow->flows), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                Put_val64(htonll(master_record->out_pkts), peer->buff_ptr);
+                Put_val64(htonll(cntFlow->outPackets), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                Put_val64(htonll(master_record->out_bytes), peer->buff_ptr);
+                Put_val64(htonll(cntFlow->outBytes), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                break;
-            case EXvLanID:
-                Put_val16(htons(master_record->src_vlan), peer->buff_ptr);
+            } break;
+            case EXvLanID: {
+                EXvLan_t *vLan = (EXvLan_t *)elementPtr;
+                Put_val16(htons(vLan->srcVlan), peer->buff_ptr);
                 peer->buff_ptr += 2;
-                Put_val16(htons(master_record->dst_vlan), peer->buff_ptr);
+                Put_val16(htons(vLan->dstVlan), peer->buff_ptr);
                 peer->buff_ptr += 2;
-                break;
-            case EXasRoutingID:
-                Put_val32(htonl(master_record->srcas), peer->buff_ptr);
+            } break;
+            case EXasRoutingID: {
+                EXasRouting_t *asRouting = (EXasRouting_t *)elementPtr;
+                Put_val32(htonl(asRouting->srcAS), peer->buff_ptr);
                 peer->buff_ptr += 4;
-                Put_val32(htonl(master_record->dstas), peer->buff_ptr);
+                Put_val32(htonl(asRouting->dstAS), peer->buff_ptr);
                 peer->buff_ptr += 4;
-                break;
-            case EXbgpNextHopV4ID:
-                Put_val32(htonl(master_record->bgp_nexthop.V4), peer->buff_ptr);
+            } break;
+            case EXbgpNextHopV4ID: {
+                EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)elementPtr;
+                Put_val32(htonl(bgpNextHopV4->ip), peer->buff_ptr);
                 peer->buff_ptr += 4;
-                break;
-            case EXbgpNextHopV6ID:
-                Put_val64(htonll(master_record->bgp_nexthop.V6[0]), peer->buff_ptr);
+            } break;
+            case EXbgpNextHopV6ID: {
+                EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)elementPtr;
+                Put_val64(htonll(bgpNextHopV6->ip[0]), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                Put_val64(htonll(master_record->bgp_nexthop.V6[1]), peer->buff_ptr);
+                Put_val64(htonll(bgpNextHopV6->ip[1]), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                break;
-            case EXipNextHopV4ID:
-                Put_val32(htonl(master_record->ip_nexthop.V4), peer->buff_ptr);
+            } break;
+            case EXipNextHopV4ID: {
+                EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)elementPtr;
+                Put_val32(htonl(ipNextHopV4->ip), peer->buff_ptr);
                 peer->buff_ptr += 4;
-                break;
-            case EXipNextHopV6ID:
-                Put_val64(htonll(master_record->ip_nexthop.V6[0]), peer->buff_ptr);
+            } break;
+            case EXipNextHopV6ID: {
+                EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)elementPtr;
+                Put_val64(htonll(ipNextHopV6->ip[0]), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                Put_val64(htonll(master_record->ip_nexthop.V6[1]), peer->buff_ptr);
+                Put_val64(htonll(ipNextHopV6->ip[1]), peer->buff_ptr);
                 peer->buff_ptr += 8;
-                break;
-            case EXmplsLabelID:
+            } break;
+            case EXmplsLabelID: {
+                EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)elementPtr;
                 for (int i = 0; i < 10; i++) {
-                    uint32_t val32 = htonl(master_record->mpls_label[i]);
+                    uint32_t val32 = htonl(mplsLabel->mplsLabel[i]);
                     Put_val24(val32, peer->buff_ptr);
                     peer->buff_ptr += 3;
                 }
-                break;
+            } break;
             case EXmacAddrID: {
-                uint64_t val64 = htonll(master_record->in_src_mac);
+                EXmacAddr_t *macAddr = (EXmacAddr_t *)elementPtr;
+                uint64_t val64 = htonll(macAddr->inSrcMac);
                 Put_val48(val64, peer->buff_ptr);
                 peer->buff_ptr += 6;
 
-                val64 = htonll(master_record->out_dst_mac);
+                val64 = htonll(macAddr->outDstMac);
                 Put_val48(val64, peer->buff_ptr);
                 peer->buff_ptr += 6;
 
-                val64 = htonll(master_record->in_dst_mac);
+                val64 = htonll(macAddr->inDstMac);
                 Put_val48(val64, peer->buff_ptr);
                 peer->buff_ptr += 6;
 
-                val64 = htonll(master_record->out_src_mac);
+                val64 = htonll(macAddr->outSrcMac);
                 Put_val48(val64, peer->buff_ptr);
                 peer->buff_ptr += 6;
             } break;
-            case EXasAdjacentID:
-                Put_val32(htonl(master_record->bgpNextAdjacentAS), peer->buff_ptr);
+            case EXasAdjacentID: {
+                EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)elementPtr;
+                Put_val32(htonl(asAdjacent->nextAdjacentAS), peer->buff_ptr);
                 peer->buff_ptr += 4;
-                Put_val32(htonl(master_record->bgpPrevAdjacentAS), peer->buff_ptr);
+                Put_val32(htonl(asAdjacent->prevAdjacentAS), peer->buff_ptr);
                 peer->buff_ptr += 4;
-                break;
+            } break;
         }
     }
 
@@ -644,7 +670,7 @@ static int CheckSendBufferSpace(size_t size, send_peer_t *peer) {
     dbg_printf("CheckSendBufferSpace for %lu bytes: ", size);
     if ((peer->buff_ptr + size) > peer->endp) {
         // request buffer flush
-        dbg_printf("failed. Flush first.\n");
+        dbg_printf("Check for %zu bytes in send buffer. Flush first.\n", size);
         peer->flush = 1;
         sender_data->header.sequence++;
         sender_data->header.v9_header->sequence = htonl(sender_data->header.sequence);
@@ -662,12 +688,11 @@ static int CheckSendBufferSpace(size_t size, send_peer_t *peer) {
 
 }  // End of CheckBufferSpace
 
-int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer) {
-    time_t now = time(NULL);
-
+int Add_v9_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
     dbg_printf("\nNext packet\n");
-    if (master_record->numElements == 0) {
-        dbg_printf("Skip record with 0 extensions\n\n");
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    if (recordHandle->numElements == 0 || !genericFlow) {
+        dbg_printf("Skip record with 0 extensions\n");
         return 0;
     }
 
@@ -675,7 +700,7 @@ int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer) {
         dbg_printf("First time setup\n");
         // boot time is set one day back - assuming that the start time of every flow does not start
         // earlier
-        uint64_t boot_time = master_record->msecFirst - 86400LL * 1000LL;
+        uint64_t boot_time = genericFlow->msecFirst - 86400LL * 1000LL;
         uint32_t unix_secs = boot_time / 1000LL;
         sender_data->header.v9_header->unix_secs = htonl(unix_secs);
     }
@@ -685,20 +710,23 @@ int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer) {
         peer->buff_ptr = (void *)((void *)sender_data->header.v9_header + sizeof(v9Header_t));
     }
 
-    outTemplate_t *template = GetOutputTemplate(master_record);
+    time_t now = time(NULL);
+    outTemplate_t *template = GetOutputTemplate(recordHandle);
     if ((sender_data->data_flowset_id != template->template_id) || template->needs_refresh) {
         // Different flowset ID - End data flowset and open new data flowset
         CloseDataFlowset(peer);
 
-        if (!CheckSendBufferSpace(template->record_length + sizeof(data_flowset_t) + template->flowset_length, peer)) {
+        if (!CheckSendBufferSpace(template->data_length + sizeof(data_flowset_t) + template->flowset_length, peer)) {
             // request buffer flush first
             dbg_printf("Flush Buffer #1\n");
             return 1;
         }
 
-        // add first time this template
-        Add_template_flowset(template, peer);
-        template->time_sent = now;
+        // if never sent or needs refresh
+        if (template->record_count == 0 || template->needs_refresh) {
+            Add_template_flowset(template, peer);
+            template->time_sent = now;
+        }
 
         // Add data flowset
         dbg_printf("Add new data flowset\n");
@@ -709,14 +737,14 @@ int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer) {
     }
 
     // same data flowset ID - add Record
-    if (!CheckSendBufferSpace(template->record_length, peer)) {
+    if (!CheckSendBufferSpace(template->data_length, peer)) {
         // request buffer flush first
         dbg_printf("Flush Buffer #2\n");
         return 1;
     }
 
-    dbg_printf("Add record %u, bytes: %u\n", template->template_id, template->record_length);
-    Append_Record(peer, master_record);
+    dbg_printf("Add record %u, bytes: %u\n", template->template_id, template->data_length);
+    Append_Record(peer, recordHandle);
 
     // template record counter
     template->record_count++;

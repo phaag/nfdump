@@ -54,12 +54,12 @@
 #include <stdio_ext.h>
 #endif
 
+#include "filter.h"
 #include "flist.h"
 #include "nbar.h"
 #include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nftree.h"
 #include "nfxV3.h"
 #include "send_net.h"
 #include "send_v5.h"
@@ -80,7 +80,6 @@
 
 /* Local Variables */
 static int verbose = 0;
-static FilterEngine_t *Engine;
 
 static send_peer_t peer;
 static uint32_t recordCnt = 0;
@@ -89,7 +88,7 @@ static uint32_t sequence = 0;
 /* Function Prototypes */
 static void usage(char *name);
 
-static void send_data(timeWindow_t *timeWindow, uint32_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
+static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
 
 static int FlushBuffer(int confirm);
 
@@ -198,7 +197,8 @@ static int FlushBuffer(int confirm) {
     return sendto(peer.sockfd, peer.send_buffer, len, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
 }  // End of FlushBuffer
 
-static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned int delay, int confirm, int netflow_version, int distribution) {
+static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitRecords, unsigned int delay, int confirm, int netflow_version,
+                      int distribution) {
     nffile_t *nffile;
     uint64_t twin_msecFirst, twin_msecLast;
 
@@ -249,15 +249,15 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
             break;
     }
 
+    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    if (!recordHandle) {
+        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        return;
+    }
+
     uint32_t numflows = 0;
+    uint32_t processed = 0;
     int done = 0;
-
-    // setup Filter Engine to point to master_record, as any record read from file
-    // is expanded into this record
-    master_record_t *master_record = malloc(sizeof(master_record_t));
-    Engine->nfrecord = (uint64_t *)master_record;
-    Engine->ident = nffile->ident;
-
     while (!done) {
         // get next data block from file
         int ret = ReadBlock(nffile);
@@ -280,7 +280,6 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
                     LogError("Unexpected end of file list\n");
                 }
                 // else continue with next file
-                Engine->ident = nffile->ident;
                 continue;
 
             } break;  // not really needed
@@ -305,15 +304,24 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
             switch (record_ptr->type) {
                 case V3Record: {
                     int match;
-                    memset((void *)master_record, 0, sizeof(master_record_t));
-                    ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
+                    processed++;
+                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
+
                     // Time based filter
                     // if no time filter is given, the result is always true
-                    match = twin_msecFirst && (master_record->msecFirst < twin_msecFirst || master_record->msecLast > twin_msecLast) ? 0 : 1;
+                    if (twin_msecFirst) {
+                        EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+                        match = (genericFlow->msecFirst < twin_msecFirst || genericFlow->msecLast > twin_msecLast) ? 0 : 1;
+                    } else {
+                        match = 1;
+                    }
+
+                    // limit recordcount
                     match &= limitRecords ? numflows < limitRecords : 1;
 
                     // filter netflow record with user supplied filter
-                    if (match) match = (*Engine->FilterEngine)(Engine);
+                    // XXX if (match) match = (*Engine->FilterEngine)(Engine);
+                    if (match) match = FilterRecord(engine, recordHandle, nffile->ident);
 
                     if (match == 0) {  // record failed to pass all filters
                         // go to next record
@@ -324,10 +332,10 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
                     int again = 0;
                     switch (netflow_version) {
                         case 5:
-                            again = Add_v5_output_record(master_record, &peer);
+                            again = Add_v5_output_record(recordHandle, &peer);
                             break;
                         case 9:
-                            again = Add_v9_output_record(master_record, &peer);
+                            again = Add_v9_output_record(recordHandle, &peer);
                             break;
                         case 250:
                             again = Add_nfd_output_record(record_ptr, &peer);
@@ -355,10 +363,10 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
                     if (again) {
                         switch (netflow_version) {
                             case 5:
-                                again = Add_v5_output_record(master_record, &peer);
+                                again = Add_v5_output_record(recordHandle, &peer);
                                 break;
                             case 9:
-                                again = Add_v9_output_record(master_record, &peer);
+                                again = Add_v9_output_record(recordHandle, &peer);
                                 break;
                             case 250:
                                 again = Add_nfd_output_record(record_ptr, &peer);
@@ -382,8 +390,10 @@ static void send_data(timeWindow_t *timeWindow, uint32_t limitRecords, unsigned 
 
             // z-parameter
             // first and last are line (tstart and tend) timestamp with milliseconds
-            // first = (double)master_record->msecFirst / 1000.0;
-            double last = (double)master_record->msecLast / 1000.0;
+            // first = (double)genericFlow->msecFirst / 1000.0;
+            double last = 0.0;
+            EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+            if (genericFlow) last = (double)genericFlow->msecLast / 1000.0;
 
             gettimeofday(&currentTime, NULL);
             double now = (double)currentTime.tv_sec + (double)currentTime.tv_usec / 1000000;
@@ -592,8 +602,8 @@ int main(int argc, char **argv) {
 
     if (!filter) filter = "any";
 
-    Engine = CompileFilter(filter);
-    if (!Engine) exit(254);
+    void *engine = CompileFilter(filter);
+    if (!engine) exit(254);
 
     if (peer.mcast)
         peer.sockfd =
@@ -613,7 +623,7 @@ int main(int argc, char **argv) {
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!Init_nffile(1, fileList)) exit(254);
 
-    send_data(timeWindow, count, delay, confirm, netflow_version, distribution);
+    send_data(engine, timeWindow, count, delay, confirm, netflow_version, distribution);
 
     return 0;
 }

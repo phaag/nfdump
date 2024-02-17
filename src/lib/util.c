@@ -651,7 +651,7 @@ void InsertString(stringlist_t *list, char *string) {
 
 }  // End of InsertString
 
-void format_number(uint64_t num, char *s, int plain, int fixed_width) {
+void format_number(uint64_t num, numStr s, int plain, int fixed_width) {
     double f = num;
 
     if (plain) {

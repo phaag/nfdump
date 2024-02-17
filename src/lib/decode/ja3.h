@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -11,7 +10,7 @@
  *   * Redistributions in binary form must reproduce the above copyright notice,
  *     this list of conditions and the following disclaimer in the documentation
  *     and/or other materials provided with the distribution.
- *   * Neither the name of the author nor the names of its contributors may be
+ *   * Neither the name of SWITCH nor the names of its contributors may be
  *     used to endorse or promote products derived from this software without
  *     specific prior written permission.
  *
@@ -29,19 +28,39 @@
  *
  */
 
-#ifndef _IPCONV_H
-#define _IPCONV_H 1
+#ifndef _JA3_H
+#define _JA3_H 1
 
 #include <stdint.h>
 #include <sys/types.h>
 
-int parse_ip(int *af, const char *src, uint64_t *dst, int *bytes, int lookup, uint32_t *num_ip);
+#include "config.h"
 
-int set_nameserver(char *ns);
+typedef struct uint16Array_s {
+    uint32_t numElements;
+    uint16_t *array;
+} uint16Array_t;
 
-#define MAXHOSTS 512
+typedef struct ja3_s {
+    uint16_t version;
+#define CLIENTja3 0
+#define SERVERja3s 1
+    uint16_t type;
+    uint16Array_t cipherSuites;
+    uint16Array_t extensions;
+    uint16Array_t ellipticCurves;
+    uint16Array_t ellipticCurvesPF;
+    char sniName[256];
+    char *ja3String;
+    uint32_t md5Hash[4];
+} ja3_t;
 
-#define STRICT_IP 0
-#define ALLOW_LOOKUP 1
+char *ja3HashString(ja3_t *ja3);
 
-#endif  //_IPCONV_H
+void ja3Print(ja3_t *ja3);
+
+void ja3Free(ja3_t *ja3);
+
+ja3_t *ja3Process(uint8_t *data, size_t len);
+
+#endif

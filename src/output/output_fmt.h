@@ -38,32 +38,8 @@
 #include <time.h>
 
 #include "config.h"
+#include "nfdump.h"
 #include "output.h"
-
-#define FORMAT_line "%ts %td %pr %sap -> %dap %pkt %byt %fl"
-
-#define FORMAT_gline "%ts %td %pr %gsap -> %gdap %pkt %byt %fl"
-
-#define FORMAT_long "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %fl"
-
-#define FORMAT_glong "%ts %td %pr %gsap -> %gdap %flg %tos %pkt %byt %fl"
-
-#define FORMAT_extended "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %pps %bps %bpp %fl"
-
-#define FORMAT_biline "%ts %td %pr %sap <-> %dap %opkt %ipkt %obyt %ibyt %fl"
-
-#define FORMAT_bilong "%ts %td %pr %sap <-> %dap %flg %tos %opkt %ipkt %obyt %ibyt %fl"
-
-#define FORMAT_nsel "%ts %evt %xevt %pr %sap -> %dap %xsap -> %xdap %ibyt %obyt"
-
-#define FORMAT_nel "%ts %nevt %pr %sap -> %dap %nsap -> %ndap"
-
-#ifdef NSEL
-#define DefaultMode "nsel"
-#else
-#define DefaultMode "line"
-#endif
-#define DefaultGeoMode "gline"
 
 /* prototypes */
 
@@ -79,7 +55,7 @@ void CondenseV6(char *s);
 
 int ParseOutputFormat(char *format, int printPlain, printmap_t *printmap);
 
-void fmt_record(FILE *stream, void *record, int tag);
+void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag);
 
 #define TAG_CHAR ''
 

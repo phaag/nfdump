@@ -35,12 +35,14 @@ export TZ
 
 # prevent any default goelookup for testing
 NFDUMP="../nfdump/nfdump -G none"
+NFCAPD="../nfcapd/nfcapd"
+NFREPLAY="../nfreplay/nfreplay"
 
-$NFDUMP -r test.flows.nf -q -o raw >test.1.out
+$NFDUMP -r dummy_flows.nf -q -o raw >test.1.out
 diff -u test.1.out nftest.1.out
 
 # read/write compressed flow test
-$NFDUMP -r test.flows.nf -q -z -w test.2.flows.nf
+$NFDUMP -r dummy_flows.nf -q -z=lzo -w test.2.flows.nf
 $NFDUMP -v test.2.flows.nf >/dev/null
 
 $NFDUMP -r test.2.flows.nf -q -o raw >test.2.out
@@ -51,16 +53,16 @@ $NFDUMP -r test.2.flows.nf -q -O tstart -o raw >test.3.out
 diff -u test.3.out nftest.2.out
 
 # test write descending sorted flow table
-$NFDUMP -r test.flows.nf -O tstart -z -w test.4.flows.nf
+$NFDUMP -r dummy_flows.nf -O tstart -z=lzo -w test.4.flows.nf
 $NFDUMP -v test.4.flows.nf >/dev/null
 $NFDUMP -q -r test.4.flows.nf -o raw >test.4.out
-diff -u test.4.out nftest.1.out
+diff -u test.4.out nftest.4.out
 
 # test write ascending sorted flow table
-$NFDUMP -r test.flows.nf -q -O bytes -o raw >test.5.out
-$NFDUMP -r test.flows.nf -O bytes -z=lz4 -w test.5.flows.nf
+$NFDUMP -r dummy_flows.nf -q -O bytes -o raw >test.5.out
+$NFDUMP -r dummy_flows.nf -O bytes -z=lz4 -w test.5.flows.nf
 $NFDUMP -v test.5.flows.nf >/dev/null
-$NFDUMP -r test.5.flows.nf -q -o raw | grep -v RecordCount >test.5-2.out
+$NFDUMP -r test.5.flows.nf -q -o raw >test.5-2.out
 diff -u test.5.out test.5-2.out
 
 # create testdir dir for flow replay
@@ -74,11 +76,11 @@ mkdir testdir
 # Start nfcapd on localhost and replay flows
 echo
 echo -n Starting nfcapd ...
-../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -z=lz4
+$NFCAPD -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -z=lz4
 sleep 1
 echo done.
 echo -n Replay flows ...
-../nfreplay/nfreplay -r test.flows.nf -v9 -H 127.0.0.1 -p 65530
+$NFREPLAY -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530
 echo done.
 sleep 1
 
@@ -92,7 +94,7 @@ if [ -f testdir/pidfile ]; then
 	exit
 fi
 
-$NFDUMP -r test.flows.nf -q -o extended -6 'packets > 0' >test.6-1.out
+$NFDUMP -r dummy_flows.nf -q -o extended -6 'packets > 0' >test.6-1.out
 $NFDUMP -r testdir/nfcapd.* -q -o extended -6 >test.6-2.out
 
 diff test.6-1.out test.6-2.out
@@ -102,11 +104,11 @@ diff test.6-1.out test.6-2.out
 rm -f testdir/nfcapd.*
 echo
 echo -n Starting nfcapd ...
-../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
+$NFCAPD -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
 sleep 1
 echo done.
 echo -n Replay flows ...
-../nfreplay/nfreplay -r test.flows.nf -v9 -H 127.0.0.1 -p 65530
+$NFREPLAY -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530
 echo done.
 sleep 1
 
@@ -116,11 +118,11 @@ sleep 1
 echo done.
 
 echo -n Starting nfcapd ...
-../nfcapd/nfcapd -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
+$NFCAPD -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
 sleep 1
 echo done.
 echo -n Replay flows ...
-../nfreplay/nfreplay -r test.flows.nf -v9 -H 127.0.0.1 -p 65530
+$NFREPLAY -r dummy_flows.nf -v9 -H 127.0.0.1 -p 65530
 echo done.
 sleep 1
 
@@ -146,15 +148,15 @@ export MallocStackLoggingDirectory=memck.$$
 export MallocScribble=1
 export MallocErrorAbort=1
 export MallocCorruptionAbort=1
-$NFDUMP -r test.flows.nf 'host 172.16.2.66'
-$NFDUMP -r test.flows.nf -s ip 'host 172.16.2.66'
-$NFDUMP -r test.flows.nf -s record 'host 172.16.2.66'
-$NFDUMP -r test.flows.nf -w test.7.flows.nf 'host 172.16.2.66'
-$NFDUMP -r test.flows.nf -O tstart -w test.8.flows.nf 'host 172.16.2.66'
-../nfanon/nfanon -K abcdefghijklmnopqrstuvwxyz012345 -r test.flows.nf -w test.9.flows.nf
+$NFDUMP -r dummy_flows.nf 'host 172.16.2.66'
+$NFDUMP -r dummy_flows.nf -s ip 'host 172.16.2.66'
+$NFDUMP -r dummy_flows.nf -s record 'host 172.16.2.66'
+$NFDUMP -r dummy_flows.nf -w test.7.flows.nf 'host 172.16.2.66'
+$NFDUMP -r dummy_flows.nf -O tstart -w test.8.flows.nf 'host 172.16.2.66'
+../nfanon/nfanon -K abcdefghijklmnopqrstuvwxyz012345 -r dummy_flows.nf -w test.9.flows.nf
 $NFDUMP -q -r test.9.flows.nf -o raw >test.9.out
 $NFDUMP -r testdir/nfcapd.* -i NewIdent
-rm -f testdir/nfcapd.* test*.out test*.flows.nf
+rm -f testdir/nfcapd.* test*.out test*.flows.nf dummy_flows.nf
 [ -d testdir ] && rmdir testdir
 [ -d memck.$$ ] && rm -rf memck.$$
 

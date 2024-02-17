@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -52,21 +52,20 @@
 
 #include "config.h"
 #include "exporter.h"
+#include "filter.h"
 #include "flist.h"
 #include "ifvrf.h"
-#include "ipconv.h"
-#include "ja3.h"
 #include "maxmind.h"
 #include "nbar.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
 #include "nfconf.h"
+#include "nfdump_1_6_x.h"
 #include "nffile.h"
 #include "nflowcache.h"
 #include "nfnet.h"
 #include "nfprof.h"
 #include "nfstat.h"
-#include "nftree.h"
 #include "nfx.h"
 #include "nfxV3.h"
 #include "output.h"
@@ -74,9 +73,6 @@
 #include "version.h"
 
 extern char *FilterFilename;
-
-/* Local Variables */
-static FilterEngine_t *Engine;
 
 static uint64_t total_bytes = 0;
 static uint32_t processed = 0;
@@ -89,16 +85,14 @@ extension_map_list_t *extension_map_list;
 
 extern exporter_t **exporter_list;
 
-// For automatic output format generation in case of custom aggregation
-#define AggrPrependFmt "%ts %td "
-#define AggrAppendFmt "%pkt %byt %bps %bpp %fl"
-
 /* Function Prototypes */
 static void usage(char *name);
 
+static int SetStat(char *str, int *element_stat, int *flow_stat);
+
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams);
 
-static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows, RecordPrinter_t print_record,
+static stat_record_t process_data(void *engine, char *wfile, int element_stat, int flow_stat, int sort_flows, RecordPrinter_t print_record,
                                   timeWindow_t *timeWindow, uint64_t limitRecords, outputParams_t *outputParams, int compress);
 
 /* Functions */
@@ -176,8 +170,7 @@ static void usage(char *name) {
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams) {
     static double duration;
     uint64_t bps, pps, bpp;
-    char byte_str[NUMBER_STRING_SIZE], packet_str[NUMBER_STRING_SIZE];
-    char bps_str[NUMBER_STRING_SIZE], pps_str[NUMBER_STRING_SIZE], bpp_str[NUMBER_STRING_SIZE];
+    numStr byte_str, packet_str, bps_str, pps_str, bpp_str;
 
     bps = pps = bpp = 0;
     if (stat_record->lastseen) {
@@ -210,55 +203,42 @@ static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParam
 
 }  // End of PrintSummary
 
-static inline void AddGeoInfo(master_record_t *master_record) {
-    if (!HasGeoDB || TestFlag(master_record->mflags, V3_FLAG_ENRICHED)) return;
-    LookupCountry(master_record->V6.srcaddr, master_record->src_geo);
-    LookupCountry(master_record->V6.dstaddr, master_record->dst_geo);
-    if (master_record->srcas == 0) master_record->srcas = LookupAS(master_record->V6.srcaddr);
-    if (master_record->dstas == 0) master_record->dstas = LookupAS(master_record->V6.dstaddr);
-    // insert AS element in order to list
-    int j = 0;
-    uint32_t val = EXasRoutingID;
-    while (j < master_record->numElements) {
-        if (EXasRoutingID == master_record->exElementList[j]) {
-            break;
+static int SetStat(char *str, int *element_stat, int *flow_stat) {
+    char *statType = strdup(str);
+    char *optOrder = strchr(statType, '/');
+    if (optOrder) {
+        // orderBy given
+        *optOrder++ = 0;
+    }
+
+    int ret = 0;
+    if (strncasecmp(statType, "record", 6) == 0) {
+        if (SetRecordStat(statType, optOrder)) {
+            *flow_stat = 1;
+            ret = 1;
+        } else {
+            LogError("Failed to parse record stat option: %s", str);
         }
-        if (val < master_record->exElementList[j]) {
-            uint32_t _tmp = master_record->exElementList[j];
-            master_record->exElementList[j] = val;
-            val = _tmp;
+    } else {
+        if (SetElementStat(statType, optOrder)) {
+            *element_stat = 1;
+            ret = 1;
+        } else {
+            LogError("Failed to parse element stat option: %s", str);
         }
-        j++;
     }
-    if (j == master_record->numElements) {
-        master_record->exElementList[j] = val;
-        master_record->numElements++;
-    }
-    SetFlag(master_record->mflags, V3_FLAG_ENRICHED);
 
-}  // End of AddGeoInfo
+    free(statType);
+    return ret;
 
-static inline record_header_t *AddFlowLabel(record_header_t *record, char *label) {
-#define TMPSIZE 65536
-    static char tmpRecord[TMPSIZE];
-    size_t labelSize = strlen(label) + 1;
-    recordHeaderV3_t *recordHeaderV3 = (recordHeaderV3_t *)record;
-    if ((recordHeaderV3->size + sizeof(elementHeader_t) + labelSize) >= TMPSIZE) {
-        LogError("AddFlowLabel() error in %s line %d", __FILE__, __LINE__);
-        return record;
-    }
-    memcpy((void *)tmpRecord, (void *)record, recordHeaderV3->size);
-    recordHeaderV3 = (recordHeaderV3_t *)tmpRecord;
-    PushVarLengthPointer(recordHeaderV3, EXlabel, voidPtr, labelSize);
-    memcpy(voidPtr, (void *)label, labelSize);
-    return (record_header_t *)tmpRecord;
-}
+}  // End of SetStat
 
-static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, int sort_flows, RecordPrinter_t print_record,
+static stat_record_t process_data(void *engine, char *wfile, int element_stat, int flow_stat, int sort_flows, RecordPrinter_t print_record,
                                   timeWindow_t *timeWindow, uint64_t limitRecords, outputParams_t *outputParams, int compress) {
     nffile_t *nffile_w, *nffile_r;
     stat_record_t stat_record;
     uint64_t twin_msecFirst, twin_msecLast;
+    twin_msecFirst = twin_msecLast = 0;
 
     // time window of all matched flows
     memset((void *)&stat_record, 0, sizeof(stat_record_t));
@@ -270,8 +250,6 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
             twin_msecLast = timeWindow->last * 1000LL;
         else
             twin_msecLast = 0x7FFFFFFFFFFFFFFFLL;
-    } else {
-        twin_msecFirst = twin_msecLast = 0;
     }
 
     // do not print flows when doing any stats are sorting
@@ -312,20 +290,16 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
         }
         SetIdent(nffile_w, nffile_r->ident);
     }
-    Engine->ident = nffile_r->ident;
 
-    master_record_t *master_record = calloc(1, sizeof(master_record_t));
-    if (!master_record) {
+    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    if (!recordHandle) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return stat_record;
     }
-
-    Engine->nfrecord = (uint64_t *)master_record;
     int done = 0;
     while (!done) {
-        int i, ret;
         // get next data block from file
-        ret = ReadBlock(nffile_r);
+        int ret = ReadBlock(nffile_r);
 
         switch (ret) {
             case NF_CORRUPT:
@@ -348,7 +322,6 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                     if (next->stat_record->lastseen > t_last_flow) t_last_flow = next->stat_record->lastseen;
                     // continue with next file
                 }
-                Engine->ident = nffile_r->ident;
                 continue;
 
             } break;  // not really needed
@@ -371,7 +344,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
         uint32_t sumSize = 0;
         record_header_t *record_ptr = nffile_r->buff_ptr;
         dbg_printf("Block has %i records\n", nffile_r->block_header->NumRecords);
-        for (i = 0; i < nffile_r->block_header->NumRecords && !done; i++) {
+        for (int i = 0; i < nffile_r->block_header->NumRecords && !done; i++) {
             record_header_t *process_ptr = record_ptr;
             if ((sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
@@ -382,44 +355,32 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
             switch (record_ptr->type) {
                 case V3Record:
                 case CommonRecordType: {
-                    int match;
-                    ClearMasterRecord(master_record);
                     if (__builtin_expect(record_ptr->type == CommonRecordType, 0)) {
-                        if (!ExpandRecord_v2(record_ptr, master_record)) {
-                            goto NEXT;
-                        }
-                        dbg_printf("Convert v2 record\n");
+                        dbg_printf("Convert nfdump 1.6.x v2 record\n");
                         process_ptr = ConvertRecordV2((common_record_t *)record_ptr);
                         if (!process_ptr) goto NEXT;
-                    } else {
-                        ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
                     }
+                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)process_ptr, ++processed);
 
-                    processed++;
-                    master_record->flowCount = processed;
                     // Time based filter
                     // if no time filter is given, the result is always true
-                    match = twin_msecFirst && (master_record->msecFirst < twin_msecFirst || master_record->msecLast > twin_msecLast) ? 0 : 1;
+                    int match = 1;
+                    if (timeWindow) {
+                        EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+                        if (genericFlow) {
+                            match = (genericFlow->msecFirst > twin_msecFirst && genericFlow->msecLast < twin_msecLast);
+                        } else {
+                            match = 0;
+                        }
+                    }
 
                     if (match) {
-                        if (Engine->geoFilter) {
-                            AddGeoInfo(master_record);
-                        }
-
-                        if (master_record->inPayloadLength && Engine->ja3Filter) {
-                            ja3_t *ja3 = ja3Process((uint8_t *)master_record->inPayload, master_record->inPayloadLength);
-                            if (ja3) {
-                                memcpy((void *)master_record->ja3, ja3->md5Hash, 16);
-                                ja3Free(ja3);
-                            }
-                        }
-
                         // filter netflow record with user supplied filter
-                        match = (*Engine->FilterEngine)(Engine);
-                        //						match = dofilter(master_record);
+                        match = FilterRecord(engine, recordHandle, nffile_r->ident);
                     }
                     if (match == 0) {  // record failed to pass all filters
                         // go to next record
+                        dbg_printf("No match: %u\n", ((recordHeaderV3_t *)record_ptr)->engineID);
                         goto NEXT;
                     }
 
@@ -427,47 +388,34 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
                     // check if we are done, if -c option was set
                     if (limitRecords) done = passed >= limitRecords;
 
-                    // Records passed filter -> continue record processing
-                    // Update statistics
-                    if (Engine->label) {
-                        master_record->label = Engine->label;
-                        process_ptr = AddFlowLabel(process_ptr, Engine->label);
-                    }
+                        // Records passed filter -> continue record processing
+                        // Update statistics
+                        /*
+                        if (Engine->label) {
+                            master_record->label = Engine->label;
+                            process_ptr = AddFlowLabel(process_ptr, Engine->label);
+                        }
+                        */
 #ifdef DEVEL
-                    if (Engine->label) printf("Flow has label: %s\n", Engine->label);
+                        // XXX if (Engine->label) printf("Flow has label: %s\n", Engine->label);
 #endif
-                    UpdateStat(&stat_record, master_record);
+                    UpdateStatRecord(&stat_record, recordHandle);
 
                     if (flow_stat) {
-                        AddFlowCache(process_ptr, master_record);
+                        AddFlowCache(recordHandle);
                         if (element_stat) {
-                            if (TestFlag(element_stat, FLAG_GEO) && TestFlag(master_record->mflags, V3_FLAG_ENRICHED) == 0) {
-                                AddGeoInfo(master_record);
-                            }
-                            AddElementStat(master_record);
+                            AddElementStat(recordHandle);
                         }
                     } else if (element_stat) {
-                        if (TestFlag(element_stat, FLAG_JA3) && master_record->ja3[0] == 0) {
-                            // if we need ja3, calculate ja3 if payload exists and ja3 not yet set by filter
-                            ja3_t *ja3 = ja3Process((uint8_t *)master_record->inPayload, master_record->inPayloadLength);
-                            if (ja3) {
-                                memcpy((void *)master_record->ja3, ja3->md5Hash, 16);
-                                ja3Free(ja3);
-                            }
-                        }
-                        // if we need geo, lookup geo if not yet set by filter
-                        if (TestFlag(element_stat, FLAG_GEO) && TestFlag(master_record->mflags, V3_FLAG_ENRICHED) == 0) {
-                            AddGeoInfo(master_record);
-                        }
-                        AddElementStat(master_record);
+                        AddElementStat(recordHandle);
                     } else if (sort_flows) {
-                        InsertFlow(process_ptr, master_record);
+                        InsertFlow(recordHandle);
                     } else {
                         if (write_file) {
                             AppendToBuffer(nffile_w, (void *)process_ptr, process_ptr->size);
                         } else if (print_record) {
                             // if we need to print out this record
-                            print_record(stdout, master_record, outputParams->doTag);
+                            print_record(stdout, recordHandle, outputParams->doTag);
                         } else {
                             // mutually exclusive conditions should prevent executing this code
                             // this is buggy!
@@ -531,7 +479,7 @@ static stat_record_t process_data(char *wfile, int element_stat, int flow_stat, 
 
         NEXT:
             // Advance pointer by number of bytes for netflow record
-            record_ptr = (record_header_t *)((pointer_addr_t)record_ptr + record_ptr->size);
+            record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
 
         }  // for all records
 
@@ -566,7 +514,7 @@ int main(int argc, char **argv) {
     RecordPrinter_t print_record;
     nfprof_t profile_data;
     char *wfile, *ffile, *filter, *tstring, *stat_type;
-    char *byte_limit_string, *packet_limit_string, *print_format;
+    char *print_format;
     char *print_order, *query_file, *geo_file, *configFile, *nameserver, *aggr_fmt;
     int ffd, element_stat, fdump;
     int flow_stat, aggregate, aggregate_mask, bidir;
@@ -574,11 +522,13 @@ int main(int argc, char **argv) {
     int GuessDir, ModifyCompress;
     uint32_t limitRecords;
     char Ident[IDENTLEN];
-    flist_t flist;
+    flist_t flist = {0};
 
-    memset((void *)&flist, 0, sizeof(flist));
+#ifdef DEVEL
+    long nprocs = sysconf(_SC_NPROCESSORS_ONLN);
+    printf("CPUs online %ld\n", nprocs);
+#endif
     wfile = ffile = filter = tstring = stat_type = NULL;
-    byte_limit_string = packet_limit_string = NULL;
     fdump = aggregate = 0;
     aggregate_mask = 0;
     bidir = 0;
@@ -613,7 +563,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:ghn:i:jf:qyz::r:v:w:J:M:NImO:R:XZt:TVv:W:x:l:L:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:ghn:i:jf:qyz::r:v:w:J:M:NImO:R:XZt:TVv:W:x:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -623,8 +573,8 @@ int main(int argc, char **argv) {
                 aggregate = 1;
                 break;
             case 'A':
-                CheckArgLen(optarg, 64);
-                if (strlen(optarg) > 64) {
+                CheckArgLen(optarg, 128);
+                if (strlen(optarg) > 128) {
                     LogError("Aggregate mask format length error");
                     exit(EXIT_FAILURE);
                 }
@@ -638,12 +588,11 @@ int main(int argc, char **argv) {
             case 'B':
                 GuessDir = 1;
             case 'b':
-                if (!SetBidirAggregation()) {
-                    exit(EXIT_FAILURE);
-                }
+
                 bidir = 1;
                 // implies
                 aggregate = 1;
+                print_format = "biline";
                 break;
             case 'C':
                 CheckArgLen(optarg, MAXPATHLEN);
@@ -657,7 +606,7 @@ int main(int argc, char **argv) {
             case 'D':
                 CheckArgLen(optarg, 64);
                 nameserver = optarg;
-                if (!set_nameserver(nameserver)) {
+                if (!SetNameserver(nameserver)) {
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -738,14 +687,6 @@ int main(int argc, char **argv) {
                 printf("%s: %s\n", argv[0], versionString());
                 exit(EXIT_SUCCESS);
             } break;
-            case 'l':
-                CheckArgLen(optarg, 128);
-                packet_limit_string = optarg;
-                break;
-            case 'L':
-                CheckArgLen(optarg, 128);
-                byte_limit_string = optarg;
-                break;
             case 'N':
                 outputParams->printPlain = 1;
                 break;
@@ -907,12 +848,11 @@ int main(int argc, char **argv) {
     // if no filter is given, set the default ip filter which passes through every flow
     if (!filter || strlen(filter) == 0) filter = "any";
 
-    Engine = CompileFilter(filter);
-    if (!Engine) exit(254);
+    void *engine = CompileFilter(filter);
+    if (!engine) exit(254);
 
     if (fdump) {
-        printf("StartNode: %i Engine: %s\n", Engine->StartNode, Engine->Extended ? "Extended" : "Fast");
-        DumpEngine(Engine);
+        DumpEngine(engine);
         exit(EXIT_SUCCESS);
     }
 
@@ -1013,17 +953,26 @@ int main(int argc, char **argv) {
         HasGeoDB = true;
         outputParams->hasGeoDB = true;
     }
-    if (!HasGeoDB && Engine->geoFilter > 1) {
-        LogError("Can not filter according geo elements without a geo location DB");
+
+    if ((aggregate || flow_stat || print_order) && !Init_FlowCache()) exit(250);
+
+    if (aggregate && (flow_stat || element_stat)) {
+        aggregate = 0;
+        LogError("Command line switch -s overwrites -a\n");
+    }
+
+    if (bidir && !SetBidirAggregation()) {
         exit(EXIT_FAILURE);
     }
 
     if (aggr_fmt) {
-        aggr_fmt = ParseAggregateMask(aggr_fmt, HasGeoDB);
-        if (!aggr_fmt) {
+        // custom aggregation mask overwrites any output format
+        print_format = ParseAggregateMask(aggr_fmt, HasGeoDB);
+        if (!print_format) {
             exit(EXIT_FAILURE);
         }
     }
+    if (element_stat && !Init_StatTable()) exit(250);
 
     if (gnuplot_stat) {
         nffile_t *nffile;
@@ -1045,24 +994,6 @@ int main(int argc, char **argv) {
         exit(EXIT_SUCCESS);
     }
 
-    // handle print mode
-    if (!print_format) {
-        // automatically select an appropriate output format for custom aggregation
-        // aggr_fmt is compiled by ParseAggregateMask
-        if (aggr_fmt) {
-            size_t len = strlen(AggrPrependFmt) + strlen(aggr_fmt) + strlen(AggrAppendFmt) + 7;  // +7 for 'fmt:', 2 spaces and '\0'
-            print_format = malloc(len);
-            if (!print_format) {
-                LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-                exit(EXIT_FAILURE);
-            }
-            snprintf(print_format, len, "fmt:%s %s %s", AggrPrependFmt, aggr_fmt, AggrAppendFmt);
-            print_format[len - 1] = '\0';
-        } else if (bidir) {
-            print_format = "biline";
-        }
-    }
-
     print_record = SetupOutputMode(print_format, outputParams);
 
     if (!print_record) {
@@ -1070,28 +1001,17 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (aggregate && (flow_stat || element_stat)) {
-        aggregate = 0;
-        LogError("Command line switch -s overwrites -a\n");
-    }
-
     if (print_order && flow_stat) {
         printf("-s record and -O (-m) are mutually exclusive options\n");
         exit(EXIT_FAILURE);
     }
-
-    if ((aggregate || flow_stat || print_order) && !Init_FlowCache()) exit(250);
-
-    if (element_stat && !Init_StatTable()) exit(250);
-
-    SetLimits(element_stat || aggregate || flow_stat, packet_limit_string, byte_limit_string);
 
     if (!(flow_stat || element_stat)) {
         PrintProlog(outputParams);
     }
 
     nfprof_start(&profile_data);
-    sum_stat = process_data(wfile, element_stat, aggregate || flow_stat, print_order != NULL, print_record, flist.timeWindow, limitRecords,
+    sum_stat = process_data(engine, wfile, element_stat, aggregate || flow_stat, print_order != NULL, print_record, flist.timeWindow, limitRecords,
                             outputParams, compress);
     nfprof_end(&profile_data, processed);
 
@@ -1143,8 +1063,6 @@ int main(int argc, char **argv) {
                 printf("Total flows processed: %u, passed: %u, Blocks skipped: %u, Bytes read: %llu\n", processed, passed, skipped_blocks,
                        (unsigned long long)total_bytes);
                 nfprof_print(&profile_data, stdout);
-                break;
-            case MODE_PIPE:
                 break;
             case MODE_CSV:
                 PrintSummary(&sum_stat, outputParams);

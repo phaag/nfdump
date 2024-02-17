@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2022-2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -102,6 +102,6 @@ int Init_v9_output(send_peer_t *peer);
 
 int Close_v9_output(send_peer_t *peer);
 
-int Add_v9_output_record(master_record_t *master_record, send_peer_t *peer);
+int Add_v9_output_record(recordHandle_t *recordHandle, send_peer_t *peer);
 
 #endif  // _SEND_V9_H

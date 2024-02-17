@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -34,7 +34,7 @@
  * It accepts the standard nfdump file select options -r, -M and -R
  * Therefore it allows you to loop over multiple files and process the netflow record.
  *
- * Insert your code in the process_data function after the call to ExpandRecord
+ * Insert your code in the process_data function
  * To build the binary: first compile nfdump as usual.
  * Then compile nfreader:
  *
@@ -53,6 +53,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -62,12 +63,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "config.h"
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
@@ -76,7 +71,8 @@
 /* Function Prototypes */
 static void usage(char *name);
 
-static void print_record(void *record, char *s);
+#define IP_STRING_LEN 32
+static void print_record(recordHandle_t *recordHandle);
 
 static void process_data(void);
 
@@ -94,61 +90,81 @@ static void usage(char *name) {
         name);
 } /* usage */
 
-static void print_record(void *record, char *s) {
-    char as[40], ds[40], datestr1[64], datestr2[64];
-    time_t when;
+// simple record printer
+static void print_record(recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    // for now only print IPV4 flows in brief
+    if (genericFlow == NULL || ipv4Flow == NULL) return;
+
+    char datestr1[64], datestr2[64], datestr3[64];
     struct tm *ts;
-    master_record_t *r = (master_record_t *)record;
-
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {
-        r->V6.srcaddr[0] = htonll(r->V6.srcaddr[0]);
-        r->V6.srcaddr[1] = htonll(r->V6.srcaddr[1]);
-        r->V6.dstaddr[0] = htonll(r->V6.dstaddr[0]);
-        r->V6.dstaddr[1] = htonll(r->V6.dstaddr[1]);
-        inet_ntop(AF_INET6, r->V6.srcaddr, as, sizeof(as));
-        inet_ntop(AF_INET6, r->V6.dstaddr, ds, sizeof(ds));
-    } else {  // IPv4
-        r->V4.srcaddr = htonl(r->V4.srcaddr);
-        r->V4.dstaddr = htonl(r->V4.dstaddr);
-        inet_ntop(AF_INET, &r->V4.srcaddr, as, sizeof(as));
-        inet_ntop(AF_INET, &r->V4.dstaddr, ds, sizeof(ds));
+    time_t when = genericFlow->msecFirst / 1000LL;
+    if (when == 0) {
+        strncpy(datestr1, "<unknown>", 63);
+    } else {
+        ts = localtime(&when);
+        strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
     }
-    as[40 - 1] = 0;
-    ds[40 - 1] = 0;
 
-    when = r->msecFirst / 1000LL;
-    ts = localtime(&when);
-    strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
+    when = genericFlow->msecLast / 1000LL;
+    if (when == 0) {
+        strncpy(datestr2, "<unknown>", 63);
+    } else {
+        ts = localtime(&when);
+        strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
+    }
 
-    when = r->msecLast / 1000LL;
-    ts = localtime(&when);
-    strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
+    if (genericFlow->msecReceived) {
+        when = genericFlow->msecReceived / 1000LL;
+        ts = localtime(&when);
+        strftime(datestr3, 63, "%Y-%m-%d %H:%M:%S", ts);
+    } else {
+        datestr3[0] = '0';
+        datestr3[1] = '\0';
+    }
 
-    snprintf(s, 1023,
-             "\n"
-             "Flow Record: \n"
-             "  srcaddr     = %16s\n"
-             "  dstaddr     = %16s\n"
-             "  first        =     %13llu [%s.%03llu]\n"
-             "  last         =     %13llu [%s.%03llu]\n"
-             "  prot        =              %3u\n"
-             "  srcPort     =            %5u\n"
-             "  dstPort     =            %5u\n"
-             "  dPkts       =       %10llu\n"
-             "  dOctets     =       %10llu\n",
-             as, ds, r->msecFirst, datestr1, r->msecFirst % 1000LL, r->msecLast, datestr2, r->msecFirst % 1000LL, r->proto, r->srcPort, r->dstPort,
-             (unsigned long long)r->inPackets, (unsigned long long)r->inBytes);
+    printf(
+        "  first        =     %13llu [%s.%03llu]\n"
+        "  last         =     %13llu [%s.%03llu]\n"
+        "  received at  =     %13llu [%s.%03llu]\n"
+        "  proto        =                 %3u\n"
+        "  tcp flags    =              0x%.2x\n",
+        (long long unsigned)genericFlow->msecFirst, datestr1, genericFlow->msecFirst % 1000LL, (long long unsigned)genericFlow->msecLast, datestr2,
+        genericFlow->msecLast % 1000LL, (long long unsigned)genericFlow->msecReceived, datestr3,
+        (long long unsigned)genericFlow->msecReceived % 1000L, genericFlow->proto, genericFlow->tcpFlags);
 
-    s[1024 - 1] = 0;
+    if (genericFlow->proto == IPPROTO_ICMP) {
+        printf("  ICMP         =              %2u.%-2u type.code\n", genericFlow->icmpType, genericFlow->icmpCode);
+    } else {
+        printf(
+            "  src port     =             %5u\n"
+            "  dst port     =             %5u\n"
+            "  src tos      =               %3u\n",
+            genericFlow->srcPort, genericFlow->dstPort, genericFlow->srcTos);
+    }
 
-}  // End of print_record
+    printf(
+        "  in packets   =        %10llu\n"
+        "  in bytes     =        %10llu\n",
+        (unsigned long long)genericFlow->inPackets, (unsigned long long)genericFlow->inBytes);
+
+    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    uint32_t src = htonl(ipv4Flow->srcAddr);
+    uint32_t dst = htonl(ipv4Flow->dstAddr);
+    inet_ntop(AF_INET, &src, as, sizeof(as));
+    inet_ntop(AF_INET, &dst, ds, sizeof(ds));
+
+    printf(
+        "  src addr     =  %16s\n"
+        "  dst addr     =  %16s\n",
+        as, ds);
+}
 
 static void process_data(void) {
-    nffile_t *nffile;
-    int i, done, ret;
-
     // Get the first file handle
-    nffile = GetNextFile(NULL);
+    nffile_t *nffile = GetNextFile(NULL);
     if (!nffile) {
         LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return;
@@ -158,24 +174,24 @@ static void process_data(void) {
         return;
     }
 
-    master_record_t *master_record = malloc(sizeof(master_record_t));
-    if (!master_record) {
+    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    if (!recordHandle) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return;
     }
 
-    done = 0;
+    int done = 0;
     while (!done) {
         // get next data block from file
-        ret = ReadBlock(nffile);
+        int ret = ReadBlock(nffile);
 
         switch (ret) {
             case NF_CORRUPT:
             case NF_ERROR:
                 if (ret == NF_CORRUPT)
-                    fprintf(stderr, "Skip corrupt data file '%s'\n", nffile->fileName);
+                    LogError("Skip corrupt data file '%s'", nffile->fileName);
                 else
-                    fprintf(stderr, "Read error in file '%s': %s\n", nffile->fileName, strerror(errno));
+                    LogError("Read error in file '%s': %s", nffile->fileName, strerror(errno));
                 // fall through - get next file in chain
             case NF_EOF: {
                 nffile_t *next = GetNextFile(nffile);
@@ -193,14 +209,14 @@ static void process_data(void) {
         }
 
         if (nffile->block_header->type != DATA_BLOCK_TYPE_2 && nffile->block_header->type != DATA_BLOCK_TYPE_3) {
-            fprintf(stderr, "Can't process block type %u. Skip block.\n", nffile->block_header->type);
+            LogError("Unknown block type %u. Skip block", nffile->block_header->type);
             continue;
         }
 
         record_header_t *record_ptr = nffile->buff_ptr;
         uint32_t sumSize = 0;
-        for (i = 0; i < nffile->block_header->NumRecords; i++) {
-            char string[1024];
+        uint32_t processed = 0;
+        for (int i = 0; i < nffile->block_header->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
                 exit(255);
@@ -209,24 +225,18 @@ static void process_data(void) {
 
             switch (record_ptr->type) {
                 case V3Record:
-                    memset((void *)master_record, 0, sizeof(master_record_t));
-                    ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
+                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, ++processed);
 
                     /*
                      * insert hier your calls to your processing routine
-                     * master_record now contains the next flow record as specified in nffile.c
+                     * recordHandle now contains the mapped flow record
                      * for example you can print each record:
-                     *
                      */
-                    print_record(&master_record, string);
-                    printf("%s\n", string);
-                    break;
-                case ExporterInfoRecordType:
-                case ExporterStatRecordType:
-                    // Silently skip exporter records
+
+                    print_record(recordHandle);
                     break;
                 default: {
-                    fprintf(stderr, "Skip unknown record type %i\n", record_ptr->type);
+                    // Silently skip unknown records
                 }
             }
 
@@ -272,7 +282,7 @@ int main(int argc, char **argv) {
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(fileList)) exit(255);
+    if (!fileList || !Init_nffile(1, fileList)) exit(255);
 
     process_data();
 

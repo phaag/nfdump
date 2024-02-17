@@ -44,6 +44,7 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <setjmp.h>
@@ -342,11 +343,11 @@ static void writeCountersLine(SFSample *sample) {
 
     // source
     printf("CNTR,%s,", printAddress(&sample->agent_addr, agentIP, 50));
-    printf("%u,%u,%llu,%u,%u,%llu,%u,%u,%u,%u,%u,%u,%llu,%u,%u,%u,%u,%u,%u\n", sample->ifCounters.ifIndex, sample->ifCounters.ifType,
-           (unsigned long long)sample->ifCounters.ifSpeed, sample->ifCounters.ifDirection, sample->ifCounters.ifStatus,
-           (unsigned long long)sample->ifCounters.ifInOctets, sample->ifCounters.ifInUcastPkts, sample->ifCounters.ifInMulticastPkts,
+    printf("%u,%u,%" PRIu64 ",%u,%u,%" PRIu64 ",%u,%u,%u,%u,%u,%u,%" PRIu64 ",%u,%u,%u,%u,%u,%u\n", sample->ifCounters.ifIndex,
+           sample->ifCounters.ifType, sample->ifCounters.ifSpeed, sample->ifCounters.ifDirection, sample->ifCounters.ifStatus,
+           sample->ifCounters.ifInOctets, sample->ifCounters.ifInUcastPkts, sample->ifCounters.ifInMulticastPkts,
            sample->ifCounters.ifInBroadcastPkts, sample->ifCounters.ifInDiscards, sample->ifCounters.ifInErrors, sample->ifCounters.ifInUnknownProtos,
-           (unsigned long long)sample->ifCounters.ifOutOctets, sample->ifCounters.ifOutUcastPkts, sample->ifCounters.ifOutMulticastPkts,
+           sample->ifCounters.ifOutOctets, sample->ifCounters.ifOutUcastPkts, sample->ifCounters.ifOutMulticastPkts,
            sample->ifCounters.ifOutBroadcastPkts, sample->ifCounters.ifOutDiscards, sample->ifCounters.ifOutErrors,
            sample->ifCounters.ifPromiscuousMode);
 }  // End of writeCountersLine
@@ -411,7 +412,9 @@ static void decodeLinkLayer(SFSample *sample) {
     uint8_t *end = start + sample->headerLen;
     uint8_t *ptr = start;
     uint16_t type_len;
+#ifdef DEVEL
     uint32_t vlanNum = 0;
+#endif
 
     /* assume not found */
     sample->gotIPV4 = NO;
@@ -437,27 +440,27 @@ static void decodeLinkLayer(SFSample *sample) {
         /* VLAN  - next two bytes */
         uint32_t vlanData = (ptr[0] << 8) + ptr[1];
         uint32_t vlan = vlanData & 0x0fff;
-#ifdef DEVEL
-        uint32_t priority = vlanData >> 13;
-#endif
         ptr += 2;
 
         /*  _____________________________________ */
         /* |   pri  | c |		 vlan-id		| */
         /*  ------------------------------------- */
         /* [priority = 3bits] [Canonical Format Flag = 1bit] [vlan-id = 12 bits] */
+#ifdef DEVEL
+        uint32_t priority = vlanData >> 13;
         if (vlanNum == 0) {
-            dbg_printf("decodedVLAN %u\n", vlan);
-            dbg_printf("decodedPriority %u\n", priority);
+            printf("decodedVLAN %u\n", vlan);
+            printf("decodedPriority %u\n", priority);
         } else {
-            dbg_printf("decodedVLAN.%u %u\n", vlanNum, vlan);
-            dbg_printf("decodedPriority.%u %u\n", vlanNum, vlan);
+            printf("decodedVLAN.%u %u\n", vlanNum, vlan);
+            printf("decodedPriority.%u %u\n", vlanNum, vlan);
         }
+        vlanNum++;
+#endif
         sample->in_vlan = vlan;
         /* now get the type_len again (next two bytes) */
         type_len = (ptr[0] << 8) + ptr[1];
         ptr += 2;
-        vlanNum++;
     }
 
     /* now we're just looking for IP */
@@ -698,9 +701,6 @@ static void decodeIPLayer4(SFSample *sample, uint8_t *ptr) {
 
 static void decodeIPV4(SFSample *sample) {
     if (sample->gotIPV4) {
-#ifdef DEVEL
-        char buf[51];
-#endif
         uint8_t *end = sample->header + sample->headerLen;
         uint8_t *start = sample->header + sample->offsetToIPV4;
         uint8_t *ptr = start;
@@ -720,13 +720,16 @@ static void decodeIPV4(SFSample *sample) {
         sample->dcd_ipProtocol = ip.protocol;
         sample->dcd_ipTos = ip.tos;
         sample->dcd_ipTTL = ip.ttl;
-        dbg_printf("ip.tot_len %d\n", ntohs(ip.tot_len));
+#ifdef DEVEL
+        char buf[51];
+        printf("ip.tot_len %d\n", ntohs(ip.tot_len));
         /* Log out the decoded IP fields */
-        dbg_printf("srcIP %s\n", IP_to_a(sample->dcd_srcIP.s_addr, buf, 51));
-        dbg_printf("dstIP %s\n", IP_to_a(sample->dcd_dstIP.s_addr, buf, 51));
-        dbg_printf("IPProtocol %u\n", sample->dcd_ipProtocol);
-        dbg_printf("IPTOS %u\n", sample->dcd_ipTos);
-        dbg_printf("IPTTL %u\n", sample->dcd_ipTTL);
+        printf("srcIP %s\n", IP_to_a(sample->dcd_srcIP.s_addr, buf, 51));
+        printf("dstIP %s\n", IP_to_a(sample->dcd_dstIP.s_addr, buf, 51));
+        printf("IPProtocol %u\n", sample->dcd_ipProtocol);
+        printf("IPTOS %u\n", sample->dcd_ipTos);
+        printf("IPTTL %u\n", sample->dcd_ipTTL);
+#endif
         /* check for fragments */
         sample->ip_fragmentOffset = ntohs(ip.frag_off) & 0x1FFF;
         if (sample->ip_fragmentOffset > 0) {
@@ -795,13 +798,13 @@ static void decodeIPV6(SFSample *sample) {
         dbg_printf("IPTTL %u\n", sample->dcd_ipTTL);
 
         {  // src and dst address
-#ifdef DEVEL
-            char buf[101];
-#endif
             sample->ipsrc.type = SFLADDRESSTYPE_IP_V6;
             memcpy(&sample->ipsrc.address, ptr, 16);
             ptr += 16;
-            dbg_printf("srcIP6 %s\n", printAddress(&sample->ipsrc, buf, 100));
+#ifdef DEVEL
+            char buf[101];
+            printf("srcIP6 %s\n", printAddress(&sample->ipsrc, buf, 100));
+#endif
             sample->ipdst.type = SFLADDRESSTYPE_IP_V6;
             memcpy(&sample->ipdst.address, ptr, 16);
             ptr += 16;
@@ -894,7 +897,7 @@ static uint32_t sf_log_next32(SFSample *sample, char *fieldName) {
 static uint64_t sf_log_next64(SFSample *sample, char *fieldName) {
     uint64_t val64 = getData64(sample);
 
-    dbg_printf("%s %llu\n", fieldName, (unsigned long long)val64);
+    dbg_printf("%s %" PRIu64 "\n", fieldName, val64);
     return val64;
 }  // End of sf_log_next64
 
@@ -997,10 +1000,6 @@ static void readExtendedSwitch(SFSample *sample) {
 */
 
 static void readExtendedRouter(SFSample *sample) {
-#ifdef DEVEL
-    char buf[51];
-#endif
-
     dbg_printf("extendedType ROUTER\n");
     getAddress(sample, &sample->nextHop);
     sample->srcMask = getData32(sample);
@@ -1008,9 +1007,12 @@ static void readExtendedRouter(SFSample *sample) {
 
     sample->extended_data_tag |= SASAMPLE_EXTENDED_DATA_ROUTER;
 
-    dbg_printf("nextHop %s\n", printAddress(&sample->nextHop, buf, 50));
-    dbg_printf("srcSubnetMask %u\n", sample->srcMask);
-    dbg_printf("dstSubnetMask %u\n", sample->dstMask);
+#ifdef DEVEL
+    char buf[51];
+    printf("nextHop %s\n", printAddress(&sample->nextHop, buf, 50));
+    printf("srcSubnetMask %u\n", sample->srcMask);
+    printf("dstSubnetMask %u\n", sample->dstMask);
+#endif
 
 }  // End of readExtendedRouter
 
@@ -1071,15 +1073,15 @@ static void readExtendedGateway_v2(SFSample *sample) {
 static void readExtendedGateway(SFSample *sample) {
     uint32_t segments;
     uint32_t seg;
-#ifdef DEVEL
-    char buf[51];
-#endif
 
     dbg_printf("extendedType GATEWAY\n");
 
     if (sample->datagramVersion >= 5) {
         getAddress(sample, &sample->bgp_nextHop);
-        dbg_printf("bgp_nexthop %s\n", printAddress(&sample->bgp_nextHop, buf, 50));
+#ifdef DEVEL
+        char buf[51];
+        printf("bgp_nexthop %s\n", printAddress(&sample->bgp_nextHop, buf, 50));
+#endif
     }
 
     sample->my_as = getData32(sample);
@@ -1233,12 +1235,12 @@ static void mplsLabelStack(SFSample *sample, char *fieldName) {
 */
 
 static void readExtendedMpls(SFSample *sample) {
-#ifdef DEVEL
-    char buf[51];
-#endif
     dbg_printf("extendedType MPLS\n");
     getAddress(sample, &sample->mpls_nextHop);
-    dbg_printf("mpls_nexthop %s\n", printAddress(&sample->mpls_nextHop, buf, 50));
+#ifdef DEVEL
+    char buf[51];
+    printf("mpls_nexthop %s\n", printAddress(&sample->mpls_nextHop, buf, 50));
+#endif
 
     mplsLabelStack(sample, "mpls_input_stack");
     mplsLabelStack(sample, "mpls_output_stack");
@@ -3598,7 +3600,7 @@ void readSFlowDatagram(SFSample *sample, FlowSource_t *fs, int verbose) {
     /* log some datagram info */
     dbg_printf("datagramSourceIP %s\n", IP_to_a(sample->sourceIP.s_addr, buf, 51));
     dbg_printf("datagramSize %u\n", sample->rawSampleLen);
-    dbg_printf("unixSecondsUTC %llu\n", (unsigned long long)sample->readTimestamp);
+    dbg_printf("unixSecondsUTC %" PRIu64 "\n", sample->readTimestamp);
 
     /* check the version */
     sample->datagramVersion = getData32(sample);

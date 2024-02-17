@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -56,7 +56,7 @@
 #include "userio.h"
 #include "util.h"
 
-typedef void (*string_function_t)(FILE *, master_record_t *);
+typedef void (*string_function_t)(FILE *, recordHandle_t *);
 
 static struct token_list_s {
     string_function_t string_function;  // function printing result to stream
@@ -85,414 +85,466 @@ static char header_string[STRINGSIZE] = {'\0'};
 static char tag_string[2] = {'\0'};
 
 /* prototypes */
-static char *ICMP_Port_decode(master_record_t *r);
+static char *ICMP_Port_decode(EXgenericFlow_t *genericFlow);
+
+static inline uint32_t ApplyV4NetMaskBits(uint32_t ip, uint32_t maskBits);
+
+static inline uint64_t *ApplyV6NetMaskBits(uint64_t *ip, uint32_t maskBits);
 
 static void InitFormatParser(void);
 
 static void AddToken(int index, char *s);
 
-static void String_Version(FILE *stream, master_record_t *r);
+static void String_Version(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_FlowCount(FILE *stream, master_record_t *r);
+static void String_FlowCount(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_FirstSeen(FILE *stream, master_record_t *r);
+static void String_FirstSeen(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_LastSeen(FILE *stream, master_record_t *r);
+static void String_LastSeen(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_Received(FILE *stream, master_record_t *r);
+static void String_Received(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_FirstSeenRaw(FILE *stream, master_record_t *r);
+static void String_FirstSeenRaw(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_LastSeenRaw(FILE *stream, master_record_t *r);
+static void String_LastSeenRaw(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_ReceivedRaw(FILE *stream, master_record_t *r);
+static void String_ReceivedRaw(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_Duration(FILE *stream, master_record_t *r);
+static void String_Duration(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_Duration_Seconds(FILE *stream, master_record_t *r);
+static void String_Duration_Seconds(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_Protocol(FILE *stream, master_record_t *r);
+static void String_Protocol(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcAddr(FILE *stream, master_record_t *r);
+static void String_SrcAddr(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstAddr(FILE *stream, master_record_t *r);
+static void String_DstAddr(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcGeoAddr(FILE *stream, master_record_t *r);
+static void String_SrcGeoAddr(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstGeoAddr(FILE *stream, master_record_t *r);
+static void String_DstGeoAddr(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcAddrPort(FILE *stream, master_record_t *r);
+static void String_SrcAddrPort(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstAddrPort(FILE *stream, master_record_t *r);
+static void String_DstAddrPort(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcAddrGeoPort(FILE *stream, master_record_t *r);
+static void String_SrcAddrGeoPort(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstAddrGeoPort(FILE *stream, master_record_t *r);
+static void String_DstAddrGeoPort(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcNet(FILE *stream, master_record_t *r);
+static void String_SrcNet(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstNet(FILE *stream, master_record_t *r);
+static void String_DstNet(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_NextHop(FILE *stream, master_record_t *r);
+static void String_NextHop(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_BGPNextHop(FILE *stream, master_record_t *r);
+static void String_BGPNextHop(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_RouterIP(FILE *stream, master_record_t *r);
+static void String_RouterIP(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcPort(FILE *stream, master_record_t *r);
+static void String_SrcPort(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstPort(FILE *stream, master_record_t *r);
+static void String_DstPort(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_ICMP_code(FILE *stream, master_record_t *r);
+static void String_ICMP_code(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_ICMP_type(FILE *stream, master_record_t *r);
+static void String_ICMP_type(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcAS(FILE *stream, master_record_t *r);
+static void String_SrcAS(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstAS(FILE *stream, master_record_t *r);
+static void String_DstAS(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_NextAS(FILE *stream, master_record_t *r);
+static void String_NextAS(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_PrevAS(FILE *stream, master_record_t *r);
+static void String_PrevAS(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_Input(FILE *stream, master_record_t *r);
+static void String_Input(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_InputName(FILE *stream, master_record_t *r);
+static void String_InputName(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_Output(FILE *stream, master_record_t *r);
+static void String_Output(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_OutputName(FILE *stream, master_record_t *r);
+static void String_OutputName(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_InPackets(FILE *stream, master_record_t *r);
+static void String_InPackets(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_OutPackets(FILE *stream, master_record_t *r);
+static void String_OutPackets(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_InBytes(FILE *stream, master_record_t *r);
+static void String_InBytes(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_OutBytes(FILE *stream, master_record_t *r);
+static void String_OutBytes(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_Flows(FILE *stream, master_record_t *r);
+static void String_Flows(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_Tos(FILE *stream, master_record_t *r);
+static void String_Tos(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_Dir(FILE *stream, master_record_t *r);
+static void String_Dir(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcTos(FILE *stream, master_record_t *r);
+static void String_SrcTos(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstTos(FILE *stream, master_record_t *r);
+static void String_DstTos(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcMask(FILE *stream, master_record_t *r);
+static void String_SrcMask(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstMask(FILE *stream, master_record_t *r);
+static void String_DstMask(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcVlan(FILE *stream, master_record_t *r);
+static void String_SrcVlan(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstVlan(FILE *stream, master_record_t *r);
+static void String_DstVlan(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_FwdStatus(FILE *stream, master_record_t *r);
+static void String_FwdStatus(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_BiFlowDir(FILE *stream, master_record_t *r);
+static void String_BiFlowDir(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_FlowEndReason(FILE *stream, master_record_t *r);
+static void String_FlowEndReason(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_Flags(FILE *stream, master_record_t *r);
+static void String_Flags(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_InSrcMac(FILE *stream, master_record_t *r);
+static void String_InSrcMac(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_OutDstMac(FILE *stream, master_record_t *r);
+static void String_OutDstMac(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_InDstMac(FILE *stream, master_record_t *r);
+static void String_InDstMac(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_OutSrcMac(FILE *stream, master_record_t *r);
+static void String_OutSrcMac(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_MPLS_1(FILE *stream, master_record_t *r);
+static void String_MPLS_1(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_MPLS_2(FILE *stream, master_record_t *r);
+static void String_MPLS_2(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_MPLS_3(FILE *stream, master_record_t *r);
+static void String_MPLS_3(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_MPLS_4(FILE *stream, master_record_t *r);
+static void String_MPLS_4(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_MPLS_5(FILE *stream, master_record_t *r);
+static void String_MPLS_5(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_MPLS_6(FILE *stream, master_record_t *r);
+static void String_MPLS_6(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_MPLS_7(FILE *stream, master_record_t *r);
+static void String_MPLS_7(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_MPLS_8(FILE *stream, master_record_t *r);
+static void String_MPLS_8(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_MPLS_9(FILE *stream, master_record_t *r);
+static void String_MPLS_9(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_MPLS_10(FILE *stream, master_record_t *r);
+static void String_MPLS_10(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_MPLSs(FILE *stream, master_record_t *r);
+static void String_MPLSs(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_Engine(FILE *stream, master_record_t *r);
+static void String_Engine(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_Label(FILE *stream, master_record_t *r);
+static void String_Label(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_ClientLatency(FILE *stream, master_record_t *r);
+static void String_ClientLatency(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_ServerLatency(FILE *stream, master_record_t *r);
+static void String_ServerLatency(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_AppLatency(FILE *stream, master_record_t *r);
+static void String_AppLatency(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_bps(FILE *stream, master_record_t *r);
+static void String_bps(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_pps(FILE *stream, master_record_t *r);
+static void String_pps(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_bpp(FILE *stream, master_record_t *r);
+static void String_bpp(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_ExpSysID(FILE *stream, master_record_t *r);
+static void String_ExpSysID(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcCountry(FILE *stream, master_record_t *r);
+static void String_SrcCountry(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstCountry(FILE *stream, master_record_t *r);
+static void String_DstCountry(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcLocation(FILE *stream, master_record_t *r);
+static void String_SrcLocation(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstLocation(FILE *stream, master_record_t *r);
+static void String_DstLocation(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcASorganisation(FILE *stream, master_record_t *r);
+static void String_SrcASorganisation(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_DstASorganisation(FILE *stream, master_record_t *r);
+static void String_DstASorganisation(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_inPayload(FILE *stream, master_record_t *r);
+static void String_inPayload(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_outPayload(FILE *stream, master_record_t *r);
+static void String_outPayload(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_nbarID(FILE *stream, master_record_t *r);
+static void String_nbarID(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_nbarName(FILE *stream, master_record_t *r);
+static void String_nbarName(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_ja3(FILE *stream, master_record_t *r);
+static void String_ja3(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_sniName(FILE *stream, master_record_t *r);
+static void String_sniName(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_observationDomainID(FILE *stream, master_record_t *r);
+static void String_observationDomainID(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_observationPointID(FILE *stream, master_record_t *r);
+static void String_observationPointID(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_ivrf(FILE *stream, master_record_t *r);
+static void String_ivrf(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_ivrfName(FILE *stream, master_record_t *r);
+static void String_ivrfName(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_evrf(FILE *stream, master_record_t *r);
+static void String_evrf(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_evrfName(FILE *stream, master_record_t *r);
+static void String_evrfName(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_NewLine(FILE *stream, master_record_t *r);
+static void String_NewLine(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_pfIfName(FILE *stream, master_record_t *r);
+static void String_pfIfName(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_pfAction(FILE *stream, master_record_t *r);
+static void String_pfAction(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_pfReason(FILE *stream, master_record_t *r);
+static void String_pfReason(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_pfdir(FILE *stream, master_record_t *r);
+static void String_pfdir(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_pfrule(FILE *stream, master_record_t *r);
+static void String_pfrule(FILE *stream, recordHandle_t *recordHandle);
 
-#ifdef NSEL
-static void String_EventTime(FILE *stream, master_record_t *r);
+static void String_EventTime(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_nfc(FILE *stream, master_record_t *r);
+static void String_nfc(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_evt(FILE *stream, master_record_t *r);
+static void String_evt(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_xevt(FILE *stream, master_record_t *r);
+static void String_xevt(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_sgt(FILE *stream, master_record_t *r);
+static void String_msecEvent(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_msecEvent(FILE *stream, master_record_t *r);
+static void String_iacl(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_iacl(FILE *stream, master_record_t *r);
+static void String_eacl(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_eacl(FILE *stream, master_record_t *r);
+static void String_xlateSrcAddr(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_xlateSrcAddr(FILE *stream, master_record_t *r);
+static void String_xlateDstAddr(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_xlateDstAddr(FILE *stream, master_record_t *r);
+static void String_xlateSrcPort(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_xlateSrcPort(FILE *stream, master_record_t *r);
+static void String_xlateDstPort(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_xlateDstPort(FILE *stream, master_record_t *r);
+static void String_xlateSrcAddrPort(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_xlateSrcAddrPort(FILE *stream, master_record_t *r);
+static void String_xlateDstAddrPort(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_xlateDstAddrPort(FILE *stream, master_record_t *r);
+static void String_userName(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_userName(FILE *stream, master_record_t *r);
+static void String_PortBlockStart(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_PortBlockStart(FILE *stream, master_record_t *r);
+static void String_PortBlockEnd(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_PortBlockEnd(FILE *stream, master_record_t *r);
+static void String_PortBlockStep(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_PortBlockStep(FILE *stream, master_record_t *r);
-
-static void String_PortBlockSize(FILE *stream, master_record_t *r);
-
-#endif
+static void String_PortBlockSize(FILE *stream, recordHandle_t *recordHandle);
 
 static struct format_token_list_s {
-    char *token;                                                                             // token
-    int is_address;                                                                          // is an IP address
-    char *header;                                                                            // header line description
-    string_function_t string_function;                                                       // function generation output string
-} format_token_list[] = {{"%nfv", 0, "Ver", String_Version},                                 // netflow version
-                         {"%cnt", 0, "Count", String_FlowCount},                             // flow count
-                         {"%tfs", 0, "Date first seen        ", String_FirstSeen},           // Start Time - first seen
-                         {"%ts", 0, "Date first seen        ", String_FirstSeen},            // Start Time - first seen
-                         {"%tsr", 0, "First seen raw", String_FirstSeenRaw},                 // Start Time - first seen, seconds
-                         {"%te", 0, "Date last seen         ", String_LastSeen},             // End Time	- last seen
-                         {"%ter", 0, "Last seen raw ", String_LastSeenRaw},                  // End Time - first seen, seconds
-                         {"%tr", 0, "Date flow received     ", String_Received},             // Received Time
-                         {"%trr", 0, "Received raw  ", String_ReceivedRaw},                  // Received Time, seconds
-                         {"%td", 0, "Duration        ", String_Duration},                    // Duration
-                         {"%tds", 0, "Duration        ", String_Duration_Seconds},           // Duration always in seconds
-                         {"%exp", 0, "Exp ID", String_ExpSysID},                             // Exporter SysID
-                         {"%pr", 0, "Proto", String_Protocol},                               // Protocol
-                         {"%sa", 1, "     Src IP Addr", String_SrcAddr},                     // Source Address
-                         {"%da", 1, "     Dst IP Addr", String_DstAddr},                     // Destination Address
-                         {"%gsa", 1, "     Src IP Addr(..)", String_SrcGeoAddr},             // Source Address
-                         {"%gda", 1, "     Dst IP Addr(..)", String_DstGeoAddr},             // Destination Address
-                         {"%sn", 1, "        Src Network", String_SrcNet},                   // Source Address applied source netmask
-                         {"%dn", 1, "        Dst Network", String_DstNet},                   // Destination Address applied source netmask
-                         {"%nh", 1, "     Next-hop IP", String_NextHop},                     // Next-hop IP Address
-                         {"%nhb", 1, " BGP next-hop IP", String_BGPNextHop},                 // BGP Next-hop IP Address
-                         {"%ra", 1, "       Router IP", String_RouterIP},                    // Router IP Address
-                         {"%sap", 1, "     Src IP Addr:Port ", String_SrcAddrPort},          // Source Address:Port
-                         {"%dap", 1, "     Dst IP Addr:Port ", String_DstAddrPort},          // Destination Address:Port
-                         {"%gsap", 1, "     Src IP Addr(..):Port ", String_SrcAddrGeoPort},  // Source Address(geo):Port
-                         {"%gdap", 1, "     Dst IP Addr(..):Port ", String_DstAddrGeoPort},  // Destination Address(geo):Port
-                         {"%sp", 0, "Src Pt", String_SrcPort},                               // Source Port
-                         {"%dp", 0, "Dst Pt", String_DstPort},                               // Destination Port
-                         {"%it", 0, "ICMP-T", String_ICMP_type},                             // ICMP type
-                         {"%ic", 0, "ICMP-C", String_ICMP_code},                             // ICMP code
-                         {"%sas", 0, "Src AS", String_SrcAS},                                // Source AS
-                         {"%das", 0, "Dst AS", String_DstAS},                                // Destination AS
-                         {"%nas", 0, "Next AS", String_NextAS},                              // Next AS
-                         {"%pas", 0, "Prev AS", String_PrevAS},                              // Previous AS
-                         {"%in", 0, " Input", String_Input},                                 // Input Interface num
-                         {"%inam", 0, " Input interface name", String_InputName},            // Input Interface name
-                         {"%out", 0, "Output", String_Output},                               // Output Interface num
-                         {"%onam", 0, "Output interface name", String_OutputName},           // Output Interface name
-                         {"%pkt", 0, " Packets", String_InPackets},                          // Packets - default input - compat
-                         {"%ipkt", 0, "  In Pkt", String_InPackets},                         // In Packets
-                         {"%opkt", 0, " Out Pkt", String_OutPackets},                        // Out Packets
-                         {"%byt", 0, "   Bytes", String_InBytes},                            // Bytes - default input - compat
-                         {"%ibyt", 0, " In Byte", String_InBytes},                           // In Bytes
-                         {"%obyt", 0, "Out Byte", String_OutBytes},                          // In Bytes
-                         {"%fl", 0, "Flows", String_Flows},                                  // Flows
-                         {"%flg", 0, "   Flags", String_Flags},                              // TCP Flags
-                         {"%tos", 0, "Tos ", String_Tos},                                    // Tos - compat
-                         {"%stos", 0, "STos", String_SrcTos},                                // Tos - Src tos
-                         {"%dtos", 0, "DTos", String_DstTos},                                // Tos - Dst tos
-                         {"%dir", 0, "Dir", String_Dir},                                     // Direction: ingress, egress
-                         {"%smk", 0, "SMask", String_SrcMask},                               // Src mask
-                         {"%dmk", 0, "DMask", String_DstMask},                               // Dst mask
-                         {"%fwd", 0, "Fwd", String_FwdStatus},                               // Forwarding Status
-                         {"%bfd", 0, "Bfd", String_BiFlowDir},                               // BiFlow Direction
-                         {"%end", 0, "End", String_FlowEndReason},                           // Flow End Reason
-                         {"%svln", 0, "SVlan", String_SrcVlan},                              // Src Vlan
-                         {"%dvln", 0, "DVlan", String_DstVlan},                              // Dst Vlan
-                         {"%ismc", 0, "  In src MAC Addr", String_InSrcMac},                 // Input Src Mac Addr
-                         {"%odmc", 0, " Out dst MAC Addr", String_OutDstMac},                // Output Dst Mac Addr
-                         {"%idmc", 0, "  In dst MAC Addr", String_InDstMac},                 // Input Dst Mac Addr
-                         {"%osmc", 0, " Out src MAC Addr", String_OutSrcMac},                // Output Src Mac Addr
-                         {"%mpls1", 0, " MPLS lbl 1 ", String_MPLS_1},                       // MPLS Label 1
-                         {"%mpls2", 0, " MPLS lbl 2 ", String_MPLS_2},                       // MPLS Label 2
-                         {"%mpls3", 0, " MPLS lbl 3 ", String_MPLS_3},                       // MPLS Label 3
-                         {"%mpls4", 0, " MPLS lbl 4 ", String_MPLS_4},                       // MPLS Label 4
-                         {"%mpls5", 0, " MPLS lbl 5 ", String_MPLS_5},                       // MPLS Label 5
-                         {"%mpls6", 0, " MPLS lbl 6 ", String_MPLS_6},                       // MPLS Label 6
-                         {"%mpls7", 0, " MPLS lbl 7 ", String_MPLS_7},                       // MPLS Label 7
-                         {"%mpls8", 0, " MPLS lbl 8 ", String_MPLS_8},                       // MPLS Label 8
-                         {"%mpls9", 0, " MPLS lbl 9 ", String_MPLS_9},                       // MPLS Label 9
-                         {"%mpls10", 0, " MPLS lbl 10", String_MPLS_10},                     // MPLS Label 10
-                         {"%mpls", 0,
-                          "                                               MPLS labels 1-10                                                  "
-                          "                 ",
-                          String_MPLSs},  // All MPLS labels
-                         //
-                         {"%bps", 0, "     bps", String_bps},                            // bps - bits per second
-                         {"%pps", 0, "     pps", String_pps},                            // pps - packets per second
-                         {"%bpp", 0, "   Bpp", String_bpp},                              // bpp - Bytes per package
-                         {"%eng", 0, " engine", String_Engine},                          // Engine Type/ID
-                         {"%lbl", 0, "           label", String_Label},                  // Flow Label
-                         {"%sc", 0, "SC", String_SrcCountry},                            // src IP 2 letter country code
-                         {"%dc", 0, "DC", String_DstCountry},                            // dst IP 2 letter country code
-                         {"%sloc", 0, "Src IP location info", String_SrcLocation},       // src IP geo location info
-                         {"%dloc", 0, "Dst IP location info", String_DstLocation},       // dst IP geo location info
-                         {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},  // src IP AS organistaion string
-                         {"%dasn", 0, "Dst AS organisation", String_DstASorganisation},  // dst IP AS organisation string
-                         {"%n", 0, "", String_NewLine},                                  // \n
-                         {"%ipl", 0, "", String_inPayload},                              // in payload
-                         {"%opl", 0, "", String_outPayload},                             // out payload
-                         {"%nbid", 0, "nbar ID", String_nbarID},                         // nbar ID
-                         {"%ja3", 0, "                             ja3", String_ja3},    // ja3
-                         {"%sni", 0, "sni name", String_sniName},                        // TLS sni Name
-                         {"%nbnam", 0, "nbar name", String_nbarName},                    // nbar Name
-                         {"%odid", 0, "obsDomainID", String_observationDomainID},        // observation domainID
-                         {"%opid", 0, "  obsPointID", String_observationPointID},        // observation pointID
-                         {"%vrf", 0, "  I-VRF-ID", String_ivrf},                         // ingress vrf ID - compatible
-                         {"%ivrf", 0, "  I-VRF-ID", String_ivrf},                        // ingress vrf ID
-                         {"%ivrfnam", 0, "  I-VRF-Name", String_ivrfName},               // ingress vrf name
-                         {"%evrf", 0, "  E-VRF-ID", String_evrf},                        // egress vrf ID
-                         {"%evrfnam", 0, "  E-VRF-Name", String_evrfName},               // egress vrf name
+    char *token;                        // token
+    int is_address;                     // is an IP address
+    char *header;                       // header line description
+    string_function_t string_function;  // function generation output string
+} format_token_list[] = {
+    // v3 header info
+    {"%nfv", 0, "Ver", String_Version},      // netflow version
+    {"%cnt", 0, "Count", String_FlowCount},  // flow count
+    {"%eng", 0, " engine", String_Engine},   // Engine Type/ID
+    {"%exp", 0, "Exp ID", String_ExpSysID},  // Exporter SysID
 
-                         {"%pfifn", 0, "interface", String_pfIfName},  // pflog ifname
-                         {"%pfact", 0, "action", String_pfAction},     // pflog action
-                         {"%pfrea", 0, "reason", String_pfReason},     // pflog reason
-                         {"%pfdir", 0, "dir", String_pfdir},           // pflog direction
-                         {"%pfrule", 0, "rule", String_pfrule},        // pflog rule
+    // EXgenericFlowID
+    {"%tfs", 0, "Date first seen        ", String_FirstSeen},  // Start Time - first seen
+    {"%ts", 0, "Date first seen        ", String_FirstSeen},   // Start Time - first seen
+    {"%tsr", 0, "First seen raw", String_FirstSeenRaw},        // Start Time - first seen, seconds
+    {"%te", 0, "Date last seen         ", String_LastSeen},    // End Time	- last seen
+    {"%ter", 0, "Last seen raw ", String_LastSeenRaw},         // End Time - first seen, seconds
+    {"%trr", 0, "Received raw  ", String_ReceivedRaw},         // Received Time, seconds
+    {"%tr", 0, "Date flow received     ", String_Received},    // Received Time
+    {"%td", 0, "Duration        ", String_Duration},           // Duration
+    {"%tds", 0, "Duration        ", String_Duration_Seconds},  // Duration always in seconds
+    {"%pkt", 0, " Packets", String_InPackets},                 // Packets - default input - compat
+    {"%ipkt", 0, "  In Pkt", String_InPackets},                // In Packets
+    {"%byt", 0, "   Bytes", String_InBytes},                   // Bytes - default input - compat
+    {"%ibyt", 0, " In Byte", String_InBytes},                  // In Bytes
+    {"%sp", 0, "Src Pt", String_SrcPort},                      // Source Port
+    {"%dp", 0, "Dst Pt", String_DstPort},                      // Destination Port
+    {"%it", 0, "ICMP-T", String_ICMP_type},                    // ICMP type
+    {"%ic", 0, "ICMP-C", String_ICMP_code},                    // ICMP code
+    {"%pr", 0, "Proto", String_Protocol},                      // Protocol
+    {"%flg", 0, "   Flags", String_Flags},                     // TCP Flags
+    {"%fwd", 0, "Fwd", String_FwdStatus},                      // Forwarding Status
+    {"%tos", 0, " Tos", String_Tos},                           // Tos - compat
+    {"%stos", 0, "STos", String_SrcTos},                       // Tos - Src tos
+    {"%bps", 0, "     bps", String_bps},                       // bps - bits per second
+    {"%pps", 0, "     pps", String_pps},                       // pps - packets per second
+    {"%bpp", 0, "   Bpp", String_bpp},                         // bpp - Bytes per package
 
-#ifdef NSEL
-                         // NSEL specifics
-                         {"%nfc", 0, "   Conn-ID", String_nfc},                            // NSEL connection ID
-                         {"%tevt", 0, "Event time             ", String_EventTime},        // NSEL Flow start time
-                         {"%evt", 0, "   Event", String_evt},                              // NSEL event
-                         {"%xevt", 0, " XEvent", String_xevt},                             // NSEL xevent
-                         {"%sgt", 0, "  SGT  ", String_sgt},                               // NSEL xevent
-                         {"%msec", 0, "   Event Time", String_msecEvent},                  // NSEL event time in msec
-                         {"%iacl", 0, "Ingress ACL                     ", String_iacl},    // NSEL ingress ACL
-                         {"%eacl", 0, "Egress ACL                      ", String_eacl},    // NSEL egress ACL
-                         {"%xsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NSEL XLATE src IP
-                         {"%xda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NSEL XLATE dst IP
-                         {"%xsp", 0, "XsPort", String_xlateSrcPort},                       // NSEL XLATE src port
-                         {"%xdp", 0, "XdPort", String_xlateDstPort},                       // NSEL SLATE dst port
-                         {"%xsap", 1, "   X-Src IP Addr:Port ", String_xlateSrcAddrPort},  // Xlate Source Address:Port
-                         {"%xdap", 1, "   X-Dst IP Addr:Port ", String_xlateDstAddrPort},  // Xlate Destination Address:Port
-                         {"%uname", 0, "UserName", String_userName},                       // NSEL user name
+    // EXipv4FlowID EXipv6FlowID
+    {"%sa", 1, "     Src IP Addr", String_SrcAddr},             // Source Address
+    {"%da", 1, "     Dst IP Addr", String_DstAddr},             // Destination Address
+    {"%sap", 1, "     Src IP Addr:Port ", String_SrcAddrPort},  // Source Address:Port
+    {"%dap", 1, "     Dst IP Addr:Port ", String_DstAddrPort},  // Destination Address:Port
+    // with maxmind geo info
+    {"%gsap", 1, "     Src IP Addr(..):Port ", String_SrcAddrGeoPort},  // Source Address(geo):Port
+    {"%gdap", 1, "     Dst IP Addr(..):Port ", String_DstAddrGeoPort},  // Destination Address(geo):Port
+    {"%gsa", 1, "     Src IP Addr(..)", String_SrcGeoAddr},             // Source Address
+    {"%gda", 1, "     Dst IP Addr(..)", String_DstGeoAddr},             // Destination Address
 
-                         // NEL
-                         // for v.1.6.10 compatibility, keep NEL specific addr/port format tokens
-                         {"%nevt", 0, "   Event", String_evt},                             // NAT event
-                         {"%nsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NAT XLATE src IP
-                         {"%nda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NAT XLATE dst IP
-                         {"%nsp", 0, "XsPort", String_xlateSrcPort},                       // NAT XLATE src port
-                         {"%ndp", 0, "XdPort", String_xlateDstPort},                       // NAT SLATE dst port
-                         {"%nsap", 1, "   X-Src IP Addr:Port ", String_xlateSrcAddrPort},  // NAT Xlate Source Address:Port
-                         {"%ndap", 1, "   X-Dst IP Addr:Port ", String_xlateDstAddrPort},  // NAT Xlate Destination Address:Port
+    // EXflowMiscID
+    {"%in", 0, " Input", String_Input},        // Input Interface num
+    {"%out", 0, "Output", String_Output},      // Output Interface num
+    {"%smk", 0, "SMask", String_SrcMask},      // Src mask
+    {"%dmk", 0, "DMask", String_DstMask},      // Dst mask
+    {"%dir", 0, "Dir", String_Dir},            // Direction: ingress, egress
+    {"%dtos", 0, "DTos", String_DstTos},       // Tos - Dst tos
+    {"%bfd", 0, "Bfd", String_BiFlowDir},      // BiFlow Direction
+    {"%end", 0, "End", String_FlowEndReason},  // Flow End Reason
+    //
+    {"%sn", 1, "        Src Network", String_SrcNet},          // Source Address applied source netmask
+    {"%dn", 1, "        Dst Network", String_DstNet},          // Destination Address applied source netmask
+    {"%inam", 0, " Input interface name", String_InputName},   // Input Interface name
+    {"%onam", 0, "Output interface name", String_OutputName},  // Output Interface name
 
-                         // Port block allocation
-                         {"%pbstart", 0, "Pb-Start", String_PortBlockStart},  // Port block start
-                         {"%pbend", 0, "Pb-End", String_PortBlockEnd},        // Port block end
-                         {"%pbstep", 0, "Pb-Step", String_PortBlockStep},     // Port block step
-                         {"%pbsize", 0, "Pb-Size", String_PortBlockSize},     // Port block size
-#endif
+    // EXcntFlowID
+    {"%opkt", 0, " Out Pkt", String_OutPackets},  // Out Packets
+    {"%obyt", 0, "Out Byte", String_OutBytes},    // In Bytes
+    {"%fl", 0, "Flows", String_Flows},            // Flows
 
-                         // latency extension for nfpcapd and nprobe
-                         {"%cl", 0, "C Latency", String_ClientLatency},  // client latency
-                         {"%sl", 0, "S latency", String_ServerLatency},  // server latency
-                         {"%al", 0, "A latency", String_AppLatency},     // app latency
+    // EXvLanID
+    {"%svln", 0, "SVlan", String_SrcVlan},  // Src Vlan
+    {"%dvln", 0, "DVlan", String_DstVlan},  // Dst Vlan
 
-                         {NULL, 0, NULL, NULL}};
+    // EXasRoutingID
+    {"%sas", 0, "Src AS", String_SrcAS},  // Source AS
+    {"%das", 0, "Dst AS", String_DstAS},  // Destination AS
+
+    // EXbgpNextHopV4ID EXbgpNextHopV6ID
+    {"%nhb", 1, " BGP next-hop IP", String_BGPNextHop},  // BGP Next-hop IP Address
+
+    // EXipNextHopV4ID
+    {"%nh", 1, "     Next-hop IP", String_NextHop},  // Next-hop IP Address
+
+    // EXipReceivedV4ID EXipReceivedV6ID
+    {"%ra", 1, "       Router IP", String_RouterIP},  // Router IP Address
+
+    // EXmplsLabelID
+    {"%mpls1", 0, " MPLS lbl 1 ", String_MPLS_1},    // MPLS Label 1
+    {"%mpls2", 0, " MPLS lbl 2 ", String_MPLS_2},    // MPLS Label 2
+    {"%mpls3", 0, " MPLS lbl 3 ", String_MPLS_3},    // MPLS Label 3
+    {"%mpls4", 0, " MPLS lbl 4 ", String_MPLS_4},    // MPLS Label 4
+    {"%mpls5", 0, " MPLS lbl 5 ", String_MPLS_5},    // MPLS Label 5
+    {"%mpls6", 0, " MPLS lbl 6 ", String_MPLS_6},    // MPLS Label 6
+    {"%mpls7", 0, " MPLS lbl 7 ", String_MPLS_7},    // MPLS Label 7
+    {"%mpls8", 0, " MPLS lbl 8 ", String_MPLS_8},    // MPLS Label 8
+    {"%mpls9", 0, " MPLS lbl 9 ", String_MPLS_9},    // MPLS Label 9
+    {"%mpls10", 0, " MPLS lbl 10", String_MPLS_10},  // MPLS Label 10
+    {"%mpls", 0,
+     "                                               MPLS labels 1-10                                                  "
+     "                 ",
+     String_MPLSs},  // All MPLS labels
+
+    // EXmacAddrID
+    {"%ismc", 0, "  In src MAC Addr", String_InSrcMac},   // Input Src Mac Addr
+    {"%odmc", 0, " Out dst MAC Addr", String_OutDstMac},  // Output Dst Mac Addr
+    {"%idmc", 0, "  In dst MAC Addr", String_InDstMac},   // Input Dst Mac Addr
+    {"%osmc", 0, " Out src MAC Addr", String_OutSrcMac},  // Output Src Mac Addr
+
+    // EXasAdjacentID
+    {"%nas", 0, "Next AS", String_NextAS},  // Next AS
+    {"%pas", 0, "Prev AS", String_PrevAS},  // Previous AS
+
+    // EXlatencyID - latency extension for nfpcapd and nprobe
+    {"%cl", 0, "C Latency", String_ClientLatency},  // client latency
+    {"%sl", 0, "S latency", String_ServerLatency},  // server latency
+    {"%al", 0, "A latency", String_AppLatency},     // app latency
+
+    // EXsamplerInfoID
+
+    // EXnselCommonID & EXnelCommonID
+    {"%tevt", 0, "Event time             ", String_EventTime},  // NSEL Flow start time
+    {"%msec", 0, "   Event Time", String_msecEvent},            // NSEL event time in msec
+    {"%evt", 0, "   Event", String_evt},                        // NSEL event
+    // for v.1.6.10 compatibility, keep NEL specific addr/port format tokens
+    {"%nevt", 0, "   Event", String_evt},  // NAT event
+
+    // EXnselCommonID
+    {"%nfc", 0, "   Conn-ID", String_nfc},  // NSEL connection ID
+    {"%xevt", 0, " XEvent", String_xevt},   // NSEL xevent
+
+    // EXnselXlateIPv4ID EXnselXlateIPv6ID
+    // ASA Firewall
+    {"%xsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NSEL XLATE src IP
+    {"%xda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NSEL XLATE dst IP
+    {"%xsap", 1, "   X-Src IP Addr:Port ", String_xlateSrcAddrPort},  // NSEL Xlate Source Address:Port
+    {"%xdap", 1, "   X-Src IP Addr:Port ", String_xlateDstAddrPort},  // NSEL Xlate Destination Address:Port
+    // NAT devices
+    {"%nsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NAT XLATE src IP
+    {"%nda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NAT XLATE dst IP
+    {"%nsap", 1, "   X-Src IP Addr:Port ", String_xlateSrcAddrPort},  // NAT Xlate Source Address:Port
+    {"%ndap", 1, "   X-Dst IP Addr:Port ", String_xlateDstAddrPort},  // NAT Xlate Destination Address:Port
+
+    // EXnselXlatePortID
+    // ASA Firewall
+    {"%xsp", 0, "XsPort", String_xlateSrcPort},  // NSEL XLATE src port
+    {"%xdp", 0, "XdPort", String_xlateDstPort},  // NSEL SLATE dst port
+    // NAT devices
+    {"%nsp", 0, "XsPort", String_xlateSrcPort},  // NAT XLATE src port
+    {"%ndp", 0, "XdPort", String_xlateDstPort},  // NAT SLATE dst port
+
+    // EXnselAclID
+    {"%iacl", 0, "Ingress ACL                     ", String_iacl},  // NSEL ingress ACL
+    {"%eacl", 0, "Egress ACL                      ", String_eacl},  // NSEL egress ACL
+
+    // EXnselUserID
+    {"%uname", 0, "UserName", String_userName},  // NSEL user name
+
+    // EXnelXlatePortID - Port block allocation
+    {"%pbstart", 0, "Pb-Start", String_PortBlockStart},  // Port block start
+    {"%pbend", 0, "Pb-End", String_PortBlockEnd},        // Port block end
+    {"%pbstep", 0, "Pb-Step", String_PortBlockStep},     // Port block step
+    {"%pbsize", 0, "Pb-Size", String_PortBlockSize},     // Port block size
+
+    // EXnbarAppID
+    {"%nbid", 0, "nbar ID", String_nbarID},       // nbar ID
+    {"%nbnam", 0, "nbar name", String_nbarName},  // nbar Name
+
+    // EXinPayloadID
+    {"%ipl", 0, "Input Payload", String_inPayload},  // in payload
+
+    // EXoutPayloadID
+    {"%opl", 0, "Output Payload", String_outPayload},  // out payload
+
+    // EXtunIPv4ID EXtunIPv6ID
+
+    // EXobservationID
+    {"%odid", 0, "obsDomainID", String_observationDomainID},  // observation domainID
+    {"%opid", 0, "  obsPointID", String_observationPointID},  // observation pointID
+
+    // EXinmonMetaID
+
+    // EXvrfID
+    {"%vrf", 0, "  I-VRF-ID", String_ivrf},            // ingress vrf ID - compatible
+    {"%ivrf", 0, "  I-VRF-ID", String_ivrf},           // ingress vrf ID
+    {"%ivrfnam", 0, "  I-VRF-Name", String_ivrfName},  // ingress vrf name
+    {"%evrf", 0, "  E-VRF-ID", String_evrf},           // egress vrf ID
+    {"%evrfnam", 0, "  E-VRF-Name", String_evrfName},  // egress vrf name
+
+    // EXpfinfoID
+    {"%pfifn", 0, "interface", String_pfIfName},  // pflog ifname
+    {"%pfact", 0, "action", String_pfAction},     // pflog action
+    {"%pfrea", 0, "reason", String_pfReason},     // pflog reason
+    {"%pfdir", 0, "dir", String_pfdir},           // pflog direction
+    {"%pfrule", 0, "rule", String_pfrule},        // pflog rule
+
+    // EXlocal
+    {"%ja3", 0, "                             ja3", String_ja3},    // ja3
+    {"%sni", 0, "sni name", String_sniName},                        // TLS sni Name
+    {"%sc", 0, "SC", String_SrcCountry},                            // src IP 2 letter country code
+    {"%dc", 0, "DC", String_DstCountry},                            // dst IP 2 letter country code
+    {"%sloc", 0, "Src IP location info", String_SrcLocation},       // src IP geo location info
+    {"%dloc", 0, "Dst IP location info", String_DstLocation},       // dst IP geo location info
+    {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},  // src IP AS organistaion string
+    {"%dasn", 0, "Dst AS organisation", String_DstASorganisation},  // dst IP AS organisation string
+    {"%lbl", 0, "           label", String_Label},                  // Flow Label
+
+    {"%n", 0, "", String_NewLine},  // \n
+    {NULL, 0, NULL, NULL}};
 
 /* each of the tokens above must not generate output strings larger than this */
 #define MAX_STRING_LENGTH 256
-
-#include "applybits_inline.c"
 
 /* functions */
 
@@ -510,31 +562,50 @@ static void ListOutputFormats(void) {
 
 }  // End of ListOutputFormats
 
-void fmt_record(FILE *stream, void *record, int tag) {
-    master_record_t *r = (master_record_t *)record;
+void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
+    EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
 
     // if this flow is a tunnel, add a flow line with the tunnel IPs
-    if (r->tun_ip_version) {
-        master_record_t _r = {0};
-        _r.proto = r->tun_proto;
-        _r.V6.srcaddr[0] = r->tun_src_ip.V6[0];
-        _r.V6.srcaddr[1] = r->tun_src_ip.V6[1];
-        _r.V6.dstaddr[0] = r->tun_dst_ip.V6[0];
-        _r.V6.dstaddr[1] = r->tun_dst_ip.V6[1];
-        _r.msecFirst = r->msecFirst;
-        _r.msecLast = r->msecLast;
-        if (r->tun_ip_version == 6) _r.mflags = V3_FLAG_IPV6_ADDR;
-        fmt_record(stream, (void *)&_r, tag);
+    if (genericFlow && (tunIPv4 || tunIPv6)) {
+        size_t len = V3HeaderRecordSize + EXgenericFlowSize + EXipv6FlowSize;
+        void *p = malloc(len);
+        if (!p) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        AddV3Header(p, v3TunHeader);
+        PushExtension(v3TunHeader, EXgenericFlow, tunGenericFlow);
+        memcpy((void *)tunGenericFlow, (void *)genericFlow, sizeof(EXgenericFlow_t));
+        if (tunIPv4) {
+            tunGenericFlow->proto = tunIPv4->tunProto;
+            PushExtension(v3TunHeader, EXipv4Flow, tunIPv4Flow);
+            tunIPv4Flow->srcAddr = tunIPv4->tunSrcAddr;
+            tunIPv4Flow->dstAddr = tunIPv4->tunDstAddr;
+        } else {
+            tunGenericFlow->proto = tunIPv6->tunProto;
+            PushExtension(v3TunHeader, EXipv6Flow, tunIPv6Flow);
+            tunIPv6Flow->srcAddr[0] = tunIPv6->tunSrcAddr[0];
+            tunIPv6Flow->srcAddr[1] = tunIPv6->tunSrcAddr[1];
+            tunIPv6Flow->dstAddr[0] = tunIPv6->tunDstAddr[0];
+            tunIPv6Flow->dstAddr[1] = tunIPv6->tunDstAddr[1];
+        }
+        fmt_record(stream, p, tag);
+        free(p);
     }
 
     do_tag = tag;
     tag_string[0] = do_tag ? TAG_CHAR : '\0';
     tag_string[1] = '\0';
 
-    duration = (r->msecLast - r->msecFirst) / 1000.0;
+    duration = 0;
+    if (genericFlow && genericFlow->msecLast) {
+        duration = (genericFlow->msecLast - genericFlow->msecFirst) / 1000.0;
+    }
     for (int i = 0; i < token_index; i++) {
         if (token_list[i].string_function) {
-            token_list[i].string_function(stream, r);
+            token_list[i].string_function(stream, recordHandle);
         }
         if (token_list[i].string_buffer) {
             fprintf(stream, "%s", token_list[i].string_buffer);
@@ -582,6 +653,27 @@ void CondenseV6(char *s) {
     *p = 0;
 
 }  // End of CondenseV6
+
+static inline uint32_t ApplyV4NetMaskBits(uint32_t ip, uint32_t maskBits) {
+    uint32_t srcMask = 0xffffffff << (32 - maskBits);
+    return (ip &= srcMask);
+}  // End of ApplyV4NetMaskBits
+
+static inline uint64_t *ApplyV6NetMaskBits(uint64_t *ip, uint32_t maskBits) {
+    static uint64_t net[2];
+    uint64_t mask;
+    if (maskBits > 64) {
+        mask = 0xffffffffffffffffLL << (128 - maskBits);
+        net[0] = ip[0];
+        net[1] = ip[1] & mask;
+    } else {
+        mask = 0xffffffffffffffffLL << (64 - maskBits);
+        net[0] = ip[0] & mask;
+        net[1] = 0;
+    }
+    return net;
+
+}  // End of ApplyV6NetMaskBits
 
 static void AddToken(int index, char *s) {
     if (token_index >= max_token_index) {  // no slot available - expand table
@@ -722,37 +814,43 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
 
 }  // End of ParseOutputFormat
 
-static char *ICMP_Port_decode(master_record_t *r) {
+static char *ICMP_Port_decode(EXgenericFlow_t *genericFlow) {
 #define ICMPSTRLEN 16
-    static char icmp_string[ICMPSTRLEN];
+    static char icmpString[ICMPSTRLEN];
+    icmpString[0] = '\0';
 
-    if (r->proto == IPPROTO_ICMP || r->proto == IPPROTO_ICMPV6) {  // ICMP
-        snprintf(icmp_string, ICMPSTRLEN - 1, "%u.%u", r->icmpType, r->icmpCode);
+    if (genericFlow == NULL) return "0";
+
+    if (genericFlow->proto == IPPROTO_ICMP || genericFlow->proto == IPPROTO_ICMPV6) {  // ICMP
+        snprintf(icmpString, ICMPSTRLEN - 1, "%u.%u", genericFlow->icmpType, genericFlow->icmpCode);
     } else {  // dst port
-        snprintf(icmp_string, ICMPSTRLEN - 1, "%u", r->dstPort);
+        snprintf(icmpString, ICMPSTRLEN - 1, "%u", genericFlow->dstPort);
     }
-    icmp_string[ICMPSTRLEN - 1] = '\0';
+    icmpString[ICMPSTRLEN - 1] = '\0';
 
-    return icmp_string;
+    return icmpString;
 
 }  // End of ICMP_Port_decode
 
 /* functions, which create the individual strings for the output line */
-static void String_Version(FILE *stream, master_record_t *r) {
-    char *type;
-    if (TestFlag(r->flags, V3_FLAG_EVENT)) {
+static void String_Version(FILE *stream, recordHandle_t *recordHandle) {
+    recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
+
+    char *type = "UNKN";
+    uint8_t nfversion = recordHeaderV3->nfversion;
+    if (TestFlag(recordHeaderV3->flags, V3_FLAG_EVENT)) {
         type = "EVT";
-        fprintf(stream, "%s%u", type, r->nfversion);
+        fprintf(stream, "%s%u", type, nfversion);
     } else {
-        if (r->nfversion != 0) {
-            if (r->nfversion & 0x80) {
+        if (nfversion != 0) {
+            if (nfversion & 0x80) {
                 type = "Sv";
-            } else if (r->nfversion & 0x40) {
+            } else if (nfversion & 0x40) {
                 type = "Pv";
             } else {
                 type = "Nv";
             }
-            fprintf(stream, "%s%u", type, r->nfversion & 0x0F);
+            fprintf(stream, "%s%u", type, nfversion & 0x0F);
         } else {
             // compat with previous versions
             type = "FLO";
@@ -762,149 +860,179 @@ static void String_Version(FILE *stream, master_record_t *r) {
 
 }  // End of String_Version
 
-static void String_FlowCount(FILE *stream, master_record_t *r) { fprintf(stream, "%5u", r->flowCount); }  // End of String_FlowCount
+static void String_FlowCount(FILE *stream, recordHandle_t *recordHandle) {
+    fprintf(stream, "%5u", recordHandle->flowCount);
+}  // End of String_FlowCount
 
-static void String_FirstSeen(FILE *stream, master_record_t *r) {
-    time_t tt;
-    struct tm *ts;
-    char s[128];
+static void String_FirstSeen(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
-    if (r->msecFirst) {
-        tt = r->msecFirst / 1000LL;
-        ts = localtime(&tt);
+    uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
+
+    if (msecFirst) {
+        time_t tt = msecFirst / 1000LL;
+        struct tm *ts = localtime(&tt);
+        char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03u", s, (unsigned)(r->msecFirst % 1000LL));
+        fprintf(stream, "%s.%03u", s, (unsigned)(msecFirst % 1000LL));
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }
 
 }  // End of String_FirstSeen
 
-static void String_LastSeen(FILE *stream, master_record_t *r) {
-    time_t tt;
-    struct tm *ts;
-    char s[128];
+static void String_LastSeen(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
-    if (r->msecLast) {
-        tt = r->msecLast / 1000LL;
-        ts = localtime(&tt);
+    uint64_t msecLast = genericFlow ? genericFlow->msecLast : 0;
+
+    if (msecLast) {
+        time_t tt = msecLast / 1000LL;
+        struct tm *ts = localtime(&tt);
+        char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03u", s, (unsigned)(r->msecLast % 1000LL));
+        fprintf(stream, "%s.%03u", s, (unsigned)(msecLast % 1000LL));
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }
 
 }  // End of String_LastSeen
 
-static void String_Received(FILE *stream, master_record_t *r) {
-    time_t tt;
-    struct tm *ts;
-    char s[128];
+static void String_Received(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
-    if (r->msecReceived) {
-        tt = r->msecReceived / 1000LL;
-        ts = localtime(&tt);
+    uint64_t msecReceived = genericFlow ? genericFlow->msecReceived : 0;
+
+    if (msecReceived) {
+        time_t tt = msecReceived / 1000LL;
+        struct tm *ts = localtime(&tt);
+        char s[128];
         strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
         s[127] = '\0';
-        fprintf(stream, "%s.%03llu", s, r->msecReceived % 1000LL);
+        fprintf(stream, "%s.%03llu", s, msecReceived % 1000LL);
     } else {
         fprintf(stream, "%s", "0000-00-00 00:00:00.000");
     }
 
 }  // End of String_Received
 
-static void String_ReceivedRaw(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%10llu.%03llu", r->msecReceived / 1000LL, r->msecReceived % 1000LL);
+static void String_ReceivedRaw(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    uint64_t msecReceived = genericFlow ? genericFlow->msecReceived : 0;
+    fprintf(stream, "%10llu.%03llu", msecReceived / 1000LL, msecReceived % 1000LL);
 
 }  // End of String_ReceivedRaw
 
-static void String_FirstSeenRaw(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%10llu.%03llu", r->msecFirst / 1000LL, r->msecFirst % 1000LL);
+static void String_FirstSeenRaw(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
+    fprintf(stream, "%10llu.%03llu", msecFirst / 1000LL, msecFirst % 1000LL);
 
 }  // End of String_FirstSeenRaw
 
-static void String_LastSeenRaw(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%10llu.%03llu", r->msecLast / 1000LL, r->msecLast % 1000LL);
+static void String_LastSeenRaw(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    uint64_t msecLast = genericFlow ? genericFlow->msecLast : 0;
+    fprintf(stream, "%10llu.%03llu", msecLast / 1000LL, msecLast % 1000LL);
 
 }  // End of String_LastSeenRaw
 
-static void String_inPayload(FILE *stream, master_record_t *r) {
-    int max = r->inPayloadLength > 256 ? 256 : r->inPayloadLength;
-    if (r->srcPort == 53 || r->dstPort == 53) {
-        content_decode_dns(stream, r->proto, (uint8_t *)r->inPayload, r->inPayloadLength);
+static void String_Payload(FILE *stream, uint8_t *payload, EXgenericFlow_t *genericFlow) {
+    uint32_t payloadLength = 0;
+    if (payload) {
+        elementHeader_t *elementHeader = (elementHeader_t *)(payload - sizeof(elementHeader_t));
+        payloadLength = elementHeader->length - sizeof(elementHeader_t);
+    } else {
+        fprintf(stream, "<no payload>");
+        return;
     }
+
+    int max = payloadLength > 256 ? 256 : payloadLength;
+    if (genericFlow && (genericFlow->srcPort == 53 || genericFlow->dstPort == 53)) {
+        content_decode_dns(stream, genericFlow->proto, payload, payloadLength);
+    }
+
     int ascii = 1;
     for (int i = 0; i < max; i++) {
-        if ((r->inPayload[i] < ' ' || r->inPayload[i] > '~') && r->inPayload[i] != '\n' && r->inPayload[i] != '\r' && r->inPayload[i] != 0x09) {
+        if ((payload[i] < ' ' || payload[i] > '~') && payload[i] != '\n' && payload[i] != '\r' && payload[i] != 0x09) {
             ascii = 0;
             break;
         }
     }
     if (ascii) {
-        fprintf(stream, "%.*s\n", max, r->inPayload);
+        fprintf(stream, "%.*s\n", max, payload);
     } else {
-        DumpHex(stream, r->inPayload, max);
+        DumpHex(stream, payload, max);
     }
 
 }  // End of String_inPayload
 
-static void String_outPayload(FILE *stream, master_record_t *r) {
-    int max = r->inPayloadLength > 256 ? 256 : r->inPayloadLength;
-    if (r->srcPort == 53 || r->dstPort == 53) {
-        content_decode_dns(stream, r->proto, (uint8_t *)r->outPayload, r->outPayloadLength);
-    }
-    int ascii = 1;
-    for (int i = 0; i < max; i++) {
-        if ((r->outPayload[i] < ' ' || r->outPayload[i] > '~') && r->outPayload[i] != '\n' && r->outPayload[i] != '\r' && r->outPayload[i] != 0x09) {
-            ascii = 0;
-            break;
-        }
-    }
-    if (ascii) {
-        fprintf(stream, "%.*s\n", max, r->outPayload);
-    } else {
-        DumpHex(stream, r->outPayload, max);
-    }
+static void String_inPayload(FILE *stream, recordHandle_t *recordHandle) {
+    uint8_t *inPayload = (uint8_t *)recordHandle->extensionList[EXinPayloadID];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    String_Payload(stream, inPayload, genericFlow);
+}  // End of String_inPayload
 
+static void String_outPayload(FILE *stream, recordHandle_t *recordHandle) {
+    uint8_t *outPayload = (uint8_t *)recordHandle->extensionList[EXoutPayloadID];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    String_Payload(stream, outPayload, genericFlow);
 }  // End of String_outPayload
 
-static void String_nbarID(FILE *stream, master_record_t *r) {
+static void String_nbarID(FILE *stream, recordHandle_t *recordHandle) {
+    uint8_t *nbar = (uint8_t *)recordHandle->extensionList[EXnbarAppID];
+
     union {
         uint8_t val8[4];
         uint32_t val32;
     } pen;
 
-    if (r->nbarAppID[0] == 20) {  // PEN - private enterprise number
-        pen.val8[0] = r->nbarAppID[4];
-        pen.val8[1] = r->nbarAppID[3];
-        pen.val8[2] = r->nbarAppID[2];
-        pen.val8[3] = r->nbarAppID[1];
+    if (nbar == NULL) {
+        fprintf(stream, "0..0..0");
+        return;
+    }
+
+    uint32_t nbarAppIDlen = ExtensionLength(nbar);
+    if (nbar[0] == 20) {  // PEN - private enterprise number
+        pen.val8[0] = nbar[4];
+        pen.val8[1] = nbar[3];
+        pen.val8[2] = nbar[2];
+        pen.val8[3] = nbar[1];
 
         int selector = 0;
-        int length = r->nbarAppIDlen;
         int index = 5;
-        while (index < length) {
-            selector = (selector << 8) | r->nbarAppID[index];
+        while (index < nbarAppIDlen) {
+            selector = (selector << 8) | nbar[index];
             index++;
         }
-        fprintf(stream, "%2u..%u..%u", r->nbarAppID[0], pen.val32, selector);
+        fprintf(stream, "%2u..%u..%u", nbar[0], pen.val32, selector);
     } else {
         int selector = 0;
-        int length = r->nbarAppIDlen;
         int index = 1;
-        while (index < length) {
-            selector = (selector << 8) | r->nbarAppID[index];
+        while (index < nbarAppIDlen) {
+            selector = (selector << 8) | nbar[index];
             index++;
         }
-        fprintf(stream, "%2u..%u", r->nbarAppID[0], selector);
+        fprintf(stream, "%2u..%u", nbar[0], selector);
     }
 
 }  // End of String_nbarID
 
-static void String_nbarName(FILE *stream, master_record_t *r) {
-    char *name = GetNbarInfo(r->nbarAppID, r->nbarAppIDlen);
+static void String_nbarName(FILE *stream, recordHandle_t *recordHandle) {
+    uint8_t *nbar = (uint8_t *)recordHandle->extensionList[EXnbarAppID];
+
+    if (nbar == NULL) {
+        fprintf(stream, "<no nbar>");
+        return;
+    }
+
+    uint32_t nbarAppIDlen = ExtensionLength(nbar);
+    char *name = GetNbarInfo(nbar, nbarAppIDlen);
     if (name == NULL) {
         name = "<no info>";
     }
@@ -912,78 +1040,96 @@ static void String_nbarName(FILE *stream, master_record_t *r) {
 
 }  // End of String_nbarName
 
-static void String_ja3(FILE *stream, master_record_t *r) {
-    uint8_t zero[16] = {0};
-    if (memcmp(r->ja3, zero, 16) == 0) {
-        if (r->inPayloadLength == 0) {
-            fprintf(stream, "%32s", "");
-            return;
-        } else {
-            ja3_t *ja3 = ja3Process((uint8_t *)r->inPayload, r->inPayloadLength);
-            if (ja3) {
-                memcpy((void *)r->ja3, ja3->md5Hash, 16);
-                ja3Free(ja3);
-            } else {
-                fprintf(stream, "%32s", "ja3 error");
-                return;
-            }
+static void String_ja3(FILE *stream, recordHandle_t *recordHandle) {
+    EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
+
+    if (payload == NULL) {
+        fprintf(stream, "%32s", "<no ja3>");
+        return;
+    }
+
+    uint32_t payloadLength = ExtensionLength(payload);
+    ja3_t *ja3 = (ja3_t *)recordHandle->ja3Info;
+    if (recordHandle->ja3Info == NULL) {
+        ja3 = ja3Process((uint8_t *)payload, payloadLength);
+        if (ja3) {
+            recordHandle->ja3Info = (void *)ja3;
+            memcpy((void *)recordHandle->ja3, ja3->md5Hash, sizeof(recordHandle->ja3));
         }
     }
 
-    char out[33];
-    int i, j;
-    for (i = 0, j = 0; i < 16; i++, j += 2) {
-        uint8_t ln = r->ja3[i] & 0xF;
-        uint8_t hn = (r->ja3[i] >> 4) & 0xF;
-        out[j + 1] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
-        out[j] = hn <= 9 ? hn + '0' : hn + 'a' - 10;
+    if (ja3) {
+        fprintf(stream, "%32s", ja3HashString(ja3));
     }
-    out[32] = '\0';
-    fprintf(stream, "%32s", out);
 
 }  // End of String_ja3
 
-static void String_sniName(FILE *stream, master_record_t *r) {
-    if (r->inPayloadLength == 0) {
-        fprintf(stream, "%6s", "");
+static void String_sniName(FILE *stream, recordHandle_t *recordHandle) {
+    EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
+
+    if (payload == NULL) {
+        fprintf(stream, "%6s", "<no sni>");
         return;
-    } else {
-        ja3_t *ja3 = ja3Process((uint8_t *)r->inPayload, r->inPayloadLength);
+    }
+
+    uint32_t payloadLength = ExtensionLength(payload);
+    ja3_t *ja3 = (ja3_t *)recordHandle->ja3Info;
+    if (recordHandle->ja3Info == NULL) {
+        ja3 = ja3Process((uint8_t *)payload, payloadLength);
         if (ja3) {
-            fprintf(stream, "%6s", ja3->sniName);
-            ja3Free(ja3);
-        } else {
-            fprintf(stream, "%6s", "");
+            recordHandle->ja3Info = (void *)ja3;
+            memcpy((void *)recordHandle->ja3, ja3->md5Hash, sizeof(recordHandle->ja3));
         }
     }
+
+    if (ja3) {
+        fprintf(stream, "%6s", ja3->sniName);
+    }
+
 }  // End of String_sniName
 
-static void String_observationDomainID(FILE *stream, master_record_t *r) {
-    fprintf(stream, "0x%09x", r->observationDomainID);
+static void String_observationDomainID(FILE *stream, recordHandle_t *recordHandle) {
+    EXobservation_t *observation = (EXobservation_t *)recordHandle->extensionList[EXobservationID];
+    if (observation)
+        fprintf(stream, "0x%09x", observation->domainID);
+    else
+        fprintf(stream, "0x00");
 }  // End of String_observationDomainID
 
-static void String_observationPointID(FILE *stream, master_record_t *r) {
-    fprintf(stream, "0x%010llx", (long long unsigned)r->observationPointID);
+static void String_observationPointID(FILE *stream, recordHandle_t *recordHandle) {
+    EXobservation_t *observation = (EXobservation_t *)recordHandle->extensionList[EXobservationID];
+    if (observation)
+        fprintf(stream, "0x%010llx", (long long unsigned)observation->pointID);
+    else
+        fprintf(stream, "0x00");
 }  // End of String_observationPointID
 
-static void String_NewLine(FILE *stream, master_record_t *r) { fprintf(stream, "\n"); }  // End of String_NewLine
+static void String_NewLine(FILE *stream, recordHandle_t *recordHandle) { fprintf(stream, "\n"); }  // End of String_NewLine
 
-#ifdef NSEL
-static void String_EventTime(FILE *stream, master_record_t *r) {
-    time_t tt;
-    struct tm *ts;
-    char s[128];
+static void String_EventTime(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
+    EXnelCommon_t *nelCommon = (EXnelCommon_t *)recordHandle->extensionList[EXnelCommonID];
 
-    tt = r->msecEvent / 1000LL;
-    ts = localtime(&tt);
-    strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
-    s[127] = '\0';
-    fprintf(stream, "%s.%03llu", s, r->msecEvent % 1000LL);
+    uint64_t msecEvent = 0;
+    if (nselCommon)
+        msecEvent = nselCommon->msecEvent;
+    else if (nelCommon)
+        msecEvent = nelCommon->msecEvent;
+
+    if (msecEvent) {
+        time_t tt = msecEvent / 1000LL;
+        struct tm *ts = localtime(&tt);
+        char s[128];
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03llu", s, msecEvent % 1000LL);
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
 
 }  // End of String_EventTime
-#endif
 
-static void String_Duration(FILE *stream, master_record_t *r) {
+static void String_Duration(FILE *stream, recordHandle_t *recordHandle) {
     if (printPlain) {
         fprintf(stream, "%16.3f", duration);
     } else {
@@ -992,31 +1138,38 @@ static void String_Duration(FILE *stream, master_record_t *r) {
     }
 }  // End of String_Duration
 
-static void String_Duration_Seconds(FILE *stream, master_record_t *r) { fprintf(stream, "%16.3f", duration); }  // End of String_Duration_Seconds
+static void String_Duration_Seconds(FILE *stream, recordHandle_t *recordHandle) {
+    fprintf(stream, "%16.3f", duration);
+}  // End of String_Duration_Seconds
 
-static void String_Protocol(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%-5s", ProtoString(r->proto, printPlain));
+static void String_Protocol(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint8_t proto = genericFlow ? genericFlow->proto : 0;
+    fprintf(stream, "%-5s", ProtoString(proto, printPlain));
 }  // End of String_Protocol
 
-static void String_SrcAddr(FILE *stream, master_record_t *r) {
+static void String_SrcAddr(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
     char tmp_str[IP_STRING_LEN];
-
     tmp_str[0] = 0;
-    if ((r->mflags & V3_FLAG_IPV6_ADDR) != 0) {  // IPv6
+    if (ipv4Flow) {
+        uint32_t ip = htonl(ipv4Flow->srcAddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else if (ipv6Flow) {
         uint64_t ip[2];
-
-        ip[0] = htonll(r->V6.srcaddr[0]);
-        ip[1] = htonll(r->V6.srcaddr[1]);
+        ip[0] = htonll(ipv6Flow->srcAddr[0]);
+        ip[1] = htonll(ipv6Flow->srcAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->V4.srcaddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
+
     if (long_v6)
         fprintf(stream, "%s%39s", tag_string, tmp_str);
     else
@@ -1024,112 +1177,135 @@ static void String_SrcAddr(FILE *stream, master_record_t *r) {
 
 }  // End of String_SrcAddr
 
-static void String_SrcGeoAddr(FILE *stream, master_record_t *r) {
+static void String_SrcGeoAddr(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
     char tmp_str[IP_STRING_LEN];
-
     tmp_str[0] = 0;
-    if ((r->mflags & V3_FLAG_IPV6_ADDR) != 0) {  // IPv6
+    if (ipv4Flow) {
+        uint32_t ip = htonl(ipv4Flow->srcAddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        if (recordHandle->geo[0] == '\0') LookupV4Country(ipv4Flow->srcAddr, recordHandle->geo);
+    } else if (ipv6Flow) {
         uint64_t ip[2];
-
-        ip[0] = htonll(r->V6.srcaddr[0]);
-        ip[1] = htonll(r->V6.srcaddr[1]);
+        ip[0] = htonll(ipv6Flow->srcAddr[0]);
+        ip[1] = htonll(ipv6Flow->srcAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
+        if (recordHandle->geo[0] == '\0') LookupV6Country(ipv6Flow->srcAddr, recordHandle->geo);
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->V4.srcaddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
+        recordHandle->geo[0] = '.';
+        recordHandle->geo[1] = '.';
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.srcaddr, r->src_geo);
 
     if (long_v6)
-        fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, r->src_geo);
+        fprintf(stream, "%s%39s(%c%c)", tag_string, tmp_str, recordHandle->geo[0], recordHandle->geo[1]);
     else
-        fprintf(stream, "%s%16s(%s)", tag_string, tmp_str, r->src_geo);
+        fprintf(stream, "%s%16s(%c%c)", tag_string, tmp_str, recordHandle->geo[0], recordHandle->geo[1]);
 
 }  // End of String_SrcGeoAddr
 
-static void String_SrcAddrPort(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN], portchar;
+static void String_SrcAddrPort(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint16_t port = genericFlow ? genericFlow->srcPort : 0;
 
+    char tmp_str[IP_STRING_LEN];
+    char portChar;
     tmp_str[0] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
+    if (ipv4Flow) {
+        uint32_t ip = htonl(ipv4Flow->srcAddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        portChar = ':';
+    } else if (ipv6Flow) {
         uint64_t ip[2];
-
-        ip[0] = htonll(r->V6.srcaddr[0]);
-        ip[1] = htonll(r->V6.srcaddr[1]);
+        ip[0] = htonll(ipv6Flow->srcAddr[0]);
+        ip[1] = htonll(ipv6Flow->srcAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-        portchar = '.';
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->V4.srcaddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
-        portchar = ':';
+        portChar = '.';
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
+        portChar = ':';
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
 
     if (long_v6)
-        fprintf(stream, "%s%39s%c%-5i", tag_string, tmp_str, portchar, r->srcPort);
+        fprintf(stream, "%s%39s%c%-5i", tag_string, tmp_str, portChar, port);
     else
-        fprintf(stream, "%s%16s%c%-5i", tag_string, tmp_str, portchar, r->srcPort);
+        fprintf(stream, "%s%16s%c%-5i", tag_string, tmp_str, portChar, port);
 
 }  // End of String_SrcAddrPort
 
-static void String_SrcAddrGeoPort(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN], portchar;
+static void String_SrcAddrGeoPort(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint16_t port = genericFlow ? genericFlow->srcPort : 0;
 
+    char tmp_str[IP_STRING_LEN];
+    char portChar;
     tmp_str[0] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
+    if (ipv4Flow) {
+        uint32_t ip = htonl(ipv4Flow->srcAddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        if (recordHandle->geo[0] == '\0') LookupV4Country(ipv4Flow->srcAddr, recordHandle->geo);
+        portChar = ':';
+    } else if (ipv6Flow) {
         uint64_t ip[2];
-
-        ip[0] = htonll(r->V6.srcaddr[0]);
-        ip[1] = htonll(r->V6.srcaddr[1]);
+        ip[0] = htonll(ipv6Flow->srcAddr[0]);
+        ip[1] = htonll(ipv6Flow->srcAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
+        if (recordHandle->geo[0] == '\0') LookupV6Country(ipv6Flow->srcAddr, recordHandle->geo);
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-        portchar = '.';
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->V4.srcaddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
-        portchar = ':';
+        portChar = '.';
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
+        recordHandle->geo[0] = '.';
+        recordHandle->geo[1] = '.';
+        portChar = ':';
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.srcaddr, r->src_geo);
 
     if (long_v6)
-        fprintf(stream, "%s%39s(%s)%c%-5i", tag_string, tmp_str, r->src_geo, portchar, r->srcPort);
+        fprintf(stream, "%s%39s(%c%c)%c%-5i", tag_string, tmp_str, recordHandle->geo[0], recordHandle->geo[1], portChar, port);
     else
-        fprintf(stream, "%s%16s(%s)%c%-5i", tag_string, tmp_str, r->src_geo, portchar, r->srcPort);
+        fprintf(stream, "%s%16s(%c%c)%c%-5i", tag_string, tmp_str, recordHandle->geo[0], recordHandle->geo[1], portChar, port);
 
 }  // End of String_SrcAddrGeoPort
 
-static void String_DstAddr(FILE *stream, master_record_t *r) {
+static void String_DstAddr(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
     char tmp_str[IP_STRING_LEN];
-
     tmp_str[0] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
+    if (ipv4Flow) {
+        uint32_t ip = htonl(ipv4Flow->dstAddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else if (ipv6Flow) {
         uint64_t ip[2];
-
-        ip[0] = htonll(r->V6.dstaddr[0]);
-        ip[1] = htonll(r->V6.dstaddr[1]);
+        ip[0] = htonll(ipv6Flow->dstAddr[0]);
+        ip[1] = htonll(ipv6Flow->dstAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->V4.dstaddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
+
     if (long_v6)
         fprintf(stream, "%s%39s", tag_string, tmp_str);
     else
@@ -1137,53 +1313,344 @@ static void String_DstAddr(FILE *stream, master_record_t *r) {
 
 }  // End of String_DstAddr
 
-static void String_DstGeoAddr(FILE *stream, master_record_t *r) {
+static void String_DstGeoAddr(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
     char tmp_str[IP_STRING_LEN];
-
     tmp_str[0] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
+    if (ipv4Flow) {
+        uint32_t ip = htonl(ipv4Flow->dstAddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        if (recordHandle->geo[2] == '\0') LookupV4Country(ipv4Flow->dstAddr, &recordHandle->geo[2]);
+    } else if (ipv6Flow) {
         uint64_t ip[2];
-
-        ip[0] = htonll(r->V6.dstaddr[0]);
-        ip[1] = htonll(r->V6.dstaddr[1]);
+        ip[0] = htonll(ipv6Flow->dstAddr[0]);
+        ip[1] = htonll(ipv6Flow->dstAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
+        if (recordHandle->geo[2] == '\0') LookupV6Country(ipv6Flow->dstAddr, &recordHandle->geo[2]);
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->V4.dstaddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
+        recordHandle->geo[2] = '.';
+        recordHandle->geo[3] = '.';
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.dstaddr, r->dst_geo);
 
     if (long_v6)
-        fprintf(stream, "%s%39s(%s)", tag_string, tmp_str, r->dst_geo);
+        fprintf(stream, "%s%39s(%c%c)", tag_string, tmp_str, recordHandle->geo[2], recordHandle->geo[3]);
     else
-        fprintf(stream, "%s%16s(%s)", tag_string, tmp_str, r->dst_geo);
+        fprintf(stream, "%s%16s(%c%c)", tag_string, tmp_str, recordHandle->geo[2], recordHandle->geo[3]);
 
 }  // End of String_DstGeoAddr
 
-static void String_NextHop(FILE *stream, master_record_t *r) {
+static void String_DstAddrPort(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
     char tmp_str[IP_STRING_LEN];
-
+    char portChar;
     tmp_str[0] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_NH)) {  // IPv6
+    if (ipv4Flow) {
+        uint32_t ip = htonl(ipv4Flow->dstAddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        portChar = ':';
+    } else if (ipv6Flow) {
         uint64_t ip[2];
-
-        ip[0] = htonll(r->ip_nexthop.V6[0]);
-        ip[1] = htonll(r->ip_nexthop.V6[1]);
+        ip[0] = htonll(ipv6Flow->dstAddr[0]);
+        ip[1] = htonll(ipv6Flow->dstAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->ip_nexthop.V4);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        portChar = '.';
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
+        portChar = ':';
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
+
+    if (long_v6)
+        fprintf(stream, "%s%39s%c%-5s", tag_string, tmp_str, portChar, ICMP_Port_decode(genericFlow));
+    else
+        fprintf(stream, "%s%16s%c%-5s", tag_string, tmp_str, portChar, ICMP_Port_decode(genericFlow));
+
+}  // End of String_DstAddrPort
+
+static void String_DstAddrGeoPort(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    char tmp_str[IP_STRING_LEN];
+    char portChar;
+    tmp_str[0] = 0;
+    if (ipv4Flow) {
+        uint32_t ip = htonl(ipv4Flow->dstAddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        if (recordHandle->geo[2] == '\0') LookupV4Country(ipv4Flow->dstAddr, &recordHandle->geo[2]);
+        portChar = ':';
+    } else if (ipv6Flow) {
+        uint64_t ip[2];
+        ip[0] = htonll(ipv6Flow->dstAddr[0]);
+        ip[1] = htonll(ipv6Flow->dstAddr[1]);
+        inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
+        if (recordHandle->geo[2] == '\0') LookupV6Country(ipv6Flow->dstAddr, &recordHandle->geo[2]);
+        if (!long_v6) {
+            CondenseV6(tmp_str);
+        }
+        portChar = '.';
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
+        recordHandle->geo[2] = '.';
+        recordHandle->geo[3] = '.';
+        portChar = ':';
+    }
+    tmp_str[IP_STRING_LEN - 1] = 0;
+
+    if (long_v6)
+        fprintf(stream, "%s%39s(%c%c)%c%-5s", tag_string, tmp_str, recordHandle->geo[2], recordHandle->geo[3], portChar,
+                ICMP_Port_decode(genericFlow));
+    else
+        fprintf(stream, "%s%16s(%c%c)%c%-5s", tag_string, tmp_str, recordHandle->geo[2], recordHandle->geo[3], portChar,
+                ICMP_Port_decode(genericFlow));
+
+}  // End of String_DstAddrGeoPort
+
+static void String_SrcNet(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint16_t srcMask = flowMisc ? flowMisc->srcMask : 0;
+
+    char tmp_str[IP_STRING_LEN];
+    tmp_str[0] = 0;
+    if (ipv4Flow) {
+        uint32_t ip = ApplyV4NetMaskBits(ipv4Flow->srcAddr, srcMask);
+        ip = htonl(ip);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else if (ipv6Flow) {
+        uint64_t *ip = ApplyV6NetMaskBits(ipv6Flow->srcAddr, srcMask);
+        ip[0] = htonll(ip[0]);
+        ip[1] = htonll(ip[1]);
+        inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
+        if (!long_v6) {
+            CondenseV6(tmp_str);
+        }
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
+    }
+    tmp_str[IP_STRING_LEN - 1] = 0;
+
+    if (long_v6)
+        fprintf(stream, "%s%39s/%-2u", tag_string, tmp_str, srcMask);
+    else
+        fprintf(stream, "%s%16s/%-2u", tag_string, tmp_str, srcMask);
+
+}  // End of String_SrcNet
+
+static void String_DstNet(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint16_t dstMask = flowMisc ? flowMisc->dstMask : 0;
+
+    char tmp_str[IP_STRING_LEN];
+    tmp_str[0] = 0;
+    if (ipv4Flow) {
+        uint32_t ip = ApplyV4NetMaskBits(ipv4Flow->dstAddr, dstMask);
+        ip = htonl(ip);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else if (ipv6Flow) {
+        uint64_t *ip = ApplyV6NetMaskBits(ipv6Flow->dstAddr, dstMask);
+        ip[0] = htonll(ip[0]);
+        ip[1] = htonll(ip[1]);
+        inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
+        if (!long_v6) {
+            CondenseV6(tmp_str);
+        }
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
+    }
+    tmp_str[IP_STRING_LEN - 1] = 0;
+
+    if (long_v6)
+        fprintf(stream, "%s%39s/%-2u", tag_string, tmp_str, dstMask);
+    else
+        fprintf(stream, "%s%16s/%-2u", tag_string, tmp_str, dstMask);
+
+}  // End of String_DstNet
+
+static void String_SrcPort(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint16_t port = genericFlow ? genericFlow->srcPort : 0;
+    fprintf(stream, "%6u", port);
+}  // End of String_SrcPort
+
+static void String_DstPort(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    fprintf(stream, "%6s", ICMP_Port_decode(genericFlow));
+}  // End of String_DstPort
+
+static void String_ICMP_type(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint16_t type = genericFlow ? genericFlow->icmpType : 0;
+    // Force printing type regardless of protocol
+    fprintf(stream, "%6u", type);
+}  // End of String_ICMP_type
+
+static void String_ICMP_code(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint16_t code = genericFlow ? genericFlow->icmpCode : 0;
+    // Force printing code regardless of protocol
+    fprintf(stream, "%6u", code);
+}  // End of String_ICMP_code
+
+static void String_SrcAS(FILE *stream, recordHandle_t *recordHandle) {
+    EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    uint32_t srcAS = asRouting ? asRouting->srcAS : 0;
+    if (ipv4Flow && srcAS == 0) {
+        srcAS = LookupV4AS(ipv4Flow->srcAddr);
+    }
+    if (ipv6Flow && srcAS == 0) {
+        srcAS = LookupV6AS(ipv6Flow->srcAddr);
+    }
+
+    fprintf(stream, "%6u", srcAS);
+}  // End of String_SrcAS
+
+static void String_DstAS(FILE *stream, recordHandle_t *recordHandle) {
+    EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    uint32_t dstAS = asRouting ? asRouting->dstAS : 0;
+    if (ipv4Flow && dstAS == 0) {
+        dstAS = LookupV4AS(ipv4Flow->dstAddr);
+    }
+    if (ipv6Flow && dstAS == 0) {
+        dstAS = LookupV6AS(ipv6Flow->dstAddr);
+    }
+
+    fprintf(stream, "%6u", dstAS);
+
+}  // End of String_DstAS
+
+static void String_NextAS(FILE *stream, recordHandle_t *recordHandle) {
+    EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)recordHandle->extensionList[EXasAdjacentID];
+    uint32_t nextAS = asAdjacent ? asAdjacent->nextAdjacentAS : 0;
+    fprintf(stream, " %6u", nextAS);
+}  // End of String_NextAS
+
+static void String_PrevAS(FILE *stream, recordHandle_t *recordHandle) {
+    EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)recordHandle->extensionList[EXasAdjacentID];
+    uint32_t prevAS = asAdjacent ? asAdjacent->prevAdjacentAS : 0;
+    fprintf(stream, " %6u", prevAS);
+}  // End of String_PrevAS
+
+static void String_Input(FILE *stream, recordHandle_t *recordHandle) {
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint32_t input = flowMisc ? flowMisc->input : 0;
+    fprintf(stream, "%6u", input);
+}  // End of String_Input
+
+static void String_InputName(FILE *stream, recordHandle_t *recordHandle) {
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint32_t input = flowMisc ? flowMisc->input : 0;
+    char ifName[128];
+    fprintf(stream, "%s", GetIfName(input, ifName, sizeof(ifName)));
+}  // End of String_InputName
+
+static void String_Output(FILE *stream, recordHandle_t *recordHandle) {
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint32_t output = flowMisc ? flowMisc->output : 0;
+    fprintf(stream, "%6u", output);
+}  // End of String_Output
+
+static void String_OutputName(FILE *stream, recordHandle_t *recordHandle) {
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint32_t output = flowMisc ? flowMisc->output : 0;
+    char ifName[128];
+    fprintf(stream, "%s", GetIfName(output, ifName, sizeof(ifName)));
+}  // End of String_OutputName
+
+static void String_InPackets(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint64_t packets = genericFlow ? genericFlow->inPackets : 0;
+
+    numStr packetString;
+    format_number(packets, packetString, printPlain, FIXED_WIDTH);
+    fprintf(stream, "%8s", packetString);
+
+}  // End of String_InPackets
+
+static void String_OutPackets(FILE *stream, recordHandle_t *recordHandle) {
+    EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
+    uint64_t packets = cntFlow ? cntFlow->outPackets : 0;
+
+    numStr packetString;
+    format_number(packets, packetString, printPlain, FIXED_WIDTH);
+    fprintf(stream, "%8s", packetString);
+
+}  // End of String_OutPackets
+
+static void String_InBytes(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint64_t bytes = genericFlow ? genericFlow->inBytes : 0;
+
+    numStr byteString;
+    format_number(bytes, byteString, printPlain, FIXED_WIDTH);
+    fprintf(stream, "%8s", byteString);
+
+}  // End of String_InBytes
+
+static void String_OutBytes(FILE *stream, recordHandle_t *recordHandle) {
+    EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
+    uint64_t bytes = cntFlow ? cntFlow->outBytes : 0;
+
+    numStr byteString;
+    format_number(bytes, byteString, printPlain, FIXED_WIDTH);
+    fprintf(stream, "%8s", byteString);
+
+}  // End of String_OutBytes
+
+static void String_Flows(FILE *stream, recordHandle_t *recordHandle) {
+    EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
+    uint64_t flows = cntFlow ? cntFlow->flows : 1;
+
+    fprintf(stream, "%5llu", (unsigned long long)flows);
+
+}  // End of String_Flows
+
+static void String_NextHop(FILE *stream, recordHandle_t *recordHandle) {
+    EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)recordHandle->extensionList[EXipNextHopV4ID];
+    EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)recordHandle->extensionList[EXipNextHopV6ID];
+
+    char tmp_str[IP_STRING_LEN];
+    tmp_str[0] = 0;
+    if (ipNextHopV4) {
+        uint32_t ip = htonl(ipNextHopV4->ip);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else if (ipNextHopV6) {
+        uint64_t ip[2];
+
+        ip[0] = htonll(ipNextHopV6->ip[0]);
+        ip[1] = htonll(ipNextHopV6->ip[1]);
+        inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
+        if (!long_v6) {
+            CondenseV6(tmp_str);
+        }
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
+    }
+    tmp_str[IP_STRING_LEN - 1] = 0;
+
     if (long_v6)
         fprintf(stream, "%s%39s", tag_string, tmp_str);
     else
@@ -1191,51 +1658,59 @@ static void String_NextHop(FILE *stream, master_record_t *r) {
 
 }  // End of String_NextHop
 
-static void String_BGPNextHop(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN];
+static void String_BGPNextHop(FILE *stream, recordHandle_t *recordHandle) {
+    EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)recordHandle->extensionList[EXbgpNextHopV4ID];
+    EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)recordHandle->extensionList[EXbgpNextHopV6ID];
 
+    char tmp_str[IP_STRING_LEN];
     tmp_str[0] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_NHB)) {  // IPv6
+    if (bgpNextHopV4) {
+        uint32_t ip = htonl(bgpNextHopV4->ip);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else if (bgpNextHopV6) {
         uint64_t ip[2];
 
-        ip[0] = htonll(r->bgp_nexthop.V6[0]);
-        ip[1] = htonll(r->bgp_nexthop.V6[1]);
+        ip[0] = htonll(bgpNextHopV6->ip[0]);
+        ip[1] = htonll(bgpNextHopV6->ip[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->bgp_nexthop.V4);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
+
     if (long_v6)
         fprintf(stream, "%s%39s", tag_string, tmp_str);
     else
         fprintf(stream, "%s%16s", tag_string, tmp_str);
 
-}  // End of String_NextHop
+}  // End of String_BGPNextHop
 
-static void String_RouterIP(FILE *stream, master_record_t *r) {
+static void String_RouterIP(FILE *stream, recordHandle_t *recordHandle) {
+    EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)recordHandle->extensionList[EXipReceivedV4ID];
+    EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)recordHandle->extensionList[EXipReceivedV6ID];
+
     char tmp_str[IP_STRING_LEN];
-
     tmp_str[0] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_EXP)) {  // IPv6
+    if (ipReceivedV4) {
+        uint32_t ip = htonl(ipReceivedV4->ip);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else if (ipReceivedV6) {
         uint64_t ip[2];
 
-        ip[0] = htonll(r->ip_router.V6[0]);
-        ip[1] = htonll(r->ip_router.V6[1]);
+        ip[0] = htonll(ipReceivedV6->ip[0]);
+        ip[1] = htonll(ipReceivedV6->ip[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->ip_router.V4);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
+
     if (long_v6)
         fprintf(stream, "%s%39s", tag_string, tmp_str);
     else
@@ -1243,541 +1718,567 @@ static void String_RouterIP(FILE *stream, master_record_t *r) {
 
 }  // End of String_RouterIP
 
-static void String_DstAddrPort(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN], portchar;
+static void String_Tos(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint32_t srcTos = genericFlow ? genericFlow->srcTos : 0;
 
-    tmp_str[0] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
-        uint64_t ip[2];
+    fprintf(stream, "%4u", srcTos);
+}  // End of String_Tos
 
-        ip[0] = htonll(r->V6.dstaddr[0]);
-        ip[1] = htonll(r->V6.dstaddr[1]);
-        inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
-        if (!long_v6) {
-            CondenseV6(tmp_str);
-        }
-        portchar = '.';
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->V4.dstaddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
-        portchar = ':';
-    }
-    tmp_str[IP_STRING_LEN - 1] = 0;
+static void String_SrcTos(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint32_t srcTos = genericFlow ? genericFlow->srcTos : 0;
 
-    if (long_v6)
-        fprintf(stream, "%s%39s%c%-5s", tag_string, tmp_str, portchar, ICMP_Port_decode(r));
-    else
-        fprintf(stream, "%s%16s%c%-5s", tag_string, tmp_str, portchar, ICMP_Port_decode(r));
+    fprintf(stream, "%4u", srcTos);
+}  // End of String_SrcTos
 
-}  // End of String_DstAddrPort
+static void String_DstTos(FILE *stream, recordHandle_t *recordHandle) {
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint32_t dstTos = flowMisc ? flowMisc->dstTos : 0;
 
-static void String_DstAddrGeoPort(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN], portchar;
+    fprintf(stream, "%4u", dstTos);
+}  // End of String_DstTos
 
-    tmp_str[0] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
-        uint64_t ip[2];
+static void String_SrcMask(FILE *stream, recordHandle_t *recordHandle) {
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint32_t srcMask = flowMisc ? flowMisc->srcMask : 0;
 
-        ip[0] = htonll(r->V6.dstaddr[0]);
-        ip[1] = htonll(r->V6.dstaddr[1]);
-        inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
-        if (!long_v6) {
-            CondenseV6(tmp_str);
-        }
-        portchar = '.';
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->V4.dstaddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
-        portchar = ':';
-    }
-    tmp_str[IP_STRING_LEN - 1] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.dstaddr, r->dst_geo);
+    fprintf(stream, "%5u", srcMask);
+}  // End of String_SrcMask
 
-    if (long_v6)
-        fprintf(stream, "%s%39s(%s)%c%-5s", tag_string, tmp_str, r->dst_geo, portchar, ICMP_Port_decode(r));
-    else
-        fprintf(stream, "%s%16s(%s)%c%-5s", tag_string, tmp_str, r->dst_geo, portchar, ICMP_Port_decode(r));
+static void String_DstMask(FILE *stream, recordHandle_t *recordHandle) {
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint32_t dstMask = flowMisc ? flowMisc->dstMask : 0;
 
-}  // End of String_DstAddrGeoPort
+    fprintf(stream, "%5u", dstMask);
+}  // End of String_DstMask
 
-static void String_SrcNet(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN];
+static void String_SrcVlan(FILE *stream, recordHandle_t *recordHandle) {
+    EXvLan_t *vLan = (EXvLan_t *)recordHandle->extensionList[EXvLanID];
+    uint32_t srcVlan = vLan ? vLan->srcVlan : 0;
 
-    ApplyNetMaskBits(r, 1);
+    fprintf(stream, "%5u", srcVlan);
+}  // End of String_SrcVlan
 
-    tmp_str[0] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
-        uint64_t ip[2];
+static void String_DstVlan(FILE *stream, recordHandle_t *recordHandle) {
+    EXvLan_t *vLan = (EXvLan_t *)recordHandle->extensionList[EXvLanID];
+    uint32_t dstVlan = vLan ? vLan->dstVlan : 0;
 
-        ip[0] = htonll(r->V6.srcaddr[0]);
-        ip[1] = htonll(r->V6.srcaddr[1]);
-        inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
-        if (!long_v6) {
-            CondenseV6(tmp_str);
-        }
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->V4.srcaddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
-    }
-    tmp_str[IP_STRING_LEN - 1] = 0;
-    if (long_v6)
-        fprintf(stream, "%s%39s/%-2u", tag_string, tmp_str, r->src_mask);
-    else
-        fprintf(stream, "%s%16s/%-2u", tag_string, tmp_str, r->src_mask);
+    fprintf(stream, "%5u", dstVlan);
+}  // End of String_DstVlan
 
-}  // End of String_SrcNet
+static void String_Dir(FILE *stream, recordHandle_t *recordHandle) {
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint32_t dir = flowMisc ? flowMisc->dir : 0;
 
-static void String_DstNet(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN];
+    fprintf(stream, "%3c", dir ? 'E' : 'I');
+}  // End of String_Dir
 
-    ApplyNetMaskBits(r, 2);
+static void String_FwdStatus(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint32_t fwdStatus = genericFlow ? genericFlow->fwdStatus : 0;
 
-    tmp_str[0] = 0;
-    if (TestFlag(r->mflags, V3_FLAG_IPV6_ADDR)) {  // IPv6
-        uint64_t ip[2];
+    fprintf(stream, "%3u", fwdStatus);
+}  // End of String_FwdStatus
 
-        ip[0] = htonll(r->V6.dstaddr[0]);
-        ip[1] = htonll(r->V6.dstaddr[1]);
-        inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
-        if (!long_v6) {
-            CondenseV6(tmp_str);
-        }
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->V4.dstaddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
-    }
-    tmp_str[IP_STRING_LEN - 1] = 0;
-    if (long_v6)
-        fprintf(stream, "%s%39s/%-2u", tag_string, tmp_str, r->dst_mask);
-    else
-        fprintf(stream, "%s%16s/%-2u", tag_string, tmp_str, r->dst_mask);
+static void String_BiFlowDir(FILE *stream, recordHandle_t *recordHandle) {
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint32_t biFlowDir = flowMisc ? flowMisc->biFlowDir : 0;
 
-}  // End of String_DstNet
+    fprintf(stream, "%3u", biFlowDir);
+}  // End of String_BiFlowDir
 
-static void String_SrcPort(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->srcPort); }  // End of String_SrcPort
+static void String_FlowEndReason(FILE *stream, recordHandle_t *recordHandle) {
+    EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
+    uint32_t flowEndReason = flowMisc ? flowMisc->flowEndReason : 0;
 
-static void String_DstPort(FILE *stream, master_record_t *r) { fprintf(stream, "%6s", ICMP_Port_decode(r)); }  // End of String_DstPort
+    fprintf(stream, "%3u", flowEndReason);
+}  // End of String_FlowEndReason
 
-static void String_ICMP_type(FILE *stream, master_record_t *r) {
-    // Force printing type regardless of protocol
-    fprintf(stream, "%6u", r->icmpType);
-}  // End of String_ICMP_type
+static void String_Flags(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint32_t flags = genericFlow && genericFlow->proto == IPPROTO_TCP ? genericFlow->tcpFlags : 0;
 
-static void String_ICMP_code(FILE *stream, master_record_t *r) {
-    // Force printing code regardless of protocol
-    fprintf(stream, "%6u", r->icmpCode);
-}  // End of String_ICMP_code
-
-static void String_SrcAS(FILE *stream, master_record_t *r) {
-    if (r->srcas == 0) r->srcas = LookupAS(r->V6.srcaddr);
-
-    fprintf(stream, "%6u", r->srcas);
-}  // End of String_SrcAS
-
-static void String_DstAS(FILE *stream, master_record_t *r) {
-    if (r->dstas == 0) r->dstas = LookupAS(r->V6.dstaddr);
-
-    fprintf(stream, "%6u", r->dstas);
-}  // End of String_DstAS
-
-static void String_NextAS(FILE *stream, master_record_t *r) { fprintf(stream, " %6u", r->bgpNextAdjacentAS); }  // End of String_NextAS
-
-static void String_PrevAS(FILE *stream, master_record_t *r) { fprintf(stream, " %6u", r->bgpPrevAdjacentAS); }  // End of String_PrevAS
-
-static void String_Input(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->input); }  // End of String_Input
-
-static void String_InputName(FILE *stream, master_record_t *r) {
-    char ifName[128];
-    fprintf(stream, "%s", GetIfName(r->input, ifName, sizeof(ifName)));
-}  // End of String_InputName
-
-static void String_Output(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->output); }  // End of String_Output
-
-static void String_OutputName(FILE *stream, master_record_t *r) {
-    char ifName[128];
-    fprintf(stream, "%s", GetIfName(r->output, ifName, sizeof(ifName)));
-}  // End of String_OutputName
-
-static void String_InPackets(FILE *stream, master_record_t *r) {
-    char s[NUMBER_STRING_SIZE];
-
-    format_number(r->inPackets, s, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", s);
-
-}  // End of String_InPackets
-
-static void String_OutPackets(FILE *stream, master_record_t *r) {
-    char s[NUMBER_STRING_SIZE];
-
-    format_number(r->out_pkts, s, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", s);
-
-}  // End of String_OutPackets
-
-static void String_InBytes(FILE *stream, master_record_t *r) {
-    char s[NUMBER_STRING_SIZE];
-
-    format_number(r->inBytes, s, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", s);
-
-}  // End of String_InBytes
-
-static void String_OutBytes(FILE *stream, master_record_t *r) {
-    char s[NUMBER_STRING_SIZE];
-
-    format_number(r->out_bytes, s, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", s);
-
-}  // End of String_OutBytes
-
-static void String_Flows(FILE *stream, master_record_t *r) {
-    // fprintf(stream ,"%5llu", r->aggr_flows ? (unsigned long long)r->aggr_flows : 1 );
-    fprintf(stream, "%5llu", (unsigned long long)r->aggr_flows);
-
-}  // End of String_Flows
-
-static void String_Tos(FILE *stream, master_record_t *r) { fprintf(stream, "%4u", r->tos); }  // End of String_Tos
-
-static void String_SrcTos(FILE *stream, master_record_t *r) { fprintf(stream, "%4u", r->tos); }  // End of String_SrcTos
-
-static void String_DstTos(FILE *stream, master_record_t *r) { fprintf(stream, "%4u", r->dst_tos); }  // End of String_DstTos
-
-static void String_SrcMask(FILE *stream, master_record_t *r) { fprintf(stream, "%5u", r->src_mask); }  // End of String_SrcMask
-
-static void String_DstMask(FILE *stream, master_record_t *r) { fprintf(stream, "%5u", r->dst_mask); }  // End of String_DstMask
-
-static void String_SrcVlan(FILE *stream, master_record_t *r) { fprintf(stream, "%5u", r->src_vlan); }  // End of String_SrcVlan
-
-static void String_DstVlan(FILE *stream, master_record_t *r) { fprintf(stream, "%5u", r->dst_vlan); }  // End of String_DstVlan
-
-static void String_Dir(FILE *stream, master_record_t *r) { fprintf(stream, "%3c", r->dir ? 'E' : 'I'); }  // End of String_Dir
-
-static void String_FwdStatus(FILE *stream, master_record_t *r) { fprintf(stream, "%3u", r->fwd_status); }  // End of String_FwdStatus
-
-static void String_BiFlowDir(FILE *stream, master_record_t *r) { fprintf(stream, "%3u", r->biFlowDir); }  // End of String_BiFlowDir
-
-static void String_FlowEndReason(FILE *stream, master_record_t *r) { fprintf(stream, "%3u", r->flowEndReason); }  // End of String_FlowEndReason
-
-static void String_Flags(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%8s", FlagsString(r->proto == IPPROTO_TCP ? r->tcp_flags : 0));
+    fprintf(stream, "%8s", FlagsString(flags));
 
 }  // End of String_Flags
 
-static void String_InSrcMac(FILE *stream, master_record_t *r) {
-    int i;
+static void printMacAddr(FILE *stream, uint64_t macAddr) {
     uint8_t mac[6];
-
-    for (i = 0; i < 6; i++) {
-        mac[i] = (r->in_src_mac >> (i * 8)) & 0xFF;
+    for (int i = 0; i < 6; i++) {
+        mac[i] = (macAddr >> (i * 8)) & 0xFF;
     }
     fprintf(stream, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
 
+}  // End of printMacAddr
+
+static void String_InSrcMac(FILE *stream, recordHandle_t *recordHandle) {
+    EXmacAddr_t *macAddr = (EXmacAddr_t *)recordHandle->extensionList[EXmacAddrID];
+    uint64_t mac = macAddr ? macAddr->inSrcMac : 0;
+
+    printMacAddr(stream, mac);
 }  // End of String_InSrcMac
 
-static void String_OutDstMac(FILE *stream, master_record_t *r) {
-    int i;
-    uint8_t mac[6];
+static void String_OutDstMac(FILE *stream, recordHandle_t *recordHandle) {
+    EXmacAddr_t *macAddr = (EXmacAddr_t *)recordHandle->extensionList[EXmacAddrID];
+    uint64_t mac = macAddr ? macAddr->outDstMac : 0;
 
-    for (i = 0; i < 6; i++) {
-        mac[i] = (r->out_dst_mac >> (i * 8)) & 0xFF;
-    }
-    fprintf(stream, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
-
+    printMacAddr(stream, mac);
 }  // End of String_OutDstMac
 
-static void String_InDstMac(FILE *stream, master_record_t *r) {
-    int i;
-    uint8_t mac[6];
+static void String_InDstMac(FILE *stream, recordHandle_t *recordHandle) {
+    EXmacAddr_t *macAddr = (EXmacAddr_t *)recordHandle->extensionList[EXmacAddrID];
+    uint64_t mac = macAddr ? macAddr->inDstMac : 0;
 
-    for (i = 0; i < 6; i++) {
-        mac[i] = (r->in_dst_mac >> (i * 8)) & 0xFF;
-    }
-    fprintf(stream, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
-
+    printMacAddr(stream, mac);
 }  // End of String_InDstMac
 
-static void String_OutSrcMac(FILE *stream, master_record_t *r) {
-    int i;
-    uint8_t mac[6];
+static void String_OutSrcMac(FILE *stream, recordHandle_t *recordHandle) {
+    EXmacAddr_t *macAddr = (EXmacAddr_t *)recordHandle->extensionList[EXmacAddrID];
+    uint64_t mac = macAddr ? macAddr->outSrcMac : 0;
 
-    for (i = 0; i < 6; i++) {
-        mac[i] = (r->out_src_mac >> (i * 8)) & 0xFF;
-    }
-    fprintf(stream, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
-
+    printMacAddr(stream, mac);
 }  // End of String_OutSrcMac
 
-static void String_MPLS_1(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%8u-%1u-%1u", r->mpls_label[0] >> 4, (r->mpls_label[0] & 0xF) >> 1, r->mpls_label[0] & 1);
+static void String_MPLS_1(FILE *stream, recordHandle_t *recordHandle) {
+    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)recordHandle->extensionList[EXmplsLabelID];
+    uint32_t label = mplsLabel ? mplsLabel->mplsLabel[0] : 0;
+
+    fprintf(stream, "%8u-%1u-%1u", label >> 4, (label & 0xF) >> 1, label & 1);
 
 }  // End of String_MPLS
 
-static void String_MPLS_2(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%8u-%1u-%1u", r->mpls_label[1] >> 4, (r->mpls_label[1] & 0xF) >> 1, r->mpls_label[1] & 1);
+static void String_MPLS_2(FILE *stream, recordHandle_t *recordHandle) {
+    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)recordHandle->extensionList[EXmplsLabelID];
+    uint32_t label = mplsLabel ? mplsLabel->mplsLabel[1] : 0;
+
+    fprintf(stream, "%8u-%1u-%1u", label >> 4, (label & 0xF) >> 1, label & 1);
 
 }  // End of String_MPLS
 
-static void String_MPLS_3(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%8u-%1u-%1u", r->mpls_label[2] >> 4, (r->mpls_label[2] & 0xF) >> 1, r->mpls_label[2] & 1);
+static void String_MPLS_3(FILE *stream, recordHandle_t *recordHandle) {
+    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)recordHandle->extensionList[EXmplsLabelID];
+    uint32_t label = mplsLabel ? mplsLabel->mplsLabel[2] : 0;
+
+    fprintf(stream, "%8u-%1u-%1u", label >> 4, (label & 0xF) >> 1, label & 1);
 
 }  // End of String_MPLS
 
-static void String_MPLS_4(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%8u-%1u-%1u", r->mpls_label[3] >> 4, (r->mpls_label[3] & 0xF) >> 1, r->mpls_label[3] & 1);
+static void String_MPLS_4(FILE *stream, recordHandle_t *recordHandle) {
+    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)recordHandle->extensionList[EXmplsLabelID];
+    uint32_t label = mplsLabel ? mplsLabel->mplsLabel[3] : 0;
+
+    fprintf(stream, "%8u-%1u-%1u", label >> 4, (label & 0xF) >> 1, label & 1);
 
 }  // End of String_MPLS
 
-static void String_MPLS_5(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%8u-%1u-%1u", r->mpls_label[4] >> 4, (r->mpls_label[4] & 0xF) >> 1, r->mpls_label[4] & 1);
+static void String_MPLS_5(FILE *stream, recordHandle_t *recordHandle) {
+    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)recordHandle->extensionList[EXmplsLabelID];
+    uint32_t label = mplsLabel ? mplsLabel->mplsLabel[4] : 0;
+
+    fprintf(stream, "%8u-%1u-%1u", label >> 4, (label & 0xF) >> 1, label & 1);
 
 }  // End of String_MPLS
 
-static void String_MPLS_6(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%8u-%1u-%1u", r->mpls_label[5] >> 4, (r->mpls_label[5] & 0xF) >> 1, r->mpls_label[5] & 1);
+static void String_MPLS_6(FILE *stream, recordHandle_t *recordHandle) {
+    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)recordHandle->extensionList[EXmplsLabelID];
+    uint32_t label = mplsLabel ? mplsLabel->mplsLabel[5] : 0;
+
+    fprintf(stream, "%8u-%1u-%1u", label >> 4, (label & 0xF) >> 1, label & 1);
 
 }  // End of String_MPLS
 
-static void String_MPLS_7(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%8u-%1u-%1u", r->mpls_label[6] >> 4, (r->mpls_label[6] & 0xF) >> 1, r->mpls_label[6] & 1);
+static void String_MPLS_7(FILE *stream, recordHandle_t *recordHandle) {
+    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)recordHandle->extensionList[EXmplsLabelID];
+    uint32_t label = mplsLabel ? mplsLabel->mplsLabel[6] : 0;
+
+    fprintf(stream, "%8u-%1u-%1u", label >> 4, (label & 0xF) >> 1, label & 1);
 
 }  // End of String_MPLS
 
-static void String_MPLS_8(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%8u-%1u-%1u", r->mpls_label[7] >> 4, (r->mpls_label[7] & 0xF) >> 1, r->mpls_label[7] & 1);
+static void String_MPLS_8(FILE *stream, recordHandle_t *recordHandle) {
+    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)recordHandle->extensionList[EXmplsLabelID];
+    uint32_t label = mplsLabel ? mplsLabel->mplsLabel[7] : 0;
+
+    fprintf(stream, "%8u-%1u-%1u", label >> 4, (label & 0xF) >> 1, label & 1);
 
 }  // End of String_MPLS
 
-static void String_MPLS_9(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%8u-%1u-%1u", r->mpls_label[8] >> 4, (r->mpls_label[8] & 0xF) >> 1, r->mpls_label[8] & 1);
+static void String_MPLS_9(FILE *stream, recordHandle_t *recordHandle) {
+    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)recordHandle->extensionList[EXmplsLabelID];
+    uint32_t label = mplsLabel ? mplsLabel->mplsLabel[8] : 0;
+
+    fprintf(stream, "%8u-%1u-%1u", label >> 4, (label & 0xF) >> 1, label & 1);
 
 }  // End of String_MPLS
 
-static void String_MPLS_10(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%8u-%1u-%1u", r->mpls_label[9] >> 4, (r->mpls_label[9] & 0xF) >> 1, r->mpls_label[9] & 1);
+static void String_MPLS_10(FILE *stream, recordHandle_t *recordHandle) {
+    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)recordHandle->extensionList[EXmplsLabelID];
+    uint32_t label = mplsLabel ? mplsLabel->mplsLabel[9] : 0;
+
+    fprintf(stream, "%8u-%1u-%1u", label >> 4, (label & 0xF) >> 1, label & 1);
 
 }  // End of String_MPLS
 
-static void String_MPLSs(FILE *stream, master_record_t *r) {
+static void String_MPLSs(FILE *stream, recordHandle_t *recordHandle) {
+    EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)recordHandle->extensionList[EXmplsLabelID];
+    uint32_t label[10] = {0};
+    if (mplsLabel) memcpy((void *)label, (void *)mplsLabel->mplsLabel, sizeof(label));
+
     fprintf(stream,
             "%8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u %8u-%1u-%1u "
             "%8u-%1u-%1u %8u-%1u-%1u ",
-            r->mpls_label[0] >> 4, (r->mpls_label[0] & 0xF) >> 1, r->mpls_label[0] & 1, r->mpls_label[1] >> 4, (r->mpls_label[1] & 0xF) >> 1,
-            r->mpls_label[1] & 1, r->mpls_label[2] >> 4, (r->mpls_label[2] & 0xF) >> 1, r->mpls_label[2] & 1, r->mpls_label[3] >> 4,
-            (r->mpls_label[3] & 0xF) >> 1, r->mpls_label[3] & 1, r->mpls_label[4] >> 4, (r->mpls_label[4] & 0xF) >> 1, r->mpls_label[4] & 1,
-            r->mpls_label[5] >> 4, (r->mpls_label[5] & 0xF) >> 1, r->mpls_label[5] & 1, r->mpls_label[6] >> 4, (r->mpls_label[6] & 0xF) >> 1,
-            r->mpls_label[6] & 1, r->mpls_label[7] >> 4, (r->mpls_label[7] & 0xF) >> 1, r->mpls_label[7] & 1, r->mpls_label[8] >> 4,
-            (r->mpls_label[8] & 0xF) >> 1, r->mpls_label[8] & 1, r->mpls_label[9] >> 4, (r->mpls_label[9] & 0xF) >> 1, r->mpls_label[9] & 1);
+            label[0] >> 4, (label[0] & 0xF) >> 1, label[0] & 1, label[1] >> 4, (label[1] & 0xF) >> 1, label[1] & 1, label[2] >> 4,
+            (label[2] & 0xF) >> 1, label[2] & 1, label[3] >> 4, (label[3] & 0xF) >> 1, label[3] & 1, label[4] >> 4, (label[4] & 0xF) >> 1,
+            label[4] & 1, label[5] >> 4, (label[5] & 0xF) >> 1, label[5] & 1, label[6] >> 4, (label[6] & 0xF) >> 1, label[6] & 1, label[7] >> 4,
+            (label[7] & 0xF) >> 1, label[7] & 1, label[8] >> 4, (label[8] & 0xF) >> 1, label[8] & 1, label[9] >> 4, (label[9] & 0xF) >> 1,
+            label[9] & 1);
 
 }  // End of String_MPLSs
 
-static void String_Engine(FILE *stream, master_record_t *r) { fprintf(stream, "%3u/%-3u", r->engine_type, r->engine_id); }  // End of String_Engine
+static void String_Engine(FILE *stream, recordHandle_t *recordHandle) {
+    fprintf(stream, "%3u/%-3u", recordHandle->recordHeaderV3->engineType, recordHandle->recordHeaderV3->engineID);
+}  // End of String_Engine
 
-static void String_Label(FILE *stream, master_record_t *r) {
-    if (r->label)
-        fprintf(stream, "%16s", r->label);
-    else
-        fprintf(stream, "%16s", "<none>");
+static void String_Label(FILE *stream, recordHandle_t *recordHandle) { fprintf(stream, "%16s", "<none>"); }  // End of String_Label
 
-}  // End of String_Label
+static void String_ClientLatency(FILE *stream, recordHandle_t *recordHandle) {
+    EXlatency_t *latency = (EXlatency_t *)recordHandle->extensionList[EXlatencyID];
+    double msecLatency = latency ? (double)latency->usecClientNwDelay / 1000.0 : 0.0;
 
-static void String_ClientLatency(FILE *stream, master_record_t *r) {
-    double latency;
-
-    latency = (double)r->client_nw_delay_usec / 1000.0;
-    fprintf(stream, "%9.3f", latency);
+    fprintf(stream, "%9.3f", msecLatency);
 
 }  // End of String_ClientLatency
 
-static void String_ServerLatency(FILE *stream, master_record_t *r) {
-    double latency;
+static void String_ServerLatency(FILE *stream, recordHandle_t *recordHandle) {
+    EXlatency_t *latency = (EXlatency_t *)recordHandle->extensionList[EXlatencyID];
+    double msecLatency = latency ? (double)latency->usecServerNwDelay / 1000.0 : 0.0;
 
-    latency = (double)r->server_nw_delay_usec / 1000.0;
-    fprintf(stream, "%9.3f", latency);
+    fprintf(stream, "%9.3f", msecLatency);
 
 }  // End of String_ServerLatency
 
-static void String_AppLatency(FILE *stream, master_record_t *r) {
-    double latency;
+static void String_AppLatency(FILE *stream, recordHandle_t *recordHandle) {
+    EXlatency_t *latency = (EXlatency_t *)recordHandle->extensionList[EXlatencyID];
+    double msecLatency = latency ? (double)latency->usecApplLatency / 1000.0 : 0.0;
 
-    latency = (double)r->appl_latency_usec / 1000.0;
-    fprintf(stream, "%9.3f", latency);
+    fprintf(stream, "%9.3f", msecLatency);
 
 }  // End of String_AppLatency
 
-static void String_bps(FILE *stream, master_record_t *r) {
-    uint64_t bps;
-    char s[NUMBER_STRING_SIZE];
+static void String_bps(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint64_t inBytes = genericFlow ? genericFlow->inBytes : 0;
 
+    uint64_t bps = 0;
     if (duration) {
-        bps = ((r->inBytes << 3) / duration);  // bits per second. ( >> 3 ) -> * 8 to convert octets into bits
-    } else {
-        bps = 0;
+        bps = ((inBytes << 3) / duration);  // bits per second. ( >> 3 ) -> * 8 to convert octets into bits
     }
-    format_number(bps, s, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", s);
+
+    numStr bpsString;
+    format_number(bps, bpsString, printPlain, FIXED_WIDTH);
+    fprintf(stream, "%8s", bpsString);
 
 }  // End of String_bps
 
-static void String_pps(FILE *stream, master_record_t *r) {
-    uint64_t pps;
-    char s[NUMBER_STRING_SIZE];
+static void String_pps(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint64_t inPackets = genericFlow ? genericFlow->inPackets : 0;
 
+    uint64_t pps = 0;
     if (duration) {
-        pps = r->inPackets / duration;  // packets per second
-    } else {
-        pps = 0;
+        pps = inPackets / duration;  // packets per second
     }
-    format_number(pps, s, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", s);
+
+    numStr ppsString;
+    format_number(pps, ppsString, printPlain, FIXED_WIDTH);
+    fprintf(stream, "%8s", ppsString);
 
 }  // End of String_Duration
 
-static void String_bpp(FILE *stream, master_record_t *r) {
-    uint32_t Bpp;
+static void String_bpp(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    uint64_t inPackets = genericFlow ? genericFlow->inPackets : 0;
+    uint64_t inBytes = genericFlow ? genericFlow->inBytes : 0;
 
-    if (r->inPackets)
-        Bpp = r->inBytes / r->inPackets;  // Bytes per Packet
-    else
-        Bpp = 0;
+    uint32_t Bpp = 0;
+    if (inPackets) Bpp = inBytes / inPackets;  // Bytes per Packet
+
     fprintf(stream, "%6u", Bpp);
 
 }  // End of String_bpp
 
-static void String_ExpSysID(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->exporter_sysid); }  // End of String_ExpSysID
+static void String_ExpSysID(FILE *stream, recordHandle_t *recordHandle) {
+    fprintf(stream, "%6u", recordHandle->recordHeaderV3->exporterID);
+}  // End of String_ExpSysID
 
-static void String_SrcCountry(FILE *stream, master_record_t *r) {
-    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.srcaddr, r->src_geo);
-    fprintf(stream, "%2s", r->src_geo);
+static void String_SrcCountry(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    if (ipv4Flow) {
+        if (recordHandle->geo[0] == '\0') LookupV4Country(ipv4Flow->srcAddr, recordHandle->geo);
+    } else if (ipv6Flow) {
+        if (recordHandle->geo[0] == '\0') LookupV6Country(ipv6Flow->srcAddr, recordHandle->geo);
+    }
+
+    if (recordHandle->geo[0])
+        fprintf(stream, "%c%c", recordHandle->geo[0], recordHandle->geo[1]);
+    else
+        fprintf(stream, "..");
 
 }  // End of String_SrcCountry
 
-static void String_DstCountry(FILE *stream, master_record_t *r) {
-    if (TestFlag(r->mflags, V3_FLAG_ENRICHED) == 0) LookupCountry(r->V6.dstaddr, r->dst_geo);
-    fprintf(stream, "%2s", r->dst_geo);
+static void String_DstCountry(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    if (ipv4Flow) {
+        if (recordHandle->geo[2] == '\0') LookupV4Country(ipv4Flow->dstAddr, &recordHandle->geo[2]);
+    } else if (ipv6Flow) {
+        if (recordHandle->geo[2] == '\0') LookupV6Country(ipv6Flow->dstAddr, &recordHandle->geo[2]);
+    }
+
+    if (recordHandle->geo[2])
+        fprintf(stream, "%c%c", recordHandle->geo[2], recordHandle->geo[3]);
+    else
+        fprintf(stream, "..");
 
 }  // End of String_DstCountry
 
-static void String_SrcLocation(FILE *stream, master_record_t *r) {
-    char location[128];
+static void String_SrcLocation(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
-    LookupLocation(r->V6.srcaddr, location, 128);
-    fprintf(stream, "%s", location);
+    char location[128];
+    location[0] = '\0';
+    if (ipv4Flow) {
+        LookupV4Location(ipv4Flow->srcAddr, location, sizeof(location));
+    } else if (ipv6Flow) {
+        LookupV6Location(ipv6Flow->srcAddr, location, sizeof(location));
+    }
+
+    if (location[0])
+        fprintf(stream, "%s", location);
+    else
+        fprintf(stream, "<no location info>");
 
 }  // End of String_SrcLocation
 
-static void String_DstLocation(FILE *stream, master_record_t *r) {
+static void String_DstLocation(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
     char location[128];
+    location[0] = '\0';
+    if (ipv4Flow) {
+        LookupV4Location(ipv4Flow->dstAddr, location, sizeof(location));
+    } else if (ipv6Flow) {
+        LookupV6Location(ipv6Flow->dstAddr, location, sizeof(location));
+    }
 
-    LookupLocation(r->V6.dstaddr, location, 128);
-    fprintf(stream, "%s", location);
+    if (location[0])
+        fprintf(stream, "%s", location);
+    else
+        fprintf(stream, "<no location info>");
 
 }  // End of String_DstLocation
 
-static void String_SrcASorganisation(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%s", LookupASorg(r->V6.srcaddr));
-}  // End of String_SrcLocation
+static void String_SrcASorganisation(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
-static void String_DstASorganisation(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%s", LookupASorg(r->V6.dstaddr));
-}  // End of String_DstLocation
+    if (ipv4Flow) {
+        fprintf(stream, "%s", LookupV4ASorg(ipv4Flow->srcAddr));
+    } else if (ipv6Flow) {
+        fprintf(stream, "%s", LookupV6ASorg(ipv6Flow->srcAddr));
+    } else {
+        fprintf(stream, "%s", "none");
+    }
 
-static void String_ivrf(FILE *stream, master_record_t *r) { fprintf(stream, "%10u", r->ingressVrf); }  // End of String_ivrf
+}  // End of String_SrcASorganisation
 
-static void String_evrf(FILE *stream, master_record_t *r) { fprintf(stream, "%10u", r->egressVrf); }  // End of String_evrf
+static void String_DstASorganisation(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
-static void String_ivrfName(FILE *stream, master_record_t *r) {
+    if (ipv4Flow) {
+        fprintf(stream, "%s", LookupV4ASorg(ipv4Flow->dstAddr));
+    } else if (ipv6Flow) {
+        fprintf(stream, "%s", LookupV6ASorg(ipv6Flow->dstAddr));
+    } else {
+        fprintf(stream, "%s", "none");
+    }
+
+}  // End of String_DstASorganisation
+
+static void String_ivrf(FILE *stream, recordHandle_t *recordHandle) {
+    EXvrf_t *vrf = (EXvrf_t *)recordHandle->extensionList[EXvrfID];
+    uint32_t ingress = vrf ? vrf->ingressVrf : 0;
+
+    fprintf(stream, "%10u", ingress);
+}  // End of String_ivrf
+
+static void String_evrf(FILE *stream, recordHandle_t *recordHandle) {
+    EXvrf_t *vrf = (EXvrf_t *)recordHandle->extensionList[EXvrfID];
+    uint32_t egress = vrf ? vrf->egressVrf : 0;
+
+    fprintf(stream, "%10u", egress);
+}  // End of String_evrf
+
+static void String_ivrfName(FILE *stream, recordHandle_t *recordHandle) {
+    EXvrf_t *vrf = (EXvrf_t *)recordHandle->extensionList[EXvrfID];
+    uint32_t ingress = vrf ? vrf->ingressVrf : 0;
+
     char vrfName[128];
-    fprintf(stream, "%s", GetVrfName(r->ingressVrf, vrfName, sizeof(vrfName)));
+    fprintf(stream, "%s", GetVrfName(ingress, vrfName, sizeof(vrfName)));
 }  // End of String_ivrfName
 
-static void String_evrfName(FILE *stream, master_record_t *r) {
+static void String_evrfName(FILE *stream, recordHandle_t *recordHandle) {
+    EXvrf_t *vrf = (EXvrf_t *)recordHandle->extensionList[EXvrfID];
+    uint32_t egress = vrf ? vrf->egressVrf : 0;
+
     char vrfName[128];
-    fprintf(stream, "%s", GetVrfName(r->egressVrf, vrfName, sizeof(vrfName)));
+    fprintf(stream, "%s", GetVrfName(egress, vrfName, sizeof(vrfName)));
 }  // End of String_evrfName
 
-static void String_pfIfName(FILE *stream, master_record_t *r) {
-    //
-    fprintf(stream, "%9s", r->pfIfName);
+static void String_pfIfName(FILE *stream, recordHandle_t *recordHandle) {
+    EXpfinfo_t *pfinfo = (EXpfinfo_t *)recordHandle->extensionList[EXpfinfoID];
+
+    fprintf(stream, "%9s", pfinfo ? pfinfo->ifname : "<no-pf>");
 }  // End of String_pfIfName
 
-static void String_pfAction(FILE *stream, master_record_t *r) {
-    //
-    fprintf(stream, "%6s", pfAction(r->pfAction));
+static void String_pfAction(FILE *stream, recordHandle_t *recordHandle) {
+    EXpfinfo_t *pfinfo = (EXpfinfo_t *)recordHandle->extensionList[EXpfinfoID];
+
+    if (pfinfo) {
+        fprintf(stream, "%6s", pfAction(pfinfo->action));
+    } else {
+        fprintf(stream, "<no-pf>");
+    }
 }  // End of String_pfAction
 
-static void String_pfReason(FILE *stream, master_record_t *r) {
-    //
-    fprintf(stream, "%6s", pfReason(r->pfReason));
+static void String_pfReason(FILE *stream, recordHandle_t *recordHandle) {
+    EXpfinfo_t *pfinfo = (EXpfinfo_t *)recordHandle->extensionList[EXpfinfoID];
+
+    if (pfinfo) {
+        fprintf(stream, "%6s", pfReason(pfinfo->reason));
+    } else {
+        fprintf(stream, "<no-pf>");
+    }
 }  // End of String_pfReason
 
-static void String_pfdir(FILE *stream, master_record_t *r) {
-    //
-    fprintf(stream, "%3s", r->pfDir ? "in" : "out");
+static void String_pfdir(FILE *stream, recordHandle_t *recordHandle) {
+    EXpfinfo_t *pfinfo = (EXpfinfo_t *)recordHandle->extensionList[EXpfinfoID];
+
+    if (pfinfo) {
+        fprintf(stream, "%3s", pfinfo->dir ? "in" : "out");
+    } else {
+        fprintf(stream, "<no pfinfo>");
+    }
 }  // End of String_pfdir
 
-static void String_pfrule(FILE *stream, master_record_t *r) {
-    //
-    fprintf(stream, "%3u", r->pfRulenr);
+static void String_pfrule(FILE *stream, recordHandle_t *recordHandle) {
+    EXpfinfo_t *pfinfo = (EXpfinfo_t *)recordHandle->extensionList[EXpfinfoID];
+    uint32_t rulenr = pfinfo ? pfinfo->rulenr : 0;
+
+    fprintf(stream, "%4u", rulenr);
 }  // End of String_pfrule
 
-#ifdef NSEL
-static void String_nfc(FILE *stream, master_record_t *r) { fprintf(stream, "%10u", r->connID); }  // End of String_nfc
+static void String_nfc(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
+    uint32_t connID = nselCommon ? nselCommon->connID : 0;
 
-static void String_evt(FILE *stream, master_record_t *r) {
+    fprintf(stream, "%10u", connID);
+}  // End of String_nfc
+
+static void String_evt(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
+    EXnelCommon_t *nelCommon = (EXnelCommon_t *)recordHandle->extensionList[EXnelCommonID];
+
     if (printPlain) {
-        fprintf(stream, "%u", r->event);
-    } else {
-        if (r->event_flag == FW_EVENT) {
-            fprintf(stream, "%8s", fwEventString(r->event));
-        } else {
-            fprintf(stream, "%8s", natEventString(r->event, SHORTNAME));
+        uint32_t evtNum = 0;
+        if (nselCommon) {
+            evtNum = nselCommon->fwEvent;
+        } else if (nelCommon) {
+            evtNum = nelCommon->natEvent;
         }
+        fprintf(stream, "%u", evtNum);
+    } else {
+        char *evtString = "<no-evt>";
+        if (nselCommon) {
+            evtString = fwEventString(nselCommon->fwEvent);
+        } else if (nelCommon) {
+            evtString = natEventString(nelCommon->natEvent, SHORTNAME);
+        }
+        fprintf(stream, "%8s", evtString);
     }
 
 }  // End of String_evt
 
-static void String_xevt(FILE *stream, master_record_t *r) { fprintf(stream, "%7s", fwXEventString(r->fwXevent)); }  // End of String_xevt
+static void String_xevt(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
 
-static void String_sgt(FILE *stream, master_record_t *r) { fprintf(stream, "%5u", r->sec_group_tag); }  // End of String_sgt
+    if (nselCommon) {
+        fprintf(stream, "%7s", fwXEventString(nselCommon->fwXevent));
+    } else {
+        fprintf(stream, "%7s", "<no-evt>");
+    }
 
-static void String_msecEvent(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%13llu", (long long unsigned)r->msecEvent);
+}  // End of String_xevt
+
+static void String_msecEvent(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
+    EXnelCommon_t *nelCommon = (EXnelCommon_t *)recordHandle->extensionList[EXnelCommonID];
+    uint64_t msecEvent = nselCommon ? nselCommon->msecEvent : (nelCommon ? nelCommon->msecEvent : 0);
+
+    fprintf(stream, "%13llu", (long long unsigned)msecEvent);
 
 }  // End of String_msecEvent
 
-static void String_iacl(FILE *stream, master_record_t *r) {
-    fprintf(stream, "0x%-8x 0x%-8x 0x%-8x", r->ingressAcl[0], r->ingressAcl[1], r->ingressAcl[2]);
+static void String_iacl(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselAcl_t *nselAcl = (EXnselAcl_t *)recordHandle->extensionList[EXnselAclID];
+
+    if (nselAcl)
+        fprintf(stream, "0x%-8x 0x%-8x 0x%-8x", nselAcl->ingressAcl[0], nselAcl->ingressAcl[1], nselAcl->ingressAcl[2]);
+    else
+        fprintf(stream, "0x%-8x 0x%-8x 0x%-8x", 0, 0, 0);
 
 }  // End of String_iacl
 
-static void String_eacl(FILE *stream, master_record_t *r) {
-    fprintf(stream, "%10u %10u %10u", r->egressAcl[0], r->egressAcl[1], r->egressAcl[2]);
+static void String_eacl(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselAcl_t *nselAcl = (EXnselAcl_t *)recordHandle->extensionList[EXnselAclID];
+
+    if (nselAcl)
+        fprintf(stream, "%10u %10u %10u", nselAcl->egressAcl[0], nselAcl->egressAcl[1], nselAcl->egressAcl[2]);
+    else
+        fprintf(stream, "%10u %10u %10u", 0, 0, 0);
 
 }  // End of String_eacl
 
-static void String_xlateSrcAddr(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN];
+static void String_xlateSrcAddr(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
+    EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)recordHandle->extensionList[EXnselXlateIPv6ID];
 
+    char tmp_str[IP_STRING_LEN];
     tmp_str[0] = 0;
-    if ((r->xlate_flags & 1) != 0) {  // IPv6
+    if (nselXlateIPv4) {
+        uint32_t ip = htonl(nselXlateIPv4->xlateSrcAddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else if (nselXlateIPv6) {
         uint64_t ip[2];
 
-        ip[0] = htonll(r->xlate_src_ip.V6[0]);
-        ip[1] = htonll(r->xlate_src_ip.V6[1]);
+        ip[0] = htonll(nselXlateIPv6->xlateSrcAddr[0]);
+        ip[1] = htonll(nselXlateIPv6->xlateSrcAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->xlate_src_ip.V4);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
+
     if (long_v6)
         fprintf(stream, "%s%39s", tag_string, tmp_str);
     else
@@ -1785,25 +2286,29 @@ static void String_xlateSrcAddr(FILE *stream, master_record_t *r) {
 
 }  // End of String_xlateSrcAddr
 
-static void String_xlateDstAddr(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN];
+static void String_xlateDstAddr(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
+    EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)recordHandle->extensionList[EXnselXlateIPv6ID];
 
+    char tmp_str[IP_STRING_LEN];
     tmp_str[0] = 0;
-    if ((r->xlate_flags & 1) != 0) {  // IPv6
+    if (nselXlateIPv4) {
+        uint32_t ip = htonl(nselXlateIPv4->xlateDstAddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else if (nselXlateIPv6) {
         uint64_t ip[2];
 
-        ip[0] = htonll(r->xlate_dst_ip.V6[0]);
-        ip[1] = htonll(r->xlate_dst_ip.V6[1]);
+        ip[0] = htonll(nselXlateIPv6->xlateDstAddr[0]);
+        ip[1] = htonll(nselXlateIPv6->xlateDstAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->xlate_dst_ip.V4);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
+
     if (long_v6)
         fprintf(stream, "%s%39s", tag_string, tmp_str);
     else
@@ -1811,86 +2316,115 @@ static void String_xlateDstAddr(FILE *stream, master_record_t *r) {
 
 }  // End of String_xlateDstAddr
 
-static void String_xlateSrcPort(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->xlate_src_port); }  // End of String_xlateSrcPort
+static void String_xlateSrcPort(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
+    uint16_t port = nselXlatePort ? nselXlatePort->xlateSrcPort : 0;
+    fprintf(stream, "%6u", port);
+}  // End of String_xlateSrcPort
 
-static void String_xlateDstPort(FILE *stream, master_record_t *r) { fprintf(stream, "%6u", r->xlate_dst_port); }  // End of String_xlateDstPort
+static void String_xlateDstPort(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
+    uint16_t port = nselXlatePort ? nselXlatePort->xlateDstPort : 0;
+    fprintf(stream, "%6u", port);
 
-static void String_xlateSrcAddrPort(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN], portchar;
+}  // End of String_xlateDstPort
 
+static void String_xlateSrcAddrPort(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
+    EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)recordHandle->extensionList[EXnselXlateIPv6ID];
+    EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
+    uint16_t port = nselXlatePort ? nselXlatePort->xlateSrcPort : 0;
+
+    char tmp_str[IP_STRING_LEN];
+    char portChar;
     tmp_str[0] = 0;
-    if ((r->xlate_flags & 1) != 0) {  // IPv6
+    if (nselXlateIPv4) {
+        uint32_t ip = htonl(nselXlateIPv4->xlateSrcAddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        portChar = ':';
+    } else if (nselXlateIPv6) {
         uint64_t ip[2];
 
-        ip[0] = htonll(r->xlate_src_ip.V6[0]);
-        ip[1] = htonll(r->xlate_src_ip.V6[1]);
+        ip[0] = htonll(nselXlateIPv6->xlateSrcAddr[0]);
+        ip[1] = htonll(nselXlateIPv6->xlateSrcAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-
-        portchar = '.';
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->xlate_src_ip.V4);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
-
-        portchar = ':';
+        portChar = '.';
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
+        portChar = ':';
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
 
     if (long_v6)
-        fprintf(stream, "%s%39s%c%-5i", tag_string, tmp_str, portchar, r->xlate_src_port);
+        fprintf(stream, "%s%39s%c%-5i", tag_string, tmp_str, portChar, port);
     else
-        fprintf(stream, "%s%16s%c%-5i", tag_string, tmp_str, portchar, r->xlate_src_port);
+        fprintf(stream, "%s%16s%c%-5i", tag_string, tmp_str, portChar, port);
 
 }  // End of String_xlateSrcAddrPort
 
-static void String_xlateDstAddrPort(FILE *stream, master_record_t *r) {
-    char tmp_str[IP_STRING_LEN], portchar;
+static void String_xlateDstAddrPort(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
+    EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)recordHandle->extensionList[EXnselXlateIPv6ID];
+    EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
+    uint16_t port = nselXlatePort ? nselXlatePort->xlateDstPort : 0;
 
+    char tmp_str[IP_STRING_LEN];
+    char portChar;
     tmp_str[0] = 0;
-    if ((r->xlate_flags & 1) != 0) {  // IPv6
+    if (nselXlateIPv4) {
+        uint32_t ip = htonl(nselXlateIPv4->xlateDstAddr);
+        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        portChar = ':';
+    } else if (nselXlateIPv6) {
         uint64_t ip[2];
 
-        ip[0] = htonll(r->xlate_dst_ip.V6[0]);
-        ip[1] = htonll(r->xlate_dst_ip.V6[1]);
+        ip[0] = htonll(nselXlateIPv6->xlateDstAddr[0]);
+        ip[1] = htonll(nselXlateIPv6->xlateDstAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
         }
-
-        portchar = '.';
-    } else {  // IPv4
-        uint32_t ip;
-        ip = htonl(r->xlate_dst_ip.V4);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
-
-        portchar = ':';
+        portChar = '.';
+    } else {
+        strcpy(tmp_str, "0.0.0.0");
+        portChar = ':';
     }
     tmp_str[IP_STRING_LEN - 1] = 0;
 
     if (long_v6)
-        fprintf(stream, "%s%39s%c%-5i", tag_string, tmp_str, portchar, r->xlate_dst_port);
+        fprintf(stream, "%s%39s%c%-5i", tag_string, tmp_str, portChar, port);
     else
-        fprintf(stream, "%s%16s%c%-5i", tag_string, tmp_str, portchar, r->xlate_dst_port);
+        fprintf(stream, "%s%16s%c%-5i", tag_string, tmp_str, portChar, port);
 
 }  // End of String_xlateDstAddrPort
 
-static void String_userName(FILE *stream, master_record_t *r) {
-    if (r->username[0] == '\0')
-        fprintf(stream, "%s", "<empty>");
-    else
-        fprintf(stream, "%s", r->username);
+static void String_userName(FILE *stream, recordHandle_t *recordHandle) {
+    EXnselUser_t *nselUser = (EXnselUser_t *)recordHandle->extensionList[EXnselUserID];
+
+    fprintf(stream, "%s", nselUser ? nselUser->username : "<empty>");
 
 }  // End of String_userName
 
-static void String_PortBlockStart(FILE *stream, master_record_t *r) { fprintf(stream, "%7u", r->block_start); }  // End of String_PortBlockStart
+static void String_PortBlockStart(FILE *stream, recordHandle_t *recordHandle) {
+    EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
 
-static void String_PortBlockEnd(FILE *stream, master_record_t *r) { fprintf(stream, "%7u", r->block_end); }  // End of String_PortBlockEnd
+    fprintf(stream, "%7u", nelXlatePort ? nelXlatePort->blockStart : 0);
+}  // End of String_PortBlockStart
 
-static void String_PortBlockStep(FILE *stream, master_record_t *r) { fprintf(stream, "%7u", r->block_step); }  // End of String_PortBlockStep
+static void String_PortBlockEnd(FILE *stream, recordHandle_t *recordHandle) {
+    EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
+    fprintf(stream, "%7u", nelXlatePort ? nelXlatePort->blockEnd : 0);
+}  // End of String_PortBlockEnd
 
-static void String_PortBlockSize(FILE *stream, master_record_t *r) { fprintf(stream, "%7u", r->block_size); }  // End of String_PortBlockSize
+static void String_PortBlockStep(FILE *stream, recordHandle_t *recordHandle) {
+    EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
+    fprintf(stream, "%7u", nelXlatePort ? nelXlatePort->blockStep : 0);
+}  // End of String_PortBlockStep
 
-#endif
+static void String_PortBlockSize(FILE *stream, recordHandle_t *recordHandle) {
+    EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
+    fprintf(stream, "%7u", nelXlatePort ? nelXlatePort->blockSize : 0);
+}  // End of String_PortBlockSize

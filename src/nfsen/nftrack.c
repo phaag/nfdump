@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -48,11 +48,12 @@
 
 #include "config.h"
 #include "exporter.h"
+#include "filter.h"
+#include "flist.h"
 #include "nbar.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nftrack_rrd.h"
-#include "nftree.h"
 #include "nfxV3.h"
 #include "util.h"
 #include "version.h"
@@ -61,7 +62,6 @@
 #define AVG_STAT 1
 
 /* Global Variables */
-FilterEngine_t *Engine;
 int byte_mode, packet_mode;
 uint32_t byte_limit, packet_limit;  // needed for linking purpose only
 
@@ -70,7 +70,7 @@ static void usage(char *name);
 
 static int CheckRunningOnce(char *pidfile);
 
-static data_row *process(char *filter);
+static data_row *process(void *engine);
 
 /* Functions */
 
@@ -145,7 +145,7 @@ static int CheckRunningOnce(char *pidfile) {
 
 }  // End of CheckRunningOnce
 
-static data_row *process(char *filter) {
+static data_row *process(void *engine) {
     nffile_t *nffile;
     int i, done, ret;
     data_row *port_table;
@@ -166,17 +166,12 @@ static data_row *process(char *filter) {
         return NULL;
     }
 
-    memset((void *)port_table, 0, 65536 * sizeof(data_row));
-
-    master_record_t *master_record = calloc(1, sizeof(master_record_t));
-    if (!master_record) {
+    uint32_t processed = 0;
+    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    if (!recordHandle) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
-
-    // setup Filter Engine to point to master_record, as any record read from file
-    // is expanded into this record
-    Engine->nfrecord = (uint64_t *)master_record;
 
     done = 0;
     while (!done) {
@@ -222,10 +217,9 @@ static data_row *process(char *filter) {
 
             switch (record_ptr->type) {
                 case V3Record: {
-                    memset((void *)master_record, 0, sizeof(master_record_t));
-                    ExpandRecord_v3((recordHeaderV3_t *)record_ptr, master_record);
-
-                    int ret = (*Engine->FilterEngine)(Engine);
+                    processed++;
+                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
+                    int ret = FilterRecord(engine, recordHandle, nffile->ident);
 
                     if (ret == 0) {  // record failed to pass the filter
                         // increment pointer by number of bytes for netflow record
@@ -235,14 +229,17 @@ static data_row *process(char *filter) {
                     }
 
                     // Add to stat record
-                    if (master_record->proto == IPPROTO_TCP) {
-                        port_table[master_record->dstPort].proto[tcp].type[flows]++;
-                        port_table[master_record->dstPort].proto[tcp].type[packets] += master_record->inPackets;
-                        port_table[master_record->dstPort].proto[tcp].type[bytes] += master_record->inBytes;
-                    } else if (master_record->proto == IPPROTO_UDP) {
-                        port_table[master_record->dstPort].proto[udp].type[flows]++;
-                        port_table[master_record->dstPort].proto[udp].type[packets] += master_record->inPackets;
-                        port_table[master_record->dstPort].proto[udp].type[bytes] += master_record->inBytes;
+                    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+                    if (genericFlow) {
+                        if (genericFlow->proto == IPPROTO_TCP) {
+                            port_table[genericFlow->dstPort].proto[tcp].type[flows]++;
+                            port_table[genericFlow->dstPort].proto[tcp].type[packets] += genericFlow->inPackets;
+                            port_table[genericFlow->dstPort].proto[tcp].type[bytes] += genericFlow->inBytes;
+                        } else if (genericFlow->proto == IPPROTO_UDP) {
+                            port_table[genericFlow->dstPort].proto[udp].type[flows]++;
+                            port_table[genericFlow->dstPort].proto[udp].type[packets] += genericFlow->inPackets;
+                            port_table[genericFlow->dstPort].proto[udp].type[bytes] += genericFlow->inBytes;
+                        }
                     }
                 } break;
                 case ExporterInfoRecordType:
@@ -363,7 +360,7 @@ int main(int argc, char **argv) {
         usage(argv[0]);
         exit(255);
     } else {
-        /* user specified a pcap filter */
+        /* user specified a pcap filterr */
         filter = argv[optind];
     }
 
@@ -408,8 +405,8 @@ int main(int argc, char **argv) {
 
     if (!filter) filter = "any";
 
-    Engine = CompileFilter(filter);
-    if (!Engine) {
+    void *engine = CompileFilter(filter);
+    if (!engine) {
         unlink(pidfile);
         exit(254);
     }
@@ -445,7 +442,7 @@ int main(int argc, char **argv) {
     if (flist.multiple_dirs || flist.multiple_files || flist.single_file) {
         queue_t *fileList = SetupInputFileSequence(&flist);
         if (!Init_nffile(DEFAULTWORKERS, fileList)) exit(254);
-        port_table = process(filter);
+        port_table = process(engine);
         //		Lister(port_table);
         if (!port_table) {
             unlink(pidfile);

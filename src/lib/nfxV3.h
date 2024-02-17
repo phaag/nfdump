@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -66,6 +66,7 @@ typedef struct recordHeaderV3_s {
 #define V3_FLAG_EVENT 1
 #define V3_FLAG_SAMPLED 2
 #define V3_FLAG_ANON 4
+#define V3_FLAG_PASSED 128
 
     uint8_t nfversion;
 } recordHeaderV3_t;
@@ -157,8 +158,13 @@ typedef struct EXgenericFlow_s {
     union {
         uint16_t dstPort;
         struct {
+#ifdef WORDS_BIGENDIAN
             uint8_t icmpType;
             uint8_t icmpCode;
+#else
+            uint8_t icmpCode;
+            uint8_t icmpType;
+#endif
         };
     };
 #endif
@@ -295,16 +301,16 @@ typedef struct EXbgpNextHopV6_s {
 typedef struct EXipNextHopV4_s {
 #define EXipNextHopV4ID 10
     uint32_t ip;
-#define OFFNext4HopIP offsetof(EXipNextHopV4_t, ip)
-#define SIZENext4HopIP MemberSize(EXipNextHopV4_t, ip)
+#define OFFNextHopV4IP offsetof(EXipNextHopV4_t, ip)
+#define SIZENextHopV4IP MemberSize(EXipNextHopV4_t, ip)
 } EXipNextHopV4_t;
 #define EXipNextHopV4Size (sizeof(EXipNextHopV4_t) + sizeof(elementHeader_t))
 
 typedef struct EXipNextHopV6_s {
 #define EXipNextHopV6ID 11
     uint64_t ip[2];
-#define OFFNext6HopIP offsetof(EXipNextHopV6_t, ip)
-#define SIZENext6HopIP MemberSize(EXipNextHopV6_t, ip)
+#define OFFNextHopV6IP offsetof(EXipNextHopV6_t, ip)
+#define SIZENextHopV6IP MemberSize(EXipNextHopV6_t, ip)
 } EXipNextHopV6_t;
 #define EXipNextHopV6Size (sizeof(EXipNextHopV6_t) + sizeof(elementHeader_t))
 
@@ -538,6 +544,7 @@ typedef struct EXnbarApp_s {
 #define EXinPayloadID 29
 #define EXinPayloadSize sizeof(elementHeader_t)
 
+#define EXoutPayload_t void
 #define EXoutPayloadID 30
 #define EXoutPayloadSize sizeof(elementHeader_t)
 
@@ -685,6 +692,8 @@ typedef struct EXpfinfo_s {
     memset(v, 0, s);                                                               \
     h->numElements++;                                                              \
     h->size += s;
+
+#define ExtensionLength(ext) ((elementHeader_t *)((void *)ext - sizeof(elementHeader_t)))->length
 
 #define EXTENSION(s) \
     { s##ID, s##Size, #s }

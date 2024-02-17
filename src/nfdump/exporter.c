@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2023, Peter Haag
+ *  Copyright (c) 2012-2024, Peter Haag
  *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
@@ -27,9 +27,7 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#include "exporter.h"
 
 #include <arpa/inet.h>
 #include <ctype.h>
@@ -44,21 +42,35 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "exporter.h"
 #include "nfdump.h"
 #include "nfxV3.h"
 #include "util.h"
 
 /* global */
-exporter_t **exporter_list;
+exporter_t **exporter_list = NULL;
 
 /* local variables */
 #define MAX_EXPORTERS 65536
+
+static const struct versionString_s {
+    uint16_t version;
+    char *string;
+} versionString[] = {{5, "netflow v5"}, {9, "netflow v9"}, {10, "ipfix v10"}, {9999, "sflow"}, {0, NULL}};
+
+/* local prototypes */
 static exporter_t *exporter_root;
+
+static char *getVersionString(uint16_t nfversion);
 
 #include "nffile_inline.c"
 
-/* local prototypes */
+static char *getVersionString(uint16_t nfversion) {
+    for (int i = 0; versionString[i].string != NULL; i++) {
+        if (nfversion == versionString[i].version) return versionString[i].string;
+    }
+    return "Unknown version";
+
+}  // End of getVersionString
 
 /* functions */
 int InitExporterList(void) {
@@ -370,7 +382,7 @@ void PrintExporters(void) {
                     break;
             }
             // Advance pointer by number of bytes for netflow record
-            record = (record_header_t *)((pointer_addr_t)record + record->size);
+            record = (record_header_t *)((void *)record + record->size);
         }
     }
 
@@ -397,23 +409,22 @@ void PrintExporters(void) {
             uint32_t _ip = htonl(exporter->ip.V4);
             inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
             if (exporter_list[i]->flows)
-                printf("SysID: %u, IP: %16s, version: %u, ID: %2u, Sequence failures: %u, packets: %llu, flows: %llu\n", exporter->sysid, ipstr,
-                       exporter->version, exporter->id, exporter_list[i]->sequence_failure, (long long unsigned)exporter_list[i]->packets,
-                       (long long unsigned)exporter_list[i]->flows);
+                printf("SysID: %u, IP: %16s, version: %s, ID: %2u, Sequence failures: %u, packets: %llu, flows: %llu\n", exporter->sysid, ipstr,
+                       getVersionString(exporter->version), exporter->id, exporter_list[i]->sequence_failure,
+                       (long long unsigned)exporter_list[i]->packets, (long long unsigned)exporter_list[i]->flows);
             else
-                printf("SysID: %u, IP: %16s, version: %u, ID: %2u - no flows sent\n", exporter->sysid, ipstr, exporter->version, exporter->id);
+                printf("SysID: %u, IP: %16s, version: %s, ID: %2u - no flows sent\n", exporter->sysid, ipstr, getVersionString(exporter->version),
+                       exporter->id);
 
         } else if (exporter->sa_family == AF_INET6) {
-            uint64_t _ip[2];
-            _ip[0] = htonll(exporter->ip.V6[0]);
-            _ip[1] = htonll(exporter->ip.V6[1]);
+            uint64_t _ip[2] = {htonll(exporter->ip.V6[0]), htonll(exporter->ip.V6[1])};
             inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
             if (exporter_list[i]->flows)
-                printf("SysID: %u, IP: %40s, version: %u, ID: %2u, Sequence failures: %u, packets: %llu, flows: %llu\n ", exporter->sysid, ipstr,
-                       exporter->version, exporter->id, exporter_list[i]->sequence_failure, (long long unsigned)exporter_list[i]->packets,
-                       (long long unsigned)exporter_list[i]->flows);
+                printf("SysID: %u, IP: %40s, version: %s, ID: %2u, Sequence failures: %u, packets: %llu, flows: %llu\n ", exporter->sysid, ipstr,
+                       getVersionString(exporter->version), exporter->id, exporter_list[i]->sequence_failure,
+                       (long long unsigned)exporter_list[i]->packets, (long long unsigned)exporter_list[i]->flows);
             else
-                printf("SysID: %u, IP: %40s, version: %u, ID: %2u\n ", exporter->sysid, ipstr, exporter->version, exporter->id);
+                printf("SysID: %u, IP: %40s, version: %s, ID: %2u\n ", exporter->sysid, ipstr, getVersionString(exporter->version), exporter->id);
         } else {
             strncpy(ipstr, "<unknown>", IP_STRING_LEN);
             printf("**** Exporter IP version unknown ****\n");

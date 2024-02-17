@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -56,526 +55,453 @@ uint64_t msecs = 10;
 
 #include "nffile_inline.c"
 
-void *GenRecord(int af, void *buff_ptr, char *src_ip, char *dst_ip, int src_port, int dst_port, int proto, int tcp_flags, int tos, uint64_t packets,
-                uint64_t bytes, int src_as, int dst_as);
+static void DumpRecord(recordHeaderV3_t *recordHeaderV3);
 
-static void SetIPaddress(master_record_t *record, int af, char *src_ip, char *dst_ip);
+#define AssertMapRecordHandle(a, b, c)   \
+    if (MapRecordHandle(a, b, c) == 0) { \
+        DumpHex(stdout, b, 256);         \
+        DumpRecord(b);                   \
+        exit(255);                       \
+    }
 
-static void SetNextIPaddress(master_record_t *record, int af, char *next_ip);
+static void SetIPaddress(recordHandle_t *recordHandle, int af, char *src_ip, char *dst_ip);
 
-static void SetRouterIPaddress(master_record_t *record, int af, char *next_ip);
+static void SetNextIPaddress(recordHandle_t *recordHandle, int af, char *next_ip);
 
-static void SetBGPNextIPaddress(master_record_t *record, int af, char *next_ip);
+static void SetRouterIPaddress(recordHandle_t *recordHandle, int af, char *next_ip);
 
-static void UpdateRecord(master_record_t *record);
+static void SetBGPNextIPaddress(recordHandle_t *recordHandle, int af, char *next_ip);
 
-static void PackRecordV3(master_record_t *master_record, nffile_t *nffile);
+static void UpdateRecord(recordHandle_t *recordHandle);
 
-static void SetIPaddress(master_record_t *record, int af, char *src_ip, char *dst_ip) {
-    if (af == PF_INET6) {
-        SetFlag(record->mflags, V3_FLAG_IPV6_ADDR);
-        inet_pton(PF_INET6, src_ip, &(record->V6.srcaddr[0]));
-        inet_pton(PF_INET6, dst_ip, &(record->V6.dstaddr[0]));
-        record->V6.srcaddr[0] = ntohll(record->V6.srcaddr[0]);
-        record->V6.srcaddr[1] = ntohll(record->V6.srcaddr[1]);
-        record->V6.dstaddr[0] = ntohll(record->V6.dstaddr[0]);
-        record->V6.dstaddr[1] = ntohll(record->V6.dstaddr[1]);
-    } else {
-        ClearFlag(record->mflags, V3_FLAG_IPV6_ADDR);
-        inet_pton(PF_INET, src_ip, &record->V4.srcaddr);
-        inet_pton(PF_INET, dst_ip, &record->V4.dstaddr);
-        record->V4.srcaddr = ntohl(record->V4.srcaddr);
-        record->V4.dstaddr = ntohl(record->V4.dstaddr);
+static void StoreRecord(recordHandle_t *recordHandle, nffile_t *nffile);
+
+static void DumpRecord(recordHeaderV3_t *recordHeaderV3) {
+    printf("V3Record: %u size: %u\n", recordHeaderV3->type, recordHeaderV3->size);
+    printf(" Elements    : %u\n", recordHeaderV3->numElements);
+    printf(" Element Type: %u\n", recordHeaderV3->engineType);
+    printf(" Element ID  : %u\n", recordHeaderV3->engineID);
+    printf(" Exporter ID : %u\n", recordHeaderV3->exporterID);
+    printf(" Flags       : %u\n", recordHeaderV3->flags);
+    elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t));
+    for (int i = 0; i < recordHeaderV3->numElements; i++) {
+        printf(" ExtID : %u, Length: %u\n", elementHeader->type, elementHeader->length);
+        if (elementHeader->type <= 0 || elementHeader->type >= MAXEXTENSIONS) {
+            LogError("Invalid extension '%u'", elementHeader->type);
+            return;
+        }
+        elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
+    }
+}
+
+static void SetIPaddress(recordHandle_t *recordHandle, int af, char *src_ip, char *dst_ip) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    if (af == PF_INET && ipv4Flow) {
+        inet_pton(PF_INET, src_ip, &ipv4Flow->srcAddr);
+        inet_pton(PF_INET, dst_ip, &ipv4Flow->dstAddr);
+        ipv4Flow->srcAddr = ntohl(ipv4Flow->srcAddr);
+        ipv4Flow->dstAddr = ntohl(ipv4Flow->dstAddr);
+    }
+    if (af == PF_INET6 && ipv6Flow) {
+        inet_pton(PF_INET6, src_ip, ipv6Flow->srcAddr);
+        inet_pton(PF_INET6, dst_ip, ipv6Flow->dstAddr);
+        ipv6Flow->srcAddr[0] = ntohll(ipv6Flow->srcAddr[0]);
+        ipv6Flow->srcAddr[1] = ntohll(ipv6Flow->srcAddr[1]);
+        ipv6Flow->dstAddr[0] = ntohll(ipv6Flow->dstAddr[0]);
+        ipv6Flow->dstAddr[1] = ntohll(ipv6Flow->dstAddr[1]);
     }
 
 }  // End of SetIPaddress
 
-static void SetNextIPaddress(master_record_t *record, int af, char *next_ip) {
-    if (af == PF_INET6) {
-        SetFlag(record->mflags, V3_FLAG_IPV6_NH);
-        inet_pton(PF_INET6, next_ip, &(record->ip_nexthop.V6[0]));
-        record->ip_nexthop.V6[0] = ntohll(record->ip_nexthop.V6[0]);
-        record->ip_nexthop.V6[1] = ntohll(record->ip_nexthop.V6[1]);
-    } else {
-        ClearFlag(record->mflags, V3_FLAG_IPV6_NH);
-        inet_pton(PF_INET, next_ip, &record->ip_nexthop.V4);
-        record->ip_nexthop.V4 = ntohl(record->ip_nexthop.V4);
+static void SetNextIPaddress(recordHandle_t *recordHandle, int af, char *next_ip) {
+    EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)recordHandle->extensionList[EXipNextHopV4ID];
+    EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)recordHandle->extensionList[EXipNextHopV6ID];
+    if (af == PF_INET && ipNextHopV4) {
+        inet_pton(PF_INET, next_ip, &ipNextHopV4->ip);
+        ipNextHopV4->ip = ntohl(ipNextHopV4->ip);
+    }
+    if (af == PF_INET6 && ipNextHopV6) {
+        // XXX SetFlag(v3Record->flags, V3_FLAG_IPV6_NH);
+        inet_pton(PF_INET6, next_ip, ipNextHopV6->ip);
+        ipNextHopV6->ip[0] = ntohll(ipNextHopV6->ip[0]);
+        ipNextHopV6->ip[1] = ntohll(ipNextHopV6->ip[1]);
     }
 
 }  // End of SetNextIPaddress
 
-static void SetRouterIPaddress(master_record_t *record, int af, char *next_ip) {
-    if (af == PF_INET6) {
-        SetFlag(record->mflags, V3_FLAG_IPV6_NH);
-        inet_pton(PF_INET6, next_ip, &(record->ip_router.V6[0]));
-        record->ip_router.V6[0] = ntohll(record->ip_router.V6[0]);
-        record->ip_router.V6[1] = ntohll(record->ip_router.V6[1]);
-    } else {
-        ClearFlag(record->mflags, V3_FLAG_IPV6_NH);
-        inet_pton(PF_INET, next_ip, &record->ip_router.V4);
-        record->ip_router.V4 = ntohl(record->ip_router.V4);
+static void SetRouterIPaddress(recordHandle_t *recordHandle, int af, char *router_ip) {
+    EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)recordHandle->extensionList[EXipReceivedV4ID];
+    EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)recordHandle->extensionList[EXipReceivedV6ID];
+    if (af == PF_INET && ipReceivedV4) {
+        inet_pton(PF_INET, router_ip, &ipReceivedV4->ip);
+        ipReceivedV4->ip = ntohl(ipReceivedV4->ip);
+    }
+    if (af == PF_INET6 && ipReceivedV6) {
+        inet_pton(PF_INET6, router_ip, ipReceivedV6->ip);
+        ipReceivedV6->ip[0] = ntohll(ipReceivedV6->ip[0]);
+        ipReceivedV6->ip[1] = ntohll(ipReceivedV6->ip[1]);
     }
 
 }  // End of SetRouterIPaddress
 
-static void SetBGPNextIPaddress(master_record_t *record, int af, char *next_ip) {
-    if (af == PF_INET6) {
-        SetFlag(record->mflags, V3_FLAG_IPV6_NHB);
-        inet_pton(PF_INET6, next_ip, &(record->bgp_nexthop.V6[0]));
-        record->bgp_nexthop.V6[0] = ntohll(record->bgp_nexthop.V6[0]);
-        record->bgp_nexthop.V6[1] = ntohll(record->bgp_nexthop.V6[1]);
-    } else {
-        ClearFlag(record->mflags, V3_FLAG_IPV6_NHB);
-        inet_pton(PF_INET, next_ip, &record->bgp_nexthop.V4);
-        record->bgp_nexthop.V4 = ntohl(record->bgp_nexthop.V4);
+static void SetBGPNextIPaddress(recordHandle_t *recordHandle, int af, char *next_ip) {
+    EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)recordHandle->extensionList[EXbgpNextHopV4ID];
+    EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)recordHandle->extensionList[EXbgpNextHopV6ID];
+    if (af == PF_INET && bgpNextHopV4) {
+        inet_pton(PF_INET, next_ip, &bgpNextHopV4->ip);
+        bgpNextHopV4->ip = ntohl(bgpNextHopV4->ip);
+    }
+    if (af == PF_INET6 && bgpNextHopV6) {
+        inet_pton(PF_INET6, next_ip, bgpNextHopV6->ip);
+        bgpNextHopV6->ip[0] = ntohll(bgpNextHopV6->ip[0]);
+        bgpNextHopV6->ip[1] = ntohll(bgpNextHopV6->ip[1]);
     }
 
 }  // End of SetBGPNextIPaddress
 
-static void UpdateRecord(master_record_t *record) {
-    record->msecFirst = 1000LL * when + msecs;
-    record->msecLast = 1000LL * when + offset + msecs + 10LL;
-    record->msecReceived = record->msecLast - 1000LL + 1LL;
+static void UpdateRecord(recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    if (!genericFlow) return;
 
-    record->srcPort += 10;
-    record->dstPort += 11;
+    genericFlow->msecFirst = genericFlow->msecLast + offset;
+    genericFlow->msecLast += 2002LL;
+    genericFlow->inPackets += 10;
+    genericFlow->inBytes += 223344;
 
-    record->inPackets += 1;
-    record->inBytes += 1024;
-
-    when += 10LL;
     offset += 10LL;
-
-    msecs += 100LL;
-    if (msecs > 1000LL) msecs = msecs - 1000LL;
-
-    record->engine_id++;
-    record->engine_type = offset;
 
 }  // End of UpdateRecord
 
-static void PackRecordV3(master_record_t *master_record, nffile_t *nffile) {
-    uint32_t required;
+static void StoreRecord(recordHandle_t *recordHandle, nffile_t *nffile) {
+    static uint32_t recordCount = 1;
+    recordHandle->flowCount = recordCount++;
+    recordHeaderV3_t *v3Record = recordHandle->recordHeaderV3;
 
-    required = master_record->size;
+    v3Record->engineID++;
+    v3Record->engineType++;
+
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    if (genericFlow) genericFlow->msecFirst++;
+
+    uint32_t required = v3Record->size;
 
     // flush current buffer to disc if not enough space
     if (!CheckBufferSpace(nffile, required)) {
         return;
     }
 
-    // enough buffer space available at this point
-    AddV3Header(nffile->buff_ptr, v3Record);
-    v3Record->flags = master_record->flags;
-    v3Record->engineType = master_record->engine_type;
-    v3Record->engineID = master_record->engine_id;
-
-    // first record header
-    for (int i = 0; i < master_record->numElements; i++) {
-        dbg_printf("Pack extension %u\n", master_record->exElementList[i]);
-        switch (master_record->exElementList[i]) {
-            case EXnull:
-                fprintf(stderr, "PackRecordV3(): Found unexpected NULL extension\n");
-                break;
-            case EXgenericFlowID: {
-                PushExtension(v3Record, EXgenericFlow, genericFlow);
-                genericFlow->msecFirst = master_record->msecFirst;
-                genericFlow->msecLast = master_record->msecLast;
-                genericFlow->msecReceived = master_record->msecReceived;
-                genericFlow->inPackets = master_record->inPackets;
-                genericFlow->inBytes = master_record->inBytes;
-                genericFlow->srcPort = master_record->srcPort;
-                genericFlow->dstPort = master_record->dstPort;
-                genericFlow->proto = master_record->proto;
-                genericFlow->tcpFlags = master_record->tcp_flags;
-                genericFlow->fwdStatus = master_record->fwd_status;
-                genericFlow->srcTos = master_record->tos;
-            } break;
-            case EXipv4FlowID: {
-                PushExtension(v3Record, EXipv4Flow, ipv4Flow);
-                ipv4Flow->srcAddr = master_record->V4.srcaddr;
-                ipv4Flow->dstAddr = master_record->V4.dstaddr;
-            } break;
-            case EXipv6FlowID: {
-                PushExtension(v3Record, EXipv6Flow, ipv6Flow);
-                ipv6Flow->srcAddr[0] = master_record->V6.srcaddr[0];
-                ipv6Flow->srcAddr[1] = master_record->V6.srcaddr[1];
-                ipv6Flow->dstAddr[0] = master_record->V6.dstaddr[0];
-                ipv6Flow->dstAddr[1] = master_record->V6.dstaddr[1];
-            } break;
-            case EXflowMiscID: {
-                PushExtension(v3Record, EXflowMisc, flowMisc);
-                flowMisc->input = master_record->input;
-                flowMisc->output = master_record->output;
-                flowMisc->dir = master_record->dir;
-                flowMisc->dstTos = master_record->dst_tos;
-                flowMisc->srcMask = master_record->src_mask;
-                flowMisc->dstMask = master_record->dst_mask;
-                flowMisc->biFlowDir = master_record->biFlowDir;
-                flowMisc->flowEndReason = master_record->flowEndReason;
-            } break;
-            case EXcntFlowID: {
-                PushExtension(v3Record, EXcntFlow, cntFlow);
-                cntFlow->outPackets = master_record->out_pkts;
-                cntFlow->outBytes = master_record->out_bytes;
-                cntFlow->flows = master_record->aggr_flows;
-            } break;
-            case EXvLanID: {
-                PushExtension(v3Record, EXvLan, vLan);
-                vLan->srcVlan = master_record->src_vlan;
-                vLan->dstVlan = master_record->dst_vlan;
-            } break;
-            case EXasRoutingID: {
-                PushExtension(v3Record, EXasRouting, asRouting);
-                asRouting->srcAS = master_record->srcas;
-                asRouting->dstAS = master_record->dstas;
-            } break;
-            case EXbgpNextHopV4ID: {
-                PushExtension(v3Record, EXbgpNextHopV4, bgpNextHopV4);
-                bgpNextHopV4->ip = master_record->bgp_nexthop.V4;
-            } break;
-            case EXbgpNextHopV6ID: {
-                PushExtension(v3Record, EXbgpNextHopV6, bgpNextHopV6);
-                bgpNextHopV6->ip[0] = master_record->bgp_nexthop.V6[0];
-                bgpNextHopV6->ip[1] = master_record->bgp_nexthop.V6[1];
-            } break;
-            case EXipNextHopV4ID: {
-                PushExtension(v3Record, EXipNextHopV4, ipNextHopV4);
-                ipNextHopV4->ip = master_record->ip_nexthop.V4;
-            } break;
-            case EXipNextHopV6ID: {
-                PushExtension(v3Record, EXipNextHopV6, ipNextHopV6);
-                ipNextHopV6->ip[0] = master_record->ip_nexthop.V6[0];
-                ipNextHopV6->ip[1] = master_record->ip_nexthop.V6[1];
-            } break;
-            case EXipReceivedV4ID: {
-                PushExtension(v3Record, EXipReceivedV4, ipNextHopV4);
-                ipNextHopV4->ip = master_record->ip_router.V4;
-            } break;
-            case EXipReceivedV6ID: {
-                PushExtension(v3Record, EXipReceivedV6, ipNextHopV6);
-                ipNextHopV6->ip[0] = master_record->ip_router.V6[0];
-                ipNextHopV6->ip[1] = master_record->ip_router.V6[1];
-            } break;
-            case EXmplsLabelID: {
-                PushExtension(v3Record, EXmplsLabel, mplsLabel);
-                for (int j = 0; j < 10; j++) {
-                    mplsLabel->mplsLabel[j] = master_record->mpls_label[j];
-                }
-            } break;
-            case EXmacAddrID: {
-                PushExtension(v3Record, EXmacAddr, macAddr);
-                macAddr->inSrcMac = master_record->in_src_mac;
-                macAddr->outDstMac = master_record->out_dst_mac;
-                macAddr->inDstMac = master_record->in_dst_mac;
-                macAddr->outSrcMac = master_record->out_src_mac;
-            } break;
-            case EXasAdjacentID: {
-                PushExtension(v3Record, EXasAdjacent, asAdjacent);
-                asAdjacent->nextAdjacentAS = master_record->bgpNextAdjacentAS;
-                asAdjacent->prevAdjacentAS = master_record->bgpPrevAdjacentAS;
-            } break;
-            case EXlatencyID: {
-                PushExtension(v3Record, EXlatency, latency);
-                latency->usecClientNwDelay = master_record->client_nw_delay_usec;
-                latency->usecServerNwDelay = master_record->server_nw_delay_usec;
-                latency->usecApplLatency = master_record->appl_latency_usec;
-            } break;
-            case EXvrfID: {
-                PushExtension(v3Record, EXvrf, vrf);
-                vrf->egressVrf = master_record->egressVrf;
-                vrf->ingressVrf = master_record->ingressVrf;
-            } break;
-#ifdef NSEL
-            case EXnselCommonID: {
-                PushExtension(v3Record, EXnselCommon, nselCommon);
-                nselCommon->msecEvent = master_record->msecEvent;
-                nselCommon->connID = master_record->connID;
-                nselCommon->fwXevent = master_record->fwXevent;
-                nselCommon->fwEvent = master_record->event;
-            } break;
-            case EXnselXlateIPv4ID: {
-                PushExtension(v3Record, EXnselXlateIPv4, nselXlateIPv4);
-                nselXlateIPv4->xlateSrcAddr = master_record->xlate_src_ip.V4;
-                nselXlateIPv4->xlateDstAddr = master_record->xlate_dst_ip.V4;
-            } break;
-            case EXnselXlateIPv6ID: {
-                PushExtension(v3Record, EXnselXlateIPv6, nselXlateIPv6);
-                memcpy(nselXlateIPv6->xlateSrcAddr, master_record->xlate_src_ip.V6, 16);
-                memcpy(nselXlateIPv6->xlateDstAddr, master_record->xlate_dst_ip.V6, 16);
-            } break;
-            case EXnselXlatePortID: {
-                PushExtension(v3Record, EXnselXlatePort, nselXlatePort);
-                nselXlatePort->xlateSrcPort = master_record->xlate_src_port;
-                nselXlatePort->xlateDstPort = master_record->xlate_dst_port;
-            } break;
-            case EXnselAclID: {
-                PushExtension(v3Record, EXnselAcl, nselAcl);
-                nselAcl->ingressAcl[0] = htonl(master_record->ingressAcl[0]);
-                nselAcl->ingressAcl[1] = htonl(master_record->ingressAcl[1]);
-                nselAcl->ingressAcl[2] = htonl(master_record->ingressAcl[2]);
-                nselAcl->egressAcl[0] = htonl(master_record->egressAcl[0]);
-                nselAcl->egressAcl[1] = htonl(master_record->egressAcl[1]);
-                nselAcl->egressAcl[2] = htonl(master_record->egressAcl[2]);
-            } break;
-            case EXnselUserID: {
-                PushExtension(v3Record, EXnselUser, nselUser);
-                memcpy(nselUser->username, master_record->username, 65);
-                nselUser->username[65] = '\0';
-            } break;
-            case EXnelCommonID: {
-                PushExtension(v3Record, EXnelCommon, nelCommon);
-                nelCommon->msecEvent = master_record->msecEvent;
-                nelCommon->natEvent = master_record->event;
-            } break;
-            case EXnelXlatePortID: {
-                PushExtension(v3Record, EXnelXlatePort, nelXlatePort);
-                nelXlatePort->blockStart = master_record->block_start;
-                nelXlatePort->blockEnd = master_record->block_end;
-                nelXlatePort->blockStep = master_record->block_step;
-                nelXlatePort->blockSize = master_record->block_size;
-            } break;
-#endif
-            case EXnbarAppID: {
-                PushVarLengthPointer(v3Record, EXnbarApp, nbarApp, 4);
-                memcpy(nbarApp, master_record->nbarAppID, 4);
-            } break;
-            default:
-                fprintf(stderr, "PackRecordV3(): Unknown extension '%u'\n", master_record->exElementList[i]);
-        }
-        if (v3Record->size > required) {
-            fprintf(stderr, "PackRecordV3(): record size(%u) > expected(%u)'\n", v3Record->size, required);
-        }
-    }
-
-    if (v3Record->size != required) {
-        fprintf(stderr, "PackRecordV3(): record size(%u) != expected(%u)'\n", v3Record->size, required);
-    }
+    memcpy(nffile->buff_ptr, (void *)v3Record, required);
     nffile->block_header->NumRecords++;
     nffile->block_header->size += v3Record->size;
     nffile->buff_ptr += v3Record->size;
-    dbg_assert(v3Record->size == required);
+}  // End of StoreRecord
 
-}  // End of PackRecordV3
+static void RemoveExtension(recordHandle_t *recordHandle, int extID) {
+    recordHeaderV3_t *v3Record = recordHandle->recordHeaderV3;
+
+    void *startPtr = NULL;
+    void *endPtr = NULL;
+    uint32_t size = v3Record->size - sizeof(recordHeaderV3_t);
+    uint32_t elementSize = 0;
+    elementHeader_t *elementHeader = (elementHeader_t *)((void *)v3Record + sizeof(recordHeaderV3_t));
+    for (int i = 0; i < v3Record->numElements; i++) {
+        size -= elementHeader->length;
+        if (elementHeader->type == extID) {
+            startPtr = (void *)elementHeader;
+            endPtr = startPtr + elementHeader->length;
+            elementSize = elementHeader->length;
+            break;
+        }
+        elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
+    }
+    if (startPtr != NULL) {
+        memmove(startPtr, endPtr, size);
+        v3Record->numElements--;
+        v3Record->size -= elementSize;
+    }
+    AssertMapRecordHandle(recordHandle, v3Record, recordHandle->flowCount);
+
+}  // end of RemoveExtension
 
 int main(int argc, char **argv) {
-    int i, c;
-    master_record_t record;
-    nffile_t *nffile;
-
     when = ISO2UNIX(strdup("201907111030"));
-    while ((c = getopt(argc, argv, "h")) != EOF) {
-        switch (c) {
-            case 'h':
-                break;
-            default:
-                fprintf(stderr, "ERROR: Unsupported option: '%c'\n", c);
-                exit(255);
-        }
-    }
-
-    memset((void *)&record, 0, sizeof(record));
 
     if (!Init_nffile(1, NULL)) exit(254);
 
-    nffile = OpenNewFile("test.flows.nf", NULL, CREATOR_UNKNOWN, NOT_COMPRESSED, 0);
+    nffile_t *nffile = OpenNewFile("dummy_flows.nf", NULL, CREATOR_UNKNOWN, NOT_COMPRESSED, 0);
     if (!nffile) {
         exit(255);
     }
 
-    i = 0;
+    recordHeaderV3_t *record = calloc(1, 4096);
+    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    if (!record || !recordHandle) {
+        perror("malloc() failed:");
+        exit(255);
+    }
 
+    // add v3 header
+    AddV3Header(record, v3Record);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
     // Start with empty record
-    record.size = V3HeaderRecordSize;
-    record.numElements = i;
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    StoreRecord(recordHandle, nffile);
 
-    record.exElementList[i++] = EXgenericFlowID;
-    record.size += EXgenericFlowSize;
-    record.numElements = i;
-    record.fwd_status = 1;
-    record.tcp_flags = 2;
-    record.tos = 3;
-    record.dst_tos = 4;
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    // fill record Header
+    v3Record->engineType = 0;
+    v3Record->engineID = 1;
+    v3Record->exporterID = 3;
+    v3Record->nfversion = 10;
+    recordHandle->flowCount++;
+    StoreRecord(recordHandle, nffile);
 
-    record.exElementList[i++] = EXipv4FlowID;
-    record.size += EXipv4FlowSize;
-    SetIPaddress(&record, PF_INET, "172.16.1.66", "192.168.170.100");
-    record.numElements = i;
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    // EXgenericFlowID
+    PushExtension(v3Record, EXgenericFlow, genericFlow);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    genericFlow->msecFirst = 1000LL * when + 234LL;
+    genericFlow->msecLast = genericFlow->msecFirst + 2000LL;
+    genericFlow->msecReceived = 1000LL * when + 1;
+    genericFlow->inPackets = 1;
+    genericFlow->inBytes = 222;
+    genericFlow->srcPort = 12345;
+    genericFlow->dstPort = 433;
+    genericFlow->proto = IPPROTO_TCP;
+    genericFlow->tcpFlags = 2;
+    genericFlow->fwdStatus = 1;
+    genericFlow->srcTos = 3;
+    recordHandle->flowCount++;
+    StoreRecord(recordHandle, nffile);
 
-    record.exElementList[i - 1] = EXipv6FlowID;
-    record.size -= EXipv4FlowSize;
-    record.size += EXipv6FlowSize;
-    SetIPaddress(&record, PF_INET6, "fe80::2110:abcd:1234:0", "fe80::2110:abcd:1235:4321");
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    // as we remove ipv4flow below, we need a local context
+    do {
+        // EXipv4FlowID
+        PushExtension(v3Record, EXipv4Flow, ipv4Flow);
+        AssertMapRecordHandle(recordHandle, v3Record, 0);
+        SetIPaddress(recordHandle, PF_INET, "172.16.1.66", "192.168.170.100");
+        StoreRecord(recordHandle, nffile);
+    } while (0);
 
-    record.exElementList[i - 1] = EXipv4FlowID;
-    record.size += EXipv4FlowSize;
-    record.size -= EXipv6FlowSize;
-    SetIPaddress(&record, PF_INET, "172.16.2.66", "192.168.170.101");
-    record.exElementList[i++] = EXflowMiscID;
-    record.size += EXflowMiscSize;
-    record.numElements = i;
-    record.srcPort = 80;
-    record.dstPort = 22222;
-    record.input = 100;
-    record.output = 200;
-    record.src_mask = 16;
-    record.dst_mask = 24;
-    record.tcp_flags = 2;
-    record.proto = IPPROTO_TCP;
-    record.dir = 1;
-    PackRecordV3(&record, nffile);
+    // EXipv6FlowID
+    RemoveExtension(recordHandle, EXipv4FlowID);
+    PushExtension(v3Record, EXipv6Flow, ipv6Flow);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    SetIPaddress(recordHandle, PF_INET6, "fe80::2110:abcd:1234:0", "fe80::2110:abcd:1235:4321");
+    StoreRecord(recordHandle, nffile);
 
-    record.msecFirst += 1000;
-    record.msecLast += 1000;
-    record.inPackets += 10;
-    record.inBytes += 1024;
-    record.tcp_flags = 16;
-    PackRecordV3(&record, nffile);
+    // multiple IPv6 flows
+    genericFlow->msecFirst = genericFlow->msecLast + 100LL;
+    genericFlow->msecLast += 2002LL;
+    genericFlow->inPackets = 10;
+    genericFlow->inBytes = 223344;
+    StoreRecord(recordHandle, nffile);
+    genericFlow->msecFirst = genericFlow->msecLast + 200LL;
+    genericFlow->msecLast += 3003LL;
+    genericFlow->inPackets = 25;
+    genericFlow->inBytes = 33445566LL;
+    StoreRecord(recordHandle, nffile);
 
-    record.msecFirst += 1000LL;
-    record.msecLast += 1000LL;
-    record.inPackets += 10;
-    record.inBytes += 1024;
-    record.tcp_flags = 1;
-    PackRecordV3(&record, nffile);
+    // bring back ipv4
+    PushExtension(v3Record, EXipv4Flow, ipv4Flow);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    SetIPaddress(recordHandle, PF_INET, "172.16.1.68", "192.168.170.104");
+    // this record has ipv4 and ipv6 records
+    StoreRecord(recordHandle, nffile);
 
-    SetIPaddress(&record, PF_INET, "192.168.170.101", "172.16.2.66");
-    record.msecFirst += 1;
-    record.msecLast += 1;
-    record.dstPort = 80;
-    record.srcPort = 22222;
-    record.input = 200;
-    record.output = 100;
-    record.src_mask = 24;
-    record.dst_mask = 16;
-    record.tcp_flags = 18;
-    record.proto = IPPROTO_TCP;
-    record.dir = 2;
-    record.inPackets = 10;
-    record.inBytes = 1024;
-    PackRecordV3(&record, nffile);
+    // remove v6 extension
+    RemoveExtension(recordHandle, EXipv6FlowID);
 
-    record.msecFirst += 1000LL;
-    record.msecLast += 1000LL;
-    record.inPackets += 10;
-    record.inBytes += 1024;
-    record.tcp_flags = 16;
-    PackRecordV3(&record, nffile);
+    // EXflowMiscID
+    PushExtension(v3Record, EXflowMisc, flowMisc);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    SetIPaddress(recordHandle, PF_INET, "172.16.2.66", "192.168.170.101");
 
-    record.msecFirst += 1000LL;
-    record.msecLast += 1000;
-    record.inPackets += 10;
-    record.inBytes += 1024;
-    record.tcp_flags = 1;
-    PackRecordV3(&record, nffile);
+    flowMisc->input = 100;
+    flowMisc->output = 200;
+    flowMisc->srcMask = 16;
+    flowMisc->dstMask = 24;
+    flowMisc->dir = 1;
+    flowMisc->dstTos = 4;
+    flowMisc->biFlowDir = 0;
+    genericFlow->srcPort = 80;
+    genericFlow->dstPort = 22222;
+    genericFlow->tcpFlags = 3;
+    genericFlow->proto = IPPROTO_TCP;
+    StoreRecord(recordHandle, nffile);
 
-    SetIPaddress(&record, PF_INET, "72.138.170.101", "42.16.32.6");
-    record.exElementList[i++] = EXcntFlowID;
-    record.size += EXcntFlowSize;
-    record.numElements = i;
-    record.tcp_flags++;
-    record.out_pkts = 203;
-    record.out_bytes = 204;
-    record.aggr_flows = 7;
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    // next flow
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
 
-    record.exElementList[i++] = EXvLanID;
-    record.size += EXvLanSize;
-    record.numElements = i;
-    record.tcp_flags++;
-    record.src_vlan = 45;
-    record.dst_vlan = 46;
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    genericFlow->srcPort = 33333;
+    genericFlow->dstPort = 5353;
+    genericFlow->tcpFlags = 0;
+    genericFlow->proto = IPPROTO_UDP;
+    StoreRecord(recordHandle, nffile);
 
-    record.exElementList[i++] = EXasRoutingID;
-    record.size += EXasRoutingSize;
-    record.numElements = i;
-    record.tcp_flags++;
-    record.srcas = 775;
-    record.dstas = 3303;
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    SetIPaddress(recordHandle, PF_INET, "192.168.170.101", "172.16.2.66");
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
 
-    record.exElementList[i++] = EXipNextHopV4ID;
-    record.size += EXipNextHopV4Size;
-    record.numElements = i;
-    record.tcp_flags++;
-    SetNextIPaddress(&record, PF_INET, "172.72.1.2");
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    SetIPaddress(recordHandle, PF_INET, "172.16.2.67", "192.168.170.102");
+    genericFlow->srcPort = 0;
+    genericFlow->icmpType = 1;
+    genericFlow->icmpCode = 8;
+    genericFlow->tcpFlags = 0;
+    genericFlow->inPackets = 1;
+    genericFlow->inBytes = 22;
+    genericFlow->proto = IPPROTO_ICMP;
+    StoreRecord(recordHandle, nffile);
 
-    record.exElementList[i++] = EXbgpNextHopV4ID;
-    record.size += EXbgpNextHopV4Size;  // 7
-    record.numElements = i;
-    record.tcp_flags++;
-    SetBGPNextIPaddress(&record, PF_INET, "172.73.2.3");
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    SetIPaddress(recordHandle, PF_INET, "192.168.170.102", "172.16.2.67");
+    genericFlow->icmpType = 0;
+    genericFlow->icmpCode = 3;
+    genericFlow->tcpFlags = 0;
+    genericFlow->inPackets = 1;
+    genericFlow->inBytes = 35;
+    genericFlow->msecFirst = genericFlow->msecLast + 200LL;
+    genericFlow->msecLast += 3003LL;
+    StoreRecord(recordHandle, nffile);
 
-    record.exElementList[i++] = EXipReceivedV4ID;
-    record.size += EXipReceivedV4Size;  // 9
-    record.numElements = i;
-    record.tcp_flags++;
-    SetRouterIPaddress(&record, PF_INET, "127.0.0.1");
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    SetIPaddress(recordHandle, PF_INET, "192.168.170.101", "172.16.2.66");
+    genericFlow->dstPort = 80;
+    genericFlow->srcPort = 22222;
+    flowMisc->input = 200;
+    flowMisc->output = 100;
+    flowMisc->srcMask = 24;
+    flowMisc->dstMask = 16;
+    genericFlow->tcpFlags = 18;
+    genericFlow->proto = IPPROTO_TCP;
+    flowMisc->dir = 2;
+    genericFlow->inPackets = 10;
+    genericFlow->inBytes = 1024;
+    StoreRecord(recordHandle, nffile);
 
-    record.exElementList[i++] = EXmplsLabelID;
-    record.size += EXmplsLabelSize;
-    record.numElements = i;
-    record.tcp_flags++;
-    record.mpls_label[0] = 1010 << 4;
-    record.mpls_label[1] = 2020 << 4;
-    record.mpls_label[2] = 3030 << 4;
-    record.mpls_label[3] = 4040 << 4;
-    record.mpls_label[4] = 5050 << 4;
-    record.mpls_label[5] = 6060 << 4;
-    record.mpls_label[6] = 7070 << 4;
-    record.mpls_label[7] = 8080 << 4;
-    record.mpls_label[8] = 9090 << 4;
-    record.mpls_label[9] = (100100 << 4) + 1;
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
 
-    record.exElementList[i++] = EXmacAddrID;
-    record.size += EXmacAddrSize;
-    record.numElements = i;
-    record.tcp_flags++;
-    record.in_src_mac = 0x1234567890aaLL;
-    record.out_dst_mac = 0x2feeddccbbabLL;
-    record.in_dst_mac = 0x3aeeddccbbfcLL;
-    record.out_src_mac = 0x4a345678900dLL;
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
 
-    record.exElementList[i++] = EXasAdjacentID;
-    record.size += EXasAdjacentSize;
-    record.numElements = i;
-    record.tcp_flags++;
-    record.bgpNextAdjacentAS = 7751;
-    record.bgpPrevAdjacentAS = 33032;
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
 
-    record.exElementList[i++] = EXlatencyID;
-    record.size += EXlatencySize;
-    record.numElements = i;
-    record.tcp_flags++;
-    record.client_nw_delay_usec = 2;
-    record.server_nw_delay_usec = 22;
-    record.appl_latency_usec = 222;
-    UpdateRecord(&record);
-    PackRecordV3(&record, nffile);
+    // EXcntFlowID
+    PushExtension(v3Record, EXcntFlow, cntFlow);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    UpdateRecord(recordHandle);
+    SetIPaddress(recordHandle, PF_INET, "72.138.170.101", "42.16.32.6");
+
+    cntFlow->outPackets = 203;
+    cntFlow->outBytes = 44556677LL;
+    cntFlow->flows = 7;
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+
+    // EXvLanID
+    PushExtension(v3Record, EXvLan, vLan);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    vLan->srcVlan = 45;
+    vLan->dstVlan = 46;
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+
+    // EXasRoutingID
+    PushExtension(v3Record, EXasRouting, asRouting);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    asRouting->srcAS = 775;
+    asRouting->dstAS = 3303;
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+
+    // EXipNextHopV6ID
+    PushExtension(v3Record, EXipNextHopV6, ipNextHopV6);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    SetNextIPaddress(recordHandle, PF_INET6, "2001::1110:bcde:1234:4");
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+
+    // EXipNextHopV4ID
+    RemoveExtension(recordHandle, EXipNextHopV6ID);
+    PushExtension(v3Record, EXipNextHopV4, ipNextHopV4);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    SetNextIPaddress(recordHandle, PF_INET, "172.72.1.2");
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+
+    // EXbgpNextHopV6ID
+    PushExtension(v3Record, EXbgpNextHopV6, bgpNextHopV6);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    SetBGPNextIPaddress(recordHandle, PF_INET6, "2002::1210:cdef:2346:5");
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+
+    // EXbgpNextHopV4ID
+    RemoveExtension(recordHandle, EXbgpNextHopV6ID);
+    PushExtension(v3Record, EXbgpNextHopV4, bgpNextHopV4);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    SetBGPNextIPaddress(recordHandle, PF_INET, "172.73.2.3");
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+
+    // EXipReceivedV6ID
+    PushExtension(v3Record, EXipReceivedV6, ipReceivedV6);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    SetRouterIPaddress(recordHandle, PF_INET6, "fe80::caffe:caffe:1234:1");
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+
+    // EXipReceivedV4ID
+    RemoveExtension(recordHandle, EXipReceivedV6ID);
+    PushExtension(v3Record, EXipReceivedV4, ipReceivedV4);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    SetRouterIPaddress(recordHandle, PF_INET, "127.0.0.1");
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+
+    // EXmplsLabelID
+    PushExtension(v3Record, EXmplsLabel, mplsLabel);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    mplsLabel->mplsLabel[0] = 1010 << 4;
+    mplsLabel->mplsLabel[1] = 2020 << 4;
+    mplsLabel->mplsLabel[2] = 3030 << 4;
+    mplsLabel->mplsLabel[3] = 4040 << 4;
+    mplsLabel->mplsLabel[4] = 5050 << 4;
+    mplsLabel->mplsLabel[5] = 6060 << 4;
+    mplsLabel->mplsLabel[6] = 7070 << 4;
+    mplsLabel->mplsLabel[7] = 8080 << 4;
+    mplsLabel->mplsLabel[8] = 9090 << 4;
+    mplsLabel->mplsLabel[9] = (100100 << 4) + 1;
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+
+    // EXmacAddrID
+    PushExtension(v3Record, EXmacAddr, macAddr);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    macAddr->inSrcMac = 0x1234567890aaLL;
+    macAddr->outDstMac = 0x2feeddccbbabLL;
+    macAddr->inDstMac = 0x3aeeddccbbfcLL;
+    macAddr->outSrcMac = 0x4a345678900dLL;
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+
+    // EXasAdjacentID
+    PushExtension(v3Record, EXasAdjacent, asAdjacent);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    asAdjacent->nextAdjacentAS = 7751;
+    asAdjacent->prevAdjacentAS = 33032;
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
+
+    // EXlatencyID
+    PushExtension(v3Record, EXlatency, latency);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    latency->usecClientNwDelay = 2;
+    latency->usecServerNwDelay = 22;
+    latency->usecApplLatency = 222;
+    UpdateRecord(recordHandle);
+    StoreRecord(recordHandle, nffile);
 
     /*
             record.exElementList[i] = 0;
@@ -587,172 +513,172 @@ int main(int argc, char **argv) {
             record.flags   		= 0;
             record.exporter_sysid = 1;
 
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.2.66", "192.168.170.101");
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
-            record.inPackets 	 	= 101;
+            genericFlow->inPackets 	 	= 101;
             record.inByytes 	 	= 102;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.3.66", "192.168.170.102");
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.4.66", "192.168.170.103");
             record.srcPort 	 = 2024;
             record.proto 	 = IPPROTO_UDP;
-            record.tcp_flags = 1;
+            genericFlow->tcpFlags = 1;
             record.tos 		 = 1;
-            record.inPackets 	 = 1001;
+            genericFlow->inPackets 	 = 1001;
             record.inByytes 	 = 1002;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.5.66", "192.168.170.104");
             record.srcPort 	 	= 3024;
             record.proto 	 	= 51;
-            record.tcp_flags 	= 2;
+            genericFlow->tcpFlags 	= 2;
             record.tos 		 	= 2;
-            record.inPackets 	 	= 10001;
+            genericFlow->inPackets 	 	= 10001;
             record.inByytes 	 	= 10002;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.6.66", "192.168.170.105");
             record.srcPort 	 	= 4024;
             record.proto 	 	= IPPROTO_TCP;
-            record.tcp_flags 	= 4;
+            genericFlow->tcpFlags 	= 4;
             record.tos 		 	= 3;
-            record.inPackets 	 	= 100001;
+            genericFlow->inPackets 	 	= 100001;
             record.inByytes 	 	= 100002;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.7.66", "192.168.170.106");
             record.srcPort 	 	= 5024;
-            record.tcp_flags 	= 8;
+            genericFlow->tcpFlags 	= 8;
             record.tos 		 	= 4;
-            record.inPackets 	 	= 1000001;
+            genericFlow->inPackets 	 	= 1000001;
             record.inByytes 	 	= 1000002;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.8.66", "192.168.170.107");
-            record.tcp_flags 	= 1;
+            genericFlow->tcpFlags 	= 1;
             record.tos 		 	= 4;
-            record.inPackets 	 	= 10000001;
+            genericFlow->inPackets 	 	= 10000001;
             record.inByytes 	 	= 1001;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.9.66", "192.168.170.108");
             record.srcPort 	 	= 6024;
-            record.tcp_flags 	= 16;
+            genericFlow->tcpFlags 	= 16;
             record.tos 		 	= 5;
-            record.inPackets 	 	= 500;
+            genericFlow->inPackets 	 	= 500;
             record.inByytes 	 	= 10000001;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.10.66", "192.168.170.109");
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.11.66", "192.168.170.110");
             record.srcPort 		= 7024;
-            record.tcp_flags 	= 32;
+            genericFlow->tcpFlags 	= 32;
             record.tos 		 	= 255;
-            record.inPackets 	 	= 5000;
+            genericFlow->inPackets 	 	= 5000;
             record.inByytes 	 	= 100000001;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.12.66", "192.168.170.111");
             record.srcPort 	 	= 8024;
-            record.tcp_flags 	= 63;
+            genericFlow->tcpFlags 	= 63;
             record.tos 		 	= 0;
             record.inByytes 	 	= 1000000001;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.13.66", "192.168.170.112");
             record.srcPort 	 	= 0;
             record.dstPort 	 	= 8;
             record.proto 	 	= 1;
-            record.tcp_flags 	= 0;
+            genericFlow->tcpFlags 	= 0;
             record.tos 		 	= 0;
-            record.inPackets 	 	= 50002;
+            genericFlow->inPackets 	 	= 50002;
             record.inByytes 	 	= 50000;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.160.160.166", "172.160.160.180");
             record.srcPort 	 = 10024;
             record.dstPort 	 = 25000;
             record.proto 	 = IPPROTO_TCP;
-            record.inPackets 	 = 500001;
+            genericFlow->inPackets 	 = 500001;
             record.inByytes 	 = 500000;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET6, "fe80::2110:abcd:1234:0", "fe80::2110:abcd:1235:4321");
             SetNextIPaddress(&record,  PF_INET6, "2003:234:aabb::211:24ff:fe80:d01e");
             SetBGPNextIPaddress(&record,  PF_INET6, "2004:234:aabb::211:24ff:fe80:d01e");
             record.srcPort 	 = 1024;
             record.dstPort 	 = 25;
-            record.tcp_flags = 27;
-            record.inPackets 	 = 10;
+            genericFlow->tcpFlags = 27;
+            genericFlow->inPackets 	 = 10;
             record.inByytes 	 = 15100;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET6, "2001:234:aabb::211:24ff:fe80:d01e", "2001:620::8:203:baff:fe52:38e5");
             record.srcPort 	 = 10240;
             record.dstPort 	 = 52345;
-            record.inPackets 	 = 10100;
+            genericFlow->inPackets 	 = 10100;
             record.inByytes 	 = 15000000;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
-            record.inPackets 	 = 10100000;
+            genericFlow->inPackets 	 = 10100000;
             record.inByytes 	 = 0x100000000LL;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
-            record.inPackets 	 = 0x100000000LL;
+            genericFlow->inPackets 	 = 0x100000000LL;
             record.inByytes 	 = 15000000;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             record.inByytes 	 = 0x200000000LL;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.14.18", "192.168.170.113");
             SetNextIPaddress(&record,  PF_INET, "172.72.1.2");
             SetBGPNextIPaddress(&record,  PF_INET, "172.73.2.3");
             record.srcPort 	 = 10240;
             record.dstPort 	 = 52345;
-            record.inPackets 	 = 10100000;
+            genericFlow->inPackets 	 = 10100000;
             record.inByytes 	 = 0x100000000LL;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.15.18", "192.168.170.114");
-            record.inPackets 	 = 0x100000000LL;
+            genericFlow->inPackets 	 = 0x100000000LL;
             record.inByytes 	 = 15000000;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
 
             SetIPaddress(&record,  PF_INET, "172.16.16.18", "192.168.170.115");
             record.inByytes 	 = 0x200000000LL;
-            UpdateRecord(&record);
-            PackRecordV3(&record, nffile);
+            UpdateRecord(recordHandle);
+            StoreRecord(recordHandle, nffile);
     */
     if (nffile->block_header->NumRecords) {
         if (WriteBlock(nffile) <= 0) {

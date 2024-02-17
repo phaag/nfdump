@@ -20,7 +20,7 @@ TEST_BZIP2="$(TEST_BZIP2)"; export TEST_BZIP2 \
 TEST_ZSTD="$(TEST_ZSTD)"; export TEST_ZSTD \
 ;
 
-AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline -I../netflow -I../collector $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../lib -I../lib/filter -I../inline -I../netflow -I../collector $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb
 AM_LDFLAGS  = -L../lib
 
@@ -30,7 +30,7 @@ nfgen_SOURCES = nfgen.c
 nfgen_LDADD = ../lib/libnfdump.la 
 
 nftest_SOURCES = nftest.c 
-nftest_LDADD = ../lib/libnfdump.la
+nftest_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a
 nftest_DEPENDENCIES = nfgen
 
 EXTRA_DIST = runtest.sh nftest.1.out nftest.2.out 

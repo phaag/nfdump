@@ -471,10 +471,15 @@ int ScanExtension(char *extensionList) {
     if (list == NULL) return -1;
 
     // last entry
-    if (s == NULL) return 0;
-    if (*s == '\0') return 0;
+    if (s == NULL || *s == '\0') {
+        free(list);
+        list = s = NULL;
+        return 0;
+    }
 
     // scan next extension number
+
+    // skip white space
     while (*s && isspace(*s)) s++;
 
     // next separator
@@ -484,6 +489,7 @@ int ScanExtension(char *extensionList) {
 
     // wrong range of extension
     if (num == 0 || num >= MAXEXTENSIONS) {
+        free(list);
         s = list = NULL;
         return -1;
     }

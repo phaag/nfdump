@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -37,10 +37,10 @@
 #include <strings.h>
 
 #include "nfconf.h"
+#include "nfdump.h"
 #include "output_csv.h"
 #include "output_fmt.h"
 #include "output_json.h"
-#include "output_pipe.h"
 #include "output_raw.h"
 #include "util.h"
 
@@ -48,7 +48,32 @@
 #define MAXMODELEN 16
 #define MAXFORMATS 64
 
-static void null_record(FILE *stream, void *record, int tag);
+#define FORMAT_line "%ts %td %pr %sap -> %dap %pkt %byt %fl"
+
+#define FORMAT_gline "%ts %td %pr %gsap -> %gdap %pkt %byt %fl"
+
+#define FORMAT_long "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %fl"
+
+#define FORMAT_glong "%ts %td %pr %gsap -> %gdap %flg %tos %pkt %byt %fl"
+
+#define FORMAT_extended "%ts %td %pr %sap -> %dap %flg %tos %pkt %byt %pps %bps %bpp %fl"
+
+#define FORMAT_biline "%ts %td %pr %sap <-> %dap %opkt %ipkt %obyt %ibyt %fl"
+
+#define FORMAT_bilong "%ts %td %pr %sap <-> %dap %flg %tos %opkt %ipkt %obyt %ibyt %fl"
+
+#define FORMAT_nsel "%ts %evt %xevt %pr %sap -> %dap %xsap -> %xdap %ibyt %obyt"
+
+#define FORMAT_nat "%ts %nevt %pr %sap -> %dap %nsap -> %ndap"
+
+#ifdef NSEL
+#define DefaultMode "nsel"
+#else
+#define DefaultMode "line"
+#endif
+#define DefaultGeoMode "gline"
+
+static void null_record(FILE *stream, recordHandle_t *record, int tag);
 
 static void null_prolog(void);
 
@@ -64,14 +89,12 @@ printmap_t printmap[MAXFORMATS] = {{"raw", raw_record, raw_prolog, raw_epilog, N
                                    {"extended", fmt_record, fmt_prolog, fmt_epilog, FORMAT_extended},
                                    {"biline", fmt_record, fmt_prolog, fmt_epilog, FORMAT_biline},
                                    {"bilong", fmt_record, fmt_prolog, fmt_epilog, FORMAT_bilong},
-                                   {"pipe", pipe_record, pipe_prolog, pipe_epilog, NULL},
+                                   {"nsel", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nsel},
+                                   {"nat", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nat},
                                    {"json", flow_record_to_json, json_prolog, json_epilog, NULL},
                                    {"csv", csv_record, csv_prolog, csv_epilog, NULL},
                                    {"null", null_record, null_prolog, null_epilog, NULL},
-#ifdef NSEL
-                                   {"nsel", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nsel},
-                                   {"nel", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nel},
-#endif
+
                                    // This is always the last line
                                    {NULL, NULL, NULL, NULL, ""}};
 
@@ -80,7 +103,7 @@ static PrologPrinter_t print_epilog;  // prints the output epilog
 
 static void UpdateFormatList(void);
 
-static void null_record(FILE *stream, void *record, int tag) {
+static void null_record(FILE *stream, recordHandle_t *record, int tag) {
     // empty - do not list any flows
 }  // End of null_record
 
@@ -183,11 +206,7 @@ RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams
                     print_prolog = printmap[i].func_prolog;
                     print_epilog = printmap[i].func_epilog;
                 } else {
-                    // To support the pipe output format for element stats - check for pipe, and
-                    // remember this
-                    if (strncasecmp(print_format, "pipe", MAXMODELEN) == 0) {
-                        outputParams->mode = MODE_PIPE;
-                    } else if (strncasecmp(print_format, "csv", MAXMODELEN) == 0) {
+                    if (strncasecmp(print_format, "csv", MAXMODELEN) == 0) {
                         outputParams->mode = MODE_CSV;
                     } else if (strncasecmp(print_format, "json", MAXMODELEN) == 0) {
                         outputParams->mode = MODE_JSON;

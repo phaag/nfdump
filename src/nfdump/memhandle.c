@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -120,16 +120,13 @@ static void nfalloc_free(void) {
 }  // End of nfalloc_free
 
 static inline void *nfmalloc(size_t size) {
-    void *p;
-    size_t aligned_size;
-
     // make sure size of memory is aligned
-    aligned_size = (((size) + ALIGN_BYTES) & ~ALIGN_BYTES);
+    size_t aligned_size = (((size) + ALIGN_BYTES) & ~ALIGN_BYTES);
 
     GetLock(MemHandler);
     if ((MemHandler->Allocted + aligned_size) <= MemHandler->BlockSize) {
         // enough space available in current memblock
-        p = MemHandler->memblock[MemHandler->CurrentBlock] + MemHandler->Allocted;
+        void *p = MemHandler->memblock[MemHandler->CurrentBlock] + MemHandler->Allocted;
         MemHandler->Allocted += aligned_size;
         dbg_printf("Mem Handle: Requested: %zu, aligned: %zu, ptr: %lx\n", size, aligned_size, (long unsigned)p);
         ReleaseLock(MemHandler);
@@ -150,7 +147,7 @@ static inline void *nfmalloc(size_t size) {
     }
 
     // allocate new memblock
-    p = malloc(MemHandler->BlockSize);
+    void *p = malloc(MemHandler->BlockSize);
     if (!p) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(255);

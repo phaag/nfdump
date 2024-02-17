@@ -30,12 +30,23 @@
 
 #include "nfconf.h"
 
+#include <arpa/nameser.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <resolv.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+
+#include "config.h"
+
+#ifdef HAVE_RESOLV_H
+#include <resolv.h>
+#endif
 
 #include "toml.h"
 #include "util.h"
@@ -328,3 +339,18 @@ __attribute__((unused)) void ConfInventory(void) {
         }
     }
 }  // End of ConfInventory
+
+int SetNameserver(char *ns) {
+    struct hostent *host;
+
+    res_init();
+    host = gethostbyname(ns);
+    if (host == NULL) {
+        (void)fprintf(stderr, "Can not resolv nameserver %s: %s\n", ns, hstrerror(h_errno));
+        return 0;
+    }
+    (void)memcpy((void *)&_res.nsaddr_list[0].sin_addr, (void *)host->h_addr_list[0], (size_t)host->h_length);
+    _res.nscount = 1;
+    return 1;
+
+}  // End of set_nameserver

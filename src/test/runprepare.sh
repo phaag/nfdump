@@ -37,14 +37,14 @@ export TZ
 rm -f test.*
 ./nfgen
 
-# prevent any default goelookup for testing
+# prevent any default geolookup for testing
 NFDUMP="../nfdump/nfdump -G none"
 
 # verify test
-$NFDUMP -v test.flows.nf
+$NFDUMP -v dummy_flows.nf
 
 # read test
 rm -f test1.out
-$NFDUMP -r test.flows.nf -q -o raw >test.1.out
+$NFDUMP -r dummy_flows.nf -q -o raw >test.1.out
 diff -u test.1.out nftest.1.out
 rm -f test.1.out
