@@ -7,6 +7,6 @@ AM_LDFLAGS  = -L../lib
 LDADD = $(DEPS_LIBS)
 
 nfreader_SOURCES = nfreader.c 
-nfreader_LDADD = ../lib/libnfdump.la
+nfreader_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a
 
 CLEANFILES = *.gch

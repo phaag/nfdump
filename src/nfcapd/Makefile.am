@@ -6,7 +6,7 @@ AM_CPPFLAGS = -I../include -I../lib -I../inline -I../netflow -I../collector -I..
 AM_LDFLAGS  = -Llib 
 
 nfcapd_SOURCES = nfcapd.c 
-nfcapd_LDADD = ../netflow/libnetflow.a ../lib/libnfdump.la ../collector/libcollector.a -lm
+nfcapd_LDADD = ../netflow/libnetflow.a ../lib/libnfdump.la ../maxmind/libmaxmind.a ../collector/libcollector.a -lm
 nfcapd_LDFLAGS = -L../lib
 
 if READPCAP

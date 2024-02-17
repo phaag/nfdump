@@ -27,7 +27,7 @@ AM_LDFLAGS  = -L../lib
 LDADD = $(DEPS_LIBS)
 
 nfgen_SOURCES = nfgen.c
-nfgen_LDADD = ../lib/libnfdump.la 
+nfgen_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a
 
 nftest_SOURCES = nftest.c 
 nftest_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a

@@ -7,7 +7,7 @@ AM_LDFLAGS  = -L../lib
 sflow = sflow_nfdump.c sflow_nfdump.h sflow.h sflow_v2v4.h sflow_process.c  sflow_process.h
 sfcapd_SOURCES = sfcapd.c \
 	$(sflow) $(launch) 
-sfcapd_LDADD = ../lib/libnfdump.la ../collector/libcollector.a -lm
+sfcapd_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a ../collector/libcollector.a -lm
 
 if READPCAP
 sfcapd_CFLAGS = -DPCAP

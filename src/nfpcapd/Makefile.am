@@ -13,7 +13,7 @@ pcaproc = pcaproc.c pcaproc.h nflog.h pflog.h flowtree.c flowtree.h
 
 nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h \
 	$(pcaproc) $(pcapdump) $(flowdump) $(flowsend)
-nfpcapd_LDADD = ../lib/libnfdump.la ../collector/libcollector.a -lm
+nfpcapd_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a ../collector/libcollector.a -lm
 if BSDBPF
 nfpcapd_SOURCES += packet_bpf.c
 AM_CPPFLAGS += -DUSE_BPFSOCKET
