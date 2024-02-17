@@ -1,4 +1,7 @@
-- 0001529 2024-02-10  (HEAD -> master, origin/master, origin/HEAD) Honor printPlain Flag for String_evt. See #498
+- 4a7de41 2024-02-17  (HEAD -> master, origin/master, origin/HEAD) Fix compiler warnings for lz4
+- 4e98a35 2024-02-17  Update lz4 code
+- 7997ac4 2024-02-10  Replace Changelog file with git log history. Modify gen_version.sh. See #482
+- 0001529 2024-02-10  Honor printPlain Flag for String_evt. See #498
 - 9db4215 2024-02-03  Fix buggy sflow code. Fixes #506
 - a20249c 2024-02-03  Dissolve code for output
 - 56919df 2024-02-03  Change link order as some Linux linker do not correctly find static symbols. Fix #505

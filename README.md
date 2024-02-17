@@ -2,7 +2,7 @@
 
 [![buildtest](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml)
 
-nfdump-1.7.x or nfdump **unicorn** is the next release of nfdump.
+nfdump-1.7.x or nfdump **unicorn** is the current release of nfdump.
 
 ## Introduction
 
