@@ -1,16 +1,79 @@
-- 4a7de41 2024-02-17  (HEAD -> master, origin/master, origin/HEAD) Fix compiler warnings for lz4
+- 466c27b 2024-02-17  (HEAD -> master, origin/master, origin/HEAD) Merge remote-tracking branch 'origin/nfdump-filter-ng'
+- bc08a0a 2024-02-17  Sync lz4 code
+- 4f409e9 2024-02-17  Release v1.7.4
+- 4a7de41 2024-02-17  Fix compiler warnings for lz4
 - 4e98a35 2024-02-17  Update lz4 code
+- 519a052 2024-02-16  Fix compile issues
+- d301428 2024-02-16  Cleanup runtest.sh
+- e5976bd 2024-02-13  Move payload decode to own directory
+- df94907 2024-02-12  Update filter code, to be multi threading ready
+- 75d07cb 2024-02-11  Remove last debris from pipe output mode. Pipe output mode is gone now.
+- 21606f7 2024-02-11  Add DEVEL code
+- 72dcff4 2024-02-11  work on nflowcache
+- aa78fee 2024-02-11  Fix stat issues
+- dcf8499 2024-02-11  Fix nflowcache
+- 4c3a7e5 2024-02-10  Fix type bug
+- 89a43a4 2024-02-10  Cleanup and replace version script.
 - 7997ac4 2024-02-10  Replace Changelog file with git log history. Modify gen_version.sh. See #482
 - 0001529 2024-02-10  Honor printPlain Flag for String_evt. See #498
+- cf43542 2024-02-09  Cleanup strings
+- 286eac3 2024-02-09  Clean nfdump and geolookups
+- 5355fe8 2024-02-07  Wire maxmind geolookup in nfstat
+- 5b255f5 2024-02-07  Wire Maxmind geo filters in new filter engine
+- 249ca65 2024-02-06  Work on aggregation und filter issues
+- 88dda88 2024-02-04  Wrap up loose ends
 - 9db4215 2024-02-03  Fix buggy sflow code. Fixes #506
+- f8381be 2024-02-03  Update sflow
+- 98437f8 2024-02-03  dissolve code for output
 - a20249c 2024-02-03  Dissolve code for output
 - 56919df 2024-02-03  Change link order as some Linux linker do not correctly find static symbols. Fix #505
+- e6b9fce 2024-02-03  Fix init
+- e88056f 2024-02-02  Cleanup and fix nflowcache and nfstat
+- 05c7fbd 2024-01-29  Fix stat issues in nflowcahe and nfstat
+- 35d4292 2024-01-29  Fix format issues in output_fmt
 - 1b6cdd5 2024-01-29  Fix some output_fmt format issues
 - 627565a 2024-01-29  Remove local m4 files
 - f0d2750 2024-01-29  Fix err var in nfprofile
 - dc1b1b2 2024-01-29  Fix #503 - Append records in nfprofile
+- 1dcb7ae 2024-01-28  (origin/nfdump-filter-ng) Fix fmt time 1970
+- c5ddbf0 2024-01-28  Fix fmt cores
+- 427b08e 2024-01-28  Removed master record from nfgen. Update make check
+- bbaef64 2024-01-26  master record removed from 1.7.x code
+- 373e8ad 2024-01-26  Modified nfgen and first cleanup
+- fb360cd 2024-01-26  removed master record from nfgen
+- 452c6ce 2024-01-25  Replace nftest. master_record removed
+- 40267bb 2024-01-25  Cleanup old master_record
+- b94b43c 2024-01-25  Removed master_record from nfstat
+- bb9765e 2024-01-24  Start cleanup nfstat
+- df7605b 2024-01-24  Work on nfstat
 - e325de6 2024-01-22  Implement #501. Add -X <extlist> option for sfcapd
+- c558152 2024-01-21  Start working on nfstat.c
+- c51748a 2024-01-21  Complete nflowcache.c
+- 83209d3 2024-01-21  Start to optimise nflowcache
+- 741addd 2024-01-20  Removed master record from nflowcache
+- 373ca78 2024-01-20  Removed master record from nflowcache
+- 7a795a5 2024-01-20  Work on nflowcache
+- 0208383 2024-01-19  Work on nflowcache
+- a1ac11b 2024-01-15  Add endian for ICMP for correct decoding
+- 2b11d66 2024-01-15  Work on nflowcache
+- ddf605e 2024-01-14  Fix for first test
+- 51148c6 2024-01-14  Working on nflowcache
 - 4b961bd 2024-01-14  Fix #498 - event string in output_fmt
+- a81832c 2024-01-14  Remove master_record from output_fmt
+- 19a0ec3 2024-01-13  Remove master record from output_json
+- 174139e 2024-01-13  Remove legacy pipe output format
+- f042b4c 2024-01-13  Remove master record from output_raw
+- 85c00ac 2024-01-13  Removed master record from output_csv
+- ebfc751 2024-01-13  Working on output_csv
+- fe96d8e 2024-01-11  master record removed from nfreplay
+- 7cb61a5 2024-01-09  Fixes
+- dcfd52e 2024-01-08  Add missing files
+- 400ac03 2024-01-07  Remove master_record from send_v5
+- acab1dd 2024-01-07  Work on nfreplay
+- 90cfd93 2024-01-07  Wire new filter in nftrack, nfprofile - easiest
+- 9637751 2024-01-07  Move filter files in own lib/filter directory
+- 1075d66 2024-01-07  Move filter files in own lib/filter directory
+- 4736178 2024-01-07  Update Readme
 - 389acc5 2024-01-06  Remove NSEL option from nfanon. NSEL included by default
 - d49a050 2024-01-06  Fix error message
 - b78ffba 2024-01-06  Refrag code into userio files. Prepare for next level code update
