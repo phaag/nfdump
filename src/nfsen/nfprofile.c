@@ -201,8 +201,11 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                         LogError("Failed to add Exporter Record");
                     }
                 } break;
+                case SamplerLegacyRecordType: {
+                    if (AddSamplerLegacyRecord((samplerV0_record_t *)record_ptr) == 0) LogError("Failed to add legacy Sampler Record\n");
+                } break;
                 case SamplerRecordType: {
-                    int err = AddSamplerInfo((sampler_record_t *)record_ptr);
+                    int err = AddSamplerRecord((sampler_record_t *)record_ptr);
                     if (err != 0) {
                         for (int j = 0; j < num_channels; j++) {
                             if (channels[j].nffile != NULL && err == 1) {

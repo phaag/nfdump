@@ -170,14 +170,14 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
     return 1;
 }  // End of AddExporterInfo
 
-int AddSamplerInfo(sampler_record_t *sampler_record) {
-    if (sampler_record->size != sizeof(sampler_record_t) && sampler_record->size != sizeof(samplerV0_record_t)) {
+int AddSamplerLegacyRecord(samplerV0_record_t *sampler_record) {
+    if (sampler_record->size != sizeof(samplerV0_record_t)) {
         LogError("Corrupt sampler record in %s line %d\n", __FILE__, __LINE__);
         return 0;
     }
 
     sampler_record_t convert_record = {0};
-    sampler_record_t *record = sampler_record;
+    sampler_record_t *record = &convert_record;
     if (sampler_record->size == sizeof(samplerV0_record_t)) {
         samplerV0_record_t *samplerV0_record = (samplerV0_record_t *)sampler_record;
 
@@ -190,8 +190,12 @@ int AddSamplerInfo(sampler_record_t *sampler_record) {
         convert_record.spaceInterval = samplerV0_record->interval - 1;
         record = &convert_record;
     }
+    return AddSamplerRecord(record);
 
-    uint32_t id = record->exporter_sysid;
+}  // End of AddSamplerLegacyRecord
+
+int AddSamplerRecord(sampler_record_t *sampler_record) {
+    uint32_t id = sampler_record->exporter_sysid;
     if (id >= MAX_EXPORTERS) {
         LogError("Corrupt sampler record in %s line %d\n", __FILE__, __LINE__);
         return 0;
@@ -204,10 +208,10 @@ int AddSamplerInfo(sampler_record_t *sampler_record) {
 
     sampler_t **sampler = &exporter_list[id]->sampler;
     while (*sampler) {
-        if (memcmp((void *)&(*sampler)->record, (void *)record, sizeof(sampler_record_t)) == 0) {
+        if (memcmp((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_t)) == 0) {
             // Found identical sampler already registered
             dbg_printf("Identical sampler already registered: %u, algorithm: %u, packet interval: %u, packet space: %u\n", record->exporter_sysid,
-                       record->algorithm, record->packetInterval, record->spaceInterval);
+                       sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
             return 2;
         }
         sampler = &((*sampler)->next);
@@ -219,9 +223,9 @@ int AddSamplerInfo(sampler_record_t *sampler_record) {
         return 0;
     }
     (*sampler)->next = NULL;
-    record->exporter_sysid = exporter_list[id]->info.sysid;
+    sampler_record->exporter_sysid = exporter_list[id]->info.sysid;
 
-    memcpy((void *)&(*sampler)->record, (void *)record, sizeof(sampler_record_t));
+    memcpy((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_t));
     dbg_printf("Insert sampler record for exporter at slot %i:\n", id);
 
 #ifdef DEVEL
@@ -237,7 +241,7 @@ int AddSamplerInfo(sampler_record_t *sampler_record) {
 #endif
 
     return 1;
-}  // End of AddSamplerInfo
+}  // End of AddSamplerRecord
 
 int AddExporterStat(exporter_stats_record_t *stat_record) {
     if (stat_record->header.size < sizeof(exporter_stats_record_t)) {
@@ -369,15 +373,19 @@ void PrintExporters(void) {
                 case ExporterInfoRecordType:
                     found = 1;
                     if (!AddExporterInfo((exporter_info_record_t *)record)) {
-                        LogError("Failed to add Exporter Record\n");
+                        LogError("Failed to add exporter record\n");
                     }
                     break;
                 case ExporterStatRecordType:
                     AddExporterStat((exporter_stats_record_t *)record);
                     break;
                 case SamplerRecordType:
-                    if (!AddSamplerInfo((sampler_record_t *)record)) {
-                        LogError("Failed to add Sampler Record\n");
+                    if (!AddSamplerRecord((sampler_record_t *)record)) {
+                        LogError("Failed to add sampler record\n");
+                    }
+                case SamplerLegacyRecordType:
+                    if (!AddSamplerLegacyRecord((samplerV0_record_t *)record)) {
+                        LogError("Failed to add legacy sampler record\n");
                     }
                     break;
             }

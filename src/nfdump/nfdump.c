@@ -442,8 +442,11 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                 case ExporterStatRecordType:
                     AddExporterStat((exporter_stats_record_t *)record_ptr);
                     break;
+                case SamplerLegacyRecordType: {
+                    if (AddSamplerLegacyRecord((samplerV0_record_t *)record_ptr) == 0) LogError("Failed to add legacy Sampler Record\n");
+                } break;
                 case SamplerRecordType: {
-                    int ret = AddSamplerInfo((sampler_record_t *)record_ptr);
+                    int ret = AddSamplerRecord((sampler_record_t *)record_ptr);
                     if (ret != 0) {
                         if (write_file && ret == 1) AppendToBuffer(nffile_w, (void *)record_ptr, record_ptr->size);
                     } else {
