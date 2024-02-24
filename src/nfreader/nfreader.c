@@ -32,7 +32,7 @@
 /*
  * nfreader is sample code for reading nfdump binary files.
  * It accepts the standard nfdump file select options -r, -M and -R
- * Therefore it allows you to loop over multiple files and process the netflow record.
+ * Therefore it allows you to loop over multiple files to process all netflow records.
  *
  * Insert your code in the process_data function
  * To build the binary: first compile nfdump as usual.
@@ -51,6 +51,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <flist.h>
 #include <netinet/in.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -253,10 +254,9 @@ static void process_data(void) {
 }  // End of process_data
 
 int main(int argc, char **argv) {
-    flist_t flist;
-    int c;
+    flist_t flist = {0};
 
-    memset((void *)&flist, 0, sizeof(flist));
+    int c = 0;
     while ((c = getopt(argc, argv, "r:M:R:")) != EOF) {
         switch (c) {
             case 'h':
