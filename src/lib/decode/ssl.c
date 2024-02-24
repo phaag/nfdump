@@ -88,6 +88,7 @@ static int checkGREASE(uint16_t val) {
     }
 
 static int sslParseExtensions(ssl_t *ssl, BytesStream_t sslStream, uint16_t length) {
+    dbg_printf("Parse extensions: %x\n", length);
     if (length == 0) {
         LogError("%s() extension length is 0", __FUNCTION__);
         return 0;
@@ -101,7 +102,7 @@ static int sslParseExtensions(ssl_t *ssl, BytesStream_t sslStream, uint16_t leng
         uint16_t exType, exLength;
         ByteStream_GET_u16(sslStream, exType);
         ByteStream_GET_u16(sslStream, exLength);
-
+        dbg_printf("Ex Type: %x, Length: %x\n", exType, exLength);
         if (checkGREASE(exType)) {
             extensionLength -= (4 + exLength);
             continue;
@@ -112,7 +113,6 @@ static int sslParseExtensions(ssl_t *ssl, BytesStream_t sslStream, uint16_t leng
             return 0;
         }
 
-        dbg_printf("Found extension type: %u, len: %u\n", exType, exLength);
         AppendArray(ssl->extensions, exType);
 
         switch (exType) {
@@ -161,10 +161,12 @@ static int sslParseExtensions(ssl_t *ssl, BytesStream_t sslStream, uint16_t leng
                     dbg_printf("Found curvePF: 0x%x\n", curvePF);
                 }
             } break;
+            default:
+                if (exLength) ByteStream_SKIP(sslStream, exLength);
         }
         extensionLength -= (4 + exLength);
     }
-    dbg_printf("End extension. size: %zu\n", size_left);
+    dbg_printf("End extension. size: %d\n", extensionLength);
 
     return 1;
 
@@ -180,13 +182,14 @@ static int sslParseClientHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
 
     ssl->protocolVersion = version;
     switch (version) {
-        case 0x3000:
-        case 0x3001:
-        case 0x3002:
-        case 0x3003:
+        case 0x0200:  // SSL 2.0
+        case 0x0300:  // SSL 3.0
+        case 0x0301:  // TLS 1.1
+        case 0x0302:  // TLS 1.2
+        case 0x0303:  // TLS 1.3
             break;
         default:
-            LogError("%s(): Not an SSL 3.0 - TLS 1.3 protocol", __FUNCTION__);
+            LogError("%s():%d Not an SSL 3.0 - TLS 1.3 protocol", __FUNCTION__, __LINE__);
             dbg_printf("Client handshake: Not an SSL 3.0 - TLS 1.3 protocol\n");
             return 0;
     }
@@ -199,14 +202,14 @@ static int sslParseClientHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
     if (sessionIDLen) ByteStream_SKIP(sslStream, sessionIDLen);
 
     uint16_t cipherSuiteHeaderLen;
-    ByteStream_GET_u8(sslStream, cipherSuiteHeaderLen);  // Cipher suites length
+    ByteStream_GET_u16(sslStream, cipherSuiteHeaderLen);  // Cipher suites length
 
     // cipherSuiteHeaderLen + compressionMethodes(1)
     if (ByteStream_AVAILABLE(sslStream) < (cipherSuiteHeaderLen + 1)) return 0;
 
     int numCiphers = cipherSuiteHeaderLen >> 1;
     if (numCiphers == 0) {
-        LogError("%s(): Number of ciphers is 0", __FUNCTION__);
+        LogError("%s():%d Number of ciphers is 0", __FUNCTION__, __LINE__);
         return 0;
     }
 
@@ -225,6 +228,7 @@ static int sslParseClientHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
 
     // compressionMethodes extensionLength(2)
     if (ByteStream_AVAILABLE(sslStream) < (compressionMethodes + 2)) return 0;
+    if (compressionMethodes) ByteStream_SKIP(sslStream, compressionMethodes);
 
     uint16_t extensionLength;
     ByteStream_GET_u16(sslStream, extensionLength);  // length of extensions
@@ -245,10 +249,11 @@ static int sslParseServerHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
 
     ssl->protocolVersion = version;
     switch (version) {
-        case 0x3000:
-        case 0x3001:
-        case 0x3002:
-        case 0x3003:
+        case 0x0200:  // SSL 2.0
+        case 0x0300:  // SSL 3.0
+        case 0x0301:  // TLS 1.1
+        case 0x0302:  // TLS 1.2
+        case 0x0303:  // TLS 1.3
             break;
         default:
             LogError("%s():%d Not an SSL 3.0 - TLS 1.3 protocol", __FUNCTION__, __LINE__);
@@ -305,26 +310,26 @@ void sslPrint(ssl_t *ssl) {
     else
         printf("ssl server record\n");
 
-    printf("TLS      : %u\n", ssl->tlsVersion);
-    printf("Protocol : %u\n", ssl->protocolVersion);
+    printf("TLS      : 0x%x\n", ssl->tlsVersion);
+    printf("Protocol : 0x%x\n", ssl->protocolVersion);
     printf("ciphers  : ");
     for (int i = 0; i < LenArray(ssl->cipherSuites); i++) {
-        printf(" %u", ssl->cipherSuites.array[i]);
+        printf(" 0x%x", ssl->cipherSuites.array[i]);
     }
     printf("\nextensions:");
     for (int i = 0; i < LenArray(ssl->extensions); i++) {
-        printf(" %u", ssl->extensions.array[i]);
+        printf(" 0x%x", ssl->extensions.array[i]);
     }
     printf("\n");
 
     if (ssl->type == CLIENTssl) {
         printf("curves    :");
         for (int i = 0; i < LenArray(ssl->ellipticCurves); i++) {
-            printf(" %u", ssl->ellipticCurves.array[i]);
+            printf(" 0x%x", ssl->ellipticCurves.array[i]);
         }
         printf("\ncurves PF :");
         for (int i = 0; i < LenArray(ssl->ellipticCurvesPF); i++) {
-            printf(" %u", ssl->ellipticCurvesPF.array[i]);
+            printf(" 0x%x", ssl->ellipticCurvesPF.array[i]);
         }
         printf("\n");
     }
@@ -358,13 +363,14 @@ ssl_t *sslProcess(uint8_t *data, size_t len) {
     uint16_t sslVersion;
     ByteStream_GET_u16(sslStream, sslVersion);
     switch (sslVersion) {
-        case 0x3000:
-        case 0x3001:
-        case 0x3002:
-        case 0x3003:
+        case 0x0200:  // SSL 2.0
+        case 0x0300:  // SSL 3.0
+        case 0x0301:  // TLS 1.1
+        case 0x0302:  // TLS 1.2
+        case 0x0303:  // TLS 1.3
             break;
         default:
-            dbg_printf("Not an SSL 3.0 - TLS 1.3 connection\n");
+            dbg_printf("SSL version: 0x%x not SSL 3.0 - TLS 1.3 connection\n", sslVersion);
             return NULL;
     }
 
@@ -421,3 +427,28 @@ ssl_t *sslProcess(uint8_t *data, size_t len) {
     return ssl;
 
 }  // End of sslProcess
+
+void sslTest(void) {
+    uint8_t clientHello[] = {
+        0x16, 0x03, 0x01, 0x00, 0xc8, 0x01, 0x00, 0x00, 0xc4, 0x03, 0x03, 0xec, 0x12, 0xdd, 0x17, 0x64, 0xa4, 0x39, 0xfd, 0x7e, 0x8c, 0x85, 0x46,
+        0xb8, 0x4d, 0x1e, 0xa0, 0x6e, 0xb3, 0xd7, 0xa0, 0x51, 0xf0, 0x3c, 0xb8, 0x17, 0x47, 0x0d, 0x4c, 0x54, 0xc5, 0xdf, 0x72, 0x00, 0x00, 0x1c,
+        0xea, 0xea, 0xc0, 0x2b, 0xc0, 0x2f, 0xc0, 0x2c, 0xc0, 0x30, 0xcc, 0xa9, 0xcc, 0xa8, 0xc0, 0x13, 0xc0, 0x14, 0x00, 0x9c, 0x00, 0x9d, 0x00,
+        0x2f, 0x00, 0x35, 0x00, 0x0a, 0x01, 0x00, 0x00, 0x7f, 0xda, 0xda, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00,
+        0x14, 0x00, 0x00, 0x11, 0x77, 0x77, 0x77, 0x2e, 0x77, 0x69, 0x6b, 0x69, 0x70, 0x65, 0x64, 0x69, 0x61, 0x2e, 0x6f, 0x72, 0x67, 0x00, 0x17,
+        0x00, 0x00, 0x00, 0x23, 0x00, 0x00, 0x00, 0x0d, 0x00, 0x14, 0x00, 0x12, 0x04, 0x03, 0x08, 0x04, 0x04, 0x01, 0x05, 0x03, 0x08, 0x05, 0x05,
+        0x01, 0x08, 0x06, 0x06, 0x01, 0x02, 0x01, 0x00, 0x05, 0x00, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x12, 0x00, 0x00, 0x00, 0x10, 0x00,
+        0x0e, 0x00, 0x0c, 0x02, 0x68, 0x32, 0x08, 0x68, 0x74, 0x74, 0x70, 0x2f, 0x31, 0x2e, 0x31, 0x75, 0x50, 0x00, 0x00, 0x00, 0x0b, 0x00, 0x02,
+        0x01, 0x00, 0x00, 0x0a, 0x00, 0x0a, 0x00, 0x08, 0x1a, 0x1a, 0x00, 0x1d, 0x00, 0x17, 0x00, 0x18, 0x1a, 0x1a, 0x00, 0x01, 0x00};
+    size_t len = sizeof(clientHello);
+
+    ssl_t *ssl = sslProcess(clientHello, len);
+    if (ssl)
+        sslPrint(ssl);
+    else
+        printf("Failed to parse ssl\n");
+}
+
+int main(int argc, char **argv) {
+    sslTest();
+    return 0;
+}

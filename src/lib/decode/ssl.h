@@ -85,4 +85,6 @@ void sslFree(ssl_t *ssl);
 
 ssl_t *sslProcess(uint8_t *data, size_t len);
 
+void sslTest(void);
+
 #endif
