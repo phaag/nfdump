@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2023-2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -34,33 +34,22 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "config.h"
-
-typedef struct uint16Array_s {
-    uint32_t numElements;
-    uint16_t *array;
-} uint16Array_t;
+#include "ssl.h"
 
 typedef struct ja3_s {
-    uint16_t version;
-#define CLIENTja3 0
-#define SERVERja3s 1
-    uint16_t type;
-    uint16Array_t cipherSuites;
-    uint16Array_t extensions;
-    uint16Array_t ellipticCurves;
-    uint16Array_t ellipticCurvesPF;
-    char sniName[256];
+    ssl_t *ssl;
     char *ja3String;
     uint32_t md5Hash[4];
 } ja3_t;
 
 char *ja3HashString(ja3_t *ja3);
 
+char *ja3SNIname(ja3_t *ja3);
+
 void ja3Print(ja3_t *ja3);
 
 void ja3Free(ja3_t *ja3);
 
-ja3_t *ja3Process(uint8_t *data, size_t len);
+ja3_t *ja3Process(const uint8_t *data, size_t len);
 
 #endif

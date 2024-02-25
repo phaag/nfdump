@@ -52,6 +52,7 @@
 #include "nffile.h"
 #include "nfxV3.h"
 #include "output_util.h"
+#include "ssl.h"
 #include "userio.h"
 #include "util.h"
 
@@ -701,12 +702,12 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
         }
         if (ja3 != NULL) {
             fprintf(stream, "  ja3 string   = %s\n", ja3->ja3String);
-            if (ja3->type == CLIENTja3) {
+            if (ja3->ssl->type == CLIENTssl) {
                 fprintf(stream, "  ja3 hash     = %s\n", ja3HashString(ja3));
             } else {
                 fprintf(stream, "  ja3s hash    = %s\n", ja3HashString(ja3));
             }
-            if (ja3->sniName[0]) fprintf(stream, "  sni name     = %s\n", ja3->sniName);
+            if (ja3->ssl->sniName[0]) fprintf(stream, "  sni name     = %s\n", ja3->ssl->sniName);
         }
     }
 

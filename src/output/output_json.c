@@ -416,7 +416,8 @@ static void String_ja3(FILE *stream, recordHandle_t *recordHandle, void *extensi
     if (ja3) {
         fprintf(stream, "	\"ja3 string\" : %s,\n", ja3->ja3String);
         fprintf(stream, "	\"ja3 hash\" : %s,\n", ja3HashString(ja3));
-        if (ja3->sniName[0]) fprintf(stream, "	\"sni\" : %s,\n", ja3->sniName);
+        char *sni = ja3SNIname(ja3);
+        if (sni[0]) fprintf(stream, "	\"sni\" : %s,\n", sni);
     }
 
 }  // End of String_ja3

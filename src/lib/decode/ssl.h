@@ -49,7 +49,7 @@ typedef struct uint16Array_s {
 
 #define AppendArray(a, v)                                                                               \
     if ((a.numElements & arrayMask) == 0) {                                                             \
-        a.array = realloc(a.array, sizeof(uint16_t) * (a.numElements + (arrayMask + 1)));               \
+        a.array = (uint16_t *)realloc(a.array, sizeof(uint16_t) * (a.numElements + (arrayMask + 1)));   \
         if (!a.array) {                                                                                 \
             fprintf(stderr, "malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno)); \
             exit(255);                                                                                  \
@@ -83,7 +83,9 @@ void sslPrint(ssl_t *ssl);
 
 void sslFree(ssl_t *ssl);
 
-ssl_t *sslProcess(uint8_t *data, size_t len);
+void sslPrint(ssl_t *ssl);
+
+ssl_t *sslProcess(const uint8_t *data, size_t len);
 
 void sslTest(void);
 

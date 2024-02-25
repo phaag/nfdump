@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2023-2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -37,341 +37,86 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "config.h"
 #include "md5.h"
+#include "ssl.h"
 #include "util.h"
 
-// array handling
-
-#define arrayMask 0x1F
-
-#define NewArray(a)        \
-    {                      \
-        a.numElements = 0; \
-        a.array = NULL;    \
-    }
-
-#define AppendArray(a, v)                                                                               \
-    if ((a.numElements & arrayMask) == 0) {                                                             \
-        a.array = realloc(a.array, sizeof(uint16_t) * (a.numElements + (arrayMask + 1)));               \
-        if (!a.array) {                                                                                 \
-            fprintf(stderr, "malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno)); \
-            exit(255);                                                                                  \
-        }                                                                                               \
-    }                                                                                                   \
-    a.array[a.numElements++] = (v);
-
-#define FreeArray(a)                \
-    if (a.numElements && a.array) { \
-        free(a.array);              \
-        a.numElements = 0;          \
-        a.array = NULL;             \
-    }
-
-#define LenArray(a) a.numElements
-
-static int ja3ParseExtensions(ja3_t *ja3, uint8_t *data, size_t len);
-
-static int ja3ParseClientHandshake(ja3_t *ja3, uint8_t *data, size_t len);
-
-static char *ja3Hash(ja3_t *ja3);
-
-static int checkGREASE(uint16_t val);
-
-/*
- * grease_table = {0x0a0a, 0x1a1a, 0x2a2a, 0x3a3a,
- *              0x4a4a, 0x5a5a, 0x6a6a, 0x7a7a,
- *              0x8a8a, 0x9a9a, 0xaaaa, 0xbaba,
- *              0xcaca, 0xdada, 0xeaea, 0xfafa};
- */
-static int checkGREASE(uint16_t val) {
-    if ((val & 0x0f0f) != 0x0a0a) {
-        return 0;
-    } else {
-        uint8_t *p = (uint8_t *)&val;
-        return p[0] == p[1] ? 1 : 0;
-    }
-    // not reached
-
-}  // End of checkGrease
-
-#define CheckSize(s, n)                                          \
-    {                                                            \
-        if ((n) > (s)) {                                         \
-            return 0;                                            \
-        }                                                        \
-        dbg_printf("Size left: %zu, check for: %u\n", (s), (n)); \
-        (s) -= (n);                                              \
-    }
+static int ja3Hash(ja3_t *ja3);
 
 #define CheckStringSize(s, l)                                                   \
     {                                                                           \
         if ((s) < (l)) {                                                        \
             LogError("sLen error in %s line %d: %s\n", __FILE__, __LINE__, ""); \
             abort();                                                            \
-            return NULL;                                                        \
+            return 0;                                                           \
         } else {                                                                \
             (s) -= (l);                                                         \
         }                                                                       \
     }
 
-char *ja3Hash(ja3_t *ja3) {
-    size_t sLen = 6 * (1 + 1 + LenArray(ja3->cipherSuites) + 1 + LenArray(ja3->extensions) + 1 + LenArray(ja3->ellipticCurves) + 1 +
-                       LenArray(ja3->ellipticCurvesPF) + 1) +
+static int ja3Hash(ja3_t *ja3) {
+    ssl_t *ssl = ja3->ssl;
+
+    size_t sLen = 6 * (1 + 1 + LenArray(ssl->cipherSuites) + 1 + LenArray(ssl->extensions) + 1 + LenArray(ssl->ellipticCurves) + 1 +
+                       LenArray(ssl->ellipticCurvesPF) + 1) +
                   1;  // +1 '\0'
 
     ja3->ja3String = calloc(1, sLen);
     if (!ja3->ja3String) {
         LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-        return NULL;
+        return 0;
     }
     char *s = ja3->ja3String;
-    snprintf(s, sLen, "%u,", ja3->version);
+    snprintf(s, sLen, "%u,", ssl->protocolVersion);
     size_t len = strlen(s);
     s += len;
     sLen = sLen - 1 - len;
-    for (int i = 0; i < LenArray(ja3->cipherSuites); i++) {
-        len = snprintf(s, sLen, "%u-", ja3->cipherSuites.array[i]);
+    for (int i = 0; i < LenArray(ssl->cipherSuites); i++) {
+        len = snprintf(s, sLen, "%u-", ssl->cipherSuites.array[i]);
         s += len;
         CheckStringSize(sLen, len);
     }
-    if (LenArray(ja3->cipherSuites)) --s;
+    if (LenArray(ssl->cipherSuites)) --s;
     *s++ = ',';
 
-    for (int i = 0; i < LenArray(ja3->extensions); i++) {
-        len = snprintf(s, sLen, "%u-", ja3->extensions.array[i]);
+    for (int i = 0; i < LenArray(ssl->extensions); i++) {
+        len = snprintf(s, sLen, "%u-", ssl->extensions.array[i]);
         s += len;
         CheckStringSize(sLen, len);
     }
-    if (LenArray(ja3->extensions)) --s;
+    if (LenArray(ssl->extensions)) --s;
 
     // SERVERja3s stops here
-    if (ja3->type == CLIENTja3) {
+    if (ssl->type == CLIENTssl) {
         // CLIENTja3
         *s++ = ',';
 
-        for (int i = 0; i < LenArray(ja3->ellipticCurves); i++) {
-            len = snprintf(s, sLen, "%u-", ja3->ellipticCurves.array[i]);
+        for (int i = 0; i < LenArray(ssl->ellipticCurves); i++) {
+            len = snprintf(s, sLen, "%u-", ssl->ellipticCurves.array[i]);
             s += len;
             CheckStringSize(sLen, len);
         }
-        if (LenArray(ja3->ellipticCurves)) --s;
+        if (LenArray(ssl->ellipticCurves)) --s;
         *s++ = ',';
 
-        for (int i = 0; i < LenArray(ja3->ellipticCurvesPF); i++) {
-            len = snprintf(s, sLen, "%u-", ja3->ellipticCurvesPF.array[i]);
+        for (int i = 0; i < LenArray(ssl->ellipticCurvesPF); i++) {
+            len = snprintf(s, sLen, "%u-", ssl->ellipticCurvesPF.array[i]);
             s += len;
             CheckStringSize(sLen, len);
         }
-        if (LenArray(ja3->ellipticCurvesPF)) --s;
+        if (LenArray(ssl->ellipticCurvesPF)) --s;
     }
 
     if (sLen == 0) {
         LogError("sLen error in %s line %d: %s\n", __FILE__, __LINE__, "Size == 0");
-        return NULL;
+        return 0;
     }
 
     *s++ = '\0';
     md5_hash((uint8_t *)ja3->ja3String, strlen(ja3->ja3String), ja3->md5Hash);
 
-    return ja3->ja3String;
-
+    return 1;
 }  // End of ja3Hash
-
-static int ja3ParseExtensions(ja3_t *ja3, uint8_t *data, size_t len) {
-    if (len == 0) {
-        LogError("%s handshake error: extension length: 0", __FUNCTION__);
-        return 0;
-    }
-    size_t size_left = len;
-    int index = 0;
-
-    NewArray(ja3->extensions);
-    NewArray(ja3->ellipticCurves);
-    NewArray(ja3->ellipticCurvesPF);
-    while (size_left >= 4) {
-        uint16_t exType = data[index] << 8 | data[index + 1];
-        index += 2;
-        uint16_t exLen = data[index] << 8 | data[index + 1];
-        CheckSize(size_left, exLen + 4);
-        index += 2;
-
-        if (checkGREASE(exType) == 0) {
-            dbg_printf("Found extension type: %u, len: %u\n", exType, exLen);
-            AppendArray(ja3->extensions, exType);
-        }
-
-        switch (exType) {
-            case 0: {  // server_name
-                // skip sniListLength = data[index]<<8 | data[index+1];
-                index += 2;
-                // skip type = data[index];
-                index++;
-                uint16_t sniLen = data[index] << 8 | data[index + 1];
-                index += 2;
-                if ((sniLen + 5) > exLen || sniLen > 255) {
-                    LogError("%s handshake extension length error", __FUNCTION__);
-                    return 0;
-                }
-                memcpy(ja3->sniName, data + index, sniLen);
-                index += sniLen;
-                ja3->sniName[sniLen] = '\0';
-                dbg_printf("Found sni name: %s\n", ja3->sniName);
-            } break;
-            case 10: {  // supported_groups
-                uint16_t ecsLen = data[index] << 8 | data[index + 1];
-                if ((ecsLen + 2) > exLen) {
-                    LogError("%s handshake error: ecsLen: %u, exLen: %u", __FUNCTION__, ecsLen, exLen);
-                    return 0;
-                }
-                index += 2;
-                for (int i = 0; i < (ecsLen >> 1); i++) {
-                    uint16_t curve = data[index] << 8 | data[index + 1];
-                    index += 2;
-                    AppendArray(ja3->ellipticCurves, curve);
-                    dbg_printf("Found curve: 0x%x\n", curve);
-                }
-            } break;
-            case 11: {  // ec_point_formats groups
-                uint8_t ecspLen = data[index];
-                if ((ecspLen + 1) > exLen) {
-                    LogError("%s handshake error: ecspLen: %u, exLen: %u", __FUNCTION__, ecspLen, exLen);
-                    return 0;
-                }
-                index++;
-                for (int i = 0; i < ecspLen; i++) {
-                    uint8_t curvePF = data[index];
-                    index++;
-                    AppendArray(ja3->ellipticCurvesPF, curvePF);
-                    dbg_printf("Found curvePF: 0x%x\n", curvePF);
-                }
-            } break;
-            default:
-                index += exLen;
-        }
-    }
-    dbg_printf("End extension. size: %zu\n", size_left);
-
-    return 1;
-
-}  // End of ja3ParseExtensions
-
-static int ja3ParseClientHandshake(ja3_t *ja3, uint8_t *data, size_t len) {
-    // version(2) random(32) sessionIDLen(1)
-    size_t size_left = len;
-    int index = 0;
-    CheckSize(size_left, 35);
-
-    uint16_t version = data[index] << 8 | data[index + 1];
-    ja3->version = version;
-
-    if (data[index] != 3 || data[index + 1] > 4) {
-        LogError("%s handshake error: version 0x%xnot supported", __FUNCTION__, version);
-        return 0;
-    }
-    index += 34;
-    uint8_t sessionIDLen = data[index++];
-    if (sessionIDLen > 32) {
-        LogError("%s handshake error: sessionIDLen %u > 32", __FUNCTION__, sessionIDLen);
-        return 0;
-    }
-
-    // sessionIDLen + cipherSuiteHeaderLen(2)
-    CheckSize(size_left, sessionIDLen + 2);
-    index += sessionIDLen;
-    uint16_t cipherSuiteHeaderLen = data[index] << 8 | data[index + 1];
-    index += 2;
-
-    // cipherSuiteHeaderLen + compressionMethodes(1)
-    CheckSize(size_left, cipherSuiteHeaderLen + 1);
-    int numCiphers = cipherSuiteHeaderLen >> 1;
-    if (numCiphers == 0) {
-        LogError("%s handshake error: Number of Ciphers: 0", __FUNCTION__);
-        return 0;
-    }
-
-    NewArray(ja3->cipherSuites);
-    uint8_t *p = (uint8_t *)(data + index);
-    for (int i = 0; i < numCiphers; i++) {
-        uint16_t cipher = p[i << 1] << 8 | p[(i << 1) + 1];
-        if (checkGREASE(cipher) == 0) {
-            AppendArray(ja3->cipherSuites, cipher);
-        }
-        index += 2;
-    }
-
-    uint8_t compressionMethodes = data[index++];
-
-    // skip compression methodes
-    index += compressionMethodes;
-
-    // compressionMethodes extensionLength(2)
-    CheckSize(size_left, compressionMethodes + 2);
-
-    uint16_t extensionLength = data[index] << 8 | data[index + 1];
-    index += 2;
-    CheckSize(size_left, extensionLength);
-
-    return ja3ParseExtensions(ja3, data + index, extensionLength);
-
-}  // End of ja3ParseClientHandshake
-
-static int ja3ParseServerHandshake(ja3_t *ja3, uint8_t *data, size_t len) {
-    // version(2) random(32) sessionIDLen(1)
-    size_t size_left = len;
-    int index = 0;
-    CheckSize(size_left, 35);
-
-    uint16_t version = data[index] << 8 | data[index + 1];
-    ja3->version = version;
-
-    if (data[index] != 3 || data[index + 1] > 4) {
-        LogError("%s handshake error: version 0x%xnot supported", __FUNCTION__, version);
-        return 0;
-    }
-    index += 34;
-    uint8_t sessionIDLen = data[index++];
-    if (sessionIDLen > 32) {
-        LogError("%s handshake error: sessionIDLen %u > 32", __FUNCTION__, sessionIDLen);
-        return 0;
-    }
-
-    // sessionIDLen + cipherSuite (2) + compression(1) + extensionLength(2)
-    CheckSize(size_left, sessionIDLen + 5);
-    index += sessionIDLen;
-    uint16_t cipherSuite = data[index] << 8 | data[index + 1];
-    index += 2;
-
-    NewArray(ja3->cipherSuites);
-    AppendArray(ja3->cipherSuites, cipherSuite);
-
-    // skip compression = data[index];
-    index++;
-
-    uint16_t extensionLength = data[index] << 8 | data[index + 1];
-    index += 2;
-    CheckSize(size_left, extensionLength);
-
-    size_left = extensionLength;
-    NewArray(ja3->extensions);
-    while (size_left >= 4) {
-        uint16_t exType = data[index] << 8 | data[index + 1];
-        index += 2;
-        uint16_t exLen = data[index] << 8 | data[index + 1];
-        CheckSize(size_left, exLen + 4);
-        index += 2;
-
-        if (checkGREASE(exType) == 0) {
-            dbg_printf("Found extension type: %u, len: %u\n", exType, exLen);
-            AppendArray(ja3->extensions, exType);
-        }
-        index += exLen;
-    }
-    dbg_printf("End extension. size: %zu\n", size_left);
-
-    return 1;
-
-}  // End of ja3ParseServerHandshake
 
 char *ja3HashString(ja3_t *ja3) {
     static char out[33];
@@ -392,121 +137,133 @@ char *ja3HashString(ja3_t *ja3) {
     return out;
 }  // End of ja3HashString
 
+char *ja3SNIname(ja3_t *ja3) { return ja3 ? ja3->ssl->sniName : ""; }  // End of ja3SNIname
+
 void ja3Print(ja3_t *ja3) {
-    if (ja3->type == CLIENTja3)
-        printf("ja3 client record for %s:\n", ja3->sniName);
-    else
-        printf("ja3 server record\n");
+    printf("SSL/TLS info:\n");
+    sslPrint(ja3->ssl);
 
-    printf("version   : %u\n", ja3->version);
-    printf("ciphers   :");
-    for (int i = 0; i < LenArray(ja3->cipherSuites); i++) {
-        printf(" %u", ja3->cipherSuites.array[i]);
-    }
-    printf("\nextensions:");
-    for (int i = 0; i < LenArray(ja3->extensions); i++) {
-        printf(" %u", ja3->extensions.array[i]);
-    }
-    printf("\n");
-
-    if (ja3->type == CLIENTja3) {
-        printf("curves    :");
-        for (int i = 0; i < LenArray(ja3->ellipticCurves); i++) {
-            printf(" %u", ja3->ellipticCurves.array[i]);
-        }
-        printf("\ncurves PF :");
-        for (int i = 0; i < LenArray(ja3->ellipticCurvesPF); i++) {
-            printf(" %u", ja3->ellipticCurvesPF.array[i]);
-        }
-        printf("\n");
-    }
-
-    if (ja3->ja3String) printf("string    : %s\n", ja3->ja3String);
-
-    if (ja3->type == CLIENTja3)
-        printf("ja3 hash  : %s\n\n", ja3HashString(ja3));
-    else
-        printf("ja3s hash : %s\n\n", ja3HashString(ja3));
+    printf("ja3 string : %s\n", ja3->ja3String);
+    printf("ja3 hash   : %s\n\n", ja3HashString(ja3));
 
 }  // End of ja3Print
 
 void ja3Free(ja3_t *ja3) {
-    FreeArray(ja3->cipherSuites);
-    FreeArray(ja3->extensions);
-    FreeArray(ja3->ellipticCurves);
-    FreeArray(ja3->ellipticCurvesPF);
-
     if (ja3->ja3String) free(ja3->ja3String);
-
     free(ja3);
 
 }  // End of ja3Free
 
-ja3_t *ja3Process(uint8_t *data, size_t len) {
-    dbg_printf("\nja3Process new packet. size: %zu\n", len);
-    // Check for
-    // - ssl header length (5)
-    // - message type/length (4)
-    // - and handshake content type (22)
-    if (len < 9 || data[0] != 22) {
-        dbg_printf("Not an ssl handshake packet\n");
-        return NULL;
-    }
-
-    // skip tlsVersion = data[1]<<8 | data[2];
-    if (data[1] != 3 && data[2] > 4) {  // major version and SSL 3.0 - TLS1.3
-        dbg_printf("Not an SSL 3.0 - TLS 1.3 \n");
-        return NULL;
-    }
-
-    uint16_t sslLength = data[3] << 8 | data[4];
-    if ((sslLength + 5) > len) {
-        dbg_printf("Short ssl packet -  size: %zu, sslLength: %u\n", len, sslLength);
-        return NULL;
-    }
-
-    uint8_t messageType = data[5];
-    uint32_t messageLength = data[6] << 16 | data[7] << 8 | data[8];
-
-    dbg_printf("Message type: %u, length: %u\n", messageType, messageLength);
-    len -= 9;
-    if (messageLength > len) {
-        dbg_printf("Message length error: %u > %zu\n", messageLength, len);
-        return NULL;
-    }
+ja3_t *ja3Process(const uint8_t *data, size_t len) {
+    ssl_t *ssl = sslProcess(data, len);
+    if (!ssl) return NULL;
 
     ja3_t *ja3 = calloc(1, sizeof(ja3_t));
     if (!ja3) {
         LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
+    ja3->ssl = ssl;
 
-    int ok = 0;
-    switch (messageType) {
-        case 1:  // ClientHello
-            ja3->type = CLIENTja3;
-            ok = ja3ParseClientHandshake(ja3, data + 9, messageLength);
-            if (ok) ja3Hash(ja3);
-            break;
-        case 2:  // ServerHello
-            ja3->type = SERVERja3s;
-            ok = ja3ParseServerHandshake(ja3, data + 9, messageLength);
-            if (ok) ja3Hash(ja3);
-            break;
-        default:
-            dbg_printf("ja3 process: Message type not ClientHello or ServerHello: %u\n", messageType);
-            ja3Free(ja3);
-            return NULL;
-    }
-
-    if (!ok) {
-        ja3Free(ja3);
+    if (ja3Hash(ja3) == 0) {
+        free(ja3);
         return NULL;
     }
-
-    dbg_printf("ja3 process message: %u, Length: %u\n", messageType, messageLength);
-    // ja3Print(ja3);
 
     return ja3;
 
 }  // End of ja3Process
+
+#ifdef MAIN
+
+int main(int argc, char **argv) {
+    const uint8_t tls12[] = {
+        0x16, 0x03,                                      // ..X.....
+        0x01, 0x02, 0x00, 0x01, 0x00, 0x01, 0xfc, 0x03,  // ........
+        0x03, 0xec, 0xb2, 0x69, 0x1a, 0xdd, 0xb2, 0xbf,  // ...i....
+        0x6c, 0x59, 0x9c, 0x7a, 0xaa, 0xe2, 0x3d, 0xe5,  // lY.z..=.
+        0xf4, 0x25, 0x61, 0xcc, 0x04, 0xeb, 0x41, 0x02,  // .%a...A.
+        0x9a, 0xcc, 0x6f, 0xc0, 0x50, 0xa1, 0x6a, 0xc1,  // ..o.P.j.
+        0xd2, 0x20, 0x46, 0xf8, 0x61, 0x7b, 0x58, 0x0a,  // . F.a{X.
+        0xc9, 0x35, 0x8e, 0x2a, 0xa4, 0x4e, 0x30, 0x6d,  // .5.*.N0m
+        0x52, 0x46, 0x6b, 0xcc, 0x98, 0x9c, 0x87, 0xc8,  // RFk.....
+        0xca, 0x64, 0x30, 0x9f, 0x5f, 0xaf, 0x50, 0xba,  // .d0._.P.
+        0x7b, 0x4d, 0x00, 0x22, 0x13, 0x01, 0x13, 0x03,  // {M."....
+        0x13, 0x02, 0xc0, 0x2b, 0xc0, 0x2f, 0xcc, 0xa9,  // ...+./..
+        0xcc, 0xa8, 0xc0, 0x2c, 0xc0, 0x30, 0xc0, 0x0a,  // ...,.0..
+        0xc0, 0x09, 0xc0, 0x13, 0xc0, 0x14, 0x00, 0x9c,  // ........
+        0x00, 0x9d, 0x00, 0x2f, 0x00, 0x35, 0x01, 0x00,  // .../.5..
+        0x01, 0x91, 0x00, 0x00, 0x00, 0x21, 0x00, 0x1f,  // .....!..
+        0x00, 0x00, 0x1c, 0x63, 0x6f, 0x6e, 0x74, 0x69,  // ...conti
+        0x6c, 0x65, 0x2e, 0x73, 0x65, 0x72, 0x76, 0x69,  // le.servi
+        0x63, 0x65, 0x73, 0x2e, 0x6d, 0x6f, 0x7a, 0x69,  // ces.mozi
+        0x6c, 0x6c, 0x61, 0x2e, 0x63, 0x6f, 0x6d, 0x00,  // lla.com.
+        0x17, 0x00, 0x00, 0xff, 0x01, 0x00, 0x01, 0x00,  // ........
+        0x00, 0x0a, 0x00, 0x0e, 0x00, 0x0c, 0x00, 0x1d,  // ........
+        0x00, 0x17, 0x00, 0x18, 0x00, 0x19, 0x01, 0x00,  // ........
+        0x01, 0x01, 0x00, 0x0b, 0x00, 0x02, 0x01, 0x00,  // ........
+        0x00, 0x23, 0x00, 0x00, 0x00, 0x10, 0x00, 0x0e,  // .#......
+        0x00, 0x0c, 0x02, 0x68, 0x32, 0x08, 0x68, 0x74,  // ...h2.ht
+        0x74, 0x70, 0x2f, 0x31, 0x2e, 0x31, 0x00, 0x05,  // tp/1.1..
+        0x00, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x22, 0x00, 0x0a, 0x00, 0x08, 0x04, 0x03, 0x05,  // ".......
+        0x03, 0x06, 0x03, 0x02, 0x03, 0x00, 0x33, 0x00,  // ......3.
+        0x6b, 0x00, 0x69, 0x00, 0x1d, 0x00, 0x20, 0x89,  // k.i... .
+        0x09, 0x85, 0x8f, 0xbe, 0xb6, 0xed, 0x2f, 0x12,  // ....../.
+        0x48, 0xba, 0x5b, 0x9e, 0x29, 0x78, 0xbe, 0xad,  // H.[.)x..
+        0x0e, 0x84, 0x01, 0x10, 0x19, 0x2c, 0x61, 0xda,  // .....,a.
+        0xed, 0x00, 0x96, 0x79, 0x8b, 0x18, 0x44, 0x00,  // ...y..D.
+        0x17, 0x00, 0x41, 0x04, 0x4d, 0x18, 0x3d, 0x91,  // ..A.M.=.
+        0xf5, 0xee, 0xd3, 0x57, 0x91, 0xfa, 0x98, 0x24,  // ...W...$
+        0x64, 0xe3, 0xb0, 0x21, 0x4a, 0xaa, 0x5f, 0x5d,  // d..!J._]
+        0x1b, 0x78, 0x61, 0x6d, 0x9b, 0x9f, 0xbe, 0xbc,  // .xam....
+        0x22, 0xd1, 0x1f, 0x53, 0x5b, 0x2f, 0x94, 0xc6,  // "..S[/..
+        0x86, 0x14, 0x31, 0x36, 0xaa, 0x79, 0x5e, 0x6e,  // ..16.y^n
+        0x5a, 0x87, 0x5d, 0x6c, 0x08, 0x06, 0x4a, 0xd5,  // Z.]l..J.
+        0xb7, 0x6d, 0x44, 0xca, 0xad, 0x76, 0x6e, 0x24,  // .mD..vn$
+        0x83, 0x01, 0x27, 0x48, 0x00, 0x2b, 0x00, 0x05,  // ..'H.+..
+        0x04, 0x03, 0x04, 0x03, 0x03, 0x00, 0x0d, 0x00,  // ........
+        0x18, 0x00, 0x16, 0x04, 0x03, 0x05, 0x03, 0x06,  // ........
+        0x03, 0x08, 0x04, 0x08, 0x05, 0x08, 0x06, 0x04,  // ........
+        0x01, 0x05, 0x01, 0x06, 0x01, 0x02, 0x03, 0x02,  // ........
+        0x01, 0x00, 0x2d, 0x00, 0x02, 0x01, 0x01, 0x00,  // ..-.....
+        0x1c, 0x00, 0x02, 0x40, 0x01, 0x00, 0x15, 0x00,  // ...@....
+        0x7a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // z.......
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // ........
+        0x00, 0x00, 0x00                                 // ...
+    };
+    /*
+    [JA4: t13d1715h2_5b57614c22b0_3d5424432f57]
+    JA4_r:
+    t13d1715h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,001c,0022,0023,002b,002d,0033,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201]
+
+    JA3 Fullstring:
+    771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,0-23-65281-10-11-35-16-5-34-51-43-13-45-28-21,29-23-24-25-256-257,0]
+    [JA3: 579ccef312d18482fc42e2b822ca2430]
+    */
+    // size_t len = sizeof(clientHello);
+    size_t len = sizeof(tls12);
+
+    ja3_t *ja3 = ja3Process(tls12, len);
+    if (ja3)
+        ja3Print(ja3);
+    else
+        printf("Failed to parse ssl\n");
+
+    return 0;
+}
+
+#endif

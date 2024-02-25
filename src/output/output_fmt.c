@@ -1083,7 +1083,7 @@ static void String_sniName(FILE *stream, recordHandle_t *recordHandle) {
     }
 
     if (ja3) {
-        fprintf(stream, "%6s", ja3->sniName);
+        fprintf(stream, "%6s", ja3SNIname(ja3));
     }
 
 }  // End of String_sniName

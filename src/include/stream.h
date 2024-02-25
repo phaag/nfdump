@@ -52,10 +52,10 @@ typedef struct ByteStream_s {
         (b).last = (b).stream != NULL ? (b).stream + (b).size : NULL; \
     } while (0)
 
-#define ByteStream_SET_ERROR(b)                                      \
-    do {                                                             \
-        (b).last = NULL;                                             \
-        LogError("%s():d ByteStream error", __FUNCTION__, __LINE__); \
+#define ByteStream_SET_ERROR(b)                                       \
+    do {                                                              \
+        (b).last = NULL;                                              \
+        LogError("%s():%d ByteStream error", __FUNCTION__, __LINE__); \
     } while (0)
 
 #define ByteStream_IS_ERROR(b) ((b).last == NULL)
