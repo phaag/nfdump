@@ -234,10 +234,10 @@ int main(int argc, char **argv) {
         exit(255);
     }
 
-    recordHeaderV3_t *record = calloc(1, 4096);
-    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    recordHeaderV3_t *record = (recordHeaderV3_t *)calloc(1, 4096);
+    recordHandle_t *recordHandle = (recordHandle_t *)calloc(1, sizeof(recordHandle_t));
     if (!record || !recordHandle) {
-        perror("malloc() failed:");
+        perror("calloc() failed:");
         exit(255);
     }
 

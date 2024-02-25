@@ -74,9 +74,9 @@ static char *getVersionString(uint16_t nfversion) {
 
 /* functions */
 int InitExporterList(void) {
-    exporter_list = calloc(MAX_EXPORTERS, sizeof(exporter_t *));
+    exporter_list = (exporter_t **)calloc(MAX_EXPORTERS, sizeof(exporter_t *));
     if (!exporter_list) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
     exporter_root = NULL;
@@ -259,7 +259,7 @@ int AddExporterStat(exporter_stats_record_t *stat_record) {
     int use_copy;
     exporter_stats_record_t *rec;
     if (((ptrdiff_t)stat_record & 0x7) != 0) {
-        rec = malloc(stat_record->header.size);
+        rec = (exporter_stats_record_t *)malloc(stat_record->header.size);
         if (!rec) {
             LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
             exit(255);

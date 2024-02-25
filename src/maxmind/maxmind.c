@@ -223,7 +223,7 @@ static FILE *checkFile(char *fileName, char **fieldNames) {
 }  // End of checkFile
 
 int Init_MaxMind(void) {
-    mmHandle = calloc(1, sizeof(mmHandle_t));
+    mmHandle = (mmHandle_t *)calloc(1, sizeof(mmHandle_t));
     if (!mmHandle) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;

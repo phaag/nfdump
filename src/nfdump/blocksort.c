@@ -224,7 +224,8 @@ static void qusort(SortRecord_t *left, SortRecord_t *right) {
         if (right - left > 100000 && n_threads < max_threads) {
             // start a new thread - max_threads is a soft limit
             pthread_t thread;
-            SortRecord_t **param = malloc(2 * sizeof(SortRecord_t *));
+            SortRecord_t **param = (SortRecord_t **)malloc(2 * sizeof(SortRecord_t *));
+            if (!param) abort();
             param[0] = left;
             param[1] = right;
             pthread_mutex_lock(&mutex);
@@ -256,7 +257,8 @@ void blocksort(SortRecord_t *data, int len) {
         max_threads = 8;
 
     pthread_t thread;
-    SortRecord_t **param = malloc(2 * sizeof(SortRecord_t *));
+    SortRecord_t **param = (SortRecord_t **)malloc(2 * sizeof(SortRecord_t *));
+    if (!param) abort();
     param[0] = data;
     param[1] = data + len - 1;
     pthread_create(&thread, NULL, sort_thr, param);

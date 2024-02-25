@@ -279,9 +279,8 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
     time_t t_start, t_now;
     uint32_t ignored_packets;
     ssize_t cnt;
-    void *in_buff;
 
-    in_buff = malloc(NETWORK_INPUT_BUFF_SIZE);
+    void *in_buff = malloc(NETWORK_INPUT_BUFF_SIZE);
     if (!in_buff) {
         LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;

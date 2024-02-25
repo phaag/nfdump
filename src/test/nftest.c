@@ -102,9 +102,9 @@ static void CheckFilter(char *filter, recordHandle_t *recordHandle, int expect) 
 static void runTest(void) {
     void *p = malloc(4192);
     AddV3Header(p, recordHeaderV3);
-    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    recordHandle_t *recordHandle = (recordHandle_t *)calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
-        perror("malloc() failed:");
+        perror("calloc() failed:");
         exit(255);
     }
     MapRecordHandle(recordHandle, recordHeaderV3, 1);

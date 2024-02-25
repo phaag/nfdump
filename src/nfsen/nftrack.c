@@ -162,14 +162,14 @@ static data_row *process(void *engine) {
 
     port_table = (data_row *)calloc(65536, sizeof(data_row));
     if (!port_table) {
-        LogError("malloc() allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
     uint32_t processed = 0;
-    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    recordHandle_t *recordHandle = (recordHandle_t *)calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -95,8 +95,8 @@ static inline metric_record_t *GetMetric(char *ident, uint32_t exporterID) {
     }
 
     dbg_printf("New metric: %s, %x\n", ident, exporterID);
-    metric_chain = malloc(sizeof(metric_chain_t));
-    metric_record_t *metric_record = calloc(1, sizeof(metric_record_t));
+    metric_chain = (metric_chain_t *)calloc(1, sizeof(metric_chain_t));
+    metric_record_t *metric_record = (metric_record_t *)calloc(1, sizeof(metric_record_t));
     if (!metric_chain || !metric_record) {
         LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
@@ -214,7 +214,7 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
     dbg_printf("Started MetricThread\n");
     void *message = malloc(sizeof(message_header_t) + sizeof(metric_record_t));
     if (!message) {
-        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         pthread_exit(NULL);
     }
     time_t interval = 60;
@@ -261,7 +261,7 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
             void *_message = realloc(message, numMetrics * sizeof(metric_record_t) + sizeof(message_header_t));
             if (!_message) {
                 pthread_mutex_unlock(&mutex);
-                LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 pthread_exit(NULL);
             }
             message = _message;

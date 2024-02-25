@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -160,7 +160,7 @@ static char *cmd_expand(char *launch_process, launcher_args_t *launcher_args) {
                     s = NULL;
             }
             if (s) {
-                q = realloc(q, strlen(q) + strlen(s));
+                q = (char *)realloc(q, strlen(q) + strlen(s));
                 if (!q) {
                     LogError("realloc() error in %s:%i: %s", __FILE__, __LINE__, strerror(errno));
                     return NULL;

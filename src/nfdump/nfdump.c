@@ -291,9 +291,9 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
         SetIdent(nffile_w, nffile_r->ident);
     }
 
-    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    recordHandle_t *recordHandle = (recordHandle_t *)calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return stat_record;
     }
     int done = 0;
@@ -557,7 +557,7 @@ int main(int argc, char **argv) {
     configFile = NULL;
     geo_file = getenv("NFGEODB");
 
-    outputParams = calloc(1, sizeof(outputParams_t));
+    outputParams = (outputParams_t *)calloc(1, sizeof(outputParams_t));
     if (!outputParams) {
         LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         exit(EXIT_FAILURE);
@@ -811,7 +811,7 @@ int main(int argc, char **argv) {
         while (argc - optind > 0) {
             char *arg = argv[optind++];
             CheckArgLen(arg, 128);
-            filter = realloc(filter, strlen(filter) + strlen(arg) + 2);
+            filter = (char *)realloc(filter, strlen(filter) + strlen(arg) + 2);
             if (!filter) {
                 LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 exit(EXIT_FAILURE);

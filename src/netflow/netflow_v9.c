@@ -397,7 +397,7 @@ static inline exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t exporter_
     // nothing found
     *e = (exporterDomain_t *)calloc(1, sizeof(exporterDomain_t));
     if (!(*e)) {
-        LogError("Process_v9: Panic! malloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("Process_v9: Panic! calloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
     (*e)->info.header.type = ExporterInfoRecordType;
@@ -550,9 +550,7 @@ static templateList_t *getTemplate(exporterDomain_t *exporter, uint16_t id) {
 }  // End of getTemplate
 
 static templateList_t *newTemplate(exporterDomain_t *exporter, uint16_t id) {
-    templateList_t *template;
-
-    template = calloc(1, sizeof(templateList_t));
+    templateList_t *template = (templateList_t *)calloc(1, sizeof(templateList_t));
     if (!template) {
         LogError("Process_v9: Panic! calloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
@@ -642,7 +640,7 @@ static inline void Process_v9_templates(exporterDomain_t *exporter, void *DataPt
             return;
         }
 
-        sequence_t *sequenceTable = malloc((count + 4) * sizeof(sequence_t));  // + 2 for IP and time received
+        sequence_t *sequenceTable = (sequence_t *)malloc((count + 4) * sizeof(sequence_t));  // + 2 for IP and time received
         if (!sequenceTable) {
             LogError("Process_v9: malloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return;
@@ -713,7 +711,7 @@ static inline void Process_v9_templates(exporterDomain_t *exporter, void *DataPt
             LogError("Process_v9: abort template add: %s line %d", __FILE__, __LINE__);
             return;
         }
-        dataTemplate_t *dataTemplate = calloc(1, sizeof(dataTemplate_t));
+        dataTemplate_t *dataTemplate = (dataTemplate_t *)calloc(1, sizeof(dataTemplate_t));
         if (!dataTemplate) {
             LogError("Error calloc(): %s in %s:%d", strerror(errno), __FILE__, __LINE__);
             return;

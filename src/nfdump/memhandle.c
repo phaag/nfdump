@@ -70,15 +70,15 @@ static MemHandler_t *MemHandler = NULL;
 #define MaxMemBlocks 256
 
 static int nfalloc_Init(uint32_t memBlockSize) {
-    MemHandler = calloc(1, sizeof(MemHandler_t));
+    MemHandler = (MemHandler_t *)calloc(1, sizeof(MemHandler_t));
     if (!MemHandler) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
 
     MemHandler->memblock = (void **)calloc(MaxMemBlocks, sizeof(void *));
     if (!MemHandler->memblock) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
 
@@ -88,7 +88,7 @@ static int nfalloc_Init(uint32_t memBlockSize) {
 
     MemHandler->memblock[0] = calloc(1, memBlockSize);
     if (!MemHandler->memblock[0]) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
 

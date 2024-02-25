@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -60,9 +60,9 @@ static void IntHandler(int signal) {
 }  // End of IntHandler
 
 messageQueue_t *NewMessageQueue(void) {
-    messageQueue_t *messageQueue = calloc(1, sizeof(messageQueue_t));
+    messageQueue_t *messageQueue = (messageQueue_t *)calloc(1, sizeof(messageQueue_t));
     if (!messageQueue) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
     int err = 0;
@@ -79,12 +79,12 @@ messageQueue_t *NewMessageQueue(void) {
 }  // End of NewMessageQueue
 
 void pushMessage(messageQueue_t *messageQueue, message_t *message) {
-    messageList_t *listElement = malloc(sizeof(messageList_t));
+    messageList_t *listElement = (messageList_t *)malloc(sizeof(messageList_t));
     if (!listElement) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return;
     }
-    listElement->message = malloc(message->length);
+    listElement->message = (message_t *)malloc(message->length);
     if (!listElement->message) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return;
@@ -143,7 +143,7 @@ __attribute__((noreturn)) void *pipeReader(void *arg) {
 
     thread_arg_t *thread_arg = (thread_arg_t *)arg;
 
-    char *buffer = malloc(MAXMSGSIZE);
+    char *buffer = (char *)malloc(MAXMSGSIZE);
     int fd = STDIN_FILENO;
 
     struct sigaction act;
@@ -258,7 +258,11 @@ int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname) {
         close(0);
         dup(pfd[0]);
         int i;
-        char **privargv = calloc(argc + 3, sizeof(char *));
+        char **privargv = (char **)calloc(argc + 3, sizeof(char *));
+        if (!privargv) {
+            LogError("Process_v9: Panic! calloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(255);
+        }
         privargv[0] = argv[0];
         for (i = 1; i < argc; i++) privargv[i] = argv[i];
         privargv[i++] = "privsep";

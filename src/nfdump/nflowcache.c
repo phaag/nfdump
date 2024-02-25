@@ -700,7 +700,7 @@ static SortElement_t *GetSortList(size_t *size) {
     if (hashSize) {  // aggregated flows in khash
         list = (SortElement_t *)calloc(hashSize, sizeof(SortElement_t));
         if (!list) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
             *size = 0;
             return NULL;
         }
@@ -722,7 +722,7 @@ static SortElement_t *GetSortList(size_t *size) {
         }
         list = (SortElement_t *)calloc(listSize, sizeof(SortElement_t));
         if (!list) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
             *size = 0;
             return NULL;
         }
@@ -878,7 +878,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
     // add format prepend and append length
     fmt_len += strlen(AggrPrependFmt) + strlen(AggrAppendFmt) + 6;  // +6 for 'fmt:', 2 spaces
 
-    char *aggr_fmt = malloc(fmt_len);
+    char *aggr_fmt = (char *)malloc(fmt_len);
     if (!aggr_fmt) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
@@ -1029,8 +1029,8 @@ void InsertFlow(recordHandle_t *recordHandle) {
 
     recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
 
-    FlowHashRecord_t *record = nfmalloc(sizeof(FlowHashRecord_t));
-    record->flowrecord = nfmalloc(recordHeaderV3->size);
+    FlowHashRecord_t *record = (FlowHashRecord_t *)nfmalloc(sizeof(FlowHashRecord_t));
+    record->flowrecord = (recordHeaderV3_t *)nfmalloc(recordHeaderV3->size);
     memcpy((void *)record->flowrecord, (void *)recordHeaderV3, recordHeaderV3->size);
 
     record->msecFirst = genericFlow->msecFirst;

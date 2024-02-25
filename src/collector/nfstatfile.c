@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -245,9 +245,9 @@ int ReadStatInfo(char *dirname, dirstat_t **dirstat_p, int lock) {
     if (next_free >= stack_max_entries) {
         dirstat_env_t *tmp;
         int i;
-        tmp = realloc((void *)dirstat_stack, (stack_max_entries + STACK_BLOCK_SIZE) * sizeof(dirstat_env_t));
+        tmp = (dirstat_env_t *)realloc((void *)dirstat_stack, (stack_max_entries + STACK_BLOCK_SIZE) * sizeof(dirstat_env_t));
         if (!tmp) {
-            LogError("ralloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("realloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
             return ERR_FAIL;
         }
         dirstat_stack = tmp;
