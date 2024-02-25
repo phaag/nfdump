@@ -76,6 +76,9 @@ typedef struct ssl_s {
     uint16Array_t extensions;
     uint16Array_t ellipticCurves;
     uint16Array_t ellipticCurvesPF;
+#define ALPNmaxLen 16
+    // ALPN are currently defined up to 8 bytes
+    char alpnName[ALPNmaxLen];
     char sniName[256];
 } ssl_t;
 
