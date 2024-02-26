@@ -67,6 +67,98 @@ static int checkGREASE(uint16_t val) {
 
 }  // End of checkGrease
 
+static int ProcessExtSNI(ssl_t *ssl, BytesStream_t *sslStream) {
+    uint16_t sniListLength;
+    ByteStream_GET_u16(*sslStream, sniListLength);
+
+    // skip server name type 1
+    ByteStream_SKIP(*sslStream, 1);
+
+    uint16_t sniLen;
+    ByteStream_GET_u16(*sslStream, sniLen);
+    if (sniLen > ByteStream_AVAILABLE(*sslStream) || sniLen > 255) {
+        LogError("%s():%d sni extension length error", __FUNCTION__, __LINE__);
+        return 0;
+    }
+
+    ByteStream_GET_X(*sslStream, ssl->sniName, sniLen);
+    ssl->sniName[sniLen] = '\0';
+    dbg_printf("Found sni name: %s\n", ssl->sniName);
+
+    if ((sniLen + 3) < sniListLength) {
+        // should not happen as only one host_type suported
+        size_t skipBytes = sniListLength - sniLen - 3;
+        ByteStream_SKIP(*sslStream, skipBytes);
+    }
+
+    return 1;
+}  // End of ProcessExtSNI
+
+static int ProcessExtElCurves(ssl_t *ssl, BytesStream_t *sslStream) {
+    uint16_t ecsLen;
+    ByteStream_GET_u16(*sslStream, ecsLen);
+
+    if (ecsLen > ByteStream_AVAILABLE(*sslStream)) {
+        LogError("%s():%d ecs extension length error", __FUNCTION__, __LINE__);
+        return 0;
+    }
+
+    for (int i = 0; i < (ecsLen >> 1); i++) {
+        uint16_t curve;
+        ByteStream_GET_u16(*sslStream, curve);
+        AppendArray(ssl->ellipticCurves, curve);
+        dbg_printf("Found curve: 0x%x\n", curve);
+    }
+    return 1;
+}  // End of ProcessExtElCurves
+
+static int ProcessExtElCurvesPoints(ssl_t *ssl, BytesStream_t *sslStream) {
+    uint8_t ecspLen;
+    ByteStream_GET_u8(*sslStream, ecspLen);
+
+    if (ecspLen > ByteStream_AVAILABLE(*sslStream)) {
+        LogError("%s():%d ecsp extension length error", __FUNCTION__, __LINE__);
+        return 0;
+    }
+
+    for (int i = 0; i < ecspLen; i++) {
+        uint8_t curvePF;
+        ByteStream_GET_u8(*sslStream, curvePF);
+        AppendArray(ssl->ellipticCurvesPF, curvePF);
+        dbg_printf("Found curvePF: 0x%x\n", curvePF);
+    }
+    return 1;
+}  // End of ProcessExtElCurvesPoints
+
+static int ProcessExtALPN(ssl_t *ssl, BytesStream_t *sslStream) {
+    uint16_t alpnLength;
+    ByteStream_GET_u16(*sslStream, alpnLength);
+
+    if (alpnLength > ByteStream_AVAILABLE(*sslStream) || alpnLength >= ALPNmaxLen) {
+        LogError("%s():%d ALPN extension length error", __FUNCTION__, __LINE__);
+        return 0;
+    }
+
+    uint32_t alpnCnt = 0;
+    do {
+        uint8_t alpnStrLen;
+        ByteStream_GET_u8(*sslStream, alpnStrLen);
+        if (alpnCnt == 0) {  // add first ALPN
+            ByteStream_GET_X(*sslStream, ssl->alpnName, alpnStrLen);
+            ssl->alpnName[alpnStrLen] = '\0';
+            printf("Found first ALPN: %s\n", ssl->alpnName);
+        } else {
+            ByteStream_SKIP(*sslStream, alpnStrLen);
+        }
+        alpnCnt += (alpnStrLen + 1);
+    } while ((alpnCnt < alpnLength) && ByteStream_NO_ERROR(*sslStream));
+    if (ByteStream_IS_ERROR(*sslStream)) {
+        LogError("%s():%d ALPN decoding error", __FUNCTION__, __LINE__);
+        return 0;
+    }
+    return 1;
+}  // End of ProcessExtALPN
+
 static int sslParseExtensions(ssl_t *ssl, BytesStream_t sslStream, uint16_t length) {
     dbg_printf("Parse extensions: %x\n", length);
     if (length == 0) {
@@ -94,95 +186,25 @@ static int sslParseExtensions(ssl_t *ssl, BytesStream_t sslStream, uint16_t leng
         }
 
         AppendArray(ssl->extensions, exType);
-
+        int ret = 0;
         switch (exType) {
-            case 0: {  // sni name
-                uint16_t sniListLength;
-                ByteStream_GET_u16(sslStream, sniListLength);
-
-                // skip server name type 1
-                ByteStream_SKIP(sslStream, 1);
-
-                uint16_t sniLen;
-                ByteStream_GET_u16(sslStream, sniLen);
-
-                if (sniLen > ByteStream_AVAILABLE(sslStream) || sniLen > 255) {
-                    LogError("%s():%d sni extension length error", __FUNCTION__, __LINE__);
-                    return 0;
-                }
-
-                ByteStream_GET_X(sslStream, ssl->sniName, sniLen);
-                ssl->sniName[sniLen] = '\0';
-                dbg_printf("Found sni name: %s\n", ssl->sniName);
-
-                if ((sniLen + 3) < sniListLength) {
-                    // should not happen as only one host_type suported
-                    size_t skipBytes = sniListLength - sniLen - 3;
-                    ByteStream_SKIP(sslStream, skipBytes);
-                }
-            } break;
-            case 10: {  // Elliptic curves
-                uint16_t ecsLen;
-                ByteStream_GET_u16(sslStream, ecsLen);
-
-                if (ecsLen > ByteStream_AVAILABLE(sslStream)) {
-                    LogError("%s():%d ecs extension length error", __FUNCTION__, __LINE__);
-                    return 0;
-                }
-
-                for (int i = 0; i < (ecsLen >> 1); i++) {
-                    uint16_t curve;
-                    ByteStream_GET_u16(sslStream, curve);
-                    AppendArray(ssl->ellipticCurves, curve);
-                    dbg_printf("Found curve: 0x%x\n", curve);
-                }
-            } break;
-            case 11: {  // Elliptic curve point formats uncompressed
-                uint8_t ecspLen;
-                ByteStream_GET_u8(sslStream, ecspLen);
-
-                if (ecspLen > ByteStream_AVAILABLE(sslStream)) {
-                    LogError("%s():%d ecsp extension length error", __FUNCTION__, __LINE__);
-                    return 0;
-                }
-
-                for (int i = 0; i < ecspLen; i++) {
-                    uint8_t curvePF;
-                    ByteStream_GET_u8(sslStream, curvePF);
-                    AppendArray(ssl->ellipticCurvesPF, curvePF);
-                    dbg_printf("Found curvePF: 0x%x\n", curvePF);
-                }
-            } break;
-            case 16: {  // application_layer_protocol_negotiation (16)
-                uint16_t alpnLength;
-                ByteStream_GET_u16(sslStream, alpnLength);
-
-                if (alpnLength > ByteStream_AVAILABLE(sslStream) || alpnLength >= ALPNmaxLen) {
-                    LogError("%s():%d ALPN extension length error", __FUNCTION__, __LINE__);
-                    return 0;
-                }
-
-                uint32_t alpnCnt = 0;
-                do {
-                    uint8_t alpnStrLen;
-                    ByteStream_GET_u8(sslStream, alpnStrLen);
-                    if (alpnCnt == 0) {  // add first ALPN
-                        ByteStream_GET_X(sslStream, ssl->alpnName, alpnStrLen);
-                        ssl->alpnName[alpnStrLen] = '\0';
-                        printf("Found first ALPN: %s\n", ssl->alpnName);
-                    } else {
-                        ByteStream_SKIP(sslStream, alpnStrLen);
-                    }
-                    alpnCnt += (alpnStrLen + 1);
-                } while ((alpnCnt < alpnLength) && ByteStream_NO_ERROR(sslStream));
-                if (ByteStream_IS_ERROR(sslStream)) {
-                    LogError("%s():%d ALPN decoding error", __FUNCTION__, __LINE__);
-                    return 0;
-                }
-            } break;
+            case 0:  // sni name
+                ret = ProcessExtSNI(ssl, &sslStream);
+                break;
+            case 10:  // Elliptic curves
+                ret = ProcessExtElCurves(ssl, &sslStream);
+                break;
+            case 11:  // Elliptic curve point formats uncompressed
+                ret = ProcessExtElCurvesPoints(ssl, &sslStream);
+                break;
+            case 16:  // application_layer_protocol_negotiation (16)
+                ret = ProcessExtALPN(ssl, &sslStream);
+                break;
             default:
+                ret = 1;
                 if (exLength) ByteStream_SKIP(sslStream, exLength);
         }
+        if (ret == 0) return 0;
         extensionLength -= (4 + exLength);
     }
     dbg_printf("End extension. size: %d\n", extensionLength);
