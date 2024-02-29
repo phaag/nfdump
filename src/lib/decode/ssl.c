@@ -146,7 +146,7 @@ static int ProcessExtALPN(ssl_t *ssl, BytesStream_t *sslStream) {
         if (alpnCnt == 0) {  // add first ALPN
             ByteStream_GET_X(*sslStream, ssl->alpnName, alpnStrLen);
             ssl->alpnName[alpnStrLen] = '\0';
-            printf("Found first ALPN: %s\n", ssl->alpnName);
+            dbg_printf("Found first ALPN: %s\n", ssl->alpnName);
         } else {
             ByteStream_SKIP(*sslStream, alpnStrLen);
         }
@@ -186,7 +186,7 @@ static int sslParseExtensions(ssl_t *ssl, BytesStream_t sslStream, uint16_t leng
         }
 
         AppendArray(ssl->extensions, exType);
-        int ret = 0;
+        int ret = 1;
         switch (exType) {
             case 0:  // sni name
                 ret = ProcessExtSNI(ssl, &sslStream);
@@ -201,7 +201,6 @@ static int sslParseExtensions(ssl_t *ssl, BytesStream_t sslStream, uint16_t leng
                 ret = ProcessExtALPN(ssl, &sslStream);
                 break;
             default:
-                ret = 1;
                 if (exLength) ByteStream_SKIP(sslStream, exLength);
         }
         if (ret == 0) return 0;
