@@ -1226,7 +1226,7 @@ static int AddPayload(char *type, char *arg, char *opt) {
 			}
 			data_t data = {.dataPtr=md5};
 			if (strcasecmp(arg, "defined") == 0) {
-				return Invert(NewElement(EXlocal, OFFja3, SIZEja3, 0, CMP_BINARY, FUNC_NONE, data));
+				return Invert(NewElement(EXlocal, OFFja3, SIZEja3, 0, CMP_BINARY, FUNC_JA3, data));
 			} else {
 				if (IsMD5(arg) == 0) {
 					yyerror("ja3 string %s is not an MD5 sum", arg);
@@ -1237,7 +1237,7 @@ static int AddPayload(char *type, char *arg, char *opt) {
 					sscanf(arg, "%2hhx", &md5[count]);
 					arg += 2;
 				}
-				return NewElement(EXlocal, OFFja3, SIZEja3, 0, CMP_BINARY, FUNC_NONE, data);
+				return NewElement(EXlocal, OFFja3, SIZEja3, 0, CMP_BINARY, FUNC_JA3, data);
 			}
 	} else {
 		yyerror("Unknown PAYLOAD argument: %s\n", type);

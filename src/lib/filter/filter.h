@@ -105,6 +105,7 @@ typedef enum {
     FUNC_MPLS_ANY,     // function code for matching any MPLS label
     FUNC_PBLOCK,       // function code for matching ports against pblock start
     FUNC_MMAS_LOOKUP,  // function code for optional maxmind AS lookup
+    FUNC_JA3,          // function code for ja3 calc
 } filterFunction_t;
 
 #define FULLMASK FFFFFFFFFFFFFFFFLL

@@ -43,6 +43,7 @@
 #include <unistd.h>
 
 #include "filter.h"
+#include "ja3.h"
 #include "maxmind.h"
 #include "sgregex.h"
 #include "util.h"
@@ -103,6 +104,7 @@ static uint64_t mpls_exp_function(void *dataPtr, uint32_t length, data_t data, r
 static uint64_t mpls_any_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t ja3_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
 /*
  * flow processing function table:
@@ -123,6 +125,7 @@ static struct flow_procs_map_s {
                       {FUNC_MPLS_ANY, "mpls any", mpls_any_function},
                       {FUNC_PBLOCK, "pblock", pblock_function},
                       {FUNC_MMAS_LOOKUP, "AS Lockup", mmASLookup_function},
+                      {FUNC_JA3, "ja3", ja3_function},
                       {0, NULL, NULL}};
 
 // 128bit compare for IPv6
@@ -276,6 +279,24 @@ static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data,
     *((uint32_t *)dataPtr) = as;
     return as;
 }  // End of mmASLookup_function
+
+static uint64_t ja3_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *recordHandle) {
+    const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
+
+    // check if ja3 already exists or no payload exists
+    if (recordHandle->ja3[0] != '\0' || payload == NULL) return 1;
+
+    uint32_t len = ExtensionLength(payload);
+    ja3_t *ja3 = ja3Process(payload, len);
+    if (ja3) {
+        recordHandle->ja3Info = (void *)ja3;
+        memcpy((void *)recordHandle->ja3, ja3->md5Hash, sizeof(recordHandle->ja3));
+        return 1;
+    }
+    // else - not a valid ssl handshare for ja3
+    return 0;
+
+}  // End of ja3_function
 
 static int geoLookup(char *geoChar, uint64_t direction, recordHandle_t *recordHandle) {
     geoChar[0] = geoChar[1] = '.';
