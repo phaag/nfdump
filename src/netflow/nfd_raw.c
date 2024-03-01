@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,9 +28,7 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
+#include "nfd_raw.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -46,7 +44,6 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "metric.h"
-#include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
