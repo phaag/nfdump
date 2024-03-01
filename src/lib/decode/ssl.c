@@ -112,6 +112,24 @@ static int ProcessExtElCurves(ssl_t *ssl, BytesStream_t *sslStream) {
     return 1;
 }  // End of ProcessExtElCurves
 
+static int ProcessSignatures(ssl_t *ssl, BytesStream_t *sslStream) {
+    uint16_t sigLen;
+    ByteStream_GET_u16(*sslStream, sigLen);
+
+    if (sigLen > ByteStream_AVAILABLE(*sslStream)) {
+        LogError("%s():%d ecsp extension length error", __FUNCTION__, __LINE__);
+        return 0;
+    }
+
+    for (int i = 0; i < sigLen >> 1; i++) {
+        uint16_t signature;
+        ByteStream_GET_u16(*sslStream, signature);
+        AppendArray(ssl->signatures, signature);
+        dbg_printf("Found signature: 0x%x\n", signature);
+    }
+    return 1;
+}  // End of ProcessSignatures
+
 static int ProcessExtElCurvesPoints(ssl_t *ssl, BytesStream_t *sslStream) {
     uint8_t ecspLen;
     ByteStream_GET_u8(*sslStream, ecspLen);
@@ -197,6 +215,9 @@ static int sslParseExtensions(ssl_t *ssl, BytesStream_t sslStream, uint16_t leng
             case 11:  // Elliptic curve point formats uncompressed
                 ret = ProcessExtElCurvesPoints(ssl, &sslStream);
                 break;
+            case 13:  // signatures
+                ret = ProcessSignatures(ssl, &sslStream);
+                break;
             case 16:  // application_layer_protocol_negotiation (16)
                 ret = ProcessExtALPN(ssl, &sslStream);
                 break;
@@ -220,13 +241,41 @@ static int sslParseClientHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
     ByteStream_GET_u16(sslStream, version);  // client hello protocol version
     ByteStream_SKIP(sslStream, 32);          // random init bytes
 
+    /*
+    0x0304 = TLS 1.3 = “13”
+    0x0303 = TLS 1.2 = “12”
+    0x0302 = TLS 1.1 = “11”
+    0x0301 = TLS 1.0 = “10”
+    0x0300 = SSL 3.0 = “s3”
+    0x0200 = SSL 2.0 = “s2”
+    0x0100 = SSL 1.0 = “s1”
+
+    Unknown = “00”
+    */
     ssl->protocolVersion = version;
     switch (version) {
+        case 0x0100:
+            // SSL 1.0 was never really release!
+            break;
         case 0x0200:  // SSL 2.0
+            ssl->tlsCharVersion[0] = 's';
+            ssl->tlsCharVersion[1] = '2';
+            break;
         case 0x0300:  // SSL 3.0
+            ssl->tlsCharVersion[0] = 's';
+            ssl->tlsCharVersion[1] = '3';
+            break;
         case 0x0301:  // TLS 1.1
+            ssl->tlsCharVersion[0] = '1';
+            ssl->tlsCharVersion[1] = '0';
+            break;
         case 0x0302:  // TLS 1.2
+            ssl->tlsCharVersion[0] = '1';
+            ssl->tlsCharVersion[1] = '2';
+            break;
         case 0x0303:  // TLS 1.3
+            ssl->tlsCharVersion[0] = '1';
+            ssl->tlsCharVersion[1] = '3';
             break;
         default:
             LogError("%s():%d Not an SSL 3.0 - TLS 1.3 protocol", __FUNCTION__, __LINE__);
@@ -289,11 +338,28 @@ static int sslParseServerHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
 
     ssl->protocolVersion = version;
     switch (version) {
+        case 0x0100:
+            // SSL 1.0 was never really release!
+            break;
         case 0x0200:  // SSL 2.0
+            ssl->tlsCharVersion[0] = 's';
+            ssl->tlsCharVersion[1] = '2';
+            break;
         case 0x0300:  // SSL 3.0
+            ssl->tlsCharVersion[0] = 's';
+            ssl->tlsCharVersion[1] = '3';
+            break;
         case 0x0301:  // TLS 1.1
+            ssl->tlsCharVersion[0] = '1';
+            ssl->tlsCharVersion[1] = '0';
+            break;
         case 0x0302:  // TLS 1.2
+            ssl->tlsCharVersion[0] = '1';
+            ssl->tlsCharVersion[1] = '2';
+            break;
         case 0x0303:  // TLS 1.3
+            ssl->tlsCharVersion[0] = '1';
+            ssl->tlsCharVersion[1] = '3';
             break;
         default:
             LogError("%s():%d Not an SSL 3.0 - TLS 1.3 protocol", __FUNCTION__, __LINE__);
@@ -360,10 +426,13 @@ void sslPrint(ssl_t *ssl) {
     for (int i = 0; i < LenArray(ssl->extensions); i++) {
         printf(" 0x%x", ssl->extensions.array[i]);
     }
-    printf("\n");
+    printf("\nsignatures :");
+    for (int i = 0; i < LenArray(ssl->signatures); i++) {
+        printf(" 0x%x", ssl->signatures.array[i]);
+    }
 
     if (ssl->sniName[0]) {
-        printf("SNI name   : %s\n", ssl->sniName);
+        printf("\nSNI name   : %s\n", ssl->sniName);
     }
 
     if (ssl->alpnName[0]) {

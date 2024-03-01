@@ -32,6 +32,7 @@
 
 #include <errno.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -126,13 +127,13 @@ char *ja3HashString(ja3_t *ja3) {
     uint8_t *u8 = (uint8_t *)ja3->md5Hash;
 
     int i, j;
-    for (i = 0, j = 0; i < 16; i++, j += 2) {
+    for (i = 0, j = 0; i < 16; i++) {
         uint8_t ln = u8[i] & 0xF;
         uint8_t hn = (u8[i] >> 4) & 0xF;
-        out[j + 1] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
-        out[j] = hn <= 9 ? hn + '0' : hn + 'a' - 10;
+        out[j++] = hn <= 9 ? hn + '0' : hn + 'a' - 10;
+        out[j++] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
     }
-    out[32] = '\0';
+    out[j] = '\0';
 
     return out;
 }  // End of ja3HashString

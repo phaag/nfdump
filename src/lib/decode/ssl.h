@@ -41,41 +41,45 @@ typedef struct uint16Array_s {
 
 #define arrayMask 0x1F
 
-#define NewArray(a)        \
-    {                      \
-        a.numElements = 0; \
-        a.array = NULL;    \
+#define NewArray(a)          \
+    {                        \
+        (a).numElements = 0; \
+        (a).array = NULL;    \
     }
 
-#define AppendArray(a, v)                                                                               \
-    if ((a.numElements & arrayMask) == 0) {                                                             \
-        a.array = (uint16_t *)realloc(a.array, sizeof(uint16_t) * (a.numElements + (arrayMask + 1)));   \
-        if (!a.array) {                                                                                 \
-            fprintf(stderr, "malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno)); \
-            exit(255);                                                                                  \
-        }                                                                                               \
-    }                                                                                                   \
-    a.array[a.numElements++] = (v);
+#define AppendArray(a, v)                                                                                   \
+    if (((a).numElements & arrayMask) == 0) {                                                               \
+        (a).array = (uint16_t *)realloc((a).array, sizeof(uint16_t) * ((a).numElements + (arrayMask + 1))); \
+        if (!(a).array) {                                                                                   \
+            fprintf(stderr, "malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));     \
+            exit(255);                                                                                      \
+        }                                                                                                   \
+    }                                                                                                       \
+    (a).array[a.numElements++] = (v);
 
-#define FreeArray(a)                \
-    if (a.numElements && a.array) { \
-        free(a.array);              \
-        a.numElements = 0;          \
-        a.array = NULL;             \
+#define FreeArray(a)                    \
+    if ((a).numElements && (a).array) { \
+        free((a).array);                \
+        (a).numElements = 0;            \
+        (a).array = NULL;               \
     }
 
-#define LenArray(a) a.numElements
+#define LenArray(a) (a).numElements
+
+#define ArrayElement(a, n) (a).array[n]
 
 typedef struct ssl_s {
     uint16_t tlsVersion;
 #define CLIENTssl 0
 #define SERVERssls 1
-    uint16_t type;
+    char tlsCharVersion[2];
     uint16_t protocolVersion;
+    uint16_t type;
     uint16Array_t cipherSuites;
     uint16Array_t extensions;
     uint16Array_t ellipticCurves;
     uint16Array_t ellipticCurvesPF;
+    uint16Array_t signatures;
 #define ALPNmaxLen 16
     // ALPN are currently defined up to 8 bytes
     char alpnName[ALPNmaxLen];

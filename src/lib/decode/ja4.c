@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023-2024, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -39,11 +39,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "md5.h"
+#include "sha256.h"
 #include "ssl.h"
 #include "util.h"
-
-static int ja4Hash(ja4_t *ja4);
 
 #define CheckStringSize(s, l)                                                   \
     {                                                                           \
@@ -56,8 +54,144 @@ static int ja4Hash(ja4_t *ja4);
         }                                                                       \
     }
 
+#define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
+
+static void sort(uint16Array_t array) {
+    uint16_t *elements = array.array;
+    uint32_t numElements = LenArray(array);
+
+    for (int i = 0; i < numElements - 1; i++) {
+        for (int j = 0; j < numElements - i - 1; j++) {
+            if (elements[j] > elements[j + 1]) {
+                uint16_t swap = elements[j];
+                elements[j] = elements[j + 1];
+                elements[j + 1] = swap;
+            }
+        }
+    }
+}  // End of sort
+
 static int DecodeJA4(ja4_t *ja4, const uint8_t *data, size_t len, uint8_t proto) {
+    // create ja4_a
     ja4->ja4.a[0] = proto == IPPROTO_TCP ? 't' : 'q';
+
+    ja4->ja4.a[1] = ja4->ssl->tlsCharVersion[0];
+    ja4->ja4.a[2] = ja4->ssl->tlsCharVersion[1];
+
+    ja4->ja4.a[3] = ja4->ssl->sniName[0] ? 'd' : 'i';
+
+    uint32_t num = LenArray(ja4->ssl->cipherSuites);
+    if (num > 99) return 0;
+    uint32_t ones = num % 10;
+    uint32_t tens = num / 10;
+    ja4->ja4.a[4] = tens + '0';
+    ja4->ja4.a[5] = ones + '0';
+
+    num = LenArray(ja4->ssl->extensions);
+    if (num > 99) return 0;
+    ones = num % 10;
+    tens = num / 10;
+    ja4->ja4.a[6] = tens + '0';
+    ja4->ja4.a[7] = ones + '0';
+
+    if (ja4->ssl->alpnName[0]) {
+        // first and last char
+        ja4->ja4.a[8] = ja4->ssl->alpnName[0];
+        ja4->ja4.a[9] = ja4->ssl->alpnName[strlen(ja4->ssl->alpnName) - 1];
+    } else {
+        ja4->ja4.a[8] = '0';
+        ja4->ja4.a[9] = '0';
+    }
+
+    // create ja4_b
+    sort(ja4->ssl->cipherSuites);
+
+    // generate string to sha256
+    // create a string big enough for ciphersuites and extensions
+    // uint16_t = max 5 digits + ',' = 6 digits per cipher + '\0'
+    size_t maxStrLen = MAX(LenArray(ja4->ssl->cipherSuites), (LenArray(ja4->ssl->extensions) + LenArray(ja4->ssl->signatures))) * 6 + 1;
+    char *hashString = (char *)malloc(maxStrLen);
+    hashString[0] = '0';
+
+    char hexChars[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
+    uint32_t index = 0;
+    for (int i = 0; i < LenArray(ja4->ssl->cipherSuites); i++) {
+        uint16_t val = ArrayElement(ja4->ssl->cipherSuites, i);
+        uint8_t n1 = val >> 12;
+        uint8_t n2 = (val >> 8) & 0xF;
+        uint8_t n3 = (val >> 4) & 0xF;
+        uint8_t n4 = val & 0xF;
+        hashString[index++] = hexChars[n1];
+        hashString[index++] = hexChars[n2];
+        hashString[index++] = hexChars[n3];
+        hashString[index++] = hexChars[n4];
+        hashString[index++] = ',';
+    }
+    // overwrite last ',' with end of string
+    hashString[index - 1] = '\0';
+
+    uint8_t sha256Digest[32];
+    char sha256String[65];
+    sha256((const unsigned char *)hashString, strlen(hashString), (unsigned char *)sha256Digest);
+
+#ifdef DEVEL
+    HexString(sha256Digest, 32, sha256String);
+    printf("CipherString: %s\n", hashString);
+    printf(" . Digest: %s\n", sha256String);
+#else
+    HexString(sha256Digest, 6, sha256String);
+#endif
+
+    memcpy((void *)ja4->ja4.b, (void *)sha256String, 12);
+    ja4->ja4.b[12] = '\0';
+
+    // create ja4_c
+    sort(ja4->ssl->extensions);
+
+    hashString[0] = '0';
+    index = 0;
+    for (int i = 0; i < LenArray(ja4->ssl->extensions); i++) {
+        uint16_t val = ArrayElement(ja4->ssl->extensions, i);
+        // skip extensions 0000 and 0010
+        if (val == 0 || val == 0x10) continue;
+        uint8_t n1 = val >> 12;
+        uint8_t n2 = (val >> 8) & 0xF;
+        uint8_t n3 = (val >> 4) & 0xF;
+        uint8_t n4 = val & 0xF;
+        hashString[index++] = hexChars[n1];
+        hashString[index++] = hexChars[n2];
+        hashString[index++] = hexChars[n3];
+        hashString[index++] = hexChars[n4];
+        hashString[index++] = ',';
+    }
+    hashString[index - 1] = '_';
+    for (int i = 0; i < LenArray(ja4->ssl->signatures); i++) {
+        uint16_t val = ArrayElement(ja4->ssl->signatures, i);
+        uint8_t n1 = val >> 12;
+        uint8_t n2 = (val >> 8) & 0xF;
+        uint8_t n3 = (val >> 4) & 0xF;
+        uint8_t n4 = val & 0xF;
+        hashString[index++] = hexChars[n1];
+        hashString[index++] = hexChars[n2];
+        hashString[index++] = hexChars[n3];
+        hashString[index++] = hexChars[n4];
+        hashString[index++] = ',';
+    }
+    // overwrite last ',' with end of string
+    hashString[index - 1] = '\0';
+
+    sha256((const unsigned char *)hashString, strlen(hashString), (unsigned char *)sha256Digest);
+
+#ifdef DEVEL
+    HexString(sha256Digest, 32, sha256String);
+    printf("ExtSigString: %s\n", hashString);
+    printf(" . Digest: %s\n", sha256String);
+#else
+    HexString(sha256Digest, 6, sha256String);
+#endif
+    memcpy((void *)ja4->ja4.c, (void *)sha256String, 12);
+
+    free(hashString);
     return 1;
 
 }  // End of DecodeJA4
@@ -66,7 +200,8 @@ void ja4Print(ja4_t *ja4) {
     printf("SSL/TLS info:\n");
     sslPrint(ja4->ssl);
 
-    printf("ja4  : %s-%s-%s\n", ja4->ja4.a, ja4->ja4.b, ja4->ja4.c);
+    printf("ja4:\n");
+    printf("ja4  : %s_%s_%s\n", ja4->ja4.a, ja4->ja4.b, ja4->ja4.c);
 
 }  // End of ja4Print
 
@@ -181,7 +316,7 @@ int main(int argc, char **argv) {
     if (ja4)
         ja4Print(ja4);
     else
-        printf("Failed to parse ssl\n");
+        printf("Failed to parse ja4\n");
 
     return 0;
 }
