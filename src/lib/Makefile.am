@@ -2,7 +2,7 @@
 BUILT_SOURCES = filter/grammar.h vcs_track.h
 AM_YFLAGS = -d
 
-AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -Idecode -I../maxmind -Isgregex -Icompress $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -I../decode -I../maxmind -Isgregex -Icompress $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb 
 
 LDADD =  $(DEPS_LIBS)
@@ -27,15 +27,12 @@ output = userio.c userio.h output_short.c output_short.h
 regex = sgregex/sgregex.c sgregex/sgregex.h
 daemon = daemon.c daemon.h 
 version = version.c version.h
-decode  = decode/content_dns.c decode/content_dns.h
-decode += decode/ssl.c decode/ssl.h decode/ja3.c decode/ja3.h decode/ja4.c decode/ja4.h
-decode += decode/md5.c decode/md5.h decode/sha256.c decode/sha256.h
 
 vcs_track.h: Makefile
 	./gen_version.sh
 
 lib_LTLIBRARIES = libnfdump.la
-libnfdump_la_SOURCES = $(conf) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(decode) $(output) $(regex) $(daemon) $(version) vcs_track.h
+libnfdump_la_SOURCES = $(conf) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(version) vcs_track.h
 libnfdump_la_LDFLAGS = -release @VERSION@
  
 

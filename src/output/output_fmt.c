@@ -44,9 +44,9 @@
 #include <sys/types.h>
 #include <time.h>
 
-#include "content_dns.h"
+#include "dns/dns.h"
 #include "ifvrf.h"
-#include "ja3.h"
+#include "ja3/ja3.h"
 #include "maxmind.h"
 #include "nbar.h"
 #include "nfdump.h"

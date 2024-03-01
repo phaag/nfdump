@@ -38,8 +38,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "md5.h"
-#include "ssl.h"
+#include "digest/md5.h"
+#include "ssl/ssl.h"
 #include "util.h"
 
 static int ja3Hash(ja3_t *ja3);

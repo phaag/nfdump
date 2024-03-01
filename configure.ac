@@ -616,12 +616,12 @@ AM_COND_IF([HAVE_DOXYGEN], AC_CONFIG_FILES([doc/Doxyfile]))
 AC_CONFIG_FILES([doc/Makefile])
 AC_OUTPUT
 
-AC_CONFIG_FILES([Makefile src/lib/Makefile src/Makefile src/test/Makefile
-	src/output/Makefile src/netflow/Makefile src/collector/Makefile
-	src/maxmind/Makefile src/nfdump/Makefile src/nfcapd/Makefile src/nfexpire/Makefile 
+AC_CONFIG_FILES([Makefile src/lib/Makefile src/decode/Makefile 
+	src/Makefile src/test/Makefile src/output/Makefile
+	src/netflow/Makefile src/collector/Makefile src/maxmind/Makefile
+	src/nfdump/Makefile src/nfcapd/Makefile src/nfexpire/Makefile 
 	src/nfanon/Makefile src/nfreplay/Makefile src/nfreader/Makefile 
 	src/inline/Makefile src/include/Makefile man/Makefile ])
-
 
 if test "x$enable_ftconv" = "xyes"; then
     AC_CONFIG_FILES([src/ft2nfdump/Makefile])

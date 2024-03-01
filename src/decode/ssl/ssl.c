@@ -396,8 +396,8 @@ static int sslParseServerHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
         ByteStream_GET_u16(sslStream, exType);
         ByteStream_GET_u16(sslStream, exLength);
 
+        sizeLeft -= (4 + exLength);
         if (checkGREASE(exType)) {
-            extensionLength -= (4 + exLength);
             continue;
         }
 

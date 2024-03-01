@@ -27,21 +27,29 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  *
  */
-#include "nffile.h"
+
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <arpa/inet.h>
 #include <assert.h>
 
+#include "nffile.h"
+
 #ifdef HAVE_BZIP2
 #include <bzlib.h>
 #endif
+
 #ifdef HAVE_ZSTD
 #include <zstd.h>
 #endif
+
 #ifdef HAVE_LZ4
 #include <lz4.h>
 #include <lz4hc.h>
 #endif
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>

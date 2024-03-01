@@ -39,8 +39,8 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "sha256.h"
-#include "ssl.h"
+#include "digest/sha256.h"
+#include "ssl/ssl.h"
 #include "util.h"
 
 #define CheckStringSize(s, l)                                                   \

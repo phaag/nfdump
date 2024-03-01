@@ -44,7 +44,7 @@
 #include <sys/types.h>
 #include <time.h>
 
-#include "ja3.h"
+#include "ja3/ja3.h"
 #include "maxmind.h"
 #include "nfdump.h"
 #include "nffile.h"

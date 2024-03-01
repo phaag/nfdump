@@ -42,17 +42,17 @@
 #include <time.h>
 
 #include "config.h"
-#include "content_dns.h"
+#include "dns/dns.h"
 #include "exporter.h"
 #include "ifvrf.h"
-#include "ja3.h"
+#include "ja3/ja3.h"
 #include "maxmind.h"
 #include "nbar.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
 #include "output_util.h"
-#include "ssl.h"
+#include "ssl/ssl.h"
 #include "userio.h"
 #include "util.h"
 

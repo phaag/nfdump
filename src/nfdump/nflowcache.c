@@ -49,7 +49,7 @@
 #include "blocksort.h"
 #include "config.h"
 #include "exporter.h"
-#include "ja3.h"
+#include "ja3/ja3.h"
 #include "khash.h"
 #include "klist.h"
 #include "maxmind.h"

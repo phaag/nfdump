@@ -34,7 +34,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "ssl.h"
+#include "ssl/ssl.h"
 
 typedef struct ja3_s {
     ssl_t *ssl;

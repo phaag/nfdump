@@ -73,7 +73,7 @@
 #include "nfdump.h"
 #include "util.h"
 // #include "nffile.h"
-#include "content_dns.h"
+#include "dns.h"
 #include "inline.c"
 
 /*
