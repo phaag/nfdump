@@ -403,6 +403,7 @@ static int sslParseServerHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
 
         dbg_printf("Found extension type: %u, len: %u\n", exType, exLength);
         AppendArray(ssl->extensions, exType);
+        if (exLength) ByteStream_SKIP(sslStream, exLength);
     }
     dbg_printf("End extension. size: %d\n", sizeLeft);
 
@@ -430,9 +431,10 @@ void sslPrint(ssl_t *ssl) {
     for (int i = 0; i < LenArray(ssl->signatures); i++) {
         printf(" 0x%x", ssl->signatures.array[i]);
     }
+    printf("\n");
 
     if (ssl->sniName[0]) {
-        printf("\nSNI name   : %s\n", ssl->sniName);
+        printf("SNI name   : %s\n", ssl->sniName);
     }
 
     if (ssl->alpnName[0]) {

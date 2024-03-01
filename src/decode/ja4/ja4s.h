@@ -34,15 +34,27 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "ssl.h"
+#include "ssl/ssl.h"
 
+/*
+       + ------ Protocol, TCP = "I" QUIC= "q"
+       | + ---- TLS version, 1.2 = "12", 1.3 = "13"
+       | | + -- Number of Extensions
+       | | | +- ALPN Chosen (00 if no ALPN)
+       | | | |    +-  Cipher Suite Chosen
+       | | | |    |
+       | | | |    |            +- Truncated SHA256 hash of the Extensions, in the order they appear
+       | | | |    |            |
+  JA45=t120400_C030_4e8089608790
+       ja4s_a  ja4s_b ja4s_c
+
+
+*/
 typedef struct ja4s_s {
     ssl_t *ssl;
-    struct {
-        char a[16];
-        char b[16];
-        char c[16];
-    } ja4;
+    char a[8];   // max 7 chars
+    char b[8];   // max 4 chars
+    char c[12];  // max 12 chars
 } ja4s_t;
 
 void ja4sPrint(ja4s_t *ja4s);
