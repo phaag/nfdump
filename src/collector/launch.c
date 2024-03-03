@@ -65,8 +65,6 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "privsep.h"
-
-#define DEVEL 1
 #include "util.h"
 
 typedef struct launcher_message_s {
