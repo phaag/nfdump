@@ -7,6 +7,6 @@ AM_LDFLAGS  = -L../lib
 LDADD = $(DEPS_LIBS)
 
 nfexpire_SOURCES = nfexpire.c 
-nfexpire_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a ../collector/libcollector.a
+nfexpire_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a ../decode/libnfdecode.a ../collector/libcollector.a
 
 CLEANFILES = *.gch

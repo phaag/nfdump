@@ -9,6 +9,6 @@ LDADD = $(DEPS_LIBS)
 anon = panonymizer.c panonymizer.h rijndael.c rijndael.h
 
 nfanon_SOURCES = nfanon.c $(anon)
-nfanon_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a
+nfanon_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a ../decode/libnfdecode.a
 
 CLEANFILES = *.gch

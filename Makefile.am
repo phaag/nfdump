@@ -1,6 +1,6 @@
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = src/lib src/output src/netflow src/collector src/maxmind src/decode src/nfdump src/nfcapd  
+SUBDIRS = src/lib src/output src/netflow src/collector src/decode src/maxmind src/nfdump src/nfcapd  
 SUBDIRS += src/nfanon src/nfexpire src/nfreplay . src src/test src/nfreader src/inline src/include
 
 if SFLOW

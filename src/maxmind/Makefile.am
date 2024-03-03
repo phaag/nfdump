@@ -12,7 +12,7 @@ libmaxmind_a_SOURCES = maxmind.c maxmind.h
 
 if MAXMIND
 geolookup_SOURCES = geolookup.c 
-geolookup_LDADD = ../lib/libnfdump.la libmaxmind.a
+geolookup_LDADD = ../lib/libnfdump.la libmaxmind.a ../decode/libnfdecode.a
 endif
 
 CLEANFILES = *.gch
