@@ -211,6 +211,7 @@ struct StatParameter_s {
 typedef struct hashkey_s {
     khint64_t v0;
     khint64_t v1;
+    void *ptr;
     uint8_t proto;
 } hashkey_t;
 
@@ -567,6 +568,7 @@ void AddElementStat(recordHandle_t *recordHandle) {
                 case 16: {
                     hashkey.v0 = ((uint64_t *)inPtr)[0];
                     hashkey.v1 = ((uint64_t *)inPtr)[1];
+                    hashkey.ptr = nfmalloc(64);
                 } break;
                 default:
                     LogError("Invalid stat element size: %d", length);
@@ -628,7 +630,17 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
             break;
         case IS_IPADDR:
             tag_string[0] = outputParams->doTag ? TAG_CHAR : '\0';
-            if (StatData->hashkey.v0 != 0) {  // IPv6
+            if (StatData->hashkey.v0 == 0) {  // IPv4
+                uint32_t ipv4 = htonl(StatData->hashkey.v1);
+                if (LoadedGeoDB) {
+                    char ipstr[16], country[4] = {0};
+                    inet_ntop(AF_INET, &ipv4, ipstr, sizeof(ipstr));
+                    LookupV4Country(StatData->hashkey.v1, country);
+                    snprintf(valstr, 40, "%s(%s)", ipstr, country);
+                } else {
+                    inet_ntop(AF_INET, &ipv4, valstr, sizeof(valstr));
+                }
+            } else {  // IPv6
                 uint64_t _key[2] = {htonll(StatData->hashkey.v0), htonll(StatData->hashkey.v1)};
                 if (LoadedGeoDB) {
                     char ipstr[40], country[4] = {0};
@@ -640,17 +652,6 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
                 } else {
                     inet_ntop(AF_INET6, _key, valstr, sizeof(valstr));
                     if (!Getv6Mode()) CondenseV6(valstr);
-                }
-
-            } else {  // IPv4
-                uint32_t ipv4 = htonl(StatData->hashkey.v1);
-                if (LoadedGeoDB) {
-                    char ipstr[16], country[4] = {0};
-                    inet_ntop(AF_INET, &ipv4, ipstr, sizeof(ipstr));
-                    LookupV4Country(StatData->hashkey.v1, country);
-                    snprintf(valstr, 40, "%s(%s)", ipstr, country);
-                } else {
-                    inet_ntop(AF_INET, &ipv4, valstr, sizeof(valstr));
                 }
             }
             break;
