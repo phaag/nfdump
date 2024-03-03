@@ -83,8 +83,10 @@ static int sslParseExtensions(ssl_t *ssl, BytesStream_t sslStream, uint16_t leng
         ByteStream_GET_u16(sslStream, exType);
         ByteStream_GET_u16(sslStream, exLength);
         dbg_printf("Ex Type: %x, Length: %x\n", exType, exLength);
+
         if (checkGREASE(exType)) {
             extensionLength -= (4 + exLength);
+            if (exLength) ByteStream_SKIP(sslStream, exLength);
             continue;
         }
 
@@ -284,6 +286,7 @@ static int sslParseServerHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
 
         sizeLeft -= (4 + exLength);
         if (checkGREASE(exType)) {
+            if (exLength) ByteStream_SKIP(sslStream, exLength);
             continue;
         }
 
