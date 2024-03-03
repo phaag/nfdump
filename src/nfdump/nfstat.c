@@ -209,10 +209,13 @@ struct StatParameter_s {
 
 // key for element stat
 typedef struct hashkey_s {
-    khint64_t v0;
+    union {
+        void *ptr;
+        khint64_t v0;
+    };
     khint64_t v1;
-    void *ptr;
     uint8_t proto;
+    uint8_t ptrSize;
 } hashkey_t;
 
 // khash record for element stat
@@ -279,7 +282,13 @@ static uint32_t NumStats = 0;  // number of stats in StatRequest
 
 // definitions for khash element stat
 #define kh_key_hash_func(key) (khint32_t)((key.v1) >> 33 ^ (key.v1) ^ (key.v1) << 11)
-#define kh_key_hash_equal(a, b) (((a).v1 == (b).v1) && ((a).v0 == (b).v0) && (a).proto == (b).proto)
+
+// up to 16 bytes (hashkey.v0, hashkey.v1) use faster compare.
+// if > 16 bytes ( ptrSize != 0 ) use memcmp for var length
+#define kh_key_hash_equal(a, b)                                                              \
+    ((a).ptrSize == 0 ? (((a).v1 == (b).v1) && ((a).v0 == (b).v0) && (a).proto == (b).proto) \
+                      : ((a).ptrSize == (b).ptrSize && memcmp((a).ptr, (b).ptr, (a).ptrSize) == 0))
+
 KHASH_INIT(ElementHash, hashkey_t, StatRecord_t, 1, kh_key_hash_func, kh_key_hash_equal)
 
 static khash_t(ElementHash) * ElementKHash[MaxStats];
@@ -514,7 +523,7 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
         } break;
         case JA3: {
             EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
-            if (payload == NULL) return;
+            if (payload == NULL || recordHandle->ja3[0]) return;
             uint32_t payloadLength = ExtensionLength(payload);
             ja3_t *ja3 = ja3Process(payload, payloadLength);
             if (ja3) {
@@ -568,10 +577,13 @@ void AddElementStat(recordHandle_t *recordHandle) {
                 case 16: {
                     hashkey.v0 = ((uint64_t *)inPtr)[0];
                     hashkey.v1 = ((uint64_t *)inPtr)[1];
-                    hashkey.ptr = nfmalloc(64);
                 } break;
-                default:
-                    LogError("Invalid stat element size: %d", length);
+                default: {
+                    void *p = nfmalloc(length);
+                    hashkey.ptr = p;
+                    memcpy((void *)p, inPtr, length);
+                    hashkey.ptrSize = length;
+                }
             }
 
             EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
