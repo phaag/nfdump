@@ -170,10 +170,17 @@ AM_CONDITIONAL([FT2NFDUMP], [test "x$build_ftconv" = "xyes"])
 AC_ARG_ENABLE(maxmind,
 [  --enable-maxmind        Build geolookup for MaxMind GeoDB; default is NO])
 
-build_maxmind="$enable_maxmind" # No dependencies
+AS_IF([test "x$enable_maxmind" = xyes], 
+build_maxmind="$enable_maxmind", build_maxmind="no")
 AM_CONDITIONAL([MAXMIND], [test "x$build_maxmind" = "xyes"])
 
-#Needs tidy
+AC_ARG_ENABLE(ja4,
+[  --enable-ja4        Build with ja4 fingerprinting code; May require a license; default is NO])
+
+AS_IF([test "x$enable_ja4" = xyes], 
+	build_ja4="$enable_ja4", build_ja4="no")
+AM_CONDITIONAL([JA4], [test "x$build_ja4" = "xyes"])
+
 AC_ARG_ENABLE(nfprofile,
 [  --enable-nfprofile      Build nfprofile used by NfSen; default is NO])
 
@@ -616,12 +623,12 @@ AM_COND_IF([HAVE_DOXYGEN], AC_CONFIG_FILES([doc/Doxyfile]))
 AC_CONFIG_FILES([doc/Makefile])
 AC_OUTPUT
 
-AC_CONFIG_FILES([Makefile src/lib/Makefile src/Makefile src/test/Makefile
-	src/output/Makefile src/netflow/Makefile src/collector/Makefile
-	src/maxmind/Makefile src/nfdump/Makefile src/nfcapd/Makefile src/nfexpire/Makefile 
+AC_CONFIG_FILES([Makefile src/lib/Makefile src/decode/Makefile 
+	src/Makefile src/test/Makefile src/output/Makefile
+	src/netflow/Makefile src/collector/Makefile src/maxmind/Makefile
+	src/nfdump/Makefile src/nfcapd/Makefile src/nfexpire/Makefile 
 	src/nfanon/Makefile src/nfreplay/Makefile src/nfreader/Makefile 
 	src/inline/Makefile src/include/Makefile man/Makefile ])
-
 
 if test "x$enable_ftconv" = "xyes"; then
     AC_CONFIG_FILES([src/ft2nfdump/Makefile])
@@ -629,6 +636,8 @@ fi
 
 if test "x$build_sflow" = "xyes"; then
     AC_CONFIG_FILES([src/sflow/Makefile])
+else
+	build_sflow="no"
 fi
 
 if test "x$build_nfpcapd" = "xyes"; then
@@ -655,11 +664,13 @@ echo "  LIBS                 = $LIBS"
 echo "  Enable liblz4        = $use_lz4"
 echo "  Enable libbz2        = $use_bzip2"
 echo "  Enable libzstd       = $use_zstd"
+echo "  Enable ja4           = $build_ja4"
 echo "  Build geolookup      = $build_maxmind"
 echo "  Build sflow          = $build_sflow"
 echo "  Build nfpcapd        = $build_nfpcapd"
 echo "  Build flowtools conv = $build_ftconv"
 echo "  Build nfprofile      = $build_nfprofile"
+echo "  Build ft2nfdump      = $build_ftconv"
 echo "----------------------------------"
 echo ""
 echo " You can run ./make now." 

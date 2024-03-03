@@ -60,6 +60,8 @@ typedef struct ByteStream_s {
 
 #define ByteStream_IS_ERROR(b) ((b).last == NULL)
 
+#define ByteStream_NO_ERROR(b) ((b).last != NULL)
+
 #define ByteStream_AVAILABLE(b) ((b).size)
 
 #define ByteStream_SIZE(b) ((b).last != NULL ? (b).last - (b).stream : 0)
@@ -133,7 +135,7 @@ typedef struct ByteStream_s {
 #define ByteStream_GET_X(b, x, len)  \
     do {                             \
         if ((b).size >= len) {       \
-            memcpy(x, b.ptr, len);   \
+            memcpy(x, (b).ptr, len); \
             (b).ptr += len;          \
             (b).size -= len;         \
         } else {                     \

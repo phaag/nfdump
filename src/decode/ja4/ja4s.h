@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023-2024, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,28 +28,39 @@
  *
  */
 
-#ifndef _JA3_H
-#define _JA3_H 1
+#ifndef _jA4S_H
+#define _jA4S_H 1
 
 #include <stdint.h>
 #include <sys/types.h>
 
-#include "ssl.h"
+#include "ssl/ssl.h"
 
-typedef struct ja3_s {
+/*
+       + ------ Protocol, TCP = "I" QUIC= "q"
+       | + ---- TLS version, 1.2 = "12", 1.3 = "13"
+       | | + -- Number of Extensions
+       | | | +- ALPN Chosen (00 if no ALPN)
+       | | | |    +-  Cipher Suite Chosen
+       | | | |    |
+       | | | |    |            +- Truncated SHA256 hash of the Extensions, in the order they appear
+       | | | |    |            |
+  JA45=t120400_C030_4e8089608790
+       ja4s_a  ja4s_b ja4s_c
+
+
+*/
+typedef struct ja4s_s {
     ssl_t *ssl;
-    char *ja3String;
-    uint32_t md5Hash[4];
-} ja3_t;
+    char a[8];   // max 7 chars
+    char b[8];   // max 4 chars
+    char c[12];  // max 12 chars
+} ja4s_t;
 
-char *ja3HashString(ja3_t *ja3);
+void ja4sPrint(ja4s_t *ja4s);
 
-char *ja3SNIname(ja3_t *ja3);
+void ja4sFree(ja4s_t *ja4s);
 
-void ja3Print(ja3_t *ja3);
-
-void ja3Free(ja3_t *ja3);
-
-ja3_t *ja3Process(const uint8_t *data, size_t len);
+ja4s_t *ja4sProcess(const uint8_t *data, size_t len, uint8_t proto);
 
 #endif

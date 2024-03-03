@@ -55,11 +55,11 @@ typedef struct MemHandler_s {
     size_t BlockSize; /* max size of each pre-allocated memblock */
 
     /* memory blocks - containing the flow records and keys */
-    void **memblock;     /* array holding all NumBlocks allocated memory blocks */
-    size_t MaxBlocks;    /* Size of memblock array */
-    size_t NumBlocks;    /* number of allocated flow blocks in memblock array */
-    size_t CurrentBlock; /* Index of current memblock to allocate memory from */
-    size_t Allocted;     /* Number of bytes already allocated in memblock */
+    void **memblock;      /* array holding all NumBlocks allocated memory blocks */
+    uint32_t MaxBlocks;   /* Size of memblock array */
+    uint32_t NumBlocks;   /* number of allocated flow blocks in memblock array */
+    int32_t CurrentBlock; /* Index of current memblock to allocate memory from */
+    uint32_t Allocted;    /* Number of bytes already allocated in memblock */
 
     atomic_int lock;
 
@@ -93,9 +93,9 @@ static int nfalloc_Init(uint32_t memBlockSize) {
     }
 
     MemHandler->MaxBlocks = MaxMemBlocks;
-    MemHandler->NumBlocks = 1;
-    MemHandler->CurrentBlock = 0;
-    MemHandler->Allocted = 0;
+    MemHandler->NumBlocks = 0;
+    MemHandler->CurrentBlock = -1;        // non allocated
+    MemHandler->Allocted = memBlockSize;  // force new allocation with next nfmalloc
     MemHandler->lock = 0;
 
     return 1;
@@ -109,8 +109,8 @@ static void nfalloc_free(void) {
         free(MemHandler->memblock[i]);
     }
     MemHandler->NumBlocks = 0;
-    MemHandler->CurrentBlock = 0;
-    MemHandler->Allocted = 0;
+    MemHandler->CurrentBlock = -1;
+    MemHandler->Allocted = MemHandler->BlockSize;
 
     free((void *)MemHandler->memblock);
     MemHandler->memblock = NULL;

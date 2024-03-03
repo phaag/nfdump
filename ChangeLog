@@ -1,6 +1,27 @@
-- 466c27b 2024-02-17  (HEAD -> master, origin/master, origin/HEAD) Merge remote-tracking branch 'origin/nfdump-filter-ng'
+- c9fe29c 2024-03-03  (HEAD -> nfdump-ja4, origin/nfdump-ja4) Prepare nfstat for var length fields such as ja4
+- 2a55c3b 2024-03-03  Commit
+- 1e88803 2024-03-01  Implement ja4s
+- 4a60672 2024-03-01  Update Readme
+- c129b78 2024-03-01  Add ja4 Readme for license issue and add --enable-ja4, default no for building all ja4 modules
+- 5c72cc8 2024-03-01  Add ja3 filter in nfdump-ja4
+- 8ed9f34 2024-03-01  Add ja4_c
+- 2ded6b5 2024-02-29  Implement ja_a and ja_b of ja
+- ae92ef6 2024-02-29  Add ja4 files to start implementation
+- 16148ed 2024-02-29  Add sha256
+- a4f6a53 2024-02-26  Refrag ssl extension code
+- 6ea1b58 2024-02-25  Add ALPN extension decoding to ssl.c
+- 4115a8b 2024-02-25  Fix missing malloc() type casting
+- 07136b3 2024-02-25  Use new ssl module for ja3
+- 17d127e 2024-02-24  Debug ssl code - Client Hello
+- 79e9b8a 2024-02-24  Defrag ssl and ja3 - Add plain ssl code
+- 00e0e45 2024-02-24  (origin/master, origin/HEAD) Fix nfreader code
+- eb5bef5 2024-02-22  Cleanup code to handle legacy sampler record
+- a988a40 2024-02-18  Rework maxmind code
+- 9a0dddf 2024-02-17  Fix library dependencies on some *nix
+- 2c987ee 2024-02-17  The previous commit 466c27b is a merge with a working branch to remove the clumsy master_record_t in nfdump. This removes lot of legacy code and updates the code base. Furthermore, the filter engin has been replaced by a more flexible and faster one. The speed gain depends on the filter and the number of filter elements. The overall speed gain with this merge is 10% in average. Further improvements are planned with more worker threats. Please note that the filter syntax had some small changes such as 'icmp-type' is now 'icmp type' etc.
+- 466c27b 2024-02-17  Merge remote-tracking branch 'origin/nfdump-filter-ng'
 - bc08a0a 2024-02-17  Sync lz4 code
-- 4f409e9 2024-02-17  Release v1.7.4
+- 4f409e9 2024-02-17  (tag: v1.7.4) Release v1.7.4
 - 4a7de41 2024-02-17  Fix compiler warnings for lz4
 - 4e98a35 2024-02-17  Update lz4 code
 - 519a052 2024-02-16  Fix compile issues
@@ -35,7 +56,7 @@
 - 627565a 2024-01-29  Remove local m4 files
 - f0d2750 2024-01-29  Fix err var in nfprofile
 - dc1b1b2 2024-01-29  Fix #503 - Append records in nfprofile
-- 1dcb7ae 2024-01-28  (origin/nfdump-filter-ng) Fix fmt time 1970
+- 1dcb7ae 2024-01-28  Fix fmt time 1970
 - c5ddbf0 2024-01-28  Fix fmt cores
 - 427b08e 2024-01-28  Removed master record from nfgen. Update make check
 - bbaef64 2024-01-26  master record removed from 1.7.x code

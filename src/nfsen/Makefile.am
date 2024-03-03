@@ -16,10 +16,8 @@ nfstatfile = ../collector/nfstatfile.c ../collector/nfstatfile.h
 exporter = ../nfdump/exporter.c 
 
 nfprofile_SOURCES = nfprofile.c profile.c profile.h $(nfstatfile) $(exporter)
-nfprofile_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a -lrrd 
+nfprofile_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a ../decode/libnfdecode.a -lrrd 
 
 nftrack_SOURCES = nftrack.c nftrack_rrd.c nftrack_rrd.h \
 	nftrack_stat.c nftrack_stat.h 
-nftrack_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a -lrrd
-
-
+nftrack_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a ../decode/libnfdecode.a -lrrd

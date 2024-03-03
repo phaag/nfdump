@@ -157,9 +157,9 @@ void inet6_ntop_mask(uint64_t ipv6[2], int mask, char *s, socklen_t sSize);
 #define UTF8_ACCEPT 0
 #define UTF8_REJECT 1
 
-uint32_t decode(uint32_t *state, uint32_t *codep, uint32_t byte);
-
 uint32_t validate_utf8(uint32_t *state, char *str, size_t len);
+
+char *HexString(uint8_t *hex, size_t len, char *hexString);
 
 void DumpHex(FILE *stream, const void *data, size_t size);
 

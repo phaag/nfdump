@@ -735,7 +735,8 @@ static const uint8_t utf8d[] = {
     1,   3,   1,   1,   1,   1,   1,   3,   1,   3,   1,   1,   1,   1,   1,   1,   1, 3, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,  // s7..s8
 };
 
-uint32_t decode(uint32_t *state, uint32_t *codep, uint32_t byte) {
+/*
+uint32_t utfDecode(uint32_t *state, uint32_t *codep, uint32_t byte) {
     uint32_t type = utf8d[byte];
 
     *codep = (*state != UTF8_ACCEPT) ? (byte & 0x3fu) | (*codep << 6) : (0xff >> type) & (byte);
@@ -743,6 +744,7 @@ uint32_t decode(uint32_t *state, uint32_t *codep, uint32_t byte) {
     *state = utf8d[256 + *state * 16 + type];
     return *state;
 }
+*/
 
 uint32_t validate_utf8(uint32_t *state, char *str, size_t len) {
     size_t i;
@@ -750,7 +752,7 @@ uint32_t validate_utf8(uint32_t *state, char *str, size_t len) {
 
     for (i = 0; i < len; i++) {
         // We don't care about the codepoint, so this is
-        // a simplified version of the decode function.
+        // a simplified version of the utfDecode function.
         type = utf8d[(uint8_t)str[i]];
         *state = utf8d[256 + (*state) * 16 + type];
 
@@ -759,6 +761,23 @@ uint32_t validate_utf8(uint32_t *state, char *str, size_t len) {
 
     return *state;
 }
+
+/*
+ * converts a uint8_t array ( e.g. md5 or sha256 ) to a readable string
+ * hexstring mus be big enough (2 * len) to hold the final string
+ */
+char *HexString(uint8_t *hex, size_t len, char *hexString) {
+    int i, j = 0;
+    for (i = 0, j = 0; i < len; i++) {
+        uint8_t ln = hex[i] & 0xF;
+        uint8_t hn = (hex[i] >> 4) & 0xF;
+        hexString[j++] = hn <= 9 ? hn + '0' : hn + 'a' - 10;
+        hexString[j++] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
+    }
+    hexString[j] = '\0';
+
+    return hexString;
+}  // End of ja3HashString
 
 void DumpHex(FILE *stream, const void *data, size_t size) {
     char ascii[17];
