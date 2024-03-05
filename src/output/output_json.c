@@ -59,7 +59,7 @@
 // record counter
 static uint32_t recordCount;
 
-static void stringEXgenericFlow(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXgenericFlow(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)extensionRecord;
 
     char datebuff1[64], datebuff2[64], dateBuff3[64];
@@ -116,7 +116,7 @@ static void stringEXgenericFlow(FILE *stream, void *extensionRecord, char *inden
 
 }  // End of stringEXgenericFlow
 
-static void stringEXipv4Flow(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXipv4Flow(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)extensionRecord;
 
     uint32_t src = htonl(ipv4Flow->srcAddr);
@@ -141,7 +141,7 @@ static void stringEXipv4Flow(FILE *stream, void *extensionRecord, char *indent, 
 
 }  // End of stringEXipv4Flow
 
-static void stringEXipv6Flow(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXipv6Flow(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)extensionRecord;
 
     uint64_t src[2], dst[2];
@@ -169,7 +169,7 @@ static void stringEXipv6Flow(FILE *stream, void *extensionRecord, char *indent, 
 
 }  // End of stringEXipv6Flow
 
-static void stringEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, char *indent, char *fs) {
+static void stringEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, const char *indent, const char *fs) {
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)extensionRecord;
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
@@ -244,7 +244,7 @@ static void stringEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *e
 
 }  // End of stringEXflowMisc
 
-static void stringEXcntFlow(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXcntFlow(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)extensionRecord;
     fprintf(stream,
             "%s\"out_packets\" : %llu%s"
@@ -256,7 +256,7 @@ static void stringEXcntFlow(FILE *stream, void *extensionRecord, char *indent, c
 
 }  // End of stringEXcntFlow
 
-static void stringEXvLan(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXvLan(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXvLan_t *vLan = (EXvLan_t *)extensionRecord;
     fprintf(stream,
             "%s\"src_vlan\" : %u%s"
@@ -266,7 +266,7 @@ static void stringEXvLan(FILE *stream, void *extensionRecord, char *indent, char
 
 }  // End of stringEXvLan
 
-static void stringEXasRouting(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, char *indent, char *fs) {
+static void stringEXasRouting(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, const char *indent, const char *fs) {
     EXasRouting_t *asRouting = (EXasRouting_t *)extensionRecord;
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
@@ -282,7 +282,7 @@ static void stringEXasRouting(FILE *stream, recordHandle_t *recordHandle, void *
 
 }  // End of stringEXasRouting
 
-static void stringEXbgpNextHopV4(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXbgpNextHopV4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)extensionRecord;
 
     uint32_t i = htonl(bgpNextHopV4->ip);
@@ -295,7 +295,7 @@ static void stringEXbgpNextHopV4(FILE *stream, void *extensionRecord, char *inde
 
 }  // End of stringEXbgpNextHopV4
 
-static void stringEXbgpNextHopV6(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXbgpNextHopV6(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)extensionRecord;
 
     uint64_t i[2];
@@ -311,7 +311,7 @@ static void stringEXbgpNextHopV6(FILE *stream, void *extensionRecord, char *inde
 
 }  // End of stringEXbgpNextHopV6
 
-static void stringEXipNextHopV4(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXipNextHopV4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)extensionRecord;
 
     uint32_t i = htonl(ipNextHopV4->ip);
@@ -324,7 +324,7 @@ static void stringEXipNextHopV4(FILE *stream, void *extensionRecord, char *inden
 
 }  // End of stringEXipNextHopV4
 
-static void stringEXipNextHopV6(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXipNextHopV6(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)extensionRecord;
 
     uint64_t i[2];
@@ -340,7 +340,7 @@ static void stringEXipNextHopV6(FILE *stream, void *extensionRecord, char *inden
 
 }  // End of stringEXipNextHopV6
 
-static void stringEXipReceivedV4(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXipReceivedV4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)extensionRecord;
 
     uint32_t i = htonl(ipReceivedV4->ip);
@@ -353,7 +353,7 @@ static void stringEXipReceivedV4(FILE *stream, void *extensionRecord, char *inde
 
 }  // End of stringEXipReceivedV4
 
-static void stringEXipReceivedV6(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXipReceivedV6(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)extensionRecord;
 
     uint64_t i[2];
@@ -368,7 +368,7 @@ static void stringEXipReceivedV6(FILE *stream, void *extensionRecord, char *inde
 
 }  // End of stringEXipReceivedV6
 
-static void stringEXmplsLabel(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXmplsLabel(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)extensionRecord;
     for (int i = 0; i < 10; i++) {
         fprintf(stream, "%s\"mpls_%u\" : \"%u-%u-%u\"%s", indent, i + 1, mplsLabel->mplsLabel[i] >> 4,
@@ -378,7 +378,7 @@ static void stringEXmplsLabel(FILE *stream, void *extensionRecord, char *indent,
 
 }  // End of stringEXmplsLabel
 
-static void stringEXmacAddr(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXmacAddr(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXmacAddr_t *macAddr = (EXmacAddr_t *)extensionRecord;
 
     uint8_t mac1[6], mac2[6], mac3[6], mac4[6];
@@ -401,7 +401,7 @@ static void stringEXmacAddr(FILE *stream, void *extensionRecord, char *indent, c
 
 }  // End of stringEXmacAddr
 
-static void stringEXasAdjacent(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXasAdjacent(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)extensionRecord;
     fprintf(stream,
             "%s\"next_as\" : %u%s"
@@ -411,7 +411,7 @@ static void stringEXasAdjacent(FILE *stream, void *extensionRecord, char *indent
 
 }  // End of stringEXasAdjacent
 
-static void stringEXlatency(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXlatency(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXlatency_t *latency = (EXlatency_t *)extensionRecord;
 
     double f1, f2, f3;
@@ -429,7 +429,7 @@ static void stringEXlatency(FILE *stream, void *extensionRecord, char *indent, c
 
 }  // End of stringEXlatency
 
-static void String_ja3(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, char *indent, char *fs) {
+static void String_ja3(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, const char *indent, const char *fs) {
     EXinPayload_t *payload = (EXinPayload_t *)extensionRecord;
     uint32_t payloadLength = ExtensionLength(payload);
 
@@ -455,7 +455,7 @@ static void String_ja3(FILE *stream, recordHandle_t *recordHandle, void *extensi
 
 }  // End of String_ja3
 
-static void stringEXtunIPv4(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXtunIPv4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)extensionRecord;
 
     uint32_t src = htonl(tunIPv4->tunSrcAddr);
@@ -474,7 +474,7 @@ static void stringEXtunIPv4(FILE *stream, void *extensionRecord, char *indent, c
 
 }  // End of stringEXtunIPv4
 
-static void stringEXtunIPv6(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXtunIPv6(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)extensionRecord;
 
     uint64_t src[2];
@@ -497,7 +497,7 @@ static void stringEXtunIPv6(FILE *stream, void *extensionRecord, char *indent, c
 
 }  // End of stringEXtunIPv6
 
-static void stringEXobservation(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXobservation(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXobservation_t *observation = (EXobservation_t *)extensionRecord;
     fprintf(stream,
             "%s\"observationDoaminID\" : %u%s"
@@ -507,7 +507,7 @@ static void stringEXobservation(FILE *stream, void *extensionRecord, char *inden
 
 }  // End of stringEXobservation
 
-static void stringEXvrf(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXvrf(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXvrf_t *vrf = (EXvrf_t *)extensionRecord;
     fprintf(stream,
             "%s\"ingress_vrf\" : \"%u\"%s"
@@ -517,7 +517,7 @@ static void stringEXvrf(FILE *stream, void *extensionRecord, char *indent, char 
 
 }  // End of stringEXvrf
 
-static void stringEXnselCommon(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXnselCommon(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)extensionRecord;
 
     char datestr[64];
@@ -542,7 +542,7 @@ static void stringEXnselCommon(FILE *stream, void *extensionRecord, char *indent
 
 }  // End of stringEXnselCommon
 
-static void stringEXnselXlateIPv4(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXnselXlateIPv4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)extensionRecord;
 
     uint32_t src = htonl(nselXlateIPv4->xlateSrcAddr);
@@ -559,7 +559,7 @@ static void stringEXnselXlateIPv4(FILE *stream, void *extensionRecord, char *ind
 
 }  // End of stringEXnselXlateIPv4
 
-static void stringEXnselXlateIPv6(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXnselXlateIPv6(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)extensionRecord;
 
     uint64_t src[2];
@@ -580,7 +580,7 @@ static void stringEXnselXlateIPv6(FILE *stream, void *extensionRecord, char *ind
 
 }  // End of stringEXnselXlateIPv4
 
-static void stringEXnselXlatePort(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXnselXlatePort(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)extensionRecord;
     fprintf(stream,
             "%s\"src_xlt_port\" : \"%u\"%s"
@@ -590,7 +590,7 @@ static void stringEXnselXlatePort(FILE *stream, void *extensionRecord, char *ind
 
 }  // End of stringEXnselXlatePort
 
-static void stringEXnselAcl(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXnselAcl(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselAcl_t *nselAcl = (EXnselAcl_t *)extensionRecord;
     fprintf(stream,
             "%s\"ingress_acl\" : \"0x%x/0x%x/0x%x\"%s"
@@ -600,13 +600,13 @@ static void stringEXnselAcl(FILE *stream, void *extensionRecord, char *indent, c
 
 }  // End of stringEXnselAcl
 
-static void stringEXnselUserID(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXnselUserID(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselUser_t *nselUser = (EXnselUser_t *)extensionRecord;
     fprintf(stream, "%s\"user_name\" : \"%s\"%s", indent, nselUser->username[0] ? nselUser->username : "<empty>", fs);
 
 }  // End of stringEXnselUserID
 
-static void stringEXnelCommon(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXnelCommon(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnelCommon_t *nelCommon = (EXnelCommon_t *)extensionRecord;
 
     time_t when = nelCommon->msecEvent / 1000LL;
@@ -630,7 +630,7 @@ static void stringEXnelCommon(FILE *stream, void *extensionRecord, char *indent,
 
 }  // End of stringEXnelCommon
 
-static void stringEXnelXlatePort(FILE *stream, void *extensionRecord, char *indent, char *fs) {
+static void stringEXnelXlatePort(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)extensionRecord;
     fprintf(stream,
             "%s\"pblock_start\" : \"%u\"%s"
@@ -655,7 +655,7 @@ void json_epilog(void) {
     printf("]\n");
 }  // End of json_epilog
 
-void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag, char *ws, char *indent, char *fs, char *rs) {
+void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag, const char *ws, const char *indent, const char *fs, const char *rs) {
     // ws is whitespace after object opening {WS   }
     // indent is printed before each record for clarity if needed
     // fs is Field Separator
