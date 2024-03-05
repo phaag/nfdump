@@ -805,5 +805,5 @@ void flow_record_to_json_human(FILE *stream, recordHandle_t *recordHandle, int t
 }  // End of flow_record_to_json_human
 
 void flow_record_to_json_log(FILE *stream, recordHandle_t *recordHandle, int tag) {
-    flow_record_to_json(stream, recordHandle, tag, "", "", "\n", ",");
+    flow_record_to_json(stream, recordHandle, tag, "", "", ",", "\n");
 }  // End of flow_record_to_json_log
