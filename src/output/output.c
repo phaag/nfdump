@@ -91,7 +91,8 @@ printmap_t printmap[MAXFORMATS] = {{"raw", raw_record, raw_prolog, raw_epilog, N
                                    {"bilong", fmt_record, fmt_prolog, fmt_epilog, FORMAT_bilong},
                                    {"nsel", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nsel},
                                    {"nat", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nat},
-                                   {"json", flow_record_to_json, json_prolog, json_epilog, NULL},
+                                   {"json", flow_record_to_json_human, json_prolog, json_epilog, NULL},
+                                   {"json-log", flow_record_to_json_log, null_prolog, null_epilog, NULL},
                                    {"csv", csv_record, csv_prolog, csv_epilog, NULL},
                                    {"null", null_record, null_prolog, null_epilog, NULL},
 
@@ -210,6 +211,8 @@ RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams
                         outputParams->mode = MODE_CSV;
                     } else if (strncasecmp(print_format, "json", MAXMODELEN) == 0) {
                         outputParams->mode = MODE_JSON;
+                    } else if (strncasecmp(print_format, "json-log", MAXMODELEN) == 0) {
+                        outputParams->mode = MODE_JSON_LOG;
                     } else {
                         outputParams->mode = MODE_PLAIN;
                     }

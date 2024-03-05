@@ -37,6 +37,8 @@ void json_prolog(void);
 
 void json_epilog(void);
 
-void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag);
+void flow_record_to_json_human(FILE *stream, recordHandle_t *recordHandle, int tag);
+
+void flow_record_to_json_log(FILE *stream, recordHandle_t *recordHandle, int tag);
 
 #endif  // _OUTPUT_JSON_H
