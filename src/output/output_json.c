@@ -656,7 +656,7 @@ void json_epilog(void) {
 }  // End of json_epilog
 
 void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag, const char *ws, const char *indent, const char *fs, const char *rs) {
-    // ws is whitespace after object opening {WS   }
+    // ws is whitespace after object opening and before object closing {WS  WS}
     // indent is printed before each record for clarity if needed
     // fs is Field Separator
     // rs is Record Separator
@@ -670,11 +670,9 @@ void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag, co
     fprintf(stream,
             "{%s"
             "%s\"type\" : \"%s\"%s"
-            "%s\"sampled\" : %u%s"
             "%s\"export_sysid\" : %u%s",
             ws,
             indent, TestFlag(recordHeaderV3->flags, V3_FLAG_EVENT) ? "EVENT" : "FLOW", fs,
-            indent, TestFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED) ? 1 : 0, fs,
             indent, recordHeaderV3->exporterID, fs);
 
     int processed = 0;
@@ -794,7 +792,8 @@ void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag, co
     */
 
     // Close out JSON record
-    fprintf(stream, "}");
+    fprintf(stream, "%s\"sampled\" : %u%s}"
+            indent, TestFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED) ? 1 : 0), ws;
 
 }  // End of flow_record_to_json
 
