@@ -663,7 +663,7 @@ void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag, co
     recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
 
     if (recordCount) {
-        fprintf(stream, "%s", fs);
+        fprintf(stream, "%s", rs);
     }
     recordCount++;
 
