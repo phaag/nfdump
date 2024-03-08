@@ -89,7 +89,7 @@
     (a)->flags = 0;      \
     (a)->type = DATA_BLOCK_TYPE_3;
 
-static const char *nf_creator[MAX_CREATOR] = {"unknown", "nfcapd", "nfpcapd", "sfcapd", "nfdump", "nfanon", "nfprofile", "geolookup", "ft2nfdump"};
+static const char *nf_creator[MAX_CREATOR] = {"unknown", "nfcapd", "nfpcapd", "sfcapd", "nfdump", "nfanon", "nfprofile", "geolookup", "ft2nfdump", "torlookup"};
 
 static unsigned NumWorkers = DEFAULTWORKERS;
 

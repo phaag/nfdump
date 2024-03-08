@@ -53,6 +53,7 @@
 #include "nfxV3.h"
 #include "output_util.h"
 #include "ssl/ssl.h"
+#include "tor.h"
 #include "userio.h"
 #include "util.h"
 
@@ -147,7 +148,7 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, void
 
 }  // End of EXgenericFlowID
 
-static void stringEXtunIPv4(FILE *stream, EXtunIPv4_t *tunIPv4) {
+static void stringEXtunIPv4(FILE *stream, EXtunIPv4_t *tunIPv4, EXgenericFlow_t *genericFlow) {
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
 
     uint32_t src = htonl(tunIPv4->tunSrcAddr);
@@ -155,18 +156,24 @@ static void stringEXtunIPv4(FILE *stream, EXtunIPv4_t *tunIPv4) {
     inet_ntop(AF_INET, &src, as, sizeof(as));
     inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
-    char sloc[128], dloc[128];
+    char sloc[128], dloc[128], stor[4], dtor[4];
+    int srcIsTor = LookupV4Tor(tunIPv4->tunSrcAddr, genericFlow->msecFirst, genericFlow->msecLast, stor + 1);
+    stor[0] = srcIsTor ? ' ' : '\0';
+    int dstIsTor = LookupV4Tor(tunIPv4->tunDstAddr, genericFlow->msecFirst, genericFlow->msecLast, dtor + 1);
+    dtor[0] = dstIsTor ? ' ' : '\0';
     LookupV4Location(tunIPv4->tunSrcAddr, sloc, 128);
     LookupV4Location(tunIPv4->tunDstAddr, dloc, 128);
     fprintf(stream,
             "  tun proto    =               %3u %s\n"
-            "  tun src addr =  %16s%s%s\n"
-            "  tun dst addr =  %16s%s%s\n",
-            tunIPv4->tunProto, ProtoString(tunIPv4->tunProto, 0), as, strlen(sloc) ? ": " : "", sloc, ds, strlen(dloc) ? ": " : "", dloc);
+            "  tun src addr =  %16s%s%s%s\n"
+            "  tun dst addr =  %16s%s%s%s\n",
+            tunIPv4->tunProto, ProtoString(tunIPv4->tunProto, 0),
+            as, strlen(sloc) ? ": " : "", sloc, stor,
+            ds, strlen(dloc) ? ": " : "", dloc, dtor);
 
 }  // End of stringEXtunIPv4
 
-static void stringEXtunIPv6(FILE *stream, EXtunIPv6_t *tunIPv6) {
+static void stringEXtunIPv6(FILE *stream, EXtunIPv6_t *tunIPv6, EXgenericFlow_t *genericFlow) {
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
 
     uint64_t src[2], dst[2];
@@ -177,14 +184,20 @@ static void stringEXtunIPv6(FILE *stream, EXtunIPv6_t *tunIPv6) {
     inet_ntop(AF_INET6, &src, as, sizeof(as));
     inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
 
-    char sloc[128], dloc[128];
+    char sloc[128], dloc[128], stor[4], dtor[4];
+    int srcIsTor = LookupV6Tor(tunIPv6->tunSrcAddr, genericFlow->msecFirst, genericFlow->msecLast, stor + 1);
+    stor[0] = srcIsTor ? ' ' : '\0';
+    int dstIsTor = LookupV6Tor(tunIPv6->tunDstAddr, genericFlow->msecFirst, genericFlow->msecLast, dtor + 1);
+    dtor[0] = dstIsTor ? ' ' : '\0';
     LookupV6Location(tunIPv6->tunSrcAddr, sloc, 128);
     LookupV6Location(tunIPv6->tunDstAddr, dloc, 128);
     fprintf(stream,
             "  tun proto    =               %3u %s\n"
-            "  tun src addr =  %16s%s%s\n"
-            "  tun dst addr =  %16s%s%s\n",
-            tunIPv6->tunProto, ProtoString(tunIPv6->tunProto, 0), as, strlen(sloc) ? ": " : "", sloc, ds, strlen(dloc) ? ": " : "", dloc);
+            "  tun src addr =  %16s%s%s%s\n"
+            "  tun dst addr =  %16s%s%s%s\n",
+            tunIPv6->tunProto, ProtoString(tunIPv6->tunProto, 0),
+            as, strlen(sloc) ? ": " : "", sloc, stor,
+            ds, strlen(dloc) ? ": " : "", dloc, dtor);
 
 }  // End of stringEXtunIPv6
 
@@ -192,11 +205,12 @@ static void stringsEXipv4Flow(FILE *stream, recordHandle_t *recordHandle, void *
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)extensionRecord;
     EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
     EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     if (tunIPv4)
-        stringEXtunIPv4(stream, tunIPv4);
+        stringEXtunIPv4(stream, tunIPv4, genericFlow);
     else if (tunIPv6)
-        stringEXtunIPv6(stream, tunIPv6);
+        stringEXtunIPv6(stream, tunIPv6, genericFlow);
 
     uint32_t src = htonl(ipv4Flow->srcAddr);
     uint32_t dst = htonl(ipv4Flow->dstAddr);
@@ -205,13 +219,18 @@ static void stringsEXipv4Flow(FILE *stream, recordHandle_t *recordHandle, void *
     inet_ntop(AF_INET, &src, as, sizeof(as));
     inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
-    char sloc[128], dloc[128];
+    char sloc[128], dloc[128], stor[4], dtor[4];
+    int srcIsTor = LookupV4Tor(ipv4Flow->srcAddr, genericFlow->msecFirst, genericFlow->msecLast, stor + 1);
+    stor[0] = srcIsTor ? ' ' : '\0';
+    int dstIsTor = LookupV4Tor(ipv4Flow->dstAddr, genericFlow->msecFirst, genericFlow->msecLast, dtor + 1);
+    dtor[0] = dstIsTor ? ' ' : '\0';
     LookupV4Location(ipv4Flow->srcAddr, sloc, 128);
     LookupV4Location(ipv4Flow->dstAddr, dloc, 128);
     fprintf(stream,
-            "  src addr     =  %16s%s%s\n"
-            "  dst addr     =  %16s%s%s\n",
-            as, strlen(sloc) ? ": " : "", sloc, ds, strlen(dloc) ? ": " : "", dloc);
+            "  src addr     =  %16s%s%s%s\n"
+            "  dst addr     =  %16s%s%s%s\n",
+            as, strlen(sloc) ? ": " : "", sloc, stor,
+            ds, strlen(dloc) ? ": " : "", dloc, dtor);
 
 }  // End of stringsEXipv4Flow
 
@@ -219,11 +238,12 @@ static void stringsEXipv6Flow(FILE *stream, recordHandle_t *recordHandle, void *
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)extensionRecord;
     EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
     EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     if (tunIPv4)
-        stringEXtunIPv4(stream, tunIPv4);
+        stringEXtunIPv4(stream, tunIPv4, genericFlow);
     else if (tunIPv4)
-        stringEXtunIPv6(stream, tunIPv6);
+        stringEXtunIPv6(stream, tunIPv6, genericFlow);
 
     uint64_t src[2], dst[2];
     src[0] = htonll(ipv6Flow->srcAddr[0]);
@@ -235,13 +255,18 @@ static void stringsEXipv6Flow(FILE *stream, recordHandle_t *recordHandle, void *
     inet_ntop(AF_INET6, &src, as, sizeof(as));
     inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
 
-    char sloc[128], dloc[128];
+    char sloc[128], dloc[128], stor[4], dtor[4];
+    int srcIsTor = LookupV6Tor(ipv6Flow->srcAddr, genericFlow->msecFirst, genericFlow->msecLast, stor + 1);
+    stor[0] = srcIsTor ? ' ' : '\0';
+    int dstIsTor = LookupV6Tor(ipv6Flow->dstAddr, genericFlow->msecFirst, genericFlow->msecLast, dtor + 1);
+    dtor[0] = dstIsTor ? ' ' : '\0';
     LookupV6Location(ipv6Flow->srcAddr, sloc, 128);
     LookupV6Location(ipv6Flow->dstAddr, dloc, 128);
     fprintf(stream,
-            "  src addr     =  %16s%s%s\n"
-            "  dst addr     =  %16s%s%s\n",
-            as, strlen(sloc) ? ": " : "", sloc, ds, strlen(dloc) ? ": " : "", dloc);
+            "  src addr     =  %16s%s%s%s\n"
+            "  dst addr     =  %16s%s%s%s\n",
+            as, strlen(sloc) ? ": " : "", sloc, stor,
+            ds, strlen(dloc) ? ": " : "", dloc, dtor);
 
 }  // End of stringsEXipv6Flow
 

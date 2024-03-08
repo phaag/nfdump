@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,45 +28,45 @@
  *
  */
 
-#ifndef _OUTPUT_H
-#define _OUTPUT_H 1
+#ifndef _TOR_H
+#define _TOR_H 1
 
-#include <stdbool.h>
-#include <stdio.h>
+#include <stdint.h>
+#include <sys/types.h>
+#include <time.h>
 
-#include "nfdump.h"
+#include "config.h"
+#include "kbtree.h"
 
-typedef void (*RecordPrinter_t)(FILE *, recordHandle_t *, int);
-typedef void (*PrologPrinter_t)(void);
-typedef void (*EpilogPrinter_t)(void);
+typedef struct interval_s {
+    time_t firstSeen;
+    time_t lastSeen;
+} interval_t;
 
-enum { MODE_PLAIN = 0,
-       MODE_JSON,
-       MODE_CSV };
-typedef struct outputParams_s {
-    bool printPlain;
-    bool doTag;
-    bool quiet;
-    bool hasGeoDB;
-    bool hasTorDB;
-    int mode;
-    int topN;
-} outputParams_t;
+#define MAXINTERVALS 8
 
-typedef struct printmap_s {
-    char *printmode;              // name of the output format
-    RecordPrinter_t func_record;  // prints the record
-    PrologPrinter_t func_prolog;  // prints the output prolog
-    PrologPrinter_t func_epilog;  // prints the output epilog
-    char *Format;                 // output format definition
-} printmap_t;
+typedef struct torNode_s {
+    uint32_t ipaddr;
+    uint16_t gaps;
+    uint16_t intervalIndex;
+    time_t lastPublished;
+    interval_t interval[MAXINTERVALS];
+} torNode_t;
 
-void AddFormat(char *name, char *fmtString);
+#define TorTreeElementID 6
 
-RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams);
+int Init_TorLookup(void);
 
-void PrintProlog(outputParams_t *outputParams);
+void UpdateTorNode(torNode_t *torNode);
 
-void PrintEpilog(outputParams_t *outputParams);
+int LoadTorTree(char *fileName);
+
+int SaveTorTree(char *fileName);
+
+int LookupV4Tor(uint32_t ip, uint64_t first, uint64_t last, char *torInfo);
+
+int LookupV6Tor(uint64_t ip[2], uint64_t first, uint64_t last, char *torInfo);
+
+void LookupIP(char *ipstring);
 
 #endif

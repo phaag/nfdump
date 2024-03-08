@@ -53,6 +53,7 @@
 #include "nffile.h"
 #include "nfxV3.h"
 #include "output_util.h"
+#include "tor.h"
 #include "userio.h"
 #include "util.h"
 
@@ -260,6 +261,10 @@ static void String_DstLocation(FILE *stream, recordHandle_t *recordHandle);
 static void String_SrcASorganisation(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_DstASorganisation(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_SrcTor(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_DstTor(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_inPayload(FILE *stream, recordHandle_t *recordHandle);
 
@@ -538,6 +543,8 @@ static struct format_token_list_s {
     {"%dloc", 0, "Dst IP location info", String_DstLocation},       // dst IP geo location info
     {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},  // src IP AS organistaion string
     {"%dasn", 0, "Dst AS organisation", String_DstASorganisation},  // dst IP AS organisation string
+    {"%stor", 0, "STor", String_SrcTor},                            // src IP 2 letter tor node info
+    {"%dtor", 0, "DTor", String_DstTor},                            // dst IP 2 letter tor node info
     {"%lbl", 0, "           label", String_Label},                  // Flow Label
 
     {"%n", 0, "", String_NewLine},  // \n
@@ -2111,6 +2118,35 @@ static void String_DstASorganisation(FILE *stream, recordHandle_t *recordHandle)
     }
 
 }  // End of String_DstASorganisation
+
+static void String_SrcTor(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    char torInfo[4];
+    if (ipv4Flow) {
+        LookupV4Tor(ipv4Flow->srcAddr, genericFlow->msecFirst, genericFlow->msecLast, torInfo);
+    } else {
+        LookupV6Tor(ipv6Flow->srcAddr, genericFlow->msecFirst, genericFlow->msecLast, torInfo);
+    }
+    fprintf(stream, "%2s", torInfo);
+
+}  // End of String_SrcTor
+
+static void String_DstTor(FILE *stream, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    char torInfo[4];
+    if (ipv4Flow) {
+        LookupV4Tor(ipv4Flow->dstAddr, genericFlow->msecFirst, genericFlow->msecLast, torInfo);
+    } else {
+        LookupV6Tor(ipv6Flow->dstAddr, genericFlow->msecFirst, genericFlow->msecLast, torInfo);
+    }
+    fprintf(stream, "%2s", torInfo);
+
+}  // End of String_DstTor
 
 static void String_ivrf(FILE *stream, recordHandle_t *recordHandle) {
     EXvrf_t *vrf = (EXvrf_t *)recordHandle->extensionList[EXvrfID];

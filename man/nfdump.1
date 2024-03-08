@@ -1,4 +1,4 @@
-\" Copyright (c) 2023, Peter Haag
+\" Copyright (c) 2024, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -49,6 +49,7 @@
 .Op Fl I
 .Op Fl D Ar nameserver
 .Op Fl G Ar geoDB
+.Op Fl H Ar torDB
 .Op Fl s Ar statistic
 .Op Fl n Ar num
 .Op Fl o Ar format
@@ -370,12 +371,42 @@ for the path of
 The option
 .Fl G
 overwrites
-.Ar NFGEODB.
+.Ar NFGEODB
+or
+.Ar geodb.path 
+in
+.Ar nfdump.conf.
 In order to prevent reading any
 .Ar geoDB
 file, even if it would exist set
 .Fl G
 .Sy none.
+See also
+.Ar geolookup(1)
+.It Fl H Ar torDB
+Use
+.Ar torDB
+as tor lookup DB for tor exit node lookups.
+.Nm
+tries to read the environment variable
+.Ar NFTORDB
+for the path of
+.Ar torDB.
+The option
+.Fl H
+overwrites
+.Ar NFTORDB
+or
+.Ar tordb.path
+in
+.Ar nfdump.conf.
+In order to prevent reading any
+.Ar torDB
+file, even if it would exist set
+.Fl G
+.Sy none.
+See also
+.Ar torlookup(1)
 .It Fl s Ar statistic Op Ar :p Op Ar /orderby
 Generate the Top N flow record or flow element statistic. By optionally adding
 .Sy :p
@@ -940,15 +971,15 @@ or
 .Cm dst
 the source or destination port may match.
 .Pp
-.It Cm icmp-type Ar num
-.It Cm icmp-code Ar num
+.It Cm icmp type Ar num
+.It Cm icmp code Ar num
 True if the respective icmp field of the record matches
 .Ar num.
 This automatically implies
 .Cm proto icmp.
 .Pp
-.It Cm engine-type Ar num
-.It Cm engine-id Ar num
+.It Cm engine type Ar num
+.It Cm engine id Ar num
 .It Cm sysid Ar num
 True if the respective fields of the record matches
 .Ar num
@@ -1688,6 +1719,10 @@ dst IP geo location info
 src AS organisation name
 .It Cm %dasn
 dst AS organisation name
+.It Cm %stor
+src IP 2 letter tor exit info: TX tor exit node
+.It Cm %dtor
+dst IP 2 letter tor exit info: TX tor exit node
 .It Cm %n
 new line char \\n
 .It Cm %ipl

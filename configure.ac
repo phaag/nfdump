@@ -168,11 +168,23 @@ build_ftconv="yes" , build_ftconv="no"
 AM_CONDITIONAL([FT2NFDUMP], [test "x$build_ftconv" = "xyes"])
 
 AC_ARG_ENABLE(maxmind,
-[  --enable-maxmind        Build geolookup for MaxMind GeoDB; default is NO])
+[  --enable-maxmind        Build geolookup for MaxMind GeoDB; default is NO],
+build_maxmind="yes"
+AM_CONDITIONAL([MAXMIND], true)
+,
+build_maxmind="no"
+AM_CONDITIONAL([MAXMIND], false)
+)
 
-AS_IF([test "x$enable_maxmind" = xyes], 
-build_maxmind="$enable_maxmind", build_maxmind="no")
-AM_CONDITIONAL([MAXMIND], [test "x$build_maxmind" = "xyes"])
+AC_ARG_ENABLE(tor,
+[  --enable-tor        Build torlookup for tor onion lookups; default is NO],
+build_tor="yes"
+AM_CONDITIONAL(TORLOOKUP, true)
+CFLAGS="$CFLAGS -DBUILDTOR"
+,
+build_tor="no"
+AM_CONDITIONAL(TORLOOKUP, false)
+)
 
 AC_ARG_ENABLE(ja4,
 [  --enable-ja4        Build with ja4 fingerprinting code; May require a license; default is NO])
@@ -654,23 +666,23 @@ echo ""
 echo "----------------------------------"
 echo " Build Settings for ${PACKAGE_TARNAME} v${PACKAGE_VERSION}"
 echo "----------------------------------"
-echo "  host type            = $host_os"
-echo "  install dir          = $prefix"
-echo "  CC                   = $CC"
-echo "  CFLAGS               = $AM_CFLAGS $CFLAGS"
-echo "  CPPFLAGS             = $AM_CPPFLAGS $CPPFLAGS"
-echo "  LDFLAGS              = $AM_LDFLAGS $LDFLAGS"
-echo "  LIBS                 = $LIBS"
-echo "  Enable liblz4        = $use_lz4"
-echo "  Enable libbz2        = $use_bzip2"
-echo "  Enable libzstd       = $use_zstd"
-echo "  Enable ja4           = $build_ja4"
-echo "  Build geolookup      = $build_maxmind"
-echo "  Build sflow          = $build_sflow"
-echo "  Build nfpcapd        = $build_nfpcapd"
-echo "  Build flowtools conv = $build_ftconv"
-echo "  Build nfprofile      = $build_nfprofile"
-echo "  Build ft2nfdump      = $build_ftconv"
+echo "  host type          = $host_os"
+echo "  install dir        = $prefix"
+echo "  CC                 = $CC"
+echo "  CFLAGS             = $AM_CFLAGS $CFLAGS"
+echo "  CPPFLAGS           = $AM_CPPFLAGS $CPPFLAGS"
+echo "  LDFLAGS            = $AM_LDFLAGS $LDFLAGS"
+echo "  LIBS               = $LIBS"
+echo "  Enable liblz4      = $use_lz4"
+echo "  Enable libbz2      = $use_bzip2"
+echo "  Enable libzstd     = $use_zstd"
+echo "  Enable ja4         = $build_ja4"
+echo "  Build geolookup    = $build_maxmind"
+echo "  Build torlookup    = $build_tor"
+echo "  Build sflow        = $build_sflow"
+echo "  Build nfpcapd      = $build_nfpcapd"
+echo "  Build nfprofile    = $build_nfprofile"
+echo "  Build ft2nfdump    = $build_ftconv"
 echo "----------------------------------"
 echo ""
 echo " You can run ./make now." 
