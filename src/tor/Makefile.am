@@ -12,7 +12,7 @@ libtorlookup_a_SOURCES = tor.c tor.h
 
 if TORLOOKUP
 torlookup_SOURCES = torlookup.c 
-torlookup_LDADD = ../lib/libnfdump.la libtorlookup.a
+torlookup_LDADD = ../lib/libnfdump.la libtorlookup.a ../maxmind/libmaxmind.a ../decode/libnfdecode.a
 endif
 
 CLEANFILES = *.gch
