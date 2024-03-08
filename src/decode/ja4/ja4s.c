@@ -45,23 +45,31 @@
 
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
-static int DecodeJA4s(ja4s_t *ja4s, const uint8_t *data, size_t len, uint8_t proto) {
+ja4s_t *ja4sProcess(ssl_t *ssl, uint8_t proto) {
+    if (!ssl || ssl->type != SERVERssl) return NULL;
+
+    ja4s_t *ja4s = calloc(1, sizeof(ja4s_t));
+    if (!ja4s) {
+        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+
     // create ja4s_a
     ja4s->a[0] = proto == IPPROTO_TCP ? 't' : 'q';
-    ja4s->a[1] = ja4s->ssl->tlsCharVersion[0];
-    ja4s->a[2] = ja4s->ssl->tlsCharVersion[1];
+    ja4s->a[1] = ssl->tlsCharVersion[0];
+    ja4s->a[2] = ssl->tlsCharVersion[1];
 
-    uint32_t num = LenArray(ja4s->ssl->extensions);
+    uint32_t num = LenArray(ssl->extensions);
     if (num > 99) return 0;
     uint32_t ones = num % 10;
     uint32_t tens = num / 10;
     ja4s->a[3] = tens + '0';
     ja4s->a[4] = ones + '0';
 
-    if (ja4s->ssl->alpnName[0]) {
+    if (ssl->alpnName[0]) {
         // first and last char
-        ja4s->a[5] = ja4s->ssl->alpnName[0];
-        ja4s->a[6] = ja4s->ssl->alpnName[strlen(ja4s->ssl->alpnName) - 1];
+        ja4s->a[5] = ssl->alpnName[0];
+        ja4s->a[6] = ssl->alpnName[strlen(ssl->alpnName) - 1];
     } else {
         ja4s->a[5] = '0';
         ja4s->a[6] = '0';
@@ -71,9 +79,9 @@ static int DecodeJA4s(ja4s_t *ja4s, const uint8_t *data, size_t len, uint8_t pro
     // create ja4s_b
     char hexChars[] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
     uint16_t cipher = 0;
-    uint32_t numCipher = LenArray(ja4s->ssl->cipherSuites);
+    uint32_t numCipher = LenArray(ssl->cipherSuites);
     if (numCipher == 1) {
-        cipher = ArrayElement(ja4s->ssl->cipherSuites, 0);
+        cipher = ArrayElement(ssl->cipherSuites, 0);
     }
     uint8_t n1 = cipher >> 12;
     uint8_t n2 = (cipher >> 8) & 0xF;
@@ -89,13 +97,13 @@ static int DecodeJA4s(ja4s_t *ja4s, const uint8_t *data, size_t len, uint8_t pro
     // generate string to sha256
     // create a string big enough for ciphersuites and extensions
     // uint16_t = max 5 digits + ',' = 6 digits per cipher + '\0'
-    size_t maxStrLen = LenArray(ja4s->ssl->extensions) * 6 + 1;
+    size_t maxStrLen = LenArray(ssl->extensions) * 6 + 1;
     char *hashString = (char *)malloc(maxStrLen);
     hashString[0] = '0';
 
     uint32_t index = 0;
-    for (int i = 0; i < LenArray(ja4s->ssl->extensions); i++) {
-        uint16_t val = ArrayElement(ja4s->ssl->extensions, i);
+    for (int i = 0; i < LenArray(ssl->extensions); i++) {
+        uint16_t val = ArrayElement(ssl->extensions, i);
         uint8_t n1 = val >> 12;
         uint8_t n2 = (val >> 8) & 0xF;
         uint8_t n3 = (val >> 4) & 0xF;
@@ -116,48 +124,40 @@ static int DecodeJA4s(ja4s_t *ja4s, const uint8_t *data, size_t len, uint8_t pro
 #ifdef DEVEL
     HexString(sha256Digest, 32, sha256String);
     printf("CipherString: %s\n", hashString);
-    printf(" . Digest: %s\n", sha256String);
+    printf("   Digest: %s\n", sha256String);
 #else
     HexString(sha256Digest, 6, sha256String);
 #endif
 
     memcpy((void *)ja4s->c, (void *)sha256String, 12);
+    ja4s->c[13] = '\0';
+    printf("   c : %s\n", ja4s->c);
 
-    return 1;
+    return ja4s;
 
-}  // End of DecodeJA4s
+}  // End of ja4Process
+
+char *ja4sString(ja4s_t *ja4s, char *buff) {
+#define JA4SLEN 32
+    if (buff == NULL) buff = malloc(JA4SLEN);
+    if (buff == NULL) {
+        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+    //
+    snprintf(buff, JA4SLEN - 1, "%s_%s_%s", ja4s->a, ja4s->b, ja4s->c);
+    buff[JA4SLEN - 1] = '\0';
+    return buff;
+}  // End of ja4sString
 
 void ja4sPrint(ja4s_t *ja4s) {
-    printf("SSL/TLS info:\n");
-    sslPrint(ja4s->ssl);
-
-    printf("ja4s: %s_%s_%s\n", ja4s->a, ja4s->b, ja4s->c);
-
+    char buff[JA4SLEN];
+    printf("ja4s: %s\n", ja4sString(ja4s, buff));
 }  // End of ja4Print
 
 void ja4sFree(ja4s_t *ja4s) {
     if (ja4s) free(ja4s);
 }  // End of ja4Free
-
-ja4s_t *ja4sProcess(const uint8_t *data, size_t len, uint8_t proto) {
-    ssl_t *ssl = sslProcess(data, len);
-    if (!ssl) return NULL;
-
-    ja4s_t *ja4s = calloc(1, sizeof(ja4s_t));
-    if (!ja4s) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-    ja4s->ssl = ssl;
-
-    if (DecodeJA4s(ja4s, data, len, proto) == 0) {
-        free(ja4s);
-        return NULL;
-    }
-
-    return ja4s;
-
-}  // End of ja4Process
 
 #ifdef MAIN
 
@@ -345,7 +345,12 @@ int main(int argc, char **argv) {
 
     size_t len = sizeof(srvHello);
 
-    ja4s_t *ja4s = ja4sProcess(srvHello, len, IPPROTO_TCP);
+    ssl_t *ssl = sslProcess(srvHello, len);
+    if (!ssl) {
+        printf("Failed to parse ssl\n");
+        exit(255);
+    }
+    ja4s_t *ja4s = ja4sProcess(ssl, IPPROTO_TCP);
     if (ja4s)
         ja4sPrint(ja4s);
     else

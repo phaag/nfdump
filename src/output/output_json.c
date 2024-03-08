@@ -404,20 +404,20 @@ static void String_ja3(FILE *stream, recordHandle_t *recordHandle, void *extensi
         return;
     }
 
-    ja3_t *ja3 = (ja3_t *)recordHandle->ja3Info;
-    if (recordHandle->ja3Info == NULL) {
-        ja3 = ja3Process((uint8_t *)payload, payloadLength);
-        if (ja3) {
-            recordHandle->ja3Info = (void *)ja3;
-            memcpy((void *)recordHandle->ja3, ja3->md5Hash, sizeof(recordHandle->ja3));
+    ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
+    if (*((uint64_t *)(recordHandle->ja3)) == 0) {
+        if (ssl == NULL) {
+            ssl = sslProcess((const uint8_t *)payload, payloadLength);
+            recordHandle->sslInfo = (void *)ssl;
         }
+        ja3Process(ssl, recordHandle->ja3);
     }
 
-    if (ja3) {
-        fprintf(stream, "	\"ja3 string\" : %s,\n", ja3->ja3String);
-        fprintf(stream, "	\"ja3 hash\" : %s,\n", ja3HashString(ja3));
-        char *sni = ja3SNIname(ja3);
-        if (sni[0]) fprintf(stream, "	\"sni\" : %s,\n", sni);
+    if (ssl && ssl->sniName[0]) {
+        fprintf(stream, "	\"sni\" : %s,\n", ssl->sniName);
+    }
+    if (*((uint64_t *)(recordHandle->ja3)) == 0) {
+        fprintf(stream, "	\"ja3 hash\" : %s,\n", ja3String(recordHandle->ja3));
     }
 
 }  // End of String_ja3
