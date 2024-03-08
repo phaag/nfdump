@@ -38,6 +38,7 @@
 #include "kbtree.h"
 #include "khash.h"
 #include "maxmind.h"
+#include "mmhash.h"
 #include "util.h"
 
 #define kh_hash_func(key) (khint32_t)(key.key)
@@ -127,7 +128,7 @@ typedef struct mmHandle_s {
 
 static mmHandle_t *mmHandle = NULL;
 
-int InitMaxmindHash(void) {
+int Init_MaxMind(void) {
     mmHandle = calloc(1, sizeof(mmHandle_t));
     if (!mmHandle) {
         LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -146,11 +147,14 @@ int InitMaxmindHash(void) {
     }
     return 1;
 
-}  // End of InitMaxmindHash
+}  // End of Init_MaxMind
 
-void LoadLocalInfo(void *dataBlock, uint32_t NumRecords) {
-    locationInfo_t *locationInfo = (locationInfo_t *)dataBlock;
+int Loaded_MaxMind(void) {
+    //
+    return mmHandle != NULL;
+}  // End of Loaded_MaxMind
 
+void LoadLocalInfo(locationInfo_t *locationInfo, uint32_t NumRecords) {
     for (int i = 0; i < NumRecords; i++) {
         int absent;
         locationKey_t locationKey = {.key = locationInfo->localID};
@@ -165,9 +169,8 @@ void LoadLocalInfo(void *dataBlock, uint32_t NumRecords) {
 
 }  // End of LoadLocalInfo
 
-void LoadIPv4Tree(void *dataBlock, uint32_t NumRecords) {
+void LoadIPv4Tree(ipV4Node_t *ipV4Node, uint32_t NumRecords) {
     kbtree_t(ipV4Tree) *ipV4Tree = mmHandle->ipV4Tree;
-    ipV4Node_t *ipV4Node = (ipV4Node_t *)dataBlock;
     for (int i = 0; i < NumRecords; i++) {
         ipV4Node_t *node = kb_getp(ipV4Tree, ipV4Tree, ipV4Node);
         if (node) {
@@ -180,9 +183,8 @@ void LoadIPv4Tree(void *dataBlock, uint32_t NumRecords) {
 
 }  // End of LoadIPv4Tree
 
-void LoadIPv6Tree(void *dataBlock, uint32_t NumRecords) {
+void LoadIPv6Tree(ipV6Node_t *ipV6Node, uint32_t NumRecords) {
     kbtree_t(ipV6Tree) *ipV6Tree = mmHandle->ipV6Tree;
-    ipV6Node_t *ipV6Node = (ipV6Node_t *)dataBlock;
     for (int i = 0; i < NumRecords; i++) {
         ipV6Node_t *node = kb_getp(ipV6Tree, ipV6Tree, ipV6Node);
         if (node) {
@@ -196,9 +198,8 @@ void LoadIPv6Tree(void *dataBlock, uint32_t NumRecords) {
 
 }  // End of LoadIPv6Tree
 
-void LoadASV4Tree(void *dataBlock, uint32_t NumRecords) {
+void LoadASV4Tree(asV4Node_t *asV4Node, uint32_t NumRecords) {
     kbtree_t(asV4Tree) *asV4Tree = mmHandle->asV4Tree;
-    asV4Node_t *asV4Node = (asV4Node_t *)dataBlock;
     for (int i = 0; i < NumRecords; i++) {
         asV4Node_t *node = kb_getp(asV4Tree, asV4Tree, asV4Node);
         if (node) {
@@ -210,9 +211,8 @@ void LoadASV4Tree(void *dataBlock, uint32_t NumRecords) {
     }
 }  // End of LoadASV4Tree
 
-void LoadASV6Tree(void *dataBlock, uint32_t NumRecords) {
+void LoadASV6Tree(asV6Node_t *asV6Node, uint32_t NumRecords) {
     kbtree_t(asV6Tree) *asV6Tree = mmHandle->asV6Tree;
-    asV6Node_t *asV6Node = (asV6Node_t *)dataBlock;
     for (int i = 0; i < NumRecords; i++) {
         asV6Node_t *node = kb_getp(asV6Tree, asV6Tree, asV6Node);
         if (node) {
@@ -287,93 +287,6 @@ void PutasV6Node(asV6Node_t *asV6Node) {
         kb_putp(asV6Tree, asV6Tree, asV6Node);
     }
 }  // End of PutasV6Node
-
-locationInfo_t *NextLocation(int start) {
-    static khint_t k = 0;
-    static locationInfo_t locationInfo;
-
-    khash_t(localMap) *localMap = mmHandle->localMap;
-    if (start == FIRSTNODE) k = kh_begin(localMap);
-
-    while (k != kh_end(localMap)) {
-        if (kh_exist(localMap, k)) {  // test if a bucket contains data
-            locationInfo = kh_value(localMap, k);
-            k++;
-            return &locationInfo;
-        }
-        k++;
-    }
-
-    return NULL;
-
-}  // End of NextLocation
-
-ipV4Node_t *NextIPv4Node(int start) {
-    static kbitr_t itr = {0};
-    static ipV4Node_t *ipV4Node = NULL;
-
-    kbtree_t(ipV4Tree) *ipV4Tree = mmHandle->ipV4Tree;
-    if (start == FIRSTNODE) kb_itr_first(ipV4Tree, ipV4Tree, &itr);  // get an iterator pointing to the first
-
-    if (kb_itr_valid(&itr)) {
-        ipV4Node = &kb_itr_key(ipV4Node_t, &itr);
-        kb_itr_next(ipV4Tree, ipV4Tree, &itr);  // move on
-        return ipV4Node;
-    } else {
-        return NULL;
-    }
-
-}  // End of NextIPv4Node
-
-ipV6Node_t *NextIPv6Node(int start) {
-    static kbitr_t itr = {0};
-    static ipV6Node_t *ipV6Node = NULL;
-
-    kbtree_t(ipV6Tree) *ipV6Tree = mmHandle->ipV6Tree;
-    if (start == FIRSTNODE) kb_itr_first(ipV6Tree, ipV6Tree, &itr);  // get an iterator pointing to the first
-
-    if (kb_itr_valid(&itr)) {
-        ipV6Node = &kb_itr_key(ipV6Node_t, &itr);
-        kb_itr_next(ipV6Tree, ipV6Tree, &itr);  // move on
-        return ipV6Node;
-    } else {
-        return NULL;
-    }
-
-}  // End of NextIPv6Node
-
-asV4Node_t *NextasV4Node(int start) {
-    static kbitr_t itr = {0};
-    static asV4Node_t *asV4Node = NULL;
-
-    kbtree_t(asV4Tree) *asV4Tree = mmHandle->asV4Tree;
-    if (start == FIRSTNODE) kb_itr_first(asV4Tree, asV4Tree, &itr);  // get an iterator pointing to the first
-
-    if (kb_itr_valid(&itr)) {
-        asV4Node = &kb_itr_key(asV4Node_t, &itr);
-        kb_itr_next(asV4Tree, asV4Tree, &itr);  // move on
-        return asV4Node;
-    } else {
-        return NULL;
-    }
-
-}  // End of NextasV4Node
-
-asV6Node_t *NextasV6Node(int start) {
-    static kbitr_t itr = {0};
-    static asV6Node_t *asV6Node = NULL;
-
-    kbtree_t(asV6Tree) *asV6Tree = mmHandle->asV6Tree;
-    if (start == FIRSTNODE) kb_itr_first(asV6Tree, asV6Tree, &itr);  // get an iterator pointing to the first
-
-    if (kb_itr_valid(&itr)) {
-        asV6Node = &kb_itr_key(asV6Node_t, &itr);
-        kb_itr_next(asV6Tree, asV6Tree, &itr);  // move on
-        return asV6Node;
-    } else {
-        return NULL;
-    }
-}  // End of NextasV6Node
 
 void LookupV4Country(uint32_t ip, char *country) {
     if (!mmHandle) {
@@ -617,3 +530,90 @@ void LookupWhois(char *ip) {
     }
 
 }  // End of LookupWhois
+
+locationInfo_t *NextLocation(int start) {
+    static khint_t k = 0;
+    static locationInfo_t locationInfo;
+
+    khash_t(localMap) *localMap = mmHandle->localMap;
+    if (start == FIRSTNODE) k = kh_begin(localMap);
+
+    while (k != kh_end(localMap)) {
+        if (kh_exist(localMap, k)) {  // test if a bucket contains data
+            locationInfo = kh_value(localMap, k);
+            k++;
+            return &locationInfo;
+        }
+        k++;
+    }
+
+    return NULL;
+
+}  // End of NextLocation
+
+ipV4Node_t *NextIPv4Node(int start) {
+    static kbitr_t itr = {0};
+    static ipV4Node_t *ipV4Node = NULL;
+
+    kbtree_t(ipV4Tree) *ipV4Tree = mmHandle->ipV4Tree;
+    if (start == FIRSTNODE) kb_itr_first(ipV4Tree, ipV4Tree, &itr);  // get an iterator pointing to the first
+
+    if (kb_itr_valid(&itr)) {
+        ipV4Node = &kb_itr_key(ipV4Node_t, &itr);
+        kb_itr_next(ipV4Tree, ipV4Tree, &itr);  // move on
+        return ipV4Node;
+    } else {
+        return NULL;
+    }
+
+}  // End of NextIPv4Node
+
+ipV6Node_t *NextIPv6Node(int start) {
+    static kbitr_t itr = {0};
+    static ipV6Node_t *ipV6Node = NULL;
+
+    kbtree_t(ipV6Tree) *ipV6Tree = mmHandle->ipV6Tree;
+    if (start == FIRSTNODE) kb_itr_first(ipV6Tree, ipV6Tree, &itr);  // get an iterator pointing to the first
+
+    if (kb_itr_valid(&itr)) {
+        ipV6Node = &kb_itr_key(ipV6Node_t, &itr);
+        kb_itr_next(ipV6Tree, ipV6Tree, &itr);  // move on
+        return ipV6Node;
+    } else {
+        return NULL;
+    }
+
+}  // End of NextIPv6Node
+
+asV4Node_t *NextasV4Node(int start) {
+    static kbitr_t itr = {0};
+    static asV4Node_t *asV4Node = NULL;
+
+    kbtree_t(asV4Tree) *asV4Tree = mmHandle->asV4Tree;
+    if (start == FIRSTNODE) kb_itr_first(asV4Tree, asV4Tree, &itr);  // get an iterator pointing to the first
+
+    if (kb_itr_valid(&itr)) {
+        asV4Node = &kb_itr_key(asV4Node_t, &itr);
+        kb_itr_next(asV4Tree, asV4Tree, &itr);  // move on
+        return asV4Node;
+    } else {
+        return NULL;
+    }
+
+}  // End of NextasV4Node
+
+asV6Node_t *NextasV6Node(int start) {
+    static kbitr_t itr = {0};
+    static asV6Node_t *asV6Node = NULL;
+
+    kbtree_t(asV6Tree) *asV6Tree = mmHandle->asV6Tree;
+    if (start == FIRSTNODE) kb_itr_first(asV6Tree, asV6Tree, &itr);  // get an iterator pointing to the first
+
+    if (kb_itr_valid(&itr)) {
+        asV6Node = &kb_itr_key(asV6Node_t, &itr);
+        kb_itr_next(asV6Tree, asV6Tree, &itr);  // move on
+        return asV6Node;
+    } else {
+        return NULL;
+    }
+}  // End of NextasV6Node

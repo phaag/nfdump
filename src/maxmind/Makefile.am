@@ -8,10 +8,10 @@ bin_PROGRAMS = geolookup
 bin_SCRIPTS = updateGeoDB.sh
 endif
 
-libmaxmind_a_SOURCES = maxmind.c maxmind.h
+libmaxmind_a_SOURCES = mmhash.c mmhash.h maxmind.c maxmind.h
 
 if MAXMIND
-geolookup_SOURCES = geolookup.c 
+geolookup_SOURCES = geolookup.c mmcreate.c mmcreate.h
 geolookup_LDADD = ../lib/libnfdump.la libmaxmind.a ../decode/libnfdecode.a
 endif
 

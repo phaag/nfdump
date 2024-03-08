@@ -39,7 +39,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "khash.h"
+#include "mmcreate.h"
 #include "mmhash.h"
 #include "util.h"
 
@@ -84,7 +84,7 @@ static void stripLine(char *line) {
 static FILE *checkFile(char *fileName, char **fieldNames) {
     FILE *fp = fopen(fileName, "r");
     if (!fp) {
-        LogError("open() error: %s", strerror(errno));
+        LogError("open(%s) error in %s line %d: %s", fileName, __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
@@ -122,7 +122,7 @@ static FILE *checkFile(char *fileName, char **fieldNames) {
 static int loadLocalMap(char *fileName) {
     FILE *fp = checkFile(fileName, localFieldNames);
     if (!fp) {
-        LogError("open() error: %s", strerror(errno));
+        LogError("loadLocalMap(%s) failed", fileName);
         return 0;
     }
 
@@ -202,7 +202,7 @@ static int loadLocalMap(char *fileName) {
 static int loadIPV4tree(char *fileName) {
     FILE *fp = checkFile(fileName, ipFieldNames);
     if (!fp) {
-        LogError("open() error: %s", strerror(errno));
+        LogError("loadIPV4tree(%s) failed", fileName);
         return 0;
     }
 
@@ -268,7 +268,7 @@ static int loadIPV4tree(char *fileName) {
 static int loadIPV6tree(char *fileName) {
     FILE *fp = checkFile(fileName, ipFieldNames);
     if (!fp) {
-        LogError("open() error: %s", strerror(errno));
+        LogError("loadIPV6tree(%s) failed", fileName);
         return 0;
     }
 
@@ -347,7 +347,7 @@ static int loadIPV6tree(char *fileName) {
 static int loadASV4tree(char *fileName) {
     FILE *fp = checkFile(fileName, asFieldNames);
     if (!fp) {
-        LogError("open() error: %s", strerror(errno));
+        LogError("loadASV4tree(%s) failed", fileName);
         return 0;
     }
 
@@ -414,7 +414,7 @@ static int loadASV4tree(char *fileName) {
 static int loadASV6tree(char *fileName) {
     FILE *fp = checkFile(fileName, asFieldNames);
     if (!fp) {
-        LogError("open() error: %s", strerror(errno));
+        LogError("loadASV6tree(%s) failed", fileName);
         return 0;
     }
 
