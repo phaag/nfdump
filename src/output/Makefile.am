@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../lib -I../decode -I../lib/conf  -I../maxmind -I../tor -I../inline $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../libnfdump -I../maxmind -I../tor -I../inline $(DEPS_CFLAGS)
 
 noinst_LIBRARIES = liboutput.a
 

@@ -48,7 +48,7 @@
 
 #include "config.h"
 #include "exporter.h"
-#include "filter.h"
+#include "filter/filter.h"
 #include "flist.h"
 #include "nbar.h"
 #include "nfdump.h"

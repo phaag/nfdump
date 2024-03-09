@@ -32,7 +32,6 @@
 #ifndef _PROFILE_H
 #define _PROFILE_H 1
 
-#include "filter.h"
 #include "nffile.h"
 #include "nfstatfile.h"
 

@@ -37,7 +37,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-#include "nfconf.h"
+#include "conf/nfconf.h"
 #include "nffile.h"
 #include "tor.h"
 #include "util.h"

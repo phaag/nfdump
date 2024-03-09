@@ -65,6 +65,7 @@
 
 #include "bookkeeper.h"
 #include "collector.h"
+#include "conf/nfconf.h"
 #include "config.h"
 #include "daemon.h"
 #include "expire.h"
@@ -74,7 +75,6 @@
 #include "flowsend.h"
 #include "flowtree.h"
 #include "metric.h"
-#include "nfconf.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"

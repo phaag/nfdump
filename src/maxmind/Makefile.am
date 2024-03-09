@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../lib -I../lib/conf  -I../lib/filter -I../inline $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../libnffile   -I../lib/filter -I../inline $(DEPS_CFLAGS)
 
 noinst_LIBRARIES = libmaxmind.a
 
@@ -12,7 +12,7 @@ libmaxmind_a_SOURCES = mmhash.c mmhash.h maxmind.c maxmind.h
 
 if MAXMIND
 geolookup_SOURCES = geolookup.c mmcreate.c mmcreate.h
-geolookup_LDADD = ../lib/libnfdump.la libmaxmind.a ../decode/libnfdecode.a
+geolookup_LDADD = libmaxmind.a ../libnffile/libnffile.la  
 endif
 
 CLEANFILES = *.gch

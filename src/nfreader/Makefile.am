@@ -1,12 +1,12 @@
 
 EXTRA_PROGRAMS = nfreader
 
-AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline $(DEPS_CFLAGS)
-AM_LDFLAGS  = -L../lib
+AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline $(DEPS_CFLAGS)
 
 LDADD = $(DEPS_LIBS)
 
 nfreader_SOURCES = nfreader.c 
-nfreader_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a
+nfreader_LDADD = -lnffile
+nfreader_LDFLAGS = -L../libnffile
 
 CLEANFILES = *.gch

@@ -54,7 +54,7 @@
 #include <stdio_ext.h>
 #endif
 
-#include "filter.h"
+#include "filter/filter.h"
 #include "flist.h"
 #include "nbar.h"
 #include "nfd_raw.h"

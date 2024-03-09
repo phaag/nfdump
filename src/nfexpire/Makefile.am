@@ -1,12 +1,11 @@
 
 bin_PROGRAMS = nfexpire
 
-AM_CPPFLAGS = -I.. -I../include -I../lib -I../collector $(DEPS_CFLAGS)
-AM_LDFLAGS  = -L../lib
+AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../collector $(DEPS_CFLAGS)
 
 LDADD = $(DEPS_LIBS)
 
 nfexpire_SOURCES = nfexpire.c 
-nfexpire_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a ../decode/libnfdecode.a ../collector/libcollector.a
-
+nfexpire_LDADD = ../collector/libcollector.a -lnffile
+nfexpire_LDFLAGS = -L../libnffile
 CLEANFILES = *.gch

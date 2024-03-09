@@ -58,11 +58,11 @@
 
 #include "bookkeeper.h"
 #include "collector.h"
+#include "conf/nfconf.h"
 #include "daemon.h"
 #include "flist.h"
 #include "launch.h"
 #include "metric.h"
-#include "nfconf.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"

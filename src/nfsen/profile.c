@@ -46,7 +46,7 @@
 #include <unistd.h>
 
 #include "config.h"
-#include "filter.h"
+#include "filter/filter.h"
 #include "flist.h"
 #include "nfdump.h"
 #include "nffile.h"

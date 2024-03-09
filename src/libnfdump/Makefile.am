@@ -1,0 +1,21 @@
+
+BUILT_SOURCES = filter/grammar.h
+AM_YFLAGS = -d
+
+AM_CPPFLAGS = -I.. -I../include -I../inline -I../libnffile -Idecode -I../maxmind -Isgregex $(DEPS_CFLAGS)
+AM_CFLAGS = -ggdb 
+
+LDADD =  $(DEPS_LIBS)
+
+# libnfdump sources
+filter = filter/grammar.y filter/scanner.l filter/filter.c filter/filter.h filter/ipconv.c filter/ipconv.h rbtree.h
+regex = sgregex/sgregex.c sgregex/sgregex.h
+decode  = dns/dns.c dns/dns.h
+decode += ssl/ssl.c ssl/ssl.h ja3/ja3.c ja3/ja3.h ja4/ja4.c ja4/ja4.h
+digest  = digest/md5.c digest/md5.h digest/sha256.c digest/sha256.h
+
+lib_LTLIBRARIES = libnfdump.la
+libnfdump_la_SOURCES = $(filter) $(regex) $(decode) $(digest) vcs_track.h
+libnfdump_la_LDFLAGS = -release @VERSION@
+ 
+CLEANFILES = filter/lex.yy.c filter/grammar.c filter/grammar.h filter/scanner.c filter/scanner.h *.gch

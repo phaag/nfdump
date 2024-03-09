@@ -1,8 +1,8 @@
 
 bin_PROGRAMS = nfpcapd
 
-AM_CPPFLAGS = -I.. -I../include -I../lib -I../inline -I../collector -I../netflow -I../lib/conf $(DEPS_CFLAGS)
-AM_LDFLAGS  = -L../lib
+AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline -I../collector -I../netflow $(DEPS_CFLAGS)
+#AM_LDFLAGS  = -L../lib
 
 LDADD = $(DEPS_LIBS)
 
@@ -11,9 +11,11 @@ flowdump = flowdump.c flowdump.h
 flowsend = flowsend.c flowsend.h
 pcaproc = pcaproc.c pcaproc.h nflog.h pflog.h flowtree.c flowtree.h 
 
-nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h \
-	$(pcaproc) $(pcapdump) $(flowdump) $(flowsend)
-nfpcapd_LDADD = ../lib/libnfdump.la ../maxmind/libmaxmind.a ../decode/libnfdecode.a ../collector/libcollector.a -lm
+nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h $(pcaproc) $(pcapdump) $(flowdump) $(flowsend)
+nfpcapd_CFLAGS = -D_BSD_SOURCE -D_DEFAULT_SOURCE
+nfpcapd_LDADD = ../collector/libcollector.a -lnffile  -lpcap -lm
+nfpcapd_LDFLAGS = -L../libnffile
+
 if BSDBPF
 nfpcapd_SOURCES += packet_bpf.c
 AM_CPPFLAGS += -DUSE_BPFSOCKET
@@ -25,9 +27,5 @@ endif
 if HAVEPCAPAPPEND
 AM_CPPFLAGS += -DHAVEPCAPAPPEND
 endif
-
-bin_PROGRAMS += nfpcapd
-nfpcapd_CFLAGS = -D_BSD_SOURCE -D_DEFAULT_SOURCE
-nfpcapd_LDADD += -lpcap 
 
 CLEANFILES = *.gch

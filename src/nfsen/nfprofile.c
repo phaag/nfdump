@@ -43,10 +43,11 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "conf/nfconf.h"
 #include "exporter.h"
+#include "filter/filter.h"
 #include "flist.h"
 #include "nbar.h"
-#include "nfconf.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfstatfile.h"

@@ -48,7 +48,7 @@
 #include <unistd.h>
 
 #include "bookkeeper.h"
-#include "nfconf.h"
+#include "conf/nfconf.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"

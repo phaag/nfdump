@@ -43,10 +43,10 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "conf/nfconf.h"
 #include "maxmind.h"
 #include "mmcreate.h"
 #include "mmhash.h"
-#include "nfconf.h"
 #include "nffile.h"
 #include "util.h"
 

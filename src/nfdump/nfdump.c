@@ -50,16 +50,16 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "conf/nfconf.h"
 #include "config.h"
 #include "exporter.h"
-#include "filter.h"
+#include "filter/filter.h"
 #include "flist.h"
 #include "ifvrf.h"
 #include "maxmind.h"
 #include "nbar.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
-#include "nfconf.h"
 #include "nfdump_1_6_x.h"
 #include "nffile.h"
 #include "nflowcache.h"

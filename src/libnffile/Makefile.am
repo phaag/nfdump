@@ -1,13 +1,9 @@
-
-BUILT_SOURCES = filter/grammar.h vcs_track.h
-AM_YFLAGS = -d
-
-AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -I../decode -I../maxmind -Isgregex -Icompress $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -Icompress $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb 
 
 LDADD =  $(DEPS_LIBS)
 
-# libnfdump sources
+# libnffile sources
 util = util.c util.h
 pidfile = pidfile.c pidfile.h
 compress = compress/minilzo.c compress/minilzo.h compress/lzoconf.h compress/lzodefs.h 
@@ -22,23 +18,20 @@ nflist = flist.c flist.h fts_compat.c fts_compat.h
 else 
 nflist = flist.c flist.h
 endif
-filter = filter/grammar.y filter/scanner.l filter/filter.c filter/filter.h filter/ipconv.c filter/ipconv.h rbtree.h
 output = userio.c userio.h output_short.c output_short.h
-regex = sgregex/sgregex.c sgregex/sgregex.h
 daemon = daemon.c daemon.h 
 version = version.c version.h
 
 vcs_track.h: Makefile
 	./gen_version.sh
 
-lib_LTLIBRARIES = libnfdump.la
-libnfdump_la_SOURCES = $(conf) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(version) vcs_track.h
-libnfdump_la_LDFLAGS = -release @VERSION@
+lib_LTLIBRARIES = libnffile.la
+libnffile_la_SOURCES = $(conf) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(version) vcs_track.h
+libnffile_la_LDFLAGS = -release @VERSION@
  
-
 EXTRA_DIST = gen_version.sh conf/nfdump.conf.dist
 
 nfconfdir=$(sysconfdir)
 nfconf_DATA = conf/nfdump.conf.dist
 
-CLEANFILES = filter/lex.yy.c filter/grammar.c filter/grammar.h filter/scanner.c filter/scanner.h vcs_track.h *.gch
+CLEANFILES = *.gch

@@ -36,7 +36,7 @@
 #include <string.h>
 #include <strings.h>
 
-#include "nfconf.h"
+#include "conf/nfconf.h"
 #include "nfdump.h"
 #include "output_csv.h"
 #include "output_fmt.h"

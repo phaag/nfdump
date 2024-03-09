@@ -58,6 +58,7 @@
 
 #include "bookkeeper.h"
 #include "collector.h"
+#include "conf/nfconf.h"
 #include "daemon.h"
 #include "flist.h"
 #include "ipfix.h"
@@ -66,7 +67,6 @@
 #include "netflow_v1.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
-#include "nfconf.h"
 #include "nfd_raw.h"
 #include "nfdump.h"
 #include "nffile.h"

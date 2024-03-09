@@ -44,7 +44,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "filter.h"
+#include "filter/filter.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
