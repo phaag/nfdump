@@ -99,17 +99,17 @@ typedef struct asV6Node_s {
     char orgName[orgNameLength];
 } asV6Node_t;
 
-int InitMaxmindHash(void);
+int Init_MaxMind(void);
 
-void LoadLocalInfo(void *dataBlock, uint32_t NumRecords);
+void LoadLocalInfo(locationInfo_t *locationInfo, uint32_t NumRecords);
 
-void LoadIPv4Tree(void *dataBlock, uint32_t NumRecords);
+void LoadIPv4Tree(ipV4Node_t *ipV4Node, uint32_t NumRecords);
 
-void LoadIPv6Tree(void *dataBlock, uint32_t NumRecords);
+void LoadIPv6Tree(ipV6Node_t *ipV6Node, uint32_t NumRecords);
 
-void LoadASV4Tree(void *dataBlock, uint32_t NumRecords);
+void LoadASV4Tree(asV4Node_t *asV4Node, uint32_t NumRecords);
 
-void LoadASV6Tree(void *dataBlock, uint32_t NumRecords);
+void LoadASV6Tree(asV6Node_t *asV6Node, uint32_t NumRecords);
 
 void PutLocation(locationInfo_t *locationInfo);
 
@@ -132,5 +132,7 @@ ipV6Node_t *NextIPv6Node(int start);
 asV4Node_t *NextasV4Node(int start);
 
 asV6Node_t *NextasV6Node(int start);
+
+int SaveMaxMind(char *fileName);
 
 #endif

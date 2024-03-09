@@ -131,4 +131,6 @@ typedef struct stat_record_s {
     uint64_t sequence_failure;
 } stat_record_t;
 
+#define NOGEODB 0
+
 #endif  //_NFDUMP_H

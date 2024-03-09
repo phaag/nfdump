@@ -168,7 +168,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
 
                         // apply profile filter
                         void *engine = channels[j].engine;
-                        match = FilterRecord(engine, recordHandle, FILE_IDENT(nffile));
+                        match = FilterRecord(engine, recordHandle, FILE_IDENT(nffile), NOGEODB);
 
                         // if profile filter failed -> next profile
                         if (!match) continue;

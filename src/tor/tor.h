@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2021, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,36 +28,45 @@
  *
  */
 
-#ifndef _MAXMIND_H
-#define _MAXMIND_H 1
+#ifndef _TOR_H
+#define _TOR_H 1
 
 #include <stdint.h>
-#include <stdio.h>
 #include <sys/types.h>
+#include <time.h>
 
-/*
- * Common interface header for the maxmind library
- */
-int LoadMaxMind(char *fileName);
+#include "config.h"
+#include "kbtree.h"
 
-int SaveMaxMind(char *fileName);
+typedef struct interval_s {
+    time_t firstSeen;
+    time_t lastSeen;
+} interval_t;
 
-void LookupV4Country(uint32_t ip, char *country);
+#define MAXINTERVALS 8
 
-void LookupV6Country(uint64_t ip[2], char *country);
+typedef struct torNode_s {
+    uint32_t ipaddr;
+    uint16_t gaps;
+    uint16_t intervalIndex;
+    time_t lastPublished;
+    interval_t interval[MAXINTERVALS];
+} torNode_t;
 
-void LookupV4Location(uint32_t ip, char *location, size_t len);
+#define TorTreeElementID 6
 
-void LookupV6Location(uint64_t ip[2], char *location, size_t len);
+int Init_TorLookup(void);
 
-uint32_t LookupV4AS(uint32_t ip);
+void UpdateTorNode(torNode_t *torNode);
 
-uint32_t LookupV6AS(uint64_t ip[2]);
+int LoadTorTree(char *fileName);
 
-const char *LookupV4ASorg(uint32_t ip);
+int SaveTorTree(char *fileName);
 
-const char *LookupV6ASorg(uint64_t ip[2]);
+int LookupV4Tor(uint32_t ip, uint64_t first, uint64_t last, char *torInfo);
 
-void LookupWhois(char *ip);
+int LookupV6Tor(uint64_t ip[2], uint64_t first, uint64_t last, char *torInfo);
+
+void LookupIP(char *ipstring);
 
 #endif

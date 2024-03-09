@@ -69,6 +69,7 @@
 #include "nfx.h"
 #include "nfxV3.h"
 #include "output.h"
+#include "tor.h"
 #include "util.h"
 #include "version.h"
 
@@ -77,7 +78,6 @@ extern char *FilterFilename;
 static uint64_t total_bytes = 0;
 static uint32_t processed = 0;
 static uint32_t passed = 0;
-static bool HasGeoDB = false;
 static uint32_t skipped_blocks = 0;
 static uint64_t t_first_flow, t_last_flow;
 
@@ -119,6 +119,7 @@ static void usage(char *name) {
         "-c\t\tLimit number of matching records\n"
         "-D <dns>\tUse nameserver <dns> for host lookup.\n"
         "-G <geoDB>\tUse this nfdump geoDB to lookup country/location.\n"
+        "-H <torDB>\tUse nfdump torDB to lookup tor info.\n"
         "-N\t\tPrint plain numbers\n"
         "-s <expr>[/<order>]\tGenerate statistics for <expr> any valid record element.\n"
         "\t\tand ordered by <order>: packets, bytes, flows, bps pps and bpp.\n"
@@ -377,7 +378,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
 
                     if (match) {
                         // filter netflow record with user supplied filter
-                        match = FilterRecord(engine, recordHandle, nffile_r->ident);
+                        match = FilterRecord(engine, recordHandle, nffile_r->ident, outputParams->hasGeoDB);
                     }
                     if (match == 0) {  // record failed to pass all filters
                         // go to next record
@@ -519,7 +520,7 @@ int main(int argc, char **argv) {
     nfprof_t profile_data;
     char *wfile, *ffile, *filter, *tstring, *stat_type;
     char *print_format;
-    char *print_order, *query_file, *geo_file, *configFile, *nameserver, *aggr_fmt;
+    char *print_order, *query_file, *configFile, *nameserver, *aggr_fmt;
     int ffd, element_stat, fdump;
     int flow_stat, aggregate, aggregate_mask, bidir;
     int print_stat, gnuplot_stat, syntax_only, compress, worker;
@@ -556,7 +557,8 @@ int main(int argc, char **argv) {
     aggr_fmt = NULL;
 
     configFile = NULL;
-    geo_file = getenv("NFGEODB");
+    char *geo_file = getenv("NFGEODB");
+    char *tor_file = getenv("NFTORDB");
 
     outputParams = (outputParams_t *)calloc(1, sizeof(outputParams_t));
     if (!outputParams) {
@@ -567,7 +569,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:ghn:i:jf:qyz::r:v:w:J:M:NImO:R:XZt:TVv:W:x:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:gH:hn:i:jf:qyz::r:v:w:J:M:NImO:R:XZt:TVv:W:x:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -632,6 +634,12 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, MAXPATHLEN);
                 if (strcmp(optarg, "none") != 0 && !CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 geo_file = strdup(optarg);
+                break;
+            case 'H':
+                CheckArgLen(optarg, MAXPATHLEN);
+                if (strcmp(optarg, "none") != 0 && !CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
+                tor_file = strdup(optarg);
+                // outputParams->doTag = 1;
                 break;
             case 'X':
                 fdump = 1;
@@ -950,15 +958,27 @@ int main(int argc, char **argv) {
         geo_file = NULL;
     }
     if (geo_file) {
-        if (!CheckPath(geo_file, S_IFREG) || !Init_MaxMind() || !LoadMaxMind(geo_file)) {
+        if (!CheckPath(geo_file, S_IFREG) || !LoadMaxMind(geo_file)) {
             LogError("Error reading geo location DB file %s", geo_file);
             exit(EXIT_FAILURE);
         }
-        HasGeoDB = true;
         outputParams->hasGeoDB = true;
     }
 
-    if ((aggregate || flow_stat || print_order) && !Init_FlowCache()) exit(250);
+    if (tor_file == NULL) {
+        tor_file = ConfGetString("tordb.path");
+    }
+    if (tor_file && strcmp(tor_file, "none") == 0) {
+        tor_file = NULL;
+    }
+    if (tor_file) {
+        if (!CheckPath(tor_file, S_IFREG) || !LoadTorTree(tor_file)) {
+            LogError("Error reading tor info DB file %s", tor_file);
+            exit(EXIT_FAILURE);
+        }
+        outputParams->hasTorDB = true;
+    }
+    if ((aggregate || flow_stat || print_order) && !Init_FlowCache(outputParams->hasGeoDB)) exit(250);
 
     if (aggregate && (flow_stat || element_stat)) {
         aggregate = 0;
@@ -971,12 +991,12 @@ int main(int argc, char **argv) {
 
     if (aggr_fmt) {
         // custom aggregation mask overwrites any output format
-        print_format = ParseAggregateMask(aggr_fmt, HasGeoDB);
+        print_format = ParseAggregateMask(aggr_fmt);
         if (!print_format) {
             exit(EXIT_FAILURE);
         }
     }
-    if (element_stat && !Init_StatTable()) exit(250);
+    if (element_stat && !Init_StatTable(outputParams->hasGeoDB)) exit(250);
 
     if (gnuplot_stat) {
         nffile_t *nffile;

@@ -280,6 +280,8 @@ static struct StatRequest_s {
 
 static uint32_t NumStats = 0;  // number of stats in StatRequest
 
+static int HasGeoDB = 0;
+
 // definitions for khash element stat
 #define kh_key_hash_func(key) (khint32_t)((key.v1) >> 33 ^ (key.v1) ^ (key.v1) << 11)
 
@@ -292,8 +294,6 @@ static uint32_t NumStats = 0;  // number of stats in StatRequest
 KHASH_INIT(ElementHash, hashkey_t, StatRecord_t, 1, kh_key_hash_func, kh_key_hash_equal)
 
 static khash_t(ElementHash) * ElementKHash[MaxStats];
-
-static uint32_t LoadedGeoDB = 0;
 
 /* function prototypes */
 static int ParseListOrder(char *orderBy, struct StatRequest_s *request);
@@ -366,14 +366,14 @@ static uint64_t bpp_element(StatRecord_t *record, flowDir_t inout) {
 
 }  // End of bpp_element
 
-int Init_StatTable(void) {
+int Init_StatTable(int hasGeoDB) {
     if (!nfalloc_Init(8 * 1024 * 1024)) return 0;
 
     for (int i = 0; i < MaxStats; i++) {
         ElementKHash[i] = kh_init(ElementHash);
     }
 
-    LoadedGeoDB = Loaded_MaxMind();
+    HasGeoDB = hasGeoDB;
     return 1;
 
 }  // End of Init_StatTable
@@ -493,7 +493,7 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
             break;
         case SRC_GEO: {
             char *geo = (char *)inPtr;
-            if (LoadedGeoDB == 0 || geo[0]) return;
+            if (HasGeoDB == 0 || geo[0]) return;
             if (ipv4Flow)
                 LookupV4Country(ipv4Flow->srcAddr, geo);
             else if (ipv6Flow)
@@ -501,7 +501,7 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
         } break;
         case DST_GEO: {
             char *geo = (char *)inPtr;
-            if (LoadedGeoDB == 0 || geo[0]) return;
+            if (HasGeoDB == 0 || geo[0]) return;
             if (ipv4Flow)
                 LookupV4Country(ipv4Flow->dstAddr, inPtr);
             else if (ipv6Flow)
@@ -509,12 +509,12 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
         } break;
         case SRC_AS: {
             uint32_t *as = (uint32_t *)inPtr;
-            if (LoadedGeoDB == 0 || *as) return;
+            if (HasGeoDB == 0 || *as) return;
             *as = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->srcAddr) : 0);
         } break;
         case DST_AS: {
             uint32_t *as = (uint32_t *)inPtr;
-            if (LoadedGeoDB == 0 || *as) return;
+            if (HasGeoDB == 0 || *as) return;
             *as = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->dstAddr) : 0);
         } break;
         case PREV_AS: {
@@ -644,7 +644,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
             tag_string[0] = outputParams->doTag ? TAG_CHAR : '\0';
             if (StatData->hashkey.v0 == 0) {  // IPv4
                 uint32_t ipv4 = htonl(StatData->hashkey.v1);
-                if (LoadedGeoDB) {
+                if (outputParams->hasGeoDB) {
                     char ipstr[16], country[4] = {0};
                     inet_ntop(AF_INET, &ipv4, ipstr, sizeof(ipstr));
                     LookupV4Country(StatData->hashkey.v1, country);
@@ -654,7 +654,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
                 }
             } else {  // IPv6
                 uint64_t _key[2] = {htonll(StatData->hashkey.v0), htonll(StatData->hashkey.v1)};
-                if (LoadedGeoDB) {
+                if (outputParams->hasGeoDB) {
                     char ipstr[40], country[4] = {0};
                     uint64_t ip[2] = {StatData->hashkey.v0, StatData->hashkey.v1};
                     LookupV6Country(ip, country);
@@ -800,7 +800,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
         printf("%s.%03u %9.3f %-5s %s%39s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(StatData->msecFirst % 1000), duration,
                protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str, bpp);
     } else {
-        if (LoadedGeoDB) {
+        if (outputParams->hasGeoDB) {
             printf("%s.%03u %9s %-5s %s%21s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(StatData->msecFirst % 1000), dStr,
                    protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str,
                    bpp);
@@ -930,7 +930,7 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                             "bpp\n",
                             StatParameters[stat].HeaderInfo);
                     } else {
-                        if (LoadedGeoDB) {
+                        if (outputParams->hasGeoDB) {
                             printf(
                                 "Date first seen                 Duration Proto %21s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
                                 "bps   "

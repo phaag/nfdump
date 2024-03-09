@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -41,11 +41,13 @@ typedef void (*PrologPrinter_t)(void);
 typedef void (*EpilogPrinter_t)(void);
 
 enum { MODE_PLAIN = 0, MODE_JSON, MODE_CSV, MODE_JSON_LOG };
+
 typedef struct outputParams_s {
     bool printPlain;
     bool doTag;
     bool quiet;
     bool hasGeoDB;
+    bool hasTorDB;
     int mode;
     int topN;
 } outputParams_t;

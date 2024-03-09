@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -44,6 +44,8 @@
 #include <unistd.h>
 
 #include "maxmind.h"
+#include "mmcreate.h"
+#include "mmhash.h"
 #include "nfconf.h"
 #include "nffile.h"
 #include "util.h"
@@ -57,82 +59,6 @@ static void usage(char *name) {
         "-w <file>\tName of nfdump GeoDB file.\n",
         name);
 } /* usage */
-
-static int LoadMaps(char *dirName) {
-    DIR *dp = opendir(dirName);
-    if (dp == NULL) {
-        LogError("opendir() error: %s", strerror(errno));
-        return 0;
-    }
-    char *cwd = getcwd(NULL, 0);
-    if (cwd == NULL) {
-        LogError("getcwd() error: %s", strerror(errno));
-        return 0;
-    }
-    if (chdir(dirName) < 0) {
-        LogError("chdir() error: %s", strerror(errno));
-        return 0;
-    }
-    char *CityLocationFile = NULL;
-    char *CityBlocksIPv4File = NULL;
-    char *CityBlocksIPv6File = NULL;
-    char *ASNBlocksIPv4File = NULL;
-    char *ASNBlocksIPv6File = NULL;
-    struct dirent *ep;
-    for (ep = readdir(dp); ep != NULL; ep = readdir(dp)) {
-        struct stat stat_buf;
-        if (stat(ep->d_name, &stat_buf) < 0) {
-            LogError("stat() error: %s", strerror(errno));
-            return 0;
-        }
-        if (!S_ISREG(stat_buf.st_mode)) {
-            LogError("Skip non file entry: %s", ep->d_name);
-            continue;
-        }
-        char *extension = strstr(ep->d_name, ".csv");
-        if (extension == NULL) {
-            LogError("Skip non .csv file: %s", ep->d_name);
-            continue;
-        }
-        if (strstr(ep->d_name, "-City-Locations-") != NULL)
-            CityLocationFile = strdup(ep->d_name);
-        else if (strstr(ep->d_name, "-City-Blocks-IPv4.csv") != NULL)
-            CityBlocksIPv4File = strdup(ep->d_name);
-        else if (strstr(ep->d_name, "-City-Blocks-IPv6.csv") != NULL)
-            CityBlocksIPv6File = strdup(ep->d_name);
-        else if (strstr(ep->d_name, "-ASN-Blocks-IPv4.csv") != NULL)
-            ASNBlocksIPv4File = strdup(ep->d_name);
-        else if (strstr(ep->d_name, "-ASN-Blocks-IPv6.csv") != NULL)
-            ASNBlocksIPv6File = strdup(ep->d_name);
-
-        printf("Found entry: %s\n", ep->d_name);
-    }
-    closedir(dp);
-
-    if (CityLocationFile) {
-        loadLocalMap(CityLocationFile);
-    }
-    if (CityBlocksIPv4File) {
-        loadIPV4tree(CityBlocksIPv4File);
-    }
-    if (CityBlocksIPv6File) {
-        loadIPV6tree(CityBlocksIPv6File);
-    }
-    if (ASNBlocksIPv4File) {
-        loadASV4tree(ASNBlocksIPv4File);
-    }
-    if (ASNBlocksIPv6File) {
-        loadASV6tree(ASNBlocksIPv6File);
-    }
-
-    if (chdir(cwd) < 0) {
-        LogError("chdir() error: %s", strerror(errno));
-        return 0;
-    }
-
-    return 1;
-
-}  // End of LoadMaps
 
 // Return a pointer to the trimmed string
 static char *string_trim(char *s) {
@@ -239,10 +165,10 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!Init_nffile(1, NULL) || !Init_MaxMind()) exit(EXIT_FAILURE);
+    if (!Init_nffile(1, NULL)) exit(EXIT_FAILURE);
 
     if (dirName && wfile) {
-        if (LoadMaps(dirName) == 0 || SaveMaxMind(wfile) == 0) {
+        if (Init_MaxMind() == 0 || LoadMaps(dirName) == 0 || SaveMaxMind(wfile) == 0) {
             exit(EXIT_FAILURE);
         }
         exit(EXIT_SUCCESS);

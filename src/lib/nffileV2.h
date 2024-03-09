@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -87,7 +87,8 @@ typedef struct fileHeaderV2_s {
 #define CREATOR_NFPROFILE 6
 #define CREATOR_LOOKUP 7
 #define CREATOR_FT2NFDUMP 8
-#define MAX_CREATOR 9
+#define CREATOR_TORLOOKUP 9
+#define MAX_CREATOR 10
     off_t offAppendix;  // offset in file for appendix blocks with additional data
 
     uint32_t BlockSize;  // max block size of data blocks

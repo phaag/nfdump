@@ -219,7 +219,7 @@ static data_row *process(void *engine) {
                 case V3Record: {
                     processed++;
                     MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
-                    int ret = FilterRecord(engine, recordHandle, nffile->ident);
+                    int ret = FilterRecord(engine, recordHandle, nffile->ident, NOGEODB);
 
                     if (ret == 0) {  // record failed to pass the filter
                         // increment pointer by number of bytes for netflow record

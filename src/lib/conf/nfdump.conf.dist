@@ -21,12 +21,16 @@
 
 # define any new format
 # fmt.newformat = "%ts ...."
-fmt.geolong = "%ts %td %pr %sc %sap -> %dc %dap %flg %pkt %byt %fl"
+fmt.geolong = "%ts %td %pr %sc %gsap -> %dc %gdap %flg %pkt %byt %fl"
 fmt.pfline = "fmt:%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt %byt"
 
 # geodb
-# if you use maxmind DB for geo location
+# if you use maxmind DB to geo-locate IPs - see geolookup(1)
 # geodb.path = "/var/db/mmdb.nf"
+
+# tordb
+# if you use tor DB to identify tor exit node IPs - see torlookup(1)
+tordb.path = "/var/db/tordb.nf"
 
 # MAXWORKERS
 # By default the number of writer threads is set to the number of cores online but not 

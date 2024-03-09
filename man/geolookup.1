@@ -1,4 +1,4 @@
-.\" Copyright (c) 2022, Peter Haag
+.\" Copyright (c) 2024, Peter Haag
 .\" All rights reserved.
 .\"
 .\" Redistribution and use in source and binary forms, with or without
@@ -33,28 +33,28 @@
 .Nd geo location lookup for IP addresses
 .Sh SYNOPSIS
 .Nm 
-.Op Fl G Ar geofile
+.Op Fl G Ar geoDBfile
 .Ar iplist
 .Nm
 .Fl d Ar directory
-.Fl w Ar geofile
+.Fl w Ar geoDBfile
 .Sh DESCRIPTION
 .Nm 
 is a tool to lookup AS and geo location information of one or more IP addresses. You need
-to create a lookup database first, in order to use
+to create the nfdump specific lookup database first, before using
 .Nm
 .Pp
 .Nm
 is also used to create the nfdump formatted lookup database file from the maxmind csv files.
 You need to have a maxmind account at https://maxmind.com, in order to download the relevant
-csv file. See below for building instructions.
+csv file.  See the section below for the building instructions.
 .Pp
 .Nm
 accepts a list of IP addresses either on the command line, separated by spaces
 or on
 .Ar stdin
 line by line. The IP address on each line can be embedded in a string separated be
-spaces on the left and right, therefore it can read the piped output from another tool.
+spaces on the left and right, therefore it can read the piped output from other tools.
 .Pp
 The options are as follows:
 .Bl -tag -width Ds
@@ -64,10 +64,10 @@ Use the csv files in
 to build the binary lookup database file. With this argument
 .Nm
 creates a new binary lookup database file.
-.It Fl w Ar geofile
+.It Fl w Ar geoDBfile
 Name of the new lookup database file.
-.It Fl G Ar geofile
-Use the binary geofile as lookup database for the current AS and location lookups.
+.It Fl G Ar geoDBfile
+Use the binary geoDBfile as lookup database for the current AS and location lookups.
 .El
 .Pp
 To specify the geo lookup database 

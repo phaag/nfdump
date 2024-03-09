@@ -44,7 +44,7 @@
 #define FLAG_GEO 0x4
 
 /* Function prototypes */
-int Init_StatTable(void);
+int Init_StatTable(int hasGeoDB);
 
 void Dispose_StatTable(void);
 

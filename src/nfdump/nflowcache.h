@@ -117,13 +117,13 @@
         }                                                                          \
     }
 
-int Init_FlowCache(void);
+int Init_FlowCache(int hasGeoDB);
 
 void Dispose_FlowTable(void);
 
 int Parse_PrintOrder(char *order);
 
-char *ParseAggregateMask(char *arg, int hasGeoDB);
+char *ParseAggregateMask(char *arg);
 
 int SetBidirAggregation(void);
 
