@@ -51,16 +51,16 @@
 
 */
 typedef struct ja4s_s {
-    ssl_t *ssl;
-    char a[8];   // max 7 chars
-    char b[8];   // max 4 chars
-    char c[12];  // max 12 chars
+    char a[8];   // max 7 chars + '\0'
+    char b[8];   // max 4 chars + '\0'
+    char c[14];  // max 12 chars + '\0'
 } ja4s_t;
+
+ja4s_t *ja4sProcess(ssl_t *ssl, uint8_t proto);
+
+char *ja4sString(ja4s_t *ja4s, char *buff);
 
 void ja4sPrint(ja4s_t *ja4s);
 
 void ja4sFree(ja4s_t *ja4s);
-
-ja4s_t *ja4sProcess(const uint8_t *data, size_t len, uint8_t proto);
-
 #endif

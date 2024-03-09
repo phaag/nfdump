@@ -32,24 +32,11 @@
 #define _JA3_H 1
 
 #include <stdint.h>
-#include <sys/types.h>
 
 #include "ssl/ssl.h"
 
-typedef struct ja3_s {
-    ssl_t *ssl;
-    char *ja3String;
-    uint32_t md5Hash[4];
-} ja3_t;
+uint8_t *ja3Process(ssl_t *ssl, uint8_t *hash);
 
-char *ja3HashString(ja3_t *ja3);
-
-char *ja3SNIname(ja3_t *ja3);
-
-void ja3Print(ja3_t *ja3);
-
-void ja3Free(ja3_t *ja3);
-
-ja3_t *ja3Process(const uint8_t *data, size_t len);
+char *ja3String(uint8_t *ja3Hash);
 
 #endif

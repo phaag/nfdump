@@ -523,13 +523,16 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
         } break;
         case JA3: {
             EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
-            if (payload == NULL || recordHandle->ja3[0]) return;
+            if (payload == NULL || *((uint64_t *)(recordHandle->ja3))) return;
+
             uint32_t payloadLength = ExtensionLength(payload);
-            ja3_t *ja3 = ja3Process(payload, payloadLength);
-            if (ja3) {
-                memcpy((void *)recordHandle->ja3, ja3->md5Hash, 16);
-                ja3Free(ja3);
+            ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
+            if (ssl == NULL) {
+                ssl = sslProcess((const uint8_t *)payload, payloadLength);
+                recordHandle->sslInfo = (void *)ssl;
             }
+            ja3Process(ssl, recordHandle->ja3);
+
         } break;
     }
 }  // End of PreProcess

@@ -287,14 +287,19 @@ static uint64_t ja3_function(void *dataPtr, uint32_t length, data_t data, record
     if (recordHandle->ja3[0] != '\0' || payload == NULL) return 1;
 
     uint32_t len = ExtensionLength(payload);
-    ja3_t *ja3 = ja3Process(payload, len);
-    if (ja3) {
-        recordHandle->ja3Info = (void *)ja3;
-        memcpy((void *)recordHandle->ja3, ja3->md5Hash, sizeof(recordHandle->ja3));
-        return 1;
+
+    // check if ssl record already exists
+    ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
+    if (!ssl) {
+        ssl = sslProcess(payload, len);
+        recordHandle->sslInfo = (void *)ssl;
     }
-    // else - not a valid ssl handshare for ja3
-    return 0;
+    uint8_t *ja3 = ja3Process(ssl, recordHandle->ja3);
+    if (ja3 == NULL) {
+        return 0;
+    }
+    // else - found a valid ja3 hash from the ssl handshake record
+    return 1;
 
 }  // End of ja3_function
 

@@ -555,7 +555,7 @@ ssl_t *sslProcess(const uint8_t *data, size_t len) {
             ok = sslParseClientHandshake(ssl, sslStream, messageLength);
             break;
         case 2:  // server_hello(2),
-            ssl->type = SERVERssls;
+            ssl->type = SERVERssl;
             ok = sslParseServerHandshake(ssl, sslStream, messageLength);
             break;
         case 11:  // certificate(11)

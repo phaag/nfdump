@@ -37,7 +37,6 @@
 #include "ssl/ssl.h"
 
 typedef struct ja4_s {
-    ssl_t *ssl;
     struct {
         char a[16];
         char b[16];
@@ -45,10 +44,12 @@ typedef struct ja4_s {
     } ja4;
 } ja4_t;
 
+ja4_t *ja4Process(ssl_t *ssl, uint8_t proto);
+
+char *ja4String(ja4_t *ja4, char *buff);
+
 void ja4Print(ja4_t *ja4);
 
 void ja4Free(ja4_t *ja4);
-
-ja4_t *ja4Process(const uint8_t *data, size_t len, uint8_t proto);
 
 #endif

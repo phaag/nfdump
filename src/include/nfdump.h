@@ -84,8 +84,8 @@ typedef struct extension_map_s extension_map_t;
 typedef struct recordHandle_s {
     recordHeaderV3_t *recordHeaderV3;
     void *extensionList[MAXEXTENSIONS + 1];
+    void *sslInfo;
     uint8_t ja3[16];
-    void *ja3Info;
 #define OFFja3 offsetof(recordHandle_t, ja3)
 #define SIZEja3 MemberSize(recordHandle_t, ja3)
     char geo[16];

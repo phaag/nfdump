@@ -1054,20 +1054,18 @@ static void String_ja3(FILE *stream, recordHandle_t *recordHandle) {
         fprintf(stream, "%32s", "<no ja3>");
         return;
     }
-
     uint32_t payloadLength = ExtensionLength(payload);
-    ja3_t *ja3 = (ja3_t *)recordHandle->ja3Info;
-    if (recordHandle->ja3Info == NULL) {
-        ja3 = ja3Process((uint8_t *)payload, payloadLength);
-        if (ja3) {
-            recordHandle->ja3Info = (void *)ja3;
-            memcpy((void *)recordHandle->ja3, ja3->md5Hash, sizeof(recordHandle->ja3));
+    ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
+
+    if (*((uint64_t *)(recordHandle->ja3)) == 0) {
+        if (ssl == NULL) {
+            ssl = sslProcess((const uint8_t *)payload, payloadLength);
+            recordHandle->sslInfo = (void *)ssl;
         }
+        ja3Process(ssl, recordHandle->ja3);
     }
 
-    if (ja3) {
-        fprintf(stream, "%32s", ja3HashString(ja3));
-    }
+    fprintf(stream, "%32s", ja3String(recordHandle->ja3));
 
 }  // End of String_ja3
 
@@ -1080,18 +1078,13 @@ static void String_sniName(FILE *stream, recordHandle_t *recordHandle) {
     }
 
     uint32_t payloadLength = ExtensionLength(payload);
-    ja3_t *ja3 = (ja3_t *)recordHandle->ja3Info;
-    if (recordHandle->ja3Info == NULL) {
-        ja3 = ja3Process((uint8_t *)payload, payloadLength);
-        if (ja3) {
-            recordHandle->ja3Info = (void *)ja3;
-            memcpy((void *)recordHandle->ja3, ja3->md5Hash, sizeof(recordHandle->ja3));
-        }
+    ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
+    if (ssl == NULL) {
+        ssl = sslProcess((uint8_t *)payload, payloadLength);
+        recordHandle->sslInfo = (void *)ssl;
     }
 
-    if (ja3) {
-        fprintf(stream, "%6s", ja3SNIname(ja3));
-    }
+    fprintf(stream, "%6s", ssl != NULL ? ssl->sniName : "");
 
 }  // End of String_sniName
 
