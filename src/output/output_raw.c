@@ -46,7 +46,7 @@
 #include "exporter.h"
 #include "ifvrf.h"
 #include "ja3/ja3.h"
-#include "maxmind.h"
+#include "maxmind/maxmind.h"
 #include "nbar.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -167,9 +167,7 @@ static void stringEXtunIPv4(FILE *stream, EXtunIPv4_t *tunIPv4, EXgenericFlow_t 
             "  tun proto    =               %3u %s\n"
             "  tun src addr =  %16s%s%s%s\n"
             "  tun dst addr =  %16s%s%s%s\n",
-            tunIPv4->tunProto, ProtoString(tunIPv4->tunProto, 0),
-            as, strlen(sloc) ? ": " : "", sloc, stor,
-            ds, strlen(dloc) ? ": " : "", dloc, dtor);
+            tunIPv4->tunProto, ProtoString(tunIPv4->tunProto, 0), as, strlen(sloc) ? ": " : "", sloc, stor, ds, strlen(dloc) ? ": " : "", dloc, dtor);
 
 }  // End of stringEXtunIPv4
 
@@ -195,9 +193,7 @@ static void stringEXtunIPv6(FILE *stream, EXtunIPv6_t *tunIPv6, EXgenericFlow_t 
             "  tun proto    =               %3u %s\n"
             "  tun src addr =  %16s%s%s%s\n"
             "  tun dst addr =  %16s%s%s%s\n",
-            tunIPv6->tunProto, ProtoString(tunIPv6->tunProto, 0),
-            as, strlen(sloc) ? ": " : "", sloc, stor,
-            ds, strlen(dloc) ? ": " : "", dloc, dtor);
+            tunIPv6->tunProto, ProtoString(tunIPv6->tunProto, 0), as, strlen(sloc) ? ": " : "", sloc, stor, ds, strlen(dloc) ? ": " : "", dloc, dtor);
 
 }  // End of stringEXtunIPv6
 
@@ -229,8 +225,7 @@ static void stringsEXipv4Flow(FILE *stream, recordHandle_t *recordHandle, void *
     fprintf(stream,
             "  src addr     =  %16s%s%s%s\n"
             "  dst addr     =  %16s%s%s%s\n",
-            as, strlen(sloc) ? ": " : "", sloc, stor,
-            ds, strlen(dloc) ? ": " : "", dloc, dtor);
+            as, strlen(sloc) ? ": " : "", sloc, stor, ds, strlen(dloc) ? ": " : "", dloc, dtor);
 
 }  // End of stringsEXipv4Flow
 
@@ -265,8 +260,7 @@ static void stringsEXipv6Flow(FILE *stream, recordHandle_t *recordHandle, void *
     fprintf(stream,
             "  src addr     =  %16s%s%s%s\n"
             "  dst addr     =  %16s%s%s%s\n",
-            as, strlen(sloc) ? ": " : "", sloc, stor,
-            ds, strlen(dloc) ? ": " : "", dloc, dtor);
+            as, strlen(sloc) ? ": " : "", sloc, stor, ds, strlen(dloc) ? ": " : "", dloc, dtor);
 
 }  // End of stringsEXipv6Flow
 

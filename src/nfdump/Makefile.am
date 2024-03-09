@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = nfdump
 
-AM_CPPFLAGS = -I.. -Icompat_1_6_x -I../include -I../libnffile -I../libnfdump -I../output -I../maxmind -I../tor -I../netflow -I../collector -I../inline $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -Icompat_1_6_x -I../include -I../libnffile -I../libnfdump -I../output -I../tor -I../netflow -I../collector -I../inline $(DEPS_CFLAGS)
 AM_LDFLAGS  = -L../libnfdump -L../libnffile
 
 EXTRA_DIST = nffile_compat.c memhandle.c heapsort_inline.c 
@@ -19,7 +19,7 @@ compat = compat_1_6_x/nfx.h compat_1_6_x/nfx.c
 
 nfdump_SOURCES = nfdump.c spin_lock.h \
 	$(exporter) $(nbar) $(ifvrf) $(nfstat) $(nflowcache) $(nfprof) $(sort) $(compat)
-nfdump_LDADD = ../output/liboutput.a  ../maxmind/libmaxmind.a  ../tor/libtorlookup.a -lnfdump  -lnffile
+nfdump_LDADD = ../output/liboutput.a  ../tor/libtorlookup.a -lnfdump  -lnffile
 nfdump_LDFLAGS = -L../libnfdump -L../libnffile
 
 CLEANFILES = *.gch

@@ -50,7 +50,7 @@
 #include "config.h"
 #include "ja3/ja3.h"
 #include "khash.h"
-#include "maxmind.h"
+#include "maxmind/maxmind.h"
 #include "nfdump.h"
 #include "nfxV3.h"
 #include "output_fmt.h"

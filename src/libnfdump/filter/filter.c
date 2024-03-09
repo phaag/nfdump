@@ -44,7 +44,7 @@
 
 #include "filter.h"
 #include "ja3/ja3.h"
-#include "maxmind.h"
+#include "maxmind/maxmind.h"
 #include "sgregex.h"
 #include "util.h"
 

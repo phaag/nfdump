@@ -56,7 +56,7 @@
 #include "filter/filter.h"
 #include "flist.h"
 #include "ifvrf.h"
-#include "maxmind.h"
+#include "maxmind/maxmind.h"
 #include "nbar.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"

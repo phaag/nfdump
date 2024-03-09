@@ -31,7 +31,7 @@ nfgen_LDADD = -lnffile
 nfgen_LDFLAGS = -L../libnffile
 
 nftest_SOURCES = nftest.c 
-nftest_LDADD = -lnfdump ../maxmind/libmaxmind.a -lnffile 
+nftest_LDADD = -lnfdump -lnffile 
 nftest_LDFLAGS = -L../libnfdump -L../libnffile
 nftest_DEPENDENCIES = nfgen
 

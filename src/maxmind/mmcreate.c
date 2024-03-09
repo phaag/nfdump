@@ -39,8 +39,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "maxmind/mmhash.h"
 #include "mmcreate.h"
-#include "mmhash.h"
 #include "util.h"
 
 char *asFieldNames[] = {"network", "autonomous_system_number", "autonomous_system_organization", NULL};

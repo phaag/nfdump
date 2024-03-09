@@ -52,7 +52,7 @@
 #include "ja3/ja3.h"
 #include "khash.h"
 #include "klist.h"
-#include "maxmind.h"
+#include "maxmind/maxmind.h"
 #include "memhandle.h"
 #include "nfdump.h"
 #include "nffile.h"

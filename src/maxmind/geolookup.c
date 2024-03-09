@@ -44,9 +44,9 @@
 #include <unistd.h>
 
 #include "conf/nfconf.h"
-#include "maxmind.h"
+#include "maxmind/maxmind.h"
+#include "maxmind/mmhash.h"
 #include "mmcreate.h"
-#include "mmhash.h"
 #include "nffile.h"
 #include "util.h"
 

@@ -36,4 +36,4 @@ EXTRA_DIST = gen_version.sh conf/nfdump.conf.dist
 nfconfdir=$(sysconfdir)
 nfconf_DATA = conf/nfdump.conf.dist
 
-CLEANFILES = *.gch
+CLEANFILES = vcs_track.h *.gch

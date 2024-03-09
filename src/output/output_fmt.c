@@ -47,7 +47,7 @@
 #include "dns/dns.h"
 #include "ifvrf.h"
 #include "ja3/ja3.h"
-#include "maxmind.h"
+#include "maxmind/maxmind.h"
 #include "nbar.h"
 #include "nfdump.h"
 #include "nffile.h"

@@ -171,6 +171,7 @@ AC_ARG_ENABLE(maxmind,
 [  --enable-maxmind        Build geolookup for MaxMind GeoDB; default is NO],
 build_maxmind="yes"
 AM_CONDITIONAL([MAXMIND], true)
+CFLAGS="$CFLAGS -DBUILDMAXMIND"
 ,
 build_maxmind="no"
 AM_CONDITIONAL([MAXMIND], false)
