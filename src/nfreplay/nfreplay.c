@@ -321,7 +321,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
 
                     // filter netflow record with user supplied filter
                     // XXX if (match) match = (*Engine->FilterEngine)(Engine);
-                    if (match) match = FilterRecord(engine, recordHandle, nffile->ident);
+                    if (match) match = FilterRecord(engine, recordHandle, nffile->ident, 0);
 
                     if (match == 0) {  // record failed to pass all filters
                         // go to next record

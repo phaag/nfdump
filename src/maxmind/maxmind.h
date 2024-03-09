@@ -38,13 +38,9 @@
 /*
  * Common interface header for the maxmind library
  */
-int Init_MaxMind(void);
-
 int LoadMaxMind(char *fileName);
 
 int SaveMaxMind(char *fileName);
-
-int Loaded_MaxMind(void);
 
 void LookupV4Country(uint32_t ip, char *country);
 

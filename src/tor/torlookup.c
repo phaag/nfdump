@@ -300,10 +300,11 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!Init_nffile(1, NULL) || !Init_TorLookup()) exit(EXIT_FAILURE);
+    if (!Init_nffile(1, NULL)) exit(EXIT_FAILURE);
 
     if (dirName && wfile) {
         char *pathList[2] = {dirName, NULL};
+        Init_TorLookup();
         if (traverseTree(pathList) == 0 || SaveTorTree(wfile) == 0) {
             exit(EXIT_FAILURE);
         }

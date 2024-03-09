@@ -226,7 +226,7 @@ static uint32_t FlowStat_order = 0;  // bit field for multiple print orders
 static uint32_t PrintOrder = 0;      // -O selected print order - index into order_mode
 static uint32_t PrintDirection = 0;
 static uint32_t GuessDirection = 0;
-static uint32_t LoadedGeoDB = 0;
+static uint32_t HasGeoDB = 0;
 
 typedef struct FlowKeyV6_s {
     uint16_t af;
@@ -355,7 +355,7 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
             break;
         case SRC_GEO: {
             char *geo = (char *)inPtr;
-            if (LoadedGeoDB == 0 || geo[0]) return;
+            if (HasGeoDB == 0 || geo[0]) return;
             if (ipv4Flow)
                 LookupV4Country(ipv4Flow->srcAddr, geo);
             else if (ipv6Flow)
@@ -363,7 +363,7 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
         } break;
         case DST_GEO: {
             char *geo = (char *)inPtr;
-            if (LoadedGeoDB == 0 || geo[0]) return;
+            if (HasGeoDB == 0 || geo[0]) return;
             if (ipv4Flow)
                 LookupV4Country(ipv4Flow->dstAddr, geo);
             else if (ipv6Flow)
@@ -371,12 +371,12 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
         } break;
         case SRC_AS: {
             uint32_t *as = (uint32_t *)inPtr;
-            if (LoadedGeoDB == 0 || *as) return;
+            if (HasGeoDB == 0 || *as) return;
             *as = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->srcAddr) : 0);
         } break;
         case DST_AS: {
             uint32_t *as = (uint32_t *)inPtr;
-            if (LoadedGeoDB == 0 || *as) return;
+            if (HasGeoDB == 0 || *as) return;
             *as = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->dstAddr) : 0);
         } break;
         case JA3: {
@@ -739,7 +739,7 @@ static SortElement_t *GetSortList(size_t *size) {
 
 }  // End of GetSortList
 
-int Init_FlowCache(void) {
+int Init_FlowCache(int hasGeoDB) {
     if (!nfalloc_Init(0)) return 0;
 
     FlowHash = kh_init(FlowHash);
@@ -747,8 +747,8 @@ int Init_FlowCache(void) {
     keymenV4Len = sizeof(FlowKeyV4_t);
     keymenV6Len = sizeof(FlowKeyV6_t);
 
+    HasGeoDB = hasGeoDB;
     aggregateInfo[0] = -1;
-    LoadedGeoDB = Loaded_MaxMind();
     return 1;
 
 }  // End of Init_FlowCache
@@ -851,7 +851,7 @@ int SetRecordStat(char *statType, char *optOrder) {
     return 1;
 }  // End of SetRecordStat
 
-char *ParseAggregateMask(char *arg, int hasGeoDB) {
+char *ParseAggregateMask(char *arg) {
     dbg_printf("Enter %s\n", __func__);
     if (bidir_flows) {
         LogError("Can not set custom aggregation in bidir mode");
@@ -867,7 +867,7 @@ char *ParseAggregateMask(char *arg, int hasGeoDB) {
 
     size_t fmt_len = 0;
     for (int i = 0; aggregationTable[i].aggrElement != NULL; i++) {
-        if (hasGeoDB && aggregationTable[i].fmt) {
+        if (HasGeoDB && aggregationTable[i].fmt) {
             if (strcmp(aggregationTable[i].fmt, "%sa") == 0) aggregationTable[i].fmt = "%gsa";
             if (strcmp(aggregationTable[i].fmt, "%da") == 0) aggregationTable[i].fmt = "%gda";
         }

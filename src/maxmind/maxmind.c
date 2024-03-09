@@ -255,6 +255,9 @@ int SaveMaxMind(char *fileName) {
 
 int LoadMaxMind(char *fileName) {
     dbg_printf("Load MaxMind file %s\n", fileName);
+
+    if (!Init_MaxMind()) return 0;
+
     nffile_t *nffile = OpenFile(fileName, NULL);
     if (!nffile) {
         return 0;

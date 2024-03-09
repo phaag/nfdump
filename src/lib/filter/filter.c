@@ -54,7 +54,6 @@ static uint32_t memblocks;
 static uint32_t NumBlocks = 1; /* index 0 reserved */
 static int Extended = 0;
 uint32_t StartNode = 0;
-uint32_t HasGeoDB = 0;
 
 typedef uint64_t (*flow_proc_t)(void *, uint32_t, data_t, recordHandle_t *);
 
@@ -85,11 +84,12 @@ typedef struct FilterEngine_s {
     filterElement_t *filter;
     uint32_t StartNode;
     uint16_t Extended;
+    int hasGeoDB;
     char *label;
     int (*filterFunction)(const struct FilterEngine_s *, recordHandle_t *, const char *);
 } FilterEngine_t;
 
-static filterElement_t *FilterTree;
+static filterElement_t *FilterTree = NULL;
 
 static void UpdateList(uint32_t a, uint32_t b);
 
@@ -269,7 +269,7 @@ static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data,
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
     uint32_t as = *((uint32_t *)dataPtr);
-    if (HasGeoDB == 0 || as != 0) return as;
+    if (as) return as;
 
     if (ipv4Flow) {
         as = LookupV4AS(ipv4Flow->srcAddr);
@@ -541,8 +541,9 @@ static void InitFilter(void) {
     ClearFilter();
 }  // End of InitFilter
 
-int FilterRecord(void *engine, recordHandle_t *handle, const char *ident) {
+int FilterRecord(void *engine, recordHandle_t *handle, const char *ident, const int hasGeoDB) {
     FilterEngine_t *filterEngine = (FilterEngine_t *)engine;
+    filterEngine->hasGeoDB = hasGeoDB;
     return filterEngine->filterFunction(filterEngine, handle, ident);
 }  // End of FilterRecord
 
@@ -593,7 +594,6 @@ static int RunFilterFast(const FilterEngine_t *engine, recordHandle_t *handle, c
 }  // End of RunFilter
 
 static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handle, const char *ident) {
-    HasGeoDB = Loaded_MaxMind();
     uint32_t index = engine->StartNode;
     int evaluate = 0;
     int invert = 0;
@@ -721,7 +721,7 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
             } break;
             case CMP_GEO: {
                 char *geoChar = (char *)inPtr;
-                if (HasGeoDB && geoChar[0] == '\0') inVal = geoLookup(geoChar, data.dataVal, handle);
+                if (engine->hasGeoDB && geoChar[0] == '\0') inVal = geoLookup(geoChar, data.dataVal, handle);
                 evaluate = inVal == engine->filter[index].value;
             } break;
         }
@@ -779,6 +779,7 @@ void *CompileFilter(char *FilterSyntax) {
         .StartNode = StartNode,
         .Extended = Extended,
         .filter = FilterTree,
+        .hasGeoDB = 0,
         .filterFunction = Extended ? RunExtendedFilter : RunFilterFast,
     };
     FilterTree = NULL;

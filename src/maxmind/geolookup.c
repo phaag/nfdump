@@ -165,10 +165,10 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!Init_nffile(1, NULL) || !Init_MaxMind()) exit(EXIT_FAILURE);
+    if (!Init_nffile(1, NULL)) exit(EXIT_FAILURE);
 
     if (dirName && wfile) {
-        if (LoadMaps(dirName) == 0 || SaveMaxMind(wfile) == 0) {
+        if (Init_MaxMind() == 0 || LoadMaps(dirName) == 0 || SaveMaxMind(wfile) == 0) {
             exit(EXIT_FAILURE);
         }
         exit(EXIT_SUCCESS);

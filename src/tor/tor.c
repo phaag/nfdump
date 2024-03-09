@@ -64,8 +64,8 @@ int Init_TorLookup(void) {
 
 static char *tmString(time_t time, char *buff, size_t len) {
     struct tm *tmTime = localtime(&time);
-    snprintf(buff, len, "%4d-%02d-%02d %02d:%02d:%02d", tmTime->tm_year + 1900, tmTime->tm_mon + 1, tmTime->tm_mday,
-             tmTime->tm_hour, tmTime->tm_min, tmTime->tm_sec);
+    snprintf(buff, len, "%4d-%02d-%02d %02d:%02d:%02d", tmTime->tm_year + 1900, tmTime->tm_mon + 1, tmTime->tm_mday, tmTime->tm_hour, tmTime->tm_min,
+             tmTime->tm_sec);
     return buff;
 }
 
@@ -74,8 +74,7 @@ static void printTorNode(torNode_t *node) {
     char ip[32];
     uint32_t torIP = ntohl(node->ipaddr);
     inet_ntop(PF_INET, &torIP, ip, sizeof(ip));
-    printf("Node: %s, last published: %s, intervals: %d\n", ip,
-           tmString(node->lastPublished, published, sizeof(published)), node->gaps + 1);
+    printf("Node: %s, last published: %s, intervals: %d\n", ip, tmString(node->lastPublished, published, sizeof(published)), node->gaps + 1);
     for (int i = 0; i <= node->intervalIndex; i++) {
         printf(" %d first: %s, last: %s\n", i, tmString(node->interval[i].firstSeen, first, sizeof(first)),
                tmString(node->interval[i].lastSeen, last, sizeof(last)));
@@ -152,8 +151,7 @@ void UpdateTorNode(torNode_t *torNode) {
             }
 
             node->lastPublished = torNode->lastPublished;
-            if (torNode->interval[0].lastSeen > node->interval[index].lastSeen)
-                node->interval[index].lastSeen = torNode->interval[0].lastSeen;
+            if (torNode->interval[0].lastSeen > node->interval[index].lastSeen) node->interval[index].lastSeen = torNode->interval[0].lastSeen;
             if (torNode->interval[0].firstSeen < node->interval[index].firstSeen) abort();
         }
 #ifdef DEVEL
@@ -210,6 +208,8 @@ int SaveTorTree(char *fileName) {
 
 int LoadTorTree(char *fileName) {
     dbg_printf("Load TorNode DB file %s\n", fileName);
+
+    Init_TorLookup();
     nffile_t *nffile = OpenFile(fileName, NULL);
     if (!nffile) {
         return 0;
@@ -244,8 +244,7 @@ int LoadTorTree(char *fileName) {
         void *arrayElement = (void *)nffile->buff_ptr + sizeof(record_header_t);
         size_t expected = (arrayHeader->size * nffile->block_header->NumRecords) + sizeof(record_header_t);
         if (expected != nffile->block_header->size) {
-            LogError("Array size calculated: %u != expected: %u for element: %u", expected, nffile->block_header->size,
-                     arrayHeader->type);
+            LogError("Array size calculated: %u != expected: %u for element: %u", expected, nffile->block_header->size, arrayHeader->type);
             continue;
         }
 
@@ -269,7 +268,7 @@ int LoadTorTree(char *fileName) {
     DisposeFile(nffile);
 
     return 1;
-}  // End of LoadMaxMind
+}  // End of LoadTorTree
 
 // return 1 - if IP is tor exit node
 // input nfdump IP addr, first/last in msec

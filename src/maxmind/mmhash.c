@@ -149,11 +149,6 @@ int Init_MaxMind(void) {
 
 }  // End of Init_MaxMind
 
-int Loaded_MaxMind(void) {
-    //
-    return mmHandle != NULL;
-}  // End of Loaded_MaxMind
-
 void LoadLocalInfo(locationInfo_t *locationInfo, uint32_t NumRecords) {
     for (int i = 0; i < NumRecords; i++) {
         int absent;

@@ -99,6 +99,8 @@ typedef struct asV6Node_s {
     char orgName[orgNameLength];
 } asV6Node_t;
 
+int Init_MaxMind(void);
+
 void LoadLocalInfo(locationInfo_t *locationInfo, uint32_t NumRecords);
 
 void LoadIPv4Tree(ipV4Node_t *ipV4Node, uint32_t NumRecords);

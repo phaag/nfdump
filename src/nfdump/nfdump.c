@@ -78,7 +78,6 @@ extern char *FilterFilename;
 static uint64_t total_bytes = 0;
 static uint32_t processed = 0;
 static uint32_t passed = 0;
-static bool HasGeoDB = false;
 static uint32_t skipped_blocks = 0;
 static uint64_t t_first_flow, t_last_flow;
 
@@ -182,8 +181,8 @@ static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParam
         duration = 0;
     }
     if (duration > 0 && stat_record->lastseen > 0) {
-        bps = (stat_record->numbytes << 3) / duration;                                        // bits per second. ( >> 3 ) -> * 8 to convert octets into bits
-        pps = stat_record->numpackets / duration;                                             // packets per second
+        bps = (stat_record->numbytes << 3) / duration;  // bits per second. ( >> 3 ) -> * 8 to convert octets into bits
+        pps = stat_record->numpackets / duration;       // packets per second
         bpp = stat_record->numpackets ? stat_record->numbytes / stat_record->numpackets : 0;  // Bytes per Packet
     }
     if (outputParams->mode == MODE_CSV) {
@@ -378,7 +377,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
 
                     if (match) {
                         // filter netflow record with user supplied filter
-                        match = FilterRecord(engine, recordHandle, nffile_r->ident);
+                        match = FilterRecord(engine, recordHandle, nffile_r->ident, outputParams->hasGeoDB);
                     }
                     if (match == 0) {  // record failed to pass all filters
                         // go to next record
@@ -958,11 +957,10 @@ int main(int argc, char **argv) {
         geo_file = NULL;
     }
     if (geo_file) {
-        if (!CheckPath(geo_file, S_IFREG) || !Init_MaxMind() || !LoadMaxMind(geo_file)) {
+        if (!CheckPath(geo_file, S_IFREG) || !LoadMaxMind(geo_file)) {
             LogError("Error reading geo location DB file %s", geo_file);
             exit(EXIT_FAILURE);
         }
-        HasGeoDB = true;
         outputParams->hasGeoDB = true;
     }
 
@@ -973,13 +971,13 @@ int main(int argc, char **argv) {
         tor_file = NULL;
     }
     if (tor_file) {
-        if (!CheckPath(tor_file, S_IFREG) || !Init_TorLookup() || !LoadTorTree(tor_file)) {
+        if (!CheckPath(tor_file, S_IFREG) || !LoadTorTree(tor_file)) {
             LogError("Error reading tor info DB file %s", tor_file);
             exit(EXIT_FAILURE);
         }
         outputParams->hasTorDB = true;
     }
-    if ((aggregate || flow_stat || print_order) && !Init_FlowCache()) exit(250);
+    if ((aggregate || flow_stat || print_order) && !Init_FlowCache(outputParams->hasGeoDB)) exit(250);
 
     if (aggregate && (flow_stat || element_stat)) {
         aggregate = 0;
@@ -992,12 +990,12 @@ int main(int argc, char **argv) {
 
     if (aggr_fmt) {
         // custom aggregation mask overwrites any output format
-        print_format = ParseAggregateMask(aggr_fmt, HasGeoDB);
+        print_format = ParseAggregateMask(aggr_fmt);
         if (!print_format) {
             exit(EXIT_FAILURE);
         }
     }
-    if (element_stat && !Init_StatTable()) exit(250);
+    if (element_stat && !Init_StatTable(outputParams->hasGeoDB)) exit(250);
 
     if (gnuplot_stat) {
         nffile_t *nffile;
