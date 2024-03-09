@@ -131,7 +131,6 @@ ja4s_t *ja4sProcess(ssl_t *ssl, uint8_t proto) {
 
     memcpy((void *)ja4s->c, (void *)sha256String, 12);
     ja4s->c[13] = '\0';
-    printf("   c : %s\n", ja4s->c);
 
     return ja4s;
 

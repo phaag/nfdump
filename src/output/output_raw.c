@@ -46,6 +46,8 @@
 #include "exporter.h"
 #include "ifvrf.h"
 #include "ja3/ja3.h"
+#include "ja4/ja4.h"
+#include "ja4/ja4s.h"
 #include "maxmind/maxmind.h"
 #include "nbar.h"
 #include "nfdump.h"
@@ -720,12 +722,18 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
         }
 
         if (ssl) {
-            if (ssl->type == CLIENTssl) {
-                fprintf(stream, "  ja3 hash     = %s\n", ja3String(recordHandle->ja3));
-            } else {
-                fprintf(stream, "  ja3s hash    = %s\n", ja3String(recordHandle->ja3));
-            }
+            char buff[64];
             if (ssl->sniName[0]) fprintf(stream, "  sni name     = %s\n", ssl->sniName);
+            if (ssl->type == CLIENTssl) {
+                ja4_t *ja4 = ja4Process(ssl, IPPROTO_TCP);
+                fprintf(stream, "  ja3 hash     = %s\n", ja3String(recordHandle->ja3));
+                fprintf(stream, "  ja4 hash     = %s\n", ja4String(ja4, buff));
+
+            } else {
+                ja4s_t *ja4s = ja4sProcess(ssl, IPPROTO_TCP);
+                fprintf(stream, "  ja3s hash    = %s\n", ja3String(recordHandle->ja3));
+                fprintf(stream, "  ja4s hash    = %s\n", ja4sString(ja4s, buff));
+            }
         }
     }
 

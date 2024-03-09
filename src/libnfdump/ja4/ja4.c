@@ -134,7 +134,7 @@ ja4_t *ja4Process(ssl_t *ssl, uint8_t proto) {
 #ifdef DEVEL
     HexString(sha256Digest, 32, sha256String);
     printf("CipherString: %s\n", hashString);
-    printf(" . Digest: %s\n", sha256String);
+    printf("   Digest: %s\n", sha256String);
 #else
     HexString(sha256Digest, 6, sha256String);
 #endif
@@ -182,7 +182,7 @@ ja4_t *ja4Process(ssl_t *ssl, uint8_t proto) {
 #ifdef DEVEL
     HexString(sha256Digest, 32, sha256String);
     printf("ExtSigString: %s\n", hashString);
-    printf(" . Digest: %s\n", sha256String);
+    printf("   Digest: %s\n", sha256String);
 #else
     HexString(sha256Digest, 6, sha256String);
 #endif

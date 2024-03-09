@@ -54,7 +54,7 @@
     }
 
 char *ja3String(uint8_t *ja3Hash) {
-    static char out[33];
+    static char out[36];
 
     int i, j;
     for (i = 0, j = 0; i < 16; i++) {
