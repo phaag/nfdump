@@ -1,3 +1,5 @@
+BUILT_SOURCES = vcs_track.h
+
 AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -Icompress $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb 
 
