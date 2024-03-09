@@ -59,7 +59,7 @@
 // record counter
 static uint32_t recordCount;
 
-static void stringEXgenericFlow(FILE *stream, void *extensionRecord) {
+static void stringEXgenericFlow(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)extensionRecord;
 
     char datebuff1[64], datebuff2[64], dateBuff3[64];
@@ -77,36 +77,46 @@ static void stringEXgenericFlow(FILE *stream, void *extensionRecord) {
     strftime(dateBuff3, 63, "%Y-%m-%dT%H:%M:%S", ts);
 
     fprintf(stream,
-            "	\"first\" : \"%s.%03u\",\n"
-            "	\"last\" : \"%s.%03u\",\n"
-            "	\"received\" : \"%s.%03u\",\n"
-            "	\"in_packets\" : %llu,\n"
-            "	\"in_bytes\" : %llu,\n",
-            datebuff1, (unsigned)(genericFlow->msecFirst % 1000LL), datebuff2, (unsigned)(genericFlow->msecLast % 1000LL), dateBuff3,
-            (unsigned)(genericFlow->msecReceived % 1000LL), (unsigned long long)genericFlow->inPackets, (unsigned long long)genericFlow->inBytes);
+            "%s\"first\" : \"%s.%03u\"%s"
+            "%s\"last\" : \"%s.%03u\"%s"
+            "%s\"received\" : \"%s.%03u\"%s"
+            "%s\"in_packets\" : %llu%s"
+            "%s\"in_bytes\" : %llu%s",
+            indent, datebuff1, (unsigned)(genericFlow->msecFirst % 1000LL), fs,
+            indent, datebuff2, (unsigned)(genericFlow->msecLast % 1000LL), fs,
+            indent, dateBuff3, (unsigned)(genericFlow->msecReceived % 1000LL), fs,
+            indent, (unsigned long long)genericFlow->inPackets, fs,
+            indent, (unsigned long long)genericFlow->inBytes, fs);
 
     if (genericFlow->proto == IPPROTO_ICMP || genericFlow->proto == IPPROTO_ICMPV6) {  // ICMP
         fprintf(stream,
-                "	\"proto\" : %u,\n"
-                "	\"icmp_type\" : %u,\n"
-                "	\"icmp_code\" : %u,\n"
-                "	\"src_tos\" : %u,\n",
-                genericFlow->proto, genericFlow->icmpType, genericFlow->icmpCode, genericFlow->srcTos);
+                "%s\"proto\" : %u%s"
+                "%s\"icmp_type\" : %u%s"
+                "%s\"icmp_code\" : %u%s"
+                "%s\"src_tos\" : %u%s",
+                indent, genericFlow->proto, fs,
+                indent, genericFlow->icmpType, fs,
+                indent, genericFlow->icmpCode, fs,
+                indent, genericFlow->srcTos, fs);
     } else {
         fprintf(stream,
-                "	\"proto\" : %u,\n"
-                "	\"tcp_flags\" : \"%s\",\n"
-                "	\"src_port\" : %u,\n"
-                "	\"dst_port\" : %u,\n"
-                "	\"fwd_status\" : %u,\n"
-                "	\"src_tos\" : %u,\n",
-                genericFlow->proto, FlagsString(genericFlow->tcpFlags), genericFlow->srcPort, genericFlow->dstPort, genericFlow->fwdStatus,
-                genericFlow->srcTos);
+                "%s\"proto\" : %u%s"
+                "%s\"tcp_flags\" : \"%s\"%s"
+                "%s\"src_port\" : %u%s"
+                "%s\"dst_port\" : %u%s"
+                "%s\"fwd_status\" : %u%s"
+                "%s\"src_tos\" : %u%s",
+                indent, genericFlow->proto, fs,
+                indent, FlagsString(genericFlow->tcpFlags), fs,
+                indent, genericFlow->srcPort, fs,
+                indent, genericFlow->dstPort, fs,
+                indent, genericFlow->fwdStatus, fs,
+                indent, genericFlow->srcTos, fs);
     }
 
 }  // End of stringEXgenericFlow
 
-static void stringEXipv4Flow(FILE *stream, void *extensionRecord) {
+static void stringEXipv4Flow(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)extensionRecord;
 
     uint32_t src = htonl(ipv4Flow->srcAddr);
@@ -120,15 +130,18 @@ static void stringEXipv4Flow(FILE *stream, void *extensionRecord) {
     LookupV4Location(ipv4Flow->dstAddr, dloc, 128);
 
     fprintf(stream,
-            "	\"src4_addr\" : \"%s\",\n"
-            "	\"dst4_addr\" : \"%s\",\n"
-            "	\"src_geo\" : \"%s\",\n"
-            "	\"dst_geo\" : \"%s\",\n",
-            as, ds, sloc, dloc);
+            "%s\"src4_addr\" : \"%s\"%s"
+            "%s\"dst4_addr\" : \"%s\"%s"
+            "%s\"src_geo\" : \"%s\"%s"
+            "%s\"dst_geo\" : \"%s\"%s",
+            indent, as, fs,
+            indent, ds, fs,
+            indent, sloc, fs,
+            indent, dloc, fs);
 
 }  // End of stringEXipv4Flow
 
-static void stringEXipv6Flow(FILE *stream, void *extensionRecord) {
+static void stringEXipv6Flow(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)extensionRecord;
 
     uint64_t src[2], dst[2];
@@ -145,15 +158,18 @@ static void stringEXipv6Flow(FILE *stream, void *extensionRecord) {
     LookupV6Location(ipv6Flow->dstAddr, dloc, 128);
 
     fprintf(stream,
-            "	\"src6_addr\" : \"%s\",\n"
-            "	\"dst6_addr\" : \"%s\",\n"
-            "	\"src_geo\" : \"%s\",\n"
-            "	\"dst_geo\" : \"%s\",\n",
-            as, ds, sloc, dloc);
+            "%s\"src6_addr\" : \"%s\"%s"
+            "%s\"dst6_addr\" : \"%s\"%s"
+            "%s\"src_geo\" : \"%s\"%s"
+            "%s\"dst_geo\" : \"%s\"%s",
+            indent, as, fs,
+            indent, ds, fs,
+            indent, sloc, fs,
+            indent, dloc, fs);
 
 }  // End of stringEXipv6Flow
 
-static void stringEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord) {
+static void stringEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, const char *indent, const char *fs) {
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)extensionRecord;
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
@@ -209,38 +225,48 @@ static void stringEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *e
     }
 
     fprintf(stream,
-            "	\"input_snmp\" : %u,\n"
-            "	\"output_snmp\" : %u,\n"
-            "	\"src_mask\" : %u,\n"
-            "	\"dst_mask\" : %u,\n"
-            "	\"src_net\" : \"%s\",\n"
-            "	\"dst_net\" : \"%s\",\n"
-            "	\"direction\" : %u,\n"
-            "	\"dst_tos\" : %u,\n",
-            flowMisc->input, flowMisc->output, flowMisc->srcMask, flowMisc->dstMask, snet, dnet, flowMisc->dir, flowMisc->dstTos);
+            "%s\"input_snmp\" : %u%s"
+            "%s\"output_snmp\" : %u%s"
+            "%s\"src_mask\" : %u%s"
+            "%s\"dst_mask\" : %u%s"
+            "%s\"src_net\" : \"%s\"%s"
+            "%s\"dst_net\" : \"%s\"%s"
+            "%s\"direction\" : %u%s"
+            "%s\"dst_tos\" : %u%s",
+            indent, flowMisc->input, fs,
+            indent, flowMisc->output, fs,
+            indent, flowMisc->srcMask, fs,
+            indent, flowMisc->dstMask, fs,
+            indent, snet, fs,
+            indent, dnet, fs,
+            indent, flowMisc->dir, fs,
+            indent, flowMisc->dstTos, fs);
 
 }  // End of stringEXflowMisc
 
-static void stringEXcntFlow(FILE *stream, void *extensionRecord) {
+static void stringEXcntFlow(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)extensionRecord;
     fprintf(stream,
-            "	\"out_packets\" : %llu,\n"
-            "	\"out_bytes\" : %llu,\n"
-            "	\"aggr_flows\" : %llu,\n",
-            (long long unsigned)cntFlow->outPackets, (long long unsigned)cntFlow->outBytes, (long long unsigned)cntFlow->flows);
+            "%s\"out_packets\" : %llu%s"
+            "%s\"out_bytes\" : %llu%s"
+            "%s\"aggr_flows\" : %llu%s",
+            indent, (long long unsigned)cntFlow->outPackets, fs,
+            indent, (long long unsigned)cntFlow->outBytes, fs,
+            indent, (long long unsigned)cntFlow->flows, fs);
 
 }  // End of stringEXcntFlow
 
-static void stringEXvLan(FILE *stream, void *extensionRecord) {
+static void stringEXvLan(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXvLan_t *vLan = (EXvLan_t *)extensionRecord;
     fprintf(stream,
-            "	\"src_vlan\" : %u,\n"
-            "	\"dst_vlan\" : %u,\n",
-            vLan->srcVlan, vLan->dstVlan);
+            "%s\"src_vlan\" : %u%s"
+            "%s\"dst_vlan\" : %u%s",
+            indent, vLan->srcVlan, fs,
+            indent, vLan->dstVlan, fs);
 
 }  // End of stringEXvLan
 
-static void stringEXasRouting(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord) {
+static void stringEXasRouting(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, const char *indent, const char *fs) {
     EXasRouting_t *asRouting = (EXasRouting_t *)extensionRecord;
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
@@ -249,13 +275,14 @@ static void stringEXasRouting(FILE *stream, recordHandle_t *recordHandle, void *
     if (asRouting->dstAS == 0) asRouting->dstAS = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : LookupV6AS(ipv6Flow->dstAddr);
 
     fprintf(stream,
-            "	\"src_as\" : %u,\n"
-            "	\"dst_as\" : %u,\n",
-            asRouting->srcAS, asRouting->dstAS);
+            "%s\"src_as\" : %u%s"
+            "%s\"dst_as\" : %u%s",
+            indent, asRouting->srcAS, fs,
+            indent, asRouting->dstAS, fs);
 
 }  // End of stringEXasRouting
 
-static void stringEXbgpNextHopV4(FILE *stream, void *extensionRecord) {
+static void stringEXbgpNextHopV4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)extensionRecord;
 
     uint32_t i = htonl(bgpNextHopV4->ip);
@@ -264,11 +291,11 @@ static void stringEXbgpNextHopV4(FILE *stream, void *extensionRecord) {
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
     ip[IP_STRING_LEN - 1] = 0;
 
-    fprintf(stream, "	\"bgp4_next_hop\" : \"%s\",\n", ip);
+    fprintf(stream, "%s\"bgp4_next_hop\" : \"%s\"%s", indent, ip, fs);
 
 }  // End of stringEXbgpNextHopV4
 
-static void stringEXbgpNextHopV6(FILE *stream, void *extensionRecord) {
+static void stringEXbgpNextHopV6(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)extensionRecord;
 
     uint64_t i[2];
@@ -280,11 +307,11 @@ static void stringEXbgpNextHopV6(FILE *stream, void *extensionRecord) {
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
     ip[IP_STRING_LEN - 1] = 0;
 
-    fprintf(stream, "	\"bgp6_next_hop\" : \"%s\",\n", ip);
+    fprintf(stream, "%s\"bgp6_next_hop\" : \"%s\"%s", indent, ip, fs);
 
 }  // End of stringEXbgpNextHopV6
 
-static void stringEXipNextHopV4(FILE *stream, void *extensionRecord) {
+static void stringEXipNextHopV4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)extensionRecord;
 
     uint32_t i = htonl(ipNextHopV4->ip);
@@ -293,11 +320,11 @@ static void stringEXipNextHopV4(FILE *stream, void *extensionRecord) {
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
     ip[IP_STRING_LEN - 1] = 0;
 
-    fprintf(stream, "	\"ip4_next_hop\" : \"%s\",\n", ip);
+    fprintf(stream, "%s\"ip4_next_hop\" : \"%s\"%s", indent, ip, fs);
 
 }  // End of stringEXipNextHopV4
 
-static void stringEXipNextHopV6(FILE *stream, void *extensionRecord) {
+static void stringEXipNextHopV6(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)extensionRecord;
 
     uint64_t i[2];
@@ -309,11 +336,11 @@ static void stringEXipNextHopV6(FILE *stream, void *extensionRecord) {
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
     ip[IP_STRING_LEN - 1] = 0;
 
-    fprintf(stream, "	\"ip6_next_hop\" : \"%s\",\n", ip);
+    fprintf(stream, "%s\"ip6_next_hop\" : \"%s\"%s", indent, ip, fs);
 
 }  // End of stringEXipNextHopV6
 
-static void stringEXipReceivedV4(FILE *stream, void *extensionRecord) {
+static void stringEXipReceivedV4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)extensionRecord;
 
     uint32_t i = htonl(ipReceivedV4->ip);
@@ -322,11 +349,11 @@ static void stringEXipReceivedV4(FILE *stream, void *extensionRecord) {
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
     ip[IP_STRING_LEN - 1] = 0;
 
-    fprintf(stream, "	\"ip4_router\" : \"%s\",\n", ip);
+    fprintf(stream, "%s\"ip4_router\" : \"%s\"%s", indent, ip, fs);
 
 }  // End of stringEXipReceivedV4
 
-static void stringEXipReceivedV6(FILE *stream, void *extensionRecord) {
+static void stringEXipReceivedV6(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)extensionRecord;
 
     uint64_t i[2];
@@ -337,20 +364,21 @@ static void stringEXipReceivedV6(FILE *stream, void *extensionRecord) {
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
     ip[IP_STRING_LEN - 1] = 0;
 
-    fprintf(stream, "	\"ip6_router\" : \"%s\",\n", ip);
+    fprintf(stream, "%s\"ip6_router\" : \"%s\"%s", indent, ip, fs);
 
 }  // End of stringEXipReceivedV6
 
-static void stringEXmplsLabel(FILE *stream, void *extensionRecord) {
+static void stringEXmplsLabel(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)extensionRecord;
     for (int i = 0; i < 10; i++) {
-        fprintf(stream, "	\"mpls_%u\" : \"%u-%u-%u\",\n", i + 1, mplsLabel->mplsLabel[i] >> 4, (mplsLabel->mplsLabel[i] & 0xF) >> 1,
-                mplsLabel->mplsLabel[i] & 1);
+        fprintf(stream, "%s\"mpls_%u\" : \"%u-%u-%u\"%s", indent, i + 1, mplsLabel->mplsLabel[i] >> 4,
+                (mplsLabel->mplsLabel[i] & 0xF) >> 1,
+                mplsLabel->mplsLabel[i] & 1, fs);
     }
 
 }  // End of stringEXmplsLabel
 
-static void stringEXmacAddr(FILE *stream, void *extensionRecord) {
+static void stringEXmacAddr(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXmacAddr_t *macAddr = (EXmacAddr_t *)extensionRecord;
 
     uint8_t mac1[6], mac2[6], mac3[6], mac4[6];
@@ -362,25 +390,28 @@ static void stringEXmacAddr(FILE *stream, void *extensionRecord) {
     }
 
     fprintf(stream,
-            "	\"in_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n"
-            "	\"out_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n"
-            "	\"in_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n"
-            "	\"out_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",\n",
-            mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0], mac3[5], mac3[4], mac3[3],
-            mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
+            "%s\"in_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"%s"
+            "%s\"out_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"%s"
+            "%s\"in_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"%s"
+            "%s\"out_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"%s",
+            indent, mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], fs,
+            indent, mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0], fs,
+            indent, mac3[5], mac3[4], mac3[3], mac3[2], mac3[1], mac3[0], fs,
+            indent, mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0], fs);
 
 }  // End of stringEXmacAddr
 
-static void stringEXasAdjacent(FILE *stream, void *extensionRecord) {
+static void stringEXasAdjacent(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)extensionRecord;
     fprintf(stream,
-            "	\"next_as\" : %u,\n"
-            "	\"prev_as\" : %u,\n",
-            asAdjacent->nextAdjacentAS, asAdjacent->prevAdjacentAS);
+            "%s\"next_as\" : %u%s"
+            "%s\"prev_as\" : %u%s",
+            indent, asAdjacent->nextAdjacentAS, fs,
+            indent, asAdjacent->prevAdjacentAS, fs);
 
 }  // End of stringEXasAdjacent
 
-static void stringEXlatency(FILE *stream, void *extensionRecord) {
+static void stringEXlatency(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXlatency_t *latency = (EXlatency_t *)extensionRecord;
 
     double f1, f2, f3;
@@ -389,14 +420,16 @@ static void stringEXlatency(FILE *stream, void *extensionRecord) {
     f3 = (double)latency->usecApplLatency / 1000.0;
 
     fprintf(stream,
-            "	\"cli_latency\" : %f,\n"
-            "	\"srv_latency\" : %f,\n"
-            "	\"app_latency\" : %f,\n",
-            f1, f2, f3);
+            "%s\"cli_latency\" : %f%s"
+            "%s\"srv_latency\" : %f%s"
+            "%s\"app_latency\" : %f%s",
+            indent, f1, fs,
+            indent, f2, fs,
+            indent, f3, fs);
 
 }  // End of stringEXlatency
 
-static void String_ja3(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord) {
+static void String_ja3(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, const char *indent, const char *fs) {
     EXinPayload_t *payload = (EXinPayload_t *)extensionRecord;
     uint32_t payloadLength = ExtensionLength(payload);
 
@@ -414,15 +447,15 @@ static void String_ja3(FILE *stream, recordHandle_t *recordHandle, void *extensi
     }
 
     if (ja3) {
-        fprintf(stream, "	\"ja3 string\" : %s,\n", ja3->ja3String);
-        fprintf(stream, "	\"ja3 hash\" : %s,\n", ja3HashString(ja3));
+        fprintf(stream, "%s\"ja3 string\" : %s%s", indent, ja3->ja3String, fs);
+        fprintf(stream, "%s\"ja3 hash\" : %s%s", indent, ja3HashString(ja3), fs);
         char *sni = ja3SNIname(ja3);
-        if (sni[0]) fprintf(stream, "	\"sni\" : %s,\n", sni);
+        if (sni[0]) fprintf(stream, "%s\"sni\" : %s%s", indent, sni, fs);
     }
 
 }  // End of String_ja3
 
-static void stringEXtunIPv4(FILE *stream, void *extensionRecord) {
+static void stringEXtunIPv4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)extensionRecord;
 
     uint32_t src = htonl(tunIPv4->tunSrcAddr);
@@ -432,14 +465,16 @@ static void stringEXtunIPv4(FILE *stream, void *extensionRecord) {
     inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
     fprintf(stream,
-            "	\"tun proto\" : %u,\n"
-            "	\"src4_tun_ip\" : \"%s\",\n"
-            "	\"dst4_tun_ip\" : \"%s\",\n",
-            tunIPv4->tunProto, as, ds);
+            "%s\"tun proto\" : %u%s"
+            "%s\"src4_tun_ip\" : \"%s\"%s"
+            "%s\"dst4_tun_ip\" : \"%s\"%s",
+            indent, tunIPv4->tunProto, fs,
+            indent, as, fs,
+            indent, ds, fs);
 
 }  // End of stringEXtunIPv4
 
-static void stringEXtunIPv6(FILE *stream, void *extensionRecord) {
+static void stringEXtunIPv6(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)extensionRecord;
 
     uint64_t src[2];
@@ -453,32 +488,36 @@ static void stringEXtunIPv6(FILE *stream, void *extensionRecord) {
     inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
 
     fprintf(stream,
-            "	\"tun proto\" : %u,\n"
-            "	\"src6_tun_ip\" : \"%s\",\n"
-            "	\"dst6_tun_ip\" : \"%s\",\n",
-            tunIPv6->tunProto, as, ds);
+            "%s\"tun proto\" : %u%s"
+            "%s\"src6_tun_ip\" : \"%s\"%s"
+            "%s\"dst6_tun_ip\" : \"%s\"%s",
+            indent, tunIPv6->tunProto, fs,
+            indent, as, fs,
+            indent, ds, fs);
 
 }  // End of stringEXtunIPv6
 
-static void stringEXobservation(FILE *stream, void *extensionRecord) {
+static void stringEXobservation(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXobservation_t *observation = (EXobservation_t *)extensionRecord;
     fprintf(stream,
-            "	\"observationDoaminID\" : %u,\n"
-            "	\"observationPointID\" : %llu,\n",
-            observation->domainID, (long long unsigned)observation->pointID);
+            "%s\"observationDoaminID\" : %u%s"
+            "%s\"observationPointID\" : %llu%s",
+            indent, observation->domainID, fs,
+            indent, (long long unsigned)observation->pointID, fs);
 
 }  // End of stringEXobservation
 
-static void stringEXvrf(FILE *stream, void *extensionRecord) {
+static void stringEXvrf(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXvrf_t *vrf = (EXvrf_t *)extensionRecord;
     fprintf(stream,
-            "	\"ingress_vrf\" : \"%u\",\n"
-            "	\"egress_vrf\" : \"%u\",\n",
-            vrf->ingressVrf, vrf->egressVrf);
+            "%s\"ingress_vrf\" : \"%u\"%s"
+            "%s\"egress_vrf\" : \"%u\"%s",
+            indent, vrf->ingressVrf, fs,
+            indent, vrf->egressVrf, fs);
 
 }  // End of stringEXvrf
 
-static void stringEXnselCommon(FILE *stream, void *extensionRecord) {
+static void stringEXnselCommon(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)extensionRecord;
 
     char datestr[64];
@@ -490,17 +529,20 @@ static void stringEXnselCommon(FILE *stream, void *extensionRecord) {
         strftime(datestr, 63, "%Y-%m-%dT%H:%M:%S", ts);
     }
     fprintf(stream,
-            "	\"connect_id\" : \"%u\",\n"
-            "	\"event_id\" : \"%u\",\n"
-            "	\"event\" : \"%s\",\n"
-            "	\"xevent_id\" : \"%u\",\n"
-            "	\"t_event\" : \"%s.%llu\",\n",
-            nselCommon->connID, nselCommon->fwEvent, fwEventString(nselCommon->fwEvent), nselCommon->fwXevent, datestr,
-            nselCommon->msecEvent % 1000LL);
+            "%s\"connect_id\" : \"%u\"%s"
+            "%s\"event_id\" : \"%u\"%s"
+            "%s\"event\" : \"%s\"%s"
+            "%s\"xevent_id\" : \"%u\"%s"
+            "%s\"t_event\" : \"%s.%llu\"%s",
+            indent, nselCommon->connID, fs,
+            indent, nselCommon->fwEvent, fs,
+            indent, fwEventString(nselCommon->fwEvent), fs,
+            indent, nselCommon->fwXevent, fs,
+            indent, datestr, nselCommon->msecEvent % 1000LL, fs);
 
 }  // End of stringEXnselCommon
 
-static void stringEXnselXlateIPv4(FILE *stream, void *extensionRecord) {
+static void stringEXnselXlateIPv4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)extensionRecord;
 
     uint32_t src = htonl(nselXlateIPv4->xlateSrcAddr);
@@ -510,13 +552,14 @@ static void stringEXnselXlateIPv4(FILE *stream, void *extensionRecord) {
     inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
     fprintf(stream,
-            "	\"src4_xlt_ip\" : \"%s\",\n"
-            "	\"dst4_xlt_ip\" : \"%s\",\n",
-            as, ds);
+            "%s\"src4_xlt_ip\" : \"%s\"%s"
+            "%s\"dst4_xlt_ip\" : \"%s\"%s",
+            indent, as, fs,
+            indent, ds, fs);
 
 }  // End of stringEXnselXlateIPv4
 
-static void stringEXnselXlateIPv6(FILE *stream, void *extensionRecord) {
+static void stringEXnselXlateIPv6(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)extensionRecord;
 
     uint64_t src[2];
@@ -530,38 +573,40 @@ static void stringEXnselXlateIPv6(FILE *stream, void *extensionRecord) {
     inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
 
     fprintf(stream,
-            "	\"src6_xlt_ip\" : \"%s\",\n"
-            "	\"dst6_xlt_ip\" : \"%s\",\n",
-            as, ds);
+            "%s\"src6_xlt_ip\" : \"%s\"%s"
+            "%s\"dst6_xlt_ip\" : \"%s\"%s",
+            indent, as, fs,
+            indent, ds, fs);
 
 }  // End of stringEXnselXlateIPv4
 
-static void stringEXnselXlatePort(FILE *stream, void *extensionRecord) {
+static void stringEXnselXlatePort(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)extensionRecord;
     fprintf(stream,
-            "	\"src_xlt_port\" : \"%u\",\n"
-            "	\"dst_xlt_port\" : \"%u\",\n",
-            nselXlatePort->xlateSrcPort, nselXlatePort->xlateDstPort);
+            "%s\"src_xlt_port\" : \"%u\"%s"
+            "%s\"dst_xlt_port\" : \"%u\"%s",
+            indent, nselXlatePort->xlateSrcPort, fs,
+            indent, nselXlatePort->xlateDstPort, fs);
 
 }  // End of stringEXnselXlatePort
 
-static void stringEXnselAcl(FILE *stream, void *extensionRecord) {
+static void stringEXnselAcl(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselAcl_t *nselAcl = (EXnselAcl_t *)extensionRecord;
     fprintf(stream,
-            "	\"ingress_acl\" : \"0x%x/0x%x/0x%x\",\n"
-            "	\"egress_acl\" : \"0x%x/0x%x/0x%x\",\n",
-            nselAcl->ingressAcl[0], nselAcl->ingressAcl[1], nselAcl->ingressAcl[2], nselAcl->egressAcl[0], nselAcl->egressAcl[1],
-            nselAcl->egressAcl[2]);
+            "%s\"ingress_acl\" : \"0x%x/0x%x/0x%x\"%s"
+            "%s\"egress_acl\" : \"0x%x/0x%x/0x%x\"%s",
+            indent, nselAcl->ingressAcl[0], nselAcl->ingressAcl[1], nselAcl->ingressAcl[2], fs,
+            indent, nselAcl->egressAcl[0], nselAcl->egressAcl[1], nselAcl->egressAcl[2], fs);
 
 }  // End of stringEXnselAcl
 
-static void stringEXnselUserID(FILE *stream, void *extensionRecord) {
+static void stringEXnselUserID(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselUser_t *nselUser = (EXnselUser_t *)extensionRecord;
-    fprintf(stream, "	\"user_name\" : \"%s\",\n", nselUser->username[0] ? nselUser->username : "<empty>");
+    fprintf(stream, "%s\"user_name\" : \"%s\"%s", indent, nselUser->username[0] ? nselUser->username : "<empty>", fs);
 
 }  // End of stringEXnselUserID
 
-static void stringEXnelCommon(FILE *stream, void *extensionRecord) {
+static void stringEXnelCommon(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnelCommon_t *nelCommon = (EXnelCommon_t *)extensionRecord;
 
     time_t when = nelCommon->msecEvent / 1000LL;
@@ -574,22 +619,28 @@ static void stringEXnelCommon(FILE *stream, void *extensionRecord) {
     }
 
     fprintf(stream,
-            "	\"nat_event_id\" : \"%u\",\n"
-            "	\"nat_event\" : \"%s\",\n"
-            "	\"nat_pool_id\" : \"%u\",\n"
-            "	\"t_event\" : \"%s.%llu\",\n",
-            nelCommon->natEvent, natEventString(nelCommon->natEvent, LONGNAME), nelCommon->natPoolID, datestr, nelCommon->msecEvent % 1000LL);
+            "%s\"nat_event_id\" : \"%u\"%s"
+            "%s\"nat_event\" : \"%s\"%s"
+            "%s\"nat_pool_id\" : \"%u\"%s"
+            "%s\"t_event\" : \"%s.%llu\"%s",
+            indent, nelCommon->natEvent, fs,
+            indent, natEventString(nelCommon->natEvent, LONGNAME), fs,
+            indent, nelCommon->natPoolID, fs,
+            indent, datestr, nelCommon->msecEvent % 1000LL, fs);
 
 }  // End of stringEXnelCommon
 
-static void stringEXnelXlatePort(FILE *stream, void *extensionRecord) {
+static void stringEXnelXlatePort(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)extensionRecord;
     fprintf(stream,
-            "	\"pblock_start\" : \"%u\",\n"
-            "	\"pblock_end\" : \"%u\",\n"
-            "	\"pblock_step\" : \"%u\",\n"
-            "	\"pblock_size\" : \"%u\",\n",
-            nelXlatePort->blockStart, nelXlatePort->blockEnd, nelXlatePort->blockStep, nelXlatePort->blockSize);
+            "%s\"pblock_start\" : \"%u\"%s"
+            "%s\"pblock_end\" : \"%u\"%s"
+            "%s\"pblock_step\" : \"%u\"%s"
+            "%s\"pblock_size\" : \"%u\"%s",
+            indent, nelXlatePort->blockStart, fs,
+            indent, nelXlatePort->blockEnd, fs,
+            indent, nelXlatePort->blockStep, fs,
+            indent, nelXlatePort->blockSize, fs);
 
 }  // End of stringEXnelXlatePort
 
@@ -604,21 +655,25 @@ void json_epilog(void) {
     printf("]\n");
 }  // End of json_epilog
 
-void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag) {
+void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag, const char *ws, const char *indent, const char *fs, const char *rs) {
+    // ws is whitespace after object opening and before object closing {WS  WS}
+    // indent is printed before each record for clarity if needed
+    // fs is Field Separator
+    // rs is Record Separator
     recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
 
     if (recordCount) {
-        fprintf(stream, ",\n");
+        fprintf(stream, "%s", rs);
     }
     recordCount++;
 
     fprintf(stream,
-            "{\n"
-            "	\"type\" : \"%s\",\n"
-            "	\"sampled\" : %u,\n"
-            "	\"export_sysid\" : %u,\n",
-            TestFlag(recordHeaderV3->flags, V3_FLAG_EVENT) ? "EVENT" : "FLOW", TestFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED) ? 1 : 0,
-            recordHeaderV3->exporterID);
+            "{%s"
+            "%s\"type\" : \"%s\"%s"
+            "%s\"export_sysid\" : %u%s",
+            ws,
+            indent, TestFlag(recordHeaderV3->flags, V3_FLAG_EVENT) ? "EVENT" : "FLOW", fs,
+            indent, recordHeaderV3->exporterID, fs);
 
     int processed = 0;
     for (int i = 0; i < MAXEXTENSIONS; i++) {
@@ -631,97 +686,97 @@ void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag) {
                 if (ptr != recordHeaderV3) fprintf(stderr, "Found unexpected NULL extension \n");
                 break;
             case EXgenericFlowID:
-                stringEXgenericFlow(stream, ptr);
+                stringEXgenericFlow(stream, ptr, indent, fs);
                 break;
             case EXipv4FlowID:
-                stringEXipv4Flow(stream, ptr);
+                stringEXipv4Flow(stream, ptr, indent, fs);
                 break;
             case EXipv6FlowID:
-                stringEXipv6Flow(stream, ptr);
+                stringEXipv6Flow(stream, ptr, indent, fs);
                 break;
             case EXflowMiscID:
-                stringEXflowMisc(stream, recordHandle, ptr);
+                stringEXflowMisc(stream, recordHandle, ptr, indent, fs);
                 break;
             case EXcntFlowID:
-                stringEXcntFlow(stream, ptr);
+                stringEXcntFlow(stream, ptr, indent, fs);
                 break;
             case EXvLanID:
-                stringEXvLan(stream, ptr);
+                stringEXvLan(stream, ptr, indent, fs);
                 break;
             case EXasRoutingID:
-                stringEXasRouting(stream, recordHandle, ptr);
+                stringEXasRouting(stream, recordHandle, ptr, indent, fs);
                 break;
             case EXbgpNextHopV4ID:
-                stringEXbgpNextHopV4(stream, ptr);
+                stringEXbgpNextHopV4(stream, ptr, indent, fs);
                 break;
             case EXbgpNextHopV6ID:
-                stringEXbgpNextHopV6(stream, ptr);
+                stringEXbgpNextHopV6(stream, ptr, indent, fs);
                 break;
             case EXipNextHopV4ID:
-                stringEXipNextHopV4(stream, ptr);
+                stringEXipNextHopV4(stream, ptr, indent, fs);
                 break;
             case EXipNextHopV6ID:
-                stringEXipNextHopV6(stream, ptr);
+                stringEXipNextHopV6(stream, ptr, indent, fs);
                 break;
             case EXipReceivedV4ID:
-                stringEXipReceivedV4(stream, ptr);
+                stringEXipReceivedV4(stream, ptr, indent, fs);
                 break;
             case EXipReceivedV6ID:
-                stringEXipReceivedV6(stream, ptr);
+                stringEXipReceivedV6(stream, ptr, indent, fs);
                 break;
             case EXmplsLabelID:
-                stringEXmplsLabel(stream, ptr);
+                stringEXmplsLabel(stream, ptr, indent, fs);
                 break;
             case EXmacAddrID:
-                stringEXmacAddr(stream, ptr);
+                stringEXmacAddr(stream, ptr, indent, fs);
                 break;
             case EXasAdjacentID:
-                stringEXasAdjacent(stream, ptr);
+                stringEXasAdjacent(stream, ptr, indent, fs);
                 break;
             case EXlatencyID:
-                stringEXlatency(stream, ptr);
+                stringEXlatency(stream, ptr, indent, fs);
                 break;
             case EXinPayloadID:
-                String_ja3(stream, recordHandle, ptr);
+                String_ja3(stream, recordHandle, ptr, indent, fs);
                 break;
             case EXoutPayloadID:
-                String_ja3(stream, recordHandle, ptr);
+                String_ja3(stream, recordHandle, ptr, indent, fs);
                 break;
             case EXtunIPv4ID:
-                stringEXtunIPv4(stream, ptr);
+                stringEXtunIPv4(stream, ptr, indent, fs);
                 break;
             case EXtunIPv6ID:
-                stringEXtunIPv6(stream, ptr);
+                stringEXtunIPv6(stream, ptr, indent, fs);
                 break;
             case EXobservationID:
-                stringEXobservation(stream, ptr);
+                stringEXobservation(stream, ptr, indent, fs);
                 break;
             case EXvrfID:
-                stringEXvrf(stream, ptr);
+                stringEXvrf(stream, ptr, indent, fs);
                 break;
             case EXnselCommonID:
-                stringEXnselCommon(stream, ptr);
+                stringEXnselCommon(stream, ptr, indent, fs);
                 break;
             case EXnselXlateIPv4ID:
-                stringEXnselXlateIPv4(stream, ptr);
+                stringEXnselXlateIPv4(stream, ptr, indent, fs);
                 break;
             case EXnselXlateIPv6ID:
-                stringEXnselXlateIPv6(stream, ptr);
+                stringEXnselXlateIPv6(stream, ptr, indent, fs);
                 break;
             case EXnselXlatePortID:
-                stringEXnselXlatePort(stream, ptr);
+                stringEXnselXlatePort(stream, ptr, indent, fs);
                 break;
             case EXnselAclID:
-                stringEXnselAcl(stream, ptr);
+                stringEXnselAcl(stream, ptr, indent, fs);
                 break;
             case EXnselUserID:
-                stringEXnselUserID(stream, ptr);
+                stringEXnselUserID(stream, ptr, indent, fs);
                 break;
             case EXnelCommonID:
-                stringEXnelCommon(stream, ptr);
+                stringEXnelCommon(stream, ptr, indent, fs);
                 break;
             case EXnelXlatePortID:
-                stringEXnelXlatePort(stream, ptr);
+                stringEXnelXlatePort(stream, ptr, indent, fs);
                 break;
             default:
                 dbg_printf("Extension %i not yet implemented\n", r->exElementList[i]);
@@ -733,8 +788,21 @@ void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag) {
     /* XXX
     fprintf(stream,
             "	\"label\" : \"%s\"\n"
-            "}",
             r->label ? r->label : "<none>");
     */
 
+    // Close out JSON record
+    fprintf(stream, "%s\"sampled\" : %u%s}"
+            indent, TestFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED) ? 1 : 0), ws;
+
 }  // End of flow_record_to_json
+
+
+void flow_record_to_json_human(FILE *stream, recordHandle_t *recordHandle, int tag) {
+    flow_record_to_json(stream, recordHandle, tag, "\n", "\t", ",\n", ",\n");
+
+}  // End of flow_record_to_json_human
+
+void flow_record_to_json_log(FILE *stream, recordHandle_t *recordHandle, int tag) {
+    flow_record_to_json(stream, recordHandle, tag, "", "", ",", "\n");
+}  // End of flow_record_to_json_log

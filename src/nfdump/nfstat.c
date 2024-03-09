@@ -982,6 +982,9 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                         case MODE_JSON:
                             printf("Not yet implemented output format\n");
                             break;
+                        case MODE_JSON_LOG:
+                            printf("Not yet implemented output format\n");
+                            break;
                     }
                     index += increment;
                 }
