@@ -19,7 +19,7 @@ compat = compat_1_6_x/nfx.h compat_1_6_x/nfx.c
 
 nfdump_SOURCES = nfdump.c spin_lock.h \
 	$(exporter) $(nbar) $(ifvrf) $(nfstat) $(nflowcache) $(nfprof) $(sort) $(compat)
-nfdump_LDADD = ../output/liboutput.a  ../tor/libtorlookup.a -lnfdump  -lnffile
+nfdump_LDADD = ../output/liboutput.a  -lnfdump  -lnffile
 nfdump_LDFLAGS = -L../libnfdump -L../libnffile
 
 CLEANFILES = *.gch

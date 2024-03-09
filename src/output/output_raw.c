@@ -53,7 +53,7 @@
 #include "nfxV3.h"
 #include "output_util.h"
 #include "ssl/ssl.h"
-#include "tor.h"
+#include "tor/tor.h"
 #include "userio.h"
 #include "util.h"
 

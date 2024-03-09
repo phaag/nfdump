@@ -14,9 +14,10 @@ decode  = dns/dns.c dns/dns.h
 decode += ssl/ssl.c ssl/ssl.h ja3/ja3.c ja3/ja3.h ja4/ja4.c ja4/ja4.h
 digest  = digest/md5.c digest/md5.h digest/sha256.c digest/sha256.h
 maxmind = maxmind/maxmind.c maxmind/maxmind.h maxmind/mmhash.c maxmind/mmhash.h
+tor = tor/tor.c tor/tor.h 
 
 lib_LTLIBRARIES = libnfdump.la
-libnfdump_la_SOURCES = $(filter) $(maxmind) $(regex) $(decode) $(digest) vcs_track.h
+libnfdump_la_SOURCES = $(filter) $(maxmind) $(tor) $(regex) $(decode) $(digest) vcs_track.h
 libnfdump_la_LDFLAGS = -release @VERSION@
  
 CLEANFILES = filter/lex.yy.c filter/grammar.c filter/grammar.h filter/scanner.c filter/scanner.h *.gch

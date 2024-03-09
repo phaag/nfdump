@@ -69,7 +69,7 @@
 #include "nfx.h"
 #include "nfxV3.h"
 #include "output.h"
-#include "tor.h"
+#include "tor/tor.h"
 #include "util.h"
 #include "version.h"
 

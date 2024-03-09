@@ -39,7 +39,7 @@
 
 #include "conf/nfconf.h"
 #include "nffile.h"
-#include "tor.h"
+#include "tor/tor.h"
 #include "util.h"
 
 #define TAG_EXITNODE "ExitNode"

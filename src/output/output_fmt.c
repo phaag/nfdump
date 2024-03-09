@@ -53,7 +53,7 @@
 #include "nffile.h"
 #include "nfxV3.h"
 #include "output_util.h"
-#include "tor.h"
+#include "tor/tor.h"
 #include "userio.h"
 #include "util.h"
 
