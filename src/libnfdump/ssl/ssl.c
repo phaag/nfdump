@@ -258,6 +258,8 @@ static int sslParseClientHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
     switch (version) {
         case 0x0100:
             // SSL 1.0 was never really release!
+            ssl->tlsCharVersion[0] = 's';
+            ssl->tlsCharVersion[1] = '1';
             break;
         case 0x0200:  // SSL 2.0
             ssl->tlsCharVersion[0] = 's';
@@ -267,15 +269,19 @@ static int sslParseClientHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
             ssl->tlsCharVersion[0] = 's';
             ssl->tlsCharVersion[1] = '3';
             break;
-        case 0x0301:  // TLS 1.1
+        case 0x0301:  // TLS 1.0
             ssl->tlsCharVersion[0] = '1';
             ssl->tlsCharVersion[1] = '0';
             break;
         case 0x0302:  // TLS 1.2
             ssl->tlsCharVersion[0] = '1';
+            ssl->tlsCharVersion[1] = '1';
+            break;
+        case 0x0303:  // TLS 1.2
+            ssl->tlsCharVersion[0] = '1';
             ssl->tlsCharVersion[1] = '2';
             break;
-        case 0x0303:  // TLS 1.3
+        case 0x0304:  // TLS 1.3
             ssl->tlsCharVersion[0] = '1';
             ssl->tlsCharVersion[1] = '3';
             break;

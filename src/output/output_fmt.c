@@ -47,6 +47,8 @@
 #include "dns/dns.h"
 #include "ifvrf.h"
 #include "ja3/ja3.h"
+#include "ja4/ja4.h"
+#include "ja4/ja4s.h"
 #include "maxmind/maxmind.h"
 #include "nbar.h"
 #include "nfdump.h"
@@ -276,7 +278,11 @@ static void String_nbarName(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_ja3(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_ja4(FILE *stream, recordHandle_t *recordHandle);
+
 static void String_sniName(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_tlsVersion(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_observationDomainID(FILE *stream, recordHandle_t *recordHandle);
 
@@ -535,17 +541,19 @@ static struct format_token_list_s {
     {"%pfrule", 0, "rule", String_pfrule},        // pflog rule
 
     // EXlocal
-    {"%ja3", 0, "                             ja3", String_ja3},    // ja3
-    {"%sni", 0, "sni name", String_sniName},                        // TLS sni Name
-    {"%sc", 0, "SC", String_SrcCountry},                            // src IP 2 letter country code
-    {"%dc", 0, "DC", String_DstCountry},                            // dst IP 2 letter country code
-    {"%sloc", 0, "Src IP location info", String_SrcLocation},       // src IP geo location info
-    {"%dloc", 0, "Dst IP location info", String_DstLocation},       // dst IP geo location info
-    {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},  // src IP AS organistaion string
-    {"%dasn", 0, "Dst AS organisation", String_DstASorganisation},  // dst IP AS organisation string
-    {"%stor", 0, "STor", String_SrcTor},                            // src IP 2 letter tor node info
-    {"%dtor", 0, "DTor", String_DstTor},                            // dst IP 2 letter tor node info
-    {"%lbl", 0, "           label", String_Label},                  // Flow Label
+    {"%ja3", 0, "                                   ja3", String_ja3},  // ja3 hashes
+    {"%ja4", 0, "                                   ja4", String_ja4},  // ja4 hashes
+    {"%sni", 0, "sni name", String_sniName},                            // TLS sni Name
+    {"%tls", 0, "TLS ver", String_tlsVersion},                          // TLS version
+    {"%sc", 0, "SC", String_SrcCountry},                                // src IP 2 letter country code
+    {"%dc", 0, "DC", String_DstCountry},                                // dst IP 2 letter country code
+    {"%sloc", 0, "Src IP location info", String_SrcLocation},           // src IP geo location info
+    {"%dloc", 0, "Dst IP location info", String_DstLocation},           // dst IP geo location info
+    {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},      // src IP AS organistaion string
+    {"%dasn", 0, "Dst AS organisation", String_DstASorganisation},      // dst IP AS organisation string
+    {"%stor", 0, "STor", String_SrcTor},                                // src IP 2 letter tor node info
+    {"%dtor", 0, "DTor", String_DstTor},                                // dst IP 2 letter tor node info
+    {"%lbl", 0, "           label", String_Label},                      // Flow Label
 
     {"%n", 0, "", String_NewLine},  // \n
     {NULL, 0, NULL, NULL}};
@@ -1048,10 +1056,11 @@ static void String_nbarName(FILE *stream, recordHandle_t *recordHandle) {
 }  // End of String_nbarName
 
 static void String_ja3(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
 
-    if (payload == NULL) {
-        fprintf(stream, "%32s", "<no ja3>");
+    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
+        fprintf(stream, "%38s", "no ja3");
         return;
     }
     uint32_t payloadLength = ExtensionLength(payload);
@@ -1065,9 +1074,94 @@ static void String_ja3(FILE *stream, recordHandle_t *recordHandle) {
         ja3Process(ssl, recordHandle->ja3);
     }
 
-    fprintf(stream, "%32s", ja3String(recordHandle->ja3));
+    if (ssl) {
+        if (ssl->type == CLIENTssl)
+            fprintf(stream, "ja3 : %32s", ja3String(recordHandle->ja3));
+        else
+            fprintf(stream, "ja3s: %32s", ja3String(recordHandle->ja3));
+    } else {
+        fprintf(stream, "%32s", "<no ja3>");
+    }
 
 }  // End of String_ja3
+
+static void String_ja4(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
+
+    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
+        fprintf(stream, "%38s", "no ja4");
+        return;
+    }
+    uint32_t payloadLength = ExtensionLength(payload);
+    ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
+
+    if (ssl == NULL) {
+        ssl = sslProcess((const uint8_t *)payload, payloadLength);
+        recordHandle->sslInfo = (void *)ssl;
+    }
+
+    if (ssl == NULL) {
+        fprintf(stream, "%38s", "no ja4");
+        return;
+    }
+
+    char buff[64];
+    if (ssl->type == CLIENTssl) {
+        ja4_t *ja4 = ja4Process(ssl, genericFlow->proto);
+        fprintf(stream, "ja4 : %32s", ja4String(ja4, buff));
+    } else {
+        ja4s_t *ja4s = ja4sProcess(ssl, genericFlow->proto);
+        fprintf(stream, "ja4s: %32s", ja4sString(ja4s, buff));
+    }
+
+}  // End of String_ja4
+
+static void String_tlsVersion(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
+
+    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
+        fprintf(stream, "   0");
+        return;
+    }
+
+    uint32_t payloadLength = ExtensionLength(payload);
+    ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
+    if (ssl == NULL) {
+        ssl = sslProcess((uint8_t *)payload, payloadLength);
+        recordHandle->sslInfo = (void *)ssl;
+    }
+    if (ssl == NULL) {
+        fprintf(stream, "   0");
+        return;
+    }
+    /*
+    0x0304 = TLS 1.3 = “13”
+    0x0303 = TLS 1.2 = “12”
+    0x0302 = TLS 1.1 = “11”
+    0x0301 = TLS 1.0 = “10”
+    0x0300 = SSL 3.0 = “s3”
+    0x0200 = SSL 2.0 = “s2”
+    0x0100 = SSL 1.0 = “s1”
+    */
+
+    switch (ssl->tlsCharVersion[0]) {
+        case 0:
+            fprintf(stream, "     0");
+            break;
+        case 's':
+            fprintf(stream, "SSL %c  ", ssl->tlsCharVersion[1]);
+            break;
+        case '1':
+            fprintf(stream, "TLS 1.%c", ssl->tlsCharVersion[1]);
+            break;
+        default:
+            fprintf(stream, "0x%4x", ssl->tlsVersion);
+            break;
+    }
+
+}  // End of String_tlsVersion
 
 static void String_sniName(FILE *stream, recordHandle_t *recordHandle) {
     EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
