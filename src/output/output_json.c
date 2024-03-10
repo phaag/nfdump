@@ -45,6 +45,8 @@
 #include <time.h>
 
 #include "ja3/ja3.h"
+#include "ja4/ja4.h"
+#include "ja4/ja4s.h"
 #include "maxmind/maxmind.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -400,16 +402,20 @@ static void stringEXlatency(FILE *stream, void *extensionRecord, const char *ind
 
 }  // End of stringEXlatency
 
-static void String_ja3(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, const char *indent, const char *fs) {
+static void String_payload(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, const char *indent, const char *fs) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     EXinPayload_t *payload = (EXinPayload_t *)extensionRecord;
     uint32_t payloadLength = ExtensionLength(payload);
 
-    if (payloadLength == 0) {
+    // payload handled in output json:
+    // ssl, ja3, ja4
+
+    if (payloadLength == 0 || genericFlow->proto != IPPROTO_TCP) {
         return;
     }
 
     ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
-    if (*((uint64_t *)(recordHandle->ja3)) == 0) {
+    if (JA3UNDEFINED(recordHandle->ja3)) {
         if (ssl == NULL) {
             ssl = sslProcess((const uint8_t *)payload, payloadLength);
             recordHandle->sslInfo = (void *)ssl;
@@ -417,14 +423,39 @@ static void String_ja3(FILE *stream, recordHandle_t *recordHandle, void *extensi
         ja3Process(ssl, recordHandle->ja3);
     }
 
-    if (ssl && ssl->sniName[0]) {
-        fprintf(stream, "	\"sni\" : %s,\n", ssl->sniName);
-    }
-    if (*((uint64_t *)(recordHandle->ja3)) == 0) {
-        fprintf(stream, "	\"ja3 hash\" : %s,\n", ja3String(recordHandle->ja3));
+    if (ssl) {
+        switch (ssl->tlsCharVersion[0]) {
+            case 's':
+                fprintf(stream, "%s\"tls\" : SSL%c%s", indent, ssl->tlsCharVersion[1], fs);
+                break;
+            case '1':
+                fprintf(stream, "%s\"tls\" : TLS1.%c%s", indent, ssl->tlsCharVersion[1], fs);
+                break;
+            default:
+                fprintf(stream, "%s\"tls\" : 0x%4x%s", indent, ssl->tlsVersion, fs);
+                break;
+        }
+
+        if (ssl->sniName[0]) {
+            fprintf(stream, "%s\"sni\" : %s%s\n", indent, ssl->sniName, fs);
+        }
+        if (JA3DEFINED(recordHandle->ja3)) {
+            fprintf(stream, "%s\"ja3 hash\" : %s%s\n", indent, ja3String(recordHandle->ja3), fs);
+        }
+
+        char buff[64];
+        if (ssl->type == CLIENTssl) {
+            ja4_t *ja4 = ja4Process(ssl, genericFlow->proto);
+            if (ja4) fprintf(stream, "%s\"ja4 hash\" : %s%s\n", indent, ja4String(ja4, buff), fs);
+
+        } else {
+            if (JA3DEFINED(recordHandle->ja3)) fprintf(stream, "  ja3s hash    = %s\n", ja3String(recordHandle->ja3));
+            ja4s_t *ja4s = ja4sProcess(ssl, genericFlow->proto);
+            if (ja4s) fprintf(stream, "%s\"ja4s hash\" : %s%s\n", indent, ja4sString(ja4s, buff), fs);
+        }
     }
 
-}  // End of String_ja3
+}  // End of String_payload
 
 static void stringEXtunIPv4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)extensionRecord;
@@ -691,10 +722,10 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
                 stringEXlatency(stream, ptr, indent, fs);
                 break;
             case EXinPayloadID:
-                String_ja3(stream, recordHandle, ptr, indent, fs);
+                String_payload(stream, recordHandle, ptr, indent, fs);
                 break;
             case EXoutPayloadID:
-                String_ja3(stream, recordHandle, ptr, indent, fs);
+                String_payload(stream, recordHandle, ptr, indent, fs);
                 break;
             case EXtunIPv4ID:
                 stringEXtunIPv4(stream, ptr, indent, fs);

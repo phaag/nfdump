@@ -1066,7 +1066,7 @@ static void String_ja3(FILE *stream, recordHandle_t *recordHandle) {
     uint32_t payloadLength = ExtensionLength(payload);
     ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
 
-    if (*((uint64_t *)(recordHandle->ja3)) == 0) {
+    if (JA3UNDEFINED(recordHandle->ja3)) {
         if (ssl == NULL) {
             ssl = sslProcess((const uint8_t *)payload, payloadLength);
             recordHandle->sslInfo = (void *)ssl;

@@ -385,7 +385,7 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
 
             uint32_t payloadLength = ExtensionLength(payload);
             ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
-            if (*((uint64_t *)(recordHandle->ja3)) == 0) {
+            if (JA3DEFINED(recordHandle->ja3)) {
                 if (ssl == NULL) {
                     ssl = sslProcess((const uint8_t *)payload, payloadLength);
                     recordHandle->sslInfo = (void *)ssl;

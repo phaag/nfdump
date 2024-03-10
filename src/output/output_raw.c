@@ -711,9 +711,9 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
 
     if (ascii) {
         fprintf(stream, "%.*s\n", max, payload);
-    } else {
+    } else if (genericFlow->proto == IPPROTO_TCP) {
         ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
-        if (*((uint64_t *)(recordHandle->ja3)) == 0) {
+        if (JA3UNDEFINED(recordHandle->ja3)) {
             if (ssl == NULL) {
                 ssl = sslProcess((const uint8_t *)payload, length);
                 recordHandle->sslInfo = (void *)ssl;
@@ -722,17 +722,30 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
         }
 
         if (ssl) {
-            char buff[64];
+            switch (ssl->tlsCharVersion[0]) {
+                case 's':
+                    fprintf(stream, "  TLS version  = SSL %c  ", ssl->tlsCharVersion[1]);
+                    break;
+                case '1':
+                    fprintf(stream, "  TLS version  = 1.%c", ssl->tlsCharVersion[1]);
+                    break;
+                default:
+                    fprintf(stream, "  TLS version  = 0x%4x", ssl->tlsVersion);
+                    break;
+            }
+
             if (ssl->sniName[0]) fprintf(stream, "  sni name     = %s\n", ssl->sniName);
+
+            char buff[64];
             if (ssl->type == CLIENTssl) {
-                ja4_t *ja4 = ja4Process(ssl, IPPROTO_TCP);
-                fprintf(stream, "  ja3 hash     = %s\n", ja3String(recordHandle->ja3));
-                fprintf(stream, "  ja4 hash     = %s\n", ja4String(ja4, buff));
+                if (JA3DEFINED(recordHandle->ja3)) fprintf(stream, "  ja3 hash     = %s\n", ja3String(recordHandle->ja3));
+                ja4_t *ja4 = ja4Process(ssl, genericFlow->proto);
+                if (ja4) fprintf(stream, "  ja4 hash     = %s\n", ja4String(ja4, buff));
 
             } else {
-                ja4s_t *ja4s = ja4sProcess(ssl, IPPROTO_TCP);
-                fprintf(stream, "  ja3s hash    = %s\n", ja3String(recordHandle->ja3));
-                fprintf(stream, "  ja4s hash    = %s\n", ja4sString(ja4s, buff));
+                if (JA3DEFINED(recordHandle->ja3)) fprintf(stream, "  ja3s hash    = %s\n", ja3String(recordHandle->ja3));
+                ja4s_t *ja4s = ja4sProcess(ssl, genericFlow->proto);
+                if (ja4s) fprintf(stream, "  ja4s hash    = %s\n", ja4sString(ja4s, buff));
             }
         }
     }
@@ -765,11 +778,11 @@ static void stringsEXinmon(FILE *stream, void *extensionRecord) {
 void raw_prolog(void) {
     // empty prolog
     recordCount = 0;
-}  // End of pipe_prolog
+}  // End of raw_prolog
 
 void raw_epilog(void) {
     // empty epilog
-}  // End of pipe_epilog
+}  // End of raw_epilog
 
 void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
     recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
