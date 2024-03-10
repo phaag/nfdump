@@ -724,13 +724,13 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
         if (ssl) {
             switch (ssl->tlsCharVersion[0]) {
                 case 's':
-                    fprintf(stream, "  TLS version  = SSL %c  ", ssl->tlsCharVersion[1]);
+                    fprintf(stream, "  TLS version  =             SSL %c  \n", ssl->tlsCharVersion[1]);
                     break;
                 case '1':
-                    fprintf(stream, "  TLS version  = 1.%c", ssl->tlsCharVersion[1]);
+                    fprintf(stream, "  TLS version  =           TLS 1.%c\n", ssl->tlsCharVersion[1]);
                     break;
                 default:
-                    fprintf(stream, "  TLS version  = 0x%4x", ssl->tlsVersion);
+                    fprintf(stream, "  TLS version  =             0x%4x\n", ssl->tlsVersion);
                     break;
             }
 

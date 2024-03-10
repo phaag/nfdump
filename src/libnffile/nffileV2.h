@@ -61,7 +61,7 @@ typedef struct fileHeaderV2_s {
 #define LAYOUT_VERSION_2 2
 
     uint32_t nfdversion;  // version of nfdump created this file
-#define NFDVERSION 0xF1070200
+#define NFDVERSION 0xF1070400
                           // 4bytes 1.7.1-1 0x01070101
                           // 4bytes 1.7.1-1 0xF1070101 - git repo based on 1.7.1
     time_t created;  // file create time

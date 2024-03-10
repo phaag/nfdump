@@ -784,7 +784,7 @@ REDO_IPPROTO:
         size_t size_ip = sizeof(struct ip6_hdr);
 
         dataptr += size_ip;
-        if (dataptr > eodata) {
+        if (dataptr >= eodata) {
             dbg_printf("Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
             packetParam->proc_stat.short_snap++;
             goto END_FUNC;

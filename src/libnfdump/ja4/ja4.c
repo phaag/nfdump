@@ -194,21 +194,20 @@ ja4_t *ja4Process(ssl_t *ssl, uint8_t proto) {
 }  // End of DecodeJA4
 
 char *ja4String(ja4_t *ja4, char *buff) {
-#define JA4LEN 40
-    if (buff == NULL) buff = malloc(JA4LEN);
+    if (buff == NULL) buff = malloc(SIZEja4);
     if (buff == NULL) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
-    snprintf(buff, JA4LEN - 1, "%s_%s_%s", ja4->ja4.a, ja4->ja4.b, ja4->ja4.c);
-    buff[JA4LEN - 1] = '\0';
+    snprintf(buff, SIZEja4, "%s_%s_%s", ja4->ja4.a, ja4->ja4.b, ja4->ja4.c);
+    buff[SIZEja4 - 1] = '\0';
 
     return buff;
 }  // End of ja4String
 
 void ja4Print(ja4_t *ja4) {
-    char buff[JA4LEN];
+    char buff[SIZEja4];
     printf("ja4: %s\n", ja4String(ja4, buff));
 }  // End of ja4Print
 

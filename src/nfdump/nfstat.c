@@ -49,6 +49,8 @@
 #include "blocksort.h"
 #include "config.h"
 #include "ja3/ja3.h"
+#include "ja4/ja4.h"
+#include "ja4/ja4s.h"
 #include "khash.h"
 #include "maxmind/maxmind.h"
 #include "nfdump.h"
@@ -180,7 +182,7 @@ struct StatParameter_s {
     {"al", "Application Latency", {EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, 0}, IS_LATENCY, NOPROC},
     {"nbar", "Nbar", {EXnbarAppID, OFFnbarAppID, SIZEnbarAppID, 0}, IS_NBAR, NOPROC},
     {"ja3", "                             ja3", {EXlocal, OFFja3, SIZEja3, 0}, IS_JA3, JA3},
-    {"ja4", "                             ja4", {EXlocal, 0, 0, 0}, IS_JA4, JA4},
+    {"ja4", "                             ja4", {EXlocal, 0, 0, SIZEja4}, IS_JA4, JA4},
     {"odid", "Obs DomainID", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, IS_HEXNUMBER, NOPROC},
     {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER, NOPROC},
     {"event", " Event", {EXnselCommonID, OFFfwEvent, SIZEfwEvent, 0}, IS_EVENT, NOPROC},
@@ -485,18 +487,18 @@ int SetElementStat(char *elementStat, char *orderBy) {
 
 }  // End of SetElementStat
 
-static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t *recordHandle) {
+static inline void *PreProcess(void *inPtr, preprocess_t process, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
     switch (process) {
         case NOPROC:
-            return;
+            return inPtr;
             break;
         case SRC_GEO: {
             char *geo = (char *)inPtr;
-            if (HasGeoDB == 0 || geo[0]) return;
+            if (HasGeoDB == 0 || geo[0]) return inPtr;
             if (ipv4Flow)
                 LookupV4Country(ipv4Flow->srcAddr, geo);
             else if (ipv6Flow)
@@ -504,7 +506,7 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
         } break;
         case DST_GEO: {
             char *geo = (char *)inPtr;
-            if (HasGeoDB == 0 || geo[0]) return;
+            if (HasGeoDB == 0 || geo[0]) return inPtr;
             if (ipv4Flow)
                 LookupV4Country(ipv4Flow->dstAddr, inPtr);
             else if (ipv6Flow)
@@ -512,12 +514,12 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
         } break;
         case SRC_AS: {
             uint32_t *as = (uint32_t *)inPtr;
-            if (HasGeoDB == 0 || *as) return;
+            if (HasGeoDB == 0 || *as) return inPtr;
             *as = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->srcAddr) : 0);
         } break;
         case DST_AS: {
             uint32_t *as = (uint32_t *)inPtr;
-            if (HasGeoDB == 0 || *as) return;
+            if (HasGeoDB == 0 || *as) return inPtr;
             *as = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->dstAddr) : 0);
         } break;
         case PREV_AS: {
@@ -526,7 +528,7 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
         } break;
         case JA3: {
             EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
-            if (payload == NULL || genericFlow->proto != IPPROTO_TCP || JA3DEFINED(recordHandle->ja3)) return;
+            if (payload == NULL || genericFlow->proto != IPPROTO_TCP || JA3DEFINED(recordHandle->ja3)) return inPtr;
 
             uint32_t payloadLength = ExtensionLength(payload);
             ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
@@ -535,11 +537,29 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
                 recordHandle->sslInfo = (void *)ssl;
             }
             ja3Process(ssl, recordHandle->ja3);
-
+            return inPtr;
         } break;
         case JA4: {
+            EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
+            if (payload == NULL || genericFlow->proto != IPPROTO_TCP) return NULL;
+
+            uint32_t payloadLength = ExtensionLength(payload);
+            ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
+            if (ssl == NULL) {
+                ssl = sslProcess((const uint8_t *)payload, payloadLength);
+                if (ssl == NULL) return NULL;
+                recordHandle->sslInfo = (void *)ssl;
+            }
+            // ssl is defined
+            static char ja4StrBuff[SIZEja4];
+            ja4_t *ja4 = ja4Process(ssl, genericFlow->proto);
+            ja4String(ja4, ja4StrBuff);
+            inPtr = (void *)ja4StrBuff;
+            return inPtr;
         } break;
     }
+
+    return inPtr;
 }  // End of PreProcess
 
 void AddElementStat(recordHandle_t *recordHandle) {
@@ -565,7 +585,11 @@ void AddElementStat(recordHandle_t *recordHandle) {
 
             uint32_t length = StatParameters[index].element.length;
             preprocess_t lookup = StatParameters[index].preprocess;
-            PreProcess(inPtr, lookup, recordHandle);
+            inPtr = PreProcess(inPtr, lookup, recordHandle);
+            if (inPtr == NULL) {
+                index++;
+                continue;
+            }
 
             switch (length) {
                 case 0:

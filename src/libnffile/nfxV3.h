@@ -693,7 +693,7 @@ typedef struct EXpfinfo_s {
     h->numElements++;                                                              \
     h->size += s;
 
-#define ExtensionLength(ext) ((elementHeader_t *)((void *)ext - sizeof(elementHeader_t)))->length
+#define ExtensionLength(ext) (((elementHeader_t *)((void *)ext - sizeof(elementHeader_t)))->length - sizeof(elementHeader_t))
 
 #define EXTENSION(s) \
     { s##ID, s##Size, #s }

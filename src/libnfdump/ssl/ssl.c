@@ -152,8 +152,9 @@ static int ProcessExtALPN(ssl_t *ssl, BytesStream_t *sslStream) {
     uint16_t alpnLength;
     ByteStream_GET_u16(*sslStream, alpnLength);
 
-    if (alpnLength > ByteStream_AVAILABLE(*sslStream) || alpnLength >= ALPNmaxLen) {
-        LogError("%s():%d ALPN extension length error", __FUNCTION__, __LINE__);
+    if (alpnLength > ByteStream_AVAILABLE(*sslStream)) {
+        printf("## alpnLength: %u, available: %zu\n", alpnLength, ByteStream_AVAILABLE(*sslStream));
+        LogError("%s(): ALPN extension length error in %s:%d", __FUNCTION__, __FILE__, __LINE__);
         return 0;
     }
 

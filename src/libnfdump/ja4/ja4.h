@@ -36,6 +36,27 @@
 
 #include "ssl/ssl.h"
 
+/*
+
+example fingerprint:
+t13d1516h2_8daaf6152771_b186095e22b6
+
+(QUIC=”q” or TCP=”t”)
+(2 character TLS version)
+(SNI=”d” defined or SNI=”i” no SNI defined)
+(2 character count of ciphers)
+(2 character count of extensions)
+(first and last characters of first ALPN extension value)
+_
+(sha256 hash of the list of cipher hex codes sorted in hex order, truncated to 12 characters)
+_
+(sha256 hash of (the list of extension hex codes sorted in hex order)_(the list of signature algorithms), truncated to 12 characters)
+
+*/
+
+// the true size is 37 incl. '\0'
+#define SIZEja4 37
+
 typedef struct ja4_s {
     struct {
         char a[16];
