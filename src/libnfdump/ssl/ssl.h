@@ -70,8 +70,8 @@ typedef struct uint16Array_s {
 
 typedef struct ssl_s {
     uint16_t tlsVersion;
-#define CLIENTssl 0
-#define SERVERssl 1
+#define CLIENTssl 1
+#define SERVERssl 2
     char tlsCharVersion[2];
     uint16_t protocolVersion;
     uint16_t type;

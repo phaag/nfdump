@@ -78,14 +78,20 @@ ja4_t *ja4Process(ssl_t *ssl, uint8_t proto) {
     ja4->ja4.a[3] = ssl->sniName[0] ? 'd' : 'i';
 
     uint32_t num = LenArray(ssl->cipherSuites);
-    if (num > 99) return 0;
+    if (num > 99) {
+        free(ja4);
+        return NULL;
+    }
     uint32_t ones = num % 10;
     uint32_t tens = num / 10;
     ja4->ja4.a[4] = tens + '0';
     ja4->ja4.a[5] = ones + '0';
 
     num = LenArray(ssl->extensions);
-    if (num > 99) return 0;
+    if (num > 99) {
+        free(ja4);
+        return NULL;
+    }
     ones = num % 10;
     tens = num / 10;
     ja4->ja4.a[6] = tens + '0';
@@ -200,6 +206,7 @@ char *ja4String(ja4_t *ja4, char *buff) {
         return NULL;
     }
 
+    // strcpy(buff, "t000000000_000000000000_000000000000");
     snprintf(buff, SIZEja4, "%s_%s_%s", ja4->ja4.a, ja4->ja4.b, ja4->ja4.c);
     buff[SIZEja4 - 1] = '\0';
 

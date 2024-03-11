@@ -85,6 +85,8 @@ typedef struct recordHandle_s {
     recordHeaderV3_t *recordHeaderV3;
     void *extensionList[MAXEXTENSIONS + 1];
     void *sslInfo;
+#define OFFssl offsetof(recordHandle_t, sslInfo)
+#define SIZEssl MemberSize(recordHandle_t, sslInfo)
     uint8_t ja3[16];
 #define OFFja3 offsetof(recordHandle_t, ja3)
 #define SIZEja3 MemberSize(recordHandle_t, ja3)

@@ -182,7 +182,7 @@ struct StatParameter_s {
     {"al", "Application Latency", {EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, 0}, IS_LATENCY, NOPROC},
     {"nbar", "Nbar", {EXnbarAppID, OFFnbarAppID, SIZEnbarAppID, 0}, IS_NBAR, NOPROC},
     {"ja3", "                             ja3", {EXlocal, OFFja3, SIZEja3, 0}, IS_JA3, JA3},
-    {"ja4", "                             ja4", {EXlocal, 0, 0, SIZEja4}, IS_JA4, JA4},
+    {"ja4", "                             ja4", {EXlocal, 0, SIZEja4, 0}, IS_JA4, JA4},
     {"odid", "Obs DomainID", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, IS_HEXNUMBER, NOPROC},
     {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER, NOPROC},
     {"event", " Event", {EXnselCommonID, OFFfwEvent, SIZEfwEvent, 0}, IS_EVENT, NOPROC},
@@ -551,10 +551,12 @@ static inline void *PreProcess(void *inPtr, preprocess_t process, recordHandle_t
                 recordHandle->sslInfo = (void *)ssl;
             }
             // ssl is defined
-            static char ja4StrBuff[SIZEja4];
+            static char ja4StrBuff[40];
             ja4_t *ja4 = ja4Process(ssl, genericFlow->proto);
+            if (ssl->type != CLIENTssl) return NULL;
             ja4String(ja4, ja4StrBuff);
             inPtr = (void *)ja4StrBuff;
+            free(ja4);
             return inPtr;
         } break;
     }
@@ -765,6 +767,10 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
             }
             valstr[32] = '\0';
 
+        } break;
+        case IS_JA4: {
+            char *s = (char *)StatData->hashkey.ptr;
+            strcpy(valstr, s);
         } break;
         case IS_GEO: {
             snprintf(valstr, 64, "%s", (char *)&(StatData->hashkey.v1));
