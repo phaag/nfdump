@@ -600,7 +600,7 @@ int main(int argc, char **argv) {
     workers = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:S:T:t:u:vVw:x:X:yz::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:S:T:t:u:vVW:w:x:X:yz::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
