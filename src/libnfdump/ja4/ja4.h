@@ -54,23 +54,18 @@ _
 
 */
 
-// the true size is 37 incl. '\0'
-#define SIZEja4 37
+enum { TYPE_JA4 = 1, TYPE_JA4S };
 
+// ex. t13d1516h2_8daaf6152771_b186095e22bb
 typedef struct ja4_s {
-    struct {
-        char a[16];
-        char b[16];
-        char c[16];
-    } ja4;
+    uint8_t type;
+    char string[];
 } ja4_t;
+#define OFFja4String offsetof(ja4_t, string)
+#define SIZEja4String 36
 
-ja4_t *ja4Process(ssl_t *ssl, uint8_t proto);
+int ja4Check(char *ja4String);
 
-char *ja4String(ja4_t *ja4, char *buff);
-
-void ja4Print(ja4_t *ja4);
-
-void ja4Free(ja4_t *ja4);
+char *ja4Process(ssl_t *ssl, uint8_t proto, char *buff);
 
 #endif

@@ -33,6 +33,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <inttypes.h>
+#include <netinet/in.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,6 +45,7 @@
 
 #include "filter.h"
 #include "ja3/ja3.h"
+#include "ja4/ja4.h"
 #include "maxmind/maxmind.h"
 #include "sgregex.h"
 #include "util.h"
@@ -56,6 +58,8 @@ static int Extended = 0;
 uint32_t StartNode = 0;
 
 typedef uint64_t (*flow_proc_t)(void *, uint32_t, data_t, recordHandle_t *);
+
+typedef void *(*preprocess_proc_t)(void *, uint32_t, data_t, recordHandle_t *);
 
 typedef struct filterElement {
     /* Filter specific data */
@@ -106,6 +110,9 @@ static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, rec
 static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t ja3_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
+/* flow pre-processing functions */
+static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+
 /*
  * flow processing function table:
  */
@@ -127,6 +134,10 @@ static struct flow_procs_map_s {
                       {FUNC_MMAS_LOOKUP, "AS Lockup", mmASLookup_function},
                       {FUNC_JA3, "ja3", ja3_function},
                       {0, NULL, NULL}};
+
+static struct preprocess_s {
+    preprocess_proc_t function;
+} preprocess_map[] = {{ja4_preproc}, {NULL}};
 
 // 128bit compare for IPv6
 static int IPNodeCMP(struct IPListNode *e1, struct IPListNode *e2) {
@@ -302,6 +313,31 @@ static uint64_t ja3_function(void *dataPtr, uint32_t length, data_t data, record
     return 1;
 
 }  // End of ja3_function
+
+static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(handle->extensionList[EXgenericFlowID]);
+    //
+    if (handle->extensionList[JA4index]) return handle->extensionList[JA4index];
+    ssl_t *ssl = handle->extensionList[SSLindex];
+    if (ssl == NULL) {
+        const uint8_t *payload = (uint8_t *)(handle->extensionList[EXinPayloadID]);
+        uint32_t length = ExtensionLength(payload);
+        if (genericFlow->proto == IPPROTO_TCP) ssl = sslProcess(payload, length);
+        if (ssl == NULL) return NULL;
+    }
+    ja4_t *ja4 = malloc(sizeof(ja4_t) + SIZEja4String + 1);
+    if (!ja4) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+    ja4->type = TYPE_JA4;
+    if (ja4Process(ssl, genericFlow->proto, ja4->string)) {
+        handle->extensionList[JA4index] = (void *)ja4;
+        return (void *)ja4->string;
+    }
+    free(ja4);
+    return NULL;
+}  // End of ja4_preproc
 
 static int geoLookup(char *geoChar, uint64_t direction, recordHandle_t *recordHandle) {
     geoChar[0] = geoChar[1] = '.';
@@ -610,8 +646,17 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
         void *inPtr = handle->extensionList[extID];
         if (inPtr == NULL) {
             evaluate = 0;
-            index = engine->filter[index].OnFalse;
-            continue;
+            if (extID < MAXEXTENSIONS) {
+                index = engine->filter[index].OnFalse;
+                continue;
+            }
+            data_t data = engine->filter[index].data;
+            uint32_t length = engine->filter[index].length;
+            inPtr = preprocess_map[extID - MAXEXTENSIONS].function(inPtr, length, data, handle);
+            if (inPtr == NULL) {
+                index = engine->filter[index].OnFalse;
+                continue;
+            }
         }
         inPtr += offset;
 

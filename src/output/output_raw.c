@@ -739,8 +739,7 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
             char buff[64];
             if (ssl->type == CLIENTssl) {
                 if (JA3DEFINED(recordHandle->ja3)) fprintf(stream, "  ja3 hash     = %s\n", ja3String(recordHandle->ja3));
-                ja4_t *ja4 = ja4Process(ssl, genericFlow->proto);
-                if (ja4) fprintf(stream, "  ja4 hash     = %s\n", ja4String(ja4, buff));
+                if (ja4Process(ssl, genericFlow->proto, buff)) fprintf(stream, "  ja4 hash     = %s\n", buff);
 
             } else {
                 if (JA3DEFINED(recordHandle->ja3)) fprintf(stream, "  ja3s hash    = %s\n", ja3String(recordHandle->ja3));

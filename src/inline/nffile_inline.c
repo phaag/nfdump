@@ -63,6 +63,8 @@ static inline size_t CheckBufferSpace(nffile_t *nffile, size_t required) {
 }  // End of CheckBufferSpace
 
 static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint32_t flowCount) {
+    if (handle->sslInfo) free(handle->sslInfo);
+    if (handle->ja4Info) free(handle->ja4Info);
     memset((void *)handle, 0, sizeof(recordHandle_t));
     handle->recordHeaderV3 = recordHeaderV3;
 

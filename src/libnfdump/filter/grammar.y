@@ -48,6 +48,8 @@
 #include "nfxV3.h"
 #include "ipconv.h"
 #include "sgregex.h"
+#include "ja4/ja4.h"
+#include "nfdump.h"
 
 #define AnyMask 0xffffffffffffffffLL
 
@@ -1218,6 +1220,10 @@ static int AddPayload(char *type, char *arg, char *opt) {
 		}
 		data_t data = {.dataPtr = program};
 		return NewElement(EXinPayloadID, 0, 0, 0, CMP_REGEX, FUNC_NONE, data);
+	} else if (strcasecmp(type, "ssl") == 0) {
+			if (strcasecmp(arg, "defined") == 0) {
+				return Invert(NewElement(EXlocal, OFFsslInfo, SIZEsslInfo, 0, CMP_EQ, FUNC_NONE, NULLPtr));
+			}
 	} else if (strcasecmp(type, "ja3") == 0) {
 			uint8_t *md5 = calloc(1,16);
 			if (!md5) {
@@ -1239,6 +1245,9 @@ static int AddPayload(char *type, char *arg, char *opt) {
 				}
 				return NewElement(EXlocal, OFFja3, SIZEja3, 0, CMP_BINARY, FUNC_JA3, data);
 			}
+	} else if (strcasecmp(type, "ja4") == 0) {
+				data_t data = {.dataPtr=strdup(arg)};
+			return NewElement(JA4index, OFFja4String, SIZEja4String, 0, CMP_STRING, FUNC_NONE, data);
 	} else {
 		yyerror("Unknown PAYLOAD argument: %s\n", type);
 		return -1;

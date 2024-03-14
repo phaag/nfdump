@@ -81,15 +81,13 @@ typedef struct exporter_info_record_s exporter_info_record_t;
 typedef struct extension_map_s extension_map_t;
 
 #define EXlocal MAXEXTENSIONS
+#define SSLindex MAXEXTENSIONS + 1
+#define JA4index MAXEXTENSIONS + 2
+#define MAXLISTSIZE MAXEXTENSIONS + 3
+
 typedef struct recordHandle_s {
     recordHeaderV3_t *recordHeaderV3;
-    void *extensionList[MAXEXTENSIONS + 1];
-    void *sslInfo;
-#define OFFssl offsetof(recordHandle_t, sslInfo)
-#define SIZEssl MemberSize(recordHandle_t, sslInfo)
-    uint8_t ja3[16];
-#define OFFja3 offsetof(recordHandle_t, ja3)
-#define SIZEja3 MemberSize(recordHandle_t, ja3)
+    void *extensionList[MAXLISTSIZE];
     char geo[16];
 #define OFFgeo offsetof(recordHandle_t, geo)
 #define OFFgeoSrcIP offsetof(recordHandle_t, geo)
@@ -99,6 +97,18 @@ typedef struct recordHandle_s {
 #define OFFgeoSrcTunIP offsetof(recordHandle_t, geo) + 8
 #define OFFgeoDstTunIP offsetof(recordHandle_t, geo) + 10
 #define SizeGEOloc 2
+    void *sslInfo;
+#define OFFsslInfo offsetof(recordHandle_t, sslInfo)
+#define SIZEsslInfo MemberSize(recordHandle_t, sslInfo)
+    uint8_t ja3[16];
+#define OFFja3 offsetof(recordHandle_t, ja3)
+#define SIZEja3 MemberSize(recordHandle_t, ja3)
+    // for all ja4 hashes, ja4, ja4s, ja4h etc. there is one reference
+    // only, as a record can not have more thanone
+    void *ja4Info;
+#define OFFja4Info offsetof(recordHandle_t, ja4Info)
+#define SIZEja4Info MemberSize(recordHandle_t, ja4Info)
+    uint32_t ja4Type;
     uint32_t flowCount;
 #define OFFflowCount offsetof(recordHandle_t, flowCount)
 #define SIZEflowCount MemberSize(recordHandle_t, flowCount)

@@ -1108,8 +1108,7 @@ static void String_ja4(FILE *stream, recordHandle_t *recordHandle) {
 
     char buff[64];
     if (ssl->type == CLIENTssl) {
-        ja4_t *ja4 = ja4Process(ssl, genericFlow->proto);
-        fprintf(stream, "ja4 : %32s", ja4String(ja4, buff));
+        if (ja4Process(ssl, genericFlow->proto, buff)) fprintf(stream, "ja4 : %32s", buff);
     } else {
         ja4s_t *ja4s = ja4sProcess(ssl, genericFlow->proto);
         fprintf(stream, "ja4s: %32s", ja4sString(ja4s, buff));
