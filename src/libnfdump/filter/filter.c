@@ -111,6 +111,7 @@ static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data,
 static uint64_t ja3_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
 /* flow pre-processing functions */
+static void *ssl_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
 /*
@@ -137,7 +138,7 @@ static struct flow_procs_map_s {
 
 static struct preprocess_s {
     preprocess_proc_t function;
-} preprocess_map[] = {{ja4_preproc}, {NULL}};
+} preprocess_map[] = {{ssl_preproc}, {ja4_preproc}, {NULL}};
 
 // 128bit compare for IPv6
 static int IPNodeCMP(struct IPListNode *e1, struct IPListNode *e2) {
@@ -314,17 +315,31 @@ static uint64_t ja3_function(void *dataPtr, uint32_t length, data_t data, record
 
 }  // End of ja3_function
 
-static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(handle->extensionList[EXgenericFlowID]);
-    //
-    if (handle->extensionList[JA4index]) return handle->extensionList[JA4index];
+static void *ssl_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
+    const uint8_t *payload = (uint8_t *)(handle->extensionList[EXinPayloadID]);
+    if (payload == NULL) return NULL;
+
     ssl_t *ssl = handle->extensionList[SSLindex];
-    if (ssl == NULL) {
-        const uint8_t *payload = (uint8_t *)(handle->extensionList[EXinPayloadID]);
-        uint32_t length = ExtensionLength(payload);
-        if (genericFlow->proto == IPPROTO_TCP) ssl = sslProcess(payload, length);
-        if (ssl == NULL) return NULL;
-    }
+    if (ssl) return (void *)ssl;
+
+    uint32_t payloadLength = ExtensionLength(payload);
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(handle->extensionList[EXgenericFlowID]);
+    if (genericFlow->proto == IPPROTO_TCP) ssl = sslProcess(payload, payloadLength);
+    handle->extensionList[SSLindex] = ssl;
+    return ssl;
+
+}  // End of ssl_preproc
+
+static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
+    const uint8_t *payload = (uint8_t *)(handle->extensionList[EXinPayloadID]);
+    if (payload == NULL) return NULL;
+
+    if (handle->extensionList[JA4index]) return handle->extensionList[JA4index];
+
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(handle->extensionList[EXgenericFlowID]);
+
+    ssl_t *ssl = ssl_preproc(dataPtr, length, data, handle);
+    if (ssl == NULL || ssl->type != CLIENTssl) return NULL;
     ja4_t *ja4 = malloc(sizeof(ja4_t) + SIZEja4String + 1);
     if (!ja4) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -333,7 +348,7 @@ static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHand
     ja4->type = TYPE_JA4;
     if (ja4Process(ssl, genericFlow->proto, ja4->string)) {
         handle->extensionList[JA4index] = (void *)ja4;
-        return (void *)ja4->string;
+        return (void *)ja4;
     }
     free(ja4);
     return NULL;
@@ -646,13 +661,13 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
         void *inPtr = handle->extensionList[extID];
         if (inPtr == NULL) {
             evaluate = 0;
-            if (extID < MAXEXTENSIONS) {
+            if (extID <= MAXEXTENSIONS) {
                 index = engine->filter[index].OnFalse;
                 continue;
             }
             data_t data = engine->filter[index].data;
             uint32_t length = engine->filter[index].length;
-            inPtr = preprocess_map[extID - MAXEXTENSIONS].function(inPtr, length, data, handle);
+            inPtr = preprocess_map[extID - MAXEXTENSIONS - 1].function(inPtr, length, data, handle);
             if (inPtr == NULL) {
                 index = engine->filter[index].OnFalse;
                 continue;
