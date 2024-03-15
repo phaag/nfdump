@@ -72,21 +72,13 @@ typedef enum {
     IS_NBAR,
     IS_JA3,
     IS_JA4,
+    IS_JA4S,
     IS_GEO
 } elementType_t;
 
-typedef enum { NOPROC = 0,
-               SRC_GEO,
-               DST_GEO,
-               SRC_AS,
-               DST_AS,
-               PREV_AS,
-               NEXT_AS,
-               JA3,
-               JA4 } preprocess_t;
+typedef enum { NOPROC = 0, SRC_GEO, DST_GEO, SRC_AS, DST_AS, PREV_AS, NEXT_AS, JA3, JA4, JA4S } preprocess_t;
 
-typedef enum { DESCENDING = 0,
-               ASCENDING } direction_t;
+typedef enum { DESCENDING = 0, ASCENDING } direction_t;
 
 typedef struct flow_element_s {
     uint32_t extID;   // extension ID
@@ -189,8 +181,9 @@ struct StatParameter_s {
     {"sl", "Server Latency", {EXlatencyID, OFFusecServerNwDelay, SIZEusecServerNwDelay, 0}, IS_LATENCY, NOPROC},
     {"al", "Application Latency", {EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, 0}, IS_LATENCY, NOPROC},
     {"nbar", "Nbar", {EXnbarAppID, OFFnbarAppID, SIZEnbarAppID, 0}, IS_NBAR, NOPROC},
-    {"ja3", "                             ja3", {JA3index, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3},
-    {"ja4", "                             ja4", {JA4index, OFFja4String, SIZEja4String + 1, 0}, IS_JA4, JA4},
+    {"ja3", "ja3                             ", {JA3index, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3},
+    {"ja4", "ja4                             ", {JA4index, OFFja4String, SIZEja4String + 1, 0}, IS_JA4, JA4},
+    {"ja4s", "ja4s                           ", {JA4index, OFFja4String, SIZEja4sString + 1, 0}, IS_JA4S, JA4S},
     {"odid", "Obs DomainID", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, IS_HEXNUMBER, NOPROC},
     {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER, NOPROC},
     {"event", " Event", {EXnselCommonID, OFFfwEvent, SIZEfwEvent, 0}, IS_EVENT, NOPROC},
@@ -248,9 +241,7 @@ typedef struct StatRecord {
  * pps, bps and bpp are not directly available in the flow/stat record
  * therefore we need a function to calculate these values
  */
-typedef enum flowDir { IN = 0,
-                       OUT,
-                       INOUT } flowDir_t;
+typedef enum flowDir { IN = 0, OUT, INOUT } flowDir_t;
 typedef uint64_t (*order_proc_element_t)(StatRecord_t *, flowDir_t);
 
 static inline uint64_t null_element(StatRecord_t *record, flowDir_t inout);
@@ -554,7 +545,8 @@ static inline void *PreProcess(void *inPtr, preprocess_t process, recordHandle_t
             recordHandle->extensionList[JA3index] = ja3;
             return ja3;
         } break;
-        case JA4: {
+        case JA4:
+        case JA4S: {
             EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
             if (payload == NULL || genericFlow->proto != IPPROTO_TCP) return NULL;
 
@@ -569,11 +561,14 @@ static inline void *PreProcess(void *inPtr, preprocess_t process, recordHandle_t
             }
             // ssl is defined
             ja4_t *ja4 = NULL;
-            if (ssl->type == CLIENTssl) {
+            if (process == JA4 && ssl->type == CLIENTssl) {
                 ja4 = ja4Process(ssl, genericFlow->proto);
-            } else {
+            } else if (process == JA4S && ssl->type == SERVERssl) {
                 ja4 = ja4sProcess(ssl, genericFlow->proto);
+            } else {
+                return NULL;
             }
+
             recordHandle->extensionList[JA4index] = ja4;
             return ja4;
 
@@ -777,11 +772,9 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
             snprintf(valstr, 64, "%2u..%u", u, ntohl(conv.val32));
 
         } break;
-        case IS_JA3: {
-            char *s = (char *)StatData->hashkey.ptr;
-            strcpy(valstr, s);
-        } break;
-        case IS_JA4: {
+        case IS_JA3:
+        case IS_JA4:
+        case IS_JA4S: {
             char *s = (char *)StatData->hashkey.ptr;
             strcpy(valstr, s);
         } break;
@@ -977,19 +970,19 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                     }
                     if (Getv6Mode() && (type == IS_IPADDR)) {
                         printf(
-                            "Date first seen                 Duration Proto %39s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      bps   "
+                            "Date first seen             Duration     Proto %39s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      bps   "
                             "bpp\n",
                             StatParameters[stat].HeaderInfo);
                     } else {
                         if (outputParams->hasGeoDB) {
                             printf(
-                                "Date first seen                 Duration Proto %21s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
+                                "Date first seen             Duration     Proto %21s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
                                 "bps   "
                                 "bpp\n",
                                 StatParameters[stat].HeaderInfo);
                         } else {
                             printf(
-                                "Date first seen                 Duration Proto %17s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
+                                "Date first seen             Duration     Proto %17s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
                                 "bps   "
                                 "bpp\n",
                                 StatParameters[stat].HeaderInfo);
