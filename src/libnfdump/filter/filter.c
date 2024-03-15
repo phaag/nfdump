@@ -108,10 +108,10 @@ static uint64_t mpls_exp_function(void *dataPtr, uint32_t length, data_t data, r
 static uint64_t mpls_any_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
-static uint64_t ja3_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
 /* flow pre-processing functions */
 static void *ssl_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static void *ja3_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
 /*
@@ -133,12 +133,11 @@ static struct flow_procs_map_s {
                       {FUNC_MPLS_ANY, "mpls any", mpls_any_function},
                       {FUNC_PBLOCK, "pblock", pblock_function},
                       {FUNC_MMAS_LOOKUP, "AS Lockup", mmASLookup_function},
-                      {FUNC_JA3, "ja3", ja3_function},
                       {0, NULL, NULL}};
 
 static struct preprocess_s {
     preprocess_proc_t function;
-} preprocess_map[] = {{ssl_preproc}, {ja4_preproc}, {NULL}};
+} preprocess_map[] = {{ssl_preproc}, {ja3_preproc}, {ja4_preproc}, {NULL}};
 
 // 128bit compare for IPv6
 static int IPNodeCMP(struct IPListNode *e1, struct IPListNode *e2) {
@@ -292,29 +291,6 @@ static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data,
     return as;
 }  // End of mmASLookup_function
 
-static uint64_t ja3_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *recordHandle) {
-    const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
-
-    // check if ja3 already exists or no payload exists
-    if (recordHandle->ja3[0] != '\0' || payload == NULL) return 1;
-
-    uint32_t len = ExtensionLength(payload);
-
-    // check if ssl record already exists
-    ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
-    if (!ssl) {
-        ssl = sslProcess(payload, len);
-        recordHandle->sslInfo = (void *)ssl;
-    }
-    uint8_t *ja3 = ja3Process(ssl, recordHandle->ja3);
-    if (ja3 == NULL) {
-        return 0;
-    }
-    // else - found a valid ja3 hash from the ssl handshake record
-    return 1;
-
-}  // End of ja3_function
-
 static void *ssl_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
     const uint8_t *payload = (uint8_t *)(handle->extensionList[EXinPayloadID]);
     if (payload == NULL) return NULL;
@@ -330,10 +306,25 @@ static void *ssl_preproc(void *dataPtr, uint32_t length, data_t data, recordHand
 
 }  // End of ssl_preproc
 
+static void *ja3_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
+    const uint8_t *payload = (const uint8_t *)handle->extensionList[EXinPayloadID];
+    if (payload == NULL) return NULL;
+
+    // return ja3 string if it already exists
+    if (handle->extensionList[JA3index]) return handle->extensionList[JA3index];
+
+    ssl_t *ssl = ssl_preproc(dataPtr, length, data, handle);
+    if (!ssl) return NULL;
+
+    return ja3Process(ssl, NULL);
+
+}  // End of ja3_preproc
+
 static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
     const uint8_t *payload = (uint8_t *)(handle->extensionList[EXinPayloadID]);
     if (payload == NULL) return NULL;
 
+    // return ja4 struct if it already exists
     if (handle->extensionList[JA4index]) return handle->extensionList[JA4index];
 
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(handle->extensionList[EXgenericFlowID]);
@@ -345,12 +336,11 @@ static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHand
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
-    ja4->type = TYPE_JA4;
-    if (ja4Process(ssl, genericFlow->proto, ja4->string)) {
+    ja4 = ja4Process(ssl, genericFlow->proto);
+    if (ja4) {
         handle->extensionList[JA4index] = (void *)ja4;
         return (void *)ja4;
     }
-    free(ja4);
     return NULL;
 }  // End of ja4_preproc
 

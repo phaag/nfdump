@@ -48,7 +48,6 @@
 #include "ifvrf.h"
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
-#include "ja4/ja4s.h"
 #include "maxmind/maxmind.h"
 #include "nbar.h"
 #include "nfdump.h"
@@ -1056,85 +1055,89 @@ static void String_nbarName(FILE *stream, recordHandle_t *recordHandle) {
 }  // End of String_nbarName
 
 static void String_ja3(FILE *stream, recordHandle_t *recordHandle) {
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
-
+    const uint8_t *payload = (uint8_t *)(recordHandle->extensionList[EXinPayloadID]);
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(recordHandle->extensionList[EXgenericFlowID]);
     if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
         fprintf(stream, "%38s", "no ja3");
         return;
     }
-    uint32_t payloadLength = ExtensionLength(payload);
-    ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
 
-    if (JA3UNDEFINED(recordHandle->ja3)) {
+    char *ja3 = recordHandle->extensionList[JA3index];
+    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    if (ja3 == NULL) {
         if (ssl == NULL) {
-            ssl = sslProcess((const uint8_t *)payload, payloadLength);
-            recordHandle->sslInfo = (void *)ssl;
+            uint32_t payloadLength = ExtensionLength(payload);
+            ssl = sslProcess(payload, payloadLength);
+            ja3 = ja3Process(ssl, NULL);
+            recordHandle->extensionList[SSLindex] = ssl;
+            recordHandle->extensionList[JA3index] = ja3;
+            if (ssl == NULL || ja3 == NULL) {
+                fprintf(stream, "%38s", "no ja3");
+                return;
+            }
         }
-        ja3Process(ssl, recordHandle->ja3);
     }
 
-    if (ssl) {
-        if (ssl->type == CLIENTssl)
-            fprintf(stream, "ja3 : %32s", ja3String(recordHandle->ja3));
-        else
-            fprintf(stream, "ja3s: %32s", ja3String(recordHandle->ja3));
-    } else {
-        fprintf(stream, "%32s", "<no ja3>");
-    }
+    if (ssl->type == CLIENTssl)
+        fprintf(stream, "ja3 : %32s", ja3);
+    else
+        fprintf(stream, "ja3s: %32s", ja3);
 
 }  // End of String_ja3
 
 static void String_ja4(FILE *stream, recordHandle_t *recordHandle) {
+    const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
-
     if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
         fprintf(stream, "%38s", "no ja4");
         return;
     }
-    uint32_t payloadLength = ExtensionLength(payload);
-    ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
 
-    if (ssl == NULL) {
-        ssl = sslProcess((const uint8_t *)payload, payloadLength);
-        recordHandle->sslInfo = (void *)ssl;
+    ja4_t *ja4 = recordHandle->extensionList[JA4index];
+    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    if (ja4 == NULL) {
+        if (ssl == NULL) {
+            uint32_t payloadLength = ExtensionLength(payload);
+            ssl = sslProcess(payload, payloadLength);
+            ja4 = ja4Process(ssl, genericFlow->proto);
+            recordHandle->extensionList[SSLindex] = ssl;
+            recordHandle->extensionList[JA4index] = ja4;
+            if (ssl == NULL || ja4 == NULL) {
+                fprintf(stream, "%38s", "no ja4");
+                return;
+            }
+        }
     }
 
-    if (ssl == NULL) {
-        fprintf(stream, "%38s", "no ja4");
-        return;
-    }
-
-    char buff[64];
-    if (ssl->type == CLIENTssl) {
-        if (ja4Process(ssl, genericFlow->proto, buff)) fprintf(stream, "ja4 : %32s", buff);
+    // ja4 is defined
+    if (ja4->type == TYPE_JA4) {
+        fprintf(stream, "ja4 : %32s", ja4->string);
     } else {
-        ja4s_t *ja4s = ja4sProcess(ssl, genericFlow->proto);
-        fprintf(stream, "ja4s: %32s", ja4sString(ja4s, buff));
+        fprintf(stream, "ja4s: %32s", ja4->string);
     }
 
 }  // End of String_ja4
 
 static void String_tlsVersion(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
+    const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
 
     if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
         fprintf(stream, "   0");
         return;
     }
 
-    uint32_t payloadLength = ExtensionLength(payload);
-    ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
+    ssl_t *ssl = recordHandle->extensionList[SSLindex];
     if (ssl == NULL) {
-        ssl = sslProcess((uint8_t *)payload, payloadLength);
-        recordHandle->sslInfo = (void *)ssl;
+        uint32_t payloadLength = ExtensionLength(payload);
+        ssl = sslProcess(payload, payloadLength);
+        recordHandle->extensionList[SSLindex] = ssl;
+        if (ssl == NULL) {
+            fprintf(stream, "   0");
+            return;
+        }
     }
-    if (ssl == NULL) {
-        fprintf(stream, "   0");
-        return;
-    }
+
     /*
     0x0304 = TLS 1.3 = “13”
     0x0303 = TLS 1.2 = “12”
@@ -1145,6 +1148,7 @@ static void String_tlsVersion(FILE *stream, recordHandle_t *recordHandle) {
     0x0100 = SSL 1.0 = “s1”
     */
 
+    // ssl is defined
     switch (ssl->tlsCharVersion[0]) {
         case 0:
             fprintf(stream, "     0");
@@ -1163,20 +1167,26 @@ static void String_tlsVersion(FILE *stream, recordHandle_t *recordHandle) {
 }  // End of String_tlsVersion
 
 static void String_sniName(FILE *stream, recordHandle_t *recordHandle) {
-    EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
 
-    if (payload == NULL) {
-        fprintf(stream, "%6s", "<no sni>");
+    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
+        fprintf(stream, "   0");
         return;
     }
 
-    uint32_t payloadLength = ExtensionLength(payload);
-    ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
+    ssl_t *ssl = recordHandle->extensionList[SSLindex];
     if (ssl == NULL) {
-        ssl = sslProcess((uint8_t *)payload, payloadLength);
-        recordHandle->sslInfo = (void *)ssl;
+        uint32_t payloadLength = ExtensionLength(payload);
+        ssl = sslProcess(payload, payloadLength);
+        recordHandle->extensionList[SSLindex] = ssl;
+        if (ssl == NULL) {
+            fprintf(stream, "   0");
+            return;
+        }
     }
 
+    // ssl is defined
     fprintf(stream, "%6s", ssl != NULL ? ssl->sniName : "");
 
 }  // End of String_sniName

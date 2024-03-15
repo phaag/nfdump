@@ -49,7 +49,6 @@
 #include "blocksort.h"
 #include "config.h"
 #include "exporter.h"
-#include "ja3/ja3.h"
 #include "khash.h"
 #include "klist.h"
 #include "maxmind/maxmind.h"
@@ -60,7 +59,12 @@
 #include "output.h"
 #include "util.h"
 
-typedef enum { NOPREPROCESS = 0, SRC_GEO, DST_GEO, SRC_AS, DST_AS, JA3 } preprocess_t;
+typedef enum { NOPREPROCESS = 0,
+               SRC_GEO,
+               DST_GEO,
+               SRC_AS,
+               DST_AS
+} preprocess_t;
 
 typedef struct aggregate_param_s {
     uint32_t extID;   // extension ID
@@ -177,7 +181,9 @@ typedef struct FlowHashRecord {
 } FlowHashRecord_t;
 
 // printing order definitions
-typedef enum FlowDir { IN = 0, OUT, INOUT } flowDir_t;
+typedef enum FlowDir { IN = 0,
+                       OUT,
+                       INOUT } flowDir_t;
 
 typedef uint64_t (*order_proc_record_t)(FlowHashRecord_t *, flowDir_t);
 
@@ -378,21 +384,6 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
             uint32_t *as = (uint32_t *)inPtr;
             if (HasGeoDB == 0 || *as) return;
             *as = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->dstAddr) : 0);
-        } break;
-        case JA3: {
-            EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
-            if (payload == NULL) return;
-
-            uint32_t payloadLength = ExtensionLength(payload);
-            ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
-            if (JA3DEFINED(recordHandle->ja3)) {
-                if (ssl == NULL) {
-                    ssl = sslProcess((const uint8_t *)payload, payloadLength);
-                    recordHandle->sslInfo = (void *)ssl;
-                }
-                ja3Process(ssl, recordHandle->ja3);
-            }
-
         } break;
     }
 }  // End of PreProcess

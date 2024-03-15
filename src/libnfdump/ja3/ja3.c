@@ -53,22 +53,29 @@
         }                                                                       \
     }
 
-char *ja3String(uint8_t *ja3Hash) {
-    static char out[36];
+static char *ja3String(uint8_t *ja3Hash, char *buff) {
+    if (buff == NULL) {
+        buff = malloc(SIZEja3String + 1);
+        if (buff == NULL) {
+            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
+    }
+    buff[0] = '\0';
 
     int i, j;
     for (i = 0, j = 0; i < 16; i++) {
         uint8_t ln = ja3Hash[i] & 0xF;
         uint8_t hn = (ja3Hash[i] >> 4) & 0xF;
-        out[j++] = hn <= 9 ? hn + '0' : hn + 'a' - 10;
-        out[j++] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
+        buff[j++] = hn <= 9 ? hn + '0' : hn + 'a' - 10;
+        buff[j++] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
     }
-    out[j] = '\0';
+    buff[j] = '\0';
 
-    return out;
+    return buff;
 }  // End of ja3String
 
-uint8_t *ja3Process(ssl_t *ssl, uint8_t *hash) {
+char *ja3Process(ssl_t *ssl, char *buff) {
     if (!ssl) return NULL;
 
     size_t sLen = 6 * (1 + 1 + LenArray(ssl->cipherSuites) + 1 + LenArray(ssl->extensions) + 1 + LenArray(ssl->ellipticCurves) + 1 +
@@ -80,6 +87,7 @@ uint8_t *ja3Process(ssl_t *ssl, uint8_t *hash) {
         LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
+
     char *s = ja3_r;
     snprintf(s, sLen, "%u,", ssl->protocolVersion);
     size_t len = strlen(s);
@@ -123,29 +131,25 @@ uint8_t *ja3Process(ssl_t *ssl, uint8_t *hash) {
 
     if (sLen == 0) {
         LogError("sLen error in %s line %d: %s\n", __FILE__, __LINE__, "Size == 0");
+        free(ja3_r);
         return NULL;
     }
 
     *s++ = '\0';
-    if (hash == NULL) {
-        hash = malloc(16);
-        if (!hash) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-            return NULL;
-        }
-    }
+    uint8_t hash[16];
     md5_hash((uint8_t *)ja3_r, strlen(ja3_r), (uint32_t *)hash);
 
 #ifdef MAIN
     printf("SSL/TLS info:\n");
     sslPrint(ssl);
     printf("JA3_r : %s\n", ja3_r);
-    printf("JA3   : %s\n", ja3String(hash));
+    printf("JA3   : %s\n", ja3String(hash, buff));
 #endif
 
     free(ja3_r);
 
-    return hash;
+    return ja3String(hash, buff);
+
 }  // End of ja3Process
 
 #ifdef MAIN

@@ -86,16 +86,18 @@ int ja4Check(char *ja4String) {
         (s)[3] = hexChars[(u) & 0xF];                                                                       \
     }
 
-char *ja4Process(ssl_t *ssl, uint8_t proto, char *buff) {
+ja4_t *ja4Process(ssl_t *ssl, uint8_t proto) {
     if (!ssl || ssl->type != CLIENTssl) return NULL;
 
-    if (buff == NULL) buff = malloc(SIZEja4String + 1);
-    if (buff == NULL) {
+    ja4_t *ja4 = malloc(sizeof(ja4_t) + SIZEja4String + 1);
+    if (ja4 == NULL) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
-    buff[0] = '\0';
+    ja4->type = TYPE_UNDEF;
+    ja4->string[0] = '\0';
 
+    char *buff = ja4->string;
     // create ja4_a
     buff[0] = proto == IPPROTO_TCP ? 't' : 'q';
     buff[1] = ssl->tlsCharVersion[0];
@@ -105,7 +107,7 @@ char *ja4Process(ssl_t *ssl, uint8_t proto, char *buff) {
 
     uint32_t num = LenArray(ssl->cipherSuites);
     if (num > 99) {
-        buff[0] = '\0';
+        free(ja4);
         return NULL;
     }
     uint32_t ones = num % 10;
@@ -115,7 +117,7 @@ char *ja4Process(ssl_t *ssl, uint8_t proto, char *buff) {
 
     num = LenArray(ssl->extensions);
     if (num > 99) {
-        buff[0] = '\0';
+        free(ja4);
         return NULL;
     }
     ones = num % 10;
@@ -198,9 +200,10 @@ char *ja4Process(ssl_t *ssl, uint8_t proto, char *buff) {
 
     HexString(sha256Digest, 6, buff + 24);
     buff[36] = '\0';
+    ja4->type = TYPE_JA4;
 
     free(hashString);
-    return buff;
+    return ja4;
 
 }  // End of DecodeJA4
 
@@ -276,7 +279,7 @@ int main(int argc, char **argv) {
         0x00, 0x00, 0x00                                 // ...
     };
     /*
-    [JA4: t13d1715h2_5b57614c22b0_3d5424432f57]
+    JA4: t13d1715h2_5b57614c22b0_3d5424432f57
     JA4_r:
     t13d1715h2_002f,0035,009c,009d,1301,1302,1303,c009,c00a,c013,c014,c02b,c02c,c02f,c030,cca8,cca9_0005,000a,000b,000d,0015,0017,001c,0022,0023,002b,002d,0033,ff01_0403,0503,0603,0804,0805,0806,0401,0501,0601,0203,0201]
 
@@ -293,9 +296,9 @@ int main(int argc, char **argv) {
         exit(255);
     }
 
-    char buff[SIZEja4];
-    if (ja4Process(ssl, IPPROTO_TCP, buff))
-        printf("ja4: %s\n", buff);
+    ja4_t *ja4 = ja4Process(ssl, IPPROTO_TCP);
+    if (ja4)
+        printf("ja4: %s\n", ja4->string);
     else
         printf("Failed to parse ja4\n");
 

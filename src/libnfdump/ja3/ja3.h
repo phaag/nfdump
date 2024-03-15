@@ -38,8 +38,9 @@
 #define JA3DEFINED(ja3) (*((uint64_t *)ja3) != 0)
 #define JA3UNDEFINED(ja3) (*((uint64_t *)ja3) == 0)
 
-uint8_t *ja3Process(ssl_t *ssl, uint8_t *hash);
+#define OFFja3String 0
+#define SIZEja3String 32
 
-char *ja3String(uint8_t *ja3Hash);
+char *ja3Process(ssl_t *ssl, char *buff);
 
 #endif

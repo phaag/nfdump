@@ -54,11 +54,13 @@ _
 
 */
 
-enum { TYPE_JA4 = 1, TYPE_JA4S };
+typedef enum { TYPE_UNDEF = 0,
+               TYPE_JA4,
+               TYPE_JA4S } ja4Type_t;
 
 // ex. t13d1516h2_8daaf6152771_b186095e22bb
 typedef struct ja4_s {
-    uint8_t type;
+    ja4Type_t type;
     char string[];
 } ja4_t;
 #define OFFja4String offsetof(ja4_t, string)
@@ -66,6 +68,24 @@ typedef struct ja4_s {
 
 int ja4Check(char *ja4String);
 
-char *ja4Process(ssl_t *ssl, uint8_t proto, char *buff);
+ja4_t *ja4Process(ssl_t *ssl, uint8_t proto);
+
+/*
+       + ------ Protocol, TCP = "I" QUIC= "q"
+       | + ---- TLS version, 1.2 = "12", 1.3 = "13"
+       | | + -- Number of Extensions
+       | | | +- ALPN Chosen (00 if no ALPN)
+       | | | |    +-  Cipher Suite Chosen
+       | | | |    |
+       | | | |    |            +- Truncated SHA256 hash of the Extensions, in the order they appear
+       | | | |    |            |
+  JA45=t120400_C030_4e8089608790
+       ja4s_a  ja4s_b ja4s_c
+
+*/
+
+#define SIZEja4sString 25
+
+ja4_t *ja4sProcess(ssl_t *ssl, uint8_t proto);
 
 #endif

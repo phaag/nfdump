@@ -50,7 +50,6 @@
 #include "config.h"
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
-#include "ja4/ja4s.h"
 #include "khash.h"
 #include "maxmind/maxmind.h"
 #include "nfdump.h"
@@ -76,9 +75,18 @@ typedef enum {
     IS_GEO
 } elementType_t;
 
-typedef enum { NOPROC = 0, SRC_GEO, DST_GEO, SRC_AS, DST_AS, PREV_AS, NEXT_AS, JA3, JA4 } preprocess_t;
+typedef enum { NOPROC = 0,
+               SRC_GEO,
+               DST_GEO,
+               SRC_AS,
+               DST_AS,
+               PREV_AS,
+               NEXT_AS,
+               JA3,
+               JA4 } preprocess_t;
 
-typedef enum { DESCENDING = 0, ASCENDING } direction_t;
+typedef enum { DESCENDING = 0,
+               ASCENDING } direction_t;
 
 typedef struct flow_element_s {
     uint32_t extID;   // extension ID
@@ -181,8 +189,8 @@ struct StatParameter_s {
     {"sl", "Server Latency", {EXlatencyID, OFFusecServerNwDelay, SIZEusecServerNwDelay, 0}, IS_LATENCY, NOPROC},
     {"al", "Application Latency", {EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, 0}, IS_LATENCY, NOPROC},
     {"nbar", "Nbar", {EXnbarAppID, OFFnbarAppID, SIZEnbarAppID, 0}, IS_NBAR, NOPROC},
-    {"ja3", "                             ja3", {EXlocal, OFFja3, SIZEja3, 0}, IS_JA3, JA3},
-    {"ja4", "                             ja4", {EXlocal, 0, SIZEja4String, 0}, IS_JA4, JA4},
+    {"ja3", "                             ja3", {JA3index, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3},
+    {"ja4", "                             ja4", {JA4index, OFFja4String, SIZEja4String + 1, 0}, IS_JA4, JA4},
     {"odid", "Obs DomainID", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, IS_HEXNUMBER, NOPROC},
     {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER, NOPROC},
     {"event", " Event", {EXnselCommonID, OFFfwEvent, SIZEfwEvent, 0}, IS_EVENT, NOPROC},
@@ -240,7 +248,9 @@ typedef struct StatRecord {
  * pps, bps and bpp are not directly available in the flow/stat record
  * therefore we need a function to calculate these values
  */
-typedef enum flowDir { IN = 0, OUT, INOUT } flowDir_t;
+typedef enum flowDir { IN = 0,
+                       OUT,
+                       INOUT } flowDir_t;
 typedef uint64_t (*order_proc_element_t)(StatRecord_t *, flowDir_t);
 
 static inline uint64_t null_element(StatRecord_t *record, flowDir_t inout);
@@ -527,37 +537,46 @@ static inline void *PreProcess(void *inPtr, preprocess_t process, recordHandle_t
         case NEXT_AS: {
         } break;
         case JA3: {
-            EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
-            if (payload == NULL || genericFlow->proto != IPPROTO_TCP || JA3DEFINED(recordHandle->ja3)) return inPtr;
+            const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
+            if (payload == NULL || genericFlow->proto != IPPROTO_TCP || inPtr) return inPtr;
 
-            uint32_t payloadLength = ExtensionLength(payload);
-            ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
+            ssl_t *ssl = recordHandle->extensionList[SSLindex];
             if (ssl == NULL) {
-                ssl = sslProcess((const uint8_t *)payload, payloadLength);
-                recordHandle->sslInfo = (void *)ssl;
+                uint32_t payloadLength = ExtensionLength(payload);
+                ssl = sslProcess(payload, payloadLength);
+                recordHandle->extensionList[SSLindex] = ssl;
+                if (ssl == NULL) {
+                    return NULL;
+                }
             }
-            ja3Process(ssl, recordHandle->ja3);
-            return inPtr;
+            // ssl is defined
+            char *ja3 = ja3Process(ssl, NULL);
+            recordHandle->extensionList[JA3index] = ja3;
+            return ja3;
         } break;
         case JA4: {
             EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
             if (payload == NULL || genericFlow->proto != IPPROTO_TCP) return NULL;
 
-            uint32_t payloadLength = ExtensionLength(payload);
-            ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
+            ssl_t *ssl = recordHandle->extensionList[SSLindex];
             if (ssl == NULL) {
-                ssl = sslProcess((const uint8_t *)payload, payloadLength);
-                if (ssl == NULL || ssl->type != CLIENTssl) return NULL;
-                recordHandle->sslInfo = (void *)ssl;
+                uint32_t payloadLength = ExtensionLength(payload);
+                ssl = sslProcess(payload, payloadLength);
+                recordHandle->extensionList[SSLindex] = ssl;
+                if (ssl == NULL) {
+                    return NULL;
+                }
             }
             // ssl is defined
-            static char ja4StrBuff[40];
-            if (ja4Process(ssl, genericFlow->proto, ja4StrBuff)) {
-                inPtr = (void *)ja4StrBuff;
-                return inPtr;
+            ja4_t *ja4 = NULL;
+            if (ssl->type == CLIENTssl) {
+                ja4 = ja4Process(ssl, genericFlow->proto);
             } else {
-                return NULL;
+                ja4 = ja4sProcess(ssl, genericFlow->proto);
             }
+            recordHandle->extensionList[JA4index] = ja4;
+            return ja4;
+
         } break;
     }
 
@@ -580,12 +599,12 @@ void AddElementStat(recordHandle_t *recordHandle) {
 
             void *inPtr = recordHandle->extensionList[extID];
             if (inPtr == NULL) {
-                index++;
-                continue;
+                if (extID <= MAXEXTENSIONS) {
+                    index++;
+                    continue;
+                }
             }
-            inPtr += offset;
 
-            uint32_t length = StatParameters[index].element.length;
             preprocess_t lookup = StatParameters[index].preprocess;
             inPtr = PreProcess(inPtr, lookup, recordHandle);
             if (inPtr == NULL) {
@@ -593,6 +612,8 @@ void AddElementStat(recordHandle_t *recordHandle) {
                 continue;
             }
 
+            inPtr += offset;
+            uint32_t length = StatParameters[index].element.length;
             switch (length) {
                 case 0:
                     break;
@@ -757,16 +778,8 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
 
         } break;
         case IS_JA3: {
-            uint8_t *u8 = (uint8_t *)&(StatData->hashkey.v0);
-            int i, j;
-            for (i = 0, j = 0; i < 16; i++, j += 2) {
-                uint8_t ln = u8[i] & 0xF;
-                uint8_t hn = (u8[i] >> 4) & 0xF;
-                valstr[j + 1] = ln <= 9 ? ln + '0' : ln + 'a' - 10;
-                valstr[j] = hn <= 9 ? hn + '0' : hn + 'a' - 10;
-            }
-            valstr[32] = '\0';
-
+            char *s = (char *)StatData->hashkey.ptr;
+            strcpy(valstr, s);
         } break;
         case IS_JA4: {
             char *s = (char *)StatData->hashkey.ptr;

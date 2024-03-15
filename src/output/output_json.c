@@ -46,7 +46,6 @@
 
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
-#include "ja4/ja4s.h"
 #include "maxmind/maxmind.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -403,25 +402,27 @@ static void stringEXlatency(FILE *stream, void *extensionRecord, const char *ind
 }  // End of stringEXlatency
 
 static void String_payload(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, const char *indent, const char *fs) {
+    const uint8_t *payload = (const uint8_t *)extensionRecord;
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    EXinPayload_t *payload = (EXinPayload_t *)extensionRecord;
-    uint32_t payloadLength = ExtensionLength(payload);
 
     // payload handled in output json:
     // ssl, ja3, ja4
 
-    if (payloadLength == 0 || genericFlow->proto != IPPROTO_TCP) {
+    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
         return;
     }
 
-    ssl_t *ssl = (ssl_t *)recordHandle->sslInfo;
-    if (JA3UNDEFINED(recordHandle->ja3)) {
+    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    if (ssl == NULL) {
+        uint32_t payloadLength = ExtensionLength(payload);
+        ssl = sslProcess(payload, payloadLength);
+        recordHandle->extensionList[SSLindex] = ssl;
         if (ssl == NULL) {
-            ssl = sslProcess((const uint8_t *)payload, payloadLength);
-            recordHandle->sslInfo = (void *)ssl;
+            return;
         }
-        ja3Process(ssl, recordHandle->ja3);
     }
+
+    // ssl is defined
 
     if (ssl) {
         switch (ssl->tlsCharVersion[0]) {
@@ -439,20 +440,33 @@ static void String_payload(FILE *stream, recordHandle_t *recordHandle, void *ext
         if (ssl->sniName[0]) {
             fprintf(stream, "%s\"sni\" : %s%s\n", indent, ssl->sniName, fs);
         }
-        if (JA3DEFINED(recordHandle->ja3)) {
-            fprintf(stream, "%s\"ja3 hash\" : %s%s\n", indent, ja3String(recordHandle->ja3), fs);
-        }
-
-        char buff[64];
-        if (ssl->type == CLIENTssl) {
-            if (ja4Process(ssl, genericFlow->proto, buff)) fprintf(stream, "%s\"ja4 hash\" : %s%s\n", indent, buff, fs);
-
-        } else {
-            if (JA3DEFINED(recordHandle->ja3)) fprintf(stream, "  ja3s hash    = %s\n", ja3String(recordHandle->ja3));
-            ja4s_t *ja4s = ja4sProcess(ssl, genericFlow->proto);
-            if (ja4s) fprintf(stream, "%s\"ja4s hash\" : %s%s\n", indent, ja4sString(ja4s, buff), fs);
-        }
     }
+
+    char *ja3 = recordHandle->extensionList[JA3index];
+    if (ja3 == NULL) {
+        ja3 = ja3Process(ssl, NULL);
+        recordHandle->extensionList[JA3index] = ja3;
+    }
+    if (ja3) {
+        fprintf(stream, "%s\"ja3 hash\" : %s%s\n", indent, ja3, fs);
+    }
+
+    ja4_t *ja4 = recordHandle->extensionList[JA4index];
+    if (ja4 == NULL) {
+        if (ssl->type == CLIENTssl) {
+            ja4 = ja4Process(ssl, genericFlow->proto);
+        } else {
+            ja4 = ja4sProcess(ssl, genericFlow->proto);
+        }
+        recordHandle->extensionList[JA4index] = ja4;
+    }
+    if (ja4 == NULL) return;
+
+    // ja4 is defined
+    if (ja4->type == TYPE_JA4)
+        fprintf(stream, "%s\"ja4 hash\" : %s%s\n", indent, ja4->string, fs);
+    else
+        fprintf(stream, "%s\"ja4s hash\" : %s%s\n", indent, ja4->string, fs);
 
 }  // End of String_payload
 
