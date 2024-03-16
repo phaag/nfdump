@@ -34,7 +34,7 @@ AC_DEFUN([OVS_CHECK_ATOMIC_LIBS],
 
 
 AC_ARG_ENABLE(devel,
-[  --enable-devel       compile debug and development code into nfdump; default is NO])
+[  --enable-devel          compile debug and development code into nfdump; default is NO])
 
 # Which way is better?
 if test "${enable_devel}" = "yes" ; then
@@ -177,7 +177,7 @@ AM_CONDITIONAL([MAXMIND], false)
 )
 
 AC_ARG_ENABLE(tor,
-[  --enable-tor        Build torlookup for tor onion lookups; default is NO],
+[  --enable-tor            Build torlookup for tor onion lookups; default is NO],
 build_tor="yes"
 AM_CONDITIONAL(TORLOOKUP, true)
 CFLAGS="$CFLAGS -DBUILDTOR"
@@ -187,7 +187,7 @@ AM_CONDITIONAL(TORLOOKUP, false)
 )
 
 AC_ARG_ENABLE(ja4,
-[  --enable-ja4        Build with ja4 fingerprinting code; May require a license; default is NO],
+[  --enable-ja4            Build with ja4+ fingerprinting code; https://github.com/FoxIO-LLC/ja4/blob/main/LICENSE; default is NO],
 build_ja4="yes"
 AM_CONDITIONAL(JA4, true)
 CFLAGS="$CFLAGS -DBUILDJA4"
@@ -255,7 +255,7 @@ AM_CONDITIONAL(INFLXDB, false)
 )
 
 AC_ARG_ENABLE(nftrack,
-[  --enable-nftrack      Build nftrack used by PortTracker; default is NO])
+[  --enable-nftrack        Build nftrack used by PortTracker; default is NO])
 
 AS_IF([test "x$enable_nftrack" = "xyes"],
 [ 
@@ -300,7 +300,7 @@ AC_ARG_ENABLE(readpcap,
 AM_CONDITIONAL(READPCAP, test "$enable_readpcap" = yes)
 
 AC_ARG_ENABLE(nfpcapd,
-[  --enable-nfpcapd       Build nfpcapd collector to create netflow data from interface or pcap data; default is NO])
+[  --enable-nfpcapd        Build nfpcapd collector to create netflow data from interface or pcap data; default is NO])
 
 AS_IF([test "x$enable_nfpcapd" = "xyes"],
 [ 

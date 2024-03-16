@@ -92,13 +92,17 @@ ja4_t *ja4Process(ssl_t *ssl, uint8_t proto);
 
 /*
  * conditional compile ja4s code, if cofigured and ja4 license conditions are met
+ * map ja4+ calls to the proper function or to the negative result of the function
  */
 #ifdef BUILDJA4
 int ja4sCheck(char *ja4sString);
 
+// map function calls to proper ja4+ function
 ja4_t *_ja4sProcess(ssl_t *ssl, uint8_t proto);
 #define ja4sProcess(s, p) _ja4sProcess(s, p)
 #else
+
+// replace function calls, if no ja4+ enabled
 #define ja4sProcess(s, p) NULL
 #endif
 
