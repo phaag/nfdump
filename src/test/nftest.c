@@ -843,6 +843,21 @@ static void runTest(void) {
     recordHandle->extensionList[JA3index] = NULL;
     CheckFilter("payload ja3 defined", recordHandle, 0);
 
+    ja4_t *ja4 = malloc(sizeof(ja4_t) + SIZEja4String + 1);
+    if (ja4 == NULL) {
+        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        exit(255);
+    }
+    ja4->type = TYPE_JA4;
+    strcpy(ja4->string, "t13d1516h2_8daaf6152771_b186095e22b6");
+    recordHandle->extensionList[JA4index] = (void *)ja4;
+    CheckFilter("payload ja4 t13d1516h2_8daaf6152771_b186095e22b6", recordHandle, 1);
+    CheckFilter("payload ja4 q13d1516h2_8daaf6152771_b186095e22b6", recordHandle, 0);
+    CheckFilter("payload ja4 t13d1516h2_8daaf6152771_ccc6095e22b6", recordHandle, 0);
+    CheckFilter("payload ja4 defined", recordHandle, 1);
+    recordHandle->extensionList[JA4index] = NULL;
+    CheckFilter("payload ja4 defined", recordHandle, 0);
+
     // geo location
     // src
     recordHandle->geo[0] = 'C';

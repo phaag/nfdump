@@ -65,7 +65,7 @@ static void sort(uint16Array_t array) {
 // input validation  - is ja4String valid?
 int ja4Check(char *ja4String) {
     if (ja4String == NULL || strlen(ja4String) != SIZEja4String) return 0;
-    if (ja4String[0] != 't' && ja4String[1] != 'q') return 0;
+    if (ja4String[0] != 't' && ja4String[0] != 'q') return 0;
     if (ja4String[3] != 'd' && ja4String[3] != 'i') return 0;
     if (ja4String[10] != '_' || ja4String[23] != '_') return 0;
     for (int i = 0; i < 10; i++)

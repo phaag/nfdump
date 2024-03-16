@@ -447,7 +447,7 @@ uint32_t NewElement(uint32_t extID, uint32_t offset, uint32_t length, uint64_t v
     };
     FilterTree[n].blocklist[0] = n;
 
-    if (comp > 0 || function > 0) Extended = 1;
+    if (comp > 0 || function > 0 || extID >= MAXEXTENSIONS) Extended = 1;
     NumBlocks++;
     return n;
 

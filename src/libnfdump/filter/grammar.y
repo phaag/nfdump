@@ -1222,22 +1222,22 @@ static int AddPayload(char *type, char *arg, char *opt) {
 		data_t data = {.dataPtr = program};
 		return NewElement(EXinPayloadID, 0, 0, 0, CMP_REGEX, FUNC_NONE, data);
 	} else if (strcasecmp(type, "ssl") == 0) {
-			if (strcasecmp(arg, "defined") == 0) {
-				return Invert(NewElement(SSLindex, 0, 0, 0, CMP_EQ, FUNC_NONE, NULLPtr));
-			}
+		if (strcasecmp(arg, "defined") == 0) {
+			return Invert(NewElement(SSLindex, 0, 0, 0, CMP_EQ, FUNC_NONE, NULLPtr));
+		}
 	} else if (strcasecmp(type, "ja3") == 0) {
-			if (strcasecmp(arg, "defined") == 0) {
-				return Invert(NewElement(JA3index, OFFja3String, SIZEja3String, 0, CMP_STRING, FUNC_NONE, NULLPtr));
-			} else {
-				if (IsMD5(arg) == 0) {
-					yyerror("String %s is not a valid ja3 string", arg);
-					return -1;
-				}
-				data_t data = {.dataPtr=strdup(arg)};
-				return NewElement(JA3index, OFFja3String, SIZEja3String, 0, CMP_STRING, FUNC_NONE, data);
-			}
+		if (strcasecmp(arg, "defined") == 0) {
+			return NewElement(JA3index, OFFja3String, SIZEja3String, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+		} else if (IsMD5(arg) == 0) {
+			yyerror("String %s is not a valid ja3 string", arg);
+			return -1;
+		}
+		data_t data = {.dataPtr=strdup(arg)};
+		return NewElement(JA3index, OFFja3String, SIZEja3String, 0, CMP_STRING, FUNC_NONE, data);
 	} else if (strcasecmp(type, "ja4") == 0) {
-		if ( ja4Check(arg) == 0 ){
+		if (strcasecmp(arg, "defined") == 0) {
+			return NewElement(JA4index, OFFja4String, SIZEja3String, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+		} else if ( ja4Check(arg) == 0 ){
 			yyerror("String %s is not a valid ja4 string", arg);
 			return -1;
 		}
