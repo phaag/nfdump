@@ -28,6 +28,7 @@
  *
  */
 
+#include <ctype.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <stdarg.h>
@@ -130,6 +131,22 @@ ja4_t *ja4sProcess(ssl_t *ssl, uint8_t proto) {
     return ja4;
 
 }  // End of ja4Process
+
+// ex. ja4s: t130200_1301_234ea6891581
+// input validation  - is ja4sString valid?
+int ja4sCheck(char *ja4sString) {
+    if (ja4sString == NULL || strlen(ja4sString) != SIZEja4sString) return 0;
+    if (ja4sString[0] != 't' && ja4sString[0] != 'q') return 0;
+    if (ja4sString[7] != '_' || ja4sString[12] != '_') return 0;
+
+    for (int i = 1; i < 7; i++)
+        if (!isascii(ja4sString[i])) return 0;
+    for (int i = 8; i < 12; i++)
+        if (!isxdigit(ja4sString[i])) return 0;
+    for (int i = 13; i < SIZEja4sString; i++)
+        if (!isxdigit(ja4sString[i])) return 0;
+    return 1;
+}  // End of ja4Check
 
 #ifdef MAIN
 

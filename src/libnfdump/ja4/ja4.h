@@ -36,29 +36,9 @@
 
 #include "ssl/ssl.h"
 
-/*
+typedef enum { TYPE_UNDEF = 0, TYPE_JA4, TYPE_JA4S } ja4Type_t;
 
-example fingerprint:
-t13d1516h2_8daaf6152771_b186095e22b6
-
-(QUIC=”q” or TCP=”t”)
-(2 character TLS version)
-(SNI=”d” defined or SNI=”i” no SNI defined)
-(2 character count of ciphers)
-(2 character count of extensions)
-(first and last characters of first ALPN extension value)
-_
-(sha256 hash of the list of cipher hex codes sorted in hex order, truncated to 12 characters)
-_
-(sha256 hash of (the list of extension hex codes sorted in hex order)_(the list of signature algorithms), truncated to 12 characters)
-
-*/
-
-typedef enum { TYPE_UNDEF = 0,
-               TYPE_JA4,
-               TYPE_JA4S } ja4Type_t;
-
-// ex. t13d1516h2_8daaf6152771_b186095e22bb
+// one struct for all types of ja4
 typedef struct ja4_s {
     ja4Type_t type;
     char string[];
@@ -66,11 +46,35 @@ typedef struct ja4_s {
 #define OFFja4String offsetof(ja4_t, string)
 #define SIZEja4String 36
 
+/*
+  JA4:
+  example fingerprint:
+
+       + ------ Protocol, TCP = "I" QUIC= "q"
+       | + ---- TLS version, 1.2 = "12", 1.3 = "13"
+       | |+ --- SNI=”d” defined or SNI=”i” no SNI defined
+       | || +-- Character count of ciphers
+       | || | +- Character count of extensions
+       | || | | +- ALPN Chosen (00 if no ALPN)
+       | || | | |            +- sha256 hash of the list of cipher hex codes
+       | || | | |            |  sorted in hex order, truncated to 12 characters
+       | || | | |            |
+   JA4=t13d1516h2_8daaf6152771_b186095e22b6
+           ja4s_a       ja4s_b       ja4s_c
+                                          |
+                                          +- sha256 hash of (the list of extension hex codes
+                                             sorted in hex order)_(the list of signature algorithms),
+                                             truncated to 12 characters
+*/
+
 int ja4Check(char *ja4String);
 
 ja4_t *ja4Process(ssl_t *ssl, uint8_t proto);
 
 /*
+  JA4s:
+  example fingerprint:
+
        + ------ Protocol, TCP = "I" QUIC= "q"
        | + ---- TLS version, 1.2 = "12", 1.3 = "13"
        | | + -- Number of Extensions
@@ -85,6 +89,8 @@ ja4_t *ja4Process(ssl_t *ssl, uint8_t proto);
 */
 
 #define SIZEja4sString 25
+
+int ja4sCheck(char *ja4sString);
 
 ja4_t *ja4sProcess(ssl_t *ssl, uint8_t proto);
 
