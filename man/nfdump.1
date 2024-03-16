@@ -1310,18 +1310,60 @@ case insensitive matching
 '.' includes newlines
 .El
 .Pp
+.It Cm payload ssl defined
+True, if the payload contains the start of a valid SSL/TLS handshake
+.Pp
+.It Cm payload ssl version Ar version
+True, if the payload contains the start of a valid SSL handshake and the
+SSL/TLS version matches
+.Ar version
+Valid versions are 1.0, 2.0, 3.0
+.Pp
+.It Cm payload tls version Ar version
+True, if the payload contains the start of a valid TLS handshake and the
+TLS version matches
+.Ar version
+Valid versions are 1.0, 1.1, 1.2, 1.3
+.Pp
+.It Cm payload tls sni Ar sniname
+True, if the payload contains the start of a valid TLS handshake and the
+TLS sni name contains the string
+.Ar sniname
+.Pp
 .It Cm payload ja3 Ar md5string
-True, if the payload contains the start of an SSL/TLS handshake and the
-calculated jas value of the handshake matches
+True, if the payload contains the start of a valid SSL/TLS handshake and the
+calculated ja3 value of the handshake matches
 .Ar md5string
+Depending on client or server SSL handshake, either ja3 or ja3s is calculated.
 .Pp
 .It Cm payload ja3 defined
-True, if the payload contains the start of an SSL/TLS handshake and a
+True, if the payload contains the start of a valid SSL/TLS handshake and a
 valid ja3 value can be calculated. Useful to mask out all flow records
 with no SSL/TLS traffic in order to generate a
 .Fl s
 .Sy ja3
-statistic.
+statistic
+.Pp
+.It Cm payload ja4 Ar ja4string
+True, if the payload contains the start of a valid SSL/TLS handshake and the
+calculated ja4 value of the client TLS handshake matches
+.Ar ja4string
+.Pp
+.It Cm payload jas4 Ar ja4Sstring
+True, if the payload contains the start of a valid SSL/TLS handshake and the
+calculated ja4 value of the server TLS handshake matches
+.Ar ja4Sstring
+.Pp
+.It Cm payload ja4 defined
+True, if the payload contains the start of a valid SSL/TLS handshake and a
+valid ja4/ja4s value can be calculated. Useful to mask out all flow records
+with no SSL/TLS traffic in order to generate a
+.Fl s
+.Sy ja3
+or a 
+.Fl s
+.Sy ja3s
+statistic
 .Pp
 .It OpenBSD pflog implemented elements
 .Pp
