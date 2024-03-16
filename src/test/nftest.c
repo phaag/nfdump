@@ -842,7 +842,10 @@ static void runTest(void) {
     CheckFilter("payload ssl defined", recordHandle, 1);
     CheckFilter("payload tls version 1.2", recordHandle, 1);
     CheckFilter("payload tls version 1.3", recordHandle, 0);
+    CheckFilter("payload ssl sni example", recordHandle, 1);
+    CheckFilter("payload ssl sni nonexist", recordHandle, 0);
     recordHandle->extensionList[SSLindex] = NULL;
+    CheckFilter("payload ssl sni example", recordHandle, 0);
 
     // ja3
     recordHandle->extensionList[JA3index] = "123456789abcdef0123456789abcdef0";

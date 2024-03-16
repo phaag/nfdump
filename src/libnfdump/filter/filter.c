@@ -720,6 +720,10 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
                 char *str = (char *)data.dataPtr;
                 evaluate = str != NULL && (strcmp(inPtr, str) == 0 ? 1 : 0);
             } break;
+            case CMP_SUBSTRING: {
+                char *str = (char *)data.dataPtr;
+                evaluate = str != NULL && (strstr(inPtr, str) != NULL ? 1 : 0);
+            } break;
             case CMP_BINARY: {
                 void *dataPtr = data.dataPtr;
                 evaluate = dataPtr != NULL && memcmp(inPtr, dataPtr, length) == 0;

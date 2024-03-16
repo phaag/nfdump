@@ -1214,7 +1214,6 @@ static int AddPayloadSSL(char *type, char *arg, char *opt) {
 			yyerror("String %s is not a valid SSL/TLS version", arg);
 			return -1;
 		}
-		printf("SSL/TLS version: %s\n", opt);
 		unsigned int major, minor;
 		if (sscanf(opt, "%1u.%1u", &major, &minor) != 2 || major > 3 || minor > 3 ) {
 			yyerror("String %s is not a valid SSL/TLS version", opt);
@@ -1242,6 +1241,13 @@ static int AddPayloadSSL(char *type, char *arg, char *opt) {
 			version = major << 8;
 		}
 		return NewElement(SSLindex, OFFsslVersion, SIZEsslVersion, version, CMP_EQ, FUNC_NONE, NULLPtr);
+	} else if (strcasecmp(arg, "sni") == 0) {
+		if ( opt == NULL || strlen(opt) > 64 ) {
+			yyerror("Invalid string %s for SSL/TLS sni name", opt != NULL ? opt : "");
+			return -1;
+		}
+		data_t data = {.dataPtr=strdup(opt)};
+		return NewElement(SSLindex, OFFsslSNI, SIZEsslSNI, 0, CMP_SUBSTRING, FUNC_NONE, data);
 	}
 	yyerror("String %s is not a valid SSL/TLS filter", arg);
 	return -1;

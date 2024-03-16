@@ -71,6 +71,7 @@ typedef enum {
     CMP_IDENT,
     CMP_FLAGS,
     CMP_STRING,
+    CMP_SUBSTRING,
     CMP_BINARY,
     CMP_NET,
     CMP_IPLIST,

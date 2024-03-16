@@ -99,6 +99,7 @@ typedef struct ssl_s {
     char alpnName[ALPNmaxLen];
     char sniName[256];
 #define OFFsslSNI offsetof(ssl_t, sniName)
+#define SIZEsslSNI MemberSize(ssl_t, sniName)
 } ssl_t;
 
 void sslPrint(ssl_t *ssl);
