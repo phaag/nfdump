@@ -1297,12 +1297,17 @@ static int AddPayload(char *type, char *arg, char *opt) {
 	} else if (strcasecmp(type, "ja4") == 0) {
 		return AddPayloadJA4(type, arg, opt);
 	} else if (strcasecmp(type, "ja4s") == 0) {
+#ifdef BUILDJA4
 		if ( ja4sCheck(arg) == 0 ){
 			yyerror("String %s is not a valid ja4s string", arg);
 			return -1;
 		}
 		data_t data = {.dataPtr=strdup(arg)};
 		return NewElement(JA4index, OFFja4String, SIZEja4sString, 0, CMP_STRING, FUNC_NONE, data);
+#else
+		yyerror("ja4s code not enabled", arg);
+		return -1;
+#endif
 	} else {
 		yyerror("Unknown PAYLOAD argument: %s\n", type);
 		return -1;

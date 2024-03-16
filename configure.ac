@@ -171,7 +171,6 @@ AC_ARG_ENABLE(maxmind,
 [  --enable-maxmind        Build geolookup for MaxMind GeoDB; default is NO],
 build_maxmind="yes"
 AM_CONDITIONAL([MAXMIND], true)
-CFLAGS="$CFLAGS -DBUILDMAXMIND"
 ,
 build_maxmind="no"
 AM_CONDITIONAL([MAXMIND], false)
@@ -188,11 +187,14 @@ AM_CONDITIONAL(TORLOOKUP, false)
 )
 
 AC_ARG_ENABLE(ja4,
-[  --enable-ja4        Build with ja4 fingerprinting code; May require a license; default is NO])
-
-AS_IF([test "x$enable_ja4" = xyes], 
-	build_ja4="$enable_ja4", build_ja4="no")
-AM_CONDITIONAL([JA4], [test "x$build_ja4" = "xyes"])
+[  --enable-ja4        Build with ja4 fingerprinting code; May require a license; default is NO],
+build_ja4="yes"
+AM_CONDITIONAL(JA4, true)
+CFLAGS="$CFLAGS -DBUILDJA4"
+,
+build_ja4="no"
+AM_CONDITIONAL(JA4, false)
+)
 
 AC_ARG_ENABLE(nfprofile,
 [  --enable-nfprofile      Build nfprofile used by NfSen; default is NO])
@@ -687,6 +689,15 @@ echo "  Build ft2nfdump    = $build_ftconv"
 echo "----------------------------------"
 echo ""
 echo " You can run ./make now." 
+echo ""
+if test "x$build_ja4" = "xyes"; then
+echo "* Ja4 code enabled."
+echo "* JA4: TLS Client Fingerprinting is open-source, BSD 3-Clause"
+echo "* All other JA4+ additions are licensed under the FoxIO License 1.1"
+echo "* See https://github.com/FoxIO-LLC/ja4/blob/main/LICENSE"
+echo "* as well as the license FAQ:"
+echo "* https://github.com/FoxIO-LLC/ja4/blob/main/License%20FAQ.md"
+fi
 echo ""
 echo "* Many thanks for using nfdump tools"
 echo "* See https://github.com/phaag/nfdump/issues"

@@ -183,7 +183,9 @@ struct StatParameter_s {
     {"nbar", "Nbar", {EXnbarAppID, OFFnbarAppID, SIZEnbarAppID, 0}, IS_NBAR, NOPROC},
     {"ja3", "ja3                             ", {JA3index, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3},
     {"ja4", "ja4                                ", {JA4index, OFFja4String, SIZEja4String + 1, 0}, IS_JA4, JA4},
+#ifdef BUILDJA4
     {"ja4s", "ja4s                    ", {JA4index, OFFja4String, SIZEja4sString + 1, 0}, IS_JA4S, JA4S},
+#endif
     {"odid", "Obs DomainID", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, IS_HEXNUMBER, NOPROC},
     {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER, NOPROC},
     {"event", " Event", {EXnselCommonID, OFFfwEvent, SIZEfwEvent, 0}, IS_EVENT, NOPROC},

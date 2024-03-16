@@ -45,7 +45,7 @@
 
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
-ja4_t *ja4sProcess(ssl_t *ssl, uint8_t proto) {
+ja4_t *_ja4sProcess(ssl_t *ssl, uint8_t proto) {
     if (!ssl || ssl->type != SERVERssl) return NULL;
 
     ja4_t *ja4 = malloc(sizeof(ja4_t) + SIZEja4sString + 1);
@@ -129,7 +129,6 @@ ja4_t *ja4sProcess(ssl_t *ssl, uint8_t proto) {
 
     ja4->type = TYPE_JA4S;
     return ja4;
-
 }  // End of ja4Process
 
 // ex. ja4s: t130200_1301_234ea6891581

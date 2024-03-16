@@ -871,6 +871,7 @@ static void runTest(void) {
     CheckFilter("payload ja4 defined", recordHandle, 1);
     recordHandle->extensionList[JA4index] = NULL;
     CheckFilter("payload ja4 defined", recordHandle, 0);
+#ifdef BUILDJA4
     // ja4s
     ja4->type = TYPE_JA4S;
     recordHandle->extensionList[JA4index] = (void *)ja4;
@@ -881,6 +882,7 @@ static void runTest(void) {
     CheckFilter("payload ja4 defined", recordHandle, 1);
     recordHandle->extensionList[JA4index] = NULL;
     CheckFilter("payload ja4 defined", recordHandle, 0);
+#endif
 
     // local (processed) extension
     // geo location
