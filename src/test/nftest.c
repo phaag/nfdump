@@ -45,10 +45,13 @@
 #include <unistd.h>
 
 #include "filter/filter.h"
+#include "ja3/ja3.h"
+#include "ja4/ja4.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
 #include "output_short.h"
+#include "ssl/ssl.h"
 #include "userio.h"
 #include "util.h"
 
@@ -70,8 +73,26 @@ static void DumpRecord(recordHandle_t *recordHandle) {
     }
 
     printf("Count: %u\n", recordHandle->flowCount);
-    printf("Ja3: ");
-    DumpHex(stdout, (void *)recordHandle->ja3, sizeof(recordHandle->ja3));
+    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    if (ssl) {
+        printf("SSL version : %c%c\n", ssl->tlsCharVersion[0], ssl->tlsCharVersion[1]);
+        printf("SSL SNI     : %s\n", ssl->sniName);
+    }
+    char *s = recordHandle->extensionList[JA3index];
+    printf("Ja3: %s\n", s != NULL ? s : "no ja3");
+    ja4_t *ja4 = recordHandle->extensionList[JA4index];
+    if (ja4) {
+        switch (ja4->type) {
+            case TYPE_JA4:
+                printf("Ja4: %s\n", ja4->string);
+                break;
+            case TYPE_JA4S:
+                printf("Ja4s: %s\n", ja4->string);
+                break;
+            default:
+                printf("Unknown Ja4: %s\n", ja4->string);
+        }
+    }
 
     printf("Geo: ");
     DumpHex(stdout, (void *)recordHandle->geo, sizeof(recordHandle->geo));
@@ -814,17 +835,12 @@ static void runTest(void) {
     CheckFilter("tun ip fe80::2110:abcd:1235:fffe", recordHandle, 1);
 
     // local (processed) extension
-    char *ja3s = "123456789abcdef0123456789abcdef0";
-    char *pos = ja3s;
-    for (int count = 0; count < 16; count++) {
-        sscanf(pos, "%2hhx", &recordHandle->ja3[count]);
-        pos += 2;
-    }
+    recordHandle->extensionList[JA3index] = "123456789abcdef0123456789abcdef0";
     CheckFilter("payload ja3 123456789abcdef0123456789abcdef0", recordHandle, 1);
     CheckFilter("payload ja3 123456789abcdef0123456789abcdef1", recordHandle, 0);
     CheckFilter("payload ja3 023456789abcdef0123456789abcdef0", recordHandle, 0);
     CheckFilter("payload ja3 defined", recordHandle, 1);
-    memset((void *)recordHandle->ja3, 0, 16);
+    recordHandle->extensionList[JA3index] = NULL;
     CheckFilter("payload ja3 defined", recordHandle, 0);
 
     // geo location
