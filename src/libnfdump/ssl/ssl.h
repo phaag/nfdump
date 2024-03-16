@@ -70,11 +70,25 @@ typedef struct uint16Array_s {
 
 typedef struct ssl_s {
     uint16_t tlsVersion;
-#define CLIENTssl 1
-#define SERVERssl 2
     char tlsCharVersion[2];
     uint16_t protocolVersion;
+#define OFFsslVersion offsetof(ssl_t, protocolVersion)
+#define SIZEsslVersion MemberSize(ssl_t, protocolVersion)
+    /*
+        protocol Version:
+        0x0304 = TLS 1.3 = “13”
+        0x0303 = TLS 1.2 = “12”
+        0x0302 = TLS 1.1 = “11”
+        0x0301 = TLS 1.0 = “10”
+        0x0300 = SSL 3.0 = “s3”
+        0x0200 = SSL 2.0 = “s2”
+        0x0100 = SSL 1.0 = “s1”
+        Unknown = “00”
+     */
+
     uint16_t type;
+#define CLIENTssl 1
+#define SERVERssl 2
     uint16Array_t cipherSuites;
     uint16Array_t extensions;
     uint16Array_t ellipticCurves;
@@ -84,6 +98,7 @@ typedef struct ssl_s {
     // ALPN are currently defined up to 8 bytes
     char alpnName[ALPNmaxLen];
     char sniName[256];
+#define OFFsslSNI offsetof(ssl_t, sniName)
 } ssl_t;
 
 void sslPrint(ssl_t *ssl);

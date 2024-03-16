@@ -75,7 +75,7 @@ static void DumpRecord(recordHandle_t *recordHandle) {
     printf("Count: %u\n", recordHandle->flowCount);
     ssl_t *ssl = recordHandle->extensionList[SSLindex];
     if (ssl) {
-        printf("SSL version : %c%c\n", ssl->tlsCharVersion[0], ssl->tlsCharVersion[1]);
+        printf("SSL version : %c.%c\n", ssl->tlsCharVersion[0], ssl->tlsCharVersion[1]);
         printf("SSL SNI     : %s\n", ssl->sniName);
     }
     char *s = recordHandle->extensionList[JA3index];
@@ -92,6 +92,8 @@ static void DumpRecord(recordHandle_t *recordHandle) {
             default:
                 printf("Unknown Ja4: %s\n", ja4->string);
         }
+    } else {
+        printf("Ja4: no ja4\n");
     }
 
     printf("Geo: ");
@@ -834,7 +836,15 @@ static void runTest(void) {
     CheckFilter("dst tun ip fe80::2110:abcd:1235:fffc", recordHandle, 0);
     CheckFilter("tun ip fe80::2110:abcd:1235:fffe", recordHandle, 1);
 
-    // local (processed) extension
+    ssl_t ssl = {.type = CLIENTssl, .sniName = "example.com", .protocolVersion = 0x0303, .tlsCharVersion[0] = '1', .tlsCharVersion[1] = '2'};
+    CheckFilter("payload ssl defined", recordHandle, 0);
+    recordHandle->extensionList[SSLindex] = (void *)&ssl;
+    CheckFilter("payload ssl defined", recordHandle, 1);
+    CheckFilter("payload tls version 1.2", recordHandle, 1);
+    CheckFilter("payload tls version 1.3", recordHandle, 0);
+    recordHandle->extensionList[SSLindex] = NULL;
+
+    // ja3
     recordHandle->extensionList[JA3index] = "123456789abcdef0123456789abcdef0";
     CheckFilter("payload ja3 123456789abcdef0123456789abcdef0", recordHandle, 1);
     CheckFilter("payload ja3 123456789abcdef0123456789abcdef1", recordHandle, 0);
@@ -843,6 +853,7 @@ static void runTest(void) {
     recordHandle->extensionList[JA3index] = NULL;
     CheckFilter("payload ja3 defined", recordHandle, 0);
 
+    // ja4
     ja4_t *ja4 = malloc(sizeof(ja4_t) + SIZEja4String + 1);
     if (ja4 == NULL) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
@@ -857,7 +868,18 @@ static void runTest(void) {
     CheckFilter("payload ja4 defined", recordHandle, 1);
     recordHandle->extensionList[JA4index] = NULL;
     CheckFilter("payload ja4 defined", recordHandle, 0);
+    // ja4s
+    ja4->type = TYPE_JA4S;
+    recordHandle->extensionList[JA4index] = (void *)ja4;
+    strcpy(ja4->string, "t120400_C030_4e8089608790");
+    CheckFilter("payload ja4s t120400_C030_4e8089608790", recordHandle, 1);
+    CheckFilter("payload ja4s q120400_C030_4e8089608790", recordHandle, 0);
+    CheckFilter("payload ja4s t120400_C030_cccc89608790", recordHandle, 0);
+    CheckFilter("payload ja4 defined", recordHandle, 1);
+    recordHandle->extensionList[JA4index] = NULL;
+    CheckFilter("payload ja4 defined", recordHandle, 0);
 
+    // local (processed) extension
     // geo location
     // src
     recordHandle->geo[0] = 'C';

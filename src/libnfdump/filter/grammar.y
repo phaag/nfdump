@@ -1206,6 +1206,69 @@ static int AddNatPortBlocks(char *type, char *subtype, uint16_t comp, uint64_t n
 	return -1;
 } // End of AddNatPortBlocks
 
+static int AddPayloadSSL(char *type, char *arg, char *opt) {
+	if (strcasecmp(arg, "defined") == 0) {
+		return NewElement(SSLindex, 0, 0, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+	} else if (strcasecmp(arg, "version") == 0) {
+		if ( opt == NULL ){
+			yyerror("String %s is not a valid SSL/TLS version", arg);
+			return -1;
+		}
+		printf("SSL/TLS version: %s\n", opt);
+		unsigned int major, minor;
+		if (sscanf(opt, "%1u.%1u", &major, &minor) != 2 || major > 3 || minor > 3 ) {
+			yyerror("String %s is not a valid SSL/TLS version", opt);
+			return -1;
+		}
+		// if old SSL 1.0, 2.0 or 3.0
+		if (major > 1 && minor > 0){
+			yyerror("String %s is not a valid SSL/TLS version", opt);
+			return -1;
+		}
+		uint16_t version = 0;
+		if ( strcasecmp(type, "tls") == 0 ) {
+			if (major > 1){
+				yyerror("String %s is not a valid TLS version", opt);
+				return -1;
+			}
+			// TLS
+			version = (0x03 << 8) | (minor + 1);
+		} else {
+			if (minor > 0){
+				yyerror("String %s is not a valid SSL version", opt);
+				return -1;
+			}
+			// SSL
+			version = major << 8;
+		}
+		return NewElement(SSLindex, OFFsslVersion, SIZEsslVersion, version, CMP_EQ, FUNC_NONE, NULLPtr);
+	}
+	yyerror("String %s is not a valid SSL/TLS filter", arg);
+	return -1;
+} // End of AddPayloadSSL
+
+static int AddPayloadJA3(char *type, char *arg, char *opt) {
+	if (strcasecmp(arg, "defined") == 0) {
+		return NewElement(JA3index, OFFja3String, SIZEja3String, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+	} else if (IsMD5(arg) == 0) {
+		yyerror("String %s is not a valid ja3 string", arg);
+		return -1;
+	}
+	data_t data = {.dataPtr=strdup(arg)};
+	return NewElement(JA3index, OFFja3String, SIZEja3String, 0, CMP_STRING, FUNC_NONE, data);
+} // End of AddPayloadJA3
+
+static int AddPayloadJA4(char *type, char *arg, char *opt) {
+	if (strcasecmp(arg, "defined") == 0) {
+		return NewElement(JA4index, OFFja4String, SIZEja3String, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+	} else if ( ja4Check(arg) == 0 ){
+		yyerror("String %s is not a valid ja4 string", arg);
+		return -1;
+	}
+	data_t data = {.dataPtr=strdup(arg)};
+	return NewElement(JA4index, OFFja4String, SIZEja4String, 0, CMP_STRING, FUNC_NONE, data);
+} // End of AddPayloadJA4
+
 static int AddPayload(char *type, char *arg, char *opt) {
 
 	if (strcasecmp(type, "content") == 0) {
@@ -1221,35 +1284,19 @@ static int AddPayload(char *type, char *arg, char *opt) {
 		}
 		data_t data = {.dataPtr = program};
 		return NewElement(EXinPayloadID, 0, 0, 0, CMP_REGEX, FUNC_NONE, data);
-	} else if (strcasecmp(type, "ssl") == 0) {
-		if (strcasecmp(arg, "defined") == 0) {
-			return Invert(NewElement(SSLindex, 0, 0, 0, CMP_EQ, FUNC_NONE, NULLPtr));
-		}
+	} else if (strcasecmp(type, "ssl") == 0 || strcasecmp(type, "tls") == 0) {
+		return AddPayloadSSL(type, arg, opt);
 	} else if (strcasecmp(type, "ja3") == 0) {
-		if (strcasecmp(arg, "defined") == 0) {
-			return NewElement(JA3index, OFFja3String, SIZEja3String, 0, CMP_EQ, FUNC_NONE, NULLPtr);
-		} else if (IsMD5(arg) == 0) {
-			yyerror("String %s is not a valid ja3 string", arg);
-			return -1;
-		}
-		data_t data = {.dataPtr=strdup(arg)};
-		return NewElement(JA3index, OFFja3String, SIZEja3String, 0, CMP_STRING, FUNC_NONE, data);
+		return AddPayloadJA3(type, arg, opt);
 	} else if (strcasecmp(type, "ja4") == 0) {
-		if (strcasecmp(arg, "defined") == 0) {
-			return NewElement(JA4index, OFFja4String, SIZEja3String, 0, CMP_EQ, FUNC_NONE, NULLPtr);
-		} else if ( ja4Check(arg) == 0 ){
-			yyerror("String %s is not a valid ja4 string", arg);
-			return -1;
-		}
-		data_t data = {.dataPtr=strdup(arg)};
-		return NewElement(JA4index, OFFja4String, SIZEja4String, 0, CMP_STRING, FUNC_NONE, data);
+		return AddPayloadJA4(type, arg, opt);
 	} else if (strcasecmp(type, "ja4s") == 0) {
 		if ( ja4sCheck(arg) == 0 ){
 			yyerror("String %s is not a valid ja4s string", arg);
 			return -1;
 		}
 		data_t data = {.dataPtr=strdup(arg)};
-		return NewElement(JA4index, OFFja4String, SIZEja4String, 0, CMP_STRING, FUNC_NONE, data);
+		return NewElement(JA4index, OFFja4String, SIZEja4sString, 0, CMP_STRING, FUNC_NONE, data);
 	} else {
 		yyerror("Unknown PAYLOAD argument: %s\n", type);
 		return -1;
