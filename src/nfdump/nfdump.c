@@ -291,6 +291,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
         }
         SetIdent(nffile_w, nffile_r->ident);
     }
+    FilterSetParam(engine, nffile_r->ident, outputParams->hasGeoDB);
 
     recordHandle_t *recordHandle = (recordHandle_t *)calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
@@ -323,6 +324,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                     if (next->stat_record->lastseen > t_last_flow) t_last_flow = next->stat_record->lastseen;
                     // continue with next file
                 }
+                FilterSetParam(engine, nffile_r->ident, outputParams->hasGeoDB);
                 continue;
 
             } break;  // not really needed
@@ -379,7 +381,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
 
                     if (match) {
                         // filter netflow record with user supplied filter
-                        match = FilterRecord(engine, recordHandle, nffile_r->ident, outputParams->hasGeoDB);
+                        match = FilterRecord(engine, recordHandle);
                     }
                     if (match == 0) {  // record failed to pass all filters
                         // go to next record

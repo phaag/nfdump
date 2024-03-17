@@ -108,6 +108,11 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
         LogError("Empty file list. No files to process");
         return;
     }
+    for (int j = 0; j < num_channels; j++) {
+        // apply profile filter
+        void *engine = channels[j].engine;
+        FilterSetParam(engine, nffile->ident, NOGEODB);
+    }
 
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
@@ -139,6 +144,11 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                     continue;
                     LogError("Unexpected end of file list");
                 }
+                for (int j = 0; j < num_channels; j++) {
+                    // apply profile filter
+                    void *engine = channels[j].engine;
+                    FilterSetParam(engine, nffile->ident, NOGEODB);
+                }
 
                 continue;
 
@@ -169,7 +179,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
 
                         // apply profile filter
                         void *engine = channels[j].engine;
-                        match = FilterRecord(engine, recordHandle, FILE_IDENT(nffile), NOGEODB);
+                        match = FilterRecord(engine, recordHandle);
 
                         // if profile filter failed -> next profile
                         if (!match) continue;

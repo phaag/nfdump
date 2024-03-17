@@ -89,8 +89,9 @@ typedef struct FilterEngine_s {
     uint32_t StartNode;
     uint16_t Extended;
     int hasGeoDB;
+    const char *ident;
     char *label;
-    int (*filterFunction)(const struct FilterEngine_s *, recordHandle_t *, const char *);
+    int (*filterFunction)(const struct FilterEngine_s *, recordHandle_t *);
 } FilterEngine_t;
 
 static filterElement_t *FilterTree = NULL;
@@ -587,13 +588,18 @@ static void InitFilter(void) {
     ClearFilter();
 }  // End of InitFilter
 
-int FilterRecord(void *engine, recordHandle_t *handle, const char *ident, const int hasGeoDB) {
+void FilterSetParam(void *engine, const char *ident, const int hasGeoDB) {
     FilterEngine_t *filterEngine = (FilterEngine_t *)engine;
     filterEngine->hasGeoDB = hasGeoDB;
-    return filterEngine->filterFunction(filterEngine, handle, ident);
+    filterEngine->ident = ident;
+}  // End of FilterSetParam
+
+int FilterRecord(const void *engine, recordHandle_t *handle) {
+    FilterEngine_t *filterEngine = (FilterEngine_t *)engine;
+    return filterEngine->filterFunction(filterEngine, handle);
 }  // End of FilterRecord
 
-static int RunFilterFast(const FilterEngine_t *engine, recordHandle_t *handle, const char *ident) {
+static int RunFilterFast(const FilterEngine_t *engine, recordHandle_t *handle) {
     uint32_t index = engine->StartNode;
     int invert = 0;
     int evaluate = 0;
@@ -639,7 +645,7 @@ static int RunFilterFast(const FilterEngine_t *engine, recordHandle_t *handle, c
 
 }  // End of RunFilter
 
-static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handle, const char *ident) {
+static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handle) {
     uint32_t index = engine->StartNode;
     int evaluate = 0;
     int invert = 0;
@@ -714,7 +720,7 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
             } break;
             case CMP_IDENT: {
                 char *str = (char *)data.dataPtr;
-                evaluate = str != NULL && (strcmp(ident, str) == 0 ? 1 : 0);
+                evaluate = str != NULL && (strcmp(engine->ident, str) == 0 ? 1 : 0);
             } break;
             case CMP_STRING: {
                 char *str = (char *)data.dataPtr;

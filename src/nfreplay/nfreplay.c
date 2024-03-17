@@ -227,6 +227,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
         LogError("Empty file list. No files to process\n");
         return;
     }
+    FilterSetParam(engine, nffile->ident, NOGEODB);
 
     peer.send_buffer = malloc(UDP_PACKET_SIZE);
     peer.flush = 0;
@@ -279,6 +280,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
                     done = 1;
                     LogError("Unexpected end of file list\n");
                 }
+                FilterSetParam(engine, nffile->ident, NOGEODB);
                 // else continue with next file
                 continue;
 
@@ -321,7 +323,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
 
                     // filter netflow record with user supplied filter
                     // XXX if (match) match = (*Engine->FilterEngine)(Engine);
-                    if (match) match = FilterRecord(engine, recordHandle, nffile->ident, 0);
+                    if (match) match = FilterRecord(engine, recordHandle);
 
                     if (match == 0) {  // record failed to pass all filters
                         // go to next record

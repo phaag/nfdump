@@ -159,6 +159,7 @@ static data_row *process(void *engine) {
         LogError("Empty file list. No files to process\n");
         return NULL;
     }
+    FilterSetParam(engine, nffile->ident, NOGEODB);
 
     port_table = (data_row *)calloc(65536, sizeof(data_row));
     if (!port_table) {
@@ -195,6 +196,7 @@ static data_row *process(void *engine) {
                     done = 1;
                     LogError("Unexpected end of file list\n");
                 }
+                FilterSetParam(engine, nffile->ident, NOGEODB);
                 // else continue with next file
                 continue;
 
@@ -219,7 +221,7 @@ static data_row *process(void *engine) {
                 case V3Record: {
                     processed++;
                     MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
-                    int ret = FilterRecord(engine, recordHandle, nffile->ident, NOGEODB);
+                    int ret = FilterRecord(engine, recordHandle);
 
                     if (ret == 0) {  // record failed to pass the filter
                         // increment pointer by number of bytes for netflow record

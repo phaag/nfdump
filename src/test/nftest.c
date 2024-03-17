@@ -111,7 +111,8 @@ static void CheckFilter(char *filter, recordHandle_t *recordHandle, int expect) 
     } else {
         printf("Compiled ok: %s\n", filter);
     }
-    int ret = FilterRecord(engine, recordHandle, NULL, NOGEODB);
+    FilterSetParam(engine, NULL, NOGEODB);
+    int ret = FilterRecord(engine, recordHandle);
     if (ret != expect) {
         printf("*** Filter failed for %s\n", filter);
         printf("*** Expected %d, result: %d\n", expect, ret);
