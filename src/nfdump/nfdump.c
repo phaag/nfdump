@@ -358,10 +358,12 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                 case CommonRecordType: {
                     if (__builtin_expect(record_ptr->type == CommonRecordType, 0)) {
                         dbg_printf("Convert nfdump 1.6.x v2 record\n");
-                        process_ptr = ConvertRecordV2((common_record_t *)record_ptr);
+                        // ConvertRecordV2 also maps recordHandle
+                        process_ptr = ConvertRecordV2(recordHandle, (common_record_t *)record_ptr, ++processed);
                         if (!process_ptr) goto NEXT;
+                    } else {
+                        MapRecordHandle(recordHandle, (recordHeaderV3_t *)process_ptr, ++processed);
                     }
-                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)process_ptr, ++processed);
 
                     // Time based filter
                     // if no time filter is given, the result is always true

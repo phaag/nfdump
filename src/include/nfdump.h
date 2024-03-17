@@ -80,11 +80,7 @@ typedef struct ip_addr_s {
 typedef struct exporter_info_record_s exporter_info_record_t;
 typedef struct extension_map_s extension_map_t;
 
-enum { EXlocal = MAXEXTENSIONS,
-       SSLindex,
-       JA3index,
-       JA4index,
-       MAXLISTSIZE };
+enum { EXlocal = MAXEXTENSIONS, SSLindex, JA3index, JA4index, MAXLISTSIZE };
 
 typedef struct recordHandle_s {
     recordHeaderV3_t *recordHeaderV3;
@@ -102,7 +98,6 @@ typedef struct recordHandle_s {
 #define OFFflowCount offsetof(recordHandle_t, flowCount)
 #define SIZEflowCount MemberSize(recordHandle_t, flowCount)
     uint32_t numElements;
-    uint64_t elementBits;
 } recordHandle_t;
 
 typedef struct stat_record_s {

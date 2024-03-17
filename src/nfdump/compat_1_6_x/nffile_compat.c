@@ -28,9 +28,17 @@
  *
  */
 
-static inline record_header_t *ConvertRecordV2(common_record_t *input_record);
+static inline record_header_t *ConvertRecordV2(recordHandle_t *handle, common_record_t *input_record, uint32_t flowCount);
 
-static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
+#define MapExtension(extID, p) handle->extensionList[extID] = (void *)(p)
+
+static inline record_header_t *ConvertRecordV2(recordHandle_t *handle, common_record_t *input_record, uint32_t flowCount) {
+    if (handle->extensionList[SSLindex]) free(handle->extensionList[SSLindex]);
+    if (handle->extensionList[JA3index]) free(handle->extensionList[JA3index]);
+    if (handle->extensionList[JA4index]) free(handle->extensionList[JA4index]);
+
+    memset((void *)handle, 0, sizeof(recordHandle_t));
+
     // tmp buffer on stack
     static char tmpRecord[4096];
     record_header_t *record_ptr = (record_header_t *)tmpRecord;
@@ -54,10 +62,15 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
     extension_map_t *extension_map = extension_info->map;
 
     AddV3Header(record_ptr, recordHeader);
+    MapExtension(EXnull, recordHeader);
+    MapExtension(EXlocal, handle);
+    handle->recordHeaderV3 = recordHeader;
+    handle->flowCount = flowCount;
     recordHeader->exporterID = input_record->exporter_sysid;
 
     // pack V3 record
     PushExtension(recordHeader, EXgenericFlow, genericFlow);
+    MapExtension(EXgenericFlowID, genericFlow);
     genericFlow->msecFirst = input_record->first * 1000L + input_record->msec_first;
     genericFlow->msecLast = input_record->last * 1000L + input_record->msec_last;
     genericFlow->proto = input_record->prot;
@@ -70,6 +83,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
     if (TestFlag(input_record->flags, FLAG_IPV6_ADDR)) {  // IPv6
         // IPv6
         PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
+        MapExtension(EXipv6FlowID, ipv6Flow);
         memcpy(ipv6Flow->srcAddr, (void *)input_record->data, 4 * sizeof(uint64_t));
 
         p = (void *)(p + 4 * sizeof(uint64_t));
@@ -77,6 +91,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
         // IPv4
         uint32_t *u = (uint32_t *)p;
         PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
+        MapExtension(EXipv4FlowID, ipv4Flow);
 
         ipv4Flow->srcAddr = u[0];
         ipv4Flow->dstAddr = u[1];
@@ -138,6 +153,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_AS_2: {
                 tpl_ext_6_t *tpl = (tpl_ext_6_t *)p;
                 PushExtension(recordHeader, EXasRouting, asRouting);
+                MapExtension(EXasRoutingID, asRouting);
                 asRouting->srcAS = tpl->src_as;
                 asRouting->dstAS = tpl->dst_as;
                 p = (void *)tpl->data;
@@ -145,6 +161,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_AS_4: {
                 tpl_ext_7_t *tpl = (tpl_ext_7_t *)p;
                 PushExtension(recordHeader, EXasRouting, asRouting);
+                MapExtension(EXasRoutingID, asRouting);
                 asRouting->srcAS = tpl->src_as;
                 asRouting->dstAS = tpl->dst_as;
                 p = (void *)tpl->data;
@@ -152,6 +169,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_MULIPLE: {
                 tpl_ext_8_t *tpl = (tpl_ext_8_t *)p;
                 PushExtension(recordHeader, EXflowMisc, flowMisc);
+                MapExtension(EXflowMiscID, flowMisc);
                 flowMisc->srcMask = tpl->src_mask;
                 flowMisc->dstMask = tpl->dst_mask;
                 flowMisc->dstTos = tpl->dst_tos;
@@ -164,6 +182,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_VLAN: {
                 tpl_ext_13_t *tpl = (tpl_ext_13_t *)p;
                 PushExtension(recordHeader, EXvLan, vLan);
+                MapExtension(EXvLanID, vLan);
                 vLan->srcVlan = tpl->src_vlan;
                 vLan->dstVlan = tpl->dst_vlan;
                 p = (void *)tpl->data;
@@ -179,12 +198,14 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_NEXT_HOP_v4: {
                 tpl_ext_9_t *tpl = (tpl_ext_9_t *)p;
                 PushExtension(recordHeader, EXipNextHopV4, ipNextHopV4);
+                MapExtension(EXipNextHopV4ID, ipNextHopV4);
                 ipNextHopV4->ip = tpl->nexthop;
                 p = (void *)tpl->data;
             } break;
             case EX_NEXT_HOP_v6: {
                 tpl_ext_10_t *tpl = (tpl_ext_10_t *)p;
                 PushExtension(recordHeader, EXipNextHopV6, ipNextHopV6);
+                MapExtension(EXipNextHopV6ID, ipNextHopV6);
                 ipNextHopV6->ip[0] = tpl->nexthop[0];
                 ipNextHopV6->ip[1] = tpl->nexthop[1];
                 p = (void *)tpl->data;
@@ -198,12 +219,14 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_ROUTER_IP_v4: {
                 tpl_ext_23_t *tpl = (tpl_ext_23_t *)p;
                 PushExtension(recordHeader, EXipReceivedV4, ipReceivedV4);
+                MapExtension(EXipReceivedV4ID, ipReceivedV4);
                 ipReceivedV4->ip = tpl->router_ip;
                 p = (void *)tpl->data;
             } break;
             case EX_ROUTER_IP_v6: {
                 tpl_ext_24_t *tpl = (tpl_ext_24_t *)p;
                 PushExtension(recordHeader, EXipReceivedV6, ipReceivedV6);
+                MapExtension(EXipReceivedV6ID, ipReceivedV6);
                 ipReceivedV6->ip[0] = tpl->router_ip[0];
                 ipReceivedV6->ip[1] = tpl->router_ip[1];
                 p = (void *)tpl->data;
@@ -211,14 +234,16 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_NEXT_HOP_BGP_v4: {
                 tpl_ext_11_t *tpl = (tpl_ext_11_t *)p;
                 PushExtension(recordHeader, EXbgpNextHopV4, bgpNextHopV4);
+                MapExtension(EXbgpNextHopV4ID, bgpNextHopV4);
                 bgpNextHopV4->ip = tpl->bgp_nexthop;
                 p = (void *)tpl->data;
             } break;
             case EX_NEXT_HOP_BGP_v6: {
                 tpl_ext_12_t *tpl = (tpl_ext_12_t *)p;
-                PushExtension(recordHeader, EXipReceivedV6, ipNextHopV6);
-                ipNextHopV6->ip[0] = tpl->bgp_nexthop[0];
-                ipNextHopV6->ip[1] = tpl->bgp_nexthop[1];
+                PushExtension(recordHeader, EXbgpNextHopV6, bgpNextHopV6);
+                MapExtension(EXbgpNextHopV6ID, bgpNextHopV6);
+                bgpNextHopV6->ip[0] = tpl->bgp_nexthop[0];
+                bgpNextHopV6->ip[1] = tpl->bgp_nexthop[1];
                 p = (void *)tpl->data;
             } break;
             case EX_OUT_PKG_4: {
@@ -255,6 +280,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
                 tpl_ext_20_t *tpl = (tpl_ext_20_t *)p;
                 if (!macAddr) {  // XXX fix
                     PushExtension(recordHeader, EXmacAddr, m);
+                    MapExtension(EXmacAddrID, m);
                     macAddr = m;
                     macAddr->inSrcMac = tpl->in_src_mac;
                     macAddr->outDstMac = tpl->out_dst_mac;
@@ -270,6 +296,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
                 tpl_ext_21_t *tpl = (tpl_ext_21_t *)p;
                 if (!macAddr) {
                     PushExtension(recordHeader, EXmacAddr, m);
+                    MapExtension(EXmacAddrID, m);
                     macAddr = m;
                     macAddr->inSrcMac = 0;
                     macAddr->outDstMac = 0;
@@ -284,6 +311,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_MPLS: {
                 tpl_ext_22_t *tpl = (tpl_ext_22_t *)p;
                 PushExtension(recordHeader, EXmplsLabel, mplsLabel);
+                MapExtension(EXmplsLabelID, mplsLabel);
                 for (int j = 0; j < 10; j++) {
                     mplsLabel->mplsLabel[j] = tpl->mpls_label[j];
                 }
@@ -291,6 +319,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             } break;
             case EX_BGPADJ: {
                 PushExtension(recordHeader, EXasAdjacent, asAdjacent);
+                MapExtension(EXasAdjacentID, asAdjacent);
                 tpl_ext_26_t *tpl = (tpl_ext_26_t *)p;
                 asAdjacent->nextAdjacentAS = tpl->bgpNextAdjacentAS;
                 asAdjacent->prevAdjacentAS = tpl->bgpPrevAdjacentAS;
@@ -298,6 +327,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             } break;
             case EX_LATENCY: {
                 PushExtension(recordHeader, EXlatency, latency);
+                MapExtension(EXlatencyID, latency);
                 tpl_ext_latency_t *tpl = (tpl_ext_latency_t *)p;
                 latency->usecClientNwDelay = tpl->client_nw_delay_usec;
                 latency->usecServerNwDelay = tpl->server_nw_delay_usec;
@@ -307,6 +337,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_NSEL_COMMON: {
                 tpl_ext_37_t *tpl = (tpl_ext_37_t *)p;
                 PushExtension(recordHeader, EXnselCommon, nselCommon);
+                MapExtension(EXnselCommonID, nselCommon);
                 nselCommon->msecEvent = tpl->event_time;
                 nselCommon->connID = tpl->conn_id;
                 nselCommon->fwXevent = tpl->fw_xevent;
@@ -317,6 +348,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_NSEL_XLATE_IP_v4: {
                 tpl_ext_39_t *tpl = (tpl_ext_39_t *)p;
                 PushExtension(recordHeader, EXnselXlateIPv4, nselXlateIPv4);
+                MapExtension(EXnselXlateIPv4ID, nselXlateIPv4);
                 nselXlateIPv4->xlateSrcAddr = tpl->xlate_src_ip;
                 nselXlateIPv4->xlateDstAddr = tpl->xlate_dst_ip;
                 p = (void *)tpl->data;
@@ -324,6 +356,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_NSEL_XLATE_IP_v6: {
                 tpl_ext_40_t *tpl = (tpl_ext_40_t *)p;
                 PushExtension(recordHeader, EXnselXlateIPv6, nselXlateIPv6);
+                MapExtension(EXnselXlateIPv6ID, nselXlateIPv6);
                 memcpy(nselXlateIPv6->xlateSrcAddr, tpl->xlate_src_ip, 16);
                 memcpy(nselXlateIPv6->xlateDstAddr, tpl->xlate_dst_ip, 16);
                 p = (void *)tpl->data;
@@ -331,6 +364,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_NSEL_XLATE_PORTS: {
                 tpl_ext_38_t *tpl = (tpl_ext_38_t *)p;
                 PushExtension(recordHeader, EXnselXlatePort, nselXlatePort);
+                MapExtension(EXnselXlatePortID, nselXlatePort);
                 nselXlatePort->xlateSrcPort = tpl->xlate_src_port;
                 nselXlatePort->xlateDstPort = tpl->xlate_dst_port;
                 p = (void *)tpl->data;
@@ -338,6 +372,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_NSEL_ACL: {
                 tpl_ext_41_t *tpl = (tpl_ext_41_t *)p;
                 PushExtension(recordHeader, EXnselAcl, nselAcl);
+                MapExtension(EXnselAclID, nselAcl);
                 memcpy(nselAcl->ingressAcl, tpl->ingress_acl_id, 12);
                 memcpy(nselAcl->egressAcl, tpl->egress_acl_id, 12);
                 p = (void *)tpl->data;
@@ -345,6 +380,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_NSEL_USER_MAX: {
                 tpl_ext_43_t *tpl = (tpl_ext_43_t *)p;
                 PushExtension(recordHeader, EXnselUser, nselUser);
+                MapExtension(EXnselUserID, nselUser);
                 tpl->username[65] = '\0';  // truncate old username
                 strncpy((void *)nselUser->username, (void *)tpl->username, 65);
                 nselUser->username[65] = '\0';
@@ -353,6 +389,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_NSEL_USER: {
                 tpl_ext_42_t *tpl = (tpl_ext_42_t *)p;
                 PushExtension(recordHeader, EXnselUser, nselUser);
+                MapExtension(EXnselUserID, nselUser);
                 strncpy((void *)nselUser->username, (void *)tpl->username, 65);
                 nselUser->username[65] = '\0';
                 p = (void *)tpl->data;
@@ -360,8 +397,10 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_NEL_COMMON: {
                 tpl_ext_46_t *tpl = (tpl_ext_46_t *)p;
                 PushExtension(recordHeader, EXnelCommon, nelCommon);
+                MapExtension(EXnelCommonID, nelCommon);
                 nelCommon->natEvent = tpl->nat_event;
                 PushExtension(recordHeader, EXvrf, vrf);
+                MapExtension(EXvrfID, vrf);
                 vrf->egressVrf = tpl->egress_vrfid;
                 vrf->ingressVrf = tpl->ingress_vrfid;
                 p = (void *)tpl->data;
@@ -374,6 +413,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             case EX_PORT_BLOCK_ALLOC: {
                 tpl_ext_48_t *tpl = (tpl_ext_48_t *)p;
                 PushExtension(recordHeader, EXnelXlatePort, nelXlatePort);
+                MapExtension(EXnelXlatePortID, nelXlatePort);
                 nelXlatePort->blockStart = tpl->block_start;
                 nelXlatePort->blockEnd = tpl->block_end;
                 nelXlatePort->blockStep = tpl->block_step;
@@ -387,6 +427,7 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
 
     if (outPackets || outBytes || numFlows) {
         PushExtension(recordHeader, EXcntFlow, cntFlow);
+        MapExtension(EXcntFlowID, cntFlow);
         cntFlow->outPackets = outPackets;
         cntFlow->outBytes = outBytes;
         cntFlow->flows = numFlows;
@@ -398,8 +439,20 @@ static inline record_header_t *ConvertRecordV2(common_record_t *input_record) {
             _flowMisc->output = output;
         } else {
             PushExtension(recordHeader, EXflowMisc, flowMisc);
+            MapExtension(EXflowMiscID, flowMisc);
             flowMisc->input = input;
             flowMisc->output = output;
+        }
+    }
+
+    handle->numElements = recordHeader->numElements;
+    if (genericFlow && genericFlow->msecFirst == 0) {
+        EXnselCommon_t *nselCommon = (EXnselCommon_t *)handle->extensionList[EXnselCommonID];
+        if (nselCommon) {
+            genericFlow->msecFirst = nselCommon->msecEvent;
+        } else {
+            EXnelCommon_t *nelCommon = (EXnelCommon_t *)handle->extensionList[EXnelCommonID];
+            if (nelCommon) genericFlow->msecFirst = nelCommon->msecEvent;
         }
     }
 

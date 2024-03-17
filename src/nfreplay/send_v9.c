@@ -175,10 +175,15 @@ int Close_v9_output(send_peer_t *peer) {
 static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
     uint32_t template_id = 0;
 
+    uint64_t elementBits = 0;
+    for (int i = 0; i < MAXEXTENSIONS; i++) {
+        if (recordHandle->extensionList[i]) elementBits |= 1 << i;
+    }
+
     outTemplate_t **t = &outTemplates;
     // search for the template, which corresponds to our flags and extension map
     while (*t) {
-        if (((*t)->elementBits == recordHandle->elementBits) && ((*t)->numExtensions == recordHandle->numElements)) {
+        if (((*t)->elementBits == elementBits) && ((*t)->numExtensions == recordHandle->numElements)) {
             return *t;
         }
         template_id = (*t)->template_id;
@@ -194,7 +199,7 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
     }
     (*t)->next = NULL;
 
-    (*t)->elementBits = recordHandle->elementBits;
+    (*t)->elementBits = elementBits;
     (*t)->numExtensions = recordHandle->numElements;
 
     if (template_id == 0)

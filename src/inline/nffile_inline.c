@@ -76,7 +76,6 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
         if ((elementHeader->type > 0 && elementHeader->type < MAXEXTENSIONS) && elementHeader->length != 0) {
             handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
             elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
-            handle->elementBits |= 1 << elementHeader->type;
         } else {
             LogError("Invalid extension Type: %u, Length: %u", elementHeader->type, elementHeader->length);
             return 0;
