@@ -89,7 +89,8 @@
     (a)->flags = 0;      \
     (a)->type = DATA_BLOCK_TYPE_3;
 
-static const char *nf_creator[MAX_CREATOR] = {"unknown", "nfcapd", "nfpcapd", "sfcapd", "nfdump", "nfanon", "nfprofile", "geolookup", "ft2nfdump", "torlookup"};
+static const char *nf_creator[MAX_CREATOR] = {"unknown", "nfcapd",    "nfpcapd",   "sfcapd",    "nfdump",
+                                              "nfanon",  "nfprofile", "geolookup", "ft2nfdump", "torlookup"};
 
 static unsigned NumWorkers = DEFAULTWORKERS;
 
@@ -119,8 +120,6 @@ static int Uncompress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, 
 static int Uncompress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size);
 
 static dataBlock_t *NewDataBlock(void);
-
-static void FreeDataBlock(dataBlock_t *dataBlock);
 
 static nffile_t *NewFile(nffile_t *nffile);
 
@@ -471,7 +470,7 @@ static int Uncompress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, s
             continue;
         } else if (r != BZ_STREAM_END) {
             BZ2_bzDecompressEnd(&bs);
-            return NF_CORRUPT;
+            return -1;
         } else {
             break;
         }
@@ -549,7 +548,7 @@ static dataBlock_t *NewDataBlock(void) {
 
 }  // End of NewDataBlock
 
-static void FreeDataBlock(dataBlock_t *dataBlock) {
+void FreeDataBlock(dataBlock_t *dataBlock) {
     // Release block
     if (dataBlock) {
         free((void *)dataBlock);
@@ -1260,23 +1259,16 @@ nffile_t *GetNextFile(nffile_t *nffile) {
 
 }  // End of GetNextFile
 
-int ReadBlock(nffile_t *nffile) {
-    if (nffile->block_header) {
-        FreeDataBlock(nffile->block_header);
-        nffile->block_header = NULL;
-    }
-
-    nffile->block_header = queue_pop(nffile->processQueue);
-    if (nffile->block_header == QUEUE_CLOSED) {  // EOF
-        nffile->block_header = NULL;
+dataBlock_t *ReadBlock(nffile_t *nffile, dataBlock_t *dataBlock) {
+    if (dataBlock && dataBlock != NF_EOF) FreeDataBlock(dataBlock);
+    dataBlock = queue_pop(nffile->processQueue);
+    if (dataBlock == QUEUE_CLOSED) {  // EOF
         return NF_EOF;
     }
 
-    // set read ptr
-    nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(dataBlock_t));
-    dbg_printf("ReadBlock - read: %u\n", nffile->block_header->size);
+    dbg_printf("ReadBlock - read: %u\n", dataBlock->size);
 
-    return nffile->block_header->size;
+    return dataBlock;
 
 }  // End of ReadBlock
 
@@ -1426,7 +1418,6 @@ int WriteBlock(nffile_t *nffile) {
         InitDataBlock(nffile->block_header);
     }
     nffile->buff_ptr = (void *)((void *)nffile->block_header + sizeof(dataBlock_t));
-
     return 1;
 
 }  // End of WriteBlock

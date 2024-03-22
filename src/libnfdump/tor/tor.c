@@ -215,43 +215,34 @@ int LoadTorTree(char *fileName) {
         return 0;
     }
 
+    dataBlock_t *dataBlock = NULL;
     int done = 0;
     while (!done) {
         // get next data block from file
-        int ret = ReadBlock(nffile);
-
-        switch (ret) {
-            case NF_CORRUPT:
-            case NF_ERROR:
-                if (ret == NF_CORRUPT)
-                    LogError("Skip corrupt data file '%s'\n", nffile->fileName);
-                else
-                    LogError("Read error in file '%s': %s\n", nffile->fileName, strerror(errno));
-                // fall through - get next file in chain
-            case NF_EOF:
-                done = 1;
-                continue;
-                break;  // not really needed
+        dataBlock = ReadBlock(nffile, dataBlock);
+        if (dataBlock == NF_EOF) {
+            done = 1;
+            continue;
         }
 
-        dbg_printf("Next block. type: %u, size: %u\n", nffile->block_header->type, nffile->block_header->size);
-        if (nffile->block_header->type != DATA_BLOCK_TYPE_4) {
-            LogError("Can't process block type %u. Skip block.\n", nffile->block_header->type);
+        dbg_printf("Next block. type: %u, size: %u\n", dataBlock->type, dataBlock->size);
+        if (dataBlock->type != DATA_BLOCK_TYPE_4) {
+            LogError("Can't process block type %u. Skip block.\n", dataBlock->type);
             continue;
         }
 
         record_header_t *arrayHeader = nffile->buff_ptr;
         void *arrayElement = (void *)nffile->buff_ptr + sizeof(record_header_t);
-        size_t expected = (arrayHeader->size * nffile->block_header->NumRecords) + sizeof(record_header_t);
-        if (expected != nffile->block_header->size) {
-            LogError("Array size calculated: %u != expected: %u for element: %u", expected, nffile->block_header->size, arrayHeader->type);
+        size_t expected = (arrayHeader->size * dataBlock->NumRecords) + sizeof(record_header_t);
+        if (expected != dataBlock->size) {
+            LogError("Array size calculated: %u != expected: %u for element: %u", expected, dataBlock->size, arrayHeader->type);
             continue;
         }
 
         switch (arrayHeader->type) {
             case TorTreeElementID: {
                 torNode_t *torNode = (torNode_t *)arrayElement;
-                for (int i = 0; i < nffile->block_header->NumRecords; i++) {
+                for (int i = 0; i < dataBlock->NumRecords; i++) {
                     torNode_t *node = kb_getp(torTree, torTree, torNode);
                     if (node) {
                         LogError("Duplicate IP node: ip: 0x%x", torNode->ipaddr);
@@ -265,6 +256,7 @@ int LoadTorTree(char *fileName) {
                 LogError("Skip unknown array element: %u", arrayHeader->type);
         }
     }
+    FreeDataBlock(dataBlock);
     DisposeFile(nffile);
 
     return 1;

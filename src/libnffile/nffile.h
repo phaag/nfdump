@@ -43,9 +43,7 @@
 #define IDENTLEN 128
 #define IDENTNONE "none"
 
-#define NF_EOF 0
-#define NF_ERROR -1
-#define NF_CORRUPT -2
+#define NF_EOF NULL
 
 #define NF_DUMPFILE "nfcapd.current"
 
@@ -277,9 +275,11 @@ int RenameAppend(char *oldName, char *newName);
 
 nffile_t *GetNextFile(nffile_t *nffile);
 
-int ReadBlock(nffile_t *nffile);
+dataBlock_t *ReadBlock(nffile_t *nffile, dataBlock_t *dataBlock);
 
 int WriteBlock(nffile_t *nffile);
+
+void FreeDataBlock(dataBlock_t *dataBlock);
 
 void SetIdent(nffile_t *nffile, char *Ident);
 

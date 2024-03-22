@@ -333,38 +333,24 @@ void PrintExporters(void) {
         return;
     }
 
+    dataBlock_t *dataBlock = NULL;
     int done = 0;
     int found = 0;
     while (!done) {
         // get next data block from file
-        int ret = ReadBlock(nffile);
-        switch (ret) {
-            case NF_CORRUPT:
-            case NF_ERROR:
-                if (ret == NF_CORRUPT)
-                    LogError("Corrupt data file");
-                else
-                    LogError("Read error: %s", strerror(errno));
-                done = 1;
-                continue;
-                break;
-                // fall through - get next file in chain
-            case NF_EOF:
-                done = 1;
-                continue;
-                break;
-
-                // default:
-                // successfully read block
-        }
-
-        if (nffile->block_header->type != DATA_BLOCK_TYPE_2 && nffile->block_header->type != DATA_BLOCK_TYPE_3) {
-            printf("Skip unknown block type: %u\n", nffile->block_header->type);
+        dataBlock = ReadBlock(nffile, dataBlock);
+        if (dataBlock == NF_EOF) {
+            done = 1;
             continue;
         }
 
-        record_header_t *record = (record_header_t *)nffile->buff_ptr;
-        for (int i = 0; i < nffile->block_header->NumRecords; i++) {
+        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
+            printf("Skip unknown block type: %u\n", dataBlock->type);
+            continue;
+        }
+
+        record_header_t *record = GetCursor(dataBlock);
+        for (int i = 0; i < dataBlock->NumRecords; i++) {
             switch (record->type) {
                 case LegacyRecordType1:
                 case LegacyRecordType2:
@@ -394,6 +380,7 @@ void PrintExporters(void) {
         }
     }
 
+    FreeDataBlock(dataBlock);
     CloseFile(nffile);
     DisposeFile(nffile);
     if (!found) {

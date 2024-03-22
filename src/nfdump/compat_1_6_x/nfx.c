@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -355,42 +355,24 @@ void DumpExMaps(void) {
         return;
     }
 
+    dataBlock_t *dataBlock = NULL;
     int cnt = 0;
     int done = 0;
     while (!done) {
-        int i, ret;
-
         // get next data block from file
-        ret = ReadBlock(nffile);
-
-        switch (ret) {
-            case NF_CORRUPT:
-            case NF_ERROR:
-                if (ret == NF_CORRUPT)
-                    LogError("Corrupt data file");
-                else
-                    LogError("Read error: %s", strerror(errno));
-                done = 1;
-                continue;
-                break;
-                // fall through - get next file in chain
-            case NF_EOF:
-                done = 1;
-                continue;
-                break;
-
-                // default:
-                // successfully read block
-        }
-
-        if (nffile->block_header->type != DATA_BLOCK_TYPE_2) {
+        dataBlock = ReadBlock(nffile, dataBlock);
+        if (dataBlock == NF_EOF) {
+            done = 1;
             continue;
         }
 
+        if (dataBlock->type != DATA_BLOCK_TYPE_2) {
+            continue;
+        }
         // block type = 2
 
         flow_record = (common_record_t *)nffile->buff_ptr;
-        for (i = 0; i < nffile->block_header->NumRecords; i++) {
+        for (int i = 0; i < dataBlock->NumRecords; i++) {
             if (flow_record->type == ExtensionMapType) {
                 extension_map_t *map = (extension_map_t *)flow_record;
                 if (!VerifyExtensionMap(map)) return;
@@ -406,6 +388,7 @@ void DumpExMaps(void) {
         printf("No 1.6.x extension definition records\n");
     }
 
+    FreeDataBlock(dataBlock);
     CloseFile(nffile);
     DisposeFile(nffile);
 

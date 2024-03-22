@@ -298,58 +298,48 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
         LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return stat_record;
     }
+
+    dataBlock_t *dataBlock = NULL;
     int done = 0;
     while (!done) {
         // get next data block from file
-        int ret = ReadBlock(nffile_r);
-
-        switch (ret) {
-            case NF_CORRUPT:
-            case NF_ERROR:
-                if (ret == NF_CORRUPT)
-                    LogError("Skip corrupt data file '%s'\n", nffile_r->fileName);
-                else
-                    LogError("Read error in file '%s': %s\n", nffile_r->fileName, strerror(errno));
-                // fall through - get next file in chain
-            case NF_EOF: {
-                nffile_t *next = GetNextFile(nffile_r);
-                if (next == EMPTY_LIST) {
-                    done = 1;
-                } else if (next == NULL) {
-                    done = 1;
-                    LogError("Unexpected end of file list\n");
-                } else {
-                    // Update global time span window
-                    if (next->stat_record->firstseen < t_first_flow) t_first_flow = next->stat_record->firstseen;
-                    if (next->stat_record->lastseen > t_last_flow) t_last_flow = next->stat_record->lastseen;
-                    // continue with next file
-                }
-                FilterSetParam(engine, nffile_r->ident, outputParams->hasGeoDB);
-                continue;
-
-            } break;  // not really needed
-            default:
-                // successfully read block
-                total_bytes += ret;
+        dataBlock = ReadBlock(nffile_r, dataBlock);
+        if (dataBlock == NF_EOF) {
+            nffile_t *next = GetNextFile(nffile_r);
+            if (next == EMPTY_LIST) {
+                done = 1;
+            } else if (next == NULL) {
+                done = 1;
+                LogError("Unexpected end of file list\n");
+            } else {
+                // Update global time span window
+                if (next->stat_record->firstseen < t_first_flow) t_first_flow = next->stat_record->firstseen;
+                if (next->stat_record->lastseen > t_last_flow) t_last_flow = next->stat_record->lastseen;
+                // continue with next file
+            }
+            FilterSetParam(engine, nffile_r->ident, outputParams->hasGeoDB);
+            continue;
         }
+        // successfully read block
+        total_bytes += dataBlock->size;
 
-        if (nffile_r->block_header->type != DATA_BLOCK_TYPE_2 && nffile_r->block_header->type != DATA_BLOCK_TYPE_3) {
-            if (nffile_r->block_header->type != DATA_BLOCK_TYPE_4) {  // skip array blocks
-                if (nffile_r->block_header->type == DATA_BLOCK_TYPE_1)
+        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
+            if (dataBlock->type != DATA_BLOCK_TYPE_4) {  // skip array blocks
+                if (dataBlock->type == DATA_BLOCK_TYPE_1)
                     LogError("nfdump 1.5.x block type 1 no longer supported. Skip block");
                 else
-                    LogError("Unknown block type %u. Skip block", nffile_r->block_header->type);
+                    LogError("Unknown block type %u. Skip block", dataBlock->type);
             }
             skipped_blocks++;
             continue;
         }
 
         uint32_t sumSize = 0;
-        record_header_t *record_ptr = nffile_r->buff_ptr;
-        dbg_printf("Block has %i records\n", nffile_r->block_header->NumRecords);
-        for (int i = 0; i < nffile_r->block_header->NumRecords && !done; i++) {
+        record_header_t *record_ptr = GetCursor(dataBlock);
+        dbg_printf("Block has %i records\n", dataBlock->NumRecords);
+        for (int i = 0; i < dataBlock->NumRecords && !done; i++) {
             record_header_t *process_ptr = record_ptr;
-            if ((sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t))) {
+            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
                 exit(EXIT_FAILURE);
             }
@@ -510,6 +500,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
         DisposeFile(nffile_w);
     }
 
+    FreeDataBlock(dataBlock);
     DisposeFile(nffile_r);
     return stat_record;
 

@@ -119,51 +119,41 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return;
     }
+
+    dataBlock_t *dataBlock = NULL;
     uint32_t processed = 0;
     int done = 0;
     while (!done) {
         // get next data block from file
-        int ret = ReadBlock(nffile);
-
-        switch (ret) {
-            case NF_CORRUPT:
-            case NF_ERROR:
-                if (ret == NF_CORRUPT)
-                    LogError("Skip corrupt data file '%s'", nffile->fileName);
-                else
-                    LogError("Read error in file '%s': %s", nffile->fileName, strerror(errno));
-                // fall through - get next file in chain
-            case NF_EOF: {
-                nffile_t *next = GetNextFile(nffile);
-                if (next == EMPTY_LIST) {
-                    done = 1;
-                    continue;
-                }
-                if (next == NULL) {
-                    done = 1;
-                    continue;
-                    LogError("Unexpected end of file list");
-                }
-                for (int j = 0; j < num_channels; j++) {
-                    // apply profile filter
-                    void *engine = channels[j].engine;
-                    FilterSetParam(engine, nffile->ident, NOGEODB);
-                }
-
+        dataBlock = ReadBlock(nffile, dataBlock);
+        if (dataBlock == NF_EOF) {
+            nffile_t *next = GetNextFile(nffile);
+            if (next == EMPTY_LIST) {
+                done = 1;
                 continue;
-
-            } break;  // not really needed
-        }
-
-        if (nffile->block_header->type != DATA_BLOCK_TYPE_2 && nffile->block_header->type != DATA_BLOCK_TYPE_3) {
-            LogError("Can't process block type %u. Skip block", nffile->block_header->type);
+            }
+            if (next == NULL) {
+                done = 1;
+                LogError("Unexpected end of file list");
+                continue;
+            }
+            for (int j = 0; j < num_channels; j++) {
+                // apply profile filter
+                void *engine = channels[j].engine;
+                FilterSetParam(engine, nffile->ident, NOGEODB);
+            }
             continue;
         }
 
-        record_header_t *record_ptr = nffile->buff_ptr;
+        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
+            LogError("Can't process block type %u. Skip block", dataBlock->type);
+            continue;
+        }
+
+        record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
-        for (int i = 0; i < nffile->block_header->NumRecords; i++) {
-            if ((sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t))) {
+        for (int i = 0; i < dataBlock->NumRecords; i++) {
+            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 exit(255);
             }
@@ -254,6 +244,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
     }      // End of while !done
 
     // Close input
+    FreeDataBlock(dataBlock);
     CloseFile(nffile);
     DisposeFile(nffile);
 

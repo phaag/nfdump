@@ -263,35 +263,26 @@ int LoadMaxMind(char *fileName) {
         return 0;
     }
     int done = 0;
+    dataBlock_t *dataBlock = NULL;
     while (!done) {
         // get next data block from file
-        int ret = ReadBlock(nffile);
-
-        switch (ret) {
-            case NF_CORRUPT:
-            case NF_ERROR:
-                if (ret == NF_CORRUPT)
-                    LogError("Skip corrupt data file '%s'\n", nffile->fileName);
-                else
-                    LogError("Read error in file '%s': %s\n", nffile->fileName, strerror(errno));
-                // fall through - get next file in chain
-            case NF_EOF:
-                done = 1;
-                continue;
-                break;  // not really needed
-        }
-
-        dbg_printf("Next block. type: %u, size: %u\n", nffile->block_header->type, nffile->block_header->size);
-        if (nffile->block_header->type != DATA_BLOCK_TYPE_4) {
-            LogError("Can't process block type %u. Skip block.\n", nffile->block_header->type);
+        dataBlock = ReadBlock(nffile, dataBlock);
+        if (dataBlock == NF_EOF) {
+            done = 1;
             continue;
         }
 
-        record_header_t *arrayHeader = nffile->buff_ptr;
-        void *arrayElement = (void *)nffile->buff_ptr + sizeof(record_header_t);
-        size_t expected = (arrayHeader->size * nffile->block_header->NumRecords) + sizeof(record_header_t);
-        if (expected != nffile->block_header->size) {
-            LogError("Array size calculated: %u != expected: %u for element: %u", expected, nffile->block_header->size, arrayHeader->type);
+        dbg_printf("Next block. type: %u, size: %u\n", dataBlock->type, dataBlock->size);
+        if (dataBlock->type != DATA_BLOCK_TYPE_4) {
+            LogError("Can't process block type %u. Skip block.\n", dataBlock->type);
+            continue;
+        }
+
+        record_header_t *arrayHeader = GetCursor(dataBlock);
+        void *arrayElement = (void *)arrayHeader + sizeof(record_header_t);
+        size_t expected = (arrayHeader->size * dataBlock->NumRecords) + sizeof(record_header_t);
+        if (expected != dataBlock->size) {
+            LogError("Array size calculated: %u != expected: %u for element: %u", expected, dataBlock->size, arrayHeader->type);
             return 0;
         }
 
@@ -299,32 +290,33 @@ int LoadMaxMind(char *fileName) {
             case LocalInfoElementID: {
                 locationInfo_t *locationInfo = (locationInfo_t *)arrayElement;
                 arrayElementSizeCheck(locationInfo);
-                LoadLocalInfo(locationInfo, nffile->block_header->NumRecords);
+                LoadLocalInfo(locationInfo, dataBlock->NumRecords);
             } break;
             case IPV4treeElementID: {
                 ipV4Node_t *ipV4Node = (ipV4Node_t *)arrayElement;
                 arrayElementSizeCheck(ipV4Node);
-                LoadIPv4Tree(ipV4Node, nffile->block_header->NumRecords);
+                LoadIPv4Tree(ipV4Node, dataBlock->NumRecords);
             } break;
             case IPV6treeElementID: {
                 ipV6Node_t *ipV6Node = (ipV6Node_t *)arrayElement;
                 arrayElementSizeCheck(ipV6Node);
-                LoadIPv6Tree(ipV6Node, nffile->block_header->NumRecords);
+                LoadIPv6Tree(ipV6Node, dataBlock->NumRecords);
             } break;
             case ASV4treeElementID: {
                 asV4Node_t *asV4Node = (asV4Node_t *)arrayElement;
                 arrayElementSizeCheck(asV4Node);
-                LoadASV4Tree(asV4Node, nffile->block_header->NumRecords);
+                LoadASV4Tree(asV4Node, dataBlock->NumRecords);
             } break;
             case ASV6treeElementID: {
                 asV6Node_t *asV6Node = (asV6Node_t *)arrayElement;
                 arrayElementSizeCheck(asV6Node);
-                LoadASV6Tree(asV6Node, nffile->block_header->NumRecords);
+                LoadASV6Tree(asV6Node, dataBlock->NumRecords);
             } break;
             default:
                 LogError("Skip unknown array element: %u", arrayHeader->type);
         }
     }
+    FreeDataBlock(dataBlock);
     DisposeFile(nffile);
 
     return 1;

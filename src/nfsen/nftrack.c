@@ -146,11 +146,7 @@ static int CheckRunningOnce(char *pidfile) {
 }  // End of CheckRunningOnce
 
 static data_row *process(void *engine) {
-    nffile_t *nffile;
-    int i, done, ret;
-    data_row *port_table;
-
-    nffile = GetNextFile(NULL);
+    nffile_t *nffile = GetNextFile(NULL);
     if (!nffile) {
         LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
@@ -161,7 +157,7 @@ static data_row *process(void *engine) {
     }
     FilterSetParam(engine, nffile->ident, NOGEODB);
 
-    port_table = (data_row *)calloc(65536, sizeof(data_row));
+    data_row *port_table = (data_row *)calloc(65536, sizeof(data_row));
     if (!port_table) {
         LogError("calloc() allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
@@ -174,33 +170,23 @@ static data_row *process(void *engine) {
         return NULL;
     }
 
-    done = 0;
+    dataBlock_t *dataBlock = NULL;
+    int done = 0;
     while (!done) {
         // get next data block from file
-        ret = ReadBlock(nffile);
-
-        switch (ret) {
-            case NF_CORRUPT:
-            case NF_ERROR:
-                if (ret == NF_CORRUPT)
-                    LogError("Skip corrupt data file '%s'\n", nffile->fileName);
-                else
-                    LogError("Read error in file '%s': %s\n", nffile->fileName, strerror(errno));
-                // fall through - get next file in chain
-            case NF_EOF: {
-                nffile_t *next = GetNextFile(nffile);
-                if (next == EMPTY_LIST) {
-                    done = 1;
-                }
-                if (next == NULL) {
-                    done = 1;
-                    LogError("Unexpected end of file list\n");
-                }
-                FilterSetParam(engine, nffile->ident, NOGEODB);
-                // else continue with next file
-                continue;
-
-            } break;  // not really needed
+        dataBlock = ReadBlock(nffile, dataBlock);
+        if (dataBlock == NF_EOF) {
+            nffile_t *next = GetNextFile(nffile);
+            if (next == EMPTY_LIST) {
+                done = 1;
+            }
+            if (next == NULL) {
+                done = 1;
+                LogError("Unexpected end of file list\n");
+            }
+            // else continue with next file
+            FilterSetParam(engine, nffile->ident, NOGEODB);
+            continue;
         }
 
         if (nffile->block_header->type != DATA_BLOCK_TYPE_2 && nffile->block_header->type != DATA_BLOCK_TYPE_3) {
@@ -208,10 +194,10 @@ static data_row *process(void *engine) {
             continue;
         }
 
-        record_header_t *record_ptr = nffile->buff_ptr;
+        record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
-        for (i = 0; i < nffile->block_header->NumRecords; i++) {
-            if ((sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t))) {
+        for (int i = 0; i < nffile->block_header->NumRecords; i++) {
+            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
                 exit(255);
             }
@@ -260,6 +246,7 @@ static data_row *process(void *engine) {
         }
     }  // while
 
+    FreeDataBlock(dataBlock);
     CloseFile(nffile);
     DisposeFile(nffile);
 

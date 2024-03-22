@@ -138,6 +138,9 @@ typedef struct dataBlock_s {
 #define FLAG_BLOCK_AUTOREAD 0x4
 } dataBlock_t;
 
+#define GetCursor(block) ((void *)(block) + sizeof(dataBlock_t))
+#define BlockSize(block) (block)->size)
+
 /*
  * Generic data record
  * Contains any type of data, specified by type
