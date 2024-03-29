@@ -183,7 +183,6 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
     if ((sizeof(nfd_header_t) + sizeof(recordHeaderV3_t)) > size_left) {
         LogError("Process_nfd: Not enough data.");
-        dbg_printf("Process_nfd: Not enough data.");
         return;
     }
 
@@ -195,14 +194,13 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         dbg_printf("Next record - type: %u, size: %u\n", recordHeaderV3->type, recordHeaderV3->size);
         // verify received record.
         if (VerifyV3Record(recordHeaderV3) == 0) {
-            LogError("Process_nfd(): Malformed nfd record received");
-            LogError("Process_nfd(): expected %u records, processd: %u", count, numRecords);
+            LogError("Process_nfd: Corrupt nfd record: expected %u records, processd: %u", count, numRecords);
             return;
         }
 
         if (recordHeaderV3->size > size_left) {
-            LogError("Process_nfd: record size error. Size v3header: %u > size left: %u", recordHeaderV3->size, size_left);
-            LogError("Process_nfd(): expected %u records, processd: %u", count, numRecords);
+            LogError("Process_nfd: record size error. Size v3header: %u > size left: %d", recordHeaderV3->size, size_left);
+            LogError("Process_nfd: expected %u records, processd: %u", count, numRecords);
             return;
         }
 
