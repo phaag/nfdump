@@ -343,6 +343,8 @@ static void String_PortBlockStep(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_PortBlockSize(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_Ethertype(FILE *stream, recordHandle_t *recordHandle);
+
 static struct format_token_list_s {
     char *token;                        // token
     int is_address;                     // is an IP address
@@ -451,6 +453,7 @@ static struct format_token_list_s {
     {"%odmc", 0, " Out dst MAC Addr", String_OutDstMac},  // Output Dst Mac Addr
     {"%idmc", 0, "  In dst MAC Addr", String_InDstMac},   // Input Dst Mac Addr
     {"%osmc", 0, " Out src MAC Addr", String_OutSrcMac},  // Output Src Mac Addr
+    {"%eth",  0, " etherType", String_Ethertype},
 
     // EXasAdjacentID
     {"%nas", 0, "Next AS", String_NextAS},  // Next AS
@@ -2560,3 +2563,8 @@ static void String_PortBlockSize(FILE *stream, recordHandle_t *recordHandle) {
     EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
     fprintf(stream, "%7u", nelXlatePort ? nelXlatePort->blockSize : 0);
 }  // End of String_PortBlockSize
+
+static void String_Ethertype(FILE *stream, recordHandle_t *recordHandle) {
+    EXetherType_t *etherType = (EXetherType_t *)recordHandle->extensionList[EXetherTypeID];
+    fprintf(stream, "0x%04x", etherType->etherType);
+} // End of String_Ethertype

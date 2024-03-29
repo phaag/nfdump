@@ -643,6 +643,14 @@ static void stringEXnelXlatePort(FILE *stream, void *extensionRecord, const char
 
 }  // End of stringEXnelXlatePort
 
+static void stringEXetherType(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    EXetherType_t *etherType = (EXetherType_t *)extensionRecord;
+    fprintf(stream,
+            "%s\"ethertype\" : %u%s",
+            indent, etherType->etherType, fs);
+
+}  // End of stringEXnelXlatePort
+
 void json_prolog(void) {
     recordCount = 0;
     // open json
@@ -775,6 +783,9 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
                 break;
             case EXnelXlatePortID:
                 stringEXnelXlatePort(stream, ptr, indent, fs);
+                break;
+            case EXetherTypeID:
+                stringEXetherType(stream, ptr, indent, fs);
                 break;
             default:
                 dbg_printf("Extension %i not yet implemented\n", r->exElementList[i]);

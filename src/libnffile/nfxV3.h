@@ -641,8 +641,16 @@ typedef struct EXpfinfo_s {
 #define SIZEpfRuleNr MemberSize(EXpfinfo_t, rulenr)
 #define EXpfinfoSize (sizeof(EXpfinfo_t) - 4 + sizeof(elementHeader_t))
 
+typedef struct EXetherType_s {
+#define EXetherTypeID 38
+    uint16_t etherType;
+#define OFFetherType offsetof(EXetherType_t, etherType)
+#define SIZEetherType MemberSize(EXetherType_t, etherType)
+} EXetherType_t;
+#define EXetherTypeSize (sizeof(EXetherType_t) + sizeof(elementHeader_t))
+
 // max possible elements
-#define MAXEXTENSIONS 38
+#define MAXEXTENSIONS 39
 
 // push a fixed length extension to the v3 record
 // h v3 record header
@@ -710,7 +718,7 @@ static const struct extensionTable_s {
     EXTENSION(EXnselXlateIPv4), EXTENSION(EXnselXlateIPv6), EXTENSION(EXnselXlatePort), EXTENSION(EXnselAcl),      EXTENSION(EXnselUser),
     EXTENSION(EXnelCommon),     EXTENSION(EXnelXlatePort),  EXTENSION(EXnbarApp),       EXTENSION(EXlabel),        EXTENSION(EXinPayload),
     EXTENSION(EXoutPayload),    EXTENSION(EXtunIPv4),       EXTENSION(EXtunIPv6),       EXTENSION(EXobservation),  EXTENSION(EXinmonMeta),
-    EXTENSION(EXinmonFrame),    EXTENSION(EXvrf),           EXTENSION(EXpfinfo)};
+    EXTENSION(EXinmonFrame),    EXTENSION(EXvrf),           EXTENSION(EXpfinfo),        EXTENSION(EXetherType)};
 
 typedef struct record_map_s {
     recordHeaderV3_t *recordHeader;

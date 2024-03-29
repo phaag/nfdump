@@ -119,6 +119,8 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value);
 
 static int AddMAC(direction_t direction, char *macString);
 
+static int AddEthertype(uint64_t etherType);
+
 static int AddLatency(char *type, uint16_t comp, uint64_t number);
 
 static int AddASAString(char *event, char *asaStr);
@@ -176,7 +178,7 @@ static int AddASList(direction_t direction, void *U64List);
 %token ENGINE ENGINETYPE ENGINEID EXPORTER
 %token DURATION PPS BPS BPP FLAGS
 %token PROTO PORT AS IF VLAN MPLS MAC ICMP ICMPTYPE ICMPCODE
-%token PACKETS BYTES FLOWS 
+%token PACKETS BYTES FLOWS ETHERTYPE
 %token MASK FLOWDIR TOS FWDSTAT LATENCY ASA ACL PAYLOAD GEO VRF
 %token OBSERVATION PF
 %token <s> STRING
@@ -335,6 +337,10 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| dqual MASK NUMBER {
 		$$.self = AddMaskNumber($1.direction, $3); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| ETHERTYPE NUMBER {
+		$$.self = AddEthertype($2); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| FLOWDIR NUMBER {
@@ -973,6 +979,13 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
 	// unreached
 	return -1;
 } // End of AddMPLS
+
+static int AddEthertype(uint64_t etherType) {
+	return NewElement(EXetherTypeID, OFFetherType, SIZEetherType, etherType, CMP_EQ, FUNC_NONE, NULLPtr);
+
+	// unreached
+	return -1;
+} // End of AddMAC
 
 static int AddMAC(direction_t direction, char *macString) {
 

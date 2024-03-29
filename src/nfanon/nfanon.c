@@ -204,6 +204,8 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
                 break;
             case EXoutPayloadID:
                 break;
+            case EXetherTypeID:
+                break;
             default:
                 LogError("Unknown extension '%u'", elementHeader->type);
         }

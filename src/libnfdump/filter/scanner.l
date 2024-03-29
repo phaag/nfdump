@@ -172,6 +172,7 @@ not|"!"		{ return NOT; }
 "as"        { return AS;       }
 "vlan"      { return VLAN;     }
 "mpls"      { return MPLS;     }
+"etherType" { return ETHERTYPE;}
 "mac"       { return MAC;      }
 "flags"     { return FLAGS;    }
 "icmp"      { return ICMP;     }

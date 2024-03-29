@@ -422,6 +422,13 @@ static inline record_header_t *ConvertRecordV2(recordHandle_t *handle, common_re
                     nelXlatePort->blockEnd = nelXlatePort->blockStart + nelXlatePort->blockSize - 1;
                 p = (void *)tpl->data;
             } break;
+            case EX_ETHERTYPE: {
+                tpl_ext_28_t *tpl = (tpl_ext_28_t *)p;
+                PushExtension(recordHeader, EXetherType, etherType);
+                MapExtension(EXetherTypeID, etherType);
+                etherType->etherType = tpl->etherType;
+                p = (void *)tpl->data;
+            } break;
         }
     }
 

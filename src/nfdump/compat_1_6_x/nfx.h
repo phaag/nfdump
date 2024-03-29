@@ -667,7 +667,12 @@ typedef struct tpl_ext_27_s {
     uint8_t data[4];  // points to further data
 } tpl_ext_27_t;
 
-#define EX_RESERVED_1 28
+#define EX_ETHERTYPE 28
+typedef struct tpl_ext_28_s {
+   uint16_t    etherType;
+   uint8_t     data[4];    // points to further data
+} tpl_ext_28_t;
+
 #define EX_RESERVED_2 29
 #define EX_RESERVED_3 30
 #define EX_RESERVED_4 31
