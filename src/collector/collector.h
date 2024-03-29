@@ -120,7 +120,7 @@ int SetDynamicSourcesDir(FlowSource_t **FlowSource, char *dir);
 
 FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storage *ss);
 
-void RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int done);
+int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int done);
 
 void TriggerLauncher(time_t t_start, char *time_extension, int pfd, FlowSource_t *fs);
 

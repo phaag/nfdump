@@ -356,7 +356,7 @@ FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storag
 
 }  // End of AddDynamicSource
 
-void RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int done) {
+int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int done) {
     // periodic file rotation
     struct tm *now = localtime(&t_start);
     char fmt[32];
@@ -439,7 +439,7 @@ void RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int
             fs->nffile = OpenNewFile(fs->current, fs->nffile, CREATOR_NFCAPD, INHERIT, INHERIT);
             if (!fs->nffile) {
                 LogError("killed due to fatal error: ident: %s", fs->Ident);
-                break;
+                return 0;
             }
             SetIdent(fs->nffile, fs->Ident);
 
@@ -451,6 +451,8 @@ void RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int
         fs = fs->next;
 
     }  // end of while (fs)
+
+    return 1;
 
 }  // End of RotateFlowFiles
 

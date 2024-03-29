@@ -346,7 +346,9 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
             // rotate cycle
             alarm(0);
 
-            RotateFlowFiles(t_start, time_extension, FlowSource, done);
+            if (RotateFlowFiles(t_start, time_extension, FlowSource, done) == 0) {
+                return;
+            }
 
             if (pfd) {
                 TriggerLauncher(t_start, time_extension, pfd, FlowSource);
