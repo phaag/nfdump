@@ -929,11 +929,6 @@ nffile_t *OpenFile(char *filename, nffile_t *nffile) {
 nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compress, int encryption) {
     int fd;
 
-    if (encryption != NOT_ENCRYPTED) {
-        LogError("Unknown encryption ID: %i", encryption);
-        return NULL;
-    }
-
 #ifndef HAVE_ZSTD
     if ((compress & 0xFFFF) == ZSTD_COMPRESSED) {
         LogError("Open file %s: ZSTD compression not compiled in");
