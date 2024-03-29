@@ -399,6 +399,20 @@ static void runTest(void) {
     CheckFilter("dst vlan 1001", recordHandle, 0);
     CheckFilter("src vlan 1001", recordHandle, 1);
 
+    // EXdot1q
+    PushExtension(recordHeaderV3, EXdot1q, dot1q);
+    MapRecordHandle(recordHandle, recordHeaderV3, 1);
+    dot1q->vlanID = 3003;
+    dot1q->postVlanID = 4004;
+    dot1q->customerVlanId = 5005;
+    dot1q->postCustomerVlanId = 6006;
+    CheckFilter("src vlan 1001", recordHandle, 1);
+    CheckFilter("src vlan 3003", recordHandle, 1);
+    CheckFilter("dst vlan 2002", recordHandle, 1);
+    CheckFilter("dst vlan 4004", recordHandle, 1);
+    CheckFilter("vlan 3003", recordHandle, 1);
+    CheckFilter("vlan 4004", recordHandle, 1);
+
     // EXipNextHopV4ID
     PushExtension(recordHeaderV3, EXipNextHopV4, nextHopV4);
     MapRecordHandle(recordHandle, recordHeaderV3, 1);

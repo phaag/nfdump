@@ -410,6 +410,19 @@ int main(int argc, char **argv) {
     UpdateRecord(recordHandle);
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
+    // remove extension
+    RemoveExtension(recordHandle, EXvLanID);
+
+    // EXdot1q
+    PushExtension(v3Record, EXdot1q, dot1q);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    dot1q->vlanID = 47;
+    dot1q->postVlanID = 48;
+    dot1q->customerVlanId = 49;
+    dot1q->postCustomerVlanId = 50;
+    UpdateRecord(recordHandle);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
+
     // EXasRoutingID
     PushExtension(v3Record, EXasRouting, asRouting);
     AssertMapRecordHandle(recordHandle, v3Record, 0);
@@ -503,6 +516,14 @@ int main(int argc, char **argv) {
     latency->usecClientNwDelay = 2;
     latency->usecServerNwDelay = 22;
     latency->usecApplLatency = 222;
+    UpdateRecord(recordHandle);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
+
+    // EXphysicalInterfaceID
+    PushExtension(v3Record, EXphysicalInterface, physicalInterface);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    physicalInterface->ingress = 112233;
+    physicalInterface->egress = 445566;
     UpdateRecord(recordHandle);
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 

@@ -98,6 +98,14 @@
 #define NF_F_BGP_ADJ_NEXT_AS 128
 #define NF_F_BGP_ADJ_PREV_AS 129
 
+#define NF_F_dot1qVlanId 243
+#define NF_F_postDot1qVlanId 254
+#define NF_F_dot1qCustomerVlanId 245
+#define NF_F_postDot1qCustomerVlanId 255
+
+#define NF_F_ingressPhysicalInterface 252
+#define NF_F_egressPhysicalInterface 253
+
 int Init_v9_output(send_peer_t *peer);
 
 int Close_v9_output(send_peer_t *peer);

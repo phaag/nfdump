@@ -44,13 +44,16 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
     elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t));
     // map all extensions
     for (int i = 0; i < recordHeaderV3->numElements; i++) {
-        if ((elementHeader->type > 0 && elementHeader->type < MAXEXTENSIONS) && elementHeader->length != 0) {
-            handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
-            elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
-        } else {
-            LogError("Invalid extension Type: %u, Length: %u", elementHeader->type, elementHeader->length);
+        if (elementHeader->length == 0 || elementHeader->type == 0) {
+            LogInfo("Corrupt extension Type: %u with Length: %u", elementHeader->type, elementHeader->length);
             return 0;
         }
+        if (elementHeader->type < MAXEXTENSIONS) {
+            handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
+        } else {
+            LogInfo("Skip unknown extension Type: %u, Length: %u", elementHeader->type, elementHeader->length);
+        }
+        elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
     }
     handle->extensionList[EXnull] = (void *)recordHeaderV3;
     handle->extensionList[EXlocal] = (void *)handle;

@@ -245,6 +245,17 @@ static void stringEXvLan(FILE *stream, void *extensionRecord, const char *indent
 
 }  // End of stringEXvLan
 
+static void stringEXdot1q(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    EXdot1q_t *dot1q = (EXdot1q_t *)extensionRecord;
+    fprintf(stream,
+            "%s\"vlanID\" : %u%s"
+            "%s\"post_vlanID\" : %u%s"
+            "%s\"cust_vlanID\" : %u%s"
+            "%s\"post_cust_vlanID\" : %u%s",
+            indent, dot1q->vlanID, fs, indent, dot1q->postVlanID, fs, indent, dot1q->customerVlanId, fs, indent, dot1q->postCustomerVlanId, fs);
+
+}  // End of stringEXdot1q
+
 static void stringEXasRouting(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord, const char *indent, const char *fs) {
     EXasRouting_t *asRouting = (EXasRouting_t *)extensionRecord;
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
@@ -526,6 +537,14 @@ static void stringEXvrf(FILE *stream, void *extensionRecord, const char *indent,
 
 }  // End of stringEXvrf
 
+static void stringEXphysInterface(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    EXphysicalInterface_t *physicalInterface = (EXphysicalInterface_t *)extensionRecord;
+    fprintf(stream,
+            "%s\"phys_ingress\" : \"%u\"%s"
+            "%s\"phys_egress\" : \"%u\"%s",
+            indent, physicalInterface->ingress, fs, indent, physicalInterface->egress, fs);
+}  // End of stringEXphysInterface
+
 static void stringEXnselCommon(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)extensionRecord;
 
@@ -701,6 +720,9 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
             case EXvLanID:
                 stringEXvLan(stream, ptr, indent, fs);
                 break;
+            case EXdot1qID:
+                stringEXdot1q(stream, ptr, indent, fs);
+                break;
             case EXasRoutingID:
                 stringEXasRouting(stream, recordHandle, ptr, indent, fs);
                 break;
@@ -751,6 +773,9 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
                 break;
             case EXvrfID:
                 stringEXvrf(stream, ptr, indent, fs);
+                break;
+            case EXphysicalInterfaceID:
+                stringEXphysInterface(stream, ptr, indent, fs);
                 break;
             case EXnselCommonID:
                 stringEXnselCommon(stream, ptr, indent, fs);

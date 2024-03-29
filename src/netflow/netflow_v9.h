@@ -229,6 +229,12 @@ typedef struct common_header_s {
 #define NF_F_dot1qVlanId 243
 #define NF_F_postDot1qVlanId 254
 
+#define NF_F_dot1qCustomerVlanId 245
+#define NF_F_postDot1qCustomerVlanId 255
+
+#define NF_F_ingressPhysicalInterface 252
+#define NF_F_egressPhysicalInterface 253
+
 // CISCO ASA NSEL/NEL extension - Network Security Event Logging
 #define NF_F_CONN_ID 148
 #define NF_F_FLOW_CREATE_TIME_MSEC 152

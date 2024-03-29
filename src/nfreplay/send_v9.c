@@ -357,6 +357,21 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
                 count++;
                 data_length += 4;
                 break;
+            case EXdot1qID:
+                flowset->field[count].type = htons(NF_F_dot1qVlanId);
+                flowset->field[count].length = htons(2);
+                count++;
+                flowset->field[count].type = htons(NF_F_postDot1qVlanId);
+                flowset->field[count].length = htons(2);
+                count++;
+                flowset->field[count].type = htons(NF_F_dot1qCustomerVlanId);
+                flowset->field[count].length = htons(2);
+                count++;
+                flowset->field[count].type = htons(NF_F_postDot1qCustomerVlanId);
+                flowset->field[count].length = htons(2);
+                count++;
+                data_length += 8;
+                break;
             case EXasRoutingID:
                 flowset->field[count].type = htons(NF9_SRC_AS);
                 flowset->field[count].length = htons(4);
@@ -569,6 +584,17 @@ static void Append_Record(send_peer_t *peer, recordHandle_t *recordHandle) {
                 Put_val16(htons(vLan->srcVlan), peer->buff_ptr);
                 peer->buff_ptr += 2;
                 Put_val16(htons(vLan->dstVlan), peer->buff_ptr);
+                peer->buff_ptr += 2;
+            } break;
+            case EXdot1qID: {
+                EXdot1q_t *dot1q = (EXdot1q_t *)elementPtr;
+                Put_val16(htons(dot1q->vlanID), peer->buff_ptr);
+                peer->buff_ptr += 2;
+                Put_val16(htons(dot1q->postVlanID), peer->buff_ptr);
+                peer->buff_ptr += 2;
+                Put_val16(htons(dot1q->customerVlanId), peer->buff_ptr);
+                peer->buff_ptr += 2;
+                Put_val16(htons(dot1q->postCustomerVlanId), peer->buff_ptr);
                 peer->buff_ptr += 2;
             } break;
             case EXasRoutingID: {

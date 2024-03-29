@@ -137,7 +137,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
             if (Node->vlanID) {
                 UpdateRecordSize(EXvLanSize);
                 PushExtension(recordHeader, EXvLan, vlan);
-                vlan->dstVlan = Node->vlanID;
+                vlan->srcVlan = Node->vlanID;
             }
 
             if (Node->srcMac) {

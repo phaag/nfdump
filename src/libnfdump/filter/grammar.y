@@ -1956,17 +1956,28 @@ static int AddVlanNumber(direction_t direction, uint64_t num) {
 
 	int ret = -1;
 	switch ( direction ) {
-		case DIR_UNSPEC:
+		case DIR_UNSPEC: {
+			int src = Connect_OR(
+			  NewElement(EXvLanID, OFFsrcVlan, SIZEsrcVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
+			  NewElement(EXdot1qID, OFFvlanID, SIZEvlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			int dst = Connect_OR(
+			  NewElement(EXvLanID, OFFdstVlan, SIZEdstVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
+			  NewElement(EXdot1qID, OFFpostVlanID, SIZEpostVlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			ret = Connect_OR(src,dst);
+			} break;
+		case DIR_SRC: 
 			ret = Connect_OR(
-				NewElement(EXvLanID, OFFsrcVlan, SIZEsrcVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
-				NewElement(EXvLanID, OFFdstVlan, SIZEdstVlan, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			  NewElement(EXvLanID, OFFsrcVlan, SIZEsrcVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
+			  NewElement(EXdot1qID, OFFvlanID, SIZEvlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
 			);
 			break;
-		case DIR_SRC: 
-			ret = NewElement(EXvLanID, OFFsrcVlan, SIZEsrcVlan, num, CMP_EQ, FUNC_NONE, NULLPtr);
-			break;
 		case DIR_DST: 
-			ret = NewElement(EXvLanID, OFFdstVlan, SIZEdstVlan, num, CMP_EQ, FUNC_NONE, NULLPtr);
+			ret = Connect_OR(
+			  NewElement(EXvLanID, OFFdstVlan, SIZEdstVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
+			  NewElement(EXdot1qID, OFFpostVlanID, SIZEpostVlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
 			break;
 		default:
 			yyerror("Unknown vlan direction");
