@@ -123,11 +123,12 @@ static void stringEXipv4Flow(FILE *stream, void *extensionRecord, const char *in
     LookupV4Location(ipv4Flow->dstAddr, dloc, 128);
 
     fprintf(stream,
+            "%s\"ip_version\" : \"%u\"%s"
             "%s\"src4_addr\" : \"%s\"%s"
             "%s\"dst4_addr\" : \"%s\"%s"
             "%s\"src_geo\" : \"%s\"%s"
             "%s\"dst_geo\" : \"%s\"%s",
-            indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
+            indent, 4, fs, indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
 
 }  // End of stringEXipv4Flow
 
@@ -148,11 +149,12 @@ static void stringEXipv6Flow(FILE *stream, void *extensionRecord, const char *in
     LookupV6Location(ipv6Flow->dstAddr, dloc, 128);
 
     fprintf(stream,
+            "%s\"ip_version\" : \"%u\"%s"
             "%s\"src6_addr\" : \"%s\"%s"
             "%s\"dst6_addr\" : \"%s\"%s"
             "%s\"src_geo\" : \"%s\"%s"
             "%s\"dst_geo\" : \"%s\"%s",
-            indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
+            indent, 6, fs, indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
 
 }  // End of stringEXipv6Flow
 
