@@ -227,7 +227,7 @@ static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
 
     FlushInfoExporter(fs, &((*e)->info));
     sampler->record.exporter_sysid = (*e)->info.sysid;
-    AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
+    fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
 
     dbg_printf("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s\n", (*e)->info.sysid, agentSubId, meanSkipCount, ipstr);
     LogInfo("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s", (*e)->info.sysid, agentSubId, meanSkipCount, ipstr);
@@ -302,14 +302,14 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     }
 
     recordSize += sizeof(recordHeaderV3_t);
-    if (!CheckBufferSpace(fs->nffile, recordSize)) {
-        // fishy! - should never happen. maybe disk full?
-        LogError("SFLOW: output buffer size error. Abort sflow record processing");
-        return;
+    if (!IsAvailable(fs->dataBlock, recordSize)) {
+        // flush block - get an empty one
+        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
     }
 
+    void *buffPtr = GetCurrentCursor(fs->dataBlock);
     dbg_printf("Fill Record\n");
-    AddV3Header(fs->nffile->buff_ptr, recordHeader);
+    AddV3Header(buffPtr, recordHeader);
 
     recordHeader->exporterID = exporter->info.sysid;
     recordHeader->flags = V3_FLAG_SAMPLED;
@@ -508,12 +508,10 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     }
 #endif
     // update file record size ( -> output buffer size )
-    fs->nffile->block_header->NumRecords++;
-    fs->nffile->block_header->size += recordHeader->size;
+    fs->dataBlock->NumRecords++;
+    fs->dataBlock->size += recordHeader->size;
 
     dbg_printf("Record size: Header: %u, calc: %u\n", recordHeader->size, recordSize);
     dbg_assert(recordHeader->size <= recordSize);
-
-    fs->nffile->buff_ptr += recordHeader->size;
 
 }  // End of StoreSflowRecord

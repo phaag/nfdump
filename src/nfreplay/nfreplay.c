@@ -223,7 +223,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
         LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return;
     }
-    if (nffile == EMPTY_LIST) {
+    if (nffile == NULL) {
         LogError("Empty file list. No files to process\n");
         return;
     }
@@ -263,14 +263,10 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
     while (!done) {
         // get next data block from file
         dataBlock = ReadBlock(nffile, dataBlock);
-        if (dataBlock == NF_EOF) {
+        if (dataBlock == NULL) {
             nffile_t *next = GetNextFile(nffile);
-            if (next == EMPTY_LIST) {
-                done = 1;
-            }
             if (next == NULL) {
                 done = 1;
-                LogError("Unexpected end of file list\n");
             }
             FilterSetParam(engine, nffile->ident, NOGEODB);
             // else continue with next file

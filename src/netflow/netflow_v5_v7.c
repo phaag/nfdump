@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -269,7 +269,7 @@ static inline exporter_v5_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *
         sampler->record.algorithm = algorithm;
         sampler->record.spaceInterval = interval;
 
-        AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
+        fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
 
         LogInfo(
             "Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s, algorithm: %i, "
@@ -306,31 +306,24 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // time received for this packet
     uint64_t msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
 
-    // set output buffer memory
-    void *outBuff = fs->nffile->buff_ptr;
     int done = 0;
     while (!done) {
-        netflow_v5_record_t *v5_record;
-        /* Process header */
-
         // count check
         uint16_t count = ntohs(v5_header->count);
         // input buffer size check for all expected records
         if (size_left < (NETFLOW_V5_HEADER_LENGTH + count * rawRecordSize)) {
             LogError("Process_v5: Exporter: %s Not enough data to process v5 record. Abort v5/v7 record processing", GetExporterIP(fs));
-            fs->nffile->buff_ptr = outBuff;
             return;
         }
 
-        // output buffer size check for all expected records
-        if (!CheckBufferSpace(fs->nffile, count * exporter->outRecordSize)) {
-            // fishy! - should never happen. maybe disk full?
-            LogError("Process_v5: output buffer size error. Abort v5/v7 record processing");
-            return;
+        // set output buffer memory
+        void *outBuff = GetCurrentCursor(fs->dataBlock);
+        if (!IsAvailable(fs->dataBlock, count * exporter->outRecordSize)) {
+            // flush block - get an empty one
+            fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+            // map output memory buffer
+            outBuff = GetCursor(fs->dataBlock);
         }
-
-        // map output memory buffer
-        outBuff = fs->nffile->buff_ptr;
 
         // sequence check
         if (exporter->first) {
@@ -361,7 +354,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             ((uint64_t)(v5_header->unix_secs) * 1000 + ((uint64_t)(v5_header->unix_nsecs) / 1000000)) - (uint64_t)(v5_header->SysUptime);
 
         // process all records
-        v5_record = (netflow_v5_record_t *)((pointer_addr_t)v5_header + NETFLOW_V5_HEADER_LENGTH);
+        netflow_v5_record_t *v5_record = (netflow_v5_record_t *)((void *)v5_header + NETFLOW_V5_HEADER_LENGTH);
 
         uint16_t engine_tag = ntohs(v5_header->engine_tag);
         uint8_t engineType = (engine_tag >> 8) & 0xFF;
@@ -504,7 +497,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             // advance to next input flow record
             outBuff += recordHeader->size;
             outSize += recordHeader->size;
-            v5_record = (netflow_v5_record_t *)((pointer_addr_t)v5_record + rawRecordSize);
+            v5_record = (netflow_v5_record_t *)((void *)v5_record + rawRecordSize);
 
             if (recordHeader->size > exporter->outRecordSize) {
                 LogError("Process_v5: Record size check failed! Expected: %u, counted: %u\n", exporter->outRecordSize, recordHeader->size);
@@ -514,9 +507,8 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }  // End of foreach v5 record
 
         // update file record size ( -> output buffer size )
-        fs->nffile->block_header->NumRecords += count;
-        fs->nffile->block_header->size += outSize;
-        fs->nffile->buff_ptr = (void *)outBuff;
+        fs->dataBlock->NumRecords += count;
+        fs->dataBlock->size += outSize;
 
         // still to go for this many input bytes
         size_left -= NETFLOW_V5_HEADER_LENGTH + count * rawRecordSize;

@@ -44,7 +44,6 @@
 
 // include after
 #include "kbtree.h"
-#include "nffile_inline.c"
 
 static inline int torNodeCMP(torNode_t a, torNode_t b) {
     if (a.ipaddr == b.ipaddr) return 0;
@@ -171,36 +170,40 @@ void UpdateTorNode(torNode_t *torNode) {
 int SaveTorTree(char *fileName) {
     nffile_t *nffile = OpenNewFile(fileName, NULL, CREATOR_TORLOOKUP, LZ4_COMPRESSED, NOT_ENCRYPTED);
 
-    void *outBuff = nffile->buff_ptr;
-    size_t size = 0;
+    // get new empty data block
+    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
+    void *outBuff = GetCursor(dataBlock);
 
     kbitr_t itr;
     kb_itr_first(torTree, torTree, &itr);                              // get an iterator pointing to the first
     for (; kb_itr_valid(&itr); kb_itr_next(torTree, torTree, &itr)) {  // move on
         torNode_t *torNode = &kb_itr_key(torNode_t, &itr);
         dbg_printf("ip: %u, first: %ld, last: %ld\n", torNode->ipaddr, torNode->firstSeen, torNode->lastSeen);
-        if (size < sizeof(torNode_t)) {
-            nffile->buff_ptr = (void *)outBuff;
-            size = CheckBufferSpace(nffile, sizeof(torNode_t));
+        if (!IsAvailable(dataBlock, sizeof(torNode_t))) {
+            // flush block - get an empty one
+            dataBlock = WriteBlock(nffile, dataBlock);
 
             // make it an array block
-            nffile->block_header->type = DATA_BLOCK_TYPE_4;
+            dataBlock->type = DATA_BLOCK_TYPE_4;
+            outBuff = GetCursor(dataBlock);
 
-            outBuff = nffile->buff_ptr;
+            // put array header on block
             recordHeader_t *arrayHeader = (recordHeader_t *)outBuff;
             // set array element info
             arrayHeader->type = TorTreeElementID;
             arrayHeader->size = sizeof(torNode_t);
-            nffile->block_header->size += sizeof(recordHeader_t);
-            size -= sizeof(recordHeader_t);
+
+            dataBlock->size += sizeof(recordHeader_t);
             outBuff += sizeof(recordHeader_t);
         }
+
         memcpy(outBuff, torNode, sizeof(torNode_t));
         outBuff += sizeof(torNode_t);
-        size -= sizeof(torNode_t);
-        nffile->block_header->size += sizeof(torNode_t);
-        nffile->block_header->NumRecords++;
+        dataBlock->size += sizeof(torNode_t);
+        dataBlock->NumRecords++;
     }
+    // flush current datablock
+    FlushBlock(nffile, dataBlock);
 
     return CloseUpdateFile(nffile);
 
@@ -220,7 +223,7 @@ int LoadTorTree(char *fileName) {
     while (!done) {
         // get next data block from file
         dataBlock = ReadBlock(nffile, dataBlock);
-        if (dataBlock == NF_EOF) {
+        if (dataBlock == NULL) {
             done = 1;
             continue;
         }
@@ -231,8 +234,8 @@ int LoadTorTree(char *fileName) {
             continue;
         }
 
-        record_header_t *arrayHeader = nffile->buff_ptr;
-        void *arrayElement = (void *)nffile->buff_ptr + sizeof(record_header_t);
+        record_header_t *arrayHeader = GetCursor(nffile);
+        void *arrayElement = (void *)arrayHeader + sizeof(record_header_t);
         size_t expected = (arrayHeader->size * dataBlock->NumRecords) + sizeof(record_header_t);
         if (expected != dataBlock->size) {
             LogError("Array size calculated: %u != expected: %u for element: %u", expected, dataBlock->size, arrayHeader->type);

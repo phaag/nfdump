@@ -89,6 +89,9 @@
     (a)->flags = 0;      \
     (a)->type = DATA_BLOCK_TYPE_3;
 
+#define COMPRESSION_TYPE(c) ((c) & 0xFFFF)
+#define COMPRESSION_LEVEL(c) (((c) >> 16) & 0xFFFF)
+
 static const char *nf_creator[MAX_CREATOR] = {"unknown", "nfcapd",    "nfpcapd",   "sfcapd",    "nfdump",
                                               "nfanon",  "nfprofile", "geolookup", "ft2nfdump", "torlookup"};
 
@@ -717,7 +720,6 @@ static nffile_t *NewFile(nffile_t *nffile) {
     nffile->file_header->magic = MAGIC;
     nffile->file_header->version = LAYOUT_VERSION_2;
 
-    nffile->buff_ptr = NULL;
     nffile->fd = 0;
     nffile->compat16 = 0;
 
@@ -731,9 +733,6 @@ static nffile_t *NewFile(nffile_t *nffile) {
     }
     memset((void *)nffile->stat_record, 0, sizeof(stat_record_t));
     nffile->stat_record->firstseen = 0x7fffffffffffffff;
-
-    nffile->block_header = NULL;
-    nffile->buff_ptr = NULL;
 
     for (int i = 0; i < MAXWORKERS; i++) nffile->worker[i] = 0;
     atomic_store(&nffile->terminate, 0);
@@ -969,11 +968,15 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
     nffile->file_header->magic = MAGIC;
     nffile->file_header->version = LAYOUT_VERSION_2;
     nffile->file_header->nfdversion = NFDVERSION;
-    nffile->file_header->created = time(NULL);
-    nffile->file_header->compression = compress & 0xFFFF;
-    nffile->compression_level = (compress >> 16) & 0xFFFF;
-    nffile->file_header->encryption = encryption;
     nffile->file_header->creator = creator;
+    nffile->file_header->created = time(NULL);
+    if (compress != INHERIT) {
+        nffile->file_header->compression = COMPRESSION_TYPE(compress);
+        nffile->compression_level = COMPRESSION_LEVEL(compress);
+    }
+    if (encryption != INHERIT) {
+        nffile->file_header->encryption = encryption;
+    }
 
     if (write(nffile->fd, (void *)nffile->file_header, sizeof(fileHeaderV2_t)) < sizeof(fileHeaderV2_t)) {
         LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -982,16 +985,12 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
         return NULL;
     }
 
-    // prepare buffer to write to
-    nffile->block_header = NewDataBlock();
-    nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(dataBlock_t));
-
     // kick off nfwriter
     atomic_store(&nffile->terminate, 0);
     queue_open(nffile->processQueue);
 
-    // if file is not compressed, 1 worker is fine.
-    unsigned NumThreads = nffile->file_header->compression == 0 ? 1 : NumWorkers;
+    // if file is not compressed, 2 workers are fine.
+    unsigned NumThreads = nffile->file_header->compression == 0 ? 2 : NumWorkers;
     for (unsigned i = 0; i < NumThreads; i++) {
         pthread_t tid;
         int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
@@ -1044,9 +1043,6 @@ nffile_t *AppendFile(char *filename) {
             return NULL;
         }
     }
-
-    // appending needs no block header
-    nffile->block_header = NULL;
 
     // kick off NumWorkers nfwriter threads
     atomic_store(&nffile->terminate, 0);
@@ -1112,13 +1108,8 @@ int RenameAppend(char *oldName, char *newName) {
 
 }  // End of RenameAppend
 
+// let writers flush pending blocks to disk
 static void FlushFile(nffile_t *nffile) {
-    // push current block, let writers flush it to disk
-    if (nffile->block_header && nffile->block_header->size) {
-        queue_push(nffile->processQueue, nffile->block_header);
-        nffile->block_header = NULL;
-        nffile->buff_ptr = NULL;
-    }
     // done - close queue
     queue_close(nffile->processQueue);
     // wait for queue to be empty
@@ -1139,6 +1130,7 @@ static void FlushFile(nffile_t *nffile) {
 
 }  // End of FlushFile
 
+// close reading file
 void CloseFile(nffile_t *nffile) {
     if (!nffile || nffile->fd == 0) return;
 
@@ -1172,6 +1164,7 @@ void CloseFile(nffile_t *nffile) {
     nffile->file_header->NumBlocks = 0;
 }  // End of CloseFile
 
+// close writing file
 int CloseUpdateFile(nffile_t *nffile) {
     FlushFile(nffile);
 
@@ -1193,11 +1186,6 @@ int CloseUpdateFile(nffile_t *nffile) {
         return 0;
     }
 
-    if (nffile->block_header) {
-        FreeDataBlock(nffile->block_header);
-        nffile->block_header = NULL;
-    }
-
     if (lseek(nffile->fd, 0, SEEK_END) < 0) {
         LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         close(nffile->fd);
@@ -1210,9 +1198,9 @@ int CloseUpdateFile(nffile_t *nffile) {
 
 } /* End of CloseUpdateFile */
 
+// destroy nffile handle: free up all resources
 void DisposeFile(nffile_t *nffile) {
     if (nffile->fd > 0) CloseFile(nffile);
-    if (nffile->block_header) FreeDataBlock(nffile->block_header);
     if (nffile->file_header) free(nffile->file_header);
     if (nffile->stat_record) free(nffile->stat_record);
     if (nffile->ident) free(nffile->ident);
@@ -1246,7 +1234,7 @@ nffile_t *GetNextFile(nffile_t *nffile) {
         char *nextFile = queue_pop(fileQueue);
         if (nextFile == QUEUE_CLOSED) {
             // no or no more files available
-            return EMPTY_LIST;
+            return NULL;
         }
 
         dbg_printf("Process: '%s'\n", nextFile);
@@ -1260,10 +1248,10 @@ nffile_t *GetNextFile(nffile_t *nffile) {
 }  // End of GetNextFile
 
 dataBlock_t *ReadBlock(nffile_t *nffile, dataBlock_t *dataBlock) {
-    if (dataBlock && dataBlock != NF_EOF) FreeDataBlock(dataBlock);
+    if (dataBlock) FreeDataBlock(dataBlock);
     dataBlock = queue_pop(nffile->processQueue);
     if (dataBlock == QUEUE_CLOSED) {  // EOF
-        return NF_EOF;
+        return NULL;
     }
 
     dbg_printf("ReadBlock - read: %u\n", dataBlock->size);
@@ -1406,21 +1394,31 @@ __attribute__((noreturn)) void *nfreader(void *arg) {
 
 }  // End of nfreader
 
-int WriteBlock(nffile_t *nffile) {
-    // empty blocks need not to be written
-    if (nffile->block_header->size != 0) {
-        dbg_printf("WriteBlock - push block with size: %u\n", nffile->block_header->size);
-        queue_push(nffile->processQueue, nffile->block_header);
-
-        nffile->block_header = NewDataBlock();
+dataBlock_t *WriteBlock(nffile_t *nffile, dataBlock_t *dataBlock) {
+    if (dataBlock == NULL) {
+        dataBlock = NewDataBlock();
+    } else if (dataBlock->size != 0) {
+        // empty blocks need not to be written
+        dbg_printf("WriteBlock - push block with size: %u\n", readBlock->size);
+        queue_push(nffile->processQueue, dataBlock);
+        dataBlock = NewDataBlock();
     } else {
         // re-init empty block
-        InitDataBlock(nffile->block_header);
+        InitDataBlock(dataBlock);
     }
-    nffile->buff_ptr = (void *)((void *)nffile->block_header + sizeof(dataBlock_t));
-    return 1;
+    return dataBlock;
 
 }  // End of WriteBlock
+
+void FlushBlock(nffile_t *nffile, dataBlock_t *dataBlock) {
+    if (dataBlock != NULL) {
+        if (dataBlock->size != 0) {
+            queue_push(nffile->processQueue, dataBlock);
+        } else {
+            FreeDataBlock(dataBlock);
+        }
+    }
+}  // End of FlushBlock
 
 static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
     if (block_header->size == 0) {
@@ -1605,9 +1603,9 @@ void ModifyCompressFile(int compress) {
         nffile_r = GetNextFile(nffile_r);
 
         // last file
-        if (!nffile_r || (nffile_r == EMPTY_LIST)) break;
+        if (nffile_r == NULL) break;
 
-        if (nffile_r->file_header->compression == (compress & 0xFFFF)) {
+        if (nffile_r->file_header->compression == COMPRESSION_TYPE(compress)) {
             printf("File %s is already same compression method\n", nffile_r->fileName);
             continue;
         }
@@ -1785,9 +1783,11 @@ int QueryFile(char *filename, int verbose) {
     }
     nffile->fd = fd;
     nffile->fileName = strdup(filename);
-    nffile->block_header = NewDataBlock();
     memcpy(nffile->file_header, &fileHeader, sizeof(fileHeader));
 
+    // read buffer
+    dataBlock_t *readBlock = NewDataBlock();
+    // tmp uncompress buffer
     dataBlock_t *buff = NewDataBlock();
 
     printf("Checking data blocks\n");
@@ -1804,9 +1804,10 @@ int QueryFile(char *filename, int verbose) {
             LogError("Expected %u blocks, counted %i", fileHeader.NumBlocks, i);
             break;
         }
-        ret = read(fd, nffile->block_header, sizeof(dataBlock_t));
+        ret = read(fd, readBlock, sizeof(dataBlock_t));
         if (ret < 0) {
             LogError("Error reading block %i: %s", numBlocks, strerror(errno));
+            FreeDataBlock(readBlock);
             close(fd);
             return 0;
         }
@@ -1824,7 +1825,7 @@ int QueryFile(char *filename, int verbose) {
         }
         numBlocks++;
 
-        switch (nffile->block_header->type) {
+        switch (readBlock->type) {
             case DATA_BLOCK_TYPE_1:
                 type1++;
                 break;
@@ -1838,34 +1839,34 @@ int QueryFile(char *filename, int verbose) {
                 type4++;
                 break;
             default:
-                printf("block %i has unknown type %u\n", numBlocks, nffile->block_header->type);
+                printf("block %i has unknown type %u\n", numBlocks, readBlock->type);
                 close(fd);
                 return 0;
         }
 
-        if ((nffile->block_header->size) > (BUFFSIZE - sizeof(dataBlock_t))) {
+        if ((readBlock->size) > (BUFFSIZE - sizeof(dataBlock_t))) {
             LogError("Expected to seek beyond EOF! File corrupted");
             close(fd);
             return 0;
         }
 
-        if ((fpos + sizeof(dataBlock_t) + nffile->block_header->size) > stat_buf.st_size) {
+        if ((fpos + sizeof(dataBlock_t) + readBlock->size) > stat_buf.st_size) {
             LogError("Expected to seek beyond EOF! File corrupted");
             close(fd);
             return 0;
         }
 
         if (verbose) {
-            printf("Checking block %i, offset: %lld, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, (long long)fpos,
-                   nffile->block_header->type, nffile->block_header->size, nffile->block_header->flags, nffile->block_header->NumRecords);
+            printf("Checking block %i, offset: %lld, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, (long long)fpos, readBlock->type,
+                   readBlock->size, readBlock->flags, readBlock->NumRecords);
         }
         int compression = nffile->file_header->compression;
-        if (TestFlag(nffile->block_header->flags, FLAG_BLOCK_UNCOMPRESSED)) {
+        if (TestFlag(readBlock->flags, FLAG_BLOCK_UNCOMPRESSED)) {
             compression = NOT_COMPRESSED;
         }
 
-        nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(dataBlock_t));
-        ret = read(nffile->fd, nffile->buff_ptr, nffile->block_header->size);
+        void *read_ptr = GetCursor(readBlock);
+        ret = read(nffile->fd, read_ptr, readBlock->size);
         if (ret < 0) {
             LogError("Error reading block %i: %s", numBlocks, strerror(errno));
             close(fd);
@@ -1877,8 +1878,8 @@ int QueryFile(char *filename, int verbose) {
             close(fd);
             return 0;
         }
-        if (ret != nffile->block_header->size) {
-            LogError("Short read: Expected %u bytes, read: %i", nffile->block_header->size, ret);
+        if (ret != readBlock->size) {
+            LogError("Short read: Expected %u bytes, read: %i", readBlock->size, ret);
             close(fd);
             return 0;
         }
@@ -1888,76 +1889,76 @@ int QueryFile(char *filename, int verbose) {
             case NOT_COMPRESSED:
                 break;
             case LZO_COMPRESSED: {
-                dataBlock_t *b = nffile->block_header;
-                nffile->block_header = buff;
+                dataBlock_t *b = readBlock;
+                readBlock = buff;
                 buff = b;
-                if (Uncompress_Block_LZO(buff, nffile->block_header, nffile->buff_size) < 0) {
+                if (Uncompress_Block_LZO(buff, readBlock, nffile->buff_size) < 0) {
                     LogError("LZO decompress failed");
                     failed = 1;
                 }
             } break;
             case LZ4_COMPRESSED: {
-                dataBlock_t *b = nffile->block_header;
-                nffile->block_header = buff;
+                dataBlock_t *b = readBlock;
+                readBlock = buff;
                 buff = b;
-                if (Uncompress_Block_LZ4(buff, nffile->block_header, nffile->buff_size) < 0) {
+                if (Uncompress_Block_LZ4(buff, readBlock, nffile->buff_size) < 0) {
                     LogError("LZ4 decompress failed");
                     failed = 1;
                 }
             } break;
             case BZ2_COMPRESSED: {
-                dataBlock_t *b = nffile->block_header;
-                nffile->block_header = buff;
+                dataBlock_t *b = readBlock;
+                readBlock = buff;
                 buff = b;
-                if (Uncompress_Block_BZ2(buff, nffile->block_header, nffile->buff_size) < 0) {
+                if (Uncompress_Block_BZ2(buff, readBlock, nffile->buff_size) < 0) {
                     LogError("Bzip2 decompress failed");
                     failed = 1;
                 }
             } break;
             case ZSTD_COMPRESSED: {
-                dataBlock_t *b = nffile->block_header;
-                nffile->block_header = buff;
+                dataBlock_t *b = readBlock;
+                readBlock = buff;
                 buff = b;
-                if (Uncompress_Block_ZSTD(buff, nffile->block_header, nffile->buff_size) < 0) {
+                if (Uncompress_Block_ZSTD(buff, readBlock, nffile->buff_size) < 0) {
                     LogError("Zstd decompress failed");
                     failed = 1;
                 }
             } break;
             default:
-                LogError("Unknown compression: %d", compression);
+                LogError("Unknown compression ID: %d", compression);
                 failed = 1;
         }
 
         if (failed) continue;
 
         if (verbose)
-            printf("Uncompressed block %i, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, nffile->block_header->type,
-                   nffile->block_header->size, nffile->block_header->flags, nffile->block_header->NumRecords);
+            printf("Uncompressed block %i, type: %u, size: %u, flags: 0x%x, records: %u\n", numBlocks, readBlock->type, readBlock->size,
+                   readBlock->flags, readBlock->NumRecords);
 
-        nffile->buff_ptr = (void *)((pointer_addr_t)nffile->block_header + sizeof(dataBlock_t));
+        read_ptr = GetCursor(readBlock);
 
         // record counting
         int blockSize = 0;
         int numRecords = 0;
-        if (nffile->block_header->type == DATA_BLOCK_TYPE_4) {  // array block
-            recordHeader_t *recordHeader = (recordHeader_t *)nffile->buff_ptr;
+        if (readBlock->type == DATA_BLOCK_TYPE_4) {  // array block
+            recordHeader_t *recordHeader = (recordHeader_t *)read_ptr;
             blockSize += sizeof(recordHeader_t);
             LogError("Array block: Record type: %u, size: %u", recordHeader->type, recordHeader->size);
-            while (blockSize < nffile->block_header->size) {
+            while (blockSize < readBlock->size) {
                 blockSize += recordHeader->size;
                 numRecords++;
             }
-            if (blockSize != nffile->block_header->size) {
-                LogError("Error in block: %u, counted array size: %u != header size: %u\n", numBlocks, blockSize, nffile->block_header->size);
+            if (blockSize != readBlock->size) {
+                LogError("Error in block: %u, counted array size: %u != header size: %u\n", numBlocks, blockSize, readBlock->size);
                 close(fd);
                 return 0;
             }
         } else {
-            while (blockSize < nffile->block_header->size) {
-                recordHeader_t *recordHeader = (recordHeader_t *)nffile->buff_ptr;
+            while (blockSize < readBlock->size) {
+                recordHeader_t *recordHeader = (recordHeader_t *)read_ptr;
                 numRecords++;
-                if ((blockSize + recordHeader->size) > nffile->block_header->size) {
-                    LogError("Record size %u extends beyond block size: %u", blockSize + recordHeader->size, nffile->block_header->size);
+                if ((blockSize + recordHeader->size) > readBlock->size) {
+                    LogError("Record size %u extends beyond block size: %u", blockSize + recordHeader->size, readBlock->size);
                     close(fd);
                     return 0;
                 }
@@ -1983,18 +1984,18 @@ int QueryFile(char *filename, int verbose) {
                     close(fd);
                     return 0;
                 }
-                nffile->buff_ptr += recordHeader->size;
+                read_ptr += recordHeader->size;
             }
         }
-        if (numRecords != nffile->block_header->NumRecords) {
-            LogError("Block %u num records %u != counted records: %u", i, nffile->block_header->NumRecords, numRecords);
+        if (numRecords != readBlock->NumRecords) {
+            LogError("Block %u num records %u != counted records: %u", i, readBlock->NumRecords, numRecords);
             close(fd);
             return 0;
         }
         totalRecords += numRecords;
 
-        if (blockSize != nffile->block_header->size) {
-            LogError("block size %u != sum record size: %u", blockSize, nffile->block_header->size);
+        if (blockSize != readBlock->size) {
+            LogError("block size %u != sum record size: %u", blockSize, readBlock->size);
             close(fd);
             return 0;
         }
@@ -2010,6 +2011,7 @@ int QueryFile(char *filename, int verbose) {
         }
     }
 
+    FreeDataBlock(readBlock);
     FreeDataBlock(buff);
 
     off_t fsize = lseek(fd, 0, SEEK_CUR);

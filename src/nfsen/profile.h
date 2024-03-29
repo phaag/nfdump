@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -55,6 +55,7 @@ typedef struct profile_channel_info_s {
     char *rrdfile;       // rrd filename for update
     char *dirstat_path;  // pathname for dirstat file
     nffile_t *nffile;
+    dataBlock_t *dataBlock;
     stat_record_t stat_record;
     int type;
     dirstat_t *dirstat;

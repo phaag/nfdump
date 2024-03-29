@@ -172,7 +172,7 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
 
 int AddSamplerLegacyRecord(samplerV0_record_t *sampler_record) {
     if (sampler_record->size != sizeof(samplerV0_record_t)) {
-        LogError("Corrupt sampler record in %s line %d\n", __FILE__, __LINE__);
+        LogError("Corrupt sampler record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
 
@@ -304,7 +304,7 @@ exporter_t *GetExporterInfo(int exporterID) {
 
 }  // End of GetExporter
 
-void ExportExporterList(nffile_t *nffile) {
+dataBlock_t *ExportExporterList(nffile_t *nffile, dataBlock_t *dataBlock) {
     // sysid 0 unused -> no exporter available
     int i = 1;
     while (i < MAX_EXPORTERS && exporter_list[i] != NULL) {
@@ -312,16 +312,17 @@ void ExportExporterList(nffile_t *nffile) {
         sampler_t *sampler;
 
         exporter = &exporter_list[i]->info;
-        AppendToBuffer(nffile, (void *)exporter, exporter->header.size);
+        dataBlock = AppendToBuffer(nffile, dataBlock, (void *)exporter, exporter->header.size);
 
         sampler = exporter_list[i]->sampler;
         while (sampler) {
-            AppendToBuffer(nffile, (void *)&(sampler->record), sampler->record.size);
+            dataBlock = AppendToBuffer(nffile, dataBlock, (void *)&(sampler->record), sampler->record.size);
             sampler = sampler->next;
         }
 
         i++;
     }
+    return dataBlock;
 
 }  // End of ExportExporterList
 
@@ -339,7 +340,7 @@ void PrintExporters(void) {
     while (!done) {
         // get next data block from file
         dataBlock = ReadBlock(nffile, dataBlock);
-        if (dataBlock == NF_EOF) {
+        if (dataBlock == NULL) {
             done = 1;
             continue;
         }
@@ -369,6 +370,7 @@ void PrintExporters(void) {
                     if (!AddSamplerRecord((sampler_record_t *)record)) {
                         LogError("Failed to add sampler record\n");
                     }
+                    break;
                 case SamplerLegacyRecordType:
                     if (!AddSamplerLegacyRecord((samplerV0_record_t *)record)) {
                         LogError("Failed to add legacy sampler record\n");

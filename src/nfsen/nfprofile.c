@@ -104,7 +104,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
         LogError("GetNextFile() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
-    if (nffile == EMPTY_LIST) {
+    if (nffile == NULL) {
         LogError("Empty file list. No files to process");
         return;
     }
@@ -126,15 +126,10 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
     while (!done) {
         // get next data block from file
         dataBlock = ReadBlock(nffile, dataBlock);
-        if (dataBlock == NF_EOF) {
+        if (dataBlock == NULL) {
             nffile_t *next = GetNextFile(nffile);
-            if (next == EMPTY_LIST) {
-                done = 1;
-                continue;
-            }
             if (next == NULL) {
                 done = 1;
-                LogError("Unexpected end of file list");
                 continue;
             }
             for (int j = 0; j < num_channels; j++) {
@@ -183,7 +178,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                         // check if we need to flush the output buffer
                         if (channels[j].nffile != NULL) {
                             // write record to output buffer
-                            AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
+                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
 
                     }  // End of for all channels
@@ -195,7 +190,8 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                         for (int j = 0; j < num_channels; j++) {
                             if (channels[j].nffile != NULL && err == 1) {
                                 // flush new exporter
-                                AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
+                                channels[j].dataBlock =
+                                    AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                             }
                         }
                     } else {
@@ -211,7 +207,8 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                         for (int j = 0; j < num_channels; j++) {
                             if (channels[j].nffile != NULL && err == 1) {
                                 // flush new map
-                                AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
+                                channels[j].dataBlock =
+                                    AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                             }
                         }
                     } else {
@@ -224,7 +221,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                     for (int j = 0; j < num_channels; j++) {
                         if (channels[j].nffile != NULL) {
                             // flush new map
-                            AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
+                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
                     }
                     break;
@@ -253,11 +250,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
     for (int j = 0; j < num_channels; j++) {
         if (channels[j].nffile != NULL) {
             // flush output buffer
-            if (channels[j].nffile->block_header->NumRecords) {
-                if (WriteBlock(channels[j].nffile) <= 0) {
-                    LogError("Failed to flush output buffer to disk: '%s'", strerror(errno));
-                }
-            }
+            FlushBlock(channels[j].nffile, channels[j].dataBlock);
             *channels[j].nffile->stat_record = channels[j].stat_record;
         }
     }

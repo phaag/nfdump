@@ -241,6 +241,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
     char *ofile = NULL;
     char *wfile = NULL;
     nffile_t *nffile = NULL;
+    dataBlock_t *dataBlock = NULL;
     if ((profile_param->profiletype & 4) == 0) {  // no shadow profile
         int is_alert = (profile_param->profiletype & 8) == 8;
         if (!is_alert && subdir_index && strlen(filename) == 19 && (strncmp(filename, "nfcapd.", 7) == 0)) {
@@ -287,6 +288,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
             return;
         }
         SetIdent(nffile, profile_param->channelname);
+        dataBlock = WriteBlock(nffile, NULL);
     }
 
     snprintf(path, MAXPATHLEN - 1, "%s/%s/%s/%s.rrd", profile_statdir, profile_param->profilegroup, profile_param->profilename,
@@ -316,6 +318,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
     profile_channels[num_channels].dirstat_path = strdup(path);
     profile_channels[num_channels].type = profile_param->profiletype;
     profile_channels[num_channels].nffile = nffile;
+    profile_channels[num_channels].dataBlock = dataBlock;
 
     memset((void *)&profile_channels[num_channels].stat_record, 0, sizeof(stat_record_t));
 

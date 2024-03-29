@@ -29,38 +29,9 @@
  *
  */
 
-static inline size_t CheckBufferSpace(nffile_t *nffile, size_t required);
-
 static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint32_t flowCount);
 
-static inline void AppendToBuffer(nffile_t *nffile, void *record, size_t required);
-
-static inline size_t CheckBufferSpace(nffile_t *nffile, size_t required) {
-    // if actual output size is unknown, make sure at least
-    // MAXRECORDSIZE is available
-    if (required == 0) {
-        required = MAXRECORDSIZE;
-    }
-    dbg_printf("Buffer Size %u, check for %zu\n", nffile->block_header->size, required);
-
-    // flush current buffer to disc
-    if ((nffile->block_header->size + required) > WRITE_BUFFSIZE) {
-        if (required > WRITE_BUFFSIZE) {
-            // this should never happen, but catch it anyway
-            LogError("Required buffer size %zu too big for output buffer!", required);
-            return 0;
-        }
-
-        if (WriteBlock(nffile) <= 0) {
-            LogError("Failed to write output buffer to disk: '%s'", strerror(errno));
-            return 0;
-        }
-    }
-
-    dbg_printf("CheckBuffer returns %u\n", WRITE_BUFFSIZE - nffile->block_header->size);
-    return WRITE_BUFFSIZE - nffile->block_header->size;
-
-}  // End of CheckBufferSpace
+static inline dataBlock_t *AppendToBuffer(nffile_t *nffile, dataBlock_t *dataBlock, void *record, size_t required);
 
 static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint32_t flowCount) {
     if (handle->extensionList[SSLindex]) free(handle->extensionList[SSLindex]);
@@ -99,20 +70,19 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
     return 1;
 }
 
-static inline void AppendToBuffer(nffile_t *nffile, void *record, size_t required) {
-    // flush current buffer to disc
-    if (!CheckBufferSpace(nffile, required)) {
-        return;
+static inline dataBlock_t *AppendToBuffer(nffile_t *nffile, dataBlock_t *dataBlock, void *record, size_t required) {
+    if (!IsAvailable(dataBlock, required)) {
+        // flush block - get an empty one
+        dataBlock = WriteBlock(nffile, dataBlock);
+        // map output memory buffer
     }
-
+    void *cur = GetCurrentCursor(dataBlock);
     // enough buffer space available at this point
-    memcpy(nffile->buff_ptr, record, required);
+    memcpy(cur, record, required);
 
     // update stat
-    nffile->block_header->NumRecords++;
-    nffile->block_header->size += required;
+    dataBlock->NumRecords++;
+    dataBlock->size += required;
 
-    // advance write pointer
-    nffile->buff_ptr = (void *)((pointer_addr_t)nffile->buff_ptr + required);
-
+    return dataBlock;
 }  // End of AppendToBuffer

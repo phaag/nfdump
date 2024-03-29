@@ -62,4 +62,14 @@
 
 #define MaxRecordID 15
 
+// array record types
+// maxmind
+#define LocalInfoElementID 1
+#define IPV4treeElementID 2
+#define IPV6treeElementID 3
+#define ASV4treeElementID 4
+#define ASV6treeElementID 5
+// tor
+#define TorTreeElementID 6
+
 #endif

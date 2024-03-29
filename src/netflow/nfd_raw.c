@@ -187,7 +187,6 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         return;
     }
 
-    int buffAvail = 0;
     // 1st record
     recordHeaderV3_t *recordHeaderV3 = in_buff + sizeof(nfd_header_t);
     size_left -= sizeof(nfd_header_t);
@@ -200,25 +199,23 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             return;
         }
 
-        if (recordHeaderV3->size > buffAvail) {
-            buffAvail = CheckBufferSpace(fs->nffile, recordHeaderV3->size + receivedSize);
-            if (buffAvail == 0) {
-                LogError("Process_nfd: output buffer size error.");
-                return;
-            }
-        }
-
         if (recordHeaderV3->size > size_left) {
             LogError("Process_nfd: record size error.");
             dbg_printf("Process_nfd: record size error.");
             return;
         }
 
+        if (!IsAvailable(fs->dataBlock, recordHeaderV3->size + receivedSize)) {
+            // flush block - get an empty one
+            fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+        }
+
         // copy record
-        memcpy(fs->nffile->buff_ptr, (void *)recordHeaderV3, recordHeaderV3->size);
+        void *buffPtr = GetCurrentCursor(fs->dataBlock);
+        memcpy(buffPtr, (void *)recordHeaderV3, recordHeaderV3->size);
 
         // add router IP at the end of copied record
-        recordHeaderV3_t *copiedV3 = fs->nffile->buff_ptr;
+        recordHeaderV3_t *copiedV3 = buffPtr;
         // add router IP
 
         if (GetExtension(recordHeaderV3, EXipReceivedV4ID) == NULL && GetExtension(recordHeaderV3, EXipReceivedV6ID) == NULL) {
@@ -292,12 +289,9 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         // update size_left
         size_left -= recordHeaderV3->size;
 
-        // advance output
-        fs->nffile->buff_ptr += copiedV3->size;
-
         // update record block
-        fs->nffile->block_header->size += copiedV3->size;
-        fs->nffile->block_header->NumRecords++;
+        fs->dataBlock->size += copiedV3->size;
+        fs->dataBlock->NumRecords++;
 
         // advance input buffer to next flow record
         recordHeaderV3 = (recordHeaderV3_t *)((void *)recordHeaderV3 + recordHeaderV3->size);

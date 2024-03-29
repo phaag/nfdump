@@ -263,6 +263,8 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
     int write_file = !(sort_flows || flow_stat || element_stat) && wfile;
     nffile_r = NULL;
     nffile_w = NULL;
+    dataBlock_t *dataBlock_r = NULL;
+    dataBlock_t *dataBlock_w = NULL;
 
     // Get the first file handle
     nffile_r = GetNextFile(NULL);
@@ -270,7 +272,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
         LogError("GetNextFile() error in %s line %d", __FILE__, __LINE__);
         return stat_record;
     }
-    if (nffile_r == EMPTY_LIST) {
+    if (nffile_r == NULL) {
         LogError("Empty file list. No files to process\n");
         return stat_record;
     }
@@ -289,6 +291,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
             }
             return stat_record;
         }
+        dataBlock_w = WriteBlock(nffile_w, NULL);
         SetIdent(nffile_w, nffile_r->ident);
     }
     FilterSetParam(engine, nffile_r->ident, outputParams->hasGeoDB);
@@ -299,18 +302,14 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
         return stat_record;
     }
 
-    dataBlock_t *dataBlock = NULL;
     int done = 0;
     while (!done) {
         // get next data block from file
-        dataBlock = ReadBlock(nffile_r, dataBlock);
-        if (dataBlock == NF_EOF) {
+        dataBlock_r = ReadBlock(nffile_r, dataBlock_r);
+        if (dataBlock_r == NULL) {
             nffile_t *next = GetNextFile(nffile_r);
-            if (next == EMPTY_LIST) {
+            if (next == NULL) {
                 done = 1;
-            } else if (next == NULL) {
-                done = 1;
-                LogError("Unexpected end of file list\n");
             } else {
                 // Update global time span window
                 if (next->stat_record->firstseen < t_first_flow) t_first_flow = next->stat_record->firstseen;
@@ -321,25 +320,34 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
             continue;
         }
         // successfully read block
-        total_bytes += dataBlock->size;
+        total_bytes += dataBlock_r->size;
 
-        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
-            if (dataBlock->type != DATA_BLOCK_TYPE_4) {  // skip array blocks
-                if (dataBlock->type == DATA_BLOCK_TYPE_1)
-                    LogError("nfdump 1.5.x block type 1 no longer supported. Skip block");
-                else
-                    LogError("Unknown block type %u. Skip block", dataBlock->type);
-            }
-            skipped_blocks++;
-            continue;
+        switch (dataBlock_r->type) {
+            case DATA_BLOCK_TYPE_1:
+                LogError("nfdump 1.5.x block type 1 no longer supported. Skip block");
+                goto SKIP;
+                break;
+            case DATA_BLOCK_TYPE_2:
+            case DATA_BLOCK_TYPE_3:
+                // processed blocks
+                break;
+            case DATA_BLOCK_TYPE_4:
+                // silently skipped
+                goto SKIP;
+                break;
+            default:
+                LogError("Unknown block type %u. Skip block", dataBlock_r->type);
+            SKIP:
+                skipped_blocks++;
+                continue;
         }
 
         uint32_t sumSize = 0;
-        record_header_t *record_ptr = GetCursor(dataBlock);
-        dbg_printf("Block has %i records\n", dataBlock->NumRecords);
-        for (int i = 0; i < dataBlock->NumRecords && !done; i++) {
+        record_header_t *record_ptr = GetCursor(dataBlock_r);
+        dbg_printf("Block has %i records\n", dataBlock_r->NumRecords);
+        for (int i = 0; i < dataBlock_r->NumRecords && !done; i++) {
             record_header_t *process_ptr = record_ptr;
-            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
+            if ((sumSize + record_ptr->size) > dataBlock_r->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
                 exit(EXIT_FAILURE);
             }
@@ -407,7 +415,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                         InsertFlow(recordHandle);
                     } else {
                         if (write_file) {
-                            AppendToBuffer(nffile_w, (void *)process_ptr, process_ptr->size);
+                            dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)process_ptr, process_ptr->size);
                         } else if (print_record) {
                             // if we need to print out this record
                             print_record(stdout, recordHandle, outputParams->doTag);
@@ -429,7 +437,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                 case ExporterInfoRecordType: {
                     int ret = AddExporterInfo((exporter_info_record_t *)record_ptr);
                     if (ret != 0) {
-                        if (write_file && ret == 1) AppendToBuffer(nffile_w, (void *)record_ptr, record_ptr->size);
+                        if (write_file && ret == 1) dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
                     } else {
                         LogError("Failed to add Exporter Record\n");
                     }
@@ -443,7 +451,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                 case SamplerRecordType: {
                     int ret = AddSamplerRecord((sampler_record_t *)record_ptr);
                     if (ret != 0) {
-                        if (write_file && ret == 1) AppendToBuffer(nffile_w, (void *)record_ptr, record_ptr->size);
+                        if (write_file && ret == 1) dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
                     } else {
                         LogError("Failed to add Sampler Record\n");
                     }
@@ -486,13 +494,9 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
     CloseFile(nffile_r);
 
     // flush output file
-    if (write_file) {
+    if (nffile_w) {
         // flush current buffer to disc
-        if (nffile_w->block_header->NumRecords) {
-            if (WriteBlock(nffile_w) <= 0) {
-                LogError("Failed to write output buffer to disk: '%s'", strerror(errno));
-            }
-        }
+        FlushBlock(nffile_w, dataBlock_w);
 
         /* Copy stat info and close file */
         memcpy((void *)nffile_w->stat_record, (void *)&stat_record, sizeof(stat_record_t));
@@ -500,7 +504,7 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
         DisposeFile(nffile_w);
     }
 
-    FreeDataBlock(dataBlock);
+    FreeDataBlock(dataBlock_r);
     DisposeFile(nffile_r);
     return stat_record;
 
@@ -936,7 +940,7 @@ int main(int argc, char **argv) {
         if (nffile->ident) {
             ident = strdup(nffile->ident);
         }
-        while (nffile && nffile != EMPTY_LIST) {
+        while (nffile != NULL) {
             SumStatRecords(&sum_stat, nffile->stat_record);
             nffile = GetNextFile(nffile);
         }
@@ -1005,7 +1009,7 @@ int main(int argc, char **argv) {
             exit(250);
         }
         printf("# yyyy-mm-dd HH:MM:SS,flows,packets,bytes\n");
-        while (nffile && nffile != EMPTY_LIST) {
+        while (nffile != NULL) {
             PrintGNUplotSumStat(nffile);
             nffile = GetNextFile(nffile);
         }

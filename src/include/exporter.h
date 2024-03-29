@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2023, Peter Haag
+ *  Copyright (c) 2012-2024, Peter Haag
  *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
@@ -188,7 +188,7 @@ int AddSamplerLegacyRecord(samplerV0_record_t *sampler_record);
 
 int AddExporterStat(exporter_stats_record_t *stat_record);
 
-void ExportExporterList(nffile_t *nffile);
+dataBlock_t *ExportExporterList(nffile_t *nffile, dataBlock_t *dataBlock);
 
 exporter_t *GetExporterInfo(int exporterID);
 

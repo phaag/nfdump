@@ -53,8 +53,6 @@ typedef struct torNode_s {
     interval_t interval[MAXINTERVALS];
 } torNode_t;
 
-#define TorTreeElementID 6
-
 int Init_TorLookup(void);
 
 void UpdateTorNode(torNode_t *torNode);

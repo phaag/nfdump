@@ -60,7 +60,7 @@ static void usage(char *name);
 
 static inline void AnonRecord(recordHeaderV3_t *v3Record);
 
-static inline void WriteAnonRecord(nffile_t *wfile, recordHeaderV3_t *v3Record);
+static inline dataBlock_t *WriteAnonRecord(nffile_t *wfile, dataBlock_t *dataBlock, recordHeaderV3_t *v3Record);
 
 static void process_data(void *wfile, int verbose);
 
@@ -219,19 +219,20 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
 
 }  // End of AnonRecord
 
-static inline void WriteAnonRecord(nffile_t *wfile, recordHeaderV3_t *v3Record) {
+static inline dataBlock_t *WriteAnonRecord(nffile_t *wfile, dataBlock_t *dataBlock, recordHeaderV3_t *v3Record) {
     // output buffer size check for all expected records
-    if (!CheckBufferSpace(wfile, v3Record->size)) {
-        LogError("WriteAnonRecord(): output buffer size error");
-        return;
+    if (!IsAvailable(dataBlock, v3Record->size)) {
+        // flush block - get an empty one
+        dataBlock = WriteBlock(wfile, dataBlock);
     }
 
-    memcpy(wfile->buff_ptr, (void *)v3Record, v3Record->size);
+    void *buffPtr = GetCurrentCursor(dataBlock);
+    memcpy(buffPtr, (void *)v3Record, v3Record->size);
 
-    wfile->block_header->NumRecords++;
-    wfile->block_header->size += v3Record->size;
-    wfile->buff_ptr += v3Record->size;
+    dataBlock->NumRecords++;
+    dataBlock->size += v3Record->size;
 
+    return dataBlock;
 }  // End of WriteAnonRecord
 
 static void process_data(void *wfile, int verbose) {
@@ -244,7 +245,7 @@ static void process_data(void *wfile, int verbose) {
         LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return;
     }
-    if (nffile_r == EMPTY_LIST) {
+    if (nffile_r == NULL) {
         LogError("Empty file list. No files to process\n");
         return;
     }
@@ -274,22 +275,23 @@ static void process_data(void *wfile, int verbose) {
         }
         return;
     }
+    dataBlock_t *dataBlock_w = WriteBlock(nffile_w, NULL);
 
     SetIdent(nffile_w, FILE_IDENT(nffile_r));
     memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
 
-    dataBlock_t *dataBlock = NULL;
+    dataBlock_t *dataBlock_r = NULL;
     int blk_count = 0;
     int done = 0;
     while (!done) {
         // get next data block from file
-        dataBlock = ReadBlock(nffile_r, dataBlock);
+        dataBlock_r = ReadBlock(nffile_r, dataBlock_r);
         if (verbose) {
             printf("\r%c", spinner[blk_count & 0x3]);
             blk_count++;
         }
 
-        if (dataBlock == NF_EOF) {
+        if (dataBlock_r == NULL) {
             if (wfile == NULL) {
                 CloseUpdateFile(nffile_w);
                 if (rename(outfile, cfile) < 0) {
@@ -299,7 +301,7 @@ static void process_data(void *wfile, int verbose) {
             }
 
             nffile_t *next = GetNextFile(nffile_r);
-            if (next == EMPTY_LIST || next == NULL) {
+            if (next == NULL) {
                 done = 1;
                 printf("\nDone\n");
                 continue;
@@ -332,15 +334,15 @@ static void process_data(void *wfile, int verbose) {
             continue;
         }
 
-        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
-            LogError("Can't process block type %u. Skip block", dataBlock->type);
+        if (dataBlock_r->type != DATA_BLOCK_TYPE_2 && dataBlock_r->type != DATA_BLOCK_TYPE_3) {
+            LogError("Can't process block type %u. Skip block", dataBlock_r->type);
             continue;
         }
 
-        record_header_t *record_ptr = GetCursor(dataBlock);
+        record_header_t *record_ptr = GetCursor(dataBlock_r);
         uint32_t sumSize = 0;
-        for (int i = 0; i < dataBlock->NumRecords; i++) {
-            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
+        for (int i = 0; i < dataBlock_r->NumRecords; i++) {
+            if ((sumSize + record_ptr->size) > dataBlock_r->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
                 exit(255);
             }
@@ -349,7 +351,7 @@ static void process_data(void *wfile, int verbose) {
             switch (record_ptr->type) {
                 case V3Record:
                     AnonRecord((recordHeaderV3_t *)record_ptr);
-                    WriteAnonRecord(nffile_w, (recordHeaderV3_t *)record_ptr);
+                    dataBlock_w = WriteAnonRecord(nffile_w, dataBlock_w, (recordHeaderV3_t *)record_ptr);
                     break;
                 case ExporterInfoRecordType:
                 case ExporterStatRecordType:
@@ -373,7 +375,7 @@ static void process_data(void *wfile, int verbose) {
     DisposeFile(nffile_w);
 
     if (nffile_r) {
-        FreeDataBlock(dataBlock);
+        FreeDataBlock(dataBlock_r);
         CloseFile(nffile_r);
         DisposeFile(nffile_r);
     }

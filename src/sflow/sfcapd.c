@@ -111,8 +111,7 @@ static void IntHandler(int signal);
 
 static inline FlowSource_t *GetFlowSource(struct sockaddr_storage *ss);
 
-static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, int use_subdirs, char *time_extension,
-                int compress);
+static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress);
 
 /* Functions */
 static void usage(char *name) {
@@ -229,10 +228,6 @@ static void ChildDied(void) {
 
 }  // End of ChildDied
 
-static void format_file_block_header(dataBlock_t *header) {
-    printf("File Block Header: type: %u, size: %u, NumRecords: %u\n", header->type, header->size, header->NumRecords);
-}  // End of format_file_block_header
-
 #include "collector_inline.c"
 #include "nffile_inline.c"
 
@@ -271,14 +266,9 @@ static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockadd
     return 0;
 }  // End of SendRepeaterMessage
 
-static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, int use_subdirs, char *time_extension,
-                int compress) {
-    FlowSource_t *fs;
+static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress) {
     struct sockaddr_storage sf_sender;
     socklen_t sf_sender_size = sizeof(sf_sender);
-    time_t t_start, t_now;
-    uint32_t ignored_packets;
-    ssize_t cnt;
 
     void *in_buff = malloc(NETWORK_INPUT_BUFF_SIZE);
     if (!in_buff) {
@@ -287,7 +277,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
     }
 
     // Init each sflow source output data buffer
-    fs = FlowSource;
+    FlowSource_t *fs = FlowSource;
     while (fs) {
         // prepare file
         fs->nffile = OpenNewFile(fs->current, NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
@@ -296,7 +286,8 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
         }
         SetIdent(fs->nffile, fs->Ident);
 
-        // init vars
+        // init flow source
+        fs->dataBlock = WriteBlock(fs->nffile, NULL);
         fs->bad_packets = 0;
         fs->msecFirst = 0xffffffffffffLL;
         fs->msecLast = 0;
@@ -305,11 +296,11 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
         fs = fs->next;
     }
 
-    t_start = t_begin;
+    time_t t_start = t_begin;
 
-    cnt = 0;
     periodic_trigger = 0;
-    ignored_packets = 0;
+    ssize_t cnt = 0;
+    uint32_t ignored_packets = 0;
 
     // wake up at least at next time slot (twin) + 1s
     alarm(t_start + twin + 1 - time(NULL));
@@ -343,150 +334,45 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
         /* Periodic file renaming, if time limit reached or if we are done.  */
         // t_now = time(NULL);
         gettimeofday(&tv, NULL);
-        t_now = tv.tv_sec;
+        time_t t_now = tv.tv_sec;
 
         if (((t_now - t_start) >= twin) || done) {
-            struct tm *now;
-            char *subdir, fmt[32];
-
+            // rotate cycle
             alarm(0);
-            now = localtime(&t_start);
-            strftime(fmt, sizeof(fmt), time_extension, now);
 
-            // prepare sub dir hierarchy
-            if (use_subdirs) {
-                subdir = GetSubDir(now);
-                if (!subdir) {
-                    // failed to generate subdir path - put flows into base directory
-                    LogError("Failed to create subdir path!");
+            RotateFlowFiles(t_start, time_extension, FlowSource, done);
 
-                    // failed to generate subdir path - put flows into base directory
-                    subdir = NULL;
-                }
-            } else {
-                subdir = NULL;
+            if (pfd) {
+                TriggerLauncher(t_start, time_extension, pfd, FlowSource);
             }
 
-            // for each flow source update the stats, close the file and re-initialize the new file
-            fs = FlowSource;
-            while (fs) {
-                char nfcapd_filename[MAXPATHLEN];
-                char error[255];
-                nffile_t *nffile = fs->nffile;
-
-                if (verbose > 1) {
-                    format_file_block_header(nffile->block_header);
-                }
-
-                // prepare filename
-                if (subdir) {
-                    if (SetupSubDir(fs->datadir, subdir, error, 255)) {
-                        snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/%s/nfcapd.%s", fs->datadir, subdir, fmt);
-                    } else {
-                        LogError("Ident: %s, Failed to create sub hier directories: %s", fs->Ident, error);
-                        // skip subdir - put flows directly into current directory
-                        snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/nfcapd.%s", fs->datadir, fmt);
-                    }
-                } else {
-                    snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/nfcapd.%s", fs->datadir, fmt);
-                }
-                nfcapd_filename[MAXPATHLEN - 1] = '\0';
-
-                // update stat record
-                // if no flows were collected, fs->msecLast is still 0
-                // set first_seen to start of this time slot, with twin window size.
-                if (fs->msecLast == 0) {
-                    fs->msecFirst = 1000LL * (uint64_t)t_start;
-                    fs->msecLast = 1000LL * (uint64_t)(t_start + twin);
-                }
-                nffile->stat_record->firstseen = fs->msecFirst;
-                nffile->stat_record->lastseen = fs->msecLast;
-
-                // Flush Exporter Stat to file
-                FlushExporterStats(fs);
-                // Close file
-                CloseUpdateFile(nffile);
-
-                // if rename fails, we are in big trouble, as we need to get rid of the old .current
-                // file otherwise, we will loose flows and can not continue collecting new flows
-                if (RenameAppend(fs->current, nfcapd_filename) < 0) {
-                    LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
-
-                    // we do not update the books here, as the file failed to rename properly
-                    // otherwise the books may be wrong
-                } else {
-                    struct stat fstat;
-
-                    // Update books
-                    stat(nfcapd_filename, &fstat);
-                    UpdateBooks(fs->bookkeeper, t_start, 512 * fstat.st_blocks);
-                }
-
-                // log stats
-                LogInfo(
-                    "Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Sequence Errors: %u, Bad "
-                    "Packets: %u",
-                    fs->Ident, (unsigned long long)nffile->stat_record->numflows, (unsigned long long)nffile->stat_record->numpackets,
-                    (unsigned long long)nffile->stat_record->numbytes, nffile->stat_record->sequence_failure, fs->bad_packets);
-
-                // reset stats
-                fs->bad_packets = 0;
-                fs->msecFirst = 0xffffffffffffLL;
-                fs->msecLast = 0;
-
-                if (!done) {
-                    fs->nffile = OpenNewFile(fs->current, fs->nffile, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
-                    if (!fs->nffile) {
-                        LogError("killed due to fatal error: ident: %s", fs->Ident);
-                        break;
-                    }
-                    SetIdent(fs->nffile, fs->Ident);
-
-                    // Dump all exporters/samplers to the buffer
-                    FlushStdRecords(fs);
-                }
-
-                // trigger launcher if required
-                if (pfd) {
-                    // Send launcher message
-                    if (SendLauncherMessage(pfd, t_start, subdir, fmt, fs->datadir, fs->Ident) < 0) {
-                        LogError("Failed to send launcher message");
-                    } else {
-                        LogVerbose("Send launcher message");
-                    }
-                }
-
-                // next flow source
-                fs = fs->next;
-
-            }  // end of while (fs)
-
-            if (ignored_packets) LogInfo("Total ignored packets: %u", ignored_packets);
+            LogInfo("Total ignored packets: %u", ignored_packets);
             ignored_packets = 0;
 
             if (done) break;
 
-            // update alarm for next cycle
-            t_start += twin;
-            /* t_start = filename time stamp: begin of slot
+            /*
+             * update alarm for next cycle
+             * t_start = filename time stamp: begin of slot
              * + twin = end of next time interval
              * + 1 = act at least 1s after time window expired
              * - t_now = difference value to now
              */
+            t_start += twin;
             alarm(t_start + twin + 1 - t_now);
         }
 
-        /* check for error condition or done . errno may only be EINTR */
-        if (cnt < 0) {
-            if (periodic_trigger) {
-                // alarm triggered, no new flow data
+        /* check for error condition or done. errno may only be EINTR */
+        if (periodic_trigger) {
+            if (cnt < 0) {
                 periodic_trigger = 0;
+                // alarm triggered, no new flow data
                 continue;
             }
-            if (done)
+            if (done) {
                 // signaled to terminate - exit from loop
                 break;
-            else {
+            } else {
                 // A child could have died
                 ChildDied();
                 LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
@@ -525,6 +411,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 LogError("Failed to open new collector file");
                 return;
             }
+            fs->dataBlock = WriteBlock(fs->nffile, NULL);
             SetIdent(fs->nffile, fs->Ident);
         }
 
@@ -547,6 +434,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
     fs = FlowSource;
     while (fs) {
+        FreeDataBlock(fs->dataBlock);
         DisposeFile(fs->nffile);
         fs->nffile = NULL;
         fs = fs->next;
@@ -988,7 +876,7 @@ int main(int argc, char **argv) {
             if (pidfile) remove_pid(pidfile);
             exit(EXIT_FAILURE);
         }
-
+        fs->subdir = subdir_index;
         fs = fs->next;
     }
 
@@ -1006,7 +894,7 @@ int main(int argc, char **argv) {
     sigaction(SIGPIPE, &act, NULL);
 
     LogInfo("Startup sfcapd.");
-    run(receive_packet, sock, pfd, rfd, twin, t_start, subdir_index, time_extension, compress);
+    run(receive_packet, sock, pfd, rfd, twin, t_start, time_extension, compress);
 
     // shutdown
     close(sock);

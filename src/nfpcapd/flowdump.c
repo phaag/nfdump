@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -74,10 +74,15 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
     dbg_printf("Store Flow node\n");
 
-    // output buffer size check for all expected records
-    uint32_t recordSize = 0;
+    // start with a min buffer of 1024. if it's too small, it gets extended
+    uint32_t recordSize = 1024;
     do {
-        int availableSize = CheckBufferSpace(fs->nffile, recordSize);
+        if (!IsAvailable(fs->dataBlock, recordSize)) {
+            // flush block - get an empty one
+            fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+        }
+
+        int availableSize = BlockAvailable(fs->dataBlock);
         if (availableSize == 0) {
             // fishy! - should never happen. maybe disk full?
             LogError("StorePcapFlow(): output buffer size error. Skip record");
@@ -85,9 +90,10 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         }
         recordSize = 0;
 
+        void *buffPtr = GetCurrentCursor(fs->dataBlock);
         // map output record to memory buffer
         UpdateRecordSize(V3HeaderRecordSize);
-        AddV3Header(fs->nffile->buff_ptr, recordHeader);
+        AddV3Header(buffPtr, recordHeader);
 
         // header data
         recordHeader->nfversion = 0x41;
@@ -254,13 +260,12 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         }
 
         // update file record size ( -> output buffer size )
-        fs->nffile->block_header->NumRecords += 1;
-        fs->nffile->block_header->size += recordHeader->size;
+        fs->dataBlock->NumRecords += 1;
+        fs->dataBlock->size += recordHeader->size;
 
         dbg_printf("Record size: %u, header size: %u\n", recordSize, recordHeader->size);
 
         assert(recordHeader->size == recordSize);
-        fs->nffile->buff_ptr += recordHeader->size;
         break;
 
     } while (1);
@@ -277,8 +282,6 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
     strftime(fmt, sizeof(fmt), flowParam->extensionFormat, when);
 
     FlowSource_t *fs = flowParam->fs;
-    nffile_t *nffile = fs->nffile;
-
     // prepare sub dir hierarchy
     char *subdir = NULL;
     char netflowFname[128];
@@ -307,11 +310,6 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
         LogError("Ident: %s, Failed to create sub hier directories: %s", fs->Ident, error);
     }
 
-    if (nffile->block_header->NumRecords) {
-        // flush current buffer to disc
-        if (WriteBlock(nffile) <= 0) LogError("Ident: %s, failed to write output buffer to disk: '%s'", fs->Ident, strerror(errno));
-    }  // else - no new records in current block
-
     // prepare full filename
     snprintf(FullName, MAXPATHLEN - 1, "%s/%s", fs->datadir, netflowFname);
     FullName[MAXPATHLEN - 1] = '\0';
@@ -323,13 +321,10 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
         fs->msecFirst = 1000LL * (uint64_t)timestamp;
         fs->msecLast = 1000LL * (uint64_t)(timestamp + flowParam->t_win);
     }
-    nffile->stat_record->firstseen = fs->msecFirst;
-    nffile->stat_record->lastseen = fs->msecLast;
+    fs->nffile->stat_record->firstseen = fs->msecFirst;
+    fs->nffile->stat_record->lastseen = fs->msecLast;
 
-    // Flush Exporter Stat to file
-    FlushExporterStats(fs);
-    // Close file
-    CloseUpdateFile(nffile);
+    CloseUpdateFile(fs->nffile);
 
     // if rename fails, we are in big trouble, as we need to get rid of the old .current file
     // otherwise, we will loose flows and can not continue collecting new flows
@@ -345,8 +340,8 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
         UpdateBooks(fs->bookkeeper, timestamp, 512 * fstat.st_blocks);
     }
 
-    LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu", fs->Ident, (unsigned long long)nffile->stat_record->numflows,
-            (unsigned long long)nffile->stat_record->numpackets, (unsigned long long)nffile->stat_record->numbytes);
+    LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu", fs->Ident, (unsigned long long)fs->nffile->stat_record->numflows,
+            (unsigned long long)fs->nffile->stat_record->numpackets, (unsigned long long)fs->nffile->stat_record->numbytes);
 
     // reset stats
     fs->bad_packets = 0;
@@ -374,13 +369,18 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
     }
     SetIdent(fs->nffile, fs->Ident);
 
-    // init vars
+    // init flow source
+    fs->dataBlock = WriteBlock(fs->nffile, NULL);
     fs->bad_packets = 0;
     fs->msecFirst = 0xffffffffffffLL;
     fs->msecLast = 0;
     while (1) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
         if (Node->signal == SIGNAL_SYNC) {
+            // Flush Exporter Stat to file
+            FlushExporterStats(fs);
+            // flush current block and close file
+            fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
             CloseFlowFile(flowParam, Node->timestamp);
             fs->nffile = OpenNewFile(fs->current, fs->nffile, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
@@ -390,10 +390,14 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
             }
             SetIdent(fs->nffile, fs->Ident);
 
-            // Dump all exporters to the buffer
+            // Dump all exporters to the buffer for new file
             FlushStdRecords(fs);
 
         } else if (Node->signal == SIGNAL_DONE) {
+            // Flush Exporter Stat to file
+            FlushExporterStats(fs);
+            // flush current block and close file
+            FlushBlock(fs->nffile, fs->dataBlock);
             CloseFlowFile(flowParam, Node->timestamp);
             break;
         } else {

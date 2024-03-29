@@ -1,6 +1,6 @@
 /*
  *  All rights reserved.
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  Copyright (c) 2001 Mark Fullmer and The Ohio State University
  *  All rights reserved.
@@ -33,14 +33,11 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,10 +47,6 @@
 #include <sys/uio.h>
 #include <time.h>
 #include <unistd.h>
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #include "ftlib.h"
 #include "nfdump.h"
@@ -174,6 +167,7 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
         LogError("OpenNewFile() failed.");
         return 1;
     }
+    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
 
     ftio_get_ver(ftio, &ftv);
     memset((void *)&fo, 0xFF, sizeof(fo));
@@ -193,14 +187,13 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
     while ((rec = ftio_read(ftio))) {
         int i, exID;
         dbg_printf("FT record %u\n", cnt);
-        if (!CheckBufferSpace(nffile, recordSize)) {
-            // fishy! - should never happen. maybe disk full?
-            LogError("ft2nfdump: output buffer size error. Abort record processing");
-            CloseFile(nffile);
-            return 1;
+        if (!IsAvailable(dataBlock, recordSize)) {
+            // flush block - get an empty one
+            dataBlock = WriteBlock(nffile, dataBlock);
         }
 
-        AddV3Header(nffile->buff_ptr, recordHeader);
+        void *buffPtr = GetCurrentCursor(dataBlock);
+        AddV3Header(buffPtr, recordHeader);
 
         // header data
         recordHeader->engineType = *((uint8_t *)(rec + fo.engine_type));
@@ -266,12 +259,10 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
         }
 
         // update file record size ( -> output buffer size )
-        nffile->block_header->NumRecords++;
-        nffile->block_header->size += recordSize;
+        dataBlock->NumRecords++;
+        dataBlock->size += recordSize;
 
         dbg_assert(recordHeader->size == recordSize);
-
-        nffile->buff_ptr += recordSize;
 
         if (extended) {
             flow_record_short(stdout, recordHeader);
@@ -283,6 +274,7 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
     } /* while */
 
     SetIdent(nffile, ident);
+    FlushBlock(nffile, dataBlock);
     CloseUpdateFile(nffile);
     return 0;
 

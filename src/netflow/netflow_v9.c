@@ -462,7 +462,7 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
         sampler->next = NULL;
         exporter->sampler = sampler;
 
-        AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
+        fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
         LogInfo("Add new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id, sampler_record->algorithm,
                 sampler_record->packetInterval, sampler_record->spaceInterval);
 
@@ -477,7 +477,7 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
                     sampler->record.algorithm = sampler_record->algorithm;
                     sampler->record.packetInterval = sampler_record->packetInterval;
                     sampler->record.spaceInterval = sampler_record->spaceInterval;
-                    AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
+                    fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
                     LogInfo("Update existing sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
                             sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
                 } else {
@@ -502,7 +502,7 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
                 sampler->record.exporter_sysid = exporter->info.sysid;
                 sampler->next = NULL;
 
-                AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
+                fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
                 LogInfo("Append new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
                         sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
                 break;
@@ -1001,8 +1001,6 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
         receivedSize = ExtensionsEnabled[EXipReceivedV4ID] ? EXipReceivedV4Size : 0;
 
     while (size_left > 0) {
-        void *outBuff;
-
         if (size_left < 4) {  // rounding pads
             size_left = 0;
             continue;
@@ -1010,17 +1008,23 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
 
         // check for enough space in output buffer
         uint32_t outRecordSize = CalcOutRecordSize(sequencer, inBuff, size_left);
-        int buffAvail = CheckBufferSpace(fs->nffile, sizeof(recordHeaderV3_t) + outRecordSize + receivedSize);
+        if (!IsAvailable(fs->dataBlock, sizeof(recordHeaderV3_t) + outRecordSize + receivedSize)) {
+            // flush block - get an empty one
+            fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+        }
+
+        int buffAvail = BlockAvailable(fs->dataBlock);
         if (buffAvail == 0) {
             // this should really never occur, because the buffer gets flushed earlier
-            LogError("Process_v9: output buffer size error. Skip ipfix record processing");
-            dbg_printf("Process_v9: output buffer size error. Skip ipfix record processing");
+            LogError("Process_v9: output buffer size error. Skip v9 record processing");
+            dbg_printf("Process_v9: output buffer size error. Skip v9 record processing");
             return;
         }
 
+        void *outBuff;
     REDO:
         // map file record to output buffer
-        outBuff = fs->nffile->buff_ptr;
+        outBuff = GetCurrentCursor(fs->dataBlock);
 
         dbg_printf("[%u] Process data record: %u addr: %llu, size_left: %u buff_avail: %u\n", exporter->info.id, processed_records,
                    (long long unsigned)((ptrdiff_t)inBuff - (ptrdiff_t)data_flowset), size_left, buffAvail);
@@ -1051,13 +1055,18 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
                     return;
                 }
 
-                // request new and empty buffer
                 LogVerbose("Process v9: Sequencer run - resize output buffer");
-                buffAvail = CheckBufferSpace(fs->nffile, buffAvail + 1);
+                // request new and empty buffer
+                fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+                if (fs->dataBlock == NULL) {
+                    return;
+                }
+
+                int buffAvail = BlockAvailable(fs->dataBlock);
                 if (buffAvail == 0) {
-                    // this should really never occur, because the buffer gets flushed earlier
-                    LogError("Process_v9: output buffer size error. Skip ipfix record processing");
-                    dbg_printf("Process_v9: output buffer size error. Skip ipfix record processing");
+                    // this should really never happen, because the buffer got flushed
+                    LogError("Process_v9: output buffer size error. Skip v9 record processing");
+                    dbg_printf("Process_v9: output buffer size error. Skip v9 record processing");
                     return;
                 }
                 goto REDO;
@@ -1276,21 +1285,19 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
             flow_record_short(stdout, recordHeaderV3);
         }
 
-        fs->nffile->block_header->size += recordHeaderV3->size;
-        fs->nffile->block_header->NumRecords++;
-        fs->nffile->buff_ptr = outBuff;
+        fs->dataBlock->size += recordHeaderV3->size;
+        fs->dataBlock->NumRecords++;
 
         // buffer size sanity check
-        if (fs->nffile->block_header->size > WRITE_BUFFSIZE) {
+        if (fs->dataBlock->size > WRITE_BUFFSIZE) {
             // should never happen
             LogError("### Software error ###: %s line %d", __FILE__, __LINE__);
             LogError("Process v9: Output buffer overflow! Flush buffer and skip records.");
-            LogError("Buffer size: %u > %u", fs->nffile->block_header->size, WRITE_BUFFSIZE);
+            LogError("Buffer size: %u > %u", fs->dataBlock->size, WRITE_BUFFSIZE);
 
             // reset buffer
-            fs->nffile->block_header->size = 0;
-            fs->nffile->block_header->NumRecords = 0;
-            fs->nffile->buff_ptr = (void *)((pointer_addr_t)fs->nffile->block_header + sizeof(dataBlock_t));
+            fs->dataBlock->size = 0;
+            fs->dataBlock->NumRecords = 0;
             return;
         }
     }
@@ -1407,13 +1414,12 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
     dbg_printf("nbar elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
 
     // output buffer size check for all expected records
-    if (!CheckBufferSpace(fs->nffile, total_size)) {
-        // fishy! - should never happen. maybe disk full?
-        LogError("Process_nbar_option: output buffer size error. Abort nbar record processing");
-        return;
+    if (!IsAvailable(fs->dataBlock, total_size)) {
+        // flush block - get an empty one
+        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
     }
 
-    void *outBuff = fs->nffile->buff_ptr;
+    void *outBuff = GetCurrentCursor(fs->dataBlock);
     // push nbar header
     AddArrayHeader(outBuff, nbarHeader, NbarRecordType, elementSize);
 
@@ -1476,9 +1482,8 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
     }
 
     // update data block header
-    fs->nffile->block_header->size += nbarHeader->size;
-    fs->nffile->block_header->NumRecords++;
-    fs->nffile->buff_ptr += nbarHeader->size;
+    fs->dataBlock->size += nbarHeader->size;
+    fs->dataBlock->NumRecords++;
 
     if (size_left > 7) {
         LogVerbose("Process nbar data record - %u extra bytes", size_left);
@@ -1540,13 +1545,13 @@ static void Process_v9_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_
     dbg_printf("name elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
 
     // output buffer size check for all expected records
-    if (!CheckBufferSpace(fs->nffile, total_size)) {
-        // fishy! - should never happen. maybe disk full?
-        LogError("Process_ifvrf_option: output buffer size error. Abort nbar record processing");
-        return;
+    if (!IsAvailable(fs->dataBlock, total_size)) {
+        // flush block - get an empty one
+        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
     }
 
-    void *outBuff = fs->nffile->buff_ptr;
+    void *outBuff = GetCurrentCursor(fs->dataBlock);
+
     // push nbar header
     AddArrayHeader(outBuff, nameHeader, recordType, elementSize);
 
@@ -1601,9 +1606,8 @@ static void Process_v9_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_
     }
 
     // update data block header
-    fs->nffile->block_header->size += nameHeader->size;
-    fs->nffile->block_header->NumRecords++;
-    fs->nffile->buff_ptr += nameHeader->size;
+    fs->dataBlock->size += nameHeader->size;
+    fs->dataBlock->NumRecords++;
 
     if (size_left > 7) {
         LogVerbose("Process ifvrf data record - %u extra bytes", size_left);
@@ -1627,7 +1631,7 @@ static void Process_v9_SysUpTime_option_data(exporterDomain_t *exporter, templat
         exporter->SysUpTime = Get_val(in, optionTemplate->SysUpOption.offset, optionTemplate->SysUpOption.length);
         dbg_printf("Extracted SysUpTime : %llu\n", exporter->SysUpTime);
     } else {
-        LogError("Process_ipfix_option: %s line %d: Not enough data for option data", __FILE__, __LINE__);
+        LogError("Process_v9_option: %s line %d: Not enough data for option data", __FILE__, __LINE__);
         return;
     }
 

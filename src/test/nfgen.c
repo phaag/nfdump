@@ -74,7 +74,7 @@ static void SetBGPNextIPaddress(recordHandle_t *recordHandle, int af, char *next
 
 static void UpdateRecord(recordHandle_t *recordHandle);
 
-static void StoreRecord(recordHandle_t *recordHandle, nffile_t *nffile);
+static dataBlock_t *StoreRecord(recordHandle_t *recordHandle, nffile_t *nffile, dataBlock_t *dataBlock);
 
 static void DumpRecord(recordHeaderV3_t *recordHeaderV3) {
     printf("V3Record: %u size: %u\n", recordHeaderV3->type, recordHeaderV3->size);
@@ -173,7 +173,7 @@ static void UpdateRecord(recordHandle_t *recordHandle) {
 
 }  // End of UpdateRecord
 
-static void StoreRecord(recordHandle_t *recordHandle, nffile_t *nffile) {
+static dataBlock_t *StoreRecord(recordHandle_t *recordHandle, nffile_t *nffile, dataBlock_t *dataBlock) {
     static uint32_t recordCount = 1;
     recordHandle->flowCount = recordCount++;
     recordHeaderV3_t *v3Record = recordHandle->recordHeaderV3;
@@ -186,15 +186,17 @@ static void StoreRecord(recordHandle_t *recordHandle, nffile_t *nffile) {
 
     uint32_t required = v3Record->size;
 
-    // flush current buffer to disc if not enough space
-    if (!CheckBufferSpace(nffile, required)) {
-        return;
+    if (!IsAvailable(dataBlock, required)) {
+        // flush block - get an empty one
+        dataBlock = WriteBlock(nffile, dataBlock);
     }
 
-    memcpy(nffile->buff_ptr, (void *)v3Record, required);
-    nffile->block_header->NumRecords++;
-    nffile->block_header->size += v3Record->size;
-    nffile->buff_ptr += v3Record->size;
+    void *buffPtr = GetCurrentCursor(dataBlock);
+    memcpy(buffPtr, (void *)v3Record, required);
+    dataBlock->NumRecords++;
+    dataBlock->size += v3Record->size;
+
+    return dataBlock;
 }  // End of StoreRecord
 
 static void RemoveExtension(recordHandle_t *recordHandle, int extID) {
@@ -233,6 +235,7 @@ int main(int argc, char **argv) {
     if (!nffile) {
         exit(255);
     }
+    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
 
     recordHeaderV3_t *record = (recordHeaderV3_t *)calloc(1, 4096);
     recordHandle_t *recordHandle = (recordHandle_t *)calloc(1, sizeof(recordHandle_t));
@@ -245,7 +248,7 @@ int main(int argc, char **argv) {
     AddV3Header(record, v3Record);
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     // Start with empty record
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // fill record Header
     v3Record->engineType = 0;
@@ -253,7 +256,7 @@ int main(int argc, char **argv) {
     v3Record->exporterID = 3;
     v3Record->nfversion = 10;
     recordHandle->flowCount++;
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXgenericFlowID
     PushExtension(v3Record, EXgenericFlow, genericFlow);
@@ -270,7 +273,7 @@ int main(int argc, char **argv) {
     genericFlow->fwdStatus = 1;
     genericFlow->srcTos = 3;
     recordHandle->flowCount++;
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // as we remove ipv4flow below, we need a local context
     do {
@@ -278,7 +281,7 @@ int main(int argc, char **argv) {
         PushExtension(v3Record, EXipv4Flow, ipv4Flow);
         AssertMapRecordHandle(recordHandle, v3Record, 0);
         SetIPaddress(recordHandle, PF_INET, "172.16.1.66", "192.168.170.100");
-        StoreRecord(recordHandle, nffile);
+        dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
     } while (0);
 
     // EXipv6FlowID
@@ -286,26 +289,26 @@ int main(int argc, char **argv) {
     PushExtension(v3Record, EXipv6Flow, ipv6Flow);
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     SetIPaddress(recordHandle, PF_INET6, "fe80::2110:abcd:1234:0", "fe80::2110:abcd:1235:4321");
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // multiple IPv6 flows
     genericFlow->msecFirst = genericFlow->msecLast + 100LL;
     genericFlow->msecLast += 2002LL;
     genericFlow->inPackets = 10;
     genericFlow->inBytes = 223344;
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
     genericFlow->msecFirst = genericFlow->msecLast + 200LL;
     genericFlow->msecLast += 3003LL;
     genericFlow->inPackets = 25;
     genericFlow->inBytes = 33445566LL;
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // bring back ipv4
     PushExtension(v3Record, EXipv4Flow, ipv4Flow);
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     SetIPaddress(recordHandle, PF_INET, "172.16.1.68", "192.168.170.104");
     // this record has ipv4 and ipv6 records
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // remove v6 extension
     RemoveExtension(recordHandle, EXipv6FlowID);
@@ -326,23 +329,23 @@ int main(int argc, char **argv) {
     genericFlow->dstPort = 22222;
     genericFlow->tcpFlags = 3;
     genericFlow->proto = IPPROTO_TCP;
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // next flow
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     genericFlow->srcPort = 33333;
     genericFlow->dstPort = 5353;
     genericFlow->tcpFlags = 0;
     genericFlow->proto = IPPROTO_UDP;
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     SetIPaddress(recordHandle, PF_INET, "192.168.170.101", "172.16.2.66");
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     SetIPaddress(recordHandle, PF_INET, "172.16.2.67", "192.168.170.102");
     genericFlow->srcPort = 0;
@@ -352,7 +355,7 @@ int main(int argc, char **argv) {
     genericFlow->inPackets = 1;
     genericFlow->inBytes = 22;
     genericFlow->proto = IPPROTO_ICMP;
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     SetIPaddress(recordHandle, PF_INET, "192.168.170.102", "172.16.2.67");
     genericFlow->icmpType = 0;
@@ -362,7 +365,7 @@ int main(int argc, char **argv) {
     genericFlow->inBytes = 35;
     genericFlow->msecFirst = genericFlow->msecLast + 200LL;
     genericFlow->msecLast += 3003LL;
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     SetIPaddress(recordHandle, PF_INET, "192.168.170.101", "172.16.2.66");
     genericFlow->dstPort = 80;
@@ -376,16 +379,16 @@ int main(int argc, char **argv) {
     flowMisc->dir = 2;
     genericFlow->inPackets = 10;
     genericFlow->inBytes = 1024;
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXcntFlowID
     PushExtension(v3Record, EXcntFlow, cntFlow);
@@ -397,7 +400,7 @@ int main(int argc, char **argv) {
     cntFlow->outBytes = 44556677LL;
     cntFlow->flows = 7;
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXvLanID
     PushExtension(v3Record, EXvLan, vLan);
@@ -405,7 +408,7 @@ int main(int argc, char **argv) {
     vLan->srcVlan = 45;
     vLan->dstVlan = 46;
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXasRoutingID
     PushExtension(v3Record, EXasRouting, asRouting);
@@ -413,14 +416,14 @@ int main(int argc, char **argv) {
     asRouting->srcAS = 775;
     asRouting->dstAS = 3303;
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXipNextHopV6ID
     PushExtension(v3Record, EXipNextHopV6, ipNextHopV6);
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     SetNextIPaddress(recordHandle, PF_INET6, "2001::1110:bcde:1234:4");
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXipNextHopV4ID
     RemoveExtension(recordHandle, EXipNextHopV6ID);
@@ -428,14 +431,14 @@ int main(int argc, char **argv) {
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     SetNextIPaddress(recordHandle, PF_INET, "172.72.1.2");
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXbgpNextHopV6ID
     PushExtension(v3Record, EXbgpNextHopV6, bgpNextHopV6);
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     SetBGPNextIPaddress(recordHandle, PF_INET6, "2002::1210:cdef:2346:5");
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXbgpNextHopV4ID
     RemoveExtension(recordHandle, EXbgpNextHopV6ID);
@@ -443,14 +446,14 @@ int main(int argc, char **argv) {
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     SetBGPNextIPaddress(recordHandle, PF_INET, "172.73.2.3");
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXipReceivedV6ID
     PushExtension(v3Record, EXipReceivedV6, ipReceivedV6);
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     SetRouterIPaddress(recordHandle, PF_INET6, "fe80::caffe:caffe:1234:1");
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXipReceivedV4ID
     RemoveExtension(recordHandle, EXipReceivedV6ID);
@@ -458,7 +461,7 @@ int main(int argc, char **argv) {
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     SetRouterIPaddress(recordHandle, PF_INET, "127.0.0.1");
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXmplsLabelID
     PushExtension(v3Record, EXmplsLabel, mplsLabel);
@@ -474,7 +477,7 @@ int main(int argc, char **argv) {
     mplsLabel->mplsLabel[8] = 9090 << 4;
     mplsLabel->mplsLabel[9] = (100100 << 4) + 1;
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXmacAddrID
     PushExtension(v3Record, EXmacAddr, macAddr);
@@ -484,7 +487,7 @@ int main(int argc, char **argv) {
     macAddr->inDstMac = 0x3aeeddccbbfcLL;
     macAddr->outSrcMac = 0x4a345678900dLL;
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXasAdjacentID
     PushExtension(v3Record, EXasAdjacent, asAdjacent);
@@ -492,7 +495,7 @@ int main(int argc, char **argv) {
     asAdjacent->nextAdjacentAS = 7751;
     asAdjacent->prevAdjacentAS = 33032;
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     // EXlatencyID
     PushExtension(v3Record, EXlatency, latency);
@@ -501,7 +504,7 @@ int main(int argc, char **argv) {
     latency->usecServerNwDelay = 22;
     latency->usecApplLatency = 222;
     UpdateRecord(recordHandle);
-    StoreRecord(recordHandle, nffile);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     /*
             record.exElementList[i] = 0;
@@ -514,20 +517,20 @@ int main(int argc, char **argv) {
             record.exporter_sysid = 1;
 
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.2.66", "192.168.170.101");
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             genericFlow->inPackets 	 	= 101;
             record.inByytes 	 	= 102;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.3.66", "192.168.170.102");
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.4.66", "192.168.170.103");
             record.srcPort 	 = 2024;
@@ -537,7 +540,7 @@ int main(int argc, char **argv) {
             genericFlow->inPackets 	 = 1001;
             record.inByytes 	 = 1002;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.5.66", "192.168.170.104");
             record.srcPort 	 	= 3024;
@@ -547,7 +550,7 @@ int main(int argc, char **argv) {
             genericFlow->inPackets 	 	= 10001;
             record.inByytes 	 	= 10002;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.6.66", "192.168.170.105");
             record.srcPort 	 	= 4024;
@@ -557,7 +560,7 @@ int main(int argc, char **argv) {
             genericFlow->inPackets 	 	= 100001;
             record.inByytes 	 	= 100002;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.7.66", "192.168.170.106");
             record.srcPort 	 	= 5024;
@@ -566,7 +569,7 @@ int main(int argc, char **argv) {
             genericFlow->inPackets 	 	= 1000001;
             record.inByytes 	 	= 1000002;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.8.66", "192.168.170.107");
             genericFlow->tcpFlags 	= 1;
@@ -574,7 +577,7 @@ int main(int argc, char **argv) {
             genericFlow->inPackets 	 	= 10000001;
             record.inByytes 	 	= 1001;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.9.66", "192.168.170.108");
             record.srcPort 	 	= 6024;
@@ -583,11 +586,11 @@ int main(int argc, char **argv) {
             genericFlow->inPackets 	 	= 500;
             record.inByytes 	 	= 10000001;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.10.66", "192.168.170.109");
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.11.66", "192.168.170.110");
             record.srcPort 		= 7024;
@@ -596,7 +599,7 @@ int main(int argc, char **argv) {
             genericFlow->inPackets 	 	= 5000;
             record.inByytes 	 	= 100000001;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.12.66", "192.168.170.111");
             record.srcPort 	 	= 8024;
@@ -604,7 +607,7 @@ int main(int argc, char **argv) {
             record.tos 		 	= 0;
             record.inByytes 	 	= 1000000001;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.13.66", "192.168.170.112");
             record.srcPort 	 	= 0;
@@ -615,7 +618,7 @@ int main(int argc, char **argv) {
             genericFlow->inPackets 	 	= 50002;
             record.inByytes 	 	= 50000;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.160.160.166", "172.160.160.180");
             record.srcPort 	 = 10024;
@@ -624,7 +627,7 @@ int main(int argc, char **argv) {
             genericFlow->inPackets 	 = 500001;
             record.inByytes 	 = 500000;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET6, "fe80::2110:abcd:1234:0", "fe80::2110:abcd:1235:4321");
             SetNextIPaddress(&record,  PF_INET6, "2003:234:aabb::211:24ff:fe80:d01e");
@@ -635,7 +638,7 @@ int main(int argc, char **argv) {
             genericFlow->inPackets 	 = 10;
             record.inByytes 	 = 15100;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET6, "2001:234:aabb::211:24ff:fe80:d01e", "2001:620::8:203:baff:fe52:38e5");
             record.srcPort 	 = 10240;
@@ -643,21 +646,21 @@ int main(int argc, char **argv) {
             genericFlow->inPackets 	 = 10100;
             record.inByytes 	 = 15000000;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             genericFlow->inPackets 	 = 10100000;
             record.inByytes 	 = 0x100000000LL;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             genericFlow->inPackets 	 = 0x100000000LL;
             record.inByytes 	 = 15000000;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             record.inByytes 	 = 0x200000000LL;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.14.18", "192.168.170.113");
             SetNextIPaddress(&record,  PF_INET, "172.72.1.2");
@@ -667,24 +670,20 @@ int main(int argc, char **argv) {
             genericFlow->inPackets 	 = 10100000;
             record.inByytes 	 = 0x100000000LL;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.15.18", "192.168.170.114");
             genericFlow->inPackets 	 = 0x100000000LL;
             record.inByytes 	 = 15000000;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
             SetIPaddress(&record,  PF_INET, "172.16.16.18", "192.168.170.115");
             record.inByytes 	 = 0x200000000LL;
             UpdateRecord(recordHandle);
-            StoreRecord(recordHandle, nffile);
+            dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
     */
-    if (nffile->block_header->NumRecords) {
-        if (WriteBlock(nffile) <= 0) {
-            fprintf(stderr, "Failed to write output buffer to disk: '%s'", strerror(errno));
-        }
-    }
+    FlushBlock(nffile, dataBlock);
     CloseUpdateFile(nffile);
     return 0;
 }
