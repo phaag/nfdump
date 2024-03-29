@@ -173,6 +173,8 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_postDestinationMacAddress, SIZEoutDstMac, NumberCopy, EXmacAddrID, OFFoutDstMac, STACK_NONE, "out dst MAC addr"},
     {IPFIX_vlanId, SIZEsrcVlan, NumberCopy, EXvLanID, OFFsrcVlan, STACK_NONE, "src VLAN ID"},
     {IPFIX_postVlanId, SIZEdstVlan, NumberCopy, EXvLanID, OFFdstVlan, STACK_NONE, "dst VLAN ID"},
+    {IPFIX_dot1qVlanId, SIZEsrcVlan, NumberCopy, EXvLanID, OFFsrcVlan, STACK_NONE, "src VLAN ID"},
+    {IPFIX_postDot1qVlanId, SIZEdstVlan, NumberCopy, EXvLanID, OFFdstVlan, STACK_NONE, "dst VLAN ID"},
     {IPFIX_flowDirection, SIZEdir, NumberCopy, EXflowMiscID, OFFdir, STACK_NONE, "flow direction"},
     {IPFIX_biflowDirection, SIZEbiFlowDir, NumberCopy, EXflowMiscID, OFFbiFlowDir, STACK_NONE, "biFlow direction"},
     {IPFIX_flowEndReason, SIZEflowEndReason, NumberCopy, EXflowMiscID, OFFflowEndReason, STACK_NONE, "Flow end reason"},
