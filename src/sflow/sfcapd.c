@@ -99,8 +99,8 @@ typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *
 static FlowSource_t *FlowSource;
 
 static int done = 0;
-static int gotSIGCHLD = 0;
 static int periodic_trigger;
+static int gotSIGCHLD = 0;
 
 /* Local function Prototypes */
 static void usage(char *name);
@@ -173,7 +173,7 @@ static void signalPrivsepChild(pid_t child_pid, int pfd) {
 
     int stat = 0;
     if ((ret = waitpid(child_pid, &stat, 0)) == -1) {
-        if (!gotSIGCHLD) LogError("wait for privsep child failed: %s %i", strerror(errno), ret);
+        if (!gotSIGCHLD) LogError("wait for privsep child failed: %s", strerror(errno));
     } else {
         if (WIFEXITED(stat)) {
             LogInfo("privsep child exit status: %i", WEXITSTATUS(stat));
@@ -197,7 +197,7 @@ static void IntHandler(int signal) {
             done = 1;
             break;
         case SIGCHLD:
-            gotSIGCHLD = 0;
+            gotSIGCHLD++;
             break;
         case SIGPIPE:
             break;
@@ -306,7 +306,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
     alarm(t_start + twin + 1 - time(NULL));
     /*
      * Main processing loop:
-     * this loop, continues until done = 1, set by the signal handler
+     * this loop, continues until  = 1, set by the signal handler
      * The while loop will be breaked by the periodic file renaming code
      * for proper cleanup
      */
@@ -326,7 +326,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 #endif
 
             if (cnt == -1 && errno != EINTR) {
-                LogError("ERROR: recvfrom: %s", strerror(errno));
+                LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
                 continue;
             }
         }
