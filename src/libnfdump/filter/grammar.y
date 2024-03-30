@@ -1987,7 +1987,7 @@ static int AddVlanNumber(direction_t direction, uint64_t num) {
 } // End of AddVlanNumber
 
 static int AddAsNumber(direction_t direction, uint16_t comp, uint64_t as) {
-	if (as < 0 || as > 65535 ) {
+	if (as > UINT32_MAX ) {
 		yyerror("AS number of range");
 		return -1;
   }
