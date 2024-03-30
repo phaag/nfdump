@@ -307,6 +307,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
     periodic_trigger = 0;
     ssize_t cnt = 0;
     uint32_t ignored_packets = 0;
+    uint64_t packets = 0;
 
     // wake up at least at next time slot (twin) + 1s
     alarm(t_start + twin + 1 - time(NULL));
@@ -335,6 +336,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
                 continue;
             }
+            packets++;
         }
 
         /* Periodic file renaming, if time limit reached or if we are done.  */
@@ -355,7 +357,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 pfd = 0;
             }
 
-            LogInfo("Total ignored packets: %u", ignored_packets);
+            LogInfo("Total packets received: %llu avg: %3.2f ignored packets: %u", packets, (double)packets / (double)twin, ignored_packets);
             ignored_packets = 0;
             periodic_trigger = 0;
 
