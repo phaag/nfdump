@@ -44,6 +44,8 @@ typedef struct {
 
 /* function prototypes */
 
+uint32_t GetNumWorkers(uint32_t requested);
+
 pthread_barrier_t *pthread_barrier_init(uint32_t numWorkers);
 
 void pthread_barrier_destroy(pthread_barrier_t *barrier);

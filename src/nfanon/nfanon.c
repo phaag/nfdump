@@ -57,12 +57,14 @@
 #include "panonymizer.h"
 #include "util.h"
 
+#define MAXANONWORKERS 8
+
 typedef struct worker_param_s {
     int self;
     int numWorkers;
     dataBlock_t *dataBlock;
 
-    // sync
+    // sync barrier
     pthread_barrier_t *barrier;
 } worker_param_t;
 
@@ -84,6 +86,7 @@ static void usage(char *name) {
         "-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>.\n"
         "-q\t\tDo not print progress spinnen and filenames.\n"
         "-r <path>\tread input from single file or all files in directory.\n"
+        "-t <num>\tnumber of worker threads. Max depends on cores online\n"
         "-w <file>\tName of output file. Defaults to input file.\n",
         name);
 } /* usage */
@@ -458,6 +461,7 @@ int main(int argc, char **argv) {
     char CryptoPAnKey[32] = {0};
     flist_t flist = {0};
 
+    int numWorkers = MAXANONWORKERS;
     int verbose = 1;
     int c;
     while ((c = getopt(argc, argv, "hK:L:qr:w:")) != EOF) {
@@ -492,7 +496,12 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
+            case 't':
+                CheckArgLen(optarg, 4);
+                numWorkers = atoi(optarg);
+                break;
             case 'w':
+                CheckArgLen(optarg, MAXPATHLEN);
                 wfile = optarg;
                 break;
             default:
@@ -510,17 +519,8 @@ int main(int argc, char **argv) {
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!fileList || !Init_nffile(0, fileList)) exit(255);
 
-    long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
-    uint32_t numWorkers = DEFAULTWORKERS;
-    if (CoresOnline < 0) {
-        LogError("sysconf(_SC_NPROCESSORS_ONLN) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        CoresOnline = 1;
-    }
-    numWorkers = CoresOnline;
-
-    // limit cpu usage
-    if (CoresOnline > 8) numWorkers = 8;
-    LogInfo("CoresOnline: %lld, Set workers to: %u", CoresOnline, numWorkers);
+    // check numWorkers depending on cores online
+    numWorkers = GetNumWorkers(numWorkers);
 
     pthread_barrier_t *barrier = pthread_barrier_init(numWorkers);
     if (!barrier) exit(255);

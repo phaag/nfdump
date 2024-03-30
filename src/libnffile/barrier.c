@@ -42,7 +42,34 @@
 #include <unistd.h>
 
 #include "barrier.h"
+#include "nfdump.h"
 #include "util.h"
+
+// get decent number of workers depending
+// on the number of cores online
+uint32_t GetNumWorkers(uint32_t requested) {
+    long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
+
+    if (CoresOnline < 0) {
+        LogError("sysconf(_SC_NPROCESSORS_ONLN) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        CoresOnline = 1;
+    }
+
+    uint32_t numWorkers = DEFAULTWORKERS;
+    if (requested && requested < CoresOnline) {
+        numWorkers = requested;
+    } else {
+        numWorkers = CoresOnline;
+    }
+
+    // limit to MAXWORKERS
+    if (numWorkers > MAXWORKERS) numWorkers = DEFAULTWORKERS;
+
+    LogInfo("CoresOnline: %lld, Requested: %u, Set workers to: %u", CoresOnline, requested, numWorkers);
+
+    return numWorkers;
+
+}  // End of GetNumWorkers
 
 // initialize barrier for numWorkers + 1 controller
 pthread_barrier_t *pthread_barrier_init(uint32_t numWorkers) {
