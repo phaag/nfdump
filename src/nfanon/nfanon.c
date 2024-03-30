@@ -47,6 +47,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "barrier.h"
 #include "config.h"
 #include "flist.h"
 #include "nbar.h"
@@ -55,15 +56,6 @@
 #include "nfxV3.h"
 #include "panonymizer.h"
 #include "util.h"
-
-typedef int pthread_barrierattr_t;
-typedef struct {
-    pthread_mutex_t workerMutex;
-    pthread_cond_t workerCond;
-    pthread_cond_t controllerCond;
-    int workersWaiting;
-    int numWorkers;
-} pthread_barrier_t;
 
 typedef struct worker_param_s {
     int self;
@@ -95,72 +87,6 @@ static void usage(char *name) {
         "-w <file>\tName of output file. Defaults to input file.\n",
         name);
 } /* usage */
-
-static pthread_barrier_t *pthread_barrier_init(unsigned int count) {
-    pthread_barrier_t *barrier = calloc(1, sizeof(pthread_barrier_t));
-    if (!barrier) return NULL;
-
-    if (count == 0) {
-        errno = EINVAL;
-        return NULL;
-    }
-
-    if (pthread_mutex_init(&barrier->workerMutex, 0) < 0) {
-        return NULL;
-    }
-
-    if (pthread_cond_init(&barrier->workerCond, 0) < 0 || pthread_cond_init(&barrier->controllerCond, 0) < 0) {
-        pthread_mutex_destroy(&barrier->workerMutex);
-        return NULL;
-    }
-
-    barrier->numWorkers = count;
-    barrier->workersWaiting = 0;
-
-    return barrier;
-
-}  // End of pthread_barrier_init
-
-static void pthread_barrier_destroy(pthread_barrier_t *barrier) {
-    pthread_cond_destroy(&barrier->workerCond);
-    pthread_cond_destroy(&barrier->controllerCond);
-    pthread_mutex_destroy(&barrier->workerMutex);
-}  // End of pthread_barrier_destroy
-
-static void pthread_barrier_wait(pthread_barrier_t *barrier) {
-    pthread_mutex_lock(&barrier->workerMutex);
-    barrier->workersWaiting++;
-    dbg_printf("Worker wait: %d\n", barrier->workersWaiting);
-    if (barrier->workersWaiting >= barrier->numWorkers) {
-        pthread_cond_broadcast(&barrier->controllerCond);
-    }
-    pthread_cond_wait(&barrier->workerCond, &(barrier->workerMutex));
-    dbg_printf("Worker dbg_awake\n");
-    pthread_mutex_unlock(&barrier->workerMutex);
-
-}  // End of pthread_barrier_wait
-
-static void pthread_controller_wait(pthread_barrier_t *barrier) {
-    dbg_printf("Controller wait\n");
-    pthread_mutex_lock(&barrier->workerMutex);
-    while (barrier->workersWaiting < barrier->numWorkers)
-        // wait for all workers
-        pthread_cond_wait(&barrier->controllerCond, &(barrier->workerMutex));
-
-    pthread_mutex_unlock(&barrier->workerMutex);
-    dbg_printf("Controller wait done.\n");
-
-}  // End of pthread_controller_wait
-
-static void pthread_barrier_release(pthread_barrier_t *barrier) {
-    dbg_printf("Controller release\n");
-    pthread_mutex_lock(&barrier->workerMutex);
-    barrier->workersWaiting = 0;
-    pthread_cond_broadcast(&barrier->workerCond);
-    pthread_mutex_unlock(&barrier->workerMutex);
-    dbg_printf("Controller release done\n");
-
-}  // End of pthread_barrier_release
 
 static inline void AnonRecord(recordHeaderV3_t *v3Record) {
     elementHeader_t *elementHeader;
