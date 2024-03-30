@@ -344,12 +344,15 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 return;
             }
 
-            if (pfd) {
-                TriggerLauncher(t_start, time_extension, pfd, FlowSource);
+            if (pfd && TriggerLauncher(t_start, time_extension, pfd, FlowSource) == 0) {
+                LogError("Disable launcher due to errors");
+                close(pfd);
+                pfd = 0;
             }
 
             LogInfo("Total ignored packets: %u", ignored_packets);
             ignored_packets = 0;
+            periodic_trigger = 0;
 
             if (done) break;
 
@@ -364,26 +367,12 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
             alarm(t_start + twin + 1 - t_now);
         }
 
-        /* check for error condition or done. errno may only be EINTR */
-        if (periodic_trigger) {
-            if (cnt < 0) {
-                periodic_trigger = 0;
-                // alarm triggered, no new flow data
-                continue;
-            }
-            if (done) {
-                // signaled to terminate - exit from loop
-                break;
-            } else {
-                // A child could have died
-                ChildDied();
-                LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
-                continue;
-            }
+        /* check for EINTR and continue */
+        if (cnt < 0) {
+            // Check if a child could have died
+            ChildDied();
+            continue;
         }
-
-        /* enough data? */
-        if (cnt == 0) continue;
 
         // repeat this packet
         if (rfd) {

@@ -286,7 +286,7 @@ static void do_expire(char *datadir) {
         LogError("Error %i: can't access book keeping records", ret);
     }
 
-    LogInfo("Limits: Filesize %s, Lifetime %s, Watermark: %llu%%\n", dirstat->max_size ? ScaleValue(dirstat->max_size) : "<none>",
+    LogInfo("Limits: Filesize %s, Lifetime %s, Watermark: %llu%%", dirstat->max_size ? ScaleValue(dirstat->max_size) : "<none>",
             dirstat->max_lifetime ? ScaleTime(dirstat->max_lifetime) : "<none>", (unsigned long long)dirstat->low_water);
 
     LogInfo("Current size: %s, Current lifetime: %s, Number of files: %llu", ScaleValue(dirstat->filesize), ScaleTime(dirstat->last - dirstat->first),
@@ -321,7 +321,7 @@ void processMessage(message_t *message, launcher_args_t *launcher_args) {
     len += lm->lenFilename + lm->lenFlowdir + lm->lenIsotime + lm->lenIdent + lm->lenAlign;
 
     if (message->length < len) {
-        LogError("Message size error: Expected: %zu, have: %u\n", len, message->length);
+        LogError("Message size error: Expected: %zu, have: %u", len, message->length);
         return;
     }
 

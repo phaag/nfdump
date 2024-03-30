@@ -456,7 +456,7 @@ int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int 
 
 }  // End of RotateFlowFiles
 
-void TriggerLauncher(time_t t_start, char *time_extension, int pfd, FlowSource_t *fs) {
+int TriggerLauncher(time_t t_start, char *time_extension, int pfd, FlowSource_t *fs) {
     struct tm *now = localtime(&t_start);
     char fmt[32];
     strftime(fmt, sizeof(fmt), time_extension, now);
@@ -477,7 +477,7 @@ void TriggerLauncher(time_t t_start, char *time_extension, int pfd, FlowSource_t
         // trigger launcher if required
         // Send launcher message
         if (SendLauncherMessage(pfd, t_start, subdir, fmt, fs->datadir, fs->Ident) < 0) {
-            LogError("Failed to send launcher message");
+            return 0;
         } else {
             LogVerbose("Send launcher message");
         }
@@ -485,6 +485,9 @@ void TriggerLauncher(time_t t_start, char *time_extension, int pfd, FlowSource_t
         // next flow source
         fs = fs->next;
     }
+
+    return 1;
+
 }  // End of TriggerLauncher
 
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {

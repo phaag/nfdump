@@ -349,8 +349,10 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 return;
             }
 
-            if (pfd) {
-                TriggerLauncher(t_start, time_extension, pfd, FlowSource);
+            if (pfd && TriggerLauncher(t_start, time_extension, pfd, FlowSource) == 0) {
+                LogError("Disable launcher due to errors");
+                close(pfd);
+                pfd = 0;
             }
 
             LogInfo("Total ignored packets: %u", ignored_packets);
