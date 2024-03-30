@@ -660,6 +660,8 @@ typedef struct EXdot1q_s {
 
 typedef struct EXphysicalInterface_s {
 #define EXphysicalInterfaceID 39
+    uint16_t etherType;
+    uint16_t fill;
     uint32_t ingress;
     uint32_t egress;
 #define OFFphysIngress offsetof(EXphysicalInterface_t, ingress)

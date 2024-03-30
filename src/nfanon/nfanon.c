@@ -34,6 +34,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -55,14 +56,30 @@
 #include "panonymizer.h"
 #include "util.h"
 
+typedef int pthread_barrierattr_t;
+typedef struct {
+    pthread_mutex_t workerMutex;
+    pthread_cond_t workerCond;
+    pthread_cond_t controllerCond;
+    int workersWaiting;
+    int numWorkers;
+} pthread_barrier_t;
+
+typedef struct worker_param_s {
+    int self;
+    int numWorkers;
+    dataBlock_t *dataBlock;
+
+    // sync
+    pthread_barrier_t *barrier;
+} worker_param_t;
+
 /* Function Prototypes */
 static void usage(char *name);
 
 static inline void AnonRecord(recordHeaderV3_t *v3Record);
 
-static inline dataBlock_t *WriteAnonRecord(nffile_t *wfile, dataBlock_t *dataBlock, recordHeaderV3_t *v3Record);
-
-static void process_data(char *wfile, int verbose);
+static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_barrier_t *barrier);
 
 /* Functions */
 
@@ -78,6 +95,72 @@ static void usage(char *name) {
         "-w <file>\tName of output file. Defaults to input file.\n",
         name);
 } /* usage */
+
+static pthread_barrier_t *pthread_barrier_init(unsigned int count) {
+    pthread_barrier_t *barrier = calloc(1, sizeof(pthread_barrier_t));
+    if (!barrier) return NULL;
+
+    if (count == 0) {
+        errno = EINVAL;
+        return NULL;
+    }
+
+    if (pthread_mutex_init(&barrier->workerMutex, 0) < 0) {
+        return NULL;
+    }
+
+    if (pthread_cond_init(&barrier->workerCond, 0) < 0 || pthread_cond_init(&barrier->controllerCond, 0) < 0) {
+        pthread_mutex_destroy(&barrier->workerMutex);
+        return NULL;
+    }
+
+    barrier->numWorkers = count;
+    barrier->workersWaiting = 0;
+
+    return barrier;
+
+}  // End of pthread_barrier_init
+
+static void pthread_barrier_destroy(pthread_barrier_t *barrier) {
+    pthread_cond_destroy(&barrier->workerCond);
+    pthread_cond_destroy(&barrier->controllerCond);
+    pthread_mutex_destroy(&barrier->workerMutex);
+}  // End of pthread_barrier_destroy
+
+static void pthread_barrier_wait(pthread_barrier_t *barrier) {
+    pthread_mutex_lock(&barrier->workerMutex);
+    barrier->workersWaiting++;
+    dbg_printf("Worker wait: %d\n", barrier->workersWaiting);
+    if (barrier->workersWaiting >= barrier->numWorkers) {
+        pthread_cond_broadcast(&barrier->controllerCond);
+    }
+    pthread_cond_wait(&barrier->workerCond, &(barrier->workerMutex));
+    dbg_printf("Worker dbg_awake\n");
+    pthread_mutex_unlock(&barrier->workerMutex);
+
+}  // End of pthread_barrier_wait
+
+static void pthread_controller_wait(pthread_barrier_t *barrier) {
+    dbg_printf("Controller wait\n");
+    pthread_mutex_lock(&barrier->workerMutex);
+    while (barrier->workersWaiting < barrier->numWorkers)
+        // wait for all workers
+        pthread_cond_wait(&barrier->controllerCond, &(barrier->workerMutex));
+
+    pthread_mutex_unlock(&barrier->workerMutex);
+    dbg_printf("Controller wait done.\n");
+
+}  // End of pthread_controller_wait
+
+static void pthread_barrier_release(pthread_barrier_t *barrier) {
+    dbg_printf("Controller release\n");
+    pthread_mutex_lock(&barrier->workerMutex);
+    barrier->workersWaiting = 0;
+    pthread_cond_broadcast(&barrier->workerCond);
+    pthread_mutex_unlock(&barrier->workerMutex);
+    dbg_printf("Controller release done\n");
+
+}  // End of pthread_barrier_release
 
 static inline void AnonRecord(recordHeaderV3_t *v3Record) {
     elementHeader_t *elementHeader;
@@ -188,24 +271,8 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
                 nselXlateIPv6->xlateDstAddr[0] = anon_ip[0];
                 nselXlateIPv6->xlateDstAddr[1] = anon_ip[1];
             } break;
-            case EXnselXlatePortID:
-                break;
-            case EXnselAclID:
-                break;
-            case EXnselUserID:
-                break;
-            case EXnelCommonID:
-                break;
-            case EXnelXlatePortID:
-                break;
-            case EXnbarAppID:
-                break;
-            case EXinPayloadID:
-                break;
-            case EXoutPayloadID:
-                break;
-            default:
-                LogError("Unknown extension '%u'", elementHeader->type);
+                // default:
+                // skip other and unknown extension
         }
 
         size += elementHeader->length;
@@ -219,7 +286,7 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
 
 }  // End of AnonRecord
 
-static void process_data(char *wfile, int verbose) {
+static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_barrier_t *barrier) {
     const char spinner[4] = {'|', '/', '-', '\\'};
     char pathBuff[MAXPATHLEN];
 
@@ -258,6 +325,9 @@ static void process_data(char *wfile, int verbose) {
 
     SetIdent(nffile_w, FILE_IDENT(nffile_r));
     memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
+
+    // wait for workers ready to start
+    pthread_controller_wait(barrier);
 
     dataBlock_t *dataBlock = NULL;
     int blk_count = 0;
@@ -322,6 +392,52 @@ static void process_data(char *wfile, int verbose) {
             continue;
         }
 
+        dbg_printf("Next block: %d, Records: %u\n", blk_count, dataBlock->NumRecords);
+        for (int i = 0; i < numWorkers; i++) {
+            // set new datablock for all workers
+            workerList[i]->dataBlock = dataBlock;
+        }
+        // release workers from barrier
+        pthread_barrier_release(barrier);
+
+        // wait for all workers, work done on this block
+        pthread_controller_wait(barrier);
+
+        // write modified block
+        dataBlock = WriteBlock(nffile_w, dataBlock);
+
+    }  // while
+
+    // done! - signal all workers to terminate
+    for (int i = 0; i < numWorkers; i++) {
+        // set NULL datablock to trigger workers to exit.
+        workerList[i]->dataBlock = NULL;
+    }
+    pthread_barrier_release(barrier);
+
+    FreeDataBlock(dataBlock);
+    DisposeFile(nffile_w);
+    DisposeFile(nffile_r);
+
+    if (verbose) LogError("Processed %i files", --cnt);
+
+}  // End of process_data
+
+__attribute__((noreturn)) static void *worker(void *arg) {
+    worker_param_t *worker_param = (worker_param_t *)arg;
+
+    uint32_t self = worker_param->self;
+    uint32_t numWorkers = worker_param->numWorkers;
+
+    // wait in barrier after launch
+    pthread_barrier_wait(worker_param->barrier);
+
+    while (worker_param->dataBlock) {
+        dataBlock_t *dataBlock = worker_param->dataBlock;
+        dbg_printf("Worker %i working on %p\n", self, dataBlock);
+
+        uint32_t recordCount = 0;
+
         record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
         for (int i = 0; i < dataBlock->NumRecords; i++) {
@@ -331,39 +447,85 @@ static void process_data(char *wfile, int verbose) {
             }
             sumSize += record_ptr->size;
 
-            switch (record_ptr->type) {
-                case V3Record:
-                    AnonRecord((recordHeaderV3_t *)record_ptr);
-                    break;
-                case ExporterInfoRecordType:
-                case ExporterStatRecordType:
-                case SamplerRecordType:
-                case NbarRecordType:
-                    // Silently skip exporter/sampler records
-                    break;
+            // check, if this is our record
+            if ((i % numWorkers) == self) {
+                // our record - work on it
+                recordCount++;
 
-                default: {
-                    LogError("Skip unknown record type %i", record_ptr->type);
+                // work on our record
+                switch (record_ptr->type) {
+                    case V3Record:
+                        AnonRecord((recordHeaderV3_t *)record_ptr);
+                        break;
+                    case ExporterInfoRecordType:
+                    case ExporterStatRecordType:
+                    case SamplerRecordType:
+                    case NbarRecordType:
+                        // Silently skip exporter/sampler records
+                        break;
+
+                    default: {
+                        LogError("Skip unknown record: %u type %i", recordCount, record_ptr->type);
+                    }
                 }
             }
-
             // Advance pointer by number of bytes for netflow record
             record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
 
         }  // for all records
 
-        // write modified block
-        dataBlock = WriteBlock(nffile_w, dataBlock);
+        dbg_printf("Worker %i: datablock completed. Records processed: %u\n", self, recordCount);
 
-    }  // while
+        // Done
+        // wait in barrier for next data record
+        pthread_barrier_wait(worker_param->barrier);
+    }
 
-    FreeDataBlock(dataBlock);
-    DisposeFile(nffile_w);
-    DisposeFile(nffile_r);
+    dbg_printf("Worker %d done.\n", worker_param->self);
+    pthread_exit(NULL);
+}  // End of worker
 
-    if (verbose) LogError("Processed %i files", --cnt);
+static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_barrier_t *barrier) {
+    if (numWorkers > MAXWORKERS) {
+        LogError("LaunchWorkers: number of worker: %u > max workers: %u", numWorkers, MAXWORKERS);
+        return NULL;
+    }
 
-}  // End of process_data
+    worker_param_t **workerList = calloc(numWorkers, sizeof(worker_param_t *));
+    if (!workerList) NULL;
+
+    for (int i = 0; i < numWorkers; i++) {
+        worker_param_t *worker_param = calloc(1, sizeof(worker_param_t));
+        if (!worker_param) NULL;
+
+        worker_param->barrier = barrier;
+        worker_param->self = i;
+        worker_param->dataBlock = NULL;
+        worker_param->numWorkers = numWorkers;
+        workerList[i] = worker_param;
+
+        int err = pthread_create(&(tid[i]), NULL, worker, (void *)worker_param);
+        if (err) {
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
+    }
+    return workerList;
+
+}  // End of LaunchWorkers
+
+static void WaitWorkersDone(pthread_t *tid, int numWorkers) {
+    // wait for all nfwriter threads to exit
+    for (int i = 0; i < numWorkers; i++) {
+        if (tid[i]) {
+            int err = pthread_join(tid[i], NULL);
+            if (err) {
+                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            }
+            tid[i] = 0;
+        }
+    }
+}  // End of WaitWorkersDone
 
 int main(int argc, char **argv) {
     char *wfile = NULL;
@@ -422,9 +584,35 @@ int main(int argc, char **argv) {
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!fileList || !Init_nffile(0, fileList)) exit(255);
 
+    long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
+    uint32_t numWorkers = DEFAULTWORKERS;
+    if (CoresOnline < 0) {
+        LogError("sysconf(_SC_NPROCESSORS_ONLN) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        CoresOnline = 1;
+    }
+    numWorkers = CoresOnline;
+
+    // limit cpu usage
+    if (CoresOnline > 8) numWorkers = 8;
+    LogInfo("CoresOnline: %lld, Set workers to: %u", CoresOnline, numWorkers);
+
+    pthread_barrier_t *barrier = pthread_barrier_init(numWorkers);
+    if (!barrier) exit(255);
+
+    pthread_t tid[MAXWORKERS];
+    dbg_printf("Launch Workers\n");
+    worker_param_t **workerList = LauchWorkers(tid, numWorkers, barrier);
+    if (!workerList) {
+        LogError("Failed to launch workers");
+        exit(255);
+    }
+
     // make stdout unbuffered for progress pointer
     setvbuf(stdout, (char *)NULL, _IONBF, 0);
-    process_data(wfile, verbose);
+    process_data(wfile, verbose, workerList, numWorkers, barrier);
+
+    WaitWorkersDone(tid, numWorkers);
+    pthread_barrier_destroy(barrier);
 
     return 0;
 }
