@@ -65,7 +65,7 @@ typedef struct worker_param_s {
     dataBlock_t **dataBlock;
 
     // sync barrier
-    pthread_barrier_t *barrier;
+    pthread_control_barrier_t *barrier;
 } worker_param_t;
 
 /* Function Prototypes */
@@ -73,7 +73,7 @@ static void usage(char *name);
 
 static inline void AnonRecord(recordHeaderV3_t *v3Record);
 
-static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_barrier_t *barrier);
+static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier);
 
 /* Functions */
 
@@ -215,7 +215,7 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
 
 }  // End of AnonRecord
 
-static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_barrier_t *barrier) {
+static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier) {
     const char spinner[4] = {'|', '/', '-', '\\'};
     char pathBuff[MAXPATHLEN];
 
@@ -330,7 +330,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
 
         dbg_printf("Next block: %d, Records: %u\n", blk_count, dataBlock->NumRecords);
         // release workers from barrier
-        pthread_barrier_release(barrier);
+        pthread_control_barrier_release(barrier);
 
         // wait for all workers, work done on this block
         pthread_controller_wait(barrier);
@@ -342,7 +342,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
 
     // done! - signal all workers to terminate
     dataBlock = NULL;
-    pthread_barrier_release(barrier);
+    pthread_control_barrier_release(barrier);
 
     FreeDataBlock(dataBlock);
     DisposeFile(nffile_w);
@@ -359,7 +359,7 @@ __attribute__((noreturn)) static void *worker(void *arg) {
     uint32_t numWorkers = worker_param->numWorkers;
 
     // wait in barrier after launch
-    pthread_barrier_wait(worker_param->barrier);
+    pthread_control_barrier_wait(worker_param->barrier);
 
     while (*(worker_param->dataBlock)) {
         dataBlock_t *dataBlock = *(worker_param->dataBlock);
@@ -408,14 +408,14 @@ __attribute__((noreturn)) static void *worker(void *arg) {
     SKIP:
         // Done
         // wait in barrier for next data record
-        pthread_barrier_wait(worker_param->barrier);
+        pthread_control_barrier_wait(worker_param->barrier);
     }
 
     dbg_printf("Worker %d done.\n", worker_param->self);
     pthread_exit(NULL);
 }  // End of worker
 
-static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_barrier_t *barrier) {
+static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_control_barrier_t *barrier) {
     if (numWorkers > MAXWORKERS) {
         LogError("LaunchWorkers: number of worker: %u > max workers: %u", numWorkers, MAXWORKERS);
         return NULL;
@@ -523,7 +523,7 @@ int main(int argc, char **argv) {
     // check numWorkers depending on cores online
     numWorkers = GetNumWorkers(numWorkers);
 
-    pthread_barrier_t *barrier = pthread_barrier_init(numWorkers);
+    pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
     if (!barrier) exit(255);
 
     pthread_t tid[MAXWORKERS];
@@ -539,7 +539,7 @@ int main(int argc, char **argv) {
     process_data(wfile, verbose, workerList, numWorkers, barrier);
 
     WaitWorkersDone(tid, numWorkers);
-    pthread_barrier_destroy(barrier);
+    pthread_control_barrier_destroy(barrier);
 
     return 0;
 }

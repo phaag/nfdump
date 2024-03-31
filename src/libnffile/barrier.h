@@ -40,20 +40,20 @@ typedef struct {
     pthread_cond_t controllerCond;
     int workersWaiting;
     int numWorkers;
-} pthread_barrier_t;
+} pthread_control_barrier_t;
 
 /* function prototypes */
 
 uint32_t GetNumWorkers(uint32_t requested);
 
-pthread_barrier_t *pthread_barrier_init(uint32_t numWorkers);
+pthread_control_barrier_t *pthread_control_barrier_init(uint32_t numWorkers);
 
-void pthread_barrier_destroy(pthread_barrier_t *barrier);
+void pthread_control_barrier_destroy(pthread_control_barrier_t *barrier);
 
-void pthread_barrier_wait(pthread_barrier_t *barrier);
+void pthread_control_barrier_wait(pthread_control_barrier_t *barrier);
 
-void pthread_controller_wait(pthread_barrier_t *barrier);
+void pthread_controller_wait(pthread_control_barrier_t *barrier);
 
-void pthread_barrier_release(pthread_barrier_t *barrier);
+void pthread_control_barrier_release(pthread_control_barrier_t *barrier);
 
 #endif

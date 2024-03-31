@@ -72,8 +72,8 @@ uint32_t GetNumWorkers(uint32_t requested) {
 }  // End of GetNumWorkers
 
 // initialize barrier for numWorkers + 1 controller
-pthread_barrier_t *pthread_barrier_init(uint32_t numWorkers) {
-    pthread_barrier_t *barrier = calloc(1, sizeof(pthread_barrier_t));
+pthread_control_barrier_t *pthread_control_barrier_init(uint32_t numWorkers) {
+    pthread_control_barrier_t *barrier = calloc(1, sizeof(pthread_control_barrier_t));
     if (!barrier) return NULL;
 
     if (numWorkers == 0) {
@@ -98,15 +98,15 @@ pthread_barrier_t *pthread_barrier_init(uint32_t numWorkers) {
 }  // End of pthread_barrier_init
 
 // destroy mutex/cond variables
-void pthread_barrier_destroy(pthread_barrier_t *barrier) {
+void pthread_control_barrier_destroy(pthread_control_barrier_t *barrier) {
     pthread_cond_destroy(&barrier->workerCond);
     pthread_cond_destroy(&barrier->controllerCond);
     pthread_mutex_destroy(&barrier->workerMutex);
-}  // End of pthread_barrier_destroy
+}  // End of pthread_control_barrier_destroy
 
 // enter the barrier and block execution.
 // If all workers are waiting, signal the controller
-void pthread_barrier_wait(pthread_barrier_t *barrier) {
+void pthread_control_barrier_wait(pthread_control_barrier_t *barrier) {
     pthread_mutex_lock(&barrier->workerMutex);
     barrier->workersWaiting++;
     dbg_printf("Worker wait: %d\n", barrier->workersWaiting);
@@ -117,11 +117,11 @@ void pthread_barrier_wait(pthread_barrier_t *barrier) {
     dbg_printf("Worker dbg_awake\n");
     pthread_mutex_unlock(&barrier->workerMutex);
 
-}  // End of pthread_barrier_wait
+}  // End of pthread_control_barrier_wait
 
 // wait for all workers to reach the barrier.
 // if all workers wait, controller continues
-void pthread_controller_wait(pthread_barrier_t *barrier) {
+void pthread_controller_wait(pthread_control_barrier_t *barrier) {
     dbg_printf("Controller wait\n");
     pthread_mutex_lock(&barrier->workerMutex);
     while (barrier->workersWaiting < barrier->numWorkers)
@@ -134,7 +134,7 @@ void pthread_controller_wait(pthread_barrier_t *barrier) {
 }  // End of pthread_controller_wait
 
 // release barrier and let all workers continue
-void pthread_barrier_release(pthread_barrier_t *barrier) {
+void pthread_control_barrier_release(pthread_control_barrier_t *barrier) {
     dbg_printf("Controller release\n");
     pthread_mutex_lock(&barrier->workerMutex);
     barrier->workersWaiting = 0;
@@ -142,4 +142,4 @@ void pthread_barrier_release(pthread_barrier_t *barrier) {
     pthread_mutex_unlock(&barrier->workerMutex);
     dbg_printf("Controller release done\n");
 
-}  // End of pthread_barrier_release
+}  // End of pthread_control_barrier_release
