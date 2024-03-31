@@ -591,6 +591,8 @@ typedef struct EXinmonMeta_s {
 #define EXinmonMetaID 34
     uint16_t frameSize;
     uint16_t linkType;
+    // uint16_t etherType;
+    // uint16_t fill;
 } EXinmonMeta_t;
 #define OFFframeSize offsetof(EXinmonMeta_t, frameSize)
 #define SIZEframeSize MemberSize(EXinmonMeta_t, frameSize)
@@ -660,8 +662,6 @@ typedef struct EXdot1q_s {
 
 typedef struct EXphysicalInterface_s {
 #define EXphysicalInterfaceID 39
-    uint16_t etherType;
-    uint16_t fill;
     uint32_t ingress;
     uint32_t egress;
 #define OFFphysIngress offsetof(EXphysicalInterface_t, ingress)
