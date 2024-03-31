@@ -259,6 +259,8 @@ int QueryFile(char *filename, int verbose);
 
 int GetStatRecord(char *filename, stat_record_t *stat_record);
 
+nffile_t *NewFile(nffile_t *nffile);
+
 void DisposeFile(nffile_t *nffile);
 
 void CloseFile(nffile_t *nffile);

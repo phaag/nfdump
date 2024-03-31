@@ -217,47 +217,14 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
 
 static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier) {
     const char spinner[4] = {'|', '/', '-', '\\'};
-    char pathBuff[MAXPATHLEN];
-
-    // Get the first file handle
-    nffile_t *nffile_r = GetNextFile(NULL);
-    if (nffile_r == NULL) {
-        LogError("Empty file list. No files to process\n");
-        return;
-    }
+    char *outFile = NULL;
+    char *cfile = NULL;
 
     int cnt = 1;
-    char *cfile = nffile_r->fileName;
-    if (!cfile) {
-        LogError("(NULL) input file name error in %s line %d\n", __FILE__, __LINE__);
-        return;
-    }
-    if (verbose) printf(" %i Processing %s\r", cnt++, cfile);
+    nffile_t *nffile_r = NewFile(NULL);
+    nffile_t *nffile_w = NULL;
 
-    char *outFile = NULL;
-    if (wfile == NULL) {
-        // prepare output file
-        snprintf(pathBuff, MAXPATHLEN - 1, "%s-tmp", cfile);
-        pathBuff[MAXPATHLEN - 1] = '\0';
-        outFile = pathBuff;
-    } else {
-        outFile = wfile;
-    }
-
-    nffile_t *nffile_w = OpenNewFile(outFile, NULL, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
-    if (!nffile_w) {
-        // can not create output file
-        CloseFile(nffile_r);
-        DisposeFile(nffile_r);
-        return;
-    }
-
-    SetIdent(nffile_w, FILE_IDENT(nffile_r));
-    memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
-
-    // wait for workers ready to start
-    pthread_controller_wait(barrier);
-
+    dataBlock_t *nextBlock = NULL;
     dataBlock_t *dataBlock = NULL;
     // map datablock for workers - all workers
     // process thesame block but different records
@@ -266,21 +233,22 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         workerList[i]->dataBlock = &dataBlock;
     }
 
+    // wait for workers ready to start
+    pthread_controller_wait(barrier);
+
     int blk_count = 0;
     int done = 0;
     while (!done) {
-        // get next data block from file
-        dataBlock = ReadBlock(nffile_r, dataBlock);
-        if (verbose) {
-            printf("\r%c", spinner[blk_count & 0x3]);
-            blk_count++;
-        }
-
+        // get next data block
+        dataBlock = nextBlock;
         if (dataBlock == NULL) {
-            CloseUpdateFile(nffile_w);
-            if (wfile == NULL && rename(outFile, cfile) < 0) {
-                LogError("rename() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-                return;
+            // nffile_w is NULL for 1st entry in while loop
+            if (nffile_w) {
+                CloseUpdateFile(nffile_w);
+                if (wfile == NULL && rename(outFile, cfile) < 0) {
+                    LogError("rename() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                    return;
+                }
             }
 
             if (GetNextFile(nffile_r) == NULL) {
@@ -289,7 +257,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
                 continue;
             }
 
-            cfile = nffile_r->fileName;
+            char *cfile = nffile_r->fileName;
             if (!cfile) {
                 LogError("(NULL) input file name error in %s line %d\n", __FILE__, __LINE__);
                 CloseFile(nffile_r);
@@ -298,6 +266,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             }
             if (verbose) printf(" %i Processing %s\r", cnt++, cfile);
 
+            char pathBuff[MAXPATHLEN];
             if (wfile == NULL) {
                 // prepare output file
                 snprintf(pathBuff, MAXPATHLEN - 1, "%s-tmp", cfile);
@@ -318,13 +287,20 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             SetIdent(nffile_w, FILE_IDENT(nffile_r));
             memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
 
-            // continue with next file
+            // read first block from next file
+            nextBlock = ReadBlock(nffile_r, NULL);
             continue;
+        }
+
+        if (verbose) {
+            printf("\r%c", spinner[blk_count & 0x3]);
+            blk_count++;
         }
 
         if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
             LogError("Can't process block type %u. Write block unmodified", dataBlock->type);
             dataBlock = WriteBlock(nffile_w, dataBlock);
+            nextBlock = ReadBlock(nffile_r, NULL);
             continue;
         }
 
@@ -332,11 +308,14 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         // release workers from barrier
         pthread_control_barrier_release(barrier);
 
-        // wait for all workers, work done on this block
+        // prefetch next block
+        nextBlock = ReadBlock(nffile_r, NULL);
+
+        // wait for all workers, work done on previous block
         pthread_controller_wait(barrier);
 
         // write modified block
-        dataBlock = WriteBlock(nffile_w, dataBlock);
+        FlushBlock(nffile_w, dataBlock);
 
     }  // while
 
@@ -345,8 +324,8 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
     pthread_control_barrier_release(barrier);
 
     FreeDataBlock(dataBlock);
-    DisposeFile(nffile_w);
     DisposeFile(nffile_r);
+    DisposeFile(nffile_w);
 
     if (verbose) LogError("Processed %i files", --cnt);
 
@@ -526,7 +505,7 @@ int main(int argc, char **argv) {
     pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
     if (!barrier) exit(255);
 
-    pthread_t tid[MAXWORKERS];
+    pthread_t tid[MAXWORKERS] = {0};
     dbg_printf("Launch Workers\n");
     worker_param_t **workerList = LauchWorkers(tid, numWorkers, barrier);
     if (!workerList) {

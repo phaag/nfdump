@@ -124,8 +124,6 @@ static int Uncompress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, s
 
 static dataBlock_t *NewDataBlock(void);
 
-static nffile_t *NewFile(nffile_t *nffile);
-
 static dataBlock_t *nfread(nffile_t *nffile);
 
 static int nfwrite(nffile_t *nffile, dataBlock_t *block_header);
@@ -684,7 +682,7 @@ static int WriteAppendix(nffile_t *nffile) {
 
 }  // End of WriteAppendix
 
-static nffile_t *NewFile(nffile_t *nffile) {
+nffile_t *NewFile(nffile_t *nffile) {
     // Create struct
     if (!nffile) {
         nffile = calloc(1, sizeof(nffile_t));
@@ -1195,6 +1193,8 @@ int CloseUpdateFile(nffile_t *nffile) {
 
 // destroy nffile handle: free up all resources
 void DisposeFile(nffile_t *nffile) {
+    if (nffile == NULL) return;
+
     if (nffile->fd > 0) CloseFile(nffile);
     if (nffile->file_header) free(nffile->file_header);
     if (nffile->stat_record) free(nffile->stat_record);
