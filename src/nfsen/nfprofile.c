@@ -44,7 +44,6 @@
 #include <unistd.h>
 
 #include "conf/nfconf.h"
-#include "exporter.h"
 #include "filter/filter.h"
 #include "flist.h"
 #include "nbar.h"
@@ -185,34 +184,20 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
 
                     break;
                 case ExporterInfoRecordType: {
-                    int err = AddExporterInfo((exporter_info_record_t *)record_ptr);
-                    if (err != 0) {
-                        for (int j = 0; j < num_channels; j++) {
-                            if (channels[j].nffile != NULL && err == 1) {
-                                // flush new exporter
-                                channels[j].dataBlock =
-                                    AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
-                            }
+                    for (int j = 0; j < num_channels; j++) {
+                        if (channels[j].nffile != NULL) {
+                            // flush new exporter
+                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
-                    } else {
-                        LogError("Failed to add Exporter Record");
                     }
                 } break;
-                case SamplerLegacyRecordType: {
-                    if (AddSamplerLegacyRecord((samplerV0_record_t *)record_ptr) == 0) LogError("Failed to add legacy Sampler Record\n");
-                } break;
+                case SamplerLegacyRecordType:
                 case SamplerRecordType: {
-                    int err = AddSamplerRecord((sampler_record_t *)record_ptr);
-                    if (err != 0) {
-                        for (int j = 0; j < num_channels; j++) {
-                            if (channels[j].nffile != NULL && err == 1) {
-                                // flush new map
-                                channels[j].dataBlock =
-                                    AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
-                            }
+                    for (int j = 0; j < num_channels; j++) {
+                        if (channels[j].nffile != NULL) {
+                            // flush new map
+                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
-                    } else {
-                        LogError("Failed to add Sampler Record");
                     }
                 } break;
                 case NbarRecordType:
@@ -615,10 +600,6 @@ int main(int argc, char **argv) {
 
     if (!flist.single_file) {
         LogError("Input file (-r) required!");
-        exit(255);
-    }
-
-    if (!InitExporterList()) {
         exit(255);
     }
 
