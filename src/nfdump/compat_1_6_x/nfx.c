@@ -87,9 +87,9 @@ extension_descriptor_t extension_descriptor[] = {
 
     {EX_BGPADJ, 8, 15, 0, "BGP adjacent prev/next AS"},
     {EX_RECEIVED, 8, 16, 0, "time packet received"},
-    {EX_ETHERTYPE, 2, 28, 0, "ethertype"},
 
     // reserved for more v9/IPFIX
+    {EX_RESERVED_1, 0, 0, 0, NULL},
     {EX_RESERVED_2, 0, 0, 0, NULL},
     {EX_RESERVED_3, 0, 0, 0, NULL},
     {EX_RESERVED_4, 0, 0, 0, NULL},
