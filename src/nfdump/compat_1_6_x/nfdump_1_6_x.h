@@ -165,8 +165,6 @@ typedef struct master_record_s {
     uint64_t in_dst_mac;   // 0xffff'ffff'ffff'ffff
     uint64_t out_src_mac;  // 0xffff'ffff'ffff'ffff
     uint32_t mpls_label[10];
-    uint16_t etherType;
-    uint16_t etherfill[3];
 
     ip_addr_t ip_router;  // ipv4 0x0000'0000'ffff'ffff
                           // ipv6	0xffff'ffff'ffff'ffff
