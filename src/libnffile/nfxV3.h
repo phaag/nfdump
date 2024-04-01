@@ -591,8 +591,6 @@ typedef struct EXinmonMeta_s {
 #define EXinmonMetaID 34
     uint16_t frameSize;
     uint16_t linkType;
-    // uint16_t etherType;
-    // uint16_t fill;
 } EXinmonMeta_t;
 #define OFFframeSize offsetof(EXinmonMeta_t, frameSize)
 #define SIZEframeSize MemberSize(EXinmonMeta_t, frameSize)
@@ -643,36 +641,33 @@ typedef struct EXpfinfo_s {
 #define SIZEpfRuleNr MemberSize(EXpfinfo_t, rulenr)
 #define EXpfinfoSize (sizeof(EXpfinfo_t) - 4 + sizeof(elementHeader_t))
 
-typedef struct EXdot1q_s {
-#define EXdot1qID 38
+typedef struct EXlayer2_s {
+#define EXlayer2ID 38
     uint16_t vlanID;
     uint16_t customerVlanId;
     uint16_t postVlanID;
     uint16_t postCustomerVlanId;
-#define OFFvlanID offsetof(EXdot1q_t, vlanID)
-#define SIZEvlanID MemberSize(EXdot1q_t, vlanID)
-#define OFFpostVlanID offsetof(EXdot1q_t, postVlanID)
-#define SIZEpostVlanID MemberSize(EXdot1q_t, postVlanID)
-#define OFFcustomerVlanId offsetof(EXdot1q_t, customerVlanId)
-#define SIZEcustomerVlanId MemberSize(EXdot1q_t, customerVlanId)
-#define OFFpostCustomerVlanId offsetof(EXdot1q_t, postCustomerVlanId)
-#define SIZEpostCustomerVlanId MemberSize(EXdot1q_t, postCustomerVlanId)
-} EXdot1q_t;
-#define EXdot1qSize (sizeof(EXdot1q_t) + sizeof(elementHeader_t))
-
-typedef struct EXphysicalInterface_s {
-#define EXphysicalInterfaceID 39
     uint32_t ingress;
     uint32_t egress;
-#define OFFphysIngress offsetof(EXphysicalInterface_t, ingress)
-#define SIZEphysIngress MemberSize(EXphysicalInterface_t, ingress)
-#define OFFphysEgress offsetof(EXphysicalInterface_t, egress)
-#define SIZEphysEgress MemberSize(EXphysicalInterface_t, egress)
-} EXphysicalInterface_t;
-#define EXphysicalInterfaceSize (sizeof(EXphysicalInterface_t) + sizeof(elementHeader_t))
+    // uint16_t Type;
+    // uint16_t fill;
+#define OFFvlanID offsetof(EXlayer2_t, vlanID)
+#define SIZEvlanID MemberSize(EXlayer2_t, vlanID)
+#define OFFpostVlanID offsetof(EXlayer2_t, postVlanID)
+#define SIZEpostVlanID MemberSize(EXlayer2_t, postVlanID)
+#define OFFcustomerVlanId offsetof(EXlayer2_t, customerVlanId)
+#define SIZEcustomerVlanId MemberSize(EXlayer2_t, customerVlanId)
+#define OFFpostCustomerVlanId offsetof(EXlayer2_t, postCustomerVlanId)
+#define SIZEpostCustomerVlanId MemberSize(EXlayer2_t, postCustomerVlanId)
+#define OFFphysIngress offsetof(EXlayer2_t, ingress)
+#define SIZEphysIngress MemberSize(EXlayer2_t, ingress)
+#define OFFphysEgress offsetof(EXlayer2_t, egress)
+#define SIZEphysEgress MemberSize(EXlayer2_t, egress)
+} EXlayer2_t;
+#define EXlayer2Size (sizeof(EXlayer2_t) + sizeof(elementHeader_t))
 
 // max possible elements
-#define MAXEXTENSIONS 40
+#define MAXEXTENSIONS 39
 
 // push a fixed length extension to the v3 record
 // h v3 record header
@@ -740,7 +735,7 @@ static const struct extensionTable_s {
     EXTENSION(EXnselXlateIPv4), EXTENSION(EXnselXlateIPv6), EXTENSION(EXnselXlatePort), EXTENSION(EXnselAcl),      EXTENSION(EXnselUser),
     EXTENSION(EXnelCommon),     EXTENSION(EXnelXlatePort),  EXTENSION(EXnbarApp),       EXTENSION(EXlabel),        EXTENSION(EXinPayload),
     EXTENSION(EXoutPayload),    EXTENSION(EXtunIPv4),       EXTENSION(EXtunIPv6),       EXTENSION(EXobservation),  EXTENSION(EXinmonMeta),
-    EXTENSION(EXinmonFrame),    EXTENSION(EXvrf),           EXTENSION(EXpfinfo),        EXTENSION(EXdot1q),        EXTENSION(EXphysicalInterface)};
+    EXTENSION(EXinmonFrame),    EXTENSION(EXvrf),           EXTENSION(EXpfinfo),        EXTENSION(EXlayer2)};
 
 typedef struct record_map_s {
     recordHeaderV3_t *recordHeader;

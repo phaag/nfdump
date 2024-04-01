@@ -1959,24 +1959,24 @@ static int AddVlanNumber(direction_t direction, uint64_t num) {
 		case DIR_UNSPEC: {
 			int src = Connect_OR(
 			  NewElement(EXvLanID, OFFsrcVlan, SIZEsrcVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
-			  NewElement(EXdot1qID, OFFvlanID, SIZEvlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			  NewElement(EXlayer2ID, OFFvlanID, SIZEvlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
 			);
 			int dst = Connect_OR(
 			  NewElement(EXvLanID, OFFdstVlan, SIZEdstVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
-			  NewElement(EXdot1qID, OFFpostVlanID, SIZEpostVlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			  NewElement(EXlayer2ID, OFFpostVlanID, SIZEpostVlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
 			);
 			ret = Connect_OR(src,dst);
 			} break;
 		case DIR_SRC: 
 			ret = Connect_OR(
 			  NewElement(EXvLanID, OFFsrcVlan, SIZEsrcVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
-			  NewElement(EXdot1qID, OFFvlanID, SIZEvlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			  NewElement(EXlayer2ID, OFFvlanID, SIZEvlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
 			);
 			break;
 		case DIR_DST: 
 			ret = Connect_OR(
 			  NewElement(EXvLanID, OFFdstVlan, SIZEdstVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
-			  NewElement(EXdot1qID, OFFpostVlanID, SIZEpostVlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			  NewElement(EXlayer2ID, OFFpostVlanID, SIZEpostVlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
 			);
 			break;
 		default:

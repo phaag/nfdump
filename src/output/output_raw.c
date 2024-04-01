@@ -324,17 +324,6 @@ static void stringsEXvLan(FILE *stream, void *extensionRecord) {
 
 }  // End of stringsEXvLan
 
-static void stringsEXdot1q(FILE *stream, void *extensionRecord) {
-    EXdot1q_t *dot1q = (EXdot1q_t *)extensionRecord;
-    fprintf(stream,
-            "  vlanID       =             %5u\n"
-            "  post vlanID  =             %5u\n"
-            "  custID       =             %5u\n"
-            "  post custID  =             %5u\n",
-            dot1q->vlanID, dot1q->postVlanID, dot1q->customerVlanId, dot1q->postCustomerVlanId);
-
-}  // End of stringsEXdot1q
-
 static void stringsEXasRouting(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord) {
     EXasRouting_t *asRouting = (EXasRouting_t *)extensionRecord;
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
@@ -544,15 +533,18 @@ static void stringsEXvrf(FILE *stream, void *extensionRecord) {
 
 }  // End of stringsEXvrf
 
-static void stringsEXphysInterface(FILE *stream, void *extensionRecord) {
-    EXphysicalInterface_t *physicalInterface = (EXphysicalInterface_t *)extensionRecord;
-
+static void stringEXlayer2(FILE *stream, void *extensionRecord) {
+    EXlayer2_t *layer2 = (EXlayer2_t *)extensionRecord;
     fprintf(stream,
+            "  vlanID       =             %5u\n"
+            "  post vlanID  =             %5u\n"
+            "  custID       =             %5u\n"
+            "  post custID  =             %5u\n"
             "  ingress IFid =        %10u\n"
             "  egress IFid  =        %10u\n",
-            physicalInterface->ingress, physicalInterface->egress);
+            layer2->vlanID, layer2->postVlanID, layer2->customerVlanId, layer2->postCustomerVlanId, layer2->ingress, layer2->egress);
 
-}  // End of stringsEXphysInterface
+}  // End of stringEXlayer2
 
 static void stringsEXnselCommon(FILE *stream, void *extensionRecord) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)extensionRecord;
@@ -949,11 +941,8 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
             case EXvrfID:
                 stringsEXvrf(stream, ptr);
                 break;
-            case EXdot1qID:
-                stringsEXdot1q(stream, ptr);
-                break;
-            case EXphysicalInterfaceID:
-                stringsEXphysInterface(stream, ptr);
+            case EXlayer2ID:
+                stringEXlayer2(stream, ptr);
                 break;
             case EXnselCommonID:
                 stringsEXnselCommon(stream, ptr);

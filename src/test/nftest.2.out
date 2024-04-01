@@ -539,8 +539,8 @@ Flow Record:
 Flow Record: 
   RecordCount  =                20
   Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                 5: 1 2 4 5 38 
-  size         =               136
+  Elements     =                 6: 1 2 4 5 6 7 
+  size         =               148
   engine type  =                21
   engine ID    =                22
   export sysid =                 3
@@ -569,16 +569,16 @@ Flow Record:
   out packets  =               203
   out bytes    =          44556677
   aggr flows   =                 7
-  vlanID       =                47
-  post vlanID  =                48
-  custID       =                49
-  post custID  =                50
+  src vlan     =                45
+  dst vlan     =                46
+  src as       =               775
+  dst as       =              3303
 
 Flow Record: 
   RecordCount  =                21
   Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                 6: 1 2 4 5 7 38 
-  size         =               148
+  Elements     =                 7: 1 2 4 5 6 7 11 
+  size         =               168
   engine type  =                22
   engine ID    =                23
   export sysid =                 3
@@ -607,18 +607,17 @@ Flow Record:
   out packets  =               203
   out bytes    =          44556677
   aggr flows   =                 7
+  src vlan     =                45
+  dst vlan     =                46
   src as       =               775
   dst as       =              3303
-  vlanID       =                47
-  post vlanID  =                48
-  custID       =                49
-  post custID  =                50
+  ip next hop  =  2001::1110:bcde:1234:4
 
 Flow Record: 
   RecordCount  =                22
   Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                 7: 1 2 4 5 7 11 38 
-  size         =               168
+  Elements     =                 7: 1 2 4 5 6 7 10 
+  size         =               156
   engine type  =                23
   engine ID    =                24
   export sysid =                 3
@@ -647,19 +646,17 @@ Flow Record:
   out packets  =               203
   out bytes    =          44556677
   aggr flows   =                 7
+  src vlan     =                45
+  dst vlan     =                46
   src as       =               775
   dst as       =              3303
-  ip next hop  =  2001::1110:bcde:1234:4
-  vlanID       =                47
-  post vlanID  =                48
-  custID       =                49
-  post custID  =                50
+  ip next hop  =        172.72.1.2
 
 Flow Record: 
   RecordCount  =                23
   Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                 7: 1 2 4 5 7 10 38 
-  size         =               156
+  Elements     =                 8: 1 2 4 5 6 7 9 10 
+  size         =               176
   engine type  =                24
   engine ID    =                25
   export sysid =                 3
@@ -688,19 +685,18 @@ Flow Record:
   out packets  =               203
   out bytes    =          44556677
   aggr flows   =                 7
+  src vlan     =                45
+  dst vlan     =                46
   src as       =               775
   dst as       =              3303
+  bgp next hop =  2002::1210:cdef:2346:5
   ip next hop  =        172.72.1.2
-  vlanID       =                47
-  post vlanID  =                48
-  custID       =                49
-  post custID  =                50
 
 Flow Record: 
   RecordCount  =                24
   Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                 8: 1 2 4 5 7 9 10 38 
-  size         =               176
+  Elements     =                 8: 1 2 4 5 6 7 8 10 
+  size         =               164
   engine type  =                25
   engine ID    =                26
   export sysid =                 3
@@ -729,20 +725,18 @@ Flow Record:
   out packets  =               203
   out bytes    =          44556677
   aggr flows   =                 7
+  src vlan     =                45
+  dst vlan     =                46
   src as       =               775
   dst as       =              3303
-  bgp next hop =  2002::1210:cdef:2346:5
+  bgp next hop =        172.73.2.3
   ip next hop  =        172.72.1.2
-  vlanID       =                47
-  post vlanID  =                48
-  custID       =                49
-  post custID  =                50
 
 Flow Record: 
   RecordCount  =                25
   Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                 8: 1 2 4 5 7 8 10 38 
-  size         =               164
+  Elements     =                 9: 1 2 4 5 6 7 8 10 13 
+  size         =               184
   engine type  =                26
   engine ID    =                27
   export sysid =                 3
@@ -771,20 +765,19 @@ Flow Record:
   out packets  =               203
   out bytes    =          44556677
   aggr flows   =                 7
+  src vlan     =                45
+  dst vlan     =                46
   src as       =               775
   dst as       =              3303
   bgp next hop =        172.73.2.3
   ip next hop  =        172.72.1.2
-  vlanID       =                47
-  post vlanID  =                48
-  custID       =                49
-  post custID  =                50
+  ip exporter  =                ::
 
 Flow Record: 
   RecordCount  =                26
   Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                 9: 1 2 4 5 7 8 10 13 38 
-  size         =               184
+  Elements     =                 9: 1 2 4 5 6 7 8 10 12 
+  size         =               172
   engine type  =                27
   engine ID    =                28
   export sysid =                 3
@@ -813,21 +806,19 @@ Flow Record:
   out packets  =               203
   out bytes    =          44556677
   aggr flows   =                 7
+  src vlan     =                45
+  dst vlan     =                46
   src as       =               775
   dst as       =              3303
   bgp next hop =        172.73.2.3
   ip next hop  =        172.72.1.2
-  ip exporter  =                ::
-  vlanID       =                47
-  post vlanID  =                48
-  custID       =                49
-  post custID  =                50
+  ip exporter  =         127.0.0.1
 
 Flow Record: 
   RecordCount  =                27
   Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                 9: 1 2 4 5 7 8 10 12 38 
-  size         =               172
+  Elements     =                10: 1 2 4 5 6 7 8 10 12 14 
+  size         =               216
   engine type  =                28
   engine ID    =                29
   export sysid =                 3
@@ -856,21 +847,29 @@ Flow Record:
   out packets  =               203
   out bytes    =          44556677
   aggr flows   =                 7
+  src vlan     =                45
+  dst vlan     =                46
   src as       =               775
   dst as       =              3303
   bgp next hop =        172.73.2.3
   ip next hop  =        172.72.1.2
   ip exporter  =         127.0.0.1
-  vlanID       =                47
-  post vlanID  =                48
-  custID       =                49
-  post custID  =                50
+  MPLS Lbl  1  =          1010-0-0
+  MPLS Lbl  2  =          2020-0-0
+  MPLS Lbl  3  =          3030-0-0
+  MPLS Lbl  4  =          4040-0-0
+  MPLS Lbl  5  =          5050-0-0
+  MPLS Lbl  6  =          6060-0-0
+  MPLS Lbl  7  =          7070-0-0
+  MPLS Lbl  8  =          8080-0-0
+  MPLS Lbl  9  =          9090-0-0
+  MPLS Lbl 10  =        100100-0-1
 
 Flow Record: 
   RecordCount  =                28
   Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                10: 1 2 4 5 7 8 10 12 14 38 
-  size         =               216
+  Elements     =                11: 1 2 4 5 6 7 8 10 12 14 15 
+  size         =               252
   engine type  =                29
   engine ID    =                30
   export sysid =                 3
@@ -899,6 +898,8 @@ Flow Record:
   out packets  =               203
   out bytes    =          44556677
   aggr flows   =                 7
+  src vlan     =                45
+  dst vlan     =                46
   src as       =               775
   dst as       =              3303
   bgp next hop =        172.73.2.3
@@ -914,16 +915,16 @@ Flow Record:
   MPLS Lbl  8  =          8080-0-0
   MPLS Lbl  9  =          9090-0-0
   MPLS Lbl 10  =        100100-0-1
-  vlanID       =                47
-  post vlanID  =                48
-  custID       =                49
-  post custID  =                50
+  in src mac   = 12:34:56:78:90:aa
+  out dst mac  = 2f:ee:dd:cc:bb:ab
+  in dst mac   = 3a:ee:dd:cc:bb:fc
+  out src mac  = 4a:34:56:78:90:0d
 
 Flow Record: 
   RecordCount  =                29
   Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                11: 1 2 4 5 7 8 10 12 14 15 38 
-  size         =               252
+  Elements     =                12: 1 2 4 5 6 7 8 10 12 14 15 16 
+  size         =               264
   engine type  =                30
   engine ID    =                31
   export sysid =                 3
@@ -952,6 +953,8 @@ Flow Record:
   out packets  =               203
   out bytes    =          44556677
   aggr flows   =                 7
+  src vlan     =                45
+  dst vlan     =                46
   src as       =               775
   dst as       =              3303
   bgp next hop =        172.73.2.3
@@ -971,16 +974,14 @@ Flow Record:
   out dst mac  = 2f:ee:dd:cc:bb:ab
   in dst mac   = 3a:ee:dd:cc:bb:fc
   out src mac  = 4a:34:56:78:90:0d
-  vlanID       =                47
-  post vlanID  =                48
-  custID       =                49
-  post custID  =                50
+  bgp next as  =              7751
+  bgp prev as  =             33032
 
 Flow Record: 
   RecordCount  =                30
   Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                12: 1 2 4 5 7 8 10 12 14 15 16 38 
-  size         =               264
+  Elements     =                13: 1 2 4 5 6 7 8 10 12 14 15 16 17 
+  size         =               292
   engine type  =                31
   engine ID    =                32
   export sysid =                 3
@@ -1009,65 +1010,8 @@ Flow Record:
   out packets  =               203
   out bytes    =          44556677
   aggr flows   =                 7
-  src as       =               775
-  dst as       =              3303
-  bgp next hop =        172.73.2.3
-  ip next hop  =        172.72.1.2
-  ip exporter  =         127.0.0.1
-  MPLS Lbl  1  =          1010-0-0
-  MPLS Lbl  2  =          2020-0-0
-  MPLS Lbl  3  =          3030-0-0
-  MPLS Lbl  4  =          4040-0-0
-  MPLS Lbl  5  =          5050-0-0
-  MPLS Lbl  6  =          6060-0-0
-  MPLS Lbl  7  =          7070-0-0
-  MPLS Lbl  8  =          8080-0-0
-  MPLS Lbl  9  =          9090-0-0
-  MPLS Lbl 10  =        100100-0-1
-  in src mac   = 12:34:56:78:90:aa
-  out dst mac  = 2f:ee:dd:cc:bb:ab
-  in dst mac   = 3a:ee:dd:cc:bb:fc
-  out src mac  = 4a:34:56:78:90:0d
-  bgp next as  =              7751
-  bgp prev as  =             33032
-  vlanID       =                47
-  post vlanID  =                48
-  custID       =                49
-  post custID  =                50
-
-Flow Record: 
-  RecordCount  =                31
-  Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                13: 1 2 4 5 7 8 10 12 14 15 16 17 38 
-  size         =               292
-  engine type  =                32
-  engine ID    =                33
-  export sysid =                 3
-  first        =     1562833850493 [2019-07-11 10:30:50.493]
-  last         =     1562833852284 [2019-07-11 10:30:52.284]
-  received at  =     1562833800001 [2019-07-11 10:30:00.001]
-  proto        =                 6 TCP
-  tcp flags    =              0x12 ...A..S.
-  src port     =             22222
-  dst port     =                80
-  src tos      =                 3
-  fwd status   =                 1
-  in packets   =               190
-  in bytes     =           4021216
-  src addr     =    72.138.170.101
-  dst addr     =        42.16.32.6
-  input        =               200
-  output       =               100
-  src mask     =                24 72.138.170.0/24
-  dst mask     =                16 42.16.0.0/16
-  dst tos      =                 4
-  direction    =                 2
-  biFlow Dir   =              0x00 
-  end reason   =              0x00 
-  IPfrag flags =              0x00      
-  out packets  =               203
-  out bytes    =          44556677
-  aggr flows   =                 7
+  src vlan     =                45
+  dst vlan     =                46
   src as       =               775
   dst as       =              3303
   bgp next hop =        172.73.2.3
@@ -1092,21 +1036,17 @@ Flow Record:
   cli latency  =             0.002 ms
   srv latency  =             0.022 ms
   app latency  =             0.222 ms
-  vlanID       =                47
-  post vlanID  =                48
-  custID       =                49
-  post custID  =                50
 
 Flow Record: 
-  RecordCount  =                32
+  RecordCount  =                31
   Flags        =              0x00 NETFLOW v10, Unsampled
-  Elements     =                14: 1 2 4 5 7 8 10 12 14 15 16 17 38 39 
-  size         =               304
-  engine type  =                33
-  engine ID    =                34
+  Elements     =                13: 1 2 4 5 7 8 10 12 14 15 16 17 38 
+  size         =               300
+  engine type  =                32
+  engine ID    =                33
   export sysid =                 3
-  first        =     1562833852505 [2019-07-11 10:30:52.505]
-  last         =     1562833854286 [2019-07-11 10:30:54.286]
+  first        =     1562833850493 [2019-07-11 10:30:50.493]
+  last         =     1562833852284 [2019-07-11 10:30:52.284]
   received at  =     1562833800001 [2019-07-11 10:30:00.001]
   proto        =                 6 TCP
   tcp flags    =              0x12 ...A..S.
@@ -1114,8 +1054,8 @@ Flow Record:
   dst port     =                80
   src tos      =                 3
   fwd status   =                 1
-  in packets   =               200
-  in bytes     =           4244560
+  in packets   =               190
+  in bytes     =           4021216
   src addr     =    72.138.170.101
   dst addr     =        42.16.32.6
   input        =               200

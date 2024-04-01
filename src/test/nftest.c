@@ -399,8 +399,8 @@ static void runTest(void) {
     CheckFilter("dst vlan 1001", recordHandle, 0);
     CheckFilter("src vlan 1001", recordHandle, 1);
 
-    // EXdot1q
-    PushExtension(recordHeaderV3, EXdot1q, dot1q);
+    // EXlayer2
+    PushExtension(recordHeaderV3, EXlayer2, dot1q);
     MapRecordHandle(recordHandle, recordHeaderV3, 1);
     dot1q->vlanID = 3003;
     dot1q->postVlanID = 4004;
