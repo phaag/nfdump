@@ -663,6 +663,8 @@ typedef struct EXlayer2_s {
 #define SIZEphysIngress MemberSize(EXlayer2_t, ingress)
 #define OFFphysEgress offsetof(EXlayer2_t, egress)
 #define SIZEphysEgress MemberSize(EXlayer2_t, egress)
+#define OFFetherType offsetof(EXlayer2_t, etherType)
+#define SIZEetherType MemberSize(EXlayer2_t, etherType)
 } EXlayer2_t;
 #define EXlayer2Size (sizeof(EXlayer2_t) + sizeof(elementHeader_t))
 
