@@ -543,6 +543,10 @@ static void stringEXlayer2(FILE *stream, void *extensionRecord) {
             "  ingress IFid =        %10u\n"
             "  egress IFid  =        %10u\n",
             layer2->vlanID, layer2->postVlanID, layer2->customerVlanId, layer2->postCustomerVlanId, layer2->ingress, layer2->egress);
+        /*
+            "  ethertype    =            0x%04x\n",
+            layer2->vlanID, layer2->postVlanID, layer2->customerVlanId, layer2->postCustomerVlanId, layer2->ingress, layer2->egress, layer2->etherType);
+        */
 
 }  // End of stringEXlayer2
 

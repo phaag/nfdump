@@ -260,6 +260,8 @@ typedef struct common_header_s {
 #define NF_N_EGRESS_VRFID 235
 #define NF_N_VRFNAME 236
 
+#define NF9_ETHERTYPE 256
+
 #define NF_F_EVENT_TIME_MSEC 323
 
 #define NF_F_XLATE_SRC_ADDR_IPV6 281

@@ -119,6 +119,8 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value);
 
 static int AddMAC(direction_t direction, char *macString);
 
+static int AddEthertype(uint64_t etherType);
+
 static int AddLatency(char *type, uint16_t comp, uint64_t number);
 
 static int AddASAString(char *event, char *asaStr);
@@ -176,7 +178,7 @@ static int AddASList(direction_t direction, void *U64List);
 %token ENGINE ENGINETYPE ENGINEID EXPORTER
 %token DURATION PPS BPS BPP FLAGS
 %token PROTO PORT AS IF VLAN MPLS MAC ICMP ICMPTYPE ICMPCODE
-%token PACKETS BYTES FLOWS 
+%token PACKETS BYTES FLOWS ETHERTYPE
 %token MASK FLOWDIR TOS FWDSTAT LATENCY ASA ACL PAYLOAD GEO VRF
 %token OBSERVATION PF
 %token <s> STRING
@@ -219,7 +221,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| ENGINETYPE comp NUMBER {
 	  $$.self  = AddEngineNum("type", $2.comp, $3); if ( $$.self < 0 ) YYABORT;
-  }
+        }
 
 	| ENGINEID comp NUMBER {
 	  $$.self  = AddEngineNum("id", $2.comp, $3); if ( $$.self < 0 ) YYABORT;
@@ -279,7 +281,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| FWDSTAT STRING {
 	  $$.self = AddFwdStatString($2); if ( $$.self < 0 ) YYABORT;
-  }
+        }
 
 	| DURATION comp NUMBER {
 		$$.self = NewElement(EXgenericFlowID, 0, SIZEmsecLast, $3, $2.comp, FUNC_DURATION, NULLPtr); 
@@ -337,13 +339,17 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = AddMaskNumber($1.direction, $3); if ( $$.self < 0 ) YYABORT;
 	}
 
+	| ETHERTYPE NUMBER {
+		$$.self = AddEthertype($2); if ( $$.self < 0 ) YYABORT;
+	}
+
 	| FLOWDIR NUMBER {
 		$$.self = AddFlowDir(DIR_UNSPEC, $2); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| FLOWDIR dqual {
 		$$.self = AddFlowDir($2.direction, -1); if ( $$.self < 0 ) YYABORT;
-  }
+        }
 
 	| MPLS STRING comp NUMBER {	
 		$$.self = AddMPLS($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
@@ -508,17 +514,17 @@ comp:				{ $$.comp = CMP_EQ; }
 	;
 
 /* direction qualifiers for direction related elements or specifier for elements */
-dqual:	   	 { $$.direction = DIR_UNSPEC;   }
-	| SRC			 { $$.direction = DIR_SRC;      }
-	| DST			 { $$.direction = DIR_DST;      }
+dqual:	 { $$.direction = DIR_UNSPEC;   }
+	| SRC		 { $$.direction = DIR_SRC;      }
+	| DST		 { $$.direction = DIR_DST;      }
 	| SRC NAT	 { $$.direction = DIR_SRC_NAT;	}
-	| DST	NAT  { $$.direction = DIR_DST_NAT;	}
-	| SRC TUN	 { $$.direction = DIR_SRC_TUN;	}
-	| DST	TUN  { $$.direction = DIR_DST_TUN;	}
-	| NAT  		 { $$.direction = DIR_UNSPEC_NAT;	}
-	| TUN  		 { $$.direction = DIR_UNSPEC_TUN;	}
-	| IN			 { $$.direction = DIR_IN;				}
-	| OUT			 { $$.direction = DIR_OUT;			}
+	| DST	NAT      { $$.direction = DIR_DST_NAT;	}
+	| SRC TUN	 { $$.direction = DIR_SRC_TUN;  }
+	| DST	TUN      { $$.direction = DIR_DST_TUN;  }
+	| NAT  		 { $$.direction = DIR_UNSPEC_NAT; }
+	| TUN  		 { $$.direction = DIR_UNSPEC_TUN; }
+	| IN		 { $$.direction = DIR_IN;       }
+	| OUT		 { $$.direction = DIR_OUT;      }
 	| IN SRC	 { $$.direction = DIR_IN_SRC;   }
 	| IN DST	 { $$.direction = DIR_IN_DST;   }
 	| OUT SRC	 { $$.direction = DIR_OUT_SRC;	}
@@ -527,12 +533,12 @@ dqual:	   	 { $$.direction = DIR_UNSPEC;   }
 	| EGRESS	 { $$.direction = DIR_EGRESS;   }
 	| PREV		 { $$.direction = DIR_PREV;     }
 	| NEXT		 { $$.direction = DIR_NEXT;     }
-	| BGP NEXT { $$.direction = BGP_NEXT;     }
+	| BGP NEXT       { $$.direction = BGP_NEXT;	}
 	| ROUTER	 { $$.direction = SRC_ROUTER;   }
-	| EXPORTER { $$.direction = SRC_ROUTER;   }
+	| EXPORTER       { $$.direction = SRC_ROUTER;   }
 	;
 
-expr:	term				{ $$ = $1.self;        			 }
+expr:	term { $$ = $1.self; }
 	| expr OR  expr	{ $$ = Connect_OR($1, $3);   }
 	| expr AND expr	{ $$ = Connect_AND($1, $3);  }
 	| NOT expr	%prec NEGATE	{ $$ = Invert($2); }
@@ -973,6 +979,10 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
 	// unreached
 	return -1;
 } // End of AddMPLS
+
+static int AddEthertype(uint64_t etherType) {
+	return NewElement(EXlayer2ID, OFFetherType, SIZEetherType, etherType, CMP_EQ, FUNC_NONE, NULLPtr);
+} // End of AddMAC
 
 static int AddMAC(direction_t direction, char *macString) {
 

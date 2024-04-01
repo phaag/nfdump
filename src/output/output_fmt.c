@@ -351,6 +351,8 @@ static void String_PortBlockStep(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_PortBlockSize(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_Ethertype(FILE *stream, recordHandle_t *recordHandle);
+
 static struct format_token_list_s {
     char *token;                        // token
     int is_address;                     // is an IP address
@@ -463,6 +465,7 @@ static struct format_token_list_s {
     {"%odmc", 0, " Out dst MAC Addr", String_OutDstMac},  // Output Dst Mac Addr
     {"%idmc", 0, "  In dst MAC Addr", String_InDstMac},   // Input Dst Mac Addr
     {"%osmc", 0, " Out src MAC Addr", String_OutSrcMac},  // Output Src Mac Addr
+    {"%eth",  0, " etherType", String_Ethertype},         // etherType
 
     // EXasAdjacentID
     {"%nas", 0, "Next AS", String_NextAS},  // Next AS
@@ -1903,6 +1906,11 @@ static void String_DstCVlan(FILE *stream, recordHandle_t *recordHandle) {
 
     fprintf(stream, "%6u", vlanID);
 }  // End of String_DstCVlan
+
+static void String_Ethertype(FILE *stream, recordHandle_t *recordHandle) {
+    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
+    fprintf(stream, "0x%04x", layer2->etherType);
+} // End of String_Ethertype
 
 static void String_Dir(FILE *stream, recordHandle_t *recordHandle) {
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
