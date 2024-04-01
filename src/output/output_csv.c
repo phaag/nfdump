@@ -296,8 +296,12 @@ void csv_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
     ts = localtime(&when);
     strftime(datestr3, 63, ",%Y-%m-%d %H:%M:%S", ts);
 
-    fprintf(stream, "%s.%03llu", datestr3, (long long unsigned)genericFlow->msecReceived % 1000LL);
+    fprintf(stream, "%s.%03llu\n", datestr3, (long long unsigned)genericFlow->msecReceived % 1000LL);
 
-    EXetherType_t *etherType = (EXetherType_t *)recordHandle->extensionList[EXetherTypeID];
-    fprintf(stream, ",0x%04x\n", etherType->etherType);
+    uint16_t etherType = 0;
+    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXleyer2ID];
+    if ( layer2 ) {
+        etherType = layer2->etherType;
+    }
+    fprintf(stream, ",0x%04x\n", etherType);
 }  // End of csv_record
