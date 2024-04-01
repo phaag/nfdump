@@ -539,7 +539,7 @@ static void stringEXlayer2(FILE *stream, void *extensionRecord, const char *inde
             "%s\"phys_egress\" : \"%u\"%s"
             "%s\"ethertype\" : %u%s",
             indent, layer2->vlanID, fs, indent, layer2->postVlanID, fs, indent, layer2->customerVlanId, fs, indent, layer2->postCustomerVlanId, fs,
-            indent, layer2->ingress, fs, indent, layer2->egress, fs, indent, etherType->etherType, fs);
+            indent, layer2->ingress, fs, indent, layer2->egress, fs, indent, layer2->etherType, fs);
 
 }  // End of stringEXlayer2
 
