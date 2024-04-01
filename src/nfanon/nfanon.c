@@ -34,6 +34,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -46,6 +47,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "barrier.h"
 #include "config.h"
 #include "flist.h"
 #include "nbar.h"
@@ -55,14 +57,23 @@
 #include "panonymizer.h"
 #include "util.h"
 
+#define MAXANONWORKERS 8
+
+typedef struct worker_param_s {
+    int self;
+    int numWorkers;
+    dataBlock_t **dataBlock;
+
+    // sync barrier
+    pthread_control_barrier_t *barrier;
+} worker_param_t;
+
 /* Function Prototypes */
 static void usage(char *name);
 
 static inline void AnonRecord(recordHeaderV3_t *v3Record);
 
-static inline void WriteAnonRecord(nffile_t *wfile, recordHeaderV3_t *v3Record);
-
-static void process_data(void *wfile, int verbose);
+static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier);
 
 /* Functions */
 
@@ -75,6 +86,7 @@ static void usage(char *name) {
         "-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>.\n"
         "-q\t\tDo not print progress spinnen and filenames.\n"
         "-r <path>\tread input from single file or all files in directory.\n"
+        "-t <num>\tnumber of worker threads. Max depends on cores online\n"
         "-w <file>\tName of output file. Defaults to input file.\n",
         name);
 } /* usage */
@@ -188,26 +200,8 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
                 nselXlateIPv6->xlateDstAddr[0] = anon_ip[0];
                 nselXlateIPv6->xlateDstAddr[1] = anon_ip[1];
             } break;
-            case EXnselXlatePortID:
-                break;
-            case EXnselAclID:
-                break;
-            case EXnselUserID:
-                break;
-            case EXnelCommonID:
-                break;
-            case EXnelXlatePortID:
-                break;
-            case EXnbarAppID:
-                break;
-            case EXinPayloadID:
-                break;
-            case EXoutPayloadID:
-                break;
-            case EXetherTypeID:
-                break;
-            default:
-                LogError("Unknown extension '%u'", elementHeader->type);
+                // default:
+                // skip other and unknown extension
         }
 
         size += elementHeader->length;
@@ -221,147 +215,166 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
 
 }  // End of AnonRecord
 
-static inline void WriteAnonRecord(nffile_t *wfile, recordHeaderV3_t *v3Record) {
-    // output buffer size check for all expected records
-    if (!CheckBufferSpace(wfile, v3Record->size)) {
-        LogError("WriteAnonRecord(): output buffer size error");
-        return;
-    }
-
-    memcpy(wfile->buff_ptr, (void *)v3Record, v3Record->size);
-
-    wfile->block_header->NumRecords++;
-    wfile->block_header->size += v3Record->size;
-    wfile->buff_ptr += v3Record->size;
-
-}  // End of WriteAnonRecord
-
-static void process_data(void *wfile, int verbose) {
+static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier) {
     const char spinner[4] = {'|', '/', '-', '\\'};
-    char outfile[MAXPATHLEN], *cfile;
-
-    // Get the first file handle
-    nffile_t *nffile_r = GetNextFile(NULL);
-    if (!nffile_r) {
-        LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-        return;
-    }
-    if (nffile_r == EMPTY_LIST) {
-        LogError("Empty file list. No files to process\n");
-        return;
-    }
+    char *outFile = NULL;
+    char *cfile = NULL;
 
     int cnt = 1;
-    cfile = nffile_r->fileName;
-    if (!cfile) {
-        LogError("(NULL) input file name error in %s line %d\n", __FILE__, __LINE__);
-        return;
-    } else {
-        // prepare output file
-        snprintf(outfile, MAXPATHLEN - 1, "%s-tmp", cfile);
-        outfile[MAXPATHLEN - 1] = '\0';
-        if (verbose) printf(" %i Processing %s\r", cnt++, cfile);
-    }
-
+    nffile_t *nffile_r = NewFile(NULL);
     nffile_t *nffile_w = NULL;
-    if (wfile)
-        nffile_w = OpenNewFile(wfile, NULL, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
-    else
-        nffile_w = OpenNewFile(outfile, NULL, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
 
-    if (!nffile_w) {
-        if (nffile_r) {
-            CloseFile(nffile_r);
-            DisposeFile(nffile_r);
-        }
-        return;
+    dataBlock_t *nextBlock = NULL;
+    dataBlock_t *dataBlock = NULL;
+    // map datablock for workers - all workers
+    // process thesame block but different records
+    for (int i = 0; i < numWorkers; i++) {
+        // set new datablock for all workers
+        workerList[i]->dataBlock = &dataBlock;
     }
 
-    SetIdent(nffile_w, FILE_IDENT(nffile_r));
-    memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
+    // wait for workers ready to start
+    pthread_controller_wait(barrier);
 
-    dataBlock_t *dataBlock = NULL;
     int blk_count = 0;
     int done = 0;
     while (!done) {
-        // get next data block from file
-        dataBlock = ReadBlock(nffile_r, dataBlock);
-        if (verbose) {
-            printf("\r%c", spinner[blk_count & 0x3]);
-            blk_count++;
-        }
-
-        if (dataBlock == NF_EOF) {
-            if (wfile == NULL) {
+        // get next data block
+        dataBlock = nextBlock;
+        if (dataBlock == NULL) {
+            // nffile_w is NULL for 1st entry in while loop
+            if (nffile_w) {
                 CloseUpdateFile(nffile_w);
-                if (rename(outfile, cfile) < 0) {
+                if (wfile == NULL && rename(outFile, cfile) < 0) {
                     LogError("rename() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                     return;
                 }
             }
 
-            nffile_t *next = GetNextFile(nffile_r);
-            if (next == EMPTY_LIST || next == NULL) {
+            if (GetNextFile(nffile_r) == NULL) {
                 done = 1;
                 printf("\nDone\n");
                 continue;
             }
 
-            cfile = nffile_r->fileName;
+            char *cfile = nffile_r->fileName;
             if (!cfile) {
                 LogError("(NULL) input file name error in %s line %d\n", __FILE__, __LINE__);
+                CloseFile(nffile_r);
+                DisposeFile(nffile_r);
                 return;
             }
             if (verbose) printf(" %i Processing %s\r", cnt++, cfile);
 
+            char pathBuff[MAXPATHLEN];
             if (wfile == NULL) {
-                snprintf(outfile, MAXPATHLEN - 1, "%s-tmp", cfile);
-                outfile[MAXPATHLEN - 1] = '\0';
-
-                nffile_w = OpenNewFile(outfile, nffile_w, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
-                if (!nffile_w) {
-                    if (nffile_r) {
-                        DisposeFile(nffile_r);
-                    }
-                    return;
-                }
-                memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
+                // prepare output file
+                snprintf(pathBuff, MAXPATHLEN - 1, "%s-tmp", cfile);
+                pathBuff[MAXPATHLEN - 1] = '\0';
+                outFile = pathBuff;
             } else {
-                SumStatRecords(nffile_w->stat_record, nffile_r->stat_record);
+                outFile = wfile;
             }
 
-            // continue with next file
+            nffile_w = OpenNewFile(outFile, NULL, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
+            if (!nffile_w) {
+                // can not create output file
+                CloseFile(nffile_r);
+                DisposeFile(nffile_r);
+                return;
+            }
+
+            SetIdent(nffile_w, FILE_IDENT(nffile_r));
+            memcpy((void *)nffile_w->stat_record, (void *)nffile_r->stat_record, sizeof(stat_record_t));
+
+            // read first block from next file
+            nextBlock = ReadBlock(nffile_r, NULL);
             continue;
+        }
+
+        if (verbose) {
+            printf("\r%c", spinner[blk_count & 0x3]);
+            blk_count++;
         }
 
         if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
-            LogError("Can't process block type %u. Skip block", dataBlock->type);
+            LogError("Can't process block type %u. Write block unmodified", dataBlock->type);
+            dataBlock = WriteBlock(nffile_w, dataBlock);
+            nextBlock = ReadBlock(nffile_r, NULL);
             continue;
         }
+
+        dbg_printf("Next block: %d, Records: %u\n", blk_count, dataBlock->NumRecords);
+        // release workers from barrier
+        pthread_control_barrier_release(barrier);
+
+        // prefetch next block
+        nextBlock = ReadBlock(nffile_r, NULL);
+
+        // wait for all workers, work done on previous block
+        pthread_controller_wait(barrier);
+
+        // write modified block
+        FlushBlock(nffile_w, dataBlock);
+
+    }  // while
+
+    // done! - signal all workers to terminate
+    dataBlock = NULL;
+    pthread_control_barrier_release(barrier);
+
+    FreeDataBlock(dataBlock);
+    DisposeFile(nffile_r);
+    DisposeFile(nffile_w);
+
+    if (verbose) LogError("Processed %i files", --cnt);
+
+}  // End of process_data
+
+__attribute__((noreturn)) static void *worker(void *arg) {
+    worker_param_t *worker_param = (worker_param_t *)arg;
+
+    uint32_t self = worker_param->self;
+    uint32_t numWorkers = worker_param->numWorkers;
+
+    // wait in barrier after launch
+    pthread_control_barrier_wait(worker_param->barrier);
+
+    while (*(worker_param->dataBlock)) {
+        dataBlock_t *dataBlock = *(worker_param->dataBlock);
+        dbg_printf("Worker %i working on %p\n", self, dataBlock);
+
+        uint32_t recordCount = 0;
 
         record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
         for (int i = 0; i < dataBlock->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
-                exit(255);
+                goto SKIP;
             }
             sumSize += record_ptr->size;
 
-            switch (record_ptr->type) {
-                case V3Record:
-                    AnonRecord((recordHeaderV3_t *)record_ptr);
-                    WriteAnonRecord(nffile_w, (recordHeaderV3_t *)record_ptr);
-                    break;
-                case ExporterInfoRecordType:
-                case ExporterStatRecordType:
-                case SamplerRecordType:
-                case NbarRecordType:
-                    // Silently skip exporter/sampler records
-                    break;
+            // check, if this is our record
+            if ((i % numWorkers) == self) {
+                // our record - work on it
+                recordCount++;
 
-                default: {
-                    LogError("Skip unknown record type %i", record_ptr->type);
+                // work on our record
+                switch (record_ptr->type) {
+                    case V3Record:
+                        AnonRecord((recordHeaderV3_t *)record_ptr);
+                        break;
+                    case ExporterInfoRecordType:
+                    case ExporterStatRecordType:
+                    case SamplerRecordType:
+                    case NbarRecordType:
+                        // Silently skip exporter/sampler records
+                        break;
+
+                    default: {
+                        LogError("Skip unknown record: %u type %i", recordCount, record_ptr->type);
+                    }
                 }
             }
             // Advance pointer by number of bytes for netflow record
@@ -369,29 +382,69 @@ static void process_data(void *wfile, int verbose) {
 
         }  // for all records
 
-    }  // while
+        dbg_printf("Worker %i: datablock completed. Records processed: %u\n", self, recordCount);
 
-    if (wfile != NULL) CloseUpdateFile(nffile_w);
-    DisposeFile(nffile_w);
-
-    if (nffile_r) {
-        FreeDataBlock(dataBlock);
-        CloseFile(nffile_r);
-        DisposeFile(nffile_r);
+    SKIP:
+        // Done
+        // wait in barrier for next data record
+        pthread_control_barrier_wait(worker_param->barrier);
     }
 
-    if (verbose) LogError("Processed %i files", --cnt);
+    dbg_printf("Worker %d done.\n", worker_param->self);
+    pthread_exit(NULL);
+}  // End of worker
 
-}  // End of process_data
+static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_control_barrier_t *barrier) {
+    if (numWorkers > MAXWORKERS) {
+        LogError("LaunchWorkers: number of worker: %u > max workers: %u", numWorkers, MAXWORKERS);
+        return NULL;
+    }
+
+    worker_param_t **workerList = calloc(numWorkers, sizeof(worker_param_t *));
+    if (!workerList) NULL;
+
+    for (int i = 0; i < numWorkers; i++) {
+        worker_param_t *worker_param = calloc(1, sizeof(worker_param_t));
+        if (!worker_param) NULL;
+
+        worker_param->barrier = barrier;
+        worker_param->self = i;
+        worker_param->dataBlock = NULL;
+        worker_param->numWorkers = numWorkers;
+        workerList[i] = worker_param;
+
+        int err = pthread_create(&(tid[i]), NULL, worker, (void *)worker_param);
+        if (err) {
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
+    }
+    return workerList;
+
+}  // End of LaunchWorkers
+
+static void WaitWorkersDone(pthread_t *tid, int numWorkers) {
+    // wait for all nfwriter threads to exit
+    for (int i = 0; i < numWorkers; i++) {
+        if (tid[i]) {
+            int err = pthread_join(tid[i], NULL);
+            if (err) {
+                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            }
+            tid[i] = 0;
+        }
+    }
+}  // End of WaitWorkersDone
 
 int main(int argc, char **argv) {
     char *wfile = NULL;
     char CryptoPAnKey[32] = {0};
     flist_t flist = {0};
 
+    int numWorkers = MAXANONWORKERS;
     int verbose = 1;
     int c;
-    while ((c = getopt(argc, argv, "hK:L:qr:w:")) != EOF) {
+    while ((c = getopt(argc, argv, "hK:L:qr:t:w:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -423,7 +476,12 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
+            case 't':
+                CheckArgLen(optarg, 4);
+                numWorkers = atoi(optarg);
+                break;
             case 'w':
+                CheckArgLen(optarg, MAXPATHLEN);
                 wfile = optarg;
                 break;
             default:
@@ -441,9 +499,26 @@ int main(int argc, char **argv) {
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!fileList || !Init_nffile(0, fileList)) exit(255);
 
+    // check numWorkers depending on cores online
+    numWorkers = GetNumWorkers(numWorkers);
+
+    pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
+    if (!barrier) exit(255);
+
+    pthread_t tid[MAXWORKERS] = {0};
+    dbg_printf("Launch Workers\n");
+    worker_param_t **workerList = LauchWorkers(tid, numWorkers, barrier);
+    if (!workerList) {
+        LogError("Failed to launch workers");
+        exit(255);
+    }
+
     // make stdout unbuffered for progress pointer
     setvbuf(stdout, (char *)NULL, _IONBF, 0);
-    process_data(wfile, verbose);
+    process_data(wfile, verbose, workerList, numWorkers, barrier);
+
+    WaitWorkersDone(tid, numWorkers);
+    pthread_control_barrier_destroy(barrier);
 
     return 0;
 }

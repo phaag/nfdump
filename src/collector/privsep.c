@@ -62,7 +62,7 @@ static void IntHandler(int signal) {
 messageQueue_t *NewMessageQueue(void) {
     messageQueue_t *messageQueue = (messageQueue_t *)calloc(1, sizeof(messageQueue_t));
     if (!messageQueue) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
     int err = 0;
@@ -81,12 +81,12 @@ messageQueue_t *NewMessageQueue(void) {
 void pushMessage(messageQueue_t *messageQueue, message_t *message) {
     messageList_t *listElement = (messageList_t *)malloc(sizeof(messageList_t));
     if (!listElement) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
     listElement->message = (message_t *)malloc(message->length);
     if (!listElement->message) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
     memcpy(listElement->message, message, message->length);
@@ -181,7 +181,7 @@ __attribute__((noreturn)) void *pipeReader(void *arg) {
                 // check for valid message length
                 message_t *message = (message_t *)p;
                 if (message->length == 0) {
-                    LogError("Zero size pipe message: flush all data: %zu\n", nbytes);
+                    LogError("Zero size pipe message: flush all data: %zu", nbytes);
                     p = eod;
                     continue;
                 }
@@ -225,9 +225,9 @@ __attribute__((noreturn)) void *pipeReader(void *arg) {
             if (nbytes == 0) {
                 // EOF - pipe broken?
                 done = 1;
-                LogError("read() error pipe closed\n");
+                LogError("read() error pipe closed");
             } else {
-                if (errno != EINTR) LogError("read() error pipe: %d %s\n", nbytes, strerror(errno));
+                if (errno != EINTR) LogError("read() error pipe: %d %s", nbytes, strerror(errno));
             }
         }
     }
@@ -260,7 +260,7 @@ int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname) {
         int i;
         char **privargv = (char **)calloc(argc + 3, sizeof(char *));
         if (!privargv) {
-            LogError("Process_v9: Panic! calloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            LogError("PrivsepFork: Panic! calloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
         privargv[0] = argv[0];
@@ -269,7 +269,7 @@ int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname) {
         privargv[i++] = privname;
         privargv[i++] = NULL;
         execvp(privargv[0], privargv);
-        LogError("execvp() privsep '%s' failed: %s\n", privargv[0], strerror(errno));
+        LogError("execvp() privsep '%s' failed: %s", privargv[0], strerror(errno));
         _exit(errno);
     }
 

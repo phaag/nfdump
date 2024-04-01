@@ -12,9 +12,8 @@ bin_PROGRAMS += nftrack
 endif
 
 nfstatfile = ../collector/nfstatfile.c ../collector/nfstatfile.h
-exporter = ../nfdump/exporter.c 
 
-nfprofile_SOURCES = nfprofile.c profile.c profile.h $(nfstatfile) $(exporter)
+nfprofile_SOURCES = nfprofile.c profile.c profile.h $(nfstatfile) 
 nfprofile_LDADD = -lnfdump -lnffile -lrrd
 nfprofile_LDFLAGS = -L../libnfdump -L../libnffile
 

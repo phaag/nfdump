@@ -195,6 +195,10 @@ static void String_SrcVlan(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_DstVlan(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_SrcCVlan(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_DstCVlan(FILE *stream, recordHandle_t *recordHandle);
+
 static void String_FwdStatus(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_BiFlowDir(FILE *stream, recordHandle_t *recordHandle);
@@ -321,6 +325,10 @@ static void String_iacl(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_eacl(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_physI_ID(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_physE_ID(FILE *stream, recordHandle_t *recordHandle);
+
 static void String_xlateSrcAddr(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_xlateDstAddr(FILE *stream, recordHandle_t *recordHandle);
@@ -415,9 +423,13 @@ static struct format_token_list_s {
     {"%obyt", 0, "Out Byte", String_OutBytes},    // In Bytes
     {"%fl", 0, "Flows", String_Flows},            // Flows
 
-    // EXvLanID
-    {"%svln", 0, "SVlan", String_SrcVlan},  // Src Vlan
-    {"%dvln", 0, "DVlan", String_DstVlan},  // Dst Vlan
+    // EXvLanID and EXlayer2ID
+    {"%svln", 0, "S-Vlan", String_SrcVlan},      // Src Vlan
+    {"%dvln", 0, "D-Vlan", String_DstVlan},      // Dst Vlan
+    {"%scvln", 0, "SCVlan", String_SrcCVlan},    // Src customer Vlan
+    {"%dcvln", 0, "DCVlan", String_DstCVlan},    // Dst customer Vlan
+    {"%id", 0, "ingress-ID", String_physI_ID},   // ingress phys interface ID
+    {"%eid", 0, " egress-ID", String_physE_ID},  // egress phys interface ID
 
     // EXasRoutingID
     {"%sas", 0, "Src AS", String_SrcAS},  // Source AS
@@ -1861,17 +1873,39 @@ static void String_DstMask(FILE *stream, recordHandle_t *recordHandle) {
 
 static void String_SrcVlan(FILE *stream, recordHandle_t *recordHandle) {
     EXvLan_t *vLan = (EXvLan_t *)recordHandle->extensionList[EXvLanID];
-    uint32_t srcVlan = vLan ? vLan->srcVlan : 0;
+    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
 
-    fprintf(stream, "%5u", srcVlan);
+    uint32_t vlanID = 0;
+    if (vLan) vlanID = vLan->srcVlan;
+    if (layer2) vlanID = layer2->vlanID;
+
+    fprintf(stream, "%6u", vlanID);
 }  // End of String_SrcVlan
 
 static void String_DstVlan(FILE *stream, recordHandle_t *recordHandle) {
     EXvLan_t *vLan = (EXvLan_t *)recordHandle->extensionList[EXvLanID];
-    uint32_t dstVlan = vLan ? vLan->dstVlan : 0;
+    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
 
-    fprintf(stream, "%5u", dstVlan);
+    uint32_t vlanID = 0;
+    if (vLan) vlanID = vLan->dstVlan;
+    if (layer2) vlanID = layer2->postVlanID;
+
+    fprintf(stream, "%6u", vlanID);
 }  // End of String_DstVlan
+
+static void String_SrcCVlan(FILE *stream, recordHandle_t *recordHandle) {
+    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
+    uint32_t vlanID = layer2 ? layer2->customerVlanId : 0;
+
+    fprintf(stream, "%6u", vlanID);
+}  // End of String_SrcCVlan
+
+static void String_DstCVlan(FILE *stream, recordHandle_t *recordHandle) {
+    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
+    uint32_t vlanID = layer2 ? layer2->postCustomerVlanId : 0;
+
+    fprintf(stream, "%6u", vlanID);
+}  // End of String_DstCVlan
 
 static void String_Dir(FILE *stream, recordHandle_t *recordHandle) {
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
@@ -2390,6 +2424,22 @@ static void String_eacl(FILE *stream, recordHandle_t *recordHandle) {
         fprintf(stream, "%10u %10u %10u", 0, 0, 0);
 
 }  // End of String_eacl
+
+static void String_physI_ID(FILE *stream, recordHandle_t *recordHandle) {
+    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
+    uint32_t id = layer2 ? layer2->ingress : 0;
+
+    fprintf(stream, "%10u", id);
+
+}  // End of String_physI_ID
+
+static void String_physE_ID(FILE *stream, recordHandle_t *recordHandle) {
+    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
+    uint32_t id = layer2 ? layer2->egress : 0;
+
+    fprintf(stream, "%10u", id);
+
+}  // End of String_physI_ID
 
 static void String_xlateSrcAddr(FILE *stream, recordHandle_t *recordHandle) {
     EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];

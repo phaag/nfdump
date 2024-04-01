@@ -59,12 +59,7 @@
 #include "output.h"
 #include "util.h"
 
-typedef enum { NOPREPROCESS = 0,
-               SRC_GEO,
-               DST_GEO,
-               SRC_AS,
-               DST_AS
-} preprocess_t;
+typedef enum { NOPREPROCESS = 0, SRC_GEO, DST_GEO, SRC_AS, DST_AS } preprocess_t;
 
 typedef struct aggregate_param_s {
     uint32_t extID;   // extension ID
@@ -146,8 +141,8 @@ static struct aggregationElement_s {
                         {"mpls8", {EXmplsLabelID, OFFmplsLabel8, SIZEmplsLabel8, 0}, 0, NOPREPROCESS, 0, 0, "%mpls8"},
                         {"mpls9", {EXmplsLabelID, OFFmplsLabel9, SIZEmplsLabel9, 0}, 0, NOPREPROCESS, 0, 0, "%mpls9"},
                         {"mpls10", {EXmplsLabelID, OFFmplsLabel10, SIZEmplsLabel10, 0}, 0, NOPREPROCESS, 0, 0, "%mpls10"},
-                        {"srcvlan", {EXvLanID, OFFsrcVlan, SIZEsrcVlan, 0}, 0, NOPREPROCESS, 0, 0, "%svln"},
-                        {"dstvlan", {EXvLanID, OFFdstVlan, SIZEdstVlan, 0}, 0, NOPREPROCESS, 0, 0, "%dvln"},
+                        {"srcvlan", {EXvLanID, OFFvlanID, SIZEvlanID, 0}, 0, NOPREPROCESS, 0, 0, "%svln"},
+                        {"dstvlan", {EXvLanID, OFFpostVlanID, SIZEpostVlanID, 0}, 0, NOPREPROCESS, 0, 0, "%dvln"},
                         {"odid", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, 0, NOPREPROCESS, 0, 0, "%odid"},
                         {"opid", {EXobservationID, OFFpointID, SIZEpointID, 0}, 0, NOPREPROCESS, 0, 0, "%opid"},
                         {"srcgeo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, 0, SRC_GEO, 0, 0, "%sc"},
@@ -182,9 +177,7 @@ typedef struct FlowHashRecord {
 } FlowHashRecord_t;
 
 // printing order definitions
-typedef enum FlowDir { IN = 0,
-                       OUT,
-                       INOUT } flowDir_t;
+typedef enum FlowDir { IN = 0, OUT, INOUT } flowDir_t;
 
 typedef uint64_t (*order_proc_record_t)(FlowHashRecord_t *, flowDir_t);
 
@@ -1343,6 +1336,10 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
 // export SortList - apply possible aggregation mask to zero out aggregated fields
 static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nffile_t *nffile, int GuessFlowDirection, int ascending) {
     dbg_printf("Enter %s\n", __func__);
+
+    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
+    dataBlock = ExportExporterList(nffile, dataBlock);
+
     for (int i = 0; i < maxindex; i++) {
         int j = ascending ? i : maxindex - 1 - i;
 
@@ -1356,14 +1353,17 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
             exCntSize = EXcntFlowSize;
         }
 
-        if (!CheckBufferSpace(nffile, recordHeaderV3->size + exCntSize)) {
-            return;
+        if (!IsAvailable(dataBlock, recordHeaderV3->size + exCntSize)) {
+            // flush block - get an empty one
+            dataBlock = WriteBlock(nffile, dataBlock);
         }
 
         // write record
-        memcpy(nffile->buff_ptr, (void *)recordHeaderV3, recordHeaderV3->size);
+        void *buffPtr = GetCurrentCursor(dataBlock);
+        memcpy(buffPtr, (void *)recordHeaderV3, recordHeaderV3->size);
+
         // remap header to written memory
-        recordHeaderV3 = nffile->buff_ptr;
+        recordHeaderV3 = (recordHeaderV3_t *)buffPtr;
 
         recordHandle_t recordHandle = {0};
         MapRecordHandle(&recordHandle, recordHeaderV3, i + 1);
@@ -1375,9 +1375,8 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
             PushExtension(recordHeaderV3, EXcntFlow, extPtr);
             cntFlow = extPtr;
         }
-        nffile->buff_ptr += recordHeaderV3->size;
-        nffile->block_header->size += recordHeaderV3->size;
-        nffile->block_header->NumRecords++;
+        dataBlock->size += recordHeaderV3->size;
+        dataBlock->NumRecords++;
 
         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
         if (genericFlow) {
@@ -1404,6 +1403,8 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
         // Update statistics
         UpdateRawStat(nffile->stat_record, genericFlow, cntFlow);
     }
+
+    FlushBlock(nffile, dataBlock);
 
 }  // End of ExportSortList
 
@@ -1500,8 +1501,6 @@ int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
     dbg_printf("Enter %s\n", __func__);
     GuessDirection = GuessDir;
 
-    ExportExporterList(nffile);
-
     size_t maxindex;
     SortElement_t *SortList = GetSortList(&maxindex);
     if (!SortList) return 0;
@@ -1520,18 +1519,8 @@ int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
                 blocksort((SortRecord_t *)SortList, maxindex);
             }
         }
-
-        ExportSortList(SortList, maxindex, nffile, GuessDir, PrintDirection);
-    } else {
-        ExportSortList(SortList, maxindex, nffile, GuessDir, PrintDirection);
     }
-
-    if (nffile->block_header->NumRecords) {
-        if (WriteBlock(nffile) <= 0) {
-            LogError("Failed to write output buffer to disk: '%s'", strerror(errno));
-            return 0;
-        }
-    }
+    ExportSortList(SortList, maxindex, nffile, GuessDir, PrintDirection);
 
     return 1;
 

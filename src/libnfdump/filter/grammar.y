@@ -1969,17 +1969,28 @@ static int AddVlanNumber(direction_t direction, uint64_t num) {
 
 	int ret = -1;
 	switch ( direction ) {
-		case DIR_UNSPEC:
+		case DIR_UNSPEC: {
+			int src = Connect_OR(
+			  NewElement(EXvLanID, OFFsrcVlan, SIZEsrcVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
+			  NewElement(EXlayer2ID, OFFvlanID, SIZEvlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			int dst = Connect_OR(
+			  NewElement(EXvLanID, OFFdstVlan, SIZEdstVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
+			  NewElement(EXlayer2ID, OFFpostVlanID, SIZEpostVlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
+			ret = Connect_OR(src,dst);
+			} break;
+		case DIR_SRC: 
 			ret = Connect_OR(
-				NewElement(EXvLanID, OFFsrcVlan, SIZEsrcVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
-				NewElement(EXvLanID, OFFdstVlan, SIZEdstVlan, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			  NewElement(EXvLanID, OFFsrcVlan, SIZEsrcVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
+			  NewElement(EXlayer2ID, OFFvlanID, SIZEvlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
 			);
 			break;
-		case DIR_SRC: 
-			ret = NewElement(EXvLanID, OFFsrcVlan, SIZEsrcVlan, num, CMP_EQ, FUNC_NONE, NULLPtr);
-			break;
 		case DIR_DST: 
-			ret = NewElement(EXvLanID, OFFdstVlan, SIZEdstVlan, num, CMP_EQ, FUNC_NONE, NULLPtr);
+			ret = Connect_OR(
+			  NewElement(EXvLanID, OFFdstVlan, SIZEdstVlan, num, CMP_EQ, FUNC_NONE, NULLPtr),
+			  NewElement(EXlayer2ID, OFFpostVlanID, SIZEpostVlanID, num, CMP_EQ, FUNC_NONE, NULLPtr)
+			);
 			break;
 		default:
 			yyerror("Unknown vlan direction");
@@ -1989,7 +2000,7 @@ static int AddVlanNumber(direction_t direction, uint64_t num) {
 } // End of AddVlanNumber
 
 static int AddAsNumber(direction_t direction, uint16_t comp, uint64_t as) {
-	if (as < 0 || as > 65535 ) {
+	if (as > UINT32_MAX ) {
 		yyerror("AS number of range");
 		return -1;
   }

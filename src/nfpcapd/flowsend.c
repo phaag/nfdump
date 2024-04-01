@@ -212,7 +212,7 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
     return 1;
 
-} /* End of StorePcapFlow */
+} /* End of ProcessFlow */
 
 static inline int CloseSender(flowParam_t *flowParam, time_t timestamp) {
     repeater_t *sendHost = flowParam->sendHost;

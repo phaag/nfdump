@@ -306,6 +306,15 @@ typedef struct ipfix_template_elements_e_s {
 
 #define IPFIX_biflowDirection 239
 
+#define IPFIX_dot1qVlanId 243
+#define IPFIX_postDot1qVlanId 254
+
+#define IPFIX_dot1qCustomerVlanId 245
+#define IPFIX_postDot1qCustomerVlanId 255
+
+#define IPFIX_ingressPhysicalInterface 252
+#define IPFIX_egressPhysicalInterface 253
+
 // sub template IDs
 #define IPFIX_newconnections 278
 #define IPFIX_subTemplateList 292

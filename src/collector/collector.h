@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -80,9 +80,11 @@ typedef struct FlowSource_s {
     bookkeeper_t *bookkeeper;
 
     // all about data storage
-    char *datadir;     // where to store data for this source
-    char *current;     // current file name - typically nfcad.current.pid
-    nffile_t *nffile;  // the writing file handle
+    char *datadir;           // where to store data for this source
+    char *current;           // current file name - typically nfcad.current.pid
+    int subdir;              // sub dir structur
+    nffile_t *nffile;        // the writing file handle
+    dataBlock_t *dataBlock;  // writing buffer
 
     // statistical data per source
     uint32_t bad_packets;
@@ -117,6 +119,10 @@ int AddFlowSourceString(FlowSource_t **FlowSource, char *argument);
 int SetDynamicSourcesDir(FlowSource_t **FlowSource, char *dir);
 
 FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storage *ss);
+
+int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int done);
+
+int TriggerLauncher(time_t t_start, char *time_extension, int pfd, FlowSource_t *fs);
 
 void FlushStdRecords(FlowSource_t *fs);
 

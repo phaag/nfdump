@@ -23,12 +23,13 @@ endif
 output = userio.c userio.h output_short.c output_short.h
 daemon = daemon.c daemon.h 
 version = version.c version.h
+barrier = barrier.c barrier.h
 
 vcs_track.h: Makefile
 	./gen_version.sh
 
 lib_LTLIBRARIES = libnffile.la
-libnffile_la_SOURCES = $(conf) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(version) vcs_track.h
+libnffile_la_SOURCES = $(conf) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(barrier) $(version) vcs_track.h
 libnffile_la_LDFLAGS = -release @VERSION@
  
 EXTRA_DIST = gen_version.sh conf/nfdump.conf.dist

@@ -641,13 +641,30 @@ typedef struct EXpfinfo_s {
 #define SIZEpfRuleNr MemberSize(EXpfinfo_t, rulenr)
 #define EXpfinfoSize (sizeof(EXpfinfo_t) - 4 + sizeof(elementHeader_t))
 
-typedef struct EXetherType_s {
-#define EXetherTypeID 38
+typedef struct EXlayer2_s {
+#define EXlayer2ID 38
+    uint16_t vlanID;
+    uint16_t customerVlanId;
+    uint16_t postVlanID;
+    uint16_t postCustomerVlanId;
+    uint32_t ingress;
+    uint32_t egress;
     uint16_t etherType;
-#define OFFetherType offsetof(EXetherType_t, etherType)
-#define SIZEetherType MemberSize(EXetherType_t, etherType)
-} EXetherType_t;
-#define EXetherTypeSize (sizeof(EXetherType_t) + sizeof(elementHeader_t))
+    uint16_t fill;
+#define OFFvlanID offsetof(EXlayer2_t, vlanID)
+#define SIZEvlanID MemberSize(EXlayer2_t, vlanID)
+#define OFFpostVlanID offsetof(EXlayer2_t, postVlanID)
+#define SIZEpostVlanID MemberSize(EXlayer2_t, postVlanID)
+#define OFFcustomerVlanId offsetof(EXlayer2_t, customerVlanId)
+#define SIZEcustomerVlanId MemberSize(EXlayer2_t, customerVlanId)
+#define OFFpostCustomerVlanId offsetof(EXlayer2_t, postCustomerVlanId)
+#define SIZEpostCustomerVlanId MemberSize(EXlayer2_t, postCustomerVlanId)
+#define OFFphysIngress offsetof(EXlayer2_t, ingress)
+#define SIZEphysIngress MemberSize(EXlayer2_t, ingress)
+#define OFFphysEgress offsetof(EXlayer2_t, egress)
+#define SIZEphysEgress MemberSize(EXlayer2_t, egress)
+} EXlayer2_t;
+#define EXlayer2Size (sizeof(EXlayer2_t) + sizeof(elementHeader_t))
 
 // max possible elements
 #define MAXEXTENSIONS 39
@@ -718,7 +735,7 @@ static const struct extensionTable_s {
     EXTENSION(EXnselXlateIPv4), EXTENSION(EXnselXlateIPv6), EXTENSION(EXnselXlatePort), EXTENSION(EXnselAcl),      EXTENSION(EXnselUser),
     EXTENSION(EXnelCommon),     EXTENSION(EXnelXlatePort),  EXTENSION(EXnbarApp),       EXTENSION(EXlabel),        EXTENSION(EXinPayload),
     EXTENSION(EXoutPayload),    EXTENSION(EXtunIPv4),       EXTENSION(EXtunIPv6),       EXTENSION(EXobservation),  EXTENSION(EXinmonMeta),
-    EXTENSION(EXinmonFrame),    EXTENSION(EXvrf),           EXTENSION(EXpfinfo),        EXTENSION(EXetherType)};
+    EXTENSION(EXinmonFrame),    EXTENSION(EXvrf),           EXTENSION(EXpfinfo),        EXTENSION(EXlayer2)};
 
 typedef struct record_map_s {
     recordHeaderV3_t *recordHeader;

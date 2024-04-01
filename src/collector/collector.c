@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -49,6 +49,8 @@
 
 #include "bookkeeper.h"
 #include "conf/nfconf.h"
+#include "flist.h"
+#include "launch.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
@@ -354,10 +356,144 @@ FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storag
 
 }  // End of AddDynamicSource
 
+int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int done) {
+    // periodic file rotation
+    struct tm *now = localtime(&t_start);
+    char fmt[32];
+    strftime(fmt, sizeof(fmt), time_extension, now);
+
+    // prepare sub dir hierarchy
+    char *subdir = NULL;
+    if (fs->subdir) {
+        subdir = GetSubDir(now);
+        if (!subdir) {
+            // failed to generate subdir path - put flows into base directory
+            LogError("Failed to create subdir path!");
+            // failed to generate subdir path - put flows into base directory
+        }
+    }
+
+    // for each flow source update the stats, close the file and re-initialize the new file
+    while (fs) {
+        char nfcapd_filename[MAXPATHLEN];
+        char error[255];
+        nffile_t *nffile = fs->nffile;
+
+        // prepare filename
+        if (subdir) {
+            if (SetupSubDir(fs->datadir, subdir, error, 255)) {
+                snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/%s/nfcapd.%s", fs->datadir, subdir, fmt);
+            } else {
+                LogError("Ident: %s, Failed to create sub hier directories: %s", fs->Ident, error);
+                // skip subdir - put flows directly into current directory
+                snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/nfcapd.%s", fs->datadir, fmt);
+            }
+        } else {
+            snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/nfcapd.%s", fs->datadir, fmt);
+        }
+        nfcapd_filename[MAXPATHLEN - 1] = '\0';
+
+        // update stat record
+        // if no flows were collected, fs->msecLast is still 0
+        // set msecFirst and msecLast and to start of this time slot
+        if (fs->msecLast == 0) {
+            fs->msecFirst = 1000LL * (uint64_t)t_start;
+            fs->msecLast = fs->msecFirst;
+        }
+        nffile->stat_record->firstseen = fs->msecFirst;
+        nffile->stat_record->lastseen = fs->msecLast;
+
+        // Flush Exporter Stat to file
+        FlushExporterStats(fs);
+        // Flush open datablock
+        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+        // Close file
+        CloseUpdateFile(nffile);
+
+        // if rename fails, we are in big trouble, as we need to get rid of the old .current
+        // file otherwise, we will loose flows and can not continue collecting new flows
+        if (RenameAppend(fs->current, nfcapd_filename) < 0) {
+            LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
+
+            // we do not update the books here, as the file failed to rename properly
+            // otherwise the books may be wrong
+        } else {
+            struct stat fstat;
+
+            // Update books
+            stat(nfcapd_filename, &fstat);
+            UpdateBooks(fs->bookkeeper, t_start, 512 * fstat.st_blocks);
+        }
+
+        // log stats
+        LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Sequence Errors: %u, Bad Packets: %u, Blocks: %u", fs->Ident,
+                (unsigned long long)nffile->stat_record->numflows, (unsigned long long)nffile->stat_record->numpackets,
+                (unsigned long long)nffile->stat_record->numbytes, nffile->stat_record->sequence_failure, fs->bad_packets, ReportBlocks());
+
+        // reset stats
+        fs->bad_packets = 0;
+        fs->msecFirst = 0xffffffffffffLL;
+        fs->msecLast = 0;
+
+        if (!done) {
+            fs->nffile = OpenNewFile(fs->current, fs->nffile, CREATOR_NFCAPD, INHERIT, INHERIT);
+            if (!fs->nffile) {
+                LogError("killed due to fatal error: ident: %s", fs->Ident);
+                return 0;
+            }
+            SetIdent(fs->nffile, fs->Ident);
+
+            // Dump all exporters/samplers to the buffer
+            FlushStdRecords(fs);
+        }
+
+        // next flow source
+        fs = fs->next;
+
+    }  // end of while (fs)
+
+    return 1;
+
+}  // End of RotateFlowFiles
+
+int TriggerLauncher(time_t t_start, char *time_extension, int pfd, FlowSource_t *fs) {
+    struct tm *now = localtime(&t_start);
+    char fmt[32];
+    strftime(fmt, sizeof(fmt), time_extension, now);
+
+    // prepare sub dir hierarchy
+    char *subdir = NULL;
+    if (fs->subdir) {
+        subdir = GetSubDir(now);
+        if (!subdir) {
+            // failed to generate subdir path - put flows into base directory
+            LogError("Failed to create subdir path!");
+            // failed to generate subdir path - put flows into base directory
+        }
+    }
+
+    // for each flow source update the stats, close the file and re-initialize the new file
+    while (fs) {
+        // trigger launcher if required
+        // Send launcher message
+        if (SendLauncherMessage(pfd, t_start, subdir, fmt, fs->datadir, fs->Ident) < 0) {
+            return 0;
+        } else {
+            LogVerbose("Send launcher message");
+        }
+
+        // next flow source
+        fs = fs->next;
+    }
+
+    return 1;
+
+}  // End of TriggerLauncher
+
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {
     exporter->sysid = AssignExporterID();
     fs->exporter_count++;
-    AppendToBuffer(fs->nffile, (void *)exporter, exporter->header.size);
+    fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)exporter, exporter->header.size);
 
 #ifdef DEVEL
     {
@@ -390,9 +526,9 @@ void FlushStdRecords(FlowSource_t *fs) {
 
     while (e) {
         sampler_t *sampler = e->sampler;
-        AppendToBuffer(fs->nffile, (void *)&(e->info), e->info.header.size);
+        fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)&(e->info), e->info.header.size);
         while (sampler) {
-            AppendToBuffer(fs->nffile, (void *)&(sampler->record), sampler->record.size);
+            fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)&(sampler->record), sampler->record.size);
             sampler = sampler->next;
         }
         e = e->next;
@@ -447,7 +583,7 @@ void FlushExporterStats(FlowSource_t *fs) {
         i++;
         e = e->next;
     }
-    AppendToBuffer(fs->nffile, (void *)exporter_stats, size);
+    fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)exporter_stats, size);
     free(exporter_stats);
 
     if (i != fs->exporter_count) {

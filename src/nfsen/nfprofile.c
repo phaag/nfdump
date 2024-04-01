@@ -32,6 +32,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -43,8 +44,8 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "barrier.h"
 #include "conf/nfconf.h"
-#include "exporter.h"
 #include "filter/filter.h"
 #include "flist.h"
 #include "nbar.h"
@@ -61,12 +62,27 @@
 char influxdb_url[1024] = "";
 #endif
 
+#define PROFILEWRITERS 2
+#define MAXPROFILERS 8
+
+typedef struct worker_param_s {
+    int self;
+    uint32_t numWorkers;
+    uint32_t numChannels;
+    profile_channel_info_t *channels;
+    dataBlock_t **dataBlock;
+
+    // sync barrier
+    pthread_control_barrier_t *barrier;
+} worker_param_t;
+
 /* Function Prototypes */
 static void usage(char *name);
 
 static profile_param_info_t *ParseParams(char *profile_datadir);
 
-static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot);
+static void process_data(profile_channel_info_t *channels, unsigned int numChannels, time_t tslot, worker_param_t **workerList, int numWorkers,
+                         pthread_control_barrier_t *barrie);
 
 /* Functions */
 
@@ -98,57 +114,27 @@ static void usage(char *name) {
         name);
 } /* usage */
 
-static void process_data(profile_channel_info_t *channels, unsigned int num_channels, time_t tslot) {
-    nffile_t *nffile = GetNextFile(NULL);
-    if (!nffile) {
-        LogError("GetNextFile() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return;
-    }
-    if (nffile == EMPTY_LIST) {
-        LogError("Empty file list. No files to process");
-        return;
-    }
-    for (int j = 0; j < num_channels; j++) {
-        // apply profile filter
-        void *engine = channels[j].engine;
-        FilterSetParam(engine, nffile->ident, NOGEODB);
-    }
+__attribute__((noreturn)) static void *worker(void *arg) {
+    worker_param_t *worker_param = (worker_param_t *)arg;
+
+    uint32_t self = worker_param->self;
+    uint32_t numWorkers = worker_param->numWorkers;
+    uint32_t numChannels = worker_param->numChannels;
+    profile_channel_info_t *channels = worker_param->channels;
 
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-        return;
+        pthread_exit(NULL);
     }
 
-    dataBlock_t *dataBlock = NULL;
-    uint32_t processed = 0;
-    int done = 0;
-    while (!done) {
-        // get next data block from file
-        dataBlock = ReadBlock(nffile, dataBlock);
-        if (dataBlock == NF_EOF) {
-            nffile_t *next = GetNextFile(nffile);
-            if (next == EMPTY_LIST) {
-                done = 1;
-                continue;
-            }
-            if (next == NULL) {
-                done = 1;
-                LogError("Unexpected end of file list");
-                continue;
-            }
-            for (int j = 0; j < num_channels; j++) {
-                // apply profile filter
-                void *engine = channels[j].engine;
-                FilterSetParam(engine, nffile->ident, NOGEODB);
-            }
-            continue;
-        }
+    // wait in barrier after launch
+    pthread_control_barrier_wait(worker_param->barrier);
 
-        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
-            LogError("Can't process block type %u. Skip block", dataBlock->type);
-            continue;
-        }
+    while (*(worker_param->dataBlock)) {
+        dataBlock_t *dataBlock = *(worker_param->dataBlock);
+        dbg_printf("Worker %i working on %p\n", self, dataBlock);
+        uint32_t recordCount = 0;
 
         record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
@@ -158,13 +144,13 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                 exit(255);
             }
             sumSize += record_ptr->size;
+            recordCount++;
 
             switch (record_ptr->type) {
                 case V3Record:
-                    processed++;
-                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, processed);
+                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, recordCount);
 
-                    for (int j = 0; j < num_channels; j++) {
+                    for (int j = self; j < numChannels; j += numWorkers) {
                         int match;
 
                         // apply profile filter
@@ -183,48 +169,36 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
                         // check if we need to flush the output buffer
                         if (channels[j].nffile != NULL) {
                             // write record to output buffer
-                            AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
+                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
 
                     }  // End of for all channels
 
                     break;
                 case ExporterInfoRecordType: {
-                    int err = AddExporterInfo((exporter_info_record_t *)record_ptr);
-                    if (err != 0) {
-                        for (int j = 0; j < num_channels; j++) {
-                            if (channels[j].nffile != NULL && err == 1) {
-                                // flush new exporter
-                                AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
-                            }
+                    for (int j = self; j < numChannels; j += numWorkers) {
+                        if (channels[j].nffile != NULL) {
+                            // flush new exporter
+                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
-                    } else {
-                        LogError("Failed to add Exporter Record");
                     }
                 } break;
-                case SamplerLegacyRecordType: {
-                    if (AddSamplerLegacyRecord((samplerV0_record_t *)record_ptr) == 0) LogError("Failed to add legacy Sampler Record\n");
-                } break;
+                case SamplerLegacyRecordType:
                 case SamplerRecordType: {
-                    int err = AddSamplerRecord((sampler_record_t *)record_ptr);
-                    if (err != 0) {
-                        for (int j = 0; j < num_channels; j++) {
-                            if (channels[j].nffile != NULL && err == 1) {
-                                // flush new map
-                                AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
-                            }
+                    for (int j = self; j < numChannels; j += numWorkers) {
+                        if (channels[j].nffile != NULL) {
+                            // flush new map
+                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
-                    } else {
-                        LogError("Failed to add Sampler Record");
                     }
                 } break;
                 case NbarRecordType:
                 case IfNameRecordType:
                 case VrfNameRecordType:
-                    for (int j = 0; j < num_channels; j++) {
+                    for (int j = self; j < numChannels; j += numWorkers) {
                         if (channels[j].nffile != NULL) {
                             // flush new map
-                            AppendToBuffer(channels[j].nffile, (void *)record_ptr, record_ptr->size);
+                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
                     }
                     break;
@@ -241,31 +215,120 @@ static void process_data(profile_channel_info_t *channels, unsigned int num_chan
             record_ptr = (record_header_t *)((pointer_addr_t)record_ptr + record_ptr->size);
 
         }  // End of for all umRecords
-    }      // End of while !done
 
-    // Close input
-    FreeDataBlock(dataBlock);
-    CloseFile(nffile);
+        // Done
+        // wait in barrier for next data record
+        pthread_control_barrier_wait(worker_param->barrier);
+    }
+
+    dbg_printf("Worker %d done.\n", worker_param->self);
+    pthread_exit(NULL);
+
+    // unreached
+}  // End of worker
+
+static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_control_barrier_t *barrier, profile_channel_info_t *channels,
+                                     uint32_t numChannels) {
+    if (numWorkers > MAXWORKERS) {
+        LogError("LaunchWorkers: number of worker: %u > max workers: %u", numWorkers, MAXWORKERS);
+        return NULL;
+    }
+
+    worker_param_t **workerList = calloc(numWorkers, sizeof(worker_param_t *));
+    if (!workerList) NULL;
+
+    for (int i = 0; i < numWorkers; i++) {
+        worker_param_t *worker_param = calloc(1, sizeof(worker_param_t));
+        if (!worker_param) NULL;
+
+        worker_param->barrier = barrier;
+        worker_param->self = i;
+        worker_param->dataBlock = NULL;
+        worker_param->numWorkers = numWorkers;
+        worker_param->channels = channels;
+        worker_param->numChannels = numChannels;
+        workerList[i] = worker_param;
+
+        int err = pthread_create(&(tid[i]), NULL, worker, (void *)worker_param);
+        if (err) {
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
+    }
+    return workerList;
+
+}  // End of LaunchWorkers
+
+static void process_data(profile_channel_info_t *channels, unsigned int numChannels, time_t tslot, worker_param_t **workerList, int numWorkers,
+                         pthread_control_barrier_t *barrier) {
+    dataBlock_t *nextBlock = NULL;
+    dataBlock_t *dataBlock = NULL;
+    // map datablock for workers - all workers
+    // process the same block but different channels
+    for (int i = 0; i < numWorkers; i++) {
+        // set new datablock for all workers
+        workerList[i]->dataBlock = &dataBlock;
+    }
+
+    nffile_t *nffile = NewFile(NULL);
+
+    // wait for workers ready to start
+    pthread_controller_wait(barrier);
+
+    int done = 0;
+    while (!done) {
+        // get next data block from file
+        dataBlock = nextBlock;
+        if (dataBlock == NULL) {
+            if (GetNextFile(nffile) == NULL) {
+                done = 1;
+                continue;
+            }
+            for (int j = 0; j < numChannels; j++) {
+                // set ident to file engines
+                void *engine = channels[j].engine;
+                FilterSetParam(engine, nffile->ident, NOGEODB);
+            }
+            // read first block and continue
+            nextBlock = ReadBlock(nffile, NULL);
+            continue;
+        }
+
+        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
+            LogError("Can't process block type %u. Skip block", dataBlock->type);
+            nextBlock = ReadBlock(nffile, NULL);
+            continue;
+        }
+
+        dbg_printf("Next block: Records: %u\n", dataBlock->NumRecords);
+        // release workers from barrier
+        pthread_control_barrier_release(barrier);
+
+        // get next block while worker are processing the previous one
+        nextBlock = ReadBlock(nffile, NULL);
+
+        // wait for all workers, work done on this block
+        pthread_controller_wait(barrier);
+        // free processed block
+        FreeDataBlock(dataBlock);
+
+    }  // End of while !done
+
+    // done! - signal all workers to terminate
+    dataBlock = NULL;
+    pthread_control_barrier_release(barrier);
+
     DisposeFile(nffile);
 
     // do we need to write data to new file - shadow profiles do not have files.
     // write all used blocks first, then close the files
-    for (int j = 0; j < num_channels; j++) {
+    for (int j = 0; j < numChannels; j++) {
         if (channels[j].nffile != NULL) {
             // flush output buffer
-            if (channels[j].nffile->block_header->NumRecords) {
-                if (WriteBlock(channels[j].nffile) <= 0) {
-                    LogError("Failed to flush output buffer to disk: '%s'", strerror(errno));
-                }
-            }
+            FlushBlock(channels[j].nffile, channels[j].dataBlock);
             *channels[j].nffile->stat_record = channels[j].stat_record;
-        }
-    }
-    for (int j = 0; j < num_channels; j++) {
-        if (channels[j].nffile != NULL) {
             CloseUpdateFile(channels[j].nffile);
             DisposeFile(channels[j].nffile);
-            channels[j].nffile = NULL;
         }
     }
 
@@ -431,8 +494,21 @@ static profile_param_info_t *ParseParams(char *profile_datadir) {
 
 }  // End of ParseParams
 
+static void WaitWorkersDone(pthread_t *tid, int numWorkers) {
+    // wait for all nfwriter threads to exit
+    for (int i = 0; i < numWorkers; i++) {
+        if (tid[i]) {
+            int err = pthread_join(tid[i], NULL);
+            if (err) {
+                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            }
+            tid[i] = 0;
+        }
+    }
+}  // End of WaitWorkersDone
+
 int main(int argc, char **argv) {
-    unsigned int num_channels, compress;
+    unsigned int numChannels, compress;
     profile_param_info_t *profile_list;
     char *ffile, *filename, *syslog_facility;
     char *profile_datadir, *profile_statdir, *nameserver;
@@ -440,6 +516,7 @@ int main(int argc, char **argv) {
     time_t tslot;
     flist_t flist;
 
+    int numWorkers = MAXPROFILERS;
     memset((void *)&flist, 0, sizeof(flist));
     profile_datadir = NULL;
     profile_statdir = NULL;
@@ -607,10 +684,18 @@ int main(int argc, char **argv) {
         exit(255);
     }
 
-    num_channels = InitChannels(profile_datadir, profile_statdir, profile_list, ffile, filename, subdir_index, syntax_only, compress);
+    if (!flist.single_file) {
+        LogError("Input file (-r) required!");
+        exit(255);
+    }
+
+    queue_t *fileList = SetupInputFileSequence(&flist);
+    if (!fileList || !Init_nffile(PROFILEWRITERS, fileList)) exit(254);
+
+    numChannels = InitChannels(profile_datadir, profile_statdir, profile_list, ffile, filename, subdir_index, syntax_only, compress);
 
     // nothing to do
-    if (num_channels == 0) {
+    if (numChannels == 0) {
         LogInfo("No channels to process");
         return 0;
     }
@@ -620,19 +705,26 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    if (!flist.single_file) {
-        LogError("Input file (-r) required!");
+    // check numWorkers depending on cores online
+    numWorkers = GetNumWorkers(numWorkers);
+
+    pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
+    if (!barrier) exit(255);
+
+    profile_channel_info_t *channels = GetChannelInfoList();
+
+    pthread_t tid[MAXWORKERS] = {0};
+    dbg_printf("Launch Workers\n");
+    worker_param_t **workerList = LauchWorkers(tid, numWorkers, barrier, channels, numChannels);
+    if (!workerList) {
+        LogError("Failed to launch workers");
         exit(255);
     }
 
-    if (!InitExporterList()) {
-        exit(255);
-    }
+    process_data(channels, numChannels, tslot, workerList, numWorkers, barrier);
 
-    queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(DEFAULTWORKERS, fileList)) exit(254);
-
-    process_data(GetChannelInfoList(), num_channels, tslot);
+    WaitWorkersDone(tid, numWorkers);
+    pthread_control_barrier_destroy(barrier);
 
     UpdateChannels(tslot);
 #if 0

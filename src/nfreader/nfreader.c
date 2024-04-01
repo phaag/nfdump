@@ -161,16 +161,14 @@ static void print_record(recordHandle_t *recordHandle) {
         "  src addr     =  %16s\n"
         "  dst addr     =  %16s\n",
         as, ds);
+
+    printf("\n");
 }
 
 static void process_data(void) {
     // Get the first file handle
     nffile_t *nffile = GetNextFile(NULL);
-    if (!nffile) {
-        LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-        return;
-    }
-    if (nffile == EMPTY_LIST) {
+    if (nffile == NULL) {
         LogError("Empty file list. No files to process\n");
         return;
     }
@@ -181,44 +179,30 @@ static void process_data(void) {
         return;
     }
 
+    dataBlock_t *dataBlock = NULL;
     int done = 0;
     while (!done) {
         // get next data block from file
-        int ret = ReadBlock(nffile);
+        dataBlock = ReadBlock(nffile, dataBlock);
 
-        switch (ret) {
-            case NF_CORRUPT:
-            case NF_ERROR:
-                if (ret == NF_CORRUPT)
-                    LogError("Skip corrupt data file '%s'", nffile->fileName);
-                else
-                    LogError("Read error in file '%s': %s", nffile->fileName, strerror(errno));
-                // fall through - get next file in chain
-            case NF_EOF: {
-                nffile_t *next = GetNextFile(nffile);
-                if (next == EMPTY_LIST) {
-                    done = 1;
-                }
-                if (next == NULL) {
-                    done = 1;
-                    LogError("Unexpected end of file list\n");
-                }
-                // else continue with next file
+        if (dataBlock == NULL) {
+            if (GetNextFile(nffile) == NULL) {
+                done = 1;
+                printf("\nDone\n");
                 continue;
-
-            } break;  // not really needed
+            }
         }
 
-        if (nffile->block_header->type != DATA_BLOCK_TYPE_2 && nffile->block_header->type != DATA_BLOCK_TYPE_3) {
-            LogError("Unknown block type %u. Skip block", nffile->block_header->type);
+        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
+            LogError("Skip block type %u. Write block unmodified", dataBlock->type);
             continue;
         }
 
-        record_header_t *record_ptr = nffile->buff_ptr;
+        record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
         uint32_t processed = 0;
-        for (int i = 0; i < nffile->block_header->NumRecords; i++) {
-            if ((sumSize + record_ptr->size) > ret || (record_ptr->size < sizeof(record_header_t))) {
+        for (int i = 0; i < dataBlock->NumRecords; i++) {
+            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
                 exit(255);
             }
@@ -248,7 +232,7 @@ static void process_data(void) {
 
     }  // while
 
-    CloseFile(nffile);
+    FreeDataBlock(dataBlock);
     DisposeFile(nffile);
 
 }  // End of process_data

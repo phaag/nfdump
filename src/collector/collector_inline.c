@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -82,7 +82,7 @@ static inline FlowSource_t *GetFlowSource(struct sockaddr_storage *ss) {
             port = 0;
             ptr = NULL;
 
-            LogError("Unknown sa fanily: %d in '%s', line '%d'", ss->ss_family, __FILE__, __LINE__);
+            LogError("Unknown sa family: %d in '%s', line '%d'", ss->ss_family, __FILE__, __LINE__);
             return NULL;
     }
 

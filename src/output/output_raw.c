@@ -533,6 +533,19 @@ static void stringsEXvrf(FILE *stream, void *extensionRecord) {
 
 }  // End of stringsEXvrf
 
+static void stringEXlayer2(FILE *stream, void *extensionRecord) {
+    EXlayer2_t *layer2 = (EXlayer2_t *)extensionRecord;
+    fprintf(stream,
+            "  vlanID       =             %5u\n"
+            "  post vlanID  =             %5u\n"
+            "  custID       =             %5u\n"
+            "  post custID  =             %5u\n"
+            "  ingress IFid =        %10u\n"
+            "  egress IFid  =        %10u\n",
+            layer2->vlanID, layer2->postVlanID, layer2->customerVlanId, layer2->postCustomerVlanId, layer2->ingress, layer2->egress);
+
+}  // End of stringEXlayer2
+
 static void stringsEXnselCommon(FILE *stream, void *extensionRecord) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)extensionRecord;
 
@@ -934,6 +947,9 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
                 break;
             case EXvrfID:
                 stringsEXvrf(stream, ptr);
+                break;
+            case EXlayer2ID:
+                stringEXlayer2(stream, ptr);
                 break;
             case EXnselCommonID:
                 stringsEXnselCommon(stream, ptr);

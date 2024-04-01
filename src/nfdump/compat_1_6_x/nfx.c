@@ -345,7 +345,6 @@ static int VerifyExtensionMap(extension_map_t *map) {
 
 void DumpExMaps(void) {
     nffile_t *nffile;
-    common_record_t *flow_record;
 
     printf("\nDump all extension maps:\n");
     printf("========================\n");
@@ -361,7 +360,7 @@ void DumpExMaps(void) {
     while (!done) {
         // get next data block from file
         dataBlock = ReadBlock(nffile, dataBlock);
-        if (dataBlock == NF_EOF) {
+        if (dataBlock == NULL) {
             done = 1;
             continue;
         }
@@ -369,9 +368,9 @@ void DumpExMaps(void) {
         if (dataBlock->type != DATA_BLOCK_TYPE_2) {
             continue;
         }
-        // block type = 2
 
-        flow_record = (common_record_t *)nffile->buff_ptr;
+        // block type = 2
+        common_record_t *flow_record = GetCursor(dataBlock);
         for (int i = 0; i < dataBlock->NumRecords; i++) {
             if (flow_record->type == ExtensionMapType) {
                 extension_map_t *map = (extension_map_t *)flow_record;
@@ -381,7 +380,7 @@ void DumpExMaps(void) {
             }
 
             // Advance pointer by number of bytes for netflow record
-            flow_record = (common_record_t *)((pointer_addr_t)flow_record + flow_record->size);
+            flow_record = (common_record_t *)((void *)flow_record + flow_record->size);
         }
     }
     if (cnt == 0) {

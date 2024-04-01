@@ -123,11 +123,12 @@ static void stringEXipv4Flow(FILE *stream, void *extensionRecord, const char *in
     LookupV4Location(ipv4Flow->dstAddr, dloc, 128);
 
     fprintf(stream,
+            "%s\"ip_version\" : \"%u\"%s"
             "%s\"src4_addr\" : \"%s\"%s"
             "%s\"dst4_addr\" : \"%s\"%s"
             "%s\"src_geo\" : \"%s\"%s"
             "%s\"dst_geo\" : \"%s\"%s",
-            indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
+            indent, 4, fs, indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
 
 }  // End of stringEXipv4Flow
 
@@ -148,11 +149,12 @@ static void stringEXipv6Flow(FILE *stream, void *extensionRecord, const char *in
     LookupV6Location(ipv6Flow->dstAddr, dloc, 128);
 
     fprintf(stream,
+            "%s\"ip_version\" : \"%u\"%s"
             "%s\"src6_addr\" : \"%s\"%s"
             "%s\"dst6_addr\" : \"%s\"%s"
             "%s\"src_geo\" : \"%s\"%s"
             "%s\"dst_geo\" : \"%s\"%s",
-            indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
+            indent, 6, fs, indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
 
 }  // End of stringEXipv6Flow
 
@@ -526,6 +528,20 @@ static void stringEXvrf(FILE *stream, void *extensionRecord, const char *indent,
 
 }  // End of stringEXvrf
 
+static void stringEXlayer2(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    EXlayer2_t *layer2 = (EXlayer2_t *)extensionRecord;
+    fprintf(stream,
+            "%s\"vlanID\" : %u%s"
+            "%s\"post_vlanID\" : %u%s"
+            "%s\"cust_vlanID\" : %u%s"
+            "%s\"post_cust_vlanID\" : %u%s"
+            "%s\"phys_ingress\" : \"%u\"%s"
+            "%s\"phys_egress\" : \"%u\"%s",
+            indent, layer2->vlanID, fs, indent, layer2->postVlanID, fs, indent, layer2->customerVlanId, fs, indent, layer2->postCustomerVlanId, fs,
+            indent, layer2->ingress, fs, indent, layer2->egress, fs);
+
+}  // End of stringEXlayer2
+
 static void stringEXnselCommon(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)extensionRecord;
 
@@ -759,6 +775,9 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
                 break;
             case EXvrfID:
                 stringEXvrf(stream, ptr, indent, fs);
+                break;
+            case EXlayer2ID:
+                stringEXlayer2(stream, ptr, indent, fs);
                 break;
             case EXnselCommonID:
                 stringEXnselCommon(stream, ptr, indent, fs);

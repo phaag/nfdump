@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2023, Peter Haag
+ *  Copyright (c) 2012-2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -171,8 +171,14 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_postIpClassOfService, SIZEdstTos, NumberCopy, EXflowMiscID, OFFdstTos, STACK_NONE, "post IP class of Service"},
     {IPFIX_SourceMacAddress, SIZEinSrcMac, NumberCopy, EXmacAddrID, OFFinSrcMac, STACK_NONE, "in src MAC addr"},
     {IPFIX_postDestinationMacAddress, SIZEoutDstMac, NumberCopy, EXmacAddrID, OFFoutDstMac, STACK_NONE, "out dst MAC addr"},
-    {IPFIX_vlanId, SIZEsrcVlan, NumberCopy, EXvLanID, OFFsrcVlan, STACK_NONE, "src VLAN ID"},
-    {IPFIX_postVlanId, SIZEdstAS, NumberCopy, EXvLanID, OFFdstAS, STACK_NONE, "dst VLAN ID"},
+    {IPFIX_vlanId, SIZEvlanID, NumberCopy, EXvLanID, OFFvlanID, STACK_NONE, "src VLAN ID"},
+    {IPFIX_postVlanId, SIZEpostVlanID, NumberCopy, EXvLanID, OFFpostVlanID, STACK_NONE, "dst VLAN ID"},
+    {IPFIX_dot1qVlanId, SIZEvlanID, NumberCopy, EXlayer2ID, OFFvlanID, STACK_NONE, "dot1q VLAN ID"},
+    {IPFIX_postDot1qVlanId, SIZEpostVlanID, NumberCopy, EXlayer2ID, OFFpostVlanID, STACK_NONE, "dot1q post VLAN ID"},
+    {IPFIX_dot1qCustomerVlanId, SIZEcustomerVlanId, NumberCopy, EXlayer2ID, OFFcustomerVlanId, STACK_NONE, "dot1q customer VLAN ID"},
+    {IPFIX_postDot1qCustomerVlanId, SIZEpostCustomerVlanId, NumberCopy, EXlayer2ID, OFFpostCustomerVlanId, STACK_NONE, "dot1q post customer VLAN ID"},
+    {IPFIX_ingressPhysicalInterface, SIZEphysIngress, NumberCopy, EXlayer2ID, OFFphysIngress, STACK_NONE, "ingress physical interface ID"},
+    {IPFIX_egressPhysicalInterface, SIZEphysEgress, NumberCopy, EXlayer2ID, OFFphysEgress, STACK_NONE, "egress physical interface ID"},
     {IPFIX_flowDirection, SIZEdir, NumberCopy, EXflowMiscID, OFFdir, STACK_NONE, "flow direction"},
     {IPFIX_biflowDirection, SIZEbiFlowDir, NumberCopy, EXflowMiscID, OFFbiFlowDir, STACK_NONE, "biFlow direction"},
     {IPFIX_flowEndReason, SIZEflowEndReason, NumberCopy, EXflowMiscID, OFFflowEndReason, STACK_NONE, "Flow end reason"},
@@ -325,10 +331,10 @@ int Init_IPFIX(int verbose, int32_t sampling, char *extensionList) {
 
     if (sampling < 0) {
         LogInfo("Init IPFIX: Max number of ipfix tags enabled: %u, overwrite sampling: %d", tagsEnabled, -defaultSampling);
-        dbg_printf("Initv9: Overwrite sampling: %d\n", -defaultSampling);
+        dbg_printf("Init ipfix: Overwrite sampling: %d\n", -defaultSampling);
     } else {
         LogInfo("Init IPFIX: Max number of ipfix tags enabled: %u, default sampling: %d", tagsEnabled, defaultSampling);
-        dbg_printf("Initv9: Default sampling: %d\n", defaultSampling);
+        dbg_printf("Init ipfix: Default sampling: %d\n", defaultSampling);
     }
 
     return 1;
@@ -491,7 +497,7 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
         sampler->next = NULL;
         exporter->sampler = sampler;
 
-        AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
+        fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
         LogInfo("Add new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id, sampler_record->algorithm,
                 sampler_record->packetInterval, sampler_record->spaceInterval);
         dbg_printf("Add new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id, sampler_record->algorithm,
@@ -505,7 +511,7 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
                 // found same sampler id - update record if changed
                 if (sampler_record->algorithm != sampler->record.algorithm || sampler_record->packetInterval != sampler->record.packetInterval ||
                     sampler_record->spaceInterval != sampler->record.spaceInterval) {
-                    AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
+                    fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
                     sampler->record.algorithm = sampler_record->algorithm;
                     sampler->record.packetInterval = sampler_record->packetInterval;
                     sampler->record.spaceInterval = sampler_record->spaceInterval;
@@ -525,7 +531,7 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
                 // end of sampler chain - insert new sampler
                 sampler->next = (sampler_t *)malloc(sizeof(sampler_t));
                 if (!sampler->next) {
-                    LogError("Process_v9: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                    LogError("Process_ipfix: Panic! malloc(): %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                     return;
                 }
                 sampler = sampler->next;
@@ -535,7 +541,7 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
                 sampler->record.exporter_sysid = exporter->info.sysid;
                 sampler->next = NULL;
 
-                AppendToBuffer(fs->nffile, &(sampler->record), sampler->record.size);
+                fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
                 LogInfo("Append new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
                         sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
                 dbg_printf("Append new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id,
@@ -1229,8 +1235,6 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
         receivedSize = ExtensionsEnabled[EXipReceivedV4ID] ? EXipReceivedV4Size : 0;
 
     while (size_left > 0) {
-        void *outBuff;
-
         if (size_left < 4) {  // rounding pads
             size_left = 0;
             continue;
@@ -1239,7 +1243,12 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
         // check for enough space in output buffer
         uint32_t outRecordSize = CalcOutRecordSize(sequencer, inBuff, size_left);
 
-        int buffAvail = CheckBufferSpace(fs->nffile, sizeof(recordHeaderV3_t) + outRecordSize + receivedSize);
+        if (!IsAvailable(fs->dataBlock, sizeof(recordHeaderV3_t) + outRecordSize + receivedSize)) {
+            // flush block - get an empty one
+            fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+        }
+
+        int buffAvail = BlockAvailable(fs->dataBlock);
         if (buffAvail == 0) {
             // this should really never occur, because the buffer gets flushed earlier
             LogError("Process_ipfix: output buffer size error. Skip ipfix record processing");
@@ -1247,9 +1256,10 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
             return;
         }
 
+        void *outBuff;
     REDO:
         // map file record to output buffer
-        outBuff = fs->nffile->buff_ptr;
+        outBuff = GetCurrentCursor(fs->dataBlock);
 
         dbg_printf("[%u] Process data record: %u addr: %llu, size_left: %u buff_avail: %u\n", exporter->info.id, processed_records,
                    (long long unsigned)((ptrdiff_t)inBuff - (ptrdiff_t)data_flowset), size_left, buffAvail);
@@ -1280,7 +1290,13 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
 
                 // request new and empty buffer
                 LogInfo("Process ipfix: Sequencer run - resize output buffer");
-                buffAvail = CheckBufferSpace(fs->nffile, buffAvail + 1);
+                // request new and empty buffer
+                fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+                if (fs->dataBlock == NULL) {
+                    return;
+                }
+
+                int buffAvail = BlockAvailable(fs->dataBlock);
                 if (buffAvail == 0) {
                     // this should really never occur, because the buffer gets flushed earlier
                     LogError("Process_ipfix: output buffer size error. Skip ipfix record processing");
@@ -1489,21 +1505,19 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
             flow_record_short(stdout, recordHeaderV3);
         }
 
-        fs->nffile->block_header->size += recordHeaderV3->size;
-        fs->nffile->block_header->NumRecords++;
-        fs->nffile->buff_ptr = outBuff;
+        fs->dataBlock->size += recordHeaderV3->size;
+        fs->dataBlock->NumRecords++;
 
         // buffer size sanity check
-        if (fs->nffile->block_header->size > WRITE_BUFFSIZE) {
+        if (fs->dataBlock->size > WRITE_BUFFSIZE) {
             // should never happen
             LogError("### Software error ###: %s line %d", __FILE__, __LINE__);
             LogError("Process ipfix: Output buffer overflow! Flush buffer and skip records.");
-            LogError("Buffer size: %u > %u", fs->nffile->block_header->size, WRITE_BUFFSIZE);
+            LogError("Buffer size: %u > %u", fs->dataBlock->size, WRITE_BUFFSIZE);
 
             // reset buffer
-            fs->nffile->block_header->size = 0;
-            fs->nffile->block_header->NumRecords = 0;
-            fs->nffile->buff_ptr = (void *)((void *)fs->nffile->block_header + sizeof(dataBlock_t));
+            fs->dataBlock->size = 0;
+            fs->dataBlock->NumRecords = 0;
             return;
         }
     }
@@ -1617,13 +1631,12 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
     dbg_printf("nbar elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
 
     // output buffer size check for all expected records
-    if (!CheckBufferSpace(fs->nffile, total_size)) {
-        // fishy! - should never happen. maybe disk full?
-        LogError("Process_nbar_option: output buffer size error. Abort nbar record processing");
-        return;
+    if (!IsAvailable(fs->dataBlock, total_size)) {
+        // flush block - get an empty one
+        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
     }
 
-    void *outBuff = fs->nffile->buff_ptr;
+    void *outBuff = GetCurrentCursor(fs->dataBlock);
     // push nbar header
     AddArrayHeader(outBuff, nbarHeader, NbarRecordType, elementSize);
 
@@ -1689,9 +1702,8 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
     }
 
     // update data block header
-    fs->nffile->block_header->size += nbarHeader->size;
-    fs->nffile->block_header->NumRecords++;
-    fs->nffile->buff_ptr += nbarHeader->size;
+    fs->dataBlock->size += nbarHeader->size;
+    fs->dataBlock->NumRecords++;
 
     if (size_left > 7) {
         LogInfo("Process nbar data record - %u extra bytes", size_left);
@@ -1752,13 +1764,12 @@ static void Process_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_t *
     dbg_printf("name elementSize: %zu, totalSize: %zu\n", elementSize, total_size);
 
     // output buffer size check for all expected records
-    if (!CheckBufferSpace(fs->nffile, total_size)) {
-        // fishy! - should never happen. maybe disk full?
-        LogError("Process_ifvrf_option: output buffer size error. Abort nbar record processing");
-        return;
+    if (!IsAvailable(fs->dataBlock, total_size)) {
+        // flush block - get an empty one
+        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
     }
 
-    void *outBuff = fs->nffile->buff_ptr;
+    void *outBuff = GetCurrentCursor(fs->dataBlock);
     // push nbar header
     AddArrayHeader(outBuff, nameHeader, recordType, elementSize);
 
@@ -1813,9 +1824,8 @@ static void Process_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_t *
     }
 
     // update data block header
-    fs->nffile->block_header->size += nameHeader->size;
-    fs->nffile->block_header->NumRecords++;
-    fs->nffile->buff_ptr += nameHeader->size;
+    fs->dataBlock->size += nameHeader->size;
+    fs->dataBlock->NumRecords++;
 
     if (size_left > 7) {
         LogInfo("Process ifvrf data record - %u extra bytes", size_left);
@@ -1825,7 +1835,7 @@ static void Process_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_t *
     dbg_printf("if/vrf name processed: %u records - header: size: %u, type: %u, numelements: %u, elementSize: %u\n", numRecords, nameHeader->size,
                nameHeader->type, nameHeader->numElements, nameHeader->elementSize);
 
-}  // End of Process_v9_ifvrf_option_data
+}  // End of Process_ifvrf_option_data
 
 static void Process_ipfix_SysUpTime_option_data(exporterDomain_t *exporter, templateList_t *template, void *data_flowset) {
     uint32_t size_left = GET_FLOWSET_LENGTH(data_flowset) - 4;  // -4 for data flowset header -> id and length

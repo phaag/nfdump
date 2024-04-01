@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,48 +28,32 @@
  *
  */
 
-#ifndef _ID_H
-#define _ID_H 1
+#ifndef _BARRIER_H
+#define _BARRIER_H 1
 
-// Legacy records
-#define CommonRecordV0Type 1
-#define ExtensionMapType 2
-#define PortHistogramType 3
-#define BppHistogramType 4
-#define LegacyRecordType1 5
-#define LegacyRecordType2 6
+#include <pthread.h>
+#include <stdint.h>
 
-// exporter/sampler types
-#define ExporterInfoRecordType 7
-#define ExporterStatRecordType 8
+typedef struct {
+    pthread_mutex_t workerMutex;
+    pthread_cond_t workerCond;
+    pthread_cond_t controllerCond;
+    int workersWaiting;
+    int numWorkers;
+} pthread_control_barrier_t;
 
-// legacy sampler
-#define SamplerLegacyRecordType 9
+/* function prototypes */
 
-// new extended Common Record as intermediate solution to overcome 255 exporters
-// requires moderate changes till 1.7
-#define CommonRecordType 10
+uint32_t GetNumWorkers(uint32_t requested);
 
-// Identifier for new V3Record
-#define V3Record 11
+pthread_control_barrier_t *pthread_control_barrier_init(uint32_t numWorkers);
 
-// record type definition
-#define NbarRecordType 12
-#define IfNameRecordType 13
-#define VrfNameRecordType 14
+void pthread_control_barrier_destroy(pthread_control_barrier_t *barrier);
 
-#define SamplerRecordType 15
+void pthread_control_barrier_wait(pthread_control_barrier_t *barrier);
 
-#define MaxRecordID 15
+void pthread_controller_wait(pthread_control_barrier_t *barrier);
 
-// array record types
-// maxmind
-#define LocalInfoElementID 1
-#define IPV4treeElementID 2
-#define IPV6treeElementID 3
-#define ASV4treeElementID 4
-#define ASV6treeElementID 5
-// tor
-#define TorTreeElementID 6
+void pthread_control_barrier_release(pthread_control_barrier_t *barrier);
 
 #endif

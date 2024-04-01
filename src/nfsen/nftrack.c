@@ -151,7 +151,7 @@ static data_row *process(void *engine) {
         LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
-    if (nffile == EMPTY_LIST) {
+    if (nffile == NULL) {
         LogError("Empty file list. No files to process\n");
         return NULL;
     }
@@ -175,28 +175,24 @@ static data_row *process(void *engine) {
     while (!done) {
         // get next data block from file
         dataBlock = ReadBlock(nffile, dataBlock);
-        if (dataBlock == NF_EOF) {
+        if (dataBlock == NULL) {
             nffile_t *next = GetNextFile(nffile);
-            if (next == EMPTY_LIST) {
-                done = 1;
-            }
             if (next == NULL) {
                 done = 1;
-                LogError("Unexpected end of file list\n");
             }
             // else continue with next file
             FilterSetParam(engine, nffile->ident, NOGEODB);
             continue;
         }
 
-        if (nffile->block_header->type != DATA_BLOCK_TYPE_2 && nffile->block_header->type != DATA_BLOCK_TYPE_3) {
-            LogError("Can't process block type %u\n", nffile->block_header->type);
+        if (dataBlock->type != DATA_BLOCK_TYPE_2 && dataBlock->type != DATA_BLOCK_TYPE_3) {
+            LogError("Can't process block type %u\n", dataBlock->type);
             continue;
         }
 
         record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
-        for (int i = 0; i < nffile->block_header->NumRecords; i++) {
+        for (int i = 0; i < dataBlock->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
                 exit(255);

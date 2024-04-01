@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2004-2023, Peter Haag
+ *  Copyright (c) 2004-2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -43,8 +43,6 @@
 #define IDENTLEN 128
 #define IDENTNONE "none"
 
-#define NF_EOF NULL
-
 #define NF_DUMPFILE "nfcapd.current"
 
 /*
@@ -53,12 +51,11 @@
  * size and time to flush to disk. Do not delay collector with long I/O
  */
 #define ONEMB 1048576
-#define WRITE_BUFFSIZE 2 * ONEMB
-
+#define WRITE_BUFFSIZE (2 * ONEMB)
 /*
  * use this buffer size to allocate memory for the output buffer
  * data other than flow records, such as histograms, may be larger than
- * WRITE_BUFFSIZE and have potentially more time to flush to disk
+BUFFSIZE and have potentially more time to flush to disk
  */
 #define BUFFSIZE (5 * ONEMB)
 
@@ -175,10 +172,6 @@ typedef struct data_block_header_s {
                           // 2 - block compressed
 } data_block_headerV1_t;
 
-// allocate space for this number of workers
-#define MAXWORKERS 64
-// If number of CPUs can not be determined
-#define DEFAULTWORKERS 4
 /*
  * Generic file handle for reading/writing files
  * if a file is read only writeto and block_header are NULL
@@ -195,9 +188,6 @@ typedef struct nffile_s {
     size_t buff_size;
     // void			*buff_pool[NUM_BUFFS];	// buffer space for read/write/compression
 
-    dataBlock_t *block_header;  // buffer ptr
-    void *buff_ptr;             // pointer into buffer for read/write blocks/records
-
     queue_t *processQueue;  // blocks ready to be processed. Connects consumer/producer threads
 
     stat_record_t *stat_record;  // flow stat record
@@ -206,8 +196,11 @@ typedef struct nffile_s {
     uint16_t compression_level;  // compression level, if available.
 } nffile_t;
 
-// returnn value, if all files in list are processed
-#define EMPTY_LIST ((nffile_t *)-1)
+#define GetCursor(block) ((void *)(block) + sizeof(dataBlock_t))
+#define GetCurrentCursor(block) ((void *)(block) + (block)->size + sizeof(dataBlock_t))
+#define BlockSize(block) (block)->size)
+#define BlockAvailable(block) (WRITE_BUFFSIZE - (block)->size)
+#define IsAvailable(block, required) (((block)->size + required) < WRITE_BUFFSIZE)
 
 #define FILE_IDENT(n) ((n)->ident)
 
@@ -251,6 +244,7 @@ void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
 nffile_t *OpenFile(char *filename, nffile_t *nffile);
 
+#define INHERIT -1
 nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compress, int encryption);
 
 nffile_t *AppendFile(char *filename);
@@ -265,6 +259,8 @@ int QueryFile(char *filename, int verbose);
 
 int GetStatRecord(char *filename, stat_record_t *stat_record);
 
+nffile_t *NewFile(nffile_t *nffile);
+
 void DisposeFile(nffile_t *nffile);
 
 void CloseFile(nffile_t *nffile);
@@ -277,7 +273,9 @@ nffile_t *GetNextFile(nffile_t *nffile);
 
 dataBlock_t *ReadBlock(nffile_t *nffile, dataBlock_t *dataBlock);
 
-int WriteBlock(nffile_t *nffile);
+dataBlock_t *WriteBlock(nffile_t *nffile, dataBlock_t *dataBlock);
+
+void FlushBlock(nffile_t *nffile, dataBlock_t *dataBlock);
 
 void FreeDataBlock(dataBlock_t *dataBlock);
 

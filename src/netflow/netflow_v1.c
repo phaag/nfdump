@@ -111,8 +111,6 @@ static inline exporter_v1_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *
 
 /* functions */
 
-#include "nffile_inline.c"
-
 int Init_v1(int verbose) {
     printRecord = verbose > 2;
     baseRecordSize = sizeof(recordHeaderV3_t) + EXgenericFlowSize + EXipv4FlowSize + EXflowMiscSize + EXipNextHopV4Size;
@@ -187,36 +185,29 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // time received for this packet
     uint64_t msecReceived = ((uint64_t)fs->received.tv_sec * 1000LL) + (uint64_t)((uint64_t)fs->received.tv_usec / 1000LL);
 
-    void *outBuff = fs->nffile->buff_ptr;
     int done = 0;
     while (!done) {
-        netflow_v1_record_t *v1_record;
-        /* Process header */
-
         // count check
         uint16_t count = ntohs(v1_header->count);
         if (count > NETFLOW_V1_MAX_RECORDS) {
             LogError("Process_v1: Unexpected record count in header: %i. Abort v1 record processing", count);
-            fs->nffile->buff_ptr = (void *)outBuff;
             return;
         }
 
         // input buffer size check for all expected records
         if (size_left < (NETFLOW_V1_HEADER_LENGTH + count * NETFLOW_V1_RECORD_LENGTH)) {
             LogError("Process_v1: Not enough data to process v1 record. Abort v1 record processing");
-            fs->nffile->buff_ptr = (void *)outBuff;
             return;
         }
 
         // output buffer size check for all expected records
-        if (!CheckBufferSpace(fs->nffile, count * exporter->outRecordSize)) {
-            // fishy! - should never happen. maybe disk full?
-            LogError("Process_v1: output buffer size error. Abort v1 record processing");
-            return;
+        void *outBuff = GetCurrentCursor(fs->dataBlock);
+        if (!IsAvailable(fs->dataBlock, count * exporter->outRecordSize)) {
+            // flush block - get an empty one
+            fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+            // map output memory buffer
+            outBuff = GetCursor(fs->dataBlock);
         }
-
-        // map output memory buffer
-        outBuff = fs->nffile->buff_ptr;
 
         v1_header->SysUptime = ntohl(v1_header->SysUptime);
         v1_header->unix_secs = ntohl(v1_header->unix_secs);
@@ -227,7 +218,7 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             ((uint64_t)(v1_header->unix_secs) * 1000 + ((uint64_t)(v1_header->unix_nsecs) / 1000000)) - (uint64_t)(v1_header->SysUptime);
 
         // process all records
-        v1_record = (netflow_v1_record_t *)((pointer_addr_t)v1_header + NETFLOW_V1_HEADER_LENGTH);
+        netflow_v1_record_t *v1_record = (netflow_v1_record_t *)((void *)v1_header + NETFLOW_V1_HEADER_LENGTH);
 
         /* loop over each records associated with this header */
         uint32_t outSize = 0;
@@ -345,7 +336,7 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             outBuff += recordHeader->size;
             outSize += recordHeader->size;
             // advance input buffer to next flow record
-            v1_record = (netflow_v1_record_t *)((pointer_addr_t)v1_record + NETFLOW_V1_RECORD_LENGTH);
+            v1_record = (netflow_v1_record_t *)((void *)v1_record + NETFLOW_V1_RECORD_LENGTH);
 
             if (recordHeader->size > exporter->outRecordSize) {
                 LogError("Process_v1: Record size check failed! Expected: %u, counted: %u\n", exporter->outRecordSize, recordHeader->size);
@@ -355,9 +346,8 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }  // End of foreach v1 record
 
         // update file record size ( -> output buffer size )
-        fs->nffile->block_header->NumRecords += count;
-        fs->nffile->block_header->size += outSize;
-        fs->nffile->buff_ptr = (void *)outBuff;
+        fs->dataBlock->NumRecords += count;
+        fs->dataBlock->size += outSize;
 
         // still to go for this many input bytes
         size_left -= NETFLOW_V1_HEADER_LENGTH + count * NETFLOW_V1_RECORD_LENGTH;
