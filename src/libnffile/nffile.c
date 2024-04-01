@@ -1547,7 +1547,7 @@ int ChangeIdent(char *filename, char *Ident) {
 
     // file is valid - re-open the file mode RDWR
     close(nffile->fd);
-    nffile->fd = open(filename, O_RDWR | O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+    nffile->fd = open(filename, O_RDWR, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (nffile->fd < 0) {
         LogError("Failed to open file %s: '%s'", filename, strerror(errno));
         DisposeFile(nffile);
@@ -1562,13 +1562,17 @@ int ChangeIdent(char *filename, char *Ident) {
         // seek to  end of data blocks
         if (lseek(nffile->fd, nffile->file_header->offAppendix, SEEK_SET) < 0) {
             LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            close(nffile->fd);
             DisposeFile(nffile);
             return 0;
         }
+        // remove old appendix block
+        nffile->file_header->NumBlocks--;
     } else {
         // if no appendix
         if (lseek(nffile->fd, 0, SEEK_END) < 0) {
             LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            close(nffile->fd);
             DisposeFile(nffile);
             return 0;
         }
@@ -1578,9 +1582,11 @@ int ChangeIdent(char *filename, char *Ident) {
         LogError("Failed to write appendix");
     }
 
-    if (!CloseUpdateFile(nffile)) {
+    if (close(nffile->fd) < 0) {
+        LogError("close() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
+    nffile->fd = 0;
 
     DisposeFile(nffile);
 
@@ -1967,6 +1973,15 @@ int QueryFile(char *filename, int verbose) {
                     if (recordHeader->type == V3Record) {
                         if (VerifyV3Record((recordHeaderV3_t *)recordHeader) == 0) {
                             printf(" ** malformed **");
+                        }
+                    }
+                    if (recordHeader->type == TYPE_IDENT) {
+                        char *ident = (char *)((char *)recordHeader + sizeof(record_header_t));
+                        size_t len = strlen(ident);
+                        if (len > IDENTLEN) {
+                            printf(" ** malformed ident with len: %zu **", len);
+                        } else {
+                            printf("  Ident: %s", ident);
                         }
                     }
                     printf("\n");

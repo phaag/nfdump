@@ -400,18 +400,22 @@ static void runTest(void) {
     CheckFilter("src vlan 1001", recordHandle, 1);
 
     // EXlayer2
-    PushExtension(recordHeaderV3, EXlayer2, dot1q);
+    PushExtension(recordHeaderV3, EXlayer2, layer2);
     MapRecordHandle(recordHandle, recordHeaderV3, 1);
-    dot1q->vlanID = 3003;
-    dot1q->postVlanID = 4004;
-    dot1q->customerVlanId = 5005;
-    dot1q->postCustomerVlanId = 6006;
+    layer2->vlanID = 3003;
+    layer2->postVlanID = 4004;
+    layer2->customerVlanId = 5005;
+    layer2->postCustomerVlanId = 6006;
+    layer2->etherType = 0x0600;
+
     CheckFilter("src vlan 1001", recordHandle, 1);
     CheckFilter("src vlan 3003", recordHandle, 1);
     CheckFilter("dst vlan 2002", recordHandle, 1);
     CheckFilter("dst vlan 4004", recordHandle, 1);
     CheckFilter("vlan 3003", recordHandle, 1);
     CheckFilter("vlan 4004", recordHandle, 1);
+    CheckFilter("ethertype 0x0600", recordHandle, 1);
+    CheckFilter("ethertype 600", recordHandle, 0);
 
     // EXipNextHopV4ID
     PushExtension(recordHeaderV3, EXipNextHopV4, nextHopV4);
@@ -886,6 +890,7 @@ static void runTest(void) {
     CheckFilter("payload ja4 defined", recordHandle, 1);
     recordHandle->extensionList[JA4index] = NULL;
     CheckFilter("payload ja4 defined", recordHandle, 0);
+
 #ifdef BUILDJA4
     // ja4s
     ja4->type = TYPE_JA4S;
