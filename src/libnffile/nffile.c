@@ -622,7 +622,7 @@ static int ReadAppendix(nffile_t *nffile) {
 
     // seek back to currentPos
     off_t backPosition = lseek(nffile->fd, currentPos, SEEK_SET);
-    dbg_printf("Reset position to %llu -> %llu\n", currentPos, backPosition);
+    dbg_printf("Reset position to %ld -> %ld\n", currentPos, backPosition);
     if (backPosition < 0) {
         LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
@@ -1201,6 +1201,7 @@ void DisposeFile(nffile_t *nffile) {
     if (nffile->ident) free(nffile->ident);
     if (nffile->fileName) free(nffile->fileName);
 
+    queue_close(nffile->processQueue);
     for (size_t queueLen = queue_length(nffile->processQueue); queueLen > 0; queueLen--) {
         void *p = queue_pop(nffile->processQueue);
         FreeDataBlock(p);
@@ -1213,7 +1214,6 @@ void DisposeFile(nffile_t *nffile) {
 
 nffile_t *GetNextFile(nffile_t *nffile) {
     // close current file before open the next one
-    // stdin ( current = 0 ) is not closed
     if (nffile) {
         CloseFile(nffile);
     } else {
@@ -1394,7 +1394,7 @@ dataBlock_t *WriteBlock(nffile_t *nffile, dataBlock_t *dataBlock) {
         dataBlock = NewDataBlock();
     } else if (dataBlock->size != 0) {
         // empty blocks need not to be written
-        dbg_printf("WriteBlock - push block with size: %u\n", readBlock->size);
+        dbg_printf("WriteBlock - push block with size: %u\n", dataBlock->size);
         queue_push(nffile->processQueue, dataBlock);
         dataBlock = NewDataBlock();
     } else {
