@@ -536,9 +536,10 @@ static void stringEXlayer2(FILE *stream, void *extensionRecord, const char *inde
             "%s\"cust_vlanID\" : %u%s"
             "%s\"post_cust_vlanID\" : %u%s"
             "%s\"phys_ingress\" : \"%u\"%s"
-            "%s\"phys_egress\" : \"%u\"%s",
+            "%s\"phys_egress\" : \"%u\"%s"
+            "%s\"ethertype\" : %u%s",
             indent, layer2->vlanID, fs, indent, layer2->postVlanID, fs, indent, layer2->customerVlanId, fs, indent, layer2->postCustomerVlanId, fs,
-            indent, layer2->ingress, fs, indent, layer2->egress, fs);
+            indent, layer2->ingress, fs, indent, layer2->egress, fs, indent, etherType->etherType, fs);
 
 }  // End of stringEXlayer2
 
@@ -659,13 +660,6 @@ static void stringEXnelXlatePort(FILE *stream, void *extensionRecord, const char
 
 }  // End of stringEXnelXlatePort
 
-static void stringEXetherType(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
-    EXetherType_t *etherType = (EXetherType_t *)extensionRecord;
-    fprintf(stream,
-            "%s\"ethertype\" : %u%s",
-            indent, etherType->etherType, fs);
-
-}  // End of stringEXnelXlatePort
 
 void json_prolog(void) {
     recordCount = 0;
