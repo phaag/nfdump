@@ -203,7 +203,7 @@ static const struct v9TranslationMap_s {
     {LOCAL_IPv4Received, SIZEReceived4IP, NumberCopy, EXipReceivedV4ID, OFFReceived4IP, STACK_NONE, "IPv4 exporter"},
     {LOCAL_IPv6Received, SIZEReceived6IP, NumberCopy, EXipReceivedV6ID, OFFReceived6IP, STACK_NONE, "IPv6 exporter"},
     {LOCAL_msecTimeReceived, SIZEmsecReceived, NumberCopy, EXgenericFlowID, OFFmsecReceived, STACK_NONE, "msec time received"},
-    {NF9_ETHERTYPE, SIZEetherType, NumberCopy, EXetherTypeID, OFFetherType, STACK_NONE, "ethertype"},
+    {NF9_ETHERTYPE, SIZEetherType, NumberCopy, EXlayer2ID, OFFetherType, STACK_NONE, "ethertype"},
 
     // NSEL extensions
     {NF_F_FLOW_BYTES, SIZEinBytes, NumberCopy, EXgenericFlowID, OFFinBytes, STACK_NONE, "ASA inBytes total"},
