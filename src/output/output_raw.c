@@ -541,8 +541,9 @@ static void stringEXlayer2(FILE *stream, void *extensionRecord) {
             "  custID       =             %5u\n"
             "  post custID  =             %5u\n"
             "  ingress IFid =        %10u\n"
-            "  egress IFid  =        %10u\n",
-            layer2->vlanID, layer2->postVlanID, layer2->customerVlanId, layer2->postCustomerVlanId, layer2->ingress, layer2->egress);
+            "  egress IFid  =        %10u\n"
+            "  ethertype    =            0x%04x\n",
+            layer2->vlanID, layer2->postVlanID, layer2->customerVlanId, layer2->postCustomerVlanId, layer2->ingress, layer2->egress, layer2->etherType);
 
 }  // End of stringEXlayer2
 
@@ -807,13 +808,6 @@ static void stringsEXinmon(FILE *stream, void *extensionRecord) {
             inmonMeta->frameSize, inmonMeta->linkType);
 }  // End of stringsEXinmon
 
-static void stringsEXetherType(FILE *stream, void *extensionRecord) {
-    EXetherType_t *etherType = (EXetherType_t *)extensionRecord;
-    fprintf(stream,
-            "  ethertype    =            0x%04x\n",
-            etherType->etherType);
-}  // End of stringsEXetherType
-
 void raw_prolog(void) {
     // empty prolog
     recordCount = 0;
@@ -993,9 +987,6 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
                 break;
             case EXinmonMetaID:
                 stringsEXinmon(stream, ptr);
-                break;
-            case EXetherTypeID:
-                stringsEXetherType(stream, ptr);
                 break;
             default:
                 dbg_printf("Extension %i not decoded\n", i);
