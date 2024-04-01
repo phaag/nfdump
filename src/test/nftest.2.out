@@ -1041,7 +1041,7 @@ Flow Record:
   RecordCount  =                31
   Flags        =              0x00 NETFLOW v10, Unsampled
   Elements     =                13: 1 2 4 5 7 8 10 12 14 15 16 17 38 
-  size         =               300
+  size         =               304
   engine type  =                32
   engine ID    =                33
   export sysid =                 3
@@ -1100,3 +1100,4 @@ Flow Record:
   post custID  =                50
   ingress IFid =            112233
   egress IFid  =            445566
+  ethertype    =            0x0000
