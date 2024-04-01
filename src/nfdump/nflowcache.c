@@ -147,7 +147,7 @@ static struct aggregationElement_s {
                         {"opid", {EXobservationID, OFFpointID, SIZEpointID, 0}, 0, NOPREPROCESS, 0, 0, "%opid"},
                         {"srcgeo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, 0, SRC_GEO, 0, 0, "%sc"},
                         {"dstgeo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, 0, DST_GEO, 0, 0, "%dc"},
-                        {"ethertype", {EXetherTypeID, OFFetherType, SIZEetherType, 0}, 0, NOPREPROCESS, 0, 0, "%eth"},
+                        {"ethertype", {EXlayer2ID, OFFetherType, SIZEetherType, 0}, 0, NOPREPROCESS, 0, 0, "%eth"},
                         {NULL, {0, 0, 0}, 0, NOPREPROCESS, 0, 0, NULL}};
 
 /* Element of the flow hash ( cache ) */
