@@ -1116,6 +1116,6 @@ Flow Record:
   post vlanID  =                48
   custID       =                49
   post custID  =                50
-  ingress IFid =            112233
-  egress IFid  =            445566
+  ingress IfID =            112233
+  egress IfID  =            445566
   ethertype    =            0x0000
