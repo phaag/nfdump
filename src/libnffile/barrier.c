@@ -42,33 +42,44 @@
 #include <unistd.h>
 
 #include "barrier.h"
+#include "nfconf.h"
 #include "nfdump.h"
 #include "util.h"
 
 // get decent number of workers depending
 // on the number of cores online
 uint32_t GetNumWorkers(uint32_t requested) {
-    long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
+    // get conf value for maxworkers
+    int confMaxWorkers = ConfGetValue("maxworkers");
+    if (confMaxWorkers == 0) confMaxWorkers = DEFAULTWORKERS;
 
+    long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
     if (CoresOnline < 0) {
         LogError("sysconf(_SC_NPROCESSORS_ONLN) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         CoresOnline = 1;
     }
 
-    uint32_t numWorkers = DEFAULTWORKERS;
-    if (requested && requested < CoresOnline) {
-        numWorkers = requested;
-    } else {
-        numWorkers = CoresOnline;
+    // no more than cores online
+    if (requested && (requested > CoresOnline)) {
+        LogError("Number of workers should not be greater than number of cores online. %d is > %d", requested, CoresOnline);
     }
 
-    // limit to MAXWORKERS
-    if (numWorkers > MAXWORKERS) numWorkers = DEFAULTWORKERS;
+    // try to find optimal number of workers
+    // if nothing requested, use default, unless we are on a high number of cores
+    // system, so double the workers
+    if (requested == 0) {
+        requested = confMaxWorkers;
+        if ((2 * requested) < CoresOnline) requested = 2 * requested;
+    }
+    if (requested > CoresOnline) requested = CoresOnline;
 
-    LogInfo("CoresOnline: %lld, Requested: %u, Set workers to: %u", CoresOnline, requested, numWorkers);
+    // no more than internal array limit
+    if (requested > MAXWORKERS) {
+        LogError("Number of workers is limited to %s", MAXWORKERS);
+        requested = MAXWORKERS;
+    }
 
-    return numWorkers;
-
+    return requested;
 }  // End of GetNumWorkers
 
 // initialize barrier for numWorkers + 1 controller

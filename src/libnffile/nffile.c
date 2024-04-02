@@ -74,8 +74,8 @@
 #include "lz4.h"
 #include "lz4hc.h"
 #endif
+#include "barrier.h"
 #include "minilzo.h"
-#include "nfconf.h"
 #include "nfdump.h"
 #include "nffileV2.h"
 #include "util.h"
@@ -169,32 +169,7 @@ int Init_nffile(int workers, queue_t *fileList) {
 
     atomic_init(&blocksInUse, 0);
 
-    // get conf value for maxworkers
-    int confMaxWorkers = ConfGetValue("maxworkers");
-    if (confMaxWorkers == 0) confMaxWorkers = DEFAULTWORKERS;
-
-    long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
-    if (CoresOnline < 0) {
-        LogError("sysconf(_SC_NPROCESSORS_ONLN) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        CoresOnline = 1;
-    }
-
-    // no more than cores online
-    if (workers && (workers > CoresOnline)) {
-        LogError("Number of workers should not be greater than number of cores online. %d is > %d", workers, CoresOnline);
-    }
-
-    // set to default if not set
-    if (workers == 0) workers = confMaxWorkers;
-    if (workers > CoresOnline) workers = CoresOnline;
-
-    // no more than internal array limit
-    if (workers > MAXWORKERS) {
-        LogError("Number of workers is limited to %s", MAXWORKERS);
-        workers = MAXWORKERS;
-    }
-
-    NumWorkers = workers;
+    NumWorkers = GetNumWorkers(workers);
     return 1;
 
 }  // End of Init_nffile
