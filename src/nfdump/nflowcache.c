@@ -1229,8 +1229,15 @@ void AddFlowCache(recordHandle_t *recordHandle) {
         keymem = &keymemV6;
         keyLen = keymenV6Len;
     } else {
-        // hmm .. a flow without IPs .. skip
-        return;
+        // if neither ipv4 nor ipv6 but keymemV4 defined
+        // we aggregate elements outside a record with ip addresses
+        // so use either
+        if (keymenV4Len == 0) {
+            LogError("Could not determine a valid aggregation");
+            return;
+        }
+        keymem = &keymemV4;
+        keyLen = keymenV4Len;
     }
 
     if (*keymem == NULL) *keymem = nfmalloc(keyLen);

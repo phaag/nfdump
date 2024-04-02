@@ -30,7 +30,7 @@ fmt.pfline = "fmt:%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap 
 
 # tordb
 # if you use tor DB to identify tor exit node IPs - see torlookup(1)
-tordb.path = "/var/db/tordb.nf"
+# tordb.path = "/var/db/tordb.nf"
 
 # MAXWORKERS
 # By default the number of writer threads is set to the number of cores online but not 

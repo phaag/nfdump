@@ -123,12 +123,11 @@ static void stringEXipv4Flow(FILE *stream, void *extensionRecord, const char *in
     LookupV4Location(ipv4Flow->dstAddr, dloc, 128);
 
     fprintf(stream,
-            "%s\"ip_version\" : \"%u\"%s"
             "%s\"src4_addr\" : \"%s\"%s"
             "%s\"dst4_addr\" : \"%s\"%s"
             "%s\"src_geo\" : \"%s\"%s"
             "%s\"dst_geo\" : \"%s\"%s",
-            indent, 4, fs, indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
+            indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
 
 }  // End of stringEXipv4Flow
 
@@ -149,12 +148,11 @@ static void stringEXipv6Flow(FILE *stream, void *extensionRecord, const char *in
     LookupV6Location(ipv6Flow->dstAddr, dloc, 128);
 
     fprintf(stream,
-            "%s\"ip_version\" : \"%u\"%s"
             "%s\"src6_addr\" : \"%s\"%s"
             "%s\"dst6_addr\" : \"%s\"%s"
             "%s\"src_geo\" : \"%s\"%s"
             "%s\"dst_geo\" : \"%s\"%s",
-            indent, 6, fs, indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
+            indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
 
 }  // End of stringEXipv6Flow
 
@@ -522,8 +520,8 @@ static void stringEXobservation(FILE *stream, void *extensionRecord, const char 
 static void stringEXvrf(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXvrf_t *vrf = (EXvrf_t *)extensionRecord;
     fprintf(stream,
-            "%s\"ingress_vrf\" : \"%u\"%s"
-            "%s\"egress_vrf\" : \"%u\"%s",
+            "%s\"ingress_vrf\" : %u%s"
+            "%s\"egress_vrf\" : %u%s",
             indent, vrf->ingressVrf, fs, indent, vrf->egressVrf, fs);
 
 }  // End of stringEXvrf
@@ -535,11 +533,12 @@ static void stringEXlayer2(FILE *stream, void *extensionRecord, const char *inde
             "%s\"post_vlanID\" : %u%s"
             "%s\"cust_vlanID\" : %u%s"
             "%s\"post_cust_vlanID\" : %u%s"
-            "%s\"phys_ingress\" : \"%u\"%s"
-            "%s\"phys_egress\" : \"%u\"%s"
-            "%s\"ethertype\" : %u%s",
+            "%s\"phys_ingress\" : %u%s"
+            "%s\"phys_egress\" : %u%s"
+            "%s\"ethertype\" : %u%s"
+            "%s\"ip_version\" : %u%s",
             indent, layer2->vlanID, fs, indent, layer2->postVlanID, fs, indent, layer2->customerVlanId, fs, indent, layer2->postCustomerVlanId, fs,
-            indent, layer2->ingress, fs, indent, layer2->egress, fs, indent, layer2->etherType, fs);
+            indent, layer2->ingress, fs, indent, layer2->egress, fs, indent, layer2->etherType, fs, indent, layer2->ipVersion, fs);
 
 }  // End of stringEXlayer2
 
@@ -555,10 +554,10 @@ static void stringEXnselCommon(FILE *stream, void *extensionRecord, const char *
         strftime(datestr, 63, "%Y-%m-%dT%H:%M:%S", ts);
     }
     fprintf(stream,
-            "%s\"connect_id\" : \"%u\"%s"
-            "%s\"event_id\" : \"%u\"%s"
+            "%s\"connect_id\" : %u%s"
+            "%s\"event_id\" : %u%s"
             "%s\"event\" : \"%s\"%s"
-            "%s\"xevent_id\" : \"%u\"%s"
+            "%s\"xevent_id\" : %u%s"
             "%s\"t_event\" : \"%s.%llu\"%s",
             indent, nselCommon->connID, fs, indent, nselCommon->fwEvent, fs, indent, fwEventString(nselCommon->fwEvent), fs, indent,
             nselCommon->fwXevent, fs, indent, datestr, nselCommon->msecEvent % 1000LL, fs);
@@ -604,8 +603,8 @@ static void stringEXnselXlateIPv6(FILE *stream, void *extensionRecord, const cha
 static void stringEXnselXlatePort(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)extensionRecord;
     fprintf(stream,
-            "%s\"src_xlt_port\" : \"%u\"%s"
-            "%s\"dst_xlt_port\" : \"%u\"%s",
+            "%s\"src_xlt_port\" : %u%s"
+            "%s\"dst_xlt_port\" : %u%s",
             indent, nselXlatePort->xlateSrcPort, fs, indent, nselXlatePort->xlateDstPort, fs);
 
 }  // End of stringEXnselXlatePort
@@ -639,9 +638,9 @@ static void stringEXnelCommon(FILE *stream, void *extensionRecord, const char *i
     }
 
     fprintf(stream,
-            "%s\"nat_event_id\" : \"%u\"%s"
+            "%s\"nat_event_id\" : %u%s"
             "%s\"nat_event\" : \"%s\"%s"
-            "%s\"nat_pool_id\" : \"%u\"%s"
+            "%s\"nat_pool_id\" : %u%s"
             "%s\"t_event\" : \"%s.%llu\"%s",
             indent, nelCommon->natEvent, fs, indent, natEventString(nelCommon->natEvent, LONGNAME), fs, indent, nelCommon->natPoolID, fs, indent,
             datestr, nelCommon->msecEvent % 1000LL, fs);
@@ -651,15 +650,14 @@ static void stringEXnelCommon(FILE *stream, void *extensionRecord, const char *i
 static void stringEXnelXlatePort(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)extensionRecord;
     fprintf(stream,
-            "%s\"pblock_start\" : \"%u\"%s"
-            "%s\"pblock_end\" : \"%u\"%s"
-            "%s\"pblock_step\" : \"%u\"%s"
-            "%s\"pblock_size\" : \"%u\"%s",
+            "%s\"pblock_start\" : %u%s"
+            "%s\"pblock_end\" : %u%s"
+            "%s\"pblock_step\" : %u%s"
+            "%s\"pblock_size\" : %u%s",
             indent, nelXlatePort->blockStart, fs, indent, nelXlatePort->blockEnd, fs, indent, nelXlatePort->blockStep, fs, indent,
             nelXlatePort->blockSize, fs);
 
 }  // End of stringEXnelXlatePort
-
 
 void json_prolog(void) {
     recordCount = 0;

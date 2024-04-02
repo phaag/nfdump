@@ -173,20 +173,20 @@ int Init_nffile(int workers, queue_t *fileList) {
     int confMaxWorkers = ConfGetValue("maxworkers");
     if (confMaxWorkers == 0) confMaxWorkers = DEFAULTWORKERS;
 
-    // set to default if not set
-    if (workers == 0) workers = confMaxWorkers;
-
     long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
     if (CoresOnline < 0) {
         LogError("sysconf(_SC_NPROCESSORS_ONLN) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        CoresOnline = DEFAULTWORKERS;
+        CoresOnline = 1;
     }
 
     // no more than cores online
-    if (workers > CoresOnline) {
+    if (workers && (workers > CoresOnline)) {
         LogError("Number of workers should not be greater than number of cores online. %d is > %d", workers, CoresOnline);
-        workers = CoresOnline;
     }
+
+    // set to default if not set
+    if (workers == 0) workers = confMaxWorkers;
+    if (workers > CoresOnline) workers = CoresOnline;
 
     // no more than internal array limit
     if (workers > MAXWORKERS) {

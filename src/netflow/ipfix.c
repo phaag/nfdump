@@ -179,6 +179,7 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_postDot1qCustomerVlanId, SIZEpostCustomerVlanId, NumberCopy, EXlayer2ID, OFFpostCustomerVlanId, STACK_NONE, "dot1q post customer VLAN ID"},
     {IPFIX_ingressPhysicalInterface, SIZEphysIngress, NumberCopy, EXlayer2ID, OFFphysIngress, STACK_NONE, "ingress physical interface ID"},
     {IPFIX_egressPhysicalInterface, SIZEphysEgress, NumberCopy, EXlayer2ID, OFFphysEgress, STACK_NONE, "egress physical interface ID"},
+    {IPFIX_ipVersion, SIZEipVersion, NumberCopy, EXlayer2ID, OFFipVersion, STACK_NONE, "ip version"},
     {IPFIX_flowDirection, SIZEdir, NumberCopy, EXflowMiscID, OFFdir, STACK_NONE, "flow direction"},
     {IPFIX_biflowDirection, SIZEbiFlowDir, NumberCopy, EXflowMiscID, OFFbiFlowDir, STACK_NONE, "biFlow direction"},
     {IPFIX_flowEndReason, SIZEflowEndReason, NumberCopy, EXflowMiscID, OFFflowEndReason, STACK_NONE, "Flow end reason"},

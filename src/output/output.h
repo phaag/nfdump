@@ -58,6 +58,7 @@ typedef struct printmap_s {
     PrologPrinter_t func_prolog;  // prints the output prolog
     PrologPrinter_t func_epilog;  // prints the output epilog
     char *Format;                 // output format definition
+    char *help;                   // help text
 } printmap_t;
 
 void AddFormat(char *name, char *fmtString);
@@ -67,5 +68,7 @@ RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams
 void PrintProlog(outputParams_t *outputParams);
 
 void PrintEpilog(outputParams_t *outputParams);
+
+void PrintOutputHelp(void);
 
 #endif

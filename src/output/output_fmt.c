@@ -299,6 +299,12 @@ static void String_evrf(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_evrfName(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_physI_ID(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_physE_ID(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_ipVersion(FILE *stream, recordHandle_t *recordHandle);
+
 static void String_NewLine(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_pfIfName(FILE *stream, recordHandle_t *recordHandle);
@@ -324,10 +330,6 @@ static void String_msecEvent(FILE *stream, recordHandle_t *recordHandle);
 static void String_iacl(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_eacl(FILE *stream, recordHandle_t *recordHandle);
-
-static void String_physI_ID(FILE *stream, recordHandle_t *recordHandle);
-
-static void String_physE_ID(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_xlateSrcAddr(FILE *stream, recordHandle_t *recordHandle);
 
@@ -430,6 +432,7 @@ static struct format_token_list_s {
     {"%dcvln", 0, "DCVlan", String_DstCVlan},    // Dst customer Vlan
     {"%id", 0, "ingress-ID", String_physI_ID},   // ingress phys interface ID
     {"%eid", 0, " egress-ID", String_physE_ID},  // egress phys interface ID
+    {"%ipv", 0, "IPv", String_ipVersion},        // ip Version
 
     // EXasRoutingID
     {"%sas", 0, "Src AS", String_SrcAS},  // Source AS
@@ -465,7 +468,7 @@ static struct format_token_list_s {
     {"%odmc", 0, " Out dst MAC Addr", String_OutDstMac},  // Output Dst Mac Addr
     {"%idmc", 0, "  In dst MAC Addr", String_InDstMac},   // Input Dst Mac Addr
     {"%osmc", 0, " Out src MAC Addr", String_OutSrcMac},  // Output Src Mac Addr
-    {"%eth",  0, " etherType", String_Ethertype},         // etherType
+    {"%eth", 0, " etherType", String_Ethertype},          // etherType
 
     // EXasAdjacentID
     {"%nas", 0, "Next AS", String_NextAS},  // Next AS
@@ -585,9 +588,9 @@ static void ListOutputFormats(void) {
     printf("Available format elements:");
     for (int i = 0; format_token_list[i].token != NULL; i++) {
         if ((i & 0xf) == 0) printf("\n");
-        printf("%s ", format_token_list[i].token);
+        printf("%8s ", format_token_list[i].token);
     }
-    printf("- See also nfdump(1)\n");
+    printf("\nSee also nfdump(1)\n");
 
 }  // End of ListOutputFormats
 
@@ -1910,7 +1913,7 @@ static void String_DstCVlan(FILE *stream, recordHandle_t *recordHandle) {
 static void String_Ethertype(FILE *stream, recordHandle_t *recordHandle) {
     EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
     fprintf(stream, "0x%04x", layer2->etherType);
-} // End of String_Ethertype
+}  // End of String_Ethertype
 
 static void String_Dir(FILE *stream, recordHandle_t *recordHandle) {
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
@@ -2445,6 +2448,14 @@ static void String_physE_ID(FILE *stream, recordHandle_t *recordHandle) {
     fprintf(stream, "%10u", id);
 
 }  // End of String_physI_ID
+
+static void String_ipVersion(FILE *stream, recordHandle_t *recordHandle) {
+    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
+    uint32_t ipv = layer2 ? layer2->ipVersion : 0;
+
+    fprintf(stream, "%3u", ipv);
+
+}  // End of String_ipVersion
 
 static void String_xlateSrcAddr(FILE *stream, recordHandle_t *recordHandle) {
     EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];

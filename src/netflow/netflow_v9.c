@@ -178,6 +178,7 @@ static const struct v9TranslationMap_s {
     {NF_F_postDot1qCustomerVlanId, SIZEpostCustomerVlanId, NumberCopy, EXlayer2ID, OFFpostCustomerVlanId, STACK_NONE, "dot1q post customer VLAN ID"},
     {NF_F_ingressPhysicalInterface, SIZEphysIngress, NumberCopy, EXlayer2ID, OFFphysIngress, STACK_NONE, "ingress physical interface ID"},
     {NF_F_egressPhysicalInterface, SIZEphysEgress, NumberCopy, EXlayer2ID, OFFphysEgress, STACK_NONE, "egress physical interface ID"},
+    {NF_9_IP_PROTOCOL_VERSION, SIZEipVersion, NumberCopy, EXlayer2ID, OFFipVersion, STACK_NONE, "ip version"},
     {NF9_DIRECTION, SIZEdir, NumberCopy, EXflowMiscID, OFFdir, STACK_NONE, "flow direction"},
     {NF9_V6_NEXT_HOP, SIZENextHopV6IP, NumberCopy, EXipNextHopV6ID, OFFNextHopV6IP, STACK_NONE, "IPv6 next hop IP"},
     {NF9_BPG_V6_NEXT_HOP, SIZEbgp6NextIP, NumberCopy, EXbgpNextHopV6ID, OFFbgp6NextIP, STACK_NONE, "IPv6 bgp next hop IP"},

@@ -279,6 +279,9 @@ static void stringsEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *
         // IPv6
         inet6_ntop_mask(ipv6Flow->srcAddr, flowMisc->srcMask, snet, sizeof(snet));
         inet6_ntop_mask(ipv6Flow->dstAddr, flowMisc->dstMask, dnet, sizeof(dnet));
+    } else {
+        snet[0] = '\0';
+        dnet[0] = '\0';
     }
 
     char ifInName[128];
@@ -290,8 +293,8 @@ static void stringsEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *
     char *DF = flowMisc->fragmentFlags & 0x40 ? "DF" : "  ";
     char *MF = flowMisc->fragmentFlags & 0x20 ? "MF" : "  ";
     fprintf(stream,
-            "  input        =          %8u%s\n"
-            "  output       =          %8u%s\n"
+            "  input        =      %12u%s\n"
+            "  output       =      %12u%s\n"
             "  src mask     =             %5u %s/%u\n"
             "  dst mask     =             %5u %s/%u\n"
             "  dst tos      =               %3u\n"
@@ -546,6 +549,9 @@ static void stringEXlayer2(FILE *stream, void *extensionRecord) {
             layer2->vlanID, layer2->postVlanID, layer2->customerVlanId, layer2->postCustomerVlanId, layer2->ingress, layer2->egress,
             layer2->etherType);
 
+    if (layer2->ipVersion) {
+        fprintf(stream, "  vlanID       =             %5u\n", layer2->ipVersion);
+    }
 }  // End of stringEXlayer2
 
 static void stringsEXnselCommon(FILE *stream, void *extensionRecord) {

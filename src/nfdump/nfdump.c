@@ -1020,6 +1020,7 @@ int main(int argc, char **argv) {
 
     if (!print_record) {
         LogError("Unknown output mode '%s'\n", print_format);
+        PrintOutputHelp();
         exit(EXIT_FAILURE);
     }
 

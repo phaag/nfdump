@@ -248,7 +248,7 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_postDestinationMacAddress 57
 #define IPFIX_vlanId 58
 #define IPFIX_postVlanId 59
-
+#define IPFIX_ipVersion 60
 #define IPFIX_flowDirection 61
 #define IPFIX_ipNextHopIPv6Address 62
 #define IPFIX_bgpNextHopIPv6Address 63

@@ -81,23 +81,23 @@ static void null_epilog(void);
 
 // Assign print functions for all output options -o
 // Terminated with a NULL record
-printmap_t printmap[MAXFORMATS] = {{"raw", raw_record, raw_prolog, raw_epilog, NULL},
-                                   {"line", fmt_record, fmt_prolog, fmt_epilog, FORMAT_line},
-                                   {"gline", fmt_record, fmt_prolog, fmt_epilog, FORMAT_gline},
-                                   {"long", fmt_record, fmt_prolog, fmt_epilog, FORMAT_long},
-                                   {"glong", fmt_record, fmt_prolog, fmt_epilog, FORMAT_glong},
-                                   {"extended", fmt_record, fmt_prolog, fmt_epilog, FORMAT_extended},
-                                   {"biline", fmt_record, fmt_prolog, fmt_epilog, FORMAT_biline},
-                                   {"bilong", fmt_record, fmt_prolog, fmt_epilog, FORMAT_bilong},
-                                   {"nsel", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nsel},
-                                   {"nat", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nat},
-                                   {"json", flow_record_to_json_human, json_prolog, json_epilog, NULL},
-                                   {"json-log", flow_record_to_json_log, null_prolog, null_epilog, NULL},
-                                   {"csv", csv_record, csv_prolog, csv_epilog, NULL},
-                                   {"null", null_record, null_prolog, null_epilog, NULL},
+printmap_t printmap[MAXFORMATS] = {{"raw", raw_record, raw_prolog, raw_epilog, NULL, "Raw format - multi line"},
+                                   {"line", fmt_record, fmt_prolog, fmt_epilog, FORMAT_line, "predefined"},
+                                   {"gline", fmt_record, fmt_prolog, fmt_epilog, FORMAT_gline, "predefined"},
+                                   {"long", fmt_record, fmt_prolog, fmt_epilog, FORMAT_long, "predefined"},
+                                   {"glong", fmt_record, fmt_prolog, fmt_epilog, FORMAT_glong, "predefined"},
+                                   {"extended", fmt_record, fmt_prolog, fmt_epilog, FORMAT_extended, "predefined"},
+                                   {"biline", fmt_record, fmt_prolog, fmt_epilog, FORMAT_biline, "predefined"},
+                                   {"bilong", fmt_record, fmt_prolog, fmt_epilog, FORMAT_bilong, "predefined"},
+                                   {"nsel", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nsel, "predefined"},
+                                   {"nat", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nat, "predefined"},
+                                   {"json", flow_record_to_json_human, json_prolog, json_epilog, NULL, "json output"},
+                                   {"json-log", flow_record_to_json_log, null_prolog, null_epilog, NULL, "json output for logging"},
+                                   {"csv", csv_record, csv_prolog, csv_epilog, NULL, "csv predefined"},
+                                   {"null", null_record, null_prolog, null_epilog, NULL, "do not print any output"},
 
                                    // This is always the last line
-                                   {NULL, NULL, NULL, NULL, ""}};
+                                   {NULL, NULL, NULL, NULL, "", NULL}};
 
 static PrologPrinter_t print_prolog;  // prints the output prolog
 static PrologPrinter_t print_epilog;  // prints the output epilog
@@ -135,6 +135,7 @@ void AddFormat(char *name, char *fmtString) {
     if ((i + 1) < MAXFORMATS) {
         printmap[i].printmode = name;
         printmap[i].Format = fmtString;
+        printmap[i].help = "user defined";
         printmap[i].func_record = fmt_record;
         printmap[i].func_prolog = fmt_prolog;
         printmap[i].func_epilog = fmt_epilog;
@@ -238,3 +239,15 @@ void PrintProlog(outputParams_t *outputParams) {
 void PrintEpilog(outputParams_t *outputParams) {
     if (!outputParams->quiet) print_epilog();
 }  // End of PrintEpilog
+
+void PrintOutputHelp(void) {
+    printf("Available output formats:\n");
+
+    for (int i = 0; printmap[i].printmode != NULL; i++) {
+        if (printmap[i].Format != NULL) {
+            printf("%10s : %s -o fmt %s\n", printmap[i].printmode, printmap[i].help, printmap[i].Format);
+        } else {
+            printf("%10s : %s\n", printmap[i].printmode, printmap[i].help);
+        }
+    }
+}  // ENd of PrintOutputHelp

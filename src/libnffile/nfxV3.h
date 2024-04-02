@@ -647,10 +647,6 @@ typedef struct EXlayer2_s {
     uint16_t customerVlanId;
     uint16_t postVlanID;
     uint16_t postCustomerVlanId;
-    uint32_t ingress;
-    uint32_t egress;
-    uint16_t etherType;
-    uint16_t fill;
 #define OFFvlanID offsetof(EXlayer2_t, vlanID)
 #define SIZEvlanID MemberSize(EXlayer2_t, vlanID)
 #define OFFpostVlanID offsetof(EXlayer2_t, postVlanID)
@@ -659,12 +655,19 @@ typedef struct EXlayer2_s {
 #define SIZEcustomerVlanId MemberSize(EXlayer2_t, customerVlanId)
 #define OFFpostCustomerVlanId offsetof(EXlayer2_t, postCustomerVlanId)
 #define SIZEpostCustomerVlanId MemberSize(EXlayer2_t, postCustomerVlanId)
+    uint32_t ingress;
+    uint32_t egress;
 #define OFFphysIngress offsetof(EXlayer2_t, ingress)
 #define SIZEphysIngress MemberSize(EXlayer2_t, ingress)
 #define OFFphysEgress offsetof(EXlayer2_t, egress)
 #define SIZEphysEgress MemberSize(EXlayer2_t, egress)
+    uint16_t etherType;
+    uint8_t ipVersion;
 #define OFFetherType offsetof(EXlayer2_t, etherType)
 #define SIZEetherType MemberSize(EXlayer2_t, etherType)
+#define OFFipVersion offsetof(EXlayer2_t, ipVersion)
+#define SIZEipVersion MemberSize(EXlayer2_t, ipVersion)
+    uint8_t fill;
 } EXlayer2_t;
 #define EXlayer2Size (sizeof(EXlayer2_t) + sizeof(elementHeader_t))
 

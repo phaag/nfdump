@@ -194,7 +194,7 @@ typedef struct common_header_s {
 #define NF9_OUT_DST_MAC 57
 #define NF9_SRC_VLAN 58
 #define NF9_DST_VLAN 59
-
+#define NF_9_IP_PROTOCOL_VERSION 60
 #define NF9_DIRECTION 61
 #define NF9_V6_NEXT_HOP 62
 #define NF9_BPG_V6_NEXT_HOP 63
