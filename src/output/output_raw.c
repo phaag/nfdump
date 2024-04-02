@@ -550,7 +550,7 @@ static void stringEXlayer2(FILE *stream, void *extensionRecord) {
             layer2->etherType);
 
     if (layer2->ipVersion) {
-        fprintf(stream, "  vlanID       =             %5u\n", layer2->ipVersion);
+        fprintf(stream, "  IP version   =             %5u\n", layer2->ipVersion);
     }
 }  // End of stringEXlayer2
 
