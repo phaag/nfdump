@@ -661,7 +661,7 @@ typedef struct EXlayer2_s {
 #define SIZEphysIngress MemberSize(EXlayer2_t, ingress)
 #define OFFphysEgress offsetof(EXlayer2_t, egress)
 #define SIZEphysEgress MemberSize(EXlayer2_t, egress)
-    uint32_t vxLan;
+    uint64_t vxLan;
     uint16_t etherType;
     uint8_t ipVersion;
 #define OFFetherType offsetof(EXlayer2_t, etherType)
