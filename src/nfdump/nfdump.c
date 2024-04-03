@@ -83,6 +83,8 @@ static uint64_t t_first_flow, t_last_flow;
 
 extension_map_list_t *extension_map_list;
 
+enum processType { FLOWSTAT = 1, ELEMENTSTAT, SORTFLOWS, WRITEFILE, PRINTRECORD };
+
 extern exporter_t **exporter_list;
 
 /* Function Prototypes */
@@ -391,17 +393,6 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                     // check if we are done, if -c option was set
                     if (limitRecords) done = passed >= limitRecords;
 
-                        // Records passed filter -> continue record processing
-                        // Update statistics
-                        /*
-                        if (Engine->label) {
-                            master_record->label = Engine->label;
-                            process_ptr = AddFlowLabel(process_ptr, Engine->label);
-                        }
-                        */
-#ifdef DEVEL
-                        // XXX if (Engine->label) printf("Flow has label: %s\n", Engine->label);
-#endif
                     UpdateStatRecord(&stat_record, recordHandle);
 
                     if (flow_stat) {
@@ -413,19 +404,17 @@ static stat_record_t process_data(void *engine, char *wfile, int element_stat, i
                         AddElementStat(recordHandle);
                     } else if (sort_flows) {
                         InsertFlow(recordHandle);
+                    } else if (write_file) {
+                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)process_ptr, process_ptr->size);
+                    } else if (print_record) {
+                        // if we need to print out this record
+                        print_record(stdout, recordHandle, outputParams->doTag);
                     } else {
-                        if (write_file) {
-                            dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)process_ptr, process_ptr->size);
-                        } else if (print_record) {
-                            // if we need to print out this record
-                            print_record(stdout, recordHandle, outputParams->doTag);
-                        } else {
-                            // mutually exclusive conditions should prevent executing this code
-                            // this is buggy!
-                            printf("Bug! - this code should never get executed in file %s line %d\n", __FILE__, __LINE__);
-                            exit(EXIT_FAILURE);
-                        }
-                    }  // sort_flows - else
+                        // mutually exclusive conditions should prevent executing this code
+                        // this is buggy!
+                        printf("Bug! - this code should never get executed in file %s line %d\n", __FILE__, __LINE__);
+                        exit(EXIT_FAILURE);
+                    }
                 } break;
                 case ExtensionMapType: {
                     extension_map_t *map = (extension_map_t *)record_ptr;
@@ -520,7 +509,7 @@ int main(int argc, char **argv) {
     char *print_format;
     char *print_order, *query_file, *configFile, *nameserver, *aggr_fmt;
     int ffd, element_stat, fdump;
-    int flow_stat, aggregate, aggregate_mask, bidir;
+    int processType, flow_stat, aggregate, aggregate_mask, bidir;
     int print_stat, gnuplot_stat, syntax_only, compress, worker;
     int GuessDir, ModifyCompress;
     uint32_t limitRecords;
@@ -536,6 +525,7 @@ int main(int argc, char **argv) {
     aggregate_mask = 0;
     bidir = 0;
     syntax_only = 0;
+    processType = 0;
     flow_stat = 0;
     print_stat = 0;
     gnuplot_stat = 0;

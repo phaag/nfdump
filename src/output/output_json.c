@@ -125,8 +125,8 @@ static void stringEXipv4Flow(FILE *stream, void *extensionRecord, const char *in
     fprintf(stream,
             "%s\"src4_addr\" : \"%s\"%s"
             "%s\"dst4_addr\" : \"%s\"%s"
-            "%s\"src_geo\" : \"%s\"%s"
-            "%s\"dst_geo\" : \"%s\"%s",
+            "%s\"src4_geo\" : \"%s\"%s"
+            "%s\"dst4_geo\" : \"%s\"%s",
             indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
 
 }  // End of stringEXipv4Flow
@@ -150,8 +150,8 @@ static void stringEXipv6Flow(FILE *stream, void *extensionRecord, const char *in
     fprintf(stream,
             "%s\"src6_addr\" : \"%s\"%s"
             "%s\"dst6_addr\" : \"%s\"%s"
-            "%s\"src_geo\" : \"%s\"%s"
-            "%s\"dst_geo\" : \"%s\"%s",
+            "%s\"src6_geo\" : \"%s\"%s"
+            "%s\"dst6_geo\" : \"%s\"%s",
             indent, as, fs, indent, ds, fs, indent, sloc, fs, indent, dloc, fs);
 
 }  // End of stringEXipv6Flow
@@ -798,7 +798,6 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
             default:
                 dbg_printf("Extension %i not yet implemented\n", r->exElementList[i]);
         }
-        i++;
     }
 
     // add label and close json object
