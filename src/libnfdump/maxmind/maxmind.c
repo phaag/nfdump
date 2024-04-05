@@ -57,28 +57,32 @@
         return 0;                                                            \
     }
 
+#define PushArrayHeader(dataBlock, arrayType, arraySize)   \
+    (dataBlock)->type = DATA_BLOCK_TYPE_4;                 \
+    void *p = ((void *)(dataBlock) + sizeof(dataBlock_t)); \
+    recordHeader_t *arrayHeader = (recordHeader_t *)p;     \
+    arrayHeader->type = arrayType;                         \
+    arrayHeader->size = arraySize;                         \
+    (dataBlock)->size += sizeof(recordHeader_t);
+
 static void StoreLocalMap(nffile_t *nffile) {
     // get new empty data block
     dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
+    dataBlock->type = DATA_BLOCK_TYPE_4;
     void *outBuff = GetCursor(dataBlock);
+
+    // put array header on block
+    PushArrayHeader(dataBlock, LocalInfoElementID, sizeof(locationInfo_t));
+    outBuff = GetCurrentCursor(dataBlock);
 
     for (locationInfo_t *locationInfo = NextLocation(FIRSTNODE); locationInfo != NULL; locationInfo = NextLocation(NEXTNODE)) {
         if (!IsAvailable(dataBlock, sizeof(locationInfo_t))) {
             // flush block - get an empty one
             dataBlock = WriteBlock(nffile, dataBlock);
 
-            // make new block an array block
-            dataBlock->type = DATA_BLOCK_TYPE_4;
-            outBuff = GetCursor(dataBlock);
-
             // put array header on block
-            recordHeader_t *arrayHeader = (recordHeader_t *)outBuff;
-            // set array element info
-            arrayHeader->type = LocalInfoElementID;
-            arrayHeader->size = sizeof(locationInfo_t);
-
-            dataBlock->size += sizeof(recordHeader_t);
-            outBuff += sizeof(recordHeader_t);
+            PushArrayHeader(dataBlock, LocalInfoElementID, sizeof(locationInfo_t));
+            outBuff = GetCurrentCursor(dataBlock);
         }
 
         memcpy(outBuff, locationInfo, sizeof(locationInfo_t));
@@ -94,25 +98,21 @@ static void StoreLocalMap(nffile_t *nffile) {
 static void StoreIPV4tree(nffile_t *nffile) {
     // get new empty data block
     dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
+    dataBlock->type = DATA_BLOCK_TYPE_4;
     void *outBuff = GetCursor(dataBlock);
+
+    // put array header on block
+    PushArrayHeader(dataBlock, IPV4treeElementID, sizeof(ipV4Node_t));
+    outBuff = GetCurrentCursor(dataBlock);
 
     for (ipV4Node_t *ipv4Node = NextIPv4Node(FIRSTNODE); ipv4Node != NULL; ipv4Node = NextIPv4Node(NEXTNODE)) {
         if (!IsAvailable(dataBlock, sizeof(ipV4Node_t))) {
             // flush block - get an empty one
             dataBlock = WriteBlock(nffile, dataBlock);
 
-            // make new block an array block
-            dataBlock->type = DATA_BLOCK_TYPE_4;
-            outBuff = GetCursor(dataBlock);
-
             // put array header on block
-            recordHeader_t *arrayHeader = (recordHeader_t *)outBuff;
-            // set array element info
-            arrayHeader->type = IPV4treeElementID;
-            arrayHeader->size = sizeof(ipV4Node_t);
-
-            dataBlock->size += sizeof(recordHeader_t);
-            outBuff += sizeof(recordHeader_t);
+            PushArrayHeader(dataBlock, IPV4treeElementID, sizeof(ipV4Node_t));
+            outBuff = GetCurrentCursor(dataBlock);
         }
 
         memcpy(outBuff, ipv4Node, sizeof(ipV4Node_t));
@@ -128,25 +128,21 @@ static void StoreIPV4tree(nffile_t *nffile) {
 static void StoreIPV6tree(nffile_t *nffile) {
     // get new empty data block
     dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
+    dataBlock->type = DATA_BLOCK_TYPE_4;
     void *outBuff = GetCursor(dataBlock);
+
+    // put array header on block
+    PushArrayHeader(dataBlock, IPV6treeElementID, sizeof(ipV6Node_t));
+    outBuff = GetCurrentCursor(dataBlock);
 
     for (ipV6Node_t *ipv6Node = NextIPv6Node(FIRSTNODE); ipv6Node != NULL; ipv6Node = NextIPv6Node(NEXTNODE)) {
         if (!IsAvailable(dataBlock, sizeof(ipV6Node_t))) {
             // flush block - get an empty one
             dataBlock = WriteBlock(nffile, dataBlock);
 
-            // make new block an array block
-            dataBlock->type = DATA_BLOCK_TYPE_4;
-            outBuff = GetCursor(dataBlock);
-
             // put array header on block
-            recordHeader_t *arrayHeader = (recordHeader_t *)outBuff;
-            // set array element info
-            arrayHeader->type = IPV6treeElementID;
-            arrayHeader->size = sizeof(ipV6Node_t);
-
-            dataBlock->size += sizeof(recordHeader_t);
-            outBuff += sizeof(recordHeader_t);
+            PushArrayHeader(dataBlock, IPV6treeElementID, sizeof(ipV6Node_t));
+            outBuff = GetCurrentCursor(dataBlock);
         }
 
         memcpy(outBuff, ipv6Node, sizeof(ipV6Node_t));
@@ -159,28 +155,23 @@ static void StoreIPV6tree(nffile_t *nffile) {
 
 }  // End of StoreIPtree
 
-static void StoreAStree(nffile_t *nffile) {
+static void StoreASV4tree(nffile_t *nffile) {
     // get new empty data block
     dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
     void *outBuff = GetCursor(dataBlock);
+
+    // put array header on block
+    PushArrayHeader(dataBlock, ASV4treeElementID, sizeof(asV4Node_t));
+    outBuff = GetCurrentCursor(dataBlock);
 
     for (asV4Node_t *asV4Node = NextasV4Node(FIRSTNODE); asV4Node != NULL; asV4Node = NextasV4Node(NEXTNODE)) {
         if (!IsAvailable(dataBlock, sizeof(asV4Node_t))) {
             // flush block - get an empty one
             dataBlock = WriteBlock(nffile, dataBlock);
 
-            // make new block an array block
-            dataBlock->type = DATA_BLOCK_TYPE_4;
-            outBuff = GetCursor(dataBlock);
-
             // put array header on block
-            recordHeader_t *arrayHeader = (recordHeader_t *)outBuff;
-            // set array element info
-            arrayHeader->type = ASV4treeElementID;
-            arrayHeader->size = sizeof(asV4Node_t);
-
-            dataBlock->size += sizeof(recordHeader_t);
-            outBuff += sizeof(recordHeader_t);
+            PushArrayHeader(dataBlock, ASV4treeElementID, sizeof(asV4Node_t));
+            outBuff = GetCurrentCursor(dataBlock);
         }
 
         memcpy(outBuff, asV4Node, sizeof(asV4Node_t));
@@ -191,30 +182,26 @@ static void StoreAStree(nffile_t *nffile) {
     // flush current datablock
     FlushBlock(nffile, dataBlock);
 
-}  // End of StoreAStree
+}  // End of StoreASV4tree
 
 static void StoreASV6tree(nffile_t *nffile) {
     // get new empty data block
     dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
+    dataBlock->type = DATA_BLOCK_TYPE_4;
     void *outBuff = GetCursor(dataBlock);
+
+    // put array header on block
+    PushArrayHeader(dataBlock, ASV6treeElementID, sizeof(asV6Node_t));
+    outBuff = GetCurrentCursor(dataBlock);
 
     for (asV6Node_t *asV6Node = NextasV6Node(FIRSTNODE); asV6Node != NULL; asV6Node = NextasV6Node(NEXTNODE)) {
         if (!IsAvailable(dataBlock, sizeof(asV6Node_t))) {
             // flush block - get an empty one
             dataBlock = WriteBlock(nffile, dataBlock);
 
-            // make new block an array block
-            dataBlock->type = DATA_BLOCK_TYPE_4;
-            outBuff = GetCursor(dataBlock);
-
             // put array header on block
-            recordHeader_t *arrayHeader = (recordHeader_t *)outBuff;
-            // set array element info
-            arrayHeader->type = ASV4treeElementID;
-            arrayHeader->size = sizeof(asV6Node_t);
-
-            dataBlock->size += sizeof(recordHeader_t);
-            outBuff += sizeof(recordHeader_t);
+            PushArrayHeader(dataBlock, ASV6treeElementID, sizeof(asV6Node_t));
+            outBuff = GetCurrentCursor(dataBlock);
         }
 
         memcpy(outBuff, asV6Node, sizeof(asV6Node_t));
@@ -237,7 +224,7 @@ int SaveMaxMind(char *fileName) {
     StoreLocalMap(nffile);
     StoreIPV4tree(nffile);
     StoreIPV6tree(nffile);
-    StoreAStree(nffile);
+    StoreASV4tree(nffile);
     StoreASV6tree(nffile);
     return CloseUpdateFile(nffile);
 
