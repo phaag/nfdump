@@ -69,7 +69,7 @@ static void usage(char *name) {
     printf(
         "usage %s [options] \n"
         "-h\t\tthis text you see right here.\n"
-        "-T <dir>\ttor nodeDB in nfdump format to lookup tor info.\n"
+        "-H <nodeDB>\ttor nodeDB in nfdump format to lookup tor info.\n"
         "-d <dir>\tDirectory containing ascii tor info files to be convert into nfdump tor nodeDB.\n"
         "-w <file>\tName of nfdump torDB file.\n",
         name);
