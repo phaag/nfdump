@@ -45,6 +45,14 @@
 // include after
 #include "kbtree.h"
 
+#define PushArrayHeader(dataBlock, arrayType, arraySize)   \
+    (dataBlock)->type = DATA_BLOCK_TYPE_4;                 \
+    void *p = ((void *)(dataBlock) + sizeof(dataBlock_t)); \
+    recordHeader_t *arrayHeader = (recordHeader_t *)p;     \
+    arrayHeader->type = arrayType;                         \
+    arrayHeader->size = arraySize;                         \
+    (dataBlock)->size += sizeof(recordHeader_t);
+
 static inline int torNodeCMP(torNode_t a, torNode_t b) {
     if (a.ipaddr == b.ipaddr) return 0;
     return a.ipaddr > b.ipaddr ? 1 : -1;
@@ -172,7 +180,11 @@ int SaveTorTree(char *fileName) {
 
     // get new empty data block
     dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
-    void *outBuff = GetCursor(dataBlock);
+
+    // push array header
+    PushArrayHeader(dataBlock, TorTreeElementID, sizeof(torNode_t));
+    void *outBuff = GetCurrentCursor(dataBlock);
+    printf("Datablock type: %u\n", dataBlock->type);
 
     kbitr_t itr;
     kb_itr_first(torTree, torTree, &itr);                              // get an iterator pointing to the first
@@ -183,18 +195,8 @@ int SaveTorTree(char *fileName) {
             // flush block - get an empty one
             dataBlock = WriteBlock(nffile, dataBlock);
 
-            // make it an array block
-            dataBlock->type = DATA_BLOCK_TYPE_4;
-            outBuff = GetCursor(dataBlock);
-
-            // put array header on block
-            recordHeader_t *arrayHeader = (recordHeader_t *)outBuff;
-            // set array element info
-            arrayHeader->type = TorTreeElementID;
-            arrayHeader->size = sizeof(torNode_t);
-
-            dataBlock->size += sizeof(recordHeader_t);
-            outBuff += sizeof(recordHeader_t);
+            PushArrayHeader(dataBlock, TorTreeElementID, sizeof(torNode_t));
+            outBuff = GetCurrentCursor(dataBlock);
         }
 
         memcpy(outBuff, torNode, sizeof(torNode_t));
@@ -234,9 +236,9 @@ int LoadTorTree(char *fileName) {
             continue;
         }
 
-        record_header_t *arrayHeader = GetCursor(nffile);
+        record_header_t *arrayHeader = GetCursor(dataBlock);
         void *arrayElement = (void *)arrayHeader + sizeof(record_header_t);
-        size_t expected = (arrayHeader->size * dataBlock->NumRecords) + sizeof(record_header_t);
+        size_t expected = ((uint32_t)arrayHeader->size * dataBlock->NumRecords) + sizeof(record_header_t);
         if (expected != dataBlock->size) {
             LogError("Array size calculated: %u != expected: %u for element: %u", expected, dataBlock->size, arrayHeader->type);
             continue;
