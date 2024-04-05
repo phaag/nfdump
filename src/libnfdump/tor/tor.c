@@ -184,7 +184,6 @@ int SaveTorTree(char *fileName) {
     // push array header
     PushArrayHeader(dataBlock, TorTreeElementID, sizeof(torNode_t));
     void *outBuff = GetCurrentCursor(dataBlock);
-    printf("Datablock type: %u\n", dataBlock->type);
 
     kbitr_t itr;
     kb_itr_first(torTree, torTree, &itr);                              // get an iterator pointing to the first
