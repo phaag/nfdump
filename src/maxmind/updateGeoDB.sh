@@ -43,8 +43,8 @@ mv GeoLite2-City-CSV*/GeoLite2-City-Blocks-IPv[46].csv mmdb
 mv GeoLite2-City-CSV*/GeoLite2-City-Locations-${LANG}.csv mmdb
 
 # create nfdump format db file
-geolookup -d mmdb -w mmdb.nf
+./geolookup -d mmdb -w mmdb.nf
 rm -rf GeoLite2-ASN-CSV_* GeoLite2-City-CSV_* mmdb
 
 # test lookup
-geolookup -G mmdb.nf 8.8.8.8
+./geolookup -G mmdb.nf 8.8.8.8
