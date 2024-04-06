@@ -687,6 +687,7 @@ nffile_t *NewFile(nffile_t *nffile) {
         if (!nffile->processQueue) {
             return NULL;
         }
+        queue_close(nffile->processQueue);
     }
 
     memset((void *)nffile->file_header, 0, sizeof(fileHeaderV2_t));
