@@ -603,6 +603,7 @@ void AddElementStat(recordHandle_t *recordHandle) {
                 }
             }
 
+            inPtr += offset;
             preprocess_t lookup = StatParameters[index].preprocess;
             inPtr = PreProcess(inPtr, lookup, recordHandle);
             if (inPtr == NULL) {
@@ -610,7 +611,6 @@ void AddElementStat(recordHandle_t *recordHandle) {
                 continue;
             }
 
-            inPtr += offset;
             uint32_t length = StatParameters[index].element.length;
             switch (length) {
                 case 0:

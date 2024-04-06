@@ -800,13 +800,6 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
         }
     }
 
-    // add label and close json object
-    /* XXX
-    fprintf(stream,
-            "	\"label\" : \"%s\"\n"
-            r->label ? r->label : "<none>");
-    */
-
     // Close out JSON record
     fprintf(stream, "%s\"sampled\" : %u%s}", indent, TestFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED) ? 1 : 0, ws);
 
