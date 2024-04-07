@@ -210,8 +210,8 @@ int AddSamplerRecord(sampler_record_t *sampler_record) {
     while (*sampler) {
         if (memcmp((void *)&(*sampler)->record, (void *)sampler_record, sizeof(sampler_record_t)) == 0) {
             // Found identical sampler already registered
-            dbg_printf("Identical sampler already registered: %u, algorithm: %u, packet interval: %u, packet space: %u\n", record->exporter_sysid,
-                       sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
+            dbg_printf("Identical sampler already registered: %u, algorithm: %u, packet interval: %u, packet space: %u\n",
+                       sampler_record->exporter_sysid, sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
             return 2;
         }
         sampler = &((*sampler)->next);
@@ -231,11 +231,11 @@ int AddSamplerRecord(sampler_record_t *sampler_record) {
 #ifdef DEVEL
     {
         if (sampler_record->id < 0) {
-            printf("Exporter SysID: %u,	Generic Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", record->exporter_sysid,
-                   record->algorithm, record->packetInterval, record->spaceInterval);
+            printf("Exporter SysID: %u,	Generic Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->exporter_sysid,
+                   sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
         } else {
-            printf("Exporter SysID: %u,	Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", record->exporter_sysid, record->algorithm,
-                   record->packetInterval, record->spaceInterval);
+            printf("Exporter SysID: %u,	Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->exporter_sysid,
+                   sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
         }
     }
 #endif

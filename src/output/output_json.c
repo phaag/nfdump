@@ -796,7 +796,7 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
                 stringEXnelXlatePort(stream, ptr, indent, fs);
                 break;
             default:
-                dbg_printf("Extension %i not yet implemented\n", r->exElementList[i]);
+                dbg_printf("Extension %i not yet implemented\n", i);
         }
     }
 

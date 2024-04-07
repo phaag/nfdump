@@ -162,11 +162,9 @@ void UpdateTorNode(torNode_t *torNode) {
             if (torNode->interval[0].firstSeen < node->interval[index].firstSeen) abort();
         }
 #ifdef DEVEL
-        if (print) {
-            printTorNode(node);
-            printTorNode(torNode);
-            printf("--\n\n");
-        }
+        printTorNode(node);
+        printTorNode(torNode);
+        printf("--\n\n");
 #endif
     } else {
         torNode->interval[0].firstSeen = torNode->lastPublished;
@@ -189,7 +187,7 @@ int SaveTorTree(char *fileName) {
     kb_itr_first(torTree, torTree, &itr);                              // get an iterator pointing to the first
     for (; kb_itr_valid(&itr); kb_itr_next(torTree, torTree, &itr)) {  // move on
         torNode_t *torNode = &kb_itr_key(torNode_t, &itr);
-        dbg_printf("ip: %u, first: %ld, last: %ld\n", torNode->ipaddr, torNode->firstSeen, torNode->lastSeen);
+        dbg_printf("ip: %u, first: %ld, last: %ld\n", torNode->ipaddr, torNode->interval[0].firstSeen, torNode->interval[0].lastSeen);
         if (!IsAvailable(dataBlock, sizeof(torNode_t))) {
             // flush block - get an empty one
             dataBlock = WriteBlock(nffile, dataBlock);

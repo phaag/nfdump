@@ -597,7 +597,7 @@ static int ReadAppendix(nffile_t *nffile) {
 
     // seek back to currentPos
     off_t backPosition = lseek(nffile->fd, currentPos, SEEK_SET);
-    dbg_printf("Reset position to %ld -> %ld\n", currentPos, backPosition);
+    dbg_printf("Reset position to %lld -> %lld\n", currentPos, backPosition);
     if (backPosition < 0) {
         LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
