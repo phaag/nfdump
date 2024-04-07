@@ -99,7 +99,7 @@ void queue_close(queue_t *queue) {
     pthread_mutex_lock(&(queue->mutex));
     queue->producers--;
     if (queue->producers <= 0) queue->closed = 1;
-    if (queue->num_elements == 0) {
+    if (queue->c_wait) {
         pthread_cond_broadcast(&(queue->cond));
     }
     pthread_mutex_unlock(&(queue->mutex));
@@ -204,7 +204,10 @@ void *queue_pop(queue_t *queue) {
             queue->next_avail = (queue->next_avail + 1) & queue->mask;
 
             if (queue->p_wait) {
-                pthread_cond_signal(&(queue->cond));
+                pthread_cond_broadcast(&(queue->cond));
+            }
+            if (queue->closed && queue->c_wait) {
+                pthread_cond_broadcast(&(queue->cond));
             }
             pthread_mutex_unlock(&(queue->mutex));
             return data;
