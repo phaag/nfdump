@@ -67,6 +67,7 @@ queue_t *queue_init(size_t length) {
         return NULL;
     }
 
+    queue->producers = 1;
     queue->length = length;
     queue->mask = length - 1;
     atomic_init(&queue->c_wait, 0);
@@ -75,6 +76,11 @@ queue_t *queue_init(size_t length) {
     return queue;
 
 }  // End of Queue_init
+
+void queue_producers(queue_t *queue, unsigned producers) {
+    //
+    queue->producers = producers;
+}  // End of queue_producers
 
 void queue_free(queue_t *queue) {
     queue_sync(queue);
@@ -91,9 +97,10 @@ void queue_open(queue_t *queue) {
 
 void queue_close(queue_t *queue) {
     pthread_mutex_lock(&(queue->mutex));
-    queue->closed = 1;
+    queue->producers--;
+    if (queue->producers <= 0) queue->closed = 1;
     if (queue->num_elements == 0) {
-        pthread_cond_signal(&(queue->cond));
+        pthread_cond_broadcast(&(queue->cond));
     }
     pthread_mutex_unlock(&(queue->mutex));
 

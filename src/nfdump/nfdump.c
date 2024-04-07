@@ -76,6 +76,29 @@
 
 extern char *FilterFilename;
 
+#define MAXANONWORKERS 8
+
+typedef struct dataHandle_s {
+    int numBlocks;
+    recordHandle_t *recordHandle;
+    dataBlock_t *dataBlock;
+    char *ident;
+} dataHandle_t;
+
+typedef struct prepareArgs_s {
+    queue_t *prepareQueue;
+} prepareArgs_t;
+
+typedef struct filterArgs_s {
+    int self;
+    int numWorkers;
+    void *engine;
+    timeWindow_t *timeWindow;
+    int hasGeoDB;
+    queue_t *prepareQueue;
+    queue_t *processQueue;
+} filterArgs_t;
+
 static uint64_t total_bytes = 0;
 static uint32_t processed = 0;
 static uint32_t passed = 0;
@@ -237,68 +260,55 @@ static int SetStat(char *str, int *element_stat, int *flow_stat) {
 
 }  // End of SetStat
 
-static stat_record_t process_data(void *engine, int processwMode, char *wfile, RecordPrinter_t print_record, timeWindow_t *timeWindow,
-                                  uint64_t limitRecords, outputParams_t *outputParams, int compress) {
-    stat_record_t stat_record = {0};
-    stat_record.firstseen = 0x7fffffffffffffffLL;
-
-    // time window of all matched flows
-    uint64_t twin_msecFirst, twin_msecLast;
-    twin_msecFirst = twin_msecLast = 0;
-    if (timeWindow) {
-        twin_msecFirst = timeWindow->first * 1000LL;
-        if (timeWindow->last)
-            twin_msecLast = timeWindow->last * 1000LL;
-        else
-            twin_msecLast = 0x7FFFFFFFFFFFFFFFLL;
+static inline void SetRecordHandle(dataHandle_t *dataHandle) {
+    uint32_t numRecords = dataHandle->dataBlock->NumRecords;
+    if (dataHandle->numBlocks < dataHandle->dataBlock->NumRecords) {
+        dataHandle->recordHandle = realloc((void *)dataHandle->recordHandle, numRecords * sizeof(recordHandle_t));
+        dbg_printf("RecordHandleBlock reallocated from: %u to: %u\n", dataHandle->numBlocks, numRecords);
+        dataHandle->numBlocks = numRecords;
     }
-
-    nffile_t *nffile_r = NewFile(NULL);
-    nffile_t *nffile_w = NULL;
-    dataBlock_t *dataBlock_r = NULL;
-    dataBlock_t *dataBlock_w = NULL;
-
-    // preset time window of all processed flows to the stat record in first flow file
-    t_first_flow = nffile_r->stat_record->firstseen;
-    t_last_flow = nffile_r->stat_record->lastseen;
-
-    // prepare output file if requested
-    if (wfile) {
-        nffile_w = OpenNewFile(wfile, NULL, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
-        if (!nffile_w) {
-            stat_record.firstseen = 0;
-            DisposeFile(nffile_r);
-            return stat_record;
-        }
-        dataBlock_w = WriteBlock(nffile_w, NULL);
+    if (dataHandle->recordHandle == NULL) {
+        LogError("realloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        exit(255);
     }
+}  // End of GetRecordHandle
 
-    recordHandle_t *recordHandle = (recordHandle_t *)calloc(1, sizeof(recordHandle_t));
-    if (!recordHandle) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-        return stat_record;
-    }
+__attribute__((noreturn)) static void *prepareThread(void *arg) {
+    prepareArgs_t *prepareArgs = (prepareArgs_t *)arg;
 
+    dbg_printf("prepareThread started\n");
+
+    // dispatch args
+    queue_t *prepareQueue = prepareArgs->prepareQueue;
+
+    nffile_t *nffile = GetNextFile(NULL);
+    dataHandle_t *dataHandle = NULL;
+    int processed = 0;
+    int skippedBlocks = 0;
+    uint32_t numBlocks = 0;
     int done = 0;
     while (!done) {
+        if (dataHandle == NULL) dataHandle = calloc(1, sizeof(dataHandle_t));
+        dataHandle->dataBlock = ReadBlock(nffile, NULL);
+
         // get next data block from file
-        dataBlock_r = ReadBlock(nffile_r, dataBlock_r);
-        if (dataBlock_r == NULL) {
+        if (dataHandle->dataBlock == NULL) {
             // continue with next file
-            if (GetNextFile(nffile_r) == NULL) {
+            if (GetNextFile(nffile) == NULL) {
                 done = 1;
             } else {
-                // Update global time span window
+                /*
                 if (nffile_r->stat_record->firstseen < t_first_flow) t_first_flow = nffile_r->stat_record->firstseen;
                 if (nffile_r->stat_record->lastseen > t_last_flow) t_last_flow = nffile_r->stat_record->lastseen;
+                */
+                dataHandle->ident = nffile->ident;
             }
-            FilterSetParam(engine, nffile_r->ident, outputParams->hasGeoDB);
             continue;
         }
-        // successfully read block
-        total_bytes += dataBlock_r->size;
+        SetRecordHandle(dataHandle);
 
-        switch (dataBlock_r->type) {
+        numBlocks++;
+        switch (dataHandle->dataBlock->type) {
             case DATA_BLOCK_TYPE_1:
                 LogError("nfdump 1.5.x block type 1 no longer supported. Skip block");
                 goto SKIP;
@@ -312,35 +322,127 @@ static stat_record_t process_data(void *engine, int processwMode, char *wfile, R
                 goto SKIP;
                 break;
             default:
-                LogError("Unknown block type %u. Skip block", dataBlock_r->type);
+                LogError("Unknown block type %u. Skip block", dataHandle->dataBlock->type);
             SKIP:
-                skipped_blocks++;
+                skippedBlocks++;
                 continue;
         }
 
+        // dispatch vars
+        /*
+        dataBlock_t *dataBlock = dataHandle->dataBlock;
+        recordHandle_t *recordHandle = dataHandle->recordHandle;
+
+        record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
-        record_header_t *record_ptr = GetCursor(dataBlock_r);
-        dbg_printf("Block has %i records\n", dataBlock_r->NumRecords);
-        for (int i = 0; i < dataBlock_r->NumRecords && !done; i++) {
-            record_header_t *process_ptr = record_ptr;
-            if ((sumSize + record_ptr->size) > dataBlock_r->size || (record_ptr->size < sizeof(record_header_t))) {
+        for (int i = 0; i < dataBlock->NumRecords; i++, recordHandle++) {
+            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
-                exit(EXIT_FAILURE);
+                sumSize = 0;
+                break;
             }
             sumSize += record_ptr->size;
 
+            void *process_ptr = record_ptr;
+            memset((void *)recordHandle, 0, sizeof(recordHandle_t));
+
+            // work on our record
             switch (record_ptr->type) {
                 case V3Record:
-                case CommonRecordType: {
-                    if (__builtin_expect(record_ptr->type == CommonRecordType, 0)) {
-                        dbg_printf("Convert nfdump 1.6.x v2 record\n");
-                        // ConvertRecordV2 also maps recordHandle
-                        process_ptr = ConvertRecordV2(recordHandle, (common_record_t *)record_ptr, ++processed);
-                        if (!process_ptr) goto NEXT;
-                    } else {
-                        MapRecordHandle(recordHandle, (recordHeaderV3_t *)process_ptr, ++processed);
-                    }
+                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)process_ptr, ++processed);
+                    break;
+                case ExporterInfoRecordType:
+                case ExporterStatRecordType:
+                case SamplerRecordType:
+                case NbarRecordType:
+                    // Silently skip exporter/sampler records
+                    break;
 
+                default: {
+                    LogError("Skip unknown record: %u type %i", processed, record_ptr->type);
+                }
+            }
+
+            // Advance pointer by number of bytes for next record
+            record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
+        }  // for all records
+
+        // all records checked and mapped - forward data block
+        if (sumSize) {
+            queue_push(prepareQueue, (void *)dataHandle);
+            dataHandle = NULL;
+            dbg_printf("prepareThread() - Pushed next block: %u\n", numBlocks);
+        }
+        */
+        queue_push(prepareQueue, (void *)dataHandle);
+        dataHandle = NULL;
+    }  // while(!done)
+
+    dbg_printf("prepareThread done. blocks processed: %u, skipped: %u\n", processed, skippedBlocks);
+    queue_close(prepareQueue);
+    CloseFile(nffile);
+
+    dbg_printf("prepareThread exit\n");
+    pthread_exit(NULL);
+
+}  // End of prepareThread
+
+__attribute__((noreturn)) static void *filterThread(void *arg) {
+    filterArgs_t *filterArgs = (filterArgs_t *)arg;
+    uint32_t self = ++filterArgs->self;
+
+    dbg_printf("Filter thread %i started\n", self);
+
+    // dispatch vars
+    queue_t *prepareQueue = filterArgs->prepareQueue;
+    queue_t *processQueue = filterArgs->processQueue;
+    void *engine = filterArgs->engine;
+    int hasGeoDB = filterArgs->hasGeoDB;
+
+    timeWindow_t *timeWindow = filterArgs->timeWindow;
+
+    // time window of all matched flows
+    uint64_t twin_msecFirst, twin_msecLast;
+    twin_msecFirst = twin_msecLast = 0;
+    if (timeWindow) {
+        twin_msecFirst = timeWindow->first * 1000LL;
+        if (timeWindow->last)
+            twin_msecLast = timeWindow->last * 1000LL;
+        else
+            twin_msecLast = 0x7FFFFFFFFFFFFFFFLL;
+    }
+
+    uint32_t numBlocks = 0;
+    uint32_t recordCount = 0;
+    while (1) {
+        // append data blocks
+        dataHandle_t *dataHandle = queue_pop(prepareQueue);
+        if (dataHandle == QUEUE_CLOSED)  // no more blocks
+            break;
+
+        numBlocks++;
+        FilterSetParam(engine, dataHandle->ident, hasGeoDB);
+
+        dataBlock_t *dataBlock = dataHandle->dataBlock;
+        recordHandle_t *recordHandle = dataHandle->recordHandle;
+
+        dbg_printf("Filter thread %i working on next Block: %u, records: %u\n", self, numBlocks, dataBlock->NumRecords);
+        record_header_t *record_ptr = GetCursor(dataBlock);
+        uint32_t sumSize = 0;
+        for (int i = 0; i < dataBlock->NumRecords; i++, recordHandle++) {
+            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
+                LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
+                sumSize = 0;
+                break;
+            }
+            sumSize += record_ptr->size;
+            recordCount++;
+
+            // work on our record
+            switch (record_ptr->type) {
+                case V3Record: {
+                    memset((void *)recordHandle, 0, sizeof(recordHandle_t));
+                    MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, ++processed);
                     // Time based filter
                     // if no time filter is given, the result is always true
                     int match = 1;
@@ -358,18 +460,130 @@ static stat_record_t process_data(void *engine, int processwMode, char *wfile, R
                         match = FilterRecord(engine, recordHandle);
                     }
                     if (match == 0) {  // record failed to pass all filters
-                        // go to next record
-                        dbg_printf("No match: %u\n", ((recordHeaderV3_t *)record_ptr)->engineID);
-                        goto NEXT;
+                        ClearFlag(recordHandle->recordHeaderV3->flags, V3_FLAG_PASSED);
+                    } else {
+                        SetFlag(recordHandle->recordHeaderV3->flags, V3_FLAG_PASSED);
+                        // XXX UpdateStatRecord(&stat_record, recordHandle);
                     }
+
+                } break;
+                case ExporterInfoRecordType:
+                case ExporterStatRecordType:
+                case SamplerRecordType:
+                case NbarRecordType:
+                    // Silently skip exporter/sampler records
+                    break;
+
+                default: {
+                    LogError("Skip unknown record: %u type %i", recordCount, record_ptr->type);
+                }
+            }
+
+            // Advance pointer by number of bytes for netflow record
+            record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
+        }
+        dbg_printf("Filter thread %i push next block: %u\n", self, numBlocks);
+        queue_push(processQueue, dataHandle);
+    }
+
+    dbg_printf("FilterThread %d done. blocks: %u records: %u\n", self, numBlocks, recordCount);
+    queue_close(processQueue);
+    dbg_printf("FilterThread %d exit.\n");
+
+    pthread_exit(NULL);
+}  // End of filterThread
+
+static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, timeWindow_t *timeWindow,
+                                  uint64_t limitRecords, outputParams_t *outputParams, int compress) {
+    stat_record_t stat_record = {0};
+    stat_record.firstseen = 0x7fffffffffffffffLL;
+
+    // launch prepareThread
+    prepareArgs_t prepareArgs = {.prepareQueue = queue_init(8)};
+    pthread_t tidPrepare;
+    int err = pthread_create(&tidPrepare, NULL, prepareThread, (void *)&prepareArgs);
+    if (err) {
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(255);
+    }
+
+    // check numWorkers depending on cores online
+    uint32_t numWorkers = GetNumWorkers(0);
+    filterArgs_t filterArgs = {
+        .engine = engine,
+        .numWorkers = numWorkers,
+        .prepareQueue = prepareArgs.prepareQueue,
+        .processQueue = queue_init(8),
+        .timeWindow = timeWindow,
+        .hasGeoDB = outputParams->hasGeoDB,
+    };
+    queue_producers(filterArgs.processQueue, numWorkers);
+
+    pthread_t tidFilter[32];
+    for (int i = 0; i < numWorkers; i++) {
+        int err = pthread_create(&(tidFilter[i]), NULL, filterThread, (void *)&filterArgs);
+        if (err) {
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(255);
+        }
+    }
+
+    /*
+        // preset time window of all processed flows to the stat record in first flow file
+        t_first_flow = nffile_r->stat_record->firstseen;
+        t_last_flow = nffile_r->stat_record->lastseen;
+    */
+
+    nffile_t *nffile_w = NULL;
+    dataBlock_t *dataBlock_w = NULL;
+    // prepare output file if requested
+    if (wfile) {
+        nffile_w = OpenNewFile(wfile, NULL, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
+        if (!nffile_w) {
+            stat_record.firstseen = 0;
+            // XXX DisposeFile(nffile_r);
+            return stat_record;
+        }
+        dataBlock_w = WriteBlock(nffile_w, NULL);
+    }
+
+    // number of flows passed the filter
+    uint64_t total_bytes = 0;
+    uint32_t passed = 0;
+    uint32_t numBlocks = 0;
+    int done = 0;
+    while (!done) {
+        dataHandle_t *dataHandle = queue_pop(filterArgs.processQueue);
+        if (dataHandle == QUEUE_CLOSED) {  // no more blocks
+            done = 1;
+            continue;
+        }
+
+        numBlocks++;
+        dataBlock_t *dataBlock = dataHandle->dataBlock;
+        recordHandle_t *recordHandle = dataHandle->recordHandle;
+        record_header_t *record_ptr = GetCursor(dataBlock);
+
+        // successfully read block
+        total_bytes += dataBlock->size;
+
+        dbg_printf("processData() Next block: %d, Records: %u\n", numBlocks, dataBlock->NumRecords);
+
+        for (int i = 0; i < dataBlock->NumRecords && !done; i++, recordHandle++) {
+            // process records
+            switch (record_ptr->type) {
+                case V3Record:
+                case CommonRecordType: {
+                    // check if filter matched
+                    if (TestFlag(recordHandle->recordHeaderV3->flags, V3_FLAG_PASSED) == 0) continue;
 
                     passed++;
                     // check if we are done, if -c option was set
                     if (limitRecords) done = passed >= limitRecords;
 
-                    UpdateStatRecord(&stat_record, recordHandle);
+                    // XXX  UpdateStatRecord(&stat_record, recordHandle);
 
-                    switch (processwMode) {
+                    switch (processMode) {
                         case FLOWSTAT:
                             AddFlowCache(recordHandle);
                             break;
@@ -384,7 +598,7 @@ static stat_record_t process_data(void *engine, int processwMode, char *wfile, R
                             InsertFlow(recordHandle);
                             break;
                         case WRITEFILE:
-                            dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)process_ptr, process_ptr->size);
+                            dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
                             break;
                         case PRINTRECORD:
                             print_record(stdout, recordHandle, outputParams->doTag);
@@ -447,16 +661,17 @@ static stat_record_t process_data(void *engine, int processwMode, char *wfile, R
                     LogError("Skip unknown record type %i\n", record_ptr->type);
                 }
             }
-
-        NEXT:
             // Advance pointer by number of bytes for netflow record
             record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
 
         }  // for all records
 
+        // free resources
+        FreeDataBlock(dataHandle->dataBlock);
+        if (dataHandle->recordHandle) free(dataHandle->recordHandle);
     }  // while
 
-    CloseFile(nffile_r);
+    dbg_printf("processData() done\n");
 
     // flush output file
     if (nffile_w) {
@@ -469,8 +684,18 @@ static stat_record_t process_data(void *engine, int processwMode, char *wfile, R
         DisposeFile(nffile_w);
     }
 
-    FreeDataBlock(dataBlock_r);
-    DisposeFile(nffile_r);
+    dbg_printf("processData() wait for prepare thread\n");
+    if (pthread_join(tidPrepare, NULL)) {
+        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    }
+
+    dbg_printf("processData() wait for filter threads\n");
+    for (int i = 0; i < numWorkers; i++) {
+        if (pthread_join(tidFilter[i], NULL)) {
+            LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        }
+        dbg_printf("processData() filter thread: %d\n", i);
+    }
     return stat_record;
 
 }  // End of process_data
@@ -998,7 +1223,6 @@ int main(int argc, char **argv) {
         PrintProlog(outputParams);
     }
 
-    // evaluate cli flags and define processMode
     int processMode = PRINTRECORD;
     if (aggregate || flow_stat) {
         processMode = FLOWSTAT;

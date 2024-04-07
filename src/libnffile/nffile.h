@@ -271,6 +271,8 @@ int RenameAppend(char *oldName, char *newName);
 
 nffile_t *GetNextFile(nffile_t *nffile);
 
+dataBlock_t *NewDataBlock(void);
+
 dataBlock_t *ReadBlock(nffile_t *nffile, dataBlock_t *dataBlock);
 
 dataBlock_t *WriteBlock(nffile_t *nffile, dataBlock_t *dataBlock);
