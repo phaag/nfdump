@@ -15,7 +15,7 @@ nfprof = nfprof.h nfprof.c
 exporter = exporter.c
 nbar = nbar.c 
 ifvrf = ifvrf.c 
-compat = compat_1_6_x/nfx.h compat_1_6_x/nfx.c
+compat = compat_1_6_x/nfx.h compat_1_6_x/nfx.c compat_1_6_x/convert.c
 
 nfdump_SOURCES = nfdump.c spin_lock.h \
 	$(exporter) $(nbar) $(ifvrf) $(nfstat) $(nflowcache) $(nfprof) $(sort) $(compat)

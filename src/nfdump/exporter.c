@@ -47,7 +47,7 @@
 #include "util.h"
 
 /* global */
-exporter_t **exporter_list = NULL;
+static exporter_t **exporter_list = NULL;
 
 /* local variables */
 #define MAX_EXPORTERS 65536
@@ -89,6 +89,8 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
         return 0;
     }
+
+    if (exporter_list == NULL) InitExporterList();
 
     // sanity check
     uint32_t id = exporter_record->sysid;
@@ -201,6 +203,8 @@ int AddSamplerRecord(sampler_record_t *sampler_record) {
         return 0;
     }
 
+    if (exporter_list == NULL) InitExporterList();
+
     if (!exporter_list[id]) {
         LogError("Exporter SysID: %u not found! - Skip sampler record", id);
         return 0;
@@ -271,6 +275,7 @@ int AddExporterStat(exporter_stats_record_t *stat_record) {
         use_copy = 0;
     }
 
+    if (exporter_list == NULL) InitExporterList();
     for (int i = 0; i < rec->stat_count; i++) {
         uint32_t id = rec->stat[i].sysid;
         if (id >= MAX_EXPORTERS) {
@@ -306,6 +311,9 @@ exporter_t *GetExporterInfo(int exporterID) {
 
 dataBlock_t *ExportExporterList(nffile_t *nffile, dataBlock_t *dataBlock) {
     // sysid 0 unused -> no exporter available
+
+    if (exporter_list == NULL) return dataBlock;
+
     int i = 1;
     while (i < MAX_EXPORTERS && exporter_list[i] != NULL) {
         exporter_info_record_t *exporter;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -933,7 +933,6 @@ typedef struct extension_info_s {
     extension_map_t *exportMap;
     uint32_t ref_count;
     uint32_t *offset_cache;
-    master_record_t master_record;
 } extension_info_t;
 
 typedef struct extension_map_list_s {

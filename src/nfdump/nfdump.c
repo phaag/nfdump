@@ -114,8 +114,6 @@ static uint32_t skippedBlocks = 0;
 static uint64_t t_first_flow, t_last_flow;
 static _Atomic uint32_t abortProcessing = 0;
 
-extension_map_list_t *extension_map_list;
-
 enum processType { FLOWSTAT = 1, ELEMENTSTAT, ELEMENTFLOWSTAT, SORTRECORDS, WRITEFILE, PRINTRECORD };
 
 extern exporter_t **exporter_list;
@@ -133,7 +131,6 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 /* Functions */
 
 #include "nfdump_inline.c"
-#include "nffile_compat.c"
 #include "nffile_inline.c"
 
 static void usage(char *name) {
@@ -269,23 +266,6 @@ static int SetStat(char *str, int *element_stat, int *flow_stat) {
 
 }  // End of SetStat
 
-/*
-static inline void SetRecordHandle(dataHandle_t *dataHandle) {
-    uint32_t numRecords = dataHandle->dataBlock->NumRecords;
-    dataHandle->recordHandle = malloc(numRecords * sizeof(recordHandle_t));
-    return;
-    if (dataHandle->numBlocks < dataHandle->dataBlock->NumRecords) {
-        dataHandle->recordHandle = realloc((void *)dataHandle->recordHandle, numRecords * sizeof(recordHandle_t));
-        dbg_printf("RecordHandleBlock reallocated from: %u to: %u\n", dataHandle->numBlocks, numRecords);
-        dataHandle->numBlocks = numRecords;
-    }
-    if (dataHandle->recordHandle == NULL) {
-        LogError("realloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-        exit(255);
-    }
-}  // End of GetRecordHandle
- */
-
 __attribute__((noreturn)) static void *prepareThread(void *arg) {
     prepareArgs_t *prepareArgs = (prepareArgs_t *)arg;
 
@@ -293,13 +273,14 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
 
     // dispatch args
     queue_t *prepareQueue = prepareArgs->prepareQueue;
-
     nffile_t *nffile = GetNextFile(NULL);
+
     dataHandle_t *dataHandle = NULL;
     int recordCnt = 0;
     int processedBlocks = 0;
     int skippedBlocks = 0;
-    int done = 0;
+
+    int done = nffile == NULL;
     while (!done) {
         if (dataHandle == NULL) dataHandle = calloc(1, sizeof(dataHandle_t));
         dataHandle->dataBlock = ReadBlock(nffile, NULL);
@@ -325,7 +306,12 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
                 LogError("nfdump 1.5.x block type 1 no longer supported. Skip block");
                 goto SKIP;
                 break;
-            case DATA_BLOCK_TYPE_2:
+            case DATA_BLOCK_TYPE_2: {
+                dataBlock_t *v3DataBlock = NewDataBlock();
+                ConvertBlockType2(dataHandle->dataBlock, v3DataBlock);
+                FreeDataBlock(dataHandle->dataBlock);
+                dataHandle->dataBlock = v3DataBlock;
+            } break;
             case DATA_BLOCK_TYPE_3:
                 // processed blocks
                 break;
@@ -373,7 +359,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
     // dispatch vars
     queue_t *prepareQueue = filterArgs->prepareQueue;
     queue_t *processQueue = filterArgs->processQueue;
-    void *engine = filterArgs->engine;
+    void *engine = FilterCloneEngine(filterArgs->engine);
     int hasGeoDB = filterArgs->hasGeoDB;
 
     timeWindow_t *timeWindow = filterArgs->timeWindow;
@@ -431,9 +417,12 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
 
             // work on our record
             switch (record_ptr->type) {
+                case CommonRecordType:
+                    printf("Need to convert record type: %u\n", CommonRecordType);
+                    sumSize = 0;
+                    break;
                 case V3Record: {
                     recordHeaderV3_t *recordHeaderV3 = (recordHeaderV3_t *)record_ptr;
-                    memset((void *)recordHandle, 0, sizeof(recordHandle_t));
                     MapRecordHandle(recordHandle, recordHeaderV3, recordCounter);
                     // Time based filter
                     // if no time filter is given, the result is always true
@@ -459,6 +448,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
                     }
 
                 } break;
+                case ExtensionMapType:
                 case ExporterInfoRecordType:
                 case ExporterStatRecordType:
                 case SamplerRecordType:
@@ -475,7 +465,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
             record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
         }
         dbg_printf("Filter thread %i push next block: %u\n", self, numBlocks);
-        queue_push(processQueue, dataHandle);
+        if (sumSize) queue_push(processQueue, dataHandle);
     }
 
     dbg_printf("FilterThread %d done. blocks: %u records: %u\n", self, numBlocks, recordCounter);
@@ -605,13 +595,9 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                     }
 
                 } break;
-                case ExtensionMapType: {
-                    extension_map_t *map = (extension_map_t *)record_ptr;
-                    if (Insert_Extension_Map(extension_map_list, map) < 0) {
-                        LogError("Corrupt data file. Unable to decode at %s line %d\n", __FILE__, __LINE__);
-                        exit(EXIT_FAILURE);
-                    }
-                } break;
+                case ExtensionMapType:
+                    printf("ExtensionMap no longer handled here!\n");
+                    break;
                 case ExporterInfoRecordType: {
                     int ret = AddExporterInfo((exporter_info_record_t *)record_ptr);
                     if (ret != 0) {
@@ -1080,11 +1066,6 @@ int main(int argc, char **argv) {
         aggregate = 1;
     }
 
-    extension_map_list = InitExtensionMaps(NEEDS_EXTENSION_LIST);
-    if (!InitExporterList()) {
-        exit(EXIT_FAILURE);
-    }
-
     if (tstring) {
         flist.timeWindow = ScanTimeFrame(tstring);
         if (!flist.timeWindow) exit(EXIT_FAILURE);
@@ -1307,7 +1288,6 @@ int main(int argc, char **argv) {
 
     Dispose_FlowTable();
     Dispose_StatTable();
-    FreeExtensionMaps(extension_map_list);
 
     return 0;
 }
