@@ -375,7 +375,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
             twin_msecLast = 0x7FFFFFFFFFFFFFFFLL;
     }
 
-    recordHandle_t *recordHandle = malloc(sizeof(recordHandle_t));
+    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
     if (recordHandle == NULL) {
         LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         exit(255);
@@ -468,7 +468,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
         if (sumSize) queue_push(processQueue, dataHandle);
     }
 
-    dbg_printf("FilterThread %d done. blocks: %u records: %u\n", self, numBlocks, recordCounter);
+    // dbg_printf("FilterThread %d done. blocks: %u records: %u\n", self, numBlocks, recordCounter);
     queue_close(processQueue);
     dbg_printf("FilterThread %d exit.\n", self);
 
@@ -534,7 +534,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     recordHandle_t *recordHandle = malloc(sizeof(recordHandle_t));
 
     // number of flows passed the filter
-    // uint32_t numBlocks = 0;
+    uint32_t numBlocks = 0;
     int done = 0;
     while (!done) {
         dataHandle_t *dataHandle = queue_pop(filterArgs.processQueue);
@@ -543,7 +543,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
             continue;
         }
 
-        // numBlocks++;
+        numBlocks++;
         dataBlock_t *dataBlock = dataHandle->dataBlock;
         record_header_t *record_ptr = GetCursor(dataBlock);
 
@@ -558,8 +558,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
             recordCounter++;
             // process records
             switch (record_ptr->type) {
-                case V3Record:
-                case CommonRecordType: {
+                case V3Record: {
                     recordHeaderV3_t *recordHeaderV3 = (recordHeaderV3_t *)record_ptr;
                     // check if filter matched
                     if (TestFlag(recordHeaderV3->flags, V3_FLAG_PASSED) == 0) goto NEXT;

@@ -28,6 +28,7 @@
  *
  */
 
+#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,13 +50,13 @@ static void InitCompat16(void) {
 }  // End of InitCompat16
 
 static inline int ConvertRecordV2(common_record_t *commonRecord, dataBlock_t *dataBlock) {
-    //
+    /*
+     * v2 blocks are max 1MB. v3 blocks have 2MB.
+     * each v2 block can be stored in a v3 block
+     * check anyway
+     */
     uint32_t required = 2 * commonRecord->size;
-    if (!IsAvailable(dataBlock, required)) {
-        // flush block - get an empty one
-        LogError("Convert v2 block - not enough space");
-        return 0;
-    }
+    assert(IsAvailable(dataBlock, required));
 
     record_header_t *v3record_ptr = GetCurrentCursor(dataBlock);
     void *p = commonRecord->data;
@@ -436,14 +437,12 @@ static inline int ConvertRecordV2(common_record_t *commonRecord, dataBlock_t *da
     dataBlock->NumRecords++;
     dataBlock->size += recordHeader->size;
 
-    dbg_printf("V3 record: elements: %u, size: %u\n", recordHeader->numElements, recordHeader->size);
+    // dbg_printf("V3 record: elements: %u, size: %u\n", recordHeader->numElements, recordHeader->size);
     return 1;
 
 }  // End of ConvertRecordV2
 
 void ConvertBlockType2(dataBlock_t *v2DataBlock, dataBlock_t *v3DataBlock) {
-    printf("Need to convert type 2 block: size: %u, numRecords: %u\n", v2DataBlock->size, v2DataBlock->NumRecords);
-
     record_header_t *v2record_ptr = GetCursor(v2DataBlock);
     uint32_t sumSize = 0;
     uint32_t commonRecords = 0;
@@ -468,6 +467,7 @@ void ConvertBlockType2(dataBlock_t *v2DataBlock, dataBlock_t *v3DataBlock) {
                 }
                 printf("Extensionmap\n");
             } break;
+            // other records just copy
             case ExporterInfoRecordType:
             case ExporterStatRecordType:
             case SamplerLegacyRecordType: {
@@ -477,13 +477,12 @@ void ConvertBlockType2(dataBlock_t *v2DataBlock, dataBlock_t *v3DataBlock) {
                 v3DataBlock->size += v2record_ptr->size;
             } break;
             default: {
-                printf("Other record type %i\n", v2record_ptr->type);
+                printf("Convert v2 block: Unknown record type %i skipped\n", v2record_ptr->type);
             }
         }
 
         // Advance pointer by number of bytes for netflow record
         v2record_ptr = (record_header_t *)((void *)v2record_ptr + v2record_ptr->size);
     }
-    printf("CommonRecordType: %u\n", commonRecords);
 
 }  // End of ConvertBlockType2
