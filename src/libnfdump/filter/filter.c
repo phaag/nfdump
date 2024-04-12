@@ -651,8 +651,8 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
 
         void *inPtr = handle->extensionList[extID];
         if (inPtr == NULL) {
-            evaluate = 0;
-            if (extID <= MAXEXTENSIONS) {
+            if (preprocess_map[extID].function == NULL) {
+                evaluate = 0;
                 index = engine->filter[index].OnFalse;
                 continue;
             }
@@ -660,6 +660,7 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
             uint32_t length = engine->filter[index].length;
             inPtr = preprocess_map[extID].function(inPtr, length, data, handle);
             if (inPtr == NULL) {
+                evaluate = 0;
                 index = engine->filter[index].OnFalse;
                 continue;
             }
