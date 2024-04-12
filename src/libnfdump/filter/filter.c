@@ -120,25 +120,26 @@ static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHand
  */
 
 static struct flow_procs_map_s {
-    filterFunction_t filterNum;
     char *name;
     flow_proc_t function;
-} flow_procs_map[] = {{FUNC_NONE, "none", NULL},
-                      {FUNC_DURATION, "duration", duration_function},
-                      {FUNC_PPS, "pps", pps_function},
-                      {FUNC_BPS, "bps", bps_function},
-                      {FUNC_BPP, "bpp", bpp_function},
-                      {FUNC_MPLS_LABEL, "mpls label", mpls_label_function},
-                      {FUNC_MPLS_EOS, "mpls eos", mpls_eos_function},
-                      {FUNC_MPLS_EXP, "mpls exp", mpls_exp_function},
-                      {FUNC_MPLS_ANY, "mpls any", mpls_any_function},
-                      {FUNC_PBLOCK, "pblock", pblock_function},
-                      {FUNC_MMAS_LOOKUP, "AS Lockup", mmASLookup_function},
-                      {0, NULL, NULL}};
+} const flow_procs_map[] = {[FUNC_NONE] = {"none", NULL},
+                            [FUNC_DURATION] = {"duration", duration_function},
+                            [FUNC_PPS] = {"pps", pps_function},
+                            [FUNC_BPS] = {"bps", bps_function},
+                            [FUNC_BPP] = {"bpp", bpp_function},
+                            [FUNC_MPLS_LABEL] = {"mpls label", mpls_label_function},
+                            [FUNC_MPLS_EOS] = {"mpls eos", mpls_eos_function},
+                            [FUNC_MPLS_EXP] = {"mpls exp", mpls_exp_function},
+                            [FUNC_MPLS_ANY] = {"mpls any", mpls_any_function},
+                            [FUNC_PBLOCK] = {"pblock", pblock_function},
+                            [FUNC_MMAS_LOOKUP] = {"AS Lockup", mmASLookup_function},
+                            {NULL, NULL}};
 
 static struct preprocess_s {
     preprocess_proc_t function;
-} preprocess_map[] = {{ssl_preproc}, {ja3_preproc}, {ja4_preproc}, {NULL}};
+} const preprocess_map[] = {[SSLindex] = {ssl_preproc}, [JA3index] = {ja3_preproc}, [JA4index] = {ja4_preproc}, {NULL}};
+
+// static const int a[20] = {1, 2, 3, [8] = 10, 11, 12};
 
 // 128bit compare for IPv6
 static int IPNodeCMP(struct IPListNode *e1, struct IPListNode *e2) {
@@ -423,12 +424,6 @@ uint32_t NewElement(uint32_t extID, uint32_t offset, uint32_t length, uint64_t v
     }
     dbg_printf("New element: extID: %u, offset: %u, length: %u, value: %llu\n", extID, offset, length, value);
 
-    // sanity check
-    if (function && flow_procs_map[function].filterNum != function) {
-        LogError("Software error in %s line %d", __FILE__, __LINE__);
-        exit(255);
-    }
-
     FilterTree[n] = (filterElement_t){
         .extID = extID,
         .offset = offset,
@@ -675,7 +670,7 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
             }
             data_t data = engine->filter[index].data;
             uint32_t length = engine->filter[index].length;
-            inPtr = preprocess_map[extID - MAXEXTENSIONS - 1].function(inPtr, length, data, handle);
+            inPtr = preprocess_map[extID].function(inPtr, length, data, handle);
             if (inPtr == NULL) {
                 index = engine->filter[index].OnFalse;
                 continue;

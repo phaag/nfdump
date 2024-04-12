@@ -465,7 +465,6 @@ void ConvertBlockType2(dataBlock_t *v2DataBlock, dataBlock_t *v3DataBlock) {
                     LogError("Corrupt data file. Unable to decode at %s line %d\n", __FILE__, __LINE__);
                     exit(EXIT_FAILURE);
                 }
-                printf("Extensionmap\n");
             } break;
             // other records just copy
             case ExporterInfoRecordType:
