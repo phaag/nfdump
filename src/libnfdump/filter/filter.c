@@ -137,7 +137,7 @@ static struct flow_procs_map_s {
 
 static struct preprocess_s {
     preprocess_proc_t function;
-} const preprocess_map[] = {[SSLindex] = {ssl_preproc}, [JA3index] = {ja3_preproc}, [JA4index] = {ja4_preproc}, {NULL}};
+} const preprocess_map[MAXLISTSIZE] = {[SSLindex] = {ssl_preproc}, [JA3index] = {ja3_preproc}, [JA4index] = {ja4_preproc}};
 
 // static const int a[20] = {1, 2, 3, [8] = 10, 11, 12};
 
