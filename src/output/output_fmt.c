@@ -195,10 +195,6 @@ static void String_SrcVlan(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_DstVlan(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_SrcCVlan(FILE *stream, recordHandle_t *recordHandle);
-
-static void String_DstCVlan(FILE *stream, recordHandle_t *recordHandle);
-
 static void String_FwdStatus(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_BiFlowDir(FILE *stream, recordHandle_t *recordHandle);
@@ -299,12 +295,6 @@ static void String_evrf(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_evrfName(FILE *stream, recordHandle_t *recordHandle);
 
-static void String_physI_ID(FILE *stream, recordHandle_t *recordHandle);
-
-static void String_physE_ID(FILE *stream, recordHandle_t *recordHandle);
-
-static void String_ipVersion(FILE *stream, recordHandle_t *recordHandle);
-
 static void String_NewLine(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_pfIfName(FILE *stream, recordHandle_t *recordHandle);
@@ -352,8 +342,6 @@ static void String_PortBlockEnd(FILE *stream, recordHandle_t *recordHandle);
 static void String_PortBlockStep(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_PortBlockSize(FILE *stream, recordHandle_t *recordHandle);
-
-static void String_Ethertype(FILE *stream, recordHandle_t *recordHandle);
 
 static struct format_token_list_s {
     char *token;                        // token
@@ -425,14 +413,9 @@ static struct format_token_list_s {
     {"%obyt", 0, "Out Byte", String_OutBytes},    // In Bytes
     {"%fl", 0, "Flows", String_Flows},            // Flows
 
-    // EXvLanID and EXlayer2ID
-    {"%svln", 0, "S-Vlan", String_SrcVlan},      // Src Vlan
-    {"%dvln", 0, "D-Vlan", String_DstVlan},      // Dst Vlan
-    {"%scvln", 0, "SCVlan", String_SrcCVlan},    // Src customer Vlan
-    {"%dcvln", 0, "DCVlan", String_DstCVlan},    // Dst customer Vlan
-    {"%id", 0, "ingress-ID", String_physI_ID},   // ingress phys interface ID
-    {"%eid", 0, " egress-ID", String_physE_ID},  // egress phys interface ID
-    {"%ipv", 0, "IPv", String_ipVersion},        // ip Version
+    // EXvLanID
+    {"%svln", 0, "SVlan", String_SrcVlan},  // Src Vlan
+    {"%dvln", 0, "DVlan", String_DstVlan},  // Dst Vlan
 
     // EXasRoutingID
     {"%sas", 0, "Src AS", String_SrcAS},  // Source AS
@@ -468,7 +451,6 @@ static struct format_token_list_s {
     {"%odmc", 0, " Out dst MAC Addr", String_OutDstMac},  // Output Dst Mac Addr
     {"%idmc", 0, "  In dst MAC Addr", String_InDstMac},   // Input Dst Mac Addr
     {"%osmc", 0, " Out src MAC Addr", String_OutSrcMac},  // Output Src Mac Addr
-    {"%eth", 0, " etherType", String_Ethertype},          // etherType
 
     // EXasAdjacentID
     {"%nas", 0, "Next AS", String_NextAS},  // Next AS
@@ -588,9 +570,9 @@ static void ListOutputFormats(void) {
     printf("Available format elements:");
     for (int i = 0; format_token_list[i].token != NULL; i++) {
         if ((i & 0xf) == 0) printf("\n");
-        printf("%8s ", format_token_list[i].token);
+        printf("%s ", format_token_list[i].token);
     }
-    printf("\nSee also nfdump(1)\n");
+    printf("- See also nfdump(1)\n");
 
 }  // End of ListOutputFormats
 
@@ -610,11 +592,14 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
         AddV3Header(p, v3TunHeader);
         PushExtension(v3TunHeader, EXgenericFlow, tunGenericFlow);
         memcpy((void *)tunGenericFlow, (void *)genericFlow, sizeof(EXgenericFlow_t));
+        recordHandle_t tunRecordHandle = {
+            .recordHeaderV3 = v3TunHeader, .extensionList[EXgenericFlowID] = tunGenericFlow, .flowCount = recordHandle->flowCount};
         if (tunIPv4) {
             tunGenericFlow->proto = tunIPv4->tunProto;
             PushExtension(v3TunHeader, EXipv4Flow, tunIPv4Flow);
             tunIPv4Flow->srcAddr = tunIPv4->tunSrcAddr;
             tunIPv4Flow->dstAddr = tunIPv4->tunDstAddr;
+            tunRecordHandle.extensionList[EXipv4FlowID] = tunIPv4Flow;
         } else {
             tunGenericFlow->proto = tunIPv6->tunProto;
             PushExtension(v3TunHeader, EXipv6Flow, tunIPv6Flow);
@@ -622,8 +607,9 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
             tunIPv6Flow->srcAddr[1] = tunIPv6->tunSrcAddr[1];
             tunIPv6Flow->dstAddr[0] = tunIPv6->tunDstAddr[0];
             tunIPv6Flow->dstAddr[1] = tunIPv6->tunDstAddr[1];
+            tunRecordHandle.extensionList[EXipv6FlowID] = tunIPv6Flow;
         }
-        fmt_record(stream, p, tag);
+        fmt_record(stream, &tunRecordHandle, tag);
         free(p);
     }
 
@@ -1876,44 +1862,17 @@ static void String_DstMask(FILE *stream, recordHandle_t *recordHandle) {
 
 static void String_SrcVlan(FILE *stream, recordHandle_t *recordHandle) {
     EXvLan_t *vLan = (EXvLan_t *)recordHandle->extensionList[EXvLanID];
-    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
+    uint32_t srcVlan = vLan ? vLan->srcVlan : 0;
 
-    uint32_t vlanID = 0;
-    if (vLan) vlanID = vLan->srcVlan;
-    if (layer2) vlanID = layer2->vlanID;
-
-    fprintf(stream, "%6u", vlanID);
+    fprintf(stream, "%5u", srcVlan);
 }  // End of String_SrcVlan
 
 static void String_DstVlan(FILE *stream, recordHandle_t *recordHandle) {
     EXvLan_t *vLan = (EXvLan_t *)recordHandle->extensionList[EXvLanID];
-    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
+    uint32_t dstVlan = vLan ? vLan->dstVlan : 0;
 
-    uint32_t vlanID = 0;
-    if (vLan) vlanID = vLan->dstVlan;
-    if (layer2) vlanID = layer2->postVlanID;
-
-    fprintf(stream, "%6u", vlanID);
+    fprintf(stream, "%5u", dstVlan);
 }  // End of String_DstVlan
-
-static void String_SrcCVlan(FILE *stream, recordHandle_t *recordHandle) {
-    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
-    uint32_t vlanID = layer2 ? layer2->customerVlanId : 0;
-
-    fprintf(stream, "%6u", vlanID);
-}  // End of String_SrcCVlan
-
-static void String_DstCVlan(FILE *stream, recordHandle_t *recordHandle) {
-    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
-    uint32_t vlanID = layer2 ? layer2->postCustomerVlanId : 0;
-
-    fprintf(stream, "%6u", vlanID);
-}  // End of String_DstCVlan
-
-static void String_Ethertype(FILE *stream, recordHandle_t *recordHandle) {
-    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
-    fprintf(stream, "0x%04x", layer2->etherType);
-}  // End of String_Ethertype
 
 static void String_Dir(FILE *stream, recordHandle_t *recordHandle) {
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
@@ -2432,30 +2391,6 @@ static void String_eacl(FILE *stream, recordHandle_t *recordHandle) {
         fprintf(stream, "%10u %10u %10u", 0, 0, 0);
 
 }  // End of String_eacl
-
-static void String_physI_ID(FILE *stream, recordHandle_t *recordHandle) {
-    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
-    uint32_t id = layer2 ? layer2->ingress : 0;
-
-    fprintf(stream, "%10u", id);
-
-}  // End of String_physI_ID
-
-static void String_physE_ID(FILE *stream, recordHandle_t *recordHandle) {
-    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
-    uint32_t id = layer2 ? layer2->egress : 0;
-
-    fprintf(stream, "%10u", id);
-
-}  // End of String_physI_ID
-
-static void String_ipVersion(FILE *stream, recordHandle_t *recordHandle) {
-    EXlayer2_t *layer2 = (EXlayer2_t *)recordHandle->extensionList[EXlayer2ID];
-    uint32_t ipv = layer2 ? layer2->ipVersion : 0;
-
-    fprintf(stream, "%3u", ipv);
-
-}  // End of String_ipVersion
 
 static void String_xlateSrcAddr(FILE *stream, recordHandle_t *recordHandle) {
     EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
