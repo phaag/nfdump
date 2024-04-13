@@ -2005,15 +2005,15 @@ static int AddAsNumber(direction_t direction, uint16_t comp, uint64_t as) {
 	int ret = -1;
   switch ( direction ) {
 	  case DIR_SRC:
-		  ret = NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_MMAS_LOOKUP, NULLPtr);
+		  ret = NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_MMAS_LOOKUP, (data_t){.dataVal = OFFsrcAS});
 		  break;
 	  case DIR_DST:
-		  ret = NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, as, comp, FUNC_MMAS_LOOKUP , NULLPtr);
+		  ret = NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, as, comp, FUNC_MMAS_LOOKUP , (data_t){.dataVal = OFFdstAS});
 		  break;
 	  case DIR_UNSPEC:
 		  ret = Connect_OR(
-			  NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_MMAS_LOOKUP, NULLPtr),
-			  NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, as, comp, FUNC_MMAS_LOOKUP , NULLPtr)
+			  NewElement(EXasRoutingID, OFFsrcAS, SIZEsrcAS, as, comp, FUNC_MMAS_LOOKUP, (data_t){.dataVal = OFFsrcAS}),
+			  NewElement(EXasRoutingID, OFFdstAS, SIZEdstAS, as, comp, FUNC_MMAS_LOOKUP ,(data_t){.dataVal = OFFdstAS} )
 		  );
 			break;
 		case DIR_NEXT:

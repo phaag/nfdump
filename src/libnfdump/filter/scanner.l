@@ -123,6 +123,7 @@ ipv4			{ return IPV4; }
 ipv6			{ return IPV6; }
 ident			{ return IDENT; }
 count			{ return COUNT; }
+cnt			  { return COUNT; }
 ip|host		{ return IP;   }
 net				{ return NET;  }
 

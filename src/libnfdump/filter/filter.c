@@ -59,7 +59,7 @@ uint32_t StartNode = 0;
 
 typedef uint64_t (*flow_proc_t)(void *, uint32_t, data_t, recordHandle_t *);
 
-typedef void *(*preprocess_proc_t)(void *, uint32_t, data_t, recordHandle_t *);
+typedef void *(*preprocess_proc_t)(uint32_t, data_t, recordHandle_t *);
 
 typedef struct filterElement {
     /* Filter specific data */
@@ -111,9 +111,10 @@ static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, rec
 static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
 /* flow pre-processing functions */
-static void *ssl_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
-static void *ja3_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
-static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static void *ssl_preproc(uint32_t length, data_t data, recordHandle_t *handle);
+static void *ja3_preproc(uint32_t length, data_t data, recordHandle_t *handle);
+static void *ja4_preproc(uint32_t length, data_t data, recordHandle_t *handle);
+static void *as_preproc(uint32_t length, data_t data, recordHandle_t *handle);
 
 /*
  * flow processing function table:
@@ -137,7 +138,8 @@ static struct flow_procs_map_s {
 
 static struct preprocess_s {
     preprocess_proc_t function;
-} const preprocess_map[MAXLISTSIZE] = {[SSLindex] = {ssl_preproc}, [JA3index] = {ja3_preproc}, [JA4index] = {ja4_preproc}};
+} const preprocess_map[MAXLISTSIZE] = {
+    [EXasRoutingID] = {as_preproc}, [SSLindex] = {ssl_preproc}, [JA3index] = {ja3_preproc}, [JA4index] = {ja4_preproc}};
 
 // static const int a[20] = {1, 2, 3, [8] = 10, 11, 12};
 
@@ -284,16 +286,17 @@ static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data,
     uint32_t as = *((uint32_t *)dataPtr);
     if (as) return as;
 
+    uint32_t direction = data.dataVal;
     if (ipv4Flow) {
-        as = LookupV4AS(ipv4Flow->srcAddr);
+        as = direction == OFFsrcAS ? LookupV4AS(ipv4Flow->srcAddr) : LookupV4AS(ipv4Flow->dstAddr);
     } else if (ipv6Flow) {
-        as = LookupV6AS(ipv6Flow->srcAddr);
+        as = direction == OFFsrcAS ? LookupV6AS(ipv6Flow->srcAddr) : LookupV6AS(ipv6Flow->dstAddr);
     }
     *((uint32_t *)dataPtr) = as;
     return as;
 }  // End of mmASLookup_function
 
-static void *ssl_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
+static void *ssl_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
     const uint8_t *payload = (uint8_t *)(handle->extensionList[EXinPayloadID]);
     if (payload == NULL) return NULL;
 
@@ -308,21 +311,21 @@ static void *ssl_preproc(void *dataPtr, uint32_t length, data_t data, recordHand
 
 }  // End of ssl_preproc
 
-static void *ja3_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
+static void *ja3_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
     const uint8_t *payload = (const uint8_t *)handle->extensionList[EXinPayloadID];
     if (payload == NULL) return NULL;
 
     // return ja3 string if it already exists
     if (handle->extensionList[JA3index]) return handle->extensionList[JA3index];
 
-    ssl_t *ssl = ssl_preproc(dataPtr, length, data, handle);
+    ssl_t *ssl = ssl_preproc(length, data, handle);
     if (!ssl) return NULL;
 
     return ja3Process(ssl, NULL);
 
 }  // End of ja3_preproc
 
-static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
+static void *ja4_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
     const uint8_t *payload = (uint8_t *)(handle->extensionList[EXinPayloadID]);
     if (payload == NULL) return NULL;
 
@@ -331,7 +334,7 @@ static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHand
 
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(handle->extensionList[EXgenericFlowID]);
 
-    ssl_t *ssl = ssl_preproc(dataPtr, length, data, handle);
+    ssl_t *ssl = ssl_preproc(length, data, handle);
     if (ssl == NULL || ssl->type != CLIENTssl) return NULL;
     ja4_t *ja4 = malloc(sizeof(ja4_t) + SIZEja4String + 1);
     if (!ja4) {
@@ -345,6 +348,12 @@ static void *ja4_preproc(void *dataPtr, uint32_t length, data_t data, recordHand
     }
     return NULL;
 }  // End of ja4_preproc
+
+static void *as_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
+    // no AS field, map slack
+    handle->extensionList[EXasRoutingID] = handle->localStack;
+    return (void *)handle->localStack;
+}  // End of as_preproc
 
 static int geoLookup(char *geoChar, uint64_t direction, recordHandle_t *recordHandle) {
     geoChar[0] = geoChar[1] = '.';
@@ -658,7 +667,7 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
             }
             data_t data = engine->filter[index].data;
             uint32_t length = engine->filter[index].length;
-            inPtr = preprocess_map[extID].function(inPtr, length, data, handle);
+            inPtr = preprocess_map[extID].function(length, data, handle);
             if (inPtr == NULL) {
                 evaluate = 0;
                 index = engine->filter[index].OnFalse;
