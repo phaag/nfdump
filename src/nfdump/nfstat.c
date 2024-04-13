@@ -76,8 +76,6 @@ typedef enum {
     IS_GEO
 } elementType_t;
 
-typedef enum { NOPROC = 0, SRC_GEO, DST_GEO, SRC_AS, DST_AS, PREV_AS, NEXT_AS, JA3, JA4, JA4S } preprocess_t;
-
 typedef enum { DESCENDING = 0, ASCENDING } direction_t;
 
 typedef struct flow_element_s {
@@ -92,6 +90,15 @@ typedef struct SortElement {
     uint64_t count;
 } SortElement_t;
 
+typedef void *(*func_preproc)(void *inPtr, recordHandle_t *);
+static void *SRC_GEO_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+static void *DST_GEO_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+static void *SRC_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+static void *DST_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+static void *JA3_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+static void *JA4_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+static void *JA4S_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+
 /*
  *
  */
@@ -100,120 +107,120 @@ struct StatParameter_s {
     char *HeaderInfo;         // How to name the field in the output header line
     flow_element_t element;   // what element in flow record is used for statistics.
     elementType_t type;       // Type of element: Number, IP address, MAC address etc.
-    preprocess_t preprocess;  // value may need some preprocessing
+    func_preproc preprocess;  // function to pre-process data
 } StatParameters[] = {
     // flow record stat
     {"record", "", {0, 0, 0, 0}, 0},
 
-    {"srcip", "Src IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR, NOPROC},
-    {"srcip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR, NOPROC},
-    {"dstip", "Dst IP Addr", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR, NOPROC},
-    {"srcip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR, NOPROC},
-    {"ip", "    IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR, NOPROC},
-    {"ip", NULL, {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR, NOPROC},
-    {"ip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR, NOPROC},
-    {"ip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR, NOPROC},
-    {"srcgeo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, SRC_GEO},
-    {"dstgeo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, DST_GEO},
-    {"geo", " Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, SRC_GEO},
-    {"geo", NULL, {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, DST_GEO},
-    {"nhip", "Nexthop IP", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, IS_IPADDR, NOPROC},
-    {"nhip", NULL, {EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, AF_INET6}, IS_IPADDR, NOPROC},
-    {"nhbip", "Nexthop BGP IP", {EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, AF_INET}, IS_IPADDR, NOPROC},
-    {"nhbip", NULL, {EXbgpNextHopV6ID, OFFbgp6NextIP, SIZEbgp6NextIP, AF_INET}, IS_IPADDR, NOPROC},
-    {"router", "Router IP", {EXipReceivedV4ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, IS_IPADDR, NOPROC},
-    {"router", NULL, {EXipReceivedV6ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, IS_IPADDR, NOPROC},
-    {"srcport", "Src Port", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, IS_NUMBER, NOPROC},
-    {"dstport", "Dst Port", {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, IS_NUMBER, NOPROC},
-    {"port", "Port", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, IS_NUMBER, NOPROC},
-    {"port", NULL, {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, IS_NUMBER, NOPROC},
-    {"proto", "Protocol", {EXgenericFlowID, OFFproto, SIZEproto, 0}, IS_NUMBER, NOPROC},
-    {"srctos", "Src Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER, NOPROC},
-    {"dsttos", "Dst Tos", {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NOPROC},
-    {"tos", "Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER, NOPROC},
-    {"tos", NULL, {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NOPROC},
-    {"dir", "Dir", {EXgenericFlowID, OFFdir, SIZEdir, 0}, IS_NUMBER, NOPROC},
-    {"srcas", "Src AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS},
-    {"dstas", "Dst AS", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS},
-    {"as", "AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS},
-    {"as", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS},
-    {"prevas", "Prev AS", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, IS_NUMBER, PREV_AS},
-    {"nextas", "Next AS", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, IS_NUMBER, NEXT_AS},
-    {"inif", "Input If", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER, NOPROC},
-    {"outif", "Output If", {EXflowMiscID, OFFoutput, SIZEoutput, 0}, IS_NUMBER, NOPROC},
-    {"if", "Interface", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER, NOPROC},
-    {"if", NULL, {EXflowMiscID, OFFoutput, SIZEoutput, 0}, IS_NUMBER, NOPROC},
-    {"srcmask", "Src Mask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, IS_NUMBER, NOPROC},
-    {"dstmask", "Dst Mask", {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER, NOPROC},
-    {"mask", "Mask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, IS_NUMBER, NOPROC},
-    {"mask", NULL, {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER, NOPROC},
-    {"srcvlan", "Src Vlan", {EXvLanID, OFFvlanID, SIZEvlanID, 0}, IS_NUMBER, NOPROC},
-    {"dstvlan", "Dst Vlan", {EXvLanID, OFFpostVlanID, SIZEpostVlanID, 0}, IS_NUMBER, NOPROC},
-    {"vlan", "Vlan", {EXvLanID, OFFvlanID, SIZEvlanID, 0}, IS_NUMBER, NOPROC},
-    {"vlan", NULL, {EXvLanID, OFFpostVlanID, SIZEpostVlanID, 0}, IS_NUMBER, NOPROC},
-    {"insrcmac", "In Src Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NOPROC},
-    {"outdstmac", "Out Dst Mac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NOPROC},
-    {"indstmac", "In Dst Mac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NOPROC},
-    {"outsrcmac", "Out Src Mac", {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NOPROC},
-    {"ethertype", "Ethertype", {EXlayer2ID, OFFetherType, SIZEetherType, 0}, IS_NUMBER, NOPROC},
-    {"srcmac", "Src Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NOPROC},
-    {"srcmac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NOPROC},
-    {"dstmac", "Dst Mac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NOPROC},
-    {"dstmac", NULL, {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NOPROC},
-    {"inmac", "In Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NOPROC},
-    {"inmac", NULL, {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NOPROC},
-    {"outmac", "Out Mac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NOPROC},
-    {"outmac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NOPROC},
-    {"mac", "Mac Addr", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NOPROC},
-    {"mac", NULL, {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NOPROC},
-    {"mac", NULL, {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NOPROC},
-    {"mac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NOPROC},
-    {"mpls1", "MPLS label 1", {EXmplsLabelID, OFFmplsLabel1, SIZEmplsLabel1, 0}, IS_MPLS_LBL, NOPROC},
-    {"mpls2", "MPLS label 2", {EXmplsLabelID, OFFmplsLabel2, SIZEmplsLabel2, 0}, IS_MPLS_LBL, NOPROC},
-    {"mpls3", "MPLS label 3", {EXmplsLabelID, OFFmplsLabel3, SIZEmplsLabel3, 0}, IS_MPLS_LBL, NOPROC},
-    {"mpls4", "MPLS label 4", {EXmplsLabelID, OFFmplsLabel4, SIZEmplsLabel4, 0}, IS_MPLS_LBL, NOPROC},
-    {"mpls5", "MPLS label 5", {EXmplsLabelID, OFFmplsLabel5, SIZEmplsLabel5, 0}, IS_MPLS_LBL, NOPROC},
-    {"mpls6", "MPLS label 6", {EXmplsLabelID, OFFmplsLabel6, SIZEmplsLabel6, 0}, IS_MPLS_LBL, NOPROC},
-    {"mpls7", "MPLS label 7", {EXmplsLabelID, OFFmplsLabel7, SIZEmplsLabel7, 0}, IS_MPLS_LBL, NOPROC},
-    {"mpls8", "MPLS label 8", {EXmplsLabelID, OFFmplsLabel8, SIZEmplsLabel8, 0}, IS_MPLS_LBL, NOPROC},
-    {"mpls9", "MPLS label 9", {EXmplsLabelID, OFFmplsLabel9, SIZEmplsLabel9, 0}, IS_MPLS_LBL, NOPROC},
-    {"mpls10", "MPLS label 10", {EXmplsLabelID, OFFmplsLabel10, SIZEmplsLabel10, 0}, IS_MPLS_LBL, NOPROC},
-    {"cl", "Client Latency", {EXlatencyID, OFFusecClientNwDelay, SIZEusecClientNwDelay, 0}, IS_LATENCY, NOPROC},
-    {"sl", "Server Latency", {EXlatencyID, OFFusecServerNwDelay, SIZEusecServerNwDelay, 0}, IS_LATENCY, NOPROC},
-    {"al", "Application Latency", {EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, 0}, IS_LATENCY, NOPROC},
-    {"nbar", "Nbar", {EXnbarAppID, OFFnbarAppID, SIZEnbarAppID, 0}, IS_NBAR, NOPROC},
-    {"ja3", "ja3                             ", {JA3index, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3},
-    {"ja4", "ja4                                ", {JA4index, OFFja4String, SIZEja4String + 1, 0}, IS_JA4, JA4},
+    {"srcip", "Src IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR, NULL},
+    {"srcip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR, NULL},
+    {"dstip", "Dst IP Addr", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR, NULL},
+    {"srcip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR, NULL},
+    {"ip", "    IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR, NULL},
+    {"ip", NULL, {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, IS_IPADDR, NULL},
+    {"ip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR, NULL},
+    {"ip", NULL, {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, IS_IPADDR, NULL},
+    {"srcgeo", "Src Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, SRC_GEO_PreProcess},
+    {"dstgeo", "Dst Geo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, DST_GEO_PreProcess},
+    {"geo", " Geo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, IS_GEO, SRC_GEO_PreProcess},
+    {"geo", NULL, {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, IS_GEO, DST_GEO_PreProcess},
+    {"nhip", "Nexthop IP", {EXipNextHopV4ID, OFFNextHopV4IP, SIZENextHopV4IP, AF_INET}, IS_IPADDR, NULL},
+    {"nhip", NULL, {EXipNextHopV6ID, OFFNextHopV6IP, SIZENextHopV6IP, AF_INET6}, IS_IPADDR, NULL},
+    {"nhbip", "Nexthop BGP IP", {EXbgpNextHopV4ID, OFFbgp4NextIP, SIZEbgp4NextIP, AF_INET}, IS_IPADDR, NULL},
+    {"nhbip", NULL, {EXbgpNextHopV6ID, OFFbgp6NextIP, SIZEbgp6NextIP, AF_INET}, IS_IPADDR, NULL},
+    {"router", "Router IP", {EXipReceivedV4ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, IS_IPADDR, NULL},
+    {"router", NULL, {EXipReceivedV6ID, OFFReceived4IP, SIZEReceived4IP, AF_INET}, IS_IPADDR, NULL},
+    {"srcport", "Src Port", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, IS_NUMBER, NULL},
+    {"dstport", "Dst Port", {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, IS_NUMBER, NULL},
+    {"port", "Port", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, IS_NUMBER, NULL},
+    {"port", NULL, {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, IS_NUMBER, NULL},
+    {"proto", "Protocol", {EXgenericFlowID, OFFproto, SIZEproto, 0}, IS_NUMBER, NULL},
+    {"srctos", "Src Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER, NULL},
+    {"dsttos", "Dst Tos", {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NULL},
+    {"tos", "Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER, NULL},
+    {"tos", NULL, {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NULL},
+    {"dir", "Dir", {EXgenericFlowID, OFFdir, SIZEdir, 0}, IS_NUMBER, NULL},
+    {"srcas", "Src AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
+    {"dstas", "Dst AS", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
+    {"as", "AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
+    {"as", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
+    {"prevas", "Prev AS", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, IS_NUMBER, NULL},
+    {"nextas", "Next AS", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, IS_NUMBER, NULL},
+    {"inif", "Input If", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER, NULL},
+    {"outif", "Output If", {EXflowMiscID, OFFoutput, SIZEoutput, 0}, IS_NUMBER, NULL},
+    {"if", "Interface", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER, NULL},
+    {"if", NULL, {EXflowMiscID, OFFoutput, SIZEoutput, 0}, IS_NUMBER, NULL},
+    {"srcmask", "Src Mask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, IS_NUMBER, NULL},
+    {"dstmask", "Dst Mask", {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER, NULL},
+    {"mask", "Mask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, IS_NUMBER, NULL},
+    {"mask", NULL, {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER, NULL},
+    {"srcvlan", "Src Vlan", {EXvLanID, OFFvlanID, SIZEvlanID, 0}, IS_NUMBER, NULL},
+    {"dstvlan", "Dst Vlan", {EXvLanID, OFFpostVlanID, SIZEpostVlanID, 0}, IS_NUMBER, NULL},
+    {"vlan", "Vlan", {EXvLanID, OFFvlanID, SIZEvlanID, 0}, IS_NUMBER, NULL},
+    {"vlan", NULL, {EXvLanID, OFFpostVlanID, SIZEpostVlanID, 0}, IS_NUMBER, NULL},
+    {"insrcmac", "In Src Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NULL},
+    {"outdstmac", "Out Dst Mac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NULL},
+    {"indstmac", "In Dst Mac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NULL},
+    {"outsrcmac", "Out Src Mac", {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NULL},
+    {"ethertype", "Ethertype", {EXlayer2ID, OFFetherType, SIZEetherType, 0}, IS_NUMBER, NULL},
+    {"srcmac", "Src Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NULL},
+    {"srcmac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NULL},
+    {"dstmac", "Dst Mac", {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NULL},
+    {"dstmac", NULL, {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NULL},
+    {"inmac", "In Mac", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NULL},
+    {"inmac", NULL, {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NULL},
+    {"outmac", "Out Mac", {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NULL},
+    {"outmac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NULL},
+    {"mac", "Mac Addr", {EXmacAddrID, OFFinSrcMac, SIZEinSrcMac, 0}, IS_MACADDR, NULL},
+    {"mac", NULL, {EXmacAddrID, OFFoutDstMac, SIZEoutDstMac, 0}, IS_MACADDR, NULL},
+    {"mac", NULL, {EXmacAddrID, OFFinDstMac, SIZEinDstMac, 0}, IS_MACADDR, NULL},
+    {"mac", NULL, {EXmacAddrID, OFFoutSrcMac, SIZEoutSrcMac, 0}, IS_MACADDR, NULL},
+    {"mpls1", "MPLS label 1", {EXmplsLabelID, OFFmplsLabel1, SIZEmplsLabel1, 0}, IS_MPLS_LBL, NULL},
+    {"mpls2", "MPLS label 2", {EXmplsLabelID, OFFmplsLabel2, SIZEmplsLabel2, 0}, IS_MPLS_LBL, NULL},
+    {"mpls3", "MPLS label 3", {EXmplsLabelID, OFFmplsLabel3, SIZEmplsLabel3, 0}, IS_MPLS_LBL, NULL},
+    {"mpls4", "MPLS label 4", {EXmplsLabelID, OFFmplsLabel4, SIZEmplsLabel4, 0}, IS_MPLS_LBL, NULL},
+    {"mpls5", "MPLS label 5", {EXmplsLabelID, OFFmplsLabel5, SIZEmplsLabel5, 0}, IS_MPLS_LBL, NULL},
+    {"mpls6", "MPLS label 6", {EXmplsLabelID, OFFmplsLabel6, SIZEmplsLabel6, 0}, IS_MPLS_LBL, NULL},
+    {"mpls7", "MPLS label 7", {EXmplsLabelID, OFFmplsLabel7, SIZEmplsLabel7, 0}, IS_MPLS_LBL, NULL},
+    {"mpls8", "MPLS label 8", {EXmplsLabelID, OFFmplsLabel8, SIZEmplsLabel8, 0}, IS_MPLS_LBL, NULL},
+    {"mpls9", "MPLS label 9", {EXmplsLabelID, OFFmplsLabel9, SIZEmplsLabel9, 0}, IS_MPLS_LBL, NULL},
+    {"mpls10", "MPLS label 10", {EXmplsLabelID, OFFmplsLabel10, SIZEmplsLabel10, 0}, IS_MPLS_LBL, NULL},
+    {"cl", "Client Latency", {EXlatencyID, OFFusecClientNwDelay, SIZEusecClientNwDelay, 0}, IS_LATENCY, NULL},
+    {"sl", "Server Latency", {EXlatencyID, OFFusecServerNwDelay, SIZEusecServerNwDelay, 0}, IS_LATENCY, NULL},
+    {"al", "Application Latency", {EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, 0}, IS_LATENCY, NULL},
+    {"nbar", "Nbar", {EXnbarAppID, OFFnbarAppID, SIZEnbarAppID, 0}, IS_NBAR, NULL},
+    {"ja3", "ja3                             ", {JA3index, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3_PreProcess},
+    {"ja4", "ja4                                ", {JA4index, OFFja4String, SIZEja4String + 1, 0}, IS_JA4, JA4_PreProcess},
 #ifdef BUILDJA4
-    {"ja4s", "ja4s                    ", {JA4index, OFFja4String, SIZEja4sString + 1, 0}, IS_JA4S, JA4S},
+    {"ja4s", "ja4s                    ", {JA4index, OFFja4String, SIZEja4sString + 1, 0}, IS_JA4S, JA4S_PreProcess},
 #endif
-    {"odid", "Obs DomainID", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, IS_HEXNUMBER, NOPROC},
-    {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER, NOPROC},
-    {"event", " Event", {EXnselCommonID, OFFfwEvent, SIZEfwEvent, 0}, IS_EVENT, NOPROC},
-    {"xevent", " Event", {EXnselCommonID, OFFfwXevent, SIZEfwXevent, 0}, IS_NUMBER, NOPROC},
-    {"nat", "NAT Event", {EXnelCommonID, OFFnatEvent, SIZEnatEvent, 0}, IS_EVENT, NOPROC},
-    {"xsrcip", "X-Src IP Addr", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR, NOPROC},
-    {"xsrcip", NULL, {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR, NOPROC},
-    {"xdstip", "X-Dst IP Addr", {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR, NOPROC},
-    {"xdstip", NULL, {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, IS_IPADDR, NOPROC},
-    {"xip", "X-IP Addr", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR, NOPROC},
-    {"xip", NULL, {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR, NOPROC},
-    {"xip", NULL, {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR, NOPROC},
-    {"xip", NULL, {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, IS_IPADDR, NOPROC},
-    {"xsrcport", "X-Src Port", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, IS_NUMBER, NOPROC},
-    {"xdstport", "X-Dst Port", {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, IS_NUMBER, NOPROC},
-    {"xport", "X-Port", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, IS_NUMBER, NOPROC},
-    {"xport", NULL, {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, IS_NUMBER, NOPROC},
-    {"iacl", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX, NOPROC},
-    {"eacl", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX, NOPROC},
-    // {"iace", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX, NOPROC},
-    // {"eace", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX, NOPROC},
-    // {"ixace", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX, NOPROC},
-    // {"exace", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX, NOPROC},
-    {"ivrf", "I-vrf ID", {EXvrfID, OFFingressVrf, SIZEingressVrf, 0}, IS_NUMBER, NOPROC},
-    {"evrf", "E-vrf ID", {EXvrfID, OFFegressVrf, SIZEegressVrf, 0}, IS_NUMBER, NOPROC},
+    {"odid", "Obs DomainID", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, IS_HEXNUMBER, NULL},
+    {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER, NULL},
+    {"event", " Event", {EXnselCommonID, OFFfwEvent, SIZEfwEvent, 0}, IS_EVENT, NULL},
+    {"xevent", " Event", {EXnselCommonID, OFFfwXevent, SIZEfwXevent, 0}, IS_NUMBER, NULL},
+    {"nat", "NAT Event", {EXnelCommonID, OFFnatEvent, SIZEnatEvent, 0}, IS_EVENT, NULL},
+    {"xsrcip", "X-Src IP Addr", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR, NULL},
+    {"xsrcip", NULL, {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR, NULL},
+    {"xdstip", "X-Dst IP Addr", {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR, NULL},
+    {"xdstip", NULL, {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, IS_IPADDR, NULL},
+    {"xip", "X-IP Addr", {EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR, NULL},
+    {"xip", NULL, {EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR, NULL},
+    {"xip", NULL, {EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR, NULL},
+    {"xip", NULL, {EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, AF_INET6}, IS_IPADDR, NULL},
+    {"xsrcport", "X-Src Port", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, IS_NUMBER, NULL},
+    {"xdstport", "X-Dst Port", {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, IS_NUMBER, NULL},
+    {"xport", "X-Port", {EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0}, IS_NUMBER, NULL},
+    {"xport", NULL, {EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0}, IS_NUMBER, NULL},
+    {"iacl", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX, NULL},
+    {"eacl", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX, NULL},
+    // {"iace", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX, NULL},
+    // {"eace", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX, NULL},
+    // {"ixace", "Ingress ACL", {EXnselAclID, OFFingressAcl, SIZEingressAcl, 0}, IS_HEX, NULL},
+    // {"exace", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX, NULL},
+    {"ivrf", "I-vrf ID", {EXvrfID, OFFingressVrf, SIZEingressVrf, 0}, IS_NUMBER, NULL},
+    {"evrf", "E-vrf ID", {EXvrfID, OFFegressVrf, SIZEegressVrf, 0}, IS_NUMBER, NULL},
 
-    {NULL, NULL, {0, 0, 0, 0}, 0, NOPROC}};
+    {NULL, NULL, {0, 0, 0, 0}, 0, NULL}};
 
 // key for element stat
 typedef struct hashkey_s {
@@ -491,95 +498,146 @@ int SetElementStat(char *elementStat, char *orderBy) {
 
 }  // End of SetElementStat
 
-static inline void *PreProcess(void *inPtr, preprocess_t process, recordHandle_t *recordHandle) {
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+static inline void *SRC_GEO_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
-    switch (process) {
-        case NOPROC:
-            return inPtr;
-            break;
-        case SRC_GEO: {
-            char *geo = (char *)inPtr;
-            if (HasGeoDB == 0 || geo[0]) return inPtr;
-            if (ipv4Flow)
-                LookupV4Country(ipv4Flow->srcAddr, geo);
-            else if (ipv6Flow)
-                LookupV6Country(ipv6Flow->srcAddr, geo);
-        } break;
-        case DST_GEO: {
-            char *geo = (char *)inPtr;
-            if (HasGeoDB == 0 || geo[0]) return inPtr;
-            if (ipv4Flow)
-                LookupV4Country(ipv4Flow->dstAddr, inPtr);
-            else if (ipv6Flow)
-                LookupV6Country(ipv6Flow->dstAddr, inPtr);
-        } break;
-        case SRC_AS: {
-            uint32_t *as = (uint32_t *)inPtr;
-            if (HasGeoDB == 0 || *as) return inPtr;
-            *as = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->srcAddr) : 0);
-        } break;
-        case DST_AS: {
-            uint32_t *as = (uint32_t *)inPtr;
-            if (HasGeoDB == 0 || *as) return inPtr;
-            *as = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->dstAddr) : 0);
-        } break;
-        case PREV_AS: {
-        } break;
-        case NEXT_AS: {
-        } break;
-        case JA3: {
-            const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
-            if (payload == NULL || genericFlow->proto != IPPROTO_TCP || inPtr) return inPtr;
-
-            ssl_t *ssl = recordHandle->extensionList[SSLindex];
-            if (ssl == NULL) {
-                uint32_t payloadLength = ExtensionLength(payload);
-                ssl = sslProcess(payload, payloadLength);
-                recordHandle->extensionList[SSLindex] = ssl;
-                if (ssl == NULL) {
-                    return NULL;
-                }
-            }
-            // ssl is defined
-            char *ja3 = ja3Process(ssl, NULL);
-            recordHandle->extensionList[JA3index] = ja3;
-            return ja3;
-        } break;
-        case JA4:
-        case JA4S: {
-            EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
-            if (payload == NULL || genericFlow->proto != IPPROTO_TCP) return NULL;
-
-            ssl_t *ssl = recordHandle->extensionList[SSLindex];
-            if (ssl == NULL) {
-                uint32_t payloadLength = ExtensionLength(payload);
-                ssl = sslProcess(payload, payloadLength);
-                recordHandle->extensionList[SSLindex] = ssl;
-                if (ssl == NULL) {
-                    return NULL;
-                }
-            }
-            // ssl is defined
-            ja4_t *ja4 = NULL;
-            if (process == JA4 && ssl->type == CLIENTssl) {
-                ja4 = ja4Process(ssl, genericFlow->proto);
-            } else if (process == JA4S && ssl->type == SERVERssl) {
-                ja4 = ja4sProcess(ssl, genericFlow->proto);
-            } else {
-                return NULL;
-            }
-
-            recordHandle->extensionList[JA4index] = ja4;
-            return ja4;
-
-        } break;
-    }
+    char *geo = (char *)inPtr + OFFgeoSrcIP;
+    if (HasGeoDB == 0 || geo[0]) return inPtr;
+    if (ipv4Flow)
+        LookupV4Country(ipv4Flow->srcAddr, geo);
+    else if (ipv6Flow)
+        LookupV6Country(ipv6Flow->srcAddr, geo);
 
     return inPtr;
-}  // End of PreProcess
+}  // End of SRC_GEO_PreProcess
+
+static inline void *DST_GEO_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    char *geo = (char *)inPtr + OFFgeoDstIP;
+    if (HasGeoDB == 0 || geo[0]) return inPtr;
+    if (ipv4Flow)
+        LookupV4Country(ipv4Flow->dstAddr, inPtr);
+    else if (ipv6Flow)
+        LookupV6Country(ipv6Flow->dstAddr, inPtr);
+
+    return inPtr;
+}  // End of DST_GEO_PreProcess
+
+static inline void *SRC_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
+
+    if (asRouting == NULL) {
+        // map AS extension to slack space
+        inPtr = (void *)recordHandle->localStack;
+        recordHandle->extensionList[EXasRoutingID] = inPtr;
+        asRouting = (EXasRouting_t *)inPtr;
+    }
+
+    if (HasGeoDB == 0 || asRouting->srcAS) return inPtr;
+    asRouting->srcAS = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->srcAddr) : 0);
+
+    return inPtr;
+}  // End of SRC_AS_PreProcess
+
+static inline void *DST_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    EXasRouting_t *asRouting = (EXasRouting_t *)recordHandle->extensionList[EXasRoutingID];
+
+    if (asRouting == NULL) {
+        // map AS extension to slack space
+        inPtr = (void *)recordHandle->localStack;
+        recordHandle->extensionList[EXasRoutingID] = inPtr;
+        asRouting = (EXasRouting_t *)inPtr;
+    }
+
+    if (HasGeoDB == 0 || asRouting->dstAS) return inPtr;
+    asRouting->dstAS = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : (ipv6Flow ? LookupV6AS(ipv6Flow->dstAddr) : 0);
+
+    return inPtr;
+}  // End of DST_AS_PreProcess
+
+static inline void *JA3_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
+    if (payload == NULL || genericFlow->proto != IPPROTO_TCP || inPtr) return inPtr;
+
+    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    if (ssl == NULL) {
+        uint32_t payloadLength = ExtensionLength(payload);
+        ssl = sslProcess(payload, payloadLength);
+        recordHandle->extensionList[SSLindex] = ssl;
+        if (ssl == NULL) {
+            return NULL;
+        }
+    }
+    // ssl is defined
+    char *ja3 = ja3Process(ssl, NULL);
+    recordHandle->extensionList[JA3index] = ja3;
+    return ja3;
+
+}  // End of JA3_PreProcess
+
+static inline void *JA4_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
+    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) return NULL;
+
+    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    if (ssl == NULL) {
+        uint32_t payloadLength = ExtensionLength(payload);
+        ssl = sslProcess(payload, payloadLength);
+        recordHandle->extensionList[SSLindex] = ssl;
+        if (ssl == NULL) {
+            return NULL;
+        }
+    }
+    // ssl is defined
+    ja4_t *ja4 = NULL;
+    if (ssl->type == CLIENTssl) {
+        ja4 = ja4Process(ssl, genericFlow->proto);
+    } else {
+        return NULL;
+    }
+
+    recordHandle->extensionList[JA4index] = ja4;
+    return ja4;
+
+}  // End of JA4_PreProcess
+
+static inline void *JA4S_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
+    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) return NULL;
+
+    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    if (ssl == NULL) {
+        uint32_t payloadLength = ExtensionLength(payload);
+        ssl = sslProcess(payload, payloadLength);
+        recordHandle->extensionList[SSLindex] = ssl;
+        if (ssl == NULL) {
+            return NULL;
+        }
+    }
+    // ssl is defined
+    ja4_t *ja4 = NULL;
+    if (ssl->type == SERVERssl) {
+        ja4 = ja4sProcess(ssl, genericFlow->proto);
+    } else {
+        return NULL;
+    }
+
+    recordHandle->extensionList[JA4index] = ja4;
+    return ja4;
+
+}  // End of JA4S_PreProcess
 
 void AddElementStat(recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
@@ -596,21 +654,16 @@ void AddElementStat(recordHandle_t *recordHandle) {
             size_t offset = StatParameters[index].element.offset;
 
             void *inPtr = recordHandle->extensionList[extID];
-            if (inPtr == NULL) {
-                if (extID <= MAXEXTENSIONS) {
-                    index++;
-                    continue;
-                }
+            func_preproc preproc = StatParameters[index].preprocess;
+            if (preproc) {
+                inPtr = preproc(inPtr, recordHandle);
             }
-
-            preprocess_t lookup = StatParameters[index].preprocess;
-            inPtr = PreProcess(inPtr, lookup, recordHandle);
             if (inPtr == NULL) {
                 index++;
                 continue;
             }
-
             inPtr += offset;
+
             uint32_t length = StatParameters[index].element.length;
             switch (length) {
                 case 0:
@@ -973,19 +1026,22 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                     }
                     if (Getv6Mode() && (type == IS_IPADDR)) {
                         printf(
-                            "Date first seen             Duration     Proto %39s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      bps   "
+                            "Date first seen             Duration     Proto %39s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
+                            "bps   "
                             "bpp\n",
                             StatParameters[stat].HeaderInfo);
                     } else {
                         if (outputParams->hasGeoDB) {
                             printf(
-                                "Date first seen             Duration     Proto %21s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
+                                "Date first seen             Duration     Proto %21s    Flows(%%)     Packets(%%)       Bytes(%%)         pps    "
+                                "  "
                                 "bps   "
                                 "bpp\n",
                                 StatParameters[stat].HeaderInfo);
                         } else {
                             printf(
-                                "Date first seen             Duration     Proto %17s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
+                                "Date first seen             Duration     Proto %17s    Flows(%%)     Packets(%%)       Bytes(%%)         pps    "
+                                "  "
                                 "bps   "
                                 "bpp\n",
                                 StatParameters[stat].HeaderInfo);
