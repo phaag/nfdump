@@ -102,13 +102,13 @@ static void *JA4S_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 /*
  *
  */
-struct StatParameter_s {
+static struct StatParameter_s {
     char *statname;           // name of -s option
     char *HeaderInfo;         // How to name the field in the output header line
     flow_element_t element;   // what element in flow record is used for statistics.
     elementType_t type;       // Type of element: Number, IP address, MAC address etc.
     func_preproc preprocess;  // function to pre-process data
-} StatParameters[] = {
+} const StatParameters[] = {
     // flow record stat
     {"record", "", {0, 0, 0, 0}, 0},
 
@@ -263,27 +263,27 @@ static inline uint64_t bps_element(StatRecord_t *record, flowDir_t inout);
 static inline uint64_t bpp_element(StatRecord_t *record, flowDir_t inout);
 
 static struct orderByTable_s {
-    char *string;                            // Stat name
-    flowDir_t inout;                         // use IN or OUT or INOUT packets/bytes
-    order_proc_element_t element_function;   // Function to call for element stats
-} orderByTable[] = {{"-", 0, null_element},  // empty entry 0
-                    {"flows", IN, flows_element},
-                    {"packets", INOUT, packets_element},
-                    {"ipkg", IN, packets_element},
-                    {"opkg", OUT, packets_element},
-                    {"bytes", INOUT, bytes_element},
-                    {"ibyte", IN, bytes_element},
-                    {"obyte", OUT, bytes_element},
-                    {"pps", INOUT, pps_element},
-                    {"ipps", IN, pps_element},
-                    {"opps", OUT, pps_element},
-                    {"bps", INOUT, bps_element},
-                    {"ibps", IN, bps_element},
-                    {"obps", OUT, bps_element},
-                    {"bpp", INOUT, bpp_element},
-                    {"ibpp", IN, bpp_element},
-                    {"obpp", OUT, bpp_element},
-                    {NULL, 0, NULL}};
+    char *string;                                  // Stat name
+    flowDir_t inout;                               // use IN or OUT or INOUT packets/bytes
+    order_proc_element_t element_function;         // Function to call for element stats
+} const orderByTable[] = {{"-", 0, null_element},  // empty entry 0
+                          {"flows", IN, flows_element},
+                          {"packets", INOUT, packets_element},
+                          {"ipkg", IN, packets_element},
+                          {"opkg", OUT, packets_element},
+                          {"bytes", INOUT, bytes_element},
+                          {"ibyte", IN, bytes_element},
+                          {"obyte", OUT, bytes_element},
+                          {"pps", INOUT, pps_element},
+                          {"ipps", IN, pps_element},
+                          {"opps", OUT, pps_element},
+                          {"bps", INOUT, bps_element},
+                          {"ibps", IN, bps_element},
+                          {"obps", OUT, bps_element},
+                          {"bpp", INOUT, bpp_element},
+                          {"ibpp", IN, bpp_element},
+                          {"obpp", OUT, bpp_element},
+                          {NULL, 0, NULL}};
 
 #define MaxStats 8
 static struct StatRequest_s {
