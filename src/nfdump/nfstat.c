@@ -97,7 +97,9 @@ static void *SRC_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *DST_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *JA3_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *JA4_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+#ifdef BUILDJA4
 static void *JA4S_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+#endif
 
 /*
  *
@@ -611,6 +613,7 @@ static inline void *JA4_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
 
 }  // End of JA4_PreProcess
 
+#ifdef BUILDJA4
 static inline void *JA4S_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
@@ -638,6 +641,7 @@ static inline void *JA4S_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     return ja4;
 
 }  // End of JA4S_PreProcess
+#endif
 
 void AddElementStat(recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];

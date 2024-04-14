@@ -534,7 +534,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
 
     // number of flows passed the filter
-    uint32_t numBlocks = 0;
+    dbg(uint32_t numBlocks = 0);
     int done = 0;
     while (!done) {
         dataHandle_t *dataHandle = queue_pop(filterArgs.processQueue);
@@ -543,7 +543,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
             continue;
         }
 
-        numBlocks++;
+        dbg(numBlocks++);
         dataBlock_t *dataBlock = dataHandle->dataBlock;
         record_header_t *record_ptr = GetCursor(dataBlock);
 

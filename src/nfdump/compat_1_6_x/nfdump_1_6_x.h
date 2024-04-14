@@ -37,10 +37,6 @@
 #include "nffileV2.h"
 #include "nfxV3.h"
 
-// forward declaration
-typedef struct exporter_info_record_s exporter_info_record_t;
-typedef struct extension_map_s extension_map_t;
-
 void ConvertBlockType2(dataBlock_t *v2DataBlock, dataBlock_t *v3DataBlock);
 
 #endif  //_NFDUMP_H

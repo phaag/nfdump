@@ -29,24 +29,20 @@
  *
  */
 
+#include "nfx.h"
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "config.h"
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfx.h"
 #include "util.h"
 
 /* global vars */
@@ -54,7 +50,7 @@
 /*
  * see nffile.h for detailed extension description
  */
-extension_descriptor_t extension_descriptor[] = {
+static extension_descriptor_t const extension_descriptor[] = {
     // fill indices 0 - 3
     {COMMON_BLOCK_ID, 0, 0, 1, "Required extension: Common record"},
     {EX_IPv4v6, 0, 0, 1, "Required extension: IPv4/IPv6 src/dst address"},

@@ -39,7 +39,7 @@
 #include "nfx.h"
 #include "util.h"
 
-extension_map_list_t *extension_map_list = NULL;
+static extension_map_list_t *extension_map_list = NULL;
 
 static inline int ConvertRecordV2(common_record_t *commonRecord, dataBlock_t *dataBlock);
 
@@ -445,7 +445,6 @@ static inline int ConvertRecordV2(common_record_t *commonRecord, dataBlock_t *da
 void ConvertBlockType2(dataBlock_t *v2DataBlock, dataBlock_t *v3DataBlock) {
     record_header_t *v2record_ptr = GetCursor(v2DataBlock);
     uint32_t sumSize = 0;
-    uint32_t commonRecords = 0;
     for (int i = 0; i < v2DataBlock->NumRecords; i++) {
         if ((sumSize + v2record_ptr->size) > v2DataBlock->size || (v2record_ptr->size < sizeof(record_header_t))) {
             LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
@@ -456,7 +455,6 @@ void ConvertBlockType2(dataBlock_t *v2DataBlock, dataBlock_t *v3DataBlock) {
         switch (v2record_ptr->type) {
             case CommonRecordType: {
                 ConvertRecordV2((common_record_t *)v2record_ptr, v3DataBlock);
-                commonRecords++;
             } break;
             case ExtensionMapType: {
                 InitCompat16();
