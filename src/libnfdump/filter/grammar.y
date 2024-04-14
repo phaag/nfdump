@@ -1468,12 +1468,13 @@ static int AddPFNumber(char *type, uint16_t comp, uint64_t number) {
 
 static int AddIP(direction_t direction, char *IPstr) {
 
-	int lookupMode = 0;
+	int lookupMode = STRICT_IP;
 	switch ( direction ) {
 			case DIR_SRC:
 			case DIR_DST:
 			case DIR_UNSPEC:
 				lookupMode = ALLOW_LOOKUP;
+				break;
 			default:
 				lookupMode = STRICT_IP;
 	} // End of switch

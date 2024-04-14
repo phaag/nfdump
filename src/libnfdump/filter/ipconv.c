@@ -158,7 +158,7 @@ static int lookup_host(const char *hostname, ipStack_t *ipStack) {
             // fprintf(stderr, "Failed to reverse lookup %s: %s\n", addrstr, gai_strerror(errcode));
         }
 
-        dbg_printf("IPv%d address: %s (%s)\n", res->ai_family == PF_INET6 ? 6 : 4, addrstr, reverse);
+        printf("IPv%d address: %s (%s)\n", res->ai_family == PF_INET6 ? 6 : 4, addrstr, reverse);
         res = res->ai_next;
         numIP++;
     }
