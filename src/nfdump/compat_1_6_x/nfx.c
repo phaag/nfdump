@@ -249,7 +249,6 @@ int Insert_Extension_Map(extension_map_list_t *extension_map_list, extension_map
         l->ref_count = 0;
         l->next = NULL;
         l->exportMap = NULL;
-        memset((void *)&l->master_record, 0, sizeof(master_record_t));
 
         l->map = (extension_map_t *)malloc((ssize_t)map->size);
         if (!l->map) {

@@ -933,7 +933,6 @@ typedef struct extension_info_s {
     extension_map_t *exportMap;
     uint32_t ref_count;
     uint32_t *offset_cache;
-    master_record_t master_record;
 } extension_info_t;
 
 typedef struct extension_map_list_s {
