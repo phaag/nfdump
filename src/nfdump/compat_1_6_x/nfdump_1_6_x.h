@@ -37,8 +37,4 @@
 #include "nffileV2.h"
 #include "nfxV3.h"
 
-// forward declaration
-// typedef struct exporter_info_record_s exporter_info_record_t;
-// typedef struct extension_map_s extension_map_t;
-
-#endif  //_NFDUMP_H
+#endif  // _NFDUMP_1_6_x_H

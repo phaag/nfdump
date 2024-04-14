@@ -28,6 +28,8 @@
  *
  */
 
+static extension_map_list_t *extension_map_list = NULL;
+
 static inline record_header_t *ConvertRecordV2(recordHandle_t *handle, common_record_t *input_record, uint32_t flowCount);
 
 #define MapExtension(extID, p) handle->extensionList[extID] = (void *)(p)

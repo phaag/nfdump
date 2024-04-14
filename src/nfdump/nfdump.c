@@ -61,7 +61,7 @@
 #include "nbar.h"
 #include "netflow_v5_v7.h"
 #include "netflow_v9.h"
-#include "nfdump_1_6_x.h"
+// #include "nfdump_1_6_x.h"
 #include "nffile.h"
 #include "nflowcache.h"
 #include "nfnet.h"
@@ -81,8 +81,6 @@ static uint32_t processed = 0;
 static uint32_t passed = 0;
 static uint32_t skipped_blocks = 0;
 static uint64_t t_first_flow, t_last_flow;
-
-extension_map_list_t *extension_map_list;
 
 enum processType { FLOWSTAT = 1, ELEMENTSTAT, ELEMENTFLOWSTAT, SORTRECORDS, WRITEFILE, PRINTRECORD };
 
@@ -304,6 +302,10 @@ static stat_record_t process_data(void *engine, int processwMode, char *wfile, R
                 goto SKIP;
                 break;
             case DATA_BLOCK_TYPE_2:
+                // auto init old extension maps
+                if (extension_map_list == NULL) {
+                    extension_map_list = InitExtensionMaps(NEEDS_EXTENSION_LIST);
+                }
             case DATA_BLOCK_TYPE_3:
                 // processed blocks
                 break;
@@ -851,11 +853,6 @@ int main(int argc, char **argv) {
 
     if (!flow_stat && aggregate_mask) {
         aggregate = 1;
-    }
-
-    extension_map_list = InitExtensionMaps(NEEDS_EXTENSION_LIST);
-    if (!InitExporterList()) {
-        exit(EXIT_FAILURE);
     }
 
     if (tstring) {
