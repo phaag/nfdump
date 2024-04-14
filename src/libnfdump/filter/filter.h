@@ -156,6 +156,8 @@ void *CompileFilter(char *FilterSyntax);
 
 void DisposeFilter(void *engine);
 
+void *FilterCloneEngine(void *engine);
+
 void FilterSetParam(void *engine, const char *ident, const int hasGeoDB);
 
 int FilterRecord(const void *engine, recordHandle_t *handle);

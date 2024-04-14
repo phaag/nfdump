@@ -598,6 +598,18 @@ void FilterSetParam(void *engine, const char *ident, const int hasGeoDB) {
     filterEngine->ident = ident;
 }  // End of FilterSetParam
 
+void *FilterCloneEngine(void *engine) {
+    FilterEngine_t *filterEngine = malloc(sizeof(FilterEngine_t));
+    if (!filterEngine) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    memcpy((void *)filterEngine, engine, sizeof(FilterEngine_t));
+    if (filterEngine->ident) filterEngine->ident = strdup(filterEngine->ident);
+
+    return (void *)filterEngine;
+}  // End of FilterCloneEngine
+
 int FilterRecord(const void *engine, recordHandle_t *handle) {
     FilterEngine_t *filterEngine = (FilterEngine_t *)engine;
     return filterEngine->filterFunction(filterEngine, handle);
