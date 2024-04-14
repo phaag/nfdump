@@ -531,7 +531,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         dataBlock_w = WriteBlock(nffile_w, NULL);
     }
 
-    recordHandle_t *recordHandle = malloc(sizeof(recordHandle_t));
+    recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
 
     // number of flows passed the filter
     uint32_t numBlocks = 0;
@@ -563,8 +563,9 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                     // check if filter matched
                     if (TestFlag(recordHeaderV3->flags, V3_FLAG_PASSED) == 0) goto NEXT;
 
+                    // clear filter flag after use
+                    ClearFlag(recordHeaderV3->flags, V3_FLAG_PASSED);
                     totalRecords++;
-                    memset((void *)recordHandle, 0, sizeof(recordHandle_t));
                     MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, recordCounter);
                     // check if we are done, if -c option was set
                     if (limitRecords) abortProcessing = totalRecords >= limitRecords;
