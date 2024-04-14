@@ -57,6 +57,7 @@ typedef struct queue_s {
     size_t mask;
     unsigned next_free;
     unsigned next_avail;
+    int producers;
     _Atomic unsigned c_wait;
     _Atomic unsigned p_wait;
     size_t num_elements;
@@ -66,6 +67,8 @@ typedef struct queue_s {
 } queue_t;
 
 queue_t *queue_init(size_t length);
+
+void queue_producers(queue_t *queue, unsigned producers);
 
 void queue_free(queue_t *queue);
 

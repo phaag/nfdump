@@ -77,7 +77,7 @@ static char *tmString(time_t time, char *buff, size_t len) {
 }
 
 static void printTorNode(torNode_t *node) {
-    char first[32], last[32], published[32];
+    char first[64], last[64], published[64];
     char ip[32];
     uint32_t torIP = ntohl(node->ipaddr);
     inet_ntop(PF_INET, &torIP, ip, sizeof(ip));
