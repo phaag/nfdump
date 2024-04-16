@@ -423,11 +423,10 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
                     break;
                 case V3Record: {
                     recordHeaderV3_t *recordHeaderV3 = (recordHeaderV3_t *)record_ptr;
-                    MapRecordHandle(recordHandle, recordHeaderV3, recordCounter);
+                    int match = MapRecordHandle(recordHandle, recordHeaderV3, recordCounter);
                     // Time based filter
                     // if no time filter is given, the result is always true
-                    int match = 1;
-                    if (timeWindow) {
+                    if (timeWindow && match) {
                         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
                         if (genericFlow) {
                             match = (genericFlow->msecFirst > twin_msecFirst && genericFlow->msecLast < twin_msecLast);
