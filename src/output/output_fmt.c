@@ -619,8 +619,14 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
 
     duration = 0;
     if (genericFlow && genericFlow->msecLast) {
-        duration = (genericFlow->msecLast - genericFlow->msecFirst) / 1000.0;
+        if (genericFlow->msecLast >= genericFlow->msecFirst) {
+            duration = (genericFlow->msecLast - genericFlow->msecFirst) / 1000.0;
+        } else {
+            LogError("Record: %u Time error - last < first", recordHandle->flowCount);
+            duration = 0;
+        }
     }
+
     for (int i = 0; i < token_index; i++) {
         if (token_list[i].string_function) {
             token_list[i].string_function(stream, recordHandle);
