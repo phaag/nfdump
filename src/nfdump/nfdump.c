@@ -334,19 +334,20 @@ static stat_record_t process_data(void *engine, int processwMode, char *wfile, R
             switch (record_ptr->type) {
                 case V3Record:
                 case CommonRecordType: {
+                    int match;
                     if (__builtin_expect(record_ptr->type == CommonRecordType, 0)) {
                         dbg_printf("Convert nfdump 1.6.x v2 record\n");
                         // ConvertRecordV2 also maps recordHandle
                         process_ptr = ConvertRecordV2(recordHandle, (common_record_t *)record_ptr, ++processed);
                         if (!process_ptr) goto NEXT;
+                        match = 1;
                     } else {
-                        MapRecordHandle(recordHandle, (recordHeaderV3_t *)process_ptr, ++processed);
+                        match = MapRecordHandle(recordHandle, (recordHeaderV3_t *)process_ptr, ++processed);
                     }
 
                     // Time based filter
                     // if no time filter is given, the result is always true
-                    int match = 1;
-                    if (timeWindow) {
+                    if (timeWindow && match) {
                         EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
                         if (genericFlow) {
                             match = (genericFlow->msecFirst > twin_msecFirst && genericFlow->msecLast < twin_msecLast);
