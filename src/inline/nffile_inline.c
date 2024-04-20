@@ -41,17 +41,24 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
     memset((void *)handle, 0, sizeof(recordHandle_t));
     handle->recordHeaderV3 = recordHeaderV3;
 
+    void *eor = (void *)recordHeaderV3 + recordHeaderV3->size;
+
     elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t));
     // map all extensions
     for (int i = 0; i < recordHeaderV3->numElements; i++) {
+        if ((void *)elementHeader > eor) {
+            LogError("Mapping record: %u - Error - element %d out of bounds", flowCount, i);
+            return 0;
+        }
         if (elementHeader->length == 0 || elementHeader->type == 0) {
-            LogInfo("Corrupt extension Type: %u with Length: %u", elementHeader->type, elementHeader->length);
+            LogInfo("Mapping record: %u - Corrupt extension %d Type: %u with Length: %u", flowCount, i, elementHeader->type, elementHeader->length);
             return 0;
         }
         if (elementHeader->type < MAXEXTENSIONS) {
             handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
         } else {
-            LogInfo("Skip unknown extension Type: %u, Length: %u", elementHeader->type, elementHeader->length);
+            LogInfo("Mapping record: %u - Skip unknown extension %d Type: %u, Length: %u", flowCount, i, elementHeader->type, elementHeader->length);
+            DumpHex(stdout, (void *)recordHeaderV3, recordHeaderV3->size);
         }
         elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
     }
