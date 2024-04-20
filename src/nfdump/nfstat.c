@@ -50,7 +50,7 @@
 #include "config.h"
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
-#include "khash.h"
+#include "map.h"
 #include "maxmind/maxmind.h"
 #include "nfdump.h"
 #include "nfxV3.h"
@@ -78,18 +78,12 @@ typedef enum {
 
 typedef enum { DESCENDING = 0, ASCENDING } direction_t;
 
-typedef struct flow_element_s {
-    uint32_t extID;   // extension ID
-    uint32_t offset;  // offset in extension
-    uint32_t length;  // size of element in bytes
-    uint32_t af;      // af family, or 0 if not applicable
-} flow_element_t;
-
-typedef struct SortElement {
-    void *record;
-    uint64_t count;
-} SortElement_t;
-
+/*
+ * pre-process functions:
+ * Elements, to be ordered by, which are no available in the raw flow record
+ * need be be calculated first from the raw record handle.
+ * The same is true for values, which need a Maxmind lookup.
+ */
 typedef void *(*func_preproc)(void *inPtr, recordHandle_t *);
 static void *SRC_GEO_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *DST_GEO_PreProcess(void *inPtr, recordHandle_t *recordHandle);
@@ -101,9 +95,13 @@ static void *JA4_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *JA4S_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 #endif
 
-/*
- *
- */
+typedef struct flow_element_s {
+    uint32_t extID;   // extension ID
+    uint32_t offset;  // offset in extension
+    uint32_t length;  // size of element in bytes
+    uint32_t af;      // af family, or 0 if not applicable
+} flow_element_t;
+
 static struct StatParameter_s {
     char *statname;           // name of -s option
     char *HeaderInfo;         // How to name the field in the output header line
@@ -224,18 +222,18 @@ static struct StatParameter_s {
 
     {NULL, NULL, {0, 0, 0, 0}, 0, NULL}};
 
-// key for element stat
+// key record in hash for element stat
 typedef struct hashkey_s {
     union {
-        void *ptr;
-        khint64_t v0;
+        void *ptr;   // ptr if ptrSize != 0
+        int64_t v0;  // int64_t value if ptrSize = 0
     };
-    khint64_t v1;
-    uint8_t proto;
-    uint8_t ptrSize;
+    int64_t v1;       // 2x64bit value v0, v1. 0 otherwise
+    uint8_t proto;    // protocol
+    uint8_t ptrSize;  // size of ptr for larger keys
 } hashkey_t;
 
-// khash record for element stat
+// value record in hash for element stat
 typedef struct StatRecord {
     uint64_t msecFirst;
     uint64_t msecLast;
@@ -244,47 +242,53 @@ typedef struct StatRecord {
     uint64_t outBytes;
     uint64_t outPackets;
     uint64_t flows;
-
-    // add key for output processing
-    hashkey_t hashkey;
 } StatRecord_t;
 
 /*
- * pps, bps and bpp are not directly available in the flow/stat record
- * therefore we need a function to calculate these values
+ * orderby functions:
+ * retrieve or calculate value, records want to be ordered by.
  */
 typedef enum flowDir { IN = 0, OUT, INOUT } flowDir_t;
-typedef uint64_t (*order_proc_element_t)(StatRecord_t *, flowDir_t);
+typedef uint64_t (*order_proc_element_t)(StatRecord_t *);
 
-static inline uint64_t null_element(StatRecord_t *record, flowDir_t inout);
-static inline uint64_t flows_element(StatRecord_t *record, flowDir_t inout);
-static inline uint64_t packets_element(StatRecord_t *record, flowDir_t inout);
-static inline uint64_t bytes_element(StatRecord_t *record, flowDir_t inout);
-static inline uint64_t pps_element(StatRecord_t *record, flowDir_t inout);
-static inline uint64_t bps_element(StatRecord_t *record, flowDir_t inout);
-static inline uint64_t bpp_element(StatRecord_t *record, flowDir_t inout);
+static uint64_t order_bytes_in(StatRecord_t *record);
+static uint64_t order_bytes_out(StatRecord_t *record);
+static uint64_t order_bytes_inout(StatRecord_t *record);
+static uint64_t order_packets_in(StatRecord_t *record);
+static uint64_t order_packets_out(StatRecord_t *record);
+static uint64_t order_packets_inout(StatRecord_t *record);
+static uint64_t order_flows_element(StatRecord_t *record);
+static uint64_t order_pps_in(StatRecord_t *record);
+static uint64_t order_pps_out(StatRecord_t *record);
+static uint64_t order_pps_inout(StatRecord_t *record);
+static uint64_t order_bps_in(StatRecord_t *record);
+static uint64_t order_bps_out(StatRecord_t *record);
+static uint64_t order_bps_inout(StatRecord_t *record);
+static uint64_t order_bpp_in(StatRecord_t *record);
+static uint64_t order_bpp_out(StatRecord_t *record);
+static uint64_t order_bpp_inout(StatRecord_t *record);
 
 static struct orderByTable_s {
-    char *string;                                  // Stat name
-    flowDir_t inout;                               // use IN or OUT or INOUT packets/bytes
-    order_proc_element_t element_function;         // Function to call for element stats
-} const orderByTable[] = {{"-", 0, null_element},  // empty entry 0
-                          {"flows", IN, flows_element},
-                          {"packets", INOUT, packets_element},
-                          {"ipkg", IN, packets_element},
-                          {"opkg", OUT, packets_element},
-                          {"bytes", INOUT, bytes_element},
-                          {"ibyte", IN, bytes_element},
-                          {"obyte", OUT, bytes_element},
-                          {"pps", INOUT, pps_element},
-                          {"ipps", IN, pps_element},
-                          {"opps", OUT, pps_element},
-                          {"bps", INOUT, bps_element},
-                          {"ibps", IN, bps_element},
-                          {"obps", OUT, bps_element},
-                          {"bpp", INOUT, bpp_element},
-                          {"ibpp", IN, bpp_element},
-                          {"obpp", OUT, bpp_element},
+    char *string;                           // Stat name
+    flowDir_t inout;                        // use IN or OUT or INOUT packets/bytes
+    order_proc_element_t element_function;  // Function to call for element stats
+} const orderByTable[] = {{"-", 0, NULL},   // empty entry 0
+                          {"flows", IN, order_flows_element},
+                          {"packets", INOUT, order_packets_inout},
+                          {"ipkg", IN, order_packets_in},
+                          {"opkg", OUT, order_packets_out},
+                          {"bytes", INOUT, order_bytes_inout},
+                          {"ibyte", IN, order_bytes_in},
+                          {"obyte", OUT, order_bytes_out},
+                          {"pps", INOUT, order_pps_inout},
+                          {"ipps", IN, order_pps_in},
+                          {"opps", OUT, order_pps_out},
+                          {"bps", INOUT, order_bps_inout},
+                          {"ibps", IN, order_bps_in},
+                          {"obps", OUT, order_bps_out},
+                          {"bpp", INOUT, order_bpp_inout},
+                          {"ibpp", IN, order_bpp_in},
+                          {"obpp", OUT, order_bpp_out},
                           {NULL, 0, NULL}};
 
 #define MaxStats 8
@@ -299,95 +303,150 @@ static uint32_t NumStats = 0;  // number of stats in StatRequest
 
 static int HasGeoDB = 0;
 
-// definitions for khash element stat
-#define kh_key_hash_func(key) (khint32_t)((key.v1) >> 33 ^ (key.v1) ^ (key.v1) << 11)
+// key.v1 is always set as 64bit value.
+#define key_hash_func(key) (int32_t)((key.v1) >> 33 ^ (key.v1) ^ (key.v1) << 11)
 
 // up to 16 bytes (hashkey.v0, hashkey.v1) use faster compare.
 // if > 16 bytes ( ptrSize != 0 ) use memcmp for var length
-#define kh_key_hash_equal(a, b)                                                              \
+#define key_hash_equal(a, b)                                                                 \
     ((a).ptrSize == 0 ? (((a).v1 == (b).v1) && ((a).v0 == (b).v0) && (a).proto == (b).proto) \
                       : ((a).ptrSize == (b).ptrSize && memcmp((a).ptr, (b).ptr, (a).ptrSize) == 0))
 
-KHASH_INIT(ElementHash, hashkey_t, StatRecord_t, 1, kh_key_hash_func, kh_key_hash_equal)
+MAP_DEFINE_H(ElementHash, elementHash, hashkey_t, StatRecord_t)
 
-static khash_t(ElementHash) * ElementKHash[MaxStats];
+MAP_DEFINE_C(ElementHash, elementHash, hashkey_t, StatRecord_t, key_hash_func, key_hash_equal)
+
+static ElementHash *ElementHashes[MaxStats];
+
+typedef struct SortElement {
+    ElementHashCell *hashCell;
+    uint64_t count;
+} SortElement_t;
 
 /* function prototypes */
 static int ParseListOrder(char *orderBy, struct StatRequest_s *request);
 
-static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, StatRecord_t *StatData, int type, int order_proto, int inout);
+static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, ElementHashCell *hashCell, int type, int order_proto, int inout);
 
-static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout);
+static void PrintCvsStatLine(stat_record_t *stat, int printPlain, ElementHashCell *hashCell, int type, int order_proto, int tag, int inout);
 
 static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, direction_t direction);
 
 #include "heapsort_inline.c"
 #include "memhandle.c"
 
-static uint64_t null_element(StatRecord_t *record, flowDir_t inout) { return 0; }
+static uint64_t order_flows_element(StatRecord_t *record) { return record->flows; }
 
-static uint64_t flows_element(StatRecord_t *record, flowDir_t inout) { return record->flows; }
+static uint64_t order_bytes_in(StatRecord_t *record) { return record->inBytes; }
 
-static uint64_t packets_element(StatRecord_t *record, flowDir_t inout) {
-    if (inout == IN)
-        return record->inPackets;
-    else if (inout == OUT)
-        return record->outPackets;
-    else
-        return record->inPackets + record->outPackets;
-}
+static uint64_t order_bytes_out(StatRecord_t *record) { return record->outBytes; }
 
-static uint64_t bytes_element(StatRecord_t *record, flowDir_t inout) {
-    if (inout == IN)
-        return record->inBytes;
-    else if (inout == OUT)
-        return record->outBytes;
-    else
-        return record->inBytes + record->outBytes;
-}
+static uint64_t order_bytes_inout(StatRecord_t *record) { return record->inBytes + record->outBytes; }
 
-static uint64_t pps_element(StatRecord_t *record, flowDir_t inout) {
-    uint64_t duration;
-    uint64_t packets;
+static uint64_t order_packets_in(StatRecord_t *record) { return record->inPackets; }
 
+static uint64_t order_packets_out(StatRecord_t *record) { return record->outPackets; }
+
+static uint64_t order_packets_inout(StatRecord_t *record) { return record->inPackets + record->outPackets; }
+
+static uint64_t order_pps_in(StatRecord_t *record) {
     /* duration in msec */
-    duration = record->msecLast ? record->msecLast - record->msecFirst : 0;
+    uint64_t duration = record->msecLast ? record->msecLast - record->msecFirst : 0;
     if (duration == 0)
         return 0;
     else {
-        packets = packets_element(record, inout);
+        uint64_t packets = record->inPackets;
         return (1000LL * packets) / duration;
     }
 
-}  // End of pps_element
+}  // End of order_pps_in
 
-static uint64_t bps_element(StatRecord_t *record, flowDir_t inout) {
-    uint64_t duration;
-    uint64_t bytes;
-
-    duration = record->msecLast ? record->msecLast - record->msecFirst : 0;
+static uint64_t order_pps_out(StatRecord_t *record) {
+    /* duration in msec */
+    uint64_t duration = record->msecLast ? record->msecLast - record->msecFirst : 0;
     if (duration == 0)
         return 0;
     else {
-        bytes = bytes_element(record, inout);
+        uint64_t packets = record->outPackets;
+        return (1000LL * packets) / duration;
+    }
+
+}  // order_pps_out
+
+static uint64_t order_pps_inout(StatRecord_t *record) {
+    /* duration in msec */
+    uint64_t duration = record->msecLast ? record->msecLast - record->msecFirst : 0;
+    if (duration == 0)
+        return 0;
+    else {
+        uint64_t packets = record->inPackets + record->outPackets;
+        return (1000LL * packets) / duration;
+    }
+
+}  // End of order_pps_inout
+
+static uint64_t order_bps_in(StatRecord_t *record) {
+    /* duration in msec */
+    uint64_t duration = record->msecLast ? record->msecLast - record->msecFirst : 0;
+    if (duration == 0)
+        return 0;
+    else {
+        uint64_t bytes = record->inBytes;
         return (8000LL * bytes) / duration; /* 8 bits per Octet - x 1000 for msec */
     }
 
-}  // End of bps_element
+}  // End of order_bps_in
 
-static uint64_t bpp_element(StatRecord_t *record, flowDir_t inout) {
-    uint64_t packets = packets_element(record, inout);
-    uint64_t bytes = bytes_element(record, inout);
+static uint64_t order_bps_out(StatRecord_t *record) {
+    /* duration in msec */
+    uint64_t duration = record->msecLast ? record->msecLast - record->msecFirst : 0;
+    if (duration == 0)
+        return 0;
+    else {
+        uint64_t bytes = record->outBytes;
+        return (8000LL * bytes) / duration; /* 8 bits per Octet - x 1000 for msec */
+    }
+
+}  // End of order_bps_out
+
+static uint64_t order_bps_inout(StatRecord_t *record) {
+    /* duration in msec */
+    uint64_t duration = record->msecLast ? record->msecLast - record->msecFirst : 0;
+    if (duration == 0)
+        return 0;
+    else {
+        uint64_t bytes = record->inBytes + record->outBytes;
+        return (8000LL * bytes) / duration; /* 8 bits per Octet - x 1000 for msec */
+    }
+
+}  // End of order_bps_inout
+
+static uint64_t order_bpp_in(StatRecord_t *record) {
+    uint64_t packets = record->inPackets;
+    uint64_t bytes = record->inBytes;
 
     return packets ? bytes / packets : 0;
+}  // End of order_bpp_in
 
-}  // End of bpp_element
+static uint64_t order_bpp_out(StatRecord_t *record) {
+    uint64_t packets = record->outPackets;
+    uint64_t bytes = record->outBytes;
+
+    return packets ? bytes / packets : 0;
+}  // End of order_bpp_out
+
+static uint64_t order_bpp_inout(StatRecord_t *record) {
+    uint64_t packets = record->inPackets + record->outPackets;
+    uint64_t bytes = record->inBytes + record->outBytes;
+
+    return packets ? bytes / packets : 0;
+}  // End of order_bpp_in
 
 int Init_StatTable(int hasGeoDB) {
     if (!nfalloc_Init(8 * 1024 * 1024)) return 0;
 
     for (int i = 0; i < MaxStats; i++) {
-        ElementKHash[i] = kh_init(ElementHash);
+        ElementHashes[i] = elementHash_create();
     }
 
     HasGeoDB = hasGeoDB;
@@ -705,68 +764,69 @@ void AddElementStat(recordHandle_t *recordHandle) {
                 outPackets = cntFlow->outPackets;
                 numFlows = cntFlow->flows ? cntFlow->flows : 1;
             }
-            int ret;
-            khiter_t k = kh_put(ElementHash, ElementKHash[i], hashkey, &ret);
-            if (ret == 0) {
-                kh_value(ElementKHash[i], k).inBytes += genericFlow->inBytes;
-                kh_value(ElementKHash[i], k).inPackets += genericFlow->inPackets;
-                kh_value(ElementKHash[i], k).outBytes += outBytes;
-                kh_value(ElementKHash[i], k).outPackets += outPackets;
 
-                if (genericFlow->msecFirst < kh_value(ElementKHash[i], k).msecFirst) {
-                    kh_value(ElementKHash[i], k).msecFirst = genericFlow->msecFirst;
+            int insert;
+            StatRecord_t *record = elementHash_add(ElementHashes[i], hashkey, &insert);
+            if (insert == 0) {
+                record->inBytes += genericFlow->inBytes;
+                record->inPackets += genericFlow->inPackets;
+                record->outBytes += outBytes;
+                record->outPackets += outPackets;
+
+                if (genericFlow->msecFirst < record->msecFirst) {
+                    record->msecFirst = genericFlow->msecFirst;
                 }
-                if (genericFlow->msecLast > kh_value(ElementKHash[i], k).msecLast) {
-                    kh_value(ElementKHash[i], k).msecLast = genericFlow->msecLast;
+                if (genericFlow->msecLast > record->msecLast) {
+                    record->msecLast = genericFlow->msecLast;
                 }
-                kh_value(ElementKHash[i], k).flows += numFlows;
+                record->flows += numFlows;
 
             } else {
-                kh_value(ElementKHash[i], k).inBytes = genericFlow->inBytes;
-                kh_value(ElementKHash[i], k).inPackets = genericFlow->inPackets;
-                kh_value(ElementKHash[i], k).outBytes = outBytes;
-                kh_value(ElementKHash[i], k).outPackets = outPackets;
-                kh_value(ElementKHash[i], k).msecFirst = genericFlow->msecFirst;
-                kh_value(ElementKHash[i], k).msecLast = genericFlow->msecLast;
-                kh_value(ElementKHash[i], k).flows = numFlows;
-                kh_value(ElementKHash[i], k).hashkey = hashkey;
+                record->inBytes = genericFlow->inBytes;
+                record->inPackets = genericFlow->inPackets;
+                record->outBytes = outBytes;
+                record->outPackets = outPackets;
+                record->msecFirst = genericFlow->msecFirst;
+                record->msecLast = genericFlow->msecLast;
+                record->flows = numFlows;
             }
             index++;
         } while (StatParameters[index].HeaderInfo == NULL);
     }  // for every requested -s stat
 }  // AddElementStat
 
-static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, StatRecord_t *StatData, int type, int order_proto, int inout) {
+static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, ElementHashCell *hashCell, int type, int order_proto, int inout) {
     char valstr[64];
     valstr[0] = '\0';
 
+    hashkey_t *hashKey = &(hashCell->key);
     char tag_string[2] = {'\0', '\0'};
     switch (type) {
         case IS_NULL:
             break;
         case IS_NUMBER:
-            snprintf(valstr, 64, "%llu", (unsigned long long)StatData->hashkey.v1);
+            snprintf(valstr, 64, "%llu", (unsigned long long)hashKey->v1);
             break;
         case IS_HEXNUMBER:
-            snprintf(valstr, 64, "0x%llx", (unsigned long long)StatData->hashkey.v1);
+            snprintf(valstr, 64, "0x%llx", (unsigned long long)hashKey->v1);
             break;
         case IS_IPADDR:
             tag_string[0] = outputParams->doTag ? TAG_CHAR : '\0';
-            if (StatData->hashkey.v0 == 0) {  // IPv4
-                uint32_t ipv4 = htonl(StatData->hashkey.v1);
+            if (hashKey->v0 == 0) {  // IPv4
+                uint32_t ipv4 = htonl(hashKey->v1);
                 if (outputParams->hasGeoDB) {
                     char ipstr[16], country[4] = {0};
                     inet_ntop(AF_INET, &ipv4, ipstr, sizeof(ipstr));
-                    LookupV4Country(StatData->hashkey.v1, country);
+                    LookupV4Country(hashKey->v1, country);
                     snprintf(valstr, 40, "%s(%s)", ipstr, country);
                 } else {
                     inet_ntop(AF_INET, &ipv4, valstr, sizeof(valstr));
                 }
             } else {  // IPv6
-                uint64_t _key[2] = {htonll(StatData->hashkey.v0), htonll(StatData->hashkey.v1)};
+                uint64_t _key[2] = {htonll(hashKey->v0), htonll(hashKey->v1)};
                 if (outputParams->hasGeoDB) {
                     char ipstr[40], country[4] = {0};
-                    uint64_t ip[2] = {StatData->hashkey.v0, StatData->hashkey.v1};
+                    uint64_t ip[2] = {hashKey->v0, hashKey->v1};
                     LookupV6Country(ip, country);
                     inet_ntop(AF_INET6, _key, ipstr, sizeof(ipstr));
                     if (!Getv6Mode()) CondenseV6(ipstr);
@@ -780,20 +840,20 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
         case IS_MACADDR: {
             uint8_t mac[6];
             for (int i = 0; i < 6; i++) {
-                mac[i] = ((unsigned long long)StatData->hashkey.v1 >> (i * 8)) & 0xFF;
+                mac[i] = ((unsigned long long)hashKey->v1 >> (i * 8)) & 0xFF;
             }
             snprintf(valstr, 64, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
         } break;
         case IS_MPLS_LBL: {
-            snprintf(valstr, 64, "%llu", (unsigned long long)StatData->hashkey.v1);
-            snprintf(valstr, 64, "%8llu-%1llu-%1llu", (unsigned long long)StatData->hashkey.v1 >> 4,
-                     ((unsigned long long)StatData->hashkey.v1 & 0xF) >> 1, (unsigned long long)StatData->hashkey.v1 & 1);
+            snprintf(valstr, 64, "%llu", (unsigned long long)hashKey->v1);
+            snprintf(valstr, 64, "%8llu-%1llu-%1llu", (unsigned long long)hashKey->v1 >> 4, ((unsigned long long)hashKey->v1 & 0xF) >> 1,
+                     (unsigned long long)hashKey->v1 & 1);
         } break;
         case IS_LATENCY: {
-            snprintf(valstr, 64, "      %9.3f", (double)((double)StatData->hashkey.v1 / 1000.0));
+            snprintf(valstr, 64, "      %9.3f", (double)((double)hashKey->v1 / 1000.0));
         } break;
         case IS_EVENT: {
-            long long unsigned event = StatData->hashkey.v1;
+            long long unsigned event = hashKey->v1;
             char *s;
             switch (event) {
                 case 0:
@@ -814,14 +874,14 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
             snprintf(valstr, 64, "      %6s", s);
         } break;
         case IS_HEX: {
-            snprintf(valstr, 64, "0x%llx", (unsigned long long)StatData->hashkey.v1);
+            snprintf(valstr, 64, "0x%llx", (unsigned long long)hashKey->v1);
         } break;
         case IS_NBAR: {
             union {
                 uint8_t val8[4];
                 uint32_t val32;
             } conv;
-            conv.val32 = StatData->hashkey.v1;
+            conv.val32 = hashKey->v1;
             uint8_t u = conv.val8[0];
             conv.val8[0] = 0;
             /*
@@ -835,18 +895,33 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
         case IS_JA3:
         case IS_JA4:
         case IS_JA4S: {
-            char *s = (char *)StatData->hashkey.ptr;
+            char *s = (char *)hashKey->ptr;
             strcpy(valstr, s);
         } break;
         case IS_GEO: {
-            snprintf(valstr, 64, "%s", (char *)&(StatData->hashkey.v1));
+            snprintf(valstr, 64, "%s", (char *)&(hashKey->v1));
         }
     }
     valstr[63] = 0;
 
+    StatRecord_t *StatData = &(hashCell->value);
     uint64_t count_flows = StatData->flows;
-    uint64_t count_packets = packets_element(StatData, inout);
-    uint64_t count_bytes = bytes_element(StatData, inout);
+    uint64_t count_packets = 0;
+    uint64_t count_bytes = 0;
+    switch (inout) {
+        case IN:
+            count_packets = StatData->inPackets;
+            count_bytes = StatData->inBytes;
+            break;
+        case OUT:
+            count_packets = StatData->outPackets;
+            count_bytes = StatData->outBytes;
+            break;
+        case INOUT:
+            count_packets = StatData->inPackets + StatData->outPackets;
+            count_bytes = StatData->inBytes + StatData->outBytes;
+            break;
+    }
     numStr flows_str, byte_str, packets_str;
     format_number(count_flows, flows_str, outputParams->printPlain, FIXED_WIDTH);
     format_number(count_packets, packets_str, outputParams->printPlain, FIXED_WIDTH);
@@ -893,7 +968,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
     char datestr[64];
     strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
-    char *protoStr = order_proto ? ProtoString(StatData->hashkey.proto, outputParams->printPlain) : "any";
+    char *protoStr = order_proto ? ProtoString(hashKey->proto, outputParams->printPlain) : "any";
     char dStr[64];
     if (outputParams->printPlain)
         snprintf(dStr, 64, "%16.3f", duration);
@@ -917,25 +992,26 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sta
 
 }  // End of PrintStatLine
 
-static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *StatData, int type, int order_proto, int tag, int inout) {
+static void PrintCvsStatLine(stat_record_t *stat, int printPlain, ElementHashCell *hashCell, int type, int order_proto, int tag, int inout) {
     char valstr[40];
 
+    hashkey_t *hashKey = &(hashCell->key);
     switch (type) {
         case IS_NULL:
             break;
         case IS_NUMBER:
-            snprintf(valstr, 40, "%llu", (unsigned long long)StatData->hashkey.v1);
+            snprintf(valstr, 40, "%llu", (unsigned long long)hashKey->v1);
             break;
         case IS_IPADDR:
-            if (StatData->hashkey.v0 != 0) {  // IPv6
+            if (hashKey->v0 != 0) {  // IPv6
                 uint64_t _key[2];
-                _key[0] = htonll(StatData->hashkey.v0);
-                _key[1] = htonll(StatData->hashkey.v1);
+                _key[0] = htonll(hashKey->v0);
+                _key[1] = htonll(hashKey->v1);
                 inet_ntop(AF_INET6, _key, valstr, sizeof(valstr));
 
             } else {  // IPv4
                 uint32_t ipv4;
-                ipv4 = htonl(StatData->hashkey.v1);
+                ipv4 = htonl(hashKey->v1);
                 inet_ntop(AF_INET, &ipv4, valstr, sizeof(valstr));
             }
             break;
@@ -943,23 +1019,37 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *
             int i;
             uint8_t mac[6];
             for (i = 0; i < 6; i++) {
-                mac[i] = ((unsigned long long)StatData->hashkey.v1 >> (i * 8)) & 0xFF;
+                mac[i] = ((unsigned long long)hashKey->v1 >> (i * 8)) & 0xFF;
             }
             snprintf(valstr, 40, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
         } break;
         case IS_MPLS_LBL: {
-            snprintf(valstr, 40, "%llu", (unsigned long long)StatData->hashkey.v1);
-            snprintf(valstr, 40, "%8llu-%1llu-%1llu", (unsigned long long)StatData->hashkey.v1 >> 4,
-                     ((unsigned long long)StatData->hashkey.v1 & 0xF) >> 1, (unsigned long long)StatData->hashkey.v1 & 1);
+            snprintf(valstr, 40, "%llu", (unsigned long long)hashKey->v1);
+            snprintf(valstr, 40, "%8llu-%1llu-%1llu", (unsigned long long)hashKey->v1 >> 4, ((unsigned long long)hashKey->v1 & 0xF) >> 1,
+                     (unsigned long long)hashKey->v1 & 1);
         } break;
     }
 
     valstr[39] = 0;
 
+    StatRecord_t *StatData = &(hashCell->value);
     uint64_t count_flows = StatData->flows;
-    uint64_t count_packets = packets_element(StatData, inout);
-    uint64_t count_bytes = bytes_element(StatData, inout);
-
+    uint64_t count_packets = 0;
+    uint64_t count_bytes = 0;
+    switch (inout) {
+        case IN:
+            count_packets = StatData->inPackets;
+            count_bytes = StatData->inBytes;
+            break;
+        case OUT:
+            count_packets = StatData->outPackets;
+            count_bytes = StatData->outBytes;
+            break;
+        case INOUT:
+            count_packets = StatData->inPackets + StatData->outPackets;
+            count_bytes = StatData->inBytes + StatData->outBytes;
+            break;
+    }
     double flows_percent = stat->numflows ? (double)(count_flows * 100) / (double)stat->numflows : 0;
     double packets_percent = stat->numpackets ? (double)(count_packets * 100) / (double)stat->numpackets : 0;
     double bytes_percent = stat->numbytes ? (double)(count_bytes * 100) / (double)stat->numbytes : 0;
@@ -1000,7 +1090,7 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, StatRecord_t *
     strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
     printf("%s,%s,%.3f,%s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n", datestr1, datestr2, duration,
-           order_proto ? ProtoString(StatData->hashkey.proto, printPlain) : "any", valstr, (long long unsigned)count_flows, flows_percent,
+           order_proto ? ProtoString(hashKey->proto, printPlain) : "any", valstr, (long long unsigned)count_flows, flows_percent,
            (long long unsigned)count_packets, packets_percent, (long long unsigned)count_bytes, bytes_percent, (long long unsigned)pps,
            (long long unsigned)bps, bpp);
 
@@ -1079,11 +1169,11 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                 while (index != endIndex) {
                     switch (outputParams->mode) {
                         case MODE_PLAIN:
-                            PrintStatLine(sum_stat, outputParams, (StatRecord_t *)topN_element_list[index].record, type,
-                                          StatRequest[hash_num].order_proto, orderByTable[order_index].inout);
+                            PrintStatLine(sum_stat, outputParams, topN_element_list[index].hashCell, type, StatRequest[hash_num].order_proto,
+                                          orderByTable[order_index].inout);
                             break;
                         case MODE_CSV:
-                            PrintCvsStatLine(sum_stat, outputParams->printPlain, (StatRecord_t *)topN_element_list[index].record, type,
+                            PrintCvsStatLine(sum_stat, outputParams->printPlain, topN_element_list[index].hashCell, type,
                                              StatRequest[hash_num].order_proto, outputParams->doTag, orderByTable[order_index].inout);
                             break;
                         case MODE_JSON:
@@ -1099,38 +1189,34 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
             }
         }  // for every requested order
     }      // for every requested -s stat do
+
 }  // End of PrintElementStat
 
 static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, direction_t direction) {
-    SortElement_t *topN_list;
-    uint32_t c, maxindex;
-
-    maxindex = kh_size(ElementKHash[hash_num]);
-    dbg_printf("StatTopN sort %u records\n", maxindex);
-    topN_list = (SortElement_t *)calloc(maxindex, sizeof(SortElement_t));
+    uint32_t numCells = elementHash_count(ElementHashes[hash_num]);
+    dbg_printf("StatTopN sort %u records\n", numCells);
+    SortElement_t *topN_list = (SortElement_t *)calloc(numCells, sizeof(SortElement_t));
 
     if (!topN_list) {
         perror("Can't allocate Top N lists: \n");
         return NULL;
     }
 
-    // preset topN_list table - still unsorted
-    c = 0;
-    // Iterate through all buckets
-    for (khiter_t k = kh_begin(ElementKHash[hash_num]); k != kh_end(ElementKHash[hash_num]); ++k) {  // traverse
-        if (kh_exist(ElementKHash[hash_num], k)) {
-            StatRecord_t *r = &kh_value(ElementKHash[hash_num], k);
-            topN_list[c].count = orderByTable[order].element_function(r, orderByTable[order].inout);
-            topN_list[c].record = (void *)r;
-            c++;
-        }
+    uint32_t c = 0;
+    for (uint32_t map_iter_i = 0; map_iter_i < ElementHashes[hash_num]->capacity; map_iter_i++) {
+        if (!ElementHashes[hash_num]->cells[map_iter_i].active) continue;
+        ElementHashCell *hashCell = &(ElementHashes[hash_num]->cells[map_iter_i]);
+        topN_list[c].count = orderByTable[order].element_function(&(hashCell->value));
+        dbg_printf("Get next hashCell. count: %llu\n", topN_list[c].count);
+        topN_list[c].hashCell = hashCell;
+        c++;
     }
 
     *count = c;
     dbg_printf("Sort %u flows\n", c);
 
 #ifdef DEVEL
-    for (int i = 0; i < maxindex; i++) printf("%i, %llu %p\n", i, topN_list[i].count, topN_list[i].record);
+    for (int i = 0; i < numCells; i++) printf("%i, %llu %p\n", i, topN_list[i].count, topN_list[i].hashCell);
 #endif
 
     // Sorting makes only sense, when 2 or more flows are left
@@ -1142,7 +1228,7 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
     }
 
 #ifdef DEVEL
-    for (int i = 0; i < maxindex; i++) printf("%i, %llu %llx\n", i, topN_list[i].count, (unsigned long long)topN_list[i].record);
+    for (int i = 0; i < numCells; i++) printf("%i, %llu %llx\n", i, topN_list[i].count, (unsigned long long)topN_list[i].hashCell);
 #endif
 
     return topN_list;
