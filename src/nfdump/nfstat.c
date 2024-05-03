@@ -585,6 +585,7 @@ static int ParseListOrder(char *orderBy, struct StatRequest_s *request) {
         }
         if (orderByTable[i].string == NULL) {
             LogError("Unknown order option /%s", orderBy);
+            ListPrintOrder();
             return 0;
         }
         request->orderBy |= (1 << i);
@@ -640,12 +641,12 @@ int SetElementStat(char *elementStat, char *orderBy) {
 
     if (StatParameters[i].statname == NULL) {
         LogError("Unknown statistic: %s", elementStat);
+        ListStatTypes();
         return 0;
     }
 
     // check if one or more orders are given
     if (ParseListOrder(orderBy, request) == 0) {
-        LogError("Unknown statistic option /%s in %s", orderBy, elementStat);
         return 0;
     }
 
@@ -1336,11 +1337,12 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
 }  // End of StatTopN
 
 void ListPrintOrder(void) {
-    printf("Available print order:\n");
-    for (int i = 0; orderByTable[i].string != NULL; i++) {
-        printf("%s ", orderByTable[i].string);
+    printf("Available print order:");
+    for (int i = 1; orderByTable[i].string != NULL; i++) {
+        if (((i - 1) & 0x7) == 0) printf("\n");
+        printf(" %-9s", orderByTable[i].string);
     }
-    printf("- See also nfdump(1)\n");
+    printf("\n See also nfdump(1)\n");
 }  // End of ListPrintOrder
 
 void ListStatTypes(void) {
@@ -1348,13 +1350,13 @@ void ListStatTypes(void) {
     printf("Available element statistics:");
     for (int i = 0; StatParameters[i].statname != NULL; i++) {
         if ((cnt & 0x7) == 0) {
-            cnt++;
             printf("\n");
+            cnt++;
         }
         if (StatParameters[i].HeaderInfo) {
             cnt++;
-            printf("%s ", StatParameters[i].statname);
+            printf(" %-9s ", StatParameters[i].statname);
         };
     }
-    printf("- See also nfdump(1)\n");
+    printf("\n See also nfdump(1)\n");
 }  // End of ListStatTypes

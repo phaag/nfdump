@@ -934,6 +934,15 @@ static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationEle
 
 }  // End of ApplyNetMaskBits
 
+void ListAggregationHelp(void) {
+    printf("Available aggregation fields:");
+    for (int i = 0; aggregationTable[i].aggrElement != NULL; i++) {
+        if ((i & 0x7) == 0) printf("\n");
+        printf("%-9s ", aggregationTable[i].aggrElement);
+    }
+    printf("\nSee also nfdump(1)\n");
+}  // End of ListAggregationHelp
+
 int Init_FlowCache(int hasGeoDB) {
     if (!nfalloc_Init(0)) return 0;
 

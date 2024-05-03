@@ -127,6 +127,8 @@ int Parse_PrintOrder(char *order);
 
 char *ParseAggregateMask(char *arg);
 
+void ListAggregationHelp(void);
+
 int SetBidirAggregation(void);
 
 int SetRecordStat(char *statType, char *optOrder);

@@ -225,8 +225,6 @@ static int SetStat(char *str, int *element_stat, int *flow_stat) {
         if (SetElementStat(statType, optOrder)) {
             *element_stat = 1;
             ret = 1;
-        } else {
-            LogError("Failed to parse element stat option: %s", str);
         }
     }
 
@@ -658,7 +656,6 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, 64);
                 stat_type = optarg;
                 if (!SetStat(stat_type, &element_stat, &flow_stat)) {
-                    ListStatTypes();
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -955,6 +952,7 @@ int main(int argc, char **argv) {
         // custom aggregation mask overwrites any output format
         print_format = ParseAggregateMask(aggr_fmt);
         if (!print_format) {
+            ListAggregationHelp();
             exit(EXIT_FAILURE);
         }
     }
