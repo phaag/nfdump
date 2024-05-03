@@ -154,14 +154,12 @@ static struct aggregationElement_s {
 // for -O <sort> next points to next record in list
 typedef struct FlowHashRecord {
     recordHeaderV3_t *flowrecord;  // orig flow record for printing
-    union {
-        struct FlowHashRecord *next;  // record chain for flow list
-        uint8_t *hashkey;             // hash key for flow hash - check for swap
-    };
+    struct FlowHashRecord *next;   // record chain for flow list, unused otherwise
 
     uint8_t inFlags;   // tcp in flags
     uint8_t outFlags;  // tcp out flags XXX unused currently
-                       // 6 bytes padding unused
+    uint8_t swap;      // swap flow direction, when printed
+    uint8_t align;     // align 32bit
 
     // time info in msec
     uint64_t msecFirst;  // overall first seen timestamp
@@ -554,7 +552,7 @@ static uint32_t bidir_flows = 0;
      ((((r)->srcPort < 1024) && ((r)->dstPort >= 1024)) || (((r)->srcPort < 32768) && ((r)->dstPort >= 32768)) || \
       (((r)->srcPort < 49152) && ((r)->dstPort >= 49152))))
 
-static inline int NeedSwap(int GuessDir, void *genericFlowKey);
+static inline int NeedSwap(void *genericFlowKey);
 
 static SortElement_t *GetSortList(size_t *size);
 
@@ -565,11 +563,11 @@ static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationEle
 static void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
                           RecordPrinter_t print_record, int ascending);
 
-static inline int NeedSwap(int GuessDir, void *genericFlowKey) {
-    if (GuessDir == 0) return 0;
+static inline int NeedSwap(void *genericFlowKey) {
+    if (likely(GuessDirection == 0)) return 0;
 
     uint16_t *af = (uint16_t *)genericFlowKey;
-    if (*af == AF_INET) {
+    if (likely(*af == AF_INET)) {
         FlowKeyV4_t *flowKey = (FlowKeyV4_t *)genericFlowKey;
         if ((flowKey->proto == IPPROTO_TCP || flowKey->proto == IPPROTO_UDP) &&
             (((flowKey->srcPort < 1024) && (flowKey->dstPort >= 1024)) || ((flowKey->srcPort < 32768) && (flowKey->dstPort >= 32768)) ||
@@ -577,7 +575,7 @@ static inline int NeedSwap(int GuessDir, void *genericFlowKey) {
             return 1;
         else
             return 0;
-    } else {
+    } else if (*af == AF_INET6) {
         FlowKeyV6_t *flowKey = (FlowKeyV6_t *)genericFlowKey;
         if ((flowKey->proto == IPPROTO_TCP || flowKey->proto == IPPROTO_UDP) &&
             (((flowKey->srcPort < 1024) && (flowKey->dstPort >= 1024)) || ((flowKey->srcPort < 32768) && (flowKey->dstPort >= 32768)) ||
@@ -585,25 +583,18 @@ static inline int NeedSwap(int GuessDir, void *genericFlowKey) {
             return 1;
         else
             return 0;
-    }
+    } else
+        return 0;
 }  // End of NeedSwap
 
 static uint64_t order_flows(FlowHashRecord_t *record) { return record->flows; }
 
 static uint64_t order_packets_in(FlowHashRecord_t *record) {
-    if (NeedSwap(GuessDirection, record->hashkey)) {
-        return record->outPackets;
-    } else {
-        return record->inPackets;
-    }
+    return unlikely(record->swap) ? record->outPackets : record->inPackets;
 }  // End of order_packets_in
 
 static uint64_t order_packets_out(FlowHashRecord_t *record) {
-    if (NeedSwap(GuessDirection, record->hashkey)) {
-        return record->inPackets;
-    } else {
-        return record->outPackets;
-    }
+    return unlikely(record->swap) ? record->inPackets : record->outPackets;
 }  // End of order_packets_out
 
 static uint64_t order_packets_inout(FlowHashRecord_t *record) {
@@ -612,19 +603,13 @@ static uint64_t order_packets_inout(FlowHashRecord_t *record) {
 }  // End of order_packets_inout
 
 static uint64_t order_bytes_in(FlowHashRecord_t *record) {
-    if (NeedSwap(GuessDirection, record->hashkey)) {
-        return record->outBytes;
-    } else {
-        return record->inBytes;
-    }
+    //
+    return unlikely(record->swap) ? record->outBytes : record->inBytes;
 }  // End of order_bytes_in
 
 static uint64_t order_bytes_out(FlowHashRecord_t *record) {
-    if (NeedSwap(GuessDirection, record->hashkey)) {
-        return record->inBytes;
-    } else {
-        return record->outBytes;
-    }
+    //
+    return unlikely(record->swap) ? record->inBytes : record->outBytes;
 }  // End of order_bytes_out
 
 static uint64_t order_bytes_inout(FlowHashRecord_t *record) {
@@ -634,7 +619,7 @@ static uint64_t order_bytes_inout(FlowHashRecord_t *record) {
 
 static uint64_t order_pps_in(FlowHashRecord_t *record) {
     /* duration in msec */
-    if (record->msecLast == 0) return 0;
+    if (unlikely(record->msecLast == 0)) return 0;
 
     uint64_t duration = record->msecLast - record->msecFirst;
     uint64_t packets = record->inPackets;
@@ -644,7 +629,7 @@ static uint64_t order_pps_in(FlowHashRecord_t *record) {
 
 static uint64_t order_pps_out(FlowHashRecord_t *record) {
     /* duration in msec */
-    if (record->msecLast == 0) return 0;
+    if (unlikely(record->msecLast == 0)) return 0;
 
     uint64_t duration = record->msecLast - record->msecFirst;
     uint64_t packets = record->outPackets;
@@ -654,7 +639,7 @@ static uint64_t order_pps_out(FlowHashRecord_t *record) {
 
 static uint64_t order_pps_inout(FlowHashRecord_t *record) {
     /* duration in msec */
-    if (record->msecLast == 0) return 0;
+    if (unlikely(record->msecLast == 0)) return 0;
 
     uint64_t duration = record->msecLast - record->msecFirst;
     uint64_t packets = record->inPackets + record->outPackets;
@@ -664,7 +649,7 @@ static uint64_t order_pps_inout(FlowHashRecord_t *record) {
 
 static uint64_t order_bps_in(FlowHashRecord_t *record) {
     /* duration in msec */
-    if (record->msecLast == 0) return 0;
+    if (unlikely(record->msecLast == 0)) return 0;
 
     uint64_t duration = record->msecLast - record->msecFirst;
     uint64_t bytes = record->inBytes;
@@ -674,7 +659,7 @@ static uint64_t order_bps_in(FlowHashRecord_t *record) {
 
 static uint64_t order_bps_out(FlowHashRecord_t *record) {
     /* duration in msec */
-    if (record->msecLast == 0) return 0;
+    if (unlikely(record->msecLast == 0)) return 0;
 
     uint64_t duration = record->msecLast - record->msecFirst;
     uint64_t bytes = record->outBytes;
@@ -684,7 +669,7 @@ static uint64_t order_bps_out(FlowHashRecord_t *record) {
 
 static uint64_t order_bps_inout(FlowHashRecord_t *record) {
     /* duration in msec */
-    if (record->msecLast == 0) return 0;
+    if (unlikely(record->msecLast == 0)) return 0;
 
     uint64_t duration = record->msecLast - record->msecFirst;
     uint64_t bytes = record->inBytes + record->outBytes;
@@ -1354,7 +1339,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         }
         memcpy((void *)p, record, record->size);
         flowHash->records[index].flowrecord = p;
-        flowHash->records[index].hashkey = *keymem;
+        flowHash->records[index].swap = NeedSwap(*keymem);
 
         // keymen got part of the cache
         *keymem = NULL;
@@ -1408,7 +1393,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
             }
             memcpy((void *)p, record, record->size);
             flowHash->records[index].flowrecord = p;
-            flowHash->records[index].hashkey = *keymem;
+            flowHash->records[index].swap = NeedSwap(*keymem);
 
             // keymen got part of the cache
             *keymem = NULL;
@@ -1502,12 +1487,10 @@ void AddFlowCache(recordHandle_t *recordHandle) {
 
         flowHash->records[index].msecFirst = genericFlow->msecFirst;
         flowHash->records[index].msecLast = genericFlow->msecLast;
-
+        flowHash->records[index].swap = NeedSwap(*keymem);
         void *p = nfmalloc(record->size);
         memcpy((void *)p, record, record->size);
         flowHash->records[index].flowrecord = p;
-        flowHash->records[index].hashkey = *keymem;
-        // keymen got part of the cache
         *keymem = NULL;
     }
 
@@ -1592,7 +1575,7 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
             cntFlow->flows = flowRecord->flows;
         }
 
-        if (NeedSwapGeneric(GuessFlowDirection, genericFlow)) {
+        if (unlikely(NeedSwapGeneric(GuessFlowDirection, genericFlow))) {
             EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
             SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, flowMisc, cntFlow, asRouting);
         }
@@ -1660,7 +1643,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
             cntFlow->flows = flowRecord->flows;
         }
 
-        if (NeedSwapGeneric(GuessFlowDirection, genericFlow)) {
+        if (unlikely(NeedSwapGeneric(GuessFlowDirection, genericFlow))) {
             EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle.extensionList[EXipv4FlowID];
             EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle.extensionList[EXipv6FlowID];
             EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle.extensionList[EXflowMiscID];
