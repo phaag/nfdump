@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2020, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,18 +31,17 @@
 #ifndef _BLOCKSORT_H
 #define _BLOCKSORT_H 1
 
+#include <stdint.h>
 #include <sys/types.h>
 
-#include "config.h"
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
-typedef struct SortRecord {
+// generic sort type
+// count - value to be sorted
+// record - ptr to flow/stat reocrd
+typedef struct SortElement_s {
     void *record;
     uint64_t count;
-} SortRecord_t;
+} SortElement_t;
 
-void blocksort(SortRecord_t *data, int len);
+void blocksort(SortElement_t *data, int len);
 
 #endif  //_BLOCKSORT_H

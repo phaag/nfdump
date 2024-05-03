@@ -117,6 +117,7 @@ static void nfalloc_free(void) {
     MemHandler->MaxBlocks = 0;
     free((void *)MemHandler);
 
+    MemHandler = NULL;
 }  // End of nfalloc_free
 
 static inline void *nfmalloc(size_t size) {

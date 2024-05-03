@@ -156,12 +156,10 @@ extension_map_list_t *InitExtensionMaps(int AllocateList) {
 }  // End of InitExtensionMaps
 
 void FreeExtensionMaps(extension_map_list_t *extension_map_list) {
-    extension_info_t *l;
-
     if (extension_map_list == NULL) return;
 
     // free all extension infos
-    l = extension_map_list->map_list;
+    extension_info_t *l = extension_map_list->map_list;
     while (l) {
         extension_info_t *tmp = l;
         l = l->next;

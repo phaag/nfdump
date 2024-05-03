@@ -472,6 +472,7 @@ static stat_record_t process_data(void *engine, int processwMode, char *wfile, R
         DisposeFile(nffile_w);
     }
 
+    free(recordHandle);
     FreeDataBlock(dataBlock_r);
     DisposeFile(nffile_r);
     return stat_record;

@@ -40,6 +40,8 @@
 #include "nffile.h"
 #include "output.h"
 
+#define InitFlowHashBits 23
+
 #define SwapFlow(r)                              \
     {                                            \
         uint64_t _tmp_ip[2];                     \

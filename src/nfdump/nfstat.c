@@ -50,7 +50,6 @@
 #include "config.h"
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
-#include "map.h"
 #include "maxmind/maxmind.h"
 #include "nfdump.h"
 #include "nfxV3.h"
@@ -235,6 +234,7 @@ typedef struct hashkey_s {
 
 // value record in hash for element stat
 typedef struct StatRecord {
+    hashkey_t *hashkey;
     uint64_t msecFirst;
     uint64_t msecLast;
     uint64_t inBytes;
@@ -299,12 +299,8 @@ static struct StatRequest_s {
     uint8_t order_proto;  // protocol separated statistics
 } StatRequest[MaxStats];  // This number should do it for a single run
 
-static uint32_t NumStats = 0;  // number of stats in StatRequest
-
-static int HasGeoDB = 0;
-
 // key.v1 is always set as 64bit value.
-#define key_hash_func(key) (int32_t)((key.v1) >> 33 ^ (key.v1) ^ (key.v1) << 11)
+#define key_hash_func(key) (int32_t)((key->v1) >> 33 ^ (key->v1) ^ (key->v1) << 11)
 
 // up to 16 bytes (hashkey.v0, hashkey.v1) use faster compare.
 // if > 16 bytes ( ptrSize != 0 ) use memcmp for var length
@@ -312,23 +308,113 @@ static int HasGeoDB = 0;
     ((a).ptrSize == 0 ? (((a).v1 == (b).v1) && ((a).v0 == (b).v0) && (a).proto == (b).proto) \
                       : ((a).ptrSize == (b).ptrSize && memcmp((a).ptr, (b).ptr, (a).ptrSize) == 0))
 
-MAP_DEFINE_H(ElementHash, elementHash, hashkey_t, StatRecord_t)
+typedef struct ElementHashCell {
+    hashkey_t key;
+    uint32_t hash;
+    uint32_t active;
+} ElementHashKey_t;
 
-MAP_DEFINE_C(ElementHash, elementHash, hashkey_t, StatRecord_t, key_hash_func, key_hash_equal)
+typedef struct {
+    StatRecord_t *records;
+    ElementHashKey_t *keys;
+    uint32_t count;
+    uint32_t capacity;
+    uint32_t mask;
+    uint32_t load_factor;
+    uint32_t shift;
+} ElementHash_t;
 
-static ElementHash *ElementHashes[MaxStats];
+// cell index calculation from 32bit hash, depending of hash bit size 'shift'
+#define ___fib_hash(hash, shift) ((hash) * 2654435769U) >> (shift)
 
-typedef struct SortElement {
-    ElementHashCell *hashCell;
-    uint64_t count;
-} SortElement_t;
+static ElementHash_t *ElementHashes[MaxStats] = {0};
+static uint32_t NumStats = 0;  // number of stats in StatRequest
+static int HasGeoDB = 0;
+
+static ElementHash_t *elementHash_init(uint32_t bitSize) {
+    ElementHash_t *elementHash = calloc(1, sizeof(ElementHash_t));
+    if (elementHash == NULL) return NULL;
+
+    elementHash->count = 0;
+    elementHash->shift = bitSize;
+    elementHash->capacity = 1 << (32 - bitSize);
+    elementHash->mask = elementHash->capacity - 1;
+    elementHash->load_factor = elementHash->capacity >> 1;
+
+    elementHash->records = calloc(elementHash->capacity, sizeof(StatRecord_t));
+    elementHash->keys = calloc(elementHash->capacity, sizeof(ElementHashKey_t));
+    if (elementHash->records == NULL) return NULL;
+
+    return elementHash;
+}  // End of elementHash_init
+
+static inline void elementHash_free(ElementHash_t *elementHash) {
+    if (elementHash) {
+        free(elementHash->records);
+        free(elementHash->keys);
+        free(elementHash);
+    }
+}  // End of elementHash_free
+
+static void elementHash_resize(ElementHash_t *elementHash) {
+    int oldCapacity = elementHash->load_factor = elementHash->capacity;
+    elementHash->capacity = 1 << (32 - (--elementHash->shift));
+    elementHash->mask = elementHash->capacity - 1;
+
+    StatRecord_t *oldRecords = elementHash->records;
+    StatRecord_t *newRecords = calloc(elementHash->capacity, sizeof(StatRecord_t));
+
+    ElementHashKey_t *oldKeys = elementHash->keys;
+    ElementHashKey_t *newKeys = calloc(elementHash->capacity, sizeof(ElementHashKey_t));
+    assert(newRecords && newKeys);
+
+    for (int i = 0; i < oldCapacity; i++) {
+        if (oldKeys[i].active) {
+            uint32_t cell = ___fib_hash(oldKeys[i].hash, elementHash->shift);
+            while (newKeys[cell].active) {
+                cell = (cell + 1) & elementHash->mask;
+            }
+            newKeys[cell] = oldKeys[i];
+            newRecords[cell] = oldRecords[i];
+        }
+    }
+    elementHash->records = newRecords;
+    elementHash->keys = newKeys;
+    free(oldRecords);
+    free(oldKeys);
+
+}  // End of elementHash_resize
+
+static StatRecord_t *elementHash_add(ElementHash_t *elementHash, hashkey_t *key, int *insert) {
+    if (elementHash->count == elementHash->load_factor) elementHash_resize(elementHash);
+
+    uint32_t hash = key_hash_func(key);
+    uint32_t cell = ___fib_hash(hash, elementHash->shift);
+    while (true) {
+        if (!elementHash->keys[cell].active) {
+            elementHash->keys[cell].active = 1;
+            elementHash->keys[cell].key = *key;
+            elementHash->keys[cell].hash = hash;
+            elementHash->count++;
+            *insert = 1;
+            return &(elementHash->records[cell]);
+        } else if (elementHash->keys[cell].hash == hash && key_hash_equal(elementHash->keys[cell].key, *key) == 1) {
+            *insert = 0;
+            return &(elementHash->records[cell]);
+        }
+        cell = (cell + 1) & elementHash->mask;
+    }
+
+    // unreached
+    return NULL;
+}
 
 /* function prototypes */
 static int ParseListOrder(char *orderBy, struct StatRequest_s *request);
 
-static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, ElementHashCell *hashCell, int type, int order_proto, int inout);
+static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, SortElement_t *element, int type, int order_proto, int inout);
 
-static void PrintCvsStatLine(stat_record_t *stat, int printPlain, ElementHashCell *hashCell, int type, int order_proto, int tag, int inout);
+static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t *element, int type, int order_proto, int tag, int inout);
 
 static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, direction_t direction);
 
@@ -445,8 +531,9 @@ static uint64_t order_bpp_inout(StatRecord_t *record) {
 int Init_StatTable(int hasGeoDB) {
     if (!nfalloc_Init(8 * 1024 * 1024)) return 0;
 
-    for (int i = 0; i < MaxStats; i++) {
-        ElementHashes[i] = elementHash_create();
+    for (int i = 0; i < NumStats; i++) {
+        ElementHashes[i] = elementHash_init(InitStatHashBits);
+        if (!ElementHashes[i]) return 0;
     }
 
     HasGeoDB = hasGeoDB;
@@ -454,7 +541,14 @@ int Init_StatTable(int hasGeoDB) {
 
 }  // End of Init_StatTable
 
-void Dispose_StatTable(void) { nfalloc_free(); }  // End of Dispose_Tables
+void Dispose_StatTable(void) {
+    for (int i = 0; i < NumStats; i++) {
+        elementHash_free(ElementHashes[i]);
+        ElementHashes[i] = NULL;
+    }
+    nfalloc_free();
+
+}  // End of Dispose_Table
 
 static int ParseListOrder(char *orderBy, struct StatRequest_s *request) {
     request->orderBy = 0;
@@ -766,7 +860,7 @@ void AddElementStat(recordHandle_t *recordHandle) {
             }
 
             int insert;
-            StatRecord_t *record = elementHash_add(ElementHashes[i], hashkey, &insert);
+            StatRecord_t *record = elementHash_add(ElementHashes[i], &hashkey, &insert);
             if (insert == 0) {
                 record->inBytes += genericFlow->inBytes;
                 record->inPackets += genericFlow->inPackets;
@@ -795,11 +889,12 @@ void AddElementStat(recordHandle_t *recordHandle) {
     }  // for every requested -s stat
 }  // AddElementStat
 
-static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, ElementHashCell *hashCell, int type, int order_proto, int inout) {
+static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, SortElement_t *element, int type, int order_proto, int inout) {
     char valstr[64];
     valstr[0] = '\0';
 
-    hashkey_t *hashKey = &(hashCell->key);
+    StatRecord_t *statRecord = (StatRecord_t *)element->record;
+    hashkey_t *hashKey = statRecord->hashkey;
     char tag_string[2] = {'\0', '\0'};
     switch (type) {
         case IS_NULL:
@@ -904,22 +999,21 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Ele
     }
     valstr[63] = 0;
 
-    StatRecord_t *StatData = &(hashCell->value);
-    uint64_t count_flows = StatData->flows;
+    uint64_t count_flows = statRecord->flows;
     uint64_t count_packets = 0;
     uint64_t count_bytes = 0;
     switch (inout) {
         case IN:
-            count_packets = StatData->inPackets;
-            count_bytes = StatData->inBytes;
+            count_packets = statRecord->inPackets;
+            count_bytes = statRecord->inBytes;
             break;
         case OUT:
-            count_packets = StatData->outPackets;
-            count_bytes = StatData->outBytes;
+            count_packets = statRecord->outPackets;
+            count_bytes = statRecord->outBytes;
             break;
         case INOUT:
-            count_packets = StatData->inPackets + StatData->outPackets;
-            count_bytes = StatData->inBytes + StatData->outBytes;
+            count_packets = statRecord->inPackets + statRecord->outPackets;
+            count_bytes = statRecord->inBytes + statRecord->outBytes;
             break;
     }
     numStr flows_str, byte_str, packets_str;
@@ -943,7 +1037,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Ele
 
     uint64_t pps = 0;
     uint64_t bps = 0;
-    double duration = StatData->msecLast ? (StatData->msecLast - StatData->msecFirst) / 1000.0 : 0;
+    double duration = statRecord->msecLast ? (statRecord->msecLast - statRecord->msecFirst) / 1000.0 : 0;
     if (duration != 0) {
         // duration in sec
         pps = (count_packets) / duration;
@@ -959,7 +1053,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Ele
     format_number(pps, pps_str, outputParams->printPlain, FIXED_WIDTH);
     format_number(bps, bps_str, outputParams->printPlain, FIXED_WIDTH);
 
-    time_t first = StatData->msecFirst / 1000LL;
+    time_t first = statRecord->msecFirst / 1000LL;
     struct tm *tbuff = localtime(&first);
     if (!tbuff) {
         LogError("localtime() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
@@ -976,15 +1070,16 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Ele
         snprintf(dStr, 64, "%s", DurationString(duration));
 
     if (Getv6Mode() && (type == IS_IPADDR)) {
-        printf("%s.%03u %9.3f %-5s %s%39s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(StatData->msecFirst % 1000), duration,
-               protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str, bpp);
+        printf("%s.%03u %9.3f %-5s %s%39s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(statRecord->msecFirst % 1000),
+               duration, protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str,
+               bps_str, bpp);
     } else {
         if (outputParams->hasGeoDB) {
-            printf("%s.%03u %9s %-5s %s%21s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(StatData->msecFirst % 1000), dStr,
+            printf("%s.%03u %9s %-5s %s%21s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(statRecord->msecFirst % 1000), dStr,
                    protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str,
                    bpp);
         } else {
-            printf("%s.%03u %9s %-5s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(StatData->msecFirst % 1000), dStr,
+            printf("%s.%03u %9s %-5s %s%17s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(statRecord->msecFirst % 1000), dStr,
                    protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str,
                    bpp);
         }
@@ -992,10 +1087,11 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Ele
 
 }  // End of PrintStatLine
 
-static void PrintCvsStatLine(stat_record_t *stat, int printPlain, ElementHashCell *hashCell, int type, int order_proto, int tag, int inout) {
+static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t *element, int type, int order_proto, int tag, int inout) {
     char valstr[40];
 
-    hashkey_t *hashKey = &(hashCell->key);
+    StatRecord_t *statRecord = (StatRecord_t *)element->record;
+    hashkey_t *hashKey = statRecord->hashkey;
     switch (type) {
         case IS_NULL:
             break;
@@ -1032,29 +1128,28 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, ElementHashCel
 
     valstr[39] = 0;
 
-    StatRecord_t *StatData = &(hashCell->value);
-    uint64_t count_flows = StatData->flows;
+    uint64_t count_flows = statRecord->flows;
     uint64_t count_packets = 0;
     uint64_t count_bytes = 0;
     switch (inout) {
         case IN:
-            count_packets = StatData->inPackets;
-            count_bytes = StatData->inBytes;
+            count_packets = statRecord->inPackets;
+            count_bytes = statRecord->inBytes;
             break;
         case OUT:
-            count_packets = StatData->outPackets;
-            count_bytes = StatData->outBytes;
+            count_packets = statRecord->outPackets;
+            count_bytes = statRecord->outBytes;
             break;
         case INOUT:
-            count_packets = StatData->inPackets + StatData->outPackets;
-            count_bytes = StatData->inBytes + StatData->outBytes;
+            count_packets = statRecord->inPackets + statRecord->outPackets;
+            count_bytes = statRecord->inBytes + statRecord->outBytes;
             break;
     }
     double flows_percent = stat->numflows ? (double)(count_flows * 100) / (double)stat->numflows : 0;
     double packets_percent = stat->numpackets ? (double)(count_packets * 100) / (double)stat->numpackets : 0;
     double bytes_percent = stat->numbytes ? (double)(count_bytes * 100) / (double)stat->numbytes : 0;
 
-    double duration = StatData->msecLast ? (StatData->msecLast - StatData->msecFirst) / 1000.0 : 0;
+    double duration = statRecord->msecLast ? (statRecord->msecLast - statRecord->msecFirst) / 1000.0 : 0;
 
     uint64_t pps, bps;
     if (duration != 0) {
@@ -1071,7 +1166,7 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, ElementHashCel
         bpp = 0;
     }
 
-    time_t when = StatData->msecFirst / 1000;
+    time_t when = statRecord->msecFirst / 1000;
     struct tm *tbuff = localtime(&when);
     if (!tbuff) {
         perror("Error time convert");
@@ -1080,7 +1175,7 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, ElementHashCel
     char datestr1[64];
     strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
-    when = StatData->msecLast / 1000;
+    when = statRecord->msecLast / 1000;
     tbuff = localtime(&when);
     if (!tbuff) {
         perror("Error time convert");
@@ -1169,12 +1264,12 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                 while (index != endIndex) {
                     switch (outputParams->mode) {
                         case MODE_PLAIN:
-                            PrintStatLine(sum_stat, outputParams, topN_element_list[index].hashCell, type, StatRequest[hash_num].order_proto,
+                            PrintStatLine(sum_stat, outputParams, &topN_element_list[index], type, StatRequest[hash_num].order_proto,
                                           orderByTable[order_index].inout);
                             break;
                         case MODE_CSV:
-                            PrintCvsStatLine(sum_stat, outputParams->printPlain, topN_element_list[index].hashCell, type,
-                                             StatRequest[hash_num].order_proto, outputParams->doTag, orderByTable[order_index].inout);
+                            PrintCvsStatLine(sum_stat, outputParams->printPlain, &topN_element_list[index], type, StatRequest[hash_num].order_proto,
+                                             outputParams->doTag, orderByTable[order_index].inout);
                             break;
                         case MODE_JSON:
                             printf("Not yet implemented output format\n");
@@ -1193,26 +1288,31 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
 }  // End of PrintElementStat
 
 static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, direction_t direction) {
-    uint32_t numCells = elementHash_count(ElementHashes[hash_num]);
-    dbg_printf("StatTopN sort %u records\n", numCells);
+    ElementHash_t *elemenHash = ElementHashes[hash_num];
+    uint32_t numCells = elemenHash->count;
+    dbg_printf("StatTopN Hash: capacity: %u, numCells: %u\n", elemenHash->capacity, elemenHash->count);
+
     SortElement_t *topN_list = (SortElement_t *)calloc(numCells, sizeof(SortElement_t));
 
     if (!topN_list) {
-        perror("Can't allocate Top N lists: \n");
+        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
     uint32_t c = 0;
-    for (uint32_t map_iter_i = 0; map_iter_i < ElementHashes[hash_num]->capacity; map_iter_i++) {
-        if (!ElementHashes[hash_num]->cells[map_iter_i].active) continue;
-        ElementHashCell *hashCell = &(ElementHashes[hash_num]->cells[map_iter_i]);
-        topN_list[c].count = orderByTable[order].element_function(&(hashCell->value));
-        dbg_printf("Get next hashCell. count: %llu\n", topN_list[c].count);
-        topN_list[c].hashCell = hashCell;
-        c++;
-    }
+    for (uint32_t i = 0; i < elemenHash->capacity; i++) {
+        if (elemenHash->keys[i].active) {
+            StatRecord_t *record = &(elemenHash->records[i]);
+            topN_list[c].count = orderByTable[order].element_function(record);
+            topN_list[c].record = (void *)record;
+            record->hashkey = &(elemenHash->keys[i].key);
+            c++;
 
-    *count = c;
+            dbg_printf("Get next hashCell. count: %llu\n", topN_list[c].count);
+        }
+    }
+    assert(c == numCells);
+    *count = numCells;
     dbg_printf("Sort %u flows\n", c);
 
 #ifdef DEVEL
@@ -1224,7 +1324,7 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
         if (c < 100)
             heapSort(topN_list, c, topN, DESCENDING);
         else
-            blocksort((SortRecord_t *)topN_list, c);
+            blocksort((SortElement_t *)topN_list, c);
     }
 
 #ifdef DEVEL

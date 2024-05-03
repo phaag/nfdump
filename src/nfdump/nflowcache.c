@@ -176,13 +176,6 @@ typedef struct FlowHashRecord {
 
 } FlowHashRecord_t;
 
-// sorting record
-// count - number to be sorted
-typedef struct SortElement {
-    FlowHashRecord_t *flowRecord;
-    uint64_t count;
-} SortElement_t;
-
 // order functions prototype
 // depending on the order mode -O, the appropriate function
 // returns the value to be sorted - goes into SortElement record
@@ -217,12 +210,13 @@ static inline uint64_t order_duration(FlowHashRecord_t *record);
 
 // printing order definitions
 typedef enum FlowDir { IN = 0, OUT, INOUT } flowDir_t;
-typedef enum PrintDir { DESCENDING = 0, ASCENDING } printDir_t;
 
+#define ASCENDING 1
+#define DESCENDING 0
 static struct order_mode_s {
     char *string;                         // Stat name
     flowDir_t inout;                      // use IN or OUT or INOUT packets/bytes
-    printDir_t direction;                 // ascending or descending
+    int direction;                        // ascending or descending
     order_proc_record_t record_function;  // Function to call, returns sorting value
 } order_mode[] = {{"-", 0, 0, NULL},      // empty entry 0
                   {"flows", IN, DESCENDING, order_flows},
@@ -251,9 +245,9 @@ static int aggregateInfo[MaxAggrStackSize] = {0};
 
 static uint32_t FlowStat_order = 0;  // bit field for multiple print orders
 static uint32_t PrintOrder = 0;      // -O selected print order - index into order_mode
-static uint32_t PrintDirection = 0;  // ascending or descending
-static uint32_t GuessDirection = 0;  // try to guess flow direction for printing
-static uint32_t HasGeoDB = 0;        // GeoDB loaded
+static uint32_t PrintDirection = 0;
+static uint32_t GuessDirection = 0;
+static uint32_t HasGeoDB = 0;
 
 // predefined V6 hash key struct, used in -s record/..
 typedef struct FlowKeyV6_s {
@@ -388,21 +382,21 @@ typedef struct flowHash_s {
 // FlowHash var
 static flowHash_t *flowHash = NULL;
 
-static flowHash_t *flowHash_init(void) {
+static flowHash_t *flowHash_init(uint32_t bitSize) {
     flowHash_t *flowHash = calloc(1, sizeof(flowHash_t));
     if (!flowHash) return NULL;
 
-    // start with capacity 512
-    flowHash->shift = 23;
-    flowHash->capacity = 512;
+    flowHash->shift = bitSize;
+    flowHash->capacity = 1 << (32 - bitSize);
     flowHash->mask = flowHash->capacity - 1;
 
     flowHash->count = 0;
-    flowHash->load_factor = 256;
+    flowHash->load_factor = flowHash->capacity >> 1;
     flowHash->flags = calloc(flowHash->capacity, sizeof(uint8_t));
-    flowHash->cells = calloc(flowHash->capacity, sizeof(FlowHashRecord_t));
+    flowHash->cells = calloc(flowHash->capacity, sizeof(hashValue_t));
     flowHash->records = calloc(flowHash->capacity, sizeof(FlowHashRecord_t));
     return flowHash->cells != NULL && flowHash->flags != NULL ? flowHash : NULL;
+
 }  // End of flowHash_init
 
 static void flowHash_free(void) {
@@ -451,6 +445,7 @@ static inline void flowHash_resize(flowHash_t *flowHash) {
     flowHash->records = newRecords;
     free(oldCells);
     free(oldFlags);
+
 }  // End of flowHash_resize
 
 /*
@@ -461,13 +456,11 @@ static inline void flowHash_resize(flowHash_t *flowHash) {
  * returns the index into the stat record array of new or existing value
  */
 static inline int flowHash_add(flowHash_t *flowHash, const hashValue_t *value, int *insert) {
-    uint32_t hash, cell;
-
     if (flowHash->count == flowHash->load_factor) flowHash_resize(flowHash);
 
-    hash = value->hash;
+    uint32_t hash = value->hash;
     // cell address
-    cell = ___fib_hash(hash, flowHash->shift);
+    uint32_t cell = ___fib_hash(hash, flowHash->shift);
 
     uint8_t flag = 0x80 | (hash & 0x7F);
     // shortcut for likely unused cell - speed up
@@ -959,7 +952,7 @@ static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationEle
 int Init_FlowCache(int hasGeoDB) {
     if (!nfalloc_Init(0)) return 0;
 
-    flowHash = flowHash_init();
+    flowHash = flowHash_init(InitFlowHashBits);
     FlowList = (struct FlowList_s){.head = NULL, .tail = &FlowList.head, .NumRecords = 0};
     keymenV4Len = sizeof(FlowKeyV4_t);
     keymenV6Len = sizeof(FlowKeyV6_t);
@@ -1004,7 +997,7 @@ int Parse_PrintOrder(char *order) {
         return -1;
     }
 
-    PrintDirection = direction >= 0 ? direction : order_mode[PrintOrder].direction;  // A
+    PrintDirection = direction >= 0 ? direction : order_mode[PrintOrder].direction;
 
     return PrintOrder;
 
@@ -1039,16 +1032,16 @@ int SetRecordStat(char *statType, char *optOrder) {
             *r++ = 0;
             switch (*r) {
                 case 'a':
-                    PrintDirection = ASCENDING;  // A
+                    PrintDirection = ASCENDING;
                     break;
                 case 'd':
-                    PrintDirection = DESCENDING;  // A
+                    PrintDirection = DESCENDING;
                     break;
                 default:
                     return -1;
             }
         } else {
-            PrintDirection = DESCENDING;  // A
+            PrintDirection = DESCENDING;
         }
 
         int i = 0;
@@ -1537,7 +1530,7 @@ static SortElement_t *GetSortList(size_t *size) {
         }
 
         for (uint32_t i = 0; i < flowHash->count; i++) {
-            list[i].flowRecord = &(flowHash->records[i]);
+            list[i].record = (void *)&(flowHash->records[i]);
         }
         *size = hashSize;
 
@@ -1554,7 +1547,7 @@ static SortElement_t *GetSortList(size_t *size) {
 
         FlowHashRecord_t *flowRecord = FlowList.head;
         for (int i = 0; i < listSize; i++) {
-            list[i].flowRecord = flowRecord;
+            list[i].record = (void *)flowRecord;
             flowRecord = flowRecord->next;
         }
         *size = listSize;
@@ -1573,7 +1566,7 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
     for (int i = 0; i < max; i++) {
         int j = ascending ? i : maxindex - 1 - i;
 
-        FlowHashRecord_t *flowRecord = SortList[j].flowRecord;
+        FlowHashRecord_t *flowRecord = (FlowHashRecord_t *)SortList[j].record;
         recordHeaderV3_t *v3record = (flowRecord->flowrecord);
 
         recordHandle_t recordHandle = {0};
@@ -1619,8 +1612,7 @@ static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nf
     for (int i = 0; i < maxindex; i++) {
         int j = ascending ? i : maxindex - 1 - i;
 
-        FlowHashRecord_t *flowRecord = SortList[j].flowRecord;
-
+        FlowHashRecord_t *flowRecord = (FlowHashRecord_t *)SortList[j].record;
         recordHeaderV3_t *recordHeaderV3 = (flowRecord->flowrecord);
 
         // check, if we need cntFlow extension
@@ -1713,7 +1705,7 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
         unsigned int order_bit = 1 << order_index;
         if (FlowStat_order & order_bit) {
             for (int i = 0; i < maxindex; i++) {
-                FlowHashRecord_t *r = SortList[i].flowRecord;
+                FlowHashRecord_t *r = (FlowHashRecord_t *)SortList[i].record;
                 /* if we have some different sort orders, which are not directly available in the FlowHashRecord_t
                  * we need to calculate this value first - such as bpp, bps etc.
                  */
@@ -1724,7 +1716,7 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
                 if (maxindex < 100) {
                     heapSort(SortList, maxindex, outputParams->topN, DESCENDING);
                 } else {
-                    blocksort((SortRecord_t *)SortList, maxindex);
+                    blocksort(SortList, maxindex);
                 }
             }
             if (!outputParams->quiet) {
@@ -1736,7 +1728,7 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
                 }
             }
             PrintProlog(outputParams);
-            PrintSortList(SortList, maxindex, outputParams, 0, print_record, PrintDirection);  // A
+            PrintSortList(SortList, maxindex, outputParams, 0, print_record, PrintDirection);
         }
     }
 
@@ -1754,7 +1746,7 @@ void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, 
     if (PrintOrder) {
         // for any -O print mode
         for (int i = 0; i < maxindex; i++) {
-            FlowHashRecord_t *r = SortList[i].flowRecord;
+            FlowHashRecord_t *r = (FlowHashRecord_t *)SortList[i].record;
             SortList[i].count = order_mode[PrintOrder].record_function(r);
         }
 
@@ -1762,14 +1754,14 @@ void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, 
             if (maxindex < 100) {
                 heapSort(SortList, maxindex, 0, DESCENDING);
             } else {
-                blocksort((SortRecord_t *)SortList, maxindex);
+                blocksort(SortList, maxindex);
             }
         }
 
-        PrintSortList(SortList, maxindex, outputParams, GuessDir, print_record, PrintDirection);  // A
+        PrintSortList(SortList, maxindex, outputParams, GuessDir, print_record, PrintDirection);
     } else {
         // for -a and no -O sorting required
-        PrintSortList(SortList, maxindex, outputParams, GuessDir, print_record, PrintDirection);  // A
+        PrintSortList(SortList, maxindex, outputParams, GuessDir, print_record, PrintDirection);
     }
 }  // End of PrintFlowTable
 
@@ -1784,7 +1776,7 @@ int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
     if (PrintOrder) {
         // for any -O print mode
         for (int i = 0; i < maxindex; i++) {
-            FlowHashRecord_t *r = SortList[i].flowRecord;
+            FlowHashRecord_t *r = (FlowHashRecord_t *)SortList[i].record;
             SortList[i].count = order_mode[PrintOrder].record_function(r);
         }
 
@@ -1792,11 +1784,11 @@ int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
             if (maxindex < 100) {
                 heapSort(SortList, maxindex, 0, DESCENDING);
             } else {
-                blocksort((SortRecord_t *)SortList, maxindex);
+                blocksort(SortList, maxindex);
             }
         }
     }
-    ExportSortList(SortList, maxindex, nffile, GuessDir, PrintDirection);  // A
+    ExportSortList(SortList, maxindex, nffile, GuessDir, PrintDirection);
 
     return 1;
 

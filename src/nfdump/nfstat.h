@@ -43,6 +43,8 @@
 #define FLAG_JA3 0x2
 #define FLAG_GEO 0x4
 
+#define InitStatHashBits 25
+
 /* Function prototypes */
 int Init_StatTable(int hasGeoDB);
 
