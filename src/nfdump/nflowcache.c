@@ -542,7 +542,6 @@ static size_t keymenV6Len = 0;
 
 static uint32_t bidir_flows = 0;
 
-#include "heapsort_inline.c"
 #include "memhandle.c"
 #include "nfdump_inline.c"
 #include "nffile_inline.c"
@@ -936,9 +935,13 @@ static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationEle
 
 void ListAggregationHelp(void) {
     printf("Available aggregation fields:");
+    int cnt = 0;
     for (int i = 0; aggregationTable[i].aggrElement != NULL; i++) {
-        if ((i & 0x7) == 0) printf("\n");
-        printf("%-9s ", aggregationTable[i].aggrElement);
+        if ((cnt & 0x7) == 0) printf("\n");
+        if (aggregationTable[i].fmt != NULL) {
+            printf(" %-9s ", aggregationTable[i].aggrElement);
+            cnt++;
+        }
     }
     printf("\nSee also nfdump(1)\n");
 }  // End of ListAggregationHelp
@@ -1001,17 +1004,12 @@ int SetRecordStat(char *statType, char *optOrder) {
     char *optProto = strchr(statType, ':');
     if (optProto) {
         *optProto++ = 0;
-        if (optProto[0] == 'p' && optProto[1] == '\0') {
-            // do nothing - compatibility only
-        } else {
-            LogError("Unknown statistic option :%s in %s", optProto, statType);
-            return 0;
-        }
+        LogError("statistic option: %s ignored", optProto);
     }
 
     // only record is supported
     if (strcasecmp(statType, "record") != 0) {
-        LogError("Unknown statistic option :%s in %s", optProto, statType);
+        LogError("Unknown statistic: %s", statType);
         return 0;
     }
 
@@ -1704,13 +1702,8 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
                 SortList[i].count = order_mode[order_index].record_function(r);
             }
 
-            if (maxindex > 2) {
-                if (maxindex < 100) {
-                    heapSort(SortList, maxindex, outputParams->topN, DESCENDING);
-                } else {
-                    blocksort(SortList, maxindex);
-                }
-            }
+            blocksort(SortList, maxindex);
+
             if (!outputParams->quiet) {
                 if (outputParams->mode == MODE_PLAIN) {
                     if (outputParams->topN != 0)
@@ -1742,13 +1735,7 @@ void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, 
             SortList[i].count = order_mode[PrintOrder].record_function(r);
         }
 
-        if (maxindex >= 2) {
-            if (maxindex < 100) {
-                heapSort(SortList, maxindex, 0, DESCENDING);
-            } else {
-                blocksort(SortList, maxindex);
-            }
-        }
+        blocksort(SortList, maxindex);
 
         PrintSortList(SortList, maxindex, outputParams, GuessDir, print_record, PrintDirection);
     } else {
@@ -1772,13 +1759,7 @@ int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
             SortList[i].count = order_mode[PrintOrder].record_function(r);
         }
 
-        if (maxindex >= 2) {
-            if (maxindex < 100) {
-                heapSort(SortList, maxindex, 0, DESCENDING);
-            } else {
-                blocksort(SortList, maxindex);
-            }
-        }
+        blocksort(SortList, maxindex);
     }
     ExportSortList(SortList, maxindex, nffile, GuessDir, PrintDirection);
 

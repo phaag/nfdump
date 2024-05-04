@@ -418,7 +418,6 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t 
 
 static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, direction_t direction);
 
-#include "heapsort_inline.c"
 #include "memhandle.c"
 
 static uint64_t order_flows_element(StatRecord_t *record) { return record->flows; }
@@ -1320,13 +1319,7 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
     for (int i = 0; i < numCells; i++) printf("%i, %llu %p\n", i, topN_list[i].count, topN_list[i].hashCell);
 #endif
 
-    // Sorting makes only sense, when 2 or more flows are left
-    if (c >= 2) {
-        if (c < 100)
-            heapSort(topN_list, c, topN, DESCENDING);
-        else
-            blocksort((SortElement_t *)topN_list, c);
-    }
+    if (c > 1) blocksort((SortElement_t *)topN_list, c);
 
 #ifdef DEVEL
     for (int i = 0; i < numCells; i++) printf("%i, %llu %llx\n", i, topN_list[i].count, (unsigned long long)topN_list[i].hashCell);
