@@ -318,10 +318,14 @@ static void *ja3_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
     // return ja3 string if it already exists
     if (handle->extensionList[JA3index]) return handle->extensionList[JA3index];
 
-    ssl_t *ssl = ssl_preproc(length, data, handle);
+    ssl_t *ssl = handle->extensionList[SSLindex];
+    if (ssl == NULL) ssl = ssl_preproc(length, data, handle);
     if (!ssl) return NULL;
 
-    return ja3Process(ssl, NULL);
+    handle->extensionList[SSLindex] = (void *)ssl;
+    handle->extensionList[JA3index] = ja3Process(ssl, NULL);
+
+    return handle->extensionList[JA3index];
 
 }  // End of ja3_preproc
 
@@ -336,17 +340,10 @@ static void *ja4_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
 
     ssl_t *ssl = ssl_preproc(length, data, handle);
     if (ssl == NULL || ssl->type != CLIENTssl) return NULL;
-    ja4_t *ja4 = malloc(sizeof(ja4_t) + SIZEja4String + 1);
-    if (!ja4) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-    ja4 = ja4Process(ssl, genericFlow->proto);
-    if (ja4) {
-        handle->extensionList[JA4index] = (void *)ja4;
-        return (void *)ja4;
-    }
-    return NULL;
+
+    handle->extensionList[JA4index] = (void *)ja4Process(ssl, genericFlow->proto);
+    return handle->extensionList[JA4index];
+
 }  // End of ja4_preproc
 
 static void *as_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
@@ -856,6 +853,7 @@ void *CompileFilter(char *FilterSyntax) {
         LogError("Memory allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(255);
     }
+
     *engine = (FilterEngine_t){
         .label = NULL,
         .StartNode = StartNode,

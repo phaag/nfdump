@@ -453,10 +453,10 @@ static inline void flowHash_resize(flowHash_t *flowHash) {
  *  1 - value was inserted.
  * returns the index into the stat record array of new or existing value
  */
-static inline int flowHash_add(flowHash_t *flowHash, const hashValue_t *value, int *insert) {
+static inline int flowHash_add(flowHash_t *flowHash, const hashValue_t value, int *insert) {
     if (flowHash->count == flowHash->load_factor) flowHash_resize(flowHash);
 
-    uint32_t hash = value->hash;
+    uint32_t hash = value.hash;
     // cell address
     uint32_t cell = ___fib_hash(hash, flowHash->shift);
 
@@ -465,7 +465,7 @@ static inline int flowHash_add(flowHash_t *flowHash, const hashValue_t *value, i
     if (is_free(flowHash->flags, cell)) {
         int index = flowHash->count++;
         flowHash->flags[cell] = flag;
-        flowHash->cells[cell] = *value;
+        flowHash->cells[cell] = value;
         flowHash->cells[cell].index = index;
         *insert = 1;
         return index;
@@ -481,13 +481,13 @@ static inline int flowHash_add(flowHash_t *flowHash, const hashValue_t *value, i
             // free cell found
             int index = flowHash->count++;
             flowHash->flags[cell] = flag;
-            flowHash->cells[cell] = *value;
+            flowHash->cells[cell] = value;
             flowHash->cells[cell].index = index;
             *insert = 1;
             return index;
         } else {
             // cell with matching flag
-            if (valCompare(flowHash->cells[cell], *value)) {
+            if (valCompare(flowHash->cells[cell], value)) {
                 // existing value found
                 *insert = 0;
                 return flowHash->cells[cell].index;
@@ -505,8 +505,8 @@ static inline int flowHash_add(flowHash_t *flowHash, const hashValue_t *value, i
  *   index into the stat record array if found
  *   -1 if value does not exists
  */
-static inline int flowHash_get(flowHash_t *flowHash, hashValue_t *value) {
-    uint32_t hash = value->hash;
+static inline int flowHash_get(flowHash_t *flowHash, const hashValue_t value) {
+    uint32_t hash = value.hash;
     // cell address
     uint32_t cell = ___fib_hash(hash, flowHash->shift);
 
@@ -521,7 +521,7 @@ static inline int flowHash_get(flowHash_t *flowHash, hashValue_t *value) {
             if (++cell == flowHash->capacity) cell = 0;
 
         if (is_free(flowHash->flags, cell)) return -1;
-        if (valCompare(flowHash->cells[cell], *value)) return flowHash->cells[cell].index;
+        if (valCompare(flowHash->cells[cell], value)) return flowHash->cells[cell].index;
 
         // collision - flag matches but compare does not - loop
         if (++cell == flowHash->capacity) cell = 0;
@@ -1309,7 +1309,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
     // generate 32bit hash from hash value
     hashValue.hash = SuperFastHash(*keymem, keyLen);
 
-    int index = flowHash_get(flowHash, &hashValue);
+    int index = flowHash_get(flowHash, hashValue);
     if (index >= 0) {
         // flow record found - update all fields
         flowHash->records[index].inBytes += inBytes;
@@ -1329,7 +1329,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
     } else if (genericFlow->proto != IPPROTO_TCP && genericFlow->proto != IPPROTO_UDP) {
         // no flow record found and no TCP/UDP bidir flows. Insert flow record into hash
         int insert;
-        index = flowHash_add(flowHash, &hashValue, &insert);
+        index = flowHash_add(flowHash, hashValue, &insert);
         flowHash->records[index].inBytes = inBytes;
         flowHash->records[index].inPackets = inPackets;
         flowHash->records[index].outBytes = outBytes;
@@ -1359,7 +1359,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         New_HashKey(*keymem, recordHandle, 1);
         hashValue.hash = SuperFastHash(*keymem, keyLen);
 
-        index = flowHash_get(flowHash, &hashValue);
+        index = flowHash_get(flowHash, hashValue);
         if (index >= 0) {
             // we found a corresponding reverse flow - so update all fields in reverse direction
             flowHash->records[index].outBytes += inBytes;
@@ -1383,7 +1383,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
             hashValue.hash = SuperFastHash(*keymem, keyLen);
 
             int insert;
-            index = flowHash_add(flowHash, &hashValue, &insert);
+            index = flowHash_add(flowHash, hashValue, &insert);
             flowHash->records[index].inBytes = inBytes;
             flowHash->records[index].inPackets = inPackets;
             flowHash->records[index].outBytes = outBytes;
@@ -1467,7 +1467,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
     hashValue.hash = SuperFastHash(*keymem, keyLen);
 
     int insert;
-    int index = flowHash_add(flowHash, &hashValue, &insert);
+    int index = flowHash_add(flowHash, hashValue, &insert);
     if (insert == 0) {
         // flow record found - update all fields
         flowHash->records[index].inBytes += inBytes;
