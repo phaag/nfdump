@@ -1079,10 +1079,8 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
                 break;
         }
 
-        dbg_printf(
-            "New record added with %u elements and size: %u, sequencer inLength: %lu, outLength: "
-            "%lu\n",
-            recordHeaderV3->numElements, recordHeaderV3->size, sequencer->inLength, sequencer->outLength);
+        dbg_printf("New record added with %u elements and size: %u, sequencer inLength: %lu, outLength: %lu\n", recordHeaderV3->numElements,
+                   recordHeaderV3->size, sequencer->inLength, sequencer->outLength);
 
         // add router IP
         if (fs->sa_family == PF_INET6) {

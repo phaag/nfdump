@@ -36,6 +36,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <signal.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -324,7 +325,13 @@ static stat_record_t process_data(void *engine, int processwMode, char *wfile, R
         for (int i = 0; i < dataBlock_r->NumRecords && !done; i++) {
             record_header_t *process_ptr = record_ptr;
             if ((sumSize + record_ptr->size) > dataBlock_r->size || (record_ptr->size < sizeof(record_header_t))) {
-                LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
+                if (sumSize == dataBlock_r->size) {
+                    LogError("DataBlock count error");
+                    LogError("DataBlock: count: %u, size: %u. Found: %u, size: %u", dataBlock_r->NumRecords, dataBlock_r->size, i, sumSize);
+                    break;
+                }
+                LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
+                LogError("DataBlock: count: %u, size: %u. Found: %u, size: %u", dataBlock_r->NumRecords, dataBlock_r->size, i, sumSize);
                 exit(EXIT_FAILURE);
             }
             sumSize += record_ptr->size;
