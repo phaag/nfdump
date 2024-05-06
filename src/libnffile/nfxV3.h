@@ -428,38 +428,38 @@ typedef struct EXnselCommon_s {
 } EXnselCommon_t;
 #define EXnselCommonSize (sizeof(EXnselCommon_t) + sizeof(elementHeader_t))
 
-typedef struct EXnselXlateIPv4_s {
-#define EXnselXlateIPv4ID 20
+typedef struct EXnatXlateIPv4_s {
+#define EXnatXlateIPv4ID 20
     uint32_t xlateSrcAddr;  // NF_F_XLATE_SRC_ADDR_IPV4(225), NF_F_XLATE_SRC_ADDR_84(40001)
     uint32_t xlateDstAddr;  // NF_F_XLATE_DST_ADDR_IPV4(226), NF_F_XLATE_DST_ADDR_84(40002)
-#define OFFxlateSrc4Addr offsetof(EXnselXlateIPv4_t, xlateSrcAddr)
-#define SIZExlateSrc4Addr MemberSize(EXnselXlateIPv4_t, xlateSrcAddr)
-#define OFFxlateDst4Addr offsetof(EXnselXlateIPv4_t, xlateDstAddr)
-#define SIZExlateDst4Addr MemberSize(EXnselXlateIPv4_t, xlateDstAddr)
-} EXnselXlateIPv4_t;
-#define EXnselXlateIPv4Size (sizeof(EXnselXlateIPv4_t) + sizeof(elementHeader_t))
+#define OFFxlateSrc4Addr offsetof(EXnatXlateIPv4_t, xlateSrcAddr)
+#define SIZExlateSrc4Addr MemberSize(EXnatXlateIPv4_t, xlateSrcAddr)
+#define OFFxlateDst4Addr offsetof(EXnatXlateIPv4_t, xlateDstAddr)
+#define SIZExlateDst4Addr MemberSize(EXnatXlateIPv4_t, xlateDstAddr)
+} EXnatXlateIPv4_t;
+#define EXnatXlateIPv4Size (sizeof(EXnatXlateIPv4_t) + sizeof(elementHeader_t))
 
-typedef struct EXnselXlateIPv6_s {
-#define EXnselXlateIPv6ID 21
+typedef struct EXnatXlateIPv6_s {
+#define EXnatXlateIPv6ID 21
     uint64_t xlateSrcAddr[2];  // NF_F_XLATE_SRC_ADDR_IPV6(281),
     uint64_t xlateDstAddr[2];  // NF_F_XLATE_DST_ADDR_IPV6(282),
-#define OFFxlateSrc6Addr offsetof(EXnselXlateIPv6_t, xlateSrcAddr)
-#define SIZExlateSrc6Addr MemberSize(EXnselXlateIPv6_t, xlateSrcAddr)
-#define OFFxlateDst6Addr offsetof(EXnselXlateIPv6_t, xlateDstAddr)
-#define SIZExlateDst6Addr MemberSize(EXnselXlateIPv6_t, xlateDstAddr)
-} EXnselXlateIPv6_t;
-#define EXnselXlateIPv6Size (sizeof(EXnselXlateIPv6_t) + sizeof(elementHeader_t))
+#define OFFxlateSrc6Addr offsetof(EXnatXlateIPv6_t, xlateSrcAddr)
+#define SIZExlateSrc6Addr MemberSize(EXnatXlateIPv6_t, xlateSrcAddr)
+#define OFFxlateDst6Addr offsetof(EXnatXlateIPv6_t, xlateDstAddr)
+#define SIZExlateDst6Addr MemberSize(EXnatXlateIPv6_t, xlateDstAddr)
+} EXnatXlateIPv6_t;
+#define EXnatXlateIPv6Size (sizeof(EXnatXlateIPv6_t) + sizeof(elementHeader_t))
 
-typedef struct EXnselXlatePort_s {
-#define EXnselXlatePortID 22
+typedef struct EXnatXlatePort_s {
+#define EXnatXlatePortID 22
     uint16_t xlateSrcPort;  // NF_F_XLATE_SRC_PORT(227), NF_F_XLATE_SRC_PORT_84(40003)
     uint16_t xlateDstPort;  //  NF_F_XLATE_DST_PORT(228), NF_F_XLATE_DST_PORT_84(40004)
-#define OFFxlateSrcPort offsetof(EXnselXlatePort_t, xlateSrcPort)
-#define SIZExlateSrcPort MemberSize(EXnselXlatePort_t, xlateSrcPort)
-#define OFFxlateDstPort offsetof(EXnselXlatePort_t, xlateDstPort)
-#define SIZExlateDstPort MemberSize(EXnselXlatePort_t, xlateDstPort)
-} EXnselXlatePort_t;
-#define EXnselXlatePortSize (sizeof(EXnselXlatePort_t) + sizeof(elementHeader_t))
+#define OFFxlateSrcPort offsetof(EXnatXlatePort_t, xlateSrcPort)
+#define SIZExlateSrcPort MemberSize(EXnatXlatePort_t, xlateSrcPort)
+#define OFFxlateDstPort offsetof(EXnatXlatePort_t, xlateDstPort)
+#define SIZExlateDstPort MemberSize(EXnatXlatePort_t, xlateDstPort)
+} EXnatXlatePort_t;
+#define EXnatXlatePortSize (sizeof(EXnatXlatePort_t) + sizeof(elementHeader_t))
 
 typedef struct EXnselAcl_s {
 #define EXnselAclID 23
@@ -511,22 +511,22 @@ typedef struct EXnelCommonCompat_s {
 } EXnelCommonCompat_t;
 #define EXnelCommonCompatSize (sizeof(EXnelCommonCompat_t) + sizeof(elementHeader_t))
 
-typedef struct EXnelXlatePort_s {
-#define EXnelXlatePortID 26
+typedef struct EXnatPortBlock_s {
+#define EXnatPortBlockID 26
     uint16_t blockStart;  // NF_F_XLATE_PORT_BLOCK_START(361)
     uint16_t blockEnd;    // NF_F_XLATE_PORT_BLOCK_END(362)
     uint16_t blockStep;   // NF_F_XLATE_PORT_BLOCK_STEP(363)
     uint16_t blockSize;   // NF_F_XLATE_PORT_BLOCK_SIZE(364)
-#define OFFnelblockStart offsetof(EXnelXlatePort_t, blockStart)
-#define SIZEnelblockStart MemberSize(EXnelXlatePort_t, blockStart)
-#define OFFnelblockEnd offsetof(EXnelXlatePort_t, blockEnd)
-#define SIZEnelblockEnd MemberSize(EXnelXlatePort_t, blockEnd)
-#define OFFnelblockStep offsetof(EXnelXlatePort_t, blockStep)
-#define SIZEnelblockStep MemberSize(EXnelXlatePort_t, blockStep)
-#define OFFnelblockSize offsetof(EXnelXlatePort_t, blockSize)
-#define SIZEnelblockSize MemberSize(EXnelXlatePort_t, blockSize)
-} EXnelXlatePort_t;
-#define EXnelXlatePortSize (sizeof(EXnelXlatePort_t) + sizeof(elementHeader_t))
+#define OFFnelblockStart offsetof(EXnatPortBlock_t, blockStart)
+#define SIZEnelblockStart MemberSize(EXnatPortBlock_t, blockStart)
+#define OFFnelblockEnd offsetof(EXnatPortBlock_t, blockEnd)
+#define SIZEnelblockEnd MemberSize(EXnatPortBlock_t, blockEnd)
+#define OFFnelblockStep offsetof(EXnatPortBlock_t, blockStep)
+#define SIZEnelblockStep MemberSize(EXnatPortBlock_t, blockStep)
+#define OFFnelblockSize offsetof(EXnatPortBlock_t, blockSize)
+#define SIZEnelblockSize MemberSize(EXnatPortBlock_t, blockSize)
+} EXnatPortBlock_t;
+#define EXnatPortBlockSize (sizeof(EXnatPortBlock_t) + sizeof(elementHeader_t))
 
 typedef struct EXnbarApp_s {
 #define EXnbarAppID 27
@@ -734,14 +734,14 @@ static const struct extensionTable_s {
     uint32_t size;  // number of bytes incl. header, 0xFFFF for dyn length
     char *name;     // name of extension
 } extensionTable[] = {
-    {0, 0, "ExNull"},           EXTENSION(EXgenericFlow),   EXTENSION(EXipv4Flow),      EXTENSION(EXipv6Flow),     EXTENSION(EXflowMisc),
-    EXTENSION(EXcntFlow),       EXTENSION(EXvLan),          EXTENSION(EXasRouting),     EXTENSION(EXbgpNextHopV4), EXTENSION(EXbgpNextHopV6),
-    EXTENSION(EXipNextHopV4),   EXTENSION(EXipNextHopV6),   EXTENSION(EXipReceivedV4),  EXTENSION(EXipReceivedV6), EXTENSION(EXmplsLabel),
-    EXTENSION(EXmacAddr),       EXTENSION(EXasAdjacent),    EXTENSION(EXlatency),       EXTENSION(EXsamplerInfo),  EXTENSION(EXnselCommon),
-    EXTENSION(EXnselXlateIPv4), EXTENSION(EXnselXlateIPv6), EXTENSION(EXnselXlatePort), EXTENSION(EXnselAcl),      EXTENSION(EXnselUser),
-    EXTENSION(EXnelCommon),     EXTENSION(EXnelXlatePort),  EXTENSION(EXnbarApp),       EXTENSION(EXlabel),        EXTENSION(EXinPayload),
-    EXTENSION(EXoutPayload),    EXTENSION(EXtunIPv4),       EXTENSION(EXtunIPv6),       EXTENSION(EXobservation),  EXTENSION(EXinmonMeta),
-    EXTENSION(EXinmonFrame),    EXTENSION(EXvrf),           EXTENSION(EXpfinfo),        EXTENSION(EXlayer2)};
+    {0, 0, "ExNull"},          EXTENSION(EXgenericFlow),  EXTENSION(EXipv4Flow),     EXTENSION(EXipv6Flow),     EXTENSION(EXflowMisc),
+    EXTENSION(EXcntFlow),      EXTENSION(EXvLan),         EXTENSION(EXasRouting),    EXTENSION(EXbgpNextHopV4), EXTENSION(EXbgpNextHopV6),
+    EXTENSION(EXipNextHopV4),  EXTENSION(EXipNextHopV6),  EXTENSION(EXipReceivedV4), EXTENSION(EXipReceivedV6), EXTENSION(EXmplsLabel),
+    EXTENSION(EXmacAddr),      EXTENSION(EXasAdjacent),   EXTENSION(EXlatency),      EXTENSION(EXsamplerInfo),  EXTENSION(EXnselCommon),
+    EXTENSION(EXnatXlateIPv4), EXTENSION(EXnatXlateIPv6), EXTENSION(EXnatXlatePort), EXTENSION(EXnselAcl),      EXTENSION(EXnselUser),
+    EXTENSION(EXnelCommon),    EXTENSION(EXnatPortBlock), EXTENSION(EXnbarApp),      EXTENSION(EXlabel),        EXTENSION(EXinPayload),
+    EXTENSION(EXoutPayload),   EXTENSION(EXtunIPv4),      EXTENSION(EXtunIPv6),      EXTENSION(EXobservation),  EXTENSION(EXinmonMeta),
+    EXTENSION(EXinmonFrame),   EXTENSION(EXvrf),          EXTENSION(EXpfinfo),       EXTENSION(EXlayer2)};
 
 typedef struct record_map_s {
     recordHeaderV3_t *recordHeader;

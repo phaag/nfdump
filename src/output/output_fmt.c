@@ -474,7 +474,7 @@ static struct format_token_list_s {
     {"%nfc", 0, "   Conn-ID", String_nfc},  // NSEL connection ID
     {"%xevt", 0, " XEvent", String_xevt},   // NSEL xevent
 
-    // EXnselXlateIPv4ID EXnselXlateIPv6ID
+    // EXnatXlateIPv4ID EXnatXlateIPv6ID
     // ASA Firewall
     {"%xsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NSEL XLATE src IP
     {"%xda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NSEL XLATE dst IP
@@ -486,7 +486,7 @@ static struct format_token_list_s {
     {"%nsap", 1, "   X-Src IP Addr:Port ", String_xlateSrcAddrPort},  // NAT Xlate Source Address:Port
     {"%ndap", 1, "   X-Dst IP Addr:Port ", String_xlateDstAddrPort},  // NAT Xlate Destination Address:Port
 
-    // EXnselXlatePortID
+    // EXnatXlatePortID
     // ASA Firewall
     {"%xsp", 0, "XsPort", String_xlateSrcPort},  // NSEL XLATE src port
     {"%xdp", 0, "XdPort", String_xlateDstPort},  // NSEL SLATE dst port
@@ -501,7 +501,7 @@ static struct format_token_list_s {
     // EXnselUserID
     {"%uname", 0, "UserName", String_userName},  // NSEL user name
 
-    // EXnelXlatePortID - Port block allocation
+    // EXnatPortBlockID - Port block allocation
     {"%pbstart", 0, "Pb-Start", String_PortBlockStart},  // Port block start
     {"%pbend", 0, "Pb-End", String_PortBlockEnd},        // Port block end
     {"%pbstep", 0, "Pb-Step", String_PortBlockStep},     // Port block step
@@ -2399,19 +2399,19 @@ static void String_eacl(FILE *stream, recordHandle_t *recordHandle) {
 }  // End of String_eacl
 
 static void String_xlateSrcAddr(FILE *stream, recordHandle_t *recordHandle) {
-    EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
-    EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)recordHandle->extensionList[EXnselXlateIPv6ID];
+    EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
+    EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
 
     char tmp_str[IP_STRING_LEN];
     tmp_str[0] = 0;
-    if (nselXlateIPv4) {
-        uint32_t ip = htonl(nselXlateIPv4->xlateSrcAddr);
+    if (natXlateIPv4) {
+        uint32_t ip = htonl(natXlateIPv4->xlateSrcAddr);
         inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
-    } else if (nselXlateIPv6) {
+    } else if (natXlateIPv6) {
         uint64_t ip[2];
 
-        ip[0] = htonll(nselXlateIPv6->xlateSrcAddr[0]);
-        ip[1] = htonll(nselXlateIPv6->xlateSrcAddr[1]);
+        ip[0] = htonll(natXlateIPv6->xlateSrcAddr[0]);
+        ip[1] = htonll(natXlateIPv6->xlateSrcAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
@@ -2429,19 +2429,19 @@ static void String_xlateSrcAddr(FILE *stream, recordHandle_t *recordHandle) {
 }  // End of String_xlateSrcAddr
 
 static void String_xlateDstAddr(FILE *stream, recordHandle_t *recordHandle) {
-    EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
-    EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)recordHandle->extensionList[EXnselXlateIPv6ID];
+    EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
+    EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
 
     char tmp_str[IP_STRING_LEN];
     tmp_str[0] = 0;
-    if (nselXlateIPv4) {
-        uint32_t ip = htonl(nselXlateIPv4->xlateDstAddr);
+    if (natXlateIPv4) {
+        uint32_t ip = htonl(natXlateIPv4->xlateDstAddr);
         inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
-    } else if (nselXlateIPv6) {
+    } else if (natXlateIPv6) {
         uint64_t ip[2];
 
-        ip[0] = htonll(nselXlateIPv6->xlateDstAddr[0]);
-        ip[1] = htonll(nselXlateIPv6->xlateDstAddr[1]);
+        ip[0] = htonll(natXlateIPv6->xlateDstAddr[0]);
+        ip[1] = htonll(natXlateIPv6->xlateDstAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
@@ -2459,36 +2459,36 @@ static void String_xlateDstAddr(FILE *stream, recordHandle_t *recordHandle) {
 }  // End of String_xlateDstAddr
 
 static void String_xlateSrcPort(FILE *stream, recordHandle_t *recordHandle) {
-    EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
-    uint16_t port = nselXlatePort ? nselXlatePort->xlateSrcPort : 0;
+    EXnatXlatePort_t *natXlatePort = (EXnatXlatePort_t *)recordHandle->extensionList[EXnatXlatePortID];
+    uint16_t port = natXlatePort ? natXlatePort->xlateSrcPort : 0;
     fprintf(stream, "%6u", port);
 }  // End of String_xlateSrcPort
 
 static void String_xlateDstPort(FILE *stream, recordHandle_t *recordHandle) {
-    EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
-    uint16_t port = nselXlatePort ? nselXlatePort->xlateDstPort : 0;
+    EXnatXlatePort_t *natXlatePort = (EXnatXlatePort_t *)recordHandle->extensionList[EXnatXlatePortID];
+    uint16_t port = natXlatePort ? natXlatePort->xlateDstPort : 0;
     fprintf(stream, "%6u", port);
 
 }  // End of String_xlateDstPort
 
 static void String_xlateSrcAddrPort(FILE *stream, recordHandle_t *recordHandle) {
-    EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
-    EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)recordHandle->extensionList[EXnselXlateIPv6ID];
-    EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
-    uint16_t port = nselXlatePort ? nselXlatePort->xlateSrcPort : 0;
+    EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
+    EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
+    EXnatXlatePort_t *natXlatePort = (EXnatXlatePort_t *)recordHandle->extensionList[EXnatXlatePortID];
+    uint16_t port = natXlatePort ? natXlatePort->xlateSrcPort : 0;
 
     char tmp_str[IP_STRING_LEN];
     char portChar;
     tmp_str[0] = 0;
-    if (nselXlateIPv4) {
-        uint32_t ip = htonl(nselXlateIPv4->xlateSrcAddr);
+    if (natXlateIPv4) {
+        uint32_t ip = htonl(natXlateIPv4->xlateSrcAddr);
         inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
         portChar = ':';
-    } else if (nselXlateIPv6) {
+    } else if (natXlateIPv6) {
         uint64_t ip[2];
 
-        ip[0] = htonll(nselXlateIPv6->xlateSrcAddr[0]);
-        ip[1] = htonll(nselXlateIPv6->xlateSrcAddr[1]);
+        ip[0] = htonll(natXlateIPv6->xlateSrcAddr[0]);
+        ip[1] = htonll(natXlateIPv6->xlateSrcAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
@@ -2508,23 +2508,23 @@ static void String_xlateSrcAddrPort(FILE *stream, recordHandle_t *recordHandle) 
 }  // End of String_xlateSrcAddrPort
 
 static void String_xlateDstAddrPort(FILE *stream, recordHandle_t *recordHandle) {
-    EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
-    EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)recordHandle->extensionList[EXnselXlateIPv6ID];
-    EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
-    uint16_t port = nselXlatePort ? nselXlatePort->xlateDstPort : 0;
+    EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
+    EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
+    EXnatXlatePort_t *natXlatePort = (EXnatXlatePort_t *)recordHandle->extensionList[EXnatXlatePortID];
+    uint16_t port = natXlatePort ? natXlatePort->xlateDstPort : 0;
 
     char tmp_str[IP_STRING_LEN];
     char portChar;
     tmp_str[0] = 0;
-    if (nselXlateIPv4) {
-        uint32_t ip = htonl(nselXlateIPv4->xlateDstAddr);
+    if (natXlateIPv4) {
+        uint32_t ip = htonl(natXlateIPv4->xlateDstAddr);
         inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
         portChar = ':';
-    } else if (nselXlateIPv6) {
+    } else if (natXlateIPv6) {
         uint64_t ip[2];
 
-        ip[0] = htonll(nselXlateIPv6->xlateDstAddr[0]);
-        ip[1] = htonll(nselXlateIPv6->xlateDstAddr[1]);
+        ip[0] = htonll(natXlateIPv6->xlateDstAddr[0]);
+        ip[1] = htonll(natXlateIPv6->xlateDstAddr[1]);
         inet_ntop(AF_INET6, ip, tmp_str, sizeof(tmp_str));
         if (!long_v6) {
             CondenseV6(tmp_str);
@@ -2551,22 +2551,22 @@ static void String_userName(FILE *stream, recordHandle_t *recordHandle) {
 }  // End of String_userName
 
 static void String_PortBlockStart(FILE *stream, recordHandle_t *recordHandle) {
-    EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
+    EXnatPortBlock_t *natPortBlock = (EXnatPortBlock_t *)recordHandle->extensionList[EXnatPortBlockID];
 
-    fprintf(stream, "%7u", nelXlatePort ? nelXlatePort->blockStart : 0);
+    fprintf(stream, "%7u", natPortBlock ? natPortBlock->blockStart : 0);
 }  // End of String_PortBlockStart
 
 static void String_PortBlockEnd(FILE *stream, recordHandle_t *recordHandle) {
-    EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
-    fprintf(stream, "%7u", nelXlatePort ? nelXlatePort->blockEnd : 0);
+    EXnatPortBlock_t *natPortBlock = (EXnatPortBlock_t *)recordHandle->extensionList[EXnatPortBlockID];
+    fprintf(stream, "%7u", natPortBlock ? natPortBlock->blockEnd : 0);
 }  // End of String_PortBlockEnd
 
 static void String_PortBlockStep(FILE *stream, recordHandle_t *recordHandle) {
-    EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
-    fprintf(stream, "%7u", nelXlatePort ? nelXlatePort->blockStep : 0);
+    EXnatPortBlock_t *natPortBlock = (EXnatPortBlock_t *)recordHandle->extensionList[EXnatPortBlockID];
+    fprintf(stream, "%7u", natPortBlock ? natPortBlock->blockStep : 0);
 }  // End of String_PortBlockStep
 
 static void String_PortBlockSize(FILE *stream, recordHandle_t *recordHandle) {
-    EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)recordHandle->extensionList[EXnselXlatePortID];
-    fprintf(stream, "%7u", nelXlatePort ? nelXlatePort->blockSize : 0);
+    EXnatPortBlock_t *natPortBlock = (EXnatPortBlock_t *)recordHandle->extensionList[EXnatPortBlockID];
+    fprintf(stream, "%7u", natPortBlock ? natPortBlock->blockSize : 0);
 }  // End of String_PortBlockSize

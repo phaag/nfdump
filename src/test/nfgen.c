@@ -521,6 +521,36 @@ int main(int argc, char **argv) {
     UpdateRecord(recordHandle);
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
+    // EXnelCommon
+    PushExtension(v3Record, EXnelCommon, nelCommon);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    nelCommon->natEvent = 1;
+    nelCommon->msecEvent = genericFlow->msecFirst;
+    nelCommon->natPoolID = 5;
+
+    // EXnatPortBlock
+    PushExtension(v3Record, EXnatPortBlock, natPortBlock);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    natPortBlock->blockStart = 1024;
+    natPortBlock->blockEnd = 16534;
+    natPortBlock->blockStep = 2;
+    natPortBlock->blockSize = 4096;
+
+    // EXnatXlateIPv4
+    PushExtension(v3Record, EXnatXlatePort, natXlatePort);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    natXlatePort->xlateSrcPort = 55667;
+    natXlatePort->xlateDstPort = 443;
+
+    PushExtension(v3Record, EXnatXlateIPv4, natXlateIPv4);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    inet_pton(PF_INET, "44.55.66.77", &natXlateIPv4->xlateSrcAddr);
+    inet_pton(PF_INET, "8.8.8.8", &natXlateIPv4->xlateDstAddr);
+    natXlateIPv4->xlateSrcAddr = ntohl(natXlateIPv4->xlateSrcAddr);
+    natXlateIPv4->xlateDstAddr = ntohl(natXlateIPv4->xlateDstAddr);
+    UpdateRecord(recordHandle);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
+
     /*
             record.exElementList[i] = 0;
             record.numElements = i;

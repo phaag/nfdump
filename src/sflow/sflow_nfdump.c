@@ -283,14 +283,14 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     }
 
     if ((sample->extended_data_tag & SASAMPLE_EXTENDED_DATA_NAT) != 0) {
-        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXnselXlateIPv4ID]) {
-            recordSize += EXnselXlateIPv4Size;
+        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V4 && ExtensionsEnabled[EXnatXlateIPv4ID]) {
+            recordSize += EXnatXlateIPv4Size;
         }
-        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXnselXlateIPv6ID]) {
-            recordSize += EXnselXlateIPv6Size;
+        if (sample->nat_src.type == SFLADDRESSTYPE_IP_V6 && ExtensionsEnabled[EXnatXlateIPv6ID]) {
+            recordSize += EXnatXlateIPv6Size;
         }
-        if (ExtensionsEnabled[EXnselXlatePortID]) {
-            recordSize += EXnselXlatePortSize;
+        if (ExtensionsEnabled[EXnatXlatePortID]) {
+            recordSize += EXnatXlatePortSize;
         }
     }
 
@@ -415,33 +415,33 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     if ((sample->extended_data_tag & SASAMPLE_EXTENDED_DATA_NAT) != 0) {
         switch (sample->nat_src.type) {
             case SFLADDRESSTYPE_IP_V4:
-                if (ExtensionsEnabled[EXnselXlateIPv4ID]) {
+                if (ExtensionsEnabled[EXnatXlateIPv4ID]) {
                     dbg_printf("NAT v4 addr\n");
-                    PushExtension(recordHeader, EXnselXlateIPv4, nselXlateIPv4);
-                    nselXlateIPv4->xlateSrcAddr = ntohl(sample->nat_src.address.ip_v4.addr);
-                    nselXlateIPv4->xlateDstAddr = ntohl(sample->nat_dst.address.ip_v4.addr);
+                    PushExtension(recordHeader, EXnatXlateIPv4, natXlateIPv4);
+                    natXlateIPv4->xlateSrcAddr = ntohl(sample->nat_src.address.ip_v4.addr);
+                    natXlateIPv4->xlateDstAddr = ntohl(sample->nat_dst.address.ip_v4.addr);
                 }
                 break;
             case SFLADDRESSTYPE_IP_V6: {
-                if (ExtensionsEnabled[EXnselXlateIPv6ID]) {
+                if (ExtensionsEnabled[EXnatXlateIPv6ID]) {
                     dbg_printf("NAT v6 addr\n");
-                    PushExtension(recordHeader, EXnselXlateIPv6, nselXlateIPv6);
+                    PushExtension(recordHeader, EXnatXlateIPv6, natXlateIPv6);
                     uint64_t *addr = (void *)sample->nat_src.address.ip_v6.addr;
-                    nselXlateIPv6->xlateSrcAddr[0] = ntohll(addr[0]);
-                    nselXlateIPv6->xlateSrcAddr[1] = ntohll(addr[1]);
+                    natXlateIPv6->xlateSrcAddr[0] = ntohll(addr[0]);
+                    natXlateIPv6->xlateSrcAddr[1] = ntohll(addr[1]);
                     addr = (void *)sample->nat_dst.address.ip_v6.addr;
-                    nselXlateIPv6->xlateDstAddr[0] = ntohll(addr[0]);
-                    nselXlateIPv6->xlateDstAddr[1] = ntohll(addr[1]);
+                    natXlateIPv6->xlateDstAddr[0] = ntohll(addr[0]);
+                    natXlateIPv6->xlateDstAddr[1] = ntohll(addr[1]);
                 }
             } break;
             default:
                 /* undefined address type - bail out */
                 LogError("SFLOW: getAddress() unknown address type = %d\n", sample->nat_src.type);
         }
-        if (ExtensionsEnabled[EXnselXlatePortID]) {
-            PushExtension(recordHeader, EXnselXlatePort, nselXlatePort);
-            nselXlatePort->xlateSrcPort = sample->nat_src_port;
-            nselXlatePort->xlateDstPort = sample->nat_dst_port;
+        if (ExtensionsEnabled[EXnatXlatePortID]) {
+            PushExtension(recordHeader, EXnatXlatePort, natXlatePort);
+            natXlatePort->xlateSrcPort = sample->nat_src_port;
+            natXlatePort->xlateDstPort = sample->nat_dst_port;
         }
     }
 

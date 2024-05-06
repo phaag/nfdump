@@ -564,11 +564,11 @@ static void stringEXnselCommon(FILE *stream, void *extensionRecord, const char *
 
 }  // End of stringEXnselCommon
 
-static void stringEXnselXlateIPv4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
-    EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)extensionRecord;
+static void stringEXnatXlateIPv4(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)extensionRecord;
 
-    uint32_t src = htonl(nselXlateIPv4->xlateSrcAddr);
-    uint32_t dst = htonl(nselXlateIPv4->xlateDstAddr);
+    uint32_t src = htonl(natXlateIPv4->xlateSrcAddr);
+    uint32_t dst = htonl(natXlateIPv4->xlateDstAddr);
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
     inet_ntop(AF_INET, &src, as, sizeof(as));
     inet_ntop(AF_INET, &dst, ds, sizeof(ds));
@@ -578,17 +578,17 @@ static void stringEXnselXlateIPv4(FILE *stream, void *extensionRecord, const cha
             "%s\"dst4_xlt_ip\" : \"%s\"%s",
             indent, as, fs, indent, ds, fs);
 
-}  // End of stringEXnselXlateIPv4
+}  // End of stringEXnatXlateIPv4
 
-static void stringEXnselXlateIPv6(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
-    EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)extensionRecord;
+static void stringEXnatXlateIPv6(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)extensionRecord;
 
     uint64_t src[2];
     uint64_t dst[2];
-    src[0] = htonll(nselXlateIPv6->xlateSrcAddr[0]);
-    src[1] = htonll(nselXlateIPv6->xlateSrcAddr[1]);
-    dst[0] = htonll(nselXlateIPv6->xlateDstAddr[0]);
-    dst[1] = htonll(nselXlateIPv6->xlateDstAddr[1]);
+    src[0] = htonll(natXlateIPv6->xlateSrcAddr[0]);
+    src[1] = htonll(natXlateIPv6->xlateSrcAddr[1]);
+    dst[0] = htonll(natXlateIPv6->xlateDstAddr[0]);
+    dst[1] = htonll(natXlateIPv6->xlateDstAddr[1]);
     char as[IP_STRING_LEN], ds[IP_STRING_LEN];
     inet_ntop(AF_INET6, &src, as, sizeof(as));
     inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
@@ -598,16 +598,16 @@ static void stringEXnselXlateIPv6(FILE *stream, void *extensionRecord, const cha
             "%s\"dst6_xlt_ip\" : \"%s\"%s",
             indent, as, fs, indent, ds, fs);
 
-}  // End of stringEXnselXlateIPv4
+}  // End of stringEXnatXlateIPv4
 
-static void stringEXnselXlatePort(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
-    EXnselXlatePort_t *nselXlatePort = (EXnselXlatePort_t *)extensionRecord;
+static void stringEXnatXlatePort(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    EXnatXlatePort_t *natXlatePort = (EXnatXlatePort_t *)extensionRecord;
     fprintf(stream,
             "%s\"src_xlt_port\" : %u%s"
             "%s\"dst_xlt_port\" : %u%s",
-            indent, nselXlatePort->xlateSrcPort, fs, indent, nselXlatePort->xlateDstPort, fs);
+            indent, natXlatePort->xlateSrcPort, fs, indent, natXlatePort->xlateDstPort, fs);
 
-}  // End of stringEXnselXlatePort
+}  // End of stringEXnatXlatePort
 
 static void stringEXnselAcl(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnselAcl_t *nselAcl = (EXnselAcl_t *)extensionRecord;
@@ -647,17 +647,17 @@ static void stringEXnelCommon(FILE *stream, void *extensionRecord, const char *i
 
 }  // End of stringEXnelCommon
 
-static void stringEXnelXlatePort(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
-    EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)extensionRecord;
+static void stringEXnatPortBlock(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    EXnatPortBlock_t *natPortBlock = (EXnatPortBlock_t *)extensionRecord;
     fprintf(stream,
             "%s\"pblock_start\" : %u%s"
             "%s\"pblock_end\" : %u%s"
             "%s\"pblock_step\" : %u%s"
             "%s\"pblock_size\" : %u%s",
-            indent, nelXlatePort->blockStart, fs, indent, nelXlatePort->blockEnd, fs, indent, nelXlatePort->blockStep, fs, indent,
-            nelXlatePort->blockSize, fs);
+            indent, natPortBlock->blockStart, fs, indent, natPortBlock->blockEnd, fs, indent, natPortBlock->blockStep, fs, indent,
+            natPortBlock->blockSize, fs);
 
-}  // End of stringEXnelXlatePort
+}  // End of stringEXnatPortBlock
 
 void json_prolog(void) {
     recordCount = 0;
@@ -774,14 +774,14 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
             case EXnselCommonID:
                 stringEXnselCommon(stream, ptr, indent, fs);
                 break;
-            case EXnselXlateIPv4ID:
-                stringEXnselXlateIPv4(stream, ptr, indent, fs);
+            case EXnatXlateIPv4ID:
+                stringEXnatXlateIPv4(stream, ptr, indent, fs);
                 break;
-            case EXnselXlateIPv6ID:
-                stringEXnselXlateIPv6(stream, ptr, indent, fs);
+            case EXnatXlateIPv6ID:
+                stringEXnatXlateIPv6(stream, ptr, indent, fs);
                 break;
-            case EXnselXlatePortID:
-                stringEXnselXlatePort(stream, ptr, indent, fs);
+            case EXnatXlatePortID:
+                stringEXnatXlatePort(stream, ptr, indent, fs);
                 break;
             case EXnselAclID:
                 stringEXnselAcl(stream, ptr, indent, fs);
@@ -792,8 +792,8 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
             case EXnelCommonID:
                 stringEXnelCommon(stream, ptr, indent, fs);
                 break;
-            case EXnelXlatePortID:
-                stringEXnelXlatePort(stream, ptr, indent, fs);
+            case EXnatPortBlockID:
+                stringEXnatPortBlock(stream, ptr, indent, fs);
                 break;
             default:
                 dbg_printf("Extension %i not yet implemented\n", i);

@@ -270,13 +270,13 @@ static uint64_t mpls_any_function(void *dataPtr, uint32_t length, data_t data, r
 }  // End of mpls_any_function
 
 static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle) {
-    EXnelXlatePort_t *nelXlatePort = (EXnelXlatePort_t *)handle->extensionList[EXnelXlatePortID];
+    EXnatPortBlock_t *natPortBlock = (EXnatPortBlock_t *)handle->extensionList[EXnatPortBlockID];
 
-    if (!nelXlatePort) return 0;
+    if (!natPortBlock) return 0;
 
     uint16_t port = *((uint16_t *)dataPtr);
 
-    return (port >= nelXlatePort->blockStart && port <= nelXlatePort->blockEnd);
+    return (port >= natPortBlock->blockStart && port <= natPortBlock->blockEnd);
 
 }  // End of pblock_function
 
@@ -374,21 +374,21 @@ static int geoLookup(char *geoChar, uint64_t direction, recordHandle_t *recordHa
             }
         } break;
         case DIR_SRC_NAT: {
-            EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
-            EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)recordHandle->extensionList[EXnselXlateIPv6ID];
-            if (nselXlateIPv4) {
-                LookupV4Country(nselXlateIPv4->xlateSrcAddr, geoChar);
-            } else if (nselXlateIPv6) {
-                LookupV6Country(nselXlateIPv6->xlateSrcAddr, geoChar);
+            EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
+            EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
+            if (natXlateIPv4) {
+                LookupV4Country(natXlateIPv4->xlateSrcAddr, geoChar);
+            } else if (natXlateIPv6) {
+                LookupV6Country(natXlateIPv6->xlateSrcAddr, geoChar);
             }
         } break;
         case DIR_DST_NAT: {
-            EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)recordHandle->extensionList[EXnselXlateIPv4ID];
-            EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)recordHandle->extensionList[EXnselXlateIPv6ID];
-            if (nselXlateIPv4) {
-                LookupV4Country(nselXlateIPv4->xlateDstAddr, geoChar);
-            } else if (nselXlateIPv6) {
-                LookupV6Country(nselXlateIPv6->xlateDstAddr, geoChar);
+            EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
+            EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
+            if (natXlateIPv4) {
+                LookupV4Country(natXlateIPv4->xlateDstAddr, geoChar);
+            } else if (natXlateIPv6) {
+                LookupV6Country(natXlateIPv6->xlateDstAddr, geoChar);
             }
         } break;
         case DIR_SRC_TUN: {

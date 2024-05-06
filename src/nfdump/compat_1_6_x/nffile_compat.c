@@ -349,26 +349,26 @@ static inline record_header_t *ConvertRecordV2(recordHandle_t *handle, common_re
             } break;
             case EX_NSEL_XLATE_IP_v4: {
                 tpl_ext_39_t *tpl = (tpl_ext_39_t *)p;
-                PushExtension(recordHeader, EXnselXlateIPv4, nselXlateIPv4);
-                MapExtension(EXnselXlateIPv4ID, nselXlateIPv4);
-                nselXlateIPv4->xlateSrcAddr = tpl->xlate_src_ip;
-                nselXlateIPv4->xlateDstAddr = tpl->xlate_dst_ip;
+                PushExtension(recordHeader, EXnatXlateIPv4, natXlateIPv4);
+                MapExtension(EXnatXlateIPv4ID, natXlateIPv4);
+                natXlateIPv4->xlateSrcAddr = tpl->xlate_src_ip;
+                natXlateIPv4->xlateDstAddr = tpl->xlate_dst_ip;
                 p = (void *)tpl->data;
             } break;
             case EX_NSEL_XLATE_IP_v6: {
                 tpl_ext_40_t *tpl = (tpl_ext_40_t *)p;
-                PushExtension(recordHeader, EXnselXlateIPv6, nselXlateIPv6);
-                MapExtension(EXnselXlateIPv6ID, nselXlateIPv6);
-                memcpy(nselXlateIPv6->xlateSrcAddr, tpl->xlate_src_ip, 16);
-                memcpy(nselXlateIPv6->xlateDstAddr, tpl->xlate_dst_ip, 16);
+                PushExtension(recordHeader, EXnatXlateIPv6, natXlateIPv6);
+                MapExtension(EXnatXlateIPv6ID, natXlateIPv6);
+                memcpy(natXlateIPv6->xlateSrcAddr, tpl->xlate_src_ip, 16);
+                memcpy(natXlateIPv6->xlateDstAddr, tpl->xlate_dst_ip, 16);
                 p = (void *)tpl->data;
             } break;
             case EX_NSEL_XLATE_PORTS: {
                 tpl_ext_38_t *tpl = (tpl_ext_38_t *)p;
-                PushExtension(recordHeader, EXnselXlatePort, nselXlatePort);
-                MapExtension(EXnselXlatePortID, nselXlatePort);
-                nselXlatePort->xlateSrcPort = tpl->xlate_src_port;
-                nselXlatePort->xlateDstPort = tpl->xlate_dst_port;
+                PushExtension(recordHeader, EXnatXlatePort, natXlatePort);
+                MapExtension(EXnatXlatePortID, natXlatePort);
+                natXlatePort->xlateSrcPort = tpl->xlate_src_port;
+                natXlatePort->xlateDstPort = tpl->xlate_dst_port;
                 p = (void *)tpl->data;
             } break;
             case EX_NSEL_ACL: {
@@ -414,14 +414,14 @@ static inline record_header_t *ConvertRecordV2(recordHandle_t *handle, common_re
             } break;
             case EX_PORT_BLOCK_ALLOC: {
                 tpl_ext_48_t *tpl = (tpl_ext_48_t *)p;
-                PushExtension(recordHeader, EXnelXlatePort, nelXlatePort);
-                MapExtension(EXnelXlatePortID, nelXlatePort);
-                nelXlatePort->blockStart = tpl->block_start;
-                nelXlatePort->blockEnd = tpl->block_end;
-                nelXlatePort->blockStep = tpl->block_step;
-                nelXlatePort->blockSize = tpl->block_size;
-                if (nelXlatePort->blockEnd == 0 && nelXlatePort->blockSize != 0)
-                    nelXlatePort->blockEnd = nelXlatePort->blockStart + nelXlatePort->blockSize - 1;
+                PushExtension(recordHeader, EXnatPortBlock, natPortBlock);
+                MapExtension(EXnatPortBlockID, natPortBlock);
+                natPortBlock->blockStart = tpl->block_start;
+                natPortBlock->blockEnd = tpl->block_end;
+                natPortBlock->blockStep = tpl->block_step;
+                natPortBlock->blockSize = tpl->block_size;
+                if (natPortBlock->blockEnd == 0 && natPortBlock->blockSize != 0)
+                    natPortBlock->blockEnd = natPortBlock->blockStart + natPortBlock->blockSize - 1;
                 p = (void *)tpl->data;
             } break;
         }

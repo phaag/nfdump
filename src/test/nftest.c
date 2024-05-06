@@ -639,14 +639,14 @@ static void runTest(void) {
     CheckFilter("asa xevent < 1004", recordHandle, 0);
     CheckFilter("asa xevent > 1004", recordHandle, 0);
 
-    PushExtension(recordHeaderV3, EXnselXlateIPv4, nselXlateIPv4);
+    PushExtension(recordHeaderV3, EXnatXlateIPv4, natXlateIPv4);
     MapRecordHandle(recordHandle, recordHeaderV3, 1);
     inet_pton(PF_INET, "172.32.7.16", &v4);
-    nselXlateIPv4->xlateSrcAddr = ntohl(v4);
+    natXlateIPv4->xlateSrcAddr = ntohl(v4);
     inet_pton(PF_INET, "10.10.10.11", &v4);
-    nselXlateIPv4->xlateDstAddr = ntohl(v4);
+    natXlateIPv4->xlateDstAddr = ntohl(v4);
 
-    // EXnselXlateIPv4ID
+    // EXnatXlateIPv4ID
     CheckFilter("src nat ip 172.32.7.16", recordHandle, 1);
     CheckFilter("src nat ip 172.32.7.15", recordHandle, 0);
     CheckFilter("dst nat ip 10.10.10.11", recordHandle, 1);
@@ -667,12 +667,12 @@ static void runTest(void) {
     // CheckFilter("nat ip in [172.32.7.15]", recordHandle, 0);
     CheckFilter("nat ip in [10.10.10.10]", recordHandle, 0);
 
-    // EXnselXlateIPv6ID
-    PushExtension(recordHeaderV3, EXnselXlateIPv6, nselXlateIPv6);
+    // EXnatXlateIPv6ID
+    PushExtension(recordHeaderV3, EXnatXlateIPv6, natXlateIPv6);
     MapRecordHandle(recordHandle, recordHeaderV3, 1);
     inet_pton(PF_INET6, "fe80::2110:abcd:1235:ffff", v6);
-    nselXlateIPv6->xlateSrcAddr[0] = ntohll(v6[0]);
-    nselXlateIPv6->xlateSrcAddr[1] = ntohll(v6[1]);
+    natXlateIPv6->xlateSrcAddr[0] = ntohll(v6[0]);
+    natXlateIPv6->xlateSrcAddr[1] = ntohll(v6[1]);
 
     CheckFilter("src nat ip fe80::2110:abcd:1235:ffff", recordHandle, 1);
     CheckFilter("src nat ip fe80::2110:abcd:1235:fffe", recordHandle, 0);
@@ -696,11 +696,11 @@ static void runTest(void) {
     CheckFilter("src net 2001::/16", recordHandle, 1);
     CheckFilter("net 2001::/16", recordHandle, 1);
 
-    // EXnselXlatePortID
-    PushExtension(recordHeaderV3, EXnselXlatePort, nselXlatePort);
+    // EXnatXlatePortID
+    PushExtension(recordHeaderV3, EXnatXlatePort, natXlatePort);
     MapRecordHandle(recordHandle, recordHeaderV3, 1);
-    nselXlatePort->xlateSrcPort = 45123;
-    nselXlatePort->xlateDstPort = 59321;
+    natXlatePort->xlateSrcPort = 45123;
+    natXlatePort->xlateDstPort = 59321;
     CheckFilter("src nat port 45123", recordHandle, 1);
     CheckFilter("dst nat port 59321", recordHandle, 1);
     CheckFilter("nat port 45123", recordHandle, 1);
@@ -756,13 +756,13 @@ static void runTest(void) {
     CheckFilter("nat event > 9", recordHandle, 1);
     CheckFilter("nat event > 10", recordHandle, 0);
 
-    // EXnelXlatePortID
-    PushExtension(recordHeaderV3, EXnelXlatePort, nelXlatePort);
+    // EXnatPortBlockID
+    PushExtension(recordHeaderV3, EXnatPortBlock, natPortBlock);
     MapRecordHandle(recordHandle, recordHeaderV3, 1);
-    nelXlatePort->blockStart = 1111;
-    nelXlatePort->blockEnd = 2222;
-    nelXlatePort->blockStep = 3333;
-    nelXlatePort->blockSize = 4444;
+    natPortBlock->blockStart = 1111;
+    natPortBlock->blockEnd = 2222;
+    natPortBlock->blockStep = 3333;
+    natPortBlock->blockSize = 4444;
 
     CheckFilter("nat pblock start 1111", recordHandle, 1);
     CheckFilter("nat pblock start 2222", recordHandle, 0);

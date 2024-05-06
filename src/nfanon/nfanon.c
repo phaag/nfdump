@@ -185,20 +185,20 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
                 break;
             case EXnselCommonID:
                 break;
-            case EXnselXlateIPv4ID: {
-                EXnselXlateIPv4_t *nselXlateIPv4 = (EXnselXlateIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                nselXlateIPv4->xlateSrcAddr = anonymize(nselXlateIPv4->xlateSrcAddr);
-                nselXlateIPv4->xlateDstAddr = anonymize(nselXlateIPv4->xlateDstAddr);
+            case EXnatXlateIPv4ID: {
+                EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                natXlateIPv4->xlateSrcAddr = anonymize(natXlateIPv4->xlateSrcAddr);
+                natXlateIPv4->xlateDstAddr = anonymize(natXlateIPv4->xlateDstAddr);
             } break;
-            case EXnselXlateIPv6ID: {
-                EXnselXlateIPv6_t *nselXlateIPv6 = (EXnselXlateIPv6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                anonymize_v6(nselXlateIPv6->xlateSrcAddr, anon_ip);
-                nselXlateIPv6->xlateSrcAddr[0] = anon_ip[0];
-                nselXlateIPv6->xlateSrcAddr[1] = anon_ip[1];
+            case EXnatXlateIPv6ID: {
+                EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)((void *)elementHeader + sizeof(elementHeader_t));
+                anonymize_v6(natXlateIPv6->xlateSrcAddr, anon_ip);
+                natXlateIPv6->xlateSrcAddr[0] = anon_ip[0];
+                natXlateIPv6->xlateSrcAddr[1] = anon_ip[1];
 
-                anonymize_v6(nselXlateIPv6->xlateDstAddr, anon_ip);
-                nselXlateIPv6->xlateDstAddr[0] = anon_ip[0];
-                nselXlateIPv6->xlateDstAddr[1] = anon_ip[1];
+                anonymize_v6(natXlateIPv6->xlateDstAddr, anon_ip);
+                natXlateIPv6->xlateDstAddr[0] = anon_ip[0];
+                natXlateIPv6->xlateDstAddr[1] = anon_ip[1];
             } break;
                 // default:
                 // skip other and unknown extension

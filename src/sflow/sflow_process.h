@@ -257,7 +257,7 @@ typedef struct _SFSample {
     SFLAddress mpls_nextHop;
 
     /* nat */
-    SFLAddress nat_src;  // EXnselXlateIPv4ID
+    SFLAddress nat_src;  // EXnatXlateIPv4ID
     SFLAddress nat_dst;
     uint32_t nat_src_port;
     uint32_t nat_dst_port;

@@ -577,10 +577,10 @@ static uint32_t NewIPElement(ipStack_t *ipStack, int direction, int comp, data_t
 				block = NewElement(EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
 			case DIR_SRC_NAT:
-				block = NewElement(EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				block = NewElement(EXnatXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
 			case DIR_DST_NAT:
-				block = NewElement(EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
+				block = NewElement(EXnatXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
 				break;
 			case DIR_SRC_TUN:
 				block = NewElement(EXtunIPv4ID, OFFtunSrc4Addr, SIZEtunSrc4Addr, ipStack->ipaddr[1], comp, FUNC_NONE, data[0]); 
@@ -612,12 +612,12 @@ static uint32_t NewIPElement(ipStack_t *ipStack, int direction, int comp, data_t
 				v6_2 = NewElement(EXipv6FlowID, OFFdst6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case DIR_SRC_NAT:
-				v6_1 = NewElement(EXnselXlateIPv6ID, OFFxlateSrc6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
-				v6_2 = NewElement(EXnselXlateIPv6ID, OFFxlateSrc6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				v6_1 = NewElement(EXnatXlateIPv6ID, OFFxlateSrc6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXnatXlateIPv6ID, OFFxlateSrc6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case DIR_DST_NAT:
-				v6_1 = NewElement(EXnselXlateIPv6ID, OFFxlateDst6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
-				v6_2 = NewElement(EXnselXlateIPv6ID, OFFxlateDst6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
+				v6_1 = NewElement(EXnatXlateIPv6ID, OFFxlateDst6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
+				v6_2 = NewElement(EXnatXlateIPv6ID, OFFxlateDst6Addr + sizeof(uint64_t), sizeof(uint64_t), ipStack->ipaddr[1], comp, FUNC_NONE, data[1]);
 				break;
 			case DIR_SRC_TUN:
 				v6_1 = NewElement(EXtunIPv6ID, OFFtunSrc6Addr, sizeof(uint64_t), ipStack->ipaddr[0], comp, FUNC_NONE, data[0]);
@@ -766,10 +766,10 @@ static int AddPortNumber(direction_t direction, uint16_t comp, uint64_t port) {
 		  ret = NewElement(EXgenericFlowID, OFFdstPort, SIZEdstPort, port, comp, FUNC_NONE, NULLPtr);
 		  break;
 	  case DIR_SRC_NAT:
-		  ret = NewElement(EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, port, comp, FUNC_NONE, NULLPtr);
+		  ret = NewElement(EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, port, comp, FUNC_NONE, NULLPtr);
 		  break;
 	  case DIR_DST_NAT:
-		  ret = NewElement(EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, port, comp, FUNC_NONE, NULLPtr);
+		  ret = NewElement(EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, port, comp, FUNC_NONE, NULLPtr);
 		  break;
 	  case DIR_UNSPEC:
 		  ret = Connect_OR(
@@ -779,8 +779,8 @@ static int AddPortNumber(direction_t direction, uint16_t comp, uint64_t port) {
 		  break;
 	  case DIR_UNSPEC_NAT:
 		  ret = Connect_OR(
-		  	NewElement(EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, port, comp, FUNC_NONE, NULLPtr),
-		  	NewElement(EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, port, comp, FUNC_NONE, NULLPtr)
+		  	NewElement(EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, port, comp, FUNC_NONE, NULLPtr),
+		  	NewElement(EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, port, comp, FUNC_NONE, NULLPtr)
 		  );
 		  break;
 	  default:
@@ -1212,7 +1212,7 @@ static int AddNatPortBlocks(char *type, char *subtype, uint16_t comp, uint64_t n
 			return -1;
 	}
 
-	return NewElement(EXnelXlatePortID, offset, SIZEnelblockStart, number, comp, FUNC_NONE, NULLPtr);
+	return NewElement(EXnatPortBlockID, offset, SIZEnelblockStart, number, comp, FUNC_NONE, NULLPtr);
 	return -1;
 } // End of AddNatPortBlocks
 
@@ -1660,14 +1660,14 @@ static int AddIPlist(direction_t direction, void *IPlist) {
 			break;
 		case DIR_SRC_NAT:
 			ret = Connect_OR(
-				NewElement(EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
-				NewElement(EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+				NewElement(EXnatXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXnatXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
 			);
 			break;
 		case DIR_DST_NAT:
 			ret = Connect_OR(
-				NewElement(EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
-				NewElement(EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+				NewElement(EXnatXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXnatXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
 			);
 			break;
 		case DIR_SRC_TUN:
@@ -1701,12 +1701,12 @@ static int AddIPlist(direction_t direction, void *IPlist) {
 		} break;
 		case DIR_UNSPEC_NAT: {
 			int v4 = Connect_OR(
-				NewElement(EXnselXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
-				NewElement(EXnselXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData) 
+				NewElement(EXnatXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData), 
+				NewElement(EXnatXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData) 
 			);
 			int v6 = Connect_OR(
-				NewElement(EXnselXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData),
-				NewElement(EXnselXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
+				NewElement(EXnatXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData),
+				NewElement(EXnatXlateIPv6ID, OFFxlateDst6Addr, SIZExlateDst6Addr, 0, CMP_IPLIST, FUNC_NONE, IPlistData)
 			);
 			ret = Connect_OR(v4, v6);
 		} break;
@@ -1875,15 +1875,15 @@ static int AddPortList(direction_t direction, void *U64List) {
 		  );
 		  break;
 		case DIR_SRC_NAT:
-		  ret = NewElement(EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  ret = NewElement(EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
 		  break;
 	  case DIR_DST_NAT:
-		  ret = NewElement(EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
+		  ret = NewElement(EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
 		  break;
 	  case DIR_UNSPEC_NAT:
 		  ret = Connect_OR(
-		  	NewElement(EXnselXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr),
-		  	NewElement(EXnselXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr )
+		  	NewElement(EXnatXlatePortID, OFFxlateSrcPort, SIZExlateSrcPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr),
+		  	NewElement(EXnatXlatePortID, OFFxlateDstPort, SIZExlateDstPort, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr )
 		  );
 		  break;
 	  default:
