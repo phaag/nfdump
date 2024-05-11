@@ -81,6 +81,11 @@ Print ft2nfdump version and exit.
 .It Fl h
 Print help text to stdout and exit.
 .El
+.Sh EXAMPLES
+To convert a flow tools file into nfdump format:
+.Dl % ft2nfdump -r <flow-tools-file> -z=lz4 -w <nfdump-file.nf>
+.Dl % nfdump -r <nfdump-file.nf>
+.Ed
 .Sh RETURN VALUES
 .Nm
 returns 0 on success and 255 otherwise.

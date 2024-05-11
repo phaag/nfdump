@@ -328,6 +328,7 @@ static stat_record_t process_data(void *engine, int processwMode, char *wfile, R
                 if (sumSize == dataBlock_r->size) {
                     LogError("DataBlock count error");
                     LogError("DataBlock: count: %u, size: %u. Found: %u, size: %u", dataBlock_r->NumRecords, dataBlock_r->size, i, sumSize);
+                    dataBlock_r->NumRecords = i;
                     break;
                 }
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
