@@ -127,8 +127,7 @@ static void usage(char *name) {
         "\t\tand ordered by <order>: packets, bytes, flows, bps pps and bpp.\n"
         "-q\t\tQuiet: Do not print the header and bottom stat lines.\n"
         "-i <ident>\tChange Ident to <ident> in file given by -r.\n"
-        "-J <num>\tModify file compression: 0: uncompressed - 1: LZO - 2: BZ2 - 3: LZ4 - 4: ZSTD"
-        "compressed.\n"
+        "-J <arg>\tModify file compression: lzo, bz2, lz4[:level], zstd[:level].\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
@@ -749,7 +748,7 @@ int main(int argc, char **argv) {
             case 'J':
                 ModifyCompress = ParseCompression(optarg);
                 if (ModifyCompress < 0) {
-                    LogError("Expected -J <arg>, 0 for uncompressed, 1, LZO, 2, BZ2, 3, LZ4");
+                    LogError("Expected -J <arg>, lzo, bz2, lz4[:level], zstd[:level]");
                     exit(EXIT_FAILURE);
                 }
                 break;
