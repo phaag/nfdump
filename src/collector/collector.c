@@ -364,7 +364,7 @@ int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int 
 
     // prepare sub dir hierarchy
     char *subdir = NULL;
-    if (fs->subdir) {
+    if (fs && fs->subdir) {
         subdir = GetSubDir(now);
         if (!subdir) {
             // failed to generate subdir path - put flows into base directory

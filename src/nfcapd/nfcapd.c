@@ -332,11 +332,14 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
             cnt = recvfrom(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&nf_sender, &nf_sender_size);
 #endif
 
-            if (cnt == -1 && errno != EINTR) {
-                LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
-                continue;
+            if (cnt == -1) {
+                if (errno != EINTR) {
+                    LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
+                    continue;
+                }
+            } else {
+                packets++;
             }
-            packets++;
         }
 
         /* Periodic file renaming, if time limit reached or if we are done.  */
