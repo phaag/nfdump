@@ -173,7 +173,7 @@ static int AddASList(direction_t direction, void *U64List);
 %token EQ LT GT LE GE
 %token ANY NOT IDENT COUNT
 %token IP IPV4 IPV6 NET
-%token SRC DST IN OUT PREV NEXT BGP ROUTER INGRESS EGRESS
+%token SRC DST IN OUT PREV NEXT BGP BGPNEXT ROUTER INGRESS EGRESS
 %token NAT XLATE TUN
 %token ENGINE ENGINETYPE ENGINEID EXPORTER
 %token DURATION PPS BPS BPP FLAGS
@@ -533,6 +533,7 @@ dqual:	 { $$.direction = DIR_UNSPEC;   }
 	| EGRESS	 { $$.direction = DIR_EGRESS;   }
 	| PREV		 { $$.direction = DIR_PREV;     }
 	| NEXT		 { $$.direction = DIR_NEXT;     }
+	| BGPNEXT	 { $$.direction = BGP_NEXT;	}
 	| BGP NEXT       { $$.direction = BGP_NEXT;	}
 	| ROUTER	 { $$.direction = SRC_ROUTER;   }
 	| EXPORTER       { $$.direction = SRC_ROUTER;   }
@@ -717,7 +718,7 @@ static int AddProto(direction_t direction, char *protoStr, uint64_t protoNum) {
 	  	yyerror("Unknown protocol specifier");
 			return -1;
 	}
-} // End of AddProtoString
+} // End of AddProto
 
 static int AddEngineNum(char *type, uint16_t comp, uint64_t num) {
 	if ( num > 255 ) {

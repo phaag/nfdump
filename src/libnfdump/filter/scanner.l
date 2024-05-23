@@ -134,6 +134,7 @@ out				{ return OUT;    }
 next			{ return NEXT;   }
 prev			{ return PREV;   }
 bgp				{ return BGP;    }
+bgpnext		{ return BGPNEXT; }
 router		{ return ROUTER; }
 nat		    { return NAT;    }
 xlate		  { return NAT;    }
