@@ -621,8 +621,12 @@ static uint64_t order_pps_in(FlowHashRecord_t *record) {
     if (unlikely(record->msecLast == 0)) return 0;
 
     uint64_t duration = record->msecLast - record->msecFirst;
-    uint64_t packets = record->inPackets;
-    return (1000LL * packets) / duration;
+    if (duration == 0)
+        return 0;
+    else {
+        uint64_t packets = record->inPackets;
+        return (1000LL * packets) / duration;
+    }
 
 }  // End of order_pps_in
 
@@ -631,8 +635,12 @@ static uint64_t order_pps_out(FlowHashRecord_t *record) {
     if (unlikely(record->msecLast == 0)) return 0;
 
     uint64_t duration = record->msecLast - record->msecFirst;
-    uint64_t packets = record->outPackets;
-    return (1000LL * packets) / duration;
+    if (duration == 0)
+        return 0;
+    else {
+        uint64_t packets = record->outPackets;
+        return (1000LL * packets) / duration;
+    }
 
 }  // End of order_pps_out
 
@@ -641,8 +649,12 @@ static uint64_t order_pps_inout(FlowHashRecord_t *record) {
     if (unlikely(record->msecLast == 0)) return 0;
 
     uint64_t duration = record->msecLast - record->msecFirst;
-    uint64_t packets = record->inPackets + record->outPackets;
-    return (1000LL * packets) / duration;
+    if (duration == 0)
+        return 0;
+    else {
+        uint64_t packets = record->inPackets + record->outPackets;
+        return (1000LL * packets) / duration;
+    }
 
 }  // End of order_pps_inout
 
@@ -651,8 +663,12 @@ static uint64_t order_bps_in(FlowHashRecord_t *record) {
     if (unlikely(record->msecLast == 0)) return 0;
 
     uint64_t duration = record->msecLast - record->msecFirst;
-    uint64_t bytes = record->inBytes;
-    return (8000LL * bytes) / duration; /* 8 bits per Octet - x 1000 for msec */
+    if (duration == 0)
+        return 0;
+    else {
+        uint64_t bytes = record->inBytes;
+        return (8000LL * bytes) / duration; /* 8 bits per Octet - x 1000 for msec */
+    }
 
 }  // End of order_bps_in
 
@@ -661,8 +677,12 @@ static uint64_t order_bps_out(FlowHashRecord_t *record) {
     if (unlikely(record->msecLast == 0)) return 0;
 
     uint64_t duration = record->msecLast - record->msecFirst;
-    uint64_t bytes = record->outBytes;
-    return (8000LL * bytes) / duration; /* 8 bits per Octet - x 1000 for msec */
+    if (duration == 0)
+        return 0;
+    else {
+        uint64_t bytes = record->outBytes;
+        return (8000LL * bytes) / duration; /* 8 bits per Octet - x 1000 for msec */
+    }
 
 }  // End of order_bps_out
 
@@ -671,8 +691,12 @@ static uint64_t order_bps_inout(FlowHashRecord_t *record) {
     if (unlikely(record->msecLast == 0)) return 0;
 
     uint64_t duration = record->msecLast - record->msecFirst;
-    uint64_t bytes = record->inBytes + record->outBytes;
-    return (8000LL * bytes) / duration; /* 8 bits per Octet - x 1000 for msec */
+    if (duration == 0)
+        return 0;
+    else {
+        uint64_t bytes = record->inBytes + record->outBytes;
+        return (8000LL * bytes) / duration; /* 8 bits per Octet - x 1000 for msec */
+    }
 
 }  // End of order_bps_inout
 
