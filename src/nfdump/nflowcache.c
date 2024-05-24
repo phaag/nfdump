@@ -696,7 +696,7 @@ static uint64_t order_bpp_inout(FlowHashRecord_t *record) {
     uint64_t packets = record->inPackets + record->outPackets;
     if (packets == 0) return 0;
 
-    uint64_t bytes = record->outBytes + record->outBytes;
+    uint64_t bytes = record->inBytes + record->outBytes;
     return bytes / packets;
 }  // End of order_bpp_inout
 
