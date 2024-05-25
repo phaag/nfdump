@@ -1283,7 +1283,7 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                 free((void *)topN_element_list);
             }
         }  // for every requested order
-    }      // for every requested -s stat do
+    }  // for every requested -s stat do
 
 }  // End of PrintElementStat
 
@@ -1315,15 +1315,7 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
     *count = numCells;
     dbg_printf("Sort %u flows\n", c);
 
-#ifdef DEVEL
-    for (int i = 0; i < numCells; i++) printf("%i, %llu %p\n", i, topN_list[i].count, topN_list[i].hashCell);
-#endif
-
     if (c > 1) blocksort((SortElement_t *)topN_list, c);
-
-#ifdef DEVEL
-    for (int i = 0; i < numCells; i++) printf("%i, %llu %llx\n", i, topN_list[i].count, (unsigned long long)topN_list[i].hashCell);
-#endif
 
     return topN_list;
 

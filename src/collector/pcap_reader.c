@@ -70,6 +70,10 @@
 #define DLT_LINUX_SLL 113
 #endif
 
+#ifndef DLT_LINUX_SLL2
+#define DLT_LINUX_SLL2 276
+#endif
+
 #ifndef DLT_NFLOG
 #define DLT_NFLOG 239
 #endif
@@ -158,6 +162,9 @@ static int setup_pcap(char *filter) {
         case DLT_LINUX_SLL:
             linkoffset = 16;
             break;
+        case DLT_LINUX_SLL2:
+            linkoffset = 20;
+            break;
         case DLT_IEEE802_11:
             linkoffset = 22;
             break;
@@ -240,6 +247,9 @@ REDO_LINK:
         } break;
         case DLT_LINUX_SLL:
             protocol = data[14] << 8 | data[15];
+            break;
+        case DLT_LINUX_SLL2:
+            protocol = data[0] << 8 | data[1];
             break;
         case DLT_IEEE802_11:
             protocol = 0x800;
