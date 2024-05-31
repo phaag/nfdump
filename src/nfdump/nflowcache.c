@@ -894,6 +894,15 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
 static void ApplyAggregateMask(recordHandle_t *recordHandle, struct aggregationElement_s *aggregationElement) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+    if (recordHandle->extensionList[aggregationElement->param.extID] == NULL) {
+        if (ipv4Flow) {
+            ipv4Flow->srcAddr = ipv4Flow->dstAddr = 0;
+        }
+        if (ipv6Flow) {
+            memset(ipv6Flow->srcAddr, 0, sizeof(EXipv6Flow_t));
+        }
+        return;
+    }
 
     uint32_t maskIndex = aggregationElement->netmaskID;
 
