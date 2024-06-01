@@ -849,10 +849,8 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keyLen = sizeof(FlowKeyV4_t);
         } else if (ipv6Flow) {
             FlowKeyV6_t *keyptr = (FlowKeyV6_t *)keymem;
-            keyptr->srcAddr[0] = ipv6Flow->dstAddr[0];
-            keyptr->srcAddr[1] = ipv6Flow->dstAddr[1];
-            keyptr->dstAddr[0] = ipv6Flow->srcAddr[0];
-            keyptr->dstAddr[1] = ipv6Flow->srcAddr[1];
+            memcpy((void *)keyptr->srcAddr, (void *)ipv6Flow->srcAddr, 16);
+            memcpy((void *)keyptr->dstAddr, (void *)ipv6Flow->dstAddr, 16);
             keyptr->srcPort = genericFlow->dstPort;
             keyptr->dstPort = genericFlow->srcPort;
             keyptr->proto = genericFlow->proto;
@@ -874,10 +872,8 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keyLen = sizeof(FlowKeyV4_t);
         } else if (ipv6Flow) {
             FlowKeyV6_t *keyptr = (FlowKeyV6_t *)keymem;
-            keyptr->srcAddr[0] = ipv6Flow->srcAddr[0];
-            keyptr->srcAddr[1] = ipv6Flow->srcAddr[1];
-            keyptr->dstAddr[0] = ipv6Flow->dstAddr[0];
-            keyptr->dstAddr[1] = ipv6Flow->dstAddr[1];
+            memcpy((void *)keyptr->srcAddr, (void *)ipv6Flow->srcAddr, 16);
+            memcpy((void *)keyptr->dstAddr, (void *)ipv6Flow->dstAddr, 16);
             keyptr->srcPort = genericFlow->srcPort;
             keyptr->dstPort = genericFlow->dstPort;
             keyptr->proto = genericFlow->proto;
@@ -1391,11 +1387,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         flowHash->records[index].msecFirst = genericFlow->msecFirst;
         flowHash->records[index].msecLast = genericFlow->msecLast;
 
-        void *p = malloc(record->size);
-        if (!p) {
-            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            exit(255);
-        }
+        void *p = nfmalloc(record->size);
         memcpy((void *)p, record, record->size);
         flowHash->records[index].flowrecord = p;
         flowHash->records[index].swap = NeedSwap(keymem);
@@ -1445,11 +1437,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
             flowHash->records[index].msecFirst = genericFlow->msecFirst;
             flowHash->records[index].msecLast = genericFlow->msecLast;
 
-            void *p = malloc(record->size);
-            if (!p) {
-                LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-                exit(255);
-            }
+            void *p = nfmalloc(record->size);
             memcpy((void *)p, record, record->size);
             flowHash->records[index].flowrecord = p;
             flowHash->records[index].swap = NeedSwap(keymem);
@@ -1774,6 +1762,7 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
         }
     }
 
+    free(SortList);
 }  // End of PrintFlowStat
 
 // print Flow cache
@@ -1799,6 +1788,8 @@ void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, 
         // for -a and no -O sorting required
         PrintSortList(SortList, maxindex, outputParams, GuessDir, print_record, PrintDirection);
     }
+    free(SortList);
+
 }  // End of PrintFlowTable
 
 int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
@@ -1819,6 +1810,7 @@ int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
         blocksort(SortList, maxindex);
     }
     ExportSortList(SortList, maxindex, nffile, GuessDir, PrintDirection);
+    free(SortList);
 
     return 1;
 

@@ -483,6 +483,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
     queue_close(processQueue);
     dbg_printf("FilterThread %d exit.\n", self);
 
+    free(recordHandle);
     filterArgs->processedRecords += processedRecords;
     filterArgs->passedRecords += passedRecords;
     pthread_exit(NULL);

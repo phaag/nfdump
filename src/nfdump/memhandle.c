@@ -84,18 +84,11 @@ static int nfalloc_Init(uint32_t memBlockSize) {
 
     if (memBlockSize == 0) memBlockSize = DefaultMemBlockSize;
 
-    MemHandler->BlockSize = memBlockSize;
-
-    MemHandler->memblock[0] = calloc(1, memBlockSize);
-    if (!MemHandler->memblock[0]) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
-        return 0;
-    }
-
-    MemHandler->MaxBlocks = MaxMemBlocks;
-    MemHandler->NumBlocks = 0;
-    MemHandler->CurrentBlock = -1;        // non allocated
-    MemHandler->Allocted = memBlockSize;  // force new allocation with next nfmalloc
+    MemHandler->BlockSize = memBlockSize;  // size of each memory block
+    MemHandler->MaxBlocks = MaxMemBlocks;  // number of max blocks
+    MemHandler->NumBlocks = 0;             // total allocated block
+    MemHandler->CurrentBlock = -1;         // index of current active block
+    MemHandler->Allocted = memBlockSize;   // init state - force new allocation with next nfmalloc
     MemHandler->lock = 0;
 
     return 1;
