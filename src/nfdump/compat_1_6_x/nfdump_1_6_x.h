@@ -37,4 +37,6 @@
 #include "nffileV2.h"
 #include "nfxV3.h"
 
-#endif  // _NFDUMP_1_6_x_H
+void ConvertBlockType2(dataBlock_t *v2DataBlock, dataBlock_t *v3DataBlock);
+
+#endif  //_NFDUMP_H

@@ -122,8 +122,6 @@ static int Uncompress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, 
 
 static int Uncompress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size);
 
-static dataBlock_t *NewDataBlock(void);
-
 static dataBlock_t *nfread(nffile_t *nffile);
 
 static int nfwrite(nffile_t *nffile, dataBlock_t *block_header);
@@ -512,7 +510,7 @@ static int Uncompress_Block_ZSTD(dataBlock_t *in_block, dataBlock_t *out_block, 
 #endif
 }  // End of Uncompress_Block_ZSTD
 
-static dataBlock_t *NewDataBlock(void) {
+dataBlock_t *NewDataBlock(void) {
     dataBlock_t *dataBlock = malloc(BUFFSIZE);
     if (!dataBlock) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
