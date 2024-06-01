@@ -94,7 +94,7 @@ static struct aggregationElement_s {
                         {"srctos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, 0, NOPREPROCESS, 0, 0, "%stos"},
                         {"srcip4", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, NOPREPROCESS, 0, 1, "%sa"},
                         {"dstip4", {EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, AF_INET}, 0, NOPREPROCESS, 0, 2, "%da"},
-                        {"srcip6", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc4Addr, AF_INET6}, 0, NOPREPROCESS, 0, 1, "%sa"},
+                        {"srcip6", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, 0, NOPREPROCESS, 0, 1, "%sa"},
                         {"dstip6", {EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, AF_INET6}, 0, NOPREPROCESS, 0, 2, "%da"},
                         {"srcip", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, 0, NOPREPROCESS, 0, 1, "%sa"},
                         {"srcip", {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, 0, NOPREPROCESS, 0, 1, NULL},
