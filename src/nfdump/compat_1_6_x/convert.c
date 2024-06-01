@@ -344,7 +344,6 @@ static inline int ConvertRecordV2(common_record_t *commonRecord, dataBlock_t *da
             case EX_NSEL_XLATE_IP_v4: {
                 tpl_ext_39_t *tpl = (tpl_ext_39_t *)p;
                 PushExtension(recordHeader, EXnatXlateIPv4, natXlateIPv4);
-                MapExtension(EXnatXlateIPv4ID, natXlateIPv4);
                 natXlateIPv4->xlateSrcAddr = tpl->xlate_src_ip;
                 natXlateIPv4->xlateDstAddr = tpl->xlate_dst_ip;
                 p = (void *)tpl->data;
@@ -352,7 +351,6 @@ static inline int ConvertRecordV2(common_record_t *commonRecord, dataBlock_t *da
             case EX_NSEL_XLATE_IP_v6: {
                 tpl_ext_40_t *tpl = (tpl_ext_40_t *)p;
                 PushExtension(recordHeader, EXnatXlateIPv6, natXlateIPv6);
-                MapExtension(EXnatXlateIPv6ID, natXlateIPv6);
                 memcpy(natXlateIPv6->xlateSrcAddr, tpl->xlate_src_ip, 16);
                 memcpy(natXlateIPv6->xlateDstAddr, tpl->xlate_dst_ip, 16);
                 p = (void *)tpl->data;
@@ -360,7 +358,6 @@ static inline int ConvertRecordV2(common_record_t *commonRecord, dataBlock_t *da
             case EX_NSEL_XLATE_PORTS: {
                 tpl_ext_38_t *tpl = (tpl_ext_38_t *)p;
                 PushExtension(recordHeader, EXnatXlatePort, natXlatePort);
-                MapExtension(EXnatXlatePortID, natXlatePort);
                 natXlatePort->xlateSrcPort = tpl->xlate_src_port;
                 natXlatePort->xlateDstPort = tpl->xlate_dst_port;
                 p = (void *)tpl->data;
@@ -404,7 +401,6 @@ static inline int ConvertRecordV2(common_record_t *commonRecord, dataBlock_t *da
             case EX_PORT_BLOCK_ALLOC: {
                 tpl_ext_48_t *tpl = (tpl_ext_48_t *)p;
                 PushExtension(recordHeader, EXnatPortBlock, natPortBlock);
-                MapExtension(EXnatPortBlockID, natPortBlock);
                 natPortBlock->blockStart = tpl->block_start;
                 natPortBlock->blockEnd = tpl->block_end;
                 natPortBlock->blockStep = tpl->block_step;
