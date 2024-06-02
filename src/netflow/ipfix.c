@@ -221,14 +221,15 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_INGRESS_VRFID, SIZEingressVrf, NumberCopy, EXvrfID, OFFingressVrf, STACK_NONE, "ingress VRF ID"},
     {IPFIX_EGRESS_VRFID, SIZEegressVrf, NumberCopy, EXvrfID, OFFegressVrf, STACK_NONE, "egress VRF ID"},
     // NAT
-    {IPFIX_observationTimeMilliseconds, SIZEmsecEvent, NumberCopy, EXnelCommonID, OFFmsecEvent, STACK_MSEC, "msec time event"},
-    {IPFIX_natEvent, SIZEnatEvent, NumberCopy, EXnelCommonID, OFFnatEvent, STACK_NONE, "NAT event"},
+    {IPFIX_observationTimeMilliseconds, SIZEmsecEvent, NumberCopy, EXnatCommonID, OFFmsecEvent, STACK_MSEC, "msec time event"},
+    {IPFIX_natEvent, SIZEnatEvent, NumberCopy, EXnatCommonID, OFFnatEvent, STACK_NONE, "NAT event"},
     {IPFIX_postNATSourceIPv4Address, SIZExlateSrc4Addr, NumberCopy, EXnatXlateIPv4ID, OFFxlateSrc4Addr, STACK_NONE, "xlate src addr"},
     {IPFIX_postNATDestinationIPv4Address, SIZExlateDst4Addr, NumberCopy, EXnatXlateIPv4ID, OFFxlateDst4Addr, STACK_NONE, "xlate dst addr"},
     {IPFIX_postNAPTSourceTransportPort, SIZExlateSrcPort, NumberCopy, EXnatXlatePortID, OFFxlateSrcPort, STACK_NONE, "xlate src port"},
     {IPFIX_postNAPTDestinationTransportPort, SIZExlateDstPort, NumberCopy, EXnatXlatePortID, OFFxlateDstPort, STACK_NONE, "xlate dst port"},
+    {IPFIX_flowId, SIZEflowId, NumberCopy, EXflowIdID, OFFflowId, STACK_NONE, "flow ID"},
     // cgNAT
-    {IPFIX_NATPOOL_ID, SIZEnatPoolID, NumberCopy, EXnelCommonID, OFFnatPoolID, STACK_NONE, "nat pool ID"},
+    {IPFIX_NATPOOL_ID, SIZEnatPoolID, NumberCopy, EXnatCommonID, OFFnatPoolID, STACK_NONE, "nat pool ID"},
     {IPFIX_PORT_BLOCK_START, SIZEnelblockStart, NumberCopy, EXnatPortBlockID, OFFnelblockStart, STACK_NONE, "NAT block start"},
     {IPFIX_PORT_BLOCK_END, SIZEnelblockEnd, NumberCopy, EXnatPortBlockID, OFFnelblockEnd, STACK_NONE, "NAT block end"},
     {IPFIX_PORT_BLOCK_STEP, SIZEnelblockStep, NumberCopy, EXnatPortBlockID, OFFnelblockStep, STACK_NONE, "NAT block step"},
@@ -239,8 +240,13 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_dataLinkFrameSection, SIZEpacket, ByteCopy, EXinmonFrameID, OFFpacket, STACK_NONE, "inmon packet content"},
 
     // payload
-    {LOCAL_inPayload, VARLENGTH, NumberCopy, EXinPayloadID, 0, STACK_NONE, "in payload"},
-    {LOCAL_outPayload, VARLENGTH, NumberCopy, EXoutPayloadID, 0, STACK_NONE, "out payload"},
+    {LOCAL_inPayload, VARLENGTH, ByteCopy, EXinPayloadID, 0, STACK_NONE, "in payload"},
+    {LOCAL_outPayload, VARLENGTH, ByteCopy, EXoutPayloadID, 0, STACK_NONE, "out payload"},
+
+    // Nokia
+    {NOKIA_InsideServiceId, SIZEinServiceID, NumberCopy, EXnokiaNatID, OFFinServiceID, STACK_NONE, "Nokia inside service ID"},
+    {NOKIA_OutsideServiceId, SIZEoutServiceID, NumberCopy, EXnokiaNatID, OFFoutServiceID, STACK_NONE, "Nokia outside service ID"},
+    {NOKIA_NatSubString, SIZEnatSubString, ByteCopy, EXnokiaNatStringID, OFFnatSubString, STACK_NONE, "Nokia nat substring"},
 
     // End of table
     {0, 0, 0, 0, 0, STACK_NONE, NULL},

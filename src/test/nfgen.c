@@ -521,12 +521,12 @@ int main(int argc, char **argv) {
     UpdateRecord(recordHandle);
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
-    // EXnelCommon
-    PushExtension(v3Record, EXnelCommon, nelCommon);
+    // EXnatCommon
+    PushExtension(v3Record, EXnatCommon, natCommon);
     AssertMapRecordHandle(recordHandle, v3Record, 0);
-    nelCommon->natEvent = 1;
-    nelCommon->msecEvent = genericFlow->msecFirst;
-    nelCommon->natPoolID = 5;
+    natCommon->natEvent = 1;
+    natCommon->msecEvent = genericFlow->msecFirst;
+    natCommon->natPoolID = 5;
 
     // EXnatPortBlock
     PushExtension(v3Record, EXnatPortBlock, natPortBlock);

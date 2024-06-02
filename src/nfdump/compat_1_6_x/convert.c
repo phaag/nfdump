@@ -386,8 +386,8 @@ static inline int ConvertRecordV2(common_record_t *commonRecord, dataBlock_t *da
             } break;
             case EX_NEL_COMMON: {
                 tpl_ext_46_t *tpl = (tpl_ext_46_t *)p;
-                PushExtension(recordHeader, EXnelCommon, nelCommon);
-                nelCommon->natEvent = tpl->nat_event;
+                PushExtension(recordHeader, EXnatCommon, natCommon);
+                natCommon->natEvent = tpl->nat_event;
                 PushExtension(recordHeader, EXvrf, vrf);
                 vrf->egressVrf = tpl->egress_vrfid;
                 vrf->ingressVrf = tpl->ingress_vrfid;

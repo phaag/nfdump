@@ -742,14 +742,14 @@ static void runTest(void) {
     CheckFilter("asa user invalid", recordHandle, 0);
     CheckFilter("asa user 'The nsel user'", recordHandle, 1);
 
-    // EXnelCommonID
-    PushExtension(recordHeaderV3, EXnelCommon, nelCommon);
+    // EXnatCommonID
+    PushExtension(recordHeaderV3, EXnatCommon, natCommon);
     MapRecordHandle(recordHandle, recordHeaderV3, 1);
-    nelCommon->natEvent = 0;
+    natCommon->natEvent = 0;
     CheckFilter("nat event invalid", recordHandle, 1);
     CheckFilter("nat event add", recordHandle, 0);
 
-    nelCommon->natEvent = 10;
+    natCommon->natEvent = 10;
     CheckFilter("nat event add64bib", recordHandle, 1);
     CheckFilter("nat event add", recordHandle, 0);
     CheckFilter("nat event 10", recordHandle, 1);

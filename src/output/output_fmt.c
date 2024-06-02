@@ -343,6 +343,14 @@ static void String_PortBlockStep(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_PortBlockSize(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_flowId(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_inServiceID(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_outServiceID(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_natString(FILE *stream, recordHandle_t *recordHandle);
+
 static struct format_token_list_s {
     char *token;                        // token
     int is_address;                     // is an IP address
@@ -463,7 +471,7 @@ static struct format_token_list_s {
 
     // EXsamplerInfoID
 
-    // EXnselCommonID & EXnelCommonID
+    // EXnselCommonID & EXnatCommonID
     {"%tevt", 0, "Event time             ", String_EventTime},  // NSEL Flow start time
     {"%msec", 0, "   Event Time", String_msecEvent},            // NSEL event time in msec
     {"%evt", 0, "   Event", String_evt},                        // NSEL event
@@ -538,6 +546,16 @@ static struct format_token_list_s {
     {"%pfrea", 0, "reason", String_pfReason},     // pflog reason
     {"%pfdir", 0, "dir", String_pfdir},           // pflog direction
     {"%pfrule", 0, "rule", String_pfrule},        // pflog rule
+
+    // EXflowIdID
+    {"%flid", 0, "               flowID", String_flowId},  // flowID
+
+    // EXnokiaNatID
+    {"%isid", 0, " inSrvID", String_inServiceID},   // in Service ID
+    {"%osid", 0, "outSrvID", String_outServiceID},  // out service ID
+
+    // EXnokiaNatStringID
+    {"%nats", 0, "nat string", String_natString},  // nat String
 
     // EXlocal
     {"%ja3", 0, "                                   ja3", String_ja3},  // ja3 hashes
@@ -618,7 +636,7 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
     tag_string[1] = '\0';
 
     duration = 0;
-    if (genericFlow && genericFlow->msecLast) {
+    if (genericFlow && genericFlow->msecFirst && genericFlow->msecLast) {
         if (genericFlow->msecLast >= genericFlow->msecFirst) {
             duration = (genericFlow->msecLast - genericFlow->msecFirst) / 1000.0;
         } else {
@@ -1221,13 +1239,13 @@ static void String_NewLine(FILE *stream, recordHandle_t *recordHandle) { fprintf
 
 static void String_EventTime(FILE *stream, recordHandle_t *recordHandle) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
-    EXnelCommon_t *nelCommon = (EXnelCommon_t *)recordHandle->extensionList[EXnelCommonID];
+    EXnatCommon_t *natCommon = (EXnatCommon_t *)recordHandle->extensionList[EXnatCommonID];
 
     uint64_t msecEvent = 0;
     if (nselCommon)
         msecEvent = nselCommon->msecEvent;
-    else if (nelCommon)
-        msecEvent = nelCommon->msecEvent;
+    else if (natCommon)
+        msecEvent = natCommon->msecEvent;
 
     if (msecEvent) {
         time_t tt = msecEvent / 1000LL;
@@ -2336,22 +2354,22 @@ static void String_nfc(FILE *stream, recordHandle_t *recordHandle) {
 
 static void String_evt(FILE *stream, recordHandle_t *recordHandle) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
-    EXnelCommon_t *nelCommon = (EXnelCommon_t *)recordHandle->extensionList[EXnelCommonID];
+    EXnatCommon_t *natCommon = (EXnatCommon_t *)recordHandle->extensionList[EXnatCommonID];
 
     if (printPlain) {
         uint32_t evtNum = 0;
         if (nselCommon) {
             evtNum = nselCommon->fwEvent;
-        } else if (nelCommon) {
-            evtNum = nelCommon->natEvent;
+        } else if (natCommon) {
+            evtNum = natCommon->natEvent;
         }
         fprintf(stream, "%u", evtNum);
     } else {
         char *evtString = "<no-evt>";
         if (nselCommon) {
             evtString = fwEventString(nselCommon->fwEvent);
-        } else if (nelCommon) {
-            evtString = natEventString(nelCommon->natEvent, SHORTNAME);
+        } else if (natCommon) {
+            evtString = natEventString(natCommon->natEvent, SHORTNAME);
         }
         fprintf(stream, "%8s", evtString);
     }
@@ -2371,8 +2389,8 @@ static void String_xevt(FILE *stream, recordHandle_t *recordHandle) {
 
 static void String_msecEvent(FILE *stream, recordHandle_t *recordHandle) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
-    EXnelCommon_t *nelCommon = (EXnelCommon_t *)recordHandle->extensionList[EXnelCommonID];
-    uint64_t msecEvent = nselCommon ? nselCommon->msecEvent : (nelCommon ? nelCommon->msecEvent : 0);
+    EXnatCommon_t *natCommon = (EXnatCommon_t *)recordHandle->extensionList[EXnatCommonID];
+    uint64_t msecEvent = nselCommon ? nselCommon->msecEvent : (natCommon ? natCommon->msecEvent : 0);
 
     fprintf(stream, "%13llu", (long long unsigned)msecEvent);
 
@@ -2570,3 +2588,26 @@ static void String_PortBlockSize(FILE *stream, recordHandle_t *recordHandle) {
     EXnatPortBlock_t *natPortBlock = (EXnatPortBlock_t *)recordHandle->extensionList[EXnatPortBlockID];
     fprintf(stream, "%7u", natPortBlock ? natPortBlock->blockSize : 0);
 }  // End of String_PortBlockSize
+
+static void String_flowId(FILE *stream, recordHandle_t *recordHandle) {
+    EXflowId_t *flowId = (EXflowId_t *)recordHandle->extensionList[EXflowIdID];
+    fprintf(stream, "0x%13llu", flowId ? flowId->flowId : 0);
+}  // End of String_flowId
+
+static void String_inServiceID(FILE *stream, recordHandle_t *recordHandle) {
+    EXnokiaNat_t *nokiaNat = (EXnokiaNat_t *)recordHandle->extensionList[EXnokiaNatID];
+
+    fprintf(stream, "%8u", nokiaNat ? nokiaNat->inServiceID : 0);
+}  // End of String_inServiceID
+
+static void String_outServiceID(FILE *stream, recordHandle_t *recordHandle) {
+    EXnokiaNat_t *nokiaNat = (EXnokiaNat_t *)recordHandle->extensionList[EXnokiaNatID];
+
+    fprintf(stream, "%8u", nokiaNat ? nokiaNat->outServiceID : 0);
+}  // End of String_outServiceID
+
+static void String_natString(FILE *stream, recordHandle_t *recordHandle) {
+    char *natString = (char *)recordHandle->extensionList[EXnokiaNatStringID];
+
+    fprintf(stream, "%s", natString ? natString : "<unknown>");
+}  // End of String_natString

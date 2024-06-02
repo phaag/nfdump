@@ -481,35 +481,22 @@ typedef struct EXnselUser_s {
 } EXnselUser_t;
 #define EXnselUserSize (sizeof(EXnselUser_t) + sizeof(elementHeader_t))
 
-// NEL
-typedef struct EXnelCommon_s {
-#define EXnelCommonID 25
+// NAT event logging
+typedef struct EXnatCommon_s {
+#define EXnatCommonID 25
     uint64_t msecEvent;  // NF_F_EVENT_TIME_MSEC(323)
     uint32_t natPoolID;  // NF_N_NATPOOL_ID(283)
     uint8_t natEvent;    // NAT_EVENT(230)
     uint8_t fill1;
     uint16_t fill2;
-#define OFFnelMsecEvent offsetof(EXnelCommon_t, msecEvent)
-#define SIZEnelMsecEvent MemberSize(EXnelCommon_t, msecEvent)
-#define OFFnatPoolID offsetof(EXnelCommon_t, natPoolID)
-#define SIZEnatPoolID MemberSize(EXnelCommon_t, natPoolID)
-#define OFFnatEvent offsetof(EXnelCommon_t, natEvent)
-#define SIZEnatEvent MemberSize(EXnelCommon_t, natEvent)
-} EXnelCommon_t;
-#define EXnelCommonSize (sizeof(EXnelCommon_t) + sizeof(elementHeader_t))
-
-// comapt record includes vrf fields
-// no longer used, but old data may exist
-typedef struct EXnelCommonCompat_s {
-    uint64_t msecEvent;   // NF_F_EVENT_TIME_MSEC(323)
-    uint32_t egressVrf;   // NF_N_EGRESS_VRFID(235)
-    uint32_t ingressVrf;  // NF_N_INGRESS_VRFID(234)
-    uint32_t natPoolID;   // NF_N_NATPOOL_ID(283)
-    uint8_t natEvent;     // NAT_EVENT(230)
-    uint8_t fill1;
-    uint16_t fill2;
-} EXnelCommonCompat_t;
-#define EXnelCommonCompatSize (sizeof(EXnelCommonCompat_t) + sizeof(elementHeader_t))
+#define OFFnelMsecEvent offsetof(EXnatCommon_t, msecEvent)
+#define SIZEnelMsecEvent MemberSize(EXnatCommon_t, msecEvent)
+#define OFFnatPoolID offsetof(EXnatCommon_t, natPoolID)
+#define SIZEnatPoolID MemberSize(EXnatCommon_t, natPoolID)
+#define OFFnatEvent offsetof(EXnatCommon_t, natEvent)
+#define SIZEnatEvent MemberSize(EXnatCommon_t, natEvent)
+} EXnatCommon_t;
+#define EXnatCommonSize (sizeof(EXnatCommon_t) + sizeof(elementHeader_t))
 
 typedef struct EXnatPortBlock_s {
 #define EXnatPortBlockID 26
@@ -672,8 +659,35 @@ typedef struct EXlayer2_s {
 } EXlayer2_t;
 #define EXlayer2Size (sizeof(EXlayer2_t) + sizeof(elementHeader_t))
 
+typedef struct EXflowId_s {
+#define EXflowIdID 39
+    uint64_t flowId;  // IPFIX_flowId
+#define OFFflowId offsetof(EXflowId_t, flowId)
+#define SIZEflowId MemberSize(EXflowId_t, flowId)
+} EXflowId_t;
+#define EXflowIdSize (sizeof(EXflowId_t) + sizeof(elementHeader_t))
+
+typedef struct EXnokiaNat_s {
+#define EXnokiaNatID 40
+    uint16_t inServiceID;
+    uint16_t outServiceID;
+#define OFFinServiceID offsetof(EXnokiaNat_t, inServiceID)
+#define SIZEinServiceID MemberSize(EXnokiaNat_t, inServiceID)
+#define OFFoutServiceID offsetof(EXnokiaNat_t, outServiceID)
+#define SIZEoutServiceID MemberSize(EXnokiaNat_t, outServiceID)
+} EXnokiaNat_t;
+#define EXnokiaNatSize (sizeof(EXnokiaNat_t) + sizeof(elementHeader_t))
+
+typedef struct EXnokiaNatString_s {
+#define EXnokiaNatStringID 41
+    char natSubString[4];
+#define OFFnatSubString offsetof(EXnokiaNatString_t, natSubString)
+#define SIZEnatSubString VARLENGTH
+} EXnokiaNatString_t;
+#define EXnokiaNatStringSize (sizeof(EXnokiaNatString_t) + sizeof(elementHeader_t))
+
 // max possible elements
-#define MAXEXTENSIONS 39
+#define MAXEXTENSIONS 42
 
 // push a fixed length extension to the v3 record
 // h v3 record header
@@ -734,14 +748,15 @@ static const struct extensionTable_s {
     uint32_t size;  // number of bytes incl. header, 0xFFFF for dyn length
     char *name;     // name of extension
 } extensionTable[] = {
-    {0, 0, "ExNull"},          EXTENSION(EXgenericFlow),  EXTENSION(EXipv4Flow),     EXTENSION(EXipv6Flow),     EXTENSION(EXflowMisc),
-    EXTENSION(EXcntFlow),      EXTENSION(EXvLan),         EXTENSION(EXasRouting),    EXTENSION(EXbgpNextHopV4), EXTENSION(EXbgpNextHopV6),
-    EXTENSION(EXipNextHopV4),  EXTENSION(EXipNextHopV6),  EXTENSION(EXipReceivedV4), EXTENSION(EXipReceivedV6), EXTENSION(EXmplsLabel),
-    EXTENSION(EXmacAddr),      EXTENSION(EXasAdjacent),   EXTENSION(EXlatency),      EXTENSION(EXsamplerInfo),  EXTENSION(EXnselCommon),
-    EXTENSION(EXnatXlateIPv4), EXTENSION(EXnatXlateIPv6), EXTENSION(EXnatXlatePort), EXTENSION(EXnselAcl),      EXTENSION(EXnselUser),
-    EXTENSION(EXnelCommon),    EXTENSION(EXnatPortBlock), EXTENSION(EXnbarApp),      EXTENSION(EXlabel),        EXTENSION(EXinPayload),
-    EXTENSION(EXoutPayload),   EXTENSION(EXtunIPv4),      EXTENSION(EXtunIPv6),      EXTENSION(EXobservation),  EXTENSION(EXinmonMeta),
-    EXTENSION(EXinmonFrame),   EXTENSION(EXvrf),          EXTENSION(EXpfinfo),       EXTENSION(EXlayer2)};
+    {0, 0, "EXnull"},          EXTENSION(EXgenericFlow),   EXTENSION(EXipv4Flow),     EXTENSION(EXipv6Flow),     EXTENSION(EXflowMisc),
+    EXTENSION(EXcntFlow),      EXTENSION(EXvLan),          EXTENSION(EXasRouting),    EXTENSION(EXbgpNextHopV4), EXTENSION(EXbgpNextHopV6),
+    EXTENSION(EXipNextHopV4),  EXTENSION(EXipNextHopV6),   EXTENSION(EXipReceivedV4), EXTENSION(EXipReceivedV6), EXTENSION(EXmplsLabel),
+    EXTENSION(EXmacAddr),      EXTENSION(EXasAdjacent),    EXTENSION(EXlatency),      EXTENSION(EXsamplerInfo),  EXTENSION(EXnselCommon),
+    EXTENSION(EXnatXlateIPv4), EXTENSION(EXnatXlateIPv6),  EXTENSION(EXnatXlatePort), EXTENSION(EXnselAcl),      EXTENSION(EXnselUser),
+    EXTENSION(EXnatCommon),    EXTENSION(EXnatPortBlock),  EXTENSION(EXnbarApp),      EXTENSION(EXlabel),        EXTENSION(EXinPayload),
+    EXTENSION(EXoutPayload),   EXTENSION(EXtunIPv4),       EXTENSION(EXtunIPv6),      EXTENSION(EXobservation),  EXTENSION(EXinmonMeta),
+    EXTENSION(EXinmonFrame),   EXTENSION(EXvrf),           EXTENSION(EXpfinfo),       EXTENSION(EXlayer2),       EXTENSION(EXflowId),
+    EXTENSION(EXnokiaNat),     EXTENSION(EXnokiaNatString)};
 
 typedef struct record_map_s {
     recordHeaderV3_t *recordHeader;

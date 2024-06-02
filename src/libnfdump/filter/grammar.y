@@ -1170,7 +1170,7 @@ static int AddNATString(char *event, char *natStr) {
 			natEventInfo();
 			return -1;
 		}
-		return NewElement(EXnelCommonID, OFFnatEvent, SIZEnatEvent, eventNum, CMP_EQ, FUNC_NONE, NULLPtr);
+		return NewElement(EXnatCommonID, OFFnatEvent, SIZEnatEvent, eventNum, CMP_EQ, FUNC_NONE, NULLPtr);
 	} 
 
 	yyerror("Invalid NAT type: %s", event);
@@ -1185,7 +1185,7 @@ static int AddNAT(char *event, uint16_t comp, uint64_t number) {
 			yyerror("NAT event: %llu out of range\n", number);
 			return -1;
 		}
-		return NewElement(EXnelCommonID, OFFnatEvent, SIZEnatEvent, number, comp, FUNC_NONE, NULLPtr);
+		return NewElement(EXnatCommonID, OFFnatEvent, SIZEnatEvent, number, comp, FUNC_NONE, NULLPtr);
 	} 
 
 	return -1;

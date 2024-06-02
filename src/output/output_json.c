@@ -625,10 +625,10 @@ static void stringEXnselUserID(FILE *stream, void *extensionRecord, const char *
 
 }  // End of stringEXnselUserID
 
-static void stringEXnelCommon(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
-    EXnelCommon_t *nelCommon = (EXnelCommon_t *)extensionRecord;
+static void stringEXnatCommon(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    EXnatCommon_t *natCommon = (EXnatCommon_t *)extensionRecord;
 
-    time_t when = nelCommon->msecEvent / 1000LL;
+    time_t when = natCommon->msecEvent / 1000LL;
     char datestr[64];
     if (when == 0) {
         strncpy(datestr, "<unknown>", 63);
@@ -642,10 +642,10 @@ static void stringEXnelCommon(FILE *stream, void *extensionRecord, const char *i
             "%s\"nat_event\" : \"%s\"%s"
             "%s\"nat_pool_id\" : %u%s"
             "%s\"t_event\" : \"%s.%llu\"%s",
-            indent, nelCommon->natEvent, fs, indent, natEventString(nelCommon->natEvent, LONGNAME), fs, indent, nelCommon->natPoolID, fs, indent,
-            datestr, nelCommon->msecEvent % 1000LL, fs);
+            indent, natCommon->natEvent, fs, indent, natEventString(natCommon->natEvent, LONGNAME), fs, indent, natCommon->natPoolID, fs, indent,
+            datestr, natCommon->msecEvent % 1000LL, fs);
 
-}  // End of stringEXnelCommon
+}  // End of stringEXnatCommon
 
 static void stringEXnatPortBlock(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXnatPortBlock_t *natPortBlock = (EXnatPortBlock_t *)extensionRecord;
@@ -658,6 +658,28 @@ static void stringEXnatPortBlock(FILE *stream, void *extensionRecord, const char
             natPortBlock->blockSize, fs);
 
 }  // End of stringEXnatPortBlock
+
+static void stringEXflowId(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    EXflowId_t *flowId = (EXflowId_t *)extensionRecord;
+
+    fprintf(stream, "%s\"flowID\" : %llu%s", indent, flowId->flowId, fs);
+}  // End of stringEXflowId
+
+static void stringEXnokiaNat(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    EXnokiaNat_t *nokiaNat = (EXnokiaNat_t *)extensionRecord;
+
+    fprintf(stream,
+            "%s\"inServiceID\" : %u%s"
+            "%s\"outServiceID\" : %u%s",
+            indent, nokiaNat->inServiceID, fs, indent, nokiaNat->outServiceID, fs);
+
+}  // End of String_inServiceID
+
+static void stringEXnokiaNatString(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    char *natString = (char *)extensionRecord;
+
+    fprintf(stream, "%s\"natString\" : \"%s\"%s", indent, natString, fs);
+}  // End of String_natString
 
 void json_prolog(void) {
     recordCount = 0;
@@ -789,11 +811,20 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
             case EXnselUserID:
                 stringEXnselUserID(stream, ptr, indent, fs);
                 break;
-            case EXnelCommonID:
-                stringEXnelCommon(stream, ptr, indent, fs);
+            case EXnatCommonID:
+                stringEXnatCommon(stream, ptr, indent, fs);
                 break;
             case EXnatPortBlockID:
                 stringEXnatPortBlock(stream, ptr, indent, fs);
+                break;
+            case EXflowIdID:
+                stringEXflowId(stream, ptr, indent, fs);
+                break;
+            case EXnokiaNatID:
+                stringEXnokiaNat(stream, ptr, indent, fs);
+                break;
+            case EXnokiaNatStringID:
+                stringEXnokiaNatString(stream, ptr, indent, fs);
                 break;
             default:
                 dbg_printf("Extension %i not yet implemented\n", i);

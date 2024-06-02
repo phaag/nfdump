@@ -197,7 +197,7 @@ static struct StatParameter_s {
     {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER, NULL},
     {"event", " Event", {EXnselCommonID, OFFfwEvent, SIZEfwEvent, 0}, IS_EVENT, NULL},
     {"xevent", " Event", {EXnselCommonID, OFFfwXevent, SIZEfwXevent, 0}, IS_NUMBER, NULL},
-    {"nat", "NAT Event", {EXnelCommonID, OFFnatEvent, SIZEnatEvent, 0}, IS_EVENT, NULL},
+    {"nat", "NAT Event", {EXnatCommonID, OFFnatEvent, SIZEnatEvent, 0}, IS_EVENT, NULL},
     {"xsrcip", "X-Src IP Addr", {EXnatXlateIPv4ID, OFFxlateSrc4Addr, SIZExlateSrc4Addr, AF_INET}, IS_IPADDR, NULL},
     {"xsrcip", NULL, {EXnatXlateIPv6ID, OFFxlateSrc6Addr, SIZExlateSrc6Addr, AF_INET6}, IS_IPADDR, NULL},
     {"xdstip", "X-Dst IP Addr", {EXnatXlateIPv4ID, OFFxlateDst4Addr, SIZExlateDst4Addr, AF_INET}, IS_IPADDR, NULL},

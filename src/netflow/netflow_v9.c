@@ -235,8 +235,8 @@ static const struct v9TranslationMap_s {
     {NF_N_EGRESS_VRFID, SIZEegressVrf, NumberCopy, EXvrfID, OFFegressVrf, STACK_NONE, "egress VRF ID"},
 
     // NEL
-    {NF_N_NAT_EVENT, SIZEnatEvent, NumberCopy, EXnelCommonID, OFFnatEvent, STACK_NONE, "NAT event"},
-    {NF_N_NATPOOL_ID, SIZEnatPoolID, NumberCopy, EXnelCommonID, OFFnatPoolID, STACK_NONE, "nat pool ID"},
+    {NF_N_NAT_EVENT, SIZEnatEvent, NumberCopy, EXnatCommonID, OFFnatEvent, STACK_NONE, "NAT event"},
+    {NF_N_NATPOOL_ID, SIZEnatPoolID, NumberCopy, EXnatCommonID, OFFnatPoolID, STACK_NONE, "nat pool ID"},
     {NF_F_XLATE_PORT_BLOCK_START, SIZEnelblockStart, NumberCopy, EXnatPortBlockID, OFFnelblockStart, STACK_NONE, "NAT block start"},
     {NF_F_XLATE_PORT_BLOCK_END, SIZEnelblockEnd, NumberCopy, EXnatPortBlockID, OFFnelblockEnd, STACK_NONE, "NAT block end"},
     {NF_F_XLATE_PORT_BLOCK_STEP, SIZEnelblockStep, NumberCopy, EXnatPortBlockID, OFFnelblockStep, STACK_NONE, "NAT block step"},
@@ -1267,9 +1267,9 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
             }
             SetFlag(recordHeaderV3->flags, V3_FLAG_EVENT);
         }
-        EXnelCommon_t *nelCommon = sequencer->offsetCache[EXnelCommonID];
-        if (nelCommon) {
-            nelCommon->msecEvent = stack[STACK_MSEC];
+        EXnatCommon_t *natCommon = sequencer->offsetCache[EXnatCommonID];
+        if (natCommon) {
+            natCommon->msecEvent = stack[STACK_MSEC];
             if (genericFlow) {
                 genericFlow->msecFirst = stack[STACK_MSEC];
                 genericFlow->msecLast = stack[STACK_MSEC];

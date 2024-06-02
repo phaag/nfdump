@@ -277,6 +277,7 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_flowEndReason 136
 #define IPFIX_observationPointId 138
 #define IPFIX_icmpTypeCodeIPv6 139
+#define IPFIX_flowId 148
 #define IPFIX_observationDomainId 149
 #define IPFIX_flowStartSeconds 150
 #define IPFIX_flowEndSeconds 151

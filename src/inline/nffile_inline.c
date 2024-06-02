@@ -73,8 +73,8 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
         if (nselCommon) {
             genericFlow->msecFirst = nselCommon->msecEvent;
         } else {
-            EXnelCommon_t *nelCommon = (EXnelCommon_t *)handle->extensionList[EXnelCommonID];
-            if (nelCommon) genericFlow->msecFirst = nelCommon->msecEvent;
+            EXnatCommon_t *natCommon = (EXnatCommon_t *)handle->extensionList[EXnatCommonID];
+            if (natCommon) genericFlow->msecFirst = natCommon->msecEvent;
         }
     }
     return 1;
