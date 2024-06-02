@@ -370,6 +370,22 @@ static int LookupElement(uint16_t type, uint32_t EnterpriseNumber) {
                     break;
             }
             break;
+        case 637:  // Nokia
+            switch (type) {
+                case 91:  // InsideServiceId
+                    dbg_printf(" NOKIA enterprise InsideServiceId: %u\n", type);
+                    type = NOKIA_InsideServiceId;
+                    break;
+                case 92:  // OutsideServiceId
+                    dbg_printf(" NOKIA enterprise OutsideServiceId: %u\n", type);
+                    type = NOKIA_OutsideServiceId;
+                    break;
+                case 93:  // NatSubString
+                    dbg_printf(" NOKIA enterprise NatSubString: %u\n", type);
+                    type = NOKIA_NatSubString;
+                    break;
+            }
+            break;
         case 6871:  // yaf CERT Coordination Centre
             // map yaf types here
             switch (type) {

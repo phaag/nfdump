@@ -363,6 +363,10 @@ typedef struct ipfix_template_elements_e_s {
 #define LOCAL_inPayload 32767
 #define LOCAL_outPayload 32768
 
+#define NOKIA_InsideServiceId 32769
+#define NOKIA_OutsideServiceId 32770
+#define NOKIA_NatSubString 32771
+
 #define VENDOR_BIT_REVERSE 0x4000
 
 /* prototypes */
