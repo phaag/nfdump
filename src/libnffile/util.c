@@ -606,16 +606,20 @@ long getTick(void) {
 
 char *DurationString(double duration) {
     static char s[128];
-    int days = duration / 86400;
-    int sum = 86400 * days;
-    int hours = (duration - sum) / 3600;
-    sum += 3600 * hours;
-    int min = (duration - sum) / 60;
-    double sec = duration - sum - 60 * min;
-    if (days == 0)
-        snprintf(s, 128, "    %02d:%02d:%06.3f", hours, min, sec);
-    else
-        snprintf(s, 128, "%2dd %02d:%02d:%06.3f", days, hours, min, sec);
+    if (duration == 0.0) {
+        strncpy(s, "    00:00:00.000", 128);
+    } else {
+        int days = duration / 86400;
+        int sum = 86400 * days;
+        int hours = (duration - sum) / 3600;
+        sum += 3600 * hours;
+        int min = (duration - sum) / 60;
+        double sec = duration - sum - 60 * min;
+        if (days == 0)
+            snprintf(s, 128, "    %02d:%02d:%06.3f", hours, min, sec);
+        else
+            snprintf(s, 128, "%2dd %02d:%02d:%06.3f", days, hours, min, sec);
+    }
     s[127] = '\0';
     return s;
 }  // End of DurationString

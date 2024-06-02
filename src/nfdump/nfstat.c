@@ -414,6 +414,9 @@ static int ParseListOrder(char *orderBy, struct StatRequest_s *request);
 
 static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, SortElement_t *element, int type, int order_proto, int inout);
 
+static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_t *outputParams, SortElement_t *element, int type, int order_proto,
+                              int inout);
+
 static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t *element, int type, int order_proto, int tag, int inout);
 
 static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int order, direction_t direction);
@@ -1037,7 +1040,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
 
     uint64_t pps = 0;
     uint64_t bps = 0;
-    double duration = statRecord->msecLast ? (statRecord->msecLast - statRecord->msecFirst) / 1000.0 : 0;
+    double duration = (statRecord->msecFirst && statRecord->msecLast) ? (statRecord->msecLast - statRecord->msecFirst) / 1000.0 : 0;
     if (duration != 0) {
         // duration in sec
         pps = (count_packets) / duration;
@@ -1086,6 +1089,161 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
     }
 
 }  // End of PrintStatLine
+
+static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_t *outputParams, SortElement_t *element, int type, int order_proto,
+                              int inout) {
+    char valstr[64];
+    valstr[0] = '\0';
+    char geo[4] = {0};
+
+    StatRecord_t *statRecord = (StatRecord_t *)element->record;
+    hashkey_t *hashKey = statRecord->hashkey;
+    char tag_string[2] = {'\0', '\0'};
+    switch (type) {
+        case IS_NULL:
+            break;
+        case IS_NUMBER:
+            snprintf(valstr, 64, "%llu", (unsigned long long)hashKey->v1);
+            break;
+        case IS_HEXNUMBER:
+            snprintf(valstr, 64, "0x%llx", (unsigned long long)hashKey->v1);
+            break;
+        case IS_IPADDR:
+            tag_string[0] = outputParams->doTag ? TAG_CHAR : '\0';
+            if (hashKey->v0 == 0) {  // IPv4
+                uint32_t ipv4 = htonl(hashKey->v1);
+                inet_ntop(AF_INET, &ipv4, valstr, sizeof(valstr));
+                if (outputParams->hasGeoDB) {
+                    LookupV4Country(hashKey->v1, geo);
+                }
+            } else {  // IPv6
+                uint64_t _key[2] = {htonll(hashKey->v0), htonll(hashKey->v1)};
+                inet_ntop(AF_INET6, _key, valstr, sizeof(valstr));
+                if (outputParams->hasGeoDB) {
+                    uint64_t ip[2] = {hashKey->v0, hashKey->v1};
+                    LookupV6Country(ip, geo);
+                }
+            }
+            break;
+        case IS_MACADDR: {
+            uint8_t mac[6];
+            for (int i = 0; i < 6; i++) {
+                mac[i] = ((unsigned long long)hashKey->v1 >> (i * 8)) & 0xFF;
+            }
+            snprintf(valstr, 64, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
+        } break;
+        case IS_MPLS_LBL: {
+            snprintf(valstr, 64, "%llu", (unsigned long long)hashKey->v1);
+            snprintf(valstr, 64, "%8llu-%1llu-%1llu", (unsigned long long)hashKey->v1 >> 4, ((unsigned long long)hashKey->v1 & 0xF) >> 1,
+                     (unsigned long long)hashKey->v1 & 1);
+        } break;
+        case IS_LATENCY: {
+            snprintf(valstr, 64, "      %9.3f", (double)((double)hashKey->v1 / 1000.0));
+        } break;
+        case IS_EVENT: {
+            long long unsigned event = hashKey->v1;
+            char *s;
+            switch (event) {
+                case 0:
+                    s = "ignore";
+                    break;
+                case 1:
+                    s = "CREATE";
+                    break;
+                case 2:
+                    s = "DELETE";
+                    break;
+                case 3:
+                    s = "DENIED";
+                    break;
+                default:
+                    s = "UNKNOWN";
+            }
+            snprintf(valstr, 64, "      %6s", s);
+        } break;
+        case IS_HEX: {
+            snprintf(valstr, 64, "0x%llx", (unsigned long long)hashKey->v1);
+        } break;
+        case IS_NBAR: {
+            union {
+                uint8_t val8[4];
+                uint32_t val32;
+            } conv;
+            conv.val32 = hashKey->v1;
+            uint8_t u = conv.val8[0];
+            conv.val8[0] = 0;
+            snprintf(valstr, 64, "%2u..%u", u, ntohl(conv.val32));
+
+        } break;
+        case IS_JA3:
+        case IS_JA4:
+        case IS_JA4S: {
+            char *s = (char *)hashKey->ptr;
+            strcpy(valstr, s);
+        } break;
+        case IS_GEO: {
+            snprintf(valstr, 64, "%s", (char *)&(hashKey->v1));
+        }
+    }
+    valstr[63] = 0;
+
+    uint64_t count_flows = statRecord->flows;
+    uint64_t count_packets = 0;
+    uint64_t count_bytes = 0;
+    switch (inout) {
+        case IN:
+            count_packets = statRecord->inPackets;
+            count_bytes = statRecord->inBytes;
+            break;
+        case OUT:
+            count_packets = statRecord->outPackets;
+            count_bytes = statRecord->outBytes;
+            break;
+        case INOUT:
+            count_packets = statRecord->inPackets + statRecord->outPackets;
+            count_bytes = statRecord->inBytes + statRecord->outBytes;
+            break;
+    }
+
+    uint64_t pps = 0;
+    uint64_t bps = 0;
+    double duration = (statRecord->msecFirst && statRecord->msecLast) ? (statRecord->msecLast - statRecord->msecFirst) / 1000.0 : 0;
+    if (duration != 0) {
+        // duration in sec
+        pps = (count_packets) / duration;
+        bps = (8 * count_bytes) / duration;
+    }
+
+    uint32_t bpp = 0;
+    if (count_packets) {
+        bpp = count_bytes / count_packets;
+    }
+
+    time_t when = statRecord->msecFirst / 1000LL;
+    struct tm *ts = localtime(&when);
+    char datestrFirst[64];
+    strftime(datestrFirst, 63, "%Y-%m-%dT%H:%M:%S", ts);
+
+    when = statRecord->msecLast / 1000LL;
+    ts = localtime(&when);
+    char datestrLast[64];
+    strftime(datestrLast, 63, "%Y-%m-%dT%H:%M:%S", ts);
+
+    if (outputParams->hasGeoDB && type == IS_IPADDR) {
+        printf(
+            "{ \"first\" : \"%s.%03u\", \"last\" : \"%s.%03u\", \"proto\" : %u, \"%s\" : \"%s\", \"geo\" : \"%s\","
+            "\"flows\" : %llu, \"packets\" : %llu, \"bytes\" : %llu, \"pps\" : %llu, \"bps\" : %llu, \"bpp\" : %u}\n",
+            datestrFirst, (unsigned)(statRecord->msecFirst % 1000), datestrLast, (unsigned)(statRecord->msecLast % 1000), hashKey->proto, statName,
+            valstr, geo, count_flows, count_packets, count_bytes, pps, bps, bpp);
+    } else {
+        printf(
+            "{ \"first\" : \"%s.%03u\", \"last\" : \"%s.%03u\", \"proto\" : %u, \"%s\" : \"%s\", "
+            "\"flows\" : %llu, \"packets\" : %llu, \"bytes\" : %llu, \"pps\" : %llu, \"bps\" : %llu, \"bpp\" : %u}\n",
+            datestrFirst, (unsigned)(statRecord->msecFirst % 1000), datestrLast, (unsigned)(statRecord->msecLast % 1000), hashKey->proto, statName,
+            valstr, count_flows, count_packets, count_bytes, pps, bps, bpp);
+    }
+
+}  // End of PrintJsonStatLine
 
 static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t *element, int type, int order_proto, int tag, int inout) {
     char valstr[40];
@@ -1149,7 +1307,7 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t 
     double packets_percent = stat->numpackets ? (double)(count_packets * 100) / (double)stat->numpackets : 0;
     double bytes_percent = stat->numbytes ? (double)(count_bytes * 100) / (double)stat->numbytes : 0;
 
-    double duration = statRecord->msecLast ? (statRecord->msecLast - statRecord->msecFirst) / 1000.0 : 0;
+    double duration = (statRecord->msecFirst && statRecord->msecLast) ? (statRecord->msecLast - statRecord->msecFirst) / 1000.0 : 0;
 
     uint64_t pps, bps;
     if (duration != 0) {
@@ -1272,10 +1430,9 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                                              outputParams->doTag, orderByTable[order_index].inout);
                             break;
                         case MODE_JSON:
-                            printf("Not yet implemented output format\n");
-                            break;
                         case MODE_JSON_LOG:
-                            printf("Not yet implemented output format\n");
+                            PrintJsonStatLine(StatParameters[stat].statname, sum_stat, outputParams, &topN_element_list[index], type,
+                                              StatRequest[hash_num].order_proto, orderByTable[order_index].inout);
                             break;
                     }
                     index += increment;

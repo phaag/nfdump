@@ -1256,7 +1256,9 @@ int main(int argc, char **argv) {
         PrintElementStat(&sum_stat, outputParams, print_record);
     }
 
-    PrintEpilog(outputParams);
+    if (!(flow_stat || element_stat)) {
+        PrintEpilog(outputParams);
+    }
 
     if (!outputParams->quiet) {
         switch (outputParams->mode) {
