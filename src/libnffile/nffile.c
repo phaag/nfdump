@@ -1672,6 +1672,7 @@ int QueryFile(char *filename, int verbose) {
     }
 
     printf("File       : %s\n", filename);
+    printf("Size       : %lld\n", stat_buf.st_size);
     if (fileHeader.version == LAYOUT_VERSION_1) {
         if (lseek(fd, 0, SEEK_SET) < 0) {
             LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
