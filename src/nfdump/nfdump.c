@@ -1248,7 +1248,6 @@ int main(int argc, char **argv) {
             }
             DisposeFile(nffile);
         } else {
-            printf("Mode: %u\n", outputParams->mode);
             PrintFlowTable(print_record, outputParams, GuessDir);
         }
     }
