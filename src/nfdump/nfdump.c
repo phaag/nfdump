@@ -1168,6 +1168,10 @@ int main(int argc, char **argv) {
 
     if (aggr_fmt) {
         // custom aggregation mask overwrites any output format
+        if (print_format) {
+            printf("Can not use print format %s to aggregate flows\n", print_format);
+            exit(EXIT_FAILURE);
+        }
         print_format = ParseAggregateMask(aggr_fmt);
         if (!print_format) {
             exit(EXIT_FAILURE);
@@ -1244,6 +1248,7 @@ int main(int argc, char **argv) {
             }
             DisposeFile(nffile);
         } else {
+            printf("Mode: %u\n", outputParams->mode);
             PrintFlowTable(print_record, outputParams, GuessDir);
         }
     }

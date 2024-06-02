@@ -1596,6 +1596,7 @@ static SortElement_t *GetSortList(size_t *size) {
 static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
                                  RecordPrinter_t print_record, int ascending) {
     dbg_printf("Enter %s\n", __func__);
+
     int max = maxindex;
     if (outputParams->topN && outputParams->topN < maxindex) max = outputParams->topN;
     for (int i = 0; i < max; i++) {
@@ -1727,6 +1728,10 @@ int SetBidirAggregation(void) {
 // print -s record/xx statistics with as many print orders as required
 void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
     dbg_printf("Enter %s\n", __func__);
+    if (outputParams->mode != MODE_PLAIN) {
+        printf("Output format not implemented\n");
+        return;
+    }
     size_t maxindex;
 
     // Get sort array
@@ -1768,8 +1773,12 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
 // print Flow cache
 void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, int GuessDir) {
     dbg_printf("Enter %s\n", __func__);
-    GuessDirection = GuessDir;
+    if (outputParams->mode != MODE_PLAIN) {
+        printf("Output format not implemented\n");
+        return;
+    }
 
+    GuessDirection = GuessDir;
     size_t maxindex;
     SortElement_t *SortList = GetSortList(&maxindex);
     if (!SortList) return;
