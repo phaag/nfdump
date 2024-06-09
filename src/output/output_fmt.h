@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -53,7 +53,7 @@ void fmt_epilog(void);
 
 void CondenseV6(char *s);
 
-int ParseOutputFormat(char *format, int printPlain, printmap_t *printmap);
+int ParseOutputFormat(int csvFormat, char *format, int printPlain, printmap_t *printmap);
 
 void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag);
 

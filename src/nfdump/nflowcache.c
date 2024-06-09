@@ -1728,7 +1728,7 @@ int SetBidirAggregation(void) {
 // print -s record/xx statistics with as many print orders as required
 void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
     dbg_printf("Enter %s\n", __func__);
-    if (outputParams->mode != MODE_PLAIN) {
+    if (outputParams->mode != MODE_FMT) {
         printf("Output format not implemented\n");
         return;
     }
@@ -1755,7 +1755,7 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
             blocksort(SortList, maxindex);
 
             if (!outputParams->quiet) {
-                if (outputParams->mode == MODE_PLAIN) {
+                if (outputParams->mode == MODE_FMT) {
                     if (outputParams->topN != 0)
                         printf("Top %i flows ordered by %s:\n", outputParams->topN, order_mode[order_index].string);
                     else
@@ -1773,7 +1773,7 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
 // print Flow cache
 void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, int GuessDir) {
     dbg_printf("Enter %s\n", __func__);
-    if (outputParams->mode != MODE_PLAIN) {
+    if (outputParams->mode != MODE_FMT) {
         printf("Output format not implemented\n");
         return;
     }

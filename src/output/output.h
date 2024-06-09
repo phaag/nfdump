@@ -40,7 +40,7 @@ typedef void (*RecordPrinter_t)(FILE *, recordHandle_t *, int);
 typedef void (*PrologPrinter_t)(void);
 typedef void (*EpilogPrinter_t)(void);
 
-enum { MODE_PLAIN = 0, MODE_JSON, MODE_CSV, MODE_JSON_LOG };
+typedef enum { MODE_NULL = 0, MODE_RAW, MODE_FMT, MODE_CSV, MODE_JSON, MODE_JSON_LOG } outputMode_t;
 
 typedef struct outputParams_s {
     bool printPlain;
@@ -48,20 +48,16 @@ typedef struct outputParams_s {
     bool quiet;
     bool hasGeoDB;
     bool hasTorDB;
-    int mode;
+    outputMode_t mode;
     int topN;
 } outputParams_t;
 
 typedef struct printmap_s {
-    char *printmode;              // name of the output format
-    RecordPrinter_t func_record;  // prints the record
-    PrologPrinter_t func_prolog;  // prints the output prolog
-    PrologPrinter_t func_epilog;  // prints the output epilog
-    char *Format;                 // output format definition
-    char *help;                   // help text
+    char *printmode;          // name of the output format
+    outputMode_t outputMode;  // type of output mode
+    char *Format;             // output format definition
+    char *help;               // help text
 } printmap_t;
-
-void AddFormat(char *name, char *fmtString);
 
 RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams);
 

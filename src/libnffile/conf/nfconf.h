@@ -38,7 +38,7 @@
 
 int ConfOpen(char *filename, char *section);
 
-int ConfGetFMTentry(char **key, char **value);
+int ConfGetFormatEntry(char *format, char **key, char **value);
 
 int ConfGetExporter(char **ident, char **ip, char **flowdir);
 

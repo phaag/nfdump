@@ -135,19 +135,19 @@ int ConfOpen(char *filename, char *section) {
     return 1;
 }  // ConfOpen
 
-// recursive iterate fmt entries from config file
+// recursive iterate fmt or csv entries from config file
 // return
 //     0 if end of list
 //     i for entry
 //    -1 for error
-int ConfGetFMTentry(char **key, char **value) {
+int ConfGetFormatEntry(char *format, char **key, char **value) {
     static toml_table_t *fmtConf = NULL;
     static int i = 0;
 
     if (!nfconfFile.valid) return 0;
 
     if (!fmtConf) {
-        fmtConf = toml_table_in(nfconfFile.sectionConf, "fmt");
+        fmtConf = toml_table_in(nfconfFile.sectionConf, format);
         if (!fmtConf) {
             *key = NULL;
             *value = NULL;

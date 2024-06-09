@@ -75,6 +75,7 @@ static int max_format_index = 0;
 
 static int do_tag = 0;
 static int long_v6 = 0;
+static int modeCSV = 0;
 static int printPlain = 0;
 static double duration = 0;
 
@@ -354,7 +355,7 @@ static void String_natString(FILE *stream, recordHandle_t *recordHandle);
 static struct format_token_list_s {
     char *token;                        // token
     int is_address;                     // is an IP address
-    char *header;                       // header line description
+    char *fmtHeader;                    // header line description
     string_function_t string_function;  // function generation output string
 } format_token_list[] = {
     // v3 header info
@@ -659,6 +660,7 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
 
 void fmt_prolog(void) {
     // header
+    modeCSV = 0;
     printf("%s\n", header_string);
 }  // End of fmt_prolog
 
@@ -774,7 +776,7 @@ static char *RecursiveReplace(char *format, printmap_t *printmap) {
 
 }  // End of RecursiveReplace
 
-int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
+int ParseOutputFormat(int csvFormat, char *format, int plain_numbers, printmap_t *printmap) {
     char *c, *s, *h;
     int i, remaining;
 
@@ -806,9 +808,9 @@ int ParseOutputFormat(char *format, int plain_numbers, printmap_t *printmap) {
                     if (strncmp(format_token_list[i].token, c, len) == 0) {  // token found
                         AddToken(i, NULL);
                         if (long_v6 && format_token_list[i].is_address)
-                            snprintf(h, STRINGSIZE - 1 - strlen(header_string), "%23s%s", "", format_token_list[i].header);
+                            snprintf(h, STRINGSIZE - 1 - strlen(header_string), "%23s%s", "", format_token_list[i].fmtHeader);
                         else
-                            snprintf(h, STRINGSIZE - 1 - strlen(header_string), "%s", format_token_list[i].header);
+                            snprintf(h, STRINGSIZE - 1 - strlen(header_string), "%s", format_token_list[i].fmtHeader);
                         h += strlen(h);
                         c[len] = p;
                         c += len;
@@ -1302,9 +1304,9 @@ static void String_SrcAddr(FILE *stream, recordHandle_t *recordHandle) {
     tmp_str[IP_STRING_LEN - 1] = 0;
 
     if (long_v6)
-        fprintf(stream, "%s%39s", tag_string, tmp_str);
+        fprintf(stream, "%s%*s", tag_string, 39, tmp_str);
     else
-        fprintf(stream, "%s%16s", tag_string, tmp_str);
+        fprintf(stream, "%s%*s", tag_string, 16, tmp_str);
 
 }  // End of String_SrcAddr
 

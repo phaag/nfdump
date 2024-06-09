@@ -1266,7 +1266,11 @@ int main(int argc, char **argv) {
 
     if (!outputParams->quiet) {
         switch (outputParams->mode) {
-            case MODE_PLAIN:
+            case MODE_NULL:
+                break;
+            case MODE_RAW:
+                break;
+            case MODE_FMT:
                 PrintSummary(&sum_stat, outputParams);
                 if (t_last_flow == 0) {
                     printf("Time window: <unknown>\n");

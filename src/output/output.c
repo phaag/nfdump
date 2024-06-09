@@ -73,6 +73,8 @@
 #endif
 #define DefaultGeoMode "gline"
 
+static void AddFormat(char *format, char *name, char *fmtString);
+
 static void null_record(FILE *stream, recordHandle_t *record, int tag);
 
 static void null_prolog(void);
@@ -81,23 +83,35 @@ static void null_epilog(void);
 
 // Assign print functions for all output options -o
 // Terminated with a NULL record
-printmap_t printmap[MAXFORMATS] = {{"raw", raw_record, raw_prolog, raw_epilog, NULL, "Raw format - multi line"},
-                                   {"line", fmt_record, fmt_prolog, fmt_epilog, FORMAT_line, "predefined"},
-                                   {"gline", fmt_record, fmt_prolog, fmt_epilog, FORMAT_gline, "predefined"},
-                                   {"long", fmt_record, fmt_prolog, fmt_epilog, FORMAT_long, "predefined"},
-                                   {"glong", fmt_record, fmt_prolog, fmt_epilog, FORMAT_glong, "predefined"},
-                                   {"extended", fmt_record, fmt_prolog, fmt_epilog, FORMAT_extended, "predefined"},
-                                   {"biline", fmt_record, fmt_prolog, fmt_epilog, FORMAT_biline, "predefined"},
-                                   {"bilong", fmt_record, fmt_prolog, fmt_epilog, FORMAT_bilong, "predefined"},
-                                   {"nsel", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nsel, "predefined"},
-                                   {"nat", fmt_record, fmt_prolog, fmt_epilog, FORMAT_nat, "predefined"},
-                                   {"json", flow_record_to_json_human, json_prolog, json_epilog, NULL, "json output"},
-                                   {"json-log", flow_record_to_json_log, null_prolog, null_epilog, NULL, "json output for logging"},
-                                   {"csv", csv_record, csv_prolog, csv_epilog, NULL, "csv predefined"},
-                                   {"null", null_record, null_prolog, null_epilog, NULL, "do not print any output"},
+printmap_t printmap[MAXFORMATS] = {{"raw", MODE_RAW, NULL, "Raw format - multi line"},
+                                   {"line", MODE_FMT, FORMAT_line, "predefined"},
+                                   {"gline", MODE_FMT, FORMAT_gline, "predefined"},
+                                   {"long", MODE_FMT, FORMAT_long, "predefined"},
+                                   {"glong", MODE_FMT, FORMAT_glong, "predefined"},
+                                   {"extended", MODE_FMT, FORMAT_extended, "predefined"},
+                                   {"biline", MODE_FMT, FORMAT_biline, "predefined"},
+                                   {"bilong", MODE_FMT, FORMAT_bilong, "predefined"},
+                                   {"nsel", MODE_FMT, FORMAT_nsel, "predefined"},
+                                   {"nat", MODE_FMT, FORMAT_nat, "predefined"},
+                                   {"json", MODE_JSON, NULL, "json output"},
+                                   {"json-log", MODE_JSON, NULL, "json output for logging"},
+                                   {"csv", MODE_CSV, NULL, "csv predefined"},
+                                   {"null", MODE_NULL, NULL, "do not print any output"},
 
                                    // This is always the last line
-                                   {NULL, NULL, NULL, NULL, "", NULL}};
+                                   {NULL, MODE_NULL, "", NULL}};
+
+// table with appropriate printer function for given format
+static struct printerFunc_s {
+    RecordPrinter_t func_record;  // prints the record
+    PrologPrinter_t func_prolog;  // prints the output prolog
+    PrologPrinter_t func_epilog;  // prints the output epilog
+} printFuncMap[] = {[MODE_NULL] = {null_record, null_prolog, null_epilog},
+                    [MODE_FMT] = {fmt_record, fmt_prolog, fmt_epilog},
+                    [MODE_RAW] = {raw_record, raw_prolog, raw_epilog},
+                    [MODE_CSV] = {csv_record, csv_prolog, csv_epilog},
+                    [MODE_JSON] = {flow_record_to_json_human, json_prolog, json_epilog},
+                    [MODE_JSON_LOG] = {flow_record_to_json_log, json_prolog, json_epilog}};
 
 static PrologPrinter_t print_prolog;  // prints the output prolog
 static PrologPrinter_t print_epilog;  // prints the output epilog
@@ -116,15 +130,14 @@ static void null_epilog(void) {
     // empty epilog
 }  // End of null_epilog
 
-void AddFormat(char *name, char *fmtString) {
+static void AddFormat(char *format, char *name, char *fmtString) {
+    int csvMode = strcmp(format, "csv") == 0;
     int i = 0;
     while (printmap[i].printmode) {
         if (strncasecmp(name, printmap[i].printmode, MAXMODELEN) == 0) {
             // default format exists - overwrite
             printmap[i].Format = fmtString;
-            printmap[i].func_record = fmt_record;
-            printmap[i].func_prolog = fmt_prolog;
-            printmap[i].func_epilog = fmt_epilog;
+            printmap[i].outputMode = csvMode ? MODE_CSV : MODE_FMT;
             dbg_printf("Overwrite format: %s\n", name);
             free(name);
             return;
@@ -136,12 +149,10 @@ void AddFormat(char *name, char *fmtString) {
         printmap[i].printmode = name;
         printmap[i].Format = fmtString;
         printmap[i].help = "user defined";
-        printmap[i].func_record = fmt_record;
-        printmap[i].func_prolog = fmt_prolog;
-        printmap[i].func_epilog = fmt_epilog;
+        printmap[i].outputMode = csvMode ? MODE_CSV : MODE_FMT;
         i++;
         printmap[i].printmode = NULL;
-        dbg_printf("Insert format: %s\n", name);
+        dbg_printf("Insert format: %s - %s\n", csvMode ? "csv" : "fmt", name);
     } else {
         LogError("Number of print format slots exhaustet: %d", MAXFORMATS);
     }
@@ -151,16 +162,19 @@ static void UpdateFormatList(void) {
     char *key = NULL;
     char *value = NULL;
 
-    int ret;
-    do {
-        ret = ConfGetFMTentry(&key, &value);
-        if (ret > 0) {
-            dbg_printf("key: %s, value %s\n", key, value);
-            AddFormat(key, value);
-        } else {
-            break;
-        }
-    } while (1);
+    char *formats[2] = {"fmt", "csv"};
+
+    for (int i = 0; i < 2; i++) {
+        do {
+            int ret = ConfGetFormatEntry(formats[i], &key, &value);
+            if (ret > 0) {
+                dbg_printf("format: %s, key: %s, value %s\n", formats[i], key, value);
+                AddFormat(formats[i], key, value);
+            } else {
+                break;
+            }
+        } while (1);
+    }
 
 }  // End of UpdateFormatList
 
@@ -172,15 +186,27 @@ RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams
 
     if (print_format == NULL) print_format = outputParams->hasGeoDB ? DefaultGeoMode : DefaultMode;
 
-    if (strncasecmp(print_format, "fmt:", 4) == 0 || print_format[0] == '%') {
+    int fmtFormat = strncasecmp(print_format, "fmt:", 4) == 0;
+    int csvFormat = strncasecmp(print_format, "csv:", 4) == 0;
+    if (fmtFormat || csvFormat || print_format[0] == '%') {
         // special user defined output format
-        char *format = &print_format[4];                    // for 'fmt:%xxx'
-        if (print_format[0] == '%') format = print_format;  // for '%xxx' - forgot to add fmt:
+        char *format = &print_format[4];  // for 'fmt:%xxx' or 'csv:%xxx'
+        if (print_format[0] == '%') {
+            fmtFormat = 1;
+            format = print_format;  // for '%xxx' - forgot to add fmt: assume fmt
+        }
+
         if (strlen(format)) {
-            if (!ParseOutputFormat(format, outputParams->printPlain, printmap)) exit(EXIT_FAILURE);
-            print_record = fmt_record;
-            print_prolog = fmt_prolog;
-            print_epilog = fmt_epilog;
+            if (!ParseOutputFormat(csvFormat, format, outputParams->printPlain, printmap)) exit(EXIT_FAILURE);
+            if (csvFormat) {
+                print_record = csv_record;
+                print_prolog = csv_prolog;
+                print_epilog = csv_epilog;
+            } else {
+                print_record = fmt_record;
+                print_prolog = fmt_prolog;
+                print_epilog = fmt_epilog;
+            }
         } else {
             LogError("Missing format description for user defined output format!\n");
             exit(EXIT_FAILURE);
@@ -201,27 +227,16 @@ RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams
         i = 0;
         while (printmap[i].printmode) {
             if (strncasecmp(print_format, printmap[i].printmode, MAXMODELEN) == 0) {
+                outputParams->mode = printmap[i].outputMode;
                 if (printmap[i].Format) {
-                    if (!ParseOutputFormat(printmap[i].Format, outputParams->printPlain, printmap)) exit(EXIT_FAILURE);
                     // predefined custom format
-                    print_record = printmap[i].func_record;
-                    print_prolog = printmap[i].func_prolog;
-                    print_epilog = printmap[i].func_epilog;
-                } else {
-                    if (strncasecmp(print_format, "csv", MAXMODELEN) == 0) {
-                        outputParams->mode = MODE_CSV;
-                    } else if (strncasecmp(print_format, "json", MAXMODELEN) == 0) {
-                        outputParams->mode = MODE_JSON;
-                    } else if (strncasecmp(print_format, "json-log", MAXMODELEN) == 0) {
-                        outputParams->mode = MODE_JSON_LOG;
-                    } else {
-                        outputParams->mode = MODE_PLAIN;
-                    }
-                    // predefined static format
-                    print_record = printmap[i].func_record;
-                    print_prolog = printmap[i].func_prolog;
-                    print_epilog = printmap[i].func_epilog;
+                    if (!ParseOutputFormat(outputParams->mode == MODE_CSV, printmap[i].Format, outputParams->printPlain, printmap))
+                        exit(EXIT_FAILURE);
                 }
+                // else - predefined static format
+                print_record = printFuncMap[outputParams->mode].func_record;
+                print_prolog = printFuncMap[outputParams->mode].func_prolog;
+                print_epilog = printFuncMap[outputParams->mode].func_epilog;
                 break;
             }
             i++;

@@ -1365,7 +1365,7 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                 SortElement_t *topN_element_list = StatTopN(outputParams->topN, &numflows, hash_num, order_index, direction);
 
                 // this output formatting is pretty ugly - and needs to be cleaned up - improved
-                if (outputParams->mode == MODE_PLAIN && !outputParams->quiet) {
+                if (outputParams->mode == MODE_FMT && !outputParams->quiet) {
                     if (outputParams->topN != 0) {
                         printf("Top %i %s ordered by %s:\n", outputParams->topN, StatParameters[stat].HeaderInfo, orderByTable[order_index].string);
                     } else {
@@ -1421,7 +1421,10 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                 int index = startIndex;
                 while (index != endIndex) {
                     switch (outputParams->mode) {
-                        case MODE_PLAIN:
+                        case MODE_NULL:
+                        case MODE_RAW:
+                            break;
+                        case MODE_FMT:
                             PrintStatLine(sum_stat, outputParams, &topN_element_list[index], type, StatRequest[hash_num].order_proto,
                                           orderByTable[order_index].inout);
                             break;
