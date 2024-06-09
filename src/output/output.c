@@ -94,7 +94,7 @@ printmap_t printmap[MAXFORMATS] = {{"raw", MODE_RAW, NULL, "Raw format - multi l
                                    {"nsel", MODE_FMT, FORMAT_nsel, "predefined"},
                                    {"nat", MODE_FMT, FORMAT_nat, "predefined"},
                                    {"json", MODE_JSON, NULL, "json output"},
-                                   {"json-log", MODE_JSON, NULL, "json output for logging"},
+                                   {"json-log", MODE_JSON_LOG, NULL, "json output for logging"},
                                    {"csv", MODE_CSV, NULL, "csv predefined"},
                                    {"null", MODE_NULL, NULL, "do not print any output"},
 
