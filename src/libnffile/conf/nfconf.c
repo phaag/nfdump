@@ -143,7 +143,6 @@ int ConfOpen(char *filename, char *section) {
 int ConfGetFormatEntry(char *format, char **key, char **value) {
     static toml_table_t *fmtConf = NULL;
     static int i = 0;
-
     if (!nfconfFile.valid) return 0;
 
     if (!fmtConf) {
@@ -160,16 +159,20 @@ int ConfGetFormatEntry(char *format, char **key, char **value) {
         i = 0;
         *key = NULL;
         *value = NULL;
+        fmtConf = NULL;
+        i = 0;
         return 0;
     }
     toml_datum_t fmtData = toml_string_in(fmtConf, fmtName);
     if (fmtData.ok) {
-        dbg_printf("fmt: %s -> %s\n", fmtName, fmtData.u.s);
+        dbg_printf("Config %s: %s -> %s\n", format, fmtName, fmtData.u.s);
         *value = strdup(fmtData.u.s);
     } else {
         i = 0;
         *key = NULL;
         *value = NULL;
+        fmtConf = NULL;
+        i = 0;
         return 0;
     }
 

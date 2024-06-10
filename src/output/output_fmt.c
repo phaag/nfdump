@@ -352,229 +352,230 @@ static void String_outServiceID(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_natString(FILE *stream, recordHandle_t *recordHandle);
 
-static struct format_token_list_s {
+static struct format_entry_s {
     char *token;                        // token
     int is_address;                     // is an IP address
-    char *fmtHeader;                    // header line description
+    char *fmtHeader;                    // fmt header line description
+    char *csvHeader;                    // csv header line description
     string_function_t string_function;  // function generation output string
-} format_token_list[] = {
-    // v3 header info
-    {"%nfv", 0, "Ver", String_Version},      // netflow version
-    {"%cnt", 0, "Count", String_FlowCount},  // flow count
-    {"%eng", 0, " engine", String_Engine},   // Engine Type/ID
-    {"%exp", 0, "Exp ID", String_ExpSysID},  // Exporter SysID
+} formatTable[] = {
+    // fmt and csv format table
+    {"%nfv", 0, "Ver", "version", String_Version},         // netflow version
+    {"%cnt", 0, "Count", "count", String_FlowCount},       // flow count
+    {"%eng", 0, " engine", "engine", String_Engine},       // Engine Type/ID
+    {"%exp", 0, "Exp ID", "exporterID", String_ExpSysID},  // Exporter SysID
 
     // EXgenericFlowID
-    {"%tfs", 0, "Date first seen        ", String_FirstSeen},  // Start Time - first seen
-    {"%ts", 0, "Date first seen        ", String_FirstSeen},   // Start Time - first seen
-    {"%tsr", 0, "First seen raw", String_FirstSeenRaw},        // Start Time - first seen, seconds
-    {"%te", 0, "Date last seen         ", String_LastSeen},    // End Time	- last seen
-    {"%ter", 0, "Last seen raw ", String_LastSeenRaw},         // End Time - first seen, seconds
-    {"%trr", 0, "Received raw  ", String_ReceivedRaw},         // Received Time, seconds
-    {"%tr", 0, "Date flow received     ", String_Received},    // Received Time
-    {"%td", 0, "Duration        ", String_Duration},           // Duration
-    {"%tds", 0, "Duration        ", String_Duration_Seconds},  // Duration always in seconds
-    {"%pkt", 0, " Packets", String_InPackets},                 // Packets - default input - compat
-    {"%ipkt", 0, "  In Pkt", String_InPackets},                // In Packets
-    {"%byt", 0, "   Bytes", String_InBytes},                   // Bytes - default input - compat
-    {"%ibyt", 0, " In Byte", String_InBytes},                  // In Bytes
-    {"%sp", 0, "Src Pt", String_SrcPort},                      // Source Port
-    {"%dp", 0, "Dst Pt", String_DstPort},                      // Destination Port
-    {"%it", 0, "ICMP-T", String_ICMP_type},                    // ICMP type
-    {"%ic", 0, "ICMP-C", String_ICMP_code},                    // ICMP code
-    {"%pr", 0, "Proto", String_Protocol},                      // Protocol
-    {"%flg", 0, "   Flags", String_Flags},                     // TCP Flags
-    {"%fwd", 0, "Fwd", String_FwdStatus},                      // Forwarding Status
-    {"%tos", 0, " Tos", String_Tos},                           // Tos - compat
-    {"%stos", 0, "STos", String_SrcTos},                       // Tos - Src tos
-    {"%bps", 0, "     bps", String_bps},                       // bps - bits per second
-    {"%pps", 0, "     pps", String_pps},                       // pps - packets per second
-    {"%bpp", 0, "   Bpp", String_bpp},                         // bpp - Bytes per package
+    {"%tfs", 0, "Date first seen        ", "firstSeen", String_FirstSeen},  // Start Time - first seen
+    {"%ts", 0, "Date first seen        ", "firstSeen", String_FirstSeen},   // Start Time - first seen
+    {"%tsr", 0, "First seen raw", "firstSeen", String_FirstSeenRaw},        // Start Time - first seen, seconds
+    {"%te", 0, "Date last seen         ", "lastSeen", String_LastSeen},     // End Time	- last seen
+    {"%ter", 0, "Last seen raw ", "lastSeen", String_LastSeenRaw},          // End Time - first seen, seconds
+    {"%trr", 0, "Received raw  ", "received", String_ReceivedRaw},          // Received Time, seconds
+    {"%tr", 0, "Date flow received     ", "received", String_Received},     // Received Time
+    {"%td", 0, "Duration        ", "duration", String_Duration},            // Duration
+    {"%tds", 0, "Duration        ", "duration", String_Duration_Seconds},   // Duration always in seconds
+    {"%pkt", 0, " Packets", "packets", String_InPackets},                   // Packets - default input - compat
+    {"%ipkt", 0, "  In Pkt", "inPackets", String_InPackets},                // In Packets
+    {"%byt", 0, "   Bytes", "bytes", String_InBytes},                       // Bytes - default input - compat
+    {"%ibyt", 0, " In Byte", "inBytes", String_InBytes},                    // In Bytes
+    {"%sp", 0, "Src Pt", "srcPort", String_SrcPort},                        // Source Port
+    {"%dp", 0, "Dst Pt", "dstPort", String_DstPort},                        // Destination Port
+    {"%it", 0, "ICMP-T", "icmpTYpe", String_ICMP_type},                     // ICMP type
+    {"%ic", 0, "ICMP-C", "icmpCode", String_ICMP_code},                     // ICMP code
+    {"%pr", 0, "Proto", "proto", String_Protocol},                          // Protocol
+    {"%flg", 0, "   Flags", "flags", String_Flags},                         // TCP Flags
+    {"%fwd", 0, "Fwd", "fwdStatus", String_FwdStatus},                      // Forwarding Status
+    {"%tos", 0, " Tos", "tos", String_Tos},                                 // Tos - compat
+    {"%stos", 0, "STos", "srcTos", String_SrcTos},                          // Tos - Src tos
+    {"%bps", 0, "     bps", "bps", String_bps},                             // bps - bits per second
+    {"%pps", 0, "     pps", "pps", String_pps},                             // pps - packets per second
+    {"%bpp", 0, "   Bpp", "bpp", String_bpp},                               // bpp - Bytes per package
 
     // EXipv4FlowID EXipv6FlowID
-    {"%sa", 1, "     Src IP Addr", String_SrcAddr},             // Source Address
-    {"%da", 1, "     Dst IP Addr", String_DstAddr},             // Destination Address
-    {"%sap", 1, "     Src IP Addr:Port ", String_SrcAddrPort},  // Source Address:Port
-    {"%dap", 1, "     Dst IP Addr:Port ", String_DstAddrPort},  // Destination Address:Port
+    {"%sa", 1, "     Src IP Addr", "srcAddr", String_SrcAddr},        // Source Address
+    {"%da", 1, "     Dst IP Addr", "dstAddr", String_DstAddr},        // Destination Address
+    {"%sap", 1, "     Src IP Addr:Port ", NULL, String_SrcAddrPort},  // Source Address:Port
+    {"%dap", 1, "     Dst IP Addr:Port ", NULL, String_DstAddrPort},  // Destination Address:Port
     // with maxmind geo info
-    {"%gsap", 1, "     Src IP Addr(..):Port ", String_SrcAddrGeoPort},  // Source Address(geo):Port
-    {"%gdap", 1, "     Dst IP Addr(..):Port ", String_DstAddrGeoPort},  // Destination Address(geo):Port
-    {"%gsa", 1, "     Src IP Addr(..)", String_SrcGeoAddr},             // Source Address
-    {"%gda", 1, "     Dst IP Addr(..)", String_DstGeoAddr},             // Destination Address
+    {"%gsap", 1, "     Src IP Addr(..):Port ", NULL, String_SrcAddrGeoPort},  // Source Address(geo):Port
+    {"%gdap", 1, "     Dst IP Addr(..):Port ", NULL, String_DstAddrGeoPort},  // Destination Address(geo):Port
+    {"%gsa", 1, "     Src IP Addr(..)", NULL, String_SrcGeoAddr},             // Source Address
+    {"%gda", 1, "     Dst IP Addr(..)", NULL, String_DstGeoAddr},             // Destination Address
 
     // EXflowMiscID
-    {"%in", 0, " Input", String_Input},        // Input Interface num
-    {"%out", 0, "Output", String_Output},      // Output Interface num
-    {"%smk", 0, "SMask", String_SrcMask},      // Src mask
-    {"%dmk", 0, "DMask", String_DstMask},      // Dst mask
-    {"%dir", 0, "Dir", String_Dir},            // Direction: ingress, egress
-    {"%dtos", 0, "DTos", String_DstTos},       // Tos - Dst tos
-    {"%bfd", 0, "Bfd", String_BiFlowDir},      // BiFlow Direction
-    {"%end", 0, "End", String_FlowEndReason},  // Flow End Reason
+    {"%in", 0, " Input", "input", String_Input},            // Input Interface num
+    {"%out", 0, "Output", "output", String_Output},         // Output Interface num
+    {"%smk", 0, "SMask", "srcMask", String_SrcMask},        // Src mask
+    {"%dmk", 0, "DMask", "dstMask", String_DstMask},        // Dst mask
+    {"%dir", 0, "Dir", "direction", String_Dir},            // Direction: ingress, egress
+    {"%dtos", 0, "DTos", "dstTos", String_DstTos},          // Tos - Dst tos
+    {"%bfd", 0, "Bfd", "biDirection", String_BiFlowDir},    // BiFlow Direction
+    {"%end", 0, "End", "endReason", String_FlowEndReason},  // Flow End Reason
     //
-    {"%sn", 1, "        Src Network", String_SrcNet},          // Source Address applied source netmask
-    {"%dn", 1, "        Dst Network", String_DstNet},          // Destination Address applied source netmask
-    {"%inam", 0, " Input interface name", String_InputName},   // Input Interface name
-    {"%onam", 0, "Output interface name", String_OutputName},  // Output Interface name
+    {"%sn", 1, "        Src Network", "srcNet", String_SrcNet},             // Source Address applied source netmask
+    {"%dn", 1, "        Dst Network", "dstNet", String_DstNet},             // Destination Address applied source netmask
+    {"%inam", 0, " Input interface name", "inIfName", String_InputName},    // Input Interface name
+    {"%onam", 0, "Output interface name", "outIfName", String_OutputName},  // Output Interface name
 
     // EXcntFlowID
-    {"%opkt", 0, " Out Pkt", String_OutPackets},  // Out Packets
-    {"%obyt", 0, "Out Byte", String_OutBytes},    // In Bytes
-    {"%fl", 0, "Flows", String_Flows},            // Flows
+    {"%opkt", 0, " Out Pkt", "outPackets", String_OutPackets},  // Out Packets
+    {"%obyt", 0, "Out Byte", "outBytes", String_OutBytes},      // In Bytes
+    {"%fl", 0, "Flows", "flows", String_Flows},                 // Flows
 
     // EXvLanID
-    {"%svln", 0, "SVlan", String_SrcVlan},  // Src Vlan
-    {"%dvln", 0, "DVlan", String_DstVlan},  // Dst Vlan
+    {"%svln", 0, "SVlan", "srcVlan", String_SrcVlan},  // Src Vlan
+    {"%dvln", 0, "DVlan", "dstVlan", String_DstVlan},  // Dst Vlan
 
     // EXasRoutingID
-    {"%sas", 0, "Src AS", String_SrcAS},  // Source AS
-    {"%das", 0, "Dst AS", String_DstAS},  // Destination AS
+    {"%sas", 0, "Src AS", "srcAS", String_SrcAS},  // Source AS
+    {"%das", 0, "Dst AS", "dstAS", String_DstAS},  // Destination AS
 
     // EXbgpNextHopV4ID EXbgpNextHopV6ID
-    {"%nhb", 1, " BGP next-hop IP", String_BGPNextHop},  // BGP Next-hop IP Address
+    {"%nhb", 1, " BGP next-hop IP", "bgpNextIP", String_BGPNextHop},  // BGP Next-hop IP Address
 
     // EXipNextHopV4ID
-    {"%nh", 1, "     Next-hop IP", String_NextHop},  // Next-hop IP Address
+    {"%nh", 1, "     Next-hop IP", "nextIP", String_NextHop},  // Next-hop IP Address
 
     // EXipReceivedV4ID EXipReceivedV6ID
-    {"%ra", 1, "       Router IP", String_RouterIP},  // Router IP Address
+    {"%ra", 1, "       Router IP", "routerIP", String_RouterIP},  // Router IP Address
 
     // EXmplsLabelID
-    {"%mpls1", 0, " MPLS lbl 1 ", String_MPLS_1},    // MPLS Label 1
-    {"%mpls2", 0, " MPLS lbl 2 ", String_MPLS_2},    // MPLS Label 2
-    {"%mpls3", 0, " MPLS lbl 3 ", String_MPLS_3},    // MPLS Label 3
-    {"%mpls4", 0, " MPLS lbl 4 ", String_MPLS_4},    // MPLS Label 4
-    {"%mpls5", 0, " MPLS lbl 5 ", String_MPLS_5},    // MPLS Label 5
-    {"%mpls6", 0, " MPLS lbl 6 ", String_MPLS_6},    // MPLS Label 6
-    {"%mpls7", 0, " MPLS lbl 7 ", String_MPLS_7},    // MPLS Label 7
-    {"%mpls8", 0, " MPLS lbl 8 ", String_MPLS_8},    // MPLS Label 8
-    {"%mpls9", 0, " MPLS lbl 9 ", String_MPLS_9},    // MPLS Label 9
-    {"%mpls10", 0, " MPLS lbl 10", String_MPLS_10},  // MPLS Label 10
+    {"%mpls1", 0, " MPLS lbl 1 ", "mplsLabel1", String_MPLS_1},     // MPLS Label 1
+    {"%mpls2", 0, " MPLS lbl 2 ", "mplsLabel2", String_MPLS_2},     // MPLS Label 2
+    {"%mpls3", 0, " MPLS lbl 3 ", "mplsLabel3", String_MPLS_3},     // MPLS Label 3
+    {"%mpls4", 0, " MPLS lbl 4 ", "mplsLabel4", String_MPLS_4},     // MPLS Label 4
+    {"%mpls5", 0, " MPLS lbl 5 ", "mplsLabel5", String_MPLS_5},     // MPLS Label 5
+    {"%mpls6", 0, " MPLS lbl 6 ", "mplsLabel6", String_MPLS_6},     // MPLS Label 6
+    {"%mpls7", 0, " MPLS lbl 7 ", "mplsLabel7", String_MPLS_7},     // MPLS Label 7
+    {"%mpls8", 0, " MPLS lbl 8 ", "mplsLabel8", String_MPLS_8},     // MPLS Label 8
+    {"%mpls9", 0, " MPLS lbl 9 ", "mplsLabel9", String_MPLS_9},     // MPLS Label 9
+    {"%mpls10", 0, " MPLS lbl 10", "mplsLabel10", String_MPLS_10},  // MPLS Label 10
     {"%mpls", 0,
      "                                               MPLS labels 1-10                                                  "
      "                 ",
-     String_MPLSs},  // All MPLS labels
+     "mplsLabel1-10", String_MPLSs},  // All MPLS labels
 
     // EXmacAddrID
-    {"%ismc", 0, "  In src MAC Addr", String_InSrcMac},   // Input Src Mac Addr
-    {"%odmc", 0, " Out dst MAC Addr", String_OutDstMac},  // Output Dst Mac Addr
-    {"%idmc", 0, "  In dst MAC Addr", String_InDstMac},   // Input Dst Mac Addr
-    {"%osmc", 0, " Out src MAC Addr", String_OutSrcMac},  // Output Src Mac Addr
+    {"%ismc", 0, "  In src MAC Addr", "inSrcMac", String_InSrcMac},    // Input Src Mac Addr
+    {"%odmc", 0, " Out dst MAC Addr", "outDstMac", String_OutDstMac},  // Output Dst Mac Addr
+    {"%idmc", 0, "  In dst MAC Addr", "inDstMac", String_InDstMac},    // Input Dst Mac Addr
+    {"%osmc", 0, " Out src MAC Addr", "outSrcMac", String_OutSrcMac},  // Output Src Mac Addr
 
     // EXasAdjacentID
-    {"%nas", 0, "Next AS", String_NextAS},  // Next AS
-    {"%pas", 0, "Prev AS", String_PrevAS},  // Previous AS
+    {"%nas", 0, "Next AS", "nextAS", String_NextAS},  // Next AS
+    {"%pas", 0, "Prev AS", "prevAS", String_PrevAS},  // Previous AS
 
     // EXlatencyID - latency extension for nfpcapd and nprobe
-    {"%cl", 0, "C Latency", String_ClientLatency},  // client latency
-    {"%sl", 0, "S latency", String_ServerLatency},  // server latency
-    {"%al", 0, "A latency", String_AppLatency},     // app latency
+    {"%cl", 0, "C Latency", "clientLatency", String_ClientLatency},  // client latency
+    {"%sl", 0, "S latency", "serverLatency", String_ServerLatency},  // server latency
+    {"%al", 0, "A latency", "appLatency", String_AppLatency},        // app latency
 
     // EXsamplerInfoID
 
     // EXnselCommonID & EXnatCommonID
-    {"%tevt", 0, "Event time             ", String_EventTime},  // NSEL Flow start time
-    {"%msec", 0, "   Event Time", String_msecEvent},            // NSEL event time in msec
-    {"%evt", 0, "   Event", String_evt},                        // NSEL event
+    {"%tevt", 0, "Event time             ", "eventTime", String_EventTime},  // NSEL Flow start time
+    {"%msec", 0, "   Event Time", "eventTime", String_msecEvent},            // NSEL event time in msec
+    {"%evt", 0, "   Event", "event", String_evt},                            // NSEL event
     // for v.1.6.10 compatibility, keep NEL specific addr/port format tokens
-    {"%nevt", 0, "   Event", String_evt},  // NAT event
+    {"%nevt", 0, "   Event", "event", String_evt},  // NAT event
 
     // EXnselCommonID
-    {"%nfc", 0, "   Conn-ID", String_nfc},  // NSEL connection ID
-    {"%xevt", 0, " XEvent", String_xevt},   // NSEL xevent
+    {"%nfc", 0, "   Conn-ID", "connectionID", String_nfc},  // NSEL connection ID
+    {"%xevt", 0, " XEvent", "xEvent", String_xevt},         // NSEL xevent
 
     // EXnatXlateIPv4ID EXnatXlateIPv6ID
     // ASA Firewall
-    {"%xsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NSEL XLATE src IP
-    {"%xda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NSEL XLATE dst IP
-    {"%xsap", 1, "   X-Src IP Addr:Port ", String_xlateSrcAddrPort},  // NSEL Xlate Source Address:Port
-    {"%xdap", 1, "   X-Src IP Addr:Port ", String_xlateDstAddrPort},  // NSEL Xlate Destination Address:Port
+    {"%xsa", 0, "   X-late Src IP", "srcXIP", String_xlateSrcAddr},         // NSEL XLATE src IP
+    {"%xda", 0, "   X-late Dst IP", "dstXIP", String_xlateDstAddr},         // NSEL XLATE dst IP
+    {"%xsap", 1, "   X-Src IP Addr:Port ", NULL, String_xlateSrcAddrPort},  // NSEL Xlate Source Address:Port
+    {"%xdap", 1, "   X-Src IP Addr:Port ", NULL, String_xlateDstAddrPort},  // NSEL Xlate Destination Address:Port
     // NAT devices
-    {"%nsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NAT XLATE src IP
-    {"%nda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NAT XLATE dst IP
-    {"%nsap", 1, "   X-Src IP Addr:Port ", String_xlateSrcAddrPort},  // NAT Xlate Source Address:Port
-    {"%ndap", 1, "   X-Dst IP Addr:Port ", String_xlateDstAddrPort},  // NAT Xlate Destination Address:Port
+    {"%nsa", 0, "   X-late Src IP", "srcXIP", String_xlateSrcAddr},         // NAT XLATE src IP
+    {"%nda", 0, "   X-late Dst IP", "dstXIP", String_xlateDstAddr},         // NAT XLATE dst IP
+    {"%nsap", 1, "   X-Src IP Addr:Port ", NULL, String_xlateSrcAddrPort},  // NAT Xlate Source Address:Port
+    {"%ndap", 1, "   X-Dst IP Addr:Port ", NULL, String_xlateDstAddrPort},  // NAT Xlate Destination Address:Port
 
     // EXnatXlatePortID
     // ASA Firewall
-    {"%xsp", 0, "XsPort", String_xlateSrcPort},  // NSEL XLATE src port
-    {"%xdp", 0, "XdPort", String_xlateDstPort},  // NSEL SLATE dst port
+    {"%xsp", 0, "XsPort", "srcXPort", String_xlateSrcPort},  // NSEL XLATE src port
+    {"%xdp", 0, "XdPort", "dstXPort", String_xlateDstPort},  // NSEL SLATE dst port
     // NAT devices
-    {"%nsp", 0, "XsPort", String_xlateSrcPort},  // NAT XLATE src port
-    {"%ndp", 0, "XdPort", String_xlateDstPort},  // NAT SLATE dst port
+    {"%nsp", 0, "XsPort", "srcXPort", String_xlateSrcPort},  // NAT XLATE src port
+    {"%ndp", 0, "XdPort", "dstXPort", String_xlateDstPort},  // NAT SLATE dst port
 
     // EXnselAclID
-    {"%iacl", 0, "Ingress ACL                     ", String_iacl},  // NSEL ingress ACL
-    {"%eacl", 0, "Egress ACL                      ", String_eacl},  // NSEL egress ACL
+    {"%iacl", 0, "Ingress ACL                     ", "ingressACL", String_iacl},  // NSEL ingress ACL
+    {"%eacl", 0, "Egress ACL                      ", "egressACL", String_eacl},   // NSEL egress ACL
 
     // EXnselUserID
-    {"%uname", 0, "UserName", String_userName},  // NSEL user name
+    {"%uname", 0, "UserName", "nselUser", String_userName},  // NSEL user name
 
     // EXnatPortBlockID - Port block allocation
-    {"%pbstart", 0, "Pb-Start", String_PortBlockStart},  // Port block start
-    {"%pbend", 0, "Pb-End", String_PortBlockEnd},        // Port block end
-    {"%pbstep", 0, "Pb-Step", String_PortBlockStep},     // Port block step
-    {"%pbsize", 0, "Pb-Size", String_PortBlockSize},     // Port block size
+    {"%pbstart", 0, "Pb-Start", "pbStart", String_PortBlockStart},  // Port block start
+    {"%pbend", 0, "Pb-End", "pbEnd", String_PortBlockEnd},          // Port block end
+    {"%pbstep", 0, "Pb-Step", "pbStep", String_PortBlockStep},      // Port block step
+    {"%pbsize", 0, "Pb-Size", "pbSize", String_PortBlockSize},      // Port block size
 
     // EXnbarAppID
-    {"%nbid", 0, "nbar ID", String_nbarID},       // nbar ID
-    {"%nbnam", 0, "nbar name", String_nbarName},  // nbar Name
+    {"%nbid", 0, "nbar ID", "nbarID", String_nbarID},         // nbar ID
+    {"%nbnam", 0, "nbar name", "nbarName", String_nbarName},  // nbar Name
 
     // EXinPayloadID
-    {"%ipl", 0, "Input Payload", String_inPayload},  // in payload
+    {"%ipl", 0, "Input Payload", NULL, String_inPayload},  // in payload
 
     // EXoutPayloadID
-    {"%opl", 0, "Output Payload", String_outPayload},  // out payload
+    {"%opl", 0, "Output Payload", NULL, String_outPayload},  // out payload
 
     // EXtunIPv4ID EXtunIPv6ID
 
     // EXobservationID
-    {"%odid", 0, "obsDomainID", String_observationDomainID},  // observation domainID
-    {"%opid", 0, "  obsPointID", String_observationPointID},  // observation pointID
+    {"%odid", 0, "obsDomainID", "obsDomainID", String_observationDomainID},  // observation domainID
+    {"%opid", 0, "  obsPointID", "obsPointID", String_observationPointID},   // observation pointID
 
     // EXinmonMetaID
 
     // EXvrfID
-    {"%vrf", 0, "  I-VRF-ID", String_ivrf},            // ingress vrf ID - compatible
-    {"%ivrf", 0, "  I-VRF-ID", String_ivrf},           // ingress vrf ID
-    {"%ivrfnam", 0, "  I-VRF-Name", String_ivrfName},  // ingress vrf name
-    {"%evrf", 0, "  E-VRF-ID", String_evrf},           // egress vrf ID
-    {"%evrfnam", 0, "  E-VRF-Name", String_evrfName},  // egress vrf name
+    {"%vrf", 0, "  I-VRF-ID", "ingressVrfID", String_ivrf},              // ingress vrf ID - compatible
+    {"%ivrf", 0, "  I-VRF-ID", "ingressVrfID", String_ivrf},             // ingress vrf ID
+    {"%ivrfnam", 0, "  I-VRF-Name", "ingressVrfName", String_ivrfName},  // ingress vrf name
+    {"%evrf", 0, "  E-VRF-ID", "egressVrfID", String_evrf},              // egress vrf ID
+    {"%evrfnam", 0, "  E-VRF-Name", "egressVrfName", String_evrfName},   // egress vrf name
 
     // EXpfinfoID
-    {"%pfifn", 0, "interface", String_pfIfName},  // pflog ifname
-    {"%pfact", 0, "action", String_pfAction},     // pflog action
-    {"%pfrea", 0, "reason", String_pfReason},     // pflog reason
-    {"%pfdir", 0, "dir", String_pfdir},           // pflog direction
-    {"%pfrule", 0, "rule", String_pfrule},        // pflog rule
+    {"%pfifn", 0, "interface", "pfInterface", String_pfIfName},  // pflog ifname
+    {"%pfact", 0, "action", "pfAction", String_pfAction},        // pflog action
+    {"%pfrea", 0, "reason", "pfReason", String_pfReason},        // pflog reason
+    {"%pfdir", 0, "dir", "pfDirection", String_pfdir},           // pflog direction
+    {"%pfrule", 0, "rule", "pfRule", String_pfrule},             // pflog rule
 
     // EXflowIdID
-    {"%flid", 0, "               flowID", String_flowId},  // flowID
+    {"%flid", 0, "               flowID", "flowID", String_flowId},  // flowID
 
     // EXnokiaNatID
-    {"%isid", 0, " inSrvID", String_inServiceID},   // in Service ID
-    {"%osid", 0, "outSrvID", String_outServiceID},  // out service ID
+    {"%isid", 0, " inSrvID", "inSrvID", String_inServiceID},    // in Service ID
+    {"%osid", 0, "outSrvID", "outSrvID", String_outServiceID},  // out service ID
 
     // EXnokiaNatStringID
-    {"%nats", 0, "nat string", String_natString},  // nat String
+    {"%nats", 0, "nat string", "natString", String_natString},  // nat String
 
     // EXlocal
-    {"%ja3", 0, "                                   ja3", String_ja3},  // ja3 hashes
-    {"%ja4", 0, "                                   ja4", String_ja4},  // ja4 hashes
-    {"%sni", 0, "sni name", String_sniName},                            // TLS sni Name
-    {"%tls", 0, "TLS ver", String_tlsVersion},                          // TLS version
-    {"%sc", 0, "SC", String_SrcCountry},                                // src IP 2 letter country code
-    {"%dc", 0, "DC", String_DstCountry},                                // dst IP 2 letter country code
-    {"%sloc", 0, "Src IP location info", String_SrcLocation},           // src IP geo location info
-    {"%dloc", 0, "Dst IP location info", String_DstLocation},           // dst IP geo location info
-    {"%sasn", 0, "Src AS organisation", String_SrcASorganisation},      // src IP AS organistaion string
-    {"%dasn", 0, "Dst AS organisation", String_DstASorganisation},      // dst IP AS organisation string
-    {"%stor", 0, "STor", String_SrcTor},                                // src IP 2 letter tor node info
-    {"%dtor", 0, "DTor", String_DstTor},                                // dst IP 2 letter tor node info
-    {"%lbl", 0, "           label", String_Label},                      // Flow Label
+    {"%ja3", 0, "                                   ja3", "ja3", String_ja3},  // ja3 hashes
+    {"%ja4", 0, "                                   ja4", "ja4", String_ja4},  // ja4 hashes
+    {"%sni", 0, "sni name", "sniName", String_sniName},                        // TLS sni Name
+    {"%tls", 0, "TLS ver", "tlsVersion", String_tlsVersion},                   // TLS version
+    {"%sc", 0, "SC", "srcGeo", String_SrcCountry},                             // src IP 2 letter country code
+    {"%dc", 0, "DC", "dstGeo", String_DstCountry},                             // dst IP 2 letter country code
+    {"%sloc", 0, "Src IP location info", "srcLocation", String_SrcLocation},   // src IP geo location info
+    {"%dloc", 0, "Dst IP location info", "dstLocation", String_DstLocation},   // dst IP geo location info
+    {"%sasn", 0, "Src AS organisation", "srcOrg", String_SrcASorganisation},   // src IP AS organistaion string
+    {"%dasn", 0, "Dst AS organisation", "dstOrg", String_DstASorganisation},   // dst IP AS organisation string
+    {"%stor", 0, "STor", "srcTor", String_SrcTor},                             // src IP 2 letter tor node info
+    {"%dtor", 0, "DTor", "dstTor", String_DstTor},                             // dst IP 2 letter tor node info
+    {"%lbl", 0, "           label", "label", String_Label},                    // Flow Label
 
-    {"%n", 0, "", String_NewLine},  // \n
-    {NULL, 0, NULL, NULL}};
+    {"%n", 0, "", NULL, String_NewLine},  // \n
+    {NULL, 0, NULL, NULL, NULL}};
 
 /* each of the tokens above must not generate output strings larger than this */
 #define MAX_STRING_LENGTH 256
@@ -587,9 +588,9 @@ int Getv6Mode(void) { return long_v6; }
 
 static void ListOutputFormats(void) {
     printf("Available format elements:");
-    for (int i = 0; format_token_list[i].token != NULL; i++) {
+    for (int i = 0; formatTable[i].token != NULL; i++) {
         if ((i & 0xf) == 0) printf("\n");
-        printf("%s ", format_token_list[i].token);
+        printf("%s ", formatTable[i].token);
     }
     printf("- See also nfdump(1)\n");
 
@@ -730,7 +731,7 @@ static void AddToken(int index, char *s) {
     }
 
     if (s == NULL) {
-        token_list[token_index].string_function = format_token_list[index].string_function;
+        token_list[token_index].string_function = formatTable[index].string_function;
         token_list[token_index].string_buffer = s;
     } else {
         token_list[token_index].string_function = NULL;
@@ -794,23 +795,27 @@ int ParseOutputFormat(int csvFormat, char *format, int plain_numbers, printmap_t
     h = header_string;
     *h = '\0';
     while (*c) {
-        if (*c == '%') {  // it's a token from format_token_list
+        if (*c == '%') {  // it's a token from formatTable
             i = 0;
             remaining = strlen(c);
-            while (format_token_list[i].token) {  // sweep through the list
-                int len = strlen(format_token_list[i].token);
+            while (formatTable[i].token) {  // sweep through the list
+                int len = strlen(formatTable[i].token);
 
                 // a token is separated by either a space, another token, or end of string
                 if (remaining >= len && !isalnum((int)c[len])) {
                     // separator found a expected position
                     char p = c[len];  // save separator;
                     c[len] = '\0';
-                    if (strncmp(format_token_list[i].token, c, len) == 0) {  // token found
+                    if (strncmp(formatTable[i].token, c, len) == 0) {  // token found
                         AddToken(i, NULL);
-                        if (long_v6 && format_token_list[i].is_address)
-                            snprintf(h, STRINGSIZE - 1 - strlen(header_string), "%23s%s", "", format_token_list[i].fmtHeader);
-                        else
-                            snprintf(h, STRINGSIZE - 1 - strlen(header_string), "%s", format_token_list[i].fmtHeader);
+                        if (modeCSV) {
+                            snprintf(h, STRINGSIZE - 1 - strlen(header_string), "%s", formatTable[i].csvHeader);
+                        } else {
+                            if (long_v6 && formatTable[i].is_address)
+                                snprintf(h, STRINGSIZE - 1 - strlen(header_string), "%23s%s", "", formatTable[i].fmtHeader);
+                            else
+                                snprintf(h, STRINGSIZE - 1 - strlen(header_string), "%s", formatTable[i].fmtHeader);
+                        }
                         h += strlen(h);
                         c[len] = p;
                         c += len;
@@ -821,7 +826,7 @@ int ParseOutputFormat(int csvFormat, char *format, int plain_numbers, printmap_t
                 }
                 i++;
             }
-            if (format_token_list[i].token == NULL) {
+            if (formatTable[i].token == NULL) {
                 LogError("Output format parse error at: %s", c);
                 free(s);
                 ListOutputFormats();

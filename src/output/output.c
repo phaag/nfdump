@@ -260,7 +260,8 @@ void PrintOutputHelp(void) {
 
     for (int i = 0; printmap[i].printmode != NULL; i++) {
         if (printmap[i].Format != NULL) {
-            printf("%10s : %s -o fmt %s\n", printmap[i].printmode, printmap[i].help, printmap[i].Format);
+            printf("%10s : %s -o %s %s\n", printmap[i].printmode, printmap[i].outputMode == MODE_CSV ? "csv" : "fmt", printmap[i].help,
+                   printmap[i].Format);
         } else {
             printf("%10s : %s\n", printmap[i].printmode, printmap[i].help);
         }

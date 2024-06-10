@@ -27,7 +27,7 @@ fmt.geolong = "%ts %td %pr %sc %gsap -> %dc %gdap %flg %pkt %byt %fl"
 fmt.nokia = "%ts %te %flid %pr %sap -> %dap %isid %osid %nats"
 
 # default csv format
-csv.line = "%ts,%td,%pr,%sa,%sp,%da,%dp,%pkt,%byt,%fl"
+csv.cvsline = "%ts,%td,%pr,%sa,%sp,%da,%dp,%pkt,%byt,%fl"
 
 # OpenBSD pf logs
 fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt %byt"
