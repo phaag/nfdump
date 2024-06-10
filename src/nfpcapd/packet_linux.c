@@ -215,7 +215,7 @@ static void ReportStat(packetParam_t *param) {
     if (err < 0) {
         LogError("getsockopt(PACKET_STATISTICS) failed: %s", strerror(errno));
     } else {
-        LogInfo("Stat: received: %d, dropped by OS/Buffer: %d, freeze_q_cnt: %u", pstat.tp_packets - last_stat.tp_packets,
+        LogInfo("Stat: received: %u, dropped by OS/Buffer: %u, freeze_q_cnt: %u", pstat.tp_packets - last_stat.tp_packets,
                 pstat.tp_drops - last_stat.tp_drops, pstat.tp_freeze_q_cnt - last_stat.tp_freeze_q_cnt);
         last_stat = pstat;
     }
