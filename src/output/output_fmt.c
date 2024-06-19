@@ -1103,13 +1103,13 @@ static void String_ja3(FILE *stream, recordHandle_t *recordHandle) {
         if (ssl == NULL) {
             uint32_t payloadLength = ExtensionLength(payload);
             ssl = sslProcess(payload, payloadLength);
-            ja3 = ja3Process(ssl, NULL);
             recordHandle->extensionList[SSLindex] = ssl;
-            recordHandle->extensionList[JA3index] = ja3;
-            if (ssl == NULL || ja3 == NULL) {
-                fprintf(stream, "%38s", "no ja3");
-                return;
-            }
+        }
+        ja3 = ja3Process(ssl, NULL);
+        recordHandle->extensionList[JA3index] = ja3;
+        if (ssl == NULL || ja3 == NULL) {
+            fprintf(stream, "%38s", "no ja3");
+            return;
         }
     }
 
@@ -1134,13 +1134,13 @@ static void String_ja4(FILE *stream, recordHandle_t *recordHandle) {
         if (ssl == NULL) {
             uint32_t payloadLength = ExtensionLength(payload);
             ssl = sslProcess(payload, payloadLength);
-            ja4 = ja4Process(ssl, genericFlow->proto);
             recordHandle->extensionList[SSLindex] = ssl;
-            recordHandle->extensionList[JA4index] = ja4;
-            if (ssl == NULL || ja4 == NULL) {
-                fprintf(stream, "%38s", "no ja4");
-                return;
-            }
+        }
+        ja4 = ja4Process(ssl, genericFlow->proto);
+        recordHandle->extensionList[JA4index] = ja4;
+        if (ssl == NULL || ja4 == NULL) {
+            fprintf(stream, "%38s", "no ja4");
+            return;
         }
     }
 
