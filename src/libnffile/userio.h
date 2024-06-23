@@ -84,6 +84,7 @@
 
 int ProtoNum(char *protoString);
 
+#define PRINTPLAIN 1
 char *ProtoString(uint8_t protoNum, uint32_t plainNumbers);
 
 void Protoinfo(char *protoString);

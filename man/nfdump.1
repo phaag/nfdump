@@ -618,12 +618,20 @@ Print the flow records according the format
 This is a very flexible and powerful way to format flow records. See the section
 .Sy OUTPUT
 below for more details on how to compile your own format.
+.It Cm csv: Ar user
+Print the flow records as user defined csv format. Use a ',' separated list of
+.Ar user
+defined output token compatible with
+.Ar fmt
+format. See the section
+.Sy OUTPUT
+below for more details on how to compile your own csv format.
 .It Cm json
 Print full record as a separate json object.
 .It Cm csv
-Legacy .csv format - will get removed in future releases. Please use
-.Sy json
-instead.
+Print reocrd in csv format - format compatible to fmt
+.Sy line
+format. 
 .El
 .Pp
 Already predefined fmt formats:
@@ -1538,16 +1546,19 @@ If comp is omitted, '==' is assumed.
 This section describes how output formats are compiled.
 .Nm
 has a lot of already pre-defined output formats such as
-.Ar raw, json, csv
-etc. One line formats as described for option
+.Ar raw, json, json-log, csv
+etc. One line formats supplied with option
 .Fl o
-can be compiled from various elements of a flow record. As a flow record can contains man different
+can be compiled from various elements of a flow record. As a flow record contains many different
 elements it is often useful to compile an output format for specific needs.
 .Pp
 .Ss Format description
 The output format is specified by
 .Cm -o Do fmt: Ar string Dc
-.Ar string
+for line output or
+.Cm -o Do csv: Ar string Dc
+for csv output.
+.Ar String
 contains the field
 .Ar tags
 to be printed as well as other characters if needed. A
@@ -1556,15 +1567,27 @@ starts with a
 .Cm %
 sign followed by the field name.
 .Ar tags
-are separated by spaces from other tags. Characters or other strings, not starting with a
+are separated by spaces for line format or by ',' for csv format. Characters or other strings, not starting with a
 .Cm %
 sign are copied literally to the output.
 .Pp
 Example:
 .Dl Fl o Do fmt:%ts %td %pr %sap -> %dap %pkt %byt %fl Dc
+.Dl Fl o Do csv:%ts,%td,%pr,%sa,%sp,%da,%dp,%pkt,%byt,%fl Dc
 .Pp
-This is the definition of the predined format
-.Cm line.
+The difference between
+.Ar fmt
+and
+.Ar csv
+is the printing of the header line. Furthermore 
+.Ar csv
+does not have a flow summary at the end. 
+.Ar csv
+output can be processed by any other post processing tool, which understands csv data.
+The examples above show the definitions of the predined formats
+.Cm line
+and
+.Cm csv.
 It adds the elements
 .Ar tstart duration protocol source IP address/port
 followed by the literal characters -> and
@@ -1600,8 +1623,16 @@ according to the specific needs. New formats may be added using the following sy
 with
 .Ar newname
 any new or existing definition of output formats. Existing formats are overwritten with the
-new definition.
+new definition. You may also define a custom csv output format such as:
 .Pp
+.Dl csv.newname = Do csv:%tsr,%ter,%pr,%sa,%sp,%da,%dp,%pkt,%byt,%fl Dc
+.Pp
+Please note, that
+.Ar newname
+must be unique for all formats in
+.Ar fmt
+as well as 
+.Ar csv
 .Ss Tag definition
 The following list contains all tags, which are available to compile the output format:
 .Pp

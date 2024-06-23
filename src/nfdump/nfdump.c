@@ -1288,7 +1288,6 @@ int main(int argc, char **argv) {
                 nfprof_print(&profile_data, stdout);
                 break;
             case MODE_CSV:
-                PrintSummary(&sum_stat, outputParams);
                 break;
             case MODE_JSON:
                 break;

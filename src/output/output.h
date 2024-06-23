@@ -52,13 +52,6 @@ typedef struct outputParams_s {
     int topN;
 } outputParams_t;
 
-typedef struct printmap_s {
-    char *printmode;          // name of the output format
-    outputMode_t outputMode;  // type of output mode
-    char *Format;             // output format definition
-    char *help;               // help text
-} printmap_t;
-
 RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams);
 
 void PrintProlog(outputParams_t *outputParams);

@@ -34,6 +34,9 @@
 #include <stdio.h>
 
 #include "nfdump.h"
+#include "output.h"
+
+int ParseCSVOutputFormat(char *format);
 
 void csv_prolog(void);
 

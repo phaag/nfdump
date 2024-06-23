@@ -53,7 +53,7 @@ void fmt_epilog(void);
 
 void CondenseV6(char *s);
 
-int ParseOutputFormat(int csvFormat, char *format, int printPlain, printmap_t *printmap);
+int ParseFMTOutputFormat(char *format, int printPlain);
 
 void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag);
 

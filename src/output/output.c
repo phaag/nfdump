@@ -30,6 +30,8 @@
 
 #include "output.h"
 
+#include <ctype.h>
+#include <errno.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,6 +68,8 @@
 
 #define FORMAT_nat "%ts %nevt %pr %sap -> %dap %nsap -> %ndap"
 
+#define FORMAT_CSV "%ts,%td,%pr,%sa,%sp,%da,%dp,%pkt,%byt,%fl"
+
 #ifdef NSEL
 #define DefaultMode "nsel"
 #else
@@ -83,23 +87,28 @@ static void null_epilog(void);
 
 // Assign print functions for all output options -o
 // Terminated with a NULL record
-printmap_t printmap[MAXFORMATS] = {{"raw", MODE_RAW, NULL, "Raw format - multi line"},
-                                   {"line", MODE_FMT, FORMAT_line, "predefined"},
-                                   {"gline", MODE_FMT, FORMAT_gline, "predefined"},
-                                   {"long", MODE_FMT, FORMAT_long, "predefined"},
-                                   {"glong", MODE_FMT, FORMAT_glong, "predefined"},
-                                   {"extended", MODE_FMT, FORMAT_extended, "predefined"},
-                                   {"biline", MODE_FMT, FORMAT_biline, "predefined"},
-                                   {"bilong", MODE_FMT, FORMAT_bilong, "predefined"},
-                                   {"nsel", MODE_FMT, FORMAT_nsel, "predefined"},
-                                   {"nat", MODE_FMT, FORMAT_nat, "predefined"},
-                                   {"json", MODE_JSON, NULL, "json output"},
-                                   {"json-log", MODE_JSON_LOG, NULL, "json output for logging"},
-                                   {"csv", MODE_CSV, NULL, "csv predefined"},
-                                   {"null", MODE_NULL, NULL, "do not print any output"},
+static struct printmap_s {
+    char *printmode;          // name of the output format
+    outputMode_t outputMode;  // type of output mode
+    char *Format;             // output format definition
+    char *help;               // help text
+} printmap[MAXFORMATS] = {{"raw", MODE_RAW, NULL, "Raw format - multi line"},
+                          {"line", MODE_FMT, FORMAT_line, "predefined"},
+                          {"gline", MODE_FMT, FORMAT_gline, "predefined"},
+                          {"long", MODE_FMT, FORMAT_long, "predefined"},
+                          {"glong", MODE_FMT, FORMAT_glong, "predefined"},
+                          {"extended", MODE_FMT, FORMAT_extended, "predefined"},
+                          {"biline", MODE_FMT, FORMAT_biline, "predefined"},
+                          {"bilong", MODE_FMT, FORMAT_bilong, "predefined"},
+                          {"nsel", MODE_FMT, FORMAT_nsel, "predefined"},
+                          {"nat", MODE_FMT, FORMAT_nat, "predefined"},
+                          {"json", MODE_JSON, NULL, "json output"},
+                          {"json-log", MODE_JSON_LOG, NULL, "json output for logging"},
+                          {"csv", MODE_CSV, FORMAT_CSV, "csv predefined"},
+                          {"null", MODE_NULL, NULL, "do not print any output"},
 
-                                   // This is always the last line
-                                   {NULL, MODE_NULL, "", NULL}};
+                          // This is always the last line
+                          {NULL, MODE_NULL, "", NULL}};
 
 // table with appropriate printer function for given format
 static struct printerFunc_s {
@@ -178,6 +187,42 @@ static void UpdateFormatList(void) {
 
 }  // End of UpdateFormatList
 
+/*
+ * expand predefined print format into given format, such as -o fmt "%line %ipl"
+ */
+static char *RecursiveReplace(char *format) {
+    int i = 0;
+
+    while (printmap[i].printmode) {
+        char *s, *r;
+        // check for printmode string
+        s = strstr(format, printmap[i].printmode);
+        if (s && printmap[i].Format && s != format) {
+            int len = strlen(printmap[i].printmode);
+            if (!isalpha((int)s[len])) {
+                s--;
+                if (s[0] == '%') {
+                    int newlen = strlen(format) + strlen(printmap[i].Format);
+                    r = malloc(newlen);
+                    if (!r) {
+                        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+                        exit(255);
+                    }
+                    s[0] = '\0';
+                    snprintf(r, newlen, "%s%s%s", format, printmap[i].Format, &(s[len + 1]));
+                    r[newlen - 1] = '\0';
+                    free(format);
+                    format = r;
+                }
+            }
+        }
+        i++;
+    }
+
+    return format;
+
+}  // End of RecursiveReplace
+
 RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams) {
     RecordPrinter_t print_record = NULL;
 
@@ -188,35 +233,24 @@ RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams
 
     int fmtFormat = strncasecmp(print_format, "fmt:", 4) == 0;
     int csvFormat = strncasecmp(print_format, "csv:", 4) == 0;
-    if (fmtFormat || csvFormat || print_format[0] == '%') {
-        // special user defined output format
-        char *format = &print_format[4];  // for 'fmt:%xxx' or 'csv:%xxx'
-        if (print_format[0] == '%') {
-            fmtFormat = 1;
-            format = print_format;  // for '%xxx' - forgot to add fmt: assume fmt
-        }
-
-        if (strlen(format)) {
-            if (!ParseOutputFormat(csvFormat, format, outputParams->printPlain, printmap)) exit(EXIT_FAILURE);
-            if (csvFormat) {
-                print_record = csv_record;
-                print_prolog = csv_prolog;
-                print_epilog = csv_epilog;
-            } else {
-                print_record = fmt_record;
-                print_prolog = fmt_prolog;
-                print_epilog = fmt_epilog;
-            }
-        } else {
-            LogError("Missing format description for user defined output format!\n");
-            exit(EXIT_FAILURE);
-        }
+    char *format = NULL;
+    if (fmtFormat || csvFormat) {
+        // for 'fmt:%xxx' or 'csv:%xxx'
+        // replace %format inlines
+        format = RecursiveReplace(strdup(&print_format[4]));
+        dbg_printf("fmt: %d, csv: %d, format: %s\n", fmtFormat, csvFormat, format);
+    } else if (print_format[0] == '%') {
+        // for '%xxx' - forgot to add fmt: assume fmt
+        fmtFormat = 1;
+        // replace %format inlines
+        format = RecursiveReplace(strdup(print_format));
+        dbg_printf("explicit fmt, format: %s\n", format);
     } else {
-        // predefined output format
+        // predefined output formats %line, %long and %userdef formats ... etc.
 
         // Check for long_v6 mode
         size_t i = strlen(print_format);
-        if (i > 2) {
+        if (i >= 2) {
             if (print_format[i - 1] == '6') {
                 Setv6Mode(1);
                 print_format[i - 1] = '\0';
@@ -224,23 +258,47 @@ RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams
                 Setv6Mode(0);
         }
 
-        i = 0;
-        while (printmap[i].printmode) {
+        for (int i = 0; printmap[i].printmode != NULL; i++) {
             if (strncasecmp(print_format, printmap[i].printmode, MAXMODELEN) == 0) {
                 outputParams->mode = printmap[i].outputMode;
+
+                dbg_printf("Predefined format: %s\n", print_format);
+
                 if (printmap[i].Format) {
-                    // predefined custom format
-                    if (!ParseOutputFormat(outputParams->mode == MODE_CSV, printmap[i].Format, outputParams->printPlain, printmap))
-                        exit(EXIT_FAILURE);
+                    // fmt or csv format
+                    csvFormat = outputParams->mode == MODE_CSV;
+                    fmtFormat = outputParams->mode == MODE_FMT;
+                    format = printmap[i].Format;
+                } else {
+                    // else - predefined static format
+                    print_record = printFuncMap[outputParams->mode].func_record;
+                    print_prolog = printFuncMap[outputParams->mode].func_prolog;
+                    print_epilog = printFuncMap[outputParams->mode].func_epilog;
                 }
-                // else - predefined static format
-                print_record = printFuncMap[outputParams->mode].func_record;
-                print_prolog = printFuncMap[outputParams->mode].func_prolog;
-                print_epilog = printFuncMap[outputParams->mode].func_epilog;
+
                 break;
             }
-            i++;
         }
+    }
+
+    if (print_record) return print_record;
+
+    dbg_printf("Parse format: %s\n", format);
+
+    if (fmtFormat) {
+        if (!ParseFMTOutputFormat(format, outputParams->printPlain)) exit(EXIT_FAILURE);
+        print_record = fmt_record;
+        print_prolog = fmt_prolog;
+        print_epilog = fmt_epilog;
+        outputParams->mode = MODE_FMT;
+    }
+
+    if (csvFormat) {
+        if (!ParseCSVOutputFormat(format)) exit(EXIT_FAILURE);
+        print_record = csv_record;
+        print_prolog = csv_prolog;
+        print_epilog = csv_epilog;
+        outputParams->mode = MODE_CSV;
     }
 
     return print_record;
