@@ -35,6 +35,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdint.h>
@@ -1232,13 +1233,15 @@ static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_
     if (outputParams->hasGeoDB && type == IS_IPADDR) {
         printf(
             "{ \"first\" : \"%s.%03u\", \"last\" : \"%s.%03u\", \"proto\" : %u, \"%s\" : \"%s\", \"geo\" : \"%s\","
-            "\"flows\" : %llu, \"packets\" : %llu, \"bytes\" : %llu, \"pps\" : %llu, \"bps\" : %llu, \"bpp\" : %u}\n",
+            "\"flows\" : %" PRIu64 ", \"packets\" : %" PRIu64 ", \"bytes\" : %" PRIu64 ", \"pps\" : %" PRIu64 ", \"bps\" : %" PRIu64
+            ", \"bpp\" : %u}\n",
             datestrFirst, (unsigned)(statRecord->msecFirst % 1000), datestrLast, (unsigned)(statRecord->msecLast % 1000), hashKey->proto, statName,
             valstr, geo, count_flows, count_packets, count_bytes, pps, bps, bpp);
     } else {
         printf(
             "{ \"first\" : \"%s.%03u\", \"last\" : \"%s.%03u\", \"proto\" : %u, \"%s\" : \"%s\", "
-            "\"flows\" : %llu, \"packets\" : %llu, \"bytes\" : %llu, \"pps\" : %llu, \"bps\" : %llu, \"bpp\" : %u}\n",
+            "\"flows\" : %" PRIu64 ", \"packets\" : %" PRIu64 ", \"bytes\" : %" PRIu64 ", \"pps\" : %" PRIu64 ", \"bps\" : %" PRIu64
+            ", \"bpp\" : %u}\n",
             datestrFirst, (unsigned)(statRecord->msecFirst % 1000), datestrLast, (unsigned)(statRecord->msecLast % 1000), hashKey->proto, statName,
             valstr, count_flows, count_packets, count_bytes, pps, bps, bpp);
     }

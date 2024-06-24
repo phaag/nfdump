@@ -34,6 +34,7 @@
 #define _GNU_SOURCE
 
 #include <arpa/inet.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -662,7 +663,7 @@ static void stringEXnatPortBlock(FILE *stream, void *extensionRecord, const char
 static void stringEXflowId(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXflowId_t *flowId = (EXflowId_t *)extensionRecord;
 
-    fprintf(stream, "%s\"flowID\" : %llu%s", indent, flowId->flowId, fs);
+    fprintf(stream, "%s\"flowID\" : %" PRIu64 "%s", indent, flowId->flowId, fs);
 }  // End of stringEXflowId
 
 static void stringEXnokiaNat(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {

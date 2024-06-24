@@ -2051,7 +2051,7 @@ static void String_PortBlockSize(FILE *stream, recordHandle_t *recordHandle) {
 
 static void String_flowId(FILE *stream, recordHandle_t *recordHandle) {
     EXflowId_t *flowId = (EXflowId_t *)recordHandle->extensionList[EXflowIdID];
-    fprintf(stream, "0x%llu", flowId ? flowId->flowId : 0);
+    fprintf(stream, "0x%" PRIu64, flowId ? flowId->flowId : 0);
 }  // End of String_flowId
 
 static void String_inServiceID(FILE *stream, recordHandle_t *recordHandle) {

@@ -32,6 +32,7 @@
 
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -821,7 +822,7 @@ static void stringsEXinmon(FILE *stream, void *extensionRecord) {
 
 static void stringsEXflowId(FILE *stream, void *extensionRecord) {
     EXflowId_t *flowId = (EXflowId_t *)extensionRecord;
-    fprintf(stream, "  flow ID      = 0x%13llx\n", flowId->flowId);
+    fprintf(stream, "  flow ID      = 0x%13" PRIx64 "\n", flowId->flowId);
 }  // End of stringsEXflowId
 
 static void stringsEXnokiaNat(FILE *stream, void *extensionRecord) {

@@ -53,6 +53,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <signal.h>
@@ -1672,7 +1673,7 @@ int QueryFile(char *filename, int verbose) {
     }
 
     printf("File       : %s\n", filename);
-    printf("Size       : %lld\n", stat_buf.st_size);
+    printf("Size       : %" PRIi64 "\n", (int64_t)stat_buf.st_size);
     if (fileHeader.version == LAYOUT_VERSION_1) {
         if (lseek(fd, 0, SEEK_SET) < 0) {
             LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));

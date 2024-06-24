@@ -34,6 +34,7 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -2547,7 +2548,7 @@ static void String_PortBlockSize(FILE *stream, recordHandle_t *recordHandle) {
 
 static void String_flowId(FILE *stream, recordHandle_t *recordHandle) {
     EXflowId_t *flowId = (EXflowId_t *)recordHandle->extensionList[EXflowIdID];
-    fprintf(stream, "0x%13llu", flowId ? flowId->flowId : 0);
+    fprintf(stream, "0x%13" PRIu64, flowId ? flowId->flowId : 0);
 }  // End of String_flowId
 
 static void String_inServiceID(FILE *stream, recordHandle_t *recordHandle) {

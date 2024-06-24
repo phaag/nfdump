@@ -1099,6 +1099,12 @@ char *ParseAggregateMask(char *arg) {
         return NULL;
     }
 
+    int modeCSV = 0;
+    char *sep = " ";
+    if (modeCSV) {
+        sep = ",";
+    }
+
     uint32_t elementCount = 0;
     aggregateInfo[0] = -1;
 
@@ -1124,7 +1130,10 @@ char *ParseAggregateMask(char *arg) {
         return 0;
     }
     aggr_fmt[0] = '\0';
-    fmt_len -= snprintf(aggr_fmt, fmt_len, "fmt:%s ", AggrPrependFmt);
+    if (modeCSV)
+        fmt_len -= snprintf(aggr_fmt, fmt_len, "csv:%s ", AggrPrependFmt);
+    else
+        fmt_len -= snprintf(aggr_fmt, fmt_len, "fmt:%s ", AggrPrependFmt);
 
     uint32_t v4Mask = 0xffffffff;
     uint64_t v6Mask[2] = {0xffffffffffffffffLL, 0xffffffffffffffffLL};
@@ -1195,7 +1204,7 @@ char *ParseAggregateMask(char *arg) {
         if (aggregationTable[index].fmt != NULL) {
             strncat(aggr_fmt, aggregationTable[index].fmt, fmt_len);
             fmt_len -= strlen(aggregationTable[index].fmt);
-            strncat(aggr_fmt, " ", fmt_len);
+            strncat(aggr_fmt, sep, fmt_len);
             fmt_len -= 1;
         }
 
