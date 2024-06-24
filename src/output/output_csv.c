@@ -33,6 +33,7 @@
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -1298,9 +1299,7 @@ static void String_InPackets(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     uint64_t packets = genericFlow ? genericFlow->inPackets : 0;
 
-    numStr packetString;
-    format_number(packets, packetString, PRINTPLAIN, FIXED_WIDTH);
-    fprintf(stream, "%s", packetString);
+    fprintf(stream, "%" PRIu64, packets);
 
 }  // End of String_InPackets
 
@@ -1308,9 +1307,7 @@ static void String_OutPackets(FILE *stream, recordHandle_t *recordHandle) {
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
     uint64_t packets = cntFlow ? cntFlow->outPackets : 0;
 
-    numStr packetString;
-    format_number(packets, packetString, PRINTPLAIN, FIXED_WIDTH);
-    fprintf(stream, "%s", packetString);
+    fprintf(stream, "%" PRIu64, packets);
 
 }  // End of String_OutPackets
 
@@ -1318,9 +1315,7 @@ static void String_InBytes(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     uint64_t bytes = genericFlow ? genericFlow->inBytes : 0;
 
-    numStr byteString;
-    format_number(bytes, byteString, PRINTPLAIN, FIXED_WIDTH);
-    fprintf(stream, "%s", byteString);
+    fprintf(stream, "%" PRIu64, bytes);
 
 }  // End of String_InBytes
 
@@ -1328,9 +1323,7 @@ static void String_OutBytes(FILE *stream, recordHandle_t *recordHandle) {
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
     uint64_t bytes = cntFlow ? cntFlow->outBytes : 0;
 
-    numStr byteString;
-    format_number(bytes, byteString, PRINTPLAIN, FIXED_WIDTH);
-    fprintf(stream, "%s", byteString);
+    fprintf(stream, "%" PRIu64, bytes);
 
 }  // End of String_OutBytes
 
@@ -1338,7 +1331,7 @@ static void String_Flows(FILE *stream, recordHandle_t *recordHandle) {
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
     uint64_t flows = cntFlow ? cntFlow->flows : 1;
 
-    fprintf(stream, "%llu", (unsigned long long)flows);
+    fprintf(stream, "%" PRIu64, flows);
 
 }  // End of String_Flows
 
@@ -1671,9 +1664,7 @@ static void String_bps(FILE *stream, recordHandle_t *recordHandle) {
         bps = ((inBytes << 3) / duration);  // bits per second. ( >> 3 ) -> * 8 to convert octets into bits
     }
 
-    numStr bpsString;
-    format_number(bps, bpsString, PRINTPLAIN, FIXED_WIDTH);
-    fprintf(stream, "%8s", bpsString);
+    fprintf(stream, "%" PRIu64, bps);
 
 }  // End of String_bps
 
@@ -1686,9 +1677,7 @@ static void String_pps(FILE *stream, recordHandle_t *recordHandle) {
         pps = inPackets / duration;  // packets per second
     }
 
-    numStr ppsString;
-    format_number(pps, ppsString, PRINTPLAIN, FIXED_WIDTH);
-    fprintf(stream, "%s", ppsString);
+    fprintf(stream, "%" PRIu64, pps);
 
 }  // End of String_Duration
 
