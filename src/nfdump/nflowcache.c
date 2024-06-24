@@ -1773,10 +1773,6 @@ void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
 // print Flow cache
 void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, int GuessDir) {
     dbg_printf("Enter %s\n", __func__);
-    if (outputParams->mode != MODE_FMT && outputParams->mode != MODE_RAW) {
-        printf("Output format not implemented\n");
-        return;
-    }
 
     GuessDirection = GuessDir;
     size_t maxindex;
