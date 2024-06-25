@@ -76,7 +76,9 @@ static uint32_t maskIndex = 1;
 
 // For automatic output format generation in case of custom aggregation
 #define AggrPrependFmt "%ts %td "
+#define AggrPrependCvs "%ts,%td"
 #define AggrAppendFmt "%pkt %byt %bps %bpp %fl"
+#define AggrAppendCvs "%pkt,%byt,%bps,%bpp,%fl"
 
 static struct aggregationElement_s {
     char *aggrElement;        // name of aggregation parameter
@@ -1092,7 +1094,7 @@ int SetRecordStat(char *statType, char *optOrder) {
     return 1;
 }  // End of SetRecordStat
 
-char *ParseAggregateMask(char *arg) {
+char *ParseAggregateMask(char *print_format, char *arg) {
     dbg_printf("Enter %s\n", __func__);
     if (bidir_flows) {
         LogError("Can not set custom aggregation in bidir mode");
@@ -1101,8 +1103,18 @@ char *ParseAggregateMask(char *arg) {
 
     int modeCSV = 0;
     char *sep = " ";
-    if (modeCSV) {
-        sep = ",";
+    char *prepend = AggrPrependFmt;
+    char *append = AggrAppendFmt;
+    if (print_format) {
+        if (strcmp(print_format, "csv") == 0) {
+            modeCSV = 1;
+            sep = ",";
+            prepend = AggrPrependCvs;
+            append = AggrAppendCvs;
+        } else {
+            printf("Can not use print format %s to aggregate flows\n", print_format);
+            exit(EXIT_FAILURE);
+        }
     }
 
     uint32_t elementCount = 0;
@@ -1113,7 +1125,7 @@ char *ParseAggregateMask(char *arg) {
 
     size_t fmt_len = 0;
     for (int i = 0; aggregationTable[i].aggrElement != NULL; i++) {
-        if (HasGeoDB && aggregationTable[i].fmt) {
+        if (modeCSV == 0 && HasGeoDB && aggregationTable[i].fmt) {
             if (strcmp(aggregationTable[i].fmt, "%sa") == 0) aggregationTable[i].fmt = "%gsa";
             if (strcmp(aggregationTable[i].fmt, "%da") == 0) aggregationTable[i].fmt = "%gda";
         }
@@ -1122,7 +1134,7 @@ char *ParseAggregateMask(char *arg) {
     fmt_len++;  // max fmt string len incl. trailing '\0'
 
     // add format prepend and append length
-    fmt_len += strlen(AggrPrependFmt) + strlen(AggrAppendFmt) + 6;  // +6 for 'fmt:', 2 spaces
+    fmt_len += strlen(prepend) + strlen(append) + 6;  // +6 for 'fmt:', 2 spaces
 
     char *aggr_fmt = (char *)malloc(fmt_len);
     if (!aggr_fmt) {
@@ -1131,9 +1143,9 @@ char *ParseAggregateMask(char *arg) {
     }
     aggr_fmt[0] = '\0';
     if (modeCSV)
-        fmt_len -= snprintf(aggr_fmt, fmt_len, "csv:%s ", AggrPrependFmt);
+        fmt_len -= snprintf(aggr_fmt, fmt_len, "csv:%s,", prepend);
     else
-        fmt_len -= snprintf(aggr_fmt, fmt_len, "fmt:%s ", AggrPrependFmt);
+        fmt_len -= snprintf(aggr_fmt, fmt_len, "fmt:%s ", prepend);
 
     uint32_t v4Mask = 0xffffffff;
     uint64_t v6Mask[2] = {0xffffffffffffffffLL, 0xffffffffffffffffLL};
@@ -1263,9 +1275,11 @@ char *ParseAggregateMask(char *arg) {
     }
 
 #endif
-    strncat(aggr_fmt, " ", fmt_len);
-    fmt_len--;
-    strncat(aggr_fmt, AggrAppendFmt, fmt_len);
+    if (modeCSV == 0) {
+        strncat(aggr_fmt, sep, fmt_len);
+        fmt_len--;
+    }
+    strncat(aggr_fmt, append, fmt_len);
     return aggr_fmt;
 
 }  // End of ParseAggregateMask
