@@ -4,7 +4,7 @@ bin_PROGRAMS = nfdump
 AM_CPPFLAGS = -I.. -Icompat_1_6_x -I../include -I../libnffile -I../libnfdump -I../output -I../tor -I../netflow -I../collector -I../inline $(DEPS_CFLAGS)
 AM_LDFLAGS  = -L../libnfdump -L../libnffile
 
-EXTRA_DIST = nffile_compat.c memhandle.c heapsort_inline.c 
+EXTRA_DIST = memhandle.c
 
 LDADD = $(DEPS_LIBS)
 
