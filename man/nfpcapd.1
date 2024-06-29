@@ -91,6 +91,14 @@ Specify name of pidfile. Default is no pidfile.
 Daemon mode: fork to background and detach from terminal.
 Nfpcapd terminates on signal TERM, INT and HUP.
 .TP 3
+.B -d
+De-duplicate packets with a window size of 4. This option is useful, if
+packets in a pcap file are duplicated for some unknown reason. If packets
+on multiple span ports are sent to the collector they got de-duplicated within
+the window size. Note: The de-duplication works on the IP layer to the end
+of the packet, which means layer 1 and VLAN/MPLS layers are stripped. 
+If used together with -p, the resulting pcaps are de-duplicated as well.
+.TP 3
 .B -E
 Verbose flow printing. Print flows on stdout, when flushed to disk.
 Use verbose printing only for debugging purpose in order to see if your

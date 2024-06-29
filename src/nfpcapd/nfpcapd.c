@@ -133,6 +133,7 @@ static void usage(char *name) {
         "-r pcapfile\tread packets from file\n"
         "-b num\tset socket buffer size in MB. (default 20MB)\n"
         "-B num\tset the node cache size. (default 524288)\n"
+        "-d\t\tDe-duplicate packets with window size 8.\n"
         "-s snaplen\tset the snapshot length - default 1522\n"
         "-e active,inactive\tset the active,inactive flow expire time (s) - default 300,60\n"
         "-o options \tAdd flow options, separated with ','. Available: 'fat', 'payload'\n"
@@ -280,7 +281,7 @@ static int scanOptions(flowParam_t *flowParam, char *options) {
 int main(int argc, char *argv[]) {
     sigset_t signal_set;
     struct sigaction sa;
-    int c, snaplen, bufflen, err, do_daemonize;
+    int c, snaplen, bufflen, err, do_daemonize, doDedup;
     int subdir_index, compress, expire, cache_size, buff_size;
     int activeTimeout, inactiveTimeout, metricInterval, workers;
     dirstat_t *dirstat;
@@ -293,6 +294,7 @@ int main(int argc, char *argv[]) {
     snaplen = 1522;
     bufflen = 0;
     do_daemonize = 0;
+    doDedup = 0;
     launcher_pid = 0;
     device = NULL;
     pcapfile = NULL;
@@ -319,7 +321,7 @@ int main(int argc, char *argv[]) {
     inactiveTimeout = 0;
     workers = 0;
 
-    while ((c = getopt(argc, argv, "b:B:C:De:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:vVw:yz::")) != EOF) {
+    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:vVw:yz::")) != EOF) {
         switch (c) {
             struct stat fstat;
             case 'h':
@@ -340,6 +342,9 @@ int main(int argc, char *argv[]) {
                     if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                     configFile = optarg;
                 }
+                break;
+            case 'd':
+                doDedup = 1;
                 break;
             case 'D':
                 do_daemonize = 1;
@@ -570,6 +575,7 @@ int main(int argc, char *argv[]) {
     flowParam_t flowParam = {0};
     flushParam.extensionFormat = time_extension;
     flowParam.extensionFormat = time_extension;
+    packetParam.doDedup = doDedup;
 
     if (options && scanOptions(&flowParam, options) < 0) {
         exit(EXIT_FAILURE);
@@ -778,8 +784,8 @@ int main(int argc, char *argv[]) {
 
     CloseMetric();
 
-    LogInfo("Total: Processed: %u, skipped: %u, short caplen: %u, unknown: %u\n", packetParam.proc_stat.packets, packetParam.proc_stat.skipped,
-            packetParam.proc_stat.short_snap, packetParam.proc_stat.unknown);
+    LogInfo("Total: Processed: %u, skipped: %u, short caplen: %u, unknown: %u, duplicates: %llu\n", packetParam.proc_stat.packets,
+            packetParam.proc_stat.skipped, packetParam.proc_stat.short_snap, packetParam.proc_stat.unknown, packetParam.proc_stat.duplicates);
 
     if (pidfile) remove_pid(pidfile);
 

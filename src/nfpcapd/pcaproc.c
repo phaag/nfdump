@@ -109,6 +109,8 @@ static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *
 
 static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize);
 
+#include "murmurhash.c"
+
 pcapfile_t *OpenNewPcapFile(pcap_t *p, char *filename, pcapfile_t *pcapfile) {
     if (!pcapfile) {
         // Create struct
@@ -499,7 +501,7 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode 
 
 }  // End of ProcessOtherFlow
 
-void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, const u_char *data) {
+int ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, const u_char *data) {
     struct FlowNode *Node = NULL;
     uint16_t version, IPproto;
     char s1[64];
@@ -526,6 +528,7 @@ void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, co
     // link layer processing
     uint16_t protocol = 0;
     uint32_t linktype = packetParam->linktype;
+    int redoLink = 0;
 REDO_LINK:
     switch (linktype) {
         case DLT_EN10MB:
@@ -535,7 +538,7 @@ REDO_LINK:
             int IEEE802 = protocol <= 1500;
             if (IEEE802) {
                 packetParam->proc_stat.skipped++;
-                return;
+                return 1;
             }
             // unwrap link layer
             dataptr += 14;
@@ -582,7 +585,7 @@ REDO_LINK:
                     break;
                 default:
                     LogInfo("Packet: %u: unsupported DLT_NULL protocol: 0x%x, packet: %u", pkg_cnt, header);
-                    return;
+                    return 1;
             }
         } break;
         case DLT_LINUX_SLL:
@@ -601,12 +604,12 @@ REDO_LINK:
             nflog_hdr_t *nflog_hdr = (nflog_hdr_t *)dataptr;
             if (hdr->caplen < sizeof(nflog_hdr_t)) {
                 LogInfo("Packet: %u: NFLOG: not enough data", pkg_cnt);
-                return;
+                return 1;
             }
 
             if (nflog_hdr->nflog_version != 0) {
                 LogInfo("Packet: %u: unsupported NFLOG version: %d", pkg_cnt, nflog_hdr->nflog_version);
-                return;
+                return 1;
             }
             dbg_printf("Linktype: DLT_NFLOG\n");
             dbg_printf("NFLOG: %s, rid: %u\n", nflog_hdr->nflog_family == 2 ? "IPv4" : "IPv6", ntohs(nflog_hdr->nflog_rid));
@@ -620,7 +623,7 @@ REDO_LINK:
                 if (size % 4 != 0) size += 4 - size % 4;
                 if (size < sizeof(nflog_tlv_t)) {
                     LogInfo("Packet: %u: NFLOG: tlv size error: %u", pkg_cnt, size);
-                    return;
+                    return 1;
                 }
 
                 if (tlv->tlv_type == NFULA_PAYLOAD) {
@@ -636,7 +639,7 @@ REDO_LINK:
             pflog_hdr_t *pfloghdr = (pflog_hdr_t *)dataptr;
             if (hdr->caplen < PFLOG_HDRLEN) {
                 LogInfo("Packet: %u: PFLOG: not enough data", pkg_cnt);
-                return;
+                return 1;
             }
             pflog = malloc(sizeof(pflog_hdr_t));
             memcpy(pflog, pfloghdr, sizeof(pflog_hdr_t));
@@ -647,20 +650,20 @@ REDO_LINK:
         } break;
         default:
             LogInfo("Packet: %u: unsupported link type: 0x%x, packet: %u", pkg_cnt, linktype);
-            return;
+            return 1;
     }
 
 REDO_LINK_PROTO:
     if (dataptr >= eodata) {
         packetParam->proc_stat.short_snap++;
         dbg_printf("Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
-        return;
+        return 1;
     }
     dbg_printf("Next protocol: 0x%x\n", protocol);
     int IEEE802 = protocol <= 1500;
     if (IEEE802) {
         packetParam->proc_stat.skipped++;
-        return;
+        return 1;
     }
     switch (protocol) {
         case ETHERTYPE_IP:    // IPv4
@@ -790,6 +793,23 @@ REDO_IPPROTO:
             goto END_FUNC;
         }
 
+        // IPv6 duplicate check
+        // dublicate check starts from the IP header over the rest of the packet
+        // vlan, mpls and layer 1 headers are ignored
+        if (unlikely(packetParam->doDedup && redoLink == 0)) {
+            // check for de-dup
+            uint32_t hopLimit = ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
+            ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim = 0;
+            uint16_t len = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);
+            if (is_duplicate((const uint8_t *)ip, len + 40)) {
+                packetParam->proc_stat.duplicates++;
+                return 0;
+            }
+            ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim = hopLimit;
+            // prevent recursive dedub checks with IP in IP packets
+            redoLink++;
+        }
+
         // ipv6 Extension headers not processed
         IPproto = ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
         dbg_printf("Packet IPv6, SRC %s, DST %s\n", inet_ntop(AF_INET6, &ip6->ip6_src, s1, sizeof(s1)),
@@ -824,6 +844,25 @@ REDO_IPPROTO:
             dbg_printf("Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
             packetParam->proc_stat.short_snap++;
             goto END_FUNC;
+        }
+
+        // IPv4 duplicate check
+        // dublicate check starts from the IP header over the rest of the packet
+        // vlan, mpls and layer 1 headers are ignored
+        if (unlikely(packetParam->doDedup && redoLink == 0)) {
+            // check for de-dup
+            uint32_t ttl = ip->ip_ttl;
+            uint32_t sum = ip->ip_sum;
+            ip->ip_ttl = 0;
+            ip->ip_sum = 0;
+            if (is_duplicate((const uint8_t *)ip, ntohs(ip->ip_len))) {
+                packetParam->proc_stat.duplicates++;
+                return 0;
+            }
+            ip->ip_ttl = ttl;
+            ip->ip_sum = sum;
+            // prevent recursive dedub checks with IP in IP packets
+            redoLink++;
         }
 
         IPproto = ip->ip_p;
@@ -1137,4 +1176,5 @@ END_FUNC:
         lastRun = hdr->ts.tv_sec;
     }
 
+    return 1;
 }  // End of ProcessPacket

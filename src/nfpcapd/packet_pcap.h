@@ -65,6 +65,7 @@ typedef struct proc_stat_s {
     uint32_t skipped;
     uint32_t unknown;
     uint32_t short_snap;
+    uint64_t duplicates;
 } proc_stat_t;
 
 #ifdef USE_TPACKETV3
@@ -96,6 +97,7 @@ typedef struct packetParam_s {
     pcap_t *pcap_dev;
     int t_win;
     int *done;
+    int doDedup;
 
     uint32_t snaplen;
     uint32_t linktype;

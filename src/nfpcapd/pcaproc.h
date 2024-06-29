@@ -115,6 +115,6 @@ void RotateFile(pcapfile_t *pcapfile, time_t t_CloseRename, int live);
 
 void ProcessFlowNode(FlowSource_t *fs, struct FlowNode *node);
 
-void ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, const u_char *data);
+int ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, const u_char *data);
 
 #endif  // _PCAPROC_H
