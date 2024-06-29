@@ -16,7 +16,7 @@ jobs:
     - name: bootstrap
       run: sh bootstrap
     - name: configure
-      run: ./configure
+      run: ./configure --enable-sflow --enable-maxmind --enable-tor --enable-nfpcapd
     - name: make
       run: make
     - name: make check
