@@ -109,7 +109,7 @@ static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *
 
 static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize);
 
-#include "murmurhash.c"
+#include "metrohash.c"
 
 pcapfile_t *OpenNewPcapFile(pcap_t *p, char *filename, pcapfile_t *pcapfile) {
     if (!pcapfile) {
