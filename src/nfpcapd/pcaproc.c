@@ -93,6 +93,15 @@ typedef struct vlan_hdr_s {
     uint16_t type;
 } vlan_hdr_t;
 
+// remember the last SlotSize packets with len and hash
+// for duplicate check
+#define SlotSize 8
+static struct {
+    uint32_t len;
+    uint64_t hash;
+} lastPacketStat[SlotSize] = {0};
+static uint32_t packetSlot = 0;
+
 static time_t lastRun = 0;  // remember last run to idle cache
 
 static inline void SetServer_latency(struct FlowNode *node);
@@ -110,6 +119,20 @@ static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *
 static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize);
 
 #include "metrohash.c"
+
+static int is_duplicate(const uint8_t *data_ptr, const uint32_t len) {
+    uint64_t hash = metrohash64_1(data_ptr, len, 0);
+
+    for (int i = 0; i < SlotSize; i++) {
+        if (lastPacketStat[i].len == len && lastPacketStat[i].hash == hash) return 1;
+    }
+
+    // not found - add to next slot round robin
+    lastPacketStat[packetSlot].len = len;
+    lastPacketStat[packetSlot].hash = hash;
+    packetSlot = (packetSlot + 1) & (SlotSize - 1);
+    return 0;
+}  // End of is_duplicate
 
 pcapfile_t *OpenNewPcapFile(pcap_t *p, char *filename, pcapfile_t *pcapfile) {
     if (!pcapfile) {

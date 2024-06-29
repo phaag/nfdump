@@ -273,60 +273,8 @@ typedef struct FlowKeyV4_s {
 
 static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int swap_flow);
 
-/*
- * hash definition and implementation
- * hash inspired by https://hackmd.io/@heyfey/SJZ-3jbs5 "Designing a Fast, Efficient, Cache-friendly Hash Table"
- * implementation optimized for flow data, without SSE registers (ARM compatibility)
- */
-
-// hash function to generate 32bit hash value from var length input hash key
-static inline uint32_t SuperFastHash(const char *data, int len) {
-    uint32_t hash = len;
-
-    if (hash == 0 || data == NULL) return 0;
-
-    int rem = len & 3;
-    len >>= 2;
-
-    // Main loop
-    uint32_t tmp;
-    for (; len > 0; len--) {
-        hash += *((uint16_t *)data);
-        tmp = (*((uint16_t *)(data + 2)) << 11) ^ hash;
-        hash = (hash << 16) ^ tmp;
-        data += 2 * sizeof(uint16_t);
-        hash += hash >> 11;
-    }
-
-    // Handle end cases
-    switch (rem) {
-        case 3:
-            hash += *((uint16_t *)data);
-            hash ^= hash << 16;
-            hash ^= data[sizeof(uint16_t)] << 18;
-            hash += hash >> 11;
-            break;
-        case 2:
-            hash += *((uint16_t *)data);
-            hash ^= hash << 11;
-            hash += hash >> 17;
-            break;
-        case 1:
-            hash += *data;
-            hash ^= hash << 10;
-            hash += hash >> 1;
-    }
-
-    // Force "avalanching" of final 127 bits
-    hash ^= hash << 3;
-    hash += hash >> 5;
-    hash ^= hash << 4;
-    hash += hash >> 17;
-    hash ^= hash << 25;
-    hash += hash >> 6;
-
-    return hash;
-}  // End of SuperFastHash
+// include hash function in same compiler unit
+#include "metrohash.c"
 
 // cell index calculation from 32bit hash, depending of hash bit size 'shift'
 #define ___fib_hash(hash, shift) ((hash) * 2654435769U) >> (shift)
@@ -353,8 +301,8 @@ typedef struct hashValue_s {
         uint64_t val[2];  // 16 byte static hash value
         void *valPtr;     // value pointer if size > 16bytes
     };
-    uint32_t allign;   // unused - 64bit alignment
-    uint32_t hash;     // calculated 32bit hash
+    uint32_t hash;     // calculated 32bit metrohash
+    uint32_t align;    // calculated 64bit metrohash
     uint32_t ptrSize;  // if > 0, valPtr points to value
     uint32_t index;    // index into record array for statistics values
 } hashValue_t;
@@ -1376,7 +1324,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
         keymem = (void *)hashValue.val;
     }
 
-    hashValue.hash = SuperFastHash(keymem, keyLen);
+    hashValue.hash = metrohash64_1(keymem, keyLen, 0);
 
     int index = flowHash_get(flowHash, hashValue);
     if (index >= 0) {
@@ -1422,7 +1370,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
 
         // generate reverse hash key to search for bidir flow
         New_HashKey(keymem, recordHandle, 1);
-        hashValue.hash = SuperFastHash(keymem, keyLen);
+        hashValue.hash = metrohash64_1(keymem, keyLen, 0);
 
         index = flowHash_get(flowHash, hashValue);
         if (index >= 0) {
@@ -1445,7 +1393,7 @@ static void AddBidirFlow(recordHandle_t *recordHandle) {
             // no bidir flow found
             // insert original flow into the cache
             New_HashKey(keymem, recordHandle, 0);
-            hashValue.hash = SuperFastHash(keymem, keyLen);
+            hashValue.hash = metrohash64_1(keymem, keyLen, 0);
 
             int insert;
             index = flowHash_add(flowHash, hashValue, &insert);
@@ -1530,7 +1478,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
         keymem = (void *)hashValue.val;
     }
 
-    hashValue.hash = SuperFastHash(keymem, keyLen);
+    hashValue.hash = metrohash64_1(keymem, keyLen, 0);
 
     int insert;
     int index = flowHash_add(flowHash, hashValue, &insert);

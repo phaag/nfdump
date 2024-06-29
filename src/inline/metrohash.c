@@ -25,15 +25,6 @@
 
 #include <stdint.h>
 
-// remember the last SlotSize packets with len and hash
-// for duplicate check
-#define SlotSize 8
-static struct {
-    uint32_t len;
-    uint64_t hash;
-} lastPacketStat[SlotSize] = {0};
-static uint32_t packetSlot = 0;
-
 /* rotate right idiom recognized by compiler*/
 inline static uint64_t rotate_right(uint64_t v, unsigned k) { return (v >> k) | (v << (64 - k)); }
 
@@ -126,7 +117,7 @@ static uint64_t metrohash64_1(const uint8_t *key, uint64_t len, uint32_t seed) {
     hash ^= rotate_right(hash, 33);
 
     return hash;
-}
+}  // End of metrohash64_1
 
 static uint64_t __attribute__((__unused__)) metrohash64_2(const uint8_t *key, uint64_t len, uint32_t seed) {
     static const uint64_t k0 = 0xD6D018F5;
@@ -208,18 +199,4 @@ static uint64_t __attribute__((__unused__)) metrohash64_2(const uint8_t *key, ui
     hash ^= rotate_right(hash, 29);
 
     return hash;
-}
-
-static int is_duplicate(const uint8_t *data_ptr, const uint32_t len) {
-    uint64_t hash = metrohash64_1(data_ptr, len, 0);
-
-    for (int i = 0; i < SlotSize; i++) {
-        if (lastPacketStat[i].len == len && lastPacketStat[i].hash == hash) return 1;
-    }
-
-    // not found - add to next slot round robin
-    lastPacketStat[packetSlot].len = len;
-    lastPacketStat[packetSlot].hash = hash;
-    packetSlot = (packetSlot + 1) & (SlotSize - 1);
-    return 0;
-}  // End of is_duplicate
+}  // End of metrohash64_2
