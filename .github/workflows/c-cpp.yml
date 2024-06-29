@@ -13,6 +13,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - name: prepare
+      run: sudo apt-get -y install libpcap-dev
     - name: bootstrap
       run: sh bootstrap
     - name: configure
