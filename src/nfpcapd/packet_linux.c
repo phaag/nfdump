@@ -324,8 +324,16 @@ void __attribute__((noreturn)) * linux_packet_thread(void *args) {
                 t_start = t_packet - (t_packet % t_win);
             }
 
+            struct pcap_pkthdr phdr = {//
+                                       .ts.tv_sec = ppd->tp_sec,
+                                       .ts.tv_usec = ppd->tp_nsec / 1000,
+                                       .caplen = ppd->tp_snaplen,
+                                       .len = ppd->tp_len};
+            void *data = (void *)ppd + ppd->tp_mac;
+            int ok = ProcessPacket(packetParam, &phdr, data);
+
             size_t size = sizeof(struct pcap_sf_pkthdr) + ppd->tp_len;
-            if (DoPacketDump) {
+            if (DoPacketDump && ok) {
                 if ((packetBuffer->bufferSize + size) > BUFFSIZE) {
                     packetBuffer->timeStamp = 0;
                     dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);
@@ -334,13 +342,7 @@ void __attribute__((noreturn)) * linux_packet_thread(void *args) {
                 }
                 PcapDump(packetBuffer, ppd);
             }
-            struct pcap_pkthdr phdr;
-            phdr.ts.tv_sec = ppd->tp_sec;
-            phdr.ts.tv_usec = ppd->tp_nsec / 1000;
-            phdr.caplen = ppd->tp_snaplen;
-            phdr.len = ppd->tp_len;
-            void *data = (void *)ppd + ppd->tp_mac;
-            ProcessPacket(packetParam, &phdr, data);
+
             ppd = (struct tpacket3_hdr *)((uint8_t *)ppd + ppd->tp_next_offset);
         }
         done = done || *(packetParam->done);

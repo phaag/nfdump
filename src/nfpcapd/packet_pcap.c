@@ -280,8 +280,9 @@ void __attribute__((noreturn)) * pcap_packet_thread(void *args) {
                     t_start = t_packet - (t_packet % t_win);
                 }
 
+                int ok = ProcessPacket(packetParam, hdr, data);
                 size_t size = sizeof(struct pcap_sf_pkthdr) + hdr->caplen;
-                if (DoPacketDump) {
+                if (DoPacketDump && ok) {
                     if ((packetBuffer->bufferSize + size) > BUFFSIZE) {
                         packetBuffer->timeStamp = 0;
                         dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);
@@ -290,7 +291,6 @@ void __attribute__((noreturn)) * pcap_packet_thread(void *args) {
                     }
                     PcapDump(packetBuffer, hdr, data);
                 }
-                ProcessPacket(packetParam, hdr, data);
             } break;
             case 0: {
                 // live capture idle cycle

@@ -327,7 +327,14 @@ void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
 
             size_t size = sizeof(struct pcap_sf_pkthdr) + hdr->bh_caplen;
             u_char *data = (u_char *)(p + hdr->bh_hdrlen);
-            if (DoPacketDump) {
+            struct pcap_pkthdr phdr = {//
+                                       .ts.tv_sec = hdr->bh_tstamp.tv_sec,
+                                       .ts.tv_usec = hdr->bh_tstamp.tv_usec,
+                                       .caplen = hdr->bh_caplen,
+                                       .len = hdr->bh_datalen};
+            int ok = ProcessPacket(packetParam, &phdr, data);
+
+            if (DoPacketDump && ok) {
                 if ((packetBuffer->bufferSize + size) > BUFFSIZE) {
                     packetBuffer->timeStamp = 0;
                     dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);
@@ -336,12 +343,7 @@ void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
                 }
                 PcapDump(packetBuffer, hdr, data);
             }
-            struct pcap_pkthdr phdr;
-            phdr.ts.tv_sec = hdr->bh_tstamp.tv_sec;
-            phdr.ts.tv_usec = hdr->bh_tstamp.tv_usec;
-            phdr.caplen = hdr->bh_caplen;
-            phdr.len = hdr->bh_datalen;
-            ProcessPacket(packetParam, &phdr, data);
+
             p += BPF_WORDALIGN(hdr->bh_hdrlen + hdr->bh_caplen);
         }
         done = done || *(packetParam->done);
