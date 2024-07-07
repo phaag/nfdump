@@ -35,6 +35,7 @@
 #include <fts.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "conf/nfconf.h"
@@ -234,8 +235,7 @@ static char *string_trim(char *s) {
     if (*s) {
         char *p = s;
         while (*p) p++;
-        while (isspace((unsigned char)*(--p)))
-            ;
+        while (isspace((unsigned char)*(--p)));
         p[1] = '\0';
     }
 

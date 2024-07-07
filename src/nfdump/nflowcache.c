@@ -799,8 +799,8 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keyLen = sizeof(FlowKeyV4_t);
         } else if (ipv6Flow) {
             FlowKeyV6_t *keyptr = (FlowKeyV6_t *)keymem;
-            memcpy((void *)keyptr->srcAddr, (void *)ipv6Flow->srcAddr, 16);
-            memcpy((void *)keyptr->dstAddr, (void *)ipv6Flow->dstAddr, 16);
+            memcpy((void *)keyptr->srcAddr, (void *)ipv6Flow->dstAddr, 16);
+            memcpy((void *)keyptr->dstAddr, (void *)ipv6Flow->srcAddr, 16);
             keyptr->srcPort = genericFlow->dstPort;
             keyptr->dstPort = genericFlow->srcPort;
             keyptr->proto = genericFlow->proto;
@@ -820,7 +820,8 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keyptr->af = AF_INET;
             keymem += sizeof(FlowKeyV4_t);
             keyLen = sizeof(FlowKeyV4_t);
-        } else if (ipv6Flow) {
+        } else if (ipv6Flow && maxKeyLen > 16) {
+            // maxKeyLen > 16 is actually not needed but gcc complains otherwise
             FlowKeyV6_t *keyptr = (FlowKeyV6_t *)keymem;
             memcpy((void *)keyptr->srcAddr, (void *)ipv6Flow->srcAddr, 16);
             memcpy((void *)keyptr->dstAddr, (void *)ipv6Flow->dstAddr, 16);
@@ -830,6 +831,10 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keyptr->af = AF_INET6;
             keymem += sizeof(FlowKeyV6_t);
             keyLen = sizeof(FlowKeyV6_t);
+        } else {
+            // catch all cases, actually not needed.
+            LogError("ipv4Flow: %d, ipv6Flow: %d, maxKeyLen: %u", ipv4Flow != NULL, ipv6Flow != NULL, maxKeyLen);
+            memset(keymem, 0, maxKeyLen);
         }
     }
     dbg_printf("New_HashKey() size: %u\n", keyLen);

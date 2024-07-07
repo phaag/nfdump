@@ -231,21 +231,21 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self  = AddEngineNum($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
 
-	| EXPORTER STRING comp NUMBER {
-	  $$.self  = AddExporterNum($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
+  | EXPORTER STRING comp NUMBER {
+    $$.self  = AddExporterNum($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
   }
 
   | dqual PROTO NUMBER { 
-		$$.self = AddProto($1.direction, NULL, $3); if ( $$.self < 0 ) YYABORT; 
-	}
+    $$.self = AddProto($1.direction, NULL, $3); if ( $$.self < 0 ) YYABORT; 
+  }
 
   | dqual PROTO STRING {
-		$$.self = AddProto($1.direction, $3, 0); if ( $$.self < 0 ) YYABORT;
-	}
+    $$.self = AddProto($1.direction, $3, 0); if ( $$.self < 0 ) YYABORT;
+  }
 
   | dqual PROTO ICMP {
-		$$.self = AddProto($1.direction, "icmp", 0); if ( $$.self < 0 ) YYABORT;
-	}
+    $$.self = AddProto($1.direction, "icmp", 0); if ( $$.self < 0 ) YYABORT;
+  }
 
 	| dqual PORT comp NUMBER {
 		$$.self = AddPortNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 

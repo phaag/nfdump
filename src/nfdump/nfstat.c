@@ -1099,7 +1099,6 @@ static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_
 
     StatRecord_t *statRecord = (StatRecord_t *)element->record;
     hashkey_t *hashKey = statRecord->hashkey;
-    char tag_string[2] = {'\0', '\0'};
     switch (type) {
         case IS_NULL:
             break;
@@ -1110,7 +1109,6 @@ static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_
             snprintf(valstr, 64, "0x%llx", (unsigned long long)hashKey->v1);
             break;
         case IS_IPADDR:
-            tag_string[0] = outputParams->doTag ? TAG_CHAR : '\0';
             if (hashKey->v0 == 0) {  // IPv4
                 uint32_t ipv4 = htonl(hashKey->v1);
                 inet_ntop(AF_INET, &ipv4, valstr, sizeof(valstr));
