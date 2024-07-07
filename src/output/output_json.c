@@ -512,7 +512,7 @@ static void stringEXtunIPv6(FILE *stream, void *extensionRecord, const char *ind
 static void stringEXobservation(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXobservation_t *observation = (EXobservation_t *)extensionRecord;
     fprintf(stream,
-            "%s\"observationDoaminID\" : %u%s"
+            "%s\"observationDomainID\" : %u%s"
             "%s\"observationPointID\" : %llu%s",
             indent, observation->domainID, fs, indent, (long long unsigned)observation->pointID, fs);
 
