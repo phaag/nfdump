@@ -301,7 +301,7 @@ REDO_PROTO:
     /* check header length */
     if (ip->ip_hl < 5) {
         LogError("bad-hlen %d", ip->ip_hl);
-        return 0;
+        return -1;
     }
 
     // add IP header length

@@ -999,6 +999,21 @@ static void runTest(void) {
     CheckFilter("pf interface longinterface", recordHandle, 1);
     CheckFilter("pf interface vether0", recordHandle, 0);
 
+    CheckFilter("ingress vrf 0xAAAA", recordHandle, 1);
+    CheckFilter("ingress vrf 100", recordHandle, 0);
+
+    CheckFilter("egress vrf 0xBBBB", recordHandle, 1);
+    CheckFilter("egress vrf 0xAAAA", recordHandle, 0);
+
+    // EXipInfo
+    PushExtension(recordHeaderV3, EXipInfo, ipInfo);
+    MapRecordHandle(recordHandle, recordHeaderV3, 1);
+    ipInfo->ttl = 100;
+    ipInfo->fragmentFlags = flagDF;
+    CheckFilter("ttl 100", recordHandle, 1);
+    CheckFilter("ttl > 99", recordHandle, 1);
+    CheckFilter("ttl 200", recordHandle, 0);
+
     printf("DONE.\n");
 }  // End of runTest
 

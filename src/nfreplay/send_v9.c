@@ -357,21 +357,6 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
                 count++;
                 data_length += 4;
                 break;
-            case EXlayer2ID:
-                flowset->field[count].type = htons(NF_F_dot1qVlanId);
-                flowset->field[count].length = htons(2);
-                count++;
-                flowset->field[count].type = htons(NF_F_postDot1qVlanId);
-                flowset->field[count].length = htons(2);
-                count++;
-                flowset->field[count].type = htons(NF_F_dot1qCustomerVlanId);
-                flowset->field[count].length = htons(2);
-                count++;
-                flowset->field[count].type = htons(NF_F_postDot1qCustomerVlanId);
-                flowset->field[count].length = htons(2);
-                count++;
-                data_length += 8;
-                break;
             case EXasRoutingID:
                 flowset->field[count].type = htons(NF9_SRC_AS);
                 flowset->field[count].length = htons(4);
@@ -459,6 +444,21 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
                 count++;
                 flowset->field[count].type = htons(NF_F_BGP_ADJ_PREV_AS);
                 flowset->field[count].length = htons(4);
+                count++;
+                data_length += 8;
+                break;
+            case EXlayer2ID:
+                flowset->field[count].type = htons(NF_F_dot1qVlanId);
+                flowset->field[count].length = htons(2);
+                count++;
+                flowset->field[count].type = htons(NF_F_postDot1qVlanId);
+                flowset->field[count].length = htons(2);
+                count++;
+                flowset->field[count].type = htons(NF_F_dot1qCustomerVlanId);
+                flowset->field[count].length = htons(2);
+                count++;
+                flowset->field[count].type = htons(NF_F_postDot1qCustomerVlanId);
+                flowset->field[count].length = htons(2);
                 count++;
                 data_length += 8;
                 break;

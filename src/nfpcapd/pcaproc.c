@@ -845,6 +845,8 @@ REDO_IPPROTO:
         Node->t_last.tv_sec = hdr->ts.tv_sec;
         Node->t_last.tv_usec = hdr->ts.tv_usec;
         Node->bytes = ntohs(ip6->ip6_plen) + size_ip;
+        Node->ttl = ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
+        Node->fragmentFlags = 0;
 
         // keep compiler happy - gets optimized out anyway
         void *p = (void *)&ip6->ip6_src;
@@ -907,7 +909,7 @@ REDO_IPPROTO:
             eodata = dataptr + Node->payloadSize;
             Node->payload = NULL;
             Node->payloadSize = 0;
-            Node->fragmentFlags |= IP_MF;
+            Node->fragmentFlags |= flagMF;
         } else {
             if (!Node) Node = New_Node();
             Node->flowKey.version = AF_INET;
@@ -916,11 +918,12 @@ REDO_IPPROTO:
             Node->t_last.tv_sec = hdr->ts.tv_sec;
             Node->t_last.tv_usec = hdr->ts.tv_usec;
             Node->bytes = ntohs(ip->ip_len);
-            Node->fragmentFlags |= (ip_off & IP_DF);
+            if (ip_off & IP_DF) Node->fragmentFlags |= flagDF;
 
             Node->flowKey.src_addr.v4 = ntohl(ip->ip_src.s_addr);
             Node->flowKey.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
         }
+        Node->ttl = ip->ip_ttl;
     } else {
         dbg_printf("ProcessPacket() Unsupported protocol version: %i\n", version);
         packetParam->proc_stat.unknown++;

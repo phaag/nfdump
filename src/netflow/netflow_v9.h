@@ -226,6 +226,7 @@ typedef struct common_header_s {
 // IPFIX elements in v9 ( # > 127 )
 #define NF_F_BGP_ADJ_NEXT_AS 128
 #define NF_F_BGP_ADJ_PREV_AS 129
+#define NF_F_flowEndReason 136
 #define NF_F_dot1qVlanId 243
 #define NF_F_postDot1qVlanId 254
 
@@ -245,6 +246,7 @@ typedef struct common_header_s {
 #define NF_F_ICMP_TYPE_IPV6 178
 #define NF_F_ICMP_CODE_IPV6 179
 
+#define NF_F_ipTTL 192
 #define NF_F_fragmentFlags 197
 
 #define NF_F_XLATE_SRC_ADDR_IPV4 225

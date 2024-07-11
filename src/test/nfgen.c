@@ -551,6 +551,14 @@ int main(int argc, char **argv) {
     UpdateRecord(recordHandle);
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
+    PushExtension(v3Record, EXipInfo, ipInfo);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+    ipInfo->ttl = 100;
+    ipInfo->fragmentFlags = flagDF;
+
+    UpdateRecord(recordHandle);
+    dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
+
     FlushBlock(nffile, dataBlock);
     CloseUpdateFile(nffile);
     return 0;

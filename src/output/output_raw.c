@@ -125,13 +125,6 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, void
             ProtoString(genericFlow->proto, 0), genericFlow->proto == IPPROTO_TCP ? genericFlow->tcpFlags : 0,
             FlagsString(genericFlow->proto == IPPROTO_TCP ? genericFlow->tcpFlags : 0));
 
-    /* XXX
-        if (r->revTcpFlags) {
-            fprintf(stream, "  revtcp flags =               0x%.2x %s\n", r->proto == IPPROTO_TCP ? r->revTcpFlags : 0,
-                    FlagsString(r->proto == IPPROTO_TCP ? r->revTcpFlags : 0));
-        }
-    */
-
     if (genericFlow->proto == IPPROTO_ICMP || genericFlow->proto == IPPROTO_ICMPV6) {  // ICMP
         fprintf(stream, "  ICMP         =               %2u.%-2u type.code\n", genericFlow->icmpType, genericFlow->icmpCode);
     } else {
@@ -295,8 +288,6 @@ static void stringsEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *
     char ifOutName[128];
     GetIfName(flowMisc->output, ifOutName, sizeof(ifOutName));
 
-    char *DF = flowMisc->fragmentFlags & 0x40 ? "DF" : "  ";
-    char *MF = flowMisc->fragmentFlags & 0x20 ? "MF" : "  ";
     fprintf(stream,
             "  input        =       %12u%s\n"
             "  output       =       %12u%s\n"
@@ -305,13 +296,24 @@ static void stringsEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *
             "  dst tos      =                %3u\n"
             "  direction    =                %3u\n"
             "  biFlow Dir   =               0x%.2x %s\n"
-            "  end reason   =               0x%.2x %s\n"
-            "  IPfrag flags =               0x%.2x %s %s\n",
+            "  end reason   =               0x%.2x %s\n",
             flowMisc->input, ifInName, flowMisc->output, ifOutName, flowMisc->srcMask, snet, flowMisc->srcMask, flowMisc->dstMask, dnet,
             flowMisc->dstMask, flowMisc->dstTos, flowMisc->dir, flowMisc->biFlowDir, biFlowString(flowMisc->biFlowDir), flowMisc->flowEndReason,
-            FlowEndString(flowMisc->flowEndReason), flowMisc->fragmentFlags, DF, MF);
+            FlowEndString(flowMisc->flowEndReason));
 
 }  // End of stringsEXflowMisc
+
+static void stringEXipInfo(FILE *stream, void *extensionRecord) {
+    EXipInfo_t *ipInfo = (EXipInfo_t *)extensionRecord;
+
+    char *DF = ipInfo->fragmentFlags & flagDF ? "DF" : "  ";
+    char *MF = ipInfo->fragmentFlags & flagMF ? "MF" : "  ";
+    fprintf(stream,
+            "  ip fragment  =               0x%.2x %s %s\n"
+            "  ip TTL       =              %5u\n",
+            ipInfo->fragmentFlags, DF, MF, ipInfo->ttl);
+
+}  // End of stringEXcntFlow
 
 static void stringsEXcntFlow(FILE *stream, void *extensionRecord) {
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)extensionRecord;
@@ -704,8 +706,7 @@ static void stringsEXnbarApp(FILE *stream, void *extensionRecord) {
 static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *payload, uint32_t length);
 
 static void stringsEXinPayload(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord) {
-    EXinPayload_t *inPayload = (EXinPayload_t *)extensionRecord;
-    if (!inPayload) return;
+    EXinPayload_t *inPayload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
     uint32_t payloadLength = ExtensionLength(inPayload);
 
     fprintf(stream, "  in payload   =         %10u\n", payloadLength);
@@ -713,8 +714,7 @@ static void stringsEXinPayload(FILE *stream, recordHandle_t *recordHandle, void 
 }  // End of stringsEXinPayload
 
 static void stringsEXoutPayload(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord) {
-    EXoutPayload_t *outPayload = (EXoutPayload_t *)extensionRecord;
-    if (!outPayload) return;
+    EXoutPayload_t *outPayload = (EXoutPayload_t *)recordHandle->extensionList[EXoutPayloadID];
     uint32_t payloadLength = ExtensionLength(outPayload);
 
     fprintf(stream, "  out payload  =         %10u\n", payloadLength);
@@ -904,6 +904,8 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
     */
 
     int processed = 0;
+    int doInputPayload = 0;
+    int doOutputPayload = 0;
     for (int i = 0; i < MAXEXTENSIONS; i++) {
         if (processed == recordHeaderV3->numElements) break;
         if (recordHandle->extensionList[i] == NULL) continue;
@@ -1003,10 +1005,10 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
                 stringsEXnbarApp(stream, ptr);
                 break;
             case EXinPayloadID:
-                stringsEXinPayload(stream, recordHandle, ptr);
+                doInputPayload = 1;
                 break;
             case EXoutPayloadID:
-                stringsEXoutPayload(stream, recordHandle, ptr);
+                doOutputPayload = 1;
                 break;
             case EXtunIPv4ID:
                 break;
@@ -1027,9 +1029,14 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
             case EXnokiaNatStringID:
                 stringsEXnokiaNatString(stream, ptr);
                 break;
+            case EXipInfoID:
+                stringEXipInfo(stream, ptr);
+                break;
             default:
                 dbg_printf("Extension %i not decoded\n", i);
         }
     }
+    if (doInputPayload) stringsEXinPayload(stream, recordHandle, NULL);
+    if (doOutputPayload) stringsEXoutPayload(stream, recordHandle, NULL);
 
 }  // raw_record

@@ -328,6 +328,11 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
             // in case of reading from file EOF => -2
             if (cnt == -2) done = 1;
+            if (cnt == 0) {
+                ignored_packets++;
+                packets++;
+                continue;
+            }
 #else
             cnt = recvfrom(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&nf_sender, &nf_sender_size);
 #endif

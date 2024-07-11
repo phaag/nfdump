@@ -91,6 +91,8 @@ static int AddFlagsString(direction_t direction, char *flags);
 
 static int AddTosNumber(direction_t direction, uint16_t comp, uint64_t tos);
 
+static int AddIPttl(uint16_t comp, uint64_t ttl);
+
 static int AddPackets(direction_t direction, uint16_t comp, uint64_t packets);
 
 static int AddBytes(direction_t direction, uint16_t comp, uint64_t bytes);
@@ -172,7 +174,7 @@ static int AddASList(direction_t direction, void *U64List);
 
 %token EQ LT GT LE GE
 %token ANY NOT IDENT COUNT
-%token IP IPV4 IPV6 NET
+%token IP IPV4 IPV6 IPTTL NET
 %token SRC DST IN OUT PREV NEXT BGP ROUTER INGRESS EGRESS
 %token NAT XLATE TUN
 %token ENGINE ENGINETYPE ENGINEID EXPORTER
@@ -275,13 +277,17 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 	  $$.self = AddTosNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
 
+	| IPTTL comp NUMBER {
+	  $$.self = AddIPttl($2.comp, $3); if ( $$.self < 0 ) YYABORT;
+	}
+
 	| FWDSTAT comp NUMBER {
 	  $$.self = AddFwdStatNum($2.comp, $3); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| FWDSTAT STRING {
 	  $$.self = AddFwdStatString($2); if ( $$.self < 0 ) YYABORT;
-        }
+  }
 
 	| DURATION comp NUMBER {
 		$$.self = NewElement(EXgenericFlowID, 0, SIZEmsecLast, $3, $2.comp, FUNC_DURATION, NULLPtr); 
@@ -892,6 +898,15 @@ static int AddTosNumber(direction_t direction, uint16_t comp, uint64_t tos) {
 
 	return ret;
 } // End of AddTosNumber
+
+static int AddIPttl(uint16_t comp, uint64_t ttl) {
+	if ( ttl > 255 ) {
+		yyerror("TTL number out of range");
+		return -1;
+  }
+
+	return NewElement(EXipInfoID, OFFipTTL, SIZEipTTL, ttl, comp, FUNC_NONE, NULLPtr);
+} // End of AddIPttl
 
 static int AddPackets(direction_t direction, uint16_t comp, uint64_t packets) {
 

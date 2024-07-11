@@ -183,6 +183,10 @@ static void String_BiFlowDir(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_FlowEndReason(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_ipTTL(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_ipFrag(FILE *stream, recordHandle_t *recordHandle);
+
 static void String_Flags(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_InSrcMac(FILE *stream, recordHandle_t *recordHandle);
@@ -375,6 +379,7 @@ static struct format_entry_s {
     {"%dtos", 0, "dstTos", String_DstTos},           // Tos - Dst tos
     {"%bfd", 0, "biDirection", String_BiFlowDir},    // BiFlow Direction
     {"%end", 0, "endReason", String_FlowEndReason},  // Flow End Reason
+
     //
     {"%sn", 1, "srcNet", String_SrcNet},           // Source Address applied source netmask
     {"%dn", 1, "dstNet", String_DstNet},           // Destination Address applied source netmask
@@ -519,6 +524,10 @@ static struct format_entry_s {
     {"%stor", 0, "srcTor", String_SrcTor},             // src IP 2 letter tor node info
     {"%dtor", 0, "dstTor", String_DstTor},             // dst IP 2 letter tor node info
     {"%lbl", 0, "label", String_Label},                // Flow Label
+
+    // EXipInfo
+    {"%ttl", 0, "TTL", String_ipTTL},     // Flow ip ttl
+    {"%frag", 0, "Frag", String_ipFrag},  // IP fragment flags
 
     {NULL, 0, NULL, NULL}};
 
@@ -1483,6 +1492,23 @@ static void String_FlowEndReason(FILE *stream, recordHandle_t *recordHandle) {
 
     fprintf(stream, "%u", flowEndReason);
 }  // End of String_FlowEndReason
+
+static void String_ipTTL(FILE *stream, recordHandle_t *recordHandle) {
+    EXipInfo_t *ipInfo = (EXipInfo_t *)recordHandle->extensionList[EXipInfoID];
+    uint8_t ttl = ipInfo ? ipInfo->ttl : 0;
+
+    fprintf(stream, "%u", ttl);
+}  // End of String_ipTTL
+
+static void String_ipFrag(FILE *stream, recordHandle_t *recordHandle) {
+    EXipInfo_t *ipInfo = (EXipInfo_t *)recordHandle->extensionList[EXipInfoID];
+    EXipInfo_t localIpInfo = {0};
+    if (ipInfo == NULL) ipInfo = &localIpInfo;
+
+    char *DF = ipInfo->fragmentFlags & flagDF ? "DF" : "--";
+    char *MF = ipInfo->fragmentFlags & flagMF ? "MF" : "--";
+    fprintf(stream, "%s%s", DF, MF);
+}  // End of String_ipFrag
 
 static void String_Flags(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];

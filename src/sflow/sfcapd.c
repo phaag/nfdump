@@ -301,6 +301,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
     periodic_trigger = 0;
     ssize_t cnt = 0;
     uint32_t ignored_packets = 0;
+    uint64_t packets = 0;
 
     // wake up at least at next time slot (twin) + 1s
     alarm(t_start + twin + 1 - time(NULL));
@@ -321,13 +322,21 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
             // in case of reading from file EOF => -2
             if (cnt == -2) done = 1;
+            if (cnt == 0) {
+                ignored_packets++;
+                packets++;
+                continue;
+            }
 #else
             cnt = recvfrom(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&sf_sender, &sf_sender_size);
 #endif
-
-            if (cnt == -1 && errno != EINTR) {
-                LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
-                continue;
+            if (cnt == -1) {
+                if (errno != EINTR) {
+                    LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
+                    continue;
+                }
+            } else {
+                packets++;
             }
         }
 
@@ -350,7 +359,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 pfd = 0;
             }
 
-            LogInfo("Total ignored packets: %u", ignored_packets);
+            LogInfo("Total packets received: %llu avg: %3.2f ignored packets: %u", packets, (double)packets / (double)twin, ignored_packets);
             ignored_packets = 0;
             periodic_trigger = 0;
 

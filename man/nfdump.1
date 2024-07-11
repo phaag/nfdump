@@ -832,6 +832,9 @@ True if source and destination IP of a record are IPv4 IPs.
 .It Cm ipv6
 True if source and destination IP of a record are IPv6 IPs.
 .Pp
+.It Cm ttl Ar comp num
+True if IP ttl matches comparison.
+.Pp
 .It Cm proto Ar protocol
 True if the record protocol field matches
 .Ar protocol. protocol
@@ -1684,6 +1687,8 @@ Destination Address(country code):Port
 Source Port
 .It Cm %dp
 Destination Port
+.It Cm %ttl
+IP ttl
 .It Cm %it
 ICMP-type
 .It Cm %ic

@@ -121,6 +121,7 @@ H				(0X|0x)[0-9A-Fa-f]+
 any				{ return ANY;  }
 ipv4			{ return IPV4; }
 ipv6			{ return IPV6; }
+ttl			  { return IPTTL; }
 ident			{ return IDENT; }
 count			{ return COUNT; }
 cnt			  { return COUNT; }

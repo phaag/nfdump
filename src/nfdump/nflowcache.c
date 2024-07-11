@@ -148,6 +148,7 @@ static struct aggregationElement_s {
                         {"srcgeo", {EXlocal, OFFgeoSrcIP, SizeGEOloc, 0}, 0, SRC_GEO, 0, 0, "%sc"},
                         {"dstgeo", {EXlocal, OFFgeoDstIP, SizeGEOloc, 0}, 0, DST_GEO, 0, 0, "%dc"},
                         {"ethertype", {EXlayer2ID, OFFetherType, SIZEetherType, 0}, 0, NOPREPROCESS, 0, 0, "%eth"},
+                        {"ttl", {EXipInfoID, OFFipTTL, SIZEipTTL, 0}, 0, NOPREPROCESS, 0, 0, "%ttl"},
                         {NULL, {0, 0, 0}, 0, NOPREPROCESS, 0, 0, NULL}};
 
 // FlowHash stat record, to aggregate flow counters in -A or -s stat/aggregate mode

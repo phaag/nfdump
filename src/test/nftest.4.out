@@ -160,7 +160,6 @@ Flow Record:
   direction    =                  1
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
 
 Flow Record: 
   RecordCount  =                  8
@@ -191,7 +190,6 @@ Flow Record:
   direction    =                  1
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
 
 Flow Record: 
   RecordCount  =                  9
@@ -222,7 +220,6 @@ Flow Record:
   direction    =                  1
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
 
 Flow Record: 
   RecordCount  =                 10
@@ -253,7 +250,6 @@ Flow Record:
   direction    =                  1
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
 
 Flow Record: 
   RecordCount  =                 11
@@ -284,7 +280,6 @@ Flow Record:
   direction    =                  1
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
 
 Flow Record: 
   RecordCount  =                 12
@@ -312,7 +307,6 @@ Flow Record:
   direction    =                  1
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
 
 Flow Record: 
   RecordCount  =                 13
@@ -340,7 +334,6 @@ Flow Record:
   direction    =                  1
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
 
 Flow Record: 
   RecordCount  =                 14
@@ -371,7 +364,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
 
 Flow Record: 
   RecordCount  =                 15
@@ -402,7 +394,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
 
 Flow Record: 
   RecordCount  =                 16
@@ -433,7 +424,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
 
 Flow Record: 
   RecordCount  =                 17
@@ -464,7 +454,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
 
 Flow Record: 
   RecordCount  =                 18
@@ -495,7 +484,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -529,7 +517,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -565,7 +552,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -603,7 +589,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -642,7 +627,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -681,7 +665,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -721,7 +704,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -761,7 +743,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -802,7 +783,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -843,7 +823,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -894,7 +873,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -949,7 +927,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -1006,7 +983,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -1066,7 +1042,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -1131,7 +1106,6 @@ Flow Record:
   direction    =                  2
   biFlow Dir   =               0x00 
   end reason   =               0x00 
-  IPfrag flags =               0x00      
   out packets  =                203
   out bytes    =           44556677
   aggr flows   =                  7
@@ -1176,3 +1150,79 @@ Flow Record:
   ingress IfID =             112233
   egress IfID  =             445566
   ethertype    =             0x0000
+
+Flow Record: 
+  RecordCount  =                 33
+  Flags        =               0x00 NETFLOW v10, Unsampled
+  Elements     =                 18: 1 2 4 5 7 8 10 12 14 15 16 17 20 22 25 26 38 42 
+  size         =                376
+  engine type  =                 34
+  engine ID    =                 35
+  export sysid =                  3
+  first        =      1562833854517 [2019-07-11 10:30:54.517]
+  last         =      1562833856288 [2019-07-11 10:30:56.288]
+  received at  =      1562833800001 [2019-07-11 10:30:00.001]
+  proto        =                  6 TCP
+  tcp flags    =               0x12 ...A..S.
+  src port     =              22222
+  dst port     =                 80
+  src tos      =                  3
+  fwd status   =                  1
+  in packets   =                210
+  in bytes     =            4467904
+  src addr     =     72.138.170.101
+  dst addr     =         42.16.32.6
+  input        =                200
+  output       =                100
+  src mask     =                 24 72.138.170.0/24
+  dst mask     =                 16 42.16.0.0/16
+  dst tos      =                  4
+  direction    =                  2
+  biFlow Dir   =               0x00 
+  end reason   =               0x00 
+  out packets  =                203
+  out bytes    =           44556677
+  aggr flows   =                  7
+  src as       =                775
+  dst as       =               3303
+  bgp next hop =         172.73.2.3
+  ip next hop  =         172.72.1.2
+  ip exporter  =          127.0.0.1
+  MPLS Lbl  1  =           1010-0-0
+  MPLS Lbl  2  =           2020-0-0
+  MPLS Lbl  3  =           3030-0-0
+  MPLS Lbl  4  =           4040-0-0
+  MPLS Lbl  5  =           5050-0-0
+  MPLS Lbl  6  =           6060-0-0
+  MPLS Lbl  7  =           7070-0-0
+  MPLS Lbl  8  =           8080-0-0
+  MPLS Lbl  9  =           9090-0-0
+  MPLS Lbl 10  =         100100-0-1
+  in src mac   =  12:34:56:78:90:aa
+  out dst mac  =  2f:ee:dd:cc:bb:ab
+  in dst mac   =  3a:ee:dd:cc:bb:fc
+  out src mac  =  4a:34:56:78:90:0d
+  bgp next as  =               7751
+  bgp prev as  =              33032
+  cli latency  =              0.002 ms
+  srv latency  =              0.022 ms
+  app latency  =              0.222 ms
+  src xlt ip   =        44.55.66.77
+  dst xlt ip   =            8.8.8.8
+  src xlt port =              55667
+  dst xlt port =                443
+  nat event    =                  1: NAT translation create
+  nat pool ID  =                  5
+  pblock start =               1024
+  pblock end   =              16534
+  pblock step  =                  2
+  pblock size  =               4096
+  vlanID       =                 47
+  post vlanID  =                 48
+  custID       =                 49
+  post custID  =                 50
+  ingress IfID =             112233
+  egress IfID  =             445566
+  ethertype    =             0x0000
+  ip fragment  =               0x40 DF   
+  ip TTL       =                100

@@ -226,6 +226,19 @@ static void stringEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *e
 
 }  // End of stringEXflowMisc
 
+static void stringEXipInfo(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
+    EXipInfo_t *ipInfo = (EXipInfo_t *)extensionRecord;
+
+    char *DF = ipInfo->fragmentFlags & flagDF ? "DF" : "--";
+    char *MF = ipInfo->fragmentFlags & flagMF ? "MF" : "--";
+
+    fprintf(stream,
+            "%s\"ip_fragment\" : %s%s%s"
+            "%s\"ip_ttl\" : %u%s",
+            indent, DF, MF, fs, indent, ipInfo->ttl, fs);
+
+}  // End of stringEXcntFlow
+
 static void stringEXcntFlow(FILE *stream, void *extensionRecord, const char *indent, const char *fs) {
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)extensionRecord;
     fprintf(stream,
@@ -826,6 +839,9 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
                 break;
             case EXnokiaNatStringID:
                 stringEXnokiaNatString(stream, ptr, indent, fs);
+                break;
+            case EXipInfoID:
+                stringEXipInfo(stream, ptr, indent, fs);
                 break;
             default:
                 dbg_printf("Extension %i not yet implemented\n", i);
