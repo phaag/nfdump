@@ -657,6 +657,8 @@ static int WriteAppendix(nffile_t *nffile) {
 }  // End of WriteAppendix
 
 nffile_t *NewFile(nffile_t *nffile) {
+    int compression = 0;
+    int encryption = 0;
     // Create struct
     if (!nffile) {
         nffile = calloc(1, sizeof(nffile_t));
@@ -687,11 +689,16 @@ nffile_t *NewFile(nffile_t *nffile) {
             return NULL;
         }
         queue_close(nffile->processQueue);
+    } else {
+        compression = nffile->file_header->compression;
+        encryption = nffile->file_header->encryption;
     }
 
     memset((void *)nffile->file_header, 0, sizeof(fileHeaderV2_t));
     nffile->file_header->magic = MAGIC;
     nffile->file_header->version = LAYOUT_VERSION_2;
+    nffile->file_header->compression = compression;
+    nffile->file_header->encryption = encryption;
 
     nffile->fd = 0;
     nffile->compat16 = 0;
@@ -932,7 +939,6 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
     nffile->fd = fd;
     nffile->fileName = strdup(filename);
 
-    memset((void *)nffile->file_header, 0, sizeof(fileHeaderV2_t));
     nffile->file_header->magic = MAGIC;
     nffile->file_header->version = LAYOUT_VERSION_2;
     nffile->file_header->nfdversion = NFDVERSION;
@@ -945,6 +951,8 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
     if (encryption != INHERIT) {
         nffile->file_header->encryption = encryption;
     }
+
+    dbg_printf("OpenNewFile compression: %d, level: %d\n", nffile->file_header->compression, nffile->compression_level);
 
     if (write(nffile->fd, (void *)nffile->file_header, sizeof(fileHeaderV2_t)) < sizeof(fileHeaderV2_t)) {
         LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
