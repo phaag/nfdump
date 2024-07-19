@@ -747,11 +747,19 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             }
             aggregate_param_t *param = &aggregationTable[tableIndex].param;
 
+            uint8_t local[128];
             void *inPtr = recordHandle->extensionList[param->extID];
-            if (inPtr == NULL) continue;
-            inPtr += param->offset;
-
             preprocess_t preprocess = aggregationTable[tableIndex].preprocess;
+            if (inPtr == NULL) {
+                if (preprocess != NOPREPROCESS) {
+                    inPtr = (void *)local;
+                    memset((void *)local, 0, sizeof(local));
+                } else {
+                    continue;
+                }
+            } else {
+                inPtr += param->offset;
+            }
             PreProcess(inPtr, preprocess, recordHandle);
 
             keyLen += param->length;
