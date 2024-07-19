@@ -389,7 +389,7 @@ static void rxCompile(rxCompiler* c, const rxChar* str, size_t strsize) {
 
 #define RX_SAFE_INCR(s)            \
     if (++(s) == strend) {         \
-        c->errpos = (s)-str;       \
+        c->errpos = (s) - str;     \
         goto reached_end_too_soon; \
     }
 
@@ -1059,6 +1059,12 @@ int srx_MatchExt(srx_Context* R, const rxChar* str, size_t size, size_t offset) 
     const rxChar* strstart = str;
     const rxChar* strend = str + size;
     if (offset > size) return 0;
+
+    // need thread local context
+    srx_Context srxc;
+    memcpy((void*)&srxc, R, sizeof(srx_Context));
+    R = &srxc;
+
     R->str = strstart;
     str += offset;
     rxResetCaptures(R);
