@@ -37,7 +37,7 @@
 .Ar iplist
 .Nm
 .Fl d Ar directory
-.Fl w Ar geoDBfile
+.Fl w Ar geoDBfile/command line option
 .Sh DESCRIPTION
 .Nm 
 is a tool to lookup AS and geo location information of one or more IP addresses. You need
@@ -55,6 +55,11 @@ or on
 .Ar stdin
 line by line. The IP address on each line can be embedded in a string separated be
 spaces on the left and right, therefore it can read the piped output from other tools.
+.Pp
+.Nm
+accepts a list of AS numbers prefixed with
+.Sy as
+and separated with spaces
 .Pp
 The options are as follows:
 .Bl -tag -width Ds
