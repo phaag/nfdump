@@ -557,7 +557,8 @@ expr:	term { $$ = $1.self; }
 
 %%
 
-static char ebuf[512];
+#define EBUFFSIZE 512
+static char ebuf[EBUFFSIZE];
 
 static void yyerror(char *msg) {
 	if ( FilterFilename ) {
@@ -568,7 +569,7 @@ static void yyerror(char *msg) {
 } /* End of     */
 
 #define yyprintf(...) do { \
-    snprintf(ebuf, 255, __VA_ARGS__); \
+    snprintf(ebuf, EBUFFSIZE, __VA_ARGS__); \
     yyerror(ebuf); \
 } while (0)
 
