@@ -36,6 +36,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdarg.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <stddef.h>
 #include <errno.h>
@@ -59,7 +60,7 @@ const data_t NULLPtr = {NULL};
 /*
  * function prototypes
  */
-static void  yyerror(char *msg, ...);
+static void yyerror(char *msg);
 
 /* var defs */
 extern int 			lineno;
@@ -233,21 +234,21 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self  = AddEngineNum($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
 
-  | EXPORTER STRING comp NUMBER {
-    $$.self  = AddExporterNum($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
-  }
+    | EXPORTER STRING comp NUMBER {
+ 	     $$.self  = AddExporterNum($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
+	}
 
-  | dqual PROTO NUMBER { 
-    $$.self = AddProto($1.direction, NULL, $3); if ( $$.self < 0 ) YYABORT; 
-  }
+    | dqual PROTO NUMBER { 
+        $$.self = AddProto($1.direction, NULL, $3); if ( $$.self < 0 ) YYABORT; 
+    }
 
-  | dqual PROTO STRING {
-    $$.self = AddProto($1.direction, $3, 0); if ( $$.self < 0 ) YYABORT;
-  }
+    | dqual PROTO STRING {
+        $$.self = AddProto($1.direction, $3, 0); if ( $$.self < 0 ) YYABORT;
+    }
 
-  | dqual PROTO ICMP {
-    $$.self = AddProto($1.direction, "icmp", 0); if ( $$.self < 0 ) YYABORT;
-  }
+    | dqual PROTO ICMP {
+        $$.self = AddProto($1.direction, "icmp", 0); if ( $$.self < 0 ) YYABORT;
+    }
 
 	| dqual PORT comp NUMBER {
 		$$.self = AddPortNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
@@ -274,20 +275,20 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 	}
 
 	| dqual TOS comp NUMBER {
-	  $$.self = AddTosNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
+	    $$.self = AddTosNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| IPTTL comp NUMBER {
-	  $$.self = AddIPttl($2.comp, $3); if ( $$.self < 0 ) YYABORT;
+	    $$.self = AddIPttl($2.comp, $3); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| FWDSTAT comp NUMBER {
-	  $$.self = AddFwdStatNum($2.comp, $3); if ( $$.self < 0 ) YYABORT;
+	    $$.self = AddFwdStatNum($2.comp, $3); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| FWDSTAT STRING {
-	  $$.self = AddFwdStatString($2); if ( $$.self < 0 ) YYABORT;
-  }
+	    $$.self = AddFwdStatString($2); if ( $$.self < 0 ) YYABORT;
+    }
 
 	| DURATION comp NUMBER {
 		$$.self = NewElement(EXgenericFlowID, 0, SIZEmsecLast, $3, $2.comp, FUNC_DURATION, NULLPtr); 
@@ -387,7 +388,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 				break;
 			default:
 				$$.self = -1;
-				yyerror("Unknown direction specifier");
+				    yyerror("Unknown direction specifier");
 		}
 		if ( $$.self < 0 ) YYABORT;
 	}
@@ -457,7 +458,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 				break;
 			default:
 				$$.self = -1;
-				yyerror("Unknown direction specifier");
+				    yyerror("Unknown direction specifier");
 		}
 		if ( $$.self < 0 ) YYABORT;
 	}
@@ -520,28 +521,28 @@ comp:				{ $$.comp = CMP_EQ; }
 	;
 
 /* direction qualifiers for direction related elements or specifier for elements */
-dqual:	 { $$.direction = DIR_UNSPEC;   }
-	| SRC		 { $$.direction = DIR_SRC;      }
-	| DST		 { $$.direction = DIR_DST;      }
-	| SRC NAT	 { $$.direction = DIR_SRC_NAT;	}
-	| DST	NAT      { $$.direction = DIR_DST_NAT;	}
-	| SRC TUN	 { $$.direction = DIR_SRC_TUN;  }
-	| DST	TUN      { $$.direction = DIR_DST_TUN;  }
+dqual:	 { $$.direction = DIR_UNSPEC;             }
+	| SRC		 { $$.direction = DIR_SRC;        }
+	| DST		 { $$.direction = DIR_DST;        }
+	| SRC NAT	 { $$.direction = DIR_SRC_NAT;	  }
+	| DST NAT    { $$.direction = DIR_DST_NAT;	  }
+	| SRC TUN	 { $$.direction = DIR_SRC_TUN;    }
+	| DST TUN    { $$.direction = DIR_DST_TUN;    }
 	| NAT  		 { $$.direction = DIR_UNSPEC_NAT; }
 	| TUN  		 { $$.direction = DIR_UNSPEC_TUN; }
-	| IN		 { $$.direction = DIR_IN;       }
-	| OUT		 { $$.direction = DIR_OUT;      }
-	| IN SRC	 { $$.direction = DIR_IN_SRC;   }
-	| IN DST	 { $$.direction = DIR_IN_DST;   }
-	| OUT SRC	 { $$.direction = DIR_OUT_SRC;	}
-	| OUT DST	 { $$.direction = DIR_OUT_DST;  }
-	| INGRESS	 { $$.direction = DIR_INGRESS;  }
-	| EGRESS	 { $$.direction = DIR_EGRESS;   }
-	| PREV		 { $$.direction = DIR_PREV;     }
-	| NEXT		 { $$.direction = DIR_NEXT;     }
-	| BGP NEXT       { $$.direction = BGP_NEXT;	}
-	| ROUTER	 { $$.direction = SRC_ROUTER;   }
-	| EXPORTER       { $$.direction = SRC_ROUTER;   }
+	| IN		 { $$.direction = DIR_IN;         }
+	| OUT		 { $$.direction = DIR_OUT;        }
+	| IN SRC	 { $$.direction = DIR_IN_SRC;     }
+	| IN DST	 { $$.direction = DIR_IN_DST;     }
+	| OUT SRC	 { $$.direction = DIR_OUT_SRC;	  }
+	| OUT DST	 { $$.direction = DIR_OUT_DST;    }
+	| INGRESS	 { $$.direction = DIR_INGRESS;    }
+	| EGRESS	 { $$.direction = DIR_EGRESS;     }
+	| PREV		 { $$.direction = DIR_PREV;       }
+	| NEXT		 { $$.direction = DIR_NEXT;       }
+	| BGP NEXT   { $$.direction = BGP_NEXT;	      }
+	| ROUTER	 { $$.direction = SRC_ROUTER;     }
+	| EXPORTER   { $$.direction = SRC_ROUTER;     }
 	;
 
 expr:	term { $$ = $1.self; }
@@ -553,21 +554,20 @@ expr:	term { $$ = $1.self; }
 
 %%
 
-static void yyerror(char *msg, ...) {
-	char msgStr[128];
+static char ebuf[256];
 
-	va_list var_args;
-  va_start(var_args, msg);
-	vsnprintf(msgStr, 127, msg, var_args);
-  va_end(var_args);
-	msgStr[127] = '\0';
-
+static void yyerror(char *msg) {
 	if ( FilterFilename ) {
-		printf("File '%s' line %d: %s at '%s'\n", FilterFilename, lineno, msgStr, yytext);
+		printf("File '%s' line %d: %s at '%s'\n", FilterFilename, lineno, msg, yytext);
 	} else {
-		printf("Line %d: %s at '%s'\n", lineno, msgStr, yytext);
+		printf("Line %d: %s at '%s'\n", lineno, msg, yytext);
 	}
-} /* End of yyerror */
+} /* End of     */
+
+#define yyprintf(...) do { \
+    snprintf(ebuf, 255, __VA_ARGS__); \
+       (ebuf); \
+} while (0)
 
 static uint32_t NewIPElement(ipStack_t *ipStack, int direction, int comp, data_t *data) {
 
@@ -678,14 +678,14 @@ static int AddIdent(char *ident) {
 	// ident[a-zA-Z0-9_\-]+ { 
 	size_t len = strlen(ident);
 	if ( len == 0 || len > 255 ) {
-		yyerror("Invalid ident string: %s", ident);
+		yyprintf("Invalid ident string: %s", ident);
 		return -1;
 	}
 	
 	c = &ident[0];
 	while ( *c ) {
 		if ( *c != '_' && *c != '-' && !isalnum(*c) ) {
-			yyerror("Invalid char in ident string: %s: %c", ident, *c);
+			yyprintf("Invalid char in ident string: %s: %c", ident, *c);
 			return 0;
 		}
 		c++;
@@ -699,14 +699,14 @@ static int AddIdent(char *ident) {
 static int AddProto(direction_t direction, char *protoStr, uint64_t protoNum) {
 
 	if ( protoNum > 255 ) {
-		yyerror("Protocol %d out of range", protoNum);
+		yyprintf("Protocol %" PRIu64 " out of range", protoNum);
 		return -1;
 	}
 
 	if ( protoStr != NULL ) {
 		protoNum = ProtoNum(protoStr);
   	if ( protoNum == -1 ) {
-	  	yyerror("Unknown protocol: %s", protoStr);
+	  	yyprintf("Unknown protocol: %s", protoStr);
 			Protoinfo(protoStr);
 			return -1;
   	}
@@ -720,14 +720,14 @@ static int AddProto(direction_t direction, char *protoStr, uint64_t protoNum) {
 			NewElement(EXtunIPv6ID, OFFtunProtoV6, SIZEtunProtoV6, protoNum, CMP_EQ, FUNC_NONE, NULLPtr)
 		);
 	} else {
-	  	yyerror("Unknown protocol specifier");
+	  	yyprintf("Unknown protocol specifier");
 			return -1;
 	}
 } // End of AddProtoString
 
 static int AddEngineNum(char *type, uint16_t comp, uint64_t num) {
 	if ( num > 255 ) {
-		yyerror("Engine argument %d of range 0..255", num);
+		yyprintf("Engine argument %" PRIu64 " of range 0..255", num);
 		return -1;
   }
 
@@ -743,7 +743,7 @@ static int AddEngineNum(char *type, uint16_t comp, uint64_t num) {
 
 static int AddExporterNum(char *type, uint16_t comp, uint64_t num) {
 	if ( num > 65535 ) {
-	  yyerror("Exporter argument %d of range 0..65535", num);
+	  yyprintf("Exporter argument %" PRIu64 " of range 0..65535", num);
 		return -1;
 	}
 
@@ -751,7 +751,7 @@ static int AddExporterNum(char *type, uint16_t comp, uint64_t num) {
   if ((strcasecmp(type, "id") == 0 ) || (strcasecmp(type, "sysid") == 0)) {
 		ret = NewElement(EXnull, OFFexporterID, SIZEexporterID, num, comp, FUNC_NONE, NULLPtr);
 	} else {
-	  yyerror("Unknown exporter argument: %s", type);
+	  yyprintf("Unknown exporter argument: %s", type);
 	}
 
 	return ret;
@@ -759,7 +759,7 @@ static int AddExporterNum(char *type, uint16_t comp, uint64_t num) {
 
 static int AddPortNumber(direction_t direction, uint16_t comp, uint64_t port) {
 	if ( port > 65535 ) {
-		  yyerror("Port number: %d out of range", port);
+		  yyprintf("Port number: %" PRIu64 " out of range", port);
 			return -1;
 	}
 
@@ -790,7 +790,7 @@ static int AddPortNumber(direction_t direction, uint16_t comp, uint64_t port) {
 		  );
 		  break;
 	  default:
-		  yyerror("Unknown direction");
+		  yyprintf("Unknown direction");
   } // End switch
 
 	return ret;
@@ -798,7 +798,7 @@ static int AddPortNumber(direction_t direction, uint16_t comp, uint64_t port) {
 
 static int AddICMP(char *type, uint16_t comp, uint64_t number) {
 	if ( number > 255 ) {
-		  yyerror("ICMP argument of range 0..255");
+		  yyprintf("ICMP argument %" PRIu64 " of range 0..255", number);
 			return -1;
   }
 
@@ -825,7 +825,7 @@ static int AddICMP(char *type, uint16_t comp, uint64_t number) {
 
 static int AddFlagsNumber(direction_t direction, uint16_t comp, uint64_t flags) {
 	if ( flags > 255 ) {
-		  yyerror("flags number > 255");
+		  yyprintf("flags number %" PRIu64 " > 255", flags);
 			return -1;
 	}
 
@@ -841,7 +841,7 @@ static int AddFlagsNumber(direction_t direction, uint16_t comp, uint64_t flags) 
 static int AddFlagsString(direction_t direction, char *flags) {
 	size_t len = strlen(flags);
   if ( len > 10 ) {
-	  yyerror("Flags string error");
+	  yyprintf("Flags string error");
 		return -1;
   }
 
@@ -864,7 +864,7 @@ static int AddFlagsString(direction_t direction, char *flags) {
   if ( strchr(flags, 'X') ) { fl =  63; cnt++; }
 
   if ( cnt != len ) {
-	  yyerror("Unknown flags");
+	  yyprintf("Unknown flags");
 		return -1;
   }
 
@@ -879,7 +879,7 @@ static int AddFlagsString(direction_t direction, char *flags) {
 
 static int AddTosNumber(direction_t direction, uint16_t comp, uint64_t tos) {
 	if ( tos > 255 ) {
-		yyerror("Tos number out of range");
+		yyprintf("Tos number %" PRIu64 " out of range", tos);
 		return -1;
   }
 
@@ -893,7 +893,7 @@ static int AddTosNumber(direction_t direction, uint16_t comp, uint64_t tos) {
 		  ret = NewElement(EXflowMiscID, OFFdstTos, SIZEdstTos, tos, comp, FUNC_NONE, NULLPtr);
 		  break;
 	  default:
-		  yyerror("syntax error");
+		  yyprintf("syntax error");
   } // End of switch
 
 	return ret;
@@ -901,7 +901,7 @@ static int AddTosNumber(direction_t direction, uint16_t comp, uint64_t tos) {
 
 static int AddIPttl(uint16_t comp, uint64_t ttl) {
 	if ( ttl > 255 ) {
-		yyerror("TTL number out of range");
+		yyprintf("TTL number out of range");
 		return -1;
   }
 
@@ -920,7 +920,7 @@ static int AddPackets(direction_t direction, uint16_t comp, uint64_t packets) {
 		  ret = NewElement(EXgenericFlowID, OFFoutPackets, SIZEoutPackets, packets, comp, FUNC_NONE, NULLPtr); 
 		break;
 	  default:
-		  yyerror("Invalid direction for packets");
+		  yyprintf("Invalid direction for packets");
 	} // End of switch
 	return ret;
 } // End of AddPackets
@@ -936,14 +936,14 @@ static int AddBytes(direction_t direction, uint16_t comp, uint64_t bytes) {
 		  ret = NewElement(EXgenericFlowID, OFFoutBytes, SIZEoutBytes, bytes, comp, FUNC_NONE, NULLPtr); 
 		  break;
 	  default:
-		  yyerror("Invalid direction for bytes");
+		  yyprintf("Invalid direction for bytes");
 	 } // End of switch
 	 return ret;
 } // End of AddBytes
 
 static int AddFwdStatNum(uint16_t comp, uint64_t num) {
 	if ( num > 255 ) {
-	  yyerror("Forwarding status: %d our of range", num);
+	  yyprintf("Forwarding status: %" PRIu64 " our of range", num);
 		return -1;
 	}
 
@@ -954,7 +954,7 @@ static int AddFwdStatString(char *string) {
 	int	fwdStatus = fwdStatusNum(string);
 	if ( fwdStatus < 0 ) {
 	  fwdStatusInfo();
-	  yyerror("Unkown forwarding status: %s", string);
+	  yyprintf("Unkown forwarding status: %s", string);
 		return -1;
 	}
 
@@ -965,7 +965,7 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
 	if ( strncasecmp(type, "label", 5) == 0 ) {
 		char *s = type + 5;
 		if ( *s == '\0' ) {
-			yyerror("Missing mpls stack number for label");
+			yyprintf("Missing mpls stack number for label");
 			return -1;
 		}
 		int lnum = (int)strtol(s, (char **)NULL, 10);
@@ -980,14 +980,14 @@ static int AddMPLS(char *type, uint16_t comp, uint64_t value) {
 	} else if ( strncasecmp(type, "exp", 3) == 0 ) {
 		char *s = type + 3;
 		if ( *s == '\0' ) {
-			yyerror("Missing mpls stack number for exp value");
+			yyprintf("Missing mpls stack number for exp value");
 			return -1;
 		}
 		int lnum = (int)strtol(s, (char **)NULL, 10);
 		data_t data = {.dataVal = lnum};
 		return NewElement(EXmplsLabelID, 0, 0, value, comp, FUNC_MPLS_EXP, data);
 	} else {
-			yyerror("Unknown mpls argument: %s", type);
+			yyprintf("Unknown mpls argument: %s", type);
 			return -1;
 	}
 
@@ -1053,7 +1053,7 @@ static int AddMAC(direction_t direction, char *macString) {
 				return Connect_OR(in, out);
 			} break;
 		default:
-			yyerror("Unknown mac argument");
+			yyprintf("Unknown mac argument");
 			return -1;
 	}
 
@@ -1080,27 +1080,27 @@ static int AddASAString(char *event, char *asaStr) {
 	if (strcasecmp(event, "event") == 0) {
 		int eventNum = fwEventID(asaStr);
 		if ( eventNum < 0 ) {
-			yyerror("Invalid ASA event type: %s", asaStr);
+			yyprintf("Invalid ASA event type: %s", asaStr);
 			return -1;
 		}
 		return NewElement(EXnselCommonID, OFFfwEvent, SIZEfwEvent, eventNum, CMP_EQ, FUNC_NONE, NULLPtr);
 	} else if (strcasecmp(event, "denied") == 0) {
 		int eventNum = fwXEventID(asaStr);
 		if ( eventNum < 0 ) {
-			yyerror("Invalid ASA Xevent type: %s", asaStr);
+			yyprintf("Invalid ASA Xevent type: %s", asaStr);
 			return -1;
 		}
 		return NewElement(EXnselCommonID, OFFfwXevent, SIZEfwXevent, eventNum, CMP_EQ, FUNC_NONE, NULLPtr);
 	} else if (strcasecmp(event, "user") == 0) {
 		if ( strlen(asaStr) > 65 ) {
-			yyerror("Length of ASA user name: %s > 65 chars", asaStr);
+			yyprintf("Length of ASA user name: %s > 65 chars", asaStr);
 			return -1;
 		}
 		data_t data = {.dataPtr = strdup(asaStr)};
 		return NewElement(EXnselUserID, OFFusername, 0, 0, CMP_STRING, FUNC_NONE, data);
 	}
 
-	yyerror("Invalid ASA type: %s", event);
+	yyprintf("Invalid ASA type: %s", event);
 	return -1;
 
 } // End of AddASAString
@@ -1109,7 +1109,7 @@ static int AddASA(char *event, uint16_t comp, uint64_t number) {
 
 	if ( strcasecmp(event, "event") == 0 ) {
 		if ( number > 5 ) {
-			yyerror("Invalid event number %llu. Expected 0..5", number);
+			yyprintf("Invalid event number %llu. Expected 0..5", number);
 			return -1;
 		}
 		return NewElement(EXnselCommonID, OFFfwEvent, SIZEfwEvent, number, comp, FUNC_NONE, NULLPtr);
@@ -1117,7 +1117,7 @@ static int AddASA(char *event, uint16_t comp, uint64_t number) {
 		return NewElement(EXnselCommonID, OFFfwXevent, SIZEfwXevent, number, comp, FUNC_NONE, NULLPtr);
 	}
 
-	yyerror("Invalid ASA type: %s", event);
+	yyprintf("Invalid ASA type: %s", event);
 	return -1;
 
 } // End of AddASA
@@ -1133,7 +1133,7 @@ static int AddACL(direction_t direction, uint16_t comp, uint64_t number) {
 			offset = OFFegressAcl;
 			break;
 		default:
-			yyerror("Invalid ACL direction");
+			yyprintf("Invalid ACL direction");
 			return -1;
 	}
 	
@@ -1151,7 +1151,7 @@ static int AddACL(direction_t direction, uint16_t comp, uint64_t number) {
 static int AddASApblock(direction_t direction, char *arg) {
 
 	if (strcasecmp(arg, "pblock") != 0) {
-			yyerror("Invalid port block: %s", arg);
+			yyprintf("Invalid port block: %s", arg);
 			return -1;
 	}
 
@@ -1170,7 +1170,7 @@ static int AddASApblock(direction_t direction, char *arg) {
 		  );
 		  break;
 		default:
-			yyerror("Invalid port direction");
+			yyprintf("Invalid port direction");
 	}
 
 	return ret;
@@ -1181,14 +1181,15 @@ static int AddNATString(char *event, char *natStr) {
 	if (strcasecmp(event, "event") == 0) {
 		int eventNum = natEventNum(natStr);
 		if ( eventNum < 0 ) {
-			yyerror("Invalid NAT event type: %s", natStr);
+			yyprintf("Invalid NAT event type: %s", natStr);
 			natEventInfo();
 			return -1;
 		}
 		return NewElement(EXnatCommonID, OFFnatEvent, SIZEnatEvent, eventNum, CMP_EQ, FUNC_NONE, NULLPtr);
 	} 
 
-	yyerror("Invalid NAT type: %s", event);
+	yyprintf("Invalid NAT type: %s", event);
+
 	return -1;
 
 } // End of AddNATString
@@ -1197,7 +1198,7 @@ static int AddNAT(char *event, uint16_t comp, uint64_t number) {
 
 	if (strcasecmp(event, "event") == 0) {
 		if ( number > MAX_NAT_EVENTS ) {
-			yyerror("NAT event: %llu out of range\n", number);
+			yyprintf("NAT event: %llu out of range\n", number);
 			return -1;
 		}
 		return NewElement(EXnatCommonID, OFFnatEvent, SIZEnatEvent, number, comp, FUNC_NONE, NULLPtr);
@@ -1219,11 +1220,11 @@ static int AddNatPortBlocks(char *type, char *subtype, uint16_t comp, uint64_t n
 		} else if (strcasecmp(subtype, "size") == 0) {
 			offset = OFFnelblockSize;
 		} else {
-			yyerror("Unknown port block argument: %s\n", subtype);
+			yyprintf("Unknown port block argument: %s\n", subtype);
 			return -1;
 		}
 	} else {
-			yyerror("Unknown NAT argument: %s\n", type);
+			yyprintf("Unknown NAT argument: %s\n", type);
 			return -1;
 	}
 
@@ -1236,30 +1237,30 @@ static int AddPayloadSSL(char *type, char *arg, char *opt) {
 		return NewElement(SSLindex, 0, 0, 0, CMP_EQ, FUNC_NONE, NULLPtr);
 	} else if (strcasecmp(arg, "version") == 0) {
 		if ( opt == NULL ){
-			yyerror("String %s is not a valid SSL/TLS version", arg);
+			yyprintf("String %s is not a valid SSL/TLS version", arg);
 			return -1;
 		}
 		unsigned int major, minor;
 		if (sscanf(opt, "%1u.%1u", &major, &minor) != 2 || major > 3 || minor > 3 ) {
-			yyerror("String %s is not a valid SSL/TLS version", opt);
+			yyprintf("String %s is not a valid SSL/TLS version", opt);
 			return -1;
 		}
 		// if old SSL 1.0, 2.0 or 3.0
 		if (major > 1 && minor > 0){
-			yyerror("String %s is not a valid SSL/TLS version", opt);
+			yyprintf("String %s is not a valid SSL/TLS version", opt);
 			return -1;
 		}
 		uint16_t version = 0;
 		if ( strcasecmp(type, "tls") == 0 ) {
 			if (major > 1){
-				yyerror("String %s is not a valid TLS version", opt);
+				yyprintf("String %s is not a valid TLS version", opt);
 				return -1;
 			}
 			// TLS
 			version = (0x03 << 8) | (minor + 1);
 		} else {
 			if (minor > 0){
-				yyerror("String %s is not a valid SSL version", opt);
+				yyprintf("String %s is not a valid SSL version", opt);
 				return -1;
 			}
 			// SSL
@@ -1268,13 +1269,13 @@ static int AddPayloadSSL(char *type, char *arg, char *opt) {
 		return NewElement(SSLindex, OFFsslVersion, SIZEsslVersion, version, CMP_EQ, FUNC_NONE, NULLPtr);
 	} else if (strcasecmp(arg, "sni") == 0) {
 		if ( opt == NULL || strlen(opt) > 64 ) {
-			yyerror("Invalid string %s for SSL/TLS sni name", opt != NULL ? opt : "");
+			yyprintf("Invalid string %s for SSL/TLS sni name", opt != NULL ? opt : "");
 			return -1;
 		}
 		data_t data = {.dataPtr=strdup(opt)};
 		return NewElement(SSLindex, OFFsslSNI, SIZEsslSNI, 0, CMP_SUBSTRING, FUNC_NONE, data);
 	}
-	yyerror("String %s is not a valid SSL/TLS filter", arg);
+	yyprintf("String %s is not a valid SSL/TLS filter", arg);
 	return -1;
 } // End of AddPayloadSSL
 
@@ -1282,7 +1283,7 @@ static int AddPayloadJA3(char *type, char *arg, char *opt) {
 	if (strcasecmp(arg, "defined") == 0) {
 		return NewElement(JA3index, OFFja3String, SIZEja3String, 0, CMP_EQ, FUNC_NONE, NULLPtr);
 	} else if (IsMD5(arg) == 0) {
-		yyerror("String %s is not a valid ja3 string", arg);
+		yyprintf("String %s is not a valid ja3 string", arg);
 		return -1;
 	}
 	data_t data = {.dataPtr=strdup(arg)};
@@ -1293,7 +1294,7 @@ static int AddPayloadJA4(char *type, char *arg, char *opt) {
 	if (strcasecmp(arg, "defined") == 0) {
 		return NewElement(JA4index, OFFja4String, SIZEja3String, 0, CMP_EQ, FUNC_NONE, NULLPtr);
 	} else if ( ja4Check(arg) == 0 ){
-		yyerror("String %s is not a valid ja4 string", arg);
+		yyprintf("String %s is not a valid ja4 string", arg);
 		return -1;
 	}
 	data_t data = {.dataPtr=strdup(arg)};
@@ -1310,7 +1311,7 @@ static int AddPayload(char *type, char *arg, char *opt) {
 		char *regexArg = opt ? opt : "";
 		srx_Context *program = srx_CreateExt(arg, strlen(arg), regexArg, err, NULL, NULL);
 		if ( !program ) {
-			yyerror("failed to compile regex: %s", arg);
+			yyprintf("failed to compile regex: %s", arg);
 			return -1;
 		}
 		data_t data = {.dataPtr = program};
@@ -1324,17 +1325,17 @@ static int AddPayload(char *type, char *arg, char *opt) {
 	} else if (strcasecmp(type, "ja4s") == 0) {
 #ifdef BUILDJA4
 		if ( ja4sCheck(arg) == 0 ){
-			yyerror("String %s is not a valid ja4s string", arg);
+			yyprintf("String %s is not a valid ja4s string", arg);
 			return -1;
 		}
 		data_t data = {.dataPtr=strdup(arg)};
 		return NewElement(JA4index, OFFja4String, SIZEja4sString, 0, CMP_STRING, FUNC_NONE, data);
 #else
-		yyerror("ja4s code not enabled", arg);
+		yyprintf("ja4s code not enabled");
 		return -1;
 #endif
 	} else {
-		yyerror("Unknown PAYLOAD argument: %s\n", type);
+		yyprintf("Unknown PAYLOAD argument: %s\n", type);
 		return -1;
 	}
 
@@ -1344,7 +1345,7 @@ static int AddPayload(char *type, char *arg, char *opt) {
 static int AddGeo(direction_t direction, char *geo) {
 
 	if ( strlen(geo) != 2 ) {
-			yyerror("Unknown Geo country: %s. Need a two letter country code.", geo);
+			yyprintf("Unknown Geo country: %s. Need a two letter country code.", geo);
 			return -1;
 	}
 
@@ -1395,7 +1396,7 @@ static int AddGeo(direction_t direction, char *geo) {
 			);
 			} break;
 		default:
-			yyerror("Unknown Geo specifier");
+			yyprintf("Unknown Geo specifier");
 	}
 
 	return ret;
@@ -1404,7 +1405,7 @@ static int AddGeo(direction_t direction, char *geo) {
 static int AddObservation(char *type, char *subType, uint16_t comp, uint64_t number) {
 
 	if (strcasecmp(subType, "id") != 0) {
-			yyerror("Unknown observation specifier: %s", subType);
+			yyprintf("Unknown observation specifier: %s", subType);
 			return -1;
 	}
 	int ret = -1;
@@ -1413,7 +1414,7 @@ static int AddObservation(char *type, char *subType, uint16_t comp, uint64_t num
 	} else if (strcasecmp(type, "point") == 0) {
 		ret =  NewElement(EXobservationID, OFFpointID, SIZEpointID, number, comp, FUNC_NONE, NULLPtr);
 	} else {
-		yyerror("Unknown observation specifier: %s", type);
+		yyprintf("Unknown observation specifier: %s", type);
 	}
 
 	return ret;
@@ -1430,7 +1431,7 @@ static int AddVRF(direction_t direction, uint16_t comp, uint64_t number) {
 			ret =  NewElement(EXvrfID, OFFegressVrf, SIZEegressVrf, number, comp, FUNC_NONE, NULLPtr);
 			break;
 		default:
-			yyerror("Unknown vrf specifier");
+			yyprintf("Unknown vrf specifier");
 	}
 
 	return ret;
@@ -1442,7 +1443,7 @@ static int AddPFString(char *type, char *arg) {
 	if (strcasecmp(type, "action") == 0) {
 		int pfAction = pfActionNr(arg);
 		if ( pfAction < 0 ) {
-				yyerror("Invalid pf action: %s", arg);
+				yyprintf("Invalid pf action: %s", arg);
 				printf("Possible pf action values: ");
 				pfListActions();
 			} else {
@@ -1451,7 +1452,7 @@ static int AddPFString(char *type, char *arg) {
 	} else if (strcasecmp(type, "reason") == 0) {
 		int pfReason = pfReasonNr(arg);
 			if ( pfReason < 0 ) {
-				yyerror("Invalid pf reason: %s", arg);
+				yyprintf("Invalid pf reason: %s", arg);
 				printf("Possible pf reason values: ");
 				pfListReasons();
 			} else {
@@ -1464,7 +1465,7 @@ static int AddPFString(char *type, char *arg) {
 		data_t data = {.dataPtr=strdup(arg)};
 		ret = NewElement(EXpfinfoID, OFFpfIfName, SIZEpfIfName, 0, CMP_STRING, FUNC_NONE, data);
 	} else {
-		yyerror("Invalid pf argument: %s", type);
+		yyprintf("Invalid pf argument: %s", type);
 	}
 	return ret;
 } // End of AddPFString
@@ -1475,7 +1476,7 @@ static int AddPFNumber(char *type, uint16_t comp, uint64_t number) {
 	if (strcasecmp(type, "rule") == 0) {
 		ret = NewElement(EXpfinfoID, OFFpfRuleNr, SIZEpfRuleNr, number, comp, FUNC_NONE, NULLPtr);
 	} else {
-		yyerror("Invalid pf argument: %s", type);
+		yyprintf("Invalid pf argument: %s", type);
 	}
 
 	return ret;
@@ -1496,7 +1497,7 @@ static int AddIP(direction_t direction, char *IPstr) {
 
 	int numIP = parseIP(IPstr, ipStack, lookupMode);
 	if ( numIP <= 0)  {
-		yyerror("Can not parse/lookup %s to an IP address", IPstr);
+		yyprintf("Can not parse/lookup %s to an IP address", IPstr);
 		return -1;
 	}
 
@@ -1529,7 +1530,7 @@ static int AddIP(direction_t direction, char *IPstr) {
 			ret = Connect_OR(src, dst);
 			} break;
 		default:
-			yyerror("Unknown direction for IP address");
+			yyprintf("Unknown direction for IP address");
 	} // End of switch
 
 	return ret;
@@ -1539,19 +1540,19 @@ static int AddNet(direction_t direction, char *IPstr, char *maskStr) {
 	
 	int numIP = parseIP(IPstr, ipStack, STRICT_IP);
 	if (numIP <= 0)  {
-		yyerror("Can not parse/lookup %s to an IP address", IPstr);
+		yyprintf("Can not parse/lookup %s to an IP address", IPstr);
 		return -1;
 	}
 
 	ipStack_t	mask;
 	numIP = parseIP(maskStr, &mask, STRICT_IP);
 	if (numIP <= 0)  {
-		yyerror("Can not parse %s as IP mask", maskStr);
+		yyprintf("Can not parse %s as IP mask", maskStr);
 		return -1;
 	}
 
 	if (ipStack[0].af != PF_INET || mask.af != PF_INET) {
-		yyerror("Net address %s and netmask: %s must be IPv4", IPstr, maskStr);
+		yyprintf("Net address %s and netmask: %s must be IPv4", IPstr, maskStr);
 		return -1;
 	}
 
@@ -1586,7 +1587,7 @@ static int AddNet(direction_t direction, char *IPstr, char *maskStr) {
 			ret = Connect_OR(src, dst);
 			} break;
 		default:
-			yyerror("Unknown direction for IP address");
+			yyprintf("Unknown direction for IP address");
 	} // End of switch
 
 	return ret;
@@ -1595,7 +1596,7 @@ static int AddNet(direction_t direction, char *IPstr, char *maskStr) {
 static int AddNetPrefix(direction_t direction, char *IPstr, uint64_t prefix) {
 	int numIP = parseIP(IPstr, ipStack, STRICT_IP);
 	if (numIP <= 0)  {
-		yyerror("Can not parse/lookup %s to an IP address", IPstr);
+		yyprintf("Can not parse/lookup %s to an IP address", IPstr);
 		return -1;
 	}
 
@@ -1603,14 +1604,14 @@ static int AddNetPrefix(direction_t direction, char *IPstr, uint64_t prefix) {
 	if (ipStack[0].af == PF_INET) {
 		// IPv4 
 		if (prefix >32 ) {
-			yyerror("Prefix %llu out of range for IPv4 address", prefix);
+			yyprintf("Prefix %llu out of range for IPv4 address", prefix);
 			return -1;
 		}
 		data[0].dataVal = 0xffffffffffffffffLL << (32 - prefix);
 	} else {
 		// IPv6
 		if (prefix >128 ) {
-			yyerror("Prefix %llu out of range for IPv6 address", prefix);
+			yyprintf("Prefix %llu out of range for IPv6 address", prefix);
 			return -1;
 		}
 		if ( prefix > 64 ) {
@@ -1651,7 +1652,7 @@ static int AddNetPrefix(direction_t direction, char *IPstr, uint64_t prefix) {
 			ret = Connect_OR(src, dst);
 			} break;
 		default:
-			yyerror("Unknown direction for IP address");
+			yyprintf("Unknown direction for IP address");
 	} // End of switch
 
 	return ret;
@@ -1737,7 +1738,7 @@ static int AddIPlist(direction_t direction, void *IPlist) {
 			ret = Connect_OR(v4, v6);
 		} break;
 		default:
-			yyerror("Unknown direction for IP list");
+			yyprintf("Unknown direction for IP list");
 	}
 
 	return ret;
@@ -1747,7 +1748,7 @@ static struct IPListNode *mkNode(ipStack_t ipStack, int64_t prefix) {
 
 	struct IPListNode *node = malloc(sizeof(struct IPListNode));
 	if (node == NULL) {
-		yyerror("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		yyprintf("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		return NULL;
 	}
 
@@ -1760,7 +1761,7 @@ static struct IPListNode *mkNode(ipStack_t ipStack, int64_t prefix) {
 		if (ipStack.af == PF_INET) {
 		// IPv4 
 			if (prefix >32 ) {
-				yyerror("Prefix %llu out of range for IPv4 address", prefix);
+				yyprintf("Prefix %llu out of range for IPv4 address", prefix);
 				return NULL;
 			}
 			node->mask[0] = 0;
@@ -1768,7 +1769,7 @@ static struct IPListNode *mkNode(ipStack_t ipStack, int64_t prefix) {
 		} else {
 			// IPv6
 			if (prefix >128 ) {
-				yyerror("Prefix %llu out of range for IPv6 address", prefix);
+				yyprintf("Prefix %llu out of range for IPv6 address", prefix);
 				return NULL;
 			}
 			if ( prefix > 64 ) {
@@ -1786,14 +1787,14 @@ static struct IPListNode *mkNode(ipStack_t ipStack, int64_t prefix) {
 static void *NewIplist(char *IPstr, int prefix) {
 	IPlist_t *root = malloc(sizeof(IPlist_t));
 	if (root == NULL) {
-		yyerror("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		yyprintf("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		return NULL;
 	}
 	RB_INIT(root);
 
 	int numIP = parseIP(IPstr, ipStack, ALLOW_LOOKUP);
 	if ( numIP <= 0 ) {
-		yyerror("Can not parse/resolve %s to an IP address", IPstr);
+		yyprintf("Can not parse/resolve %s to an IP address", IPstr);
 		free(root);
 		return NULL;
 	}
@@ -1815,7 +1816,7 @@ static int InsertIPlist(void *IPlist, char *IPstr, int64_t prefix) {
 	int numIP = parseIP(IPstr, ipStack, ALLOW_LOOKUP);
 	if ( numIP <= 0 ) {
 		// ret == - 2 means lookup failure
-		yyerror("Can not parse/resolve %s to an IP address", IPstr);
+		yyprintf("Can not parse/resolve %s to an IP address", IPstr);
 		return 0;
 	}
 
@@ -1833,14 +1834,14 @@ static int InsertIPlist(void *IPlist, char *IPstr, int64_t prefix) {
 static void *NewU64list(uint64_t num) {
 	U64List_t *root = malloc(sizeof(U64List_t));
 	if (root == NULL) {
-		yyerror("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		yyprintf("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		return NULL;
 	}
 	RB_INIT(root);
 
   struct U64ListNode *node;
 	if ((node = malloc(sizeof(struct U64ListNode))) == NULL) {
-		yyerror("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		yyprintf("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		free(root);
 		return NULL;
 	}
@@ -1854,7 +1855,7 @@ static int InsertU64list(void *U64list, uint64_t num) {
 	
 	struct U64ListNode *node;
 	if ((node = malloc(sizeof(struct U64ListNode))) == NULL) {
-		yyerror("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+		yyprintf("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
 		return 0;
 	}
 	node->value = num;
@@ -1869,7 +1870,7 @@ static int AddPortList(direction_t direction, void *U64List) {
 	struct U64ListNode *node;
 	RB_FOREACH(node, U64tree, (U64List_t *)U64List) {
 		if ( node->value > 65535 ) {
-			yyerror("Port: %llu outside of range 0..65535", node->value);
+			yyprintf("Port: %llu outside of range 0..65535", node->value);
 			return -1;
 		}
 	}
@@ -1902,7 +1903,7 @@ static int AddPortList(direction_t direction, void *U64List) {
 		  );
 		  break;
 	  default:
-		  yyerror("Unknown direction");
+		  yyprintf("Unknown direction");
   } // End switch
 
 	return ret;
@@ -1914,7 +1915,7 @@ static int AddASList(direction_t direction, void *U64List) {
 	struct U64ListNode *node;
 	RB_FOREACH(node, U64tree, (U64List_t *)U64List) {
 		if ( node->value > 0xFFFFFFFFLL ) {
-			yyerror("AS: %llu outside of range 32bit", node->value);
+			yyprintf("AS: %llu outside of range 32bit", node->value);
 			return -1;
 		}
 	}
@@ -1941,7 +1942,7 @@ static int AddASList(direction_t direction, void *U64List) {
 		  ret = NewElement(EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0, CMP_U64LIST, FUNC_NONE, U64ListPtr);
 		  break;
 	  default:
-			yyerror("Unknown direction");
+			yyprintf("Unknown direction");
   } // End of switch
 
 	return ret;
@@ -1949,7 +1950,7 @@ static int AddASList(direction_t direction, void *U64List) {
 
 static int AddInterfaceNumber(direction_t direction, uint64_t num) {
 	if ( num > 0xffffffffLL ) {
-		yyerror("Interface number out of range 0..2^32");
+		yyprintf("Interface number out of range 0..2^32");
 		return -1;
 	}
 
@@ -1968,7 +1969,7 @@ static int AddInterfaceNumber(direction_t direction, uint64_t num) {
 			ret = NewElement(EXflowMiscID, OFFoutput, SIZEoutput, num, CMP_EQ, FUNC_NONE, NULLPtr);
 			break;
 		default:
-			yyerror("Unknown interface direction");
+			yyprintf("Unknown interface direction");
 	} // End of switch
 
 	return ret;
@@ -1976,7 +1977,7 @@ static int AddInterfaceNumber(direction_t direction, uint64_t num) {
 
 static int AddVlanNumber(direction_t direction, uint64_t num) {
 	if ( num > 0xffffffffLL ) {
-		yyerror("Vlan number out of range 32bit");
+		yyprintf("Vlan number out of range 32bit");
 		return -1;
 	}
 
@@ -2006,7 +2007,7 @@ static int AddVlanNumber(direction_t direction, uint64_t num) {
 			);
 			break;
 		default:
-			yyerror("Unknown vlan direction");
+			yyprintf("Unknown vlan direction");
 	} // End of switch
 
 	return ret;
@@ -2014,7 +2015,7 @@ static int AddVlanNumber(direction_t direction, uint64_t num) {
 
 static int AddAsNumber(direction_t direction, uint16_t comp, uint64_t as) {
 	if (as > UINT32_MAX ) {
-		yyerror("AS number of range");
+		yyprintf("AS number of range");
 		return -1;
   }
 
@@ -2039,7 +2040,7 @@ static int AddAsNumber(direction_t direction, uint16_t comp, uint64_t as) {
 		  ret = NewElement(EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, as, comp, FUNC_MMAS_LOOKUP, NULLPtr);
 		  break;
 	  default:
-			yyerror("Unknown direction");
+			yyprintf("Unknown direction");
   } // End of switch
 
 	return ret;
@@ -2047,7 +2048,7 @@ static int AddAsNumber(direction_t direction, uint16_t comp, uint64_t as) {
 
 static int AddMaskNumber(direction_t direction, uint64_t num) {
 	if ( num > 255 ) {
-		yyerror("Mas %d out of range 0..255", num);
+		yyprintf("Mask %" PRIu64 " out of range 0..255", num);
 		return -1;
 	}
 
@@ -2066,7 +2067,7 @@ static int AddMaskNumber(direction_t direction, uint64_t num) {
 			ret = NewElement(EXflowMiscID, OFFdstMask, SIZEdstMask, num, CMP_EQ, FUNC_NONE, NULLPtr);
 			break;
 		default:
-			yyerror("Invalid direction for mask");
+			yyprintf("Invalid direction for mask");
 	} // End of switch
 
 	return ret;
@@ -2084,13 +2085,13 @@ static int AddFlowDir(direction_t direction, int64_t dirNum) {
 			break;
 		case DIR_UNSPEC:
 			if (dirNum != 0 && dirNum != 1) {
-	 			yyerror("Unknown flowdir: %d", dirNum);
+	 			yyprintf("Unknown flowdir: %" PRIi64, dirNum);
 			} else {
 	  		ret = NewElement(EXflowMiscID, OFFdir, SIZEdir, dirNum, CMP_EQ, FUNC_NONE, NULLPtr);
 			}
 			break;
 		default:
-	 			yyerror("Unknown flowdir");
+	 			yyprintf("Unknown flowdir");
 	}
 
 	return ret;
