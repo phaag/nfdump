@@ -557,7 +557,7 @@ expr:	term { $$ = $1.self; }
 
 %%
 
-static char ebuf[256];
+static char ebuf[512];
 
 static void yyerror(char *msg) {
 	if ( FilterFilename ) {
@@ -569,7 +569,7 @@ static void yyerror(char *msg) {
 
 #define yyprintf(...) do { \
     snprintf(ebuf, 255, __VA_ARGS__); \
-       (ebuf); \
+    yyerror(ebuf); \
 } while (0)
 
 static uint32_t NewIPElement(ipStack_t *ipStack, int direction, int comp, data_t *data) {
@@ -1116,7 +1116,7 @@ static int AddASA(char *event, uint16_t comp, uint64_t number) {
 
 	if ( strcasecmp(event, "event") == 0 ) {
 		if ( number > 5 ) {
-			yyprintf("Invalid event number %llu. Expected 0..5", number);
+			yyprintf("Invalid event number %" PRIu64 ". Expected 0..5", number);
 			return -1;
 		}
 		return NewElement(EXnselCommonID, OFFfwEvent, SIZEfwEvent, number, comp, FUNC_NONE, NULLPtr);
@@ -1205,7 +1205,7 @@ static int AddNAT(char *event, uint16_t comp, uint64_t number) {
 
 	if (strcasecmp(event, "event") == 0) {
 		if ( number > MAX_NAT_EVENTS ) {
-			yyprintf("NAT event: %llu out of range\n", number);
+			yyprintf("NAT event: %" PRIu64 " out of range\n", number);
 			return -1;
 		}
 		return NewElement(EXnatCommonID, OFFnatEvent, SIZEnatEvent, number, comp, FUNC_NONE, NULLPtr);
@@ -1611,14 +1611,14 @@ static int AddNetPrefix(direction_t direction, char *IPstr, uint64_t prefix) {
 	if (ipStack[0].af == PF_INET) {
 		// IPv4 
 		if (prefix >32 ) {
-			yyprintf("Prefix %llu out of range for IPv4 address", prefix);
+			yyprintf("Prefix %" PRIu64 " out of range for IPv4 address", prefix);
 			return -1;
 		}
 		data[0].dataVal = 0xffffffffffffffffLL << (32 - prefix);
 	} else {
 		// IPv6
 		if (prefix >128 ) {
-			yyprintf("Prefix %llu out of range for IPv6 address", prefix);
+			yyprintf("Prefix %" PRIu64 " out of range for IPv6 address", prefix);
 			return -1;
 		}
 		if ( prefix > 64 ) {
@@ -1768,7 +1768,7 @@ static struct IPListNode *mkNode(ipStack_t ipStack, int64_t prefix) {
 		if (ipStack.af == PF_INET) {
 		// IPv4 
 			if (prefix >32 ) {
-				yyprintf("Prefix %llu out of range for IPv4 address", prefix);
+				yyprintf("Prefix %" PRIu64 " out of range for IPv4 address", prefix);
 				return NULL;
 			}
 			node->mask[0] = 0;
@@ -1776,7 +1776,7 @@ static struct IPListNode *mkNode(ipStack_t ipStack, int64_t prefix) {
 		} else {
 			// IPv6
 			if (prefix >128 ) {
-				yyprintf("Prefix %llu out of range for IPv6 address", prefix);
+				yyprintf("Prefix %" PRIu64 " out of range for IPv6 address", prefix);
 				return NULL;
 			}
 			if ( prefix > 64 ) {
@@ -1877,7 +1877,7 @@ static int AddPortList(direction_t direction, void *U64List) {
 	struct U64ListNode *node;
 	RB_FOREACH(node, U64tree, (U64List_t *)U64List) {
 		if ( node->value > 65535 ) {
-			yyprintf("Port: %llu outside of range 0..65535", node->value);
+			yyprintf("Port: %" PRIu64 " outside of range 0..65535", node->value);
 			return -1;
 		}
 	}
@@ -1922,7 +1922,7 @@ static int AddASList(direction_t direction, void *U64List) {
 	struct U64ListNode *node;
 	RB_FOREACH(node, U64tree, (U64List_t *)U64List) {
 		if ( node->value > 0xFFFFFFFFLL ) {
-			yyprintf("AS: %llu outside of range 32bit", node->value);
+			yyprintf("AS: %" PRIu64 " outside of range 32bit", node->value);
 			return -1;
 		}
 	}
