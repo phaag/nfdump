@@ -58,6 +58,10 @@ const char *LookupV4ASorg(uint32_t ip);
 
 const char *LookupV6ASorg(uint64_t ip[2]);
 
+const char *LookupASorg(uint32_t as);
+
 void LookupWhois(char *ip);
+
+void LookupAS(char *asString);
 
 #endif

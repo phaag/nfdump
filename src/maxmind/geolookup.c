@@ -66,8 +66,7 @@ static char *string_trim(char *s) {
     if (*s) {
         char *p = s;
         while (*p) p++;
-        while (isspace((unsigned char)*(--p)))
-            ;
+        while (isspace((unsigned char)*(--p)));
         p[1] = '\0';
     }
 
@@ -192,11 +191,16 @@ int main(int argc, char **argv) {
     if (argc - optind > 0) {
         while (argc - optind > 0) {
             char *arg = argv[optind++];
-            if (strlen(arg) > 2 && (valid_ipv4(arg) || valid_ipv6(arg))) {
-                LookupWhois(arg);
-            } else {
-                LogError("Not a valid IPv4 or IPv6: ", arg);
-                exit(EXIT_FAILURE);
+            if (strlen(arg) > 2) {
+                if (arg[0] == 'a' && arg[1] == 's') {
+                    // do as Lookup
+                    LookupAS(arg + 2);
+                } else if ((valid_ipv4(arg) || valid_ipv6(arg))) {
+                    LookupWhois(arg);
+                } else {
+                    LogError("Not a valid IPv4 or IPv6: ", arg);
+                    exit(EXIT_FAILURE);
+                }
             }
         }
     } else {
@@ -213,7 +217,7 @@ int main(int argc, char **argv) {
             *eol = '\0';
 
             // split ' ' separated words and check, if it's an IPv4/v6
-            char *sep = " ";
+            char *sep = " (";
             char *word, *brkt;
             word = strtok_r(line, sep, &brkt);
             while (word) {

@@ -114,9 +114,16 @@ static inline int asV6Node_cmp(asV6Node_t a, asV6Node_t b) {
     }
 }
 
+static inline int asOrgNode_cmp(asOrgNode_t a, asOrgNode_t b) {
+    if (a.as == b.as) return 0;
+    return a.as > b.as ? 1 : -1;
+}  // End of asOrgNode_cmp
+
 KBTREE_INIT(asV4Tree, asV4Node_t, asV4Node_cmp);
 
 KBTREE_INIT(asV6Tree, asV6Node_t, asV6Node_cmp);
+
+KBTREE_INIT(asOrgTree, asOrgNode_t, asOrgNode_cmp);
 
 typedef struct mmHandle_s {
     khash_t(localMap) * localMap;
@@ -124,6 +131,7 @@ typedef struct mmHandle_s {
     kbtree_t(ipV6Tree) * ipV6Tree;
     kbtree_t(asV4Tree) * asV4Tree;
     kbtree_t(asV6Tree) * asV6Tree;
+    kbtree_t(asOrgTree) * asOrgTree;
 } mmHandle_t;
 
 static mmHandle_t *mmHandle = NULL;
@@ -140,8 +148,9 @@ int Init_MaxMind(void) {
     mmHandle->ipV6Tree = kb_init(ipV6Tree, 10 * KB_DEFAULT_SIZE);
     mmHandle->asV4Tree = kb_init(asV4Tree, 10 * KB_DEFAULT_SIZE);
     mmHandle->asV6Tree = kb_init(asV6Tree, 10 * KB_DEFAULT_SIZE);
+    mmHandle->asOrgTree = kb_init(asOrgTree, 10 * KB_DEFAULT_SIZE);
 
-    if (!mmHandle->ipV4Tree || !mmHandle->ipV6Tree || !mmHandle->localMap || !mmHandle->asV4Tree || !mmHandle->asV6Tree) {
+    if (!mmHandle->ipV4Tree || !mmHandle->ipV6Tree || !mmHandle->localMap || !mmHandle->asV4Tree || !mmHandle->asV6Tree || !mmHandle->asOrgTree) {
         LogError("Initialization of MaxMind failed");
         return 0;
     }
@@ -221,6 +230,19 @@ void LoadASV6Tree(asV6Node_t *asV6Node, uint32_t NumRecords) {
 
 }  // End of LoadASV6Tree
 
+void LoadASorgTree(asOrgNode_t *asOrgNode, uint32_t NumRecords) {
+    kbtree_t(asOrgTree) *asOrgTree = mmHandle->asOrgTree;
+    for (int i = 0; i < NumRecords; i++) {
+        asOrgNode_t *node = kb_getp(asOrgTree, asOrgTree, asOrgNode);
+        if (node) {
+            LogError("Insert: %d Duplicate ASorg node: as: %d", i, asOrgNode->as);
+        } else {
+            kb_putp(asOrgTree, asOrgTree, asOrgNode);
+        }
+        asOrgNode++;
+    }
+}  // End of LoadASorgTree
+
 void PutLocation(locationInfo_t *locationInfo) {
     khash_t(localMap) *localMap = mmHandle->localMap;
 
@@ -282,6 +304,15 @@ void PutasV6Node(asV6Node_t *asV6Node) {
         kb_putp(asV6Tree, asV6Tree, asV6Node);
     }
 }  // End of PutasV6Node
+
+void PutASorgNode(asOrgNode_t *asOrgNode) {
+    kbtree_t(asOrgTree) *asOrgTree = mmHandle->asOrgTree;
+
+    asOrgNode_t *node = kb_getp(asOrgTree, asOrgTree, asOrgNode);
+    if (node == NULL) {
+        kb_putp(asOrgTree, asOrgTree, asOrgNode);
+    }
+}  // End of PutASorgNode
 
 void LookupV4Country(uint32_t ip, char *country) {
     if (!mmHandle) {
@@ -431,6 +462,28 @@ uint32_t LookupV6AS(uint64_t ip[2]) {
     return asV6Node == NULL ? 0 : asV6Node->as;
 
 }  // End of LookupV6AS
+
+const char *LookupASorg(uint32_t as) {
+    if (!mmHandle) {
+        return 0;
+    }
+
+    asOrgNode_t asSearch = {.as = as};
+    asOrgNode_t *asOrgNode = kb_getp(asOrgTree, mmHandle->asOrgTree, &asSearch);
+    return asOrgNode == NULL ? 0 : asOrgNode->orgName;
+
+}  // End of LookupASorg
+
+void LookupAS(char *asString) {
+    long as = strtol(asString, (char **)NULL, 10);
+
+    if (as == 0 || as > 0xFFFFFFFFUL || as < 0) {
+        printf("Invalid AS number: %s: %s\n", asString, strerror(errno));
+    } else {
+        printf("%-7lu | %s\n", as, LookupASorg(as));
+    }
+
+}  // End of LookupAS
 
 const char *LookupV4ASorg(uint32_t ip) {
     if (!mmHandle) {
@@ -612,3 +665,20 @@ asV6Node_t *NextasV6Node(int start) {
         return NULL;
     }
 }  // End of NextasV6Node
+
+asOrgNode_t *NextasOrgNode(int start) {
+    static kbitr_t itr = {0};
+    static asOrgNode_t *asOrgNode = NULL;
+
+    kbtree_t(asOrgTree) *asOrgTree = mmHandle->asOrgTree;
+    if (start == FIRSTNODE) kb_itr_first(asOrgTree, asOrgTree, &itr);  // get an iterator pointing to the first
+
+    if (kb_itr_valid(&itr)) {
+        asOrgNode = &kb_itr_key(asOrgNode_t, &itr);
+        kb_itr_next(asOrgTree, asOrgTree, &itr);  // move on
+        return asOrgNode;
+    } else {
+        return NULL;
+    }
+
+}  // End of NextasOrgNode

@@ -43,36 +43,36 @@
 #include "mmcreate.h"
 #include "util.h"
 
-char *asFieldNames[] = {"network", "autonomous_system_number", "autonomous_system_organization", NULL};
+static char *asFieldNames[] = {"network", "autonomous_system_number", "autonomous_system_organization", NULL};
 
 // field names of GeoLite2-City-Locations-en
-char *localFieldNames[] = {"geoname_id",
-                           "locale_code",
-                           "continent_code",
-                           "continent_name",
-                           "country_iso_code",
-                           "country_name",
-                           "subdivision_1_iso_code",
-                           "subdivision_1_name",
-                           "subdivision_2_iso_code",
-                           "subdivision_2_name",
-                           "city_name",
-                           "metro_code",
-                           "time_zone",
-                           "is_in_european_union",
-                           NULL};
+static char *localFieldNames[] = {"geoname_id",
+                                  "locale_code",
+                                  "continent_code",
+                                  "continent_name",
+                                  "country_iso_code",
+                                  "country_name",
+                                  "subdivision_1_iso_code",
+                                  "subdivision_1_name",
+                                  "subdivision_2_iso_code",
+                                  "subdivision_2_name",
+                                  "city_name",
+                                  "metro_code",
+                                  "time_zone",
+                                  "is_in_european_union",
+                                  NULL};
 
-char *ipFieldNames[] = {"network",
-                        "geoname_id",
-                        "registered_country_geoname_id",
-                        "represented_country_geoname_id",
-                        "is_anonymous_proxy",
-                        "is_satellite_provider",
-                        "postal_code",
-                        "latitude",
-                        "longitude",
-                        "accuracy_radius",
-                        NULL};
+static char *ipFieldNames[] = {"network",
+                               "geoname_id",
+                               "registered_country_geoname_id",
+                               "represented_country_geoname_id",
+                               "is_anonymous_proxy",
+                               "is_satellite_provider",
+                               "postal_code",
+                               "latitude",
+                               "longitude",
+                               "accuracy_radius",
+                               NULL};
 
 static void stripLine(char *line) {
     char *eol = strchr(line, '\r');
@@ -358,7 +358,6 @@ static int loadASV4tree(char *fileName) {
     while ((lineLen = getline(&line, &linecap, fp)) > 0) {
         stripLine(line);
         // printf("%s\n", line);
-        asV4Node_t asV4Node;
         char *field = line;
         char *sep = NULL;
 
@@ -382,8 +381,7 @@ static int loadASV4tree(char *fileName) {
         netBits = atoi(++cidr);
         mask = 0xffffffff << (32 - netBits);
         // printf("ip: 0x%x, bits: %u, mask: 0x%x\n", net, netBits, mask);
-        asV4Node.network = ntohl(net);
-        asV4Node.netmask = mask;
+        asV4Node_t asV4Node = {.network = ntohl(net), .netmask = mask};
         field = sep;
 
         // extract AS
@@ -394,14 +392,19 @@ static int loadASV4tree(char *fileName) {
         }
         *sep++ = '\0';
         asV4Node.as = atoi(field);
+        asOrgNode_t asOrgNode = {.as = asV4Node.as};
         field = sep;
 
         // extract org name
         strncpy(asV4Node.orgName, field, orgNameLength);
         asV4Node.orgName[orgNameLength - 1] = '\0';
+        strncpy(asOrgNode.orgName, field, orgNameLength);
+        asOrgNode.orgName[orgNameLength - 1] = '\0';
 
         // insert node
         PutasV4Node(&asV4Node);
+        PutASorgNode(&asOrgNode);
+
         cnt++;
     }
     printf("Loaded %u entries into ASV4 tree\n", cnt);
@@ -425,7 +428,6 @@ static int loadASV6tree(char *fileName) {
     while ((lineLen = getline(&line, &linecap, fp)) > 0) {
         stripLine(line);
         // printf("%s\n", line);
-        asV6Node_t asV6Node;
         char *field = line;
         char *sep = NULL;
 
@@ -458,10 +460,7 @@ static int loadASV6tree(char *fileName) {
         }
 
         // printf("ip: 0x%x, bits: %u, mask: 0x%x\n", net, netBits, mask);
-        asV6Node.network[0] = ntohll(net[0]);
-        asV6Node.network[1] = ntohll(net[1]);
-        asV6Node.netmask[0] = mask[0];
-        asV6Node.netmask[1] = mask[1];
+        asV6Node_t asV6Node = {.network[0] = ntohll(net[0]), .network[1] = ntohll(net[1]), .netmask[0] = mask[0], .netmask[1] = mask[1]};
         field = sep;
 
         // extract AS
@@ -472,13 +471,17 @@ static int loadASV6tree(char *fileName) {
         }
         *sep++ = '\0';
         asV6Node.as = atoi(field);
+        asOrgNode_t asOrgNode = {.as = asV6Node.as};
         field = sep;
 
         // extract org name
         strncpy(asV6Node.orgName, field, orgNameLength);
         asV6Node.orgName[orgNameLength - 1] = '\0';
+        strncpy(asOrgNode.orgName, field, orgNameLength);
+        asOrgNode.orgName[orgNameLength - 1] = '\0';
 
         PutasV6Node(&asV6Node);
+        PutASorgNode(&asOrgNode);
         cnt++;
     }
     printf("Loaded %u entries into ASV6 tree\n", cnt);

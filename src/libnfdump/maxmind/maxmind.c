@@ -214,6 +214,35 @@ static void StoreASV6tree(nffile_t *nffile) {
 
 }  // End of StoreASV6tree
 
+static void StoreASorgtree(nffile_t *nffile) {
+    // get new empty data block
+    dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
+    void *outBuff = GetCursor(dataBlock);
+
+    // put array header on block
+    PushArrayHeader(dataBlock, ASOrgtreeElementID, sizeof(asOrgNode_t));
+    outBuff = GetCurrentCursor(dataBlock);
+
+    for (asOrgNode_t *asOrgNode = NextasOrgNode(FIRSTNODE); asOrgNode != NULL; asOrgNode = NextasOrgNode(NEXTNODE)) {
+        if (!IsAvailable(dataBlock, sizeof(asOrgNode_t))) {
+            // flush block - get an empty one
+            dataBlock = WriteBlock(nffile, dataBlock);
+
+            // put array header on block
+            PushArrayHeader(dataBlock, ASOrgtreeElementID, sizeof(asOrgNode_t));
+            outBuff = GetCurrentCursor(dataBlock);
+        }
+
+        memcpy(outBuff, asOrgNode, sizeof(asOrgNode_t));
+        outBuff += sizeof(asOrgNode_t);
+        dataBlock->size += sizeof(asOrgNode_t);
+        dataBlock->NumRecords++;
+    }
+    // flush current datablock
+    FlushBlock(nffile, dataBlock);
+
+}  // End of StoreASorgtree
+
 int SaveMaxMind(char *fileName) {
     nffile_t *nffile = OpenNewFile(fileName, NULL, CREATOR_LOOKUP, LZ4_COMPRESSED, NOT_ENCRYPTED);
     if (!nffile) {
@@ -226,6 +255,7 @@ int SaveMaxMind(char *fileName) {
     StoreIPV6tree(nffile);
     StoreASV4tree(nffile);
     StoreASV6tree(nffile);
+    StoreASorgtree(nffile);
     return CloseUpdateFile(nffile);
 
 }  // End of SaveMaxMind
@@ -288,6 +318,11 @@ int LoadMaxMind(char *fileName) {
                 asV6Node_t *asV6Node = (asV6Node_t *)arrayElement;
                 arrayElementSizeCheck(asV6Node);
                 LoadASV6Tree(asV6Node, dataBlock->NumRecords);
+            } break;
+            case ASOrgtreeElementID: {
+                asOrgNode_t *asOrgNode = (asOrgNode_t *)arrayElement;
+                arrayElementSizeCheck(asOrgNode);
+                LoadASorgTree(asOrgNode, dataBlock->NumRecords);
             } break;
             default:
                 LogError("Skip unknown array element: %u", arrayHeader->type);

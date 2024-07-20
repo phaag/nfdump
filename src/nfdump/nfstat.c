@@ -73,7 +73,8 @@ typedef enum {
     IS_JA3,
     IS_JA4,
     IS_JA4S,
-    IS_GEO
+    IS_GEO,
+    IS_ASORG
 } elementType_t;
 
 typedef enum { DESCENDING = 0, ASCENDING } direction_t;
@@ -141,9 +142,13 @@ static struct StatParameter_s {
     {"tos", NULL, {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NULL},
     {"dir", "Dir", {EXgenericFlowID, OFFdir, SIZEdir, 0}, IS_NUMBER, NULL},
     {"srcas", "Src AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
+    {"srcasn", "                                 Organisation (AS num)", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
     {"dstas", "Dst AS", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
+    {"dstasn", "                                 Organisation (AS num)", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_ASORG, DST_AS_PreProcess},
     {"as", "AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
     {"as", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
+    {"asn", "                                 Organisation (AS num)", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
+    {"asn", NULL, {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_ASORG, DST_AS_PreProcess},
     {"prevas", "Prev AS", {EXasAdjacentID, OFFprevAdjacentAS, SIZEprevAdjacentAS, 0}, IS_NUMBER, NULL},
     {"nextas", "Next AS", {EXasAdjacentID, OFFnextAdjacentAS, SIZEnextAdjacentAS, 0}, IS_NUMBER, NULL},
     {"inif", "Input If", {EXflowMiscID, OFFinput, SIZEinput, 0}, IS_NUMBER, NULL},
@@ -1001,6 +1006,10 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
         } break;
         case IS_GEO: {
             snprintf(valstr, 64, "%s", (char *)&(hashKey->v1));
+        }
+        case IS_ASORG: {
+            const char *org = LookupASorg(hashKey->v1);
+            snprintf(valstr, 64, "%45s (%6" PRIi64 ")", org != NULL ? org : "unknown", hashKey->v1);
         }
     }
     valstr[63] = 0;

@@ -99,6 +99,14 @@ typedef struct asV6Node_s {
     char orgName[orgNameLength];
 } asV6Node_t;
 
+typedef struct asOrgNode_s {
+    // key
+    uint32_t as;
+
+    // value
+    char orgName[orgNameLength];
+} asOrgNode_t;
+
 int Init_MaxMind(void);
 
 void LoadLocalInfo(locationInfo_t *locationInfo, uint32_t NumRecords);
@@ -111,6 +119,8 @@ void LoadASV4Tree(asV4Node_t *asV4Node, uint32_t NumRecords);
 
 void LoadASV6Tree(asV6Node_t *asV6Node, uint32_t NumRecords);
 
+void LoadASorgTree(asOrgNode_t *asOrgNode, uint32_t NumRecords);
+
 void PutLocation(locationInfo_t *locationInfo);
 
 void PutIPv4Node(ipV4Node_t *ipV4Node);
@@ -120,6 +130,8 @@ void PutIPv6Node(ipV6Node_t *ipV6Node);
 void PutasV4Node(asV4Node_t *asV4Node);
 
 void PutasV6Node(asV6Node_t *asV6Node);
+
+void PutASorgNode(asOrgNode_t *asOrgNode);
 
 #define FIRSTNODE 1
 #define NEXTNODE 0
@@ -132,6 +144,8 @@ ipV6Node_t *NextIPv6Node(int start);
 asV4Node_t *NextasV4Node(int start);
 
 asV6Node_t *NextasV6Node(int start);
+
+asOrgNode_t *NextasOrgNode(int start);
 
 int SaveMaxMind(char *fileName);
 

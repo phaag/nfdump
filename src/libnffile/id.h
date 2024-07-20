@@ -69,6 +69,7 @@
 #define IPV6treeElementID 3
 #define ASV4treeElementID 4
 #define ASV6treeElementID 5
+#define ASOrgtreeElementID 7
 // tor
 #define TorTreeElementID 6
 
