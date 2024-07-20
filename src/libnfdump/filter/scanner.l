@@ -141,6 +141,8 @@ xlate		  { return NAT;    }
 tun		    { return TUN;    }
 ingress		{ return INGRESS;}
 egress		{ return EGRESS; }
+client		{ return CLIENT; }
+server		{ return SERVER; }
 
 and       { return AND; }
 or        { return OR;  }

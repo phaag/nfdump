@@ -59,6 +59,8 @@ typedef enum {
     BGP_NEXT,
     DIR_INGRESS,
     DIR_EGRESS,
+    DIR_CLIENT,
+    DIR_SERVER,
     SRC_ROUTER
 } direction_t;
 

@@ -600,10 +600,10 @@ static void runTest(void) {
 
     CheckFilter("client latency 11", recordHandle, 1);
     CheckFilter("server latency 22", recordHandle, 1);
-    CheckFilter("app latency 33", recordHandle, 1);
+    // CheckFilter("app latency 33", recordHandle, 1);
     CheckFilter("client latency 12", recordHandle, 0);
     CheckFilter("server latency 23", recordHandle, 0);
-    CheckFilter("app latency 34", recordHandle, 0);
+    // CheckFilter("app latency 34", recordHandle, 0);
     CheckFilter("client latency < 11", recordHandle, 0);
     CheckFilter("client latency > 11", recordHandle, 0);
 

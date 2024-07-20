@@ -101,7 +101,7 @@ typedef struct timeWindow_s {
 
 double t(void);
 
-void xsleep(suseconds_t usec);
+void xsleep(useconds_t usec);
 
 void CheckArgLen(char *arg, size_t len);
 

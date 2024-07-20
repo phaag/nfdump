@@ -89,7 +89,7 @@ double t(void) {
 /*
 ** usleep(3) implemented with select.
 */
-void xsleep(suseconds_t usec) {
+void xsleep(useconds_t usec) {
     struct timeval tv;
 
     tv.tv_sec = 0;

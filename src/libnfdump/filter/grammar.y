@@ -124,7 +124,7 @@ static int AddMAC(direction_t direction, char *macString);
 
 static int AddEthertype(uint64_t etherType);
 
-static int AddLatency(char *type, uint16_t comp, uint64_t number);
+static int AddLatency(direction_t direction, uint16_t comp, uint64_t number);
 
 static int AddASAString(char *event, char *asaStr);
 
@@ -177,6 +177,7 @@ static int AddASList(direction_t direction, void *U64List);
 %token ANY NOT IDENT COUNT
 %token IP IPV4 IPV6 IPTTL NET
 %token SRC DST IN OUT PREV NEXT BGP ROUTER INGRESS EGRESS
+%token CLIENT SERVER
 %token NAT XLATE TUN
 %token ENGINE ENGINETYPE ENGINEID EXPORTER
 %token DURATION PPS BPS BPP FLAGS
@@ -224,7 +225,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| ENGINETYPE comp NUMBER {
 	  $$.self  = AddEngineNum("type", $2.comp, $3); if ( $$.self < 0 ) YYABORT;
-        }
+  }
 
 	| ENGINEID comp NUMBER {
 	  $$.self  = AddEngineNum("id", $2.comp, $3); if ( $$.self < 0 ) YYABORT;
@@ -234,21 +235,21 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self  = AddEngineNum($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
 
-    | EXPORTER STRING comp NUMBER {
- 	     $$.self  = AddExporterNum($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
+  | EXPORTER STRING comp NUMBER {
+ 	  $$.self  = AddExporterNum($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
 
-    | dqual PROTO NUMBER { 
-        $$.self = AddProto($1.direction, NULL, $3); if ( $$.self < 0 ) YYABORT; 
-    }
+  | dqual PROTO NUMBER { 
+    $$.self = AddProto($1.direction, NULL, $3); if ( $$.self < 0 ) YYABORT; 
+  }
 
-    | dqual PROTO STRING {
-        $$.self = AddProto($1.direction, $3, 0); if ( $$.self < 0 ) YYABORT;
-    }
+  | dqual PROTO STRING {
+    $$.self = AddProto($1.direction, $3, 0); if ( $$.self < 0 ) YYABORT;
+  }
 
-    | dqual PROTO ICMP {
-        $$.self = AddProto($1.direction, "icmp", 0); if ( $$.self < 0 ) YYABORT;
-    }
+  | dqual PROTO ICMP {
+    $$.self = AddProto($1.direction, "icmp", 0); if ( $$.self < 0 ) YYABORT;
+	}
 
 	| dqual PORT comp NUMBER {
 		$$.self = AddPortNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
@@ -275,20 +276,20 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 	}
 
 	| dqual TOS comp NUMBER {
-	    $$.self = AddTosNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
+	  $$.self = AddTosNumber($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| IPTTL comp NUMBER {
-	    $$.self = AddIPttl($2.comp, $3); if ( $$.self < 0 ) YYABORT;
+	  $$.self = AddIPttl($2.comp, $3); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| FWDSTAT comp NUMBER {
-	    $$.self = AddFwdStatNum($2.comp, $3); if ( $$.self < 0 ) YYABORT;
+	  $$.self = AddFwdStatNum($2.comp, $3); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| FWDSTAT STRING {
-	    $$.self = AddFwdStatString($2); if ( $$.self < 0 ) YYABORT;
-    }
+	  $$.self = AddFwdStatString($2); if ( $$.self < 0 ) YYABORT;
+  }
 
 	| DURATION comp NUMBER {
 		$$.self = NewElement(EXgenericFlowID, 0, SIZEmsecLast, $3, $2.comp, FUNC_DURATION, NULLPtr); 
@@ -356,7 +357,7 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| FLOWDIR dqual {
 		$$.self = AddFlowDir($2.direction, -1); if ( $$.self < 0 ) YYABORT;
-        }
+  }
 
 	| MPLS STRING comp NUMBER {	
 		$$.self = AddMPLS($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
@@ -370,8 +371,8 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = AddMAC($1.direction, $3); if ( $$.self < 0 ) YYABORT; 
 	}
 
-	| STRING LATENCY comp NUMBER {
-		$$.self = AddLatency($1, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
+	| dqual LATENCY comp NUMBER {
+		$$.self = AddLatency($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
 	}
 
 	| ASA STRING STRING {
@@ -521,28 +522,30 @@ comp:				{ $$.comp = CMP_EQ; }
 	;
 
 /* direction qualifiers for direction related elements or specifier for elements */
-dqual:	 { $$.direction = DIR_UNSPEC;             }
-	| SRC		 { $$.direction = DIR_SRC;        }
-	| DST		 { $$.direction = DIR_DST;        }
+dqual:	     { $$.direction = DIR_UNSPEC;     }
+	| SRC		   { $$.direction = DIR_SRC;        }
+	| DST		   { $$.direction = DIR_DST;        }
 	| SRC NAT	 { $$.direction = DIR_SRC_NAT;	  }
-	| DST NAT    { $$.direction = DIR_DST_NAT;	  }
+	| DST NAT  { $$.direction = DIR_DST_NAT;	  }
 	| SRC TUN	 { $$.direction = DIR_SRC_TUN;    }
-	| DST TUN    { $$.direction = DIR_DST_TUN;    }
+	| DST TUN  { $$.direction = DIR_DST_TUN;    }
 	| NAT  		 { $$.direction = DIR_UNSPEC_NAT; }
 	| TUN  		 { $$.direction = DIR_UNSPEC_TUN; }
-	| IN		 { $$.direction = DIR_IN;         }
-	| OUT		 { $$.direction = DIR_OUT;        }
+	| IN		   { $$.direction = DIR_IN;         }
+	| OUT		   { $$.direction = DIR_OUT;        }
 	| IN SRC	 { $$.direction = DIR_IN_SRC;     }
 	| IN DST	 { $$.direction = DIR_IN_DST;     }
 	| OUT SRC	 { $$.direction = DIR_OUT_SRC;	  }
 	| OUT DST	 { $$.direction = DIR_OUT_DST;    }
 	| INGRESS	 { $$.direction = DIR_INGRESS;    }
 	| EGRESS	 { $$.direction = DIR_EGRESS;     }
+	| CLIENT	 { $$.direction = DIR_CLIENT;     }
+	| SERVER	 { $$.direction = DIR_SERVER;     }
 	| PREV		 { $$.direction = DIR_PREV;       }
 	| NEXT		 { $$.direction = DIR_NEXT;       }
-	| BGP NEXT   { $$.direction = BGP_NEXT;	      }
+	| BGP NEXT { $$.direction = BGP_NEXT;	      }
 	| ROUTER	 { $$.direction = SRC_ROUTER;     }
-	| EXPORTER   { $$.direction = SRC_ROUTER;     }
+	| EXPORTER { $$.direction = SRC_ROUTER;     }
 	;
 
 expr:	term { $$ = $1.self; }
@@ -1061,16 +1064,20 @@ static int AddMAC(direction_t direction, char *macString) {
 	return -1;
 } // End of AddMAC
 
-static int AddLatency(char *type, uint16_t comp, uint64_t number) {
+static int AddLatency(direction_t direction, uint16_t comp, uint64_t number) {
 
 	int ret = -1;
-	if ( strcasecmp(type, "client") == 0 ) {
+  switch (direction) {
+		case DIR_CLIENT:
 			ret =  NewElement(EXlatencyID, OFFusecClientNwDelay, SIZEusecClientNwDelay, number, comp, FUNC_NONE, NULLPtr);
-	} if ( strcasecmp(type, "server") == 0 ) {
+		  break;
+		case DIR_SERVER:
 			ret =  NewElement(EXlatencyID, OFFusecServerNwDelay, SIZEusecServerNwDelay, number, comp, FUNC_NONE, NULLPtr);
-	} if ( strcasecmp(type, "app") == 0 ) { 
-			ret =  NewElement(EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, number, comp, FUNC_NONE, NULLPtr);
-	}	
+		  break;
+		// case XXX	ret =  NewElement(EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, number, comp, FUNC_NONE, NULLPtr);
+		default:
+			yyprintf("Unknown latency argument");
+  }
 
 	return ret;
 } // End of AddLatency
