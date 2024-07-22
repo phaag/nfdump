@@ -465,12 +465,12 @@ uint32_t LookupV6AS(uint64_t ip[2]) {
 
 const char *LookupASorg(uint32_t as) {
     if (!mmHandle) {
-        return 0;
+        return NULL;
     }
 
     asOrgNode_t asSearch = {.as = as};
     asOrgNode_t *asOrgNode = kb_getp(asOrgTree, mmHandle->asOrgTree, &asSearch);
-    return asOrgNode == NULL ? 0 : asOrgNode->orgName;
+    return asOrgNode == NULL ? "not found" : asOrgNode->orgName;
 
 }  // End of LookupASorg
 
@@ -480,7 +480,11 @@ void LookupAS(char *asString) {
     if (as == 0 || as > 0xFFFFFFFFUL || as < 0) {
         printf("Invalid AS number: %s: %s\n", asString, strerror(errno));
     } else {
-        printf("%-7lu | %s\n", as, LookupASorg(as));
+        char *asOrg = LookupASorg(as);
+        if (asOrg == NULL)
+            printf("No DB available!\n");
+        else
+            printf("%-7lu | %s\n", as, LookupASorg(as));
     }
 
 }  // End of LookupAS
