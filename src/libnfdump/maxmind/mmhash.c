@@ -480,7 +480,7 @@ void LookupAS(char *asString) {
     if (as == 0 || as > 0xFFFFFFFFUL || as < 0) {
         printf("Invalid AS number: %s: %s\n", asString, strerror(errno));
     } else {
-        char *asOrg = LookupASorg(as);
+        const char *asOrg = LookupASorg(as);
         if (asOrg == NULL)
             printf("No DB available!\n");
         else
