@@ -464,6 +464,8 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
                 case ExporterStatRecordType:
                 case SamplerRecordType:
                 case NbarRecordType:
+                case IfNameRecordType:
+                case VrfNameRecordType:
                     // Silently skip exporter/sampler records
                     break;
 
