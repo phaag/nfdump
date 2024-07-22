@@ -395,6 +395,12 @@ static int loadASV4tree(char *fileName) {
         asOrgNode_t asOrgNode = {.as = asV4Node.as};
         field = sep;
 
+        size_t fieldLen = strlen(field);
+        if (fieldLen > 2) {
+            if (field[fieldLen - 1] == '"') field[fieldLen - 1] = '\0';
+            if (field[0] == '"') field++;
+        }
+
         // extract org name
         strncpy(asV4Node.orgName, field, orgNameLength);
         asV4Node.orgName[orgNameLength - 1] = '\0';
