@@ -634,10 +634,14 @@ format. See the section
 below for more details on how to compile your own csv format.
 .It Cm json
 Print full record as a separate json object.
+.It Cm json-log
+Print full record as a one line separate json object. Suitable for log processors such as logstash.
 .It Cm csv
 Print reocrd in csv format - format compatible to fmt
 .Sy line
 format. 
+.It Cm csv-fast
+Replaces old pipe format. Basic record information only. Fast implementation.
 .El
 .Pp
 Already predefined fmt formats:
@@ -1659,14 +1663,20 @@ Start Time - first seen
 First seen - identical to %ts
 .It Cm %tsr
 Start Time, but in fractional seconds since the epoch (1970-01-01) UNIX format.
+.It Cm %tsg
+Start Time GMT - first seem
 .It Cm %te
 End Time - last seen
 .It Cm %ter
 End Time, in fractional seconds
+.It Cm %teg
+End Time GMT - last seen
 .It Cm %tr
 Time the flow was received by the collector
 .It Cm %trr
 Time the flow was received, in fractional seconds
+.It Cm %trg
+Time GMT the flow was received by the collector
 .It Cm %td
 Duration of flow. Displayed in ddHHMMSS.msec
 .It Cm %pr

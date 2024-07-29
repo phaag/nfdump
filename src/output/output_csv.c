@@ -107,6 +107,12 @@ static void String_LastSeenRaw(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_ReceivedRaw(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_FirstSeenGMT(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_LastSeenGMT(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_ReceivedGMT(FILE *stream, recordHandle_t *recordHandle);
+
 static void String_Duration(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_Duration_Seconds(FILE *stream, recordHandle_t *recordHandle);
@@ -343,10 +349,13 @@ static struct format_entry_s {
     {"%tfs", 0, "firstSeen", String_FirstSeen},        // Start Time - first seen
     {"%ts", 0, "firstSeen", String_FirstSeen},         // Start Time - first seen
     {"%tsr", 0, "firstSeen", String_FirstSeenRaw},     // Start Time - first seen, seconds
+    {"%tsg", 0, "firstSeen", String_FirstSeenGMT},     // Start Time GMT - first seen, seconds
     {"%te", 0, "lastSeen", String_LastSeen},           // End Time	- last seen
     {"%ter", 0, "lastSeen", String_LastSeenRaw},       // End Time - first seen, seconds
-    {"%trr", 0, "received", String_ReceivedRaw},       // Received Time, seconds
+    {"%teg", 0, "lastSeen", String_LastSeenGMT},       // End Time GMT - first seen, seconds
     {"%tr", 0, "received", String_Received},           // Received Time
+    {"%trr", 0, "received", String_ReceivedRaw},       // Received Time, seconds
+    {"%trg", 0, "received", String_ReceivedGMT},       // Received Time GMT, seconds
     {"%td", 0, "duration", String_Duration},           // Duration
     {"%tds", 0, "duration", String_Duration_Seconds},  // Duration always in seconds
     {"%pkt", 0, "packets", String_InPackets},          // Packets - default input - compat
@@ -862,6 +871,63 @@ static void String_LastSeenRaw(FILE *stream, recordHandle_t *recordHandle) {
     fprintf(stream, "%llu.%03llu", msecLast / 1000LL, msecLast % 1000LL);
 
 }  // End of String_LastSeenRaw
+
+static void String_FirstSeenGMT(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
+
+    if (msecFirst) {
+        time_t tt = msecFirst / 1000LL;
+        struct tm ts;
+        gmtime_r(&tt, &ts);
+        char s[128];
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03u", s, (unsigned)(msecFirst % 1000LL));
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
+
+}  // End of String_FirstSeenGMT
+
+static void String_LastSeenGMT(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    uint64_t msecLast = genericFlow ? genericFlow->msecLast : 0;
+
+    if (msecLast) {
+        time_t tt = msecLast / 1000LL;
+        struct tm ts;
+        gmtime_r(&tt, &ts);
+        char s[128];
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03u", s, (unsigned)(msecLast % 1000LL));
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
+
+}  // End of String_LastSeenGMT
+
+static void String_ReceivedGMT(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    uint64_t msecReceived = genericFlow ? genericFlow->msecReceived : 0;
+
+    if (msecReceived) {
+        time_t tt = msecReceived / 1000LL;
+        struct tm ts;
+        gmtime_r(&tt, &ts);
+        char s[128];
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03llu", s, msecReceived % 1000LL);
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
+
+}  // End of String_ReceivedGMT
 
 static void String_nbarID(FILE *stream, recordHandle_t *recordHandle) {
     uint8_t *nbar = (uint8_t *)recordHandle->extensionList[EXnbarAppID];

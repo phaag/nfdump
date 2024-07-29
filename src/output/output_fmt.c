@@ -111,7 +111,13 @@ static void String_FirstSeenRaw(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_LastSeenRaw(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_FirstSeenGMT(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_LastSeenGMT(FILE *stream, recordHandle_t *recordHandle);
+
 static void String_ReceivedRaw(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_ReceivedGMT(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_Duration(FILE *stream, recordHandle_t *recordHandle);
 
@@ -368,31 +374,34 @@ static struct format_entry_s {
     {"%exp", 0, "Exp ID", String_ExpSysID},  // Exporter SysID
 
     // EXgenericFlowID
-    {"%tfs", 0, "Date first seen        ", String_FirstSeen},  // Start Time - first seen
-    {"%ts", 0, "Date first seen        ", String_FirstSeen},   // Start Time - first seen
-    {"%tsr", 0, "First seen raw", String_FirstSeenRaw},        // Start Time - first seen, seconds
-    {"%te", 0, "Date last seen         ", String_LastSeen},    // End Time	- last seen
-    {"%ter", 0, "Last seen raw ", String_LastSeenRaw},         // End Time - first seen, seconds
-    {"%trr", 0, "Received raw  ", String_ReceivedRaw},         // Received Time, seconds
-    {"%tr", 0, "Date flow received     ", String_Received},    // Received Time
-    {"%td", 0, "Duration        ", String_Duration},           // Duration
-    {"%tds", 0, "Duration        ", String_Duration_Seconds},  // Duration always in seconds
-    {"%pkt", 0, " Packets", String_InPackets},                 // Packets - default input - compat
-    {"%ipkt", 0, "  In Pkt", String_InPackets},                // In Packets
-    {"%byt", 0, "   Bytes", String_InBytes},                   // Bytes - default input - compat
-    {"%ibyt", 0, " In Byte", String_InBytes},                  // In Bytes
-    {"%sp", 0, "Src Pt", String_SrcPort},                      // Source Port
-    {"%dp", 0, "Dst Pt", String_DstPort},                      // Destination Port
-    {"%it", 0, "ICMP-T", String_ICMP_type},                    // ICMP type
-    {"%ic", 0, "ICMP-C", String_ICMP_code},                    // ICMP code
-    {"%pr", 0, "Proto", String_Protocol},                      // Protocol
-    {"%flg", 0, "   Flags", String_Flags},                     // TCP Flags
-    {"%fwd", 0, "Fwd", String_FwdStatus},                      // Forwarding Status
-    {"%tos", 0, " Tos", String_Tos},                           // Tos - compat
-    {"%stos", 0, "STos", String_SrcTos},                       // Tos - Src tos
-    {"%bps", 0, "     bps", String_bps},                       // bps - bits per second
-    {"%pps", 0, "     pps", String_pps},                       // pps - packets per second
-    {"%bpp", 0, "   Bpp", String_bpp},                         // bpp - Bytes per package
+    {"%tfs", 0, "Date first seen        ", String_FirstSeen},     // Start Time - first seen
+    {"%ts", 0, "Date first seen        ", String_FirstSeen},      // Start Time - first seen
+    {"%tsr", 0, "First seen raw", String_FirstSeenRaw},           // Start Time - first seen, seconds
+    {"%tsg", 0, "First seen GMT         ", String_FirstSeenGMT},  // Start Time - first seen GMT, seconds
+    {"%te", 0, "Date last seen         ", String_LastSeen},       // End Time	- last seen
+    {"%ter", 0, "Last seen raw ", String_LastSeenRaw},            // End Time - first seen, seconds
+    {"%teg", 0, "Last seen GMT          ", String_LastSeenGMT},   // End Time - first seen GMT, seconds
+    {"%tr", 0, "Date flow received     ", String_Received},       // Received Time
+    {"%trr", 0, "Received raw  ", String_ReceivedRaw},            // Received Time, seconds
+    {"%trg", 0, "Date flow received GMT ", String_ReceivedGMT},   // Received Time GMT
+    {"%td", 0, "Duration        ", String_Duration},              // Duration
+    {"%tds", 0, "Duration        ", String_Duration_Seconds},     // Duration always in seconds
+    {"%pkt", 0, " Packets", String_InPackets},                    // Packets - default input - compat
+    {"%ipkt", 0, "  In Pkt", String_InPackets},                   // In Packets
+    {"%byt", 0, "   Bytes", String_InBytes},                      // Bytes - default input - compat
+    {"%ibyt", 0, " In Byte", String_InBytes},                     // In Bytes
+    {"%sp", 0, "Src Pt", String_SrcPort},                         // Source Port
+    {"%dp", 0, "Dst Pt", String_DstPort},                         // Destination Port
+    {"%it", 0, "ICMP-T", String_ICMP_type},                       // ICMP type
+    {"%ic", 0, "ICMP-C", String_ICMP_code},                       // ICMP code
+    {"%pr", 0, "Proto", String_Protocol},                         // Protocol
+    {"%flg", 0, "   Flags", String_Flags},                        // TCP Flags
+    {"%fwd", 0, "Fwd", String_FwdStatus},                         // Forwarding Status
+    {"%tos", 0, " Tos", String_Tos},                              // Tos - compat
+    {"%stos", 0, "STos", String_SrcTos},                          // Tos - Src tos
+    {"%bps", 0, "     bps", String_bps},                          // bps - bits per second
+    {"%pps", 0, "     pps", String_pps},                          // pps - packets per second
+    {"%bpp", 0, "   Bpp", String_bpp},                            // bpp - Bytes per package
 
     // EXipv4FlowID EXipv6FlowID
     {"%sa", 1, "     Src IP Addr", String_SrcAddr},             // Source Address
@@ -928,6 +937,25 @@ static void String_Received(FILE *stream, recordHandle_t *recordHandle) {
 
 }  // End of String_Received
 
+static void String_ReceivedGMT(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    uint64_t msecReceived = genericFlow ? genericFlow->msecReceived : 0;
+
+    if (msecReceived) {
+        time_t tt = msecReceived / 1000LL;
+        struct tm ts;
+        gmtime_r(&tt, &ts);
+        char s[128];
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03llu", s, msecReceived % 1000LL);
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
+
+}  // End of String_ReceivedGMT
+
 static void String_ReceivedRaw(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
@@ -951,6 +979,44 @@ static void String_LastSeenRaw(FILE *stream, recordHandle_t *recordHandle) {
     fprintf(stream, "%10llu.%03llu", msecLast / 1000LL, msecLast % 1000LL);
 
 }  // End of String_LastSeenRaw
+
+static void String_FirstSeenGMT(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    uint64_t msecFirst = genericFlow ? genericFlow->msecFirst : 0;
+
+    if (msecFirst) {
+        time_t tt = msecFirst / 1000LL;
+        struct tm ts;
+        gmtime_r(&tt, &ts);
+        char s[128];
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03u", s, (unsigned)(msecFirst % 1000LL));
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
+
+}  // End of String_FirstSeenGMT
+
+static void String_LastSeenGMT(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    uint64_t msecLast = genericFlow ? genericFlow->msecLast : 0;
+
+    if (msecLast) {
+        time_t tt = msecLast / 1000LL;
+        struct tm ts;
+        gmtime_r(&tt, &ts);
+        char s[128];
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
+        s[127] = '\0';
+        fprintf(stream, "%s.%03u", s, (unsigned)(msecLast % 1000LL));
+    } else {
+        fprintf(stream, "%s", "0000-00-00 00:00:00.000");
+    }
+
+}  // End of String_LastSeenGMT
 
 static void String_Payload(FILE *stream, uint8_t *payload, EXgenericFlow_t *genericFlow) {
     uint32_t payloadLength = 0;
