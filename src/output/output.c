@@ -50,7 +50,7 @@
 #define MAXMODELEN 16
 #define MAXFORMATS 64
 
-#define FORMAT_line "%ts %td %pr %sap -> %dap %pkt %byt %fl"
+#define FORMAT_line "%ts %L"
 
 #define FORMAT_gline "%ts %td %pr %gsap -> %gdap %pkt %byt %fl"
 

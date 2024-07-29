@@ -76,7 +76,11 @@ static int max_format_index = 0;
 static int do_tag = 0;
 static int long_v6 = 0;
 static int printPlain = 0;
-static double duration = 0;
+
+// 2^64 ms = 500M years
+static uint64_t duration_ms = 0;
+
+#define duration_double() (((double) duration_ms)/1000.0)
 
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
@@ -355,6 +359,8 @@ static void String_outServiceID(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_natString(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_Line(FILE *stream, recordHandle_t *recordHandle);
+
 static struct format_entry_s {
     char *token;                        // token
     int is_address;                     // is an IP address
@@ -362,6 +368,8 @@ static struct format_entry_s {
     string_function_t string_function;  // function generation output string
 } formatTable[] = {
     // fmt format table
+    {"%L", 0, "Basic flow data", String_Line},      // basic flow data - same as %td %pr %sap -> %dap %pkt %byt %fl
+
     {"%nfv", 0, "Ver", String_Version},      // netflow version
     {"%cnt", 0, "Count", String_FlowCount},  // flow count
     {"%eng", 0, " engine", String_Engine},   // Engine Type/ID
@@ -641,13 +649,13 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
     tag_string[0] = do_tag ? TAG_CHAR : '\0';
     tag_string[1] = '\0';
 
-    duration = 0;
+    duration_ms = 0;
     if (genericFlow && genericFlow->msecFirst && genericFlow->msecLast) {
         if (genericFlow->msecLast >= genericFlow->msecFirst) {
-            duration = (genericFlow->msecLast - genericFlow->msecFirst) / 1000.0;
+            duration_ms = genericFlow->msecLast - genericFlow->msecFirst;
         } else {
             LogError("Record: %u Time error - last < first", recordHandle->flowCount);
-            duration = 0;
+            duration_ms = 0;
         }
     }
 
@@ -656,10 +664,10 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
             token_list[i].string_function(stream, recordHandle);
         }
         if (token_list[i].string_buffer) {
-            fprintf(stream, "%s", token_list[i].string_buffer);
+            fputs(token_list[i].string_buffer, stream);
         }
     }
-    fprintf(stream, "\n");
+    fputc('\n', stream);
 
 }  // End of fmt_record
 
@@ -1227,15 +1235,15 @@ static void String_EventTime(FILE *stream, recordHandle_t *recordHandle) {
 
 static void String_Duration(FILE *stream, recordHandle_t *recordHandle) {
     if (printPlain) {
-        fprintf(stream, "%16.3f", duration);
+        fprintf(stream, "%12lu.%03lu", duration_ms / 1000, duration_ms % 1000);
     } else {
-        char *s = DurationString(duration);
+        char *s = DurationString(duration_double());
         fprintf(stream, "%s", s);
     }
 }  // End of String_Duration
 
 static void String_Duration_Seconds(FILE *stream, recordHandle_t *recordHandle) {
-    fprintf(stream, "%16.3f", duration);
+   fprintf(stream, "%12lu.%03lu", duration_ms / 1000, duration_ms % 1000);
 }  // End of String_Duration_Seconds
 
 static void String_Protocol(FILE *stream, recordHandle_t *recordHandle) {
@@ -1251,8 +1259,8 @@ static void String_SrcAddr(FILE *stream, recordHandle_t *recordHandle) {
     char tmp_str[IP_STRING_LEN];
     tmp_str[0] = 0;
     if (ipv4Flow) {
-        uint32_t ip = htonl(ipv4Flow->srcAddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        uint32_t ip = ipv4Flow->srcAddr;
+        snprintf(tmp_str, IP_STRING_LEN, "%u.%u.%u.%u", ip >> 24, (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
     } else if (ipv6Flow) {
         uint64_t ip[2];
         ip[0] = htonll(ipv6Flow->srcAddr[0]);
@@ -1280,8 +1288,8 @@ static void String_SrcGeoAddr(FILE *stream, recordHandle_t *recordHandle) {
     char tmp_str[IP_STRING_LEN];
     tmp_str[0] = 0;
     if (ipv4Flow) {
-        uint32_t ip = htonl(ipv4Flow->srcAddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        uint32_t ip = ipv4Flow->srcAddr;
+        snprintf(tmp_str, IP_STRING_LEN, "%u.%u.%u.%u", ip >> 24, (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
         if (recordHandle->geo[0] == '\0') LookupV4Country(ipv4Flow->srcAddr, recordHandle->geo);
     } else if (ipv6Flow) {
         uint64_t ip[2];
@@ -1316,8 +1324,8 @@ static void String_SrcAddrPort(FILE *stream, recordHandle_t *recordHandle) {
     char portChar;
     tmp_str[0] = 0;
     if (ipv4Flow) {
-        uint32_t ip = htonl(ipv4Flow->srcAddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        uint32_t ip = ipv4Flow->srcAddr;
+        snprintf(tmp_str, IP_STRING_LEN, "%u.%u.%u.%u", ip >> 24, (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
         portChar = ':';
     } else if (ipv6Flow) {
         uint64_t ip[2];
@@ -1351,8 +1359,8 @@ static void String_SrcAddrGeoPort(FILE *stream, recordHandle_t *recordHandle) {
     char portChar;
     tmp_str[0] = 0;
     if (ipv4Flow) {
-        uint32_t ip = htonl(ipv4Flow->srcAddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        uint32_t ip = ipv4Flow->srcAddr;
+        snprintf(tmp_str, IP_STRING_LEN, "%u.%u.%u.%u", ip >> 24, (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
         if (recordHandle->geo[0] == '\0') LookupV4Country(ipv4Flow->srcAddr, recordHandle->geo);
         portChar = ':';
     } else if (ipv6Flow) {
@@ -1387,8 +1395,8 @@ static void String_DstAddr(FILE *stream, recordHandle_t *recordHandle) {
     char tmp_str[IP_STRING_LEN];
     tmp_str[0] = 0;
     if (ipv4Flow) {
-        uint32_t ip = htonl(ipv4Flow->dstAddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        uint32_t ip = ipv4Flow->dstAddr;
+        snprintf(tmp_str, IP_STRING_LEN, "%u.%u.%u.%u", ip >> 24, (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
     } else if (ipv6Flow) {
         uint64_t ip[2];
         ip[0] = htonll(ipv6Flow->dstAddr[0]);
@@ -1416,8 +1424,8 @@ static void String_DstGeoAddr(FILE *stream, recordHandle_t *recordHandle) {
     char tmp_str[IP_STRING_LEN];
     tmp_str[0] = 0;
     if (ipv4Flow) {
-        uint32_t ip = htonl(ipv4Flow->dstAddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        uint32_t ip = ipv4Flow->dstAddr;
+        snprintf(tmp_str, IP_STRING_LEN, "%u.%u.%u.%u", ip >> 24, (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
         if (recordHandle->geo[2] == '\0') LookupV4Country(ipv4Flow->dstAddr, &recordHandle->geo[2]);
     } else if (ipv6Flow) {
         uint64_t ip[2];
@@ -1451,8 +1459,8 @@ static void String_DstAddrPort(FILE *stream, recordHandle_t *recordHandle) {
     char portChar;
     tmp_str[0] = 0;
     if (ipv4Flow) {
-        uint32_t ip = htonl(ipv4Flow->dstAddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        uint32_t ip = ipv4Flow->dstAddr;
+        snprintf(tmp_str, IP_STRING_LEN, "%u.%u.%u.%u", ip >> 24, (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
         portChar = ':';
     } else if (ipv6Flow) {
         uint64_t ip[2];
@@ -1485,8 +1493,8 @@ static void String_DstAddrGeoPort(FILE *stream, recordHandle_t *recordHandle) {
     char portChar;
     tmp_str[0] = 0;
     if (ipv4Flow) {
-        uint32_t ip = htonl(ipv4Flow->dstAddr);
-        inet_ntop(AF_INET, &ip, tmp_str, sizeof(tmp_str));
+        uint32_t ip = ipv4Flow->dstAddr;
+        snprintf(tmp_str, IP_STRING_LEN, "%u.%u.%u.%u", ip >> 24, (ip >> 16) & 0xff, (ip >> 8) & 0xff, ip & 0xff);
         if (recordHandle->geo[2] == '\0') LookupV4Country(ipv4Flow->dstAddr, &recordHandle->geo[2]);
         portChar = ':';
     } else if (ipv6Flow) {
@@ -2084,8 +2092,8 @@ static void String_bps(FILE *stream, recordHandle_t *recordHandle) {
     uint64_t inBytes = genericFlow ? genericFlow->inBytes : 0;
 
     uint64_t bps = 0;
-    if (duration) {
-        bps = ((inBytes << 3) / duration);  // bits per second. ( >> 3 ) -> * 8 to convert octets into bits
+    if (duration_ms) {
+        bps = ((inBytes << 3) / duration_double());  // bits per second. ( >> 3 ) -> * 8 to convert octets into bits
     }
 
     numStr bpsString;
@@ -2099,8 +2107,8 @@ static void String_pps(FILE *stream, recordHandle_t *recordHandle) {
     uint64_t inPackets = genericFlow ? genericFlow->inPackets : 0;
 
     uint64_t pps = 0;
-    if (duration) {
-        pps = inPackets / duration;  // packets per second
+    if (duration_ms) {
+        pps = inPackets / duration_double();  // packets per second
     }
 
     numStr ppsString;
@@ -2593,3 +2601,82 @@ static void String_natString(FILE *stream, recordHandle_t *recordHandle) {
 
     fprintf(stream, "%s", natString ? natString : "<unknown>");
 }  // End of String_natString
+
+static void String_Line(FILE *stream, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
+    EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
+
+    // %td
+    if (printPlain) {    
+        fprintf(stream, "%12lu.%03lu ", duration_ms / 1000, duration_ms % 1000);
+    } else {
+        char *s = DurationString(duration_double());
+        fprintf(stream, "%s ", s);
+    }
+    
+    // %pr
+    uint8_t proto = genericFlow ? genericFlow->proto : 0;
+    
+    // %sap
+    uint16_t port_src = genericFlow ? genericFlow->srcPort : 0;
+
+    char tmp_str_src[IP_STRING_LEN], tmp_str_dst[IP_STRING_LEN];
+    char portChar;    
+    
+    if (ipv4Flow) {
+        uint32_t ip_src = ipv4Flow->srcAddr;
+        snprintf(tmp_str_src, IP_STRING_LEN, "%u.%u.%u.%u", ip_src >> 24, (ip_src >> 16) & 0xff, (ip_src >> 8) & 0xff, ip_src & 0xff);
+
+        uint32_t ip_dst = ipv4Flow->srcAddr;
+        snprintf(tmp_str_dst, IP_STRING_LEN, "%u.%u.%u.%u", ip_dst >> 24, (ip_dst >> 16) & 0xff, (ip_dst >> 8) & 0xff, ip_dst & 0xff);
+
+        portChar = ':';                
+    } else if (ipv6Flow) {
+        uint64_t ip[2];
+
+        tmp_str_src[0] = 0;
+        tmp_str_dst[0] = 0;
+
+        ip[0] = htonll(ipv6Flow->srcAddr[0]);
+        ip[1] = htonll(ipv6Flow->srcAddr[1]);
+        inet_ntop(AF_INET6, ip, tmp_str_src, sizeof(tmp_str_src));
+
+        ip[0] = htonll(ipv6Flow->dstAddr[0]);
+        ip[1] = htonll(ipv6Flow->dstAddr[1]);
+        inet_ntop(AF_INET6, ip, tmp_str_dst, sizeof(tmp_str_dst));
+        
+        if (!long_v6) {
+            CondenseV6(tmp_str_src);
+            CondenseV6(tmp_str_dst);
+        }
+        portChar = '.';
+    } else {
+        strcpy(tmp_str_src, "0.0.0.0");
+        strcpy(tmp_str_dst, "0.0.0.0");
+        portChar = ':';
+    }
+    tmp_str_src[IP_STRING_LEN - 1] = 0;
+    tmp_str_dst[IP_STRING_LEN - 1] = 0;
+
+    // %pkt    
+    uint64_t packets = genericFlow ? genericFlow->inPackets : 0;
+    numStr packetString;    
+    format_number(packets, packetString, printPlain, FIXED_WIDTH);
+
+    // %byt
+    uint64_t bytes = genericFlow ? genericFlow->inBytes : 0;
+    numStr byteString;
+    format_number(bytes, byteString, printPlain, FIXED_WIDTH);
+
+    // %fl
+    EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
+    uint64_t flows = cntFlow ? cntFlow->flows : 1;
+
+    fprintf(stream, long_v6 ? "%-5s %s%39s%c%-5i -> %s%39s%c%-5s %8s %8s %5llu" :
+                              "%-5s %s%16s%c%-5i -> %s%16s%c%-5s %8s %8s %5llu",
+            ProtoString(proto, printPlain),
+            tag_string, tmp_str_src, portChar, port_src,
+            tag_string, tmp_str_dst, portChar, ICMP_Port_decode(genericFlow),
+            packetString, byteString, (unsigned long long) flows);
+} 
