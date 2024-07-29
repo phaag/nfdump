@@ -154,7 +154,7 @@ void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, int tag) {
     *--streamPtr = '\n';
     *++streamPtr = '\0';
 
-    if (unlikely((streamPtr - buff) > BUFFSIZE)) {
+    if (unlikely((buff + BUFFSIZE - streamPtr) < 100)) {
         LogError("csv_record_fast() error in %s line %d: %s", __FILE__, __LINE__, "memory corruption");
         exit(EXIT_FAILURE);
     }
