@@ -1286,6 +1286,7 @@ int main(int argc, char **argv) {
                 nfprof_print(&profile_data, stdout);
                 break;
             case MODE_CSV:
+            case MODE_CSV_FAST:
                 break;
             case MODE_JSON:
                 break;

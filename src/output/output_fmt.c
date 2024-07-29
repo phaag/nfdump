@@ -878,9 +878,10 @@ static void String_FirstSeen(FILE *stream, recordHandle_t *recordHandle) {
 
     if (msecFirst) {
         time_t tt = msecFirst / 1000LL;
-        struct tm *ts = localtime(&tt);
+        struct tm ts;
+        localtime_r(&tt, &ts);
         char s[128];
-        strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         fprintf(stream, "%s.%03u", s, (unsigned)(msecFirst % 1000LL));
     } else {
@@ -896,9 +897,10 @@ static void String_LastSeen(FILE *stream, recordHandle_t *recordHandle) {
 
     if (msecLast) {
         time_t tt = msecLast / 1000LL;
-        struct tm *ts = localtime(&tt);
+        struct tm ts;
+        localtime_r(&tt, &ts);
         char s[128];
-        strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         fprintf(stream, "%s.%03u", s, (unsigned)(msecLast % 1000LL));
     } else {
@@ -914,9 +916,10 @@ static void String_Received(FILE *stream, recordHandle_t *recordHandle) {
 
     if (msecReceived) {
         time_t tt = msecReceived / 1000LL;
-        struct tm *ts = localtime(&tt);
+        struct tm ts;
+        localtime_r(&tt, &ts);
         char s[128];
-        strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         fprintf(stream, "%s.%03llu", s, msecReceived % 1000LL);
     } else {
@@ -1214,9 +1217,10 @@ static void String_EventTime(FILE *stream, recordHandle_t *recordHandle) {
 
     if (msecEvent) {
         time_t tt = msecEvent / 1000LL;
-        struct tm *ts = localtime(&tt);
+        struct tm ts;
+        localtime_r(&tt, &ts);
         char s[128];
-        strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         fprintf(stream, "%s.%03llu", s, msecEvent % 1000LL);
     } else {

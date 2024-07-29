@@ -29,6 +29,7 @@
  */
 
 #include <arpa/inet.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
 #include <stddef.h>
@@ -72,12 +73,17 @@ static uint32_t recordCount;
         *streamPtr++ = ',';                               \
     } while (0)
 
+#define BUFFSIZE 1014
 static char *buff = NULL;
 
 void csv_prolog_fast(void) {
     // empty prolog
     recordCount = 0;
-    buff = malloc(4096);
+    buff = malloc(BUFFSIZE);
+    if (!buff) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
     buff[0] = '\0';
     printf("cnt,af,firstSeen,lastSeen,proto,srcAddr,srcPort,dstAddr,dstPort,srcAS,dstAS,input,output,flags,srcTos,packets,bytes\n");
 }  // End of csv_prolog_fast
@@ -148,6 +154,10 @@ void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, int tag) {
     *--streamPtr = '\n';
     *++streamPtr = '\0';
 
+    if (unlikely((streamPtr - buff) > BUFFSIZE)) {
+        LogError("csv_record_fast() error in %s line %d: %s", __FILE__, __LINE__, "memory corruption");
+        exit(EXIT_FAILURE);
+    }
     fputs(buff, stream);
 
 }  // End of csv_record_fast
