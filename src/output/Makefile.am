@@ -8,5 +8,7 @@ liboutput_a_SOURCES = output.c output.h \
 	output_fmt.c output_fmt.h output_json.c output_json.h \
 	output_raw.c output_raw.h
 
+EXTRA_DIST = itoa.c
+
 CLEANFILES = *.gch
 
