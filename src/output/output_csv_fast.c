@@ -34,6 +34,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -49,9 +50,35 @@
 // record counter
 static uint32_t recordCount;
 
+#include "itoa.c"
+
+#define AddString(s)               \
+    do {                           \
+        size_t len = strlen(s);    \
+        memcpy(streamPtr, s, len); \
+        streamPtr += len;          \
+        *streamPtr++ = ',';        \
+    } while (0)
+
+#define AddU64(u64)                                       \
+    do {                                                  \
+        streamPtr = itoa_u64((uint64_t)(u64), streamPtr); \
+        *streamPtr++ = ',';                               \
+    } while (0)
+
+#define AddU32(u32)                                       \
+    do {                                                  \
+        streamPtr = itoa_u32((uint32_t)(u32), streamPtr); \
+        *streamPtr++ = ',';                               \
+    } while (0)
+
+static char *buff = NULL;
+
 void csv_prolog_fast(void) {
     // empty prolog
     recordCount = 0;
+    buff = malloc(4096);
+    buff[0] = '\0';
     printf("cnt,af,firstSeen,lastSeen,proto,srcAddr,srcPort,dstAddr,dstPort,srcAS,dstAS,input,output,flags,srcTos,packets,bytes\n");
 }  // End of csv_prolog_fast
 
@@ -74,6 +101,8 @@ void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, int tag) {
 
     EXasRouting_t asNULL = {0};
     if (!asRouting) asRouting = &asNULL;
+
+    char *streamPtr = buff;
 
     int af = 0;
     char sa[IP_STRING_LEN], da[IP_STRING_LEN];
@@ -98,9 +127,27 @@ void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, int tag) {
         inet_ntop(AF_INET6, &dst, da, sizeof(da));
     }
 
-    fprintf(stream, "%u,%i,%" PRIu64 ",%" PRIu64 ",%u,%s,%u,%s,%u,%u,%u,%u,%u,%s,%u,%" PRIu64 ",%" PRIu64 "\n", ++recordCount, af,
-            genericFlow->msecFirst, genericFlow->msecLast, genericFlow->proto, sa, genericFlow->srcPort, da, genericFlow->dstPort, asRouting->srcAS,
-            asRouting->dstAS, flowMisc->input, flowMisc->output, FlagsString(genericFlow->proto == IPPROTO_TCP ? genericFlow->tcpFlags : 0),
-            genericFlow->srcTos, genericFlow->inPackets, genericFlow->inBytes);
+    AddU32(++recordCount);
+    AddU32(af);
+    AddU64(genericFlow->msecFirst);
+    AddU64(genericFlow->msecLast);
+    AddU32(genericFlow->proto);
+    AddString(sa);
+    AddU32(genericFlow->srcPort);
+    AddString(da);
+    AddU32(genericFlow->dstPort);
+    AddU32(asRouting->srcAS);
+    AddU32(asRouting->dstAS);
+    AddU32(flowMisc->input);
+    AddU32(flowMisc->output);
+    AddString(FlagsString(genericFlow->proto == IPPROTO_TCP ? genericFlow->tcpFlags : 0));
+    AddU32(genericFlow->srcTos);
+    AddU64(genericFlow->inPackets);
+    AddU64(genericFlow->inBytes);
+
+    *--streamPtr = '\n';
+    *++streamPtr = '\0';
+
+    fputs(buff, stream);
 
 }  // End of csv_record_fast
