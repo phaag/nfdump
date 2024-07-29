@@ -1435,6 +1435,7 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                     switch (outputParams->mode) {
                         case MODE_NULL:
                         case MODE_RAW:
+                        case MODE_CSV_FAST:
                             break;
                         case MODE_FMT:
                             PrintStatLine(sum_stat, outputParams, &topN_element_list[index], type, StatRequest[hash_num].order_proto,

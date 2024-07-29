@@ -73,13 +73,13 @@ static uint32_t recordCount;
         *streamPtr++ = ',';                               \
     } while (0)
 
-#define BUFFSIZE 1014
+#define STREAMBUFFSIZE 1014
 static char *buff = NULL;
 
 void csv_prolog_fast(void) {
     // empty prolog
     recordCount = 0;
-    buff = malloc(BUFFSIZE);
+    buff = malloc(STREAMBUFFSIZE);
     if (!buff) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(EXIT_FAILURE);
@@ -154,8 +154,8 @@ void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, int tag) {
     *--streamPtr = '\n';
     *++streamPtr = '\0';
 
-    if (unlikely((streamPtr - buff) > BUFFSIZE)) {
-        LogError("csv_record_fast() error in %s line %d: %s", __FILE__, __LINE__, "memory corruption");
+    if (unlikely((buff + STREAMBUFFSIZE - streamPtr) < 100)) {
+        LogError("csv_record_fast() error in %s line %d: %s", __FILE__, __LINE__, "buffer error");
         exit(EXIT_FAILURE);
     }
     fputs(buff, stream);
