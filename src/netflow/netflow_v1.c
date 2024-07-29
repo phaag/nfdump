@@ -135,19 +135,12 @@ static inline exporter_v1_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *
         LogError("Process_v1: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
-    memset((void *)(*e), 0, sizeof(exporter_v1_t));
-    (*e)->next = NULL;
-    (*e)->info.header.type = ExporterInfoRecordType;
-    (*e)->info.header.size = sizeof(exporter_info_record_t);
-    (*e)->info.version = version;
-    (*e)->info.id = 0;
-    (*e)->info.ip = fs->ip;
-    (*e)->info.sa_family = fs->sa_family;
-    (*e)->info.sysid = 0;
-    (*e)->packets = 0;
-    (*e)->flows = 0;
-    (*e)->sequence_failure = 0;
-
+    (**e) = (exporter_v1_t){.info = {.header = {.type = ExporterInfoRecordType, .size = sizeof(exporter_info_record_t)},
+                                     .version = version,
+                                     .id = 0,
+                                     .ip = fs->ip,
+                                     .sa_family = fs->sa_family,
+                                     .sysid = 0}};
     char *ipstr = GetExporterIP(fs);
     if (fs->sa_family == PF_INET6) {
         (*e)->outRecordSize = baseRecordSize + EXipReceivedV6Size;
@@ -166,13 +159,10 @@ static inline exporter_v1_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *
 }  // End of getExporter
 
 void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
-    netflow_v1_header_t *v1_header;
-    exporter_v1_t *exporter;
-
     // map v1 data structure to input buffer
-    v1_header = (netflow_v1_header_t *)in_buff;
+    netflow_v1_header_t *v1_header = (netflow_v1_header_t *)in_buff;
 
-    exporter = getExporter(fs, v1_header);
+    exporter_v1_t *exporter = getExporter(fs, v1_header);
     if (!exporter) {
         LogError("Process_v1: NULL Exporter: Abort v1 record processing");
         return;

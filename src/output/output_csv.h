@@ -44,4 +44,10 @@ void csv_epilog(void);
 
 void csv_record(FILE *stream, recordHandle_t *recordHandle, int tag);
 
+void csv_prolog_fast(void);
+
+void csv_epilog_fast(void);
+
+void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, int tag);
+
 #endif  // _OUTPUT_CSV_H

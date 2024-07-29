@@ -105,6 +105,7 @@ static struct printmap_s {
                           {"json", MODE_JSON, NULL, "json output"},
                           {"json-log", MODE_JSON_LOG, NULL, "json output for logging"},
                           {"csv", MODE_CSV, FORMAT_CSV, "csv predefined"},
+                          {"csv-fast", MODE_CSV_FAST, NULL, "csv fast predefined"},
                           {"null", MODE_NULL, NULL, "do not print any output"},
 
                           // This is always the last line
@@ -119,6 +120,7 @@ static struct printerFunc_s {
                     [MODE_FMT] = {fmt_record, fmt_prolog, fmt_epilog},
                     [MODE_RAW] = {raw_record, raw_prolog, raw_epilog},
                     [MODE_CSV] = {csv_record, csv_prolog, csv_epilog},
+                    [MODE_CSV_FAST] = {csv_record_fast, csv_prolog_fast, csv_epilog_fast},
                     [MODE_JSON] = {flow_record_to_json_human, json_prolog, json_epilog},
                     [MODE_JSON_LOG] = {flow_record_to_json_log, json_prolog, json_epilog}};
 
