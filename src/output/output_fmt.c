@@ -2305,7 +2305,7 @@ static void String_SrcTor(FILE *stream, recordHandle_t *recordHandle) {
     } else {
         LookupV6Tor(ipv6Flow->srcAddr, genericFlow->msecFirst, genericFlow->msecLast, torInfo);
     }
-    fprintf(stream, "%2s", torInfo);
+    fprintf(stream, "%4s", torInfo);
 
 }  // End of String_SrcTor
 
@@ -2320,7 +2320,7 @@ static void String_DstTor(FILE *stream, recordHandle_t *recordHandle) {
     } else {
         LookupV6Tor(ipv6Flow->dstAddr, genericFlow->msecFirst, genericFlow->msecLast, torInfo);
     }
-    fprintf(stream, "%2s", torInfo);
+    fprintf(stream, "%4s", torInfo);
 
 }  // End of String_DstTor
 

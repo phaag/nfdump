@@ -1492,6 +1492,41 @@ static int AddPFNumber(char *type, uint16_t comp, uint64_t number) {
 
 static int AddIP(direction_t direction, char *IPstr) {
 
+	int ret = -1;
+
+	// if it's a tor node check
+	if (strcasecmp(IPstr, "tor") == 0 ) {
+		switch ( direction ) {
+		case DIR_SRC:
+			ret = Connect_OR(
+				NewElement(EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, 1, CMP_EQ, FUNC_TOR_LOOKUP, NULLPtr), 
+				NewElement(EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, 1, CMP_EQ, FUNC_TOR_LOOKUP, NULLPtr)
+			);
+			break;
+		case DIR_DST:
+			ret = Connect_OR(
+				NewElement(EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, 1, CMP_EQ, FUNC_TOR_LOOKUP, NULLPtr), 
+				NewElement(EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, 1, CMP_EQ, FUNC_TOR_LOOKUP, NULLPtr)
+			);
+			break;
+		case DIR_UNSPEC: {
+			int src = Connect_OR(
+				NewElement(EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, 1, CMP_EQ, FUNC_TOR_LOOKUP, NULLPtr), 
+				NewElement(EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, 1, CMP_EQ, FUNC_TOR_LOOKUP, NULLPtr)
+			);
+			int dst = Connect_OR(
+				NewElement(EXipv4FlowID, OFFdst4Addr, SIZEdst4Addr, 1, CMP_EQ, FUNC_TOR_LOOKUP, NULLPtr), 
+				NewElement(EXipv6FlowID, OFFdst6Addr, SIZEdst6Addr, 1, CMP_EQ, FUNC_TOR_LOOKUP, NULLPtr)
+			);
+			ret = Connect_OR(src,dst); 
+			} break;
+		default:
+			yyprintf("Invalid direction for tor lookup");
+		}
+		return ret;
+	} 
+
+	// else normal IP compare
 	int lookupMode = STRICT_IP;
 	switch ( direction ) {
 			case DIR_SRC:
@@ -1509,7 +1544,6 @@ static int AddIP(direction_t direction, char *IPstr) {
 		return -1;
 	}
 
-	int ret = -1;
 	switch ( direction ) {
 		case DIR_SRC:
 		case DIR_DST:

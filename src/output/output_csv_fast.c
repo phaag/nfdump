@@ -74,22 +74,24 @@ static uint32_t recordCount;
     } while (0)
 
 #define STREAMBUFFSIZE 1014
-static char *buff = NULL;
+static char *streamBuff = NULL;
 
 void csv_prolog_fast(void) {
     // empty prolog
     recordCount = 0;
-    buff = malloc(STREAMBUFFSIZE);
-    if (!buff) {
+    streamBuff = malloc(STREAMBUFFSIZE);
+    if (!streamBuff) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(EXIT_FAILURE);
     }
-    buff[0] = '\0';
+    streamBuff[0] = '\0';
     printf("cnt,af,firstSeen,lastSeen,proto,srcAddr,srcPort,dstAddr,dstPort,srcAS,dstAS,input,output,flags,srcTos,packets,bytes\n");
 }  // End of csv_prolog_fast
 
 void csv_epilog_fast(void) {
     // empty epilog
+    free(streamBuff);
+    streamBuff = NULL;
 }  // End of csv_epilog_fast
 
 void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, int tag) {
@@ -108,7 +110,8 @@ void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, int tag) {
     EXasRouting_t asNULL = {0};
     if (!asRouting) asRouting = &asNULL;
 
-    char *streamPtr = buff;
+    streamBuff[0] = '\0';
+    char *streamPtr = streamBuff;
 
     int af = 0;
     char sa[IP_STRING_LEN], da[IP_STRING_LEN];
@@ -154,10 +157,10 @@ void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, int tag) {
     *--streamPtr = '\n';
     *++streamPtr = '\0';
 
-    if (unlikely((buff + STREAMBUFFSIZE - streamPtr) < 100)) {
+    if (unlikely((streamBuff + STREAMBUFFSIZE - streamPtr) < 512)) {
         LogError("csv_record_fast() error in %s line %d: %s", __FILE__, __LINE__, "buffer error");
         exit(EXIT_FAILURE);
     }
-    fputs(buff, stream);
+    fputs(streamBuff, stream);
 
 }  // End of csv_record_fast

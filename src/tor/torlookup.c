@@ -350,7 +350,7 @@ int main(int argc, char **argv) {
             *eol = '\0';
 
             // split ' ' separated words and check, if it's an IPv4/v6
-            char *sep = " ";
+            char *sep = " (";
             char *word, *brkt;
             word = strtok_r(line, sep, &brkt);
             while (word) {

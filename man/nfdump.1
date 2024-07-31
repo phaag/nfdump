@@ -880,7 +880,12 @@ is not specified with
 .Cm src
 or
 .Cm dst
-the source or destination IP may match.
+the source or destination IP may match. If 
+.Ar ipaddr
+is set to
+.Cm tor
+then flows are listed, if the respective ip addr is a to tor exit not. For this filter
+to work, you need a working nftordb. 
 .It Cm host Ar ipaddr
 .Cm host
 is just a synonym for

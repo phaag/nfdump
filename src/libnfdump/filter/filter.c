@@ -48,6 +48,7 @@
 #include "ja4/ja4.h"
 #include "maxmind/maxmind.h"
 #include "sgregex.h"
+#include "tor/tor.h"
 #include "util.h"
 
 #define MAXBLOCKS 1024
@@ -109,6 +110,7 @@ static uint64_t mpls_exp_function(void *dataPtr, uint32_t length, data_t data, r
 static uint64_t mpls_any_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t torLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
 /* flow pre-processing functions */
 static void *ssl_preproc(uint32_t length, data_t data, recordHandle_t *handle);
@@ -133,7 +135,8 @@ static struct flow_procs_map_s {
                             [FUNC_MPLS_EXP] = {"mpls exp", mpls_exp_function},
                             [FUNC_MPLS_ANY] = {"mpls any", mpls_any_function},
                             [FUNC_PBLOCK] = {"pblock", pblock_function},
-                            [FUNC_MMAS_LOOKUP] = {"AS Lockup", mmASLookup_function},
+                            [FUNC_MMAS_LOOKUP] = {"AS Lookup", mmASLookup_function},
+                            [FUNC_TOR_LOOKUP] = {"TOR Lookup", torLookup_function},
                             {NULL, NULL}};
 
 static struct preprocess_s {
@@ -293,8 +296,25 @@ static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data,
         as = direction == OFFsrcAS ? LookupV6AS(ipv6Flow->srcAddr) : LookupV6AS(ipv6Flow->dstAddr);
     }
     *((uint32_t *)dataPtr) = as;
+
     return as;
 }  // End of mmASLookup_function
+
+static uint64_t torLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    if (!genericFlow) return 0;
+
+    uint64_t isTor = 0;
+    char info[4];
+    if (length == 4) {  // IPv4
+        uint32_t IPv4 = *((uint32_t *)dataPtr);
+        isTor = LookupV4Tor(IPv4, genericFlow->msecFirst, genericFlow->msecLast, info);
+    } else if (length == 16) {  // IPv6
+        isTor = LookupV6Tor((uint64_t *)dataPtr, genericFlow->msecFirst, genericFlow->msecLast, info);
+    }
+
+    return isTor;
+}  // End of torLookup_function
 
 static void *ssl_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
     const uint8_t *payload = (uint8_t *)(handle->extensionList[EXinPayloadID]);

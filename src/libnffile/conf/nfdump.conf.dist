@@ -23,6 +23,9 @@
 # fmt.newformat = "%ts ...."
 fmt.geolong = "%ts %td %pr %sc %gsap -> %dc %gdap %flg %pkt %byt %fl"
 
+# print long format with tor exit info
+fmt.tor = "%ts %td %pr %gsap %stor -> %gdap %dtor %flg %pkt %byt %fl"
+
 # Nokia NAT
 fmt.nokia = "%ts %te %flid %pr %sap -> %dap %isid %osid %nats"
 

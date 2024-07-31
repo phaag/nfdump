@@ -108,6 +108,7 @@ typedef enum {
     FUNC_MPLS_ANY,     // function code for matching any MPLS label
     FUNC_PBLOCK,       // function code for matching ports against pblock start
     FUNC_MMAS_LOOKUP,  // function code for optional maxmind AS lookup
+    FUNC_TOR_LOOKUP,   // function code for optional tor node  lookup
     FUNC_JA3,          // function code for ja3 calc
 } filterFunction_t;
 
@@ -115,14 +116,16 @@ typedef enum {
 
 /* Definition of the IP list node */
 struct IPListNode {
-    RB_ENTRY(IPListNode) entry;
+    RB_ENTRY(IPListNode)
+    entry;
     uint64_t ip[2];
     uint64_t mask[2];
 };
 
 /* Definition of the uint64_t list node */
 struct U64ListNode {
-    RB_ENTRY(U64ListNode) entry;
+    RB_ENTRY(U64ListNode)
+    entry;
     uint64_t value;
 };
 

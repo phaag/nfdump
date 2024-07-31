@@ -34,6 +34,7 @@
 #define _GNU_SOURCE
 
 #include <arpa/inet.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
 #include <stddef.h>
@@ -111,6 +112,9 @@ static uint32_t recordCount = 0;
         *streamPtr++ = ',';                               \
         *streamPtr++ = fs;                                \
     } while (0)
+
+#define STREAMBUFFSIZE 4096
+static char *streamBuff = NULL;
 
 static char *stringEXgenericFlow(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)extensionRecord;
@@ -767,13 +771,23 @@ static char *stringEXnokiaNatString(char *streamPtr, void *extensionRecord, cons
 }  // End of String_natString
 
 void json_prolog(void) {
+    streamBuff = malloc(STREAMBUFFSIZE);
+    if (!streamBuff) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+    streamBuff[0] = '\0';
+
     // open json
     printf("[\n");
 }  // End of json_prolog
 
 void json_epilog(void) {
     // close json
-    printf("]\n");
+    printf("\n]\n");
+
+    free(streamBuff);
+    streamBuff = NULL;
 }  // End of json_epilog
 
 enum { FORMAT_LOG = 0, FORMAT_HUMAN };
@@ -783,45 +797,28 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
     // fs is Field Separator
     // rs is Record Separator
 
-    char ws;
-    char indent;
-    char fs;
-    char *rs;
-
-    if (type == FORMAT_LOG) {
-        ws = ' ';
-        indent = ' ';
-        fs = ' ';
-        rs = "\n";
-    } else {
-        ws = '\n';
-        indent = ' ';
-        fs = '\n';
-        rs = ",\n";
-    }
-
-    //  "", "", ",", "\n" - Log
-    //  "\n", "\t", ",\n", ",\n" - Human
     recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
 
-    char streamBuff[1024];
-    char *streamPtr = streamBuff;
     streamBuff[0] = '\0';
+    char *streamPtr = streamBuff;
 
-#define AddString(s)                                                \
-    do {                                                            \
-        for (int i = 0; (s)[i] != '\0'; i++) *streamPtr++ = (s)[i]; \
-    } while (0)
-
-    if (recordCount) {
-        AddString(rs);
+    char fs;
+    char indent = ' ';
+    if (type == FORMAT_LOG) {
+        fs = ' ';
+    } else {
+        fs = '\n';
     }
-    recordCount++;
+    if (recordCount != 0) {
+        *streamPtr++ = ',';
+        *streamPtr++ = '\n';
+    }
 
     *streamPtr++ = '{';
-    *streamPtr++ = ws;
+    *streamPtr++ = fs;
 
     char *typeString = TestFlag(recordHeaderV3->flags, V3_FLAG_EVENT) ? "EVENT" : "FLOW";
+    AddElementU32("cnt", ++recordCount);
     AddElementString("type", typeString);
     AddElementU32("export_sysid", recordHeaderV3->exporterID);
 
@@ -954,6 +951,11 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
     *streamPtr++ = fs;
     *streamPtr++ = '}';
     *streamPtr++ = '\0';
+
+    if (unlikely((streamBuff + STREAMBUFFSIZE - streamPtr) < 512)) {
+        LogError("json_record() error in %s line %d: %s", __FILE__, __LINE__, "buffer error");
+        exit(EXIT_FAILURE);
+    }
 
     fputs(streamBuff, stream);
 

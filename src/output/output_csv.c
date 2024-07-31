@@ -82,8 +82,8 @@ typedef char *(*string_function_t)(char *, recordHandle_t *);
         streamPtr = itoa_u32((uint32_t)(u32), streamPtr); \
     } while (0)
 
-#define STREAMBUFFSIZE 1014
-static char *buff = NULL;
+#define STREAMBUFFSIZE 4096
+static char *streamBuff = NULL;
 
 static struct token_list_s {
     string_function_t string_function;  // function printing result to stream
@@ -615,7 +615,8 @@ void csv_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
         free(p);
     }
 
-    char *streamPtr = buff;
+    streamBuff[0] = '\0';
+    char *streamPtr = streamBuff;
     duration = 0;
     if (genericFlow && genericFlow->msecFirst && genericFlow->msecLast) {
         if (genericFlow->msecLast >= genericFlow->msecFirst) {
@@ -633,30 +634,32 @@ void csv_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
         if (token_list[i].string_function) {
             streamPtr = token_list[i].string_function(streamPtr, recordHandle);
         }
-        if (unlikely((buff + STREAMBUFFSIZE - streamPtr) < 100)) {
-            LogError("csv_record_fast() error in %s line %d: %s", __FILE__, __LINE__, "buffer error");
+        if (unlikely((streamBuff + STREAMBUFFSIZE - streamPtr) < 512)) {
+            LogError("csv_record() error in %s line %d: %s", __FILE__, __LINE__, "buffer error");
             exit(EXIT_FAILURE);
         }
     }
     AddChar('\n');
     AddChar('\0');
-    fputs(buff, stream);
+    fputs(streamBuff, stream);
 
 }  // End of csv_record
 
 void csv_prolog(void) {
-    buff = malloc(STREAMBUFFSIZE);
-    if (!buff) {
+    streamBuff = malloc(STREAMBUFFSIZE);
+    if (!streamBuff) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(EXIT_FAILURE);
     }
-    buff[0] = '\0';
+    streamBuff[0] = '\0';
 
     // header
     printf("%s\n", header_string);
 }  // End of csv_prolog
 
 void csv_epilog(void) {
+    free(streamBuff);
+    streamBuff = NULL;
     // empty
 }  // End of csv_epilog
 
