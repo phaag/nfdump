@@ -32,15 +32,17 @@ statistics allows **complex flow processing**. Pre‐filtered and aggregated
 flow data may also be written back into a binary flow file, which again
 may be processed with nfdump
 
-**nfdump** can enrich the listing of flows with **geo location** information and
-**AS** information, unless AS information is already available in the flow
-records. IP addresses can be tagged with a two letter **country code**, or
-with a longer location label containing the geographic region, country
-and city.  The geo location and AS information is retrieved from the
-optional **geoDB** database, created by the geolookup program from the nfdump
+**nfdump** can enrich the listing of flows with **geo location** information,
+**AS** information and **TOR** exit node information. AS information is enriched only, 
+if it is not available in the original flow record. IP addresses can be tagged with a 
+two letter **country code**, or with a longer location label containing the geographic
+region, country and city.  The geo location and AS information is retrieved from the
+optional **geoDB** database, created by the **geolookup** program from the nfdump
 tools.  geolookup uses the **Maxmind** database GeoDB or GeoLite2 to create a
-binary lookup database for nfdump Please check the geolooup(1) man page
-for more details.
+binary lookup database for nfdump. Please check the <u>geolooup</u>(1) man page
+for more details. IP adresses can be tagged as **TOR** exit nodes, from the optional 
+**torDB** database, created by the **torlookup** program. Please chaeck the <u>torlookup</u>(1)
+man page for details.
 
 There is also a [go-nfdump](https://github.com/phaag/go-nfdump) module to read nfdump flows files in Golang. 
 
@@ -50,23 +52,24 @@ created with nfdump-1.6.18 or newer. Flow files created with earlier nfdump
 versions may not contain all flow elements. If you have older files, it is
 recommended to use nfdump-1.6.17 to update the records.
 
-Nfdump 1.7.x provides the same set of programs as 1.6.x and can be used almost
-as a drop-in replacement. This may change in future and older legacy programs
-may be removed. You can convert any old files from nfdump-1.6 to nfdump-1.7
+If you have lots of flows files from nfdump-1.6.x, it is recommended to convert
+these to the new format. You can convert any old files from nfdump-1.6.x to nfdump-1.7
 format by reading/writing files: __./nfdump -r old-flowfile -y -w new-flowfile__
 
-Please note, that only __nfdump__ may read older flow files. All other programs relay on the new file format.
+Please note, that only __nfdump__ may read nfdump-1.6.x flow files. All other programs understand
+the new file format only.
 
-Note for NfSen users:  If you use NfSen, you must upgrade NfSen to the latest Github version https://github.com/phaag/nfsen. All specific binaries such as nfprofile and nftrack are still available with nfdump-1.7 but may be removed in future.
+Note for NfSen users:  If you use NfSen, you must upgrade NfSen to the latest Github version https://github.com/phaag/nfsen. 
+All specific binaries such as nfprofile and nftrack are still available with nfdump-1.7 but may be removed in future.
 
 ### Improvements 
-- nfdump is now a multi-threaded program and uses parallel threads mainly for
+- **nfdump** is now a multi-threaded program and uses parallel threads mainly for
 reading, writing and processing flows as well as for sorting. This may result
 in faster flow processing, depending on the tasks. The speedimprovement 
 also heavily depends on the hardware (SSD/HD) and flow compression
 option. 
 
-- For netflow v9 and IPFIX, nfdump now supports flexible length fields. This
+- For netflow v9 and IPFIX, nfdump now supports **FNF** and flexible length fields. This
 improves compatibility with some exporters such as yaf and others.
 
 - Support for Cisco Network Based Application Recognition (NBAR).
@@ -74,6 +77,8 @@ improves compatibility with some exporters such as yaf and others.
 - Supports Maxmind geo location information to tag/geolocate IP addresses
   and AS numbers.
 
+- Supports TOR exit node information to IP addresses as TOR exit nodes.
+  
 - nfpcapd automatically uses TPACKET_V3 for Linux or direct BPF sockets for
   *BSD. This improves packet processing. It adds new options to collect MAC and
   VLAN information if requested as well as the payload of the first packet. This
@@ -85,17 +90,32 @@ improves compatibility with some exporters such as yaf and others.
 - Metric exports: By default, every 60s a flow summary statistics  can be sent
   to a UNIX socket. The corresponding program may be [nfinflux](https://github.com/phaag/nfinflux) to insert 
   these metrics into an influxDB or [nfexporter](https://github.com/phaag/nfexporter) for Prometheus monitoring.
+  
+- nfdump supports a default config file tipically */usr/local/etc/nfdump.conf* to
+  store user defined paths for the **geolookup** and **torlookup** database files as well as for 
+  user defined named output formats *( -o 'fmt:%ts .. ', -o 'csv:%ts ..')*. See the default
+  */usr/local/etc/nfdump.conf.dist* file for an example.
 
-### New programs
-The nfdump program suite has been extended by __geolookup__. It allows either
+### Additional programs
+The nfdump program suite also contains __geolookup__. It allows either
 to enrich IP addresses by country codes/locations and may add potential
-missing AS information. Flows may be filtered according to country codes.
-geolookup may also be used as standalone program to lookup IPs for AS/Geo
-information, similar to the famous Team Cymru whois service. geolookup uses a
-local database, which allows to process as many requests as you have.
+missing AS information. Flows may be filtered according to country codes. 
+*( ex: **src geo US** )*. geolookup may also be used as standalone program to lookup 
+IPs for AS/Geo information, similar to the famous Team Cymru whois service. 
+geolookup uses a local database, which allows to process as many requests as you have.
 In order to use geolookup, you need either a free or paid Maxmind account
 in order to convert the Maxmind .csv files into an nfdump vector data file. 
 __geolookup__ needs to be enabled when running configure: __--enable-maxmind__
+
+The nfdump program suite also contains __torlookup__. It allows either
+to enrich IP addresses by a TOR exit flag. Flows may be filtered according to
+TOR IP addresses *( ex: **src ip tor** )*. torlookup may also be used as standalone program
+to lookup IPs for TOR exit node intervals with as many requests as you have.
+In order to use torlookup or the nfdump output enrichment , you need to create the
+tordb first. See also the toorlookup(1) man page. __torlookup__ needs to be enabled when
+running configure: __--enable-tor__
+
+
 
 ---
 
@@ -154,8 +174,11 @@ Build sflow collector sfcapd; default is __NO__
 Build nfpcapd collector to create netflow data from interface traffic or precollected pcap traffic; default is __NO__
 * __--enable-maxmind__  
 Build geolookup program; default is __NO__
-*  __--enable-nsel__   
-Compile nfdump, to read and process NSEL/NEL event data; default is __NO__
+* __--enable-tor__  
+Build torlookup program; default is __NO__
+* __--enable-nsel__   
+  This switch is no longer needed for nfdump-1.7.x, as **nsel** support is builtin by default. This switch only affects 
+  the default output format from *line* to *nsel* and has no other effects otherwise; default is __NO__
 *  __--enable-jnat__   
 Compile nfdump, to read and process JunOS NAT event logging __NO__
 * __--with-zstdpath=PATH__
@@ -213,15 +236,21 @@ scfapd collects sflow data and stores it into nfcapd compatible files.
 __nfpcapd__ - pcap to netflow collector daemon  
 nfpcapd listens on a network interface, or reads precollected pcap traffic.
 It either stores locally flow records into nfcapd compatible files or sends
-the flows to a remote nfcapd collector. It is nfcapd's companion to convert
-traffic directly into nfdump records.
+the flows to a remote **nfcapd** collector. It is nfcapd's companion to convert
+traffic directly into nfdump records. Nfpcap can optionally integrate lots of 
+meta data as well as prt of the payload. ( *-o fat, payload*)
 
 __geolookup__ - Geo location lookup program.
 geolookup converts Maxmind's .csv files into the nfdump vector DB. The 
 converted DB may be used as a standalone lookup tool, or be be used by
 nfdump in order to automatically lookup country and location. 
-Please not: You need a legitimate Maxmind account (free or paid) in 
+Please note: You need a legitimate Maxmind account (free or paid) in 
 order to download the files.
+
+__torlookup__ - TOR location lookup program.
+torlookup converts tor information files into the nfdump vector DB. The 
+converted DB may be used as a standalone lookup tool, or be be used by
+nfdump in order to automatically flag tor exit node IPs. 
 
 __ft2nfdump__ - flow-tools flow converter  
 ft2nfdump converts flow-tools data into nfdump format. 
@@ -266,8 +295,7 @@ If no option is given and no library is found that compression algorithm is disa
 
 **Recommendation**
 
-If you compress automatically flows while they are collected, use LZ4 **-z=lz4**
-as a standard. 
+If you compress automatically flows while they are collected, use LZ4 **-z=lz4** as a standard. 
 
 **Notes**: Bzip2 uses about 30 times more CPU than LZO1X-1. Use bzip2 to archive netflow
 data, which may reduce the disk usage again by a factor of 2. The compression of flow files 
@@ -435,7 +463,7 @@ Listen on eth0 and forward flow data to nfcapd running on a remote host. Add tun
 nfpcapd -D -S 2 -H 192.168.168.40 -i eth0 -e 60,30 -o fat,payload -u daemon -g daemon
 ```
 
-In order to evaluate the payload, nfdump has some rudimentory payload decoder for DNS, ja3, ja3s and a few other.
+In order to evaluate the payload, nfdump has some simple payload decoders for DNS, ja3, ja3s, ja4 and a few other.
 
 Alternatively nfpcapd can also convert existing cap files into flow data:
 
@@ -464,7 +492,5 @@ Note: Not all platforms (or vendor software versions) support exporting sampling
 in netflow data, even if sampling is configured. The number of bytes/packets in each 
 netflow record is automatically multiplied by the sampling rate. The total number of 
 flows is not changed as this is not accurate enough. (Small flows versus large flows)
-
-For more information, see the GitHub Wiki.
 
 If you like this project your company may consider sponsoring it :) https://github.com/sponsors/phaag

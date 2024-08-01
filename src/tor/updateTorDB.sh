@@ -92,5 +92,6 @@ fetch_files $NUM_MONTHS
 cd $cur
 
 echo Building nfdump tordb: $NFTORDB
-./torlookup -d $TMPDIR -w $NFTORDB && rm -rf $TMPDIR
+PATH=./:${PATH}
+torlookup -d $TMPDIR -w $NFTORDB && rm -rf $TMPDIR
 echo Done.

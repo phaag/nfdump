@@ -9,6 +9,10 @@ if MAXMIND
 dist_man_MANS += geolookup.1
 endif
 
+if TORLOOKUP
+dist_man_MANS += torlookup.1
+endif
+
 if SFLOW
 dist_man_MANS += sfcapd.1
 endif
