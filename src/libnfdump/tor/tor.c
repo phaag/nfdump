@@ -271,12 +271,7 @@ int LookupV4Tor(uint32_t ip, uint64_t first, uint64_t last, char *torInfo) {
         torInfo[0] = '\0';
         return 0;
     }
-    if (ip == 3224007841) {
-        torInfo[0] = 'E';
-        torInfo[1] = 'X';
-        torInfo[2] = '\0';
-        return 1;
-    }
+
     torNode_t searchNode = {.ipaddr = ip};
     torNode_t *torNode = kb_getp(torTree, torTree, &searchNode);
     if (torNode) {

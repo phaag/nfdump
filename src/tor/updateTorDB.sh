@@ -19,26 +19,27 @@ NUM_MONTHS=6
 EXIT_URL="https://collector.torproject.org/archive/exit-lists"
 
 # Usage info
-usage () {
-  echo "Usage : $1 [num]"
-  echo 'Fetch tor exit node list from last [num] months and create the nfdump tor lookup DB.'
-  echo '[num] is optional and defaults to 6 months'
-  exit
+usage() {
+	echo "Usage : $1 [num]"
+	echo 'Fetch tor exit node list from last [num] months and create the nfdump tor lookup DB.'
+	echo '[num] is optional and defaults to 6 months'
+	exit
 }
 
 # Fetch the tor files
 fetch_files() {
-    n=$(($1 -1 ))
-    current_year=$(date +"%Y")
-    current_month=$(date +"%m")
-    for i in $(seq $n 0); do
-        month=$(($current_month - $i))
-        year=$current_year
-        if [ $month -le 0 ]; then
-            month=$(($month + 12))
-            year=$(($current_year - 1))
-        fi
-        if [ $month -lt 10 ]; then
+	n=$(($1 - 1))
+	current_year=$(date +"%Y")
+	current_month=$(date +"%m")
+	for i in $(seq $n 0); do
+		# Add #0 to prevent '08' for month August to be interpreted octal and fail due to value too great for base
+		month=$((${current_month#0} - $i))
+		year=$current_year
+		while [ $month -le 0 ]; do
+			month=$(($month + 12))
+			year=$(($year - 1))
+		done
+		if [ $month -lt 10 ]; then
 			month="0${month}"
 		fi
 		/bin/echo -n "Fetch exit-list-$year-$month.tar.xz: .. "
@@ -50,39 +51,39 @@ fetch_files() {
 		else
 			/bin/echo failed.
 		fi
-    done
+	done
 }
 
-## 
+##
 # Main starts here
 ##
 
 if [ $# -gt 1 ]; then
-    usage $0
+	usage $0
 fi
 
 # Only accept numbers
 if [ $# -eq 1 ]; then
 	case $1 in
-    	''|*[!0-9]*)
-			echo "Argument not a positive number"
-			usage $0
-			;;
-    	*) 
-			NUM_MONTHS=$1
-			;;
+	'' | *[!0-9]*)
+		echo "Argument not a positive number"
+		usage $0
+		;;
+	*)
+		NUM_MONTHS=$1
+		;;
 	esac
 fi
 
-if [ $NUM_MONTHS -le 0 -o $NUM_MONTHS -gt 24 ]; then
-	echo "Number of months: $NUM_MONTHS out of 1..24"
+if [ $NUM_MONTHS -le 0 -o $NUM_MONTHS -gt 100 ]; then
+	echo "Number of months: $NUM_MONTHS out of 1..100"
 	exit
 fi
 
 echo "Get tor node exit list for the last $NUM_MONTHS months"
 
 # tmp data dir
-cur=`pwd`
+cur=$(pwd)
 test -d $TMPDIR && rm -rf $TMPDIR
 mkdir $TMPDIR
 
