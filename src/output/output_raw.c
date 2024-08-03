@@ -221,9 +221,9 @@ static void stringsEXipv4Flow(FILE *stream, recordHandle_t *recordHandle, void *
     LookupV4Location(ipv4Flow->srcAddr, sloc, 128);
     LookupV4Location(ipv4Flow->dstAddr, dloc, 128);
     fprintf(stream,
-            "  src addr     =   %16s%s%s%s\n"
-            "  dst addr     =   %16s%s%s%s\n",
-            as, strlen(sloc) ? ": " : "", sloc, stor, ds, strlen(dloc) ? ": " : "", dloc, dtor);
+            "  src addr     =   %16s%s%s%s%s\n"
+            "  dst addr     =   %16s%s%s%s%s\n",
+            as, strlen(sloc) ? ": " : "", sloc, strlen(stor) ? " - " : "", stor, ds, strlen(dloc) ? ": " : "", dloc, strlen(dtor) ? " - " : "", dtor);
 
 }  // End of stringsEXipv4Flow
 
@@ -328,8 +328,8 @@ static void stringsEXcntFlow(FILE *stream, void *extensionRecord) {
 static void stringsEXvLan(FILE *stream, void *extensionRecord) {
     EXvLan_t *vLan = (EXvLan_t *)extensionRecord;
     fprintf(stream,
-            "  src vlan     =              %5u\n"
-            "  dst vlan     =              %5u\n",
+            "  src vlan     =         %10u\n"
+            "  dst vlan     =         %10u\n",
             vLan->srcVlan, vLan->dstVlan);
 
 }  // End of stringsEXvLan
