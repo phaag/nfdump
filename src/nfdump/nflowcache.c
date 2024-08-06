@@ -49,6 +49,7 @@
 #include "blocksort.h"
 #include "config.h"
 #include "exporter.h"
+#include "filter/filter.h"
 #include "maxmind/maxmind.h"
 #include "memhandle.h"
 #include "nfdump.h"
@@ -1582,6 +1583,10 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
                                  RecordPrinter_t print_record, int ascending) {
     dbg_printf("Enter %s\n", __func__);
 
+    if (outputParams->postFilter) {
+        FilterSetParam(outputParams->postFilter, "out", outputParams->hasGeoDB);
+    }
+
     int max = maxindex;
     if (outputParams->topN && outputParams->topN < maxindex) max = outputParams->topN;
     for (int i = 0; i < max; i++) {
@@ -1618,7 +1623,11 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
             SwapRawFlow(genericFlow, ipv4Flow, ipv6Flow, flowMisc, cntFlow, asRouting);
         }
 
-        print_record(stdout, &recordHandle, outputParams->doTag);
+        if (outputParams->postFilter) {
+            if (FilterRecord(outputParams->postFilter, &recordHandle)) print_record(stdout, &recordHandle, outputParams->doTag);
+        } else {
+            print_record(stdout, &recordHandle, outputParams->doTag);
+        }
     }
 
 }  // End of PrintSortList

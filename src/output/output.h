@@ -50,6 +50,7 @@ typedef struct outputParams_s {
     bool hasTorDB;
     outputMode_t mode;
     int topN;
+    void *postFilter;
 } outputParams_t;
 
 RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams);

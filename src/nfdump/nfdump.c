@@ -712,6 +712,7 @@ int main(int argc, char **argv) {
     uint32_t limitRecords;
     char Ident[IDENTLEN];
     flist_t flist = {0};
+    void *postFilter = NULL;
 
 #ifdef DEVEL
     long nprocs = sysconf(_SC_NPROCESSORS_ONLN);
@@ -753,7 +754,7 @@ int main(int argc, char **argv) {
 
     Ident[0] = '\0';
     int c;
-    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:gH:hn:i:jf:qyz::r:v:w:J:M:NImO:R:XZt:TVv:W:x:o:")) != EOF) {
+    while ((c = getopt(argc, argv, "6aA:Bbc:C:D:E:G:s:gH:hn:i:jf:qyz::r:v:w:J:M:NImO:P:R:XZt:TVv:W:x:o:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -926,6 +927,10 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
             } break;
+            case 'P': {  // stat order by
+                CheckArgLen(optarg, 256);
+                postFilter = strdup(optarg);
+            } break;
             case 'R':
                 CheckArgLen(optarg, MAXPATHLEN);
                 if (!flist.multiple_files) {
@@ -1047,8 +1052,17 @@ int main(int argc, char **argv) {
     void *engine = CompileFilter(filter);
     if (!engine) exit(254);
 
+    if (postFilter) {
+        outputParams->postFilter = CompileFilter(postFilter);
+        if (!outputParams->postFilter) exit(254);
+    }
+
     if (fdump) {
         DumpEngine(engine);
+        if (outputParams->postFilter) {
+            printf("\nPost filter:\n");
+            DumpEngine(outputParams->postFilter);
+        }
         exit(EXIT_SUCCESS);
     }
 
