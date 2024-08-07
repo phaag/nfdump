@@ -838,12 +838,12 @@ static void stringsEXnokiaNatString(FILE *stream, void *extensionRecord) {
     fprintf(stream, "  nat String   = %-19s\n", natString);
 }  // End of stringsEXnokiaNatString
 
-void raw_prolog(void) {
+void raw_prolog(outputParams_t *outputParam) {
     // empty prolog
     recordCount = 0;
 }  // End of raw_prolog
 
-void raw_epilog(void) {
+void raw_epilog(outputParams_t *outputParam) {
     // empty epilog
 }  // End of raw_epilog
 

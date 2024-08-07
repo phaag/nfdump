@@ -186,7 +186,7 @@ static void usage(char *name) {
         "\t\t extended Even more information.\n"
         "\t\t csv      ',' separated, machine parseable output format.\n"
         "\t\t json     json output format.\n"
-        "\t\t json-log json log output format (one json record per line).\n"
+        "\t\t ndjson   ndjson log output format (one json object per line).\n"
         "\t\t null     no flow records, only statistics output.\n"
         "\t\t\tmode may be extended by '6' for full IPv6 listing. e.g.long6, extended6.\n"
         "-E <file>\tPrint exporter and sampling info for collected flows.\n"
@@ -1303,8 +1303,7 @@ int main(int argc, char **argv) {
             case MODE_CSV_FAST:
                 break;
             case MODE_JSON:
-                break;
-            case MODE_JSON_LOG:
+            case MODE_NDJSON:
                 break;
         }
 

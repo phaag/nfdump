@@ -672,12 +672,13 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
 
 }  // End of fmt_record
 
-void fmt_prolog(void) {
+void fmt_prolog(outputParams_t *outputParam) {
     // header
-    printf("%s\n", header_string);
+    if (outputParam->quiet == 0)
+        printf("%s\n", header_string);
 }  // End of fmt_prolog
 
-void fmt_epilog(void) {
+void fmt_epilog(outputParams_t *outputParam) {
     // empty
 }  // End of fmt_epilog
 

@@ -634,8 +634,8 @@ format. See the section
 below for more details on how to compile your own csv format.
 .It Cm json
 Print full record as a separate json object.
-.It Cm json-log
-Print full record as a one line separate json object. Suitable for log processors such as logstash.
+.It Cm ndjson
+Print full record as a one line json object, sepatated by newline. Suitable for log processors such as logstash.
 .It Cm csv
 Print reocrd in csv format - format compatible to fmt
 .Sy line
@@ -1564,7 +1564,7 @@ If comp is omitted, '==' is assumed.
 This section describes how output formats are compiled.
 .Nm
 has a lot of already pre-defined output formats such as
-.Ar raw, json, json-log, csv
+.Ar raw, json, ndjson, csv
 etc. One line formats supplied with option
 .Fl o
 can be compiled from various elements of a flow record. As a flow record contains many different

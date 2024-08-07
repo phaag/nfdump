@@ -28,10 +28,7 @@
  *
  */
 
-#include "config.h"
-
-// for asprintf prototype
-#define _GNU_SOURCE
+#include "output_json.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
@@ -46,13 +43,13 @@
 #include <sys/types.h>
 #include <time.h>
 
+#include "config.h"
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
 #include "maxmind/maxmind.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
-#include "output_json.h"
 #include "output_util.h"
 #include "userio.h"
 #include "util.h"
@@ -66,7 +63,8 @@ static uint32_t recordCount = 0;
 
 #define AddElementString(e, s)       \
     do {                             \
-        *streamPtr++ = indent;       \
+        *streamPtr++ = ' ';          \
+        *streamPtr++ = ' ';          \
         *streamPtr++ = '"';          \
         size_t len = strlen(e);      \
         memcpy(streamPtr, e, len);   \
@@ -80,12 +78,13 @@ static uint32_t recordCount = 0;
         const char *eoe = "\",";     \
         memcpy(streamPtr, eoe, 2);   \
         streamPtr += 2;              \
-        *streamPtr++ = fs;           \
+        *streamPtr++ = '\n';         \
     } while (0)
 
 #define AddElementU64(e, u64)                             \
     do {                                                  \
-        *streamPtr++ = indent;                            \
+        *streamPtr++ = ' ';                               \
+        *streamPtr++ = ' ';                               \
         *streamPtr++ = '"';                               \
         size_t len = strlen(e);                           \
         memcpy(streamPtr, e, len);                        \
@@ -95,12 +94,13 @@ static uint32_t recordCount = 0;
         streamPtr += 4;                                   \
         streamPtr = itoa_u64((uint64_t)(u64), streamPtr); \
         *streamPtr++ = ',';                               \
-        *streamPtr++ = fs;                                \
+        *streamPtr++ = '\n';                              \
     } while (0)
 
 #define AddElementU32(e, u32)                             \
     do {                                                  \
-        *streamPtr++ = indent;                            \
+        *streamPtr++ = ' ';                               \
+        *streamPtr++ = ' ';                               \
         *streamPtr++ = '"';                               \
         size_t len = strlen(e);                           \
         memcpy(streamPtr, e, len);                        \
@@ -110,13 +110,13 @@ static uint32_t recordCount = 0;
         streamPtr += 4;                                   \
         streamPtr = itoa_u32((uint32_t)(u32), streamPtr); \
         *streamPtr++ = ',';                               \
-        *streamPtr++ = fs;                                \
+        *streamPtr++ = '\n';                              \
     } while (0)
 
 #define STREAMBUFFSIZE 4096
 static char *streamBuff = NULL;
 
-static char *stringEXgenericFlow(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXgenericFlow(char *streamPtr, void *extensionRecord) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)extensionRecord;
 
     time_t when = (genericFlow->msecFirst / 1000LL);
@@ -136,11 +136,11 @@ static char *stringEXgenericFlow(char *streamPtr, void *extensionRecord, const c
     strftime(dateBuff3, 63, "%Y-%m-%dT%H:%M:%S", &ts);
 
     int len = sprintf(streamPtr,
-                      "%c\"first\" : \"%s.%03u\",%c"
-                      "%c\"last\" : \"%s.%03u\",%c"
-                      "%c\"received\" : \"%s.%03u\",%c",
-                      indent, dateBuff1, (unsigned)(genericFlow->msecFirst % 1000LL), fs, indent, dateBuff2,
-                      (unsigned)(genericFlow->msecLast % 1000LL), fs, indent, dateBuff3, (unsigned)(genericFlow->msecReceived % 1000LL), fs);
+                      "  \"first\" : \"%s.%03u\",\n"
+                      "  \"last\" : \"%s.%03u\",\n"
+                      "  \"received\" : \"%s.%03u\",\n",
+                      dateBuff1, (unsigned)(genericFlow->msecFirst % 1000LL), dateBuff2, (unsigned)(genericFlow->msecLast % 1000LL), dateBuff3,
+                      (unsigned)(genericFlow->msecReceived % 1000LL));
     streamPtr += len;
 
     AddElementU64("in_packets", genericFlow->inPackets);
@@ -164,7 +164,7 @@ static char *stringEXgenericFlow(char *streamPtr, void *extensionRecord, const c
 
 }  // End of stringEXgenericFlow
 
-static char *stringEXipv4Flow(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXipv4Flow(char *streamPtr, void *extensionRecord) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)extensionRecord;
 
     uint32_t src = htonl(ipv4Flow->srcAddr);
@@ -185,7 +185,7 @@ static char *stringEXipv4Flow(char *streamPtr, void *extensionRecord, const char
     return streamPtr;
 }  // End of stringEXipv4Flow
 
-static char *stringEXipv6Flow(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXipv6Flow(char *streamPtr, void *extensionRecord) {
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)extensionRecord;
 
     uint64_t src[2], dst[2];
@@ -209,7 +209,7 @@ static char *stringEXipv6Flow(char *streamPtr, void *extensionRecord, const char
     return streamPtr;
 }  // End of stringEXipv6Flow
 
-static char *stringEXflowMisc(char *streamPtr, recordHandle_t *recordHandle, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXflowMisc(char *streamPtr, recordHandle_t *recordHandle, void *extensionRecord) {
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)extensionRecord;
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
@@ -277,10 +277,10 @@ static char *stringEXflowMisc(char *streamPtr, recordHandle_t *recordHandle, voi
 
 }  // End of stringEXflowMisc
 
-static char *stringEXipInfo(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXipInfo(char *streamPtr, void *extensionRecord) {
     EXipInfo_t *ipInfo = (EXipInfo_t *)extensionRecord;
 
-    char flags[4] = "----";
+    char flags[4] = "--\0";
     if (ipInfo->fragmentFlags & flagDF) {
         flags[0] = 'D';
         flags[1] = 'F';
@@ -296,7 +296,7 @@ static char *stringEXipInfo(char *streamPtr, void *extensionRecord, const char i
     return streamPtr;
 }  // End of stringEXcntFlow
 
-static char *stringEXcntFlow(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXcntFlow(char *streamPtr, void *extensionRecord) {
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)extensionRecord;
 
     AddElementU64("out_packets", cntFlow->outPackets);
@@ -306,7 +306,7 @@ static char *stringEXcntFlow(char *streamPtr, void *extensionRecord, const char 
     return streamPtr;
 }  // End of stringEXcntFlow
 
-static char *stringEXvLan(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXvLan(char *streamPtr, void *extensionRecord) {
     EXvLan_t *vLan = (EXvLan_t *)extensionRecord;
 
     AddElementU32("src_vlan", vLan->srcVlan);
@@ -315,7 +315,7 @@ static char *stringEXvLan(char *streamPtr, void *extensionRecord, const char ind
     return streamPtr;
 }  // End of stringEXvLan
 
-static char *stringEXasRouting(char *streamPtr, recordHandle_t *recordHandle, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXasRouting(char *streamPtr, recordHandle_t *recordHandle, void *extensionRecord) {
     EXasRouting_t *asRouting = (EXasRouting_t *)extensionRecord;
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
@@ -329,7 +329,7 @@ static char *stringEXasRouting(char *streamPtr, recordHandle_t *recordHandle, vo
     return streamPtr;
 }  // End of stringEXasRouting
 
-static char *stringEXbgpNextHopV4(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXbgpNextHopV4(char *streamPtr, void *extensionRecord) {
     EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)extensionRecord;
 
     uint32_t i = htonl(bgpNextHopV4->ip);
@@ -343,7 +343,7 @@ static char *stringEXbgpNextHopV4(char *streamPtr, void *extensionRecord, const 
     return streamPtr;
 }  // End of stringEXbgpNextHopV4
 
-static char *stringEXbgpNextHopV6(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXbgpNextHopV6(char *streamPtr, void *extensionRecord) {
     EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)extensionRecord;
 
     uint64_t i[2];
@@ -360,7 +360,7 @@ static char *stringEXbgpNextHopV6(char *streamPtr, void *extensionRecord, const 
     return streamPtr;
 }  // End of stringEXbgpNextHopV6
 
-static char *stringEXipNextHopV4(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXipNextHopV4(char *streamPtr, void *extensionRecord) {
     EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)extensionRecord;
 
     uint32_t i = htonl(ipNextHopV4->ip);
@@ -374,7 +374,7 @@ static char *stringEXipNextHopV4(char *streamPtr, void *extensionRecord, const c
     return streamPtr;
 }  // End of stringEXipNextHopV4
 
-static char *stringEXipNextHopV6(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXipNextHopV6(char *streamPtr, void *extensionRecord) {
     EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)extensionRecord;
 
     uint64_t i[2];
@@ -391,7 +391,7 @@ static char *stringEXipNextHopV6(char *streamPtr, void *extensionRecord, const c
     return streamPtr;
 }  // End of stringEXipNextHopV6
 
-static char *stringEXipReceivedV4(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXipReceivedV4(char *streamPtr, void *extensionRecord) {
     EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)extensionRecord;
 
     uint32_t i = htonl(ipReceivedV4->ip);
@@ -405,7 +405,7 @@ static char *stringEXipReceivedV4(char *streamPtr, void *extensionRecord, const 
     return streamPtr;
 }  // End of stringEXipReceivedV4
 
-static char *stringEXipReceivedV6(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXipReceivedV6(char *streamPtr, void *extensionRecord) {
     EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)extensionRecord;
 
     uint64_t i[2];
@@ -421,18 +421,18 @@ static char *stringEXipReceivedV6(char *streamPtr, void *extensionRecord, const 
     return streamPtr;
 }  // End of stringEXipReceivedV6
 
-static char *stringEXmplsLabel(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXmplsLabel(char *streamPtr, void *extensionRecord) {
     EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)extensionRecord;
     for (int i = 0; i < 10; i++) {
-        int len = sprintf(streamPtr, "%c\"mpls_%u\" : \"%u-%u-%u\",%c", indent, i + 1, mplsLabel->mplsLabel[i] >> 4,
-                          (mplsLabel->mplsLabel[i] & 0xF) >> 1, mplsLabel->mplsLabel[i] & 1, fs);
+        int len = sprintf(streamPtr, "  \"mpls_%u\" : \"%u-%u-%u\",\n", i + 1, mplsLabel->mplsLabel[i] >> 4, (mplsLabel->mplsLabel[i] & 0xF) >> 1,
+                          mplsLabel->mplsLabel[i] & 1);
         streamPtr += len;
     }
 
     return streamPtr;
 }  // End of stringEXmplsLabel
 
-static char *stringEXmacAddr(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXmacAddr(char *streamPtr, void *extensionRecord) {
     EXmacAddr_t *macAddr = (EXmacAddr_t *)extensionRecord;
 
     uint8_t mac1[6], mac2[6], mac3[6], mac4[6];
@@ -443,20 +443,19 @@ static char *stringEXmacAddr(char *streamPtr, void *extensionRecord, const char 
         mac4[i] = (macAddr->outSrcMac >> (i * 8)) & 0xFF;
     }
 
-    int len =
-        sprintf(streamPtr,
-                "%c\"in_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"%c"
-                "%c\"out_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"%c"
-                "%c\"in_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"%c"
-                "%c\"out_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"%c",
-                indent, mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], fs, indent, mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0], fs,
-                indent, mac3[5], mac3[4], mac3[3], mac3[2], mac3[1], mac3[0], fs, indent, mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0], fs);
+    int len = sprintf(streamPtr,
+                      "  \"in_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"\n"
+                      "  \"out_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"\n"
+                      "  \"in_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"\n"
+                      "  \"out_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"\n",
+                      mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0], mac3[5], mac3[4],
+                      mac3[3], mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
     streamPtr += len;
 
     return streamPtr;
 }  // End of stringEXmacAddr
 
-static char *stringEXasAdjacent(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXasAdjacent(char *streamPtr, void *extensionRecord) {
     EXasAdjacent_t *asAdjacent = (EXasAdjacent_t *)extensionRecord;
 
     AddElementU32("next_as", asAdjacent->nextAdjacentAS);
@@ -465,7 +464,7 @@ static char *stringEXasAdjacent(char *streamPtr, void *extensionRecord, const ch
     return streamPtr;
 }  // End of stringEXasAdjacent
 
-static char *stringEXlatency(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXlatency(char *streamPtr, void *extensionRecord) {
     EXlatency_t *latency = (EXlatency_t *)extensionRecord;
 
     double f1, f2, f3;
@@ -474,16 +473,16 @@ static char *stringEXlatency(char *streamPtr, void *extensionRecord, const char 
     f3 = (double)latency->usecApplLatency / 1000.0;
 
     int len = sprintf(streamPtr,
-                      "%c\"cli_latency\" : %f,%c"
-                      "%c\"srv_latency\" : %f,%c"
-                      "%c\"app_latency\" : %f,%c",
-                      indent, f1, fs, indent, f2, fs, indent, f3, fs);
+                      "  \"cli_latency\" : %f,\n"
+                      "  \"srv_latency\" : %f,\n"
+                      "  \"app_latency\" : %f,\n",
+                      f1, f2, f3);
     streamPtr += len;
 
     return streamPtr;
 }  // End of stringEXlatency
 
-static char *string_payload(char *streamPtr, recordHandle_t *recordHandle, void *extensionRecord, const char indent, const char fs) {
+static char *string_payload(char *streamPtr, recordHandle_t *recordHandle, void *extensionRecord) {
     const uint8_t *payload = (const uint8_t *)extensionRecord;
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
@@ -510,13 +509,13 @@ static char *string_payload(char *streamPtr, recordHandle_t *recordHandle, void 
     if (ssl) {
         switch (ssl->tlsCharVersion[0]) {
             case 's':
-                len = sprintf(streamPtr, "%c\"tls\" : SSL%c,%c", indent, ssl->tlsCharVersion[1], fs);
+                len = sprintf(streamPtr, "  \"tls\" : SSL%c,\n", ssl->tlsCharVersion[1]);
                 break;
             case '1':
-                len = sprintf(streamPtr, "%c\"tls\" : TLS1.%c,%c", indent, ssl->tlsCharVersion[1], fs);
+                len = sprintf(streamPtr, "  \"tls\" : TLS1.%c,\n", ssl->tlsCharVersion[1]);
                 break;
             default:
-                len = sprintf(streamPtr, "%c\"tls\" : 0x%4x,%c", indent, ssl->tlsVersion, fs);
+                len = sprintf(streamPtr, "  \"tls\" : 0x%4x,\n", ssl->tlsVersion);
                 break;
         }
         streamPtr += len;
@@ -555,7 +554,7 @@ static char *string_payload(char *streamPtr, recordHandle_t *recordHandle, void 
     return streamPtr;
 }  // End of string_payload
 
-static char *stringEXtunIPv4(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXtunIPv4(char *streamPtr, void *extensionRecord) {
     EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)extensionRecord;
 
     uint32_t src = htonl(tunIPv4->tunSrcAddr);
@@ -571,7 +570,7 @@ static char *stringEXtunIPv4(char *streamPtr, void *extensionRecord, const char 
     return streamPtr;
 }  // End of stringEXtunIPv4
 
-static char *stringEXtunIPv6(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXtunIPv6(char *streamPtr, void *extensionRecord) {
     EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)extensionRecord;
 
     uint64_t src[2];
@@ -591,7 +590,7 @@ static char *stringEXtunIPv6(char *streamPtr, void *extensionRecord, const char 
     return streamPtr;
 }  // End of stringEXtunIPv6
 
-static char *stringEXobservation(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXobservation(char *streamPtr, void *extensionRecord) {
     EXobservation_t *observation = (EXobservation_t *)extensionRecord;
 
     AddElementU32("observationDomainID", observation->domainID);
@@ -600,7 +599,7 @@ static char *stringEXobservation(char *streamPtr, void *extensionRecord, const c
     return streamPtr;
 }  // End of stringEXobservation
 
-static char *stringEXvrf(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXvrf(char *streamPtr, void *extensionRecord) {
     EXvrf_t *vrf = (EXvrf_t *)extensionRecord;
 
     AddElementU32("ingress_vrf", vrf->ingressVrf);
@@ -609,7 +608,7 @@ static char *stringEXvrf(char *streamPtr, void *extensionRecord, const char inde
     return streamPtr;
 }  // End of stringEXvrf
 
-static char *stringEXlayer2(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXlayer2(char *streamPtr, void *extensionRecord) {
     EXlayer2_t *layer2 = (EXlayer2_t *)extensionRecord;
 
     AddElementU32("vlanID", layer2->vlanID);
@@ -624,7 +623,7 @@ static char *stringEXlayer2(char *streamPtr, void *extensionRecord, const char i
     return streamPtr;
 }  // End of stringEXlayer2
 
-static char *stringEXnselCommon(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXnselCommon(char *streamPtr, void *extensionRecord) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)extensionRecord;
 
     char datestr[64];
@@ -641,13 +640,13 @@ static char *stringEXnselCommon(char *streamPtr, void *extensionRecord, const ch
     AddElementString("event", fwEventString(nselCommon->fwEvent));
     AddElementU32("xevent_id", nselCommon->fwXevent);
 
-    int len = sprintf(streamPtr, "%c\"t_event\" : \"%s.%llu\",%c", indent, datestr, nselCommon->msecEvent % 1000LL, fs);
+    int len = sprintf(streamPtr, "  \"t_event\" : \"%s.%llu\",\n", datestr, nselCommon->msecEvent % 1000LL);
     streamPtr += len;
 
     return streamPtr;
 }  // End of stringEXnselCommon
 
-static char *stringEXnatXlateIPv4(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXnatXlateIPv4(char *streamPtr, void *extensionRecord) {
     EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)extensionRecord;
 
     uint32_t src = htonl(natXlateIPv4->xlateSrcAddr);
@@ -662,7 +661,7 @@ static char *stringEXnatXlateIPv4(char *streamPtr, void *extensionRecord, const 
     return streamPtr;
 }  // End of stringEXnatXlateIPv4
 
-static char *stringEXnatXlateIPv6(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXnatXlateIPv6(char *streamPtr, void *extensionRecord) {
     EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)extensionRecord;
 
     uint64_t src[2];
@@ -681,7 +680,7 @@ static char *stringEXnatXlateIPv6(char *streamPtr, void *extensionRecord, const 
     return streamPtr;
 }  // End of stringEXnatXlateIPv4
 
-static char *stringEXnatXlatePort(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXnatXlatePort(char *streamPtr, void *extensionRecord) {
     EXnatXlatePort_t *natXlatePort = (EXnatXlatePort_t *)extensionRecord;
 
     AddElementU32("src_xlt_port", natXlatePort->xlateSrcPort);
@@ -690,19 +689,19 @@ static char *stringEXnatXlatePort(char *streamPtr, void *extensionRecord, const 
     return streamPtr;
 }  // End of stringEXnatXlatePort
 
-static char *stringEXnselAcl(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXnselAcl(char *streamPtr, void *extensionRecord) {
     EXnselAcl_t *nselAcl = (EXnselAcl_t *)extensionRecord;
     int len = sprintf(streamPtr,
-                      "%c\"ingress_acl\" : \"0x%x/0x%x/0x%x\",%c"
-                      "%c\"egress_acl\" : \"0x%x/0x%x/0x%x\",%c",
-                      indent, nselAcl->ingressAcl[0], nselAcl->ingressAcl[1], nselAcl->ingressAcl[2], fs, indent, nselAcl->egressAcl[0],
-                      nselAcl->egressAcl[1], nselAcl->egressAcl[2], fs);
+                      "  \"ingress_acl\" : \"0x%x/0x%x/0x%x\",\n"
+                      "  \"egress_acl\" : \"0x%x/0x%x/0x%x\",\n",
+                      nselAcl->ingressAcl[0], nselAcl->ingressAcl[1], nselAcl->ingressAcl[2], nselAcl->egressAcl[0], nselAcl->egressAcl[1],
+                      nselAcl->egressAcl[2]);
     streamPtr += len;
 
     return streamPtr;
 }  // End of stringEXnselAcl
 
-static char *stringEXnselUserID(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXnselUserID(char *streamPtr, void *extensionRecord) {
     EXnselUser_t *nselUser = (EXnselUser_t *)extensionRecord;
 
     char *name = nselUser->username[0] ? nselUser->username : "<empty>";
@@ -711,7 +710,7 @@ static char *stringEXnselUserID(char *streamPtr, void *extensionRecord, const ch
     return streamPtr;
 }  // End of stringEXnselUserID
 
-static char *stringEXnatCommon(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXnatCommon(char *streamPtr, void *extensionRecord) {
     EXnatCommon_t *natCommon = (EXnatCommon_t *)extensionRecord;
 
     time_t when = natCommon->msecEvent / 1000LL;
@@ -727,14 +726,14 @@ static char *stringEXnatCommon(char *streamPtr, void *extensionRecord, const cha
     AddElementString("nat_event", natEventString(natCommon->natEvent, LONGNAME));
     AddElementU32("nat_pool_id", natCommon->natPoolID);
 
-    int len = sprintf(streamPtr, "%c\"t_event\" : \"%s.%llu\",%c", indent, datestr, natCommon->msecEvent % 1000LL, fs);
+    int len = sprintf(streamPtr, "  \"t_event\" : \"%s.%llu\",\n", datestr, natCommon->msecEvent % 1000LL);
 
     streamPtr += len;
 
     return streamPtr;
 }  // End of stringEXnatCommon
 
-static char *stringEXnatPortBlock(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXnatPortBlock(char *streamPtr, void *extensionRecord) {
     EXnatPortBlock_t *natPortBlock = (EXnatPortBlock_t *)extensionRecord;
 
     AddElementU32("pblock_start", natPortBlock->blockStart);
@@ -745,7 +744,7 @@ static char *stringEXnatPortBlock(char *streamPtr, void *extensionRecord, const 
     return streamPtr;
 }  // End of stringEXnatPortBlock
 
-static char *stringEXflowId(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXflowId(char *streamPtr, void *extensionRecord) {
     EXflowId_t *flowId = (EXflowId_t *)extensionRecord;
 
     AddElementU64("flowID", flowId->flowId);
@@ -753,7 +752,7 @@ static char *stringEXflowId(char *streamPtr, void *extensionRecord, const char i
     return streamPtr;
 }  // End of stringEXflowId
 
-static char *stringEXnokiaNat(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXnokiaNat(char *streamPtr, void *extensionRecord) {
     EXnokiaNat_t *nokiaNat = (EXnokiaNat_t *)extensionRecord;
 
     AddElementU32("inServiceID", nokiaNat->inServiceID);
@@ -762,7 +761,7 @@ static char *stringEXnokiaNat(char *streamPtr, void *extensionRecord, const char
     return streamPtr;
 }  // End of String_inServiceID
 
-static char *stringEXnokiaNatString(char *streamPtr, void *extensionRecord, const char indent, const char fs) {
+static char *stringEXnokiaNatString(char *streamPtr, void *extensionRecord) {
     char *natString = (char *)extensionRecord;
 
     AddElementString("natString", natString);
@@ -770,7 +769,7 @@ static char *stringEXnokiaNatString(char *streamPtr, void *extensionRecord, cons
     return streamPtr;
 }  // End of String_natString
 
-void json_prolog(void) {
+void json_prolog(outputParams_t *outputParam) {
     streamBuff = malloc(STREAMBUFFSIZE);
     if (!streamBuff) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -778,22 +777,20 @@ void json_prolog(void) {
     }
     streamBuff[0] = '\0';
 
-    // open json
+    // open json array
     printf("[\n");
 }  // End of json_prolog
 
-void json_epilog(void) {
-    // close json
+void json_epilog(outputParams_t *outputParam) {
+    // close json array
     printf("\n]\n");
-
     free(streamBuff);
     streamBuff = NULL;
 }  // End of json_epilog
 
-enum { FORMAT_LOG = 0, FORMAT_HUMAN };
-static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag, int type) {
+void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag) {
     // ws is whitespace after object opening and before object closing {WS  WS}
-    // indent is printed before each record for clarity if needed
+    // ' ' is printed before each record for clarity if needed
     // fs is Field Separator
     // rs is Record Separator
 
@@ -802,20 +799,14 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
     streamBuff[0] = '\0';
     char *streamPtr = streamBuff;
 
-    char fs;
-    char indent = ' ';
-    if (type == FORMAT_LOG) {
-        fs = ' ';
-    } else {
-        fs = '\n';
-    }
     if (recordCount != 0) {
         *streamPtr++ = ',';
         *streamPtr++ = '\n';
     }
 
+    *streamPtr++ = ' ';
     *streamPtr++ = '{';
-    *streamPtr++ = fs;
+    *streamPtr++ = '\n';
 
     char *typeString = TestFlag(recordHeaderV3->flags, V3_FLAG_EVENT) ? "EVENT" : "FLOW";
     AddElementU32("cnt", ++recordCount);
@@ -833,112 +824,112 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
                 if (ptr != recordHeaderV3) fprintf(stderr, "Found unexpected NULL extension \n");
                 break;
             case EXgenericFlowID:
-                streamPtr = stringEXgenericFlow(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXgenericFlow(streamPtr, ptr);
                 break;
             case EXipv4FlowID:
-                streamPtr = stringEXipv4Flow(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXipv4Flow(streamPtr, ptr);
                 break;
             case EXipv6FlowID:
-                streamPtr = stringEXipv6Flow(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXipv6Flow(streamPtr, ptr);
                 break;
             case EXflowMiscID:
-                streamPtr = stringEXflowMisc(streamPtr, recordHandle, ptr, indent, fs);
+                streamPtr = stringEXflowMisc(streamPtr, recordHandle, ptr);
                 break;
             case EXcntFlowID:
-                streamPtr = stringEXcntFlow(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXcntFlow(streamPtr, ptr);
                 break;
             case EXvLanID:
-                streamPtr = stringEXvLan(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXvLan(streamPtr, ptr);
                 break;
             case EXasRoutingID:
-                streamPtr = stringEXasRouting(streamPtr, recordHandle, ptr, indent, fs);
+                streamPtr = stringEXasRouting(streamPtr, recordHandle, ptr);
                 break;
             case EXbgpNextHopV4ID:
-                streamPtr = stringEXbgpNextHopV4(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXbgpNextHopV4(streamPtr, ptr);
                 break;
             case EXbgpNextHopV6ID:
-                streamPtr = stringEXbgpNextHopV6(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXbgpNextHopV6(streamPtr, ptr);
                 break;
             case EXipNextHopV4ID:
-                streamPtr = stringEXipNextHopV4(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXipNextHopV4(streamPtr, ptr);
                 break;
             case EXipNextHopV6ID:
-                streamPtr = stringEXipNextHopV6(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXipNextHopV6(streamPtr, ptr);
                 break;
             case EXipReceivedV4ID:
-                streamPtr = stringEXipReceivedV4(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXipReceivedV4(streamPtr, ptr);
                 break;
             case EXipReceivedV6ID:
-                streamPtr = stringEXipReceivedV6(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXipReceivedV6(streamPtr, ptr);
                 break;
             case EXmplsLabelID:
-                streamPtr = stringEXmplsLabel(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXmplsLabel(streamPtr, ptr);
                 break;
             case EXmacAddrID:
-                streamPtr = stringEXmacAddr(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXmacAddr(streamPtr, ptr);
                 break;
             case EXasAdjacentID:
-                streamPtr = stringEXasAdjacent(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXasAdjacent(streamPtr, ptr);
                 break;
             case EXlatencyID:
-                streamPtr = stringEXlatency(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXlatency(streamPtr, ptr);
                 break;
             case EXinPayloadID:
-                streamPtr = string_payload(streamPtr, recordHandle, ptr, indent, fs);
+                streamPtr = string_payload(streamPtr, recordHandle, ptr);
                 break;
             case EXoutPayloadID:
-                streamPtr = string_payload(streamPtr, recordHandle, ptr, indent, fs);
+                streamPtr = string_payload(streamPtr, recordHandle, ptr);
                 break;
             case EXtunIPv4ID:
-                streamPtr = stringEXtunIPv4(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXtunIPv4(streamPtr, ptr);
                 break;
             case EXtunIPv6ID:
-                streamPtr = stringEXtunIPv6(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXtunIPv6(streamPtr, ptr);
                 break;
             case EXobservationID:
-                streamPtr = stringEXobservation(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXobservation(streamPtr, ptr);
                 break;
             case EXvrfID:
-                streamPtr = stringEXvrf(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXvrf(streamPtr, ptr);
                 break;
             case EXlayer2ID:
-                streamPtr = stringEXlayer2(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXlayer2(streamPtr, ptr);
                 break;
             case EXnselCommonID:
-                streamPtr = stringEXnselCommon(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXnselCommon(streamPtr, ptr);
                 break;
             case EXnatXlateIPv4ID:
-                streamPtr = stringEXnatXlateIPv4(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXnatXlateIPv4(streamPtr, ptr);
                 break;
             case EXnatXlateIPv6ID:
-                streamPtr = stringEXnatXlateIPv6(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXnatXlateIPv6(streamPtr, ptr);
                 break;
             case EXnatXlatePortID:
-                streamPtr = stringEXnatXlatePort(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXnatXlatePort(streamPtr, ptr);
                 break;
             case EXnselAclID:
-                streamPtr = stringEXnselAcl(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXnselAcl(streamPtr, ptr);
                 break;
             case EXnselUserID:
-                streamPtr = stringEXnselUserID(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXnselUserID(streamPtr, ptr);
                 break;
             case EXnatCommonID:
-                streamPtr = stringEXnatCommon(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXnatCommon(streamPtr, ptr);
                 break;
             case EXnatPortBlockID:
-                streamPtr = stringEXnatPortBlock(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXnatPortBlock(streamPtr, ptr);
                 break;
             case EXflowIdID:
-                streamPtr = stringEXflowId(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXflowId(streamPtr, ptr);
                 break;
             case EXnokiaNatID:
-                streamPtr = stringEXnokiaNat(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXnokiaNat(streamPtr, ptr);
                 break;
             case EXnokiaNatStringID:
-                streamPtr = stringEXnokiaNatString(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXnokiaNatString(streamPtr, ptr);
                 break;
             case EXipInfoID:
-                streamPtr = stringEXipInfo(streamPtr, ptr, indent, fs);
+                streamPtr = stringEXipInfo(streamPtr, ptr);
                 break;
             default:
                 dbg_printf("Extension %i not yet implemented\n", i);
@@ -947,8 +938,10 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
 
     // Close out JSON record
     AddElementU32("sampled", TestFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED) ? 1 : 0);
+
     streamPtr -= 2;
-    *streamPtr++ = fs;
+    *streamPtr++ = '\n';
+    *streamPtr++ = ' ';
     *streamPtr++ = '}';
     *streamPtr++ = '\0';
 
@@ -960,11 +953,3 @@ static void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int 
     fputs(streamBuff, stream);
 
 }  // End of flow_record_to_json
-
-void flow_record_to_json_human(FILE *stream, recordHandle_t *recordHandle, int tag) {
-    flow_record_to_json(stream, recordHandle, tag, FORMAT_HUMAN);
-}  // End of flow_record_to_json_human
-
-void flow_record_to_json_log(FILE *stream, recordHandle_t *recordHandle, int tag) {
-    flow_record_to_json(stream, recordHandle, tag, FORMAT_LOG);
-}  // End of flow_record_to_json_log

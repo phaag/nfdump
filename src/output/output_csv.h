@@ -38,15 +38,15 @@
 
 int ParseCSVOutputFormat(char *format);
 
-void csv_prolog(void);
+void csv_prolog(outputParams_t *outputParam);
 
-void csv_epilog(void);
+void csv_epilog(outputParams_t *outputParam);
 
 void csv_record(FILE *stream, recordHandle_t *recordHandle, int tag);
 
-void csv_prolog_fast(void);
+void csv_prolog_fast(outputParams_t *outputParam);
 
-void csv_epilog_fast(void);
+void csv_epilog_fast(outputParams_t *outputParam);
 
 void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, int tag);
 

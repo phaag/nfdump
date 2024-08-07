@@ -47,9 +47,9 @@ void Setv6Mode(int mode);
 
 int Getv6Mode(void);
 
-void fmt_prolog(void);
+void fmt_prolog(outputParams_t *outputParam);
 
-void fmt_epilog(void);
+void fmt_epilog(outputParams_t *outputParam);
 
 void CondenseV6(char *s);
 

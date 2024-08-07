@@ -76,7 +76,7 @@ static uint32_t recordCount;
 #define STREAMBUFFSIZE 1014
 static char *streamBuff = NULL;
 
-void csv_prolog_fast(void) {
+void csv_prolog_fast(outputParams_t *outputParam) {
     // empty prolog
     recordCount = 0;
     streamBuff = malloc(STREAMBUFFSIZE);
@@ -88,7 +88,7 @@ void csv_prolog_fast(void) {
     printf("cnt,af,firstSeen,lastSeen,proto,srcAddr,srcPort,dstAddr,dstPort,srcAS,dstAS,input,output,flags,srcTos,packets,bytes\n");
 }  // End of csv_prolog_fast
 
-void csv_epilog_fast(void) {
+void csv_epilog_fast(outputParams_t *outputParam) {
     // empty epilog
     free(streamBuff);
     streamBuff = NULL;

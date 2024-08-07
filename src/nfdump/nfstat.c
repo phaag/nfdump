@@ -77,7 +77,8 @@ typedef enum {
     IS_ASORG
 } elementType_t;
 
-typedef enum { DESCENDING = 0, ASCENDING } direction_t;
+typedef enum { DESCENDING = 0,
+               ASCENDING } direction_t;
 
 /*
  * pre-process functions:
@@ -256,7 +257,9 @@ typedef struct StatRecord {
  * orderby functions:
  * retrieve or calculate value, records want to be ordered by.
  */
-typedef enum flowDir { IN = 0, OUT, INOUT } flowDir_t;
+typedef enum flowDir { IN = 0,
+                       OUT,
+                       INOUT } flowDir_t;
 typedef uint64_t (*order_proc_element_t)(StatRecord_t *);
 
 static uint64_t order_bytes_in(StatRecord_t *record);
@@ -1446,7 +1449,7 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                                              outputParams->doTag, orderByTable[order_index].inout);
                             break;
                         case MODE_JSON:
-                        case MODE_JSON_LOG:
+                        case MODE_NDJSON:
                             PrintJsonStatLine(StatParameters[stat].statname, sum_stat, outputParams, &topN_element_list[index], type,
                                               StatRequest[hash_num].order_proto, orderByTable[order_index].inout);
                             break;

@@ -645,7 +645,7 @@ void csv_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
 
 }  // End of csv_record
 
-void csv_prolog(void) {
+void csv_prolog(outputParams_t *outputParam) {
     streamBuff = malloc(STREAMBUFFSIZE);
     if (!streamBuff) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -657,10 +657,9 @@ void csv_prolog(void) {
     printf("%s\n", header_string);
 }  // End of csv_prolog
 
-void csv_epilog(void) {
+void csv_epilog(outputParams_t *outputParam) {
     free(streamBuff);
     streamBuff = NULL;
-    // empty
 }  // End of csv_epilog
 
 static void InitFormatParser(void) {

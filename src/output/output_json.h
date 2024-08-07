@@ -32,13 +32,12 @@
 #define _OUTPUT_JSON_H 1
 
 #include "nfdump.h"
+#include "output.h"
 
-void json_prolog(void);
+void json_prolog(outputParams_t *outputParam);
 
-void json_epilog(void);
+void json_epilog(outputParams_t *outputParam);
 
-void flow_record_to_json_human(FILE *stream, recordHandle_t *recordHandle, int tag);
-
-void flow_record_to_json_log(FILE *stream, recordHandle_t *recordHandle, int tag);
+void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag);
 
 #endif  // _OUTPUT_JSON_H

@@ -119,6 +119,18 @@ static FILE *checkFile(char *fileName, char **fieldNames) {
 
 }  // End of checkFile
 
+static void strCopyReplace(char *dst, char *src) {
+    int i = 0;
+    for (i = 0; src[i] != 0; i++) {
+        // convert " to ' in org name, otherwise it breaks json output
+        if (src[i] == '"')
+            dst[i] = '\'';
+        else
+            dst[i] = src[i];
+    }
+    dst[i] = '\0';
+}  // End of strCopyReplace
+
 static int loadLocalMap(char *fileName) {
     FILE *fp = checkFile(fileName, localFieldNames);
     if (!fp) {
@@ -180,7 +192,7 @@ static int loadLocalMap(char *fileName) {
                     } else if (divisionName && strlen(divisionName) > 0) {
                         strcpy(locationInfo.city, divisionName);
                     } else if (countryName && strlen(countryName) > 0) {
-                        strcpy(locationInfo.city, countryName);
+                        strCopyReplace(locationInfo.city, countryName);
                     } else {
                         strcpy(locationInfo.city, "unknown");
                     }
@@ -402,9 +414,9 @@ static int loadASV4tree(char *fileName) {
         }
 
         // extract org name
-        strncpy(asV4Node.orgName, field, orgNameLength);
+        strCopyReplace(asV4Node.orgName, field);
         asV4Node.orgName[orgNameLength - 1] = '\0';
-        strncpy(asOrgNode.orgName, field, orgNameLength);
+        strCopyReplace(asOrgNode.orgName, field);
         asOrgNode.orgName[orgNameLength - 1] = '\0';
 
         // insert node
@@ -481,9 +493,9 @@ static int loadASV6tree(char *fileName) {
         field = sep;
 
         // extract org name
-        strncpy(asV6Node.orgName, field, orgNameLength);
+        strCopyReplace(asV6Node.orgName, field);
         asV6Node.orgName[orgNameLength - 1] = '\0';
-        strncpy(asOrgNode.orgName, field, orgNameLength);
+        strCopyReplace(asOrgNode.orgName, field);
         asOrgNode.orgName[orgNameLength - 1] = '\0';
 
         PutasV6Node(&asV6Node);

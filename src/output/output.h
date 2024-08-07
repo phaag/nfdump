@@ -36,11 +36,13 @@
 
 #include "nfdump.h"
 
-typedef void (*RecordPrinter_t)(FILE *, recordHandle_t *, int);
-typedef void (*PrologPrinter_t)(void);
-typedef void (*EpilogPrinter_t)(void);
-
-typedef enum { MODE_NULL = 0, MODE_RAW, MODE_FMT, MODE_CSV, MODE_CSV_FAST, MODE_JSON, MODE_JSON_LOG } outputMode_t;
+typedef enum { MODE_NULL = 0,
+               MODE_RAW,
+               MODE_FMT,
+               MODE_CSV,
+               MODE_CSV_FAST,
+               MODE_JSON,
+               MODE_NDJSON } outputMode_t;
 
 typedef struct outputParams_s {
     bool printPlain;
@@ -52,6 +54,10 @@ typedef struct outputParams_s {
     int topN;
     void *postFilter;
 } outputParams_t;
+
+typedef void (*RecordPrinter_t)(FILE *, recordHandle_t *, int);
+typedef void (*PrologPrinter_t)(outputParams_t *);
+typedef void (*EpilogPrinter_t)(outputParams_t *);
 
 RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams);
 

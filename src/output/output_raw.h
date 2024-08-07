@@ -34,10 +34,11 @@
 #include <stdio.h>
 
 #include "nfdump.h"
+#include "output.h"
 
-void raw_prolog(void);
+void raw_prolog(outputParams_t *outputParam);
 
-void raw_epilog(void);
+void raw_epilog(outputParams_t *outputParam);
 
 void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag);
 

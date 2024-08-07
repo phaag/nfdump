@@ -43,6 +43,7 @@
 #include "output_csv.h"
 #include "output_fmt.h"
 #include "output_json.h"
+#include "output_ndjson.h"
 #include "output_raw.h"
 #include "util.h"
 
@@ -81,9 +82,9 @@ static void AddFormat(char *format, char *name, char *fmtString);
 
 static void null_record(FILE *stream, recordHandle_t *record, int tag);
 
-static void null_prolog(void);
+static void null_prolog(outputParams_t *outputParam);
 
-static void null_epilog(void);
+static void null_epilog(outputParams_t *outputParam);
 
 // Assign print functions for all output options -o
 // Terminated with a NULL record
@@ -103,7 +104,7 @@ static struct printmap_s {
                           {"nsel", MODE_FMT, FORMAT_nsel, "predefined"},
                           {"nat", MODE_FMT, FORMAT_nat, "predefined"},
                           {"json", MODE_JSON, NULL, "json output"},
-                          {"json-log", MODE_JSON_LOG, NULL, "json output for logging"},
+                          {"ndjson", MODE_NDJSON, NULL, "ndjson output formart"},
                           {"csv", MODE_CSV, FORMAT_CSV, "csv predefined"},
                           {"csv-fast", MODE_CSV_FAST, NULL, "csv fast predefined"},
                           {"null", MODE_NULL, NULL, "do not print any output"},
@@ -121,8 +122,8 @@ static struct printerFunc_s {
                     [MODE_RAW] = {raw_record, raw_prolog, raw_epilog},
                     [MODE_CSV] = {csv_record, csv_prolog, csv_epilog},
                     [MODE_CSV_FAST] = {csv_record_fast, csv_prolog_fast, csv_epilog_fast},
-                    [MODE_JSON] = {flow_record_to_json_human, json_prolog, json_epilog},
-                    [MODE_JSON_LOG] = {flow_record_to_json_log, json_prolog, json_epilog}};
+                    [MODE_JSON] = {flow_record_to_json, json_prolog, json_epilog},
+                    [MODE_NDJSON] = {flow_record_to_ndjson, ndjson_prolog, ndjson_epilog}};
 
 static PrologPrinter_t print_prolog;  // prints the output prolog
 static PrologPrinter_t print_epilog;  // prints the output epilog
@@ -133,11 +134,11 @@ static void null_record(FILE *stream, recordHandle_t *record, int tag) {
     // empty - do not list any flows
 }  // End of null_record
 
-static void null_prolog(void) {
+static void null_prolog(outputParams_t *outputParam) {
     // empty prolog
 }  // End of null_prolog
 
-static void null_epilog(void) {
+static void null_epilog(outputParams_t *outputParam) {
     // empty epilog
 }  // End of null_epilog
 
@@ -308,11 +309,11 @@ RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams
 }  // End of SetupOutputMode
 
 void PrintProlog(outputParams_t *outputParams) {
-    if (!outputParams->quiet) print_prolog();
+    print_prolog(outputParams);
 }  // End of PrintProlog
 
 void PrintEpilog(outputParams_t *outputParams) {
-    if (!outputParams->quiet) print_epilog();
+    print_epilog(outputParams);
 }  // End of PrintEpilog
 
 void PrintOutputHelp(void) {
