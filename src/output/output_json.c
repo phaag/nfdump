@@ -153,7 +153,7 @@ static char *stringEXgenericFlow(char *streamPtr, void *extensionRecord) {
         AddElementU32("src_tos", (uint32_t)genericFlow->srcTos);
     } else {
         AddElementU32("proto", (uint32_t)genericFlow->proto);
-        AddElementU32("tcp_flags", (uint32_t)genericFlow->tcpFlags);
+        AddElementString("tcp_flags", FlagsString(genericFlow->tcpFlags));
         AddElementU32("src_port", (uint32_t)genericFlow->srcPort);
         AddElementU32("dst_port", (uint32_t)genericFlow->dstPort);
         AddElementU32("fwd_status", (uint32_t)genericFlow->fwdStatus);

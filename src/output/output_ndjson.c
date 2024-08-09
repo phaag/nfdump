@@ -127,8 +127,8 @@ static char *stringEXgenericFlow(char *streamPtr, void *extensionRecord) {
                       "\"first\":\"%s.%03u\","
                       "\"last\":\"%s.%03u\","
                       "\"received\":\"%s.%03u\",",
-                      dateBuff1, (unsigned)(genericFlow->msecFirst % 1000LL), dateBuff2,
-                      (unsigned)(genericFlow->msecLast % 1000LL), dateBuff3, (unsigned)(genericFlow->msecReceived % 1000LL));
+                      dateBuff1, (unsigned)(genericFlow->msecFirst % 1000LL), dateBuff2, (unsigned)(genericFlow->msecLast % 1000LL), dateBuff3,
+                      (unsigned)(genericFlow->msecReceived % 1000LL));
     streamPtr += len;
 
     AddElementU64("in_packets", genericFlow->inPackets);
@@ -141,7 +141,7 @@ static char *stringEXgenericFlow(char *streamPtr, void *extensionRecord) {
         AddElementU32("src_tos", (uint32_t)genericFlow->srcTos);
     } else {
         AddElementU32("proto", (uint32_t)genericFlow->proto);
-        AddElementU32("tcp_flags", (uint32_t)genericFlow->tcpFlags);
+        AddElementString("tcp_flags", FlagsString(genericFlow->tcpFlags));
         AddElementU32("src_port", (uint32_t)genericFlow->srcPort);
         AddElementU32("dst_port", (uint32_t)genericFlow->dstPort);
         AddElementU32("fwd_status", (uint32_t)genericFlow->fwdStatus);
@@ -412,8 +412,8 @@ static char *stringEXipReceivedV6(char *streamPtr, void *extensionRecord) {
 static char *stringEXmplsLabel(char *streamPtr, void *extensionRecord) {
     EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)extensionRecord;
     for (int i = 0; i < 10; i++) {
-        int len = sprintf(streamPtr, "\"mpls_%u\":\"%u-%u-%u\",", i + 1, mplsLabel->mplsLabel[i] >> 4,
-                          (mplsLabel->mplsLabel[i] & 0xF) >> 1, mplsLabel->mplsLabel[i] & 1);
+        int len = sprintf(streamPtr, "\"mpls_%u\":\"%u-%u-%u\",", i + 1, mplsLabel->mplsLabel[i] >> 4, (mplsLabel->mplsLabel[i] & 0xF) >> 1,
+                          mplsLabel->mplsLabel[i] & 1);
         streamPtr += len;
     }
 
@@ -431,14 +431,13 @@ static char *stringEXmacAddr(char *streamPtr, void *extensionRecord) {
         mac4[i] = (macAddr->outSrcMac >> (i * 8)) & 0xFF;
     }
 
-    int len =
-        sprintf(streamPtr,
-                "\"in_src_mac\":\"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\","
-                "\"out_dst_mac\":\"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\","
-                "\"in_dst_mac\":\"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\","
-                "\"out_src_mac\":\"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",",
-                mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0],
-                mac3[5], mac3[4], mac3[3], mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
+    int len = sprintf(streamPtr,
+                      "\"in_src_mac\":\"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\","
+                      "\"out_dst_mac\":\"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\","
+                      "\"in_dst_mac\":\"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\","
+                      "\"out_src_mac\":\"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\",",
+                      mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0], mac3[5], mac3[4],
+                      mac3[3], mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
     streamPtr += len;
 
     return streamPtr;
@@ -683,8 +682,8 @@ static char *stringEXnselAcl(char *streamPtr, void *extensionRecord) {
     int len = sprintf(streamPtr,
                       "\"ingress_acl\":\"0x%x/0x%x/0x%x\","
                       "\"egress_acl\":\"0x%x/0x%x/0x%x\",",
-                      nselAcl->ingressAcl[0], nselAcl->ingressAcl[1], nselAcl->ingressAcl[2], nselAcl->egressAcl[0],
-                      nselAcl->egressAcl[1], nselAcl->egressAcl[2]);
+                      nselAcl->ingressAcl[0], nselAcl->ingressAcl[1], nselAcl->ingressAcl[2], nselAcl->egressAcl[0], nselAcl->egressAcl[1],
+                      nselAcl->egressAcl[2]);
     streamPtr += len;
 
     return streamPtr;
@@ -773,8 +772,7 @@ void ndjson_epilog(outputParams_t *outputParam) {
     streamBuff = NULL;
 }  // End of ndjson_epilog
 
-enum { FORMAT_NDJSON = 0,
-       FORMAT_JSON };
+enum { FORMAT_NDJSON = 0, FORMAT_JSON };
 
 void flow_record_to_ndjson(FILE *stream, recordHandle_t *recordHandle, int tag) {
     // ws is whitespace after object opening and before object closing {WS  WS}
