@@ -289,7 +289,10 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
 
     int done = nffile == NULL;
     while (!done) {
-        if (dataHandle == NULL) dataHandle = calloc(1, sizeof(dataHandle_t));
+        if (dataHandle == NULL) {
+            dataHandle = calloc(1, sizeof(dataHandle_t));
+            dataHandle->ident = nffile->ident;
+        }
         dataHandle->dataBlock = ReadBlock(nffile, NULL);
 
         // get next data block from file
@@ -300,7 +303,6 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
             } else {
                 if (nffile->stat_record->firstseen < t_first_flow) t_first_flow = nffile->stat_record->firstseen;
                 if (nffile->stat_record->lastseen > t_last_flow) t_last_flow = nffile->stat_record->lastseen;
-                dataHandle->ident = nffile->ident;
             }
             continue;
         }

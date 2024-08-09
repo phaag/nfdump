@@ -612,7 +612,7 @@ static void InitFilter(void) {
 void FilterSetParam(void *engine, const char *ident, const int hasGeoDB) {
     FilterEngine_t *filterEngine = (FilterEngine_t *)engine;
     filterEngine->hasGeoDB = hasGeoDB;
-    filterEngine->ident = ident;
+    filterEngine->ident = ident ? ident : "none";
 }  // End of FilterSetParam
 
 void *FilterCloneEngine(void *engine) {
