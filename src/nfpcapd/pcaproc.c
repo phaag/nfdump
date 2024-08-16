@@ -336,8 +336,9 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
         FindNode.flowKey.dst_port = 0;
 
         Node = Lookup_Node(&FindNode);
-        if (!Node) {
+        if (!Node || Node->nodeType != FRAG_NODE) {
             dbg_printf("IP fragment: initial node missing! Skip!\n");
+            packetParam->proc_stat.skipped++;
             return NULL;
         }
 
