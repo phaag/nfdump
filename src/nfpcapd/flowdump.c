@@ -405,8 +405,10 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
             FlushBlock(fs->nffile, fs->dataBlock);
             CloseFlowFile(flowParam, Node->timestamp);
             break;
-        } else {
+        } else if (Node->nodeType == FLOW_NODE) {
             StorePcapFlow(flowParam, Node);
+        } else {
+            // skip this node
         }
         Free_Node(Node);
     }
