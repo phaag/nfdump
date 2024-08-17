@@ -146,6 +146,7 @@ static void usage(char *name) {
         "-I Ident\tset the ident string for stat file. (default 'none')\n"
         "-P pidfile\tset the PID file\n"
         "-t time frame\tset the time window to rotate pcap/nfcapd file\n"
+        "-W workers\toptionally set the number of workers to compress flows\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
@@ -321,7 +322,7 @@ int main(int argc, char *argv[]) {
     inactiveTimeout = 0;
     workers = 0;
 
-    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:vVw:yz::")) != EOF) {
+    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:vVw:W:yz::")) != EOF) {
         switch (c) {
             struct stat fstat;
             case 'h':
