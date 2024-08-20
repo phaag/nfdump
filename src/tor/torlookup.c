@@ -32,11 +32,23 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <fts.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include "config.h"
+
+#ifdef HAVE_FTS_H
+#include <fts.h>
+#else
+#include "fts_compat.h"
+#define fts_children fts_children_compat
+#define fts_close fts_close_compat
+#define fts_open fts_open_compat
+#define fts_read fts_read_compat
+#define fts_set fts_set_compat
+#endif
 
 #include "conf/nfconf.h"
 #include "nffile.h"
