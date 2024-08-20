@@ -48,12 +48,14 @@
 #include "conf/nfconf.h"
 #include "filter/filter.h"
 #include "flist.h"
+#include "maxmind.h"
 #include "nbar.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfstatfile.h"
 #include "nfxV3.h"
 #include "profile.h"
+#include "tor.h"
 #include "util.h"
 #include "version.h"
 
@@ -82,7 +84,7 @@ static void usage(char *name);
 static profile_param_info_t *ParseParams(char *profile_datadir);
 
 static void process_data(profile_channel_info_t *channels, unsigned int numChannels, time_t tslot, worker_param_t **workerList, int numWorkers,
-                         pthread_control_barrier_t *barrie);
+                         pthread_control_barrier_t *barrier, int hasGeoDB);
 
 /* Functions */
 
@@ -260,7 +262,7 @@ static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_con
 }  // End of LaunchWorkers
 
 static void process_data(profile_channel_info_t *channels, unsigned int numChannels, time_t tslot, worker_param_t **workerList, int numWorkers,
-                         pthread_control_barrier_t *barrier) {
+                         pthread_control_barrier_t *barrier, int hasGeoDB) {
     dataBlock_t *nextBlock = NULL;
     dataBlock_t *dataBlock = NULL;
     // map datablock for workers - all workers
@@ -287,7 +289,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
             for (int j = 0; j < numChannels; j++) {
                 // set ident to file engines
                 void *engine = channels[j].engine;
-                FilterSetParam(engine, nffile->ident, NOGEODB);
+                FilterSetParam(engine, nffile->ident, hasGeoDB);
             }
             // read first block and continue
             nextBlock = ReadBlock(nffile, NULL);
@@ -662,6 +664,9 @@ int main(int argc, char **argv) {
         }
     }
 
+    // read default config
+    if (ConfOpen(NULL, "nfdump") < 0) exit(EXIT_FAILURE);
+
     if (syntax_only) {
         filename = NULL;
         flist.single_file = NULL;
@@ -677,6 +682,32 @@ int main(int argc, char **argv) {
             LogError("Filename error: zero length filename");
             exit(254);
         }
+    }
+
+    int __attribute__((unused)) hasGeoDB = false;
+    char *geoDBfile = ConfGetString("geodb.path");
+    if (geoDBfile && strcmp(geoDBfile, "none") == 0) {
+        geoDBfile = NULL;
+    }
+    if (geoDBfile) {
+        if (!CheckPath(geoDBfile, S_IFREG) || !LoadMaxMind(geoDBfile)) {
+            LogError("Error reading geo location DB file %s", geoDBfile);
+            exit(EXIT_FAILURE);
+        }
+        hasGeoDB = true;
+    }
+
+    __attribute__((unused)) int hasTorDB = false;
+    char *torDBfile = ConfGetString("tordb.path");
+    if (torDBfile && strcmp(torDBfile, "none") == 0) {
+        torDBfile = NULL;
+    }
+    if (torDBfile) {
+        if (!CheckPath(torDBfile, S_IFREG) || !LoadTorTree(torDBfile)) {
+            LogError("Error reading tor info DB file %s", torDBfile);
+            exit(EXIT_FAILURE);
+        }
+        hasTorDB = true;
     }
 
     if (chdir(profile_datadir)) {
@@ -721,7 +752,7 @@ int main(int argc, char **argv) {
         exit(255);
     }
 
-    process_data(channels, numChannels, tslot, workerList, numWorkers, barrier);
+    process_data(channels, numChannels, tslot, workerList, numWorkers, barrier, hasGeoDB);
 
     WaitWorkersDone(tid, numWorkers);
     pthread_control_barrier_destroy(barrier);
