@@ -41,6 +41,7 @@
 #include <sys/types.h>
 // some linux are picky
 #define __USE_GNU
+#define _GNU_SOURCE
 #include <unistd.h>
 
 #include "util.h"
