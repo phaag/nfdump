@@ -31,7 +31,7 @@ fetch_files() {
 	n=$(($1 - 1))
 	current_year=$(date +"%Y")
 	current_month=$(date +"%m")
-	for i in $(seq $n 0); do
+	for i in $(seq $n -1 0); do
 		# Add #0 to prevent '08' for month August to be interpreted octal and fail due to value too great for base
 		month=$((${current_month#0} - $i))
 		year=$current_year
