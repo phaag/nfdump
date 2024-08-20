@@ -74,8 +74,10 @@
 #ifdef HAVE___FPURGE
 #define FPURGE __fpurge
 #endif
+#ifndef FPURGE
 #ifdef HAVE_FPURGE
 #define FPURGE fpurge
+#endif
 #endif
 
 /* Local Variables */
