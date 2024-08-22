@@ -48,6 +48,12 @@
 #include "rrd.h"
 #include "util.h"
 
+#if HAVE_RRDVERSION > 8
+#define rrdchar const char
+#else
+#define rrdchar char
+#endif
+
 #define BUFF_CHECK(num, buffsize)                               \
     if ((num) >= (buffsize)) {                                  \
         fprintf(stderr, "No enough space to create RRD arg\n"); \
@@ -153,7 +159,7 @@ static void CreateRRDB(char *filename, time_t when) {
     */
 
     rrd_clear_error();
-    if ((i = rrd_create(argc, rrd_arg))) {
+    if ((i = rrd_create(argc, (rrdchar **)rrd_arg))) {
         fprintf(stderr, "Create DB Error: %ld %s\n", i, rrd_get_error());
     }
 
@@ -329,12 +335,12 @@ int RRD_StoreDataRow(char *path, char *iso_time, data_row *row) {
                 optind = 0;
                 opterr = 0;
                 rrd_clear_error();
-                if ((i = rrd_update(argc, rrd_arg))) {
+                if ((i = rrd_update(argc, (rrdchar **)rrd_arg))) {
                     fprintf(stderr, "RRD: %s Insert Error: %d %s\n", rrd_filename, i, rrd_get_error());
                 }
             }  // for all 64 rrd files
-        }      // for every type flows - packets - bytes
-    }          // for every protocol TCP - UDP
+        }  // for every type flows - packets - bytes
+    }  // for every protocol TCP - UDP
 
     return 1;
 }  // End of RRD_StoreDataRow
@@ -423,7 +429,7 @@ data_row *RRD_GetDataRow(char *path, time_t when) {
                 optind = 0;
                 opterr = 0;
                 rrd_clear_error();
-                if ((ret = rrd_fetch(argc, rrd_arg, &when, &when, &step, &ds_cnt, &ds_namv, &data))) {
+                if ((ret = rrd_fetch(argc, (rrdchar **)rrd_arg, &when, &when, &step, &ds_cnt, &ds_namv, &data))) {
                     fprintf(stderr, "RRD: %s Fetch Error: %d %s\n", rrd_filename, ret, rrd_get_error());
                 }
                 if (ds_cnt != 1024) {
@@ -442,8 +448,8 @@ data_row *RRD_GetDataRow(char *path, time_t when) {
                 free(data);
 
             }  // for all 64 rrd files
-        }      // for every type flows - packets - bytes
-    }          // for every protocol TCP - UDP
+        }  // for every type flows - packets - bytes
+    }  // for every protocol TCP - UDP
 
     return row;
 
@@ -474,7 +480,7 @@ time_t RRD_LastUpdate(char *path) {
     rrd_arg[argc++] = rrd_filename;
     rrd_arg[argc] = NULL;
 
-    when = rrd_last(argc, rrd_arg);
+    when = rrd_last(argc, (rrdchar **)rrd_arg);
 
     return when;
 

@@ -206,6 +206,8 @@ cat >>config.h <<_ACEOF
 #define HAVE_LIBRRD 1
 _ACEOF
 RRD_LIBS="-lrrd"
+saved_LIBS=$LIBS
+LIBS="${LIBS} -lrrd"
 AC_SUBST(RRD_LIBS)
 ]
 , AC_MSG_ERROR(Can not link librrd. Please specify --with-rrdpath=.. configure failed! ))
@@ -215,17 +217,29 @@ AC_SUBST(RRD_LIBS)
 	else
 		AC_MSG_ERROR(Required rrd.h header file not found!)
 	fi
-	AC_RUN_IFELSE(
-		[ AC_LANG_PROGRAM(
-			[[
+	AC_RUN_IFELSE([AC_LANG_SOURCE([[
 				#include <stdio.h>
+				#include <stdlib.h>
 				#include <rrd.h>
-			]],
-            [[ 
-				rrd_value_t d; 
-			]])
-		],, AC_MSG_ERROR(Can not load rrd library. Not in loader search path! ))
+      
+			int main(int argc, char **argv) {
 
+				char *s = rrd_strversion();
+    		if ( s != NULL && strlen(s) == 5 ) {
+        	if ( s[0] == '1' && s[1] == '.' ) {
+            int ver = s[2] - 0x30;
+            if ( argc > 1 ) printf("%d\n", ver);
+        	}
+    		} else {
+					exit(255);
+    		}
+				return 0;
+			}
+			]])
+		],rrdversion=$(./conftest$EXEEXT print 2>&1)
+		LIBS=$saved_LIBS
+    AC_DEFINE_UNQUOTED(HAVE_RRDVERSION, $rrdversion, [ ])
+		, AC_MSG_ERROR(Can not load rrd library. Not in loader search path! ))
 ]
 ,
 build_nfprofile="no"

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -57,6 +57,12 @@
 #include <curl/curl.h>
 extern char influxdb_url[1024];
 static char influxdb_measurement[] = "nfsen_stats";
+#endif
+
+#if HAVE_RRDVERSION > 8
+#define rrdchar const char
+#else
+#define rrdchar char
 #endif
 
 /* imported vars */
@@ -449,7 +455,7 @@ void UpdateRRD(time_t tslot, profile_channel_info_t *channel) {
     opterr = 0;
     rrd_clear_error();
     int i = 0;
-    if ((i = rrd_update(argc, rrd_arg)) != 0) {
+    if ((i = rrd_update(argc, (rrdchar **)rrd_arg)) != 0) {
         LogError("RRD: %s Insert Error: %d %s\n", channel->rrdfile, i, rrd_get_error());
     }
 
