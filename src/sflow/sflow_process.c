@@ -688,7 +688,7 @@ static void decodeIPLayer4(SFSample *sample, uint8_t *ptr) {
             sample->offsetToPayload = ptr + sizeof(udp) - sample->header;
         } break;
         case 47: { /* GRE */
-            dbg_printf("GRE");
+            dbg_printf("GRE\n");
             if (sample->parse_gre) {
                 struct mygreheader gre;
                 memcpy(&gre, ptr, sizeof(gre));
@@ -713,8 +713,8 @@ static void decodeIPLayer4(SFSample *sample, uint8_t *ptr) {
                     }
                 }
                 dbg_printf("GRE: Header type: %u\n", sample->headerProtocol);
-                sample->datap = sample->headerDescriptionStart; // Reset
-                sample->header = ptr + gre_header_length; // Start parsing header after GRE payload
+                sample->datap = sample->headerDescriptionStart; /* Reset parsing pointer for metadata */
+                sample->header = ptr + gre_header_length; /* Set parsing pointer for header to end of GRE header */
                 readFlowSample_header(sample);
                 return;
             }
