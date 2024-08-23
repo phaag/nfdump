@@ -1294,7 +1294,7 @@ int main(int argc, char **argv) {
                         if (flist.timeWindow->first && (flist.timeWindow->first > t_first_flow)) t_first_flow = flist.timeWindow->first;
                         if (flist.timeWindow->last && (flist.timeWindow->last < t_last_flow)) t_last_flow = flist.timeWindow->last;
                     }
-                    double duration = (double)(t_last_flow - t_first_flow) / 1000.0;
+                    double duration = (double)(t_last_flow - t_first_flow);
                     printf("Time window: %s, Duration:%s\n", TimeString(t_first_flow, t_last_flow), DurationString(duration));
                 }
                 printf("Total records processed: %u, passed: %u, Blocks skipped: %u, Bytes read: %llu\n", totalRecords, totalPassed, skippedBlocks,
