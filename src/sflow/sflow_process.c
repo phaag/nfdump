@@ -687,6 +687,38 @@ static void decodeIPLayer4(SFSample *sample, uint8_t *ptr) {
             dbg_printf("UDPBytes %u\n", sample->udp_pduLen);
             sample->offsetToPayload = ptr + sizeof(udp) - sample->header;
         } break;
+        case 47: { /* GRE */
+            dbg_printf("GRE");
+            if (sample->parse_gre) {
+                struct mygreheader gre;
+                memcpy(&gre, ptr, sizeof(gre));
+                uint16_t checksum_present   =  ntohs(gre.flags) >> 15;
+                uint16_t key_present        = (uint16_t)(ntohs(gre.flags) << 2) >> 15;
+                uint16_t seq_number_present = (uint16_t)(ntohs(gre.flags) << 3) >> 15;
+                uint32_t gre_header_length = sizeof(gre) + (checksum_present + key_present + seq_number_present) * 4;
+                switch (ntohs(gre.protocol_type)) {
+                    case 0x6558: { /* Transparent Ethernet bridging */
+                        sample->headerProtocol = SFLHEADER_ETHERNET_ISO8023;
+;                   } break;
+                    case 0x0800: { /* IPv4 */
+                        sample->headerProtocol = SFLHEADER_IPv4;
+                    } break;
+                    case 0x86DD: { /* IPv6 */
+                        sample->headerProtocol = SFLHEADER_IPv6;
+                    } break;
+                    default: { /* some other protocol */
+                        dbg_printf("GRE: Unsupported encapsulated protocol");
+                        sample->offsetToPayload = ptr - sample->header;
+                        return;
+                    }
+                }
+                dbg_printf("GRE: Header type: %u\n", sample->headerProtocol);
+                sample->datap = sample->headerDescriptionStart; // Reset
+                sample->header = ptr + gre_header_length; // Start parsing header after GRE payload
+                readFlowSample_header(sample);
+                return;
+            }
+        }
         default: /* some other protocol */
             sample->offsetToPayload = ptr - sample->header;
             break;
@@ -729,6 +761,7 @@ static void decodeIPV4(SFSample *sample) {
         printf("IPProtocol %u\n", sample->dcd_ipProtocol);
         printf("IPTOS %u\n", sample->dcd_ipTos);
         printf("IPTTL %u\n", sample->dcd_ipTTL);
+
 #endif
         /* check for fragments */
         sample->ip_fragmentOffset = ntohs(ip.frag_off) & 0x1FFF;
@@ -1462,7 +1495,13 @@ static void readExtendedWifiTx(SFSample *sample) {
 
 static void readFlowSample_header(SFSample *sample) {
     dbg_printf("flowSampleType HEADER\n");
-    sample->headerProtocol = getData32(sample);
+    if (!sample->headerDescriptionStart) {
+        sample->headerDescriptionStart = sample->datap;
+    }
+    uint32_t headerProtocol = getData32(sample);
+    if (!sample->headerProtocol) {
+        sample->headerProtocol = headerProtocol;
+    }
     dbg_printf("headerProtocol %u\n", sample->headerProtocol);
     sample->sampledPacketSize = getData32(sample);
     dbg_printf("sampledPacketSize %u\n", sample->sampledPacketSize);
@@ -1474,13 +1513,19 @@ static void readFlowSample_header(SFSample *sample) {
     sample->headerLen = getData32(sample);
     dbg_printf("headerLen %u\n", sample->headerLen);
 
-    sample->header = (uint8_t *)sample->datap; /* just point at the header */
+    if (!sample->header) {
+        sample->header = (uint8_t *)sample->datap; /* just point at the header */    
+    }
+    
     skipBytes(sample, sample->headerLen);
     {
         char scratch[2000];
         printHex(sample->header, sample->headerLen, scratch, 2000, 0, 2000);
         dbg_printf("headerBytes %s\n", scratch);
     }
+
+    sample->gotIPV4 = NO;
+    sample->gotIPV6 = NO;
 
     switch (sample->headerProtocol) {
             /* the header protocol tells us where to jump into the decode */
@@ -3597,6 +3642,8 @@ void readSFlowDatagram(SFSample *sample, FlowSource_t *fs, int verbose) {
     char buf[51];
 #endif
 
+    int parse_gre = sample->parse_gre;
+
     /* log some datagram info */
     dbg_printf("datagramSourceIP %s\n", IP_to_a(sample->sourceIP.s_addr, buf, 51));
     dbg_printf("datagramSize %u\n", sample->rawSampleLen);
@@ -3632,6 +3679,7 @@ void readSFlowDatagram(SFSample *sample, FlowSource_t *fs, int verbose) {
     for (samp = 0; samp < samplesInPacket; samp++) {
         // fix bug sflowtool */
         memset(sampleData, 0, sizeof(SFSample) - sampleDataOffset);
+        sample->parse_gre = parse_gre;
 
         if ((uint8_t *)sample->datap >= sample->endp) {
             LogError("SFLOW: readSFlowDatagram() unexpected end of datagram after sample %d of %d\n", samp, samplesInPacket);

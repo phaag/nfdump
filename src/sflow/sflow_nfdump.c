@@ -147,8 +147,8 @@ int Init_sflow(int verbose, char *extensionList) {
 }  // End of Init_sflow
 
 // called by sfcapd for each packet
-void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
-    SFSample sample = {.rawSample = in_buff, .rawSampleLen = in_buff_cnt, .sourceIP.s_addr = fs->sa_family == PF_INET ? htonl(fs->ip.V4) : 0};
+void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs, int parse_gre) {
+    SFSample sample = {.rawSample = in_buff, .rawSampleLen = in_buff_cnt, .sourceIP.s_addr = fs->sa_family == PF_INET ? htonl(fs->ip.V4) : 0, .parse_gre = parse_gre};
 
     dbg_printf("startDatagram =================================\n");
     // catch SFABORT in sflow code

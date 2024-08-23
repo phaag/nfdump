@@ -111,7 +111,7 @@ static void IntHandler(int signal);
 
 static inline FlowSource_t *GetFlowSource(struct sockaddr_storage *ss);
 
-static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress);
+static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress, int parse_gre);
 
 /* Functions */
 static void usage(char *name) {
@@ -155,6 +155,7 @@ static void usage(char *name) {
         "-X <extlist>\t',' separated list of extensions (numbers). Default all extensions.\n"
         "-V\t\tPrint version and exit.\n"
         "-Z\t\tAdd timezone offset to filename.\n",
+        "-G\t\tEnable GRE parsing.\n",
         name);
 }  // End of usage
 
@@ -266,7 +267,7 @@ static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockadd
     return 0;
 }  // End of SendRepeaterMessage
 
-static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress) {
+static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress, int parse_gre) {
     struct sockaddr_storage sf_sender;
     socklen_t sf_sender_size = sizeof(sf_sender);
 
@@ -424,7 +425,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
         fs->received = tv;
         /* Process data - have a look at the common header */
-        Process_sflow(in_buff, cnt, fs);
+        Process_sflow(in_buff, cnt, fs, parse_gre);
 
         // each Process_xx function has to process the entire input buffer, therefore it's empty
         // now.
@@ -452,7 +453,7 @@ int main(int argc, char **argv) {
     FlowSource_t *fs;
     int family, bufflen, metricInterval;
     time_t twin;
-    int sock, do_daemonize, expire, spec_time_extension;
+    int sock, do_daemonize, expire, spec_time_extension, parse_gre;
     int subdir_index, compress, srcSpoofing, workers;
 #ifdef PCAP
     char *pcap_file = NULL;
@@ -486,9 +487,10 @@ int main(int argc, char **argv) {
     metricInterval = 60;
     extensionList = NULL;
     workers = 0;
+    parse_gre = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:S:T:t:u:vVW:w:x:X:yz::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:S:T:t:u:vVW:w:x:X:yz::Z:G")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -725,6 +727,9 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
+            case 'G':
+                parse_gre = 1;
+                break;
             default:
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
@@ -894,7 +899,7 @@ int main(int argc, char **argv) {
     sigaction(SIGPIPE, &act, NULL);
 
     LogInfo("Startup sfcapd.");
-    run(receive_packet, sock, pfd, rfd, twin, t_start, time_extension, compress);
+    run(receive_packet, sock, pfd, rfd, twin, t_start, time_extension, compress, parse_gre);
 
     // shutdown
     close(sock);
