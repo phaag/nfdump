@@ -674,8 +674,7 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
 
 void fmt_prolog(outputParams_t *outputParam) {
     // header
-    if (outputParam->quiet == 0)
-        printf("%s\n", header_string);
+    if (outputParam->quiet == 0) printf("%s\n", header_string);
 }  // End of fmt_prolog
 
 void fmt_epilog(outputParams_t *outputParam) {
@@ -878,7 +877,7 @@ static void String_Version(FILE *stream, recordHandle_t *recordHandle) {
 }  // End of String_Version
 
 static void String_FlowCount(FILE *stream, recordHandle_t *recordHandle) {
-    fprintf(stream, "%5u", recordHandle->flowCount);
+    fprintf(stream, "%5" PRIu64, recordHandle->flowCount);
 }  // End of String_FlowCount
 
 static void String_FirstSeen(FILE *stream, recordHandle_t *recordHandle) {

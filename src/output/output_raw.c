@@ -883,7 +883,7 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
     fprintf(stream,
             "\n"
             "Flow Record: \n"
-            "  RecordCount  =              %5u\n",
+            "  RecordCount  =              %5" PRIu64 "\n",
             recordHandle->flowCount);
 
     fprintf(stream,

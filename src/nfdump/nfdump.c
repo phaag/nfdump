@@ -35,6 +35,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -81,7 +82,7 @@ extern char *FilterFilename;
 typedef struct dataHandle_s {
     dataBlock_t *dataBlock;
     char *ident;
-    int recordCnt;
+    uint64_t recordCnt;
 } dataHandle_t;
 
 typedef struct prepareArgs_s {
@@ -98,8 +99,8 @@ typedef struct filterArgs_s {
     int hasGeoDB;
     queue_t *prepareQueue;
     queue_t *processQueue;
-    _Atomic uint32_t processedRecords;
-    _Atomic uint32_t passedRecords;
+    _Atomic uint64_t processedRecords;
+    _Atomic uint64_t passedRecords;
 } filterArgs_t;
 
 typedef struct filterStat_s {
@@ -108,8 +109,8 @@ typedef struct filterStat_s {
 } filterStat_t;
 
 static uint64_t total_bytes = 0;
-static uint32_t totalRecords = 0;
-static uint32_t totalPassed = 0;
+static uint64_t totalRecords = 0;
+static uint64_t totalPassed = 0;
 static uint32_t skippedBlocks = 0;
 static uint64_t t_first_flow = 0, t_last_flow = 0;
 static _Atomic uint32_t abortProcessing = 0;
@@ -283,7 +284,7 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
     t_last_flow = nffile->stat_record->lastseen;
 
     dataHandle_t *dataHandle = NULL;
-    int recordCnt = 0;
+    uint64_t recordCnt = 0;
     int processedBlocks = 0;
     int skippedBlocks = 0;
 
@@ -335,7 +336,7 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
 
         dataHandle->recordCnt = recordCnt;
         queue_push(prepareQueue, (void *)dataHandle);
-        recordCnt += dataHandle->dataBlock->NumRecords;
+        recordCnt += (uint64_t)dataHandle->dataBlock->NumRecords;
         dataHandle = NULL;
         done = abortProcessing;
 #ifdef DEVEL
@@ -389,8 +390,8 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
     }
 
     // counters for this thread
-    uint32_t processedRecords = 0;
-    uint32_t passedRecords = 0;
+    uint64_t processedRecords = 0;
+    uint64_t passedRecords = 0;
     while (1) {
         // append data blocks
         dataHandle_t *dataHandle = queue_pop(prepareQueue);
@@ -399,7 +400,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
 
         // sequential record counter from input
         // set with new block
-        uint32_t recordCounter = dataHandle->recordCnt;
+        uint64_t recordCounter = dataHandle->recordCnt;
 
         FilterSetParam(engine, dataHandle->ident, hasGeoDB);
 
@@ -472,7 +473,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
                     break;
 
                 default: {
-                    LogError("Skip unknown record: %u type %i", recordCounter, record_ptr->type);
+                    LogError("Skip unknown record: %" PRIu64 " type %i", recordCounter, record_ptr->type);
                 }
             }
 
@@ -483,9 +484,8 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
         if (sumSize) queue_push(processQueue, dataHandle);
     }
 
-    // dbg_printf("FilterThread %d done. blocks: %u records: %u\n", self, numBlocks, recordCounter);
     queue_close(processQueue);
-    dbg_printf("FilterThread %d exit.\n", self);
+    dbg_printf("FilterThread %d done. blocks: %u records: %" PRIu64 " \n", self, numBlocks, recordCounter);
 
     free(recordHandle);
     filterArgs->processedRecords += processedRecords;
@@ -557,7 +557,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         dataBlock_t *dataBlock = dataHandle->dataBlock;
         record_header_t *record_ptr = GetCursor(dataBlock);
 
-        uint32_t recordCounter = dataHandle->recordCnt;
+        uint64_t recordCounter = dataHandle->recordCnt;
 
         // successfully read block
         total_bytes += dataBlock->size;
@@ -1297,8 +1297,8 @@ int main(int argc, char **argv) {
                     double duration = (double)(t_last_flow - t_first_flow);
                     printf("Time window: %s, Duration:%s\n", TimeString(t_first_flow, t_last_flow), DurationString(duration));
                 }
-                printf("Total records processed: %u, passed: %u, Blocks skipped: %u, Bytes read: %llu\n", totalRecords, totalPassed, skippedBlocks,
-                       (unsigned long long)total_bytes);
+                printf("Total records processed: %" PRIu64 ", passed: %" PRIu64 ", Blocks skipped: %u, Bytes read: %llu\n", totalRecords, totalPassed,
+                       skippedBlocks, (unsigned long long)total_bytes);
                 nfprof_print(&profile_data, stdout);
                 break;
             case MODE_CSV:

@@ -163,7 +163,7 @@ static data_row *process(void *engine) {
         return NULL;
     }
 
-    uint32_t processed = 0;
+    uint64_t processed = 0;
     recordHandle_t *recordHandle = (recordHandle_t *)calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
         LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));

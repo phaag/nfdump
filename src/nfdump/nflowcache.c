@@ -503,13 +503,13 @@ static uint32_t bidir_flows = 0;
 
 static inline int NeedSwap(void *genericFlowKey);
 
-static SortElement_t *GetSortList(size_t *size);
+static SortElement_t *GetSortList(uint64_t *size);
 
 static void ApplyAggregateMask(recordHandle_t *recordHandle, struct aggregationElement_s *aggregationElement);
 
 static void ApplyNetMaskBits(recordHandle_t *recordHandle, struct aggregationElement_s *aggregationElement);
 
-static void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
+static void PrintSortList(SortElement_t *SortList, uint64_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
                           RecordPrinter_t print_record, int ascending);
 
 static inline int NeedSwap(void *genericFlowKey) {
@@ -1535,13 +1535,13 @@ void AddFlowCache(recordHandle_t *recordHandle) {
 }  // End of AddFlowCache
 
 // return a linear list of aggregated/listed flows for later sorting
-static SortElement_t *GetSortList(size_t *size) {
+static SortElement_t *GetSortList(uint64_t *size) {
     dbg_printf("Enter %s\n", __func__);
 
     SortElement_t *list = NULL;
     *size = 0;
 
-    uint32_t hashSize = flowHash->count;
+    uint64_t hashSize = flowHash->count;
 
     if (hashSize) {  // hash table
         list = (SortElement_t *)calloc(hashSize, sizeof(SortElement_t));
@@ -1579,7 +1579,7 @@ static SortElement_t *GetSortList(size_t *size) {
 }  // End of GetSortList
 
 // print SortList - apply possible aggregation mask to zero out aggregated fields
-static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
+static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, outputParams_t *outputParams, int GuessFlowDirection,
                                  RecordPrinter_t print_record, int ascending) {
     dbg_printf("Enter %s\n", __func__);
 
@@ -1589,8 +1589,8 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
 
     int max = maxindex;
     if (outputParams->topN && outputParams->topN < maxindex) max = outputParams->topN;
-    for (int i = 0; i < max; i++) {
-        int j = ascending ? i : maxindex - 1 - i;
+    for (uint64_t i = 0; i < max; i++) {
+        uint64_t j = ascending ? i : maxindex - 1 - i;
 
         FlowHashRecord_t *flowRecord = (FlowHashRecord_t *)SortList[j].record;
         recordHeaderV3_t *v3record = (flowRecord->flowrecord);
@@ -1633,14 +1633,14 @@ static inline void PrintSortList(SortElement_t *SortList, uint32_t maxindex, out
 }  // End of PrintSortList
 
 // export SortList - apply possible aggregation mask to zero out aggregated fields
-static inline void ExportSortList(SortElement_t *SortList, uint32_t maxindex, nffile_t *nffile, int GuessFlowDirection, int ascending) {
+static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nffile_t *nffile, int GuessFlowDirection, int ascending) {
     dbg_printf("Enter %s\n", __func__);
 
     dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
     dataBlock = ExportExporterList(nffile, dataBlock);
 
-    for (int i = 0; i < maxindex; i++) {
-        int j = ascending ? i : maxindex - 1 - i;
+    for (uint64_t i = 0; i < maxindex; i++) {
+        uint64_t j = ascending ? i : maxindex - 1 - i;
 
         FlowHashRecord_t *flowRecord = (FlowHashRecord_t *)SortList[j].record;
         recordHeaderV3_t *recordHeaderV3 = (flowRecord->flowrecord);
@@ -1723,7 +1723,7 @@ int SetBidirAggregation(void) {
 void PrintFlowStat(RecordPrinter_t print_record, outputParams_t *outputParams) {
     dbg_printf("Enter %s\n", __func__);
 
-    size_t maxindex;
+    uint64_t maxindex;
 
     // Get sort array
     SortElement_t *SortList = GetSortList(&maxindex);
@@ -1766,7 +1766,7 @@ void PrintFlowTable(RecordPrinter_t print_record, outputParams_t *outputParams, 
     dbg_printf("Enter %s\n", __func__);
 
     GuessDirection = GuessDir;
-    size_t maxindex;
+    uint64_t maxindex;
     SortElement_t *SortList = GetSortList(&maxindex);
     if (!SortList) return;
 
@@ -1792,7 +1792,7 @@ int ExportFlowTable(nffile_t *nffile, int aggregate, int bidir, int GuessDir) {
     dbg_printf("Enter %s\n", __func__);
     GuessDirection = GuessDir;
 
-    size_t maxindex;
+    uint64_t maxindex;
     SortElement_t *SortList = GetSortList(&maxindex);
     if (!SortList) return 0;
 

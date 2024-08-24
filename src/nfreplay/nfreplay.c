@@ -90,7 +90,7 @@ static uint32_t sequence = 0;
 /* Function Prototypes */
 static void usage(char *name);
 
-static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
+static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t count, unsigned int delay, int confirm, int netflow_version, int distribution);
 
 static int FlushBuffer(int confirm);
 
@@ -199,7 +199,7 @@ static int FlushBuffer(int confirm) {
     return sendto(peer.sockfd, peer.send_buffer, len, 0, (struct sockaddr *)&(peer.dstaddr), peer.addrlen);
 }  // End of FlushBuffer
 
-static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitRecords, unsigned int delay, int confirm, int netflow_version,
+static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitRecords, unsigned int delay, int confirm, int netflow_version,
                       int distribution) {
     nffile_t *nffile;
     uint64_t twin_msecFirst, twin_msecLast;
@@ -259,8 +259,8 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint32_t limitReco
     }
 
     dataBlock_t *dataBlock = NULL;
-    uint32_t numflows = 0;
-    uint32_t processed = 0;
+    uint64_t numflows = 0;
+    uint64_t processed = 0;
     int done = 0;
     while (!done) {
         // get next data block from file
@@ -440,7 +440,7 @@ int main(int argc, char **argv) {
     struct stat stat_buff;
     char *ffile, *filter, *tstring;
     int c, confirm, ffd, ret, netflow_version, distribution;
-    unsigned int delay, count, sockbuff_size;
+    unsigned int delay, sockbuff_size;
     timeWindow_t *timeWindow;
     flist_t flist;
 
@@ -456,12 +456,12 @@ int main(int argc, char **argv) {
     peer.sockfd = 0;
 
     delay = 1;
-    count = 0;
     sockbuff_size = 0;
     netflow_version = 9;
     verbose = 0;
     confirm = 0;
     distribution = 0;
+    uint64_t count = 0;
     while ((c = getopt(argc, argv, "46EhH:i:K:L:p:S:d:c:b:j:r:f:t:v:z:VY")) != EOF) {
         switch (c) {
             case 'h':

@@ -29,11 +29,13 @@
  *
  */
 
-static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint32_t flowCount);
+#include <inttypes.h>
+
+static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint64_t flowCount);
 
 static inline dataBlock_t *AppendToBuffer(nffile_t *nffile, dataBlock_t *dataBlock, void *record, size_t required);
 
-static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint32_t flowCount) {
+static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint64_t flowCount) {
     if (handle->extensionList[SSLindex]) free(handle->extensionList[SSLindex]);
     if (handle->extensionList[JA3index]) free(handle->extensionList[JA3index]);
     if (handle->extensionList[JA4index]) free(handle->extensionList[JA4index]);
@@ -47,7 +49,7 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
     // map all extensions
     for (int i = 0; i < recordHeaderV3->numElements; i++) {
         if ((void *)elementHeader > eor) {
-            LogError("Mapping record: %u - Error - element %d out of bounds", flowCount, i);
+            LogError("Mapping record: %" PRIu64 "  - Error - element %d out of bounds", flowCount, i);
             return 0;
         }
         if (elementHeader->length == 0 || elementHeader->type == 0) {
@@ -57,7 +59,8 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
         if (elementHeader->type < MAXEXTENSIONS) {
             handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
         } else {
-            LogInfo("Mapping record: %u - Skip unknown extension %d Type: %u, Length: %u", flowCount, i, elementHeader->type, elementHeader->length);
+            LogInfo("Mapping record: %" PRIu64 " - Skip unknown extension %d Type: %u, Length: %u", flowCount, i, elementHeader->type,
+                    elementHeader->length);
             DumpHex(stdout, (void *)recordHeaderV3, recordHeaderV3->size);
         }
         elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);

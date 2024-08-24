@@ -32,6 +32,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <netinet/in.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -72,7 +73,7 @@ static void DumpRecord(recordHandle_t *recordHandle) {
         }
     }
 
-    printf("Count: %u\n", recordHandle->flowCount);
+    printf("Count: %" PRIu64 "\n", recordHandle->flowCount);
     ssl_t *ssl = recordHandle->extensionList[SSLindex];
     if (ssl) {
         printf("SSL version : %c.%c\n", ssl->tlsCharVersion[0], ssl->tlsCharVersion[1]);
