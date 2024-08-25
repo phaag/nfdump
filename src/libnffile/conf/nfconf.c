@@ -296,7 +296,7 @@ int ConfGetValue(char *key) {
 
 }  // End of ConfGetValue
 
-static void ConfPrintValue(toml_table_t *sectionConf, const char *tableName, const char *entry) {
+static void ConfPrintTableValue(toml_table_t *sectionConf, const char *tableName, const char *entry) {
     toml_value_t val;
     val = toml_table_string(sectionConf, entry);
     if (val.ok) {
@@ -319,7 +319,34 @@ static void ConfPrintValue(toml_table_t *sectionConf, const char *tableName, con
         // printf("%10s time   : %s\n", entry, val.u.ts);
     }
 
-}  // End of ConfPrintValue
+}  // End of ConfTablePrintValue
+
+static void ConfPrintArrayValue(toml_array_t *sectionConf, const char *arrayName, int entry) {
+    toml_value_t val;
+    val = toml_array_string(sectionConf, entry);
+    if (val.ok) {
+        printf("%s:[%d] string : %s\n", arrayName, entry, val.u.s);
+    }
+    val = toml_array_bool(sectionConf, entry);
+    if (val.ok) {
+        printf("%s:[%d] bool   : %i\n", arrayName, entry, val.u.b);
+    }
+    val = toml_array_int(sectionConf, entry);
+    if (val.ok) {
+        printf("%s:[%d] int    : %lld\n", arrayName, entry, val.u.i);
+    }
+    val = toml_array_double(sectionConf, entry);
+    if (val.ok) {
+        printf("%s:[%d] double : %f\n", arrayName, entry, val.u.d);
+    }
+    val = toml_array_timestamp(sectionConf, entry);
+    if (val.ok) {
+        // printf("%10s time   : %s\n", entry, val.u.ts);
+    }
+
+}  // End of ConfPrintArrayValue
+
+static void ConfPrintArray(toml_array_t *sectionConf, const char *arrayName);
 
 static void ConfPrintTable(toml_table_t *sectionConf, const char *tableName) {
     int len = toml_table_len(sectionConf);
@@ -332,15 +359,33 @@ static void ConfPrintTable(toml_table_t *sectionConf, const char *tableName) {
         toml_array_t *a = toml_table_array(sectionConf, entry);
         toml_table_t *t = toml_table_table(sectionConf, entry);
         if (a) {
-            printf("%s:%s is an array\n", tableName, entry);
+            printf("%s:%s is an array ", tableName, entry);
+            ConfPrintArray(a, entry);
         } else if (t) {
             printf("\n%s:%s is a table ", tableName, entry);
             ConfPrintTable(t, entry);
         } else {
-            ConfPrintValue(sectionConf, tableName, entry);
+            ConfPrintTableValue(sectionConf, tableName, entry);
         }
     }
-}
+}  // End of ConfPrintTable
+
+static void ConfPrintArray(toml_array_t *sectionConf, const char *arrayName) {
+    int len = toml_array_len(sectionConf);
+    printf("with %d entries:\n", len);
+    for (int i = 0; i < len; i++) {
+        toml_array_t *a = toml_array_array(sectionConf, i);
+        toml_table_t *t = toml_array_table(sectionConf, i);
+        if (a) {
+            printf("%s:[%d] is an array ", arrayName, i);
+        } else if (t) {
+            printf("\n%s:[%d] is a table ", arrayName, i);
+            ConfPrintTable(t, "anonymous");
+        } else {
+            ConfPrintArrayValue(sectionConf, arrayName, i);
+        }
+    }
+}  // End of ConfPrintArray
 
 void ConfInventory(char *confFile) {
     if (!confFile) return;
