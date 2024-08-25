@@ -335,8 +335,8 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
         }
 
         dataHandle->recordCnt = recordCnt;
-        queue_push(prepareQueue, (void *)dataHandle);
         recordCnt += (uint64_t)dataHandle->dataBlock->NumRecords;
+        queue_push(prepareQueue, (void *)dataHandle);
         dataHandle = NULL;
         done = abortProcessing;
 #ifdef DEVEL
