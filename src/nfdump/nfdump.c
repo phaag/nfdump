@@ -1021,6 +1021,11 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (configFile && syntax_only) {
+        ConfInventory(configFile);
+        exit(EXIT_SUCCESS);
+    }
+
     if (!filter && ffile) {
         if (stat(ffile, &stat_buff)) {
             LogError("Can't stat filter file '%s': %s", ffile, strerror(errno));

@@ -64,7 +64,6 @@
 #include <unistd.h>
 
 #include "bookkeeper.h"
-#include "collector.h"
 #include "conf/nfconf.h"
 #include "config.h"
 #include "daemon.h"

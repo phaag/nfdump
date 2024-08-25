@@ -33,6 +33,7 @@
 
 #include <pcap.h>
 #include <pthread.h>
+#include <time.h>
 
 #include "flowtree.h"
 #include "queue.h"
@@ -95,7 +96,7 @@ typedef struct packetParam_s {
 
     NodeList_t *NodeList;
     pcap_t *pcap_dev;
-    int t_win;
+    time_t t_win;
     int *done;
     int doDedup;
 

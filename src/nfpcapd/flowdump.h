@@ -47,7 +47,7 @@ typedef struct flowParam_s {
 
     // arguments
     NodeList_t *NodeList;  // pop new nodes from this list
-    int t_win;
+    time_t t_win;
 
     // flow file
     FlowSource_t *fs;

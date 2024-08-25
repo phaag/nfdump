@@ -51,16 +51,6 @@
 #include "toml.h"
 #include "util.h"
 
-static void tableInfo(int spaces, toml_table_t *table);
-
-__attribute__((unused)) static void tableInfo(int spaces, toml_table_t *table) {
-    const char *key = toml_table_key(table);
-    int kvPairs = toml_table_nkval(table);
-    int numArrays = toml_table_narr(table);
-    int subTables = toml_table_ntab(table);
-    printf("%*s key: %s, kv pairs: %d, arrays: %d, subTables: %d\n", spaces, "", key ? key : "<null>", kvPairs, numArrays, subTables);
-}
-
 #define NFCONF_FILE "/usr/local/etc/nfdump.conf"
 
 typedef struct nfconfFile_s {
@@ -70,8 +60,6 @@ typedef struct nfconfFile_s {
 } nfconfFile_t;
 
 static nfconfFile_t nfconfFile = {0};
-
-static void ConfInventory(void);
 
 /*
  * Open config file provided
@@ -120,7 +108,7 @@ int ConfOpen(char *filename, char *section) {
         return -1;
     }
 
-    toml_table_t *sectionConf = toml_table_in(conf, section);
+    toml_table_t *sectionConf = toml_table_table(conf, section);
     if (!sectionConf) {
         // printf("Failed to parse config file %s: No section [%s] found\n", filename, section);
         free(conf);
@@ -146,7 +134,7 @@ int ConfGetFormatEntry(char *format, char **key, char **value) {
     if (!nfconfFile.valid) return 0;
 
     if (!fmtConf) {
-        fmtConf = toml_table_in(nfconfFile.sectionConf, format);
+        fmtConf = toml_table_table(nfconfFile.sectionConf, format);
         if (!fmtConf) {
             *key = NULL;
             *value = NULL;
@@ -154,7 +142,8 @@ int ConfGetFormatEntry(char *format, char **key, char **value) {
         }
     }
 
-    const char *fmtName = toml_key_in(fmtConf, i);
+    int keylen;
+    const char *fmtName = toml_table_key(fmtConf, i, &keylen);
     if (!fmtName) {
         i = 0;
         *key = NULL;
@@ -163,7 +152,8 @@ int ConfGetFormatEntry(char *format, char **key, char **value) {
         i = 0;
         return 0;
     }
-    toml_datum_t fmtData = toml_string_in(fmtConf, fmtName);
+
+    toml_value_t fmtData = toml_table_string(fmtConf, fmtName);
     if (fmtData.ok) {
         dbg_printf("Config %s: %s -> %s\n", format, fmtName, fmtData.u.s);
         *value = strdup(fmtData.u.s);
@@ -199,14 +189,15 @@ int ConfGetExporter(char **ident, char **ip, char **flowdir) {
     if (!nfconfFile.valid) return 0;
 
     if (!exporterList) {
-        exporterList = toml_table_in(nfconfFile.sectionConf, "exporter");
+        exporterList = toml_table_table(nfconfFile.sectionConf, "exporter");
         if (!exporterList) {
             RETURN_FAILED;
         }
     }
 
     // get next config
-    const char *exporterName = toml_key_in(exporterList, i);
+    int keylen;
+    const char *exporterName = toml_table_key(exporterList, i, &keylen);
     if (!exporterName) {
         i = 0;
         *ident = NULL;
@@ -216,19 +207,19 @@ int ConfGetExporter(char **ident, char **ip, char **flowdir) {
     }
 
     // get array of exporter
-    toml_array_t *exporterArray = toml_array_in(exporterList, exporterName);
+    toml_array_t *exporterArray = toml_table_array(exporterList, exporterName);
     if (!exporterArray) {
         RETURN_FAILED;
     }
 
-    toml_datum_t ipData = toml_string_at(exporterArray, 0);
+    toml_value_t ipData = toml_array_string(exporterArray, 0);
     if (ipData.ok) {
         *ip = strdup(ipData.u.s);
     } else {
         RETURN_FAILED;
     }
 
-    toml_datum_t flowDirData = toml_string_at(exporterArray, 1);
+    toml_value_t flowDirData = toml_array_string(exporterArray, 1);
     if (flowDirData.ok) {
         *flowdir = strdup(flowDirData.u.s);
     } else {
@@ -250,7 +241,7 @@ char *ConfGetString(char *key) {
     char *p = strchr(key, '.');
     while (p) {
         *p = '\0';
-        table = toml_table_in(table, key);
+        table = toml_table_table(table, key);
         if (!table) {
             free(k);
             return NULL;
@@ -263,7 +254,7 @@ char *ConfGetString(char *key) {
         return NULL;
     }
 
-    toml_datum_t Data = toml_string_in(table, key);
+    toml_value_t Data = toml_table_string(table, key);
     free(k);
     if (Data.ok) {
         return strdup(Data.u.s);
@@ -282,7 +273,7 @@ int ConfGetValue(char *key) {
     char *p = strchr(key, '.');
     while (p) {
         *p = '\0';
-        table = toml_table_in(table, key);
+        table = toml_table_table(table, key);
         if (!table) {
             free(k);
             return 0;
@@ -295,7 +286,7 @@ int ConfGetValue(char *key) {
         return 0;
     }
 
-    toml_datum_t Data = toml_int_in(table, key);
+    toml_value_t Data = toml_table_int(table, key);
     free(k);
     if (Data.ok) {
         return Data.u.i;
@@ -305,42 +296,76 @@ int ConfGetValue(char *key) {
 
 }  // End of ConfGetValue
 
-__attribute__((unused)) void ConfInventory(void) {
-    if (!nfconfFile.conf) return;
+static void ConfPrintValue(toml_table_t *sectionConf, const char *tableName, const char *entry) {
+    toml_value_t val;
+    val = toml_table_string(sectionConf, entry);
+    if (val.ok) {
+        printf("%s:%-10s string : %s\n", tableName, entry, val.u.s);
+    }
+    val = toml_table_bool(sectionConf, entry);
+    if (val.ok) {
+        printf("%s:%-10s bool   : %i\n", tableName, entry, val.u.b);
+    }
+    val = toml_table_int(sectionConf, entry);
+    if (val.ok) {
+        printf("%s:%-10s int    : %lld\n", tableName, entry, val.u.i);
+    }
+    val = toml_table_double(sectionConf, entry);
+    if (val.ok) {
+        printf("%s:%-10s double : %f\n", tableName, entry, val.u.d);
+    }
+    val = toml_table_timestamp(sectionConf, entry);
+    if (val.ok) {
+        // printf("%10s time   : %s\n", entry, val.u.ts);
+    }
 
-    toml_table_t *conf = nfconfFile.conf;
-    printf("Config file top level:\n");
-    tableInfo(0, conf);
+}  // End of ConfPrintValue
 
-    for (int i = 0;; i++) {
-        const char *sectionName = toml_key_in(conf, i);
-        if (!sectionName) break;
-        printf("  Section %d: %s\n", i, sectionName);
-        toml_table_t *sectionConf = toml_table_in(conf, sectionName);
-        if (!sectionConf) {
-            printf("no SectionConf for %s\n", sectionName);
-            return;
-        }
-        tableInfo(2, sectionConf);
+static void ConfPrintTable(toml_table_t *sectionConf, const char *tableName) {
+    int len = toml_table_len(sectionConf);
+    printf("with %d entries:\n", len);
+    for (int i = 0; i < len; i++) {
+        int keylen;
+        const char *entry = toml_table_key(sectionConf, i, &keylen);
+        if (!entry) break;
 
-        for (int j = 0;; j++) {
-            const char *entry = toml_key_in(sectionConf, j);
-            if (!entry) break;
-            printf("    entry %d: %s\n", i, entry);
-            toml_table_t *groupConf = toml_table_in(sectionConf, entry);
-            if (!groupConf) {
-                printf("no groupConf for %s\n", entry);
-                return;
-            }
-            tableInfo(4, groupConf);
-
-            for (int k = 0;; k++) {
-                const char *key = toml_key_in(groupConf, k);
-                if (!key) break;
-                printf("      key %d: %s\n", i, key);
-            }
+        toml_array_t *a = toml_table_array(sectionConf, entry);
+        toml_table_t *t = toml_table_table(sectionConf, entry);
+        if (a) {
+            printf("%s:%s is an array\n", tableName, entry);
+        } else if (t) {
+            printf("\n%s:%s is a table ", tableName, entry);
+            ConfPrintTable(t, entry);
+        } else {
+            ConfPrintValue(sectionConf, tableName, entry);
         }
     }
+}
+
+void ConfInventory(char *confFile) {
+    if (!confFile) return;
+
+    FILE *fp = fopen(confFile, "r");
+    if (!fp) {
+        printf("Failed to open config file %s: %s\n", confFile, strerror(errno));
+        return;
+    }
+
+    printf("Check config file: %s\n", confFile);
+    char errbuf[256];
+    toml_table_t *conf = toml_parse_file(fp, errbuf, sizeof(errbuf));
+    fclose(fp);
+
+    if (!conf) {
+        printf("Failed to parse config file %s: %s\n", confFile, errbuf);
+        return;
+    }
+
+    int len = toml_table_len(conf);
+    printf("Config file %s has %d sections\n", confFile, len);
+    printf("Toplevel table ");
+    ConfPrintTable(conf, "topLevel");
+
 }  // End of ConfInventory
 
 int SetNameserver(char *ns) {

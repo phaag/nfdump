@@ -48,4 +48,6 @@ int ConfGetValue(char *key);
 
 int SetNameserver(char *ns);
 
+void ConfInventory(char *confFile);
+
 #endif
