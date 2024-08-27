@@ -183,9 +183,10 @@ static int AddASList(direction_t direction, void *U64List);
 %token DURATION PPS BPS BPP FLAGS
 %token PROTO PORT AS IF VLAN MPLS MAC ICMP ICMPTYPE ICMPCODE
 %token PACKETS BYTES FLOWS ETHERTYPE
-%token MASK FLOWDIR TOS FWDSTAT LATENCY ASA ACL PAYLOAD GEO VRF
+%token MASK FLOWDIR TOS FWDSTAT LATENCY ASA ACL PAYLOAD VRF
 %token OBSERVATION PF
 %token <s> STRING
+%token <s> GEOSTRING
 %token <value> NUMBER
 %type <value> expr
 %type <param> dqual term comp
@@ -426,8 +427,8 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = AddPayload($2, $3, $4); if ( $$.self < 0 ) YYABORT;
 	}
 
-	| dqual GEO STRING {
-		$$.self = AddGeo($1.direction, $3); if ( $$.self < 0 ) YYABORT;
+	| dqual GEOSTRING {
+		$$.self = AddGeo($1.direction, $2); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| OBSERVATION STRING STRING comp NUMBER {
@@ -1352,6 +1353,7 @@ static int AddPayload(char *type, char *arg, char *opt) {
 
 static int AddGeo(direction_t direction, char *geo) {
 
+	geo += 4;
 	if ( strlen(geo) != 2 ) {
 			yyprintf("Unknown Geo country: %s. Need a two letter country code.", geo);
 			return -1;

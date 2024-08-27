@@ -152,11 +152,11 @@ not|"!"		{ return NOT; }
 "<"			  { return LT;  }
 ">="			{ return GE;  }
 "<="			{ return LE;  }
-"eq"			{ return EQ;  }
-"gt"		  { return GT;  }
-"lt"		  { return LT;  }
-"ge"			{ return GE;  }
-"le"			{ return LE;  }
+"eq"      { return EQ;  }
+"gt"      { return GT;  }
+"lt"      { return LT;  }
+"ge"      { return GE;  }
+"le"      { return LE;  }
 
 "engine"      { return ENGINE;     }
 "engine-type" { return ENGINETYPE; }
@@ -190,7 +190,6 @@ not|"!"		{ return NOT; }
 "asa"       { return ASA;     }
 "acl"       { return ACL;     }
 "payload"   { return PAYLOAD; }
-"geo"       { return GEO;			}
 "vrf"       { return VRF;			}
 "pf" 				{ return PF;			}
 
@@ -214,6 +213,10 @@ not|"!"		{ return NOT; }
                     yylval.s = stripQuotes(yytext);
                     return STRING;
                 }
+geo\ [a-zA-Z]{2}      { 
+                    yylval.s = stripQuotes(yytext);
+	                  return GEOSTRING;
+								}
 
 \n			{ lineno++; }
 .				{ return yytext[0]; }
