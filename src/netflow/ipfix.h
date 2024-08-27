@@ -294,6 +294,11 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_icmpTypeV6 178
 #define IPFIX_icmpCodeV6 179
 
+#define IPFIX_udpSourcePort 180
+#define IPFIX_udpDestinationPort 181
+#define IPFIX_tcpSourcePort 182
+#define IPFIX_tcpDestinationPort 183
+
 #define IPFIX_ipTTL 192
 #define IPFIX_fragmentFlags 197
 
