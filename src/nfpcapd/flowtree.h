@@ -130,7 +130,6 @@ struct FlowNode {
         uint64_t server;
         uint64_t application;
         uint32_t flag;
-        struct timeval t_request;
     } latency;
 };
 

@@ -230,62 +230,54 @@ void RotateFile(pcapfile_t *pcapfile, time_t t_CloseRename, int live) {
 
 }  // End of RotateFile
 
-// Server latency = t(SYN Server) - t(SYN CLient)
+// Server latency = t(SYN ACK Server) - t(SYN CLient)
 static inline void SetServer_latency(struct FlowNode *node) {
-    struct FlowNode *Client_node;
-    uint64_t latency;
-
-    Client_node = node->rev_node;
+    struct FlowNode *Client_node = node->rev_node;
     if (!Client_node) return;
 
-    latency = ((uint64_t)node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)node->t_first.tv_usec) -
-              ((uint64_t)Client_node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)Client_node->t_first.tv_usec);
+    uint64_t latency = ((uint64_t)node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)node->t_first.tv_usec) -
+                       ((uint64_t)Client_node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)Client_node->t_first.tv_usec);
 
     node->latency.server = latency;
     Client_node->latency.server = latency;
+    // set flag, to calc app latency with nex packet from server
+    node->latency.flag = 2;
     // set flag, to calc client latency with nex packet from client
     Client_node->latency.flag = 1;
     dbg_printf("Server latency: %llu\n", (long long unsigned)latency);
 
 }  // End of SetServerClient_latency
 
-// Client latency = t(ACK CLient) - t(SYN Server)
+// Client latency = t(ACK CLient) - t(SYN ACK Server)
 static inline void SetClient_latency(struct FlowNode *node, struct timeval *t_packet) {
-    struct FlowNode *Server_node;
-    uint64_t latency;
+    struct FlowNode *serverNode = node->rev_node;
+    if (!serverNode) return;
 
-    Server_node = node->rev_node;
-    if (!Server_node) return;
-
-    latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
-              ((uint64_t)Server_node->t_first.tv_sec * (uint64_t)1000000 + (uint64_t)Server_node->t_first.tv_usec);
+    uint64_t latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
+                       ((uint64_t)serverNode->t_last.tv_sec * (uint64_t)1000000 + (uint64_t)serverNode->t_last.tv_usec);
 
     node->latency.client = latency;
-    Server_node->latency.client = latency;
+    serverNode->latency.client = latency;
     // reset flag
     node->latency.flag = 0;
-    // set flag, to calc application latency with nex packet from server
-    Server_node->latency.flag = 2;
-    Server_node->latency.t_request = *t_packet;
     dbg_printf("Client latency: %llu\n", (long long unsigned)latency);
 
 }  // End of SetClient_latency
 
 // Application latency = t(ACK Server) - t(ACK CLient)
 void SetApplication_latency(struct FlowNode *node, struct timeval *t_packet) {
-    struct FlowNode *Client_node;
-    uint64_t latency;
+    struct FlowNode *clientNode = node->rev_node;
+    if (!clientNode) return;
 
-    Client_node = node->rev_node;
-    if (!Client_node) return;
-
-    latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
-              ((uint64_t)node->latency.t_request.tv_sec * (uint64_t)1000000 + (uint64_t)node->latency.t_request.tv_usec);
+    uint64_t latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
+                       ((uint64_t)clientNode->t_last.tv_sec * (uint64_t)1000000 + (uint64_t)clientNode->t_last.tv_usec);
 
     node->latency.application = latency;
-    Client_node->latency.application = latency;
+    clientNode->latency.application = latency;
     // reset flag
     node->latency.flag = 0;
+    // set flag, to calc application latency with nex packet from server
+    clientNode->latency.flag = 0;
     dbg_printf("Application latency: %llu\n", (long long unsigned)latency);
 
 }  // End of SetApplication_latency
@@ -399,8 +391,17 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
             // flush node to flow thread
             Remove_Node(NewNode);
             Push_Node(packetParam->NodeList, NewNode);
+            return;
         }
 
+#ifdef DEVEL
+        if ((NewNode->flags & 0x3F) == 0x2) {
+            printf("SYN Node\n");
+        }
+        if ((NewNode->flags & 0x37) == 0x12) {
+            printf("SYN ACK Node\n");
+        }
+#endif
         if (packetParam->extendedFlow && Link_RevNode(NewNode)) {
             // if we could link this new node, it is the server answer
             // -> calculate server latency
@@ -411,7 +412,7 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
 
     assert(Node->memflag == NODE_IN_USE);
 
-    // check for first client ACK for client latency
+    // check for latency flag
     if (Node->latency.flag == 1) {
         SetClient_latency(Node, &(NewNode->t_first));
     } else if (Node->latency.flag == 2) {
@@ -842,8 +843,8 @@ REDO_IPPROTO:
         if (!Node) Node = New_Node();
         Node->flowKey.version = AF_INET6;
         Node->t_first.tv_sec = hdr->ts.tv_sec;
-        Node->t_first.tv_usec = hdr->ts.tv_usec;
         Node->t_last.tv_sec = hdr->ts.tv_sec;
+        Node->t_first.tv_usec = hdr->ts.tv_usec;
         Node->t_last.tv_usec = hdr->ts.tv_usec;
         Node->bytes = ntohs(ip6->ip6_plen) + size_ip;
         Node->ttl = ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
@@ -915,8 +916,8 @@ REDO_IPPROTO:
             if (!Node) Node = New_Node();
             Node->flowKey.version = AF_INET;
             Node->t_first.tv_sec = hdr->ts.tv_sec;
-            Node->t_first.tv_usec = hdr->ts.tv_usec;
             Node->t_last.tv_sec = hdr->ts.tv_sec;
+            Node->t_first.tv_usec = hdr->ts.tv_usec;
             Node->t_last.tv_usec = hdr->ts.tv_usec;
             Node->bytes = ntohs(ip->ip_len);
             if (ip_off & IP_DF) Node->fragmentFlags |= flagDF;

@@ -314,12 +314,18 @@ int Link_RevNode(struct FlowNode *node) {
 
     dbg_printf("Link node: ");
     dbg_assert(node->rev_node == NULL);
-    lookup_node.flowKey = node->flowKey;
+    lookup_node.flowKey._ALIGN = 0;
+    lookup_node.flowKey.proto = node->flowKey.proto;
+    lookup_node.flowKey.version = node->flowKey.version;
+    // reverse lookup key to find reverse node
+    lookup_node.flowKey.src_addr = node->flowKey.dst_addr;
+    lookup_node.flowKey.dst_addr = node->flowKey.src_addr;
+    lookup_node.flowKey.src_port = node->flowKey.dst_port;
+    lookup_node.flowKey.dst_port = node->flowKey.src_port;
     rev_node = Lookup_Node(&lookup_node);
     if (rev_node) {
         dbg_printf("Found revnode ");
         // rev node must not be linked already - otherwise there is an inconsistency
-        dbg_assert(node->rev_node == NULL);
         if (node->rev_node == NULL) {
             // link both nodes
             node->rev_node = rev_node;
