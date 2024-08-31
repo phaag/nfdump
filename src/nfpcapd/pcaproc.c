@@ -1012,7 +1012,7 @@ REDO_IPPROTO:
             if (tcp->th_flags & TH_RST) printf("RST ");
             printf("\n");
 #endif
-
+            if ((tcp->th_flags & TH_FIN) || (tcp->th_flags & TH_RST)) Node->signal = SIGNAL_FIN;
             Node->flags = tcp->th_flags;
             Node->flowKey.src_port = ntohs(tcp->th_sport);
             Node->flowKey.dst_port = ntohs(tcp->th_dport);
