@@ -65,6 +65,7 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 [sfcapd]
 # define -o options
 # opt.gre = 1
+# maxworkers = 16
 
 [nfpcapd]
 # define -o options

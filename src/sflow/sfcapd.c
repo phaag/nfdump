@@ -95,7 +95,8 @@ static int verbose = 0;
 // Define a generic type to get data from socket or pcap file
 typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *, socklen_t *);
 
-static option_t sfcapdOption[] = {{.name = "gre", .valBool = 0, .flags = OPTDEFAULT}, {.name = NULL}};
+static option_t sfcapdConfig[] = {
+    {.name = "gre", .valBool = 0, .flags = OPTDEFAULT}, {.name = "maxworkers", .valUint64 = 2, .flags = OPTDEFAULT}, {.name = NULL}};
 
 /* module limited globals */
 static FlowSource_t *FlowSource;
@@ -458,7 +459,8 @@ int main(int argc, char **argv) {
     int family, bufflen, metricInterval;
     time_t twin;
     int sock, do_daemonize, expire, spec_time_extension, parse_gre;
-    int subdir_index, compress, srcSpoofing, workers;
+    int subdir_index, compress, srcSpoofing;
+    uint64_t workers;
 #ifdef PCAP
     char *pcap_file = NULL;
     char *pcap_device = NULL;
@@ -684,9 +686,13 @@ int main(int argc, char **argv) {
                 break;
             case 'W':
                 CheckArgLen(optarg, 16);
-                workers = atoi(optarg);
-                if (workers < 0 || workers > MAXWORKERS) {
+                workers = (uint64_t)atoi(optarg);
+                if (workers < 1 || workers > MAXWORKERS) {
                     LogError("Number of working threads out of range 1..%d", MAXWORKERS);
+                    exit(EXIT_FAILURE);
+                }
+                if (!ConfSetUint64(sfcapdConfig, "maxworkers", workers)) {
+                    LogError("Failed to set conf value");
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -776,10 +782,10 @@ int main(int argc, char **argv) {
 
     if (ConfOpen(configFile, "sfcapd") < 0) exit(EXIT_FAILURE);
 
-    if (scanOptions(sfcapdOption, options) == 0) {
+    if (scanOptions(sfcapdConfig, options) == 0) {
         exit(EXIT_FAILURE);
     }
-    OptGetBool(sfcapdOption, "gre", &parse_gre);
+    OptGetBool(sfcapdConfig, "gre", &parse_gre);
 
     if (datadir && !AddFlowSource(&FlowSource, Ident, ANYIP, datadir)) {
         LogError("Failed to add default data collector directory");
@@ -801,6 +807,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    ConfGetUint64(sfcapdConfig, "maxworkers", &workers);
     if (!Init_nffile(workers, NULL)) exit(254);
 
     if (expire && spec_time_extension) {

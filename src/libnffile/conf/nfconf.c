@@ -429,6 +429,68 @@ int SetNameserver(char *ns) {
 
 }  // End of set_nameserver
 
+int ConfGetInt64(option_t *optionList, char *key, uint64_t *valInt64) {
+    int i = 0;
+    while (optionList[i].name != NULL) {
+        if (strcmp(optionList[i].name, key) == 0) {
+            if (optionList[i].flags == OPTDEFAULT) {
+                int confInt64 = ConfGetValue(key);
+                *valInt64 = confInt64;
+                return 1;
+            } else {
+                *valInt64 = optionList[i].valInt64;
+                return 1;
+            }
+        }
+        i++;
+    }
+    return 0;
+}  // End of ConfGetInt64
+
+int ConfSetInt64(option_t *optionList, char *key, uint64_t valInt64) {
+    int i = 0;
+    while (optionList[i].name != NULL) {
+        if (strcmp(optionList[i].name, key) == 0) {
+            optionList[i].valInt64 = valInt64;
+            optionList[i].flags = OPTSET;
+            return 1;
+        }
+        i++;
+    }
+    return 0;
+}  // End of ConfSetInt64
+
+int ConfGetUint64(option_t *optionList, char *key, uint64_t *valUint64) {
+    int i = 0;
+    while (optionList[i].name != NULL) {
+        if (strcmp(optionList[i].name, key) == 0) {
+            if (optionList[i].flags == OPTDEFAULT) {
+                int confUint64 = ConfGetValue(key);
+                *valUint64 = confUint64;
+                return 1;
+            } else {
+                *valUint64 = optionList[i].valUint64;
+                return 1;
+            }
+        }
+        i++;
+    }
+    return 0;
+}  // ConfGetUint64
+
+int ConfSetUint64(option_t *optionList, char *key, uint64_t valUint64) {
+    int i = 0;
+    while (optionList[i].name != NULL) {
+        if (strcmp(optionList[i].name, key) == 0) {
+            optionList[i].valUint64 = valUint64;
+            optionList[i].flags = OPTSET;
+            return 1;
+        }
+        i++;
+    }
+    return 0;  // End of
+}  // End of ConfSetUint64
+
 int scanOptions(option_t *optionList, char *options) {
     if (options == NULL) return 1;
 
