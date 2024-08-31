@@ -106,6 +106,13 @@ struct myicmphdr {
                   /* ignore the rest */
 };
 
+/* and GRE (RFC 2890) */
+struct mygreheader { /* only relevant fields */
+    uint8_t flags; /* presence indicators for checksum, key, and sequence number */
+    uint8_t version; /* GRE version */
+    uint16_t protocol_type; /* EtherType code for encapsulated protocol */
+};
+
 typedef struct _SFSample {
     /* exception handler context */
     jmp_buf env;
@@ -149,6 +156,7 @@ typedef struct _SFSample {
     uint8_t *header;
     uint32_t headerLen;
     uint32_t stripped;
+    uint32_t *headerDescriptionStart;
 
     /* header decode */
     int gotIPV4;
@@ -270,6 +278,8 @@ typedef struct _SFSample {
 #define SF_ABORT_EOS 1
 #define SF_ABORT_DECODE_ERROR 2
 #define SF_ABORT_LENGTH_ERROR 3
+
+    int parse_gre;
 
 } SFSample;
 
