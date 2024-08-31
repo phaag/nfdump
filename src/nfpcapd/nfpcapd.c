@@ -102,8 +102,8 @@ static int launcher_pid;
 static pthread_mutex_t m_done = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t terminate = PTHREAD_COND_INITIALIZER;
 
-uint32_t linktype;
-uint32_t linkoffset;
+static option_t nfpcapdOption[] = {
+    {.name = "fat", .valBool = 0, .flags = OPTDEFAULT}, {.name = "payload", .valBool = 0, .flags = OPTDEFAULT}, {.name = NULL}};
 
 /*
  * Function prototypes
@@ -116,7 +116,7 @@ static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, 
 
 static void WaitDone(void);
 
-static int scanOptions(flowParam_t *flowParam, char *options);
+static int scanOptions(option_t *optionList, char *options);
 
 /*
  * Functions
@@ -192,7 +192,7 @@ static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, 
         }
     }
 
-    linktype = pcap_datalink(handle);
+    int linktype = pcap_datalink(handle);
     switch (linktype) {
         case DLT_RAW:
         case DLT_PPP:
@@ -258,23 +258,33 @@ static void WaitDone(void) {
 
 }  // End of WaitDone
 
-static int scanOptions(flowParam_t *flowParam, char *options) {
+static int scanOptions(option_t *optionList, char *options) {
+    if (options == NULL) return 1;
+
     char *option = strtok(options, ",");
     while (option != NULL) {
-        if (strncasecmp(option, "fat", 4) == 0) {
-            flowParam->extendedFlow = 1;
-            dbg_printf("Found extended flow option\n");
-        } else if (strncasecmp(option, "payload", 8) == 0) {
-            flowParam->addPayload = 1;
-            dbg_printf("Found payload option\n");
-        } else {
+        int valBool = 1;
+        char *eq = strchr(option, '=');
+        if (eq) {
+            *eq++ = '\0';
+            switch (eq[0]) {
+                case '0':
+                    valBool = 0;
+                    break;
+                case '1':
+                    valBool = 1;
+                    break;
+                default:
+                    LogError("Invalid bool value: %s", eq[0] ? eq : "empty value");
+            }
+        }
+        if (OptSetBool(optionList, option, valBool) == 0) {
             LogError("Unknown option: %s", option);
-            return -1;
+            return 0;
         }
         option = strtok(NULL, ",");
     }
-
-    return 0;
+    return 1;
 
 }  // End of scanOption
 
@@ -577,9 +587,11 @@ int main(int argc, char *argv[]) {
     flowParam.extensionFormat = time_extension;
     packetParam.doDedup = doDedup;
 
-    if (options && scanOptions(&flowParam, options) < 0) {
+    if (scanOptions(nfpcapdOption, options) == 0) {
         exit(EXIT_FAILURE);
     }
+    OptGetBool(nfpcapdOption, "fat", &flowParam.extendedFlow);
+    OptGetBool(nfpcapdOption, "payload", &flowParam.addPayload);
 
     if ((datadir && sendHost) || (!datadir && !sendHost)) {
         LogError("Specify either a local directory or a remote host to dump flows.");

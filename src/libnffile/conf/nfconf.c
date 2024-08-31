@@ -428,3 +428,36 @@ int SetNameserver(char *ns) {
     return 1;
 
 }  // End of set_nameserver
+
+int OptSetBool(option_t *optionList, char *name, int valBool) {
+    int i = 0;
+    while (optionList[i].name != NULL) {
+        if (strcmp(optionList[i].name, name) == 0) {
+            optionList[i].valBool = valBool;
+            optionList[i].flags = OPTSET;
+            return 1;
+        }
+        i++;
+    }
+    return 0;
+}  // End of OptSetBool
+
+int OptGetBool(option_t *optionList, char *name, int *valBool) {
+    int i = 0;
+    while (optionList[i].name != NULL) {
+        if (strcmp(optionList[i].name, name) == 0) {
+            if (optionList[i].flags == OPTDEFAULT) {
+                char confName[32] = "opt.";
+                strcat(confName, optionList[i].name);
+                int confBool = ConfGetValue(confName);
+                *valBool = confBool;
+                return 1;
+            } else {
+                *valBool = optionList[i].valBool;
+                return 1;
+            }
+        }
+        i++;
+    }
+    return 0;
+}  // End of OptGetBool

@@ -61,3 +61,8 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # MAXWORKERS
 # see maxworkers in section [nfdump]
 # maxworkers = 16
+
+[nfpcapd]
+# define -o options
+# opt.fat = 1
+# opt.payload = 1

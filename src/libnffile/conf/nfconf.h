@@ -36,6 +36,18 @@
 
 #define NOCONF "none"
 
+typedef enum { OPTDEFAULT, OPTSET } optFlags;
+typedef struct option_s {
+    char *name;
+    union {
+        int valBool;
+        int64_t valInt64;
+        uint64_t valUint64;
+        char *valString;
+    };
+    optFlags flags;
+} option_t;
+
 int ConfOpen(char *filename, char *section);
 
 int ConfGetFormatEntry(char *format, char **key, char **value);
@@ -49,5 +61,9 @@ int ConfGetValue(char *key);
 int SetNameserver(char *ns);
 
 void ConfInventory(char *confFile);
+
+int OptSetBool(option_t *optionList, char *name, int valBool);
+
+int OptGetBool(option_t *optionList, char *name, int *valBool);
 
 #endif
