@@ -33,6 +33,7 @@
 #include <arpa/nameser.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <resolv.h>
@@ -51,7 +52,7 @@
 #include "toml.h"
 #include "util.h"
 
-#define NFCONF_FILE "/usr/local/etc/nfdump.conf"
+#define NFCONF_FILE SYSCONFDIR "/nfdump.conf"
 
 typedef struct nfconfFile_s {
     int valid;                  // flag
@@ -308,7 +309,7 @@ static void ConfPrintTableValue(toml_table_t *sectionConf, const char *tableName
     }
     val = toml_table_int(sectionConf, entry);
     if (val.ok) {
-        printf("%s:%-10s int    : %lld\n", tableName, entry, val.u.i);
+        printf("%s:%-10s int    : %" PRIi64 "\n", tableName, entry, val.u.i);
     }
     val = toml_table_double(sectionConf, entry);
     if (val.ok) {
@@ -333,7 +334,7 @@ static void ConfPrintArrayValue(toml_array_t *sectionConf, const char *arrayName
     }
     val = toml_array_int(sectionConf, entry);
     if (val.ok) {
-        printf("%s:[%d] int    : %lld\n", arrayName, entry, val.u.i);
+        printf("%s:[%d] int    : %" PRIi64 "\n", arrayName, entry, val.u.i);
     }
     val = toml_array_double(sectionConf, entry);
     if (val.ok) {

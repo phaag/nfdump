@@ -1,6 +1,6 @@
 BUILT_SOURCES = vcs_track.h
 
-AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -Icompress $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -Icompress $(DEPS_CFLAGS) -DSYSCONFDIR='"$(sysconfdir)"'
 AM_CFLAGS = -ggdb 
 
 LDADD =  $(DEPS_LIBS)
