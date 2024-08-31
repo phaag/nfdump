@@ -116,8 +116,6 @@ static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, 
 
 static void WaitDone(void);
 
-static int scanOptions(option_t *optionList, char *options);
-
 /*
  * Functions
  */
@@ -257,36 +255,6 @@ static void WaitDone(void) {
     }
 
 }  // End of WaitDone
-
-static int scanOptions(option_t *optionList, char *options) {
-    if (options == NULL) return 1;
-
-    char *option = strtok(options, ",");
-    while (option != NULL) {
-        int valBool = 1;
-        char *eq = strchr(option, '=');
-        if (eq) {
-            *eq++ = '\0';
-            switch (eq[0]) {
-                case '0':
-                    valBool = 0;
-                    break;
-                case '1':
-                    valBool = 1;
-                    break;
-                default:
-                    LogError("Invalid bool value: %s", eq[0] ? eq : "empty value");
-            }
-        }
-        if (OptSetBool(optionList, option, valBool) == 0) {
-            LogError("Unknown option: %s", option);
-            return 0;
-        }
-        option = strtok(NULL, ",");
-    }
-    return 1;
-
-}  // End of scanOption
 
 int main(int argc, char *argv[]) {
     sigset_t signal_set;

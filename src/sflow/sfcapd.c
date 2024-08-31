@@ -95,6 +95,8 @@ static int verbose = 0;
 // Define a generic type to get data from socket or pcap file
 typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *, socklen_t *);
 
+static option_t sfcapdOption[] = {{.name = "gre", .valBool = 0, .flags = OPTDEFAULT}, {.name = NULL}};
+
 /* module limited globals */
 static FlowSource_t *FlowSource;
 
@@ -111,7 +113,8 @@ static void IntHandler(int signal);
 
 static inline FlowSource_t *GetFlowSource(struct sockaddr_storage *ss);
 
-static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress, int parse_gre);
+static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress,
+                int parse_gre);
 
 /* Functions */
 static void usage(char *name) {
@@ -136,6 +139,7 @@ static void usage(char *name) {
         "-i interval\tMetric interval in s for metric exporter\n"
         "-m socket\t\tEnable metric exporter on socket.\n"
         "-M dir \t\tSet the output directory for dynamic sources.\n"
+        "-o options \tAdd sfcpad options, separated with ','. Available: 'gre'\n"
         "-P pidfile\tset the PID file\n"
         "-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
         "-A\t\tEnable source address spoofing for packet repeater -R.\n"
@@ -155,7 +159,6 @@ static void usage(char *name) {
         "-X <extlist>\t',' separated list of extensions (numbers). Default all extensions.\n"
         "-V\t\tPrint version and exit.\n"
         "-Z\t\tAdd timezone offset to filename.\n",
-        "-G\t\tEnable GRE parsing.\n",
         name);
 }  // End of usage
 
@@ -267,7 +270,8 @@ static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockadd
     return 0;
 }  // End of SendRepeaterMessage
 
-static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress, int parse_gre) {
+static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress,
+                int parse_gre) {
     struct sockaddr_storage sf_sender;
     socklen_t sf_sender_size = sizeof(sf_sender);
 
@@ -447,7 +451,7 @@ int main(int argc, char **argv) {
     char *bindhost, *datadir, *launch_process;
     char *userid, *groupid, *listenport, *mcastgroup;
     char *Ident, *dynFlowDir, *time_extension, *pidfile, *configFile, *metricSocket;
-    char *extensionList;
+    char *extensionList, *options;
     packet_function_t receive_packet;
     repeater_t repeater[MAX_REPEATERS];
     FlowSource_t *fs;
@@ -486,11 +490,12 @@ int main(int argc, char **argv) {
     metricSocket = NULL;
     metricInterval = 60;
     extensionList = NULL;
+    options = NULL;
     workers = 0;
     parse_gre = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:S:T:t:u:vVW:w:x:X:yz::Z:G")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:o:p:P:R:S:T:t:u:vVW:w:x:X:yz::Z:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -596,6 +601,13 @@ int main(int argc, char **argv) {
                 break;
             case 'J':
                 mcastgroup = optarg;
+                break;
+            case 'o':
+                if (strlen(optarg) > 64) {
+                    LogError("ERROR:, option string size error");
+                    exit(EXIT_FAILURE);
+                }
+                options = strdup(optarg);
                 break;
             case 'p':
                 listenport = optarg;
@@ -727,9 +739,6 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
-            case 'G':
-                parse_gre = 1;
-                break;
             default:
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
@@ -766,6 +775,11 @@ int main(int argc, char **argv) {
     }
 
     if (ConfOpen(configFile, "sfcapd") < 0) exit(EXIT_FAILURE);
+
+    if (scanOptions(sfcapdOption, options) == 0) {
+        exit(EXIT_FAILURE);
+    }
+    OptGetBool(sfcapdOption, "gre", &parse_gre);
 
     if (datadir && !AddFlowSource(&FlowSource, Ident, ANYIP, datadir)) {
         LogError("Failed to add default data collector directory");

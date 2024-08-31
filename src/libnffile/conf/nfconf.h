@@ -60,6 +60,8 @@ int ConfGetValue(char *key);
 
 int SetNameserver(char *ns);
 
+int scanOptions(option_t *optionList, char *options);
+
 void ConfInventory(char *confFile);
 
 int OptSetBool(option_t *optionList, char *name, int valBool);

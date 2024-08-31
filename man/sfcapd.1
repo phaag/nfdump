@@ -57,6 +57,7 @@
 .Op Fl M Ar multiflowdir
 .Op Fl i Ar metricrate
 .Op Fl m Ar metricpath
+.Op Fl o Ar optionlist
 .Op Fl e
 .Op Fl x Ar command
 .Op Fl X Ar extensionList
@@ -275,6 +276,17 @@ dynamically to store all data sent by the exporter. If
 .Ar extensionList 
 is given, only those elements matching the extension are processed and stored. Usually this
 option is not needed, unless for specific requirements.
+.It Fl o Ar options
+Set
+.Nm 
+options. This is a ',' separated list of options. Available options:
+.It
+.Sy gre    
+Add GRE tunnel decoding.
+.It
+These options may also be defined in the
+.Sy nfdump.conf
+config file. Options specified on the command line overwrite the value in the config file.
 .It Fl m Ar metricpath
 Enables the flow metric exporter. Flow metric information is sent to the UNIX socket
 .Ar metricpath
