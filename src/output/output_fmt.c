@@ -498,7 +498,7 @@ static struct format_entry_s {
     {"%xsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NSEL XLATE src IP
     {"%xda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NSEL XLATE dst IP
     {"%xsap", 1, "   X-Src IP Addr:Port ", String_xlateSrcAddrPort},  // NSEL Xlate Source Address:Port
-    {"%xdap", 1, "   X-Src IP Addr:Port ", String_xlateDstAddrPort},  // NSEL Xlate Destination Address:Port
+    {"%xdap", 1, "   X-Dst IP Addr:Port ", String_xlateDstAddrPort},  // NSEL Xlate Destination Address:Port
     // NAT devices
     {"%nsa", 0, "   X-late Src IP", String_xlateSrcAddr},             // NAT XLATE src IP
     {"%nda", 0, "   X-late Dst IP", String_xlateDstAddr},             // NAT XLATE dst IP
