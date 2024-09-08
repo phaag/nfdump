@@ -130,6 +130,9 @@ struct FlowNode {
         uint64_t server;
         uint64_t application;
         uint32_t flag;
+        uint32_t ack;
+        uint32_t tsVal;
+        uint32_t rtt;
     } latency;
 };
 

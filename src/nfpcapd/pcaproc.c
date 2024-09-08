@@ -416,6 +416,8 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
     if (Node->latency.flag == 1) {
         SetClient_latency(Node, &(NewNode->t_first));
     } else if (Node->latency.flag == 2) {
+        dbg_printf("Set App lat slot: %u -> %u diff: %u\n", Node->latency.tsVal, NewNode->latency.tsVal,
+                   NewNode->latency.tsVal - Node->latency.tsVal);
         SetApplication_latency(Node, &(NewNode->t_first));
     }
     // update existing flow
@@ -423,7 +425,19 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
     Node->packets++;
     Node->bytes += NewNode->bytes;
     Node->t_last = NewNode->t_last;
+
+    // DEVEL RTT - disabled for now
+#if 0
+    if (NewNode->signal != SIGNAL_FIN && Node->latency.ack && ((NewNode->latency.ack - Node->latency.ack) > 0)) {
+        uint32_t rtt = NewNode->latency.tsVal - Node->latency.tsVal;
+        printf("Node old RTT: %u ", Node->latency.rtt);
+        if (rtt) Node->latency.rtt = Node->latency.rtt ? (Node->latency.rtt + rtt) >> 1 : rtt;
+        dbg_printf("Node rtt: %u, new RTT: %u\n", rtt, Node->latency.rtt);
+    }
+    Node->latency.tsVal = NewNode->latency.tsVal;
+    Node->latency.ack = NewNode->latency.ack;
     dbg_printf("Existing TCP flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
+#endif
 
     if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
         dbg_printf("Existing TCP flow: Set payload of size: %zu\n", payloadSize);
@@ -1012,7 +1026,49 @@ REDO_IPPROTO:
             if (tcp->th_flags & TH_RST) printf("RST ");
             printf("\n");
 #endif
-            if ((tcp->th_flags & TH_FIN) || (tcp->th_flags & TH_RST)) Node->signal = SIGNAL_FIN;
+            Node->signal = tcp->th_flags & TH_FIN || tcp->th_flags & TH_RST;
+
+            // RTT DEVEL - disabled for now
+
+#if 0
+            if (tcp->th_off > 5) {
+                uint32_t optLen = (tcp->th_off - 5) << 2;
+                uint8_t *optData = dataptr - (ptrdiff_t)optLen;
+                dbg_printf("TCP HLen: %u, tcp option len: %u\n", tcp->th_off, optLen);
+                while (optData < dataptr) {
+                    uint8_t opt = *optData++;
+                    uint8_t optLen = 0;
+                    switch (opt) {
+                        case 0:  // End of options
+                        case 1:  // NOP
+                            continue;
+                            break;
+                        case 8:  // TS
+                            optLen = *optData++;
+                            if (optLen != 10) {
+                                // skip unknown TS len
+                                LogError("TCP option TS len error: %u", optLen);
+                            } else {
+                                uint32_t tsVal = ntohl(*(uint32_t *)optData);
+                                Node->latency.tsVal = tsVal;
+                                optData += 4;
+                                uint32_t tsEcr = ntohl(*(uint32_t *)optData);
+                                optData += 4;
+                                dbg_printf("TS tcp option: %u, optLen: %u, tsVal: %u, tsEcr: %u\n", opt, optLen, tsVal, tsEcr);
+                                Node->latency.ack = ntohl(tcp->th_ack);
+                                continue;
+                            }
+                            break;
+                        default:
+                            optLen = *optData++;
+                            optData += (optLen - 2);
+                            dbg_printf("Next tcp option: %u, optLen: %u, size left: %lu\n", opt, optLen, (dataptr - optData));
+                    }
+                }
+            } else {
+                dbg_printf("OptLen: %u, no tcp option decoded\n", tcp->th_off);
+            }
+#endif
             Node->flags = tcp->th_flags;
             Node->flowKey.src_port = ntohs(tcp->th_sport);
             Node->flowKey.dst_port = ntohs(tcp->th_dport);

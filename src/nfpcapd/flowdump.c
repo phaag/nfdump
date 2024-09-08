@@ -168,6 +168,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
                 latency->usecClientNwDelay = Node->latency.client;
                 latency->usecServerNwDelay = Node->latency.server;
                 latency->usecApplLatency = Node->latency.application;
+                dbg_printf("Node RTT: %u\n", Node->latency.rtt);
             }
 
             if (Node->pflog) {
