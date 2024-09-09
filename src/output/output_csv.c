@@ -84,8 +84,8 @@ typedef char *(*string_function_t)(char *, recordHandle_t *);
     } while (0)
 
 #define STREAMBUFFSIZE 4096
-#define STREAMLEN(ptr)  \
-    (ptr - streamBuff); \
+#define STREAMLEN(ptr)                                \
+    ((ptrdiff_t)STREAMBUFFSIZE - (ptr - streamBuff)); \
     assert((ptr - streamBuff) < STREAMBUFFSIZE)
 static char *streamBuff = NULL;
 
