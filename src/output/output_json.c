@@ -31,6 +31,7 @@
 #include "output_json.h"
 
 #include <arpa/inet.h>
+#include <assert.h>
 #include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
@@ -114,6 +115,9 @@ static uint32_t recordCount = 0;
     } while (0)
 
 #define STREAMBUFFSIZE 4096
+#define STREAMLEN(ptr)  \
+    (ptr - streamBuff); \
+    assert((ptr - streamBuff) < STREAMBUFFSIZE)
 static char *streamBuff = NULL;
 
 static char *stringEXgenericFlow(char *streamPtr, void *extensionRecord) {
@@ -135,12 +139,13 @@ static char *stringEXgenericFlow(char *streamPtr, void *extensionRecord) {
     char dateBuff3[64];
     strftime(dateBuff3, 63, "%Y-%m-%dT%H:%M:%S", &ts);
 
-    int len = sprintf(streamPtr,
-                      "  \"first\" : \"%s.%03u\",\n"
-                      "  \"last\" : \"%s.%03u\",\n"
-                      "  \"received\" : \"%s.%03u\",\n",
-                      dateBuff1, (unsigned)(genericFlow->msecFirst % 1000LL), dateBuff2, (unsigned)(genericFlow->msecLast % 1000LL), dateBuff3,
-                      (unsigned)(genericFlow->msecReceived % 1000LL));
+    ptrdiff_t lenStream = STREAMLEN(streamPtr);
+    int len = snprintf(streamPtr, lenStream,
+                       "  \"first\" : \"%s.%03u\",\n"
+                       "  \"last\" : \"%s.%03u\",\n"
+                       "  \"received\" : \"%s.%03u\",\n",
+                       dateBuff1, (unsigned)(genericFlow->msecFirst % 1000LL), dateBuff2, (unsigned)(genericFlow->msecLast % 1000LL), dateBuff3,
+                       (unsigned)(genericFlow->msecReceived % 1000LL));
     streamPtr += len;
 
     AddElementU64("in_packets", genericFlow->inPackets);
@@ -424,8 +429,9 @@ static char *stringEXipReceivedV6(char *streamPtr, void *extensionRecord) {
 static char *stringEXmplsLabel(char *streamPtr, void *extensionRecord) {
     EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)extensionRecord;
     for (int i = 0; i < 10; i++) {
-        int len = sprintf(streamPtr, "  \"mpls_%u\" : \"%u-%u-%u\",\n", i + 1, mplsLabel->mplsLabel[i] >> 4, (mplsLabel->mplsLabel[i] & 0xF) >> 1,
-                          mplsLabel->mplsLabel[i] & 1);
+        ptrdiff_t lenStream = STREAMLEN(streamPtr);
+        int len = snprintf(streamPtr, lenStream, "  \"mpls_%u\" : \"%u-%u-%u\",\n", i + 1, mplsLabel->mplsLabel[i] >> 4,
+                           (mplsLabel->mplsLabel[i] & 0xF) >> 1, mplsLabel->mplsLabel[i] & 1);
         streamPtr += len;
     }
 
@@ -443,13 +449,14 @@ static char *stringEXmacAddr(char *streamPtr, void *extensionRecord) {
         mac4[i] = (macAddr->outSrcMac >> (i * 8)) & 0xFF;
     }
 
-    int len = sprintf(streamPtr,
-                      "  \"in_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"\n"
-                      "  \"out_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"\n"
-                      "  \"in_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"\n"
-                      "  \"out_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"\n",
-                      mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0], mac3[5], mac3[4],
-                      mac3[3], mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
+    ptrdiff_t lenStream = STREAMLEN(streamPtr);
+    int len = snprintf(streamPtr, lenStream,
+                       "  \"in_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"\n"
+                       "  \"out_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"\n"
+                       "  \"in_dst_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"\n"
+                       "  \"out_src_mac\" : \"%.2x:%.2x:%.2x:%.2x:%.2x:%.2x\"\n",
+                       mac1[5], mac1[4], mac1[3], mac1[2], mac1[1], mac1[0], mac2[5], mac2[4], mac2[3], mac2[2], mac2[1], mac2[0], mac3[5], mac3[4],
+                       mac3[3], mac3[2], mac3[1], mac3[0], mac4[5], mac4[4], mac4[3], mac4[2], mac4[1], mac4[0]);
     streamPtr += len;
 
     return streamPtr;
@@ -472,11 +479,12 @@ static char *stringEXlatency(char *streamPtr, void *extensionRecord) {
     f2 = (double)latency->usecServerNwDelay / 1000.0;
     f3 = (double)latency->usecApplLatency / 1000.0;
 
-    int len = sprintf(streamPtr,
-                      "  \"cli_latency\" : %f,\n"
-                      "  \"srv_latency\" : %f,\n"
-                      "  \"app_latency\" : %f,\n",
-                      f1, f2, f3);
+    ptrdiff_t lenStream = STREAMLEN(streamPtr);
+    int len = snprintf(streamPtr, lenStream,
+                       "  \"cli_latency\" : %f,\n"
+                       "  \"srv_latency\" : %f,\n"
+                       "  \"app_latency\" : %f,\n",
+                       f1, f2, f3);
     streamPtr += len;
 
     return streamPtr;
@@ -505,17 +513,18 @@ static char *string_payload(char *streamPtr, recordHandle_t *recordHandle, void 
 
     // ssl is defined
 
+    ptrdiff_t lenStream = STREAMLEN(streamPtr);
     int len = 0;
     if (ssl) {
         switch (ssl->tlsCharVersion[0]) {
             case 's':
-                len = sprintf(streamPtr, "  \"tls\" : SSL%c,\n", ssl->tlsCharVersion[1]);
+                len = snprintf(streamPtr, lenStream, "  \"tls\" : SSL%c,\n", ssl->tlsCharVersion[1]);
                 break;
             case '1':
-                len = sprintf(streamPtr, "  \"tls\" : TLS1.%c,\n", ssl->tlsCharVersion[1]);
+                len = snprintf(streamPtr, lenStream, "  \"tls\" : TLS1.%c,\n", ssl->tlsCharVersion[1]);
                 break;
             default:
-                len = sprintf(streamPtr, "  \"tls\" : 0x%4x,\n", ssl->tlsVersion);
+                len = snprintf(streamPtr, lenStream, "  \"tls\" : 0x%4x,\n", ssl->tlsVersion);
                 break;
         }
         streamPtr += len;
@@ -640,7 +649,8 @@ static char *stringEXnselCommon(char *streamPtr, void *extensionRecord) {
     AddElementString("event", fwEventString(nselCommon->fwEvent));
     AddElementU32("xevent_id", nselCommon->fwXevent);
 
-    int len = sprintf(streamPtr, "  \"t_event\" : \"%s.%llu\",\n", datestr, nselCommon->msecEvent % 1000LL);
+    ptrdiff_t lenStream = STREAMLEN(streamPtr);
+    int len = snprintf(streamPtr, lenStream, "  \"t_event\" : \"%s.%llu\",\n", datestr, nselCommon->msecEvent % 1000LL);
     streamPtr += len;
 
     return streamPtr;
@@ -691,11 +701,12 @@ static char *stringEXnatXlatePort(char *streamPtr, void *extensionRecord) {
 
 static char *stringEXnselAcl(char *streamPtr, void *extensionRecord) {
     EXnselAcl_t *nselAcl = (EXnselAcl_t *)extensionRecord;
-    int len = sprintf(streamPtr,
-                      "  \"ingress_acl\" : \"0x%x/0x%x/0x%x\",\n"
-                      "  \"egress_acl\" : \"0x%x/0x%x/0x%x\",\n",
-                      nselAcl->ingressAcl[0], nselAcl->ingressAcl[1], nselAcl->ingressAcl[2], nselAcl->egressAcl[0], nselAcl->egressAcl[1],
-                      nselAcl->egressAcl[2]);
+    ptrdiff_t lenStream = STREAMLEN(streamPtr);
+    int len = snprintf(streamPtr, lenStream,
+                       "  \"ingress_acl\" : \"0x%x/0x%x/0x%x\",\n"
+                       "  \"egress_acl\" : \"0x%x/0x%x/0x%x\",\n",
+                       nselAcl->ingressAcl[0], nselAcl->ingressAcl[1], nselAcl->ingressAcl[2], nselAcl->egressAcl[0], nselAcl->egressAcl[1],
+                       nselAcl->egressAcl[2]);
     streamPtr += len;
 
     return streamPtr;
@@ -726,7 +737,8 @@ static char *stringEXnatCommon(char *streamPtr, void *extensionRecord) {
     AddElementString("nat_event", natEventString(natCommon->natEvent, LONGNAME));
     AddElementU32("nat_pool_id", natCommon->natPoolID);
 
-    int len = sprintf(streamPtr, "  \"t_event\" : \"%s.%llu\",\n", datestr, natCommon->msecEvent % 1000LL);
+    ptrdiff_t lenStream = STREAMLEN(streamPtr);
+    int len = snprintf(streamPtr, lenStream, "  \"t_event\" : \"%s.%llu\",\n", datestr, natCommon->msecEvent % 1000LL);
 
     streamPtr += len;
 
