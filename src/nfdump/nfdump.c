@@ -361,6 +361,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
 #ifdef DEVEL
     uint32_t numBlocks = 0;
     uint32_t self = ++filterArgs->self;
+    uint64_t recordCounter = 0;
     printf("Filter thread %i started\n", self);
 #endif
 
