@@ -485,7 +485,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
     }
 
     queue_close(processQueue);
-    dbg_printf("FilterThread %d done. blocks: %u records: %" PRIu64 " \n", self, numBlocks, recordCounter);
+    dbg_printf("FilterThread %d done. blocks: %u records: %" PRIu64 " \n", self, numBlocks, processedRecords);
 
     free(recordHandle);
     filterArgs->processedRecords += processedRecords;
