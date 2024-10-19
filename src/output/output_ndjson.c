@@ -137,7 +137,7 @@ static char *stringEXgenericFlow(char *streamPtr, void *extensionRecord) {
     streamPtr += len;
 
     AddElementU64("in_packets", genericFlow->inPackets);
-    AddElementU64("in_bytes", genericFlow->inPackets);
+    AddElementU64("in_bytes", genericFlow->inBytes);
 
     if (genericFlow->proto == IPPROTO_ICMP || genericFlow->proto == IPPROTO_ICMPV6) {  // ICMP
         AddElementU32("proto", (uint32_t)genericFlow->proto);
