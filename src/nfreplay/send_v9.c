@@ -177,7 +177,7 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
 
     uint64_t elementBits = 0;
     for (int i = 0; i < MAXEXTENSIONS; i++) {
-        if (recordHandle->extensionList[i]) elementBits |= 1 << i;
+        if (recordHandle->extensionList[i]) elementBits |= (uint64_t)1 << i;
     }
 
     outTemplate_t **t = &outTemplates;
