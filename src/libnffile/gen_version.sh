@@ -42,7 +42,7 @@ if [ -d ../../.git ]; then
 else
   # no git directory - most likely release - zip or tarball
   hash="release"
-  date="Sat Feb 17 15:05:20 CET 2024"
+  date="Wed Oct 23 19:53:03 CEST 2024"
 fi
 
 echo \#ifndef __VCS_TRACK_H__ >$f

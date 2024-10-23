@@ -1,9 +1,283 @@
-- c9fe29c 2024-03-03  (HEAD -> nfdump-ja4, origin/nfdump-ja4) Prepare nfstat for var length fields such as ja4
+- 18dc06d 2024-10-23  (HEAD -> master, origin/master, origin/HEAD) Fix nfeplay template identifu ID
+- 4c8b892 2024-10-19  Merge pull request #571 from TiceDB/patch-2
+- b96828f 2024-10-19  Merge pull request #570 from TiceDB/patch-1
+- b1d2a1f 2024-10-18  Point JSON field in_bytes to inBytes instead of inPackets
+- 6825cb0 2024-10-18  Add missing delimiter for JSON output
+- 04cc2b8 2024-09-22  Fix #567 devel compile error.
+- 0d78cf7 2024-09-09  Fix broken length calculation
+- b72105d 2024-09-09  Replace sprintf with snprintf in output files
+- 49ed7d8 2024-09-08  Add RTT lantencu code - but disabled for now
+- 0e80ef2 2024-09-07  Merge pull request #564 from paineta/master
+- 76aa13a 2024-09-06  Update output_fmt.c
+- dc85e39 2024-08-31  Addint64 and uint64 config routines
+- 15b9bfd 2024-08-31  Change GRE cli option -G in sfcapd for -o gre option string. #559
+- 87a9e67 2024-08-31  Add new option functions in nfconf and wire nfpcapd options
+- 14b2179 2024-08-31  Use sysconfdir for default nfdump.conf file
+- 99db1cd 2024-08-31  Merge pull request #559 from simonschdev/parse-gre
+- 5c67031 2024-08-31  ADd FIN/RST signal flag to node
+- dbaa772 2024-08-29  Fix latency calculation in nfpcapd
+- 6d7d179 2024-08-27  Add src/dst tcp/udp port IE 180-183
+- ae52e09 2024-08-27  Fix #560 - geo filter containing keywords
+- dfb736f 2024-08-25  Add array decoding in ConfInventory()
+- 8b08c33 2024-08-25  Replace toml code with better maintained version
+- 71a2dd2 2024-08-25  Fix potential use after free
+- 6409763 2024-08-24  Change record count from 32 to 64bits
+- fb344fb 2024-08-23  minor cosmetic fixes
+- 268ff3f 2024-08-23  implemented GRE tunnel introspection for sFlow
+- c0ffe7d 2024-08-23  Fix duration string in summary line
+- 341575a 2024-08-23  Merge pull request #558 from Takalele/master
+- 5e08f54 2024-08-22  Fix #507 - gcc-14 issues with rrd version 1.9.x
+- 312951f 2024-08-20  fixed updateTorDB.sh
+- e1eed87 2024-08-20  Show some love to alpine linux
+- 0b2796b 2024-08-20  Make gcc-14 happy
+- 813da06 2024-08-20  Implement maxmind and tor lookup filter in nfprofile. See #557
+- 925dd28 2024-08-20  Cleanup nfpcapd Makefile and make Alpine Linux happy with GNU flag
+- 1cce258 2024-08-18  Merge pull request #556 from longregen/patch-1
+- 84c71a6 2024-08-17  fix: missing -W option in nfpcapd argparsing
+- 1fc74f0 2024-08-16  Make sure, only flow nodes get dummped - see also  #555
+- 6ec9d81 2024-08-16  Test if node is fragement node in defragment code. Fix #555
+- 56c7ddf 2024-08-09  Switch tcp flags to alpha string in json. ndjson output. #553
+- 10d4666 2024-08-09  Fix #554 - code dump in new processing pipeline.
+- 493c542 2024-08-07  Update nfdump(1) man page for ndjson and cleanup
+- 75cca36 2024-08-07  Fix coredump #552. Replace json-log by ndjson. #553 Cleanup json output. Replace " in maxmind org and city names by '. Otherwise breaks json output.
+- a29354c 2024-08-06  Add poc for post filter. See #551
+- aef51ae 2024-08-03  Align large vlan labels in ra output
+- c4a6a55 2024-08-01  Add file torlookup.1 man page
+- 0c815b2 2024-08-01  Add torlookup.1 man page as well as more information for torlookup in general
+- 7d437e5 2024-08-01  Fix tor code and update script
+- 2c461b5 2024-07-31  Add src,dst ip tor filter to match tor exit nodes and cleanup output buffer code
+- 2a78afa 2024-07-29  Merge branch 'master' of ssh://github.com/phaag/nfdump
+- 0c5e288 2024-07-29  Convert cvs output to itoa and local string buffer
+- 266b960 2024-07-29  Fix buffer check in output_csv_fast.c
+- cc0f593 2024-07-29  Add token %tsg, %teg for GMT start and end time in fmt and csv format. Update man page
+- 51fded0 2024-07-29  Cleanup some output code
+- 9d3cdd9 2024-07-29  Replace printf by local buffer and itoa. See #548
+- fa2785b 2024-07-29  Add fixed but fast csv output mode csv-fast. See #548
+- 87ee686 2024-07-29  Add local itoa
+- bd93c60 2024-07-29  Speedup json output
+- b6179a6 2024-07-22  Silence know record error message in filter thread
+- 9fb15d1 2024-07-22  Strip quotes from org name in Maxmind DB
+- 4804dbf 2024-07-22  Update mmhash.c
+- 2fbc960 2024-07-22  Update mmhash.c
+- 0577dee 2024-07-20  Fix ebuff size
+- ad70a1f 2024-07-20  Fix platform issues and compiler warnings
+- 961f0ab 2024-07-20  Update geolookup man page
+- 1811ea3 2024-07-20  Add AS lookup to geolookup and add new -s srcasn, dstasn and asn for AS organistation name. Needs maxmind DB to work.
+- 3a9908e 2024-07-20  Cleanup grammar. Fix error messages
+- a253e80 2024-07-20  Cleanup grammar file
+- 3f26afa 2024-07-19  Regex filter multithreading patch
+- 9965ceb 2024-07-19  Fix AS mmdb lookup for flow addregation
+- 62b8fb1 2024-07-11  Fix inherit compression bug. #525
+- 64759bd 2024-07-11  Implement #543 and moved fragment flags
+- 53f9fa0 2024-07-07  Cleanup fixes, and fix gcc complains
+- bc3c2c9 2024-07-07  Merge pull request #545 from dceara/issue544-fix-typo-domain-id
+- 44c2fe5 2024-07-05  output_json: Fix observationDoaminID typo in json output.
+- 0659254 2024-07-05  Wire dedup into optional packet dump -p
+- 9562322 2024-06-29  Add metrohash to nflowcache
+- fb660f7 2024-06-29  Fix action script
+- 69f5d13 2024-06-29  Update c-cpp.yml
+- 745c60b 2024-06-29  Change hash to metrohash for de-duplication
+- 65ad2f9 2024-06-29  Add packet de-duplication for nfpcapd
+- 3f8fcdd 2024-06-28  Cleanup Makefiles
+- 483e780 2024-06-25  Wire new csv format into aggregation output. #529
+- e56f7f1 2024-06-24  Fix compiler warnings on some Linux systems
+- ce52547 2024-06-24  Fix minor format issues
+- 2c661f6 2024-06-24  Fix minor format issues
+- a78db7f 2024-06-24  Fix minor format issues
+- 23c7f4a 2024-06-23  Switch to new csv format definition
+- 35bcbff 2024-06-19  Fix ja3/ja4 printing
+- e44d934 2024-06-10  Fix format printing in packet-linux
+- 8b1416f 2024-06-10  Add csv headers and config
+- 595c3bd 2024-06-09  Fix runtest
+- 2d68eca 2024-06-09  First batch of changes for flexible csv format output mode - still compatible
+- 0b20860 2024-06-09  First batch of changes for flexible csv format output mode - still compatible
+- e7df924 2024-06-03  update .gitignore
+- 3b06350 2024-06-03  Remove vcs_track in repo. Created automatically
+- 109860b 2024-06-02  Remove debug output
+- 2728a91 2024-06-02  Block formats other than auto fmt for aggregation
+- 7919b31 2024-06-02  Add json output for element stat. #528
+- f4fecaa 2024-06-02  Add size in verify mode -v
+- b3869bc 2024-06-02  Implement nokia NAT logging. See #533
+- f0a5f6f 2024-06-02  Add NOKIA enterprise IDs. Not yet wired. #533
+- 1619a60 2024-06-01  Merge pull request #538 from piorek94/fix_srcip6_agg
+- 558b513 2024-06-01  Remove local files - I hate the desktop client!
+- bf36a07 2024-06-01  Remove local files - I hate the desktop client!
+- c96efb9 2024-06-01  Remove local files - I hate the desktop client!
+- 044b1ae 2024-06-01  Remove local files - I hate the desktop client!
+- 5c12e57 2024-06-01  Fix some memory leaks, although process ends.
+- 5118e35 2024-06-01  fix srcip6 aggregation
+- 2b5db3b 2024-06-01  Fix convert.c from merge
+- c96f913 2024-06-01  Add multithreading filter processing
+- 56907f7 2024-06-01  Merge remote-tracking branch 'origin/nfdump-devel'
+- 3810acf 2024-05-31  Null IPs if inet aggregation does not match flow inet version. #537
+- 1d25d32 2024-05-31  Fix aggregation bug with v4/v6 flows #536
+- 7b701c9 2024-05-25  Add DLT_LINUX_SLL2 link type to pcap reader
+- af5d8d8 2024-05-24  Fix man page for 'bgp next ip' #531
+- daf20df 2024-05-24  Merge pull request #532 from piorek94/agg_zero_division_fix
+- 2ac8675 2024-05-24  Merge pull request #530 from piorek94/csv_newline_fix
+- 74c286f 2024-05-24  Fix #534 typo
+- 825ec11 2024-05-23  fix zero division issue in aggregation mode
+- 6b9d320 2024-05-23  remove etherType
+- 18e174a 2024-05-21  Fix coredump on dynamic exporter mode with no packets. #527
+- da06eb0 2024-05-20  Fix help and error text for compression
+- 564f3a9 2024-05-11  Cleanup minor issues and add example for ft2nfdump
+- d105409 2024-05-06  Add another dataBlock test
+- 43fd78d 2024-05-06  Fix #521. Cleanup unclear naming of xlate records
+- e8e8c38 2024-05-04  Remove heapsort. No longer needed these days
+- 5cd6645 2024-05-04  Fix ja3 pre-processing in filter
+- e3f4436 2024-05-03  Improve help text
+- 2450ace 2024-05-03  Remove hash back reference in nflowcache
+- d222bc0 2024-05-03  Cleanup hash code for nfstat and nflowcache
+- 885f7df 2024-05-02  Rework nflowcache. Replace hash code to speedup hash and have cleaner code for later multi-threading -s -A stats.
+- 73a2d8a 2024-04-20  Merge branch 'nfdump-devel' of ssh://github.com/phaag/nfdump into nfdump-devel
+- cfca245 2024-04-20  Test new hash in nfstat
+- f402ba3 2024-04-20  Merge branch 'master' of github.com:phaag/nfdump
+- 8feced6 2024-04-20  Test new hash in nfstat
+- f9e9e6a 2024-04-16  Improve boundary checking
+- edd489a 2024-04-16  Improve boundary checking
+- 9bc3553 2024-04-14  Sync with devel
+- def1e91 2024-04-14  Sync changes with master
+- 686f749 2024-04-14  Remove some old 1.6 code and clean up compat reader
+- ea0286a 2024-04-14  Finally remove old master_record
+- 18eff82 2024-04-14  Fix queue_close with multiple producers
+- 774e29d 2024-04-14  Fix IP lookup in filter
+- cb88b55 2024-04-14  Fix IP lookup in filter
+- d6a5d32 2024-04-14  Merge branch 'nfdump-devel' of ssh://github.com/phaag/nfdump into nfdump-devel
+- c1ba7d2 2024-04-14  Mark some structs as const
+- 383fa76 2024-04-14  mark some structs as const
+- 95e70eb 2024-04-14  Clear filter flag after use
+- b1373fb 2024-04-13  Update AS statistics fix
+- 833a09d 2024-04-13  Fix element stat for AS statistics. #519
+- 122b882 2024-04-12  Sync branch
+- 5abfd0d 2024-04-12  Work on filter code
+- 66cd4d3 2024-04-12  More work on threadding code
+- 97b619a 2024-04-12  refine const definitions in filter code
+- 63309d6 2024-04-12  Fix tunnel flow fmt printing
+- 37e70f3 2024-04-11  New convert block type 2 blocks code in pipelining
+- ff08a2d 2024-04-09  Enable convert1.6 in pipeline
+- 5071c2f 2024-04-07  Improve record processing
+- a16f86f 2024-04-07  Fix debugging messages
+- 020a772 2024-04-07  Test multithreadding nfdump
+- 1400011 2024-04-06  Fix nfstat ptr offset
+- 0c9293d 2024-04-06  Cleanup nfdump main loop
+- e7ef540 2024-04-05  Remove debugging code in  tor.c
+- a541557 2024-04-05  Fix typos in torlookup
+- 6ccca84 2024-04-05  Make sure to use new compiled geolookup binary to update mmdm
+- 5cfefa9 2024-04-05  Make sure to use new compiled torlookup binary
+- 5586eea 2024-04-05  Fix tor.c
+- 151aeb8 2024-04-05  Fix maxmind.c
+- 3adace8 2024-04-03  Fix json output
+- f462e2b 2024-04-02  Address #518 and silence output for normal conditions
+- b064481 2024-04-02  More readable output
+- 903f0c6 2024-04-02  Fix runtests
+- b42bdec 2024-04-02  Fix raw output for ip version
+- d36ecc5 2024-04-02  Update space to 64bit
+- 21c61f9 2024-04-02  Reserve space for vxLan element
+- 8941a79 2024-04-02  Fix nflowcache aggregation (see #515) and cleanup some code
+- 804d92e 2024-04-01  Cleanup code and fix ChangeIdent
+- d876444 2024-04-01  Cleanup #517 and fix runtest
+- fc2fae5 2024-04-01  Merge pull request #517 from jav4/ethertype
+- 50126db 2024-04-01  Update output_raw.c
+- f2c7375 2024-04-01  Update nffile_compat.c
+- 163bf0f 2024-04-01  Update output_json.c
+- 4a58dd5 2024-04-01  Update output_csv.c
+- 671e205 2024-04-01  Update nfxV3.h
+- a0d32aa 2024-04-01  Update output_raw.c
+- d9683df 2024-04-01  Update output_json.c
+- 2e13f89 2024-04-01  Update output_json.c
+- 5a5f00b 2024-04-01  Update output_fmt.c
+- 0615d34 2024-04-01  Update output_csv.c
+- 757be79 2024-04-01  Update nfstat.c
+- a532205 2024-04-01  Update nfx.h
+- 0c239df 2024-04-01  Update nflowcache.c
+- d145f87 2024-04-01  Update nfx.c
+- c0dbeb0 2024-04-01  Update nfdump_1_6_x.h
+- 0589904 2024-04-01  Update netflow_v9.c
+- e12da4b 2024-04-01  Update grammar.y
+- 4d69b07 2024-04-01  Merge branch 'master' into ethertype
+- 77b04b1 2024-04-01  Merge dot1q and physical extension into a single layer2 extension
+- 65fe66e 2024-04-01  Fix potential deadlock, if file queue empty
+- 9289f6a 2024-03-31  Add working threads to nfprofile
+- 819d8bc 2024-03-31  Remove exporter stuff from profiler. Not needed
+- d4420f7 2024-03-31  Rename pthread_barrier to avoid collision with Linux version
+- 9c9b71a 2024-03-31  Cleanup nfanon
+- 7169029 2024-03-30  Add user defined workers for nfanon
+- 3202fab 2024-03-30  Move barrier code into own files
+- 928653c 2024-03-30  Add threadding support to nfanon
+- 06475c9 2024-03-30  Fix nfreader sample code
+- ea6322e 2024-03-30  Cleanup nfanon
+- e7cac3e 2024-03-30  Fix AS range check
+- 2553d3e 2024-03-30  Sync nfcapd, sfcapd code
+- dabf79c 2024-03-30  Cleanup collector code and sync sfcapd
+- 5cffb3a 2024-03-29  Cleanup collector loop
+- 2d806f6 2024-03-29  Add more detaied error message
+- 903a8aa 2024-03-29  Handle potential file rotate error
+- 39a6946 2024-03-29  Remove unneeded check
+- c6ea78a 2024-03-29  Add IP version in json output
+- 98b1928 2024-03-29  Implement #515 features
+- 1b6139e 2024-03-29  Add dot1q in ipfix. Fix for #515
+- c4a2575 2024-03-29  Fix #516
+- 32770d5 2024-03-29  Dissolve dataBlock in nffile_t for writing in order to prepare for multi threading processing flows
+- ef928d6 2024-03-29  Add Netflow v9 ethertype field support
+- fb664fc 2024-03-22  Dissolve dataBlock for reading in nffile_t in order to prepare for mutli-threading processing.
+- 9198d94 2024-03-17  New FilterSetParam function
+- d253340 2024-03-17  Improve performance to read and convert nfdump-1.6.x records. See #512
+- 3b388b8 2024-03-16  Cleanup configure.ac
+- 70732b2 2024-03-16  Add conditional build and licensing terms for ja4+
+- 282187a 2024-03-16  Update nfdump.1 man page with ssl and ja4 filters
+- 6f4f6ad 2024-03-16  Add SSL/TLS sni filter
+- 69959f0 2024-03-16  Add SSL/TLS filter
+- 45ade57 2024-03-16  Add ja4 tests to nftest
+- 2e6d172 2024-03-16  Fix nftest
+- 8c18cff 2024-03-16  Add ja4s to filter syntax
+- 23fd4a2 2024-03-15  separate ja4, ja4s in nfstat
+- dedb73a 2024-03-15  Streamline ja3, ja4, ssl code
+- d5220a9 2024-03-14  Add ssl preproc to filter
+- 9b7a54a 2024-03-14  Fix getopt parsing - #513
+- 77ae680 2024-03-14  Add ja4 to filter. First try
+- 8fe6a2b 2024-03-11  Work on ja4 in nfstat
+- 595952a 2024-03-10  Work on ja4
+- ab0810d 2024-03-10  Wire ja4/ja4s in output json and do more work on SSL payload
+- 070cd71 2024-03-10  Wire ja4/ja4s in fmt output format
+- f09d7a5 2024-03-09  Wire ja4/ja4s in raw output format
+- b1bf5a1 2024-03-09  Move tor code to libnfdump
+- c9969ec 2024-03-09  Cleanup Makefiles
+- 8c97e7e 2024-03-09  Integrate maxmind code into libnfdump
+- b733d6c 2024-03-09  Fix typo
+- 84b425b 2024-03-09  Fix library order errors
+- 2043de7 2024-03-09  Split libnfdump into libnffile and libnfdump
+- 784e62d 2024-03-09  Merge remote-tracking branch 'origin/nfdump-ja4'
+- 8a0c883 2024-03-09  Fix typo
+- d5add6b 2024-03-09  Fix compile errors from pull #511
+- 9241fee 2024-03-09  Merge pull request #511 from blkmajik/json-log
+- f0f9f4b 2024-03-09  Merge branch 'master' into json-log
+- c5c5e47 2024-03-09  Code cleanup
+- 0b59bea 2024-03-08  Update nfdump.conf.dist
+- 3ff30f2 2024-03-08  Fix OS library order
+- d77c056 2024-03-08  Fix configure.ac
+- 93ce7fb 2024-03-08  Add torlookup for IPs
+- b65a3ff 2024-03-08  Maxmind code refactoring
+- c4f8169 2024-03-08  Streamline ja3/ja4
+- fb63274 2024-03-05  Move sampled to end to handle proper syntax on closing.  No final , on last field
+- 23ec1e5 2024-03-05  Use record separator instead of field separator between records
+- 031b462 2024-03-05  Swap fs/rs for json-log format
+- 3dfc829 2024-03-05  Make fprintf happy
+- 432925e 2024-03-05  Const char instead
+- da3cf0d 2024-03-05  Integrate json-log format into output_json
+- 9c1021d 2024-03-03  Merge remote-tracking branch 'origin/nfdump-ja4'
+- cd9b43e 2024-03-03  Fix Makefiles
+- 626be0b 2024-03-03  Merge remote-tracking branch 'origin/nfdump-ja4'
+- 17ead4c 2024-03-03  Updeate ChangeLog
+- c9fe29c 2024-03-03  Prepare nfstat for var length fields such as ja4
 - 2a55c3b 2024-03-03  Commit
+- 109c1c9 2024-03-03  Fix ssl decoder
+- f991322 2024-03-03  Remove debugging flag
 - 1e88803 2024-03-01  Implement ja4s
 - 4a60672 2024-03-01  Update Readme
 - c129b78 2024-03-01  Add ja4 Readme for license issue and add --enable-ja4, default no for building all ja4 modules
 - 5c72cc8 2024-03-01  Add ja3 filter in nfdump-ja4
+- 5cdc989 2024-03-01  Cleanup include
+- 539902c 2024-03-01  Insert ja3 filter code
 - 8ed9f34 2024-03-01  Add ja4_c
 - 2ded6b5 2024-02-29  Implement ja_a and ja_b of ja
 - ae92ef6 2024-02-29  Add ja4 files to start implementation
@@ -14,7 +288,7 @@
 - 07136b3 2024-02-25  Use new ssl module for ja3
 - 17d127e 2024-02-24  Debug ssl code - Client Hello
 - 79e9b8a 2024-02-24  Defrag ssl and ja3 - Add plain ssl code
-- 00e0e45 2024-02-24  (origin/master, origin/HEAD) Fix nfreader code
+- 00e0e45 2024-02-24  Fix nfreader code
 - eb5bef5 2024-02-22  Cleanup code to handle legacy sampler record
 - a988a40 2024-02-18  Rework maxmind code
 - 9a0dddf 2024-02-17  Fix library dependencies on some *nix
