@@ -302,7 +302,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
         recordSize += EXipReceivedV6Size;
     }
 
-    // GRE tunnels
+    // Tunnels
     int tun_isV4 = sample->tun_ipsrc.type == SFLADDRESSTYPE_IP_V4;
     if (tun_isV4 && ExtensionsEnabled[EXtunIPv4ID]) {
         recordSize += EXtunIPv4Size;
@@ -472,7 +472,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
         dbg_printf("Add IPv6 route IP extension\n");
     }
 
-    // GRE tunnels
+    // Tunnels
     if (tun_isV4 && ExtensionsEnabled[EXtunIPv4ID]) {
         PushExtension(recordHeader, EXtunIPv4, tunIPv4);
         tunIPv4->tunSrcAddr = ntohl(sample->tun_ipsrc.address.ip_v4.addr);
@@ -497,6 +497,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
         tunIPv6->tunDstAddr[1] = ntohll(*u);
 
         tunIPv6->tunProto = sample->tun_proto;
+        dbg_printf("Add IPv6 tunnel extension\n");
     }
 
 
