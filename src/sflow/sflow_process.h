@@ -279,7 +279,7 @@ typedef struct _SFSample {
 #define SF_ABORT_DECODE_ERROR 2
 #define SF_ABORT_LENGTH_ERROR 3
 
-    /* GRE tunnels */
+    /* tunnels */
     int parse_gre;  /* Enable GRE tunnel introspection */
     int parse_6in4; /* Enable 6in4 tunnel introspection */
     SFLAddress tun_ipsrc;
