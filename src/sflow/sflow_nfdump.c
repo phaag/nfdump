@@ -147,8 +147,9 @@ int Init_sflow(int verbose, char *extensionList) {
 }  // End of Init_sflow
 
 // called by sfcapd for each packet
-void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs, int parse_gre) {
-    SFSample sample = {.rawSample = in_buff, .rawSampleLen = in_buff_cnt, .sourceIP.s_addr = fs->sa_family == PF_INET ? htonl(fs->ip.V4) : 0, .parse_gre = parse_gre};
+void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs, int parse_gre, int parse_6in4) {
+    SFSample sample = {.rawSample = in_buff, .rawSampleLen = in_buff_cnt, .sourceIP.s_addr = fs->sa_family == PF_INET ? htonl(fs->ip.V4) : 0, 
+                       .parse_gre = parse_gre, .parse_6in4 = parse_6in4};
 
     dbg_printf("startDatagram =================================\n");
     // catch SFABORT in sflow code
@@ -300,6 +301,19 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     if (fs->sa_family == AF_INET6 && ExtensionsEnabled[EXipReceivedV6ID]) {
         recordSize += EXipReceivedV6Size;
     }
+
+    // GRE tunnels
+    int tun_isV4 = sample->tun_ipsrc.type == SFLADDRESSTYPE_IP_V4;
+    if (tun_isV4 && ExtensionsEnabled[EXtunIPv4ID]) {
+        recordSize += EXtunIPv4Size;
+    }
+
+    int tun_isV6 = sample->tun_ipsrc.type == SFLADDRESSTYPE_IP_V6;
+    if (isV6 && ExtensionsEnabled[EXtunIPv6ID]) {
+        recordSize += EXtunIPv6Size;
+    }
+    dbg_printf("Tunnel: IPv4: %u, IPv6: %u\n", tun_isV4, tun_isV6);
+
 
     recordSize += sizeof(recordHeaderV3_t);
     if (!IsAvailable(fs->dataBlock, recordSize)) {
@@ -457,6 +471,34 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
         ipReceivedV6->ip[1] = fs->ip.V6[1];
         dbg_printf("Add IPv6 route IP extension\n");
     }
+
+    // GRE tunnels
+    if (tun_isV4 && ExtensionsEnabled[EXtunIPv4ID]) {
+        PushExtension(recordHeader, EXtunIPv4, tunIPv4);
+        tunIPv4->tunSrcAddr = ntohl(sample->tun_ipsrc.address.ip_v4.addr);
+        tunIPv4->tunDstAddr = ntohl(sample->tun_ipdst.address.ip_v4.addr);
+        tunIPv4->tunProto = sample->tun_proto;
+        dbg_printf("Add IPv4 tunnel extension\n");
+    }
+
+    if (tun_isV6 && ExtensionsEnabled[EXtunIPv6ID]) {
+        PushExtension(recordHeader, EXtunIPv6, tunIPv6);
+
+        u_char *b = sample->tun_ipsrc.address.ip_v6.addr;
+        uint64_t *u = (uint64_t *)b;
+        tunIPv6->tunSrcAddr[0] = ntohll(*u);
+        u = (uint64_t *)&(b[8]);
+        tunIPv6->tunSrcAddr[1] = ntohll(*u);
+
+        b = sample->tun_ipdst.address.ip_v6.addr;
+        u = (uint64_t *)b;
+        tunIPv6->tunDstAddr[0] = ntohll(*u);
+        u = (uint64_t *)&(b[8]);
+        tunIPv6->tunDstAddr[1] = ntohll(*u);
+
+        tunIPv6->tunProto = sample->tun_proto;
+    }
+
 
     // update first_seen, last_seen
     if (genericFlow->msecFirst < fs->msecFirst)  // the very first time stamp need to be set
