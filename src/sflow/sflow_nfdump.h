@@ -39,7 +39,7 @@
 
 int Init_sflow(int verbose, char *extensionList);
 
-void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs, int parse_gre);
+void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs, int parse_gre, int parse_6in4);
 
 void StoreSflowRecord(SFSample *sample, FlowSource_t *fs);
 
