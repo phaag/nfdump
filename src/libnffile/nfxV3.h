@@ -652,7 +652,7 @@ typedef struct EXlayer2_s {
 #define SIZEetherType MemberSize(EXlayer2_t, etherType)
 #define OFFipVersion offsetof(EXlayer2_t, ipVersion)
 #define SIZEipVersion MemberSize(EXlayer2_t, ipVersion)
-    uint8_t fill;
+    uint8_t fill[5];
 } EXlayer2_t;
 #define EXlayer2Size (sizeof(EXlayer2_t) + sizeof(elementHeader_t))
 
@@ -751,8 +751,7 @@ typedef struct EXipInfo_s {
 
 #define ExtensionLength(ext) (((elementHeader_t *)((void *)ext - sizeof(elementHeader_t)))->length - sizeof(elementHeader_t))
 
-#define EXTENSION(s) \
-    { s##ID, s##Size, #s }
+#define EXTENSION(s) {s##ID, s##Size, #s}
 
 static const struct extensionTable_s {
     uint32_t id;    // id number
