@@ -179,7 +179,7 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
     uint16_t count = ntohl(pcapd_header->numRecord);
     uint32_t numRecords = 0;
-    dbg_printf("Process nfd packet: %llu, size: %zd, recordCnt: %u\n", exporter->packets, in_buff_cnt, count);
+    dbg_printf("Process nfd packet: %" PRIu64 ", size: %zd, recordCnt: %u\n", exporter->packets, in_buff_cnt, count);
 
     if ((sizeof(nfd_header_t) + sizeof(recordHeaderV3_t)) > size_left) {
         LogError("Process_nfd: Not enough data.");

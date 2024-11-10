@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2024, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -32,6 +32,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -419,7 +420,7 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
 #endif
             if (stackID && stack) {
                 stack[stackID] = valBuff[0];
-                dbg_printf("Stack value %llu in slot %u\n", (long long unsigned)valBuff[0], stackID);
+                dbg_printf("Stack value %" PRIu64 " in slot %u\n", valBuff[0], stackID);
             }
 
             switch (outLength) {

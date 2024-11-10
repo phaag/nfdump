@@ -448,7 +448,7 @@ uint32_t NewElement(uint32_t extID, uint32_t offset, uint32_t length, uint64_t v
             exit(255);
         }
     }
-    dbg_printf("New element: extID: %u, offset: %u, length: %u, value: %llu\n", extID, offset, length, value);
+    dbg_printf("New element: extID: %u, offset: %u, length: %u, value: %" PRIu64 "\n", extID, offset, length, value);
 
     FilterTree[n] = (filterElement_t){
         .extID = extID,

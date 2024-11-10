@@ -289,8 +289,8 @@ int AddExporterStat(exporter_stats_record_t *stat_record) {
         exporter_list[id]->sequence_failure += rec->stat[i].sequence_failure;
         exporter_list[id]->packets += rec->stat[i].packets;
         exporter_list[id]->flows += rec->stat[i].flows;
-        dbg_printf("Update exporter stat for SysID: %i: Sequence failures: %u, packets: %llu, flows: %llu\n", id, exporter_list[id]->sequence_failure,
-                   exporter_list[id]->packets, exporter_list[id]->flows);
+        dbg_printf("Update exporter stat for SysID: %i: Sequence failures: %u, packets: %" PRIu64 ", flows: %" PRIu64 "\n", id,
+                   exporter_list[id]->sequence_failure, exporter_list[id]->packets, exporter_list[id]->flows);
     }
 
     if (use_copy) free(rec);
@@ -414,9 +414,9 @@ void PrintExporters(void) {
             uint32_t _ip = htonl(exporter->ip.V4);
             inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
             if (exporter_list[i]->flows)
-                printf("SysID: %u, IP: %16s, version: %s, ID: %2u, Sequence failures: %u, packets: %llu, flows: %llu\n", exporter->sysid, ipstr,
-                       getVersionString(exporter->version), exporter->id, exporter_list[i]->sequence_failure,
-                       (long long unsigned)exporter_list[i]->packets, (long long unsigned)exporter_list[i]->flows);
+                printf("SysID: %u, IP: %16s, version: %s, ID: %2u, Sequence failures: %u, packets: %" PRIu64 ", flows: %" PRIu64 "\n",
+                       exporter->sysid, ipstr, getVersionString(exporter->version), exporter->id, exporter_list[i]->sequence_failure,
+                       exporter_list[i]->packets, exporter_list[i]->flows);
             else
                 printf("SysID: %u, IP: %16s, version: %s, ID: %2u - no flows sent\n", exporter->sysid, ipstr, getVersionString(exporter->version),
                        exporter->id);
@@ -425,9 +425,9 @@ void PrintExporters(void) {
             uint64_t _ip[2] = {htonll(exporter->ip.V6[0]), htonll(exporter->ip.V6[1])};
             inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
             if (exporter_list[i]->flows)
-                printf("SysID: %u, IP: %40s, version: %s, ID: %2u, Sequence failures: %u, packets: %llu, flows: %llu\n ", exporter->sysid, ipstr,
-                       getVersionString(exporter->version), exporter->id, exporter_list[i]->sequence_failure,
-                       (long long unsigned)exporter_list[i]->packets, (long long unsigned)exporter_list[i]->flows);
+                printf("SysID: %u, IP: %40s, version: %s, ID: %2u, Sequence failures: %u, packets: %" PRIu64 ", flows: %" PRIu64 "\n ",
+                       exporter->sysid, ipstr, getVersionString(exporter->version), exporter->id, exporter_list[i]->sequence_failure,
+                       exporter_list[i]->packets, exporter_list[i]->flows);
             else
                 printf("SysID: %u, IP: %40s, version: %s, ID: %2u\n ", exporter->sysid, ipstr, getVersionString(exporter->version), exporter->id);
         } else {

@@ -692,14 +692,15 @@ static void decodeIPLayer4(SFSample *sample, uint8_t *ptr) {
             if (sample->parse_gre) {
                 struct mygreheader gre;
                 memcpy(&gre, ptr, sizeof(gre));
-                uint16_t checksum_present   =  ntohs(gre.flags) >> 15;
-                uint16_t key_present        = (uint16_t)(ntohs(gre.flags) << 2) >> 15;
+                uint16_t checksum_present = ntohs(gre.flags) >> 15;
+                uint16_t key_present = (uint16_t)(ntohs(gre.flags) << 2) >> 15;
                 uint16_t seq_number_present = (uint16_t)(ntohs(gre.flags) << 3) >> 15;
                 uint32_t gre_header_length = sizeof(gre) + (checksum_present + key_present + seq_number_present) * 4;
                 switch (ntohs(gre.protocol_type)) {
                     case 0x6558: { /* Transparent Ethernet bridging */
                         sample->headerProtocol = SFLHEADER_ETHERNET_ISO8023;
-;                   } break;
+                        ;
+                    } break;
                     case 0x0800: { /* IPv4 */
                         sample->headerProtocol = SFLHEADER_IPv4;
                     } break;
@@ -714,7 +715,7 @@ static void decodeIPLayer4(SFSample *sample, uint8_t *ptr) {
                 }
                 dbg_printf("GRE: Header type: %u\n", sample->headerProtocol);
                 sample->datap = sample->headerDescriptionStart; /* Reset parsing pointer for metadata */
-                sample->header = ptr + gre_header_length; /* Set parsing pointer for header to end of GRE header */
+                sample->header = ptr + gre_header_length;       /* Set parsing pointer for header to end of GRE header */
                 readFlowSample_header(sample);
                 return;
             }
@@ -1514,9 +1515,9 @@ static void readFlowSample_header(SFSample *sample) {
     dbg_printf("headerLen %u\n", sample->headerLen);
 
     if (!sample->header) {
-        sample->header = (uint8_t *)sample->datap; /* just point at the header */    
+        sample->header = (uint8_t *)sample->datap; /* just point at the header */
     }
-    
+
     skipBytes(sample, sample->headerLen);
     {
         char scratch[2000];
@@ -1807,7 +1808,7 @@ static void readFlowSample_http(SFSample *sample, uint32_t tag) {
         char nowstr[200];
         strftime(nowstr, 200, "%d/%b/%Y:%H:%M:%S %z", localtime(&now)); /* there seems to be no simple portable equivalent to %z */
         /* should really be: snprintf(sfCLF.http_log, SFLFMT_CLF_MAX_LINE,...) but snprintf() is not always available */
-        printf("- %s [%s] \"%s %s HTTP/%u.%u\" %u %llu \"%s\" \"%s\"", authuser[0] ? authuser : "-", nowstr, SFHTTP_method_names[method],
+        printf("- %s [%s] \"%s %s HTTP/%u.%u\" %u " PRIu64 " \"%s\" \"%s\"", authuser[0] ? authuser : "-", nowstr, SFHTTP_method_names[method],
                uri[0] ? uri : "-", protocol / 1000, protocol % 1000, status, resp_bytes, referrer[0] ? referrer : "-",
                useragent[0] ? useragent : "-");
     }
@@ -3186,7 +3187,7 @@ static void readRTMetric(SFSample *sample, FlowSource_t *fs, int verbose) {
                     break;
                 case 2:
                     mvali64 = getData64(sample);
-                    dbg_printf("rtmetric %s = (counter64) %llu\n", mname, mvali64);
+                    dbg_printf("rtmetric %s = (counter64) %" PRIu64 "\n", mname, mvali64);
                     break;
                 case 3:
                     mvali32 = getData32(sample);
@@ -3194,7 +3195,7 @@ static void readRTMetric(SFSample *sample, FlowSource_t *fs, int verbose) {
                     break;
                 case 4:
                     mvali64 = getData64(sample);
-                    dbg_printf("rtmetric %s = (gauge64) %llu\n", mname, mvali64);
+                    dbg_printf("rtmetric %s = (gauge64) %" PRIu64 "\n", mname, mvali64);
                     break;
                 case 5:
                     mvalfloat = getFloat(sample);
@@ -3279,7 +3280,7 @@ static void readRTFlow(SFSample *sample, FlowSource_t *fs, int verbose) {
                     break;
                 case 5:
                     fvali64 = getData64(sample);
-                    dbg_printf("rtflow %s = (int64) %llu\n", fname, fvali64);
+                    dbg_printf("rtflow %s = (int64) %" PRIu64 "\n", fname, fvali64);
                     break;
                 case 6:
                     fvalfloat = getFloat(sample);
@@ -3647,7 +3648,7 @@ void readSFlowDatagram(SFSample *sample, FlowSource_t *fs, int verbose) {
     /* log some datagram info */
     dbg_printf("datagramSourceIP %s\n", IP_to_a(sample->sourceIP.s_addr, buf, 51));
     dbg_printf("datagramSize %u\n", sample->rawSampleLen);
-    dbg_printf("unixSecondsUTC %" PRIu64 "\n", sample->readTimestamp);
+    dbg_printf("unixSecondsUTC %lld\n", (long long)sample->readTimestamp);
 
     /* check the version */
     sample->datagramVersion = getData32(sample);

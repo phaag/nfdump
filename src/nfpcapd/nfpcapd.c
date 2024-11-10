@@ -28,15 +28,14 @@
  *
  */
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <arpa/inet.h>
 #include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <libgen.h>
+
+#include "config.h"
+
 #ifdef FIX_INCLUDE
 #include <sys/types.h>
 #endif
@@ -764,7 +763,7 @@ int main(int argc, char *argv[]) {
 
     CloseMetric();
 
-    LogInfo("Total: Processed: %u, skipped: %u, short caplen: %u, unknown: %u, duplicates: %llu\n", packetParam.proc_stat.packets,
+    LogInfo("Total: Processed: %u, skipped: %u, short caplen: %u, unknown: %u, duplicates: %" PRIu64 "\n", packetParam.proc_stat.packets,
             packetParam.proc_stat.skipped, packetParam.proc_stat.short_snap, packetParam.proc_stat.unknown, packetParam.proc_stat.duplicates);
 
     if (pidfile) remove_pid(pidfile);

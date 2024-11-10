@@ -509,7 +509,7 @@ static exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t ObservationDomai
 static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_record_t *sampler_record) {
     sampler_t *sampler;
 
-    dbg_printf("[%u] Insert Sampler: Exporter is 0x%llu\n", exporter->info.id, (long long unsigned)exporter);
+    dbg_printf("[%u] Insert Sampler: Exporter is 0x%p\n", exporter->info.id, (void *)exporter);
     if (!exporter->sampler) {
         // no samplers so far
         sampler = (sampler_t *)malloc(sizeof(sampler_t));
@@ -1169,7 +1169,7 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
     }
     optionTemplate->optionSize = offset;
 
-    dbg_printf("\n[%u] Option size: %llu, flags: %llx\n", exporter->info.id, optionTemplate->optionSize, optionTemplate->flags);
+    dbg_printf("\n[%u] Option size: %" PRIu64 ", flags: %llx\n", exporter->info.id, optionTemplate->optionSize, optionTemplate->flags);
     if (optionTemplate->flags) {
         // if it exitsts - remove old template on exporter with same ID
         templateList_t *template = newTemplate(exporter, tableID);
@@ -1289,8 +1289,8 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
         // map file record to output buffer
         outBuff = GetCurrentCursor(fs->dataBlock);
 
-        dbg_printf("[%u] Process data record: %u addr: %llu, size_left: %u buff_avail: %u\n", exporter->info.id, processed_records,
-                   (long long unsigned)((ptrdiff_t)inBuff - (ptrdiff_t)data_flowset), size_left, buffAvail);
+        dbg_printf("[%u] Process data record: %u addr: %p, size_left: %u buff_avail: %u\n", exporter->info.id, processed_records,
+                   (void *)((ptrdiff_t)inBuff - (ptrdiff_t)data_flowset), size_left, buffAvail);
 
         // process record
         AddV3Header(outBuff, recordHeaderV3);
@@ -1400,27 +1400,29 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
             packetInterval = overwriteSampler->record.packetInterval;
             spaceInterval = overwriteSampler->record.spaceInterval;
             SetFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED);
-            dbg_printf("[%u] Overwrite sampling - packet interval: %llu, packet space: %llu\n", exporter->info.id, packetInterval, spaceInterval);
+            dbg_printf("[%u] Overwrite sampling - packet interval: %" PRIu64 ", packet space: %" PRIu64 "\n", exporter->info.id, packetInterval,
+                       spaceInterval);
         } else if (sampler) {
             // individual assigned sampler ID
             packetInterval = sampler->record.packetInterval;
             spaceInterval = sampler->record.spaceInterval;
             SetFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED);
-            dbg_printf("[%u] Found assigned sampler ID %u - packet interval: %llu, packet space: %llu\n", exporter->info.id, sampler_id,
+            dbg_printf("[%u] Found assigned sampler ID %u - packet interval: %" PRIu64 ", packet space: %" PRIu64 "\n", exporter->info.id, sampler_id,
                        packetInterval, spaceInterval);
         } else if (genericSampler) {
             // global sampler ID
             packetInterval = genericSampler->record.packetInterval;
             spaceInterval = genericSampler->record.spaceInterval;
             SetFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED);
-            dbg_printf("[%u] Found generic sampler - packet interval: %llu, packet space: %llu\n", exporter->info.id, packetInterval, spaceInterval);
+            dbg_printf("[%u] Found generic sampler - packet interval: %" PRIu64 ", packet space: %" PRIu64 "\n", exporter->info.id, packetInterval,
+                       spaceInterval);
         } else if (defaultSampler) {
             // static default sampler
             packetInterval = defaultSampler->record.packetInterval;
             spaceInterval = defaultSampler->record.spaceInterval;
             SetFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED);
-            dbg_printf("[%u] Found static default sampler - packet interval: %llu, packet space: %llu\n", exporter->info.id, packetInterval,
-                       spaceInterval);
+            dbg_printf("[%u] Found static default sampler - packet interval: %" PRIu64 ", packet space: %" PRIu64 "\n", exporter->info.id,
+                       packetInterval, spaceInterval);
         }
         intervalTotal = packetInterval + spaceInterval;
 
@@ -1448,10 +1450,10 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
 
             if (genericFlow->msecFirst < fs->msecFirst) fs->msecFirst = genericFlow->msecFirst;
             if (genericFlow->msecLast > fs->msecLast) fs->msecLast = genericFlow->msecLast;
-            dbg_printf("msecFrist: %llu\n", genericFlow->msecFirst);
-            dbg_printf("msecLast : %llu\n", genericFlow->msecLast);
-            dbg_printf("packets : %llu\n", (long long unsigned)genericFlow->inPackets);
-            dbg_printf("bytes : %llu\n", (long long unsigned)genericFlow->inBytes);
+            dbg_printf("msecFrist: %" PRIu64 "\n", genericFlow->msecFirst);
+            dbg_printf("msecLast : %" PRIu64 "\n", genericFlow->msecLast);
+            dbg_printf("packets : %" PRIu64 "\n", genericFlow->inPackets);
+            dbg_printf("bytes : %" PRIu64 "\n", genericFlow->inBytes);
 
             if (spaceInterval > 0) {
                 genericFlow->inPackets = genericFlow->inPackets * intervalTotal / (uint64_t)packetInterval;
@@ -1875,7 +1877,7 @@ static void Process_ipfix_SysUpTime_option_data(exporterDomain_t *exporter, temp
     uint8_t *in = (uint8_t *)(data_flowset + 4);  // skip flowset header
     if (CHECK_OPTION_DATA(size_left, optionTemplate->SysUpOption)) {
         exporter->SysUpTime = Get_val(in, optionTemplate->SysUpOption.offset, optionTemplate->SysUpOption.length);
-        dbg_printf("Extracted SysUpTime : %llu\n", exporter->SysUpTime);
+        dbg_printf("Extracted SysUpTime : %" PRIu64 "\n", exporter->SysUpTime);
     } else {
         LogError("Process_ipfix_option: %s line %d: Not enough data for option data", __FILE__, __LINE__);
         return;
@@ -1944,8 +1946,8 @@ void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     flowset_header = (void *)ipfix_header + IPFIX_HEADER_LENGTH;
     size_left -= IPFIX_HEADER_LENGTH;
 
-    dbg_printf("\n[%u] process packet: %u, export time: %s, TemplateRecords: %llu, DataRecords: %llu, buffer: %li \n", ObservationDomain, pkg_num++,
-               UNIX2ISO(ExportTime), (long long unsigned)exporter->TemplateRecords, (long long unsigned)exporter->DataRecords, size_left);
+    dbg_printf("\n[%u] process packet: %u, export time: %s, TemplateRecords: %" PRIu64 ", DataRecords: %" PRIu64 ", buffer: %zd \n",
+               ObservationDomain, pkg_num++, UNIX2ISO(ExportTime), exporter->TemplateRecords, exporter->DataRecords, size_left);
     dbg_printf("[%u] Sequence: %u\n", ObservationDomain, Sequence);
 
     // sequence check

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2024, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -32,6 +32,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -604,7 +605,7 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
 
         if (!size_done) {
             // expire size-wise if needed
-            dbg_printf("	Size expire %llu %llu\n", current_stat->filesize, sizelimit);
+            dbg_printf("	Size expire %" PRIu64 " %" PRIu64 "\n", current_stat->filesize, sizelimit);
             if (current_stat->filesize > sizelimit) {
                 // need to delete this file
                 if (unlink(expire_channel->ftsent->fts_path) == 0) {
@@ -712,7 +713,7 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
             if (expire_channel->dirstat->numfiles) {
                 // if channel is empty, no files must be reported, but rebuild is done anyway
                 LogError("Inconsistency detected in channel %s. Will rebuild automatically.\n", expire_channel->datadir);
-                LogError("No more files found, but %llu expected.\n", expire_channel->dirstat->numfiles);
+                LogError("No more files found, but %" PRIu64 " expected.\n", expire_channel->dirstat->numfiles);
             }
             expire_channel->dirstat->numfiles = 0;
             expire_channel->dirstat->status = FORCE_REBUILD;

@@ -193,7 +193,7 @@ int Insert_Extension_Map(extension_map_list_t *extension_map_list, extension_map
     // is this slot free
     if (extension_map_list->slot[map_id]) {
         int i;
-        dbg_printf("Extension info in slot %d already exists: 0x%llu\n", map_id, (long long unsigned)extension_map_list->slot[map_id]);
+        dbg_printf("Extension info in slot %d already exists: 0x%p\n", map_id, (void *)extension_map_list->slot[map_id]);
         // no - check if same map already in slot
         if (extension_map_list->slot[map_id]->map->size == map->size) {
             // existing map and new map have the same size
@@ -225,7 +225,7 @@ int Insert_Extension_Map(extension_map_list_t *extension_map_list, extension_map
         if (l->map->size == map->size && (l->map->extension_size == map->extension_size)) {
             while ((l->map->ex_id[i] || map->ex_id[i]) && (l->map->ex_id[i] == map->ex_id[i])) i++;
             if (l->map->ex_id[i] == 0) {
-                dbg_printf("Map found: 0x%llu ID: %u\n", (long long unsigned)l, l->map->map_id);
+                dbg_printf("Map found: 0x%p ID: %u\n", l, l->map->map_id);
                 break;
             }
         }
@@ -257,7 +257,7 @@ int Insert_Extension_Map(extension_map_list_t *extension_map_list, extension_map
     }
 
     // l is now our valid extension
-    dbg_printf("Insert extension into slot %i: 0x%llu\n\n", map_id, (long long unsigned)l);
+    dbg_printf("Insert extension into slot %i: 0x%p\n\n", map_id, l);
 
     // remove map from lookup list, if it exists
     if (extension_map_list->slot[map_id]) extension_map_list->slot[map_id]->map->map_id = 0;

@@ -77,8 +77,7 @@ typedef enum {
     IS_ASORG
 } elementType_t;
 
-typedef enum { DESCENDING = 0,
-               ASCENDING } direction_t;
+typedef enum { DESCENDING = 0, ASCENDING } direction_t;
 
 /*
  * pre-process functions:
@@ -257,9 +256,7 @@ typedef struct StatRecord {
  * orderby functions:
  * retrieve or calculate value, records want to be ordered by.
  */
-typedef enum flowDir { IN = 0,
-                       OUT,
-                       INOUT } flowDir_t;
+typedef enum flowDir { IN = 0, OUT, INOUT } flowDir_t;
 typedef uint64_t (*order_proc_element_t)(StatRecord_t *);
 
 static uint64_t order_bytes_in(StatRecord_t *record);
@@ -914,10 +911,10 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
         case IS_NULL:
             break;
         case IS_NUMBER:
-            snprintf(valstr, 64, "%llu", (unsigned long long)hashKey->v1);
+            snprintf(valstr, 64, "%" PRIu64, hashKey->v1);
             break;
         case IS_HEXNUMBER:
-            snprintf(valstr, 64, "0x%llx", (unsigned long long)hashKey->v1);
+            snprintf(valstr, 64, "0x%" PRIx64, hashKey->v1);
             break;
         case IS_IPADDR:
             tag_string[0] = outputParams->doTag ? TAG_CHAR : '\0';
@@ -954,7 +951,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
             snprintf(valstr, 64, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
         } break;
         case IS_MPLS_LBL: {
-            snprintf(valstr, 64, "%llu", (unsigned long long)hashKey->v1);
+            snprintf(valstr, 64, "%" PRIu64, (uint64_t)hashKey->v1);
             snprintf(valstr, 64, "%8llu-%1llu-%1llu", (unsigned long long)hashKey->v1 >> 4, ((unsigned long long)hashKey->v1 & 0xF) >> 1,
                      (unsigned long long)hashKey->v1 & 1);
         } break;
@@ -1117,10 +1114,10 @@ static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_
         case IS_NULL:
             break;
         case IS_NUMBER:
-            snprintf(valstr, 64, "%llu", (unsigned long long)hashKey->v1);
+            snprintf(valstr, 64, "%" PRIu64, (uint64_t)hashKey->v1);
             break;
         case IS_HEXNUMBER:
-            snprintf(valstr, 64, "0x%llx", (unsigned long long)hashKey->v1);
+            snprintf(valstr, 64, "0x%" PRIx64, hashKey->v1);
             break;
         case IS_IPADDR:
             if (hashKey->v0 == 0) {  // IPv4
@@ -1146,7 +1143,7 @@ static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_
             snprintf(valstr, 64, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
         } break;
         case IS_MPLS_LBL: {
-            snprintf(valstr, 64, "%llu", (unsigned long long)hashKey->v1);
+            snprintf(valstr, 64, "%" PRIu64, (uint64_t)hashKey->v1);
             snprintf(valstr, 64, "%8llu-%1llu-%1llu", (unsigned long long)hashKey->v1 >> 4, ((unsigned long long)hashKey->v1 & 0xF) >> 1,
                      (unsigned long long)hashKey->v1 & 1);
         } break;
@@ -1269,7 +1266,7 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t 
         case IS_NULL:
             break;
         case IS_NUMBER:
-            snprintf(valstr, 40, "%llu", (unsigned long long)hashKey->v1);
+            snprintf(valstr, 40, "%" PRIu64, (uint64_t)hashKey->v1);
             break;
         case IS_IPADDR:
             if (hashKey->v0 != 0) {  // IPv6
@@ -1293,7 +1290,7 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t 
             snprintf(valstr, 40, "%.2x:%.2x:%.2x:%.2x:%.2x:%.2x", mac[5], mac[4], mac[3], mac[2], mac[1], mac[0]);
         } break;
         case IS_MPLS_LBL: {
-            snprintf(valstr, 40, "%llu", (unsigned long long)hashKey->v1);
+            snprintf(valstr, 40, "%" PRIu64, (uint64_t)hashKey->v1);
             snprintf(valstr, 40, "%8llu-%1llu-%1llu", (unsigned long long)hashKey->v1 >> 4, ((unsigned long long)hashKey->v1 & 0xF) >> 1,
                      (unsigned long long)hashKey->v1 & 1);
         } break;
@@ -1357,10 +1354,9 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t 
     char datestr2[64];
     strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
-    printf("%s,%s,%.3f,%s,%s,%llu,%.1f,%llu,%.1f,%llu,%.1f,%llu,%llu,%u\n", datestr1, datestr2, duration,
-           order_proto ? ProtoString(hashKey->proto, printPlain) : "any", valstr, (long long unsigned)count_flows, flows_percent,
-           (long long unsigned)count_packets, packets_percent, (long long unsigned)count_bytes, bytes_percent, (long long unsigned)pps,
-           (long long unsigned)bps, bpp);
+    printf("%s,%s,%.3f,%s,%s,%" PRIu64 ",%.1f,%" PRIu64 ",%.1f,%" PRIu64 ",%.1f,%" PRIu64 ",%" PRIu64 ",%u\n", datestr1, datestr2, duration,
+           order_proto ? ProtoString(hashKey->proto, printPlain) : "any", valstr, count_flows, flows_percent, count_packets, packets_percent,
+           count_bytes, bytes_percent, pps, bps, bpp);
 
 }  // End of PrintCvsStatLine
 
@@ -1484,7 +1480,7 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
             record->hashkey = &(elemenHash->keys[i].key);
             c++;
 
-            dbg_printf("Get next hashCell. count: %llu\n", topN_list[c].count);
+            dbg_printf("Get next hashCell. count: %" PRIu64 "\n", topN_list[c].count);
         }
     }
     assert(c == numCells);
