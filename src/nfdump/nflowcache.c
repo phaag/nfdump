@@ -1610,9 +1610,15 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
         genericFlow->tcpFlags = flowRecord->inFlags;
 
         EXcntFlow_t tmpCntFlow = {0};
-        if (cntFlow == NULL && (flowRecord->flows > 1 || flowRecord->outPackets)) {
-            recordHandle.extensionList[EXcntFlowID] = &tmpCntFlow;
-            cntFlow = &tmpCntFlow;
+        if (cntFlow == NULL) {
+            if (flowRecord->flows > 1 || flowRecord->outPackets) {
+                recordHandle.extensionList[EXcntFlowID] = &tmpCntFlow;
+                cntFlow = &tmpCntFlow;
+                cntFlow->outPackets = flowRecord->outPackets;
+                cntFlow->outBytes = flowRecord->outBytes;
+                cntFlow->flows = flowRecord->flows;
+            }
+        } else {
             cntFlow->outPackets = flowRecord->outPackets;
             cntFlow->outBytes = flowRecord->outBytes;
             cntFlow->flows = flowRecord->flows;
