@@ -698,7 +698,7 @@ static void CloseDataFlowset(send_peer_t *peer) {
 }  // End of CloseDataFlowset
 
 static int CheckSendBufferSpace(size_t size, send_peer_t *peer) {
-    dbg_printf("CheckSendBufferSpace for %lu bytes: ", size);
+    dbg_printf("CheckSendBufferSpace for %zu bytes: ", size);
     if ((peer->buff_ptr + size) > peer->endp) {
         // request buffer flush
         dbg_printf("Check for %zu bytes in send buffer. Flush first.\n", size);

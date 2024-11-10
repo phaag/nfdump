@@ -1335,10 +1335,8 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
                 break;
         }
 
-        dbg_printf(
-            "New record added with %u elements and size: %u, sequencer inLength: %lu, outLength: "
-            "%lu\n",
-            recordHeaderV3->numElements, recordHeaderV3->size, sequencer->inLength, sequencer->outLength);
+        dbg_printf("New record added with %u elements and size: %u, sequencer inLength: %zu, outLength: %zu\n", recordHeaderV3->numElements,
+                   recordHeaderV3->size, sequencer->inLength, sequencer->outLength);
 
         recordHeaderV3->engineType = stack[STACK_ENGINETYPE];
         recordHeaderV3->engineID = stack[STACK_ENGINEID];

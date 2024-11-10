@@ -1082,7 +1082,7 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
                 break;
         }
 
-        dbg_printf("New record added with %u elements and size: %u, sequencer inLength: %lu, outLength: %lu\n", recordHeaderV3->numElements,
+        dbg_printf("New record added with %u elements and size: %u, sequencer inLength: %zu, outLength: %zu\n", recordHeaderV3->numElements,
                    recordHeaderV3->size, sequencer->inLength, sequencer->outLength);
 
         // add router IP
@@ -1712,7 +1712,7 @@ void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
 #ifdef DEVEL
     uint32_t expected_records = ntohs(v9_header->count);
-    printf("[%u] records: %u, buffer: %li \n", exporter_id, expected_records, size_left);
+    printf("[%u] records: %u, buffer: %zd \n", exporter_id, expected_records, size_left);
     printf("SourceID: %u, Sysuptime: %u.%u\n", v9_header->source_id, v9_header->SysUptime, v9_header->unix_secs);
 #endif
 

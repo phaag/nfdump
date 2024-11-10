@@ -129,7 +129,7 @@ uint16_t *SetupSequencer(sequencer_t *sequencer, sequence_t *sequenceTable, uint
     }
     if (!hasVarInLength && !hasVarOutLength) {
         dbg_printf("SetupSequencer() Fixed length fields, found %u elements in %u sequences\n", sequencer->numElements, sequencer->numSequences);
-        dbg_printf("SetupSequencer() Calculated input length: %lu, output length: %lu\n", sequencer->inLength, sequencer->outLength);
+        dbg_printf("SetupSequencer() Calculated input length: %zu, output length: %zu\n", sequencer->inLength, sequencer->outLength);
     }
 
     // dynamically create extension list
@@ -463,7 +463,7 @@ int SequencerRun(sequencer_t *sequencer, const void *inBuff, size_t inSize, void
 
     nestLevel--;
 #ifdef DEVEL
-    printf("[%u] End sequencer ID: %u, inputLength: %lu, processed: %u, outputLength: %u header size: %u\n", nestLevel, sequencer->templateID, inSize,
+    printf("[%u] End sequencer ID: %u, inputLength: %zu, processed: %u, outputLength: %u header size: %u\n", nestLevel, sequencer->templateID, inSize,
            totalInLength, totalOutLength, recordHeaderV3->size);
 #endif
 
