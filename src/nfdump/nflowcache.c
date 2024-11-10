@@ -1232,7 +1232,7 @@ char *ParseAggregateMask(char *print_format, char *arg) {
             if (aggregationTable[index].netmaskID && aggregationTable[index].netmaskID != 0xFF) {
                 uint32_t maskIndex = aggregationTable[index].netmaskID;
                 printf("v4mask  : 0x%x\n", maskArray[maskIndex].v4Mask);
-                printf("v6mask  : 0x%llx 0x%llx\n", maskArray[maskIndex].v6Mask[0], maskArray[maskIndex].v6Mask[1]);
+                printf("v6mask  : 0x%" PRIx64 " 0x%" PRIx64 "\n", maskArray[maskIndex].v6Mask[0], maskArray[maskIndex].v6Mask[1]);
             }
         }
     }

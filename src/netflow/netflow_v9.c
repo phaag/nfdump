@@ -922,7 +922,7 @@ static inline void Process_v9_option_templates(exporterDomain_t *exporter, void 
     }
     optionTemplate->optionSize = offset;
 
-    dbg_printf("\n[%u] Option size: %" PRIu64 ", flags: %llx\n", exporter->info.id, optionTemplate->optionSize, optionTemplate->flags);
+    dbg_printf("\n[%u] Option size: %" PRIu64 ", flags: %" PRIx64 "\n", exporter->info.id, optionTemplate->optionSize, optionTemplate->flags);
     if (optionTemplate->flags) {
         // if it exitsts - remove old template on exporter with same ID
         templateList_t *template = newTemplate(exporter, tableID);
@@ -1358,7 +1358,7 @@ static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, Fl
             dbg_printf("New std sampler: algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.algorithm,
                        sampler_record.packetInterval, sampler_record.spaceInterval);
         } else {
-            dbg_printf("ID : %lld, algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.id, sampler_record.algorithm,
+            dbg_printf("ID : %" PRId64 ", algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.id, sampler_record.algorithm,
                        sampler_record.packetInterval, sampler_record.spaceInterval);
         }
 
@@ -1383,7 +1383,7 @@ static inline void Process_v9_sampler_option_data(exporterDomain_t *exporter, Fl
                 LogError("Process_v9_option: Zero sampling interval -> sampling == 1", __FILE__, __LINE__);
             }
         }
-        dbg_printf("ID : %lld, algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.id, sampler_record.algorithm,
+        dbg_printf("ID : %" PRId64 ", algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.id, sampler_record.algorithm,
                    sampler_record.packetInterval, sampler_record.spaceInterval);
 
         InsertSampler(fs, exporter, &sampler_record);

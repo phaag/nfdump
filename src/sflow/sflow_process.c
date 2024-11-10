@@ -2225,7 +2225,7 @@ static void readCounters_radio(SFSample *sample) {
 
 static void readCounters_OFPort(SFSample *sample) {
     uint64_t dpid = getData64(sample);
-    dbg_printf("openflow_datapath_id %llx\n", dpid);
+    dbg_printf("openflow_datapath_id %" PRIx64 "\n", dpid);
     sf_log_next32(sample, "openflow_port");
 }
 

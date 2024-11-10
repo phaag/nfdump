@@ -526,10 +526,10 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
         exporter->sampler = sampler;
 
         fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
-        LogInfo("Add new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id, sampler_record->algorithm,
-                sampler_record->packetInterval, sampler_record->spaceInterval);
-        dbg_printf("Add new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id, sampler_record->algorithm,
-                   sampler_record->packetInterval, sampler_record->spaceInterval);
+        LogInfo("Add new sampler id: %" PRId64 ", algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
+                sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
+        dbg_printf("Add new sampler id: %" PRId64 ", algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id,
+                   sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
 
     } else {
         sampler = exporter->sampler;
@@ -543,9 +543,9 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
                     sampler->record.algorithm = sampler_record->algorithm;
                     sampler->record.packetInterval = sampler_record->packetInterval;
                     sampler->record.spaceInterval = sampler_record->spaceInterval;
-                    LogInfo("Update existing sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
+                    LogInfo("Update existing sampler id: %" PRId64 ", algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
                             sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
-                    dbg_printf("Update existing sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id,
+                    dbg_printf("Update existing sampler id: %" PRId64 " , algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id,
                                sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
                 } else {
                     dbg_printf("Sampler unchanged!\n");
@@ -570,9 +570,9 @@ static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_
                 sampler->next = NULL;
 
                 fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
-                LogInfo("Append new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
+                LogInfo("Append new sampler id: %" PRId64 ", algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
                         sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
-                dbg_printf("Append new sampler id: %lli, algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id,
+                dbg_printf("Append new sampler id: %" PRId64 ", algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id,
                            sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
                 break;
             }
@@ -1169,7 +1169,7 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
     }
     optionTemplate->optionSize = offset;
 
-    dbg_printf("\n[%u] Option size: %" PRIu64 ", flags: %llx\n", exporter->info.id, optionTemplate->optionSize, optionTemplate->flags);
+    dbg_printf("\n[%u] Option size: %" PRIu64 ", flags: %" PRIx64 "\n", exporter->info.id, optionTemplate->optionSize, optionTemplate->flags);
     if (optionTemplate->flags) {
         // if it exitsts - remove old template on exporter with same ID
         templateList_t *template = newTemplate(exporter, tableID);
@@ -1594,7 +1594,7 @@ static inline void Process_ipfix_sampler_option_data(exporterDomain_t *exporter,
             dbg_printf("New std sampler: algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.algorithm,
                        sampler_record.packetInterval, sampler_record.spaceInterval);
         } else {
-            dbg_printf("ID : %lld, algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.id, sampler_record.algorithm,
+            dbg_printf("ID : %" PRId64 ", algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.id, sampler_record.algorithm,
                        sampler_record.packetInterval, sampler_record.spaceInterval);
         }
 
@@ -1619,7 +1619,7 @@ static inline void Process_ipfix_sampler_option_data(exporterDomain_t *exporter,
                 LogError("Process_ipfix_option: Zero sampling interval -> sampling == 1", __FILE__, __LINE__);
             }
         }
-        dbg_printf("ID : %lld, algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.id, sampler_record.algorithm,
+        dbg_printf("ID : %" PRId64 ", algorithm : %u, packet interval: %u, packet space: %u\n", sampler_record.id, sampler_record.algorithm,
                    sampler_record.packetInterval, sampler_record.spaceInterval);
 
         InsertSampler(fs, exporter, &sampler_record);
