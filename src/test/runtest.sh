@@ -30,7 +30,7 @@
 #
 
 set -e
-TZ=MET
+TZ=Europe/Zurich
 export TZ
 
 # prevent any default goelookup for testing

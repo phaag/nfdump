@@ -30,7 +30,7 @@
 #
 
 set -e
-TZ=MET
+TZ=Europe/Zurich
 export TZ
 
 # Check for correct output
