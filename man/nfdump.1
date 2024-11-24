@@ -440,6 +440,12 @@ source IP addresses
 destination IP addresses
 .It Cm ip
 any (src or dst) IP addresses
+.It Cm srcgeo
+Two letter src geo country code of src IP address
+.It Cm dstgeo
+Two letter dst geo country code of dst IP address
+.It Cm geo
+Two letter src/dst geo country code of src/dst IP address
 .It Cm nhip
 next hop IP addresses
 .It Cm nhbip
@@ -468,10 +474,6 @@ destination AS numbers
 source AS organisations and numbers
 .It Cm dstasn
 destination AS organisations and numbers
-.It Cm srcgeo
-2 letter geo source country code
-.It Cm dstgeo
-2 letter geo destination country code
 .It Cm as
 any (source or destination) AS numbers
 .It Cm asn
@@ -561,14 +563,18 @@ NSEL/ASA statistics
 NSEL/ASA event
 .It Cm xevent
 NSEL/ASA extended event
-.It Cm xsrcip
-NSEL/ASA translated src IP address
-.It Cm xsrcport
-NSEL/ASA translated src port
-.It Cm xdstip
-NSEL/ASA translated dst IP address
-.It Cm xdstport
-NSEL/ASA translated dst port
+.It Cm natsrcip
+NSEL/ASA nat src IP address
+.It Cm natdstip
+NSEL/ASA nat dst IP address
+.It Cm natip
+NSEL/ASA nat src/dst IP addresses
+.It Cm nat srcport
+NSEL/ASA nat src port
+.It Cm natdstport
+NSEL/ASA nat dst port
+.It Cm natport
+NSEL/ASA nat src/dst port
 .It Cm iacl
 NSEL/ASA ingress ACL
 .It Cm iace
@@ -1446,22 +1452,22 @@ which may be
 True, if the comparison of the extended event field of the event record matches
 .Ar num
 .Pp
-.It Cm xip Ar ipaddr
-.It Cm src xip Ar ipaddr
-.It Cm dst xip Ar ipaddr
+.It Cm nat ip Ar ipaddr
+.It Cm src nat ip Ar ipaddr
+.It Cm dst nat ip Ar ipaddr
 True, if the field of the translated source or destination IP address matches
 .Ar ipaddr
 if
-.Cm xip
+.Cm nat ip
 is specified without
 .Cm src
 or
 .Cm dst
 both IP addresses may match.
 .Pp
-.It Cm xport Ar ipaddr
-.It Cm src xport Ar ipaddr
-.It Cm dst xport Ar ipaddr
+.It Cm nat port Ar ipaddr
+.It Cm src nat port Ar ipaddr
+.It Cm dst nat port Ar ipaddr
 True, if the field of the translated source or destination IP address matches
 .Ar ipaddr
 if
@@ -1472,9 +1478,9 @@ or
 .Cm dst
 both ports may match.
 .Pp
-.It Cm xnet Ar network/mask
-.It Cm src xnet Ar network/mask
-.It Cm dst xnet Ar network/mask
+.It Cm nat net Ar network/mask
+.It Cm src nat net Ar network/mask
+.It Cm dst nat net Ar network/mask
 True if the translated source or destination IP address matches
 .Ar network
 if mask
