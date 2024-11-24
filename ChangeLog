@@ -1,4 +1,5 @@
-- 18dc06d 2024-10-23  (HEAD -> master, origin/master, origin/HEAD) Fix nfeplay template identifu ID
+- 79d251c 2024-10-23  (HEAD -> master, origin/master, origin/HEAD) Commit Releas 1.7.5
+- 18dc06d 2024-10-23  Fix nfeplay template identifu ID
 - 4c8b892 2024-10-19  Merge pull request #571 from TiceDB/patch-2
 - b96828f 2024-10-19  Merge pull request #570 from TiceDB/patch-1
 - b1d2a1f 2024-10-18  Point JSON field in_bytes to inBytes instead of inPackets

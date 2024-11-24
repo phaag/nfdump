@@ -185,8 +185,8 @@ typedef struct common_header_s {
 #define SAMPLING_PACKET_INTERVAL 305
 #define SAMPLING_SPACE_INTERVAL 306
 
-// #define NF9_MIN_TTL			52
-// #define NF9_MAX_TTL			53
+#define NF9_MIN_TTL 52
+#define NF9_MAX_TTL 53
 // #define NF9_IPV4_IDENT		54
 
 #define NF9_DST_TOS 55

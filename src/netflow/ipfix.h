@@ -239,8 +239,8 @@ typedef struct ipfix_template_elements_e_s {
 #define IPFIX_samplerMode 49
 #define IPFIX_samplerRandomInterval 50
 
-// #define IPFIX_MIN_TTL			52
-// #define IPFIX_MAX_TTL			53
+#define IPFIX_MIN_TTL 52
+#define IPFIX_MAX_TTL 53
 // #define IPFIX_IPV4_IDENT			54
 
 #define IPFIX_postIpClassOfService 55

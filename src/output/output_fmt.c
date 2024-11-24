@@ -209,6 +209,10 @@ static void String_FlowEndReason(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_ipTTL(FILE *stream, recordHandle_t *recordHandle);
 
+static void String_ipminTTL(FILE *stream, recordHandle_t *recordHandle);
+
+static void String_ipmaxTTL(FILE *stream, recordHandle_t *recordHandle);
+
 static void String_ipFrag(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_Flags(FILE *stream, recordHandle_t *recordHandle);
@@ -584,8 +588,10 @@ static struct format_entry_s {
     {"%lbl", 0, "           label", String_Label},                      // Flow Label
 
     // EXipInfo
-    {"%ttl", 0, "TTL", String_ipTTL},     // Flow ip ttl
-    {"%frag", 0, "Frag", String_ipFrag},  // IP fragment flags
+    {"%ttl", 0, "TTL", String_ipTTL},           // Flow ip ttl
+    {"%minttl", 0, "minTTL", String_ipminTTL},  // Flow ip min ttl
+    {"%maxttl", 0, "maxTTL", String_ipmaxTTL},  // Flow ip max ttl
+    {"%frag", 0, "Frag", String_ipFrag},        // IP fragment flags
 
     {"%n", 0, "", String_NewLine},  // \n
     {NULL, 0, NULL, NULL}};
@@ -1967,6 +1973,20 @@ static void String_ipTTL(FILE *stream, recordHandle_t *recordHandle) {
 
     fprintf(stream, "%3u", ttl);
 }  // End of String_ipTTL
+
+static void String_ipminTTL(FILE *stream, recordHandle_t *recordHandle) {
+    EXipInfo_t *ipInfo = (EXipInfo_t *)recordHandle->extensionList[EXipInfoID];
+    uint8_t ttl = ipInfo ? ipInfo->minTTL : 0;
+
+    fprintf(stream, "%6u", ttl);
+}  // End of String_ipminTTL
+
+static void String_ipmaxTTL(FILE *stream, recordHandle_t *recordHandle) {
+    EXipInfo_t *ipInfo = (EXipInfo_t *)recordHandle->extensionList[EXipInfoID];
+    uint8_t ttl = ipInfo ? ipInfo->maxTTL : 0;
+
+    fprintf(stream, "%6u", ttl);
+}  // End of String_ipmaxTTL
 
 static void String_ipFrag(FILE *stream, recordHandle_t *recordHandle) {
     EXipInfo_t *ipInfo = (EXipInfo_t *)recordHandle->extensionList[EXipInfoID];

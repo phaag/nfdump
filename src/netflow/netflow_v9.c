@@ -168,6 +168,8 @@ static const struct v9TranslationMap_s {
     {NF9_IPV6_DST_MASK, SIZEdstMask, NumberCopy, EXflowMiscID, OFFdstMask, STACK_NONE, "dst mask bits"},
     {NF9_ICMP, Stack_ONLY, NumberCopy, EXgenericFlowID, OFFdstPort, STACK_ICMP, "icmp type/code"},
     {NF9_DST_TOS, SIZEdstTos, NumberCopy, EXflowMiscID, OFFdstTos, STACK_NONE, "post IP class of Service"},
+    {NF9_MIN_TTL, SIZEminTTL, NumberCopy, EXipInfoID, OFFminTTL, STACK_NONE, "flow min TTL"},
+    {NF9_MAX_TTL, SIZEmaxTTL, NumberCopy, EXipInfoID, OFFmaxTTL, STACK_NONE, "flow max TTL"},
     {NF_F_flowEndReason, SIZEflowEndReason, NumberCopy, EXflowMiscID, OFFflowEndReason, STACK_NONE, "Flow end reason"},
     {NF_F_ipTTL, SIZEipTTL, NumberCopy, EXipInfoID, OFFipTTL, STACK_NONE, "IP ttl"},
     {NF_F_fragmentFlags, SIZEfragmentFlags, NumberCopy, EXipInfoID, OFFfragmentFlags, STACK_NONE, "IP fragment flags"},

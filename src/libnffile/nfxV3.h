@@ -693,7 +693,12 @@ typedef struct EXipInfo_s {
     uint8_t fragmentFlags;
 #define OFFfragmentFlags offsetof(EXipInfo_t, fragmentFlags)
 #define SIZEfragmentFlags MemberSize(EXipInfo_t, fragmentFlags)
-    uint16_t align;  // unused for nfpcapd
+    uint8_t minTTL;  // unused for nfpcapd
+    uint8_t maxTTL;  // unused for nfpcapd
+#define OFFminTTL offsetof(EXipInfo_t, minTTL)
+#define SIZEminTTL MemberSize(EXipInfo_t, minTTL)
+#define OFFmaxTTL offsetof(EXipInfo_t, maxTTL)
+#define SIZEmaxTTL MemberSize(EXipInfo_t, maxTTL)
 } EXipInfo_t;
 #define EXipInfoSize (sizeof(EXipInfo_t) + sizeof(elementHeader_t))
 

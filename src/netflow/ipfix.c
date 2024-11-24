@@ -172,6 +172,8 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_icmpCodeV4, SIZEicmpType, Stack_ONLY, EXgenericFlowID, OFFicmpCode, STACK_ICMPCODE, "icmp v4 code"},
     {IPFIX_icmpTypeV6, SIZEicmpCode, Stack_ONLY, EXgenericFlowID, OFFicmpType, STACK_ICMPTYPE, "icmp v6 type"},
     {IPFIX_icmpCodeV6, SIZEicmpType, Stack_ONLY, EXgenericFlowID, OFFicmpCode, STACK_ICMPCODE, "icmp v6 code"},
+    {IPFIX_MIN_TTL, SIZEminTTL, NumberCopy, EXipInfoID, OFFminTTL, STACK_NONE, "flow min TTL"},
+    {IPFIX_MAX_TTL, SIZEmaxTTL, NumberCopy, EXipInfoID, OFFmaxTTL, STACK_NONE, "flow max TTL"},
     {IPFIX_postIpClassOfService, SIZEdstTos, NumberCopy, EXflowMiscID, OFFdstTos, STACK_NONE, "post IP class of Service"},
     {IPFIX_SourceMacAddress, SIZEinSrcMac, NumberCopy, EXmacAddrID, OFFinSrcMac, STACK_NONE, "in src MAC addr"},
     {IPFIX_postDestinationMacAddress, SIZEoutDstMac, NumberCopy, EXmacAddrID, OFFoutDstMac, STACK_NONE, "out dst MAC addr"},
