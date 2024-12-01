@@ -1243,4 +1243,5 @@ Flow Record:
   egress IfID  =             445566
   ethertype    =             0x0000
   ip fragment  =               0x40 DF   
-  ip TTL       =                100
+  ip minTTL    =                 40
+  ip minTTL    =                255

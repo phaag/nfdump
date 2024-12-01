@@ -224,7 +224,8 @@ static struct StatParameter_s {
     // {"exace", "Egress ACL", {EXnselAclID, OFFegressAcl, SIZEegressAcl, 0}, IS_HEX, NULL},
     {"ivrf", "I-vrf ID", {EXvrfID, OFFingressVrf, SIZEingressVrf, 0}, IS_NUMBER, NULL},
     {"evrf", "E-vrf ID", {EXvrfID, OFFegressVrf, SIZEegressVrf, 0}, IS_NUMBER, NULL},
-    {"ttl", "TTL", {EXipInfoID, OFFipTTL, SIZEipTTL, 0}, IS_NUMBER, NULL},
+    {"minttl", "minTTL", {EXipInfoID, OFFminTTL, SIZEminTTL, 0}, IS_NUMBER, NULL},
+    {"maxttl", "maxTTL", {EXipInfoID, OFFmaxTTL, SIZEmaxTTL, 0}, IS_NUMBER, NULL},
 
     // header info != NULL
     {NULL, "DONE", {0, 0, 0, 0}, 0, NULL}};

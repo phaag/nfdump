@@ -64,6 +64,8 @@ typedef enum {
     SRC_ROUTER
 } direction_t;
 
+typedef enum { PRE_UNKNOWN = 0, PRE_MIN, PRE_MAX } prefix_t;
+
 typedef enum {
     CMP_EQ = 0,
     CMP_GT,
@@ -86,6 +88,7 @@ typedef enum {
 typedef struct FilterParam {
     comparator_t comp;
     direction_t direction;
+    prefix_t prefix;
     int32_t self;
 } FilterParam_t;
 

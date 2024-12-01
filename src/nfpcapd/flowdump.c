@@ -136,7 +136,8 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         if (flowParam->extendedFlow) {
             UpdateRecordSize(EXipInfoSize);
             PushExtension(recordHeader, EXipInfo, ipInfo);
-            ipInfo->ttl = Node->ttl;
+            ipInfo->minTTL = Node->minTTL;
+            ipInfo->maxTTL = Node->maxTTL;
             ipInfo->fragmentFlags = Node->fragmentFlags;
 
             if (Node->vlanID) {

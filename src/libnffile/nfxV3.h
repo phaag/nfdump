@@ -685,9 +685,7 @@ typedef struct EXnokiaNatString_s {
 
 #define EXipInfoID 42
 typedef struct EXipInfo_s {
-    uint8_t ttl;
-#define OFFipTTL offsetof(EXipInfo_t, ttl)
-#define SIZEipTTL MemberSize(EXipInfo_t, ttl)
+    uint8_t fill;
 #define flagMF 0x20
 #define flagDF 0x40
     uint8_t fragmentFlags;

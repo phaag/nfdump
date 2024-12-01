@@ -216,8 +216,6 @@ static char *String_BiFlowDir(char *streamPtr, recordHandle_t *recordHandle);
 
 static char *String_FlowEndReason(char *streamPtr, recordHandle_t *recordHandle);
 
-static char *String_ipTTL(char *streamPtr, recordHandle_t *recordHandle);
-
 static char *String_ipminTTL(char *streamPtr, recordHandle_t *recordHandle);
 
 static char *String_ipmaxTTL(char *streamPtr, recordHandle_t *recordHandle);
@@ -566,7 +564,6 @@ static struct format_entry_s {
     {"%lbl", 0, "label", String_Label},                // Flow Label
 
     // EXipInfo
-    {"%ttl", 0, "TTL", String_ipTTL},           // Flow ip ttl
     {"%minttl", 0, "minTTL", String_ipminTTL},  // Flow ip min ttl
     {"%maxttl", 0, "maxTTL", String_ipmaxTTL},  // Flow ip max ttl
     {"%frag", 0, "Frag", String_ipFrag},        // IP fragment flags
@@ -1737,29 +1734,20 @@ static char *String_FlowEndReason(char *streamPtr, recordHandle_t *recordHandle)
     return streamPtr;
 }  // End of String_FlowEndReason
 
-static char *String_ipTTL(char *streamPtr, recordHandle_t *recordHandle) {
-    EXipInfo_t *ipInfo = (EXipInfo_t *)recordHandle->extensionList[EXipInfoID];
-    uint8_t ttl = ipInfo ? ipInfo->ttl : 0;
-
-    AddU32(ttl);
-
-    return streamPtr;
-}  // End of String_ipTTL
-
 static char *String_ipminTTL(char *streamPtr, recordHandle_t *recordHandle) {
     EXipInfo_t *ipInfo = (EXipInfo_t *)recordHandle->extensionList[EXipInfoID];
-    uint8_t ttl = ipInfo ? ipInfo->minTTL : 0;
+    uint8_t minTTL = ipInfo ? ipInfo->minTTL : 0;
 
-    AddU32(ttl);
+    AddU32(minTTL);
 
     return streamPtr;
 }  // End of String_ipminTTL
 
 static char *String_ipmaxTTL(char *streamPtr, recordHandle_t *recordHandle) {
     EXipInfo_t *ipInfo = (EXipInfo_t *)recordHandle->extensionList[EXipInfoID];
-    uint8_t ttl = ipInfo ? ipInfo->maxTTL : 0;
+    uint8_t maxTTL = ipInfo ? ipInfo->maxTTL : 0;
 
-    AddU32(ttl);
+    AddU32(maxTTL);
 
     return streamPtr;
 }  // End of String_ipminTTL

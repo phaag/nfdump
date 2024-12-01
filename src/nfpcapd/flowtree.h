@@ -117,9 +117,10 @@ struct FlowNode {
     void *pflog;
     void *payload;         // payload
     uint32_t payloadSize;  // Size of payload
-    uint8_t ttl;
+    uint8_t minTTL;
+    uint8_t maxTTL;
     uint8_t fragmentFlags;
-    uint16_t align;
+    uint8_t align;
     uint32_t mpls[10];
     uint64_t srcMac;
     uint64_t dstMac;

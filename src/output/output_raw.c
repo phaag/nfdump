@@ -306,13 +306,10 @@ static void stringsEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *
 static void stringEXipInfo(FILE *stream, void *extensionRecord) {
     EXipInfo_t *ipInfo = (EXipInfo_t *)extensionRecord;
 
-    if (ipInfo->ttl || ipInfo->fragmentFlags) {
+    if (ipInfo->fragmentFlags) {
         char *DF = ipInfo->fragmentFlags & flagDF ? "DF" : "  ";
         char *MF = ipInfo->fragmentFlags & flagMF ? "MF" : "  ";
-        fprintf(stream,
-                "  ip fragment  =               0x%.2x %s %s\n"
-                "  ip TTL       =              %5u\n",
-                ipInfo->fragmentFlags, DF, MF, ipInfo->ttl);
+        fprintf(stream, "  ip fragment  =               0x%.2x %s %s\n", ipInfo->fragmentFlags, DF, MF);
     }
     if (ipInfo->minTTL || ipInfo->maxTTL) {
         fprintf(stream,

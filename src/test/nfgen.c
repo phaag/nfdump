@@ -553,7 +553,8 @@ int main(int argc, char **argv) {
 
     PushExtension(v3Record, EXipInfo, ipInfo);
     AssertMapRecordHandle(recordHandle, v3Record, 0);
-    ipInfo->ttl = 100;
+    ipInfo->minTTL = 40;
+    ipInfo->maxTTL = 255;
     ipInfo->fragmentFlags = flagDF;
 
     UpdateRecord(recordHandle);

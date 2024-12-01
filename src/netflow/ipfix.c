@@ -189,7 +189,7 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_flowDirection, SIZEdir, NumberCopy, EXflowMiscID, OFFdir, STACK_NONE, "flow direction"},
     {IPFIX_biflowDirection, SIZEbiFlowDir, NumberCopy, EXflowMiscID, OFFbiFlowDir, STACK_NONE, "biFlow direction"},
     {IPFIX_flowEndReason, SIZEflowEndReason, NumberCopy, EXflowMiscID, OFFflowEndReason, STACK_NONE, "Flow end reason"},
-    {IPFIX_ipTTL, SIZEipTTL, NumberCopy, EXipInfoID, OFFipTTL, STACK_NONE, "IP ttl"},
+    {IPFIX_ipTTL, SIZEminTTL, NumberCopy, EXipInfoID, OFFminTTL, STACK_NONE, "flow min TTL"},
     {IPFIX_fragmentFlags, SIZEfragmentFlags, NumberCopy, EXipInfoID, OFFfragmentFlags, STACK_NONE, "IP fragment flags"},
     {IPFIX_ipNextHopIPv6Address, SIZENextHopV6IP, NumberCopy, EXipNextHopV6ID, OFFNextHopV6IP, STACK_NONE, "IPv6 next hop IP"},
     {IPFIX_bgpNextHopIPv6Address, SIZEbgp6NextIP, NumberCopy, EXbgpNextHopV6ID, OFFbgp6NextIP, STACK_NONE, "IPv6 bgp next hop IP"},

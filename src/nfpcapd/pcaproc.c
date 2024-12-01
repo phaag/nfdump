@@ -425,8 +425,10 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
     Node->packets++;
     Node->bytes += NewNode->bytes;
     Node->t_last = NewNode->t_last;
+    if (NewNode->minTTL < Node->minTTL) Node->minTTL = NewNode->minTTL;
+    if (NewNode->maxTTL > Node->maxTTL) Node->maxTTL = NewNode->maxTTL;
 
-    // DEVEL RTT - disabled for now
+        // DEVEL RTT - disabled for now
 #if 0
     if (NewNode->signal != SIGNAL_FIN && Node->latency.ack && ((NewNode->latency.ack - Node->latency.ack) > 0)) {
         uint32_t rtt = NewNode->latency.tsVal - Node->latency.tsVal;
@@ -487,6 +489,8 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *N
     Node->packets++;
     Node->bytes += NewNode->bytes;
     Node->t_last = NewNode->t_last;
+    if (NewNode->minTTL < Node->minTTL) Node->minTTL = NewNode->minTTL;
+    if (NewNode->maxTTL > Node->maxTTL) Node->maxTTL = NewNode->maxTTL;
     dbg_printf("Existing UDP flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
 
     if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
@@ -529,6 +533,8 @@ static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode 
     Node->packets++;
     Node->bytes += NewNode->bytes;
     Node->t_last = NewNode->t_last;
+    if (NewNode->minTTL < Node->minTTL) Node->minTTL = NewNode->minTTL;
+    if (NewNode->maxTTL > Node->maxTTL) Node->maxTTL = NewNode->maxTTL;
     dbg_printf("Existing flow IP proto: %u Packets: %u, Bytes: %u\n", NewNode->flowKey.proto, Node->packets, Node->bytes);
 
     if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
@@ -861,7 +867,9 @@ REDO_IPPROTO:
         Node->t_first.tv_usec = hdr->ts.tv_usec;
         Node->t_last.tv_usec = hdr->ts.tv_usec;
         Node->bytes = ntohs(ip6->ip6_plen) + size_ip;
-        Node->ttl = ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
+        uint8_t ttl = ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
+        Node->minTTL = ttl;
+        Node->maxTTL = ttl;
         Node->fragmentFlags = 0;
 
         // keep compiler happy - gets optimized out anyway
@@ -939,7 +947,8 @@ REDO_IPPROTO:
             Node->flowKey.src_addr.v4 = ntohl(ip->ip_src.s_addr);
             Node->flowKey.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
         }
-        Node->ttl = ip->ip_ttl;
+        Node->minTTL = ip->ip_ttl;
+        Node->maxTTL = ip->ip_ttl;
     } else {
         dbg_printf("ProcessPacket() Unsupported protocol version: %i\n", version);
         packetParam->proc_stat.unknown++;

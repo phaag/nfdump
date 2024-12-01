@@ -1009,11 +1009,28 @@ static void runTest(void) {
     // EXipInfo
     PushExtension(recordHeaderV3, EXipInfo, ipInfo);
     MapRecordHandle(recordHandle, recordHeaderV3, 1);
-    ipInfo->ttl = 100;
+    ipInfo->minTTL = 36;
+    ipInfo->maxTTL = 48;
     ipInfo->fragmentFlags = flagDF;
-    CheckFilter("ttl 100", recordHandle, 1);
-    CheckFilter("ttl > 99", recordHandle, 1);
-    CheckFilter("ttl 200", recordHandle, 0);
+    CheckFilter("min ttl 36", recordHandle, 1);
+    CheckFilter("min ttl > 30", recordHandle, 1);
+    CheckFilter("min ttl < 37", recordHandle, 1);
+    CheckFilter("min ttl 64", recordHandle, 0);
+    CheckFilter("min ttl < 30", recordHandle, 0);
+    //
+    CheckFilter("max ttl 48", recordHandle, 1);
+    CheckFilter("max ttl > 40", recordHandle, 1);
+    CheckFilter("max ttl < 50", recordHandle, 1);
+    CheckFilter("max ttl 64", recordHandle, 0);
+    CheckFilter("max ttl < 30", recordHandle, 0);
+    CheckFilter("max ttl 48", recordHandle, 1);
+    //
+    CheckFilter("ttl 36", recordHandle, 1);
+    CheckFilter("ttl 48", recordHandle, 1);
+    CheckFilter("ttl > 40", recordHandle, 1);
+    CheckFilter("ttl < 50", recordHandle, 1);
+    CheckFilter("ttl 64", recordHandle, 0);
+    CheckFilter("ttl < 30", recordHandle, 0);
 
     printf("DONE.\n");
 }  // End of runTest

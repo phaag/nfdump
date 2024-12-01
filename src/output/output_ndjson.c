@@ -273,7 +273,7 @@ static char *stringEXflowMisc(char *streamPtr, recordHandle_t *recordHandle, voi
 static char *stringEXipInfo(char *streamPtr, void *extensionRecord) {
     EXipInfo_t *ipInfo = (EXipInfo_t *)extensionRecord;
 
-    if (ipInfo->ttl || ipInfo->fragmentFlags) {
+    if (ipInfo->fragmentFlags) {
         char flags[4] = "--\0";
         if (ipInfo->fragmentFlags & flagDF) {
             flags[0] = 'D';
@@ -285,7 +285,6 @@ static char *stringEXipInfo(char *streamPtr, void *extensionRecord) {
         }
 
         AddElementString("ip_fragment", flags);
-        AddElementU32("ip_ttl", (uint32_t)ipInfo->ttl);
     }
     if (ipInfo->minTTL || ipInfo->maxTTL) {
         AddElementU32("ip_minttl", (uint32_t)ipInfo->minTTL);

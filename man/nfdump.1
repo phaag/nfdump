@@ -848,8 +848,12 @@ True if source and destination IP of a record are IPv4 IPs.
 .It Cm ipv6
 True if source and destination IP of a record are IPv6 IPs.
 .Pp
+.It Cm min ttl Ar comp num
+.It Cm max ttl Ar comp num
+True if min/max IP ttl matches comparison.
+.Pp
 .It Cm ttl Ar comp num
-True if IP ttl matches comparison.
+True if min or max IP ttl matches comparison.
 .Pp
 .It Cm proto Ar protocol
 True if the record protocol field matches
@@ -1714,8 +1718,12 @@ Destination Address(country code):Port
 Source Port
 .It Cm %dp
 Destination Port
+.It Cm %minttl
+IP min ttl
+.It Cm %maxttl
+IP max ttl
 .It Cm %ttl
-IP ttl
+IP min/max ttl
 .It Cm %it
 ICMP-type
 .It Cm %ic

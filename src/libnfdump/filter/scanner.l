@@ -132,6 +132,8 @@ src				{ return SRC;    }
 dst				{ return DST;    }
 in				{ return IN;     }
 out				{ return OUT;    }
+min				{ return MIN;    }
+max				{ return MAX;    }
 next			{ return NEXT;   }
 prev			{ return PREV;   }
 bgp				{ return BGP;    }

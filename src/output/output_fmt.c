@@ -588,9 +588,9 @@ static struct format_entry_s {
     {"%lbl", 0, "           label", String_Label},                      // Flow Label
 
     // EXipInfo
-    {"%ttl", 0, "TTL", String_ipTTL},           // Flow ip ttl
-    {"%minttl", 0, "minTTL", String_ipminTTL},  // Flow ip min ttl
-    {"%maxttl", 0, "maxTTL", String_ipmaxTTL},  // Flow ip max ttl
+    {"%ttl", 0, "min/maxTTL", String_ipTTL},    // Flow min/max TTL
+    {"%minttl", 0, "minTTL", String_ipminTTL},  // Flow ip min TTL
+    {"%maxttl", 0, "maxTTL", String_ipmaxTTL},  // Flow ip max TTL
     {"%frag", 0, "Frag", String_ipFrag},        // IP fragment flags
 
     {"%n", 0, "", String_NewLine},  // \n
@@ -1969,9 +1969,10 @@ static void String_FlowEndReason(FILE *stream, recordHandle_t *recordHandle) {
 
 static void String_ipTTL(FILE *stream, recordHandle_t *recordHandle) {
     EXipInfo_t *ipInfo = (EXipInfo_t *)recordHandle->extensionList[EXipInfoID];
-    uint8_t ttl = ipInfo ? ipInfo->ttl : 0;
+    EXipInfo_t nullIPinfo = {0};
+    if (ipInfo == NULL) ipInfo = &nullIPinfo;
 
-    fprintf(stream, "%3u", ttl);
+    fprintf(stream, "%5u %5u", ipInfo->minTTL, ipInfo->maxTTL);
 }  // End of String_ipTTL
 
 static void String_ipminTTL(FILE *stream, recordHandle_t *recordHandle) {
