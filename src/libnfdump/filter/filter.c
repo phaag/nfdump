@@ -111,6 +111,7 @@ static uint64_t mpls_any_function(void *dataPtr, uint32_t length, data_t data, r
 static uint64_t pblock_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t mmASLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 static uint64_t torLookup_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
+static uint64_t ttlEqual_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
 /* flow pre-processing functions */
 static void *ssl_preproc(uint32_t length, data_t data, recordHandle_t *handle);
@@ -137,6 +138,7 @@ static struct flow_procs_map_s {
                             [FUNC_PBLOCK] = {"pblock", pblock_function},
                             [FUNC_MMAS_LOOKUP] = {"AS Lookup", mmASLookup_function},
                             [FUNC_TOR_LOOKUP] = {"TOR Lookup", torLookup_function},
+                            [FUNC_TTL_EQUAL] = {"min/max TTL equal", ttlEqual_function},
                             {NULL, NULL}};
 
 static struct preprocess_s {
@@ -315,6 +317,13 @@ static uint64_t torLookup_function(void *dataPtr, uint32_t length, data_t data, 
 
     return isTor;
 }  // End of torLookup_function
+
+static uint64_t ttlEqual_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *recordHandle) {
+    EXipInfo_t *ipInfo = (EXipInfo_t *)recordHandle->extensionList[EXipInfoID];
+    if (ipInfo == NULL) return 0;
+
+    return ipInfo->minTTL == ipInfo->maxTTL;
+}  // End of ttlEqual_function
 
 static void *ssl_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
     const uint8_t *payload = (uint8_t *)(handle->extensionList[EXinPayloadID]);

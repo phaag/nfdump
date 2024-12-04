@@ -113,6 +113,7 @@ typedef enum {
     FUNC_MMAS_LOOKUP,  // function code for optional maxmind AS lookup
     FUNC_TOR_LOOKUP,   // function code for optional tor node  lookup
     FUNC_JA3,          // function code for ja3 calc
+    FUNC_TTL_EQUAL,    // function code for comparing min/max TTL
 } filterFunction_t;
 
 #define FULLMASK FFFFFFFFFFFFFFFFLL

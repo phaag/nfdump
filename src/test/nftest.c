@@ -1032,6 +1032,11 @@ static void runTest(void) {
     CheckFilter("ttl 64", recordHandle, 0);
     CheckFilter("ttl < 30", recordHandle, 0);
 
+    CheckFilter("ttl equal", recordHandle, 0);
+    CheckFilter("not ttl equal", recordHandle, 1);
+    ipInfo->maxTTL = 36;
+    CheckFilter("ttl equal", recordHandle, 1);
+    CheckFilter("not ttl equal", recordHandle, 0);
     printf("DONE.\n");
 }  // End of runTest
 

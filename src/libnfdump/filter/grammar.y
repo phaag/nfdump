@@ -94,6 +94,8 @@ static int AddTosNumber(direction_t direction, uint16_t comp, uint64_t tos);
 
 static int AddIPttl(prefix_t prefix, uint16_t comp, uint64_t ttl);
 
+static int AddIPttlEqual(char *arg);
+
 static int AddPackets(direction_t direction, uint16_t comp, uint64_t packets);
 
 static int AddBytes(direction_t direction, uint16_t comp, uint64_t bytes);
@@ -282,6 +284,10 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| minmax IPTTL comp NUMBER {
 	  $$.self = AddIPttl($1.prefix, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| minmax IPTTL STRING {
+	  $$.self = AddIPttlEqual($3); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| FWDSTAT comp NUMBER {
@@ -932,6 +938,15 @@ static int AddIPttl(prefix_t prefix, uint16_t comp, uint64_t ttl) {
 	return ret;
 
 } // End of AddIPttl
+
+static int AddIPttlEqual(char *arg) {
+	if (strcasecmp(arg, "equal") != 0 ) {
+		yyprintf("Unexpected argument: %s", arg);
+		return -1;
+	}
+	
+	return NewElement(EXipInfoID, OFFminTTL, SIZEminTTL, 1, CMP_EQ, FUNC_TTL_EQUAL, NULLPtr);
+} // End of AddIPttlEqual
 
 static int AddPackets(direction_t direction, uint16_t comp, uint64_t packets) {
 
