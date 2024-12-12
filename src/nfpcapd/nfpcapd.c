@@ -651,8 +651,10 @@ int main(int argc, char *argv[]) {
     }
 
     if (pidfile) {
-        if (check_pid(pidfile) != 0 || write_pid(pidfile) == 0) pcap_close(packetParam.pcap_dev);
-        exit(EXIT_FAILURE);
+        if (check_pid(pidfile) != 0 || write_pid(pidfile) == 0) {
+            pcap_close(packetParam.pcap_dev);
+            exit(EXIT_FAILURE);
+        }
     }
 
     if (metricsocket && !OpenMetric(metricsocket, metricInterval)) {
