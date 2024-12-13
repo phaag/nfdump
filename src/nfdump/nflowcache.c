@@ -788,7 +788,7 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
                 case 16: {
                     ((uint64_t *)keymem)[0] = ((uint64_t *)inPtr)[0];
                     ((uint64_t *)keymem)[1] = ((uint64_t *)inPtr)[1];
-                    keymem += sizeof(uint64_t);
+                    keymem += (2 * sizeof(uint64_t));
                 } break;
                 default:
                     memcpy((void *)keymem, inPtr, param->length);
@@ -1449,7 +1449,7 @@ void AddFlowCache(recordHandle_t *recordHandle) {
     uint64_t aggrFlows = 1;
     if (cntFlow) {
         outPackets = cntFlow->outPackets;
-        outBytes = cntFlow->outPackets;
+        outBytes = cntFlow->outBytes;
         aggrFlows = cntFlow->flows ? cntFlow->flows : 1;
     }
 
