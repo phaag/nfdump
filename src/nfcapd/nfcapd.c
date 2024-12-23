@@ -450,7 +450,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 break;
             default:
                 // data error, while reading data from socket
-                LogError("Ident: %s, Error reading netflow header: Unexpected netflow version %i", fs->Ident, version);
+                LogError("Ident: %s, Error packet %llu: reading netflow header: Unexpected netflow version %i", fs->Ident, packets, version);
                 fs->bad_packets++;
                 continue;
 

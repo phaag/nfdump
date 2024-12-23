@@ -226,6 +226,8 @@ typedef struct common_header_s {
 // IPFIX elements in v9 ( # > 127 )
 #define NF_F_BGP_ADJ_NEXT_AS 128
 #define NF_F_BGP_ADJ_PREV_AS 129
+#define NF_F_flowStartSeconds 150
+#define NF_F_flowEndSeconds 151
 #define NF_F_flowEndReason 136
 #define NF_F_dot1qVlanId 243
 #define NF_F_postDot1qVlanId 254

@@ -70,6 +70,8 @@ enum {
     STACK_MSECFIRST,
     STACK_MSECLAST,
     STACK_SAMPLER,
+    STACK_SECFIRST,
+    STACK_SECLAST,
     STACK_MSEC,
     STACK_SYSUPTIME,
     STACK_CLIENT_USEC,
@@ -160,6 +162,8 @@ static const struct v9TranslationMap_s {
     {NF9_BGP_V4_NEXT_HOP, SIZEbgp4NextIP, NumberCopy, EXbgpNextHopV4ID, OFFbgp4NextIP, STACK_NONE, "IPv4 bgp next hop"},
     {NF9_LAST_SWITCHED, Stack_ONLY, NumberCopy, EXgenericFlowID, OFFmsecLast, STACK_MSECLAST, "msec last SysupTime"},
     {NF9_FIRST_SWITCHED, Stack_ONLY, NumberCopy, EXgenericFlowID, OFFmsecFirst, STACK_MSECFIRST, "msec first SysupTime"},
+    {NF_F_flowStartSeconds, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SECLAST, "sec first seen"},
+    {NF_F_flowEndSeconds, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SECFIRST, "sec last seen"},
     {NF9_OUT_BYTES, SIZEoutBytes, NumberCopy, EXcntFlowID, OFFoutBytes, STACK_NONE, "output bytes delta counter"},
     {NF9_OUT_PKTS, SIZEoutPackets, NumberCopy, EXcntFlowID, OFFoutPackets, STACK_NONE, "output packet delta counter"},
     {NF9_IPV6_SRC_ADDR, SIZEsrc6Addr, NumberCopy, EXipv6FlowID, OFFsrc6Addr, STACK_NONE, "IPv6 src addr"},
@@ -1193,6 +1197,9 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
 
                 // end time in msecs
                 genericFlow->msecLast = (uint64_t)Last + exporter->boot_time;
+            } else if (stack[STACK_SECFIRST]) {
+                genericFlow->msecFirst = stack[STACK_SECFIRST] * (uint64_t)1000;
+                genericFlow->msecLast = stack[STACK_SECLAST] * (uint64_t)1000;
             }
 
             if (genericFlow->msecFirst < fs->msecFirst) fs->msecFirst = genericFlow->msecFirst;

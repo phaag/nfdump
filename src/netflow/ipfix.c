@@ -64,6 +64,8 @@ enum {
     STACK_ICMPCODE,
     STACK_DSTPORT,
     STACK_SAMPLER,
+    STACK_SECFIRST,
+    STACK_SECLAST,
     STACK_MSECFIRST,
     STACK_MSECLAST,
     STACK_DURATION,
@@ -155,6 +157,8 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_bgpSourceAsNumber, SIZEsrcAS, NumberCopy, EXasRoutingID, OFFsrcAS, STACK_NONE, "src AS"},
     {IPFIX_bgpDestinationAsNumber, SIZEdstAS, NumberCopy, EXasRoutingID, OFFdstAS, STACK_NONE, "dst AS"},
     {IPFIX_bgpNextHopIPv4Address, SIZEbgp4NextIP, NumberCopy, EXbgpNextHopV4ID, OFFbgp4NextIP, STACK_NONE, "IPv4 bgp next hop"},
+    {IPFIX_flowStartSeconds, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SECLAST, "sec first seen"},
+    {IPFIX_flowEndSeconds, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SECFIRST, "sec last seen"},
     {IPFIX_flowEndSysUpTime, Stack_ONLY, NumberCopy, EXnull, 0, STACK_MSECLAST, "msec last SysupTime"},
     {IPFIX_flowStartSysUpTime, Stack_ONLY, NumberCopy, EXnull, 0, STACK_MSECFIRST, "msec first SysupTime"},
     {IPFIX_SystemInitTimeMiliseconds, Stack_ONLY, NumberCopy, EXnull, 0, STACK_SYSUPTIME, "SysupTime msec"},
@@ -1446,6 +1450,10 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
                 dbg_printf("Calculate first/last from option SysUpTime\n");
                 genericFlow->msecFirst = exporter->SysUpTime + stack[STACK_MSECFIRST];
                 genericFlow->msecLast = exporter->SysUpTime + stack[STACK_MSECLAST];
+            } else if (stack[STACK_SECFIRST]) {
+                dbg_printf("first/last sec abs.\n");
+                genericFlow->msecFirst = stack[STACK_SECFIRST] * (uint64_t)1000;
+                genericFlow->msecLast = stack[STACK_SECLAST] * (uint64_t)1000;
             }
 
             if (genericFlow->msecFirst < fs->msecFirst) fs->msecFirst = genericFlow->msecFirst;
