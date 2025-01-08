@@ -107,9 +107,9 @@ struct myicmphdr {
 };
 
 /* and GRE (RFC 2890) */
-struct mygreheader { /* only relevant fields */
-    uint8_t flags; /* presence indicators for checksum, key, and sequence number */
-    uint8_t version; /* GRE version */
+struct mygreheader {        /* only relevant fields */
+    uint8_t flags;          /* presence indicators for checksum, key, and sequence number */
+    uint8_t version;        /* GRE version */
     uint16_t protocol_type; /* EtherType code for encapsulated protocol */
 };
 
@@ -279,8 +279,11 @@ typedef struct _SFSample {
 #define SF_ABORT_DECODE_ERROR 2
 #define SF_ABORT_LENGTH_ERROR 3
 
-    int parse_gre;
-
+    // tunnels
+    int parse_tun;
+    SFLAddress tun_ipsrc;
+    SFLAddress tun_ipdst;
+    uint32_t tun_proto;
 } SFSample;
 
 #define sampleDataOffset offsetof(SFSample, sampleType)

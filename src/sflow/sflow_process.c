@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2017-2024, Peter Haag
+ *  Copyright (c) 2017-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -688,8 +688,8 @@ static void decodeIPLayer4(SFSample *sample, uint8_t *ptr) {
             sample->offsetToPayload = ptr + sizeof(udp) - sample->header;
         } break;
         case 47: { /* GRE */
-            dbg_printf("GRE\n");
-            if (sample->parse_gre) {
+            dbg_printf("GRE - parse tunnel: %d\n", sample->parse_tun);
+            if (sample->parse_tun) {
                 struct mygreheader gre;
                 memcpy(&gre, ptr, sizeof(gre));
                 uint16_t checksum_present = ntohs(gre.flags) >> 15;
@@ -699,7 +699,6 @@ static void decodeIPLayer4(SFSample *sample, uint8_t *ptr) {
                 switch (ntohs(gre.protocol_type)) {
                     case 0x6558: { /* Transparent Ethernet bridging */
                         sample->headerProtocol = SFLHEADER_ETHERNET_ISO8023;
-                        ;
                     } break;
                     case 0x0800: { /* IPv4 */
                         sample->headerProtocol = SFLHEADER_IPv4;
@@ -714,12 +713,32 @@ static void decodeIPLayer4(SFSample *sample, uint8_t *ptr) {
                     }
                 }
                 dbg_printf("GRE: Header type: %u\n", sample->headerProtocol);
-                sample->datap = sample->headerDescriptionStart; /* Reset parsing pointer for metadata */
-                sample->header = ptr + gre_header_length;       /* Set parsing pointer for header to end of GRE header */
+                sample->datap = sample->headerDescriptionStart;           /* Reset parsing pointer for metadata */
+                sample->header = ptr + gre_header_length;                 /* Set parsing pointer for header to end of GRE header */
+                if (sample->tun_ipsrc.type == SFLADDRESSTYPE_UNDEFINED) { /* Use outermost header for tunnel IPs */
+                    sample->tun_ipsrc = sample->ipsrc;
+                    sample->tun_ipdst = sample->ipdst;
+                    sample->tun_proto = sample->dcd_ipProtocol;
+                }
                 readFlowSample_header(sample);
                 return;
             }
-        }
+        } break;
+        case 41: { /* 6in4 */
+            dbg_printf("6in4 - parse tunnel: %d\n", sample->parse_tun);
+            if (sample->parse_tun) {
+                sample->headerProtocol = SFLHEADER_IPv6;
+                sample->datap = sample->headerDescriptionStart;           /* Reset parsing pointer for metadata */
+                sample->header = ptr;                                     /* Set parsing pointer for header to end of IPv4 header */
+                if (sample->tun_ipsrc.type == SFLADDRESSTYPE_UNDEFINED) { /* Use outermost header for tunnel IPs */
+                    sample->tun_ipsrc = sample->ipsrc;
+                    sample->tun_ipdst = sample->ipdst;
+                    sample->tun_proto = sample->dcd_ipProtocol;
+                }
+                readFlowSample_header(sample);
+                return;
+            }
+        } break;
         default: /* some other protocol */
             sample->offsetToPayload = ptr - sample->header;
             break;
@@ -3643,7 +3662,7 @@ void readSFlowDatagram(SFSample *sample, FlowSource_t *fs, int verbose) {
     char buf[51];
 #endif
 
-    int parse_gre = sample->parse_gre;
+    int parse_tun = sample->parse_tun;
 
     /* log some datagram info */
     dbg_printf("datagramSourceIP %s\n", IP_to_a(sample->sourceIP.s_addr, buf, 51));
@@ -3680,7 +3699,7 @@ void readSFlowDatagram(SFSample *sample, FlowSource_t *fs, int verbose) {
     for (samp = 0; samp < samplesInPacket; samp++) {
         // fix bug sflowtool */
         memset(sampleData, 0, sizeof(SFSample) - sampleDataOffset);
-        sample->parse_gre = parse_gre;
+        sample->parse_tun = parse_tun;
 
         if ((uint8_t *)sample->datap >= sample->endp) {
             LogError("SFLOW: readSFlowDatagram() unexpected end of datagram after sample %d of %d\n", samp, samplesInPacket);

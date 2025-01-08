@@ -1,5 +1,6 @@
 #
-# Sample nfdump config file
+# Copyright (c) 2025, Peter Haag
+# Sample nfdump config file 
 
 [nfdump]
 # format definitions
@@ -64,7 +65,8 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 
 [sfcapd]
 # define -o options
-# opt.gre = 1
+# enable option tun, if you want to decode tunneling protocols gre and 6in4
+# opt.tun = 1
 # maxworkers = 16
 
 [nfpcapd]

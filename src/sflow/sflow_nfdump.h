@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2017-2024, Peter Haag
+ *  Copyright (c) 2017-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -39,7 +39,7 @@
 
 int Init_sflow(int verbose, char *extensionList);
 
-void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs, int parse_gre);
+void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs, int parse_tun);
 
 void StoreSflowRecord(SFSample *sample, FlowSource_t *fs);
 

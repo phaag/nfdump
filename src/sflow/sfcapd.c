@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -96,7 +96,7 @@ static int verbose = 0;
 typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *, socklen_t *);
 
 static option_t sfcapdConfig[] = {
-    {.name = "gre", .valBool = 0, .flags = OPTDEFAULT}, {.name = "maxworkers", .valUint64 = 2, .flags = OPTDEFAULT}, {.name = NULL}};
+    {.name = "tun", .valBool = 0, .flags = OPTDEFAULT}, {.name = "maxworkers", .valUint64 = 2, .flags = OPTDEFAULT}, {.name = NULL}};
 
 /* module limited globals */
 static FlowSource_t *FlowSource;
@@ -115,7 +115,7 @@ static void IntHandler(int signal);
 static inline FlowSource_t *GetFlowSource(struct sockaddr_storage *ss);
 
 static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress,
-                int parse_gre);
+                int parse_tun);
 
 /* Functions */
 static void usage(char *name) {
@@ -140,7 +140,7 @@ static void usage(char *name) {
         "-i interval\tMetric interval in s for metric exporter\n"
         "-m socket\t\tEnable metric exporter on socket.\n"
         "-M dir \t\tSet the output directory for dynamic sources.\n"
-        "-o options \tAdd sfcpad options, separated with ','. Available: 'gre'\n"
+        "-o options \tAdd sfcpad options, separated with ','. Available: 'tun'\n"
         "-P pidfile\tset the PID file\n"
         "-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
         "-A\t\tEnable source address spoofing for packet repeater -R.\n"
@@ -272,7 +272,7 @@ static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockadd
 }  // End of SendRepeaterMessage
 
 static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress,
-                int parse_gre) {
+                int parse_tun) {
     struct sockaddr_storage sf_sender;
     socklen_t sf_sender_size = sizeof(sf_sender);
 
@@ -430,7 +430,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
         fs->received = tv;
         /* Process data - have a look at the common header */
-        Process_sflow(in_buff, cnt, fs, parse_gre);
+        Process_sflow(in_buff, cnt, fs, parse_tun);
 
         // each Process_xx function has to process the entire input buffer, therefore it's empty
         // now.
@@ -458,7 +458,7 @@ int main(int argc, char **argv) {
     FlowSource_t *fs;
     int family, bufflen, metricInterval;
     time_t twin;
-    int sock, do_daemonize, expire, spec_time_extension, parse_gre;
+    int sock, do_daemonize, expire, spec_time_extension, parse_tun;
     int subdir_index, compress, srcSpoofing;
     uint64_t workers;
 #ifdef PCAP
@@ -494,7 +494,7 @@ int main(int argc, char **argv) {
     extensionList = NULL;
     options = NULL;
     workers = 0;
-    parse_gre = 0;
+    parse_tun = 0;
 
     int c;
     while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:o:p:P:R:S:T:t:u:vVW:w:x:X:yz::Z:")) != EOF) {
@@ -785,7 +785,7 @@ int main(int argc, char **argv) {
     if (scanOptions(sfcapdConfig, options) == 0) {
         exit(EXIT_FAILURE);
     }
-    OptGetBool(sfcapdConfig, "gre", &parse_gre);
+    OptGetBool(sfcapdConfig, "tun", &parse_tun);
 
     if (datadir && !AddFlowSource(&FlowSource, Ident, ANYIP, datadir)) {
         LogError("Failed to add default data collector directory");
@@ -920,7 +920,7 @@ int main(int argc, char **argv) {
     sigaction(SIGPIPE, &act, NULL);
 
     LogInfo("Startup sfcapd.");
-    run(receive_packet, sock, pfd, rfd, twin, t_start, time_extension, compress, parse_gre);
+    run(receive_packet, sock, pfd, rfd, twin, t_start, time_extension, compress, parse_tun);
 
     // shutdown
     close(sock);
