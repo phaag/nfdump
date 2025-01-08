@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -62,6 +62,8 @@
 typedef struct worker_param_s {
     int self;
     int numWorkers;
+    int anon_src;
+    int anon_dst;
     dataBlock_t **dataBlock;
 
     // sync barrier
@@ -71,7 +73,7 @@ typedef struct worker_param_s {
 /* Function Prototypes */
 static void usage(char *name);
 
-static inline void AnonRecord(recordHeaderV3_t *v3Record);
+static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon_dst);
 
 static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier);
 
@@ -84,6 +86,8 @@ static void usage(char *name) {
         "usage %s [options] \n"
         "-h\t\tthis text you see right here.\n"
         "-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>.\n"
+        "-s\t\tPreserve source address.\n"
+        "-d\t\tPreserve destination address.\n"
         "-q\t\tDo not print progress spinnen and filenames.\n"
         "-r <path>\tread input from single file or all files in directory.\n"
         "-t <num>\tnumber of worker threads. Max depends on cores online\n"
@@ -91,7 +95,7 @@ static void usage(char *name) {
         name);
 } /* usage */
 
-static inline void AnonRecord(recordHeaderV3_t *v3Record) {
+static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon_dst) {
     elementHeader_t *elementHeader;
     uint32_t size = sizeof(recordHeaderV3_t);
 
@@ -118,18 +122,22 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
                 break;
             case EXipv4FlowID: {
                 EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                ipv4Flow->srcAddr = anonymize(ipv4Flow->srcAddr);
-                ipv4Flow->dstAddr = anonymize(ipv4Flow->dstAddr);
+                if (anon_src) ipv4Flow->srcAddr = anonymize(ipv4Flow->srcAddr);
+                if (anon_dst) ipv4Flow->dstAddr = anonymize(ipv4Flow->dstAddr);
             } break;
             case EXipv6FlowID: {
                 EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                anonymize_v6(ipv6Flow->srcAddr, anon_ip);
-                ipv6Flow->srcAddr[0] = anon_ip[0];
-                ipv6Flow->srcAddr[1] = anon_ip[1];
+                if (anon_src) {
+                    anonymize_v6(ipv6Flow->srcAddr, anon_ip);
+                    ipv6Flow->srcAddr[0] = anon_ip[0];
+                    ipv6Flow->srcAddr[1] = anon_ip[1];
+                }
 
-                anonymize_v6(ipv6Flow->srcAddr, anon_ip);
-                ipv6Flow->dstAddr[0] = anon_ip[0];
-                ipv6Flow->dstAddr[1] = anon_ip[1];
+                if (anon_dst) {
+                    anonymize_v6(ipv6Flow->srcAddr, anon_ip);
+                    ipv6Flow->dstAddr[0] = anon_ip[0];
+                    ipv6Flow->dstAddr[1] = anon_ip[1];
+                }
             } break;
             case EXflowMiscID:
                 break;
@@ -139,8 +147,8 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
                 break;
             case EXasRoutingID: {
                 EXasRouting_t *asRouting = (EXasRouting_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                asRouting->srcAS = 0;
-                asRouting->dstAS = 0;
+                if (anon_src) asRouting->srcAS = 0;
+                if (anon_dst) asRouting->dstAS = 0;
             } break;
             case EXbgpNextHopV4ID: {
                 EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
@@ -187,18 +195,21 @@ static inline void AnonRecord(recordHeaderV3_t *v3Record) {
                 break;
             case EXnatXlateIPv4ID: {
                 EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                natXlateIPv4->xlateSrcAddr = anonymize(natXlateIPv4->xlateSrcAddr);
-                natXlateIPv4->xlateDstAddr = anonymize(natXlateIPv4->xlateDstAddr);
+                if (anon_src) natXlateIPv4->xlateSrcAddr = anonymize(natXlateIPv4->xlateSrcAddr);
+                if (anon_dst) natXlateIPv4->xlateDstAddr = anonymize(natXlateIPv4->xlateDstAddr);
             } break;
             case EXnatXlateIPv6ID: {
                 EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)((void *)elementHeader + sizeof(elementHeader_t));
-                anonymize_v6(natXlateIPv6->xlateSrcAddr, anon_ip);
-                natXlateIPv6->xlateSrcAddr[0] = anon_ip[0];
-                natXlateIPv6->xlateSrcAddr[1] = anon_ip[1];
-
-                anonymize_v6(natXlateIPv6->xlateDstAddr, anon_ip);
-                natXlateIPv6->xlateDstAddr[0] = anon_ip[0];
-                natXlateIPv6->xlateDstAddr[1] = anon_ip[1];
+                if (anon_src) {
+                    anonymize_v6(natXlateIPv6->xlateSrcAddr, anon_ip);
+                    natXlateIPv6->xlateSrcAddr[0] = anon_ip[0];
+                    natXlateIPv6->xlateSrcAddr[1] = anon_ip[1];
+                }
+                if (anon_dst) {
+                    anonymize_v6(natXlateIPv6->xlateDstAddr, anon_ip);
+                    natXlateIPv6->xlateDstAddr[0] = anon_ip[0];
+                    natXlateIPv6->xlateDstAddr[1] = anon_ip[1];
+                }
             } break;
                 // default:
                 // skip other and unknown extension
@@ -257,7 +268,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
                 continue;
             }
 
-            char *cfile = nffile_r->fileName;
+            cfile = nffile_r->fileName;
             if (!cfile) {
                 LogError("(NULL) input file name error in %s line %d\n", __FILE__, __LINE__);
                 CloseFile(nffile_r);
@@ -363,7 +374,7 @@ __attribute__((noreturn)) static void *worker(void *arg) {
                 // work on our record
                 switch (record_ptr->type) {
                     case V3Record:
-                        AnonRecord((recordHeaderV3_t *)record_ptr);
+                        AnonRecord((recordHeaderV3_t *)record_ptr, worker_param->anon_src, worker_param->anon_dst);
                         break;
                     case ExporterInfoRecordType:
                     case ExporterStatRecordType:
@@ -394,7 +405,7 @@ __attribute__((noreturn)) static void *worker(void *arg) {
     pthread_exit(NULL);
 }  // End of worker
 
-static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_control_barrier_t *barrier) {
+static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, int anon_src, int anon_dst, pthread_control_barrier_t *barrier) {
     if (numWorkers > MAXWORKERS) {
         LogError("LaunchWorkers: number of worker: %u > max workers: %u", numWorkers, MAXWORKERS);
         return NULL;
@@ -409,6 +420,8 @@ static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_con
 
         worker_param->barrier = barrier;
         worker_param->self = i;
+        worker_param->anon_src = anon_src;
+        worker_param->anon_dst = anon_dst;
         worker_param->dataBlock = NULL;
         worker_param->numWorkers = numWorkers;
         workerList[i] = worker_param;
@@ -443,8 +456,10 @@ int main(int argc, char **argv) {
 
     int numWorkers = MAXANONWORKERS;
     int verbose = 1;
+    int anon_src = 1;
+    int anon_dst = 1;
     int c;
-    while ((c = getopt(argc, argv, "hK:L:qr:t:w:")) != EOF) {
+    while ((c = getopt(argc, argv, "hsdK:L:qr:t:w:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -461,6 +476,12 @@ int main(int argc, char **argv) {
                 break;
             case 'L':
                 if (!InitLog(0, "argv[0]", optarg, 0)) exit(255);
+                break;
+            case 's':
+                anon_src = 0;
+                break;
+            case 'd':
+                anon_dst = 0;
                 break;
             case 'q':
                 verbose = 0;
@@ -496,6 +517,12 @@ int main(int argc, char **argv) {
         exit(255);
     }
 
+    if ((anon_src + anon_dst) == 0) {
+        LogError("Preserving src IP and dst IP does not make sense for nfanon");
+        usage(argv[0]);
+        exit(255);
+    }
+
     queue_t *fileList = SetupInputFileSequence(&flist);
     if (!fileList || !Init_nffile(0, fileList)) exit(255);
 
@@ -507,7 +534,7 @@ int main(int argc, char **argv) {
 
     pthread_t tid[MAXWORKERS] = {0};
     dbg_printf("Launch Workers\n");
-    worker_param_t **workerList = LauchWorkers(tid, numWorkers, barrier);
+    worker_param_t **workerList = LauchWorkers(tid, numWorkers, anon_src, anon_dst, barrier);
     if (!workerList) {
         LogError("Failed to launch workers");
         exit(255);
