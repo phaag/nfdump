@@ -643,6 +643,8 @@ static int WriteAppendix(nffile_t *nffile) {
 
     recordHeader->type = TYPE_STAT;
     recordHeader->size = sizeof(recordHeader_t) + sizeof(stat_record_t);
+    // in case of an empty stat record
+    if (nffile->stat_record->firstseen == 0x7fffffffffffffffLL) nffile->stat_record->firstseen = 0;
     memcpy(data, nffile->stat_record, sizeof(stat_record_t));
 
     block_header->NumRecords++;

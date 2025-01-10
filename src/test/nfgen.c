@@ -182,7 +182,44 @@ static dataBlock_t *StoreRecord(recordHandle_t *recordHandle, nffile_t *nffile, 
     v3Record->engineType++;
 
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    if (genericFlow) genericFlow->msecFirst++;
+    if (genericFlow) {
+        genericFlow->msecFirst++;
+        if (nffile->stat_record->firstseen == 0 || genericFlow->msecFirst < nffile->stat_record->firstseen) {
+            nffile->stat_record->firstseen = genericFlow->msecFirst;
+        }
+        if (nffile->stat_record->lastseen == 0 || genericFlow->msecLast > nffile->stat_record->lastseen) {
+            nffile->stat_record->lastseen = genericFlow->msecLast;
+        }
+        // Update stats
+        switch (genericFlow->proto) {
+            case IPPROTO_ICMP:
+                nffile->stat_record->numflows_icmp++;
+                nffile->stat_record->numpackets_icmp += genericFlow->inPackets;
+                nffile->stat_record->numbytes_icmp += genericFlow->inBytes;
+                break;
+            case IPPROTO_TCP:
+                nffile->stat_record->numflows_tcp++;
+                nffile->stat_record->numpackets_tcp += genericFlow->inPackets;
+                nffile->stat_record->numbytes_tcp += genericFlow->inBytes;
+                break;
+            case IPPROTO_UDP:
+                nffile->stat_record->numflows_udp++;
+                nffile->stat_record->numpackets_udp += genericFlow->inPackets;
+                nffile->stat_record->numbytes_udp += genericFlow->inBytes;
+                break;
+            default:
+                nffile->stat_record->numflows_other++;
+                nffile->stat_record->numpackets_other += genericFlow->inPackets;
+                nffile->stat_record->numbytes_other += genericFlow->inBytes;
+        }
+        nffile->stat_record->numpackets += genericFlow->inPackets;
+        nffile->stat_record->numbytes += genericFlow->inBytes;
+    }
+    EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
+    if (cntFlow)
+        nffile->stat_record->numflows += cntFlow->flows;
+    else
+        nffile->stat_record->numflows++;
 
     uint32_t required = v3Record->size;
 
@@ -235,6 +272,7 @@ int main(int argc, char **argv) {
     if (!nffile) {
         exit(255);
     }
+    SetIdent(nffile, "TestFlows");
     dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
 
     recordHeaderV3_t *record = (recordHeaderV3_t *)calloc(1, 4096);
