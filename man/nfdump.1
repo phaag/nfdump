@@ -964,13 +964,13 @@ the source or destination geo location code may match. Please note: country code
 .Nm
 filter language reserved words such as IN, LT etc must be explicitly quoted to be recoginzed as string.
 .Pp
-.It Cm tunip Ar ipaddr
-.It Cm src tunip Ar ipaddr
-.It Cm dst tunip Ar ipaddr
+.It Cm tun ip Ar ipaddr
+.It Cm src tun ip Ar ipaddr
+.It Cm dst tun ip Ar ipaddr
 True if the respective tunnel IP field of the record matches
 .Ar ipaddr .
 If
-.Cm tunip
+.Cm tun ip
 is not specified with
 .Cm src
 or
@@ -1436,7 +1436,6 @@ True, if the respective latency field in the flow record compares to
 is specified in msec.
 .Pp
 .It CISCO ASA, network security event logging (NSEL) and NAT event logging (NEL) specific filters:
-.It NSEL specific filters:
 .Pp
 .It Cm asa event Ar event
 True if the NSEL event type of an event record matches
@@ -1459,12 +1458,23 @@ which may be
 True, if the comparison of the extended event field of the event record matches
 .Ar num
 .Pp
+.It Cm nat event Cm event
+True if the NEL event type of an event record matches
+.Ar event. event
+may be
+.Ar add, delete
+.Pp
+.It Cm nat event Ar comp number
+True if the comparison of the NEL event type of an event records matches
+.Ar number
+as a number.
+.Pp
 .It Cm nat ip Ar ipaddr
 .It Cm src nat ip Ar ipaddr
 .It Cm dst nat ip Ar ipaddr
 True, if the field of the translated source or destination IP address matches
-.Ar ipaddr
-if
+.Ar ipaddr.
+If
 .Cm nat ip
 is specified without
 .Cm src
@@ -1472,13 +1482,13 @@ or
 .Cm dst
 both IP addresses may match.
 .Pp
-.It Cm nat port Ar ipaddr
-.It Cm src nat port Ar ipaddr
-.It Cm dst nat port Ar ipaddr
-True, if the field of the translated source or destination IP address matches
-.Ar ipaddr
-if
-.Cm xport
+.It Cm nat port Ar port
+.It Cm src nat port Ar port
+.It Cm dst nat port Ar port
+True, if the field of the translated source or destination port matches
+.Ar port.
+If
+.Cm port
 is specified without
 .Cm src
 or
@@ -1501,6 +1511,16 @@ or
 .Cm dst
 both IP addresses may match.
 .Pp
+.It Cm pblock start Ar comp number
+.It Cm pblock step Ar comp number
+.It Cm pblock end Ar comp number
+True if the comparison of the start, step or end of the NAT port block in the event record matches
+.Ar number
+.It Cm port in pblock
+.It Cm src port in pblock
+.It Cm dst port in pblock
+True, if the source or destination port field matches the NAT port block range
+.Pp
 .It Cm ingress ACL Ar comp number
 .It Cm ingress ACE Ar comp number
 .It Cm ingress XACE Ar comp number
@@ -1511,57 +1531,9 @@ True if the comparison of the respective ingress field matches
 True if the comparison of the egress field matches
 .Ar number
 .Pp
-.It NEL specific filters:
-.It Cm nat event Cm event
-True if the NEL event type of an event record matches
-.Ar event. event
-may be
-.Ar add, delete
-.Pp
-.It Cm nat event Ar comp number
-True if the comparison of the NEL event type of an event records matches
-.Ar number
-as a number.
-.Pp
-.It Cm nip Ar ipaddr
-.It Cm src nip Ar ipaddr
-.It Cm dst nip Ar ipaddr
-True, if the field of the nat source or destination IP address matches
-.Ar ipaddr
-if
-.Cm nip
-is specified without
-.Cm src
-or
-.Cm dst
-both IP addresses may match.
-.Pp
-It Cm nport Ar number
-.It Cm src nport Ar number
-.It Cm dst nport Ar number
-True, if the field of the nat source or destination port matches
-.Ar number
-if
-.Cm nip
-is specified without
-.Cm src
-or
-.Cm dst
-both ports may match.
-.Pp
 .It Cm ingress vrf Ar number
 True, if the field of the ingess vrf field of the event record matches
 .Ar number
-.Pp
-.It Cm pblock start Ar comp number
-.It Cm pblock step Ar comp number
-.It Cm pblock end Ar comp number
-True if the comparison of the start, step or end of the NAT port block in the event record matches
-.Ar number
-.It Cm port in pblock
-.It Cm src port in pblock
-.It Cm dst port in pblock
-True, if the source or destination port field matches the NAT port block range
 .Pp
 .It Ar comp
 Many filter elements support the comparison with a number.
