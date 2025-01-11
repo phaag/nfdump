@@ -145,8 +145,6 @@ ingress		{ return INGRESS;}
 egress		{ return EGRESS; }
 client		{ return CLIENT; }
 server		{ return SERVER; }
-first			{ return FIRST;  }
-last			{ return LAST;   }
 seen			{ return SEEN;   }
 
 and       { return AND; }

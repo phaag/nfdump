@@ -60,7 +60,7 @@ static int verbose = 4;
 /* Function prototypes */
 static int check_number(char *s, int len);
 
-static int ParseTime(char *s, time_t *t_start);
+static uint64_t ParseTime(char *s, time_t *t_start);
 
 static int use_syslog = 0;
 
@@ -305,7 +305,7 @@ static int check_number(char *s, int len) {
 }  // End of check_number
 
 // Parse ISO 8601 time string - accept legacy format
-static int ParseTime(char *s, time_t *t_start) {
+static uint64_t ParseTime(char *s, time_t *t_start) {
     /* A time string may look like:
      * yyyy-MM-ddThh:mm:ss.s or
      * 012345678901234567890
@@ -345,7 +345,7 @@ static int ParseTime(char *s, time_t *t_start) {
     if (q >= eos) {
         ts.tm_mday = 1;
         *t_start = mktime(&ts);
-        return 1;
+        return 1000LL * (uint64_t)*t_start;
     }
 
     // split month and parse
@@ -364,7 +364,7 @@ static int ParseTime(char *s, time_t *t_start) {
     if (q >= eos) {
         ts.tm_mday = 1;
         *t_start = mktime(&ts);
-        return 1;
+        return 1000LL * (uint64_t)*t_start;
     }
 
     // split day and parse
@@ -383,7 +383,7 @@ static int ParseTime(char *s, time_t *t_start) {
     ts.tm_mday = num;
     if (q >= eos) {
         *t_start = mktime(&ts);
-        return 1;
+        return 1000LL * (uint64_t)*t_start;
     }
 
     // split hour and parse
@@ -401,7 +401,7 @@ static int ParseTime(char *s, time_t *t_start) {
     ts.tm_hour = num;
     if (q >= eos) {
         *t_start = mktime(&ts);
-        return 1;
+        return 1000LL * (uint64_t)*t_start;
     }
 
     // split and parse minute
@@ -419,7 +419,7 @@ static int ParseTime(char *s, time_t *t_start) {
     ts.tm_min = num;
     if (q >= eos) {
         *t_start = mktime(&ts);
-        return 1;
+        return 1000LL * (uint64_t)*t_start;
     }
 
     // split and parse second
@@ -437,7 +437,7 @@ static int ParseTime(char *s, time_t *t_start) {
     ts.tm_sec = num;
     if (q >= eos) {
         *t_start = mktime(&ts);
-        return 1;
+        return 1000LL * (uint64_t)*t_start;
     }
 
     // msec
@@ -448,8 +448,8 @@ static int ParseTime(char *s, time_t *t_start) {
     num = atoi(p);
 
     uint64_t tmsec = (uint64_t)(*t_start) * 1000LL + (uint64_t)num;
-    printf("Msec window: %llu\n", tmsec);
-    return 1;
+    dbg_printf("Msec window: %llu\n", tmsec);
+    return tmsec;
 
 }  // End of ParseTime
 
@@ -457,7 +457,8 @@ timeWindow_t *ScanTimeFrame(char *tstring) {
     timeWindow_t *timeWindow;
     char *p;
 
-    if (!tstring) {
+    if (!tstring || strlen(tstring) < 4) {
+        LogError("Time string format error '%s'", tstring ? tstring : "NullString");
         return NULL;
     }
 
@@ -467,17 +468,17 @@ timeWindow_t *ScanTimeFrame(char *tstring) {
         return NULL;
     }
 
-    if (strlen(tstring) < 4) {
-        LogError("Time string format error '%s'", tstring);
-        return NULL;
-    }
-
     if ((p = strchr(tstring, '-')) == NULL) {
-        ParseTime(tstring, &timeWindow->first);
+        if (ParseTime(tstring, &timeWindow->first) == 0) {
+            free(timeWindow);
+            return NULL;
+        }
     } else {
         *p++ = 0;
-        ParseTime(tstring, &timeWindow->first);
-        ParseTime(p, &timeWindow->last);
+        if (ParseTime(tstring, &timeWindow->first) == 0 || ParseTime(p, &timeWindow->last) == 0) {
+            free(timeWindow);
+            return NULL;
+        }
     }
 
 #ifdef DEVEL
@@ -604,6 +605,14 @@ time_t ISO2UNIX(char *timestring) {
     }
 
 }  // End of ISO2UNIX
+
+uint64_t ParseTime8601(char *s) {
+    time_t t = 0;
+    char *tmp = strdup(s);
+    uint64_t tmsec = ParseTime(tmp, &t);
+    free(tmp);
+    return tmsec;
+}  // End of ParseTime8601
 
 long getTick(void) {
     struct timespec ts;

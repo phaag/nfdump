@@ -135,6 +135,8 @@ char *UNIX2ISO(time_t t);
 
 time_t ISO2UNIX(char *timestring);
 
+uint64_t ParseTime8601(char *s);
+
 long getTick(void);
 
 char *DurationString(double duration);

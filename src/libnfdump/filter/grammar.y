@@ -52,6 +52,7 @@
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
 #include "nfdump.h"
+#include "util.h"
 
 #define AnyMask 0xffffffffffffffffLL
 
@@ -150,6 +151,8 @@ static int AddObservation(char *type, char *subType, uint16_t comp, uint64_t num
 
 static int AddVRF(direction_t direction, uint16_t comp, uint64_t number);
 
+static int AddTimeSting(char *firstLast, uint16_t comp, char *timeString);
+
 static int AddPFString(char *type, char *arg);
 
 static int AddPFNumber(char *type, uint16_t comp, uint64_t number);
@@ -187,7 +190,7 @@ static int AddASList(direction_t direction, void *U64List);
 %token PACKETS BYTES FLOWS ETHERTYPE
 %token MASK FLOWDIR TOS FWDSTAT LATENCY ASA ACL PAYLOAD VRF
 %token OBSERVATION PF
-%token FIRST LAST SEEN
+%token SEEN
 %token <s> STRING
 %token <s> GEOSTRING
 %token <value> NUMBER
@@ -446,12 +449,15 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = AddVRF($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
 
-	| FIRST SEEN comp STRING {
-		$$.self = 1;
+	| STRING SEEN comp STRING {
+		$$.self = AddTimeSting($1, $3.comp, $4);
 	}
 
-	LAST SEEN comp STRING {
-		$$.self = 1;
+  | STRING SEEN comp NUMBER {
+		char s[32] = {0};
+		int i = $4;
+		snprintf(s, 31, "%d", i );
+		$$.self = AddTimeSting($1, $3.comp, s);
 	}
 
 	| PF STRING STRING {
@@ -1490,6 +1496,26 @@ static int AddVRF(direction_t direction, uint16_t comp, uint64_t number) {
 
 	return ret;
 } // End of AddVRF
+
+static int AddTimeSting(char *firstLast, uint16_t comp, char *timeString) {
+
+	int ret = -1;
+	uint64_t number = ParseTime8601(timeString);
+	if ( number == 0 ) {
+		yyprintf("Invalid ISO8601 time string: %s", timeString);
+		return ret;
+	}
+
+	if ( strcasecmp(firstLast, "first") == 0 ) { // first seen
+		ret =  NewElement(EXgenericFlowID, OFFmsecFirst, SIZEmsecFirst, number, comp, FUNC_NONE, NULLPtr);
+	} if ( strcasecmp(firstLast, "last") == 0 ) { // last seen
+		ret =  NewElement(EXgenericFlowID, OFFmsecLast, SIZEmsecLast, number, comp, FUNC_NONE, NULLPtr);
+	}	else { 
+		yyprintf("Unexpected token: %s", timeString);
+	}
+
+	return ret;
+} // End of AddTimeSting
 
 static int AddPFString(char *type, char *arg) {
 

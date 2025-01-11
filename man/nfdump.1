@@ -1250,6 +1250,15 @@ True if the calculated duration of a flow (tend - tstart) compares to
 .Ar time.
 The duration is specified in msec (milliseconds)
 .Pp
+.It Cm first seen Ar comp timeISO8601
+.It Cm last seen Ar comp timeISO8601
+True if the start/end time of a flow compares to
+.Ar timeISO8601.
+The time follows ISO8601 format. e.g. 2024-07-11T09:15:10.020. Up to msec
+may be specified. A string may be incomplete e.g. 2024-07-11T09 which is
+automatically extended to 2024-07-11T09:00:00.000. At least a valid year 
+is required.
+.Pp
 .It Cm pps Ar comp num
 True if the calculated value of in-packets/duration (packets per second)
 compares with the number

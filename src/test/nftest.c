@@ -241,6 +241,26 @@ static void runTest(void) {
     CheckFilter("bpp 2", recordHandle, 1);
     CheckFilter("bpp > 2", recordHandle, 0);
 
+    // Test with time 2024-07-11T09:15:10.010
+    genericFlow->msecFirst = ParseTime8601("2024-07-11T09:15:10.010");
+    CheckFilter("first seen 2024-07-11T09:15:10.010", recordHandle, 1);
+    CheckFilter("first seen > 2024-07-11T09:15:10.010", recordHandle, 0);
+    CheckFilter("first seen > 2024-07-11T09:15:10.009", recordHandle, 1);
+    CheckFilter("first seen > 2024-07-10T09:15:10.010", recordHandle, 1);
+    CheckFilter("first seen < 2024-07-11T09:15:10.011", recordHandle, 1);
+    CheckFilter("first seen < 2024-07-11T09:15:10.010", recordHandle, 0);
+    CheckFilter("first seen < 2024-07-10T09:15:10.010", recordHandle, 0);
+
+    genericFlow->msecLast = ParseTime8601("2024-07-11T09:15:10.010");
+    genericFlow->msecFirst = 0;
+    CheckFilter("last seen 2024-07-11T09:15:10.010", recordHandle, 1);
+    CheckFilter("last seen > 2024-07-11T09:15:10.010", recordHandle, 0);
+    CheckFilter("last seen > 2024-07-11T09:15:10.009", recordHandle, 1);
+    CheckFilter("last seen > 2024-07-10T09:15:10.010", recordHandle, 1);
+    CheckFilter("last seen < 2024-07-11T09:15:10.011", recordHandle, 1);
+    CheckFilter("last seen < 2024-07-11T09:15:10.010", recordHandle, 0);
+    CheckFilter("last seen < 2024-07-10T09:15:10.010", recordHandle, 0);
+
     genericFlow->proto = IPPROTO_TCP;
     genericFlow->tcpFlags = 1;  // FIN
     CheckFilter("flags F", recordHandle, 1);
