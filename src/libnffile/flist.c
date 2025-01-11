@@ -1215,16 +1215,6 @@ static int CheckTimeWindow(char *filename, timeWindow_t *searchWindow) {
         return 0;
     }
 
-    // if relative time window, calculate absolute time
-    if (searchWindow->first && searchWindow->first <= 604800) {
-        searchWindow->last = stat_record.firstseen / 1000LL + searchWindow->first;
-        searchWindow->first = stat_record.firstseen / 1000LL;
-    }
-    if (searchWindow->last && searchWindow->last <= 604800) {
-        searchWindow->first = stat_record.lastseen / 1000LL - searchWindow->last;
-        searchWindow->last = 0;
-    }
-
     if (searchWindow->last && searchWindow->last < (stat_record.firstseen / 1000LL)) return 0;
 
     if (searchWindow->first && searchWindow->first > (stat_record.lastseen / 1000LL)) return 0;

@@ -196,15 +196,13 @@ Sort according to end time of flows
 Sort according to duration of flows
 .El
 .It Fl t Ar timewin
-Set time window to process flows. This option is considered legacy andmay be replaced
+Set time window to process flows. This option is considered legacy and may be replaced
 with a
 .Ar filter
 primitive
-in future rleases. The time window is specified as: YYYY/MM/dd.hh:mm:ss[-YYYY/MM/dd.hh:mm:ss].
+in future releases. The time window is specified as: YYYY/MM/dd.hh:mm:ss[-YYYY/MM/dd.hh:mm:ss].
 Any parts of the time spec may be omitted e.g YYYY/MM/dd expands to YYYY/MM/dd.00:00:00-infinity
-and processes all flow from a given day onwards. The time window may also be specified as +/- n.
-In this case it is relative to the beginning or end of all flows. +10 means the first 10 seconds
-of all flows, -10 means the last 10 seconds of all flows.
+and processes all flow from a given day onwards. 
 .It Fl c Ar num
 Limit the number of records to be processed to the first
 .Ar num

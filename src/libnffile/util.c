@@ -304,119 +304,151 @@ static int check_number(char *s, int len) {
 
 }  // End of check_number
 
+// Parse ISO 8601 time string - accept legacy format
 static int ParseTime(char *s, time_t *t_start) {
-    struct tm ts;
-    int i;
-    char *p, *q;
-
     /* A time string may look like:
-     * yyyy/MM/dd.hh:mm:ss
+     * yyyy-MM-ddThh:mm:ss.s or
+     * 012345678901234567890
+     * yyyy/MM/dd.hh:mm:ss ( legacy format )
      */
 
-    memset((void *)&ts, 0, sizeof(ts));
+    char *eos = s;
+    // convert legacy format, check len
+    for (; *eos != '\0'; eos++) {
+        if (*eos == '/') *eos = '-';
+    }
+
+    if ((eos - s) < 4) {
+        LogError("Not a date/time string: %s", s);
+        return 0;
+    }
+
+    struct tm ts = {0};
     ts.tm_isdst = -1;
 
-    p = s;
+    char *p = s;
+    char *q = p;
 
-    // parse year
-    q = strchr(p, '/');
-    if (q) {
-        *q++ = 0;
-    }
+    // split year and parse
+    while (*q && *q != '-') q++;
+    if (*q == '-') *q++ = '\0';
+
     if (!check_number(p, 4)) return 0;
-    i = atoi(p);
-    if (i > 2038 || i < 1970) {
-        LogError("Year out of range: '%i'\n", i);
+    int num = atoi(p);
+    if (num > 2038 || num < 1970) {
+        LogError("Year out of range: '%i'\n", num);
         *t_start = 0;
         return 0;
     }
-    ts.tm_year = i - 1900;
-    if (!q) {
+    ts.tm_year = num - 1900;
+
+    if (q >= eos) {
         ts.tm_mday = 1;
         *t_start = mktime(&ts);
         return 1;
     }
 
-    // parse month
+    // split month and parse
     p = q;
-    q = strchr(p, '/');
-    if (q) *q++ = 0;
+    while (*q && *q != '-') q++;
+    if (*q == '-') *q++ = '\0';
+
     if (!check_number(p, 2)) return 0;
-    i = atoi(p);
-    if (i < 1 || i > 12) {
-        LogError("Month out of range: '%i'\n", i);
+    num = atoi(p);
+    if (num < 1 || num > 12) {
+        LogError("Month out of range: '%i'\n", num);
         *t_start = 0;
         return 0;
     }
-    ts.tm_mon = i - 1;
-    if (!q) {
+    ts.tm_mon = num - 1;
+    if (q >= eos) {
         ts.tm_mday = 1;
         *t_start = mktime(&ts);
         return 1;
     }
 
-    // Parse day
+    // split day and parse
     p = q;
-    q = strchr(p, '.');
-    if (q) *q++ = 0;
+    while (*q && (*q >= 0x30 && *q <= 0x39)) q++;
+    *q++ = '\0';
+
     if (!check_number(p, 2)) return 0;
-    i = atoi(p);
-    if (i < 1 || i > 31) {
-        LogError("Day out of range: '%i'\n", i);
+    num = atoi(p);
+    if (num < 1 || num > 31) {
+        LogError("Day out of range: '%i'\n", num);
         *t_start = 0;
         return 0;
     }
-    ts.tm_mday = i;
-    if (!q) {
+
+    ts.tm_mday = num;
+    if (q >= eos) {
         *t_start = mktime(&ts);
         return 1;
     }
 
-    // Parse hour
+    // split hour and parse
     p = q;
-    q = strchr(p, ':');
-    if (q) *q++ = 0;
+    while (*q && *q != ':') q++;
+    if (*q == ':') *q++ = '\0';
+
     if (!check_number(p, 2)) return 0;
-    i = atoi(p);
-    if (i < 0 || i > 23) {
-        LogError("Hour out of range: '%i'\n", i);
+    num = atoi(p);
+    if (num < 0 || num > 23) {
+        LogError("Hour out of range: '%i'\n", num);
         *t_start = 0;
         return 0;
     }
-    ts.tm_hour = i;
-    if (!q) {
+    ts.tm_hour = num;
+    if (q >= eos) {
         *t_start = mktime(&ts);
         return 1;
     }
 
-    // Parse minute
+    // split and parse minute
     p = q;
-    q = strchr(p, ':');
-    if (q) *q++ = 0;
+    while (*q && *q != ':') q++;
+    if (*q == ':') *q++ = '\0';
+
     if (!check_number(p, 2)) return 0;
-    i = atoi(p);
-    if (i < 0 || i > 59) {
-        LogError("Minute out of range: '%i'\n", i);
+    num = atoi(p);
+    if (num < 0 || num > 59) {
+        LogError("Minute out of range: '%i'\n", num);
         *t_start = 0;
         return 0;
     }
-    ts.tm_min = i;
-    if (!q) {
+    ts.tm_min = num;
+    if (q >= eos) {
         *t_start = mktime(&ts);
         return 1;
     }
 
-    // Parse second
+    // split and parse second
     p = q;
+    while (*q && *q != '.') q++;
+    if (*q == '.') *q++ = '\0';
+
     if (!check_number(p, 2)) return 0;
-    i = atoi(p);
-    if (i < 0 || i > 59) {
-        LogError("Seconds out of range: '%i'\n", i);
+    num = atoi(p);
+    if (num < 0 || num > 59) {
+        LogError("Seconds out of range: '%i'\n", num);
         *t_start = 0;
         return 0;
     }
-    ts.tm_sec = i;
+    ts.tm_sec = num;
+    if (q >= eos) {
+        *t_start = mktime(&ts);
+        return 1;
+    }
+
+    // msec
+    p = q;
+
     *t_start = mktime(&ts);
+    if (!check_number(p, 3)) return 0;
+    num = atoi(p);
+
+    uint64_t tmsec = (uint64_t)(*t_start) * 1000LL + (uint64_t)num;
+    printf("Msec window: %llu\n", tmsec);
     return 1;
 
 }  // End of ParseTime
@@ -431,54 +463,31 @@ timeWindow_t *ScanTimeFrame(char *tstring) {
 
     timeWindow = calloc(1, sizeof(timeWindow_t));
     if (!timeWindow) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
-    // check for delta time window
-    if (tstring[0] == '-' || tstring[0] == '+') {
-        if (strlen(tstring) > 10) {
-            LogError("Time string too long: %s", tstring);
-            free(timeWindow);
-            return NULL;
-        }
-        char *invalid = NULL;
-        errno = 0;
-        long sec = strtol(tstring, &invalid, 10);
-        if (sec == 0 && errno != 0) {
-            LogError("Invalid time string %s: %s", tstring, strerror(errno));
-            free(timeWindow);
-            return NULL;
-        }
-        if (invalid && strlen(invalid) > 0) {
-            LogError("Invalid time string %s at %c", tstring, *invalid);
-            free(timeWindow);
-            return NULL;
-        }
-        if (sec == 0) {
-            LogError("Ignore time string: %s", tstring, *invalid, strerror(errno));
-            free(timeWindow);
-            return NULL;
-        }
-        if (sec < 0) {
-            timeWindow->last = abs((int)sec);
-        } else {
-            timeWindow->first = sec;
-        }
-    } else {
-        if (strlen(tstring) < 4) {
-            LogError("Time string format error '%s'\n", tstring);
-            return NULL;
-        }
-
-        if ((p = strchr(tstring, '-')) == NULL) {
-            ParseTime(tstring, &timeWindow->first);
-        } else {
-            *p++ = 0;
-            ParseTime(tstring, &timeWindow->first);
-            ParseTime(p, &timeWindow->last);
-        }
+    if (strlen(tstring) < 4) {
+        LogError("Time string format error '%s'", tstring);
+        return NULL;
     }
+
+    if ((p = strchr(tstring, '-')) == NULL) {
+        ParseTime(tstring, &timeWindow->first);
+    } else {
+        *p++ = 0;
+        ParseTime(tstring, &timeWindow->first);
+        ParseTime(p, &timeWindow->last);
+    }
+
+#ifdef DEVEL
+    if (timeWindow->first) {
+        printf("TimeWindow first: %s\n", UNIX2ISO(timeWindow->first));
+    }
+    if (timeWindow->last) {
+        printf("TimeWindow first: %s\n", UNIX2ISO(timeWindow->last));
+    }
+#endif
 
     return timeWindow;
 
@@ -492,15 +501,15 @@ char *TimeString(time_t start, time_t end) {
     if (start) {
         tbuff = localtime(&start);
         if (!tbuff) {
-            perror("Error time convert");
-            exit(250);
+            LogError("localtime() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            return "Error time convert";
         }
         strftime(t1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
         tbuff = localtime(&end);
         if (!tbuff) {
-            perror("Error time convert");
-            exit(250);
+            LogError("localtime() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            return "Error time convert";
         }
         strftime(t2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 

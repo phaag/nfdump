@@ -187,6 +187,7 @@ static int AddASList(direction_t direction, void *U64List);
 %token PACKETS BYTES FLOWS ETHERTYPE
 %token MASK FLOWDIR TOS FWDSTAT LATENCY ASA ACL PAYLOAD VRF
 %token OBSERVATION PF
+%token FIRST LAST SEEN
 %token <s> STRING
 %token <s> GEOSTRING
 %token <value> NUMBER
@@ -443,6 +444,14 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 
 	| dqual VRF comp NUMBER {
 		$$.self = AddVRF($1.direction, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
+	}
+
+	| FIRST SEEN comp STRING {
+		$$.self = 1;
+	}
+
+	LAST SEEN comp STRING {
+		$$.self = 1;
 	}
 
 	| PF STRING STRING {
