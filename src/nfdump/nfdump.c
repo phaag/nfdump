@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -112,7 +112,7 @@ static uint64_t total_bytes = 0;
 static uint64_t totalRecords = 0;
 static uint64_t totalPassed = 0;
 static uint32_t skippedBlocks = 0;
-static uint64_t t_first_flow = 0, t_last_flow = 0;
+static uint64_t t_firstMsec = 0, t_lastMsec = 0;
 static _Atomic uint32_t abortProcessing = 0;
 
 enum processType { FLOWSTAT = 1, ELEMENTSTAT, ELEMENTFLOWSTAT, SORTRECORDS, WRITEFILE, PRINTRECORD };
@@ -280,8 +280,8 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
         dbg_printf("prepareThread exit\n");
         pthread_exit(NULL);
     }
-    t_first_flow = nffile->stat_record->firstseen;
-    t_last_flow = nffile->stat_record->lastseen;
+    t_firstMsec = nffile->stat_record->firstseen;
+    t_lastMsec = nffile->stat_record->lastseen;
 
     dataHandle_t *dataHandle = NULL;
     uint64_t recordCnt = 0;
@@ -302,8 +302,8 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
             if (GetNextFile(nffile) == NULL) {
                 done = 1;
             } else {
-                if (nffile->stat_record->firstseen < t_first_flow) t_first_flow = nffile->stat_record->firstseen;
-                if (nffile->stat_record->lastseen > t_last_flow) t_last_flow = nffile->stat_record->lastseen;
+                if (nffile->stat_record->firstseen < t_firstMsec) t_firstMsec = nffile->stat_record->firstseen;
+                if (nffile->stat_record->lastseen > t_lastMsec) t_lastMsec = nffile->stat_record->lastseen;
             }
             continue;
         }
@@ -376,9 +376,9 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
     uint64_t twin_msecFirst, twin_msecLast;
     twin_msecFirst = twin_msecLast = 0;
     if (timeWindow) {
-        twin_msecFirst = timeWindow->first * 1000LL;
-        if (timeWindow->last)
-            twin_msecLast = timeWindow->last * 1000LL;
+        twin_msecFirst = timeWindow->msecFirst;
+        if (timeWindow->msecLast)
+            twin_msecLast = timeWindow->msecLast;
         else
             twin_msecLast = 0x7FFFFFFFFFFFFFFFLL;
     }
@@ -1290,17 +1290,15 @@ int main(int argc, char **argv) {
             case MODE_NULL:
             case MODE_FMT:
                 PrintSummary(&sum_stat, outputParams);
-                if (t_last_flow == 0) {
+                if (t_lastMsec == 0) {
                     printf("Time window: <unknown>\n");
                 } else {
-                    t_first_flow /= 1000LL;
-                    t_last_flow /= 1000LL;
                     if (flist.timeWindow) {
-                        if (flist.timeWindow->first && (flist.timeWindow->first > t_first_flow)) t_first_flow = flist.timeWindow->first;
-                        if (flist.timeWindow->last && (flist.timeWindow->last < t_last_flow)) t_last_flow = flist.timeWindow->last;
+                        if (flist.timeWindow->msecFirst && (flist.timeWindow->msecFirst > t_firstMsec)) t_firstMsec = flist.timeWindow->msecFirst;
+                        if (flist.timeWindow->msecLast && (flist.timeWindow->msecLast < t_lastMsec)) t_lastMsec = flist.timeWindow->msecLast;
                     }
-                    double duration = (double)(t_last_flow - t_first_flow);
-                    printf("Time window: %s, Duration:%s\n", TimeString(t_first_flow, t_last_flow), DurationString(duration));
+                    uint64_t durationMsec = t_lastMsec - t_firstMsec;
+                    printf("Time window: %s, Duration:%s\n", TimeString(t_firstMsec, t_lastMsec), DurationString(durationMsec));
                 }
                 printf("Total records processed: %" PRIu64 ", passed: %" PRIu64 ", Blocks skipped: %u, Bytes read: %llu\n", totalRecords, totalPassed,
                        skippedBlocks, (unsigned long long)total_bytes);

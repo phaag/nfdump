@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -210,9 +210,9 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
     int reducer = 0;
 
     if (timeWindow) {
-        twin_msecFirst = timeWindow->first * 1000LL;
-        if (timeWindow->last)
-            twin_msecLast = timeWindow->last * 1000LL;
+        twin_msecFirst = timeWindow->msecFirst;
+        if (timeWindow->msecLast)
+            twin_msecLast = timeWindow->msecLast;
         else
             twin_msecLast = 0x7FFFFFFFFFFFFFFFLL;
     } else {

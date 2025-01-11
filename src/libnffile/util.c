@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -59,8 +59,6 @@ static int verbose = 4;
 
 /* Function prototypes */
 static int check_number(char *s, int len);
-
-static uint64_t ParseTime(char *s, time_t *t_start);
 
 static int use_syslog = 0;
 
@@ -305,20 +303,21 @@ static int check_number(char *s, int len) {
 }  // End of check_number
 
 // Parse ISO 8601 time string - accept legacy format
-static uint64_t ParseTime(char *s, time_t *t_start) {
+uint64_t ParseTime8601(const char *s) {
+    char *tmpString = strdup(s);
     /* A time string may look like:
      * yyyy-MM-ddThh:mm:ss.s or
      * 012345678901234567890
      * yyyy/MM/dd.hh:mm:ss ( legacy format )
      */
 
-    char *eos = s;
+    char *eos = tmpString;
     // convert legacy format, check len
     for (; *eos != '\0'; eos++) {
         if (*eos == '/') *eos = '-';
     }
 
-    if ((eos - s) < 4) {
+    if ((eos - tmpString) < 4) {
         LogError("Not a date/time string: %s", s);
         return 0;
     }
@@ -326,7 +325,7 @@ static uint64_t ParseTime(char *s, time_t *t_start) {
     struct tm ts = {0};
     ts.tm_isdst = -1;
 
-    char *p = s;
+    char *p = tmpString;
     char *q = p;
 
     // split year and parse
@@ -337,15 +336,16 @@ static uint64_t ParseTime(char *s, time_t *t_start) {
     int num = atoi(p);
     if (num > 2038 || num < 1970) {
         LogError("Year out of range: '%i'\n", num);
-        *t_start = 0;
+        free(tmpString);
         return 0;
     }
     ts.tm_year = num - 1900;
 
     if (q >= eos) {
         ts.tm_mday = 1;
-        *t_start = mktime(&ts);
-        return 1000LL * (uint64_t)*t_start;
+        uint64_t timeStamp = mktime(&ts);
+        free(tmpString);
+        return 1000LL * timeStamp;
     }
 
     // split month and parse
@@ -357,14 +357,15 @@ static uint64_t ParseTime(char *s, time_t *t_start) {
     num = atoi(p);
     if (num < 1 || num > 12) {
         LogError("Month out of range: '%i'\n", num);
-        *t_start = 0;
+        free(tmpString);
         return 0;
     }
     ts.tm_mon = num - 1;
     if (q >= eos) {
         ts.tm_mday = 1;
-        *t_start = mktime(&ts);
-        return 1000LL * (uint64_t)*t_start;
+        uint64_t timeStamp = mktime(&ts);
+        free(tmpString);
+        return 1000LL * timeStamp;
     }
 
     // split day and parse
@@ -376,14 +377,15 @@ static uint64_t ParseTime(char *s, time_t *t_start) {
     num = atoi(p);
     if (num < 1 || num > 31) {
         LogError("Day out of range: '%i'\n", num);
-        *t_start = 0;
+        free(tmpString);
         return 0;
     }
 
     ts.tm_mday = num;
     if (q >= eos) {
-        *t_start = mktime(&ts);
-        return 1000LL * (uint64_t)*t_start;
+        uint64_t timeStamp = mktime(&ts);
+        free(tmpString);
+        return 1000LL * timeStamp;
     }
 
     // split hour and parse
@@ -395,13 +397,14 @@ static uint64_t ParseTime(char *s, time_t *t_start) {
     num = atoi(p);
     if (num < 0 || num > 23) {
         LogError("Hour out of range: '%i'\n", num);
-        *t_start = 0;
+        free(tmpString);
         return 0;
     }
     ts.tm_hour = num;
     if (q >= eos) {
-        *t_start = mktime(&ts);
-        return 1000LL * (uint64_t)*t_start;
+        uint64_t timeStamp = mktime(&ts);
+        free(tmpString);
+        return 1000LL * timeStamp;
     }
 
     // split and parse minute
@@ -413,13 +416,14 @@ static uint64_t ParseTime(char *s, time_t *t_start) {
     num = atoi(p);
     if (num < 0 || num > 59) {
         LogError("Minute out of range: '%i'\n", num);
-        *t_start = 0;
+        free(tmpString);
         return 0;
     }
     ts.tm_min = num;
     if (q >= eos) {
-        *t_start = mktime(&ts);
-        return 1000LL * (uint64_t)*t_start;
+        uint64_t timeStamp = mktime(&ts);
+        free(tmpString);
+        return 1000LL * timeStamp;
     }
 
     // split and parse second
@@ -431,25 +435,25 @@ static uint64_t ParseTime(char *s, time_t *t_start) {
     num = atoi(p);
     if (num < 0 || num > 59) {
         LogError("Seconds out of range: '%i'\n", num);
-        *t_start = 0;
+        free(tmpString);
         return 0;
     }
     ts.tm_sec = num;
     if (q >= eos) {
-        *t_start = mktime(&ts);
-        return 1000LL * (uint64_t)*t_start;
+        uint64_t timeStamp = mktime(&ts);
+        free(tmpString);
+        return 1000LL * timeStamp;
     }
 
     // msec
     p = q;
 
-    *t_start = mktime(&ts);
+    uint64_t timeStamp = mktime(&ts);
     if (!check_number(p, 3)) return 0;
     num = atoi(p);
 
-    uint64_t tmsec = (uint64_t)(*t_start) * 1000LL + (uint64_t)num;
-    dbg_printf("Msec window: %llu\n", tmsec);
-    return tmsec;
+    free(tmpString);
+    return timeStamp + (uint64_t)num;
 
 }  // End of ParseTime
 
@@ -469,23 +473,26 @@ timeWindow_t *ScanTimeFrame(char *tstring) {
     }
 
     if ((p = strchr(tstring, '-')) == NULL) {
-        if (ParseTime(tstring, &timeWindow->first) == 0) {
+        timeWindow->msecFirst = ParseTime8601(tstring);
+        if (timeWindow->msecFirst == 0) {
             free(timeWindow);
             return NULL;
         }
     } else {
         *p++ = 0;
-        if (ParseTime(tstring, &timeWindow->first) == 0 || ParseTime(p, &timeWindow->last) == 0) {
+        timeWindow->msecFirst = ParseTime8601(tstring);
+        timeWindow->msecLast = ParseTime8601(p);
+        if (timeWindow->msecFirst == 0 || timeWindow->msecLast == 0) {
             free(timeWindow);
             return NULL;
         }
     }
 
 #ifdef DEVEL
-    if (timeWindow->first) {
+    if (timeWindow->msecFirst) {
         printf("TimeWindow first: %s\n", UNIX2ISO(timeWindow->first));
     }
-    if (timeWindow->last) {
+    if (timeWindow->msecLast) {
         printf("TimeWindow first: %s\n", UNIX2ISO(timeWindow->last));
     }
 #endif
@@ -494,27 +501,29 @@ timeWindow_t *ScanTimeFrame(char *tstring) {
 
 }  // End of ScanTimeFrame
 
-char *TimeString(time_t start, time_t end) {
+char *TimeString(uint64_t msecStart, uint64_t msecEnd) {
     static char datestr[255];
-    char t1[64], t2[64];
-    struct tm *tbuff;
 
-    if (start) {
-        tbuff = localtime(&start);
+    if (msecStart) {
+        time_t secs = msecStart / 1000;
+        struct tm *tbuff = localtime(&secs);
         if (!tbuff) {
             LogError("localtime() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
             return "Error time convert";
         }
+        char t1[64];
         strftime(t1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
-        tbuff = localtime(&end);
+        secs = msecEnd / 1000;
+        tbuff = localtime(&secs);
         if (!tbuff) {
             LogError("localtime() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
             return "Error time convert";
         }
+        char t2[64];
         strftime(t2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
-        snprintf(datestr, 254, "%s - %s", t1, t2);
+        snprintf(datestr, 254, "%s.%3d - %s.%3d", t1, (int)(msecStart % 1000), t2, (int)(msecEnd % 1000));
     } else {
         snprintf(datestr, 254, "Time Window unknown");
     }
@@ -606,14 +615,6 @@ time_t ISO2UNIX(char *timestring) {
 
 }  // End of ISO2UNIX
 
-uint64_t ParseTime8601(char *s) {
-    time_t t = 0;
-    char *tmp = strdup(s);
-    uint64_t tmsec = ParseTime(tmp, &t);
-    free(tmp);
-    return tmsec;
-}  // End of ParseTime8601
-
 long getTick(void) {
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
@@ -622,21 +623,24 @@ long getTick(void) {
     return theTick;
 }
 
-char *DurationString(double duration) {
+char *DurationString(uint64_t duration) {
     static char s[128];
-    if (duration == 0.0) {
+    if (duration == 0) {
         strncpy(s, "    00:00:00.000", 128);
     } else {
+        int msec = duration % 1000;
+        duration /= 1000;
         int days = duration / 86400;
         int sum = 86400 * days;
         int hours = (duration - sum) / 3600;
         sum += 3600 * hours;
         int min = (duration - sum) / 60;
-        double sec = duration - sum - 60 * min;
+        sum += 60 * min;
+        int sec = duration - sum;
         if (days == 0)
-            snprintf(s, 128, "    %02d:%02d:%06.3f", hours, min, sec);
+            snprintf(s, 128, "    %02d:%02d:%02d.%03d", hours, min, sec, msec);
         else
-            snprintf(s, 128, "%2dd %02d:%02d:%06.3f", days, hours, min, sec);
+            snprintf(s, 128, "%2dd %02d:%02d:%02d.%03d", days, hours, min, sec, msec);
     }
     s[127] = '\0';
     return s;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -95,8 +95,8 @@ typedef struct stringlist_s {
 } stringlist_t;
 
 typedef struct timeWindow_s {
-    time_t first;
-    time_t last;
+    uint64_t msecFirst;
+    uint64_t msecLast;
 } timeWindow_t;
 
 double t(void);
@@ -129,17 +129,17 @@ void InsertString(stringlist_t *list, char *string);
 
 timeWindow_t *ScanTimeFrame(char *tstring);
 
-char *TimeString(time_t start, time_t end);
+char *TimeString(uint64_t msecStart, uint64_t msecEnd);
 
 char *UNIX2ISO(time_t t);
 
 time_t ISO2UNIX(char *timestring);
 
-uint64_t ParseTime8601(char *s);
+uint64_t ParseTime8601(const char *s);
 
 long getTick(void);
 
-char *DurationString(double duration);
+char *DurationString(uint64_t duration);
 
 #define DONT_SCALE_NUMBER 0
 #define DO_SCALE_NUMBER 1

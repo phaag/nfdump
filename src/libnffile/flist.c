@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -1215,9 +1215,8 @@ static int CheckTimeWindow(char *filename, timeWindow_t *searchWindow) {
         return 0;
     }
 
-    if (searchWindow->last && searchWindow->last < (stat_record.firstseen / 1000LL)) return 0;
-
-    if (searchWindow->first && searchWindow->first > (stat_record.lastseen / 1000LL)) return 0;
+    if (searchWindow->msecLast && searchWindow->msecLast < stat_record.firstseen) return 0;
+    if (searchWindow->msecFirst && searchWindow->msecFirst > stat_record.lastseen) return 0;
 
     return 1;
 
