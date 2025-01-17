@@ -1304,7 +1304,7 @@ static int AddPayloadSSL(char *type, char *arg, char *opt) {
 			yyprintf("String %s is not a valid SSL/TLS version", opt);
 			return -1;
 		}
-		// if old SSL 1.0, 2.0 or 3.0
+		// if old SSL 2.0 or 3.0
 		if (major > 1 && minor > 0){
 			yyprintf("String %s is not a valid SSL/TLS version", opt);
 			return -1;

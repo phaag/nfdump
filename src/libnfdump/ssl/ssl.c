@@ -250,19 +250,13 @@ static int sslParseClientHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
     0x0302 = TLS 1.1 = “11”
     0x0301 = TLS 1.0 = “10”
     0x0300 = SSL 3.0 = “s3”
-    0x0200 = SSL 2.0 = “s2”
-    0x0100 = SSL 1.0 = “s1”
+    0x0002 = SSL 2.0 = “s2”
 
     Unknown = “00”
     */
     ssl->protocolVersion = version;
     switch (version) {
-        case 0x0100:
-            // SSL 1.0 was never really release!
-            ssl->tlsCharVersion[0] = 's';
-            ssl->tlsCharVersion[1] = '1';
-            break;
-        case 0x0200:  // SSL 2.0
+        case 0x0002:  // SSL 2.0
             ssl->tlsCharVersion[0] = 's';
             ssl->tlsCharVersion[1] = '2';
             break;
@@ -287,8 +281,8 @@ static int sslParseClientHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
             ssl->tlsCharVersion[1] = '3';
             break;
         default:
-            LogError("%s():%d Not an SSL 3.0 - TLS 1.3 protocol", __FUNCTION__, __LINE__);
-            dbg_printf("Client handshake: Not an SSL 3.0 - TLS 1.3 protocol\n");
+            LogError("%s():%d Not an SSL 2.0 - TLS 1.3 protocol", __FUNCTION__, __LINE__);
+            dbg_printf("Client handshake: Not an SSL 2.0 - TLS 1.3 protocol\n");
             return 0;
     }
 
@@ -347,10 +341,7 @@ static int sslParseServerHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
 
     ssl->protocolVersion = version;
     switch (version) {
-        case 0x0100:
-            // SSL 1.0 was never really release!
-            break;
-        case 0x0200:  // SSL 2.0
+        case 0x0002:  // SSL 2.0
             ssl->tlsCharVersion[0] = 's';
             ssl->tlsCharVersion[1] = '2';
             break;
@@ -371,8 +362,8 @@ static int sslParseServerHandshake(ssl_t *ssl, BytesStream_t sslStream, uint32_t
             ssl->tlsCharVersion[1] = '3';
             break;
         default:
-            LogError("%s():%d Not an SSL 3.0 - TLS 1.3 protocol", __FUNCTION__, __LINE__);
-            dbg_printf("Client handshake: Not an SSL 3.0 - TLS 1.3 protocol\n");
+            LogError("%s():%d Not an SSL 2.0 - TLS 1.3 protocol", __FUNCTION__, __LINE__);
+            dbg_printf("Client handshake: Not an SSL 2.0 - TLS 1.3 protocol\n");
             return 0;
     }
 
@@ -516,14 +507,14 @@ ssl_t *sslProcess(const uint8_t *data, size_t len) {
     uint16_t sslVersion;
     ByteStream_GET_u16(sslStream, sslVersion);
     switch (sslVersion) {
-        case 0x0200:  // SSL 2.0
+        case 0x0002:  // SSL 2.0
         case 0x0300:  // SSL 3.0
         case 0x0301:  // TLS 1.1
         case 0x0302:  // TLS 1.2
         case 0x0303:  // TLS 1.3
             break;
         default:
-            dbg_printf("SSL version: 0x%x not SSL 3.0 - TLS 1.3 connection\n", sslVersion);
+            dbg_printf("SSL version: 0x%x not SSL 2.0 - TLS 1.3 connection\n", sslVersion);
             return NULL;
     }
 
