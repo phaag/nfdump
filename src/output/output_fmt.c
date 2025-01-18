@@ -1212,8 +1212,7 @@ static void String_tlsVersion(FILE *stream, recordHandle_t *recordHandle) {
     0x0302 = TLS 1.1 = “11”
     0x0301 = TLS 1.0 = “10”
     0x0300 = SSL 3.0 = “s3”
-    0x0200 = SSL 2.0 = “s2”
-    0x0100 = SSL 1.0 = “s1”
+    0x0002 = SSL 2.0 = “s2”
     */
 
     // ssl is defined
