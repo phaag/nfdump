@@ -292,7 +292,7 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
     while (!done) {
         if (dataHandle == NULL) {
             dataHandle = calloc(1, sizeof(dataHandle_t));
-            dataHandle->ident = nffile->ident;
+            dataHandle->ident = nffile->ident != NULL ? strdup(nffile->ident) : NULL;
         }
         dataHandle->dataBlock = ReadBlock(nffile, NULL);
 
@@ -304,6 +304,8 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
             } else {
                 if (nffile->stat_record->firstseen < t_firstMsec) t_firstMsec = nffile->stat_record->firstseen;
                 if (nffile->stat_record->lastseen > t_lastMsec) t_lastMsec = nffile->stat_record->lastseen;
+                if (dataHandle->ident) free(dataHandle->ident);
+                dataHandle->ident = nffile->ident != NULL ? strdup(nffile->ident) : NULL;
             }
             continue;
         }
@@ -535,7 +537,6 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         nffile_w = OpenNewFile(wfile, NULL, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
         if (!nffile_w) {
             stat_record.firstseen = 0;
-            // XXX DisposeFile(nffile_r);
             return stat_record;
         }
         dataBlock_w = WriteBlock(nffile_w, NULL);
@@ -546,6 +547,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     // number of flows passed the filter
     dbg(uint32_t numBlocks = 0);
     int done = 0;
+    char *ident = NULL;
     while (!done) {
         dataHandle_t *dataHandle = queue_pop(filterArgs.processQueue);
         if (dataHandle == QUEUE_CLOSED) {  // no more blocks
@@ -665,6 +667,11 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
         // free resources
         FreeDataBlock(dataHandle->dataBlock);
+        if (dataHandle->ident) {
+            if (ident) free(ident);
+            ident = dataHandle->ident;
+            free(dataHandle);
+        }
     }  // while
 
     dbg_printf("processData() done\n");
@@ -673,6 +680,8 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     if (nffile_w) {
         // flush current buffer to disc
         FlushBlock(nffile_w, dataBlock_w);
+        SetIdent(nffile_w, ident);
+        if (ident) free(ident);
 
         /* Copy stat info and close file */
         memcpy((void *)nffile_w->stat_record, (void *)&stat_record, sizeof(stat_record_t));

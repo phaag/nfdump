@@ -82,7 +82,7 @@ static double duration = 0;
 #define STRINGSIZE 10240
 static char header_string[STRINGSIZE] = {'\0'};
 
-// tag
+static char *ident = NULL;
 static char tag_string[2] = {'\0'};
 
 /* prototypes */
@@ -95,6 +95,8 @@ static inline uint64_t *ApplyV6NetMaskBits(uint64_t *ip, uint32_t maskBits);
 static void InitFormatParser(void);
 
 static void AddToken(int index, char *s);
+
+static void String_Ident(FILE *stream, recordHandle_t *recordHandle);
 
 static void String_Version(FILE *stream, recordHandle_t *recordHandle);
 
@@ -371,10 +373,11 @@ static struct format_entry_s {
     string_function_t string_function;  // function generation output string
 } formatTable[] = {
     // fmt format table
-    {"%nfv", 0, "Ver", String_Version},      // netflow version
-    {"%cnt", 0, "Count", String_FlowCount},  // flow count
-    {"%eng", 0, " engine", String_Engine},   // Engine Type/ID
-    {"%exp", 0, "Exp ID", String_ExpSysID},  // Exporter SysID
+    {"%nfv", 0, "Ver", String_Version},         // netflow version
+    {"%cnt", 0, "Count", String_FlowCount},     // flow count
+    {"%idt", 0, "Ident       ", String_Ident},  // Ident string
+    {"%eng", 0, " engine", String_Engine},      // Engine Type/ID
+    {"%exp", 0, "Exp ID", String_ExpSysID},     // Exporter SysID
 
     // EXgenericFlowID
     {"%tfs", 0, "Date first seen        ", String_FirstSeen},     // Start Time - first seen
@@ -651,6 +654,7 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
         free(p);
     }
 
+    ident = outputParam->ident;
     tag_string[0] = outputParam->doTag ? TAG_CHAR : '\0';
     tag_string[1] = '\0';
 
@@ -853,6 +857,10 @@ static char *ICMP_Port_decode(EXgenericFlow_t *genericFlow) {
 }  // End of ICMP_Port_decode
 
 /* functions, which create the individual strings for the output line */
+static void String_Ident(FILE *stream, recordHandle_t *recordHandle) {
+    fprintf(stream, "%-12s", ident != NULL ? ident : "<no ident>");
+}  // End of String_Ident
+
 static void String_Version(FILE *stream, recordHandle_t *recordHandle) {
     recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
 

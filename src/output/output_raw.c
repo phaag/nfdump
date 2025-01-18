@@ -890,6 +890,10 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
             "  RecordCount  =              %5" PRIu64 "\n",
             recordHandle->flowCount);
 
+    if (outputParam->ident) {
+        fprintf(stream, "  Ident        =       %12s\n", outputParam->ident);
+    }
+
     fprintf(stream,
             "  Flags        =               0x%.2x %s%s%s, %s\n"
             "  Elements     =              %5u: %s\n"

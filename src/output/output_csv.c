@@ -107,6 +107,8 @@ static double duration = 0;
 #define STRINGSIZE 10240
 static char header_string[STRINGSIZE] = {'\0'};
 
+static char *ident = NULL;
+
 /* prototypes */
 static char *ICMP_Port_decode(EXgenericFlow_t *genericFlow);
 
@@ -117,6 +119,8 @@ static inline uint64_t *ApplyV6NetMaskBits(uint64_t *ip, uint32_t maskBits);
 static void InitFormatParser(void);
 
 static void AddToken(int index);
+
+static char *String_Ident(char *streamPtr, recordHandle_t *recordHandle);
 
 static char *String_Version(char *streamPtr, recordHandle_t *recordHandle);
 
@@ -371,6 +375,7 @@ static struct format_entry_s {
     // csv format table
     {"%nfv", 0, "version", String_Version},      // netflow version
     {"%cnt", 0, "count", String_FlowCount},      // flow count
+    {"%idt", 0, "Ident", String_Ident},          // Ident string
     {"%eng", 0, "engine", String_Engine},        // Engine Type/ID
     {"%exp", 0, "exporterID", String_ExpSysID},  // Exporter SysID
 
@@ -622,6 +627,7 @@ void csv_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
         free(p);
     }
 
+    ident = outputParam->ident;
     streamBuff[0] = '\0';
     char *streamPtr = streamBuff;
     duration = 0;
@@ -803,6 +809,12 @@ static char *ICMP_Port_decode(EXgenericFlow_t *genericFlow) {
 }  // End of ICMP_Port_decode
 
 /* functions, which create the individual strings for the output line */
+static char *String_Ident(char *streamPtr, recordHandle_t *recordHandle) {
+    char *s = ident != NULL ? ident : "<no ident>";
+    AddString(s);
+    return streamPtr;
+}  // End of String_Ident
+
 static char *String_Version(char *streamPtr, recordHandle_t *recordHandle) {
     recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
 

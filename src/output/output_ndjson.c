@@ -807,6 +807,8 @@ void flow_record_to_ndjson(FILE *stream, recordHandle_t *recordHandle, outputPar
     char *typeString = TestFlag(recordHeaderV3->flags, V3_FLAG_EVENT) ? "EVENT" : "FLOW";
     AddElementU32("cnt", ++recordCount);
     AddElementString("type", typeString);
+    if (outputParam->ident != NULL) AddElementString("ident", outputParam->ident);
+
     AddElementU32("export_sysid", recordHeaderV3->exporterID);
 
     int processed = 0;

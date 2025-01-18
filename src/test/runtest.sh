@@ -55,6 +55,7 @@ diff -u test.3.out nftest.2.out
 # test write descending sorted flow table
 $NFDUMP -r dummy_flows.nf -O tstart -z=lzo -w test.4.flows.nf
 $NFDUMP -v test.4.flows.nf >/dev/null
+$NFDUMP -r test.4.flows.nf -i TestFlows
 $NFDUMP -q -r test.4.flows.nf -o raw >test.4.out
 diff -u test.4.out nftest.4.out
 
@@ -62,6 +63,7 @@ diff -u test.4.out nftest.4.out
 $NFDUMP -r dummy_flows.nf -q -O bytes -o raw >test.5.out
 $NFDUMP -r dummy_flows.nf -O bytes -z=lz4 -w test.5.flows.nf
 $NFDUMP -v test.5.flows.nf >/dev/null
+$NFDUMP -r test.5.flows.nf -i TestFlows
 $NFDUMP -r test.5.flows.nf -q -o raw >test.5-2.out
 diff -u test.5.out test.5-2.out
 
