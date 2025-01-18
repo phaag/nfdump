@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2022-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -38,6 +38,6 @@ void json_prolog(outputParams_t *outputParam);
 
 void json_epilog(outputParams_t *outputParam);
 
-void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag);
+void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam);
 
 #endif  // _OUTPUT_JSON_H

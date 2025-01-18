@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -94,7 +94,7 @@ void csv_epilog_fast(outputParams_t *outputParam) {
     streamBuff = NULL;
 }  // End of csv_epilog_fast
 
-void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, int tag) {
+void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];

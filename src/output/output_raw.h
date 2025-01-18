@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -40,6 +40,6 @@ void raw_prolog(outputParams_t *outputParam);
 
 void raw_epilog(outputParams_t *outputParam);
 
-void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag);
+void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam);
 
 #endif  // _OUTPUT_RAW_H

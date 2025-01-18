@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -36,13 +36,7 @@
 
 #include "nfdump.h"
 
-typedef enum { MODE_NULL = 0,
-               MODE_RAW,
-               MODE_FMT,
-               MODE_CSV,
-               MODE_CSV_FAST,
-               MODE_JSON,
-               MODE_NDJSON } outputMode_t;
+typedef enum { MODE_NULL = 0, MODE_RAW, MODE_FMT, MODE_CSV, MODE_CSV_FAST, MODE_JSON, MODE_NDJSON } outputMode_t;
 
 typedef struct outputParams_s {
     bool printPlain;
@@ -52,10 +46,11 @@ typedef struct outputParams_s {
     bool hasTorDB;
     outputMode_t mode;
     int topN;
+    char *ident;
     void *postFilter;
 } outputParams_t;
 
-typedef void (*RecordPrinter_t)(FILE *, recordHandle_t *, int);
+typedef void (*RecordPrinter_t)(FILE *, recordHandle_t *, outputParams_t *);
 typedef void (*PrologPrinter_t)(outputParams_t *);
 typedef void (*EpilogPrinter_t)(outputParams_t *);
 

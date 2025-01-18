@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -1631,9 +1631,9 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
         }
 
         if (outputParams->postFilter) {
-            if (FilterRecord(outputParams->postFilter, &recordHandle)) print_record(stdout, &recordHandle, outputParams->doTag);
+            if (FilterRecord(outputParams->postFilter, &recordHandle)) print_record(stdout, &recordHandle, outputParams);
         } else {
-            print_record(stdout, &recordHandle, outputParams->doTag);
+            print_record(stdout, &recordHandle, outputParams);
         }
     }
 

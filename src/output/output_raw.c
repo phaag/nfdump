@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2024, Peter Haag
+ *  Copyright (c) 2019-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -851,7 +851,7 @@ void raw_epilog(outputParams_t *outputParam) {
     // empty epilog
 }  // End of raw_epilog
 
-void raw_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
+void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam) {
     recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
 
     char elementString[MAXEXTENSIONS * 5];

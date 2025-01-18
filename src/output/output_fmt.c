@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -73,7 +73,6 @@ static int token_index = 0;
 
 static int max_format_index = 0;
 
-static int do_tag = 0;
 static int long_v6 = 0;
 static int printPlain = 0;
 static double duration = 0;
@@ -615,7 +614,7 @@ static void ListOutputFormats(void) {
 
 }  // End of ListOutputFormats
 
-void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
+void fmt_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
     EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
@@ -648,12 +647,11 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
             tunIPv6Flow->dstAddr[1] = tunIPv6->tunDstAddr[1];
             tunRecordHandle.extensionList[EXipv6FlowID] = tunIPv6Flow;
         }
-        fmt_record(stream, &tunRecordHandle, tag);
+        fmt_record(stream, &tunRecordHandle, outputParam);
         free(p);
     }
 
-    do_tag = tag;
-    tag_string[0] = do_tag ? TAG_CHAR : '\0';
+    tag_string[0] = outputParam->doTag ? TAG_CHAR : '\0';
     tag_string[1] = '\0';
 
     duration = 0;

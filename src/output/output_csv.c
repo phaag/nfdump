@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -585,7 +585,7 @@ static void ListOutputFormats(void) {
 
 }  // End of ListOutputFormats
 
-void csv_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
+void csv_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)recordHandle->extensionList[EXtunIPv4ID];
     EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)recordHandle->extensionList[EXtunIPv6ID];
@@ -618,7 +618,7 @@ void csv_record(FILE *stream, recordHandle_t *recordHandle, int tag) {
             tunIPv6Flow->dstAddr[1] = tunIPv6->tunDstAddr[1];
             tunRecordHandle.extensionList[EXipv6FlowID] = tunIPv6Flow;
         }
-        csv_record(stream, &tunRecordHandle, tag);
+        csv_record(stream, &tunRecordHandle, outputParam);
         free(p);
     }
 

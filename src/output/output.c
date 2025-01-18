@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -80,7 +80,7 @@
 
 static void AddFormat(char *format, char *name, char *fmtString);
 
-static void null_record(FILE *stream, recordHandle_t *record, int tag);
+static void null_record(FILE *stream, recordHandle_t *record, outputParams_t *outputParam);
 
 static void null_prolog(outputParams_t *outputParam);
 
@@ -130,7 +130,7 @@ static PrologPrinter_t print_epilog;  // prints the output epilog
 
 static void UpdateFormatList(void);
 
-static void null_record(FILE *stream, recordHandle_t *record, int tag) {
+static void null_record(FILE *stream, recordHandle_t *record, outputParams_t *outputParam) {
     // empty - do not list any flows
 }  // End of null_record
 
@@ -308,13 +308,9 @@ RecordPrinter_t SetupOutputMode(char *print_format, outputParams_t *outputParams
 
 }  // End of SetupOutputMode
 
-void PrintProlog(outputParams_t *outputParams) {
-    print_prolog(outputParams);
-}  // End of PrintProlog
+void PrintProlog(outputParams_t *outputParams) { print_prolog(outputParams); }  // End of PrintProlog
 
-void PrintEpilog(outputParams_t *outputParams) {
-    print_epilog(outputParams);
-}  // End of PrintEpilog
+void PrintEpilog(outputParams_t *outputParams) { print_epilog(outputParams); }  // End of PrintEpilog
 
 void PrintOutputHelp(void) {
     printf("Available output formats:\n");

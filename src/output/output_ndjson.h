@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2022-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -38,6 +38,6 @@ void ndjson_prolog(outputParams_t *outputParam);
 
 void ndjson_epilog(outputParams_t *outputParam);
 
-void flow_record_to_ndjson(FILE *stream, recordHandle_t *recordHandle, int tag);
+void flow_record_to_ndjson(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam);
 
 #endif  // _OUTPUT_NDJSON_H

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2024, Peter Haag
+ *  Copyright (c) 2019-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -805,7 +805,7 @@ void json_epilog(outputParams_t *outputParam) {
     streamBuff = NULL;
 }  // End of json_epilog
 
-void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, int tag) {
+void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam) {
     // ws is whitespace after object opening and before object closing {WS  WS}
     // ' ' is printed before each record for clarity if needed
     // fs is Field Separator

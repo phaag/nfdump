@@ -558,6 +558,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         record_header_t *record_ptr = GetCursor(dataBlock);
 
         uint64_t recordCounter = dataHandle->recordCnt;
+        outputParams->ident = dataHandle->ident;
 
         // successfully read block
         total_bytes += dataBlock->size;
@@ -600,7 +601,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                             dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
                             break;
                         case PRINTRECORD:
-                            print_record(stdout, recordHandle, outputParams->doTag);
+                            print_record(stdout, recordHandle, outputParams);
                             break;
                     }
 

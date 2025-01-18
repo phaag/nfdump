@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2022-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -42,12 +42,12 @@ void csv_prolog(outputParams_t *outputParam);
 
 void csv_epilog(outputParams_t *outputParam);
 
-void csv_record(FILE *stream, recordHandle_t *recordHandle, int tag);
+void csv_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam);
 
 void csv_prolog_fast(outputParams_t *outputParam);
 
 void csv_epilog_fast(outputParams_t *outputParam);
 
-void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, int tag);
+void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam);
 
 #endif  // _OUTPUT_CSV_H

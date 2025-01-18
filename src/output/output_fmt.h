@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -55,7 +55,7 @@ void CondenseV6(char *s);
 
 int ParseFMTOutputFormat(char *format, int printPlain);
 
-void fmt_record(FILE *stream, recordHandle_t *recordHandle, int tag);
+void fmt_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam);
 
 #define TAG_CHAR ''
 

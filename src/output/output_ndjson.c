@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2019-2024, Peter Haag
+ *  Copyright (c) 2019-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -791,7 +791,7 @@ void ndjson_epilog(outputParams_t *outputParam) {
 
 enum { FORMAT_NDJSON = 0, FORMAT_JSON };
 
-void flow_record_to_ndjson(FILE *stream, recordHandle_t *recordHandle, int tag) {
+void flow_record_to_ndjson(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outputParam) {
     // ws is whitespace after object opening and before object closing {WS  WS}
     // indent is printed before each record for clarity if needed
     // fs is Field Separator
