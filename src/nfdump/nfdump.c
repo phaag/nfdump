@@ -547,7 +547,6 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     // number of flows passed the filter
     dbg(uint32_t numBlocks = 0);
     int done = 0;
-    char *ident = NULL;
     while (!done) {
         dataHandle_t *dataHandle = queue_pop(filterArgs.processQueue);
         if (dataHandle == QUEUE_CLOSED) {  // no more blocks
@@ -668,8 +667,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         // free resources
         FreeDataBlock(dataHandle->dataBlock);
         if (dataHandle->ident) {
-            if (ident) free(ident);
-            ident = dataHandle->ident;
+            outputParams->ident = dataHandle->ident;
             free(dataHandle);
         }
     }  // while
@@ -680,8 +678,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     if (nffile_w) {
         // flush current buffer to disc
         FlushBlock(nffile_w, dataBlock_w);
-        SetIdent(nffile_w, ident);
-        if (ident) free(ident);
+        SetIdent(nffile_w, outputParams->ident);
 
         /* Copy stat info and close file */
         memcpy((void *)nffile_w->stat_record, (void *)&stat_record, sizeof(stat_record_t));
@@ -1269,6 +1266,7 @@ int main(int argc, char **argv) {
         if (wfile) {
             nffile_t *nffile = OpenNewFile(wfile, NULL, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
             if (!nffile) exit(EXIT_FAILURE);
+            SetIdent(nffile, outputParams->ident);
             if (ExportFlowTable(nffile, aggregate, bidir, GuessDir)) {
                 CloseUpdateFile(nffile);
             } else {
