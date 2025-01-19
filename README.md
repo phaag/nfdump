@@ -2,8 +2,6 @@
 
 [![buildtest](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml)
 
-[<img src="https://api.gitsponsors.com/api/badge/img?id=40435192" height="20">](https://api.gitsponsors.com/api/badge/link?p=rfCkL18GhkNo7K6RsrIOlQlEa+komFzJ6vkBXLoE4rzEpTpW0zUEPifzF2jlnEzu7JPdAE90YR61T+2V2FC++2PACL6aVK4XdrN9iVWf7dI=)
-
 nfdump-1.7.x or nfdump **unicorn** is the current release of nfdump.
 
 ## Introduction
