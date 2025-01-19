@@ -58,7 +58,7 @@
 #include "output.h"
 #include "util.h"
 
-typedef enum { NOPREPROCESS = 0, SRC_GEO, DST_GEO, SRC_AS, DST_AS, IDENT } preprocess_t;
+typedef enum { NOPREPROCESS = 0, SRC_GEO, DST_GEO, SRC_AS, DST_AS } preprocess_t;
 
 typedef struct aggregate_param_s {
     uint32_t extID;   // extension ID
