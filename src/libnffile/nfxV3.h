@@ -752,6 +752,17 @@ typedef struct EXipInfo_s {
     h->numElements++;                                                              \
     h->size += s;
 
+#define PushExtensionID(h, x, v)                                                   \
+    {                                                                              \
+        elementHeader_t *elementHeader = (elementHeader_t *)((void *)h + h->size); \
+        elementHeader->type = x;                                                   \
+        elementHeader->length = extensionTable[x].size;                            \
+    }                                                                              \
+    void *v = (void *)((void *)h + h->size + sizeof(elementHeader_t));             \
+    memset(v, 0, extensionTable[x].size - sizeof(elementHeader_t));                \
+    h->size += extensionTable[x].size;                                             \
+    h->numElements++;
+
 #define ExtensionLength(ext) (((elementHeader_t *)((void *)ext - sizeof(elementHeader_t)))->length - sizeof(elementHeader_t))
 
 #define EXTENSION(s) {s##ID, s##Size, #s}

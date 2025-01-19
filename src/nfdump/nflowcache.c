@@ -1639,6 +1639,56 @@ static inline void PrintSortList(SortElement_t *SortList, uint64_t maxindex, out
 
 }  // End of PrintSortList
 
+// in case of custom aggregation, we need to rebuild the record
+// with only those elements aggregated
+static inline void RebuildRecord(void *buffPtr, recordHeaderV3_t *recordHeaderV3, uint64_t i) {
+    if (aggregateInfo[0] >= 0) {
+        // custom user aggregation - create new record
+        void *newExtensionList[MAXLISTSIZE] = {0};
+        AddV3Header(buffPtr, newV3Record);
+        PushExtension(newV3Record, EXgenericFlow, newGenericFlow);
+
+        // orig record
+        recordHandle_t recordHandle = {0};
+        MapRecordHandle(&recordHandle, recordHeaderV3, i);
+
+        // process record
+        // copy all custom aggregation elements
+        for (int j = 0; aggregateInfo[j] >= 0; j++) {
+            uint32_t tableIndex = aggregateInfo[j];
+            uint16_t extID = aggregationTable[tableIndex].param.extID;
+            if (recordHandle.extensionList[extID]) {
+                // extension exists in orig record
+                void *newRecord = NULL;
+                if (newExtensionList[extID] == NULL) {
+                    // add this extension to the output record as well
+                    PushExtensionID(newV3Record, extID, extension);
+                    newExtensionList[extID] = extension;
+                    newRecord = extension;
+                } else {
+                    newRecord = newExtensionList[extID];
+                }
+                pointer_addr_t offset = aggregationTable[tableIndex].param.offset;
+                pointer_addr_t length = aggregationTable[tableIndex].param.length;
+                memcpy(newRecord + offset, recordHandle.extensionList[extID] + offset, length);
+            }
+        }
+
+        // copy timestamps
+        EXgenericFlow_t *origGenericFlow = (EXgenericFlow_t *)recordHandle.extensionList[EXgenericFlowID];
+        if (origGenericFlow && newGenericFlow) {
+            newGenericFlow->msecFirst = origGenericFlow->msecFirst;
+            newGenericFlow->msecLast = origGenericFlow->msecLast;
+            newGenericFlow->msecReceived = origGenericFlow->msecReceived;
+            newGenericFlow->inBytes = origGenericFlow->inBytes;
+            newGenericFlow->inPackets = origGenericFlow->inPackets;
+        }
+    } else {
+        // copy orig record
+        memcpy(buffPtr, (void *)recordHeaderV3, recordHeaderV3->size);
+    }
+}  // End of RebuildRecord
+
 // export SortList - apply possible aggregation mask to zero out aggregated fields
 static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nffile_t *nffile, int GuessFlowDirection, int ascending) {
     dbg_printf("Enter %s\n", __func__);
@@ -1665,7 +1715,9 @@ static inline void ExportSortList(SortElement_t *SortList, uint64_t maxindex, nf
 
         // write record
         void *buffPtr = GetCurrentCursor(dataBlock);
-        memcpy(buffPtr, (void *)recordHeaderV3, recordHeaderV3->size);
+
+        // prepare record to export into new file
+        RebuildRecord(buffPtr, recordHeaderV3, i);
 
         // remap header to written memory
         recordHeaderV3 = (recordHeaderV3_t *)buffPtr;

@@ -75,7 +75,7 @@ static int max_format_index = 0;
 
 static int long_v6 = 0;
 static int printPlain = 0;
-static double duration = 0;
+static uint64_t duration = 0;
 
 #define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
@@ -661,7 +661,7 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
     duration = 0;
     if (genericFlow && genericFlow->msecFirst && genericFlow->msecLast) {
         if (genericFlow->msecLast >= genericFlow->msecFirst) {
-            duration = (genericFlow->msecLast - genericFlow->msecFirst) / 1000.0;
+            duration = (genericFlow->msecLast - genericFlow->msecFirst);
         } else {
             LogError("Record: %u Time error - last < first", recordHandle->flowCount);
             duration = 0;
@@ -1308,7 +1308,7 @@ static void String_EventTime(FILE *stream, recordHandle_t *recordHandle) {
 
 static void String_Duration(FILE *stream, recordHandle_t *recordHandle) {
     if (printPlain) {
-        fprintf(stream, "%16.3f", duration);
+        fprintf(stream, "%16.3f", (double)duration / 1000.0);
     } else {
         char *s = DurationString(duration);
         fprintf(stream, "%s", s);
@@ -1316,7 +1316,7 @@ static void String_Duration(FILE *stream, recordHandle_t *recordHandle) {
 }  // End of String_Duration
 
 static void String_Duration_Seconds(FILE *stream, recordHandle_t *recordHandle) {
-    fprintf(stream, "%16.3f", duration);
+    fprintf(stream, "%16.3f", (double)duration / 1000.0);
 }  // End of String_Duration_Seconds
 
 static void String_Protocol(FILE *stream, recordHandle_t *recordHandle) {
@@ -2181,7 +2181,7 @@ static void String_bps(FILE *stream, recordHandle_t *recordHandle) {
 
     uint64_t bps = 0;
     if (duration) {
-        bps = ((inBytes << 3) / duration);  // bits per second. ( >> 3 ) -> * 8 to convert octets into bits
+        bps = (1000 * (inBytes << 3) / duration);  // bits per second. ( >> 3 ) -> * 8 to convert octets into bits
     }
 
     numStr bpsString;
@@ -2196,7 +2196,7 @@ static void String_pps(FILE *stream, recordHandle_t *recordHandle) {
 
     uint64_t pps = 0;
     if (duration) {
-        pps = inPackets / duration;  // packets per second
+        pps = 1000 * inPackets / duration;  // packets per second
     }
 
     numStr ppsString;
