@@ -58,7 +58,7 @@
 #include "output.h"
 #include "util.h"
 
-typedef enum { NOPREPROCESS = 0, SRC_GEO, DST_GEO, SRC_AS, DST_AS } preprocess_t;
+typedef enum { NOPREPROCESS = 0, SRC_GEO, DST_GEO, SRC_AS, DST_AS, IDENT } preprocess_t;
 
 typedef struct aggregate_param_s {
     uint32_t extID;   // extension ID
@@ -695,7 +695,6 @@ static inline void PreProcess(void *inPtr, preprocess_t process, recordHandle_t 
 
     switch (process) {
         case NOPREPROCESS:
-            return;
             break;
         case SRC_GEO: {
             char *geo = (char *)inPtr;
@@ -1647,6 +1646,8 @@ static inline void RebuildRecord(void *buffPtr, recordHeaderV3_t *recordHeaderV3
         void *newExtensionList[MAXLISTSIZE] = {0};
         AddV3Header(buffPtr, newV3Record);
         PushExtension(newV3Record, EXgenericFlow, newGenericFlow);
+        newV3Record->flags = recordHeaderV3->flags;
+        newV3Record->nfversion = recordHeaderV3->nfversion;
 
         // orig record
         recordHandle_t recordHandle = {0};

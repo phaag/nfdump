@@ -211,7 +211,7 @@ prog: 		/* empty */
 
 term:	ANY { /* this is an unconditionally true expression, as a filter applies in any case */
 		data_t data = {.dataVal=1};
-		$$.self = NewElement(EXnull, 0, 0, 0, CMP_EQ, FUNC_NONE, data);
+		$$.self = NewElement(EXheader, 0, 0, 0, CMP_EQ, FUNC_NONE, data);
 	}
 
 	| IPV4 { 
@@ -723,7 +723,7 @@ static int AddIdent(char *ident) {
 	}
 	
 	data_t data = {.dataPtr = strdup(ident)};
-	return NewElement(EXnull, 0, 0, 0, CMP_IDENT, FUNC_NONE, data); 
+	return NewElement(EXheader, 0, 0, 0, CMP_IDENT, FUNC_NONE, data); 
 
 } // End of AddIdent
 
@@ -764,9 +764,9 @@ static int AddEngineNum(char *type, uint16_t comp, uint64_t num) {
 
 	int ret = -1;
 	if ( strcasecmp(type, "type") == 0 ) {
-		ret = NewElement(EXnull, OFFengineType, SIZEengineType, num, comp, FUNC_NONE, NULLPtr);
+		ret = NewElement(EXheader, OFFengineType, SIZEengineType, num, comp, FUNC_NONE, NULLPtr);
 	} else if ( strcasecmp(type, "id") == 0 ) {
-		ret = NewElement(EXnull, OFFengineID, SIZEengineID, num, comp, FUNC_NONE, NULLPtr);
+		ret = NewElement(EXheader, OFFengineID, SIZEengineID, num, comp, FUNC_NONE, NULLPtr);
 	}
 
 	return ret;
@@ -780,7 +780,7 @@ static int AddExporterNum(char *type, uint16_t comp, uint64_t num) {
 
 	int ret = -1;
   if ((strcasecmp(type, "id") == 0 ) || (strcasecmp(type, "sysid") == 0)) {
-		ret = NewElement(EXnull, OFFexporterID, SIZEexporterID, num, comp, FUNC_NONE, NULLPtr);
+		ret = NewElement(EXheader, OFFexporterID, SIZEexporterID, num, comp, FUNC_NONE, NULLPtr);
 	} else {
 	  yyprintf("Unknown exporter argument: %s", type);
 	}

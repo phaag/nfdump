@@ -65,7 +65,7 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
         }
         elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
     }
-    handle->extensionList[EXnull] = (void *)recordHeaderV3;
+    handle->extensionList[EXheader] = (void *)recordHeaderV3;
     handle->extensionList[EXlocal] = (void *)handle;
     handle->flowCount = flowCount;
     handle->numElements = recordHeaderV3->numElements;
