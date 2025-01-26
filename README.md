@@ -191,7 +191,7 @@ Build nfprofile used by NfSen; default is __NO__
 Build nftrack used by PortTracker; default is __NO__
 * **--enable-ja4** 
   Enable all ja4 module; default is **NO**
-  See JA4-Fingerprinting [JA4 Fingerprinting](https://github.com/phaag/nfdump/blob/nfdump-ja4/src/decode/ja4/Readme.md) module.
+  See JA4-Fingerprinting [JA4 Fingerprinting](https://github.com/phaag/nfdump/blob/master/src/libnfdump/ja4/Readme.md) module.
 
 Development and beta options
 
