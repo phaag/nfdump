@@ -490,10 +490,10 @@ timeWindow_t *ScanTimeFrame(char *tstring) {
 
 #ifdef DEVEL
     if (timeWindow->msecFirst) {
-        printf("TimeWindow first: %s\n", UNIX2ISO(timeWindow->first));
+        printf("TimeWindow first: %s\n", UNIX2ISO(timeWindow->msecFirst));
     }
     if (timeWindow->msecLast) {
-        printf("TimeWindow first: %s\n", UNIX2ISO(timeWindow->last));
+        printf("TimeWindow first: %s\n", UNIX2ISO(timeWindow->msecLast));
     }
 #endif
 
