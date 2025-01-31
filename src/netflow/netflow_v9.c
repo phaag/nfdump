@@ -1277,21 +1277,41 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
         EXnselCommon_t *nselCommon = sequencer->offsetCache[EXnselCommonID];
         if (nselCommon) {
             nselCommon->msecEvent = stack[STACK_MSEC];
-            if (genericFlow) {
-                genericFlow->msecFirst = stack[STACK_MSEC];
-                genericFlow->msecLast = stack[STACK_MSEC];
+            if (nselCommon->msecEvent) {
+                if (genericFlow) {
+                    dbg_printf("Copy nsel Event time: %" PRIu64 " overwriting %" PRIu64 "\n", nselCommon->msecEvent, genericFlow->msecFirst);
+                    genericFlow->msecFirst = stack[STACK_MSEC];
+                    genericFlow->msecLast = stack[STACK_MSEC];
+                }
+            } else {
+                if (genericFlow) {
+                    dbg_printf("Copy msecFirst to nsel Event time: %" PRIu64 "\n", genericFlow->msecFirst);
+                    nselCommon->msecEvent = genericFlow->msecFirst;
+                }
             }
             SetFlag(recordHeaderV3->flags, V3_FLAG_EVENT);
+            dbg_printf("Nsel event time: %" PRIu64 "\n", nselCommon->msecEvent);
         }
         EXnatCommon_t *natCommon = sequencer->offsetCache[EXnatCommonID];
         if (natCommon) {
             natCommon->msecEvent = stack[STACK_MSEC];
-            if (genericFlow) {
-                genericFlow->msecFirst = stack[STACK_MSEC];
-                genericFlow->msecLast = stack[STACK_MSEC];
+            if (natCommon->msecEvent) {
+                if (genericFlow) {
+                    dbg_printf("Copy nat Event time: %" PRIu64 " overwriting %" PRIu64 "\n", natCommon->msecEvent, genericFlow->msecFirst);
+                    genericFlow->msecFirst = stack[STACK_MSEC];
+                    genericFlow->msecLast = stack[STACK_MSEC];
+                }
+            } else {
+                if (genericFlow) {
+                    dbg_printf("Copy msecFirst to nat Event time: %" PRIu64 "\n", genericFlow->msecFirst);
+                    natCommon->msecEvent = genericFlow->msecFirst;
+                }
             }
             SetFlag(recordHeaderV3->flags, V3_FLAG_EVENT);
+            dbg_printf("Nat event time: %" PRIu64 "\n", natCommon->msecEvent);
         }
+        dbg_printf("Final msecFrist: %" PRIu64 "\n", genericFlow->msecFirst);
+        dbg_printf("Final msecLast : %" PRIu64 "\n", genericFlow->msecLast);
 
         // nprobe latency
         EXlatency_t *latency = sequencer->offsetCache[EXlatencyID];
