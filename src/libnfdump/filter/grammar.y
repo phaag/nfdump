@@ -519,6 +519,10 @@ iplist:	STRING	{
 	| iplist STRING '/' NUMBER	{ 
 		if (InsertIPlist($1, $2, $4) == 0 ) YYABORT;
 	}
+
+	| iplist ',' STRING '/' NUMBER	{ 
+		if (InsertIPlist($1, $3, $5) == 0 ) YYABORT;
+	}
 	;
 
 u64list: NUMBER { 
