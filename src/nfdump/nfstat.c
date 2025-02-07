@@ -419,6 +419,10 @@ static StatRecord_t *elementHash_add(ElementHash_t *elementHash, hashkey_t *key,
 }
 
 /* function prototypes */
+static void ListStatPrintOrder(void);
+
+static void ListElementStatTypes(void);
+
 static int ParseListOrder(char *orderBy, struct StatRequest_s *request);
 
 static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, SortElement_t *element, int type, int order_proto, int inout);
@@ -583,6 +587,7 @@ static int ParseListOrder(char *orderBy, struct StatRequest_s *request) {
                     direction = DESCENDING;
                     break;
                 default:
+                    LogError("Invalid direction %c. Use a for ascending or d for descending", *r);
                     return -1;
             }
         } else {
@@ -596,7 +601,6 @@ static int ParseListOrder(char *orderBy, struct StatRequest_s *request) {
         }
         if (orderByTable[i].string == NULL) {
             LogError("Unknown order option /%s", orderBy);
-            ListPrintOrder();
             return 0;
         }
         request->orderBy |= (1 << i);
@@ -635,6 +639,7 @@ int SetElementStat(char *elementStat, char *orderBy) {
             request->order_proto = 1;
         } else {
             LogError("Unknown statistic option :%s in %s", optProto, elementStat);
+            LogError("Available option :p for ordered by protocol");
             return 0;
         }
     }
@@ -652,12 +657,13 @@ int SetElementStat(char *elementStat, char *orderBy) {
 
     if (StatParameters[i].statname == NULL) {
         LogError("Unknown statistic: %s", elementStat);
-        ListStatTypes();
+        ListElementStatTypes();
         return 0;
     }
 
     // check if one or more orders are given
     if (ParseListOrder(orderBy, request) == 0) {
+        ListStatPrintOrder();
         return 0;
     }
 
@@ -1494,16 +1500,17 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
 
 }  // End of StatTopN
 
-void ListPrintOrder(void) {
-    printf("Available print order:");
+static void ListStatPrintOrder(void) {
+    printf("Available stat print order:");
     for (int i = 1; orderByTable[i].string != NULL; i++) {
         if (((i - 1) & 0x7) == 0) printf("\n");
         printf(" %-9s", orderByTable[i].string);
     }
-    printf("\n See also nfdump(1)\n");
-}  // End of ListPrintOrder
+    printf("\nOptionally add direction - :a for ascending or :d for descending values\n");
+    printf(" See also nfdump(1)\n");
+}  // End of ListStatPrintOrder
 
-void ListStatTypes(void) {
+static void ListElementStatTypes(void) {
     int cnt = 0;
     printf("Available element statistics:");
     for (int i = 0; StatParameters[i].statname != NULL; i++) {
@@ -1517,4 +1524,4 @@ void ListStatTypes(void) {
         };
     }
     printf("\n See also nfdump(1)\n");
-}  // End of ListStatTypes
+}  // End of ListElementStatTypes

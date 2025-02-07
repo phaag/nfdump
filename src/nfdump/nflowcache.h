@@ -125,6 +125,8 @@ void Dispose_FlowTable(void);
 
 int Parse_PrintOrder(char *order);
 
+void ListFlowPrintOrder(void);
+
 char *ParseAggregateMask(char *print_format, char *arg);
 
 void ListAggregationHelp(void);

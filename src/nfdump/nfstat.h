@@ -56,8 +56,4 @@ void AddElementStat(recordHandle_t *recordHandle);
 
 void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, RecordPrinter_t print_record);
 
-void ListPrintOrder(void);
-
-void ListStatTypes(void);
-
 #endif  //_NFSTAT_H

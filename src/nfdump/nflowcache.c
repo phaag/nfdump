@@ -970,6 +970,15 @@ void Dispose_FlowTable(void) {
     nfalloc_free();
 }  // End of Dispose_FlowTable
 
+void ListFlowPrintOrder(void) {
+    printf("Available flow print order:");
+    for (int i = 1; order_mode[i].string != NULL; i++) {
+        if (((i - 1) & 0x7) == 0) printf("\n");
+        printf(" %-9s", order_mode[i].string);
+    }
+    printf("\n See also nfdump(1)\n");
+}  // End of istFlowPrintOrder
+
 // Parse flow cache print order -O
 int Parse_PrintOrder(char *order) {
     dbg_printf("Enter %s\n", __func__);
@@ -1048,6 +1057,7 @@ int SetRecordStat(char *statType, char *optOrder) {
         }
         if (order_mode[i].string == NULL) {
             LogError("Unknown order option /%s", optOrder);
+            ListFlowPrintOrder();
             return 0;
         }
         FlowStat_order |= (1 << i);
