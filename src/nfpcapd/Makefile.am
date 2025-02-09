@@ -11,7 +11,8 @@ flowdump = flowdump.c flowdump.h
 flowsend = flowsend.c flowsend.h
 pcaproc = pcaproc.c pcaproc.h nflog.h pflog.h flowtree.c flowtree.h 
 
-nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h $(pcaproc) $(pcapdump) $(flowdump) $(flowsend)
+nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h 
+nfpcapd_SOURCES += $(pcaproc) $(pcapdump) $(flowdump) $(flowsend)
 nfpcapd_CFLAGS = -D_BSD_SOURCE -D_DEFAULT_SOURCE
 nfpcapd_LDADD = ../collector/libcollector.a -lnffile  -lpcap -lm
 nfpcapd_LDFLAGS = -L../libnffile
@@ -26,6 +27,12 @@ AM_CPPFLAGS += -DUSE_TPACKETV3
 endif
 if HAVEPCAPAPPEND
 AM_CPPFLAGS += -DHAVEPCAPAPPEND
+endif
+
+if HAVEZLIB 
+AM_CPPFLAGS += -DHAVEZLIB
+nfpcapd_SOURCES += pcap_gzip.c pcap_gzip.h
+nfpcapd_LDADD += -lz
 endif
 
 CLEANFILES = *.gch

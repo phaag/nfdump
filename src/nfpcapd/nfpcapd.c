@@ -85,6 +85,10 @@
 #include "util.h"
 #include "version.h"
 
+#ifdef HAVEZLIB
+#include "pcap_gzip.h"
+#endif
+
 #define TIME_WINDOW 300
 #define PROMISC 1
 #define TIMEOUT 500
@@ -172,8 +176,21 @@ static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, 
     errbuf[0] = '\0';
     handle = pcap_open_offline(pcap_file, errbuf);
     if (handle == NULL) {
+#ifdef HAVEZLIB
+        FILE *fzip = zlib_stream(pcap_file);
+        if (fzip == NULL) {
+            LogError("Not a valid gzip format in %s", pcap_file);
+            return -1;
+        }
+        handle = pcap_fopen_offline(fzip, errbuf);
+        if (handle == NULL) {
+            LogError("pcap_fopen_offline() failed: %s", errbuf);
+            return -1;
+        }
+#else
         LogError("pcap_open_offline() failed: %s", errbuf);
         return -1;
+#endif
     }
 
     if (filter) {

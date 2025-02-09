@@ -302,7 +302,7 @@ static int Compress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, siz
     r = lzo1x_1_compress(in, in_len, out, &out_len, wrkmem);
 
     if (r != LZO_E_OK) {
-        LogError("Compress_Block_LZO() error compression failed in %s line %d: LZ4 : %d", __FILE__, __LINE__, r);
+        LogError("Compress_Block_LZO() error compression failed in %s line %d: LZ0 : %d", __FILE__, __LINE__, r);
         return -1;
     }
 
