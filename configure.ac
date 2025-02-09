@@ -364,7 +364,7 @@ AM_COND_IF([BUILDNFPCAPD],
 		[AM_CONDITIONAL(BSDBPF, false) AM_CONDITIONAL(TPACKETV3, false) AM_CONDITIONAL(PLAINPCAP, false)],
 )
 
-AX_CHECK_ZLIB([AM_CONDITIONAL(HAVEZLIB, true)], [AM_CONDITIONAL(HAVEZLIB, false)])
+AX_CHECK_ZLIB([AM_CONDITIONAL(HAVEZLIB, true) readzpcap="yes"], [AM_CONDITIONAL(HAVEZLIB, false) readzpcap="no"])
 
 OVS_CHECK_ATOMIC_LIBS
 AX_PTHREAD([],AC_MSG_ERROR(No valid pthread configuration found))
@@ -699,7 +699,7 @@ echo "  Enable ja4         = $build_ja4"
 echo "  Build geolookup    = $build_maxmind"
 echo "  Build torlookup    = $build_tor"
 echo "  Build sflow        = $build_sflow"
-echo "  Build nfpcapd      = $build_nfpcapd"
+echo "  Build nfpcapd      = $build_nfpcapd - with gzip pcap-reader: $readzpcap"
 echo "  Build nfprofile    = $build_nfprofile"
 echo "  Build ft2nfdump    = $build_ftconv"
 echo "----------------------------------"
