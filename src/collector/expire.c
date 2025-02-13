@@ -66,7 +66,7 @@ static uint32_t timeout = 0;
 
 static void PrepareDirLists(channel_t *channel);
 
-static int compare(const FTSENT **f1, const FTSENT **f2);
+static int compare(const FTSENT * const *f1, const FTSENT * const *f2);
 
 static void IntHandler(int signal) {
     switch (signal) {
@@ -251,7 +251,7 @@ uint64_t ParseTimeDef(char *s, uint64_t *value) {
 
 }  // End of ParseTimeDef
 
-static int compare(const FTSENT **f1, const FTSENT **f2) { return strcmp((*f1)->fts_name, (*f2)->fts_name); }  // End of compare
+static int compare(const FTSENT *const *f1, const FTSENT *const *f2) { return strcmp((*f1)->fts_name, (*f2)->fts_name); }  // End of compare
 
 void RescanDir(char *dir, dirstat_t *dirstat) {
     FTS *fts;
