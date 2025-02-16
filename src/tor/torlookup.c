@@ -64,7 +64,11 @@ static void usage(char *name);
 
 static int traverseTree(char *const argv[]);
 
+#if defined __FreeBSD__
+static int compare(const FTSENT *const *f1, const FTSENT *const *f2);
+#else
 static int compare(const FTSENT **f1, const FTSENT **f2);
+#endif
 
 static int epoch_days(int y, int m, int d);
 
@@ -196,7 +200,11 @@ static int processFile(char *torFile) {
     return 0;
 }  // End of processFile
 
+#if defined __FreeBSD__
+static int compare(const FTSENT *const *f1, const FTSENT *const *f2) { return strcmp((*f1)->fts_name, (*f2)->fts_name); }  // End of compare
+#else
 static int compare(const FTSENT **f1, const FTSENT **f2) { return strcmp((*f1)->fts_name, (*f2)->fts_name); }  // End of compare
+#endif
 
 /*
  * returns ok
