@@ -1,6 +1,6 @@
 /*
  *  All rights reserved.
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  Copyright (c) 2001 Mark Fullmer and The Ohio State University
  *  All rights reserved.
@@ -105,7 +105,7 @@ static uint16_t *GenExtensionList(struct ftio *ftio, uint32_t *extensionSize, ui
 #define FTMAXEXTENSIONS 10
     uint16_t *extensionList = calloc(FTMAXEXTENSIONS, sizeof(uint16_t));
     if (!extensionList) {
-        LogError("malloc() error in %s:%d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 

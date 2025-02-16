@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2022-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -218,12 +218,12 @@ int InitBufferQueues(flushParam_t *flushParam) {
     for (int i = 0; i < MAXBUFFERS; i++) {
         packetBuffer_t *packetBuffer = calloc(1, sizeof(packetBuffer_t));
         if (!packetBuffer) {
-            LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return -1;
         }
         packetBuffer->buffer = malloc(BUFFSIZE);
         if (!packetBuffer->buffer) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return -1;
         }
         queue_push(flushParam->bufferQueue, (void *)packetBuffer);
@@ -255,7 +255,7 @@ void __attribute__((noreturn)) * flush_thread(void *args) {
             }
             dbg_printf("flush_thread() flush buffer\n");
             if (write(flushParam->pfd, packetBuffer->buffer, packetBuffer->bufferSize) <= 0) {
-                LogError("write() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+                LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             }
 
             // return buffer

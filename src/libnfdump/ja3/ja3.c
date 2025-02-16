@@ -45,7 +45,7 @@
 #define CheckStringSize(s, l)                                                   \
     {                                                                           \
         if ((s) < (l)) {                                                        \
-            LogError("sLen error in %s line %d: %s\n", __FILE__, __LINE__, ""); \
+            LogError("sLen error in %s line %d: %s", __FILE__, __LINE__, ""); \
             abort();                                                            \
             return 0;                                                           \
         } else {                                                                \
@@ -57,7 +57,7 @@ static char *ja3String(uint8_t *ja3Hash, char *buff) {
     if (buff == NULL) {
         buff = malloc(SIZEja3String + 1);
         if (buff == NULL) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return NULL;
         }
     }
@@ -84,7 +84,7 @@ char *ja3Process(ssl_t *ssl, char *buff) {
 
     char *ja3_r = calloc(1, sLen);
     if (!ja3_r) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
@@ -130,7 +130,7 @@ char *ja3Process(ssl_t *ssl, char *buff) {
     }
 
     if (sLen == 0) {
-        LogError("sLen error in %s line %d: %s\n", __FILE__, __LINE__, "Size == 0");
+        LogError("sLen error in %s line %d: %s", __FILE__, __LINE__, "Size == 0");
         free(ja3_r);
         return NULL;
     }

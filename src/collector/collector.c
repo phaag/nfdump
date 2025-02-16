@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -547,7 +547,7 @@ void FlushExporterStats(FlowSource_t *fs) {
     size = sizeof(exporter_stats_record_t) + (fs->exporter_count - 1) * sizeof(struct exporter_stat_s);
     exporter_stats = (exporter_stats_record_t *)malloc(size);
     if (!exporter_stats) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
     exporter_stats->header.type = ExporterStatRecordType;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -539,7 +539,7 @@ ssl_t *sslProcess(const uint8_t *data, size_t len) {
 
     ssl_t *ssl = (ssl_t *)calloc(1, sizeof(ssl_t));
     if (!ssl) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
     ssl->tlsVersion = sslVersion;

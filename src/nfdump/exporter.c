@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2024, Peter Haag
+ *  Copyright (c) 2012-2025, Peter Haag
  *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
@@ -76,7 +76,7 @@ static char *getVersionString(uint16_t nfversion) {
 int InitExporterList(void) {
     exporter_list = (exporter_t **)calloc(MAX_EXPORTERS, sizeof(exporter_t *));
     if (!exporter_list) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
     exporter_root = NULL;
@@ -86,7 +86,7 @@ int InitExporterList(void) {
 
 int AddExporterInfo(exporter_info_record_t *exporter_record) {
     if (exporter_record->header.size != sizeof(exporter_info_record_t)) {
-        LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
+        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
 
@@ -95,7 +95,7 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
     // sanity check
     uint32_t id = exporter_record->sysid;
     if (id >= MAX_EXPORTERS) {
-        LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
+        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
     if (exporter_list[id] != NULL) {
@@ -128,7 +128,7 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
     // slot[id] is now available
     exporter_list[id] = (exporter_t *)calloc(1, sizeof(exporter_t));
     if (!exporter_list[id]) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
 
@@ -199,7 +199,7 @@ int AddSamplerLegacyRecord(samplerV0_record_t *sampler_record) {
 int AddSamplerRecord(sampler_record_t *sampler_record) {
     uint32_t id = sampler_record->exporter_sysid;
     if (id >= MAX_EXPORTERS) {
-        LogError("Corrupt sampler record in %s line %d\n", __FILE__, __LINE__);
+        LogError("Corrupt sampler record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
 
@@ -223,7 +223,7 @@ int AddSamplerRecord(sampler_record_t *sampler_record) {
 
     *sampler = (sampler_t *)malloc(sizeof(sampler_t));
     if (!*sampler) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
     (*sampler)->next = NULL;
@@ -249,13 +249,13 @@ int AddSamplerRecord(sampler_record_t *sampler_record) {
 
 int AddExporterStat(exporter_stats_record_t *stat_record) {
     if (stat_record->header.size < sizeof(exporter_stats_record_t)) {
-        LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
+        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
 
     size_t required = sizeof(exporter_stats_record_t) + (stat_record->stat_count - 1) * sizeof(struct exporter_stat_s);
     if ((stat_record->stat_count == 0) || (stat_record->header.size != required)) {
-        LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
+        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
 
@@ -265,7 +265,7 @@ int AddExporterStat(exporter_stats_record_t *stat_record) {
     if (((ptrdiff_t)stat_record & 0x7) != 0) {
         rec = (exporter_stats_record_t *)malloc(stat_record->header.size);
         if (!rec) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
         memcpy(rec, stat_record, stat_record->header.size);
@@ -279,7 +279,7 @@ int AddExporterStat(exporter_stats_record_t *stat_record) {
     for (int i = 0; i < rec->stat_count; i++) {
         uint32_t id = rec->stat[i].sysid;
         if (id >= MAX_EXPORTERS) {
-            LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
+            LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
             return 0;
         }
         if (!exporter_list[id]) {
@@ -301,7 +301,7 @@ int AddExporterStat(exporter_stats_record_t *stat_record) {
 
 exporter_t *GetExporterInfo(int exporterID) {
     if (exporterID >= MAX_EXPORTERS) {
-        LogError("Corrupt exporter record in %s line %d\n", __FILE__, __LINE__);
+        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return NULL;
     }
 

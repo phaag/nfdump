@@ -270,7 +270,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
 
             cfile = nffile_r->fileName;
             if (!cfile) {
-                LogError("(NULL) input file name error in %s line %d\n", __FILE__, __LINE__);
+                LogError("(NULL) input file name error in %s line %d", __FILE__, __LINE__);
                 CloseFile(nffile_r);
                 DisposeFile(nffile_r);
                 return;
@@ -361,7 +361,7 @@ __attribute__((noreturn)) static void *worker(void *arg) {
         uint32_t sumSize = 0;
         for (int i = 0; i < dataBlock->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
-                LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
+                LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 goto SKIP;
             }
             sumSize += record_ptr->size;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -148,7 +148,7 @@ static int CheckRunningOnce(char *pidfile) {
 static data_row *process(void *engine) {
     nffile_t *nffile = GetNextFile(NULL);
     if (!nffile) {
-        LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("GetNextFile() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
     if (nffile == NULL) {
@@ -159,14 +159,14 @@ static data_row *process(void *engine) {
 
     data_row *port_table = (data_row *)calloc(65536, sizeof(data_row));
     if (!port_table) {
-        LogError("calloc() allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
     uint64_t processed = 0;
     recordHandle_t *recordHandle = (recordHandle_t *)calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
@@ -194,7 +194,7 @@ static data_row *process(void *engine) {
         uint32_t sumSize = 0;
         for (int i = 0; i < dataBlock->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
-                LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
+                LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 exit(255);
             }
             sumSize += record_ptr->size;
@@ -356,7 +356,7 @@ int main(int argc, char **argv) {
         }
         filter = (char *)malloc(stat_buff.st_size);
         if (!filter) {
-            LogError("malloc() allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
         ffd = open(ffile, O_RDONLY);

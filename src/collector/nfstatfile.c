@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -228,7 +228,7 @@ int ReadStatInfo(char *dirname, dirstat_t **dirstat_p, int lock) {
         int i;
         dirstat_stack = (dirstat_env_t *)malloc(STACK_BLOCK_SIZE * sizeof(dirstat_env_t));
         if (!dirstat_stack) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return ERR_FAIL;
         }
         for (i = 0; i < STACK_BLOCK_SIZE; i++) {
@@ -247,7 +247,7 @@ int ReadStatInfo(char *dirname, dirstat_t **dirstat_p, int lock) {
         int i;
         tmp = (dirstat_env_t *)realloc((void *)dirstat_stack, (stack_max_entries + STACK_BLOCK_SIZE) * sizeof(dirstat_env_t));
         if (!tmp) {
-            LogError("realloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return ERR_FAIL;
         }
         dirstat_stack = tmp;
@@ -260,7 +260,7 @@ int ReadStatInfo(char *dirname, dirstat_t **dirstat_p, int lock) {
 
     dirstat_stack[next_free].dirstat = (dirstat_t *)malloc(sizeof(dirstat_t));
     if (!dirstat_stack[next_free].dirstat) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return ERR_FAIL;
     }
 
@@ -291,7 +291,7 @@ int ReadStatInfo(char *dirname, dirstat_t **dirstat_p, int lock) {
                 }
                 err = SetFileLock(fd);
                 if (err != 0) {
-                    LogError("ioctl(F_WRLCK) error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+                    LogError("ioctl(F_WRLCK) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                     close(fd);
                     free(dirstat_stack[next_free].dirstat);
                     dirstat_stack[next_free].dirstat = NULL;
@@ -310,7 +310,7 @@ int ReadStatInfo(char *dirname, dirstat_t **dirstat_p, int lock) {
 
     err = SetFileLock(fd);
     if (err != 0) {
-        LogError("ioctl(F_WRLCK) error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("ioctl(F_WRLCK) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         close(fd);
         free(dirstat_stack[next_free].dirstat);
         dirstat_stack[next_free].dirstat = NULL;
@@ -320,7 +320,7 @@ int ReadStatInfo(char *dirname, dirstat_t **dirstat_p, int lock) {
     fstat(fd, &filestat);
     // the file is not assumed to be larger than 1MB, otherwise it is likely corrupt
     if (filestat.st_size > 1024 * 1024) {
-        LogError("File size error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("File size error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         ReleaseFileLock(fd);
         close(fd);
         free(dirstat_stack[next_free].dirstat);
@@ -330,7 +330,7 @@ int ReadStatInfo(char *dirname, dirstat_t **dirstat_p, int lock) {
 
     in_buff = (char *)malloc(filestat.st_size + 1);  // +1 for trailing '\0'
     if (!in_buff) {
-        LogError("mallow() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("mallow() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         ReleaseFileLock(fd);
         close(fd);
         free(dirstat_stack[next_free].dirstat);
@@ -340,7 +340,7 @@ int ReadStatInfo(char *dirname, dirstat_t **dirstat_p, int lock) {
 
     ssize_t r_size = read(fd, (void *)in_buff, filestat.st_size);
     if (r_size < 0) {
-        LogError("read() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("read() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         ReleaseFileLock(fd);
         close(fd);
         free(in_buff);
@@ -351,7 +351,7 @@ int ReadStatInfo(char *dirname, dirstat_t **dirstat_p, int lock) {
     in_buff[filestat.st_size] = '\0';
 
     if (r_size != filestat.st_size) {
-        LogError("read() requested size error in %s line %d\n", __FILE__, __LINE__);
+        LogError("read() requested size error in %s line %d", __FILE__, __LINE__);
         ReleaseFileLock(fd);
         close(fd);
         free(in_buff);
@@ -418,7 +418,7 @@ int WriteStatInfo(dirstat_t *dirstat) {
     }
 
     if (i >= stack_max_entries) {
-        LogError("WriteStatInfo(): dirstat entry not found in %s line %d\n", __FILE__, __LINE__);
+        LogError("WriteStatInfo(): dirstat entry not found in %s line %d", __FILE__, __LINE__);
         return ERR_FAIL;
     }
 
@@ -430,26 +430,26 @@ int WriteStatInfo(dirstat_t *dirstat) {
     if (fd == 0) {
         fd = open(filename, O_RDWR | O_TRUNC | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         if (fd < 0) {
-            LogError("open() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("open() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return ERR_FAIL;
         }
 
         int err = SetFileLock(fd);
         if (err != 0) {
-            LogError("ioctl(F_WRLCK) error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("ioctl(F_WRLCK) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             close(fd);
             return ERR_FAIL;
         }
     } else {
         off_t err = lseek(fd, SEEK_SET, 0);
         if (err == -1) {
-            LogError("lseek() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             ReleaseFileLock(fd);
             close(fd);
             return ERR_FAIL;
         }
         if (ftruncate(fd, 0) < 0) {
-            LogError("ftruncate() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("ftruncate() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         }
     }
 
@@ -461,7 +461,7 @@ int WriteStatInfo(dirstat_t *dirstat) {
         line[255] = '\0';
         len = strlen(line);
         if (write(fd, line, len) < 0) {
-            LogError("write() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         }
         i++;
     }
@@ -470,7 +470,7 @@ int WriteStatInfo(dirstat_t *dirstat) {
     int err = close(fd);
     dirstat_stack[index].fd = 0;
     if (err == -1) {
-        LogError("close() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("close() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return ERR_FAIL;
     }
 
@@ -486,13 +486,13 @@ int ReleaseStatInfo(dirstat_t *dirstat) {
     }
 
     if (i >= stack_max_entries) {
-        LogError("ReleaseStatInfo() error in %s line %d: %s\n", __FILE__, __LINE__, "dirstat entry not found");
+        LogError("ReleaseStatInfo() error in %s line %d: %s", __FILE__, __LINE__, "dirstat entry not found");
         return ERR_FAIL;
     }
 
     index = i;
     if (dirstat_stack[index].filename == NULL) {
-        LogError("ReleaseStatInfo() error in %s line %d: %s\n", __FILE__, __LINE__, "Attempted to free NULL pointer");
+        LogError("ReleaseStatInfo() error in %s line %d: %s", __FILE__, __LINE__, "Attempted to free NULL pointer");
         return ERR_FAIL;
     }
     free(dirstat_stack[index].filename);

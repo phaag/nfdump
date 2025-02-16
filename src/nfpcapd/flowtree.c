@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2011-2022, Peter Haag
+ *  Copyright (c) 2011-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -108,7 +108,7 @@ struct FlowNode *New_Node(void) {
 
     node = FlowNode_FreeList;
     if (node->memflag != NODE_FREE) {
-        LogError("New_Node() unexpected error in %s line %d: %s\n", __FILE__, __LINE__, "Tried to allocate a non free Node");
+        LogError("New_Node() unexpected error in %s line %d: %s", __FILE__, __LINE__, "Tried to allocate a non free Node");
         abort();
     }
 

@@ -1626,7 +1626,7 @@ static SortElement_t *GetSortList(uint64_t *size) {
     if (hashSize) {  // hash table
         list = (SortElement_t *)calloc(hashSize, sizeof(SortElement_t));
         if (!list) {
-            LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return NULL;
         }
 
@@ -1642,7 +1642,7 @@ static SortElement_t *GetSortList(uint64_t *size) {
         }
         list = (SortElement_t *)calloc(listSize, sizeof(SortElement_t));
         if (!list) {
-            LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return NULL;
         }
 

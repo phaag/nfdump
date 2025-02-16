@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -51,7 +51,7 @@ typedef struct uint16Array_s {
     if (((a).numElements & arrayMask) == 0) {                                                               \
         (a).array = (uint16_t *)realloc((a).array, sizeof(uint16_t) * ((a).numElements + (arrayMask + 1))); \
         if (!(a).array) {                                                                                   \
-            fprintf(stderr, "malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));     \
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));              \
             exit(255);                                                                                      \
         }                                                                                                   \
     }                                                                                                       \

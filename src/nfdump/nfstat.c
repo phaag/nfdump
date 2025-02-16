@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -1078,7 +1078,7 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
     time_t first = statRecord->msecFirst / 1000LL;
     struct tm *tbuff = localtime(&first);
     if (!tbuff) {
-        LogError("localtime() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("localtime() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
     char datestr[64];
@@ -1474,7 +1474,7 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
     SortElement_t *topN_list = (SortElement_t *)calloc(numCells, sizeof(SortElement_t));
 
     if (!topN_list) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 

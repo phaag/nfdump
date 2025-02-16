@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2020, Peter Haag
+ *  Copyright (c) 2020-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -58,7 +58,7 @@ int AddIfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
     if (ifTree == NULL) {
         ifTree = kb_init(ifTree, KB_DEFAULT_SIZE);
         if (!ifTree) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return 0;
         }
     }
@@ -91,7 +91,7 @@ int AddVrfNameRecord(arrayRecordHeader_t *arrayRecordHeader) {
     if (vrfTree == NULL) {
         vrfTree = kb_init(vrfTree, KB_DEFAULT_SIZE);
         if (!vrfTree) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return 0;
         }
     }

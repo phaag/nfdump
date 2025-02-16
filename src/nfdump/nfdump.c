@@ -390,7 +390,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
 
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
     if (recordHandle == NULL) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(255);
     }
 
@@ -426,7 +426,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
                     dataBlock->NumRecords = i;
                     break;
                 }
-                LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
+                LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 LogError("DataBlock: count: %u, size: %u. Found: %u, size: %u", dataBlock->NumRecords, dataBlock->size, i, sumSize);
                 sumSize = 0;
                 break;
@@ -759,7 +759,7 @@ int main(int argc, char **argv) {
 
     outputParams = (outputParams_t *)calloc(1, sizeof(outputParams_t));
     if (!outputParams) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(EXIT_FAILURE);
     }
     outputParams->topN = -1;

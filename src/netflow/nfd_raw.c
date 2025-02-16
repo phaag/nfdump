@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -97,7 +97,7 @@ static inline exporter_nfd_t *getExporter(FlowSource_t *fs, nfd_header_t *header
     // nothing found
     *e = (exporter_nfd_t *)malloc(sizeof(exporter_nfd_t));
     if (!(*e)) {
-        LogError("Process_nfd: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("Process_nfd: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
     memset((void *)(*e), 0, sizeof(exporter_nfd_t));

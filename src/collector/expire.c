@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -267,7 +267,7 @@ void RescanDir(char *dir, dirstat_t *dirstat) {
 
     fts = fts_open(path, FTS_LOGICAL, compare);
     if (!fts) {
-        LogError("fts_open() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("fts_open() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
     while ((ftsent = fts_read(fts)) != NULL) {
@@ -418,7 +418,7 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
                             num_expired++;
                             dir_files--;
                         } else {
-                            LogError("unlink() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+                            LogError("unlink() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                         }
                         continue;  // next file if file was unlinked
                     } else {
@@ -436,7 +436,7 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
                             num_expired++;
                             dir_files--;
                         } else {
-                            LogError("unlink() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+                            LogError("unlink() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                         }
                         lifetime_done = 0;
                     } else {
@@ -462,7 +462,7 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
                         // directory is empty and can be deleted
                         dbg_printf("Will remove directory %s\n", ftsent->fts_path);
                         if (rmdir(ftsent->fts_path) != 0) {
-                            LogError("rmdir() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+                            LogError("rmdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                         }
                     }
                     break;
@@ -505,7 +505,7 @@ static void PrepareDirLists(channel_t *channel) {
 
         current_channel->fts = fts_open(path, FTS_LOGICAL | FTS_NOCHDIR, compare);
         if (!current_channel->fts) {
-            LogError("fts_open() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("fts_open() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             continue;
         }
 
@@ -621,7 +621,7 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
                     expire_channel->ftsent->fts_number--;
 
                 } else {
-                    LogError("unlink() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+                    LogError("unlink() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 }
                 file_removed = 1;
             } else {
@@ -649,7 +649,7 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
                     expire_channel->ftsent->fts_number--;
 
                 } else {
-                    LogError("unlink() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+                    LogError("unlink() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 }
                 file_removed = 1;
             } else {
@@ -695,7 +695,7 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
                                 // directory is empty and can be deleted
                                 dbg_printf("Will remove directory %s\n", expire_channel->ftsent->fts_path);
                                 if (rmdir(expire_channel->ftsent->fts_path) != 0) {
-                                    LogError("rmdir() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+                                    LogError("rmdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                                 }
                             }
                             break;

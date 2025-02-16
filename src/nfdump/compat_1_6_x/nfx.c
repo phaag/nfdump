@@ -129,7 +129,7 @@ extension_map_list_t *InitExtensionMaps(int AllocateList) {
     if (AllocateList) {
         list = (extension_map_list_t *)calloc(1, sizeof(extension_map_list_t));
         if (!list) {
-            LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
         list->last_map = &list->map_list;
@@ -175,12 +175,12 @@ int Insert_Extension_Map(extension_map_list_t *extension_map_list, extension_map
     uint16_t map_id;
 
     if (map->size < sizeof(extension_map_t)) {  // at least 1 extension required
-        LogError("Corrupt extension map in %s line %d\n", __FILE__, __LINE__);
+        LogError("Corrupt extension map in %s line %d", __FILE__, __LINE__);
         return -1;
     }
 
     if (!VerifyExtensionMap(map)) {
-        LogError("Corrupt extension map in %s line %d\n", __FILE__, __LINE__);
+        LogError("Corrupt extension map in %s line %d", __FILE__, __LINE__);
         return -1;
     }
 
@@ -237,7 +237,7 @@ int Insert_Extension_Map(extension_map_list_t *extension_map_list, extension_map
         dbg_printf("Map not found in extension page list\n");
         l = (extension_info_t *)malloc(sizeof(extension_info_t));
         if (!l) {
-            fprintf(stderr, "malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            fprintf(stderr, "malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
         l->ref_count = 0;
@@ -246,7 +246,7 @@ int Insert_Extension_Map(extension_map_list_t *extension_map_list, extension_map
 
         l->map = (extension_map_t *)malloc((ssize_t)map->size);
         if (!l->map) {
-            fprintf(stderr, "malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            fprintf(stderr, "malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return -1;
         }
         memcpy((void *)l->map, (void *)map, map->size);

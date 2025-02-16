@@ -447,7 +447,7 @@ void ConvertBlockType2(dataBlock_t *v2DataBlock, dataBlock_t *v3DataBlock) {
     uint32_t sumSize = 0;
     for (int i = 0; i < v2DataBlock->NumRecords; i++) {
         if ((sumSize + v2record_ptr->size) > v2DataBlock->size || (v2record_ptr->size < sizeof(record_header_t))) {
-            LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
+            LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
             sumSize = 0;
             break;
         }
@@ -460,7 +460,7 @@ void ConvertBlockType2(dataBlock_t *v2DataBlock, dataBlock_t *v3DataBlock) {
                 InitCompat16();
                 extension_map_t *map = (extension_map_t *)v2record_ptr;
                 if (Insert_Extension_Map(extension_map_list, map) < 0) {
-                    LogError("Corrupt data file. Unable to decode at %s line %d\n", __FILE__, __LINE__);
+                    LogError("Corrupt data file. Unable to decode at %s line %d", __FILE__, __LINE__);
                     exit(EXIT_FAILURE);
                 }
             } break;

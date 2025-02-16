@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -72,13 +72,13 @@ static MemHandler_t *MemHandler = NULL;
 static int nfalloc_Init(uint32_t memBlockSize) {
     MemHandler = (MemHandler_t *)calloc(1, sizeof(MemHandler_t));
     if (!MemHandler) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
 
     MemHandler->memblock = (void **)calloc(MaxMemBlocks, sizeof(void *));
     if (!MemHandler->memblock) {
-        LogError("calloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
 

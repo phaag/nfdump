@@ -222,7 +222,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
     // Get the first file handle
     nffile = GetNextFile(NULL);
     if (!nffile) {
-        LogError("GetNextFile() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("GetNextFile() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
     if (nffile == NULL) {
@@ -234,7 +234,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
     peer.send_buffer = malloc(UDP_PACKET_SIZE);
     peer.flush = 0;
     if (!peer.send_buffer) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         CloseFile(nffile);
         DisposeFile(nffile);
         return;
@@ -254,7 +254,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
 
@@ -286,7 +286,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
         uint32_t sumSize = 0;
         for (int i = 0; i < dataBlock->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
-                LogError("Corrupt data file. Inconsistent block size in %s line %d\n", __FILE__, __LINE__);
+                LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 exit(255);
             }
             sumSize += record_ptr->size;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -82,7 +82,7 @@ static int AppendString(char *stack, char *string, size_t *buff_size) {
     size_t len = strlen(string);
 
     if (*buff_size <= len) {
-        LogError("string append error in %s line %d: %s\n", __FILE__, __LINE__, "buffer size error");
+        LogError("string append error in %s line %d: %s", __FILE__, __LINE__, "buffer size error");
         return 0;
     }
 
@@ -151,7 +151,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
         len += 10 * num_sources + 8;
         source_filter = (char *)malloc(len);
         if (!source_filter) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
 
@@ -184,7 +184,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
 
     char *filter = (char *)malloc(filter_size);
     if (!filter) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(255);
     }
     int ffd = open(path, O_RDONLY);
@@ -308,7 +308,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
     // collect all channel info
     profile_channels = realloc(profile_channels, (num_channels + 1) * sizeof(profile_channel_info_t));
     if (!profile_channels) {
-        LogError("Memory allocation error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("Memory allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(255);
     }
 

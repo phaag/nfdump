@@ -50,7 +50,7 @@ ja4_t *_ja4sProcess(ssl_t *ssl, uint8_t proto) {
 
     ja4_t *ja4 = malloc(sizeof(ja4_t) + SIZEja4sString + 1);
     if (ja4 == NULL) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
     ja4->type = TYPE_UNDEF;

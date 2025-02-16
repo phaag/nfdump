@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -136,7 +136,7 @@ uint16_t *SetupSequencer(sequencer_t *sequencer, sequence_t *sequenceTable, uint
     dbg_printf("Extensionlist:\n");
     uint16_t *extensionList = calloc(sequencer->numElements, sizeof(uint16_t));
     if (!extensionList) {
-        LogError("SetupSequencer: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("SetupSequencer: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
     int j = 0;

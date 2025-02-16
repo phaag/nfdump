@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -899,7 +899,7 @@ static void runTest(void) {
     // ja4
     ja4_t *ja4 = malloc(sizeof(ja4_t) + SIZEja4String + 1);
     if (ja4 == NULL) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(255);
     }
     ja4->type = TYPE_JA4;

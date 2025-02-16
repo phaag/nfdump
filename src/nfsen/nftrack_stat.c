@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -120,7 +120,7 @@ int InitStatFile(void) {
     num = write(fd, &stat_header, sizeof(stat_header));
     num = write(fd, stat_record, NUMPORTS * sizeof(data_row));
     if (num < 0) {
-        LogError("write() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         stat_header.version = 0;
         free(stat_record);
         stat_record = NULL;

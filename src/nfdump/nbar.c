@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2020, Peter Haag
+ *  Copyright (c) 2020-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -83,7 +83,7 @@ static khash_t(NbarAppInfoHash) *NbarAppInfoHash = NULL;
 static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo, uint8_t *nbarData) {
     size_t dataSize = nbarAppInfo->app_id_length + nbarAppInfo->app_name_length + nbarAppInfo->app_desc_length;
     if (dataSize == 0 || dataSize > 4096) {
-        LogError("InsertNbarAppInfo(): in %s line %d: data size error %uz\n", __FILE__, __LINE__, dataSize);
+        LogError("InsertNbarAppInfo(): in %s line %d: data size error %uz", __FILE__, __LINE__, dataSize);
         return;
     }
     AppInfoHash_t AppInfoHash;
@@ -102,7 +102,7 @@ static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo, uint8_t *nbarData) {
     }
     uint8_t *data = malloc(dataSize);
     if (!data) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
     memcpy(data, nbarData, dataSize);
@@ -138,7 +138,7 @@ int AddNbarRecord(arrayRecordHeader_t *nbarRecord) {
     if (NbarAppInfoHash == NULL) {
         NbarAppInfoHash = kh_init(NbarAppInfoHash);
         if (!NbarAppInfoHash) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return 0;
         }
     }
@@ -178,7 +178,7 @@ char *GetNbarInfo(uint8_t *id, size_t size) {
 
     name[0] = '\0';
     if ((kh_key(NbarAppInfoHash, k).app_name_length + kh_key(NbarAppInfoHash, k).app_desc_length) > 253) {
-        LogError("Error nbar lookup in %s line %d: string length error\n", __FILE__, __LINE__);
+        LogError("Error nbar lookup in %s line %d: string length error", __FILE__, __LINE__);
         return "";
     }
     if (kh_key(NbarAppInfoHash, k).app_name_length) {

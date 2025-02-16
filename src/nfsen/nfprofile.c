@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -126,7 +126,7 @@ __attribute__((noreturn)) static void *worker(void *arg) {
 
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
     if (!recordHandle) {
-        LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         pthread_exit(NULL);
     }
 

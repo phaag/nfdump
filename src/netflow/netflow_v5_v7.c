@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -204,7 +204,7 @@ static inline exporter_v5_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *
     // nothing found
     *e = (exporter_v5_t *)calloc(1, sizeof(exporter_v5_t));
     if (!(*e)) {
-        LogError("Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("Process_v5: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
     (*e)->next = NULL;
@@ -255,7 +255,7 @@ static inline exporter_v5_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *
         interval--;
         sampler = (sampler_t *)malloc(sizeof(sampler_t));
         if (!sampler) {
-            LogError("Process_v5: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("Process_v5: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return NULL;
         }
         (*e)->sampler = sampler;

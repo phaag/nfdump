@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -132,7 +132,7 @@ static inline exporter_v1_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *
     // nothing found
     *e = (exporter_v1_t *)malloc(sizeof(exporter_v1_t));
     if (!(*e)) {
-        LogError("Process_v1: malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+        LogError("Process_v1: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
     (**e) = (exporter_v1_t){.info = {.header = {.type = ExporterInfoRecordType, .size = sizeof(exporter_info_record_t)},

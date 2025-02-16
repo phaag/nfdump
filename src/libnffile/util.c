@@ -508,7 +508,7 @@ char *TimeString(uint64_t msecStart, uint64_t msecEnd) {
         time_t secs = msecStart / 1000;
         struct tm *tbuff = localtime(&secs);
         if (!tbuff) {
-            LogError("localtime() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("localtime() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return "Error time convert";
         }
         char t1[64];
@@ -517,7 +517,7 @@ char *TimeString(uint64_t msecStart, uint64_t msecEnd) {
         secs = msecEnd / 1000;
         tbuff = localtime(&secs);
         if (!tbuff) {
-            LogError("localtime() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("localtime() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return "Error time convert";
         }
         char t2[64];
@@ -660,7 +660,7 @@ void InsertString(stringlist_t *list, char *string) {
         list->num_strings = 0;
         list->list = (char **)malloc(list->max_index * sizeof(char *));
         if (!list->list) {
-            LogError("malloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(250);
         }
     }
@@ -670,7 +670,7 @@ void InsertString(stringlist_t *list, char *string) {
         list->max_index += list->block_size;
         list->list = (char **)realloc(list->list, list->max_index * sizeof(char *));
         if (!list->list) {
-            LogError("realloc() error in %s line %d: %s\n", __FILE__, __LINE__, strerror(errno));
+            LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(250);
         }
     }
