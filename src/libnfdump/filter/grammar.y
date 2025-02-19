@@ -1156,7 +1156,7 @@ static int AddASAString(char *event, char *asaStr) {
 		return NewElement(EXnselCommonID, OFFfwXevent, SIZEfwXevent, eventNum, CMP_EQ, FUNC_NONE, NULLPtr);
 	} else if (strcasecmp(event, "user") == 0) {
 		if ( strlen(asaStr) > 65 ) {
-			yyprintf("Length of ASA user name: %s > 65 chars", asaStr);
+			yyprintf("Length of ASA user name > 65 chars");
 			return -1;
 		}
 		data_t data = {.dataPtr = strdup(asaStr)};
@@ -1261,7 +1261,7 @@ static int AddNAT(char *event, uint16_t comp, uint64_t number) {
 
 	if (strcasecmp(event, "event") == 0) {
 		if ( number > MAX_NAT_EVENTS ) {
-			yyprintf("NAT event: %" PRIu64 " out of range\n", number);
+			yyprintf("NAT event: %" PRIu64 " out of range", number);
 			return -1;
 		}
 		return NewElement(EXnatCommonID, OFFnatEvent, SIZEnatEvent, number, comp, FUNC_NONE, NULLPtr);
@@ -1283,11 +1283,11 @@ static int AddNatPortBlocks(char *type, char *subtype, uint16_t comp, uint64_t n
 		} else if (strcasecmp(subtype, "size") == 0) {
 			offset = OFFnelblockSize;
 		} else {
-			yyprintf("Unknown port block argument: %s\n", subtype);
+			yyprintf("Unknown port block argument: %s", subtype);
 			return -1;
 		}
 	} else {
-			yyprintf("Unknown NAT argument: %s\n", type);
+			yyprintf("Unknown NAT argument: %s", type);
 			return -1;
 	}
 
@@ -1398,7 +1398,7 @@ static int AddPayload(char *type, char *arg, char *opt) {
 		return -1;
 #endif
 	} else {
-		yyprintf("Unknown PAYLOAD argument: %s\n", type);
+		yyprintf("Unknown 'payload' argument: %s", type);
 		return -1;
 	}
 
@@ -1407,9 +1407,11 @@ static int AddPayload(char *type, char *arg, char *opt) {
 
 static int AddGeo(direction_t direction, char *geo) {
 
+	// geo => "geo CC" -> remove CC
+	// lex rule guarantees 6 bytes - just test again
 	geo += 4;
 	if ( strlen(geo) != 2 ) {
-			yyprintf("Unknown Geo country: %s. Need a two letter country code.", geo);
+			yyprintf("Geo country code legnth error");
 			return -1;
 	}
 

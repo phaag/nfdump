@@ -228,7 +228,7 @@ geo\ [a-zA-Z]{2}      {
  <incl>[ \t]*	  /* eat the whitespace */
  <incl>[^ \t\n]+ { /* got the include file name */
 					if ( include_stack_ptr >= MAX_INCLUDE_DEPTH ) {
-						fprintf( stderr, "Includes nested too deeply" );
+						fprintf(stderr, "Too many nested file includes. Exceed %d files\n", MAX_INCLUDE_DEPTH);
 					 	exit(255);
 					}
 	 
@@ -292,6 +292,11 @@ int yywrap(void) {
 }
 
 static char *stripQuotes(char *string) {
+	  // safety check - strings should never exceed 70 .. 80 bytes
+		if ( strlen(string) > 256 ) {
+			fprintf(stderr, "String length exceeds 256 bytes\n");
+		 	exit(255);
+		}
     char *w = strdup(string);
 
     // strip ", ' and /' from begin/end of string
