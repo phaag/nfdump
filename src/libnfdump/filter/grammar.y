@@ -976,7 +976,7 @@ static int AddPackets(direction_t direction, uint16_t comp, uint64_t packets) {
 		  ret = NewElement(EXgenericFlowID, OFFinPackets, SIZEinPackets, packets, comp, FUNC_NONE, NULLPtr); 
 		  break;
 	  case DIR_OUT: 
-		  ret = NewElement(EXgenericFlowID, OFFoutPackets, SIZEoutPackets, packets, comp, FUNC_NONE, NULLPtr); 
+		  ret = NewElement(EXcntFlowID, OFFoutPackets, SIZEoutPackets, packets, comp, FUNC_NONE, NULLPtr); 
 		break;
 	  default:
 		  yyprintf("Invalid direction for packets");
@@ -992,7 +992,7 @@ static int AddBytes(direction_t direction, uint16_t comp, uint64_t bytes) {
 		  ret = NewElement(EXgenericFlowID, OFFinBytes, SIZEinBytes, bytes, comp, FUNC_NONE, NULLPtr); 
 		  break;
 	  case DIR_OUT: 
-		  ret = NewElement(EXgenericFlowID, OFFoutBytes, SIZEoutBytes, bytes, comp, FUNC_NONE, NULLPtr); 
+		  ret = NewElement(EXcntFlowID, OFFoutBytes, SIZEoutBytes, bytes, comp, FUNC_NONE, NULLPtr); 
 		  break;
 	  default:
 		  yyprintf("Invalid direction for bytes");

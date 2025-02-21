@@ -408,6 +408,22 @@ static void runTest(void) {
     CheckFilter("flowdir egress", recordHandle, 1);
     CheckFilter("flowdir ingress", recordHandle, 0);
 
+    // EXcntFlowID
+    PushExtension(recordHeaderV3, EXcntFlow, cntFlow);
+    MapRecordHandle(recordHandle, recordHeaderV3, 1);
+    cntFlow->flows = 10;
+    CheckFilter("flows 10", recordHandle, 1);
+    CheckFilter("flows > 10", recordHandle, 0);
+    CheckFilter("flows < 10", recordHandle, 0);
+    cntFlow->outPackets = 1234;
+    CheckFilter("out packets 1234", recordHandle, 1);
+    CheckFilter("out packets > 1234", recordHandle, 0);
+    CheckFilter("out packets < 1234", recordHandle, 0);
+    cntFlow->outBytes = 5678;
+    CheckFilter("out bytes 5678", recordHandle, 1);
+    CheckFilter("out bytes > 5678", recordHandle, 0);
+    CheckFilter("out bytes < 5678", recordHandle, 0);
+
     // EXvLan
     PushExtension(recordHeaderV3, EXvLan, vlan);
     MapRecordHandle(recordHandle, recordHeaderV3, 1);
