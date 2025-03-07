@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -49,7 +49,7 @@ queue_t *queue_init(size_t length) {
     queue_t *queue;
 
     if (!(length && ((length & (length - 1)) == 0))) {
-        LogError("Queue length %u not a power of 2", length);
+        LogError("Queue length %zu not a power of 2", length);
         return NULL;
     }
 

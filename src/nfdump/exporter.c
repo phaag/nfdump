@@ -283,7 +283,7 @@ int AddExporterStat(exporter_stats_record_t *stat_record) {
             return 0;
         }
         if (!exporter_list[id]) {
-            LogError("Exporter SysID: %u not found! - Skip stat record record.\n");
+            LogError("Exporter SysID: %u not found! - Skip stat record record", id);
             continue;
         }
         exporter_list[id]->sequence_failure += rec->stat[i].sequence_failure;

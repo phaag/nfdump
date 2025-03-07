@@ -663,7 +663,7 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
         if (genericFlow->msecLast >= genericFlow->msecFirst) {
             duration = (genericFlow->msecLast - genericFlow->msecFirst);
         } else {
-            LogError("Record: %u Time error - last < first", recordHandle->flowCount);
+            LogError("Record: %" PRIu64 " Time error - last < first", recordHandle->flowCount);
             duration = 0;
         }
     }

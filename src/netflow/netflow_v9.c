@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -1441,7 +1441,7 @@ static void Process_v9_nbar_option_data(exporterDomain_t *exporter, FlowSource_t
     dbg_printf("[%u] nbar option data - records: %u, size: %zu\n", exporter->info.id, numRecords, option_size);
 
     if (numRecords == 0 || option_size == 0 || option_size > size_left) {
-        LogError("Process_nbar_option: nbar option size error: option size: %u, size left: %u", option_size, size_left);
+        LogError("Process_nbar_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
         return;
     }
 
@@ -1572,7 +1572,7 @@ static void Process_v9_ifvrf_option_data(exporterDomain_t *exporter, FlowSource_
     dbg_printf("[%u] name option data - records: %u, size: %zu\n", exporter->info.id, numRecords, option_size);
 
     if (numRecords == 0 || option_size == 0 || option_size > size_left) {
-        LogError("Process_ifvrf_option: nbar option size error: option size: %u, size left: %u", option_size, size_left);
+        LogError("Process_ifvrf_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
         return;
     }
 

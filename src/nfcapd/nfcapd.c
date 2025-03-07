@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -339,7 +339,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
             if (cnt == -1) {
                 if (errno != EINTR) {
-                    LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
+                    LogError("recvfrom() error in '%s', line '%d', cnt: %zd:, %s", __FILE__, __LINE__, cnt, strerror(errno));
                     continue;
                 }
             } else {
@@ -589,7 +589,7 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 if (metricInterval > twin) {
-                    LogInfo("metric interval %d > twin %d", metricInterval, twin);
+                    LogInfo("metric interval %d > twin %ld", metricInterval, (long)twin);
                 }
                 break;
             case 'm':

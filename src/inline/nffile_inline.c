@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -53,7 +53,8 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
             return 0;
         }
         if (elementHeader->length == 0 || elementHeader->type == 0) {
-            LogInfo("Mapping record: %u - Corrupt extension %d Type: %u with Length: %u", flowCount, i, elementHeader->type, elementHeader->length);
+            LogInfo("Mapping record: %" PRIu64 " - Corrupt extension %d Type: %u with Length: %u", flowCount, i, elementHeader->type,
+                    elementHeader->length);
             return 0;
         }
         if (elementHeader->type < MAXEXTENSIONS) {

@@ -199,7 +199,7 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         }
 
         if (recordHeaderV3->size > size_left) {
-            LogError("Process_nfd: record size error. Size v3header: %u > size left: %d", recordHeaderV3->size, size_left);
+            LogError("Process_nfd: record size error. Size v3header: %u > size left: %zd", recordHeaderV3->size, size_left);
             LogError("Process_nfd: expected %u records, processd: %u", count, numRecords);
             return;
         }

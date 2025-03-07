@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,6 +31,7 @@
 #include "metric.h"
 
 #include <errno.h>
+#include <inttypes.h>
 #include <math.h>
 #include <netinet/in.h>
 #include <pthread.h>
@@ -296,7 +297,7 @@ __attribute__((noreturn)) void *MetricThread(void *arg) {
                 offset += sizeof(metric_record_t);
 
                 metric_chain = metric_chain->next;
-                LogVerbose("Message sent for '%s', exporter: %d\n", metric_record->ident, exporterID);
+                LogVerbose("Message sent for '%s', exporter: %" PRIu64 "\n", metric_record->ident, exporterID);
             }
             ssize_t ret = write(fd, message, offset);
             if (ret < 0) {

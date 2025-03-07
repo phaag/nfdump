@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -227,7 +227,7 @@ __attribute__((noreturn)) void *pipeReader(void *arg) {
                 done = 1;
                 LogError("read() error pipe closed");
             } else {
-                if (errno != EINTR) LogError("read() error pipe: %d %s", nbytes, strerror(errno));
+                if (errno != EINTR) LogError("read() error pipe: %zd %s", nbytes, strerror(errno));
             }
         }
     }

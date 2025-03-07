@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -237,7 +237,7 @@ int LoadTorTree(char *fileName) {
         void *arrayElement = (void *)arrayHeader + sizeof(record_header_t);
         size_t expected = ((uint32_t)arrayHeader->size * dataBlock->NumRecords) + sizeof(record_header_t);
         if (expected != dataBlock->size) {
-            LogError("Array size calculated: %u != expected: %u for element: %u", expected, dataBlock->size, arrayHeader->type);
+            LogError("Array size calculated: %zu != expected: %u for element: %u", expected, dataBlock->size, arrayHeader->type);
             continue;
         }
 

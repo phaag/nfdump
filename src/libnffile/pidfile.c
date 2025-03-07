@@ -19,7 +19,7 @@
     Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111, USA
 */
 
-/* adapted for nfdump - 2021 Peter */
+/* adapted for nfdump - 2025 Peter */
 
 /*
  * Sat Aug 19 13:24:33 MET DST 1995: Martin Schulze
@@ -56,7 +56,8 @@ static pid_t read_pid(char *pidfile) {
     pid_t pid = 0;
 
     if (!(f = fopen(pidfile, "r"))) return 0;
-    if (fscanf(f, "%d", &pid) == 0) pid = 0;
+    // need one value scanned
+    if (fscanf(f, "%d", &pid) != 1) pid = 0;
     fclose(f);
     return pid;
 }  // read_pid
@@ -131,7 +132,7 @@ pid_t write_pid(char *pidfile) {
     }
 
     if (flock(fd, LOCK_EX | LOCK_NB) == -1) {
-        if (fscanf(f, "%d", &pid) == 0) pid = 0;
+        if (fscanf(f, "%d", &pid) != 1) pid = 0;
         fclose(f);
         LogError("flock(): Can't lock. lock is held by pid %d", pid);
         return 0;

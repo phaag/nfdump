@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -61,7 +61,7 @@ uint32_t GetNumWorkers(uint32_t requested) {
 
     // no more than cores online
     if (requested && (requested > CoresOnline)) {
-        LogError("Number of workers should not be greater than number of cores online. %d is > %d", requested, CoresOnline);
+        LogError("Number of workers should not be greater than number of cores online. %d is > %ld", requested, CoresOnline);
     }
 
     // try to find optimal number of workers

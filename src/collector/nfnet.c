@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -466,7 +466,7 @@ int Raw_send_socket(int sockbuflen) {
 
     if (sockbuflen > 0) {
         if (setsockopt(sock, SOL_SOCKET, SO_SNDBUF, (void *)&sockbuflen, sizeof sockbuflen) == -1) {
-            LogError("setsockopt(SO_SNDBUF,%ld): %s", sockbuflen, strerror(errno));
+            LogError("setsockopt(SO_SNDBUF,%d): %s", sockbuflen, strerror(errno));
             close(sock);
             return 0;
         }

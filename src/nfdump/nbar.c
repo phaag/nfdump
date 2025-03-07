@@ -83,7 +83,7 @@ static khash_t(NbarAppInfoHash) *NbarAppInfoHash = NULL;
 static void InsertNbarAppInfo(NbarAppInfo_t *nbarAppInfo, uint8_t *nbarData) {
     size_t dataSize = nbarAppInfo->app_id_length + nbarAppInfo->app_name_length + nbarAppInfo->app_desc_length;
     if (dataSize == 0 || dataSize > 4096) {
-        LogError("InsertNbarAppInfo(): in %s line %d: data size error %uz", __FILE__, __LINE__, dataSize);
+        LogError("InsertNbarAppInfo(): in %s line %d: data size error %zu", __FILE__, __LINE__, dataSize);
         return;
     }
     AppInfoHash_t AppInfoHash;

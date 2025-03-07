@@ -635,7 +635,7 @@ void csv_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
         if (genericFlow->msecLast >= genericFlow->msecFirst) {
             duration = (genericFlow->msecLast - genericFlow->msecFirst) / 1000.0;
         } else {
-            LogError("Record: %u Time error - last < first", recordHandle->flowCount);
+            LogError("Record: %" PRIu64 " Time error - last < first", recordHandle->flowCount);
             duration = 0;
         }
     }

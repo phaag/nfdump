@@ -423,7 +423,7 @@ static char *stringEXmplsLabel(char *streamPtr, void *extensionRecord) {
     EXmplsLabel_t *mplsLabel = (EXmplsLabel_t *)extensionRecord;
     for (int i = 0; i < 10; i++) {
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
-        int len = snprintf(streamPtr, lenStream, "\"mpls_%u\":\"%u-%u-%u\",", i + 1, mplsLabel->mplsLabel[i] >> 4,
+        int len = snprintf(streamPtr, (size_t)lenStream, "\"mpls_%u\":\"%u-%u-%u\",", i + 1, mplsLabel->mplsLabel[i] >> 4,
                            (mplsLabel->mplsLabel[i] & 0xF) >> 1, mplsLabel->mplsLabel[i] & 1);
         streamPtr += len;
     }

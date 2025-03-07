@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -32,6 +32,7 @@
 
 #include <arpa/inet.h>
 #include <errno.h>
+#include <inttypes.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -192,8 +193,8 @@ void LoadIPv6Tree(ipV6Node_t *ipV6Node, uint32_t NumRecords) {
     for (int i = 0; i < NumRecords; i++) {
         ipV6Node_t *node = kb_getp(ipV6Tree, ipV6Tree, ipV6Node);
         if (node) {
-            LogError("Duplicate IPV6 node: ip: 0x%x %x, mask: 0x%x %x", ipV6Node->network[0], ipV6Node->network[1], ipV6Node->netmask[0],
-                     ipV6Node->netmask[1]);
+            LogError("Duplicate IPV6 node: ip: 0x%" PRIx64 " %" PRIx64 ", mask: 0x%" PRIx64 " %" PRIx64, ipV6Node->network[0], ipV6Node->network[1],
+                     ipV6Node->netmask[0], ipV6Node->netmask[1]);
         } else {
             kb_putp(ipV6Tree, ipV6Tree, ipV6Node);
         }
@@ -220,8 +221,8 @@ void LoadASV6Tree(asV6Node_t *asV6Node, uint32_t NumRecords) {
     for (int i = 0; i < NumRecords; i++) {
         asV6Node_t *node = kb_getp(asV6Tree, asV6Tree, asV6Node);
         if (node) {
-            LogError("Insert: %d, Duplicate ASV6 node: ip: 0x%x %x, mask: 0x%x %x", i, asV6Node->network[0], asV6Node->network[1],
-                     asV6Node->netmask[0], asV6Node->netmask[1]);
+            LogError("Insert: %d, Duplicate ASV6 node: ip: 0x%" PRIx64 " %" PRIx64 ", mask: 0x%" PRIx64 " %" PRIx64, i, asV6Node->network[0],
+                     asV6Node->network[1], asV6Node->netmask[0], asV6Node->netmask[1]);
         } else {
             kb_putp(asV6Tree, asV6Tree, asV6Node);
         }

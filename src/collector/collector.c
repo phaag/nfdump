@@ -426,9 +426,9 @@ int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int 
         }
 
         // log stats
-        LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu, Sequence Errors: %u, Bad Packets: %u, Blocks: %u", fs->Ident,
-                (unsigned long long)nffile->stat_record->numflows, (unsigned long long)nffile->stat_record->numpackets,
-                (unsigned long long)nffile->stat_record->numbytes, nffile->stat_record->sequence_failure, fs->bad_packets, ReportBlocks());
+        LogInfo("Ident: '%s' Flows: %" PRIu64 ", Packets: %" PRIu64 ", Bytes: %" PRIu64 ", Sequence Errors: %" PRIu64 ", Bad Packets: %u, Blocks: %u",
+                fs->Ident, nffile->stat_record->numflows, nffile->stat_record->numpackets, nffile->stat_record->numbytes,
+                nffile->stat_record->sequence_failure, fs->bad_packets, ReportBlocks());
 
         // reset stats
         fs->bad_packets = 0;

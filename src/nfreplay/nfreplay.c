@@ -337,7 +337,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
                         int err = FlushBuffer(confirm);
 
                         if (err < 0) {
-                            perror("Error sending data");
+                            LogError("Error sending data");
                             CloseFile(nffile);
                             DisposeFile(nffile);
                             return;
@@ -567,22 +567,22 @@ int main(int argc, char **argv) {
 
     if (!filter && ffile) {
         if (stat(ffile, &stat_buff)) {
-            perror("Can't stat file");
+            LogError("stat() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
         filter = (char *)malloc(stat_buff.st_size);
         if (!filter) {
-            perror("Memory error");
+            LogError("malloc() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
         ffd = open(ffile, O_RDONLY);
         if (ffd < 0) {
-            perror("Can't open file");
+            LogError("open() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
         ret = read(ffd, (void *)filter, stat_buff.st_size);
         if (ret < 0) {
-            perror("Error reading file");
+            LogError("read() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
             close(ffd);
             exit(255);
         }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2004-2024, Peter Haag
+ *  Copyright (c) 2004-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -586,7 +586,7 @@ static int ReadAppendix(nffile_t *nffile) {
             processed += record_header->size;
             buff_ptr += record_header->size;
             if (processed > block_header->size) {
-                LogError("Error processing appendix records: processed %u > block size %u", processed, block_header->size);
+                LogError("Error processing appendix records: processed %zu > block size %u", processed, block_header->size);
                 FreeDataBlock(block_header);
                 return 0;
             }
@@ -1259,7 +1259,7 @@ static dataBlock_t *nfread(nffile_t *nffile) {
     if (ret != sizeof(dataBlock_t)) {
         // this is most likely a corrupt file
         FreeDataBlock(buff);
-        LogError("Corrupt data file: Read %i bytes, requested %u", ret, sizeof(dataBlock_t));
+        LogError("Corrupt data file: Read %zd bytes, requested %lu", ret, sizeof(dataBlock_t));
         return NULL;
     }
 
@@ -1319,7 +1319,7 @@ static dataBlock_t *nfread(nffile_t *nffile) {
     } else if (ret == -1) {  // ERROR
         LogError("read() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
     } else {
-        LogError("read() error: Short read: Expected: %u, received: %u\n", buff->size, ret);
+        LogError("read() error: Short read: Expected: %u, received: %zd\n", buff->size, ret);
     }
 
     FreeDataBlock(buff);
@@ -1806,7 +1806,7 @@ int QueryFile(char *filename, int verbose) {
             return 0;
         }
         if (ret < sizeof(dataBlock_t)) {
-            LogError("Short read: Expected %u bytes, read: %i", sizeof(dataBlock_t), ret);
+            LogError("Short read: Expected %lu bytes, read: %zd", sizeof(dataBlock_t), ret);
             close(fd);
             return 0;
         }
@@ -1866,7 +1866,7 @@ int QueryFile(char *filename, int verbose) {
             return 0;
         }
         if (ret != readBlock->size) {
-            LogError("Short read: Expected %u bytes, read: %i", readBlock->size, ret);
+            LogError("Short read: Expected %u bytes, read: %zd", readBlock->size, ret);
             close(fd);
             return 0;
         }
@@ -1999,7 +1999,7 @@ int QueryFile(char *filename, int verbose) {
         if (i + 1 == fileHeader.NumBlocks) {
             off_t fsize = lseek(fd, 0, SEEK_CUR);
             if (fileHeader.appendixBlocks && fsize != fileHeader.offAppendix) {
-                LogError("Invalid appendix offset - Expected: %u, found: %u", fileHeader.offAppendix, fsize);
+                LogError("Invalid appendix offset - Expected: %ld, found: %ld", fileHeader.offAppendix, fsize);
                 close(fd);
                 return 0;
             }
@@ -2012,7 +2012,7 @@ int QueryFile(char *filename, int verbose) {
 
     off_t fsize = lseek(fd, 0, SEEK_CUR);
     if (fsize < stat_buf.st_size) {
-        LogError("Extra data detected after regular blocks: %i bytes", stat_buf.st_size - fsize);
+        LogError("Extra data detected after regular blocks: %ld bytes", stat_buf.st_size - fsize);
     }
 
     printf("\nTotal\n");
@@ -2086,7 +2086,7 @@ static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2) {
         return 0;
     }
     if (ret != sizeof(stat_recordV1_t)) {
-        LogError("Error reading v1 stat record - short read. Expected: %u, get %u", sizeof(stat_recordV1_t), ret);
+        LogError("Error reading v1 stat record - short read. Expected: %lu, get %zd", sizeof(stat_recordV1_t), ret);
         return 0;
     }
 

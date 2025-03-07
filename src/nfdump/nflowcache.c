@@ -847,7 +847,7 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
             keyLen = sizeof(FlowKeyV6_t);
         } else {
             // catch all cases, actually not needed.
-            LogError("ipv4Flow: %d, ipv6Flow: %d, maxKeyLen: %u", ipv4Flow != NULL, ipv6Flow != NULL, maxKeyLen);
+            LogError("ipv4Flow: %d, ipv6Flow: %d, maxKeyLen: %zu", ipv4Flow != NULL, ipv6Flow != NULL, maxKeyLen);
             memset(keymem, 0, maxKeyLen);
         }
     }
