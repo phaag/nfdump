@@ -1636,31 +1636,33 @@ void ModifyCompressFile(int compress) {
 }  // End of ModifyCompressFile
 
 int QueryFile(char *filename, int verbose) {
-    int fd;
-    uint32_t totalRecords, numBlocks, type1, type2, type3, type4;
-    struct stat stat_buf;
-    ssize_t ret;
-
     dbg_printf("Query mode verbose: %d\n", verbose);
     if (!Init_nffile(1, NULL)) return 0;
 
+    uint32_t totalRecords, numBlocks, type1, type2, type3, type4;
     type1 = type2 = type3 = type4 = 0;
     totalRecords = numBlocks = 0;
 
-    if (stat(filename, &stat_buf)) {
-        LogError("Can't stat '%s': %s", filename, strerror(errno));
+    if (access(filename, R_OK) < 0) {
+        LogError("Can't read '%s': %s", filename, strerror(errno));
         return 0;
     }
 
-    fd = open(filename, O_RDONLY);
+    int fd = open(filename, O_RDONLY);
     if (fd < 0) {
         LogError("Error open file: %s", strerror(errno));
         return 0;
     }
 
+    struct stat stat_buf;
+    if (fstat(fd, &stat_buf)) {
+        LogError("stat() error on '%s': %s", filename, strerror(errno));
+        return 0;
+    }
+
     // assume fileHeaderV2_t
     fileHeaderV2_t fileHeader;
-    ret = read(fd, (void *)&fileHeader, sizeof(fileHeaderV2_t));
+    ssize_t ret = read(fd, (void *)&fileHeader, sizeof(fileHeaderV2_t));
     if (ret < 1) {
         LogError("read() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         close(fd);
