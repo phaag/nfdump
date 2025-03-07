@@ -1044,38 +1044,31 @@ nffile_t *AppendFile(char *filename) {
 int RenameAppend(char *oldName, char *newName) {
     struct stat fstat;
 
-    int ret = stat(newName, &fstat);
-    if (ret == 0) {
-        // path exists
-        if (S_ISREG(fstat.st_mode)) {
-            // file exists already - concat them
-            nffile_t *nffile_w = AppendFile(newName);
-            if (!nffile_w) return -1;
+    if (access(newName, F_OK) == 0) {
+        // file exists already - concat them
+        nffile_t *nffile_w = AppendFile(newName);
+        if (!nffile_w) return -1;
 
-            nffile_t *nffile_r = OpenFile(oldName, NULL);
-            if (!nffile_r) return 0;
+        nffile_t *nffile_r = OpenFile(oldName, NULL);
+        if (!nffile_r) return 0;
 
-            // append data blocks
-            while (1) {
-                dataBlock_t *block_header = queue_pop(nffile_r->processQueue);
-                if (block_header == QUEUE_CLOSED)  // EOF
-                    break;
-                queue_push(nffile_w->processQueue, block_header);
-            }
-            CloseFile(nffile_r);
-
-            // sum stat_records
-            SumStatRecords(nffile_w->stat_record, nffile_r->stat_record);
-            DisposeFile(nffile_r);
-
-            CloseUpdateFile(nffile_w);
-            DisposeFile(nffile_w);
-
-            return unlink(oldName);
-        } else {
-            LogError("Path exists and is not a regular file: %s", newName);
-            return -1;
+        // append data blocks
+        while (1) {
+            dataBlock_t *block_header = queue_pop(nffile_r->processQueue);
+            if (block_header == QUEUE_CLOSED)  // EOF
+                break;
+            queue_push(nffile_w->processQueue, block_header);
         }
+        CloseFile(nffile_r);
+
+        // sum stat_records
+        SumStatRecords(nffile_w->stat_record, nffile_r->stat_record);
+        DisposeFile(nffile_r);
+
+        CloseUpdateFile(nffile_w);
+        DisposeFile(nffile_w);
+
+        return unlink(oldName);
     } else {
         // does not exist
         return rename(oldName, newName);
