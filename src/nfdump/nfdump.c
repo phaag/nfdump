@@ -709,7 +709,6 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 }  // End of process_data
 
 int main(int argc, char **argv) {
-    struct stat stat_buff;
     stat_record_t sum_stat;
     outputParams_t *outputParams;
     RecordPrinter_t print_record;
@@ -1036,31 +1035,11 @@ int main(int argc, char **argv) {
     }
 
     if (!filter && ffile) {
-        int ffd = open(ffile, O_RDONLY);
-        if (ffd < 0) {
-            LogError("open() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
+        filter = ReadFilter(ffile);
+        if (filter == NULL) {
             exit(255);
         }
 
-        if (fstat(ffd, &stat_buff) < 0) {
-            LogError("stat() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
-            exit(255);
-        }
-
-        filter = (char *)malloc(stat_buff.st_size);
-        if (!filter) {
-            LogError("malloc() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
-            exit(255);
-        }
-        int ret = read(ffd, (void *)filter, stat_buff.st_size);
-        if (ret < 0) {
-            LogError("read() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
-            close(ffd);
-            exit(255);
-        }
-        // terminating null byte
-        filter[stat_buff.st_size] = 0;
-        close(ffd);
         FilterFilename = ffile;
     }
 

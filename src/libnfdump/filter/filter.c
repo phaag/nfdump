@@ -839,21 +839,28 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
 }  // End of RunFilter
 
 char *ReadFilter(char *filename) {
-    struct stat stat_buff;
-    if (stat(filename, &stat_buff)) {
-        LogError("Can't stat filter file '%s': %s", filename, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-    char *filter = (char *)malloc(stat_buff.st_size + 1);
-    if (!filter) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
+    if (!CheckPath(filename, S_IFREG)) return NULL;
+
     int ffd = open(filename, O_RDONLY);
     if (ffd < 0) {
         LogError("Can't open filter file '%s': %s", filename, strerror(errno));
-        exit(EXIT_FAILURE);
+        return NULL;
     }
+
+    struct stat stat_buff;
+    if (fstat(ffd, &stat_buff)) {
+        LogError("stat() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        close(ffd);
+        return NULL;
+    }
+
+    char *filter = (char *)malloc(stat_buff.st_size + 1);
+    if (!filter) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        close(ffd);
+        return NULL;
+    }
+
     ssize_t ret = read(ffd, (void *)filter, stat_buff.st_size);
     if (ret < 0) {
         LogError("Error reading filter file %s: %s", filename, strerror(errno));
