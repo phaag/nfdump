@@ -459,7 +459,9 @@ int main(int argc, char **argv) {
     verbose = 0;
     int netflow_version = 9;
     uint64_t count = 0;
-    int confirm, distribution, c = 0;
+    int confirm = 0;
+    int distribution = 0;
+    int c = 0;
     while ((c = getopt(argc, argv, "46EhH:i:K:L:p:S:d:c:b:j:r:f:t:v:z:VY")) != EOF) {
         switch (c) {
             case 'h':

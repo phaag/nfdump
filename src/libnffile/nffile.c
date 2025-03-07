@@ -731,19 +731,19 @@ static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
         return NULL;
     } else {
         // regular file
-        if (stat(filename, &stat_buf)) {
-            LogError("stat() '%s': %s", filename, strerror(errno));
-            return NULL;
-        }
-
-        if (!S_ISREG(stat_buf.st_mode)) {
-            LogError("'%s' is not a file", filename);
+        if (access(filename, F_OK) < 0) {
+            LogError("access() '%s': %s", filename, strerror(errno));
             return NULL;
         }
 
         fd = open(filename, O_RDONLY);
         if (fd < 0) {
             LogError("Error open file: %s", strerror(errno));
+            return NULL;
+        }
+
+        if (fstat(fd, &stat_buf) < 0) {
+            LogError("fstat() '%s': %s", filename, strerror(errno));
             return NULL;
         }
     }
@@ -1042,8 +1042,6 @@ nffile_t *AppendFile(char *filename) {
 } /* End of AppendFile */
 
 int RenameAppend(char *oldName, char *newName) {
-    struct stat fstat;
-
     if (access(newName, F_OK) == 0) {
         // file exists already - concat them
         nffile_t *nffile_w = AppendFile(newName);
