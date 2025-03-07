@@ -439,7 +439,6 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 int main(int argc, char **argv) {
     struct stat stat_buff;
     char *ffile, *filter, *tstring;
-    int c, confirm, ret, netflow_version, distribution;
     unsigned int delay, sockbuff_size;
     timeWindow_t *timeWindow;
     flist_t flist;
@@ -457,11 +456,10 @@ int main(int argc, char **argv) {
 
     delay = 1;
     sockbuff_size = 0;
-    netflow_version = 9;
     verbose = 0;
-    confirm = 0;
-    distribution = 0;
+    int netflow_version = 9;
     uint64_t count = 0;
+    int confirm, distribution, c = 0;
     while ((c = getopt(argc, argv, "46EhH:i:K:L:p:S:d:c:b:j:r:f:t:v:z:VY")) != EOF) {
         switch (c) {
             case 'h':
@@ -583,12 +581,14 @@ int main(int argc, char **argv) {
             LogError("malloc() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
-        ret = read(ffd, (void *)filter, stat_buff.st_size);
+        int ret = read(ffd, (void *)filter, stat_buff.st_size);
         if (ret < 0) {
             LogError("read() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
             close(ffd);
             exit(255);
         }
+        // terminating null byte
+        filter[stat_buff.st_size] = 0;
         close(ffd);
     }
 

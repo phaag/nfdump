@@ -717,7 +717,7 @@ int main(int argc, char **argv) {
     char *wfile, *ffile, *filter, *tstring, *stat_type;
     char *print_format;
     char *print_order, *query_file, *configFile, *nameserver, *aggr_fmt;
-    int ffd, element_stat, fdump;
+    int element_stat, fdump;
     int flow_stat, aggregate, aggregate_mask, bidir;
     int print_stat, gnuplot_stat, syntax_only, compress, worker;
     int GuessDir, ModifyCompress;
@@ -899,7 +899,7 @@ int main(int argc, char **argv) {
                 outputParams->printPlain = 1;
                 break;
             case 'f':
-                CheckArgLen(optarg, MAXPATHLEN);
+                if (!CheckPath(optarg, S_IFREG)) exit(255);
                 ffile = optarg;
                 break;
             case 't':
@@ -1036,29 +1036,31 @@ int main(int argc, char **argv) {
     }
 
     if (!filter && ffile) {
-        if (stat(ffile, &stat_buff)) {
-            LogError("Can't stat filter file '%s': %s", ffile, strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-        filter = (char *)malloc(stat_buff.st_size + 1);
-        if (!filter) {
-            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-        ffd = open(ffile, O_RDONLY);
+        int ffd = open(ffile, O_RDONLY);
         if (ffd < 0) {
-            LogError("Can't open filter file '%s': %s", ffile, strerror(errno));
-            exit(EXIT_FAILURE);
+            LogError("open() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(255);
         }
-        ssize_t ret = read(ffd, (void *)filter, stat_buff.st_size);
+
+        if (fstat(ffd, &stat_buff) < 0) {
+            LogError("stat() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(255);
+        }
+
+        filter = (char *)malloc(stat_buff.st_size);
+        if (!filter) {
+            LogError("malloc() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(255);
+        }
+        int ret = read(ffd, (void *)filter, stat_buff.st_size);
         if (ret < 0) {
-            LogError("Error reading filter file %s: %s", ffile, strerror(errno));
+            LogError("read() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
             close(ffd);
-            exit(EXIT_FAILURE);
+            exit(255);
         }
+        // terminating null byte
         filter[stat_buff.st_size] = 0;
         close(ffd);
-
         FilterFilename = ffile;
     }
 
