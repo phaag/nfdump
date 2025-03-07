@@ -439,7 +439,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
 int main(int argc, char **argv) {
     struct stat stat_buff;
     char *ffile, *filter, *tstring;
-    int c, confirm, ffd, ret, netflow_version, distribution;
+    int c, confirm, ret, netflow_version, distribution;
     unsigned int delay, sockbuff_size;
     timeWindow_t *timeWindow;
     flist_t flist;
@@ -522,6 +522,7 @@ int main(int argc, char **argv) {
                 sockbuff_size = atoi(optarg);
                 break;
             case 'f':
+                if (!CheckPath(optarg, S_IFREG)) exit(255);
                 ffile = optarg;
                 break;
             case 't':
@@ -566,18 +567,20 @@ int main(int argc, char **argv) {
     if (peer.hostname == NULL) peer.hostname = DEFAULTHOSTNAME;
 
     if (!filter && ffile) {
-        if (stat(ffile, &stat_buff)) {
+        int ffd = open(ffile, O_RDONLY);
+        if (ffd < 0) {
+            LogError("open() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(255);
+        }
+
+        if (fstat(ffd, &stat_buff) < 0) {
             LogError("stat() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
+
         filter = (char *)malloc(stat_buff.st_size);
         if (!filter) {
             LogError("malloc() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
-            exit(255);
-        }
-        ffd = open(ffile, O_RDONLY);
-        if (ffd < 0) {
-            LogError("open() error in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
             exit(255);
         }
         ret = read(ffd, (void *)filter, stat_buff.st_size);
