@@ -88,7 +88,7 @@ int Unicast_receive_socket(const char *bindhost, const char *listenport, int fam
 
     error = getaddrinfo(bindhost, listenport, &hints, &res);
     if (error) {
-        LogError("getaddrinfo error: [%s]", gai_strerror(error));
+        LogError("getaddrinfo() can not resolve %s:%s - %s", bindhost == NULL ? "any" : bindhost, listenport, gai_strerror(error));
         return -1;
     }
 
@@ -173,7 +173,7 @@ int Unicast_send_socket(const char *hostname, const char *sendport, int family, 
 
     error = getaddrinfo(hostname, sendport, &hints, &res);
     if (error) {
-        LogError("getaddrinfo() error: %s", gai_strerror(error));
+        LogError("getaddrinfo() can not resolve %s:%s - %s", hostname, sendport, gai_strerror(error));
         return -1;
     }
 
@@ -247,7 +247,7 @@ int Multicast_receive_socket(const char *hostname, const char *listenport, int f
     error = getaddrinfo(hostname, listenport, &hints, &res);
 
     if (error) {
-        LogError("getaddrinfo error:: [%s]", gai_strerror(error));
+        LogError("getaddrinfo() can not resolve %s:%s - %s", hostname == NULL ? "localhost" : hostname, listenport, gai_strerror(error));
         return -1;
     }
 

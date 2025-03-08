@@ -162,11 +162,12 @@ pid_t write_pid(char *pidfile) {
  * Return the result from unlink(2)
  */
 int remove_pid(char *pidfile) {
+    if (pidfile == NULL) return 0;
     pid_t pid = read_pid(pidfile);
     if (pid == getpid()) {
         return unlink(pidfile);
     } else {
-        LogError("Pid file is held by pid %d", pid);
+        LogError("Pid file %s is held by pid %d", pidfile, pid);
         return -1;
     }
 }  // remove_pid

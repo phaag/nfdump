@@ -475,7 +475,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
 int main(int argc, char **argv) {
     char *bindhost, *datadir, *launch_process;
-    char *userid, *groupid, *listenport, *mcastgroup;
+    char *userid, *groupid, *mcastgroup;
     char *Ident, *dynFlowDir, *time_extension, *pidfile, *configFile, *metricSocket;
     char *extensionList;
     packet_function_t receive_packet;
@@ -490,11 +490,11 @@ int main(int argc, char **argv) {
     char *pcap_device = NULL;
 #endif
 
+    char *listenport = DEFAULTCISCOPORT;
     receive_packet = recvfrom;
     verbose = do_daemonize = 0;
     bufflen = 0;
     family = AF_UNSPEC;
-    listenport = DEFAULTCISCOPORT;
     bindhost = NULL;
     mcastgroup = NULL;
     pidfile = NULL;
@@ -600,7 +600,7 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, MAXPATHLEN);
                 dynFlowDir = strdup(optarg);
                 if (!CheckPath(dynFlowDir, S_IFDIR)) {
-                    LogError("No valid directory: %s", dynFlowDir);
+                    LogError("Invalid directory: %s for -M", dynFlowDir);
                     exit(EXIT_FAILURE);
                 }
                 if (!SetDynamicSourcesDir(&FlowSource, dynFlowDir)) {
@@ -616,10 +616,11 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'B': {
+                CheckArgLen(optarg, 16);
                 char *checkptr = NULL;
-                bufflen = strtol(optarg, &checkptr, 10);
-                if ((checkptr != NULL && *checkptr == 0) && bufflen > 0) break;
-                LogError("Argument error for -B");
+                bufflen = (int)strtol(optarg, &checkptr, 10);
+                if ((checkptr != NULL && *checkptr == 0) && (bufflen > 0 && bufflen < (1024 * 1024 * 100))) break;
+                LogError("Invalid argument %s for -B", optarg);
                 exit(EXIT_FAILURE);
             } break;
             case 'b':
@@ -629,6 +630,7 @@ int main(int argc, char **argv) {
                 mcastgroup = optarg;
                 break;
             case 'p':
+                CheckArgLen(optarg, 16);
                 listenport = optarg;
                 break;
             case 'P':
@@ -869,6 +871,7 @@ int main(int argc, char **argv) {
 
     if (!Init_v1(verbose) || !Init_v5_v7(verbose, sampling_rate) || !Init_pcapd(verbose) || !Init_v9(verbose, sampling_rate, extensionList) ||
         !Init_IPFIX(verbose, sampling_rate, extensionList)) {
+        close(sock);
         exit(EXIT_FAILURE);
     }
 
@@ -886,11 +889,18 @@ int main(int argc, char **argv) {
     }
 
     if (pidfile) {
-        if (check_pid(pidfile) != 0 || write_pid(pidfile) == 0) exit(EXIT_FAILURE);
+        pid_t pid = check_pid(pidfile);
+        if (pid != 0) {
+            LogError("Another process with pid %lu is holding the pidfile: %s", (long unsigned)pid, pidfile);
+            close(sock);
+            exit(255);
+        }
+        if (write_pid(pidfile) == 0) exit(EXIT_FAILURE);
     }
 
     if (metricSocket && !OpenMetric(metricSocket, metricInterval)) {
         close(sock);
+        remove_pid(pidfile);
         exit(EXIT_FAILURE);
     }
 
@@ -914,7 +924,7 @@ int main(int argc, char **argv) {
             close(sock);
             signalPrivsepChild(launcher_pid, pfd);
             signalPrivsepChild(repeater_pid, rfd);
-            if (pidfile) remove_pid(pidfile);
+            remove_pid(pidfile);
             exit(EXIT_FAILURE);
         }
         fs->subdir = subdir_index;
@@ -958,7 +968,7 @@ int main(int argc, char **argv) {
     }
 
     LogInfo("Terminating nfcapd.");
-    if (pidfile) remove_pid(pidfile);
+    remove_pid(pidfile);
 
     EndLog();
     return 0;
