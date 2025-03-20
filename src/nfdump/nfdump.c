@@ -578,8 +578,11 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         dbg(numBlocks++);
         dataBlock_t *dataBlock = dataHandle->dataBlock;
         record_header_t *record_ptr = GetCursor(dataBlock);
-
         uint64_t recordCounter = dataHandle->recordCnt;
+
+        // Copy the strdupped ident string to the output params. When printing records, this string is printed.
+        // However, it needs to be freed before another value is set or we will have a memory leak.
+        if (outputParams->ident) free(outputParams->ident);
         outputParams->ident = dataHandle->ident;
 
         // successfully read block
@@ -687,8 +690,8 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
         // Free the data handle here and the associated block. The 'ident' pointer is used elsewhere so this is freed elsewhere.
         FreeDataBlock(dataHandle->dataBlock);
-        if (dataHandle->ident) {
-            outputParams->ident = dataHandle->ident;
+        if (dataHandle)
+        {
             free(dataHandle);
         }
     }  // while
