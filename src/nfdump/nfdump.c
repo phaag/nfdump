@@ -1318,6 +1318,9 @@ int main(int argc, char **argv) {
 
     }  // else - no output
 
+    // Free the multiple files list if used.
+    if (flist.multiple_files) free(flist.multiple_files);
+
     // Free the output params struct and the ident. At this point, the 'outputParams' pointer should never be NULL since thsis check exists further up.
     if (outputParams->ident) free(outputParams->ident);
     free(outputParams);
