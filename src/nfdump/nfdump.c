@@ -490,6 +490,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
         if (sumSize) queue_push(processQueue, dataHandle);
     }
 
+    // Close the queue so this producer is removed. Once the filtering is done, the data block views can be consumed from the queue.
     queue_close(processQueue);
     dbg_printf("FilterThread %d done. blocks: %u records: %" PRIu64 " \n", self, numBlocks, processedRecords);
 
@@ -561,6 +562,8 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     dbg(uint32_t numBlocks = 0);
     int done = 0;
     while (!done) {
+        // Consume data block views from the queue until no more are available. The filter threads fill up this queue in the background.
+        // When there is no more data to be processed, the queue is closed from the filter threads and 'done' will be set to 1.
         dataHandle_t *dataHandle = queue_pop(filterArgs.processQueue);
         if (dataHandle == QUEUE_CLOSED) {  // no more blocks
             done = 1;
@@ -677,7 +680,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
         }  // for all records
 
-        // free resources
+        // Free the data handle here and the associated block. The 'ident' pointer is used elsewhere so this is freed elsewhere.
         FreeDataBlock(dataHandle->dataBlock);
         if (dataHandle->ident) {
             outputParams->ident = dataHandle->ident;
@@ -1314,6 +1317,10 @@ int main(int argc, char **argv) {
         }
 
     }  // else - no output
+
+    // Free the output params struct and the ident. At this point, the 'outputParams' pointer should never be NULL since thsis check exists further up.
+    if (outputParams->ident) free(outputParams->ident);
+    free(outputParams);
 
 #ifdef DEVEL
     DumpNbarList();
