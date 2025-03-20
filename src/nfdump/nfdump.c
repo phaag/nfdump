@@ -78,6 +78,7 @@
 extern char *FilterFilename;
 
 #define MAXANONWORKERS 8
+#define MAX_FILTER_THREADS 32
 
 typedef struct dataHandle_s {
     dataBlock_t *dataBlock;
@@ -524,7 +525,16 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     };
     queue_producers(filterArgs.processQueue, numWorkers);
 
-    pthread_t tidFilter[32];
+    // The thread IDs are stored on the stack and the number of threads seems very reasonable.
+    // But we have to check whether the number of workers does not exceed this amount or we will write outside of bounds.
+    if (numWorkers > MAX_FILTER_THREADS)
+    {
+        LogError("The number of requested workers: %i exceeds the maximum of %i. Setting number of workers to %i", numWorkers, MAX_FILTER_THREADS, MAX_FILTER_THREADS);
+        numWorkers = MAX_FILTER_THREADS;
+    }
+
+    // Create filter workers.
+    pthread_t tidFilter[MAX_FILTER_THREADS];
     for (int i = 0; i < numWorkers; i++) {
         int err = pthread_create(&(tidFilter[i]), NULL, filterThread, (void *)&filterArgs);
         if (err) {
