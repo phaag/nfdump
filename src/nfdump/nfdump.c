@@ -557,6 +557,11 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     }
 
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
+    if (!recordHandle)
+    {
+        LogError("calloc() failed in %s line %d.", __FILE__, __LINE__);
+        exit(255);
+    }
 
     // number of flows passed the filter
     dbg(uint32_t numBlocks = 0);
@@ -714,6 +719,9 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         }
         dbg_printf("processData() filter thread: %d\n", i);
     }
+
+    // Free the record handle.
+    if (recordHandle) free(recordHandle);
 
     totalPassed = filterArgs.passedRecords;
     skippedBlocks = prepareArgs.skippedBlocks;
