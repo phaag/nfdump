@@ -95,6 +95,20 @@ void FreeExporterList(void)
         {
             if (exporter_list[i])
             {
+                // Free the sampler sub-record if set.
+                if (exporter_list[i]->sampler)
+                {
+                    sampler_t* next = exporter_list[i]->sampler->next;
+                    while (next)
+                    {
+                        void* to_free = (void*)next;
+                        next = next->next;
+                        free(to_free);
+                    }
+                    free(exporter_list[i]->sampler);
+                }
+
+                // Free the exporter record.
                 free(exporter_list[i]);
             }
         }
