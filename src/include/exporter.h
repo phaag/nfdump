@@ -180,6 +180,8 @@ typedef struct exporter_s {
 
 int InitExporterList(void);
 
+void FreeExporterList(void);
+
 int AddExporterInfo(exporter_info_record_t *exporter_record);
 
 int AddSamplerRecord(sampler_record_t *sampler_record);

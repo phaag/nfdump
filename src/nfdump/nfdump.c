@@ -1329,6 +1329,9 @@ int main(int argc, char **argv) {
 
     }  // else - no output
 
+    // Free the exporter list if tracked.
+    FreeExporterList();
+
     // Free the multiple files list if used.
     if (flist.multiple_files) free(flist.multiple_files);
 

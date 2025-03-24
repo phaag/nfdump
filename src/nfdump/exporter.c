@@ -74,6 +74,7 @@ static char *getVersionString(uint16_t nfversion) {
 
 /* functions */
 int InitExporterList(void) {
+    // Exporter list is a contiguously allocated list of pointers.
     exporter_list = (exporter_t **)calloc(MAX_EXPORTERS, sizeof(exporter_t *));
     if (!exporter_list) {
         LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -84,20 +85,44 @@ int InitExporterList(void) {
 
 }  // End of InitExporterList
 
+// Frees all exporter entries tracked in the static exporter list.
+void FreeExporterList(void)
+{
+    if (exporter_list)
+    {
+        // Iterate through the exporter list array and test for tracked exporter descriptors.
+        for (uint32_t i = 0; i < MAX_EXPORTERS; i++)
+        {
+            if (exporter_list[i])
+            {
+                free(exporter_list[i]);
+            }
+        }
+
+        // Finally, release the exporter list itself.
+        free(exporter_list);
+    }
+}
+
 int AddExporterInfo(exporter_info_record_t *exporter_record) {
     if (exporter_record->header.size != sizeof(exporter_info_record_t)) {
         LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
 
+    // Tests whether the exporter list has been initialized or not.
     if (exporter_list == NULL) InitExporterList();
 
-    // sanity check
+    // Perform sanity check on the exporter record to see that it is not corrupted.
+    // The internal sysid is an uint16_t, so 65536 exporter entries can be stored at most.
+    // If the id is larger than 2^16, the record might be corrupted. (Don't change MAX_EXPORTERS!)
     uint32_t id = exporter_record->sysid;
     if (id >= MAX_EXPORTERS) {
         LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
+
+    // Check whether this exporter is already tracked, or find a new slot for it otherwise.
     if (exporter_list[id] != NULL) {
         // slot already taken - check if exporters are identical
         exporter_record->sysid = exporter_list[id]->info.sysid;
@@ -113,8 +138,8 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
                 ;
             }
             if (i >= MAX_EXPORTERS) {
-                // all slots taken
-                LogError("Too many exporters (>256)\n");
+                // All exporter slots are taken!
+                LogError("Too many exporters (> %i)\n", MAX_EXPORTERS);
                 return 0;
             }
             dbg_printf("Move existing exporter from slot %u, to %i\n", id, i);
