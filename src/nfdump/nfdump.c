@@ -528,8 +528,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
     // The thread IDs are stored on the stack and the number of threads seems very reasonable.
     // But we have to check whether the number of workers does not exceed this amount or we will write outside of bounds.
-    if (numWorkers > MAX_FILTER_THREADS)
-    {
+    if (numWorkers > MAX_FILTER_THREADS) {
         LogError("The number of requested workers: %i exceeds the maximum of %i. Setting number of workers to %i", numWorkers, MAX_FILTER_THREADS, MAX_FILTER_THREADS);
         numWorkers = MAX_FILTER_THREADS;
     }
@@ -557,8 +556,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     }
 
     recordHandle_t *recordHandle = calloc(1, sizeof(recordHandle_t));
-    if (!recordHandle)
-    {
+    if (!recordHandle) {
         LogError("calloc() failed in %s line %d.", __FILE__, __LINE__);
         exit(255);
     }
@@ -690,8 +688,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
         // Free the data handle here and the associated block. The 'ident' pointer is used elsewhere so this is freed elsewhere.
         FreeDataBlock(dataHandle->dataBlock);
-        if (dataHandle)
-        {
+        if (dataHandle) {
             free(dataHandle);
         }
     }  // while
