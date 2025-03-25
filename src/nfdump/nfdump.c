@@ -93,14 +93,14 @@ typedef struct prepareArgs_s {
 
 typedef struct filterArgs_s {
     _Atomic int self;
+    _Atomic uint64_t processedRecords;
+    _Atomic uint64_t passedRecords;
+    int hasGeoDB;
     int numWorkers;
     void *engine;
     timeWindow_t *timeWindow;
-    int hasGeoDB;
     queue_t *prepareQueue;
     queue_t *processQueue;
-    _Atomic uint64_t processedRecords;
-    _Atomic uint64_t passedRecords;
 } filterArgs_t;
 
 typedef struct filterStat_s {

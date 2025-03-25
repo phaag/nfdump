@@ -64,11 +64,16 @@ typedef char *(*string_function_t)(char *, recordHandle_t *);
 
 #include "itoa.c"
 
-#define AddString(s)               \
-    do {                           \
-        size_t len = strlen(s);    \
-        memcpy(streamPtr, s, len); \
-        streamPtr += len;          \
+// substitut ',' by ';' to keep csv clean
+#define AddString(s)                    \
+    do {                                \
+        size_t len = strlen((s));       \
+        for (int i = 0; i < len; i++) { \
+            if ((s)[i] == ',')          \
+                *streamPtr++ = ';';     \
+            else                        \
+                *streamPtr++ = (s)[i];  \
+        }                               \
     } while (0)
 
 #define AddChar(c) *streamPtr++ = (c);
