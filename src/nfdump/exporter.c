@@ -98,7 +98,6 @@ int InitExporterList(void) {
 // Frees all exporter entries tracked in the static exporter list.
 void FreeExporterList(void) {
     if (exporter_list) {
-        // Iterate through the exporter list array and test for tracked exporter descriptors.
         for (uint32_t i = 0; i < MAX_EXPORTERS; i++) {
             if (exporter_list[i]) {
                 // Free the sampler sub-record if set.
@@ -117,7 +116,6 @@ void FreeExporterList(void) {
             }
         }
 
-        // Finally, release the exporter list itself.
         free(exporter_list);
     }
 }
@@ -147,8 +145,7 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         }
         else
         {
-            // The colliding exporters are not equal, so we will have to move the currently stored one elsewhere.
-            // Useful check to keep, we just need to reference the tracking variable instead.
+            // The colliding exporters are not equal, move the currently stored one elsewhere.
             if (next_free_exporter_slot >= MAX_EXPORTERS) {
                 // The next free slot index may point outside of the list, but that doesn't mean all slots are taken.
                 if (number_of_exporters_tracked >= MAX_EXPORTERS) {
@@ -163,11 +160,10 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
 
                 // Did we find a new slot, or just reach the end of the list?
                 if (next_free_slot_idx >= MAX_EXPORTERS) {
-                    // Yep... everything is filled, we just don't have any more room.
-                    // Set the number of exporters to completely filled, and we should not reach the linear scan anymore.
+                    // All slots are filled. Set the number of exporters stored to the maximum and no linear scans will be done anymore.
                     number_of_exporters_tracked = MAX_EXPORTERS;
                 } else {
-                    // We have found a free slot somewhere, store the index of this slot for tracking the next exporter.
+                    // We have found a free slot somewhere, store its index for tracking the next exporter.
                     next_free_exporter_slot = next_free_slot_idx;
                 }
             }
@@ -187,12 +183,8 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         return 0;
     }
 
-    // Track the next free slot in the exporter list. This is not perfect, but we only need to scan the entire pointer
-    // list whenever this index variable starts to point outside of the list. The order in which exporters are stored will
-    // of course be different from the original way of storing.
-    next_free_exporter_slot = id + 1;
-
     // Increment the number of exporters we have currently tracked.
+    next_free_exporter_slot = id + 1;
     number_of_exporters_tracked++;
 
     // SPARC gcc fails here, if we use directly a pointer to the struct.
