@@ -78,6 +78,7 @@
 extern char *FilterFilename;
 
 #define MAXANONWORKERS 8
+#define MAX_FILTER_THREADS 32
 
 typedef struct dataHandle_s {
     dataBlock_t *dataBlock;
@@ -514,6 +515,10 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
     // check numWorkers depending on cores online
     uint32_t numWorkers = GetNumWorkers(0);
+    if (numWorkers > MAX_FILTER_THREADS) {
+        LogError("Limit number of filter threads to %d", MAX_FILTER_THREADS);
+        numWorkers = MAX_FILTER_THREADS;
+    }
     filterArgs_t filterArgs = {
         .engine = engine,
         .numWorkers = numWorkers,
@@ -524,7 +529,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     };
     queue_producers(filterArgs.processQueue, numWorkers);
 
-    pthread_t tidFilter[32];
+    pthread_t tidFilter[MAX_FILTER_THREADS];
     for (int i = 0; i < numWorkers; i++) {
         int err = pthread_create(&(tidFilter[i]), NULL, filterThread, (void *)&filterArgs);
         if (err) {
