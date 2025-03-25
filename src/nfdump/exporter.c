@@ -96,29 +96,23 @@ int InitExporterList(void) {
 }  // End of InitExporterList
 
 // Frees all exporter entries tracked in the static exporter list.
-void FreeExporterList(void)
-{
-    if (exporter_list)
-    {
+void FreeExporterList(void) {
+    if (exporter_list) {
         // Iterate through the exporter list array and test for tracked exporter descriptors.
-        for (uint32_t i = 0; i < MAX_EXPORTERS; i++)
-        {
-            if (exporter_list[i])
-            {
+        for (uint32_t i = 0; i < MAX_EXPORTERS; i++) {
+            if (exporter_list[i]) {
                 // Free the sampler sub-record if set.
-                if (exporter_list[i]->sampler)
-                {
+                if (exporter_list[i]->sampler) {
                     sampler_t* next = exporter_list[i]->sampler->next;
-                    while (next)
-                    {
+                    while (next) {
                         void* to_free = (void*)next;
                         next = next->next;
                         free(to_free);
                     }
+
                     free(exporter_list[i]->sampler);
                 }
 
-                // Free the exporter record.
                 free(exporter_list[i]);
             }
         }
@@ -134,19 +128,15 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         return 0;
     }
 
-    // Tests whether the exporter list has been initialized or not.
     if (exporter_list == NULL) InitExporterList();
 
     // Perform sanity check on the exporter record to see that it is not corrupted.
-    // The internal sysid is an uint16_t, so 65536 exporter entries can be stored at most.
-    // If the id is larger than 2^16, the record might be corrupted. (Don't change MAX_EXPORTERS!)
     const uint32_t id = exporter_record->sysid;
     if (id >= MAX_EXPORTERS) {
         LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
         return 0;
     }
 
-    // Check whether this exporter is already tracked, or find a new slot for it otherwise.
     if (exporter_list[id] != NULL) {
         // slot already taken - check if exporters are identical
         exporter_record->sysid = exporter_list[id]->info.sysid;
@@ -159,11 +149,9 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         {
             // The colliding exporters are not equal, so we will have to move the currently stored one elsewhere.
             // Useful check to keep, we just need to reference the tracking variable instead.
-            if (next_free_exporter_slot >= MAX_EXPORTERS)
-            {
+            if (next_free_exporter_slot >= MAX_EXPORTERS) {
                 // The next free slot index may point outside of the list, but that doesn't mean all slots are taken.
-                if (number_of_exporters_tracked >= MAX_EXPORTERS)
-                {
+                if (number_of_exporters_tracked >= MAX_EXPORTERS) {
                     // All exporter slots are taken! No more room, which is an unlikely scenario with 2^16 slots.
                     LogError("Too many exporters (> %i)\n", MAX_EXPORTERS);
                     return 0;
@@ -174,14 +162,11 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
                 while (next_free_slot_idx < MAX_EXPORTERS && exporter_list[next_free_slot_idx]) ++next_free_slot_idx;
 
                 // Did we find a new slot, or just reach the end of the list?
-                if (next_free_slot_idx >= MAX_EXPORTERS)
-                {
+                if (next_free_slot_idx >= MAX_EXPORTERS) {
                     // Yep... everything is filled, we just don't have any more room.
                     // Set the number of exporters to completely filled, and we should not reach the linear scan anymore.
                     number_of_exporters_tracked = MAX_EXPORTERS;
-                }
-                else
-                {
+                } else {
                     // We have found a free slot somewhere, store the index of this slot for tracking the next exporter.
                     next_free_exporter_slot = next_free_slot_idx;
                 }
