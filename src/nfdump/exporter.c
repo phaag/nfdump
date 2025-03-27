@@ -118,7 +118,6 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
 
             // advance next free - nextFree could reach MAX_EXPORTERS
             nextFree++;
-            while (nextFree < MAX_EXPORTERS && exporter_list[nextFree] != NULL) nextFree++;
         }
     }
 
@@ -161,6 +160,7 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
     }
 #endif
 
+    while (nextFree < MAX_EXPORTERS && exporter_list[nextFree] != NULL) nextFree++;
     dbg_printf("NextFree slot is %d\n\n", nextFree);
     return 1;
 
