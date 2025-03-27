@@ -472,6 +472,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
                 case ExporterInfoRecordType:
                 case ExporterStatRecordType:
                 case SamplerRecordType:
+                case SamplerLegacyRecordType:
                 case NbarRecordType:
                 case IfNameRecordType:
                 case VrfNameRecordType:
@@ -621,7 +622,10 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                 case ExporterInfoRecordType: {
                     int ret = AddExporterInfo((exporter_info_record_t *)record_ptr);
                     if (ret != 0) {
-                        if (nffile_w) dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
+                        if (nffile_w) {
+                            dbg_printf("Dump ExporterInfo Record to file\n");
+                            dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
+                        }
                     } else {
                         LogError("Failed to add Exporter Record\n");
                     }
@@ -630,12 +634,27 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                     AddExporterStat((exporter_stats_record_t *)record_ptr);
                     break;
                 case SamplerLegacyRecordType: {
-                    if (AddSamplerLegacyRecord((samplerV0_record_t *)record_ptr) == 0) LogError("Failed to add legacy Sampler Record\n");
+                    sampler_record_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
+                    if (sampler_record != NULL) {
+                        int ret = AddSamplerRecord(sampler_record);
+                        if (ret != 0) {
+                            if (nffile_w) {
+                                dbg_printf("Dump converted Sampler Record to file\n");
+                                dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)sampler_record, sampler_record->size);
+                            }
+                        } else {
+                            LogError("Failed to add converted Sampler Record\n");
+                        }
+                        free(sampler_record);
+                    }
                 } break;
                 case SamplerRecordType: {
                     int ret = AddSamplerRecord((sampler_record_t *)record_ptr);
                     if (ret != 0) {
-                        if (nffile_w) dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
+                        if (nffile_w) {
+                            dbg_printf("Dump Sampler Record to file\n");
+                            dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
+                        }
                     } else {
                         LogError("Failed to add Sampler Record\n");
                     }

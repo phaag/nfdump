@@ -50,7 +50,7 @@
 #define MAX_EXPORTERS 65536
 
 static exporter_t **exporter_list = NULL;
-static uint32_t nextFree = 0;
+static uint32_t nextFree = 1;
 
 static const struct versionString_s {
     uint16_t version;
@@ -106,10 +106,11 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
             // exporters not identical - move current slot to next free slot
             // nextFree slot is guaranteed to be free (NULL)
             exporter_list[nextFree] = exporter_list[id];
+            exporter_list[nextFree]->info.sysid = nextFree;
             exporter_list[id] = NULL;
-            exporter_record->sysid = nextFree;
+            exporter_record->sysid = id;
 
-            dbg_printf("Move existing exporter from slot %u, to %i\n", id, i);
+            dbg_printf("Move existing exporter from slot %u, to nextFree %i\n", id, nextFree);
             // else - move slot
         }
     }
@@ -121,10 +122,12 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         return 0;
     }
 
-    // memcpy((void *)&(exporter_list[id]->info), (void *)exporter_record, sizeof(exporter_info_record_t));
+    memcpy((void *)&(exporter_list[id]->info), (void *)exporter_record, sizeof(exporter_info_record_t));
+    /*
     char *p1 = (char *)&(exporter_list[id]->info);
     char *p2 = (char *)exporter_record;
     for (int i = 0; i < sizeof(exporter_info_record_t); i++) *p1++ = *p2++;
+    */
 
     dbg_printf("Insert exporter record in Slot: %i, Sysid: %u\n", id, exporter_record->sysid);
 
@@ -149,7 +152,6 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
             printf("**** Exporter IP version unknown ****\n");
         }
     }
-    printf("\n");
 #endif
 
     // check nextFree slot - if not NULL search nect free slot
@@ -163,34 +165,33 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         LogError("Too many exporters (>%d)\n", MAX_EXPORTERS);
         return 0;
     }
-
+    dbg_printf("NextFree slot is %d\n\n", nextFree);
     return 1;
 
 }  // End of AddExporterInfo
 
-int AddSamplerLegacyRecord(samplerV0_record_t *sampler_record) {
-    if (sampler_record->size != sizeof(samplerV0_record_t)) {
-        LogError("Corrupt sampler record in %s line %d", __FILE__, __LINE__);
-        return 0;
+sampler_record_t *ConvertLegacyRecord(samplerV0_record_t *legacy_record) {
+    if (legacy_record->size != sizeof(samplerV0_record_t)) {
+        LogError("Corrupt legacy sampler record detected in %s line %d", __FILE__, __LINE__);
+        return NULL;
     }
 
-    sampler_record_t convert_record = {0};
-    sampler_record_t *record = &convert_record;
-    if (sampler_record->size == sizeof(samplerV0_record_t)) {
-        samplerV0_record_t *samplerV0_record = (samplerV0_record_t *)sampler_record;
-
-        convert_record.type = SamplerRecordType;
-        convert_record.size = sizeof(sampler_record_t);
-        convert_record.exporter_sysid = samplerV0_record->exporter_sysid;
-        convert_record.id = samplerV0_record->id;
-        convert_record.algorithm = samplerV0_record->algorithm;
-        convert_record.packetInterval = 1;
-        convert_record.spaceInterval = samplerV0_record->interval - 1;
-        record = &convert_record;
+    sampler_record_t *sampler_record = calloc(1, sizeof(sampler_record_t));
+    if (!sampler_record) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
     }
-    return AddSamplerRecord(record);
 
-}  // End of AddSamplerLegacyRecord
+    sampler_record->type = SamplerRecordType;
+    sampler_record->size = sizeof(sampler_record_t);
+    sampler_record->exporter_sysid = legacy_record->exporter_sysid;
+    sampler_record->id = legacy_record->id;
+    sampler_record->algorithm = legacy_record->algorithm;
+    sampler_record->packetInterval = 1;
+    sampler_record->spaceInterval = legacy_record->interval - 1;
+
+    return sampler_record;
+}  // End of ConvertLegacyRecord
 
 int AddSamplerRecord(sampler_record_t *sampler_record) {
     uint32_t id = sampler_record->exporter_sysid;
@@ -237,6 +238,7 @@ int AddSamplerRecord(sampler_record_t *sampler_record) {
             printf("Exporter SysID: %u,	Sampler: algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->exporter_sysid,
                    sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
         }
+        printf("\n");
     }
 #endif
 
@@ -312,14 +314,13 @@ dataBlock_t *ExportExporterList(nffile_t *nffile, dataBlock_t *dataBlock) {
 
     int i = 1;
     while (i < MAX_EXPORTERS && exporter_list[i] != NULL) {
-        exporter_info_record_t *exporter;
-        sampler_t *sampler;
-
-        exporter = &exporter_list[i]->info;
+        exporter_info_record_t *exporter = &exporter_list[i]->info;
+        dbg_printf("Dump exporter: %d\n", i);
         dataBlock = AppendToBuffer(nffile, dataBlock, (void *)exporter, exporter->header.size);
 
-        sampler = exporter_list[i]->sampler;
+        sampler_t *sampler = exporter_list[i]->sampler;
         while (sampler) {
+            dbg_printf("  Dump sampler for exporter: %d\n", i);
             dataBlock = AppendToBuffer(nffile, dataBlock, (void *)&(sampler->record), sampler->record.size);
             sampler = sampler->next;
         }
@@ -375,11 +376,15 @@ void PrintExporters(void) {
                         LogError("Failed to add sampler record\n");
                     }
                     break;
-                case SamplerLegacyRecordType:
-                    if (!AddSamplerLegacyRecord((samplerV0_record_t *)record)) {
-                        LogError("Failed to add legacy sampler record\n");
+                case SamplerLegacyRecordType: {
+                    sampler_record_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record);
+                    if (sampler_record != NULL) {
+                        if (!AddSamplerRecord(sampler_record)) {
+                            LogError("Failed to add sampler record\n");
+                        }
+                        free(sampler_record);
                     }
-                    break;
+                } break;
             }
             // Advance pointer by number of bytes for netflow record
             record = (record_header_t *)((void *)record + record->size);

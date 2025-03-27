@@ -184,7 +184,7 @@ int AddExporterInfo(exporter_info_record_t *exporter_record);
 
 int AddSamplerRecord(sampler_record_t *sampler_record);
 
-int AddSamplerLegacyRecord(samplerV0_record_t *sampler_record);
+sampler_record_t *ConvertLegacyRecord(samplerV0_record_t *legacy_record);
 
 int AddExporterStat(exporter_stats_record_t *stat_record);
 
