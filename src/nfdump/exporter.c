@@ -110,13 +110,15 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
                 return 0;
             }
             // nextFree slot is guaranteed to be free (NULL)
+            dbg_printf("Move existing exporter from slot %u, to nextFree %i\n", id, nextFree);
             exporter_list[nextFree] = exporter_list[id];
             exporter_list[nextFree]->info.sysid = nextFree;
             exporter_list[id] = NULL;
             exporter_record->sysid = id;
 
-            dbg_printf("Move existing exporter from slot %u, to nextFree %i\n", id, nextFree);
-            // else - move slot
+            // advance next free - nextFree could reach MAX_EXPORTERS
+            nextFree++;
+            while (nextFree < MAX_EXPORTERS && exporter_list[nextFree] != NULL) nextFree++;
         }
     }
 
@@ -159,17 +161,6 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
     }
 #endif
 
-    // check nextFree slot - if not NULL search nect free slot
-    if (exporter_list[nextFree] == NULL) return 1;
-
-    // all slots below nextFree are taken
-    nextFree++;
-    while (nextFree < MAX_EXPORTERS && exporter_list[nextFree] != NULL) nextFree++;
-    if (nextFree >= MAX_EXPORTERS) {
-        // all slots taken - no free slot
-        LogError("Too many exporters (>%d)\n", MAX_EXPORTERS);
-        return 0;
-    }
     dbg_printf("NextFree slot is %d\n\n", nextFree);
     return 1;
 
