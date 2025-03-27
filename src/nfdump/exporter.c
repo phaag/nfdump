@@ -104,6 +104,11 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
             return 2;
         } else {
             // exporters not identical - move current slot to next free slot
+            if (nextFree >= MAX_EXPORTERS) {
+                // all slots taken - no free slot
+                LogError("Too many exporters (>%d)\n", MAX_EXPORTERS);
+                return 0;
+            }
             // nextFree slot is guaranteed to be free (NULL)
             exporter_list[nextFree] = exporter_list[id];
             exporter_list[nextFree]->info.sysid = nextFree;
