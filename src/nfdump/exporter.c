@@ -58,6 +58,7 @@ static uint32_t next_free_exporter_slot = 0;
 // order and the naive scanning for a new free slot will not suffice. As long as we did not reach the total
 // number of supported exporters yet, we can find a new slot only when necessary.
 static uint32_t number_of_exporters_tracked = 0;
+static uint32_t max_sysid = 0;
 
 /* local variables */
 #define MAX_EXPORTERS 65536
@@ -135,6 +136,12 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         return 0;
     }
 
+    if (number_of_exporters_tracked >= MAX_EXPORTERS) {
+        // All exporter slots are taken!
+        LogError("(1) Too many exporters (> %i)\n", MAX_EXPORTERS);
+        return 0;
+    }
+
     if (exporter_list[id] != NULL) {
         // slot already taken - check if exporters are identical
         exporter_record->sysid = exporter_list[id]->info.sysid;
@@ -147,21 +154,15 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         {
             // The colliding exporters are not equal, move the currently stored one elsewhere.
             if (next_free_exporter_slot >= MAX_EXPORTERS) {
-                // The next free slot index may point outside of the list, but that doesn't mean all slots are taken.
-                if (number_of_exporters_tracked >= MAX_EXPORTERS) {
-                    // All exporter slots are taken! No more room, which is an unlikely scenario with 2^16 slots.
-                    LogError("Too many exporters (> %i)\n", MAX_EXPORTERS);
-                    return 0;
-                }
-
-                // Still here, so there must be another slot. Now we scan linearly for the next free one.
+                // There must be another free slot somewhere in the list. Scan linearly to find it.
                 uint32_t next_free_slot_idx = 0;
                 while (next_free_slot_idx < MAX_EXPORTERS && exporter_list[next_free_slot_idx]) ++next_free_slot_idx;
 
                 // Did we find a new slot, or just reach the end of the list?
-                if (next_free_slot_idx >= MAX_EXPORTERS) {
-                    // All slots are filled. Set the number of exporters stored to the maximum and no linear scans will be done anymore.
+                if ((next_free_slot_idx == 0 && exporter_list[next_free_slot_idx]) || next_free_slot_idx >= MAX_EXPORTERS) {
                     number_of_exporters_tracked = MAX_EXPORTERS;
+                    LogError("Too many exporters (> %i)\n", MAX_EXPORTERS);
+                    return 0;
                 } else {
                     // We have found a free slot somewhere, store its index for tracking the next exporter.
                     next_free_exporter_slot = next_free_slot_idx;
@@ -183,9 +184,17 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         return 0;
     }
 
-    // Increment the number of exporters we have currently tracked.
-    next_free_exporter_slot = id + 1;
     number_of_exporters_tracked++;
+    max_sysid = max_sysid > id ? max_sysid : id;
+
+    // Test whether the assumed next slot is free. If not, find the next slot that is.
+    if (exporter_list[++next_free_exporter_slot])
+    {
+        // We assume SysIDs are set in ascending order, and therefore, heuristically it would be the most efficient to start from the highest seen SysID.
+        uint32_t next_free_slot_idx = max_sysid;
+        while (exporter_list[next_free_slot_idx] && next_free_slot_idx < MAX_EXPORTERS) ++next_free_slot_idx;
+        next_free_exporter_slot = next_free_slot_idx;
+    }
 
     // SPARC gcc fails here, if we use directly a pointer to the struct.
     // SPARC barfs and core dumps otherwise
