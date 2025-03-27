@@ -46,11 +46,11 @@
 #include "nfxV3.h"
 #include "util.h"
 
-/* global */
-static exporter_t **exporter_list = NULL;
-
-/* local variables */
+// exporter local variables
 #define MAX_EXPORTERS 65536
+
+static exporter_t **exporter_list = NULL;
+static uint32_t nextFree = 0;
 
 static const struct versionString_s {
     uint16_t version;
@@ -58,8 +58,6 @@ static const struct versionString_s {
 } versionString[] = {{5, "netflow v5"}, {9, "netflow v9"}, {10, "ipfix v10"}, {9999, "sflow"}, {0, NULL}};
 
 /* local prototypes */
-static exporter_t *exporter_root;
-
 static char *getVersionString(uint16_t nfversion);
 
 #include "nffile_inline.c"
@@ -79,7 +77,6 @@ int InitExporterList(void) {
         LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
-    exporter_root = NULL;
     return 1;
 
 }  // End of InitExporterList
@@ -106,22 +103,14 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
             // we are done
             return 2;
         } else {
-            // exporters not identical - move current slot
-            int i;
-            // search first empty slot at the top of the list
-            for (i = id + 1; i < MAX_EXPORTERS && exporter_list[i] != NULL; i++) {
-                ;
-            }
-            if (i >= MAX_EXPORTERS) {
-                // all slots taken
-                LogError("Too many exporters (>256)\n");
-                return 0;
-            }
+            // exporters not identical - move current slot to next free slot
+            // nextFree slot is guaranteed to be free (NULL)
+            exporter_list[nextFree] = exporter_list[id];
+            exporter_list[id] = NULL;
+            exporter_record->sysid = nextFree;
+
             dbg_printf("Move existing exporter from slot %u, to %i\n", id, i);
             // else - move slot
-            exporter_list[i] = exporter_list[id];
-            exporter_list[id] = NULL;
-            exporter_record->sysid = i;
         }
     }
 
@@ -132,8 +121,6 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
         return 0;
     }
 
-    // SPARC gcc fails here, if we use directly a pointer to the struct.
-    // SPARC barfs and core dumps otherwise
     // memcpy((void *)&(exporter_list[id]->info), (void *)exporter_record, sizeof(exporter_info_record_t));
     char *p1 = (char *)&(exporter_list[id]->info);
     char *p2 = (char *)exporter_record;
@@ -165,11 +152,20 @@ int AddExporterInfo(exporter_info_record_t *exporter_record) {
     printf("\n");
 #endif
 
-    if (!exporter_root) {
-        exporter_root = exporter_list[id];
+    // check nextFree slot - if not NULL search nect free slot
+    if (exporter_list[nextFree] == NULL) return 1;
+
+    // all slots below nextFree are taken
+    nextFree++;
+    while (nextFree < MAX_EXPORTERS && exporter_list[nextFree] != NULL) nextFree++;
+    if (nextFree >= MAX_EXPORTERS) {
+        // all slots taken - no free slot
+        LogError("Too many exporters (>%d)\n", MAX_EXPORTERS);
+        return 0;
     }
 
     return 1;
+
 }  // End of AddExporterInfo
 
 int AddSamplerLegacyRecord(samplerV0_record_t *sampler_record) {

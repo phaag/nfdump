@@ -68,11 +68,12 @@ typedef char *(*string_function_t)(char *, recordHandle_t *);
 #define AddString(s)                    \
     do {                                \
         size_t len = strlen((s));       \
+        const char *str = (s);          \
         for (int i = 0; i < len; i++) { \
-            if ((s)[i] == ',')          \
+            if (str[i] == ',')          \
                 *streamPtr++ = ';';     \
             else                        \
-                *streamPtr++ = (s)[i];  \
+                *streamPtr++ = str[i];  \
         }                               \
     } while (0)
 

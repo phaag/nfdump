@@ -1,4 +1,63 @@
-- 79d251c 2024-10-23  (HEAD -> master, origin/master, origin/HEAD) Commit Releas 1.7.5
+- 97fb5d6 2025-03-25  (HEAD -> master, origin/master, origin/HEAD) Fix potential stack overflow with max workers. ##610
+- f64f3ee 2025-03-25  Fix #612. Prevent errornous ',' in Strings in csv output.
+- c4bab8d 2025-03-08  Improve some argument and error handling
+- c017486 2025-03-07  Refrag some code
+- b421fa6 2025-03-07  Use common ReadFilter() func
+- 9474fb6 2025-03-07  Minor cleanup
+- 4bb20c8 2025-03-07  Improve append file handling
+- c484146 2025-03-07  Improve reading filter file in nfdump.c - prevent race-condition
+- 522dd57 2025-03-07  Improve reading filter file in nfreplay.c - prevent race-condition
+- 6e8a1a1 2025-03-07  Fix various printf type formats
+- 7c6b31c 2025-02-21  Fix out packets/bytes filter and add checks in nftest
+- 32ec601 2025-02-19  Cleanup yyprintf in grammar file and limit potential string overflow. Keep gcc happy
+- 5ce0358 2025-02-16  Fix #602 - FreeBSD incompatible fts compar function definition
+- 43ae7f1 2025-02-16  Remove extra newline in too many LogError messages
+- 3f1e988 2025-02-09  Fix autoconf build. I hate autotools - sigh ..!
+- e2b697f 2025-02-09  Make nfpcapd to read gzip compressed pcap files transparently. Requires zlib to be installed.
+- 4107964 2025-02-07  Fixed#600 -  iplist filter syntax.
+- 8413cd0 2025-02-07  Fix help text. #599
+- 0fba14c 2025-02-07  Update help text for nfdump
+- 81c45e7 2025-01-31  Handle Palo Alto PA-5420 time stamps in V9 events without event time element
+- 284da0c 2025-01-31  Allow user selected output format with custom aggregation. See #597
+- 0618ad9 2025-01-26  Merge branch 'master' of ssh://github.com/phaag/nfdump Merge remote
+- e098f3d 2025-01-26  Minor formating cosmetic
+- e476142 2025-01-21  Merge pull request #594 from emmanuel-ferdman/master
+- f47a4d5 2025-01-20  Update JA4 Fingerprinting reference
+- 39bde28 2025-01-19  Remove batch
+- 89b6446 2025-01-19  Add batch
+- 70aaad5 2025-01-19  Some code cleanup
+- 753fa86 2025-01-19  Some code cleanup
+- 1eb14a5 2025-01-19  Make sure aggregated records are written properly to disk with -w.
+- 5d43e46 2025-01-19  Cleanup code
+- 25cf20a 2025-01-18  Add ident as %idt token in output formats. Adjust raw and json accordingly
+- c231972 2025-01-18  Streamline argument passing in printer function
+- a32fbcd 2025-01-18  Merge pull request #592 from droe/droe/fix-ja4-ssl2
+- a4fbb56 2025-01-17  Fix wrong SSL 2.0 version and remove SSL 1.0 (bug in older JA4 spec)
+- 9b2da1f 2025-01-11  Extend timeWindow to msec format everywhere
+- 52c93cd 2025-01-11  Add new filter elements: first seen xx, last seen xx. See also #590
+- 3831e66 2025-01-11  Cleanup code for time window -t. Remove relativ syntax - did not wotk correctly anyway
+- 597f9d0 2025-01-10  Update nfgen to update stat record
+- 81358f5 2025-01-10  Update man page nfdump.1 for nat filters. See #589
+- e183b01 2025-01-08  Implement #445 - add option to preserve src or dst IP address of the record. Do not implement privat ranges, as there is no value.
+- ad7f9a6 2025-01-08  Implements #574 Tunnel extension & IPv6 encapsulation in sfcapd. Implements code from pull request but uses proposed singel option parse_tun for gre and 6in4 likewise. Opens option for other tunnels such as 4in6 4in6, 6in6 ... Original pull request closed.
+- ad2815c 2025-01-03  Fix man page typos
+- 0665e9b 2024-12-30  Merge pull request #587 from co404/patch-2
+- 1c09762 2024-12-29  Update nfdump.1
+- a5c6419 2024-12-24  Fix mixed up stack positions
+- 07d17e3 2024-12-23  Wire ipfix tags 150/151 - seconds accuracy first/last seen timestamps. #585
+- 50ea00c 2024-12-13  Fix #584. 16byte element ype in hash
+- 6b7b397 2024-12-12  Fix writing pid file in nfpcapd. #582
+- a8f3ede 2024-12-04  Add 'ttl equal' filter for min ttl == max ttl
+- 21d61fc 2024-12-01  Add filter for "min ttl" and "max ttl" Remove old ttl. Map old filter ttl into "min ttl or max ttl" Add min/max TTL in ipfix and netflowv9 module Replace old TTL in nfpcapd and add min/max TTL. Closes #580
+- e221092 2024-11-24  Fix man page for #581 and adapt also the -s statistics xip -> natip
+- 856bbc0 2024-11-24  Wire ttl und frag flags - #580
+- ad15f25 2024-11-10  Fix flow counter in sort list. #575
+- c1db0ce 2024-11-10  Fix more %lld and %llx diag printf
+- b845a53 2024-11-10  Fix a few size_t diag printf
+- 8a11e1a 2024-11-10  Fix old %llu printf with PRIu64 format
+- 6cd6a95 2024-11-10  Fix #576 - Replace legacy TZ in tests
+- 79f8637 2024-11-09  Fix #577. Compiler slack space difference.
+- 79d251c 2024-10-23  (tag: v1.7.5) Commit Releas 1.7.5
 - 18dc06d 2024-10-23  Fix nfeplay template identifu ID
 - 4c8b892 2024-10-19  Merge pull request #571 from TiceDB/patch-2
 - b96828f 2024-10-19  Merge pull request #570 from TiceDB/patch-1
