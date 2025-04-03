@@ -59,6 +59,7 @@
 /* local variables */
 static uint32_t exporter_sysid = 0;
 static char *DynamicSourcesDir = NULL;
+static int DynamicSourcesSubDir = 0;
 
 /* local prototypes */
 static uint32_t AssignExporterID(void);
@@ -88,6 +89,10 @@ int SetDynamicSourcesDir(FlowSource_t **FlowSource, char *dir) {
     return 1;
 
 }  // End of SetDynamicSourcesDir
+
+void SetDynamicSourcesSubDir(int subdir_index) {
+    DynamicSourcesSubDir = subdir_index;
+} // End of SetDynamicSourcesSubDir
 
 int AddFlowSourceConfig(FlowSource_t **FlowSource) {
     char *ident, *ip, *flowdir;
@@ -342,6 +347,7 @@ FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storag
         return NULL;
     }
     (*source)->datadir = strdup(path);
+    (*source)->subdir = DynamicSourcesSubDir;
 
     if (snprintf(path, MAXPATHLEN - 1, "%s/%s.%lu", (*source)->datadir, NF_DUMPFILE, (unsigned long)getpid()) >= (MAXPATHLEN - 1)) {
         LogError("Path too long: %s\n", path);
