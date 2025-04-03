@@ -751,6 +751,10 @@ int main(int argc, char **argv) {
         }
     }
 
+    if (dynFlowDir && subdir_index) {
+        SetDynamicSourcesSubDir(subdir_index);
+    }
+
     if (!InitLog(do_daemonize, argv[0], SYSLOG_FACILITY, verbose)) {
         exit(EXIT_FAILURE);
     }

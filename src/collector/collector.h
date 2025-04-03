@@ -117,6 +117,7 @@ int AddFlowSourceConfig(FlowSource_t **FlowSource);
 int AddFlowSourceString(FlowSource_t **FlowSource, char *argument);
 
 int SetDynamicSourcesDir(FlowSource_t **FlowSource, char *dir);
+void SetDynamicSourcesSubDir(int subdir_index);
 
 FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storage *ss);
 
