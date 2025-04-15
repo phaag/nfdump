@@ -450,14 +450,14 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 	}
 
 	| STRING SEEN comp STRING {
-		$$.self = AddTimeSting($1, $3.comp, $4);
+		$$.self = AddTimeSting($1, $3.comp, $4); if ( $$.self < 0 ) YYABORT;
 	}
 
   | STRING SEEN comp NUMBER {
 		char s[32] = {0};
 		int i = $4;
 		snprintf(s, 31, "%d", i );
-		$$.self = AddTimeSting($1, $3.comp, s);
+		$$.self = AddTimeSting($1, $3.comp, s); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| PF STRING STRING {
@@ -1514,7 +1514,7 @@ static int AddTimeSting(char *firstLast, uint16_t comp, char *timeString) {
 
 	if ( strcasecmp(firstLast, "first") == 0 ) { // first seen
 		ret =  NewElement(EXgenericFlowID, OFFmsecFirst, SIZEmsecFirst, number, comp, FUNC_NONE, NULLPtr);
-	} if ( strcasecmp(firstLast, "last") == 0 ) { // last seen
+	} else if ( strcasecmp(firstLast, "last") == 0 ) { // last seen
 		ret =  NewElement(EXgenericFlowID, OFFmsecLast, SIZEmsecLast, number, comp, FUNC_NONE, NULLPtr);
 	}	else { 
 		yyprintf("Unexpected token: %s", timeString);

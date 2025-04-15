@@ -453,7 +453,7 @@ uint64_t ParseTime8601(const char *s) {
     num = atoi(p);
 
     free(tmpString);
-    return timeStamp + (uint64_t)num;
+    return 1000LL * timeStamp + (uint64_t)num;
 
 }  // End of ParseTime
 
