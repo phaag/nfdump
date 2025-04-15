@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -47,6 +47,8 @@ typedef struct flist_s {
 int InitHierPath(int num);
 
 char *GetSubDir(struct tm *now);
+
+int GetSubDirIndex(void);
 
 int SetupSubDir(char *dir, char *subdir, char *error, size_t errlen);
 

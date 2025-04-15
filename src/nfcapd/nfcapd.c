@@ -412,6 +412,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 // fatal error
                 return;
             }
+            fs->subdir = GetSubDirIndex();
             fs->nffile = OpenNewFile(fs->current, NULL, CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
                 LogError("Failed to open new collector file");

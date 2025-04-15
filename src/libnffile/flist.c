@@ -192,7 +192,8 @@ static const char *subdir_def[] = {"",  // default index 0 - no subdir hierarchy
 #define AcceptedFormatChar "YymdjHMsUWwuF"
 
 static mode_t mode, dir_mode;
-static const char *subdir_format;
+static const char *subdir_format = NULL;
+static int subdir_index = 0;
 
 static struct entry_filter_s {
     char *first_entry;
@@ -1030,6 +1031,7 @@ int InitHierPath(int num) {
     }
 
     subdir_format = subdir_def[i];
+    subdir_index = i;
 
     /*
      * The default file mode is a=rwx (0777) with selected permissions
@@ -1114,6 +1116,8 @@ char *GetSubDir(struct tm *now) {
     return sublen == 0 ? NULL : subpath;
 
 }  // End of GetSubDir
+
+int GetSubDirIndex(void) { return subdir_index; }
 
 int SetupSubDir(char *dir, char *subdir, char *error, size_t errlen) {
     char *p, path[MAXPATHLEN];
