@@ -37,7 +37,7 @@
 
 // events
 #ifdef JUNOS
-// Juniper uses a differet mapping of events
+// Juniper uses a different mapping of events
 // https://www.juniper.net/documentation/us/en/software/junos/flow-monitoring/topics/concept/services-logging-flowmonitoring-format-nat-events.html
 
 #define JUNOS_EVENT_IGNORE 0

@@ -251,7 +251,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
     if ((profile_param->profiletype & 4) == 0) {  // no shadow profile
         int is_alert = (profile_param->profiletype & 8) == 8;
         if (!is_alert && subdir_index && strlen(filename) == 19 && (strncmp(filename, "nfcapd.", 7) == 0)) {
-            char *p = &filename[7];  // points to ISO timstamp in filename
+            char *p = &filename[7];  // points to ISO timestamp in filename
             time_t t = ISO2UNIX(p);
             struct tm *t_tm = localtime(&t);
             char error[255];
@@ -371,7 +371,7 @@ void VerifyFiles(void) {
     for (unsigned num = 0; num < num_channels; num++) {
         if (profile_channels[num].wfile) {
             int err = QueryFile(profile_channels[num].wfile, 1);
-            LogError("Veryfied %s: err: %d\n", profile_channels[num].wfile, err);
+            LogError("Verified %s: err: %d\n", profile_channels[num].wfile, err);
         }
     }
 

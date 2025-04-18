@@ -81,7 +81,7 @@ enum {
  *	which uniquely can identify each exporter/Observation Domain
  */
 typedef struct exporterDomain_s {
-    struct exporterDomain_s *next;  // linkes list to next exporter
+    struct exporterDomain_s *next;  // links list to next exporter
 
     // exporter information
     exporter_info_record_t info;
@@ -1177,7 +1177,7 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
 
     dbg_printf("\n[%u] Option size: %" PRIu64 ", flags: %" PRIx64 "\n", exporter->info.id, optionTemplate->optionSize, optionTemplate->flags);
     if (optionTemplate->flags) {
-        // if it exitsts - remove old template on exporter with same ID
+        // if it exists - remove old template on exporter with same ID
         templateList_t *template = newTemplate(exporter, tableID);
         if (!template) {
             LogError("Process_ipfix: abort template add: %s line %d", __FILE__, __LINE__);
@@ -1992,7 +1992,7 @@ void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         if (flowset_length == 0) {
             /* 	this should never happen, as 4 is an empty flowset
                     and smaller is an illegal flowset anyway ...
-                    if it happends, we can't determine the next flowset, so skip the entire export
+                    if it happens, we can't determine the next flowset, so skip the entire export
                packet
              */
             LogError("Process_ipfix: flowset zero length error.");

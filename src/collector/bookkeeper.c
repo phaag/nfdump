@@ -151,7 +151,7 @@ int InitBookkeeper(bookkeeper_t **bookkeeper, char *path, pid_t nfcapd_pid) {
         // the segment already exists. Either a running process is active
         // or an unclean shutdown happened
 
-        // map the segement and check the record
+        // map the segment and check the record
         *bookkeeper = (bookkeeper_t *)shmat(shm_id, NULL, 0);
         if (*bookkeeper == (bookkeeper_t *)-1) {
             LogError("shmat() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -397,7 +397,7 @@ void ReleaseBookkeeper(bookkeeper_t *bookkeeper, int destroy) {
         return;
     }
 
-    // prevent other proceeses to access the share memory, while we are removing it
+    // prevent other processes to access the share memory, while we are removing it
     // try to clean up.
     sem_lock(bookkeeper_list_entry->sem_id);
     if (shmctl(bookkeeper_list_entry->shm_id, IPC_RMID, &buf)) {

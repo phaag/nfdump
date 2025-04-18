@@ -1013,7 +1013,7 @@ static int AddFwdStatString(char *string) {
 	int	fwdStatus = fwdStatusNum(string);
 	if ( fwdStatus < 0 ) {
 	  fwdStatusInfo();
-	  yyprintf("Unkown forwarding status: %s", string);
+	  yyprintf("Unknown forwarding status: %s", string);
 		return -1;
 	}
 
@@ -1411,7 +1411,7 @@ static int AddGeo(direction_t direction, char *geo) {
 	// lex rule guarantees 6 bytes - just test again
 	geo += 4;
 	if ( strlen(geo) != 2 ) {
-			yyprintf("Geo country code legnth error");
+			yyprintf("Geo country code length error");
 			return -1;
 	}
 

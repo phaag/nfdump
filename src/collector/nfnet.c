@@ -184,7 +184,7 @@ int Unicast_send_socket(const char *hostname, const char *sendport, int family, 
         if (sockfd < 0) {
             LogError("socket() error: could not open the requested socket: %s", strerror(errno));
         } else {
-            // socket call was successsful
+            // socket call was successful
             if (connect(sockfd, res->ai_addr, res->ai_addrlen) < 0) {
                 // unsuccessful connect :(
                 LogError("connect() error: could not open the requested socket: %s", strerror(errno));

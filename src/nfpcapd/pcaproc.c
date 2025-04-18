@@ -839,7 +839,7 @@ REDO_IPPROTO:
         }
 
         // IPv6 duplicate check
-        // dublicate check starts from the IP header over the rest of the packet
+        // duplicate check starts from the IP header over the rest of the packet
         // vlan, mpls and layer 1 headers are ignored
         if (unlikely(packetParam->doDedup && redoLink == 0)) {
             // check for de-dup
@@ -896,7 +896,7 @@ REDO_IPPROTO:
         }
 
         // IPv4 duplicate check
-        // dublicate check starts from the IP header over the rest of the packet
+        // duplicate check starts from the IP header over the rest of the packet
         // vlan, mpls and layer 1 headers are ignored
         if (unlikely(packetParam->doDedup && redoLink == 0)) {
             // check for de-dup

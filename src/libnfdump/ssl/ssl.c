@@ -86,7 +86,7 @@ static int ProcessExtSNI(ssl_t *ssl, BytesStream_t *sslStream) {
     dbg_printf("Found sni name: %s\n", ssl->sniName);
 
     if ((sniLen + 3) < sniListLength) {
-        // should not happen as only one host_type suported
+        // should not happen as only one host_type supported
         size_t skipBytes = sniListLength - sniLen - 3;
         ByteStream_SKIP(*sslStream, skipBytes);
     }

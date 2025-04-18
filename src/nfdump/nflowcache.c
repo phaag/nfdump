@@ -297,7 +297,7 @@ static inline int New_HashKey(void *keymem, recordHandle_t *recordHandle, int sw
  * - record array - static stat record with flow record counters
  *
  * only keep hashValue (32bytes per entry) in hash table.
- * for normal IPv4 aggragation, a key size of 16bytes fit directly into the hashValue. Aggregations up to 16byte
+ * for normal IPv4 aggregation, a key size of 16bytes fit directly into the hashValue. Aggregations up to 16byte
  * hash values profit from fast CPU cache.
  * For aggregation values > 16 bytes, a valPtr points to the nmalloc() value
  */

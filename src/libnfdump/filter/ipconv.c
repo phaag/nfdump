@@ -225,6 +225,6 @@ int main(int argc, char **argv) {
 
     checkHost("www.google.ch");
     checkHost("www.cnn.ch");
-    checkHost("unresovled");
+    checkHost("unresolved");
 }
 #endif

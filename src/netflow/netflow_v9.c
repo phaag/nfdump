@@ -721,7 +721,7 @@ static inline void Process_v9_templates(exporterDomain_t *exporter, void *DataPt
         dbg_printf("Map type: %u, length: %u to Extension %u - '%s' - output length: %u\n", LOCAL_msecTimeReceived, 8,
                    v9TranslationMap[index].extensionID, v9TranslationMap[index].name, v9TranslationMap[index].outputLength);
 
-        // if it exitsts - remove old template on exporter with same ID
+        // if it exists - remove old template on exporter with same ID
         removeTemplate(exporter, id);
         templateList_t *template = newTemplate(exporter, id);
         if (!template) {
@@ -932,7 +932,7 @@ static inline void Process_v9_option_templates(exporterDomain_t *exporter, void 
 
     dbg_printf("\n[%u] Option size: %" PRIu64 ", flags: %" PRIx64 "\n", exporter->info.id, optionTemplate->optionSize, optionTemplate->flags);
     if (optionTemplate->flags) {
-        // if it exitsts - remove old template on exporter with same ID
+        // if it exists - remove old template on exporter with same ID
         templateList_t *template = newTemplate(exporter, tableID);
         if (!template) {
             LogError("Process_v9: abort template add: %s line %d", __FILE__, __LINE__);
@@ -1788,7 +1788,7 @@ void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         if (flowset_length == 0) {
             /* 	this should never happen, as 4 is an empty flowset
                     and smaller is an illegal flowset anyway ...
-                    if it happends, we can't determine the next flowset, so skip the entire export
+                    if it happens, we can't determine the next flowset, so skip the entire export
                packet
              */
             LogError("Process_v9: flowset zero length error.");

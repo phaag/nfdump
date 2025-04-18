@@ -101,7 +101,7 @@ $NFDUMP -r testdir/nfcapd.* -q -o extended -6 >test.6-2.out
 
 diff test.6-1.out test.6-2.out
 
-# Test propper AppendRename
+# Test proper AppendRename
 # Start nfcapd on localhost and replay flows
 rm -f testdir/nfcapd.*
 echo

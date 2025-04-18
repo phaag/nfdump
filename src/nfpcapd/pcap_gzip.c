@@ -55,7 +55,7 @@ static void *gzipReader(void *arg);
 
 // check for zlib header and setup
 FILE *zlib_stream(char *pcap_file) {
-    // in case we need support other compression methodes - check for methode
+    // in case we need support other compression methods - check for method
     /*
         FILE *zFile = fopen(pcap_file, "rb");
         if (!zFile) {

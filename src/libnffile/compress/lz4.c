@@ -1,6 +1,6 @@
 /*
    LZ4 - Fast LZ compression algorithm
-   Copyright (C) 2011-2023, Yann Collet.
+   Copyright (C) 2011-2023, Yann Collect.
 
    BSD 2-Clause License (http://www.opensource.org/licenses/bsd-license.php)
 
@@ -898,7 +898,7 @@ LZ4_prepareTable(LZ4_stream_t_internal* const cctx,
             cctx->currentOffset = 0;
             cctx->tableType = (U32)clearedTable;
         } else {
-            DEBUGLOG(4, "LZ4_prepareTable: Re-use hash table (no reset)");
+            DEBUGLOG(4, "LZ4_prepareTable: Reuse hash table (no reset)");
         }
     }
 

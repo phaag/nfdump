@@ -314,7 +314,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
     /*
      * Main processing loop:
      * this loop, continues until  = 1, set by the signal handler
-     * The while loop will be breaked by the periodic file renaming code
+     * The while loop will be broken by the periodic file renaming code
      * for proper cleanup
      */
     while (1) {

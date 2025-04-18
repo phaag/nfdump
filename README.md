@@ -40,8 +40,8 @@ region, country and city.  The geo location and AS information is retrieved from
 optional **geoDB** database, created by the **geolookup** program from the nfdump
 tools.  geolookup uses the **Maxmind** database GeoDB or GeoLite2 to create a
 binary lookup database for nfdump. Please check the <u>geolooup</u>(1) man page
-for more details. IP adresses can be tagged as **TOR** exit nodes, from the optional 
-**torDB** database, created by the **torlookup** program. Please chaeck the <u>torlookup</u>(1)
+for more details. IP addresses can be tagged as **TOR** exit nodes, from the optional 
+**torDB** database, created by the **torlookup** program. Please check the <u>torlookup</u>(1)
 man page for details.
 
 There is also a [go-nfdump](https://github.com/phaag/go-nfdump) module to read nfdump flows files in Golang. 
@@ -91,7 +91,7 @@ improves compatibility with some exporters such as yaf and others.
   to a UNIX socket. The corresponding program may be [nfinflux](https://github.com/phaag/nfinflux) to insert 
   these metrics into an influxDB or [nfexporter](https://github.com/phaag/nfexporter) for Prometheus monitoring.
   
-- nfdump supports a default config file tipically */usr/local/etc/nfdump.conf* to
+- nfdump supports a default config file typically */usr/local/etc/nfdump.conf* to
   store user defined paths for the **geolookup** and **torlookup** database files as well as for 
   user defined named output formats *( -o 'fmt:%ts .. ', -o 'csv:%ts ..')*. See the default
   */usr/local/etc/nfdump.conf.dist* file for an example.
@@ -218,7 +218,7 @@ flows. The output format is user selectable and also includes a simple
 csv format for post processing.
 
 __nfanon__ - anonymize netflow records  
-IP addresses in flow records are anonimized using the CryptoPAn method.
+IP addresses in flow records are anonymized using the CryptoPAn method.
 
 __nfexpire__ - expire old netflow data  
 Manages data expiration. Sets appropriate limits. Used by NfSen.
@@ -280,7 +280,7 @@ More fields may be integrated in future versions of sfcapd.
 Binary data files can optionally be compressed by using either LZO1X-1, LZ4, ZSTD or bzip2 compression 
 LZO is fastest but less efficient, LZ4 and ZSTD are fast and pretty efficient and bzip2 is slow but efficient. 
 
-By default LZO and LZ4 embedded without external dependancies. Bzip2 and ZSTD are optional libraries, which are automatically added, if they are found while configuring and compiling.
+By default LZO and LZ4 embedded without external dependencies. Bzip2 and ZSTD are optional libraries, which are automatically added, if they are found while configuring and compiling.
 
 The standard **configure** process checks for the installed libraries lz4, bz2 and zstd and enables them if they are found.
 **configure** understands the following options:
@@ -451,7 +451,7 @@ This collector collects sflow https://www.sflow.org exports. It is largely ident
 
 This collector is able to listen on a host interface and generates netflow data from the network data stream on that interface. It make use of **PACKET_RX_RING** to read packets on an interface device level (**TPACKETV3**) on Linux hosts or of the **BPF** interface - Berkeley Packet Filter on ***BSD** hosts which provides raw access to data link layers. Nfpcapd builds an internal netflow cache which is periodically written to disk or forwarded to an nfcapd server. As a special feature, nfpcpad may collect the first few bytes of a network connection, if requested to do so ( **-o payload**), which allows filter and evaluate the flows with nfdump later. 
 
-Listen on eth0 and store the flows locally. Set flow cache active timeout to 60s, inactive tiemout to 30s: 
+Listen on eth0 and store the flows locally. Set flow cache active timeout to 60s, inactive timeout to 30s: 
 
 ```
 nfpcapd -D -S 2 -w /var/flows -i eth0 -e 60,30 -u daemon -g daemon

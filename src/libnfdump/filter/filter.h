@@ -107,7 +107,7 @@ typedef enum {
     FUNC_BPP,          // function code for bpp ( bytes per packet ) filter function
     FUNC_MPLS_LABEL,   // function code for matching an MPLS label
     FUNC_MPLS_EOS,     // function code for matching End of MPLS Stack label
-    FUNC_MPLS_EXP,     // function code for matching experimantal value in label
+    FUNC_MPLS_EXP,     // function code for matching experimental value in label
     FUNC_MPLS_ANY,     // function code for matching any MPLS label
     FUNC_PBLOCK,       // function code for matching ports against pblock start
     FUNC_MMAS_LOOKUP,  // function code for optional maxmind AS lookup
