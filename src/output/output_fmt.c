@@ -2434,19 +2434,21 @@ static void String_evt(FILE *stream, recordHandle_t *recordHandle) {
     EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
     EXnatCommon_t *natCommon = (EXnatCommon_t *)recordHandle->extensionList[EXnatCommonID];
 
+    // some exporters send unclear or double information about events. Test both records for != 0
     if (printPlain) {
-        uint32_t evtNum = 0;
-        if (nselCommon) {
-            evtNum = nselCommon->fwEvent;
-        } else if (natCommon) {
+        uint32_t evtNum = nselCommon != NULL ? nselCommon->fwEvent : 0;
+        if (natCommon && evtNum == 0) {
             evtNum = natCommon->natEvent;
         }
         fprintf(stream, "%u", evtNum);
     } else {
         char *evtString = "<no-evt>";
+        uint32_t evtNum = 0;
         if (nselCommon) {
             evtString = fwEventString(nselCommon->fwEvent);
-        } else if (natCommon) {
+            evtNum = nselCommon->fwEvent;
+        }
+        if (natCommon && evtNum == 0) {
             evtString = natEventString(natCommon->natEvent, SHORTNAME);
         }
         fprintf(stream, "%8s", evtString);
