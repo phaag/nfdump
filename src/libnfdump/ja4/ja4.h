@@ -91,7 +91,7 @@ ja4_t *ja4Process(ssl_t *ssl, uint8_t proto);
 #define SIZEja4sString 25
 
 /*
- * conditional compile ja4s code, if cofigured and ja4 license conditions are met
+ * conditional compile ja4s code, if configured and ja4 license conditions are met
  * map ja4+ calls to the proper function or to the negative result of the function
  */
 #ifdef BUILDJA4

@@ -184,11 +184,11 @@
  * %F    is equivalent to ``%Y-%m-%d''.
  */
 
-// predefined and accpeted formats
+// predefined and accepted formats
 static const char *subdir_def[] = {"",  // default index 0 - no subdir hierarchy
                                    "%Y/%m/%d", "%Y/%m/%d/%H", "%Y/%W/%u", "%Y/%W/%u/%H", "%Y/%j", "%Y/%j/%H", "%F", "%F/%H", NULL};
 
-// all accpeted char in a string
+// all accepted char in a string
 #define AcceptedFormatChar "YymdjHMsUWwuF"
 
 static mode_t mode, dir_mode;
@@ -774,7 +774,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
     // last entry must be NULL
     InsertString(&source_dirs, NULL);
     if (!source_dirs.list) {
-        LogError("ERROR: No sourc dir at %s line %d", __FILE__, __LINE__);
+        LogError("ERROR: No source dir at %s line %d", __FILE__, __LINE__);
         return 0;
     }
     fts = fts_open(source_dirs.list, FTS_LOGICAL, compare);

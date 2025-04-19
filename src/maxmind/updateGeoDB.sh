@@ -7,7 +7,7 @@
 # - On the web page, in your account, create the license key
 LICENSE=YOURLICENSEKEY
 
-# language: the location information is avalable in many languages
+# language: the location information is available in many languages
 # available languages:
 # check the files in the GeoLite2-City-CSV folder:
 # GeoLite2-City-Locations-xx.csv with xx language:  de, fr, ru, en, ja, zh-CN, es, pt-BR.

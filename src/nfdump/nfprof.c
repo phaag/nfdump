@@ -88,7 +88,7 @@ void nfprof_print(nfprof_t *profile_data, FILE *std) {
 
     double fps;
     if (tstart == tend)
-        // acctually should never happen, but catch it anyway
+        // actually should never happen, but catch it anyway
         fps = 0;
     else
         fps = (double)profile_data->numflows / (tend - tstart);

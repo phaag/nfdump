@@ -92,7 +92,7 @@ typedef struct fileHeaderV1_s {
 #define NUM_FLAGS 4
 #define FLAG_NOT_COMPRESSED 0x0   // records are not compressed
 #define FLAG_LZO_COMPRESSED 0x1   // records are LZO compressed
-#define FLAG_ANONYMIZED 0x2       // flow data are anonimized
+#define FLAG_ANONYMIZED 0x2       // flow data are anonymized
 #define FLAG_UNUSED 0x4           // unused
 #define FLAG_BZ2_COMPRESSED 0x8   // records are BZ2 compressed
 #define FLAG_LZ4_COMPRESSED 0x10  // records are LZ4 compressed

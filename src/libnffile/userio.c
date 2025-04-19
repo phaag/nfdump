@@ -381,7 +381,7 @@ char *fwEventString(int event) {
         i++;
     }
 
-    // unknow event string
+    // unknown event string
     static char s[16];
     snprintf(s, 15, "%u-Unknw", event);
     s[15] = '\0';
@@ -408,7 +408,7 @@ char *fwXEventString(int xeventID) {
         i++;
     }
 
-    // unknow event string
+    // unknown event string
     static char s[16];
     snprintf(s, 15, "%u", xeventID);
     s[15] = '\0';
@@ -431,7 +431,7 @@ int natEventNum(char *natString) {
 
 char *natEventString(int event, int longName) {
     if (event >= MAX_NAT_EVENTS) {
-        // unknow event string
+        // unknown event string
         static char s[32] = {0};
         snprintf(s, 31, "%u-Unknown", event);
         return s;

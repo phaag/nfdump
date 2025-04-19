@@ -904,9 +904,9 @@ nffile_t *OpenFile(char *filename, nffile_t *nffile) {
 
 // Create a new nffile
 //  filename   : full path of file to create
-//  nffile     : Use nffile handle and initialize it accordingly. If NULL a new handle is alocated
-//  creater    : Creator ID
-//  compress   : Compression alforithm and level. Lower 16bit: algo. Upper 16bit level
+//  nffile     : Use nffile handle and initialize it accordingly. If NULL a new handle is allocated
+//  creator    : Creator ID
+//  compress   : Compression algorithm and level. Lower 16bit: algo. Upper 16bit level
 //  encryption : Encryption algorithm used.
 nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compress, int encryption) {
     int fd;

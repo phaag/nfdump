@@ -384,7 +384,7 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
             s = fgets(s1, 31, stdin);
             s1[31] = '\0';
             if (s && strncasecmp(s1, "yes\n", 31) == 0) {
-                printf("Ok - you've beeen warned!\n");
+                printf("Ok - you've been warned!\n");
             } else {
                 printf("Expire canceled!\n");
                 free(expire_timelimit);

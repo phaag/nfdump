@@ -97,7 +97,7 @@ void pushMessage(messageQueue_t *messageQueue, message_t *message) {
         // messageQ already contains records, append to last element
         messageQueue->tail->next = listElement;
     } else {
-        // messageQ ist empty
+        // messageQ is empty
         messageQueue->head = listElement;
         // signal reader thread, there is a new record
         pthread_cond_signal(&(messageQueue->cond));
@@ -111,7 +111,7 @@ void pushMessage(messageQueue_t *messageQueue, message_t *message) {
 message_t *getMessage(messageQueue_t *messageQueue) {
     pthread_mutex_lock(&(messageQueue->mutex));
     while (messageQueue->head == NULL && done == 0) {
-        // messageQ ist empty
+        // messageQ is empty
         pthread_cond_wait(&(messageQueue->cond), &(messageQueue->mutex));
     }
 

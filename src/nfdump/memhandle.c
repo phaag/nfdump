@@ -59,7 +59,7 @@ typedef struct MemHandler_s {
     uint32_t MaxBlocks;   /* Size of memblock array */
     uint32_t NumBlocks;   /* number of allocated flow blocks in memblock array */
     int32_t CurrentBlock; /* Index of current memblock to allocate memory from */
-    uint32_t Allocted;    /* Number of bytes already allocated in memblock */
+    uint32_t Allocated;    /* Number of bytes already allocated in memblock */
 
     atomic_int lock;
 

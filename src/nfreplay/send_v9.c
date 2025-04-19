@@ -238,7 +238,7 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
         if (added == recordHandle->numElements) break;
         if (recordHandle->extensionList[ext] == 0) continue;
 
-        // dynmaically increase flowset table, if too little slots are left
+        // dynamically increase flowset table, if too little slots are left
         if ((numV9Elements - count) < 15) {
             dbg_printf("Expand flowset table\n");
             numV9Elements += 20;
