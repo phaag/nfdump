@@ -59,7 +59,7 @@ typedef struct MemHandler_s {
     uint32_t MaxBlocks;   /* Size of memblock array */
     uint32_t NumBlocks;   /* number of allocated flow blocks in memblock array */
     int32_t CurrentBlock; /* Index of current memblock to allocate memory from */
-    uint32_t Allocated;    /* Number of bytes already allocated in memblock */
+    uint32_t Allocated;   /* Number of bytes already allocated in memblock */
 
     atomic_int lock;
 
@@ -88,7 +88,7 @@ static int nfalloc_Init(uint32_t memBlockSize) {
     MemHandler->MaxBlocks = MaxMemBlocks;  // number of max blocks
     MemHandler->NumBlocks = 0;             // total allocated block
     MemHandler->CurrentBlock = -1;         // index of current active block
-    MemHandler->Allocted = memBlockSize;   // init state - force new allocation with next nfmalloc
+    MemHandler->Allocated = memBlockSize;  // init state - force new allocation with next nfmalloc
     MemHandler->lock = 0;
 
     return 1;
@@ -103,7 +103,7 @@ static void nfalloc_free(void) {
     }
     MemHandler->NumBlocks = 0;
     MemHandler->CurrentBlock = -1;
-    MemHandler->Allocted = MemHandler->BlockSize;
+    MemHandler->Allocated = MemHandler->BlockSize;
 
     free((void *)MemHandler->memblock);
     MemHandler->memblock = NULL;
@@ -118,10 +118,10 @@ static inline void *nfmalloc(size_t size) {
     size_t aligned_size = (((size) + ALIGN_BYTES) & ~ALIGN_BYTES);
 
     GetLock(MemHandler);
-    if ((MemHandler->Allocted + aligned_size) <= MemHandler->BlockSize) {
+    if ((MemHandler->Allocated + aligned_size) <= MemHandler->BlockSize) {
         // enough space available in current memblock
-        void *p = MemHandler->memblock[MemHandler->CurrentBlock] + MemHandler->Allocted;
-        MemHandler->Allocted += aligned_size;
+        void *p = MemHandler->memblock[MemHandler->CurrentBlock] + MemHandler->Allocated;
+        MemHandler->Allocated += aligned_size;
         dbg_printf("Mem Handle: Requested: %zu, aligned: %zu, ptr: %lx\n", size, aligned_size, (long unsigned)p);
         ReleaseLock(MemHandler);
         return p;
@@ -147,7 +147,7 @@ static inline void *nfmalloc(size_t size) {
         exit(255);
     }
     MemHandler->memblock[MemHandler->CurrentBlock] = p;
-    MemHandler->Allocted = aligned_size;
+    MemHandler->Allocated = aligned_size;
     MemHandler->NumBlocks++;
     ReleaseLock(MemHandler);
     dbg_printf("Mem Handle: Requested: %zu, aligned: %zu, ptr: %lu\n", size, aligned_size, (long unsigned)p);

@@ -1,4 +1,5 @@
-- 11ac8c6 2025-04-18  (HEAD -> master, origin/master, origin/HEAD) Fix output for %evt printing, if both nat/nsel records exists. Should fix #613
+- 754b076 2025-04-18  (HEAD -> master, origin/master, origin/HEAD) Release nfdump-1.7.6
+- 11ac8c6 2025-04-18  Fix output for %evt printing, if both nat/nsel records exists. Should fix #613
 - 70ece2e 2025-04-15  Add Subdir -S to dynamic FlowSource -M. Replaces pull request #615
 - 3eb3043 2025-04-15  Fix #614 - first/last seen filter
 - 26425d8 2025-03-27  Improve exporter algo
