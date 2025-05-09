@@ -603,6 +603,12 @@ AC_MSG_CHECKING([whether netinet/ip.h needs extra include])
         ]], [[ ]])],[ac_fix_include_order=no],[ac_fix_include_order=yes]
 )
 
+AC_MSG_CHECKING([whether netinet/in_systm.h needs extra include])
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+                #include <netinet/in_systm.h>
+        ]], [[ ]])],[ac_fix_include_order=no],[ac_fix_include_order=yes]
+)
+
 AC_MSG_RESULT($ac_fix_include_order)
 if test "$ac_fix_include_order" = "yes"; then
         AC_DEFINE(FIX_INCLUDE, 1, [Fix sys/stat.h include])
