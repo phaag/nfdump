@@ -26,6 +26,15 @@ AX_APPEND_FLAG([-fno-strict-aliasing], [CFLAGS])
 
 LT_INIT
 
+# MY_COMPILE_CLEAN_IFELSE(PROGRAM, [ACTION-IF-TRUE], [ACTION-IF-FALSE])
+# ---------------------------------------------------------------
+# Try to compile PROGRAM.
+AC_DEFUN([MY_COMPILE_CLEAN_IFELSE],
+[AC_REQUIRE([AC_PROG_EGREP])
+AC_COMPILE_IFELSE([$1],[retval=0
+if $EGREP -i -c -E 'fatal|error|unrecognized|not found|not exist|warning' conftest.err >/dev/null; then retval=1; fi
+],[retval=1])
+AS_IF([test $retval = 0],[$2],[$3])])
 
 dnl
 dnl Check to see if -latomic is need for GCC atomic built-ins.
@@ -211,35 +220,28 @@ LIBS="${LIBS} -lrrd"
 AC_SUBST(RRD_LIBS)
 ]
 , AC_MSG_ERROR(Can not link librrd. Please specify --with-rrdpath=.. configure failed! ))
+
 	AC_CHECK_HEADERS([rrd.h])
+
 	if test "$ac_cv_header_rrd_h" = yes; then
 		build_nfprofile="yes"
 	else
 		AC_MSG_ERROR(Required rrd.h header file not found!)
 	fi
-	AC_RUN_IFELSE([AC_LANG_SOURCE([[
-				#include <stdio.h>
-				#include <stdlib.h>
-				#include <rrd.h>
-      
-			int main(int argc, char **argv) {
 
-				char *s = rrd_strversion();
-    		if ( s != NULL && strlen(s) == 5 ) {
-        	if ( s[0] == '1' && s[1] == '.' ) {
-            int ver = s[2] - 0x30;
-            if ( argc > 1 ) printf("%d\n", ver);
-        	}
-    		} else {
-					exit(255);
-    		}
-				return 0;
-			}
-			]])
-		],rrdversion=$(./conftest$EXEEXT print 2>&1)
-		LIBS=$saved_LIBS
-    AC_DEFINE_UNQUOTED(HAVE_RRDVERSION, $rrdversion, [ ])
-		, AC_MSG_ERROR(Can not load rrd library. Not in loader search path! ))
+ MY_COMPILE_CLEAN_IFELSE([
+	AC_LANG_PROGRAM(
+		[[
+			#include <stdio.h>
+			#include <stdlib.h>
+			#include <rrd.h>
+		]], [[ 
+			int rrd_argc = 0;
+    	char *rrd_arg[10] = {0};
+    	rrd_update(rrd_argc, rrd_arg);
+
+		]])], AC_DEFINE(RRD_NEEDSCONST, 0, [No fix rrd_update const char argument]), AC_DEFINE(RRD_NEEDSCONST, 1, [Fix rrd_update const char argument])
+)
 ]
 ,
 build_nfprofile="no"
@@ -287,7 +289,7 @@ AC_SUBST(RRD_LIBS)
 	else
 		AC_MSG_ERROR(Required rrd.h header file not found!)
 	fi
-	AC_RUN_IFELSE(
+	AC_COMPILE_IFELSE(
 		[ AC_LANG_PROGRAM(
 			[[
 				#include <stdio.h>
@@ -333,7 +335,7 @@ AC_SUBST(PCAP_LIBS)
 	else
 		AC_MSG_ERROR(Required pcap.h header file not found!)
 	fi
-	AC_RUN_IFELSE(
+	AC_COMPILE_IFELSE(
 		[ AC_LANG_PROGRAM(
 			[[
 				#include <stdio.h>
@@ -629,7 +631,7 @@ if test "$ac_fix_include_order" = "yes"; then
 fi
 
 AC_MSG_CHECKING(for the %z format string in printf())
-AC_RUN_IFELSE([AC_LANG_SOURCE([[
+AC_COMPILE_IFELSE([AC_LANG_SOURCE([[
 #include <stdio.h>
 #include <sys/types.h>
 

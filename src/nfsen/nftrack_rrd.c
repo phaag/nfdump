@@ -48,7 +48,7 @@
 #include "rrd.h"
 #include "util.h"
 
-#if HAVE_RRDVERSION > 8
+#if RRD_NEEDSCONST
 #define rrdchar const char
 #else
 #define rrdchar char
