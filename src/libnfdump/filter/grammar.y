@@ -1417,7 +1417,11 @@ static int AddGeo(direction_t direction, char *geo) {
 
 	data_t data = {.dataVal = direction};
 	int ret = -1;
+	#ifdef WORDS_BIGENDIAN
+	uint64_t geoVal = toupper(geo[1]) + (toupper(geo[0]) << 8);
+	#else
 	uint64_t geoVal = toupper(geo[0]) + (toupper(geo[1]) << 8);
+	#endif
 	switch (direction) {
 		case DIR_SRC:
 			ret = NewElement(EXlocal, OFFgeoSrcIP, SizeGEOloc, geoVal, CMP_GEO, FUNC_NONE, data);

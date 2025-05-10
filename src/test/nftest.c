@@ -944,17 +944,17 @@ static void runTest(void) {
     // local (processed) extension
     // geo location
     // src
-    recordHandle->geo[0] = 'C';
-    recordHandle->geo[1] = 'H';
+    recordHandle->geo[OFFgeoSrcIP - OFFgeo] = 'C';
+    recordHandle->geo[OFFgeoSrcIP - OFFgeo + 1] = 'H';
     // dst
-    recordHandle->geo[2] = 'D';
-    recordHandle->geo[3] = 'E';
+    recordHandle->geo[OFFgeoDstIP - OFFgeo] = 'D';
+    recordHandle->geo[OFFgeoDstIP - OFFgeo + 1] = 'E';
     // src nat
-    recordHandle->geo[4] = 'U';
-    recordHandle->geo[5] = 'S';
+    recordHandle->geo[OFFgeoSrcNatIP - OFFgeo] = 'U';
+    recordHandle->geo[OFFgeoSrcNatIP - OFFgeo + 1] = 'S';
     // dst nat
-    recordHandle->geo[6] = 'A';
-    recordHandle->geo[7] = 'T';
+    recordHandle->geo[OFFgeoDstNatIP - OFFgeo] = 'A';
+    recordHandle->geo[OFFgeoDstNatIP - OFFgeo + 1] = 'T';
 
     CheckFilter("src geo CH", recordHandle, 1);
     CheckFilter("src geo CD", recordHandle, 0);
