@@ -46,6 +46,7 @@
 #include <unistd.h>
 
 #include "config.h"
+#include "include/thread_local.h"
 #include "filter/filter.h"
 #include "flist.h"
 #include "nfdump.h"
@@ -59,7 +60,7 @@ extern char influxdb_url[1024];
 static char influxdb_measurement[] = "nfsen_stats";
 #endif
 
-#if RRD_NEEDSCONST
+#if HAVE_RRDVERSION > 8
 #define rrdchar const char
 #else
 #define rrdchar char
@@ -95,6 +96,14 @@ static int AppendString(char *stack, char *string, size_t *buff_size) {
 
 unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_param_info_t *profile_list, char *filterfile, char *filename,
                           int subdir_index, int verify_only, int compress) {
+    
+    static TLS char tls_filename[MAXPATHLEN];
+    static TLS char tls_filterfile[MAXPATHLEN];
+    strncpy(tls_filename, filename, MAXPATHLEN-1);
+    tls_filename[MAXPATHLEN-1] = '\0';
+    strncpy(tls_filterfile, filterfile, MAXPATHLEN-1);
+    tls_filterfile[MAXPATHLEN-1] = '\0';
+    
     profile_param_info_t *profile_param;
 
     num_channels = 0;
@@ -102,8 +111,7 @@ unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_
     while (profile_param) {
         LogInfo("Setup channel '%s' in profile '%s' group '%s', channellist '%s'", profile_param->channelname, profile_param->profilename,
                 profile_param->profilegroup, profile_param->channel_sourcelist);
-
-        SetupProfileChannels(profile_datadir, profile_statdir, profile_param, subdir_index, filterfile, filename, verify_only, compress);
+        SetupProfileChannels(profile_datadir, profile_statdir, profile_param, subdir_index, tls_filterfile, tls_filename, verify_only, compress);
 
         profile_param = profile_param->next;
     }
@@ -253,10 +261,11 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
         if (!is_alert && subdir_index && strlen(filename) == 19 && (strncmp(filename, "nfcapd.", 7) == 0)) {
             char *p = &filename[7];  // points to ISO timestamp in filename
             time_t t = ISO2UNIX(p);
-            struct tm *t_tm = localtime(&t);
+            struct tm tls_tm;
+            localtime_r(&t, &tls_tm);
             char error[255];
 
-            subdir = GetSubDir(t_tm);
+            subdir = GetSubDir(&tls_tm);
             if (!subdir) {
                 // failed to generate subdir path - put flows into base directory
                 LogError("Failed to create subdir path!");
@@ -561,3 +570,4 @@ void UpdateInfluxDB(time_t tslot, profile_channel_info_t *channel) {
 }  // End of UpdateInfluxDB
 
 #endif /* HAVE_INFLUXDB */
+

@@ -46,6 +46,7 @@
 #include <unistd.h>
 
 #include "config.h"
+#include "include/thread_local.h"
 
 #ifdef HAVE_FTS_H
 #include <fts.h>
@@ -1108,7 +1109,7 @@ static char *GuessSubDir(char *channeldir, char *filename) {
 }  // End of GuessSubDir
 
 char *GetSubDir(struct tm *now) {
-    static char subpath[255];
+    static TLS char subpath[255];
     size_t sublen;
 
     sublen = strftime(subpath, 254, subdir_format, now);
