@@ -1291,6 +1291,7 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
         }
 
         void *outBuff;
+        int redone = 0;
     REDO:
         // map file record to output buffer
         outBuff = GetCurrentCursor(fs->dataBlock);
@@ -1323,7 +1324,7 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
                 }
 
                 // request new and empty buffer
-                LogInfo("Process ipfix: Sequencer run - resize output buffer");
+                dbg_printf("Process ipfix: Sequencer run - resize output buffer\n");
                 // request new and empty buffer
                 fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
                 if (fs->dataBlock == NULL) {
@@ -1335,6 +1336,11 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
                     // this should really never occur, because the buffer gets flushed earlier
                     LogError("Process_ipfix: output buffer size error. Skip ipfix record processing");
                     dbg_printf("Process_ipfix: output buffer size error. Skip ipfix record processing");
+                    return;
+                }
+                redone++;
+                if (redone > 2) {
+                    LogError("Process_ipfix: Redone loop - output buffer size error. Skip ipfix record processing");
                     return;
                 }
                 goto REDO;
