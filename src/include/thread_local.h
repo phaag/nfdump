@@ -32,15 +32,16 @@
 #define THREAD_LOCAL_H
 
 /*
- * Thread local storage definition for GCC/Clang
- * Modern versions support C11's _Thread_local, older ones use __thread
+ * Thread local storage definition using C11 standard
+ * 
+ * This header provides thread-local storage support for variables that need to be
+ * unique to each thread. The implementation uses C11's _Thread_local.
+ *
+ * Usage example:
+ *   static TLS char filename[MAXPATHLEN];  // Each thread gets its own copy
+ *
+ * Note: This requires C11 support (__STDC_VERSION__ >= 201112L).
  */
-#if defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L
-    /* C11 standard implementation - available in newer GCC/Clang */
-    #define TLS _Thread_local
-#else
-    /* GCC/Clang extension - works on all supported versions */
-    #define TLS __thread
-#endif
+#define TLS _Thread_local
 
 #endif /* THREAD_LOCAL_H */
