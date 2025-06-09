@@ -1108,7 +1108,7 @@ static char *GuessSubDir(char *channeldir, char *filename) {
 }  // End of GuessSubDir
 
 char *GetSubDir(struct tm *now) {
-    static char subpath[255];
+    static __thread char subpath[255];
     size_t sublen;
 
     sublen = strftime(subpath, 254, subdir_format, now);

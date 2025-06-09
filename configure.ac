@@ -366,7 +366,8 @@ AM_COND_IF([BUILDNFPCAPD],
 		[AM_CONDITIONAL(BSDBPF, false) AM_CONDITIONAL(TPACKETV3, false) AM_CONDITIONAL(PLAINPCAP, false)],
 )
 
-AX_CHECK_ZLIB([AM_CONDITIONAL(HAVEZLIB, true) readzpcap="yes"], [AM_CONDITIONAL(HAVEZLIB, false) readzpcap="no"])
+AC_CHECK_HEADERS([zlib.h])
+AC_CHECK_LIB([z], [inflate], [AM_CONDITIONAL(HAVEZLIB, true) readzpcap="yes"], [AM_CONDITIONAL(HAVEZLIB, false) readzpcap="no"])
 
 OVS_CHECK_ATOMIC_LIBS
 AX_PTHREAD([],AC_MSG_ERROR(No valid pthread configuration found))
