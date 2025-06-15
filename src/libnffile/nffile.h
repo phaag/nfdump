@@ -181,7 +181,6 @@ typedef struct nffile_s {
     int fd;                        // associated file descriptor
     int compat16;                  // underlying file is compat16
     pthread_t worker[MAXWORKERS];  // nfread/nfwrite worker thread;
-    _Atomic int terminate;         // signal to terminate
     pthread_mutex_t wlock;         // writer lock
 #define FILE_IS_COMPAT16(n) (n->compat16)
 #define NUM_BUFFS 2
@@ -262,6 +261,8 @@ int GetStatRecord(char *filename, stat_record_t *stat_record);
 nffile_t *NewFile(nffile_t *nffile);
 
 void DisposeFile(nffile_t *nffile);
+
+void SyncFile(nffile_t *nffile);
 
 void CloseFile(nffile_t *nffile);
 

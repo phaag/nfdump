@@ -124,39 +124,28 @@ queueStat_t queue_stat(queue_t *queue) {
     return stat;
 }  // End of queue_stat
 
-uint32_t queue_done(queue_t *queue) {
-    pthread_mutex_lock(&(queue->mutex));
-    uint32_t done = queue->num_elements == 0 && queue->closed;
-    pthread_mutex_unlock(&(queue->mutex));
-
-    return done;
-
-}  // End of queue_length
-
+// block until queue is empty
 void queue_sync(queue_t *queue) {
-    unsigned usec = 0;
-
-    // wait till queue is closed and empty
-    while (!queue_done(queue)) {
-        struct timeval tv = {0};
-        // wait 1 usec
-        tv.tv_usec = usec;
-        if (usec < 1000) usec++;
-        select(0, NULL, NULL, NULL, &tv);
+    pthread_mutex_lock(&(queue->mutex));
+    while (1) {
+        if (queue->num_elements == 0) {
+            // queue is empty
+            if (queue->c_wait) {
+                // signal waiting threads. If queue is closed, they quit too
+                pthread_cond_broadcast(&(queue->cond));
+            }
+            pthread_mutex_unlock(&(queue->mutex));
+            return;
+        } else {
+            queue->p_wait++;
+            pthread_cond_wait(&(queue->cond), &(queue->mutex));
+            queue->p_wait--;
+        }
     }
 
-    usec = 1;
-    // release all waiting threads, if any
-    while (atomic_load(&queue->c_wait) || atomic_load(&queue->p_wait)) {
-        struct timeval tv = {0};
-        tv.tv_usec = 1;
-        pthread_mutex_lock(&(queue->mutex));
-        pthread_cond_broadcast(&(queue->cond));
-        pthread_mutex_unlock(&(queue->mutex));
-        select(0, NULL, NULL, NULL, &tv);
-    }
+    /*NOTREACHED*/
 
-}  // end of queue_sync
+}  // End of queue_wait
 
 void *queue_push(queue_t *queue, void *data) {
     pthread_mutex_lock(&(queue->mutex));
@@ -166,6 +155,7 @@ void *queue_push(queue_t *queue, void *data) {
             return QUEUE_CLOSED;
         }
         if (queue->num_elements < queue->length) {
+            // push element into queue
             unsigned index = queue->next_free;
             queue->element[index] = data;
             queue->num_elements++;
@@ -173,12 +163,14 @@ void *queue_push(queue_t *queue, void *data) {
 
             if (queue->stat.maxUsed < queue->num_elements) queue->stat.maxUsed = queue->num_elements;
 
+            // if consumers are waiting, signal new data
             if (atomic_load(&queue->c_wait)) {
                 pthread_cond_signal(&(queue->cond));
             }
             pthread_mutex_unlock(&(queue->mutex));
             return NULL;
         } else {
+            // queue is full - wait until a slot becomes available
             queue->p_wait++;
             pthread_cond_wait(&(queue->cond), &(queue->mutex));
             queue->p_wait--;
@@ -198,20 +190,24 @@ void *queue_pop(queue_t *queue) {
         }
 
         if (queue->num_elements > 0) {
+            // get next element to be processed
             unsigned index = queue->next_avail;
             void *data = queue->element[index];
             queue->num_elements--;
             queue->next_avail = (queue->next_avail + 1) & queue->mask;
 
+            // if a producer is waiting, signal the new free slot
             if (queue->p_wait) {
                 pthread_cond_broadcast(&(queue->cond));
             }
+            // if the queue was closed, signal all waiting consumers
             if (queue->closed && queue->c_wait) {
                 pthread_cond_broadcast(&(queue->cond));
             }
             pthread_mutex_unlock(&(queue->mutex));
             return data;
         } else {
+            // queue is empty - wait for next available element
             atomic_fetch_add(&queue->c_wait, 1);
             pthread_cond_wait(&(queue->cond), &(queue->mutex));
             atomic_fetch_sub(&queue->c_wait, 1);
@@ -224,50 +220,59 @@ void *queue_pop(queue_t *queue) {
 
 /*
 static void *producer(void *arg) {
+    queue_t *queue = (queue_t *)arg;
 
-        queue_t *queue = (queue_t *)arg;
+    printf("producer started\n");
+    for (long i = 1; i < 1024; i++) {
+        queue_push(queue, (void *)i);
+        printf("pushed data: %li\n", i);
+        uint32_t randValue = arc4random();
+        usleep(randValue);
+    }
+    printf("close Q\n");
+    queue_close(queue);
 
-        printf("producer started\n");
-        for (long i=1; i< 1024; i++ ) {
-                queue_push(queue, (void *)i);
-                printf("pushed data: %li\n", i);
-        }
-        printf("close Q\n");
-        queue_close(queue);
-
-        return NULL;
+    return NULL;
 }
 
 static void *consumer(void *arg) {
-
-        printf("consumer started\n");
-        queue_t *queue = (queue_t *)arg;
-        static int cnt = 1;
-        while (1) {
-                void *data = queue_get(queue);
-                if ( data == QUEUE_CLOSED ) {
-                        printf("Q closed\n");
-                        break;
-                }
-
-                if ((int)data != cnt ) {
-                        printf("Error compare: expected: %i, got: %i\n", cnt, (int)data);
-                }
-                printf("got data: %li\n", cnt);
-                cnt++;
+    printf("consumer started\n");
+    queue_t *queue = (queue_t *)arg;
+    while (1) {
+        void *data = queue_pop(queue);
+        if (data == QUEUE_CLOSED) {
+            printf("Q closed\n");
+            break;
         }
-        return NULL;
+        printf("got data: %li\n", (long)data);
+        uint32_t randValue = arc4random() & 0x1FFF;
+        usleep(randValue);
+    }
+    return NULL;
 }
 
 int main(int argc, char **argv) {
+    queue_t *queue = queue_init(128);
+    pthread_t t1, t2;
 
-        queue_t *queue = queue_init();
-        pthread_t t1, t2;
+    // pthread_create(&t1, NULL, producer, (void *)queue);
+    pthread_create(&t1, NULL, consumer, (void *)queue);
+    pthread_create(&t2, NULL, consumer, (void *)queue);
 
-        pthread_create(&t1, NULL, producer, (void *)queue);
-        pthread_create(&t2, NULL, consumer, (void *)queue);
-        pthread_join(t2, NULL);
-        printf("Done\n");
-        return 0;
+    for (long i = 1; i < 256; i++) {
+        queue_push(queue, (void *)i);
+        printf("pushed data: %li\n", i);
+        uint32_t randValue = arc4random() & 0xFFF;
+        usleep(randValue);
+    }
+    printf("wait Q\n");
+    queue_sync(queue);
+    printf("close Q\n");
+    queue_close(queue);
+
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+    printf("Done\n");
+    return 0;
 }
 */

@@ -131,7 +131,9 @@ static int ReadAppendix(nffile_t *nffile);
 
 static int WriteAppendix(nffile_t *nffile);
 
-static int SignalTerminate(nffile_t *nffile);
+static void joinWorkers(nffile_t *nffile);
+
+static void SignalTerminate(nffile_t *nffile);
 
 static void FlushFile(nffile_t *nffile);
 
@@ -717,7 +719,6 @@ nffile_t *NewFile(nffile_t *nffile) {
     nffile->stat_record->msecFirstSeen = 0x7fffffffffffffff;
 
     for (int i = 0; i < MAXWORKERS; i++) nffile->worker[i] = 0;
-    atomic_store(&nffile->terminate, 0);
     pthread_mutex_init(&nffile->wlock, NULL);
     return nffile;
 
@@ -889,7 +890,6 @@ nffile_t *OpenFile(char *filename, nffile_t *nffile) {
     // kick off nfreader
     // there is only 1 reader thread -> slot 0
     pthread_t tid;
-    atomic_store(&nffile->terminate, 0);
     queue_open(nffile->processQueue);
     int err = pthread_create(&tid, NULL, nfreader, (void *)nffile);
     if (err) {
@@ -964,7 +964,6 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
     }
 
     // kick off nfwriter
-    atomic_store(&nffile->terminate, 0);
     queue_open(nffile->processQueue);
 
     // if file is not compressed, 2 workers are fine.
@@ -1023,7 +1022,6 @@ nffile_t *AppendFile(char *filename) {
     }
 
     // kick off NumWorkers nfwriter threads
-    atomic_store(&nffile->terminate, 0);
     queue_open(nffile->processQueue);
 
     unsigned NumThreads = nffile->file_header->compression == 0 ? 1 : NumWorkers;
@@ -1085,30 +1083,24 @@ static void FlushFile(nffile_t *nffile) {
     queue_sync(nffile->processQueue);
     // writers terminate, on queue closed and empty
 
-    // wait for all nfwriter threads to exit
-    for (unsigned i = 0; i < NumWorkers; i++) {
-        if (nffile->worker[i]) {
-            int err = pthread_join(nffile->worker[i], NULL);
-            if (err) {
-                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            }
-            nffile->worker[i] = 0;
-        }
-    }
+    joinWorkers(nffile);
+
     fsync(nffile->fd);
 
 }  // End of FlushFile
+
+// wait for all queue entries have been processed and queuen is empty
+void SyncFile(nffile_t *nffile) {
+    if (!nffile || nffile->fd == 0) return;
+    queue_sync(nffile->processQueue);
+}  // End of SyncFile
 
 // close reading file
 void CloseFile(nffile_t *nffile) {
     if (!nffile || nffile->fd == 0) return;
 
     // make sure all workers are gone
-    for (unsigned i = 0; i < NumWorkers; i++) {
-        if (nffile->worker[i]) {
-            SignalTerminate(nffile);
-        }
-    }
+    SignalTerminate(nffile);
 
     close(nffile->fd);
     nffile->fd = 0;
@@ -1124,7 +1116,6 @@ void CloseFile(nffile_t *nffile) {
     }
 
     // clean queue
-    queue_close(nffile->processQueue);
     while (queue_length(nffile->processQueue)) {
         dataBlock_t *block_header = queue_pop(nffile->processQueue);
         FreeDataBlock(block_header);
@@ -1326,10 +1317,9 @@ __attribute__((noreturn)) void *nfreader(void *arg) {
     sigfillset(&set);
     pthread_sigmask(SIG_SETMASK, &set, NULL);
 
-    int terminate = atomic_load(&nffile->terminate);
     int blockCount = 0;
     dataBlock_t *block_header = NULL;
-    while (!terminate && blockCount < nffile->file_header->NumBlocks) {
+    while (blockCount < nffile->file_header->NumBlocks) {
         block_header = nfread(nffile);
         if (!block_header) {
             dbg_printf("block_header == NULL\n");
@@ -1339,19 +1329,12 @@ __attribute__((noreturn)) void *nfreader(void *arg) {
         if (queue_push(nffile->processQueue, (void *)block_header) == QUEUE_CLOSED) {
             FreeDataBlock(block_header);
             dbg_printf("nfreader - processQueue closed\n");
-            terminate = 1;
+            break;
         } else {
             blockCount++;
-            terminate = atomic_load(&nffile->terminate);
             dbg_printf("ReadBlock - expanded: %u\n", block_header->size);
             dbg_printf("Blocks: %u\n", blockCount);
         }
-
-#ifdef DEVEL
-        if (terminate) {
-            printf("Terminate nfreader by signal\n");
-        }
-#endif
     }
 
     // eof or error ends processing
@@ -1360,7 +1343,6 @@ __attribute__((noreturn)) void *nfreader(void *arg) {
     dbg_printf("nfreader done - read %u blocks\n", blockCount);
     dbg_printf("nfreader exit\n");
 
-    atomic_store(&nffile->terminate, 2);
     pthread_exit(NULL);
 
 }  // End of nfreader
@@ -1486,11 +1468,7 @@ __attribute__((noreturn)) void *nfwriter(void *arg) {
 
 }  // End of nfwriter
 
-static int SignalTerminate(nffile_t *nffile) {
-    // set terminate
-    atomic_store(&nffile->terminate, 1);
-    queue_close(nffile->processQueue);
-
+static void joinWorkers(nffile_t *nffile) {
     pthread_cond_broadcast(&(nffile->processQueue->cond));
     for (unsigned i = 0; i < NumWorkers; i++) {
         if (nffile->worker[i]) {
@@ -1501,10 +1479,11 @@ static int SignalTerminate(nffile_t *nffile) {
             nffile->worker[i] = 0;
         }
     }
-    atomic_store(&nffile->terminate, 0);
+}  // End of joinWorkers
 
-    return 1;
-
+static void SignalTerminate(nffile_t *nffile) {
+    queue_close(nffile->processQueue);
+    joinWorkers(nffile);
 }  // End of SignalTerminate
 
 void SetIdent(nffile_t *nffile, char *Ident) {

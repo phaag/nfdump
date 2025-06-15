@@ -86,6 +86,4 @@ queueStat_t queue_stat(queue_t *queue);
 
 size_t queue_length(queue_t *queue);
 
-uint32_t queue_done(queue_t *queue);
-
 #endif  // _QUEUE_H
