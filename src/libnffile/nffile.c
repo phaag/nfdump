@@ -644,7 +644,7 @@ static int WriteAppendix(nffile_t *nffile) {
     recordHeader->type = TYPE_STAT;
     recordHeader->size = sizeof(recordHeader_t) + sizeof(stat_record_t);
     // in case of an empty stat record
-    if (nffile->stat_record->firstseen == 0x7fffffffffffffffLL) nffile->stat_record->firstseen = 0;
+    if (nffile->stat_record->msecFirstSeen == 0x7fffffffffffffffLL) nffile->stat_record->msecFirstSeen = 0;
     memcpy(data, nffile->stat_record, sizeof(stat_record_t));
 
     block_header->NumRecords++;
@@ -714,7 +714,7 @@ nffile_t *NewFile(nffile_t *nffile) {
         nffile->ident = NULL;
     }
     memset((void *)nffile->stat_record, 0, sizeof(stat_record_t));
-    nffile->stat_record->firstseen = 0x7fffffffffffffff;
+    nffile->stat_record->msecFirstSeen = 0x7fffffffffffffff;
 
     for (int i = 0; i < MAXWORKERS; i++) nffile->worker[i] = 0;
     atomic_store(&nffile->terminate, 0);
@@ -1570,6 +1570,30 @@ int ChangeIdent(char *filename, char *Ident) {
 
 }  // End of ChangeIdent
 
+// set unique tmp file name for nfcapd.current.XXXXXX"
+// if
+char *SetUniqueTmpName(char *fname) {
+    size_t len = strlen(fname);
+    if (len < 7) return fname;
+
+    char *c = fname + len - 7;
+    if (*c != '.') return fname;
+    c++;
+
+    uint32_t randValue = arc4random() & 0xFFFFFF;
+    for (int i = 0; i < 6; i++) {
+        uint8_t v = randValue & 0xF;
+        randValue = randValue >> 4;
+        if (v < 10)
+            *c++ = v + '0';
+        else
+            *c++ = v + 'A' - 10;
+    }
+
+    return fname;
+
+}  // End of SetUniqueTmpName
+
 void ModifyCompressFile(int compress) {
     nffile_t *nffile_r, *nffile_w;
     stat_record_t *_s;
@@ -2102,8 +2126,8 @@ static void UpdateStat(stat_record_t *s, stat_recordV1_t *sv1) {
     s->numpackets_udp = sv1->numpackets_udp;
     s->numpackets_icmp = sv1->numpackets_icmp;
     s->numpackets_other = sv1->numpackets_other;
-    s->firstseen = 1000LL * (uint64_t)sv1->first_seen + (uint64_t)sv1->msec_first;
-    s->lastseen = 1000LL * (uint64_t)sv1->last_seen + (uint64_t)sv1->msec_last;
+    s->msecFirstSeen = 1000LL * (uint64_t)sv1->first_seen + (uint64_t)sv1->msec_first;
+    s->msecLastSeen = 1000LL * (uint64_t)sv1->last_seen + (uint64_t)sv1->msec_last;
     s->sequence_failure = sv1->sequence_failure;
 }  // End of UpdateStat
 
@@ -2142,10 +2166,10 @@ void PrintStat(stat_record_t *s, char *ident) {
     printf("Bytes_udp: %llu\n", (unsigned long long)s->numbytes_udp);
     printf("Bytes_icmp: %llu\n", (unsigned long long)s->numbytes_icmp);
     printf("Bytes_other: %llu\n", (unsigned long long)s->numbytes_other);
-    printf("First: %llu\n", s->firstseen / 1000LL);
-    printf("Last: %llu\n", s->lastseen / 1000LL);
-    printf("msec_first: %llu\n", s->firstseen % 1000LL);
-    printf("msec_last: %llu\n", s->lastseen % 1000LL);
+    printf("First: %llu\n", s->msecFirstSeen / 1000LL);
+    printf("Last: %llu\n", s->msecLastSeen / 1000LL);
+    printf("msec_first: %llu\n", s->msecFirstSeen % 1000LL);
+    printf("msec_last: %llu\n", s->msecLastSeen % 1000LL);
     printf("Sequence failures: %llu\n", (unsigned long long)s->sequence_failure);
 }  // End of PrintStat
 
@@ -2167,11 +2191,11 @@ void SumStatRecords(stat_record_t *s1, stat_record_t *s2) {
     s1->numpackets_other += s2->numpackets_other;
     s1->sequence_failure += s2->sequence_failure;
 
-    if (s2->firstseen < s1->firstseen) {
-        s1->firstseen = s2->firstseen;
+    if (s2->msecFirstSeen < s1->msecFirstSeen) {
+        s1->msecFirstSeen = s2->msecFirstSeen;
     }
-    if (s2->lastseen > s1->lastseen) {
-        s1->lastseen = s2->lastseen;
+    if (s2->msecLastSeen > s1->msecLastSeen) {
+        s1->msecLastSeen = s2->msecLastSeen;
     }
 
 }  // End of SumStatRecords

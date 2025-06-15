@@ -814,7 +814,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
                 // file entry
 
                 // skip stat file
-                if (strcmp(ftsent->fts_name, ".nfstat") == 0 || strncmp(ftsent->fts_name, NF_DUMPFILE, strlen(NF_DUMPFILE)) == 0) continue;
+                if (strcmp(ftsent->fts_name, ".nfstat") == 0 || strncmp(ftsent->fts_name, NF_TMPFILE, strlen(NF_TMPFILE)) == 0) continue;
                 if (strstr(ftsent->fts_name, ".stat") != NULL) continue;
                 // skip OSX DS_Store files
                 if (strstr(ftsent->fts_name, ".DS_Store") != NULL) continue;
@@ -1223,8 +1223,8 @@ static int CheckTimeWindow(char *filename, timeWindow_t *searchWindow) {
         return 0;
     }
 
-    if (searchWindow->msecLast && searchWindow->msecLast < stat_record.firstseen) return 0;
-    if (searchWindow->msecFirst && searchWindow->msecFirst > stat_record.lastseen) return 0;
+    if (searchWindow->msecLast && searchWindow->msecLast < stat_record.msecFirstSeen) return 0;
+    if (searchWindow->msecFirst && searchWindow->msecFirst > stat_record.msecLastSeen) return 0;
 
     return 1;
 

@@ -123,8 +123,8 @@ typedef struct stat_record_s {
     uint64_t numpackets_icmp;
     uint64_t numpackets_other;
     // time window
-    uint64_t firstseen;
-    uint64_t lastseen;
+    uint64_t msecFirstSeen;
+    uint64_t msecLastSeen;
     // other
     uint64_t sequence_failure;
 } stat_record_t;

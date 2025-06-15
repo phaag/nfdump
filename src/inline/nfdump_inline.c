@@ -86,11 +86,11 @@ static inline void UpdateStatRecord(stat_record_t *stat_record, recordHandle_t *
     stat_record->numbytes += inBytes;
     stat_record->numbytes += outBytes;
 
-    if (genericFlow->msecFirst < stat_record->firstseen) {
-        stat_record->firstseen = genericFlow->msecFirst;
+    if (genericFlow->msecFirst < stat_record->msecFirstSeen) {
+        stat_record->msecFirstSeen = genericFlow->msecFirst;
     }
-    if (genericFlow->msecLast > stat_record->lastseen) {
-        stat_record->lastseen = genericFlow->msecLast;
+    if (genericFlow->msecLast > stat_record->msecLastSeen) {
+        stat_record->msecLastSeen = genericFlow->msecLast;
     }
 
 }  // End of UpdateStat
@@ -161,11 +161,11 @@ static inline void UpdateRawStat(stat_record_t *stat_record, EXgenericFlow_t *ge
     stat_record->numbytes += inBytes;
     stat_record->numbytes += outBytes;
 
-    if (msecFirst < stat_record->firstseen) {
-        stat_record->firstseen = msecFirst;
+    if (msecFirst < stat_record->msecFirstSeen) {
+        stat_record->msecFirstSeen = msecFirst;
     }
-    if (msecLast > stat_record->lastseen) {
-        stat_record->lastseen = msecLast;
+    if (msecLast > stat_record->msecLastSeen) {
+        stat_record->msecLastSeen = msecLast;
     }
 
 }  // End of UpdateRawStat

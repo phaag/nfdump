@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2004-2024, Peter Haag
+ *  Copyright (c) 2004-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -43,7 +43,7 @@
 #define IDENTLEN 128
 #define IDENTNONE "none"
 
-#define NF_DUMPFILE "nfcapd.current"
+#define NF_TMPFILE "nfcapd.current"
 
 /*
  * output buffer max size, before writing data to the file
@@ -282,6 +282,8 @@ void FlushBlock(nffile_t *nffile, dataBlock_t *dataBlock);
 void FreeDataBlock(dataBlock_t *dataBlock);
 
 void SetIdent(nffile_t *nffile, char *Ident);
+
+char *SetUniqueTmpName(char *fname);
 
 void ModifyCompressFile(int compress);
 

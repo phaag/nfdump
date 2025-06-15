@@ -193,13 +193,15 @@ int AddFlowSource(FlowSource_t **FlowSource, char *ident, char *ip, char *flowpa
     (*source)->datadir = path;
 
     char s[MAXPATHLEN];
-    // cache current collector file
-    if (snprintf(s, MAXPATHLEN - 1, "%s/%s.%lu", (*source)->datadir, NF_DUMPFILE, (unsigned long)getpid()) >= (MAXPATHLEN - 1)) {
-        LogError("Path too long: %s", flowpath);
+    // cache current generic collector file
+    if (snprintf(s, MAXPATHLEN - 1, "%s/%s.XXXXXX", (*source)->datadir, NF_TMPFILE) >= (MAXPATHLEN - 1)) {
+        LogError("Path too long: %s", (*source)->datadir);
         return 0;
     }
-    (*source)->current = strdup(s);
-    if (!(*source)->current) {
+
+    // generic tmp filename
+    (*source)->tmpFileName = strdup(s);
+    if (!(*source)->tmpFileName) {
         LogError("strdup() error: %s", strerror(errno));
         return 0;
     }
@@ -235,7 +237,7 @@ int AddFlowSourceString(FlowSource_t **FlowSource, char *argument) {
 FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storage *ss) {
     FlowSource_t **source;
     void *ptr;
-    char *s, ident[100], path[MAXPATHLEN];
+    char *s, ident[100];
     int err;
 
     union {
@@ -331,6 +333,7 @@ FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storag
     strncpy((*source)->Ident, ident, IDENTLEN - 1);
     (*source)->Ident[IDENTLEN - 1] = '\0';
 
+    char path[MAXPATHLEN];
     snprintf(path, MAXPATHLEN - 1, "%s/%s", DynamicSourcesDir, ident);
     path[MAXPATHLEN - 1] = '\0';
 
@@ -343,15 +346,16 @@ FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storag
     }
     (*source)->datadir = strdup(path);
 
-    if (snprintf(path, MAXPATHLEN - 1, "%s/%s.%lu", (*source)->datadir, NF_DUMPFILE, (unsigned long)getpid()) >= (MAXPATHLEN - 1)) {
+    // cache current generic collector file
+    if (snprintf(path, MAXPATHLEN - 1, "%s/%s.XXXXXX", (*source)->datadir, NF_TMPFILE) >= (MAXPATHLEN - 1)) {
         LogError("Path too long: %s\n", path);
         free(*source);
         *source = NULL;
         return NULL;
     }
-    (*source)->current = strdup(path);
+    (*source)->tmpFileName = strdup(path);
 
-    LogInfo("Dynamically add source ident: %s in directory: %s", ident, path);
+    LogInfo("Dynamically add source ident: %s in directory: %s", ident, (*source)->datadir);
     return *source;
 
 }  // End of AddDynamicSource
@@ -396,23 +400,23 @@ int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int 
         // update stat record
         // if no flows were collected, fs->msecLast is still 0
         // set msecFirst and msecLast and to start of this time slot
-        if (fs->msecLast == 0) {
-            fs->msecFirst = 1000LL * (uint64_t)t_start;
-            fs->msecLast = fs->msecFirst;
+        if (fs->nffile->stat_record->msecLastSeen == 0) {
+            fs->nffile->stat_record->msecFirstSeen = 1000LL * (uint64_t)t_start;
+            fs->nffile->stat_record->msecLastSeen = fs->nffile->stat_record->msecFirstSeen;
         }
-        nffile->stat_record->firstseen = fs->msecFirst;
-        nffile->stat_record->lastseen = fs->msecLast;
 
         // Flush Exporter Stat to file
         FlushExporterStats(fs);
         // Flush open datablock
         fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
         // Close file
+        // XXX fix this
+        char *tmpPath = strdup(fs->nffile->fileName);
         CloseUpdateFile(nffile);
 
         // if rename fails, we are in big trouble, as we need to get rid of the old .current
         // file otherwise, we will loose flows and can not continue collecting new flows
-        if (RenameAppend(fs->current, nfcapd_filename) < 0) {
+        if (RenameAppend(tmpPath, nfcapd_filename) < 0) {
             LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
 
             // we do not update the books here, as the file failed to rename properly
@@ -424,6 +428,8 @@ int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int 
             stat(nfcapd_filename, &fstat);
             UpdateBooks(fs->bookkeeper, t_start, 512 * fstat.st_blocks);
         }
+        // XXX fix this
+        free(tmpPath);
 
         // log stats
         LogInfo("Ident: '%s' Flows: %" PRIu64 ", Packets: %" PRIu64 ", Bytes: %" PRIu64 ", Sequence Errors: %" PRIu64 ", Bad Packets: %u, Blocks: %u",
@@ -432,11 +438,11 @@ int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int 
 
         // reset stats
         fs->bad_packets = 0;
-        fs->msecFirst = 0xffffffffffffLL;
-        fs->msecLast = 0;
+        fs->nffile->stat_record->msecFirstSeen = 0xffffffffffffLL;
+        fs->nffile->stat_record->msecLastSeen = 0;
 
         if (!done) {
-            fs->nffile = OpenNewFile(fs->current, fs->nffile, CREATOR_NFCAPD, INHERIT, INHERIT);
+            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), fs->nffile, CREATOR_NFCAPD, INHERIT, INHERIT);
             if (!fs->nffile) {
                 LogError("killed due to fatal error: ident: %s", fs->Ident);
                 return 0;

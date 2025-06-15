@@ -286,7 +286,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
     FlowSource_t *fs = FlowSource;
     while (fs) {
         // prepare file
-        fs->nffile = OpenNewFile(fs->current, NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+        fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
         if (!fs->nffile) {
             return;
         }
@@ -295,8 +295,6 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
         // init flow source
         fs->dataBlock = WriteBlock(fs->nffile, NULL);
         fs->bad_packets = 0;
-        fs->msecFirst = 0xffffffffffffLL;
-        fs->msecLast = 0;
 
         // next source
         fs = fs->next;
@@ -412,7 +410,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 // fatal error
                 return;
             }
-            fs->nffile = OpenNewFile(fs->current, NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
                 LogError("Failed to open new collector file");
                 return;

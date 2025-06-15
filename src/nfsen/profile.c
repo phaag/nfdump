@@ -328,8 +328,8 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
 
     memset((void *)&profile_channels[num_channels].stat_record, 0, sizeof(stat_record_t));
 
-    profile_channels[num_channels].stat_record.firstseen = 0x7fffffffffffffffLL;
-    profile_channels[num_channels].stat_record.lastseen = 0;
+    profile_channels[num_channels].stat_record.msecFirstSeen = 0x7fffffffffffffffLL;
+    profile_channels[num_channels].stat_record.msecLastSeen = 0;
 
     num_channels++;
 

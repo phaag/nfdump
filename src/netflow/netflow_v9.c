@@ -1202,8 +1202,7 @@ static inline void Process_v9_data(exporterDomain_t *exporter, void *data_flowse
                 genericFlow->msecLast = stack[STACK_SECLAST] * (uint64_t)1000;
             }
 
-            if (genericFlow->msecFirst < fs->msecFirst) fs->msecFirst = genericFlow->msecFirst;
-            if (genericFlow->msecLast > fs->msecLast) fs->msecLast = genericFlow->msecLast;
+            UpdateFirstLast(fs, genericFlow->msecFirst, genericFlow->msecLast);
             dbg_printf("msecFrist: %" PRIu64 "\n", genericFlow->msecFirst);
             dbg_printf("msecLast : %" PRIu64 "\n", genericFlow->msecLast);
             dbg_printf("packets : %" PRIu64 "\n", genericFlow->inPackets);

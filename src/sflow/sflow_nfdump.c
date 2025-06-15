@@ -502,9 +502,9 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     }
 
     // update first_seen, last_seen
-    if (genericFlow->msecFirst < fs->msecFirst)  // the very first time stamp need to be set
-        fs->msecFirst = genericFlow->msecFirst;
-    fs->msecLast = genericFlow->msecFirst;
+    if (genericFlow->msecFirst < fs->nffile->stat_record->msecFirstSeen)  // the very first time stamp need to be set
+        fs->nffile->stat_record->msecFirstSeen = genericFlow->msecFirst;
+    fs->nffile->stat_record->msecLastSeen = genericFlow->msecFirst;
 
     // Update stats
     stat_record_t *stat_record = fs->nffile->stat_record;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -81,15 +81,13 @@ typedef struct FlowSource_s {
 
     // all about data storage
     char *datadir;           // where to store data for this source
-    char *current;           // current file name - typically nfcad.current.pid
+    char *tmpFileName;       // gereric tmp flow filename
     int subdir;              // sub dir structure
     nffile_t *nffile;        // the writing file handle
     dataBlock_t *dataBlock;  // writing buffer
 
     // statistical data per source
     uint32_t bad_packets;
-    uint64_t msecFirst;  // in msec
-    uint64_t msecLast;   // in msec
 
     // Any exporter specific data
     exporter_t *exporter_data;
@@ -101,12 +99,12 @@ typedef struct FlowSource_s {
 /* input buffer size, to read data from the network */
 #define NETWORK_INPUT_BUFF_SIZE 65535  // Maximum UDP message size
 
-#define UpdateFirstLast(fs, First, Last) \
-    if ((First) < (fs)->msecFirst) {     \
-        (fs)->msecFirst = (First);       \
-    }                                    \
-    if ((Last) > (fs)->msecLast) {       \
-        (fs)->msecLast = (Last);         \
+#define UpdateFirstLast(fs, First, Last)                      \
+    if ((First) < (fs)->nffile->stat_record->msecFirstSeen) { \
+        (fs)->nffile->stat_record->msecFirstSeen = (First);   \
+    }                                                         \
+    if ((Last) > (fs->nffile->stat_record)->msecLastSeen) {   \
+        (fs->nffile->stat_record)->msecLastSeen = (Last);     \
     }
 
 // prototypes

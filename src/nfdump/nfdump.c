@@ -211,13 +211,13 @@ static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParam
     numStr byte_str, packet_str, bps_str, pps_str, bpp_str;
 
     bps = pps = bpp = 0;
-    if (stat_record->lastseen) {
-        duration = (stat_record->lastseen - stat_record->firstseen) / 1000.0;
+    if (stat_record->msecLastSeen) {
+        duration = (stat_record->msecLastSeen - stat_record->msecFirstSeen) / 1000.0;
     } else {
         // no flows to report
         duration = 0;
     }
-    if (duration > 0 && stat_record->lastseen > 0) {
+    if (duration > 0 && stat_record->msecLastSeen > 0) {
         bps = (stat_record->numbytes << 3) / duration;  // bits per second. ( >> 3 ) -> * 8 to convert octets into bits
         pps = stat_record->numpackets / duration;       // packets per second
         bpp = stat_record->numpackets ? stat_record->numbytes / stat_record->numpackets : 0;  // Bytes per Packet
@@ -284,8 +284,8 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
         dbg_printf("prepareThread exit\n");
         pthread_exit(NULL);
     }
-    t_firstMsec = nffile->stat_record->firstseen;
-    t_lastMsec = nffile->stat_record->lastseen;
+    t_firstMsec = nffile->stat_record->msecFirstSeen;
+    t_lastMsec = nffile->stat_record->msecLastSeen;
 
     dataHandle_t *dataHandle = NULL;
     uint64_t recordCnt = 0;
@@ -306,8 +306,8 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
             if (GetNextFile(nffile) == NULL) {
                 done = 1;
             } else {
-                if (nffile->stat_record->firstseen < t_firstMsec) t_firstMsec = nffile->stat_record->firstseen;
-                if (nffile->stat_record->lastseen > t_lastMsec) t_lastMsec = nffile->stat_record->lastseen;
+                if (nffile->stat_record->msecFirstSeen < t_firstMsec) t_firstMsec = nffile->stat_record->msecFirstSeen;
+                if (nffile->stat_record->msecLastSeen > t_lastMsec) t_lastMsec = nffile->stat_record->msecLastSeen;
                 if (dataHandle->ident) free(dataHandle->ident);
                 dataHandle->ident = nffile->ident != NULL ? strdup(nffile->ident) : NULL;
             }
@@ -503,7 +503,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
 static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, timeWindow_t *timeWindow,
                                   uint64_t limitRecords, outputParams_t *outputParams, int compress) {
     stat_record_t stat_record = {0};
-    stat_record.firstseen = 0x7fffffffffffffffLL;
+    stat_record.msecFirstSeen = 0x7fffffffffffffffLL;
 
     // launch prepareThread
     prepareArgs_t prepareArgs = {.prepareQueue = queue_init(8)};
@@ -545,7 +545,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     if (wfile) {
         nffile_w = OpenNewFile(wfile, NULL, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
         if (!nffile_w) {
-            stat_record.firstseen = 0;
+            stat_record.msecFirstSeen = 0;
             return stat_record;
         }
         dataBlock_w = WriteBlock(nffile_w, NULL);
@@ -1146,7 +1146,7 @@ int main(int argc, char **argv) {
         }
 
         memset((void *)&sum_stat, 0, sizeof(stat_record_t));
-        sum_stat.firstseen = 0x7fffffffffffffff;
+        sum_stat.msecFirstSeen = 0x7fffffffffffffff;
         nffile = GetNextFile(NULL);
         if (!nffile) {
             LogError("Error open file: %s\n", strerror(errno));

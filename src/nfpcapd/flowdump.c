@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -229,8 +229,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         }
 
         // update first_seen, last_seen
-        if (genericFlow->msecFirst < fs->msecFirst) fs->msecFirst = genericFlow->msecFirst;
-        if (genericFlow->msecLast > fs->msecLast) fs->msecLast = genericFlow->msecLast;
+        UpdateFirstLast(fs, genericFlow->msecFirst, genericFlow->msecLast);
 
         // Update stats
         stat_record_t *stat_record = fs->nffile->stat_record;
@@ -324,18 +323,17 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
     // update stat record
     // if no flows were collected, fs->last_seen is still 0
     // set first_seen to start of this time slot, with twin window size.
-    if (fs->msecLast == 0) {
-        fs->msecFirst = 1000LL * (uint64_t)timestamp;
-        fs->msecLast = 1000LL * (uint64_t)(timestamp + flowParam->t_win);
+    if (fs->nffile->stat_record->msecLastSeen == 0) {
+        fs->nffile->stat_record->msecFirstSeen = 1000LL * (uint64_t)timestamp;
+        fs->nffile->stat_record->msecLastSeen = 1000LL * (uint64_t)(timestamp + flowParam->t_win);
     }
-    fs->nffile->stat_record->firstseen = fs->msecFirst;
-    fs->nffile->stat_record->lastseen = fs->msecLast;
-
+    // XXX fix this
+    char *tmpName = strdup(fs->nffile->fileName);
     CloseUpdateFile(fs->nffile);
 
     // if rename fails, we are in big trouble, as we need to get rid of the old .current file
     // otherwise, we will loose flows and can not continue collecting new flows
-    if (RenameAppend(fs->current, FullName) < 0) {
+    if (RenameAppend(tmpName, FullName) < 0) {
         LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
         LogError("Ident: %s, Serious Problem! Fix manually", fs->Ident);
         // we do not update the books here, as the file failed to rename properly
@@ -346,14 +344,14 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
         stat(FullName, &fstat);
         UpdateBooks(fs->bookkeeper, timestamp, 512 * fstat.st_blocks);
     }
+    // XXX fix this
+    free(tmpName);
 
     LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu", fs->Ident, (unsigned long long)fs->nffile->stat_record->numflows,
             (unsigned long long)fs->nffile->stat_record->numpackets, (unsigned long long)fs->nffile->stat_record->numbytes);
 
     // reset stats
     fs->bad_packets = 0;
-    fs->msecFirst = 0xffffffffffffLL;
-    fs->msecLast = 0;
 
     // Dump all exporters to the buffer
     FlushStdRecords(fs);
@@ -369,7 +367,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
 
     printRecord = flowParam->printRecord;
     // prepare file
-    fs->nffile = OpenNewFile(fs->current, NULL, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
+    fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
     if (!fs->nffile) {
         pthread_kill(flowParam->parent, SIGUSR1);
         pthread_exit((void *)flowParam);
@@ -379,8 +377,6 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
     // init flow source
     fs->dataBlock = WriteBlock(fs->nffile, NULL);
     fs->bad_packets = 0;
-    fs->msecFirst = 0xffffffffffffLL;
-    fs->msecLast = 0;
     while (1) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
         if (Node->signal == SIGNAL_SYNC) {
@@ -389,7 +385,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
             // flush current block and close file
             fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
             CloseFlowFile(flowParam, Node->timestamp);
-            fs->nffile = OpenNewFile(fs->current, fs->nffile, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
+            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), fs->nffile, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
                 LogError("Fatal: OpenNewFile() failed for ident: %s", fs->Ident);
                 pthread_kill(flowParam->parent, SIGUSR1);
