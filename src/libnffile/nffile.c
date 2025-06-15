@@ -133,7 +133,7 @@ static int WriteAppendix(nffile_t *nffile);
 
 static void joinWorkers(nffile_t *nffile);
 
-static void SignalTerminate(nffile_t *nffile);
+static void TerminateWorkers(nffile_t *nffile);
 
 static void FlushFile(nffile_t *nffile);
 
@@ -656,6 +656,9 @@ static int WriteAppendix(nffile_t *nffile) {
     nfwrite(nffile, block_header);
     FreeDataBlock(block_header);
 
+    // NumBlocks are plain data blocks - subtract appendix blocks
+    nffile->file_header->NumBlocks -= nffile->file_header->appendixBlocks;
+
     return 1;
 
 }  // End of WriteAppendix
@@ -1061,7 +1064,8 @@ int RenameAppend(char *oldName, char *newName) {
         SumStatRecords(nffile_w->stat_record, nffile_r->stat_record);
         DisposeFile(nffile_r);
 
-        CloseUpdateFile(nffile_w);
+        FinaliseFile(nffile_w);
+        CloseFile(nffile_w);
         DisposeFile(nffile_w);
 
         return unlink(oldName);
@@ -1100,7 +1104,7 @@ void CloseFile(nffile_t *nffile) {
     if (!nffile || nffile->fd == 0) return;
 
     // make sure all workers are gone
-    SignalTerminate(nffile);
+    TerminateWorkers(nffile);
 
     close(nffile->fd);
     nffile->fd = 0;
@@ -1125,7 +1129,7 @@ void CloseFile(nffile_t *nffile) {
 }  // End of CloseFile
 
 // close writing file
-int CloseUpdateFile(nffile_t *nffile) {
+int FinaliseFile(nffile_t *nffile) {
     FlushFile(nffile);
 
     if (!WriteAppendix(nffile)) {
@@ -1138,9 +1142,6 @@ int CloseUpdateFile(nffile_t *nffile) {
         return 0;
     }
 
-    // NumBlocks are plain data blocks - subtract appendix blocks
-    nffile->file_header->NumBlocks -= nffile->file_header->appendixBlocks;
-
     if (write(nffile->fd, (void *)nffile->file_header, sizeof(fileHeaderV2_t)) <= 0) {
         LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
@@ -1151,12 +1152,10 @@ int CloseUpdateFile(nffile_t *nffile) {
         close(nffile->fd);
         return 0;
     }
-    fsync(nffile->fd);
-    CloseFile(nffile);
 
     return 1;
 
-} /* End of CloseUpdateFile */
+} /* End of FinaliseFile */
 
 // destroy nffile handle: free up all resources
 void DisposeFile(nffile_t *nffile) {
@@ -1167,12 +1166,6 @@ void DisposeFile(nffile_t *nffile) {
     if (nffile->stat_record) free(nffile->stat_record);
     if (nffile->ident) free(nffile->ident);
     if (nffile->fileName) free(nffile->fileName);
-
-    queue_close(nffile->processQueue);
-    for (size_t queueLen = queue_length(nffile->processQueue); queueLen > 0; queueLen--) {
-        void *p = queue_pop(nffile->processQueue);
-        FreeDataBlock(p);
-    }
 
     queue_free(nffile->processQueue);
     free(nffile);
@@ -1481,10 +1474,11 @@ static void joinWorkers(nffile_t *nffile) {
     }
 }  // End of joinWorkers
 
-static void SignalTerminate(nffile_t *nffile) {
+static void TerminateWorkers(nffile_t *nffile) {
+    // closing the queue signals the workers to terminate
     queue_close(nffile->processQueue);
     joinWorkers(nffile);
-}  // End of SignalTerminate
+}  // End of TerminateWorkers
 
 void SetIdent(nffile_t *nffile, char *Ident) {
     if (Ident && strlen(Ident) > 0) {
@@ -1622,10 +1616,11 @@ void ModifyCompressFile(int compress) {
         }
 
         printf("File %s compression changed\n", nffile_r->fileName);
-        if (!CloseUpdateFile(nffile_w)) {
+        if (!FinaliseFile(nffile_w)) {
+            CloseFile(nffile_w);
             unlink(outfile);
-            LogError("Failed to close file: '%s'", strerror(errno));
         } else {
+            CloseFile(nffile_w);
             if (unlink(nffile_r->fileName)) {
                 LogError("unlink() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             } else if (rename(outfile, nffile_r->fileName)) {

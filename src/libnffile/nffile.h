@@ -266,7 +266,7 @@ void SyncFile(nffile_t *nffile);
 
 void CloseFile(nffile_t *nffile);
 
-int CloseUpdateFile(nffile_t *nffile);
+int FinaliseFile(nffile_t *nffile);
 
 int RenameAppend(char *oldName, char *newName);
 

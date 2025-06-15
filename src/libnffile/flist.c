@@ -1119,13 +1119,11 @@ char *GetSubDir(struct tm *now) {
 
 int GetSubDirIndex(void) { return subdir_index; }
 
-int SetupSubDir(char *dir, char *subdir, char *error, size_t errlen) {
+int SetupSubDir(char *dir, char *subdir) {
     char *p, path[MAXPATHLEN];
     struct stat stat_buf;
     size_t sublen, pathlen;
     int err;
-
-    error[0] = '\0';
 
     path[0] = '\0';
     strncat(path, dir, MAXPATHLEN - 1);
@@ -1135,7 +1133,7 @@ int SetupSubDir(char *dir, char *subdir, char *error, size_t errlen) {
     pathlen = strlen(path);
     // set p as reference between path and subdir
     if ((sublen + pathlen + 2) >= (MAXPATHLEN - 1)) {  // +2 : add 1 for '/'
-        snprintf(error, errlen, "Path '%s': too long", path);
+        LogError("SetupSubDir(): path '%s': too long", path);
         return 0;
     }
 
@@ -1152,7 +1150,7 @@ int SetupSubDir(char *dir, char *subdir, char *error, size_t errlen) {
             return 1;
         } else {
             // an entry with this name exists, but it's not a directory
-            snprintf(error, errlen, "Path '%s': %s ", path, strerror(ENOTDIR));
+            LogError("SetupSubDir(): path '%s': %s ", path, strerror(ENOTDIR));
             return 0;
         }
     }
@@ -1164,11 +1162,14 @@ int SetupSubDir(char *dir, char *subdir, char *error, size_t errlen) {
 
     // else errno is set
     if (errno == ENOENT) {  // we need to create intermediate directories as well
-        err = mkpath(path, p, mode, dir_mode, error, errlen);
+        char error[255];
+        err = mkpath(path, p, mode, dir_mode, error, 255);
         if (err == 0)  // creation was successful
             return 1;
+        else
+            LogError("mkpath() error for '%s': %s", path, error);
     } else {
-        snprintf(error, errlen, "mkdir() error for '%s': %s", path, strerror(errno));
+        LogError("mkdir() error for '%s': %s", path, strerror(errno));
     }
 
     // anything else failed and error string is set

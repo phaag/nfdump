@@ -309,11 +309,10 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
     }
     netflowFname[127] = '\0';
 
-    char error[256];
-    if (subdir && !SetupSubDir(fs->datadir, subdir, error, 255)) {
+    if (subdir && !SetupSubDir(fs->datadir, subdir)) {
         // in this case the flows get lost! - the rename will fail
         // but this should not happen anyway, unless i/o problems, inode problems etc.
-        LogError("Ident: %s, Failed to create sub hier directories: %s", fs->Ident, error);
+        LogError("Ident: %s, Failed to create sub hier directories", fs->Ident);
     }
 
     // prepare full filename
@@ -329,7 +328,8 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
     }
     // XXX fix this
     char *tmpName = strdup(fs->nffile->fileName);
-    CloseUpdateFile(fs->nffile);
+    FinaliseFile(fs->nffile);
+    CloseFile(fs->nffile);
 
     // if rename fails, we are in big trouble, as we need to get rid of the old .current file
     // otherwise, we will loose flows and can not continue collecting new flows

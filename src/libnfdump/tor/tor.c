@@ -204,8 +204,10 @@ int SaveTorTree(char *fileName) {
     // flush current datablock
     FlushBlock(nffile, dataBlock);
 
-    return CloseUpdateFile(nffile);
+    int ret = FinaliseFile(nffile);
+    CloseFile(nffile);
 
+    return ret;
 }  // End of SaveTorTree
 
 int LoadTorTree(char *fileName) {

@@ -50,7 +50,7 @@ char *GetSubDir(struct tm *now);
 
 int GetSubDirIndex(void);
 
-int SetupSubDir(char *dir, char *subdir, char *error, size_t errlen);
+int SetupSubDir(char *dir, char *subdir);
 
 queue_t *SetupInputFileSequence(flist_t *flist);
 

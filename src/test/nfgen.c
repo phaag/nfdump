@@ -184,11 +184,11 @@ static dataBlock_t *StoreRecord(recordHandle_t *recordHandle, nffile_t *nffile, 
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     if (genericFlow) {
         genericFlow->msecFirst++;
-        if (nffile->stat_record->firstseen == 0 || genericFlow->msecFirst < nffile->stat_record->firstseen) {
-            nffile->stat_record->firstseen = genericFlow->msecFirst;
+        if (nffile->stat_record->msecFirstSeen == 0 || genericFlow->msecFirst < nffile->stat_record->msecFirstSeen) {
+            nffile->stat_record->msecFirstSeen = genericFlow->msecFirst;
         }
-        if (nffile->stat_record->lastseen == 0 || genericFlow->msecLast > nffile->stat_record->lastseen) {
-            nffile->stat_record->lastseen = genericFlow->msecLast;
+        if (nffile->stat_record->msecLastSeen == 0 || genericFlow->msecLast > nffile->stat_record->msecLastSeen) {
+            nffile->stat_record->msecLastSeen = genericFlow->msecLast;
         }
         // Update stats
         switch (genericFlow->proto) {
@@ -599,6 +599,8 @@ int main(int argc, char **argv) {
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     FlushBlock(nffile, dataBlock);
-    CloseUpdateFile(nffile);
+    FinaliseFile(nffile);
+    CloseFile(nffile);
+    DisposeFile(nffile);
     return 0;
 }

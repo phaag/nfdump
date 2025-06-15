@@ -256,8 +256,10 @@ int SaveMaxMind(char *fileName) {
     StoreASV4tree(nffile);
     StoreASV6tree(nffile);
     StoreASorgtree(nffile);
-    return CloseUpdateFile(nffile);
+    int ret = FinaliseFile(nffile);
+    CloseFile(nffile);
 
+    return ret;
 }  // End of SaveMaxMind
 
 int LoadMaxMind(char *fileName) {

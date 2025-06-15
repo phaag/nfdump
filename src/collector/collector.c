@@ -380,15 +380,13 @@ int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int 
     // for each flow source update the stats, close the file and re-initialize the new file
     while (fs) {
         char nfcapd_filename[MAXPATHLEN];
-        char error[255];
         nffile_t *nffile = fs->nffile;
 
         // prepare filename
         if (subdir) {
-            if (SetupSubDir(fs->datadir, subdir, error, 255)) {
+            if (SetupSubDir(fs->datadir, subdir)) {
                 snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/%s/nfcapd.%s", fs->datadir, subdir, fmt);
             } else {
-                LogError("Ident: %s, Failed to create sub hier directories: %s", fs->Ident, error);
                 // skip subdir - put flows directly into current directory
                 snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/nfcapd.%s", fs->datadir, fmt);
             }
@@ -409,14 +407,20 @@ int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int 
         FlushExporterStats(fs);
         // Flush open datablock
         fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
-        // Close file
-        // XXX fix this
+
+        // need tmp filename for renaming - Closing the file, discards the filename
+        char tmpFilename[MAXPATHLEN];
+        strncpy(tmpFilename, fs->nffile->fileName, MAXPATHLEN - 1);
+        tmpFilename[MAXPATHLEN - 1] = '\0';
+
         char *tmpPath = strdup(fs->nffile->fileName);
-        CloseUpdateFile(nffile);
+        // Close file
+        FinaliseFile(nffile);
+        CloseFile(nffile);
 
         // if rename fails, we are in big trouble, as we need to get rid of the old .current
         // file otherwise, we will loose flows and can not continue collecting new flows
-        if (RenameAppend(tmpPath, nfcapd_filename) < 0) {
+        if (RenameAppend(tmpFilename, nfcapd_filename) < 0) {
             LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
 
             // we do not update the books here, as the file failed to rename properly
@@ -428,8 +432,6 @@ int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int 
             stat(nfcapd_filename, &fstat);
             UpdateBooks(fs->bookkeeper, t_start, 512 * fstat.st_blocks);
         }
-        // XXX fix this
-        free(tmpPath);
 
         // log stats
         LogInfo("Ident: '%s' Flows: %" PRIu64 ", Packets: %" PRIu64 ", Bytes: %" PRIu64 ", Sequence Errors: %" PRIu64 ", Bad Packets: %u, Blocks: %u",

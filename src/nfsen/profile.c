@@ -254,15 +254,14 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
             char *p = &filename[7];  // points to ISO timestamp in filename
             time_t t = ISO2UNIX(p);
             struct tm *t_tm = localtime(&t);
-            char error[255];
 
             subdir = GetSubDir(t_tm);
             if (!subdir) {
                 // failed to generate subdir path - put flows into base directory
                 LogError("Failed to create subdir path!");
             }
-            if (!SetupSubDir(path, subdir, error, 255)) {
-                LogError("Failed to create subdir path: '%s'", error);
+            if (!SetupSubDir(path, subdir)) {
+                LogError("Failed to create subdir path");
                 // nothing else need to be done, as subdir == NULL means put files into channel directory
             }
         }

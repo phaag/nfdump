@@ -329,7 +329,8 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
             // flush output buffer
             FlushBlock(channels[j].nffile, channels[j].dataBlock);
             *channels[j].nffile->stat_record = channels[j].stat_record;
-            CloseUpdateFile(channels[j].nffile);
+            FinaliseFile(channels[j].nffile);
+            CloseFile(channels[j].nffile);
             DisposeFile(channels[j].nffile);
         }
     }

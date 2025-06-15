@@ -709,7 +709,8 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
         /* Copy stat info and close file */
         memcpy((void *)nffile_w->stat_record, (void *)&stat_record, sizeof(stat_record_t));
-        CloseUpdateFile(nffile_w);
+        FinaliseFile(nffile_w);
+        CloseFile(nffile_w);
         DisposeFile(nffile_w);
     }
 
@@ -1275,7 +1276,8 @@ int main(int argc, char **argv) {
             if (!nffile) exit(EXIT_FAILURE);
             SetIdent(nffile, outputParams->ident);
             if (ExportFlowTable(nffile, aggregate, bidir, GuessDir)) {
-                CloseUpdateFile(nffile);
+                FinaliseFile(nffile);
+                CloseFile(nffile);
             } else {
                 CloseFile(nffile);
                 unlink(wfile);
