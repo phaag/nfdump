@@ -433,7 +433,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             genericFlow->msecFirst = msecStart;
             genericFlow->msecLast = msecEnd;
 
-            UpdateFirstLast(fs, msecStart, msecEnd);
+            UpdateFirstLast(fs->nffile, msecStart, msecEnd);
 
             // add router IP
             if (fs->sa_family == PF_INET6) {

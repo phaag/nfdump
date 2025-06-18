@@ -1462,7 +1462,7 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
                 genericFlow->msecLast = stack[STACK_SECLAST] * (uint64_t)1000;
             }
 
-            UpdateFirstLast(fs, genericFlow->msecFirst, genericFlow->msecLast);
+            UpdateFirstLast(fs->nffile, genericFlow->msecFirst, genericFlow->msecLast);
             dbg_printf("msecFrist: %" PRIu64 "\n", genericFlow->msecFirst);
             dbg_printf("msecLast : %" PRIu64 "\n", genericFlow->msecLast);
             dbg_printf("packets : %" PRIu64 "\n", genericFlow->inPackets);

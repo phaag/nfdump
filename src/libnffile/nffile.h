@@ -183,9 +183,7 @@ typedef struct nffile_s {
     pthread_t worker[MAXWORKERS];  // nfread/nfwrite worker thread;
     pthread_mutex_t wlock;         // writer lock
 #define FILE_IS_COMPAT16(n) (n->compat16)
-#define NUM_BUFFS 2
     size_t buff_size;
-    // void			*buff_pool[NUM_BUFFS];	// buffer space for read/write/compression
 
     queue_t *processQueue;  // blocks ready to be processed. Connects consumer/producer threads
 
@@ -287,9 +285,5 @@ void SetIdent(nffile_t *nffile, char *Ident);
 char *SetUniqueTmpName(char *fname);
 
 void ModifyCompressFile(int compress);
-
-void *nfreader(void *arg);
-
-void *nfwriter(void *arg);
 
 #endif  //_NFFILE_H

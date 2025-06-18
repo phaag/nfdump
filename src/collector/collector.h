@@ -99,12 +99,12 @@ typedef struct FlowSource_s {
 /* input buffer size, to read data from the network */
 #define NETWORK_INPUT_BUFF_SIZE 65535  // Maximum UDP message size
 
-#define UpdateFirstLast(fs, First, Last)                      \
-    if ((First) < (fs)->nffile->stat_record->msecFirstSeen) { \
-        (fs)->nffile->stat_record->msecFirstSeen = (First);   \
-    }                                                         \
-    if ((Last) > (fs->nffile->stat_record)->msecLastSeen) {   \
-        (fs->nffile->stat_record)->msecLastSeen = (Last);     \
+#define UpdateFirstLast(nffile, First, Last)              \
+    if ((First) < (nffile)->stat_record->msecFirstSeen) { \
+        (nffile)->stat_record->msecFirstSeen = (First);   \
+    }                                                     \
+    if ((Last) > (nffile)->stat_record->msecLastSeen) {   \
+        (nffile)->stat_record->msecLastSeen = (Last);     \
     }
 
 // prototypes

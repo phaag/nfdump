@@ -125,6 +125,10 @@ static int Uncompress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, s
 
 static dataBlock_t *nfread(nffile_t *nffile);
 
+static void *nfwriter(void *arg);
+
+static void *nfreader(void *arg);
+
 static int nfwrite(nffile_t *nffile, dataBlock_t *block_header);
 
 static int ReadAppendix(nffile_t *nffile);
@@ -1302,7 +1306,7 @@ static dataBlock_t *nfread(nffile_t *nffile) {
 
 }  // End of nfread
 
-__attribute__((noreturn)) void *nfreader(void *arg) {
+__attribute__((noreturn)) static void *nfreader(void *arg) {
     nffile_t *nffile = (nffile_t *)arg;
 
     /* Signal handling */
@@ -1429,7 +1433,7 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
 
 }  // End of nfwrite
 
-__attribute__((noreturn)) void *nfwriter(void *arg) {
+__attribute__((noreturn)) static void *nfwriter(void *arg) {
     nffile_t *nffile = (nffile_t *)arg;
 
     dbg_printf("nfwriter enter\n");
