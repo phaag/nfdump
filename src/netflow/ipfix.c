@@ -278,9 +278,9 @@ static const struct ipfixReverseMap_s {
 };
 
 // module limited globals
-static uint32_t processed_records;
-static int printRecord;
-uint32_t defaultSampling;
+static uint32_t processed_records = 0;
+static int printRecord = 0;
+static int32_t defaultSampling = 1;
 
 // prototypes
 static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_record_t *sampler_record);
@@ -348,11 +348,11 @@ int Init_IPFIX(int verbose, int32_t sampling, char *extensionList) {
     }
 
     if (sampling < 0) {
-        LogInfo("Init IPFIX: Max number of ipfix tags enabled: %u, overwrite sampling: %d", tagsEnabled, -defaultSampling);
-        dbg_printf("Init ipfix: Overwrite sampling: %d\n", -defaultSampling);
+        LogInfo("Init IPFIX: Max number of ipfix tags enabled: %u, overwrite sampling: %d", tagsEnabled, -sampling);
+        dbg_printf("Init ipfix: Overwrite sampling: %d\n", -sampling);
     } else {
-        LogInfo("Init IPFIX: Max number of ipfix tags enabled: %u, default sampling: %d", tagsEnabled, defaultSampling);
-        dbg_printf("Init ipfix: Default sampling: %d\n", defaultSampling);
+        LogInfo("Init IPFIX: Max number of ipfix tags enabled: %u, default sampling: %d", tagsEnabled, sampling);
+        dbg_printf("Init ipfix: Default sampling: %d\n", sampling);
     }
 
     return 1;
