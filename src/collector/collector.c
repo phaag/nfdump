@@ -66,19 +66,8 @@ typedef struct finaliseArgs_s {
 static uint32_t exporter_sysid = 0;
 static char *DynamicSourcesDir = NULL;
 
-/*
-static struct periodic_prefs_s {
-    queue_t *finaliseQueue;
-    pthread_t periodicTID;
-} periodic_prefs = {0};
-*/
-
 /* local prototypes */
 static uint32_t AssignExporterID(void);
-
-// static pthread_t LaunchPeriodicHandler(struct periodic_prefs_s *periodic_prefs);
-
-// static void *periodicHandler(void *arg);
 
 #include "nffile_inline.c"
 
@@ -377,61 +366,6 @@ FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storag
 
 }  // End of AddDynamicSource
 
-/*
-int _RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int done) {
-    if (periodic_prefs.periodicTID == 0) {
-        periodic_prefs.finaliseQueue = queue_init(64);
-        if (LaunchPeriodicHandler(&periodic_prefs) == 0) return 0;
-    }
-
-    // for each flow source update the tmp flow fiel and send it to the competion thread
-    int ret = 1;
-    for (; fs != NULL; fs = fs->next) {
-        nffile_t *nffile = fs->nffile;
-
-        // Flush all exporters/samplers
-        FlushStdRecords(fs);
-        // Flush exporter statistics to file
-        FlushExporterStats(fs);
-        // Flush open datablock
-        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
-
-        finaliseArgs_t *finaliseArgs = malloc(sizeof(finaliseArgs_t));
-        if (!finaliseArgs) {
-            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            ret = 0;
-            continue;
-        }
-        finaliseArgs->badPacket = fs->bad_packets;
-        finaliseArgs->nffile = nffile;
-        int compression = nffile->compression_level;
-
-        // push nffile to queue
-        queue_push(periodic_prefs.finaliseQueue, (void *)finaliseArgs);
-
-        if (!done) {
-            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_NFCAPD, compression, NOT_ENCRYPTED);
-            if (!fs->nffile) {
-                LogError("OpenNewFile() failed. Fatal error for ident: %s", fs->Ident);
-                ret = 0;
-                continue;
-            }
-            SetIdent(fs->nffile, fs->Ident);
-        }
-    }
-
-    if (done || ret == 0) {
-        queue_close(periodic_prefs.finaliseQueue);
-        int err = pthread_join(periodic_prefs.periodicTID, NULL);
-        if (err && err != ESRCH) {
-            LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
-            ret = 0;
-        }
-    }
-    return ret;
-}
-*/
-
 int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int done) {
     // periodic file rotation
     struct tm *now = localtime(&t_start);
@@ -566,45 +500,6 @@ int TriggerLauncher(time_t t_start, char *time_extension, int pfd, FlowSource_t 
     return 1;
 
 }  // End of TriggerLauncher
-
-/*
-__attribute__((noreturn)) static void *periodicHandler(void *arg) {
-    queue_t *finaliseQueue = (queue_t *)arg;
-
-    printf("%s enter\n", __FUNCTION__);
-    // disable signal handling
-sigset_t set = {0};
-sigfillset(&set);
-pthread_sigmask(SIG_SETMASK, &set, NULL);
-
-while (1) {
-    finaliseArgs_t *finaliseArgs = (finaliseArgs_t *)queue_pop(finaliseQueue);
-    if (finaliseArgs == QUEUE_CLOSED) break;
-
-    free(finaliseArgs);
-}
-
-printf("%s exit\n", __FUNCTION__);
-pthread_exit(NULL);
-
-// UNREACHED
-
-}  // End of periodicHandler
-
-static pthread_t LaunchPeriodicHandler(struct periodic_prefs_s *periodic_prefs) {
-    periodic_prefs->finaliseQueue = queue_init(64);
-    queue_open(periodic_prefs->finaliseQueue);
-
-    pthread_t tid = 0;
-    int err = pthread_create(&tid, NULL, periodicHandler, (void *)periodic_prefs->finaliseQueue);
-    if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return 0;
-    }
-    periodic_prefs->periodicTID = tid;
-    return tid;
-}  // End of LauchPeriodicHandler
-*/
 
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {
     exporter->sysid = AssignExporterID();
