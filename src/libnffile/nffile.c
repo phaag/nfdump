@@ -98,6 +98,8 @@ static const char *nf_creator[MAX_CREATOR] = {"unknown", "nfcapd",    "nfpcapd",
 
 static unsigned NumWorkers = DEFAULTWORKERS;
 
+static uint32_t pseudoID = 0;
+
 /* function prototypes */
 static int LZO_initialize(void);
 
@@ -175,6 +177,9 @@ int Init_nffile(int workers, queue_t *fileList) {
     atomic_init(&blocksInUse, 0);
 
     NumWorkers = GetNumWorkers(workers);
+
+    pseudoID = time(NULL) ^ 0x557aa755;
+
     return 1;
 
 }  // End of Init_nffile
@@ -1557,7 +1562,9 @@ char *SetUniqueTmpName(char *fname) {
     if (*c != '.') return fname;
     c++;
 
-    uint32_t randValue = arc4random() & 0xFFFFFF;
+    // uint32_t randValue = arc4random() & 0xFFFFFF;
+    // need not real pseudo randon number, but different than last time
+    uint32_t randValue = (pseudoID + 1) & 0xFFFFFF;
     for (int i = 0; i < 6; i++) {
         uint8_t v = randValue & 0xF;
         randValue = randValue >> 4;
