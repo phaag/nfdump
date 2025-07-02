@@ -312,7 +312,7 @@ build_sflow="$enable_sflow" # No dependencies
 AM_CONDITIONAL(SFLOW, test "$build_sflow" = yes)
 
 AC_ARG_ENABLE(readpcap,
-[  --enable-readpcap       Build nfcapd collector to read from pcap file instead of network data; default is NO])
+[  --enable-readpcap       Build nfcapd collector to include read from pcap file; default is NO])
 AM_CONDITIONAL(READPCAP, test "$enable_readpcap" = yes)
 
 AC_ARG_ENABLE(nfpcapd,

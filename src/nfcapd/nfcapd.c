@@ -78,6 +78,7 @@
 #include "repeater.h"
 #include "util.h"
 #include "version.h"
+#include "yaf_reader.h"
 
 #ifdef HAVE_FTS_H
 #include <fts.h>
@@ -132,6 +133,7 @@ static void usage(char *name) {
         "-f pcapfile\tRead network data from pcap file.\n"
         "-d device\tRead network data from device (interface).\n"
 #endif
+        "-Y yaffile \tRead ipfix yaf file.\n"
         "-w flowdir \tset the output directory to store the flows.\n"
         "-C <file>\tRead optional config file.\n"
         "-S subdir\tSub directory format. see nfcapd(1) for format\n"
@@ -320,7 +322,6 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
         /* read next bunch of data into begin of input buffer */
         if (!done) {
-#ifdef PCAP
             // Debug code to read from pcap file, or from socket
             cnt = receive_packet(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&nf_sender, &nf_sender_size);
 
@@ -331,9 +332,6 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 packets++;
                 continue;
             }
-#else
-            cnt = recvfrom(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&nf_sender, &nf_sender_size);
-#endif
 
             if (cnt == -1) {
                 if (errno != EINTR) {
@@ -489,6 +487,7 @@ int main(int argc, char **argv) {
     char *pcap_device = NULL;
 #endif
 
+    char *yaf_file = NULL;
     char *listenport = DEFAULTCISCOPORT;
     receive_packet = recvfrom;
     verbose = do_daemonize = 0;
@@ -519,7 +518,7 @@ int main(int argc, char **argv) {
     workers = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVW:w:x:X:yz::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVW:w:x:X:Y:yz::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -545,13 +544,8 @@ int main(int argc, char **argv) {
                 break;
 #ifdef PCAP
             case 'f': {
-                struct stat fstat;
+                if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 pcap_file = optarg;
-                stat(pcap_file, &fstat);
-                if (!S_ISREG(fstat.st_mode)) {
-                    LogError("Not a regular file: %s", pcap_file);
-                    exit(254);
-                }
             } break;
             case 'd':
                 CheckArgLen(optarg, 32);
@@ -564,6 +558,10 @@ int main(int argc, char **argv) {
                 exit(255);
                 break;
 #endif
+            case 'Y':
+                if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
+                yaf_file = optarg;
+                break;
             case 'E':
                 verbose = 3;
                 break;
@@ -831,10 +829,16 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-// Debug code to read from pcap file
-#ifdef PCAP
+    // Debug code to read from pcap file
+
     sock = 0;
-    if (pcap_file) {
+    if (yaf_file) {
+        if (!setup_yaf(yaf_file)) exit(EXIT_FAILURE);
+        receive_packet = NextYafRecord;
+        LogError("Reading offline yaffile");
+    } else
+#ifdef PCAP
+        if (pcap_file) {
         printf("Setup pcap file reader\n");
         if (!setup_pcap_offline(pcap_file, NULL)) {
             LogError("Setup pcap offline failed.");
