@@ -1,24 +1,75 @@
-.TH nfprofile 1 2009-09-09 "" ""
-.SH NAME
-nfprofile \- netflow profiler
-.SH SYNOPSIS
-.HP 5
-.B nfprofile [options] 
-.SH DESCRIPTION
-.B nfprofile
+.\" Copyright (c) 2024, Peter Haag
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions are met:
+.\"
+.\"  * Redistributions of source code must retain the above copyright notice,
+.\"    this list of conditions and the following disclaimer.
+.\"  * Redistributions in binary form must reproduce the above copyright notice,
+.\"    this list of conditions and the following disclaimer in the documentation
+.\"    and/or other materials provided with the distribution.
+.\"  * Neither the name of the author nor the names of its contributors may be
+.\"    used to endorse or promote products derived from this software without
+.\"    specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+.\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+.\" LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd $Mdocdate$
+.Dt NFPROFILE 1
+.Os
+.Sh NAME
+.Nm nfprofile
+.Nd netflow profiler
+.Sh SYNOPSIS
+.Nm
+.Op Fl hV
+.Op Fl DIpPifjrLMStVyzZ Ar params
+.Sh DESCRIPTION
+.Nm
 is the netflow profiler program for NfSen.
-It reads the netflow data from the files stored by nfcapd and creates
-the corresponding output files for every channel required.
-This program is run only by NfSen.
-
-.SH OPTIONS
-
-.SH "RETURN VALUE"
-
-.SH NOTES
-none.
-
-.SH "SEE ALSO"
-nfcapd(1), nfdump(1), nfreplay(1)
-.SH BUGS
-
+It reads netflow data from files stored by
+.Xr nfcapd 1
+and creates the corresponding output files for every channel required by a profile configuration.
+.Pp
+This program is normally run only by NfSen, not directly by users.
+.Pp
+A profile is defined by a configuration file, which specifies channels, sources, and filters for the data to be extracted and summarized.
+.Pp
+.Nm
+processes the data according to the profile configuration, and writes the output files to the specified directory for further processing or visualization.
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl h
+Print help text to stdout and exit.
+.It Fl V
+Print
+.Nm
+version and exit.
+.It Fl p Ar profile data directory
+Specify the profile data directory
+.It Fl P Ar statdir
+Specify the profile stat directory
+.El
+.Sh RETURN VALUES
+.Nm
+returns 0 on success and 255 otherwise.
+.Sh NOTES
+This program is intended to be run by NfSen. Direct invocation is not recommended unless you know exactly how to configure profiles and their directories.
+.Sh SEE ALSO
+.Xr nfcapd 1 ,
+.Xr nfdump 1 ,
+.Xr nfreplay 1
+.Sh BUGS
+No software without bugs! Please report any bugs back to me.

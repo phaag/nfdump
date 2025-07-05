@@ -40,7 +40,7 @@
 .Op Fl h
 .Sh DESCRIPTION
 .Nm
-anonimizes all IP addresses ( src, dst, next hop, router IP etc. ) in the netflow 
+anonymizes all IP addresses ( src, dst, next hop, router IP etc. ) in the netflow 
 records using the CryptoPAn (Cryptography-based  Prefix-preserving Anonymization)
 module. The key -K is used to initialize the Rijndael cipher. The key is either 
 a 32 character string, or a 64 hex digit string starting with 0x. See 
@@ -66,10 +66,10 @@ The options are as follows:
 .It Fl r Ar path
 Path to read flow files to anonymize. Path may point to a single file or a directory
 containing many flow files.
-.It Op Fl w Ar nffile
+.It Fl w Ar nffile
 File name to write anonymized flow records to. If this argument is missing, the source
 file name is taken, which means the original file is overwritten.
-.It Fl k Ar key
+.It Fl K Ar key
 .Ar key
 is either a 32 character string, or a 64 char hex string starting with 0x. This key
 is used to initialize the anonymizer.
