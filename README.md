@@ -137,6 +137,32 @@ See __--enable-jnat__ below
 The toolset is build upon the autotools framework. Run `./autogen.sh` first.
 Afterwards `./configure` `make` and `make install` should do the trick. 
 
+### Docker
+
+> These commands assume the current working directory is the root of the nfdump repository
+
+To build and run the `nfcapd` target (runs `nfcapd` by default):
+
+```
+docker build -t nfcapd --target nfcapd -f extra/docker/Dockerfile .
+mkdir -p /tmp/flows
+docker run -it --rm --name=nfcapd -p 9995:9995/udp -v /tmp/flows:/data nfcapd
+```
+
+Desired arguments to `nfcapd` can be appended to the `docker run` command above.
+
+To build the `nfdump` target (drops you into an interactive shell by default):
+
+```
+docker build -t nfdump --target nfdump -f extra/docker/Dockerfile .
+mkdir -p /tmp/flows
+docker run -it --rm --name=nfdump -v /tmp/flows:/data nfdump
+```
+
+For reference, there is also an Ubuntu Dockerfile at _extra/docker/Dockerfile.ubuntu_ with similar `nfcapd` and `nfdump` targets.
+
+### Older Linux-distribution notes
+
 For various older Linuxes need a more modern compiler:
 
 #### CentOS 7.x:

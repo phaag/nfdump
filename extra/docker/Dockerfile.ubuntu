@@ -1,16 +1,14 @@
 #
-# Example Ubuntu Dockerfile
+# Reference Ubuntu Dockerfile
 #
 
-# Pull base image.
-FROM ubuntu:latest
+ARG UBUNTU_VERSION=24.04
+FROM ubuntu:${UBUNTU_VERSION} AS builder
 
-ARG NFDUMP_VERSION=1.7.3
+# Assume context is root of nfdump repository
+COPY . /app
 
-#Expose netflow port
-EXPOSE 9995/udp
-
-# Install.
+# Install dependencies
 RUN apt-get update && apt-get install -y \
   wget \
   unzip \
@@ -26,30 +24,32 @@ RUN apt-get update && apt-get install -y \
   flex \
   make \
   libpcap-dev \
-  libbz2-dev &&
-  rm -rf /var/lib/apt/lists/*
+  libbz2-dev \
+  && rm -rf /var/lib/apt/lists/*
 
-RUN cd /usr/src &&
-  wget https://github.com/phaag/nfdump/archive/refs/tags/v$NFDUMP_VERSION.tar.gz &&
-  tar xfz v$NFDUMP_VERSION.tar.gz &&
-  cd nfdump-$NFDUMP_VERSION &&
-  ./autogen.sh &&
-  ./configure --enable-nfpcapd --enable-maxmind --enable-sflow &&
-  make &&
-  make install
+WORKDIR /app
+RUN ./autogen.sh \
+  && ./configure --enable-nfpcapd --enable-maxmind --enable-sflow \
+  && make && make install \
+  && ldconfig
 
-RUN ldconfig
+FROM ubuntu:${UBUNTU_VERSION} AS base
 
-# Add files.
-#ADD root/.bashrc /root/.bashrc
-#ADD root/.gitconfig /root/.gitconfig
-#ADD root/.scripts /root/.scripts
+COPY --from=builder /usr/local /usr/local
+RUN apt-get update && apt-get install -y libbz2-dev \
+  && rm -rf /var/lib/apt/lists/*
 
-# Set environment variables.
-#ENV HOME /root
+VOLUME /data
+RUN mkdir -p /data
 
-# Define working directory.
-WORKDIR /usr/src
+FROM base AS nfcapd
 
-# Define default command.
-CMD ["bash"]
+EXPOSE 9995/udp
+
+ENTRYPOINT ["/usr/local/bin/nfcapd"]
+
+CMD ["-w", "/data", "-S", "1", "-y", "-p", "9995"]
+
+FROM base AS nfdump
+
+ENTRYPOINT ["/bin/bash"]
