@@ -1,195 +1,213 @@
-.TH nfpcapd 1 2023\-05\-23 "" ""
-.SH NAME
-nfpcapd \- pcap capture to netflow daemon
-.SH SYNOPSIS
-.HP 5
-.B nfpcapd [options]
-.SH DESCRIPTION
-.B nfpcapd
+.\" Copyright (c) 2023, Peter Haag
+.\" All rights reserved.
+.\"
+.\" Redistribution and use in source and binary forms, with or without
+.\" modification, are permitted provided that the following conditions are met:
+.\"
+.\"  * Redistributions of source code must retain the above copyright notice,
+.\"    this list of conditions and the following disclaimer.
+.\"  * Redistributions in binary form must reproduce the above copyright notice,
+.\"    this list of conditions and the following disclaimer in the documentation
+.\"    and/or other materials provided with the distribution.
+.\"  * Neither the name of the author nor the names of its contributors may be
+.\"    used to endorse or promote products derived from this software without
+.\"    specific prior written permission.
+.\"
+.\" THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+.\" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+.\" IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+.\" ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+.\" LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+.\" CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+.\" SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+.\" INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+.\" CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+.\" ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+.\" POSSIBILITY OF SUCH DAMAGE.
+.\"
+.Dd $Mdocdate$
+.Dt NFPCAPD 1
+.Os
+.Sh NAME
+.Nm nfpcapd
+.Nd pcap capture to netflow daemon
+.Sh SYNOPSIS
+.Nm
+.Fl i Ar interface
+.Op Fl r Ar file
+.Op Fl s Ar snaplen
+.Op Fl B Ar cachesize
+.Op Fl e Ar active,inactive
+.Op Fl I Ar ident
+.Op Fl l Ar flowdir
+.Op Fl p Ar pcapdir
+.Op Fl H Ar host[/port]
+.Op Fl S Ar num
+.Op Fl t Ar interval
+.Op Fl P Ar pidfile
+.Op Fl D
+.Op Fl d
+.Op Fl E
+.Op Fl u Ar userid
+.Op Fl g Ar groupid
+.Op Fl o Ar option[,option]
+.Op Fl z=lzo
+.Op Fl z=bz2
+.Op Fl z=lz4[:level]
+.Op Fl z=zstd[:level]
+.Op Fl W Ar workers
+.Op Fl V
+.Op Fl h
+.Op Ar '<filter>'
+.Sh DESCRIPTION
+.Nm
 is the pcap capture daemon of the nfdump tools. It reads network
 packets from an interface or from a file and directly creates nfdump
-records. Nfdump records are written either locally to a directory in 
+records. Nfdump records are written either locally to a directory in
 the same format as nfcapd, or can be forwarded to a nfcapd collector
-somewhere else in the network. Nfpcapd is nfcapd's pcap brother and
-shares many options and generates the same type of files. nfpcapd
-likewise creates, rotates and stores files. See also nfpcap(1) for more
-information on common option.
-.P
-nfpcapd optionally also stores pcap traffic data in separate files and
-uses the same rotation interval as for the netflow data. Storing pcap 
+somewhere else in the network.
+.Nm
+is nfcapd's pcap brother and shares many options and generates the same type of files.
+.Nm
+likewise creates, rotates and stores files. See also
+.Xr nfpcap 1
+for more information on common option.
+.Pp
+.Nm
+optionally also stores pcap traffic data in separate files and
+uses the same rotation interval as for the netflow data. Storing pcap
 traffic data file is only possible locally.
-.P
-nfpcapd is multithreaded and uses separate threads for packet, netflow
+.Pp
+.Nm
+is multithreaded and uses separate threads for packet, netflow
 and pcap processing.
-.P 
-.SH OPTIONS
-.TP 3
-.B -i \fIinterface
+.Pp
+.Sh OPTIONS
+.Bl -tag -width Ds
+.It Fl i Ar interface
 Listen on this interface in promisc mode for packet processing.
-.TP 3
-.B -r \fIfile
-Read and process packets from this file. This file is a pcap compatible
-file
-.TP 3
-.B -s \fIsnaplen
+.It Fl r Ar file
+Read and process packets from this file. This file is a pcap compatible file.
+.It Fl s Ar snaplen
 Limit the snaplen on collected packets. The default is 1522 bytes. The
 snaplen needs to be large enough to process all required protocols. The
 snaplen must not be smaller than 54 bytes.
-.TP 3
-.B -B \fIcachesize
-Sets the number of initial cache nodes required by the flow cache.
-By default the cache size is set to 512k nodes should be fine. If the
-cache runs out of nodes, new nodes are dynamically added.
-.TP 3
-.B -e \fIactive,inactive
-Sets the active and inactive flow expire values in s. The default is 300,60.
-.br
-.B Active timeout:
-A flow gets flushed to disk after this period even if it
-is still active. As a rule of thumb, it should correspond with the -t rotation 
-value, in order to reflect continuous traffic in the flow files. 
-.br
-.B Inactive timeout:
-A flow gets flushed to disk after being inactive for this 
-number of seconds. It frees up node resources.
-.br
-On busy networks these values can be set to more aggressive timeouts. 
-.TP 3
-.B -I \fIIdentString ( capital letter i )
-Specifies an ident string, which describes the source e.g. the 
-name of the interface or host. This string is put into the stat record to identify
-the source. Default is 'none'. Same is nfcapd(1)
-.TP 3
-.B -l \fIflowdir ( letter ell )
-Specifies the base directory to store the flow files. 
-If a sub hierarchy is specified with \-S the final directory is concatenated 
-to \fIbase_directory/sub_hierarchy\fR. 
-.TP 3
-.B -p \fIpcapdir
-Store network packets in pcap compatible files in this directory and rotate files
-the same as the flow files. Sub hierarchy directories are applied likewise.
-.TP 3
-.B -H \fI<host[/port]>
-Send nfdump records to a remote nfcapd collector. Default port is 9995.
-.TP 3
-.B -S \fI<num>
-Allows to specify an additional directory sub hierarchy to store 
-the data files. The default is 0, no sub hierarchy, which means the 
-files go directly in the base directory (\-l). The base directory (\-l) is
-concatenated with the specified sub hierarchy format to form the final 
-data directory.  For a full list of hierarchies see nfcapd(1).
-.TP 3
-.B -t \fIinterval
-Specifies the time interval in seconds to rotate files. The default value 
-is 300s ( 5min ). The smallest interval can be set to 2s. The intervals are in sync 
-with wall clock.
-.TP 3
-.B -P \fIpidfile
+.It Fl B Ar cachesize
+Sets the number of initial cache nodes required by the flow cache. By default the cache size is set to 512k nodes should be fine. If the cache runs out of nodes, new nodes are dynamically added.
+.It Fl e Ar active,inactive
+Sets the active and inactive flow expire values in seconds. The default is 300,60.
+.Bl -bullet -compact
+.It
+Active timeout: A flow gets flushed to disk after this period even if it is still active. As a rule of thumb, it should correspond with the
+.Fl t
+rotation value, in order to reflect continuous traffic in the flow files.
+.It
+Inactive timeout: A flow gets flushed to disk after being inactive for this number of seconds. It frees up node resources.
+.El
+On busy networks these values can be set to more aggressive timeouts.
+.It Fl I Ar ident
+Specifies an ident string, which describes the source e.g. the name of the interface or host. This string is put into the stat record to identify the source. Default is 'none'. Same as nfcapd(1).
+.It Fl w Ar flowdir
+Specifies the base directory to store the flow files.
+If a sub hierarchy is specified with
+.Fl S
+the final directory is concatenated to
+.Ar base_directory/sub_hierarchy .
+.It Fl p Ar pcapdir
+Optionally stores network packets in pcap compatible files in this directory and rotate files the same as the flow files. Sub hierarchy directories are applied likewise.
+.It Fl H Ar host[/port]
+Send nfdump records to a remote nfcapd collector. Default port is 9995. Flows are no stored locally.
+.It Fl S Ar num
+Allows to specify an additional directory sub hierarchy to store the data files. The default is 0, no sub hierarchy, which means the files go directly in the base directory (
+.Fl l ).
+The base directory (
+.Fl l )
+is concatenated with the specified sub hierarchy format to form the final data directory. For a full list of hierarchies see nfcapd(1).
+.It Fl t Ar interval
+Specifies the time interval in seconds to rotate files. The default value is 300s ( 5min ). The smallest interval can be set to 2s. The intervals are in sync with wall clock.
+.It Fl P Ar pidfile
 Specify name of pidfile. Default is no pidfile.
-.TP 3
-.B -D
+.It Fl D
 Daemon mode: fork to background and detach from terminal.
-Nfpcapd terminates on signal TERM, INT and HUP.
-.TP 3
-.B -d
-De-duplicate packets with a window size of 4. This option is useful, if
-packets in a pcap file are duplicated for some unknown reason. If packets
-on multiple span ports are sent to the collector they got de-duplicated within
-the window size. Note: The de-duplication works on the IP layer to the end
-of the packet, which means layer 1 and VLAN/MPLS layers are stripped. 
-If used together with -p, the resulting pcaps are de-duplicated as well.
-.TP 3
-.B -E
-Verbose flow printing. Print flows on stdout, when flushed to disk.
-Use verbose printing only for debugging purpose in order to see if your
-setup works. Running nfpcapd in verbose mode limits processing bandwidth!
-.TP 3
-.B -u \fIuserid
-Change to the user \fIuserid\fP as soon as possible. Only root is allowed
-to use this option. Uid/Gid is switched after opening the reading device.
-.TP 3
-.B -g \fIgroupid
-Change to the group \fIgroupid\fP as soon as possible. Only root is allowed 
-use this option. Uid/Gid is switched after opening the reading device.
-.TP 3
-.B -o option[,option]
+.Nm
+terminates on signal TERM, INT and HUP.
+.It Fl d
+De-duplicate packets with a window size of 4. This option is useful, if packets in a pcap file are duplicated for some unknown reason. If packets on multiple span ports are sent to the collector they got de-duplicated within the window size. Note: The de-duplication works on the IP layer to the end of the packet, which means layer 1 and VLAN/MPLS layers are stripped.
+If used together with
+.Fl p ,
+the resulting pcaps are de-duplicated as well.
+.It Fl E
+Verbose flow printing. Print flows on stdout, when flushed to disk. Use verbose printing only for debugging purpose in order to see if your setup works. Running nfpcapd in verbose mode limits processing bandwidth!
+.It Fl u Ar userid
+Change to the user
+.Ar userid
+as soon as possible. Only root is allowed to use this option. Uid/Gid is switched after opening the reading device.
+.It Fl g Ar groupid
+Change to the group
+.Ar groupid
+as soon as possible. Only root is allowed to use this option. Uid/Gid is switched after opening the reading device.
+.It Fl o Ar option[,option]
 Adds options to nfpcapd. Two options are available:
-.br
-\fIfat\fP	     Add Mac addresses, optional Vlan and MPLS labels.
-.br
-\fIpayload\fP   Add the payload bytes of the first packet of a connection.
-.TP 3
-.B -z=lzo
-Compress flows. Use fast LZO1X\-1 compression in output file.
-.TP 3
-.B -z=bz2
-Compress flows. Use bz2 compression in output file. Note: not recommended while collecting
-.TP 3
-.B -z=lz4[:level]
+.Bl -item -compact
+.It
+fat     Add Mac addresses, optional Vlan and MPLS labels.
+.It
+payload   Add the payload bytes of the first packet of a connection.
+.El
+.It Fl z=lzo
+Compress flows. Use fast LZO1X-1 compression in output file.
+.It Fl z=bz2
+Compress flows. Use bz2 compression in output file. Note: not recommended while collecting.
+.It Fl z=lz4[:level]
 Compress flows. Use LZ4 compression in output file.
-.TP 3
-.B -z=zstd[:level]
+.It Fl z=zstd[:level]
 Compress flows. Use zstd compression in output file.
-.TP 3
-.B -W \fIworkers
-Sets the number of workers to compress flows. Defaults to 4. Must not be greater than the number of
-cores online. Useful for higher levels of compression for lz4 or zstd and large amount of flows per second.
-.TP 3
-.B -V
+.It Fl W Ar workers
+Sets the number of workers to compress flows. Defaults to 4. Must not be greater than the number of cores online. Useful for higher levels of compression for lz4 or zstd and large amount of flows per second.
+.It Fl V
 Print nfpcapd version and exit.
-.TP 3
-.B -h
+.It Fl h
 Print help text to stdout with all options and exit.
-.TP 3
-.B '<filter>'
+.It Ar '<filter>'
 Optional pcap compatible packet filter. The filter needs to be put within quotes.
-.SH "RETURN VALUE"
-Returns 0 on success, or 255 if initialization failed.
-.SH "LOGGING"
-nfpcapd logs to syslog with SYSLOG_FACILITY LOG_DAEMON.
-For normal operation level 'error' should be fine. 
+.El
+.Sh RETURN VALUES
+.Nm
+returns 0 on success, or 255 if initialization failed.
+.Sh LOGGING
+.Nm
+logs to syslog with SYSLOG_FACILITY LOG_DAEMON.
+For normal operation level 'error' should be fine.
 More information is reported at level 'info'.
-.P
-A small statistic about the collected flows, as well as errors
-are reported at the end of every interval to syslog with level 'info'.
-.SH "EXAMPLES"
-Read packets from interface eth0
-.RS
-\fBnfpcapd \-i eth0 \-j \-D \-l /netflow/flows \-S 2 \-I any \-P /var/run/nfpcapd.pid\fP
-.RE
-.LP
-Read packets from interface mx0 and store also packets in pcap files.
-.RS
-\fBnfpcapd \-i vmx0 \-j \-D \-l /netflow/flows \-p /netflow/caps\fP
-.RE
-.LP
-Send records to a remote host
-.RS
-\fBnfpcapd \-i eth1 \-H 192.168.200.10/12344 \-D \-e 60,20\fP
-.RE
-.LP
-.SH NOTES
-nfpcapd can store records either locally or send it to a remote host but not
-both at the same time.
-.br
-If records are sent to a remote nfcapd process, both programs nfcapd and nfpcapd
-must be of the same endian architecture (both big or little endian). nfpcapd uses
-netflow version 240 for sending flows.
-.LP
-The flow cache is checked in regular 10s intervals and expires flows according to the
-expire values. Expired flows are flushed and processed and nodes are freed up. 
-.LP
-A smaller snaplen may improve performance, but may result in loss of information. 
-The smallest snaplen of 54 bytes can process regular TCP/UDP/ICMP packets. In case 
-of Vlan or MPLS labels, not enough information may be available for correct protocol
-decoding. Nfdump records may be incomplete and and set to 0.
-.LP
-If IP packets are fragmented, they are reassembled before processing. All IP fragments
-need to be reassembled in order to be passed to the next stage. If not all 
-fragments are correctly assembled within 15s since the first fragment arrived, all 
-fragments are discarded.
-
-.SH "SEE ALSO"
-nfcapd(1), nfdump(1), nfexpire(1)
-.SH BUGS
+.Pp
+A small statistic about the collected flows, as well as errors are reported at the end of every interval to syslog with level 'info'.
+.Sh EXAMPLES
+Read packets from interface eth0:
+.Pp
+.Dl nfpcapd -i eth0 -z=zstd -D -w /netflow/flows -S 2 -I any -P /var/run/nfpcapd.pid
+.Pp
+Read packets from interface mx0 and store also packets in pcap files:
+.Pp
+.Dl nfpcapd -i vmx0 -z=lz4 -D -w /netflow/flows -p /netflow/caps
+.Pp
+Send records to a remote host:
+.Pp
+.Dl nfpcapd -i eth1 -H 192.168.200.10/12344 -D -e 60,20 -o fat,payload
+.Sh NOTES
+.Nm
+can store records either locally or send it to a remote host but not both at the same time.
+.Pp
+If records are sent to a remote nfcapd process, both programs nfcapd and nfpcapd must be of the same endian architecture (both big or little endian). nfpcapd uses netflow version 240 for sending flows.
+.Pp
+The flow cache is checked in regular 10s intervals and expires flows according to the expire values. Expired flows are flushed and processed and nodes are freed up.
+.Pp
+A smaller snaplen may improve performance, but may result in loss of information.
+The smallest snaplen of 54 bytes can process regular TCP/UDP/ICMP packets. In case of Vlan or MPLS labels, not enough information may be available for correct protocol decoding. Nfdump records may be incomplete and set to 0.
+.Pp
+If IP packets are fragmented, they are reassembled before processing. All IP fragments need to be reassembled in order to be passed to the next stage. If not all fragments are correctly assembled within 15s since the first fragment arrived, all fragments are discarded.
+.Sh SEE ALSO
+.Xr nfcapd 1 ,
+.Xr nfdump 1 ,
+.Xr nfexpire 1
+.Sh BUGS
 No software without bugs! Please report any bugs back to me.
