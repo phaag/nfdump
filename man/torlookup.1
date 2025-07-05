@@ -107,7 +107,6 @@ provided with all other nfdump files. The script takes a single integer argument
 specifies for how many months back, you want to have the information available in the torDB. This means
 you need to update the torDB and a regular basis, to have up to date information. Do not forget to
 move the lookup database to the final location.
-.El
 .Pp
 Lookup an IP with torlookup:
 .Pp
@@ -131,14 +130,14 @@ Pipe the output of an nfdump statistic to torlookup for tor exit node verificati
 If you use the tordb with
 .Cm nfdump
 to list flows and mark them as tor exit nodes, the IP address as well as
-the flow start or flow end timestamp must fall into the approrpiate tor exit node interval.
+the flow start or flow end timestamp must fall into the appropriate tor exit node interval.
 In the pipe example above, torlookup does not care about timestamps.
 .Pp
 Use nfdump with the tordb:
 .Dl % nfdump -H tordb.nf -r nfcapd.2024081200 -o tor
 .Pp
 .Sh SEE ALSO
-.Ar nfdump
+.Xr nfdump 1
 has already builtin lookup options to decorate the text output with tor information. See tags %stor, %dtor
 .Pp
 .Xr nfdump 1
