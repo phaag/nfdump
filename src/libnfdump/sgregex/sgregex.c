@@ -372,6 +372,12 @@ static uint32_t rxPushCharClassData(rxCompiler* c, rxChar cch) {
         case 'v':
             rxPushChars(c, RX_STRLITBUF("\x0A\x0D"));
             break;
+        case 'r':
+            rxPushChars(c, RX_STRLITBUF("\x0D"));
+            break;
+        case 'n':
+            rxPushChars(c, RX_STRLITBUF("\x0A"));
+            break;
         case 's':
             rxPushChars(c, RX_STRLITBUF("\x09\x0D  "));
             break;
@@ -1189,14 +1195,20 @@ int main() {
 
     printf("\n> matching tests\n\n");
     matchtest_ext("GET /index.html HTTP/1.1\r\n", "(GET|POST)", "", 1);
-    matchtest_ext("GET index.html HTTP", "GET|POST", "", 1);
     matchtest_ext("a cat", " c", "", 1);
     matchtest_ext(" in the 2013-01-02...", "[0-9]{4}-[0-9]{2}-[0-9]{2}", "", 1);
     matchtest_ext("a cat", "f|c", "", 1);
     matchtest_ext("a cat", "(f|c)at", "", 1);
     matchtest_ext("a cat", "(f|r)at", "", 0);
     matchtest_ext("a cat", "a cat", "", 1);
-
+    matchtest_ext("GET /index.html HTTP1.1\r\n", "(GET|POST)", "", 1);
+    matchtest_ext("GET /index.html HTTP1.1\r\n", "\r\n", "", 1);
+    matchtest_ext("GET /index.html HTTP1.1\r\n", "\n\r", "", 0);
+    matchtest_ext("GET /index.html HTTP1.1\r\n", "1\r\n", "", 1);
+    matchtest_ext("GET /index.html HTTP1.1\r\n", "\\d.\\d\r\n", "", 1);
+    matchtest_ext("GET /index.html HTTP1.1\r\n", "HTTP\\d.\\d\r\n", "", 1);
+    matchtest_ext("GET /index.html HTTP1.1\r\n", "get.+\\d.\\d\r\n", "i", 1);
+    matchtest_ext("GET /dists/bookworm-security/InRelease HTTP/1.1\r\nHost: security.debian.org\r\n\r\nbody", "GET.+\r\n", "i", 1);
     puts("=== all tests done! ===");
 
     return 0;

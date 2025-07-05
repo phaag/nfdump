@@ -143,7 +143,7 @@ static int AddNatPortBlocks(char *type, char *subtype, uint16_t comp, uint64_t n
 
 static int AddACL(direction_t direction, uint16_t comp, uint64_t number);
 
-static int AddPayload(char *type, char *arg, char *opt);
+static int AddPayload(direction_t direction, char *type, char *arg, char *opt);
 
 static int AddGeo(direction_t direction, char *geo);
 
@@ -429,12 +429,12 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
 		$$.self = AddNAT($2, $3.comp, $4); if ( $$.self < 0 ) YYABORT; 
 	}
 
-	| PAYLOAD STRING STRING {
-		$$.self = AddPayload($2, $3, NULL); if ( $$.self < 0 ) YYABORT;
+	| dqual PAYLOAD STRING STRING {
+		$$.self = AddPayload($1.direction, $3, $4, NULL); if ( $$.self < 0 ) YYABORT;
 	}
 
-	| PAYLOAD STRING STRING STRING {
-		$$.self = AddPayload($2, $3, $4); if ( $$.self < 0 ) YYABORT;
+	| dqual PAYLOAD STRING STRING STRING {
+		$$.self = AddPayload($1.direction, $3, $4, $5); if ( $$.self < 0 ) YYABORT;
 	}
 
 	| dqual GEOSTRING {
@@ -1364,11 +1364,14 @@ static int AddPayloadJA4(char *type, char *arg, char *opt) {
 	return NewElement(JA4index, OFFja4String, SIZEja4String, 0, CMP_STRING, FUNC_NONE, data);
 } // End of AddPayloadJA4
 
-static int AddPayload(char *type, char *arg, char *opt) {
+static int AddPayload(direction_t direction, char *type, char *arg, char *opt) {
 
 	if (strcasecmp(type, "content") == 0) {
 		data_t data = {.dataPtr = arg};
-		return NewElement(EXinPayloadID, 0, 0, 0, CMP_PAYLOAD, FUNC_NONE, data);
+		return Connect_OR(
+		    NewElement(EXinPayloadID, 0, 0, 0, CMP_PAYLOAD, FUNC_NONE, data),
+				NewElement(EXoutPayloadID, 0, 0, 0, CMP_PAYLOAD, FUNC_NONE, data)
+			);
 	} else if (strcasecmp(type, "regex") == 0) {
 		int err[2];
 		char *regexArg = opt ? opt : "";
@@ -1378,7 +1381,10 @@ static int AddPayload(char *type, char *arg, char *opt) {
 			return -1;
 		}
 		data_t data = {.dataPtr = program};
-		return NewElement(EXinPayloadID, 0, 0, 0, CMP_REGEX, FUNC_NONE, data);
+		return Connect_OR(
+		    NewElement(EXinPayloadID, 0, 0, 0, CMP_REGEX, FUNC_NONE, data),
+				NewElement(EXoutPayloadID, 0, 0, 0, CMP_REGEX, FUNC_NONE, data)
+			);
 	} else if (strcasecmp(type, "ssl") == 0 || strcasecmp(type, "tls") == 0) {
 		return AddPayloadSSL(type, arg, opt);
 	} else if (strcasecmp(type, "ja3") == 0) {

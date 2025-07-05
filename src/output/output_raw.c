@@ -756,17 +756,17 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
         // ssl is defined
         switch (ssl->tlsCharVersion[0]) {
             case 's':
-                fprintf(stream, "  TLS version  =              SSL %c  \n", ssl->tlsCharVersion[1]);
+                fprintf(stream, "    TLS vers   =              SSL %c  \n", ssl->tlsCharVersion[1]);
                 break;
             case '1':
-                fprintf(stream, "  TLS version  =            TLS 1.%c\n", ssl->tlsCharVersion[1]);
+                fprintf(stream, "    TLS vers   =            TLS 1.%c\n", ssl->tlsCharVersion[1]);
                 break;
             default:
-                fprintf(stream, "  TLS version  =              0x%4x\n", ssl->tlsVersion);
+                fprintf(stream, "    TLS vers   =              0x%4x\n", ssl->tlsVersion);
                 break;
         }
 
-        if (ssl->sniName[0]) fprintf(stream, "  sni name     =  %s\n", ssl->sniName);
+        if (ssl->sniName[0]) fprintf(stream, "    sni name   =  %s\n", ssl->sniName);
 
         char *ja3 = recordHandle->extensionList[JA3index];
         if (ja3 == NULL) {
@@ -775,9 +775,9 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
         }
         if (ja3) {
             if (ssl->type == CLIENTssl) {
-                fprintf(stream, "  ja3 hash     =  %s\n", ja3);
+                fprintf(stream, "    ja3 hash   =  %s\n", ja3);
             } else {
-                fprintf(stream, "  ja3s hash    =  %s\n", ja3);
+                fprintf(stream, "    ja3s hash  =  %s\n", ja3);
             }
         }
 
@@ -793,9 +793,9 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
 
         if (ja4) {
             if (ja4->type == TYPE_JA4)
-                fprintf(stream, "  ja4 hash     =  %s\n", ja4->string);
+                fprintf(stream, "    ja4 hash   =  %s\n", ja4->string);
             else
-                fprintf(stream, "  ja4s hash    =  %s\n", ja4->string);
+                fprintf(stream, "    ja4s hash  =  %s\n", ja4->string);
         }
     }
 
