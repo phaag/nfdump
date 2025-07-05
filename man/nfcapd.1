@@ -62,6 +62,7 @@
 .Op Fl x Ar command
 .Op Fl X Ar extensionList
 .Op Fl W Ar workers
+.Op Fl Y Ar yaf-file
 .Op Fl E
 .Op Fl v
 .Op Fl V
@@ -151,6 +152,10 @@ Forces
 to listen on IPv6 addresses only. Can be used together with -b if a hostname has IPv4 and IPv6 addresses.
 .It Fl J Ar mcastgroup
 Join the specified IPv4 or IPv6 multicast group for listening.
+.It Fl Y Ar yaffile
+Offline mode: Read flows from yaf file, created by the yaf flow-collector. Disables reading flows from network.
+.It Fl f Ar pcapfile
+Offline mode: Read flows from pcap file, instead of the network. Need --enable-readpcap for configure
 .It Fl R Ar host[/port]
 Enables the packet repeater. All incoming packets are sent additionally to another
 .Ar host

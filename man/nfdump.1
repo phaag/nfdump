@@ -1321,7 +1321,7 @@ subexpressions/capture ranges
 .Sy |
 the "or" operator
 .It
-.Sy ^and
+.Sy ^ and
 .Sy $
 anchors
 .It
@@ -1340,6 +1340,19 @@ lazy quantifiers
 .It
 .Sy {<num>}, {<num1>,<num2>}
 complex quantifiers
+.It
+.Sy \ed
+numeric character
+.It
+.Sy \ew
+alpha numeric character
+.It
+.Sy \er
+carrige return
+.It
+.Sy \en
+new line
+.It
 .El
 .Pp
 .Ar flags
@@ -1353,7 +1366,7 @@ multiline
 case insensitive matching
 .It
 .Sy s
-'.' includes newlines
+dot '.' includes newlines
 .El
 .Pp
 .It Cm payload ssl defined
