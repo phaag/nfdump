@@ -40,13 +40,14 @@
 .Fl w Ar torDBfile
 .Sh DESCRIPTION
 .Nm
-is a tool to lookup tor exit node information and their valid time intervals.
-You need to create the nfdump specific lookup database first, before using
-.Nm .
+is a tool to check whether an IP address was a tor exit node during specific time intervals.
+Before using 
+.Nm
+create the nfdump-specific lookup database first.
 .Pp
 .Nm
 is also used to create the nfdump formatted lookup database file from a bunch of tor archive files.
-There is no account required to download and build the nfdump tor database.
+You do not need an account to download or build the nfdump tor database.
 See the section below for the building instructions.
 .Pp
 .Nm
@@ -87,12 +88,11 @@ is set, use this setting as lookup database.
 The command line argument
 .Fl H
 .El
-If multiple locations are given, the environment variable
-.Ar NFTORDB
-overwrites the nfdump config file and the command line option
+If multiple locations are specified,
 .Fl H
-overwrites the environment variable
-.Ar NFTORDB .
+takes precedence over the
+.Ar NFTORDB
+environment variable, which in turn overrides the nfdump configuration file.
 .Sh RETURN VALUES
 .Nm
 returns 0 on success and 255 otherwise.
@@ -103,10 +103,11 @@ reads the environment variable
 .Sh EXAMPLES
 The easiest way for creating or updating the binary lookup database is the use of the script
 .Ar updateTorDB.sh
-provided with all other nfdump files. The script takes a single integer argument. The integer argument
-specifies for how many months back, you want to have the information available in the torDB. This means
-you need to update the torDB and a regular basis, to have up to date information. Do not forget to
-move the lookup database to the final location.
+provided with all other nfdump files. The script
+.Ar updateTorDB.sh
+accepts one argument: the number of months of Tor exit node data to include in the database.
+This means you need to update the torDB and a regular basis, to have up to date information.
+Do not forget to move the lookup database to the final location.
 .Pp
 Lookup an IP with torlookup:
 .Pp
@@ -138,6 +139,6 @@ Use nfdump with the tordb:
 .Pp
 .Sh SEE ALSO
 .Xr nfdump 1
-has already builtin lookup options to decorate the text output with tor information. See tags %stor, %dtor
+includes built-in options to annotate output with Tor exit node information. See also nfdump tags %stor, %dtor.
 .Pp
 .Xr nfdump 1
