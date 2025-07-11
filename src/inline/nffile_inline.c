@@ -36,9 +36,20 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
 static inline dataBlock_t *AppendToBuffer(nffile_t *nffile, dataBlock_t *dataBlock, void *record, size_t required);
 
 static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint64_t flowCount) {
-    if (handle->extensionList[SSLindex]) free(handle->extensionList[SSLindex]);
-    if (handle->extensionList[JA3index]) free(handle->extensionList[JA3index]);
-    if (handle->extensionList[JA4index]) free(handle->extensionList[JA4index]);
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)handle->extensionList[EXinPayloadHandle];
+    if (payloadHandle) {
+        if (payloadHandle->ssl) free(payloadHandle->ssl);
+        if (payloadHandle->ja3) free(payloadHandle->ja3);
+        if (payloadHandle->ja4) free(payloadHandle->ja4);
+        free(payloadHandle);
+    }
+    payloadHandle = (payloadHandle_t *)handle->extensionList[EXoutPayloadHandle];
+    if (payloadHandle) {
+        if (payloadHandle->ssl) free(payloadHandle->ssl);
+        if (payloadHandle->ja3) free(payloadHandle->ja3);
+        if (payloadHandle->ja4) free(payloadHandle->ja4);
+        free(payloadHandle);
+    }
 
     memset((void *)handle, 0, sizeof(recordHandle_t));
     handle->recordHeaderV3 = recordHeaderV3;

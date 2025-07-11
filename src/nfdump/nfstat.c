@@ -90,10 +90,12 @@ static void *SRC_GEO_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *DST_GEO_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *SRC_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *DST_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle);
-static void *JA3_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+static void *JA3in_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+static void *JA3out_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *JA4_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 #ifdef BUILDJA4
-static void *JA4S_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+static void *JA4Sin_PreProcess(void *inPtr, recordHandle_t *recordHandle);
+static void *JA4Sout_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 #endif
 
 typedef struct flow_element_s {
@@ -194,10 +196,12 @@ static struct StatParameter_s {
     {"sl", "Server Latency", {EXlatencyID, OFFusecServerNwDelay, SIZEusecServerNwDelay, 0}, IS_LATENCY, NULL},
     {"al", "Application Latency", {EXlatencyID, OFFusecApplLatency, SIZEusecApplLatency, 0}, IS_LATENCY, NULL},
     {"nbar", "Nbar", {EXnbarAppID, OFFnbarAppID, SIZEnbarAppID, 0}, IS_NBAR, NULL},
-    {"ja3", "ja3                             ", {JA3index, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3_PreProcess},
-    {"ja4", "ja4                                ", {JA4index, OFFja4String, SIZEja4String + 1, 0}, IS_JA4, JA4_PreProcess},
+    {"ja3", "ja3                             ", {EXinPayloadHandle, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3in_PreProcess},
+    {"ja3", NULL, {EXoutPayloadHandle, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3out_PreProcess},
+    {"ja4", "ja4                                ", {EXinPayloadHandle, OFFja4String, SIZEja4String + 1, 0}, IS_JA4, JA4_PreProcess},
 #ifdef BUILDJA4
-    {"ja4s", "ja4s                    ", {JA4index, OFFja4String, SIZEja4sString + 1, 0}, IS_JA4S, JA4S_PreProcess},
+    {"ja4s", "ja4s                    ", {EXinPayloadHandle, OFFja4String, SIZEja4sString + 1, 0}, IS_JA4S, JA4Sin_PreProcess},
+    {"ja4s", NULL, {EXoutPayloadHandle, OFFja4String, SIZEja4sString + 1, 0}, IS_JA4S, JA4Sout_PreProcess},
 #endif
     {"odid", "Obs DomainID", {EXobservationID, OFFdomainID, SIZEdomainID, 0}, IS_HEXNUMBER, NULL},
     {"opid", "Obs PointID", {EXobservationID, OFFpointID, SIZEpointID, 0}, IS_HEXNUMBER, NULL},
@@ -735,26 +739,77 @@ static inline void *DST_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle)
     return inPtr;
 }  // End of DST_AS_PreProcess
 
-static inline void *JA3_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
+static inline void *JA3in_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXinPayloadID];
     if (payload == NULL || genericFlow->proto != IPPROTO_TCP || inPtr) return inPtr;
 
-    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXinPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+        }
+    }
+
+    ssl_t *ssl = payloadHandle->ssl;
     if (ssl == NULL) {
         uint32_t payloadLength = ExtensionLength(payload);
         ssl = sslProcess(payload, payloadLength);
-        recordHandle->extensionList[SSLindex] = ssl;
+        payloadHandle->ssl = ssl;
         if (ssl == NULL) {
             return NULL;
         }
     }
+
     // ssl is defined
-    char *ja3 = ja3Process(ssl, NULL);
-    recordHandle->extensionList[JA3index] = ja3;
+    char *ja3 = payloadHandle->ja3;
+    if (payloadHandle->ja3 == NULL) {
+        ja3 = ja3Process(ssl, NULL);
+        payloadHandle->ja3 = ja3;
+    }
     return ja3;
 
-}  // End of JA3_PreProcess
+}  // End of JA3in_PreProcess
+
+static inline void *JA3out_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+    const uint8_t *payload = (const uint8_t *)recordHandle->extensionList[EXoutPayloadID];
+    if (payload == NULL || genericFlow->proto != IPPROTO_TCP || inPtr) return inPtr;
+
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXoutPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXoutPayloadHandle] = payloadHandle;
+        }
+    }
+
+    ssl_t *ssl = payloadHandle->ssl;
+    if (ssl == NULL) {
+        uint32_t payloadLength = ExtensionLength(payload);
+        ssl = sslProcess(payload, payloadLength);
+        payloadHandle->ssl = ssl;
+        if (ssl == NULL) {
+            return NULL;
+        }
+    }
+
+    // ssl is defined
+    char *ja3 = payloadHandle->ja3;
+    if (payloadHandle->ja3 == NULL) {
+        ja3 = ja3Process(ssl, NULL);
+        payloadHandle->ja3 = ja3;
+    }
+    return ja3;
+
+}  // End of JA3out_PreProcess
 
 static inline void *JA4_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
@@ -762,56 +817,118 @@ static inline void *JA4_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
     if (payload == NULL || genericFlow->proto != IPPROTO_TCP) return NULL;
 
-    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXinPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+        }
+    }
+
+    ssl_t *ssl = payloadHandle->ssl;
     if (ssl == NULL) {
         uint32_t payloadLength = ExtensionLength(payload);
         ssl = sslProcess(payload, payloadLength);
-        recordHandle->extensionList[SSLindex] = ssl;
+        payloadHandle->ssl = ssl;
         if (ssl == NULL) {
             return NULL;
         }
     }
     // ssl is defined
-    ja4_t *ja4 = NULL;
-    if (ssl->type == CLIENTssl) {
+    if (ssl->type != CLIENTssl) return NULL;
+
+    ja4_t *ja4 = payloadHandle->ja4;
+    if (ja4 == NULL) {
         ja4 = ja4Process(ssl, genericFlow->proto);
-    } else {
-        return NULL;
+        payloadHandle->ja4 = ja4;
     }
 
-    recordHandle->extensionList[JA4index] = ja4;
     return ja4;
 
 }  // End of JA4_PreProcess
 
 #ifdef BUILDJA4
-static inline void *JA4S_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
+static inline void *JA4Sin_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
     if (payload == NULL || genericFlow->proto != IPPROTO_TCP) return NULL;
 
-    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXinPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+        }
+    }
+
+    ssl_t *ssl = payloadHandle->ssl;
     if (ssl == NULL) {
         uint32_t payloadLength = ExtensionLength(payload);
         ssl = sslProcess(payload, payloadLength);
-        recordHandle->extensionList[SSLindex] = ssl;
+        payloadHandle->ssl = ssl;
         if (ssl == NULL) {
             return NULL;
         }
     }
-    // ssl is defined
-    ja4_t *ja4 = NULL;
-    if (ssl->type == SERVERssl) {
-        ja4 = ja4sProcess(ssl, genericFlow->proto);
-    } else {
-        return NULL;
-    }
 
-    recordHandle->extensionList[JA4index] = ja4;
+    // ssl is defined
+    if (ssl->type != SERVERssl) return NULL;
+
+    ja4_t *ja4 = payloadHandle->ja4;
+    if (ja4 == NULL) {
+        ja4 = ja4sProcess(ssl, genericFlow->proto);
+        payloadHandle->ja4 = ja4;
+    }
     return ja4;
 
-}  // End of JA4S_PreProcess
+}  // End of JA4Sin_PreProcess
+
+static inline void *JA4Sout_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    EXinPayload_t *payload = (EXinPayload_t *)recordHandle->extensionList[EXoutPayloadID];
+    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) return NULL;
+
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXoutPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXoutPayloadHandle] = payloadHandle;
+        }
+    }
+
+    ssl_t *ssl = payloadHandle->ssl;
+    if (ssl == NULL) {
+        uint32_t payloadLength = ExtensionLength(payload);
+        ssl = sslProcess(payload, payloadLength);
+        payloadHandle->ssl = ssl;
+        if (ssl == NULL) {
+            return NULL;
+        }
+    }
+
+    // ssl is defined
+    if (ssl->type != SERVERssl) return NULL;
+
+    ja4_t *ja4 = payloadHandle->ja4;
+    if (ja4 == NULL) {
+        ja4 = ja4sProcess(ssl, genericFlow->proto);
+        payloadHandle->ja4 = ja4;
+    }
+    return ja4;
+
+}  // End of JA4Sout_PreProcess
+
 #endif
 
 void AddElementStat(recordHandle_t *recordHandle) {

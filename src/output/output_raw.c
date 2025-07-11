@@ -32,6 +32,7 @@
 
 #include <arpa/inet.h>
 #include <ctype.h>
+#include <errno.h>
 #include <inttypes.h>
 #include <netinet/in.h>
 #include <stddef.h>
@@ -707,14 +708,25 @@ static void stringsEXnbarApp(FILE *stream, void *extensionRecord) {
 
 }  // End of stringsEXnbarApp
 
-static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *payload, uint32_t length);
+static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHandle_t *payloadHandle, uint8_t *payload, uint32_t length, char *prefix);
 
 static void stringsEXinPayload(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord) {
     EXinPayload_t *inPayload = (EXinPayload_t *)recordHandle->extensionList[EXinPayloadID];
     uint32_t payloadLength = ExtensionLength(inPayload);
 
     fprintf(stream, "  in payload   =         %10u\n", payloadLength);
-    inoutPayload(stream, recordHandle, inPayload, payloadLength);
+
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXinPayloadHandle];
+    if (!payloadHandle) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+        }
+    }
+    inoutPayload(stream, recordHandle, payloadHandle, inPayload, payloadLength, "in");
 }  // End of stringsEXinPayload
 
 static void stringsEXoutPayload(FILE *stream, recordHandle_t *recordHandle, void *extensionRecord) {
@@ -722,10 +734,22 @@ static void stringsEXoutPayload(FILE *stream, recordHandle_t *recordHandle, void
     uint32_t payloadLength = ExtensionLength(outPayload);
 
     fprintf(stream, "  out payload  =         %10u\n", payloadLength);
-    inoutPayload(stream, recordHandle, outPayload, payloadLength);
+
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXoutPayloadHandle];
+    if (!payloadHandle) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+        }
+    }
+    inoutPayload(stream, recordHandle, payloadHandle, outPayload, payloadLength, "out");
 }  // end of stringsExoutPayload
 
-static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *payload, uint32_t length) {
+static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHandle_t *payloadHandle, uint8_t *payload, uint32_t length,
+                         char *prefix) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     int max = length;
@@ -743,10 +767,10 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
     if (ascii) {
         fprintf(stream, "%.*s\n", max, payload);
     } else if (genericFlow->proto == IPPROTO_TCP) {
-        ssl_t *ssl = recordHandle->extensionList[SSLindex];
+        ssl_t *ssl = payloadHandle->ssl;
         if (ssl == NULL) {
             ssl = sslProcess(payload, length);
-            recordHandle->extensionList[SSLindex] = ssl;
+            payloadHandle->ssl = ssl;
             if (ssl == NULL) {
                 DumpHex(stream, payload, max);
                 return;
@@ -768,10 +792,10 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
 
         if (ssl->sniName[0]) fprintf(stream, "    sni name   =  %s\n", ssl->sniName);
 
-        char *ja3 = recordHandle->extensionList[JA3index];
+        char *ja3 = payloadHandle->ja3;
         if (ja3 == NULL) {
             ja3 = ja3Process(ssl, NULL);
-            recordHandle->extensionList[JA3index] = ja3;
+            payloadHandle->ja3 = ja3;
         }
         if (ja3) {
             if (ssl->type == CLIENTssl) {
@@ -781,14 +805,14 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, uint8_t *pa
             }
         }
 
-        ja4_t *ja4 = recordHandle->extensionList[JA4index];
+        ja4_t *ja4 = payloadHandle->ja4;
         if (ja4 == NULL) {
             if (ssl->type == CLIENTssl) {
                 ja4 = ja4Process(ssl, genericFlow->proto);
             } else {
                 ja4 = ja4sProcess(ssl, genericFlow->proto);
             }
-            recordHandle->extensionList[JA4index] = ja4;
+            payloadHandle->ja4 = ja4;
         }
 
         if (ja4) {

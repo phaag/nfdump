@@ -80,12 +80,21 @@ typedef struct ip_addr_s {
 typedef struct exporter_info_record_s exporter_info_record_t;
 typedef struct extension_map_s extension_map_t;
 
-enum { EXlocal = MAXEXTENSIONS, EXheader, SSLindex, JA3index, JA4index, MAXLISTSIZE };
+enum { EXlocal = MAXEXTENSIONS, EXheader, EXinPayloadHandle, EXoutPayloadHandle, MAXLISTSIZE };
+
+typedef struct payloadHandle_s {
+    // use opaque types
+    void *ssl;
+    char *ja3;
+    void *ja4;
+} payloadHandle_t;
 
 typedef struct recordHandle_s {
     recordHeaderV3_t *recordHeaderV3;
     void *extensionList[MAXLISTSIZE];
     char geo[16];
+#define OFFinPayload offsetof(recordHandle_t, inPayload)
+#define OFFoutPayload offsetof(recordHandle_t, outPayload)
 #define OFFgeo offsetof(recordHandle_t, geo)
 #define OFFgeoSrcIP offsetof(recordHandle_t, geo)
 #define OFFgeoDstIP offsetof(recordHandle_t, geo) + 2

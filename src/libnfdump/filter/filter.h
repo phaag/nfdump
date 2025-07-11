@@ -116,6 +116,13 @@ typedef enum {
     FUNC_TTL_EQUAL,    // function code for comparing min/max TTL
 } filterFunction_t;
 
+typedef enum {
+    OPT_NONE = 0,  // no option
+    OPT_SSL,       // payload processing for SSL
+    OPT_JA3,       // payload processing for ja3
+    OPT_JA4,       // payload processing for ja4
+} filterOption_t;
+
 #define FULLMASK FFFFFFFFFFFFFFFFLL
 
 /* Definition of the IP list node */
@@ -152,6 +159,8 @@ RB_PROTOTYPE(U64tree, U64ListNode, entry, U64NodeCMP);
 int yylex(void);
 
 uint32_t NewElement(uint32_t extID, uint32_t offset, uint32_t length, uint64_t value, comparator_t comp, filterFunction_t function, data_t data);
+
+void SetElementOption(uint32_t elementID, filterOption_t option);
 
 uint32_t Invert(uint32_t a);
 

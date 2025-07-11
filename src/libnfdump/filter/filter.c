@@ -60,29 +60,29 @@ uint32_t StartNode = 0;
 
 typedef uint64_t (*flow_proc_t)(void *, uint32_t, data_t, recordHandle_t *);
 
-typedef void *(*preprocess_proc_t)(uint32_t, data_t, recordHandle_t *);
+typedef void *(*preprocess_proc_t)(uint32_t, data_t, recordHandle_t *, filterOption_t);
 
 typedef struct filterElement {
-    /* Filter specific data */
+    // Filter specific data
     uint32_t extID;
     uint32_t offset;
     uint32_t length;
     uint64_t value;
 
-    /* Internal block info for tree setup */
-    uint32_t superblock; /* Index of superblock */
-    uint32_t *blocklist; /* index array of blocks, belonging to
-                                            this superblock */
+    // Internal block info for tree setup
+    uint32_t superblock;  // Index of superblock
+    uint32_t *blocklist;  // index array of blocks, belonging to this superblock
 
-    uint32_t geoLookup;       /* info on geoLookup */
-    uint32_t numblocks;       /* number of blocks in blocklist */
-    uint32_t OnTrue, OnFalse; /* Jump Index for tree */
-    int16_t invert;           /* Invert result of test */
-    comparator_t comp;        /* comperator */
-    flow_proc_t function;     /* function for flow processing */
-    char *fname;              /* ascii function name */
-    char *label;              /* label, if any */
-    data_t data;              /* any additional data for this block */
+    uint32_t geoLookup;        // info on geoLookup
+    uint32_t numblocks;        // number of blocks in blocklist
+    uint32_t OnTrue, OnFalse;  // Jump Index for tree
+    int16_t invert;            // Invert result of test
+    uint16_t option;           // filter element option
+    comparator_t comp;         // comperator
+    flow_proc_t function;      // function for flow processing
+    char *fname;               // ascii function name
+    char *label;               // label, if any
+    data_t data;               // any additional data for this block
 } filterElement_t;
 
 typedef struct FilterEngine_s {
@@ -114,10 +114,9 @@ static uint64_t torLookup_function(void *dataPtr, uint32_t length, data_t data, 
 static uint64_t ttlEqual_function(void *dataPtr, uint32_t length, data_t data, recordHandle_t *handle);
 
 /* flow pre-processing functions */
-static void *ssl_preproc(uint32_t length, data_t data, recordHandle_t *handle);
-static void *ja3_preproc(uint32_t length, data_t data, recordHandle_t *handle);
-static void *ja4_preproc(uint32_t length, data_t data, recordHandle_t *handle);
-static void *as_preproc(uint32_t length, data_t data, recordHandle_t *handle);
+static void *as_preproc(uint32_t length, data_t data, recordHandle_t *handle, filterOption_t option);
+static void *inPayload_preproc(uint32_t length, data_t data, recordHandle_t *handle, filterOption_t option);
+static void *outPayload_preproc(uint32_t length, data_t data, recordHandle_t *handle, filterOption_t option);
 
 /*
  * flow processing function table:
@@ -144,7 +143,7 @@ static struct flow_procs_map_s {
 static struct preprocess_s {
     preprocess_proc_t function;
 } const preprocess_map[MAXLISTSIZE] = {
-    [EXasRoutingID] = {as_preproc}, [SSLindex] = {ssl_preproc}, [JA3index] = {ja3_preproc}, [JA4index] = {ja4_preproc}};
+    [EXasRoutingID] = {as_preproc}, [EXinPayloadHandle] = {inPayload_preproc}, [EXoutPayloadHandle] = {outPayload_preproc}};
 
 // static const int a[20] = {1, 2, 3, [8] = 10, 11, 12};
 
@@ -325,57 +324,126 @@ static uint64_t ttlEqual_function(void *dataPtr, uint32_t length, data_t data, r
     return ipInfo->minTTL == ipInfo->maxTTL;
 }  // End of ttlEqual_function
 
-static void *ssl_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
-    const uint8_t *payload = (uint8_t *)(handle->extensionList[EXinPayloadID]);
-    if (payload == NULL) return NULL;
-
-    ssl_t *ssl = handle->extensionList[SSLindex];
-    if (ssl) return (void *)ssl;
-
+static void *ssl_preproc(const void *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
     uint32_t payloadLength = ExtensionLength(payload);
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(handle->extensionList[EXgenericFlowID]);
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(recordHandle->extensionList[EXgenericFlowID]);
+    if (!genericFlow) return NULL;
+
+    ssl_t *ssl = NULL;
     if (genericFlow->proto == IPPROTO_TCP) ssl = sslProcess(payload, payloadLength);
-    handle->extensionList[SSLindex] = ssl;
+    payloadHandle->ssl = ssl;
     return ssl;
 
 }  // End of ssl_preproc
 
-static void *ja3_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
-    const uint8_t *payload = (const uint8_t *)handle->extensionList[EXinPayloadID];
-    if (payload == NULL) return NULL;
-
-    // return ja3 string if it already exists
-    if (handle->extensionList[JA3index]) return handle->extensionList[JA3index];
-
-    ssl_t *ssl = handle->extensionList[SSLindex];
-    if (ssl == NULL) ssl = ssl_preproc(length, data, handle);
+static void *ja3_preproc(const void *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
+    ssl_t *ssl = (ssl_t *)payloadHandle->ssl;
+    if (ssl == NULL) ssl = ssl_preproc(payload, payloadHandle, recordHandle);
     if (!ssl) return NULL;
 
-    handle->extensionList[SSLindex] = (void *)ssl;
-    handle->extensionList[JA3index] = ja3Process(ssl, NULL);
+    payloadHandle->ja3 = ja3Process(ssl, NULL);
 
-    return handle->extensionList[JA3index];
+    return payloadHandle->ja3;
 
 }  // End of ja3_preproc
 
-static void *ja4_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
-    const uint8_t *payload = (uint8_t *)(handle->extensionList[EXinPayloadID]);
-    if (payload == NULL) return NULL;
+static void *ja4_preproc(const void *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
+    ssl_t *ssl = (ssl_t *)payloadHandle->ssl;
+    if (ssl == NULL) ssl = ssl_preproc(payload, payloadHandle, recordHandle);
+    if (!ssl) return NULL;
 
-    // return ja4 struct if it already exists
-    if (handle->extensionList[JA4index]) return handle->extensionList[JA4index];
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(recordHandle->extensionList[EXgenericFlowID]);
+    if (!genericFlow) return NULL;
 
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(handle->extensionList[EXgenericFlowID]);
+    ja4_t *ja4 = NULL;
+    if (ssl->type == CLIENTssl) {
+        ja4 = ja4Process(ssl, genericFlow->proto);
+    } else {
+        ja4 = ja4sProcess(ssl, genericFlow->proto);
+    }
+    payloadHandle->ja4 = ja4;
 
-    ssl_t *ssl = ssl_preproc(length, data, handle);
-    if (ssl == NULL || ssl->type != CLIENTssl) return NULL;
-
-    handle->extensionList[JA4index] = (void *)ja4Process(ssl, genericFlow->proto);
-    return handle->extensionList[JA4index];
+    return ja4;
 
 }  // End of ja4_preproc
 
-static void *as_preproc(uint32_t length, data_t data, recordHandle_t *handle) {
+static void *inPayload_preproc(uint32_t length, data_t data, recordHandle_t *recordHandle, filterOption_t option) {
+    const void *payload = (uint8_t *)(recordHandle->extensionList[EXinPayloadID]);
+    if (payload == NULL) return NULL;
+
+    payloadHandle_t *payloadHandle = (void *)(recordHandle->extensionList[EXinPayloadHandle]);
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
+        recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+    }
+
+    void *ptr = NULL;
+    switch (option) {
+        case OPT_NONE:
+            return ptr;
+            break;
+        case OPT_SSL:
+            if (payloadHandle->ssl == NULL) ssl_preproc(payload, payloadHandle, recordHandle);
+            ptr = payloadHandle->ssl;
+            break;
+        case OPT_JA3:
+            if (payloadHandle->ja3 == NULL) ja3_preproc(payload, payloadHandle, recordHandle);
+            ptr = payloadHandle->ja3;
+            break;
+        case OPT_JA4:
+            if (payloadHandle->ja4 == NULL) ja4_preproc(payload, payloadHandle, recordHandle);
+            ptr = payloadHandle->ja4;
+            break;
+        default:
+            return ptr;
+    }
+
+    return ptr;
+}  // End of inPayload_preproc
+
+static void *outPayload_preproc(uint32_t length, data_t data, recordHandle_t *recordHandle, filterOption_t option) {
+    const void *payload = (uint8_t *)(recordHandle->extensionList[EXoutPayloadID]);
+    if (payload == NULL) return NULL;
+
+    payloadHandle_t *payloadHandle = (void *)(recordHandle->extensionList[EXoutPayloadHandle]);
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
+        recordHandle->extensionList[EXoutPayloadHandle] = payloadHandle;
+    }
+
+    void *ptr = NULL;
+    switch (option) {
+        case OPT_NONE:
+            return ptr;
+            break;
+        case OPT_SSL:
+            if (payloadHandle->ssl == NULL) ssl_preproc(payload, payloadHandle, recordHandle);
+            ptr = payloadHandle->ssl;
+            break;
+        case OPT_JA3:
+            if (payloadHandle->ja3 == NULL) ja3_preproc(payload, payloadHandle, recordHandle);
+            ptr = payloadHandle->ja3;
+            break;
+        case OPT_JA4:
+            if (payloadHandle->ja4 == NULL) ja4_preproc(payload, payloadHandle, recordHandle);
+            ptr = payloadHandle->ja4;
+            break;
+        default:
+            return ptr;
+    }
+
+    return ptr;
+}  // End of outPayload_preproc
+
+static void *as_preproc(uint32_t length, data_t data, recordHandle_t *handle, filterOption_t option) {
     // no AS field, map slack
     handle->extensionList[EXasRoutingID] = handle->localStack;
     return (void *)handle->localStack;
@@ -441,7 +509,7 @@ static int geoLookup(char *geoChar, uint64_t direction, recordHandle_t *recordHa
     }
     return *((uint16_t *)(geoChar));
 
-}  // ENd of geoLookup
+}  // End of geoLookup
 
 /*
  * Returns next free slot in blocklist
@@ -465,6 +533,7 @@ uint32_t NewElement(uint32_t extID, uint32_t offset, uint32_t length, uint64_t v
         .length = length,
         .value = value,
         .invert = 0,
+        .option = OPT_NONE,
         .OnTrue = 0,
         .OnFalse = 0,
         .comp = comp,
@@ -478,11 +547,16 @@ uint32_t NewElement(uint32_t extID, uint32_t offset, uint32_t length, uint64_t v
     };
     FilterTree[n].blocklist[0] = n;
 
-    if (comp > 0 || function > 0 || extID >= MAXEXTENSIONS) Extended = 1;
+    if (comp > 0 || function > 0 || extID > EXheader) Extended = 1;
     NumBlocks++;
     return n;
 
 } /* End of NewElement */
+
+void SetElementOption(uint32_t elementID, filterOption_t option) {
+    // assigne option
+    FilterTree[elementID].option = option;
+}  // End of SetElementOption
 
 /*
  * Inverts OnTrue and OnFalse
@@ -696,6 +770,8 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
         size_t offset = engine->filter[index].offset;
         invert = engine->filter[index].invert;
 
+        data_t data = engine->filter[index].data;
+        uint32_t length = engine->filter[index].length;
         void *inPtr = handle->extensionList[extID];
         if (inPtr == NULL) {
             if (preprocess_map[extID].function == NULL) {
@@ -703,9 +779,15 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
                 index = engine->filter[index].OnFalse;
                 continue;
             }
-            data_t data = engine->filter[index].data;
-            uint32_t length = engine->filter[index].length;
-            inPtr = preprocess_map[extID].function(length, data, handle);
+            inPtr = preprocess_map[extID].function(length, data, handle, engine->filter[index].option);
+            if (inPtr == NULL) {
+                evaluate = 0;
+                index = engine->filter[index].OnFalse;
+                continue;
+            }
+        }
+        if (engine->filter[index].option != OPT_NONE && preprocess_map[extID].function != NULL) {
+            inPtr = preprocess_map[extID].function(length, data, handle, engine->filter[index].option);
             if (inPtr == NULL) {
                 evaluate = 0;
                 index = engine->filter[index].OnFalse;
@@ -714,8 +796,6 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
         }
         inPtr += offset;
 
-        data_t data = engine->filter[index].data;
-        uint32_t length = engine->filter[index].length;
         uint64_t inVal = 0;
         if (engine->filter[index].function != NULL) {
             inVal = engine->filter[index].function(inPtr, length, data, handle);

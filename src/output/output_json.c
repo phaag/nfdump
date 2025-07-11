@@ -495,22 +495,15 @@ static char *stringEXlatency(char *streamPtr, void *extensionRecord) {
     return streamPtr;
 }  // End of stringEXlatency
 
-static char *string_payload(char *streamPtr, recordHandle_t *recordHandle, void *extensionRecord) {
-    const uint8_t *payload = (const uint8_t *)extensionRecord;
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-
+static char *string_payload(char *streamPtr, payloadHandle_t *payloadHandle, const void *payload, const char *prefix) {
     // payload handled in output json:
     // ssl, ja3, ja4
 
-    if (payload == NULL || genericFlow->proto != IPPROTO_TCP) {
-        return streamPtr;
-    }
-
-    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    ssl_t *ssl = payloadHandle->ssl;
     if (ssl == NULL) {
         uint32_t payloadLength = ExtensionLength(payload);
         ssl = sslProcess(payload, payloadLength);
-        recordHandle->extensionList[SSLindex] = ssl;
+        payloadHandle->ssl = ssl;
         if (ssl == NULL) {
             return streamPtr;
         }
@@ -523,50 +516,114 @@ static char *string_payload(char *streamPtr, recordHandle_t *recordHandle, void 
     if (ssl) {
         switch (ssl->tlsCharVersion[0]) {
             case 's':
-                len = snprintf(streamPtr, lenStream, "  \"tls\" : SSL%c,\n", ssl->tlsCharVersion[1]);
+                len = snprintf(streamPtr, lenStream, "  \"%s_tls\" : SSL%c,\n", prefix, ssl->tlsCharVersion[1]);
                 break;
             case '1':
-                len = snprintf(streamPtr, lenStream, "  \"tls\" : TLS1.%c,\n", ssl->tlsCharVersion[1]);
+                len = snprintf(streamPtr, lenStream, "  \"%s_tls\" : TLS1.%c,\n", prefix, ssl->tlsCharVersion[1]);
                 break;
             default:
-                len = snprintf(streamPtr, lenStream, "  \"tls\" : 0x%4x,\n", ssl->tlsVersion);
+                len = snprintf(streamPtr, lenStream, "  \"%s_tls\" : 0x%4x,\n", prefix, ssl->tlsVersion);
                 break;
         }
         streamPtr += len;
 
         if (ssl->sniName[0]) {
-            AddElementString("sni", ssl->sniName);
+            char token[64];
+            snprintf(token, 64, "%s_sni", prefix);
+            AddElementString(token, ssl->sniName);
         }
     }
 
-    char *ja3 = recordHandle->extensionList[JA3index];
+    char *ja3 = payloadHandle->ja3;
+    if (ja3) {
+        free(ja3);
+        ja3 = NULL;
+    }
     if (ja3 == NULL) {
         ja3 = ja3Process(ssl, NULL);
-        recordHandle->extensionList[JA3index] = ja3;
+        payloadHandle->ja3 = ja3;
     }
     if (ja3) {
-        AddElementString("ja3 hash", ja3);
+        char token[64];
+        snprintf(token, 64, "%s_ja3 hash", prefix);
+        AddElementString(token, ja3);
     }
 
-    ja4_t *ja4 = recordHandle->extensionList[JA4index];
+    ja4_t *ja4 = payloadHandle->ja4;
+    if (ja4) {
+        free(ja4);
+        ja4 = NULL;
+    }
     if (ja4 == NULL) {
         if (ssl->type == CLIENTssl) {
-            ja4 = ja4Process(ssl, genericFlow->proto);
+            ja4 = ja4Process(ssl, IPPROTO_TCP);
         } else {
-            ja4 = ja4sProcess(ssl, genericFlow->proto);
+            ja4 = ja4sProcess(ssl, IPPROTO_TCP);
         }
-        recordHandle->extensionList[JA4index] = ja4;
+        payloadHandle->ja4 = ja4;
     }
     if (ja4 == NULL) return streamPtr;
 
     // ja4 is defined
-    if (ja4->type == TYPE_JA4)
-        AddElementString("ja4 hash", ja4->string);
-    else
+    if (ja4->type == TYPE_JA4) {
+        char token[64];
+        snprintf(token, 64, "%s_ja4 hash", prefix);
+        AddElementString(token, ja4->string);
+    } else {
+        char token[64];
+        snprintf(token, 64, "%s_ja4s hash", prefix);
         AddElementString("ja4s hash", ja4->string);
+    }
 
     return streamPtr;
 }  // End of string_payload
+
+static char *string_inPayload(char *streamPtr, recordHandle_t *recordHandle, void *extensionRecord) {
+    const uint8_t *payload = (const uint8_t *)extensionRecord;
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    if (genericFlow->proto != IPPROTO_TCP) {
+        return streamPtr;
+    }
+
+    payloadHandle_t *payloadHandle = NULL;
+    payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXinPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+        }
+    }
+    char *prefix = "in";
+
+    return string_payload(streamPtr, payloadHandle, payload, prefix);
+}  // End of string_inPayload
+
+static char *string_outPayload(char *streamPtr, recordHandle_t *recordHandle, void *extensionRecord) {
+    const uint8_t *payload = (const uint8_t *)extensionRecord;
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
+
+    if (genericFlow->proto != IPPROTO_TCP) {
+        return streamPtr;
+    }
+
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXoutPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXoutPayloadHandle] = payloadHandle;
+        }
+    }
+    char *prefix = "out";
+
+    return string_payload(streamPtr, payloadHandle, payload, prefix);
+}  // End of string_outPayload
 
 static char *stringEXtunIPv4(char *streamPtr, void *extensionRecord) {
     EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)extensionRecord;
@@ -894,10 +951,10 @@ void flow_record_to_json(FILE *stream, recordHandle_t *recordHandle, outputParam
                 streamPtr = stringEXlatency(streamPtr, ptr);
                 break;
             case EXinPayloadID:
-                streamPtr = string_payload(streamPtr, recordHandle, ptr);
+                streamPtr = string_inPayload(streamPtr, recordHandle, ptr);
                 break;
             case EXoutPayloadID:
-                streamPtr = string_payload(streamPtr, recordHandle, ptr);
+                streamPtr = string_outPayload(streamPtr, recordHandle, ptr);
                 break;
             case EXtunIPv4ID:
                 streamPtr = stringEXtunIPv4(streamPtr, ptr);

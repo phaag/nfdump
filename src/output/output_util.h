@@ -33,6 +33,8 @@
 
 #include <stdint.h>
 
+typedef enum { DIR_IN = 0, DIR_OUT } dirInOut_t;
+
 char *FlagsString(uint16_t flags);
 
 char *biFlowString(uint8_t biFlow);

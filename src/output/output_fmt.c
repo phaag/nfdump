@@ -1136,16 +1136,27 @@ static void String_ja3(FILE *stream, recordHandle_t *recordHandle) {
         return;
     }
 
-    char *ja3 = recordHandle->extensionList[JA3index];
-    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXinPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+        }
+    }
+
+    ssl_t *ssl = payloadHandle->ssl;
+    char *ja3 = payloadHandle->ja3;
     if (ja3 == NULL) {
         if (ssl == NULL) {
             uint32_t payloadLength = ExtensionLength(payload);
             ssl = sslProcess(payload, payloadLength);
-            recordHandle->extensionList[SSLindex] = ssl;
+            payloadHandle->ssl = ssl;
         }
         ja3 = ja3Process(ssl, NULL);
-        recordHandle->extensionList[JA3index] = ja3;
+        payloadHandle->ja3 = ja3;
         if (ssl == NULL || ja3 == NULL) {
             fprintf(stream, "%38s", "no ja3");
             return;
@@ -1167,16 +1178,27 @@ static void String_ja4(FILE *stream, recordHandle_t *recordHandle) {
         return;
     }
 
-    ja4_t *ja4 = recordHandle->extensionList[JA4index];
-    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXinPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+        }
+    }
+
+    ssl_t *ssl = payloadHandle->ssl;
+    ja4_t *ja4 = payloadHandle->ja4;
     if (ja4 == NULL) {
         if (ssl == NULL) {
             uint32_t payloadLength = ExtensionLength(payload);
             ssl = sslProcess(payload, payloadLength);
-            recordHandle->extensionList[SSLindex] = ssl;
+            payloadHandle->ssl = ssl;
         }
         ja4 = ja4Process(ssl, genericFlow->proto);
-        recordHandle->extensionList[JA4index] = ja4;
+        payloadHandle->ja4 = ja4;
         if (ssl == NULL || ja4 == NULL) {
             fprintf(stream, "%38s", "no ja4");
             return;
@@ -1201,11 +1223,22 @@ static void String_tlsVersion(FILE *stream, recordHandle_t *recordHandle) {
         return;
     }
 
-    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXinPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+        }
+    }
+
+    ssl_t *ssl = payloadHandle->ssl;
     if (ssl == NULL) {
         uint32_t payloadLength = ExtensionLength(payload);
         ssl = sslProcess(payload, payloadLength);
-        recordHandle->extensionList[SSLindex] = ssl;
+        payloadHandle->ssl = ssl;
         if (ssl == NULL) {
             fprintf(stream, "   0");
             return;
@@ -1248,11 +1281,22 @@ static void String_sniName(FILE *stream, recordHandle_t *recordHandle) {
         return;
     }
 
-    ssl_t *ssl = recordHandle->extensionList[SSLindex];
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXinPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+        }
+    }
+
+    ssl_t *ssl = payloadHandle->ssl;
     if (ssl == NULL) {
         uint32_t payloadLength = ExtensionLength(payload);
         ssl = sslProcess(payload, payloadLength);
-        recordHandle->extensionList[SSLindex] = ssl;
+        payloadHandle->ssl = ssl;
         if (ssl == NULL) {
             fprintf(stream, "   0");
             return;

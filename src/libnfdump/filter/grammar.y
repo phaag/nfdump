@@ -1297,7 +1297,9 @@ static int AddNatPortBlocks(char *type, char *subtype, uint16_t comp, uint64_t n
 
 static int AddPayloadSSL(char *type, char *arg, char *opt) {
 	if (strcasecmp(arg, "defined") == 0) {
-		return NewElement(SSLindex, 0, 0, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+		uint32_t id = NewElement(EXinPayloadHandle, 0, 0, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+		SetElementOption(id, OPT_SSL);
+		return id;
 	} else if (strcasecmp(arg, "version") == 0) {
 		if ( opt == NULL ){
 			yyprintf("String %s is not a valid SSL/TLS version", arg);
@@ -1329,14 +1331,18 @@ static int AddPayloadSSL(char *type, char *arg, char *opt) {
 			// SSL
 			version = major << 8;
 		}
-		return NewElement(SSLindex, OFFsslVersion, SIZEsslVersion, version, CMP_EQ, FUNC_NONE, NULLPtr);
+		uint32_t id = NewElement(EXinPayloadHandle, OFFsslVersion, SIZEsslVersion, version, CMP_EQ, FUNC_NONE, NULLPtr);
+		SetElementOption(id, OPT_SSL);
+		return id;
 	} else if (strcasecmp(arg, "sni") == 0) {
 		if ( opt == NULL || strlen(opt) > 64 ) {
 			yyprintf("Invalid string %s for SSL/TLS sni name", opt != NULL ? opt : "");
 			return -1;
 		}
 		data_t data = {.dataPtr=strdup(opt)};
-		return NewElement(SSLindex, OFFsslSNI, SIZEsslSNI, 0, CMP_SUBSTRING, FUNC_NONE, data);
+		uint32_t id = NewElement(EXinPayloadHandle, OFFsslSNI, SIZEsslSNI, 0, CMP_SUBSTRING, FUNC_NONE, data);
+		SetElementOption(id, OPT_SSL);
+		return id;
 	}
 	yyprintf("String %s is not a valid SSL/TLS filter", arg);
 	return -1;
@@ -1344,24 +1350,32 @@ static int AddPayloadSSL(char *type, char *arg, char *opt) {
 
 static int AddPayloadJA3(char *type, char *arg, char *opt) {
 	if (strcasecmp(arg, "defined") == 0) {
-		return NewElement(JA3index, OFFja3String, SIZEja3String, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+		int id = NewElement(EXinPayloadHandle, OFFja3String, SIZEja3String, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+		SetElementOption(id, OPT_JA3);
+		return id;
 	} else if (IsMD5(arg) == 0) {
 		yyprintf("String %s is not a valid ja3 string", arg);
 		return -1;
 	}
 	data_t data = {.dataPtr=strdup(arg)};
-	return NewElement(JA3index, OFFja3String, SIZEja3String, 0, CMP_STRING, FUNC_NONE, data);
+	int id = NewElement(EXinPayloadHandle, OFFja3String, SIZEja3String, 0, CMP_STRING, FUNC_NONE, data);
+	SetElementOption(id, OPT_JA3);
+	return id;
 } // End of AddPayloadJA3
 
 static int AddPayloadJA4(char *type, char *arg, char *opt) {
 	if (strcasecmp(arg, "defined") == 0) {
-		return NewElement(JA4index, OFFja4String, SIZEja3String, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+		int id = NewElement(EXinPayloadHandle, OFFja4String, SIZEja3String, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+	  SetElementOption(id, OPT_JA4);
+	  return id;
 	} else if ( ja4Check(arg) == 0 ){
 		yyprintf("String %s is not a valid ja4 string", arg);
 		return -1;
 	}
 	data_t data = {.dataPtr=strdup(arg)};
-	return NewElement(JA4index, OFFja4String, SIZEja4String, 0, CMP_STRING, FUNC_NONE, data);
+	int id = NewElement(EXinPayloadHandle, OFFja4String, SIZEja4String, 0, CMP_STRING, FUNC_NONE, data);
+	SetElementOption(id, OPT_JA4);
+	return id;
 } // End of AddPayloadJA4
 
 static int AddPayload(direction_t direction, char *type, char *arg, char *opt) {
@@ -1398,7 +1412,11 @@ static int AddPayload(direction_t direction, char *type, char *arg, char *opt) {
 			return -1;
 		}
 		data_t data = {.dataPtr=strdup(arg)};
-		return NewElement(JA4index, OFFja4String, SIZEja4sString, 0, CMP_STRING, FUNC_NONE, data);
+		int id1 = NewElement(EXinPayloadHandle, OFFja4String, SIZEja4sString, 0, CMP_STRING, FUNC_NONE, data);
+		SetElementOption(id1, OPT_JA4);
+		int id2 = NewElement(EXoutPayloadHandle, OFFja4String, SIZEja4sString, 0, CMP_STRING, FUNC_NONE, data);
+		SetElementOption(id2, OPT_JA4);
+		return Connect_OR(id1, id2);
 #else
 		yyprintf("ja4s code not enabled");
 		return -1;
