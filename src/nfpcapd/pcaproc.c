@@ -428,7 +428,7 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
     if (NewNode->minTTL < Node->minTTL) Node->minTTL = NewNode->minTTL;
     if (NewNode->maxTTL > Node->maxTTL) Node->maxTTL = NewNode->maxTTL;
 
-        // DEVEL RTT - disabled for now
+    // DEVEL RTT - disabled for now
 #if 0
     if (NewNode->signal != SIGNAL_FIN && Node->latency.ack && ((NewNode->latency.ack - Node->latency.ack) > 0)) {
         uint32_t rtt = NewNode->latency.tsVal - Node->latency.tsVal;
@@ -562,7 +562,7 @@ int ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, con
     uint8_t *eodata = (uint8_t *)data + hdr->caplen;
     void *defragmented = NULL;
     void *payload = NULL;
-    size_t payloadSize = 0;
+    ssize_t payloadSize = 0;
     uint32_t vlanID = 0;
     uint64_t srcMac = 0;
     uint64_t dstMac = 0;
@@ -827,6 +827,8 @@ REDO_IPPROTO:
     struct ip *ip = (struct ip *)dataptr;  // offset points to end of link layer
     version = ip->ip_v;                    // ip version
 
+    ptrdiff_t ipPayloadLength = 0;
+    uint8_t *ipPayloadEnd = NULL;
     if (version == 6) {
         struct ip6_hdr *ip6 = (struct ip6_hdr *)dataptr;
         size_t size_ip = sizeof(struct ip6_hdr);
@@ -837,6 +839,9 @@ REDO_IPPROTO:
             packetParam->proc_stat.short_snap++;
             goto END_FUNC;
         }
+
+        ipPayloadLength = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);
+        ipPayloadEnd = dataptr + ipPayloadLength;
 
         // IPv6 duplicate check
         // duplicate check starts from the IP header over the rest of the packet
@@ -857,8 +862,8 @@ REDO_IPPROTO:
 
         // ipv6 Extension headers not processed
         IPproto = ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
-        dbg_printf("Packet IPv6, SRC %s, DST %s\n", inet_ntop(AF_INET6, &ip6->ip6_src, s1, sizeof(s1)),
-                   inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)));
+        dbg_printf("Packet IPv6, SRC %s, DST %s, padding %zu\n", inet_ntop(AF_INET6, &ip6->ip6_src, s1, sizeof(s1)),
+                   inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)), (ptrdiff_t)(eodata - ipPayloadEnd));
 
         if (!Node) Node = New_Node();
         Node->flowKey.version = AF_INET6;
@@ -895,6 +900,9 @@ REDO_IPPROTO:
             goto END_FUNC;
         }
 
+        ipPayloadLength = ntohs(ip->ip_len) - size_ip;
+        ipPayloadEnd = dataptr + ipPayloadLength;
+
         // IPv4 duplicate check
         // duplicate check starts from the IP header over the rest of the packet
         // vlan, mpls and layer 1 headers are ignored
@@ -915,7 +923,8 @@ REDO_IPPROTO:
         }
 
         IPproto = ip->ip_p;
-        dbg_printf("Packet IPv4 SRC %s, DST %s\n", inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)), inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
+        dbg_printf("Packet IPv4 SRC %s, DST %s, padding %zu\n", inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
+                   inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)), (ptrdiff_t)(eodata - ipPayloadEnd));
 
         // IPv4 defragmentation
         if ((ip_off & IP_MF) || frag_offset) {
@@ -975,6 +984,12 @@ REDO_IPPROTO:
         }
     }
 
+    if (ipPayloadEnd < dataptr || ipPayloadEnd > eodata) {
+        LogError("payload data length error. Check line: %u", __LINE__);
+        Free_Node(Node);
+        goto END_FUNC;
+    }
+
     // transport protocol processing
     switch (IPproto) {
         case IPPROTO_UDP: {
@@ -1003,7 +1018,7 @@ REDO_IPPROTO:
             Node->flowKey.dst_port = ntohs(udp->uh_dport);
 
             dbg_assert(dataptr <= eodata);
-            payloadSize = (ptrdiff_t)(eodata - dataptr);
+            payloadSize = (ptrdiff_t)(ipPayloadEnd - dataptr);
             if (payloadSize > 0) payload = (void *)dataptr;
             ProcessUDPFlow(packetParam, Node, payload, payloadSize);
 
@@ -1012,7 +1027,6 @@ REDO_IPPROTO:
             struct tcphdr *tcp = (struct tcphdr *)dataptr;
             uint32_t size_tcp = tcp->th_off << 2;
             dataptr += size_tcp;
-
             if (dataptr > eodata) {
                 dbg_printf("  TCP Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
                 packetParam->proc_stat.short_snap++;
@@ -1021,7 +1035,7 @@ REDO_IPPROTO:
             }
 
             dbg_assert(dataptr <= eodata);
-            payloadSize = (ptrdiff_t)(eodata - dataptr);
+            payloadSize = (ptrdiff_t)(ipPayloadEnd - dataptr);
             if (payloadSize > 0) payload = (void *)dataptr;
 
 #ifdef DEVEL
@@ -1096,7 +1110,7 @@ REDO_IPPROTO:
             }
 
             dbg_assert(dataptr <= eodata);
-            payloadSize = (ptrdiff_t)(eodata - dataptr);
+            payloadSize = (ptrdiff_t)(ipPayloadEnd - dataptr);
             if (payloadSize > 0) payload = (void *)dataptr;
 
             Node->flowKey.dst_port = (icmp->icmp_type << 8) + icmp->icmp_code;
@@ -1115,7 +1129,7 @@ REDO_IPPROTO:
             }
 
             dbg_assert(dataptr <= eodata);
-            payloadSize = (ptrdiff_t)(eodata - dataptr);
+            payloadSize = (ptrdiff_t)(ipPayloadEnd - dataptr);
             if (payloadSize > 0) payload = (void *)dataptr;
 
             Node->flowKey.dst_port = (icmp6->icmp6_type << 8) + icmp6->icmp6_code;
@@ -1217,7 +1231,7 @@ REDO_IPPROTO:
                     optionSize += 4;
                 dataptr += optionSize;
 
-                payloadSize = (ptrdiff_t)(eodata - dataptr);
+                payloadSize = (ptrdiff_t)(ipPayloadEnd - dataptr);
                 if (payloadSize > 0) payload = (void *)dataptr;
 
                 ProcessOtherFlow(packetParam, Node, payload, payloadSize);
@@ -1248,7 +1262,7 @@ REDO_IPPROTO:
             // not handled transport protocol
             // raw flow
             dbg_assert(dataptr <= eodata);
-            payloadSize = (ptrdiff_t)(eodata - dataptr);
+            payloadSize = (ptrdiff_t)(ipPayloadEnd - dataptr);
             if (payloadSize > 0) payload = (void *)dataptr;
 
             dbg_printf("  raw proto: %u, payload size: %zu\n", IPproto, payloadSize);
