@@ -286,6 +286,7 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
     uint16_t ip_off = ntohs(ip->ip_off);
     uint32_t frag_offset = (ip_off & IP_OFFMASK) << 3;
     int size_ip = (ip->ip_hl << 2);
+    int ipPayloadLength = ntohs(ip->ip_len) - size_ip;
 
     struct FlowNode *Node = NULL;
     if (frag_offset == 0) {
@@ -338,20 +339,27 @@ static inline struct FlowNode *ProcessIPfrag(packetParam_t *packetParam, const s
     }
 
     void *dataptr = (void *)ip + size_ip;
-    ptrdiff_t len = eodata - dataptr;
-    dbg_printf("IP frag: Insert fragment at offset: %u, length: %td\n", frag_offset, len);
-    if ((frag_offset + len) > 65536) {
-        LogError("IP fragmen too large: %.", frag_offset + len);
+    void *ipPayloadEnd = dataptr + ipPayloadLength;
+    if (ipPayloadEnd > eodata) {
+        LogError("IP fragment error - IP payload length error");
         Remove_Node(Node);
         Free_Node(Node);
         return NULL;
     }
 
-    memcpy(Node->payload + frag_offset, dataptr, len);
+    dbg_printf("IP frag: Insert fragment at offset: %u, length: %td\n", frag_offset, ipPayloadLength);
+    if ((frag_offset + ipPayloadLength) > 65536) {
+        LogError("IP fragmen too large: %.", frag_offset + ipPayloadLength);
+        Remove_Node(Node);
+        Free_Node(Node);
+        return NULL;
+    }
+
+    memcpy(Node->payload + frag_offset, dataptr, ipPayloadLength);
 
     if ((ip_off & IP_MF) == 0) {
         // last fragment - export node
-        Node->payloadSize = frag_offset + len;
+        Node->payloadSize = frag_offset + ipPayloadLength;
         Node->bytes = size_ip + Node->payloadSize;
         dbg_printf("Fragmented packet: last segment: ip_off: %u, frag_offset: %u, total len: %u\n", ip_off, frag_offset, Node->payloadSize);
         Remove_Node(Node);
@@ -556,7 +564,9 @@ int ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, con
     pkg_cnt++;
     packetParam->proc_stat.packets++;
     dbg_printf("\nNext Packet: %u, cap len:%u, len: %u\n", pkg_cnt, hdr->caplen, hdr->len);
-
+    if (pkg_cnt == 14404 || pkg_cnt == 14405) {
+        printf("Wait\n");
+    }
     // snaplen is minimum 54 bytes
     uint8_t *dataptr = (uint8_t *)data;
     uint8_t *eodata = (uint8_t *)data + hdr->caplen;
@@ -939,7 +949,9 @@ REDO_IPPROTO:
             // packet defragmented - set payload to defragmented data
             defragmented = Node->payload;
             dataptr = Node->payload;
-            eodata = dataptr + Node->payloadSize;
+            ipPayloadLength = Node->payloadSize;
+            ipPayloadEnd = dataptr + ipPayloadLength;
+            eodata = ipPayloadEnd;
             Node->payload = NULL;
             Node->payloadSize = 0;
             Node->fragmentFlags |= flagMF;
