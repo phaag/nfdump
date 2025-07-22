@@ -565,9 +565,7 @@ int ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, con
     pkg_cnt++;
     packetParam->proc_stat.packets++;
     dbg_printf("\nNext Packet: %u, cap len:%u, len: %u\n", pkg_cnt, hdr->caplen, hdr->len);
-    if (pkg_cnt == 14407 || pkg_cnt == 14408) {
-        printf("Wait\n");
-    }
+
     // snaplen is minimum 54 bytes
     uint8_t *dataptr = (uint8_t *)data;
     uint8_t *eodata = (uint8_t *)data + hdr->caplen;
