@@ -64,6 +64,7 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "flowtree.h"
+#include "ip6_frag.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nflog.h"
@@ -564,7 +565,7 @@ int ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, con
     pkg_cnt++;
     packetParam->proc_stat.packets++;
     dbg_printf("\nNext Packet: %u, cap len:%u, len: %u\n", pkg_cnt, hdr->caplen, hdr->len);
-    if (pkg_cnt == 14404 || pkg_cnt == 14405) {
+    if (pkg_cnt == 14407 || pkg_cnt == 14408) {
         printf("Wait\n");
     }
     // snaplen is minimum 54 bytes
@@ -850,9 +851,6 @@ REDO_IPPROTO:
             goto END_FUNC;
         }
 
-        ipPayloadLength = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);
-        ipPayloadEnd = dataptr + ipPayloadLength;
-
         // IPv6 duplicate check
         // duplicate check starts from the IP header over the rest of the packet
         // vlan, mpls and layer 1 headers are ignored
@@ -872,8 +870,28 @@ REDO_IPPROTO:
 
         // ipv6 Extension headers not processed
         IPproto = ip6->ip6_ctlun.ip6_un1.ip6_un1_nxt;
-        dbg_printf("Packet IPv6, SRC %s, DST %s, padding %zu\n", inet_ntop(AF_INET6, &ip6->ip6_src, s1, sizeof(s1)),
-                   inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)), (ptrdiff_t)(eodata - ipPayloadEnd));
+        struct ip6_frag *ip6_frag = NULL;
+        uint8_t fragment_flag = 0;
+        if (unlikely(IPproto == IPPROTO_FRAGMENT)) {
+            ip6_frag = (struct ip6_frag *)dataptr;
+            IPproto = ip6_frag->ip6f_nxt;
+            void *payload = ProcessIP6Fragment(ip6, ip6_frag, eodata);
+            if (payload == NULL) {
+                // not yet complete
+                dbg_printf("IPv6 de-fragmentation not yet completed\n");
+                goto END_FUNC;
+            }
+            defragmented = payload;
+            dataptr = payload;
+            ipPayloadLength = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen) - sizeof(struct ip6_frag);
+            eodata = dataptr + ipPayloadLength;
+            fragment_flag = flagMF;
+        } else {
+            ipPayloadLength = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);
+            dbg_printf("Packet IPv6, SRC %s, DST %s, padding %zu\n", inet_ntop(AF_INET6, &ip6->ip6_src, s1, sizeof(s1)),
+                       inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)), (ptrdiff_t)(eodata - ipPayloadEnd));
+        }
+        ipPayloadEnd = dataptr + ipPayloadLength;
 
         if (!Node) Node = New_Node();
         Node->flowKey.version = AF_INET6;
@@ -885,7 +903,7 @@ REDO_IPPROTO:
         uint8_t ttl = ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
         Node->minTTL = ttl;
         Node->maxTTL = ttl;
-        Node->fragmentFlags = 0;
+        Node->fragmentFlags = fragment_flag;
 
         // keep compiler happy - gets optimized out anyway
         void *p = (void *)&ip6->ip6_src;
