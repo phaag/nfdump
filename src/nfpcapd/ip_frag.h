@@ -28,11 +28,14 @@
  *
  */
 
-#ifndef _IP6_FRAG_H
-#define _IP6_FRAG_H 1
+#ifndef _IP_FRAG_H
+#define _IP_FRAG_H 1
 
+#include <netinet/ip.h>
 #include <netinet/ip6.h>
 
-void *ProcessIP6Fragment(struct ip6_hdr *ip6, struct ip6_frag *ip6_frag, void *eodata);
+void *ProcessIP6Fragment(struct ip6_hdr *ip6, struct ip6_frag *ip6_frag, const void *eodata);
+
+void *ProcessIP4Fragment(struct ip *ip4, const void *eodata);
 
 #endif

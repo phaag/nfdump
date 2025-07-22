@@ -9,7 +9,7 @@ LDADD = $(DEPS_LIBS)
 pcapdump = pcapdump.c pcapdump.h 
 flowdump = flowdump.c flowdump.h
 flowsend = flowsend.c flowsend.h
-pcaproc = pcaproc.c pcaproc.h nflog.h pflog.h flowtree.c flowtree.h ip6_frag.c ip6_frag.h
+pcaproc = pcaproc.c pcaproc.h nflog.h pflog.h flowtree.c flowtree.h ip_frag.c ip_frag.h
 
 nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h 
 nfpcapd_SOURCES += $(pcaproc) $(pcapdump) $(flowdump) $(flowsend)
