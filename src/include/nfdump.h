@@ -84,6 +84,7 @@ enum { EXlocal = MAXEXTENSIONS, EXheader, EXinPayloadHandle, EXoutPayloadHandle,
 
 typedef struct payloadHandle_s {
     // use opaque types
+    void *dns;
     void *ssl;
     char *ja3;
     void *ja4;

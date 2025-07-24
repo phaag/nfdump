@@ -44,6 +44,7 @@
 #include <time.h>
 
 #include "config.h"
+#include "dns/codec.h"
 #include "dns/dns.h"
 #include "exporter.h"
 #include "ifvrf.h"
@@ -55,6 +56,7 @@
 #include "nffile.h"
 #include "nfxV3.h"
 #include "output_util.h"
+#include "payload/dns/output_dns.h"
 #include "ssl/ssl.h"
 #include "tor/tor.h"
 #include "userio.h"
@@ -748,31 +750,40 @@ static void stringsEXoutPayload(FILE *stream, recordHandle_t *recordHandle, void
     inoutPayload(stream, recordHandle, payloadHandle, outPayload, payloadLength, "out");
 }  // end of stringsExoutPayload
 
-static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHandle_t *payloadHandle, uint8_t *payload, uint32_t length,
+static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHandle_t *payloadHandle, uint8_t *payload, uint32_t payloadLength,
                          char *prefix) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
-    int max = length;
     if (genericFlow && (genericFlow->srcPort == 53 || genericFlow->dstPort == 53)) {
-        content_decode_dns(stream, genericFlow->proto, (uint8_t *)payload, length);
+        void *dnsDecoded = payloadHandle->dns;
+        if (dnsDecoded == NULL) {
+            if (genericFlow->proto == IPPROTO_TCP) {
+                dnsDecoded = dnsPayloadDecode(payload + 2, payloadLength - 2);
+            } else {
+                dnsDecoded = dnsPayloadDecode(payload, payloadLength);
+            }
+            payloadHandle->dns = dnsDecoded;
+            dns_print_result(stream, (dns_query_t *)dnsDecoded);
+        }
+        return;
     }
 
     int ascii = 1;
-    for (int i = 0; i < max; i++) {
+    for (int i = 0; i < payloadLength; i++) {
         if ((payload[i] < ' ' || payload[i] > '~') && payload[i] != '\n' && payload[i] != '\r' && payload[i] != 0x09) {
             ascii = 0;
         }
     }
 
     if (ascii) {
-        fprintf(stream, "%.*s\n", max, payload);
+        fprintf(stream, "%.*s\n", payloadLength, payload);
     } else if (genericFlow->proto == IPPROTO_TCP) {
         ssl_t *ssl = payloadHandle->ssl;
         if (ssl == NULL) {
-            ssl = sslProcess(payload, length);
+            ssl = sslProcess(payload, payloadLength);
             payloadHandle->ssl = ssl;
             if (ssl == NULL) {
-                DumpHex(stream, payload, max);
+                DumpHex(stream, payload, payloadLength);
                 return;
             }
         }
@@ -823,7 +834,7 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHand
         }
     }
 
-    DumpHex(stream, payload, max);
+    DumpHex(stream, payload, payloadLength);
 }  // End of inoutPayload
 
 static void stringsEXpfinfo(FILE *stream, void *extensionRecord) {

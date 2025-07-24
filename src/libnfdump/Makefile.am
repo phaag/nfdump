@@ -10,7 +10,7 @@ LDADD =  $(DEPS_LIBS)
 # libnfdump sources
 filter = filter/grammar.y filter/scanner.l filter/filter.c filter/filter.h filter/ipconv.c filter/ipconv.h ../include/rbtree.h
 regex = sgregex/sgregex.c sgregex/sgregex.h
-decode  = dns/dns.c dns/dns.h
+decode  = dns/codec.c dns/codec.h dns/dns.c dns/dns.h dns/mappings.c dns/mappings.h
 decode += ssl/ssl.c ssl/ssl.h ja3/ja3.c ja3/ja3.h ja4/ja4.c ja4/ja4.h
 if JA4
 decode += ja4/ja4s.c

@@ -38,6 +38,7 @@ static inline dataBlock_t *AppendToBuffer(nffile_t *nffile, dataBlock_t *dataBlo
 static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint64_t flowCount) {
     payloadHandle_t *payloadHandle = (payloadHandle_t *)handle->extensionList[EXinPayloadHandle];
     if (payloadHandle) {
+        if (payloadHandle->dns) free(payloadHandle->dns);
         if (payloadHandle->ssl) free(payloadHandle->ssl);
         if (payloadHandle->ja3) free(payloadHandle->ja3);
         if (payloadHandle->ja4) free(payloadHandle->ja4);
@@ -45,6 +46,7 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
     }
     payloadHandle = (payloadHandle_t *)handle->extensionList[EXoutPayloadHandle];
     if (payloadHandle) {
+        if (payloadHandle->dns) free(payloadHandle->dns);
         if (payloadHandle->ssl) free(payloadHandle->ssl);
         if (payloadHandle->ja3) free(payloadHandle->ja3);
         if (payloadHandle->ja4) free(payloadHandle->ja4);

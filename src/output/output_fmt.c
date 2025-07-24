@@ -55,6 +55,7 @@
 #include "nffile.h"
 #include "nfxV3.h"
 #include "output_util.h"
+#include "payload/dns/output_dns.h"
 #include "tor/tor.h"
 #include "userio.h"
 #include "util.h"
@@ -1030,22 +1031,25 @@ static void String_LastSeenGMT(FILE *stream, recordHandle_t *recordHandle) {
 
 }  // End of String_LastSeenGMT
 
-static void String_Payload(FILE *stream, uint8_t *payload, EXgenericFlow_t *genericFlow) {
-    uint32_t payloadLength = 0;
-    if (payload) {
-        elementHeader_t *elementHeader = (elementHeader_t *)(payload - sizeof(elementHeader_t));
-        payloadLength = elementHeader->length - sizeof(elementHeader_t);
-    } else {
-        fprintf(stream, "<no payload>");
+static void String_Payload(FILE *stream, EXgenericFlow_t *genericFlow, const uint8_t *payload, payloadHandle_t *payloadHandle) {
+    const uint32_t payloadLength = ExtensionLength(payload);
+
+    if (genericFlow && (genericFlow->srcPort == 53 || genericFlow->dstPort == 53)) {
+        void *dnsDecoded = payloadHandle->dns;
+        if (dnsDecoded == NULL) {
+            if (genericFlow->proto == IPPROTO_TCP) {
+                dnsDecoded = dnsPayloadDecode(payload + 2, payloadLength - 2);
+            } else {
+                dnsDecoded = dnsPayloadDecode(payload, payloadLength);
+            }
+            payloadHandle->dns = dnsDecoded;
+            dns_print_result(stream, (dns_query_t *)dnsDecoded);
+        }
         return;
     }
 
-    int max = payloadLength > 256 ? 256 : payloadLength;
-    if (genericFlow && (genericFlow->srcPort == 53 || genericFlow->dstPort == 53)) {
-        content_decode_dns(stream, genericFlow->proto, payload, payloadLength);
-    }
-
     int ascii = 1;
+    int max = payloadLength > 256 ? 256 : payloadLength;
     for (int i = 0; i < max; i++) {
         if ((payload[i] < ' ' || payload[i] > '~') && payload[i] != '\n' && payload[i] != '\r' && payload[i] != 0x09) {
             ascii = 0;
@@ -1061,15 +1065,47 @@ static void String_Payload(FILE *stream, uint8_t *payload, EXgenericFlow_t *gene
 }  // End of String_Payload
 
 static void String_inPayload(FILE *stream, recordHandle_t *recordHandle) {
-    uint8_t *inPayload = (uint8_t *)recordHandle->extensionList[EXinPayloadID];
+    const uint8_t *inPayload = (uint8_t *)recordHandle->extensionList[EXinPayloadID];
+    if (!inPayload) {
+        fprintf(stream, "<no payload>");
+        return;
+    }
+
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    String_Payload(stream, inPayload, genericFlow);
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXinPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+        }
+    }
+
+    String_Payload(stream, genericFlow, inPayload, payloadHandle);
 }  // End of String_inPayload
 
 static void String_outPayload(FILE *stream, recordHandle_t *recordHandle) {
-    uint8_t *outPayload = (uint8_t *)recordHandle->extensionList[EXoutPayloadID];
+    const uint8_t *outPayload = (uint8_t *)recordHandle->extensionList[EXoutPayloadID];
+    if (!outPayload) {
+        fprintf(stream, "<no payload>");
+        return;
+    }
+
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
-    String_Payload(stream, outPayload, genericFlow);
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)recordHandle->extensionList[EXoutPayloadHandle];
+    if (payloadHandle == NULL) {
+        payloadHandle = calloc(1, sizeof(payloadHandle_t));
+        if (!payloadHandle) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            exit(EXIT_FAILURE);
+        } else {
+            recordHandle->extensionList[EXoutPayloadHandle] = payloadHandle;
+        }
+    }
+
+    String_Payload(stream, genericFlow, outPayload, payloadHandle);
 }  // End of String_outPayload
 
 static void String_nbarID(FILE *stream, recordHandle_t *recordHandle) {

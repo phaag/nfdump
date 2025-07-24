@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2013-2022, Peter Haag
+ *  Copyright (c) 2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,4 +28,11 @@
  *
  */
 
-void content_decode_dns(FILE *stream, uint8_t proto, uint8_t *payload, uint32_t payload_size);
+#ifndef _DNS_H
+#define _DNS_H
+
+#include <inttypes.h>
+
+void *dnsPayloadDecode(const void *inPayload, const uint32_t inPayloadLength);
+
+#endif
