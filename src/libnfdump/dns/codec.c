@@ -753,17 +753,15 @@ static inline dns_rcode_t decode_rr_gpos(ddns_context *data, dns_gpos_t *pgpos) 
  **************************************************************************/
 
 static int dloc_scale(unsigned long long *presult, const int scale) {
-    int spow;
-    int smul;
+    static const unsigned long long pow10[] = {1ULL,      10ULL,      100ULL,      1000ULL,      10000ULL,
+                                               100000ULL, 1000000ULL, 10000000ULL, 100000000ULL, 1000000000ULL};
 
-    dbg_assert(presult != NULL);
-
-    smul = scale >> 4;
-    spow = scale & 0x0F;
-
+    int spow = scale & 0x0F;
+    unsigned long long smul = scale >> 4;
     if ((spow > 9) || (smul > 9)) return RCODE_FORMAT_ERROR;
 
-    *presult = (unsigned long)(pow(10.0, spow) * smul);
+    *presult = pow10[spow] * smul;
+
     return RCODE_OKAY;
 }
 

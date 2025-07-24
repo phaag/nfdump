@@ -5,7 +5,7 @@ AM_YFLAGS = -d
 AM_CPPFLAGS = -I.. -I../include -I../inline -I../libnffile -Idecode -Isgregex $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb 
 
-LDADD =  $(DEPS_LIBS) -lm
+LDADD =  $(DEPS_LIBS)
 
 # libnfdump sources
 filter = filter/grammar.y filter/scanner.l filter/filter.c filter/filter.h filter/ipconv.c filter/ipconv.h ../include/rbtree.h
