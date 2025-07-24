@@ -5,7 +5,7 @@ AM_YFLAGS = -d
 AM_CPPFLAGS = -I.. -I../include -I../inline -I../libnffile -Idecode -Isgregex $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb 
 
-LDADD =  $(DEPS_LIBS)
+LDADD =  $(DEPS_LIBS) -lm
 
 # libnfdump sources
 filter = filter/grammar.y filter/scanner.l filter/filter.c filter/filter.h filter/ipconv.c filter/ipconv.h ../include/rbtree.h
@@ -19,7 +19,7 @@ digest  = digest/md5.c digest/md5.h digest/sha256.c digest/sha256.h
 maxmind = maxmind/maxmind.c maxmind/maxmind.h maxmind/mmhash.c maxmind/mmhash.h
 tor = tor/tor.c tor/tor.h 
 
-lib_LTLIBRARIES = libnfdump.la
+lib_LTLIBRARIES = libnfdump.la 
 libnfdump_la_SOURCES = $(filter) $(maxmind) $(tor) $(regex) $(decode) $(digest) ../libnffile/vcs_track.h
 libnfdump_la_LDFLAGS = -release @VERSION@
  
