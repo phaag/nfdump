@@ -52,22 +52,30 @@ void *dnsPayloadDecode(const void *inPayload, const uint32_t inPayloadLength) {
     do {
         dns_rcode_t rc = dns_decode(bufresult, &bufsize, inPayload, inPayloadLength);
         if (rc == RCODE_OKAY) {
+            // successfully decoded
             dbg_printf("=> inPayload bytes used: %zu\n", bufsize);
             // dns_print_result((dns_query_t *)bufresult);
+            ((dns_query_t *)bufresult)->recordSize = bufsize;
             break;
         } else if (rc == RCODE_NO_MEMORY) {
+            // memory block too small
             bufsize = bufsize << 1;
             if (bufsize > 8192) {
+                // hard limit - virtually all dns decoded packets should fit in 8kB
                 LogError("dns_decode() = (%d) %s", rc, "possibly malformed packet");
                 free(bufresult);
                 bufresult = NULL;
                 break;
             }
+            // double memory and try again
             dbg_printf("Expand memory to %zu\n", bufsize);
             bufresult = (dns_decoded_t *)realloc((void *)bufresult, bufsize);
             continue;
         } else {
+            // other failure to decode dns packet
             LogError("dns_decode() = (%d) %s", rc, dns_rcode_text(rc));
+            free(bufresult);
+            bufresult = NULL;
             break;
         }
     } while (1);

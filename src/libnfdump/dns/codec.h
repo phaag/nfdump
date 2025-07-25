@@ -961,6 +961,7 @@ typedef union dns_answer_t {
 
 typedef struct dns_query_t /* RFC-1035 */
 {
+    size_t recordSize;
     int id;
     bool query;
     dns_op_t opcode;
