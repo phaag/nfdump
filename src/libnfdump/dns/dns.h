@@ -32,7 +32,38 @@
 #define _DNS_H
 
 #include <inttypes.h>
+#include <stdbool.h>
+#include <sys/types.h>
+
+typedef struct dns_question_t dns_question_t;
+typedef union dns_answer_t dns_answer_t;
+
+// this identical struct serves for the offset calculation only
+typedef struct dns_query_t {  // RFC-1035
+    size_t recordSize;
+    int id;
+    int opcode;
+    bool query;
+    bool aa;
+    bool tc;
+    bool rd;
+    bool ra;
+    bool z;   // should be zero
+    bool ad;  // RFC-2065
+    bool cd;  // RFC-2065
+    int rcode;
+    size_t qdcount;
+    size_t ancount;
+    size_t nscount;
+    size_t arcount;
+    dns_question_t *questions;
+    dns_answer_t *answers;
+    dns_answer_t *nameservers;
+    dns_answer_t *additional;
+} dns_query_t;
 
 void *dnsPayloadDecode(const void *inPayload, const uint32_t inPayloadLength);
+
+int dnsSearchName(void *ptr, char *name);
 
 #endif

@@ -82,3 +82,14 @@ void *dnsPayloadDecode(const void *inPayload, const uint32_t inPayloadLength) {
 
     return bufresult;
 }  // End of dnsPayloadDecode
+
+int dnsSearchName(void *ptr, char *name) {
+    dns_query_t *dns_query = (dns_query_t *)ptr;
+
+    dns_question_t *pquest = dns_query->questions;
+    for (size_t i = 0; i < dns_query->qdcount; i++) {
+        if (strstr(pquest[i].name, name) != 0) return 1;
+    }
+
+    return 0;
+}  // End of dnsSearchName

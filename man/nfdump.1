@@ -1369,6 +1369,14 @@ case insensitive matching
 dot '.' includes newlines
 .El
 .Pp
+.It Cm payload dns defined
+True, if the payload decodes to a valid dns query/answer. Implies src or dst port 53
+.Pp
+.It Cm payload dns name Ar dnsname
+True, if any of the payload dns queries contains the string
+.Ar dnsname.
+Implies src or dst port 53
+.Pp
 .It Cm payload ssl defined
 True, if the payload contains the start of a valid SSL/TLS handshake
 .Pp

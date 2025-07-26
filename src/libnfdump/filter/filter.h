@@ -83,6 +83,7 @@ typedef enum {
     CMP_PAYLOAD,
     CMP_REGEX,
     CMP_GEO,
+    CMP_DNSNAME,
 } comparator_t;
 
 typedef struct FilterParam {
@@ -118,6 +119,7 @@ typedef enum {
 
 typedef enum {
     OPT_NONE = 0,  // no option
+    OPT_DNS,       // payload processing for DNS
     OPT_SSL,       // payload processing for SSL
     OPT_JA3,       // payload processing for ja3
     OPT_JA4,       // payload processing for ja4

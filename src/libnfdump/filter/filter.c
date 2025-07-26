@@ -43,6 +43,7 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
+#include "dns/dns.h"
 #include "filter.h"
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
@@ -324,6 +325,22 @@ static uint64_t ttlEqual_function(void *dataPtr, uint32_t length, data_t data, r
     return ipInfo->minTTL == ipInfo->maxTTL;
 }  // End of ttlEqual_function
 
+static void *dns_preproc(const void *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
+    uint32_t payloadLength = ExtensionLength(payload);
+    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(recordHandle->extensionList[EXgenericFlowID]);
+    if (!genericFlow) return NULL;
+    if (genericFlow->srcPort != 53 && genericFlow->dstPort != 53) return NULL;
+
+    void *dns = NULL;
+    if (genericFlow->proto == IPPROTO_TCP)
+        dns = dnsPayloadDecode(payload + 2, payloadLength - 2);
+    else
+        dns = dnsPayloadDecode(payload, payloadLength);
+    payloadHandle->dns = dns;
+    return dns;
+
+}  // End of dns_preproc
+
 static void *ssl_preproc(const void *payload, payloadHandle_t *payloadHandle, recordHandle_t *recordHandle) {
     uint32_t payloadLength = ExtensionLength(payload);
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)(recordHandle->extensionList[EXgenericFlowID]);
@@ -386,6 +403,10 @@ static void *inPayload_preproc(uint32_t length, data_t data, recordHandle_t *rec
         case OPT_NONE:
             return ptr;
             break;
+        case OPT_DNS:
+            if (payloadHandle->dns == NULL) dns_preproc(payload, payloadHandle, recordHandle);
+            ptr = payloadHandle->dns;
+            break;
         case OPT_SSL:
             if (payloadHandle->ssl == NULL) ssl_preproc(payload, payloadHandle, recordHandle);
             ptr = payloadHandle->ssl;
@@ -423,6 +444,10 @@ static void *outPayload_preproc(uint32_t length, data_t data, recordHandle_t *re
     switch (option) {
         case OPT_NONE:
             return ptr;
+            break;
+        case OPT_DNS:
+            if (payloadHandle->dns == NULL) dns_preproc(payload, payloadHandle, recordHandle);
+            ptr = payloadHandle->dns;
             break;
         case OPT_SSL:
             if (payloadHandle->ssl == NULL) ssl_preproc(payload, payloadHandle, recordHandle);
@@ -785,8 +810,7 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
                 index = engine->filter[index].OnFalse;
                 continue;
             }
-        }
-        if (engine->filter[index].option != OPT_NONE && preprocess_map[extID].function != NULL) {
+        } else if (engine->filter[index].option != OPT_NONE && preprocess_map[extID].function != NULL) {
             inPtr = preprocess_map[extID].function(length, data, handle, engine->filter[index].option);
             if (inPtr == NULL) {
                 evaluate = 0;
@@ -911,6 +935,10 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
                 char *geoChar = (char *)inPtr;
                 if (engine->hasGeoDB && geoChar[0] == '\0') inVal = geoLookup(geoChar, data.dataVal, handle);
                 evaluate = inVal == engine->filter[index].value;
+            } break;
+            case CMP_DNSNAME: {
+                char *str = (char *)data.dataPtr;
+                evaluate = str != NULL && dnsSearchName(inPtr, str) != 0;
             } break;
         }
         index = evaluate ? engine->filter[index].OnTrue : engine->filter[index].OnFalse;

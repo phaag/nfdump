@@ -57,6 +57,8 @@
 #define __attribute__(x)
 #endif
 
+#include "dns.h"
+
 /****************************************************************************
  * Buffers passed to these routines should be declared as one of these two
  * types with one of the given sizes below, depending upon what the buffer is
@@ -958,30 +960,6 @@ typedef union dns_answer_t {
     dns_spf_t spf;
     dns_tsig_t tsig;
 } dns_answer_t;
-
-typedef struct dns_query_t /* RFC-1035 */
-{
-    size_t recordSize;
-    int id;
-    bool query;
-    dns_op_t opcode;
-    bool aa;
-    bool tc;
-    bool rd;
-    bool ra;
-    bool z;  /* should be zero */
-    bool ad; /* RFC-2065 */
-    bool cd; /* RFC-2065 */
-    dns_rcode_t rcode;
-    size_t qdcount;
-    size_t ancount;
-    size_t nscount;
-    size_t arcount;
-    dns_question_t *questions;
-    dns_answer_t *answers;
-    dns_answer_t *nameservers;
-    dns_answer_t *additional;
-} dns_query_t;
 
 /**********************************************************************/
 

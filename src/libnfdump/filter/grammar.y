@@ -50,6 +50,7 @@
 #include "ipconv.h"
 #include "sgregex.h"
 #include "ja3/ja3.h"
+#include "dns/dns.h"
 #include "ja4/ja4.h"
 #include "nfdump.h"
 #include "util.h"
@@ -1295,6 +1296,38 @@ static int AddNatPortBlocks(char *type, char *subtype, uint16_t comp, uint64_t n
 	return -1;
 } // End of AddNatPortBlocks
 
+static int AddPayloadDNS(direction_t direction, char *arg, char *opt) {
+	uint32_t extension = 0;
+	switch (direction) {
+		case DIR_IN:
+			extension = EXinPayloadHandle;
+		break;
+		case DIR_OUT:
+			extension = EXoutPayloadHandle;
+		break;
+		case DIR_UNSPEC:
+			extension = EXinPayloadHandle;
+		break;
+		default:
+			yyprintf("Use 'in' or 'out' as direction specifier");
+			return -1;
+	}
+
+	if (strcasecmp(arg, "defined") == 0) {
+		uint32_t id = NewElement(extension, 0, 0, 0, CMP_EQ, FUNC_NONE, NULLPtr);
+		SetElementOption(id, OPT_DNS);
+		return id;
+	} else if (strcasecmp(arg, "name") == 0) {
+		data_t data = {.dataPtr=strdup(opt)};
+		uint32_t id = NewElement(extension, 0, 0, 0, CMP_DNSNAME, FUNC_NONE, data);
+		SetElementOption(id, OPT_DNS);
+		return id;
+	} 
+	yyprintf("Unknown payload dns argument: %s", arg);
+	return -1;
+	
+} // End of static int AddPayloadDNS
+
 static int AddPayloadSSL(char *type, char *arg, char *opt) {
 	if (strcasecmp(arg, "defined") == 0) {
 		uint32_t id = NewElement(EXinPayloadHandle, 0, 0, 0, CMP_EQ, FUNC_NONE, NULLPtr);
@@ -1399,6 +1432,8 @@ static int AddPayload(direction_t direction, char *type, char *arg, char *opt) {
 		    NewElement(EXinPayloadID, 0, 0, 0, CMP_REGEX, FUNC_NONE, data),
 				NewElement(EXoutPayloadID, 0, 0, 0, CMP_REGEX, FUNC_NONE, data)
 			);
+	} else if (strcasecmp(type, "dns") == 0 ) {
+		return AddPayloadDNS(direction, arg, opt);
 	} else if (strcasecmp(type, "ssl") == 0 || strcasecmp(type, "tls") == 0) {
 		return AddPayloadSSL(type, arg, opt);
 	} else if (strcasecmp(type, "ja3") == 0) {
