@@ -1373,9 +1373,14 @@ dot '.' includes newlines
 True, if the payload decodes to a valid dns query/answer. Implies src or dst port 53
 .Pp
 .It Cm payload dns name Ar dnsname
-True, if any of the payload dns queries contains the string
+True, if any of the payload dns queries contain the string
 .Ar dnsname.
-Implies src or dst port 53
+It may be the full name or a sub string. Implies src or dst port 53
+.Pp
+.It Cm payload dns address Ar IP
+True, if any of the payload dns answers or additional records contain the string
+.Ar IP.
+It may be the full or partial IP address. Implies src or dst port 53
 .Pp
 .It Cm payload ssl defined
 True, if the payload contains the start of a valid SSL/TLS handshake

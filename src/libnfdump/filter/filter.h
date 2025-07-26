@@ -84,6 +84,7 @@ typedef enum {
     CMP_REGEX,
     CMP_GEO,
     CMP_DNSNAME,
+    CMP_DNSIP,
 } comparator_t;
 
 typedef struct FilterParam {

@@ -93,3 +93,41 @@ int dnsSearchName(void *ptr, char *name) {
 
     return 0;
 }  // End of dnsSearchName
+
+int dnsSearchIP(void *ptr, char *name) {
+    dns_query_t *dns_query = (dns_query_t *)ptr;
+
+    char ipaddr[INET6_ADDRSTRLEN];
+    dns_answer_t *pans = dns_query->answers;
+    for (int i = 0; i < dns_query->ancount; i++) {
+        switch (pans[i].generic.type) {
+            case RR_A:
+                inet_ntop(AF_INET, &pans[i].a.address, ipaddr, sizeof(ipaddr));
+                if (strstr(ipaddr, name) != 0) return 1;
+                break;
+            case RR_AAAA:
+                inet_ntop(AF_INET6, &pans[i].aaaa.address, ipaddr, sizeof(ipaddr));
+                if (strstr(ipaddr, name) != 0) return 1;
+                break;
+            default:
+                break;
+        }
+    }
+    pans = dns_query->additional;
+    for (int i = 0; i < dns_query->arcount; i++) {
+        switch (pans[i].generic.type) {
+            case RR_A:
+                inet_ntop(AF_INET, &pans[i].a.address, ipaddr, sizeof(ipaddr));
+                if (strstr(ipaddr, name) != 0) return 1;
+                break;
+            case RR_AAAA:
+                inet_ntop(AF_INET6, &pans[i].aaaa.address, ipaddr, sizeof(ipaddr));
+                if (strstr(ipaddr, name) != 0) return 1;
+                break;
+            default:
+                break;
+        }
+    }
+
+    return 0;
+}  // End of dnsSearchIP

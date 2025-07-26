@@ -1318,8 +1318,21 @@ static int AddPayloadDNS(direction_t direction, char *arg, char *opt) {
 		SetElementOption(id, OPT_DNS);
 		return id;
 	} else if (strcasecmp(arg, "name") == 0) {
+		if ( opt == NULL ){
+			yyprintf("Missing string for 'payload dns name <string>'");
+			return -1;
+		}
 		data_t data = {.dataPtr=strdup(opt)};
 		uint32_t id = NewElement(extension, 0, 0, 0, CMP_DNSNAME, FUNC_NONE, data);
+		SetElementOption(id, OPT_DNS);
+		return id;
+	} else if ((strcasecmp(arg, "address") == 0) || (strcasecmp(arg, "addr") == 0)) {
+		if ( opt == NULL ){
+			yyprintf("Missing string for 'payload dns address <string>'");
+			return -1;
+		}
+		data_t data = {.dataPtr=strdup(opt)};
+		uint32_t id = NewElement(extension, 0, 0, 0, CMP_DNSIP, FUNC_NONE, data);
 		SetElementOption(id, OPT_DNS);
 		return id;
 	} 

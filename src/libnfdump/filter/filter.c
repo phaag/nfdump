@@ -940,6 +940,10 @@ static int RunExtendedFilter(const FilterEngine_t *engine, recordHandle_t *handl
                 char *str = (char *)data.dataPtr;
                 evaluate = str != NULL && dnsSearchName(inPtr, str) != 0;
             } break;
+            case CMP_DNSIP: {
+                char *str = (char *)data.dataPtr;
+                evaluate = str != NULL && dnsSearchIP(inPtr, str) != 0;
+            } break;
         }
         index = evaluate ? engine->filter[index].OnTrue : engine->filter[index].OnFalse;
     }

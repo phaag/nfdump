@@ -66,4 +66,6 @@ void *dnsPayloadDecode(const void *inPayload, const uint32_t inPayloadLength);
 
 int dnsSearchName(void *ptr, char *name);
 
+int dnsSearchIP(void *ptr, char *name);
+
 #endif
