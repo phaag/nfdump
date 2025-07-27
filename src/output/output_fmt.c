@@ -1049,17 +1049,25 @@ static void String_Payload(FILE *stream, EXgenericFlow_t *genericFlow, const uin
     }
 
     int ascii = 1;
-    int max = payloadLength > 256 ? 256 : payloadLength;
-    for (int i = 0; i < max; i++) {
+    int nullBytes = 0;
+    for (int i = 0; i < payloadLength; i++) {
         if ((payload[i] < ' ' || payload[i] > '~') && payload[i] != '\n' && payload[i] != '\r' && payload[i] != 0x09) {
+            if (payload[i] == '\0') {
+                nullBytes++;
+            } else {
+                ascii = 0;
+                break;
+            }
+        } else if (nullBytes) {
             ascii = 0;
             break;
         }
     }
+
     if (ascii) {
-        fprintf(stream, "%.*s\n", max, payload);
+        fprintf(stream, "%.*s\n", payloadLength, payload);
     } else {
-        DumpHex(stream, payload, max);
+        DumpHex(stream, payload, payloadLength);
     }
 
 }  // End of String_Payload

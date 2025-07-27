@@ -523,7 +523,7 @@ char *TimeString(uint64_t msecStart, uint64_t msecEnd) {
         char t2[64];
         strftime(t2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
-        snprintf(datestr, 254, "%s.%3d - %s.%3d", t1, (int)(msecStart % 1000), t2, (int)(msecEnd % 1000));
+        snprintf(datestr, 254, "%s.%03d - %s.%03d", t1, (int)(msecStart % 1000), t2, (int)(msecEnd % 1000));
     } else {
         snprintf(datestr, 254, "Time Window unknown");
     }

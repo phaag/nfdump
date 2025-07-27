@@ -769,9 +769,18 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHand
     }
 
     int ascii = 1;
+    int nullBytes = 0;
     for (int i = 0; i < payloadLength; i++) {
         if ((payload[i] < ' ' || payload[i] > '~') && payload[i] != '\n' && payload[i] != '\r' && payload[i] != 0x09) {
+            if (payload[i] == '\0') {
+                nullBytes++;
+            } else {
+                ascii = 0;
+                break;
+            }
+        } else if (nullBytes) {
             ascii = 0;
+            break;
         }
     }
 
