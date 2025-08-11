@@ -50,6 +50,7 @@
 #define I_52281206_2176_5917_BC9C_574D81892362
 
 #include <arpa/inet.h>
+#include <netinet/in.h>
 #include <stdbool.h>
 #include <stdint.h>
 

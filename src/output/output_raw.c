@@ -768,6 +768,8 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHand
         return;
     }
 
+    // ascii text can be printed as string incl. \n \r etc. nullBytes at the End of the string are allowed
+    // otherwise DumpHex() the payload.
     int ascii = 1;
     int nullBytes = 0;
     for (int i = 0; i < payloadLength; i++) {
