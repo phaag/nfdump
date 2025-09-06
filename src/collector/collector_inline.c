@@ -29,6 +29,48 @@
  *
  */
 
+static char *GetFlowSourceIP(struct sockaddr_storage *ss) {
+    static char as[128];
+    memset(as, 0, 128);
+
+    union {
+        struct sockaddr_storage *ss;
+        struct sockaddr *sa;
+        struct sockaddr_in *sa_in;
+        struct sockaddr_in6 *sa_in6;
+    } u;
+    u.ss = ss;
+
+    void *ptr = NULL;
+    switch (ss->ss_family) {
+        case PF_INET: {
+#ifdef HAVE_STRUCT_SOCKADDR_STORAGE_SS_LEN
+            if (ss->ss_len != sizeof(struct sockaddr_in)) {
+                // malformed struct
+                return "Malformed IPv4 socket struct";
+            }
+#endif
+            ptr = &u.sa_in->sin_addr;
+        } break;
+        case PF_INET6: {
+#ifdef HAVE_STRUCT_SOCKADDR_STORAGE_SS_LEN
+            if (ss->ss_len != sizeof(struct sockaddr_in6)) {
+                // malformed struct
+                return "Malformed IPv6 socket struct";
+            }
+#endif
+            ptr = &u.sa_in6->sin6_addr;
+        } break;
+        default:
+            snprintf(as, sizeof(as) - 1, "Unknown sa family: %d", ss->ss_family);
+            return as;
+    }
+
+    inet_ntop(ss->ss_family, ptr, as, sizeof(as));
+    return as;
+
+}  // End of GetFlowSourceIP
+
 static inline FlowSource_t *GetFlowSource(struct sockaddr_storage *ss) {
     FlowSource_t *fs;
     void *ptr;

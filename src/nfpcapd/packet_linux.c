@@ -31,9 +31,10 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/filter.h>
-#include <linux/if_ether.h>
 #include <linux/if_packet.h>
+#include <net/ethernet.h>
 #include <net/if.h>
+#include <net/if_arp.h>
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
@@ -144,7 +145,6 @@ static int InitRing(packetParam_t *param, char *device) {
 
 }  // End of InitRing
 
-// live device
 int setup_linux_live(packetParam_t *param, char *device, char *filter, int snaplen, int buffsize, int to_ms) {
     param->pcap_dev = NULL;
     param->fd = 0;
@@ -160,6 +160,7 @@ int setup_linux_live(packetParam_t *param, char *device, char *filter, int snapl
     int err = setsockopt(fd, SOL_PACKET, PACKET_VERSION, &v, sizeof(v));
     if (err < 0) {
         LogError("setsockopt(TPACKET_V3) failed: %s", strerror(errno));
+        close(fd);
         return -1;
     }
 
@@ -169,21 +170,51 @@ int setup_linux_live(packetParam_t *param, char *device, char *filter, int snapl
         return -1;
     }
 
-    // XXX fix data link type
-    param->linktype = DLT_EN10MB;
+    // determine the correct linktype for this device
+    struct ifreq ifr;
+    memset(&ifr, 0, sizeof(ifr));
+    strncpy(ifr.ifr_name, device, sizeof(ifr.ifr_name) - 1);
 
-    // pcap handle for dumper
-    pcap_t *p = pcap_open_dead(DLT_EN10MB, 1 << 16);
+    int linktype = DLT_RAW;  // safe default
+    if (ioctl(fd, SIOCGIFHWADDR, &ifr) == 0) {
+        switch (ifr.ifr_hwaddr.sa_family) {
+            case ARPHRD_ETHER:
+                linktype = DLT_EN10MB;  // Ethernet
+                break;
+            case ARPHRD_NONE:    // tun/tap
+            case ARPHRD_TUNNEL:  // or TUNNEL
+            case ARPHRD_TUNNEL6:
+                linktype = DLT_RAW;  // raw IP packets
+                break;
+            default:
+                LogError("Unknown arptype %d for %s, using DLT_RAW as linktype", ifr.ifr_hwaddr.sa_family, device);
+                linktype = DLT_RAW;
+                break;
+        }
+    } else {
+        LogError("octl(SIOCGIFHWADDR) failed: %s", strerror(errno));
+    }
+
+    param->linktype = linktype;
+
+    // pcap handle for dumper (pcap_open_dead just sets the linktype and snaplen)
+    pcap_t *p = pcap_open_dead(param->linktype, snaplen > 0 ? snaplen : (1 << 16));
+    if (!p) {
+        LogError("pcap_open_dead() failed");
+        CloseSocket(param);
+        return -1;
+    }
     param->pcap_dev = p;
 
     if (filter && !setup_pcap_filter(param, filter)) {
         pcap_close(param->pcap_dev);
+        CloseSocket(param);
         return -1;
     }
 
     return 0;
 
-} /* setup_pcap_live */
+}  // End of setup_pcap_live
 
 static int setup_pcap_filter(packetParam_t *param, char *filter) {
     struct bpf_program filter_code;

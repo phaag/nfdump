@@ -325,6 +325,8 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
             // Debug code to read from pcap file, or from socket
             cnt = receive_packet(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&nf_sender, &nf_sender_size);
 
+            dbg_printf("Received packet from: %s\n", GetFlowSourceIP(&nf_sender));
+
             // in case of reading from file EOF => -2
             if (cnt == -2) done = 1;
             if (cnt == 0) {
@@ -447,7 +449,8 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 break;
             default:
                 // data error, while reading data from socket
-                LogError("Ident: %s, Error packet %llu: reading netflow header: Unexpected netflow version %i", fs->Ident, packets, version);
+                LogError("Ident: %s, Error packet %llu: reading netflow header: Unexpected netflow version %i from: %s", fs->Ident, packets, version,
+                         GetFlowSourceIP(&nf_sender));
                 fs->bad_packets++;
                 continue;
 
