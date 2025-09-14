@@ -161,6 +161,8 @@ static struct StatParameter_s {
     {"dstmask", "Dst Mask", {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER, NULL},
     {"mask", "Mask", {EXflowMiscID, OFFsrcMask, SIZEsrcMask, 0}, IS_NUMBER, NULL},
     {"mask", NULL, {EXflowMiscID, OFFdstMask, SIZEdstMask, 0}, IS_NUMBER, NULL},
+    {"tunproto", "Tun proto", {EXtunIPv4ID, OFFtunProtoV4, SIZEtunProtoV4, 0}, IS_NUMBER, NULL},
+    {"tunproto", NULL, {EXtunIPv6ID, OFFtunProtoV6, SIZEtunProtoV6, 0}, IS_NUMBER, NULL},
     {"srcvlan", "Src Vlan", {EXvLanID, OFFvlanID, SIZEvlanID, 0}, IS_NUMBER, NULL},
     {"dstvlan", "Dst Vlan", {EXvLanID, OFFpostVlanID, SIZEpostVlanID, 0}, IS_NUMBER, NULL},
     {"vlan", "Vlan", {EXvLanID, OFFvlanID, SIZEvlanID, 0}, IS_NUMBER, NULL},
@@ -649,6 +651,7 @@ int SetElementStat(char *elementStat, char *orderBy) {
     }
 
     if (strcasecmp(elementStat, "proto") == 0) request->order_proto = 1;
+    if (strcasecmp(elementStat, "tunproto") == 0) request->order_proto = 2;
 
     int i = 0;
     while (StatParameters[i].statname) {
@@ -938,7 +941,7 @@ void AddElementStat(recordHandle_t *recordHandle) {
     // for every requested -s stat do
     for (int i = 0; i < NumStats; i++) {
         hashkey_t hashkey = {0};
-        hashkey.proto = StatRequest[i].order_proto ? genericFlow->proto : 0;
+        hashkey.proto = StatRequest[i].order_proto == 1 ? genericFlow->proto : 0;
         int index = StatRequest[i].StatType;
         // for the number of elements in this stat type
         do {
@@ -1201,7 +1204,17 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
     char datestr[64];
     strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
-    char *protoStr = order_proto ? ProtoString(hashKey->proto, outputParams->printPlain) : "any";
+    char *protoStr;
+    switch (order_proto) {
+        case 1:
+            protoStr = ProtoString(hashKey->proto, outputParams->printPlain);
+            break;
+        case 2:
+            protoStr = ProtoString(hashKey->v1, outputParams->printPlain);
+            break;
+        default:
+            protoStr = "any";
+    }
     char dStr[64];
     if (outputParams->printPlain)
         snprintf(dStr, 64, "%16.3f", duration);
