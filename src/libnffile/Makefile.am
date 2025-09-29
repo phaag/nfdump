@@ -1,6 +1,6 @@
 BUILT_SOURCES = vcs_track.h
 
-AM_CPPFLAGS = -I.. -I../include -I../inline -Iconf -Icompress $(DEPS_CFLAGS) -DSYSCONFDIR='"$(sysconfdir)"'
+AM_CPPFLAGS = -I$(srcdir)/.. -I$(srcdir)/../include -I$(srcdir)/../inline -I$(srcdir)/conf -I$(srcdir)/compress $(DEPS_CFLAGS) -DSYSCONFDIR='"$(sysconfdir)"'
 AM_CFLAGS = -ggdb 
 
 LDADD =  $(DEPS_LIBS)
@@ -26,7 +26,7 @@ version = version.c version.h
 barrier = barrier.c barrier.h
 
 vcs_track.h: Makefile
-	./gen_version.sh
+	$(srcdir)/gen_version.sh
 
 lib_LTLIBRARIES = libnffile.la
 libnffile_la_SOURCES = $(conf) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(barrier) $(version) vcs_track.h

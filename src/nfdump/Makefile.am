@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = nfdump
 
-AM_CPPFLAGS = -I.. -Icompat_1_6_x -I../include -I../libnffile -I../libnfdump -I../output -I../tor -I../netflow -I../collector -I../inline $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I$(srcdir)/.. -I$(srcdir)/compat_1_6_x -I$(srcdir)/../include -I$(srcdir)/../libnffile -I$(srcdir)/../libnfdump -I$(srcdir)/../output -I$(srcdir)/../tor -I$(srcdir)/../netflow -I$(srcdir)/../collector -I$(srcdir)/../inline $(DEPS_CFLAGS)
 AM_LDFLAGS  = -L../libnfdump -L../libnffile
 
 EXTRA_DIST = memhandle.c
