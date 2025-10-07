@@ -180,6 +180,12 @@ ja4_t *ja4Process(ssl_t *ssl, uint8_t proto) {
         index += 4;
         hashString[index++] = ',';
     }
+    // no valid extensions found
+    if (index == 0) {
+        free(hashString);
+        return NULL;
+    }
+
     hashString[index - 1] = '_';
     for (int i = 0; i < LenArray(ssl->signatures); i++) {
         uint16_t val = ArrayElement(ssl->signatures, i);
@@ -187,6 +193,12 @@ ja4_t *ja4Process(ssl_t *ssl, uint8_t proto) {
         index += 4;
         hashString[index++] = ',';
     }
+    // no valid signatures found
+    if (index == 0) {
+        free(hashString);
+        return NULL;
+    }
+
     // overwrite last ',' with end of string
     hashString[index - 1] = '\0';
 

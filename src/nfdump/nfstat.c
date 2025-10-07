@@ -699,9 +699,9 @@ static inline void *DST_GEO_PreProcess(void *inPtr, recordHandle_t *recordHandle
     char *geo = (char *)inPtr + OFFgeoDstIP;
     if (HasGeoDB == 0 || geo[0]) return inPtr;
     if (ipv4Flow)
-        LookupV4Country(ipv4Flow->dstAddr, inPtr);
+        LookupV4Country(ipv4Flow->dstAddr, geo);
     else if (ipv6Flow)
-        LookupV6Country(ipv6Flow->dstAddr, inPtr);
+        LookupV6Country(ipv6Flow->dstAddr, geo);
 
     return inPtr;
 }  // End of DST_GEO_PreProcess
@@ -1133,11 +1133,11 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
         } break;
         case IS_GEO: {
             snprintf(valstr, 64, "%s", (char *)&(hashKey->v1));
-        }
+        } break;
         case IS_ASORG: {
             const char *org = LookupASorg(hashKey->v1);
             snprintf(valstr, 64, "%45s (%6" PRIi64 ")", org != NULL ? org : "unknown", hashKey->v1);
-        }
+        } break;
     }
     valstr[63] = 0;
 
