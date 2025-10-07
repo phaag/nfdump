@@ -957,6 +957,9 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
         }
     */
 
+    if (recordHandle->extensionList[EXasRoutingID] == NULL && outputParam->hasGeoDB)
+        recordHandle->extensionList[EXasRoutingID] = recordHandle->localStack;
+
     int processed = 0;
     int doInputPayload = 0;
     int doOutputPayload = 0;
