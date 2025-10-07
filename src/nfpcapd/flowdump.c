@@ -122,10 +122,10 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         if (Node->flowKey.version == AF_INET6) {
             UpdateRecordSize(EXipv6FlowSize);
             PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
-            ipv6Flow->srcAddr[0] = Node->flowKey.src_addr.v6[0];
-            ipv6Flow->srcAddr[1] = Node->flowKey.src_addr.v6[1];
-            ipv6Flow->dstAddr[0] = Node->flowKey.dst_addr.v6[0];
-            ipv6Flow->dstAddr[1] = Node->flowKey.dst_addr.v6[1];
+            ipv6Flow->srcAddr[0] = ntohll(Node->flowKey.src_addr.v6[0]);
+            ipv6Flow->srcAddr[1] = ntohll(Node->flowKey.src_addr.v6[1]);
+            ipv6Flow->dstAddr[0] = ntohll(Node->flowKey.dst_addr.v6[0]);
+            ipv6Flow->dstAddr[1] = ntohll(Node->flowKey.dst_addr.v6[1]);
         } else {
             UpdateRecordSize(EXipv4FlowSize);
             PushExtension(recordHeader, EXipv4Flow, ipv4Flow);

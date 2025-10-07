@@ -921,7 +921,7 @@ REDO_IPPROTO:
     }
 
     if (ipPayloadEnd < dataptr || ipPayloadEnd > eodata) {
-        LogError("payload data length error. Check line: %u", __LINE__);
+        LogError("ProcessPacket() payload data length error line: %u", __LINE__);
         Free_Node(Node);
         goto END_FUNC;
     }
@@ -1085,7 +1085,7 @@ REDO_IPPROTO:
             // move IP to tun IP
             Node->tun_src_addr = Node->flowKey.src_addr;
             Node->tun_dst_addr = Node->flowKey.dst_addr;
-            Node->tun_proto = IPPROTO_IPIP;
+            Node->tun_proto = IPPROTO_IPV6;
             Node->tun_ip_version = Node->flowKey.version;
 
             dbg_printf("  IPIPv6 tunnel - inner IPv6:\n");
