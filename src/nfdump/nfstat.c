@@ -955,8 +955,7 @@ void AddElementStat(recordHandle_t *recordHandle) {
                 inPtr = preproc(inPtr, recordHandle);
             }
             if (inPtr == NULL) {
-                int stat = StatRequest[i].StatType;
-                int type = StatParameters[stat].type;
+                int type = StatParameters[index].type;
                 if (type == IS_NUMBER) {
                     inPtr = &zero;
                     offset = 0;

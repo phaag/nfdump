@@ -2096,7 +2096,10 @@ static void String_Flags(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     uint32_t flags = genericFlow && genericFlow->proto == IPPROTO_TCP ? genericFlow->tcpFlags : 0;
 
-    fprintf(stream, "%8s", FlagsString(flags));
+    if (printPlain)
+        fprintf(stream, "%8u", flags);
+    else
+        fprintf(stream, "%8s", FlagsString(flags));
 
 }  // End of String_Flags
 
