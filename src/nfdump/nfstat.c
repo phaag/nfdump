@@ -142,7 +142,7 @@ static struct StatParameter_s {
     {"dsttos", "Dst Tos", {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NULL},
     {"tos", "Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER, NULL},
     {"tos", NULL, {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NULL},
-    {"dir", "Dir", {EXgenericFlowID, OFFdir, SIZEdir, 0}, IS_NUMBER, NULL},
+    {"dir", "Dir", {EXflowMiscID, OFFdir, SIZEdir, 0}, IS_NUMBER, NULL},
     {"srcas", "Src AS", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_NUMBER, SRC_AS_PreProcess},
     {"srcasn", "                                 Organisation (AS num)", {EXasRoutingID, OFFsrcAS, SIZEsrcAS, 0}, IS_ASORG, SRC_AS_PreProcess},
     {"dstas", "Dst AS", {EXasRoutingID, OFFdstAS, SIZEdstAS, 0}, IS_NUMBER, DST_AS_PreProcess},
@@ -937,6 +937,7 @@ static inline void *JA4Sout_PreProcess(void *inPtr, recordHandle_t *recordHandle
 void AddElementStat(recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     if (!genericFlow) return;
+    uint64_t zero = 0;
 
     // for every requested -s stat do
     for (int i = 0; i < NumStats; i++) {
@@ -954,8 +955,15 @@ void AddElementStat(recordHandle_t *recordHandle) {
                 inPtr = preproc(inPtr, recordHandle);
             }
             if (inPtr == NULL) {
-                index++;
-                continue;
+                int stat = StatRequest[i].StatType;
+                int type = StatParameters[stat].type;
+                if (type == IS_NUMBER) {
+                    inPtr = &zero;
+                    offset = 0;
+                } else {
+                    index++;
+                    continue;
+                }
             }
             inPtr += offset;
 
