@@ -2,7 +2,7 @@
 bin_PROGRAMS = nfcapd 
 
 AM_CFLAGS = -ggdb 
-AM_CPPFLAGS = -I../include -I../libnffile -I../inline -I../netflow -I../collector $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I$(srcdir)/../include -I$(srcdir)/../libnffile -I$(srcdir)/../inline -I$(srcdir)/../netflow -I$(srcdir)/../collector $(DEPS_CFLAGS)
 
 nfcapd_SOURCES = nfcapd.c 
 nfcapd_LDADD = ../netflow/libnetflow.a ../collector/libcollector.a -lnffile  -lm

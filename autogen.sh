@@ -2,6 +2,8 @@
 
 set -e
 
+cd $(dirname $0)
+
 case "$(uname)" in
     Darwin)
         LIBTOOLIZE=${LIBTOOLIZE:-glibtoolize}
