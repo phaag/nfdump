@@ -1229,9 +1229,8 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
         snprintf(dStr, 64, "%s", DurationString(duration));
 
     if (Getv6Mode() && (type == IS_IPADDR)) {
-        printf("%s.%03u %9.3f %-5s %s%39s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(statRecord->msecFirst % 1000),
-               duration, protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str,
-               bps_str, bpp);
+        printf("%s.%03u %9s %-5s %s%43s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(statRecord->msecFirst % 1000), dStr,
+               protoStr, tag_string, valstr, flows_str, flows_percent, packets_str, packets_percent, byte_str, bytes_percent, pps_str, bps_str, bpp);
     } else {
         if (outputParams->hasGeoDB) {
             printf("%s.%03u %9s %-5s %s%21s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(statRecord->msecFirst % 1000), dStr,
@@ -1528,7 +1527,7 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                     }
                     if (Getv6Mode() && (type == IS_IPADDR)) {
                         printf(
-                            "Date first seen             Duration     Proto %39s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
+                            "Date first seen             Duration     Proto %43s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
                             "bps   "
                             "bpp\n",
                             StatParameters[stat].HeaderInfo);
