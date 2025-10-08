@@ -255,10 +255,6 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
     $$.self = AddProto($1.direction, $3, 0); if ( $$.self < 0 ) YYABORT;
   }
 
-	| dqual PROTO IPV4 {
-    $$.self = AddProto($1.direction, "ipv4", 0); if ( $$.self < 0 ) YYABORT;
-  }
-
 	| dqual PROTO IPV6 {
     $$.self = AddProto($1.direction, "ipv6", 0); if ( $$.self < 0 ) YYABORT;
   }

@@ -634,6 +634,8 @@ void fmt_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
         AddV3Header(p, v3TunHeader);
         PushExtension(v3TunHeader, EXgenericFlow, tunGenericFlow);
         memcpy((void *)tunGenericFlow, (void *)genericFlow, sizeof(EXgenericFlow_t));
+        tunGenericFlow->srcPort = 0;
+        tunGenericFlow->dstPort = 0;
         recordHandle_t tunRecordHandle = {
             .recordHeaderV3 = v3TunHeader, .extensionList[EXgenericFlowID] = tunGenericFlow, .flowCount = recordHandle->flowCount};
         if (tunIPv4) {
