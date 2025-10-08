@@ -255,6 +255,14 @@ term:	ANY { /* this is an unconditionally true expression, as a filter applies i
     $$.self = AddProto($1.direction, $3, 0); if ( $$.self < 0 ) YYABORT;
   }
 
+	| dqual PROTO IPV4 {
+    $$.self = AddProto($1.direction, "ipv4", 0); if ( $$.self < 0 ) YYABORT;
+  }
+
+	| dqual PROTO IPV6 {
+    $$.self = AddProto($1.direction, "ipv6", 0); if ( $$.self < 0 ) YYABORT;
+  }
+
   | dqual PROTO ICMP {
     $$.self = AddProto($1.direction, "icmp", 0); if ( $$.self < 0 ) YYABORT;
 	}
@@ -738,7 +746,6 @@ static int AddProto(direction_t direction, char *protoStr, uint64_t protoNum) {
 		yyprintf("Protocol %" PRIu64 " out of range", protoNum);
 		return -1;
 	}
-
 	if ( protoStr != NULL ) {
 		protoNum = ProtoNum(protoStr);
   	if ( protoNum == -1 ) {
