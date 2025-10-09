@@ -2,7 +2,7 @@
 
 [![Build Status](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/phaag/nfdump/actions/workflows/c-cpp.yml)
 
-**nfdump** is a powerful suite of tools for collecting, processing, and analyzing NetFlow, IPFIX, and sFlow data from network devices. It supports advanced filtering, aggregation, and enrichment (geolocation, AS, Tor) of flow data with a focus on efficiency, flexibility, and extensibility.
+**nfdump** is a powerful suite of tools for collecting, processing, and analyzing NetFlow, IPFIX, and sFlow data from network devices. It supports advanced [filtering](https://gist.github.com/phaag/06369bed7f39f97e1de51b1b0f5bc29a.js), aggregation, and enrichment (geolocation, AS, Tor) of flow data with a focus on efficiency, flexibility, and extensibility.
 
 ---
 
