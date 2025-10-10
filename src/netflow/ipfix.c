@@ -280,7 +280,7 @@ static const struct ipfixReverseMap_s {
 // module limited globals
 static uint32_t processed_records;
 static int printRecord;
-uint32_t defaultSampling;
+int32_t defaultSampling;
 
 // prototypes
 static void InsertSampler(FlowSource_t *fs, exporterDomain_t *exporter, sampler_record_t *sampler_record);
