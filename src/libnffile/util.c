@@ -809,6 +809,8 @@ void DumpHex(FILE *stream, const void *data, size_t size) {
     char ascii[17];
     size_t i, j;
     ascii[16] = '\0';
+    uint32_t addr = 0;
+    fprintf(stream, "%08x ", addr);
     for (i = 0; i < size; ++i) {
         fprintf(stream, "%02X ", ((unsigned char *)data)[i]);
         if (((unsigned char *)data)[i] >= ' ' && ((unsigned char *)data)[i] <= '~') {
@@ -819,7 +821,8 @@ void DumpHex(FILE *stream, const void *data, size_t size) {
         if ((i + 1) % 8 == 0 || i + 1 == size) {
             fprintf(stream, " ");
             if ((i + 1) % 16 == 0) {
-                fprintf(stream, "|  %s \n", ascii);
+                addr += 16;
+                fprintf(stream, "|  %s \n%08x ", ascii, addr);
             } else if (i + 1 == size) {
                 ascii[(i + 1) % 16] = '\0';
                 if ((i + 1) % 16 <= 8) {
