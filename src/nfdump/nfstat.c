@@ -64,6 +64,7 @@ typedef enum {
     IS_NUMBER,
     IS_HEXNUMBER,
     IS_IPADDR,
+    IS_FLAGS,
     IS_MACADDR,
     IS_MPLS_LBL,
     IS_LATENCY,
@@ -138,6 +139,7 @@ static struct StatParameter_s {
     {"port", "Port", {EXgenericFlowID, OFFsrcPort, SIZEsrcPort, 0}, IS_NUMBER, NULL},
     {"port", NULL, {EXgenericFlowID, OFFdstPort, SIZEdstPort, 0}, IS_NUMBER, NULL},
     {"proto", "Protocol", {EXgenericFlowID, OFFproto, SIZEproto, 0}, IS_NUMBER, NULL},
+    {"flags", "TCPflags", {EXgenericFlowID, OFFtcpFlags, SIZEtcpFlags, 0}, IS_FLAGS, NULL},
     {"srctos", "Src Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER, NULL},
     {"dsttos", "Dst Tos", {EXflowMiscID, OFFdstTos, SIZEdstTos, 0}, IS_NUMBER, NULL},
     {"tos", "Tos", {EXgenericFlowID, OFFsrcTos, SIZEsrcTos, 0}, IS_NUMBER, NULL},
@@ -1076,6 +1078,12 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
                     if (!Getv6Mode()) CondenseV6(valstr);
                 }
             }
+            break;
+        case IS_FLAGS:
+            if (outputParams->printPlain)
+                snprintf(valstr, 64, "0x%" PRIx64, hashKey->v1);
+            else
+                snprintf(valstr, 64, "%8s", FlagsString(hashKey->v1));
             break;
         case IS_MACADDR: {
             uint8_t mac[6];
