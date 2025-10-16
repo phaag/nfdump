@@ -1,6 +1,6 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../libnfdump -I../inline -I../collector 
-AM_CPPFLAGS += -I../libnffile/conf -I../libnfdump/maxmind -I../libnfdump/tor $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I$(srcdir)/.. -I$(srcdir)/../include -I$(srcdir)/../libnffile -I$(srcdir)/../libnfdump -I$(srcdir)/../inline -I$(srcdir)/../collector 
+AM_CPPFLAGS += -I$(srcdir)/../libnffile/conf -I$(srcdir)/../libnfdump/maxmind -I$(srcdir)/../libnfdump/tor $(DEPS_CFLAGS)
 
 bin_PROGRAMS = 
 

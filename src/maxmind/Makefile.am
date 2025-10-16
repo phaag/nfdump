@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../libnfdump -I../libnffile  -I../inline $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I$(srcdir)/.. -I$(srcdir)/../include -I$(srcdir)/../libnfdump -I$(srcdir)/../libnffile  -I$(srcdir)/../inline $(DEPS_CFLAGS)
 
 if MAXMIND
 bin_PROGRAMS = geolookup

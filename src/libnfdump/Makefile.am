@@ -2,7 +2,7 @@
 BUILT_SOURCES = filter/grammar.h
 AM_YFLAGS = -d
 
-AM_CPPFLAGS = -I.. -I../include -I../inline -I../libnffile -Idecode -Isgregex $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I$(srcdir)/.. -I$(srcdir)/../include -I$(srcdir)/../inline -I$(srcdir)/../libnffile -I$(srcdir)/decode -I$(srcdir)/sgregex -I$(srcdir)/filter $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb 
 
 LDADD =  $(DEPS_LIBS)
