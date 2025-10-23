@@ -1,7 +1,7 @@
 
 bin_PROGRAMS = nfanon
 
-AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I$(srcdir)/.. -I$(srcdir)/../include -I$(srcdir)/../libnffile -I$(srcdir)/../inline $(DEPS_CFLAGS)
 
 LDADD = $(DEPS_LIBS)
 

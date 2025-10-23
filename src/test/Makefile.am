@@ -20,7 +20,7 @@ TEST_BZIP2="$(TEST_BZIP2)"; export TEST_BZIP2 \
 TEST_ZSTD="$(TEST_ZSTD)"; export TEST_ZSTD \
 ;
 
-AM_CPPFLAGS = -I.. -I../include -I../libnfdump -I../libnffile -I../inline -I../netflow -I../collector $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I$(srcdir)/.. -I$(srcdir)/../include -I$(srcdir)/../libnfdump -I$(srcdir)/../libnffile -I$(srcdir)/../inline -I$(srcdir)/../netflow -I$(srcdir)/../collector $(DEPS_CFLAGS)
 AM_CFLAGS = -ggdb
 AM_LDFLAGS  = -L../lib
 
