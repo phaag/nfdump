@@ -68,6 +68,8 @@ enum {
     STACK_SECLAST,
     STACK_MSECFIRST,
     STACK_MSECLAST,
+    STACK_DELTAFIRST,
+    STACK_DELTALAST,
     STACK_DURATION,
     STACK_MSEC,
     STACK_SYSUPTIME,
@@ -213,8 +215,8 @@ static const struct ipfixTranslationMap_s {
     {IPFIX_packetTotalCount, SIZEinPackets, NumberCopy, EXgenericFlowID, OFFinPackets, STACK_NONE, "input packetTotalCount"},
     {IPFIX_flowStartMilliseconds, SIZEmsecFirst, NumberCopy, EXgenericFlowID, OFFmsecFirst, STACK_NONE, "msec first"},
     {IPFIX_flowEndMilliseconds, SIZEmsecLast, NumberCopy, EXgenericFlowID, OFFmsecLast, STACK_NONE, "msec last"},
-    {IPFIX_flowStartDeltaMicroseconds, SIZEmsecFirst, NumberCopy, EXgenericFlowID, OFFmsecFirst, STACK_NONE, "msec first"},
-    {IPFIX_flowEndDeltaMicroseconds, SIZEmsecLast, NumberCopy, EXgenericFlowID, OFFmsecLast, STACK_NONE, "msec last"},
+    {IPFIX_flowStartDeltaMicroseconds, SIZEmsecFirst, NumberCopy, EXgenericFlowID, OFFmsecFirst, STACK_DELTAFIRST, "delta usec first"},
+    {IPFIX_flowEndDeltaMicroseconds, SIZEmsecLast, NumberCopy, EXgenericFlowID, OFFmsecLast, STACK_DELTALAST, "delta usec last"},
     {IPFIX_flowDurationMilliseconds, Stack_ONLY, NumberCopy, EXnull, 0, STACK_DURATION, "duration msec"},
     {LOCAL_IPv4Received, SIZEReceived4IP, NumberCopy, EXipReceivedV4ID, OFFReceived4IP, STACK_NONE, "IPv4 exporter"},
     {LOCAL_IPv6Received, SIZEReceived6IP, NumberCopy, EXipReceivedV6ID, OFFReceived6IP, STACK_NONE, "IPv6 exporter"},
@@ -1460,6 +1462,10 @@ static void Process_ipfix_data(exporterDomain_t *exporter, uint32_t ExportTime, 
                 dbg_printf("first/last sec abs.\n");
                 genericFlow->msecFirst = stack[STACK_SECFIRST] * (uint64_t)1000;
                 genericFlow->msecLast = stack[STACK_SECLAST] * (uint64_t)1000;
+            } else if (stack[STACK_DELTAFIRST]) {
+                dbg_printf("delta first/last usec.\n");
+                genericFlow->msecFirst = (uint64_t)ExportTime * (uint64_t)1000 - stack[STACK_DELTAFIRST] / (uint64_t)1000;
+                genericFlow->msecLast = (uint64_t)ExportTime * (uint64_t)1000 - stack[STACK_DELTALAST] / (uint64_t)1000;
             }
 
             UpdateFirstLast(fs->nffile, genericFlow->msecFirst, genericFlow->msecLast);

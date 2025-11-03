@@ -528,7 +528,7 @@ static void stringsEXsampler(FILE *stream, void *extensionRecord) {
 static void stringsEXobservation(FILE *stream, void *extensionRecord) {
     EXobservation_t *observation = (EXobservation_t *)extensionRecord;
     fprintf(stream,
-            "  obs domainID =          0x%05x\n"
+            "  obs domainID =            0x%05x\n"
             "  obs pointID  =       0x%010llx\n",
             observation->domainID, (long long unsigned)observation->pointID);
 
