@@ -26,7 +26,7 @@ version = version.c version.h
 barrier = barrier.c barrier.h
 
 vcs_track.h: Makefile
-	./gen_version.sh
+	./gen_version.sh @PACKAGE_VERSION@
 
 lib_LTLIBRARIES = libnffile.la
 libnffile_la_SOURCES = $(conf) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(barrier) $(version) vcs_track.h

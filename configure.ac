@@ -395,6 +395,7 @@ AC_CHECK_MEMBERS([struct sockaddr_storage.ss_family,
 AC_SUBST(FT_INCLUDES)
 AC_SUBST(FT_LDFLAGS)
 AC_SUBST(LFLAGS)
+AC_SUBST(PACKAGE_VERSION)
 
 
 # Checks for libraries.

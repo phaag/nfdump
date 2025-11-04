@@ -1625,13 +1625,12 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
     uint32_t c = 0;
     for (uint32_t i = 0; i < elemenHash->capacity; i++) {
         if (elemenHash->keys[i].active) {
+            dbg_printf("Get next active hashCell. count: %" PRIu64 "\n", topN_list[c].count);
             StatRecord_t *record = &(elemenHash->records[i]);
             topN_list[c].count = orderByTable[order].element_function(record);
             topN_list[c].record = (void *)record;
             record->hashkey = &(elemenHash->keys[i].key);
             c++;
-
-            dbg_printf("Get next hashCell. count: %" PRIu64 "\n", topN_list[c].count);
         }
     }
     assert(c == numCells);

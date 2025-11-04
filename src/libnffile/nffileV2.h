@@ -39,6 +39,8 @@
 #include <stdint.h>
 #endif
 
+#include "vcs_track.h"
+
 /*
  * nfdump binary file layout 2
  * ===========================
@@ -61,10 +63,11 @@ typedef struct fileHeaderV2_s {
 #define LAYOUT_VERSION_2 2
 
     uint32_t nfdversion;  // version of nfdump created this file
-#define NFDVERSION 0xF1070400
+                          // #define NFDVERSION 0xF1070600
+                          // created by gen_version.sh script automatically
                           // 4bytes 1.7.1-1 0x01070101
                           // 4bytes 1.7.1-1 0xF1070101 - git repo based on 1.7.1
-    time_t created;  // file create time
+    time_t created;       // file create time
 
     uint8_t compression;
 #define NOT_COMPRESSED 0
