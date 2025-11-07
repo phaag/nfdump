@@ -94,6 +94,26 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
             if (natCommon) genericFlow->msecFirst = natCommon->msecEvent;
         }
     }
+    EXlayer2_t *EXlayer2 = (EXlayer2_t *)handle->extensionList[EXlayer2ID];
+    if (EXlayer2) {
+        // Honor the IPversion flag and mask out the unneeded extension
+        switch (EXlayer2->ipVersion) {
+            case 4:
+                if (handle->extensionList[EXipv6FlowID]) {
+                    handle->extensionList[EXipv6FlowID] = NULL;
+                    recordHeaderV3->numElements--;
+                }
+                break;
+            case 6:
+                if (handle->extensionList[EXipv4FlowID]) {
+                    handle->extensionList[EXipv4FlowID] = NULL;
+                    recordHeaderV3->numElements--;
+                }
+                break;
+            default:
+                LogError("Mapping record: %" PRIu64 "  - Error - unknown IP version: %d", flowCount, EXlayer2->ipVersion);
+        }
+    }
     return 1;
 }
 
