@@ -549,6 +549,7 @@ int main(int argc, char **argv) {
 
     // EXlayer2
     PushExtension(v3Record, EXlayer2, layer2);
+    layer2->ipVersion = 4;
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     layer2->vlanID = 47;
     layer2->postVlanID = 48;

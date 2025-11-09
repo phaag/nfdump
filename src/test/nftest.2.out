@@ -1107,6 +1107,7 @@ Flow Record:
   ingress IfID =             112233
   egress IfID  =             445566
   ethertype    =             0x0000
+  IP version   =                  4
 
 Flow Record: 
   RecordCount  =                 32
@@ -1182,6 +1183,7 @@ Flow Record:
   ingress IfID =             112233
   egress IfID  =             445566
   ethertype    =             0x0000
+  IP version   =                  4
 
 Flow Record: 
   RecordCount  =                 33
@@ -1257,6 +1259,7 @@ Flow Record:
   ingress IfID =             112233
   egress IfID  =             445566
   ethertype    =             0x0000
+  IP version   =                  4
   ip fragment  =               0x40 DF   
   ip minTTL    =                 40
   ip minTTL    =                255

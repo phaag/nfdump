@@ -190,7 +190,6 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
         t = &((*t)->next);
     }
 
-    dbg_printf("No output template found. Create new template\n");
     // nothing found, otherwise we would not get here
     *t = (outTemplate_t *)calloc(1, sizeof(outTemplate_t));
     if (!(*t)) {
@@ -206,6 +205,8 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
         (*t)->template_id = NF9_MIN_RECORD_FLOWSET_ID;
     else
         (*t)->template_id = template_id + 1;
+
+    dbg_printf("No output template found. Create new template: %d\n", (*t)->template_id);
 
     (*t)->time_sent = 0;
     (*t)->record_count = 0;
@@ -460,7 +461,10 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
                 flowset->field[count].type = htons(NF_F_postDot1qCustomerVlanId);
                 flowset->field[count].length = htons(2);
                 count++;
-                data_length += 8;
+                flowset->field[count].type = htons(NF_9_IP_PROTOCOL_VERSION);
+                flowset->field[count].length = htons(1);
+                count++;
+                data_length += 9;
                 break;
         }
     }
@@ -587,15 +591,17 @@ static void Append_Record(send_peer_t *peer, recordHandle_t *recordHandle) {
                 peer->buff_ptr += 2;
             } break;
             case EXlayer2ID: {
-                EXlayer2_t *dot1q = (EXlayer2_t *)elementPtr;
-                Put_val16(htons(dot1q->vlanID), peer->buff_ptr);
+                EXlayer2_t *layer2 = (EXlayer2_t *)elementPtr;
+                Put_val16(htons(layer2->vlanID), peer->buff_ptr);
                 peer->buff_ptr += 2;
-                Put_val16(htons(dot1q->postVlanID), peer->buff_ptr);
+                Put_val16(htons(layer2->postVlanID), peer->buff_ptr);
                 peer->buff_ptr += 2;
-                Put_val16(htons(dot1q->customerVlanId), peer->buff_ptr);
+                Put_val16(htons(layer2->customerVlanId), peer->buff_ptr);
                 peer->buff_ptr += 2;
-                Put_val16(htons(dot1q->postCustomerVlanId), peer->buff_ptr);
+                Put_val16(htons(layer2->postCustomerVlanId), peer->buff_ptr);
                 peer->buff_ptr += 2;
+                Put_val8(layer2->ipVersion, peer->buff_ptr);
+                peer->buff_ptr += 1;
             } break;
             case EXasRoutingID: {
                 EXasRouting_t *asRouting = (EXasRouting_t *)elementPtr;
@@ -681,19 +687,20 @@ static int Add_template_flowset(outTemplate_t *outTemplate, send_peer_t *peer) {
 static void CloseDataFlowset(send_peer_t *peer) {
     if (sender_data->data_flowset) {
         uint32_t length = (void *)peer->buff_ptr - (void *)sender_data->data_flowset;
-        uint32_t align = length & 0x3;
-        if (align != 0) {
-            length += (4 - align);
+        uint32_t bits = length & 0x3;
+        if (bits != 0) {
+            uint32_t align = 4 - bits;
+            length += align;
             // fill padding with 0
             for (int i = 0; i < align; i++) {
                 *((char *)peer->buff_ptr) = '\0';
                 peer->buff_ptr++;
             }
         }
+        dbg_printf("Close flowset: Length: %u, align: %u\n", length, 4 - bits);
         sender_data->data_flowset->length = htons(length);
         sender_data->data_flowset = NULL;
         sender_data->data_flowset_id = 0;
-        dbg_printf("Close flowset: Length: %u, align: %u\n", length, align);
     }
 }  // End of CloseDataFlowset
 
@@ -720,7 +727,10 @@ static int CheckSendBufferSpace(size_t size, send_peer_t *peer) {
 }  // End of CheckBufferSpace
 
 int Add_v9_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
-    dbg_printf("\nNext packet\n");
+#ifdef DEVEL
+    static unsigned count = 1;
+    printf("\nNext record: %u\n", count++);
+#endif
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     if (recordHandle->numElements == 0 || !genericFlow) {
         dbg_printf("Skip record with 0 extensions\n");
