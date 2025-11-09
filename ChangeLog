@@ -1,4 +1,69 @@
-- 754b076 2025-04-18  (HEAD -> master, origin/master, origin/HEAD) Release nfdump-1.7.6
+- 473cf57 2025-11-09  (HEAD -> master, origin/master, origin/HEAD) Fix old ANSI C functions in fts_compat.c
+- a4f4b8d 2025-11-09  Add IPversion element to nfreplay and update tests
+- ceffc4c 2025-11-09  Cleanup error message in flist
+- 96ebd8f 2025-11-07  honor the ipVersion flag, if both - IPv4 and IPv6 addreeses are present
+- e693d54 2025-11-04  Auto generate NFDVERSION in nffileV2.h with gen_version.sh script
+- f899ab9 2025-11-03  Fix correct time calculation for tags 157 and 158 in ipfix. Fixes #642
+- c3f5e39 2025-10-16  Add tcp flags statistic for -s
+- 3d94f97 2025-10-16  Merge pull request #640 from MuriloChianfa/master
+- 06c19c0 2025-10-16  Add TCP Flags aggregation option
+- 79ecf32 2025-10-13  Add addressing label to HexDump
+- fc0f331 2025-10-10  Fix #629 uint32_t -> int32_t
+- 54d6c85 2025-10-09  Fix link
+- eb03517 2025-10-09  Add link to nfdump filter syntax cheatsheet in Readme
+- f807d48 2025-10-08  Fix some formating for stat output for IPv6 and geo
+- 07909a7 2025-10-08  Zero out ports in tunnel record
+- ebdcb97 2025-10-08  Fix symbolic strings for proto ipv6 and proto ipv4
+- 878518e 2025-10-07  Implement #635 for format fmt
+- e8e6990 2025-10-07  Fix #638 - bug for '-s dir'
+- add7f3a 2025-10-07  Add as lookup in raw output, if geoDB is loaded
+- e0fdb09 2025-10-07  Fix bug in nfpcapd for ipv6 processing
+- 8d5ab76 2025-10-07  Fix '-s geo' bug in nfstat and ja4 memory bug for '-s ja4'
+- 0811d7a 2025-09-14  Add element statistics about tunnel protocols
+- 9faf02d 2025-09-06  In nfpcapd, fix linktype for interface other than ethernet with TPACKET_V3
+- 581b046 2025-08-11  Fix header includes for some *BSD systems
+- 740e302 2025-07-27  Fix minor display bugs
+- fa001a8 2025-07-26  Add 'payload dns address <IP>' filter elements.
+- d44f6f5 2025-07-26  Add 'payload dns defined' and 'payload dns name ..' filter elements.
+- cbeb804 2025-07-25  Update DNS code. Free memory if decoding failed.
+- b06a913 2025-07-24  Replace pow(10.0, ..) by lookup table
+- a31c187 2025-07-24  Add -lm to compile on all*nices
+- 8864e1c 2025-07-24  Replace dns packet decoder with more complete SPCDNS decoder from Sean Conner
+- aba70c6 2025-07-22  Unify IPv4 and IPv6 fragmentation code
+- 8099caf 2025-07-22  Remove debug printf ..
+- 850d90c 2025-07-22  Evaluate IPv6 fragmentation header and reassemble IPv6 packets
+- 51ebb1f 2025-07-20  Fix payload in IPv4 fragmented packets
+- 122501b 2025-07-20  Fix propper payload size, due to possible ethernet payload padding
+- 7f508e8 2025-07-11  Dissolve in/out payload. Make handling more generic for more payload options
+- ae612b9 2025-07-05  Update README
+- 1aea4c3 2025-07-05  Improve the torlookup man page
+- 1c636c7 2025-07-05  Fix torlookup man page
+- 77ca1c9 2025-07-05  Fix other man pages to be mandoc compliant
+- a78fb5d 2025-07-05  Update nfpcapd.1 man page to proper mdoc format
+- f035322 2025-07-05  Update man pages for nfcapd and nfdump
+- 1ab40bd 2025-07-05  Add output payload to paylod filter if it exists. Add '\r' and '\n' to regex, allow payload filter to match end-of-line
+- 4ae55a5 2025-07-02  Implement yaf file reader. #632
+- 73359a5 2025-06-28  Fix compile errors on Linuxes without arc4random
+- f6fdff2 2025-06-28  Fix typo in nfconf.dist
+- 77b9003 2025-06-18  Remove not yet used collector code in master branch
+- c294d35 2025-06-18  stage 1 for collector improvement
+- 203d4af 2025-06-15  More code cleanup
+- c0c9c3e 2025-06-15  Cleanup queue code
+- 6ac8111 2025-06-15  Dissolve collector code and clean up. Replace tmp file with unique tmp flow file
+- 7cff9ed 2025-06-09  (origin/optimise_colloctor) Replace broken AX_CHECK_ZLIB marco, which poisons include path when cross compiling
+- 372af73 2025-05-18  Make nfcapd less chatty, if a buffer reset happends. See #622
+- afa4a69 2025-05-10  Fix endian error in geo filter
+- 5986db6 2025-05-10  Replace AC_RUN_IFELSE for cross compilation. #579
+- a7feab4 2025-05-09  Fix FreeBSD 14.3 still missing includes in #620
+- 63e5f9f 2025-04-19  Fix code due to var name change in spell check
+- 6de613a 2025-04-19  Merge pull request #617 from jaegeral/2025-04_spell
+- 97161fc 2025-04-19  Update lz4hc.h
+- ada837a 2025-04-19  Update lz4hc.c
+- a50b645 2025-04-19  Update lz4.h
+- 4f837c9 2025-04-19  Update lz4.c
+- 99ca424 2025-04-19  Update nfdump.1
+- 350acf0 2025-04-18  spelling check
+- 754b076 2025-04-18  (tag: v1.7.6) Release nfdump-1.7.6
 - 11ac8c6 2025-04-18  Fix output for %evt printing, if both nat/nsel records exists. Should fix #613
 - 70ece2e 2025-04-15  Add Subdir -S to dynamic FlowSource -M. Replaces pull request #615
 - 3eb3043 2025-04-15  Fix #614 - first/last seen filter
