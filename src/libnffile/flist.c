@@ -1164,10 +1164,11 @@ int SetupSubDir(char *dir, char *subdir) {
     if (errno == ENOENT) {  // we need to create intermediate directories as well
         char error[255];
         err = mkpath(path, p, mode, dir_mode, error, 255);
-        if (err == 0)  // creation was successful
+        if (err == 0) {  // creation was successful
             return 1;
-        else
-            LogError("mkpath() error for '%s': %s", path, error);
+        } else {
+            LogError("mkpath() error for Path: '%s': %s", path, error);
+        }
     } else {
         LogError("mkdir() error for '%s': %s", path, strerror(errno));
     }
@@ -1200,11 +1201,11 @@ static int mkpath(char *path, char *p, mode_t mode, mode_t dir_mode, char *error
 
         if (stat(path, &sb)) {
             if (errno != ENOENT || (mkdir(path, done ? mode : dir_mode) && errno != EEXIST)) {
-                snprintf(error, errlen, "mkdir() error for '%s': %s", path, strerror(errno));
+                snprintf(error, errlen, "mkdir() error: %s", strerror(errno));
                 return (-1);
             }
         } else if (!S_ISDIR(sb.st_mode)) {
-            snprintf(error, errlen, "Path '%s': %s ", path, strerror(ENOTDIR));
+            snprintf(error, errlen, "%s", strerror(ENOTDIR));
             return (-1);
         }
 
