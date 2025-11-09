@@ -76,17 +76,17 @@
 
 #define STAT stat
 
-static FTSENT *fts_alloc(FTS *, const char *, size_t);
-static FTSENT *fts_build(FTS *, int);
-static void fts_lfree(FTSENT *);
-static void fts_load(FTS *, FTSENT *);
-static size_t fts_maxarglen(char *const *);
-static size_t fts_pow2(size_t);
-static int fts_palloc(FTS *, size_t);
-static void fts_padjust(FTS *, FTSENT *);
-static FTSENT *fts_sort(FTS *, FTSENT *, size_t);
-static u_short fts_stat(FTS *, FTSENT *, int);
-static int fts_safe_changedir(const FTS *, const FTSENT *, int, const char *);
+static FTSENT *fts_alloc(FTS *sp, const char *name, size_t namelen);
+static FTSENT *fts_build(FTS *sp, int type);
+static void fts_lfree(FTSENT *head);
+static void fts_load(FTS *sp, FTSENT *p);
+static size_t fts_maxarglen(char *const *argv);
+static size_t fts_pow2(size_t x);
+static int fts_palloc(FTS *sp, size_t size);
+static void fts_padjust(FTS *sp, FTSENT *head);
+static FTSENT *fts_sort(FTS *sp, FTSENT *head, size_t nitems);
+static u_short fts_stat(FTS *sp, FTSENT *p, int follow);
+static int fts_safe_changedir(const FTS *sp, const FTSENT *p, int fd, const char *path);
 
 #define ISDOT(a) (a[0] == '.' && (!a[1] || (a[1] == '.' && !a[2])))
 
@@ -985,9 +985,7 @@ static void fts_padjust(FTS *sp, FTSENT *head) {
     }
 }
 
-static size_t fts_maxarglen(argv)
-char *const *argv;
-{
+static size_t fts_maxarglen(char *const *argv) {
     size_t len, max;
 
     for (max = 0; *argv; ++argv)
@@ -1000,11 +998,7 @@ char *const *argv;
  * tricked by someone changing the world out from underneath us.
  * Assumes p->fts_dev and p->fts_ino are filled in.
  */
-static int fts_safe_changedir(sp, p, fd, path) const FTS *sp;
-const FTSENT *p;
-int fd;
-const char *path;
-{
+static int fts_safe_changedir(const FTS *sp, const FTSENT *p, int fd, const char *path) {
     int oldfd = fd, ret = -1;
     struct STAT sb;
 
