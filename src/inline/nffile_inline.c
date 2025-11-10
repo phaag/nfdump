@@ -98,6 +98,8 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
     if (EXlayer2) {
         // Honor the IPversion flag and mask out the unneeded extension
         switch (EXlayer2->ipVersion) {
+            case 0:  // not present - skip
+                break;
             case 4:
                 if (handle->extensionList[EXipv6FlowID]) {
                     handle->extensionList[EXipv6FlowID] = NULL;
