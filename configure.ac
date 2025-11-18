@@ -242,6 +242,7 @@ AC_SUBST(RRD_LIBS)
 
 		]])], AC_DEFINE(RRD_NEEDSCONST, 0, [No fix rrd_update const char argument]), AC_DEFINE(RRD_NEEDSCONST, 1, [Fix rrd_update const char argument])
 )
+LIBS=$saved_LIBS
 ]
 ,
 build_nfprofile="no"
