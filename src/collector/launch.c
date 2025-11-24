@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -29,6 +29,8 @@
  *
  */
 
+#include "launch.h"
+
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
@@ -45,25 +47,12 @@
 #include <sys/wait.h>
 
 #include "bookkeeper.h"
-#include "config.h"
-#include "nfstatfile.h"
-
-#ifdef HAVE_FTS_H
-#include <fts.h>
-#else
-#include "fts_compat.h"
-#define fts_children fts_children_compat
-#define fts_close fts_close_compat
-#define fts_open fts_open_compat
-#define fts_read fts_read_compat
-#define fts_set fts_set_compat
-#endif
-
 #include "collector.h"
+#include "config.h"
 #include "expire.h"
-#include "launch.h"
 #include "nfdump.h"
 #include "nffile.h"
+#include "nfstatfile.h"
 #include "privsep.h"
 #include "util.h"
 

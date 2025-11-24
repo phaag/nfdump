@@ -287,16 +287,14 @@ int main(int argc, char **argv) {
     struct stat statbuf;
     uint32_t limitflows;
     int i, extended, ret, fd, compress;
-    ;
-    char *ftfile, *wfile;
 
     /* init fterr */
     fterr_setid(argv[0]);
 
     extended = 0;
     limitflows = 0;
-    ftfile = NULL;
-    wfile = "-";
+    char *ftfile = NULL;
+    char *wfile = NULL;
     compress = LZ4_COMPRESSED;
 
     while ((i = getopt(argc, argv, "jyzEVc:hr:w:?")) != -1) switch (i) {
@@ -315,7 +313,7 @@ int main(int argc, char **argv) {
             case 'c':
                 limitflows = atoi(optarg);
                 if (!limitflows) {
-                    fprintf(stderr, "Option -c needs a number > 0\n");
+                    LogError("Option -c needs a number > 0");
                     exit(255);
                 }
                 break;
@@ -351,7 +349,7 @@ int main(int argc, char **argv) {
             case 'r':
                 ftfile = optarg;
                 if ((stat(ftfile, &statbuf) < 0) || !(statbuf.st_mode & S_IFREG)) {
-                    fprintf(stderr, "No such file: '%s'\n", ftfile);
+                    LogError("No such file: '%s'", ftfile);
                     exit(255);
                 }
                 break;
@@ -372,14 +370,19 @@ int main(int argc, char **argv) {
     if (ftfile) {
         fd = open(ftfile, O_RDONLY, 0);
         if (fd < 0) {
-            fprintf(stderr, "Can't open file '%s': %s.", ftfile, strerror(errno));
+            LogError("Can't open file '%s': %s.", ftfile, strerror(errno));
             exit(255);
         }
     } else {
         fd = 0;
     }
 
-    if (!Init_nffile(0, NULL)) exit(254);
+    if (!wfile) {
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    if (!Init_nffile(0, NULL)) exit(EXIT_FAILURE);
 
     /* read from fd */
     if (ftio_init(&ftio, fd, FT_IO_FLAG_READ) < 0) fterr_errx(1, "ftio_init(): failed");

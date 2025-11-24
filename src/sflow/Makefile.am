@@ -1,17 +1,20 @@
 
 bin_PROGRAMS = sfcapd
 
-AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline -I../collector $(DEPS_CFLAGS)
+sfcapd_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline -I../collector $(DEPS_CFLAGS)
 
-sflow = sflow_nfdump.c sflow_nfdump.h sflow.h sflow_v2v4.h sflow_process.c  sflow_process.h
-sfcapd_SOURCES = sfcapd.c \
-	$(sflow) $(launch) 
+sfcapd_SOURCES = sfcapd.c 
+sfcapd_SOURCES += sflow_nfdump.c sflow_nfdump.h sflow.h sflow_v2v4.h sflow_process.c  sflow_process.h
+
 sfcapd_LDADD = ../collector/libcollector.a -lnffile  -lm
 sfcapd_LDFLAGS = -L../libnffile 
 
-if READPCAP
-sfcapd_CFLAGS = -DPCAP
-sfcapd_LDADD += -lpcap
+sfcapd_CFLAGS = $(PTHREAD_CFLAGS)
+sfcapd_LDADD  += $(PTHREAD_LIBS)
+
+if ENABLE_READPCAP
+sfcapd_CPPFLAGS += $(PCAP_CFLAGS)
+sfcapd_LDADD += $(PCAP_LIBS)
 endif
 
-CLEANFILES = *.gch
+CLEANFILES = $(bin_PROGRAMS) *.gch

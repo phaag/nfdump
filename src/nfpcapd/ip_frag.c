@@ -38,6 +38,7 @@
 #include <string.h>
 #include <sys/types.h>
 
+#include "config.h"
 #include "nfdump.h"
 #include "util.h"
 

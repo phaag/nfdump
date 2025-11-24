@@ -151,7 +151,6 @@ static void usage(char *name) {
         "-f\t\tread netflow filter from file\n"
         "-n\t\tDefine number of top N for stat or sorted output.\n"
         "-c\t\tLimit number of matching records\n"
-        "-D <dns>\tUse nameserver <dns> for host lookup.\n"
         "-G <geoDB>\tUse this nfdump geoDB to lookup country/location.\n"
         "-H <torDB>\tUse nfdump torDB to lookup tor info.\n"
         "-N\t\tPrint plain numbers\n"
@@ -740,7 +739,7 @@ int main(int argc, char **argv) {
     nfprof_t profile_data;
     char *wfile, *ffile, *filter, *tstring, *stat_type;
     char *print_format;
-    char *print_order, *query_file, *configFile, *nameserver, *aggr_fmt;
+    char *print_order, *query_file, *configFile, *aggr_fmt;
     int element_stat, fdump;
     int flow_stat, aggregate, aggregate_mask, bidir;
     int print_stat, gnuplot_stat, syntax_only, compress, worker;
@@ -768,7 +767,6 @@ int main(int argc, char **argv) {
     compress = NOT_COMPRESSED;
     worker = 0;
     GuessDir = 0;
-    nameserver = NULL;
 
     print_format = NULL;
     print_record = NULL;
@@ -831,11 +829,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'D':
-                CheckArgLen(optarg, 64);
-                nameserver = optarg;
-                if (!SetNameserver(nameserver)) {
-                    exit(EXIT_FAILURE);
-                }
+                LogInfo("Set nameserver option is depricated - using nameserver in resolf.conf instead");
                 break;
             case 'E': {
                 CheckArgLen(optarg, MAXPATHLEN);

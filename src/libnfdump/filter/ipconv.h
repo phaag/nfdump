@@ -41,8 +41,6 @@ typedef struct ipStack_s {
 
 int parseIP(const char *src, ipStack_t *ipStack, int lookup);
 
-int set_nameserver(char *ns);
-
 uint64_t Str2Mac(char *macStr);
 
 #define MAXHOSTS 1024

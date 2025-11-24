@@ -96,7 +96,6 @@ static void usage(char *name) {
         "usage %s [options] \n"
         "-h\t\tthis text you see right here\n"
         "-V\t\tPrint version and exit.\n"
-        "-D <dns>\tUse nameserver <dns> for host lookup.\n"
         "-M <expr>\tRead input from multiple directories.\n"
         "-r\t\tread input from file\n"
         "-f\t\tfilename with filter syntaxfile\n"
@@ -514,7 +513,7 @@ int main(int argc, char **argv) {
     unsigned int numChannels, compress;
     profile_param_info_t *profile_list;
     char *ffile, *filename, *syslog_facility;
-    char *profile_datadir, *profile_statdir, *nameserver;
+    char *profile_datadir, *profile_statdir;
     int c, syntax_only, subdir_index, stdin_profile_params;
     time_t tslot;
     flist_t flist;
@@ -528,24 +527,16 @@ int main(int argc, char **argv) {
     compress = NOT_COMPRESSED;
     subdir_index = 0;
     profile_list = NULL;
-    nameserver = NULL;
     stdin_profile_params = 0;
     syslog_facility = "daemon";
 
     // default file names
     ffile = "filter.txt";
-    while ((c = getopt(argc, argv, "D:Ip:P:hi:f:jr:L:M:S:t:Vyz::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "Ip:P:hi:f:jr:L:M:S:t:Vyz::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
                 exit(0);
-                break;
-            case 'D':
-                CheckArgLen(optarg, 64);
-                nameserver = optarg;
-                if (!SetNameserver(nameserver)) {
-                    exit(255);
-                }
                 break;
             case 'I':
                 stdin_profile_params = 1;

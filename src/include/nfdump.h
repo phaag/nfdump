@@ -76,10 +76,6 @@ typedef struct ip_addr_s {
 #define IP_ADDR_T
 } ip_addr_t;
 
-// forward declaration
-typedef struct exporter_info_record_s exporter_info_record_t;
-typedef struct extension_map_s extension_map_t;
-
 enum { EXlocal = MAXEXTENSIONS, EXheader, EXinPayloadHandle, EXoutPayloadHandle, MAXLISTSIZE };
 
 typedef struct payloadHandle_s {

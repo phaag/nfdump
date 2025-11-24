@@ -47,7 +47,6 @@
 .Op Fl b
 .Op Fl B
 .Op Fl I
-.Op Fl D Ar nameserver
 .Op Fl G Ar geoDB
 .Op Fl H Ar torDB
 .Op Fl s Ar statistic
@@ -353,12 +352,6 @@ Print flow statistics of a single file or the summary of all the files specified
 Print for each flow file given by
 .Fl r Ar flowpath
 a one line summary, which can be easily used by gnu plot.
-.It Fl D Ar nameserver
-Sets the
-.Ar nameserver
-to translate hostnames into IP addresses in filter expressions. See
-.Ar filter
-below for more details.
 .It Fl G Ar geoDB
 Use
 .Ar geoDB

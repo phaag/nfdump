@@ -32,12 +32,10 @@
 #ifndef _EXPIRE_H
 #define _EXPIRE_H 1
 
+#include <stdint.h>
 #include <sys/types.h>
 
 #include "config.h"
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
 
 #ifdef HAVE_FTS_H
 #include <fts.h>

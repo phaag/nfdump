@@ -60,6 +60,7 @@
 #include "collector.h"
 #include "conf/nfconf.h"
 #include "daemon.h"
+#include "expire.h"
 #include "flist.h"
 #include "launch.h"
 #include "metric.h"
@@ -71,22 +72,9 @@
 #include "pidfile.h"
 #include "privsep.h"
 #include "repeater.h"
+#include "sflow_nfdump.h"
 #include "util.h"
 #include "version.h"
-
-#ifdef HAVE_FTS_H
-#include <fts.h>
-#else
-#include "fts_compat.h"
-#define fts_children fts_children_compat
-#define fts_close fts_close_compat
-#define fts_open fts_open_compat
-#define fts_read fts_read_compat
-#define fts_set fts_set_compat
-#endif
-
-#include "expire.h"
-#include "sflow_nfdump.h"
 
 #define DEFAULTSFLOWPORT "6343"
 

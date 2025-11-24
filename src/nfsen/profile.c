@@ -59,7 +59,7 @@ extern char influxdb_url[1024];
 static char influxdb_measurement[] = "nfsen_stats";
 #endif
 
-#if RRD_NEEDSCONST
+#if RRDCONSTCHAR
 #define rrdchar const char
 #else
 #define rrdchar char

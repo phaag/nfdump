@@ -29,7 +29,7 @@
  *
  */
 
-static char *GetFlowSourceIP(struct sockaddr_storage *ss) {
+__attribute__((unused)) static char *GetFlowSourceIP(struct sockaddr_storage *ss) {
     static char as[128];
     memset(as, 0, 128);
 

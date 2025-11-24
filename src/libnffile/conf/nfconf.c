@@ -414,21 +414,6 @@ void ConfInventory(char *confFile) {
 
 }  // End of ConfInventory
 
-int SetNameserver(char *ns) {
-    struct hostent *host;
-
-    res_init();
-    host = gethostbyname(ns);
-    if (host == NULL) {
-        (void)fprintf(stderr, "Can not resolv nameserver %s: %s\n", ns, hstrerror(h_errno));
-        return 0;
-    }
-    (void)memcpy((void *)&_res.nsaddr_list[0].sin_addr, (void *)host->h_addr_list[0], (size_t)host->h_length);
-    _res.nscount = 1;
-    return 1;
-
-}  // End of set_nameserver
-
 int ConfGetInt64(option_t *optionList, char *key, uint64_t *valInt64) {
     int i = 0;
     while (optionList[i].name != NULL) {

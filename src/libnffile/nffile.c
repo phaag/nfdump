@@ -37,7 +37,7 @@
 
 #include "nffile.h"
 
-#ifdef HAVE_BZIP2
+#ifdef HAVE_BZ2
 #include <bzlib.h>
 #endif
 
@@ -228,7 +228,7 @@ int ParseCompression(char *arg) {
     }
 
     if (strcmp(arg, "bz2") == 0 || strcmp(arg, "bzip2") == 0 || strcmp(arg, "2") == 0) {
-#ifdef HAVE_BZIP2
+#ifdef HAVE_BZ2
         return BZ2_COMPRESSED;
     }
 #else
@@ -407,7 +407,7 @@ static int Uncompress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, s
 }  // End of Uncompress_Block_LZ4
 
 static int Compress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size) {
-#ifdef HAVE_BZIP2
+#ifdef HAVE_BZ2
     bz_stream bs = {0};
 
     BZ2_bzCompressInit(&bs, 9, 0, 0);
@@ -440,7 +440,7 @@ static int Compress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, siz
 }  // End of Compress_Block_BZ2
 
 static int Uncompress_Block_BZ2(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size) {
-#ifdef HAVE_BZIP2
+#ifdef HAVE_BZ2
     bz_stream bs = {0};
 
     BZ2_bzDecompressInit(&bs, 0, 0);
@@ -871,7 +871,7 @@ static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
     }
 #endif
 
-#ifndef HAVE_BZIP2
+#ifndef HAVE_BZ2
     if (nffile->file_header->compression == BZ2_COMPRESSED) {
         LogError("BZIP2 compression not compiled in. Skip file: %s", filename);
         CloseFile(nffile);
@@ -931,7 +931,7 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
     }
 #endif
 
-#ifndef HAVE_BZIP2
+#ifndef HAVE_BZ2
     if ((compress & 0xFFFF) == BZ2_COMPRESSED) {
         LogError("Open file %s: BZIP2 compression not compiled in");
         CloseFile(nffile);
@@ -1756,7 +1756,7 @@ int QueryFile(char *filename, int verbose) {
         return 0;
     }
 #endif
-#ifndef HAVE_BZIP2
+#ifndef HAVE_BZ2
     if (fileHeader.compression == BZ2_COMPRESSED) {
         LogError("BZIP2 compression not compiled in. Skip checking.");
         close(fd);

@@ -1,14 +1,12 @@
 
 bin_PROGRAMS = nfanon
 
-AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline $(DEPS_CFLAGS)
+nfanon_SOURCES = nfanon.c panonymizer.c panonymizer.h rijndael.c rijndael.h
 
-LDADD = $(DEPS_LIBS)
+nfanon_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline $(DEPS_CFLAGS)
+nfanon_CFLAGS = $(PTHREAD_CFLAGS)
 
-anon = panonymizer.c panonymizer.h rijndael.c rijndael.h
-
-nfanon_SOURCES = nfanon.c $(anon)
-nfanon_LDADD = -lnffile
+nfanon_LDADD = -lnffile $(PTHREAD_LIBS)
 nfanon_LDFLAGS = -L../libnffile
 
 CLEANFILES = *.gch

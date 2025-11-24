@@ -1,0 +1,10 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: nfdump
+Description: NetFlow processing toolkit
+Version: @PACKAGE_VERSION@
+Libs: -L${libdir} -lnfdump @ZSTD_LIBS@ @PTHREAD_LIBS@
+Cflags: -I${includedir} @ZSTD_CFLAGS@

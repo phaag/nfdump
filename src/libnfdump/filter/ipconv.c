@@ -28,6 +28,8 @@
  *
  */
 
+#include "ipconv.h"
+
 #include <arpa/inet.h>
 #include <arpa/nameser.h>
 #include <errno.h>
@@ -40,13 +42,6 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-#include "config.h"
-
-#ifdef HAVE_RESOLV_H
-#include <resolv.h>
-#endif
-
-#include "ipconv.h"
 #include "util.h"
 
 static int lookup_host(const char *hostname, ipStack_t *ipStack);
@@ -167,21 +162,6 @@ static int lookup_host(const char *hostname, ipStack_t *ipStack) {
     return numIP;
 
 }  // End of lookup_host
-
-int set_nameserver(char *ns) {
-    struct hostent *host;
-
-    res_init();
-    host = gethostbyname(ns);
-    if (host == NULL) {
-        (void)fprintf(stderr, "Can not resolv nameserver %s: %s\n", ns, hstrerror(h_errno));
-        return 0;
-    }
-    (void)memcpy((void *)&_res.nsaddr_list[0].sin_addr, (void *)host->h_addr_list[0], (size_t)host->h_length);
-    _res.nscount = 1;
-    return 1;
-
-}  // End of set_nameserver
 
 uint64_t Str2Mac(char *macStr) {
     uint8_t values[6];

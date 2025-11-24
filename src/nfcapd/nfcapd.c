@@ -60,6 +60,7 @@
 #include "collector.h"
 #include "conf/nfconf.h"
 #include "daemon.h"
+#include "expire.h"
 #include "flist.h"
 #include "ipfix.h"
 #include "launch.h"
@@ -79,19 +80,6 @@
 #include "util.h"
 #include "version.h"
 #include "yaf_reader.h"
-
-#ifdef HAVE_FTS_H
-#include <fts.h>
-#else
-#include "fts_compat.h"
-#define fts_children fts_children_compat
-#define fts_close fts_close_compat
-#define fts_open fts_open_compat
-#define fts_read fts_read_compat
-#define fts_set fts_set_compat
-#endif
-
-#include "expire.h"
 
 #define DEFAULTCISCOPORT "9995"
 

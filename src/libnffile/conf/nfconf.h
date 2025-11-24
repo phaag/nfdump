@@ -66,8 +66,6 @@ int ConfGetUint64(option_t *optionList, char *key, uint64_t *valUint64);
 
 int ConfSetUint64(option_t *optionList, char *key, uint64_t valUint64);
 
-int SetNameserver(char *ns);
-
 int scanOptions(option_t *optionList, char *options);
 
 void ConfInventory(char *confFile);

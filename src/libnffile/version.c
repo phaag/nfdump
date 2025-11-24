@@ -39,9 +39,9 @@
 char *versionString(void) {
     static char version_string[128];
 
-    char *nsel = "";
-#ifdef NSEL
-    nsel = " NSEL-NEL";
+    char *ja4 = "";
+#ifdef BUILD_JA4
+    ja4 = " JA4";
 #endif
 
     char *zstdlib = "";
@@ -50,12 +50,11 @@ char *versionString(void) {
 #endif
 
     char *bzlib = "";
-#ifdef HAVE_ZSTD
+#ifdef HAVE_BZ2
     bzlib = " BZIP2";
 #endif
 
-    char *option = (strlen(nsel) + strlen(zstdlib)) > 0 ? "Options:" : "";
-    snprintf(version_string, 128, "Version: %s-%s %s%s%s%s Date: %s", VERSION, VCS_TRACK_HASH, option, nsel, zstdlib, bzlib, VCS_TRACK_DATE);
+    snprintf(version_string, 128, "Version: %s-%s %s%s%s Date: %s", VERSION, VCS_TRACK_HASH, zstdlib, bzlib, ja4, VCS_TRACK_DATE);
     version_string[127] = '\0';
 
     return version_string;

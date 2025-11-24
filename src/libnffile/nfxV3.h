@@ -35,6 +35,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "config.h"
 #include "id.h"
 
 /*

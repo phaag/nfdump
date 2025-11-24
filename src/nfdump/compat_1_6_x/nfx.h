@@ -34,6 +34,7 @@
 
 #include <sys/types.h>
 
+#include "config.h"
 #include "id.h"
 #include "nfdump_1_6_x.h"
 #include "nffile.h"

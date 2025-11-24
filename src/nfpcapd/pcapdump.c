@@ -44,6 +44,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "config.h"
 #include "flist.h"
 #include "nffile.h"
 #include "packet_pcap.h"
@@ -90,7 +91,7 @@ static void packet_handler(u_char *dumpfile, const struct pcap_pkthdr *header, c
     return;
 }
 
-#ifndef HAVEPCAPAPPEND
+#ifndef HAVE_PCAP_APPEND
 /*
  * minimal implementation if libpcap does not include this library call
  */
