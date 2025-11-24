@@ -12,10 +12,10 @@
 - [Compatibility](#compatibility)
 - [Installation](#installation)
 - [Configuration Options](#configuration-options)
-- [Usage Overview](#usage-overview)
-- [Additional Tools](#additional-tools)
+- [Basic Usage](#basic-usage)
+- [Included Tools](#included-tools)
 - [Compression](#compression)
-- [General Operation](#general-operation-of-nfdump)
+- [How nfdump Works](#how-nfdump-works)
 - [Sampling](#sampling)
 - [NetFlow/NSEL/NAT Support](#netflownselnat-support)
 - [Related Projects](#related-projects)
@@ -367,6 +367,7 @@ By default, the sampling rate is 1 (unsampled) or the value specified via `-s`. 
 - [go-nfdump](https://github.com/phaag/go-nfdump): Read nfdump files in Go.
 - [nfinflux](https://github.com/phaag/nfinflux): Export metrics to InfluxDB.
 - [nfexporter](https://github.com/phaag/nfexporter): Export metrics for Prometheus.
+- [NfSen](https://github.com/phaag/nfsen): Old legacy graphical frontend.
 
 ---
 
