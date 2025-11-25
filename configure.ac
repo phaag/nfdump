@@ -178,8 +178,8 @@ AC_ARG_WITH([zlib], AS_HELP_STRING([--with-zlib=PATH],[Path to libz]), ,with_zli
 AS_IF([test x$enable_nfpcapd = xyes || test x$enable_ftconv = xyes], [
 	AX_FIND_LIBRARY([ZLIB], [zlib.h], [z], [$with_zlib], [/usr /usr/local /opt/local])
 	AS_IF([test "x$ZLIB_LIBS" = "x"], [
-		readzpcap="yes"
-	], [ readzpcap="no"
+		readzpcap="no"
+	], [ readzpcap="yes"
 		])
 ], [
 	AM_CONDITIONAL([HAVE_ZLIB], [false])
