@@ -35,6 +35,54 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
 
 static inline dataBlock_t *AppendToBuffer(nffile_t *nffile, dataBlock_t *dataBlock, void *record, size_t required);
 
+// Fix lazzy exporters, sending both - IPv4 and IPv6 addresses in the same record
+// lot of code for nothing!!
+static inline void ResolveMultipleIPrecords(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint64_t flowCount) {
+    // check, if the at least announce the ipVersion element
+    EXlayer2_t *EXlayer2 = (EXlayer2_t *)handle->extensionList[EXlayer2ID];
+    if (EXlayer2) {
+        // Honor the IPversion flag and mask out the unneeded extension
+        switch (EXlayer2->ipVersion) {
+            case 0: {  // not present - guess which IP version
+                uint64_t *ipv4SrcDst = (uint64_t *)handle->extensionList[EXipv4FlowID];
+                if (*ipv4SrcDst == 0) {
+                    // we have an ipv6 flow record
+                    handle->extensionList[EXipv4FlowID] = NULL;
+                } else {
+                    // we have an ipv4 flow record
+                    handle->extensionList[EXipv6FlowID] = NULL;
+                }
+                recordHeaderV3->numElements--;
+            } break;
+            case 4:
+                handle->extensionList[EXipv6FlowID] = NULL;
+                recordHeaderV3->numElements--;
+                break;
+            case 6:
+                handle->extensionList[EXipv4FlowID] = NULL;
+                recordHeaderV3->numElements--;
+                break;
+            default:
+                LogError("Mapping record: %" PRIu64 "  - Error - unknown IP version: %d", flowCount, EXlayer2->ipVersion);
+        }
+        return;
+    }
+
+    // nope -  no layer 2 records - guess, which IP Extension to use
+    // a 64bit uint64_t spans over src and dst ipv4 addr
+    uint64_t *ipv4SrcDst = (uint64_t *)handle->extensionList[EXipv4FlowID];
+
+    if (*ipv4SrcDst == 0) {
+        // we have an ipv6 flow record
+        handle->extensionList[EXipv4FlowID] = NULL;
+    } else {
+        // we have an ipv4 flow record
+        handle->extensionList[EXipv6FlowID] = NULL;
+    }
+    recordHeaderV3->numElements--;
+
+}  // End of ResolveMultipleIPrecords
+
 static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint64_t flowCount) {
     payloadHandle_t *payloadHandle = (payloadHandle_t *)handle->extensionList[EXinPayloadHandle];
     if (payloadHandle) {
@@ -94,28 +142,13 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
             if (natCommon) genericFlow->msecFirst = natCommon->msecEvent;
         }
     }
-    EXlayer2_t *EXlayer2 = (EXlayer2_t *)handle->extensionList[EXlayer2ID];
-    if (EXlayer2) {
-        // Honor the IPversion flag and mask out the unneeded extension
-        switch (EXlayer2->ipVersion) {
-            case 0:  // not present - skip
-                break;
-            case 4:
-                if (handle->extensionList[EXipv6FlowID]) {
-                    handle->extensionList[EXipv6FlowID] = NULL;
-                    recordHeaderV3->numElements--;
-                }
-                break;
-            case 6:
-                if (handle->extensionList[EXipv4FlowID]) {
-                    handle->extensionList[EXipv4FlowID] = NULL;
-                    recordHeaderV3->numElements--;
-                }
-                break;
-            default:
-                LogError("Mapping record: %" PRIu64 "  - Error - unknown IP version: %d", flowCount, EXlayer2->ipVersion);
-        }
+
+    // Fix lazy exporters, sending both - IPv4 and IPv6 addresses in the same record
+    // check first IPv6 as expected less often
+    if (handle->extensionList[EXipv6FlowID] && handle->extensionList[EXipv4FlowID]) {
+        ResolveMultipleIPrecords(handle, recordHeaderV3, flowCount);
     }
+
     return 1;
 }
 
