@@ -451,18 +451,14 @@ static char *ExpandWildcard(char *path) {
 static int GetFileList(char *path, timeWindow_t *timeWindow) {
     struct stat stat_buf;
     char *last_file_ptr, *first_path, *last_path;
-    int levels_first_file, levels_last_file, file_list_level;
     int sub_index;
-
-    FTS *fts;
-    FTSENT *ftsent;
 
     CleanPath(path);
 
     // Check for last_file option
     last_file_ptr = strchr(path, ':');
     first_path = last_path = NULL;
-    levels_first_file = levels_last_file = 0;
+    int levels_last_file = 0;
     if (last_file_ptr) {
         // make sure we have only a single ':' in path
         if (strrchr(path, ':') != last_file_ptr) {
@@ -501,8 +497,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
         }
     }
 
-    levels_first_file = dirlevels(path);
-
+    int file_list_level = 0;
     if (source_dirs.num_strings == 0) {
         // No multiple sources option -M
 
@@ -518,7 +513,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
         }
 
         // Check, how many levels of directory in path
-        levels_first_file = dirlevels(path);
+        int levels_first_file = dirlevels(path);
 
         if (last_file_ptr) {
             // path is [/]path/to/any/dir|file:last_file_ptr
@@ -700,7 +695,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
 
                     } else {  // no file in any possible subdir found
                         LogError("stat() error '%s': %s", pathbuff, "File not found!");
-                        exit(250);
+                        return 0;
                     }
                 } else {  // Any other stat error
                     LogError("stat() error '%s': %s", pathbuff, strerror(errno));
@@ -712,7 +707,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
             }
 
             // Check, how many levels of directory in path
-            levels_first_file = dirlevels(path);
+            int levels_first_file = dirlevels(path);
 
             if (last_file_ptr) {
                 // path is path/to/any/first_file:last_file_ptr
@@ -777,8 +772,10 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
         LogError("ERROR: No source dir at %s line %d", __FILE__, __LINE__);
         return 0;
     }
-    fts = fts_open(source_dirs.list, FTS_LOGICAL, compare);
+
     sub_index = 0;
+    FTSENT *ftsent;
+    FTS *fts = fts_open(source_dirs.list, FTS_LOGICAL, compare);
     while ((ftsent = fts_read(fts)) != NULL) {
         int fts_level = ftsent->fts_level;
         char *fts_path;
@@ -802,7 +799,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
         switch (ftsent->fts_info) {
             case FTS_D:
                 // dir entry pre descend
-                if (file_list_level && file_list_level &&
+                if (file_list_level &&
                     ((dir_entry_filter[fts_level].first_entry && (strcmp(fts_path, dir_entry_filter[fts_level].first_entry) < 0)) ||
                      (dir_entry_filter[fts_level].last_entry && (strcmp(fts_path, dir_entry_filter[fts_level].last_entry) > 0))))
                     fts_set(fts, ftsent, FTS_SKIP);

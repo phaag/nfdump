@@ -52,7 +52,7 @@
 
 #include "config.h"
 
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
 #include "pcap_reader.h"
 #endif
 
@@ -117,7 +117,7 @@ static void usage(char *name) {
         "-b host\t\tbind socket to host/IP addr\n"
         "-J mcastgroup\tJoin multicast group <mcastgroup>\n"
         "-p portnum\tlisten on port portnum\n"
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
         "-f pcapfile\tRead network data from pcap file.\n"
         "-d device\tRead network data from device (interface).\n"
 #endif
@@ -473,7 +473,7 @@ int main(int argc, char **argv) {
     time_t twin;
     int sock, do_daemonize, expire, spec_time_extension, workers;
     int subdir_index, sampling_rate, compress, srcSpoofing;
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
     char *pcap_file = NULL;
     char *pcap_device = NULL;
 #endif
@@ -533,7 +533,7 @@ int main(int argc, char **argv) {
             case 'e':
                 expire = 1;
                 break;
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
             case 'f': {
                 if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 pcap_file = optarg;
@@ -820,35 +820,35 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    // Debug code to read from pcap file
-
+    // Read from yaf file instead of the network
     sock = 0;
     if (yaf_file) {
         if (!setup_yaf(yaf_file)) exit(EXIT_FAILURE);
         receive_packet = NextYafRecord;
         LogError("Reading offline yaffile");
     } else
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
+        // Debug code to read from pcap file
         if (pcap_file) {
-        printf("Setup pcap file reader\n");
-        if (!setup_pcap_offline(pcap_file, NULL)) {
-            LogError("Setup pcap offline failed.");
-            exit(EXIT_FAILURE);
-        }
-        receive_packet = NextPacket;
-    } else if (pcap_device) {
-        printf("Setup pcap device reader\n");
-        if (!setup_pcap_live(pcap_device, NULL, bufflen)) {
-            LogError("Setup pcap device failed.");
-            exit(EXIT_FAILURE);
-        }
-        receive_packet = NextPacket;
-    } else
+            printf("Setup pcap file reader\n");
+            if (!setup_pcap_offline(pcap_file, NULL)) {
+                LogError("Setup pcap offline failed.");
+                exit(EXIT_FAILURE);
+            }
+            receive_packet = NextPacket;
+        } else if (pcap_device) {
+            printf("Setup pcap device reader\n");
+            if (!setup_pcap_live(pcap_device, NULL, bufflen)) {
+                LogError("Setup pcap device failed.");
+                exit(EXIT_FAILURE);
+            }
+            receive_packet = NextPacket;
+        } else
 #endif
-        if (mcastgroup)
-        sock = Multicast_receive_socket(mcastgroup, listenport, family, bufflen);
-    else
-        sock = Unicast_receive_socket(bindhost, listenport, family, bufflen);
+            if (mcastgroup)
+            sock = Multicast_receive_socket(mcastgroup, listenport, family, bufflen);
+        else
+            sock = Unicast_receive_socket(bindhost, listenport, family, bufflen);
 
     if (sock == -1) {
         LogError("Terminated due to errors");

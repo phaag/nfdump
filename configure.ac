@@ -66,7 +66,10 @@ AM_CONDITIONAL([ENABLE_JNAT], [test x$enable_jnat = xyes])
 AM_CONDITIONAL([DEVEL_MODE], [test x$enable_devel = xyes])
 AM_CONDITIONAL([ENABLE_JA4], [test x$enable_ja4 = xyes])
 AS_IF([test x$enable_ja4 = xyes], [
-	AC_DEFINE([BUILD_JA4], [1], ["Has $3 installed"])
+	AC_DEFINE([BUILD_JA4], [1], ["Enable a4 code"])
+])
+AS_IF([test x$enable_readpcap = xyes], [
+	AC_DEFINE([ENABLE_READPCAP], [1], ["Enable read pcap code in collectors"])
 ])
 
 # --- check for big/little endian ---

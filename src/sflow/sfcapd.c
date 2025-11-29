@@ -52,7 +52,7 @@
 
 #include "config.h"
 
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
 #include "pcap_reader.h"
 #endif
 
@@ -116,7 +116,7 @@ static void usage(char *name) {
         "-b host\t\tbind socket to host/IP addr\n"
         "-J mcastgroup\tJoin multicast group <mcastgroup>\n"
         "-p portnum\tlisten on port portnum\n"
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
         "-f pcapfile\tRead network data from pcap file.\n"
         "-d device\tRead network data from device (interface).\n"
 #endif
@@ -308,7 +308,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
         /* read next bunch of data into begin of input buffer */
         if (!done) {
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
             // Debug code to read from pcap file, or from socket
             cnt = receive_packet(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&sf_sender, &sf_sender_size);
 
@@ -447,7 +447,7 @@ int main(int argc, char **argv) {
     int sock, do_daemonize, expire, spec_time_extension, parse_tun;
     int subdir_index, compress, srcSpoofing;
     uint64_t workers;
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
     char *pcap_file = NULL;
     char *pcap_device = NULL;
 #endif
@@ -507,7 +507,7 @@ int main(int argc, char **argv) {
             case 'e':
                 expire = 1;
                 break;
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
             case 'f': {
                 struct stat fstat;
                 pcap_file = optarg;
@@ -802,7 +802,7 @@ int main(int argc, char **argv) {
     }
 
     // Debug code to read from pcap file
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
     sock = 0;
     if (pcap_file) {
         printf("Setup pcap reader\n");
