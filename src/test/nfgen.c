@@ -341,15 +341,14 @@ int main(int argc, char **argv) {
     genericFlow->inBytes = 33445566LL;
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
+    // remove v6 extension
+    RemoveExtension(recordHandle, EXipv6FlowID);
+
     // bring back ipv4
     PushExtension(v3Record, EXipv4Flow, ipv4Flow);
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     SetIPaddress(recordHandle, PF_INET, "172.16.1.68", "192.168.170.104");
-    // this record has ipv4 and ipv6 records
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
-
-    // remove v6 extension
-    RemoveExtension(recordHandle, EXipv6FlowID);
 
     // EXflowMiscID
     PushExtension(v3Record, EXflowMisc, flowMisc);
@@ -589,6 +588,10 @@ int main(int argc, char **argv) {
     natXlateIPv4->xlateDstAddr = ntohl(natXlateIPv4->xlateDstAddr);
     UpdateRecord(recordHandle);
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
+
+    // Add ipv6 extension without any data - get skipped but stored
+    PushExtension(v3Record, EXipv6Flow, dummpIPv6);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
 
     PushExtension(v3Record, EXipInfo, ipInfo);
     AssertMapRecordHandle(recordHandle, v3Record, 0);

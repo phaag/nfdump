@@ -116,8 +116,8 @@ Flow Record:
   RecordCount  =                  6
   Ident        =          TestFlows
   Flags        =               0x00 NETFLOW v10, Unsampled
-  Elements     =                  3: 1 2 3 
-  size         =                112
+  Elements     =                  2: 1 2 
+  size         =                 76
   engine type  =                  7
   engine ID    =                  8
   export sysid =                  3
@@ -134,8 +134,6 @@ Flow Record:
   in bytes     =           33445566
   src addr     =        172.16.1.68
   dst addr     =    192.168.170.104
-  src addr     =   fe80::2110:abcd:1234:0
-  dst addr     =   fe80::2110:abcd:1235:4321
 
 Flow Record: 
   RecordCount  =                  7
@@ -1190,7 +1188,7 @@ Flow Record:
   Ident        =          TestFlows
   Flags        =               0x00 NETFLOW v10, Unsampled
   Elements     =                 18: 1 2 4 5 7 8 10 12 14 15 16 17 20 22 25 26 38 42 
-  size         =                376
+  size         =                412
   engine type  =                 34
   engine ID    =                 35
   export sysid =                  3

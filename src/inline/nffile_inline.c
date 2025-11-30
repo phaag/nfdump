@@ -35,11 +35,13 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
 
 static inline dataBlock_t *AppendToBuffer(nffile_t *nffile, dataBlock_t *dataBlock, void *record, size_t required);
 
-// Fix lazzy exporters, sending both - IPv4 and IPv6 addresses in the same record
+// Fix lazy exporters, sending both - IPv4 and IPv6 addresses in the same record
 // lot of code for nothing!!
 static inline void ResolveMultipleIPrecords(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint64_t flowCount) {
+    dbg_printf("ResolveMultipleIPrecords\n");
     // check, if the at least announce the ipVersion element
     EXlayer2_t *EXlayer2 = (EXlayer2_t *)handle->extensionList[EXlayer2ID];
+    uint32_t skipID = 0;
     if (EXlayer2) {
         // Honor the IPversion flag and mask out the unneeded extension
         switch (EXlayer2->ipVersion) {
@@ -47,39 +49,49 @@ static inline void ResolveMultipleIPrecords(recordHandle_t *handle, recordHeader
                 uint64_t *ipv4SrcDst = (uint64_t *)handle->extensionList[EXipv4FlowID];
                 if (*ipv4SrcDst == 0) {
                     // we have an ipv6 flow record
-                    handle->extensionList[EXipv4FlowID] = NULL;
+                    skipID = EXipv4FlowID;
                 } else {
                     // we have an ipv4 flow record
-                    handle->extensionList[EXipv6FlowID] = NULL;
+                    skipID = EXipv6FlowID;
                 }
-                recordHeaderV3->numElements--;
             } break;
             case 4:
-                handle->extensionList[EXipv6FlowID] = NULL;
-                recordHeaderV3->numElements--;
+                skipID = EXipv6FlowID;
                 break;
             case 6:
-                handle->extensionList[EXipv4FlowID] = NULL;
-                recordHeaderV3->numElements--;
+                skipID = EXipv4FlowID;
                 break;
             default:
                 LogError("Mapping record: %" PRIu64 "  - Error - unknown IP version: %d", flowCount, EXlayer2->ipVersion);
         }
-        return;
-    }
 
-    // nope -  no layer 2 records - guess, which IP Extension to use
-    // a 64bit uint64_t spans over src and dst ipv4 addr
-    uint64_t *ipv4SrcDst = (uint64_t *)handle->extensionList[EXipv4FlowID];
-
-    if (*ipv4SrcDst == 0) {
-        // we have an ipv6 flow record
-        handle->extensionList[EXipv4FlowID] = NULL;
     } else {
-        // we have an ipv4 flow record
-        handle->extensionList[EXipv6FlowID] = NULL;
+        // nope -  no layer 2 records - guess, which IP Extension to use
+        // a 64bit uint64_t spans over src and dst ipv4 addr
+        uint64_t *ipv4SrcDst = (uint64_t *)handle->extensionList[EXipv4FlowID];
+
+        if (*ipv4SrcDst == 0) {
+            // we have an ipv6 flow record
+            skipID = EXipv4FlowID;
+        } else {
+            // we have an ipv4 flow record
+            skipID = EXipv6FlowID;
+        }
     }
-    recordHeaderV3->numElements--;
+
+    // mark element to skip as EXnull with length != 0
+    if (skipID) {
+        void *skipElement = handle->extensionList[skipID];
+        elementHeader_t *elementHeader = (elementHeader_t *)(skipElement - sizeof(elementHeader_t));
+        elementHeader->type = EXnull;
+        handle->extensionList[skipID] = NULL;
+        recordHeaderV3->numElements--;
+    }
+
+#ifdef DEVEL
+    if (handle->extensionList[EXipv4FlowID] == NULL) printf("Unmapped IPv4\n");
+    if (handle->extensionList[EXipv6FlowID] == NULL) printf("Unmapped IPv6\n");
+#endif
 
 }  // End of ResolveMultipleIPrecords
 
@@ -108,24 +120,31 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
 
     elementHeader_t *elementHeader = (elementHeader_t *)((void *)recordHeaderV3 + sizeof(recordHeaderV3_t));
     // map all extensions
-    for (int i = 0; i < recordHeaderV3->numElements; i++) {
+    int num = 0;
+    while (num < recordHeaderV3->numElements) {
         if ((void *)elementHeader > eor) {
-            LogError("Mapping record: %" PRIu64 "  - Error - element %d out of bounds", flowCount, i);
+            LogError("Mapping record: %" PRIu64 "  - Error - element %d out of bounds", flowCount, num);
             return 0;
         }
-        if (elementHeader->length == 0 || elementHeader->type == 0) {
-            LogInfo("Mapping record: %" PRIu64 " - Corrupt extension %d Type: %u with Length: %u", flowCount, i, elementHeader->type,
+        if (elementHeader->length == 0) {
+            LogInfo("Mapping record: %" PRIu64 " - Corrupt extension %d Type: %u with Length: %u", flowCount, num, elementHeader->type,
                     elementHeader->length);
             return 0;
+        }
+        if (elementHeader->type == 0) {
+            // Skip this record - advance to next record
+            elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
+            continue;
         }
         if (elementHeader->type < MAXEXTENSIONS) {
             handle->extensionList[elementHeader->type] = (void *)elementHeader + sizeof(elementHeader_t);
         } else {
-            LogInfo("Mapping record: %" PRIu64 " - Skip unknown extension %d Type: %u, Length: %u", flowCount, i, elementHeader->type,
+            LogInfo("Mapping record: %" PRIu64 " - Skip unknown extension %d Type: %u, Length: %u", flowCount, num, elementHeader->type,
                     elementHeader->length);
             DumpHex(stdout, (void *)recordHeaderV3, recordHeaderV3->size);
         }
         elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
+        num++;
     }
     handle->extensionList[EXheader] = (void *)recordHeaderV3;
     handle->extensionList[EXlocal] = (void *)handle;

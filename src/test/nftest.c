@@ -62,19 +62,40 @@
 
 /* Functions */
 
+static void DisableExtension(void *element) {
+    elementHeader_t *elementHeader = (elementHeader_t *)(element - sizeof(elementHeader_t));
+    elementHeader->type = EXnull;
+}  // End of DisableExtension
+
+static void EnableExtension(void *element, uint16_t elementID) {
+    elementHeader_t *elementHeader = (elementHeader_t *)(element - sizeof(elementHeader_t));
+    elementHeader->type = elementID;
+}  // End of EnableExtension
+
 static void DumpRecord(recordHandle_t *recordHandle) {
-    printf("V3 Record:\n");
-    DumpHex(stdout, (void *)recordHandle, sizeof(recordHeaderV3_t));
+    recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
+    printf("V3 Record - Elements: %u, Size: %u:\n", recordHeaderV3->numElements, recordHeaderV3->size);
+    ptrdiff_t recordSize = recordHeaderV3->size;
+    void *eor = (void *)recordHeaderV3 + recordSize;
+    DumpHex(stdout, (void *)recordHeaderV3, sizeof(recordHeaderV3_t));
+    uint32_t cnt = 0;
     for (int i = 0; i < MAXEXTENSIONS; i++) {
         void *element = (void *)recordHandle->extensionList[i];
         if (element) {
+            cnt++;
+            if (cnt > recordHeaderV3->numElements) {
+                printf("### Count error - found more elements, than announced by record\n");
+            }
             elementHeader_t *elementHeader = (elementHeader_t *)(element - sizeof(elementHeader_t));
-            printf("Element: %u\n", elementHeader->type);
+            printf("Slot: %d, Element: %u, Size: %u\n", i, elementHeader->type, elementHeader->length);
+            if ((element + (ptrdiff_t)elementHeader->length) >= eor) {
+                printf("### Size error - end of element beyond end of record\n");
+            }
             DumpHex(stdout, (void *)elementHeader, elementHeader->length);
         }
     }
 
-    printf("Count: %" PRIu64 "\n", recordHandle->flowCount);
+    printf("Flow Count: %" PRIu64 "\n", recordHandle->flowCount);
     payloadHandle_t *payloadHandle = recordHandle->extensionList[EXinPayloadHandle];
     if (payloadHandle) {
         ssl_t *ssl = payloadHandle->ssl;
@@ -340,9 +361,6 @@ static void runTest(void) {
     MapRecordHandle(recordHandle, recordHeaderV3, 1);
     CheckFilter("ipv4", recordHandle, 1);
     CheckFilter("ipv6", recordHandle, 0);
-    PushExtension(recordHeaderV3, EXipv6Flow, ipv6);
-    MapRecordHandle(recordHandle, recordHeaderV3, 1);
-    CheckFilter("ipv6", recordHandle, 1);
     uint32_t v4 = 0;
     inet_pton(PF_INET, "1.2.3.4", &v4);
     ipv4->srcAddr = ntohl(v4);
@@ -354,6 +372,12 @@ static void runTest(void) {
     CheckFilter("src ip 1.2.3.4", recordHandle, 0);
     CheckFilter("dst ip 1.2.3.4", recordHandle, 1);
     CheckFilter("ip 1.2.3.4", recordHandle, 1);
+    ipv4->srcAddr = 0;
+    ipv4->dstAddr = 0;
+
+    PushExtension(recordHeaderV3, EXipv6Flow, ipv6);
+    MapRecordHandle(recordHandle, recordHeaderV3, 1);
+    CheckFilter("ipv6", recordHandle, 1);
 
     // EXipv6FlowID
     uint64_t v6[2];
@@ -518,24 +542,32 @@ static void runTest(void) {
     ipv4->srcAddr = ntohl(v4);
     inet_pton(PF_INET, "172.16.17.18", &v4);
     ipv4->dstAddr = ntohl(v4);
+    DisableExtension((void *)ipv6);
+    EnableExtension((void *)ipv4, EXipv4FlowID);
+    MapRecordHandle(recordHandle, recordHeaderV3, 1);
     CheckFilter("src ip in [8.8.8.8 2.2.2.2 192.168.169.170]", recordHandle, 1);
     CheckFilter("ip in [8.8.8.8 2.2.2.2 192.168.169.170]", recordHandle, 1);
     CheckFilter("dst ip 172.16.17.18", recordHandle, 1);
     CheckFilter("dst ip in [8.8.8.8 2.2.2.2 192.168.169.170]", recordHandle, 0);
     CheckFilter("dst ip in [8.8.8.8 2.2.2.2 192.168.169.171 172.16.17.18]", recordHandle, 1);
+    CheckFilter("src ip in [192.168.169.0/24]", recordHandle, 1);
+    CheckFilter("src ip in [8.8.8.8 192.168.169.0/24]", recordHandle, 1);
+    CheckFilter("ip in [8.8.8.8 2.2.2.2 192.168.169.171]", recordHandle, 0);
+    CheckFilter("dst ip in [8.8.8.8 2.2.2.2 192.168.169.171]", recordHandle, 0);
+    CheckFilter("src ip in [8.8.8.8 2.2.2.2 192.168.169.171]", recordHandle, 0);
 
     inet_pton(PF_INET6, "fe80::2110:abcd:1234:5678", v6);
     ipv6->srcAddr[0] = ntohll(v6[0]);
     ipv6->srcAddr[1] = ntohll(v6[1]);
     ipv6->dstAddr[0] = 0;
     ipv6->dstAddr[1] = 0;
+    DisableExtension((void *)ipv4);
+    EnableExtension((void *)ipv6, EXipv6FlowID);
+    MapRecordHandle(recordHandle, recordHeaderV3, 1);
     CheckFilter("src ip fe80::2110:abcd:1234:5678", recordHandle, 1);
     CheckFilter("src ip in [fe80::2110:abcd:1234:5678]", recordHandle, 1);
     CheckFilter("src ip in [8.8.8.8 2.2.2.2 192.168.169.171]", recordHandle, 0);
-    CheckFilter("src ip in [192.168.169.0/24]", recordHandle, 1);
-    CheckFilter("src ip in [8.8.8.8 192.168.169.0/24]", recordHandle, 1);
-    CheckFilter("ip in [8.8.8.8 2.2.2.2 192.168.169.171]", recordHandle, 0);
-    CheckFilter("dst ip in [8.8.8.8 2.2.2.2 192.168.169.171]", recordHandle, 0);
+
     CheckFilter("src ip in [8.8.8.8 2.2.2.2 192.168.169.171 fe80::2110:abcd:1234:5678]", recordHandle, 1);
     inet_pton(PF_INET6, "2001:620:0:ff::5c", v6);
     ipv6->dstAddr[0] = ntohll(v6[0]);
@@ -725,6 +757,9 @@ static void runTest(void) {
     ipv4->srcAddr = ntohl(v4);
     inet_pton(PF_INET, "172.16.18.19", &v4);
     ipv4->dstAddr = ntohl(v4);
+    DisableExtension((void *)ipv6);
+    EnableExtension((void *)ipv4, EXipv4FlowID);
+    MapRecordHandle(recordHandle, recordHeaderV3, 1);
     CheckFilter("src net 192.168.169.0 255.255.255.0", recordHandle, 1);
     CheckFilter("src net 192.168.168.0 255.255.255.0", recordHandle, 0);
     CheckFilter("src net 192.168.169.0/24", recordHandle, 1);
@@ -736,6 +771,9 @@ static void runTest(void) {
     inet_pton(PF_INET6, "2001:620:0:ff::5c", v6);
     ipv6->srcAddr[0] = ntohll(v6[0]);
     ipv6->srcAddr[1] = ntohll(v6[1]);
+    DisableExtension((void *)ipv4);
+    EnableExtension((void *)ipv6, EXipv6FlowID);
+    MapRecordHandle(recordHandle, recordHeaderV3, 1);
     CheckFilter("src net 2001::/16", recordHandle, 1);
     CheckFilter("net 2001::/16", recordHandle, 1);
 
