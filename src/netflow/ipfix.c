@@ -506,8 +506,7 @@ static exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t ObservationDomai
         dbg_printf("Add static sampler for default sampling: %u\n", defaultSampling);
     }
 
-    dbg_printf("[%u] New ipfix exporter: SysID: %u, Observation domain %u from: %s:%u\n", ObservationDomain, (*e)->info.sysid, ObservationDomain,
-               ipstr, fs->port);
+    dbg_printf("[%u] New ipfix exporter: SysID: %u, Observation domain %u from: %s\n", ObservationDomain, (*e)->info.sysid, ObservationDomain, ipstr);
     LogInfo("Process_ipfix: New ipfix exporter: SysID: %u, Observation domain %u from: %s", (*e)->info.sysid, ObservationDomain, ipstr);
 
     return (*e);

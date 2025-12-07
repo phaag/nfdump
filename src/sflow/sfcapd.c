@@ -143,8 +143,8 @@ static void usage(char *name) {
         "-D\t\tFork to background\n"
         "-E\t\tPrint extended format of sflow data. For debugging purpose only.\n"
         "-v\t\tIncrease verbose level.\n"
-        "-4\t\tListen on IPv4 (default).\n"
-        "-6\t\tListen on IPv6.\n"
+        "-4\t\tListen on IPv4 only.\n"
+        "-6\t\tListen on IPv6 only\n"
         "-X <extlist>\t',' separated list of extensions (numbers). Default all extensions.\n"
         "-V\t\tPrint version and exit.\n"
         "-Z\t\tAdd timezone offset to filename.\n",
@@ -387,7 +387,8 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
         // get flow source record for current packet, identified by sender IP address
         fs = GetFlowSource(&sf_sender);
         if (fs == NULL) {
-            fs = AddDynamicSource(&FlowSource, &sf_sender);
+            char *clientIPstr = GetClientIPstring(&sf_sender);
+            fs = AddDynamicSource(&FlowSource, clientIPstr);
             if (fs == NULL) {
                 LogError("Skip UDP packet. Ignored packets so far %u packets", ignored_packets);
                 ignored_packets++;

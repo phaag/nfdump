@@ -128,8 +128,8 @@ static void usage(char *name) {
         "-I Ident\tset the ident string for stat file. (default 'none')\n"
         "-n Ident,IP,flowdir\tAdd this flow source - multiple streams\n"
         "-i interval\tMetric interval in s for metric exporter\n"
-        "-m socket\t\tEnable metric exporter on socket.\n"
-        "-M dir \t\tSet the output directory for dynamic sources.\n"
+        "-m socket\tEnable metric exporter on socket.\n"
+        "-M dir \tSet the output directory for dynamic sources.\n"
         "-P pidfile\tset the PID file\n"
         "-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
         "-A\t\tEnable source address spoofing for packet repeater -R.\n"
@@ -145,8 +145,8 @@ static void usage(char *name) {
         "-D\t\tFork to background\n"
         "-E\t\tPrint extended format of netflow data. For debugging purpose only.\n"
         "-v\t\tIncrease verbose level.\n"
-        "-4\t\tListen on IPv4 (default).\n"
-        "-6\t\tListen on IPv6.\n"
+        "-4\t\tListen on IPv4 only.\n"
+        "-6\t\tListen on IPv6 only\n"
         "-X <extlist>\t',' separated list of extensions (numbers). Default all extensions.\n"
         "-V\t\tPrint version and exit.\n"
         "-Z\t\tAdd timezone offset to filename.\n",
@@ -313,7 +313,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
             // Debug code to read from pcap file, or from socket
             cnt = receive_packet(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&nf_sender, &nf_sender_size);
 
-            dbg_printf("Received packet from: %s\n", GetFlowSourceIP(&nf_sender));
+            dbg_printf("Received packet from: %s\n", GetClientIPstring(&nf_sender));
 
             // in case of reading from file EOF => -2
             if (cnt == -2) done = 1;
@@ -387,7 +387,8 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
         // get flow source record for current packet, identified by sender IP address
         fs = GetFlowSource(&nf_sender);
         if (fs == NULL) {
-            fs = AddDynamicSource(&FlowSource, &nf_sender);
+            char *clientIPstr = GetClientIPstring(&nf_sender);
+            fs = AddDynamicSource(&FlowSource, clientIPstr);
             if (fs == NULL) {
                 LogError("Skip UDP packet. Ignored packets so far %u packets", ignored_packets);
                 ignored_packets++;
@@ -438,7 +439,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
             default:
                 // data error, while reading data from socket
                 LogError("Ident: %s, Error packet %llu: reading netflow header: Unexpected netflow version %i from: %s", fs->Ident, packets, version,
-                         GetFlowSourceIP(&nf_sender));
+                         GetClientIPstring(&nf_sender));
                 fs->bad_packets++;
                 continue;
 
@@ -728,6 +729,7 @@ int main(int argc, char **argv) {
                 }
                 if (optarg == NULL) {
                     compress = LZO_COMPRESSED;
+                    LogInfo("Legacy option -z defaults to -z=lzo. Use -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                 } else {
                     compress = ParseCompression(optarg);
                 }
@@ -741,19 +743,21 @@ int main(int argc, char **argv) {
                 spec_time_extension = 1;
                 break;
             case '4':
-                if (family == AF_UNSPEC)
+                // one or multiple -4 options
+                if (family == AF_UNSPEC || family == AF_INET)
                     family = AF_INET;
                 else {
-                    LogError("ERROR, Accepts only one protocol IPv4 or IPv6!");
-                    exit(EXIT_FAILURE);
+                    // in case of -4 -6, use AF_UNSPEC for default dual stack
+                    family = AF_UNSPEC;
                 }
                 break;
             case '6':
-                if (family == AF_UNSPEC)
+                // one or multiple -6 options
+                if (family == AF_UNSPEC || family == AF_INET6)
                     family = AF_INET6;
                 else {
-                    LogError("ERROR, Accepts only one protocol IPv4 or IPv6!");
-                    exit(EXIT_FAILURE);
+                    // in case of -4 -6, use AF_UNSPEC for default dual stack
+                    family = AF_UNSPEC;
                 }
                 break;
             default:

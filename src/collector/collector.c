@@ -114,16 +114,14 @@ int AddFlowSourceConfig(FlowSource_t **FlowSource) {
 }  // end of AddFlowSourceConfig
 
 int AddFlowSource(FlowSource_t **FlowSource, char *ident, char *ip, char *flowpath) {
-    FlowSource_t **source = NULL;
-    int has_any_source = 0;
-    int num_sources = 0;
-
     if (DynamicSourcesDir) {
         LogError("Can not mix IP specific and any IP sources");
         return 0;
     }
 
-    source = FlowSource;
+    FlowSource_t **source = FlowSource;
+    int has_any_source = 0;
+    int num_sources = 0;
     while (*source) {
         has_any_source |= (*source)->any_source;
         source = &((*source)->next);
@@ -217,6 +215,7 @@ int AddFlowSource(FlowSource_t **FlowSource, char *ident, char *ip, char *flowpa
 
 }  // End of AddFlowSource
 
+// Add flow source from cli argument -n <ident>,<IP>,<path>
 int AddFlowSourceString(FlowSource_t **FlowSource, char *argument) {
     char *ident = argument;
     char *ip = NULL;
@@ -240,129 +239,85 @@ int AddFlowSourceString(FlowSource_t **FlowSource, char *argument) {
 
 }  // End of AddFlowSourceString
 
-FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storage *ss) {
-    FlowSource_t **source;
-    void *ptr;
-    char *s, ident[100];
-    int err;
-
-    union {
-        struct sockaddr_storage *ss;
-        struct sockaddr *sa;
-        struct sockaddr_in *sa_in;
-        struct sockaddr_in6 *sa_in6;
-    } u;
-    u.ss = ss;
-
+FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, const char *ident) {
     if (!DynamicSourcesDir) return NULL;
 
-    source = FlowSource;
-    while (*source) {
-        source = &((*source)->next);
-    }
-
-    *source = (FlowSource_t *)calloc(1, sizeof(FlowSource_t));
-    if (!*source) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    FlowSource_t *fs = (FlowSource_t *)calloc(1, sizeof(FlowSource_t));
+    if (!fs) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
-    (*source)->next = NULL;
-    (*source)->bookkeeper = NULL;
-    (*source)->any_source = 0;
-    (*source)->exporter_data = NULL;
-    (*FlowSource)->exporter_count = 0;
 
-    switch (ss->ss_family) {
-        case PF_INET: {
-#ifdef HAVE_STRUCT_SOCKADDR_STORAGE_SS_LEN
-            if (ss->ss_len != sizeof(struct sockaddr_in)) {
-                // malformed struct
-                LogError("Malformed IPv4 socket struct in '%s', line '%d'", __FILE__, __LINE__);
-                free(*source);
-                *source = NULL;
-                return NULL;
-            }
-#endif
-            (*source)->sa_family = PF_INET;
-            (*source)->ip.V6[0] = 0;
-            (*source)->ip.V6[1] = 0;
-            (*source)->ip.V4 = ntohl(u.sa_in->sin_addr.s_addr);
-            ptr = &u.sa_in->sin_addr;
-        } break;
-        case PF_INET6: {
-            uint64_t *ip_ptr = (uint64_t *)u.sa_in6->sin6_addr.s6_addr;
+    int ok = 0;
+    if (strchr(ident, ':') != NULL) {
+        // assume IPv6
+        fs->sa_family = AF_INET6;
+        uint64_t _ip[2] = {0};
+        ok = inet_pton(PF_INET6, ident, _ip);
+        fs->ip.V6[0] = ntohll(_ip[0]);
+        fs->ip.V6[1] = ntohll(_ip[1]);
+    } else {
+        // IPv4
+        fs->sa_family = AF_INET;
+        uint32_t _ip = 0;
+        ok = inet_pton(PF_INET, ident, &_ip);
+        fs->ip.V4 = ntohl(_ip);
+    }
 
-#ifdef HAVE_STRUCT_SOCKADDR_STORAGE_SS_LEN
-            if (ss->ss_len != sizeof(struct sockaddr_in6)) {
-                // malformed struct
-                LogError("Malformed IPv6 socket struct in '%s', line '%d'", __FILE__, __LINE__);
-                free(*source);
-                *source = NULL;
-                return NULL;
-            }
-#endif
-            // ptr = &((struct sockaddr_in6 *)sa)->sin6_addr;
-            (*source)->sa_family = PF_INET6;
-            (*source)->ip.V6[0] = ntohll(ip_ptr[0]);
-            (*source)->ip.V6[1] = ntohll(ip_ptr[1]);
-            ptr = &u.sa_in6->sin6_addr;
-        } break;
-        default:
-            // keep compiler happy
-            (*source)->ip.V6[0] = 0;
-            (*source)->ip.V6[1] = 0;
-            ptr = NULL;
-
-            LogError("Unknown sa fanily: %d in '%s', line '%d'", ss->ss_family, __FILE__, __LINE__);
-            free(*source);
-            *source = NULL;
+    switch (ok) {
+        case 0:
+            LogError("Unparsable IP address: %s", ident);
+            free(fs);
             return NULL;
+        case 1:
+            // success
+            break;
+        case -1:
+            LogError("Error while parsing IP address: %s", strerror(errno));
+            free(fs);
+            return NULL;
+            break;
     }
 
-    if (!ptr) {
-        free(*source);
-        *source = NULL;
-        return NULL;
-    }
-
-    inet_ntop(ss->ss_family, ptr, ident, sizeof(ident));
-    ident[99] = '\0';
-    dbg_printf("Dynamic Flow Source IP: %s\n", ident);
-
-    s = ident;
+    strncpy(fs->Ident, ident, IDENTLEN - 1);
+    char *s = fs->Ident;
+    // replace '.' and ':' - old NfSen requirement
     while (*s != '\0') {
         if (*s == '.' || *s == ':') *s = '-';
         s++;
     }
-    dbg_printf("Dynamic Flow Source ident: %s\n", ident);
-
-    strncpy((*source)->Ident, ident, IDENTLEN - 1);
-    (*source)->Ident[IDENTLEN - 1] = '\0';
+    fs->Ident[IDENTLEN - 1] = '\0';
+    dbg_printf("Dynamic Flow Source ident: %s\n", fs->Ident);
 
     char path[MAXPATHLEN];
     snprintf(path, MAXPATHLEN - 1, "%s/%s", DynamicSourcesDir, ident);
     path[MAXPATHLEN - 1] = '\0';
 
-    err = mkdir(path, 0755);
+    int err = mkdir(path, 0755);
     if (err != 0 && errno != EEXIST) {
         LogError("mkdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        free(*source);
-        *source = NULL;
+        free(fs);
         return NULL;
     }
-    (*source)->datadir = strdup(path);
+    fs->datadir = strdup(path);
 
     // cache current generic collector file
-    if (snprintf(path, MAXPATHLEN - 1, "%s/%s.XXXXXX", (*source)->datadir, NF_TMPFILE) >= (MAXPATHLEN - 1)) {
+    if (snprintf(path, MAXPATHLEN - 1, "%s/%s.XXXXXX", fs->datadir, NF_TMPFILE) >= (MAXPATHLEN - 1)) {
         LogError("Path too long: %s\n", path);
-        free(*source);
-        *source = NULL;
+        free(fs);
         return NULL;
     }
-    (*source)->tmpFileName = strdup(path);
+    fs->tmpFileName = strdup(path);
 
-    LogInfo("Dynamically add source ident: %s in directory: %s", ident, (*source)->datadir);
-    return *source;
+    LogInfo("Dynamically add source ident: %s in directory: %s", fs->Ident, fs->datadir);
+
+    FlowSource_t **source = FlowSource;
+    while (*source) {
+        source = &((*source)->next);
+    }
+    *source = fs;
+
+    return fs;
 
 }  // End of AddDynamicSource
 

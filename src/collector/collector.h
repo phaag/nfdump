@@ -74,7 +74,6 @@ typedef struct FlowSource_s {
     char Ident[IDENTLEN];
     ip_addr_t ip;
     uint32_t sa_family;
-    in_port_t port;
 
     int any_source;
     bookkeeper_t *bookkeeper;
@@ -116,7 +115,7 @@ int AddFlowSourceString(FlowSource_t **FlowSource, char *argument);
 
 int SetDynamicSourcesDir(FlowSource_t **FlowSource, char *dir);
 
-FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storage *ss);
+FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, const char *iden);
 
 int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int done);
 
