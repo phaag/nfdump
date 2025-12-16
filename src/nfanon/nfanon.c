@@ -238,7 +238,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
     dataBlock_t *nextBlock = NULL;
     dataBlock_t *dataBlock = NULL;
     // map datablock for workers - all workers
-    // process thesame block but different records
+    // process the same block but different records
     for (int i = 0; i < numWorkers; i++) {
         // set new datablock for all workers
         workerList[i]->dataBlock = &dataBlock;

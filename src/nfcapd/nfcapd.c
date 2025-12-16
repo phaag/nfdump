@@ -453,6 +453,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
     free(in_buff);
 
     fs = FlowSource;
+    dbg_printf("Stat: %llu sequence failures\n", fs->nffile->stat_record->sequence_failure);
     while (fs) {
         FreeDataBlock(fs->dataBlock);
         DisposeFile(fs->nffile);

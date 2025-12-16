@@ -89,8 +89,10 @@ typedef struct exporterDomain_s {
     // generic exporter information
     exporter_info_record_t info;
 
-    uint64_t packets;           // number of packets sent by this exporter
-    uint64_t flows;             // number of flow records sent by this exporter
+    uint64_t packets;  // number of packets sent by this exporter
+    uint64_t flows;    // number of flow records sent by this exporter
+    // sequence
+    uint32_t sequence;
     uint32_t sequence_failure;  // number of sequence failures
 
     // sampling information:
@@ -104,10 +106,6 @@ typedef struct exporterDomain_s {
 
     // exporter parameters
     uint64_t boot_time;
-    // sequence
-    int64_t last_sequence;
-    int64_t sequence;
-    int first;
 
     // statistics
     uint64_t TemplateRecords;  // stat counter
@@ -425,7 +423,7 @@ static inline exporterDomain_t *getExporter(FlowSource_t *fs, uint32_t exporter_
     (*e)->info.sa_family = fs->sa_family;
     (*e)->info.sysid = 0;
 
-    (*e)->first = 1;
+    (*e)->sequence = UINT32_MAX;
     (*e)->sequence_failure = 0;
     (*e)->TemplateRecords = 0;
     (*e)->DataRecords = 0;
@@ -1703,29 +1701,22 @@ static void ProcessOptionFlowset(exporterDomain_t *exporter, FlowSource_t *fs, t
 }  // End of ProcessOptionFlowset
 
 void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
-    exporterDomain_t *exporter;
-    void *flowset_header;
-    v9Header_t *v9_header;
-    int64_t distance;
-    uint32_t flowset_length, exporter_id;
-    ssize_t size_left;
-
 #ifdef DEVEL
     static int pkg_num = 1;
     dbg_printf("\nProcess_v9: Next packet: %i\n", pkg_num++);
 #endif
 
-    size_left = in_buff_cnt;
+    ssize_t size_left = in_buff_cnt;
     if (size_left < V9_HEADER_LENGTH) {
         LogError("Process_v9: Too little data for v9 packet: '%lli'", (long long)size_left);
         return;
     }
 
     // map v9 data structure to input buffer
-    v9_header = (v9Header_t *)in_buff;
-    exporter_id = ntohl(v9_header->source_id);
+    v9Header_t *v9_header = (v9Header_t *)in_buff;
+    uint32_t exporter_id = ntohl(v9_header->source_id);
 
-    exporter = getExporter(fs, exporter_id);
+    exporterDomain_t *exporter = getExporter(fs, exporter_id);
     if (!exporter) {
         LogError("Process_v9: Exporter NULL: Abort v9 record processing");
         return;
@@ -1737,7 +1728,7 @@ void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     v9_header->unix_secs = ntohl(v9_header->unix_secs);
     exporter->boot_time = (uint64_t)1000 * (uint64_t)(v9_header->unix_secs) - (uint64_t)v9_header->SysUptime;
 
-    flowset_header = (void *)v9_header + V9_HEADER_LENGTH;
+    void *flowset_header = (void *)v9_header + V9_HEADER_LENGTH;
     size_left -= V9_HEADER_LENGTH;
 
 #ifdef DEVEL
@@ -1747,31 +1738,30 @@ void Process_v9(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 #endif
 
     // sequence check
-    if (exporter->first) {
-        exporter->last_sequence = ntohl(v9_header->sequence);
-        exporter->sequence = exporter->last_sequence;
-        exporter->first = 0;
-    } else {
-        exporter->last_sequence = exporter->sequence;
-        exporter->sequence = ntohl(v9_header->sequence);
-        distance = exporter->sequence - exporter->last_sequence;
-        // handle overflow
-        if (distance < 0) {
-            distance = 0xffffffff + distance + 1;
-        }
+    uint32_t seq = ntohl(v9_header->sequence);
+
+    /*
+     * sequence == UINT32_MAX means "uninitialized"
+     * this is false exactly once, then always true
+     */
+    if (exporter->sequence != UINT32_MAX) {
+        uint32_t distance = seq - exporter->sequence; /* wrap-safe */
+
         if (distance != 1) {
             exporter->sequence_failure++;
             fs->nffile->stat_record->sequence_failure++;
-            dbg_printf("[%u] Sequence error: last seq: %lli, seq %lli dist %lli\n", exporter->info.id, (long long)exporter->last_sequence,
-                       (long long)exporter->sequence, (long long)distance);
+
+            dbg_printf("[%u] Sequence error: last seq: %u, seq %u, dist %u\n", exporter->info.id, exporter->sequence, seq, distance);
         }
     }
-    dbg_printf("Sequence: %" PRIu64 "\n", exporter->sequence);
+    exporter->sequence = seq;
+
+    dbg_printf("Sequence: %u\n", exporter->sequence);
 
     processed_records = 0;
 
     // iterate over all flowsets in export packet, while there are bytes left
-    flowset_length = 0;
+    uint32_t flowset_length = 0;
     while (size_left) {
         uint16_t flowset_id;
         if (size_left < 4) {

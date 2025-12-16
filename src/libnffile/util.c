@@ -192,6 +192,7 @@ int InitLog(int want_syslog, char *name, char *facility, int verbose_log) {
 
 #ifdef DEVEL
     verbose_log = 4;
+    want_syslog = 0;
 #endif
 
     verbose = verbose_log;

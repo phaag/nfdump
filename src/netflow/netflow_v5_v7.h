@@ -47,4 +47,6 @@ int Init_v5_v7(int verbose, int32_t sampling);
 
 void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 
+void dummy_Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
+
 #endif  //_NETFLOW_V5_V7_H

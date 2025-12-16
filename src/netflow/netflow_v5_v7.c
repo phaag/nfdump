@@ -140,20 +140,16 @@ typedef struct exporter_v5_s {
     // exporter information
     exporter_info_record_t info;  // exporter record nffile
 
-    uint64_t packets;           // number of packets sent by this exporter
-    uint64_t flows;             // number of flow records sent by this exporter
-    uint32_t sequence_failure;  // number of sequence failures
-    uint32_t padding_errors;    // number of sequence failures
+    uint64_t packets;  // number of packets sent by this exporter
+    uint64_t flows;    // number of flow records sent by this exporter
 
     sampler_t *sampler;  // list of samplers associated with this exporter
     // end of struct exporter_s
 
     // sequence vars
-    int first;
-    int64_t last_sequence;
-    int64_t sequence, distance;
-    int64_t last_count;
-
+    uint32_t sequence_failure;  // number of sequence failures
+    uint32_t last_count;
+    uint32_t sequence;
     uint32_t outRecordSize;
 
 } exporter_v5_t;
@@ -218,7 +214,7 @@ static inline exporter_v5_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *
     (*e)->sequence_failure = 0;
     (*e)->packets = 0;
     (*e)->flows = 0;
-    (*e)->first = 1;
+    (*e)->sequence = UINT32_MAX;
 
     char *ipstr = GetExporterIP(fs);
     if (fs->sa_family == PF_INET6) {
@@ -325,24 +321,17 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             outBuff = GetCursor(fs->dataBlock);
         }
 
-        // sequence check
-        if (exporter->first) {
-            exporter->last_sequence = ntohl(v5_header->flow_sequence);
-            exporter->sequence = exporter->last_sequence;
-            exporter->first = 0;
-        } else {
-            exporter->last_sequence = exporter->sequence;
-            exporter->sequence = ntohl(v5_header->flow_sequence);
-            exporter->distance = exporter->sequence - exporter->last_sequence;
-            // handle overflow
-            if (exporter->distance < 0) {
-                exporter->distance = 0xffffffff + exporter->distance + 1;
-            }
-            if (exporter->distance != exporter->last_count) {
+        uint32_t seq = ntohl(v5_header->flow_sequence);
+        if (exporter->sequence != UINT32_MAX) {
+            uint32_t distance = seq - exporter->sequence;  // wrap-safe
+
+            if (distance != exporter->last_count) {
                 fs->nffile->stat_record->sequence_failure++;
                 exporter->sequence_failure++;
             }
         }
+
+        exporter->sequence = seq;
         exporter->last_count = count;
 
         v5_header->SysUptime = ntohl(v5_header->SysUptime);
