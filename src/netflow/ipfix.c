@@ -1056,6 +1056,7 @@ static void Process_ipfix_option_templates(exporterDomain_t *exporter, void *opt
                 dbg_printf("option template length error: size left %u too small\n", size_left);
                 return;
             }
+            type &= 0x7FFF;
             enterprise_value = Get_val32(option_template);
             option_template += 4;
             size_left -= 4;
@@ -1716,7 +1717,7 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
             LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar name");
             err = 1;
         }
-        p[nbarOption->name.length - 1] = '\0';
+        if (nbarOption->name.length) p[nbarOption->name.length - 1] = '\0';
         p += nbarOption->name.length;
 
         // description string
@@ -1726,7 +1727,7 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
             LogError("Process_nbar_option: validate_utf8() %s line %d: %s", __FILE__, __LINE__, "invalid utf8 nbar description");
             err = 1;
         }
-        p[nbarOption->desc.length - 1] = '\0';
+        if (nbarOption->desc.length) p[nbarOption->desc.length - 1] = '\0';
 #ifdef DEVEL
         cnt++;
         if (err == 0) {
@@ -1734,7 +1735,15 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
             uint8_t *u = (uint8_t *)(p - nbarOption->name.length - nbarOption->id.length);
             for (int i = 0; i < nbarOption->id.length; i++) printf("%02X ", *((uint8_t *)u++));
 
-            printf("nbar record: %d, name: %s, desc: %s\n", cnt, p - nbarOption->name.length, p);
+            printf("nbar record: %d, ", cnt);
+            if (nbarOption->name.length)
+                printf("name: %s, ", p - nbarOption->name.length);
+            else
+                printf("name: <empty>");
+            if (nbarOption->desc.length)
+                printf("desc: %s\n", p);
+            else
+                printf("desc: <empty>\n");
         } else {
             printf("Invalid nbar information - skip record\n");
         }
