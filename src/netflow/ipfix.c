@@ -1670,6 +1670,10 @@ static void Process_ipfix_nbar_option_data(exporterDomain_t *exporter, FlowSourc
         LogError("Process_nbar_option: nbar option size error: option size: %zu, size left: %u", option_size, size_left);
         return;
     }
+    if (nbarOption->name.length == 0 && nbarOption->desc.length == 0) {
+        LogInfo("Process_nbar_option: nbar name and description length 0 - skip data");
+        return;
+    }
 
     size_t elementSize = data_size;
     size_t align = elementSize & 0x3;
