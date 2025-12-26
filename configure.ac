@@ -27,6 +27,9 @@ AX_CHECK_C17
 AS_IF([test x$enable_devel = xyes], [
     AC_MSG_NOTICE([developer mode enabled])
 		AX_APPEND_FLAG([-DDEVEL],[CFLAGS])
+		AX_APPEND_FLAG([-Wextra], [CFLAGS])
+		AX_APPEND_FLAG([-Wsign-conversion], [CFLAGS])
+		AX_APPEND_FLAG([-fsanitize=undefined], [CFLAGS])
 		# --- check for address sanitizer ---
 		AX_CHECK_COMPILE_FLAG([-fno-omit-frame-pointer -fsanitize=address],[
 			AX_APPEND_FLAG([-fno-omit-frame-pointer -fsanitize=address],[CFLAGS])
@@ -35,12 +38,12 @@ AS_IF([test x$enable_devel = xyes], [
 ])
 
 # --- Add compiler flags
-AX_APPEND_FLAG([-Wall],[CFLAGS])
-AX_APPEND_FLAG([-Wstrict-prototypes],[CFLAGS])
-AX_APPEND_FLAG([-Wmissing-prototypes],[CFLAGS])
-AX_APPEND_FLAG([-Wmissing-declarations],[CFLAGS])
-AX_APPEND_FLAG([-Wmissing-noreturn],[CFLAGS])
-AX_APPEND_FLAG([-fno-strict-aliasing],[CFLAGS])
+AX_APPEND_FLAG([-Wall], [CFLAGS])
+AX_APPEND_FLAG([-Wstrict-prototypes], [CFLAGS])
+AX_APPEND_FLAG([-Wmissing-prototypes], [CFLAGS])
+AX_APPEND_FLAG([-Wmissing-declarations], [CFLAGS])
+AX_APPEND_FLAG([-Wmissing-noreturn], [CFLAGS])
+AX_APPEND_FLAG([-Wstrict-aliasing], [CFLAGS])
 
 LT_INIT
 
