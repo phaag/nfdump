@@ -56,7 +56,7 @@
 
 ## Installation
 
-### Building
+### Building for general use or to create a package
 
 nfdump uses the GNU autotools build system.
 
@@ -66,6 +66,18 @@ nfdump uses the GNU autotools build system.
 make
 sudo make install
 ```
+
+### Building for the local system
+
+If you plan to run the tools on the same system where they are built, you can enable additional optimizations:
+```sh
+./autogen.sh
+./configure --enable-native --enable-lto
+make
+sudo make install
+```
+
+This enables CPU-specific optimizations (`-march=native`) and link-time optimization (`-flto`) for improved performance.
 
 #### Building on CentOS 7.x
 
@@ -110,6 +122,10 @@ For a full list, run `./configure --help`. Options include:
   Enable debugging aqnd developer options. For developers only (default: NO)
 - `--with-lz4=PATH`, `--with-zstd=PATH`, `--with-bz2=PATH`
   Specify non-default library install locations for compression libraries.
+- `--enable-lto`
+  Enable link-time optimization (LTO) if supported. This allows the compiler to optimize across all source files during the final link step, improving performance and reducing binary size.
+- `--enable-native`
+  Use `-march=native` to enable CPU-specific optimizations for the build host. This enables vectorization and instruction set tuning based on the local processor. Recommended for local builds, not for portable binaries.
 
 Compared to previous versions, the configure script has changed: many tools that previously required explicit enabling are now built automatically. The old options `--enable-xxxpath=path` have been replaced by the standard `--with-xxx=path`
 
