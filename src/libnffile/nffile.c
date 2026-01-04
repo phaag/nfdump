@@ -96,7 +96,7 @@
 static const char *nf_creator[MAX_CREATOR] = {"unknown", "nfcapd",    "nfpcapd",   "sfcapd",    "nfdump",
                                               "nfanon",  "nfprofile", "geolookup", "ft2nfdump", "torlookup"};
 
-static unsigned NumWorkers = DEFAULTWORKERS;
+static uint32_t NumWorkers = DEFAULTWORKERS;
 
 static uint32_t pseudoID = 0;
 
@@ -155,7 +155,7 @@ static queue_t *fileQueue = NULL;
 
 static _Atomic unsigned blocksInUse;
 
-int Init_nffile(unsigned workers, queue_t *fileList) {
+int Init_nffile(uint32_t workers, queue_t *fileList) {
     fileQueue = fileList;
     if (!LZO_initialize()) {
         LogError("Failed to initialize LZO");
@@ -178,7 +178,7 @@ int Init_nffile(unsigned workers, queue_t *fileList) {
 
     NumWorkers = GetNumWorkers(workers);
 
-    pseudoID = time(NULL) ^ 0x557aa755;
+    pseudoID = (uint32_t)time(NULL) ^ 0x557aa755;
 
     return 1;
 
@@ -358,7 +358,7 @@ static int Uncompress_Block_LZO(dataBlock_t *in_block, dataBlock_t *out_block, s
 static int Compress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, size_t block_size, int level) {
     const char *in = (const char *)((void *)in_block + sizeof(dataBlock_t));
     char *out = (char *)((void *)out_block + sizeof(dataBlock_t));
-    int in_len = in_block->size;
+    int in_len = (int)in_block->size;
 
     int out_len;
     if (level > LZ4HC_CLEVEL_MIN)
@@ -377,7 +377,7 @@ static int Compress_Block_LZ4(dataBlock_t *in_block, dataBlock_t *out_block, siz
 
     // copy header
     *out_block = *in_block;
-    out_block->size = out_len;
+    out_block->size = (uint32_t)out_len;
 
     return 1;
 

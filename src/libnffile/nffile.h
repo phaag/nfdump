@@ -231,7 +231,7 @@ typedef struct record_header_s {
  * for the detailed description of the record definition see nfx.h
  */
 
-int Init_nffile(unsigned workers, queue_t *fileList);
+int Init_nffile(uint32_t workers, queue_t *fileList);
 
 int ParseCompression(char *arg);
 

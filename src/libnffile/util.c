@@ -287,7 +287,7 @@ void LogVerbose(char *format, ...) {
 static int check_number(char *s, size_t len) {
     size_t l = strlen(s);
 
-    for (int i = 0; i < l; i++) {
+    for (size_t i = 0; i < l; i++) {
         if (s[i] < '0' || s[i] > '9') {
             LogError("Time format error at '%s': unexpected character: '%c'.\n", s, s[i]);
             return 0;
@@ -345,7 +345,7 @@ uint64_t ParseTime8601(const char *s) {
         ts.tm_mday = 1;
         time_t timeStamp = mktime(&ts);
         free(tmpString);
-        return 1000ULL * (uint64_t)timeStamp;
+        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
     }
 
     // split month and parse
@@ -365,7 +365,7 @@ uint64_t ParseTime8601(const char *s) {
         ts.tm_mday = 1;
         time_t timeStamp = mktime(&ts);
         free(tmpString);
-        return 1000ULL * (uint64_t)timeStamp;
+        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
     }
 
     // split day and parse
@@ -385,7 +385,7 @@ uint64_t ParseTime8601(const char *s) {
     if (q >= eos) {
         time_t timeStamp = mktime(&ts);
         free(tmpString);
-        return 1000ULL * (uint64_t)timeStamp;
+        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
     }
 
     // split hour and parse
@@ -404,7 +404,7 @@ uint64_t ParseTime8601(const char *s) {
     if (q >= eos) {
         time_t timeStamp = mktime(&ts);
         free(tmpString);
-        return 1000ULL * (uint64_t)timeStamp;
+        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
     }
 
     // split and parse minute
@@ -423,7 +423,7 @@ uint64_t ParseTime8601(const char *s) {
     if (q >= eos) {
         time_t timeStamp = mktime(&ts);
         free(tmpString);
-        return 1000ULL * (uint64_t)timeStamp;
+        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
     }
 
     // split and parse second
@@ -442,7 +442,7 @@ uint64_t ParseTime8601(const char *s) {
     if (q >= eos) {
         time_t timeStamp = mktime(&ts);
         free(tmpString);
-        return 1000ULL * (uint64_t)timeStamp;
+        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
     }
 
     // msec
@@ -453,7 +453,7 @@ uint64_t ParseTime8601(const char *s) {
     num = atoi(p);
 
     free(tmpString);
-    return 1000LL * (uint64_t)timeStamp + (uint64_t)num;
+    return timeStamp == -1 ? 0 : 1000LL * (uint64_t)timeStamp + (uint64_t)num;
 
 }  // End of ParseTime
 
@@ -625,24 +625,24 @@ long getTick(void) {
 
 char *DurationString(uint64_t duration) {
     static char s[128];
-
-    uint64_t msec = duration % 1000;
-    duration /= 1000;  // sec
-
-    uint64_t sec = duration % 60;
-    duration /= 60;  // min
-
-    uint64_t min = duration % 60;
-    duration /= 60;  // hours
-
-    uint64_t hours = duration % 24;
-    uint64_t days = duration / 24;
-
-    if (days == 0)
-        snprintf(s, sizeof s, "    %02llu:%02llu:%02llu.%03llu", hours, min, sec, msec);
-    else
-        snprintf(s, sizeof s, "%2llud %02llu:%02llu:%02llu.%03llu", days, hours, min, sec, msec);
-
+    if (duration == 0) {
+        strncpy(s, "    00:00:00.000", 128);
+    } else {
+        int msec = duration % 1000;
+        duration /= 1000;
+        int days = duration / 86400;
+        int sum = 86400 * days;
+        int hours = (duration - sum) / 3600;
+        sum += 3600 * hours;
+        int min = (duration - sum) / 60;
+        sum += 60 * min;
+        int sec = duration - sum;
+        if (days == 0)
+            snprintf(s, 128, "    %02d:%02d:%02d.%03d", hours, min, sec, msec);
+        else
+            snprintf(s, 128, "%2dd %02d:%02d:%02d.%03d", days, hours, min, sec, msec);
+    }
+    s[127] = '\0';
     return s;
 }  // End of DurationString
 
@@ -804,7 +804,7 @@ char *HexString(uint8_t *hex, size_t len, char *hexString) {
     hexString[j] = '\0';
 
     return hexString;
-}  // End of ja3HashString
+}  // End of HexString
 
 void DumpHex(FILE *stream, const void *data, size_t size) {
     unsigned char ascii[17];
