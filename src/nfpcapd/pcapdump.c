@@ -160,8 +160,9 @@ static int appendPcap(char *existFile, char *appendFile) {
 }
 
 static int CloseDumpFile(flushParam_t *param, time_t t_start) {
-    struct tm *when;
-    char datefile[MAXPATHLEN];
+    struct tm *now = localtime(&t_start);
+    char fmt[16];
+    strftime(fmt, sizeof(fmt), param->extensionFormat, now);
 
     if (param->pd == NULL) return 1;
 
@@ -170,20 +171,11 @@ static int CloseDumpFile(flushParam_t *param, time_t t_start) {
     param->pfd = 0;
 
     dbg_printf("CloseDumpFile()\n");
-    when = localtime(&t_start);
-    char fmt[16];
-    strftime(fmt, sizeof(fmt), param->extensionFormat, when);
-    if (param->subdir_index) {
-        char *subdir = GetSubDir(param->subdir_index, when);
-        if (!subdir || !SetupSubDir(param->archivedir, subdir)) {
-            LogError("Create subdir failed");
-            subdir = "";
-        }
+    char datefile[MAXPATHLEN];
+    int pos = SetupPath(now, param->archivedir, param->subdir_index, datefile);
+    char *p = datefile + (ptrdiff_t)pos;
 
-        snprintf(datefile, MAXPATHLEN - 1, "%s/%s/pcap.%s", param->archivedir, subdir, fmt);
-    } else {
-        snprintf(datefile, MAXPATHLEN - 1, "%s/pcap.%s", param->archivedir, fmt);
-    }
+    snprintf(p, MAXPATHLEN - pos - 1, "pcapd.%s", fmt);
 
     int fileStat = TestPath(datefile, S_IFREG);
     if (fileStat == PATH_NOTEXISTS) {

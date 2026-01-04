@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -188,11 +188,6 @@
 static const char *subdir_def[] = {"",  // default index 0 - no subdir hierarchy
                                    "%Y/%m/%d", "%Y/%m/%d/%H", "%Y/%W/%u", "%Y/%W/%u/%H", "%Y/%j", "%Y/%j/%H", "%F", "%F/%H", NULL};
 
-// all accepted char in a string
-#define AcceptedFormatChar "YymdjHMsUWwuF"
-
-static mode_t mode, dir_mode;
-
 static struct entry_filter_s {
     char *first_entry;
     char *last_entry;
@@ -217,8 +212,6 @@ static int GetFileList(char *path, timeWindow_t *timeWindow);
 static void CleanPath(char *entry);
 
 static void Getsource_dirs(char *dirs);
-
-static int mkpath(char *path, char *p, mode_t mode, mode_t dir_mode, char *error, size_t errlen);
 
 static char *SubDirList(char *path);
 
@@ -1021,20 +1014,6 @@ int CheckSubDir(unsigned num) {
         return 0;
     }
 
-    /*
-     * The default file mode is a=rwx (0777) with selected permissions
-     * removed in accordance with the file mode creation mask.  For
-     * intermediate path name components, the mode is the default modified
-     * by u+wx so that the subdirectories can always be created.
-     */
-
-    // get umask
-    mode = umask(0);
-    umask(mode);
-
-    mode = 0777 & ~mode;
-    dir_mode = mode | S_IWUSR | S_IXUSR;
-
     return 1;
 
 }  // End of CheckSubDir
@@ -1093,113 +1072,6 @@ static char *GuessSubDir(char *channeldir, char *filename) {
     return NULL;
 
 }  // End of GuessSubDir
-
-char *GetSubDir(unsigned subDir, struct tm *now) {
-    static __thread char subpath[255];
-
-    const char *subdir_format = subdir_def[subDir];
-    size_t sublen = strftime(subpath, 254, subdir_format, now);
-
-    return sublen == 0 ? NULL : subpath;
-
-}  // End of GetSubDir
-
-int SetupSubDir(char *dir, char *subdir) {
-    char *p, path[MAXPATHLEN];
-    struct stat stat_buf;
-    size_t sublen, pathlen;
-    int err;
-
-    path[0] = '\0';
-    strncat(path, dir, MAXPATHLEN - 1);
-    path[MAXPATHLEN - 1] = '\0';
-
-    sublen = strlen(subdir);
-    pathlen = strlen(path);
-    // set p as reference between path and subdir
-    if ((sublen + pathlen + 2) >= (MAXPATHLEN - 1)) {  // +2 : add 1 for '/'
-        LogError("SetupSubDir(): path '%s': too long", path);
-        return 0;
-    }
-
-    p = path + pathlen;  // points to '\0' of path
-    *p++ = '/';
-    *p = '\0';
-
-    strncat(path, subdir, MAXPATHLEN - pathlen - 2);  // +2: add 1 for '/'
-
-    // our cwd is basedir ( -l ) so test if, dir exists
-    if (stat(path, &stat_buf) == 0) {
-        if (S_ISDIR(stat_buf.st_mode)) {
-            // sub directory already exists
-            return 1;
-        } else {
-            // an entry with this name exists, but it's not a directory
-            LogError("SetupSubDir(): path '%s': %s ", path, strerror(ENOTDIR));
-            return 0;
-        }
-    }
-
-    // no such entry exists - try to create the directory, assuming path below exists
-    err = mkdir(path, dir_mode);
-    if (err == 0)  // success
-        return 1;
-
-    // else errno is set
-    if (errno == ENOENT) {  // we need to create intermediate directories as well
-        char error[255];
-        err = mkpath(path, p, mode, dir_mode, error, 255);
-        if (err == 0) {  // creation was successful
-            return 1;
-        } else {
-            LogError("mkpath() error for Path: '%s': %s", path, error);
-        }
-    } else {
-        LogError("mkdir() error for '%s': %s", path, strerror(errno));
-    }
-
-    // anything else failed and error string is set
-    return 0;
-
-}  // End of SetupSubDir
-
-/*
- * mkpath -- create directories.
- *  path     - path
- *  p        - separator path/subpath
- *  mode     - file mode of terminal directory
- *  dir_mode - file mode of intermediate directories
- */
-static int mkpath(char *path, char *p, mode_t mode, mode_t dir_mode, char *error, size_t errlen) {
-    struct stat sb;
-    char *slash;
-    int done = 0;
-
-    slash = p;
-
-    while (!done) {
-        slash += strspn(slash, "/");
-        slash += strcspn(slash, "/");
-
-        done = (*slash == '\0');
-        *slash = '\0';
-
-        if (stat(path, &sb)) {
-            if (errno != ENOENT || (mkdir(path, done ? mode : dir_mode) && errno != EEXIST)) {
-                snprintf(error, errlen, "mkdir() error: %s", strerror(errno));
-                return (-1);
-            }
-        } else if (!S_ISDIR(sb.st_mode)) {
-            snprintf(error, errlen, "%s", strerror(ENOTDIR));
-            return (-1);
-        }
-
-        *slash = '/';
-    }
-
-    return (0);
-
-}  // End of mkpath
 
 // make sure, that path with subdir exists for timeslot now and stores it into path
 int SetupPath(struct tm *now, const char *dataDir, unsigned subDir, char *path) {
