@@ -44,19 +44,25 @@ typedef struct ip128_s {
 
 // Fast 128-bit IP compare using 16-byte alignment; compilers will emit vector code at -O3 -march=native
 static inline int ip128_equal(const ip128_t *a, const ip128_t *b) {
-    const uint64_t *pa = (const uint64_t *)a->bytes;
-    const uint64_t *pb = (const uint64_t *)b->bytes;
-    return (pa[0] == pb[0]) & (pa[1] == pb[1]);
-}
+    uint64_t a0, a1, b0, b1;
+    memcpy(&a0, a->bytes, sizeof(a0));
+    memcpy(&a1, a->bytes + 8, sizeof(a1));
+    memcpy(&b0, b->bytes, sizeof(b0));
+    memcpy(&b1, b->bytes + 8, sizeof(b1));
+    return (a0 == b0) && (a1 == b1);
+}  // End of ip128_equal
 
 // Fast 128-bit IP AND; compilers will emit vector code at -O3 -march=native
 static inline void ip128_and(ip128_t *dst, const ip128_t *a, const ip128_t *b) {
-    const uint64_t *pa = (const uint64_t *)a->bytes;
-    const uint64_t *pb = (const uint64_t *)b->bytes;
-    uint64_t *pd = (uint64_t *)dst->bytes;
-
-    pd[0] = pa[0] & pb[0];
-    pd[1] = pa[1] & pb[1];
+    uint64_t a0, a1, b0, b1, d0, d1;
+    memcpy(&a0, a->bytes, sizeof(a0));
+    memcpy(&a1, a->bytes + 8, sizeof(a1));
+    memcpy(&b0, b->bytes, sizeof(b0));
+    memcpy(&b1, b->bytes + 8, sizeof(b1));
+    d0 = a0 & b0;
+    d1 = a1 & b1;
+    memcpy(dst->bytes, &d0, sizeof(d0));
+    memcpy(dst->bytes + 8, &d1, sizeof(d1));
 }  // End of ip128_and
 
 // Fast 128-bit IP compare with subnet; compilers will emit vector code at -O3 -march=native
@@ -68,9 +74,11 @@ static inline int ip_in_subnet(const ip128_t *ip, const ip128_t *network, const 
 
 // Fast 128-bit IP compare to zero; compilers will emit vector code at -O3 -march=native
 static inline int is_zero128(const ip128_t *a) {
-    const uint64_t *pa = (const uint64_t *)a->bytes;
-    return (pa[0] == 0) & (pa[1] == 0);
-}
+    uint64_t a0, a1;
+    memcpy(&a0, a->bytes, sizeof(a0));
+    memcpy(&a1, a->bytes + 8, sizeof(a1));
+    return (a0 == 0) && (a1 == 0);
+}  // End of is_zero128
 
 // Check, if IP is a mapped IPv4 in IPv6
 static inline int is_ipv4_mapped(const ip128_t *a) {

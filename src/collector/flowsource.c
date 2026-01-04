@@ -159,7 +159,6 @@ static FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const ip128_t *ip) {
 
     // allocate new flowsource for this IP
     FlowSource_t *fs = newFlowSource(ident, path, ctx->dynamicSource->subdir);
-    free(ident);
     if (fs == NULL) return NULL;
 
     source_array->fs = fs;
@@ -172,6 +171,7 @@ static FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const ip128_t *ip) {
     fs->ipAddr = *ip;
 
     LogInfo("Dynamic source added: IP: %s, ident: %s in directory: %s", ipStr, ident, path);
+    free(ident);
 
     return fs;
 
@@ -349,6 +349,8 @@ void expand_exporter_table(exporter_table_t *tab) {
 
 static void freeFlowSource(FlowSource_t *fs) {
     if (fs->exporters.entries) free(fs->exporters.entries);
+    if (fs->datadir) free(fs->datadir);
+    if (fs->tmpFileName) free(fs->tmpFileName);
     free(fs);
 }  // End of freeFlowSource
 

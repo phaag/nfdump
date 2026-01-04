@@ -50,9 +50,9 @@ char *ip128_2_str(const ip128_t *ip, char *ipstr) {
         // mapped IPv4
         uint32_t ipv4;
         memcpy(&ipv4, ip->bytes + 12, 4);
-        inet_ntop(AF_INET, &ipv4, ipstr, sizeof(ipstr));
+        inet_ntop(AF_INET, &ipv4, ipstr, INET6_ADDRSTRLEN);
     } else {
-        inet_ntop(AF_INET6, ip->bytes, ipstr, sizeof(ipstr));
+        inet_ntop(AF_INET6, ip->bytes, ipstr, INET6_ADDRSTRLEN);
     }
     return ipstr;
 
