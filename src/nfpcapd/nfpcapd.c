@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2013-2023, Peter Haag
+ *  Copyright (c) 2013-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -95,8 +95,8 @@
 #define FILTER "ip"
 #define TO_MS 100
 
-static int verbose = 0;
-static int done = 0;
+static unsigned verbose = 0;
+static unsigned done = 0;
 /*
  * global static var: used by interrupt routine
  */
@@ -116,7 +116,7 @@ static void usage(char *name);
 
 static void Interrupt_handler(int sig);
 
-static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, int snaplen);
+static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, unsigned snaplen);
 
 static void WaitDone(void);
 
@@ -132,7 +132,6 @@ static void usage(char *name) {
         "-g groupid\tChange group to groupname\n"
         "-i interface\tread packets from interface\n"
         "-r pcapfile\tread packets from file\n"
-        "-b num\tset socket buffer size in MB. (default 20MB)\n"
         "-B num\tset the node cache size. (default 524288)\n"
         "-d\t\tDe-duplicate packets with window size 8.\n"
         "-s snaplen\tset the snapshot length - default 1522\n"
@@ -167,7 +166,7 @@ static void Interrupt_handler(int sig) {
 
 }  // End of signal_handler
 
-static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, int snaplen) {
+static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, unsigned snaplen) {
     pcap_t *handle;
     char errbuf[PCAP_ERRBUF_SIZE]; /* Error string */
 
@@ -227,7 +226,7 @@ static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, 
 
     param->pcap_dev = handle;
     param->snaplen = snaplen;
-    param->linktype = linktype;
+    param->linktype = (unsigned)linktype;
 
     return 0;
 
@@ -276,9 +275,9 @@ static void WaitDone(void) {
 int main(int argc, char *argv[]) {
     sigset_t signal_set;
     struct sigaction sa;
-    int c, snaplen, bufflen, err, do_daemonize, doDedup;
-    int subdir_index, compress, expire, cache_size, buff_size;
-    int activeTimeout, inactiveTimeout, metricInterval, workers;
+    unsigned snaplen, bufflen, do_daemonize, doDedup;
+    unsigned subdir_index, compress, expire, cache_size;
+    unsigned activeTimeout, inactiveTimeout, metricInterval, workers;
     dirstat_t *dirstat;
     repeater_t *sendHost;
     time_t t_win;
@@ -286,7 +285,7 @@ int main(int argc, char *argv[]) {
     char *Ident, *userid, *groupid, *metricsocket;
     char *time_extension;
 
-    snaplen = 1522;
+    snaplen = 1522U;
     bufflen = 0;
     do_daemonize = 0;
     doDedup = 0;
@@ -311,14 +310,13 @@ int main(int argc, char *argv[]) {
     verbose = 0;
     expire = 0;
     cache_size = 0;
-    buff_size = 20;
     activeTimeout = 0;
     inactiveTimeout = 0;
     workers = 0;
 
+    int c = 0;
     while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:vVw:W:yz::")) != EOF) {
         switch (c) {
-            struct stat fstat;
             case 'h':
                 usage(argv[0]);
                 exit(EXIT_SUCCESS);
@@ -344,13 +342,14 @@ int main(int argc, char *argv[]) {
             case 'D':
                 do_daemonize = 1;
                 break;
-            case 'B':
-                cache_size = atoi(optarg);
-                if (cache_size <= 0) {
+            case 'B': {
+                int i = atoi(optarg);
+                if (i <= 0) {
                     LogError("ERROR: Cache size must not be < 0");
                     exit(EXIT_FAILURE);
                 }
-                break;
+                cache_size = (unsigned)i;
+            } break;
             case 'I':
                 if (strlen(optarg) < 128) {
                     Ident = strdup(optarg);
@@ -366,22 +365,12 @@ int main(int argc, char *argv[]) {
                 }
                 metricsocket = strdup(optarg);
                 break;
-            case 'b':
-                buff_size = atoi(optarg);
-                if (buff_size <= 0 || buff_size > 2047) {
-                    LogError("ERROR: Buffer size in MB must be between 0..2047 (2GB max)");
-                    exit(EXIT_FAILURE);
-                }
-                break;
             case 'H': {
                 if (sendHost) {
                     LogError("ERROR: Host to send flows already defined.");
                     exit(EXIT_FAILURE);
                 }
-                if (strlen(optarg) > 255) {
-                    LogError("ERROR: Argument size error.");
-                    exit(EXIT_FAILURE);
-                }
+                CheckArgLen(optarg, 255);
                 sendHost = calloc(1, sizeof(repeater_t));
                 char *port;
                 char *sep = strchr(optarg, '/');
@@ -400,69 +389,56 @@ int main(int argc, char *argv[]) {
             case 'l':
                 LogError("-l is a legacy option and may get removed in future. Please use -w to set output directory");
             case 'w':
-                datadir = optarg;
-                err = stat(datadir, &fstat);
-                if (!(fstat.st_mode & S_IFDIR)) {
-                    LogError("No valid directory: '%s'", datadir);
-                    break;
-                }
-                break;
-            case 'o':
-                if (strlen(optarg) > 64) {
-                    LogError("ERROR:, option string size error");
+                if (!CheckPath(optarg, S_IFDIR)) {
+                    LogError("No valid directory: %s", optarg);
                     exit(EXIT_FAILURE);
                 }
+                datadir = optarg;
+                break;
+            case 'o':
+                CheckArgLen(optarg, 64);
                 options = strdup(optarg);
                 break;
             case 'p':
+                if (!CheckPath(optarg, S_IFDIR)) {
+                    LogError("No valid directory: %s", optarg);
+                    exit(EXIT_FAILURE);
+                }
                 pcap_datadir = optarg;
-                err = stat(pcap_datadir, &fstat);
-                if (!(fstat.st_mode & S_IFDIR)) {
-                    LogError(
-                        "No such directory: "
-                        "'%s'",
-                        pcap_datadir);
-                    break;
-                }
                 break;
-            case 'r': {
-                struct stat stat_buf;
+            case 'r':
+                if (!CheckPath(optarg, S_IFREG)) {
+                    LogError("Not a valid file: %s", optarg);
+                    exit(EXIT_FAILURE);
+                }
                 pcapfile = optarg;
-                if (stat(pcapfile, &stat_buf)) {
-                    LogError("Can't stat '%s': %s", pcapfile, strerror(errno));
-                    exit(EXIT_FAILURE);
-                }
-                if (!S_ISREG(stat_buf.st_mode)) {
-                    LogError("'%s' is not a file", pcapfile);
-                    exit(EXIT_FAILURE);
-                }
-            } break;
-            case 's':
-                snaplen = atoi(optarg);
-                if (snaplen < 14 + 20 + 20) {  // ethernet, IP , TCP, no payload
-                    LogError("ERROR:, snaplen < sizeof IPv4 - Need 54 bytes for TCP/IPv4");
-                    exit(EXIT_FAILURE);
-                }
                 break;
-            case 'e': {
-                if (strlen(optarg) > 16) {
-                    LogError("ERROR:, size timeout values too big");
+            case 's': {
+                int i = atoi(optarg);
+                if (i < (14 + 20 + 20)) {  // ethernet, IP , TCP, no payload
+                    LogError("ERROR: snaplen < sizeof IPv4 - Need 54 bytes for TCP/IPv4");
                     exit(EXIT_FAILURE);
                 }
+                snaplen = (unsigned)i;
+            } break;
+            case 'e': {
+                CheckArgLen(optarg, 16);
                 char *s = strdup(optarg);
                 char *sep = strchr(s, ',');
                 if (!sep) {
-                    LogError("ERROR:, timeout values format error");
+                    LogError("ERROR: timeout values format error");
                     exit(EXIT_FAILURE);
                 }
                 *sep = '\0';
                 sep++;
-                activeTimeout = atoi(s);
-                inactiveTimeout = atoi(sep);
-                if (snaplen < 14 + 20 + 20) {  // ethernet, IP , TCP, no payload
-                    LogError("ERROR:, snaplen < sizeof IPv4 - Need 54 bytes for TCP/IPv4");
+                int a = atoi(s);
+                int i = atoi(sep);
+                if (a <= 0 || i <= 0 || a > 3600 || i > 3600) {
+                    LogError("ERROR: invalid timeout values: %d:%d", a, i);
                     exit(EXIT_FAILURE);
                 }
+                activeTimeout = (unsigned)a;
+                inactiveTimeout = (unsigned)i;
             } break;
             case 't':
                 t_win = atoi(optarg);
@@ -474,14 +450,15 @@ int main(int argc, char *argv[]) {
                     time_extension = "%Y%m%d%H%M%S";
                 }
                 break;
-            case 'W':
+            case 'W': {
                 CheckArgLen(optarg, 16);
-                workers = atoi(optarg);
-                if (workers < 0 || workers > MAXWORKERS) {
+                int w = atoi(optarg);
+                if (w < 0 || w > MAXWORKERS) {
                     LogError("Number of working threads out of range 1..%d", MAXWORKERS);
                     exit(EXIT_FAILURE);
                 }
-                break;
+                workers = (unsigned)w;
+            } break;
             case 'j':
                 if (compress) {
                     LogError("Use either -z for LZO or -j for BZ2 compression, but not both");
@@ -497,6 +474,7 @@ int main(int argc, char *argv[]) {
                 compress = LZ4_COMPRESSED;
                 break;
             case 'z':
+                CheckArgLen(optarg, 32);
                 if (compress) {
                     LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
                     exit(EXIT_FAILURE);
@@ -504,11 +482,12 @@ int main(int argc, char *argv[]) {
                 if (optarg == NULL) {
                     compress = LZO_COMPRESSED;
                 } else {
-                    compress = ParseCompression(optarg);
-                }
-                if (compress == -1) {
-                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
-                    exit(EXIT_FAILURE);
+                    int ret = ParseCompression(optarg);
+                    if (ret == -1) {
+                        LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
+                        exit(EXIT_FAILURE);
+                    }
+                    compress = (unsigned)ret;
                 }
                 break;
             case 'P':
@@ -517,9 +496,15 @@ int main(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
                 break;
-            case 'S':
-                subdir_index = atoi(optarg);
-                break;
+            case 'S': {
+                CheckArgLen(optarg, 16);
+                int s = atoi(optarg);
+                if (s < 0) {
+                    LogError("ERROR: invalid subdir index: %d", s);
+                    exit(EXIT_FAILURE);
+                }
+                subdir_index = (unsigned)s;
+            } break;
             case 'T':
                 printf("Option -T no longer supported and ignored\n");
                 break;
@@ -595,7 +580,7 @@ int main(int argc, char *argv[]) {
         flowParam.sendHost = sendHost;
     }
 
-    int buffsize = 64 * 1024;
+    size_t buffsize = 64 * 1024;
     int ret;
     void *(*packet_thread)(void *) = NULL;
     if (pcapfile) {
@@ -625,6 +610,8 @@ int main(int argc, char *argv[]) {
 
     FlowSource_t *fs = NULL;
     if (datadir) {
+        if (!Init_nffile(workers, NULL)) exit(EXIT_FAILURE);
+
         if (pcap_datadir && access(pcap_datadir, W_OK) < 0) {
             LogError("access() failed for %s: %s", pcap_datadir, strerror(errno));
             exit(EXIT_FAILURE);
@@ -635,14 +622,13 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
 
-        if (datadir && !AddFlowSource(&fs, Ident, ANYIP, datadir)) {
+        fs = newFlowSource(Ident, datadir, subdir_index);
+        if (fs == NULL) {
             LogError("Failed to add default data collector directory");
             exit(EXIT_FAILURE);
         }
 
-        if (!Init_nffile(workers, NULL)) exit(EXIT_FAILURE);
-
-        if (subdir_index && !InitHierPath(subdir_index)) {
+        if (!CheckSubDir(subdir_index)) {
             pcap_close(packetParam.pcap_dev);
             exit(EXIT_FAILURE);
         }
@@ -728,6 +714,7 @@ int main(int argc, char *argv[]) {
     flowParam.parent = pthread_self();
     flowParam.NodeList = NewNodeList();
     flowParam.printRecord = (do_daemonize == 0) && (verbose > 2);
+    int err = 0;
     if (sendHost) {
         err = pthread_create(&flowParam.tid, NULL, sendflow_thread, (void *)&flowParam);
     } else {

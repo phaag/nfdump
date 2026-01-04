@@ -39,6 +39,7 @@
 #include <sys/types.h>
 
 #include "config.h"
+#include "ip128.h"
 #include "nfdump.h"
 #include "util.h"
 
@@ -65,8 +66,8 @@ typedef struct hole_s {
 
 // fragment record for each fragmented connection
 typedef struct ip6Frag_s {
-    ip_addr_t srcAddr;
-    ip_addr_t dstAddr;
+    ip128_t srcAddr;
+    ip128_t dstAddr;
     void *payload;           // memory block to reassemble payload and hole list
     uint32_t fragID;         // fragment ID
     uint32_t numHoles;       // number of total holes
@@ -85,7 +86,7 @@ static struct ipFragList_s {
 } ipFragList = {.numFrags = 0, .fragList = NULL};
 
 // init a new fragment in slot
-static int initSlot(int slot, const ip_addr_t *srcAddr, const ip_addr_t *dstAddr, const uint32_t fragID) {
+static int initSlot(int slot, const ip128_t *srcAddr, const ip128_t *dstAddr, const uint32_t fragID) {
     dbg_printf("Init fragment slot %d\n", slot);
 
     void *payload = calloc(1, MAXINDEX + 1);
@@ -99,20 +100,20 @@ static int initSlot(int slot, const ip_addr_t *srcAddr, const ip_addr_t *dstAddr
     *hole = (hole_t){.first = 0, .last = MAXINDEX, .next = 0, .fill = 0};
 
     ipFragList.fragList[slot] = (ipFrag_t){.payload = payload, .fragID = fragID, .holeList = 0, .numHoles = 1};
-    memcpy(ipFragList.fragList[slot].srcAddr.V6, srcAddr->V6, 16);
-    memcpy(ipFragList.fragList[slot].dstAddr.V6, dstAddr->V6, 16);
+    memcpy(ipFragList.fragList[slot].srcAddr.bytes, srcAddr->bytes, 16);
+    memcpy(ipFragList.fragList[slot].dstAddr.bytes, dstAddr->bytes, 16);
 
     return 1;
 }  // End of initSlot
 
 // get the existing or a new fragment struct for srcAddr/dstAddr/fragID
-static ipFrag_t *getIPFragement(const ip_addr_t *srcAddr, const ip_addr_t *dstAddr, const uint32_t fragID) {
-    int slot;
+static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, const uint32_t fragID) {
+    unsigned slot;
     int firstEmpty = -1;
     for (slot = 0; slot < ipFragList.numFrags; slot++) {
         if (ipFragList.fragList[slot].fragID == 0 && firstEmpty < 0) firstEmpty = slot;
-        if (ipFragList.fragList[slot].fragID == fragID && (memcmp(ipFragList.fragList[slot].srcAddr.V6, srcAddr->ip_addr._v6, 16) == 0) &&
-            (memcmp(ipFragList.fragList[slot].dstAddr.V6, dstAddr->ip_addr._v6, 16) == 0))
+        if (ipFragList.fragList[slot].fragID == fragID && (memcmp(ipFragList.fragList[slot].srcAddr.bytes, srcAddr->bytes, 16) == 0) &&
+            (memcmp(ipFragList.fragList[slot].dstAddr.bytes, dstAddr->bytes, 16) == 0))
             break;
     }
 
@@ -127,12 +128,12 @@ static ipFrag_t *getIPFragement(const ip_addr_t *srcAddr, const ip_addr_t *dstAd
             }
             uint32_t max = ipFragList.numFrags + NUMFRAGMENTS;
             // init new empty slots
-            for (int i = ipFragList.numFrags; i < max; i++) ipFragList.fragList[i].fragID = 0;
+            for (unsigned i = ipFragList.numFrags; i < max; i++) ipFragList.fragList[i].fragID = 0;
             ipFragList.numFrags = max;
             if (!initSlot(slot, srcAddr, dstAddr, fragID)) return NULL;
         } else {
             // assign first empty slot in list
-            slot = firstEmpty;
+            slot = (unsigned)firstEmpty;
             if (!initSlot(slot, srcAddr, dstAddr, fragID)) return NULL;
         }
     }  // else fragment in slot found
@@ -203,9 +204,9 @@ static hole_t *findHole(ipFrag_t *fragment, uint16_t fragFirst, uint16_t fragLas
 
 // Defragment IPv6 packets according RFC815
 void *ProcessIP6Fragment(struct ip6_hdr *ip6, struct ip6_frag *ip6_frag, const void *eodata) {
-    ip_addr_t srcAddr, dstAddr;
-    memcpy(srcAddr.V6, ip6->ip6_src.s6_addr, 16);
-    memcpy(dstAddr.V6, ip6->ip6_dst.s6_addr, 16);
+    ip128_t srcAddr, dstAddr;
+    memcpy(srcAddr.bytes, ip6->ip6_src.s6_addr, 16);
+    memcpy(dstAddr.bytes, ip6->ip6_dst.s6_addr, 16);
     uint32_t fragID = ntohl(ip6_frag->ip6f_ident);
 
     ipFrag_t *fragment = getIPFragement(&srcAddr, &dstAddr, fragID);
@@ -252,10 +253,13 @@ void *ProcessIP6Fragment(struct ip6_hdr *ip6, struct ip6_frag *ip6_frag, const v
 
 // Defragment IPv4 packets according RFC815
 void *ProcessIP4Fragment(struct ip *ip4, const void *eodata) {
-    ip_addr_t srcAddr = {0};
-    ip_addr_t dstAddr = {0};
-    srcAddr.V4 = ip4->ip_src.s_addr;
-    dstAddr.V4 = ip4->ip_dst.s_addr;
+    static const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
+    ip128_t srcAddr = {0};
+    ip128_t dstAddr = {0};
+    memcpy(srcAddr.bytes, prefix, 12);
+    memcpy(dstAddr.bytes, prefix, 12);
+    memcpy(srcAddr.bytes + 12, &ip4->ip_src.s_addr, 4);
+    memcpy(dstAddr.bytes + 12, &ip4->ip_dst.s_addr, 4);
 
     uint32_t fragID = ntohs(ip4->ip_id);
     ipFrag_t *fragment = getIPFragement(&srcAddr, &dstAddr, fragID);

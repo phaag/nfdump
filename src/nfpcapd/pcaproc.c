@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2014-2023, Peter Haag
+ *  Copyright (c) 2014-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -64,6 +64,7 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "flowtree.h"
+#include "ip128.h"
 #include "ip_frag.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -816,8 +817,8 @@ REDO_IPPROTO:
         Node->maxTTL = ttl;
         Node->fragmentFlags = fragment_flag;
 
-        memcpy(Node->flowKey.src_addr.V6, ip6->ip6_src.s6_addr, 16);
-        memcpy(Node->flowKey.dst_addr.V6, ip6->ip6_dst.s6_addr, 16);
+        memcpy(Node->flowKey.src_addr.bytes, ip6->ip6_src.s6_addr, 16);
+        memcpy(Node->flowKey.dst_addr.bytes, ip6->ip6_dst.s6_addr, 16);
 
     } else if (version == 4) {
         int size_ip = (ip->ip_hl << 2);
@@ -858,7 +859,7 @@ REDO_IPPROTO:
 
         // IPv4 defragmentation
         uint16_t ip_off = ntohs(ip->ip_off);
-        uint32_t frag_offset = (ip_off & IP_OFFMASK) << 3;
+        uint32_t frag_offset = (ip_off & IP_OFFMASK) << 3U;
         if ((ip_off & IP_MF) || frag_offset) {
             // fragmented packet
             void *payload = ProcessIP4Fragment(ip, eodata);
@@ -887,8 +888,12 @@ REDO_IPPROTO:
         Node->t_last.tv_usec = hdr->ts.tv_usec;
         Node->bytes = ntohs(ip->ip_len);
 
-        Node->flowKey.src_addr.v4 = ntohl(ip->ip_src.s_addr);
-        Node->flowKey.dst_addr.v4 = ntohl(ip->ip_dst.s_addr);
+        static const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
+        memcpy(Node->flowKey.src_addr.bytes, prefix, 12);
+        memcpy(Node->flowKey.dst_addr.bytes, prefix, 12);
+        memcpy(Node->flowKey.src_addr.bytes + 12, &ip->ip_src.s_addr, 4);
+        memcpy(Node->flowKey.dst_addr.bytes + 12, &ip->ip_dst.s_addr, 4);
+
         Node->minTTL = ip->ip_ttl;
         Node->maxTTL = ip->ip_ttl;
         Node->fragmentFlags = fragment_flag;
@@ -914,7 +919,7 @@ REDO_IPPROTO:
 
     if (numMPLS) {
         if (numMPLS > 10) numMPLS = 10;
-        for (int i = 0; i < numMPLS; i++) {
+        for (unsigned i = 0; i < numMPLS; i++) {
             Node->mpls[i] = *mplsLabel;
             mplsLabel++;
         }
@@ -955,8 +960,10 @@ REDO_IPPROTO:
 
             dbg_assert(dataptr <= eodata);
             payloadSize = (ptrdiff_t)(ipPayloadEnd - dataptr);
-            if (payloadSize > 0) payload = (void *)dataptr;
-            ProcessUDPFlow(packetParam, Node, payload, payloadSize);
+            if (payloadSize > 0) {
+                payload = (void *)dataptr;
+                ProcessUDPFlow(packetParam, Node, payload, (size_t)payloadSize);
+            }
 
         } break;
         case IPPROTO_TCP: {

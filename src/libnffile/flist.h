@@ -44,13 +44,13 @@ typedef struct flist_s {
     timeWindow_t *timeWindow;
 } flist_t;
 
-int InitHierPath(int num);
+int CheckSubDir(unsigned num);
 
-char *GetSubDir(struct tm *now);
-
-int GetSubDirIndex(void);
+char *GetSubDir(unsigned subDir, struct tm *now);
 
 int SetupSubDir(char *dir, char *subdir);
+
+int SetupPath(struct tm *now, const char *dataDir, unsigned subDir, char *path);
 
 queue_t *SetupInputFileSequence(flist_t *flist);
 

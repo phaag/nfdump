@@ -87,11 +87,12 @@ typedef uint32_t pointer_addr_t;
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
 
+#define SYSLOG_FACILITY "daemon"
+
 typedef struct stringlist_s {
-    uint32_t block_size;
-    uint32_t max_index;
-    uint32_t num_strings;
     char **list;
+    uint32_t num_strings;
+    uint32_t capacity;
 } stringlist_t;
 
 typedef struct timeWindow_s {
@@ -105,17 +106,17 @@ void xsleep(suseconds_t usec);
 
 void CheckArgLen(char *arg, size_t len);
 
-int CheckPath(char *path, unsigned type);
+int CheckPath(const char *path, unsigned type);
 
 #define PATH_ERROR -1
 #define PATH_NOTEXISTS 0
 #define PATH_WRONGTYPE 1
 #define PATH_OK 2
-int TestPath(char *path, unsigned type);
+int TestPath(const char *path, unsigned type);
 
 void EndLog(void);
 
-int InitLog(int want_syslog, char *name, char *facility, int verbose_log);
+int InitLog(unsigned want_syslog, const char *name, char *facility, unsigned verbose_log);
 
 void LogError(char *format, ...);
 
@@ -123,7 +124,7 @@ void LogInfo(char *format, ...);
 
 void LogVerbose(char *format, ...);
 
-void InitStringlist(stringlist_t *list, int block_size);
+void InitStringlist(stringlist_t *list, uint32_t capacity);
 
 void InsertString(stringlist_t *list, char *string);
 

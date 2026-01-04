@@ -155,7 +155,7 @@ static queue_t *fileQueue = NULL;
 
 static _Atomic unsigned blocksInUse;
 
-int Init_nffile(int workers, queue_t *fileList) {
+int Init_nffile(unsigned workers, queue_t *fileList) {
     fileQueue = fileList;
     if (!LZO_initialize()) {
         LogError("Failed to initialize LZO");
@@ -276,7 +276,7 @@ static int LZO_initialize(void) {
 
 static int LZ4_initialize(void) {
     int lz4_buff_size = LZ4_compressBound(WRITE_BUFFSIZE);
-    if (lz4_buff_size > (BUFFSIZE - sizeof(dataBlock_t))) {
+    if (lz4_buff_size > (int)(BUFFSIZE - sizeof(dataBlock_t))) {
         LogError("LZ4_compressBound() error in %s line %d: Buffer too small", __FILE__, __LINE__);
         return 0;
     }
@@ -567,7 +567,7 @@ static int ReadAppendix(nffile_t *nffile) {
         }
         void *buff_ptr = (void *)((void *)block_header + sizeof(dataBlock_t));
 
-        for (int j = 0; j < block_header->NumRecords; j++) {
+        for (int j = 0; j < (int)block_header->NumRecords; j++) {
             record_header_t *record_header = (record_header_t *)buff_ptr;
             void *data = (void *)record_header + sizeof(record_header_t);
             uint16_t dataSize = record_header->size - sizeof(record_header_t);
@@ -736,7 +736,7 @@ nffile_t *NewFile(nffile_t *nffile) {
 
 }  // End of NewFile
 
-static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
+static nffile_t *OpenFileStatic(const char *filename, nffile_t *nffile) {
     struct stat stat_buf;
     int fd = 0;
 
@@ -893,7 +893,7 @@ static nffile_t *OpenFileStatic(char *filename, nffile_t *nffile) {
 
 }  // End of OpenFileStatic
 
-nffile_t *OpenFile(char *filename, nffile_t *nffile) {
+nffile_t *OpenFile(const char *filename, nffile_t *nffile) {
     nffile = OpenFileStatic(filename, nffile);  // Open the file
     if (!nffile) {
         return NULL;
@@ -920,7 +920,7 @@ nffile_t *OpenFile(char *filename, nffile_t *nffile) {
 //  creator    : Creator ID
 //  compress   : Compression algorithm and level. Lower 16bit: algo. Upper 16bit level
 //  encryption : Encryption algorithm used.
-nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compress, int encryption) {
+nffile_t *OpenNewFile(const char *filename, nffile_t *nffile, unsigned creator, unsigned compress, unsigned encryption) {
     int fd;
 
 #ifndef HAVE_ZSTD
@@ -980,7 +980,7 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
 
     // if file is not compressed, 2 workers are fine.
     unsigned NumThreads = nffile->file_header->compression == 0 ? 2 : NumWorkers;
-    for (unsigned i = 0; i < NumThreads; i++) {
+    for (int i = 0; i < NumThreads; i++) {
         pthread_t tid;
         int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
         if (err) {
@@ -994,7 +994,7 @@ nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compres
 
 } /* End of OpenNewFile */
 
-nffile_t *AppendFile(char *filename) {
+nffile_t *AppendFile(const char *filename) {
     nffile_t *nffile;
 
     // try to open the existing file
@@ -1037,7 +1037,7 @@ nffile_t *AppendFile(char *filename) {
     queue_open(nffile->processQueue);
 
     unsigned NumThreads = nffile->file_header->compression == 0 ? 1 : NumWorkers;
-    for (unsigned i = 0; i < NumThreads; i++) {
+    for (int i = 0; i < NumThreads; i++) {
         pthread_t tid;
         int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
         if (err) {
@@ -1051,7 +1051,7 @@ nffile_t *AppendFile(char *filename) {
 
 } /* End of AppendFile */
 
-int RenameAppend(char *oldName, char *newName) {
+int RenameAppend(const char *oldName, const char *newName) {
     if (access(newName, F_OK) == 0) {
         // file exists already - concat them
         nffile_t *nffile_w = AppendFile(newName);
@@ -1472,7 +1472,7 @@ __attribute__((noreturn)) static void *nfwriter(void *arg) {
 
 static void joinWorkers(nffile_t *nffile) {
     pthread_cond_broadcast(&(nffile->processQueue->cond));
-    for (unsigned i = 0; i < NumWorkers; i++) {
+    for (int i = 0; i < NumWorkers; i++) {
         if (nffile->worker[i]) {
             int err = pthread_join(nffile->worker[i], NULL);
             if (err && err != ESRCH) {
@@ -1496,6 +1496,15 @@ void SetIdent(nffile_t *nffile, char *Ident) {
     }
 
 }  // End of SetIdent
+
+int CheckIdent(const char *s) {
+    int len = 0;
+    for (; *s; s++, len++) {
+        if (len >= IDENTLEN) return 0;
+        if (*s <= 32 || *s > 126) return 0;
+    }
+    return 1;
+}  // End of CheckIdent
 
 int ChangeIdent(char *filename, char *Ident) {
     nffile_t *nffile = OpenFileStatic(filename, NULL);
@@ -1578,7 +1587,7 @@ char *SetUniqueTmpName(char *fname) {
 
 }  // End of SetUniqueTmpName
 
-void ModifyCompressFile(int compress) {
+void ModifyCompressFile(unsigned compress) {
     nffile_t *nffile_r, *nffile_w;
     stat_record_t *_s;
     char outfile[MAXPATHLEN];

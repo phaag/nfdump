@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2019, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -40,6 +40,6 @@
 
 int StartupLauncher(char *launch_process, int expire);
 
-int SendLauncherMessage(int pfd, time_t t_start, char *subdir, char *fmt, char *datadir, char *ident);
+int SendLauncherMessage(int pfd, time_t t_start, char *fname, char *fmt, char *datadir, char *ident);
 
 #endif  //_LAUNCH_H

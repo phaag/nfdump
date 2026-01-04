@@ -179,18 +179,29 @@ as identification string for the current source. This string is written into the
 the source. Default is 'none'. If you have multiple sources, see option
 .Fl n
 below.
-.It Fl n Ar ident,IP,flowdir
-Configures a netflow source identified by the string
-.Ar ident, IP flowdir
-If you have multiple sources per collector, add multiple
+.It Fl n Ar 'ident,IPList,flowdir'
+Configures a NetFlow/IPFIX source identified by the string
+.Ar ident,IPList,flowdir .
+The
+.Ar IPList
+is a semicolon-separated list of one or more IP addresses or CIDR blocks, and may include both IPv4 and IPv6 addresses. For example:
+.Dl -n 'router1,192.0.2.1;2001:db8::1/64,in'
+.Pp
+Note that the entire argument must be enclosed in single quotes to prevent the shell from interpreting the semicolon as a command separator.
+.Pp
+This option also acts as a filter: only packets originating from IP addresses listed in
+.Ar IPList
+will be accepted. Packets from sources not matching any entry in the list are silently discarded.
+.Pp
+If you have multiple sources per collector, specify multiple
 .Fl n
-options. All exporters send the flows to the same port
+options. All exporters send their flows to the same port specified with
 .Fl p .
-Do not mix single source configuration 
+Do not mix single-source configuration using
 .Fl I
-with multiple 
+with multiple
 .Fl n
-options. 
+options.
 .It Fl M Ar flowdir
 Set the flow directory for dynamic allocated exporters. New exporters are dynamically added when sending data.
 All exporters send netflow data to the same port and IP. For each dynamically added source, a new sub directory

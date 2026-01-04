@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2011-2022, Peter Haag
+ *  Copyright (c) 2011-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -40,12 +40,10 @@
 #include <time.h>
 
 #include "config.h"
+#include "ip128.h"
 #include "nfdump.h"
 #include "nfxV3.h"
 #include "rbtree.h"
-
-#define v4 ip_addr._v4
-#define v6 ip_addr._v6
 
 typedef struct flowTreeStat_s {
     size_t activeNodes;
@@ -64,8 +62,8 @@ struct FlowNode {
     // flow key
     struct flowKey_s {
         // IP addr
-        ip_addr_t src_addr;
-        ip_addr_t dst_addr;
+        ip128_t src_addr;
+        ip128_t dst_addr;
 
         uint16_t src_port;
         uint16_t dst_port;
@@ -94,8 +92,8 @@ struct FlowNode {
     uint32_t vlanID;
 
     // tunnel data
-    ip_addr_t tun_src_addr;
-    ip_addr_t tun_dst_addr;
+    ip128_t tun_src_addr;
+    ip128_t tun_dst_addr;
     uint8_t tun_proto;
     uint8_t tun_ip_version;
 
@@ -153,7 +151,7 @@ typedef RB_HEAD(FlowTree, FlowNode) FlowTree_t;
 // Insert the RB prototypes here
 RB_PROTOTYPE(FlowTree, FlowNode, entry, FlowNodeCMP);
 
-int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive);
+int Init_FlowTree(uint32_t CacheSize, uint32_t expireActive, uint32_t expireInactive);
 
 void Dispose_FlowTree(void);
 

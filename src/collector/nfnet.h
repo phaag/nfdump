@@ -47,17 +47,20 @@
 
 #define UDP_PACKET_SIZE 1472
 
+/* input buffer size, to read data from the network */
+#define NETWORK_INPUT_BUFF_SIZE 65535  // Maximum UDP message size
+
 /* Function prototypes */
 
-int Unicast_receive_socket(const char *bindhost, const char *listenport, int family, int sockbuflen);
+int Unicast_receive_socket(const char *bindhost, const char *listenport, int family, unsigned sockbuflen);
 
-int Multicast_receive_socket(const char *hostname, const char *listenport, int family, int sockbuflen);
+int Multicast_receive_socket(const char *hostname, const char *listenport, int family, unsigned sockbuflen);
 
 int Unicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
-                        int *addrlen);
+                        socklen_t *addrlen);
 
 int Multicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
-                          int *addrlen);
+                          socklen_t *addrlen);
 
 int Raw_send_socket(int sockbuflen);
 

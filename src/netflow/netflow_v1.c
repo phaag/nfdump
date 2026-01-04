@@ -83,31 +83,11 @@ typedef struct netflow_v1_record {
     uint8_t pad2[7];
 } netflow_v1_record_t;
 
-typedef struct exporter_v1_s {
-    // struct exporter_s
-    struct exporter_v1_s *next;
-
-    // exporter information
-    exporter_info_record_t info;  // exporter record nffile
-
-    uint64_t packets;           // number of packets sent by this exporter
-    uint64_t flows;             // number of flow records sent by this exporter
-    uint32_t sequence_failure;  // number of sequence failures
-    uint32_t padding_errors;    // number of sequence failures
-
-    sampler_t *sampler;  // list of samplers associated with this exporter
-    // end of struct exporter_s
-
-    // pre-calculated v1 output record header values
-    uint16_t outRecordSize;
-
-} exporter_v1_t;
-
 /* module limited globals */
 static int printRecord;
 static uint32_t baseRecordSize;
 
-static inline exporter_v1_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *header);
+static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *header);
 
 /* functions */
 
@@ -119,42 +99,79 @@ int Init_v1(int verbose) {
     return 1;
 }  // End of Init_v1
 
-static inline exporter_v1_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *header) {
-    exporter_v1_t **e = (exporter_v1_t **)&(fs->exporter_data);
-    uint16_t version = ntohs(header->version);
+// for v1, there is only one exporter possible - however, keep full code - compiler will optimise out anyway
+static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v1_header_t *header) {
+    const exporter_key_t key = {.version = VERSION_NETFLOW_V1, .id = 0, .ip = fs->ipAddr};
 
-    // search the matching v1 exporter
-    while (*e) {
-        if ((*e)->info.version == version && (*e)->info.ip.V6[0] == fs->ip.V6[0] && (*e)->info.ip.V6[1] == fs->ip.V6[1]) return *e;
-        e = &((*e)->next);
+    // fast cache
+    if (fs->last_exp && EXPORTER_KEY_EQUAL(fs->last_key, key)) {
+        return fs->last_exp;
     }
 
-    // nothing found
-    *e = (exporter_v1_t *)malloc(sizeof(exporter_v1_t));
-    if (!(*e)) {
-        LogError("Process_v1: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-    (**e) = (exporter_v1_t){.info = {.header = {.type = ExporterInfoRecordType, .size = sizeof(exporter_info_record_t)},
-                                     .version = version,
-                                     .id = 0,
-                                     .ip = fs->ip,
-                                     .sa_family = fs->sa_family,
-                                     .sysid = 0}};
-    char *ipstr = GetExporterIP(fs);
-    if (fs->sa_family == PF_INET6) {
-        (*e)->outRecordSize = baseRecordSize + EXipReceivedV6Size;
-        dbg_printf("Process_v1: New IPv6 exporter %s - add EXipReceivedV6\n", ipstr);
-    } else {
-        (*e)->outRecordSize = baseRecordSize + EXipReceivedV4Size;
-        dbg_printf("Process_v1: New IPv4 exporter %s - add EXipReceivedV4\n", ipstr);
+    exporter_table_t *tab = &fs->exporters;
+    // Check load factor in case we need a new slot
+    if ((tab->count * 4) >= (tab->capacity * 3)) {
+        // expand exporter index
+        expand_exporter_table(tab);
+        tab = &fs->exporters;
     }
 
-    FlushInfoExporter(fs, &((*e)->info));
+    // not identical of last exporter
+    uint32_t hash = EXPORTERHASH(key);
+    uint32_t mask = tab->capacity - 1;
+    uint32_t i = hash & mask;
 
-    LogInfo("Process_v1: SysID: %u, New exporter: IP: %s\n", (*e)->info.sysid, ipstr);
+    for (;;) {
+        exporter_entry_t *e = &tab->entries[i];
+        // key does not exists - create new exporter
+        if (!e->in_use) {
+            // create new exporter
+            e->key = key;
+            e->packets = 0;
+            e->flows = 0;
+            e->sequence_failure = 0;
+            e->sequence = UINT32_MAX;
+            e->in_use = 1;
+            tab->count++;
 
-    return (*e);
+            e->info = (exporter_info_record_t){.header = (record_header_t){.type = ExporterInfoRecordType, .size = sizeof(exporter_info_record_t)},
+                                               .version = key.version,
+                                               .id = key.id,
+                                               .fill = 0,
+                                               .sysid = 0};
+            memcpy(e->info.ip, fs->ipAddr.bytes, 16);
+
+            e->version.v1 = (exporter_v1_t){0};
+
+            char *ipstr = ip128_2_str(&fs->ipAddr);
+            if (fs->sa_family == PF_INET6) {
+                e->version.v1.outRecordSize = baseRecordSize + EXipReceivedV6Size;
+                dbg_printf("Process_v1: New IPv6 exporter %s - add EXipReceivedV6\n", ipstr);
+            } else {
+                e->version.v1.outRecordSize = baseRecordSize + EXipReceivedV4Size;
+                dbg_printf("Process_v1: New IPv4 exporter %s - add EXipReceivedV4\n", ipstr);
+            }
+
+            FlushInfoExporter(fs, &e->info);
+            LogInfo("Process_v1: SysID: %u, New exporter: IP: %s\n", e->info.sysid, ipstr);
+
+            fs->last_key = key;
+            fs->last_exp = e;
+            return e;
+        }
+        if (EXPORTER_KEY_EQUAL(e->key, key)) {
+            fs->last_key = key;
+            fs->last_exp = e;
+            return e;
+        }
+
+        dbg_assert(tab->count < tab->capacity);
+        // next slot
+        i = (i + 1) & mask;
+    }
+
+    // unreached
+    return NULL;
 
 }  // End of getExporter
 
@@ -162,7 +179,7 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // map v1 data structure to input buffer
     netflow_v1_header_t *v1_header = (netflow_v1_header_t *)in_buff;
 
-    exporter_v1_t *exporter = getExporter(fs, v1_header);
+    exporter_entry_t *exporter = getExporter(fs, v1_header);
     if (!exporter) {
         LogError("Process_v1: NULL Exporter: Abort v1 record processing");
         return;
@@ -192,7 +209,7 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 
         // output buffer size check for all expected records
         void *outBuff = GetCurrentCursor(fs->dataBlock);
-        if (!IsAvailable(fs->dataBlock, count * exporter->outRecordSize)) {
+        if (!IsAvailable(fs->dataBlock, count * exporter->version.v1.outRecordSize)) {
             // flush block - get an empty one
             fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
             // map output memory buffer
@@ -273,11 +290,10 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             // router IP
             if (fs->sa_family == PF_INET6) {
                 PushExtension(recordHeader, EXipReceivedV6, ipReceivedV6);
-                ipReceivedV6->ip[0] = fs->ip.V6[0];
-                ipReceivedV6->ip[1] = fs->ip.V6[1];
+                memcpy((void *)ipReceivedV6->ip, fs->ipAddr.bytes, 16);
             } else {
                 PushExtension(recordHeader, EXipReceivedV4, ipReceivedV4);
-                ipReceivedV4->ip = fs->ip.V4;
+                memcpy(&ipReceivedV4->ip, fs->ipAddr.bytes + 12, 4);
             }
 
             // Update stats
@@ -328,9 +344,8 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             // advance input buffer to next flow record
             v1_record = (netflow_v1_record_t *)((void *)v1_record + NETFLOW_V1_RECORD_LENGTH);
 
-            if (recordHeader->size > exporter->outRecordSize) {
-                LogError("Process_v1: Record size check failed! Expected: %u, counted: %u\n", exporter->outRecordSize, recordHeader->size);
-                exit(255);
+            if (recordHeader->size > exporter->version.v1.outRecordSize) {
+                LogError("Process_v1: Record size check failed! Expected: %u, counted: %u\n", exporter->version.v1.outRecordSize, recordHeader->size);
             }
 
         }  // End of foreach v1 record

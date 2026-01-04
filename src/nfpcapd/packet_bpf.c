@@ -103,7 +103,7 @@ static void CloseSocket(packetParam_t *param) {
 }  // End of CloseSocket
 
 // live device
-int setup_bpf_live(packetParam_t *param, char *device, char *filter, int snaplen, int buffsize, int to_ms) {
+int setup_bpf_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms) {
     param->pcap_dev = NULL;
     param->bpf = 0;
     int bpf = open_bpf();

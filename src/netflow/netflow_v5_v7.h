@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -32,21 +32,13 @@
 #ifndef _NETFLOW_V5_V7_H
 #define _NETFLOW_V5_V7_H 1
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <stdint.h>
 
 #include "collector.h"
-#include "nffile.h"
-#include "nfnet.h"
 
 /* prototypes */
 int Init_v5_v7(int verbose, int32_t sampling);
 
 void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
-
-void dummy_Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs);
 
 #endif  //_NETFLOW_V5_V7_H

@@ -188,21 +188,13 @@ static int ExtendCache(void) {
 }  // End of ExtendCache
 
 /* flow tree functions */
-int Init_FlowTree(uint32_t CacheSize, int32_t expireActive, int32_t expireInactive) {
+int Init_FlowTree(uint32_t CacheSize, uint32_t expireActive, uint32_t expireInactive) {
     if (expireActive) {
-        if (expireActive < 0 || expireActive > 3600) {
-            LogError("Active flow timeout %d out of range", expireActive);
-            return 0;
-        }
         expireActiveTimeout = expireActive;
         LogInfo("Set active flow expire timeout to %us", expireActiveTimeout);
     }
 
     if (expireInactive) {
-        if (expireInactive < 0 || expireInactive > 3600) {
-            LogError("Inactive flow timeout %d out of range", expireInactive);
-            return 0;
-        }
         expireInactiveTimeout = expireInactive;
         LogInfo("Set inactive flow expire timeout to %us", expireInactiveTimeout);
     }

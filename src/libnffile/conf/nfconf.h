@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2022-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,6 +31,7 @@
 #ifndef _NFCONF_H
 #define _NFCONF_H 1
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 
@@ -70,8 +71,8 @@ int scanOptions(option_t *optionList, char *options);
 
 void ConfInventory(char *confFile);
 
-int OptSetBool(option_t *optionList, char *name, int valBool);
+int OptSetBool(option_t *optionList, char *name, bool valBool);
 
-int OptGetBool(option_t *optionList, char *name, int *valBool);
+int OptGetBool(option_t *optionList, char *name, bool *valBool);
 
 #endif

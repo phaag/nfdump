@@ -174,7 +174,7 @@ static int CloseDumpFile(flushParam_t *param, time_t t_start) {
     char fmt[16];
     strftime(fmt, sizeof(fmt), param->extensionFormat, when);
     if (param->subdir_index) {
-        char *subdir = GetSubDir(when);
+        char *subdir = GetSubDir(param->subdir_index, when);
         if (!subdir || !SetupSubDir(param->archivedir, subdir)) {
             LogError("Create subdir failed");
             subdir = "";

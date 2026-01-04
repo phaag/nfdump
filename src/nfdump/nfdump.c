@@ -83,6 +83,7 @@ extern char *FilterFilename;
 typedef struct dataHandle_s {
     dataBlock_t *dataBlock;
     char *ident;
+    uint64_t blockCnt;
     uint64_t recordCnt;
 } dataHandle_t;
 
@@ -93,11 +94,11 @@ typedef struct prepareArgs_s {
 } prepareArgs_t;
 
 typedef struct filterArgs_s {
-    _Atomic int self;
+    _Atomic unsigned self;
     _Atomic uint64_t processedRecords;
     _Atomic uint64_t passedRecords;
-    int hasGeoDB;
-    int numWorkers;
+    unsigned hasGeoDB;
+    unsigned numWorkers;
     void *engine;
     timeWindow_t *timeWindow;
     queue_t *prepareQueue;
@@ -117,8 +118,6 @@ static uint64_t t_firstMsec = 0, t_lastMsec = 0;
 static _Atomic uint32_t abortProcessing = 0;
 
 enum processType { FLOWSTAT = 1, ELEMENTSTAT, ELEMENTFLOWSTAT, SORTRECORDS, WRITEFILE, PRINTRECORD };
-
-extern exporter_t **exporter_list;
 
 /* Function Prototypes */
 static void usage(char *name);
@@ -270,6 +269,63 @@ static int SetStat(char *str, int *element_stat, int *flow_stat) {
 
 }  // End of SetStat
 
+// preprocess block - check of block is valid and
+// add exporter records
+static int PreProcessBlock(dataBlock_t *dataBlock) {
+    record_header_t *record_ptr = GetCursor(dataBlock);
+    uint32_t sumSize = 0;
+    unsigned i;
+    for (i = 0; i < dataBlock->NumRecords; i++) {
+        if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
+            if (sumSize == dataBlock->size) {
+                LogError("DataBlock count error");
+                LogError("DataBlock: count: %u, size: %u. Found: %u, size: %u", dataBlock->NumRecords, dataBlock->size, i, sumSize);
+                dataBlock->NumRecords = i;
+                return 0;
+            }
+            LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
+            LogError("DataBlock: count: %u, size: %u. Found: %u, size: %u", dataBlock->NumRecords, dataBlock->size, i, sumSize);
+            return 0;
+        }
+        sumSize += record_ptr->size;
+
+        // work on our record
+        switch (record_ptr->type) {
+            case ExporterInfoRecordType:
+                if (AddExporterInfo((exporter_info_record_t *)record_ptr) == 0) {
+                    LogError("Failed to add Exporter Record\n");
+                }
+                break;
+            case ExporterStatRecordType:
+                AddExporterStat((exporter_stats_record_t *)record_ptr);
+                break;
+            case SamplerLegacyRecordType: {
+                sampler_record_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
+                if (sampler_record != NULL) {
+                    if (AddSamplerRecord(sampler_record) == 0) {
+                        LogError("Failed to add converted Sampler Record\n");
+                    }
+                    free(sampler_record);
+                }
+            } break;
+            case SamplerRecordType:
+                if (AddSamplerRecord((sampler_record_t *)record_ptr) == 0) {
+                    LogError("Failed to add Sampler Record\n");
+                }
+                break;
+
+                // default:
+                // silently skip all other records
+        }
+
+        // Advance pointer by number of bytes for netflow record
+        record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
+    }
+    dbg_printf("PreProcess datablock: count: %u, size: %u. Found: %u, size: %u\n", dataBlock->NumRecords, dataBlock->size, i, sumSize);
+
+    return 1;
+}  // End of PreProcessBlock
+
 __attribute__((noreturn)) static void *prepareThread(void *arg) {
     prepareArgs_t *prepareArgs = (prepareArgs_t *)arg;
 
@@ -288,8 +344,8 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
 
     dataHandle_t *dataHandle = NULL;
     uint64_t recordCnt = 0;
-    int processedBlocks = 0;
-    int skippedBlocks = 0;
+    unsigned processedBlocks = 0;
+    unsigned skippedBlocks = 0;
 
     int done = nffile == NULL;
     while (!done) {
@@ -298,6 +354,7 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
             dataHandle->ident = nffile->ident != NULL ? strdup(nffile->ident) : NULL;
         }
         dataHandle->dataBlock = ReadBlock(nffile, NULL);
+        dataHandle->blockCnt = ++processedBlocks;
 
         // get next data block from file
         if (dataHandle->dataBlock == NULL) {
@@ -313,7 +370,6 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
             continue;
         }
 
-        processedBlocks++;
         switch (dataHandle->dataBlock->type) {
             case DATA_BLOCK_TYPE_1:
                 LogError("nfdump 1.5.x block type 1 no longer supported. Skip block");
@@ -326,6 +382,7 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
                 dataHandle->dataBlock = v3DataBlock;
             } break;
             case DATA_BLOCK_TYPE_3:
+                if (PreProcessBlock(dataHandle->dataBlock) == 0) continue;
                 // processed blocks
                 break;
             case DATA_BLOCK_TYPE_4:
@@ -373,7 +430,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
     queue_t *prepareQueue = filterArgs->prepareQueue;
     queue_t *processQueue = filterArgs->processQueue;
     void *engine = FilterCloneEngine(filterArgs->engine);
-    int hasGeoDB = filterArgs->hasGeoDB;
+    unsigned hasGeoDB = filterArgs->hasGeoDB;
 
     timeWindow_t *timeWindow = filterArgs->timeWindow;
 
@@ -413,25 +470,13 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
 
 #ifdef DEVEL
         numBlocks++;
-        printf("Filter thread %i working on next Block: %u, records: %u\n", self, numBlocks, dataBlock->NumRecords);
+        printf("Filter thread %i working on Block: %llu, records: %u\n", self, dataHandle->blockCnt, dataBlock->NumRecords);
 #endif
 
         record_header_t *record_ptr = GetCursor(dataBlock);
-        uint32_t sumSize = 0;
+        uint32_t matched = 0;
+        __unused uint32_t dataRecords = 0;
         for (int i = 0; i < dataBlock->NumRecords; i++) {
-            if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
-                if (sumSize == dataBlock->size) {
-                    LogError("DataBlock count error");
-                    LogError("DataBlock: count: %u, size: %u. Found: %u, size: %u", dataBlock->NumRecords, dataBlock->size, i, sumSize);
-                    dataBlock->NumRecords = i;
-                    break;
-                }
-                LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
-                LogError("DataBlock: count: %u, size: %u. Found: %u, size: %u", dataBlock->NumRecords, dataBlock->size, i, sumSize);
-                sumSize = 0;
-                break;
-            }
-            sumSize += record_ptr->size;
             processedRecords++;
             recordCounter++;
 
@@ -439,10 +484,10 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
             switch (record_ptr->type) {
                 case CommonRecordType:
                     printf("Need to convert record type: %u\n", CommonRecordType);
-                    sumSize = 0;
                     break;
                 case V3Record: {
                     recordHeaderV3_t *recordHeaderV3 = (recordHeaderV3_t *)record_ptr;
+                    dataRecords++;
                     int match = MapRecordHandle(recordHandle, recordHeaderV3, recordCounter);
                     // Time based filter
                     // if no time filter is given, the result is always true
@@ -462,6 +507,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
                     if (match) {  // record passed all filters
                         SetFlag(recordHeaderV3->flags, V3_FLAG_PASSED);
                         passedRecords++;
+                        matched++;
                     } else {
                         ClearFlag(recordHeaderV3->flags, V3_FLAG_PASSED);
                     }
@@ -486,8 +532,12 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
             // Advance pointer by number of bytes for netflow record
             record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
         }
-        dbg_printf("Filter thread %i push next block: %u\n", self, numBlocks);
-        if (sumSize) queue_push(processQueue, dataHandle);
+        if (matched) {
+            dbg_printf("Filter thread %i push next block: %u\n", self, numBlocks);
+            queue_push(processQueue, dataHandle);
+        }
+        dbg_printf("Filter thread %u: dataBlock: %llu, matched %u/%u flow records. Total records in datablock: %u\n", self, dataHandle->blockCnt,
+                   matched, dataRecords, dataBlock->NumRecords);
     }
 
     queue_close(processQueue);
@@ -619,45 +669,27 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                     printf("ExtensionMap no longer handled here!\n");
                     break;
                 case ExporterInfoRecordType: {
-                    int ret = AddExporterInfo((exporter_info_record_t *)record_ptr);
-                    if (ret != 0) {
-                        if (nffile_w) {
-                            dbg_printf("Dump ExporterInfo Record to file\n");
-                            dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
-                        }
-                    } else {
-                        LogError("Failed to add Exporter Record\n");
+                    if (nffile_w) {
+                        dbg_printf("Dump ExporterInfo Record to file\n");
+                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
                     }
                 } break;
                 case ExporterStatRecordType:
-                    AddExporterStat((exporter_stats_record_t *)record_ptr);
                     break;
-                case SamplerLegacyRecordType: {
-                    sampler_record_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
-                    if (sampler_record != NULL) {
-                        int ret = AddSamplerRecord(sampler_record);
-                        if (ret != 0) {
-                            if (nffile_w) {
-                                dbg_printf("Dump converted Sampler Record to file\n");
-                                dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)sampler_record, sampler_record->size);
-                            }
-                        } else {
-                            LogError("Failed to add converted Sampler Record\n");
-                        }
+                case SamplerLegacyRecordType:
+                    if (nffile_w) {
+                        sampler_record_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
+                        dbg_printf("Dump converted Sampler Record to file\n");
+                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)sampler_record, sampler_record->size);
                         free(sampler_record);
                     }
-                } break;
-                case SamplerRecordType: {
-                    int ret = AddSamplerRecord((sampler_record_t *)record_ptr);
-                    if (ret != 0) {
-                        if (nffile_w) {
-                            dbg_printf("Dump Sampler Record to file\n");
-                            dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
-                        }
-                    } else {
-                        LogError("Failed to add Sampler Record\n");
+                    break;
+                case SamplerRecordType:
+                    if (nffile_w) {
+                        dbg_printf("Dump Sampler Record to file\n");
+                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
                     }
-                } break;
+                    break;
                 case NbarRecordType: {
                     arrayRecordHeader_t *nbarRecord = (arrayRecordHeader_t *)record_ptr;
 #ifdef DEVEL
@@ -833,9 +865,6 @@ int main(int argc, char **argv) {
                 break;
             case 'E': {
                 CheckArgLen(optarg, MAXPATHLEN);
-                if (!InitExporterList()) {
-                    exit(EXIT_FAILURE);
-                }
                 flist.single_file = strdup(optarg);
                 queue_t *fileList = SetupInputFileSequence(&flist);
                 if (!fileList || !Init_nffile(1, fileList)) exit(EXIT_FAILURE);
@@ -894,14 +923,15 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
-            case 'c':
+            case 'c': {
                 CheckArgLen(optarg, 16);
-                limitRecords = atoi(optarg);
+                int l = atoi(optarg);
+                if (l > 0) limitRecords = (uint32_t)l;
                 if (!limitRecords) {
                     LogError("Option -c needs a number > 0");
                     exit(EXIT_FAILURE);
                 }
-                break;
+            } break;
             case 's':
                 CheckArgLen(optarg, 64);
                 stat_type = optarg;
@@ -1083,6 +1113,10 @@ int main(int argc, char **argv) {
     }
 
     if (syntax_only) exit(EXIT_SUCCESS);
+
+    if (!InitExporterList()) {
+        exit(EXIT_FAILURE);
+    }
 
     if (ConfOpen(configFile, "nfdump") < 0) exit(EXIT_FAILURE);
 

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022-2024, Peter Haag
+ *  Copyright (c) 2022-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -213,7 +213,7 @@ static outTemplate_t *GetOutputTemplate(recordHandle_t *recordHandle) {
 
     // add flowset array - includes one potential padding
     int32_t numV9Elements = 40;  // assume, this may be enough, otherwise expand table
-    (*t)->template_flowset = calloc(1, sizeof(template_flowset_t) + (numV9Elements * 4));
+    (*t)->template_flowset = calloc(1, sizeof(template_flowset_t) + (size_t)(numV9Elements * 4));
     if (!(*t)->template_flowset) {
         LogError("malloc() %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         exit(255);

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -37,6 +37,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <resolv.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -506,7 +507,7 @@ int scanOptions(option_t *optionList, char *options) {
 
 }  // End of scanOption
 
-int OptSetBool(option_t *optionList, char *name, int valBool) {
+int OptSetBool(option_t *optionList, char *name, bool valBool) {
     int i = 0;
     while (optionList[i].name != NULL) {
         if (strcmp(optionList[i].name, name) == 0) {
@@ -519,7 +520,7 @@ int OptSetBool(option_t *optionList, char *name, int valBool) {
     return 0;
 }  // End of OptSetBool
 
-int OptGetBool(option_t *optionList, char *name, int *valBool) {
+int OptGetBool(option_t *optionList, char *name, bool *valBool) {
     int i = 0;
     while (optionList[i].name != NULL) {
         if (strcmp(optionList[i].name, name) == 0) {

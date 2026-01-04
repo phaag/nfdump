@@ -253,7 +253,7 @@ static void RepeaterMessageFunc(message_t *message, void *extraArg) {
     }
 }
 
-int StartupRepeater(repeater_t *repeater, int bufflen, int srcSpoofing, char *userid, char *groupid) {
+int StartupRepeater(repeater_t *repeater, unsigned bufflen, unsigned srcSpoofing, char *userid, char *groupid) {
     LogInfo("StartupRepeater: userid: %s, groupid: %s", userid ? userid : "default", groupid ? groupid : "default");
 
     if (srcSpoofing == 0) {

@@ -132,7 +132,7 @@ static void readFlowSample_v2v4(SFSample *sample, FlowSource_t *fs, int verbose)
 static void readFlowSample(SFSample *sample, int expanded, FlowSource_t *fs, int verbose);
 
 #ifdef DEVEL
-static inline char *printTag(uint32_t tag, char *buf, int bufLen);
+static inline char *printTag(uint32_t tag, char *buf, size_t bufLen);
 static char *URLEncode(char *in, char *out, int outlen);
 static int printUUID(const uint8_t *a, char *buf, int bufLen);
 static void sf_log_percentage(SFSample *sample, char *fieldName);
@@ -186,7 +186,7 @@ static void readCountersSample(SFSample *sample, int expanded, FlowSource_t *fs,
 static void readRTMetric(SFSample *sample, FlowSource_t *fs, int verbose);
 static void readRTFlow(SFSample *sample, FlowSource_t *fs, int verbose);
 
-static inline char *printTag(uint32_t tag, char *buf, int bufLen) {
+static inline char *printTag(uint32_t tag, char *buf, size_t bufLen) {
     snprintf(buf, bufLen, "%u:%u", (tag >> 12), (tag & 0x00000FFF));
     return buf;
 }  // End of printTag
@@ -360,7 +360,6 @@ static void writeCountersLine(SFSample *sample) {
 */
 
 static void receiveError(SFSample *sample, char *errm, int hexdump) {
-    char ipbuf[51];
     char scratch[6000];
     char *msg = "";
     char *hex = "";
@@ -372,7 +371,9 @@ static void receiveError(SFSample *sample, char *errm, int hexdump) {
         printHex(sample->rawSample, sample->rawSampleLen, scratch, 6000, markOffset, 16);
         hex = scratch;
     }
-    LogError("SFLOW: %s (source IP = %s) %s", msg, IP_to_a(sample->sourceIP.s_addr, ipbuf, 51), hex);
+    char ipStr[40];
+    inet_ntop(AF_INET6, sample->sourceIP.bytes, ipStr, sizeof(ipStr));
+    LogError("SFLOW: %s (source IP = %s) %s", msg, ipStr, hex);
 
     // return instead of SFABORT receive functions return as well
 
@@ -3665,7 +3666,9 @@ void readSFlowDatagram(SFSample *sample, FlowSource_t *fs, int verbose) {
     int parse_tun = sample->parse_tun;
 
     /* log some datagram info */
-    dbg_printf("datagramSourceIP %s\n", IP_to_a(sample->sourceIP.s_addr, buf, 51));
+    char ipStr[40];
+    inet_ntop(AF_INET6, sample->sourceIP.bytes, ipStr, sizeof(ipStr));
+    dbg_printf("datagramSourceIP %s\n", ipStr);
     dbg_printf("datagramSize %u\n", sample->rawSampleLen);
     dbg_printf("unixSecondsUTC %lld\n", (long long)sample->readTimestamp);
 

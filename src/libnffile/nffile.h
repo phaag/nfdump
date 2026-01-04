@@ -196,7 +196,7 @@ typedef struct nffile_s {
 #define GetCursor(block) ((void *)(block) + sizeof(dataBlock_t))
 #define GetCurrentCursor(block) ((void *)(block) + (block)->size + sizeof(dataBlock_t))
 #define BlockSize(block) (block)->size)
-#define BlockAvailable(block) (WRITE_BUFFSIZE - (block)->size)
+#define BlockAvailable(block) ((block)->size > WRITE_BUFFSIZE ? 0 : (WRITE_BUFFSIZE - (block)->size))
 #define IsAvailable(block, required) (((block)->size + required) < WRITE_BUFFSIZE)
 
 #define FILE_IDENT(n) ((n)->ident)
@@ -231,7 +231,7 @@ typedef struct record_header_s {
  * for the detailed description of the record definition see nfx.h
  */
 
-int Init_nffile(int workers, queue_t *fileList);
+int Init_nffile(unsigned workers, queue_t *fileList);
 
 int ParseCompression(char *arg);
 
@@ -239,12 +239,12 @@ unsigned ReportBlocks(void);
 
 void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
-nffile_t *OpenFile(char *filename, nffile_t *nffile);
+nffile_t *OpenFile(const char *filename, nffile_t *nffile);
 
-#define INHERIT -1
-nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compress, int encryption);
+#define INHERIT UINT_MAX
+nffile_t *OpenNewFile(const char *filename, nffile_t *nffile, unsigned creator, unsigned compress, unsigned encryption);
 
-nffile_t *AppendFile(char *filename);
+nffile_t *AppendFile(const char *filename);
 
 int ChangeIdent(char *filename, char *Ident);
 
@@ -266,7 +266,7 @@ void CloseFile(nffile_t *nffile);
 
 int FinaliseFile(nffile_t *nffile);
 
-int RenameAppend(char *oldName, char *newName);
+int RenameAppend(const char *oldName, const char *newName);
 
 nffile_t *GetNextFile(nffile_t *nffile);
 
@@ -282,8 +282,10 @@ void FreeDataBlock(dataBlock_t *dataBlock);
 
 void SetIdent(nffile_t *nffile, char *Ident);
 
+int CheckIdent(const char *s);
+
 char *SetUniqueTmpName(char *fname);
 
-void ModifyCompressFile(int compress);
+void ModifyCompressFile(unsigned compress);
 
 #endif  //_NFFILE_H

@@ -27,6 +27,9 @@ AX_CHECK_C17
 AS_IF([test x$enable_devel = xyes], [
     AC_MSG_NOTICE([developer mode enabled])
 		AX_APPEND_FLAG([-DDEVEL],[CFLAGS])
+		AX_APPEND_FLAG([-Wextra], [CFLAGS])
+		#AX_APPEND_FLAG([-Wsign-conversion], [CFLAGS])
+		#AX_APPEND_FLAG([-fsanitize=undefined], [CFLAGS])
 		# --- check for address sanitizer ---
 		AX_CHECK_COMPILE_FLAG([-fno-omit-frame-pointer -fsanitize=address],[
 			AX_APPEND_FLAG([-fno-omit-frame-pointer -fsanitize=address],[CFLAGS])
@@ -34,13 +37,13 @@ AS_IF([test x$enable_devel = xyes], [
 		enable_shared=no
 ])
 
+
 # --- Add compiler flags
 AX_APPEND_FLAG([-Wall],[CFLAGS])
 AX_APPEND_FLAG([-Wstrict-prototypes],[CFLAGS])
 AX_APPEND_FLAG([-Wmissing-prototypes],[CFLAGS])
 AX_APPEND_FLAG([-Wmissing-declarations],[CFLAGS])
 AX_APPEND_FLAG([-Wmissing-noreturn],[CFLAGS])
-AX_APPEND_FLAG([-fno-strict-aliasing],[CFLAGS])
 
 LT_INIT
 
@@ -57,6 +60,9 @@ AC_ARG_ENABLE([nfprofile], AS_HELP_STRING([--enable-nfprofile],[Enable nfprofile
 AC_ARG_ENABLE([readpcap], AS_HELP_STRING([--enable-readpcap],[Enable reading of pcap file for nfcapd/sfcapd]), enable_readpcap=yes, enable_readpcap=no)
 AC_ARG_ENABLE([nfpcapd], AS_HELP_STRING([--enable-nfpcapd],[Enable nfpcapd pcap to netflow collector]), enable_nfpcapd=yes, enable_nfpcapd=no)
 AC_ARG_ENABLE([ja4], AS_HELP_STRING([--enable-ja4],[Build with ja4+ fingerprinting code; https://github.com/FoxIO-LLC/ja4/blob/main/LICENSE]), enable_ja4=yes, enable_ja4=no)
+AC_ARG_ENABLE([native], [AS_HELP_STRING([--enable-native], [Use -march=native if supported for running on local system])], [enable_native=$enableval], [enable_native=no])
+AC_ARG_ENABLE([lto], AS_HELP_STRING([--enable-lto], [Enable link-time optimization (LTO) if supported]), [enable_lto=$enableval], [enable_lto=no])
+
 
 AM_CONDITIONAL([BUILD_FT2NFDUMP], [test x$enable_ftconv = xyes])
 AM_CONDITIONAL([BUILD_NFPCAPD], [test x$enable_nfpcapd = xyes])
@@ -84,6 +90,32 @@ char *c = (char*)&x;
 #endif
 ]])],
 [AC_DEFINE([WORDS_BIGENDIAN], [1], [Define if big endian])])
+
+# Initialize the native CFLAG variable
+NATIVE_CFLAGS=""
+
+# append -march=native for optimised vector code unless disabled
+AS_IF([test x$enable_native != xno], [
+		AX_CHECK_COMPILE_FLAG([-march=native], [
+			AX_APPEND_FLAG([-march=native],[CFLAGS])
+		])
+])
+
+AS_IF([test "x$enable_lto" = "xyes"], [
+  AC_MSG_CHECKING([whether the compiler supports -flto])
+  AX_CHECK_COMPILE_FLAG([-flto], [have_lto_cc=yes], [have_lto_cc=no])
+
+  AC_MSG_CHECKING([whether the linker supports -flto])
+  AX_CHECK_LINK_FLAG([-flto], [have_lto_ld=yes], [have_lto_ld=no])
+
+  AS_IF([test "x$have_lto_cc" = "xyes" -a "x$have_lto_ld" = "xyes"], [
+      AC_MSG_NOTICE([LTO enabled])
+      AX_APPEND_FLAG([-flto], [CFLAGS])
+      AX_APPEND_FLAG([-flto], [LDFLAGS])
+  ], [
+      AC_MSG_WARN([LTO requested but not supported by compiler or linker])
+  ])
+])
 
 # --- Check to see if -latomic is needed for atomic built-ins.
 AX_CHECK_ATOMIC

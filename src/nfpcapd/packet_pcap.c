@@ -67,7 +67,7 @@ static proc_stat_t proc_stat = {0};
 static void CloseSocket(packetParam_t *param) { pcap_close(param->pcap_dev); }  // End of CloseSocket
 
 // live device
-int setup_pcap_live(packetParam_t *param, char *device, char *filter, int snaplen, int buffsize, int to_ms) {
+int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms) {
     pcap_t *p;
     char errbuf[PCAP_ERRBUF_SIZE];
 

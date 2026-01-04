@@ -397,15 +397,7 @@ static void launcher(messageQueue_t *messageQueue, char *launch_process, int exp
     l = strlen(v[i].iov_base) + 1; \
     v[i++].iov_len = l;
 
-int SendLauncherMessage(int pfd, time_t t_start, char *subdir, char *fmt, char *datadir, char *ident) {
-    char fname[MAXPATHLEN];
-    if (subdir) {
-        snprintf(fname, MAXPATHLEN - 1, "%s/nfcapd.%s", subdir, fmt);
-    } else {
-        snprintf(fname, MAXPATHLEN - 1, "nfcapd.%s", fmt);
-    }
-    fname[MAXPATHLEN - 1] = '\0';
-
+int SendLauncherMessage(int pfd, time_t t_start, char *fname, char *fmt, char *datadir, char *ident) {
     dbg_printf("Launcher arguments: Time: %ld, t: %s, f: %s, d: %s, i: %s\n", t_start, fmt, fname, datadir, ident);
 
     message_t message;

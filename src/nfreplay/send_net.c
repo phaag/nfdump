@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2025, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -52,7 +52,6 @@ static int joinGroup(int sockfd, int loopBack, int mcastTTL, struct sockaddr_sto
 
 static int setSourceAddress(int sockfd, const char *srcaddr, int family, int socktype);
 
-
 int setSourceAddress(int sockfd, const char *shostname, int family, int socktype) {
     struct addrinfo shints, *sres;
     int error;
@@ -75,7 +74,8 @@ int setSourceAddress(int sockfd, const char *shostname, int family, int socktype
 }
 
 /* function definitions */
-int Unicast_send_socket(const char *shostname, const char *dhostname, const char *sendport, int family, unsigned int wmem_size, struct sockaddr_storage *saddr, struct sockaddr_storage *daddr, int *addrlen) {
+int Unicast_send_socket(const char *shostname, const char *dhostname, const char *sendport, int family, unsigned int wmem_size,
+                        struct sockaddr_storage *saddr, struct sockaddr_storage *daddr, unsigned *addrlen) {
     struct addrinfo hints, *res, *ressave;
     int error, sockfd;
     unsigned int wmem_actual;
@@ -127,7 +127,7 @@ int Unicast_send_socket(const char *shostname, const char *dhostname, const char
         return -1;
     }
 
-    if (shostname != NULL ) {
+    if (shostname != NULL) {
         if (setSourceAddress(sockfd, shostname, family, SOCK_DGRAM) == -1) {
             freeaddrinfo(ressave);
             return -1;
@@ -157,8 +157,8 @@ int Unicast_send_socket(const char *shostname, const char *dhostname, const char
 
 }  // End of Unicast_send_socket
 
-int Multicast_send_socket(const char *shostname, const char *dhostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *saddr, struct sockaddr_storage *daddr,
-                          int *addrlen) {
+int Multicast_send_socket(const char *shostname, const char *dhostname, const char *listenport, int family, unsigned int wmem_size,
+                          struct sockaddr_storage *saddr, struct sockaddr_storage *daddr, unsigned *addrlen) {
     struct addrinfo hints, *res, *ressave;
     int error, sockfd;
 
@@ -196,7 +196,6 @@ int Multicast_send_socket(const char *shostname, const char *dhostname, const ch
         break;
     }
 
-    
     if (sockfd < 0) {
         // nothing found - bye bye
         fprintf(stderr, "Could not create a socket for [%s:%s]\n", dhostname, listenport);

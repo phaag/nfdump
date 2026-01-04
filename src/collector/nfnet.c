@@ -115,7 +115,7 @@ static int search_socket(const char *bindhost, const char *port, int *family) {
 }  // End of searchSocket
 
 /* Set requested receive buffer length */
-static int set_socket_buffer(int sockfd, int sockbuflen) {
+static int set_socket_buffer(int sockfd, unsigned sockbuflen) {
     int cur;
     socklen_t optlen = sizeof(cur);
 
@@ -133,7 +133,7 @@ static int set_socket_buffer(int sockfd, int sockbuflen) {
     return 0;
 }
 
-int Unicast_receive_socket(const char *bindhost, const char *listenport, int family, int sockbuflen) {
+int Unicast_receive_socket(const char *bindhost, const char *listenport, int family, unsigned sockbuflen) {
     if (!listenport) {
         LogError("listen port required!");
         return -1;
@@ -175,7 +175,8 @@ int Unicast_receive_socket(const char *bindhost, const char *listenport, int fam
     return sockfd;
 }
 
-int Unicast_send_socket(const char *hostname, const char *sendport, int family, unsigned int wmem_size, struct sockaddr_storage *addr, int *addrlen) {
+int Unicast_send_socket(const char *hostname, const char *sendport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
+                        socklen_t *addrlen) {
     struct addrinfo hints, *res, *ressave;
     int error, sockfd;
     unsigned int wmem_actual;
@@ -251,7 +252,7 @@ int Unicast_send_socket(const char *hostname, const char *sendport, int family, 
 
 }  // End of Unicast_send_socket
 
-int Multicast_receive_socket(const char *hostname, const char *listenport, int family, int sockbuflen) {
+int Multicast_receive_socket(const char *hostname, const char *listenport, int family, unsigned sockbuflen) {
     struct addrinfo hints, *res, *ressave;
     socklen_t optlen;
     int p, error, sockfd;
@@ -347,7 +348,7 @@ int Multicast_receive_socket(const char *hostname, const char *listenport, int f
 } /* End of Multicast_receive_socket */
 
 int Multicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
-                          int *addrlen) {
+                          socklen_t *addrlen) {
     struct addrinfo hints, *res, *ressave;
     int error, sockfd;
 

@@ -40,7 +40,10 @@
 #include "bookkeeper.h"
 #include "config.h"
 #include "exporter.h"
+#include "flowsource.h"
+#include "ip128.h"
 #include "nffile.h"
+#include "util.h"
 
 #define ANYIP NULL
 
@@ -58,45 +61,13 @@
 // time nfcapd will wait for launcher to terminate
 #define LAUNCHER_TIMEOUT 60
 
-#define SYSLOG_FACILITY "daemon"
-
-/* common minimum netflow header for all versions */
+// common minimum netflow header for all versions
 typedef struct common_flow_header {
     uint16_t version;
     uint16_t count;
 } common_flow_header_t;
 
-typedef struct FlowSource_s {
-    // link
-    struct FlowSource_s *next;
-
-    // exporter identifiers
-    char Ident[IDENTLEN];
-    ip_addr_t ip;
-    uint32_t sa_family;
-
-    int any_source;
-    bookkeeper_t *bookkeeper;
-
-    // all about data storage
-    char *datadir;           // where to store data for this source
-    char *tmpFileName;       // gereric tmp flow filename
-    int subdir;              // sub dir structure
-    nffile_t *nffile;        // the writing file handle
-    dataBlock_t *dataBlock;  // writing buffer
-
-    // statistical data per source
-    uint32_t bad_packets;
-
-    // Any exporter specific data
-    exporter_t *exporter_data;
-    uint32_t exporter_count;
-    struct timeval received;
-
-} FlowSource_t;
-
-/* input buffer size, to read data from the network */
-#define NETWORK_INPUT_BUFF_SIZE 65535  // Maximum UDP message size
+static int ExtensionsEnabled[MAXEXTENSIONS];
 
 #define UpdateFirstLast(nffile, First, Last)              \
     if ((First) < (nffile)->stat_record->msecFirstSeen) { \
@@ -106,20 +77,17 @@ typedef struct FlowSource_s {
         (nffile)->stat_record->msecLastSeen = (Last);     \
     }
 
-// prototypes
-int AddFlowSource(FlowSource_t **FlowSource, char *ident, char *ip, char *flowpath);
+int ConfigureDefaultFlowSource(collector_ctx_t *ctx, const char *ident, const char *dataDir, unsigned subDir);
 
-int AddFlowSourceConfig(FlowSource_t **FlowSource);
+int ConfigureDynFlowSource(collector_ctx_t *ctx, const char *dynFlowDir, unsigned subDir);
 
-int AddFlowSourceString(FlowSource_t **FlowSource, char *argument);
+int ConfigureFixedFlowSource(collector_ctx_t *ctx, stringlist_t *sourceList, unsigned subDir);
 
-int SetDynamicSourcesDir(FlowSource_t **FlowSource, char *dir);
+int AddFlowSourceConfig(collector_ctx_t *ctx);
 
-FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, const char *iden);
+FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const char *ipStr);
 
-int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int done);
-
-int TriggerLauncher(time_t t_start, char *time_extension, int pfd, FlowSource_t *fs);
+int RotateFlowFiles(time_t t_start, const char *time_extension, const collector_ctx_t *ctx, int *pfd, int done);
 
 void FlushStdRecords(FlowSource_t *fs);
 
@@ -128,7 +96,5 @@ void FlushExporterStats(FlowSource_t *fs);
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter);
 
 int ScanExtension(char *extensionList);
-
-char *GetExporterIP(FlowSource_t *fs);
 
 #endif  //_COLLECTOR_H

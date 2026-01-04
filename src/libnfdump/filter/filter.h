@@ -179,7 +179,7 @@ void DisposeFilter(void *engine);
 
 void *FilterCloneEngine(void *engine);
 
-void FilterSetParam(void *engine, const char *ident, const int hasGeoDB);
+void FilterSetParam(void *engine, const char *ident, const unsigned hasGeoDB);
 
 int FilterRecord(const void *engine, recordHandle_t *handle);
 

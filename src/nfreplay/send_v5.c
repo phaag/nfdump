@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022-2024, Peter Haag
+ *  Copyright (c) 2022-2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -76,32 +76,6 @@ typedef struct netflow_v5_record {
     uint16_t pad2;
 } netflow_v5_record_t;
 
-// v5 exporter type
-typedef struct exporter_v5_s {
-    // struct exporter_s
-    struct exporter_v5_s *next;
-
-    // exporter information
-    exporter_info_record_t info;  // exporter record nffile
-
-    uint64_t packets;           // number of packets sent by this exporter
-    uint64_t flows;             // number of flow records sent by this exporter
-    uint32_t sequence_failure;  // number of sequence failures
-    uint32_t padding_errors;    // number of sequence failures
-
-    sampler_t *sampler;  // list of samplers associated with this exporter
-    // end of struct exporter_s
-
-    // sequence vars
-    int first;
-    int64_t last_sequence;
-    int64_t sequence, distance;
-    int64_t last_count;
-
-    uint32_t outRecordSize;
-
-} exporter_v5_t;
-
 #define NETFLOW_V5_HEADER_LENGTH 24
 #define NETFLOW_V5_RECORD_LENGTH 48
 #define NETFLOW_V5_MAX_RECORDS 30
@@ -109,7 +83,7 @@ typedef struct exporter_v5_s {
 // for sending netflow v5
 static netflow_v5_header_t *v5_output_header;
 static netflow_v5_record_t *v5_output_record;
-static exporter_v5_t output_engine;
+static exporter_entry_t output_engine = {0};
 
 /*
  * functions used for sending netflow v5 records
@@ -124,11 +98,10 @@ void Init_v5_v7_output(send_peer_t *peer) {
     v5_output_header->unix_secs = 0;
     v5_output_header->unix_nsecs = 0;
     v5_output_header->count = 0;
-    output_engine.first = 1;
 
-    output_engine.sequence = 0;
-    output_engine.last_count = 0;
-    output_engine.sequence_failure = 0;
+    output_engine = (exporter_entry_t){.sequence = UINT32_MAX};
+    output_engine.version.v5 = (exporter_v5_t){0};
+
     v5_output_record = (netflow_v5_record_t *)((void *)v5_output_header + NETFLOW_V5_HEADER_LENGTH);
 
 }  // End of Init_v5_v7_output
@@ -150,12 +123,12 @@ int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
     // set device boot time to 1 day back of tstart of first flow
-    if (output_engine.first) {  // first time a record is added
+    if (output_engine.sequence == UINT32_MAX) {  // first time a record is added
         // boot time is set one day back - assuming that the start time of every flow does not start
         // earlier
         msecBoot = ((genericFlow->msecFirst / 1000LL) - 86400LL) * 1000LL;
         cnt = 0;
-        output_engine.first = 0;
+        output_engine.sequence = 0;
     }
 
     if (cnt == 0) {
@@ -163,7 +136,7 @@ int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
         peer->buff_ptr = (void *)v5_output_record;
         memset(peer->buff_ptr, 0, NETFLOW_V5_MAX_RECORDS * NETFLOW_V5_RECORD_LENGTH);
 
-        output_engine.sequence += output_engine.last_count;
+        output_engine.sequence += output_engine.version.v5.last_count;
         v5_output_header->flow_sequence = htonl(output_engine.sequence);
 
         uint32_t unix_secs = (genericFlow->msecLast / 1000LL) + 3600;
@@ -221,7 +194,7 @@ int Add_v5_output_record(recordHandle_t *recordHandle, send_peer_t *peer) {
     v5_output_record++;
     if (cnt == NETFLOW_V5_MAX_RECORDS) {
         peer->flush = 1;
-        output_engine.last_count = cnt;
+        output_engine.version.v5.last_count = cnt;
         cnt = 0;
     }
 

@@ -133,7 +133,7 @@ void Close_nfd_output(send_peer_t *peer) {
     if (len > 0) {
         // flush last packet
         nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
-        nfd_header->version = htons(NFD_PROTOCOL);
+        nfd_header->version = htons(VERSION_NFDUMP);
         nfd_header->length = htons(len);
         sequence++;
         dbg_printf("Flush buffer: size: %zu, count: %u, sequence: %u\n", len, recordCnt, sequence);
@@ -164,7 +164,7 @@ int Add_nfd_output_record(record_header_t *record_header, send_peer_t *peer) {
         size_t len = (pointer_addr_t)peer->buff_ptr - (pointer_addr_t)peer->send_buffer;
 
         nfd_header_t *nfd_header = (nfd_header_t *)peer->send_buffer;
-        nfd_header->version = htons(NFD_PROTOCOL);
+        nfd_header->version = htons(VERSION_NFDUMP);
         nfd_header->length = htons(len);
         sequence++;
         dbg_printf("Flush buffer: size: %zu, count: %u, sequence: %u\n", len, recordCnt, sequence);
@@ -287,7 +287,7 @@ static void send_data(void *engine, timeWindow_t *timeWindow, uint64_t limitReco
         for (int i = 0; i < dataBlock->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
-                exit(255);
+                exit(EXIT_FAILURE);
             }
             sumSize += record_ptr->size;
 
@@ -461,7 +461,7 @@ int main(int argc, char **argv) {
     int confirm = 0;
     int distribution = 0;
     int c = 0;
-    while ((c = getopt(argc, argv, "46EhH:i:K:L:p:S:d:c:b:j:r:f:t:v:z:VY")) != EOF) {
+    while ((c = getopt(argc, argv, "46EhH:i:L:p:S:d:c:b:j:r:f:t:v:z:VY")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -488,15 +488,11 @@ int main(int argc, char **argv) {
                     peer.mcast = 1;
                 } else {
                     LogError("ERROR, -H(-i) and -j are mutually exclusive!!\n");
-                    exit(255);
+                    exit(EXIT_FAILURE);
                 }
                 break;
-            case 'K':
-                LogError("*** Anonymization moved! Use nfanon to anonymize flows first!\n");
-                exit(255);
-                break;
             case 'L':
-                if (!InitLog(0, argv[0], optarg, verbose)) exit(255);
+                if (!InitLog(0, argv[0], optarg, verbose)) exit(EXIT_FAILURE);
                 break;
             case 'p':
                 peer.port = strdup(optarg);
@@ -504,31 +500,48 @@ int main(int argc, char **argv) {
             case 'S':
                 peer.shostname = strdup(optarg);
                 break;
-            case 'd':
-                delay = atoi(optarg);
-                break;
+            case 'd': {
+                int d = atoi(optarg);
+                if (d < 0) {
+                    LogError("Send delay cannot be < 0: %d", d);
+                    exit(EXIT_FAILURE);
+                }
+
+                delay = (unsigned)atoi(optarg);
+            } break;
             case 'v':
                 netflow_version = atoi(optarg);
                 if (netflow_version != 5 && netflow_version != 9 && netflow_version != 250) {
                     LogError("Invalid netflow version: %s. Accept only 5 or 9 or 250", optarg);
-                    exit(255);
+                    exit(EXIT_FAILURE);
                 }
                 break;
-            case 'c':
-                count = atoi(optarg);
-                break;
-            case 'b':
-                sockbuff_size = atoi(optarg);
-                break;
+            case 'c': {
+                int i = atoi(optarg);
+                if (i < 0) {
+                    LogError("Count cannot be < 0: %d", i);
+                    exit(EXIT_FAILURE);
+                }
+                count = (uint64_t)i;
+            } break;
+            case 'b': {
+                int b = atoi(optarg);
+                if (b < 0) {
+                    LogError("Buffer size cannot be < 0: %d", b);
+                    exit(EXIT_FAILURE);
+                }
+
+                sockbuff_size = (unsigned)b;
+            } break;
             case 'f':
-                if (!CheckPath(optarg, S_IFREG)) exit(255);
+                if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 ffile = optarg;
                 break;
             case 't':
                 tstring = optarg;
                 break;
             case 'r':
-                if (!CheckPath(optarg, S_IFREG)) exit(255);
+                if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
                 flist.single_file = strdup(optarg);
                 break;
             case 'z':
@@ -539,7 +552,7 @@ int main(int argc, char **argv) {
                     peer.family = AF_INET;
                 else {
                     LogError("ERROR, Accepts only one protocol IPv4 or IPv6!\n");
-                    exit(255);
+                    exit(EXIT_FAILURE);
                 }
                 break;
             case '6':
@@ -547,7 +560,7 @@ int main(int argc, char **argv) {
                     peer.family = AF_INET6;
                 else {
                     LogError("ERROR, Accepts only one protocol IPv4 or IPv6!\n");
-                    exit(255);
+                    exit(EXIT_FAILURE);
                 }
                 break;
             default:
@@ -557,7 +570,7 @@ int main(int argc, char **argv) {
     }
     if (argc - optind > 1) {
         usage(argv[0]);
-        exit(255);
+        exit(EXIT_FAILURE);
     } else {
         /* user specified a pcap filter */
         filter = argv[optind];
@@ -568,7 +581,7 @@ int main(int argc, char **argv) {
     if (!filter && ffile) {
         filter = ReadFilter(ffile);
         if (filter == NULL) {
-            exit(255);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -584,12 +597,12 @@ int main(int argc, char **argv) {
         peer.sockfd =
             Unicast_send_socket(peer.shostname, peer.hostname, peer.port, peer.family, sockbuff_size, &peer.srcaddr, &peer.dstaddr, &peer.addrlen);
     if (peer.sockfd <= 0) {
-        exit(255);
+        exit(EXIT_FAILURE);
     }
 
     if (tstring) {
         flist.timeWindow = ScanTimeFrame(tstring);
-        if (!flist.timeWindow) exit(255);
+        if (!flist.timeWindow) exit(EXIT_FAILURE);
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);

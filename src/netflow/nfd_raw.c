@@ -51,27 +51,10 @@
 #include "output_short.h"
 #include "util.h"
 
-typedef struct exporter_nfd_s {
-    // struct exporter_s
-    struct exporter_nfd_s *next;
-
-    // exporter information
-    exporter_info_record_t info;  // exporter record nffile
-
-    uint64_t packets;           // number of packets sent by this exporter
-    uint64_t flows;             // number of flow records sent by this exporter
-    uint32_t sequence_failure;  // number of sequence failures
-    uint32_t padding_errors;    // number of sequence failures
-
-    sampler_t *sampler;  // list of samplers associated with this exporter
-                         // end of struct exporter_s
-
-} exporter_nfd_t;
-
 /* module limited globals */
 static int printRecord;
 
-static inline exporter_nfd_t *getExporter(FlowSource_t *fs, nfd_header_t *header);
+static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *header);
 
 /* functions */
 
@@ -82,54 +65,71 @@ int Init_pcapd(int verbose) {
     return 1;
 }  // End of Init_pcapd
 
-static inline exporter_nfd_t *getExporter(FlowSource_t *fs, nfd_header_t *header) {
-    exporter_nfd_t **e = (exporter_nfd_t **)&(fs->exporter_data);
-    uint16_t version = ntohs(header->version);
-#define IP_STRING_LEN 40
-    char ipstr[IP_STRING_LEN];
+static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *header) {
+    const exporter_key_t key = {.version = VERSION_NFDUMP, .id = 0, .ip = fs->ipAddr};
 
-    // search the matching pcapd exporter
-    while (*e) {
-        if ((*e)->info.version == version && (*e)->info.ip.V6[0] == fs->ip.V6[0] && (*e)->info.ip.V6[1] == fs->ip.V6[1]) return *e;
-        e = &((*e)->next);
+    // fast cache
+    if (fs->last_exp && EXPORTER_KEY_EQUAL(fs->last_key, key)) {
+        return fs->last_exp;
     }
 
-    // nothing found
-    *e = (exporter_nfd_t *)malloc(sizeof(exporter_nfd_t));
-    if (!(*e)) {
-        LogError("Process_nfd: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-    memset((void *)(*e), 0, sizeof(exporter_nfd_t));
-    (*e)->next = NULL;
-    (*e)->info.header.type = ExporterInfoRecordType;
-    (*e)->info.header.size = sizeof(exporter_info_record_t);
-    (*e)->info.version = version;
-    (*e)->info.id = 0;
-    (*e)->info.ip = fs->ip;
-    (*e)->info.sa_family = fs->sa_family;
-    (*e)->info.sysid = 0;
-    (*e)->packets = 0;
-    (*e)->flows = 0;
-    (*e)->sequence_failure = 0;
-
-    if (fs->sa_family == PF_INET6) {
-        uint64_t _ip[2];
-        _ip[0] = htonll(fs->ip.V6[0]);
-        _ip[1] = htonll(fs->ip.V6[1]);
-        inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
-        dbg_printf("Process_pacpd: New IPv6 exporter %s - add EXipReceivedV6\n", ipstr);
-    } else {
-        uint32_t _ip = htonl(fs->ip.V4);
-        inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
-        dbg_printf("Process_pacpd: New IPv4 exporter %s - add EXipReceivedV4\n", ipstr);
+    exporter_table_t *tab = &fs->exporters;
+    // Check load factor in case we need a new slot
+    if ((tab->count * 4) >= (tab->capacity * 3)) {
+        // expand exporter index
+        expand_exporter_table(tab);
+        tab = &fs->exporters;
     }
 
-    FlushInfoExporter(fs, &((*e)->info));
+    // not identical of last exporter
+    uint32_t hash = EXPORTERHASH(key);
+    uint32_t mask = tab->capacity - 1;
+    uint32_t i = hash & mask;
 
-    LogInfo("Process_nfd: SysID: %u, New exporter: IP: %s\n", (*e)->info.sysid, ipstr);
+    for (;;) {
+        exporter_entry_t *e = &tab->entries[i];
+        // key does not exists - create new exporter
+        if (!e->in_use) {
+            // create new exporter
+            e->key = key;
+            e->packets = 0;
+            e->flows = 0;
+            e->sequence_failure = 0;
+            e->sequence = UINT32_MAX;
+            e->in_use = 1;
+            tab->count++;
 
-    return (*e);
+            e->info = (exporter_info_record_t){.header = (record_header_t){.type = ExporterInfoRecordType, .size = sizeof(exporter_info_record_t)},
+                                               .version = key.version,
+                                               .id = key.id,
+                                               .fill = 0,
+                                               .sysid = 0};
+            memcpy(e->info.ip, fs->ipAddr.bytes, 16);
+
+            e->version.nfd = (exporter_nfd_t){0};
+
+            FlushInfoExporter(fs, &e->info);
+
+            char *ipstr = ip128_2_str(&fs->ipAddr);
+            LogInfo("Process_nfd: SysID: %u, New exporter: IP: %s\n", e->info.sysid, ipstr);
+
+            fs->last_key = key;
+            fs->last_exp = e;
+            return e;
+        }
+        if (EXPORTER_KEY_EQUAL(e->key, key)) {
+            fs->last_key = key;
+            fs->last_exp = e;
+            return e;
+        }
+
+        dbg_assert(tab->count < tab->capacity);
+        // next slot
+        i = (i + 1) & mask;
+    }
+
+    // unreached
+    return NULL;
 
 }  // End of getExporter
 
@@ -157,7 +157,7 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // map pacpd data structure to input buffer
     nfd_header_t *pcapd_header = (nfd_header_t *)in_buff;
 
-    exporter_nfd_t *exporter = getExporter(fs, pcapd_header);
+    exporter_entry_t *exporter = getExporter(fs, pcapd_header);
     if (!exporter) {
         LogError("Process_nfd: NULL Exporter: Skip pcapd record processing");
         return;
@@ -222,13 +222,16 @@ void Process_nfd(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             // push IP received
             if (fs->sa_family == PF_INET6) {
                 PushExtension(copiedV3, EXipReceivedV6, ipReceivedV6);
-                ipReceivedV6->ip[0] = fs->ip.V6[0];
-                ipReceivedV6->ip[1] = fs->ip.V6[1];
-                dbg_printf("Add IPv6 route IP extension\n");
+                uint64_t *ipv6 = (uint64_t *)fs->ipAddr.bytes;
+                ipReceivedV6->ip[0] = ntohll(ipv6[0]);
+                ipReceivedV6->ip[1] = ntohll(ipv6[1]);
+                dbg_printf("Add IPv6 router IP extension\n");
             } else {
                 PushExtension(copiedV3, EXipReceivedV4, ipReceivedV4);
-                ipReceivedV4->ip = fs->ip.V4;
-                dbg_printf("Add IPv4 route IP extension\n");
+                uint32_t ipv4;
+                memcpy(&ipv4, fs->ipAddr.bytes + 12, 4);
+                ipReceivedV4->ip = ntohl(ipv4);
+                dbg_printf("Add IPv4 router IP extension\n");
             }
         } else {
             dbg_printf("Found existing IP received extension\n");

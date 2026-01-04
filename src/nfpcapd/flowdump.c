@@ -50,6 +50,7 @@
 #include "config.h"
 #include "exporter.h"
 #include "flist.h"
+#include "ip128.h"
 #include "metric.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -82,7 +83,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
             fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
         }
 
-        int availableSize = BlockAvailable(fs->dataBlock);
+        unsigned availableSize = BlockAvailable(fs->dataBlock);
         if (availableSize == 0) {
             // fishy! - should never happen. maybe disk full?
             LogError("StorePcapFlow(): output buffer size error. Skip record");
@@ -122,15 +123,20 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         if (Node->flowKey.version == AF_INET6) {
             UpdateRecordSize(EXipv6FlowSize);
             PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
-            ipv6Flow->srcAddr[0] = ntohll(Node->flowKey.src_addr.v6[0]);
-            ipv6Flow->srcAddr[1] = ntohll(Node->flowKey.src_addr.v6[1]);
-            ipv6Flow->dstAddr[0] = ntohll(Node->flowKey.dst_addr.v6[0]);
-            ipv6Flow->dstAddr[1] = ntohll(Node->flowKey.dst_addr.v6[1]);
+            uint64_t *src = (uint64_t *)Node->flowKey.src_addr.bytes;
+            uint64_t *dst = (uint64_t *)Node->flowKey.dst_addr.bytes;
+            ipv6Flow->srcAddr[0] = ntohll(src[0]);
+            ipv6Flow->srcAddr[1] = ntohll(src[1]);
+            ipv6Flow->dstAddr[0] = ntohll(dst[0]);
+            ipv6Flow->dstAddr[1] = ntohll(dst[1]);
         } else {
             UpdateRecordSize(EXipv4FlowSize);
             PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
-            ipv4Flow->srcAddr = Node->flowKey.src_addr.v4;
-            ipv4Flow->dstAddr = Node->flowKey.dst_addr.v4;
+            uint32_t ipv4;
+            memcpy(&ipv4, Node->flowKey.src_addr.bytes + 12, 4);
+            ipv4Flow->srcAddr = ntohl(ipv4);
+            memcpy(&ipv4, Node->flowKey.dst_addr.bytes + 12, 4);
+            ipv4Flow->dstAddr = ntohl(ipv4);
         }
 
         if (flowParam->extendedFlow) {
@@ -215,16 +221,21 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         if (Node->tun_ip_version == AF_INET) {
             UpdateRecordSize(EXtunIPv4Size);
             PushExtension(recordHeader, EXtunIPv4, tunIPv4);
-            tunIPv4->tunSrcAddr = Node->tun_src_addr.v4;
-            tunIPv4->tunDstAddr = Node->tun_dst_addr.v4;
+            uint32_t ipv4;
+            memcpy(&ipv4, Node->tun_src_addr.bytes + 12, 4);
+            tunIPv4->tunSrcAddr = ntohl(ipv4);
+            memcpy(&ipv4, Node->tun_dst_addr.bytes + 12, 4);
+            tunIPv4->tunDstAddr = ntohl(ipv4);
             tunIPv4->tunProto = Node->tun_proto;
         } else if (Node->tun_ip_version == AF_INET6) {
             UpdateRecordSize(EXtunIPv6Size);
             PushExtension(recordHeader, EXtunIPv6, tunIPv6);
-            tunIPv6->tunSrcAddr[0] = Node->tun_src_addr.v6[0];
-            tunIPv6->tunSrcAddr[1] = Node->tun_src_addr.v6[1];
-            tunIPv6->tunDstAddr[0] = Node->tun_dst_addr.v6[0];
-            tunIPv6->tunDstAddr[1] = Node->tun_dst_addr.v6[1];
+            uint64_t *src = (uint64_t *)Node->tun_src_addr.bytes;
+            uint64_t *dst = (uint64_t *)Node->tun_dst_addr.bytes;
+            tunIPv6->tunSrcAddr[0] = ntohll(src[0]);
+            tunIPv6->tunSrcAddr[1] = ntohll(src[1]);
+            tunIPv6->tunDstAddr[0] = ntohll(dst[0]);
+            tunIPv6->tunDstAddr[1] = ntohll(dst[1]);
             tunIPv6->tunProto = Node->tun_proto;
         }
 
@@ -281,43 +292,15 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 } /* End of StorePcapFlow */
 
 static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
-    char FullName[MAXPATHLEN];
-
-    struct tm *when = localtime(&timestamp);
-    char fmt[24];
-    strftime(fmt, sizeof(fmt), flowParam->extensionFormat, when);
+    struct tm *now = localtime(&timestamp);
+    char fmt[32];
+    strftime(fmt, sizeof(fmt), flowParam->extensionFormat, now);
 
     FlowSource_t *fs = flowParam->fs;
-    // prepare sub dir hierarchy
-    char *subdir = NULL;
-    char netflowFname[128];
-    if (flowParam->subdir_index) {
-        subdir = GetSubDir(when);
-        if (!subdir) {
-            // failed to generate subdir path - put flows into base directory
-            LogError("Failed to create subdir path!");
-
-            // failed to generate subdir path - put flows into base directory
-            subdir = NULL;
-            snprintf(netflowFname, 127, "nfcapd.%s", fmt);
-        } else {
-            snprintf(netflowFname, 127, "%s/nfcapd.%s", subdir, fmt);
-        }
-
-    } else {
-        snprintf(netflowFname, 127, "nfcapd.%s", fmt);
-    }
-    netflowFname[127] = '\0';
-
-    if (subdir && !SetupSubDir(fs->datadir, subdir)) {
-        // in this case the flows get lost! - the rename will fail
-        // but this should not happen anyway, unless i/o problems, inode problems etc.
-        LogError("Ident: %s, Failed to create sub hier directories", fs->Ident);
-    }
-
-    // prepare full filename
-    snprintf(FullName, MAXPATHLEN - 1, "%s/%s", fs->datadir, netflowFname);
-    FullName[MAXPATHLEN - 1] = '\0';
+    char fileName[MAXPATHLEN];
+    int pos = SetupPath(now, fs->datadir, fs->subdir, fileName);
+    char *p = fileName + (ptrdiff_t)pos;
+    snprintf(p, MAXPATHLEN - pos - 1, "nfcapd.%s", fmt);
 
     // update stat record
     // if no flows were collected, fs->last_seen is still 0
@@ -333,7 +316,7 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
 
     // if rename fails, we are in big trouble, as we need to get rid of the old .current file
     // otherwise, we will loose flows and can not continue collecting new flows
-    if (RenameAppend(tmpName, FullName) < 0) {
+    if (RenameAppend(tmpName, fileName) < 0) {
         LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
         LogError("Ident: %s, Serious Problem! Fix manually", fs->Ident);
         // we do not update the books here, as the file failed to rename properly
@@ -341,7 +324,7 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
     } else {
         struct stat fstat;
         // Update books
-        stat(FullName, &fstat);
+        stat(fileName, &fstat);
         UpdateBooks(fs->bookkeeper, timestamp, 512 * fstat.st_blocks);
     }
     // XXX fix this
@@ -362,7 +345,7 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
 __attribute__((noreturn)) void *flow_thread(void *thread_data) {
     // argument dispatching
     flowParam_t *flowParam = (flowParam_t *)thread_data;
-    int compress = flowParam->compress;
+    unsigned compress = flowParam->compress;
     FlowSource_t *fs = flowParam->fs;
 
     printRecord = flowParam->printRecord;

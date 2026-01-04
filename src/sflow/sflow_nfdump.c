@@ -65,27 +65,12 @@
 
 #define MAX_SFLOW_EXTENSIONS 8
 
-typedef struct exporter_sflow_s {
-    // link chain
-    struct exporter_sflow_s *next;
-
-    // exporter information
-    exporter_info_record_t info;
-
-    uint64_t packets;           // number of packets sent by this exporter
-    uint64_t flows;             // number of flow records sent by this exporter
-    uint32_t sequence_failure;  // number of sequence failures
-
-    sampler_t *sampler;
-
-} exporter_sflow_t;
-
 static int PrintRecord = 0;
 
 static int ExtensionsEnabled[MAXEXTENSIONS];
 uint32_t BaseRecordSize = EXgenericFlowSize;
 
-static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint32_t meanSkipCount);
+static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint32_t meanSkipCount);
 
 #include "inline.c"
 #include "nffile_inline.c"
@@ -148,11 +133,9 @@ int Init_sflow(int verbose, char *extensionList) {
 
 // called by sfcapd for each packet
 void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs, int parse_tun) {
-    SFSample sample = {.rawSample = in_buff,
-                       .rawSampleLen = in_buff_cnt,
-                       .sourceIP.s_addr = fs->sa_family == PF_INET ? htonl(fs->ip.V4) : 0,
-                       .parse_tun = parse_tun};
+    SFSample sample = {.rawSample = in_buff, .rawSampleLen = in_buff_cnt, .parse_tun = parse_tun};
 
+    memcpy(sample.sourceIP.bytes, fs->ipAddr.bytes, 16);
     dbg_printf("startDatagram =================================\n");
     // catch SFABORT in sflow code
     int exceptionVal;
@@ -170,72 +153,81 @@ void Process_sflow(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs, int par
 
 }  // End of Process_sflow
 
-static exporter_sflow_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint32_t meanSkipCount) {
-    // search the appropriate exporter engine
-    exporter_sflow_t **e = (exporter_sflow_t **)&(fs->exporter_data);
-    while (*e) {
-        if ((*e)->info.id == agentSubId && (*e)->info.version == SFLOW_VERSION && (*e)->info.ip.V6[0] == fs->ip.V6[0] &&
-            (*e)->info.ip.V6[1] == fs->ip.V6[1])
-            return *e;
-        e = &((*e)->next);
+static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint32_t meanSkipCount) {
+    const exporter_key_t key = {.version = SFLOW_VERSION, .id = agentSubId};
+
+    // fast cache
+    if (fs->last_exp && fs->last_key.version == key.version && fs->last_key.id == key.id) return fs->last_exp;
+
+    // not found - search in hash table
+    exporter_table_t *tab = &fs->exporters;
+    uint32_t hash = EXPORTERHASH(key);
+    uint32_t mask = tab->capacity - 1;
+    uint32_t i = hash & mask;
+
+    for (;;) {
+        exporter_entry_t *e = &tab->entries[i];
+        // key does not exists - create new exporter
+        if (!e->in_use) {
+            // create new exporter
+            e->key = key;
+            e->packets = 0;
+            e->flows = 0;
+            e->sequence_failure = 0;
+            e->sequence = UINT32_MAX;
+            e->in_use = 1;
+            tab->count++;
+
+            e->info = (exporter_info_record_t){.header = (record_header_t){.type = ExporterInfoRecordType, .size = sizeof(exporter_info_record_t)},
+                                               .version = key.version,
+                                               .id = key.id,
+                                               .fill = 0,
+                                               .sysid = 0};
+            memcpy(e->info.ip, fs->ipAddr.bytes, 16);
+
+            e->version.sflow = (exporter_sflow_t){0};
+
+            FlushInfoExporter(fs, &e->info);
+            // attach sampler
+            sampler_t *sampler = (sampler_t *)malloc(sizeof(sampler_t));
+            if (!sampler) {
+                LogError("SFLOW: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                return NULL;
+            }
+            e->version.sflow.sampler = sampler;
+            *sampler = (sampler_t){.record.type = SamplerRecordType,
+                                   .record.size = sizeof(sampler_record_t),
+                                   .record.id = -1,
+                                   .record.algorithm = 0,
+                                   .record.packetInterval = 1,
+                                   .record.spaceInterval = meanSkipCount - 1,
+                                   .next = NULL};
+            sampler->record.exporter_sysid = e->info.sysid;
+            fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
+
+            char *ipstr = ip128_2_str(&fs->ipAddr);
+            LogInfo("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s", e->info.sysid, agentSubId, meanSkipCount, ipstr);
+
+            fs->last_key = key;
+            fs->last_exp = e;
+            return e;
+        }
+        if (e->key.version == key.version && e->key.id == key.id) {
+            fs->last_key = key;
+            fs->last_exp = e;
+            return e;
+        }
+        // key not yet found and slot in use - check for exhausted hash
+        if ((tab->count * 4) >= (tab->capacity * 3)) {
+            // expand exporter index
+            expand_exporter_table(tab);
+        }
+        dbg_assert(tab->count < tab->capacity);
+        i = (i + 1) & mask;
     }
 
-#define IP_STRING_LEN 40
-    char ipstr[IP_STRING_LEN];
-    if (fs->sa_family == AF_INET) {
-        uint32_t _ip = htonl(fs->ip.V4);
-        inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
-    } else if (fs->sa_family == AF_INET6) {
-        uint64_t _ip[2] = {htonll(fs->ip.V6[0]), htonll(fs->ip.V6[1])};
-        inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
-    } else {
-        strncpy(ipstr, "<unknown>", IP_STRING_LEN);
-    }
-
-    // nothing found
-    LogInfo("SFLOW: New exporter");
-
-    *e = (exporter_sflow_t *)malloc(sizeof(exporter_sflow_t));
-    if (!(*e)) {
-        LogError("SFLOW: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-
-    **e = (exporter_sflow_t){
-        .next = NULL,
-        .info.header.type = ExporterInfoRecordType,
-        .info.header.size = sizeof(exporter_info_record_t),
-        .info.version = SFLOW_VERSION,
-        .info.id = agentSubId,
-        .info.ip = fs->ip,
-        .info.sa_family = fs->sa_family,
-        .sequence_failure = 0,
-        .packets = 0,
-        .flows = 0,
-    };
-
-    sampler_t *sampler = (sampler_t *)malloc(sizeof(sampler_t));
-    if (!sampler) {
-        LogError("SFLOW: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-    (*e)->sampler = sampler;
-    *sampler = (sampler_t){.record.type = SamplerRecordType,
-                           .record.size = sizeof(sampler_record_t),
-                           .record.id = -1,
-                           .record.algorithm = 0,
-                           .record.packetInterval = 1,
-                           .record.spaceInterval = meanSkipCount - 1,
-                           .next = NULL};
-
-    FlushInfoExporter(fs, &((*e)->info));
-    sampler->record.exporter_sysid = (*e)->info.sysid;
-    fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
-
-    dbg_printf("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s\n", (*e)->info.sysid, agentSubId, meanSkipCount, ipstr);
-    LogInfo("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s", (*e)->info.sysid, agentSubId, meanSkipCount, ipstr);
-
-    return (*e);
+    // unreached
+    return NULL;
 
 }  // End of GetExporter
 
@@ -246,7 +238,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     struct timeval now;
     gettimeofday(&now, NULL);
 
-    exporter_sflow_t *exporter = GetExporter(fs, sample->agentSubId, sample->meanSkipCount);
+    exporter_entry_t *exporter = GetExporter(fs, sample->agentSubId, sample->meanSkipCount);
     if (!exporter) {
         LogError("SFLOW: Exporter NULL: Abort sflow record processing");
         return;
@@ -332,7 +324,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
 
     // pack V3 record
     PushExtension(recordHeader, EXgenericFlow, genericFlow);
-    uint64_t msec = now.tv_sec * 1000L + now.tv_usec / 1000;
+    uint64_t msec = (uint64_t)(now.tv_sec * 1000L + now.tv_usec / 1000);
     *genericFlow = (EXgenericFlow_t){
         .msecFirst = msec,
         .msecLast = msec,
@@ -463,14 +455,17 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     // add router IP
     if (fs->sa_family == PF_INET && ExtensionsEnabled[EXipReceivedV4ID]) {
         PushExtension(recordHeader, EXipReceivedV4, ipReceivedV4);
-        ipReceivedV4->ip = fs->ip.V4;
-        dbg_printf("Add IPv4 route IP extension\n");
+        uint32_t ipv4;
+        memcpy(&ipv4, fs->ipAddr.bytes + 12, 4);
+        ipReceivedV4->ip = ntohl(ipv4);
+        dbg_printf("Add IPv4 router IP extension\n");
     }
     if (fs->sa_family == PF_INET6 && ExtensionsEnabled[EXipReceivedV6ID]) {
         PushExtension(recordHeader, EXipReceivedV6, ipReceivedV6);
-        ipReceivedV6->ip[0] = fs->ip.V6[0];
-        ipReceivedV6->ip[1] = fs->ip.V6[1];
-        dbg_printf("Add IPv6 route IP extension\n");
+        uint64_t *ipv6 = (uint64_t *)fs->ipAddr.bytes;
+        ipReceivedV6->ip[0] = ntohll(ipv6[0]);
+        ipReceivedV6->ip[1] = ntohll(ipv6[1]);
+        dbg_printf("Add IPv6 router IP extension\n");
     }
 
     // Tunnels
@@ -543,11 +538,11 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
 #ifdef DEVEL
     printf("OffsetToPayload %d\n", sample->offsetToPayload);
     void *p = (void *)sample->header + sample->offsetToPayload;
-    ssize_t len = sample->headerLen - sample->offsetToPayload;
+    ssize_t len = (int)sample->headerLen - sample->offsetToPayload;
     dbg_printf("Payload length: %zd\n", len);
     if (len > 0) {
         dbg_printf("Payload length: %zd\n", len);
-        DumpHex(stdout, p, len);
+        DumpHex(stdout, p, (unsigned)len);
     }
 #endif
     // update file record size ( -> output buffer size )

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -140,15 +140,20 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         if (Node->flowKey.version == AF_INET6) {
             UpdateRecordSize(EXipv6FlowSize);
             PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
-            ipv6Flow->srcAddr[0] = Node->flowKey.src_addr.v6[0];
-            ipv6Flow->srcAddr[1] = Node->flowKey.src_addr.v6[1];
-            ipv6Flow->dstAddr[0] = Node->flowKey.dst_addr.v6[0];
-            ipv6Flow->dstAddr[1] = Node->flowKey.dst_addr.v6[1];
+            uint64_t *src = (uint64_t *)Node->flowKey.src_addr.bytes;
+            uint64_t *dst = (uint64_t *)Node->flowKey.dst_addr.bytes;
+            ipv6Flow->srcAddr[0] = ntohll(src[0]);
+            ipv6Flow->srcAddr[1] = ntohll(src[1]);
+            ipv6Flow->dstAddr[0] = ntohll(dst[0]);
+            ipv6Flow->dstAddr[1] = ntohll(dst[1]);
         } else {
             UpdateRecordSize(EXipv4FlowSize);
             PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
-            ipv4Flow->srcAddr = Node->flowKey.src_addr.v4;
-            ipv4Flow->dstAddr = Node->flowKey.dst_addr.v4;
+            uint32_t ipv4;
+            memcpy(&ipv4, Node->flowKey.src_addr.bytes + 12, 4);
+            ipv4Flow->srcAddr = ntohl(ipv4);
+            memcpy(&ipv4, Node->flowKey.dst_addr.bytes + 12, 4);
+            ipv4Flow->dstAddr = ntohl(ipv4);
         }
 
         if (flowParam->extendedFlow) {
@@ -228,7 +233,7 @@ __attribute__((noreturn)) void *sendflow_thread(void *thread_data) {
     sendBuffer = malloc(65535);
     nfd_header_t *pcapd_header = (nfd_header_t *)sendBuffer;
     memset((void *)pcapd_header, 0, sizeof(nfd_header_t));
-    pcapd_header->version = htons(NFD_PROTOCOL);
+    pcapd_header->version = htons(VERSION_NFDUMP);
     pcapd_header->length = sizeof(nfd_header_t);
     pcapd_header->lastSequence = 1;
 

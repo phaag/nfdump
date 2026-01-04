@@ -53,28 +53,14 @@
 
 #endif
 
+#define VERSION_NETFLOW_V1 1
+#define VERSION_NETFLOW_V5 5
+#define VERSION_NETFLOW_V7 7
+#define VERSION_NETFLOW_V9 9
+#define VERSION_IPFIX 10
+#define VERSION_NFDUMP 250
+
 #include "nfxV3.h"
-
-#define V4 ip_addr._v4
-#define V6 ip_addr._v6
-
-// single IP addr for next hop and bgp next hop
-typedef struct ip_addr_s {
-    union {
-        struct {
-#ifdef WORDS_BIGENDIAN
-            uint32_t fill[3];
-            uint32_t _v4;
-#else
-            uint32_t fill1[2];
-            uint32_t _v4;
-            uint32_t fill2;
-#endif
-        };
-        uint64_t _v6[2];
-    } ip_addr;
-#define IP_ADDR_T
-} ip_addr_t;
 
 enum { EXlocal = MAXEXTENSIONS, EXheader, EXinPayloadHandle, EXoutPayloadHandle, MAXLISTSIZE };
 

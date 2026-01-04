@@ -192,8 +192,6 @@ static const char *subdir_def[] = {"",  // default index 0 - no subdir hierarchy
 #define AcceptedFormatChar "YymdjHMsUWwuF"
 
 static mode_t mode, dir_mode;
-static const char *subdir_format = NULL;
-static int subdir_index = 0;
 
 static struct entry_filter_s {
     char *first_entry;
@@ -960,15 +958,13 @@ static void *FileLister_thr(void *arg) {
             }
         } else {
             // single file -r in multiple dirs -M
-            int i;
-
             if (single_file[0] == '/') {
                 LogError("File -r must not start with '/', when combined with a source list -M");
                 queue_close(file_queue);
                 pthread_exit(NULL);
             }
 
-            for (i = 0; i < source_dirs.num_strings; i++) {
+            for (int i = 0; i < source_dirs.num_strings; i++) {
                 char s[MAXPATHLEN];
                 struct stat stat_buf;
 
@@ -1012,12 +1008,10 @@ static void *FileLister_thr(void *arg) {
 
 }  // End of FileLister_thr
 
-int InitHierPath(int num) {
-    int i;
+int CheckSubDir(unsigned num) {
+    if (num == 0) return 1;
 
-    subdir_format = NULL;
-
-    i = 0;
+    unsigned i = 0;
     while (subdir_def[i] != NULL) {
         if (i == num) break;
         i++;
@@ -1026,9 +1020,6 @@ int InitHierPath(int num) {
         LogError("No such subdir level %i", num);
         return 0;
     }
-
-    subdir_format = subdir_def[i];
-    subdir_index = i;
 
     /*
      * The default file mode is a=rwx (0777) with selected permissions
@@ -1046,7 +1037,7 @@ int InitHierPath(int num) {
 
     return 1;
 
-}  // End of InitHierPath
+}  // End of CheckSubDir
 
 static char *VerifyFileRange(char *path, char *last_file) {
     char *p, *q, *r;
@@ -1072,7 +1063,6 @@ static char *VerifyFileRange(char *path, char *last_file) {
 static char *GuessSubDir(char *channeldir, char *filename) {
     char s[MAXPATHLEN];
     struct tm *t_tm;
-    int i;
 
     size_t len = strlen(filename);
     if ((len == 19 || len == 21) && (strncmp(filename, "nfcapd.", 7) == 0)) {
@@ -1082,7 +1072,7 @@ static char *GuessSubDir(char *channeldir, char *filename) {
     } else
         return NULL;
 
-    i = 0;
+    unsigned i = 0;
     // if the file exists, it must be in any of the possible subdirs
     // so try one after the next - one will match
     while (subdir_def[i]) {
@@ -1104,17 +1094,15 @@ static char *GuessSubDir(char *channeldir, char *filename) {
 
 }  // End of GuessSubDir
 
-char *GetSubDir(struct tm *now) {
+char *GetSubDir(unsigned subDir, struct tm *now) {
     static __thread char subpath[255];
-    size_t sublen;
 
-    sublen = strftime(subpath, 254, subdir_format, now);
+    const char *subdir_format = subdir_def[subDir];
+    size_t sublen = strftime(subpath, 254, subdir_format, now);
 
     return sublen == 0 ? NULL : subpath;
 
 }  // End of GetSubDir
-
-int GetSubDirIndex(void) { return subdir_index; }
 
 int SetupSubDir(char *dir, char *subdir) {
     char *p, path[MAXPATHLEN];
@@ -1212,6 +1200,53 @@ static int mkpath(char *path, char *p, mode_t mode, mode_t dir_mode, char *error
     return (0);
 
 }  // End of mkpath
+
+// make sure, that path with subdir exists for timeslot now and stores it into path
+int SetupPath(struct tm *now, const char *dataDir, unsigned subDir, char *path) {
+    char subDirPath[255];
+    subDirPath[0] = '\0';
+
+    if (subDir == 0) {
+        // no subdir - just return the path
+        return snprintf(path, MAXPATHLEN - 1, "%s/", dataDir);
+    }
+
+    const char *subdir_format = subdir_def[subDir];
+    strftime(subDirPath, 254, subdir_format, now);
+    int ret = snprintf(path, MAXPATHLEN - 1, "%s/%s", dataDir, subDirPath);
+
+    // Iterate over path components, starting after dataDir
+    char *p = path + strlen(dataDir);
+
+    /* Skip possible '/' between basePath and subPath */
+    if (*p == '/') p++;
+
+    for (; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
+
+            if (mkdir(path, 0755) != 0) {
+                if (errno != EEXIST) return 0;
+            }
+
+            *p = '/';
+        }
+    }
+
+    /* Create final directory */
+    if (mkdir(path, 0755) != 0) {
+        if (errno != EEXIST) {
+            // if directories can not be created, return base directory
+            LogError("mkdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return snprintf(path, MAXPATHLEN - 1, "%s/", dataDir);
+        }
+    }
+
+    // add final '/'
+    path[ret++] = '/';
+
+    return ret;
+}  // End of SetupPath
 
 static int CheckTimeWindow(char *filename, timeWindow_t *searchWindow) {
     // no time search window set

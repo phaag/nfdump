@@ -46,6 +46,7 @@
 #include "bookkeeper.h"
 #include "collector.h"
 #include "exporter.h"
+#include "ip128.h"
 #include "metric.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -132,35 +133,13 @@ typedef struct netflow_v7_record {
     uint32_t router_sc;
 } netflow_v7_record_t;
 
-// v5 exporter type
-typedef struct exporter_v5_s {
-    // struct exporter_s
-    struct exporter_v5_s *next;
-
-    // exporter information
-    exporter_info_record_t info;  // exporter record nffile
-
-    uint64_t packets;  // number of packets sent by this exporter
-    uint64_t flows;    // number of flow records sent by this exporter
-
-    sampler_t *sampler;  // list of samplers associated with this exporter
-    // end of struct exporter_s
-
-    // sequence vars
-    uint32_t sequence_failure;  // number of sequence failures
-    uint32_t last_count;
-    uint32_t sequence;
-    uint32_t outRecordSize;
-
-} exporter_v5_t;
-
 /* module limited globals */
 static int printRecord;
 static int32_t defaultSampling;
 static uint32_t baseRecordSize;
 
 // function prototypes
-static exporter_v5_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *header);
+static exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *header);
 
 #include "nffile_inline.c"
 
@@ -183,101 +162,135 @@ int Init_v5_v7(int verbose, int32_t sampling) {
 
 }  // End of Init_v5_input
 
-static inline exporter_v5_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *header) {
-    exporter_v5_t **e = (exporter_v5_t **)&(fs->exporter_data);
-    sampler_t *sampler;
-    uint16_t engine_tag = ntohs(header->engine_tag);
-    uint16_t version = ntohs(header->version);
-
-    // search the matching v5 exporter
-    while (*e) {
-        if ((*e)->info.version == version && (*e)->info.id == engine_tag && (*e)->info.ip.V6[0] == fs->ip.V6[0] &&
-            (*e)->info.ip.V6[1] == fs->ip.V6[1])
-            return *e;
-        e = &((*e)->next);
-    }
-
-    // nothing found
-    *e = (exporter_v5_t *)calloc(1, sizeof(exporter_v5_t));
-    if (!(*e)) {
-        LogError("Process_v5: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-    (*e)->next = NULL;
-    (*e)->info.header.type = ExporterInfoRecordType;
-    (*e)->info.header.size = sizeof(exporter_info_record_t);
-    (*e)->info.version = version;
-    (*e)->info.id = engine_tag;
-    (*e)->info.ip = fs->ip;
-    (*e)->info.sa_family = fs->sa_family;
-    (*e)->info.sysid = 0;
-    (*e)->sequence_failure = 0;
-    (*e)->packets = 0;
-    (*e)->flows = 0;
-    (*e)->sequence = UINT32_MAX;
-
-    char *ipstr = GetExporterIP(fs);
-    if (fs->sa_family == PF_INET6) {
-        (*e)->outRecordSize = baseRecordSize + EXipReceivedV6Size;
-        dbg_printf("Process_v5: New IPv6 exporter %s - add EXipReceivedV6\n", ipstr);
-    } else {
-        (*e)->outRecordSize = baseRecordSize + EXipReceivedV4Size;
-        dbg_printf("Process_v5: New IPv4 exporter %s - add EXipReceivedV4\n", ipstr);
-    }
-
-    FlushInfoExporter(fs, &((*e)->info));
-
-    // sampling
-    int32_t id = 0;
+static inline sampler_t *getSampler(netflow_v5_header_t *header) {
+    int32_t type = 0;
     uint32_t algorithm = 0;
+
+    // some netflow v5 exporter pack sampling information into the header
     uint32_t interval = 0x3fff & ntohs(header->sampling_interval);
     dbg_printf("Extracted header sampling: algorithm: %u, interval: %u\n", algorithm, interval);
     if (defaultSampling < 0) {
-        id = SAMPLER_OVERWRITE;
+        type = SAMPLER_OVERWRITE;
         interval = -defaultSampling;
         dbg_printf("Use overwrite sampling: %u\n", interval);
     } else if (interval > 0) {
-        id = SAMPLER_GENERIC;
+        type = SAMPLER_GENERIC;
         algorithm = (0xC000 & ntohs(header->sampling_interval)) >> 14;
         dbg_printf("Use generic sampling: %u\n", interval);
     } else if (defaultSampling > 1) {
-        id = SAMPLER_DEFAULT;
+        type = SAMPLER_DEFAULT;
         interval = defaultSampling;
         dbg_printf("Use default sampling: %u\n", interval);
     }
 
+    // no sampling
+    if (type == 0) return NULL;
+
     // sampler assigned ?
-    if (id != 0) {
-        interval--;
-        sampler = (sampler_t *)malloc(sizeof(sampler_t));
-        if (!sampler) {
-            LogError("Process_v5: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return NULL;
-        }
-        (*e)->sampler = sampler;
+    interval--;
+    sampler_t *sampler = (sampler_t *)malloc(sizeof(sampler_t));
+    if (!sampler) {
+        LogError("Process_v5: malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+    // fill sampler record
+    sampler->next = NULL;
+    sampler->record.type = SamplerRecordType;
+    sampler->record.size = sizeof(sampler_record_t);
+    sampler->record.id = type;
+    sampler->record.packetInterval = 1;
+    sampler->record.algorithm = algorithm;
+    sampler->record.spaceInterval = interval;
 
-        sampler->next = NULL;
-        sampler->record.type = SamplerRecordType;
-        sampler->record.size = sizeof(sampler_record_t);
-        sampler->record.exporter_sysid = (*e)->info.sysid;
-        sampler->record.id = id;
-        sampler->record.packetInterval = 1;
-        sampler->record.algorithm = algorithm;
-        sampler->record.spaceInterval = interval;
+    return sampler;
+}  // End of process Sampling
 
-        fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
+static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_t *header) {
+    uint16_t engine_tag = ntohs(header->engine_tag);
+    uint16_t version = ntohs(header->version);
+    const exporter_key_t key = {.version = version, .id = engine_tag, .ip = fs->ipAddr};
 
-        LogInfo(
-            "Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s, algorithm: %i, "
-            "packet interval: 1, packet space: %u\n",
-            (*e)->info.sysid, (engine_tag & 0xFF), ((engine_tag >> 8) & 0xFF), ipstr, algorithm, interval);
-    } else {
-        (*e)->sampler = NULL;
-        LogInfo("Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s", (*e)->info.sysid, (engine_tag & 0xFF),
-                ((engine_tag >> 8) & 0xFF), ipstr);
+    // fast cache
+    if (fs->last_exp && EXPORTER_KEY_EQUAL(fs->last_key, key)) {
+        return fs->last_exp;
     }
 
-    return (*e);
+    exporter_table_t *tab = &fs->exporters;
+    // Check load factor in case we need a new slot
+    if ((tab->count * 4) >= (tab->capacity * 3)) {
+        // expand exporter index
+        expand_exporter_table(tab);
+        tab = &fs->exporters;
+    }
+
+    // not identical of last exporter
+    uint32_t hash = EXPORTERHASH(key);
+    uint32_t mask = tab->capacity - 1;
+    uint32_t i = hash & mask;
+
+    for (;;) {
+        exporter_entry_t *e = &tab->entries[i];
+        // key does not exists - create new exporter
+        if (!e->in_use) {
+            // create new exporter
+            e->key = key;
+            e->packets = 0;
+            e->flows = 0;
+            e->sequence_failure = 0;
+            e->sequence = UINT32_MAX;
+            e->in_use = 1;
+            tab->count++;
+
+            e->info = (exporter_info_record_t){.header = (record_header_t){.type = ExporterInfoRecordType, .size = sizeof(exporter_info_record_t)},
+                                               .version = key.version,
+                                               .id = key.id,
+                                               .fill = 0,
+                                               .sysid = 0};
+            memcpy(e->info.ip, fs->ipAddr.bytes, 16);
+
+            e->version.v5 = (exporter_v5_t){0};
+
+            char *ipstr = ip128_2_str(&fs->ipAddr);
+            if (fs->sa_family == PF_INET6) {
+                e->version.v5.outRecordSize = baseRecordSize + EXipReceivedV6Size;
+                dbg_printf("Process_v5: New IPv6 exporter %s - add EXipReceivedV6\n", ipstr);
+            } else {
+                e->version.v5.outRecordSize = baseRecordSize + EXipReceivedV4Size;
+                dbg_printf("Process_v5: New IPv4 exporter %s - add EXipReceivedV4\n", ipstr);
+            }
+
+            FlushInfoExporter(fs, &e->info);
+
+            sampler_t *sampler = getSampler(header);
+            if (sampler) {
+                sampler->record.exporter_sysid = e->info.sysid;
+                fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
+                LogInfo("Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s, algorithm: %i, packet interval: 1, packet space: %u\n",
+                        e->info.sysid, (engine_tag & 0xFF), ((engine_tag >> 8) & 0xFF), ipstr, sampler->record.algorithm,
+                        sampler->record.spaceInterval);
+            } else {
+                LogInfo("Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s", e->info.sysid, (engine_tag & 0xFF),
+                        ((engine_tag >> 8) & 0xFF), ipstr);
+            }
+            e->sampler = sampler;
+
+            fs->last_key = key;
+            fs->last_exp = e;
+            return e;
+        }
+        if (EXPORTER_KEY_EQUAL(e->key, key)) {
+            fs->last_key = key;
+            fs->last_exp = e;
+            return e;
+        }
+
+        dbg_assert(tab->count < tab->capacity);
+        // next slot
+        i = (i + 1) & mask;
+    }
+
+    // unreached
+    return NULL;
 
 }  // End of getExporter
 
@@ -286,7 +299,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     // map v5 data structure to input buffer
     netflow_v5_header_t *v5_header = (netflow_v5_header_t *)in_buff;
 
-    exporter_v5_t *exporter = getExporter(fs, v5_header);
+    exporter_entry_t *exporter = getExporter(fs, v5_header);
     if (!exporter) {
         LogError("Process_v5: Exporter NULL: Abort v5/v7 record processing");
         return;
@@ -308,13 +321,14 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         uint16_t count = ntohs(v5_header->count);
         // input buffer size check for all expected records
         if (size_left < (NETFLOW_V5_HEADER_LENGTH + count * rawRecordSize)) {
-            LogError("Process_v5: Exporter: %s Not enough data to process v5 record. Abort v5/v7 record processing", GetExporterIP(fs));
+            char *ipstr = ip128_2_str(&fs->ipAddr);
+            LogError("Process_v5: Exporter: %s Not enough data to process v5 record. Abort v5/v7 record processing", ipstr);
             return;
         }
 
         // set output buffer memory
         void *outBuff = GetCurrentCursor(fs->dataBlock);
-        if (!IsAvailable(fs->dataBlock, count * exporter->outRecordSize)) {
+        if (!IsAvailable(fs->dataBlock, count * exporter->version.v5.outRecordSize)) {
             // flush block - get an empty one
             fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
             // map output memory buffer
@@ -325,14 +339,14 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         if (exporter->sequence != UINT32_MAX) {
             uint32_t distance = seq - exporter->sequence;  // wrap-safe
 
-            if (distance != exporter->last_count) {
+            if (distance != exporter->version.v5.last_count) {
                 fs->nffile->stat_record->sequence_failure++;
                 exporter->sequence_failure++;
             }
         }
 
         exporter->sequence = seq;
-        exporter->last_count = count;
+        exporter->version.v5.last_count = count;
 
         v5_header->SysUptime = ntohl(v5_header->SysUptime);
         v5_header->unix_secs = ntohl(v5_header->unix_secs);
@@ -427,11 +441,14 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             // add router IP
             if (fs->sa_family == PF_INET6) {
                 PushExtension(recordHeader, EXipReceivedV6, ipReceivedV6);
-                ipReceivedV6->ip[0] = fs->ip.V6[0];
-                ipReceivedV6->ip[1] = fs->ip.V6[1];
+                uint64_t *ipv6 = (uint64_t *)fs->ipAddr.bytes;
+                ipReceivedV6->ip[0] = ntohll(ipv6[0]);
+                ipReceivedV6->ip[1] = ntohll(ipv6[1]);
             } else {
                 PushExtension(recordHeader, EXipReceivedV4, ipReceivedV4);
-                ipReceivedV4->ip = fs->ip.V4;
+                uint32_t ipv4;
+                memcpy(&ipv4, fs->ipAddr.bytes + 12, 4);
+                ipReceivedV4->ip = ntohl(ipv4);
             }
 
             // sampling
@@ -488,8 +505,8 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             outSize += recordHeader->size;
             v5_record = (netflow_v5_record_t *)((void *)v5_record + rawRecordSize);
 
-            if (recordHeader->size > exporter->outRecordSize) {
-                LogError("Process_v5: Record size check failed! Expected: %u, counted: %u\n", exporter->outRecordSize, recordHeader->size);
+            if (recordHeader->size > exporter->version.v5.outRecordSize) {
+                LogError("Process_v5: Record size check failed! Expected: %u, counted: %u\n", exporter->version.v5.outRecordSize, recordHeader->size);
                 return;
             }
 

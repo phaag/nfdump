@@ -40,7 +40,7 @@
 
 typedef struct send_peer_s {
     struct sockaddr_storage srcaddr, dstaddr;
-    int addrlen;
+    unsigned addrlen;
     int sockfd;
     int family;
     char *port;
@@ -55,9 +55,9 @@ typedef struct send_peer_s {
 
 /* Function prototypes */
 int Unicast_send_socket(const char *shostname, const char *dhostname, const char *listenport, int family, unsigned int wmem_size,
-                        struct sockaddr_storage *saddr, struct sockaddr_storage *daddr, int *addrlen);
+                        struct sockaddr_storage *saddr, struct sockaddr_storage *daddr, unsigned *addrlen);
 
 int Multicast_send_socket(const char *shostname, const char *dhostname, const char *listenport, int family, unsigned int wmem_size,
-                          struct sockaddr_storage *saddr, struct sockaddr_storage *daddr, int *addrlen);
+                          struct sockaddr_storage *saddr, struct sockaddr_storage *daddr, unsigned *addrlen);
 
 #endif  //_NFNET_H
