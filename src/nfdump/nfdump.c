@@ -475,7 +475,8 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
 
         record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t matched = 0;
-        __unused uint32_t dataRecords = 0;
+        uint32_t dataRecords = 0;
+        (void)dataRecords;  // __unused
         for (int i = 0; i < dataBlock->NumRecords; i++) {
             processedRecords++;
             recordCounter++;
