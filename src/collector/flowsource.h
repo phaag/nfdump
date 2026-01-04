@@ -118,6 +118,6 @@ exporter_entry_t *NextExporter(FlowSource_t *fs);
 
 void expand_exporter_table(exporter_table_t *tab);
 
-char *GetClientIPstring(struct sockaddr_storage *ss);
+char *GetClientIPstring(struct sockaddr_storage *ss, char *as);
 
 #endif

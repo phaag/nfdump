@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -250,7 +250,8 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_
 
             e->version.v5 = (exporter_v5_t){0};
 
-            char *ipstr = ip128_2_str(&fs->ipAddr);
+            char ipstr[INET6_ADDRSTRLEN];
+            ip128_2_str(&fs->ipAddr, ipstr);
             if (fs->sa_family == PF_INET6) {
                 e->version.v5.outRecordSize = baseRecordSize + EXipReceivedV6Size;
                 dbg_printf("Process_v5: New IPv6 exporter %s - add EXipReceivedV6\n", ipstr);
@@ -321,8 +322,8 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         uint16_t count = ntohs(v5_header->count);
         // input buffer size check for all expected records
         if (size_left < (NETFLOW_V5_HEADER_LENGTH + count * rawRecordSize)) {
-            char *ipstr = ip128_2_str(&fs->ipAddr);
-            LogError("Process_v5: Exporter: %s Not enough data to process v5 record. Abort v5/v7 record processing", ipstr);
+            char ipstr[INET6_ADDRSTRLEN];
+            LogError("Process_v5: Exporter: %s Not enough data to process v5 record. Abort v5/v7 record processing", ip128_2_str(&fs->ipAddr, ipstr));
             return;
         }
 

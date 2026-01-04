@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -630,13 +630,13 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (subdir_index && !InitHierPath(subdir_index)) {
-        exit(255);
+    if (!CheckSubDir(subdir_index)) {
+        exit(EXIT_FAILURE);
     }
 
     if (!profile_datadir) {
         LogError("Profile data directory required!");
-        exit(255);
+        exit(EXIT_FAILURE);
     }
 
     if (!profile_statdir) {
@@ -646,13 +646,13 @@ int main(int argc, char **argv) {
     struct stat stat_buf;
     if (stat(profile_datadir, &stat_buf) || !S_ISDIR(stat_buf.st_mode)) {
         LogError("'%s' not a directory", profile_datadir);
-        exit(255);
+        exit(EXIT_FAILURE);
     }
 
     if (stdin_profile_params) {
         profile_list = ParseParams(profile_datadir);
         if (!profile_list) {
-            exit(254);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -666,13 +666,13 @@ int main(int argc, char **argv) {
         char *p;
         if (flist.single_file == NULL) {
             LogError("-r filename required!");
-            exit(255);
+            exit(EXIT_FAILURE);
         }
         p = strrchr(flist.single_file, '/');
         filename = p == NULL ? flist.single_file : ++p;
         if (strlen(filename) == 0) {
             LogError("Filename error: zero length filename");
-            exit(254);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -704,12 +704,12 @@ int main(int argc, char **argv) {
 
     if (chdir(profile_datadir)) {
         LogError("Error can't chdir to '%s': %s", profile_datadir, strerror(errno));
-        exit(255);
+        exit(EXIT_FAILURE);
     }
 
     if (!flist.single_file) {
         LogError("Input file (-r) required!");
-        exit(255);
+        exit(EXIT_FAILURE);
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
@@ -732,7 +732,7 @@ int main(int argc, char **argv) {
     numWorkers = GetNumWorkers(numWorkers);
 
     pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
-    if (!barrier) exit(255);
+    if (!barrier) exit(EXIT_FAILURE);
 
     profile_channel_info_t *channels = GetChannelInfoList();
 
@@ -741,7 +741,7 @@ int main(int argc, char **argv) {
     worker_param_t **workerList = LauchWorkers(tid, numWorkers, barrier, channels, numChannels);
     if (!workerList) {
         LogError("Failed to launch workers");
-        exit(255);
+        exit(EXIT_FAILURE);
     }
 
     process_data(channels, numChannels, tslot, workerList, numWorkers, barrier, hasGeoDB);

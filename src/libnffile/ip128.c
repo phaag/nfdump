@@ -41,8 +41,7 @@
 
 #include "util.h"
 
-char *ip128_2_str(const ip128_t *ip) {
-    static char ipstr[INET6_ADDRSTRLEN];
+char *ip128_2_str(const ip128_t *ip, char *ipstr) {
     ipstr[0] = '\0';
 
     static const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};

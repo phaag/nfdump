@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -143,7 +143,8 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v1_header_
 
             e->version.v1 = (exporter_v1_t){0};
 
-            char *ipstr = ip128_2_str(&fs->ipAddr);
+            char ipstr[INET6_ADDRSTRLEN];
+            ip128_2_str(&fs->ipAddr, ipstr);
             if (fs->sa_family == PF_INET6) {
                 e->version.v1.outRecordSize = baseRecordSize + EXipReceivedV6Size;
                 dbg_printf("Process_v1: New IPv6 exporter %s - add EXipReceivedV6\n", ipstr);

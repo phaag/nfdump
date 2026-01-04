@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2025, Peter Haag
+ *  Copyright (c) 2012-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -471,8 +471,9 @@ static exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t ObservationDomai
                 dbg_printf("Add static sampler for default sampling: %u\n", defaultSampling);
             }
 
-            char *ipstr = ip128_2_str(&fs->ipAddr);
-            LogInfo("Process_ipfix: New ipfix exporter: SysID: %u, Observation domain %u from: %s", e->info.sysid, ObservationDomain, ipstr);
+            char ipstr[INET6_ADDRSTRLEN];
+            LogInfo("Process_ipfix: New ipfix exporter: SysID: %u, Observation domain %u from: %s", e->info.sysid, ObservationDomain,
+                    ip128_2_str(&fs->ipAddr, ipstr));
 
             fs->last_key = key;
             fs->last_exp = e;

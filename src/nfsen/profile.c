@@ -233,51 +233,37 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
 
     // path to the channel
     // channel exists and is a directory - checked in ParseParams
-    snprintf(path, MAXPATHLEN - 1, "%s/%s/%s/%s", profile_datadir, profile_param->profilegroup, profile_param->profilename,
-             profile_param->channelname);
-    path[MAXPATHLEN - 1] = '\0';
+    char dataDir[MAXPATHLEN];
+    dataDir[0] = '\0';
+    path[0] = '\0';
 
-    if (chdir(path)) {
+    snprintf(dataDir, MAXPATHLEN - 1, "%s/%s/%s/%s", profile_datadir, profile_param->profilegroup, profile_param->profilename,
+             profile_param->channelname);
+
+    if (chdir(dataDir)) {
         LogError("Error can't chdir to '%s': %s", path, strerror(errno));
         exit(255);
     }
 
     // check for subdir hierarchy
-    char *subdir = NULL;
     char *ofile = NULL;
     char *wfile = NULL;
     nffile_t *nffile = NULL;
     dataBlock_t *dataBlock = NULL;
     if ((profile_param->profiletype & 4) == 0) {  // no shadow profile
-        int is_alert = (profile_param->profiletype & 8) == 8;
-        if (!is_alert && subdir_index && strlen(filename) == 19 && (strncmp(filename, "nfcapd.", 7) == 0)) {
+        // int is_alert = (profile_param->profiletype & 8) == 8;
+        if (strlen(filename) == 19 && (strncmp(filename, "nfcapd.", 7) == 0)) {
             char *p = &filename[7];  // points to ISO timestamp in filename
             time_t t = ISO2UNIX(p);
             struct tm *t_tm = localtime(&t);
 
-            subdir = GetSubDir(t_tm);
-            if (!subdir) {
-                // failed to generate subdir path - put flows into base directory
-                LogError("Failed to create subdir path!");
-            }
-            if (!SetupSubDir(path, subdir)) {
-                LogError("Failed to create subdir path");
-                // nothing else need to be done, as subdir == NULL means put files into channel directory
-            }
+            SetupPath(t_tm, dataDir, subdir_index, path);
+
+        } else {
+            strncpy(path, dataDir, MAXPATHLEN - 1);
         }
 
-        if (is_alert) {  // alert
-            snprintf(path, MAXPATHLEN, "%s/%s/%s/%s/%s", profile_datadir, profile_param->profilegroup, profile_param->profilename,
-                     profile_param->channelname, filename);
-        } else {
-            // prepare output file for profile types != shadow
-            if (subdir)
-                snprintf(path, MAXPATHLEN, "%s/%s/%s/%s/%s/%s", profile_datadir, profile_param->profilegroup, profile_param->profilename,
-                         profile_param->channelname, subdir, filename);
-            else
-                snprintf(path, MAXPATHLEN, "%s/%s/%s/%s/%s", profile_datadir, profile_param->profilegroup, profile_param->profilename,
-                         profile_param->channelname, filename);
-        }
+        strncat(path, filename, MAXPATHLEN - strlen(path) - 1);
         path[MAXPATHLEN - 1] = '\0';
         wfile = strdup(path);
 

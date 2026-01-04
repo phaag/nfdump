@@ -106,7 +106,7 @@ _h;                                                   \
 })
 */
 
-char *ip128_2_str(const ip128_t *ip);
+char *ip128_2_str(const ip128_t *ip, char *ipstr);
 
 ip128_t ip128_2_bin(const char *ipStr);
 

@@ -85,6 +85,7 @@ FlowSource_t *newFlowSource(const char *ident, const char *dataDir, unsigned sub
     fs->exporters.entries = calloc(fs->exporters.capacity, sizeof(exporter_entry_t));
     if (fs->exporters.entries == NULL) {
         LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        freeFlowSource(fs);
         return NULL;
     }
 
@@ -128,7 +129,8 @@ void insertFlowSource(collector_ctx_t *ctx, const ip128_t *ip, FlowSource_t *fs)
 
 static FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const ip128_t *ip) {
     // create new flow directory for dynamic source
-    char *ipStr = ip128_2_str(ip);
+    char ipStr[INET6_ADDRSTRLEN];
+    ip128_2_str(ip, ipStr);
 
     char path[MAXPATHLEN];
     snprintf(path, MAXPATHLEN - 1, "%s/%s", ctx->dynamicSource->datadir, ipStr);
@@ -157,6 +159,7 @@ static FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const ip128_t *ip) {
 
     // allocate new flowsource for this IP
     FlowSource_t *fs = newFlowSource(ident, path, ctx->dynamicSource->subdir);
+    free(ident);
     if (fs == NULL) return NULL;
 
     source_array->fs = fs;
@@ -364,7 +367,7 @@ static int inline GetClientIP(const struct sockaddr_storage *ss, ip128_t *ip, ui
             if (ss->ss_len != sizeof(struct sockaddr_in)) {
                 // malformed struct
                 LogError("Malformed IPv4 socket struct in '%s', line '%d'", __FILE__, __LINE__);
-                return NULL;
+                return 0;
             }
 #endif
             memset(ip->bytes, 0, 10);
@@ -377,7 +380,7 @@ static int inline GetClientIP(const struct sockaddr_storage *ss, ip128_t *ip, ui
             if (ss->ss_len != sizeof(struct sockaddr_in6)) {
                 // malformed struct
                 LogError("Malformed IPv6 socket struct in '%s', line '%d'", __FILE__, __LINE__);
-                return ip;
+                return 0;
             }
 #endif
             memcpy(ip->bytes, u.sa_in6->sin6_addr.s6_addr, 16);
@@ -491,9 +494,8 @@ static inline FlowSource_t *index_lookup(const source_index_t *idx, const ip128_
     return NULL;
 }  // End of index_lookup
 
-char *GetClientIPstring(struct sockaddr_storage *ss) {
-    static char as[128];
-    as[0] = '\0';
+char *GetClientIPstring(struct sockaddr_storage *ss, char *sa_string) {
+    sa_string[0] = '\0';
 
     union {
         struct sockaddr_storage *ss;
@@ -517,11 +519,11 @@ char *GetClientIPstring(struct sockaddr_storage *ss) {
             }
         } break;
         default:
-            snprintf(as, sizeof(as) - 1, "Unknown sa family: %d", ss->ss_family);
-            return as;
+            snprintf(sa_string, INET6_ADDRSTRLEN - 1, "Unknown sa family: %d", ss->ss_family);
+            return sa_string;
     }
 
-    inet_ntop(family, ptr, as, sizeof(as));
-    return as;
+    inet_ntop(family, ptr, sa_string, INET6_ADDRSTRLEN);
+    return sa_string;
 
 }  // End of GetClientIPstring

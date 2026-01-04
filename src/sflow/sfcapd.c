@@ -299,6 +299,7 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
      */
     while (1) {
         struct timeval tv;
+        char sa_address[INET6_ADDRSTRLEN];
 
         /* read next bunch of data into begin of input buffer */
         if (!done) {
@@ -306,7 +307,7 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
             // Debug code to read from pcap file, or from socket
             cnt = receive_packet(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&sf_sender, &sf_sender_size);
 
-            dbg_printf("Received packet from: %s\n", GetClientIPstring(&sf_sender));
+            dbg_printf("Received packet from: %s, size: %zd\n", GetClientIPstring(&sf_sender, sa_address), cnt);
 
             // in case of reading from file EOF => -2
             if (cnt == -2) done = 1;
@@ -381,8 +382,7 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
             fs = NewDynFlowSource(ctx, &sf_sender);
             if (fs == NULL) {
                 ignored_packets++;
-                char *clientIPstr = GetClientIPstring(&sf_sender);
-                LogError("Skip UDP packet from: %s. Ignored packets: %u", clientIPstr, ignored_packets);
+                LogError("Skip UDP packet from: %s. Ignored packets: %u", GetClientIPstring(&sf_sender, sa_address), ignored_packets);
                 continue;
             }
 

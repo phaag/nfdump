@@ -302,13 +302,14 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
      */
     while (1) {
         struct timeval tv;
+        char sa_address[INET6_ADDRSTRLEN];
 
         /* read next bunch of data into begin of input buffer */
         if (!done) {
             // Debug code to read from pcap file, or from socket
             cnt = receive_packet(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&nf_sender, &nf_sender_size);
 
-            dbg_printf("Received packet from: %s, size: %zd\n", GetClientIPstring(&nf_sender), cnt);
+            dbg_printf("Received packet from: %s, size: %zd\n", GetClientIPstring(&sf_sender, sa_address), cnt);
 
             // in case of reading from file EOF => -2
             if (cnt == -2) done = 1;
@@ -380,8 +381,7 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
             fs = NewDynFlowSource(ctx, &nf_sender);
             if (fs == NULL) {
                 ignored_packets++;
-                char *clientIPstr = GetClientIPstring(&nf_sender);
-                LogError("Skip UDP packet from: %s. Ignored packets: %u", clientIPstr, ignored_packets);
+                LogError("Skip UDP packet from: %s. Ignored packets: %u", GetClientIPstring(&nf_sender, sa_address), ignored_packets);
                 continue;
             }
 
@@ -428,15 +428,15 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
             case VERSION_NFDUMP:
                 Process_nfd(in_buff, cnt, fs);
                 break;
-            default:
+            default: {
                 // data error, while reading data from socket
                 LogError("Ident: %s, Error packet %llu: reading netflow header: Unexpected netflow version %i from: %s", fs->Ident, packets, version,
-                         GetClientIPstring(&nf_sender));
+                         GetClientIPstring(&nf_sender, sa_address));
                 fs->bad_packets++;
                 continue;
 
                 // not reached
-                break;
+            } break;
         }
         // each Process_xx function has to process the entire input buffer, therefore it's empty
         // now.

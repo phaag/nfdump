@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2025, Peter Haag
+ *  Copyright (c) 2025-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -110,8 +110,8 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, nfd_header_t *head
 
             FlushInfoExporter(fs, &e->info);
 
-            char *ipstr = ip128_2_str(&fs->ipAddr);
-            LogInfo("Process_nfd: SysID: %u, New exporter: IP: %s\n", e->info.sysid, ipstr);
+            char ipstr[INET6_ADDRSTRLEN];
+            LogInfo("Process_nfd: SysID: %u, New exporter: IP: %s\n", e->info.sysid, ipstr, ip128_2_str(&fs->ipAddr, ipstr));
 
             fs->last_key = key;
             fs->last_exp = e;

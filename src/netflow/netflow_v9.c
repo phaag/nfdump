@@ -419,8 +419,8 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, uint32_t exporter_
                 dbg_printf("Add static sampler for default sampling: %u\n", defaultSampling);
             }
 
-            char *ipstr = ip128_2_str(&fs->ipAddr);
-            LogInfo("Process_v9: New v9 exporter: SysID: %u, Domain: %u, IP: %s", e->info.sysid, exporter_id, ipstr);
+            char ipstr[INET6_ADDRSTRLEN];
+            LogInfo("Process_v9: New v9 exporter: SysID: %u, Domain: %u, IP: %s", e->info.sysid, exporter_id, ip128_2_str(&fs->ipAddr, ipstr));
 
             fs->last_key = key;
             fs->last_exp = e;

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -205,8 +205,9 @@ static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
             sampler->record.exporter_sysid = e->info.sysid;
             fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
 
-            char *ipstr = ip128_2_str(&fs->ipAddr);
-            LogInfo("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s", e->info.sysid, agentSubId, meanSkipCount, ipstr);
+            char ipstr[INET6_ADDRSTRLEN];
+            LogInfo("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s", e->info.sysid, agentSubId, meanSkipCount,
+                    ip128_2_str(&fs->ipAddr, ipstr));
 
             fs->last_key = key;
             fs->last_exp = e;
