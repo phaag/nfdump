@@ -200,7 +200,7 @@ static struct entry_filter_s {
 static char *first_file = NULL;
 static char *last_file = NULL;
 
-static stringlist_t source_dirs;
+static stringlist_t source_dirs = {0};
 static queue_t *file_queue = NULL;
 
 /* Function prototypes */
@@ -836,14 +836,13 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
  * 	/any/path is dir prefix, which may be NULL e.g. dir1:dir2:dir3:...
  * 	dir1, dir2 etc entries
  */
-void Getsource_dirs(char *dirs) {
-    char *p, *q, *dirprefix;
-    char path[MAXPATHLEN];
-
-    q = strchr(dirs, ':');
+static void Getsource_dirs(char *dirs) {
+    char *q = strchr(dirs, ':');
     if (q) {  // we have /path/to/firstdir:dir1:dir2:...
+        char path[MAXPATHLEN];
+        char *dirprefix = NULL;
         *q = 0;
-        p = strrchr(dirs, '/');
+        char *p = strrchr(dirs, '/');
         if (p) {
             *p++ = 0;  // p points now to the first name in the dir list
             dirprefix = dirs;

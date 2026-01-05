@@ -280,8 +280,10 @@ static uint32_t ParseIPlist(const char *ipListStr, struct ipList_s *ipList) {
             ip128_and(&ipList[count].net, &ip, &mask);
 #ifdef DEVEL
             {
-                const char *ipStr = ip128_2_str(&ip);
-                const char *maskStr = ip128_2_str(&mask);
+                char ipStr[INET6_ADDRSTRLEN];
+                char maskStr[INET6_ADDRSTRLEN];
+                ip128_2_str(&ip, ipStr);
+                ip128_2_str(&mask, maskStr);
                 printf("New CIDR block from: %s - net: %s, mask: %s\n", tok, ipStr, maskStr);
             }
 #endif
@@ -295,8 +297,10 @@ static uint32_t ParseIPlist(const char *ipListStr, struct ipList_s *ipList) {
             ipList[count].net = ip;
 #ifdef DEVEL
             {
-                const char *ipStr = ip128_2_str(&ip);
-                const char *maskStr = ip128_2_str(&mask);
+                char ipStr[INET6_ADDRSTRLEN];
+                char maskStr[INET6_ADDRSTRLEN];
+                ip128_2_str(&ip, ipStr);
+                ip128_2_str(&mask, maskStr);
                 printf("New IP from: %s - IP: %s, mask: %s\n", tok, ipStr, maskStr);
             }
 #endif
