@@ -114,7 +114,7 @@ int ConfigureFixedFlowSource(collector_ctx_t *ctx, stringlist_t *sourceList, uns
 
     for (int i = 0; i < sourceList->num_strings; i++) {
         // separate ident, IP address and directory path
-        char *ident = sourceList->list[0];
+        char *ident = sourceList->list[i];
         char *ipList = NULL;
         // separate IP address from ident
         if ((ipList = strchr(ident, ',')) == NULL) {
