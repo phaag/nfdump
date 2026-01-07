@@ -82,6 +82,8 @@ enum {
     STACK_MAX
 };
 
+static int ExtensionsEnabled[MAXEXTENSIONS];
+
 static const struct v9TranslationMap_s {
     uint16_t id;  // v9 element id
 #define Stack_ONLY 0

@@ -68,8 +68,6 @@ typedef struct common_flow_header {
     uint16_t count;
 } common_flow_header_t;
 
-static int ExtensionsEnabled[MAXEXTENSIONS];
-
 #define UpdateFirstLast(nffile, First, Last)              \
     if ((First) < (nffile)->stat_record->msecFirstSeen) { \
         (nffile)->stat_record->msecFirstSeen = (First);   \
