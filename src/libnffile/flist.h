@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -38,9 +38,10 @@
 #include "util.h"
 
 typedef struct flist_s {
-    char *multiple_dirs;
     char *single_file;
     char *multiple_files;
+    char *multiple_dirs;
+    queue_t *file_queue;
     timeWindow_t *timeWindow;
 } flist_t;
 

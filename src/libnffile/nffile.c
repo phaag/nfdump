@@ -70,7 +70,6 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "flist.h"
 #ifndef HAVE_LZ4
 #include "lz4.h"
 #include "lz4hc.h"

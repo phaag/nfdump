@@ -1,4 +1,4 @@
-idnl ----------------------------------------------------------------------
+dnl ----------------------------------------------------------------------
 dnl AX_RRD_CONSTCHAR.M4
 dnl Detect whether rrd_update() expects const char ** in the installed RRD library
 dnl Usage: AX_RRD_CONSTCHAR

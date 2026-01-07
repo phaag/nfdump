@@ -40,6 +40,7 @@
 #include "bookkeeper.h"
 #include "config.h"
 #include "exporter.h"
+#include "flist.h"
 #include "flowsource.h"
 #include "ip128.h"
 #include "nffile.h"
