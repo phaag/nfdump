@@ -156,83 +156,83 @@ AC_CHECK_SIZEOF(void *)
 AC_CHECK_HEADERS(pcap-bpf.h net/bpf.h net/ethernet.h net/ethertypes.h net/if_pflog.h)
 
 # --- lz4 ---
-AC_ARG_WITH([lz4], AS_HELP_STRING([--with-lz4=PATH],[Path to liblz4]), ,with_lz4="")
-AS_IF([test "x$with_lz4" = "xno"], [
-	# --- disable library search
-	HAVE_LZ4=no
-	AM_CONDITIONAL([HAVE_LZ4], [false])
-	AC_MSG_WARN([Disabled lz4 system library])
-], [
-	AX_FIND_LIBRARY([LZ4], [lz4.h], [lz4], [$with_lz4], [/usr /usr/local /opt/local])
-])
+AX_CHECK_LIB_GENERIC([LZ4], [lz4.h], [lz4],
+  [AC_MSG_NOTICE([Found LZ4])],
+  [AC_MSG_WARN([LZ4 not found; using embedded version])]
+)
 AS_IF([test x$HAVE_LZ4 = xyes], [which_lz4="system library"], which_lz4="embedded")
 
 # --- zstd ---
-AC_ARG_WITH([zstd], AS_HELP_STRING([--with-zstd=PATH],[Path to libzstd]), ,with_zstd="")
-AS_IF([test "x$with_zstd" = "xno"], [
-	# --- disable library search
-	HAVE_ZSTD=no
-	AM_CONDITIONAL([HAVE_ZSTD], [false])
-	AC_MSG_WARN([Disabled zstd compression])
-], [
-	AX_FIND_LIBRARY([ZSTD], [zstd.h], [zstd], [$with_zstd], [/usr /usr/local /opt/local])
-])
+AX_CHECK_LIB_GENERIC([ZSTD], [zstd.h], [zstd],
+  [AC_MSG_NOTICE([Found ZSTD])],
+  [AC_MSG_WARN([ZSTD not found; disabling zstd])]
+)
 
 # --- bz2 ---
-AC_ARG_WITH([bz2], AS_HELP_STRING([--with-bz2=PATH],[Path to libbz2]), ,with_bz2="")
-AS_IF([test "x$with_bz2" = "xno"], [
-	# --- disable library search
-	HAVE_BZ2=no
-	AM_CONDITIONAL([HAVE_BZ2], [false])
-	AC_MSG_WARN([Disabled bz2 compression])
-], [
-	AX_FIND_LIBRARY([BZ2], [bzlib.h], [bz2], [$with_bz2], [/usr /usr/local])
-])
+AX_CHECK_LIB_GENERIC([BZ2], [bzlib.h], [bz2],
+  [AC_MSG_NOTICE([Found BZ2])],
+  [AC_MSG_WARN([Bzip2 not found; disabling bz2])]
+)
+
+# --- zlib, if we need it later  ---
+AX_CHECK_LIB_GENERIC([ZLIB], [zlib.h], [z],
+  [AC_MSG_NOTICE([Found zlib])],
+  []
+)
+
 
 # --- libpcap  ---
-AC_ARG_WITH([pcap], AS_HELP_STRING([--with-pcap=PATH],[Path to libpcap]), ,with_pcap="")
 AS_IF([test x$enable_readpcap = xyes || test x$enable_nfpcapd = xyes], [
-AX_FIND_LIBRARY([PCAP], [pcap.h], [pcap], [$with_pcap], [/usr /usr/local /opt/local])
-	AS_IF([test "x$PCAP_LIBS" = "x"], [AC_MSG_ERROR([libpcap required])])
-	# --- check if pcap library provides pcap_dump_open_append() ---
-	AC_CHECK_LIB([pcap], [pcap_dump_open_append],
-  	[have_pcap_append=yes],
-  	[have_pcap_append=no]
-	)
-	AS_IF([test "x$have_pcap_append" = "xyes"], [
-  	AC_DEFINE([HAVE_PCAP_APPEND], [1], [Define if pcap_dump_open_append() is available])
-	])
-	AM_CONDITIONAL([HAVE_PCAP_APPEND], [test "x$have_pcap_append" = "xyes"])
+
+  AX_CHECK_LIB_GENERIC([PCAP], [pcap.h], [pcap],
+    [
+      # --- temporarily inject PCAP flags for the symbol check
+      save_CPPFLAGS="$CPPFLAGS"
+      save_LDFLAGS="$LDFLAGS"
+      CPPFLAGS="$CPPFLAGS $PCAP_CFLAGS"
+      LDFLAGS="$LDFLAGS $PCAP_LIBS"
+
+      AC_CHECK_LIB([pcap], [pcap_dump_open_append], [
+  			AM_CONDITIONAL([HAVE_PCAP_APPEND], [true])
+        AC_DEFINE([HAVE_PCAP_APPEND], [1],
+          [Define if pcap_dump_open_append() exists])
+      ], [
+  			AM_CONDITIONAL([HAVE_PCAP_APPEND], [false])
+			])
+
+      CPPFLAGS="$save_CPPFLAGS"
+      LDFLAGS="$save_LDFLAGS"
+    ],
+    [
+      AC_MSG_ERROR([required libpcap not found. Try --with-pcap=path-to-libpcap])
+  		AM_CONDITIONAL([HAVE_PCAP_APPEND], [false])
+    ]
+  )
 ], [
-	AM_CONDITIONAL([HAVE_PCAP], [false])
-	AM_CONDITIONAL([HAVE_PCAP_APPEND], [false])
+  AM_CONDITIONAL([HAVE_PCAP], [false])
+  AM_CONDITIONAL([HAVE_PCAP_APPEND], [false])
 ])
 
-# --- zlib for nfpcapd and ftconv ---
-AC_ARG_WITH([zlib], AS_HELP_STRING([--with-zlib=PATH],[Path to libz]), ,with_zlib="")
-AS_IF([test x$enable_nfpcapd = xyes || test x$enable_ftconv = xyes], [
-	AX_FIND_LIBRARY([ZLIB], [zlib.h], [z], [$with_zlib], [/usr /usr/local /opt/local])
+# --- optional zlib for nfpcapd ---
+AS_IF([test x$enable_nfpcapd = xyes], [
 	AS_IF([test "x$ZLIB_LIBS" = "x"], [
 		readzpcap="no"
-	], [ readzpcap="yes"
-		])
-], [
-	AM_CONDITIONAL([HAVE_ZLIB], [false])
+	], [
+		readzpcap="yes"
+	])
 ])
 
 # --- ft2conv flow-tools converter ---
-AC_ARG_WITH([ft], AS_HELP_STRING([--with-ft=PATH],[Path to libft]), ,with_ft="")
 AS_IF([test x$enable_ftconv = xyes], [
-	AX_FIND_LIBRARY([FT], [ftlib.h], [ft], [$with_ft], [/usr /usr/local /opt/local])
-	AS_IF([test "x$FT_LIBS" = "x"], [
-		AC_MSG_ERROR([required libft not found for ft2conv. use --with-ft=<path>])
-	])
+	# --- requires zlib ---
 	AS_IF([test "x$ZLIB_LIBS" = "x"], [
-		AC_MSG_ERROR([required zlib not found for libft])
+		AC_MSG_ERROR([required zlib for libft not found. Try --with-zlib=path-to-libz])
 	])
-], [
-	AM_CONDITIONAL([HAVE_FT], [false])
-])
+  AX_CHECK_LIB_GENERIC([FT], [ftlib.h], [ft],
+    [AC_MSG_NOTICE([Found libft])],
+    [AC_MSG_ERROR([required libft for ft2nfdump not found. Try --with-ft=path-to-libft])]
+  )
+], [AM_CONDITIONAL([HAVE_FT], [false])] )
 
 # --- nfpcapd build options: Berkely BSD socket or TPACKET_V3, or plain pcap library
 AM_COND_IF([BUILD_NFPCAPD],
@@ -247,16 +247,19 @@ AM_COND_IF([BUILD_NFPCAPD],
 		[AM_CONDITIONAL(BSDBPF, false) AM_CONDITIONAL(TPACKETV3, false) AM_CONDITIONAL(PLAINPCAP, false)],
 )
 
-AC_ARG_WITH([rrd], AS_HELP_STRING([--with-rrd=PATH],[Path to librrd]), ,with_rrd="")
-AM_COND_IF([BUILD_NFPROFILE], [
-	AX_FIND_LIBRARY([RRD], [rrd.h], [rrd], [$with_rrd], [/usr /usr/local /opt/local])
-	AS_IF([test "x$RRD_LIBS" = "x"], [
-		AC_MSG_ERROR([required librrd not found for nfprofile. use --with-rrd=<path>])
-	])
-	AX_RRD_CONSTCHAR
+AS_IF([test x$enable_nfprofile = xyes], [
+	# --- check for rrd library
+  AX_CHECK_LIB_GENERIC([RRD], [rrd.h], [rrd],
+    [AX_RRD_CONSTCHAR],
+
+    [ AM_CONDITIONAL([RRDCONSTCHAR], [false])
+      AC_MSG_ERROR([required librrd for nfprofile not found. Try --with-rrd=path-to-librrd])
+    ]
+  )
+
 ], [
 	AM_CONDITIONAL([HAVE_RRD], [false])
-	AM_CONDITIONAL([RRDCONSTCHAR], [false])
+  AM_CONDITIONAL([RRDCONSTCHAR], [false])
 ])
 
 AM_CONDITIONAL([HAVE_DOXYGEN], [false])

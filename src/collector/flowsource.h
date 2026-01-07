@@ -33,6 +33,7 @@
 
 #include <netinet/in.h>
 #include <stdint.h>
+#include <sys/socket.h>
 
 #include "bookkeeper.h"
 #include "exporter.h"
