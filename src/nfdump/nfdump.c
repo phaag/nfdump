@@ -127,7 +127,7 @@ static int SetStat(char *str, int *element_stat, int *flow_stat);
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams);
 
 static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, timeWindow_t *timeWindow,
-                                  uint64_t limitRecords, outputParams_t *outputParams, int compress);
+                                  uint64_t limitRecords, outputParams_t *outputParams, int compress, int workers);
 
 /* Functions */
 
@@ -551,7 +551,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
 }  // End of filterThread
 
 static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, timeWindow_t *timeWindow,
-                                  uint64_t limitRecords, outputParams_t *outputParams, int compress) {
+                                  uint64_t limitRecords, outputParams_t *outputParams, int compress, int workers) {
     stat_record_t stat_record = {0};
     stat_record.msecFirstSeen = 0x7fffffffffffffffLL;
 
@@ -565,7 +565,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     }
 
     // check numWorkers depending on cores online
-    uint32_t numWorkers = GetNumWorkers(0);
+    uint32_t numWorkers = GetNumWorkers(workers);
     if (numWorkers > MAX_FILTER_THREADS) {
         LogError("Limit number of filter threads to %d", MAX_FILTER_THREADS);
         numWorkers = MAX_FILTER_THREADS;
@@ -1292,7 +1292,7 @@ int main(int argc, char **argv) {
     }
 
     nfprof_start(&profile_data);
-    sum_stat = process_data(engine, processMode, wfile, print_record, flist.timeWindow, limitRecords, outputParams, compress);
+    sum_stat = process_data(engine, processMode, wfile, print_record, flist.timeWindow, limitRecords, outputParams, compress, worker);
     nfprof_end(&profile_data, totalRecords);
 
     if (totalPassed == 0) {

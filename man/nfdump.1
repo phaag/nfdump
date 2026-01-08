@@ -728,9 +728,20 @@ Compress flow files with ZSTD compression. Fast and efficient. Optional level sh
 Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
 workers. See -W.
 .It Fl W Ar num
-Sets the number of workers to compress flows. Defaults to 4. Must not be greater than the number of
-cores online. Useful for higher levels of compression for lz4 or zstd and large amount of flows per second.
-Please not, -W affects only writing flows.
+Set the number of worker threads. The default is 4. The value must not exceed the
+number of online CPU cores.
+
+Worker threads are used to compress data blocks when writing flow files with
+.Ar -w file .
+Using multiple workers can significantly improve throughput, especially when
+using bz2 compression or higher compression levels for lz4 or zstd.
+
+Worker threads are also used when filtering flows with a given filter expression.
+Increasing the number of workers may improve performance for large or complex
+filters.
+
+Note that nfdump uses additional internal threads for reading and processing
+files. These threads are not user‑configurable.
 .It Fl J Ar compress
 Change compression for any number of files given by option
 .Fl r Ar flowpath
