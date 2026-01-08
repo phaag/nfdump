@@ -83,7 +83,7 @@ static inline int is_zero128(const ip128_t *a) {
 // Check, if IP is a mapped IPv4 in IPv6
 static inline int is_ipv4_mapped(const ip128_t *a) {
     /* First 80 bits must be zero, next 16 bits must be 0xffff */
-    static const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
+    const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
     return (memcmp(a->bytes, prefix, 12) == 0);
 }
 

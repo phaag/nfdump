@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -49,7 +49,9 @@
 
 #include "barrier.h"
 #include "config.h"
+#include "exporter.h"
 #include "flist.h"
+#include "ip128.h"
 #include "nbar.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -73,6 +75,8 @@ typedef struct worker_param_s {
 /* Function Prototypes */
 static void usage(char *name);
 
+static inline void AnonExporterInfo(exporter_info_record_t *exporter_record);
+
 static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon_dst);
 
 static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier);
@@ -94,6 +98,74 @@ static void usage(char *name) {
         "-w <file>\tName of output file. Defaults to input file.\n",
         name);
 } /* usage */
+
+static inline void AnonExporterInfo(exporter_info_record_t *exporter_record) {
+    const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
+
+    if (exporter_record->header.size != sizeof(exporter_info_record_t)) {
+        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
+        return;
+    }
+
+    uint64_t anon_ip[2];
+
+    ip128_t ipAddr;
+    uint64_t *u = (uint64_t *)ipAddr.bytes;
+    memcpy(ipAddr.bytes, exporter_record->ip, sizeof(ip128_t));
+    switch (exporter_record->fill) {
+        case 0: {  // new type of info record
+            // anonymizing an IPv4/IPv6 combind record is more complicated,
+            // the the anonimizer expects host order bytes and has seperate
+            // functions for IPv4 and IPv6
+            if (is_ipv4_mapped(&ipAddr)) {
+                // anonymise IPv4
+                uint32_t ipv4;
+                memcpy(&ipv4, ipAddr.bytes + 12, sizeof(uint32_t));
+                ipv4 = anonymize(ntohl(ipv4));
+                ipv4 = htonl(ipv4);
+                memcpy(ipAddr.bytes + 12, &ipv4, sizeof(uint32_t));
+
+            } else {
+                // anonymise IPv6
+                u[0] = ntohll(u[0]);
+                u[1] = ntohll(u[1]);
+                anonymize_v6(u, anon_ip);
+                u[0] = htonll(anon_ip[0]);
+                u[1] = htonll(anon_ip[1]);
+            }
+        } break;
+        case AF_INET: {  // old IPV4 record
+            uint32_t ipv4 = anonymize(u[1]);
+
+            // convert to new representation
+            ipv4 = htonl(ipv4);
+            memcpy(ipAddr.bytes, prefix, sizeof(prefix));
+            memcpy(ipAddr.bytes + 12, &ipv4, sizeof(uint32_t));
+            exporter_record->fill = 0;
+
+            char s[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, ipAddr.bytes, s, INET6_ADDRSTRLEN);
+            printf("Exporter: %s\n", s);
+            // copy back to exporter ip
+        } break;
+        case AF_INET6: {  // old IPv6 record
+            anonymize_v6(u, anon_ip);
+            u[0] = htonll(anon_ip[0]);
+            u[1] = htonll(anon_ip[1]);
+
+            // convert to new representation
+            exporter_record->fill = 0;
+        } break;
+    }
+    memcpy(exporter_record->ip, ipAddr.bytes, sizeof(ip128_t));
+
+#ifdef DEVEL
+    char s[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, ipAddr.bytes, s, INET6_ADDRSTRLEN);
+    printf("Exporter: %s\n", s);
+#endif
+
+}  // End of AnonExporterInfo
 
 static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon_dst) {
     elementHeader_t *elementHeader;
@@ -360,7 +432,7 @@ __attribute__((noreturn)) static void *worker(void *arg) {
 
         record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
-        for (int i = 0; i < dataBlock->NumRecords; i++) {
+        for (int i = 0; i < (int)dataBlock->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 goto SKIP;
@@ -378,6 +450,7 @@ __attribute__((noreturn)) static void *worker(void *arg) {
                         AnonRecord((recordHeaderV3_t *)record_ptr, worker_param->anon_src, worker_param->anon_dst);
                         break;
                     case ExporterInfoRecordType:
+                        AnonExporterInfo((exporter_info_record_t *)record_ptr);
                     case ExporterStatRecordType:
                     case SamplerRecordType:
                     case NbarRecordType:
