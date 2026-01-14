@@ -268,19 +268,20 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
         return;
     }
 
-    // Init each sflow source output data buffer
+    // Init each netflow source output data buffer
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         // prepare file
         fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
-        if (!fs->nffile) {
+        fs->swap_nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+        if (!fs->nffile || !fs->swap_nffile) {
             return;
         }
         SetIdent(fs->nffile, fs->Ident);
+        SetIdent(fs->swap_nffile, fs->Ident);
 
         // init flow source
         fs->dataBlock = WriteBlock(fs->nffile, NULL);
         fs->bad_packets = 0;
-        fs->swap_nffile = NULL;
     }
 
     time_t t_start = t_begin;
