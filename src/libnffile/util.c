@@ -194,7 +194,8 @@ int InitLog(unsigned want_syslog, const char *name, char *facility, unsigned ver
 #endif
 
     verbose = verbose_log;
-    if (!want_syslog) {
+    if (want_syslog == 0) {
+        use_syslog = 0;
         if (verbose) {
             LogInfo("Verbose log level: %u", verbose);
         }

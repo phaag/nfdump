@@ -102,8 +102,8 @@ static void signalPrivsepChild(pid_t child_pid, int pfd);
 
 static void IntHandler(int signal);
 
-static void run(collector_ctx_t *collector_ctx, packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin,
-                char *time_extension, unsigned compress);
+static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, post_args_t *post_args, int rfd, time_t twin, time_t t_begin,
+                unsigned compress);
 
 /* Functions */
 static void usage(char *name) {
@@ -258,8 +258,8 @@ static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockadd
     return 0;
 }  // End of SendRepeaterMessage
 
-static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin,
-                char *time_extension, unsigned compress) {
+static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, post_args_t *post_args, int rfd, time_t twin, time_t t_begin,
+                unsigned compress) {
     struct sockaddr_storage nf_sender;
     socklen_t nf_sender_size = sizeof(nf_sender);
 
@@ -275,10 +275,12 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         // prepare file
         fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
-        if (!fs->nffile) {
+        fs->swap_nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
+        if (!fs->nffile || !fs->swap_nffile) {
             return;
         }
         SetIdent(fs->nffile, fs->Ident);
+        SetIdent(fs->swap_nffile, fs->Ident);
 
         // init flow source
         fs->dataBlock = WriteBlock(fs->nffile, NULL);
@@ -337,12 +339,32 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
             // rotate cycle
             alarm(0);
 
-            if (RotateFlowFiles(t_start, time_extension, ctx, &pfd, done) == 0) {
-                return;
+#if 0
+            struct timespec rt_start, rt_end;
+            clock_gettime(CLOCK_MONOTONIC, &rt_start);
+
+            // Perform the rotation cycle
+            if (RotateCycle(ctx, post_args, t_start, done) != 0) {
+                LogError("run loop terminated due to serious errors");
+                break;
             }
 
-            LogInfo("Total packets received: %llu avg: %3.2f ignored packets: %u", packets, (double)packets / (double)twin, ignored_packets);
-            ignored_packets = 0;
+            clock_gettime(CLOCK_MONOTONIC, &rt_end);
+            // Compute elapsed time in milliseconds
+            long sec = rt_end.tv_sec - rt_start.tv_sec;
+            long nsec = rt_end.tv_nsec - rt_start.tv_nsec;
+            double elapsed_ms = (double)sec * 1000.0 + (double)nsec / 1e6;
+            printf("RotateCycle cycle completed in %.3f ms\n", elapsed_ms);
+#else
+            // Perform the rotation cycle
+            if (RotateCycle(ctx, post_args, t_start, done) != 0) {
+                LogError("run loop terminated due to serious errors");
+                break;
+            }
+#endif
+
+            LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u", packets, (double)packets / (double)twin, ignored_packets);
+            packets = ignored_packets = 0;
             periodic_trigger = 0;
 
             if (done) break;
@@ -444,13 +466,7 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
 
     free(in_buff);
 
-    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        dbg_printf("Stat: %llu sequence failures\n", fs->nffile->stat_record->sequence_failure);
-        FreeDataBlock(fs->dataBlock);
-        fs->dataBlock = NULL;
-        DisposeFile(fs->nffile);
-        fs->nffile = NULL;
-    }
+    CleanupCollector(ctx, post_args);
 
 } /* End of run */
 
@@ -814,6 +830,12 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    post_args_t *post_args = malloc(sizeof(post_args_t));
+    if (post_args == NULL) {
+        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
     // Read from yaf file instead of the network
     sock = 0;
     if (yaf_file) {
@@ -898,6 +920,19 @@ int main(int argc, char **argv) {
         pfd = PrivsepFork(argc, argv, &launcher_pid, "launcher");
     }
 
+    *post_args = (post_args_t){
+        .ctx = &collector_ctx,
+        .pfd = pfd,
+        .time_extension = time_extension,
+        .done = 0,
+    };
+
+    if (Lauch_postprocessor(post_args) == 0) {
+        close(sock);
+        remove_pid(pidfile);
+        exit(EXIT_FAILURE);
+    }
+
     int failed = 0;
     for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
@@ -937,7 +972,7 @@ int main(int argc, char **argv) {
     sigaction(SIGPIPE, &act, NULL);
 
     LogInfo("Startup nfcapd.");
-    run(&collector_ctx, receive_packet, sock, pfd, rfd, twin, t_start, time_extension, compress);
+    run(&collector_ctx, receive_packet, sock, post_args, rfd, twin, t_start, compress);
 
     // shutdown
     close(sock);

@@ -114,21 +114,34 @@ static int search_socket(const char *bindhost, const char *port, int *family) {
     return sockfd;
 }  // End of searchSocket
 
-/* Set requested receive buffer length */
-static int set_socket_buffer(int sockfd, unsigned sockbuflen) {
+static int set_socket_buffer(int sockfd, unsigned requested) {
     int cur;
     socklen_t optlen = sizeof(cur);
 
-    if (sockbuflen < Min_SOCKBUFF_LEN) sockbuflen = Min_SOCKBUFF_LEN;
+    // Read current buffer
+    if (getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &cur, &optlen) == 0) {
+        LogInfo("Current SO_RCVBUF = %d bytes", cur);
+        if (cur >= (int)requested) {
+            LogInfo("Keeping existing buffer (>= requested %u)", requested);
+            return 0;
+        }
+    }
 
-    if (getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &cur, &optlen) == 0) LogInfo("Default SO_RCVBUF is %d (requested %d)", cur, sockbuflen);
-
-    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &sockbuflen, sizeof(sockbuflen)) != 0) {
-        LogError("setsockopt(SO_RCVBUF,%d): %s", sockbuflen, strerror(errno));
+    // Try to set new buffer
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &requested, sizeof(requested)) != 0) {
+        LogError("setsockopt(SO_RCVBUF,%u) failed: %s", requested, strerror(errno));
         return -1;
     }
 
-    if (getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &cur, &optlen) == 0) LogInfo("SO_RCVBUF successfully set to %d bytes", cur);
+    // Read back actual value
+    cur = 0;
+    if (getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &cur, &optlen) == 0) {
+        if (cur < (int)requested) {
+            LogInfo("Kernel capped SO_RCVBUF to %d (requested %u)", cur, requested);
+        } else {
+            LogInfo("SO_RCVBUF successfully set to %d bytes", cur);
+        }
+    }
 
     return 0;
 }
@@ -255,7 +268,7 @@ int Unicast_send_socket(const char *hostname, const char *sendport, int family, 
 int Multicast_receive_socket(const char *hostname, const char *listenport, int family, unsigned sockbuflen) {
     struct addrinfo hints, *res, *ressave;
     socklen_t optlen;
-    int p, error, sockfd;
+    int error, sockfd;
 
     if (!listenport) {
         LogError("listen port required!");
@@ -330,16 +343,21 @@ int Multicast_receive_socket(const char *hostname, const char *listenport, int f
             sockbuflen = Min_SOCKBUFF_LEN;
             LogInfo("I want at least %i bytes as socket buffer", sockbuflen);
         }
-        optlen = sizeof(p);
-        getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &p, &optlen);
-        LogInfo("Standard setsockopt, SO_RCVBUF is %i Requested length is %i bytes", p, sockbuflen);
-        if ((setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &sockbuflen, sizeof(sockbuflen)) != 0)) {
-            LogError("setsockopt(SO_RCVBUF,%d): %s", sockbuflen, strerror(errno));
-            close(sockfd);
-            return -1;
+        int cur = 0;
+        optlen = sizeof(cur);
+        getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &cur, &optlen);
+        LogInfo("Standard setsockopt, SO_RCVBUF is %i Requested length is %i bytes", cur, sockbuflen);
+        if (cur > sockbuflen) {
+            LogInfo("Keeping existing buffer (>= requested %u)", sockbuflen);
         } else {
-            getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &p, &optlen);
-            LogInfo("System set setsockopt, SO_RCVBUF to %d bytes", p);
+            if ((setsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &sockbuflen, sizeof(sockbuflen)) != 0)) {
+                LogError("setsockopt(SO_RCVBUF,%d): %s", sockbuflen, strerror(errno));
+                close(sockfd);
+                return -1;
+            } else {
+                getsockopt(sockfd, SOL_SOCKET, SO_RCVBUF, &cur, &optlen);
+                LogInfo("System set setsockopt, SO_RCVBUF to %d bytes", cur);
+            }
         }
     }
 

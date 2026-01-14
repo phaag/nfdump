@@ -49,6 +49,7 @@ typedef struct FlowSource_s {
     char *tmpFileName;         // name of tmp collection file
     unsigned subdir;           // index of sub dir layout - see nffile.h
     nffile_t *nffile;          // nffile handle
+    nffile_t *swap_nffile;     // swap nffile handle
     dataBlock_t *dataBlock;    // current datablock to write records
 
     ip128_t ipAddr;        // IPv4/IPv6 address of this flow source

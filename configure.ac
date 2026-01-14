@@ -149,11 +149,28 @@ AC_CHECK_TYPES([union semun],
     ]]
 )
 
-AC_CHECK_FUNCS(fpurge __fpurge)
+AC_CHECK_FUNCS([fpurge __fpurge])
+
+# --- check for arc4random
+dnl Initialize EXTRA_LIBS
+RAND_LIBS=""
+AC_CHECK_FUNCS([arc4random])
+
+# --- If not found, try libbsd
+AS_IF([test "x$ac_cv_func_arc4random" != "xyes"], [
+    AC_CHECK_LIB([bsd], [arc4random],
+        [
+            RAND_LIBS="$RAND_LIBS -lbsd"
+            AC_DEFINE([HAVE_ARC4RANDOM], [1], [Define if arc4random() is available])
+						AC_DEFINE([HAVE_LIBBSD], [1], [Define if arc4random() comes from libbsd])
+        ], [ AC_MSG_ERROR([required function arc4random() not found - try to install libbsd])])
+])
+AC_SUBST([RAND_LIBS])
 
 AC_CHECK_SIZEOF(void *)
 
 AC_CHECK_HEADERS(pcap-bpf.h net/bpf.h net/ethernet.h net/ethertypes.h net/if_pflog.h)
+
 
 # --- lz4 ---
 AX_CHECK_LIB_GENERIC([LZ4], [lz4.h], [lz4],

@@ -136,7 +136,12 @@ The following options no longer exist:
 `--enable-nsel`
 NSEL support is built-in by default; you only need to adjust the output format if you prefer the legacy *line* or *long* format for NSEL/NAT. Change the `fmt` formats accordingly in the config file `nfdump.conf`
 
-Please note, that `nfprofile` is a legacy binary, used by NfSen and may be moved into a separate archive in future.
+Notes:
+
+- Make sure your system does provide autoconf 2.71.
+- Older Linux distributions may require libbsd and libbsd-dev installed. 
+
+- `nfprofile` is a legacy binary, used by NfSen and may be moved into a separate archive in future.
 
 ---
 

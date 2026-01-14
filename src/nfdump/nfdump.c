@@ -77,7 +77,6 @@
 
 extern char *FilterFilename;
 
-#define MAXANONWORKERS 8
 #define MAX_FILTER_THREADS 32
 
 typedef struct dataHandle_s {

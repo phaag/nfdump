@@ -101,8 +101,8 @@ static void signalPrivsepChild(pid_t child_pid, int pfd);
 
 static void IntHandler(int signal);
 
-static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin,
-                char *time_extension, unsigned compress, bool parse_tun);
+static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, post_args_t *post_args, int rfd, time_t twin, time_t t_begin,
+                unsigned compress, int parse_tun);
 
 /* Functions */
 static void usage(char *name) {
@@ -257,8 +257,8 @@ static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockadd
     return 0;
 }  // End of SendRepeaterMessage
 
-static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin,
-                char *time_extension, unsigned compress, bool parse_tun) {
+static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, post_args_t *post_args, int rfd, time_t twin, time_t t_begin,
+                unsigned compress, int parse_tun) {
     struct sockaddr_storage sf_sender;
     socklen_t sf_sender_size = sizeof(sf_sender);
 
@@ -280,6 +280,7 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
         // init flow source
         fs->dataBlock = WriteBlock(fs->nffile, NULL);
         fs->bad_packets = 0;
+        fs->swap_nffile = NULL;
     }
 
     time_t t_start = t_begin;
@@ -303,7 +304,6 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
 
         /* read next bunch of data into begin of input buffer */
         if (!done) {
-#ifdef ENABLE_READPCAP
             // Debug code to read from pcap file, or from socket
             cnt = receive_packet(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&sf_sender, &sf_sender_size);
 
@@ -316,9 +316,7 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
                 packets++;
                 continue;
             }
-#else
-            cnt = recvfrom(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&sf_sender, &sf_sender_size);
-#endif
+
             if (cnt == -1) {
                 if (errno != EINTR) {
                     LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
@@ -330,7 +328,6 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
         }
 
         /* Periodic file renaming, if time limit reached or if we are done.  */
-        // t_now = time(NULL);
         gettimeofday(&tv, NULL);
         time_t t_now = tv.tv_sec;
 
@@ -338,12 +335,13 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
             // rotate cycle
             alarm(0);
 
-            if (RotateFlowFiles(t_start, time_extension, ctx, &pfd, done) == 0) {
-                return;
+            if (RotateCycle(ctx, post_args, t_start, done) != 0) {
+                LogError("run loop terminated due to serious errors");
+                break;
             }
 
             LogInfo("Total packets received: %llu avg: %3.2f ignored packets: %u", packets, (double)packets / (double)twin, ignored_packets);
-            ignored_packets = 0;
+            packets = ignored_packets = 0;
             periodic_trigger = 0;
 
             if (done) break;
@@ -418,12 +416,7 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
 
     free(in_buff);
 
-    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        FreeDataBlock(fs->dataBlock);
-        fs->dataBlock = NULL;
-        DisposeFile(fs->nffile);
-        fs->nffile = NULL;
-    }
+    CleanupCollector(ctx, post_args);
 
 } /* End of run */
 
@@ -793,6 +786,12 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    post_args_t *post_args = malloc(sizeof(post_args_t));
+    if (post_args == NULL) {
+        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
 // Debug code to read from pcap file
 #ifdef ENABLE_READPCAP
     sock = 0;
@@ -863,6 +862,19 @@ int main(int argc, char **argv) {
         pfd = PrivsepFork(argc, argv, &launcher_pid, "launcher");
     }
 
+    *post_args = (post_args_t){
+        .ctx = &collector_ctx,
+        .pfd = pfd,
+        .time_extension = time_extension,
+        .done = 0,
+    };
+
+    if (Lauch_postprocessor(post_args) == 0) {
+        close(sock);
+        remove_pid(pidfile);
+        exit(EXIT_FAILURE);
+    }
+
     int failed = 0;
     for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
@@ -899,7 +911,7 @@ int main(int argc, char **argv) {
     sigaction(SIGPIPE, &act, NULL);
 
     LogInfo("Startup sfcapd.");
-    run(&collector_ctx, receive_packet, sock, pfd, rfd, twin, t_start, time_extension, compress, parse_tun);
+    run(&collector_ctx, receive_packet, sock, post_args, rfd, twin, t_start, compress, parse_tun);
 
     // shutdown
     close(sock);

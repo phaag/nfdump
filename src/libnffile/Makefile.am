@@ -29,7 +29,7 @@ vcs_track.h: Makefile
 lib_LTLIBRARIES = libnffile.la
 libnffile_la_SOURCES = $(conf) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(barrier) $(version) vcs_track.h
 libnffile_la_CFLAGS = $(LZ4_CFLAGS) $(ZSTD_CFLAGS) $(BZ2_CFLAGS)
-libnffile_la_LIBADD = $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBATOMIC)
+libnffile_la_LIBADD = $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBATOMIC) $(RAND_LIBS)
 libnffile_la_LDFLAGS = -release @VERSION@
  
 EXTRA_DIST = gen_version.sh conf/nfdump.conf.dist

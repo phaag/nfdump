@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -68,6 +68,21 @@ typedef struct common_flow_header {
     uint16_t count;
 } common_flow_header_t;
 
+// argument vector for post processor thread
+typedef struct post_args_s {
+    pthread_mutex_t mutex;  // synchronisation
+    pthread_cond_t cond;    // synchronisation
+    // const args
+    char *time_extension;  // parameter passing
+    collector_ctx_t *ctx;  // pasarmeter passing
+    pthread_t tid;         // tid of post processor thread
+    int pfd;               // launcher fd if used by post-processor
+    // cycle args
+    int cycle_pending;  // 0 = idle, 1 = work pending/in progress
+    int done;           // shutdown flag
+    time_t when;        // t_start for current cycle
+} post_args_t;
+
 #define UpdateFirstLast(nffile, First, Last)              \
     if ((First) < (nffile)->stat_record->msecFirstSeen) { \
         (nffile)->stat_record->msecFirstSeen = (First);   \
@@ -86,7 +101,7 @@ int AddFlowSourceConfig(collector_ctx_t *ctx);
 
 FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const char *ipStr);
 
-int RotateFlowFiles(time_t t_start, const char *time_extension, const collector_ctx_t *ctx, int *pfd, int done);
+int RotateCycle(const collector_ctx_t *ctx, post_args_t *post_args, time_t t_start, int done);
 
 void FlushStdRecords(FlowSource_t *fs);
 
@@ -95,5 +110,9 @@ void FlushExporterStats(FlowSource_t *fs);
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter);
 
 int ScanExtension(char *extensionList);
+
+int Lauch_postprocessor(post_args_t *post_args);
+
+void CleanupCollector(collector_ctx_t *ctx, post_args_t *post_args);
 
 #endif  //_COLLECTOR_H

@@ -51,31 +51,35 @@
 uint32_t GetNumWorkers(uint32_t requested) {
     // get conf value for maxworkers
     int confMaxWorkers = ConfGetValue("maxworkers");
-    if (confMaxWorkers == 0) confMaxWorkers = DEFAULTWORKERS;
 
+    // no requested workers - use configured value
+    if (requested == 0) requested = confMaxWorkers;
+
+    // cores online
     long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
     if (CoresOnline < 0) {
         LogError("sysconf(_SC_NPROCESSORS_ONLN) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        CoresOnline = 1;
+        // assume at least 2 cores, if call failed
+        CoresOnline = 2;
     }
 
     // no more than cores online
-    if (requested && (requested > CoresOnline)) {
-        LogError("Number of workers should not be greater than number of cores online. %d is > %ld", requested, CoresOnline);
+    if (requested > CoresOnline) {
+        LogError("Limit requested workers: %u to number of cores online %d.", requested, CoresOnline);
+        requested = CoresOnline;
     }
 
     // try to find optimal number of workers
     // if nothing requested, use default, unless we are on a high number of cores
     // system, so double the workers
     if (requested == 0) {
-        requested = confMaxWorkers;
-        if ((2 * requested) < CoresOnline) requested = 2 * requested;
+        requested = DEFAULTWORKERS;
+        if ((4 * requested) < CoresOnline) requested = 2 * DEFAULTWORKERS;
     }
-    if (requested > CoresOnline) requested = CoresOnline;
 
     // no more than internal array limit
     if (requested > MAXWORKERS) {
-        LogError("Number of workers is limited to %s", MAXWORKERS);
+        LogInfo("Number of workers is limited to %s", MAXWORKERS);
         requested = MAXWORKERS;
     }
 

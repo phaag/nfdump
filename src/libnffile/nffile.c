@@ -50,6 +50,10 @@
 #include <lz4hc.h>
 #endif
 
+#ifdef HAVE_LIBBSD
+#include <bsd/stdlib.h>
+#endif
+
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -924,7 +928,7 @@ nffile_t *OpenNewFile(const char *filename, nffile_t *nffile, unsigned creator, 
 
 #ifndef HAVE_ZSTD
     if ((compress & 0xFFFF) == ZSTD_COMPRESSED) {
-        LogError("Open file %s: ZSTD compression not compiled in");
+        LogError("OpenNewfiles: ZSTD compression not compiled in");
         CloseFile(nffile);
         return NULL;
     }
@@ -932,11 +936,16 @@ nffile_t *OpenNewFile(const char *filename, nffile_t *nffile, unsigned creator, 
 
 #ifndef HAVE_BZ2
     if ((compress & 0xFFFF) == BZ2_COMPRESSED) {
-        LogError("Open file %s: BZIP2 compression not compiled in");
+        LogError("OpenNewfiles: BZIP2 compression not compiled in");
         CloseFile(nffile);
         return NULL;
     }
 #endif
+
+    if (nffile && nffile->fd) {
+        LogError("OpenNewfile: file handle alreay in use");
+        return NULL;
+    }
 
     fd = open(filename, O_CREAT | O_RDWR | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
     if (fd < 0) {
@@ -965,12 +974,12 @@ nffile_t *OpenNewFile(const char *filename, nffile_t *nffile, unsigned creator, 
         nffile->file_header->encryption = encryption;
     }
 
-    dbg_printf("OpenNewFile compression: %d, level: %d\n", nffile->file_header->compression, nffile->compression_level);
-
     if (write(nffile->fd, (void *)nffile->file_header, sizeof(fileHeaderV2_t)) < sizeof(fileHeaderV2_t)) {
         LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         close(nffile->fd);
         nffile->fd = 0;
+        unlink(filename);
+        DisposeFile(nffile);
         return NULL;
     }
 
@@ -979,6 +988,8 @@ nffile_t *OpenNewFile(const char *filename, nffile_t *nffile, unsigned creator, 
 
     // if file is not compressed, 2 workers are fine.
     unsigned NumThreads = nffile->file_header->compression == 0 ? 2 : NumWorkers;
+    dbg_printf("OpenNewFile: %s, compression: %d, level: %d, workers: %u\n", filename, nffile->file_header->compression, nffile->compression_level,
+               NumThreads);
     for (int i = 0; i < NumThreads; i++) {
         pthread_t tid;
         int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
@@ -1111,6 +1122,7 @@ void SyncFile(nffile_t *nffile) {
 void CloseFile(nffile_t *nffile) {
     if (!nffile || nffile->fd == 0) return;
 
+    dbg_printf("Terminate nffile: %s\n", nffile->fileName);
     // make sure all workers are gone
     TerminateWorkers(nffile);
 
@@ -1135,6 +1147,19 @@ void CloseFile(nffile_t *nffile) {
 
     nffile->file_header->NumBlocks = 0;
 }  // End of CloseFile
+
+void DeleteFile(nffile_t *nffile) {
+    if (nffile == NULL) return;
+
+    if (nffile->fd) {
+        TerminateWorkers(nffile);
+        close(nffile->fd);
+        nffile->fd = 0;
+        unlink(nffile->fileName);
+    }
+    DisposeFile(nffile);
+
+}  // End of DeleteFile
 
 // close writing file
 int FinaliseFile(nffile_t *nffile) {
@@ -1440,7 +1465,7 @@ static int nfwrite(nffile_t *nffile, dataBlock_t *block_header) {
 __attribute__((noreturn)) static void *nfwriter(void *arg) {
     nffile_t *nffile = (nffile_t *)arg;
 
-    dbg_printf("nfwriter enter\n");
+    dbg_printf("nfwriter %llu enter\n", pthread_self());
     /* disable signal handling */
     sigset_t set = {0};
     sigfillset(&set);
@@ -1454,7 +1479,7 @@ __attribute__((noreturn)) static void *nfwriter(void *arg) {
         int ok = 1;
         if (block_header->size) {
             // block with data
-            dbg_printf("nfwriter write\n");
+            dbg_printf("nfwriter %llu write\n", pthread_self());
             ok = nfwrite(nffile, block_header);
         }
         FreeDataBlock(block_header);
@@ -1462,7 +1487,7 @@ __attribute__((noreturn)) static void *nfwriter(void *arg) {
         if (!ok) break;
     }
 
-    dbg_printf("nfwriter exit\n");
+    dbg_printf("nfwriter %llu exit\n", pthread_self());
     pthread_exit(NULL);
 
     /* UNREACHED */
@@ -1471,15 +1496,16 @@ __attribute__((noreturn)) static void *nfwriter(void *arg) {
 
 static void joinWorkers(nffile_t *nffile) {
     pthread_cond_broadcast(&(nffile->processQueue->cond));
-    for (int i = 0; i < NumWorkers; i++) {
-        if (nffile->worker[i]) {
-            int err = pthread_join(nffile->worker[i], NULL);
-            if (err && err != ESRCH) {
-                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
-            }
-            nffile->worker[i] = 0;
+
+    for (int i = 0; nffile->worker[i] != 0 && i < MAXWORKERS; i++) {
+        dbg_printf("Join worker %d:%llu for %s\n", i, nffile->worker[i], nffile->fileName);
+        int err = pthread_join(nffile->worker[i], NULL);
+        if (err && err != ESRCH) {
+            LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         }
+        nffile->worker[i] = 0;
     }
+
 }  // End of joinWorkers
 
 static void TerminateWorkers(nffile_t *nffile) {
@@ -1561,8 +1587,8 @@ int ChangeIdent(char *filename, char *Ident) {
 }  // End of ChangeIdent
 
 // set unique tmp file name for nfcapd.current.XXXXXX"
-// if
 char *SetUniqueTmpName(char *fname) {
+    dbg_printf("SetUniqueTmpName() for: %s\n", fname);
     size_t len = strlen(fname);
     if (len < 7) return fname;
 
@@ -1570,9 +1596,9 @@ char *SetUniqueTmpName(char *fname) {
     if (*c != '.') return fname;
     c++;
 
-    // uint32_t randValue = arc4random() & 0xFFFFFF;
     // need not real pseudo randon number, but different than last time
-    uint32_t randValue = (pseudoID + 1) & 0xFFFFFF;
+    // uint32_t randValue = (pseudoID + 1) & 0xFFFFFF;
+    uint32_t randValue = arc4random() & 0xFFFFFF;
     for (int i = 0; i < 6; i++) {
         uint8_t v = randValue & 0xF;
         randValue = randValue >> 4;
@@ -1581,6 +1607,8 @@ char *SetUniqueTmpName(char *fname) {
         else
             *c++ = v + 'A' - 10;
     }
+
+    dbg_printf("SetUniqueTmpName() %s\n", fname);
 
     return fname;
 

@@ -260,6 +260,8 @@ nffile_t *NewFile(nffile_t *nffile);
 
 void DisposeFile(nffile_t *nffile);
 
+void DeleteFile(nffile_t *nffile);
+
 void SyncFile(nffile_t *nffile);
 
 void CloseFile(nffile_t *nffile);
