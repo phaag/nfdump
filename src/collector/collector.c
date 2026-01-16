@@ -414,7 +414,8 @@ int RotateCycle(const collector_ctx_t *ctx, post_args_t *post_args, time_t t_sta
     return err;
 }  // End of RotateCycle
 
-static int RunCycle(time_t t_start, const char *time_extension, const collector_ctx_t *ctx, int *pfd, int done) {
+static int RunCycle(time_t t_start, const char *time_extension, const collector_ctx_t *ctx, int *pfd, int done, uint32_t creator,
+                    uint32_t compression, uint32_t encryption) {
     // periodic file rotation
     struct tm *now = localtime(&t_start);
     char fmt[32];
@@ -444,18 +445,13 @@ static int RunCycle(time_t t_start, const char *time_extension, const collector_
             nffile->stat_record->msecLastSeen = nffile->stat_record->msecFirstSeen;
         }
 
-        // need tmp filename for renaming - Closing the file, discards the filename
-        char tmpFilename[MAXPATHLEN];
-        strncpy(tmpFilename, nffile->fileName, MAXPATHLEN - 1);
-        tmpFilename[MAXPATHLEN - 1] = '\0';
-
         // Close file
         FinaliseFile(nffile);
         CloseFile(nffile);
 
         // if rename fails, we are in big trouble, as we need to get rid of the old .current
         // file otherwise, we will loose flows and can not continue collecting new flows
-        if (RenameAppend(tmpFilename, nfcapd_filename) < 0) {
+        if (RenameAppend(nffile->fileName, nfcapd_filename) < 0) {
             LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
 
             // we do not update the books here, as the file failed to rename properly
@@ -475,16 +471,17 @@ static int RunCycle(time_t t_start, const char *time_extension, const collector_
                 *pfd = 0;
             }
         }
+        DisposeFile(nffile);
+        nffile = NULL;
 
         if (done) {
             // dispose handle
-            DisposeFile(nffile);
             fs->swap_nffile = NULL;
         } else {
             // open new - next file
             int retry = 0;
             do {
-                nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), nffile, CREATOR_NFCAPD, INHERIT, INHERIT);
+                nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), creator, compression, encryption);
                 if (nffile) break;
 
                 nffile = fs->swap_nffile;
@@ -641,6 +638,9 @@ static void *post_processor_thread(void *args) {
     const char *time_extension = post_args->time_extension;
     const collector_ctx_t *ctx = post_args->ctx;
     int pfd = post_args->pfd;
+    uint32_t creator = post_args->creator;
+    uint32_t compress = post_args->compress;
+    uint32_t encryption = post_args->encryption;
 
     dbg_printf("Startup post processor thread\n");
 
@@ -665,7 +665,7 @@ static void *post_processor_thread(void *args) {
         clock_gettime(CLOCK_MONOTONIC, &t_start);
 
         // Perform the rotation cycle
-        if (cycle_pending) err = RunCycle(when, time_extension, ctx, &pfd, done);
+        if (cycle_pending) err = RunCycle(when, time_extension, ctx, &pfd, done, creator, compress, encryption);
 
         clock_gettime(CLOCK_MONOTONIC, &t_end);
         // Compute elapsed time in milliseconds
@@ -676,7 +676,7 @@ static void *post_processor_thread(void *args) {
         printf("Post processor cycle completed in %.3f ms\n", elapsed_ms);
 #else
         // Perform the rotation cycle
-        if (cycle_pending) err = RunCycle(when, time_extension, ctx, &pfd, done);
+        if (cycle_pending) err = RunCycle(when, time_extension, ctx, &pfd, done, creator, compress, encryption);
 #endif
 
         // cycle done

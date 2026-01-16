@@ -271,8 +271,8 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
     // Init each netflow source output data buffer
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         // prepare file
-        fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
-        fs->swap_nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+        fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+        fs->swap_nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
         if (!fs->nffile || !fs->swap_nffile) {
             return;
         }
@@ -391,7 +391,7 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
                 // fatal error
                 return;
             }
-            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
                 LogError("Failed to open new collector file");
                 return;
@@ -868,6 +868,9 @@ int main(int argc, char **argv) {
         .pfd = pfd,
         .time_extension = time_extension,
         .done = 0,
+        .creator = CREATOR_SFCAPD,
+        .compress = compress,
+        .encryption = NOT_ENCRYPTED,
     };
 
     if (Lauch_postprocessor(post_args) == 0) {

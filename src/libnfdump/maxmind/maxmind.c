@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2021-2025, Peter Haag
+ *  Copyright (c) 2021-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -244,7 +244,7 @@ static void StoreASorgtree(nffile_t *nffile) {
 }  // End of StoreASorgtree
 
 int SaveMaxMind(char *fileName) {
-    nffile_t *nffile = OpenNewFile(fileName, NULL, CREATOR_LOOKUP, LZ4_COMPRESSED, NOT_ENCRYPTED);
+    nffile_t *nffile = OpenNewFile(fileName, CREATOR_LOOKUP, LZ4_COMPRESSED, NOT_ENCRYPTED);
     if (!nffile) {
         LogError("OpenNewFile(%s) failed", fileName);
         return 0;
@@ -257,7 +257,7 @@ int SaveMaxMind(char *fileName) {
     StoreASV6tree(nffile);
     StoreASorgtree(nffile);
     int ret = FinaliseFile(nffile);
-    CloseFile(nffile);
+    DisposeFile(nffile);
 
     return ret;
 }  // End of SaveMaxMind
@@ -267,7 +267,7 @@ int LoadMaxMind(char *fileName) {
 
     if (!Init_MaxMind()) return 0;
 
-    nffile_t *nffile = OpenFile(fileName, NULL);
+    nffile_t *nffile = OpenFile(fileName);
     if (!nffile) {
         return 0;
     }

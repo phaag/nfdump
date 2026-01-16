@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -268,7 +268,7 @@ int main(int argc, char **argv) {
 
     if (!Init_nffile(1, NULL)) exit(254);
 
-    nffile_t *nffile = OpenNewFile("dummy_flows.nf", NULL, CREATOR_UNKNOWN, NOT_COMPRESSED, 0);
+    nffile_t *nffile = OpenNewFile("dummy_flows.nf", CREATOR_UNKNOWN, NOT_COMPRESSED, 0);
     if (!nffile) {
         exit(255);
     }
@@ -604,7 +604,6 @@ int main(int argc, char **argv) {
 
     FlushBlock(nffile, dataBlock);
     FinaliseFile(nffile);
-    CloseFile(nffile);
     DisposeFile(nffile);
     return 0;
 }

@@ -304,7 +304,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
     char *cfile = NULL;
 
     int cnt = 1;
-    nffile_t *nffile_r = NewFile(NULL);
+    nffile_t *nffile_r = NULL;
     nffile_t *nffile_w = NULL;
 
     dataBlock_t *nextBlock = NULL;
@@ -328,14 +328,16 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             // nffile_w is NULL for 1st entry in while loop
             if (nffile_w) {
                 FinaliseFile(nffile_w);
-                CloseFile(nffile_w);
+                DisposeFile(nffile_w);
                 if (wfile == NULL && rename(outFile, cfile) < 0) {
                     LogError("rename() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                     return;
                 }
             }
 
-            if (GetNextFile(nffile_r) == NULL) {
+            DisposeFile(nffile_r);
+            nffile_r = GetNextFile();
+            if (nffile_r == NULL) {
                 done = 1;
                 printf("\nDone\n");
                 continue;
@@ -344,7 +346,6 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             cfile = nffile_r->fileName;
             if (!cfile) {
                 LogError("(NULL) input file name error in %s line %d", __FILE__, __LINE__);
-                CloseFile(nffile_r);
                 DisposeFile(nffile_r);
                 return;
             }
@@ -360,10 +361,9 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
                 outFile = wfile;
             }
 
-            nffile_w = OpenNewFile(outFile, NULL, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
+            nffile_w = OpenNewFile(outFile, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
             if (!nffile_w) {
                 // can not create output file
-                CloseFile(nffile_r);
                 DisposeFile(nffile_r);
                 return;
             }
@@ -408,8 +408,6 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
     pthread_control_barrier_release(barrier);
 
     FreeDataBlock(dataBlock);
-    DisposeFile(nffile_r);
-    DisposeFile(nffile_w);
 
     if (verbose) LogError("Processed %i files", --cnt);
 

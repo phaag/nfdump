@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -146,7 +146,7 @@ static int CheckRunningOnce(char *pidfile) {
 }  // End of CheckRunningOnce
 
 static data_row *process(void *engine) {
-    nffile_t *nffile = GetNextFile(NULL);
+    nffile_t *nffile = GetNextFile();
     if (!nffile) {
         LogError("GetNextFile() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
@@ -176,8 +176,9 @@ static data_row *process(void *engine) {
         // get next data block from file
         dataBlock = ReadBlock(nffile, dataBlock);
         if (dataBlock == NULL) {
-            nffile_t *next = GetNextFile(nffile);
-            if (next == NULL) {
+            DisposeFile(nffile);
+            nffile = GetNextFile();
+            if (nffile == NULL) {
                 done = 1;
             }
             // else continue with next file
@@ -243,7 +244,6 @@ static data_row *process(void *engine) {
     }  // while
 
     FreeDataBlock(dataBlock);
-    CloseFile(nffile);
     DisposeFile(nffile);
 
     return port_table;

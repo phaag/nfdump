@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024-2025, Peter Haag
+ *  Copyright (c) 2024-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -309,14 +309,12 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
         fs->nffile->stat_record->msecFirstSeen = 1000LL * (uint64_t)timestamp;
         fs->nffile->stat_record->msecLastSeen = 1000LL * (uint64_t)(timestamp + flowParam->t_win);
     }
-    // XXX fix this
-    char *tmpName = strdup(fs->nffile->fileName);
     FinaliseFile(fs->nffile);
     CloseFile(fs->nffile);
 
     // if rename fails, we are in big trouble, as we need to get rid of the old .current file
     // otherwise, we will loose flows and can not continue collecting new flows
-    if (RenameAppend(tmpName, fileName) < 0) {
+    if (RenameAppend(fs->nffile->fileName, fileName) < 0) {
         LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
         LogError("Ident: %s, Serious Problem! Fix manually", fs->Ident);
         // we do not update the books here, as the file failed to rename properly
@@ -327,11 +325,11 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
         stat(fileName, &fstat);
         UpdateBooks(fs->bookkeeper, timestamp, 512 * fstat.st_blocks);
     }
-    // XXX fix this
-    free(tmpName);
-
     LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu", fs->Ident, (unsigned long long)fs->nffile->stat_record->numflows,
             (unsigned long long)fs->nffile->stat_record->numpackets, (unsigned long long)fs->nffile->stat_record->numbytes);
+
+    DisposeFile(fs->nffile);
+    fs->nffile = NULL;
 
     // reset stats
     fs->bad_packets = 0;
@@ -350,7 +348,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
 
     printRecord = flowParam->printRecord;
     // prepare file
-    fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
+    fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
     if (!fs->nffile) {
         pthread_kill(flowParam->parent, SIGUSR1);
         pthread_exit((void *)flowParam);
@@ -368,7 +366,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
             // flush current block and close file
             fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
             CloseFlowFile(flowParam, Node->timestamp);
-            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), fs->nffile, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
+            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
                 LogError("Fatal: OpenNewFile() failed for ident: %s", fs->Ident);
                 pthread_kill(flowParam->parent, SIGUSR1);
@@ -393,8 +391,6 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
         }
         Free_Node(Node);
     }
-
-    DisposeFile(fs->nffile);
 
     LogInfo("Terminating flow processng");
     dbg_printf("End flow thread[%lu]\n", (long unsigned)flowParam->tid);

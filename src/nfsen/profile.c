@@ -274,7 +274,7 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
 
         ofile = strdup(path);
 
-        nffile = OpenNewFile(path, NULL, CREATOR_NFPROFILE, compress, NOT_ENCRYPTED);
+        nffile = OpenNewFile(path, CREATOR_NFPROFILE, compress, NOT_ENCRYPTED);
         if (!nffile) {
             return;
         }

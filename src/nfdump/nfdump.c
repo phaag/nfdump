@@ -325,14 +325,14 @@ static int PreProcessBlock(dataBlock_t *dataBlock) {
     return 1;
 }  // End of PreProcessBlock
 
-__attribute__((noreturn)) static void *prepareThread(void *arg) {
+static void *prepareThread(void *arg) {
     prepareArgs_t *prepareArgs = (prepareArgs_t *)arg;
 
     dbg_printf("prepareThread started\n");
 
     // dispatch args
     queue_t *prepareQueue = prepareArgs->prepareQueue;
-    nffile_t *nffile = GetNextFile(NULL);
+    nffile_t *nffile = GetNextFile();
     if (nffile == NULL) {
         queue_close(prepareQueue);
         dbg_printf("prepareThread exit\n");
@@ -358,7 +358,9 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
         // get next data block from file
         if (dataHandle->dataBlock == NULL) {
             // continue with next file
-            if (GetNextFile(nffile) == NULL) {
+            DisposeFile(nffile);
+            nffile = GetNextFile();
+            if (nffile == NULL) {
                 done = 1;
             } else {
                 if (nffile->stat_record->msecFirstSeen < t_firstMsec) t_firstMsec = nffile->stat_record->msecFirstSeen;
@@ -381,7 +383,10 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
                 dataHandle->dataBlock = v3DataBlock;
             } break;
             case DATA_BLOCK_TYPE_3:
-                if (PreProcessBlock(dataHandle->dataBlock) == 0) continue;
+                if (PreProcessBlock(dataHandle->dataBlock) == 0) {
+                    // corrupt dataBlock
+                    goto SKIP;
+                }
                 // processed blocks
                 break;
             case DATA_BLOCK_TYPE_4:
@@ -392,6 +397,8 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
                 LogError("Unknown block type %u. Skip block", dataHandle->dataBlock->type);
             SKIP:
                 skippedBlocks++;
+                FreeDataBlock(dataHandle->dataBlock);
+                dataHandle->dataBlock = NULL;
                 continue;
         }
 
@@ -407,7 +414,7 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
 
     dbg_printf("prepareThread done. blocks processed: %u, skipped: %u\n", processedBlocks, skippedBlocks);
     queue_close(prepareQueue);
-    CloseFile(nffile);
+    DisposeFile(nffile);
 
     prepareArgs->processedBlocks = processedBlocks;
     prepareArgs->skippedBlocks = skippedBlocks;
@@ -416,7 +423,7 @@ __attribute__((noreturn)) static void *prepareThread(void *arg) {
 
 }  // End of prepareThread
 
-__attribute__((noreturn)) static void *filterThread(void *arg) {
+static void *filterThread(void *arg) {
     filterArgs_t *filterArgs = (filterArgs_t *)arg;
 
 #ifdef DEVEL
@@ -475,8 +482,7 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
         record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t matched = 0;
         uint32_t dataRecords = 0;
-        (void)dataRecords;  // __unused
-        for (int i = 0; i < dataBlock->NumRecords; i++) {
+        for (int i = 0; i < (int)dataBlock->NumRecords; i++) {
             processedRecords++;
             recordCounter++;
 
@@ -532,12 +538,20 @@ __attribute__((noreturn)) static void *filterThread(void *arg) {
             // Advance pointer by number of bytes for netflow record
             record_ptr = (record_header_t *)((void *)record_ptr + record_ptr->size);
         }
-        if (matched) {
-            dbg_printf("Filter thread %i push next block: %u\n", self, numBlocks);
+
+        if (matched || dataBlock->NumRecords > dataRecords) {
+            // we have matched flows
+            dbg_printf("Filter thread %u: dataBlock: %llu, matched %u/%u flow records. Total records in datablock: %u\n", self, dataHandle->blockCnt,
+                       matched, dataRecords, dataBlock->NumRecords);
             queue_push(processQueue, dataHandle);
+        } else {
+            // no matched flows and only data records - short end
+            dbg_printf("Filter thread %i - no matching data records: skip block\n", self);
+            FreeDataBlock(dataHandle->dataBlock);
+            free(dataHandle->ident);
+            free(dataHandle);
+            dataHandle = NULL;
         }
-        dbg_printf("Filter thread %u: dataBlock: %llu, matched %u/%u flow records. Total records in datablock: %u\n", self, dataHandle->blockCnt,
-                   matched, dataRecords, dataBlock->NumRecords);
     }
 
     queue_close(processQueue);
@@ -580,7 +594,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     queue_producers(filterArgs.processQueue, numWorkers);
 
     pthread_t tidFilter[MAX_FILTER_THREADS];
-    for (int i = 0; i < numWorkers; i++) {
+    for (int i = 0; i < (int)numWorkers; i++) {
         int err = pthread_create(&(tidFilter[i]), NULL, filterThread, (void *)&filterArgs);
         if (err) {
             LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -592,7 +606,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     dataBlock_t *dataBlock_w = NULL;
     // prepare output file if requested
     if (wfile) {
-        nffile_w = OpenNewFile(wfile, NULL, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
+        nffile_w = OpenNewFile(wfile, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
         if (!nffile_w) {
             stat_record.msecFirstSeen = 0;
             return stat_record;
@@ -617,6 +631,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         record_header_t *record_ptr = GetCursor(dataBlock);
 
         uint64_t recordCounter = dataHandle->recordCnt;
+        if (outputParams->ident) free(outputParams->ident);
         outputParams->ident = dataHandle->ident;
 
         // successfully read block
@@ -724,13 +739,13 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
         // free resources
         FreeDataBlock(dataHandle->dataBlock);
-        if (dataHandle->ident) {
-            outputParams->ident = dataHandle->ident;
-            free(dataHandle);
-        }
+        free(dataHandle);
+        dataHandle = NULL;
     }  // while
 
     dbg_printf("processData() done\n");
+
+    free(recordHandle);
 
     // flush output file
     if (nffile_w) {
@@ -741,7 +756,6 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
         /* Copy stat info and close file */
         memcpy((void *)nffile_w->stat_record, (void *)&stat_record, sizeof(stat_record_t));
         FinaliseFile(nffile_w);
-        CloseFile(nffile_w);
         DisposeFile(nffile_w);
     }
 
@@ -751,7 +765,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     }
 
     dbg_printf("processData() wait for filter threads\n");
-    for (int i = 0; i < numWorkers; i++) {
+    for (int i = 0; i < (int)numWorkers; i++) {
         if (pthread_join(tidFilter[i], NULL)) {
             LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         }
@@ -1168,7 +1182,6 @@ int main(int argc, char **argv) {
     }
 
     if (print_stat) {
-        nffile_t *nffile;
         if (!flist.single_file && !flist.multiple_files && !flist.multiple_dirs) {
             LogError("Expect data file(s).\n");
             exit(EXIT_FAILURE);
@@ -1176,7 +1189,7 @@ int main(int argc, char **argv) {
 
         memset((void *)&sum_stat, 0, sizeof(stat_record_t));
         sum_stat.msecFirstSeen = 0x7fffffffffffffff;
-        nffile = GetNextFile(NULL);
+        nffile_t *nffile = GetNextFile();
         if (!nffile) {
             LogError("Error open file: %s\n", strerror(errno));
             exit(250);
@@ -1187,7 +1200,8 @@ int main(int argc, char **argv) {
         }
         while (nffile != NULL) {
             SumStatRecords(&sum_stat, nffile->stat_record);
-            nffile = GetNextFile(nffile);
+            DisposeFile(nffile);
+            nffile = GetNextFile();
         }
         PrintStat(&sum_stat, ident);
         free(ident);
@@ -1242,13 +1256,12 @@ int main(int argc, char **argv) {
     if (element_stat && !Init_StatTable(outputParams->hasGeoDB)) exit(250);
 
     if (gnuplot_stat) {
-        nffile_t *nffile;
         if (!flist.single_file && !flist.multiple_files && !flist.multiple_dirs) {
             LogError("Expect data file(s).\n");
             exit(EXIT_FAILURE);
         }
 
-        nffile = GetNextFile(NULL);
+        nffile_t *nffile = GetNextFile();
         if (!nffile) {
             LogError("Error open file: %s\n", strerror(errno));
             exit(250);
@@ -1256,7 +1269,8 @@ int main(int argc, char **argv) {
         printf("# yyyy-mm-dd HH:MM:SS,flows,packets,bytes\n");
         while (nffile != NULL) {
             PrintGNUplotSumStat(nffile);
-            nffile = GetNextFile(nffile);
+            DisposeFile(nffile);
+            nffile = GetNextFile();
         }
         exit(EXIT_SUCCESS);
     }
@@ -1300,17 +1314,16 @@ int main(int argc, char **argv) {
 
     if (aggregate || print_order) {
         if (wfile) {
-            nffile_t *nffile = OpenNewFile(wfile, NULL, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
+            nffile_t *nffile = OpenNewFile(wfile, CREATOR_NFDUMP, compress, NOT_ENCRYPTED);
             if (!nffile) exit(EXIT_FAILURE);
             SetIdent(nffile, outputParams->ident);
             if (ExportFlowTable(nffile, aggregate, bidir, GuessDir)) {
                 FinaliseFile(nffile);
-                CloseFile(nffile);
+                DisposeFile(nffile);
             } else {
-                CloseFile(nffile);
+                DisposeFile(nffile);
                 unlink(wfile);
             }
-            DisposeFile(nffile);
         } else {
             PrintFlowTable(print_record, outputParams, GuessDir);
         }
@@ -1362,7 +1375,6 @@ int main(int argc, char **argv) {
 #ifdef DEVEL
     DumpNbarList();
 #endif
-
     Dispose_FlowTable();
     Dispose_StatTable();
 

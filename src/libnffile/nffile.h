@@ -179,7 +179,6 @@ typedef struct data_block_header_s {
 typedef struct nffile_s {
     fileHeaderV2_t *file_header;   // file header
     int fd;                        // associated file descriptor
-    int compat16;                  // underlying file is compat16
     pthread_t worker[MAXWORKERS];  // nfread/nfwrite worker thread;
     pthread_mutex_t wlock;         // writer lock
 #define FILE_IS_COMPAT16(n) (n->compat16)
@@ -235,14 +234,13 @@ int Init_nffile(uint32_t workers, queue_t *fileList);
 
 int ParseCompression(char *arg);
 
-unsigned ReportBlocks(void);
+int ReportBlocks(void);
 
 void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
-nffile_t *OpenFile(const char *filename, nffile_t *nffile);
+nffile_t *OpenFile(const char *filename);
 
-#define INHERIT UINT_MAX
-nffile_t *OpenNewFile(const char *filename, nffile_t *nffile, unsigned creator, unsigned compress, unsigned encryption);
+nffile_t *OpenNewFile(const char *filename, unsigned creator, unsigned compress, unsigned encryption);
 
 nffile_t *AppendFile(const char *filename);
 
@@ -256,13 +254,11 @@ int QueryFile(char *filename, int verbose);
 
 int GetStatRecord(char *filename, stat_record_t *stat_record);
 
-nffile_t *NewFile(nffile_t *nffile);
+nffile_t *NewFile(void);
 
 void DisposeFile(nffile_t *nffile);
 
 void DeleteFile(nffile_t *nffile);
-
-void SyncFile(nffile_t *nffile);
 
 void CloseFile(nffile_t *nffile);
 
@@ -270,17 +266,17 @@ int FinaliseFile(nffile_t *nffile);
 
 int RenameAppend(const char *oldName, const char *newName);
 
-nffile_t *GetNextFile(nffile_t *nffile);
+nffile_t *GetNextFile(void);
 
 dataBlock_t *NewDataBlock(void);
+
+void FreeDataBlock(dataBlock_t *dataBlock);
 
 dataBlock_t *ReadBlock(nffile_t *nffile, dataBlock_t *dataBlock);
 
 dataBlock_t *WriteBlock(nffile_t *nffile, dataBlock_t *dataBlock);
 
 void FlushBlock(nffile_t *nffile, dataBlock_t *dataBlock);
-
-void FreeDataBlock(dataBlock_t *dataBlock);
 
 void SetIdent(nffile_t *nffile, char *Ident);
 
@@ -290,4 +286,7 @@ char *SetUniqueTmpName(char *fname);
 
 void ModifyCompressFile(unsigned compress);
 
+int Convert_v1fileHeader(nffile_t *nffile, const char *filename, struct stat *stat_buf);
+
+void report(void);
 #endif  //_NFFILE_H

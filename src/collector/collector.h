@@ -77,6 +77,10 @@ typedef struct post_args_s {
     collector_ctx_t *ctx;  // pasarmeter passing
     pthread_t tid;         // tid of post processor thread
     int pfd;               // launcher fd if used by post-processor
+    uint32_t creator;      // creator - nfcapd or sfcapd
+    uint32_t compress;     // compression level for new files
+    uint32_t encryption;   // encryption for new files
+
     // cycle args
     int cycle_pending;  // 0 = idle, 1 = work pending/in progress
     int done;           // shutdown flag

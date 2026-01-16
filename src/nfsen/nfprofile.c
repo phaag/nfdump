@@ -271,17 +271,17 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
         workerList[i]->dataBlock = &dataBlock;
     }
 
-    nffile_t *nffile = NewFile(NULL);
-
     // wait for workers ready to start
     pthread_controller_wait(barrier);
 
+    nffile_t *nffile = NULL;
     int done = 0;
     while (!done) {
         // get next data block from file
         dataBlock = nextBlock;
         if (dataBlock == NULL) {
-            if (GetNextFile(nffile) == NULL) {
+            nffile = GetNextFile();
+            if (nffile == NULL) {
                 done = 1;
                 continue;
             }
@@ -307,7 +307,9 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
 
         // get next block while worker are processing the previous one
         nextBlock = ReadBlock(nffile, NULL);
-
+        if (nextBlock == NULL) {
+            DisposeFile(nffile);
+        }
         // wait for all workers, work done on this block
         pthread_controller_wait(barrier);
         // free processed block
@@ -329,7 +331,6 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
             FlushBlock(channels[j].nffile, channels[j].dataBlock);
             *channels[j].nffile->stat_record = channels[j].stat_record;
             FinaliseFile(channels[j].nffile);
-            CloseFile(channels[j].nffile);
             DisposeFile(channels[j].nffile);
         }
     }

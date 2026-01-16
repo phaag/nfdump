@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -174,16 +174,19 @@ int InitBookkeeper(bookkeeper_t **bookkeeper, char *path, pid_t nfcapd_pid) {
                         // A process exists, but we are not allowed to signal this process
                         LogError("Another collector with pid %i but different user ID is already running, and configured for '%s'",
                                  (*bookkeeper)->nfcapd_pid, path);
+                        *bookkeeper = NULL;
                         return ERR_EXISTS;
                         break;
                     default:
                         // This should never happen, but catch it anyway
                         LogError("semop() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                        *bookkeeper = NULL;
                         return ERR_FAILED;
                 }
             } else {
                 // process exists;
                 LogError("Another collector with pid %i is already running, and configured for '%s'", (*bookkeeper)->nfcapd_pid, path);
+                *bookkeeper = NULL;
                 return ERR_EXISTS;
             }
             // if we pass this point, we have recycled an existing record

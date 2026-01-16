@@ -344,7 +344,7 @@ void PrintExporters(void) {
 
     printf("Exporters:\n");
 
-    nffile_t *nffile = GetNextFile(NULL);
+    nffile_t *nffile = GetNextFile();
     if (!nffile) {
         return;
     }
@@ -400,7 +400,6 @@ void PrintExporters(void) {
     }
 
     FreeDataBlock(dataBlock);
-    CloseFile(nffile);
     DisposeFile(nffile);
 
     if (exporter_table.count == 0) {
