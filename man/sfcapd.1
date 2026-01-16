@@ -242,8 +242,12 @@ Compress flow files with ZSTD compression. Fast and efficient. Optional level sh
 Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
 workers. See -W.
 .It Fl W Ar num
-Sets the number of workers to compress flows. Defaults to 4. Must not be greater than the number of
-cores online. Useful for higher levels of compression for lz4 or zstd and large amount of flows per second.
+Set the number of worker threads. The default depends on the number of cores online. The value must 
+not exceed the number of online CPU cores.
+
+Worker threads are used to compress data blocks when writing flow files to disc.
+Using multiple workers can significantly improve throughput, especially when
+using higher compression levels for lz4 or zstd.
 .It Fl e
 Sets auto-expire mode. At the end of every rotate interval
 .Fl t
