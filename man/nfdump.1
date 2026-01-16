@@ -728,8 +728,8 @@ Compress flow files with ZSTD compression. Fast and efficient. Optional level sh
 Changing the level results in smaller files but uses up more time to compress. Levels > 5 may need more
 workers. See -W.
 .It Fl W Ar num
-Set the number of worker threads. The default is 4. The value must not exceed the
-number of online CPU cores.
+Set the number of worker threads. The default depends on the number of cores online. The value must 
+not exceed the number of online CPU cores.
 
 Worker threads are used to compress data blocks when writing flow files with
 .Ar -w file .

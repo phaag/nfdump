@@ -190,13 +190,13 @@ int InitLog(unsigned want_syslog, const char *name, char *facility, unsigned ver
 
 #ifdef DEVEL
     verbose_log = 4;
-    want_syslog = 0;
+    want_syslog = NOSYSLOG;
 #endif
 
     verbose = verbose_log;
-    if (want_syslog == 0) {
+    if (want_syslog == NOSYSLOG) {
         use_syslog = 0;
-        if (verbose) {
+        if (verbose > 1) {
             LogInfo("Verbose log level: %u", verbose);
         }
         return 1;

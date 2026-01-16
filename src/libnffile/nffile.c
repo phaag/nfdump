@@ -100,7 +100,7 @@
 static const char *nf_creator[MAX_CREATOR] = {"unknown", "nfcapd",    "nfpcapd",   "sfcapd",    "nfdump",
                                               "nfanon",  "nfprofile", "geolookup", "ft2nfdump", "torlookup"};
 
-static uint32_t NumWorkers = DEFAULTWORKERS;
+static uint32_t NumWorkers = 0;
 
 /* function prototypes */
 static int LZO_initialize(void);

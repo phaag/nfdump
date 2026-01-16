@@ -34,6 +34,7 @@
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 
 #include "nfdump.h"

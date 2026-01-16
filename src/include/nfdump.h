@@ -125,7 +125,5 @@ typedef struct stat_record_s {
 
 // allocate space for this number of workers
 #define MAXWORKERS 64
-// If number of CPUs can not be determined
-#define DEFAULTWORKERS 2
 
 #endif  //_NFDUMP_H

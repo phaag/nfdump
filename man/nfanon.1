@@ -37,6 +37,8 @@
 .Op Fl w Ar nffile
 .Fl K Ar key
 .Op Fl q
+.Op Fl v
+.Op Fl W
 .Op Fl h
 .Sh DESCRIPTION
 .Nm
@@ -76,6 +78,14 @@ is used to initialize the anonymizer.
 .It Fl q
 .Nm
 prints the file name to be processed and an actifivy spinner. This option disables both.
+.It Fl v
+.Nm
+Increase verbose level. Note: Do not use -v and -q together.
+.It Fl W Ar num
+Set the number of worker threads. The default depends on the number of cores online.
+The value must not exceed the number of online CPU cores.
+
+Worker threads are used to anonymize flow records in parallel.
 .It Fl h
 Print help text to stdout and exit.
 .El

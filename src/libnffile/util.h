@@ -88,6 +88,7 @@ typedef uint32_t pointer_addr_t;
 #define unlikely(x) __builtin_expect((x), 0)
 
 #define SYSLOG_FACILITY "daemon"
+#define NOSYSLOG 0
 
 typedef struct stringlist_s {
     char **list;

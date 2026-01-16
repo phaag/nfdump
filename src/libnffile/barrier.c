@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2025, Peter Haag
+ *  Copyright (c) 2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -49,42 +49,46 @@
 // get decent number of workers depending
 // on the number of cores online
 uint32_t GetNumWorkers(uint32_t requested) {
-    // get conf value for maxworkers
-    int confMaxWorkers = ConfGetValue("maxworkers");
+    int confMax = ConfGetValue("maxworkers");
 
-    // no requested workers - use configured value
-    if (requested == 0) requested = confMaxWorkers;
+    // sanitize config value
+    if (confMax < 0) confMax = 0;
+    if (confMax > MAXWORKERS) confMax = MAXWORKERS;
 
-    // cores online
-    long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
-    if (CoresOnline < 0) {
-        LogError("sysconf(_SC_NPROCESSORS_ONLN) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        // assume at least 2 cores, if call failed
-        CoresOnline = 2;
+    // apply config only if user did not request anything
+    if (requested == 0 && confMax > 0) requested = confMax;
+
+    // detect CPU cores
+    long cores = sysconf(_SC_NPROCESSORS_ONLN);
+    if (cores < 1) {
+        LogError("sysconf(_SC_NPROCESSORS_ONLN) failed: %s", strerror(errno));
+        // assume at least 2 cores
+        cores = 2;
     }
 
-    // no more than cores online
-    if (requested > CoresOnline) {
-        LogError("Limit requested workers: %u to number of cores online %d.", requested, CoresOnline);
-        requested = CoresOnline;
+    uint32_t workers;
+
+    if (requested > 0) {
+        workers = requested;
+    } else {
+        // heuristic: half the cores, clamped to [2, 8]
+        workers = cores / 2;
+        if (workers < 2) workers = 2;
+        if (workers > 8) workers = 8;
     }
 
-    // try to find optimal number of workers
-    // if nothing requested, use default, unless we are on a high number of cores
-    // system, so double the workers
-    if (requested == 0) {
-        requested = DEFAULTWORKERS;
-        if ((4 * requested) < CoresOnline) requested = 2 * DEFAULTWORKERS;
+    // apply caps
+    if (workers > MAXWORKERS) workers = MAXWORKERS;
+
+    if (workers > (uint32_t)cores) {
+        if (requested > 0) LogInfo("Limit requested workers: %u to number of cores online %ld.", workers, cores);
+        workers = cores;
     }
 
-    // no more than internal array limit
-    if (requested > MAXWORKERS) {
-        LogInfo("Number of workers is limited to %s", MAXWORKERS);
-        requested = MAXWORKERS;
-    }
+    LogVerbose("Using %u worker threads (cores=%ld, requested=%u, confMax=%d)", workers, cores, requested, confMax);
 
-    return requested;
-}  // End of GetNumWorkers
+    return workers;
+}
 
 // initialize barrier for numWorkers + 1 controller
 pthread_control_barrier_t *pthread_control_barrier_init(uint32_t numWorkers) {

@@ -53,6 +53,7 @@
 #include "flist.h"
 #include "ip128.h"
 #include "nbar.h"
+#include "nfconf.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
@@ -88,14 +89,16 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
 static void usage(char *name) {
     printf(
         "usage %s [options] \n"
+        "-C <file>\tRead optional config file.\n"
         "-h\t\tthis text you see right here.\n"
         "-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>.\n"
         "-s\t\tPreserve source address.\n"
         "-d\t\tPreserve destination address.\n"
         "-q\t\tDo not print progress spinnen and filenames.\n"
         "-r <path>\tread input from single file or all files in directory.\n"
-        "-t <num>\tnumber of worker threads. Max depends on cores online\n"
-        "-w <file>\tName of output file. Defaults to input file.\n",
+        "-v\t\tIncrease verbose level.\n"
+        "-w <file>\tName of output file. Defaults to input file.\n"
+        "-W <num>\tOptionally set the number of workers to compress flows\n",
         name);
 } /* usage */
 
@@ -145,7 +148,7 @@ static inline void AnonExporterInfo(exporter_info_record_t *exporter_record) {
 
             char s[INET6_ADDRSTRLEN];
             inet_ntop(AF_INET6, ipAddr.bytes, s, INET6_ADDRSTRLEN);
-            printf("Exporter: %s\n", s);
+            dbg_printf("Exporter: %s\n", s);
             // copy back to exporter ip
         } break;
         case AF_INET6: {  // old IPv6 record
@@ -349,7 +352,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
                 DisposeFile(nffile_r);
                 return;
             }
-            if (verbose) printf(" %i Processing %s\r", cnt++, cfile);
+            if (verbose) printf("  %i Processing %s\r", cnt++, cfile);
 
             char pathBuff[MAXPATHLEN];
             if (wfile == NULL) {
@@ -413,7 +416,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
 
 }  // End of process_data
 
-__attribute__((noreturn)) static void *worker(void *arg) {
+static void *worker(void *arg) {
     worker_param_t *worker_param = (worker_param_t *)arg;
 
     uint32_t self = worker_param->self;
@@ -526,17 +529,26 @@ int main(int argc, char **argv) {
     char CryptoPAnKey[32] = {0};
     flist_t flist = {0};
 
-    int numWorkers = MAXANONWORKERS;
+    char *configFile = NULL;
+    int numWorkers = 0;
     int verbose = 1;
     int anon_src = 1;
     int anon_dst = 1;
     int c;
-    while ((c = getopt(argc, argv, "hsdK:L:qr:t:w:")) != EOF) {
+    while ((c = getopt(argc, argv, "C:hsdK:L:qr:t:vw:W:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
                 exit(0);
                 break;
+            case 'C':
+                CheckArgLen(optarg, MAXPATHLEN);
+                if (strcmp(optarg, NOCONF) == 0) {
+                    configFile = optarg;
+                } else {
+                    if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
+                    configFile = optarg;
+                }
                 break;
             case 'K':
                 CheckArgLen(optarg, 66);
@@ -556,6 +568,10 @@ int main(int argc, char **argv) {
                 anon_dst = 0;
                 break;
             case 'q':
+                if (verbose > 1) {
+                    LogError("Option -q conflicts with -v");
+                    exit(EXIT_FAILURE);
+                }
                 verbose = 0;
                 break;
             case 'r':
@@ -569,18 +585,36 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
-            case 't':
-                CheckArgLen(optarg, 4);
-                numWorkers = atoi(optarg);
+            case 'v':
+                if (verbose == 0) {
+                    LogError("Option -q conflicts with -v");
+                    exit(EXIT_FAILURE);
+                }
+                if (verbose < 4) verbose++;
                 break;
             case 'w':
                 CheckArgLen(optarg, MAXPATHLEN);
                 wfile = optarg;
                 break;
+            case 't':
+                // legacy option - fall through
+                LogError("Legacy option. Use -W <num> to select the number of workers", MAXWORKERS);
+            case 'W':
+                CheckArgLen(optarg, 16);
+                numWorkers = atoi(optarg);
+                if (numWorkers < 0 || numWorkers > MAXWORKERS) {
+                    LogError("Number of working threads out of range 1..%d", MAXWORKERS);
+                    exit(EXIT_FAILURE);
+                }
+                break;
             default:
                 usage(argv[0]);
                 exit(0);
         }
+    }
+
+    if (!InitLog(NOSYSLOG, argv[0], NULL, verbose)) {
+        exit(EXIT_FAILURE);
     }
 
     if (CryptoPAnKey[0] == '\0') {
@@ -595,11 +629,13 @@ int main(int argc, char **argv) {
         exit(255);
     }
 
-    queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(0, fileList)) exit(255);
+    if (ConfOpen(configFile, "nfanon") < 0) exit(EXIT_FAILURE);
 
     // check numWorkers depending on cores online
     numWorkers = GetNumWorkers(numWorkers);
+
+    queue_t *fileList = SetupInputFileSequence(&flist);
+    if (!fileList || !Init_nffile(numWorkers, fileList)) exit(255);
 
     pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
     if (!barrier) exit(255);
