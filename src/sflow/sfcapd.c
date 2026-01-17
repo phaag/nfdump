@@ -57,6 +57,7 @@
 #include "pcap_reader.h"
 #endif
 
+#include "barrier.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "conf/nfconf.h"
@@ -433,7 +434,7 @@ int main(int argc, char **argv) {
     int sock, family, do_daemonize, expire, spec_time_extension;
     bool parse_tun;
     unsigned subdir_index, compress, srcSpoofing;
-    uint64_t workers;
+    int numWorkers;
 #ifdef ENABLE_READPCAP
     char *pcap_file = NULL;
     char *pcap_device = NULL;
@@ -468,7 +469,7 @@ int main(int argc, char **argv) {
     metricInterval = 60;
     extensionList = NULL;
     options = NULL;
-    workers = 0;
+    numWorkers = 0;
     parse_tun = false;
 
     int c;
@@ -660,13 +661,9 @@ int main(int argc, char **argv) {
                 break;
             case 'W':
                 CheckArgLen(optarg, 16);
-                workers = (uint64_t)atoi(optarg);
-                if (workers < 1 || workers > MAXWORKERS) {
-                    LogError("Number of working threads out of range 1..%d", MAXWORKERS);
-                    exit(EXIT_FAILURE);
-                }
-                if (!ConfSetUint64(sfcapdConfig, "maxworkers", workers)) {
-                    LogError("Failed to set conf value");
+                numWorkers = atoi(optarg);
+                if (numWorkers < 0) {
+                    LogError("Invalid number of working threads: %d", numWorkers);
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -779,8 +776,8 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    ConfGetUint64(sfcapdConfig, "maxworkers", &workers);
-    if (!Init_nffile(workers, NULL)) exit(254);
+    numWorkers = GetNumWorkers(numWorkers);
+    if (!Init_nffile(numWorkers, NULL)) exit(254);
 
     if (expire && spec_time_extension) {
         LogError("ERROR, -Z timezone extension breaks expire -e");

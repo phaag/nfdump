@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -473,7 +473,7 @@ int StartupLauncher(char *launch_process, int expire) {
     pthread_t tid;
     int err = pthread_create(&killtid, NULL, pipeReader, (void *)&thread_arg);
     if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         return 0;
     }
     tid = killtid;
@@ -481,7 +481,7 @@ int StartupLauncher(char *launch_process, int expire) {
     launcher(messageQueue, launch_process, expire);
     err = pthread_join(tid, NULL);
     if (err) {
-        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
     }
 
     LogVerbose("End StartupLauncher()");

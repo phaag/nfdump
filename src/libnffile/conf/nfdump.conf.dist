@@ -44,11 +44,11 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # if you use tor DB to identify tor exit node IPs - see torlookup(1)
 # tordb.path = "/var/db/tordb.nf"
 
-# MAXWORKERS
-# By default the number of writer threads is set to the number of cores online but not 
-# more than 16 threads to be polite to other processes. If you want to use more than
-# 16 cores on a beefy machine, change maxworkers.
-# maxworkers = 16
+# maxworkers
+# Defines the number of working threads for filtering or compressing flows
+# By default a decent number of workers is selected according the number of
+# cores online.
+# maxworkers = 8
 
 [nfcapd]
 # define multiple netflow exporters
@@ -59,17 +59,25 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # exporter.upstream = ["192.168.1.1", "/var/nflow/upstream"]
 # exporter.peer = ["192.168.1.10", "/var/nflow/peer"]
 
-# MAXWORKERS
-# see maxworkers in section [nfdump]
-# maxworkers = 16
+# maxworkers
+# Defines the number of working threads for filtering or compressing flows
+# By default a decent number of workers is selected according the number of
+# cores online.
+# maxworkers = 8
 
 [sfcapd]
 # define -o options
 # enable option tun, if you want to decode tunneling protocols gre and 6in4
 # opt.tun = 1
-# maxworkers = 16
+# maxworkers = 8
 
 [nfpcapd]
 # define -o options
 # opt.fat = 1
 # opt.payload = 1
+
+[nfanon]
+# Defines the number of working threads for anonymising and compressing flows.
+# By default a decent number of workers is selected according the number of
+# cores online.
+# maxworkers = 8

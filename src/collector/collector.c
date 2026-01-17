@@ -693,18 +693,20 @@ static void *post_processor_thread(void *args) {
 }  // End of post_processor_thread
 
 int Lauch_postprocessor(post_args_t *post_args) {
-    if (pthread_mutex_init(&post_args->mutex, NULL) != 0) {
-        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    int err = pthread_mutex_init(&post_args->mutex, NULL);
+    if (err != 0) {
+        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         return 0;
     }
-    if (pthread_cond_init(&post_args->cond, NULL) != 0) {
-        LogError("pthread_cond_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    err = pthread_cond_init(&post_args->cond, NULL);
+    if (err != 0) {
+        LogError("pthread_cond_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         return 0;
     }
 
-    int err = pthread_create(&post_args->tid, NULL, post_processor_thread, (void *)post_args);
+    err = pthread_create(&post_args->tid, NULL, post_processor_thread, (void *)post_args);
     if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         return 0;
     }
 

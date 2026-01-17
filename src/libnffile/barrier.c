@@ -49,15 +49,6 @@
 // get decent number of workers depending
 // on the number of cores online
 uint32_t GetNumWorkers(uint32_t requested) {
-    int confMax = ConfGetValue("maxworkers");
-
-    // sanitize config value
-    if (confMax < 0) confMax = 0;
-    if (confMax > MAXWORKERS) confMax = MAXWORKERS;
-
-    // apply config only if user did not request anything
-    if (requested == 0 && confMax > 0) requested = confMax;
-
     // detect CPU cores
     long cores = sysconf(_SC_NPROCESSORS_ONLN);
     if (cores < 1) {
@@ -66,10 +57,17 @@ uint32_t GetNumWorkers(uint32_t requested) {
         cores = 2;
     }
 
-    uint32_t workers;
+    // workers in config
+    int confMax = ConfGetValue("maxworkers");
+    if (confMax < 0) confMax = 0;
+    if (confMax > cores) confMax = cores;
 
+    // select overwrite police, or heuristics
+    int workers;
     if (requested > 0) {
         workers = requested;
+    } else if (confMax > 0) {
+        workers = confMax;
     } else {
         // heuristic: half the cores, clamped to [2, 8]
         workers = cores / 2;
@@ -78,34 +76,44 @@ uint32_t GetNumWorkers(uint32_t requested) {
     }
 
     // apply caps
-    if (workers > MAXWORKERS) workers = MAXWORKERS;
-
     if (workers > (uint32_t)cores) {
         if (requested > 0) LogInfo("Limit requested workers: %u to number of cores online %ld.", workers, cores);
         workers = cores;
     }
 
-    LogVerbose("Using %u worker threads (cores=%ld, requested=%u, confMax=%d)", workers, cores, requested, confMax);
+    if (requested)
+        LogInfo("Using %u worker threads (cores=%ld, requested=%u, confMax=%d)", workers, cores, requested, confMax);
+    else
+        LogVerbose("Using %u worker threads (cores=%ld, requested=%u, confMax=%d)", workers, cores, requested, confMax);
 
     return workers;
-}
+}  // End of GetNumWorkers
 
 // initialize barrier for numWorkers + 1 controller
 pthread_control_barrier_t *pthread_control_barrier_init(uint32_t numWorkers) {
-    pthread_control_barrier_t *barrier = calloc(1, sizeof(pthread_control_barrier_t));
-    if (!barrier) return NULL;
-
     if (numWorkers == 0) {
         errno = EINVAL;
         return NULL;
     }
 
-    if (pthread_mutex_init(&barrier->workerMutex, 0) < 0) {
+    pthread_control_barrier_t *barrier = calloc(1, sizeof(pthread_control_barrier_t));
+    if (!barrier) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
-    if (pthread_cond_init(&barrier->workerCond, 0) < 0 || pthread_cond_init(&barrier->controllerCond, 0) < 0) {
+    int err = pthread_mutex_init(&barrier->workerMutex, 0);
+    if (err != 0) {
+        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+        free(barrier);
+        return NULL;
+    }
+
+    err = 0;
+    if ((err = pthread_cond_init(&barrier->workerCond, 0)) != 0 || (err = pthread_cond_init(&barrier->controllerCond, 0)) != 0) {
+        LogError("pthread_cond_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         pthread_mutex_destroy(&barrier->workerMutex);
+        free(barrier);
         return NULL;
     }
 

@@ -63,12 +63,12 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "barrier.h"
 #include "bookkeeper.h"
 #include "conf/nfconf.h"
 #include "config.h"
 #include "daemon.h"
 #include "expire.h"
-#include "exporter.h"
 #include "flist.h"
 #include "flowdump.h"
 #include "flowsend.h"
@@ -277,7 +277,8 @@ int main(int argc, char *argv[]) {
     struct sigaction sa;
     unsigned snaplen, bufflen, do_daemonize, doDedup;
     unsigned subdir_index, compress, expire, cache_size;
-    unsigned activeTimeout, inactiveTimeout, metricInterval, workers;
+    unsigned activeTimeout, inactiveTimeout, metricInterval;
+    int numWorkers;
     dirstat_t *dirstat;
     repeater_t *sendHost;
     time_t t_win;
@@ -312,7 +313,7 @@ int main(int argc, char *argv[]) {
     cache_size = 0;
     activeTimeout = 0;
     inactiveTimeout = 0;
-    workers = 0;
+    numWorkers = 0;
 
     int c = 0;
     while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:vVw:W:yz::")) != EOF) {
@@ -450,15 +451,14 @@ int main(int argc, char *argv[]) {
                     time_extension = "%Y%m%d%H%M%S";
                 }
                 break;
-            case 'W': {
+            case 'W':
                 CheckArgLen(optarg, 16);
-                int w = atoi(optarg);
-                if (w < 0 || w > MAXWORKERS) {
-                    LogError("Number of working threads out of range 1..%d", MAXWORKERS);
+                numWorkers = atoi(optarg);
+                if (numWorkers < 0) {
+                    LogError("Invalid number of working threads: %d", numWorkers);
                     exit(EXIT_FAILURE);
                 }
-                workers = (unsigned)w;
-            } break;
+                break;
             case 'j':
                 if (compress) {
                     LogError("Use either -z for LZO or -j for BZ2 compression, but not both");
@@ -550,6 +550,8 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    numWorkers = GetNumWorkers(numWorkers);
+
     flushParam_t flushParam = {0};
     packetParam_t packetParam = {0};
     flowParam_t flowParam = {0};
@@ -610,7 +612,7 @@ int main(int argc, char *argv[]) {
 
     FlowSource_t *fs = NULL;
     if (datadir) {
-        if (!Init_nffile(workers, NULL)) exit(EXIT_FAILURE);
+        if (!Init_nffile(numWorkers, NULL)) exit(EXIT_FAILURE);
 
         if (pcap_datadir && access(pcap_datadir, W_OK) < 0) {
             LogError("access() failed for %s: %s", pcap_datadir, strerror(errno));
@@ -699,7 +701,7 @@ int main(int argc, char *argv[]) {
 
         int err = pthread_create(&flushParam.tid, NULL, flush_thread, (void *)&flushParam);
         if (err) {
-            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
             exit(EXIT_FAILURE);
         }
         dbg_printf("Started flush thread[%lu]", (long unsigned)flushParam.tid);
@@ -721,7 +723,7 @@ int main(int argc, char *argv[]) {
         err = pthread_create(&flowParam.tid, NULL, flow_thread, (void *)&flowParam);
     }
     if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         exit(EXIT_FAILURE);
     }
     dbg_printf("Started flow thread[%lu]", (long unsigned)flowParam.tid);
@@ -734,7 +736,7 @@ int main(int argc, char *argv[]) {
     packetParam.done = &done;
     err = pthread_create(&packetParam.tid, NULL, packet_thread, (void *)&packetParam);
     if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         exit(EXIT_FAILURE);
     }
     dbg_printf("Started packet thread[%lu]\n", (long unsigned)packetParam.tid);

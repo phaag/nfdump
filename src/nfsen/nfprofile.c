@@ -64,9 +64,6 @@
 char influxdb_url[1024] = "";
 #endif
 
-#define PROFILEWRITERS 2
-#define MAXPROFILERS 8
-
 typedef struct worker_param_s {
     int self;
     uint32_t numWorkers;
@@ -115,7 +112,7 @@ static void usage(char *name) {
         name);
 } /* usage */
 
-__attribute__((noreturn)) static void *worker(void *arg) {
+static void *worker_thread(void *arg) {
     worker_param_t *worker_param = (worker_param_t *)arg;
 
     uint32_t self = worker_param->self;
@@ -222,19 +219,15 @@ __attribute__((noreturn)) static void *worker(void *arg) {
         pthread_control_barrier_wait(worker_param->barrier);
     }
 
-    dbg_printf("Worker %d done.\n", worker_param->self);
+    dbg_printf("Worker %u done.\n", worker_param->self);
+    free(worker_param);
     pthread_exit(NULL);
 
     // unreached
-}  // End of worker
+}  // End of worker_thread
 
 static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_control_barrier_t *barrier, profile_channel_info_t *channels,
                                      uint32_t numChannels) {
-    if (numWorkers > MAXWORKERS) {
-        LogError("LaunchWorkers: number of worker: %u > max workers: %u", numWorkers, MAXWORKERS);
-        return NULL;
-    }
-
     worker_param_t **workerList = calloc(numWorkers, sizeof(worker_param_t *));
     if (!workerList) NULL;
 
@@ -250,9 +243,9 @@ static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_con
         worker_param->numChannels = numChannels;
         workerList[i] = worker_param;
 
-        int err = pthread_create(&(tid[i]), NULL, worker, (void *)worker_param);
+        int err = pthread_create(&(tid[i]), NULL, worker_thread, (void *)worker_param);
         if (err) {
-            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
             return NULL;
         }
     }
@@ -503,7 +496,7 @@ static void WaitWorkersDone(pthread_t *tid, int numWorkers) {
         if (tid[i]) {
             int err = pthread_join(tid[i], NULL);
             if (err) {
-                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
             }
             tid[i] = 0;
         }
@@ -519,7 +512,7 @@ int main(int argc, char **argv) {
     time_t tslot;
     flist_t flist;
 
-    int numWorkers = MAXPROFILERS;
+    int numWorkers = 0;
     memset((void *)&flist, 0, sizeof(flist));
     profile_datadir = NULL;
     profile_statdir = NULL;
@@ -713,8 +706,9 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
+    numWorkers = GetNumWorkers(numWorkers);
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(PROFILEWRITERS, fileList)) exit(254);
+    if (!fileList || !Init_nffile(numWorkers, fileList)) exit(254);
 
     numChannels = InitChannels(profile_datadir, profile_statdir, profile_list, ffile, filename, subdir_index, syntax_only, compress);
 
@@ -729,15 +723,17 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    // check numWorkers depending on cores online
-    numWorkers = GetNumWorkers(numWorkers);
-
     pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
     if (!barrier) exit(EXIT_FAILURE);
 
     profile_channel_info_t *channels = GetChannelInfoList();
 
-    pthread_t tid[MAXWORKERS] = {0};
+    pthread_t *tid = calloc(numWorkers, sizeof(pthread_t));
+    if (!tid) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
     dbg_printf("Launch Workers\n");
     worker_param_t **workerList = LauchWorkers(tid, numWorkers, barrier, channels, numChannels);
     if (!workerList) {
@@ -750,6 +746,8 @@ int main(int argc, char **argv) {
     WaitWorkersDone(tid, numWorkers);
     pthread_control_barrier_destroy(barrier);
 
+    free(tid);
+    free(workerList);
     UpdateChannels(tslot);
 #if 0
     VerifyFiles();

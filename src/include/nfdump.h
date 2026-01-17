@@ -123,7 +123,4 @@ typedef struct stat_record_s {
 
 #define NOGEODB 0
 
-// allocate space for this number of workers
-#define MAXWORKERS 64
-
 #endif  //_NFDUMP_H

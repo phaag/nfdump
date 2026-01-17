@@ -56,6 +56,7 @@
 #include "pcap_reader.h"
 #endif
 
+#include "barrier.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "conf/nfconf.h"
@@ -477,9 +478,10 @@ int main(int argc, char **argv) {
     char *extensionList;
     packet_function_t receive_packet;
     repeater_t repeater[MAX_REPEATERS];
-    unsigned bufflen, metricInterval, workers;
+    unsigned bufflen, metricInterval;
     time_t twin;
-    int sock, family, do_daemonize, expire, sampling_rate, spec_time_extension;
+    int numWorkers, sampling_rate, spec_time_extension;
+    int sock, family, do_daemonize, expire;
     unsigned subdir_index, compress, srcSpoofing;
 #ifdef ENABLE_READPCAP
     char *pcap_file = NULL;
@@ -516,7 +518,7 @@ int main(int argc, char **argv) {
     metricSocket = NULL;
     metricInterval = 60;
     extensionList = NULL;
-    workers = 0;
+    numWorkers = 0;
 
     int c;
     while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVW:w:x:X:Y:yz::Z")) != EOF) {
@@ -710,12 +712,11 @@ int main(int argc, char **argv) {
                 break;
             case 'W':
                 CheckArgLen(optarg, 16);
-                int w = atoi(optarg);
-                if (w < 0 || w > MAXWORKERS) {
-                    LogError("Number of working threads out of range 1..%d", MAXWORKERS);
+                numWorkers = atoi(optarg);
+                if (numWorkers < 0) {
+                    LogError("Invalid number of working threads: %d", numWorkers);
                     exit(EXIT_FAILURE);
                 }
-                workers = (unsigned)w;
                 break;
             case 'j':
                 if (compress) {
@@ -823,7 +824,8 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (!Init_nffile(workers, NULL)) exit(EXIT_FAILURE);
+    numWorkers = GetNumWorkers(numWorkers);
+    if (!Init_nffile(numWorkers, NULL)) exit(EXIT_FAILURE);
 
     if (expire && spec_time_extension) {
         LogError("ERROR, -Z timezone extension breaks expire -e");

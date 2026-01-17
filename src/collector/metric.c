@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024-2025, Peter Haag
+ *  Copyright (c) 2024-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -123,7 +123,7 @@ int OpenMetric(char *path, unsigned interval) {
 
     int err = pthread_create(&tid, NULL, MetricThread, NULL);
     if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         return 0;
     }
     LogInfo("Metric initialized");
@@ -141,10 +141,10 @@ int CloseMetric(void) {
     // signal MetricThread too terminate
     atomic_init(&tstart, 0);
     int status = pthread_kill(tid, SIGINT);
-    if (status < 0) LogError("pthread_kill() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    if (status < 0) LogError("pthread_kill() error in %s line %d: %s", __FILE__, __LINE__, strerror(status));
 
     status = pthread_join(tid, NULL);
-    if (status < 0) LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    if (status < 0) LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(status));
 
     pthread_mutex_lock(&mutex);
     metric_chain_t *metric_chain = metric_list;

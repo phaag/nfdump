@@ -58,12 +58,14 @@ queue_t *queue_init(size_t length) {
         LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
-    if (pthread_mutex_init(&queue->mutex, NULL) != 0) {
-        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    int err = pthread_mutex_init(&queue->mutex, NULL);
+    if (err != 0) {
+        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         return NULL;
     }
-    if (pthread_cond_init(&queue->cond, NULL) != 0) {
-        LogError("pthread_cond_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    err = pthread_cond_init(&queue->cond, NULL);
+    if (err != 0) {
+        LogError("pthread_cond_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         return NULL;
     }
 

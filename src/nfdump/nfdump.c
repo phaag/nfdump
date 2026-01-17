@@ -77,8 +77,6 @@
 
 extern char *FilterFilename;
 
-#define MAX_FILTER_THREADS 32
-
 typedef struct dataHandle_s {
     dataBlock_t *dataBlock;
     char *ident;
@@ -126,7 +124,7 @@ static int SetStat(char *str, int *element_stat, int *flow_stat);
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams);
 
 static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, timeWindow_t *timeWindow,
-                                  uint64_t limitRecords, outputParams_t *outputParams, int compress, int workers);
+                                  uint64_t limitRecords, outputParams_t *outputParams, int compress, int numWorkers);
 
 /* Functions */
 
@@ -564,7 +562,7 @@ static void *filterThread(void *arg) {
 }  // End of filterThread
 
 static stat_record_t process_data(void *engine, int processMode, char *wfile, RecordPrinter_t print_record, timeWindow_t *timeWindow,
-                                  uint64_t limitRecords, outputParams_t *outputParams, int compress, int workers) {
+                                  uint64_t limitRecords, outputParams_t *outputParams, int compress, int numWorkers) {
     stat_record_t stat_record = {0};
     stat_record.msecFirstSeen = 0x7fffffffffffffffLL;
 
@@ -573,16 +571,10 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     pthread_t tidPrepare;
     int err = pthread_create(&tidPrepare, NULL, prepareThread, (void *)&prepareArgs);
     if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         exit(255);
     }
 
-    // check numWorkers depending on cores online
-    uint32_t numWorkers = GetNumWorkers(workers);
-    if (numWorkers > MAX_FILTER_THREADS) {
-        LogError("Limit number of filter threads to %d", MAX_FILTER_THREADS);
-        numWorkers = MAX_FILTER_THREADS;
-    }
     filterArgs_t filterArgs = {
         .engine = engine,
         .numWorkers = numWorkers,
@@ -593,11 +585,15 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     };
     queue_producers(filterArgs.processQueue, numWorkers);
 
-    pthread_t tidFilter[MAX_FILTER_THREADS];
+    pthread_t *tid = calloc(numWorkers, sizeof(pthread_t));
+    if (!tid) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(255);
+    }
     for (int i = 0; i < (int)numWorkers; i++) {
-        int err = pthread_create(&(tidFilter[i]), NULL, filterThread, (void *)&filterArgs);
+        int err = pthread_create(&(tid[i]), NULL, filterThread, (void *)&filterArgs);
         if (err) {
-            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
             exit(255);
         }
     }
@@ -760,17 +756,20 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
     }
 
     dbg_printf("processData() wait for prepare thread\n");
-    if (pthread_join(tidPrepare, NULL)) {
-        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    err = pthread_join(tidPrepare, NULL);
+    if (err != 0) {
+        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
     }
 
     dbg_printf("processData() wait for filter threads\n");
     for (int i = 0; i < (int)numWorkers; i++) {
-        if (pthread_join(tidFilter[i], NULL)) {
-            LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        err = pthread_join(tid[i], NULL);
+        if (err) {
+            LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         }
         dbg_printf("processData() filter thread: %d\n", i);
     }
+    free(tid);
 
     totalPassed = filterArgs.passedRecords;
     skippedBlocks = prepareArgs.skippedBlocks;
@@ -788,7 +787,7 @@ int main(int argc, char **argv) {
     char *print_order, *query_file, *configFile, *aggr_fmt;
     int element_stat, fdump;
     int flow_stat, aggregate, aggregate_mask, bidir;
-    int print_stat, gnuplot_stat, syntax_only, compress, worker;
+    int print_stat, gnuplot_stat, syntax_only, compress, numWorkers;
     int GuessDir, ModifyCompress;
     uint32_t limitRecords;
     char Ident[IDENTLEN];
@@ -811,7 +810,7 @@ int main(int argc, char **argv) {
     limitRecords = 0;
     skippedBlocks = 0;
     compress = NOT_COMPRESSED;
-    worker = 0;
+    numWorkers = 0;
     GuessDir = 0;
 
     print_format = NULL;
@@ -1062,9 +1061,9 @@ int main(int argc, char **argv) {
                 break;
             case 'W':
                 CheckArgLen(optarg, 16);
-                worker = atoi(optarg);
-                if (worker < 0 || worker > MAXWORKERS) {
-                    LogError("Number of working threads out of range 1..%d", MAXWORKERS);
+                numWorkers = atoi(optarg);
+                if (numWorkers < 0) {
+                    LogError("Invalid number of working threads: %d", numWorkers);
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -1134,6 +1133,8 @@ int main(int argc, char **argv) {
 
     if (ConfOpen(configFile, "nfdump") < 0) exit(EXIT_FAILURE);
 
+    numWorkers = GetNumWorkers(numWorkers);
+
     if (outputParams->topN < 0) {
         if (flow_stat || element_stat) {
             outputParams->topN = 10;
@@ -1163,7 +1164,7 @@ int main(int argc, char **argv) {
     }
 
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(worker, fileList)) exit(EXIT_FAILURE);
+    if (!fileList || !Init_nffile(numWorkers, fileList)) exit(EXIT_FAILURE);
 
     // Modify compression
     if (ModifyCompress >= 0) {
@@ -1305,7 +1306,7 @@ int main(int argc, char **argv) {
     }
 
     nfprof_start(&profile_data);
-    sum_stat = process_data(engine, processMode, wfile, print_record, flist.timeWindow, limitRecords, outputParams, compress, worker);
+    sum_stat = process_data(engine, processMode, wfile, print_record, flist.timeWindow, limitRecords, outputParams, compress, numWorkers);
     nfprof_end(&profile_data, totalRecords);
 
     if (totalPassed == 0) {

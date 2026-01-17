@@ -78,7 +78,6 @@
 #include "lz4.h"
 #include "lz4hc.h"
 #endif
-#include "barrier.h"
 #include "minilzo.h"
 #include "nfdump.h"
 #include "nfdump_1_6_x.h"
@@ -149,8 +148,6 @@ static void FlushFile(nffile_t *nffile);
 
 static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2);
 
-static void UpdateStat(stat_record_t *s, stat_recordV1_t *sv1);
-
 static queue_t *fileQueue = NULL;
 
 /* function definitions */
@@ -180,7 +177,7 @@ int Init_nffile(uint32_t workers, queue_t *fileList) {
 
     atomic_init(&blocksInUse, 0);
 
-    NumWorkers = GetNumWorkers(workers);
+    NumWorkers = workers;
 
     return 1;
 
@@ -846,7 +843,7 @@ nffile_t *OpenFile(const char *filename) {
     int err = pthread_create(&tid, NULL, nfreader, (void *)nffile);
     if (err) {
         nffile->worker[0] = 0;
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         return NULL;
     }
     nffile->worker[0] = tid;
@@ -924,7 +921,7 @@ nffile_t *OpenNewFile(const char *filename, unsigned creator, unsigned compress,
         int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
         if (err) {
             nffile->worker[i] = 0;
-            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
             DisposeFile(nffile);
             return NULL;
         }
@@ -982,7 +979,7 @@ nffile_t *AppendFile(const char *filename) {
         int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
         if (err) {
             nffile->worker[i] = 0;
-            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
             DisposeFile(nffile);
             return NULL;
         }

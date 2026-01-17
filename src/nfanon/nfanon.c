@@ -416,7 +416,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
 
 }  // End of process_data
 
-static void *worker(void *arg) {
+static void *worker_thread(void *arg) {
     worker_param_t *worker_param = (worker_param_t *)arg;
 
     uint32_t self = worker_param->self;
@@ -477,21 +477,23 @@ static void *worker(void *arg) {
     }
 
     dbg_printf("Worker %d done.\n", worker_param->self);
+    free(worker_param);
     pthread_exit(NULL);
-}  // End of worker
+}  // End of worker_thread
 
 static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, int anon_src, int anon_dst, pthread_control_barrier_t *barrier) {
-    if (numWorkers > MAXWORKERS) {
-        LogError("LaunchWorkers: number of worker: %u > max workers: %u", numWorkers, MAXWORKERS);
+    worker_param_t **workerList = calloc(numWorkers, sizeof(worker_param_t *));
+    if (!workerList) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
-    worker_param_t **workerList = calloc(numWorkers, sizeof(worker_param_t *));
-    if (!workerList) NULL;
-
     for (int i = 0; i < numWorkers; i++) {
         worker_param_t *worker_param = calloc(1, sizeof(worker_param_t));
-        if (!worker_param) NULL;
+        if (!worker_param) {
+            LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
 
         worker_param->barrier = barrier;
         worker_param->self = i;
@@ -501,9 +503,9 @@ static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, int anon_sr
         worker_param->numWorkers = numWorkers;
         workerList[i] = worker_param;
 
-        int err = pthread_create(&(tid[i]), NULL, worker, (void *)worker_param);
+        int err = pthread_create(&(tid[i]), NULL, worker_thread, (void *)worker_param);
         if (err) {
-            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
             return NULL;
         }
     }
@@ -517,7 +519,7 @@ static void WaitWorkersDone(pthread_t *tid, int numWorkers) {
         if (tid[i]) {
             int err = pthread_join(tid[i], NULL);
             if (err) {
-                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
             }
             tid[i] = 0;
         }
@@ -598,12 +600,12 @@ int main(int argc, char **argv) {
                 break;
             case 't':
                 // legacy option - fall through
-                LogError("Legacy option. Use -W <num> to select the number of workers", MAXWORKERS);
+                LogError("Legacy option. Use -W <num> to select the number of workers");
             case 'W':
                 CheckArgLen(optarg, 16);
                 numWorkers = atoi(optarg);
-                if (numWorkers < 0 || numWorkers > MAXWORKERS) {
-                    LogError("Number of working threads out of range 1..%d", MAXWORKERS);
+                if (numWorkers < 0) {
+                    LogError("Invalid number of working threads: %d", numWorkers);
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -640,7 +642,11 @@ int main(int argc, char **argv) {
     pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
     if (!barrier) exit(255);
 
-    pthread_t tid[MAXWORKERS] = {0};
+    pthread_t *tid = calloc(numWorkers, sizeof(pthread_t));
+    if (!tid) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
     dbg_printf("Launch Workers\n");
     worker_param_t **workerList = LauchWorkers(tid, numWorkers, anon_src, anon_dst, barrier);
     if (!workerList) {
@@ -654,6 +660,9 @@ int main(int argc, char **argv) {
 
     WaitWorkersDone(tid, numWorkers);
     pthread_control_barrier_destroy(barrier);
+
+    free(tid);
+    free(workerList);
 
     return 0;
 }
