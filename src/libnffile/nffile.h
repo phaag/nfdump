@@ -178,19 +178,19 @@ typedef struct data_block_header_s {
  * if a file is read only writeto and block_header are NULL
  */
 typedef struct nffile_s {
-    fileHeaderV2_t *file_header;   // file header
-    int fd;                        // associated file descriptor
-    pthread_t worker[MAXWORKERS];  // nfread/nfwrite worker thread;
-    pthread_mutex_t wlock;         // writer lock
-#define FILE_IS_COMPAT16(n) (n->compat16)
-    size_t buff_size;
+    fileHeaderV2_t *file_header;  // file header
 
-    queue_t *processQueue;  // blocks ready to be processed. Connects consumer/producer threads
-
-    stat_record_t *stat_record;  // flow stat record
+    int fd;                      // associated file descriptor
     char *ident;                 // source identifier
     char *fileName;              // file name
+    size_t buff_size;            // buff_size, used in this file
+    uint32_t numWorkers;         // number of workers for this handle
     uint16_t compression_level;  // compression level, if available.
+    stat_record_t *stat_record;  // flow stat record
+
+    queue_t *processQueue;  // blocks ready to be processed. Connects consumer/producer threads
+    pthread_mutex_t wlock;  // writer lock
+    pthread_t worker[];     // nfread/nfwrite worker thread;
 } nffile_t;
 
 #define GetCursor(block) ((void *)(block) + sizeof(dataBlock_t))
@@ -254,8 +254,6 @@ void PrintGNUplotSumStat(nffile_t *nffile);
 int QueryFile(char *filename, int verbose);
 
 int GetStatRecord(char *filename, stat_record_t *stat_record);
-
-nffile_t *NewFile(void);
 
 void DisposeFile(nffile_t *nffile);
 

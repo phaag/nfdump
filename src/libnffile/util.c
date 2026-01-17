@@ -55,7 +55,7 @@
 
 /* Global vars */
 
-static unsigned verbose = 4;
+static unsigned verbose = 1;
 
 /* Function prototypes */
 static int check_number(char *s, size_t len);

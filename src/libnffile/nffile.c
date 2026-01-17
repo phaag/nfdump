@@ -143,6 +143,8 @@ static void joinWorkers(nffile_t *nffile);
 
 static void TerminateWorkers(nffile_t *nffile);
 
+static nffile_t *NewFile(uint32_t num_workers);
+
 static void FlushFile(nffile_t *nffile);
 
 static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2);
@@ -156,7 +158,6 @@ static queue_t *fileQueue = NULL;
 #define QueueSize 4
 
 static _Atomic int blocksInUse;
-static int allocated = 0;
 
 int Init_nffile(uint32_t workers, queue_t *fileList) {
     fileQueue = fileList;
@@ -676,27 +677,34 @@ static int WriteAppendix(nffile_t *nffile) {
 
 }  // End of WriteAppendix
 
-nffile_t *NewFile(void) {
+static nffile_t *NewFile(uint32_t num_workers) {
     int compression = 0;
     int encryption = 0;
 
+    dbg_printf("NewFile() %d workers\n", num_workers);
+    size_t alloc_size = sizeof(nffile_t) + num_workers * sizeof(pthread_t);
+
     // Create struct
-    nffile_t *nffile = calloc(1, sizeof(nffile_t));
+    nffile_t *nffile = calloc(1, alloc_size);
     if (!nffile) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
+    nffile->numWorkers = num_workers;
 
     // Init file header
     nffile->file_header = calloc(1, sizeof(fileHeaderV2_t));
     if (!nffile->file_header) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        free(nffile);
         return NULL;
     }
 
     nffile->stat_record = calloc(1, sizeof(stat_record_t));
     if (!nffile->stat_record) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        free(nffile);
+        free(nffile->file_header);
         return NULL;
     }
 
@@ -706,6 +714,9 @@ nffile_t *NewFile(void) {
     //
     nffile->processQueue = queue_init(QueueSize);
     if (!nffile->processQueue) {
+        free(nffile);
+        free(nffile->file_header);
+        free(nffile->stat_record);
         return NULL;
     }
     queue_close(nffile->processQueue);
@@ -718,14 +729,13 @@ nffile_t *NewFile(void) {
     nffile->fd = 0;
 
     nffile->stat_record->msecFirstSeen = 0x7fffffffffffffff;
-    allocated++;
 
     pthread_mutex_init(&nffile->wlock, NULL);
     return nffile;
 
 }  // End of NewFile
 
-static nffile_t *OpenFileStatic(const char *filename) {
+static nffile_t *OpenFileStatic(const char *filename, unsigned workerSlots) {
     struct stat stat_buf;
     int fd = 0;
 
@@ -749,7 +759,7 @@ static nffile_t *OpenFileStatic(const char *filename) {
     }
 
     // initialise and/or allocate new nffile handle
-    nffile_t *nffile = NewFile();
+    nffile_t *nffile = NewFile(workerSlots);
     if (nffile == NULL) {
         return NULL;
     }
@@ -824,7 +834,7 @@ static nffile_t *OpenFileStatic(const char *filename) {
 
 nffile_t *OpenFile(const char *filename) {
     dbg_printf("OpenFile: %s\n", filename);
-    nffile_t *nffile = OpenFileStatic(filename);  // Open the file
+    nffile_t *nffile = OpenFileStatic(filename, 1);  // Open the file
     if (!nffile) {
         return NULL;
     }
@@ -873,8 +883,12 @@ nffile_t *OpenNewFile(const char *filename, unsigned creator, unsigned compress,
         return NULL;
     }
 
+    unsigned compression = COMPRESSION_TYPE(compress);
+    // if file is not compressed, 2 workers are fine.
+    unsigned NumThreads = compression == 0 ? 2 : NumWorkers;
+
     // Allocate/Init nffile struct
-    nffile_t *nffile = NewFile();
+    nffile_t *nffile = NewFile(NumThreads);
     if (nffile == NULL) {
         return NULL;
     }
@@ -886,7 +900,7 @@ nffile_t *OpenNewFile(const char *filename, unsigned creator, unsigned compress,
                                             .nfdversion = NFDVERSION,
                                             .creator = creator,
                                             .created = time(NULL),
-                                            .compression = COMPRESSION_TYPE(compress),
+                                            .compression = compression,
                                             .encryption = encryption};
 
     nffile->compression_level = COMPRESSION_LEVEL(compress);
@@ -903,8 +917,6 @@ nffile_t *OpenNewFile(const char *filename, unsigned creator, unsigned compress,
     // kick off nfwriter
     queue_open(nffile->processQueue);
 
-    // if file is not compressed, 2 workers are fine.
-    unsigned NumThreads = nffile->file_header->compression == 0 ? 2 : NumWorkers;
     dbg_printf("OpenNewFile: %s, compression: %d, level: %d, workers: %u\n", filename, nffile->file_header->compression, nffile->compression_level,
                NumThreads);
     for (int i = 0; i < (int)NumThreads; i++) {
@@ -926,7 +938,7 @@ nffile_t *AppendFile(const char *filename) {
     nffile_t *nffile;
 
     // try to open the existing file
-    nffile = OpenFileStatic(filename);
+    nffile = OpenFileStatic(filename, NumWorkers);
     if (!nffile) return NULL;
 
     // file is valid - re-open the file mode RDWR
@@ -1087,7 +1099,6 @@ void DisposeFile(nffile_t *nffile) {
     if (nffile->stat_record) free(nffile->stat_record);
     if (nffile->ident) free(nffile->ident);
     if (nffile->fileName) free(nffile->fileName);
-    allocated--;
 
     queue_free(nffile->processQueue);
     free(nffile);
@@ -1107,7 +1118,6 @@ void DeleteFile(nffile_t *nffile) {
 
 }  // End of DeleteFile
 
-void report(void) { printf("Allocated: %d, blocks: %d\n", allocated, blocksInUse); }
 nffile_t *GetNextFile(void) {
     if (!fileQueue) {
         LogError("GetNextFile() no file queue to process");
@@ -1401,13 +1411,15 @@ static void *nfwriter(void *arg) {
 static void joinWorkers(nffile_t *nffile) {
     pthread_cond_broadcast(&(nffile->processQueue->cond));
 
-    for (int i = 0; nffile->worker[i] != 0 && i < MAXWORKERS; i++) {
-        dbg_printf("Join worker %d:%p for %s\n", i, (void *)nffile->worker[i], nffile->fileName);
-        int err = pthread_join(nffile->worker[i], NULL);
-        if (err && err != ESRCH) {
-            LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+    for (int i = 0; i < (int)nffile->numWorkers; i++) {
+        if (nffile->worker[i]) {
+            dbg_printf("Join worker %d:%p for %s\n", i, (void *)nffile->worker[i], nffile->fileName);
+            int err = pthread_join(nffile->worker[i], NULL);
+            if (err && err != ESRCH) {
+                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+            }
+            nffile->worker[i] = 0;
         }
-        nffile->worker[i] = 0;
     }
 
 }  // End of joinWorkers
@@ -1436,7 +1448,7 @@ int CheckIdent(const char *s) {
 }  // End of CheckIdent
 
 int ChangeIdent(char *filename, char *Ident) {
-    nffile_t *nffile = OpenFileStatic(filename);
+    nffile_t *nffile = OpenFileStatic(filename, 0);
     if (!nffile) {
         return 0;
     }
@@ -1696,7 +1708,7 @@ int QueryFile(char *filename, int verbose) {
 #endif
 
     // first check ok - abstract nffile level
-    nffile_t *nffile = NewFile();
+    nffile_t *nffile = NewFile(1);
     if (!nffile) {
         close(fd);
         return 0;
@@ -2028,7 +2040,7 @@ static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2) {
 
 // simple interface to get a stat record
 int GetStatRecord(char *filename, stat_record_t *stat_record) {
-    nffile_t *nffile = OpenFileStatic(filename);
+    nffile_t *nffile = OpenFileStatic(filename, 0);
     if (!nffile) {
         return 0;
     }
