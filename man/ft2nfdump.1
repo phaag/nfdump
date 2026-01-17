@@ -35,9 +35,7 @@
 .Nm 
 .Op Fl r Ar ftfile
 .Fl w Ar nffile
-.Op Fl Ar z
-.Op Fl Ar j
-.Op Fl Ar y
+.Op Fl z=<compress>
 .Op Fl E
 .Op Fl c Ar num
 .Nm
@@ -61,12 +59,17 @@ expects the data at
 .It Fl w Ar nffile
 Writes netflow data to
 .Ar nffile
-.It Fl z
-Compress flows using LZO1X-1 compression. Fastest method
-.It Fl y
-Compress flows using LZ4 compression. Default if no other option is given.
-.It Fl j
-Compress flows using bz2 compression. Slowest but best compression.
+.It Fl z=lzo
+Compress flow files with LZO1X-1 compression. Fastest compression.
+.It Fl z=bz2
+Compress flow files with bz2 compression. Slow but most efficient. It is not recommended 
+to use bz2 in a real time capturing.
+.It Fl z=lz4[:level]
+Compress flow files with LZ4 compression. Fast and efficient. Optional level should be between 1..10
+Changing the level results in smaller files but uses up more time to compress. 
+.It Fl z=zstd[:level]
+Compress flow files with ZSTD compression. Fast and efficient. Optional level should be between 1..10
+Changing the level results in smaller files but uses up more time to compress. 
 .It Fl c Ar num
 Limit the number of flows to the first
 .Ar num

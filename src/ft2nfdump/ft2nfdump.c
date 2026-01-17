@@ -285,7 +285,7 @@ int main(int argc, char **argv) {
     struct ftio ftio;
     struct stat statbuf;
     uint32_t limitflows;
-    int i, extended, ret, fd, compress;
+    int extended, ret, fd, compress;
 
     /* init fterr */
     fterr_setid(argv[0]);
@@ -294,11 +294,12 @@ int main(int argc, char **argv) {
     limitflows = 0;
     char *ftfile = NULL;
     char *wfile = NULL;
-    compress = LZ4_COMPRESSED;
+    compress = NOT_COMPRESSED;
 
-    while ((i = getopt(argc, argv, "jyzEVc:hr:w:?")) != -1) switch (i) {
+    int c;
+    while ((c = getopt(argc, argv, "z::jyzEVc:hr:w:")) != EOF) {
+        switch (c) {
             case 'h': /* help */
-            case '?':
                 usage(argv[0]);
                 exit(0);
                 break;
@@ -337,12 +338,14 @@ int main(int argc, char **argv) {
                 }
                 if (optarg == NULL) {
                     compress = LZO_COMPRESSED;
+                    LogInfo("Legacy option -z defaults to -z=lzo. Use -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                 } else {
-                    compress = ParseCompression(optarg);
-                }
-                if (compress == -1) {
-                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
-                    exit(EXIT_FAILURE);
+                    int ret = ParseCompression(optarg);
+                    if (ret == -1) {
+                        LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
+                        exit(EXIT_FAILURE);
+                    }
+                    compress = (unsigned)ret;
                 }
                 break;
             case 'r':
@@ -353,6 +356,7 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'w':
+                CheckArgLen(optarg, MAXPATHLEN);
                 wfile = optarg;
                 break;
 
@@ -362,7 +366,7 @@ int main(int argc, char **argv) {
                 break;
 
         } /* switch */
-    // End while
+    }  // End while
 
     if (argc - optind) fterr_errx(1, "Extra arguments starting with %s.", argv[optind]);
 
