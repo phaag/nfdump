@@ -256,7 +256,7 @@ int SaveMaxMind(char *fileName) {
     StoreASV4tree(nffile);
     StoreASV6tree(nffile);
     StoreASorgtree(nffile);
-    int ret = FinaliseFile(nffile);
+    int ret = FlushFile(nffile);
     DisposeFile(nffile);
 
     return ret;

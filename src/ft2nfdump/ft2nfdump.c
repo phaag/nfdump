@@ -275,7 +275,7 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
 
     SetIdent(nffile, ident);
     FlushBlock(nffile, dataBlock);
-    FinaliseFile(nffile);
+    FlushFile(nffile);
     DisposeFile(nffile);
     return 0;
 

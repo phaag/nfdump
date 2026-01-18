@@ -330,7 +330,7 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         if (dataBlock == NULL) {
             // nffile_w is NULL for 1st entry in while loop
             if (nffile_w) {
-                FinaliseFile(nffile_w);
+                FlushFile(nffile_w);
                 DisposeFile(nffile_w);
                 if (wfile == NULL && rename(outFile, cfile) < 0) {
                     LogError("rename() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));

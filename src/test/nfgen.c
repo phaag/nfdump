@@ -603,7 +603,7 @@ int main(int argc, char **argv) {
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     FlushBlock(nffile, dataBlock);
-    FinaliseFile(nffile);
+    FlushFile(nffile);
     DisposeFile(nffile);
     return 0;
 }

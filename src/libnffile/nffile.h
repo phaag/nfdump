@@ -261,7 +261,7 @@ void DeleteFile(nffile_t *nffile);
 
 void CloseFile(nffile_t *nffile);
 
-int FinaliseFile(nffile_t *nffile);
+int FlushFile(nffile_t *nffile);
 
 int RenameAppend(const char *oldName, const char *newName);
 

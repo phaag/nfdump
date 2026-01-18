@@ -309,7 +309,7 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
         fs->nffile->stat_record->msecFirstSeen = 1000LL * (uint64_t)timestamp;
         fs->nffile->stat_record->msecLastSeen = 1000LL * (uint64_t)(timestamp + flowParam->t_win);
     }
-    FinaliseFile(fs->nffile);
+    FlushFile(fs->nffile);
     CloseFile(fs->nffile);
 
     // if rename fails, we are in big trouble, as we need to get rid of the old .current file

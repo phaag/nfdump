@@ -144,8 +144,6 @@ static void TerminateWorkers(nffile_t *nffile);
 
 static nffile_t *NewFile(uint32_t num_workers);
 
-static void FlushFile(nffile_t *nffile);
-
 static int QueryFileV1(int fd, fileHeaderV2_t *fileHeaderV2);
 
 static queue_t *fileQueue = NULL;
@@ -1008,7 +1006,7 @@ int RenameAppend(const char *oldName, const char *newName) {
         SumStatRecords(nffile_w->stat_record, nffile_r->stat_record);
         DisposeFile(nffile_r);
 
-        FinaliseFile(nffile_w);
+        FlushFile(nffile_w);
         DisposeFile(nffile_w);
 
         return unlink(oldName);
@@ -1022,8 +1020,8 @@ int RenameAppend(const char *oldName, const char *newName) {
 
 }  // End of RenameAppend
 
-// let writers flush pending blocks to disk
-static void FlushFile(nffile_t *nffile) {
+// close writing file
+int FlushFile(nffile_t *nffile) {
     // done - close queue
     queue_close(nffile->processQueue);
     // wait for queue to be empty
@@ -1034,12 +1032,6 @@ static void FlushFile(nffile_t *nffile) {
 
     fsync(nffile->fd);
 
-}  // End of FlushFile
-
-// close writing file
-int FinaliseFile(nffile_t *nffile) {
-    FlushFile(nffile);
-
     if (!WriteAppendix(nffile)) {
         LogError("Failed to write appendix");
     }
@@ -1047,34 +1039,40 @@ int FinaliseFile(nffile_t *nffile) {
     if (lseek(nffile->fd, 0, SEEK_SET) < 0) {
         LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         close(nffile->fd);
+        nffile->fd = 0;
         return 0;
     }
 
     if (write(nffile->fd, (void *)nffile->file_header, sizeof(fileHeaderV2_t)) <= 0) {
         LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        close(nffile->fd);
+        nffile->fd = 0;
         return 0;
     }
 
     if (lseek(nffile->fd, 0, SEEK_END) < 0) {
         LogError("lseek() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         close(nffile->fd);
+        nffile->fd = 0;
         return 0;
     }
 
     return 1;
 
-} /* End of FinaliseFile */
+} /* End of FlushFile */
 
 // close reading file
 void CloseFile(nffile_t *nffile) {
-    if (!nffile || nffile->fd == 0) return;
+    if (!nffile) return;
 
-    dbg_printf("Terminate nffile: %s\n", nffile->fileName);
-    // make sure all workers are gone
-    TerminateWorkers(nffile);
+    if (nffile->fd) {
+        dbg_printf("Terminate nffile: %s\n", nffile->fileName);
+        // make sure all workers are gone
+        TerminateWorkers(nffile);
 
-    close(nffile->fd);
-    nffile->fd = 0;
+        close(nffile->fd);
+        nffile->fd = 0;
+    }
 
     // clean queue
     while (queue_length(nffile->processQueue)) {
@@ -1565,7 +1563,7 @@ void ModifyCompressFile(unsigned compress) {
         }
 
         printf("File %s compression changed\n", nffile_r->fileName);
-        if (!FinaliseFile(nffile_w)) {
+        if (!FlushFile(nffile_w)) {
             CloseFile(nffile_w);
             unlink(outfile);
         } else {

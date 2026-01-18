@@ -204,7 +204,7 @@ int SaveTorTree(char *fileName) {
     // flush current datablock
     FlushBlock(nffile, dataBlock);
 
-    int ret = FinaliseFile(nffile);
+    int ret = FlushFile(nffile);
     DisposeFile(nffile);
 
     return ret;

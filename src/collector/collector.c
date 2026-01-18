@@ -446,7 +446,7 @@ static int RunCycle(time_t t_start, const char *time_extension, const collector_
         }
 
         // Close file
-        FinaliseFile(nffile);
+        FlushFile(nffile);
         CloseFile(nffile);
 
         // if rename fails, we are in big trouble, as we need to get rid of the old .current
