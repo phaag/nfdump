@@ -714,7 +714,6 @@ static nffile_t *NewFile(uint32_t num_workers) {
         free(nffile->stat_record);
         return NULL;
     }
-    queue_close(nffile->processQueue);
 
     nffile->file_header->magic = MAGIC;
     nffile->file_header->version = LAYOUT_VERSION_2;
@@ -837,7 +836,6 @@ nffile_t *OpenFile(const char *filename) {
     // kick off nfreader
     // there is only 1 reader thread -> slot 0
     pthread_t tid;
-    queue_open(nffile->processQueue);
     int err = pthread_create(&tid, NULL, nfreader, (void *)nffile);
     if (err) {
         nffile->worker[0] = 0;
@@ -909,11 +907,9 @@ nffile_t *OpenNewFile(const char *filename, unsigned creator, unsigned compress,
         return NULL;
     }
 
-    // kick off nfwriter
-    queue_open(nffile->processQueue);
-
     dbg_printf("OpenNewFile: %s, compression: %d, level: %d, workers: %u\n", filename, nffile->file_header->compression, nffile->compression_level,
                NumThreads);
+    // kick off nfwriter
     for (int i = 0; i < (int)NumThreads; i++) {
         pthread_t tid;
         int err = pthread_create(&tid, NULL, nfwriter, (void *)nffile);
@@ -969,8 +965,6 @@ nffile_t *AppendFile(const char *filename) {
     }
 
     // kick off NumWorkers nfwriter threads
-    queue_open(nffile->processQueue);
-
     unsigned NumThreads = nffile->file_header->compression == 0 ? 1 : NumWorkers;
     for (int i = 0; i < (int)NumThreads; i++) {
         pthread_t tid;
@@ -1024,10 +1018,11 @@ int RenameAppend(const char *oldName, const char *newName) {
 int FlushFile(nffile_t *nffile) {
     // done - close queue
     queue_close(nffile->processQueue);
+
     // wait for queue to be empty
     queue_sync(nffile->processQueue);
-    // writers terminate, on queue closed and empty
 
+    // writers terminate, on queue closed and empty
     joinWorkers(nffile);
 
     fsync(nffile->fd);
@@ -1074,11 +1069,8 @@ void CloseFile(nffile_t *nffile) {
         nffile->fd = 0;
     }
 
-    // clean queue
-    while (queue_length(nffile->processQueue)) {
-        dataBlock_t *block_header = queue_pop(nffile->processQueue);
-        FreeDataBlock(block_header);
-    }
+    // Free all pending blocks even if queue was aborted
+    queue_clear(nffile->processQueue, (void (*)(void *))FreeDataBlock);
 
     nffile->file_header->NumBlocks = 0;
 }  // End of CloseFile
@@ -1404,8 +1396,6 @@ static void *nfwriter(void *arg) {
 }  // End of nfwriter
 
 static void joinWorkers(nffile_t *nffile) {
-    pthread_cond_broadcast(&(nffile->processQueue->cond));
-
     for (int i = 0; i < (int)nffile->numWorkers; i++) {
         if (nffile->worker[i]) {
             dbg_printf("Join worker %d:%p for %s\n", i, (void *)nffile->worker[i], nffile->fileName);

@@ -253,7 +253,10 @@ void __attribute__((noreturn)) * pcap_packet_thread(void *args) {
     int DoPacketDump = packetParam->bufferQueue != NULL;
 
     packetBuffer_t *packetBuffer = NULL;
-    if (DoPacketDump) packetBuffer = queue_pop(packetParam->bufferQueue);
+    if (DoPacketDump) {
+        packetBuffer = queue_pop(packetParam->bufferQueue);
+        if (packetBuffer == QUEUE_CLOSED) done = 1;
+    }
 
     while (!done) {
         struct pcap_pkthdr *hdr;
@@ -273,6 +276,10 @@ void __attribute__((noreturn)) * pcap_packet_thread(void *args) {
                         packetBuffer->timeStamp = t_start;
                         queue_push(packetParam->flushQueue, packetBuffer);
                         packetBuffer = queue_pop(packetParam->bufferQueue);
+                        if (packetBuffer == QUEUE_CLOSED) {
+                            done = 1;
+                            continue;
+                        }
                     }
                     // Rotate flow file
                     ReportStat(packetParam);
@@ -288,6 +295,10 @@ void __attribute__((noreturn)) * pcap_packet_thread(void *args) {
                         dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);
                         queue_push(packetParam->flushQueue, packetBuffer);
                         packetBuffer = queue_pop(packetParam->bufferQueue);
+                        if (packetBuffer == QUEUE_CLOSED) {
+                            done = 1;
+                            continue;
+                        }
                     }
                     PcapDump(packetBuffer, hdr, data);
                 }
@@ -304,6 +315,10 @@ void __attribute__((noreturn)) * pcap_packet_thread(void *args) {
                         packetBuffer->timeStamp = t_start;
                         queue_push(packetParam->flushQueue, packetBuffer);
                         packetBuffer = queue_pop(packetParam->bufferQueue);
+                        if (packetBuffer == QUEUE_CLOSED) {
+                            done = 1;
+                            continue;
+                        }
                     }
                     ReportStat(packetParam);
                     Push_SyncNode(packetParam->NodeList, t_start);
@@ -331,7 +346,7 @@ void __attribute__((noreturn)) * pcap_packet_thread(void *args) {
     }
 
     dbg_printf("Done capture loop - signal close\n");
-    if (DoPacketDump) {
+    if (DoPacketDump && packetBuffer != QUEUE_CLOSED) {
         packetBuffer->timeStamp = t_start;
         queue_push(packetParam->flushQueue, packetBuffer);
         queue_close(packetParam->flushQueue);

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2025, Peter Haag
+ *  Copyright (c) 2025-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -46,37 +46,26 @@
 #include "util.h"
 
 queue_t *queue_init(size_t length) {
-    queue_t *queue;
-
     if (!(length && ((length & (length - 1)) == 0))) {
         LogError("Queue length %zu not a power of 2", length);
         return NULL;
     }
 
-    queue = calloc(1, sizeof(queue_t) + length * sizeof(element_t));
-    if (!queue) {
-        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-    int err = pthread_mutex_init(&queue->mutex, NULL);
-    if (err != 0) {
-        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
-        return NULL;
-    }
-    err = pthread_cond_init(&queue->cond, NULL);
-    if (err != 0) {
-        LogError("pthread_cond_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+    queue_t *q = calloc(1, sizeof(queue_t) + length * sizeof(void *));
+    if (!q) {
+        LogError("calloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
-    queue->producers = 1;
-    queue->length = length;
-    queue->mask = length - 1;
-    atomic_init(&queue->c_wait, 0);
-    atomic_init(&queue->p_wait, 0);
+    pthread_mutex_init(&q->mutex, NULL);
+    pthread_cond_init(&q->cond_not_empty, NULL);
+    pthread_cond_init(&q->cond_not_full, NULL);
 
-    return queue;
+    q->length = length;
+    q->mask = length - 1;
+    q->producers = 1;
 
+    return q;
 }  // End of Queue_init
 
 void queue_producers(queue_t *queue, unsigned producers) {
@@ -84,28 +73,32 @@ void queue_producers(queue_t *queue, unsigned producers) {
     queue->producers = producers;
 }  // End of queue_producers
 
-void queue_free(queue_t *queue) {
-    queue_sync(queue);
-    free(queue);
+void queue_free(queue_t *q) {
+    if (!q) return;
 
-}  // End of Queue_free
+    // Free any remaining elements (safe even after abort)
+    queue_clear(q, free);
 
-void queue_open(queue_t *queue) {
-    pthread_mutex_lock(&(queue->mutex));
-    queue->closed = 0;
-    pthread_mutex_unlock(&(queue->mutex));
+    // Destroy synchronization primitives
+    pthread_mutex_destroy(&q->mutex);
+    pthread_cond_destroy(&q->cond_not_empty);
+    pthread_cond_destroy(&q->cond_not_full);
 
-}  // End of queue_open
+    // Free queue memory
+    free(q);
+}  // End of queue_free
 
-void queue_close(queue_t *queue) {
-    pthread_mutex_lock(&(queue->mutex));
-    queue->producers--;
-    if (queue->producers <= 0) queue->closed = 1;
-    if (queue->c_wait) {
-        pthread_cond_broadcast(&(queue->cond));
+void queue_close(queue_t *q) {
+    pthread_mutex_lock(&q->mutex);
+
+    q->producers--;
+    if (q->producers == 0) {
+        q->closed = 1;
+        pthread_cond_broadcast(&q->cond_not_empty);
+        pthread_cond_broadcast(&q->cond_not_full);
     }
-    pthread_mutex_unlock(&(queue->mutex));
 
+    pthread_mutex_unlock(&q->mutex);
 }  // End of queue_close
 
 size_t queue_length(queue_t *queue) {
@@ -127,98 +120,214 @@ queueStat_t queue_stat(queue_t *queue) {
 }  // End of queue_stat
 
 // block until queue is empty
-void queue_sync(queue_t *queue) {
-    pthread_mutex_lock(&(queue->mutex));
-    while (1) {
-        if (queue->num_elements == 0) {
-            // queue is empty
-            if (queue->c_wait) {
-                // signal waiting threads. If queue is closed, they quit too
-                pthread_cond_broadcast(&(queue->cond));
-            }
-            pthread_mutex_unlock(&(queue->mutex));
-            return;
-        } else {
-            queue->p_wait++;
-            pthread_cond_wait(&(queue->cond), &(queue->mutex));
-            queue->p_wait--;
-        }
-    }
+void queue_sync(queue_t *q) {
+    pthread_mutex_lock(&q->mutex);
 
-    /*NOTREACHED*/
+    while (q->num_elements > 0) pthread_cond_wait(&q->cond_not_full, &q->mutex);
+
+    pthread_mutex_unlock(&q->mutex);
+
+    // UNREACHED
 
 }  // End of queue_wait
 
-void *queue_push(queue_t *queue, void *data) {
-    pthread_mutex_lock(&(queue->mutex));
-    while (1) {
-        if (queue->closed) {
-            pthread_mutex_unlock(&(queue->mutex));
-            return QUEUE_CLOSED;
-        }
-        if (queue->num_elements < queue->length) {
-            // push element into queue
-            unsigned index = queue->next_free;
-            queue->element[index] = data;
-            queue->num_elements++;
-            queue->next_free = (queue->next_free + 1) & queue->mask;
+void *queue_push(queue_t *q, void *data) {
+    pthread_mutex_lock(&q->mutex);
 
-            if (queue->stat.maxUsed < queue->num_elements) queue->stat.maxUsed = queue->num_elements;
-
-            // if consumers are waiting, signal new data
-            if (atomic_load(&queue->c_wait)) {
-                pthread_cond_signal(&(queue->cond));
-            }
-            pthread_mutex_unlock(&(queue->mutex));
-            return NULL;
-        } else {
-            // queue is full - wait until a slot becomes available
-            queue->p_wait++;
-            pthread_cond_wait(&(queue->cond), &(queue->mutex));
-            queue->p_wait--;
-        }
+    if (q->aborted) {
+        pthread_mutex_unlock(&q->mutex);
+        return QUEUE_CLOSED;
     }
 
-    /*NOTREACHED*/
+    while (1) {
+        if (q->closed) {
+            pthread_mutex_unlock(&q->mutex);
+            return QUEUE_CLOSED;
+        }
+
+        if (q->num_elements < q->length) {
+            unsigned idx = q->next_free;
+            q->element[idx] = data;
+            q->next_free = (idx + 1) & q->mask;
+            q->num_elements++;
+
+            // if consumers are waiting, signal new data
+            if (q->c_wait > 0) pthread_cond_signal(&q->cond_not_empty);
+
+            pthread_mutex_unlock(&q->mutex);
+            return NULL;
+        }
+
+        // queue full
+        q->p_wait++;
+        pthread_cond_wait(&q->cond_not_full, &q->mutex);
+        q->p_wait--;
+    }
+
+    // NOTREACHED
 
 }  // End of queue_push
 
-void *queue_pop(queue_t *queue) {
-    pthread_mutex_lock(&(queue->mutex));
+void *queue_try_push(queue_t *q, void *data) {
+    pthread_mutex_lock(&q->mutex);
+
+    if (q->aborted) {
+        pthread_mutex_unlock(&q->mutex);
+        return QUEUE_CLOSED;
+    }
+
+    if (q->closed) {
+        pthread_mutex_unlock(&q->mutex);
+        return QUEUE_CLOSED;
+    }
+
+    if (q->num_elements == q->length) {
+        pthread_mutex_unlock(&q->mutex);
+        return QUEUE_FULL;
+    }
+
+    unsigned idx = q->next_free;
+    q->element[idx] = data;
+    q->next_free = (idx + 1) & q->mask;
+    q->num_elements++;
+
+    if (q->c_wait > 0) pthread_cond_signal(&q->cond_not_empty);
+
+    pthread_mutex_unlock(&q->mutex);
+    return NULL;
+}  // End of queue_try_push
+
+void *queue_pop(queue_t *q) {
+    pthread_mutex_lock(&q->mutex);
+
+    if (q->aborted) {
+        pthread_mutex_unlock(&q->mutex);
+        return QUEUE_CLOSED;
+    }
+
     while (1) {
-        if (queue->closed && queue->num_elements == 0) {
-            pthread_mutex_unlock(&(queue->mutex));
+        if (q->num_elements > 0) {
+            unsigned idx = q->next_avail;
+            void *data = q->element[idx];
+            q->next_avail = (idx + 1) & q->mask;
+            q->num_elements--;
+
+            pthread_cond_signal(&q->cond_not_full);
+
+            pthread_mutex_unlock(&q->mutex);
+            return data;
+        }
+
+        if (q->closed) {
+            pthread_mutex_unlock(&q->mutex);
             return QUEUE_CLOSED;
         }
 
-        if (queue->num_elements > 0) {
-            // get next element to be processed
-            unsigned index = queue->next_avail;
-            void *data = queue->element[index];
-            queue->num_elements--;
-            queue->next_avail = (queue->next_avail + 1) & queue->mask;
-
-            // if a producer is waiting, signal the new free slot
-            if (queue->p_wait) {
-                pthread_cond_broadcast(&(queue->cond));
-            }
-            // if the queue was closed, signal all waiting consumers
-            if (queue->closed && queue->c_wait) {
-                pthread_cond_broadcast(&(queue->cond));
-            }
-            pthread_mutex_unlock(&(queue->mutex));
-            return data;
-        } else {
-            // queue is empty - wait for next available element
-            atomic_fetch_add(&queue->c_wait, 1);
-            pthread_cond_wait(&(queue->cond), &(queue->mutex));
-            atomic_fetch_sub(&queue->c_wait, 1);
-        }
+        // queue empty
+        q->c_wait++;
+        pthread_cond_wait(&q->cond_not_empty, &q->mutex);
+        q->c_wait--;
     }
 
-    /*NOTREACHED*/
+    // NOTREACHED
 
 }  // End of queue_pop
+
+void *queue_try_pop(queue_t *q) {
+    pthread_mutex_lock(&q->mutex);
+
+    if (q->aborted) {
+        pthread_mutex_unlock(&q->mutex);
+        return QUEUE_CLOSED;
+    }
+
+    if (q->num_elements == 0) {
+        if (q->closed) {
+            pthread_mutex_unlock(&q->mutex);
+            return QUEUE_CLOSED;
+        }
+        pthread_mutex_unlock(&q->mutex);
+        return QUEUE_EMPTY;
+    }
+
+    unsigned idx = q->next_avail;
+    void *data = q->element[idx];
+    q->next_avail = (idx + 1) & q->mask;
+    q->num_elements--;
+
+    pthread_cond_signal(&q->cond_not_full);
+
+    pthread_mutex_unlock(&q->mutex);
+    return data;
+}  // End of queue_try_pop
+
+void *queue_pop_timed(queue_t *q, const struct timespec *abstime) {
+    pthread_mutex_lock(&q->mutex);
+
+    while (1) {
+        if (q->num_elements > 0) {
+            unsigned idx = q->next_avail;
+            void *data = q->element[idx];
+            q->next_avail = (idx + 1) & q->mask;
+            q->num_elements--;
+
+            if (q->p_wait > 0) pthread_cond_signal(&q->cond_not_full);
+
+            pthread_mutex_unlock(&q->mutex);
+            return data;
+        }
+
+        if (q->closed) {
+            pthread_mutex_unlock(&q->mutex);
+            return QUEUE_CLOSED;
+        }
+
+        q->c_wait++;
+        int rc = pthread_cond_timedwait(&q->cond_not_empty, &q->mutex, abstime);
+        q->c_wait--;
+
+        if (rc == ETIMEDOUT) {
+            pthread_mutex_unlock(&q->mutex);
+            return QUEUE_TIMEOUT;
+        }
+    }
+}  // End of queue_pop_timed
+
+void queue_abort(queue_t *q) {
+    pthread_mutex_lock(&q->mutex);
+
+    q->aborted = 1;
+    q->closed = 1;     // ensure all threads exit
+    q->producers = 0;  // no more producers
+
+    // wake everyone to leave queue
+    pthread_cond_broadcast(&q->cond_not_empty);
+    pthread_cond_broadcast(&q->cond_not_full);
+
+    pthread_mutex_unlock(&q->mutex);
+}  // End of queue_abort
+
+// Clears the queue and returns the number of cleared elements.
+// The caller receives each element via the callback.
+size_t queue_clear(queue_t *q, void (*free_fn)(void *)) {
+    pthread_mutex_lock(&q->mutex);
+
+    size_t count = q->num_elements;
+
+    for (size_t i = 0; i < count; i++) {
+        unsigned idx = (q->next_avail + i) & q->mask;
+        void *elem = q->element[idx];
+        if (elem && free_fn) free_fn(elem);
+    }
+
+    // Reset queue state
+    q->next_avail = 0;
+    q->next_free = 0;
+    q->num_elements = 0;
+
+    pthread_mutex_unlock(&q->mutex);
+    return count;
+}  // End of queue_clear
 
 /*
 static void *producer(void *arg) {

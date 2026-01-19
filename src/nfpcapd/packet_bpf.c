@@ -252,7 +252,10 @@ void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
     int DoPacketDump = packetParam->bufferQueue != NULL;
 
     packetBuffer_t *packetBuffer = NULL;
-    if (DoPacketDump) packetBuffer = queue_pop(packetParam->bufferQueue);
+    if (DoPacketDump) {
+        packetBuffer = queue_pop(packetParam->bufferQueue);
+        if (packetBuffer == QUEUE_CLOSED) done = 1;
+    }
 
     struct timeval timeout;
     fd_set mask;
@@ -280,6 +283,10 @@ void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
                     packetBuffer->timeStamp = t_start;
                     queue_push(packetParam->flushQueue, packetBuffer);
                     packetBuffer = queue_pop(packetParam->bufferQueue);
+                    if (packetBuffer == QUEUE_CLOSED) {
+                        done = 1;
+                        continue;
+                    }
                 }
                 // Rotate flow file
                 ReportStat(packetParam);
@@ -318,6 +325,10 @@ void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
                     packetBuffer->timeStamp = t_start;
                     queue_push(packetParam->flushQueue, packetBuffer);
                     packetBuffer = queue_pop(packetParam->bufferQueue);
+                    if (packetBuffer == QUEUE_CLOSED) {
+                        done = 1;
+                        continue;
+                    }
                 }
                 // Rotate flow file
                 ReportStat(packetParam);
@@ -340,6 +351,10 @@ void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
                     dbg_printf("packet_thread() flush buffer - size %zu\n", packetBuffer->bufferSize);
                     queue_push(packetParam->flushQueue, packetBuffer);
                     packetBuffer = queue_pop(packetParam->bufferQueue);
+                    if (packetBuffer == QUEUE_CLOSED) {
+                        done = 1;
+                        continue;
+                    }
                 }
                 PcapDump(packetBuffer, hdr, data);
             }
@@ -351,7 +366,7 @@ void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
 
     // flush buffer
     dbg_printf("Done capture loop - signal close\n");
-    if (DoPacketDump) {
+    if (DoPacketDump && packetBuffer != QUEUE_CLOSED) {
         packetBuffer->timeStamp = t_start;
         queue_push(packetParam->flushQueue, packetBuffer);
         queue_close(packetParam->flushQueue);

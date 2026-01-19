@@ -411,7 +411,12 @@ static void *prepareThread(void *arg) {
     }  // while(!done)
 
     dbg_printf("prepareThread done. blocks processed: %u, skipped: %u\n", processedBlocks, skippedBlocks);
-    queue_close(prepareQueue);
+    if (abortProcessing) {
+        if (nffile) queue_abort(nffile->processQueue);
+        queue_abort(prepareQueue);
+    } else {
+        queue_close(prepareQueue);
+    }
     DisposeFile(nffile);
 
     prepareArgs->processedBlocks = processedBlocks;
@@ -552,7 +557,11 @@ static void *filterThread(void *arg) {
         }
     }
 
-    queue_close(processQueue);
+    if (abortProcessing)
+        queue_abort(processQueue);
+    else
+        queue_close(processQueue);
+
     dbg_printf("FilterThread %d done. blocks: %u records: %" PRIu64 " \n", self, numBlocks, processedRecords);
 
     free(recordHandle);
