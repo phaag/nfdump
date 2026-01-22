@@ -647,37 +647,43 @@ char *DurationString(uint64_t duration) {
     return s;
 }  // End of DurationString
 
-void InitStringlist(stringlist_t *list, uint32_t capacity) {
-    list->list = NULL;
-    list->num_strings = 0;
-    list->capacity = capacity;
-
-}  // End of InitStringlist
-
-void InsertString(stringlist_t *list, char *string) {
-    if (!list->list) {
-        // default if not yet initialised
-        if (list->capacity == 0) list->capacity = 8;
-        list->num_strings = 0;
-        list->list = (char **)malloc(list->capacity * sizeof(char *));
-        if (!list->list) {
-            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            exit(250);
-        }
+stringlist_t *NewStringlist(stringlist_t *list, uint32_t capacity) {
+    stringlist_t *sl = calloc(1, sizeof(stringlist_t));
+    if (!sl) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
     }
-    list->list[list->num_strings++] = string ? strdup(string) : NULL;
+    return sl;
+}  // End of NewStringlist
 
-    // if all slots used, double capacity
-    if (list->num_strings == list->capacity) {
-        list->capacity += list->capacity;
-        list->list = (char **)realloc(list->list, list->capacity * sizeof(char *));
-        if (!list->list) {
+void InsertString(stringlist_t *sl, const char *s) {
+    if (sl->num_strings == sl->capacity) {
+        sl->capacity = sl->capacity ? sl->capacity * 2 : 16;
+        sl->list = (char **)realloc(sl->list, sl->capacity * sizeof(char *));
+        if (!sl->list) {
             LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            exit(250);
+            exit(EXIT_FAILURE);
         }
     }
 
-}  // End of InsertString
+    if (s) {
+        sl->list[sl->num_strings++] = strdup(s);
+    } else {
+        /* allow explicit NULL sentinel */
+        sl->list[sl->num_strings++] = NULL;
+    }
+}  // // End of InsertString
+
+void ClearStringList(stringlist_t *sl) {
+    if (sl->list) free(sl->list);
+    memset(sl, 0, sizeof(stringlist_t));
+}  // End of ClearStringList
+
+void FreeStringList(stringlist_t *sl) {
+    if (sl == NULL) return;
+    ClearStringList(sl);
+    free(sl);
+}  // End of ClearStringList
 
 void format_number(uint64_t num, numStr s, int plain, int fixed_width) {
     double f = num;

@@ -125,9 +125,13 @@ void LogInfo(char *format, ...);
 
 void LogVerbose(char *format, ...);
 
-void InitStringlist(stringlist_t *list, uint32_t capacity);
+stringlist_t *NewStringlist(stringlist_t *list, uint32_t capacity);
 
-void InsertString(stringlist_t *list, char *string);
+void ClearStringList(stringlist_t *sl);
+
+void FreeStringList(stringlist_t *sl);
+
+void InsertString(stringlist_t *sl, const char *s);
 
 timeWindow_t *ScanTimeFrame(char *tstring);
 

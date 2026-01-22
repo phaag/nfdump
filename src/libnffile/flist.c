@@ -476,6 +476,7 @@ static int GetFileList(stringlist_t *source_dirs, flist_t *flist) {
                 s[MAXPATHLEN - 1] = '\0';
                 last_file_ptr = strdup(s);
                 levels_last_file = dirlevels(last_file_ptr);
+                free(r);
             }
         }
     }
@@ -968,7 +969,6 @@ static void *FileLister_thr(void *arg) {
 
     // stringlist of all directories
     stringlist_t source_dirs = {0};
-    InitStringlist(&source_dirs, 16);
 
     if (flist->multiple_dirs) {
         char *expanded = ExpandWildcard(flist->multiple_dirs);
