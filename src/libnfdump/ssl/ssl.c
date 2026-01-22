@@ -461,6 +461,7 @@ void sslFree(ssl_t *ssl) {
     FreeArray(ssl->extensions);
     FreeArray(ssl->ellipticCurves);
     FreeArray(ssl->ellipticCurvesPF);
+    FreeArray(ssl->signatures);
 
     free(ssl);
 
