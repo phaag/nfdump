@@ -742,7 +742,7 @@ static void stringsEXoutPayload(FILE *stream, recordHandle_t *recordHandle, void
             LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(EXIT_FAILURE);
         } else {
-            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+            recordHandle->extensionList[EXoutPayloadHandle] = payloadHandle;
         }
     }
     inoutPayload(stream, recordHandle, payloadHandle, outPayload, payloadLength, "out");

@@ -1750,8 +1750,8 @@ static inline void RebuildRecord(void *buffPtr, recordHeaderV3_t *recordHeaderV3
                 } else {
                     newRecord = newExtensionList[extID];
                 }
-                pointer_addr_t offset = aggregationTable[tableIndex].param.offset;
-                pointer_addr_t length = aggregationTable[tableIndex].param.length;
+                ptrdiff_t offset = aggregationTable[tableIndex].param.offset;
+                ptrdiff_t length = aggregationTable[tableIndex].param.length;
                 memcpy(newRecord + offset, recordHandle.extensionList[extID] + offset, length);
             }
         }

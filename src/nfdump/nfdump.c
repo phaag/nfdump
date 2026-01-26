@@ -71,6 +71,7 @@
 #include "nfx.h"
 #include "nfxV3.h"
 #include "output.h"
+#include "ssl/ssl.h"
 #include "tor/tor.h"
 #include "util.h"
 #include "version.h"
@@ -265,6 +266,27 @@ static int SetStat(char *str, int *element_stat, int *flow_stat) {
     return ret;
 
 }  // End of SetStat
+
+static void FreeRecordHandle(recordHandle_t *handle) {
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)handle->extensionList[EXinPayloadHandle];
+    if (payloadHandle) {
+        if (payloadHandle->dns) free(payloadHandle->dns);
+        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
+        if (payloadHandle->ja3) free(payloadHandle->ja3);
+        if (payloadHandle->ja4) free(payloadHandle->ja4);
+        free(payloadHandle);
+        handle->extensionList[EXinPayloadHandle] = NULL;
+    }
+    payloadHandle = (payloadHandle_t *)handle->extensionList[EXoutPayloadHandle];
+    if (payloadHandle) {
+        if (payloadHandle->dns) free(payloadHandle->dns);
+        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
+        if (payloadHandle->ja3) free(payloadHandle->ja3);
+        if (payloadHandle->ja4) free(payloadHandle->ja4);
+        free(payloadHandle);
+        handle->extensionList[EXoutPayloadHandle] = NULL;
+    }
+}  // End of FreeRecordHandle
 
 // preprocess block - check of block is valid and
 // add exporter records
@@ -520,7 +542,7 @@ static void *filterThread(void *arg) {
                     } else {
                         ClearFlag(recordHeaderV3->flags, V3_FLAG_PASSED);
                     }
-
+                    FreeRecordHandle(recordHandle);
                 } break;
                 case ExtensionMapType:
                 case ExporterInfoRecordType:
@@ -683,6 +705,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                             print_record(stdout, recordHandle, outputParams);
                             break;
                     }
+                    FreeRecordHandle(recordHandle);
 
                 } break;
                 case ExtensionMapType:

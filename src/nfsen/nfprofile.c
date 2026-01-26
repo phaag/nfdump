@@ -55,6 +55,7 @@
 #include "nfstatfile.h"
 #include "nfxV3.h"
 #include "profile.h"
+#include "ssl/ssl.h"
 #include "tor.h"
 #include "util.h"
 #include "version.h"
@@ -111,6 +112,27 @@ static void usage(char *name) {
         "-t <time>\ttime for RRD update\n",
         name);
 } /* usage */
+
+static void FreeRecordHandle(recordHandle_t *handle) {
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)handle->extensionList[EXinPayloadHandle];
+    if (payloadHandle) {
+        if (payloadHandle->dns) free(payloadHandle->dns);
+        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
+        if (payloadHandle->ja3) free(payloadHandle->ja3);
+        if (payloadHandle->ja4) free(payloadHandle->ja4);
+        free(payloadHandle);
+        handle->extensionList[EXinPayloadHandle] = NULL;
+    }
+    payloadHandle = (payloadHandle_t *)handle->extensionList[EXoutPayloadHandle];
+    if (payloadHandle) {
+        if (payloadHandle->dns) free(payloadHandle->dns);
+        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
+        if (payloadHandle->ja3) free(payloadHandle->ja3);
+        if (payloadHandle->ja4) free(payloadHandle->ja4);
+        free(payloadHandle);
+        handle->extensionList[EXoutPayloadHandle] = NULL;
+    }
+}  // End of FreeRecordHandle
 
 static void *worker_thread(void *arg) {
     worker_param_t *worker_param = (worker_param_t *)arg;
@@ -172,6 +194,7 @@ static void *worker_thread(void *arg) {
 
                     }  // End of for all channels
 
+                    FreeRecordHandle(recordHandle);
                     break;
                 case ExporterInfoRecordType: {
                     for (int j = self; j < numChannels; j += numWorkers) {
