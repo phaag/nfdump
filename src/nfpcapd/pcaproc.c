@@ -715,9 +715,10 @@ REDO_LINK_PROTO:
             packetParam->proc_stat.skipped++;
             goto END_FUNC;
         } break;
-        case ETHERTYPE_ARP:       // skip ARP
-        case ETHERTYPE_LOOPBACK:  // skip Loopback
-        case ETHERTYPE_LLDP:      // skip LLDP
+        case ETHERTYPE_ARP:          // skip ARP
+        case ETHERTYPE_LOOPBACK:     // skip Loopback
+        case ETHERTYPE_LLDP:         // skip LLDP
+        case ETHERTYPE_FLOWCONTROL:  // skip flow control
             goto END_FUNC;
             break;
         default:
