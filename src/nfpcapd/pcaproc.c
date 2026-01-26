@@ -295,13 +295,13 @@ static inline void AddPayload(struct FlowNode *Node, void *payload, size_t paylo
 }
 
 static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
-    struct FlowNode *Node;
-
+    // make sure node is in use - maybe removed later
     assert(NewNode->memflag == NODE_IN_USE);
-    Node = Insert_Node(NewNode);
-    // Return existing Node if flow exists already, otherwise insert es new
+
+    struct FlowNode *Node = Insert_Node(NewNode);
+
     if (Node == NULL) {
-        // Insert as new
+        // New flow
         dbg_printf("New TCP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
 
         if (payloadSize && packetParam->addPayload) {
@@ -309,9 +309,7 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
             AddPayload(NewNode, payload, payloadSize);
         }
 
-        // in case it's a FIN/RST only packet - immediately flush it
         if (NewNode->signal == SIGNAL_FIN) {
-            // flush node to flow thread
             Remove_Node(NewNode);
             Push_Node(packetParam->NodeList, NewNode);
             return;
@@ -335,19 +333,23 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
 
     assert(Node->memflag == NODE_IN_USE);
 
-    // check for latency flag
-    if (Node->latency.flag == 1) {
-        SetClient_latency(Node, &(NewNode->t_first));
-    } else if (Node->latency.flag == 2) {
-        dbg_printf("Set App lat slot: %u -> %u diff: %u\n", Node->latency.tsVal, NewNode->latency.tsVal,
-                   NewNode->latency.tsVal - Node->latency.tsVal);
-        SetApplication_latency(Node, &(NewNode->t_first));
+    // --- process latency, if extendedFlow is enabled ---
+    if (packetParam->extendedFlow) {
+        if (Node->latency.flag == 1) {
+            SetClient_latency(Node, &NewNode->t_first);
+        } else if (Node->latency.flag == 2) {
+            dbg_printf("Set App lat slot: %u -> %u diff: %u\n", Node->latency.tsVal, NewNode->latency.tsVal,
+                       NewNode->latency.tsVal - Node->latency.tsVal);
+            SetApplication_latency(Node, &NewNode->t_first);
+        }
     }
+
     // update existing flow
     Node->flags |= NewNode->flags;
     Node->packets++;
     Node->bytes += NewNode->bytes;
     Node->t_last = NewNode->t_last;
+
     if (NewNode->minTTL < Node->minTTL) Node->minTTL = NewNode->minTTL;
     if (NewNode->maxTTL > Node->maxTTL) Node->maxTTL = NewNode->maxTTL;
 
@@ -364,31 +366,29 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
     dbg_printf("Existing TCP flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
 #endif
 
-    if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
+    // payload stays cold unless explicitly requested
+    if (packetParam->addPayload && Node->payloadSize == 0 && payloadSize > 0) {
         dbg_printf("Existing TCP flow: Set payload of size: %zu\n", payloadSize);
         AddPayload(Node, payload, payloadSize);
     }
 
     if (NewNode->signal == SIGNAL_FIN) {
-        // flush node
+        // Set node signal
         Node->signal = SIGNAL_FIN;
-        // flush node to flow thread
+        // flush node for further processing
         Remove_Node(Node);
         Push_Node(packetParam->NodeList, Node);
     }
 
     Free_Node(NewNode);
-
 }  // End of ProcessTCPFlow
 
 static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
-    struct FlowNode *Node;
-
     assert(NewNode->memflag == NODE_IN_USE);
-    // Flush DNS queries directly
+
+    /* DNS: flush immediately, payload optional */
     if (NewNode->flowKey.src_port == 53 || NewNode->flowKey.dst_port == 53) {
-        // flush node to flow thread
-        if (payloadSize && packetParam->addPayload) {
+        if (packetParam->addPayload && payloadSize) {
             dbg_printf("UDP DNS flow: payload size: %zu\n", payloadSize);
             AddPayload(NewNode, payload, payloadSize);
         }
@@ -396,34 +396,36 @@ static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *N
         return;
     }
 
-    // insert other UDP traffic
-    Node = Insert_Node(NewNode);
+    struct FlowNode *Node = Insert_Node(NewNode);
     if (Node == NULL) {
+        // new flow
         dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", NewNode->packets, NewNode->bytes);
-        if (payloadSize && packetParam->addPayload) {
+        if (packetParam->addPayload && payloadSize) {
             dbg_printf("New UDP flow: Set payload of size: %zu\n", payloadSize);
             AddPayload(NewNode, payload, payloadSize);
         }
         return;
     }
+
     assert(Node->memflag == NODE_IN_USE);
 
-    // update existing flow
+    /* hot updates */
     Node->packets++;
     Node->bytes += NewNode->bytes;
     Node->t_last = NewNode->t_last;
+
     if (NewNode->minTTL < Node->minTTL) Node->minTTL = NewNode->minTTL;
     if (NewNode->maxTTL > Node->maxTTL) Node->maxTTL = NewNode->maxTTL;
+
     dbg_printf("Existing UDP flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
 
-    if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
-        dbg_printf("Existing UDP flow: Set payload of size: %u\n", NewNode->payloadSize);
+    if (packetParam->addPayload && Node->payloadSize == 0 && payloadSize > 0) {
+        dbg_printf("Existing UDP flow: Set payload of size: %zu\n", payloadSize);
         AddPayload(Node, payload, payloadSize);
     }
 
     Free_Node(NewNode);
-
-}  // End of ProcessUDPFlow
+}
 
 static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
     // Flush ICMP directly
@@ -439,34 +441,35 @@ static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *
 static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
     assert(NewNode->memflag == NODE_IN_USE);
 
-    // insert other traffic
     struct FlowNode *Node = Insert_Node(NewNode);
-    // if insert fails, the existing node is returned -> flow exists already
     if (Node == NULL) {
+        // new flow
         dbg_printf("New flow IP proto: %u. Packets: %u, Bytes: %u\n", NewNode->flowKey.proto, NewNode->packets, NewNode->bytes);
-        if (payloadSize && packetParam->addPayload) {
+        if (packetParam->addPayload && payloadSize) {
             dbg_printf("flow: payload size: %zu\n", payloadSize);
             AddPayload(NewNode, payload, payloadSize);
         }
         return;
     }
+
     assert(Node->memflag == NODE_IN_USE);
 
     // update existing flow
     Node->packets++;
     Node->bytes += NewNode->bytes;
     Node->t_last = NewNode->t_last;
+
     if (NewNode->minTTL < Node->minTTL) Node->minTTL = NewNode->minTTL;
     if (NewNode->maxTTL > Node->maxTTL) Node->maxTTL = NewNode->maxTTL;
+
     dbg_printf("Existing flow IP proto: %u Packets: %u, Bytes: %u\n", NewNode->flowKey.proto, Node->packets, Node->bytes);
 
-    if (Node->payloadSize == 0 && payloadSize > 0 && packetParam->addPayload) {
-        dbg_printf("Existing UDP flow: Set payload of size: %u\n", NewNode->payloadSize);
+    if (packetParam->addPayload && Node->payloadSize == 0 && payloadSize > 0) {
+        dbg_printf("Existing flow: Set payload of size: %zu\n", payloadSize);
         AddPayload(Node, payload, payloadSize);
     }
 
     Free_Node(NewNode);
-
 }  // End of ProcessOtherFlow
 
 int ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, const u_char *data) {

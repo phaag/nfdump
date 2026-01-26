@@ -52,57 +52,37 @@ typedef struct flowTreeStat_s {
 } flowTreeStat_t;
 
 struct FlowNode {
-    // tree
-    RB_ENTRY(FlowNode) entry;
+    /* --- Tree + list links (hot) --- */
+    RB_ENTRY(FlowNode) entry;  // RB tree linkage
 
-    // linked list
-    struct FlowNode *left;
+    struct FlowNode *left;  // NodeList / free list
     struct FlowNode *right;
 
-    // flow key
+    /* --- Flow key (hot) --- */
     struct flowKey_s {
-        // IP addr
         ip128_t src_addr;
         ip128_t dst_addr;
-
         uint16_t src_port;
         uint16_t dst_port;
         uint8_t proto;
         uint8_t version;
-        uint16_t _ALIGN;  // empty but aligned
+        uint16_t _ALIGN;  // keep alignment
     } flowKey;
-    // End of flow key
 
+    /* --- Core state + stats (hot) --- */
 #define NODE_FREE 0xA5
 #define NODE_IN_USE 0x5A
-    uint8_t memflag;  // internal housekeeping flag
+    uint8_t memflag;  // housekeeping
 #define FLOW_NODE 1
 #define SIGNAL_NODE 2
 #define FRAG_NODE 3
     uint8_t nodeType;
-    uint8_t flags;
+    uint8_t flags;  // TCP flags etc.
 #define SIGNAL_FIN 1
 #define SIGNAL_SYNC 254
 #define SIGNAL_DONE 255
-    uint8_t signal;  //    1: fin received - end of flow
-                     //  254: empty node - used to rotate file
-                     //  255: empty node - used to terminate flow thread
+    uint8_t signal;  // FIN/RST, sync/done
 
-    // vlan label
-    uint32_t vlanID;
-
-    // tunnel data
-    ip128_t tun_src_addr;
-    ip128_t tun_dst_addr;
-    uint8_t tun_proto;
-    uint8_t tun_ip_version;
-
-    // pf data
-    uint8_t action;
-    uint8_t reason;
-    uint32_t ruleNr;
-
-    // flow stat data
     union {
         struct timeval t_first;  // used for file rotation
         time_t timestamp;        // used for flow dumping
@@ -112,18 +92,36 @@ struct FlowNode {
     uint32_t packets;  // summed up number of packets
     uint32_t bytes;    // summed up number of bytes
 
-    void *pflog;
-    void *payload;         // payload
-    uint32_t payloadSize;  // Size of payload
+    /* --- Basic per-flow attributes (still relatively hot) --- */
+    uint32_t vlanID;
+
+    ip128_t tun_src_addr;
+    ip128_t tun_dst_addr;
+    uint8_t tun_proto;
+    uint8_t tun_ip_version;
+
     uint8_t minTTL;
     uint8_t maxTTL;
     uint8_t fragmentFlags;
-    uint8_t align;
+    uint8_t align;  // keep padding explicit
+
+    /* --- Cold / protocol-specific / export-only data --- */
+    uint8_t action;
+    uint8_t reason;
+    uint16_t _pad_pf;  // pad to 4 bytes
+    uint32_t ruleNr;
+
+    void *pflog;
+    void *payload;
+    uint32_t payloadSize;
+
     uint32_t mpls[10];
+
     uint64_t srcMac;
     uint64_t dstMac;
 
     struct FlowNode *rev_node;
+
     struct latency_s {
         uint64_t client;
         uint64_t server;
