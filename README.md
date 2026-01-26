@@ -58,7 +58,7 @@
 
 ### Building for general use or to create a package
 
-nfdump uses the GNU autotools build system.
+nfdump uses the GNU autotools 2.71 build system.
 
 ```sh
 ./autogen.sh
@@ -81,6 +81,8 @@ This enables CPU-specific optimizations (`-march=native`) and link-time optimiza
 
 #### Building on CentOS 7.x
 
+Make sure, you have autotools 2.71 installed.
+
 ```sh
 yum install centos-release-scl
 yum install devtoolset-8-gcc devtoolset-8-gcc-c++
@@ -88,6 +90,8 @@ scl enable devtoolset-8 -- bash
 ```
 
 #### Building on Ubuntu 18.04 LTS
+
+Make sure, you have autotools 2.71 installed.
 
 ```sh
 sudo apt-get install clang-10
