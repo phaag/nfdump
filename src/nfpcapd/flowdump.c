@@ -105,26 +105,26 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         // pack V3 record
         UpdateRecordSize(EXgenericFlowSize);
         PushExtension(recordHeader, EXgenericFlow, genericFlow);
-        genericFlow->msecFirst = (1000LL * (uint64_t)Node->t_first.tv_sec) + (uint64_t)Node->t_first.tv_usec / 1000LL;
-        genericFlow->msecLast = (1000LL * (uint64_t)Node->t_last.tv_sec) + (uint64_t)Node->t_last.tv_usec / 1000LL;
+        genericFlow->msecFirst = (1000LL * (uint64_t)Node->hotNode.t_first.tv_sec) + (uint64_t)Node->hotNode.t_first.tv_usec / 1000LL;
+        genericFlow->msecLast = (1000LL * (uint64_t)Node->hotNode.t_last.tv_sec) + (uint64_t)Node->hotNode.t_last.tv_usec / 1000LL;
 
         struct timeval now;
         gettimeofday(&now, NULL);
         genericFlow->msecReceived = (uint64_t)now.tv_sec * 1000LL + (uint64_t)now.tv_usec / 1000LL;
 
-        genericFlow->inPackets = Node->packets;
-        genericFlow->inBytes = Node->bytes;
+        genericFlow->inPackets = Node->hotNode.packets;
+        genericFlow->inBytes = Node->hotNode.bytes;
 
-        genericFlow->tcpFlags = Node->flags;
-        genericFlow->proto = Node->flowKey.proto;
-        genericFlow->srcPort = Node->flowKey.src_port;
-        genericFlow->dstPort = Node->flowKey.dst_port;
+        genericFlow->tcpFlags = Node->hotNode.flags;
+        genericFlow->proto = Node->hotNode.flowKey.proto;
+        genericFlow->srcPort = Node->hotNode.flowKey.src_port;
+        genericFlow->dstPort = Node->hotNode.flowKey.dst_port;
 
-        if (Node->flowKey.version == AF_INET6) {
+        if (Node->hotNode.flowKey.version == AF_INET6) {
             UpdateRecordSize(EXipv6FlowSize);
             PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
-            uint64_t *src = (uint64_t *)Node->flowKey.src_addr.bytes;
-            uint64_t *dst = (uint64_t *)Node->flowKey.dst_addr.bytes;
+            uint64_t *src = (uint64_t *)Node->hotNode.flowKey.src_addr.bytes;
+            uint64_t *dst = (uint64_t *)Node->hotNode.flowKey.dst_addr.bytes;
             ipv6Flow->srcAddr[0] = ntohll(src[0]);
             ipv6Flow->srcAddr[1] = ntohll(src[1]);
             ipv6Flow->dstAddr[0] = ntohll(dst[0]);
@@ -133,53 +133,53 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
             UpdateRecordSize(EXipv4FlowSize);
             PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
             uint32_t ipv4;
-            memcpy(&ipv4, Node->flowKey.src_addr.bytes + 12, 4);
+            memcpy(&ipv4, Node->hotNode.flowKey.src_addr.bytes + 12, 4);
             ipv4Flow->srcAddr = ntohl(ipv4);
-            memcpy(&ipv4, Node->flowKey.dst_addr.bytes + 12, 4);
+            memcpy(&ipv4, Node->hotNode.flowKey.dst_addr.bytes + 12, 4);
             ipv4Flow->dstAddr = ntohl(ipv4);
         }
 
         if (flowParam->extendedFlow) {
             UpdateRecordSize(EXipInfoSize);
             PushExtension(recordHeader, EXipInfo, ipInfo);
-            ipInfo->minTTL = Node->minTTL;
-            ipInfo->maxTTL = Node->maxTTL;
-            ipInfo->fragmentFlags = Node->fragmentFlags;
+            ipInfo->minTTL = Node->hotNode.minTTL;
+            ipInfo->maxTTL = Node->hotNode.maxTTL;
+            ipInfo->fragmentFlags = Node->coldNode.fragmentFlags;
 
-            if (Node->vlanID) {
+            if (Node->coldNode.vlanID) {
                 UpdateRecordSize(EXvLanSize);
                 PushExtension(recordHeader, EXvLan, vlan);
-                vlan->srcVlan = Node->vlanID;
+                vlan->srcVlan = Node->coldNode.vlanID;
             }
 
-            if (Node->srcMac) {
+            if (Node->coldNode.srcMac) {
                 UpdateRecordSize(EXmacAddrSize);
                 PushExtension(recordHeader, EXmacAddr, macAddr);
-                macAddr->inSrcMac = ntohll(Node->srcMac) >> 16;
-                macAddr->outDstMac = ntohll(Node->dstMac) >> 16;
+                macAddr->inSrcMac = ntohll(Node->coldNode.srcMac) >> 16;
+                macAddr->outDstMac = ntohll(Node->coldNode.dstMac) >> 16;
                 macAddr->inDstMac = 0;
                 macAddr->outSrcMac = 0;
             }
 
-            if (Node->mpls[0]) {
+            if (Node->coldNode.mpls[0]) {
                 UpdateRecordSize(EXmplsLabelSize);
                 PushExtension(recordHeader, EXmplsLabel, mplsLabel);
-                for (int i = 0; Node->mpls[i] != 0; i++) {
-                    mplsLabel->mplsLabel[i] = ntohl(Node->mpls[i]) >> 8;
+                for (int i = 0; Node->coldNode.mpls[i] != 0; i++) {
+                    mplsLabel->mplsLabel[i] = ntohl(Node->coldNode.mpls[i]) >> 8;
                 }
             }
 
-            if (Node->flowKey.proto == IPPROTO_TCP && Node->latency.application) {
+            if (Node->hotNode.flowKey.proto == IPPROTO_TCP && Node->coldNode.latency.application) {
                 UpdateRecordSize(EXlatencySize);
                 PushExtension(recordHeader, EXlatency, latency);
-                latency->usecClientNwDelay = Node->latency.client;
-                latency->usecServerNwDelay = Node->latency.server;
-                latency->usecApplLatency = Node->latency.application;
-                dbg_printf("Node RTT: %u\n", Node->latency.rtt);
+                latency->usecClientNwDelay = Node->coldNode.latency.client;
+                latency->usecServerNwDelay = Node->coldNode.latency.server;
+                latency->usecApplLatency = Node->coldNode.latency.application;
+                dbg_printf("Node RTT: %u\n", Node->coldNode.latency.rtt);
             }
 
-            if (Node->pflog) {
-                pflog_hdr_t *pflog = (pflog_hdr_t *)Node->pflog;
+            if (Node->coldNode.pflog) {
+                pflog_hdr_t *pflog = (pflog_hdr_t *)Node->coldNode.pflog;
                 size_t ifnameLen = strnlen(pflog->ifname, IFNAMSIZ);
                 if (ifnameLen) {
                     ifnameLen++;  // add terminating '\0'
@@ -205,8 +205,8 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         }
 
         if (flowParam->addPayload) {
-            if (Node->payloadSize) {
-                size_t payloadSize = Node->payloadSize;
+            if (Node->coldNode.payloadSize) {
+                size_t payloadSize = Node->coldNode.payloadSize;
                 size_t align = payloadSize & 0x3;
                 if (align) {
                     payloadSize += (4 - align);
@@ -214,29 +214,29 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
                 UpdateRecordSize(EXinPayloadSize + payloadSize);
                 PushVarLengthPointer(recordHeader, EXinPayload, inPayload, payloadSize);
-                memcpy(inPayload, Node->payload, Node->payloadSize);
+                memcpy(inPayload, Node->coldNode.payload, Node->coldNode.payloadSize);
             }
         }
 
-        if (Node->tun_ip_version == AF_INET) {
+        if (Node->coldNode.tun_ip_version == AF_INET) {
             UpdateRecordSize(EXtunIPv4Size);
             PushExtension(recordHeader, EXtunIPv4, tunIPv4);
             uint32_t ipv4;
-            memcpy(&ipv4, Node->tun_src_addr.bytes + 12, 4);
+            memcpy(&ipv4, Node->coldNode.tun_src_addr.bytes + 12, 4);
             tunIPv4->tunSrcAddr = ntohl(ipv4);
-            memcpy(&ipv4, Node->tun_dst_addr.bytes + 12, 4);
+            memcpy(&ipv4, Node->coldNode.tun_dst_addr.bytes + 12, 4);
             tunIPv4->tunDstAddr = ntohl(ipv4);
-            tunIPv4->tunProto = Node->tun_proto;
-        } else if (Node->tun_ip_version == AF_INET6) {
+            tunIPv4->tunProto = Node->coldNode.tun_proto;
+        } else if (Node->coldNode.tun_ip_version == AF_INET6) {
             UpdateRecordSize(EXtunIPv6Size);
             PushExtension(recordHeader, EXtunIPv6, tunIPv6);
-            uint64_t *src = (uint64_t *)Node->tun_src_addr.bytes;
-            uint64_t *dst = (uint64_t *)Node->tun_dst_addr.bytes;
+            uint64_t *src = (uint64_t *)Node->coldNode.tun_src_addr.bytes;
+            uint64_t *dst = (uint64_t *)Node->coldNode.tun_dst_addr.bytes;
             tunIPv6->tunSrcAddr[0] = ntohll(src[0]);
             tunIPv6->tunSrcAddr[1] = ntohll(src[1]);
             tunIPv6->tunDstAddr[0] = ntohll(dst[0]);
             tunIPv6->tunDstAddr[1] = ntohll(dst[1]);
-            tunIPv6->tunProto = Node->tun_proto;
+            tunIPv6->tunProto = Node->coldNode.tun_proto;
         }
 
         // update first_seen, last_seen
@@ -360,7 +360,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
     fs->bad_packets = 0;
     while (1) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
-        if (Node->signal == SIGNAL_SYNC) {
+        if (Node->hotNode.signal == SIGNAL_SYNC) {
             // Flush Exporter Stat to file
             FlushExporterStats(fs);
             // flush current block and close file
@@ -377,14 +377,14 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
             // Dump all exporters to the buffer for new file
             FlushStdRecords(fs);
 
-        } else if (Node->signal == SIGNAL_DONE) {
+        } else if (Node->hotNode.signal == SIGNAL_DONE) {
             // Flush Exporter Stat to file
             FlushExporterStats(fs);
             // flush current block and close file
             FlushBlock(fs->nffile, fs->dataBlock);
             CloseFlowFile(flowParam, Node->timestamp);
             break;
-        } else if (Node->nodeType == FLOW_NODE) {
+        } else if (Node->hotNode.nodeType == FLOW_NODE) {
             StorePcapFlow(flowParam, Node);
         } else {
             // skip this node

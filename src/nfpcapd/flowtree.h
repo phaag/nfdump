@@ -51,14 +51,8 @@ typedef struct flowTreeStat_s {
     size_t fragNodes;
 } flowTreeStat_t;
 
-struct FlowNode {
-    /* --- Tree + list links (hot) --- */
-    RB_ENTRY(FlowNode) entry;  // RB tree linkage
-
-    struct FlowNode *left;  // NodeList / free list
-    struct FlowNode *right;
-
-    /* --- Flow key (hot) --- */
+// information updated or tested for every packet - hot path
+typedef struct hotNode_s {
     struct flowKey_s {
         ip128_t src_addr;
         ip128_t dst_addr;
@@ -69,53 +63,51 @@ struct FlowNode {
         uint16_t _ALIGN;  // keep alignment
     } flowKey;
 
-    /* --- Core state + stats (hot) --- */
-#define NODE_FREE 0xA5
-#define NODE_IN_USE 0x5A
-    uint8_t memflag;  // housekeeping
+    struct timeval t_first;  // first seen
+    struct timeval t_last;   // last seen
+
+    struct FlowNode *rev_node;  // reverse flow, if requested
+    uint32_t packets;           // summed up number of packets
+    uint32_t bytes;             // summed up number of bytes
+    uint16_t flags;             // TCP flags etc.
+
+    uint8_t minTTL;  // IP min TTL
+    uint8_t maxTTL;  // IP max TTL
+
+#define SIGNAL_FIN 1
+#define SIGNAL_SYNC 254
+#define SIGNAL_DONE 255
+    uint8_t signal;  // SIGNAL_FIN etc.
 #define FLOW_NODE 1
 #define SIGNAL_NODE 2
 #define FRAG_NODE 3
     uint8_t nodeType;
-    uint8_t flags;  // TCP flags etc.
-#define SIGNAL_FIN 1
-#define SIGNAL_SYNC 254
-#define SIGNAL_DONE 255
-    uint8_t signal;  // FIN/RST, sync/done
 
-    union {
-        struct timeval t_first;  // used for file rotation
-        time_t timestamp;        // used for flow dumping
-    };
-    struct timeval t_last;
+    uint16_t _align16;  // unused alignment
+} hotNode_t;
 
-    uint32_t packets;  // summed up number of packets
-    uint32_t bytes;    // summed up number of bytes
-
-    /* --- Basic per-flow attributes (still relatively hot) --- */
+// information updated or tested once only - cold path
+typedef struct coldNode_s {
     uint32_t vlanID;
+    uint32_t mpls[10];
 
     ip128_t tun_src_addr;
     ip128_t tun_dst_addr;
     uint8_t tun_proto;
     uint8_t tun_ip_version;
 
-    uint8_t minTTL;
-    uint8_t maxTTL;
     uint8_t fragmentFlags;
     uint8_t align;  // keep padding explicit
 
-    /* --- Cold / protocol-specific / export-only data --- */
+    // pf record information from OpenBSD pflog interface
+    uint32_t ruleNr;
     uint8_t action;
     uint8_t reason;
     uint16_t _pad_pf;  // pad to 4 bytes
-    uint32_t ruleNr;
 
     void *pflog;
     void *payload;
     uint32_t payloadSize;
-
-    uint32_t mpls[10];
 
     uint64_t srcMac;
     uint64_t dstMac;
@@ -131,6 +123,23 @@ struct FlowNode {
         uint32_t tsVal;
         uint32_t rtt;
     } latency;
+} coldNode_t;
+
+struct FlowNode {
+    // --- Tree + list links
+    RB_ENTRY(FlowNode) entry;  // RB tree linkage
+
+    struct FlowNode *next;  // Linked list in FreeList
+
+    time_t timestamp;     // timestamp sync node
+    hotNode_t hotNode;    // not node and cache relevant
+    coldNode_t coldNode;  // flow additional information
+
+#define NODE_FREE 0xA5
+#define NODE_IN_USE 0x5A
+    uint8_t memflag;    // housekeeping
+    uint8_t _align8;    // unused - alignment
+    uint16_t _align16;  // unused - alignment
 };
 
 typedef struct NodeList_s {
@@ -138,9 +147,7 @@ typedef struct NodeList_s {
     struct FlowNode *last;
     pthread_mutex_t m_list;
     pthread_cond_t c_list;
-    uint32_t length;
-    uint32_t waiting;
-    uint64_t waits;
+    size_t length;
 } NodeList_t;
 
 /* flow tree type */
@@ -182,8 +189,8 @@ void Push_Node(NodeList_t *NodeList, struct FlowNode *node);
 
 struct FlowNode *Pop_Node(NodeList_t *NodeList);
 
-void Push_SyncNode(NodeList_t *NodeList, time_t timestamp);
+size_t Pop_Batch(NodeList_t *NodeList, struct FlowNode **out, size_t max);
 
-void DumpList(NodeList_t *NodeList);
+void Push_SyncNode(NodeList_t *NodeList, time_t timestamp);
 
 #endif  // _FLOWTREE_H
