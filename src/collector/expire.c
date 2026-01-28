@@ -334,7 +334,7 @@ void RescanDir(char *dir, dirstat_t *dirstat) {
 
 }  // End of RescanDir
 
-void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife, uint32_t runtime) {
+void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife, uint32_t runtime, int dry_run) {
     FTS *fts;
     FTSENT *ftsent;
     uint64_t sizelimit, num_expired;
@@ -342,6 +342,10 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
     char *const path[] = {dir, NULL};
     char *expire_timelimit = NULL;
     time_t now = time(NULL);
+
+    if (dry_run) {
+        printf("DRY-RUN MODE: Simulating expire operation\n\n");
+    }
 
     dir_files = 0;
     if (dirstat->low_water == 0) dirstat->low_water = 95;
@@ -362,7 +366,7 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
         dbg_printf("down to %s", ctime(&t_watermark));
         dbg_printf("Diff: %li\n", t_watermark - t_expire);
 
-        if (dirstat->last < t_expire && (isatty(STDIN_FILENO))) {
+        if (dirstat->last < t_expire && (isatty(STDIN_FILENO)) && !dry_run) {
             // this means all files will get expired - are you sure ?
             char *s, s1[32], s2[32];
             time_t t;
@@ -421,12 +425,20 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
                 // expire size-wise if needed
                 if (!size_done) {
                     if (dirstat->filesize > sizelimit) {
-                        if (unlink(ftsent->fts_path) == 0) {
+                        if (dry_run) {
+                            printf("Would delete: %s (size: %s)\n", ftsent->fts_path,
+                                   ScaleValue(512 * ftsent->fts_statp->st_blocks));
                             dirstat->filesize -= 512 * ftsent->fts_statp->st_blocks;
                             num_expired++;
                             dir_files--;
                         } else {
-                            LogError("unlink() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                            if (unlink(ftsent->fts_path) == 0) {
+                                dirstat->filesize -= 512 * ftsent->fts_statp->st_blocks;
+                                num_expired++;
+                                dir_files--;
+                            } else {
+                                LogError("unlink() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                            }
                         }
                         continue;  // next file if file was unlinked
                     } else {
@@ -439,12 +451,20 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
                 // this part of the code is executed only when size-wise is fulfilled
                 if (!lifetime_done) {
                     if (expire_timelimit && strcmp(p, expire_timelimit) < 0) {
-                        if (unlink(ftsent->fts_path) == 0) {
+                        if (dry_run) {
+                            printf("Would delete: %s (size: %s)\n", ftsent->fts_path,
+                                   ScaleValue(512 * ftsent->fts_statp->st_blocks));
                             dirstat->filesize -= 512 * ftsent->fts_statp->st_blocks;
                             num_expired++;
                             dir_files--;
                         } else {
-                            LogError("unlink() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                            if (unlink(ftsent->fts_path) == 0) {
+                                dirstat->filesize -= 512 * ftsent->fts_statp->st_blocks;
+                                num_expired++;
+                                dir_files--;
+                            } else {
+                                LogError("unlink() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                            }
                         }
                         lifetime_done = 0;
                     } else {
@@ -469,8 +489,12 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
                     if (dir_files == 0 && ftsent->fts_level > 0) {
                         // directory is empty and can be deleted
                         dbg_printf("Will remove directory %s\n", ftsent->fts_path);
-                        if (rmdir(ftsent->fts_path) != 0) {
-                            LogError("rmdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                        if (dry_run) {
+                            printf("Would remove directory: %s\n", ftsent->fts_path);
+                        } else {
+                            if (rmdir(ftsent->fts_path) != 0) {
+                                LogError("rmdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                            }
                         }
                     }
                     break;
@@ -549,13 +573,17 @@ static void PrepareDirLists(channel_t *channel) {
 
 }  // End of PrepareDirLists
 
-void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize, uint64_t maxlife, uint32_t runtime) {
+void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize, uint64_t maxlife, uint32_t runtime, int dry_run) {
     int size_done, lifetime_done, done;
     char *expire_timelimit = "";
     time_t now = time(NULL);
     uint64_t sizelimit;
 
     if (!channel) return;
+
+    if (dry_run) {
+        printf("Dry-run mode - simulating expire operation\n");
+    }
 
     done = 0;
     SetupSignalHandler();
@@ -702,8 +730,12 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
                             if (expire_channel->ftsent->fts_number == 0 && expire_channel->ftsent->fts_level > 0) {
                                 // directory is empty and can be deleted
                                 dbg_printf("Will remove directory %s\n", expire_channel->ftsent->fts_path);
-                                if (rmdir(expire_channel->ftsent->fts_path) != 0) {
-                                    LogError("rmdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                                if (dry_run) {
+                                    printf("Would remove directory: %s\n", expire_channel->ftsent->fts_path);
+                                } else {
+                                    if (rmdir(expire_channel->ftsent->fts_path) != 0) {
+                                        LogError("rmdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                                    }
                                 }
                             }
                             break;

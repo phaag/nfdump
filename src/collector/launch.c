@@ -293,7 +293,7 @@ static void do_expire(char *datadir) {
             (unsigned long long)dirstat->numfiles);
 
     oldstat = *dirstat;
-    if (dirstat->max_size || dirstat->max_lifetime) ExpireDir(datadir, dirstat, dirstat->max_size, dirstat->max_lifetime, 0);
+    if (dirstat->max_size || dirstat->max_lifetime) ExpireDir(datadir, dirstat, dirstat->max_size, dirstat->max_lifetime, 0, 0);
     WriteStatInfo(dirstat);
 
     if ((oldstat.numfiles - dirstat->numfiles) > 0) {
