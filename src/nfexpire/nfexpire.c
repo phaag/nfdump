@@ -80,7 +80,7 @@ static void usage(char *name) {
         "-h\t\tThis text\n"
         "-l datadir\tList stat from directory\n"
         "-e datadir\tExpire data in directory\n"
-        "-n\t\tDry-run mode. Show what would be expired without deleting files.\n"
+        "-n\t\tShows what would be expired without taking any action.\n"
         "-r datadir\tRescan data directory\n"
         "-u datadir\tUpdate expire params from collector logging at <datadir>\n"
         "-s size\t\tmax size: scales b bytes, k kilo, m mega, g giga t tera\n"
@@ -363,7 +363,7 @@ int main(int argc, char **argv) {
         dirstat_t old_stat, current_stat;
 
         if (is_profile) {
-            // Save original dirstats for all channels (for dry-run restore)
+            // Save original dirstats for all channels
             channel_t *save_channel = channel;
             int num_channels = 0;
             while (save_channel) {
@@ -404,7 +404,7 @@ int main(int argc, char **argv) {
             old_stat = current_stat;
             ExpireProfile(channel, &current_stat, maxsize, lifetime, runtime, dry_run);
 
-            // Restore original dirstats after dry-run (don't persist simulated values)
+            // Restore original dirstats after dry-run, not persisting simulated values
             if (dry_run && saved_dirstats) {
                 save_channel = channel;
                 for (int i = 0; i < num_channels; i++) {

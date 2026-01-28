@@ -582,7 +582,7 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
     if (!channel) return;
 
     if (dry_run) {
-        printf("Dry-run mode - simulating expire operation\n");
+        printf("DRY-RUN MODE: Simulating expire operation\n");
     }
 
     done = 0;
