@@ -142,8 +142,8 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         if (flowParam->extendedFlow) {
             UpdateRecordSize(EXipInfoSize);
             PushExtension(recordHeader, EXipInfo, ipInfo);
-            ipInfo->minTTL = Node->hotNode.minTTL;
-            ipInfo->maxTTL = Node->hotNode.maxTTL;
+            ipInfo->minTTL = Node->coldNode.minTTL;
+            ipInfo->maxTTL = Node->coldNode.maxTTL;
             ipInfo->fragmentFlags = Node->coldNode.fragmentFlags;
 
             if (Node->coldNode.vlanID) {
@@ -358,37 +358,44 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
     // init flow source
     fs->dataBlock = WriteBlock(fs->nffile, NULL);
     fs->bad_packets = 0;
-    while (1) {
+    int done = 0;
+    while (!done) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
-        if (Node->hotNode.signal == SIGNAL_SYNC) {
-            // Flush Exporter Stat to file
-            FlushExporterStats(fs);
-            // flush current block and close file
-            fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
-            CloseFlowFile(flowParam, Node->timestamp);
-            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
-            if (!fs->nffile) {
-                LogError("Fatal: OpenNewFile() failed for ident: %s", fs->Ident);
-                pthread_kill(flowParam->parent, SIGUSR1);
+        switch (Node->nodeType) {
+            case FLOW_NODE:
+                StorePcapFlow(flowParam, Node);
                 break;
-            }
-            SetIdent(fs->nffile, fs->Ident);
+            case SIGNAL_NODE_SYNC:
+                dbg_printf("Received signal_node_sync\n");
+                // Flush Exporter Stat to file
+                FlushExporterStats(fs);
+                // flush current block and close file
+                fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+                CloseFlowFile(flowParam, Node->timestamp);
+                fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
+                if (!fs->nffile) {
+                    LogError("Fatal: OpenNewFile() failed for ident: %s", fs->Ident);
+                    pthread_kill(flowParam->parent, SIGUSR1);
+                    break;
+                }
+                SetIdent(fs->nffile, fs->Ident);
 
-            // Dump all exporters to the buffer for new file
-            FlushStdRecords(fs);
-
-        } else if (Node->hotNode.signal == SIGNAL_DONE) {
-            // Flush Exporter Stat to file
-            FlushExporterStats(fs);
-            // flush current block and close file
-            FlushBlock(fs->nffile, fs->dataBlock);
-            CloseFlowFile(flowParam, Node->timestamp);
-            break;
-        } else if (Node->hotNode.nodeType == FLOW_NODE) {
-            StorePcapFlow(flowParam, Node);
-        } else {
-            // skip this node
+                // Dump all exporters to the buffer for new file
+                FlushStdRecords(fs);
+                break;
+            case SIGNAL_NODE_DONE:
+                dbg_printf("Received signal_node_done\n");
+                // Flush Exporter Stat to file
+                FlushExporterStats(fs);
+                // flush current block and close file
+                FlushBlock(fs->nffile, fs->dataBlock);
+                CloseFlowFile(flowParam, Node->timestamp);
+                done = 1;
+                break;
+            default:
+                LogError("Unknown node type: %u\n", Node->nodeType);
         }
+
         Free_Node(Node);
     }
 

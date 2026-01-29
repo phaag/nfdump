@@ -66,24 +66,12 @@ typedef struct hotNode_s {
     struct timeval t_first;  // first seen
     struct timeval t_last;   // last seen
 
-    struct FlowNode *rev_node;  // reverse flow, if requested
-    uint32_t packets;           // summed up number of packets
-    uint32_t bytes;             // summed up number of bytes
-    uint16_t flags;             // TCP flags etc.
+    uint32_t packets;  // summed up number of packets
+    uint32_t bytes;    // summed up number of bytes
+    uint8_t flags;     // TCP flags etc.
 
-    uint8_t minTTL;  // IP min TTL
-    uint8_t maxTTL;  // IP max TTL
+    uint8_t flush;  // FIN/RST packet - flush node
 
-#define SIGNAL_FIN 1
-#define SIGNAL_SYNC 254
-#define SIGNAL_DONE 255
-    uint8_t signal;  // SIGNAL_FIN etc.
-#define FLOW_NODE 1
-#define SIGNAL_NODE 2
-#define FRAG_NODE 3
-    uint8_t nodeType;
-
-    uint16_t _align16;  // unused alignment
 } hotNode_t;
 
 // information updated or tested once only - cold path
@@ -109,10 +97,14 @@ typedef struct coldNode_s {
     void *payload;
     uint32_t payloadSize;
 
+    uint8_t minTTL;   // IP min TTL
+    uint8_t maxTTL;   // IP max TTL
+    uint16_t _align;  // not used - alignment
+
     uint64_t srcMac;
     uint64_t dstMac;
 
-    struct FlowNode *rev_node;
+    struct FlowNode *rev_node;  // reverse flow, if requested
 
     struct latency_s {
         uint64_t client;
@@ -135,11 +127,16 @@ struct FlowNode {
     hotNode_t hotNode;    // not node and cache relevant
     coldNode_t coldNode;  // flow additional information
 
+#define FLOW_NODE 1
+#define FRAG_NODE 2
+#define SIGNAL_NODE_SYNC 3
+#define SIGNAL_NODE_DONE 4
+    uint8_t nodeType;
+
 #define NODE_FREE 0xA5
 #define NODE_IN_USE 0x5A
-    uint8_t memflag;    // housekeeping
-    uint8_t _align8;    // unused - alignment
-    uint16_t _align16;  // unused - alignment
+    uint8_t memflag;  // housekeeping
+    uint8_t inTree;   // unused - alignment
 };
 
 typedef struct NodeList_s {
@@ -167,6 +164,10 @@ uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when);
 struct FlowNode *Lookup_Node(struct FlowNode *node);
 
 struct FlowNode *New_Node(void);
+
+void printFlowKey(struct FlowNode *node);
+
+void printTree(void);
 
 void Free_Node(struct FlowNode *node);
 

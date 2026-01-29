@@ -108,17 +108,21 @@ static time_t lastRun = 0;  // remember last run to idle cache
 
 static inline void SetServer_latency(struct FlowNode *node);
 
-static inline void SetClient_latency(struct FlowNode *node, struct timeval *t_packet);
+static inline void SetClient_latency(struct FlowNode *node, const struct timeval *t_packet);
 
-static inline void SetApplication_latency(struct FlowNode *node, struct timeval *t_packet);
+static inline void SetApplication_latency(struct FlowNode *node, const struct timeval *t_packet);
 
-static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize);
+static inline void ProcessTCPFlow(packetParam_t *packetParam, const hotNode_t *hotNode, const coldNode_t *coldNode, void *payload,
+                                  size_t payloadSize);
 
-static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize);
+static inline void ProcessUDPFlow(packetParam_t *packetParam, const hotNode_t *hotNode, const coldNode_t *coldNode, void *payload,
+                                  size_t payloadSize);
 
-static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize);
+static inline void ProcessICMPFlow(packetParam_t *packetParam, const hotNode_t *hotNode, const coldNode_t *coldNode, void *payload,
+                                   size_t payloadSize);
 
-static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize);
+static inline void ProcessOtherFlow(packetParam_t *packetParam, const hotNode_t *hotNode, const coldNode_t *coldNode, void *payload,
+                                    size_t payloadSize);
 
 #include "metrohash.c"
 
@@ -234,7 +238,7 @@ void RotateFile(pcapfile_t *pcapfile, time_t t_CloseRename, int live) {
 
 // Server latency = t(SYN ACK Server) - t(SYN CLient)
 static inline void SetServer_latency(struct FlowNode *node) {
-    struct FlowNode *Client_node = node->hotNode.rev_node;
+    struct FlowNode *Client_node = node->coldNode.rev_node;
     if (!Client_node) return;
 
     uint64_t latency = ((uint64_t)node->hotNode.t_first.tv_sec * (uint64_t)1000000 + (uint64_t)node->hotNode.t_first.tv_usec) -
@@ -251,8 +255,8 @@ static inline void SetServer_latency(struct FlowNode *node) {
 }  // End of SetServerClient_latency
 
 // Client latency = t(ACK CLient) - t(SYN ACK Server)
-static inline void SetClient_latency(struct FlowNode *node, struct timeval *t_packet) {
-    struct FlowNode *serverNode = node->hotNode.rev_node;
+static inline void SetClient_latency(struct FlowNode *node, const struct timeval *t_packet) {
+    struct FlowNode *serverNode = node->coldNode.rev_node;
     if (!serverNode) return;
 
     uint64_t latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
@@ -267,8 +271,8 @@ static inline void SetClient_latency(struct FlowNode *node, struct timeval *t_pa
 }  // End of SetClient_latency
 
 // Application latency = t(ACK Server) - t(ACK CLient)
-void SetApplication_latency(struct FlowNode *node, struct timeval *t_packet) {
-    struct FlowNode *clientNode = node->hotNode.rev_node;
+static inline void SetApplication_latency(struct FlowNode *node, const struct timeval *t_packet) {
+    struct FlowNode *clientNode = node->coldNode.rev_node;
     if (!clientNode) return;
 
     uint64_t latency = ((uint64_t)t_packet->tv_sec * (uint64_t)1000000 + (uint64_t)t_packet->tv_usec) -
@@ -292,27 +296,39 @@ static inline void AddPayload(struct FlowNode *Node, void *payload, size_t paylo
         memcpy(Node->coldNode.payload, payload, payloadSize);
         Node->coldNode.payloadSize = payloadSize;
     }
-}
+}  // End of AddPayload
 
-static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
-    // make sure node is in use - maybe removed later
-    assert(NewNode->memflag == NODE_IN_USE);
+static inline void ProcessTCPFlow(packetParam_t *packetParam, const hotNode_t *hotNode, const coldNode_t *coldNode, void *payload,
+                                  size_t payloadSize) {
+    struct FlowNode lookup = {0};
+    lookup.hotNode.flowKey = hotNode->flowKey;
 
-    struct FlowNode *Node = Insert_Node(NewNode);
+    struct FlowNode *Node = Lookup_Node(&lookup);
 
     if (Node == NULL) {
         // New flow
-        dbg_printf("New TCP flow: Packets: %u, Bytes: %u\n", NewNode->hotNode.packets, NewNode->hotNode.bytes);
+        dbg_printf("New TCP flow: Packets: %u, Bytes: %u\n", hotNode->packets, hotNode->bytes);
+        struct FlowNode *NewNode = New_Node();
+
+        NewNode->hotNode = *hotNode;
+        NewNode->coldNode = *coldNode;
 
         if (payloadSize && packetParam->addPayload) {
             dbg_printf("New TCP flow: Set payload of size: %zu\n", payloadSize);
             AddPayload(NewNode, payload, payloadSize);
         }
 
-        if (NewNode->hotNode.signal == SIGNAL_FIN) {
-            Remove_Node(NewNode);
+        if (hotNode->flush) {
             Push_Node(packetParam->NodeList, NewNode);
             return;
+        }
+
+        struct FlowNode *existing = Insert_Node(NewNode);
+        if (existing != NULL) {
+            // extremely rare race: treat as existing flow
+            Node = existing;
+            Free_Node(NewNode);
+            goto update_existing;
         }
 
 #ifdef DEVEL
@@ -328,43 +344,33 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
             // -> calculate server latency
             SetServer_latency(NewNode);
         }
+
         return;
     }
+update_existing:
 
     assert(Node->memflag == NODE_IN_USE);
 
-    // --- process latency, if extendedFlow is enabled ---
+    // update existing flow
+    Node->hotNode.flags |= hotNode->flags;
+    Node->hotNode.packets++;
+    Node->hotNode.bytes += hotNode->bytes;
+    Node->hotNode.t_last = hotNode->t_last;
+    dbg_printf("Existing TCP flow: Packets: %u, Bytes: %u\n", Node->hotNode.packets, Node->hotNode.bytes);
+
+    // --- process extendedFlow is ---
     if (packetParam->extendedFlow) {
         if (Node->coldNode.latency.flag == 1) {
-            SetClient_latency(Node, &NewNode->hotNode.t_first);
+            SetClient_latency(Node, &hotNode->t_first);
         } else if (Node->coldNode.latency.flag == 2) {
-            dbg_printf("Set App lat slot: %u -> %u diff: %u\n", Node->coldNode.latency.tsVal, NewNode->coldNode.latency.tsVal,
-                       NewNode->coldNode.latency.tsVal - Node->coldNode.latency.tsVal);
-            SetApplication_latency(Node, &NewNode->hotNode.t_first);
+            dbg_printf("Set App lat slot: %u -> %u diff: %u\n", Node->coldNode.latency.tsVal, coldNode->latency.tsVal,
+                       coldNode->latency.tsVal - Node->coldNode.latency.tsVal);
+            SetApplication_latency(Node, &hotNode->t_first);
         }
+
+        if (coldNode->minTTL < Node->coldNode.minTTL) Node->coldNode.minTTL = coldNode->minTTL;
+        if (coldNode->maxTTL > Node->coldNode.maxTTL) Node->coldNode.maxTTL = coldNode->maxTTL;
     }
-
-    // update existing flow
-    Node->hotNode.flags |= NewNode->hotNode.flags;
-    Node->hotNode.packets++;
-    Node->hotNode.bytes += NewNode->hotNode.bytes;
-    Node->hotNode.t_last = NewNode->hotNode.t_last;
-
-    if (NewNode->hotNode.minTTL < Node->hotNode.minTTL) Node->hotNode.minTTL = NewNode->hotNode.minTTL;
-    if (NewNode->hotNode.maxTTL > Node->hotNode.maxTTL) Node->hotNode.maxTTL = NewNode->hotNode.maxTTL;
-
-    // DEVEL RTT - disabled for now
-#if 0
-    if (NewNode->signal != SIGNAL_FIN && node->coldNode.latency.ack && ((Newnode->coldNode.latency.ack - node->coldNode.latency.ack) > 0)) {
-        uint32_t rtt = Newnode->coldNode.latency.tsVal - node->coldNode.latency.tsVal;
-        printf("Node old RTT: %u ", node->coldNode.latency.rtt);
-        if (rtt) node->coldNode.latency.rtt = node->coldNode.latency.rtt ? (node->coldNode.latency.rtt + rtt) >> 1 : rtt;
-        dbg_printf("Node rtt: %u, new RTT: %u\n", rtt, node->coldNode.latency.rtt);
-    }
-    node->coldNode.latency.tsVal = Newnode->coldNode.latency.tsVal;
-    node->coldNode.latency.ack = Newnode->coldNode.latency.ack;
-    dbg_printf("Existing TCP flow: Packets: %u, Bytes: %u\n", Node->packets, Node->bytes);
-#endif
 
     // payload stays cold unless explicitly requested
     if (packetParam->addPayload && Node->coldNode.payloadSize == 0 && payloadSize > 0) {
@@ -372,64 +378,88 @@ static inline void ProcessTCPFlow(packetParam_t *packetParam, struct FlowNode *N
         AddPayload(Node, payload, payloadSize);
     }
 
-    if (NewNode->hotNode.signal == SIGNAL_FIN) {
-        // Set node signal
-        Node->hotNode.signal = SIGNAL_FIN;
-        // flush node for further processing
+    if (hotNode->flush) {
+        dbg_printf("TCP flush node\n");
         Remove_Node(Node);
         Push_Node(packetParam->NodeList, Node);
     }
 
-    Free_Node(NewNode);
 }  // End of ProcessTCPFlow
 
-static inline void ProcessUDPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
-    assert(NewNode->memflag == NODE_IN_USE);
+static inline void ProcessUDPFlow(packetParam_t *packetParam, const hotNode_t *hotNode, const coldNode_t *coldNode, void *payload,
+                                  size_t payloadSize) {
+    // DNS: flush immediately, payload optional
+    if (hotNode->flowKey.src_port == 53 || hotNode->flowKey.dst_port == 53) {
+        struct FlowNode *NewNode = New_Node();
 
-    /* DNS: flush immediately, payload optional */
-    if (NewNode->hotNode.flowKey.src_port == 53 || NewNode->hotNode.flowKey.dst_port == 53) {
+        NewNode->hotNode = *hotNode;
+        NewNode->coldNode = *coldNode;
+
         if (packetParam->addPayload && payloadSize) {
             dbg_printf("UDP DNS flow: payload size: %zu\n", payloadSize);
             AddPayload(NewNode, payload, payloadSize);
         }
+        dbg_printf("Flush UDP DNS packet\n");
         Push_Node(packetParam->NodeList, NewNode);
         return;
     }
 
-    struct FlowNode *Node = Insert_Node(NewNode);
+    struct FlowNode lookup = {0};
+    lookup.hotNode.flowKey = hotNode->flowKey;
+
+    struct FlowNode *Node = Lookup_Node(&lookup);
     if (Node == NULL) {
         // new flow
-        dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", NewNode->hotNode.packets, NewNode->hotNode.bytes);
+        dbg_printf("New UDP flow: Packets: %u, Bytes: %u\n", hotNode->packets, hotNode->bytes);
+        struct FlowNode *NewNode = New_Node();
+
+        NewNode->hotNode = *hotNode;
+        NewNode->coldNode = *coldNode;
+
+        struct FlowNode *existing = Insert_Node(NewNode);
+        if (existing != NULL) {
+            Free_Node(NewNode);
+            Node = existing;
+            goto update_existing;
+        }
+
         if (packetParam->addPayload && payloadSize) {
             dbg_printf("New UDP flow: Set payload of size: %zu\n", payloadSize);
             AddPayload(NewNode, payload, payloadSize);
         }
         return;
     }
+update_existing:
 
     assert(Node->memflag == NODE_IN_USE);
 
     /* hot updates */
     Node->hotNode.packets++;
-    Node->hotNode.bytes += NewNode->hotNode.bytes;
-    Node->hotNode.t_last = NewNode->hotNode.t_last;
+    Node->hotNode.bytes += hotNode->bytes;
+    Node->hotNode.t_last = hotNode->t_last;
 
-    if (NewNode->hotNode.minTTL < Node->hotNode.minTTL) Node->hotNode.minTTL = NewNode->hotNode.minTTL;
-    if (NewNode->hotNode.maxTTL > Node->hotNode.maxTTL) Node->hotNode.maxTTL = NewNode->hotNode.maxTTL;
-
+    // --- process extendedFlow is ---
+    if (packetParam->extendedFlow) {
+        if (coldNode->minTTL < Node->coldNode.minTTL) Node->coldNode.minTTL = coldNode->minTTL;
+        if (coldNode->maxTTL > Node->coldNode.maxTTL) Node->coldNode.maxTTL = coldNode->maxTTL;
+    }
     dbg_printf("Existing UDP flow: Packets: %u, Bytes: %u\n", Node->hotNode.packets, Node->hotNode.bytes);
 
     if (packetParam->addPayload && Node->coldNode.payloadSize == 0 && payloadSize > 0) {
         dbg_printf("Existing UDP flow: Set payload of size: %zu\n", payloadSize);
         AddPayload(Node, payload, payloadSize);
     }
+}  // End of ProcessUDPFlow
 
-    Free_Node(NewNode);
-}
-
-static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
+static inline void ProcessICMPFlow(packetParam_t *packetParam, const hotNode_t *hotNode, const coldNode_t *coldNode, void *payload,
+                                   size_t payloadSize) {
     // Flush ICMP directly
-    dbg_printf("Flush ICMP flow: Packets: %u, Bytes: %u\n", NewNode->hotNode.packets, NewNode->hotNode.bytes);
+    dbg_printf("Flush ICMP flow: Packets: %u, Bytes: %u\n", hotNode->packets, hotNode->bytes);
+
+    struct FlowNode *NewNode = New_Node();
+    NewNode->hotNode = *hotNode;
+    NewNode->coldNode = *coldNode;
+
     if (payloadSize && packetParam->addPayload) {
         dbg_printf("ICMP flow: payload size: %zu\n", payloadSize);
         AddPayload(NewNode, payload, payloadSize);
@@ -438,43 +468,57 @@ static inline void ProcessICMPFlow(packetParam_t *packetParam, struct FlowNode *
 
 }  // End of ProcessICMPFlow
 
-static inline void ProcessOtherFlow(packetParam_t *packetParam, struct FlowNode *NewNode, void *payload, size_t payloadSize) {
-    assert(NewNode->memflag == NODE_IN_USE);
+static inline void ProcessOtherFlow(packetParam_t *packetParam, const hotNode_t *hotNode, const coldNode_t *coldNode, void *payload,
+                                    size_t payloadSize) {
+    struct FlowNode lookup = {0};
+    lookup.hotNode.flowKey = hotNode->flowKey;
 
-    struct FlowNode *Node = Insert_Node(NewNode);
+    struct FlowNode *Node = Lookup_Node(&lookup);
     if (Node == NULL) {
         // new flow
-        dbg_printf("New flow IP proto: %u. Packets: %u, Bytes: %u\n", NewNode->hotNode.flowKey.proto, NewNode->hotNode.packets,
-                   NewNode->hotNode.bytes);
+        dbg_printf("New flow IP proto: %u. Packets: %u, Bytes: %u\n", hotNode->flowKey.proto, hotNode->packets, hotNode->bytes);
+
+        struct FlowNode *NewNode = New_Node();
+        NewNode->hotNode = *hotNode;
+        NewNode->coldNode = *coldNode;
         if (packetParam->addPayload && payloadSize) {
             dbg_printf("flow: payload size: %zu\n", payloadSize);
             AddPayload(NewNode, payload, payloadSize);
         }
+
+        struct FlowNode *existing = Insert_Node(NewNode);
+        if (existing != NULL) {
+            Node = existing;
+            Free_Node(NewNode);
+            goto update_existing;
+        }
+
         return;
     }
+update_existing:
 
     assert(Node->memflag == NODE_IN_USE);
 
     // update existing flow
     Node->hotNode.packets++;
-    Node->hotNode.bytes += NewNode->hotNode.bytes;
-    Node->hotNode.t_last = NewNode->hotNode.t_last;
+    Node->hotNode.bytes += hotNode->bytes;
+    Node->hotNode.t_last = hotNode->t_last;
 
-    if (NewNode->hotNode.minTTL < Node->hotNode.minTTL) Node->hotNode.minTTL = NewNode->hotNode.minTTL;
-    if (NewNode->hotNode.maxTTL > Node->hotNode.maxTTL) Node->hotNode.maxTTL = NewNode->hotNode.maxTTL;
-
-    dbg_printf("Existing flow IP proto: %u Packets: %u, Bytes: %u\n", NewNode->hotNode.flowKey.proto, Node->hotNode.packets, Node->hotNode.bytes);
+    // --- process extendedFlow is ---
+    if (packetParam->extendedFlow) {
+        if (coldNode->minTTL < Node->coldNode.minTTL) Node->coldNode.minTTL = coldNode->minTTL;
+        if (coldNode->maxTTL > Node->coldNode.maxTTL) Node->coldNode.maxTTL = coldNode->maxTTL;
+    }
+    dbg_printf("Existing flow IP proto: %u Packets: %u, Bytes: %u\n", hotNode->flowKey.proto, Node->hotNode.packets, Node->hotNode.bytes);
 
     if (packetParam->addPayload && Node->coldNode.payloadSize == 0 && payloadSize > 0) {
         dbg_printf("Existing flow: Set payload of size: %zu\n", payloadSize);
         AddPayload(Node, payload, payloadSize);
     }
 
-    Free_Node(NewNode);
 }  // End of ProcessOtherFlow
 
 int ProcessPacket(packetParam_t *packetParam, const struct pcap_pkthdr *hdr, const u_char *data) {
-    struct FlowNode *Node = NULL;
     hotNode_t hotNode = {0};
     coldNode_t coldNode = {0};
     char s1[64];
@@ -807,25 +851,26 @@ REDO_IPPROTO:
             fragment_flag = flagMF;
         } else {
             ipPayloadLength = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen);
-            dbg_printf("Packet IPv6, SRC %s, DST %s, padding %zu\n", inet_ntop(AF_INET6, &ip6->ip6_src, s1, sizeof(s1)),
-                       inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)), (ptrdiff_t)(eodata - ipPayloadEnd));
         }
         ipPayloadEnd = dataptr + ipPayloadLength;
+        dbg_printf("Packet IPv6, SRC %s, DST %s, padding %zu\n", inet_ntop(AF_INET6, &ip6->ip6_src, s1, sizeof(s1)),
+                   inet_ntop(AF_INET6, &ip6->ip6_dst, s2, sizeof(s2)), (ptrdiff_t)(eodata - ipPayloadEnd));
 
-        if (!Node) Node = New_Node();
-        Node->hotNode.flowKey.version = AF_INET6;
-        Node->hotNode.t_first.tv_sec = hdr->ts.tv_sec;
-        Node->hotNode.t_last.tv_sec = hdr->ts.tv_sec;
-        Node->hotNode.t_first.tv_usec = hdr->ts.tv_usec;
-        Node->hotNode.t_last.tv_usec = hdr->ts.tv_usec;
-        Node->hotNode.bytes = ntohs(ip6->ip6_plen) + size_ip;
+        hotNode.flowKey.version = AF_INET6;
+        hotNode.t_first.tv_sec = hdr->ts.tv_sec;
+        hotNode.t_last.tv_sec = hdr->ts.tv_sec;
+        hotNode.t_first.tv_usec = hdr->ts.tv_usec;
+        hotNode.t_last.tv_usec = hdr->ts.tv_usec;
+        hotNode.bytes = ntohs(ip6->ip6_plen) + size_ip;
+        hotNode.packets = 1;
+
         uint8_t ttl = ip6->ip6_ctlun.ip6_un1.ip6_un1_hlim;
-        Node->hotNode.minTTL = ttl;
-        Node->hotNode.maxTTL = ttl;
-        Node->coldNode.fragmentFlags = fragment_flag;
+        coldNode.minTTL = ttl;
+        coldNode.maxTTL = ttl;
+        coldNode.fragmentFlags = fragment_flag;
 
-        memcpy(Node->hotNode.flowKey.src_addr.bytes, ip6->ip6_src.s6_addr, 16);
-        memcpy(Node->hotNode.flowKey.dst_addr.bytes, ip6->ip6_dst.s6_addr, 16);
+        memcpy(hotNode.flowKey.src_addr.bytes, ip6->ip6_src.s6_addr, 16);
+        memcpy(hotNode.flowKey.dst_addr.bytes, ip6->ip6_dst.s6_addr, 16);
 
     } else if (version == 4) {
         int size_ip = (ip->ip_hl << 2);
@@ -887,24 +932,24 @@ REDO_IPPROTO:
         }
         ipPayloadEnd = dataptr + ipPayloadLength;
 
-        if (!Node) Node = New_Node();
-        Node->hotNode.flowKey.version = AF_INET;
-        Node->hotNode.t_first.tv_sec = hdr->ts.tv_sec;
-        Node->hotNode.t_last.tv_sec = hdr->ts.tv_sec;
-        Node->hotNode.t_first.tv_usec = hdr->ts.tv_usec;
-        Node->hotNode.t_last.tv_usec = hdr->ts.tv_usec;
-        Node->hotNode.bytes = ntohs(ip->ip_len);
+        hotNode.flowKey.version = AF_INET;
+        hotNode.t_first.tv_sec = hdr->ts.tv_sec;
+        hotNode.t_last.tv_sec = hdr->ts.tv_sec;
+        hotNode.t_first.tv_usec = hdr->ts.tv_usec;
+        hotNode.t_last.tv_usec = hdr->ts.tv_usec;
+        hotNode.packets = 1;
+        hotNode.bytes = ntohs(ip->ip_len);
 
         static const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
-        memcpy(Node->hotNode.flowKey.src_addr.bytes, prefix, 12);
-        memcpy(Node->hotNode.flowKey.dst_addr.bytes, prefix, 12);
-        memcpy(Node->hotNode.flowKey.src_addr.bytes + 12, &ip->ip_src.s_addr, 4);
-        memcpy(Node->hotNode.flowKey.dst_addr.bytes + 12, &ip->ip_dst.s_addr, 4);
+        memcpy(hotNode.flowKey.src_addr.bytes, prefix, 12);
+        memcpy(hotNode.flowKey.dst_addr.bytes, prefix, 12);
+        memcpy(hotNode.flowKey.src_addr.bytes + 12, &ip->ip_src.s_addr, 4);
+        memcpy(hotNode.flowKey.dst_addr.bytes + 12, &ip->ip_dst.s_addr, 4);
 
-        Node->hotNode.minTTL = ip->ip_ttl;
-        Node->hotNode.maxTTL = ip->ip_ttl;
-        Node->coldNode.fragmentFlags = fragment_flag;
-        if (ip_off & IP_DF) Node->coldNode.fragmentFlags |= flagDF;
+        coldNode.minTTL = ip->ip_ttl;
+        coldNode.maxTTL = ip->ip_ttl;
+        coldNode.fragmentFlags = fragment_flag;
+        if (ip_off & IP_DF) coldNode.fragmentFlags |= flagDF;
 
     } else {
         dbg_printf("ProcessPacket() Unsupported protocol version: %i\n", version);
@@ -913,28 +958,25 @@ REDO_IPPROTO:
     }
 
     // fill ipv4/ipv6 node with extracted data
-    Node->hotNode.packets = 1;
-    Node->hotNode.flowKey.proto = IPproto;
-    Node->hotNode.nodeType = FLOW_NODE;
-    Node->coldNode.vlanID = vlanID;
-    Node->coldNode.srcMac = srcMac;
-    Node->coldNode.dstMac = dstMac;
-    Node->coldNode.pflog = pflog;
+    hotNode.flowKey.proto = IPproto;
+    coldNode.vlanID = vlanID;
+    coldNode.srcMac = srcMac;
+    coldNode.dstMac = dstMac;
+    coldNode.pflog = pflog;
 
     // bytes = number of bytes on wire - data link data
-    dbg_printf("Payload: %td bytes, Full packet: %u bytes\n", eodata - dataptr, Node->hotNode.bytes);
+    dbg_printf("Payload: %td bytes, Full packet: %u bytes\n", eodata - dataptr, hotNode.bytes);
 
     if (numMPLS) {
         if (numMPLS > 10) numMPLS = 10;
         for (unsigned i = 0; i < numMPLS; i++) {
-            Node->coldNode.mpls[i] = *mplsLabel;
+            coldNode.mpls[i] = *mplsLabel;
             mplsLabel++;
         }
     }
 
     if (ipPayloadEnd < dataptr || ipPayloadEnd > eodata) {
         LogError("ProcessPacket() payload data length error line: %u", __LINE__);
-        Free_Node(Node);
         goto END_FUNC;
     }
 
@@ -947,7 +989,6 @@ REDO_IPPROTO:
             if (dataptr > eodata) {
                 dbg_printf("  UDP Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
                 packetParam->proc_stat.short_snap++;
-                Free_Node(Node);
                 goto END_FUNC;
             }
 
@@ -955,20 +996,19 @@ REDO_IPPROTO:
             if (UDPlen < 8) {
                 LogError("UDP payload length error: %u bytes < 8, SRC %s, DST %s", UDPlen, inet_ntop(AF_INET, &ip->ip_src, s1, sizeof(s1)),
                          inet_ntop(AF_INET, &ip->ip_dst, s2, sizeof(s2)));
-                Free_Node(Node);
                 break;
             }
 
             dbg_printf("  UDP: size: %u, SRC: %i, DST: %i\n", UDPlen, ntohs(udp->uh_sport), ntohs(udp->uh_dport));
 
-            Node->hotNode.flags = 0;
-            Node->hotNode.flowKey.src_port = ntohs(udp->uh_sport);
-            Node->hotNode.flowKey.dst_port = ntohs(udp->uh_dport);
+            hotNode.flags = 0;
+            hotNode.flowKey.src_port = ntohs(udp->uh_sport);
+            hotNode.flowKey.dst_port = ntohs(udp->uh_dport);
 
             dbg_assert(dataptr <= eodata);
             payloadSize = (ptrdiff_t)(ipPayloadEnd - dataptr);
             if (payloadSize > 0) payload = (void *)dataptr;
-            ProcessUDPFlow(packetParam, Node, payload, (size_t)payloadSize);
+            ProcessUDPFlow(packetParam, &hotNode, &coldNode, payload, (size_t)payloadSize);
 
         } break;
         case IPPROTO_TCP: {
@@ -978,7 +1018,6 @@ REDO_IPPROTO:
             if (dataptr > eodata) {
                 dbg_printf("  TCP Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
                 packetParam->proc_stat.short_snap++;
-                Free_Node(Node);
                 goto END_FUNC;
             }
 
@@ -997,53 +1036,11 @@ REDO_IPPROTO:
             if (tcp->th_flags & TH_RST) printf("RST ");
             printf("\n");
 #endif
-            Node->hotNode.signal = tcp->th_flags & TH_FIN || tcp->th_flags & TH_RST;
-
-            // RTT DEVEL - disabled for now
-
-#if 0
-            if (tcp->th_off > 5) {
-                uint32_t optLen = (tcp->th_off - 5) << 2;
-                uint8_t *optData = dataptr - (ptrdiff_t)optLen;
-                dbg_printf("TCP HLen: %u, tcp option len: %u\n", tcp->th_off, optLen);
-                while (optData < dataptr) {
-                    uint8_t opt = *optData++;
-                    uint8_t optLen = 0;
-                    switch (opt) {
-                        case 0:  // End of options
-                        case 1:  // NOP
-                            continue;
-                            break;
-                        case 8:  // TS
-                            optLen = *optData++;
-                            if (optLen != 10) {
-                                // skip unknown TS len
-                                LogError("TCP option TS len error: %u", optLen);
-                            } else {
-                                uint32_t tsVal = ntohl(*(uint32_t *)optData);
-                                node->coldNode.latency.tsVal = tsVal;
-                                optData += 4;
-                                uint32_t tsEcr = ntohl(*(uint32_t *)optData);
-                                optData += 4;
-                                dbg_printf("TS tcp option: %u, optLen: %u, tsVal: %u, tsEcr: %u\n", opt, optLen, tsVal, tsEcr);
-                                node->coldNode.latency.ack = ntohl(tcp->th_ack);
-                                continue;
-                            }
-                            break;
-                        default:
-                            optLen = *optData++;
-                            optData += (optLen - 2);
-                            dbg_printf("Next tcp option: %u, optLen: %u, size left: %lu\n", opt, optLen, (dataptr - optData));
-                    }
-                }
-            } else {
-                dbg_printf("OptLen: %u, no tcp option decoded\n", tcp->th_off);
-            }
-#endif
-            Node->hotNode.flags = tcp->th_flags;
-            Node->hotNode.flowKey.src_port = ntohs(tcp->th_sport);
-            Node->hotNode.flowKey.dst_port = ntohs(tcp->th_dport);
-            ProcessTCPFlow(packetParam, Node, payload, payloadSize);
+            hotNode.flags = tcp->th_flags;
+            hotNode.flowKey.src_port = ntohs(tcp->th_sport);
+            hotNode.flowKey.dst_port = ntohs(tcp->th_dport);
+            hotNode.flush = ((tcp->th_flags & (TH_FIN | TH_RST)) != 0);
+            ProcessTCPFlow(packetParam, &hotNode, &coldNode, payload, payloadSize);
 
         } break;
         case IPPROTO_ICMP: {
@@ -1053,7 +1050,6 @@ REDO_IPPROTO:
             if (dataptr > eodata) {
                 dbg_printf("  ICMP Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
                 packetParam->proc_stat.short_snap++;
-                Free_Node(Node);
                 goto END_FUNC;
             }
 
@@ -1061,9 +1057,9 @@ REDO_IPPROTO:
             payloadSize = (ptrdiff_t)(ipPayloadEnd - dataptr);
             if (payloadSize > 0) payload = (void *)dataptr;
 
-            Node->hotNode.flowKey.dst_port = (icmp->icmp_type << 8) + icmp->icmp_code;
+            hotNode.flowKey.dst_port = (icmp->icmp_type << 8) + icmp->icmp_code;
             dbg_printf("  IPv%d ICMP proto: %u, type: %u, code: %u\n", version, ip->ip_p, icmp->icmp_type, icmp->icmp_code);
-            ProcessICMPFlow(packetParam, Node, payload, payloadSize);
+            ProcessICMPFlow(packetParam, &hotNode, &coldNode, payload, payloadSize);
         } break;
         case IPPROTO_ICMPV6: {
             struct icmp6_hdr *icmp6 = (struct icmp6_hdr *)dataptr;
@@ -1072,7 +1068,6 @@ REDO_IPPROTO:
             if (dataptr > eodata) {
                 dbg_printf("  ICMPv6 Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
                 packetParam->proc_stat.short_snap++;
-                Free_Node(Node);
                 goto END_FUNC;
             }
 
@@ -1080,9 +1075,9 @@ REDO_IPPROTO:
             payloadSize = (ptrdiff_t)(ipPayloadEnd - dataptr);
             if (payloadSize > 0) payload = (void *)dataptr;
 
-            Node->hotNode.flowKey.dst_port = (icmp6->icmp6_type << 8) + icmp6->icmp6_code;
+            hotNode.flowKey.dst_port = (icmp6->icmp6_type << 8) + icmp6->icmp6_code;
             dbg_printf("  IPv%d ICMP proto: %u, type: %u, code: %u\n", version, ip->ip_p, icmp6->icmp6_type, icmp6->icmp6_code);
-            ProcessICMPFlow(packetParam, Node, payload, payloadSize);
+            ProcessICMPFlow(packetParam, &hotNode, &coldNode, payload, payloadSize);
         } break;
         case IPPROTO_IPV6: {
             uint32_t size_inner_ip = sizeof(struct ip6_hdr);
@@ -1090,15 +1085,14 @@ REDO_IPPROTO:
             if ((dataptr + size_inner_ip) > eodata) {
                 dbg_printf("  IPIPv6 tunnel Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
                 packetParam->proc_stat.short_snap++;
-                Free_Node(Node);
                 goto END_FUNC;
             }
 
             // move IP to tun IP
-            Node->coldNode.tun_src_addr = Node->hotNode.flowKey.src_addr;
-            Node->coldNode.tun_dst_addr = Node->hotNode.flowKey.dst_addr;
-            Node->coldNode.tun_proto = IPPROTO_IPV6;
-            Node->coldNode.tun_ip_version = Node->hotNode.flowKey.version;
+            coldNode.tun_src_addr = hotNode.flowKey.src_addr;
+            coldNode.tun_dst_addr = hotNode.flowKey.dst_addr;
+            coldNode.tun_proto = IPPROTO_IPV6;
+            coldNode.tun_ip_version = hotNode.flowKey.version;
 
             dbg_printf("  IPIPv6 tunnel - inner IPv6:\n");
 
@@ -1112,15 +1106,14 @@ REDO_IPPROTO:
             if ((dataptr + size_inner_ip) > eodata) {
                 dbg_printf("  IPIP tunnel Short packet: %u, Check line: %u\n", hdr->caplen, __LINE__);
                 packetParam->proc_stat.short_snap++;
-                Free_Node(Node);
                 goto END_FUNC;
             }
 
             // move IP to tun IP
-            Node->coldNode.tun_src_addr = Node->hotNode.flowKey.src_addr;
-            Node->coldNode.tun_dst_addr = Node->hotNode.flowKey.dst_addr;
-            Node->coldNode.tun_proto = IPPROTO_IPIP;
-            Node->coldNode.tun_ip_version = Node->hotNode.flowKey.version;
+            coldNode.tun_src_addr = hotNode.flowKey.src_addr;
+            coldNode.tun_dst_addr = hotNode.flowKey.dst_addr;
+            coldNode.tun_proto = IPPROTO_IPIP;
+            coldNode.tun_ip_version = hotNode.flowKey.version;
 
             dbg_printf("  IPIP tunnel - inner IP:\n");
 
@@ -1162,11 +1155,10 @@ REDO_IPPROTO:
             } else if (version == 1) {
                 uint16_t proto = ntohs(gre_hdr->type);
                 uint16_t callID = ntohs(*((uint16_t *)(dataptr + 6)));
-                Node->hotNode.flowKey.dst_port = callID;
+                hotNode.flowKey.dst_port = callID;
                 if (proto != 0x880b) {
                     LogError("Unexpected protocol in LLTP GRE header: 0x%x", proto);
                     packetParam->proc_stat.short_snap++;
-                    Free_Node(Node);
                     goto END_FUNC;
                 }
                 // pptp - vpn
@@ -1182,26 +1174,24 @@ REDO_IPPROTO:
                 payloadSize = (ptrdiff_t)(ipPayloadEnd - dataptr);
                 if (payloadSize > 0) payload = (void *)dataptr;
 
-                ProcessOtherFlow(packetParam, Node, payload, payloadSize);
+                ProcessOtherFlow(packetParam, &hotNode, &coldNode, payload, payloadSize);
                 goto END_FUNC;
             } else {
                 dbg_printf("  GRE version error: %u\n", version);
                 packetParam->proc_stat.short_snap++;
-                Free_Node(Node);
                 goto END_FUNC;
             }
 
             if (dataptr > eodata) {
                 dbg_printf("  GRE tunnel Short packet: %u\n", hdr->caplen);
                 packetParam->proc_stat.short_snap++;
-                Free_Node(Node);
                 goto END_FUNC;
             }
             // move IP to tun IP
-            Node->coldNode.tun_src_addr = Node->hotNode.flowKey.src_addr;
-            Node->coldNode.tun_dst_addr = Node->hotNode.flowKey.dst_addr;
-            Node->coldNode.tun_proto = IPPROTO_GRE;
-            Node->coldNode.tun_ip_version = Node->hotNode.flowKey.version;
+            coldNode.tun_src_addr = hotNode.flowKey.src_addr;
+            coldNode.tun_dst_addr = hotNode.flowKey.dst_addr;
+            coldNode.tun_proto = IPPROTO_GRE;
+            coldNode.tun_ip_version = hotNode.flowKey.version;
             // redo IP proto evaluation
             goto REDO_LINK_PROTO;
 
@@ -1215,7 +1205,7 @@ REDO_IPPROTO:
 
             dbg_printf("  raw proto: %u, payload size: %zu\n", IPproto, payloadSize);
 
-            ProcessOtherFlow(packetParam, Node, payload, payloadSize);
+            ProcessOtherFlow(packetParam, &hotNode, &coldNode, payload, payloadSize);
             break;
     }
 

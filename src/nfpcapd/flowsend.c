@@ -238,15 +238,22 @@ __attribute__((noreturn)) void *sendflow_thread(void *thread_data) {
     pcapd_header->lastSequence = 1;
 
     printRecord = flowParam->printRecord;
-    while (1) {
+    int done = 0;
+    while (!done) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
-        if (Node->hotNode.signal == SIGNAL_SYNC) {
-            // skip
-        } else if (Node->hotNode.signal == SIGNAL_DONE) {
-            CloseSender(flowParam, Node->timestamp);
-            break;
-        } else {
-            ProcessFlow(flowParam, Node);
+        switch (Node->nodeType) {
+            case FLOW_NODE:
+                ProcessFlow(flowParam, Node);
+                break;
+            case SIGNAL_NODE_SYNC:
+                // skip
+                break;
+            case SIGNAL_NODE_DONE:
+                CloseSender(flowParam, Node->timestamp);
+                done = 1;
+                break;
+            default:
+                LogError("Unknown node type: %u\n", Node->nodeType);
         }
         Free_Node(Node);
     }
