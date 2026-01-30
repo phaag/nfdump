@@ -344,7 +344,7 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
     time_t now = time(NULL);
 
     if (dry_run) {
-        printf("DRY-RUN MODE: Simulating expire operation\n\n");
+        printf("DRY-RUN MODE: Simulating expire operation\n");
     }
 
     dir_files = 0;
