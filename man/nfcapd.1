@@ -51,6 +51,7 @@
 .Op Fl 6
 .Op Fl J Ar mcastgroup
 .Op Fl R Ar repeater
+.Op Fl F Ar filter
 .Op Fl A
 .Op Fl B Ar buffsize
 .Op Fl n Ar sourceparam
@@ -166,6 +167,35 @@ is either a valid IPv4/IPv6 address, or a symbolic hostname, which resolves to a
 .Ar port
 may be omitted and defaults to 9995. Note: As IPv4/IPv6 are accepted the host/port separator is '/'.
 Up to 8 additional repeaters my be defined. Use this method to daisy chain collectors.
+.Pp
+If the repeater has a filter defined with
+.Fl F
+, only matching flows are sent to this repeater in NetFlow v5 format.
+If no filter is defined, all raw packets are forwarded unchanged.
+.It Fl F Ar filter
+Specifies a filter expression for the preceding
+.Fl R
+repeater. Only flows matching the filter are sent to that repeater.
+The filter syntax is the same as used by
+.Nm nfdump
+for filtering flows. See
+.Xr nfdump 1
+for the full filter syntax.
+.Pp
+Note:
+.Fl F
+must immediately follow a
+.Fl R
+option. Multiple
+.Fl R
+and
+.Fl F
+pairs can be specified to create different filtered repeaters.
+.Pp
+Example: Forward only flows from interface 10 to collector1, and flows with source network 192.168.0.0/16 to collector2:
+.Dl nfcapd -p 2055 -w /data/flows -R collector1:2055 -F 'in if 10' -R collector2:2055 -F 'src net 192.168.0.0/16'
+.Pp
+Filtered repeaters send flows in NetFlow v5 format. IPv6 flows are skipped as v5 does not support IPv6.
 .It Fl A
 Sets source address spoofing mode for the repeater. The source address of the repeated packages
 is set to the original IP address. This needs
