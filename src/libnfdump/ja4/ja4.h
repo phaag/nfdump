@@ -34,6 +34,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "config.h"
 #include "ssl/ssl.h"
 
 typedef enum { TYPE_UNDEF = 0, TYPE_JA4, TYPE_JA4S } ja4Type_t;
@@ -94,7 +95,7 @@ ja4_t *ja4Process(ssl_t *ssl, uint8_t proto);
  * conditional compile ja4s code, if configured and ja4 license conditions are met
  * map ja4+ calls to the proper function or to the negative result of the function
  */
-#ifdef BUILDJA4
+#ifdef BUILD_JA4
 int ja4sCheck(char *ja4sString);
 
 // map function calls to proper ja4+ function

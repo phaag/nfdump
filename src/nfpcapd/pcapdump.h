@@ -44,7 +44,7 @@ typedef struct flushParam_s {
     pcap_t *pcap_dev;
     pcap_dumper_t *pd;
     int pfd;
-    int subdir_index;
+    unsigned subdir_index;
     char *archivedir;
     char *extensionFormat;
 } flushParam_t;

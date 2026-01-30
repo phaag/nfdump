@@ -717,7 +717,7 @@ static void InitFilter(void) {
     ClearFilter();
 }  // End of InitFilter
 
-void FilterSetParam(void *engine, const char *ident, const int hasGeoDB) {
+void FilterSetParam(void *engine, const char *ident, const unsigned hasGeoDB) {
     FilterEngine_t *filterEngine = (FilterEngine_t *)engine;
     filterEngine->hasGeoDB = hasGeoDB;
     filterEngine->ident = ident ? ident : "none";

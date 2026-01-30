@@ -12,10 +12,10 @@
 - [Compatibility](#compatibility)
 - [Installation](#installation)
 - [Configuration Options](#configuration-options)
-- [Usage Overview](#usage-overview)
-- [Additional Tools](#additional-tools)
+- [Basic Usage](#basic-usage)
+- [Included Tools](#included-tools)
 - [Compression](#compression)
-- [General Operation](#general-operation-of-nfdump)
+- [How nfdump Works](#how-nfdump-works)
 - [Sampling](#sampling)
 - [NetFlow/NSEL/NAT Support](#netflownselnat-support)
 - [Related Projects](#related-projects)
@@ -56,9 +56,9 @@
 
 ## Installation
 
-### Building
+### Building for general use or to create a package
 
-nfdump uses the GNU autotools build system.
+nfdump uses the GNU autotools 2.71 build system.
 
 ```sh
 ./autogen.sh
@@ -67,7 +67,21 @@ make
 sudo make install
 ```
 
+### Building for the local system
+
+If you plan to run the tools on the same system where they are built, you can enable additional optimizations:
+```sh
+./autogen.sh
+./configure --enable-native --enable-lto
+make
+sudo make install
+```
+
+This enables CPU-specific optimizations (`-march=native`) and link-time optimization (`-flto`) for improved performance.
+
 #### Building on CentOS 7.x
+
+Make sure, you have autotools 2.71 installed.
 
 ```sh
 yum install centos-release-scl
@@ -76,6 +90,8 @@ scl enable devtoolset-8 -- bash
 ```
 
 #### Building on Ubuntu 18.04 LTS
+
+Make sure, you have autotools 2.71 installed.
 
 ```sh
 sudo apt-get install clang-10
@@ -86,48 +102,66 @@ CC=clang-10 ./configure ...
 
 ## Configuration Options
 
-For a full list, run `./configure --help`. Key options include:
+By default ./configure builds:
 
-- `--enable-sflow`  
-  Build sFlow collector `sfcapd` (default: NO)
-- `--enable-nfpcapd`  
+- the collectors `nfcapd`, `sfcapd`
+- `nfdump` for processing flows
+- additional tools `geolookup`, and `torlookup`
+
+For a full list, run `./configure --help`. Options include:
+
+- `--enable-nfpcapd`
   Build `nfpcapd` to create NetFlow from interface or pcap traffic (default: NO)
-- `--enable-maxmind`  
-  Build geolookup program for geolocation enrichment (default: NO)
-- `--enable-tor`  
-  Build torlookup program for Tor exit node enrichment (default: NO)
-- `--enable-nsel`  
-  NSEL support is built-in by default in 1.7.x. This switch only affects the default output format (line/nsel).
-- `--enable-jnat`  
-  Support JunOS NAT event logging (default: NO)
-- `--enable-ftconv`  
-  Build the flow-tools to nfdump converter (default: NO)
-- `--enable-nfprofile`  
-  Build nfprofile, required by NfSen (default: NO)
-- `--enable-nftrack`  
-  Build nftrack, used by PortTracker (default: NO)
-- `--enable-ja4`  
+- `--enable-ja4`
   Enable all JA4 fingerprinting modules (default: NO)
-- `--enable-devel`  
-  Enable debugging and developer options (default: NO)
-- `--enable-readpcap`  
+- `--enable-jnat`
+  Support JunOS special NAT event logging (default: NO)
+- `--enable-readpcap`
   Enable reading flow data from pcap files in nfcapd (default: NO)
-- `--with-lz4path=PATH`, `--with-zstdpath=PATH`, `--with-bz2path=PATH`  
+- `--enable-ftconv`
+  Build the flow-tools to nfdump converter (default: NO)
+- `--enable-nfprofile`
+  Build nfprofile and nftrack, required by NfSen (default: NO)
+- `--enable-devel`
+  Enable debugging aqnd developer options. For developers only (default: NO)
+- `--with-lz4=PATH`, `--with-zstd=PATH`, `--with-bz2=PATH`
   Specify non-default library install locations for compression libraries.
+- `--enable-lto`
+  Enable link-time optimization (LTO) if supported. This allows the compiler to optimize across all source files during the final link step, improving performance and reducing binary size.
+- `--enable-native`
+  Use `-march=native` to enable CPU-specific optimizations for the build host. This enables vectorization and instruction set tuning based on the local processor. Recommended for local builds, not for portable binaries.
+
+Compared to previous versions, the configure script has changed: many tools that previously required explicit enabling are now built automatically. The old options `--enable-xxxpath=path` have been replaced by the standard `--with-xxx=path`
+
+Compression libraries are searched for and integrated, if found. If you want to explicitly disable a library and therefore a compression method, use the format `--enable-xxx=no` This disables that library.
+
+The following options no longer exist:
+
+`--enable-nsel`
+NSEL support is built-in by default; you only need to adjust the output format if you prefer the legacy *line* or *long* format for NSEL/NAT. Change the `fmt` formats accordingly in the config file `nfdump.conf`
+
+Notes:
+
+- Make sure your system does provide autoconf 2.71.
+- Older Linux distributions may require libbsd and libbsd-dev installed. 
+
+- `nfprofile` is a legacy binary, used by NfSen and may be moved into a separate archive in future.
 
 ---
 
-## Usage Overview
+## Basic Usage
+
+Exporter → nfcapd → nfdump → analysis/export (CSV, JSON, InfluxDB, Prometheus)
 
 nfdump provides a set of collection and processing tools. Common tools and example commands:
 
-### Collect NetFlow Data
+### Start NetFlow Collector
 
 ```sh
 nfcapd -D -S 2 -w /flow_base_dir/router1 -p 23456
 ```
 
-### Process Collected Data
+### View Collected Data
 
 ```sh
 nfdump -r /flow_base_dir/router1/nfcapd.202501011200
@@ -141,7 +175,7 @@ nfdump -r flowfile 'src ip 192.0.2.1 and dst port 443' -A srcip,dstip
 
 ### Enrich with Geolocation or Tor Information
 
-Enable and configure geolookup/torlookup databases as needed. See respective man pages for details.
+Enable and configure geolookup/torlookup databases as needed. For details, see the relevant man pages (`man geolookup`, `man torlookup`).
 
 ### Export Metrics
 
@@ -149,41 +183,51 @@ Send metrics to InfluxDB or Prometheus-compatible tools using [nfinflux](https:/
 
 ---
 
-## Additional Tools
+## Included Tools
 
 nfdump includes several related tools for extended workflows:
 
-- **geolookup**  
-  Enriches IP addresses with country, region, city, and optionally AS information. Requires Maxmind database and must be enabled with `--enable-maxmind`.
+- **nfcapd**
+  NetFlow collector daemon. Collects NetFlow version v1/v5/v7/v9 and IPFIX streams from one or many exporters and stores the flow record data in nfdump binary files.
 
-- **torlookup**  
-  Tags flows with Tor exit node information. Requires the TorDB database and must be enabled with `--enable-tor`.
+- **sfcapd**
+  sFlow collector daemon. Collects sflow v4/v6 (sflowtool compatible) streams from one or many exporters and stores the flow record data in nfdump binary files.
 
-- **nfprofile**  
-  NetFlow profiler for NfSen integration. Filters and organizes flows by profile.
+- **nfpcapd**
+  Converts live traffic from a host interface or pcap-captured network traffic to NetFlow records. Stores the flow record data in nfdump binary files or forwards a data stream to a running `nfcapd` collector on another host.
 
-- **nfpcapd**  
-  Converts live or pcap-captured network traffic to NetFlow records. Supports storing locally or forwarding to a remote collector.
+- **nfdump**
+  Reads nfdump binary files, filters flow records and post-processes flow records. The extensive filter language (See the available [cheatsheet](https://gist.github.com/phaag/06369bed7f39f97e1de51b1b0f5bc29a#file-cheatsheet-md) ) selects flows for processing. The post-processing includes:
 
-- **sfcapd**  
-  sFlow collector daemon, stores data in nfcapd-compatible files.
+  - Flexible flow aggregation
+  - Flow statistics, based on any flow element
+  - Flow listings
+  - Flow enrichment with optional geo and/or tor exit node information.
+  
+- **geolookup**
+  Look up IP addresses for country, region, city, and optionally AS information. Requires a geo database to work. See the provided `updateGeoDB.sh` script in order to build the database.
 
-- **nfanon**  
+- **torlookup**
+  Look up IP addresses for Tor exit node information. Requires a TorDB database to work. See the provided `updateTorDB.sh` script in order to build the database.
+
+- **nfanon**
   Anonymizes IP addresses in flow records using CryptoPAn.
 
-- **nfexpire**  
+- **nfexpire**
   Manages expiration of old flow data.
 
-- **nfreplay**  
+- **nfreplay**
   Replays collected NetFlow data to another collector.
 
-- **ft2nfdump**  
-  Converts flow-tools format to nfdump format.
+- **ft2nfdump**
+  Converts flow-tools format to nfdump format. (optionally built)
 
-- **nftrack**  
-  Port tracking decoder for NfSen’s PortTracker plugin.
+- **nfprofile** and **nftrack**
 
-- **nfreader**  
+
+  Programs required by NfSen. `nfprofile` filters and organizes flows by profile, and `nftrack` provides port tracking for the PortTracker plugin.
+
+- **nfreader**
   Framework for custom C code to process nfdump files. Not installed by default.
 
 ---
@@ -205,7 +249,7 @@ nfcapd -z=lz4 ...
 
 ---
 
-## General Operation of nfdump
+## How nfdump Works
 
 nfdump is designed to analyze both historical and live NetFlow data, enabling continuous or retrospective monitoring of network traffic. The system is optimized for speed and efficiency, allowing complex filtering and aggregation of flow records with a syntax similar to tcpdump.
 
@@ -323,16 +367,16 @@ See your device documentation for full details on NetFlow configuration.
 
 ### Architecture Notes
 
-- The binary data format is NetFlow version independent, but is architecture-dependent (little vs. big endian).
+- The binary file format is NetFlow version independent but architecture-dependent  (little vs. big endian).
 - Internally, all processing is IP protocol independent (supports IPv4 and IPv6).
 
 ---
 
 ## Sampling
 
-By default, the sampling rate is set to 1 (unsampled) or to any value specified by the `-s` command line option. If sampling information is found in the NetFlow stream, it overrides the default value. Sampling is automatically recognized when announced in v9/IPFIX option templates with tags set (`#302, #304, #305, #306`, `#48, #49, #50`, `#34, #35`), or in the unofficial v5 header hack. The sampling data is stored in the sampling information fields in the flow record.
+By default, the sampling rate is 1 (unsampled) or the value specified via `-s`. If the NetFlow stream contains sampling information, that value takes precedence. Nfcapd automatically recognizes sampling when announced in v9/IPFIX option templates with tags set (`#302, #304, #305, #306`, `#48, #49, #50`, `#34, #35`), or in the unofficial v5 header hack. The sampling data is stored in the sampling information fields in the flow record.
 
-**Note:** Not all platforms (or vendor software versions) support exporting sampling information in NetFlow data, even if sampling is configured. The number of bytes/packets in each NetFlow record is automatically multiplied by the sampling rate. The total number of flows is not changed as this is not accurate enough (small flows versus large flows).
+**Note:** Not all platforms (or vendor software versions) support exporting sampling information in NetFlow data, even if sampling is configured. The number of bytes and packets in each NetFlow record is automatically multiplied by the sampling rate. The total number of flows is not changed as this is not accurate enough (small flows versus large flows).
 
 ---
 
@@ -340,7 +384,6 @@ By default, the sampling rate is set to 1 (unsampled) or to any value specified 
 
 - Supports Cisco NSEL (Network Event Security Logging) and NEL (NAT Event Logging) via NetFlow v9.
 - Partially compatible with JunOS NAT Event Logging (enable with `--enable-jnat`).
-- Binary file format is NetFlow version-independent but architecture-dependent.
 
 ---
 
@@ -349,6 +392,7 @@ By default, the sampling rate is set to 1 (unsampled) or to any value specified 
 - [go-nfdump](https://github.com/phaag/go-nfdump): Read nfdump files in Go.
 - [nfinflux](https://github.com/phaag/nfinflux): Export metrics to InfluxDB.
 - [nfexporter](https://github.com/phaag/nfexporter): Export metrics for Prometheus.
+- [NfSen](https://github.com/phaag/nfsen): Old legacy graphical frontend.
 
 ---
 
@@ -368,6 +412,6 @@ nfdump is released under the BSD license. See the [LICENSE](LICENSE) file for de
 ## Support & Documentation
 
 - For detailed usage instructions, consult the man pages (`man nfdump`, `man nfcapd`, etc.) or run any tool with the `-h` switch.
-- Feel free to open issues or pull requests
+- Feel free to open issues or pull requests.
 - For other questions please see my email address in the AUTHORS.
 - For the latest updates, visit the [nfdump repository on GitHub](https://github.com/phaag/nfdump).

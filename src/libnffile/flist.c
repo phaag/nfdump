@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -188,39 +188,21 @@
 static const char *subdir_def[] = {"",  // default index 0 - no subdir hierarchy
                                    "%Y/%m/%d", "%Y/%m/%d/%H", "%Y/%W/%u", "%Y/%W/%u/%H", "%Y/%j", "%Y/%j/%H", "%F", "%F/%H", NULL};
 
-// all accepted char in a string
-#define AcceptedFormatChar "YymdjHMsUWwuF"
-
-static mode_t mode, dir_mode;
-static const char *subdir_format = NULL;
-static int subdir_index = 0;
-
 static struct entry_filter_s {
     char *first_entry;
     char *last_entry;
     int list_files;
 } *dir_entry_filter = NULL;
 
-#define NUM_PTR 16
-
-// module variables
-static char *first_file = NULL;
-static char *last_file = NULL;
-
-static stringlist_t source_dirs;
-static queue_t *file_queue = NULL;
-
 /* Function prototypes */
 
-static int CreateDirListFilter(char *first_path, char *last_path, int file_list_level);
+static int CreateDirListFilter(stringlist_t *source_dirs, char *first_path, char *first_file, char *last_path, char *last_file, int file_list_level);
 
-static int GetFileList(char *path, timeWindow_t *timeWindow);
+static int GetFileList(stringlist_t *source_dirs, flist_t *flist);
 
 static void CleanPath(char *entry);
 
-static void Getsource_dirs(char *dirs);
-
-static int mkpath(char *path, char *p, mode_t mode, mode_t dir_mode, char *error, size_t errlen);
+static void Getsource_dirs(stringlist_t *source_dirs, char *dirs);
 
 static char *SubDirList(char *path);
 
@@ -231,6 +213,8 @@ static char *ExpandWildcard(char *path);
 static char *VerifyFileRange(char *path, char *last_file);
 
 static void *FileLister_thr(void *arg);
+
+static void ExpandMultipleDir(stringlist_t *source_dirs, char *single_file, flist_t *flist);
 
 static int CheckTimeWindow(char *filename, timeWindow_t *searchWindow);
 
@@ -276,11 +260,9 @@ static void CleanPath(char *entry) {
 // file filter for scandir function
 
 static int dirlevels(char *dir) {
-    int num;
-
     if (!dir) return 0;
 
-    num = 0;
+    int num = 0;
     if (dir[0] == '/') dir++;
 
     while (*dir) {
@@ -292,12 +274,12 @@ static int dirlevels(char *dir) {
 
 }  // End of dirlevels
 
-static int CreateDirListFilter(char *first_path, char *last_path, int file_list_level) {
+static int CreateDirListFilter(stringlist_t *source_dirs, char *first_path, char *first_file, char *last_path, char *last_file, int file_list_level) {
     int i;
     char *p, *q, *first_mark, *last_mark;
 
     dbg_printf("CreateDirListFilter() First Dir: '%s', first_path: '%s', last_path '%s', first_file '%s', last_file '%s', list_level: %i\n",
-               source_dirs.list[0], first_path, last_path, first_file, last_file, file_list_level);
+               source_dirs->list[0], first_path, last_path, first_file, last_file, file_list_level);
 
     if (file_list_level == 0) return 1;
 
@@ -448,25 +430,22 @@ static char *ExpandWildcard(char *path) {
     return strcat(path, dirList);
 }  // End of ExpandWildcard
 
-static int GetFileList(char *path, timeWindow_t *timeWindow) {
-    struct stat stat_buf;
-    char *last_file_ptr, *first_path, *last_path;
-    int levels_first_file, levels_last_file, file_list_level;
-    int sub_index;
-
-    FTS *fts;
-    FTSENT *ftsent;
+static int GetFileList(stringlist_t *source_dirs, flist_t *flist) {
+    char *path = flist->multiple_files;
+    timeWindow_t *timeWindow = flist->timeWindow;
+    queue_t *file_queue = flist->file_queue;
 
     CleanPath(path);
 
     // Check for last_file option
-    last_file_ptr = strchr(path, ':');
-    first_path = last_path = NULL;
-    levels_first_file = levels_last_file = 0;
+    char *last_file_ptr = strchr(path, ':');
+    char *first_path = NULL;
+    char *last_path = NULL;
+    int levels_last_file = 0;
     if (last_file_ptr) {
         // make sure we have only a single ':' in path
         if (strrchr(path, ':') != last_file_ptr) {
-            LogError("Multiple file separators ':' in path not allowed!");
+            LogError("Multiple file separators ':' are not allowed in %s", path);
             return 0;
         }
         *last_file_ptr++ = '\0';
@@ -497,13 +476,16 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
                 s[MAXPATHLEN - 1] = '\0';
                 last_file_ptr = strdup(s);
                 levels_last_file = dirlevels(last_file_ptr);
+                free(r);
             }
         }
     }
 
-    levels_first_file = dirlevels(path);
-
-    if (source_dirs.num_strings == 0) {
+    char *first_file = NULL;
+    char *last_file = NULL;
+    int file_list_level = 0;
+    struct stat stat_buf;
+    if (source_dirs->num_strings == 0) {
         // No multiple sources option -M
 
         // path contains the path to a file/directory
@@ -518,7 +500,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
         }
 
         // Check, how many levels of directory in path
-        levels_first_file = dirlevels(path);
+        int levels_first_file = dirlevels(path);
 
         if (last_file_ptr) {
             // path is [/]path/to/any/dir|file:last_file_ptr
@@ -542,10 +524,10 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
                     // path = [/]sub1[/..]/first_file:sub1[/...]/last_file
                     if (path[0] == '/') {
                         // this is rather strange, but strictly spoken, valid anyway
-                        InsertString(&source_dirs, "/");
+                        InsertString(source_dirs, "/");
                         path++;
                     } else {
-                        InsertString(&source_dirs, ".");
+                        InsertString(source_dirs, ".");
                     }
 
                     // path = sub_first[/..]/first_file:sub_last[/...]/last_file
@@ -580,7 +562,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
                     }
                     *p++ = '\0';
 
-                    InsertString(&source_dirs, path);
+                    InsertString(source_dirs, path);
 
                     r = strrchr(p, '/');
                     s = strrchr(last_file_ptr, '/');
@@ -609,11 +591,11 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
                     // path is [/]path/to/any/first_file:last_file
                     *p++ = '\0';
                     // path is the directory containing all the files
-                    InsertString(&source_dirs, path);
+                    InsertString(source_dirs, path);
                     first_file = strdup(p);
                 } else {
                     // path is first_file:last_file
-                    InsertString(&source_dirs, ".");
+                    InsertString(source_dirs, ".");
                     first_file = strdup(path);
                 }
                 // set last_file filter
@@ -626,7 +608,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
             if (S_ISDIR(stat_buf.st_mode)) {
                 // path is [/]path/to/any/dir
                 // list all files in this directory
-                InsertString(&source_dirs, path);
+                InsertString(source_dirs, path);
                 first_file = NULL;
                 file_list_level = 0;
             } else {
@@ -636,11 +618,11 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
                     // path is [/]path/to/any/file
                     *p++ = '\0';
                     // path is the directory containing all the files
-                    InsertString(&source_dirs, path);
+                    InsertString(source_dirs, path);
                     first_file = strdup(p);
                 } else {
                     // path is file
-                    InsertString(&source_dirs, ".");
+                    InsertString(source_dirs, ".");
                     first_file = strdup(path);
                 }
                 // in any case we list the files of directory level 1
@@ -651,8 +633,8 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
         }
 
     } else {
-        char pathbuff[MAXPATHLEN];
         // multiple sources option -M given
+        char pathbuff[MAXPATHLEN];
         if (path[0] == '/') {
             LogError("File list -R must not start with '/' when combined with a source list -M");
             return 0;
@@ -666,14 +648,14 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
         } else {
             // pathbuff contains the path to a file/directory, compiled using the first entry
             // in the source_dirs
-            snprintf(pathbuff, MAXPATHLEN - 1, "%s/%s", source_dirs.list[0], path);
+            snprintf(pathbuff, MAXPATHLEN - 1, "%s/%s", source_dirs->list[0], path);
             pathbuff[MAXPATHLEN - 1] = '\0';
 
             // pathbuff must point to a file
             if (stat(pathbuff, &stat_buf)) {
                 if (errno == ENOENT) {
                     // file not found - try to guess a possible subdir
-                    char *sub_dir = GuessSubDir(source_dirs.list[0], path);
+                    char *sub_dir = GuessSubDir(source_dirs->list[0], path);
                     if (sub_dir) {  // subdir found
                         snprintf(pathbuff, MAXPATHLEN - 1, "%s/%s", sub_dir, path);
                         pathbuff[MAXPATHLEN - 1] = '\0';
@@ -683,7 +665,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
 
                         // need guessing subdir with last_file too
                         if (last_file_ptr) {
-                            sub_dir = GuessSubDir(source_dirs.list[0], last_file_ptr);
+                            sub_dir = GuessSubDir(source_dirs->list[0], last_file_ptr);
                             if (sub_dir) {  // subdir found
                                 snprintf(pathbuff, MAXPATHLEN - 1, "%s/%s", sub_dir, last_file_ptr);
                                 pathbuff[MAXPATHLEN - 1] = '\0';
@@ -700,7 +682,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
 
                     } else {  // no file in any possible subdir found
                         LogError("stat() error '%s': %s", pathbuff, "File not found!");
-                        exit(250);
+                        return 0;
                     }
                 } else {  // Any other stat error
                     LogError("stat() error '%s': %s", pathbuff, strerror(errno));
@@ -712,7 +694,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
             }
 
             // Check, how many levels of directory in path
-            levels_first_file = dirlevels(path);
+            int levels_first_file = dirlevels(path);
 
             if (last_file_ptr) {
                 // path is path/to/any/first_file:last_file_ptr
@@ -767,19 +749,22 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
         }
     }
 
-    if (!CreateDirListFilter(first_path, last_path, file_list_level)) {
+    if (!CreateDirListFilter(source_dirs, first_path, first_file, last_path, last_file, file_list_level)) {
         return 0;
     }
 
     // last entry must be NULL
-    InsertString(&source_dirs, NULL);
-    if (!source_dirs.list) {
+    InsertString(source_dirs, NULL);
+    if (source_dirs->num_strings == 0) {
         LogError("ERROR: No source dir at %s line %d", __FILE__, __LINE__);
         return 0;
     }
-    fts = fts_open(source_dirs.list, FTS_LOGICAL, compare);
-    sub_index = 0;
+
+    int sub_index = 0;
+    FTSENT *ftsent;
+    FTS *fts = fts_open(source_dirs->list, FTS_LOGICAL, compare);
     while ((ftsent = fts_read(fts)) != NULL) {
+        dbg_printf("Next fts: %s\n", ftsent->fts_path);
         int fts_level = ftsent->fts_level;
         char *fts_path;
 
@@ -802,7 +787,7 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
         switch (ftsent->fts_info) {
             case FTS_D:
                 // dir entry pre descend
-                if (file_list_level && file_list_level &&
+                if (file_list_level &&
                     ((dir_entry_filter[fts_level].first_entry && (strcmp(fts_path, dir_entry_filter[fts_level].first_entry) < 0)) ||
                      (dir_entry_filter[fts_level].last_entry && (strcmp(fts_path, dir_entry_filter[fts_level].last_entry) > 0))))
                     fts_set(fts, ftsent, FTS_SKIP);
@@ -828,7 +813,9 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
                     continue;
 
                 if (CheckTimeWindow(ftsent->fts_path, timeWindow)) {
-                    queue_push(file_queue, strdup(ftsent->fts_path));
+                    char *s = strdup(ftsent->fts_path);
+                    dbg_printf("Push file: %s\n", s);
+                    queue_push(file_queue, s);
                 }
                 break;
         }
@@ -837,63 +824,6 @@ static int GetFileList(char *path, timeWindow_t *timeWindow) {
 
     return 1;
 }  // End of GetFileList
-
-/*
- * Get the list of directories
- * dirs: user supplied parameter: /any/path/dir1:dir2:dir3:...
- * 		source_dirs must result in
- * 		/any/path/dir1
- * 		/any/path/dir2
- * 		/any/path/dir3
- * 	/any/path is dir prefix, which may be NULL e.g. dir1:dir2:dir3:...
- * 	dir1, dir2 etc entries
- */
-void Getsource_dirs(char *dirs) {
-    char *p, *q, *dirprefix;
-    char path[MAXPATHLEN];
-
-    q = strchr(dirs, ':');
-    if (q) {  // we have /path/to/firstdir:dir1:dir2:...
-        *q = 0;
-        p = strrchr(dirs, '/');
-        if (p) {
-            *p++ = 0;  // p points now to the first name in the dir list
-            dirprefix = dirs;
-        } else {              // we have a source_dirs in current directory
-            p = dirs;         // p points now to the first name in the dir list
-            dirprefix = ".";  // current directory
-        }
-        *q = ':';  // restore ':' in source_dirs
-
-        while (p) {  // iterate over all elements in the dir list
-            q = strchr(p, ':');
-            if (q) *q = 0;
-
-            // p point to a dir name
-            snprintf(path, 1023, "%s/%s", dirprefix, p);
-            path[MAXPATHLEN - 1] = 0;
-            if (!CheckPath(path, S_IFDIR)) {
-                LogError("Not a directory: '%s'", path);
-                return;
-            }
-
-            // save path into source_dirs
-            InsertString(&source_dirs, path);
-
-            p = q ? q + 1 : NULL;
-        }
-
-    } else {  // we have only one directory
-        if (!CheckPath(dirs, S_IFDIR)) {
-            LogError("Not a directory: '%s'", dirs);
-            return;
-        }
-
-        // save the path into source_dirs
-        InsertString(&source_dirs, dirs);
-    }
-
-}  // End of Getsource_dirs
 
 queue_t *SetupInputFileSequence(flist_t *flist) {
     if (flist->multiple_dirs == NULL && flist->single_file == NULL && flist->multiple_files == NULL) {
@@ -923,7 +853,8 @@ queue_t *SetupInputFileSequence(flist_t *flist) {
         }
     }
 
-    file_queue = queue_init(64);
+    queue_t *file_queue = queue_init(64);
+    flist->file_queue = file_queue;
     pthread_t tid;
     pthread_create(&tid, NULL, FileLister_thr, (void *)flist);
     pthread_detach(tid);
@@ -931,26 +862,126 @@ queue_t *SetupInputFileSequence(flist_t *flist) {
 
 }  // End of SetupInputFileSequence
 
+/*
+ * Get the list of directories
+ * dirs: user supplied parameter: /any/path/dir1:dir2:dir3:...
+ * 		source_dirs must result in
+ * 		/any/path/dir1
+ * 		/any/path/dir2
+ * 		/any/path/dir3
+ * 	/any/path is dir prefix, which may be NULL e.g. dir1:dir2:dir3:...
+ * 	dir1, dir2 etc entries
+ */
+static void Getsource_dirs(stringlist_t *source_dirs, char *dirs) {
+    char *q = strchr(dirs, ':');
+    if (q) {  // we have /path/to/firstdir:dir1:dir2:...
+        char path[MAXPATHLEN];
+        char *baseDir = NULL;
+        *q = 0;
+        char *p = strrchr(dirs, '/');
+        if (p) {
+            *p++ = 0;  // p points now to the first name in the dir list
+            baseDir = dirs;
+        } else {            // we have a source_dirs in current directory
+            p = dirs;       // p points now to the first name in the dir list
+            baseDir = ".";  // current directory
+        }
+        *q = ':';  // restore ':' in source_dirs
+
+        while (p) {  // iterate over all elements in the dir list
+            q = strchr(p, ':');
+            if (q) *q = 0;
+
+            // p point to a dir name
+            snprintf(path, 1023, "%s/%s", baseDir, p);
+            path[MAXPATHLEN - 1] = 0;
+            if (!CheckPath(path, S_IFDIR)) {
+                LogError("Not a directory: '%s'", path);
+                return;
+            }
+
+            // save path into source_dirs
+            InsertString(source_dirs, path);
+
+            p = q ? q + 1 : NULL;
+        }
+
+    } else {  // we have only one directory
+        if (!CheckPath(dirs, S_IFDIR)) {
+            LogError("Not a directory: '%s'", dirs);
+            return;
+        }
+
+        // save the path into source_dirs
+        InsertString(source_dirs, dirs);
+    }
+
+}  // End of Getsource_dirs
+
+static void ExpandMultipleDir(stringlist_t *source_dirs, char *single_file, flist_t *flist) {
+    if (single_file[0] == '/') {
+        LogError("File -r must not start with '/', when combined with a source list -M");
+        queue_close(flist->file_queue);
+        pthread_exit(NULL);
+    }
+
+    for (int i = 0; i < (int)source_dirs->num_strings; i++) {
+        char s[MAXPATHLEN];
+        s[MAXPATHLEN - 1] = '\0';
+
+        dbg_printf("Src dir: %d, %s\n", i, source_dirs->list[i]);
+        snprintf(s, MAXPATHLEN - 1, "%s/%s", source_dirs->list[i], single_file);
+
+        struct stat stat_buf;
+        if (stat(s, &stat_buf)) {
+            if (errno == ENOENT) {
+                // file not found - try to guess subdir
+                char *sub_dir = GuessSubDir(source_dirs->list[i], single_file);
+                if (sub_dir) {  // subdir found
+                    snprintf(s, MAXPATHLEN - 1, "%s/%s/%s", source_dirs->list[i], sub_dir, single_file);
+                    s[MAXPATHLEN - 1] = '\0';
+                    if (CheckTimeWindow(s, flist->timeWindow)) {
+                        queue_push(flist->file_queue, strdup(s));
+                    }
+                } else {  // no subdir found
+                    LogError("stat() error '%s': %s", s, "File not found!");
+                }
+            } else {  // Any other stat error
+                LogError("stat() error '%s': %s", s, strerror(errno));
+                queue_close(flist->file_queue);
+                pthread_exit(NULL);
+            }
+        } else {  // stat() successful
+            if (!S_ISREG(stat_buf.st_mode)) {
+                LogError("Skip non file entry: '%s'", s);
+            } else {
+                if (CheckTimeWindow(s, flist->timeWindow)) {
+                    queue_push(flist->file_queue, strdup(s));
+                }
+            }
+        }
+    }
+}  // End of ExpandMultipleDir
+
 static void *FileLister_thr(void *arg) {
     flist_t *flist = (flist_t *)arg;
     char *single_file = flist->single_file;
 
-    first_file = NULL;
-    last_file = NULL;
+    // stringlist of all directories
+    stringlist_t source_dirs = {0};
 
-    InitStringlist(&source_dirs, NUM_PTR);
     if (flist->multiple_dirs) {
         char *expanded = ExpandWildcard(flist->multiple_dirs);
         if (expanded) {
             flist->multiple_dirs = expanded;
         }
-        Getsource_dirs(flist->multiple_dirs);
+        Getsource_dirs(&source_dirs, flist->multiple_dirs);
     }
 
     if (flist->multiple_files) {
         // use multiple files
-        if (!GetFileList(flist->multiple_files, flist->timeWindow)) {
-            queue_close(file_queue);
+        if (!GetFileList(&source_dirs, flist)) {
+            queue_close(flist->file_queue);
             pthread_exit(NULL);
         }
     } else if (single_file) {
@@ -959,68 +990,24 @@ static void *FileLister_thr(void *arg) {
         if (source_dirs.num_strings == 0) {
             // single file -r
             if (CheckTimeWindow(single_file, flist->timeWindow)) {
-                queue_push(file_queue, strdup(single_file));
+                queue_push(flist->file_queue, strdup(single_file));
             }
         } else {
             // single file -r in multiple dirs -M
-            int i;
-
-            if (single_file[0] == '/') {
-                LogError("File -r must not start with '/', when combined with a source list -M");
-                queue_close(file_queue);
-                pthread_exit(NULL);
-            }
-
-            for (i = 0; i < source_dirs.num_strings; i++) {
-                char s[MAXPATHLEN];
-                struct stat stat_buf;
-
-                dbg_printf("Src dir: %d, %s\n", i, source_dirs.list[i]);
-                snprintf(s, MAXPATHLEN - 1, "%s/%s", source_dirs.list[i], single_file);
-                s[MAXPATHLEN - 1] = '\0';
-                if (stat(s, &stat_buf)) {
-                    if (errno == ENOENT) {
-                        // file not found - try to guess subdir
-                        char *sub_dir = GuessSubDir(source_dirs.list[i], single_file);
-                        if (sub_dir) {  // subdir found
-                            snprintf(s, MAXPATHLEN - 1, "%s/%s/%s", source_dirs.list[i], sub_dir, single_file);
-                            s[MAXPATHLEN - 1] = '\0';
-                            if (CheckTimeWindow(s, flist->timeWindow)) {
-                                queue_push(file_queue, strdup(s));
-                            }
-                        } else {  // no subdir found
-                            LogError("stat() error '%s': %s", s, "File not found!");
-                        }
-                    } else {  // Any other stat error
-                        LogError("stat() error '%s': %s", s, strerror(errno));
-                        queue_close(file_queue);
-                        pthread_exit(NULL);
-                    }
-                } else {  // stat() successful
-                    if (!S_ISREG(stat_buf.st_mode)) {
-                        LogError("Skip non file entry: '%s'", s);
-                    } else {
-                        if (CheckTimeWindow(s, flist->timeWindow)) {
-                            queue_push(file_queue, strdup(s));
-                        }
-                    }
-                }
-            }
+            ExpandMultipleDir(&source_dirs, single_file, flist);
         }
     }
 
-    queue_close(file_queue);
+    queue_close(flist->file_queue);
     pthread_exit(NULL);
     /* not reached */
 
 }  // End of FileLister_thr
 
-int InitHierPath(int num) {
-    int i;
+int CheckSubDir(unsigned num) {
+    if (num == 0) return 1;
 
-    subdir_format = NULL;
-
-    i = 0;
+    unsigned i = 0;
     while (subdir_def[i] != NULL) {
         if (i == num) break;
         i++;
@@ -1030,36 +1017,18 @@ int InitHierPath(int num) {
         return 0;
     }
 
-    subdir_format = subdir_def[i];
-    subdir_index = i;
-
-    /*
-     * The default file mode is a=rwx (0777) with selected permissions
-     * removed in accordance with the file mode creation mask.  For
-     * intermediate path name components, the mode is the default modified
-     * by u+wx so that the subdirectories can always be created.
-     */
-
-    // get umask
-    mode = umask(0);
-    umask(mode);
-
-    mode = 0777 & ~mode;
-    dir_mode = mode | S_IWUSR | S_IXUSR;
-
     return 1;
 
-}  // End of InitHierPath
+}  // End of CheckSubDir
 
 static char *VerifyFileRange(char *path, char *last_file) {
-    char *p, *q, *r;
-
-    r = strdup(path);
-    p = strrchr(r, '/');
+    dbg_printf("VerifyFileRange() for file: %s in path: %s\n", last_file, path);
+    char *r = strdup(path);
+    char *p = strrchr(r, '/');
     while (p) {
         *p = '\0';
 
-        q = GuessSubDir(r, last_file);
+        char *q = GuessSubDir(r, last_file);
         if (q) {
             free(r);
             return q;
@@ -1075,7 +1044,8 @@ static char *VerifyFileRange(char *path, char *last_file) {
 static char *GuessSubDir(char *channeldir, char *filename) {
     char s[MAXPATHLEN];
     struct tm *t_tm;
-    int i;
+
+    dbg_printf("GuessSubDir() for file: %s in path: %s\n", filename, channeldir);
 
     size_t len = strlen(filename);
     if ((len == 19 || len == 21) && (strncmp(filename, "nfcapd.", 7) == 0)) {
@@ -1085,7 +1055,7 @@ static char *GuessSubDir(char *channeldir, char *filename) {
     } else
         return NULL;
 
-    i = 0;
+    unsigned i = 0;
     // if the file exists, it must be in any of the possible subdirs
     // so try one after the next - one will match
     while (subdir_def[i]) {
@@ -1098,6 +1068,7 @@ static char *GuessSubDir(char *channeldir, char *filename) {
         snprintf(s, MAXPATHLEN - 1, "%s/%s/%s", channeldir, subpath, filename);
         if (stat(s, &stat_buf) == 0 && S_ISREG(stat_buf.st_mode)) {
             // found file in subdir
+            dbg_printf("GuessSubDir() found: %s\n", subpath);
             return strdup(subpath);
         }
         i++;
@@ -1107,113 +1078,52 @@ static char *GuessSubDir(char *channeldir, char *filename) {
 
 }  // End of GuessSubDir
 
-char *GetSubDir(struct tm *now) {
-    static __thread char subpath[255];
-    size_t sublen;
+// make sure, that path with subdir exists for timeslot now and stores it into path
+int SetupPath(struct tm *now, const char *dataDir, unsigned subDir, char *path) {
+    char subDirPath[255];
+    subDirPath[0] = '\0';
 
-    sublen = strftime(subpath, 254, subdir_format, now);
-
-    return sublen == 0 ? NULL : subpath;
-
-}  // End of GetSubDir
-
-int GetSubDirIndex(void) { return subdir_index; }
-
-int SetupSubDir(char *dir, char *subdir) {
-    char *p, path[MAXPATHLEN];
-    struct stat stat_buf;
-    size_t sublen, pathlen;
-    int err;
-
-    path[0] = '\0';
-    strncat(path, dir, MAXPATHLEN - 1);
-    path[MAXPATHLEN - 1] = '\0';
-
-    sublen = strlen(subdir);
-    pathlen = strlen(path);
-    // set p as reference between path and subdir
-    if ((sublen + pathlen + 2) >= (MAXPATHLEN - 1)) {  // +2 : add 1 for '/'
-        LogError("SetupSubDir(): path '%s': too long", path);
-        return 0;
+    if (subDir == 0) {
+        // no subdir - just return the path
+        return snprintf(path, MAXPATHLEN - 1, "%s/", dataDir);
     }
 
-    p = path + pathlen;  // points to '\0' of path
-    *p++ = '/';
-    *p = '\0';
+    const char *subdir_format = subdir_def[subDir];
+    strftime(subDirPath, 254, subdir_format, now);
+    int ret = snprintf(path, MAXPATHLEN - 1, "%s/%s", dataDir, subDirPath);
 
-    strncat(path, subdir, MAXPATHLEN - pathlen - 2);  // +2: add 1 for '/'
+    // Iterate over path components, starting after dataDir
+    char *p = path + strlen(dataDir);
 
-    // our cwd is basedir ( -l ) so test if, dir exists
-    if (stat(path, &stat_buf) == 0) {
-        if (S_ISDIR(stat_buf.st_mode)) {
-            // sub directory already exists
-            return 1;
-        } else {
-            // an entry with this name exists, but it's not a directory
-            LogError("SetupSubDir(): path '%s': %s ", path, strerror(ENOTDIR));
-            return 0;
-        }
-    }
+    /* Skip possible '/' between basePath and subPath */
+    if (*p == '/') p++;
 
-    // no such entry exists - try to create the directory, assuming path below exists
-    err = mkdir(path, dir_mode);
-    if (err == 0)  // success
-        return 1;
+    for (; *p; p++) {
+        if (*p == '/') {
+            *p = '\0';
 
-    // else errno is set
-    if (errno == ENOENT) {  // we need to create intermediate directories as well
-        char error[255];
-        err = mkpath(path, p, mode, dir_mode, error, 255);
-        if (err == 0)  // creation was successful
-            return 1;
-        else
-            LogError("mkpath() error for '%s': %s", path, error);
-    } else {
-        LogError("mkdir() error for '%s': %s", path, strerror(errno));
-    }
-
-    // anything else failed and error string is set
-    return 0;
-
-}  // End of SetupSubDir
-
-/*
- * mkpath -- create directories.
- *  path     - path
- *  p        - separator path/subpath
- *  mode     - file mode of terminal directory
- *  dir_mode - file mode of intermediate directories
- */
-static int mkpath(char *path, char *p, mode_t mode, mode_t dir_mode, char *error, size_t errlen) {
-    struct stat sb;
-    char *slash;
-    int done = 0;
-
-    slash = p;
-
-    while (!done) {
-        slash += strspn(slash, "/");
-        slash += strcspn(slash, "/");
-
-        done = (*slash == '\0');
-        *slash = '\0';
-
-        if (stat(path, &sb)) {
-            if (errno != ENOENT || (mkdir(path, done ? mode : dir_mode) && errno != EEXIST)) {
-                snprintf(error, errlen, "mkdir() error for '%s': %s", path, strerror(errno));
-                return (-1);
+            if (mkdir(path, 0755) != 0) {
+                if (errno != EEXIST) return 0;
             }
-        } else if (!S_ISDIR(sb.st_mode)) {
-            snprintf(error, errlen, "Path '%s': %s ", path, strerror(ENOTDIR));
-            return (-1);
-        }
 
-        *slash = '/';
+            *p = '/';
+        }
     }
 
-    return (0);
+    /* Create final directory */
+    if (mkdir(path, 0755) != 0) {
+        if (errno != EEXIST) {
+            // if directories can not be created, return base directory
+            LogError("mkdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return snprintf(path, MAXPATHLEN - 1, "%s/", dataDir);
+        }
+    }
 
-}  // End of mkpath
+    // add final '/'
+    path[ret++] = '/';
+
+    return ret;
+}  // End of SetupPath
 
 static int CheckTimeWindow(char *filename, timeWindow_t *searchWindow) {
     // no time search window set

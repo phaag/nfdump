@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../libnfdump -I../inline $(DEPS_CFLAGS)
+AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../libnfdump -I../inline -I../collector $(DEPS_CFLAGS)
 
 noinst_LIBRARIES = liboutput.a
 

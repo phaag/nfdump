@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -38,19 +38,16 @@
 #include "util.h"
 
 typedef struct flist_s {
-    char *multiple_dirs;
     char *single_file;
     char *multiple_files;
+    char *multiple_dirs;
+    queue_t *file_queue;
     timeWindow_t *timeWindow;
 } flist_t;
 
-int InitHierPath(int num);
+int CheckSubDir(unsigned num);
 
-char *GetSubDir(struct tm *now);
-
-int GetSubDirIndex(void);
-
-int SetupSubDir(char *dir, char *subdir);
+int SetupPath(struct tm *now, const char *dataDir, unsigned subDir, char *path);
 
 queue_t *SetupInputFileSequence(flist_t *flist);
 

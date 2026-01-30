@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -337,12 +337,10 @@ static int VerifyExtensionMap(extension_map_t *map) {
 }  // End of VerifyExtensionMap
 
 void DumpExMaps(void) {
-    nffile_t *nffile;
-
     printf("\nDump all extension maps:\n");
     printf("========================\n");
 
-    nffile = GetNextFile(NULL);
+    nffile_t *nffile = GetNextFile();
     if (!nffile) {
         return;
     }
@@ -381,7 +379,6 @@ void DumpExMaps(void) {
     }
 
     FreeDataBlock(dataBlock);
-    CloseFile(nffile);
     DisposeFile(nffile);
 
 }  // End of DumpExMaps

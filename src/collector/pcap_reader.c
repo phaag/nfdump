@@ -365,7 +365,7 @@ REDO_PROTO:
 } /* decode_packet */
 
 // live device
-int setup_pcap_live(char *device, char *filter, int bufflen) {
+int setup_pcap_live(char *device, char *filter, unsigned bufflen) {
     pcap_t *p;
     char errbuf[PCAP_ERRBUF_SIZE];
 
@@ -411,9 +411,9 @@ int setup_pcap_live(char *device, char *filter, int bufflen) {
         return 0;
     }
 
-    int buffsize = 256 * 1024;
+    unsigned buffsize = 256 * 1024;
     if (bufflen) buffsize = bufflen;
-    if (pcap_set_buffer_size(p, buffsize) < 0) {
+    if (pcap_set_buffer_size(p, (int)buffsize) < 0) {
         LogError("pcap_set_buffer_size() failed: %s", pcap_geterr(p));
         pcap_close(p);
         return 0;

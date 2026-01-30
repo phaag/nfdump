@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -122,71 +122,76 @@ static int ProcessFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         // pack V3 record
         UpdateRecordSize(EXgenericFlowSize);
         PushExtension(recordHeader, EXgenericFlow, genericFlow);
-        genericFlow->msecFirst = (1000 * Node->t_first.tv_sec) + Node->t_first.tv_usec / 1000;
-        genericFlow->msecLast = (1000 * Node->t_last.tv_sec) + Node->t_last.tv_usec / 1000;
+        genericFlow->msecFirst = (1000 * Node->hotNode.t_first.tv_sec) + Node->hotNode.t_first.tv_usec / 1000;
+        genericFlow->msecLast = (1000 * Node->hotNode.t_last.tv_sec) + Node->hotNode.t_last.tv_usec / 1000;
 
         struct timeval now;
         gettimeofday(&now, NULL);
         genericFlow->msecReceived = now.tv_sec * 1000L + now.tv_usec / 1000;
 
-        genericFlow->inPackets = Node->packets;
-        genericFlow->inBytes = Node->bytes;
+        genericFlow->inPackets = Node->hotNode.packets;
+        genericFlow->inBytes = Node->hotNode.bytes;
 
-        genericFlow->tcpFlags = Node->flags;
-        genericFlow->proto = Node->flowKey.proto;
-        genericFlow->srcPort = Node->flowKey.src_port;
-        genericFlow->dstPort = Node->flowKey.dst_port;
+        genericFlow->tcpFlags = Node->hotNode.flags;
+        genericFlow->proto = Node->hotNode.flowKey.proto;
+        genericFlow->srcPort = Node->hotNode.flowKey.src_port;
+        genericFlow->dstPort = Node->hotNode.flowKey.dst_port;
 
-        if (Node->flowKey.version == AF_INET6) {
+        if (Node->hotNode.flowKey.version == AF_INET6) {
             UpdateRecordSize(EXipv6FlowSize);
             PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
-            ipv6Flow->srcAddr[0] = Node->flowKey.src_addr.v6[0];
-            ipv6Flow->srcAddr[1] = Node->flowKey.src_addr.v6[1];
-            ipv6Flow->dstAddr[0] = Node->flowKey.dst_addr.v6[0];
-            ipv6Flow->dstAddr[1] = Node->flowKey.dst_addr.v6[1];
+            uint64_t *src = (uint64_t *)Node->hotNode.flowKey.src_addr.bytes;
+            uint64_t *dst = (uint64_t *)Node->hotNode.flowKey.dst_addr.bytes;
+            ipv6Flow->srcAddr[0] = ntohll(src[0]);
+            ipv6Flow->srcAddr[1] = ntohll(src[1]);
+            ipv6Flow->dstAddr[0] = ntohll(dst[0]);
+            ipv6Flow->dstAddr[1] = ntohll(dst[1]);
         } else {
             UpdateRecordSize(EXipv4FlowSize);
             PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
-            ipv4Flow->srcAddr = Node->flowKey.src_addr.v4;
-            ipv4Flow->dstAddr = Node->flowKey.dst_addr.v4;
+            uint32_t ipv4;
+            memcpy(&ipv4, Node->hotNode.flowKey.src_addr.bytes + 12, 4);
+            ipv4Flow->srcAddr = ntohl(ipv4);
+            memcpy(&ipv4, Node->hotNode.flowKey.dst_addr.bytes + 12, 4);
+            ipv4Flow->dstAddr = ntohl(ipv4);
         }
 
         if (flowParam->extendedFlow) {
-            if (Node->vlanID) {
+            if (Node->coldNode.vlanID) {
                 UpdateRecordSize(EXvLanSize);
                 PushExtension(recordHeader, EXvLan, vlan);
-                vlan->dstVlan = Node->vlanID;
+                vlan->dstVlan = Node->coldNode.vlanID;
             }
 
             UpdateRecordSize(EXmacAddrSize);
             PushExtension(recordHeader, EXmacAddr, macAddr);
-            macAddr->inSrcMac = ntohll(Node->srcMac) >> 16;
-            macAddr->outDstMac = ntohll(Node->dstMac) >> 16;
+            macAddr->inSrcMac = ntohll(Node->coldNode.srcMac) >> 16;
+            macAddr->outDstMac = ntohll(Node->coldNode.dstMac) >> 16;
             macAddr->inDstMac = 0;
             macAddr->outSrcMac = 0;
 
-            if (Node->mpls[0]) {
+            if (Node->coldNode.mpls[0]) {
                 UpdateRecordSize(EXmplsLabelSize);
                 PushExtension(recordHeader, EXmplsLabel, mplsLabel);
-                for (int i = 0; Node->mpls[i] != 0; i++) {
-                    mplsLabel->mplsLabel[i] = ntohl(Node->mpls[i]) >> 8;
+                for (int i = 0; Node->coldNode.mpls[i] != 0; i++) {
+                    mplsLabel->mplsLabel[i] = ntohl(Node->coldNode.mpls[i]) >> 8;
                 }
             }
 
-            if (Node->flowKey.proto == IPPROTO_TCP) {
+            if (Node->hotNode.flowKey.proto == IPPROTO_TCP) {
                 UpdateRecordSize(EXlatencySize);
                 PushExtension(recordHeader, EXlatency, latency);
-                latency->usecClientNwDelay = Node->latency.client;
-                latency->usecServerNwDelay = Node->latency.server;
-                latency->usecApplLatency = Node->latency.application;
+                latency->usecClientNwDelay = Node->coldNode.latency.client;
+                latency->usecServerNwDelay = Node->coldNode.latency.server;
+                latency->usecApplLatency = Node->coldNode.latency.application;
             }
         }
 
         if (flowParam->addPayload) {
-            if (Node->payloadSize) {
-                UpdateRecordSize(EXinPayloadSize + Node->payloadSize);
-                PushVarLengthPointer(recordHeader, EXinPayload, inPayload, Node->payloadSize);
-                memcpy(inPayload, Node->payload, Node->payloadSize);
+            if (Node->coldNode.payloadSize) {
+                UpdateRecordSize(EXinPayloadSize + Node->coldNode.payloadSize);
+                PushVarLengthPointer(recordHeader, EXinPayload, inPayload, Node->coldNode.payloadSize);
+                memcpy(inPayload, Node->coldNode.payload, Node->coldNode.payloadSize);
             }
         }
 
@@ -228,20 +233,27 @@ __attribute__((noreturn)) void *sendflow_thread(void *thread_data) {
     sendBuffer = malloc(65535);
     nfd_header_t *pcapd_header = (nfd_header_t *)sendBuffer;
     memset((void *)pcapd_header, 0, sizeof(nfd_header_t));
-    pcapd_header->version = htons(NFD_PROTOCOL);
+    pcapd_header->version = htons(VERSION_NFDUMP);
     pcapd_header->length = sizeof(nfd_header_t);
     pcapd_header->lastSequence = 1;
 
     printRecord = flowParam->printRecord;
-    while (1) {
+    int done = 0;
+    while (!done) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
-        if (Node->signal == SIGNAL_SYNC) {
-            // skip
-        } else if (Node->signal == SIGNAL_DONE) {
-            CloseSender(flowParam, Node->timestamp);
-            break;
-        } else {
-            ProcessFlow(flowParam, Node);
+        switch (Node->nodeType) {
+            case FLOW_NODE:
+                ProcessFlow(flowParam, Node);
+                break;
+            case SIGNAL_NODE_SYNC:
+                // skip
+                break;
+            case SIGNAL_NODE_DONE:
+                CloseSender(flowParam, Node->timestamp);
+                done = 1;
+                break;
+            default:
+                LogError("Unknown node type: %u\n", Node->nodeType);
         }
         Free_Node(Node);
     }

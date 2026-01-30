@@ -69,7 +69,7 @@ messageQueue_t *NewMessageQueue(void) {
     err += pthread_mutex_init(&messageQueue->mutex, NULL);
     err += pthread_cond_init(&messageQueue->cond, NULL);
     if (err) {
-        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         free(messageQueue);
         return NULL;
     }

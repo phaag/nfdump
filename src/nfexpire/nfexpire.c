@@ -100,12 +100,11 @@ void CheckDataDir(char *datadir) {
 
 channel_t *GetChannelList(char *datadir, int is_profile, int do_rescan) {
     channel_t **c, *channel;
-    stringlist_t dirlist;
+    stringlist_t dirlist = {0};
     struct stat stat_buf;
     int i;
 
     // Generate list of directories
-    InitStringlist(&dirlist, 32);
     if (is_profile) {
         DIR *PDIR = opendir(datadir);
         struct dirent *entry;

@@ -71,7 +71,7 @@ typedef struct metric_chain_s {
     metric_record_t *record;
 } metric_chain_t;
 
-int OpenMetric(char *path, int interval);
+int OpenMetric(char *path, unsigned interval);
 
 int CloseMetric(void);
 
@@ -79,5 +79,5 @@ void UpdateMetric(char *ident, uint32_t exporterID, EXgenericFlow_t *genericFlow
 
 void *MetricThread(void *arg);
 
-#define MetricExpporterID(r) (((r)->exporterID << 16) | (((r)->engineType << 8) | (r)->engineID))
+#define MetricExpporterID(r) (((uint32_t)(r)->exporterID << 16UL) | ((uint32_t)(r)->engineType << 8UL) | (uint32_t)(r)->engineID)
 #endif

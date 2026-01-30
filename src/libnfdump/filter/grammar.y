@@ -30,6 +30,8 @@
 
 %{
 
+#include "config.h"
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -1457,7 +1459,7 @@ static int AddPayload(direction_t direction, char *type, char *arg, char *opt) {
 	} else if (strcasecmp(type, "ja4") == 0) {
 		return AddPayloadJA4(type, arg, opt);
 	} else if (strcasecmp(type, "ja4s") == 0) {
-#ifdef BUILDJA4
+#ifdef BUILD_JA4
 		if ( ja4sCheck(arg) == 0 ){
 			yyprintf("String %s is not a valid ja4s string", arg);
 			return -1;

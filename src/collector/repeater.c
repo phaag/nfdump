@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2023-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -253,7 +253,7 @@ static void RepeaterMessageFunc(message_t *message, void *extraArg) {
     }
 }
 
-int StartupRepeater(repeater_t *repeater, int bufflen, int srcSpoofing, char *userid, char *groupid) {
+int StartupRepeater(repeater_t *repeater, unsigned bufflen, unsigned srcSpoofing, char *userid, char *groupid) {
     LogInfo("StartupRepeater: userid: %s, groupid: %s", userid ? userid : "default", groupid ? groupid : "default");
 
     if (srcSpoofing == 0) {
@@ -303,14 +303,14 @@ int StartupRepeater(repeater_t *repeater, int bufflen, int srcSpoofing, char *us
     pthread_t tid;
     int err = pthread_create(&reader_tid, NULL, pipeReader, (void *)&thread_arg);
     if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         return 255;
     }
     tid = reader_tid;
 
     err = pthread_join(tid, NULL);
     if (err) {
-        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
     }
 
     LogVerbose("End StartupRepeater()");

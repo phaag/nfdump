@@ -34,6 +34,7 @@
 #include <pthread.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 
 #include "nfdump.h"
@@ -177,26 +178,25 @@ typedef struct data_block_header_s {
  * if a file is read only writeto and block_header are NULL
  */
 typedef struct nffile_s {
-    fileHeaderV2_t *file_header;   // file header
-    int fd;                        // associated file descriptor
-    int compat16;                  // underlying file is compat16
-    pthread_t worker[MAXWORKERS];  // nfread/nfwrite worker thread;
-    pthread_mutex_t wlock;         // writer lock
-#define FILE_IS_COMPAT16(n) (n->compat16)
-    size_t buff_size;
+    fileHeaderV2_t *file_header;  // file header
 
-    queue_t *processQueue;  // blocks ready to be processed. Connects consumer/producer threads
-
-    stat_record_t *stat_record;  // flow stat record
+    int fd;                      // associated file descriptor
     char *ident;                 // source identifier
     char *fileName;              // file name
+    size_t buff_size;            // buff_size, used in this file
+    uint32_t numWorkers;         // number of workers for this handle
     uint16_t compression_level;  // compression level, if available.
+    stat_record_t *stat_record;  // flow stat record
+
+    queue_t *processQueue;  // blocks ready to be processed. Connects consumer/producer threads
+    pthread_mutex_t wlock;  // writer lock
+    pthread_t worker[];     // nfread/nfwrite worker thread;
 } nffile_t;
 
 #define GetCursor(block) ((void *)(block) + sizeof(dataBlock_t))
 #define GetCurrentCursor(block) ((void *)(block) + (block)->size + sizeof(dataBlock_t))
 #define BlockSize(block) (block)->size)
-#define BlockAvailable(block) (WRITE_BUFFSIZE - (block)->size)
+#define BlockAvailable(block) ((block)->size > WRITE_BUFFSIZE ? 0 : (WRITE_BUFFSIZE - (block)->size))
 #define IsAvailable(block, required) (((block)->size + required) < WRITE_BUFFSIZE)
 
 #define FILE_IDENT(n) ((n)->ident)
@@ -231,20 +231,19 @@ typedef struct record_header_s {
  * for the detailed description of the record definition see nfx.h
  */
 
-int Init_nffile(int workers, queue_t *fileList);
+int Init_nffile(uint32_t workers, queue_t *fileList);
 
 int ParseCompression(char *arg);
 
-unsigned ReportBlocks(void);
+int ReportBlocks(void);
 
 void SumStatRecords(stat_record_t *s1, stat_record_t *s2);
 
-nffile_t *OpenFile(char *filename, nffile_t *nffile);
+nffile_t *OpenFile(const char *filename);
 
-#define INHERIT -1
-nffile_t *OpenNewFile(char *filename, nffile_t *nffile, int creator, int compress, int encryption);
+nffile_t *OpenNewFile(const char *filename, unsigned creator, unsigned compress, unsigned encryption);
 
-nffile_t *AppendFile(char *filename);
+nffile_t *AppendFile(const char *filename);
 
 int ChangeIdent(char *filename, char *Ident);
 
@@ -256,21 +255,21 @@ int QueryFile(char *filename, int verbose);
 
 int GetStatRecord(char *filename, stat_record_t *stat_record);
 
-nffile_t *NewFile(nffile_t *nffile);
-
 void DisposeFile(nffile_t *nffile);
 
-void SyncFile(nffile_t *nffile);
+void DeleteFile(nffile_t *nffile);
 
 void CloseFile(nffile_t *nffile);
 
-int FinaliseFile(nffile_t *nffile);
+int FlushFile(nffile_t *nffile);
 
-int RenameAppend(char *oldName, char *newName);
+int RenameAppend(const char *oldName, const char *newName);
 
-nffile_t *GetNextFile(nffile_t *nffile);
+nffile_t *GetNextFile(void);
 
 dataBlock_t *NewDataBlock(void);
+
+void FreeDataBlock(dataBlock_t *dataBlock);
 
 dataBlock_t *ReadBlock(nffile_t *nffile, dataBlock_t *dataBlock);
 
@@ -278,12 +277,15 @@ dataBlock_t *WriteBlock(nffile_t *nffile, dataBlock_t *dataBlock);
 
 void FlushBlock(nffile_t *nffile, dataBlock_t *dataBlock);
 
-void FreeDataBlock(dataBlock_t *dataBlock);
-
 void SetIdent(nffile_t *nffile, char *Ident);
+
+int CheckIdent(const char *s);
 
 char *SetUniqueTmpName(char *fname);
 
-void ModifyCompressFile(int compress);
+void ModifyCompressFile(unsigned compress);
 
+int Convert_v1fileHeader(nffile_t *nffile, const char *filename, struct stat *stat_buf);
+
+void report(void);
 #endif  //_NFFILE_H

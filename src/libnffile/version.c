@@ -37,11 +37,16 @@
 #include "vcs_track.h"
 
 char *versionString(void) {
-    static char version_string[128];
+    static char version_string[256];
 
-    char *nsel = "";
-#ifdef NSEL
-    nsel = " NSEL-NEL";
+    char *ja4 = "";
+#ifdef BUILD_JA4
+    ja4 = " JA4";
+#endif
+
+    char *lz4lib = " lz4";
+#ifdef HAVE_LZ4
+    lz4lib = " LZ4";
 #endif
 
     char *zstdlib = "";
@@ -50,13 +55,18 @@ char *versionString(void) {
 #endif
 
     char *bzlib = "";
-#ifdef HAVE_ZSTD
+#ifdef HAVE_BZ2
     bzlib = " BZIP2";
 #endif
 
-    char *option = (strlen(nsel) + strlen(zstdlib)) > 0 ? "Options:" : "";
-    snprintf(version_string, 128, "Version: %s-%s %s%s%s%s Date: %s", VERSION, VCS_TRACK_HASH, option, nsel, zstdlib, bzlib, VCS_TRACK_DATE);
-    version_string[127] = '\0';
+    char *pcapreader = "";
+#ifdef ENABLE_READPCAP
+    pcapreader = " read-pcap";
+#endif
+
+    snprintf(version_string, sizeof(version_string) - 1, "Version: %s-%s options:%s%s%s%s%s date: %s", VERSION, VCS_TRACK_HASH, lz4lib, zstdlib,
+             bzlib, ja4, pcapreader, VCS_TRACK_DATE);
+    version_string[sizeof(version_string) - 1] = '\0';
 
     return version_string;
 }

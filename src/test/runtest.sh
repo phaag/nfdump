@@ -142,7 +142,7 @@ $NFDUMP -X -v testdir/nfcapd.* >/dev/null
 
 mkdir memck.$$
 # OpenBSD
-export MALLOC_OPTIONS=AFGJS
+export MALLOC_OPTIONS=CFGJS
 # MacOSX
 export MallocGuardEdges=1
 export MallocStackLogging=1

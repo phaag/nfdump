@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2025, Peter Haag
+ *  Copyright (c) 2025-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -174,7 +174,7 @@ void UpdateTorNode(torNode_t *torNode) {
 }
 
 int SaveTorTree(char *fileName) {
-    nffile_t *nffile = OpenNewFile(fileName, NULL, CREATOR_TORLOOKUP, LZ4_COMPRESSED, NOT_ENCRYPTED);
+    nffile_t *nffile = OpenNewFile(fileName, CREATOR_TORLOOKUP, LZ4_COMPRESSED, NOT_ENCRYPTED);
 
     // get new empty data block
     dataBlock_t *dataBlock = WriteBlock(nffile, NULL);
@@ -204,8 +204,8 @@ int SaveTorTree(char *fileName) {
     // flush current datablock
     FlushBlock(nffile, dataBlock);
 
-    int ret = FinaliseFile(nffile);
-    CloseFile(nffile);
+    int ret = FlushFile(nffile);
+    DisposeFile(nffile);
 
     return ret;
 }  // End of SaveTorTree
@@ -214,7 +214,7 @@ int LoadTorTree(char *fileName) {
     dbg_printf("Load TorNode DB file %s\n", fileName);
 
     Init_TorLookup();
-    nffile_t *nffile = OpenFile(fileName, NULL);
+    nffile_t *nffile = OpenFile(fileName);
     if (!nffile) {
         return 0;
     }

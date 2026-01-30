@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -72,7 +72,6 @@
 /* Function Prototypes */
 static void usage(char *name);
 
-#define IP_STRING_LEN 32
 static void print_record(recordHandle_t *recordHandle);
 
 static void process_data(void);
@@ -151,7 +150,7 @@ static void print_record(recordHandle_t *recordHandle) {
         "  in bytes     =        %10llu\n",
         (unsigned long long)genericFlow->inPackets, (unsigned long long)genericFlow->inBytes);
 
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     uint32_t src = htonl(ipv4Flow->srcAddr);
     uint32_t dst = htonl(ipv4Flow->dstAddr);
     inet_ntop(AF_INET, &src, as, sizeof(as));

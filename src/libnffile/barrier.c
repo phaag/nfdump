@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2025, Peter Haag
+ *  Copyright (c) 2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -49,55 +49,71 @@
 // get decent number of workers depending
 // on the number of cores online
 uint32_t GetNumWorkers(uint32_t requested) {
-    // get conf value for maxworkers
-    int confMaxWorkers = ConfGetValue("maxworkers");
-    if (confMaxWorkers == 0) confMaxWorkers = DEFAULTWORKERS;
-
-    long CoresOnline = sysconf(_SC_NPROCESSORS_ONLN);
-    if (CoresOnline < 0) {
-        LogError("sysconf(_SC_NPROCESSORS_ONLN) error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        CoresOnline = 1;
+    // detect CPU cores
+    long cores = sysconf(_SC_NPROCESSORS_ONLN);
+    if (cores < 1) {
+        LogError("sysconf(_SC_NPROCESSORS_ONLN) failed: %s", strerror(errno));
+        // assume at least 2 cores
+        cores = 2;
     }
 
-    // no more than cores online
-    if (requested && (requested > CoresOnline)) {
-        LogError("Number of workers should not be greater than number of cores online. %d is > %ld", requested, CoresOnline);
+    // workers in config
+    int confMax = ConfGetValue("maxworkers");
+    if (confMax < 0) confMax = 0;
+    if (confMax > cores) confMax = cores;
+
+    // select overwrite police, or heuristics
+    int workers;
+    if (requested > 0) {
+        workers = requested;
+    } else if (confMax > 0) {
+        workers = confMax;
+    } else {
+        // heuristic: half the cores, clamped to [2, 8]
+        workers = cores / 2;
+        if (workers < 2) workers = 2;
+        if (workers > 8) workers = 8;
     }
 
-    // try to find optimal number of workers
-    // if nothing requested, use default, unless we are on a high number of cores
-    // system, so double the workers
-    if (requested == 0) {
-        requested = confMaxWorkers;
-        if ((2 * requested) < CoresOnline) requested = 2 * requested;
-    }
-    if (requested > CoresOnline) requested = CoresOnline;
-
-    // no more than internal array limit
-    if (requested > MAXWORKERS) {
-        LogError("Number of workers is limited to %s", MAXWORKERS);
-        requested = MAXWORKERS;
+    // apply caps
+    if (workers > (uint32_t)cores) {
+        if (requested > 0) LogInfo("Limit requested workers: %u to number of cores online %ld.", workers, cores);
+        workers = cores;
     }
 
-    return requested;
+    if (requested)
+        LogInfo("Using %u worker threads (cores=%ld, requested=%u, confMax=%d)", workers, cores, requested, confMax);
+    else
+        LogVerbose("Using %u worker threads (cores=%ld, requested=%u, confMax=%d)", workers, cores, requested, confMax);
+
+    return workers;
 }  // End of GetNumWorkers
 
 // initialize barrier for numWorkers + 1 controller
 pthread_control_barrier_t *pthread_control_barrier_init(uint32_t numWorkers) {
-    pthread_control_barrier_t *barrier = calloc(1, sizeof(pthread_control_barrier_t));
-    if (!barrier) return NULL;
-
     if (numWorkers == 0) {
         errno = EINVAL;
         return NULL;
     }
 
-    if (pthread_mutex_init(&barrier->workerMutex, 0) < 0) {
+    pthread_control_barrier_t *barrier = calloc(1, sizeof(pthread_control_barrier_t));
+    if (!barrier) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
-    if (pthread_cond_init(&barrier->workerCond, 0) < 0 || pthread_cond_init(&barrier->controllerCond, 0) < 0) {
+    int err = pthread_mutex_init(&barrier->workerMutex, 0);
+    if (err != 0) {
+        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+        free(barrier);
+        return NULL;
+    }
+
+    err = 0;
+    if ((err = pthread_cond_init(&barrier->workerCond, 0)) != 0 || (err = pthread_cond_init(&barrier->controllerCond, 0)) != 0) {
+        LogError("pthread_cond_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         pthread_mutex_destroy(&barrier->workerMutex);
+        free(barrier);
         return NULL;
     }
 

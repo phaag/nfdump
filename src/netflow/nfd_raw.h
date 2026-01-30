@@ -36,8 +36,6 @@
 
 #include "collector.h"
 
-#define NFD_PROTOCOL 250
-
 typedef struct nfd_header {
     uint16_t version;       // set to 250 for pcapd
     uint16_t length;        // Total length incl. this header. up to 65535 bytes

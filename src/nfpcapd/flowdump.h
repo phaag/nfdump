@@ -31,6 +31,7 @@
 #ifndef _FLOWDUMP_H
 #define _FLOWDUMP_H 1
 
+#include <stdbool.h>
 #include <time.h>
 
 #include "collector.h"
@@ -41,7 +42,7 @@
 typedef struct flowParam_s {
     // common thread info struct
     pthread_t tid;
-    int *done;
+    unsigned *done;
     // the parent
     pthread_t parent;
 
@@ -52,16 +53,16 @@ typedef struct flowParam_s {
     // flow file
     FlowSource_t *fs;
     char *extensionFormat;
-    int subdir_index;
-    int compress;
+    unsigned subdir_index;
+    unsigned compress;
 
     // send flows
     repeater_t *sendHost;
 
     // options
-    int printRecord;
-    int extendedFlow;
-    int addPayload;
+    bool printRecord;
+    bool extendedFlow;
+    bool addPayload;
 } flowParam_t;
 
 __attribute__((noreturn)) void *flow_thread(void *thread_data);

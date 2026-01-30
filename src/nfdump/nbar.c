@@ -247,9 +247,9 @@ void PrintNbarRecord(arrayRecordHeader_t *nbarRecord) {
         for (int i = 0; i < NbarAppInfo->app_id_length; i++) printf("%02X ", *((uint8_t *)p++));
         printf("\n");
 
-        printf("Name: %s\n", p);
+        printf("Name: %s\n", NbarAppInfo->app_name_length ? (char *)p : "<zero length>");
         p += NbarAppInfo->app_name_length;
-        printf("Desc: %s\n\n", p);
+        printf("Desc: %s\n\n", NbarAppInfo->app_desc_length ? (char *)p : "<zero length>");
     }
 
 }  // End of PrintNbarRecord

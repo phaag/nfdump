@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024-2025, Peter Haag
+ *  Copyright (c) 2024-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -50,6 +50,7 @@
 #include "config.h"
 #include "exporter.h"
 #include "flist.h"
+#include "ip128.h"
 #include "metric.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -82,7 +83,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
             fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
         }
 
-        int availableSize = BlockAvailable(fs->dataBlock);
+        unsigned availableSize = BlockAvailable(fs->dataBlock);
         if (availableSize == 0) {
             // fishy! - should never happen. maybe disk full?
             LogError("StorePcapFlow(): output buffer size error. Skip record");
@@ -104,76 +105,81 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         // pack V3 record
         UpdateRecordSize(EXgenericFlowSize);
         PushExtension(recordHeader, EXgenericFlow, genericFlow);
-        genericFlow->msecFirst = (1000LL * (uint64_t)Node->t_first.tv_sec) + (uint64_t)Node->t_first.tv_usec / 1000LL;
-        genericFlow->msecLast = (1000LL * (uint64_t)Node->t_last.tv_sec) + (uint64_t)Node->t_last.tv_usec / 1000LL;
+        genericFlow->msecFirst = (1000LL * (uint64_t)Node->hotNode.t_first.tv_sec) + (uint64_t)Node->hotNode.t_first.tv_usec / 1000LL;
+        genericFlow->msecLast = (1000LL * (uint64_t)Node->hotNode.t_last.tv_sec) + (uint64_t)Node->hotNode.t_last.tv_usec / 1000LL;
 
         struct timeval now;
         gettimeofday(&now, NULL);
         genericFlow->msecReceived = (uint64_t)now.tv_sec * 1000LL + (uint64_t)now.tv_usec / 1000LL;
 
-        genericFlow->inPackets = Node->packets;
-        genericFlow->inBytes = Node->bytes;
+        genericFlow->inPackets = Node->hotNode.packets;
+        genericFlow->inBytes = Node->hotNode.bytes;
 
-        genericFlow->tcpFlags = Node->flags;
-        genericFlow->proto = Node->flowKey.proto;
-        genericFlow->srcPort = Node->flowKey.src_port;
-        genericFlow->dstPort = Node->flowKey.dst_port;
+        genericFlow->tcpFlags = Node->hotNode.flags;
+        genericFlow->proto = Node->hotNode.flowKey.proto;
+        genericFlow->srcPort = Node->hotNode.flowKey.src_port;
+        genericFlow->dstPort = Node->hotNode.flowKey.dst_port;
 
-        if (Node->flowKey.version == AF_INET6) {
+        if (Node->hotNode.flowKey.version == AF_INET6) {
             UpdateRecordSize(EXipv6FlowSize);
             PushExtension(recordHeader, EXipv6Flow, ipv6Flow);
-            ipv6Flow->srcAddr[0] = ntohll(Node->flowKey.src_addr.v6[0]);
-            ipv6Flow->srcAddr[1] = ntohll(Node->flowKey.src_addr.v6[1]);
-            ipv6Flow->dstAddr[0] = ntohll(Node->flowKey.dst_addr.v6[0]);
-            ipv6Flow->dstAddr[1] = ntohll(Node->flowKey.dst_addr.v6[1]);
+            uint64_t *src = (uint64_t *)Node->hotNode.flowKey.src_addr.bytes;
+            uint64_t *dst = (uint64_t *)Node->hotNode.flowKey.dst_addr.bytes;
+            ipv6Flow->srcAddr[0] = ntohll(src[0]);
+            ipv6Flow->srcAddr[1] = ntohll(src[1]);
+            ipv6Flow->dstAddr[0] = ntohll(dst[0]);
+            ipv6Flow->dstAddr[1] = ntohll(dst[1]);
         } else {
             UpdateRecordSize(EXipv4FlowSize);
             PushExtension(recordHeader, EXipv4Flow, ipv4Flow);
-            ipv4Flow->srcAddr = Node->flowKey.src_addr.v4;
-            ipv4Flow->dstAddr = Node->flowKey.dst_addr.v4;
+            uint32_t ipv4;
+            memcpy(&ipv4, Node->hotNode.flowKey.src_addr.bytes + 12, 4);
+            ipv4Flow->srcAddr = ntohl(ipv4);
+            memcpy(&ipv4, Node->hotNode.flowKey.dst_addr.bytes + 12, 4);
+            ipv4Flow->dstAddr = ntohl(ipv4);
         }
 
         if (flowParam->extendedFlow) {
             UpdateRecordSize(EXipInfoSize);
             PushExtension(recordHeader, EXipInfo, ipInfo);
-            ipInfo->minTTL = Node->minTTL;
-            ipInfo->maxTTL = Node->maxTTL;
-            ipInfo->fragmentFlags = Node->fragmentFlags;
+            ipInfo->minTTL = Node->coldNode.minTTL;
+            ipInfo->maxTTL = Node->coldNode.maxTTL;
+            ipInfo->fragmentFlags = Node->coldNode.fragmentFlags;
 
-            if (Node->vlanID) {
+            if (Node->coldNode.vlanID) {
                 UpdateRecordSize(EXvLanSize);
                 PushExtension(recordHeader, EXvLan, vlan);
-                vlan->srcVlan = Node->vlanID;
+                vlan->srcVlan = Node->coldNode.vlanID;
             }
 
-            if (Node->srcMac) {
+            if (Node->coldNode.srcMac) {
                 UpdateRecordSize(EXmacAddrSize);
                 PushExtension(recordHeader, EXmacAddr, macAddr);
-                macAddr->inSrcMac = ntohll(Node->srcMac) >> 16;
-                macAddr->outDstMac = ntohll(Node->dstMac) >> 16;
+                macAddr->inSrcMac = ntohll(Node->coldNode.srcMac) >> 16;
+                macAddr->outDstMac = ntohll(Node->coldNode.dstMac) >> 16;
                 macAddr->inDstMac = 0;
                 macAddr->outSrcMac = 0;
             }
 
-            if (Node->mpls[0]) {
+            if (Node->coldNode.mpls[0]) {
                 UpdateRecordSize(EXmplsLabelSize);
                 PushExtension(recordHeader, EXmplsLabel, mplsLabel);
-                for (int i = 0; Node->mpls[i] != 0; i++) {
-                    mplsLabel->mplsLabel[i] = ntohl(Node->mpls[i]) >> 8;
+                for (int i = 0; Node->coldNode.mpls[i] != 0; i++) {
+                    mplsLabel->mplsLabel[i] = ntohl(Node->coldNode.mpls[i]) >> 8;
                 }
             }
 
-            if (Node->flowKey.proto == IPPROTO_TCP && Node->latency.application) {
+            if (Node->hotNode.flowKey.proto == IPPROTO_TCP && Node->coldNode.latency.application) {
                 UpdateRecordSize(EXlatencySize);
                 PushExtension(recordHeader, EXlatency, latency);
-                latency->usecClientNwDelay = Node->latency.client;
-                latency->usecServerNwDelay = Node->latency.server;
-                latency->usecApplLatency = Node->latency.application;
-                dbg_printf("Node RTT: %u\n", Node->latency.rtt);
+                latency->usecClientNwDelay = Node->coldNode.latency.client;
+                latency->usecServerNwDelay = Node->coldNode.latency.server;
+                latency->usecApplLatency = Node->coldNode.latency.application;
+                dbg_printf("Node RTT: %u\n", Node->coldNode.latency.rtt);
             }
 
-            if (Node->pflog) {
-                pflog_hdr_t *pflog = (pflog_hdr_t *)Node->pflog;
+            if (Node->coldNode.pflog) {
+                pflog_hdr_t *pflog = (pflog_hdr_t *)Node->coldNode.pflog;
                 size_t ifnameLen = strnlen(pflog->ifname, IFNAMSIZ);
                 if (ifnameLen) {
                     ifnameLen++;  // add terminating '\0'
@@ -199,8 +205,8 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         }
 
         if (flowParam->addPayload) {
-            if (Node->payloadSize) {
-                size_t payloadSize = Node->payloadSize;
+            if (Node->coldNode.payloadSize) {
+                size_t payloadSize = Node->coldNode.payloadSize;
                 size_t align = payloadSize & 0x3;
                 if (align) {
                     payloadSize += (4 - align);
@@ -208,24 +214,29 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
                 UpdateRecordSize(EXinPayloadSize + payloadSize);
                 PushVarLengthPointer(recordHeader, EXinPayload, inPayload, payloadSize);
-                memcpy(inPayload, Node->payload, Node->payloadSize);
+                memcpy(inPayload, Node->coldNode.payload, Node->coldNode.payloadSize);
             }
         }
 
-        if (Node->tun_ip_version == AF_INET) {
+        if (Node->coldNode.tun_ip_version == AF_INET) {
             UpdateRecordSize(EXtunIPv4Size);
             PushExtension(recordHeader, EXtunIPv4, tunIPv4);
-            tunIPv4->tunSrcAddr = Node->tun_src_addr.v4;
-            tunIPv4->tunDstAddr = Node->tun_dst_addr.v4;
-            tunIPv4->tunProto = Node->tun_proto;
-        } else if (Node->tun_ip_version == AF_INET6) {
+            uint32_t ipv4;
+            memcpy(&ipv4, Node->coldNode.tun_src_addr.bytes + 12, 4);
+            tunIPv4->tunSrcAddr = ntohl(ipv4);
+            memcpy(&ipv4, Node->coldNode.tun_dst_addr.bytes + 12, 4);
+            tunIPv4->tunDstAddr = ntohl(ipv4);
+            tunIPv4->tunProto = Node->coldNode.tun_proto;
+        } else if (Node->coldNode.tun_ip_version == AF_INET6) {
             UpdateRecordSize(EXtunIPv6Size);
             PushExtension(recordHeader, EXtunIPv6, tunIPv6);
-            tunIPv6->tunSrcAddr[0] = Node->tun_src_addr.v6[0];
-            tunIPv6->tunSrcAddr[1] = Node->tun_src_addr.v6[1];
-            tunIPv6->tunDstAddr[0] = Node->tun_dst_addr.v6[0];
-            tunIPv6->tunDstAddr[1] = Node->tun_dst_addr.v6[1];
-            tunIPv6->tunProto = Node->tun_proto;
+            uint64_t *src = (uint64_t *)Node->coldNode.tun_src_addr.bytes;
+            uint64_t *dst = (uint64_t *)Node->coldNode.tun_dst_addr.bytes;
+            tunIPv6->tunSrcAddr[0] = ntohll(src[0]);
+            tunIPv6->tunSrcAddr[1] = ntohll(src[1]);
+            tunIPv6->tunDstAddr[0] = ntohll(dst[0]);
+            tunIPv6->tunDstAddr[1] = ntohll(dst[1]);
+            tunIPv6->tunProto = Node->coldNode.tun_proto;
         }
 
         // update first_seen, last_seen
@@ -281,43 +292,15 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 } /* End of StorePcapFlow */
 
 static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
-    char FullName[MAXPATHLEN];
-
-    struct tm *when = localtime(&timestamp);
-    char fmt[24];
-    strftime(fmt, sizeof(fmt), flowParam->extensionFormat, when);
+    struct tm *now = localtime(&timestamp);
+    char fmt[32];
+    strftime(fmt, sizeof(fmt), flowParam->extensionFormat, now);
 
     FlowSource_t *fs = flowParam->fs;
-    // prepare sub dir hierarchy
-    char *subdir = NULL;
-    char netflowFname[128];
-    if (flowParam->subdir_index) {
-        subdir = GetSubDir(when);
-        if (!subdir) {
-            // failed to generate subdir path - put flows into base directory
-            LogError("Failed to create subdir path!");
-
-            // failed to generate subdir path - put flows into base directory
-            subdir = NULL;
-            snprintf(netflowFname, 127, "nfcapd.%s", fmt);
-        } else {
-            snprintf(netflowFname, 127, "%s/nfcapd.%s", subdir, fmt);
-        }
-
-    } else {
-        snprintf(netflowFname, 127, "nfcapd.%s", fmt);
-    }
-    netflowFname[127] = '\0';
-
-    if (subdir && !SetupSubDir(fs->datadir, subdir)) {
-        // in this case the flows get lost! - the rename will fail
-        // but this should not happen anyway, unless i/o problems, inode problems etc.
-        LogError("Ident: %s, Failed to create sub hier directories", fs->Ident);
-    }
-
-    // prepare full filename
-    snprintf(FullName, MAXPATHLEN - 1, "%s/%s", fs->datadir, netflowFname);
-    FullName[MAXPATHLEN - 1] = '\0';
+    char fileName[MAXPATHLEN];
+    int pos = SetupPath(now, fs->datadir, fs->subdir, fileName);
+    char *p = fileName + (ptrdiff_t)pos;
+    snprintf(p, MAXPATHLEN - pos - 1, "nfcapd.%s", fmt);
 
     // update stat record
     // if no flows were collected, fs->last_seen is still 0
@@ -326,14 +309,12 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
         fs->nffile->stat_record->msecFirstSeen = 1000LL * (uint64_t)timestamp;
         fs->nffile->stat_record->msecLastSeen = 1000LL * (uint64_t)(timestamp + flowParam->t_win);
     }
-    // XXX fix this
-    char *tmpName = strdup(fs->nffile->fileName);
-    FinaliseFile(fs->nffile);
+    FlushFile(fs->nffile);
     CloseFile(fs->nffile);
 
     // if rename fails, we are in big trouble, as we need to get rid of the old .current file
     // otherwise, we will loose flows and can not continue collecting new flows
-    if (RenameAppend(tmpName, FullName) < 0) {
+    if (RenameAppend(fs->nffile->fileName, fileName) < 0) {
         LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
         LogError("Ident: %s, Serious Problem! Fix manually", fs->Ident);
         // we do not update the books here, as the file failed to rename properly
@@ -341,14 +322,14 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
     } else {
         struct stat fstat;
         // Update books
-        stat(FullName, &fstat);
+        stat(fileName, &fstat);
         UpdateBooks(fs->bookkeeper, timestamp, 512 * fstat.st_blocks);
     }
-    // XXX fix this
-    free(tmpName);
-
     LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu", fs->Ident, (unsigned long long)fs->nffile->stat_record->numflows,
             (unsigned long long)fs->nffile->stat_record->numpackets, (unsigned long long)fs->nffile->stat_record->numbytes);
+
+    DisposeFile(fs->nffile);
+    fs->nffile = NULL;
 
     // reset stats
     fs->bad_packets = 0;
@@ -362,12 +343,12 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
 __attribute__((noreturn)) void *flow_thread(void *thread_data) {
     // argument dispatching
     flowParam_t *flowParam = (flowParam_t *)thread_data;
-    int compress = flowParam->compress;
+    unsigned compress = flowParam->compress;
     FlowSource_t *fs = flowParam->fs;
 
     printRecord = flowParam->printRecord;
     // prepare file
-    fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
+    fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
     if (!fs->nffile) {
         pthread_kill(flowParam->parent, SIGUSR1);
         pthread_exit((void *)flowParam);
@@ -377,41 +358,46 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
     // init flow source
     fs->dataBlock = WriteBlock(fs->nffile, NULL);
     fs->bad_packets = 0;
-    while (1) {
+    int done = 0;
+    while (!done) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
-        if (Node->signal == SIGNAL_SYNC) {
-            // Flush Exporter Stat to file
-            FlushExporterStats(fs);
-            // flush current block and close file
-            fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
-            CloseFlowFile(flowParam, Node->timestamp);
-            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), fs->nffile, CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
-            if (!fs->nffile) {
-                LogError("Fatal: OpenNewFile() failed for ident: %s", fs->Ident);
-                pthread_kill(flowParam->parent, SIGUSR1);
+        switch (Node->nodeType) {
+            case FLOW_NODE:
+                StorePcapFlow(flowParam, Node);
                 break;
-            }
-            SetIdent(fs->nffile, fs->Ident);
+            case SIGNAL_NODE_SYNC:
+                dbg_printf("Received signal_node_sync\n");
+                // Flush Exporter Stat to file
+                FlushExporterStats(fs);
+                // flush current block and close file
+                fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+                CloseFlowFile(flowParam, Node->timestamp);
+                fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
+                if (!fs->nffile) {
+                    LogError("Fatal: OpenNewFile() failed for ident: %s", fs->Ident);
+                    pthread_kill(flowParam->parent, SIGUSR1);
+                    break;
+                }
+                SetIdent(fs->nffile, fs->Ident);
 
-            // Dump all exporters to the buffer for new file
-            FlushStdRecords(fs);
-
-        } else if (Node->signal == SIGNAL_DONE) {
-            // Flush Exporter Stat to file
-            FlushExporterStats(fs);
-            // flush current block and close file
-            FlushBlock(fs->nffile, fs->dataBlock);
-            CloseFlowFile(flowParam, Node->timestamp);
-            break;
-        } else if (Node->nodeType == FLOW_NODE) {
-            StorePcapFlow(flowParam, Node);
-        } else {
-            // skip this node
+                // Dump all exporters to the buffer for new file
+                FlushStdRecords(fs);
+                break;
+            case SIGNAL_NODE_DONE:
+                dbg_printf("Received signal_node_done\n");
+                // Flush Exporter Stat to file
+                FlushExporterStats(fs);
+                // flush current block and close file
+                FlushBlock(fs->nffile, fs->dataBlock);
+                CloseFlowFile(flowParam, Node->timestamp);
+                done = 1;
+                break;
+            default:
+                LogError("Unknown node type: %u\n", Node->nodeType);
         }
+
         Free_Node(Node);
     }
-
-    DisposeFile(fs->nffile);
 
     LogInfo("Terminating flow processng");
     dbg_printf("End flow thread[%lu]\n", (long unsigned)flowParam->tid);

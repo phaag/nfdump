@@ -109,7 +109,7 @@ FILE *zlib_stream(char *pcap_file) {
     pthread_t tid;
     int err = pthread_create(&tid, NULL, gzipReader, (void *)readerArgs);
     if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         gzclose(zFile);
         return NULL;
     }

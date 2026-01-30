@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2024, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -29,6 +29,8 @@
  *
  */
 
+#include "launch.h"
+
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
@@ -45,25 +47,12 @@
 #include <sys/wait.h>
 
 #include "bookkeeper.h"
-#include "config.h"
-#include "nfstatfile.h"
-
-#ifdef HAVE_FTS_H
-#include <fts.h>
-#else
-#include "fts_compat.h"
-#define fts_children fts_children_compat
-#define fts_close fts_close_compat
-#define fts_open fts_open_compat
-#define fts_read fts_read_compat
-#define fts_set fts_set_compat
-#endif
-
 #include "collector.h"
+#include "config.h"
 #include "expire.h"
-#include "launch.h"
 #include "nfdump.h"
 #include "nffile.h"
+#include "nfstatfile.h"
 #include "privsep.h"
 #include "util.h"
 
@@ -408,15 +397,7 @@ static void launcher(messageQueue_t *messageQueue, char *launch_process, int exp
     l = strlen(v[i].iov_base) + 1; \
     v[i++].iov_len = l;
 
-int SendLauncherMessage(int pfd, time_t t_start, char *subdir, char *fmt, char *datadir, char *ident) {
-    char fname[MAXPATHLEN];
-    if (subdir) {
-        snprintf(fname, MAXPATHLEN - 1, "%s/nfcapd.%s", subdir, fmt);
-    } else {
-        snprintf(fname, MAXPATHLEN - 1, "nfcapd.%s", fmt);
-    }
-    fname[MAXPATHLEN - 1] = '\0';
-
+int SendLauncherMessage(int pfd, time_t t_start, char *fname, char *fmt, char *datadir, char *ident) {
     dbg_printf("Launcher arguments: Time: %ld, t: %s, f: %s, d: %s, i: %s\n", t_start, fmt, fname, datadir, ident);
 
     message_t message;
@@ -492,7 +473,7 @@ int StartupLauncher(char *launch_process, int expire) {
     pthread_t tid;
     int err = pthread_create(&killtid, NULL, pipeReader, (void *)&thread_arg);
     if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
         return 0;
     }
     tid = killtid;
@@ -500,7 +481,7 @@ int StartupLauncher(char *launch_process, int expire) {
     launcher(messageQueue, launch_process, expire);
     err = pthread_join(tid, NULL);
     if (err) {
-        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
     }
 
     LogVerbose("End StartupLauncher()");

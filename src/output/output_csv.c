@@ -99,16 +99,14 @@ static struct token_list_s {
     string_function_t string_function;  // function printing result to stream
 } *token_list = NULL;
 
-static int max_token_index = 0;
-static int token_index = 0;
+static unsigned max_token_index = 0;
+static unsigned token_index = 0;
 
 #define BLOCK_SIZE 32
 
 static int max_format_index = 0;
 
 static double duration = 0;
-
-#define IP_STRING_LEN (INET6_ADDRSTRLEN)
 
 #define STRINGSIZE 10240
 static char header_string[STRINGSIZE] = {'\0'};
@@ -124,7 +122,7 @@ static inline uint64_t *ApplyV6NetMaskBits(uint64_t *ip, uint32_t maskBits);
 
 static void InitFormatParser(void);
 
-static void AddToken(int index);
+static void AddToken(unsigned index);
 
 static char *String_Ident(char *streamPtr, recordHandle_t *recordHandle);
 
@@ -712,7 +710,7 @@ static inline uint64_t *ApplyV6NetMaskBits(uint64_t *ip, uint32_t maskBits) {
 
 }  // End of ApplyV6NetMaskBits
 
-static void AddToken(int index) {
+static void AddToken(unsigned index) {
     if (token_index >= max_token_index) {  // no slot available - expand table
         max_token_index += BLOCK_SIZE;
         token_list = (struct token_list_s *)realloc(token_list, max_token_index * sizeof(struct token_list_s));
@@ -746,10 +744,10 @@ int ParseCSVOutputFormat(char *format) {
     }
     while (*c) {
         if (*c == '%') {  // it's a token from formatTable
-            int i = 0;
-            int remaining = strlen(c);
+            unsigned i = 0;
+            size_t remaining = strlen(c);
             while (formatTable[i].token) {  // sweep through the list
-                int len = strlen(formatTable[i].token);
+                size_t len = strlen(formatTable[i].token);
 
                 // a token is separated by either a space, another token, or end of string
                 if (remaining >= len && !isalnum((int)c[len])) {
@@ -1354,7 +1352,7 @@ static char *String_SrcAddr(char *streamPtr, recordHandle_t *recordHandle) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
-    char tmp_str[IP_STRING_LEN];
+    char tmp_str[INET6_ADDRSTRLEN];
     tmp_str[0] = 0;
     if (ipv4Flow) {
         uint32_t ip = htonl(ipv4Flow->srcAddr);
@@ -1367,7 +1365,7 @@ static char *String_SrcAddr(char *streamPtr, recordHandle_t *recordHandle) {
     } else {
         strcpy(tmp_str, "0.0.0.0");
     }
-    tmp_str[IP_STRING_LEN - 1] = 0;
+    tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
     AddString(tmp_str);
 
@@ -1378,7 +1376,7 @@ static char *String_DstAddr(char *streamPtr, recordHandle_t *recordHandle) {
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
-    char tmp_str[IP_STRING_LEN];
+    char tmp_str[INET6_ADDRSTRLEN];
     tmp_str[0] = 0;
     if (ipv4Flow) {
         uint32_t ip = htonl(ipv4Flow->dstAddr);
@@ -1391,7 +1389,7 @@ static char *String_DstAddr(char *streamPtr, recordHandle_t *recordHandle) {
     } else {
         strcpy(tmp_str, "0.0.0.0");
     }
-    tmp_str[IP_STRING_LEN - 1] = 0;
+    tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
     AddString(tmp_str);
 
@@ -1404,7 +1402,7 @@ static char *String_SrcNet(char *streamPtr, recordHandle_t *recordHandle) {
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
     uint16_t srcMask = flowMisc ? flowMisc->srcMask : 0;
 
-    char tmp_str[IP_STRING_LEN];
+    char tmp_str[INET6_ADDRSTRLEN];
     tmp_str[0] = 0;
     if (ipv4Flow) {
         uint32_t ip = ApplyV4NetMaskBits(ipv4Flow->srcAddr, srcMask);
@@ -1418,7 +1416,7 @@ static char *String_SrcNet(char *streamPtr, recordHandle_t *recordHandle) {
     } else {
         strcpy(tmp_str, "0.0.0.0");
     }
-    tmp_str[IP_STRING_LEN - 1] = 0;
+    tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
     AddString(tmp_str);
     AddChar('/');
@@ -1433,7 +1431,7 @@ static char *String_DstNet(char *streamPtr, recordHandle_t *recordHandle) {
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)recordHandle->extensionList[EXflowMiscID];
     uint16_t dstMask = flowMisc ? flowMisc->dstMask : 0;
 
-    char tmp_str[IP_STRING_LEN];
+    char tmp_str[INET6_ADDRSTRLEN];
     tmp_str[0] = 0;
     if (ipv4Flow) {
         uint32_t ip = ApplyV4NetMaskBits(ipv4Flow->dstAddr, dstMask);
@@ -1447,7 +1445,7 @@ static char *String_DstNet(char *streamPtr, recordHandle_t *recordHandle) {
     } else {
         strcpy(tmp_str, "0.0.0.0");
     }
-    tmp_str[IP_STRING_LEN - 1] = 0;
+    tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
     AddString(tmp_str);
     AddChar('/');
@@ -1624,7 +1622,7 @@ static char *String_NextHop(char *streamPtr, recordHandle_t *recordHandle) {
     EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)recordHandle->extensionList[EXipNextHopV4ID];
     EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)recordHandle->extensionList[EXipNextHopV6ID];
 
-    char tmp_str[IP_STRING_LEN];
+    char tmp_str[INET6_ADDRSTRLEN];
     tmp_str[0] = 0;
     if (ipNextHopV4) {
         uint32_t ip = htonl(ipNextHopV4->ip);
@@ -1638,7 +1636,7 @@ static char *String_NextHop(char *streamPtr, recordHandle_t *recordHandle) {
     } else {
         strcpy(tmp_str, "0.0.0.0");
     }
-    tmp_str[IP_STRING_LEN - 1] = 0;
+    tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
     AddString(tmp_str);
 
@@ -1649,7 +1647,7 @@ static char *String_BGPNextHop(char *streamPtr, recordHandle_t *recordHandle) {
     EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)recordHandle->extensionList[EXbgpNextHopV4ID];
     EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)recordHandle->extensionList[EXbgpNextHopV6ID];
 
-    char tmp_str[IP_STRING_LEN];
+    char tmp_str[INET6_ADDRSTRLEN];
     tmp_str[0] = 0;
     if (bgpNextHopV4) {
         uint32_t ip = htonl(bgpNextHopV4->ip);
@@ -1663,7 +1661,7 @@ static char *String_BGPNextHop(char *streamPtr, recordHandle_t *recordHandle) {
     } else {
         strcpy(tmp_str, "0.0.0.0");
     }
-    tmp_str[IP_STRING_LEN - 1] = 0;
+    tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
     AddString(tmp_str);
 
@@ -1674,7 +1672,7 @@ static char *String_RouterIP(char *streamPtr, recordHandle_t *recordHandle) {
     EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)recordHandle->extensionList[EXipReceivedV4ID];
     EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)recordHandle->extensionList[EXipReceivedV6ID];
 
-    char tmp_str[IP_STRING_LEN];
+    char tmp_str[INET6_ADDRSTRLEN];
     tmp_str[0] = 0;
     if (ipReceivedV4) {
         uint32_t ip = htonl(ipReceivedV4->ip);
@@ -1688,7 +1686,7 @@ static char *String_RouterIP(char *streamPtr, recordHandle_t *recordHandle) {
     } else {
         strcpy(tmp_str, "0.0.0.0");
     }
-    tmp_str[IP_STRING_LEN - 1] = 0;
+    tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
     AddString(tmp_str);
 
@@ -2377,7 +2375,7 @@ static char *String_xlateSrcAddr(char *streamPtr, recordHandle_t *recordHandle) 
     EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
     EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
 
-    char tmp_str[IP_STRING_LEN];
+    char tmp_str[INET6_ADDRSTRLEN];
     tmp_str[0] = 0;
     if (natXlateIPv4) {
         uint32_t ip = htonl(natXlateIPv4->xlateSrcAddr);
@@ -2391,7 +2389,7 @@ static char *String_xlateSrcAddr(char *streamPtr, recordHandle_t *recordHandle) 
     } else {
         strcpy(tmp_str, "0.0.0.0");
     }
-    tmp_str[IP_STRING_LEN - 1] = 0;
+    tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
     AddString(tmp_str);
 
@@ -2402,7 +2400,7 @@ static char *String_xlateDstAddr(char *streamPtr, recordHandle_t *recordHandle) 
     EXnatXlateIPv4_t *natXlateIPv4 = (EXnatXlateIPv4_t *)recordHandle->extensionList[EXnatXlateIPv4ID];
     EXnatXlateIPv6_t *natXlateIPv6 = (EXnatXlateIPv6_t *)recordHandle->extensionList[EXnatXlateIPv6ID];
 
-    char tmp_str[IP_STRING_LEN];
+    char tmp_str[INET6_ADDRSTRLEN];
     tmp_str[0] = 0;
     if (natXlateIPv4) {
         uint32_t ip = htonl(natXlateIPv4->xlateDstAddr);
@@ -2416,7 +2414,7 @@ static char *String_xlateDstAddr(char *streamPtr, recordHandle_t *recordHandle) 
     } else {
         strcpy(tmp_str, "0.0.0.0");
     }
-    tmp_str[IP_STRING_LEN - 1] = 0;
+    tmp_str[INET6_ADDRSTRLEN - 1] = 0;
 
     AddString(tmp_str);
 

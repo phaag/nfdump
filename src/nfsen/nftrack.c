@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -46,6 +46,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "barrier.h"
 #include "config.h"
 #include "exporter.h"
 #include "filter/filter.h"
@@ -146,7 +147,7 @@ static int CheckRunningOnce(char *pidfile) {
 }  // End of CheckRunningOnce
 
 static data_row *process(void *engine) {
-    nffile_t *nffile = GetNextFile(NULL);
+    nffile_t *nffile = GetNextFile();
     if (!nffile) {
         LogError("GetNextFile() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
@@ -176,8 +177,9 @@ static data_row *process(void *engine) {
         // get next data block from file
         dataBlock = ReadBlock(nffile, dataBlock);
         if (dataBlock == NULL) {
-            nffile_t *next = GetNextFile(nffile);
-            if (next == NULL) {
+            DisposeFile(nffile);
+            nffile = GetNextFile();
+            if (nffile == NULL) {
                 done = 1;
             }
             // else continue with next file
@@ -243,7 +245,6 @@ static data_row *process(void *engine) {
     }  // while
 
     FreeDataBlock(dataBlock);
-    CloseFile(nffile);
     DisposeFile(nffile);
 
     return port_table;
@@ -423,10 +424,12 @@ int main(int argc, char **argv) {
         exit(0);
     }
 
+    int numWorkers = GetNumWorkers(0);
+
     port_table = NULL;
     if (flist.multiple_dirs || flist.multiple_files || flist.single_file) {
         queue_t *fileList = SetupInputFileSequence(&flist);
-        if (!Init_nffile(DEFAULTWORKERS, fileList)) exit(254);
+        if (!Init_nffile(numWorkers, fileList)) exit(254);
         port_table = process(engine);
         //		Lister(port_table);
         if (!port_table) {

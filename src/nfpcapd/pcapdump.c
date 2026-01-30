@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022-2025, Peter Haag
+ *  Copyright (c) 2022-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -44,6 +44,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "config.h"
 #include "flist.h"
 #include "nffile.h"
 #include "packet_pcap.h"
@@ -90,7 +91,7 @@ static void packet_handler(u_char *dumpfile, const struct pcap_pkthdr *header, c
     return;
 }
 
-#ifndef HAVEPCAPAPPEND
+#ifndef HAVE_PCAP_APPEND
 /*
  * minimal implementation if libpcap does not include this library call
  */
@@ -159,8 +160,9 @@ static int appendPcap(char *existFile, char *appendFile) {
 }
 
 static int CloseDumpFile(flushParam_t *param, time_t t_start) {
-    struct tm *when;
-    char datefile[MAXPATHLEN];
+    struct tm *now = localtime(&t_start);
+    char fmt[16];
+    strftime(fmt, sizeof(fmt), param->extensionFormat, now);
 
     if (param->pd == NULL) return 1;
 
@@ -169,20 +171,11 @@ static int CloseDumpFile(flushParam_t *param, time_t t_start) {
     param->pfd = 0;
 
     dbg_printf("CloseDumpFile()\n");
-    when = localtime(&t_start);
-    char fmt[16];
-    strftime(fmt, sizeof(fmt), param->extensionFormat, when);
-    if (param->subdir_index) {
-        char *subdir = GetSubDir(when);
-        if (!subdir || !SetupSubDir(param->archivedir, subdir)) {
-            LogError("Create subdir failed");
-            subdir = "";
-        }
+    char datefile[MAXPATHLEN];
+    int pos = SetupPath(now, param->archivedir, param->subdir_index, datefile);
+    char *p = datefile + (ptrdiff_t)pos;
 
-        snprintf(datefile, MAXPATHLEN - 1, "%s/%s/pcap.%s", param->archivedir, subdir, fmt);
-    } else {
-        snprintf(datefile, MAXPATHLEN - 1, "%s/pcap.%s", param->archivedir, fmt);
-    }
+    snprintf(p, MAXPATHLEN - pos - 1, "pcapd.%s", fmt);
 
     int fileStat = TestPath(datefile, S_IFREG);
     if (fileStat == PATH_NOTEXISTS) {

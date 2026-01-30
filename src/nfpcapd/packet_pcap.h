@@ -97,8 +97,8 @@ typedef struct packetParam_s {
     NodeList_t *NodeList;
     pcap_t *pcap_dev;
     time_t t_win;
-    int *done;
-    int doDedup;
+    unsigned *done;
+    unsigned doDedup;
 
     uint32_t snaplen;
     uint32_t linktype;
@@ -110,18 +110,18 @@ typedef struct packetParam_s {
     proc_stat_t proc_stat;
 } packetParam_t;
 
-int setup_pcap_live(packetParam_t *param, char *device, char *filter, int snaplen, int buffsize, int to_ms);
+int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms);
 
 void __attribute__((noreturn)) * pcap_packet_thread(void *args);
 
 #ifdef USE_BPFSOCKET
-int setup_bpf_live(packetParam_t *param, char *device, char *filter, int snaplen, int buffsize, int to_ms);
+int setup_bpf_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms);
 
 void __attribute__((noreturn)) * bpf_packet_thread(void *args);
 #endif
 
 #ifdef USE_TPACKETV3
-int setup_linux_live(packetParam_t *param, char *device, char *filter, int snaplen, int buffsize, int to_ms);
+int setup_linux_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms);
 
 void __attribute__((noreturn)) * linux_packet_thread(void *args);
 #endif

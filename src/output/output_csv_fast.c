@@ -46,8 +46,6 @@
 #include "output_util.h"
 #include "util.h"
 
-#define IP_STRING_LEN (INET6_ADDRSTRLEN)
-
 // record counter
 static uint32_t recordCount;
 
@@ -114,7 +112,7 @@ void csv_record_fast(FILE *stream, recordHandle_t *recordHandle, outputParams_t 
     char *streamPtr = streamBuff;
 
     int af = 0;
-    char sa[IP_STRING_LEN], da[IP_STRING_LEN];
+    char sa[INET6_ADDRSTRLEN], da[INET6_ADDRSTRLEN];
     if (ipv4Flow) {
         af = PF_INET;
         uint32_t src = htonl(ipv4Flow->srcAddr);

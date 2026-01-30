@@ -48,7 +48,7 @@ typedef struct repeater_s {
     char *hostname;
     char *port;
     struct sockaddr_storage addr;
-    int addrlen;
+    socklen_t addrlen;
     int sockfd;
 } repeater_t;
 
@@ -58,6 +58,6 @@ typedef struct repeater_message_s {
     struct sockaddr_storage addr;
 } repeater_message_t;
 
-int StartupRepeater(repeater_t *repeater, int bufflen, int srcSpoofing, char *userid, char *groupid);
+int StartupRepeater(repeater_t *repeater, unsigned bufflen, unsigned srcSpoofing, char *userid, char *groupid);
 
 #endif

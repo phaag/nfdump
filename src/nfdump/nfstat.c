@@ -94,7 +94,7 @@ static void *DST_AS_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *JA3in_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *JA3out_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *JA4_PreProcess(void *inPtr, recordHandle_t *recordHandle);
-#ifdef BUILDJA4
+#ifdef BUILD_JA4
 static void *JA4Sin_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 static void *JA4Sout_PreProcess(void *inPtr, recordHandle_t *recordHandle);
 #endif
@@ -203,7 +203,7 @@ static struct StatParameter_s {
     {"ja3", "ja3                             ", {EXinPayloadHandle, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3in_PreProcess},
     {"ja3", NULL, {EXoutPayloadHandle, OFFja3String, SIZEja3String + 1, 0}, IS_JA3, JA3out_PreProcess},
     {"ja4", "ja4                                ", {EXinPayloadHandle, OFFja4String, SIZEja4String + 1, 0}, IS_JA4, JA4_PreProcess},
-#ifdef BUILDJA4
+#ifdef BUILD_JA4
     {"ja4s", "ja4s                    ", {EXinPayloadHandle, OFFja4String, SIZEja4sString + 1, 0}, IS_JA4S, JA4Sin_PreProcess},
     {"ja4s", NULL, {EXoutPayloadHandle, OFFja4String, SIZEja4sString + 1, 0}, IS_JA4S, JA4Sout_PreProcess},
 #endif
@@ -855,7 +855,7 @@ static inline void *JA4_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
 
 }  // End of JA4_PreProcess
 
-#ifdef BUILDJA4
+#ifdef BUILD_JA4
 static inline void *JA4Sin_PreProcess(void *inPtr, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
 
@@ -1625,13 +1625,12 @@ static SortElement_t *StatTopN(int topN, uint32_t *count, int hash_num, int orde
     uint32_t c = 0;
     for (uint32_t i = 0; i < elemenHash->capacity; i++) {
         if (elemenHash->keys[i].active) {
+            dbg_printf("Get next active hashCell. count: %" PRIu64 "\n", topN_list[c].count);
             StatRecord_t *record = &(elemenHash->records[i]);
             topN_list[c].count = orderByTable[order].element_function(record);
             topN_list[c].record = (void *)record;
             record->hashkey = &(elemenHash->keys[i].key);
             c++;
-
-            dbg_printf("Get next hashCell. count: %" PRIu64 "\n", topN_list[c].count);
         }
     }
     assert(c == numCells);

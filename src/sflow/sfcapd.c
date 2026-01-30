@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -37,6 +37,7 @@
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -52,15 +53,19 @@
 
 #include "config.h"
 
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
 #include "pcap_reader.h"
 #endif
 
+#include "barrier.h"
 #include "bookkeeper.h"
 #include "collector.h"
 #include "conf/nfconf.h"
 #include "daemon.h"
+#include "expire.h"
 #include "flist.h"
+#include "flowsource.h"
+#include "ip128.h"
 #include "launch.h"
 #include "metric.h"
 #include "nfdump.h"
@@ -71,22 +76,9 @@
 #include "pidfile.h"
 #include "privsep.h"
 #include "repeater.h"
+#include "sflow_nfdump.h"
 #include "util.h"
 #include "version.h"
-
-#ifdef HAVE_FTS_H
-#include <fts.h>
-#else
-#include "fts_compat.h"
-#define fts_children fts_children_compat
-#define fts_close fts_close_compat
-#define fts_open fts_open_compat
-#define fts_read fts_read_compat
-#define fts_set fts_set_compat
-#endif
-
-#include "expire.h"
-#include "sflow_nfdump.h"
 
 #define DEFAULTSFLOWPORT "6343"
 
@@ -99,8 +91,6 @@ static option_t sfcapdConfig[] = {
     {.name = "tun", .valBool = 0, .flags = OPTDEFAULT}, {.name = "maxworkers", .valUint64 = 2, .flags = OPTDEFAULT}, {.name = NULL}};
 
 /* module limited globals */
-static FlowSource_t *FlowSource;
-
 static int done = 0;
 static int periodic_trigger;
 static int gotSIGCHLD = 0;
@@ -112,10 +102,8 @@ static void signalPrivsepChild(pid_t child_pid, int pfd);
 
 static void IntHandler(int signal);
 
-static inline FlowSource_t *GetFlowSource(struct sockaddr_storage *ss);
-
-static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress,
-                int parse_tun);
+static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, post_args_t *post_args, int rfd, time_t twin, time_t t_begin,
+                unsigned compress, int parse_tun);
 
 /* Functions */
 static void usage(char *name) {
@@ -128,7 +116,7 @@ static void usage(char *name) {
         "-b host\t\tbind socket to host/IP addr\n"
         "-J mcastgroup\tJoin multicast group <mcastgroup>\n"
         "-p portnum\tlisten on port portnum\n"
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
         "-f pcapfile\tRead network data from pcap file.\n"
         "-d device\tRead network data from device (interface).\n"
 #endif
@@ -155,8 +143,8 @@ static void usage(char *name) {
         "-D\t\tFork to background\n"
         "-E\t\tPrint extended format of sflow data. For debugging purpose only.\n"
         "-v\t\tIncrease verbose level.\n"
-        "-4\t\tListen on IPv4 (default).\n"
-        "-6\t\tListen on IPv6.\n"
+        "-4\t\tListen on IPv4 only.\n"
+        "-6\t\tListen on IPv6 only\n"
         "-X <extlist>\t',' separated list of extensions (numbers). Default all extensions.\n"
         "-V\t\tPrint version and exit.\n"
         "-Z\t\tAdd timezone offset to filename.\n",
@@ -233,7 +221,6 @@ static void ChildDied(void) {
 
 }  // End of ChildDied
 
-#include "collector_inline.c"
 #include "nffile_inline.c"
 
 static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockaddr_storage *sender, socklen_t sender_size) {
@@ -271,8 +258,8 @@ static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockadd
     return 0;
 }  // End of SendRepeaterMessage
 
-static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, time_t twin, time_t t_begin, char *time_extension, int compress,
-                int parse_tun) {
+static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, post_args_t *post_args, int rfd, time_t twin, time_t t_begin,
+                unsigned compress, int parse_tun) {
     struct sockaddr_storage sf_sender;
     socklen_t sf_sender_size = sizeof(sf_sender);
 
@@ -282,22 +269,20 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
         return;
     }
 
-    // Init each sflow source output data buffer
-    FlowSource_t *fs = FlowSource;
-    while (fs) {
+    // Init each netflow source output data buffer
+    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         // prepare file
-        fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
-        if (!fs->nffile) {
+        fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+        fs->swap_nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+        if (!fs->nffile || !fs->swap_nffile) {
             return;
         }
         SetIdent(fs->nffile, fs->Ident);
+        SetIdent(fs->swap_nffile, fs->Ident);
 
         // init flow source
         fs->dataBlock = WriteBlock(fs->nffile, NULL);
         fs->bad_packets = 0;
-
-        // next source
-        fs = fs->next;
     }
 
     time_t t_start = t_begin;
@@ -317,12 +302,14 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
      */
     while (1) {
         struct timeval tv;
+        char sa_address[INET6_ADDRSTRLEN];
 
         /* read next bunch of data into begin of input buffer */
         if (!done) {
-#ifdef PCAP
             // Debug code to read from pcap file, or from socket
             cnt = receive_packet(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&sf_sender, &sf_sender_size);
+
+            dbg_printf("Received packet from: %s, size: %zd\n", GetClientIPstring(&sf_sender, sa_address), cnt);
 
             // in case of reading from file EOF => -2
             if (cnt == -2) done = 1;
@@ -331,9 +318,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
                 packets++;
                 continue;
             }
-#else
-            cnt = recvfrom(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&sf_sender, &sf_sender_size);
-#endif
+
             if (cnt == -1) {
                 if (errno != EINTR) {
                     LogError("recvfrom() error in '%s', line '%d', cnt: %d:, %s", __FILE__, __LINE__, cnt, strerror(errno));
@@ -345,7 +330,6 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
         }
 
         /* Periodic file renaming, if time limit reached or if we are done.  */
-        // t_now = time(NULL);
         gettimeofday(&tv, NULL);
         time_t t_now = tv.tv_sec;
 
@@ -353,18 +337,13 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
             // rotate cycle
             alarm(0);
 
-            if (RotateFlowFiles(t_start, time_extension, FlowSource, done) == 0) {
-                return;
-            }
-
-            if (pfd && TriggerLauncher(t_start, time_extension, pfd, FlowSource) == 0) {
-                LogError("Disable launcher due to errors");
-                close(pfd);
-                pfd = 0;
+            if (RotateCycle(ctx, post_args, t_start, done) != 0) {
+                LogError("run loop terminated due to serious errors");
+                break;
             }
 
             LogInfo("Total packets received: %llu avg: %3.2f ignored packets: %u", packets, (double)packets / (double)twin, ignored_packets);
-            ignored_packets = 0;
+            packets = ignored_packets = 0;
             periodic_trigger = 0;
 
             if (done) break;
@@ -389,7 +368,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
         // repeat this packet
         if (rfd) {
-            if (SendRepeaterMessage(rfd, in_buff, cnt, &sf_sender, sf_sender_size) != 0) {
+            if (SendRepeaterMessage(rfd, in_buff, (size_t)cnt, &sf_sender, sf_sender_size) != 0) {
                 LogError("Disable packet repeater due to errors");
                 close(rfd);
                 rfd = 0;
@@ -397,20 +376,23 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
         }
 
         // get flow source record for current packet, identified by sender IP address
-        fs = GetFlowSource(&sf_sender);
+        FlowSource_t *fs = GetFlowSource(ctx, &sf_sender);
         if (fs == NULL) {
-            fs = AddDynamicSource(&FlowSource, &sf_sender);
+            // check, if we have dynamic flowsources configured
+            fs = NewDynFlowSource(ctx, &sf_sender);
             if (fs == NULL) {
-                LogError("Skip UDP packet. Ignored packets so far %u packets", ignored_packets);
                 ignored_packets++;
+                LogError("Skip UDP packet from: %s. Ignored packets: %u", GetClientIPstring(&sf_sender, sa_address), ignored_packets);
                 continue;
             }
+
+            // setup new dynamic source
             if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
                 LogError("Failed to initialise bookkeeper for new source");
                 // fatal error
                 return;
             }
-            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), NULL, CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
                 LogError("Failed to open new collector file");
                 return;
@@ -420,7 +402,7 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
         }
 
         /* check for too little data - cnt must be > 0 at this point */
-        if (cnt < sizeof(common_flow_header_t)) {
+        if (cnt < (ssize_t)sizeof(common_flow_header_t)) {
             LogError("Ident: %s, Data length error: too little data for common netflow header. cnt: %i", fs->Ident, (int)cnt);
             fs->bad_packets++;
             continue;
@@ -436,33 +418,31 @@ static void run(packet_function_t receive_packet, int socket, int pfd, int rfd, 
 
     free(in_buff);
 
-    fs = FlowSource;
-    while (fs) {
-        FreeDataBlock(fs->dataBlock);
-        DisposeFile(fs->nffile);
-        fs->nffile = NULL;
-        fs = fs->next;
-    }
+    CleanupCollector(ctx, post_args);
 
 } /* End of run */
 
 int main(int argc, char **argv) {
-    char *bindhost, *datadir, *launch_process;
+    char *bindhost, *launch_process;
     char *userid, *groupid, *listenport, *mcastgroup;
     char *Ident, *dynFlowDir, *time_extension, *pidfile, *configFile, *metricSocket;
     char *extensionList, *options;
     packet_function_t receive_packet;
     repeater_t repeater[MAX_REPEATERS];
-    FlowSource_t *fs;
-    int family, bufflen, metricInterval;
+    unsigned bufflen, metricInterval;
     time_t twin;
-    int sock, do_daemonize, expire, spec_time_extension, parse_tun;
-    int subdir_index, compress, srcSpoofing;
-    uint64_t workers;
-#ifdef PCAP
+    int sock, family, do_daemonize, expire, spec_time_extension;
+    bool parse_tun;
+    unsigned subdir_index, compress, srcSpoofing;
+    int numWorkers;
+#ifdef ENABLE_READPCAP
     char *pcap_file = NULL;
     char *pcap_device = NULL;
 #endif
+
+    collector_ctx_t collector_ctx = {0};
+    stringlist_t sourceList = {0};
+    char *dataDir = NULL;
 
     receive_packet = recvfrom;
     verbose = do_daemonize = 0;
@@ -475,7 +455,6 @@ int main(int argc, char **argv) {
     launch_process = NULL;
     userid = groupid = NULL;
     twin = TIME_WINDOW;
-    datadir = NULL;
     subdir_index = 0;
     time_extension = "%Y%m%d%H%M";
     spec_time_extension = 0;
@@ -485,14 +464,13 @@ int main(int argc, char **argv) {
     srcSpoofing = 0;
     configFile = NULL;
     Ident = "none";
-    FlowSource = NULL;
     dynFlowDir = NULL;
     metricSocket = NULL;
     metricInterval = 60;
     extensionList = NULL;
     options = NULL;
-    workers = 0;
-    parse_tun = 0;
+    numWorkers = 0;
+    parse_tun = false;
 
     int c;
     while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:o:p:P:R:S:T:t:u:vVW:w:x:X:yz::Z:")) != EOF) {
@@ -519,7 +497,7 @@ int main(int argc, char **argv) {
             case 'e':
                 expire = 1;
                 break;
-#ifdef PCAP
+#ifdef ENABLE_READPCAP
             case 'f': {
                 struct stat fstat;
                 pcap_file = optarg;
@@ -556,16 +534,17 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, 128);
                 Ident = strdup(optarg);
                 break;
-            case 'i':
-                metricInterval = atoi(optarg);
-                if (metricInterval < 10) {
+            case 'i': {
+                int m = atoi(optarg);
+                if (m < 10) {
                     LogError("metric interval < 10s not allowed");
                     exit(EXIT_FAILURE);
                 }
+                metricInterval = (unsigned)m;
                 if (metricInterval > twin) {
-                    LogInfo("metric interval %d > twin %d", metricInterval, twin);
+                    LogInfo("metric interval %u > twin %ld", metricInterval, (long)twin);
                 }
-                break;
+            } break;
             case 'm':
                 CheckArgLen(optarg, MAXPATHLEN);
                 metricSocket = strdup(optarg);
@@ -574,20 +553,13 @@ int main(int argc, char **argv) {
                 CheckArgLen(optarg, MAXPATHLEN);
                 dynFlowDir = strdup(optarg);
                 if (!CheckPath(dynFlowDir, S_IFDIR)) {
-                    LogError("No valid directory: %s", dynFlowDir);
-                    exit(EXIT_FAILURE);
-                }
-                if (!SetDynamicSourcesDir(&FlowSource, dynFlowDir)) {
-                    LogError("Failed to add dynamic flowdir");
+                    LogError("Invalid directory: %s for -M", dynFlowDir);
                     exit(EXIT_FAILURE);
                 }
                 break;
             case 'n':
                 CheckArgLen(optarg, MAXPATHLEN);
-                if (!AddFlowSourceString(&FlowSource, strdup(optarg))) {
-                    LogError("Failed to add flow source");
-                    exit(EXIT_FAILURE);
-                }
+                InsertString(&sourceList, optarg);
                 break;
             case 'B': {
                 char *checkptr = NULL;
@@ -652,15 +624,20 @@ int main(int argc, char **argv) {
                     LogError("No valid directory: %s", optarg);
                     exit(EXIT_FAILURE);
                 }
-                datadir = realpath(optarg, NULL);
-                if (!datadir) {
+                dataDir = realpath(optarg, NULL);
+                if (!dataDir) {
                     LogError("realpath() failed on %s: %s", optarg, strerror(errno));
                     exit(EXIT_FAILURE);
                 }
                 break;
-            case 'S':
-                subdir_index = atoi(optarg);
-                break;
+            case 'S': {
+                int s = atoi(optarg);
+                if (s < 0) {
+                    LogError("Invalid number for subdir index: %s", optarg);
+                    exit(EXIT_FAILURE);
+                }
+                subdir_index = (unsigned)s;
+            } break;
             case 'T':
                 printf("Option -T no longer supported and ignored\n");
                 break;
@@ -684,13 +661,9 @@ int main(int argc, char **argv) {
                 break;
             case 'W':
                 CheckArgLen(optarg, 16);
-                workers = (uint64_t)atoi(optarg);
-                if (workers < 1 || workers > MAXWORKERS) {
-                    LogError("Number of working threads out of range 1..%d", MAXWORKERS);
-                    exit(EXIT_FAILURE);
-                }
-                if (!ConfSetUint64(sfcapdConfig, "maxworkers", workers)) {
-                    LogError("Failed to set conf value");
+                numWorkers = atoi(optarg);
+                if (numWorkers < 0) {
+                    LogError("Invalid number of working threads: %d", numWorkers);
                     exit(EXIT_FAILURE);
                 }
                 break;
@@ -715,12 +688,14 @@ int main(int argc, char **argv) {
                 }
                 if (optarg == NULL) {
                     compress = LZO_COMPRESSED;
+                    LogInfo("Legacy option -z defaults to -z=lzo. Use -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                 } else {
-                    compress = ParseCompression(optarg);
-                }
-                if (compress == -1) {
-                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
-                    exit(EXIT_FAILURE);
+                    int ret = ParseCompression(optarg);
+                    if (ret == -1) {
+                        LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
+                        exit(EXIT_FAILURE);
+                    }
+                    compress = (unsigned)ret;
                 }
                 break;
             case 'Z':
@@ -780,23 +755,19 @@ int main(int argc, char **argv) {
 
     if (ConfOpen(configFile, "sfcapd") < 0) exit(EXIT_FAILURE);
 
+    if (init_collector_ctx(&collector_ctx) == 0) {
+        exit(EXIT_FAILURE);
+    }
+
     if (scanOptions(sfcapdConfig, options) == 0) {
         exit(EXIT_FAILURE);
     }
     OptGetBool(sfcapdConfig, "tun", &parse_tun);
 
-    if (datadir && !AddFlowSource(&FlowSource, Ident, ANYIP, datadir)) {
-        LogError("Failed to add default data collector directory");
-        exit(EXIT_FAILURE);
-    }
-
-    if (!AddFlowSourceConfig(&FlowSource)) {
-        LogError("Failed to add exporter from config file");
-        exit(EXIT_FAILURE);
-    }
-
-    if (FlowSource == NULL && datadir == NULL && dynFlowDir == NULL) {
-        LogError("ERROR, No source configurations found");
+    if ((ConfigureDefaultFlowSource(&collector_ctx, Ident, dataDir, subdir_index) == 0) &&
+        (ConfigureFixedFlowSource(&collector_ctx, &sourceList, subdir_index) == 0) &&
+        (ConfigureDynFlowSource(&collector_ctx, dynFlowDir, subdir_index) == 0)) {
+        LogError("Failed to configure a flow source model");
         exit(EXIT_FAILURE);
     }
 
@@ -805,16 +776,22 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    ConfGetUint64(sfcapdConfig, "maxworkers", &workers);
-    if (!Init_nffile(workers, NULL)) exit(254);
+    numWorkers = GetNumWorkers(numWorkers);
+    if (!Init_nffile(numWorkers, NULL)) exit(254);
 
     if (expire && spec_time_extension) {
         LogError("ERROR, -Z timezone extension breaks expire -e");
         exit(EXIT_FAILURE);
     }
 
-    // Debug code to read from pcap file
-#ifdef PCAP
+    post_args_t *post_args = malloc(sizeof(post_args_t));
+    if (post_args == NULL) {
+        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+// Debug code to read from pcap file
+#ifdef ENABLE_READPCAP
     sock = 0;
     if (pcap_file) {
         printf("Setup pcap reader\n");
@@ -855,7 +832,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (subdir_index && !InitHierPath(subdir_index)) {
+    if (!CheckSubDir(subdir_index)) {
         close(sock);
         exit(EXIT_FAILURE);
     }
@@ -883,25 +860,42 @@ int main(int argc, char **argv) {
         pfd = PrivsepFork(argc, argv, &launcher_pid, "launcher");
     }
 
-    fs = FlowSource;
-    while (fs) {
-        if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
-            LogError("initialize bookkeeper failed");
+    *post_args = (post_args_t){
+        .ctx = &collector_ctx,
+        .pfd = pfd,
+        .time_extension = time_extension,
+        .done = 0,
+        .creator = CREATOR_SFCAPD,
+        .compress = compress,
+        .encryption = NOT_ENCRYPTED,
+    };
 
-            // release all already allocated bookkeepers
-            fs = FlowSource;
-            while (fs && fs->bookkeeper) {
-                ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
-                fs = fs->next;
-            }
-            close(sock);
-            signalPrivsepChild(launcher_pid, pfd);
-            signalPrivsepChild(repeater_pid, rfd);
-            if (pidfile) remove_pid(pidfile);
-            exit(EXIT_FAILURE);
+    if (Lauch_postprocessor(post_args) == 0) {
+        close(sock);
+        remove_pid(pidfile);
+        exit(EXIT_FAILURE);
+    }
+
+    int failed = 0;
+    for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
+        if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
+            failed = 1;
+            LogError("initialize bookkeeper failed");
+            break;
         }
         fs->subdir = subdir_index;
-        fs = fs->next;
+    }
+
+    if (failed) {
+        // release all already allocated bookkeepers
+        for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
+            if (fs->bookkeeper) ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
+        }
+        close(sock);
+        signalPrivsepChild(launcher_pid, pfd);
+        signalPrivsepChild(repeater_pid, rfd);
+        if (pidfile) remove_pid(pidfile);
+        exit(EXIT_FAILURE);
     }
 
     /* Signal handling */
@@ -918,7 +912,7 @@ int main(int argc, char **argv) {
     sigaction(SIGPIPE, &act, NULL);
 
     LogInfo("Startup sfcapd.");
-    run(receive_packet, sock, pfd, rfd, twin, t_start, time_extension, compress, parse_tun);
+    run(&collector_ctx, receive_packet, sock, post_args, rfd, twin, t_start, compress, parse_tun);
 
     // shutdown
     close(sock);
@@ -926,18 +920,16 @@ int main(int argc, char **argv) {
     signalPrivsepChild(repeater_pid, rfd);
     CloseMetric();
 
-    fs = FlowSource;
-    while (fs && fs->bookkeeper) {
+    for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         dirstat_t *dirstat;
         // if we do not auto expire and there is a stat file, update the stats before we leave
         if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
             UpdateDirStat(dirstat, fs->bookkeeper);
             WriteStatInfo(dirstat);
-            LogVerbose("Updating statinfo in directory '%s'", datadir);
+            LogVerbose("Updating statinfo in directory '%s'", fs->datadir);
         }
 
         ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
-        fs = fs->next;
     }
 
     LogInfo("Terminating sfcapd.");

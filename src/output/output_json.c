@@ -55,8 +55,6 @@
 #include "userio.h"
 #include "util.h"
 
-#define IP_STRING_LEN (INET6_ADDRSTRLEN)
-
 // record counter
 static uint32_t recordCount = 0;
 
@@ -174,7 +172,7 @@ static char *stringEXipv4Flow(char *streamPtr, void *extensionRecord) {
 
     uint32_t src = htonl(ipv4Flow->srcAddr);
     uint32_t dst = htonl(ipv4Flow->dstAddr);
-    char sa[IP_STRING_LEN], da[IP_STRING_LEN];
+    char sa[INET6_ADDRSTRLEN], da[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET, &src, sa, sizeof(sa));
     inet_ntop(AF_INET, &dst, da, sizeof(da));
 
@@ -198,7 +196,7 @@ static char *stringEXipv6Flow(char *streamPtr, void *extensionRecord) {
     src[1] = htonll(ipv6Flow->srcAddr[1]);
     dst[0] = htonll(ipv6Flow->dstAddr[0]);
     dst[1] = htonll(ipv6Flow->dstAddr[1]);
-    char sa[IP_STRING_LEN], da[IP_STRING_LEN];
+    char sa[INET6_ADDRSTRLEN], da[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, &src, sa, sizeof(sa));
     inet_ntop(AF_INET6, &dst, da, sizeof(da));
 
@@ -219,7 +217,7 @@ static char *stringEXflowMisc(char *streamPtr, recordHandle_t *recordHandle, voi
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
-    char snet[IP_STRING_LEN], dnet[IP_STRING_LEN];
+    char snet[INET6_ADDRSTRLEN], dnet[INET6_ADDRSTRLEN];
 
     if (ipv6Flow) {
         // IPv6
@@ -343,10 +341,10 @@ static char *stringEXbgpNextHopV4(char *streamPtr, void *extensionRecord) {
     EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)extensionRecord;
 
     uint32_t i = htonl(bgpNextHopV4->ip);
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     AddElementString("bgp4_next_hop", ip);
 
@@ -360,10 +358,10 @@ static char *stringEXbgpNextHopV6(char *streamPtr, void *extensionRecord) {
     i[0] = htonll(bgpNextHopV6->ip[0]);
     i[1] = htonll(bgpNextHopV6->ip[1]);
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     AddElementString("bgp6_next_hop", ip);
 
@@ -374,10 +372,10 @@ static char *stringEXipNextHopV4(char *streamPtr, void *extensionRecord) {
     EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)extensionRecord;
 
     uint32_t i = htonl(ipNextHopV4->ip);
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     AddElementString("ip4_next_hop", ip);
 
@@ -391,10 +389,10 @@ static char *stringEXipNextHopV6(char *streamPtr, void *extensionRecord) {
     i[0] = htonll(ipNextHopV6->ip[0]);
     i[1] = htonll(ipNextHopV6->ip[1]);
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     AddElementString("ip6_next_hop", ip);
 
@@ -405,10 +403,10 @@ static char *stringEXipReceivedV4(char *streamPtr, void *extensionRecord) {
     EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)extensionRecord;
 
     uint32_t i = htonl(ipReceivedV4->ip);
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     AddElementString("ip4_router", ip);
 
@@ -421,10 +419,10 @@ static char *stringEXipReceivedV6(char *streamPtr, void *extensionRecord) {
     uint64_t i[2];
     i[0] = htonll(ipReceivedV6->ip[0]);
     i[1] = htonll(ipReceivedV6->ip[1]);
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     AddElementString("ip6_router", ip);
 
@@ -630,7 +628,7 @@ static char *stringEXtunIPv4(char *streamPtr, void *extensionRecord) {
 
     uint32_t src = htonl(tunIPv4->tunSrcAddr);
     uint32_t dst = htonl(tunIPv4->tunDstAddr);
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET, &src, as, sizeof(as));
     inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
@@ -650,7 +648,7 @@ static char *stringEXtunIPv6(char *streamPtr, void *extensionRecord) {
     src[1] = htonll(tunIPv6->tunSrcAddr[1]);
     dst[0] = htonll(tunIPv6->tunDstAddr[0]);
     dst[1] = htonll(tunIPv6->tunDstAddr[1]);
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, &src, as, sizeof(as));
     inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
 
@@ -723,7 +721,7 @@ static char *stringEXnatXlateIPv4(char *streamPtr, void *extensionRecord) {
 
     uint32_t src = htonl(natXlateIPv4->xlateSrcAddr);
     uint32_t dst = htonl(natXlateIPv4->xlateDstAddr);
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET, &src, as, sizeof(as));
     inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
@@ -742,7 +740,7 @@ static char *stringEXnatXlateIPv6(char *streamPtr, void *extensionRecord) {
     src[1] = htonll(natXlateIPv6->xlateSrcAddr[1]);
     dst[0] = htonll(natXlateIPv6->xlateDstAddr[0]);
     dst[1] = htonll(natXlateIPv6->xlateDstAddr[1]);
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, &src, as, sizeof(as));
     inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
 

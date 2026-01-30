@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2025, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -37,6 +37,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <resolv.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -264,7 +265,7 @@ char *ConfGetString(char *key) {
 
 }  // End of ConfGetString
 
-int ConfGetValue(char *key) {
+int64_t ConfGetValue(char *key) {
     if (!nfconfFile.valid) return 0;
 
     char *k = strdup(key);
@@ -414,27 +415,12 @@ void ConfInventory(char *confFile) {
 
 }  // End of ConfInventory
 
-int SetNameserver(char *ns) {
-    struct hostent *host;
-
-    res_init();
-    host = gethostbyname(ns);
-    if (host == NULL) {
-        (void)fprintf(stderr, "Can not resolv nameserver %s: %s\n", ns, hstrerror(h_errno));
-        return 0;
-    }
-    (void)memcpy((void *)&_res.nsaddr_list[0].sin_addr, (void *)host->h_addr_list[0], (size_t)host->h_length);
-    _res.nscount = 1;
-    return 1;
-
-}  // End of set_nameserver
-
-int ConfGetInt64(option_t *optionList, char *key, uint64_t *valInt64) {
+int ConfGetInt64(option_t *optionList, char *key, int64_t *valInt64) {
     int i = 0;
     while (optionList[i].name != NULL) {
         if (strcmp(optionList[i].name, key) == 0) {
             if (optionList[i].flags == OPTDEFAULT) {
-                int confInt64 = ConfGetValue(key);
+                int64_t confInt64 = ConfGetValue(key);
                 *valInt64 = confInt64;
                 return 1;
             } else {
@@ -447,7 +433,7 @@ int ConfGetInt64(option_t *optionList, char *key, uint64_t *valInt64) {
     return 0;
 }  // End of ConfGetInt64
 
-int ConfSetInt64(option_t *optionList, char *key, uint64_t valInt64) {
+int ConfSetInt64(option_t *optionList, char *key, int64_t valInt64) {
     int i = 0;
     while (optionList[i].name != NULL) {
         if (strcmp(optionList[i].name, key) == 0) {
@@ -466,7 +452,7 @@ int ConfGetUint64(option_t *optionList, char *key, uint64_t *valUint64) {
         if (strcmp(optionList[i].name, key) == 0) {
             if (optionList[i].flags == OPTDEFAULT) {
                 int confUint64 = ConfGetValue(key);
-                *valUint64 = confUint64;
+                *valUint64 = (uint64_t)confUint64;
                 return 1;
             } else {
                 *valUint64 = optionList[i].valUint64;
@@ -521,7 +507,7 @@ int scanOptions(option_t *optionList, char *options) {
 
 }  // End of scanOption
 
-int OptSetBool(option_t *optionList, char *name, int valBool) {
+int OptSetBool(option_t *optionList, char *name, bool valBool) {
     int i = 0;
     while (optionList[i].name != NULL) {
         if (strcmp(optionList[i].name, name) == 0) {
@@ -534,7 +520,7 @@ int OptSetBool(option_t *optionList, char *name, int valBool) {
     return 0;
 }  // End of OptSetBool
 
-int OptGetBool(option_t *optionList, char *name, int *valBool) {
+int OptGetBool(option_t *optionList, char *name, bool *valBool) {
     int i = 0;
     while (optionList[i].name != NULL) {
         if (strcmp(optionList[i].name, name) == 0) {

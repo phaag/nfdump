@@ -44,6 +44,7 @@
 #include <setjmp.h>
 
 #include "collector.h"
+#include "nfdump.h"
 #include "sflow.h"
 
 // sflow definition
@@ -127,7 +128,7 @@ typedef struct _SFSample {
     uint32_t *datap;
 
     /* datagram fields */
-    struct in_addr sourceIP;  // EX_ROUTER_IP_v4
+    ip128_t sourceIP;  // EX_ROUTER_IP
     SFLAddress agent_addr;
     uint32_t agentSubId;
     uint32_t datagramVersion;

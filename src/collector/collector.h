@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -40,7 +40,11 @@
 #include "bookkeeper.h"
 #include "config.h"
 #include "exporter.h"
+#include "flist.h"
+#include "flowsource.h"
+#include "ip128.h"
 #include "nffile.h"
+#include "util.h"
 
 #define ANYIP NULL
 
@@ -58,46 +62,30 @@
 // time nfcapd will wait for launcher to terminate
 #define LAUNCHER_TIMEOUT 60
 
-#define SYSLOG_FACILITY "daemon"
-
-/* common minimum netflow header for all versions */
+// common minimum netflow header for all versions
 typedef struct common_flow_header {
     uint16_t version;
     uint16_t count;
 } common_flow_header_t;
 
-typedef struct FlowSource_s {
-    // link
-    struct FlowSource_s *next;
+// argument vector for post processor thread
+typedef struct post_args_s {
+    pthread_mutex_t mutex;  // synchronisation
+    pthread_cond_t cond;    // synchronisation
+    // const args
+    char *time_extension;  // parameter passing
+    collector_ctx_t *ctx;  // pasarmeter passing
+    pthread_t tid;         // tid of post processor thread
+    int pfd;               // launcher fd if used by post-processor
+    uint32_t creator;      // creator - nfcapd or sfcapd
+    uint32_t compress;     // compression level for new files
+    uint32_t encryption;   // encryption for new files
 
-    // exporter identifiers
-    char Ident[IDENTLEN];
-    ip_addr_t ip;
-    uint32_t sa_family;
-    in_port_t port;
-
-    int any_source;
-    bookkeeper_t *bookkeeper;
-
-    // all about data storage
-    char *datadir;           // where to store data for this source
-    char *tmpFileName;       // gereric tmp flow filename
-    int subdir;              // sub dir structure
-    nffile_t *nffile;        // the writing file handle
-    dataBlock_t *dataBlock;  // writing buffer
-
-    // statistical data per source
-    uint32_t bad_packets;
-
-    // Any exporter specific data
-    exporter_t *exporter_data;
-    uint32_t exporter_count;
-    struct timeval received;
-
-} FlowSource_t;
-
-/* input buffer size, to read data from the network */
-#define NETWORK_INPUT_BUFF_SIZE 65535  // Maximum UDP message size
+    // cycle args
+    int cycle_pending;  // 0 = idle, 1 = work pending/in progress
+    int done;           // shutdown flag
+    time_t when;        // t_start for current cycle
+} post_args_t;
 
 #define UpdateFirstLast(nffile, First, Last)              \
     if ((First) < (nffile)->stat_record->msecFirstSeen) { \
@@ -107,20 +95,17 @@ typedef struct FlowSource_s {
         (nffile)->stat_record->msecLastSeen = (Last);     \
     }
 
-// prototypes
-int AddFlowSource(FlowSource_t **FlowSource, char *ident, char *ip, char *flowpath);
+int ConfigureDefaultFlowSource(collector_ctx_t *ctx, const char *ident, const char *dataDir, unsigned subDir);
 
-int AddFlowSourceConfig(FlowSource_t **FlowSource);
+int ConfigureDynFlowSource(collector_ctx_t *ctx, const char *dynFlowDir, unsigned subDir);
 
-int AddFlowSourceString(FlowSource_t **FlowSource, char *argument);
+int ConfigureFixedFlowSource(collector_ctx_t *ctx, stringlist_t *sourceList, unsigned subDir);
 
-int SetDynamicSourcesDir(FlowSource_t **FlowSource, char *dir);
+int AddFlowSourceConfig(collector_ctx_t *ctx);
 
-FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storage *ss);
+FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const char *ipStr);
 
-int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int done);
-
-int TriggerLauncher(time_t t_start, char *time_extension, int pfd, FlowSource_t *fs);
+int RotateCycle(const collector_ctx_t *ctx, post_args_t *post_args, time_t t_start, int done);
 
 void FlushStdRecords(FlowSource_t *fs);
 
@@ -130,6 +115,8 @@ int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter);
 
 int ScanExtension(char *extensionList);
 
-char *GetExporterIP(FlowSource_t *fs);
+int Lauch_postprocessor(post_args_t *post_args);
+
+void CleanupCollector(collector_ctx_t *ctx, post_args_t *post_args);
 
 #endif  //_COLLECTOR_H

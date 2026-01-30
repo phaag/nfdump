@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -55,10 +55,10 @@
 
 /* Global vars */
 
-static int verbose = 4;
+static unsigned verbose = 1;
 
 /* Function prototypes */
-static int check_number(char *s, int len);
+static int check_number(char *s, size_t len);
 
 static int use_syslog = 0;
 
@@ -120,9 +120,7 @@ void CheckArgLen(char *arg, size_t len) {
  *  1 exists, but wrong type
  *  2 exists, ok
  */
-int TestPath(char *path, unsigned type) {
-    struct stat fstat;
-
+int TestPath(const char *path, unsigned type) {
     if (!path) {
         LogError("NULL file name in %s line %d", __FILE__, __LINE__);
         return -1;
@@ -133,6 +131,7 @@ int TestPath(char *path, unsigned type) {
         return -1;
     }
 
+    struct stat fstat;
     if (stat(path, &fstat)) {
         if (errno == ENOENT) {
             return 0;
@@ -164,7 +163,7 @@ int TestPath(char *path, unsigned type) {
  *  0 does not exists or error
  *  1 exists
  */
-int CheckPath(char *path, unsigned type) {
+int CheckPath(const char *path, unsigned type) {
     int ret = TestPath(path, type);
     switch (ret) {
         case 0:
@@ -186,16 +185,17 @@ void EndLog(void) {
     if (use_syslog) closelog();
 }  // End of CloseLog
 
-int InitLog(int want_syslog, char *name, char *facility, int verbose_log) {
+int InitLog(unsigned want_syslog, const char *name, char *facility, unsigned verbose_log) {
     int i;
-    char *logname;
 
 #ifdef DEVEL
     verbose_log = 4;
+    want_syslog = NOSYSLOG;
 #endif
 
     verbose = verbose_log;
-    if (!want_syslog) {
+    if (want_syslog == NOSYSLOG) {
+        use_syslog = 0;
         if (verbose) {
             LogInfo("Verbose log level: %u", verbose);
         }
@@ -217,6 +217,7 @@ int InitLog(int want_syslog, char *name, char *facility, int verbose_log) {
         return 0;
     }
 
+    const char *logname;
     if ((logname = strrchr(name, '/')) != 0) {
         logname++;
     } else {
@@ -263,7 +264,7 @@ void LogInfo(char *format, ...) {
         va_end(var_args);
         syslog(LOG_INFO, "%s", string);
         dbg_printf("%s\n", string);
-    } else {
+    } else if (verbose) {
         va_start(var_args, format);
         vsnprintf(string, 511, format, var_args);
         fprintf(stderr, "%s\n", string);
@@ -284,10 +285,10 @@ void LogVerbose(char *format, ...) {
 
 }  // End of LogVerbose
 
-static int check_number(char *s, int len) {
+static int check_number(char *s, size_t len) {
     size_t l = strlen(s);
 
-    for (int i = 0; i < l; i++) {
+    for (size_t i = 0; i < l; i++) {
         if (s[i] < '0' || s[i] > '9') {
             LogError("Time format error at '%s': unexpected character: '%c'.\n", s, s[i]);
             return 0;
@@ -343,9 +344,9 @@ uint64_t ParseTime8601(const char *s) {
 
     if (q >= eos) {
         ts.tm_mday = 1;
-        uint64_t timeStamp = mktime(&ts);
+        time_t timeStamp = mktime(&ts);
         free(tmpString);
-        return 1000LL * timeStamp;
+        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
     }
 
     // split month and parse
@@ -363,9 +364,9 @@ uint64_t ParseTime8601(const char *s) {
     ts.tm_mon = num - 1;
     if (q >= eos) {
         ts.tm_mday = 1;
-        uint64_t timeStamp = mktime(&ts);
+        time_t timeStamp = mktime(&ts);
         free(tmpString);
-        return 1000LL * timeStamp;
+        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
     }
 
     // split day and parse
@@ -383,9 +384,9 @@ uint64_t ParseTime8601(const char *s) {
 
     ts.tm_mday = num;
     if (q >= eos) {
-        uint64_t timeStamp = mktime(&ts);
+        time_t timeStamp = mktime(&ts);
         free(tmpString);
-        return 1000LL * timeStamp;
+        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
     }
 
     // split hour and parse
@@ -402,9 +403,9 @@ uint64_t ParseTime8601(const char *s) {
     }
     ts.tm_hour = num;
     if (q >= eos) {
-        uint64_t timeStamp = mktime(&ts);
+        time_t timeStamp = mktime(&ts);
         free(tmpString);
-        return 1000LL * timeStamp;
+        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
     }
 
     // split and parse minute
@@ -421,9 +422,9 @@ uint64_t ParseTime8601(const char *s) {
     }
     ts.tm_min = num;
     if (q >= eos) {
-        uint64_t timeStamp = mktime(&ts);
+        time_t timeStamp = mktime(&ts);
         free(tmpString);
-        return 1000LL * timeStamp;
+        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
     }
 
     // split and parse second
@@ -440,20 +441,20 @@ uint64_t ParseTime8601(const char *s) {
     }
     ts.tm_sec = num;
     if (q >= eos) {
-        uint64_t timeStamp = mktime(&ts);
+        time_t timeStamp = mktime(&ts);
         free(tmpString);
-        return 1000LL * timeStamp;
+        return timeStamp == -1 ? 0 : 1000 * (uint64_t)timeStamp;
     }
 
     // msec
     p = q;
 
-    uint64_t timeStamp = mktime(&ts);
+    time_t timeStamp = mktime(&ts);
     if (!check_number(p, 3)) return 0;
     num = atoi(p);
 
     free(tmpString);
-    return 1000LL * timeStamp + (uint64_t)num;
+    return timeStamp == -1 ? 0 : 1000LL * (uint64_t)timeStamp + (uint64_t)num;
 
 }  // End of ParseTime
 
@@ -490,10 +491,10 @@ timeWindow_t *ScanTimeFrame(char *tstring) {
 
 #ifdef DEVEL
     if (timeWindow->msecFirst) {
-        printf("TimeWindow first: %s\n", UNIX2ISO(timeWindow->msecFirst));
+        printf("TimeWindow first: %s\n", UNIX2ISO((time_t)timeWindow->msecFirst));
     }
     if (timeWindow->msecLast) {
-        printf("TimeWindow first: %s\n", UNIX2ISO(timeWindow->msecLast));
+        printf("TimeWindow first: %s\n", UNIX2ISO((time_t)timeWindow->msecLast));
     }
 #endif
 
@@ -646,36 +647,43 @@ char *DurationString(uint64_t duration) {
     return s;
 }  // End of DurationString
 
-void InitStringlist(stringlist_t *list, int block_size) {
-    list->list = NULL;
-    list->num_strings = 0;
-    list->max_index = 0;
-    list->block_size = block_size;
-
-}  // End of InitStringlist
-
-void InsertString(stringlist_t *list, char *string) {
-    if (!list->list) {
-        list->max_index = list->block_size;
-        list->num_strings = 0;
-        list->list = (char **)malloc(list->max_index * sizeof(char *));
-        if (!list->list) {
-            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            exit(250);
-        }
+stringlist_t *NewStringlist(stringlist_t *list, uint32_t capacity) {
+    stringlist_t *sl = calloc(1, sizeof(stringlist_t));
+    if (!sl) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
     }
-    list->list[list->num_strings++] = string ? strdup(string) : NULL;
+    return sl;
+}  // End of NewStringlist
 
-    if (list->num_strings == list->max_index) {
-        list->max_index += list->block_size;
-        list->list = (char **)realloc(list->list, list->max_index * sizeof(char *));
-        if (!list->list) {
+void InsertString(stringlist_t *sl, const char *s) {
+    if (sl->num_strings == sl->capacity) {
+        sl->capacity = sl->capacity ? sl->capacity * 2 : 16;
+        sl->list = (char **)realloc(sl->list, sl->capacity * sizeof(char *));
+        if (!sl->list) {
             LogError("realloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            exit(250);
+            exit(EXIT_FAILURE);
         }
     }
 
-}  // End of InsertString
+    if (s) {
+        sl->list[sl->num_strings++] = strdup(s);
+    } else {
+        /* allow explicit NULL sentinel */
+        sl->list[sl->num_strings++] = NULL;
+    }
+}  // // End of InsertString
+
+void ClearStringList(stringlist_t *sl) {
+    if (sl->list) free(sl->list);
+    memset(sl, 0, sizeof(stringlist_t));
+}  // End of ClearStringList
+
+void FreeStringList(stringlist_t *sl) {
+    if (sl == NULL) return;
+    ClearStringList(sl);
+    free(sl);
+}  // End of ClearStringList
 
 void format_number(uint64_t num, numStr s, int plain, int fixed_width) {
     double f = num;
@@ -793,7 +801,7 @@ uint32_t validate_utf8(uint32_t *state, char *str, size_t len) {
  * hexstring mus be big enough (2 * len) to hold the final string
  */
 char *HexString(uint8_t *hex, size_t len, char *hexString) {
-    int i, j = 0;
+    unsigned i, j = 0;
     for (i = 0, j = 0; i < len; i++) {
         uint8_t ln = hex[i] & 0xF;
         uint8_t hn = (hex[i] >> 4) & 0xF;
@@ -803,10 +811,10 @@ char *HexString(uint8_t *hex, size_t len, char *hexString) {
     hexString[j] = '\0';
 
     return hexString;
-}  // End of ja3HashString
+}  // End of HexString
 
 void DumpHex(FILE *stream, const void *data, size_t size) {
-    char ascii[17];
+    unsigned char ascii[17];
     size_t i, j;
     ascii[16] = '\0';
     uint32_t addr = 0;
@@ -835,4 +843,4 @@ void DumpHex(FILE *stream, const void *data, size_t size) {
             }
         }
     }
-}
+}  // End of DumpHex

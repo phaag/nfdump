@@ -46,8 +46,6 @@
 #include "userio.h"
 #include "util.h"
 
-#define IP_STRING_LEN (INET6_ADDRSTRLEN)
-
 static char *FlagsString(uint16_t flags) {
     static char string[16];
 
@@ -132,7 +130,7 @@ static void stringEXtunIPv4(FILE *stream, record_map_t *r) {
 
     EXtunIPv4_t *tunIPv4 = (EXtunIPv4_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     char sloc[128], dloc[128];
     sloc[0] = '\0';
     dloc[0] = '\0';
@@ -157,7 +155,7 @@ static void stringEXtunIPv6(FILE *stream, record_map_t *r) {
 
     EXtunIPv6_t *tunIPv6 = (EXtunIPv6_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     uint64_t src[2], dst[2];
     char sloc[128], dloc[128];
     sloc[0] = '\0';
@@ -191,7 +189,7 @@ static void stringsEXipv4Flow(FILE *stream, record_map_t *r) {
     else if (r->offsetMap[EXtunIPv6ID])
         stringEXtunIPv6(stream, r);
 
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     uint32_t src = htonl(ipv4Flow->srcAddr);
     uint32_t dst = htonl(ipv4Flow->dstAddr);
     inet_ntop(AF_INET, &src, as, sizeof(as));
@@ -215,7 +213,7 @@ static void stringsEXipv6Flow(FILE *stream, record_map_t *r) {
     else if (r->offsetMap[EXtunIPv6ID])
         stringEXtunIPv6(stream, r);
 
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     uint64_t src[2], dst[2];
     src[0] = htonll(ipv6Flow->srcAddr[0]);
     src[1] = htonll(ipv6Flow->srcAddr[1]);
@@ -237,8 +235,8 @@ static void stringsEXflowMisc(FILE *stream, record_map_t *r) {
 
     EXflowMisc_t *flowMisc = (EXflowMisc_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
-    char snet[IP_STRING_LEN] = {0};
-    char dnet[IP_STRING_LEN] = {0};
+    char snet[INET6_ADDRSTRLEN] = {0};
+    char dnet[INET6_ADDRSTRLEN] = {0};
     if (r->offsetMap[EXipv6FlowID]) {
         // IPv6
         EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)r->offsetMap[EXipv6FlowID];
@@ -321,11 +319,11 @@ static void stringsEXbgpNextHopV4(FILE *stream, record_map_t *r) {
 
     EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     uint32_t i = htonl(bgpNextHopV4->ip);
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     fprintf(stream, "  bgp next hop =  %16s\n", ip);
 
@@ -337,12 +335,12 @@ static void stringsEXbgpNextHopV6(FILE *stream, record_map_t *r) {
 
     EXbgpNextHopV6_t *bgpNextHopV6 = (EXbgpNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     uint64_t i[2];
     i[0] = htonll(bgpNextHopV6->ip[0]);
     i[1] = htonll(bgpNextHopV6->ip[1]);
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     fprintf(stream, "  bgp next hop =  %16s\n", ip);
 
@@ -354,11 +352,11 @@ static void stringsEXipNextHopV4(FILE *stream, record_map_t *r) {
 
     EXipNextHopV4_t *ipNextHopV4 = (EXipNextHopV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     uint32_t i = htonl(ipNextHopV4->ip);
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     fprintf(stream, "  ip next hop  =  %16s\n", ip);
 
@@ -370,12 +368,12 @@ static void stringsEXipNextHopV6(FILE *stream, record_map_t *r) {
 
     EXipNextHopV6_t *ipNextHopV6 = (EXipNextHopV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     uint64_t i[2];
     i[0] = htonll(ipNextHopV6->ip[0]);
     i[1] = htonll(ipNextHopV6->ip[1]);
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     fprintf(stream, "  ip next hop  =  %16s\n", ip);
 
@@ -387,11 +385,11 @@ static void stringsEXipReceivedV4(FILE *stream, record_map_t *r) {
 
     EXipReceivedV4_t *ipReceivedV4 = (EXipReceivedV4_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     uint32_t i = htonl(ipReceivedV4->ip);
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     fprintf(stream, "  ip exporter  =  %16s\n", ip);
 
@@ -403,12 +401,12 @@ static void stringsEXipReceivedV6(FILE *stream, record_map_t *r) {
 
     EXipReceivedV6_t *ipReceivedV6 = (EXipReceivedV6_t *)((void *)elementHeader + sizeof(elementHeader_t));
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     uint64_t i[2];
     i[0] = htonll(ipReceivedV6->ip[0]);
     i[1] = htonll(ipReceivedV6->ip[1]);
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     fprintf(stream, "  ip exporter  =  %16s\n", ip);
 

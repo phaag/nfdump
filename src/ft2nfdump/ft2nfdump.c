@@ -1,6 +1,6 @@
 /*
  *  All rights reserved.
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  Copyright (c) 2001 Mark Fullmer and The Ohio State University
  *  All rights reserved.
@@ -48,6 +48,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "barrier.h"
 #include "ftlib.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -159,10 +160,9 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
     struct ftver ftv;
     char *rec;
     // nfdump variables
-    nffile_t *nffile;
 
     char *ident = "flow-tools";
-    nffile = OpenNewFile(wfile, NULL, CREATOR_FT2NFDUMP, compress, NOT_ENCRYPTED);
+    nffile_t *nffile = OpenNewFile(wfile, CREATOR_FT2NFDUMP, compress, NOT_ENCRYPTED);
     if (!nffile) {
         LogError("OpenNewFile() failed.");
         return 1;
@@ -275,8 +275,7 @@ static int flows2nfdump(struct ftio *ftio, char *wfile, int compress, int extend
 
     SetIdent(nffile, ident);
     FlushBlock(nffile, dataBlock);
-    FinaliseFile(nffile);
-    CloseFile(nffile);
+    FlushFile(nffile);
     DisposeFile(nffile);
     return 0;
 
@@ -286,22 +285,21 @@ int main(int argc, char **argv) {
     struct ftio ftio;
     struct stat statbuf;
     uint32_t limitflows;
-    int i, extended, ret, fd, compress;
-    ;
-    char *ftfile, *wfile;
+    int extended, ret, fd, compress;
 
     /* init fterr */
     fterr_setid(argv[0]);
 
     extended = 0;
     limitflows = 0;
-    ftfile = NULL;
-    wfile = "-";
-    compress = LZ4_COMPRESSED;
+    char *ftfile = NULL;
+    char *wfile = NULL;
+    compress = NOT_COMPRESSED;
 
-    while ((i = getopt(argc, argv, "jyzEVc:hr:w:?")) != -1) switch (i) {
+    int c;
+    while ((c = getopt(argc, argv, "z::jyzEVc:hr:w:")) != EOF) {
+        switch (c) {
             case 'h': /* help */
-            case '?':
                 usage(argv[0]);
                 exit(0);
                 break;
@@ -315,7 +313,7 @@ int main(int argc, char **argv) {
             case 'c':
                 limitflows = atoi(optarg);
                 if (!limitflows) {
-                    fprintf(stderr, "Option -c needs a number > 0\n");
+                    LogError("Option -c needs a number > 0");
                     exit(255);
                 }
                 break;
@@ -340,22 +338,25 @@ int main(int argc, char **argv) {
                 }
                 if (optarg == NULL) {
                     compress = LZO_COMPRESSED;
+                    LogInfo("Legacy option -z defaults to -z=lzo. Use -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                 } else {
-                    compress = ParseCompression(optarg);
-                }
-                if (compress == -1) {
-                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
-                    exit(EXIT_FAILURE);
+                    int ret = ParseCompression(optarg);
+                    if (ret == -1) {
+                        LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
+                        exit(EXIT_FAILURE);
+                    }
+                    compress = (unsigned)ret;
                 }
                 break;
             case 'r':
                 ftfile = optarg;
                 if ((stat(ftfile, &statbuf) < 0) || !(statbuf.st_mode & S_IFREG)) {
-                    fprintf(stderr, "No such file: '%s'\n", ftfile);
+                    LogError("No such file: '%s'", ftfile);
                     exit(255);
                 }
                 break;
             case 'w':
+                CheckArgLen(optarg, MAXPATHLEN);
                 wfile = optarg;
                 break;
 
@@ -365,21 +366,27 @@ int main(int argc, char **argv) {
                 break;
 
         } /* switch */
-    // End while
+    }  // End while
 
     if (argc - optind) fterr_errx(1, "Extra arguments starting with %s.", argv[optind]);
 
     if (ftfile) {
         fd = open(ftfile, O_RDONLY, 0);
         if (fd < 0) {
-            fprintf(stderr, "Can't open file '%s': %s.", ftfile, strerror(errno));
+            LogError("Can't open file '%s': %s.", ftfile, strerror(errno));
             exit(255);
         }
     } else {
         fd = 0;
     }
 
-    if (!Init_nffile(0, NULL)) exit(254);
+    if (!wfile) {
+        usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
+
+    int numWorkers = GetNumWorkers(0);
+    if (!Init_nffile(numWorkers, NULL)) exit(EXIT_FAILURE);
 
     /* read from fd */
     if (ftio_init(&ftio, fd, FT_IO_FLAG_READ) < 0) fterr_errx(1, "ftio_init(): failed");

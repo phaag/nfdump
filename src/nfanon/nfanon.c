@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -49,8 +49,11 @@
 
 #include "barrier.h"
 #include "config.h"
+#include "exporter.h"
 #include "flist.h"
+#include "ip128.h"
 #include "nbar.h"
+#include "nfconf.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
@@ -73,6 +76,8 @@ typedef struct worker_param_s {
 /* Function Prototypes */
 static void usage(char *name);
 
+static inline void AnonExporterInfo(exporter_info_record_t *exporter_record);
+
 static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon_dst);
 
 static void process_data(char *wfile, int verbose, worker_param_t **workerList, int numWorkers, pthread_control_barrier_t *barrier);
@@ -84,16 +89,86 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
 static void usage(char *name) {
     printf(
         "usage %s [options] \n"
+        "-C <file>\tRead optional config file.\n"
         "-h\t\tthis text you see right here.\n"
         "-K <key>\tAnonymize IP addresses using CryptoPAn with key <key>.\n"
         "-s\t\tPreserve source address.\n"
         "-d\t\tPreserve destination address.\n"
         "-q\t\tDo not print progress spinnen and filenames.\n"
         "-r <path>\tread input from single file or all files in directory.\n"
-        "-t <num>\tnumber of worker threads. Max depends on cores online\n"
-        "-w <file>\tName of output file. Defaults to input file.\n",
+        "-v\t\tIncrease verbose level.\n"
+        "-w <file>\tName of output file. Defaults to input file.\n"
+        "-W <num>\tOptionally set the number of workers to compress flows\n",
         name);
 } /* usage */
+
+static inline void AnonExporterInfo(exporter_info_record_t *exporter_record) {
+    const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
+
+    if (exporter_record->header.size != sizeof(exporter_info_record_t)) {
+        LogError("Corrupt exporter record in %s line %d", __FILE__, __LINE__);
+        return;
+    }
+
+    uint64_t anon_ip[2];
+
+    ip128_t ipAddr;
+    uint64_t *u = (uint64_t *)ipAddr.bytes;
+    memcpy(ipAddr.bytes, exporter_record->ip, sizeof(ip128_t));
+    switch (exporter_record->fill) {
+        case 0: {  // new type of info record
+            // anonymizing an IPv4/IPv6 combind record is more complicated,
+            // the the anonimizer expects host order bytes and has seperate
+            // functions for IPv4 and IPv6
+            if (is_ipv4_mapped(&ipAddr)) {
+                // anonymise IPv4
+                uint32_t ipv4;
+                memcpy(&ipv4, ipAddr.bytes + 12, sizeof(uint32_t));
+                ipv4 = anonymize(ntohl(ipv4));
+                ipv4 = htonl(ipv4);
+                memcpy(ipAddr.bytes + 12, &ipv4, sizeof(uint32_t));
+
+            } else {
+                // anonymise IPv6
+                u[0] = ntohll(u[0]);
+                u[1] = ntohll(u[1]);
+                anonymize_v6(u, anon_ip);
+                u[0] = htonll(anon_ip[0]);
+                u[1] = htonll(anon_ip[1]);
+            }
+        } break;
+        case AF_INET: {  // old IPV4 record
+            uint32_t ipv4 = anonymize(u[1]);
+
+            // convert to new representation
+            ipv4 = htonl(ipv4);
+            memcpy(ipAddr.bytes, prefix, sizeof(prefix));
+            memcpy(ipAddr.bytes + 12, &ipv4, sizeof(uint32_t));
+            exporter_record->fill = 0;
+
+            char s[INET6_ADDRSTRLEN];
+            inet_ntop(AF_INET6, ipAddr.bytes, s, INET6_ADDRSTRLEN);
+            dbg_printf("Exporter: %s\n", s);
+            // copy back to exporter ip
+        } break;
+        case AF_INET6: {  // old IPv6 record
+            anonymize_v6(u, anon_ip);
+            u[0] = htonll(anon_ip[0]);
+            u[1] = htonll(anon_ip[1]);
+
+            // convert to new representation
+            exporter_record->fill = 0;
+        } break;
+    }
+    memcpy(exporter_record->ip, ipAddr.bytes, sizeof(ip128_t));
+
+#ifdef DEVEL
+    char s[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, ipAddr.bytes, s, INET6_ADDRSTRLEN);
+    printf("Exporter: %s\n", s);
+#endif
+
+}  // End of AnonExporterInfo
 
 static inline void AnonRecord(recordHeaderV3_t *v3Record, int anon_src, int anon_dst) {
     elementHeader_t *elementHeader;
@@ -232,13 +307,13 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
     char *cfile = NULL;
 
     int cnt = 1;
-    nffile_t *nffile_r = NewFile(NULL);
+    nffile_t *nffile_r = NULL;
     nffile_t *nffile_w = NULL;
 
     dataBlock_t *nextBlock = NULL;
     dataBlock_t *dataBlock = NULL;
     // map datablock for workers - all workers
-    // process thesame block but different records
+    // process the same block but different records
     for (int i = 0; i < numWorkers; i++) {
         // set new datablock for all workers
         workerList[i]->dataBlock = &dataBlock;
@@ -255,15 +330,17 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
         if (dataBlock == NULL) {
             // nffile_w is NULL for 1st entry in while loop
             if (nffile_w) {
-                FinaliseFile(nffile_w);
-                CloseFile(nffile_w);
+                FlushFile(nffile_w);
+                DisposeFile(nffile_w);
                 if (wfile == NULL && rename(outFile, cfile) < 0) {
                     LogError("rename() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                     return;
                 }
             }
 
-            if (GetNextFile(nffile_r) == NULL) {
+            DisposeFile(nffile_r);
+            nffile_r = GetNextFile();
+            if (nffile_r == NULL) {
                 done = 1;
                 printf("\nDone\n");
                 continue;
@@ -272,11 +349,10 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
             cfile = nffile_r->fileName;
             if (!cfile) {
                 LogError("(NULL) input file name error in %s line %d", __FILE__, __LINE__);
-                CloseFile(nffile_r);
                 DisposeFile(nffile_r);
                 return;
             }
-            if (verbose) printf(" %i Processing %s\r", cnt++, cfile);
+            if (verbose) printf("  %i Processing %s\r", cnt++, cfile);
 
             char pathBuff[MAXPATHLEN];
             if (wfile == NULL) {
@@ -288,10 +364,9 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
                 outFile = wfile;
             }
 
-            nffile_w = OpenNewFile(outFile, NULL, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
+            nffile_w = OpenNewFile(outFile, CREATOR_NFANON, FILE_COMPRESSION(nffile_r), NOT_ENCRYPTED);
             if (!nffile_w) {
                 // can not create output file
-                CloseFile(nffile_r);
                 DisposeFile(nffile_r);
                 return;
             }
@@ -336,14 +411,12 @@ static void process_data(char *wfile, int verbose, worker_param_t **workerList, 
     pthread_control_barrier_release(barrier);
 
     FreeDataBlock(dataBlock);
-    DisposeFile(nffile_r);
-    DisposeFile(nffile_w);
 
     if (verbose) LogError("Processed %i files", --cnt);
 
 }  // End of process_data
 
-__attribute__((noreturn)) static void *worker(void *arg) {
+static void *worker_thread(void *arg) {
     worker_param_t *worker_param = (worker_param_t *)arg;
 
     uint32_t self = worker_param->self;
@@ -360,7 +433,7 @@ __attribute__((noreturn)) static void *worker(void *arg) {
 
         record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
-        for (int i = 0; i < dataBlock->NumRecords; i++) {
+        for (int i = 0; i < (int)dataBlock->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 goto SKIP;
@@ -378,6 +451,7 @@ __attribute__((noreturn)) static void *worker(void *arg) {
                         AnonRecord((recordHeaderV3_t *)record_ptr, worker_param->anon_src, worker_param->anon_dst);
                         break;
                     case ExporterInfoRecordType:
+                        AnonExporterInfo((exporter_info_record_t *)record_ptr);
                     case ExporterStatRecordType:
                     case SamplerRecordType:
                     case NbarRecordType:
@@ -403,21 +477,23 @@ __attribute__((noreturn)) static void *worker(void *arg) {
     }
 
     dbg_printf("Worker %d done.\n", worker_param->self);
+    free(worker_param);
     pthread_exit(NULL);
-}  // End of worker
+}  // End of worker_thread
 
 static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, int anon_src, int anon_dst, pthread_control_barrier_t *barrier) {
-    if (numWorkers > MAXWORKERS) {
-        LogError("LaunchWorkers: number of worker: %u > max workers: %u", numWorkers, MAXWORKERS);
+    worker_param_t **workerList = calloc(numWorkers, sizeof(worker_param_t *));
+    if (!workerList) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return NULL;
     }
 
-    worker_param_t **workerList = calloc(numWorkers, sizeof(worker_param_t *));
-    if (!workerList) NULL;
-
     for (int i = 0; i < numWorkers; i++) {
         worker_param_t *worker_param = calloc(1, sizeof(worker_param_t));
-        if (!worker_param) NULL;
+        if (!worker_param) {
+            LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
 
         worker_param->barrier = barrier;
         worker_param->self = i;
@@ -427,9 +503,9 @@ static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, int anon_sr
         worker_param->numWorkers = numWorkers;
         workerList[i] = worker_param;
 
-        int err = pthread_create(&(tid[i]), NULL, worker, (void *)worker_param);
+        int err = pthread_create(&(tid[i]), NULL, worker_thread, (void *)worker_param);
         if (err) {
-            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
             return NULL;
         }
     }
@@ -443,7 +519,7 @@ static void WaitWorkersDone(pthread_t *tid, int numWorkers) {
         if (tid[i]) {
             int err = pthread_join(tid[i], NULL);
             if (err) {
-                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
             }
             tid[i] = 0;
         }
@@ -455,17 +531,26 @@ int main(int argc, char **argv) {
     char CryptoPAnKey[32] = {0};
     flist_t flist = {0};
 
-    int numWorkers = MAXANONWORKERS;
+    char *configFile = NULL;
+    int numWorkers = 0;
     int verbose = 1;
     int anon_src = 1;
     int anon_dst = 1;
     int c;
-    while ((c = getopt(argc, argv, "hsdK:L:qr:t:w:")) != EOF) {
+    while ((c = getopt(argc, argv, "C:hsdK:L:qr:t:vw:W:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
                 exit(0);
                 break;
+            case 'C':
+                CheckArgLen(optarg, MAXPATHLEN);
+                if (strcmp(optarg, NOCONF) == 0) {
+                    configFile = optarg;
+                } else {
+                    if (!CheckPath(optarg, S_IFREG)) exit(EXIT_FAILURE);
+                    configFile = optarg;
+                }
                 break;
             case 'K':
                 CheckArgLen(optarg, 66);
@@ -485,6 +570,10 @@ int main(int argc, char **argv) {
                 anon_dst = 0;
                 break;
             case 'q':
+                if (verbose > 1) {
+                    LogError("Option -q conflicts with -v");
+                    exit(EXIT_FAILURE);
+                }
                 verbose = 0;
                 break;
             case 'r':
@@ -498,18 +587,36 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
-            case 't':
-                CheckArgLen(optarg, 4);
-                numWorkers = atoi(optarg);
+            case 'v':
+                if (verbose == 0) {
+                    LogError("Option -q conflicts with -v");
+                    exit(EXIT_FAILURE);
+                }
+                if (verbose < 4) verbose++;
                 break;
             case 'w':
                 CheckArgLen(optarg, MAXPATHLEN);
                 wfile = optarg;
                 break;
+            case 't':
+                // legacy option - fall through
+                LogError("Legacy option. Use -W <num> to select the number of workers");
+            case 'W':
+                CheckArgLen(optarg, 16);
+                numWorkers = atoi(optarg);
+                if (numWorkers < 0) {
+                    LogError("Invalid number of working threads: %d", numWorkers);
+                    exit(EXIT_FAILURE);
+                }
+                break;
             default:
                 usage(argv[0]);
                 exit(0);
         }
+    }
+
+    if (!InitLog(NOSYSLOG, argv[0], NULL, verbose)) {
+        exit(EXIT_FAILURE);
     }
 
     if (CryptoPAnKey[0] == '\0') {
@@ -524,16 +631,22 @@ int main(int argc, char **argv) {
         exit(255);
     }
 
-    queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(0, fileList)) exit(255);
+    if (ConfOpen(configFile, "nfanon") < 0) exit(EXIT_FAILURE);
 
     // check numWorkers depending on cores online
     numWorkers = GetNumWorkers(numWorkers);
 
+    queue_t *fileList = SetupInputFileSequence(&flist);
+    if (!fileList || !Init_nffile(numWorkers, fileList)) exit(255);
+
     pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
     if (!barrier) exit(255);
 
-    pthread_t tid[MAXWORKERS] = {0};
+    pthread_t *tid = calloc(numWorkers, sizeof(pthread_t));
+    if (!tid) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
     dbg_printf("Launch Workers\n");
     worker_param_t **workerList = LauchWorkers(tid, numWorkers, anon_src, anon_dst, barrier);
     if (!workerList) {
@@ -547,6 +660,9 @@ int main(int argc, char **argv) {
 
     WaitWorkersDone(tid, numWorkers);
     pthread_control_barrier_destroy(barrier);
+
+    free(tid);
+    free(workerList);
 
     return 0;
 }

@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -268,7 +268,7 @@ int main(int argc, char **argv) {
 
     if (!Init_nffile(1, NULL)) exit(254);
 
-    nffile_t *nffile = OpenNewFile("dummy_flows.nf", NULL, CREATOR_UNKNOWN, NOT_COMPRESSED, 0);
+    nffile_t *nffile = OpenNewFile("dummy_flows.nf", CREATOR_UNKNOWN, NOT_COMPRESSED, 0);
     if (!nffile) {
         exit(255);
     }
@@ -341,15 +341,14 @@ int main(int argc, char **argv) {
     genericFlow->inBytes = 33445566LL;
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
+    // remove v6 extension
+    RemoveExtension(recordHandle, EXipv6FlowID);
+
     // bring back ipv4
     PushExtension(v3Record, EXipv4Flow, ipv4Flow);
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     SetIPaddress(recordHandle, PF_INET, "172.16.1.68", "192.168.170.104");
-    // this record has ipv4 and ipv6 records
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
-
-    // remove v6 extension
-    RemoveExtension(recordHandle, EXipv6FlowID);
 
     // EXflowMiscID
     PushExtension(v3Record, EXflowMisc, flowMisc);
@@ -549,6 +548,7 @@ int main(int argc, char **argv) {
 
     // EXlayer2
     PushExtension(v3Record, EXlayer2, layer2);
+    layer2->ipVersion = 4;
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     layer2->vlanID = 47;
     layer2->postVlanID = 48;
@@ -589,6 +589,10 @@ int main(int argc, char **argv) {
     UpdateRecord(recordHandle);
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
+    // Add ipv6 extension without any data - get skipped but stored
+    PushExtension(v3Record, EXipv6Flow, dummpIPv6);
+    AssertMapRecordHandle(recordHandle, v3Record, 0);
+
     PushExtension(v3Record, EXipInfo, ipInfo);
     AssertMapRecordHandle(recordHandle, v3Record, 0);
     ipInfo->minTTL = 40;
@@ -599,8 +603,7 @@ int main(int argc, char **argv) {
     dataBlock = StoreRecord(recordHandle, nffile, dataBlock);
 
     FlushBlock(nffile, dataBlock);
-    FinaliseFile(nffile);
-    CloseFile(nffile);
+    FlushFile(nffile);
     DisposeFile(nffile);
     return 0;
 }

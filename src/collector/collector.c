@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -35,6 +35,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <netinet/in.h>
+#include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -51,6 +52,8 @@
 #include "bookkeeper.h"
 #include "conf/nfconf.h"
 #include "flist.h"
+#include "flowsource.h"
+#include "ip128.h"
 #include "launch.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -63,13 +66,253 @@ typedef struct finaliseArgs_s {
 } finaliseArgs_t;
 
 /* local variables */
+
 static uint32_t exporter_sysid = 0;
-static char *DynamicSourcesDir = NULL;
 
 /* local prototypes */
+
+static int parse_cidr(const char *cidr, ip128_t *ip, ip128_t *mask);
+
+static uint32_t ParseIPlist(const char *ipListStr, struct ipList_s *ipList);
+
 static uint32_t AssignExporterID(void);
 
 #include "nffile_inline.c"
+
+// configures the default flow source.
+// option -w <dataDir>
+// returns 1 on success or 0 on error or dataDir == NULL
+int ConfigureDefaultFlowSource(collector_ctx_t *ctx, const char *ident, const char *dataDir, unsigned subDir) {
+    if (dataDir == NULL) return 0;
+
+    // check for source model conflicts
+    if (ctx->dynamicSource || ctx->index.count) {
+        LogError("Options -w, -n and -M are mutually exclusive. Use only one flow source model.");
+        return 0;
+    }
+
+    ctx->any_source = newFlowSource(ident, dataDir, subDir);
+    if (ctx->any_source == NULL) {
+        LogError("Failed to add default flow source");
+        return 0;
+    }
+
+    LogInfo("Add flow source: ident: %s, IP: <any IP>, flowdir: %s", ident, dataDir);
+    return 1;
+
+}  // End of ConfigureDefaultFlowSource
+
+// configure fixed IP sources
+// one or multiple -n options
+// returns 1 on success or 0 on error or number of sources == 0
+int ConfigureFixedFlowSource(collector_ctx_t *ctx, stringlist_t *sourceList, unsigned subDir) {
+    if (sourceList->num_strings == 0) return 0;
+
+    if (ctx->any_source || ctx->dynamicSource) {
+        LogError("Options -w, -n and -M are mutually exclusive. Use only one flow source model.");
+        return 0;
+    }
+
+    for (int i = 0; i < (int)sourceList->num_strings; i++) {
+        // separate ident, IP address and directory path
+        char *ident = sourceList->list[i];
+        char *ipList = NULL;
+        // separate IP address from ident
+        if ((ipList = strchr(ident, ',')) == NULL) {
+            LogError("Argument error for netflow source definition. Expect -n ident,IP,path. Found: %s", ident);
+            return 0;
+        }
+
+        char *s = ipList;
+        char *dataDir = NULL;
+        // separate path from IP
+        if ((dataDir = strchr(s + 1, ',')) == NULL) {
+            LogError("Argument error for netflow source definition. Expect -n ident,IP,path. Found: %s", ident);
+            return 0;
+        }
+        *ipList++ = '\0';
+        *dataDir++ = '\0';
+
+        uint32_t ipNum = ParseIPlist(ipList, NULL);
+        if (ipNum == 0) {
+            LogError("Argument error for netflow source definition. Failed to parse IP string: %s", ipList);
+            return 0;
+        }
+
+        source_array_t *source_array = calloc(1, sizeof(source_array_t) + ipNum * sizeof(struct ipList_s));
+        if (!source_array) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return 0;
+        }
+
+        if (ParseIPlist(ipList, source_array->ipList) != ipNum) {
+            free(source_array);
+            return 0;
+        }
+
+        FlowSource_t *fs = newFlowSource(ident, dataDir, subDir);
+        if (fs == NULL) {
+            LogError("Failed to add default flow source");
+            free(source_array);
+            return 0;
+        }
+
+        source_array->fs = fs;
+        source_array->ipNum = ipNum;
+
+        // link at start of linked list
+        source_array->next = ctx->source_array;
+        ctx->source_array = source_array;
+
+        LogInfo("Add flow source: ident: %s, IP: %s, flowdir: %s", ident, ipList, dataDir);
+    }
+
+    return 1;
+}  // End of ConfigureFixedFlowSource
+
+// configures the dynamic flow source model
+// option -M <dynFlowDir>
+// returns 1 on success or 0 on error or dynFlowDir == NULL
+int ConfigureDynFlowSource(collector_ctx_t *ctx, const char *dynFlowDir, unsigned subDir) {
+    if (dynFlowDir == NULL) return 0;
+    if (ctx->any_source || ctx->index.count > 0) {
+        LogError("Options -w, -n and -M are mutually exclusive. Use only one flow source model.");
+        return 0;
+    }
+
+    ctx->dynamicSource = newFlowSource("none", dynFlowDir, subDir);
+    if (ctx->dynamicSource == NULL) {
+        LogError("Failed to add default flow source");
+        return 0;
+    }
+
+    LogInfo("Add dynamic source in flowdir: %s", dynFlowDir);
+    return 1;
+}  // End of ConfigureDynFlowSource
+
+// Returns 1 on success, 0 on error
+static int parse_cidr(const char *cidr, ip128_t *ip, ip128_t *mask) {
+    if (!cidr || !ip || !mask) return 0;
+
+    char buf[256];
+    strncpy(buf, cidr, sizeof(buf));
+    buf[sizeof(buf) - 1] = '\0';
+
+    // Split "address/prefix"
+    char *slash = strchr(buf, '/');
+    if (!slash) return 0;
+
+    *slash = '\0';
+    char *addr_str = buf;
+    char *prefix_str = slash + 1;
+
+    // Parse prefix length
+    char *endptr = NULL;
+    long prefix = strtol(prefix_str, &endptr, 10);
+    if (endptr == prefix_str || prefix < 0 || prefix > 128) return 0;
+
+    // Convert address to ip128_t
+    *ip = ip128_2_bin(addr_str);
+
+    if (is_ipv4_mapped(ip)) {
+        if (prefix == 0 || prefix > 32) return 0;
+        // IPv4-mapped: ::ffff:a.b.c.d
+        uint32_t maskv4 = 0xFFFFFFFF << (32 - prefix);
+        uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
+        memcpy(mask->bytes, prefix, 12);
+        maskv4 = ntohl(maskv4);
+        memcpy(mask->bytes + 12, &maskv4, sizeof(uint32_t));
+
+    } else {
+        memset(mask, 0, sizeof(ip128_t));
+        uint8_t *m = mask->bytes;
+
+        int full_bytes = prefix / 8;
+        int remaining_bits = prefix % 8;
+
+        for (int i = 0; i < full_bytes; i++) m[i] = 0xFF;
+
+        if (remaining_bits) {
+            uint8_t b = (uint8_t)(0xFF << (8 - remaining_bits));
+            m[full_bytes] = b;
+        }
+    }
+
+    return 1;
+}  // // End of parse_cidr
+
+// parse ipList string
+// format:
+// ipAddr             single IPv4 or IPv6 address
+// ipAddr;ipAddr..    semicolon separated list of IPv4 or IPv6 address
+// [ipAddr ipAddr ..] list of ipAddr in []
+static uint32_t ParseIPlist(const char *ipListStr, struct ipList_s *ipList) {
+    char *s = strdup(ipListStr);
+    if (!s) {
+        LogError("strdup() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return 0;
+    }
+
+    uint32_t count = 0;
+    if (ipList == NULL) {
+        // pass 1: count just the number of IPs
+
+        char *tok = strtok(s, ";");
+        while (tok) {
+            count++;
+            tok = strtok(NULL, ";");
+        }
+        free(s);
+
+        return count;
+    }
+
+    // pass 2 - parse the IP addresses and store them in ipList
+    for (char *tok = strtok(s, ";"); tok != NULL; tok = strtok(NULL, ";")) {
+        // CIDR?
+        char *slash = strchr(tok, '/');
+        ip128_t mask = {0};
+        if (slash) {
+            ip128_t ip;
+            if (!parse_cidr(tok, &ip, &mask)) {
+                LogError("Invalid CIDR in -n: %s", tok);
+                return 0;
+            }
+            ip128_and(&ipList[count].net, &ip, &mask);
+#ifdef DEVEL
+            {
+                char ipStr[INET6_ADDRSTRLEN];
+                char maskStr[INET6_ADDRSTRLEN];
+                ip128_2_str(&ip, ipStr);
+                ip128_2_str(&mask, maskStr);
+                printf("New CIDR block from: %s - net: %s, mask: %s\n", tok, ipStr, maskStr);
+            }
+#endif
+        } else {
+            // Single IP
+            ip128_t ip = ip128_2_bin(tok);
+            if (is_zero128(&ip)) {
+                LogError("Invalid IP in -n: %s", tok);
+                return 0;
+            }
+            ipList[count].net = ip;
+#ifdef DEVEL
+            {
+                char ipStr[INET6_ADDRSTRLEN];
+                char maskStr[INET6_ADDRSTRLEN];
+                ip128_2_str(&ip, ipStr);
+                ip128_2_str(&mask, maskStr);
+                printf("New IP from: %s - IP: %s, mask: %s\n", tok, ipStr, maskStr);
+            }
+#endif
+        }
+        ipList[count].mask = mask;
+        count++;
+    }
+
+    return count;
+
+}  // End of ParseIPlist
 
 /* local functions */
 static uint32_t AssignExporterID(void) {
@@ -82,350 +325,133 @@ static uint32_t AssignExporterID(void) {
 
 }  // End of AssignExporterID
 
-/* global functions */
-
-int SetDynamicSourcesDir(FlowSource_t **FlowSource, char *dir) {
-    if (*FlowSource) {
-        LogError("Can not mix IP specific and any IP sources");
-        return 0;
-    }
-
-    DynamicSourcesDir = dir;
-    return 1;
-
-}  // End of SetDynamicSourcesDir
-
-int AddFlowSourceConfig(FlowSource_t **FlowSource) {
-    char *ident, *ip, *flowdir;
+// XXX needs fixing - broken
+int AddFlowSourceConfig(collector_ctx_t *ctx) {
+    char *ident, *ipStr, *dataDir;
+    stringlist_t sourceList = {0};
     do {
-        int ret = ConfGetExporter(&ident, &ip, &flowdir);
+        int ret = ConfGetExporter(&ident, &ipStr, &dataDir);
         if (ret > 0) {
-            ret = AddFlowSource(FlowSource, ident, ip, flowdir);
+            // XXX missing subDir ID - fix
+            if (ident && dataDir && ipStr == NULL) ConfigureDefaultFlowSource(ctx, ident, dataDir, 2);
+            if (ident && ipStr && dataDir) {
+                // XXX add to sourceList
+            }
+            // XXX missing subDir ID - fix
+            if (ident == NULL && ipStr == NULL && dataDir) ConfigureDynFlowSource(ctx, dataDir, 2);
             free(ident);
-            free(ip);
-            free(flowdir);
-            if (ret == 0) return 0;
+            free(ipStr);
+            free(dataDir);
         } else {
-            return 1;
+            break;
         }
     } while (1);
 
-    // unreached
+    if (sourceList.num_strings) {
+        // XXX missing subDir ID - fix
+        ConfigureFixedFlowSource(ctx, &sourceList, 2);
+    }
+
+    return 1;
 }  // end of AddFlowSourceConfig
 
-int AddFlowSource(FlowSource_t **FlowSource, char *ident, char *ip, char *flowpath) {
-    FlowSource_t **source = NULL;
-    int has_any_source = 0;
-    int num_sources = 0;
-
-    if (DynamicSourcesDir) {
-        LogError("Can not mix IP specific and any IP sources");
-        return 0;
+int RotateCycle(const collector_ctx_t *ctx, post_args_t *post_args, time_t t_start, int done) {
+    // enter mutex
+    pthread_mutex_lock(&post_args->mutex);
+    // make sure the previous cycle completed
+    while (post_args->cycle_pending) {
+        LogError("Waiting for postprocessor to complete previous cycle");
+        pthread_cond_wait(&post_args->cond, &post_args->mutex);
     }
 
-    source = FlowSource;
-    while (*source) {
-        has_any_source |= (*source)->any_source;
-        source = &((*source)->next);
-        num_sources++;
-    }
-    if ((ip && has_any_source) || (ip == NULL && num_sources > 0)) {
-        LogError("Can not mix IP specific and any IP sources");
-        return 0;
+    // set cycle arguments
+    post_args->cycle_pending = 1;
+    post_args->done = done;
+    post_args->when = t_start;
+
+    int err = 0;
+    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
+        // Flush Exporter Stat to file
+        FlushExporterStats(fs);
+
+        // log stats
+        LogInfo("Ident: '%s' Flows: %" PRIu64 ", Packets: %" PRIu64 ", Bytes: %" PRIu64 ", Sequence Errors: %" PRIu64 ", Bad Packets: %u, Blocks: %u",
+                fs->Ident, fs->nffile->stat_record->numflows, fs->nffile->stat_record->numpackets, fs->nffile->stat_record->numbytes,
+                fs->nffile->stat_record->sequence_failure, fs->bad_packets, ReportBlocks());
+
+        // reset stats
+        fs->bad_packets = 0;
+
+        // Flush dataBlock, ready for new file
+        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+
+        // swap nffile for post processor
+        nffile_t *swap_nffile = fs->swap_nffile;
+        fs->swap_nffile = fs->nffile;
+        fs->nffile = swap_nffile;
     }
 
-    *source = (FlowSource_t *)calloc(1, sizeof(FlowSource_t));
-    if (!*source) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return 0;
-    }
+    dbg_printf("Signaling post_processor\n");
+    pthread_cond_signal(&post_args->cond);
+    pthread_mutex_unlock(&post_args->mutex);
 
-    if (ip == NULL) {
-        (*source)->any_source = 1;
-    } else {
-        int ok = 0;
-        if (strchr(ip, ':') != NULL) {
-            // assume IPv6
-            uint64_t _ip[2] = {0};
-            ok = inet_pton(PF_INET6, ip, _ip);
-            (*source)->sa_family = PF_INET6;
-            (*source)->ip.V6[0] = ntohll(_ip[0]);
-            (*source)->ip.V6[1] = ntohll(_ip[1]);
+    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
+        if (done) {
+            // we are done - delete prepared new tmp file
+            DeleteFile(fs->nffile);
+            fs->nffile = NULL;
         } else {
-            // IPv4
-            uint32_t _ip = 0;
-            ok = inet_pton(PF_INET, ip, &_ip);
-            (*source)->sa_family = PF_INET;
-            (*source)->ip.V4 = ntohl(_ip);
-        }
-
-        switch (ok) {
-            case 0:
-                LogError("Unparsable IP address: %s", ip);
-                return 0;
-            case 1:
-                // success
-                break;
-            case -1:
-                LogError("Error while parsing IP address: %s", strerror(errno));
-                return 0;
-                break;
+            if (fs->nffile) {
+                // new handle - flush exporter and sampler records to new file
+                FlushStdRecords(fs);
+            } else {
+                // expected a new file handle - cannot continue
+                err++;
+            }
         }
     }
-    // fill in ident
-    if (strlen(ident) >= IDENTLEN) {
-        LogError("Source identifier too long: %s", ident);
-        return 0;
-    }
-    if (strchr(ident, ' ')) {
-        LogError("spaces not allowed in ident string: %s", ident);
-        return 0;
-    }
-    strncpy((*source)->Ident, ident, IDENTLEN - 1);
-    (*source)->Ident[IDENTLEN - 1] = '\0';
 
-    // flowpath
-    if (!CheckPath(flowpath, S_IFDIR)) {
-        return 0;
-    }
+    return err;
+}  // End of RotateCycle
 
-    char *path = realpath(flowpath, NULL);
-    if (!path) {
-        LogError("realpath() error %s: %s", flowpath, strerror(errno));
-        return 0;
-    }
-
-    // remember path
-    (*source)->datadir = path;
-
-    char s[MAXPATHLEN];
-    // cache current generic collector file
-    if (snprintf(s, MAXPATHLEN - 1, "%s/%s.XXXXXX", (*source)->datadir, NF_TMPFILE) >= (MAXPATHLEN - 1)) {
-        LogError("Path too long: %s", (*source)->datadir);
-        return 0;
-    }
-
-    // generic tmp filename
-    (*source)->tmpFileName = strdup(s);
-    if (!(*source)->tmpFileName) {
-        LogError("strdup() error: %s", strerror(errno));
-        return 0;
-    }
-
-    LogVerbose("Add flow source: ident: %s, IP: %s, flowdir: %s", ident, ip ? ip : "any IP", flowpath);
-    return 1;
-
-}  // End of AddFlowSource
-
-int AddFlowSourceString(FlowSource_t **FlowSource, char *argument) {
-    char *ident = argument;
-    char *ip = NULL;
-    // separate IP address from ident
-    if ((ip = strchr(ident, ',')) == NULL) {
-        LogError("Argument error for netflow source definition. Expect -n ident,IP,path. Found: %s", argument);
-        return 0;
-    }
-
-    char *s = ip;
-    char *flowpath = NULL;
-    // separate path from IP
-    if ((flowpath = strchr(s + 1, ',')) == NULL) {
-        LogError("Argument error for netflow source definition. Expect -n ident,IP,path. Found: %s", argument);
-        return 0;
-    }
-    *ip++ = '\0';
-    *flowpath++ = '\0';
-
-    return AddFlowSource(FlowSource, ident, ip, flowpath);
-
-}  // End of AddFlowSourceString
-
-FlowSource_t *AddDynamicSource(FlowSource_t **FlowSource, struct sockaddr_storage *ss) {
-    FlowSource_t **source;
-    void *ptr;
-    char *s, ident[100];
-    int err;
-
-    union {
-        struct sockaddr_storage *ss;
-        struct sockaddr *sa;
-        struct sockaddr_in *sa_in;
-        struct sockaddr_in6 *sa_in6;
-    } u;
-    u.ss = ss;
-
-    if (!DynamicSourcesDir) return NULL;
-
-    source = FlowSource;
-    while (*source) {
-        source = &((*source)->next);
-    }
-
-    *source = (FlowSource_t *)calloc(1, sizeof(FlowSource_t));
-    if (!*source) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-    (*source)->next = NULL;
-    (*source)->bookkeeper = NULL;
-    (*source)->any_source = 0;
-    (*source)->exporter_data = NULL;
-    (*FlowSource)->exporter_count = 0;
-
-    switch (ss->ss_family) {
-        case PF_INET: {
-#ifdef HAVE_STRUCT_SOCKADDR_STORAGE_SS_LEN
-            if (ss->ss_len != sizeof(struct sockaddr_in)) {
-                // malformed struct
-                LogError("Malformed IPv4 socket struct in '%s', line '%d'", __FILE__, __LINE__);
-                free(*source);
-                *source = NULL;
-                return NULL;
-            }
-#endif
-            (*source)->sa_family = PF_INET;
-            (*source)->ip.V6[0] = 0;
-            (*source)->ip.V6[1] = 0;
-            (*source)->ip.V4 = ntohl(u.sa_in->sin_addr.s_addr);
-            ptr = &u.sa_in->sin_addr;
-        } break;
-        case PF_INET6: {
-            uint64_t *ip_ptr = (uint64_t *)u.sa_in6->sin6_addr.s6_addr;
-
-#ifdef HAVE_STRUCT_SOCKADDR_STORAGE_SS_LEN
-            if (ss->ss_len != sizeof(struct sockaddr_in6)) {
-                // malformed struct
-                LogError("Malformed IPv6 socket struct in '%s', line '%d'", __FILE__, __LINE__);
-                free(*source);
-                *source = NULL;
-                return NULL;
-            }
-#endif
-            // ptr = &((struct sockaddr_in6 *)sa)->sin6_addr;
-            (*source)->sa_family = PF_INET6;
-            (*source)->ip.V6[0] = ntohll(ip_ptr[0]);
-            (*source)->ip.V6[1] = ntohll(ip_ptr[1]);
-            ptr = &u.sa_in6->sin6_addr;
-        } break;
-        default:
-            // keep compiler happy
-            (*source)->ip.V6[0] = 0;
-            (*source)->ip.V6[1] = 0;
-            ptr = NULL;
-
-            LogError("Unknown sa fanily: %d in '%s', line '%d'", ss->ss_family, __FILE__, __LINE__);
-            free(*source);
-            *source = NULL;
-            return NULL;
-    }
-
-    if (!ptr) {
-        free(*source);
-        *source = NULL;
-        return NULL;
-    }
-
-    inet_ntop(ss->ss_family, ptr, ident, sizeof(ident));
-    ident[99] = '\0';
-    dbg_printf("Dynamic Flow Source IP: %s\n", ident);
-
-    s = ident;
-    while (*s != '\0') {
-        if (*s == '.' || *s == ':') *s = '-';
-        s++;
-    }
-    dbg_printf("Dynamic Flow Source ident: %s\n", ident);
-
-    strncpy((*source)->Ident, ident, IDENTLEN - 1);
-    (*source)->Ident[IDENTLEN - 1] = '\0';
-
-    char path[MAXPATHLEN];
-    snprintf(path, MAXPATHLEN - 1, "%s/%s", DynamicSourcesDir, ident);
-    path[MAXPATHLEN - 1] = '\0';
-
-    err = mkdir(path, 0755);
-    if (err != 0 && errno != EEXIST) {
-        LogError("mkdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        free(*source);
-        *source = NULL;
-        return NULL;
-    }
-    (*source)->datadir = strdup(path);
-
-    // cache current generic collector file
-    if (snprintf(path, MAXPATHLEN - 1, "%s/%s.XXXXXX", (*source)->datadir, NF_TMPFILE) >= (MAXPATHLEN - 1)) {
-        LogError("Path too long: %s\n", path);
-        free(*source);
-        *source = NULL;
-        return NULL;
-    }
-    (*source)->tmpFileName = strdup(path);
-
-    LogInfo("Dynamically add source ident: %s in directory: %s", ident, (*source)->datadir);
-    return *source;
-
-}  // End of AddDynamicSource
-
-int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int done) {
+static int RunCycle(time_t t_start, const char *time_extension, const collector_ctx_t *ctx, int *pfd, int done, uint32_t creator,
+                    uint32_t compression, uint32_t encryption) {
     // periodic file rotation
     struct tm *now = localtime(&t_start);
     char fmt[32];
     strftime(fmt, sizeof(fmt), time_extension, now);
 
-    // prepare sub dir hierarchy
-    char *subdir = NULL;
-    if (fs && fs->subdir) {
-        subdir = GetSubDir(now);
-        if (!subdir) {
-            // failed to generate subdir path - put flows into base directory
-            LogError("Failed to create subdir path!");
-            // failed to generate subdir path - put flows into base directory
-        }
-    }
+    dbg_printf("Enter RunCycle\n");
 
-    // for each flow source update the stats, close the file and re-initialize the new file
-    while (fs) {
+    int err = 0;
+    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
+        nffile_t *nffile = fs->swap_nffile;
+        if (nffile == NULL) continue;
+
         char nfcapd_filename[MAXPATHLEN];
-        nffile_t *nffile = fs->nffile;
+        nfcapd_filename[0] = '\0';
 
-        // prepare filename
-        if (subdir) {
-            if (SetupSubDir(fs->datadir, subdir)) {
-                snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/%s/nfcapd.%s", fs->datadir, subdir, fmt);
-            } else {
-                // skip subdir - put flows directly into current directory
-                snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/nfcapd.%s", fs->datadir, fmt);
-            }
-        } else {
-            snprintf(nfcapd_filename, MAXPATHLEN - 1, "%s/nfcapd.%s", fs->datadir, fmt);
-        }
+        int pos = SetupPath(now, fs->datadir, fs->subdir, nfcapd_filename);
+        char *p = nfcapd_filename + (ptrdiff_t)pos;
+        snprintf(p, MAXPATHLEN - pos - 1, "nfcapd.%s", fmt);
         nfcapd_filename[MAXPATHLEN - 1] = '\0';
+        dbg_printf("SetupPath(): %s for: %s\n", nfcapd_filename, nffile->fileName);
 
         // update stat record
         // if no flows were collected, fs->msecLast is still 0
         // set msecFirst and msecLast and to start of this time slot
-        if (fs->nffile->stat_record->msecLastSeen == 0) {
-            fs->nffile->stat_record->msecFirstSeen = 1000LL * (uint64_t)t_start;
-            fs->nffile->stat_record->msecLastSeen = fs->nffile->stat_record->msecFirstSeen;
+        if (nffile->stat_record->msecLastSeen == 0) {
+            nffile->stat_record->msecFirstSeen = 1000LL * (uint64_t)t_start;
+            nffile->stat_record->msecLastSeen = nffile->stat_record->msecFirstSeen;
         }
 
-        // Flush Exporter Stat to file
-        FlushExporterStats(fs);
-        // Flush open datablock
-        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
-
-        // need tmp filename for renaming - Closing the file, discards the filename
-        char tmpFilename[MAXPATHLEN];
-        strncpy(tmpFilename, fs->nffile->fileName, MAXPATHLEN - 1);
-        tmpFilename[MAXPATHLEN - 1] = '\0';
-
         // Close file
-        FinaliseFile(nffile);
+        FlushFile(nffile);
         CloseFile(nffile);
 
         // if rename fails, we are in big trouble, as we need to get rid of the old .current
         // file otherwise, we will loose flows and can not continue collecting new flows
-        if (RenameAppend(tmpFilename, nfcapd_filename) < 0) {
+        if (RenameAppend(nffile->fileName, nfcapd_filename) < 0) {
             LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
 
             // we do not update the books here, as the file failed to rename properly
@@ -435,95 +461,67 @@ int RotateFlowFiles(time_t t_start, char *time_extension, FlowSource_t *fs, int 
 
             // Update books
             stat(nfcapd_filename, &fstat);
-            UpdateBooks(fs->bookkeeper, t_start, 512 * fstat.st_blocks);
+            UpdateBooks(fs->bookkeeper, t_start, (uint64_t)(512U * fstat.st_blocks));
         }
 
-        // log stats
-        LogInfo("Ident: '%s' Flows: %" PRIu64 ", Packets: %" PRIu64 ", Bytes: %" PRIu64 ", Sequence Errors: %" PRIu64 ", Bad Packets: %u, Blocks: %u",
-                fs->Ident, nffile->stat_record->numflows, nffile->stat_record->numpackets, nffile->stat_record->numbytes,
-                nffile->stat_record->sequence_failure, fs->bad_packets, ReportBlocks());
-
-        // reset stats
-        fs->bad_packets = 0;
-
-        if (!done) {
-            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), fs->nffile, CREATOR_NFCAPD, INHERIT, INHERIT);
-            if (!fs->nffile) {
-                LogError("killed due to fatal error: ident: %s", fs->Ident);
-                return 0;
+        if (*pfd) {
+            if (SendLauncherMessage(*pfd, t_start, nfcapd_filename, fmt, fs->datadir, fs->Ident) < 0) {
+                LogError("Disable launcher due to errors");
+                close(*pfd);
+                *pfd = 0;
             }
-            SetIdent(fs->nffile, fs->Ident);
-
-            // Dump all exporters/samplers to the buffer
-            FlushStdRecords(fs);
         }
+        DisposeFile(nffile);
+        nffile = NULL;
 
-        // next flow source
-        fs = fs->next;
+        if (done) {
+            // dispose handle
+            fs->swap_nffile = NULL;
+        } else {
+            // open new - next file
+            int retry = 0;
+            do {
+                nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), creator, compression, encryption);
+                if (nffile) break;
+
+                nffile = fs->swap_nffile;
+                retry++;
+                usleep(1000);
+            } while (retry < 2);
+
+            if (nffile) {
+                fs->swap_nffile = nffile;
+                SetIdent(fs->swap_nffile, fs->Ident);
+            } else {
+                LogError("Ident: %s, Can't re-open empty flow file");
+                fs->swap_nffile = NULL;
+                // unrecoverable error
+                err++;
+            }
+        }
 
     }  // end of while (fs)
 
-    return 1;
+    return err;
 
-}  // End of RotateFlowFiles
-
-int TriggerLauncher(time_t t_start, char *time_extension, int pfd, FlowSource_t *fs) {
-    struct tm *now = localtime(&t_start);
-    char fmt[32];
-    strftime(fmt, sizeof(fmt), time_extension, now);
-
-    // prepare sub dir hierarchy
-    char *subdir = NULL;
-    if (fs->subdir) {
-        subdir = GetSubDir(now);
-        if (!subdir) {
-            // failed to generate subdir path - put flows into base directory
-            LogError("Failed to create subdir path!");
-            // failed to generate subdir path - put flows into base directory
-        }
-    }
-
-    // for each flow source update the stats, close the file and re-initialize the new file
-    while (fs) {
-        // trigger launcher if required
-        // Send launcher message
-        if (SendLauncherMessage(pfd, t_start, subdir, fmt, fs->datadir, fs->Ident) < 0) {
-            return 0;
-        } else {
-            LogVerbose("Send launcher message");
-        }
-
-        // next flow source
-        fs = fs->next;
-    }
-
-    return 1;
-
-}  // End of TriggerLauncher
+}  // End of RunCycle
 
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {
     exporter->sysid = AssignExporterID();
-    fs->exporter_count++;
     fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)exporter, exporter->header.size);
 
 #ifdef DEVEL
     {
-#define IP_STRING_LEN 40
-        char ipstr[IP_STRING_LEN];
+        char ipstr[INET6_ADDRSTRLEN];
         printf("Flush Exporter: ");
-        if (exporter->sa_family == AF_INET) {
-            uint32_t _ip = htonl(exporter->ip.V4);
-            inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
+        static const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
+        uint8_t *ip = (uint8_t *)&exporter->ip;
+        if (memcmp(ip, prefix, 12) == 0) {
+            inet_ntop(AF_INET, (void *)(exporter->ip + 12), ipstr, sizeof(ipstr));
             printf("SysID: %u, IP: %16s, version: %u, ID: %2u\n", exporter->sysid, ipstr, exporter->version, exporter->id);
-        } else if (exporter->sa_family == AF_INET6) {
-            uint64_t _ip[2];
-            _ip[0] = htonll(exporter->ip.V6[0]);
-            _ip[1] = htonll(exporter->ip.V6[1]);
-            inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
-            printf("SysID: %u, IP: %40s, version: %u, ID: %2u\n", exporter->sysid, ipstr, exporter->version, exporter->id);
         } else {
-            strncpy(ipstr, "<unknown>", IP_STRING_LEN);
-            printf("**** Exporter IP version unknown ****\n");
+            inet_ntop(AF_INET6, (void *)exporter->ip, ipstr, sizeof(ipstr));
+            printf("SysID: %u, IP: %40s, version: %u, ID: %2u\n", exporter->sysid, ipstr, exporter->version, exporter->id);
         }
     }
 #endif
@@ -533,73 +531,61 @@ int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {
 }  // End of FlushInfoExporter
 
 void FlushStdRecords(FlowSource_t *fs) {
-    exporter_t *e = fs->exporter_data;
-
-    while (e) {
-        sampler_t *sampler = e->sampler;
-        fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)&(e->info), e->info.header.size);
+    for (exporter_entry_t *entry = NextExporter(fs); entry != NULL; entry = NextExporter(NULL)) {
+        fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)&(entry->info), entry->info.header.size);
+        sampler_t *sampler = entry->sampler;
         while (sampler) {
             fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)&(sampler->record), sampler->record.size);
             sampler = sampler->next;
         }
-        e = e->next;
     }
 
 }  // End of FlushStdRecords
 
 void FlushExporterStats(FlowSource_t *fs) {
-    exporter_t *e = fs->exporter_data;
-    exporter_stats_record_t *exporter_stats;
-    uint32_t i, size;
+    uint32_t numExporters = fs->exporters.count;
 
     // idle collector ..
-    if (!fs->exporter_count) return;
+    if (numExporters == 0) return;
 
-    size = sizeof(exporter_stats_record_t) + (fs->exporter_count - 1) * sizeof(struct exporter_stat_s);
-    exporter_stats = (exporter_stats_record_t *)malloc(size);
+    uint32_t size = sizeof(exporter_stats_record_t) + ((numExporters - 1) * sizeof(struct exporter_stat_s));
+    exporter_stats_record_t *exporter_stats = (exporter_stats_record_t *)malloc(size);
     if (!exporter_stats) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
     exporter_stats->header.type = ExporterStatRecordType;
     exporter_stats->header.size = size;
-    exporter_stats->stat_count = fs->exporter_count;
+    exporter_stats->stat_count = numExporters;
 
 #ifdef DEVEL
-    printf("Flush Exporter Stats: %u exporters, size: %u\n", fs->exporter_count, size);
+    printf("Flush Exporter Stats: %u exporters, size: %u\n", numExporters, size);
 #endif
-    i = 0;
-    while (e) {
-        // prevent memory corruption - just in case .. should not happen anyway
-        // continue loop for error reporting after while
-        if (i >= fs->exporter_count) {
-            i++;
-            e = e->next;
-            continue;
-        }
-        exporter_stats->stat[i].sysid = e->info.sysid;
-        exporter_stats->stat[i].sequence_failure = e->sequence_failure;
-        exporter_stats->stat[i].packets = e->packets;
-        exporter_stats->stat[i].flows = e->flows;
+
+    unsigned i = 0;
+    for (exporter_entry_t *entry = NextExporter(fs); entry != NULL; entry = NextExporter(NULL)) {
+        exporter_stats->stat[i].sysid = entry->info.sysid;
+        exporter_stats->stat[i].sequence_failure = entry->sequence_failure;
+        exporter_stats->stat[i].packets = entry->packets;
+        exporter_stats->stat[i].flows = entry->flows;
 #ifdef DEVEL
-        printf("Stat: SysID: %u, version: %u, ID: %2u, Packets: %" PRIu64 ", Flows: %" PRIu64 ", Sequence Failures: %u\n", e->info.sysid,
-               e->info.version, e->info.id, e->packets, e->flows, e->sequence_failure);
+        printf("Stat: SysID: %u, version: %u, ID: %2u, Packets: %" PRIu64 ", Flows: %" PRIu64 ", Sequence Failures: %u\n", entry->info.sysid,
+               entry->info.version, entry->info.id, entry->packets, entry->flows, entry->sequence_failure);
 
 #endif
         // reset counters
-        e->sequence_failure = 0;
-        e->packets = 0;
-        e->flows = 0;
+        entry->sequence_failure = 0;
+        entry->packets = 0;
+        entry->flows = 0;
 
         i++;
-        e = e->next;
     }
+
     fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)exporter_stats, size);
     free(exporter_stats);
 
-    if (i != fs->exporter_count) {
-        LogError("ERROR: exporter stats: Expected %u records, but found %u in %s line %d: %s", fs->exporter_count, i, __FILE__, __LINE__,
-                 strerror(errno));
+    if (i != numExporters) {
+        LogError("ERROR: exporter stats: Expected %u records, but found %u in %s line %d: %s", numExporters, i, __FILE__, __LINE__, strerror(errno));
     }
 
 }  // End of FlushExporterStats
@@ -646,23 +632,108 @@ int ScanExtension(char *extensionList) {
 
 }  // End of ScanExtension
 
-char *GetExporterIP(FlowSource_t *fs) {
-#define IP_STRING_LEN 40
-    static char ipstr[IP_STRING_LEN];
-    ipstr[0] = '\0';
+static void *post_processor_thread(void *args) {
+    // dispatch const arguments
+    post_args_t *post_args = (post_args_t *)args;
+    const char *time_extension = post_args->time_extension;
+    const collector_ctx_t *ctx = post_args->ctx;
+    int pfd = post_args->pfd;
+    uint32_t creator = post_args->creator;
+    uint32_t compress = post_args->compress;
+    uint32_t encryption = post_args->encryption;
 
-    if (fs->sa_family == AF_INET) {
-        uint32_t _ip = htonl(fs->ip.V4);
-        inet_ntop(AF_INET, &_ip, ipstr, sizeof(ipstr));
-    } else if (fs->sa_family == AF_INET6) {
-        uint64_t _ip[2];
-        _ip[0] = htonll(fs->ip.V6[0]);
-        _ip[1] = htonll(fs->ip.V6[1]);
-        inet_ntop(AF_INET6, &_ip, ipstr, sizeof(ipstr));
-    } else {
-        strncpy(ipstr, "<unknown>", IP_STRING_LEN);
+    dbg_printf("Startup post processor thread\n");
+
+    while (1) {
+        pthread_mutex_lock(&(post_args->mutex));
+
+        // Wait until there is a cycle to process, or shutdown is requested.
+        while (!post_args->cycle_pending && !post_args->done) {
+            pthread_cond_wait(&post_args->cond, &post_args->mutex);
+        }
+
+        // dispatch var arguments per cycle
+        int cycle_pending = post_args->cycle_pending;
+        int done = post_args->done;
+        time_t when = post_args->when;
+        pthread_mutex_unlock(&post_args->mutex);
+
+        int err = 0;
+#if 0
+        dbg_printf("Wakeup post processor - done: %d\n", done);
+        struct timespec t_start, t_end;
+        clock_gettime(CLOCK_MONOTONIC, &t_start);
+
+        // Perform the rotation cycle
+        if (cycle_pending) err = RunCycle(when, time_extension, ctx, &pfd, done, creator, compress, encryption);
+
+        clock_gettime(CLOCK_MONOTONIC, &t_end);
+        // Compute elapsed time in milliseconds
+        long sec = t_end.tv_sec - t_start.tv_sec;
+        long nsec = t_end.tv_nsec - t_start.tv_nsec;
+        double elapsed_ms = (double)sec * 1000.0 + (double)nsec / 1e6;
+
+        printf("Post processor cycle completed in %.3f ms\n", elapsed_ms);
+#else
+        // Perform the rotation cycle
+        if (cycle_pending) err = RunCycle(when, time_extension, ctx, &pfd, done, creator, compress, encryption);
+#endif
+
+        // cycle done
+        pthread_mutex_lock(&(post_args->mutex));
+        post_args->cycle_pending = 0;
+        pthread_cond_signal(&post_args->cond);
+        pthread_mutex_unlock(&post_args->mutex);
+
+        if (done || err) break;
     }
 
-    return ipstr;
+    dbg_printf("Exit post processor thread\n");
+    pthread_exit(NULL);
+}  // End of post_processor_thread
 
-}  // End of GetExporterIP
+int Lauch_postprocessor(post_args_t *post_args) {
+    int err = pthread_mutex_init(&post_args->mutex, NULL);
+    if (err != 0) {
+        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+        return 0;
+    }
+    err = pthread_cond_init(&post_args->cond, NULL);
+    if (err != 0) {
+        LogError("pthread_cond_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+        return 0;
+    }
+
+    err = pthread_create(&post_args->tid, NULL, post_processor_thread, (void *)post_args);
+    if (err) {
+        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+        return 0;
+    }
+
+    return 1;
+}  // End of Lauch_postprocessor
+
+void CleanupCollector(collector_ctx_t *ctx, post_args_t *post_args) {
+    // wait for last cycle completed of post processor
+    pthread_mutex_lock(&post_args->mutex);
+    // make sure the previous cycle completed
+    while (post_args->cycle_pending) {
+        LogError("Waiting for postprocessor to complete previous cycle");
+        pthread_cond_wait(&post_args->cond, &post_args->mutex);
+    }
+    pthread_mutex_unlock(&post_args->mutex);
+
+    // sync postprocessor thread is gone
+    pthread_join(post_args->tid, NULL);
+    free(post_args);
+
+    dbg_printf("Cleanup Collector\n");
+    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
+        DisposeFile(fs->nffile);
+        DisposeFile(fs->swap_nffile);
+        fs->nffile = NULL;
+        fs->swap_nffile = NULL;
+        FreeDataBlock(fs->dataBlock);
+        fs->dataBlock = NULL;
+    }
+}  // End of CleanupCollector

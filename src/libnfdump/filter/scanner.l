@@ -28,6 +28,7 @@
  *  
  */
 
+%option caseless
 %x incl
 
 %{

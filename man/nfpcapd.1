@@ -162,8 +162,13 @@ Compress flows. Use bz2 compression in output file. Note: not recommended while 
 Compress flows. Use LZ4 compression in output file.
 .It Fl z=zstd[:level]
 Compress flows. Use zstd compression in output file.
-.It Fl W Ar workers
-Sets the number of workers to compress flows. Defaults to 4. Must not be greater than the number of cores online. Useful for higher levels of compression for lz4 or zstd and large amount of flows per second.
+.It Fl W Ar num
+Set the number of worker threads. The default depends on the number of cores online. The value must 
+not exceed the number of online CPU cores.
+
+Worker threads are used to compress data blocks when writing flow files to disc.
+Using multiple workers can significantly improve throughput, especially when
+using higher compression levels for lz4 or zstd.
 .It Fl V
 Print nfpcapd version and exit.
 .It Fl h

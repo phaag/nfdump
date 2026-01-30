@@ -31,6 +31,9 @@
 # Debug files
 *.dSYM/
 
+# ignore all _ files 
+**/_*
+
 # Backup files
 *~
 *.bak

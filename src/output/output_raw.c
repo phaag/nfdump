@@ -62,8 +62,6 @@
 #include "userio.h"
 #include "util.h"
 
-#define IP_STRING_LEN (INET6_ADDRSTRLEN)
-
 // record counter
 static uint32_t recordCount;
 
@@ -147,7 +145,7 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, void
 }  // End of EXgenericFlowID
 
 static void stringEXtunIPv4(FILE *stream, EXtunIPv4_t *tunIPv4, EXgenericFlow_t *genericFlow) {
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
 
     uint32_t src = htonl(tunIPv4->tunSrcAddr);
     uint32_t dst = htonl(tunIPv4->tunDstAddr);
@@ -171,7 +169,7 @@ static void stringEXtunIPv4(FILE *stream, EXtunIPv4_t *tunIPv4, EXgenericFlow_t 
 }  // End of stringEXtunIPv4
 
 static void stringEXtunIPv6(FILE *stream, EXtunIPv6_t *tunIPv6, EXgenericFlow_t *genericFlow) {
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
 
     uint64_t src[2], dst[2];
     src[0] = htonll(tunIPv6->tunSrcAddr[0]);
@@ -211,7 +209,7 @@ static void stringsEXipv4Flow(FILE *stream, recordHandle_t *recordHandle, void *
     uint32_t src = htonl(ipv4Flow->srcAddr);
     uint32_t dst = htonl(ipv4Flow->dstAddr);
 
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET, &src, as, sizeof(as));
     inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
@@ -247,7 +245,7 @@ static void stringsEXipv6Flow(FILE *stream, recordHandle_t *recordHandle, void *
     dst[0] = htonll(ipv6Flow->dstAddr[0]);
     dst[1] = htonll(ipv6Flow->dstAddr[1]);
 
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, &src, as, sizeof(as));
     inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
 
@@ -271,7 +269,7 @@ static void stringsEXflowMisc(FILE *stream, recordHandle_t *recordHandle, void *
     EXipv4Flow_t *ipv4Flow = (EXipv4Flow_t *)recordHandle->extensionList[EXipv4FlowID];
     EXipv6Flow_t *ipv6Flow = (EXipv6Flow_t *)recordHandle->extensionList[EXipv6FlowID];
 
-    char snet[IP_STRING_LEN], dnet[IP_STRING_LEN];
+    char snet[INET6_ADDRSTRLEN], dnet[INET6_ADDRSTRLEN];
     if (ipv4Flow) {
         // IPv4
         inet_ntop_mask(ipv4Flow->srcAddr, flowMisc->srcMask, snet, sizeof(snet));
@@ -349,8 +347,8 @@ static void stringsEXasRouting(FILE *stream, recordHandle_t *recordHandle, void 
     if (asRouting->srcAS == 0) asRouting->srcAS = ipv4Flow ? LookupV4AS(ipv4Flow->srcAddr) : LookupV6AS(ipv6Flow->srcAddr);
     if (asRouting->dstAS == 0) asRouting->dstAS = ipv4Flow ? LookupV4AS(ipv4Flow->dstAddr) : LookupV6AS(ipv6Flow->dstAddr);
     fprintf(stream,
-            "  src as       =              %5u\n"
-            "  dst as       =              %5u\n",
+            "  src as       =             %6u\n"
+            "  dst as       =             %6u\n",
             asRouting->srcAS, asRouting->dstAS);
 
 }  // End of stringsEXasRouting
@@ -359,10 +357,10 @@ static void stringsEXbgpNextHopV4(FILE *stream, void *extensionRecord) {
     EXbgpNextHopV4_t *bgpNextHopV4 = (EXbgpNextHopV4_t *)extensionRecord;
 
     uint32_t i = htonl(bgpNextHopV4->ip);
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     fprintf(stream, "  bgp next hop =   %16s\n", ip);
 
@@ -375,10 +373,10 @@ static void stringsEXbgpNextHopV6(FILE *stream, void *extensionRecord) {
     i[0] = htonll(bgpNextHopV6->ip[0]);
     i[1] = htonll(bgpNextHopV6->ip[1]);
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     fprintf(stream, "  bgp next hop =   %16s\n", ip);
 
@@ -389,10 +387,10 @@ static void stringsEXipNextHopV4(FILE *stream, void *extensionRecord) {
 
     uint32_t i = htonl(ipNextHopV4->ip);
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     fprintf(stream, "  ip next hop  =   %16s\n", ip);
 
@@ -405,9 +403,9 @@ static void stringsEXipNextHopV6(FILE *stream, void *extensionRecord) {
     i[0] = htonll(ipNextHopV6->ip[0]);
     i[1] = htonll(ipNextHopV6->ip[1]);
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     fprintf(stream, "  ip next hop  =   %16s\n", ip);
 
@@ -418,10 +416,10 @@ static void stringsEXipReceivedV4(FILE *stream, void *extensionRecord) {
 
     uint32_t i = htonl(ipReceivedV4->ip);
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     ip[0] = 0;
     inet_ntop(AF_INET, &i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     fprintf(stream, "  ip exporter  =   %16s\n", ip);
 
@@ -434,9 +432,9 @@ static void stringsEXipReceivedV6(FILE *stream, void *extensionRecord) {
     i[0] = htonll(ipReceivedV6->ip[0]);
     i[1] = htonll(ipReceivedV6->ip[1]);
 
-    char ip[IP_STRING_LEN];
+    char ip[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, i, ip, sizeof(ip));
-    ip[IP_STRING_LEN - 1] = 0;
+    ip[INET6_ADDRSTRLEN - 1] = 0;
 
     fprintf(stream, "  ip exporter  =   %16s\n", ip);
 
@@ -504,11 +502,11 @@ static void stringsEXsampler(FILE *stream, void *extensionRecord) {
 
     uint16_t exporterID = samplerInfo->exporter_sysid;
 
-    exporter_t *exporter = GetExporterInfo(exporterID);
-    if (exporter != NULL) {
-        sampler_t *sampler = exporter->sampler;
+    exporter_entry_t *exporter_entry = GetExporterInfo(exporterID);
+    if (exporter_entry != NULL) {
+        sampler_t *sampler = exporter_entry->sampler;
         while (sampler) {
-            if (sampler->record.id == samplerInfo->selectorID) break;
+            if ((sampler->record.id > 0) && ((unsigned)sampler->record.id == samplerInfo->selectorID)) break;
             sampler = sampler->next;
         }
         if (sampler != NULL) {
@@ -528,7 +526,7 @@ static void stringsEXsampler(FILE *stream, void *extensionRecord) {
 static void stringsEXobservation(FILE *stream, void *extensionRecord) {
     EXobservation_t *observation = (EXobservation_t *)extensionRecord;
     fprintf(stream,
-            "  obs domainID =          0x%05x\n"
+            "  obs domainID =            0x%05x\n"
             "  obs pointID  =       0x%010llx\n",
             observation->domainID, (long long unsigned)observation->pointID);
 
@@ -594,7 +592,7 @@ static void stringsEXnatXlateIPv4(FILE *stream, void *extensionRecord) {
 
     uint32_t src = htonl(natXlateIPv4->xlateSrcAddr);
     uint32_t dst = htonl(natXlateIPv4->xlateDstAddr);
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET, &src, as, sizeof(as));
     inet_ntop(AF_INET, &dst, ds, sizeof(ds));
 
@@ -615,7 +613,7 @@ static void stringsEXnatXlateIPv6(FILE *stream, void *extensionRecord) {
     dst[0] = htonll(natXlateIPv6->xlateDstAddr[0]);
     dst[1] = htonll(natXlateIPv6->xlateDstAddr[1]);
 
-    char as[IP_STRING_LEN], ds[IP_STRING_LEN];
+    char as[INET6_ADDRSTRLEN], ds[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, &src, as, sizeof(as));
     inet_ntop(AF_INET6, &dst, ds, sizeof(ds));
 
@@ -691,16 +689,16 @@ static void stringsEXnbarApp(FILE *stream, void *extensionRecord) {
         pen.val8[2] = nbar[2];
         pen.val8[3] = nbar[1];
 
-        int selector = 0;
-        int index = 5;
+        unsigned selector = 0;
+        unsigned index = 5;
         while (index < nbarAppIDlen) {
             selector = (selector << 8) | nbar[index];
             index++;
         }
         fprintf(stream, "  app ID       =              %2u..%u..%u: %s\n", nbar[0], pen.val32, selector, name);
     } else {
-        int selector = 0;
-        int index = 1;
+        unsigned selector = 0;
+        unsigned index = 1;
         while (index < nbarAppIDlen) {
             selector = (selector << 8) | nbar[index];
             index++;
@@ -744,7 +742,7 @@ static void stringsEXoutPayload(FILE *stream, recordHandle_t *recordHandle, void
             LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             exit(EXIT_FAILURE);
         } else {
-            recordHandle->extensionList[EXinPayloadHandle] = payloadHandle;
+            recordHandle->extensionList[EXoutPayloadHandle] = payloadHandle;
         }
     }
     inoutPayload(stream, recordHandle, payloadHandle, outPayload, payloadLength, "out");
@@ -771,7 +769,7 @@ static void inoutPayload(FILE *stream, recordHandle_t *recordHandle, payloadHand
     // ascii text can be printed as string incl. \n \r etc. nullBytes at the End of the string are allowed
     // otherwise DumpHex() the payload.
     int ascii = 1;
-    int nullBytes = 0;
+    unsigned nullBytes = 0;
     for (int i = 0; i < payloadLength; i++) {
         if ((payload[i] < ' ' || payload[i] > '~') && payload[i] != '\n' && payload[i] != '\r' && payload[i] != 0x09) {
             if (payload[i] == '\0') {

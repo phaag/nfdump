@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -55,6 +55,7 @@
 #include "nfstatfile.h"
 #include "nfxV3.h"
 #include "profile.h"
+#include "ssl/ssl.h"
 #include "tor.h"
 #include "util.h"
 #include "version.h"
@@ -63,9 +64,6 @@
 #ifdef HAVE_INFLUXDB
 char influxdb_url[1024] = "";
 #endif
-
-#define PROFILEWRITERS 2
-#define MAXPROFILERS 8
 
 typedef struct worker_param_s {
     int self;
@@ -96,7 +94,6 @@ static void usage(char *name) {
         "usage %s [options] \n"
         "-h\t\tthis text you see right here\n"
         "-V\t\tPrint version and exit.\n"
-        "-D <dns>\tUse nameserver <dns> for host lookup.\n"
         "-M <expr>\tRead input from multiple directories.\n"
         "-r\t\tread input from file\n"
         "-f\t\tfilename with filter syntaxfile\n"
@@ -116,7 +113,28 @@ static void usage(char *name) {
         name);
 } /* usage */
 
-__attribute__((noreturn)) static void *worker(void *arg) {
+static void FreeRecordHandle(recordHandle_t *handle) {
+    payloadHandle_t *payloadHandle = (payloadHandle_t *)handle->extensionList[EXinPayloadHandle];
+    if (payloadHandle) {
+        if (payloadHandle->dns) free(payloadHandle->dns);
+        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
+        if (payloadHandle->ja3) free(payloadHandle->ja3);
+        if (payloadHandle->ja4) free(payloadHandle->ja4);
+        free(payloadHandle);
+        handle->extensionList[EXinPayloadHandle] = NULL;
+    }
+    payloadHandle = (payloadHandle_t *)handle->extensionList[EXoutPayloadHandle];
+    if (payloadHandle) {
+        if (payloadHandle->dns) free(payloadHandle->dns);
+        if (payloadHandle->ssl) sslFree(payloadHandle->ssl);
+        if (payloadHandle->ja3) free(payloadHandle->ja3);
+        if (payloadHandle->ja4) free(payloadHandle->ja4);
+        free(payloadHandle);
+        handle->extensionList[EXoutPayloadHandle] = NULL;
+    }
+}  // End of FreeRecordHandle
+
+static void *worker_thread(void *arg) {
     worker_param_t *worker_param = (worker_param_t *)arg;
 
     uint32_t self = worker_param->self;
@@ -176,6 +194,7 @@ __attribute__((noreturn)) static void *worker(void *arg) {
 
                     }  // End of for all channels
 
+                    FreeRecordHandle(recordHandle);
                     break;
                 case ExporterInfoRecordType: {
                     for (int j = self; j < numChannels; j += numWorkers) {
@@ -223,19 +242,15 @@ __attribute__((noreturn)) static void *worker(void *arg) {
         pthread_control_barrier_wait(worker_param->barrier);
     }
 
-    dbg_printf("Worker %d done.\n", worker_param->self);
+    dbg_printf("Worker %u done.\n", worker_param->self);
+    free(worker_param);
     pthread_exit(NULL);
 
     // unreached
-}  // End of worker
+}  // End of worker_thread
 
 static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_control_barrier_t *barrier, profile_channel_info_t *channels,
                                      uint32_t numChannels) {
-    if (numWorkers > MAXWORKERS) {
-        LogError("LaunchWorkers: number of worker: %u > max workers: %u", numWorkers, MAXWORKERS);
-        return NULL;
-    }
-
     worker_param_t **workerList = calloc(numWorkers, sizeof(worker_param_t *));
     if (!workerList) NULL;
 
@@ -251,9 +266,9 @@ static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_con
         worker_param->numChannels = numChannels;
         workerList[i] = worker_param;
 
-        int err = pthread_create(&(tid[i]), NULL, worker, (void *)worker_param);
+        int err = pthread_create(&(tid[i]), NULL, worker_thread, (void *)worker_param);
         if (err) {
-            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
             return NULL;
         }
     }
@@ -272,17 +287,17 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
         workerList[i]->dataBlock = &dataBlock;
     }
 
-    nffile_t *nffile = NewFile(NULL);
-
     // wait for workers ready to start
     pthread_controller_wait(barrier);
 
+    nffile_t *nffile = NULL;
     int done = 0;
     while (!done) {
         // get next data block from file
         dataBlock = nextBlock;
         if (dataBlock == NULL) {
-            if (GetNextFile(nffile) == NULL) {
+            nffile = GetNextFile();
+            if (nffile == NULL) {
                 done = 1;
                 continue;
             }
@@ -308,7 +323,9 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
 
         // get next block while worker are processing the previous one
         nextBlock = ReadBlock(nffile, NULL);
-
+        if (nextBlock == NULL) {
+            DisposeFile(nffile);
+        }
         // wait for all workers, work done on this block
         pthread_controller_wait(barrier);
         // free processed block
@@ -329,8 +346,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
             // flush output buffer
             FlushBlock(channels[j].nffile, channels[j].dataBlock);
             *channels[j].nffile->stat_record = channels[j].stat_record;
-            FinaliseFile(channels[j].nffile);
-            CloseFile(channels[j].nffile);
+            FlushFile(channels[j].nffile);
             DisposeFile(channels[j].nffile);
         }
     }
@@ -503,7 +519,7 @@ static void WaitWorkersDone(pthread_t *tid, int numWorkers) {
         if (tid[i]) {
             int err = pthread_join(tid[i], NULL);
             if (err) {
-                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
             }
             tid[i] = 0;
         }
@@ -514,12 +530,12 @@ int main(int argc, char **argv) {
     unsigned int numChannels, compress;
     profile_param_info_t *profile_list;
     char *ffile, *filename, *syslog_facility;
-    char *profile_datadir, *profile_statdir, *nameserver;
+    char *profile_datadir, *profile_statdir;
     int c, syntax_only, subdir_index, stdin_profile_params;
     time_t tslot;
     flist_t flist;
 
-    int numWorkers = MAXPROFILERS;
+    int numWorkers = 0;
     memset((void *)&flist, 0, sizeof(flist));
     profile_datadir = NULL;
     profile_statdir = NULL;
@@ -528,24 +544,16 @@ int main(int argc, char **argv) {
     compress = NOT_COMPRESSED;
     subdir_index = 0;
     profile_list = NULL;
-    nameserver = NULL;
     stdin_profile_params = 0;
     syslog_facility = "daemon";
 
     // default file names
     ffile = "filter.txt";
-    while ((c = getopt(argc, argv, "D:Ip:P:hi:f:jr:L:M:S:t:Vyz::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "Ip:P:hi:f:jr:L:M:S:t:Vyz::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
                 exit(0);
-                break;
-            case 'D':
-                CheckArgLen(optarg, 64);
-                nameserver = optarg;
-                if (!SetNameserver(nameserver)) {
-                    exit(255);
-                }
                 break;
             case 'I':
                 stdin_profile_params = 1;
@@ -639,13 +647,13 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    if (subdir_index && !InitHierPath(subdir_index)) {
-        exit(255);
+    if (!CheckSubDir(subdir_index)) {
+        exit(EXIT_FAILURE);
     }
 
     if (!profile_datadir) {
         LogError("Profile data directory required!");
-        exit(255);
+        exit(EXIT_FAILURE);
     }
 
     if (!profile_statdir) {
@@ -655,13 +663,13 @@ int main(int argc, char **argv) {
     struct stat stat_buf;
     if (stat(profile_datadir, &stat_buf) || !S_ISDIR(stat_buf.st_mode)) {
         LogError("'%s' not a directory", profile_datadir);
-        exit(255);
+        exit(EXIT_FAILURE);
     }
 
     if (stdin_profile_params) {
         profile_list = ParseParams(profile_datadir);
         if (!profile_list) {
-            exit(254);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -675,13 +683,13 @@ int main(int argc, char **argv) {
         char *p;
         if (flist.single_file == NULL) {
             LogError("-r filename required!");
-            exit(255);
+            exit(EXIT_FAILURE);
         }
         p = strrchr(flist.single_file, '/');
         filename = p == NULL ? flist.single_file : ++p;
         if (strlen(filename) == 0) {
             LogError("Filename error: zero length filename");
-            exit(254);
+            exit(EXIT_FAILURE);
         }
     }
 
@@ -713,16 +721,17 @@ int main(int argc, char **argv) {
 
     if (chdir(profile_datadir)) {
         LogError("Error can't chdir to '%s': %s", profile_datadir, strerror(errno));
-        exit(255);
+        exit(EXIT_FAILURE);
     }
 
     if (!flist.single_file) {
         LogError("Input file (-r) required!");
-        exit(255);
+        exit(EXIT_FAILURE);
     }
 
+    numWorkers = GetNumWorkers(numWorkers);
     queue_t *fileList = SetupInputFileSequence(&flist);
-    if (!fileList || !Init_nffile(PROFILEWRITERS, fileList)) exit(254);
+    if (!fileList || !Init_nffile(numWorkers, fileList)) exit(254);
 
     numChannels = InitChannels(profile_datadir, profile_statdir, profile_list, ffile, filename, subdir_index, syntax_only, compress);
 
@@ -737,20 +746,22 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    // check numWorkers depending on cores online
-    numWorkers = GetNumWorkers(numWorkers);
-
     pthread_control_barrier_t *barrier = pthread_control_barrier_init(numWorkers);
-    if (!barrier) exit(255);
+    if (!barrier) exit(EXIT_FAILURE);
 
     profile_channel_info_t *channels = GetChannelInfoList();
 
-    pthread_t tid[MAXWORKERS] = {0};
+    pthread_t *tid = calloc(numWorkers, sizeof(pthread_t));
+    if (!tid) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
     dbg_printf("Launch Workers\n");
     worker_param_t **workerList = LauchWorkers(tid, numWorkers, barrier, channels, numChannels);
     if (!workerList) {
         LogError("Failed to launch workers");
-        exit(255);
+        exit(EXIT_FAILURE);
     }
 
     process_data(channels, numChannels, tslot, workerList, numWorkers, barrier, hasGeoDB);
@@ -758,6 +769,8 @@ int main(int argc, char **argv) {
     WaitWorkersDone(tid, numWorkers);
     pthread_control_barrier_destroy(barrier);
 
+    free(tid);
+    free(workerList);
     UpdateChannels(tslot);
 #if 0
     VerifyFiles();

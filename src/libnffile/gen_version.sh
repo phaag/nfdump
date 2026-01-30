@@ -29,6 +29,10 @@
 echo Creating vcs_track.h
 f="vcs_track.h"
 
+if [ "x$1" != "x" ]; then
+  nfdv=$(echo 0xF${1}00 | sed -e 's/\./0/g')
+fi
+
 if [ -d ../../.git ]; then
   # git clone - should have git command too
   if [ -x "$(command -v git)" ]; then
@@ -51,5 +55,6 @@ echo \/\/THIS FILE IS AUTO GENERATED >>$f
 echo \/\/DO NOT TRACK THIS FILE WITH THE VCS >>$f
 echo \#define VCS_TRACK_DATE \"$date\" >>$f
 echo \#define VCS_TRACK_HASH \"$hash\" >>$f
+echo \#define NFDVERSION $nfdv >>$f
 
 echo \#endif >>$f
