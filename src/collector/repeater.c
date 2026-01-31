@@ -30,7 +30,9 @@
 
 #include "repeater.h"
 
+#include <arpa/inet.h>
 #include <errno.h>
+#include <stddef.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
@@ -218,7 +220,9 @@ static void RepeaterMessageFunc(message_t *message, void *extraArg) {
     p += sizeof(message_t);
 
     dbg_printf("repeater received message: %u %u\n", message->type, message->length);
+
     if (message->type == PRIVMSG_REPEAT && message->length > (sizeof(message_t) + sizeof(repeater_message_t))) {
+        // Original raw packet repeating to all repeaters
         dbg_printf("repeater process message: type: %d, length: %d\n", message->type, message->length);
 
         repeater_message_t *repeater_message = (repeater_message_t *)p;
@@ -228,9 +232,15 @@ static void RepeaterMessageFunc(message_t *message, void *extraArg) {
         size_t cnt = repeater_message->packet_size;
         if (message->length < (sizeof(message_t) + sizeof(repeater_message_t) + cnt)) {
             LogError("Repeater message size check error: %u", message->length);
+            return;
         }
         int i = 0;
         while (repeater[i].hostname && (i < MAX_REPEATERS)) {
+            // Skip repeaters with filters, they get filtered packets via PRIVMSG_FILTERED_REPEAT
+            if (repeater[i].filter != NULL) {
+                i++;
+                continue;
+            }
             if (repeater[i].addrlen == 0) {
                 // packet spoofing
                 struct sockaddr_in *src_addr = (struct sockaddr_in *)&repeater_message->addr;
@@ -249,6 +259,39 @@ static void RepeaterMessageFunc(message_t *message, void *extraArg) {
                 }
             }
             i++;
+        }
+    } else if (message->type == PRIVMSG_FILTERED_REPEAT && message->length > (sizeof(message_t) + sizeof(filtered_repeater_message_t))) {
+        // Filtered packet repeating to a specific repeater
+        dbg_printf("repeater process filtered message: type: %d, length: %d\n", message->type, message->length);
+
+        filtered_repeater_message_t *frm = (filtered_repeater_message_t *)p;
+        p += sizeof(filtered_repeater_message_t);
+
+        void *in_buff = p;
+        size_t cnt = frm->packet_size;
+        int idx = frm->repeater_index;
+
+        if (message->length < (sizeof(message_t) + sizeof(filtered_repeater_message_t) + cnt)) {
+            LogError("Filtered repeater message size check error: %u", message->length);
+            return;
+        }
+
+        if (idx < 0 || idx >= MAX_REPEATERS || !repeater[idx].hostname) {
+            LogError("Invalid repeater index in filtered message: %d", idx);
+            return;
+        }
+
+        // Send to the specific repeater
+        if (repeater[idx].addrlen == 0) {
+            LogError("Packet spoofing not supported for filtered repeaters :(");
+        } else {
+            ssize_t len = sendto(repeater[idx].sockfd, in_buff, cnt, 0,
+                                 (struct sockaddr *)&(repeater[idx].addr), repeater[idx].addrlen);
+            if (len < 0) {
+                LogError("sendto() filtered: %d: %s %s", idx, repeater[idx].hostname, strerror(errno));
+            } else {
+                dbg_printf("Filtered repeated to %s: %zd bytes\n", repeater[idx].hostname, len);
+            }
         }
     }
 }

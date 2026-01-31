@@ -204,6 +204,7 @@ __attribute__((noreturn)) void *pipeReader(void *arg) {
                         break;
                     case PRIVMSG_LAUNCH:
                     case PRIVMSG_REPEAT:
+                    case PRIVMSG_FILTERED_REPEAT:
                         thread_arg->messageFunc(message, thread_arg->extraArg);
                         break;
                     case PRIVMSG_EXIT:

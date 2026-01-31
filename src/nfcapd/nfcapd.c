@@ -79,7 +79,9 @@
 #include "nfxV3.h"
 #include "pidfile.h"
 #include "privsep.h"
+#include "record_callback.h"
 #include "repeater.h"
+#include "filtered_repeater.h"
 #include "util.h"
 #include "version.h"
 #include "yaf_reader.h"
@@ -95,6 +97,22 @@ typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *
 static int done = 0;
 static int periodic_trigger;
 static int gotSIGCHLD = 0;
+
+/* Filtered repeater callback context */
+typedef struct filtered_callback_ctx_s {
+    repeater_t *repeater;
+    int rfd;
+} filtered_callback_ctx_t;
+
+static filtered_callback_ctx_t filtered_ctx = {0};
+
+/* Callback function for filtered repeaters */
+static void FilteredRepeaterCallback(recordHeaderV3_t *recordHeaderV3, void *userData) {
+    filtered_callback_ctx_t *ctx = (filtered_callback_ctx_t *)userData;
+    if (ctx && ctx->repeater && ctx->rfd > 0) {
+        ProcessFilteredRecord(ctx->repeater, ctx->rfd, recordHeaderV3);
+    }
+}
 
 /* Local function Prototypes */
 static void usage(char *name);
@@ -132,6 +150,8 @@ static void usage(char *name) {
         "-M dir \tSet the output directory for dynamic sources.\n"
         "-P pidfile\tset the PID file\n"
         "-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
+        "-F filter\tFilter flows for preceding -R repeater using nfdump filter syntax.\n"
+        "-N version\tSet NetFlow version (5, 9, or 10/IPFIX) for preceding -R -F repeater.\n"
         "-A\t\tEnable source address spoofing for packet repeater -R.\n"
         "-s rate\tset default sampling rate (default 1)\n"
         "-x process\tlaunch process after a new file becomes available\n"
@@ -463,6 +483,17 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
         }
         // each Process_xx function has to process the entire input buffer, therefore it's empty
         // now.
+
+        // Flush filtered repeaters after each packet
+        if (rfd && HasFilteredRepeaters(filtered_ctx.repeater)) {
+            FlushFilteredRepeaters(filtered_ctx.repeater, rfd);
+        }
+    }
+
+    // Final flush of filtered repeaters
+    if (rfd && HasFilteredRepeaters(filtered_ctx.repeater)) {
+        FlushFilteredRepeaters(filtered_ctx.repeater, rfd);
+        CleanupFilteredRepeaters(filtered_ctx.repeater);
     }
 
     free(in_buff);
@@ -521,7 +552,8 @@ int main(int argc, char **argv) {
     numWorkers = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVW:w:x:X:Y:yz::Z")) != EOF) {
+    int last_repeater_index = -1;  // Track the last -R option for -F association
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:F:g:hI:i:jJ:l:m:M:n:N:p:P:R:s:S:t:T:u:vVW:w:x:X:Y:yz::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -650,7 +682,43 @@ int main(int argc, char **argv) {
                 }
                 repeater[i].hostname = hostname;
                 repeater[i].port = port;
+                repeater[i].netflow_version = 9;  // Default to NetFlow v9
+                repeater[i].index = i;
+                last_repeater_index = i;  // Track for -F option
 
+                break;
+            }
+            case 'F':
+                // Filter for the preceding -R repeater
+                if (last_repeater_index < 0) {
+                    LogError("-F option must follow a -R option");
+                    exit(EXIT_FAILURE);
+                }
+                CheckArgLen(optarg, 1024);
+                repeater[last_repeater_index].filter = strdup(optarg);
+                if (!repeater[last_repeater_index].filter) {
+                    LogError("strdup() error: %s", strerror(errno));
+                    exit(EXIT_FAILURE);
+                }
+                break;
+            case 'N': {
+                // NetFlow version for the preceding -R repeater (only valid with -F)
+                if (last_repeater_index < 0) {
+                    LogError("-N option must follow a -R option");
+                    exit(EXIT_FAILURE);
+                }
+                if (repeater[last_repeater_index].filter == NULL) {
+                    LogError("-N option requires -F filter to be set first");
+                    exit(EXIT_FAILURE);
+                }
+                int version = (int)strtol(optarg, NULL, 10);
+                if (version != 5 && version != 9 && version != 10) {
+                    LogError("Invalid NetFlow version: %s (must be 5, 9, or 10)", optarg);
+                    exit(EXIT_FAILURE);
+                }
+                repeater[last_repeater_index].netflow_version = version;
+                LogInfo("Set NetFlow version %d for repeater %s",
+                        version, repeater[last_repeater_index].hostname);
                 break;
             }
             case 'A':
@@ -879,12 +947,31 @@ int main(int argc, char **argv) {
         rfd = PrivsepFork(argc, argv, &repeater_pid, "repeater");
     }
 
+    // Initialize filtered repeaters if any have filters
+    if (HasFilteredRepeaters(repeater)) {
+        if (InitFilteredRepeaters(repeater, rfd) != 0) {
+            LogError("Failed to initialize filtered repeaters");
+            close(sock);
+            exit(EXIT_FAILURE);
+        }
+
+        // Set up callback context
+        filtered_ctx.repeater = repeater;
+        filtered_ctx.rfd = rfd;
+    }
+
     SetPriv(userid, groupid);
 
     if (!Init_v1(verbose) || !Init_v5_v7(verbose, sampling_rate) || !Init_pcapd(verbose) || !Init_v9(verbose, sampling_rate, extensionList) ||
         !Init_IPFIX(verbose, sampling_rate, extensionList)) {
         close(sock);
         exit(EXIT_FAILURE);
+    }
+
+    // Register callback for filtered repeaters
+    if (HasFilteredRepeaters(repeater)) {
+        SetRecordCallback(FilteredRepeaterCallback, &filtered_ctx);
+        LogInfo("Filtered repeater callback registered");
     }
 
     if (!CheckSubDir(subdir_index)) {
