@@ -151,6 +151,7 @@ static void usage(char *name) {
         "-P pidfile\tset the PID file\n"
         "-R IP[/port]\tRepeat incoming packets to IP address/port. Max 8 repeaters.\n"
         "-F filter\tFilter flows for preceding -R repeater using nfdump filter syntax.\n"
+        "-N version\tSet NetFlow version (5, 9, or 10/IPFIX) for preceding -R -F repeater.\n"
         "-A\t\tEnable source address spoofing for packet repeater -R.\n"
         "-s rate\tset default sampling rate (default 1)\n"
         "-x process\tlaunch process after a new file becomes available\n"
@@ -552,7 +553,7 @@ int main(int argc, char **argv) {
 
     int c;
     int last_repeater_index = -1;  // Track the last -R option for -F association
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:F:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:vVW:w:x:X:Y:yz::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:F:g:hI:i:jJ:l:m:M:n:N:p:P:R:s:S:t:T:u:vVW:w:x:X:Y:yz::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -700,6 +701,26 @@ int main(int argc, char **argv) {
                     exit(EXIT_FAILURE);
                 }
                 break;
+            case 'N': {
+                // NetFlow version for the preceding -R repeater (only valid with -F)
+                if (last_repeater_index < 0) {
+                    LogError("-N option must follow a -R option");
+                    exit(EXIT_FAILURE);
+                }
+                if (repeater[last_repeater_index].filter == NULL) {
+                    LogError("-N option requires -F filter to be set first");
+                    exit(EXIT_FAILURE);
+                }
+                int version = (int)strtol(optarg, NULL, 10);
+                if (version != 5 && version != 9 && version != 10) {
+                    LogError("Invalid NetFlow version: %s (must be 5, 9, or 10)", optarg);
+                    exit(EXIT_FAILURE);
+                }
+                repeater[last_repeater_index].netflow_version = version;
+                LogInfo("Set NetFlow version %d for repeater %s",
+                        version, repeater[last_repeater_index].hostname);
+                break;
+            }
             case 'A':
                 srcSpoofing = 1;
                 if (RunAsRoot() == 0) {
