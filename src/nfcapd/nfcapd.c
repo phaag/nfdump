@@ -295,8 +295,8 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
     uint32_t ignored_packets = 0;
     uint64_t packets = 0;
 
-    // wake up at least at next time slot (twin) + 1s
-    alarm(t_start + twin + 1 - time(NULL));
+    // wake up at next time slot (twin) for precise rotation
+    alarm(t_start + twin - time(NULL));
     /*
      * Main processing loop:
      * this loop, continues until  = 1, set by the signal handler
@@ -374,11 +374,10 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
              * update alarm for next cycle
              * t_start = filename time stamp: begin of slot
              * + twin = end of next time interval
-             * + 1 = act at least 1s after time window expired
              * - t_now = difference value to now
              */
             t_start += twin;
-            alarm(t_start + twin + 1 - t_now);
+            alarm(t_start + twin - t_now);
         }
 
         /* check for EINTR and continue */
@@ -694,8 +693,8 @@ int main(int argc, char **argv) {
                 break;
             case 't':
                 twin = atoi(optarg);
-                if (twin < 2) {
-                    LogError("time interval <= 2s not allowed");
+                if (twin < 1) {
+                    LogError("time interval < 1s not allowed");
                     exit(EXIT_FAILURE);
                 }
                 if (twin < 60) {
