@@ -49,11 +49,13 @@
 #include "nffile.h"
 #include "util.h"
 
-static int ExtendCache(void);
+static int Extend_NodeCache(void);
 
 static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2);
 
 static void DumpTreeStat(NodeList_t *NodeList);
+
+static size_t NodeList_length(NodeList_t *NodeList);
 
 // Insert the IP RB tree code here
 RB_GENERATE(FlowTree, FlowNode, entry, FlowNodeCMP);
@@ -63,23 +65,54 @@ RB_GENERATE(FlowTree, FlowNode, entry, FlowNodeCMP);
 #define DefaultCacheSize 8192
 #define ExtentSize 4096
 #define MaxSize (1024 * 1024 * 512)
-static uint32_t FlowCacheSize = 0;
 static time_t lastExpire = 0;
 static uint32_t expireActiveTimeout = 300;
 static uint32_t expireInactiveTimeout = 60;
-static struct FlowNode *FlowElementCache = NULL;
 
-// free list
-static struct FlowNode *FlowNode_FreeList = NULL;
-static pthread_mutex_t m_FreeList = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t c_FreeList = PTHREAD_COND_INITIALIZER;
-static uint32_t EmptyFreeList = 0;
-static uint32_t EmptyFreeListEvents = 0;
-static uint32_t Allocated = 0;
+static _Atomic uint32_t Allocated = 0;
+
+static struct FlowSlab *SlabList = NULL;
+static struct FlowSlab *PreferredSlab = NULL;
+static uint32_t FlowCacheSize = 0;
+static pthread_t PacketThreadID;
+static uint32_t LastExpireCount = 0;
+static time_t LastShrinkTime = 0;
+
+/*
+ * node cache
+ * The node cache builds up on a list of slabs. Each slab has ExtentSize nodes.
+ * The minimum node cahce size is DefaultCacheSize nodes.
+ * New slabs may be allocated, if more node are required (busy network, or packet peak)
+ * Empty slab are freed, if they are no longer needed.
+ * The current implementation works under the current design:
+ * 1 packet thread, 1 flow thread
+ * All slab maintainance such as Extend_NodeCache Shrink_NodeCache, drain remote_frees and
+ * New_Node are touched exclusively by the packet thread and the flow thread exclusively
+ * calls Free_node() and atomically add the freed node to remote_free. If this changes
+ * the design needs to be adapted accordingly.
+ */
 
 // Flow tree
 static FlowTree_t *FlowTree = NULL;
 static flowTreeStat_t flowTreeStat = {0};
+static struct FlowSlab *QuarantineList = NULL;
+
+static inline void drain_remote_frees(struct FlowSlab *slab) {
+    struct FlowNode *list = atomic_exchange_explicit(&slab->remote_free, NULL, memory_order_acquire);
+
+    while (list) {
+        struct FlowNode *n = list;
+        list = n->next;
+
+        n->next = slab->local_free;
+        slab->local_free = n;
+    }
+}  // End of drain_remote_frees
+
+void Init_NodeAllocator(void) {
+    // self
+    PacketThreadID = pthread_self();
+}  // End of Init_NodeAllocator
 
 /* flow tree functions */
 int Init_FlowTree(uint32_t CacheSize, uint32_t expireActive, uint32_t expireInactive) {
@@ -103,14 +136,50 @@ int Init_FlowTree(uint32_t CacheSize, uint32_t expireActive, uint32_t expireInac
     if (CacheSize == 0) CacheSize = DefaultCacheSize;
 
     while (FlowCacheSize < CacheSize)
-        if (!ExtendCache()) return 0;
+        if (!Extend_NodeCache()) return 0;
 
-    EmptyFreeList = 0;
     Allocated = 0;
+    PreferredSlab = SlabList;
 
-    LogVerbose("Init flow cache size: %u nodes", FlowCacheSize);
+    LogInfo("Init flow cache size: %u nodes", FlowCacheSize);
     return 1;
 }  // End of Init_FlowTree
+
+void Dispose_NodeAllocator(void) {
+    struct FlowSlab *s = SlabList;
+    while (s) {
+        struct FlowSlab *next = s->next;
+
+        uint32_t in_use = atomic_load_explicit(&s->in_use, memory_order_relaxed);
+        if (in_use != 0) {
+            LogError("Dispose_NodeAllocator(): slab still has %u allocated nodes", in_use);
+        }
+        free(s);
+
+        s = next;
+    }
+
+    SlabList = NULL;
+    /* free any slabs that were moved to quarantine */
+    struct FlowSlab *qs = QuarantineList;
+    while (qs) {
+        struct FlowSlab *next = qs->next;
+
+        uint32_t in_use = atomic_load_explicit(&qs->in_use, memory_order_relaxed);
+        if (in_use != 0) {
+            LogError("Dispose_NodeAllocator(): quarantined slab still has %u allocated nodes", in_use);
+        }
+
+        /* drain any pending remote frees (best effort) */
+        drain_remote_frees(qs);
+        free(qs);
+
+        qs = next;
+    }
+    QuarantineList = NULL;
+    FlowCacheSize = 0;
+
+}  // End of Dispose_NodeAllocator
 
 void Dispose_FlowTree(void) {
     struct FlowNode *node, *nxt;
@@ -121,107 +190,200 @@ void Dispose_FlowTree(void) {
         nxt = RB_NEXT(FlowTree, FlowTree, node);
         Remove_Node(node);
     }
-    free(FlowElementCache);
-    FlowElementCache = NULL;
-    FlowNode_FreeList = NULL;
-    EmptyFreeList = 0;
+
+    Dispose_NodeAllocator();
 
 }  // End of Dispose_FlowTree
 
-/* Free list handling functions */
-// Get next free node from free list
 struct FlowNode *New_Node(void) {
-    struct FlowNode *node;
+    struct FlowSlab *s;
 
-    pthread_mutex_lock(&m_FreeList);
-    while (FlowNode_FreeList == NULL) {
-        EmptyFreeList = 1;
-        EmptyFreeListEvents++;
-        if (FlowCacheSize < MaxSize) {
-            dbg_printf("Auto expand flow cache\n");
-            if (!ExtendCache()) abort();
-        } else {
-            LogError("Max cache size reached");
-            pthread_cond_wait(&c_FreeList, &m_FreeList);
+    // used by packet thread only
+    // First try preferred slab
+    s = PreferredSlab;
+    if (s) {
+        if (!s->local_free) drain_remote_frees(s);
+        if (s->local_free) {
+            struct FlowNode *n = s->local_free;
+            s->local_free = n->next;
+
+            atomic_fetch_add_explicit(&s->in_use, 1, memory_order_relaxed);
+            atomic_fetch_add_explicit(&Allocated, 1, memory_order_relaxed);
+
+            n->next = NULL;
+            n->memflag = NODE_IN_USE;
+            n->nodeType = FLOW_NODE;
+            return n;
         }
     }
 
-    node = FlowNode_FreeList;
-    if (node->memflag != NODE_FREE) {
-        LogError("New_Node() unexpected error in %s line %d: %s", __FILE__, __LINE__, "Tried to allocate a non free Node");
-        abort();
+    // Fallback: scan all slabs
+    for (s = SlabList; s; s = s->next) {
+        if (!s->local_free) drain_remote_frees(s);
+        if (s->local_free) {
+            PreferredSlab = s;
+            struct FlowNode *n = s->local_free;
+            s->local_free = n->next;
+
+            atomic_fetch_add_explicit(&s->in_use, 1, memory_order_relaxed);
+            atomic_fetch_add_explicit(&Allocated, 1, memory_order_relaxed);
+
+            n->next = NULL;
+            n->memflag = NODE_IN_USE;
+            n->nodeType = FLOW_NODE;
+            return n;
+        }
     }
 
-    FlowNode_FreeList = node->next;
-    Allocated++;
-    pthread_mutex_unlock(&m_FreeList);
+    if (FlowCacheSize >= MaxSize) return NULL;
+    if (!Extend_NodeCache()) return NULL;
 
-    node->next = NULL;
-    node->nodeType = FLOW_NODE;
-    node->memflag = NODE_IN_USE;
+    PreferredSlab = SlabList;  // newest slab
 
-    return node;
-
+    return New_Node();
 }  // End of New_Node
 
 // return node into free list
 void Free_Node(struct FlowNode *node) {
-    if (node->memflag == NODE_FREE) {
-        LogError("Free_Node() Fatal: Tried to free an already freed Node");
-        abort();
-    }
+    dbg_printf("Enter %s\n", __func__);
 
     if (node->memflag != NODE_IN_USE) {
-        LogError("Free_Node() Fatal: Tried to free a Node not in use");
+        LogError("Free_Node() Fatal: Tried to free a node not in use");
         abort();
     }
 
+    // cleanup node
     if (node->coldNode.payload) free(node->coldNode.payload);
     if (node->coldNode.pflog) free(node->coldNode.pflog);
+    memset((void *)&node->hotNode, 0, sizeof(hotNode_t));
+    memset((void *)&node->coldNode, 0, sizeof(coldNode_t));
 
-    dbg_assert(node->next == NULL);
-    memset((void *)node, 0, sizeof(struct FlowNode));
+    struct FlowSlab *s = node->slab;
 
-    pthread_mutex_lock(&m_FreeList);
-    node->next = FlowNode_FreeList;
     node->memflag = NODE_FREE;
-    FlowNode_FreeList = node;
-    Allocated--;
-    if (EmptyFreeList) {
-        EmptyFreeList = 0;
-        pthread_cond_signal(&c_FreeList);
+    if (pthread_equal(PacketThreadID, pthread_self())) {
+        // local free - packet thread
+        node->next = s->local_free;
+        s->local_free = node;
+    } else {
+        // remote free - flow_thread
+        // If the slab is being removed, do not attempt to add to remote_free.
+        // if removing is set we just decrement counters
+        // and drop the node (slab will be reclaimed by packet thread).
+        if (atomic_load_explicit(&s->removing, memory_order_acquire) == 0) {
+            // best-effort push into remote_free using simple CAS loop
+            struct FlowNode *old;
+            do {
+                old = atomic_load_explicit(&s->remote_free, memory_order_acquire);
+                node->next = old;
+            } while (!atomic_compare_exchange_weak_explicit(&s->remote_free, &old, node, memory_order_release, memory_order_relaxed));
+        }
     }
-    pthread_mutex_unlock(&m_FreeList);
 
+    atomic_fetch_sub_explicit(&Allocated, 1, memory_order_relaxed);
+    atomic_fetch_sub_explicit(&s->in_use, 1, memory_order_relaxed);
 }  // End of Free_Node
 
-static int ExtendCache(void) {
-    struct FlowNode *extent = calloc(ExtentSize, sizeof(struct FlowNode));
-    if (!extent) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+static int Extend_NodeCache(void) {
+    struct FlowSlab *slab = calloc(1, sizeof(struct FlowSlab) + ExtentSize * sizeof(struct FlowNode));
+    if (!slab) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
 
-    struct FlowNode *current = FlowNode_FreeList;
-    FlowNode_FreeList = extent;
-    FlowNode_FreeList->next = &extent[1];
-    FlowNode_FreeList->memflag = NODE_FREE;
-    int i;
-    for (i = 1; i < (ExtentSize - 1); i++) {
-        extent[i].memflag = NODE_FREE;
-        extent[i].next = &extent[i + 1];
-    }
-    extent[i].next = current;
-    extent[i].memflag = NODE_FREE;
+    slab->capacity = ExtentSize;
+    atomic_init(&slab->in_use, 0);
+    atomic_init(&slab->remote_free, NULL);
+    atomic_init(&slab->removing, false);
+    slab->removed_at = 0;
 
-    LogVerbose("Extended cache: %u -> %u", FlowCacheSize, FlowCacheSize + ExtentSize);
+    for (uint32_t i = 0; i < ExtentSize; i++) {
+        slab->nodes[i].slab = slab;
+        slab->nodes[i].memflag = NODE_FREE;
+        slab->nodes[i].next = slab->local_free;
+        slab->local_free = &slab->nodes[i];
+    }
+
+    slab->next = SlabList;
+    SlabList = slab;
     FlowCacheSize += ExtentSize;
 
+    LogVerbose("Extended cache slab: %u -> %u", FlowCacheSize - ExtentSize, FlowCacheSize);
     return 1;
+}  // End of Extend_NodeCache
 
-}  // End of ExtendCache
+// packet thread only
+static void Shrink_NodeCache(time_t now) {
+    if ((now - LastShrinkTime) < 10) return;
 
-/* safety check - this must never become 0 - otherwise the cache is too small */
+    uint32_t allocated = atomic_load_explicit(&Allocated, memory_order_relaxed);
+    uint32_t slack = FlowCacheSize - allocated;
+
+    // Only shrink if we have at least one full slab of slack
+    // and never shrink below the default cache size
+    if (slack < ExtentSize || FlowCacheSize <= DefaultCacheSize) return;
+
+    // Never shrink below the default cache size
+    uint32_t min_size = DefaultCacheSize;
+
+    struct FlowSlab **pp = &SlabList;
+    uint32_t oldCacheSize = FlowCacheSize;
+    uint32_t quarantinedSlabs = 0;
+    while (*pp && FlowCacheSize > min_size) {
+        struct FlowSlab *s = *pp;
+
+        drain_remote_frees(s);
+
+        if (atomic_load_explicit(&s->in_use, memory_order_relaxed) == 0) {
+            /* Move slab to quarantine: mark removing and unlink from SlabList.
+             * Actual free is deferred and handled below after a grace period
+             * to ensure no flow thread still touches slab memory. */
+            atomic_store_explicit(&s->removing, true, memory_order_release);
+
+            *pp = s->next;
+            FlowCacheSize -= s->capacity;
+
+            s->next = NULL;  // detach
+            s->removed_at = now;
+            /* prepend to quarantine list */
+            s->next = QuarantineList;
+            QuarantineList = s;
+            quarantinedSlabs++;
+            continue;
+        }
+
+        pp = &s->next;
+    }
+
+    // Sweep quarantine list: free slabs that have been quarantined since last 10s run
+    uint32_t freedSlabs = 0;
+    struct FlowSlab **qpp = &QuarantineList;
+    while (*qpp) {
+        struct FlowSlab *qs = *qpp;
+        /* If the slab was moved to quarantine in this run (removed_at == now)
+         * skip it; otherwise it's safe to attempt to free it now. */
+        if (qs->removed_at == now) {
+            qpp = &qs->next;
+            continue;
+        }
+
+        // ensure no in-use nodes and no remote frees
+        drain_remote_frees(qs);
+        if (atomic_load_explicit(&qs->in_use, memory_order_relaxed) == 0 && atomic_load_explicit(&qs->remote_free, memory_order_relaxed) == NULL) {
+            *qpp = qs->next;
+            free(qs);
+            freedSlabs++;
+            continue;
+        }
+
+        qpp = &qs->next;
+    }
+
+    LastShrinkTime = now;
+
+    LogVerbose("Adjust cache slab: %u -> %u. Slabs quarantined: %u, freed: %u", oldCacheSize, FlowCacheSize, quarantinedSlabs, freedSlabs);
+}  // End of Shrink_NodeCache
+
 void CacheCheck(NodeList_t *NodeList, time_t when) {
     dbg_printf("Cache check: ");
     if (lastExpire == 0) {
@@ -229,12 +391,15 @@ void CacheCheck(NodeList_t *NodeList, time_t when) {
         dbg_printf("Init\n");
         return;
     }
+
     if ((when - lastExpire) > EXPIREINTERVALL) {
-        uint32_t num __attribute__((unused)) = Expire_FlowTree(NodeList, when);
-        dbg_printf("  Expire cache: %u nodes\n", num);
+        uint32_t expired = Expire_FlowTree(NodeList, when);
+        dbg_printf("  Expire cache: %u nodes\n", expired);
+        LastExpireCount = expired;
         lastExpire = when;
     }
 
+    Shrink_NodeCache(when);
 }  // End of CacheCheck
 
 void printFlowKey(struct FlowNode *node) {
@@ -286,13 +451,9 @@ struct FlowNode *Insert_Node(struct FlowNode *node) {
 void Remove_Node(struct FlowNode *node) {
     struct FlowNode *rev_node;
 
-#ifdef DEVEL
-    assert(node->memflag == NODE_IN_USE);
-    if (flowTreeStat.activeNodes) {
-        LogError("Remove_Node() Fatal Tried to remove a Node from empty tree");
-        return;
-    }
-#endif
+    assert(node->inTree == 1);
+
+    dbg_assert(node->memflag == NODE_IN_USE);
 
     rev_node = node->coldNode.rev_node;
     if (rev_node) {
@@ -301,7 +462,6 @@ void Remove_Node(struct FlowNode *node) {
         rev_node->coldNode.rev_node = NULL;
         node->coldNode.rev_node = NULL;
     }
-    assert(node->inTree == 1);
 
     RB_REMOVE(FlowTree, FlowTree, node);
 
@@ -403,10 +563,10 @@ uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
     }
 
     if (flowCnt || fragCnt) {
-        LogVerbose("Node cache size: %u, nodes in use %u, cache size: %zd, queue size: %zu", FlowCacheSize, Allocated, flowTreeStat.activeNodes,
-                   NodeList->length);
         LogVerbose("Expired flow nodes: %u, frag nodes: %u. Active flow nodes: %d, frag nodes: %u", flowCnt, fragCnt, flowTreeStat.flowNodes,
                    flowTreeStat.fragNodes);
+        LogVerbose("Node cache size: %u, allocated %u, cache size: %zd, queue size: %zu", FlowCacheSize, Allocated, flowTreeStat.activeNodes,
+                   NodeList_length(NodeList));
     }
 
     return flowCnt + fragCnt;
@@ -443,21 +603,20 @@ void DisposeNodeList(NodeList_t *NodeList) {
 }  // End of DisposeNodeList
 
 static void DumpTreeStat(NodeList_t *NodeList) {
-    LogVerbose("Node cache size: %u, in use %u, cache size: %zu, queue size: %zu, wait freelist: %u", FlowCacheSize, Allocated,
-               flowTreeStat.activeNodes, NodeList->length, EmptyFreeListEvents);
-    EmptyFreeListEvents = 0;
+    LogVerbose("Node cache size: %u, in use %u, cache size: %zu, queue size: %zu", FlowCacheSize, Allocated, flowTreeStat.activeNodes,
+               NodeList_length(NodeList));
 }  // End of DumpTreeStat
 
 void Push_Node(NodeList_t *NodeList, struct FlowNode *node) {
     pthread_mutex_lock(&NodeList->m_list);
 
+    dbg_assert(node->nodeType != 0);
     if (NodeList->length == 0) {
         NodeList->list = node;
-        node->next = NULL;
     } else {
         NodeList->last->next = node;
-        node->next = NULL;
     }
+    node->next = NULL;
     NodeList->last = node;
     NodeList->length++;
 
@@ -485,6 +644,14 @@ struct FlowNode *Pop_Node(NodeList_t *NodeList) {
 
     return node;
 }  // End of Pop_Node
+
+static size_t NodeList_length(NodeList_t *NodeList) {
+    size_t length = 0;
+    pthread_mutex_lock(&NodeList->m_list);
+    length = NodeList->length;
+    pthread_mutex_unlock(&NodeList->m_list);
+    return length;
+}  // End of NodeList_length
 
 size_t Pop_Batch(NodeList_t *NodeList, struct FlowNode **out, size_t max) {
     size_t n = 0;

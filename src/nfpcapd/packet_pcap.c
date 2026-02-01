@@ -231,6 +231,7 @@ static inline void PcapDump(packetBuffer_t *packetBuffer, struct pcap_pkthdr *hd
 void __attribute__((noreturn)) * pcap_packet_thread(void *args) {
     packetParam_t *packetParam = (packetParam_t *)args;
 
+    Init_NodeAllocator();
     time_t t_win = packetParam->t_win;
     time_t now = 0;
     if (packetParam->live) {

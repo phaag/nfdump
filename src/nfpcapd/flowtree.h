@@ -34,6 +34,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdatomic.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <sys/time.h>
 #include <sys/types.h>
@@ -122,6 +123,7 @@ struct FlowNode {
     RB_ENTRY(FlowNode) entry;  // RB tree linkage
 
     struct FlowNode *next;  // Linked list in FreeList
+    struct FlowSlab *slab;  // slab pointer
 
     time_t timestamp;     // timestamp sync node
     hotNode_t hotNode;    // not node and cache relevant
@@ -139,6 +141,18 @@ struct FlowNode {
     uint8_t inTree;   // unused - alignment
 };
 
+// node cache struct
+struct FlowSlab {
+    struct FlowSlab *next;                   // chain
+    struct FlowNode *local_free;             // free list of packet thread
+    _Atomic(struct FlowNode *) remote_free;  // free list of flow thread
+    _Atomic(bool) removing;                  // slab gets removed
+    _Atomic uint32_t in_use;                 // number of nodes in use
+    uint32_t capacity;                       // max number of nodes
+    time_t removed_at;                       // timestamp when moved to quarantine
+    struct FlowNode nodes[];                 // base pointer
+};
+
 typedef struct NodeList_s {
     struct FlowNode *list;
     struct FlowNode *last;
@@ -154,6 +168,10 @@ typedef RB_HEAD(FlowTree, FlowNode) FlowTree_t;
 RB_PROTOTYPE(FlowTree, FlowNode, entry, FlowNodeCMP);
 
 int Init_FlowTree(uint32_t CacheSize, uint32_t expireActive, uint32_t expireInactive);
+
+void Init_NodeAllocator(void);
+
+void Dispose_NodeAllocator(void);
 
 void Dispose_FlowTree(void);
 

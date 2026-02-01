@@ -95,7 +95,6 @@
 #define FILTER "ip"
 #define TO_MS 100
 
-static unsigned verbose = 0;
 static unsigned done = 0;
 /*
  * global static var: used by interrupt routine
@@ -278,7 +277,7 @@ int main(int argc, char *argv[]) {
     unsigned snaplen, bufflen, do_daemonize, doDedup;
     unsigned subdir_index, compress, expire, cache_size;
     unsigned activeTimeout, inactiveTimeout, metricInterval;
-    int numWorkers;
+    int verbose, numWorkers;
     dirstat_t *dirstat;
     repeater_t *sendHost;
     time_t t_win;
@@ -534,6 +533,10 @@ int main(int argc, char *argv[]) {
         exit(EXIT_SUCCESS);
     }
 
+    if (!InitLog(do_daemonize, argv[0], SYSLOG_FACILITY, verbose)) {
+        exit(EXIT_FAILURE);
+    }
+
     if (ConfOpen(configFile, "nfpcapd") < 0) exit(EXIT_FAILURE);
 
     if (filter) {
@@ -646,11 +649,6 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
-    if (!InitLog(do_daemonize, argv[0], SYSLOG_FACILITY, verbose)) {
-        pcap_close(packetParam.pcap_dev);
-        exit(EXIT_FAILURE);
-    }
-
     if (do_daemonize) {
         daemonize();
     }
@@ -760,6 +758,8 @@ int main(int argc, char *argv[]) {
     // flow thread terminates on end of node queue
     pthread_join(flowParam.tid, NULL);
     dbg_printf("Flow thread joined\n");
+
+    Dispose_NodeAllocator();
 
     if (datadir) {
         if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {

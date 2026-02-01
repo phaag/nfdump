@@ -361,6 +361,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
     int done = 0;
     while (!done) {
         struct FlowNode *Node = Pop_Node(flowParam->NodeList);
+        dbg_assert(Node->memflag == NODE_IN_USE);
         switch (Node->nodeType) {
             case FLOW_NODE:
                 StorePcapFlow(flowParam, Node);
@@ -393,6 +394,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
                 done = 1;
                 break;
             default:
+                dbg_assert(0);
                 LogError("Unknown node type: %u\n", Node->nodeType);
         }
 

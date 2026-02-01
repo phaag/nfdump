@@ -244,6 +244,8 @@ static inline void PcapDump(packetBuffer_t *packetBuffer, struct bpf_hdr *hdr, c
 void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
     packetParam_t *packetParam = (packetParam_t *)args;
 
+    Init_NodeAllocator();
+
     time_t t_win = packetParam->t_win;
     time_t now = time(NULL);
     time_t t_start = now - (now % t_win);

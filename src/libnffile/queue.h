@@ -87,6 +87,8 @@ void *queue_pop(queue_t *queue);
 
 void *queue_try_pop(queue_t *q);
 
+void *queue_pop_timed(queue_t *q, const struct timespec *abstime);
+
 void queue_close(queue_t *queue);
 
 void queue_sync(queue_t *queue);
