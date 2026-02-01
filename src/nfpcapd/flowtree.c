@@ -66,6 +66,7 @@ RB_GENERATE(FlowTree, FlowNode, entry, FlowNodeCMP);
 #define ExtentSize 4096
 #define MaxSize (1024 * 1024 * 512)
 static time_t lastExpire = 0;
+static time_t lastStat = 0;
 static uint32_t expireActiveTimeout = 300;
 static uint32_t expireInactiveTimeout = 60;
 
@@ -315,9 +316,15 @@ static int Extend_NodeCache(void) {
 // packet thread only
 static void Shrink_NodeCache(time_t now) {
     if ((now - LastShrinkTime) < 10) return;
+    LastShrinkTime = now;
 
     uint32_t allocated = atomic_load_explicit(&Allocated, memory_order_relaxed);
     uint32_t slack = FlowCacheSize - allocated;
+
+    if ((now - lastStat) > 60) {
+        LogVerbose("Cache stat: size: %u, allocated: %u, FlowTree %zu nodes", FlowCacheSize, allocated, flowTreeStat.activeNodes);
+        lastStat = now;
+    }
 
     // Only shrink if we have at least one full slab of slack
     // and never shrink below the default cache size
@@ -378,8 +385,6 @@ static void Shrink_NodeCache(time_t now) {
 
         qpp = &qs->next;
     }
-
-    LastShrinkTime = now;
 
     LogVerbose("Adjust cache slab: %u -> %u. Slabs quarantined: %u, freed: %u", oldCacheSize, FlowCacheSize, quarantinedSlabs, freedSlabs);
 }  // End of Shrink_NodeCache

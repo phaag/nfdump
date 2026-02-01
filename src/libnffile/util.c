@@ -277,10 +277,18 @@ void LogVerbose(char *format, ...) {
     va_list var_args;
     char string[512];
     if (verbose > 1) {
-        va_start(var_args, format);
-        vsnprintf(string, 511, format, var_args);
-        fprintf(stderr, "%s\n", string);
-        va_end(var_args);
+        if (use_syslog) {
+            va_start(var_args, format);
+            vsnprintf(string, 511, format, var_args);
+            va_end(var_args);
+            syslog(LOG_INFO, "%s", string);
+            dbg_printf("%s\n", string);
+        } else {
+            va_start(var_args, format);
+            vsnprintf(string, 511, format, var_args);
+            fprintf(stderr, "%s\n", string);
+            va_end(var_args);
+        }
     }
 
 }  // End of LogVerbose
