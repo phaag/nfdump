@@ -93,7 +93,7 @@ Limit the snaplen on collected packets. The default is 1522 bytes. The
 snaplen needs to be large enough to process all required protocols. The
 snaplen must not be smaller than 54 bytes.
 .It Fl B Ar cachesize
-Sets the number of initial cache nodes required by the flow cache. By default the cache size is set to 512k nodes should be fine. If the cache runs out of nodes, new nodes are dynamically added.
+Sets the initial node cache size. By default the cache size is set to 8192 nodes, and grows and shrinks dynamically.
 .It Fl e Ar active,inactive
 Sets the active and inactive flow expire values in seconds. The default is 300,60.
 .Bl -bullet -compact

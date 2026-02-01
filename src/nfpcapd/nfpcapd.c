@@ -131,7 +131,7 @@ static void usage(char *name) {
         "-g groupid\tChange group to groupname\n"
         "-i interface\tread packets from interface\n"
         "-r pcapfile\tread packets from file\n"
-        "-B num\tset the node cache size. (default 524288)\n"
+        "-B num\tset the initial node cache size. (default 8192 nodes)\n"
         "-d\t\tDe-duplicate packets with window size 8.\n"
         "-s snaplen\tset the snapshot length - default 1522\n"
         "-e active,inactive\tset the active,inactive flow expire time (s) - default 300,60\n"
