@@ -66,7 +66,6 @@ RB_GENERATE(FlowTree, FlowNode, entry, FlowNodeCMP);
 #define ExtentSize 4096
 #define MaxSize (1024 * 1024 * 512)
 static time_t lastExpire = 0;
-static time_t lastStat = 0;
 static uint32_t expireActiveTimeout = 300;
 static uint32_t expireInactiveTimeout = 60;
 
@@ -77,7 +76,7 @@ static struct FlowSlab *PreferredSlab = NULL;
 static uint32_t FlowCacheSize = 0;
 static pthread_t PacketThreadID;
 static uint32_t LastExpireCount = 0;
-static time_t LastShrinkTime = 0;
+static time_t LastShrinkCheck = 0;
 
 /*
  * node cache
@@ -315,16 +314,11 @@ static int Extend_NodeCache(void) {
 
 // packet thread only
 static void Shrink_NodeCache(time_t now) {
-    if ((now - LastShrinkTime) < 10) return;
-    LastShrinkTime = now;
+    if ((now - LastShrinkCheck) < 10) return;
+    LastShrinkCheck = now;
 
     uint32_t allocated = atomic_load_explicit(&Allocated, memory_order_relaxed);
     uint32_t slack = FlowCacheSize - allocated;
-
-    if ((now - lastStat) > 60) {
-        LogVerbose("Cache stat: size: %u, allocated: %u, FlowTree %zu nodes", FlowCacheSize, allocated, flowTreeStat.activeNodes);
-        lastStat = now;
-    }
 
     // Only shrink if we have at least one full slab of slack
     // and never shrink below the default cache size
@@ -402,9 +396,9 @@ void CacheCheck(NodeList_t *NodeList, time_t when) {
         dbg_printf("  Expire cache: %u nodes\n", expired);
         LastExpireCount = expired;
         lastExpire = when;
-    }
 
-    Shrink_NodeCache(when);
+        Shrink_NodeCache(when);
+    }
 }  // End of CacheCheck
 
 void printFlowKey(struct FlowNode *node) {
