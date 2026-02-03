@@ -6,10 +6,10 @@ nfpcapd_CPPFLAGS = -I.. -I../include -I../libnffile -I../inline -I../collector -
 flowdump = flowdump.c flowdump.h
 flowsend = flowsend.c flowsend.h
 pcapdump = pcapdump.c pcapdump.h 
-pcaproc = pcaproc.c pcaproc.h nflog.h pflog.h flowtree.c flowtree.h ip_frag.c ip_frag.h
+pcaproc = pcaproc.c pcaproc.h nflog.h pflog.h flowhash.c flowhash.h ip_frag.c ip_frag.h
 
 nfpcapd_SOURCES = nfpcapd.c packet_pcap.c packet_pcap.h 
-nfpcapd_SOURCES += $(pcaproc) $(pcapdump) $(flowdump) $(flowsend)
+nfpcapd_SOURCES += $(pcaproc) $(pcapdump) $(flowdump) $(flowsend) 
 nfpcapd_CFLAGS = -D_BSD_SOURCE -D_DEFAULT_SOURCE
 nfpcapd_CPPFLAGS += $(PCAP_CFLAGS) $(ZLIB_CFLAGS)
 nfpcapd_LDADD = ../collector/libcollector.a -lnffile  -lpcap -lm

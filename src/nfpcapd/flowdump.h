@@ -35,7 +35,7 @@
 #include <time.h>
 
 #include "collector.h"
-#include "flowtree.h"
+#include "flowhash.h"
 #include "nfnet.h"
 #include "repeater.h"
 

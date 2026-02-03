@@ -63,7 +63,7 @@
 
 #include "bookkeeper.h"
 #include "collector.h"
-#include "flowtree.h"
+#include "flowhash.h"
 #include "ip128.h"
 #include "ip_frag.h"
 #include "nfdump.h"
@@ -382,6 +382,8 @@ update_existing:
         dbg_printf("TCP flush node\n");
         Remove_Node(Node);
         Push_Node(packetParam->NodeList, Node);
+    } else {
+        TimeWheel_Reschedule(Node, hotNode->t_last.tv_sec);
     }
 
 }  // End of ProcessTCPFlow
@@ -449,6 +451,9 @@ update_existing:
         dbg_printf("Existing UDP flow: Set payload of size: %zu\n", payloadSize);
         AddPayload(Node, payload, payloadSize);
     }
+
+    TimeWheel_Reschedule(Node, hotNode->t_last.tv_sec);
+
 }  // End of ProcessUDPFlow
 
 static inline void ProcessICMPFlow(packetParam_t *packetParam, const hotNode_t *hotNode, const coldNode_t *coldNode, void *payload,
@@ -515,6 +520,8 @@ update_existing:
         dbg_printf("Existing flow: Set payload of size: %zu\n", payloadSize);
         AddPayload(Node, payload, payloadSize);
     }
+
+    TimeWheel_Reschedule(Node, hotNode->t_last.tv_sec);
 
 }  // End of ProcessOtherFlow
 

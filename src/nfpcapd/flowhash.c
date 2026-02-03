@@ -28,7 +28,7 @@
  *
  */
 
-#include "flowtree.h"
+#include "flowhash.h"
 
 #include <arpa/inet.h>
 #include <assert.h>
@@ -49,16 +49,69 @@
 #include "nffile.h"
 #include "util.h"
 
-static int Extend_NodeCache(void);
+/* hash slot */
+typedef struct {
+    uint64_t hash;
+    struct FlowNode *node;
+} FlowSlot;
 
-static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2);
+/* open-addressing hash table */
+#define LOAD_FACTOR_NUM 7
+#define LOAD_FACTOR_DEN 10
+#define DefaultHashSize 1024
+
+typedef struct FlowHash_s {
+    FlowSlot *slots;
+    uint32_t capacity;   // power of two
+    uint32_t mask;       // capacity - 1
+    uint32_t size;       // active entries
+    uint32_t resize_at;  // threshold
+    uint32_t seed;
+} FlowHash_t;
+
+// Time wheel
+typedef struct TimeWheelSlot {
+    struct FlowNode *head;
+} TimeWheelSlot;
+
+typedef struct TimeWheel {
+    TimeWheelSlot *slots;
+    uint32_t size;     // number of slots
+    uint32_t current;  // current slot index
+} TimeWheel_t;
+
+static FlowHash_t FlowHashTable = {0};
+static TimeWheel_t FlowWheel = {0};
+
+/* lifecycle */
+static int Hash_Init(FlowHash_t *h, uint32_t initial_capacity);
+
+static void Hash_Destroy(FlowHash_t *h);
+
+/* operations */
+static int Hash_Resize(FlowHash_t *h, uint32_t new_cap);
+
+static struct FlowNode *Hash_Lookup(FlowHash_t *h, const struct flowKey_s *key, uint64_t hash);
+
+static struct FlowNode *Hash_Insert(FlowHash_t *h, struct FlowNode *node, const struct flowKey_s *key, uint64_t hash);
+
+static void Hash_Remove(FlowHash_t *h, struct FlowNode *node, const struct flowKey_s *key, uint64_t hash);
+
+// timewheel
+static int TimeWheel_Init(TimeWheel_t *w, uint32_t size);
+
+static void TimeWheel_Destroy(TimeWheel_t *tw);
+
+static inline void TimeWheel_Insert(TimeWheel_t *tw, struct FlowNode *node, time_t now);
+
+static inline void TimeWheel_Remove(TimeWheel_t *tw, struct FlowNode *node);
+
+// node cache
+static int Extend_NodeCache(void);
 
 static void DumpTreeStat(NodeList_t *NodeList);
 
 static size_t NodeList_length(NodeList_t *NodeList);
-
-// Insert the IP RB tree code here
-RB_GENERATE(FlowTree, FlowNode, entry, FlowNodeCMP);
 
 // Flow Cache to store all nodes
 #define EXPIREINTERVALL 10
@@ -73,10 +126,14 @@ static _Atomic uint32_t Allocated = 0;
 
 static struct FlowSlab *SlabList = NULL;
 static struct FlowSlab *PreferredSlab = NULL;
+static struct FlowSlab *QuarantineList = NULL;
 static uint32_t FlowCacheSize = 0;
 static pthread_t PacketThreadID;
 static uint32_t LastExpireCount = 0;
 static time_t LastShrinkCheck = 0;
+
+static uint32_t expireRun = 0;
+static uint32_t checkRun = 0;
 
 /*
  * node cache
@@ -92,11 +149,258 @@ static time_t LastShrinkCheck = 0;
  * the design needs to be adapted accordingly.
  */
 
-// Flow tree
-static FlowTree_t *FlowTree = NULL;
-static flowTreeStat_t flowTreeStat = {0};
-static struct FlowSlab *QuarantineList = NULL;
+// include hash function in same compiler unit
+#include "metrohash.c"
 
+static flowHashStat_t flowHashStat = {0};
+
+int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInactive) {
+    if (expireActive) {
+        expireActiveTimeout = expireActive;
+        LogInfo("Set active flow expire timeout to %us", expireActiveTimeout);
+    }
+
+    if (expireInactive) {
+        expireInactiveTimeout = expireInactive;
+        LogInfo("Set inactive flow expire timeout to %us", expireInactiveTimeout);
+    }
+
+    // flow hash
+    uint32_t hashSize = DefaultHashSize;
+    if (Hash_Init(&FlowHashTable, hashSize) == 0) return 0;
+
+    uint32_t max_timeout = expireActiveTimeout > expireInactiveTimeout ? expireActiveTimeout : expireInactiveTimeout;
+    // Timewheel
+    if (!TimeWheel_Init(&FlowWheel, max_timeout)) return 0;
+
+    // node cache
+    if (cacheSize == 0) cacheSize = DefaultCacheSize;
+    while (FlowCacheSize < cacheSize)
+        if (!Extend_NodeCache()) return 0;
+
+    Allocated = 0;
+    PreferredSlab = SlabList;
+
+    LogInfo("Init flow hash: %u, node cache: %u", hashSize, FlowCacheSize);
+    return 1;
+}  // End of Init_FlowHash
+
+static int Hash_Init(FlowHash_t *h, uint32_t cap) {
+    if (cap < 1024) cap = 1024;
+    if ((cap & (cap - 1)) != 0) return false;
+
+    h->slots = calloc(cap, sizeof(FlowSlot));
+    if (!h->slots) return false;
+
+    h->capacity = cap;
+    h->mask = cap - 1;
+    h->size = 0;
+    h->resize_at = (cap * LOAD_FACTOR_NUM) / LOAD_FACTOR_DEN;
+    h->seed = arc4random();
+
+    return 1;
+}  // End of Hash_Init
+
+static int Hash_Resize(FlowHash_t *h, uint32_t new_cap) {
+    /* enforce power-of-two */
+    if ((new_cap & (new_cap - 1)) != 0) return false;
+
+    FlowSlot *old_slots = h->slots;
+    uint32_t old_cap = h->capacity;
+
+    LogVerbose("Hash resize: %u -> %u", old_cap, new_cap);
+
+    FlowSlot *new_slots = calloc(new_cap, sizeof(FlowSlot));
+    if (!new_slots) return 0;
+
+    uint32_t new_mask = new_cap - 1;
+
+    /* rehash all live entries */
+    for (uint32_t i = 0; i < old_cap; i++) {
+        FlowSlot *s = &old_slots[i];
+        if (!s->node) continue;
+
+        uint64_t hash = s->hash;
+        uint32_t idx = hash & new_mask;
+
+        for (;;) {
+            FlowSlot *ns = &new_slots[idx];
+            if (!ns->node) {
+                ns->hash = hash;
+                ns->node = s->node;
+                break;
+            }
+            idx = (idx + 1) & new_mask;
+        }
+    }
+
+    /* publish new table */
+    h->slots = new_slots;
+    h->capacity = new_cap;
+    h->mask = new_mask;
+    h->resize_at = (new_cap * LOAD_FACTOR_NUM) / LOAD_FACTOR_DEN;
+    /* h->size unchanged */
+
+    free(old_slots);
+    return 1;
+}  // End of Hash_Resize
+
+void Hash_Destroy(FlowHash_t *h) {
+    free(h->slots);
+    memset(h, 0, sizeof(*h));
+}  // End of Hash_Destroy
+
+/* lookup */
+static struct FlowNode *Hash_Lookup(FlowHash_t *h, const struct flowKey_s *key, uint64_t hash) {
+    size_t keylen = sizeof(struct flowKey_s);
+    uint32_t idx = hash & h->mask;
+
+    for (;;) {
+        FlowSlot *s = &h->slots[idx];
+
+        if (!s->node) return NULL;
+
+        if (s->hash == hash && memcmp(&s->node->hotNode.flowKey, key, keylen) == 0) return s->node;
+
+        idx = (idx + 1) & h->mask;
+    }
+}  // End of Hash_Lookup
+
+/* insert */
+struct FlowNode *Hash_Insert(FlowHash_t *h, struct FlowNode *node, const struct flowKey_s *key, uint64_t hash) {
+    size_t keylen = sizeof(struct flowKey_s);
+    if (h->size >= h->resize_at) {
+        if (!Hash_Resize(h, h->capacity * 2)) {
+            LogError("Hash_Resize() failed");
+            // treat as insertion failure: return existing node as non-NULL to indicate no insert
+            return node;
+        }
+    }
+
+    uint32_t idx = hash & h->mask;
+
+    for (;;) {
+        FlowSlot *s = &h->slots[idx];
+
+        if (!s->node) {
+            s->hash = hash;
+            s->node = node;
+            h->size++;
+
+            return NULL;
+        }
+
+        if (s->hash == hash && memcmp(&s->node->hotNode.flowKey, key, keylen) == 0) return s->node;
+
+        idx = (idx + 1) & h->mask;
+    }
+}  // End of Hash_Insert
+
+/* backward-shift delete */
+void Hash_Remove(FlowHash_t *h, struct FlowNode *node, const struct flowKey_s *key, uint64_t hash) {
+    uint32_t idx = hash & h->mask;
+
+    for (;;) {
+        FlowSlot *s = &h->slots[idx];
+        // NULL entry node with hash not found in table
+        if (!s->node) return;
+
+        // node found - correct entry at idx
+        if (s->node == node) break;
+
+        idx = (idx + 1) & h->mask;
+    }
+
+    // remove slot
+    uint32_t hole = idx;
+    uint32_t next = (hole + 1) & h->mask;
+
+    while (h->slots[next].node) {
+        uint32_t ideal = h->slots[next].hash & h->mask;
+
+        if ((ideal <= hole && hole < next) || (next < ideal && (ideal <= hole || hole < next))) {
+            h->slots[hole] = h->slots[next];
+            hole = next;
+        }
+        next = (next + 1) & h->mask;
+    }
+
+    h->slots[hole].node = NULL;
+    h->size--;
+}  // End of Hash_Remove
+
+static int TimeWheel_Init(TimeWheel_t *tw, uint32_t max_timeout) {
+    uint32_t size = max_timeout + 1;  // 2..300 → up to 301 slots
+    tw->slots = calloc(size, sizeof(TimeWheelSlot));
+    if (!tw->slots) {
+        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return 0;
+    }
+    tw->size = size;
+    tw->current = 0;
+    dbg_printf("Init time wheel: %u\n", size);
+    return 1;
+}  // End of TimeWheel_Init
+
+static void TimeWheel_Destroy(TimeWheel_t *tw) {
+    if (!tw) return;
+
+    if (tw->slots) free(tw->slots);
+    tw->size = 0;
+    tw->current = 0;
+
+}  // End of TimeWheel_Destroy
+
+static inline time_t flow_next_expire(const struct FlowNode *node) {
+    time_t inactive_expire = node->hotNode.t_last.tv_sec + expireInactiveTimeout;
+    time_t active_expire = node->hotNode.t_first.tv_sec + expireActiveTimeout;
+
+    return inactive_expire < active_expire ? inactive_expire : active_expire;
+}  // End of flow_next_expire
+
+static inline void TimeWheel_Insert(TimeWheel_t *tw, struct FlowNode *node, time_t now) {
+    time_t expire_at = flow_next_expire(node);
+    if (expire_at < now) expire_at = now;
+
+    // dbg - node must ot be in wheel
+    dbg_assert(node->wheel_prev_next == NULL);
+
+    uint32_t slot = (uint32_t)(expire_at % tw->size);
+    struct FlowNode *head = tw->slots[slot].head;
+
+    node->wheel_next = head;
+    node->wheel_prev_next = &tw->slots[slot].head;
+    node->wheel_slot = slot;
+
+    if (head) head->wheel_prev_next = &node->wheel_next;
+
+    tw->slots[slot].head = node;
+}  // End of TimeWheel_Insert
+
+static inline void TimeWheel_Remove(TimeWheel_t *tw, struct FlowNode *node) {
+    (void)tw;  // unused for now
+
+    // Node is not in the wheel → nothing to do
+    dbg_assert(node->wheel_prev_next != NULL);
+    if (!node->wheel_prev_next) return;
+
+    struct FlowNode *next = node->wheel_next;
+
+    *node->wheel_prev_next = next;
+
+    if (next) next->wheel_prev_next = node->wheel_prev_next;
+
+    node->wheel_next = NULL;
+    node->wheel_prev_next = NULL;
+}  // End of TimeWheel_Remove
+
+void TimeWheel_Reschedule(struct FlowNode *node, time_t now) {
+    TimeWheel_t *tw = &FlowWheel;
+    TimeWheel_Remove(tw, node);
+    TimeWheel_Insert(tw, node, now);
+}  // End of TimeWheel_Reschedule
+
+// node cache - slab allocator
 static inline void drain_remote_frees(struct FlowSlab *slab) {
     struct FlowNode *list = atomic_exchange_explicit(&slab->remote_free, NULL, memory_order_acquire);
 
@@ -113,37 +417,6 @@ void Init_NodeAllocator(void) {
     // self
     PacketThreadID = pthread_self();
 }  // End of Init_NodeAllocator
-
-/* flow tree functions */
-int Init_FlowTree(uint32_t CacheSize, uint32_t expireActive, uint32_t expireInactive) {
-    if (expireActive) {
-        expireActiveTimeout = expireActive;
-        LogInfo("Set active flow expire timeout to %us", expireActiveTimeout);
-    }
-
-    if (expireInactive) {
-        expireInactiveTimeout = expireInactive;
-        LogInfo("Set inactive flow expire timeout to %us", expireInactiveTimeout);
-    }
-
-    FlowTree = malloc(sizeof(FlowTree_t));
-    if (!FlowTree) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return 0;
-    }
-    RB_INIT(FlowTree);
-
-    if (CacheSize == 0) CacheSize = DefaultCacheSize;
-
-    while (FlowCacheSize < CacheSize)
-        if (!Extend_NodeCache()) return 0;
-
-    Allocated = 0;
-    PreferredSlab = SlabList;
-
-    LogInfo("Init flow cache size: %u nodes", FlowCacheSize);
-    return 1;
-}  // End of Init_FlowTree
 
 void Dispose_NodeAllocator(void) {
     struct FlowSlab *s = SlabList;
@@ -179,19 +452,19 @@ void Dispose_NodeAllocator(void) {
     QuarantineList = NULL;
     FlowCacheSize = 0;
 
+    dbg_printf("CheckCache: %u, ExpireCache: %u\n", checkRun, expireRun);
 }  // End of Dispose_NodeAllocator
 
 void Dispose_FlowTree(void) {
-    struct FlowNode *node, *nxt;
-
-    // Dump all incomplete flows to the file
-    nxt = NULL;
-    for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
-        nxt = RB_NEXT(FlowTree, FlowTree, node);
-        Remove_Node(node);
+    // when called all node should have been drained already by Hash_Flush()
+    uint32_t allocated = atomic_load_explicit(&Allocated, memory_order_relaxed);
+    if (allocated != 0) {
+        LogError("Dispose_FlowTree() left %u node unprocessed", allocated);
     }
 
     Dispose_NodeAllocator();
+    Hash_Destroy(&FlowHashTable);
+    TimeWheel_Destroy(&FlowWheel);
 
 }  // End of Dispose_FlowTree
 
@@ -211,6 +484,10 @@ struct FlowNode *New_Node(void) {
             atomic_fetch_add_explicit(&Allocated, 1, memory_order_relaxed);
 
             n->next = NULL;
+            n->wheel_next = NULL;
+            n->wheel_prev_next = NULL;
+            n->wheel_slot = 0;
+
             n->memflag = NODE_IN_USE;
             n->nodeType = FLOW_NODE;
             return n;
@@ -229,6 +506,10 @@ struct FlowNode *New_Node(void) {
             atomic_fetch_add_explicit(&Allocated, 1, memory_order_relaxed);
 
             n->next = NULL;
+            n->wheel_next = NULL;
+            n->wheel_prev_next = NULL;
+            n->wheel_slot = 0;
+
             n->memflag = NODE_IN_USE;
             n->nodeType = FLOW_NODE;
             return n;
@@ -314,7 +595,7 @@ static int Extend_NodeCache(void) {
 
 // packet thread only
 static void Shrink_NodeCache(time_t now) {
-    if ((now - LastShrinkCheck) < 10) return;
+    if ((now - LastShrinkCheck) < 30) return;
     LastShrinkCheck = now;
 
     uint32_t allocated = atomic_load_explicit(&Allocated, memory_order_relaxed);
@@ -383,21 +664,77 @@ static void Shrink_NodeCache(time_t now) {
     LogVerbose("Adjust cache slab: %u -> %u. Slabs quarantined: %u, freed: %u", oldCacheSize, FlowCacheSize, quarantinedSlabs, freedSlabs);
 }  // End of Shrink_NodeCache
 
+static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
+    if (flowHashStat.activeNodes == 0) return 0;
+
+    uint32_t slot = (uint32_t)(when % FlowWheel.size);
+    FlowWheel.current = slot;
+
+#ifdef DEVEL
+    char buff[20];
+    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&when));
+    printf("TimeWheel expires at: %s, slot: %u\n", buff, slot);
+#endif
+
+    // Detach the entire slot list
+    struct FlowNode *node = FlowWheel.slots[slot].head;
+    FlowWheel.slots[slot].head = NULL;
+
+    uint32_t flowCnt = 0;
+    uint32_t fragCnt = 0;
+
+    while (node) {
+        struct FlowNode *next = node->wheel_next;
+
+        time_t expire_at = flow_next_expire(node);
+
+        if (when >= expire_at || when == 0) {
+            // Flow is expired: Remove_Node() will call TimeWheel_Remove()
+            Remove_Node(node);
+
+            if (node->nodeType == FLOW_NODE) {
+                Push_Node(NodeList, node);
+                flowCnt++;
+            } else if (node->nodeType == FRAG_NODE) {
+                Free_Node(node);
+                fragCnt++;
+            }
+        } else {
+            // Not expired yet → reschedule into correct future slot
+            TimeWheel_Insert(&FlowWheel, node, when);
+        }
+
+        node = next;
+    }
+
+    if (flowCnt || fragCnt) {
+        LogVerbose("Expired flow nodes: %u, frag nodes: %u. Active flow nodes: %d, frag nodes: %u", flowCnt, fragCnt, flowHashStat.flowNodes,
+                   flowHashStat.fragNodes);
+        LogVerbose("Node cache size: %u, allocated %u, cache size: %zd, queue size: %zu", FlowCacheSize, Allocated, flowHashStat.activeNodes,
+                   NodeList->length);
+    }
+
+    return flowCnt + fragCnt;
+}  // End of Expire_FlowTree
+
 void CacheCheck(NodeList_t *NodeList, time_t when) {
-    dbg_printf("Cache check: ");
     if (lastExpire == 0) {
         lastExpire = when;
         dbg_printf("Init\n");
         return;
     }
+    checkRun++;
 
     if ((when - lastExpire) > EXPIREINTERVALL) {
+        expireRun++;
         uint32_t expired = Expire_FlowTree(NodeList, when);
-        dbg_printf("  Expire cache: %u nodes\n", expired);
+        dbg_printf("expired: %u nodes\n", expired);
         LastExpireCount = expired;
         lastExpire = when;
 
         Shrink_NodeCache(when);
+    } else {
+        dbg_printf("Skip cache check\n");
     }
 }  // End of CacheCheck
 
@@ -410,39 +747,42 @@ void printFlowKey(struct FlowNode *node) {
            node->hotNode.flowKey.src_port, dstAddr, node->hotNode.flowKey.dst_port, node->hotNode.flowKey._ALIGN);
 }
 
-void printTree(void) {
-    struct FlowNode *node = NULL;
-    struct FlowNode *nxt = NULL;
-    printf("FlowTree %zu nodes:\n", flowTreeStat.activeNodes);
-    for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
-        printFlowKey(node);
-        nxt = RB_NEXT(FlowTree, FlowTree, node);
+void printHash(void) {
+    FlowHash_t *h = &FlowHashTable;
+    printf("FlowHash %zu nodes:\n", flowHashStat.activeNodes);
+    for (uint32_t i = 0; i < h->capacity; i++) {
+        FlowSlot *s = &h->slots[i];
+        if (!s->node) continue;
+
+        printFlowKey(s->node);
     }
-}
+}  // End of printHash
 
-static int FlowNodeCMP(struct FlowNode *e1, struct FlowNode *e2) {
-    int i = memcmp((void *)&e1->hotNode.flowKey, (void *)&e2->hotNode.flowKey, sizeof(e1->hotNode.flowKey));
-    return i;
-}  // End of FlowNodeCMP
-
-struct FlowNode *Lookup_Node(struct FlowNode *node) { return RB_FIND(FlowTree, FlowTree, node); }  // End of Lookup_FlowTree
+struct FlowNode *Lookup_Node(struct FlowNode *node) {
+    const uint8_t *key = (uint8_t *)&node->hotNode.flowKey;
+    uint64_t hash = metrohash64_1(key, sizeof(struct flowKey_s), FlowHashTable.seed);
+    return Hash_Lookup(&FlowHashTable, &node->hotNode.flowKey, hash);
+}  // End of Lookup_FlowTree
 
 struct FlowNode *Insert_Node(struct FlowNode *node) {
-    struct FlowNode *n;
+    const uint8_t *key = (uint8_t *)&node->hotNode.flowKey;
+    uint64_t hash = metrohash64_1(key, sizeof(struct flowKey_s), FlowHashTable.seed);
+    node->hotNode.hash = hash;
 
     dbg_assert(node->next == NULL);
 
-    // return RB_INSERT(FlowTree, FlowTree, node);
-    n = RB_INSERT(FlowTree, FlowTree, node);
+    struct FlowNode *n = Hash_Insert(&FlowHashTable, node, &node->hotNode.flowKey, hash);
     if (n) {  // existing node
         return n;
     } else {
-        flowTreeStat.activeNodes++;
+        flowHashStat.activeNodes++;
         if (node->nodeType == FLOW_NODE)
-            flowTreeStat.flowNodes++;
+            flowHashStat.flowNodes++;
         else if (node->nodeType == FRAG_NODE)
-            flowTreeStat.fragNodes++;
+            flowHashStat.fragNodes++;
         node->inTree = 1;
+        // schedule timewheel
+        TimeWheel_Insert(&FlowWheel, node, node->hotNode.t_last.tv_sec);
         return NULL;
     }
 }  // End of Insert_Node
@@ -462,13 +802,14 @@ void Remove_Node(struct FlowNode *node) {
         node->coldNode.rev_node = NULL;
     }
 
-    RB_REMOVE(FlowTree, FlowTree, node);
+    Hash_Remove(&FlowHashTable, node, &node->hotNode.flowKey, node->hotNode.hash);
+    TimeWheel_Remove(&FlowWheel, node);
 
-    flowTreeStat.activeNodes--;
+    flowHashStat.activeNodes--;
     if (node->nodeType == FLOW_NODE)
-        flowTreeStat.flowNodes--;
+        flowHashStat.flowNodes--;
     else if (node->nodeType == FRAG_NODE)
-        flowTreeStat.fragNodes--;
+        flowHashStat.fragNodes--;
 
     node->inTree = 0;
 
@@ -510,66 +851,53 @@ int Link_RevNode(struct FlowNode *node) {
 
 }  // End of Link_RevNode
 
-uint32_t Flush_FlowTree(NodeList_t *NodeList, time_t when) {
-    struct FlowNode *node, *nxt;
+uint32_t Hash_Flush(NodeList_t *NodeList, time_t when) {
+    FlowHash_t *h = &FlowHashTable;
 
-    // Dump all incomplete flows to the file
-    nxt = NULL;
-    for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
-        nxt = RB_NEXT(FlowTree, FlowTree, node);
-        Remove_Node(node);
-        if (node->nodeType == FRAG_NODE) {
-            Free_Node(node);
+    uint32_t drained = 0;
+
+    for (uint32_t i = 0; i < h->capacity; i++) {
+        FlowSlot *s = &h->slots[i];
+        if (!s->node) continue;
+
+        struct FlowNode *node = s->node;
+        s->node = NULL;
+
+        struct FlowNode *rev_node = node->coldNode.rev_node;
+        if (rev_node) {
+            // unlink rev node on both nodes
+            dbg_assert(rev_node->coldNode.rev_node == node);
+            rev_node->coldNode.rev_node = NULL;
+            node->coldNode.rev_node = NULL;
+        }
+        node->inTree = 0;
+
+        TimeWheel_Remove(&FlowWheel, node);
+
+        if (node->nodeType == FLOW_NODE) {
+            Push_Node(NodeList, node);
+            flowHashStat.flowNodes--;
         } else {
-            Push_Node(NodeList, node);
-        }
-    }
-
-    node = New_Node();
-    node->timestamp = when;
-    node->nodeType = SIGNAL_NODE_DONE;
-    dbg_printf("Push signal_node_done\n");
-    Push_Node(NodeList, node);
-
-    return 0;
-
-}  // End of Flush_FlowTree
-
-uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
-    struct FlowNode *node, *nxt;
-
-    if (flowTreeStat.activeNodes == 0) return 0;
-
-    uint32_t flowCnt = 0;
-    uint32_t fragCnt = 0;
-    // Dump all incomplete flows to the file
-    nxt = NULL;
-    for (node = RB_MIN(FlowTree, FlowTree); node != NULL; node = nxt) {
-        nxt = RB_NEXT(FlowTree, FlowTree, node);
-        if ((node->nodeType == FLOW_NODE) &&
-            // inactive timeout
-            ((when - node->hotNode.t_last.tv_sec) > expireInactiveTimeout ||
-             // active timeout
-             (when - node->hotNode.t_first.tv_sec) > expireActiveTimeout || when == 0)) {
-            Remove_Node(node);
-            Push_Node(NodeList, node);
-            flowCnt++;
-        } else if ((node->nodeType == FRAG_NODE) && ((when - node->hotNode.t_last.tv_sec) > 15 || when == 0)) {
-            Remove_Node(node);
             Free_Node(node);
-            fragCnt++;
+            flowHashStat.fragNodes--;
         }
+        flowHashStat.activeNodes--;
+        drained++;
+    }
+    LogVerbose("Flushed flow table: %u flows", drained);
+
+    h->size = 0;
+
+    /* push final done signal */
+    struct FlowNode *sig = New_Node();
+    if (sig) {
+        sig->timestamp = when;
+        sig->nodeType = SIGNAL_NODE_DONE;
+        Push_Node(NodeList, sig);
     }
 
-    if (flowCnt || fragCnt) {
-        LogVerbose("Expired flow nodes: %u, frag nodes: %u. Active flow nodes: %d, frag nodes: %u", flowCnt, fragCnt, flowTreeStat.flowNodes,
-                   flowTreeStat.fragNodes);
-        LogVerbose("Node cache size: %u, allocated %u, cache size: %zd, queue size: %zu", FlowCacheSize, Allocated, flowTreeStat.activeNodes,
-                   NodeList_length(NodeList));
-    }
-
-    return flowCnt + fragCnt;
-}  // End of Expire_FlowTree
+    return drained;
+}  // End of Hash_Flush
 
 /* Node list functions */
 NodeList_t *NewNodeList(void) {
@@ -602,7 +930,7 @@ void DisposeNodeList(NodeList_t *NodeList) {
 }  // End of DisposeNodeList
 
 static void DumpTreeStat(NodeList_t *NodeList) {
-    LogVerbose("Node cache size: %u, in use %u, cache size: %zu, queue size: %zu", FlowCacheSize, Allocated, flowTreeStat.activeNodes,
+    LogVerbose("Node cache size: %u, in use %u, cache size: %zu, queue size: %zu", FlowCacheSize, Allocated, flowHashStat.activeNodes,
                NodeList_length(NodeList));
 }  // End of DumpTreeStat
 

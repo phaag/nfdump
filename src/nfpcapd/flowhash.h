@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2011-2025, Peter Haag
+ *  Copyright (c) 2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,8 +28,8 @@
  *
  */
 
-#ifndef _FLOWTREE_H
-#define _FLOWTREE_H 1
+#ifndef _FLOWHASH_H
+#define _FLOWHASH_H 1
 
 #include <pthread.h>
 #include <signal.h>
@@ -44,13 +44,12 @@
 #include "ip128.h"
 #include "nfdump.h"
 #include "nfxV3.h"
-#include "rbtree.h"
 
-typedef struct flowTreeStat_s {
+typedef struct flowHashStat_s {
     size_t activeNodes;
     size_t flowNodes;
     size_t fragNodes;
-} flowTreeStat_t;
+} flowHashStat_t;
 
 // information updated or tested for every packet - hot path
 typedef struct hotNode_s {
@@ -63,6 +62,7 @@ typedef struct hotNode_s {
         uint8_t version;
         uint16_t _ALIGN;  // keep alignment
     } flowKey;
+    uint64_t hash;
 
     struct timeval t_first;  // first seen
     struct timeval t_last;   // last seen
@@ -119,11 +119,12 @@ typedef struct coldNode_s {
 } coldNode_t;
 
 struct FlowNode {
-    // --- Tree + list links
-    RB_ENTRY(FlowNode) entry;  // RB tree linkage
-
     struct FlowNode *next;  // Linked list in FreeList
     struct FlowSlab *slab;  // slab pointer
+    // expire wheel
+    struct FlowNode *wheel_next;
+    struct FlowNode **wheel_prev_next;
+    uint32_t wheel_slot;
 
     time_t timestamp;     // timestamp sync node
     hotNode_t hotNode;    // not node and cache relevant
@@ -161,13 +162,7 @@ typedef struct NodeList_s {
     size_t length;
 } NodeList_t;
 
-/* flow tree type */
-typedef RB_HEAD(FlowTree, FlowNode) FlowTree_t;
-
-// Insert the RB prototypes here
-RB_PROTOTYPE(FlowTree, FlowNode, entry, FlowNodeCMP);
-
-int Init_FlowTree(uint32_t CacheSize, uint32_t expireActive, uint32_t expireInactive);
+int Init_FlowHash(uint32_t cacheSize, uint32_t expireActive, uint32_t expireInactive);
 
 void Init_NodeAllocator(void);
 
@@ -175,9 +170,7 @@ void Dispose_NodeAllocator(void);
 
 void Dispose_FlowTree(void);
 
-uint32_t Flush_FlowTree(NodeList_t *NodeList, time_t when);
-
-uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when);
+uint32_t Hash_Flush(NodeList_t *NodeList, time_t when);
 
 struct FlowNode *Lookup_Node(struct FlowNode *node);
 
@@ -185,13 +178,11 @@ struct FlowNode *New_Node(void);
 
 void printFlowKey(struct FlowNode *node);
 
-void printTree(void);
+void printHash(void);
 
 void Free_Node(struct FlowNode *node);
 
 void CacheCheck(NodeList_t *NodeList, time_t when);
-
-int AddNodeData(struct FlowNode *node, uint32_t seq, void *payload, uint32_t size);
 
 struct FlowNode *Insert_Node(struct FlowNode *node);
 
@@ -212,4 +203,6 @@ size_t Pop_Batch(NodeList_t *NodeList, struct FlowNode **out, size_t max);
 
 void Push_SyncNode(NodeList_t *NodeList, time_t timestamp);
 
-#endif  // _FLOWTREE_H
+void TimeWheel_Reschedule(struct FlowNode *node, time_t now);
+
+#endif  // _FLOWHASH_H

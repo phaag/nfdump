@@ -71,8 +71,8 @@
 #include "expire.h"
 #include "flist.h"
 #include "flowdump.h"
+#include "flowhash.h"
 #include "flowsend.h"
-#include "flowtree.h"
 #include "metric.h"
 #include "nfdump.h"
 #include "nffile.h"
@@ -644,8 +644,8 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    if (!Init_FlowTree(cache_size, activeTimeout, inactiveTimeout)) {
-        LogError("Init_FlowTree() failed.");
+    if (!Init_FlowHash(cache_size, activeTimeout, inactiveTimeout)) {
+        LogError("Init_FlowHash() failed");
         exit(EXIT_FAILURE);
     }
 
@@ -752,14 +752,14 @@ int main(int argc, char *argv[]) {
         dbg_printf("Pcap flush thread joined\n");
     }
 
-    dbg_printf("Flush flow tree\n");
-    Flush_FlowTree(flowParam.NodeList, packetParam.t_win);
+    dbg_printf("Flush flow hash\n");
+    Hash_Flush(flowParam.NodeList, packetParam.t_win);
 
     // flow thread terminates on end of node queue
     pthread_join(flowParam.tid, NULL);
     dbg_printf("Flow thread joined\n");
 
-    Dispose_NodeAllocator();
+    Dispose_FlowTree();
 
     if (datadir) {
         if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {

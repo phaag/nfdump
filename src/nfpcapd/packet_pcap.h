@@ -35,7 +35,7 @@
 #include <pthread.h>
 #include <time.h>
 
-#include "flowtree.h"
+#include "flowhash.h"
 #include "queue.h"
 
 #define PROMISC 1
