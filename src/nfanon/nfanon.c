@@ -452,14 +452,9 @@ static void *worker_thread(void *arg) {
                         break;
                     case ExporterInfoRecordType:
                         AnonExporterInfo((exporter_info_record_t *)record_ptr);
-                    case ExporterStatRecordType:
-                    case SamplerRecordType:
-                    case NbarRecordType:
-                        // Silently skip exporter/sampler records
-                        break;
 
                     default: {
-                        LogError("Skip unknown record: %u type %i", recordCount, record_ptr->type);
+                        // Silently skip unknown records
                     }
                 }
             }
