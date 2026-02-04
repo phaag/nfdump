@@ -83,12 +83,11 @@ typedef struct TimeWheel {
 static FlowHash_t FlowHashTable = {0};
 static TimeWheel_t FlowWheel = {0};
 
-/* lifecycle */
+// hash
 static int Hash_Init(FlowHash_t *h, uint32_t initial_capacity);
 
 static void Hash_Destroy(FlowHash_t *h);
 
-/* operations */
 static int Hash_Resize(FlowHash_t *h, uint32_t new_cap);
 
 static struct FlowNode *Hash_Lookup(FlowHash_t *h, const struct flowKey_s *key, uint64_t hash);
@@ -126,7 +125,8 @@ static _Atomic uint32_t Allocated = 0;
 
 static struct FlowSlab *SlabList = NULL;
 static struct FlowSlab *PreferredSlab = NULL;
-static struct FlowSlab *QuarantineList = NULL;
+static _Atomic(struct FlowNode *) GlobalFree = NULL;
+
 static uint32_t FlowCacheSize = 0;
 static pthread_t PacketThreadID;
 static uint32_t LastExpireCount = 0;
@@ -138,14 +138,14 @@ static uint32_t checkRun = 0;
 /*
  * node cache
  * The node cache builds up on a list of slabs. Each slab has ExtentSize nodes.
- * The minimum node cahce size is DefaultCacheSize nodes.
+ * The minimum node cache size is DefaultCacheSize nodes.
  * New slabs may be allocated, if more node are required (busy network, or packet peak)
- * Empty slab are freed, if they are no longer needed.
+ * Empty slabs are freed, if they are no longer needed.
  * The current implementation works under the current design:
  * 1 packet thread, 1 flow thread
- * All slab maintainance such as Extend_NodeCache Shrink_NodeCache, drain remote_frees and
+ * All slab maintainance such as Extend_NodeCache Shrink_NodeCache, drain GlobalFree and
  * New_Node are touched exclusively by the packet thread and the flow thread exclusively
- * calls Free_node() and atomically add the freed node to remote_free. If this changes
+ * calls Free_node() and atomically add the freed node to GlobalFree. If this changes
  * the design needs to be adapted accordingly.
  */
 
@@ -400,64 +400,75 @@ void TimeWheel_Reschedule(struct FlowNode *node, time_t now) {
     TimeWheel_Insert(tw, node, now);
 }  // End of TimeWheel_Reschedule
 
-// node cache - slab allocator
-static inline void drain_remote_frees(struct FlowSlab *slab) {
-    struct FlowNode *list = atomic_exchange_explicit(&slab->remote_free, NULL, memory_order_acquire);
-
-    while (list) {
-        struct FlowNode *n = list;
-        list = n->next;
-
-        n->next = slab->local_free;
-        slab->local_free = n;
-    }
-}  // End of drain_remote_frees
-
 void Init_NodeAllocator(void) {
     // self
     PacketThreadID = pthread_self();
 }  // End of Init_NodeAllocator
 
+static void drain_global_free(void) {
+    struct FlowNode *list = atomic_exchange_explicit(&GlobalFree, NULL, memory_order_acquire);
+
+    while (list) {
+        struct FlowNode *n = list;
+        list = n->next;
+
+        struct FlowSlab *s = n->slab;
+
+        n->next = s->local_free;
+        s->local_free = n;
+
+        atomic_fetch_sub_explicit(&s->free_pending, 1, memory_order_relaxed);
+        atomic_fetch_sub_explicit(&s->in_use, 1, memory_order_relaxed);
+        atomic_fetch_sub_explicit(&Allocated, 1, memory_order_relaxed);
+    }
+}  // End of drain_global_free
+
 void Dispose_NodeAllocator(void) {
+    // At this point both packet and flow threads are stopped.
+    // It is now safe to drain the global free list one last time.
+    drain_global_free();
+
+    // Free all slabs in the main slab list
     struct FlowSlab *s = SlabList;
     while (s) {
         struct FlowSlab *next = s->next;
 
         uint32_t in_use = atomic_load_explicit(&s->in_use, memory_order_relaxed);
-        if (in_use != 0) {
-            LogError("Dispose_NodeAllocator(): slab still has %u allocated nodes", in_use);
-        }
-        free(s);
+        uint32_t free_pending = atomic_load_explicit(&s->free_pending, memory_order_relaxed);
 
+        if (in_use != 0 || free_pending != 0) {
+            LogError("Dispose_NodeAllocator(): slab still has in_use=%u, free_pending=%u", in_use, free_pending);
+        }
+
+        free(s);
         s = next;
     }
 
     SlabList = NULL;
-    /* free any slabs that were moved to quarantine */
-    struct FlowSlab *qs = QuarantineList;
-    while (qs) {
-        struct FlowSlab *next = qs->next;
+    PreferredSlab = NULL;
 
-        uint32_t in_use = atomic_load_explicit(&qs->in_use, memory_order_relaxed);
-        if (in_use != 0) {
-            LogError("Dispose_NodeAllocator(): quarantined slab still has %u allocated nodes", in_use);
-        }
-
-        /* drain any pending remote frees (best effort) */
-        drain_remote_frees(qs);
-        free(qs);
-
-        qs = next;
-    }
-    QuarantineList = NULL;
+    // Global counters
     FlowCacheSize = 0;
+    Allocated = 0;
+
+    // Global free list should be empty now
+    struct FlowNode *leftover = atomic_load_explicit(&GlobalFree, memory_order_relaxed);
+    if (leftover) {
+        LogError("Dispose_NodeAllocator(): GlobalFree not empty at shutdown");
+    }
+    atomic_store_explicit(&GlobalFree, NULL, memory_order_relaxed);
 
     dbg_printf("CheckCache: %u, ExpireCache: %u\n", checkRun, expireRun);
 }  // End of Dispose_NodeAllocator
 
 void Dispose_FlowTree(void) {
     // when called all node should have been drained already by Hash_Flush()
+
+    // return nodes in global free list
+    drain_global_free();
+
     uint32_t allocated = atomic_load_explicit(&Allocated, memory_order_relaxed);
+    dbg_printf("Hash stat - flow nodes: %zu, frag nodes: %zu total: %zu\n", flowHashStat.flowNodes, flowHashStat.fragNodes, flowHashStat.activeNodes);
     if (allocated != 0) {
         LogError("Dispose_FlowTree() left %u node unprocessed", allocated);
     }
@@ -471,58 +482,79 @@ void Dispose_FlowTree(void) {
 struct FlowNode *New_Node(void) {
     struct FlowSlab *s;
 
-    // used by packet thread only
-    // First try preferred slab
+    // Packet thread only
+    // Try preferred slab first
     s = PreferredSlab;
-    if (s) {
-        if (!s->local_free) drain_remote_frees(s);
-        if (s->local_free) {
-            struct FlowNode *n = s->local_free;
-            s->local_free = n->next;
+    if (s && s->local_free) {
+        struct FlowNode *n = s->local_free;
+        s->local_free = n->next;
 
-            atomic_fetch_add_explicit(&s->in_use, 1, memory_order_relaxed);
-            atomic_fetch_add_explicit(&Allocated, 1, memory_order_relaxed);
+        atomic_fetch_add_explicit(&s->in_use, 1, memory_order_relaxed);
+        atomic_fetch_add_explicit(&Allocated, 1, memory_order_relaxed);
 
-            n->next = NULL;
-            n->wheel_next = NULL;
-            n->wheel_prev_next = NULL;
-            n->wheel_slot = 0;
+        n->next = NULL;
+        n->memflag = NODE_IN_USE;
+        n->nodeType = FLOW_NODE;
+        return n;
+    }
 
-            n->memflag = NODE_IN_USE;
-            n->nodeType = FLOW_NODE;
-            return n;
-        }
+    // If preferred slab is empty, try draining global free list
+    drain_global_free();
+
+    // Try preferred slab again after draining
+    s = PreferredSlab;
+    if (s && s->local_free) {
+        struct FlowNode *n = s->local_free;
+        s->local_free = n->next;
+
+        atomic_fetch_add_explicit(&s->in_use, 1, memory_order_relaxed);
+        atomic_fetch_add_explicit(&Allocated, 1, memory_order_relaxed);
+
+        n->next = NULL;
+        n->memflag = NODE_IN_USE;
+        n->nodeType = FLOW_NODE;
+        return n;
     }
 
     // Fallback: scan all slabs
     for (s = SlabList; s; s = s->next) {
-        if (!s->local_free) drain_remote_frees(s);
-        if (s->local_free) {
-            PreferredSlab = s;
-            struct FlowNode *n = s->local_free;
-            s->local_free = n->next;
+        if (!s->local_free) continue;
 
-            atomic_fetch_add_explicit(&s->in_use, 1, memory_order_relaxed);
-            atomic_fetch_add_explicit(&Allocated, 1, memory_order_relaxed);
+        PreferredSlab = s;
 
-            n->next = NULL;
-            n->wheel_next = NULL;
-            n->wheel_prev_next = NULL;
-            n->wheel_slot = 0;
+        struct FlowNode *n = s->local_free;
+        s->local_free = n->next;
 
-            n->memflag = NODE_IN_USE;
-            n->nodeType = FLOW_NODE;
-            return n;
-        }
+        atomic_fetch_add_explicit(&s->in_use, 1, memory_order_relaxed);
+        atomic_fetch_add_explicit(&Allocated, 1, memory_order_relaxed);
+
+        n->next = NULL;
+        n->memflag = NODE_IN_USE;
+        n->nodeType = FLOW_NODE;
+        return n;
     }
 
+    // No free nodes anywhere: extend cache
     if (FlowCacheSize >= MaxSize) return NULL;
+
     if (!Extend_NodeCache()) return NULL;
 
-    PreferredSlab = SlabList;  // newest slab
+    // New slab added at head of SlabList
+    PreferredSlab = SlabList;
 
-    return New_Node();
-}  // End of New_Node
+    // Guaranteed to succeed now
+    s = PreferredSlab;
+    struct FlowNode *n = s->local_free;
+    s->local_free = n->next;
+
+    atomic_fetch_add_explicit(&s->in_use, 1, memory_order_relaxed);
+    atomic_fetch_add_explicit(&Allocated, 1, memory_order_relaxed);
+
+    n->next = NULL;
+    n->memflag = NODE_IN_USE;
+    n->nodeType = FLOW_NODE;
+    return n;
+}  // ENd of New_Node
 
 // return node into free list
 void Free_Node(struct FlowNode *node) {
@@ -536,33 +568,22 @@ void Free_Node(struct FlowNode *node) {
     // cleanup node
     if (node->coldNode.payload) free(node->coldNode.payload);
     if (node->coldNode.pflog) free(node->coldNode.pflog);
-    memset((void *)&node->hotNode, 0, sizeof(hotNode_t));
-    memset((void *)&node->coldNode, 0, sizeof(coldNode_t));
+    memset(&node->hotNode, 0, sizeof(hotNode_t));
+    memset(&node->coldNode, 0, sizeof(coldNode_t));
 
     struct FlowSlab *s = node->slab;
 
     node->memflag = NODE_FREE;
-    if (pthread_equal(PacketThreadID, pthread_self())) {
-        // local free - packet thread
-        node->next = s->local_free;
-        s->local_free = node;
-    } else {
-        // remote free - flow_thread
-        // If the slab is being removed, do not attempt to add to remote_free.
-        // if removing is set we just decrement counters
-        // and drop the node (slab will be reclaimed by packet thread).
-        if (atomic_load_explicit(&s->removing, memory_order_acquire) == 0) {
-            // best-effort push into remote_free using simple CAS loop
-            struct FlowNode *old;
-            do {
-                old = atomic_load_explicit(&s->remote_free, memory_order_acquire);
-                node->next = old;
-            } while (!atomic_compare_exchange_weak_explicit(&s->remote_free, &old, node, memory_order_release, memory_order_relaxed));
-        }
-    }
 
-    atomic_fetch_sub_explicit(&Allocated, 1, memory_order_relaxed);
-    atomic_fetch_sub_explicit(&s->in_use, 1, memory_order_relaxed);
+    atomic_fetch_add_explicit(&s->free_pending, 1, memory_order_relaxed);
+
+    // push to global free list
+    struct FlowNode *old;
+    do {
+        old = atomic_load_explicit(&GlobalFree, memory_order_acquire);
+        node->next = old;
+    } while (!atomic_compare_exchange_weak_explicit(&GlobalFree, &old, node, memory_order_release, memory_order_relaxed));
+
 }  // End of Free_Node
 
 static int Extend_NodeCache(void) {
@@ -574,9 +595,7 @@ static int Extend_NodeCache(void) {
 
     slab->capacity = ExtentSize;
     atomic_init(&slab->in_use, 0);
-    atomic_init(&slab->remote_free, NULL);
-    atomic_init(&slab->removing, false);
-    slab->removed_at = 0;
+    atomic_init(&slab->free_pending, 0);
 
     for (uint32_t i = 0; i < ExtentSize; i++) {
         slab->nodes[i].slab = slab;
@@ -598,6 +617,9 @@ static void Shrink_NodeCache(time_t now) {
     if ((now - LastShrinkCheck) < 30) return;
     LastShrinkCheck = now;
 
+    // First reclaim all nodes freed by the flow thread
+    drain_global_free();
+
     uint32_t allocated = atomic_load_explicit(&Allocated, memory_order_relaxed);
     uint32_t slack = FlowCacheSize - allocated;
 
@@ -605,64 +627,32 @@ static void Shrink_NodeCache(time_t now) {
     // and never shrink below the default cache size
     if (slack < ExtentSize || FlowCacheSize <= DefaultCacheSize) return;
 
-    // Never shrink below the default cache size
     uint32_t min_size = DefaultCacheSize;
 
     struct FlowSlab **pp = &SlabList;
     uint32_t oldCacheSize = FlowCacheSize;
-    uint32_t quarantinedSlabs = 0;
+    uint32_t freedSlabs = 0;
+
     while (*pp && FlowCacheSize > min_size) {
         struct FlowSlab *s = *pp;
 
-        drain_remote_frees(s);
+        uint32_t in_use = atomic_load_explicit(&s->in_use, memory_order_relaxed);
+        uint32_t free_pending = atomic_load_explicit(&s->free_pending, memory_order_relaxed);
 
-        if (atomic_load_explicit(&s->in_use, memory_order_relaxed) == 0) {
-            /* Move slab to quarantine: mark removing and unlink from SlabList.
-             * Actual free is deferred and handled below after a grace period
-             * to ensure no flow thread still touches slab memory. */
-            atomic_store_explicit(&s->removing, true, memory_order_release);
-
+        if (in_use == 0 && free_pending == 0) {
+            // Safe to free slab: no nodes in use, none in flight
             *pp = s->next;
             FlowCacheSize -= s->capacity;
-
-            s->next = NULL;  // detach
-            s->removed_at = now;
-            /* prepend to quarantine list */
-            s->next = QuarantineList;
-            QuarantineList = s;
-            quarantinedSlabs++;
+            free(s);
+            freedSlabs++;
             continue;
         }
 
         pp = &s->next;
     }
 
-    // Sweep quarantine list: free slabs that have been quarantined since last 10s run
-    uint32_t freedSlabs = 0;
-    struct FlowSlab **qpp = &QuarantineList;
-    while (*qpp) {
-        struct FlowSlab *qs = *qpp;
-        /* If the slab was moved to quarantine in this run (removed_at == now)
-         * skip it; otherwise it's safe to attempt to free it now. */
-        if (qs->removed_at == now) {
-            qpp = &qs->next;
-            continue;
-        }
-
-        // ensure no in-use nodes and no remote frees
-        drain_remote_frees(qs);
-        if (atomic_load_explicit(&qs->in_use, memory_order_relaxed) == 0 && atomic_load_explicit(&qs->remote_free, memory_order_relaxed) == NULL) {
-            *qpp = qs->next;
-            free(qs);
-            freedSlabs++;
-            continue;
-        }
-
-        qpp = &qs->next;
-    }
-
-    LogVerbose("Adjust cache slab: %u -> %u. Slabs quarantined: %u, freed: %u", oldCacheSize, FlowCacheSize, quarantinedSlabs, freedSlabs);
-}  // End of Shrink_NodeCache
+    LogVerbose("Adjust cache slab: %u -> %u. Slabs freed: %u", oldCacheSize, FlowCacheSize, freedSlabs);
+}
 
 static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
     if (flowHashStat.activeNodes == 0) return 0;
@@ -711,7 +701,7 @@ static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
         LogVerbose("Expired flow nodes: %u, frag nodes: %u. Active flow nodes: %d, frag nodes: %u", flowCnt, fragCnt, flowHashStat.flowNodes,
                    flowHashStat.fragNodes);
         LogVerbose("Node cache size: %u, allocated %u, cache size: %zd, queue size: %zu", FlowCacheSize, Allocated, flowHashStat.activeNodes,
-                   NodeList->length);
+                   NodeList_length(NodeList));
     }
 
     return flowCnt + fragCnt;
@@ -820,14 +810,14 @@ int Link_RevNode(struct FlowNode *node) {
 
     dbg_printf("Link node: ");
     dbg_assert(node->coldNode.rev_node == NULL);
-    lookup_node.hotNode.flowKey._ALIGN = 0;
-    lookup_node.hotNode.flowKey.proto = node->hotNode.flowKey.proto;
-    lookup_node.hotNode.flowKey.version = node->hotNode.flowKey.version;
-    // reverse lookup key to find reverse node
-    lookup_node.hotNode.flowKey.src_addr = node->hotNode.flowKey.dst_addr;
-    lookup_node.hotNode.flowKey.dst_addr = node->hotNode.flowKey.src_addr;
-    lookup_node.hotNode.flowKey.src_port = node->hotNode.flowKey.dst_port;
-    lookup_node.hotNode.flowKey.dst_port = node->hotNode.flowKey.src_port;
+    lookup_node.hotNode.flowKey = (struct flowKey_s){.proto = node->hotNode.flowKey.proto,
+                                                     .version = node->hotNode.flowKey.version,
+                                                     // reverse lookup key to find reverse node
+                                                     .src_addr = node->hotNode.flowKey.dst_addr,
+                                                     .dst_addr = node->hotNode.flowKey.src_addr,
+                                                     .src_port = node->hotNode.flowKey.dst_port,
+                                                     .dst_port = node->hotNode.flowKey.src_port,
+                                                     ._ALIGN = 0};
     rev_node = Lookup_Node(&lookup_node);
     if (rev_node) {
         dbg_printf("Found revnode ");

@@ -144,14 +144,12 @@ struct FlowNode {
 
 // node cache struct
 struct FlowSlab {
-    struct FlowSlab *next;                   // chain
-    struct FlowNode *local_free;             // free list of packet thread
-    _Atomic(struct FlowNode *) remote_free;  // free list of flow thread
-    _Atomic(bool) removing;                  // slab gets removed
-    _Atomic uint32_t in_use;                 // number of nodes in use
-    uint32_t capacity;                       // max number of nodes
-    time_t removed_at;                       // timestamp when moved to quarantine
-    struct FlowNode nodes[];                 // base pointer
+    struct FlowSlab *next;          // chain
+    struct FlowNode *local_free;    // free list of packet thread
+    _Atomic uint32_t in_use;        // number of nodes in use
+    _Atomic uint32_t free_pending;  // pending free nodes
+    uint32_t capacity;              // max number of nodes
+    struct FlowNode nodes[];        // base pointer
 };
 
 typedef struct NodeList_s {
