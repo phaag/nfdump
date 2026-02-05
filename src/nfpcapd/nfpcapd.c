@@ -85,7 +85,7 @@
 #include "util.h"
 #include "version.h"
 
-#ifdef HAVEZLIB
+#ifdef HAVE_ZLIB
 #include "pcap_gzip.h"
 #endif
 
@@ -95,13 +95,9 @@
 #define FILTER "ip"
 #define TO_MS 100
 
+// global static var: used by interrupt routine
 static unsigned done = 0;
-/*
- * global static var: used by interrupt routine
- */
-#define PCAP_DUMPFILE "pcap.current"
 
-static int launcher_pid;
 static pthread_mutex_t m_done = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t terminate = PTHREAD_COND_INITIALIZER;
 
@@ -114,8 +110,6 @@ static option_t nfpcapdOption[] = {
 static void usage(char *name);
 
 static void Interrupt_handler(int sig);
-
-static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, unsigned snaplen);
 
 static void WaitDone(void);
 
@@ -164,72 +158,6 @@ static void Interrupt_handler(int sig) {
     done = 1;
 
 }  // End of signal_handler
-
-static int setup_pcap_file(packetParam_t *param, char *pcap_file, char *filter, unsigned snaplen) {
-    pcap_t *handle;
-    char errbuf[PCAP_ERRBUF_SIZE]; /* Error string */
-
-    dbg_printf("Enter function: %s\n", __FUNCTION__);
-
-    errbuf[0] = '\0';
-    handle = pcap_open_offline(pcap_file, errbuf);
-    if (handle == NULL) {
-#ifdef HAVEZLIB
-        FILE *fzip = zlib_stream(pcap_file);
-        if (fzip == NULL) {
-            LogError("Not a valid gzip format in %s", pcap_file);
-            return -1;
-        }
-        handle = pcap_fopen_offline(fzip, errbuf);
-        if (handle == NULL) {
-            LogError("pcap_fopen_offline() failed: %s", errbuf);
-            return -1;
-        }
-#else
-        LogError("pcap_open_offline() failed: %s", errbuf);
-        return -1;
-#endif
-    }
-
-    if (filter) {
-        struct bpf_program filter_code;
-        bpf_u_int32 netmask = 0;
-        // Compile and apply the filter
-        if (pcap_compile(handle, &filter_code, filter, 0, netmask) == -1) {
-            LogError("Couldn't parse filter %s: %s", filter, pcap_geterr(handle));
-            return -1;
-        }
-        if (pcap_setfilter(handle, &filter_code) == -1) {
-            LogError("Couldn't install filter %s: %s", filter, pcap_geterr(handle));
-            return -1;
-        }
-    }
-
-    int linktype = pcap_datalink(handle);
-    switch (linktype) {
-        case DLT_RAW:
-        case DLT_PPP:
-        case DLT_PPP_SERIAL:
-        case DLT_NULL:
-        case DLT_LOOP:
-        case DLT_EN10MB:
-        case DLT_LINUX_SLL:
-        case DLT_IEEE802_11:
-        case DLT_NFLOG:
-        case DLT_PFLOG:
-            break;
-        default:
-            LogError("Unsupported data link type %i", linktype);
-            return -1;
-    }
-
-    param->pcap_dev = handle;
-    param->snaplen = snaplen;
-    param->linktype = (unsigned)linktype;
-
-    return 0;
-
-}  // End of setup_pcap_file
 
 static void WaitDone(void) {
     sigset_t signal_set;
@@ -289,7 +217,6 @@ int main(int argc, char *argv[]) {
     bufflen = 0;
     do_daemonize = 0;
     doDedup = 0;
-    launcher_pid = 0;
     device = NULL;
     pcapfile = NULL;
     filter = FILTER;
@@ -557,6 +484,7 @@ int main(int argc, char *argv[]) {
 
     flushParam_t flushParam = {0};
     packetParam_t packetParam = {0};
+    readerParam_t readerParam = {0};
     flowParam_t flowParam = {0};
     flushParam.extensionFormat = time_extension;
     flowParam.extensionFormat = time_extension;
@@ -586,12 +514,13 @@ int main(int argc, char *argv[]) {
     }
 
     size_t buffsize = 64 * 1024;
-    int ret;
+    int ret = 0;
     void *(*packet_thread)(void *) = NULL;
     if (pcapfile) {
         packetParam.live = 0;
-        ret = setup_pcap_file(&packetParam, pcapfile, filter, snaplen);
-        packet_thread = pcap_packet_thread;
+        packetParam.pcap_dev = NULL;
+        ret = pcap_file_reader_start(&packetParam, &readerParam, pcapfile, filter);
+        packet_thread = pcap_file_packet_thread;
     } else {
         packetParam.live = 1;
 #ifdef USE_BPFSOCKET
@@ -634,7 +563,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (!CheckSubDir(subdir_index)) {
-            pcap_close(packetParam.pcap_dev);
+            if (packetParam.live && packetParam.pcap_dev) pcap_close(packetParam.pcap_dev);
             exit(EXIT_FAILURE);
         }
 
@@ -655,7 +584,7 @@ int main(int argc, char *argv[]) {
 
     if (pidfile) {
         if (check_pid(pidfile) != 0 || write_pid(pidfile) == 0) {
-            pcap_close(packetParam.pcap_dev);
+            if (packetParam.live && packetParam.pcap_dev) pcap_close(packetParam.pcap_dev);
             exit(EXIT_FAILURE);
         }
     }
@@ -750,6 +679,13 @@ int main(int argc, char *argv[]) {
     if (pcap_datadir) {
         pthread_join(flushParam.tid, NULL);
         dbg_printf("Pcap flush thread joined\n");
+    }
+
+    /* Cleanup file reader / libpcap handle depending on startup choice */
+    if (packetParam.live == 0) {
+        pcap_file_reader_stop(&readerParam);
+    } else if (packetParam.pcap_dev) {
+        pcap_close(packetParam.pcap_dev);
     }
 
     dbg_printf("Flush flow hash\n");

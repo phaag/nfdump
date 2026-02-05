@@ -35,6 +35,12 @@
 #include <pthread.h>
 #include <time.h>
 
+#include "config.h"
+
+#ifdef HAVE_ZLIB
+#include <zlib.h>
+#endif
+
 #include "flowhash.h"
 #include "queue.h"
 
@@ -84,6 +90,7 @@ typedef struct packetParam_s {
     pthread_t parent;
     queue_t *bufferQueue;
     queue_t *flushQueue;
+    queue_t *batchQueue;
 #ifdef USE_BPFSOCKET
     void *bpfBuffer;
     size_t bpfBufferSize;
@@ -110,9 +117,74 @@ typedef struct packetParam_s {
     proc_stat_t proc_stat;
 } packetParam_t;
 
+// fast pcap reader thread
+typedef struct readerParam_s {
+    pthread_t reader_thread;
+    queue_t *batchQueue;
+    size_t batch_size;
+    size_t snaplen;
+
+    int swapped;
+
+    int use_mmap;
+    // memory mapped pcapd
+    void *mmap_base;
+    size_t mmap_size;
+    int fd;
+
+    // compressed pcapd file
+#ifdef HAVE_ZLIB
+    int gz;
+    gzFile gzfp;
+#endif
+    /* compiled BPF program (optional) */
+    struct bpf_program prog;
+    int have_filter;
+} readerParam_t;
+
+typedef struct pcaprec_hdr {
+    uint32_t ts_sec;
+    uint32_t ts_usec;
+    uint32_t incl_len;
+    uint32_t orig_len;
+} pcaprec_hdr_t;
+
+/* batch structures */
+#define DEFAULT_BATCH_SIZE 256
+
+typedef struct PacketRef {
+    struct pcap_pkthdr hdr;  // packet header
+    const uint8_t *data;     // pointer to packet bytes
+} PacketRef;
+
+typedef struct PktBatch_s {
+    size_t count;
+    size_t capacity;
+    size_t payload_size;
+    void *payload_slab;
+    PacketRef pkts[];  // batch array
+} PktBatch_t;
+
+// read swapped numbers
+static inline uint32_t swap32(uint32_t v) { return ((v & 0xff) << 24) | ((v & 0xff00) << 8) | ((v & 0xff0000) >> 8) | ((v & 0xff000000) >> 24); }
+
+PktBatch_t *batch_alloc(size_t cap, uint32_t snaplen);
+
+void batch_clear(PktBatch_t *batch);
+
+void batch_free(PktBatch_t *batch);
+
+void *payload_handle(PktBatch_t *batch, size_t idx);
+
 int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms);
 
 void __attribute__((noreturn)) * pcap_packet_thread(void *args);
+
+/* Fast file reader integration (mmap/gzip + batching) */
+int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerParam, const char *path, const char *filter);
+
+void pcap_file_reader_stop(readerParam_t *readerParam);
+void __attribute__((noreturn)) * pcap_file_packet_thread(void *args);
 
 #ifdef USE_BPFSOCKET
 int setup_bpf_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms);

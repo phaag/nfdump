@@ -91,8 +91,17 @@ void queue_free(queue_t *q) {
 void queue_close(queue_t *q) {
     pthread_mutex_lock(&q->mutex);
 
-    q->producers--;
-    if (q->producers == 0) {
+    // prevent double close
+    if (q->producers > 0) {
+        q->producers--;
+        if (q->producers == 0) {
+            q->closed = 1;
+            pthread_cond_broadcast(&q->cond_not_empty);
+            pthread_cond_broadcast(&q->cond_not_full);
+        }
+    } else {
+        // producers are already 0
+        LogInfo("Queue double-close catched");
         q->closed = 1;
         pthread_cond_broadcast(&q->cond_not_empty);
         pthread_cond_broadcast(&q->cond_not_full);

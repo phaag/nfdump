@@ -45,6 +45,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "pcap_gzip.h"
 #include "pcaproc.h"
 #include "queue.h"
 #include "util.h"
@@ -65,6 +66,57 @@ static proc_stat_t proc_stat = {0};
  */
 
 static void CloseSocket(packetParam_t *param) { pcap_close(param->pcap_dev); }  // End of CloseSocket
+
+// batch helpers
+
+void *payload_handle(PktBatch_t *batch, size_t idx) {
+    // return aligned payload for index idx
+    return batch->payload_slab + (ptrdiff_t)idx * (ptrdiff_t)batch->payload_size;
+}  // End of payload_handle
+
+PktBatch_t *batch_alloc(size_t cap, uint32_t snaplen) {
+    PktBatch_t *batch = calloc(1, sizeof(PktBatch_t) + cap * sizeof(PacketRef));
+    if (!batch) {
+        LogError("batch_alloc() error in %s line %d", __FILE__, __LINE__);
+        return NULL;
+    }
+    batch->capacity = cap;
+    batch->count = 0;
+    batch->payload_size = 0;
+    batch->payload_slab = NULL;
+
+    // no payload memory required for mmap file
+    if (snaplen == 0) return batch;
+
+    // Add payload memory
+    // round snaplen up to 16-byte boundary
+    size_t payload_size = (snaplen + 15u) & ~15u;
+    size_t total = payload_size * cap;
+
+    void *mem = NULL;
+    if (posix_memalign(&mem, 16, total) != 0) {
+        LogError("posix_memalign() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        free(batch);
+        return NULL;
+    }
+    batch->payload_size = payload_size;
+    batch->payload_slab = mem;
+
+    return batch;
+}  // End of batch_alloc
+
+void batch_clear(PktBatch_t *batch) {
+    // reset counter
+    batch->count = 0;
+}  // End of batch_clear
+
+void batch_free(PktBatch_t *batch) {
+    if (!batch) return;
+
+    if (batch->payload_slab) free(batch->payload_slab);
+
+    free(batch);
+}  // End of batch_free
 
 // live device
 int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms) {
@@ -170,7 +222,7 @@ int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned s
 
     return 0;
 
-} /* setup_pcap_live */
+}  // End of setup_pcap_live
 
 static int setup_pcap_filter(packetParam_t *param, char *filter) {
     struct bpf_program filter_code;

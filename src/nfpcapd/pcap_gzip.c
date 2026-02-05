@@ -34,6 +34,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,106 +42,125 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "packet_pcap.h"
 #include "util.h"
 #include "zlib.h"
 
-#define BUFLEN 16384
-
-typedef struct readerArgs {
-    gzFile in;
-    FILE *out;
-} readerArgs_t;
-
-static void *gzipReader(void *arg);
-
-// check for zlib header and setup
-FILE *zlib_stream(char *pcap_file) {
-    // in case we need support other compression methods - check for method
-    /*
-        FILE *zFile = fopen(pcap_file, "rb");
-        if (!zFile) {
-            LogError("fopen() failed: %s", strerror(errno));
-            return NULL;
-        }
-        uint8_t signature[8];
-        size_t numObj = fread(signature, sizeof(signature), 1, zFile);
-        if (numObj < 1) {
-            fclose(zFile);
-            return NULL;
-        }
-
-        // check for gzip header bytes
-        if (signature[0] != 0x1f || signature[1] != 0x8b) {
-            fclose(zFile);
-            return NULL;
-        }
-    */
-
-    gzFile zFile = gzopen(pcap_file, "rb");
-    if (zFile == NULL) {
-        LogError("gzopen() failed: %s", strerror(errno));
-        return NULL;
+int OpenZIPfile(readerParam_t *readerParam, struct pcap_file_header *fileHeader, const char *fileName) {
+    gzFile gz = gzopen(fileName, "rb");
+    if (!gz) {
+        LogError("Reading pcapd file: not a compressed file");
+        return 0;
+    }
+    if (gzread(gz, fileHeader, sizeof(struct pcap_file_header)) != sizeof(struct pcap_file_header)) {
+        LogError("Reading compressed pcapd file: failed to read header");
+        gzclose(gz);
+        return 0;
     }
 
-    readerArgs_t *readerArgs = malloc(sizeof(readerArgs_t));
-    if (!readerArgs) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        gzclose(zFile);
-        return NULL;
+    if (fileHeader->magic != 0xd4c3b2a1 && fileHeader->magic != 0xa1b2c3d4) {
+        LogError("Reading compressed pcapd file: MAGIC missmatch - not a pcap file");
+        gzclose(gz);
+        return 0;
     }
 
-    // connect uncompress thread and pcap reader with a binary pipe
-    int fd[2];
-    pipe(fd);
+    if (fileHeader->magic == 0xd4c3b2a1) readerParam->swapped = 1;
 
-    // read from gzip file, write to pipe
-    readerArgs->in = zFile;
-    readerArgs->out = fdopen(fd[1], "wb");
+    readerParam->gz = 1;
+    readerParam->gzfp = gz;
+    readerParam->snaplen = fileHeader->snaplen;
+    // use fix batch size, as we need payload memory as well
+    readerParam->batch_size = 64;
 
-    // resulting pcap stream
-    FILE *fpcap = fdopen(fd[0], "rb");
+    if (readerParam->snaplen == 0) {
+        LogError("Missing snaplen in pcap file header");
+        gzclose(gz);
+        return 0;
+    }
+    return 1;
 
-    if (!readerArgs->out || !fpcap) {
-        LogError("fdopen() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        gzclose(zFile);
-        return NULL;
+}  // End of OpenGZIPfile
+
+int reader_gz_run(readerParam_t *readerParam) {
+    gzFile gz = readerParam->gzfp;
+    size_t batch_size = readerParam->batch_size;
+    int swapped = readerParam->swapped;
+
+    // make sure we have a snaplen, as we need extra memory for the payload
+    if (readerParam->snaplen == 0) {
+        LogError("snaplen 0 in pcap file");
+        return -1;
     }
 
-    pthread_t tid;
-    int err = pthread_create(&tid, NULL, gzipReader, (void *)readerArgs);
-    if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
-        gzclose(zFile);
-        return NULL;
-    }
+    // header already processed
+    PktBatch_t *batch = batch_alloc(batch_size, readerParam->snaplen);
+    if (!batch) return -1;
 
-    return fpcap;
-}  // End of zlib_stream
-
-__attribute__((noreturn)) static void *gzipReader(void *arg) {
-    readerArgs_t *readerArgs = (readerArgs_t *)arg;
-    gzFile in = readerArgs->in;
-    FILE *out = readerArgs->out;
-
-    for (;;) {
-        char buf[BUFLEN];
-        int err;
-        int len = gzread(in, buf, sizeof(buf));
-        if (len < 0) {
-            LogError("gzread() error in %s line %d: %s", __FILE__, __LINE__, gzerror(in, &err));
-            gzclose(in);
-            fclose(out);
-            pthread_exit(NULL);
+    struct pcaprec_hdr rh;
+    while (gzread(gz, &rh, sizeof(rh)) == sizeof(rh)) {
+        /* reference into mmap region */
+        PacketRef pr;
+        if (swapped) {
+            pr.hdr.ts.tv_sec = swap32(rh.ts_sec);
+            pr.hdr.ts.tv_usec = swap32(rh.ts_usec);
+            pr.hdr.caplen = swap32(rh.incl_len);
+            pr.hdr.len = swap32(rh.orig_len);
+        } else {
+            pr.hdr.ts.tv_sec = rh.ts_sec;
+            pr.hdr.ts.tv_usec = rh.ts_usec;
+            pr.hdr.caplen = rh.incl_len;
+            pr.hdr.len = rh.orig_len;
         }
-        if (len == 0) break;
 
-        if ((int)fwrite(buf, 1, (unsigned)len, out) != len) {
-            LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        int incl = pr.hdr.caplen;
+
+        // get new payload handle
+        void *buf = payload_handle(batch, batch->count);
+
+        // should never trigger - test it anyway to prevent memory corruption
+        dbg_assert(incl <= batch->payload_size);
+        if (incl > batch->payload_size) {
+            incl = batch->payload_size;
+        }
+        int got = gzread(gz, buf, incl);
+        if (got != (int)incl) {
+            LogError("Failed to gzread payload of size: %u", incl);
+            break;
+        }
+
+        pr.data = buf;
+        // apply filter if present
+        if (readerParam->have_filter) {
+            if (!pcap_offline_filter(&readerParam->prog, &pr.hdr, pr.data)) {
+                // packet doesn't match; skip
+                continue;
+            }
+        }
+
+        batch->pkts[batch->count++] = pr;
+
+        if (batch->count == batch->capacity) {
+            if (queue_push(readerParam->batchQueue, batch) == QUEUE_CLOSED) {
+                batch_free(batch);
+                return -1;
+            }
+
+            batch = batch_alloc(batch_size, readerParam->snaplen);
+            if (!batch) {
+                return -1;
+            }
         }
     }
 
-    if (fclose(out)) LogError("fclose() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-    if (gzclose(in) != Z_OK) LogError("gzclose() error in %s line %d", __FILE__, __LINE__);
+    if (batch->count > 0) {
+        if (queue_push(readerParam->batchQueue, batch) == QUEUE_CLOSED) {
+            batch_free(batch);
+            return -1;
+        }
+        batch = NULL;
+    } else {
+        batch_free(batch);
+    }
 
-    pthread_exit(NULL);
-}  // end of gzipReader
+    return 0;
+}  // End of reader_gz_run

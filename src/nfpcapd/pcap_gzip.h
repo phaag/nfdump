@@ -33,6 +33,12 @@
 
 #include <stdio.h>
 
+#include "packet_pcap.h"
+
 FILE *zlib_stream(char *pcap_file);
+
+int OpenZIPfile(readerParam_t *readerParam, struct pcap_file_header *fileHeader, const char *fileName);
+
+int reader_gz_run(readerParam_t *readerParam);
 
 #endif
