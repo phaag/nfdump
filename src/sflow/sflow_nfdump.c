@@ -58,6 +58,7 @@
 #include "nfdump.h"
 #include "nfxV3.h"
 #include "output_short.h"
+#include "record_callback.h"
 #include "sflow.h" /* sFlow v5 */
 #include "sflow_process.h"
 #include "sflow_v2v4.h" /* sFlow v2/4 */
@@ -546,6 +547,10 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
         DumpHex(stdout, p, (unsigned)len);
     }
 #endif
+
+    // Call the record callback for filtered repeaters
+    CALL_RECORD_CALLBACK(recordHeader);
+
     // update file record size ( -> output buffer size )
     fs->dataBlock->NumRecords++;
     fs->dataBlock->size += recordHeader->size;

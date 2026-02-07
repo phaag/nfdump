@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2024-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,55 +28,40 @@
  *
  */
 
-#ifndef _PRIVSEP_H
-#define _PRIVSEP_H 1
+#ifndef _FILTERED_REPEATER_H
+#define _FILTERED_REPEATER_H 1
 
-#include <pthread.h>
-#include <stdint.h>
-#include <unistd.h>
+#include "repeater.h"
+#include "nfxV3.h"
 
-typedef struct message_s {
-    uint16_t type;
-    uint16_t length;
-} message_t;
+// Forward declaration
+struct FlowSource_s;
 
-typedef struct messageList {
-    struct messageList *next;
-    message_t *message;
-} messageList_t;
+// Context for filtered repeater state
+typedef struct filtered_repeater_ctx_s {
+    repeater_t *repeater;       // Array of repeaters
+    int num_repeaters;          // Number of configured repeaters
+    int num_filtered;           // Number of repeaters with filters
+    int rfd;                    // Pipe file descriptor for privsep communication
+} filtered_repeater_ctx_t;
 
-typedef struct messageQueue_s {
-    messageList_t *head;
-    messageList_t *tail;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    uint32_t length;
-} messageQueue_t;
+// Initialize filtered repeaters (compile filters, allocate buffers)
+// Returns 0 on success, -1 on error
+int InitFilteredRepeaters(repeater_t *repeater, int rfd);
 
-#define PRIVMSG_NULL 0
-#define PRIVMSG_LAUNCH 1
-#define PRIVMSG_REPEAT 2
-#define PRIVMSG_FILTERED_REPEAT 3
-#define PRIVMSG_EXIT 0xFFFF
-#define PRIVMSG_FLUSH 0xFFFE
+// Cleanup filtered repeater resources
+void CleanupFilteredRepeaters(repeater_t *repeater);
 
-typedef void (*messageFunc_t)(message_t *, void *);
+// Check if any repeater has a filter configured
+int HasFilteredRepeaters(repeater_t *repeater);
 
-typedef struct thread_arg_s {
-    messageFunc_t messageFunc;
-    void *extraArg;
-} thread_arg_t;
+// Process a decoded flow record through filtered repeaters
+// Called for each flow record after it's been decoded
+// recordHeaderV3: pointer to the decoded V3 record
+// Returns number of repeaters the record was sent to
+int ProcessFilteredRecord(repeater_t *repeater, int rfd, recordHeaderV3_t *recordHeaderV3);
 
-void *pipeReader(void *arg);
+// Flush all filtered repeater buffers (call at end of packet or periodically)
+void FlushFilteredRepeaters(repeater_t *repeater, int rfd);
 
-messageQueue_t *NewMessageQueue(void);
-
-void pushMessage(messageQueue_t *messageQueue, message_t *message);
-
-void pushMessageFunc(message_t *message, void *extraArg);
-
-message_t *getMessage(messageQueue_t *messageQueue);
-
-int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname);
-
-#endif
+#endif  // _FILTERED_REPEATER_H

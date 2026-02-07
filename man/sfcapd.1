@@ -51,6 +51,8 @@
 .Op Fl 6
 .Op Fl j Ar mcastgroup
 .Op Fl R Ar repeater
+.Op Fl F Ar filter
+.Op Fl N Ar version
 .Op Fl A
 .Op Fl B Ar buffsize
 .Op Fl n Ar sourceparam
@@ -130,8 +132,57 @@ and
 .Ar host
 is either a valid IPv4/IPv6 address, or a symbolic hostname, which resolves to a valid IP address.
 .Ar port
-may be omitted and defaults to 9995. Note: As IPv4/IPv6 are accepted the host/port separator is '/'.
-Up to 8 additional repeaters my be defined. Use this method to daisy chain collectors.
+may be omitted and defaults to 6343. Note: As IPv4/IPv6 are accepted the host/port separator is '/'.
+Up to 8 additional repeaters may be defined. Use this method to daisy chain collectors.
+.Pp
+If the repeater has a filter defined with
+.Fl F
+, only matching flows are sent to this repeater. The output format is determined by
+.Fl N
+(default: NetFlow v9).
+If no filter is defined, all raw packets are forwarded unchanged.
+.It Fl F Ar filter
+Specifies a filter expression for the preceding
+.Fl R
+repeater. Only flows matching the filter are sent to that repeater.
+The filter syntax is the same as used by
+.Nm nfdump
+for filtering flows. See
+.Xr nfdump 1
+for the full filter syntax.
+.Pp
+Note:
+.Fl F
+must immediately follow a
+.Fl R
+option. Multiple
+.Fl R
+and
+.Fl F
+pairs can be specified to create different filtered repeaters.
+.Pp
+Example: Forward only flows from source network 192.168.0.0/16 as NetFlow v9 to collector1, and all flows as IPFIX to collector2:
+.Dl sfcapd -p 6343 -w /data/sflow -R collector1/9996 -F 'src net 192.168.0.0/16' -N 9 -R collector2/9997 -F 'any' -N 10
+.It Fl N Ar version
+Sets the output NetFlow version for the preceding
+.Fl R
+repeater with a
+.Fl F
+filter. Valid values are:
+.Bl -item -compact
+.It
+5  - NetFlow v5 (IPv4 only, IPv6 flows are skipped)
+.It
+9  - NetFlow v9 (default, supports IPv4 and IPv6)
+.It
+10 - IPFIX (supports IPv4 and IPv6)
+.El
+.Pp
+.Fl N
+must follow a
+.Fl R
+.Fl F
+pair. If omitted, the default output version is NetFlow v9.
 .It Fl A
 Sets source address spoofing mode for the repeater. The source address of the repeated packages
 is set to the original IP address. This needs

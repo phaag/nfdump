@@ -2,10 +2,10 @@
 bin_PROGRAMS = nfcapd 
 
 nfcapd_SOURCES = nfcapd.c 
-nfcapd_CPPFLAGS = -I../include -I../libnffile -I../inline -I../netflow -I../collector 
+nfcapd_CPPFLAGS = -I../include -I../libnffile -I../libnfdump -I../inline -I../netflow -I../collector 
 
-nfcapd_LDADD = ../netflow/libnetflow.a ../collector/libcollector.a -lnffile  -lm
-nfcapd_LDFLAGS = -L../libnffile
+nfcapd_LDADD = ../netflow/libnetflow.a ../collector/libcollector.a -lnfdump -lnffile  -lm
+nfcapd_LDFLAGS = -L../libnffile -L../libnfdump
 
 nfcapd_CFLAGS = $(PTHREAD_CFLAGS)
 nfcapd_LDADD  += $(PTHREAD_LIBS)
