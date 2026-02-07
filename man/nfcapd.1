@@ -52,6 +52,7 @@
 .Op Fl J Ar mcastgroup
 .Op Fl R Ar repeater
 .Op Fl F Ar filter
+.Op Fl N Ar version
 .Op Fl A
 .Op Fl B Ar buffsize
 .Op Fl n Ar sourceparam
@@ -170,7 +171,9 @@ Up to 8 additional repeaters my be defined. Use this method to daisy chain colle
 .Pp
 If the repeater has a filter defined with
 .Fl F
-, only matching flows are sent to this repeater in NetFlow v5 format.
+, only matching flows are sent to this repeater. The output format is determined by
+.Fl N
+(default: NetFlow v9).
 If no filter is defined, all raw packets are forwarded unchanged.
 .It Fl F Ar filter
 Specifies a filter expression for the preceding
@@ -192,10 +195,28 @@ and
 .Fl F
 pairs can be specified to create different filtered repeaters.
 .Pp
-Example: Forward only flows from interface 10 to collector1, and flows with source network 192.168.0.0/16 to collector2:
-.Dl nfcapd -p 2055 -w /data/flows -R collector1:2055 -F 'in if 10' -R collector2:2055 -F 'src net 192.168.0.0/16'
+Example: Forward only flows from interface 10 as NetFlow v9 to collector1, and flows with source network 192.168.0.0/16 as IPFIX to collector2:
+.Dl nfcapd -p 2055 -w /data/flows -R collector1/2055 -F 'in if 10' -N 9 -R collector2/2055 -F 'src net 192.168.0.0/16' -N 10
+.It Fl N Ar version
+Sets the output NetFlow version for the preceding
+.Fl R
+repeater with a
+.Fl F
+filter. Valid values are:
+.Bl -item -compact
+.It
+5  - NetFlow v5 (IPv4 only, IPv6 flows are skipped)
+.It
+9  - NetFlow v9 (default, supports IPv4 and IPv6)
+.It
+10 - IPFIX (supports IPv4 and IPv6)
+.El
 .Pp
-Filtered repeaters send flows in NetFlow v5 format. IPv6 flows are skipped as v5 does not support IPv6.
+.Fl N
+must follow a
+.Fl R
+.Fl F
+pair. If omitted, the default output version is NetFlow v9.
 .It Fl A
 Sets source address spoofing mode for the repeater. The source address of the repeated packages
 is set to the original IP address. This needs

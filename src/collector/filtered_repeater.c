@@ -647,6 +647,7 @@ static void FlushRepeaterBufferV9(repeater_t *rep, int rfd) {
 
     // Update V9 header
     netflow_v9_header_t *header = (netflow_v9_header_t *)rep->send_buffer;
+    header->version = htons(9);
     state->sequence++;
     header->sequence = htonl(state->sequence);
     header->count = htons(state->record_count + state->template_count);
@@ -686,7 +687,8 @@ static void FlushRepeaterBufferIPFIX(repeater_t *rep, int rfd) {
 
     // Update IPFIX header
     ipfix_header_t *header = (ipfix_header_t *)rep->send_buffer;
-    
+    header->version = htons(10);
+
     // IPFIX sequence counts data records only (not template records)
     state->sequence += state->record_count;
     header->sequence = htonl(state->sequence);
