@@ -76,6 +76,8 @@
 #include "queue.h"
 #include "util.h"
 
+static proc_stat_t proc_stat = {0};
+
 /* Compile BPF filter into readerParam->prog using a dead pcap handle. */
 static int compile_pcap_filter(readerParam_t *readerParam, packetParam_t *packetParam, const char *filter) {
     pcap_t *dead = pcap_open_dead((int)packetParam->linktype, (int)packetParam->snaplen);
@@ -358,12 +360,14 @@ void pcap_file_reader_stop(readerParam_t *readerParam) {
 }  // End of pcap_file_reader_stop
 
 static void ReportStat(packetParam_t *param) {
-    LogInfo("Processed: %u packets, %u pkts/s, skipped: %u, short caplen: %u, unknown: %u", param->proc_stat.packets,
-            param->proc_stat.packets / param->t_win, param->proc_stat.skipped, param->proc_stat.short_snap, param->proc_stat.unknown);
+    LogInfo("Processed: %u, skipped: %u, short caplen: %u, unknown: %u", param->proc_stat.packets - proc_stat.packets,
+            param->proc_stat.skipped - proc_stat.skipped, param->proc_stat.short_snap - proc_stat.short_snap,
+            param->proc_stat.unknown - proc_stat.unknown);
+
+    proc_stat = param->proc_stat;
 
     param->totalPackets += param->proc_stat.packets;
     param->totalBytes += param->proc_stat.bytes;
-    memset((void *)&param->proc_stat, 0, sizeof(proc_stat_t));
 }  // End of ReportStat
 
 static inline void PcapDump(packetBuffer_t *packetBuffer, struct pcap_pkthdr *hdr, const u_char *sp) {
