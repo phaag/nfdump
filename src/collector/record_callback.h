@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2026, Peter Haag, Murilo Chianfa
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,55 +28,34 @@
  *
  */
 
-#ifndef _PRIVSEP_H
-#define _PRIVSEP_H 1
+#ifndef _RECORD_CALLBACK_H
+#define _RECORD_CALLBACK_H 1
 
-#include <pthread.h>
-#include <stdint.h>
-#include <unistd.h>
+#include "nfxV3.h"
 
-typedef struct message_s {
-    uint16_t type;
-    uint16_t length;
-} message_t;
+// Callback function type for processing decoded flow records
+// Called for each flow record after it's been decoded and before it's written
+// recordHeaderV3: pointer to the complete V3 record
+// userData: user-provided context pointer
+typedef void (*record_callback_t)(recordHeaderV3_t *recordHeaderV3, void *userData);
 
-typedef struct messageList {
-    struct messageList *next;
-    message_t *message;
-} messageList_t;
+// Global callback registration
+// callback: function to call for each record (NULL to disable)
+// userData: context pointer passed to the callback
+void SetRecordCallback(record_callback_t callback, void *userData);
 
-typedef struct messageQueue_s {
-    messageList_t *head;
-    messageList_t *tail;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    uint32_t length;
-} messageQueue_t;
+// Get the currently registered callback
+record_callback_t GetRecordCallback(void);
 
-#define PRIVMSG_NULL 0
-#define PRIVMSG_LAUNCH 1
-#define PRIVMSG_REPEAT 2
-#define PRIVMSG_FILTERED_REPEAT 3
-#define PRIVMSG_EXIT 0xFFFF
-#define PRIVMSG_FLUSH 0xFFFE
+// Get the user data for the callback
+void *GetRecordCallbackUserData(void);
 
-typedef void (*messageFunc_t)(message_t *, void *);
+// Helper macro to call the callback if registered
+#define CALL_RECORD_CALLBACK(recordHeader) do { \
+    record_callback_t cb = GetRecordCallback(); \
+    if (cb) { \
+        cb(recordHeader, GetRecordCallbackUserData()); \
+    } \
+} while(0)
 
-typedef struct thread_arg_s {
-    messageFunc_t messageFunc;
-    void *extraArg;
-} thread_arg_t;
-
-void *pipeReader(void *arg);
-
-messageQueue_t *NewMessageQueue(void);
-
-void pushMessage(messageQueue_t *messageQueue, message_t *message);
-
-void pushMessageFunc(message_t *message, void *extraArg);
-
-message_t *getMessage(messageQueue_t *messageQueue);
-
-int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname);
-
-#endif
+#endif  // _RECORD_CALLBACK_H

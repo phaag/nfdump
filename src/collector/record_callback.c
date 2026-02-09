@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2026, Peter Haag, Murilo Chianfa
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,55 +28,23 @@
  *
  */
 
-#ifndef _PRIVSEP_H
-#define _PRIVSEP_H 1
+#include "record_callback.h"
 
-#include <pthread.h>
-#include <stdint.h>
-#include <unistd.h>
+#include <stddef.h>
 
-typedef struct message_s {
-    uint16_t type;
-    uint16_t length;
-} message_t;
+// Global callback state
+static record_callback_t g_record_callback = NULL;
+static void *g_callback_user_data = NULL;
 
-typedef struct messageList {
-    struct messageList *next;
-    message_t *message;
-} messageList_t;
+void SetRecordCallback(record_callback_t callback, void *userData) {
+    g_record_callback = callback;
+    g_callback_user_data = userData;
+}
 
-typedef struct messageQueue_s {
-    messageList_t *head;
-    messageList_t *tail;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    uint32_t length;
-} messageQueue_t;
+record_callback_t GetRecordCallback(void) {
+    return g_record_callback;
+}
 
-#define PRIVMSG_NULL 0
-#define PRIVMSG_LAUNCH 1
-#define PRIVMSG_REPEAT 2
-#define PRIVMSG_FILTERED_REPEAT 3
-#define PRIVMSG_EXIT 0xFFFF
-#define PRIVMSG_FLUSH 0xFFFE
-
-typedef void (*messageFunc_t)(message_t *, void *);
-
-typedef struct thread_arg_s {
-    messageFunc_t messageFunc;
-    void *extraArg;
-} thread_arg_t;
-
-void *pipeReader(void *arg);
-
-messageQueue_t *NewMessageQueue(void);
-
-void pushMessage(messageQueue_t *messageQueue, message_t *message);
-
-void pushMessageFunc(message_t *message, void *extraArg);
-
-message_t *getMessage(messageQueue_t *messageQueue);
-
-int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname);
-
-#endif
+void *GetRecordCallbackUserData(void) {
+    return g_callback_user_data;
+}

@@ -50,6 +50,14 @@ typedef struct repeater_s {
     struct sockaddr_storage addr;
     socklen_t addrlen;
     int sockfd;
+    // Filtered repeater fields
+    char *filter;           // Filter expression string (NULL = no filtering, forward all)
+    void *filterEngine;     // Compiled filter engine (NULL = no filtering)
+    int netflow_version;    // Output NetFlow version: 5 or 9 (default 5 for now)
+    void *send_buffer;      // Buffer for encoding filtered flows
+    void *buff_ptr;         // Current position in send buffer
+    int flush;              // Flag indicating buffer should be flushed
+    int index;              // Index of this repeater in the array
 } repeater_t;
 
 typedef struct repeater_message_s {
@@ -58,6 +66,24 @@ typedef struct repeater_message_s {
     struct sockaddr_storage addr;
 } repeater_message_t;
 
+// Message for filtered repeater, sends to a specific repeater by index
+typedef struct filtered_repeater_message_s {
+    int packet_size;        // Size of the encoded NetFlow packet
+    int repeater_index;     // Index of the target repeater
+} filtered_repeater_message_t;
+
+// Buffer size for encoding filtered flows
+#define FILTERED_SEND_BUFFER_SIZE 65536
+
 int StartupRepeater(repeater_t *repeater, unsigned bufflen, unsigned srcSpoofing, char *userid, char *groupid);
+
+// Check if any repeater has a filter configured
+int HasFilteredRepeaters(repeater_t *repeater);
+
+// Initialize filtered repeater resources (buffers, etc.)
+int InitFilteredRepeater(repeater_t *rep);
+
+// Cleanup filtered repeater resources
+void CleanupFilteredRepeater(repeater_t *rep);
 
 #endif

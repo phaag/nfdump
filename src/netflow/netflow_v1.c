@@ -49,6 +49,7 @@
 #include "nfnet.h"
 #include "nfxV3.h"
 #include "output_short.h"
+#include "record_callback.h"
 #include "util.h"
 
 #define NETFLOW_V1_HEADER_LENGTH 16
@@ -338,6 +339,9 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             if (printRecord) {
                 flow_record_short(stdout, recordHeader);
             }
+
+            // Call the record callback for filtered repeaters
+            CALL_RECORD_CALLBACK(recordHeader);
 
             // advance output buffer
             outBuff += recordHeader->size;

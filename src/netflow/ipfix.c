@@ -54,6 +54,7 @@
 #include "nfnet.h"
 #include "nfxV3.h"
 #include "output_short.h"
+#include "record_callback.h"
 #include "util.h"
 
 // define stack slots
@@ -1534,6 +1535,9 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
         if (printRecord) {
             flow_record_short(stdout, recordHeaderV3);
         }
+
+        // Call the record callback for filtered repeaters
+        CALL_RECORD_CALLBACK(recordHeaderV3);
 
         fs->dataBlock->size += recordHeaderV3->size;
         fs->dataBlock->NumRecords++;
