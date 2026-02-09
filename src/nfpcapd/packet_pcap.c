@@ -45,7 +45,9 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "packet_pcap.h"
 #include "pcap_gzip.h"
+#include "pcapdump.h"
 #include "pcaproc.h"
 #include "queue.h"
 #include "util.h"
@@ -191,6 +193,7 @@ int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned s
         return -1;
     }
 
+    param->snaplen = snaplen;
     param->linktype = pcap_datalink(p);
     switch (param->linktype) {
         case DLT_RAW:

@@ -101,7 +101,7 @@ void queue_close(queue_t *q) {
         }
     } else {
         // producers are already 0
-        LogInfo("Queue double-close catched");
+        dbg_printf("Queue double-close catched\n");
         q->closed = 1;
         pthread_cond_broadcast(&q->cond_not_empty);
         pthread_cond_broadcast(&q->cond_not_full);

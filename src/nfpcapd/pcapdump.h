@@ -36,20 +36,27 @@
 
 #include "queue.h"
 
+typedef struct packetBuffer_s {
+    time_t timeStamp;
+    size_t bufferSize;
+    uint8_t buffer[];
+} packetBuffer_t;
+
 typedef struct flushParam_s {
     pthread_t tid;
     pthread_t parent;
     queue_t *bufferQueue;
     queue_t *flushQueue;
-    pcap_t *pcap_dev;
-    pcap_dumper_t *pd;
+    int snaplen;
+    int linkType;
     int pfd;
     unsigned subdir_index;
     char *archivedir;
     char *extensionFormat;
+    char *dumpFile;
 } flushParam_t;
 
-int InitBufferQueues(flushParam_t *flushParam);
+int InitFlushParam(flushParam_t *flushParam);
 
 void __attribute__((noreturn)) * flush_thread(void *args);
 

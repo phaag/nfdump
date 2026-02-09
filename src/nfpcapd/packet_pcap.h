@@ -61,18 +61,13 @@ struct pcap_sf_pkthdr {
     uint32_t len;           /* length this packet (off wire) */
 };
 
-typedef struct packetBuffer_s {
-    time_t timeStamp;
-    size_t bufferSize;
-    void *buffer;
-} packetBuffer_t;
-
 typedef struct proc_stat_s {
-    uint32_t packets;
+    uint64_t packets;
+    uint64_t bytes;
     uint32_t skipped;
     uint32_t unknown;
     uint32_t short_snap;
-    uint64_t duplicates;
+    uint32_t duplicates;
 } proc_stat_t;
 
 #ifdef USE_TPACKETV3
@@ -114,6 +109,8 @@ typedef struct packetParam_s {
     uint32_t fat;
     uint32_t extendedFlow;
     uint32_t addPayload;
+    uint64_t totalPackets;
+    uint64_t totalBytes;
     proc_stat_t proc_stat;
 } packetParam_t;
 
@@ -122,7 +119,8 @@ typedef struct readerParam_s {
     pthread_t reader_thread;
     queue_t *batchQueue;
     size_t batch_size;
-    size_t snaplen;
+    int snaplen;
+    int linkType;
 
     int swapped;
 

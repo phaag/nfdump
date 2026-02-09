@@ -54,6 +54,7 @@
 #include <unistd.h>
 
 #include "packet_pcap.h"
+#include "pcapdump.h"
 #include "pcaproc.h"
 #include "queue.h"
 #include "util.h"
@@ -97,9 +98,8 @@ static int open_bpf(void) {
 }  // End of open_bpf
 
 static void CloseSocket(packetParam_t *param) {
+    // close bpf device
     close(param->bpf);
-    pcap_close(param->pcap_dev);
-
 }  // End of CloseSocket
 
 // live device
@@ -173,24 +173,29 @@ int setup_bpf_live(packetParam_t *param, char *device, char *filter, unsigned sn
             return -1;
     }
 
-    // pcap handle for dumper
-    pcap_t *p = pcap_open_dead(DLT_EN10MB, 1 << 16);
-    param->pcap_dev = p;
     param->bpf = bpf;
 
+    // pcap handle for dumper
+    param->snaplen = snaplen;
+    param->linktype = dlt;
+
     if (filter && !setup_pcap_filter(param, filter)) {
-        pcap_close(param->pcap_dev);
         return -1;
     }
 
     return 0;
 
-} /* setup_pcap_live */
+}  // End of setup_bpf_live
 
 static int setup_pcap_filter(packetParam_t *param, char *filter) {
-    struct bpf_program filter_code;
+    pcap_t *dead = pcap_open_dead((int)param->linktype, (int)param->snaplen);
+    if (!dead) {
+        LogError("pcap_open_dead() failed in %s:%u", __FILE__, __LINE__);
+        return 0;
+    }
 
-    if (pcap_compile(param->pcap_dev, &filter_code, filter, 1, PCAP_NETMASK_UNKNOWN)) {
+    struct bpf_program filter_code = {0};
+    if (pcap_compile(dead, &filter_code, filter, 1, PCAP_NETMASK_UNKNOWN)) {
         LogError("pcap_compile() failed: %s", pcap_geterr(param->pcap_dev));
         return 0;
     }
@@ -199,6 +204,9 @@ static int setup_pcap_filter(packetParam_t *param, char *filter) {
         LogError("ioctl(BIOCSETF) failed: %s", strerror(errno));
         return 0;
     }
+
+    LogInfo("Set packet filter: '%s'", filter);
+    pcap_close(dead);
 
     return 1;
 
@@ -259,17 +267,17 @@ void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
         if (packetBuffer == QUEUE_CLOSED) done = 1;
     }
 
-    struct timeval timeout;
     fd_set mask;
     int width = packetParam->bpf + 1;
 
-    timeout.tv_sec = 5;
-    timeout.tv_usec = 0;
     while (!done) {
+        struct timeval timeout = {.tv_sec = 5, .tv_usec = 0};
         FD_ZERO(&mask);
         FD_SET(packetParam->bpf, &mask);
+
         dbg_printf("select() wait\n");
         int ready = select(width, &mask, NULL, NULL, &timeout);
+
         time_t t_packet = 0;
         if (ready == -1) {
             if (errno != EINTR) LogError("select() on bpf socket failed: %s", strerror(errno));

@@ -662,7 +662,8 @@ static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
 
 #ifdef DEVEL
     char buff[20];
-    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&when));
+    struct tm tmBuff = {0};
+    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime_r(&when, &tmBuff));
     printf("TimeWheel expires at: %s, slot: %u\n", buff, slot);
 #endif
 

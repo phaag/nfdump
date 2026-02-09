@@ -518,7 +518,6 @@ int main(int argc, char *argv[]) {
     void *(*packet_thread)(void *) = NULL;
     if (pcapfile) {
         packetParam.live = 0;
-        packetParam.pcap_dev = NULL;
         ret = pcap_file_reader_start(&packetParam, &readerParam, pcapfile, filter);
         packet_thread = pcap_file_packet_thread;
     } else {
@@ -616,10 +615,11 @@ int main(int argc, char *argv[]) {
 
     // fire pcap dump flush thread
     if (pcap_datadir) {
-        flushParam.pcap_dev = packetParam.pcap_dev;
+        flushParam.linkType = packetParam.linktype;
+        flushParam.snaplen = packetParam.snaplen;
         flushParam.archivedir = pcap_datadir;
         flushParam.subdir_index = subdir_index;
-        if (InitBufferQueues(&flushParam) < 0) {
+        if (InitFlushParam(&flushParam) < 0) {
             exit(EXIT_FAILURE);
         }
         packetParam.bufferQueue = flushParam.bufferQueue;

@@ -69,6 +69,7 @@ int OpenZIPfile(readerParam_t *readerParam, struct pcap_file_header *fileHeader,
     readerParam->gz = 1;
     readerParam->gzfp = gz;
     readerParam->snaplen = fileHeader->snaplen;
+    readerParam->linkType = fileHeader->linktype;
     // use fix batch size, as we need payload memory as well
     readerParam->batch_size = 64;
 

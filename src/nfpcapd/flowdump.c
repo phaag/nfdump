@@ -292,7 +292,9 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 } /* End of StorePcapFlow */
 
 static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
-    struct tm *now = localtime(&timestamp);
+    struct tm tmBuff = {0};
+    struct tm *now = localtime_r(&timestamp, &tmBuff);
+
     char fmt[32];
     strftime(fmt, sizeof(fmt), flowParam->extensionFormat, now);
 

@@ -71,6 +71,7 @@
 #include "flowhash.h"
 #include "nffile.h"
 #include "packet_pcap.h"
+#include "pcapdump.h"
 #include "pcaproc.h"
 #include "queue.h"
 #include "util.h"
@@ -78,14 +79,19 @@
 /* Compile BPF filter into readerParam->prog using a dead pcap handle. */
 static int compile_pcap_filter(readerParam_t *readerParam, packetParam_t *packetParam, const char *filter) {
     pcap_t *dead = pcap_open_dead((int)packetParam->linktype, (int)packetParam->snaplen);
-    if (!dead) return -1;
+    if (!dead) {
+        LogError("pcap_open_dead() failed in %s:%u", __FILE__, __LINE__);
+        return -1;
+    }
 
     if (pcap_compile(dead, &readerParam->prog, filter, 1, PCAP_NETMASK_UNKNOWN) == -1) {
         pcap_close(dead);
         return -1;
     }
-
     pcap_close(dead);
+
+    LogInfo("Set packet filter: '%s'", filter);
+
     readerParam->have_filter = 1;
     return 0;
 }  // End of compile_pcap_filter
@@ -256,6 +262,7 @@ int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerPara
         readerParam->mmap_size = st.st_size;
         readerParam->fd = fd;
         readerParam->snaplen = fileHeader.snaplen;
+        readerParam->linkType = fileHeader.linktype;
 
         memcpy(&fileHeader, base, sizeof(struct pcap_file_header));
 
@@ -284,6 +291,7 @@ int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerPara
     packetParam->linktype = fileHeader.linktype;
     packetParam->snaplen = fileHeader.snaplen;
     packetParam->batchQueue = readerParam->batchQueue;
+    packetParam->live = 0;
 
     readerParam->swapped = swapped;
 
@@ -350,17 +358,17 @@ void pcap_file_reader_stop(readerParam_t *readerParam) {
 }  // End of pcap_file_reader_stop
 
 static void ReportStat(packetParam_t *param) {
-    /*
-    LogInfo("Processed: %u, skipped: %u, short caplen: %u, unknown: %u", param->proc_stat.packets - proc_stat.packets,
-    param->proc_stat.skipped - proc_stat.skipped, param->proc_stat.short_snap - proc_stat.short_snap,
-    param->proc_stat.unknown - proc_stat.unknown);
+    LogInfo("Processed: %u packets, %u pkts/s, skipped: %u, short caplen: %u, unknown: %u", param->proc_stat.packets,
+            param->proc_stat.packets / param->t_win, param->proc_stat.skipped, param->proc_stat.short_snap, param->proc_stat.unknown);
 
-    proc_stat = param->proc_stat;
-    */
-
+    param->totalPackets += param->proc_stat.packets;
+    param->totalBytes += param->proc_stat.bytes;
+    memset((void *)&param->proc_stat, 0, sizeof(proc_stat_t));
 }  // End of ReportStat
 
 static inline void PcapDump(packetBuffer_t *packetBuffer, struct pcap_pkthdr *hdr, const u_char *sp) {
+    if (packetBuffer == NULL) return;
+
     // caller checks for enough space in buffer
     struct pcap_sf_pkthdr sf_hdr;
     sf_hdr.ts.tv_sec = hdr->ts.tv_sec;
@@ -429,8 +437,8 @@ void __attribute__((noreturn)) * pcap_file_packet_thread(void *args) {
                     queue_push(packetParam->flushQueue, packetBuffer);
                     packetBuffer = queue_pop(packetParam->bufferQueue);
                     if (packetBuffer == QUEUE_CLOSED) {
-                        done = 1;
-                        continue;
+                        LogError("Failed to get packetBuffer in file %s:%u", __FILE__, __LINE__);
+                        DoPacketDump = 0;
                     }
                 }
                 // Rotate flow file
@@ -450,8 +458,9 @@ void __attribute__((noreturn)) * pcap_file_packet_thread(void *args) {
                     queue_push(packetParam->flushQueue, packetBuffer);
                     packetBuffer = queue_pop(packetParam->bufferQueue);
                     if (packetBuffer == QUEUE_CLOSED) {
-                        done = 1;
-                        continue;
+                        LogError("Failed to get packetBuffer in file %s:%u", __FILE__, __LINE__);
+                        DoPacketDump = 0;
+                        packetBuffer = NULL;
                     }
                 }
                 PcapDump(packetBuffer, hdr, data);

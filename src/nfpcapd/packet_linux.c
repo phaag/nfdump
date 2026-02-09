@@ -53,6 +53,7 @@
 #include <unistd.h>
 
 #include "packet_pcap.h"
+#include "pcapdump.h"
 #include "pcaproc.h"
 #include "queue.h"
 #include "util.h"
@@ -71,7 +72,6 @@ static void ReportStat(packetParam_t *param);
 
 static inline void PcapDump(packetBuffer_t *packetBuffer, struct tpacket3_hdr *ppd);
 
-static struct tpacket_stats_v3 last_stat = {0};
 static proc_stat_t proc_stat = {0};
 
 /*
@@ -86,7 +86,7 @@ static void CloseSocket(packetParam_t *param) {
     ring->map = NULL;
     ring->rd = NULL;
     param->fd = 0;
-}
+}  // End of CloseSocket
 
 // Initialize the socket rx ring buffer
 static int InitRing(packetParam_t *param, char *device) {
@@ -196,15 +196,7 @@ int setup_linux_live(packetParam_t *param, char *device, char *filter, unsigned 
     }
 
     param->linktype = linktype;
-
-    // pcap handle for dumper (pcap_open_dead just sets the linktype and snaplen)
-    pcap_t *p = pcap_open_dead(param->linktype, snaplen > 0 ? snaplen : (1 << 16));
-    if (!p) {
-        LogError("pcap_open_dead() failed");
-        CloseSocket(param);
-        return -1;
-    }
-    param->pcap_dev = p;
+    param->snaplen = snaplen;
 
     if (filter && !setup_pcap_filter(param, filter)) {
         pcap_close(param->pcap_dev);
@@ -214,17 +206,22 @@ int setup_linux_live(packetParam_t *param, char *device, char *filter, unsigned 
 
     return 0;
 
-}  // End of setup_pcap_live
+}  // End of setup_linux_live
 
 static int setup_pcap_filter(packetParam_t *param, char *filter) {
-    struct bpf_program filter_code;
+    pcap_t *dead = pcap_open_dead((int)param->linktype, (int)param->snaplen);
+    if (!dead) {
+        LogError("pcap_open_dead() failed in %s:%u", __FILE__, __LINE__);
+        return 0;
+    }
 
-    if (pcap_compile(param->pcap_dev, &filter_code, filter, 1, PCAP_NETMASK_UNKNOWN)) {
+    struct bpf_program filter_code = {0};
+    if (pcap_compile(dead, &filter_code, filter, 1, PCAP_NETMASK_UNKNOWN)) {
         LogError("pcap_compile() failed: %s", pcap_geterr(param->pcap_dev));
         return 0;
     }
 
-    struct sock_fprog fcode;
+    struct sock_fprog fcode = {0};
     fcode.len = filter_code.bf_len;
     fcode.filter = (struct sock_filter *)filter_code.bf_insns;
 
@@ -233,22 +230,22 @@ static int setup_pcap_filter(packetParam_t *param, char *filter) {
         return 0;
     }
 
+    LogInfo("Set packet filter: '%s'", filter);
+    pcap_close(dead);
+
     return 1;
 
 }  // End of setup_pcap_filter
 
 static void ReportStat(packetParam_t *param) {
-    struct tpacket_stats_v3 pstat;
+    struct tpacket_stats_v3 pstat = {0};
 
-    memset((void *)&pstat, 0, sizeof(struct tpacket_stats_v3));
     unsigned int len = sizeof(pstat);
     int err = getsockopt(param->fd, SOL_PACKET, PACKET_STATISTICS, &pstat, &len);
     if (err < 0) {
         LogError("getsockopt(PACKET_STATISTICS) failed: %s", strerror(errno));
     } else {
-        LogInfo("Stat: received: %u, dropped by OS/Buffer: %u, freeze_q_cnt: %u", pstat.tp_packets - last_stat.tp_packets,
-                pstat.tp_drops - last_stat.tp_drops, pstat.tp_freeze_q_cnt - last_stat.tp_freeze_q_cnt);
-        last_stat = pstat;
+        LogInfo("Stat: received: %u, dropped by OS/Buffer: %u, freeze_q_cnt: %u", pstat.tp_packets, pstat.tp_drops, pstat.tp_freeze_q_cnt);
     }
 
     LogInfo("Processed: %u, skipped: %u, short caplen: %u, unknown: %u", param->proc_stat.packets - proc_stat.packets,

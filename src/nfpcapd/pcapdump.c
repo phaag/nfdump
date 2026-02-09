@@ -54,125 +54,109 @@
 #define PCAP_TMP "pcap.current"
 #define MAXBUFFERS 8
 
-static char pcap_dumpfile[MAXPATHLEN];
-
 /*
  * Function prototypes
  */
-static int OpenDumpFile(flushParam_t *param);
+static int OpenDumpFile(const char *fileName, int snaplen, int linktype);
+
+static int AppendDumpFile(const char *fileName, int snaplen, int linkType);
 
 static int CloseDumpFile(flushParam_t *param, time_t t_start);
+
+static int appendPcap(flushParam_t *flushParam, const char *existFile, const char *appendFile);
 
 /*
  * Functions
  */
 
-static int OpenDumpFile(flushParam_t *param) {
+static int OpenDumpFile(const char *fileName, int snaplen, int linktype) {
     dbg_printf("OpenDumpFile()\n");
-    FILE *pFile = fopen(pcap_dumpfile, "wb");
-    if (!pFile) {
-        LogError("fopen() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return -1;
-    }
-    param->pd = pcap_dump_fopen(param->pcap_dev, pFile);
-    if (!param->pd) {
-        LogError("Fatal: pcap_dump_open() failed for file '%s': %s", pcap_dumpfile, pcap_geterr(param->pcap_dev));
+    int fd = open(fileName, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    if (fd < 0) {
+        LogError("open() failed for file '%s': %s", fileName, strerror(errno));
         return -1;
     }
 
-    fflush(pFile);
-    param->pfd = fileno((FILE *)pFile);
-    return 0;
+    struct pcap_file_header hdr;
 
+    hdr.magic = 0xa1b2c3d4; /* little-endian pcap */
+    hdr.version_major = PCAP_VERSION_MAJOR;
+    hdr.version_minor = PCAP_VERSION_MINOR;
+    hdr.thiszone = 0; /* GMT */
+    hdr.sigfigs = 0;
+    hdr.snaplen = snaplen;
+    hdr.linktype = linktype;
+
+    ssize_t written = write(fd, &hdr, sizeof(hdr));
+    if (written != sizeof(hdr)) {
+        close(fd);
+        return -1;
+    }
+
+    return fd;
 }  // End of OpenDumpFile
 
-static void packet_handler(u_char *dumpfile, const struct pcap_pkthdr *header, const u_char *pkt_data) {
-    pcap_dump(dumpfile, header, pkt_data);  // store a packet to the dump file
-    return;
-}
-
-#ifndef HAVE_PCAP_APPEND
-/*
- * minimal implementation if libpcap does not include this library call
- */
-static pcap_dumper_t *pcap_dump_open_append(pcap_t *p, const char *fname) {
-    FILE *f;
-    int amt_read;
-    struct pcap_file_header ph;
-
-    f = fopen(fname, "r+");
-    if (f == NULL) {
-        LogError("%s: %s", fname, pcap_strerror(errno));
-        return (NULL);
+static int AppendDumpFile(const char *fileName, int snaplen, int linkType) {
+    int fd = open(fileName, O_RDWR);
+    if (fd < 0) {
+        LogError("open() failed for file '%s': %s", fileName, strerror(errno));
+        return -1;
     }
 
-    /* Read the header and make sure it's of the same linktype. */
-    amt_read = fread(&ph, 1, sizeof(ph), f);
-    if (amt_read != sizeof(ph)) {
-        if (ferror(f)) {
-            LogError("%s: %s", fname, pcap_strerror(errno));
-            return (NULL);
-        } else if (feof(f) && amt_read > 0) {
-            LogError("%s: truncated pcap file header", fname);
-            return (NULL);
-        }
+    struct pcap_file_header hdr;
+
+    ssize_t n = read(fd, &hdr, sizeof(hdr));
+    if (n != sizeof(hdr)) {
+        LogError("read() failed for file '%s': %s", fileName, strerror(errno));
+        close(fd);
+        return -1;
     }
 
-    /*
-     * If a header is already present and doesn't match the linktype,
-     * return an error.
-     */
-    int linktype = pcap_datalink(p);
-    if (amt_read > 0 && linktype != ph.linktype) {
-        LogError("%s: invalid linktype, cannot append to file", fname);
-        return (NULL);
+    // Check magic number
+    if (hdr.magic != 0xa1b2c3d4) {
+        LogError("%s() wrong pcap magic for file: %s", __func__, fileName);
+        close(fd);
+        return -1;
     }
 
-    fseek(f, 0, SEEK_END);
-    return ((pcap_dumper_t *)f);
-}
-#endif
-
-static int appendPcap(char *existFile, char *appendFile) {
-    char errbuff[256];
-    pcap_t *pcapAppend = pcap_open_offline(appendFile, errbuff);
-    if (!pcapAppend) {
-        LogError("Failed to open existing pcap");
-        return 0;
+    // Sanity check
+    if (hdr.version_major != PCAP_VERSION_MAJOR || hdr.version_minor != PCAP_VERSION_MINOR) {
+        LogError("%s() major/minor (%u/%u) version missmatch for file: %s", __func__, hdr.version_major, hdr.version_minor, fileName);
+        close(fd);
+        return -1;
     }
 
-    int snaplen = pcap_snapshot(pcapAppend);
-    pcap_t *pcapExist = pcap_open_dead(DLT_EN10MB, snaplen);
-    pcap_dumper_t *dumper = pcap_dump_open_append(pcapExist, existFile);
-    if (dumper == NULL) {
-        printf("Append failed: %s\n", pcap_geterr(pcapExist));
-        return 0;
+    // Verify compatibility
+    if ((int)hdr.snaplen != snaplen || (int)hdr.linktype != linkType) {
+        LogError("%s() snaplen/linktype (%u/%u) version missmatch for file: %s", __func__, hdr.version_major, hdr.version_minor, fileName);
+        close(fd);
+        return -1;
     }
 
-    pcap_loop(pcapAppend, 0, packet_handler, (unsigned char *)dumper);
+    // Seek to end for appending packets
+    if (lseek(fd, 0, SEEK_END) == (off_t)-1) {
+        LogError("lseek() failed for file '%s': %s", fileName, strerror(errno));
+        close(fd);
+        return -1;
+    }
 
-    /* close */
-    pcap_close(pcapAppend);
-    pcap_close(pcapExist);
-    pcap_dump_close(dumper);
+    return fd;
+}  // End of AppendDumpFile
 
-    return 1;
-}
-
-static int CloseDumpFile(flushParam_t *param, time_t t_start) {
-    struct tm *now = localtime(&t_start);
+static int CloseDumpFile(flushParam_t *flushParam, time_t t_start) {
+    struct tm tmBuff = {0};
+    struct tm *now = localtime_r(&t_start, &tmBuff);
     char fmt[16];
-    strftime(fmt, sizeof(fmt), param->extensionFormat, now);
+    strftime(fmt, sizeof(fmt), flushParam->extensionFormat, now);
 
-    if (param->pd == NULL) return 1;
+    if (flushParam->pfd == 0) return 1;
 
-    pcap_dump_close(param->pd);
-    param->pd = NULL;
-    param->pfd = 0;
+    close(flushParam->pfd);
+    flushParam->pfd = 0;
 
     dbg_printf("CloseDumpFile()\n");
     char datefile[MAXPATHLEN];
-    int pos = SetupPath(now, param->archivedir, param->subdir_index, datefile);
+    int pos = SetupPath(now, flushParam->archivedir, flushParam->subdir_index, datefile);
     char *p = datefile + (ptrdiff_t)pos;
 
     snprintf(p, MAXPATHLEN - pos - 1, "pcapd.%s", fmt);
@@ -180,18 +164,18 @@ static int CloseDumpFile(flushParam_t *param, time_t t_start) {
     int fileStat = TestPath(datefile, S_IFREG);
     if (fileStat == PATH_NOTEXISTS) {
         // file does not exist
-        dbg_printf("CloseDumpFile() %s -> %s\n", pcap_dumpfile, datefile);
-        int err = rename(pcap_dumpfile, datefile);
+        dbg_printf("CloseDumpFile() %s -> %s\n", flushParam->dumpFile, datefile);
+        int err = rename(flushParam->dumpFile, datefile);
         if (err) {
             LogError("rename() failed: %s", strerror(errno));
         }
     } else if (fileStat == PATH_OK) {
         // file exists - append pcap
-        dbg_printf("CloseDumpFile() append %s -> %s\n", pcap_dumpfile, datefile);
-        if (!appendPcap(datefile, pcap_dumpfile)) {
+        dbg_printf("CloseDumpFile() append %s -> %s\n", flushParam->dumpFile, datefile);
+        if (!appendPcap(flushParam, datefile, flushParam->dumpFile)) {
             LogError("Failed to append pcapfile");
         }
-        unlink(pcap_dumpfile);
+        unlink(flushParam->dumpFile);
     } else {
         LogError("CloseDumpFile() TestPath() failed: %d", fileStat);
     }
@@ -200,7 +184,58 @@ static int CloseDumpFile(flushParam_t *param, time_t t_start) {
 
 }  // End of CloseDumpFile
 
-int InitBufferQueues(flushParam_t *flushParam) {
+static int appendPcap(flushParam_t *flushParam, const char *existFile, const char *appendFile) {
+    // open existing file in append mode
+    int infd = AppendDumpFile(existFile, flushParam->snaplen, flushParam->linkType);
+    if (infd < 0) {
+        return 0;
+    }
+
+    // open new appenFile
+    int outfd = open(appendFile, O_RDONLY);
+    if (outfd < 0) {
+        LogError("open() failed for file '%s': %s", appendFile, strerror(errno));
+        close(infd);
+        return 0;
+    }
+
+    // skip file header
+    struct pcap_file_header hdr;
+    ssize_t n = read(outfd, &hdr, sizeof(hdr));
+    if (n != sizeof(hdr)) {
+        LogError("read() failed for file '%s': %s", appendFile, strerror(errno));
+        close(infd);
+        close(outfd);
+        return 0;
+    }
+
+    uint8_t buf[128 * 1024];
+    while ((n = read(infd, buf, sizeof(buf))) > 0) {
+        ssize_t off = 0;
+        while (off < n) {
+            ssize_t w = write(outfd, buf + off, n - off);
+            if (w < 0) {
+                LogError("write() failed for file '%s': %s", existFile, strerror(errno));
+                close(infd);
+                close(outfd);
+                return 0;
+            }
+            off += w;
+        }
+    }
+
+    // n == 0 => EOF
+    if (n < 0) {
+        LogError("read() failed for file '%s': %s", existFile, strerror(errno));
+    }
+
+    close(infd);
+    close(outfd);
+
+    return n == 0;
+}  // End of appendPcap
+
+int InitFlushParam(flushParam_t *flushParam) {
     flushParam->bufferQueue = queue_init(MAXBUFFERS);
     flushParam->flushQueue = queue_init(MAXBUFFERS);
     if (!flushParam->bufferQueue || !flushParam->flushQueue) {
@@ -208,17 +243,20 @@ int InitBufferQueues(flushParam_t *flushParam) {
         return -1;
     }
     for (int i = 0; i < MAXBUFFERS; i++) {
-        packetBuffer_t *packetBuffer = calloc(1, sizeof(packetBuffer_t));
+        packetBuffer_t *packetBuffer = malloc(sizeof(packetBuffer_t) + BUFFSIZE);
         if (!packetBuffer) {
-            LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return -1;
-        }
-        packetBuffer->buffer = malloc(BUFFSIZE);
-        if (!packetBuffer->buffer) {
             LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return -1;
         }
+        packetBuffer->bufferSize = 0;
+        packetBuffer->timeStamp = 0;
         queue_push(flushParam->bufferQueue, (void *)packetBuffer);
+    }
+
+    flushParam->dumpFile = malloc(PATH_MAX);
+    if (!flushParam->dumpFile) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return -1;
     }
 
     return 0;
@@ -228,8 +266,8 @@ int InitBufferQueues(flushParam_t *flushParam) {
 void __attribute__((noreturn)) * flush_thread(void *args) {
     flushParam_t *flushParam = (flushParam_t *)args;
 
-    snprintf(pcap_dumpfile, MAXPATHLEN, "%s/%s-%i", flushParam->archivedir, PCAP_TMP, getpid());
-    pcap_dumpfile[MAXPATHLEN - 1] = '\0';
+    snprintf(flushParam->dumpFile, MAXPATHLEN, "%s/%s-%i", flushParam->archivedir, PCAP_TMP, getpid());
+    flushParam->dumpFile[MAXPATHLEN - 1] = '\0';
 
     while (1) {
         packetBuffer_t *packetBuffer = queue_pop(flushParam->flushQueue);
@@ -239,29 +277,31 @@ void __attribute__((noreturn)) * flush_thread(void *args) {
         dbg_printf("flush_thread() next buffer: %zu\n", packetBuffer->bufferSize);
         time_t timeStamp = packetBuffer->timeStamp;
         if (packetBuffer->bufferSize) {
-            if ((flushParam->pd == NULL) && (OpenDumpFile(flushParam) < 0)) {
-                // tell parent, we are dying
-                pthread_kill(flushParam->parent, SIGUSR1);
-                pthread_exit("OpenDumpFile failed.");
-                /* NOTREACHED */
+            if (flushParam->pfd == 0) {
+                int fd = OpenDumpFile(flushParam->dumpFile, flushParam->snaplen, flushParam->linkType);
+                if (fd < 0) {
+                    LogError("flush_thread() - failed to open dump file");
+                } else {
+                    flushParam->pfd = fd;
+                }
             }
-            dbg_printf("flush_thread() flush buffer\n");
-            if (write(flushParam->pfd, packetBuffer->buffer, packetBuffer->bufferSize) <= 0) {
-                LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            if (flushParam->pfd) {
+                dbg_printf("flush_thread() flush buffer\n");
+                if (write(flushParam->pfd, packetBuffer->buffer, packetBuffer->bufferSize) <= 0) {
+                    LogError("write() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                }
             }
 
             // return buffer
             packetBuffer->bufferSize = 0;
+            packetBuffer->timeStamp = 0;
             queue_push(flushParam->bufferQueue, packetBuffer);
         }
         if (timeStamp) {
             // rotate file
             dbg_printf("flush_thread() CloseDumpFile\n");
             if (CloseDumpFile(flushParam, timeStamp) < 0) {
-                // tell parent, we are dying
-                pthread_kill(flushParam->parent, SIGUSR1);
-                pthread_exit("CloseDumpFile failed.");
-                /* NOTREACHED */
+                LogError("flush_thread() - failed to close dump file");
             }
             packetBuffer->timeStamp = 0;
         }
