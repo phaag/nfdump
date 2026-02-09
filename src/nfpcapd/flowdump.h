@@ -31,6 +31,7 @@
 #ifndef _FLOWDUMP_H
 #define _FLOWDUMP_H 1
 
+#include <stdatomic.h>
 #include <stdbool.h>
 #include <time.h>
 
@@ -42,7 +43,7 @@
 typedef struct flowParam_s {
     // common thread info struct
     pthread_t tid;
-    unsigned *done;
+    _Atomic uint32_t *done;
     // the parent
     pthread_t parent;
 

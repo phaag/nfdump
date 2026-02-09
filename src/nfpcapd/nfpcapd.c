@@ -51,6 +51,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -96,10 +97,7 @@
 #define TO_MS 100
 
 // global static var: used by interrupt routine
-static unsigned done = 0;
-
-static pthread_mutex_t m_done = PTHREAD_MUTEX_INITIALIZER;
-static pthread_cond_t terminate = PTHREAD_COND_INITIALIZER;
+static _Atomic uint32_t done = 0;
 
 static option_t nfpcapdOption[] = {
     {.name = "fat", .valBool = 0, .flags = OPTDEFAULT}, {.name = "payload", .valBool = 0, .flags = OPTDEFAULT}, {.name = NULL}};
@@ -108,8 +106,6 @@ static option_t nfpcapdOption[] = {
  * Function prototypes
  */
 static void usage(char *name);
-
-static void Interrupt_handler(int sig);
 
 static void WaitDone(void);
 
@@ -149,19 +145,9 @@ static void usage(char *name) {
         name);
 }  // End of usage
 
-static void Interrupt_handler(int sig) {
-#ifdef DEVEL
-    pthread_t tid = pthread_self();
-
-    printf("[%lu] Interrupt handler. Signal %d\n", (long unsigned)tid, sig);
-#endif
-    done = 1;
-
-}  // End of signal_handler
-
+// loop for main thread - wait for signals
 static void WaitDone(void) {
     sigset_t signal_set;
-    int done, sig;
 #ifdef DEVEL
     pthread_t tid = pthread_self();
     printf("[%lu] WaitDone() waiting\n", (long unsigned)tid);
@@ -174,8 +160,9 @@ static void WaitDone(void) {
     sigaddset(&signal_set, SIGUSR1);
     pthread_sigmask(SIG_BLOCK, &signal_set, NULL);
 
-    done = 0;
-    while (!done) {
+    atomic_store_explicit(&done, 0, memory_order_relaxed);
+    while (!atomic_load_explicit(&done, memory_order_relaxed)) {
+        int sig;
         sigwait(&signal_set, &sig);
         dbg_printf("[%lu] WaitDone() signal %i\n", (long unsigned)tid, sig);
         switch (sig) {
@@ -183,14 +170,11 @@ static void WaitDone(void) {
                 break;
             case SIGINT:
             case SIGTERM:
-                pthread_mutex_lock(&m_done);
-                done = 1;
-                pthread_mutex_unlock(&m_done);
-                pthread_cond_signal(&terminate);
+                atomic_store_explicit(&done, 1, memory_order_relaxed);
                 break;
             case SIGUSR1:
                 // child signals end of job
-                done = 1;
+                atomic_store_explicit(&done, 2, memory_order_relaxed);
                 break;
                 // default:
                 // empty
@@ -518,6 +502,7 @@ int main(int argc, char *argv[]) {
     void *(*packet_thread)(void *) = NULL;
     if (pcapfile) {
         packetParam.live = 0;
+        readerParam.done = &done;
         ret = pcap_file_reader_start(&packetParam, &readerParam, pcapfile, filter);
         packet_thread = pcap_file_packet_thread;
     } else {
@@ -604,15 +589,6 @@ int main(int argc, char *argv[]) {
     sigaddset(&signal_set, SIGPIPE);
     pthread_sigmask(SIG_BLOCK, &signal_set, NULL);
 
-    // for USR2 set a signal handler, which interrupts blocking
-    // system calls - and signals done event
-    // handler applies for all threads in a process
-    sa.sa_handler = Interrupt_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sigaction(SIGPIPE, &sa, NULL);
-    sigaction(SIGUSR2, &sa, NULL);
-
     // fire pcap dump flush thread
     if (pcap_datadir) {
         flushParam.linkType = packetParam.linktype;
@@ -671,8 +647,8 @@ int main(int argc, char *argv[]) {
     // Wait till done
     WaitDone();
 
-    dbg_printf("Signal packet thread to terminate\n");
-    pthread_kill(packetParam.tid, SIGUSR2);
+    // dbg_printf("Signal packet thread to terminate\n");
+    // pthread_kill(packetParam.tid, SIGUSR2);
     pthread_join(packetParam.tid, NULL);
     dbg_printf("Packet thread joined\n");
 
@@ -691,7 +667,7 @@ int main(int argc, char *argv[]) {
     dbg_printf("Flush flow hash\n");
     Hash_Flush(flowParam.NodeList, packetParam.t_win);
 
-    // flow thread terminates on end of node queue
+    // // flow thread terminates on end of node queue
     pthread_join(flowParam.tid, NULL);
     dbg_printf("Flow thread joined\n");
 

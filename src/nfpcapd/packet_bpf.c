@@ -42,6 +42,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -258,7 +259,7 @@ void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
     time_t now = time(NULL);
     time_t t_start = now - (now % t_win);
 
-    int done = *(packetParam->done);
+    int done = atomic_load_explicit(packetParam->done, memory_order_relaxed);
     int DoPacketDump = packetParam->bufferQueue != NULL;
 
     packetBuffer_t *packetBuffer = NULL;
@@ -304,6 +305,7 @@ void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
                 t_start = t_packet - (t_packet % t_win);
             }
             CacheCheck(packetParam->NodeList, t_start);
+            done = done || atomic_load_explicit(packetParam->done, memory_order_relaxed);
             continue;
         }
 
@@ -371,7 +373,7 @@ void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
 
             p += BPF_WORDALIGN(hdr->bh_hdrlen + hdr->bh_caplen);
         }
-        done = done || *(packetParam->done);
+        done = done || atomic_load_explicit(packetParam->done, memory_order_relaxed);
     }
 
     // flush buffer

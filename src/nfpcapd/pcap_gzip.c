@@ -83,6 +83,7 @@ int OpenZIPfile(readerParam_t *readerParam, struct pcap_file_header *fileHeader,
 }  // End of OpenGZIPfile
 
 int reader_gz_run(readerParam_t *readerParam) {
+    dbg_printf("(%s) enter\n", __func__);
     gzFile gz = readerParam->gzfp;
     size_t batch_size = readerParam->batch_size;
     int swapped = readerParam->swapped;
@@ -98,7 +99,8 @@ int reader_gz_run(readerParam_t *readerParam) {
     if (!batch) return -1;
 
     struct pcaprec_hdr rh;
-    while (gzread(gz, &rh, sizeof(rh)) == sizeof(rh)) {
+    int done = atomic_load_explicit(readerParam->done, memory_order_relaxed);
+    while (gzread(gz, &rh, sizeof(rh)) == sizeof(rh) && !done) {
         /* reference into mmap region */
         PacketRef pr;
         if (swapped) {
@@ -141,7 +143,9 @@ int reader_gz_run(readerParam_t *readerParam) {
         batch->pkts[batch->count++] = pr;
 
         if (batch->count == batch->capacity) {
+            dbg_printf("(%s) reader - Push full batch\n", __func__);
             if (queue_push(readerParam->batchQueue, batch) == QUEUE_CLOSED) {
+                dbg_printf("(%s) batchQueue closed\n", __func__);
                 batch_free(batch);
                 return -1;
             }
@@ -151,9 +155,12 @@ int reader_gz_run(readerParam_t *readerParam) {
                 return -1;
             }
         }
+        // check for user interrupt - SIGINTR SIGTERM
+        done = atomic_load_explicit(readerParam->done, memory_order_relaxed);
     }
+    dbg_printf("(%s) exit packet loop. Processed %u packets. Done state: %u\n", __func__, cnt, done);
 
-    if (batch->count > 0) {
+    if (!done && batch->count > 0) {
         if (queue_push(readerParam->batchQueue, batch) == QUEUE_CLOSED) {
             batch_free(batch);
             return -1;
@@ -163,5 +170,6 @@ int reader_gz_run(readerParam_t *readerParam) {
         batch_free(batch);
     }
 
+    dbg_printf("(%s) exit\n", __func__);
     return 0;
 }  // End of reader_gz_run

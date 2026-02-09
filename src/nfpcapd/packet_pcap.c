@@ -35,6 +35,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -305,7 +306,7 @@ void __attribute__((noreturn)) * pcap_packet_thread(void *args) {
     }
     time_t t_start = now - (now % t_win);
 
-    int done = *(packetParam->done);
+    int done = atomic_load_explicit(packetParam->done, memory_order_relaxed);
     int DoPacketDump = packetParam->bufferQueue != NULL;
 
     packetBuffer_t *packetBuffer = NULL;
@@ -398,7 +399,7 @@ void __attribute__((noreturn)) * pcap_packet_thread(void *args) {
                 LogError("Unexpected pcap_next_ex() return value: %i", ret);
                 done = 1;
         }
-        done = done || *(packetParam->done);
+        done = done || atomic_load_explicit(packetParam->done, memory_order_relaxed);
     }
 
     dbg_printf("Done capture loop - signal close\n");

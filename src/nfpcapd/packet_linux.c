@@ -39,6 +39,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <stdarg.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -284,7 +285,7 @@ void __attribute__((noreturn)) * linux_packet_thread(void *args) {
     time_t now = time(NULL);
     time_t t_start = now - (now % t_win);
 
-    int done = *(packetParam->done);
+    int done = atomic_load_explicit(packetParam->done, memory_order_relaxed);
     int DoPacketDump = packetParam->bufferQueue != NULL;
 
     packetBuffer_t *packetBuffer = NULL;
@@ -333,6 +334,7 @@ void __attribute__((noreturn)) * linux_packet_thread(void *args) {
                     t_start = t_packet - (t_packet % t_win);
                 }
                 CacheCheck(packetParam->NodeList, t_start);
+                done = done || atomic_load_explicit(packetParam->done, memory_order_relaxed);
                 continue;
             }
         }
@@ -390,7 +392,7 @@ void __attribute__((noreturn)) * linux_packet_thread(void *args) {
 
             ppd = (struct tpacket3_hdr *)((uint8_t *)ppd + ppd->tp_next_offset);
         }
-        done = done || *(packetParam->done);
+        done = done || atomic_load_explicit(packetParam->done, memory_order_relaxed);
 
         pbd->h1.block_status = TP_STATUS_KERNEL;
         block_num = (block_num + 1) % 64;

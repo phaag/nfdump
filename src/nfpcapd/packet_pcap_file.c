@@ -51,6 +51,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -99,6 +100,7 @@ static int compile_pcap_filter(readerParam_t *readerParam, packetParam_t *packet
 }  // End of compile_pcap_filter
 
 static int reader_mmap_run(readerParam_t *readerParam) {
+    dbg_printf("(%s) enter\n", __func__);
     size_t batch_size = readerParam->batch_size;
     size_t remaining = readerParam->mmap_size;
     if (remaining < sizeof(struct pcap_file_header)) return -1;
@@ -113,7 +115,8 @@ static int reader_mmap_run(readerParam_t *readerParam) {
     if (!batch) return -1;
 
     uint32_t cnt = 0;
-    while (remaining >= sizeof(struct pcaprec_hdr)) {
+    int done = atomic_load_explicit(readerParam->done, memory_order_relaxed);
+    while (remaining >= sizeof(struct pcaprec_hdr) && !done) {
         struct pcaprec_hdr rh;
         memcpy(&rh, p, sizeof(rh));
         p += sizeof(rh);
@@ -155,8 +158,9 @@ static int reader_mmap_run(readerParam_t *readerParam) {
         remaining -= incl;
 
         if (batch->count == batch->capacity) {
-            dbg_printf("Reader - Push full batch\n");
+            dbg_printf("(%s) reader - Push full batch\n", __func__);
             if (queue_push(readerParam->batchQueue, batch) == QUEUE_CLOSED) {
+                dbg_printf("(%s) batchQueue closed\n", __func__);
                 batch_free(batch);
                 return -1;
             }
@@ -166,13 +170,15 @@ static int reader_mmap_run(readerParam_t *readerParam) {
                 return -1;
             }
         }
+        // check for user interrupt - SIGINTR SIGTERM
+        done = atomic_load_explicit(readerParam->done, memory_order_relaxed);
     }
-    dbg_printf("Exit packet loop mmap reader. Processed %u packets\n", cnt);
+    dbg_printf("(%s) exit packet loop. Processed %u packets. Done state: %u\n", __func__, cnt, done);
 
     (void)cnt;
 
-    if (batch->count > 0) {
-        dbg_printf("Reader - Push last batch with %zu slots\n", batch->count);
+    if (!done && batch->count > 0) {
+        dbg_printf("(%s) Push last batch with %zu slots\n", __func__, batch->count);
         if (queue_push(readerParam->batchQueue, batch) == QUEUE_CLOSED) {
             batch_free(batch);
             return -1;
@@ -182,7 +188,7 @@ static int reader_mmap_run(readerParam_t *readerParam) {
         batch_free(batch);
     }
 
-    dbg_printf("Exit %s\n", __func__);
+    dbg_printf("(%s) exit\n", __func__);
 
     return 0;
 }  // End of reader_mmap_run
@@ -472,7 +478,12 @@ void __attribute__((noreturn)) * pcap_file_packet_thread(void *args) {
         }
         batch_free(batch);
         CacheCheck(packetParam->NodeList, t_start);
-        done = done || *(packetParam->done);
+        if (atomic_load_explicit(packetParam->done, memory_order_relaxed)) {
+            // user requested interrup - SIGTERM, SIGINT
+            queue_close(packetParam->batchQueue);
+            dbg_printf("packet thread %s - get signal done\n", __func__);
+            done = 1;
+        }
     }
 
     dbg_printf("Done capture loop - signal close\n");

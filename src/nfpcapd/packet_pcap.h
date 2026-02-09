@@ -33,6 +33,7 @@
 
 #include <pcap.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <time.h>
 
 #include "config.h"
@@ -99,7 +100,7 @@ typedef struct packetParam_s {
     NodeList_t *NodeList;
     pcap_t *pcap_dev;
     time_t t_win;
-    unsigned *done;
+    _Atomic uint32_t *done;
     unsigned doDedup;
 
     uint32_t snaplen;
@@ -118,6 +119,7 @@ typedef struct packetParam_s {
 typedef struct readerParam_s {
     pthread_t reader_thread;
     queue_t *batchQueue;
+    _Atomic uint32_t *done;
     size_t batch_size;
     int snaplen;
     int linkType;
