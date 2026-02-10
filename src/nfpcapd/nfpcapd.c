@@ -136,11 +136,11 @@ static void usage(char *name) {
         "-P pidfile\tset the PID file\n"
         "-t time frame\tset the time window to rotate pcap/nfcapd file\n"
         "-W workers\toptionally set the number of workers to compress flows\n"
+        "-v level\tSet verbose level.\n"
         "-z=lzo\t\tLZO compress flows in output file.\n"
         "-z=bz2\t\tBZIP2 compress flows in output file.\n"
         "-z=lz4[:level]\tLZ4 compress flows in output file.\n"
         "-z=zstd[:level]\tZSTD compress flows in output file.\n"
-        "-v\t\tverbose logging.\n"
         "-D\t\tdetach from terminal (daemonize)\n",
         name);
 }  // End of usage
@@ -181,6 +181,8 @@ static void WaitDone(void) {
         }
     }
 
+    dbg_printf("WaitDone() exit with done: %u\n", atomic_load_explicit(&done, memory_order_relaxed));
+
 }  // End of WaitDone
 
 int main(int argc, char *argv[]) {
@@ -218,7 +220,7 @@ int main(int argc, char *argv[]) {
     time_extension = "%Y%m%d%H%M";
     subdir_index = 0;
     compress = NOT_COMPRESSED;
-    verbose = 0;
+    verbose = -1;
     expire = 0;
     cache_size = 0;
     activeTimeout = 0;
@@ -419,7 +421,10 @@ int main(int argc, char *argv[]) {
                 printf("Option -T no longer supported and ignored\n");
                 break;
             case 'v':
-                if (verbose < 4) verbose++;
+                verbose = ParseVerbose(verbose, optarg);
+                if (verbose < 0) {
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'V':
                 printf("%s: %s\n", argv[0], versionString());
@@ -647,8 +652,6 @@ int main(int argc, char *argv[]) {
     // Wait till done
     WaitDone();
 
-    // dbg_printf("Signal packet thread to terminate\n");
-    // pthread_kill(packetParam.tid, SIGUSR2);
     pthread_join(packetParam.tid, NULL);
     dbg_printf("Packet thread joined\n");
 

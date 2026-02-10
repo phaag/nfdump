@@ -63,8 +63,7 @@
 .Op Fl X Ar extensionList
 .Op Fl W Ar workers
 .Op Fl Y Ar yaf-file
-.Op Fl E
-.Op Fl v
+.Op Fl v Ar level
 .Op Fl V
 .Sh DESCRIPTION
 .Nm
@@ -347,13 +346,9 @@ interval
 .Ar t 
 and is therefore independent from file rotation.
 .It Fl v
-Increase verbose level by 1. The verbose level may be increased for debugging purpose up to 3.
-.It Fl E
-Equal to -v -v -v. Print netflow records in block format to stdout. Please note, that not all elements
-are printed, which are available in the flow record. To inspect all elements, use
-.Ar nfdump
-.Fl o Ar raw
-This option is for debugging purpose only, to verify if incoming netflow data is processed correctly.
+Set verbose level. Accepted 0 to 4. The default level is 1 with moderate information. Use -v 3 to
+printf netflow records in raw format while collecting. Please note, that not all elements
+are printed. This option is for debugging purpose only, to verify if incoming netflow data is processed correctly.
 .It Fl V
 Print
 .Nm 

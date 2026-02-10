@@ -82,8 +82,6 @@
 
 #define DEFAULTSFLOWPORT "6343"
 
-static int verbose = 0;
-
 // Define a generic type to get data from socket or pcap file
 typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *, socklen_t *);
 
@@ -141,8 +139,8 @@ static void usage(char *name) {
         "-B bufflen\tSet socket buffer to bufflen bytes\n"
         "-e\t\tExpire data at each cycle.\n"
         "-D\t\tFork to background\n"
-        "-E\t\tPrint extended format of sflow data. For debugging purpose only.\n"
-        "-v\t\tIncrease verbose level.\n"
+        "-E\t\tDeprecated. Use -v 3 to print raw records. For debugging purpose only.\n"
+        "-v level\tSet verbose level.\n"
         "-4\t\tListen on IPv4 only.\n"
         "-6\t\tListen on IPv6 only\n"
         "-X <extlist>\t',' separated list of extensions (numbers). Default all extensions.\n"
@@ -431,7 +429,7 @@ int main(int argc, char **argv) {
     repeater_t repeater[MAX_REPEATERS];
     unsigned bufflen, metricInterval;
     time_t twin;
-    int sock, family, do_daemonize, expire, spec_time_extension;
+    int sock, family, do_daemonize, expire, verbose, spec_time_extension;
     bool parse_tun;
     unsigned subdir_index, compress, srcSpoofing;
     int numWorkers;
@@ -445,7 +443,8 @@ int main(int argc, char **argv) {
     char *dataDir = NULL;
 
     receive_packet = recvfrom;
-    verbose = do_daemonize = 0;
+    verbose = -1;
+    do_daemonize = 0;
     bufflen = 0;
     family = AF_UNSPEC;
     listenport = DEFAULTSFLOWPORT;
@@ -473,7 +472,7 @@ int main(int argc, char **argv) {
     parse_tun = false;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:o:p:P:R:S:T:t:u:vVW:w:x:X:yz::Z:")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:o:p:P:R:S:T:t:u:v::VW:w:x:X:yz::Z:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -519,9 +518,13 @@ int main(int argc, char **argv) {
 #endif
             case 'E':
                 verbose = 3;
+                printf("Option -E is deprecated. Use -v 3\n");
                 break;
             case 'v':
-                if (verbose < 4) verbose++;
+                verbose = ParseVerbose(verbose, optarg);
+                if (verbose < 0) {
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'V':
                 printf("%s: %s\n", argv[0], versionString());

@@ -82,8 +82,6 @@
 #endif
 
 /* Local Variables */
-static int verbose = 0;
-
 static send_peer_t peer;
 static uint32_t recordCnt = 0;
 static uint32_t sequence = 0;
@@ -477,7 +475,7 @@ int main(int argc, char **argv) {
 
     delay = 1;
     sockbuff_size = 0;
-    verbose = 0;
+    int verbose = -1;
     int netflow_version = 9;
     uint64_t count = 0;
     int confirm = 0;

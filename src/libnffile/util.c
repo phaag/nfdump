@@ -36,6 +36,7 @@
 #include "util.h"
 
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <errno.h>
 #include <limits.h>
 #include <stdarg.h>
@@ -181,17 +182,49 @@ int CheckPath(const char *path, unsigned type) {
     return ret == 2 ? 1 : 0;
 }  // End of CheckPath
 
+int ParseVerbose(int verbose, const char *arg) {
+    if (verbose >= 0) {
+        printf("Verbose log level already set to %d\n", verbose);
+        return -2;
+    }
+    if (verbose < 0) verbose = 0;
+
+    // handle -v...
+    size_t len = strlen(arg);
+    if (len != 1) {
+        printf("Invalid verbose level: %s\n", arg);
+        return -2;
+    }
+
+    char c = arg[0];
+    if (!isdigit(c)) {
+        printf("Invalid verbose level: %s\n", arg);
+        return -2;
+    }
+
+    verbose = atoi(arg);
+    if (verbose < 0 || verbose > MAXVERBOSE) {
+        printf("Verbose log level allowed between 0..%d\n", MAXVERBOSE);
+        return -2;
+    }
+
+    return verbose;
+}  // End of ParseVerbose
+
 void EndLog(void) {
     if (use_syslog) closelog();
 }  // End of CloseLog
 
-int InitLog(unsigned want_syslog, const char *name, char *facility, unsigned verbose_log) {
+int InitLog(unsigned want_syslog, const char *name, char *facility, int verbose_log) {
     int i;
 
 #ifdef DEVEL
-    verbose_log = 4;
+    verbose_log = MAXVERBOSE;
     want_syslog = NOSYSLOG;
 #endif
+
+    // if not set - defaults to 1
+    if (verbose_log < 0) verbose_log = 1;
 
     verbose = verbose_log;
     if (want_syslog == NOSYSLOG) {
@@ -225,6 +258,10 @@ int InitLog(unsigned want_syslog, const char *name, char *facility, unsigned ver
     }
     openlog(logname, LOG_CONS | LOG_PID, facilitynames[i].c_val);
     use_syslog = 1;
+
+    if (verbose) {
+        LogInfo("Verbose log level: %u", verbose);
+    }
 
     return 1;
 
@@ -654,15 +691,6 @@ char *DurationString(uint64_t duration) {
     s[127] = '\0';
     return s;
 }  // End of DurationString
-
-stringlist_t *NewStringlist(stringlist_t *list, uint32_t capacity) {
-    stringlist_t *sl = calloc(1, sizeof(stringlist_t));
-    if (!sl) {
-        LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-    return sl;
-}  // End of NewStringlist
 
 void InsertString(stringlist_t *sl, const char *s) {
     if (sl->num_strings == sl->capacity) {

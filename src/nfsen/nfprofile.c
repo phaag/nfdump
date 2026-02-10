@@ -643,7 +643,7 @@ int main(int argc, char **argv) {
         }
     }
 
-    if (!InitLog(1, argv[0], syslog_facility, 1)) {
+    if (!InitLog(1, argv[0], syslog_facility, -1)) {
         exit(EXIT_FAILURE);
     }
 

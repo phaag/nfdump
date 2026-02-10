@@ -36,8 +36,7 @@
 .Fl r Ar path
 .Op Fl w Ar nffile
 .Fl K Ar key
-.Op Fl q
-.Op Fl v
+.Op Fl v Ar level
 .Op Fl W
 .Op Fl h
 .Sh DESCRIPTION
@@ -75,12 +74,8 @@ file name is taken, which means the original file is overwritten.
 .Ar key
 is either a 32 character string, or a 64 char hex string starting with 0x. This key
 is used to initialize the anonymizer.
-.It Fl q
-.Nm
-prints the file name to be processed and an actifivy spinner. This option disables both.
-.It Fl v
-.Nm
-Increase verbose level. Note: Do not use -v and -q together.
+.It Fl v Ar level
+Set verbose level. A verbose level of 0 disables the actifivy spinner.
 .It Fl W Ar num
 Set the number of worker threads. The default depends on the number of cores online.
 The value must not exceed the number of online CPU cores.

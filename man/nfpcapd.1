@@ -47,7 +47,6 @@
 .Op Fl P Ar pidfile
 .Op Fl D
 .Op Fl d
-.Op Fl E
 .Op Fl u Ar userid
 .Op Fl g Ar groupid
 .Op Fl o Ar option[,option]
@@ -56,7 +55,7 @@
 .Op Fl z=lz4[:level]
 .Op Fl z=zstd[:level]
 .Op Fl W Ar workers
-.Op Fl V
+.Op Fl V Ar level
 .Op Fl h
 .Op Ar '<filter>'
 .Sh DESCRIPTION
@@ -136,8 +135,10 @@ De-duplicate packets with a window size of 4. This option is useful, if packets 
 If used together with
 .Fl p ,
 the resulting pcaps are de-duplicated as well.
-.It Fl E
-Verbose flow printing. Print flows on stdout, when flushed to disk. Use verbose printing only for debugging purpose in order to see if your setup works. Running nfpcapd in verbose mode limits processing bandwidth!
+.It Fl v
+Set verbose level. Accepted 0 to 4. The default level is 1 with moderate information. Use -v 3 to
+printf netflow records in raw format while collecting. Please note, that not all elements
+are printed. This option is for debugging purpose only, to verify if incoming netflow data is processed correctly.
 .It Fl u Ar userid
 Change to the user
 .Ar userid

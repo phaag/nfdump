@@ -96,7 +96,7 @@ static void usage(char *name) {
         "-d\t\tPreserve destination address.\n"
         "-q\t\tDo not print progress spinnen and filenames.\n"
         "-r <path>\tread input from single file or all files in directory.\n"
-        "-v\t\tIncrease verbose level.\n"
+        "-v level\tSet verbose level.\n"
         "-w <file>\tName of output file. Defaults to input file.\n"
         "-W <num>\tOptionally set the number of workers to compress flows\n",
         name);
@@ -528,11 +528,11 @@ int main(int argc, char **argv) {
 
     char *configFile = NULL;
     int numWorkers = 0;
-    int verbose = 1;
+    int verbose = -1;
     int anon_src = 1;
     int anon_dst = 1;
     int c;
-    while ((c = getopt(argc, argv, "C:hsdK:L:qr:t:vw:W:")) != EOF) {
+    while ((c = getopt(argc, argv, "C:hsdK:qr:t:v:w:W:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -555,9 +555,6 @@ int main(int argc, char **argv) {
                 }
                 PAnonymizer_Init((uint8_t *)CryptoPAnKey);
                 break;
-            case 'L':
-                if (!InitLog(0, "argv[0]", optarg, 0)) exit(255);
-                break;
             case 's':
                 anon_src = 0;
                 break;
@@ -565,10 +562,8 @@ int main(int argc, char **argv) {
                 anon_dst = 0;
                 break;
             case 'q':
-                if (verbose > 1) {
-                    LogError("Option -q conflicts with -v");
-                    exit(EXIT_FAILURE);
-                }
+                LogError("Option -q deprecated. Use -v 0");
+                exit(EXIT_FAILURE);
                 verbose = 0;
                 break;
             case 'r':
@@ -583,11 +578,10 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'v':
-                if (verbose == 0) {
-                    LogError("Option -q conflicts with -v");
+                verbose = ParseVerbose(verbose, optarg);
+                if (verbose < 0) {
                     exit(EXIT_FAILURE);
                 }
-                if (verbose < 4) verbose++;
                 break;
             case 'w':
                 CheckArgLen(optarg, MAXPATHLEN);

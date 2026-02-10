@@ -89,6 +89,7 @@ typedef uint32_t pointer_addr_t;
 
 #define SYSLOG_FACILITY "daemon"
 #define NOSYSLOG 0
+#define MAXVERBOSE 4
 
 typedef struct stringlist_s {
     char **list;
@@ -115,17 +116,17 @@ int CheckPath(const char *path, unsigned type);
 #define PATH_OK 2
 int TestPath(const char *path, unsigned type);
 
+int ParseVerbose(int verbose, const char *arg);
+
 void EndLog(void);
 
-int InitLog(unsigned want_syslog, const char *name, char *facility, unsigned verbose_log);
+int InitLog(unsigned want_syslog, const char *name, char *facility, int verbose_log);
 
 void LogError(char *format, ...);
 
 void LogInfo(char *format, ...);
 
 void LogVerbose(char *format, ...);
-
-stringlist_t *NewStringlist(stringlist_t *list, uint32_t capacity);
 
 void ClearStringList(stringlist_t *sl);
 

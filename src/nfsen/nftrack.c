@@ -327,7 +327,7 @@ int main(int argc, char **argv) {
                 AddDB = 1;
                 break;
             case 'L':
-                if (!InitLog(0, "nftrack", optarg, 0)) exit(255);
+                if (!InitLog(0, "nftrack", optarg, -1)) exit(255);
                 break;
             case 'S':
                 AvStat = 1;
