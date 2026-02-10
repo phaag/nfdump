@@ -718,12 +718,13 @@ void CleanupCollector(collector_ctx_t *ctx, post_args_t *post_args) {
     pthread_mutex_lock(&post_args->mutex);
     // make sure the previous cycle completed
     while (post_args->cycle_pending) {
-        LogError("Waiting for postprocessor to complete previous cycle");
+        dbg_printf("Waiting for postprocessor cycle to complete\n");
         pthread_cond_wait(&post_args->cond, &post_args->mutex);
     }
     pthread_mutex_unlock(&post_args->mutex);
 
     // sync postprocessor thread is gone
+    dbg_printf("Join postprocessor\n");
     pthread_join(post_args->tid, NULL);
     free(post_args);
 
