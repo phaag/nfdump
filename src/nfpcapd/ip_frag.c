@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2025, Peter Haag
+ *  Copyright (c) 2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -97,7 +97,7 @@ static int initSlot(int slot, const ip128_t *srcAddr, const ip128_t *dstAddr, co
 
     // init hole list - one big hole - use first 8 bytes in payload as hole list info - RFC815
     hole_t *hole = (hole_t *)payload;
-    *hole = (hole_t){.first = 0, .last = MAXINDEX, .next = 0, .fill = 0};
+    *hole = (hole_t){.first = 0, .last = MAXINDEX, .next = 0xFFFF, .fill = 0};
 
     ipFragList.fragList[slot] = (ipFrag_t){.payload = payload, .fragID = fragID, .holeList = 0, .numHoles = 1};
     memcpy(ipFragList.fragList[slot].srcAddr.bytes, srcAddr->bytes, 16);
@@ -121,11 +121,12 @@ static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, 
         // fragID not found
         if (firstEmpty < 0) {
             // no empty slot and all slots exhausted - extend fragment list by NUMFRAGMENTS
-            ipFragList.fragList = realloc(ipFragList.fragList, (ipFragList.numFrags + NUMFRAGMENTS) * sizeof(ipFrag_t));
-            if (!ipFragList.fragList) {
+            void *tmp = realloc(ipFragList.fragList, (ipFragList.numFrags + NUMFRAGMENTS) * sizeof(ipFrag_t));
+            if (!tmp) {
                 LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
                 return NULL;
             }
+            ipFragList.fragList = tmp;
             uint32_t max = ipFragList.numFrags + NUMFRAGMENTS;
             // init new empty slots
             for (unsigned i = ipFragList.numFrags; i < max; i++) ipFragList.fragList[i].fragID = 0;
@@ -143,67 +144,71 @@ static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, 
     return fragment;
 }  // End of getIPFragement
 
-static hole_t *findHole(ipFrag_t *fragment, uint16_t fragFirst, uint16_t fragLast, int moreFragments) {
+static int findHole(ipFrag_t *fragment, uint16_t fragFirst, uint16_t fragLast, int moreFragments) {
     uint16_t *prefIndex = &fragment->holeList;
     uint8_t *payload = (uint8_t *)fragment->payload;
+    hole_t result = {0};
+
+    dbg_printf("defrag - find hole for %u - %u\n", fragFirst, fragLast);
 
     // search for hole to map this fragment
     if (fragment->numHoles == 0) {
         // no more holes but still a packet to reassemble - possibly wrong
         LogError("ProcessIPFragment() reassembly error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
+        return 0;
     }
 
     // search hole list for suitable hole in payload
-    hole_t *hole = (hole_t *)(&payload[*prefIndex]);
-    do {
+    // 0xFFFF is our 'End of List' sentinel
+    while (*prefIndex != 0xFFFF) {
+        hole_t *hole = (hole_t *)(&payload[*prefIndex]);
         if (fragFirst > hole->last || fragLast < hole->first) {
             // fragment outside hole
+            dbg_printf("defrag - hole %u - %u - no match\n", hole->first, hole->last);
             prefIndex = &hole->next;
-        } else {
-            // hole found
-            // delete hole from list
-            *prefIndex = hole->next;
-            fragment->numHoles--;
-            break;
+            continue;
         }
 
-        // next hole
-        if (hole->next == 0) {
-            // end of hole list
-            hole = NULL;
-            break;
-        } else {
-            // next hole
-            hole = (hole_t *)(&payload[hole->next]);
+        // Hole found! Delete it from the linked list
+        // Copy the hole to the stack before we delete/modify it
+        result = *hole;
+        dbg_printf("defrag - hole %u - %u - found\n", hole->first, hole->last);
+
+        // Delete the hole from the linked list
+        *prefIndex = result.next;
+        fragment->numHoles--;
+
+        // Create hole to the left
+        if (fragFirst > result.first) {
+            uint16_t newOffset = result.first;
+            hole_t *newHole = (hole_t *)&payload[newOffset];
+            *newHole = (hole_t){.first = result.first, .last = fragFirst - 1, .next = fragment->holeList};
+            dbg_printf("defrag - new hole left: %u - %u created\n", newHole->first, newHole->last);
+            fragment->holeList = newOffset;
+            fragment->numHoles++;
         }
-    } while (1);
 
-    if (hole == NULL) {
-        return NULL;
+        // Create hole to the right
+        if (fragLast < result.last && moreFragments) {
+            uint16_t newOffset = fragLast + 1;
+            hole_t *newHole = (hole_t *)&payload[newOffset];
+            *newHole = (hole_t){.first = fragLast + 1, .last = result.last, .next = fragment->holeList};
+            dbg_printf("defrag - new hole right: %u - %u created\n", newHole->first, newHole->last);
+            fragment->holeList = newOffset;
+            fragment->numHoles++;
+        }
+
+        dbg_printf("defrag - fragment has %u holes\n", fragment->numHoles);
+
+        return 1;
     }
 
-    // check if we need a new hole on the left of the fragment
-    if (fragFirst > hole->first) {
-        hole_t *newHole = (hole_t *)&payload[hole->first];
-        *newHole = (hole_t){.first = hole->first, .last = fragFirst, .next = fragment->holeList};
-        fragment->holeList = hole->first;
-        fragment->numHoles++;
-    }
-    // check if we need a new hole on the right of the fragment
-    if ((fragLast < hole->last) && moreFragments) {
-        hole_t *newHole = (hole_t *)&payload[fragLast + 1];
-        *newHole = (hole_t){.first = fragLast + 1, .last = hole->last, .next = fragment->holeList};
-        fragment->holeList = fragLast + 1;
-        fragment->numHoles++;
-    }
-
-    return hole;
+    return 0;
 
 }  // End of findHole
 
 // Defragment IPv6 packets according RFC815
-void *ProcessIP6Fragment(struct ip6_hdr *ip6, struct ip6_frag *ip6_frag, const void *eodata) {
+void *ProcessIP6Fragment(const struct ip6_hdr *ip6, struct ip6_frag *ip6_frag, const void *eodata, uint32_t *payloadLength) {
     ip128_t srcAddr, dstAddr;
     memcpy(srcAddr.bytes, ip6->ip6_src.s6_addr, 16);
     memcpy(dstAddr.bytes, ip6->ip6_dst.s6_addr, 16);
@@ -217,16 +222,25 @@ void *ProcessIP6Fragment(struct ip6_hdr *ip6, struct ip6_frag *ip6_frag, const v
     offset = offset & 0xFFF8;
     uint16_t ipPayloadLength = ntohs(ip6->ip6_ctlun.ip6_un1.ip6_un1_plen) - sizeof(struct ip6_frag);
     void *ipPayload = (void *)ip6_frag + sizeof(struct ip6_frag);
-    if (ipPayload > eodata) {
-        LogError("ProcessIP6Fragment() data length error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+
+    if ((uint8_t *)ipPayload + ipPayloadLength > (uint8_t *)eodata) {
+        LogError("IPv6 Fragment exceeds capture buffer");
+        return NULL;
+    }
+
+    // Check for overflow: offset + payload must fit in 65535 bytes (max IP packet)
+    if ((uint32_t)offset + ipPayloadLength > 65535) {
+        LogError("IPv6 Fragment would exceed maximum IP packet size");
         return NULL;
     }
 
     uint16_t fragFirst = offset;
     uint16_t fragLast = offset + ipPayloadLength - 1;
 
-    hole_t *hole = findHole(fragment, fragFirst, fragLast, moreFragments);
-    if (!hole) return NULL;
+    if (!findHole(fragment, fragFirst, fragLast, moreFragments)) {
+        // This fragment is a duplicate or doesn't fit any current hole
+        return NULL;
+    }
 
     // copy fragment into payload
     uint8_t *payload = (uint8_t *)fragment->payload;
@@ -241,10 +255,10 @@ void *ProcessIP6Fragment(struct ip6_hdr *ip6, struct ip6_frag *ip6_frag, const v
 
     // if no more holes exist, we are done
     if (fragment->numHoles == 0) {
-        dbg_printf("Complete fragment\n");
         fragment->fragID = 0;
         fragment->payload = NULL;
-        ip6->ip6_ctlun.ip6_un1.ip6_un1_plen = htons(fragment->payloadLength + sizeof(struct ip6_frag));
+        *payloadLength = fragment->payloadLength;
+        dbg_printf("Complete fragment. Size: %u\n", fragment->payloadLength);
         return payload;
     }
 
@@ -252,7 +266,7 @@ void *ProcessIP6Fragment(struct ip6_hdr *ip6, struct ip6_frag *ip6_frag, const v
 }  // End of ProcessIP6Fragment
 
 // Defragment IPv4 packets according RFC815
-void *ProcessIP4Fragment(struct ip *ip4, const void *eodata) {
+void *ProcessIP4Fragment(const struct ip *ip4, const void *eodata, uint32_t *payloadLength) {
     static const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
     ip128_t srcAddr = {0};
     ip128_t dstAddr = {0};
@@ -272,16 +286,24 @@ void *ProcessIP4Fragment(struct ip *ip4, const void *eodata) {
     ptrdiff_t sizeIP = (ip4->ip_hl << 2);
     uint16_t ipPayloadLength = ntohs(ip4->ip_len) - sizeIP;
     void *ipPayload = (void *)ip4 + sizeIP;
-    if (ipPayload > eodata) {
-        LogError("ProcessIP4Fragment() data length error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    if ((uint8_t *)ipPayload + ipPayloadLength > (uint8_t *)eodata) {
+        LogError("IPv4 Fragment exceeds capture buffer");
+        return NULL;
+    }
+
+    // Check for overflow: offset + payload must fit in 65535 bytes (max IP packet)
+    if (offset + ipPayloadLength > 65535) {
+        LogError("IPv4 Fragment would exceed maximum IP packet size");
         return NULL;
     }
 
     uint16_t fragFirst = offset;
     uint16_t fragLast = offset + ipPayloadLength - 1;
 
-    hole_t *hole = findHole(fragment, fragFirst, fragLast, moreFragments);
-    if (!hole) return NULL;
+    if (!findHole(fragment, fragFirst, fragLast, moreFragments)) {
+        // This fragment is a duplicate or doesn't fit any current hole
+        return NULL;
+    }
 
     // copy fragment into payload
     uint8_t *payload = (uint8_t *)fragment->payload;
@@ -296,10 +318,10 @@ void *ProcessIP4Fragment(struct ip *ip4, const void *eodata) {
 
     // if no more holes exist, we are done
     if (fragment->numHoles == 0) {
-        dbg_printf("Complete fragment\n");
         fragment->fragID = 0;
         fragment->payload = NULL;
-        ip4->ip_len = htons(fragment->payloadLength + sizeIP);
+        *payloadLength = fragment->payloadLength;
+        dbg_printf("Complete fragment. Size: %u\n", fragment->payloadLength);
         return payload;
     }
 

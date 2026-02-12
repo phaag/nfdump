@@ -98,6 +98,7 @@ int reader_gz_run(readerParam_t *readerParam) {
     PktBatch_t *batch = batch_alloc(batch_size, readerParam->snaplen);
     if (!batch) return -1;
 
+    uint32_t cnt = 0;
     struct pcaprec_hdr rh;
     int done = atomic_load_explicit(readerParam->done, memory_order_relaxed);
     while (gzread(gz, &rh, sizeof(rh)) == sizeof(rh) && !done) {
@@ -114,6 +115,7 @@ int reader_gz_run(readerParam_t *readerParam) {
             pr.hdr.caplen = rh.incl_len;
             pr.hdr.len = rh.orig_len;
         }
+        cnt++;
 
         int incl = pr.hdr.caplen;
 
@@ -152,6 +154,7 @@ int reader_gz_run(readerParam_t *readerParam) {
 
             batch = batch_alloc(batch_size, readerParam->snaplen);
             if (!batch) {
+                LogError("batch_alloc() faile in %s:%", __FILE__, __LINE__);
                 return -1;
             }
         }

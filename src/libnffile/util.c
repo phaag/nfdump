@@ -189,6 +189,10 @@ int ParseVerbose(int verbose, const char *arg) {
     }
     if (verbose < 0) verbose = 0;
 
+    if (arg == NULL) {
+        printf("Verbose argument requires a number\n");
+        return -2;
+    }
     // handle -v...
     size_t len = strlen(arg);
     if (len != 1) {

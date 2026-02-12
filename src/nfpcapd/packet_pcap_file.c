@@ -265,19 +265,14 @@ int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerPara
     /* quick magic check */
     uint32_t magic = *(uint32_t *)base;
     if (magic == 0xa1b2c3d4 || magic == 0xd4c3b2a1) {
+        memcpy(&fileHeader, base, sizeof(struct pcap_file_header));
+
         readerParam->use_mmap = 1;
         readerParam->mmap_base = base;
         readerParam->mmap_size = st.st_size;
         readerParam->fd = fd;
         readerParam->snaplen = fileHeader.snaplen;
         readerParam->linkType = fileHeader.linktype;
-
-        memcpy(&fileHeader, base, sizeof(struct pcap_file_header));
-
-        if (fileHeader.magic != 0xd4c3b2a1 && fileHeader.magic != 0xa1b2c3d4) {
-            LogError("Reading pcapd file: MAGIC missmatch - not a pcap file");
-            return -1;
-        }
 
     } else {
         // MAGIC mismatch - try gzopen()
@@ -291,6 +286,7 @@ int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerPara
         }
 
 #else
+        LogError("Reading pcapd file: MAGIC missmatch - not a pcap file");
         queue_free(readerParam->batchQueue);
         return -1;
 #endif

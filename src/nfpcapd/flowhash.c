@@ -711,7 +711,6 @@ static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
 void CacheCheck(NodeList_t *NodeList, time_t when) {
     if (lastExpire == 0) {
         lastExpire = when;
-        dbg_printf("Init\n");
         return;
     }
     checkRun++;
@@ -719,13 +718,13 @@ void CacheCheck(NodeList_t *NodeList, time_t when) {
     if ((when - lastExpire) > EXPIREINTERVALL) {
         expireRun++;
         uint32_t expired = Expire_FlowTree(NodeList, when);
-        dbg_printf("expired: %u nodes\n", expired);
+        dbg_printf("CacheCheck() expired: %u nodes\n", expired);
         LastExpireCount = expired;
         lastExpire = when;
 
         Shrink_NodeCache(when);
     } else {
-        dbg_printf("Skip cache check\n");
+        dbg_printf("CacheCheck() - Skip cache check\n");
     }
 }  // End of CacheCheck
 

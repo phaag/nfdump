@@ -228,7 +228,7 @@ int main(int argc, char *argv[]) {
     numWorkers = 0;
 
     int c = 0;
-    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:vVw:W:yz::")) != EOF) {
+    while ((c = getopt(argc, argv, "b:B:C:dDe:g:hH:I:i:j:l:m:o:p:P:r:s:S:T:t:u:v:Vw:W:yz::")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
