@@ -166,7 +166,9 @@ typedef struct PktBatch_s {
 } PktBatch_t;
 
 // read swapped numbers
+#ifndef swap32
 static inline uint32_t swap32(uint32_t v) { return ((v & 0xff) << 24) | ((v & 0xff00) << 8) | ((v & 0xff0000) >> 8) | ((v & 0xff000000) >> 24); }
+#endif
 
 PktBatch_t *batch_alloc(size_t cap, uint32_t snaplen);
 
