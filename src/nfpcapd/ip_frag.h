@@ -36,8 +36,8 @@
 #include <netinet/ip6.h>
 #include <sys/types.h>
 
-void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const struct ip6_frag *ip6_frag, const void *eodata, uint32_t *payloadLength);
+void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const struct ip6_frag *ip6_frag, const void *eodata, uint32_t *payloadLength, time_t when);
 
-void *ProcessIP4Fragment(const struct ip *ip4, const void *eodata, uint32_t *payloadLength);
+void *ProcessIP4Fragment(const struct ip *ip4, const void *eodata, uint32_t *payloadLength, time_t when);
 
 #endif

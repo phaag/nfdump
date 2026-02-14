@@ -68,6 +68,7 @@ typedef struct hole_s {
 typedef struct ip6Frag_s {
     ip128_t srcAddr;
     ip128_t dstAddr;
+    time_t created;          // timestamp, when created, so we can expire old entries
     void *payload;           // memory block to reassemble payload and hole list
     uint32_t fragID;         // fragment ID
     uint32_t numHoles;       // number of total holes
@@ -76,6 +77,8 @@ typedef struct ip6Frag_s {
 } ipFrag_t;
 
 #define MAXINDEX 0xFFFF
+
+#define FRAGMENT_TIMEOUT 10
 
 // fragment list
 // use dynamic batches of NUMFRAGMENTS for the fragment array
@@ -86,7 +89,7 @@ static struct ipFragList_s {
 } ipFragList = {.numFrags = 0, .fragList = NULL};
 
 // init a new fragment in slot
-static int initSlot(int slot, const ip128_t *srcAddr, const ip128_t *dstAddr, const uint32_t fragID) {
+static int initSlot(int slot, const ip128_t *srcAddr, const ip128_t *dstAddr, const uint32_t fragID, time_t when) {
     dbg_printf("Init fragment slot %d\n", slot);
 
     void *payload = calloc(1, MAXINDEX + 1);
@@ -99,15 +102,41 @@ static int initSlot(int slot, const ip128_t *srcAddr, const ip128_t *dstAddr, co
     hole_t *hole = (hole_t *)payload;
     *hole = (hole_t){.first = 0, .last = MAXINDEX, .next = 0xFFFF, .fill = 0};
 
-    ipFragList.fragList[slot] = (ipFrag_t){.payload = payload, .fragID = fragID, .holeList = 0, .numHoles = 1};
+    ipFragList.fragList[slot] = (ipFrag_t){.payload = payload, .fragID = fragID, .holeList = 0, .numHoles = 1, .created = when};
     memcpy(ipFragList.fragList[slot].srcAddr.bytes, srcAddr->bytes, 16);
     memcpy(ipFragList.fragList[slot].dstAddr.bytes, dstAddr->bytes, 16);
 
     return 1;
 }  // End of initSlot
 
+static void expireFragmentList(time_t now, time_t timeout) {
+    uint32_t cnt = 0;
+    for (int slot = 0; slot < ipFragList.numFrags; slot++) {
+        // skip empty slots
+        if (ipFragList.fragList[slot].created == 0) continue;
+
+        // free up old entries not completed, since created + timeout
+        if ((ipFragList.fragList[slot].created + timeout) < now) {
+            free(ipFragList.fragList[slot].payload);
+            ipFragList.fragList[slot].payload = NULL;
+            ipFragList.fragList[slot].created = 0;
+            ipFragList.fragList[slot].fragID = 0;
+            cnt++;
+        }
+    }
+    if (cnt) LogVerbose("Deleted %u incomplete IP fragments", cnt);
+
+}  // End of expireFragmentList
+
 // get the existing or a new fragment struct for srcAddr/dstAddr/fragID
-static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, const uint32_t fragID) {
+static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, const uint32_t fragID, time_t when) {
+    // Periodically expire old fragments
+    static time_t lastExpire = 0;
+    if (when - lastExpire > 10) {
+        expireFragmentList(when, FRAGMENT_TIMEOUT);
+        lastExpire = when;
+    }
+
     unsigned slot;
     int firstEmpty = -1;
     for (slot = 0; slot < ipFragList.numFrags; slot++) {
@@ -131,11 +160,11 @@ static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, 
             // init new empty slots
             for (unsigned i = ipFragList.numFrags; i < max; i++) ipFragList.fragList[i].fragID = 0;
             ipFragList.numFrags = max;
-            if (!initSlot(slot, srcAddr, dstAddr, fragID)) return NULL;
+            if (!initSlot(slot, srcAddr, dstAddr, fragID, when)) return NULL;
         } else {
             // assign first empty slot in list
             slot = (unsigned)firstEmpty;
-            if (!initSlot(slot, srcAddr, dstAddr, fragID)) return NULL;
+            if (!initSlot(slot, srcAddr, dstAddr, fragID, when)) return NULL;
         }
     }  // else fragment in slot found
 
@@ -208,13 +237,13 @@ static int findHole(ipFrag_t *fragment, uint16_t fragFirst, uint16_t fragLast, i
 }  // End of findHole
 
 // Defragment IPv6 packets according RFC815
-void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const struct ip6_frag *ip6_frag, const void *eodata, uint32_t *payloadLength) {
+void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const struct ip6_frag *ip6_frag, const void *eodata, uint32_t *payloadLength, time_t when) {
     ip128_t srcAddr, dstAddr;
     memcpy(srcAddr.bytes, ip6->ip6_src.s6_addr, 16);
     memcpy(dstAddr.bytes, ip6->ip6_dst.s6_addr, 16);
     uint32_t fragID = ntohl(ip6_frag->ip6f_ident);
 
-    ipFrag_t *fragment = getIPFragement(&srcAddr, &dstAddr, fragID);
+    ipFrag_t *fragment = getIPFragement(&srcAddr, &dstAddr, fragID, when);
     if (!fragment) return NULL;
 
     uint16_t offset = ntohs(ip6_frag->ip6f_offlg);
@@ -256,6 +285,7 @@ void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const struct ip6_frag *ip6_f
     // if no more holes exist, we are done
     if (fragment->numHoles == 0) {
         fragment->fragID = 0;
+        fragment->created = 0;
         fragment->payload = NULL;
         *payloadLength = fragment->payloadLength;
         dbg_printf("Complete fragment. Size: %u\n", fragment->payloadLength);
@@ -266,7 +296,7 @@ void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const struct ip6_frag *ip6_f
 }  // End of ProcessIP6Fragment
 
 // Defragment IPv4 packets according RFC815
-void *ProcessIP4Fragment(const struct ip *ip4, const void *eodata, uint32_t *payloadLength) {
+void *ProcessIP4Fragment(const struct ip *ip4, const void *eodata, uint32_t *payloadLength, time_t when) {
     static const uint8_t prefix[12] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff};
     ip128_t srcAddr = {0};
     ip128_t dstAddr = {0};
@@ -276,7 +306,7 @@ void *ProcessIP4Fragment(const struct ip *ip4, const void *eodata, uint32_t *pay
     memcpy(dstAddr.bytes + 12, &ip4->ip_dst.s_addr, 4);
 
     uint32_t fragID = ntohs(ip4->ip_id);
-    ipFrag_t *fragment = getIPFragement(&srcAddr, &dstAddr, fragID);
+    ipFrag_t *fragment = getIPFragement(&srcAddr, &dstAddr, fragID, when);
     if (!fragment) return NULL;
 
     uint16_t ip_off = ntohs(ip4->ip_off);
@@ -319,6 +349,7 @@ void *ProcessIP4Fragment(const struct ip *ip4, const void *eodata, uint32_t *pay
     // if no more holes exist, we are done
     if (fragment->numHoles == 0) {
         fragment->fragID = 0;
+        fragment->created = 0;
         fragment->payload = NULL;
         *payloadLength = fragment->payloadLength;
         dbg_printf("Complete fragment. Size: %u\n", fragment->payloadLength);

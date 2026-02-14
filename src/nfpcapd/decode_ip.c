@@ -138,7 +138,7 @@ static decode_state_t decode_ipv6(decode_ctx_t *ctx) {
 
         ctx->IPproto = ip6_frag_hdr.ip6f_nxt;
         uint32_t reassembledLength = 0;
-        void *payload = ProcessIP6Fragment(ip6_ptr, &ip6_frag_hdr, cur->end, &reassembledLength);
+        void *payload = ProcessIP6Fragment(ip6_ptr, &ip6_frag_hdr, cur->end, &reassembledLength, ctx->hdr->ts.tv_sec);
         if (payload == NULL) {
             // not yet complete
             dbg_printf("IPv6 de-fragmentation not yet completed\n");
@@ -244,7 +244,7 @@ static decode_state_t decode_ipv4(decode_ctx_t *ctx) {
     if ((ip_off & IP_MF) || frag_offset) {
         // fragmented packet
         uint32_t reassembledLength = 0;
-        void *payload = ProcessIP4Fragment(ip, cur->end, &reassembledLength);
+        void *payload = ProcessIP4Fragment(ip, cur->end, &reassembledLength, ctx->hdr->ts.tv_sec);
         if (payload == NULL) {
             // not yet complete
             dbg_printf("IPv4 de-fragmentation not yet completed\n");
