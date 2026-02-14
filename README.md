@@ -27,6 +27,7 @@
 ## Features
 
 - Collects NetFlow (v1, v5/v7, v9, IPFIX) and sFlow data.
+- Converts live or file pcap traffic to flow data. 
 - Multi-threaded for high-performance processing and sorting.
 - Advanced flow filtering and aggregation (filter syntax similar to tcpdump, but optimized for flow data).
 - Supports user-defined flow aggregation.
