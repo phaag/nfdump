@@ -44,11 +44,11 @@
 #include "ip128.h"
 #include "nfdump.h"
 #include "nfxV3.h"
+#include "pflog.h"
 
 typedef struct flowHashStat_s {
     size_t activeNodes;
     size_t flowNodes;
-    size_t fragNodes;
 } flowHashStat_t;
 
 // information updated or tested for every packet - hot path
@@ -94,7 +94,7 @@ typedef struct coldNode_s {
     uint8_t reason;
     uint16_t _pad_pf;  // pad to 4 bytes
 
-    void *pflog;
+    pf_info_t pflog;
     void *payload;
     uint32_t payloadSize;
 
@@ -131,7 +131,6 @@ struct FlowNode {
     coldNode_t coldNode;  // flow additional information
 
 #define FLOW_NODE 1
-#define FRAG_NODE 2
 #define SIGNAL_NODE_SYNC 3
 #define SIGNAL_NODE_DONE 4
     uint8_t nodeType;

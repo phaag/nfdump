@@ -65,8 +65,8 @@ struct pcap_sf_pkthdr {
 typedef struct proc_stat_s {
     uint64_t packets;
     uint64_t bytes;
-    uint32_t skipped;
     uint32_t unknown;
+    uint32_t decoding_errors;
     uint32_t short_snap;
     uint32_t duplicates;
 } proc_stat_t;

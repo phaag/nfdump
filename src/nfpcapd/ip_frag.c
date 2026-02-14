@@ -208,7 +208,7 @@ static int findHole(ipFrag_t *fragment, uint16_t fragFirst, uint16_t fragLast, i
 }  // End of findHole
 
 // Defragment IPv6 packets according RFC815
-void *ProcessIP6Fragment(const struct ip6_hdr *ip6, struct ip6_frag *ip6_frag, const void *eodata, uint32_t *payloadLength) {
+void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const struct ip6_frag *ip6_frag, const void *eodata, uint32_t *payloadLength) {
     ip128_t srcAddr, dstAddr;
     memcpy(srcAddr.bytes, ip6->ip6_src.s6_addr, 16);
     memcpy(dstAddr.bytes, ip6->ip6_dst.s6_addr, 16);

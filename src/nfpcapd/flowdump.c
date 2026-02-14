@@ -179,9 +179,8 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
                 dbg_printf("Node RTT: %u\n", Node->coldNode.latency.rtt);
             }
 
-            if (Node->coldNode.pflog) {
-                pflog_hdr_t *pflog = (pflog_hdr_t *)Node->coldNode.pflog;
-                size_t ifnameLen = strnlen(pflog->ifname, IFNAMSIZ);
+            if (Node->coldNode.pflog.has_pfinfo) {
+                size_t ifnameLen = strnlen(Node->coldNode.pflog.ifname, PFLOG_IFNAMSIZ);
                 if (ifnameLen) {
                     ifnameLen++;  // add terminating '\0'
                 }
@@ -192,15 +191,15 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
 
                 UpdateRecordSize(EXpfinfoSize + ifnameLen);
                 PushVarLengthExtension(recordHeader, EXpfinfo, pfinfo, ifnameLen);
-                pfinfo->action = pflog->action;
-                pfinfo->reason = pflog->reason;
-                pfinfo->dir = pflog->dir;
-                pfinfo->rewritten = pflog->rewritten;
-                pfinfo->uid = ntohl(pflog->uid);
-                pfinfo->pid = ntohl(pflog->pid);
-                pfinfo->rulenr = ntohl(pflog->rulenr);
-                pfinfo->subrulenr = ntohl(pflog->subrulenr);
-                memcpy(pfinfo->ifname, pflog->ifname, ifnameLen);
+                pfinfo->action = Node->coldNode.pflog.action;
+                pfinfo->reason = Node->coldNode.pflog.reason;
+                pfinfo->dir = Node->coldNode.pflog.dir;
+                pfinfo->rewritten = Node->coldNode.pflog.rewritten;
+                pfinfo->uid = Node->coldNode.pflog.uid;
+                pfinfo->pid = Node->coldNode.pflog.pid;
+                pfinfo->rulenr = Node->coldNode.pflog.rulenr;
+                pfinfo->subrulenr = Node->coldNode.pflog.subrulenr;
+                memcpy(pfinfo->ifname, Node->coldNode.pflog.ifname, ifnameLen);
                 SetFlag(recordHeader->flags, V3_FLAG_EVENT);
             }
         }

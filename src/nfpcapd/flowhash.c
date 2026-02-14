@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2011-2025, Peter Haag
+ *  Copyright (c) 2011-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -468,7 +468,7 @@ void Dispose_FlowTree(void) {
     drain_global_free();
 
     uint32_t allocated = atomic_load_explicit(&Allocated, memory_order_relaxed);
-    dbg_printf("Hash stat - flow nodes: %zu, frag nodes: %zu total: %zu\n", flowHashStat.flowNodes, flowHashStat.fragNodes, flowHashStat.activeNodes);
+    dbg_printf("Hash stat - flow nodes: %zu, total: %zu\n", flowHashStat.flowNodes, flowHashStat.activeNodes);
     if (allocated != 0) {
         LogError("Dispose_FlowTree() left %u node unprocessed", allocated);
     }
@@ -567,7 +567,6 @@ void Free_Node(struct FlowNode *node) {
 
     // cleanup node
     if (node->coldNode.payload) free(node->coldNode.payload);
-    if (node->coldNode.pflog) free(node->coldNode.pflog);
     memset(&node->hotNode, 0, sizeof(hotNode_t));
     memset(&node->coldNode, 0, sizeof(coldNode_t));
 
@@ -672,8 +671,6 @@ static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
     FlowWheel.slots[slot].head = NULL;
 
     uint32_t flowCnt = 0;
-    uint32_t fragCnt = 0;
-
     while (node) {
         struct FlowNode *next = node->wheel_next;
 
@@ -683,13 +680,8 @@ static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
             // Flow is expired: Remove_Node() will call TimeWheel_Remove()
             Remove_Node(node);
 
-            if (node->nodeType == FLOW_NODE) {
-                Push_Node(NodeList, node);
-                flowCnt++;
-            } else if (node->nodeType == FRAG_NODE) {
-                Free_Node(node);
-                fragCnt++;
-            }
+            Push_Node(NodeList, node);
+            flowCnt++;
         } else {
             // Not expired yet → reschedule into correct future slot
             TimeWheel_Insert(&FlowWheel, node, when);
@@ -698,14 +690,13 @@ static uint32_t Expire_FlowTree(NodeList_t *NodeList, time_t when) {
         node = next;
     }
 
-    if (flowCnt || fragCnt) {
-        LogVerbose("Expired flow nodes: %u, frag nodes: %u. Active flow nodes: %d, frag nodes: %u", flowCnt, fragCnt, flowHashStat.flowNodes,
-                   flowHashStat.fragNodes);
+    if (flowCnt) {
+        LogVerbose("Expired flow nodes: %u. Active flow nodes: %d", flowCnt, flowHashStat.flowNodes);
         LogVerbose("Node cache size: %u, allocated %u, cache size: %zd, queue size: %zu", FlowCacheSize, Allocated, flowHashStat.activeNodes,
                    NodeList_length(NodeList));
     }
 
-    return flowCnt + fragCnt;
+    return flowCnt;
 }  // End of Expire_FlowTree
 
 void CacheCheck(NodeList_t *NodeList, time_t when) {
@@ -766,10 +757,7 @@ struct FlowNode *Insert_Node(struct FlowNode *node) {
         return n;
     } else {
         flowHashStat.activeNodes++;
-        if (node->nodeType == FLOW_NODE)
-            flowHashStat.flowNodes++;
-        else if (node->nodeType == FRAG_NODE)
-            flowHashStat.fragNodes++;
+        flowHashStat.flowNodes++;
         node->inTree = 1;
         // schedule timewheel
         TimeWheel_Insert(&FlowWheel, node, node->hotNode.t_last.tv_sec);
@@ -796,10 +784,7 @@ void Remove_Node(struct FlowNode *node) {
     TimeWheel_Remove(&FlowWheel, node);
 
     flowHashStat.activeNodes--;
-    if (node->nodeType == FLOW_NODE)
-        flowHashStat.flowNodes--;
-    else if (node->nodeType == FRAG_NODE)
-        flowHashStat.fragNodes--;
+    flowHashStat.flowNodes--;
 
     node->inTree = 0;
 
@@ -864,13 +849,8 @@ uint32_t Hash_Flush(NodeList_t *NodeList, time_t when) {
 
         TimeWheel_Remove(&FlowWheel, node);
 
-        if (node->nodeType == FLOW_NODE) {
-            Push_Node(NodeList, node);
-            flowHashStat.flowNodes--;
-        } else {
-            Free_Node(node);
-            flowHashStat.fragNodes--;
-        }
+        Push_Node(NodeList, node);
+        flowHashStat.flowNodes--;
         flowHashStat.activeNodes--;
         drained++;
     }

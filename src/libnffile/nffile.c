@@ -638,11 +638,17 @@ static int WriteAppendix(nffile_t *nffile) {
 
     // write ident
     recordHeader_t *recordHeader = (recordHeader_t *)buff_ptr;
-    void *data = (void *)recordHeader + sizeof(recordHeader_t);
+    char *data = (char *)recordHeader + sizeof(recordHeader_t);
 
+    size_t len = strlen(nffile->ident);
+    size_t align = 0;
+    if ((len + 1) & 0x1) {
+        align = 1;
+    }
     recordHeader->type = TYPE_IDENT;
-    recordHeader->size = sizeof(recordHeader_t) + strlen(nffile->ident) + 1;
+    recordHeader->size = sizeof(recordHeader_t) + len + align + 1;
     strcpy(data, nffile->ident);
+    data[len] = '\0';
 
     block_header->NumRecords++;
     block_header->size += recordHeader->size;

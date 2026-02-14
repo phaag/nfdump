@@ -249,8 +249,8 @@ static void ReportStat(packetParam_t *param) {
         LogInfo("Stat: received: %u, dropped by OS/Buffer: %u, freeze_q_cnt: %u", pstat.tp_packets, pstat.tp_drops, pstat.tp_freeze_q_cnt);
     }
 
-    LogInfo("Processed: %u, skipped: %u, short caplen: %u, unknown: %u", param->proc_stat.packets - proc_stat.packets,
-            param->proc_stat.skipped - proc_stat.skipped, param->proc_stat.short_snap - proc_stat.short_snap,
+    LogInfo("Processed: %u, decode errors: %u, short caplen: %u, unknown: %u", param->proc_stat.packets - proc_stat.packets,
+            param->proc_stat.decoding_errors - proc_stat.decoding_errors, param->proc_stat.short_snap - proc_stat.short_snap,
             param->proc_stat.unknown - proc_stat.unknown);
 
     proc_stat = param->proc_stat;

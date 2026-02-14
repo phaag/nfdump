@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2026, Peter Haag
  *  $OpenBSD: if_pflog.h,v 1.29 2021/01/13 09:13:30 mvs Exp $
  *  Copyright 2001 Niels Provos <provos@citi.umich.edu>
  *
@@ -37,50 +37,92 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#define IFNAMSIZ 16
-#define PFLOG_RULESET_NAME_SIZE 16
+/*
+ * Base on original OpenBSD 7.x code
+ * As the struct struct pfloghdr is not portable amobe all pf platforms
+ * just limit on OpenBSD 7.x
+ *
+ * #define PFLOG_RULESET_NAME_SIZE	16
+ *
+ * struct pfloghdr {
+ *	u_int8_t	length;
+ *	sa_family_t	af;
+ *	u_int8_t	action;
+ *	u_int8_t	reason;
+ *	char		ifname[IFNAMSIZ];
+ *	char		ruleset[PFLOG_RULESET_NAME_SIZE];
+ *	u_int32_t	rulenr;
+ *	u_int32_t	subrulenr;
+ *	uid_t		uid;
+ *	pid_t		pid;
+ *	uid_t		rule_uid;
+ *	pid_t		rule_pid;
+ *	u_int8_t	dir;
+ *	u_int8_t	rewritten;
+ *	sa_family_t	naf;
+ *	u_int8_t	pad[1];
+ *	struct pf_addr	saddr;
+ *	struct pf_addr	daddr;
+ *	u_int16_t	sport;
+ *	u_int16_t	dport;
+ * };
+ *
+ *
+ *
+ * Fixed Offsets based on OpenBSD DLT_PFLOG (Version 7.x)
+ * These are the byte positions in the wire format.
+ */
 
-struct pf_addr {
-    union {
-        struct in_addr addrV4;
-        struct in6_addr addrV6;
-        uint8_t addr8[16];
-        uint16_t addr16[8];
-        uint32_t addr32[4];
-    } pfa; /* 128-bit address */
-#define addrV4 pfa.addrV4
-#define addrV6 pfa.addrV6
-#define addr8 pfa.addr8
-#define addr16 pfa.addr16
-#define addr32 pfa.addr32
-};
+/* OpenBSD constants for pflog */
+#define PFLOG_HDRLEN 100
+#define PFLOG_IFNAMSIZ 16
+#define PFLOG_RULENAMSIZ 16
 
-typedef struct pfloghdr {
-    uint8_t length;
+#define PFLOG_OFF_LEN 0        /* uint8_t  */
+#define PFLOG_OFF_AF 1         /* uint8_t  */
+#define PFLOG_OFF_ACTION 2     /* uint8_t  */
+#define PFLOG_OFF_REASON 3     /* uint8_t  */
+#define PFLOG_OFF_IFNAME 4     /* char[16] */
+#define PFLOG_OFF_RULESET 20   /* char[16] */
+#define PFLOG_OFF_RULENR 36    /* uint32_t */
+#define PFLOG_OFF_SUBRULENR 40 /* uint32_t */
+#define PFLOG_OFF_UID 44       /* uint32_t */
+#define PFLOG_OFF_PID 48       /* int32_t  */
+#define PFLOG_OFF_DIR 60       /* uint8_t  */
+#define PFLOG_OFF_REWRITTEN 61 /* uint8_t  */
+
+/* Metadata structure to hold extracted values */
+typedef struct pf_info_s {
+    uint8_t has_pfinfo;
     uint8_t af;
     uint8_t action;
     uint8_t reason;
-    char ifname[IFNAMSIZ];
-    char ruleset[PFLOG_RULESET_NAME_SIZE];
-    uint32_t rulenr;
-    uint32_t subrulenr;
-    uid_t uid;
-    pid_t pid;
-    uid_t rule_uid;
-    pid_t rule_pid;
     uint8_t dir;
     uint8_t rewritten;
-    uint8_t naf;
-    uint8_t pad[1];
-    struct pf_addr saddr;
-    struct pf_addr daddr;
-    uint16_t sport;
-    uint16_t dport;
-} pflog_hdr_t;
+    uint16_t _align;
+    uint32_t uid;
+    int32_t pid;
+    uint32_t rulenr;
+    uint32_t subrulenr;
+    char ifname[16];
+} pf_info_t;
 
-#define PFLOG_HDRLEN sizeof(struct pfloghdr)
-/* used to be minus pad, also used as a signature */
-#define PFLOG_REAL_HDRLEN PFLOG_HDRLEN
-#define PFLOG_OLD_HDRLEN offsetof(struct pfloghdr, pad)
+/* Actions */
+#define PF_PASS 0
+#define PF_DROP 1
+#define PF_SCRUB 2
+#define PF_NOSCRUB 3
+#define PF_NAT 4
+#define PF_NONAT 5
+#define PF_BINAT 6
+#define PF_NOBINAT 7
+#define PF_RDR 8
+#define PF_NORDR 9
+#define PF_SYNPROXY 10
+#define PF_DEFER 11
+
+/* Directions */
+#define PF_IN 1
+#define PF_OUT 2
 
 #endif
