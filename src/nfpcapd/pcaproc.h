@@ -35,10 +35,8 @@
 #include "config.h"
 #endif
 
-#ifdef FIX_INCLUDE
-#include <sys/types.h>
-#endif
 #include <stdint.h>
+#include <sys/types.h>
 
 #ifdef HAVE_NET_ETHERNET_H
 #include <net/ethernet.h>

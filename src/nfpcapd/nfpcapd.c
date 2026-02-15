@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2013-2025, Peter Haag
+ *  Copyright (c) 2013-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -34,12 +34,6 @@
 #include <fcntl.h>
 #include <inttypes.h>
 #include <libgen.h>
-
-#include "config.h"
-
-#ifdef FIX_INCLUDE
-#include <sys/types.h>
-#endif
 #include <netinet/in.h>
 #include <netinet/in_systm.h>
 #include <netinet/ip.h>

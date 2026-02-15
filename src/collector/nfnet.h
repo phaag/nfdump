@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -36,12 +36,10 @@
 #include "config.h"
 #endif
 
-#ifdef FIX_INCLUDE
-#include <sys/types.h>
-#endif
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 
 /* Definitions */
 

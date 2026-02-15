@@ -32,9 +32,6 @@
 #include "config.h"
 #endif
 
-#ifdef FIX_INCLUDE
-#include <sys/types.h>
-#endif
 #include <errno.h>
 #include <fcntl.h>
 #include <net/bpf.h>

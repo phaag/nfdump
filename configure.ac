@@ -254,9 +254,11 @@ AS_IF([test x$enable_ftconv = xyes], [
 # --- nfpcapd build options: Berkely BSD socket or TPACKET_V3, or plain pcap library
 AM_COND_IF([BUILD_NFPCAPD],
 	[ AC_CHECK_HEADERS([net/bpf.h],
-		[AM_CONDITIONAL(BSDBPF, true) AM_CONDITIONAL(TPACKETV3, false) AM_CONDITIONAL(PLAINPCAP, false)],
+		[AC_DEFINE([USE_BPFSOCKET], [1], [Use BSD BPF for packet collection])
+		 AM_CONDITIONAL(BSDBPF, true) AM_CONDITIONAL(TPACKETV3, false) AM_CONDITIONAL(PLAINPCAP, false)],
 		[AC_CHECK_DECL([TPACKET_V3],
-			[AM_CONDITIONAL(TPACKETV3, true) AM_CONDITIONAL(BSDBPF, false) AM_CONDITIONAL(PLAINPCAP, false)],
+			[ AC_DEFINE([USE_TPACKETV3], [1], [Use Linux TPACKETV3 for packet collection])
+				AM_CONDITIONAL(TPACKETV3, true) AM_CONDITIONAL(BSDBPF, false) AM_CONDITIONAL(PLAINPCAP, false)],
 			[AM_CONDITIONAL(PLAINPCAP, true) AM_CONDITIONAL(BSDBPF, false) AM_CONDITIONAL(TPACKETV3, false)],
 			[[ #include <sys/socket.h>
            	   #include <linux/if_packet.h>]])]
