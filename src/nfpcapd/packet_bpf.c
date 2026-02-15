@@ -216,15 +216,14 @@ static void ReportStat(packetParam_t *param) {
     memset((void *)&pstat, 0, sizeof(struct bpf_stat));
     if (ioctl(param->bpf, BIOCGSTATS, &pstat) < 0) {
         LogError("ioctl(BIOCGSTATS) failed: %s", strerror(errno));
-    } else {
-        last_stat = pstat;
     }
 
-    LogInfo("Packets kernel received: %d, dropped by OS/Buffer: %d, processed: %u, decode errors: %u, short caplen: %u, unknown: %u",
+    LogInfo("Packets kernel received: %u, dropped by OS/Buffer: %u, processed: %u, decode errors: %u, short caplen: %u, unknown: %u",
             pstat.bs_recv - last_stat.bs_recv, pstat.bs_drop - last_stat.bs_drop, param->proc_stat.packets - proc_stat.packets,
             param->proc_stat.decoding_errors - proc_stat.decoding_errors, param->proc_stat.short_snap - proc_stat.short_snap,
             param->proc_stat.unknown - proc_stat.unknown);
 
+    last_stat = pstat;
     proc_stat = param->proc_stat;
 
 }  // End of ReportStat
