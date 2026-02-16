@@ -193,7 +193,8 @@ int setup_linux_live(packetParam_t *param, char *device, char *filter, unsigned 
                 break;
         }
     } else {
-        LogError("octl(SIOCGIFHWADDR) failed: %s", strerror(errno));
+        LogError("ioctl(SIOCGIFHWADDR) failed: %s", strerror(errno));
+        return -1;
     }
 
     param->linktype = linktype;

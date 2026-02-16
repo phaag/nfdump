@@ -118,9 +118,7 @@ static void expireFragmentList(time_t now, time_t timeout) {
         // free up old entries not completed, since created + timeout
         if ((ipFragList.fragList[slot].created + timeout) < now) {
             free(ipFragList.fragList[slot].payload);
-            ipFragList.fragList[slot].payload = NULL;
-            ipFragList.fragList[slot].created = 0;
-            ipFragList.fragList[slot].fragID = 0;
+            memset(&ipFragList.fragList[slot], 0, sizeof(ipFrag_t));
             cnt++;
         }
     }
@@ -140,7 +138,7 @@ static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, 
     unsigned slot;
     int firstEmpty = -1;
     for (slot = 0; slot < ipFragList.numFrags; slot++) {
-        if (ipFragList.fragList[slot].fragID == 0 && firstEmpty < 0) firstEmpty = slot;
+        if (ipFragList.fragList[slot].created == 0 && firstEmpty < 0) firstEmpty = slot;
         if (ipFragList.fragList[slot].fragID == fragID && (memcmp(ipFragList.fragList[slot].srcAddr.bytes, srcAddr->bytes, 16) == 0) &&
             (memcmp(ipFragList.fragList[slot].dstAddr.bytes, dstAddr->bytes, 16) == 0))
             break;
@@ -149,7 +147,7 @@ static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, 
     if (slot == ipFragList.numFrags) {
         // fragID not found
         if (firstEmpty < 0) {
-            // no empty slot and all slots exhausted - extend fragment list by NUMFRAGMENTS
+            // no empty slot  - no slots yet or all slots exhausted - extend fragment list by NUMFRAGMENTS
             void *tmp = realloc(ipFragList.fragList, (ipFragList.numFrags + NUMFRAGMENTS) * sizeof(ipFrag_t));
             if (!tmp) {
                 LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
@@ -158,14 +156,15 @@ static ipFrag_t *getIPFragement(const ip128_t *srcAddr, const ip128_t *dstAddr, 
             ipFragList.fragList = tmp;
             uint32_t max = ipFragList.numFrags + NUMFRAGMENTS;
             // init new empty slots
-            for (unsigned i = ipFragList.numFrags; i < max; i++) ipFragList.fragList[i].fragID = 0;
+            for (unsigned i = ipFragList.numFrags; i < max; i++) {
+                memset(&ipFragList.fragList[i], 0, sizeof(ipFrag_t));
+            }
             ipFragList.numFrags = max;
-            if (!initSlot(slot, srcAddr, dstAddr, fragID, when)) return NULL;
         } else {
             // assign first empty slot in list
             slot = (unsigned)firstEmpty;
-            if (!initSlot(slot, srcAddr, dstAddr, fragID, when)) return NULL;
         }
+        if (!initSlot(slot, srcAddr, dstAddr, fragID, when)) return NULL;
     }  // else fragment in slot found
 
     dbg_printf("Return fragment slot %d\n", slot);
@@ -284,11 +283,9 @@ void *ProcessIP6Fragment(const struct ip6_hdr *ip6, const struct ip6_frag *ip6_f
 
     // if no more holes exist, we are done
     if (fragment->numHoles == 0) {
-        fragment->fragID = 0;
-        fragment->created = 0;
-        fragment->payload = NULL;
         *payloadLength = fragment->payloadLength;
         dbg_printf("Complete fragment. Size: %u\n", fragment->payloadLength);
+        memset(fragment, 0, sizeof(ipFrag_t));
         return payload;
     }
 
@@ -348,11 +345,9 @@ void *ProcessIP4Fragment(const struct ip *ip4, const void *eodata, uint32_t *pay
 
     // if no more holes exist, we are done
     if (fragment->numHoles == 0) {
-        fragment->fragID = 0;
-        fragment->created = 0;
-        fragment->payload = NULL;
         *payloadLength = fragment->payloadLength;
         dbg_printf("Complete fragment. Size: %u\n", fragment->payloadLength);
+        memset(fragment, 0, sizeof(ipFrag_t));
         return payload;
     }
 
