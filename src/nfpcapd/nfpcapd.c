@@ -521,8 +521,8 @@ int main(int argc, char *argv[]) {
         ret = setup_linux_live(&packetParam, device, filter, snaplen);
         packet_thread = linux_packet_thread;
 #else
-        ret = setup_pcap_live(&packetParam, device, filter, snaplen, buffsize);
-        packet_thread = pcap_packet_thread;
+        ret = -1;
+        LogError("No suitable method BPF/TPACKETV3 for packet capure available");
 #endif
     }
     if (ret < 0) {

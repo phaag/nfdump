@@ -391,7 +391,7 @@ static inline void PcapDump(packetBuffer_t *packetBuffer, struct pcap_pkthdr *hd
 
 }  // End of PcapDump
 
-void __attribute__((noreturn)) * pcap_file_packet_thread(void *args) {
+void *__attribute__((noreturn)) pcap_file_packet_thread(void *args) {
     packetParam_t *packetParam = (packetParam_t *)args;
 
     dbg_printf("Enter thread %s\n", __func__);

@@ -292,7 +292,7 @@ static inline void PcapDump(packetBuffer_t *packetBuffer, struct tpacket3_hdr *p
 
 }  // End of PcapDump
 
-void __attribute__((noreturn)) * linux_packet_thread(void *args) {
+void *__attribute__((noreturn)) linux_packet_thread(void *args) {
     packetParam_t *packetParam = (packetParam_t *)args;
 
     Init_NodeAllocator();

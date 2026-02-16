@@ -46,6 +46,11 @@
 #include "util.h"
 #include "zlib.h"
 
+static void *payload_handle(PktBatch_t *batch, size_t idx) {
+    // return aligned payload for index idx
+    return batch->payload_slab + (ptrdiff_t)idx * (ptrdiff_t)batch->payload_size;
+}  // End of payload_handle
+
 int OpenZIPfile(readerParam_t *readerParam, struct pcap_file_header *fileHeader, const char *fileName) {
     gzFile gz = gzopen(fileName, "rb");
     if (!gz) {

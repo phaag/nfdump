@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2023, Peter Haag
+ *  Copyright (c) 2023-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -44,8 +44,6 @@
 
 #include "flowhash.h"
 #include "queue.h"
-
-#define PROMISC 1
 
 #ifndef PCAP_NETMASK_UNKNOWN
 #define PCAP_NETMASK_UNKNOWN 0xffffffff
@@ -176,22 +174,16 @@ void batch_clear(PktBatch_t *batch);
 
 void batch_free(PktBatch_t *batch);
 
-void *payload_handle(PktBatch_t *batch, size_t idx);
-
-int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize);
-
-void __attribute__((noreturn)) * pcap_packet_thread(void *args);
-
 /* Fast file reader integration (mmap/gzip + batching) */
 int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerParam, const char *path, const char *filter);
 
 void pcap_file_reader_stop(readerParam_t *readerParam);
-void __attribute__((noreturn)) * pcap_file_packet_thread(void *args);
+void *__attribute__((noreturn)) pcap_file_packet_thread(void *args);
 
 #ifdef USE_BPFSOCKET
 int setup_bpf_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize);
 
-void __attribute__((noreturn)) * bpf_packet_thread(void *args);
+void *__attribute__((noreturn)) bpf_packet_thread(void *args);
 #endif
 
 #ifdef USE_TPACKETV3
