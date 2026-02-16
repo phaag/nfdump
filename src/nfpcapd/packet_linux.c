@@ -91,16 +91,19 @@ static void CloseSocket(packetParam_t *param) {
 
 // Initialize the socket rx ring buffer
 static int InitRing(packetParam_t *param, char *device) {
-    unsigned int blocksiz = 1 << 22, framesiz = 1 << 11;
-    unsigned int blocknum = 64;
+    unsigned int blocksiz = 1 << 21, framesiz = 1 << 11;
+    unsigned int blocknum = 32;
 
     struct ring *ring = &(param->ring);
+    ring->map = NULL;
+    ring->rd = NULL;
+
     memset(&ring->req, 0, sizeof(ring->req));
     ring->req.tp_block_size = blocksiz;
     ring->req.tp_frame_size = framesiz;
     ring->req.tp_block_nr = blocknum;
     ring->req.tp_frame_nr = (blocksiz * blocknum) / framesiz;
-    ring->req.tp_retire_blk_tov = 60;
+    ring->req.tp_retire_blk_tov = 20;
     ring->req.tp_feature_req_word = TP_FT_REQ_FILL_RXHASH;
 
     int err = setsockopt(param->fd, SOL_PACKET, PACKET_RX_RING, &ring->req, sizeof(ring->req));
@@ -111,12 +114,15 @@ static int InitRing(packetParam_t *param, char *device) {
 
     ring->map = mmap(NULL, ring->req.tp_block_size * ring->req.tp_block_nr, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_LOCKED, param->fd, 0);
     if (ring->map == MAP_FAILED) {
+        ring->map = NULL;
         LogError("mmap() failed: %s", strerror(errno));
         return -1;
     }
 
     ring->rd = malloc(ring->req.tp_block_nr * sizeof(*ring->rd));
     if (!ring->rd) {
+        munmap(ring->map, ring->req.tp_block_size * ring->req.tp_block_nr);
+        ring->map = NULL;
         LogError("malloc() failed: %s", strerror(errno));
         return -1;
     }
@@ -131,6 +137,11 @@ static int InitRing(packetParam_t *param, char *device) {
     ll.sll_family = PF_PACKET;
     ll.sll_protocol = htons(ETH_P_ALL);
     ll.sll_ifindex = if_nametoindex(device);
+    if (ll.sll_ifindex == 0) {
+        LogError("Unknown interface '%s'", device);
+        CloseSocket(param);
+        return -1;
+    }
     ll.sll_hatype = 0;
     ll.sll_pkttype = 0;
     ll.sll_halen = 0;
@@ -194,6 +205,7 @@ int setup_linux_live(packetParam_t *param, char *device, char *filter, unsigned 
         }
     } else {
         LogError("ioctl(SIOCGIFHWADDR) failed: %s", strerror(errno));
+        CloseSocket(param);
         return -1;
     }
 
@@ -201,7 +213,6 @@ int setup_linux_live(packetParam_t *param, char *device, char *filter, unsigned 
     param->snaplen = snaplen;
 
     if (filter && !setup_pcap_filter(param, filter)) {
-        pcap_close(param->pcap_dev);
         CloseSocket(param);
         return -1;
     }
@@ -219,7 +230,8 @@ static int setup_pcap_filter(packetParam_t *param, char *filter) {
 
     struct bpf_program filter_code = {0};
     if (pcap_compile(dead, &filter_code, filter, 1, PCAP_NETMASK_UNKNOWN)) {
-        LogError("pcap_compile() failed: %s", pcap_geterr(param->pcap_dev));
+        LogError("pcap_compile() failed: %s", pcap_geterr(dead));
+        pcap_close(dead);
         return 0;
     }
 
@@ -229,10 +241,13 @@ static int setup_pcap_filter(packetParam_t *param, char *filter) {
 
     if (setsockopt(param->fd, SOL_SOCKET, SO_ATTACH_FILTER, &fcode, sizeof(fcode)) < 0) {
         LogError("setsockopt(SO_ATTACH_FILTER) failed: %s", strerror(errno));
+        pcap_freecode(&filter_code);
+        pcap_close(dead);
         return 0;
     }
 
     LogInfo("Set packet filter: '%s'", filter);
+    pcap_freecode(&filter_code);
     pcap_close(dead);
 
     return 1;
@@ -376,7 +391,7 @@ void __attribute__((noreturn)) * linux_packet_thread(void *args) {
             void *data = (void *)ppd + ppd->tp_mac;
             int ok = ProcessPacket(packetParam, &phdr, data);
 
-            size_t size = sizeof(struct pcap_sf_pkthdr) + ppd->tp_len;
+            size_t size = sizeof(struct pcap_sf_pkthdr) + ppd->tp_snaplen;
             if (DoPacketDump && ok) {
                 if ((packetBuffer->bufferSize + size) > BUFFSIZE) {
                     packetBuffer->timeStamp = 0;
@@ -396,7 +411,7 @@ void __attribute__((noreturn)) * linux_packet_thread(void *args) {
         done = done || atomic_load_explicit(packetParam->done, memory_order_relaxed);
 
         pbd->h1.block_status = TP_STATUS_KERNEL;
-        block_num = (block_num + 1) % 64;
+        block_num = (block_num + 1) % packetParam->ring.req.tp_block_nr;
     }
 
     // flush buffer

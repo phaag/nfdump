@@ -517,6 +517,7 @@ int main(int argc, char *argv[]) {
         ret = setup_bpf_live(&packetParam, device, filter, snaplen, buffsize);
         packet_thread = bpf_packet_thread;
 #elif USE_TPACKETV3
+        (void)buffsize;
         ret = setup_linux_live(&packetParam, device, filter, snaplen);
         packet_thread = linux_packet_thread;
 #else
