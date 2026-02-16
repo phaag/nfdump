@@ -1233,8 +1233,10 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
     char dStr[64];
     if (outputParams->printPlain)
         snprintf(dStr, 64, "%16.3f", duration);
-    else
-        snprintf(dStr, 64, "%s", DurationString(duration));
+    else {
+        uint64_t durationMsec = statRecord->msecLast - statRecord->msecFirst;
+        snprintf(dStr, 64, "%s", DurationString(durationMsec));
+    }
 
     if (Getv6Mode() && (type == IS_IPADDR)) {
         printf("%s.%03u %9s %-5s %s%43s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(statRecord->msecFirst % 1000), dStr,
