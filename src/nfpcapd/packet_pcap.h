@@ -178,7 +178,7 @@ void batch_free(PktBatch_t *batch);
 
 void *payload_handle(PktBatch_t *batch, size_t idx);
 
-int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms);
+int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize);
 
 void __attribute__((noreturn)) * pcap_packet_thread(void *args);
 
@@ -189,13 +189,13 @@ void pcap_file_reader_stop(readerParam_t *readerParam);
 void __attribute__((noreturn)) * pcap_file_packet_thread(void *args);
 
 #ifdef USE_BPFSOCKET
-int setup_bpf_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms);
+int setup_bpf_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize);
 
 void __attribute__((noreturn)) * bpf_packet_thread(void *args);
 #endif
 
 #ifdef USE_TPACKETV3
-int setup_linux_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms);
+int setup_linux_live(packetParam_t *param, char *device, char *filter, unsigned snaplen);
 
 void __attribute__((noreturn)) * linux_packet_thread(void *args);
 #endif

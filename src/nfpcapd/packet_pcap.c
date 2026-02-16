@@ -64,6 +64,8 @@ static inline void PcapDump(packetBuffer_t *packetBuffer, struct pcap_pkthdr *hd
 static struct pcap_stat last_stat = {0};
 static proc_stat_t proc_stat = {0};
 
+#define TO_MS 100
+
 /*
  * Functions
  */
@@ -122,7 +124,7 @@ void batch_free(PktBatch_t *batch) {
 }  // End of batch_free
 
 // live device
-int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms) {
+int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize) {
     pcap_t *p;
     char errbuf[PCAP_ERRBUF_SIZE];
 
@@ -176,7 +178,7 @@ int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned s
         return -1;
     }
 
-    if (pcap_set_timeout(p, to_ms)) {
+    if (pcap_set_timeout(p, TO_MS)) {
         LogError("pcap_set_timeout() failed: %s", pcap_geterr(p));
         pcap_close(p);
         return -1;
@@ -196,27 +198,6 @@ int setup_pcap_live(packetParam_t *param, char *device, char *filter, unsigned s
 
     param->snaplen = snaplen;
     param->linktype = pcap_datalink(p);
-    switch (param->linktype) {
-        case DLT_RAW:
-        case DLT_PPP:
-        case DLT_PPP_SERIAL:
-        case DLT_NULL:
-        case DLT_LOOP:
-        case DLT_EN10MB:
-#ifndef DLT_LINUX_SLL
-#define DLT_LINUX_SLL 113
-#endif
-        case DLT_LINUX_SLL:
-        case DLT_IEEE802_11:
-        case DLT_NFLOG:
-        case DLT_PFLOG:
-            break;
-        default:
-            LogError("Unsupported data link type %i", param->linktype);
-            pcap_close(p);
-            return -1;
-    }
-
     param->pcap_dev = p;
 
     if (filter && !setup_pcap_filter(param, filter)) {

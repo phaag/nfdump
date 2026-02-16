@@ -75,6 +75,11 @@ fmt.pflog = "%ts %pfact %pfrea  %pfdir on %pfifn %pfrule  %pr %sap -> %dap %pkt 
 # define -o options
 # opt.fat = 1
 # opt.payload = 1
+#
+# buffSize used for BPF buffer size on *BSD systems - 1 MB by default.
+# no less than 32k accepted, should be multiple of page size (4k) 
+# buffSize = 1048576
+
 
 [nfanon]
 # Defines the number of working threads for anonymising and compressing flows.

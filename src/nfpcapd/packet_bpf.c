@@ -98,86 +98,77 @@ static int open_bpf(void) {
 static void CloseSocket(packetParam_t *param) {
     // close bpf device
     close(param->bpf);
+    if (param->bpfBuffer) free(param->bpfBuffer);
+    param->bpfBuffer = NULL;
+    param->bpfBufferSize = 0;
 }  // End of CloseSocket
 
 // live device
-int setup_bpf_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms) {
+int setup_bpf_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize) {
     param->pcap_dev = NULL;
-    param->bpf = 0;
+    param->bpfBuffer = NULL;
+    param->bpfBufferSize = 0;
+
     int bpf = open_bpf();
     if (bpf < 0) {
         LogError("open_bpf() failed: %s", strerror(errno));
         return -1;
     }
+    param->bpf = bpf;
 
-    unsigned int buf_len = param->bpfBufferSize;
+    unsigned int buf_len = buffsize;
     if (ioctl(bpf, BIOCSBLEN, &buf_len) == -1) {
         LogError("ioctl(BIOCSBLEN) failed: %s", strerror(errno));
-        close(bpf);
+        CloseSocket(param);
         return -1;
     }
-    dbg_printf("BIOCSBLEN requested: %zu, returned: %u\n", param->bpfBufferSize, buf_len);
-    if (buf_len && (buf_len < param->bpfBufferSize)) {
-        LogError("ioctl(BIOCSBLEN) buffer set to max: %u", buf_len);
-        param->bpfBufferSize = buf_len;
+    dbg_printf("BIOCSBLEN requested: %zu, returned: %u\n", buffsize, buf_len);
+
+    if (buf_len < buffsize) {
+        LogInfo("ioctl(BIOCSBLEN) buffer reduced to: %u", buf_len);
     }
 
+    param->bpfBufferSize = buf_len;
     param->bpfBuffer = malloc(param->bpfBufferSize);
     if (!param->bpfBuffer) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        close(bpf);
+        CloseSocket(param);
         return -1;
     }
 
-    struct ifreq if_req;
-    strncpy(if_req.ifr_name, device, IFNAMSIZ - 1);
-    if (ioctl(bpf, BIOCSETIF, &if_req) > 0) {
+    struct ifreq if_req = {0};
+    strlcpy(if_req.ifr_name, device, IFNAMSIZ);
+    if (ioctl(bpf, BIOCSETIF, &if_req) < 0) {
         LogError("ioctl(BIOCSETIF) failed: %s", strerror(errno));
-        close(bpf);
+        CloseSocket(param);
         return -1;
     }
 
     unsigned int mode = 0;
     if (ioctl(bpf, BIOCIMMEDIATE, &mode) == -1) {
         LogError("ioctl(BIOCIMMEDIATE) failed: %s", strerror(errno));
-        close(bpf);
+        CloseSocket(param);
         return -1;
     }
 
     if (ioctl(bpf, BIOCPROMISC, NULL) == -1) {
         LogError("ioctl(BIOCPROMISC) failed: %s", strerror(errno));
-        close(bpf);
+        CloseSocket(param);
         return -1;
     }
 
     uint32_t dlt = 0;
     if (ioctl(bpf, BIOCGDLT, &dlt) < 0) {
         LogError("ioctl(BIOCGDLT) failed: %s", strerror(errno));
-        close(bpf);
+        CloseSocket(param);
         return -1;
     }
 
-    switch (dlt) {
-        case DLT_RAW:
-            param->linktype = DLT_RAW;
-            break;
-        case DLT_EN10MB:
-            param->linktype = DLT_EN10MB;
-            break;
-        default:
-            LogError("Unsupported datalink type: %u", dlt);
-            errno = EINVAL;
-            close(bpf);
-            return -1;
-    }
-
-    param->bpf = bpf;
-
-    // pcap handle for dumper
     param->snaplen = snaplen;
     param->linktype = dlt;
 
     if (filter && !setup_pcap_filter(param, filter)) {
+        CloseSocket(param);
         return -1;
     }
 
@@ -194,16 +185,20 @@ static int setup_pcap_filter(packetParam_t *param, char *filter) {
 
     struct bpf_program filter_code = {0};
     if (pcap_compile(dead, &filter_code, filter, 1, PCAP_NETMASK_UNKNOWN)) {
-        LogError("pcap_compile() failed: %s", pcap_geterr(param->pcap_dev));
+        LogError("pcap_compile() failed: %s", pcap_geterr(dead));
+        pcap_close(dead);
         return 0;
     }
 
     if (ioctl(param->bpf, BIOCSETF, (caddr_t)&filter_code) < 0) {
         LogError("ioctl(BIOCSETF) failed: %s", strerror(errno));
+        pcap_freecode(&filter_code);
+        pcap_close(dead);
         return 0;
     }
 
     LogInfo("Set packet filter: '%s'", filter);
+    pcap_freecode(&filter_code);
     pcap_close(dead);
 
     return 1;
@@ -246,7 +241,7 @@ static inline void PcapDump(packetBuffer_t *packetBuffer, struct bpf_hdr *hdr, c
 
 }  // End of PcapDump
 
-void __attribute__((noreturn)) * bpf_packet_thread(void *args) {
+void *__attribute__((noreturn)) bpf_packet_thread(void *args) {
     packetParam_t *packetParam = (packetParam_t *)args;
 
     Init_NodeAllocator();

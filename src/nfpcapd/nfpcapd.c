@@ -88,7 +88,6 @@
 #define PROMISC 1
 #define TIMEOUT 500
 #define FILTER "ip"
-#define TO_MS 100
 
 // global static var: used by interrupt routine
 static _Atomic uint32_t done = 0;
@@ -495,7 +494,16 @@ int main(int argc, char *argv[]) {
         flowParam.sendHost = sendHost;
     }
 
-    size_t buffsize = 64 * 1024;
+#ifdef __FreeBSD__
+    size_t buffsize = 4 * 1024 * 1024;
+#else
+    size_t buffsize = 1 * 1024 * 1024;
+#endif
+
+#define MINBUFFSIZE 32 * 1024
+    int64_t confBuffSize = ConfGetValue("buffSize");
+    if (confBuffSize > (MINBUFFSIZE)) buffsize = (size_t)confBuffSize;
+
     int ret = 0;
     void *(*packet_thread)(void *) = NULL;
     if (pcapfile) {
@@ -506,14 +514,13 @@ int main(int argc, char *argv[]) {
     } else {
         packetParam.live = 1;
 #ifdef USE_BPFSOCKET
-        packetParam.bpfBufferSize = buffsize;
-        ret = setup_bpf_live(&packetParam, device, filter, snaplen, buffsize, TO_MS);
+        ret = setup_bpf_live(&packetParam, device, filter, snaplen, buffsize);
         packet_thread = bpf_packet_thread;
 #elif USE_TPACKETV3
-        ret = setup_linux_live(&packetParam, device, filter, snaplen, buffsize, TO_MS);
+        ret = setup_linux_live(&packetParam, device, filter, snaplen);
         packet_thread = linux_packet_thread;
 #else
-        ret = setup_pcap_live(&packetParam, device, filter, snaplen, buffsize, TO_MS);
+        ret = setup_pcap_live(&packetParam, device, filter, snaplen, buffsize);
         packet_thread = pcap_packet_thread;
 #endif
     }

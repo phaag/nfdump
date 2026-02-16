@@ -146,7 +146,7 @@ static int InitRing(packetParam_t *param, char *device) {
 
 }  // End of InitRing
 
-int setup_linux_live(packetParam_t *param, char *device, char *filter, unsigned snaplen, size_t buffsize, int to_ms) {
+int setup_linux_live(packetParam_t *param, char *device, char *filter, unsigned snaplen) {
     param->pcap_dev = NULL;
     param->fd = 0;
 
