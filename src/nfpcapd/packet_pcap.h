@@ -140,6 +140,7 @@ typedef struct readerParam_s {
     int have_filter;
 } readerParam_t;
 
+// to write a native pcapp file
 typedef struct pcaprec_hdr {
     uint32_t ts_sec;
     uint32_t ts_usec;

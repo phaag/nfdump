@@ -1399,6 +1399,56 @@ static void *nfwriter(void *arg) {
 
 }  // End of nfwriter
 
+/*
+void *nffile_backend_thread(void *arg) {
+    nffile_backend_ctx_t *ctx = arg;
+    queue_t *q = ctx->fs->collector_to_backend;
+
+    // init writer queue + workers
+    ctx->writerQueue = queue_create(0);
+    ctx->writers = calloc(ctx->numWriters, sizeof(pthread_t));
+    for (int i = 0; i < ctx->numWriters; i++) {
+        pthread_create(&ctx->writers[i], NULL, nfwriter, ctx);
+    }
+
+    int done = 0;
+    while (!done) {
+        backend_msg_t *msg = queue_pop(q);
+        if (msg == QUEUE_CLOSED || !msg) break;
+
+        switch (msg->type) {
+            case BACKEND_MSG_DATA: {
+                dataBlock_t *block = msg->data;  // already heap-allocated
+                queue_push(ctx->writerQueue, block);
+                break;
+            }
+            case BACKEND_MSG_ROTATE:
+            handle_nffile_rotate(ctx, msg->ts);
+            break;
+            case BACKEND_MSG_SHUTDOWN:
+            done = 1;
+            break;
+        }
+        free(msg);
+    }
+
+    // stop workers
+    queue_close(ctx->writerQueue);
+    for (int i = 0; i < ctx->numWriters; i++) {
+        pthread_join(ctx->writers[i], NULL);
+    }
+    queue_destroy(ctx->writerQueue);
+    free(ctx->writers);
+
+    if (ctx->nffile) {
+        CloseUpdateFile(ctx->nffile);
+        ctx->nffile = NULL;
+    }
+
+    return NULL;
+}
+*/
+
 static void joinWorkers(nffile_t *nffile) {
     for (int i = 0; i < (int)nffile->numWorkers; i++) {
         if (nffile->worker[i]) {

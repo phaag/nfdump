@@ -376,7 +376,7 @@ int RotateCycle(const collector_ctx_t *ctx, post_args_t *post_args, time_t t_sta
 
         // log stats
         LogInfo("Ident: '%s' Flows: %" PRIu64 ", Packets: %" PRIu64 ", Bytes: %" PRIu64 ", Sequence Errors: %" PRIu64 ", Bad Packets: %u, Blocks: %u",
-                fs->Ident, fs->nffile->stat_record->numflows, fs->nffile->stat_record->numpackets, fs->nffile->stat_record->numbytes,
+                fs->nffile_ctx->Ident, fs->nffile->stat_record->numflows, fs->nffile->stat_record->numpackets, fs->nffile->stat_record->numbytes,
                 fs->nffile->stat_record->sequence_failure, fs->bad_packets, ReportBlocks());
 
         // reset stats
@@ -431,7 +431,7 @@ static int RunCycle(time_t t_start, const char *time_extension, const collector_
         char nfcapd_filename[MAXPATHLEN];
         nfcapd_filename[0] = '\0';
 
-        int pos = SetupPath(now, fs->datadir, fs->subdir, nfcapd_filename);
+        int pos = SetupPath(now, fs->nffile_ctx->datadir, fs->nffile_ctx->subdir, nfcapd_filename);
         char *p = nfcapd_filename + (ptrdiff_t)pos;
         snprintf(p, MAXPATHLEN - pos - 1, "nfcapd.%s", fmt);
         nfcapd_filename[MAXPATHLEN - 1] = '\0';
@@ -452,7 +452,7 @@ static int RunCycle(time_t t_start, const char *time_extension, const collector_
         // if rename fails, we are in big trouble, as we need to get rid of the old .current
         // file otherwise, we will loose flows and can not continue collecting new flows
         if (RenameAppend(nffile->fileName, nfcapd_filename) < 0) {
-            LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
+            LogError("Ident: %s, Can't rename dump file: %s", fs->nffile_ctx->Ident, strerror(errno));
 
             // we do not update the books here, as the file failed to rename properly
             // otherwise the books may be wrong
@@ -461,11 +461,11 @@ static int RunCycle(time_t t_start, const char *time_extension, const collector_
 
             // Update books
             stat(nfcapd_filename, &fstat);
-            UpdateBooks(fs->bookkeeper, t_start, (uint64_t)(512U * fstat.st_blocks));
+            UpdateBooks(fs->nffile_ctx->bookkeeper, t_start, (uint64_t)(512U * fstat.st_blocks));
         }
 
         if (*pfd) {
-            if (SendLauncherMessage(*pfd, t_start, nfcapd_filename, fmt, fs->datadir, fs->Ident) < 0) {
+            if (SendLauncherMessage(*pfd, t_start, nfcapd_filename, fmt, fs->nffile_ctx->datadir, fs->nffile_ctx->Ident) < 0) {
                 LogError("Disable launcher due to errors");
                 close(*pfd);
                 *pfd = 0;
@@ -481,7 +481,7 @@ static int RunCycle(time_t t_start, const char *time_extension, const collector_
             // open new - next file
             int retry = 0;
             do {
-                nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), creator, compression, encryption);
+                nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), creator, compression, encryption);
                 if (nffile) break;
 
                 nffile = fs->swap_nffile;
@@ -491,7 +491,7 @@ static int RunCycle(time_t t_start, const char *time_extension, const collector_
 
             if (nffile) {
                 fs->swap_nffile = nffile;
-                SetIdent(fs->swap_nffile, fs->Ident);
+                SetIdent(fs->swap_nffile, fs->nffile_ctx->Ident);
             } else {
                 LogError("Ident: %s, Can't re-open empty flow file");
                 fs->swap_nffile = NULL;

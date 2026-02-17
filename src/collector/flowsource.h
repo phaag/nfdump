@@ -43,14 +43,12 @@
 // contains information about the backend
 // contains the hash of exporters for this flow source
 typedef struct FlowSource_s {
-    char Ident[IDENTLEN];      // source identifier
-    bookkeeper_t *bookkeeper;  // legacy nfsen bookkeeper - may get removed in future
-    char *datadir;             // base dir to store flow files
-    char *tmpFileName;         // name of tmp collection file
-    unsigned subdir;           // index of sub dir layout - see nffile.h
-    nffile_t *nffile;          // nffile handle
-    nffile_t *swap_nffile;     // swap nffile handle
-    dataBlock_t *dataBlock;    // current datablock to write records
+    nffile_t *nffile;        // nffile handle
+    nffile_t *swap_nffile;   // swap nffile handle
+    dataBlock_t *dataBlock;  // current datablock to write records
+
+    // backend context - nffile for now
+    nffile_backend_ctx_t *nffile_ctx;  // backend nffile context
 
     ip128_t ipAddr;        // IPv4/IPv6 address of this flow source
     int sa_family;         // AF_INET of AF_INET6 cacheonly flag

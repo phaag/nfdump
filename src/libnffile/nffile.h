@@ -37,6 +37,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "collector/bookkeeper.h"
 #include "nfdump.h"
 #include "nffileV2.h"
 #include "queue.h"
@@ -228,6 +229,46 @@ typedef struct record_header_s {
 // } __attribute__((__packed__ )) record_header_t;
 
 /*
+ * nffile backend processor
+ */
+typedef enum {
+    BACKEND_MSG_DATA,
+    BACKEND_MSG_ROTATE,
+    BACKEND_MSG_SHUTDOWN,
+} backend_msg_type_t;
+
+typedef struct backend_msg_s {
+    backend_msg_type_t type;
+    time_t ts;   // for ROTATE
+    void *data;  // dataBlock_t* for DATA
+} backend_msg_t;
+
+typedef struct nffile_backend_ctx_s {
+    char Ident[IDENTLEN];  // source identifier
+
+    bookkeeper_t *bookkeeper;  // legacy nfsen bookkeeper - may get removed in future
+    char *datadir;             // base dir to store flow files
+    char *tmpFileName;         // name of tmp collection file
+    uint32_t subdir;           // index of sub dir layout - see nffile.h
+    nffile_t *nffile;          // nffile handle
+
+    // const args
+    char *time_extension;  // parameter passing
+    uint32_t creator;      // creator - nfcapd or sfcapd
+    uint32_t compress;     // compression level for new files
+    uint32_t encryption;   // encryption for new files
+
+    // collector param
+    queue_t *blockQueue;  // queue from collector
+
+    // worker params
+    int numWriters;
+    queue_t *writerQueue;  // queue to writers
+    pthread_t *writers;
+
+} nffile_backend_ctx_t;
+
+/*
  * for the detailed description of the record definition see nfx.h
  */
 
@@ -287,5 +328,4 @@ void ModifyCompressFile(unsigned compress);
 
 int Convert_v1fileHeader(nffile_t *nffile, const char *filename, struct stat *stat_buf);
 
-void report(void);
 #endif  //_NFFILE_H

@@ -270,13 +270,13 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
     // Init each netflow source output data buffer
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         // prepare file
-        fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
-        fs->swap_nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+        fs->nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+        fs->swap_nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
         if (!fs->nffile || !fs->swap_nffile) {
             return;
         }
-        SetIdent(fs->nffile, fs->Ident);
-        SetIdent(fs->swap_nffile, fs->Ident);
+        SetIdent(fs->nffile, fs->nffile_ctx->Ident);
+        SetIdent(fs->swap_nffile, fs->nffile_ctx->Ident);
 
         // init flow source
         fs->dataBlock = WriteBlock(fs->nffile, NULL);
@@ -385,23 +385,23 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
             }
 
             // setup new dynamic source
-            if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
+            if (InitBookkeeper(&fs->nffile_ctx->bookkeeper, fs->nffile_ctx->datadir, getpid()) != BOOKKEEPER_OK) {
                 LogError("Failed to initialise bookkeeper for new source");
                 // fatal error
                 return;
             }
-            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
+            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
                 LogError("Failed to open new collector file");
                 return;
             }
             fs->dataBlock = WriteBlock(fs->nffile, NULL);
-            SetIdent(fs->nffile, fs->Ident);
+            SetIdent(fs->nffile, fs->nffile_ctx->Ident);
         }
 
         /* check for too little data - cnt must be > 0 at this point */
         if (cnt < (ssize_t)sizeof(common_flow_header_t)) {
-            LogError("Ident: %s, Data length error: too little data for common netflow header. cnt: %i", fs->Ident, (int)cnt);
+            LogError("Ident: %s, Data length error: too little data for common netflow header. cnt: %i", fs->nffile_ctx->Ident, (int)cnt);
             fs->bad_packets++;
             continue;
         }
@@ -881,18 +881,18 @@ int main(int argc, char **argv) {
 
     int failed = 0;
     for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
+        if (InitBookkeeper(&fs->nffile_ctx->bookkeeper, fs->nffile_ctx->datadir, getpid()) != BOOKKEEPER_OK) {
             failed = 1;
             LogError("initialize bookkeeper failed");
             break;
         }
-        fs->subdir = subdir_index;
+        fs->nffile_ctx->subdir = subdir_index;
     }
 
     if (failed) {
         // release all already allocated bookkeepers
         for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-            if (fs->bookkeeper) ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
+            if (fs->nffile_ctx->bookkeeper) ReleaseBookkeeper(fs->nffile_ctx->bookkeeper, DESTROY_BOOKKEEPER);
         }
         close(sock);
         signalPrivsepChild(launcher_pid, pfd);
@@ -926,13 +926,13 @@ int main(int argc, char **argv) {
     for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         dirstat_t *dirstat;
         // if we do not auto expire and there is a stat file, update the stats before we leave
-        if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
-            UpdateDirStat(dirstat, fs->bookkeeper);
+        if (expire == 0 && ReadStatInfo(fs->nffile_ctx->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
+            UpdateDirStat(dirstat, fs->nffile_ctx->bookkeeper);
             WriteStatInfo(dirstat);
-            LogVerbose("Updating statinfo in directory '%s'", fs->datadir);
+            LogVerbose("Updating statinfo in directory '%s'", fs->nffile_ctx->datadir);
         }
 
-        ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
+        ReleaseBookkeeper(fs->nffile_ctx->bookkeeper, DESTROY_BOOKKEEPER);
     }
 
     LogInfo("Terminating sfcapd.");

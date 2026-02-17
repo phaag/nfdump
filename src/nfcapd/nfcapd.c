@@ -222,6 +222,53 @@ static void ChildDied(void) {
 
 #include "nffile_inline.c"
 
+static int Init_nffile_backend(const collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_ctx) {
+    // Init
+    int failed = 0;
+    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
+        if (InitBookkeeper(&fs->nffile_ctx->bookkeeper, fs->nffile_ctx->datadir, getpid()) != BOOKKEEPER_OK) {
+            failed = 1;
+            LogError("initialize bookkeeper failed");
+            break;
+        }
+        fs->nffile_ctx->creator = nffile_ctx->creator;
+        fs->nffile_ctx->compress = nffile_ctx->compress;
+        fs->nffile_ctx->encryption = nffile_ctx->encryption;
+        fs->nffile_ctx->time_extension = nffile_ctx->time_extension;
+    }
+
+    if (failed) {
+        // release all already allocated bookkeepers
+        for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
+            if (fs->nffile_ctx->bookkeeper) {
+                ReleaseBookkeeper(fs->nffile_ctx->bookkeeper, DESTROY_BOOKKEEPER);
+                fs->nffile_ctx->bookkeeper = NULL;
+            }
+        }
+        return 0;
+    }
+
+    return 1;
+}  // End of Init_nffile_backend
+
+static int Close_nffile_backend(const collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_cts, int expire) {
+    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
+        if (fs->nffile_ctx->bookkeeper) {
+            dirstat_t *dirstat;
+            // if we do not auto expire and there is a stat file, update the stats before we leave
+            if (expire == 0 && ReadStatInfo(fs->nffile_ctx->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
+                UpdateDirStat(dirstat, fs->nffile_ctx->bookkeeper);
+                WriteStatInfo(dirstat);
+                LogVerbose("Updating statinfo in directory '%s'", fs->nffile_ctx->datadir);
+            }
+
+            ReleaseBookkeeper(fs->nffile_ctx->bookkeeper, DESTROY_BOOKKEEPER);
+            fs->nffile_ctx->bookkeeper = NULL;
+        }
+    }
+    return 1;
+}  // End of Close_nffile_backend
+
 static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockaddr_storage *sender, socklen_t sender_size) {
     message_t message;
     message.type = PRIVMSG_REPEAT;
@@ -273,13 +320,13 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
     // Init each netflow source output data buffer
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
         // prepare file
-        fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
-        fs->swap_nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
+        fs->nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
+        fs->swap_nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
         if (!fs->nffile || !fs->swap_nffile) {
             return;
         }
-        SetIdent(fs->nffile, fs->Ident);
-        SetIdent(fs->swap_nffile, fs->Ident);
+        SetIdent(fs->nffile, fs->nffile_ctx->Ident);
+        SetIdent(fs->swap_nffile, fs->nffile_ctx->Ident);
 
         // init flow source
         fs->dataBlock = WriteBlock(fs->nffile, NULL);
@@ -407,23 +454,23 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
             }
 
             // setup new dynamic source
-            if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
+            if (InitBookkeeper(&fs->nffile_ctx->bookkeeper, fs->nffile_ctx->datadir, getpid()) != BOOKKEEPER_OK) {
                 LogError("Failed to initialise bookkeeper for new source");
                 // fatal error
                 return;
             }
-            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
+            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
             if (!fs->nffile) {
                 LogError("Failed to open new collector file");
                 return;
             }
             fs->dataBlock = WriteBlock(fs->nffile, NULL);
-            SetIdent(fs->nffile, fs->Ident);
+            SetIdent(fs->nffile, fs->nffile_ctx->Ident);
         }
 
         /* check for too little data - cnt must be > 0 at this point */
         if (cnt < (ssize_t)sizeof(common_flow_header_t)) {
-            LogError("Ident: %s, Data size error: not enough data for netflow header - cnt: %i", fs->Ident, (int)cnt);
+            LogError("Ident: %s, Data size error: not enough data for netflow header - cnt: %i", fs->nffile_ctx->Ident, (int)cnt);
             fs->bad_packets++;
             continue;
         }
@@ -451,8 +498,8 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
                 break;
             default: {
                 // data error, while reading data from socket
-                LogError("Ident: %s, Error packet %llu: reading netflow header: Unexpected netflow version %i from: %s", fs->Ident, packets, version,
-                         GetClientIPstring(&nf_sender, sa_address));
+                LogError("Ident: %s, Error packet %llu: reading netflow header: Unexpected netflow version %i from: %s", fs->nffile_ctx->Ident,
+                         packets, version, GetClientIPstring(&nf_sender, sa_address));
                 fs->bad_packets++;
                 continue;
 
@@ -925,6 +972,16 @@ int main(int argc, char **argv) {
         pfd = PrivsepFork(argc, argv, &launcher_pid, "launcher");
     }
 
+    nffile_backend_ctx_t nffile_backend_ctx = {
+        .creator = CREATOR_NFCAPD, .compress = compress, .encryption = NOT_ENCRYPTED, .subdir = subdir_index, .time_extension = time_extension};
+
+    if (Init_nffile_backend(&collector_ctx, &nffile_backend_ctx) == 0) {
+        LogError("Failed to initialized nffile backend");
+        close(sock);
+        remove_pid(pidfile);
+        exit(EXIT_FAILURE);
+    }
+
     *post_args = (post_args_t){
         .ctx = &collector_ctx,
         .pfd = pfd,
@@ -937,31 +994,6 @@ int main(int argc, char **argv) {
 
     if (Lauch_postprocessor(post_args) == 0) {
         close(sock);
-        remove_pid(pidfile);
-        exit(EXIT_FAILURE);
-    }
-
-    int failed = 0;
-    for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
-            failed = 1;
-            LogError("initialize bookkeeper failed");
-            break;
-        }
-        fs->subdir = subdir_index;
-    }
-
-    if (failed) {
-        // release all already allocated bookkeepers
-        for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-            if (fs->bookkeeper) {
-                ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
-                fs->bookkeeper = NULL;
-            }
-        }
-        close(sock);
-        signalPrivsepChild(launcher_pid, pfd);
-        signalPrivsepChild(repeater_pid, rfd);
         remove_pid(pidfile);
         exit(EXIT_FAILURE);
     }
@@ -988,20 +1020,7 @@ int main(int argc, char **argv) {
     signalPrivsepChild(repeater_pid, rfd);
     CloseMetric();
 
-    for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        if (fs->bookkeeper) {
-            dirstat_t *dirstat;
-            // if we do not auto expire and there is a stat file, update the stats before we leave
-            if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
-                UpdateDirStat(dirstat, fs->bookkeeper);
-                WriteStatInfo(dirstat);
-                LogVerbose("Updating statinfo in directory '%s'", fs->datadir);
-            }
-
-            ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
-            fs->bookkeeper = NULL;
-        }
-    }
+    Close_nffile_backend(&collector_ctx, &nffile_backend_ctx, expire);
 
     LogInfo("Terminating nfcapd.");
     remove_pid(pidfile);
