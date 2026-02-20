@@ -347,8 +347,8 @@ int main(int argc, char *argv[]) {
             } break;
             case 't':
                 t_win = atoi(optarg);
-                if (t_win < 2) {
-                    LogError("time interval <= 2s not allowed");
+                if (t_win < 1) {
+                    LogError("time interval < 1s not allowed");
                     exit(EXIT_FAILURE);
                 }
                 if (t_win < 60) {
