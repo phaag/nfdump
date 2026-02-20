@@ -38,6 +38,7 @@
 .Fl r Ar directory
 .Nm
 .Fl e Ar directory
+.Op Fl n
 .Op Fl s Ar maxsize
 .Op Fl t Ar maxlife
 .Op Fl w Ar watermark
@@ -109,6 +110,13 @@ Files are deleted from the oldest towards the latest according both limits and
 stops at the
 .Ar watermark
 below the limit.
+.It Fl n
+Dry-run mode. Simulates the expire process and reports what would be deleted
+without actually removing any files or modifying the statistics file (.nfstat).
+Each file that would be deleted is printed to stdout with its path and size.
+This option is useful for previewing the effects of expire parameters before
+committing to actual file deletion. Must be used with
+.Fl e .
 .It Fl u Ar directory
 Updates the expire parameters such as size and lifetime limits, specified by
 .Fl s t
@@ -163,6 +171,18 @@ This option prints a NfSen compatible statistic. Only legacy NfSen will need thi
 .It Fl h
 Print help text on stdout with all options and exit.
 .El
+.Sh EXAMPLES
+Preview what would be expired without actually deleting files:
+.Pp
+.Dl % nfexpire -e /data/netflow -s 100G -t 30d -n
+.Pp
+Expire files in directory with size and time limits:
+.Pp
+.Dl % nfexpire -e /data/netflow -s 100G -t 30d
+.Pp
+List current statistics for a directory:
+.Pp
+.Dl % nfexpire -l /data/netflow
 .Sh RETURN VALUES
 .Nm
 returns 0 on success and 255 otherwise.

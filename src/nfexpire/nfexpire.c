@@ -66,6 +66,8 @@
 #include "nfstatfile.h"
 #include "util.h"
 
+static int dry_run = 0;
+
 static void usage(char *name);
 
 void CheckDataDir(char *datadir);
@@ -78,6 +80,7 @@ static void usage(char *name) {
         "-h\t\tThis text\n"
         "-l datadir\tList stat from directory\n"
         "-e datadir\tExpire data in directory\n"
+        "-n\t\tShows what would be expired without taking any action.\n"
         "-r datadir\tRescan data directory\n"
         "-u datadir\tUpdate expire params from collector logging at <datadir>\n"
         "-s size\t\tmax size: scales b bytes, k kilo, m mega, g giga t tera\n"
@@ -200,11 +203,14 @@ int main(int argc, char **argv) {
     nfsen_format = 0;
     runtime = 0;
 
-    while ((c = getopt(argc, argv, "e:hl:L:T:Ypr:s:t:u:w:")) != EOF) {
+    while ((c = getopt(argc, argv, "e:hl:L:nT:Ypr:s:t:u:w:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
                 exit(0);
+                break;
+            case 'n':
+                dry_run = 1;
                 break;
             case 'l':
                 CheckDataDir(datadir);
@@ -356,6 +362,23 @@ int main(int argc, char **argv) {
         dirstat_t old_stat, current_stat;
 
         if (is_profile) {
+            // Save original dirstats for all channels
+            channel_t *save_channel = channel;
+            int num_channels = 0;
+            while (save_channel) {
+                num_channels++;
+                save_channel = save_channel->next;
+            }
+            dirstat_t *saved_dirstats = NULL;
+            if (dry_run && num_channels > 0) {
+                saved_dirstats = malloc(num_channels * sizeof(dirstat_t));
+                save_channel = channel;
+                for (int i = 0; i < num_channels; i++) {
+                    saved_dirstats[i] = *(save_channel->dirstat);
+                    save_channel = save_channel->next;
+                }
+            }
+
             current_stat.status = 0;
             current_stat.max_lifetime = lifetime;
             current_stat.max_size = maxsize;
@@ -378,9 +401,22 @@ int main(int argc, char **argv) {
                 current_channel = current_channel->next;
             }
             old_stat = current_stat;
-            ExpireProfile(channel, &current_stat, maxsize, lifetime, runtime);
+            ExpireProfile(channel, &current_stat, maxsize, lifetime, runtime, dry_run);
+
+            // Restore original dirstats after dry-run, not persisting simulated values
+            if (dry_run && saved_dirstats) {
+                save_channel = channel;
+                for (int i = 0; i < num_channels; i++) {
+                    *(save_channel->dirstat) = saved_dirstats[i];
+                    save_channel = save_channel->next;
+                }
+                free(saved_dirstats);
+            }
 
         } else {
+            // Save original dirstat BEFORE any modifications
+            old_stat = *(channel->dirstat);
+
             // cmd args override dirstat values
             if (maxsize_set)
                 channel->dirstat->max_size = maxsize;
@@ -391,14 +427,25 @@ int main(int argc, char **argv) {
             else
                 lifetime = channel->dirstat->max_lifetime;
 
-            old_stat = *(channel->dirstat);
-            ExpireDir(channel->datadir, channel->dirstat, maxsize, lifetime, runtime);
+            ExpireDir(channel->datadir, channel->dirstat, maxsize, lifetime, runtime, dry_run);
             current_stat = *(channel->dirstat);
+
+            // Restore original dirstat after dry-run, not persisting simulated values
+            if (dry_run) {
+                *(channel->dirstat) = old_stat;
+            }
         }
         // Report, what we have done
-        printf("Expired files:      %llu\n", (unsigned long long)(old_stat.numfiles - current_stat.numfiles));
-        printf("Expired file size:  %s\n", ScaleValue(old_stat.filesize - current_stat.filesize));
-        printf("Expired time range: %s\n\n", ScaleTime(current_stat.first - old_stat.first));
+        if (dry_run) {
+            printf("\nWould expire files:      %llu\n", (unsigned long long)(old_stat.numfiles - current_stat.numfiles));
+            printf("Would expire file size:  %s\n", ScaleValue(old_stat.filesize - current_stat.filesize));
+            printf("Would expire time range: %s\n", ScaleTime(current_stat.first - old_stat.first));
+            printf("\nDRY-RUN MODE: No files deleted\n\n");
+        } else {
+            printf("Expired files:      %llu\n", (unsigned long long)(old_stat.numfiles - current_stat.numfiles));
+            printf("Expired file size:  %s\n", ScaleValue(old_stat.filesize - current_stat.filesize));
+            printf("Expired time range: %s\n\n", ScaleTime(current_stat.first - old_stat.first));
+        }
     }
 
     if (!is_profile && do_update_param) {
