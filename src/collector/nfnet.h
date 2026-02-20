@@ -39,14 +39,23 @@
 #include <netinet/in.h>
 #include <netinet/ip.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/types.h>
 
 /* Definitions */
 
+typedef struct PacketCtx_s {
+    struct msghdr msg;
+    struct iovec iov;
+    struct sockaddr_storage sender;
+    char control[CMSG_SPACE(sizeof(struct timeval))];
+    void *buffer;
+} PacketCtx_t;
+
 #define UDP_PACKET_SIZE 1472
 
 /* input buffer size, to read data from the network */
-#define NETWORK_INPUT_BUFF_SIZE 65535  // Maximum UDP message size
+#define NETWORK_INPUT_BUFF_SIZE 65536  // Maximum UDP message size
 
 /* Function prototypes */
 
@@ -59,6 +68,8 @@ int Unicast_send_socket(const char *hostname, const char *listenport, int family
 
 int Multicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
                           socklen_t *addrlen);
+
+int init_packet_ctx(PacketCtx_t *ctx, int sockfd, size_t buf_size);
 
 int Raw_send_socket(int sockbuflen);
 

@@ -355,160 +355,60 @@ int AddFlowSourceConfig(collector_ctx_t *ctx) {
     return 1;
 }  // end of AddFlowSourceConfig
 
-int RotateCycle(const collector_ctx_t *ctx, post_args_t *post_args, time_t t_start, int done) {
-    // enter mutex
-    pthread_mutex_lock(&post_args->mutex);
-    // make sure the previous cycle completed
-    while (post_args->cycle_pending) {
-        LogError("Waiting for postprocessor to complete previous cycle");
-        pthread_cond_wait(&post_args->cond, &post_args->mutex);
-    }
-
-    // set cycle arguments
-    post_args->cycle_pending = 1;
-    post_args->done = done;
-    post_args->when = t_start;
-
-    int err = 0;
+int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done) {
+    // flush current datablock and signal to backend
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
+        dbg_printf("Periodic cycle for ident: %s\n", fs->Ident);
+
         // Flush Exporter Stat to file
         FlushExporterStats(fs);
 
         // log stats
         LogInfo("Ident: '%s' Flows: %" PRIu64 ", Packets: %" PRIu64 ", Bytes: %" PRIu64 ", Sequence Errors: %" PRIu64 ", Bad Packets: %u, Blocks: %u",
-                fs->nffile_ctx->Ident, fs->nffile->stat_record->numflows, fs->nffile->stat_record->numpackets, fs->nffile->stat_record->numbytes,
-                fs->nffile->stat_record->sequence_failure, fs->bad_packets, ReportBlocks());
+                fs->Ident, fs->stat_record.numflows, fs->stat_record.numpackets, fs->stat_record.numbytes, fs->stat_record.sequence_failure,
+                fs->bad_packets, ReportBlocks());
 
         // reset stats
         fs->bad_packets = 0;
 
-        // Flush dataBlock, ready for new file
-        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+        // Flush current dataBlock
+        fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+        if (fs->dataBlock == QUEUE_CLOSED) {
+            fs->dataBlock = NULL;
+            return 0;
+        }
 
-        // swap nffile for post processor
-        nffile_t *swap_nffile = fs->swap_nffile;
-        fs->swap_nffile = fs->nffile;
-        fs->nffile = swap_nffile;
+        // Signaling rote for backend
+        uint8_t *p = GetCursor(fs->dataBlock);
+        SetBlockType(fs->dataBlock, MESSAGE_TYPE_CYCLE);
+        cycle_message_t cycle_message = {.when = t_start, .done = done};
+        memcpy(p, &cycle_message, sizeof(cycle_message_t));
+        p += sizeof(cycle_message_t);
+        memcpy(p, (void *)&fs->stat_record, sizeof(stat_record_t));
+        fs->dataBlock->size = sizeof(cycle_message_t) + sizeof(stat_record_t);
+        fs->dataBlock->NumRecords = 1;
+        dbg_printf("Signaling backend\n");
+        fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
+
+        dbg_printf("%s() - length blockQueue: %zu\n", __func__, queue_length(fs->blockQueue));
+
+        // new handle - flush exporter and sampler records to new file
+        // or close queue if done
+        if (done) {
+            queue_close(fs->blockQueue);
+        } else {
+            // clear previous stat
+            memset((void *)&fs->stat_record, 0, sizeof(stat_record_t));
+            FlushStdRecords(fs);
+        }
     }
 
-    dbg_printf("Signaling post_processor\n");
-    pthread_cond_signal(&post_args->cond);
-    pthread_mutex_unlock(&post_args->mutex);
-
-    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        if (done) {
-            // we are done - delete prepared new tmp file
-            DeleteFile(fs->nffile);
-            fs->nffile = NULL;
-        } else {
-            if (fs->nffile) {
-                // new handle - flush exporter and sampler records to new file
-                FlushStdRecords(fs);
-            } else {
-                // expected a new file handle - cannot continue
-                err++;
-            }
-        }
-    }
-
-    return err;
-}  // End of RotateCycle
-
-static int RunCycle(time_t t_start, const char *time_extension, const collector_ctx_t *ctx, int *pfd, int done, uint32_t creator,
-                    uint32_t compression, uint32_t encryption) {
-    // periodic file rotation
-    struct tm *now = localtime(&t_start);
-    char fmt[32];
-    strftime(fmt, sizeof(fmt), time_extension, now);
-
-    dbg_printf("Enter RunCycle\n");
-
-    int err = 0;
-    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        nffile_t *nffile = fs->swap_nffile;
-        if (nffile == NULL) continue;
-
-        char nfcapd_filename[MAXPATHLEN];
-        nfcapd_filename[0] = '\0';
-
-        int pos = SetupPath(now, fs->nffile_ctx->datadir, fs->nffile_ctx->subdir, nfcapd_filename);
-        char *p = nfcapd_filename + (ptrdiff_t)pos;
-        snprintf(p, MAXPATHLEN - pos - 1, "nfcapd.%s", fmt);
-        nfcapd_filename[MAXPATHLEN - 1] = '\0';
-        dbg_printf("SetupPath(): %s for: %s\n", nfcapd_filename, nffile->fileName);
-
-        // update stat record
-        // if no flows were collected, fs->msecLast is still 0
-        // set msecFirst and msecLast and to start of this time slot
-        if (nffile->stat_record->msecLastSeen == 0) {
-            nffile->stat_record->msecFirstSeen = 1000LL * (uint64_t)t_start;
-            nffile->stat_record->msecLastSeen = nffile->stat_record->msecFirstSeen;
-        }
-
-        // Close file
-        FlushFile(nffile);
-        CloseFile(nffile);
-
-        // if rename fails, we are in big trouble, as we need to get rid of the old .current
-        // file otherwise, we will loose flows and can not continue collecting new flows
-        if (RenameAppend(nffile->fileName, nfcapd_filename) < 0) {
-            LogError("Ident: %s, Can't rename dump file: %s", fs->nffile_ctx->Ident, strerror(errno));
-
-            // we do not update the books here, as the file failed to rename properly
-            // otherwise the books may be wrong
-        } else {
-            struct stat fstat;
-
-            // Update books
-            stat(nfcapd_filename, &fstat);
-            UpdateBooks(fs->nffile_ctx->bookkeeper, t_start, (uint64_t)(512U * fstat.st_blocks));
-        }
-
-        if (*pfd) {
-            if (SendLauncherMessage(*pfd, t_start, nfcapd_filename, fmt, fs->nffile_ctx->datadir, fs->nffile_ctx->Ident) < 0) {
-                LogError("Disable launcher due to errors");
-                close(*pfd);
-                *pfd = 0;
-            }
-        }
-        DisposeFile(nffile);
-        nffile = NULL;
-
-        if (done) {
-            // dispose handle
-            fs->swap_nffile = NULL;
-        } else {
-            // open new - next file
-            int retry = 0;
-            do {
-                nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), creator, compression, encryption);
-                if (nffile) break;
-
-                nffile = fs->swap_nffile;
-                retry++;
-                usleep(1000);
-            } while (retry < 2);
-
-            if (nffile) {
-                fs->swap_nffile = nffile;
-                SetIdent(fs->swap_nffile, fs->nffile_ctx->Ident);
-            } else {
-                LogError("Ident: %s, Can't re-open empty flow file");
-                fs->swap_nffile = NULL;
-                // unrecoverable error
-                err++;
-            }
-        }
-
-    }  // end of while (fs)
-
-    return err;
-
-}  // End of RunCycle
+    return 1;
+}  // End of PeriodicCycle
 
 int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {
     exporter->sysid = AssignExporterID();
-    fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)exporter, exporter->header.size);
+    fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)exporter, exporter->header.size);
 
 #ifdef DEVEL
     {
@@ -532,10 +432,10 @@ int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter) {
 
 void FlushStdRecords(FlowSource_t *fs) {
     for (exporter_entry_t *entry = NextExporter(fs); entry != NULL; entry = NextExporter(NULL)) {
-        fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)&(entry->info), entry->info.header.size);
+        fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)&(entry->info), entry->info.header.size);
         sampler_t *sampler = entry->sampler;
         while (sampler) {
-            fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)&(sampler->record), sampler->record.size);
+            fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)&(sampler->record), sampler->record.size);
             sampler = sampler->next;
         }
     }
@@ -581,7 +481,7 @@ void FlushExporterStats(FlowSource_t *fs) {
         i++;
     }
 
-    fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, (void *)exporter_stats, size);
+    fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, (void *)exporter_stats, size);
     free(exporter_stats);
 
     if (i != numExporters) {
@@ -632,108 +532,10 @@ int ScanExtension(char *extensionList) {
 
 }  // End of ScanExtension
 
-static void *post_processor_thread(void *args) {
-    // dispatch const arguments
-    post_args_t *post_args = (post_args_t *)args;
-    const char *time_extension = post_args->time_extension;
-    const collector_ctx_t *ctx = post_args->ctx;
-    int pfd = post_args->pfd;
-    uint32_t creator = post_args->creator;
-    uint32_t compress = post_args->compress;
-    uint32_t encryption = post_args->encryption;
-
-    dbg_printf("Startup post processor thread\n");
-
-    while (1) {
-        pthread_mutex_lock(&(post_args->mutex));
-
-        // Wait until there is a cycle to process, or shutdown is requested.
-        while (!post_args->cycle_pending && !post_args->done) {
-            pthread_cond_wait(&post_args->cond, &post_args->mutex);
-        }
-
-        // dispatch var arguments per cycle
-        int cycle_pending = post_args->cycle_pending;
-        int done = post_args->done;
-        time_t when = post_args->when;
-        pthread_mutex_unlock(&post_args->mutex);
-
-        int err = 0;
-#if 0
-        dbg_printf("Wakeup post processor - done: %d\n", done);
-        struct timespec t_start, t_end;
-        clock_gettime(CLOCK_MONOTONIC, &t_start);
-
-        // Perform the rotation cycle
-        if (cycle_pending) err = RunCycle(when, time_extension, ctx, &pfd, done, creator, compress, encryption);
-
-        clock_gettime(CLOCK_MONOTONIC, &t_end);
-        // Compute elapsed time in milliseconds
-        long sec = t_end.tv_sec - t_start.tv_sec;
-        long nsec = t_end.tv_nsec - t_start.tv_nsec;
-        double elapsed_ms = (double)sec * 1000.0 + (double)nsec / 1e6;
-
-        printf("Post processor cycle completed in %.3f ms\n", elapsed_ms);
-#else
-        // Perform the rotation cycle
-        if (cycle_pending) err = RunCycle(when, time_extension, ctx, &pfd, done, creator, compress, encryption);
-#endif
-
-        // cycle done
-        pthread_mutex_lock(&(post_args->mutex));
-        post_args->cycle_pending = 0;
-        pthread_cond_signal(&post_args->cond);
-        pthread_mutex_unlock(&post_args->mutex);
-
-        if (done || err) break;
-    }
-
-    dbg_printf("Exit post processor thread\n");
-    pthread_exit(NULL);
-}  // End of post_processor_thread
-
-int Lauch_postprocessor(post_args_t *post_args) {
-    int err = pthread_mutex_init(&post_args->mutex, NULL);
-    if (err != 0) {
-        LogError("pthread_mutex_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
-        return 0;
-    }
-    err = pthread_cond_init(&post_args->cond, NULL);
-    if (err != 0) {
-        LogError("pthread_cond_init() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
-        return 0;
-    }
-
-    err = pthread_create(&post_args->tid, NULL, post_processor_thread, (void *)post_args);
-    if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
-        return 0;
-    }
-
-    return 1;
-}  // End of Lauch_postprocessor
-
-void CleanupCollector(collector_ctx_t *ctx, post_args_t *post_args) {
-    // wait for last cycle completed of post processor
-    pthread_mutex_lock(&post_args->mutex);
-    // make sure the previous cycle completed
-    while (post_args->cycle_pending) {
-        dbg_printf("Waiting for postprocessor cycle to complete\n");
-        pthread_cond_wait(&post_args->cond, &post_args->mutex);
-    }
-    pthread_mutex_unlock(&post_args->mutex);
-
-    // sync postprocessor thread is gone
-    dbg_printf("Join postprocessor\n");
-    pthread_join(post_args->tid, NULL);
-    free(post_args);
-
+void CleanupCollector(collector_ctx_t *ctx) {
     dbg_printf("Cleanup Collector\n");
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        DisposeFile(fs->nffile);
-        DisposeFile(fs->swap_nffile);
-        fs->nffile = NULL;
-        fs->swap_nffile = NULL;
+        queue_free(fs->blockQueue);
         FreeDataBlock(fs->dataBlock);
         fs->dataBlock = NULL;
     }

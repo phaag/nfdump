@@ -699,7 +699,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                             InsertFlow(recordHandle);
                             break;
                         case WRITEFILE:
-                            dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
+                            dataBlock_w = AppendToBuffer(nffile_w->processQueue, dataBlock_w, (void *)record_ptr, record_ptr->size);
                             break;
                         case PRINTRECORD:
                             print_record(stdout, recordHandle, outputParams);
@@ -714,7 +714,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                 case ExporterInfoRecordType: {
                     if (nffile_w) {
                         dbg_printf("Dump ExporterInfo Record to file\n");
-                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
+                        dataBlock_w = AppendToBuffer(nffile_w->processQueue, dataBlock_w, (void *)record_ptr, record_ptr->size);
                     }
                 } break;
                 case ExporterStatRecordType:
@@ -723,14 +723,14 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                     if (nffile_w) {
                         sampler_record_t *sampler_record = ConvertLegacyRecord((samplerV0_record_t *)record_ptr);
                         dbg_printf("Dump converted Sampler Record to file\n");
-                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)sampler_record, sampler_record->size);
+                        dataBlock_w = AppendToBuffer(nffile_w->processQueue, dataBlock_w, (void *)sampler_record, sampler_record->size);
                         free(sampler_record);
                     }
                     break;
                 case SamplerRecordType:
                     if (nffile_w) {
                         dbg_printf("Dump Sampler Record to file\n");
-                        dataBlock_w = AppendToBuffer(nffile_w, dataBlock_w, (void *)record_ptr, record_ptr->size);
+                        dataBlock_w = AppendToBuffer(nffile_w->processQueue, dataBlock_w, (void *)record_ptr, record_ptr->size);
                     }
                     break;
                 case NbarRecordType: {

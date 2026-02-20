@@ -38,17 +38,20 @@
 #include "bookkeeper.h"
 #include "exporter.h"
 #include "nffileV2.h"
+#include "queue.h"
 
 // FlowSource struct:
 // contains information about the backend
 // contains the hash of exporters for this flow source
 typedef struct FlowSource_s {
-    nffile_t *nffile;        // nffile handle
-    nffile_t *swap_nffile;   // swap nffile handle
-    dataBlock_t *dataBlock;  // current datablock to write records
+    char Ident[IDENTLEN];       // name of this flowsource
+    dataBlock_t *dataBlock;     // current datablock to write records
+    stat_record_t stat_record;  // sum up statistics for this flow source
 
     // backend context - nffile for now
-    nffile_backend_ctx_t *nffile_ctx;  // backend nffile context
+    pthread_t tid;        // thread ID of packend
+    void *backend_ctx;    // backend context
+    queue_t *blockQueue;  // queue to backend
 
     ip128_t ipAddr;        // IPv4/IPv6 address of this flow source
     int sa_family;         // AF_INET of AF_INET6 cacheonly flag

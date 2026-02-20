@@ -40,6 +40,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
@@ -145,6 +146,44 @@ static int set_socket_buffer(int sockfd, unsigned requested) {
 
     return 0;
 }
+
+int init_packet_ctx(PacketCtx_t *pkt_ctx, int sockfd, size_t buf_size) {
+    // init struct
+    memset(pkt_ctx, 0, sizeof(PacketCtx_t));
+
+    // packet buffer
+    pkt_ctx->buffer = malloc(buf_size);
+    if (!pkt_ctx->buffer) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return 0;
+    }
+
+    // live socket - no socket for pcap reader
+    if (sockfd > 0) {
+        // prepare socket msg struct
+        // Enable kernel timestamping
+        int enabled = 1;
+        if (setsockopt(sockfd, SOL_SOCKET, SO_TIMESTAMP, &enabled, sizeof(enabled)) < 0) {
+            LogError("setsockopt() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return 0;
+        }
+    }
+
+    // Setup IO Vector
+    pkt_ctx->iov.iov_base = pkt_ctx->buffer;
+    pkt_ctx->iov.iov_len = buf_size;
+
+    // Setup persistent msghdr
+    pkt_ctx->msg.msg_name = &pkt_ctx->sender;
+    pkt_ctx->msg.msg_namelen = sizeof(pkt_ctx->sender);
+    pkt_ctx->msg.msg_iov = &pkt_ctx->iov;
+    pkt_ctx->msg.msg_iovlen = 1;
+    pkt_ctx->msg.msg_control = pkt_ctx->control;
+
+    pkt_ctx->msg.msg_controllen = sizeof(pkt_ctx->control);
+
+    return 1;
+}  // init_packet_ctx
 
 int Unicast_receive_socket(const char *bindhost, const char *listenport, int family, unsigned sockbuflen) {
     if (!listenport) {

@@ -512,7 +512,7 @@ static void InsertSampler(FlowSource_t *fs, exporter_entry_t *exporter_entry, sa
         sampler->next = NULL;
         exporter_entry->sampler = sampler;
 
-        fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
+        fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, &(sampler->record), sampler->record.size);
         LogInfo("Add new sampler id: %" PRId64 ", algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
                 sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
         dbg_printf("Add new sampler id: %" PRId64 ", algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id,
@@ -526,7 +526,7 @@ static void InsertSampler(FlowSource_t *fs, exporter_entry_t *exporter_entry, sa
                 // found same sampler id - update record if changed
                 if (sampler_record->algorithm != sampler->record.algorithm || sampler_record->packetInterval != sampler->record.packetInterval ||
                     sampler_record->spaceInterval != sampler->record.spaceInterval) {
-                    fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
+                    fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, &(sampler->record), sampler->record.size);
                     sampler->record.algorithm = sampler_record->algorithm;
                     sampler->record.packetInterval = sampler_record->packetInterval;
                     sampler->record.spaceInterval = sampler_record->spaceInterval;
@@ -556,7 +556,7 @@ static void InsertSampler(FlowSource_t *fs, exporter_entry_t *exporter_entry, sa
                 sampler->record.exporter_sysid = exporter_entry->info.sysid;
                 sampler->next = NULL;
 
-                fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
+                fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, &(sampler->record), sampler->record.size);
                 LogInfo("Append new sampler id: %" PRId64 ", algorithm: %u, packet interval: %u, packet space: %u", sampler_record->id,
                         sampler_record->algorithm, sampler_record->packetInterval, sampler_record->spaceInterval);
                 dbg_printf("Append new sampler id: %" PRId64 ", algorithm: %u, packet interval: %u, packet space: %u\n", sampler_record->id,
@@ -833,7 +833,7 @@ static void Process_ipfix_template_add(exporter_entry_t *exporter_entry, void *D
         uint32_t commonFound = 0;
         // process all elements in this record
         NextElement = (ipfix_template_elements_std_t *)ipfix_template_record->elements;
-        for (int i = 0; i < count; i++) {
+        for (int i = 0; i < (int)count; i++) {
             uint16_t Type = ntohs(NextElement->Type);
             uint16_t Length = ntohs(NextElement->Length);
             int Enterprise = Type & 0x8000 ? 1 : 0;
@@ -1258,7 +1258,7 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
 
         if (!IsAvailable(fs->dataBlock, sizeof(recordHeaderV3_t) + outRecordSize + receivedSize)) {
             // flush block - get an empty one
-            fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+            fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
         }
 
         unsigned buffAvail = BlockAvailable(fs->dataBlock);
@@ -1305,7 +1305,7 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                 // request new and empty buffer
                 dbg_printf("Process ipfix: Sequencer run - resize output buffer\n");
                 // request new and empty buffer
-                fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+                fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
                 if (fs->dataBlock == NULL) {
                     return;
                 }
@@ -1448,7 +1448,7 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                 genericFlow->msecLast = (uint64_t)ExportTime * (uint64_t)1000 - stack[STACK_DELTALAST] / (uint64_t)1000;
             }
 
-            UpdateFirstLast(fs->nffile, genericFlow->msecFirst, genericFlow->msecLast);
+            UpdateFirstLast(fs, genericFlow->msecFirst, genericFlow->msecLast);
             dbg_printf("msecFrist: %" PRIu64 "\n", genericFlow->msecFirst);
             dbg_printf("msecLast : %" PRIu64 "\n", genericFlow->msecLast);
             dbg_printf("packets : %" PRIu64 "\n", genericFlow->inPackets);
@@ -1462,9 +1462,9 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
             switch (genericFlow->proto) {
                 case IPPROTO_ICMPV6:
                 case IPPROTO_ICMP:
-                    fs->nffile->stat_record->numflows_icmp++;
-                    fs->nffile->stat_record->numpackets_icmp += genericFlow->inPackets;
-                    fs->nffile->stat_record->numbytes_icmp += genericFlow->inBytes;
+                    fs->stat_record.numflows_icmp++;
+                    fs->stat_record.numpackets_icmp += genericFlow->inPackets;
+                    fs->stat_record.numbytes_icmp += genericFlow->inBytes;
                     // fix odd CISCO behaviour for ICMP port/type in src port
                     if (genericFlow->srcPort != 0) {
                         uint8_t *s1 = (uint8_t *)&(genericFlow->srcPort);
@@ -1480,30 +1480,30 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                     }
                     break;
                 case IPPROTO_TCP:
-                    fs->nffile->stat_record->numflows_tcp++;
-                    fs->nffile->stat_record->numpackets_tcp += genericFlow->inPackets;
-                    fs->nffile->stat_record->numbytes_tcp += genericFlow->inBytes;
+                    fs->stat_record.numflows_tcp++;
+                    fs->stat_record.numpackets_tcp += genericFlow->inPackets;
+                    fs->stat_record.numbytes_tcp += genericFlow->inBytes;
                     genericFlow->dstPort = stack[STACK_DSTPORT];
                     break;
                 case IPPROTO_UDP:
-                    fs->nffile->stat_record->numflows_udp++;
-                    fs->nffile->stat_record->numpackets_udp += genericFlow->inPackets;
-                    fs->nffile->stat_record->numbytes_udp += genericFlow->inBytes;
+                    fs->stat_record.numflows_udp++;
+                    fs->stat_record.numpackets_udp += genericFlow->inPackets;
+                    fs->stat_record.numbytes_udp += genericFlow->inBytes;
                     genericFlow->dstPort = stack[STACK_DSTPORT];
                     break;
                 default:
-                    fs->nffile->stat_record->numflows_other++;
-                    fs->nffile->stat_record->numpackets_other += genericFlow->inPackets;
-                    fs->nffile->stat_record->numbytes_other += genericFlow->inBytes;
+                    fs->stat_record.numflows_other++;
+                    fs->stat_record.numpackets_other += genericFlow->inPackets;
+                    fs->stat_record.numbytes_other += genericFlow->inBytes;
             }
 
             exporter_entry->flows++;
-            fs->nffile->stat_record->numflows++;
-            fs->nffile->stat_record->numpackets += genericFlow->inPackets;
-            fs->nffile->stat_record->numbytes += genericFlow->inBytes;
+            fs->stat_record.numflows++;
+            fs->stat_record.numpackets += genericFlow->inPackets;
+            fs->stat_record.numbytes += genericFlow->inBytes;
 
             uint32_t exporterIdent = MetricExpporterID(recordHeaderV3);
-            UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
+            UpdateMetric(fs->Ident, exporterIdent, genericFlow);
         }
 
         EXcntFlow_t *cntFlow = sequencer->offsetCache[EXcntFlowID];
@@ -1514,8 +1514,8 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
                 cntFlow->outBytes = cntFlow->outBytes * intervalTotal / (uint64_t)packetInterval;
             }
             if (cntFlow->flows == 0) cntFlow->flows++;
-            fs->nffile->stat_record->numpackets += cntFlow->outPackets;
-            fs->nffile->stat_record->numbytes += cntFlow->outBytes;
+            fs->stat_record.numpackets += cntFlow->outPackets;
+            fs->stat_record.numbytes += cntFlow->outBytes;
         }
 
         // if observation extension is used but no domainID, take it from the ipfix header
@@ -1668,7 +1668,7 @@ static void Process_ipfix_nbar_option_data(exporter_entry_t *exporter_entry, Flo
     // output buffer size check for all expected records
     if (!IsAvailable(fs->dataBlock, total_size)) {
         // flush block - get an empty one
-        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+        fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
     }
 
     void *outBuff = GetCurrentCursor(fs->dataBlock);
@@ -1809,7 +1809,7 @@ static void Process_ifvrf_option_data(exporter_entry_t *exporter_entry, FlowSour
     // output buffer size check for all expected records
     if (!IsAvailable(fs->dataBlock, total_size)) {
         // flush block - get an empty one
-        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+        fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
     }
 
     void *outBuff = GetCurrentCursor(fs->dataBlock);
@@ -1933,7 +1933,7 @@ void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
 #endif
 
     ssize_t size_left = in_buff_cnt;
-    if (size_left < IPFIX_HEADER_LENGTH) {
+    if (size_left < (ssize_t)IPFIX_HEADER_LENGTH) {
         LogError("Process_ipfix: Too little data for ipfix packet: '%lli'", (long long)size_left);
         return;
     }
@@ -1964,7 +1964,7 @@ void Process_IPFIX(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
     if (Sequence != exporter_ipfix->PacketSequence) {
         if (exporter_ipfix->DataRecords != 0) {
             // sync sequence on first data record without error report
-            fs->nffile->stat_record->sequence_failure++;
+            fs->stat_record.sequence_failure++;
             exporter_entry->sequence_failure++;
             dbg_printf("[%u] Sequence check failed: last seq: %u, seq %u\n", exporter_entry->info.id, Sequence, exporter_ipfix->PacketSequence);
         } else {

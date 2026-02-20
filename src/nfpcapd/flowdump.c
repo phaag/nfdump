@@ -73,6 +73,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node);
 
 static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
     FlowSource_t *fs = flowParam->fs;
+    nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)fs->backend_ctx;
 
     dbg_printf("Store Flow node\n");
 
@@ -81,7 +82,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
     do {
         if (!IsAvailable(fs->dataBlock, recordSize)) {
             // flush block - get an empty one
-            fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+            fs->dataBlock = WriteBlock(nffile_ctx->nffile, fs->dataBlock);
         }
 
         unsigned availableSize = BlockAvailable(fs->dataBlock);
@@ -240,10 +241,10 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         }
 
         // update first_seen, last_seen
-        UpdateFirstLast(fs->nffile, genericFlow->msecFirst, genericFlow->msecLast);
+        UpdateFirstLast(fs, genericFlow->msecFirst, genericFlow->msecLast);
 
         // Update stats
-        stat_record_t *stat_record = fs->nffile->stat_record;
+        stat_record_t *stat_record = nffile_ctx->nffile->stat_record;
         switch (genericFlow->proto) {
             case IPPROTO_ICMP:
                 stat_record->numflows_icmp++;
@@ -270,7 +271,7 @@ static int StorePcapFlow(flowParam_t *flowParam, struct FlowNode *Node) {
         stat_record->numbytes += genericFlow->inBytes;
 
         uint32_t exporterIdent = MetricExpporterID(recordHeader);
-        UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
+        UpdateMetric(nffile_ctx->nffile->ident, exporterIdent, genericFlow);
 
         if (printRecord) {
             flow_record_short(stdout, recordHeader);
@@ -299,24 +300,25 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
     strftime(fmt, sizeof(fmt), flowParam->extensionFormat, now);
 
     FlowSource_t *fs = flowParam->fs;
+    nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)fs->backend_ctx;
     char fileName[MAXPATHLEN];
-    int pos = SetupPath(now, fs->datadir, fs->subdir, fileName);
+    int pos = SetupPath(now, nffile_ctx->datadir, nffile_ctx->subdir, fileName);
     char *p = fileName + (ptrdiff_t)pos;
     snprintf(p, MAXPATHLEN - pos - 1, "nfcapd.%s", fmt);
 
     // update stat record
     // if no flows were collected, fs->last_seen is still 0
     // set first_seen to start of this time slot, with twin window size.
-    if (fs->nffile->stat_record->msecLastSeen == 0) {
-        fs->nffile->stat_record->msecFirstSeen = 1000LL * (uint64_t)timestamp;
-        fs->nffile->stat_record->msecLastSeen = 1000LL * (uint64_t)(timestamp + flowParam->t_win);
+    if (fs->stat_record.msecLastSeen == 0) {
+        fs->stat_record.msecFirstSeen = 1000LL * (uint64_t)timestamp;
+        fs->stat_record.msecLastSeen = 1000LL * (uint64_t)(timestamp + flowParam->t_win);
     }
-    FlushFile(fs->nffile);
-    CloseFile(fs->nffile);
+    memcpy(nffile_ctx->nffile->stat_record, &fs->stat_record, sizeof(stat_record_t));
+    FlushFile(nffile_ctx->nffile);
 
     // if rename fails, we are in big trouble, as we need to get rid of the old .current file
     // otherwise, we will loose flows and can not continue collecting new flows
-    if (RenameAppend(fs->nffile->fileName, fileName) < 0) {
+    if (RenameAppend(nffile_ctx->nffile->fileName, fileName) < 0) {
         LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
         LogError("Ident: %s, Serious Problem! Fix manually", fs->Ident);
         // we do not update the books here, as the file failed to rename properly
@@ -325,13 +327,13 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
         struct stat fstat;
         // Update books
         stat(fileName, &fstat);
-        UpdateBooks(fs->bookkeeper, timestamp, 512 * fstat.st_blocks);
+        UpdateBooks(nffile_ctx->bookkeeper, timestamp, 512 * fstat.st_blocks);
     }
-    LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu", fs->Ident, (unsigned long long)fs->nffile->stat_record->numflows,
-            (unsigned long long)fs->nffile->stat_record->numpackets, (unsigned long long)fs->nffile->stat_record->numbytes);
+    LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu", fs->Ident, (unsigned long long)fs->stat_record.numflows,
+            (unsigned long long)fs->stat_record.numpackets, (unsigned long long)fs->stat_record.numbytes);
 
-    DisposeFile(fs->nffile);
-    fs->nffile = NULL;
+    DisposeFile(nffile_ctx->nffile);
+    nffile_ctx->nffile = NULL;
 
     // reset stats
     fs->bad_packets = 0;
@@ -345,20 +347,19 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
 __attribute__((noreturn)) void *flow_thread(void *thread_data) {
     // argument dispatching
     flowParam_t *flowParam = (flowParam_t *)thread_data;
-    unsigned compress = flowParam->compress;
     FlowSource_t *fs = flowParam->fs;
+    nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)fs->backend_ctx;
 
     printRecord = flowParam->printRecord;
     // prepare file
-    fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
-    if (!fs->nffile) {
+    nffile_ctx->nffile = OpenNewFile(SetUniqueTmpName(nffile_ctx->tmpFileName), nffile_ctx->creator, nffile_ctx->compress, nffile_ctx->encryption);
+    if (!nffile_ctx->nffile) {
         pthread_kill(flowParam->parent, SIGUSR1);
         pthread_exit((void *)flowParam);
     }
-    SetIdent(fs->nffile, fs->Ident);
+    SetIdent(nffile_ctx->nffile, fs->Ident);
 
     // init flow source
-    fs->dataBlock = WriteBlock(fs->nffile, NULL);
     fs->bad_packets = 0;
     int done = 0;
     while (!done) {
@@ -373,15 +374,16 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
                 // Flush Exporter Stat to file
                 FlushExporterStats(fs);
                 // flush current block and close file
-                fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+                fs->dataBlock = WriteBlock(nffile_ctx->nffile, fs->dataBlock);
                 CloseFlowFile(flowParam, Node->timestamp);
-                fs->nffile = OpenNewFile(SetUniqueTmpName(fs->tmpFileName), CREATOR_NFPCAPD, compress, NOT_ENCRYPTED);
-                if (!fs->nffile) {
+                nffile_ctx->nffile =
+                    OpenNewFile(SetUniqueTmpName(nffile_ctx->tmpFileName), nffile_ctx->creator, nffile_ctx->compress, nffile_ctx->encryption);
+                if (!nffile_ctx->nffile) {
                     LogError("Fatal: OpenNewFile() failed for ident: %s", fs->Ident);
                     pthread_kill(flowParam->parent, SIGUSR1);
                     break;
                 }
-                SetIdent(fs->nffile, fs->Ident);
+                SetIdent(nffile_ctx->nffile, fs->Ident);
 
                 // Dump all exporters to the buffer for new file
                 FlushStdRecords(fs);
@@ -391,7 +393,7 @@ __attribute__((noreturn)) void *flow_thread(void *thread_data) {
                 // Flush Exporter Stat to file
                 FlushExporterStats(fs);
                 // flush current block and close file
-                FlushBlock(fs->nffile, fs->dataBlock);
+                FlushBlock(nffile_ctx->nffile, fs->dataBlock);
                 CloseFlowFile(flowParam, Node->timestamp);
                 done = 1;
                 break;

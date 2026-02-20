@@ -42,6 +42,6 @@ int setup_pcap_offline(char *fname, char *filter);
 
 int setup_pcap_live(char *device, char *filter, unsigned bufflen);
 
-ssize_t NextPacket(int fill1, void *buffer, size_t buffer_size, int fill2, struct sockaddr *sock, socklen_t *size);
+ssize_t NextPacket(void *buffer, size_t buffer_size, struct sockaddr_storage *sock, socklen_t *size, struct timeval *tv);
 
 #endif  //_PCAP_READER_H

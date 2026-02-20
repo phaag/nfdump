@@ -150,7 +150,7 @@ static queue_t *fileQueue = NULL;
 
 /* function definitions */
 
-#define QueueSize 4
+#define QueueSize 8
 
 static _Atomic int blocksInUse;
 
@@ -753,12 +753,14 @@ static nffile_t *OpenFileStatic(const char *filename, unsigned workerSlots) {
     struct stat stat_buf;
     if (fstat(fd, &stat_buf) < 0) {
         LogError("fstat() '%s': %s", filename, strerror(errno));
+        close(fd);
         return NULL;
     }
 
     // initialise and/or allocate new nffile handle
     nffile_t *nffile = NewFile(workerSlots);
     if (nffile == NULL) {
+        close(fd);
         return NULL;
     }
     nffile->fd = fd;
@@ -1099,8 +1101,8 @@ void DisposeFile(nffile_t *nffile) {
 void DeleteFile(nffile_t *nffile) {
     if (nffile == NULL) return;
 
+    TerminateWorkers(nffile);
     if (nffile->fd) {
-        TerminateWorkers(nffile);
         close(nffile->fd);
         nffile->fd = 0;
         unlink(nffile->fileName);
@@ -1290,6 +1292,22 @@ dataBlock_t *WriteBlock(nffile_t *nffile, dataBlock_t *dataBlock) {
 
 }  // End of WriteBlock
 
+dataBlock_t *PushBlock(queue_t *queue, dataBlock_t *dataBlock) {
+    if (dataBlock == NULL) {
+        dataBlock = NewDataBlock();
+    } else if (dataBlock->size != 0) {
+        // empty blocks need not to be written
+        dbg_printf("PushBlock - push block with size: %u\n", dataBlock->size);
+        if (queue_push(queue, dataBlock) == QUEUE_CLOSED) return QUEUE_CLOSED;
+        dataBlock = NewDataBlock();
+    } else {
+        // re-init empty block
+        InitDataBlock(dataBlock);
+    }
+    return dataBlock;
+
+}  // End of PushBlock
+
 void FlushBlock(nffile_t *nffile, dataBlock_t *dataBlock) {
     if (dataBlock != NULL) {
         if (dataBlock->size != 0) {
@@ -1398,56 +1416,6 @@ static void *nfwriter(void *arg) {
     /* UNREACHED */
 
 }  // End of nfwriter
-
-/*
-void *nffile_backend_thread(void *arg) {
-    nffile_backend_ctx_t *ctx = arg;
-    queue_t *q = ctx->fs->collector_to_backend;
-
-    // init writer queue + workers
-    ctx->writerQueue = queue_create(0);
-    ctx->writers = calloc(ctx->numWriters, sizeof(pthread_t));
-    for (int i = 0; i < ctx->numWriters; i++) {
-        pthread_create(&ctx->writers[i], NULL, nfwriter, ctx);
-    }
-
-    int done = 0;
-    while (!done) {
-        backend_msg_t *msg = queue_pop(q);
-        if (msg == QUEUE_CLOSED || !msg) break;
-
-        switch (msg->type) {
-            case BACKEND_MSG_DATA: {
-                dataBlock_t *block = msg->data;  // already heap-allocated
-                queue_push(ctx->writerQueue, block);
-                break;
-            }
-            case BACKEND_MSG_ROTATE:
-            handle_nffile_rotate(ctx, msg->ts);
-            break;
-            case BACKEND_MSG_SHUTDOWN:
-            done = 1;
-            break;
-        }
-        free(msg);
-    }
-
-    // stop workers
-    queue_close(ctx->writerQueue);
-    for (int i = 0; i < ctx->numWriters; i++) {
-        pthread_join(ctx->writers[i], NULL);
-    }
-    queue_destroy(ctx->writerQueue);
-    free(ctx->writers);
-
-    if (ctx->nffile) {
-        CloseUpdateFile(ctx->nffile);
-        ctx->nffile = NULL;
-    }
-
-    return NULL;
-}
-*/
 
 static void joinWorkers(nffile_t *nffile) {
     for (int i = 0; i < (int)nffile->numWorkers; i++) {

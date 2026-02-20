@@ -138,7 +138,7 @@ static int reader_mmap_run(readerParam_t *readerParam) {
         }
         int incl = pr.hdr.caplen;
 
-        if (incl > remaining) break;  // truncated - incomplete packet
+        if (incl > (int)remaining) break;  // truncated - incomplete packet
 
         pr.data = p;
 
@@ -243,7 +243,7 @@ int pcap_file_reader_start(packetParam_t *packetParam, readerParam_t *readerPara
         return -1;
     }
 
-    if (S_ISREG(st.st_mode) == 0 || st.st_size < sizeof(struct pcap_file_header)) {
+    if (S_ISREG(st.st_mode) == 0 || st.st_size < (off_t)sizeof(struct pcap_file_header)) {
         LogError("File: %s not a regular file or too small", path);
         close(fd);
         queue_free(readerParam->batchQueue);
@@ -425,7 +425,7 @@ void *__attribute__((noreturn)) pcap_file_packet_thread(void *args) {
         }
         dbg_printf("Packet - process next batch with %zu entries\n", batch->count);
 
-        for (int i = 0; i < batch->count; i++) {
+        for (int i = 0; i < (int)batch->count; i++) {
             hdr = &batch->pkts[i].hdr;
             data = batch->pkts[i].data;
 

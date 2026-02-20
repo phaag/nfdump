@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2022, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -73,9 +73,10 @@ static inline void Put_val48(uint64_t v, void *p);
 static inline void Put_val64(uint64_t v, void *p);
 
 static inline uint16_t Get_val16(const void *p) {
-    const uint16_t *in = (uint16_t *)p;
+    uint16_t in;
+    memcpy(&in, p, sizeof(uint16_t));
 
-    return ntohs(*in);
+    return ntohs(in);
 
 }  // End of Get_val16
 
@@ -89,9 +90,10 @@ static inline uint32_t Get_val24(const void *p) {
 }  // End of Get_val24
 
 static inline uint32_t Get_val32(const void *p) {
-    const uint32_t *in = (uint32_t *)p;
+    uint32_t in;
+    memcpy(&in, p, sizeof(uint32_t));
 
-    return ntohl(*in);
+    return ntohl(in);
 
 }  // End of Get_val32
 
@@ -124,9 +126,10 @@ static inline uint64_t Get_val56(const void *p) {
 }  // End of Get_val56
 
 static inline uint64_t Get_val64(const void *p) {
-    const uint64_t *in = (uint64_t *)p;
+    uint64_t in;
+    memcpy(&in, p, sizeof(uint64_t));
 
-    return ntohll(*in);
+    return ntohll(in);
 
 }  // End of Get_val64
 

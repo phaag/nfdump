@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2025-2026, Peter Haag
+ *  Copyright (c) 2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,17 +28,22 @@
  *
  */
 
-#ifndef _YAF_READER_H
-#define _YAF_READER_H 1
+#ifndef _BACKEND_H
+#define _BACKEND_H 1
 
-#include <stdint.h>
-#include <sys/socket.h>
-#include <sys/types.h>
+#include "collector.h"
+#include "flowsource.h"
 
-#include "config.h"
+int InitBackend(const collector_ctx_t *ctx, const nffile_backend_ctx_t *init_nffile_ctx);
 
-int setup_yaf(const char *fname);
+int LaunchBackend(collector_ctx_t *ctx);
 
-ssize_t NextYafRecord(void *buffer, size_t buffer_size, struct sockaddr_storage *sock, socklen_t *size, struct timeval *tv);
+int CloseBackend(const collector_ctx_t *ctx, int expire);
 
-#endif  //_YAF_READER_H
+int Init_nffile_backend(FlowSource_t *fs, const nffile_backend_ctx_t *init_nffile_ctx);
+
+int Launch_nffile_backend(FlowSource_t *fs);
+
+void close_nffile_backend(FlowSource_t *fs, int expire);
+
+#endif

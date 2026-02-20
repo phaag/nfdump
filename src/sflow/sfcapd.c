@@ -57,6 +57,7 @@
 #include "pcap_reader.h"
 #endif
 
+#include "backend.h"
 #include "barrier.h"
 #include "bookkeeper.h"
 #include "collector.h"
@@ -83,7 +84,7 @@
 #define DEFAULTSFLOWPORT "6343"
 
 // Define a generic type to get data from socket or pcap file
-typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *, socklen_t *);
+typedef ssize_t (*packet_function_t)(void *, size_t, struct sockaddr_storage *, socklen_t *, struct timeval *);
 
 static option_t sfcapdConfig[] = {
     {.name = "tun", .valBool = 0, .flags = OPTDEFAULT}, {.name = "maxworkers", .valUint64 = 2, .flags = OPTDEFAULT}, {.name = NULL}};
@@ -100,8 +101,8 @@ static void signalPrivsepChild(pid_t child_pid, int pfd);
 
 static void IntHandler(int signal);
 
-static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, post_args_t *post_args, int rfd, time_t twin, time_t t_begin,
-                unsigned compress, int parse_tun);
+static void run(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, packet_function_t receive_packet, int socket, int rfd,
+                time_t twin, time_t t_begin, int parse_tun);
 
 /* Functions */
 static void usage(char *name) {
@@ -212,7 +213,7 @@ static void ChildDied(void) {
             if (WIFSIGNALED(stat)) {
                 LogError("privsep child[%u] terminated due to signal %i", pid, WTERMSIG(stat));
             }
-            LogError("privsep child[%u] terminated with status: pid, 0x%x", pid, stat);
+            LogError("privsep child[%u] terminated with status: 0x%x", pid, stat);
         }
         gotSIGCHLD--;
     }
@@ -256,37 +257,47 @@ static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockadd
     return 0;
 }  // End of SendRepeaterMessage
 
-static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, post_args_t *post_args, int rfd, time_t twin, time_t t_begin,
-                unsigned compress, int parse_tun) {
-    struct sockaddr_storage sf_sender;
-    socklen_t sf_sender_size = sizeof(sf_sender);
+static inline ssize_t get_next_packet(int sockfd, PacketCtx_t *pkt_ctx, struct timeval *tv) {
+    // Reset lengths that might have been modified by previous recvmsg calls
+    pkt_ctx->msg.msg_namelen = sizeof(pkt_ctx->sender);
+    pkt_ctx->msg.msg_controllen = sizeof(pkt_ctx->control);
 
-    void *in_buff = malloc(NETWORK_INPUT_BUFF_SIZE);
-    if (!in_buff) {
-        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    ssize_t cnt = recvmsg(sockfd, &pkt_ctx->msg, 0);
+
+    if (cnt >= 0) {
+        struct cmsghdr *cmsg = CMSG_FIRSTHDR(&pkt_ctx->msg);
+        if (cmsg && cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_TIMESTAMP) {
+            memcpy(tv, CMSG_DATA(cmsg), sizeof(struct timeval));
+        } else {
+            gettimeofday(tv, NULL);  // Fallback
+        }
+    }
+    return cnt;
+}  // End of get_next_packet
+
+static void run(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, packet_function_t receive_packet, int socket, int rfd,
+                time_t twin, time_t t_begin, int parse_tun) {
+    if (socket == 0 && receive_packet == NULL) {
+        LogError("No packet source defined");
+        return;
+    }
+
+    // prepare socket
+    PacketCtx_t pkt_ctx = {0};
+    if (!init_packet_ctx(&pkt_ctx, socket, NETWORK_INPUT_BUFF_SIZE)) {
         return;
     }
 
     // Init each netflow source output data buffer
     for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        // prepare file
-        fs->nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
-        fs->swap_nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
-        if (!fs->nffile || !fs->swap_nffile) {
-            return;
-        }
-        SetIdent(fs->nffile, fs->nffile_ctx->Ident);
-        SetIdent(fs->swap_nffile, fs->nffile_ctx->Ident);
-
         // init flow source
-        fs->dataBlock = WriteBlock(fs->nffile, NULL);
+        fs->dataBlock = PushBlock(fs->blockQueue, NULL);
         fs->bad_packets = 0;
     }
 
     time_t t_start = t_begin;
 
     periodic_trigger = 0;
-    ssize_t cnt = 0;
     uint32_t ignored_packets = 0;
     uint64_t packets = 0;
 
@@ -299,15 +310,19 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
      * for proper cleanup
      */
     while (1) {
-        struct timeval tv;
+        struct timeval tv = {0};
+        ssize_t cnt = 0;
         char sa_address[INET6_ADDRSTRLEN];
 
         /* read next bunch of data into begin of input buffer */
-        if (!done) {
-            // Debug code to read from pcap file, or from socket
-            cnt = receive_packet(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&sf_sender, &sf_sender_size);
-
-            dbg_printf("Received packet from: %s, size: %zd\n", GetClientIPstring(&sf_sender, sa_address), cnt);
+        if (likely(done == 0)) {
+            if (likely(socket)) {
+                cnt = get_next_packet(socket, &pkt_ctx, &tv);
+            } else {
+                pkt_ctx.msg.msg_namelen = sizeof(pkt_ctx.sender);
+                cnt = receive_packet(pkt_ctx.buffer, NETWORK_INPUT_BUFF_SIZE, &pkt_ctx.sender, &pkt_ctx.msg.msg_namelen, &tv);
+            }
+            dbg_printf("Received packet from: %s, size: %zd\n", GetClientIPstring(&pkt_ctx.sender, sa_address), cnt);
 
             // in case of reading from file EOF => -2
             if (cnt == -2) done = 1;
@@ -328,14 +343,15 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
         }
 
         /* Periodic file renaming, if time limit reached or if we are done.  */
-        gettimeofday(&tv, NULL);
         time_t t_now = tv.tv_sec;
 
         if (((t_now - t_start) >= twin) || done) {
             // rotate cycle
             alarm(0);
 
-            if (RotateCycle(ctx, post_args, t_start, done) != 0) {
+            // Perform the rotation cycle
+            dbg_printf("Periodic cycle - done: %u, for slot: %s\n", done, ctime(&t_start));
+            if (!PeriodicCycle(ctx, t_start, done)) {
                 LogError("run loop terminated due to serious errors");
                 break;
             }
@@ -366,7 +382,7 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
 
         // repeat this packet
         if (rfd) {
-            if (SendRepeaterMessage(rfd, in_buff, (size_t)cnt, &sf_sender, sf_sender_size) != 0) {
+            if (SendRepeaterMessage(rfd, pkt_ctx.buffer, (size_t)cnt, &pkt_ctx.sender, pkt_ctx.msg.msg_namelen) != 0) {
                 LogError("Disable packet repeater due to errors");
                 close(rfd);
                 rfd = 0;
@@ -374,49 +390,42 @@ static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int sock
         }
 
         // get flow source record for current packet, identified by sender IP address
-        FlowSource_t *fs = GetFlowSource(ctx, &sf_sender);
+        FlowSource_t *fs = GetFlowSource(ctx, &pkt_ctx.sender);
         if (fs == NULL) {
             // check, if we have dynamic flowsources configured
-            fs = NewDynFlowSource(ctx, &sf_sender);
+            fs = NewDynFlowSource(ctx, &pkt_ctx.sender);
             if (fs == NULL) {
                 ignored_packets++;
-                LogError("Skip UDP packet from: %s. Ignored packets: %u", GetClientIPstring(&sf_sender, sa_address), ignored_packets);
+                LogError("Skip UDP packet from: %s. Ignored packets: %u", GetClientIPstring(&pkt_ctx.sender, sa_address), ignored_packets);
                 continue;
             }
 
-            // setup new dynamic source
-            if (InitBookkeeper(&fs->nffile_ctx->bookkeeper, fs->nffile_ctx->datadir, getpid()) != BOOKKEEPER_OK) {
-                LogError("Failed to initialise bookkeeper for new source");
-                // fatal error
+            if (!Init_nffile_backend(fs, nffile_backend_ctx)) {
+                LogError("Failed to initialise backend for new source");
+                continue;
+            }
+            if (!Launch_nffile_backend(fs)) {
+                LogError("Launch_nffile_backend() failed");
                 return;
             }
-            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), CREATOR_SFCAPD, compress, NOT_ENCRYPTED);
-            if (!fs->nffile) {
-                LogError("Failed to open new collector file");
-                return;
-            }
-            fs->dataBlock = WriteBlock(fs->nffile, NULL);
-            SetIdent(fs->nffile, fs->nffile_ctx->Ident);
         }
 
         /* check for too little data - cnt must be > 0 at this point */
         if (cnt < (ssize_t)sizeof(common_flow_header_t)) {
-            LogError("Ident: %s, Data length error: too little data for common netflow header. cnt: %i", fs->nffile_ctx->Ident, (int)cnt);
+            LogError("Ident: %s, Data length error: too little data for common netflow header. cnt: %i", fs->Ident, (int)cnt);
             fs->bad_packets++;
             continue;
         }
 
         fs->received = tv;
         /* Process data - have a look at the common header */
-        Process_sflow(in_buff, cnt, fs, parse_tun);
+        Process_sflow(pkt_ctx.buffer, cnt, fs, parse_tun);
 
         // each Process_xx function has to process the entire input buffer, therefore it's empty
         // now.
     }
 
-    free(in_buff);
-
-    CleanupCollector(ctx, post_args);
+    free(pkt_ctx.buffer);
 
 } /* End of run */
 
@@ -442,7 +451,7 @@ int main(int argc, char **argv) {
     stringlist_t sourceList = {0};
     char *dataDir = NULL;
 
-    receive_packet = recvfrom;
+    receive_packet = NULL;
     verbose = -1;
     do_daemonize = 0;
     bufflen = 0;
@@ -787,12 +796,6 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    post_args_t *post_args = malloc(sizeof(post_args_t));
-    if (post_args == NULL) {
-        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
 // Debug code to read from pcap file
 #ifdef ENABLE_READPCAP
     sock = 0;
@@ -849,7 +852,13 @@ int main(int argc, char **argv) {
     }
 
     if (pidfile) {
-        if (check_pid(pidfile) != 0 || write_pid(pidfile) == 0) exit(EXIT_FAILURE);
+        pid_t pid = check_pid(pidfile);
+        if (pid != 0) {
+            LogError("Another process with pid %lu is holding the pidfile: %s", (long unsigned)pid, pidfile);
+            close(sock);
+            exit(255);
+        }
+        if (write_pid(pidfile) == 0) exit(EXIT_FAILURE);
     }
 
     if (metricSocket && !OpenMetric(metricSocket, metricInterval)) {
@@ -863,41 +872,19 @@ int main(int argc, char **argv) {
         pfd = PrivsepFork(argc, argv, &launcher_pid, "launcher");
     }
 
-    *post_args = (post_args_t){
-        .ctx = &collector_ctx,
-        .pfd = pfd,
-        .time_extension = time_extension,
-        .done = 0,
-        .creator = CREATOR_SFCAPD,
-        .compress = compress,
-        .encryption = NOT_ENCRYPTED,
-    };
+    const nffile_backend_ctx_t nffile_backend_ctx = {
+        .creator = CREATOR_SFCAPD, .compress = compress, .encryption = NOT_ENCRYPTED, .subdir = subdir_index, .time_extension = time_extension};
 
-    if (Lauch_postprocessor(post_args) == 0) {
+    if (InitBackend(&collector_ctx, &nffile_backend_ctx) == 0) {
+        LogError("Failed to initialized nffile backend");
         close(sock);
         remove_pid(pidfile);
         exit(EXIT_FAILURE);
     }
 
-    int failed = 0;
-    for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        if (InitBookkeeper(&fs->nffile_ctx->bookkeeper, fs->nffile_ctx->datadir, getpid()) != BOOKKEEPER_OK) {
-            failed = 1;
-            LogError("initialize bookkeeper failed");
-            break;
-        }
-        fs->nffile_ctx->subdir = subdir_index;
-    }
-
-    if (failed) {
-        // release all already allocated bookkeepers
-        for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-            if (fs->nffile_ctx->bookkeeper) ReleaseBookkeeper(fs->nffile_ctx->bookkeeper, DESTROY_BOOKKEEPER);
-        }
+    if (!LaunchBackend(&collector_ctx)) {
         close(sock);
-        signalPrivsepChild(launcher_pid, pfd);
-        signalPrivsepChild(repeater_pid, rfd);
-        if (pidfile) remove_pid(pidfile);
+        remove_pid(pidfile);
         exit(EXIT_FAILURE);
     }
 
@@ -915,7 +902,7 @@ int main(int argc, char **argv) {
     sigaction(SIGPIPE, &act, NULL);
 
     LogInfo("Startup sfcapd.");
-    run(&collector_ctx, receive_packet, sock, post_args, rfd, twin, t_start, compress, parse_tun);
+    run(&collector_ctx, &nffile_backend_ctx, receive_packet, sock, rfd, twin, t_start, parse_tun);
 
     // shutdown
     close(sock);
@@ -923,20 +910,11 @@ int main(int argc, char **argv) {
     signalPrivsepChild(repeater_pid, rfd);
     CloseMetric();
 
-    for (FlowSource_t *fs = NextFlowSource(&collector_ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        dirstat_t *dirstat;
-        // if we do not auto expire and there is a stat file, update the stats before we leave
-        if (expire == 0 && ReadStatInfo(fs->nffile_ctx->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
-            UpdateDirStat(dirstat, fs->nffile_ctx->bookkeeper);
-            WriteStatInfo(dirstat);
-            LogVerbose("Updating statinfo in directory '%s'", fs->nffile_ctx->datadir);
-        }
-
-        ReleaseBookkeeper(fs->nffile_ctx->bookkeeper, DESTROY_BOOKKEEPER);
-    }
+    CloseBackend(&collector_ctx, expire);
+    CleanupCollector(&collector_ctx);
 
     LogInfo("Terminating sfcapd.");
-    if (pidfile) remove_pid(pidfile);
+    remove_pid(pidfile);
 
     EndLog();
     return 0;

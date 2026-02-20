@@ -89,6 +89,9 @@ FlowSource_t *newFlowSource(const char *ident, const char *dataDir, unsigned sub
         return NULL;
     }
 
+    // name of flowsource
+    strncpy(fs->Ident, ident, IDENTLEN - 1);
+
     // init backend info
     if (initFileInfo(fs, ident, dataDir, subDir) == 0) {
         freeFlowSource(fs);
@@ -132,8 +135,9 @@ static FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const ip128_t *ip) {
     char ipStr[INET6_ADDRSTRLEN];
     ip128_2_str(ip, ipStr);
 
+    nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)ctx->dynamicSource->backend_ctx;
     char path[MAXPATHLEN];
-    snprintf(path, MAXPATHLEN - 1, "%s/%s", ctx->dynamicSource->nffile_ctx->datadir, ipStr);
+    snprintf(path, MAXPATHLEN - 1, "%s/%s", nffile_ctx->datadir, ipStr);
     path[MAXPATHLEN - 1] = '\0';
 
     int err = mkdir(path, 0755);
@@ -158,7 +162,7 @@ static FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const ip128_t *ip) {
     source_array->ipList->net = *ip;
 
     // allocate new flowsource for this IP
-    FlowSource_t *fs = newFlowSource(ident, path, ctx->dynamicSource->nffile_ctx->subdir);
+    FlowSource_t *fs = newFlowSource(ident, path, nffile_ctx->subdir);
     if (fs == NULL) return NULL;
 
     source_array->fs = fs;
@@ -349,8 +353,8 @@ void expand_exporter_table(exporter_table_t *tab) {
 
 static void freeFlowSource(FlowSource_t *fs) {
     if (fs->exporters.entries) free(fs->exporters.entries);
-    if (fs->nffile_ctx) {
-        nffile_backend_ctx_t *nffile_ctx = fs->nffile_ctx;
+    if (fs->backend_ctx) {
+        nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)fs->backend_ctx;
         if (nffile_ctx->datadir) free(nffile_ctx->datadir);
         if (nffile_ctx->tmpFileName) free(nffile_ctx->tmpFileName);
         free(nffile_ctx);
@@ -437,19 +441,21 @@ static int initFileInfo(FlowSource_t *fs, const char *ident, const char *dataDir
         return 0;
     }
 
-    fs->nffile_ctx = calloc(1, sizeof(nffile_backend_ctx_t));
-    if (!fs->nffile_ctx) {
+    nffile_backend_ctx_t *nffile_ctx = calloc(1, sizeof(nffile_backend_ctx_t));
+    if (!nffile_ctx) {
         LogError("calloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
     }
 
-    strncpy(fs->nffile_ctx->Ident, ident, IDENTLEN - 1);
-    fs->nffile_ctx->datadir = path;
-    fs->nffile_ctx->subdir = subDir;
-    fs->nffile_ctx->tmpFileName = strdup(tmpFile);
-    if (fs->nffile_ctx->tmpFileName == NULL) {
+    strncpy(nffile_ctx->Ident, ident, IDENTLEN - 1);
+    nffile_ctx->datadir = path;
+    nffile_ctx->subdir = subDir;
+    nffile_ctx->tmpFileName = strdup(tmpFile);
+    if (nffile_ctx->tmpFileName == NULL) {
         LogError("strdup() error: %s", strerror(errno));
+        free(nffile_ctx);
         return 0;
     }
+    fs->backend_ctx = (void *)nffile_ctx;
 
     return 1;
 

@@ -194,7 +194,7 @@ static data_row *process(void *engine) {
 
         record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
-        for (int i = 0; i < dataBlock->NumRecords; i++) {
+        for (int i = 0; i < (int)dataBlock->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 exit(255);

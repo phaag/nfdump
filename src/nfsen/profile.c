@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -332,7 +332,7 @@ void UpdateChannels(time_t tslot) {
 
             if (rename(profile_channels[num].ofile, profile_channels[num].wfile) < 0) {
                 LogError("Failed to rename file %s to %s: %s\n", profile_channels[num].ofile, profile_channels[num].wfile, strerror(errno));
-            } else if (dirstat && tslot > dirstat->last) {
+            } else if (dirstat && (uint64_t)tslot > dirstat->last) {
                 dirstat->filesize += 512 * fstat.st_blocks;
                 dirstat->numfiles++;
                 dirstat->last = tslot;

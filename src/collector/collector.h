@@ -53,12 +53,6 @@
 /* Default time window in seconds to rotate files */
 #define TIME_WINDOW 300
 
-/* overdue time:
- * if nfcapd does not get any data, wake up the receive system call
- * at least after OVERDUE_TIME seconds after the time window
- */
-#define OVERDUE_TIME 10
-
 // time nfcapd will wait for launcher to terminate
 #define LAUNCHER_TIMEOUT 60
 
@@ -68,31 +62,18 @@ typedef struct common_flow_header {
     uint16_t count;
 } common_flow_header_t;
 
-// argument vector for post processor thread
-typedef struct post_args_s {
-    pthread_mutex_t mutex;  // synchronisation
-    pthread_cond_t cond;    // synchronisation
-    // const args
-    char *time_extension;  // parameter passing
-    collector_ctx_t *ctx;  // pasarmeter passing
-    pthread_t tid;         // tid of post processor thread
-    int pfd;               // launcher fd if used by post-processor
-    uint32_t creator;      // creator - nfcapd or sfcapd
-    uint32_t compress;     // compression level for new files
-    uint32_t encryption;   // encryption for new files
+typedef struct cycle_message_s {
+    time_t when;  // timestamp of cycle
+    int done;     // done flag
+    // stat_record of flowsource follows
+} cycle_message_t;
 
-    // cycle args
-    int cycle_pending;  // 0 = idle, 1 = work pending/in progress
-    int done;           // shutdown flag
-    time_t when;        // t_start for current cycle
-} post_args_t;
-
-#define UpdateFirstLast(nffile, First, Last)              \
-    if ((First) < (nffile)->stat_record->msecFirstSeen) { \
-        (nffile)->stat_record->msecFirstSeen = (First);   \
-    }                                                     \
-    if ((Last) > (nffile)->stat_record->msecLastSeen) {   \
-        (nffile)->stat_record->msecLastSeen = (Last);     \
+#define UpdateFirstLast(fs, First, Last)                                                     \
+    if ((First) < (fs)->stat_record.msecFirstSeen || (fs)->stat_record.msecFirstSeen == 0) { \
+        (fs)->stat_record.msecFirstSeen = (First);                                           \
+    }                                                                                        \
+    if ((Last) > (fs)->stat_record.msecLastSeen) {                                           \
+        (fs)->stat_record.msecLastSeen = (Last);                                             \
     }
 
 int ConfigureDefaultFlowSource(collector_ctx_t *ctx, const char *ident, const char *dataDir, unsigned subDir);
@@ -103,9 +84,7 @@ int ConfigureFixedFlowSource(collector_ctx_t *ctx, stringlist_t *sourceList, uns
 
 int AddFlowSourceConfig(collector_ctx_t *ctx);
 
-FlowSource_t *AddDynamicSource(collector_ctx_t *ctx, const char *ipStr);
-
-int RotateCycle(const collector_ctx_t *ctx, post_args_t *post_args, time_t t_start, int done);
+int PeriodicCycle(const collector_ctx_t *ctx, time_t t_start, int done);
 
 void FlushStdRecords(FlowSource_t *fs);
 
@@ -115,8 +94,6 @@ int FlushInfoExporter(FlowSource_t *fs, exporter_info_record_t *exporter);
 
 int ScanExtension(char *extensionList);
 
-int Lauch_postprocessor(post_args_t *post_args);
-
-void CleanupCollector(collector_ctx_t *ctx, post_args_t *post_args);
+void CleanupCollector(collector_ctx_t *ctx);
 
 #endif  //_COLLECTOR_H

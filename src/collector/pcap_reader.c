@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -48,6 +48,7 @@
 #include <netinet/in.h>
 #include <netinet/in_systm.h>
 #include <netinet/ip.h>
+#include <netinet/ip6.h>
 #include <netinet/ip_icmp.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
@@ -89,73 +90,34 @@ static pcap_t *pcap_handle;
 static int linktype = 0;
 static int linkoffset = 0;
 
-typedef struct vlan_hdr_s {
-    uint16_t vlan_id;
-    uint16_t type;
-} vlan_hdr_t;
-
-typedef struct gre_hdr_s {
-    uint16_t flags;
-    uint16_t type;
-} gre_hdr_t;
-
 /*
  * Function prototypes
  */
 
 static int setup_pcap(char *filter);
 
-static ssize_t decode_packet(struct pcap_pkthdr *hdr, u_char *pcap_pkgdata, void *buffer, size_t buffer_size, struct sockaddr *sock);
+static ssize_t decode_packet(const struct pcap_pkthdr *hdr, const uint8_t *pkt, void *buffer, size_t buffer_size, struct sockaddr_storage *sock,
+                             struct timeval *tv);
 
 /*
- * function definitions
+ * Minimal pcap decoder for NetFlow/IPFIX debugging.
+ * Strips link layer → IPv4 → UDP → payload.
+ * single VLAN tag stripping.
  */
 
-// set filter if requested
-// set linktype and offset
 static int setup_pcap(char *filter) {
-    struct bpf_program filter_code;
+    struct bpf_program bpfFilter;
 
-    bpf_u_int32 netmask;
-
-    netmask = 0;
-    /* apply filters if any are requested */
     if (filter) {
-        if (pcap_compile(pcap_handle, &filter_code, filter, 1, netmask) == -1) {
-            /* pcap does not fill in the error code on pcap_compile */
-            LogError("pcap_compile() failed: %s\n", pcap_geterr(pcap_handle));
-            pcap_close(pcap_handle);
-            return 0;
-        }
-        if (pcap_setfilter(pcap_handle, &filter_code) == -1) {
-            /* pcap does not fill in the error code on pcap_compile */
-            LogError("pcap_setfilter() failed: %s\n", pcap_geterr(pcap_handle));
-            pcap_close(pcap_handle);
+        if (pcap_compile(pcap_handle, &bpfFilter, filter, 1, 0) < 0 || pcap_setfilter(pcap_handle, &bpfFilter) < 0) {
+            LogError("pcap filter error: %s", pcap_geterr(pcap_handle));
             return 0;
         }
     }
 
-    /*
-     *  We need to make sure this is Ethernet.  The DLTEN10MB specifies
-     *  standard 10MB and higher Ethernet.
-     */
     linktype = pcap_datalink(pcap_handle);
+
     switch (linktype) {
-        case DLT_RAW:
-            linkoffset = 0;
-            break;
-        case DLT_PPP:
-            linkoffset = 2;
-            break;
-        case DLT_PPP_SERIAL:
-            linkoffset = 4;
-            break;
-        case DLT_NULL:
-            linkoffset = 4;
-            break;
-        case DLT_LOOP:
-            linkoffset = 14;
-            break;
         case DLT_EN10MB:
             linkoffset = 14;
             break;
@@ -165,204 +127,283 @@ static int setup_pcap(char *filter) {
         case DLT_LINUX_SLL2:
             linkoffset = 20;
             break;
-        case DLT_IEEE802_11:
-            linkoffset = 22;
+        case DLT_NULL:
+        case DLT_LOOP:
+            linkoffset = 4;
             break;
-        case DLT_NFLOG:
+        case DLT_RAW:
             linkoffset = 0;
             break;
+        case DLT_PPP:
+            linkoffset = 2;
+            break;
+        case DLT_PPP_SERIAL:
+            linkoffset = 4;
+            break;
+        case DLT_NFLOG:
         case DLT_PFLOG:
             linkoffset = 0;
             break;
         default:
-            LogError("Unknown pcap linktype: %u", linktype);
-            pcap_close(pcap_handle);
+            LogError("Unsupported linktype %d", linktype);
             return 0;
     }
+
     return 1;
+}
 
-} /* setup_pcap */
+// Decode IPv4 + UDP
+static ssize_t decode_ipv4_udp(const uint8_t *data, const uint8_t *end, void *buffer, size_t buffer_size, struct sockaddr_storage *sock) {
+    if (data + sizeof(struct ip) > end) return -1;
 
-static ssize_t decode_packet(struct pcap_pkthdr *hdr, u_char *pcap_pkgdata, void *buffer, size_t buffer_size, struct sockaddr *sock) {
-    struct sockaddr_in *in_sock = (struct sockaddr_in *)sock;
-    static unsigned pkg_cnt = 0;
+    const struct ip *ip = (const struct ip *)data;
+    if (ip->ip_v != 4) {
+        LogError("Expected IPv4 but found IP version: %u", ip->ip_v);
+        return 0;
+    }
 
-    pkg_cnt++;
-
-    // snaplen is minimum 54 bytes
-    uint8_t *data = (uint8_t *)pcap_pkgdata;
-    uint8_t *eodata = (uint8_t *)pcap_pkgdata + hdr->caplen;
-
-    // make sure, we have full packate capture
-    if (hdr->len > hdr->caplen) {
-        printf("Short packet - missing: %u bytes\n", hdr->len - hdr->caplen);
+    size_t ip_hlen = ip->ip_hl << 2;
+    if (ip_hlen < 20 || data + ip_hlen > end) {
+        LogError("Size error decoding IPv4 packet");
         return -1;
     }
 
-    uint16_t protocol = 0;
+    // real IPV4 sender
+    struct sockaddr_in *in = (struct sockaddr_in *)sock;
+    memset(in, 0, sizeof(*in));
+    in->sin_family = AF_INET;
+    in->sin_addr = ip->ip_src;
 
-    int nextType = linktype;
-    int nextOffset = linkoffset;
+    data += ip_hlen;
 
-REDO_LINK:
-    // link layer processing
-    switch (nextType) {
-        case DLT_EN10MB:
-            // 0 - 11 mac addr
-            protocol = data[12] << 0x08 | data[13];
-            int IEEE802 = protocol <= 1500;
-            if (IEEE802) {
-                return 0;
-            }
-            break;
-        case DLT_RAW:
-            protocol = 0x800;
-            break;
-        case DLT_PPP:
-            protocol = 0x800;
-            break;
-        case DLT_PPP_SERIAL:
-            protocol = 0x800;
-            break;
-        case DLT_LOOP:
-        case DLT_NULL: {
-            uint32_t header;
-            if (linktype == DLT_LOOP)
-                header = ntohl(*((uint32_t *)data));
-            else
-                header = *((uint32_t *)data);
-            switch (header) {
-                case 2:
-                    protocol = 0x800;
-                    break;
-                case 24:
-                case 28:
-                case 30:
-                    protocol = 0x86DD;
-                    break;
-                default:
-                    LogInfo("Packet: %u: unsupported DLT_NULL protocol: 0x%x, packet: %u", pkg_cnt, header);
-                    return 0;
-            }
-        } break;
-        case DLT_LINUX_SLL:
-            protocol = data[14] << 8 | data[15];
-            break;
-        case DLT_LINUX_SLL2:
-            protocol = data[0] << 8 | data[1];
-            break;
-        case DLT_IEEE802_11:
-            protocol = 0x800;
-            break;
-        default:
-            LogInfo("Packet: %u: unsupported link type: 0x%x, packet: %u", pkg_cnt, linktype);
-            return 0;
+    // Only UDP supported
+    if (ip->ip_p != IPPROTO_UDP) {
+        LogError("IP proto not proto UDP: %u", ip->ip_p);
+        return 0;
     }
 
-    // adjust data after link
-    data += nextOffset;
-
-    struct ip *ip = NULL;
-REDO_PROTO:
-    if (data >= eodata) {
-        dbg_printf("Short packet: %u, Check line: %u", hdr->caplen, __LINE__);
-        return -1;
-    }
-    switch (protocol) {
-        case ETHERTYPE_IP:
-            /* IPv4 */
-            ip = (struct ip *)data;  // offset points to end of link layer
-            in_sock->sin_family = AF_INET;
-            in_sock->sin_addr = ip->ip_src;
-#ifdef HAVE_STRUCT_SOCKADDR_SA_LEN
-            in_sock->sin_len = sizeof(struct sockaddr_in);
-#endif
-            break;
-        case ETHERTYPE_VLAN:  // VLAN
-            do {
-                vlan_hdr_t *vlan_hdr = (vlan_hdr_t *)data;
-                protocol = ntohs(vlan_hdr->type);
-                data += 4;
-            } while ((data < eodata) && protocol == 0x8100);
-
-            goto REDO_PROTO;
-            break;
-        default:
-            /* We're not bothering with 802.3 or anything else */
-            printf("PCAP unknown protocol %u\n", protocol);
-            break;
-    }
-
-    /* for the moment we handle only IPv4 */
-    if (!ip || ip->ip_v != 4) return 0;
-
-    // u_int version = ip->ip_v; /* ip version */
-
-    /* check header length */
-    if (ip->ip_hl < 5) {
-        LogError("bad-hlen %d", ip->ip_hl);
+    if (data + sizeof(struct udphdr) > end) {
+        LogError("Size error decoding UDP packet");
         return -1;
     }
 
-    // add IP header length
-    data += (ip->ip_hl << 0x02);
-    switch (ip->ip_p) {
-        case IPPROTO_UDP: {
-            struct udphdr *udp = (struct udphdr *)((void *)data);
-            unsigned int packet_len = ntohs(udp->uh_ulen) - 8;
-            void *payload = (void *)((void *)udp + sizeof(struct udphdr));
+    const struct udphdr *udp = (const struct udphdr *)data;
+    uint16_t ulen = ntohs(udp->uh_ulen);
 
-            if (packet_len > buffer_size) {
-                LogError("Buffer size error: %u > %zu", packet_len, buffer_size);
+    if (ulen < sizeof(struct udphdr)) {
+        LogError("Size error decoding UDP payload");
+        return -1;
+    }
+
+    size_t payload_len = ulen - sizeof(struct udphdr);
+    const uint8_t *payload = data + sizeof(struct udphdr);
+
+    if (payload + payload_len > end) {
+        LogError("UDP payload length error");
+        return -1;
+    }
+
+    if (payload_len > buffer_size) {
+        LogError("UDP payload length error");
+        return -1;
+    }
+
+    memcpy(buffer, payload, payload_len);
+
+    in->sin_port = udp->uh_sport;
+
+    return payload_len;
+}  // End of decode_ipv4_udp
+
+// Decode IPv6 + UDP
+static ssize_t decode_ipv6_udp(const uint8_t *data, const uint8_t *end, void *buffer, size_t buffer_size, struct sockaddr_storage *sock) {
+    if (data + sizeof(struct ip6_hdr) > end) {
+        LogError("Size error decoding IPv6 packet");
+        return -1;
+    }
+
+    const struct ip6_hdr *ip6 = (const struct ip6_hdr *)data;
+
+    // Fill real IPV6 sender
+    struct sockaddr_in6 *in6 = (struct sockaddr_in6 *)sock;
+    memset(in6, 0, sizeof(*in6));
+    in6->sin6_family = AF_INET6;
+    memcpy(&in6->sin6_addr, &ip6->ip6_src, sizeof(struct in6_addr));
+
+    uint8_t next = ip6->ip6_nxt;
+    data += sizeof(struct ip6_hdr);
+
+    // Minimal extension header skipping
+    while (1) {
+        if (next == IPPROTO_UDP) break;
+
+        // Known extension headers
+        if (next == IPPROTO_HOPOPTS || next == IPPROTO_ROUTING || next == IPPROTO_DSTOPTS || next == IPPROTO_FRAGMENT || next == IPPROTO_AH ||
+            next == IPPROTO_ESP) {
+            if (data + 2 > end) {
+                LogError("Size error decoding IPv6 option header");
                 return -1;
             }
-            memcpy(buffer, payload, packet_len);
-            in_sock->sin_port = udp->uh_sport;
-            return packet_len;
-            // unreached
-        } break;
-        case IPPROTO_GRE: {
-            gre_hdr_t *gre_hdr = (gre_hdr_t *)((void *)data);
 
-            uint16_t gre_flags = ntohs(gre_hdr->flags);
-            protocol = ntohs(gre_hdr->type);
-            data += sizeof(gre_hdr_t);
+            uint8_t hdrlen = data[1];
+            size_t ext_len = (hdrlen + 1) * 8;
 
-            dbg_printf("GRE proto encapsulation: type: 0x%x\n", protocol);
-            uint32_t *sequence = NULL;
-            if (gre_flags & 0x1000) {  // Sequence supplied
-                sequence = (uint32_t *)(data);
-                dbg_printf("GRE sequence: %u\n", ntohl(*sequence));
-                data += 4;
+            if (data + ext_len > end) {
+                LogError("Size error decoding IPv6 option header length");
+                return -1;
             }
 
-            if (protocol == PROTO_ERSPAN) {
-                if (sequence) {
-                    // erspan_hdr = (erspan_hdr_t *)data;
-#ifdef DEVEL
-                    dbg_printf("ERSPAN II found\n");
-                    uint16_t erspanHdr = ntohs(*((uint16_t *)data));
-                    uint16_t version = (erspanHdr & 0xF000) >> 12;
-                    uint16_t vlanID = erspanHdr & 0x0FFF;
-                    dbg_printf("GRE sequence: %u, Version: %u, vladID: %u\n", *sequence, version, vlanID);
-#endif
-                    // erspan header size for type II = 8 bytes
-                    data += 8;
-                } else {
-                    dbg_printf("ERSPAN found\n");
-                }
-                nextType = DLT_EN10MB;
-                goto REDO_LINK;
-            }
-        } break;
-        default:
-            /* no default */
-            break;
+            next = data[0];
+            data += ext_len;
+            continue;
+        }
+
+        // Unknown next header → unsupported */
+        LogError("Error decoding unsupported IPv6 option header: %u", next);
+        return 0;
     }
 
+    // UDP proto
+    if (data + sizeof(struct udphdr) > end) {
+        LogError("Size error decoding UDP6");
+        return -1;
+    }
+
+    const struct udphdr *udp = (const struct udphdr *)data;
+    uint16_t ulen = ntohs(udp->uh_ulen);
+
+    if (ulen < sizeof(struct udphdr)) {
+        LogError("Size error decoding UDP6 payload length");
+        return -1;
+    }
+
+    size_t payload_len = ulen - sizeof(struct udphdr);
+    const uint8_t *payload = data + sizeof(struct udphdr);
+
+    if (payload + payload_len > end) {
+        LogError("Size error decoding UDP6 payload length");
+        return -1;
+    }
+
+    if (payload_len > buffer_size) {
+        LogError("Size error decoding UDP6 payload length");
+        return -1;
+    }
+
+    memcpy(buffer, payload, payload_len);
+
+    in6->sin6_port = udp->uh_sport;
+
+    return payload_len;
+}  // End of decode_ipv6_udp
+
+// IPV6 dispatcher: link layer → VLAN → IPv4/IPv6 ------------------ */
+static ssize_t decode_packet(const struct pcap_pkthdr *hdr, const uint8_t *pkt, void *buffer, size_t buffer_size, struct sockaddr_storage *sock,
+                             struct timeval *tv) {
+    const uint8_t *data = pkt;
+    const uint8_t *end = pkt + hdr->caplen;
+
+    if (hdr->caplen < hdr->len) {
+        LogError("Short packet - caplen(%u) < packet len(%u)\n", hdr->caplen, hdr->len);
+        return -1;
+    }
+
+    /* Timestamp */
+    tv->tv_sec = hdr->ts.tv_sec;
+    tv->tv_usec = hdr->ts.tv_usec;
+
+    /* Skip link layer */
+    data += linkoffset;
+
+    /* Determine EtherType */
+    uint16_t proto = 0;
+
+    switch (linktype) {
+        case DLT_EN10MB:
+            proto = (pkt[12] << 8) | pkt[13];
+            break;
+
+        case DLT_LINUX_SLL:
+            proto = (pkt[14] << 8) | pkt[15];
+            break;
+
+        case DLT_LINUX_SLL2:
+            proto = (pkt[0] << 8) | pkt[1];
+            break;
+
+        case DLT_NULL:
+        case DLT_LOOP: {
+            uint32_t h = *(uint32_t *)pkt;
+            proto = (h == 2) ? 0x0800 : 0;
+            break;
+        }
+
+        case DLT_RAW:
+        case DLT_PPP:
+        case DLT_PPP_SERIAL:
+            proto = 0x0800;
+            break;
+
+        default:
+            LogError("Unsupported linktype: %u", linktype);
+            return 0;
+    }
+
+    // VLAN stripping - most likely never needed
+    if (proto == 0x8100) {
+        if (data + 4 > end) return -1;
+        proto = ntohs(*(uint16_t *)(data + 2));
+        data += 4;
+    }
+
+    // Decode IPv4/IPv6
+    if (proto == 0x0800) return decode_ipv4_udp(data, end, buffer, buffer_size, sock);
+
+    if (proto == 0x86DD) return decode_ipv6_udp(data, end, buffer, buffer_size, sock);
+
+    // unsupported EtherType
+    LogError("Unsupported ethertype: %u", proto);
     return 0;
 
-} /* decode_packet */
+}  // End of decode_packet
+
+// Public interface
+ssize_t NextPacket(void *buffer, size_t buffer_size, struct sockaddr_storage *sock, socklen_t *size, struct timeval *tv) {
+    struct pcap_pkthdr *hdr;
+    const uint8_t *pkt;
+
+    int rc = pcap_next_ex(pcap_handle, &hdr, &pkt);
+    if (rc == 1) {
+        *size = sizeof(struct sockaddr_in);
+        return decode_packet(hdr, pkt, buffer, buffer_size, sock, tv);
+    }
+
+    if (rc == -2) /* EOF */
+        return -2;
+
+    if (rc == -1) {
+        LogError("pcap_next_ex() failed: %s", pcap_geterr(pcap_handle));
+        return -1;
+    }
+
+    /* rc == 0 → timeout (live capture) */
+    return 0;
+}  // End of NextPacket
+
+// Setup linktype and offset
+int setup_pcap_offline(char *fname, char *filter) {
+    char errbuf[PCAP_ERRBUF_SIZE];
+
+    // Open the packet capturing file
+    pcap_handle = pcap_open_offline(fname, errbuf);
+    if (!pcap_handle) {
+        LogError("pcap_open_offline(): %s", errbuf);
+        return 0;
+    }
+
+    return setup_pcap(filter);
+
+} /* End of setup_pcap_offline */
 
 // live device
 int setup_pcap_live(char *device, char *filter, unsigned bufflen) {
@@ -429,32 +470,3 @@ int setup_pcap_live(char *device, char *filter, unsigned bufflen) {
     return setup_pcap(filter);
 
 } /* setup_pcap_live */
-
-int setup_pcap_offline(char *fname, char *filter) {
-    char errbuf[PCAP_ERRBUF_SIZE];
-
-    /*
-     *  Open the packet capturing file
-     */
-    pcap_handle = pcap_open_offline(fname, errbuf);
-    if (!pcap_handle) {
-        LogError("pcap_open_offline(): %s", errbuf);
-        return 0;
-    }
-
-    return setup_pcap(filter);
-
-} /* End of setup_pcap_offline */
-
-ssize_t NextPacket(int fill1, void *buffer, size_t buffer_size, int fill2, struct sockaddr *sock, socklen_t *size) {
-    // ssize_t NextPacket(void *buffer, size_t buffer_size) {
-    struct pcap_pkthdr *header;
-    u_char *pkt_data;
-    int i;
-
-    i = pcap_next_ex(pcap_handle, &header, (const u_char **)&pkt_data);
-    if (i != 1) return -2;
-
-    *size = sizeof(struct sockaddr_in);
-    return decode_packet(header, pkt_data, buffer, buffer_size, sock);
-}

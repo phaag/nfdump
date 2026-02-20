@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2012-2025, Peter Haag
+ *  Copyright (c) 2012-2026, Peter Haag
  *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
@@ -323,12 +323,12 @@ dataBlock_t *ExportExporterList(nffile_t *nffile, dataBlock_t *dataBlock) {
         if (!e->in_use) continue;
         exporter_info_record_t *exporter_info = &e->info;
         dbg_printf("Dump exporter: %u\n", exporter_info->sysid);
-        dataBlock = AppendToBuffer(nffile, dataBlock, (void *)exporter_info, exporter_info->header.size);
+        dataBlock = AppendToBuffer(nffile->processQueue, dataBlock, (void *)exporter_info, exporter_info->header.size);
 
         sampler_t *sampler = e->sampler;
         while (sampler) {
             dbg_printf("  Dump sampler for exporter: %d\n", i);
-            dataBlock = AppendToBuffer(nffile, dataBlock, (void *)&(sampler->record), sampler->record.size);
+            dataBlock = AppendToBuffer(nffile->processQueue, dataBlock, (void *)&(sampler->record), sampler->record.size);
             sampler = sampler->next;
         }
     }

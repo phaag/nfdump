@@ -203,7 +203,7 @@ static exporter_entry_t *GetExporter(FlowSource_t *fs, uint32_t agentSubId, uint
                                    .record.spaceInterval = meanSkipCount - 1,
                                    .next = NULL};
             sampler->record.exporter_sysid = e->info.sysid;
-            fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
+            fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, &(sampler->record), sampler->record.size);
 
             char ipstr[INET6_ADDRSTRLEN];
             LogInfo("SFLOW: New exporter: SysID: %u, agentSubId: %u, MeanSkipCount: %u, IP: %s", e->info.sysid, agentSubId, meanSkipCount,
@@ -312,7 +312,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     recordSize += sizeof(recordHeaderV3_t);
     if (!IsAvailable(fs->dataBlock, recordSize)) {
         // flush block - get an empty one
-        fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+        fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
     }
 
     void *buffPtr = GetCurrentCursor(fs->dataBlock);
@@ -498,12 +498,12 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     }
 
     // update first_seen, last_seen
-    if (genericFlow->msecFirst < fs->nffile->stat_record->msecFirstSeen)  // the very first time stamp need to be set
-        fs->nffile->stat_record->msecFirstSeen = genericFlow->msecFirst;
-    fs->nffile->stat_record->msecLastSeen = genericFlow->msecFirst;
+    if (genericFlow->msecFirst < fs->stat_record.msecFirstSeen)  // the very first time stamp need to be set
+        fs->stat_record.msecFirstSeen = genericFlow->msecFirst;
+    fs->stat_record.msecLastSeen = genericFlow->msecFirst;
 
     // Update stats
-    stat_record_t *stat_record = fs->nffile->stat_record;
+    stat_record_t *stat_record = &fs->stat_record;
     switch (genericFlow->proto) {
         case IPPROTO_ICMP:
             stat_record->numflows_icmp++;
@@ -531,7 +531,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     stat_record->numbytes += genericFlow->inBytes;
 
     uint32_t exporterIdent = MetricExpporterID(recordHeader);
-    UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
+    UpdateMetric(fs->Ident, exporterIdent, genericFlow);
 
     if (PrintRecord) {
         flow_record_short(stdout, recordHeader);

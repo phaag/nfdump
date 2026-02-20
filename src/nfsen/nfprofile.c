@@ -81,7 +81,7 @@ static void usage(char *name);
 
 static profile_param_info_t *ParseParams(char *profile_datadir);
 
-static void process_data(profile_channel_info_t *channels, unsigned int numChannels, time_t tslot, worker_param_t **workerList, int numWorkers,
+static void process_data(profile_channel_info_t *channels, unsigned int numChannels, worker_param_t **workerList, int numWorkers,
                          pthread_control_barrier_t *barrier, int hasGeoDB);
 
 /* Functions */
@@ -158,7 +158,7 @@ static void *worker_thread(void *arg) {
 
         record_header_t *record_ptr = GetCursor(dataBlock);
         uint32_t sumSize = 0;
-        for (int i = 0; i < dataBlock->NumRecords; i++) {
+        for (int i = 0; i < (int)dataBlock->NumRecords; i++) {
             if ((sumSize + record_ptr->size) > dataBlock->size || (record_ptr->size < sizeof(record_header_t))) {
                 LogError("Corrupt data file. Inconsistent block size in %s line %d", __FILE__, __LINE__);
                 exit(255);
@@ -170,7 +170,7 @@ static void *worker_thread(void *arg) {
                 case V3Record:
                     MapRecordHandle(recordHandle, (recordHeaderV3_t *)record_ptr, recordCount);
 
-                    for (int j = self; j < numChannels; j += numWorkers) {
+                    for (int j = self; j < (int)numChannels; j += numWorkers) {
                         int match;
 
                         // apply profile filter
@@ -189,7 +189,8 @@ static void *worker_thread(void *arg) {
                         // check if we need to flush the output buffer
                         if (channels[j].nffile != NULL) {
                             // write record to output buffer
-                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
+                            channels[j].dataBlock =
+                                AppendToBuffer(channels[j].nffile->processQueue, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
 
                     }  // End of for all channels
@@ -197,29 +198,32 @@ static void *worker_thread(void *arg) {
                     FreeRecordHandle(recordHandle);
                     break;
                 case ExporterInfoRecordType: {
-                    for (int j = self; j < numChannels; j += numWorkers) {
+                    for (int j = self; j < (int)numChannels; j += numWorkers) {
                         if (channels[j].nffile != NULL) {
                             // flush new exporter
-                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
+                            channels[j].dataBlock =
+                                AppendToBuffer(channels[j].nffile->processQueue, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
                     }
                 } break;
                 case SamplerLegacyRecordType:
                 case SamplerRecordType: {
-                    for (int j = self; j < numChannels; j += numWorkers) {
+                    for (int j = self; j < (int)numChannels; j += numWorkers) {
                         if (channels[j].nffile != NULL) {
                             // flush new map
-                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
+                            channels[j].dataBlock =
+                                AppendToBuffer(channels[j].nffile->processQueue, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
                     }
                 } break;
                 case NbarRecordType:
                 case IfNameRecordType:
                 case VrfNameRecordType:
-                    for (int j = self; j < numChannels; j += numWorkers) {
+                    for (int j = self; j < (int)numChannels; j += numWorkers) {
                         if (channels[j].nffile != NULL) {
                             // flush new map
-                            channels[j].dataBlock = AppendToBuffer(channels[j].nffile, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
+                            channels[j].dataBlock =
+                                AppendToBuffer(channels[j].nffile->processQueue, channels[j].dataBlock, (void *)record_ptr, record_ptr->size);
                         }
                     }
                     break;
@@ -276,7 +280,7 @@ static worker_param_t **LauchWorkers(pthread_t *tid, int numWorkers, pthread_con
 
 }  // End of LaunchWorkers
 
-static void process_data(profile_channel_info_t *channels, unsigned int numChannels, time_t tslot, worker_param_t **workerList, int numWorkers,
+static void process_data(profile_channel_info_t *channels, unsigned int numChannels, worker_param_t **workerList, int numWorkers,
                          pthread_control_barrier_t *barrier, int hasGeoDB) {
     dataBlock_t *nextBlock = NULL;
     dataBlock_t *dataBlock = NULL;
@@ -301,7 +305,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
                 done = 1;
                 continue;
             }
-            for (int j = 0; j < numChannels; j++) {
+            for (int j = 0; j < (int)numChannels; j++) {
                 // set ident to file engines
                 void *engine = channels[j].engine;
                 FilterSetParam(engine, nffile->ident, hasGeoDB);
@@ -341,7 +345,7 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
 
     // do we need to write data to new file - shadow profiles do not have files.
     // write all used blocks first, then close the files
-    for (int j = 0; j < numChannels; j++) {
+    for (int j = 0; j < (int)numChannels; j++) {
         if (channels[j].nffile != NULL) {
             // flush output buffer
             FlushBlock(channels[j].nffile, channels[j].dataBlock);
@@ -619,11 +623,12 @@ int main(int argc, char **argv) {
                 if (optarg == NULL) {
                     compress = LZO_COMPRESSED;
                 } else {
-                    compress = ParseCompression(optarg);
-                }
-                if (compress == -1) {
-                    LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
-                    exit(EXIT_FAILURE);
+                    int ret = ParseCompression(optarg);
+                    if (ret == -1) {
+                        LogError("Usage for option -z: set -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
+                        exit(EXIT_FAILURE);
+                    }
+                    compress = ret;
                 }
                 break;
 #ifdef HAVE_INFLUXDB
@@ -764,7 +769,7 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    process_data(channels, numChannels, tslot, workerList, numWorkers, barrier, hasGeoDB);
+    process_data(channels, numChannels, workerList, numWorkers, barrier, hasGeoDB);
 
     WaitWorkersDone(tid, numWorkers);
     pthread_control_barrier_destroy(barrier);

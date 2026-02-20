@@ -157,6 +157,7 @@ typedef struct stat_recordV1_s {
 // nfdump 1.6.x data block type
 #define DATA_BLOCK_TYPE_2 2
 
+#define DATA_BLOCK_MESSAGE 0x0100
 /*
  *
  * Block type 2:
@@ -195,6 +196,7 @@ typedef struct nffile_s {
 } nffile_t;
 
 #define GetCursor(block) ((void *)(block) + sizeof(dataBlock_t))
+#define SetBlockType(block, blocktype) ((block)->type = (blocktype))
 #define GetCurrentCursor(block) ((void *)(block) + (block)->size + sizeof(dataBlock_t))
 #define BlockSize(block) (block)->size)
 #define BlockAvailable(block) ((block)->size > WRITE_BUFFSIZE ? 0 : (WRITE_BUFFSIZE - (block)->size))
@@ -228,20 +230,10 @@ typedef struct record_header_s {
 } record_header_t;
 // } __attribute__((__packed__ )) record_header_t;
 
-/*
- * nffile backend processor
- */
-typedef enum {
-    BACKEND_MSG_DATA,
-    BACKEND_MSG_ROTATE,
-    BACKEND_MSG_SHUTDOWN,
-} backend_msg_type_t;
-
-typedef struct backend_msg_s {
-    backend_msg_type_t type;
-    time_t ts;   // for ROTATE
-    void *data;  // dataBlock_t* for DATA
-} backend_msg_t;
+typedef struct message_rotate_s {
+    stat_record_t stat_record;
+    time_t t_start;
+} message_roate_t;
 
 typedef struct nffile_backend_ctx_s {
     char Ident[IDENTLEN];  // source identifier
@@ -257,14 +249,12 @@ typedef struct nffile_backend_ctx_s {
     uint32_t creator;      // creator - nfcapd or sfcapd
     uint32_t compress;     // compression level for new files
     uint32_t encryption;   // encryption for new files
+    int pfd;               // launcher socket
 
     // collector param
     queue_t *blockQueue;  // queue from collector
 
-    // worker params
-    int numWriters;
-    queue_t *writerQueue;  // queue to writers
-    pthread_t *writers;
+    pthread_t self;
 
 } nffile_backend_ctx_t;
 
@@ -315,6 +305,8 @@ void FreeDataBlock(dataBlock_t *dataBlock);
 dataBlock_t *ReadBlock(nffile_t *nffile, dataBlock_t *dataBlock);
 
 dataBlock_t *WriteBlock(nffile_t *nffile, dataBlock_t *dataBlock);
+
+dataBlock_t *PushBlock(queue_t *queue, dataBlock_t *dataBlock);
 
 void FlushBlock(nffile_t *nffile, dataBlock_t *dataBlock);
 

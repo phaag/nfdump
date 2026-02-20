@@ -106,13 +106,13 @@ typedef struct fileHeaderV2_s {
  *
  * Generic data block
  * ==================
- * Data blocks are generic containers for the any type of data records.
+ * Data blocks are generic containers for the any type of data records or messages.
  * Each data block starts with a block header, which specifies the size, the number of records
  * and data block properties. The struct is compatible with type 2 data records
  */
 
 /*
- * datablock type 3 is used for all individual records
+ * datablock type 3 is used for all individual flow records
  *   +------------+----------+----------+----------+-----+----------+
  *   |Blockheader | record 0 | record 1 | record 2 | ... | record n |
  *   +------------+----------+----------+----------+-----+----------+
@@ -126,6 +126,11 @@ typedef struct fileHeaderV2_s {
  * array elements without any header. The number of array elements is
  * NumRecords in the block header
  *
+ * datablock type 0x01nn is used as message block for message passing between threads
+ *   +------------+--------------+--------------+-----+--------------+
+ *   |Blockheader | message body | message body | ... | message body |
+ *   +------------+--------------+--------------+-----+--------------+
+ *
  */
 typedef struct dataBlock_s {
     uint32_t NumRecords;  // size of this block in bytes without this header
@@ -133,6 +138,10 @@ typedef struct dataBlock_s {
     uint16_t type;        // Block type
 #define DATA_BLOCK_TYPE_3 3
 #define DATA_BLOCK_TYPE_4 4
+
+#define MESSAGE_TYPE_CYCLE 0x0101
+#define MESSAGE_TYPE_SHUTDOWN 0x0102
+
     uint16_t flags;  // Bit 0: 0: file block compression, 1: block uncompressed
                      // Bit 1: 0: file block encryption, 1: block unencrypted
                      // Bit 2: 0: no autoread, 1: autoread - internal structure

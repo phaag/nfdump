@@ -265,7 +265,7 @@ static inline exporter_entry_t *getExporter(FlowSource_t *fs, netflow_v5_header_
             sampler_t *sampler = getSampler(header);
             if (sampler) {
                 sampler->record.exporter_sysid = e->info.sysid;
-                fs->dataBlock = AppendToBuffer(fs->nffile, fs->dataBlock, &(sampler->record), sampler->record.size);
+                fs->dataBlock = AppendToBuffer(fs->blockQueue, fs->dataBlock, &(sampler->record), sampler->record.size);
                 LogInfo("Process_v5: New exporter: SysID: %u, engine id %u, type %u, IP: %s, algorithm: %i, packet interval: 1, packet space: %u\n",
                         e->info.sysid, (engine_tag & 0xFF), ((engine_tag >> 8) & 0xFF), ipstr, sampler->record.algorithm,
                         sampler->record.spaceInterval);
@@ -331,7 +331,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
         void *outBuff = GetCurrentCursor(fs->dataBlock);
         if (!IsAvailable(fs->dataBlock, count * exporter->version.v5.outRecordSize)) {
             // flush block - get an empty one
-            fs->dataBlock = WriteBlock(fs->nffile, fs->dataBlock);
+            fs->dataBlock = PushBlock(fs->blockQueue, fs->dataBlock);
             // map output memory buffer
             outBuff = GetCursor(fs->dataBlock);
         }
@@ -341,7 +341,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             uint32_t distance = seq - exporter->sequence;  // wrap-safe
 
             if (distance != exporter->version.v5.last_count) {
-                fs->nffile->stat_record->sequence_failure++;
+                fs->stat_record.sequence_failure++;
                 exporter->sequence_failure++;
             }
         }
@@ -437,7 +437,7 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             genericFlow->msecFirst = msecStart;
             genericFlow->msecLast = msecEnd;
 
-            UpdateFirstLast(fs->nffile, msecStart, msecEnd);
+            UpdateFirstLast(fs, msecStart, msecEnd);
 
             // add router IP
             if (fs->sa_family == PF_INET6) {
@@ -462,9 +462,9 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             // Update stats
             switch (genericFlow->proto) {
                 case IPPROTO_ICMP:
-                    fs->nffile->stat_record->numflows_icmp++;
-                    fs->nffile->stat_record->numpackets_icmp += genericFlow->inPackets;
-                    fs->nffile->stat_record->numbytes_icmp += genericFlow->inBytes;
+                    fs->stat_record.numflows_icmp++;
+                    fs->stat_record.numpackets_icmp += genericFlow->inPackets;
+                    fs->stat_record.numbytes_icmp += genericFlow->inBytes;
                     // fix odd CISCO behaviour for ICMP port/type in src port
                     if (genericFlow->srcPort != 0) {
                         uint8_t *s1 = (uint8_t *)&(genericFlow->srcPort);
@@ -475,27 +475,27 @@ void Process_v5_v7(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
                     }
                     break;
                 case IPPROTO_TCP:
-                    fs->nffile->stat_record->numflows_tcp++;
-                    fs->nffile->stat_record->numpackets_tcp += genericFlow->inPackets;
-                    fs->nffile->stat_record->numbytes_tcp += genericFlow->inBytes;
+                    fs->stat_record.numflows_tcp++;
+                    fs->stat_record.numpackets_tcp += genericFlow->inPackets;
+                    fs->stat_record.numbytes_tcp += genericFlow->inBytes;
                     break;
                 case IPPROTO_UDP:
-                    fs->nffile->stat_record->numflows_udp++;
-                    fs->nffile->stat_record->numpackets_udp += genericFlow->inPackets;
-                    fs->nffile->stat_record->numbytes_udp += genericFlow->inBytes;
+                    fs->stat_record.numflows_udp++;
+                    fs->stat_record.numpackets_udp += genericFlow->inPackets;
+                    fs->stat_record.numbytes_udp += genericFlow->inBytes;
                     break;
                 default:
-                    fs->nffile->stat_record->numflows_other++;
-                    fs->nffile->stat_record->numpackets_other += genericFlow->inPackets;
-                    fs->nffile->stat_record->numbytes_other += genericFlow->inBytes;
+                    fs->stat_record.numflows_other++;
+                    fs->stat_record.numpackets_other += genericFlow->inPackets;
+                    fs->stat_record.numbytes_other += genericFlow->inBytes;
             }
             exporter->flows++;
-            fs->nffile->stat_record->numflows++;
-            fs->nffile->stat_record->numpackets += genericFlow->inPackets;
-            fs->nffile->stat_record->numbytes += genericFlow->inBytes;
+            fs->stat_record.numflows++;
+            fs->stat_record.numpackets += genericFlow->inPackets;
+            fs->stat_record.numbytes += genericFlow->inBytes;
 
             uint32_t exporterIdent = MetricExpporterID(recordHeader);
-            UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
+            UpdateMetric(fs->Ident, exporterIdent, genericFlow);
 
             if (printRecord) {
                 flow_record_short(stdout, recordHeader);

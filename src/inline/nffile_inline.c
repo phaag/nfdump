@@ -33,7 +33,7 @@
 
 static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *recordHeaderV3, uint64_t flowCount);
 
-static inline dataBlock_t *AppendToBuffer(nffile_t *nffile, dataBlock_t *dataBlock, void *record, size_t required);
+static inline dataBlock_t *AppendToBuffer(queue_t *queue, dataBlock_t *dataBlock, void *record, size_t required);
 
 // Fix lazy exporters, sending both - IPv4 and IPv6 addresses in the same record
 // lot of code for nothing!!
@@ -154,10 +154,10 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
     return 1;
 }
 
-static inline dataBlock_t *AppendToBuffer(nffile_t *nffile, dataBlock_t *dataBlock, void *record, size_t required) {
+static inline dataBlock_t *AppendToBuffer(queue_t *queue, dataBlock_t *dataBlock, void *record, size_t required) {
     if (!IsAvailable(dataBlock, required)) {
         // flush block - get an empty one
-        dataBlock = WriteBlock(nffile, dataBlock);
+        dataBlock = PushBlock(queue, dataBlock);
         // map output memory buffer
     }
     void *cur = GetCurrentCursor(dataBlock);

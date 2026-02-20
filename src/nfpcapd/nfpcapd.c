@@ -58,6 +58,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "backend.h"
 #include "barrier.h"
 #include "bookkeeper.h"
 #include "conf/nfconf.h"
@@ -557,8 +558,11 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
 
-        if (InitBookkeeper(&fs->bookkeeper, fs->datadir, getpid()) != BOOKKEEPER_OK) {
-            LogError("initialize bookkeeper failed.");
+        const nffile_backend_ctx_t nffile_backend_ctx = {
+            .creator = CREATOR_NFPCAPD, .compress = compress, .encryption = NOT_ENCRYPTED, .subdir = subdir_index, .time_extension = time_extension};
+
+        if (!Init_nffile_backend(fs, &nffile_backend_ctx)) {
+            LogError("initialize nffile backend failed.");
             exit(EXIT_FAILURE);
         }
     }
@@ -678,12 +682,7 @@ int main(int argc, char *argv[]) {
     Dispose_FlowTree();
 
     if (datadir) {
-        if (expire == 0 && ReadStatInfo(fs->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
-            UpdateDirStat(dirstat, fs->bookkeeper);
-            WriteStatInfo(dirstat);
-            LogVerbose("Updating statinfo in directory '%s'", datadir);
-        }
-        ReleaseBookkeeper(fs->bookkeeper, DESTROY_BOOKKEEPER);
+        close_nffile_backend(fs, expire);
     }
 
     CloseMetric();

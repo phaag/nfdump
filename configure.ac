@@ -28,6 +28,7 @@ AS_IF([test x$enable_devel = xyes], [
     AC_MSG_NOTICE([developer mode enabled])
 		AX_APPEND_FLAG([-DDEVEL],[CFLAGS])
 		AX_APPEND_FLAG([-Wextra], [CFLAGS])
+		AX_APPEND_FLAG([-Werror=incompatible-pointer-types], [CFLAGS])
 		#AX_APPEND_FLAG([-Wsign-conversion], [CFLAGS])
 		#AX_APPEND_FLAG([-fsanitize=undefined], [CFLAGS])
 		# --- check for address sanitizer ---

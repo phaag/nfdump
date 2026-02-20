@@ -35,6 +35,7 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdint.h>
@@ -56,6 +57,7 @@
 #include "pcap_reader.h"
 #endif
 
+#include "backend.h"
 #include "barrier.h"
 #include "bookkeeper.h"
 #include "collector.h"
@@ -86,12 +88,11 @@
 
 #define DEFAULTCISCOPORT "9995"
 
-// Define a generic type to get data from socket or pcap file
-typedef ssize_t (*packet_function_t)(int, void *, size_t, int, struct sockaddr *, socklen_t *);
+// packet function prototype for yaf or pcap reader
+typedef ssize_t (*packet_function_t)(void *, size_t, struct sockaddr_storage *, socklen_t *, struct timeval *);
 
 /* module limited globals */
 static int done = 0;
-static int periodic_trigger;
 static int gotSIGCHLD = 0;
 
 /* Local function Prototypes */
@@ -100,9 +101,6 @@ static void usage(char *name);
 static void signalPrivsepChild(pid_t child_pid, int pfd);
 
 static void IntHandler(int signal);
-
-static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, post_args_t *post_args, int rfd, time_t twin, time_t t_begin,
-                unsigned compress);
 
 /* Functions */
 static void usage(char *name) {
@@ -181,9 +179,6 @@ static void signalPrivsepChild(pid_t child_pid, int pfd) {
 
 static void IntHandler(int signal) {
     switch (signal) {
-        case SIGALRM:
-            periodic_trigger = 1;
-            break;
         case SIGHUP:
         case SIGINT:
         case SIGTERM:
@@ -214,60 +209,13 @@ static void ChildDied(void) {
             if (WIFSIGNALED(stat)) {
                 LogError("privsep child[%u] terminated due to signal %i", pid, WTERMSIG(stat));
             }
-            LogError("privsep child[%u] terminated with status: pid, 0x%x", pid, stat);
+            LogError("privsep child[%u] terminated with status: 0x%x", pid, stat);
         }
         gotSIGCHLD--;
     }
 }  // End of ChildDied
 
 #include "nffile_inline.c"
-
-static int Init_nffile_backend(const collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_ctx) {
-    // Init
-    int failed = 0;
-    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        if (InitBookkeeper(&fs->nffile_ctx->bookkeeper, fs->nffile_ctx->datadir, getpid()) != BOOKKEEPER_OK) {
-            failed = 1;
-            LogError("initialize bookkeeper failed");
-            break;
-        }
-        fs->nffile_ctx->creator = nffile_ctx->creator;
-        fs->nffile_ctx->compress = nffile_ctx->compress;
-        fs->nffile_ctx->encryption = nffile_ctx->encryption;
-        fs->nffile_ctx->time_extension = nffile_ctx->time_extension;
-    }
-
-    if (failed) {
-        // release all already allocated bookkeepers
-        for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-            if (fs->nffile_ctx->bookkeeper) {
-                ReleaseBookkeeper(fs->nffile_ctx->bookkeeper, DESTROY_BOOKKEEPER);
-                fs->nffile_ctx->bookkeeper = NULL;
-            }
-        }
-        return 0;
-    }
-
-    return 1;
-}  // End of Init_nffile_backend
-
-static int Close_nffile_backend(const collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_cts, int expire) {
-    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        if (fs->nffile_ctx->bookkeeper) {
-            dirstat_t *dirstat;
-            // if we do not auto expire and there is a stat file, update the stats before we leave
-            if (expire == 0 && ReadStatInfo(fs->nffile_ctx->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
-                UpdateDirStat(dirstat, fs->nffile_ctx->bookkeeper);
-                WriteStatInfo(dirstat);
-                LogVerbose("Updating statinfo in directory '%s'", fs->nffile_ctx->datadir);
-            }
-
-            ReleaseBookkeeper(fs->nffile_ctx->bookkeeper, DESTROY_BOOKKEEPER);
-            fs->nffile_ctx->bookkeeper = NULL;
-        }
-    }
-    return 1;
-}  // End of Close_nffile_backend
 
 static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockaddr_storage *sender, socklen_t sender_size) {
     message_t message;
@@ -304,217 +252,318 @@ static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockadd
     return 0;
 }  // End of SendRepeaterMessage
 
-static void run(collector_ctx_t *ctx, packet_function_t receive_packet, int socket, post_args_t *post_args, int rfd, time_t twin, time_t t_begin,
-                unsigned compress) {
-    struct sockaddr_storage nf_sender;
-    socklen_t nf_sender_size = sizeof(nf_sender);
+static inline ssize_t get_next_packet(int sockfd, PacketCtx_t *pkt_ctx, struct timeval *tv) {
+    // Reset lengths that might have been modified by previous recvmsg calls
+    pkt_ctx->msg.msg_namelen = sizeof(pkt_ctx->sender);
+    pkt_ctx->msg.msg_controllen = sizeof(pkt_ctx->control);
 
-    void *in_buff = malloc(NETWORK_INPUT_BUFF_SIZE);
-    if (!in_buff) {
-        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    ssize_t cnt = recvmsg(sockfd, &pkt_ctx->msg, 0);
+
+    if (cnt > 0) {
+        struct cmsghdr *cmsg = CMSG_FIRSTHDR(&pkt_ctx->msg);
+        if (cmsg && cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_TIMESTAMP) {
+            memcpy(tv, CMSG_DATA(cmsg), sizeof(*tv));
+        } else {
+            gettimeofday(tv, NULL);  // fallback only for valid packets
+        }
+    } else {
+        // cnt <= 0 → no valid packet
+        tv->tv_sec = time(NULL);
+        tv->tv_usec = 0;
+    }
+
+    return cnt;
+}  // End of get_next_packet
+
+static inline int poll_for_packet(int fd, time_t next_rotate, time_t now) {
+    int timeout_ms = (int)(next_rotate - now) * 1000;
+    if (timeout_ms < 0) timeout_ms = 0;
+
+    struct pollfd pfd = {.fd = fd, .events = POLLIN};
+
+    for (;;) {
+        int ret = poll(&pfd, 1, timeout_ms);
+        if (ret >= 0) {
+            // 0 = timeout, >0 = ready
+            return ret;
+        }
+        if (errno == EINTR) {
+            if (done) {
+                // interrupted by signal and we’re shutting down
+                return -2;
+            }
+            // retry poll with same timeout (best-effort)
+            continue;
+        }
+
+        // real error
+        LogError("poll() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return -1;
+    }
+}  // End of poll_for_packet
+
+static inline ssize_t recv_packet(int sockfd, PacketCtx_t *pkt_ctx, struct timeval *tv) {
+    for (;;) {
+        ssize_t cnt = get_next_packet(sockfd, pkt_ctx, tv);
+        if (cnt >= 0) {
+            return cnt;
+        }
+        if (errno == EINTR) {
+            if (done) {
+                // signal + shutdown
+                return -2;
+            }
+            continue;
+        }
+        LogError("recvmsg() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return -1;
+    }
+}  // End of recv_packet
+
+static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, PacketCtx_t *pkt_ctx, ssize_t cnt,
+                                  struct timeval tv, uint64_t *packets, uint32_t *ignored_packets) {
+    char sa_address[INET6_ADDRSTRLEN];
+    const common_flow_header_t *nf_header = (const common_flow_header_t *)pkt_ctx->buffer;
+
+    dbg_printf("Received packet from: %s, size: %zd\n", GetClientIPstring(&pkt_ctx->sender, sa_address), cnt);
+
+    // in case of reading from file EOF => -2
+    if (cnt == -2) {
+        done = 1;
+        return;
+    }
+    if (cnt == 0) {
+        (*ignored_packets)++;
+        (*packets)++;
         return;
     }
 
-    const common_flow_header_t *nf_header = (const common_flow_header_t *)in_buff;
+    if (cnt < 0) {
+        // recvmsg error already logged by caller if needed
+        return;
+    }
 
-    // Init each netflow source output data buffer
-    for (FlowSource_t *fs = NextFlowSource(ctx); fs != NULL; fs = NextFlowSource(NULL)) {
-        // prepare file
-        fs->nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
-        fs->swap_nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
-        if (!fs->nffile || !fs->swap_nffile) {
+    (*packets)++;
+
+    // get flow source record for current packet, identified by sender IP address
+    FlowSource_t *fs = GetFlowSource(ctx, &pkt_ctx->sender);
+    if (fs == NULL) {
+        // check, if we have dynamic flowsources configured
+        fs = NewDynFlowSource(ctx, &pkt_ctx->sender);
+        if (fs == NULL) {
+            (*ignored_packets)++;
+            LogError("Skip UDP packet from: %s. Ignored packets: %u", GetClientIPstring(&pkt_ctx->sender, sa_address), *ignored_packets);
             return;
         }
-        SetIdent(fs->nffile, fs->nffile_ctx->Ident);
-        SetIdent(fs->swap_nffile, fs->nffile_ctx->Ident);
 
-        // init flow source
-        fs->dataBlock = WriteBlock(fs->nffile, NULL);
+        if (!Init_nffile_backend(fs, nffile_backend_ctx)) {
+            LogError("Failed to initialise backend for new source");
+            // XXX should free this flow source
+            queue_abort(fs->blockQueue);
+            return;
+        }
+        if (!Launch_nffile_backend(fs)) {
+            LogError("Launch_nffile_backend() failed");
+            done = 1;
+            return;
+        }
+    }
+
+    /* check for too little data - cnt must be > 0 at this point */
+    if (cnt < (ssize_t)sizeof(common_flow_header_t)) {
+        LogError("Ident: %s, Data size error: not enough data for netflow header - cnt: %i", fs->Ident, (int)cnt);
+        fs->bad_packets++;
+        return;
+    }
+
+    fs->received = tv;
+
+    /* Process data - have a look at the common header */
+    uint16_t version = ntohs(nf_header->version);
+    switch (version) {
+        case VERSION_NETFLOW_V1:
+            Process_v1(pkt_ctx->buffer, cnt, fs);
+            break;
+        case VERSION_NETFLOW_V5:  // fall through
+        case VERSION_NETFLOW_V7:
+            Process_v5_v7(pkt_ctx->buffer, cnt, fs);
+            break;
+        case VERSION_NETFLOW_V9:
+            Process_v9(pkt_ctx->buffer, cnt, fs);
+            break;
+        case VERSION_IPFIX:
+            Process_IPFIX(pkt_ctx->buffer, cnt, fs);
+            break;
+        case VERSION_NFDUMP:
+            Process_nfd(pkt_ctx->buffer, cnt, fs);
+            break;
+        default: {
+            LogError(
+                "Error packet %llu: Ident: %s reading netflow header: "
+                "Unexpected netflow version %i from: %s",
+                *packets, fs->Ident, version, GetClientIPstring(&pkt_ctx->sender, sa_address));
+            fs->bad_packets++;
+            return;
+        } break;
+    }
+}  // End of process_packet
+
+// live network mode
+static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, int socket, int rfd, time_t t_win) {
+    PacketCtx_t pkt_ctx = {0};
+    if (!init_packet_ctx(&pkt_ctx, socket, NETWORK_INPUT_BUFF_SIZE)) return;
+
+    for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
+        fs->dataBlock = PushBlock(fs->blockQueue, NULL);
         fs->bad_packets = 0;
     }
 
-    time_t t_start = t_begin;
-
-    periodic_trigger = 0;
-    ssize_t cnt = 0;
     uint32_t ignored_packets = 0;
     uint64_t packets = 0;
 
-    // wake up at least at next time slot (twin) + 1s
-    alarm(t_start + twin + 1 - time(NULL));
-    /*
-     * Main processing loop:
-     * this loop, continues until  = 1, set by the signal handler
-     * The while loop will be broken by the periodic file renaming code
-     * for proper cleanup
-     */
-    while (1) {
-        struct timeval tv;
-        char sa_address[INET6_ADDRSTRLEN];
+    time_t now = time(NULL);
+    time_t t_start = now - (now % t_win);
+    time_t next_rotate = t_start + t_win;
 
-        /* read next bunch of data into begin of input buffer */
-        if (!done) {
-            // Debug code to read from pcap file, or from socket
-            cnt = receive_packet(socket, in_buff, NETWORK_INPUT_BUFF_SIZE, 0, (struct sockaddr *)&nf_sender, &nf_sender_size);
+    while (!done) {
+        // wait for packet or timeout
+        int ret = poll_for_packet(socket, next_rotate, now);
 
-            dbg_printf("Received packet from: %s, size: %zd\n", GetClientIPstring(&nf_sender, sa_address), cnt);
+        if (ret > 0) {
+            // packet ready
+            struct timeval tv = {0};
+            ssize_t cnt = recv_packet(socket, &pkt_ctx, &tv);
 
-            // in case of reading from file EOF => -2
-            if (cnt == -2) done = 1;
-            if (cnt == 0) {
+            now = tv.tv_sec;
+            if (cnt > 0) {
+                // packet received
+                // repeat this packet
+                if (unlikely(rfd)) {
+                    if (SendRepeaterMessage(rfd, pkt_ctx.buffer, (size_t)cnt, &pkt_ctx.sender, pkt_ctx.msg.msg_namelen) != 0) {
+                        LogError("Disable packet repeater due to errors");
+                        close(rfd);
+                        rfd = 0;
+                    }
+                }
+
+                process_packet(ctx, nffile_backend_ctx, &pkt_ctx, cnt, tv, &packets, &ignored_packets);
+            } else if (cnt == 0) {
+                // Zero-length packet - ignore
                 ignored_packets++;
                 packets++;
+            } else if (cnt == -2) {
+                // EINTR + done
+            } else {
+                // recvmsg error */
+                LogError("recvmsg() failed: %s", strerror(errno));
+                ChildDied();
                 continue;
             }
-
-            if (cnt == -1) {
-                if (errno != EINTR) {
-                    LogError("recvfrom() error in '%s', line '%d', cnt: %zd:, %s", __FILE__, __LINE__, cnt, strerror(errno));
-                    continue;
-                }
-            } else {
-                packets++;
-            }
+        } else if (ret == 0) {
+            // poll timeout -> rotate
+            now = time(NULL);
+        } else if (ret == -2) {
+            // EINTR + done
+            now = time(NULL);
+        } else {
+            // poll error
+            LogError("poll() failed: %s", strerror(errno));
+            break;
         }
 
-        /* Periodic file renaming, if time limit reached or if we are done.  */
-        gettimeofday(&tv, NULL);
-        time_t t_now = tv.tv_sec;
+        // rotation check
+        if (now >= next_rotate || done) {
+            dbg_printf("Periodic cycle - done: %u, for slot: %s\n", done, ctime(&t_start));
 
-        if (((t_now - t_start) >= twin) || done) {
-            // rotate cycle
-            alarm(0);
-
-#if 0
-            struct timespec rt_start, rt_end;
-            clock_gettime(CLOCK_MONOTONIC, &rt_start);
-
-            // Perform the rotation cycle
-            if (RotateCycle(ctx, post_args, t_start, done) != 0) {
+            if (!PeriodicCycle(ctx, t_start, done)) {
                 LogError("run loop terminated due to serious errors");
                 break;
             }
 
-            clock_gettime(CLOCK_MONOTONIC, &rt_end);
-            // Compute elapsed time in milliseconds
-            long sec = rt_end.tv_sec - rt_start.tv_sec;
-            long nsec = rt_end.tv_nsec - rt_start.tv_nsec;
-            double elapsed_ms = (double)sec * 1000.0 + (double)nsec / 1e6;
-            printf("RotateCycle cycle completed in %.3f ms\n", elapsed_ms);
-#else
-            // Perform the rotation cycle
-            if (RotateCycle(ctx, post_args, t_start, done) != 0) {
-                LogError("run loop terminated due to serious errors");
-                break;
-            }
-#endif
+            double interval = (double)t_win;
+            if (interval <= 0.0) interval = 1.0;
 
-            LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u", packets, (double)packets / (double)twin, ignored_packets);
+            LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u", packets, (double)packets / interval, ignored_packets);
+
             packets = ignored_packets = 0;
-            periodic_trigger = 0;
 
             if (done) break;
 
-            /*
-             * update alarm for next cycle
-             * t_start = filename time stamp: begin of slot
-             * + twin = end of next time interval
-             * + 1 = act at least 1s after time window expired
-             * - t_now = difference value to now
-             */
-            t_start += twin;
-            alarm(t_start + twin + 1 - t_now);
+            t_start = next_rotate;
+            next_rotate += t_win;
         }
-
-        /* check for EINTR and continue */
-        if (cnt < 0) {
-            // Check if a child could have died
-            ChildDied();
-            continue;
-        }
-
-        // repeat this packet
-        if (rfd) {
-            if (SendRepeaterMessage(rfd, in_buff, (size_t)cnt, &nf_sender, nf_sender_size) != 0) {
-                LogError("Disable packet repeater due to errors");
-                close(rfd);
-                rfd = 0;
-            }
-        }
-
-        // get flow source record for current packet, identified by sender IP address
-        FlowSource_t *fs = GetFlowSource(ctx, &nf_sender);
-        if (fs == NULL) {
-            // check, if we have dynamic flowsources configured
-            fs = NewDynFlowSource(ctx, &nf_sender);
-            if (fs == NULL) {
-                ignored_packets++;
-                LogError("Skip UDP packet from: %s. Ignored packets: %u", GetClientIPstring(&nf_sender, sa_address), ignored_packets);
-                continue;
-            }
-
-            // setup new dynamic source
-            if (InitBookkeeper(&fs->nffile_ctx->bookkeeper, fs->nffile_ctx->datadir, getpid()) != BOOKKEEPER_OK) {
-                LogError("Failed to initialise bookkeeper for new source");
-                // fatal error
-                return;
-            }
-            fs->nffile = OpenNewFile(SetUniqueTmpName(fs->nffile_ctx->tmpFileName), CREATOR_NFCAPD, compress, NOT_ENCRYPTED);
-            if (!fs->nffile) {
-                LogError("Failed to open new collector file");
-                return;
-            }
-            fs->dataBlock = WriteBlock(fs->nffile, NULL);
-            SetIdent(fs->nffile, fs->nffile_ctx->Ident);
-        }
-
-        /* check for too little data - cnt must be > 0 at this point */
-        if (cnt < (ssize_t)sizeof(common_flow_header_t)) {
-            LogError("Ident: %s, Data size error: not enough data for netflow header - cnt: %i", fs->nffile_ctx->Ident, (int)cnt);
-            fs->bad_packets++;
-            continue;
-        }
-
-        fs->received = tv;
-
-        /* Process data - have a look at the common header */
-        uint16_t version = ntohs(nf_header->version);
-        switch (version) {
-            case VERSION_NETFLOW_V1:
-                Process_v1(in_buff, cnt, fs);
-                break;
-            case VERSION_NETFLOW_V5:  // fall through
-            case VERSION_NETFLOW_V7:
-                Process_v5_v7(in_buff, cnt, fs);
-                break;
-            case VERSION_NETFLOW_V9:
-                Process_v9(in_buff, cnt, fs);
-                break;
-            case VERSION_IPFIX:
-                Process_IPFIX(in_buff, cnt, fs);
-                break;
-            case VERSION_NFDUMP:
-                Process_nfd(in_buff, cnt, fs);
-                break;
-            default: {
-                // data error, while reading data from socket
-                LogError("Ident: %s, Error packet %llu: reading netflow header: Unexpected netflow version %i from: %s", fs->nffile_ctx->Ident,
-                         packets, version, GetClientIPstring(&nf_sender, sa_address));
-                fs->bad_packets++;
-                continue;
-
-                // not reached
-            } break;
-        }
-        // each Process_xx function has to process the entire input buffer, therefore it's empty
-        // now.
     }
 
-    free(in_buff);
+    free(pkt_ctx.buffer);
+}  // End of run_network
 
-    CleanupCollector(ctx, post_args);
+// file mode for pcap/yaf files
+static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, packet_function_t receive_packet, time_t t_win) {
+    PacketCtx_t pkt_ctx = {0};
+    if (!init_packet_ctx(&pkt_ctx, -1, NETWORK_INPUT_BUFF_SIZE)) return;
 
-} /* End of run */
+    for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
+        fs->dataBlock = PushBlock(fs->blockQueue, NULL);
+        fs->bad_packets = 0;
+    }
+
+    uint32_t ignored_packets = 0;
+    uint64_t packets = 0;
+
+    int first_packet = 1;  // used to adapt time from pcap file
+    time_t now = time(NULL);
+    time_t t_start = now - (now % t_win);
+    time_t next_rotate = t_start + t_win;
+
+    while (!done) {
+        /* Phase 1: Read next record */
+        struct timeval tv = {0};
+
+        ssize_t cnt = receive_packet(pkt_ctx.buffer, NETWORK_INPUT_BUFF_SIZE, &pkt_ctx.sender, &pkt_ctx.msg.msg_namelen, &tv);
+
+        if (cnt == -2) { /* EOF */
+            done = 1;
+            now = tv.tv_sec;
+        } else if (cnt < 0) {
+            /* malformed or unsupported packet */
+            continue;
+        } else {
+            /* valid packet */
+            now = tv.tv_sec;
+            if (first_packet) {
+                first_packet = 0;
+                t_start = now - (now % t_win);
+                next_rotate = t_start + t_win;
+            }
+            process_packet(ctx, nffile_backend_ctx, &pkt_ctx, cnt, tv, &packets, &ignored_packets);
+        }
+
+        /* Phase 2: Check rotation condition */
+        if (now >= next_rotate || done) {
+            dbg_printf("Periodic cycle - done: %u, for slot: %s\n", done, ctime(&t_start));
+
+            if (!PeriodicCycle(ctx, t_start, done)) {
+                LogError("run loop terminated due to serious errors");
+                break;
+            }
+
+            double interval = (double)t_win;
+            if (interval <= 0.0) interval = 1.0;
+
+            LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u", packets, (double)packets / interval, ignored_packets);
+
+            packets = 0;
+            ignored_packets = 0;
+
+            if (done) break;
+
+            t_start = next_rotate;
+            next_rotate += t_win;
+        }
+    }
+
+    free(pkt_ctx.buffer);
+}  // End of run_file_mode
 
 int main(int argc, char **argv) {
     char *bindhost, *launch_process;
@@ -539,7 +588,7 @@ int main(int argc, char **argv) {
 
     char *yaf_file = NULL;
     char *listenport = DEFAULTCISCOPORT;
-    receive_packet = recvfrom;
+    receive_packet = NULL;
     verbose = -1;
     do_daemonize = 0;
     bufflen = 0;
@@ -744,8 +793,8 @@ int main(int argc, char **argv) {
                 break;
             case 't':
                 twin = atoi(optarg);
-                if (twin < 2) {
-                    LogError("time interval <= 2s not allowed");
+                if (twin < 1) {
+                    LogError("time interval <= 1s not allowed");
                     exit(EXIT_FAILURE);
                 }
                 if (twin < 60) {
@@ -882,18 +931,12 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    post_args_t *post_args = malloc(sizeof(post_args_t));
-    if (post_args == NULL) {
-        LogError("malloc() allocation error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        exit(EXIT_FAILURE);
-    }
-
     // Read from yaf file instead of the network
-    sock = 0;
+    sock = -1;
     if (yaf_file) {
         if (!setup_yaf(yaf_file)) exit(EXIT_FAILURE);
         receive_packet = NextYafRecord;
-        LogError("Reading offline yaffile");
+        LogInfo("Reading offline yaffile");
     } else
 #ifdef ENABLE_READPCAP
         // Debug code to read from pcap file
@@ -913,18 +956,30 @@ int main(int argc, char **argv) {
             receive_packet = NextPacket;
         } else
 #endif
-            if (mcastgroup)
-            sock = Multicast_receive_socket(mcastgroup, listenport, family, bufflen);
-        else
-            sock = Unicast_receive_socket(bindhost, listenport, family, bufflen);
+        {
 
-    if (sock == -1) {
-        LogError("Terminated due to errors");
-        exit(EXIT_FAILURE);
+            if (mcastgroup)
+                sock = Multicast_receive_socket(mcastgroup, listenport, family, bufflen);
+            else
+                sock = Unicast_receive_socket(bindhost, listenport, family, bufflen);
+
+            if (sock == -1) {
+                LogError("Terminated due to errors");
+                exit(EXIT_FAILURE);
+            }
+        }
+
+    if ((pcap_file || yaf_file) && expire) {
+        LogError("Disable expire mode when reading from a file");
+        expire = 0;
     }
 
     pid_t repeater_pid = 0;
     int rfd = 0;
+    if (sock < 0 && repeater[0].hostname) {
+        LogError("Packet repeater can be used only on live network socket");
+        exit(EXIT_FAILURE);
+    }
     if (repeater[0].hostname) {
         rfd = PrivsepFork(argc, argv, &repeater_pid, "repeater");
     }
@@ -941,9 +996,6 @@ int main(int argc, char **argv) {
         close(sock);
         exit(EXIT_FAILURE);
     }
-
-    time_t t_start = time(NULL);
-    t_start = t_start - (t_start % twin);
 
     if (do_daemonize) {
         verbose = 0;
@@ -972,27 +1024,21 @@ int main(int argc, char **argv) {
         pfd = PrivsepFork(argc, argv, &launcher_pid, "launcher");
     }
 
-    nffile_backend_ctx_t nffile_backend_ctx = {
-        .creator = CREATOR_NFCAPD, .compress = compress, .encryption = NOT_ENCRYPTED, .subdir = subdir_index, .time_extension = time_extension};
+    const nffile_backend_ctx_t nffile_backend_ctx = {.creator = CREATOR_NFCAPD,
+                                                     .compress = compress,
+                                                     .encryption = NOT_ENCRYPTED,
+                                                     .subdir = subdir_index,
+                                                     .time_extension = time_extension,
+                                                     .pfd = pfd};
 
-    if (Init_nffile_backend(&collector_ctx, &nffile_backend_ctx) == 0) {
+    if (InitBackend(&collector_ctx, &nffile_backend_ctx) == 0) {
         LogError("Failed to initialized nffile backend");
         close(sock);
         remove_pid(pidfile);
         exit(EXIT_FAILURE);
     }
 
-    *post_args = (post_args_t){
-        .ctx = &collector_ctx,
-        .pfd = pfd,
-        .time_extension = time_extension,
-        .done = 0,
-        .creator = CREATOR_NFCAPD,
-        .compress = compress,
-        .encryption = NOT_ENCRYPTED,
-    };
-
-    if (Lauch_postprocessor(post_args) == 0) {
+    if (!LaunchBackend(&collector_ctx)) {
         close(sock);
         remove_pid(pidfile);
         exit(EXIT_FAILURE);
@@ -1011,16 +1057,26 @@ int main(int argc, char **argv) {
     sigaction(SIGCHLD, &act, NULL);
     sigaction(SIGPIPE, &act, NULL);
 
+    if (sock < 0 && receive_packet == NULL) {
+        LogError("No packet source defined");
+        exit(EXIT_FAILURE);
+    }
+
     LogInfo("Startup nfcapd.");
-    run(&collector_ctx, receive_packet, sock, post_args, rfd, twin, t_start, compress);
+    if (sock > 0) {
+        run_network(&collector_ctx, &nffile_backend_ctx, sock, rfd, twin);
+        close(sock);
+    } else {
+        run_file_mode(&collector_ctx, &nffile_backend_ctx, receive_packet, twin);
+    }
 
     // shutdown
-    close(sock);
     signalPrivsepChild(launcher_pid, pfd);
     signalPrivsepChild(repeater_pid, rfd);
     CloseMetric();
 
-    Close_nffile_backend(&collector_ctx, &nffile_backend_ctx, expire);
+    CloseBackend(&collector_ctx, expire);
+    CleanupCollector(&collector_ctx);
 
     LogInfo("Terminating nfcapd.");
     remove_pid(pidfile);
