@@ -197,7 +197,7 @@ static void *repeater_thread_main(void *arg) {
     dbg_printf("Startup %s()\n", __func__);
     while (!atomic_load(&repeater_ctx->done)) {
         PacketCtx_t *packetCtx = queue_pop(repeater_ctx->packetQueue);
-        if (packetCtx == QUEUE_CLOSED || packetCtx == NULL) {
+        if (packetCtx == QUEUE_CLOSED) {
             // packetCtx cannot get NULL, but handle it anyway
             atomic_store(&repeater_ctx->done, 1);
             break;

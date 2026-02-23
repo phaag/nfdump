@@ -31,9 +31,11 @@
 
 #include "launch.h"
 
+#include <ctype.h>
 #include <errno.h>
 #include <pthread.h>
 #include <signal.h>
+#include <spawn.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -56,14 +58,18 @@
 #include "privsep.h"
 #include "util.h"
 
-typedef struct launcher_message_s {
-    time_t timeslot;
-    uint32_t lenFilename;
-    uint32_t lenFlowdir;
-    uint32_t lenIsotime;
-    uint32_t lenIdent;
-    uint32_t lenAlign;
-} launcher_message_t;
+typedef struct launcher_msg_s {
+    uint16_t type;    // message type
+    uint16_t length;  // total message size including header
+    time_t timeslot;  // rotation time
+
+    uint32_t offFilename;  // offset from start of message_data
+    uint32_t offFlowdir;   // flow directory
+    uint32_t offISOtime;   // iso time string of current slot
+    uint32_t offIdent;     // Ident
+
+    char message_data[];  // compact string blob
+} launcher_msg_t;
 
 typedef struct launcher_args_s {
     time_t timeslot;
@@ -73,160 +79,17 @@ typedef struct launcher_args_s {
     char *ident;
 } launcher_args_t;
 
-static int done = 0;
-static int child_exit = 0;
-static pthread_t killtid = 0;
-
-static void SignalHandler(int signal);
-
-static char *cmd_expand(char *launch_process, launcher_args_t *launcher_args);
-
-static void cmd_parse(char *buf, char **args);
-
-static void cmd_execute(char **args);
-
-static void processMessage(message_t *message, launcher_args_t *launcher_args);
-
-static void launcher(messageQueue_t *messageQueue, char *launch_process, int expire);
+extern char **environ;
 
 static void do_expire(char *datadir);
 
-#define MAXARGS 256
-#define MAXCMDLEN 4096
+static char *cmd_expand(const char *cmd, const launcher_msg_t *msg);
 
-static void SignalHandler(int signal) {
-    switch (signal) {
-        case SIGTERM:
-            done = 1;
-            pthread_kill(killtid, SIGINT);
-            break;
-        case SIGCHLD:
-            child_exit++;
-            break;
-    }
+static char **cmd_parse(char *cmd);
 
-} /* End of IntHandler */
+static void cmd_execute(char **args);
 
-/*
- * Expand % placeholders in command string
- * expand the memory needed in the command string and replace placeholders
- * prevent endless expansion
- */
-static char *cmd_expand(char *launch_process, launcher_args_t *launcher_args) {
-    char *q = strdup(launch_process);
-    if (!q) {
-        LogError("strdup() error in %s:%i: %s", __FILE__, __LINE__, strerror(errno));
-        return NULL;
-    }
-
-    int i = 0;
-    while (q[i]) {
-        char *s, tmp[16];
-        if ((q[i] == '%') && q[i + 1]) {
-            // replace the %x var
-            switch (q[i + 1]) {
-                case 'd':
-                    s = launcher_args->flowdir;
-                    break;
-                case 'f':
-                    s = launcher_args->filename;
-                    break;
-                case 't':
-                    s = launcher_args->isotime;
-                    break;
-                case 'u':
-                    snprintf(tmp, 16, "%lli", (long long)launcher_args->timeslot);
-                    tmp[15] = 0;
-                    s = tmp;
-                    break;
-                case 'i':
-                    s = launcher_args->ident;
-                    break;
-                default:
-                    LogError("Unknown format token '%%%c'", q[i + 1]);
-                    s = NULL;
-            }
-            if (s) {
-                q = (char *)realloc(q, strlen(q) + strlen(s));
-                if (!q) {
-                    LogError("realloc() error in %s:%i: %s", __FILE__, __LINE__, strerror(errno));
-                    return NULL;
-                }
-                // sanity check
-                if (strlen(q) > MAXCMDLEN) {
-                    LogError("command expand error in %s:%i: cmd line too long", __FILE__, __LINE__);
-                    return NULL;
-                }
-                memmove(&q[i] + strlen(s), &q[i + 2], strlen(&q[i + 2]) + 1);  // include trailing '0' in memmove
-                memcpy(&q[i], s, strlen(s));
-            }
-        }
-        i++;
-    }
-
-    return q;
-
-}  // End of cmd_expand
-
-/*
- * split the command in buf into individual arguments.
- */
-static void cmd_parse(char *buf, char **args) {
-    int i, argnum;
-
-    i = argnum = 0;
-    while ((i < MAXCMDLEN) && (buf[i] != 0)) {
-        /*
-         * Strip whitespace.  Use nulls, so
-         * that the previous argument is terminated
-         * automatically.
-         */
-        while ((i < MAXCMDLEN) && ((buf[i] == ' ') || (buf[i] == '\t'))) buf[i++] = 0;
-
-        /*
-         * Save the argument.
-         */
-        if (argnum < MAXARGS) args[argnum++] = &(buf[i]);
-
-        /*
-         * Skip over the argument.
-         */
-        while ((i < MAXCMDLEN) && ((buf[i] != 0) && (buf[i] != ' ') && (buf[i] != '\t'))) i++;
-    }
-
-    if (argnum < MAXARGS) args[argnum] = NULL;
-
-    if ((i >= MAXCMDLEN) || (argnum >= MAXARGS)) {
-        // for safety reason, disable the command
-        args[0] = NULL;
-        LogError("Launcher: Unable to parse command: '%s'", buf);
-    }
-
-}  // End of cmd_parse
-
-/*
- * cmd_execute
- * spawn a child process and execute the program.
- */
-static void cmd_execute(char **args) {
-    int pid;
-
-    // Get a child process.
-    if ((pid = fork()) < 0) {
-        LogError("Can't fork: %s", strerror(errno));
-        return;
-    }
-
-    if (pid == 0) {
-        // child process
-        execvp(*args, args);
-        LogError("Can't execvp: %s: %s", args[0], strerror(errno));
-        _exit(1);
-    }
-
-    // parent process
-
-}  // End of cmd_execute
+static void launch(const char *command, launcher_msg_t *msg);
 
 static void do_expire(char *datadir) {
     bookkeeper_t *books;
@@ -299,197 +162,349 @@ static void do_expire(char *datadir) {
 
 }  // End of do_expire
 
-void processMessage(message_t *message, launcher_args_t *launcher_args) {
-    void *p = message;
-    p += sizeof(message_t);
+/*
+ * Expand % placeholders in command string
+ * command = 'path/to/command arg1 %t arg2 -f %f -i %i'
+ */
+static char *cmd_expand(const char *cmd, const launcher_msg_t *msg) {
+    if (!cmd || !msg) return NULL;
 
-    memset(launcher_args, 0, sizeof(launcher_args_t));
+    // Extract strings from message
+    const char *fname = msg->message_data + msg->offFilename;
+    const char *flowdir = msg->message_data + msg->offFlowdir;
+    const char *isotime = msg->message_data + msg->offISOtime;
+    const char *ident = msg->message_data + msg->offIdent;
 
-    launcher_message_t *lm = (launcher_message_t *)p;
-    size_t len = sizeof(message_t) + sizeof(launcher_message_t);
-    len += lm->lenFilename + lm->lenFlowdir + lm->lenIsotime + lm->lenIdent + lm->lenAlign;
+    char timeslot_buf[32];
+    snprintf(timeslot_buf, sizeof(timeslot_buf), "%ld", (long)msg->timeslot);
 
-    if (message->length < len) {
-        LogError("Message size error: Expected: %zu, have: %u", len, message->length);
+    // Expand placeholders
+    size_t out_cap = strlen(cmd) + 128;
+    char *out = malloc(out_cap);
+    if (!out) return NULL;
+
+    size_t out_len = 0;
+
+    for (const char *p = cmd; *p; p++) {
+        if (*p != '%') {
+            // literal char
+            if (out_len + 2 > out_cap) {
+                out_cap *= 2;
+                void *tmp = realloc(out, out_cap);
+                if (!tmp) {
+                    free(out);
+                    LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                    return NULL;
+                }
+                out = tmp;
+            }
+            out[out_len++] = *p;
+            continue;
+        }
+
+        // '%' placeholder
+        p++;
+        const char *rep = NULL;
+
+        switch (*p) {
+            case '%':
+                rep = "%";
+                break;
+            case 'f':
+                rep = fname;
+                break;
+            case 'd':
+                rep = flowdir;
+                break;
+            case 't':
+                rep = isotime;
+                break;
+            case 'u':
+                rep = timeslot_buf;
+                break;
+            case 'i':
+                rep = ident;
+                break;
+            default:
+                // Unknown placeholder → treat literally
+                if (out_len + 2 > out_cap) {
+                    out_cap *= 2;
+                    void *tmp = realloc(out, out_cap);
+                    if (!tmp) {
+                        free(out);
+                        LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                        return NULL;
+                    }
+                    out = tmp;
+                }
+                out[out_len++] = '%';
+                out[out_len++] = *p;
+                continue;
+        }
+
+        if (rep) {
+            size_t rlen = strlen(rep);
+            if (out_len + rlen + 1 > out_cap) {
+                while (out_len + rlen + 1 > out_cap) out_cap *= 2;
+                void *tmp = realloc(out, out_cap);
+                if (!tmp) {
+                    free(out);
+                    LogError("realloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                    return NULL;
+                }
+                out = tmp;
+            }
+            memcpy(out + out_len, rep, rlen);
+            out_len += rlen;
+        }
+    }
+
+    out[out_len] = '\0';
+
+    return out;
+
+}  // End of cmd_expand
+
+// split the expandd command line into individual arguments
+static char **cmd_parse(char *cmd) {
+    // count tokens in expanded string
+    size_t ntokens = 0;
+
+    int in_token = 0;
+    for (char *s = cmd; *s; s++) {
+        if (isspace((unsigned char)*s)) {
+            in_token = 0;
+        } else if (!in_token) {
+            in_token = 1;
+            ntokens++;
+        }
+    }
+
+    // allocate argv with exact size
+    char **argv = calloc(ntokens + 1, sizeof(char *));
+    if (!argv) {
+        free(cmd);
+        LogError("calloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+
+    // tokenize expanded string
+    size_t argc = 0;
+    char *saveptr = NULL;
+    char *tok = strtok_r(cmd, " \t\r\n", &saveptr);
+
+    while (tok) {
+        argv[argc] = strdup(tok);
+        if (!argv[argc]) {
+            // cleanup
+            for (size_t i = 0; i < argc; i++) free(argv[i]);
+            free(argv);
+            free(cmd);
+            return NULL;
+        }
+        argc++;
+        tok = strtok_r(NULL, " \t\r\n", &saveptr);
+    }
+
+    argv[argc] = NULL;
+
+    // expanded buffer no longer needed
+    free(cmd);
+
+    return argv;
+
+}  // End of cmd_parse
+
+static void cmd_execute(char **args) {
+    if (!args || !args[0]) {
+        LogError("cmd_execute: no command specified");
         return;
     }
 
-    p += sizeof(launcher_message_t);
+    posix_spawnattr_t attr;
+    posix_spawnattr_init(&attr);
 
-    launcher_args->timeslot = lm->timeslot;
-    launcher_args->filename = p;
-    launcher_args->filename[lm->lenFilename - 1] = '\0';
-    p += lm->lenFilename;
+    sigset_t empty;
+    sigemptyset(&empty);
+    posix_spawnattr_setsigmask(&attr, &empty);
+    posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSIGMASK);
 
-    launcher_args->flowdir = p;
-    launcher_args->flowdir[lm->lenFlowdir - 1] = '\0';
-    p += lm->lenFlowdir;
+    pid_t pid;
+    int rc = posix_spawn(&pid, args[0], NULL, &attr, args, environ);
 
-    launcher_args->isotime = p;
-    launcher_args->isotime[lm->lenIsotime - 1] = '\0';
-    p += lm->lenIsotime;
+    posix_spawnattr_destroy(&attr);
 
-    launcher_args->ident = p;
-    launcher_args->ident[lm->lenIdent - 1] = '\0';
-    p += lm->lenIdent;
-
-}  // End of processMessage
-
-static void launcher(messageQueue_t *messageQueue, char *launch_process, int expire) {
-    while (!done) {
-        message_t *message = getMessage(messageQueue);
-        if (message == (message_t *)-1) {
-            done = 1;
-            return;
-        }
-
-        LogVerbose("Launcher: process next message");
-        launcher_args_t launcher_args;
-        processMessage(message, &launcher_args);
-
-        // may be NULL, if we only expire data files
-        if (launch_process) {
-            char *cmd = NULL;
-
-            // check valid command expansion
-            cmd = cmd_expand(launch_process, &launcher_args);
-            if (cmd == NULL) {
-                LogError("Launcher: ident: %s, Unable to expand command: '%s'", launcher_args.ident, launch_process);
-                done = 1;
-                return;
-            }
-            LogVerbose("Launcher: ident: %s run command: '%s'", launcher_args.ident, cmd);
-
-            // prepare args array
-            char *args[MAXARGS];
-            cmd_parse(cmd, args);
-            if (args[0]) cmd_execute(args);
-
-            free(cmd);
-        }
-        if (expire) do_expire(launcher_args.flowdir);
-
-        if (child_exit) {
-            LogVerbose("%d child process(es) terminated", child_exit);
-            int stat;
-            pid_t pid;
-            while ((pid = waitpid(-1, &stat, WNOHANG)) > 0) {
-                if (WIFEXITED(stat)) {
-                    LogVerbose("launcher child %i exit status: %i", pid, WEXITSTATUS(stat));
-                }
-                if (WIFSIGNALED(stat)) {
-                    LogError("launcher child %i died due to signal %i", pid, WTERMSIG(stat));
-                }
-
-                child_exit--;
-            }
-            child_exit = 0;
-        }
+    if (rc != 0) {
+        LogError("posix_spawn(%s) failed: %s", args[0], strerror(rc));
+        return;
     }
 
-    // we are done
-    LogInfo("Launcher: Terminating.");
+    LogVerbose("Launched command '%s' with pid %d", args[0], (int)pid);
 
-}  // End of launcher
+}  // End of cmd_execute
 
-#define AddVector(v, s, l)         \
-    v[i].iov_base = s;             \
-    l = strlen(v[i].iov_base) + 1; \
-    v[i++].iov_len = l;
-
-int SendLauncherMessage(int pfd, time_t t_start, char *fname, char *fmt, char *datadir, char *ident) {
-    dbg_printf("Launcher arguments: Time: %ld, t: %s, f: %s, d: %s, i: %s\n", t_start, fmt, fname, datadir, ident);
-
-    message_t message;
-    message.type = PRIVMSG_LAUNCH;
-
-    launcher_message_t launcher_message;
-    launcher_message.timeslot = t_start;
-
-    struct iovec vector[8];
-
-    int i = 0;
-    vector[i].iov_base = &message;
-    vector[i++].iov_len = sizeof(message);
-
-    vector[i].iov_base = &launcher_message;
-    vector[i++].iov_len = sizeof(launcher_message);
-
-    size_t argLen = 0;
-    size_t len = sizeof(message_t) + sizeof(launcher_message);
-
-    AddVector(vector, fname, argLen);
-    launcher_message.lenFilename = argLen;
-    len += argLen;
-
-    AddVector(vector, datadir, argLen);
-    launcher_message.lenFlowdir = argLen;
-    len += argLen;
-
-    AddVector(vector, fmt, argLen);
-    launcher_message.lenIsotime = argLen;
-    len += argLen;
-
-    AddVector(vector, ident, argLen);
-    launcher_message.lenIdent = argLen;
-    len += argLen;
-
-    size_t align = len & 0x3;
-    if (align) {
-        launcher_message.lenAlign = 4 - align;
-        len += launcher_message.lenAlign;
-        vector[i].iov_base = &align;
-        vector[i++].iov_len = launcher_message.lenAlign;
-    } else {
-        launcher_message.lenAlign = 0;
+static void launch(const char *command, launcher_msg_t *msg) {
+    char *expanded = cmd_expand(command, msg);
+    if (expanded == NULL) {
+        LogError("launch process: Cannot expand command");
+        return;
     }
 
-    LogError("Launcher message: size %uz > %u", len, PIPE_BUF);
-    ssize_t ret = -1;
-    if (len > PIPE_BUF) {
-        LogError("Launcher message: size %uz > %u", len, PIPE_BUF);
-    } else {
-        message.length = len;
-        ret = writev(pfd, vector, i);
-        if (ret < 0) {
-            LogError("Failed to send launcher message: %s", strerror(errno));
-        }
+    char **argv = cmd_parse(expanded);
+    if (argv == NULL) {
+        LogError("launch process: Cannot parse command");
+        return;
     }
-    return ret;
-}  // End of SendLauncherMessage
 
-int StartupLauncher(char *launch_process, int expire) {
-    LogInfo("StartupLauncher(): %s, expire: %d", launch_process, expire);
+    cmd_execute(argv);
 
-    messageQueue_t *messageQueue = NewMessageQueue();
-    if (!messageQueue) return 0;
+    for (size_t i = 0; argv[i]; i++) free(argv[i]);
+    free(argv);
 
-    /* Signal handling */
-    struct sigaction act;
-    memset((void *)&act, 0, sizeof(struct sigaction));
-    act.sa_handler = SignalHandler;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;
-    sigaction(SIGTERM, &act, NULL);
-    sigaction(SIGCHLD, &act, NULL);
+}  // End of launch
 
-    thread_arg_t thread_arg = {0};
-    thread_arg.messageFunc = pushMessageFunc;
-    thread_arg.extraArg = (void *)messageQueue;
-    pthread_t tid;
-    int err = pthread_create(&killtid, NULL, pipeReader, (void *)&thread_arg);
-    if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+int SendLauncherMessage(queue_t *msgQueue, time_t t_start, const char *ISOtime, const char *fname, const char *datadir, const char *ident) {
+    uint32_t lenFilename = strlen(fname) + 1;
+    uint32_t lenFlowdir = strlen(datadir) + 1;
+    uint32_t lenISOtime = strlen(ISOtime) + 1;
+    uint32_t lenIdent = strlen(ident) + 1;
+
+    uint32_t blob_size = lenFilename + lenFlowdir + lenISOtime + lenIdent;
+    uint32_t msg_size = sizeof(launcher_msg_t) + blob_size;
+
+    launcher_msg_t *msg = malloc(msg_size);
+    if (!msg) {
+        LogError("malloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
-    tid = killtid;
 
-    launcher(messageQueue, launch_process, expire);
-    err = pthread_join(tid, NULL);
-    if (err) {
-        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+    msg->type = PRIVMSG_LAUNCH;
+    msg->length = msg_size;
+    msg->timeslot = t_start;
+
+    // compute offsets
+    msg->offFilename = 0;
+    msg->offFlowdir = msg->offFilename + lenFilename;
+    msg->offISOtime = msg->offFlowdir + lenFlowdir;
+    msg->offIdent = msg->offISOtime + lenISOtime;
+
+    // fill compact blob
+    char *p = msg->message_data;
+    memcpy(p + msg->offFilename, fname, lenFilename);
+    memcpy(p + msg->offFlowdir, datadir, lenFlowdir);
+    memcpy(p + msg->offISOtime, ISOtime, lenISOtime);
+    memcpy(p + msg->offIdent, ident, lenIdent);
+
+    // push to queue
+    if (queue_try_push(msgQueue, msg) != NULL) {
+        LogError("Failed to push launcher message");
+        free(msg);
+        return 0;
     }
 
-    LogVerbose("End StartupLauncher()");
+    LogVerbose("Launcher message queued: ident=%s file=%s", ident, fname);
     return 1;
-}  // End of StartupLauncher
+}  // End of SendLauncherMessage
+
+static void *child_reaper_thread(void *arg) {
+    (void)arg;
+
+    for (;;) {
+        int status;
+        pid_t pid = waitpid(-1, &status, 0);  // block until ANY child exits
+
+        if (pid < 0) {
+            if (errno == EINTR) continue;  // interrupted by signal, retry
+            if (errno == ECHILD) break;    // no more children
+            LogError("waitpid failed: %s", strerror(errno));
+            continue;
+        }
+
+        if (WIFEXITED(status)) {
+            int code = WEXITSTATUS(status);
+            if (code != 0)
+                LogError("Launcher child %d exited with status %d", pid, code);
+            else
+                LogVerbose("Launcher child %d exited successfully", pid);
+        } else if (WIFSIGNALED(status)) {
+            LogError("Launcher child %d terminated by signal %d", pid, WTERMSIG(status));
+        }
+    }
+
+    return NULL;
+}  // End of child_reaper_thread
+
+static void *launcher_thread_main(void *arg) {
+    launcher_ctx_t *launcher_ctx = (launcher_ctx_t *)arg;
+
+    dbg_printf("Startup %s()\n", __func__);
+    while (!atomic_load(&launcher_ctx->done)) {
+        launcher_msg_t *msg = queue_pop(launcher_ctx->msgQueue);
+        if (msg == QUEUE_CLOSED) {
+            // msg cannot get NULL, but handle it anyway
+            atomic_store(&launcher_ctx->done, 1);
+            break;
+        }
+
+        if (msg->type == PRIVMSG_LAUNCH) {
+            LogVerbose("Launcher: process next message");
+            launch(launcher_ctx->cmd_template, msg);
+        } else {
+            LogError("Skip unknow msg: %u", msg->type);
+        }
+
+        free(msg);
+    }
+
+    dbg_printf("Exit %s()\n", __func__);
+    return NULL;
+}  // End of launcher_thread_main
+
+launcher_ctx_t *LauncherInit(char *command) {
+    dbg_printf("%s() Start\n", __func__);
+    launcher_ctx_t *launcher_ctx = calloc(1, sizeof(launcher_ctx_t));
+    if (!launcher_ctx) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+
+    atomic_store(&launcher_ctx->done, 0);
+    launcher_ctx->cmd_template = command;
+    launcher_ctx->msgQueue = queue_init(1024);
+
+    return launcher_ctx;
+}  // End of LauncherInit
+
+pthread_t LauncherStart(launcher_ctx_t *launcher_ctx) {
+    if (!launcher_ctx) return 0;
+
+    dbg_printf("%s() Start\n", __func__);
+    pthread_t tid;
+    int err = pthread_create(&tid, NULL, launcher_thread_main, (void *)launcher_ctx);
+    if (err) {
+        LogError("pthread_create(repeater) failed: %s", strerror(err));
+        return 0;
+    }
+    launcher_ctx->tid = tid;
+
+    pthread_create(&tid, NULL, child_reaper_thread, NULL);
+    pthread_detach(tid);
+
+    return tid;
+
+}  // End of LauncherStart
+
+void LauncherShutdown(launcher_ctx_t *launcher_ctx) {
+    if (!launcher_ctx) return;
+
+    dbg_printf("%s() Start\n", __func__);
+    atomic_store(&launcher_ctx->done, 1);
+    queue_close(launcher_ctx->msgQueue);
+    if (launcher_ctx->tid) {
+        pthread_join(launcher_ctx->tid, NULL);
+    }
+    queue_free(launcher_ctx->msgQueue);
+    free(launcher_ctx->cmd_template);
+    free(launcher_ctx);
+
+}  // End of LauncherShutdown

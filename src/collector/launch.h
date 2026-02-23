@@ -32,14 +32,31 @@
 #ifndef _LAUNCH_H
 #define _LAUNCH_H 1
 
+#include <pthread.h>
+#include <stdatomic.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <sys/param.h>
 #include <time.h>
 
 #include "collector.h"
 #include "config.h"
+#include "queue.h"
 
-int StartupLauncher(char *launch_process, int expire);
+typedef struct launcher_ctx_s {
+    _Atomic int done;    // done flag
+    queue_t *msgQueue;   // message queue to launcher thread
+    pthread_t tid;       // tid of repeater thread
+    char *extension;     // nfcapd time extension format
+    char *cmd_template;  // command to be executed
+} launcher_ctx_t;
 
-int SendLauncherMessage(int pfd, time_t t_start, char *fname, char *fmt, char *datadir, char *ident);
+launcher_ctx_t *LauncherInit(char *command);
+
+pthread_t LauncherStart(launcher_ctx_t *launcher_ctx);
+
+void LauncherShutdown(launcher_ctx_t *launcher_ctx);
+
+int SendLauncherMessage(queue_t *msgQueue, time_t t_start, const char *ISOtime, const char *fname, const char *datadir, const char *ident);
 
 #endif  //_LAUNCH_H

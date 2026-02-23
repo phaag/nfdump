@@ -253,6 +253,8 @@ typedef struct nffile_backend_ctx_s {
 
     // collector param
     queue_t *blockQueue;  // queue from collector
+    // launcher
+    queue_t *msgQueue;  // queue for launcher
 
     pthread_t self;
 

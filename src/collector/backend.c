@@ -210,11 +210,11 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dat
         UpdateBooks(nffile_ctx->bookkeeper, cycle_message.when, (uint64_t)(512U * fstat.st_blocks));
     }
 
-    if (pfd) {
-        if (SendLauncherMessage(pfd, cycle_message.when, nfcapd_filename, fmt, nffile_ctx->datadir, nffile->ident) < 0) {
+    if (nffile_ctx->msgQueue) {
+        if (SendLauncherMessage(nffile_ctx->msgQueue, cycle_message.when, fmt, nfcapd_filename, nffile_ctx->datadir, nffile->ident) < 0) {
             LogError("Disable launcher due to errors");
-            close(pfd);
-            pfd = 0;
+            queue_close(nffile_ctx->msgQueue);
+            nffile_ctx->msgQueue = NULL;
         }
     }
 

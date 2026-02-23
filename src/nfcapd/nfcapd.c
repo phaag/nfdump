@@ -93,12 +93,9 @@ typedef ssize_t (*packet_function_t)(void *, size_t, struct sockaddr_storage *, 
 
 /* module limited globals */
 static int done = 0;
-static int gotSIGCHLD = 0;
 
 /* Local function Prototypes */
 static void usage(char *name);
-
-static void signalPrivsepChild(pid_t child_pid, int pfd);
 
 static void IntHandler(int signal);
 
@@ -149,34 +146,6 @@ static void usage(char *name) {
         name);
 }  // End of usage
 
-static void signalPrivsepChild(pid_t child_pid, int pfd) {
-    if (pfd == 0) return;
-
-    message_t message;
-    message.type = PRIVMSG_EXIT;
-    message.length = sizeof(message);
-    ssize_t ret = write(pfd, &message, sizeof(message));
-
-    if (ret < 0) {
-        LogError("Failed to send exit message for privsep child. pipe write: %s", strerror(errno));
-        kill(child_pid, SIGTERM);
-    }
-
-    int stat = 0;
-    if ((ret = waitpid(child_pid, &stat, 0)) == -1) {
-        if (!gotSIGCHLD) LogError("wait for privsep child failed: %s", strerror(errno));
-    } else {
-        if (WIFEXITED(stat)) {
-            LogInfo("privsep child exit status: %i", WEXITSTATUS(stat));
-        }
-        if (WIFSIGNALED(stat)) {
-            LogError("privsep child terminated due to signal %i", WTERMSIG(stat));
-        }
-        LogVerbose("privsep child terminated with status: 0x%x", stat);
-    }
-
-}  // End of signalPrivsepChild
-
 static void IntHandler(int signal) {
     switch (signal) {
         case SIGHUP:
@@ -184,36 +153,12 @@ static void IntHandler(int signal) {
         case SIGTERM:
             done = 1;
             break;
-        case SIGCHLD:
-            gotSIGCHLD++;
-            break;
-        case SIGPIPE:
-            break;
         default:
             // ignore everything we don't know
             break;
     }
 
 } /* End of IntHandler */
-
-static void ChildDied(void) {
-    if (gotSIGCHLD) {
-        int stat = 0;
-        pid_t pid = waitpid(-1, &stat, 0);
-        if (pid == -1) {
-            if (!gotSIGCHLD) LogError("wait for privsep child failed: %s", strerror(errno));
-        } else {
-            if (WIFEXITED(stat)) {
-                LogInfo("privsep child[%u] exit status: %i", pid, WEXITSTATUS(stat));
-            }
-            if (WIFSIGNALED(stat)) {
-                LogError("privsep child[%u] terminated due to signal %i", pid, WTERMSIG(stat));
-            }
-            LogError("privsep child[%u] terminated with status: 0x%x", pid, stat);
-        }
-        gotSIGCHLD--;
-    }
-}  // End of ChildDied
 
 #include "nffile_inline.c"
 
@@ -436,7 +381,6 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
             } else {
                 // recvmsg error */
                 LogError("recvmsg() failed: %s", strerror(errno));
-                ChildDied();
                 continue;
             }
         } else if (ret == 0) {
@@ -787,7 +731,7 @@ int main(int argc, char **argv) {
                 break;
             case 'x':
                 CheckArgLen(optarg, 256);
-                launch_process = optarg;
+                launch_process = strdup(optarg);
                 break;
             case 'X':
                 CheckArgLen(optarg, 128);
@@ -867,22 +811,6 @@ int main(int argc, char **argv) {
     if (argc == 1) {
         usage(argv[0]);
         exit(EXIT_SUCCESS);
-    }
-
-    if ((argc - optind) >= 2) {
-        if (strcmp(argv[optind], "privsep") == 0) {
-            if (strcmp(argv[optind + 1], "launcher") == 0) {
-                dbg_printf("nfcapd privsep launched\n");
-                int ret = StartupLauncher(launch_process, expire);
-                exit(ret);
-            } else {
-                usage(argv[0]);
-                exit(EXIT_FAILURE);
-            }
-        } else {
-            usage(argv[0]);
-            exit(EXIT_FAILURE);
-        }
     }
 
     if (ConfOpen(configFile, "nfcapd") < 0) exit(EXIT_FAILURE);
@@ -975,6 +903,11 @@ int main(int argc, char **argv) {
         repeater_ctx = RepeaterInit(repeater_host, REPEATER_QUEUE_CAPACITY, srcSpoofing);
     }
 
+    launcher_ctx_t *launcher_ctx = NULL;
+    if (launch_process) {
+        launcher_ctx = LauncherInit(launch_process);
+    }
+
     if (!Init_v1(verbose) || !Init_v5_v7(verbose, sampling_rate) || !Init_pcapd(verbose) || !Init_v9(verbose, sampling_rate, extensionList) ||
         !Init_IPFIX(verbose, sampling_rate, extensionList)) {
         close(sock);
@@ -1007,18 +940,12 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    int launcher_pid = 0;
-    int pfd = 0;
-    if (launch_process || expire) {
-        pfd = PrivsepFork(argc, argv, &launcher_pid, "launcher");
-    }
-
     const nffile_backend_ctx_t nffile_backend_ctx = {.creator = CREATOR_NFCAPD,
                                                      .compress = compress,
                                                      .encryption = NOT_ENCRYPTED,
                                                      .subdir = subdir_index,
                                                      .time_extension = time_extension,
-                                                     .pfd = pfd};
+                                                     .msgQueue = launcher_ctx ? launcher_ctx->msgQueue : NULL};
 
     if (InitBackend(&collector_ctx, &nffile_backend_ctx) == 0) {
         LogError("Failed to initialized nffile backend");
@@ -1052,9 +979,6 @@ int main(int argc, char **argv) {
     sigaction(SIGTERM, &act, NULL);
     sigaction(SIGINT, &act, NULL);
     sigaction(SIGHUP, &act, NULL);
-    sigaction(SIGALRM, &act, NULL);
-    sigaction(SIGCHLD, &act, NULL);
-    sigaction(SIGPIPE, &act, NULL);
 
     if (sock < 0 && receive_packet == NULL) {
         LogError("No packet source defined");
@@ -1072,8 +996,8 @@ int main(int argc, char **argv) {
     }
 
     // shutdown
-    signalPrivsepChild(launcher_pid, pfd);
     if (repeater_pid) RepeaterShutdown(repeater_ctx);
+    if (launcher_ctx) LauncherShutdown(launcher_ctx);
     CloseMetric();
 
     CloseBackend(&collector_ctx, expire);
