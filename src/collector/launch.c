@@ -444,16 +444,19 @@ int SendLauncherMessage(int pfd, time_t t_start, char *fname, char *fmt, char *d
         launcher_message.lenAlign = 0;
     }
 
+    LogError("Launcher message: size %uz > %u", len, PIPE_BUF);
+    ssize_t ret = -1;
     if (len > PIPE_BUF) {
         LogError("Launcher message: size %uz > %u", len, PIPE_BUF);
-    }
-    message.length = len;
-    ssize_t ret = writev(pfd, vector, i);
-    if (ret < 0) {
-        LogError("Failed to send launcher message: %s", strerror(errno));
+    } else {
+        message.length = len;
+        ret = writev(pfd, vector, i);
+        if (ret < 0) {
+            LogError("Failed to send launcher message: %s", strerror(errno));
+        }
     }
     return ret;
-}
+}  // End of SendLauncherMessage
 
 int StartupLauncher(char *launch_process, int expire) {
     LogInfo("StartupLauncher(): %s, expire: %d", launch_process, expire);

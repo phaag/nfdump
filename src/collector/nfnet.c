@@ -31,6 +31,7 @@
 
 #include "nfnet.h"
 
+#include <arpa/inet.h>
 #include <errno.h>
 #include <netdb.h>
 #include <netinet/in.h>
@@ -49,8 +50,6 @@
 
 // minimum socket buffer length
 #define Min_SOCKBUFF_LEN 65536
-
-const int LISTEN_QUEUE = 128;
 
 // local function prototypes
 static int isMulticast(struct sockaddr_storage *addr);
@@ -147,46 +146,9 @@ static int set_socket_buffer(int sockfd, unsigned requested) {
     return 0;
 }
 
-int init_packet_ctx(PacketCtx_t *pkt_ctx, int sockfd, size_t buf_size) {
-    // init struct
-    memset(pkt_ctx, 0, sizeof(PacketCtx_t));
-
-    // packet buffer
-    pkt_ctx->buffer = malloc(buf_size);
-    if (!pkt_ctx->buffer) {
-        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return 0;
-    }
-
-    // live socket - no socket for pcap reader
-    if (sockfd > 0) {
-        // prepare socket msg struct
-        // Enable kernel timestamping
-        int enabled = 1;
-        if (setsockopt(sockfd, SOL_SOCKET, SO_TIMESTAMP, &enabled, sizeof(enabled)) < 0) {
-            LogError("setsockopt() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return 0;
-        }
-    }
-
-    // Setup IO Vector
-    pkt_ctx->iov.iov_base = pkt_ctx->buffer;
-    pkt_ctx->iov.iov_len = buf_size;
-
-    // Setup persistent msghdr
-    pkt_ctx->msg.msg_name = &pkt_ctx->sender;
-    pkt_ctx->msg.msg_namelen = sizeof(pkt_ctx->sender);
-    pkt_ctx->msg.msg_iov = &pkt_ctx->iov;
-    pkt_ctx->msg.msg_iovlen = 1;
-    pkt_ctx->msg.msg_control = pkt_ctx->control;
-
-    pkt_ctx->msg.msg_controllen = sizeof(pkt_ctx->control);
-
-    return 1;
-}  // init_packet_ctx
-
+// open receive socket for collector
 int Unicast_receive_socket(const char *bindhost, const char *listenport, int family, unsigned sockbuflen) {
-    if (!listenport) {
+    if (listenport == 0) {
         LogError("listen port required!");
         return -1;
     }
@@ -221,11 +183,42 @@ int Unicast_receive_socket(const char *bindhost, const char *listenport, int fam
         }
     }
 
-    // ready
-    listen(sockfd, LISTEN_QUEUE);
+    // Enable kernel timestamping on socket
+    int enabled = 1;
+    if (setsockopt(sockfd, SOL_SOCKET, SO_TIMESTAMP, &enabled, sizeof(enabled)) < 0) {
+        close(sockfd);
+        LogError("setsockopt() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return -1;
+    }
 
     return sockfd;
-}
+}  // End of Unicast_receive_socket
+
+PacketCtx_t *init_packet_ctx(size_t buf_size) {
+    PacketCtx_t *PacketCtx = malloc(sizeof(PacketCtx_t) + buf_size);
+    if (!PacketCtx) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+
+    // init struct
+    memset(PacketCtx, 0, sizeof(PacketCtx_t));
+
+    // Setup IO Vector
+    PacketCtx->iov.iov_base = PacketCtx->buffer;
+    PacketCtx->iov.iov_len = buf_size;
+
+    // Setup persistent msghdr
+    PacketCtx->msg.msg_name = &PacketCtx->sender;
+    PacketCtx->msg.msg_namelen = sizeof(PacketCtx->sender);
+    PacketCtx->msg.msg_iov = &PacketCtx->iov;
+    PacketCtx->msg.msg_iovlen = 1;
+    PacketCtx->msg.msg_control = PacketCtx->control;
+
+    PacketCtx->msg.msg_controllen = sizeof(PacketCtx->control);
+
+    return PacketCtx;
+}  // init_packet_ctx
 
 int Unicast_send_socket(const char *hostname, const char *sendport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
                         socklen_t *addrlen) {
@@ -561,26 +554,32 @@ int LookupHost(char *hostname, char *port, struct sockaddr_in *addr) {
         return -1;
     }
 
-    // create socket
     struct addrinfo hints = {0};
-    struct addrinfo *res;
+    struct addrinfo *res = NULL;
+    struct addrinfo *res0 = NULL;
 
-    // for IP spoofing, we support only IPv4
-    hints.ai_family = AF_INET;
-    hints.ai_socktype = SOCK_DGRAM;
+    hints.ai_family = AF_INET;       // IPv4 only
+    hints.ai_socktype = SOCK_DGRAM;  // UDP semantics
 
     int error = getaddrinfo(hostname, port, &hints, &res);
     if (error) {
         LogError("getaddrinfo() error: %s", gai_strerror(error));
         return -1;
     }
+
+    res0 = res;
+
     while (res) {
         if (res->ai_family == AF_INET) {
             struct sockaddr_in *sa = (struct sockaddr_in *)res->ai_addr;
-            *addr = *sa;
-            break;
+            *addr = *sa;  // copies sin_addr and sin_port correctly
+            freeaddrinfo(res0);
+            dbg_printf("Resolved %s:%s → %s:%u\n", hostname, port, inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
+            return 0;
         }
         res = res->ai_next;
     }
-    return res ? 0 : -1;
+
+    freeaddrinfo(res0);
+    return -1;
 }  // End of LookupHost

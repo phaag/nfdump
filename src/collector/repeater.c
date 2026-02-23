@@ -36,6 +36,7 @@
 #include <netinet/udp.h>
 #include <pthread.h>
 #include <signal.h>
+#include <stdatomic.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -44,33 +45,18 @@
 #include "daemon.h"
 #include "nfnet.h"
 #include "privsep.h"
+#include "queue.h"
 #include "util.h"
 
 #define IP_HDR_LEN 5
 #define UDP_HDR_SIZE 8
-#define MAXTLL 255
-
-static int done = 1;
-static int child_exit = 0;
-static pthread_t reader_tid;
+#define MAXTTL 255
 
 static unsigned ip_header_checksum(struct ip *header);
 
 static uint16_t udp_sum_calc(uint16_t len_udp, uint32_t src_addr, uint16_t src_port, uint32_t dest_addr, uint16_t dest_port, const void *buff);
 
-int raw_send_to(int sock, void *msg, size_t msglen, struct sockaddr_in *src_addr, struct sockaddr_in *dst_addr, int ttl, int flags);
-
-static void SignalHandler(int signal) {
-    switch (signal) {
-        case SIGTERM:
-            done = 1;
-            break;
-        case SIGCHLD:
-            child_exit++;
-            break;
-    }
-
-} /* End of IntHandler */
+static ssize_t raw_send_to(int sock, void *msg, size_t msglen, struct sockaddr_in *src_addr, struct sockaddr_in *dst_addr, int ttl, int flags);
 
 // calculate IP hdr checksum for IP spoofing raw socket
 static unsigned ip_header_checksum(struct ip *header) {
@@ -156,7 +142,7 @@ static uint16_t udp_sum_calc(uint16_t len_udp, uint32_t src_addr, uint16_t src_p
     return ((uint16_t)htons(sum));
 };
 
-int raw_send_to(int sock, void *msg, size_t msglen, struct sockaddr_in *src_addr, struct sockaddr_in *dst_addr, int ttl, int flags) {
+static ssize_t raw_send_to(int sock, void *msg, size_t msglen, struct sockaddr_in *src_addr, struct sockaddr_in *dst_addr, int ttl, int flags) {
     struct udphdr udp;
     udp.uh_sport = src_addr->sin_port;
     udp.uh_dport = dst_addr->sin_port;
@@ -202,118 +188,169 @@ int raw_send_to(int sock, void *msg, size_t msglen, struct sockaddr_in *src_addr
     mh.msg_iov = iov;
     mh.msg_iovlen = 3;
 
-    int ret = sendmsg(sock, &mh, 0);
-    if (ret == -1) {
-        LogError("sendmsg() error: %s", strerror(errno));
-    } else {
-        dbg_printf("sendmsg() ok\n");
-    }
+    return sendmsg(sock, &mh, 0);
+}  // End of raw_send_to
 
-    return ret;
-}
+static void *repeater_thread_main(void *arg) {
+    repeater_ctx_t *repeater_ctx = (repeater_ctx_t *)arg;
 
-static void RepeaterMessageFunc(message_t *message, void *extraArg) {
-    repeater_t *repeater = (repeater_t *)extraArg;
-    void *p = (void *)message;
-    p += sizeof(message_t);
-
-    dbg_printf("repeater received message: %u %u\n", message->type, message->length);
-    if (message->type == PRIVMSG_REPEAT && message->length > (sizeof(message_t) + sizeof(repeater_message_t))) {
-        dbg_printf("repeater process message: type: %d, length: %d\n", message->type, message->length);
-
-        repeater_message_t *repeater_message = (repeater_message_t *)p;
-        p += sizeof(repeater_message_t);
-
-        void *in_buff = p;
-        size_t cnt = repeater_message->packet_size;
-        if (message->length < (sizeof(message_t) + sizeof(repeater_message_t) + cnt)) {
-            LogError("Repeater message size check error: %u", message->length);
+    dbg_printf("Startup %s()\n", __func__);
+    while (!atomic_load(&repeater_ctx->done)) {
+        PacketCtx_t *packetCtx = queue_pop(repeater_ctx->packetQueue);
+        if (packetCtx == QUEUE_CLOSED || packetCtx == NULL) {
+            // packetCtx cannot get NULL, but handle it anyway
+            atomic_store(&repeater_ctx->done, 1);
+            break;
         }
-        int i = 0;
-        while (repeater[i].hostname && (i < MAX_REPEATERS)) {
-            if (repeater[i].addrlen == 0) {
-                // packet spoofing
-                struct sockaddr_in *src_addr = (struct sockaddr_in *)&repeater_message->addr;
-                struct sockaddr_in *dst_addr = (struct sockaddr_in *)&repeater[i].addr;
-                if (src_addr->sin_family == PF_INET) {
-                    // Only IPv4 spoofing supported
-                    raw_send_to(repeater[i].sockfd, in_buff, cnt, src_addr, dst_addr, MAXTTL, 0);
-                }
-            } else {
-                // normal packet repeating
-                ssize_t len = sendto(repeater[i].sockfd, in_buff, cnt, 0, (struct sockaddr *)&(repeater[i].addr), repeater[i].addrlen);
-                if (len < 0) {
-                    LogError("sendto(): %d: %s %s", i, repeater[i].hostname, strerror(errno));
+
+        for (int i = 0; i < MAX_REPEATERS && repeater_ctx->repeater[i].hostname; i++) {
+            repeater_t *repeater = &repeater_ctx->repeater[i];
+
+            ssize_t len = 0;
+            if (repeater->use_raw) {
+                struct sockaddr_in *src_addr = (struct sockaddr_in *)&packetCtx->sender;
+                struct sockaddr_in *dst_addr = (struct sockaddr_in *)&repeater->addr;
+
+                dbg_printf("%s() Send next raw packet of len %zu\n", __func__, packetCtx->bufferLen);
+                if (src_addr->sin_family == AF_INET) {
+                    len = raw_send_to(repeater_ctx->rawSocket, packetCtx->buffer, packetCtx->bufferLen, src_addr, dst_addr, MAXTTL, 0);
                 } else {
-                    dbg_printf("Repeated: %zd\n", len);
+                    dbg_printf("%s() Unknown AF family: %u\n", __func__, src_addr->sin_family);
                 }
-            }
-            i++;
-        }
-    }
-}
-
-int StartupRepeater(repeater_t *repeater, unsigned bufflen, unsigned srcSpoofing, char *userid, char *groupid) {
-    LogInfo("StartupRepeater: userid: %s, groupid: %s", userid ? userid : "default", groupid ? groupid : "default");
-
-    if (srcSpoofing == 0) {
-        SetPriv(userid, groupid);
-        int i = 0;
-        while (repeater[i].hostname && (i < MAX_REPEATERS)) {
-            repeater[i].sockfd =
-                Unicast_send_socket(repeater[i].hostname, repeater[i].port, AF_UNSPEC, bufflen, &repeater[i].addr, &repeater[i].addrlen);
-            if (repeater[i].sockfd <= 0) return 0;
-            LogVerbose("Replay flows to host: %s port: %s", repeater[i].hostname, repeater[i].port);
-            i++;
-        }
-    } else {
-        int rawSocket = Raw_send_socket(bufflen);
-        if (rawSocket == 0) {
-            LogVerbose("Failed to open raw socket");
-            return 255;
-        }
-        SetPriv(userid, groupid);
-        LogInfo("Note: packet spoofing only works for IPv4 addresses");
-        int i = 0;
-        while (repeater[i].hostname && (i < MAX_REPEATERS)) {
-            if (LookupHost(repeater[i].hostname, repeater[i].port, (struct sockaddr_in *)&(repeater[i].addr)) == 0) {
-                // set addrlen to 0 to flag raw socket
-                repeater[i].sockfd = rawSocket;
-                repeater[i].addrlen = 0;
-                LogVerbose("Replay flows to host: %s port: %s, spoofing sender address", repeater[i].hostname, repeater[i].port);
             } else {
-                LogError("Can not resolve %s to a valid IPv4 address", repeater[i].hostname);
+                dbg_printf("%s() Send next packet of len %zu\n", __func__, packetCtx->bufferLen);
+                len = sendto(repeater->sockfd, packetCtx->buffer, packetCtx->bufferLen, 0, (struct sockaddr *)&repeater->addr, repeater->addrlen);
             }
-            i++;
+            if (len < 0) {
+                LogError("sendto() repeater %s: %s", repeater->hostname, strerror(errno));
+            }
+            dbg_printf("%s() Send packet size: %zu\n", __func__, len);
+        }
+
+        // return packet context to collector
+        queue_push(repeater_ctx->bufferQueue, (void *)packetCtx);
+    }
+
+    dbg_printf("Exit %s()\n", __func__);
+    return NULL;
+}  // End of repeater_thread_main
+
+pthread_t RepeaterStart(repeater_ctx_t *repeater_ctx) {
+    dbg_printf("%s()\n", __func__);
+    pthread_t tid;
+    int err = pthread_create(&tid, NULL, repeater_thread_main, (void *)repeater_ctx);
+    if (err) {
+        LogError("pthread_create(repeater) failed: %s", strerror(err));
+        return 0;
+    }
+    repeater_ctx->tid = tid;
+
+    return tid;
+}  // End of RepeaterStart
+
+void RepeaterShutdown(repeater_ctx_t *repeater_ctx) {
+    if (repeater_ctx == NULL) return;
+
+    dbg_printf("%s()\n", __func__);
+
+    atomic_store(&repeater_ctx->done, 1);
+    queue_close(repeater_ctx->bufferQueue);
+    queue_close(repeater_ctx->packetQueue);
+    if (repeater_ctx->tid) {
+        pthread_join(repeater_ctx->tid, NULL);
+    }
+
+    if (repeater_ctx->rawSocket > 0) close(repeater_ctx->rawSocket);
+    for (int i = 0; i < MAX_REPEATERS; i++) {
+        if (repeater_ctx->repeater[i].sockfd) close(repeater_ctx->repeater[i].sockfd);
+        if (repeater_ctx->repeater[i].hostname) free(repeater_ctx->repeater[i].hostname);
+    }
+
+    // clear and free all packet context buffers and free queues
+    queue_clear(repeater_ctx->bufferQueue, free);
+    queue_free(repeater_ctx->bufferQueue);
+    queue_free(repeater_ctx->packetQueue);
+    free(repeater_ctx);
+
+}  // End of RepeaterShutdown
+
+repeater_ctx_t *RepeaterInit(repeater_host_t *repeater_host, uint32_t queue_len, int srcSpoofing) {
+    repeater_ctx_t *repeater_ctx = calloc(1, sizeof(repeater_ctx_t));
+    if (!repeater_ctx) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return NULL;
+    }
+
+    atomic_store(&repeater_ctx->done, 0);
+
+    repeater_ctx->bufferQueue = queue_init(queue_len);
+    repeater_ctx->packetQueue = queue_init(queue_len);
+    if (!repeater_ctx->bufferQueue || !repeater_ctx->packetQueue) {
+        RepeaterShutdown(repeater_ctx);
+        return NULL;
+    }
+
+    int err = 0;
+    // init REPEATER_QUEUE_CAPACITY - 1, as the collector by default allocates a packet context
+    for (int i = 0; err == 0 && i < (queue_len - 1); i++) {
+        PacketCtx_t *pkt_ctx = init_packet_ctx(NETWORK_INPUT_BUFF_SIZE);
+        if (!pkt_ctx) err = 1;
+        if (queue_push(repeater_ctx->bufferQueue, (void *)pkt_ctx) != NULL) {
+            // catch queue error
+            err = 1;
         }
     }
 
-    /* Signal handling */
-    struct sigaction act;
-    memset((void *)&act, 0, sizeof(struct sigaction));
-    act.sa_handler = SignalHandler;
-    sigemptyset(&act.sa_mask);
-    act.sa_flags = 0;
-    sigaction(SIGTERM, &act, NULL);
-    sigaction(SIGCHLD, &act, NULL);
-
-    thread_arg_t thread_arg = {0};
-    thread_arg.messageFunc = RepeaterMessageFunc;
-    thread_arg.extraArg = repeater;
-    pthread_t tid;
-    int err = pthread_create(&reader_tid, NULL, pipeReader, (void *)&thread_arg);
     if (err) {
-        LogError("pthread_create() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
-        return 255;
-    }
-    tid = reader_tid;
-
-    err = pthread_join(tid, NULL);
-    if (err) {
-        LogError("pthread_join() error in %s line %d: %s", __FILE__, __LINE__, strerror(err));
+        RepeaterShutdown(repeater_ctx);
+        return NULL;
     }
 
-    LogVerbose("End StartupRepeater()");
-    return 0;
+    // XXX make bufflen configurable
+    uint32_t bufflen = 0;
+    if (srcSpoofing) {
+        // src spoofing - use 1 raw socket
+        repeater_ctx->rawSocket = Raw_send_socket(bufflen);
+        if (repeater_ctx->rawSocket == 0) err = 1;
+    } else {
+        repeater_ctx->rawSocket = 0;
+    }
 
-}  // End of StartupRepeater
+    for (int i = 0; err == 0 && i < MAX_REPEATERS && repeater_host[i].hostname; i++) {
+        if (srcSpoofing) {
+            struct sockaddr_in *dst = (struct sockaddr_in *)&repeater_ctx->repeater[i].addr;
+            if (LookupHost(repeater_host[i].hostname, repeater_host[i].port, dst) != 0) {
+                LogError("Can not resolve %s to a valid IPv4 address", repeater_host[i].hostname);
+                err = 1;
+            }
+
+            repeater_ctx->repeater[i].addrlen = sizeof(struct sockaddr_in);
+            repeater_ctx->repeater[i].use_raw = 1;
+            repeater_ctx->repeater[i].sockfd = -1;
+        } else {
+            // each sender gets its socket
+            repeater_ctx->rawSocket = -1;
+            int sockfd = Unicast_send_socket(repeater_host[i].hostname, repeater_host[i].port, AF_UNSPEC, bufflen, &repeater_ctx->repeater[i].addr,
+                                             &repeater_ctx->repeater[i].addrlen);
+            if (sockfd <= 0) {
+                LogError("Failed to open UDP socket for repeater %s:%s", repeater_host[i].hostname, repeater_host[i].port);
+                err = 1;
+            } else {
+                repeater_ctx->repeater[i].sockfd = sockfd;
+                repeater_ctx->repeater[i].use_raw = 0;
+            }
+        }
+
+        // hostname has been strdup() in main. Take ownership
+        repeater_ctx->repeater[i].hostname = repeater_host[i].hostname;
+        LogVerbose("Repeat packet to host: %s port: %s", repeater_host[i].hostname, repeater_host[i].port);
+    }
+
+    if (err) {
+        RepeaterShutdown(repeater_ctx);
+        repeater_ctx = NULL;
+    }
+
+    return repeater_ctx;
+
+}  // End of RepeaterInit

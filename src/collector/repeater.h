@@ -31,31 +31,45 @@
 #ifndef _REPEATER_H
 #define _REPEATER_H 1
 
-#ifdef HAVE_CONFIG_H
-#include "config.h"
-#endif
-
 #include <netinet/in.h>
 #include <netinet/ip.h>
+#include <pthread.h>
+#include <stdint.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include "queue.h"
+
 #define MAX_REPEATERS 8
+#define REPEATER_QUEUE_CAPACITY 8
+
+typedef struct repeater_host_s {
+    char *hostname;
+    char *port;
+} repeater_host_t;
 
 typedef struct repeater_s {
     char *hostname;
     char *port;
     struct sockaddr_storage addr;
     socklen_t addrlen;
-    int sockfd;
+    int sockfd;   // UDP socket if spoofed == 0
+    int use_raw;  // 0 = normal UDP, 1 = spoof via raw
 } repeater_t;
 
-typedef struct repeater_message_s {
-    int packet_size;
-    socklen_t storage_size;
-    struct sockaddr_storage addr;
-} repeater_message_t;
+typedef struct repeater_ctx_s {
+    _Atomic int done;                    // done flag
+    queue_t *bufferQueue;                // queue of empty buffers to reuse
+    queue_t *packetQueue;                // queue of packets to repeat
+    pthread_t tid;                       // tid of repeater thread
+    int rawSocket;                       // if we do src spoofing, use this raw socket
+    repeater_t repeater[MAX_REPEATERS];  // array of MAX_REPEATERS
+} repeater_ctx_t;
 
-int StartupRepeater(repeater_t *repeater, unsigned bufflen, unsigned srcSpoofing, char *userid, char *groupid);
+repeater_ctx_t *RepeaterInit(repeater_host_t *repeater_host, uint32_t queue_len, int srcSpoofing);
+
+pthread_t RepeaterStart(repeater_ctx_t *repeater_ctx);
+
+void RepeaterShutdown(repeater_ctx_t *rctx);
 
 #endif

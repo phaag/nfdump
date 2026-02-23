@@ -222,41 +222,6 @@ static void ChildDied(void) {
 
 #include "nffile_inline.c"
 
-static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockaddr_storage *sender, socklen_t sender_size) {
-    message_t message;
-    message.type = PRIVMSG_REPEAT;
-    message.length = cnt + sizeof(message_t);
-
-    repeater_message_t repeater_message;
-    repeater_message.packet_size = cnt;
-    repeater_message.storage_size = sender_size;
-    repeater_message.addr = *sender;
-
-    struct iovec vector[3];
-    size_t len;
-    vector[0].iov_base = &message;
-    vector[0].iov_len = sizeof(message_t);
-    len = sizeof(message_t);
-
-    vector[1].iov_base = &repeater_message;
-    vector[1].iov_len = sizeof(repeater_message_t);
-    len += sizeof(repeater_message_t);
-
-    vector[2].iov_base = in_buff;
-    vector[2].iov_len = cnt;
-    len += cnt;
-
-    message.length = len;
-    ssize_t ret = writev(fd, vector, 3);
-    if (ret < 0) {
-        LogError("Failed to send repeater message: %s", strerror(errno));
-        return errno;
-    } else {
-        dbg_printf("Sent message to repeater: %u\n", message.length);
-    }
-    return 0;
-}  // End of SendRepeaterMessage
-
 static inline ssize_t get_next_packet(int sockfd, PacketCtx_t *pkt_ctx, struct timeval *tv) {
     // Reset lengths that might have been modified by previous recvmsg calls
     pkt_ctx->msg.msg_namelen = sizeof(pkt_ctx->sender);
@@ -283,8 +248,8 @@ static void run(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend
     }
 
     // prepare socket
-    PacketCtx_t pkt_ctx = {0};
-    if (!init_packet_ctx(&pkt_ctx, socket, NETWORK_INPUT_BUFF_SIZE)) {
+    PacketCtx_t *pkt_ctx = init_packet_ctx(NETWORK_INPUT_BUFF_SIZE);
+    if (!pkt_ctx) {
         return;
     }
 
@@ -317,10 +282,10 @@ static void run(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend
         /* read next bunch of data into begin of input buffer */
         if (likely(done == 0)) {
             if (likely(socket)) {
-                cnt = get_next_packet(socket, &pkt_ctx, &tv);
+                cnt = get_next_packet(socket, pkt_ctx, &tv);
             } else {
-                pkt_ctx.msg.msg_namelen = sizeof(pkt_ctx.sender);
-                cnt = receive_packet(pkt_ctx.buffer, NETWORK_INPUT_BUFF_SIZE, &pkt_ctx.sender, &pkt_ctx.msg.msg_namelen, &tv);
+                pkt_ctx->msg.msg_namelen = sizeof(pkt_ctx->sender);
+                cnt = receive_packet(pkt_ctx->buffer, NETWORK_INPUT_BUFF_SIZE, &pkt_ctx->sender, &pkt_ctx->msg.msg_namelen, &tv);
             }
             dbg_printf("Received packet from: %s, size: %zd\n", GetClientIPstring(&pkt_ctx.sender, sa_address), cnt);
 
@@ -382,21 +347,17 @@ static void run(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend
 
         // repeat this packet
         if (rfd) {
-            if (SendRepeaterMessage(rfd, pkt_ctx.buffer, (size_t)cnt, &pkt_ctx.sender, pkt_ctx.msg.msg_namelen) != 0) {
-                LogError("Disable packet repeater due to errors");
-                close(rfd);
-                rfd = 0;
-            }
+            // XXX repeater
         }
 
         // get flow source record for current packet, identified by sender IP address
-        FlowSource_t *fs = GetFlowSource(ctx, &pkt_ctx.sender);
+        FlowSource_t *fs = GetFlowSource(ctx, &pkt_ctx->sender);
         if (fs == NULL) {
             // check, if we have dynamic flowsources configured
-            fs = NewDynFlowSource(ctx, &pkt_ctx.sender);
+            fs = NewDynFlowSource(ctx, &pkt_ctx->sender);
             if (fs == NULL) {
                 ignored_packets++;
-                LogError("Skip UDP packet from: %s. Ignored packets: %u", GetClientIPstring(&pkt_ctx.sender, sa_address), ignored_packets);
+                LogError("Skip UDP packet from: %s. Ignored packets: %u", GetClientIPstring(&pkt_ctx->sender, sa_address), ignored_packets);
                 continue;
             }
 
@@ -419,13 +380,13 @@ static void run(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend
 
         fs->received = tv;
         /* Process data - have a look at the common header */
-        Process_sflow(pkt_ctx.buffer, cnt, fs, parse_tun);
+        Process_sflow(pkt_ctx->buffer, cnt, fs, parse_tun);
 
         // each Process_xx function has to process the entire input buffer, therefore it's empty
         // now.
     }
 
-    free(pkt_ctx.buffer);
+    free(pkt_ctx);
 
 } /* End of run */
 
@@ -750,10 +711,6 @@ int main(int argc, char **argv) {
             if (strcmp(argv[optind + 1], "launcher") == 0) {
                 dbg_printf("sfcapd privsep launched\n");
                 int ret = StartupLauncher(launch_process, expire);
-                exit(ret);
-            } else if (strcmp(argv[optind + 1], "repeater") == 0) {
-                dbg_printf("sfcapd repeater launched\n");
-                int ret = StartupRepeater(repeater, bufflen, srcSpoofing, userid, groupid);
                 exit(ret);
             } else {
                 usage(argv[0]);

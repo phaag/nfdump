@@ -74,7 +74,7 @@ void queue_producers(queue_t *queue, unsigned producers) {
 }  // End of queue_producers
 
 void queue_free(queue_t *q) {
-    if (!q) return;
+    if (q == NULL) return;
 
     // Free any remaining elements (safe even after abort)
     queue_clear(q, free);
@@ -89,6 +89,8 @@ void queue_free(queue_t *q) {
 }  // End of queue_free
 
 void queue_close(queue_t *q) {
+    if (q == NULL) return;
+
     pthread_mutex_lock(&q->mutex);
 
     // prevent double close
@@ -111,6 +113,8 @@ void queue_close(queue_t *q) {
 }  // End of queue_close
 
 size_t queue_length(queue_t *queue) {
+    if (queue == NULL) return 0;
+
     pthread_mutex_lock(&(queue->mutex));
     size_t length = queue->num_elements;
     pthread_mutex_unlock(&(queue->mutex));

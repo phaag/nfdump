@@ -217,41 +217,6 @@ static void ChildDied(void) {
 
 #include "nffile_inline.c"
 
-static int SendRepeaterMessage(int fd, void *in_buff, size_t cnt, struct sockaddr_storage *sender, socklen_t sender_size) {
-    message_t message;
-    message.type = PRIVMSG_REPEAT;
-    message.length = cnt + sizeof(message_t);
-
-    repeater_message_t repeater_message;
-    repeater_message.packet_size = cnt;
-    repeater_message.storage_size = sender_size;
-    repeater_message.addr = *sender;
-
-    struct iovec vector[3];
-    size_t len;
-    vector[0].iov_base = &message;
-    vector[0].iov_len = sizeof(message_t);
-    len = sizeof(message_t);
-
-    vector[1].iov_base = &repeater_message;
-    vector[1].iov_len = sizeof(repeater_message_t);
-    len += sizeof(repeater_message_t);
-
-    vector[2].iov_base = in_buff;
-    vector[2].iov_len = cnt;
-    len += cnt;
-
-    message.length = len;
-    ssize_t ret = writev(fd, vector, 3);
-    if (ret < 0) {
-        LogError("Failed to send repeater message: %s", strerror(errno));
-        return errno;
-    } else {
-        dbg_printf("Sent message to repeater: %u\n", message.length);
-    }
-    return 0;
-}  // End of SendRepeaterMessage
-
 static inline ssize_t get_next_packet(int sockfd, PacketCtx_t *pkt_ctx, struct timeval *tv) {
     // Reset lengths that might have been modified by previous recvmsg calls
     pkt_ctx->msg.msg_namelen = sizeof(pkt_ctx->sender);
@@ -306,6 +271,7 @@ static inline ssize_t recv_packet(int sockfd, PacketCtx_t *pkt_ctx, struct timev
     for (;;) {
         ssize_t cnt = get_next_packet(sockfd, pkt_ctx, tv);
         if (cnt >= 0) {
+            pkt_ctx->bufferLen = cnt;
             return cnt;
         }
         if (errno == EINTR) {
@@ -409,9 +375,11 @@ static inline void process_packet(collector_ctx_t *ctx, const nffile_backend_ctx
 }  // End of process_packet
 
 // live network mode
-static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, int socket, int rfd, time_t t_win) {
-    PacketCtx_t pkt_ctx = {0};
-    if (!init_packet_ctx(&pkt_ctx, socket, NETWORK_INPUT_BUFF_SIZE)) return;
+static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, repeater_ctx_t *repeater_ctx, int socket,
+                        time_t t_win) {
+    // prepare socket msg struct
+    PacketCtx_t *pkt_ctx = init_packet_ctx(NETWORK_INPUT_BUFF_SIZE);
+    if (!pkt_ctx) return;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
         fs->dataBlock = PushBlock(fs->blockQueue, NULL);
@@ -425,6 +393,7 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
     time_t t_start = now - (now % t_win);
     time_t next_rotate = t_start + t_win;
 
+    uint32_t repeaterDropped = 0;
     while (!done) {
         // wait for packet or timeout
         int ret = poll_for_packet(socket, next_rotate, now);
@@ -432,21 +401,32 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
         if (ret > 0) {
             // packet ready
             struct timeval tv = {0};
-            ssize_t cnt = recv_packet(socket, &pkt_ctx, &tv);
+            ssize_t cnt = recv_packet(socket, pkt_ctx, &tv);
 
             now = tv.tv_sec;
             if (cnt > 0) {
+                process_packet(ctx, nffile_backend_ctx, pkt_ctx, cnt, tv, &packets, &ignored_packets);
+
                 // packet received
                 // repeat this packet
-                if (unlikely(rfd)) {
-                    if (SendRepeaterMessage(rfd, pkt_ctx.buffer, (size_t)cnt, &pkt_ctx.sender, pkt_ctx.msg.msg_namelen) != 0) {
-                        LogError("Disable packet repeater due to errors");
-                        close(rfd);
-                        rfd = 0;
+                if (unlikely(repeater_ctx != NULL)) {
+                    // push context
+                    if (queue_try_push(repeater_ctx->packetQueue, pkt_ctx) == NULL) {
+                        // successfully pushed packet context - get next free context
+                        PacketCtx_t *next = queue_pop(repeater_ctx->bufferQueue);
+                        if (next == QUEUE_CLOSED) {
+                            LogError("run_network() fatal error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+                            done = 1;
+                            pkt_ctx = NULL;
+                            continue;
+                        }
+                        pkt_ctx = next;
+                    } else {
+                        // else queue full - re-use current context - drop this packet for repeater
+                        repeaterDropped++;
                     }
                 }
 
-                process_packet(ctx, nffile_backend_ctx, &pkt_ctx, cnt, tv, &packets, &ignored_packets);
             } else if (cnt == 0) {
                 // Zero-length packet - ignore
                 ignored_packets++;
@@ -483,9 +463,13 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
             double interval = (double)t_win;
             if (interval <= 0.0) interval = 1.0;
 
-            LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u", packets, (double)packets / interval, ignored_packets);
-
-            packets = ignored_packets = 0;
+            if (repeaterDropped) {
+                LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u", packets, (double)packets / interval, ignored_packets);
+            } else {
+                LogInfo("Total packets received: %llu avg: %3.2f/s ignored packets: %u, dropped repeater packet: %u", packets,
+                        (double)packets / interval, ignored_packets, repeaterDropped);
+            }
+            packets = ignored_packets = repeaterDropped = 0;
 
             if (done) break;
 
@@ -494,13 +478,13 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
         }
     }
 
-    free(pkt_ctx.buffer);
+    if (pkt_ctx) free(pkt_ctx);
 }  // End of run_network
 
 // file mode for pcap/yaf files
 static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile_backend_ctx, packet_function_t receive_packet, time_t t_win) {
-    PacketCtx_t pkt_ctx = {0};
-    if (!init_packet_ctx(&pkt_ctx, -1, NETWORK_INPUT_BUFF_SIZE)) return;
+    PacketCtx_t *pkt_ctx = init_packet_ctx(NETWORK_INPUT_BUFF_SIZE);
+    if (!pkt_ctx) return;
 
     for (FlowSource_t *fs = NextFlowSource(ctx); fs; fs = NextFlowSource(NULL)) {
         fs->dataBlock = PushBlock(fs->blockQueue, NULL);
@@ -519,7 +503,7 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
         /* Phase 1: Read next record */
         struct timeval tv = {0};
 
-        ssize_t cnt = receive_packet(pkt_ctx.buffer, NETWORK_INPUT_BUFF_SIZE, &pkt_ctx.sender, &pkt_ctx.msg.msg_namelen, &tv);
+        ssize_t cnt = receive_packet(pkt_ctx->buffer, NETWORK_INPUT_BUFF_SIZE, &pkt_ctx->sender, &pkt_ctx->msg.msg_namelen, &tv);
 
         if (cnt == -2) { /* EOF */
             done = 1;
@@ -535,7 +519,7 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
                 t_start = now - (now % t_win);
                 next_rotate = t_start + t_win;
             }
-            process_packet(ctx, nffile_backend_ctx, &pkt_ctx, cnt, tv, &packets, &ignored_packets);
+            process_packet(ctx, nffile_backend_ctx, pkt_ctx, cnt, tv, &packets, &ignored_packets);
         }
 
         /* Phase 2: Check rotation condition */
@@ -562,7 +546,7 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
         }
     }
 
-    free(pkt_ctx.buffer);
+    free(pkt_ctx);
 }  // End of run_file_mode
 
 int main(int argc, char **argv) {
@@ -571,16 +555,18 @@ int main(int argc, char **argv) {
     char *Ident, *dynFlowDir, *time_extension, *pidfile, *configFile, *metricSocket;
     char *extensionList;
     packet_function_t receive_packet;
-    repeater_t repeater[MAX_REPEATERS];
     unsigned bufflen, metricInterval;
     time_t twin;
     int numWorkers, sampling_rate, spec_time_extension;
     int sock, family, do_daemonize, expire, verbose;
     unsigned subdir_index, compress, srcSpoofing;
-#ifdef ENABLE_READPCAP
     char *pcap_file = NULL;
+#ifdef ENABLE_READPCAP
     char *pcap_device = NULL;
 #endif
+
+    srcSpoofing = 0;
+    repeater_host_t repeater_host[MAX_REPEATERS] = {0};
 
     collector_ctx_t collector_ctx = {0};
     stringlist_t sourceList = {0};
@@ -605,8 +591,6 @@ int main(int argc, char **argv) {
     expire = 0;
     sampling_rate = 1;
     compress = NOT_COMPRESSED;
-    memset((void *)&repeater, 0, sizeof(repeater));
-    srcSpoofing = 0;
     configFile = NULL;
     Ident = "none";
     dynFlowDir = NULL;
@@ -742,13 +726,13 @@ int main(int argc, char **argv) {
                     port = p;
                 }
                 int i = 0;
-                while (repeater[i].hostname && (i < MAX_REPEATERS)) i++;
+                while (repeater_host[i].hostname && (i < MAX_REPEATERS)) i++;
                 if (i == MAX_REPEATERS) {
                     LogError("Too many packet repeaters! Max: %i repeaters allowed", MAX_REPEATERS);
                     exit(EXIT_FAILURE);
                 }
-                repeater[i].hostname = hostname;
-                repeater[i].port = port;
+                repeater_host[i].hostname = hostname;
+                repeater_host[i].port = port;
 
                 break;
             }
@@ -891,10 +875,6 @@ int main(int argc, char **argv) {
                 dbg_printf("nfcapd privsep launched\n");
                 int ret = StartupLauncher(launch_process, expire);
                 exit(ret);
-            } else if (strcmp(argv[optind + 1], "repeater") == 0) {
-                dbg_printf("nfcapd repeater launched\n");
-                int ret = StartupRepeater(repeater, bufflen, srcSpoofing, userid, groupid);
-                exit(ret);
             } else {
                 usage(argv[0]);
                 exit(EXIT_FAILURE);
@@ -974,17 +954,26 @@ int main(int argc, char **argv) {
         expire = 0;
     }
 
-    pid_t repeater_pid = 0;
-    int rfd = 0;
-    if (sock < 0 && repeater[0].hostname) {
-        LogError("Packet repeater can be used only on live network socket");
+    // before we drop our privileges, check for srcSpoofing and a repeater
+    if (sock < 0 && repeater_host[0].hostname) {
+        LogError("Packet repeaters can be used only together with a live network socket");
         exit(EXIT_FAILURE);
     }
-    if (repeater[0].hostname) {
-        rfd = PrivsepFork(argc, argv, &repeater_pid, "repeater");
-    }
 
+    repeater_ctx_t *repeater_ctx = NULL;
+    if (srcSpoofing && repeater_host[0].hostname) {
+        if (!RunAsRoot()) {
+            LogError("Packet repeater with src spoofing enabled need to run as root");
+            exit(EXIT_FAILURE);
+        }
+        repeater_ctx = RepeaterInit(repeater_host, REPEATER_QUEUE_CAPACITY, srcSpoofing);
+    }
+    // drop privileges
     SetPriv(userid, groupid);
+
+    if (srcSpoofing == 0 && repeater_host[0].hostname) {
+        repeater_ctx = RepeaterInit(repeater_host, REPEATER_QUEUE_CAPACITY, srcSpoofing);
+    }
 
     if (!Init_v1(verbose) || !Init_v5_v7(verbose, sampling_rate) || !Init_pcapd(verbose) || !Init_v9(verbose, sampling_rate, extensionList) ||
         !Init_IPFIX(verbose, sampling_rate, extensionList)) {
@@ -1034,11 +1023,21 @@ int main(int argc, char **argv) {
     if (InitBackend(&collector_ctx, &nffile_backend_ctx) == 0) {
         LogError("Failed to initialized nffile backend");
         close(sock);
+        CloseMetric();
         remove_pid(pidfile);
         exit(EXIT_FAILURE);
     }
 
     if (!LaunchBackend(&collector_ctx)) {
+        close(sock);
+        CloseMetric();
+        remove_pid(pidfile);
+        exit(EXIT_FAILURE);
+    }
+
+    pthread_t repeater_pid = 0;
+    if (repeater_ctx && (repeater_pid = RepeaterStart(repeater_ctx)) == 0) {
+        CloseMetric();
         close(sock);
         remove_pid(pidfile);
         exit(EXIT_FAILURE);
@@ -1059,12 +1058,14 @@ int main(int argc, char **argv) {
 
     if (sock < 0 && receive_packet == NULL) {
         LogError("No packet source defined");
+        CloseMetric();
+        remove_pid(pidfile);
         exit(EXIT_FAILURE);
     }
 
     LogInfo("Startup nfcapd.");
     if (sock > 0) {
-        run_network(&collector_ctx, &nffile_backend_ctx, sock, rfd, twin);
+        run_network(&collector_ctx, &nffile_backend_ctx, repeater_ctx, sock, twin);
         close(sock);
     } else {
         run_file_mode(&collector_ctx, &nffile_backend_ctx, receive_packet, twin);
@@ -1072,7 +1073,7 @@ int main(int argc, char **argv) {
 
     // shutdown
     signalPrivsepChild(launcher_pid, pfd);
-    signalPrivsepChild(repeater_pid, rfd);
+    if (repeater_pid) RepeaterShutdown(repeater_ctx);
     CloseMetric();
 
     CloseBackend(&collector_ctx, expire);

@@ -63,6 +63,7 @@ int Init_nffile_backend(FlowSource_t *fs, const nffile_backend_ctx_t *init_nffil
     nffile_ctx->compress = init_nffile_ctx->compress;
     nffile_ctx->encryption = init_nffile_ctx->encryption;
     nffile_ctx->time_extension = init_nffile_ctx->time_extension;
+    nffile_ctx->pfd = init_nffile_ctx->pfd;
     nffile_ctx->blockQueue = queue_init(64);
     fs->blockQueue = nffile_ctx->blockQueue;
 
@@ -145,9 +146,9 @@ int LaunchBackend(collector_ctx_t *ctx) {
     return 1;
 }  // End of Launch_nffile_backend
 
-static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dataBlock, int *done) {
+static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dataBlock, int pfd, int *done) {
     // periodic file rotation
-    dbg_printf("Enter backend RotateCycle\n");
+    dbg_printf("Enter backend RotateCycle. pdf: %d, done: %d\n", pfd, *done);
 
     nffile_t *nffile = nffile_ctx->nffile;
     // not expected
@@ -183,11 +184,13 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dat
     // if no flows were collected, fs->msecLast is still 0
     // set msecFirst and msecLast and to start of this time slot
     memcpy(nffile->stat_record, cur, sizeof(stat_record_t));
+    SetIdent(nffile, nffile_ctx->Ident);
     if (nffile->stat_record->msecLastSeen == 0) {
         nffile->stat_record->msecFirstSeen = 1000LL * (uint64_t)cycle_message.when;
         nffile->stat_record->msecLastSeen = nffile->stat_record->msecFirstSeen;
     }
-    PrintStat(nffile->stat_record, nffile->ident);
+
+    dbg(PrintStat(nffile->stat_record, nffile->ident));
 
     // Close file
     FlushFile(nffile);
@@ -207,7 +210,6 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dat
         UpdateBooks(nffile_ctx->bookkeeper, cycle_message.when, (uint64_t)(512U * fstat.st_blocks));
     }
 
-    int pfd = 0;
     if (pfd) {
         if (SendLauncherMessage(pfd, cycle_message.when, nfcapd_filename, fmt, nffile_ctx->datadir, nffile->ident) < 0) {
             LogError("Disable launcher due to errors");
@@ -233,7 +235,6 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dat
 
     if (nffile) {
         nffile_ctx->nffile = nffile;
-        SetIdent(nffile, nffile_ctx->Ident);
     } else {
         LogError("Ident: %s, Can't re-open empty flow file", nffile_ctx->Ident);
         // unrecoverable error
@@ -277,7 +278,7 @@ static noreturn void *nffile_backend_thread(void *arg) {
             } break;
             case MESSAGE_TYPE_CYCLE:
                 dbg_printf("%s() process next rotate cycle\n", __func__);
-                if (!BackendRotateCycle(nffile_ctx, dataBlock, &done)) {
+                if (!BackendRotateCycle(nffile_ctx, dataBlock, nffile_ctx->pfd, &done)) {
                     LogError("File rotation cycle failed for ident: %s", nffile_ctx->Ident);
                 }
                 FreeDataBlock(dataBlock);

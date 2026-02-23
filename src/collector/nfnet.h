@@ -49,7 +49,8 @@ typedef struct PacketCtx_s {
     struct iovec iov;
     struct sockaddr_storage sender;
     char control[CMSG_SPACE(sizeof(struct timeval))];
-    void *buffer;
+    ssize_t bufferLen;
+    _Alignas(16) uint8_t buffer[];
 } PacketCtx_t;
 
 #define UDP_PACKET_SIZE 1472
@@ -69,7 +70,7 @@ int Unicast_send_socket(const char *hostname, const char *listenport, int family
 int Multicast_send_socket(const char *hostname, const char *listenport, int family, unsigned int wmem_size, struct sockaddr_storage *addr,
                           socklen_t *addrlen);
 
-int init_packet_ctx(PacketCtx_t *ctx, int sockfd, size_t buf_size);
+PacketCtx_t *init_packet_ctx(size_t buf_size);
 
 int Raw_send_socket(int sockbuflen);
 
