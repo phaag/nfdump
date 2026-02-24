@@ -63,6 +63,7 @@ int Init_nffile_backend(FlowSource_t *fs, const nffile_backend_ctx_t *init_nffil
     nffile_ctx->compress = init_nffile_ctx->compress;
     nffile_ctx->encryption = init_nffile_ctx->encryption;
     nffile_ctx->time_extension = init_nffile_ctx->time_extension;
+    nffile_ctx->msgQueue = init_nffile_ctx->msgQueue;
     nffile_ctx->pfd = init_nffile_ctx->pfd;
     nffile_ctx->blockQueue = queue_init(64);
     fs->blockQueue = nffile_ctx->blockQueue;
@@ -166,17 +167,17 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dat
     struct tm local_tm = {0};
     struct tm *now = localtime_r(&cycle_message.when, &local_tm);
 
-    char fmt[32];
-    strftime(fmt, sizeof(fmt), nffile_ctx->time_extension, now);
+    char isoExtension[32];
+    strftime(isoExtension, sizeof(isoExtension), nffile_ctx->time_extension, now);
 
-    dbg_printf("Backend nffile rotation - time: %s, done: %u\n", fmt, cycle_message.done);
+    dbg_printf("Backend nffile rotation - time: %s, done: %u\n", isoExtension, cycle_message.done);
 
     char nfcapd_filename[MAXPATHLEN];
     nfcapd_filename[0] = '\0';
 
     int pos = SetupPath(now, nffile_ctx->datadir, nffile_ctx->subdir, nfcapd_filename);
     char *p = nfcapd_filename + (ptrdiff_t)pos;
-    snprintf(p, MAXPATHLEN - pos - 1, "nfcapd.%s", fmt);
+    snprintf(p, MAXPATHLEN - pos - 1, "nfcapd.%s", isoExtension);
     nfcapd_filename[MAXPATHLEN - 1] = '\0';
     dbg_printf("SetupPath(): %s for: %s\n", nfcapd_filename, nffile->fileName);
 
@@ -211,7 +212,10 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dat
     }
 
     if (nffile_ctx->msgQueue) {
-        if (SendLauncherMessage(nffile_ctx->msgQueue, cycle_message.when, fmt, nfcapd_filename, nffile_ctx->datadir, nffile->ident) < 0) {
+        // compile argument %f
+        // nfcapd_filename => full path - cut of datadir/
+        char *filename = nfcapd_filename + strlen(nffile_ctx->datadir) + 1;  //
+        if (SendLauncherMessage(nffile_ctx->msgQueue, cycle_message.when, isoExtension, filename, nffile_ctx->datadir, nffile->ident) < 0) {
             LogError("Disable launcher due to errors");
             queue_close(nffile_ctx->msgQueue);
             nffile_ctx->msgQueue = NULL;

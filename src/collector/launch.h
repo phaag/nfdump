@@ -46,7 +46,8 @@
 typedef struct launcher_ctx_s {
     _Atomic int done;    // done flag
     queue_t *msgQueue;   // message queue to launcher thread
-    pthread_t tid;       // tid of repeater thread
+    pthread_t ltid;      // tid of launcher thread
+    pthread_t rtid;      // tid of reaper thread
     char *extension;     // nfcapd time extension format
     char *cmd_template;  // command to be executed
 } launcher_ctx_t;

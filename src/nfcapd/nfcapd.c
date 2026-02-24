@@ -59,7 +59,6 @@
 
 #include "backend.h"
 #include "barrier.h"
-#include "bookkeeper.h"
 #include "collector.h"
 #include "conf/nfconf.h"
 #include "daemon.h"
@@ -80,13 +79,12 @@
 #include "nfstatfile.h"
 #include "nfxV3.h"
 #include "pidfile.h"
-#include "privsep.h"
 #include "repeater.h"
 #include "util.h"
 #include "version.h"
 #include "yaf_reader.h"
 
-#define DEFAULTCISCOPORT "9995"
+#define DEFAULTLISTENPORT "9995"
 
 // packet function prototype for yaf or pcap reader
 typedef ssize_t (*packet_function_t)(void *, size_t, struct sockaddr_storage *, socklen_t *, struct timeval *);
@@ -158,7 +156,7 @@ static void IntHandler(int signal) {
             break;
     }
 
-} /* End of IntHandler */
+}  // End of IntHandler
 
 #include "nffile_inline.c"
 
@@ -503,13 +501,13 @@ int main(int argc, char **argv) {
     time_t twin;
     int numWorkers, sampling_rate, spec_time_extension;
     int sock, family, do_daemonize, expire, verbose;
-    unsigned subdir_index, compress, srcSpoofing;
+    unsigned subdir_index, compress;
     char *pcap_file = NULL;
 #ifdef ENABLE_READPCAP
     char *pcap_device = NULL;
 #endif
 
-    srcSpoofing = 0;
+    unsigned srcSpoofing = 0;
     repeater_host_t repeater_host[MAX_REPEATERS] = {0};
 
     collector_ctx_t collector_ctx = {0};
@@ -517,7 +515,7 @@ int main(int argc, char **argv) {
     char *dataDir = NULL;
 
     char *yaf_file = NULL;
-    char *listenport = DEFAULTCISCOPORT;
+    char *listenport = DEFAULTLISTENPORT;
     receive_packet = NULL;
     verbose = -1;
     do_daemonize = 0;
@@ -544,7 +542,7 @@ int main(int argc, char **argv) {
     numWorkers = 0;
 
     int c;
-    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:T:u:v:VW:w:x:X:Y:yz::Z")) != EOF) {
+    while ((c = getopt(argc, argv, "46AB:b:C:d:DeEf:g:hI:i:jJ:l:m:M:n:p:P:R:s:S:t:u:v:VW:w:x:X:Y:yz::Z")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
@@ -663,7 +661,7 @@ int main(int argc, char **argv) {
             case 'R': {
                 CheckArgLen(optarg, 128);
                 char *hostname = strdup(optarg);
-                char *port = DEFAULTCISCOPORT;
+                char *port = DEFAULTLISTENPORT;
                 char *p = strchr(hostname, '/');
                 if (p) {
                     *p++ = '\0';
@@ -696,7 +694,9 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'l':
-                LogError("-l is a legacy option and may get removed in future. Please use -w to set output directory");
+                LogError("Option -l is deprecated. Use -w");
+                exit(EXIT_FAILURE);
+                break;
             case 'w':
                 if (!CheckPath(optarg, S_IFDIR)) {
                     LogError("No valid directory: %s", optarg);
@@ -716,9 +716,6 @@ int main(int argc, char **argv) {
                 }
                 subdir_index = (unsigned)s;
             } break;
-            case 'T':
-                printf("Option -T no longer supported and ignored\n");
-                break;
             case 't':
                 twin = atoi(optarg);
                 if (twin < 1) {
@@ -746,27 +743,21 @@ int main(int argc, char **argv) {
                 }
                 break;
             case 'j':
-                if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
-                    exit(EXIT_FAILURE);
-                }
-                compress = BZ2_COMPRESSED;
+                LogError("Option -j is deprecated. Use -z=bz2");
+                exit(EXIT_FAILURE);
                 break;
             case 'y':
-                if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
-                    exit(EXIT_FAILURE);
-                }
-                compress = LZ4_COMPRESSED;
+                LogError("Option -y is deprecated. Use -z=lz4");
+                exit(EXIT_FAILURE);
                 break;
             case 'z':
                 if (compress) {
-                    LogError("Use one compression: -z for LZO, -j for BZ2 or -y for LZ4 compression");
+                    LogError("Only one compression methode is allowed");
                     exit(EXIT_FAILURE);
                 }
                 if (optarg == NULL) {
                     compress = LZO_COMPRESSED;
-                    LogInfo("Legacy option -z defaults to -z=lzo. Use -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
+                    LogInfo("Deprecated option -z defaults to -z=lzo. Use -z=lzo, -z=lz4, -z=bz2 or z=zstd for valid compression formats");
                 } else {
                     int ret = ParseCompression(optarg);
                     if (ret == -1) {
@@ -865,7 +856,6 @@ int main(int argc, char **argv) {
         } else
 #endif
         {
-
             if (mcastgroup)
                 sock = Multicast_receive_socket(mcastgroup, listenport, family, bufflen);
             else
@@ -920,7 +910,6 @@ int main(int argc, char **argv) {
     }
 
     if (do_daemonize) {
-        verbose = 0;
         daemonize();
     }
 
@@ -962,8 +951,17 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    pthread_t repeater_pid = 0;
-    if (repeater_ctx && (repeater_pid = RepeaterStart(repeater_ctx)) == 0) {
+    pthread_t repeater_tid = 0;
+    if (repeater_ctx && (repeater_tid = RepeaterStart(repeater_ctx)) == 0) {
+        CloseMetric();
+        close(sock);
+        remove_pid(pidfile);
+        exit(EXIT_FAILURE);
+    }
+
+    pthread_t launcher_tid = 0;
+    if (launcher_ctx && (launcher_tid = LauncherStart(launcher_ctx)) == 0) {
+        RepeaterShutdown(repeater_ctx);
         CloseMetric();
         close(sock);
         remove_pid(pidfile);
@@ -996,11 +994,12 @@ int main(int argc, char **argv) {
     }
 
     // shutdown
-    if (repeater_pid) RepeaterShutdown(repeater_ctx);
-    if (launcher_ctx) LauncherShutdown(launcher_ctx);
+    CloseBackend(&collector_ctx, expire);
     CloseMetric();
 
-    CloseBackend(&collector_ctx, expire);
+    if (repeater_tid) RepeaterShutdown(repeater_ctx);
+    if (launcher_tid) LauncherShutdown(launcher_ctx);
+
     CleanupCollector(&collector_ctx);
 
     LogInfo("Terminating nfcapd.");
@@ -1009,4 +1008,4 @@ int main(int argc, char **argv) {
     EndLog();
     return 0;
 
-} /* End of main */
+}  // End of main

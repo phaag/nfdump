@@ -55,8 +55,13 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfstatfile.h"
-#include "privsep.h"
 #include "util.h"
+
+#define LAUNCH_NULL 0
+#define LAUNCH_EXEC 1
+#define LAUNCH_REPEAT 2
+#define LAUNCH_EXIT 0xFFFF
+#define LAUNCH_FLUSH 0xFFFE
 
 typedef struct launcher_msg_s {
     uint16_t type;    // message type
@@ -87,9 +92,9 @@ static char *cmd_expand(const char *cmd, const launcher_msg_t *msg);
 
 static char **cmd_parse(char *cmd);
 
-static void cmd_execute(char **args);
+static int cmd_execute(char **args);
 
-static void launch(const char *command, launcher_msg_t *msg);
+static int launch(const char *command, launcher_msg_t *msg);
 
 static void do_expire(char *datadir) {
     bookkeeper_t *books;
@@ -178,6 +183,8 @@ static char *cmd_expand(const char *cmd, const launcher_msg_t *msg) {
     char timeslot_buf[32];
     snprintf(timeslot_buf, sizeof(timeslot_buf), "%ld", (long)msg->timeslot);
 
+    dbg_printf("%s() args: t_start: %s, ISOtime: %s, filename: %s, datadir: %s, ident: %s", __func__, timeslot_buf, isotime, fname, flowdir, ident);
+
     // Expand placeholders
     size_t out_cap = strlen(cmd) + 128;
     char *out = malloc(out_cap);
@@ -261,6 +268,9 @@ static char *cmd_expand(const char *cmd, const launcher_msg_t *msg) {
 
     out[out_len] = '\0';
 
+    dbg_printf("%s() template: %s\n", __func__, cmd);
+    dbg_printf("%s() expanded: %s\n", __func__, out);
+
     return out;
 
 }  // End of cmd_expand
@@ -308,6 +318,13 @@ static char **cmd_parse(char *cmd) {
 
     argv[argc] = NULL;
 
+#ifdef DEVEL
+    printf("%s() final argv[%zu] vector\n", __func__, argc);
+    for (int i = 0; i < argc; i++) {
+        printf(" [%d] %s\n", i, argv[i]);
+    }
+#endif
+
     // expanded buffer no longer needed
     free(cmd);
 
@@ -315,10 +332,10 @@ static char **cmd_parse(char *cmd) {
 
 }  // End of cmd_parse
 
-static void cmd_execute(char **args) {
+static int cmd_execute(char **args) {
     if (!args || !args[0]) {
         LogError("cmd_execute: no command specified");
-        return;
+        return 0;
     }
 
     posix_spawnattr_t attr;
@@ -336,31 +353,33 @@ static void cmd_execute(char **args) {
 
     if (rc != 0) {
         LogError("posix_spawn(%s) failed: %s", args[0], strerror(rc));
-        return;
+        return 0;
     }
 
     LogVerbose("Launched command '%s' with pid %d", args[0], (int)pid);
+    return 1;
 
 }  // End of cmd_execute
 
-static void launch(const char *command, launcher_msg_t *msg) {
+static int launch(const char *command, launcher_msg_t *msg) {
     char *expanded = cmd_expand(command, msg);
     if (expanded == NULL) {
         LogError("launch process: Cannot expand command");
-        return;
+        return 0;
     }
 
     char **argv = cmd_parse(expanded);
     if (argv == NULL) {
         LogError("launch process: Cannot parse command");
-        return;
+        return 0;
     }
 
-    cmd_execute(argv);
+    int err = cmd_execute(argv);
 
     for (size_t i = 0; argv[i]; i++) free(argv[i]);
     free(argv);
 
+    return err;
 }  // End of launch
 
 int SendLauncherMessage(queue_t *msgQueue, time_t t_start, const char *ISOtime, const char *fname, const char *datadir, const char *ident) {
@@ -372,13 +391,15 @@ int SendLauncherMessage(queue_t *msgQueue, time_t t_start, const char *ISOtime, 
     uint32_t blob_size = lenFilename + lenFlowdir + lenISOtime + lenIdent;
     uint32_t msg_size = sizeof(launcher_msg_t) + blob_size;
 
+    dbg_printf("%s() args: t_start: %ld, ISOtime: %s, filename: %s, datadir: %s, ident: %s\n", __func__, t_start, ISOtime, fname, datadir, ident);
+
     launcher_msg_t *msg = malloc(msg_size);
     if (!msg) {
         LogError("malloc() failed in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return 0;
     }
 
-    msg->type = PRIVMSG_LAUNCH;
+    msg->type = LAUNCH_EXEC;
     msg->length = msg_size;
     msg->timeslot = t_start;
 
@@ -407,19 +428,26 @@ int SendLauncherMessage(queue_t *msgQueue, time_t t_start, const char *ISOtime, 
 }  // End of SendLauncherMessage
 
 static void *child_reaper_thread(void *arg) {
-    (void)arg;
+    launcher_ctx_t *launcher_ctx = (launcher_ctx_t *)arg;
 
-    for (;;) {
+    dbg_printf("Startup %s()\n", __func__);
+    while (!atomic_load(&launcher_ctx->done)) {
         int status;
-        pid_t pid = waitpid(-1, &status, 0);  // block until ANY child exits
+        pid_t pid = waitpid(-1, &status, 0);
 
         if (pid < 0) {
-            if (errno == EINTR) continue;  // interrupted by signal, retry
-            if (errno == ECHILD) break;    // no more children
+            if (errno == EINTR) continue;
+            if (errno == ECHILD) {
+                // No children right now — sleep briefly
+                usleep(200000);
+                continue;
+            }
+
             LogError("waitpid failed: %s", strerror(errno));
             continue;
         }
 
+        dbg_printf("%s() waitpid: %d\n", __func__, pid);
         if (WIFEXITED(status)) {
             int code = WEXITSTATUS(status);
             if (code != 0)
@@ -430,6 +458,16 @@ static void *child_reaper_thread(void *arg) {
             LogError("Launcher child %d terminated by signal %d", pid, WTERMSIG(status));
         }
     }
+
+    // Final cleanup: reap any remaining children
+    for (;;) {
+        int status;
+        pid_t pid = waitpid(-1, &status, WNOHANG);
+        if (pid <= 0) break;
+        // log exit
+    }
+
+    dbg_printf("Exit %s()\n", __func__);
 
     return NULL;
 }  // End of child_reaper_thread
@@ -446,11 +484,11 @@ static void *launcher_thread_main(void *arg) {
             break;
         }
 
-        if (msg->type == PRIVMSG_LAUNCH) {
+        if (msg->type == LAUNCH_EXEC) {
             LogVerbose("Launcher: process next message");
-            launch(launcher_ctx->cmd_template, msg);
+            int err = launch(launcher_ctx->cmd_template, msg);
         } else {
-            LogError("Skip unknow msg: %u", msg->type);
+            LogError("Skip unknown msg: %u", msg->type);
         }
 
         free(msg);
@@ -485,12 +523,12 @@ pthread_t LauncherStart(launcher_ctx_t *launcher_ctx) {
         LogError("pthread_create(repeater) failed: %s", strerror(err));
         return 0;
     }
-    launcher_ctx->tid = tid;
+    launcher_ctx->ltid = tid;
 
-    pthread_create(&tid, NULL, child_reaper_thread, NULL);
-    pthread_detach(tid);
+    pthread_create(&tid, NULL, child_reaper_thread, (void *)launcher_ctx);
+    launcher_ctx->rtid = tid;
 
-    return tid;
+    return launcher_ctx->ltid;
 
 }  // End of LauncherStart
 
@@ -500,8 +538,13 @@ void LauncherShutdown(launcher_ctx_t *launcher_ctx) {
     dbg_printf("%s() Start\n", __func__);
     atomic_store(&launcher_ctx->done, 1);
     queue_close(launcher_ctx->msgQueue);
-    if (launcher_ctx->tid) {
-        pthread_join(launcher_ctx->tid, NULL);
+    // wait for launcher thread
+    if (launcher_ctx->ltid) {
+        pthread_join(launcher_ctx->ltid, NULL);
+    }
+    // wait for reaper thread
+    if (launcher_ctx->rtid) {
+        pthread_join(launcher_ctx->rtid, NULL);
     }
     queue_free(launcher_ctx->msgQueue);
     free(launcher_ctx->cmd_template);

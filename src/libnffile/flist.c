@@ -1080,7 +1080,7 @@ static char *GuessSubDir(char *channeldir, char *filename) {
 
 // make sure, that path with subdir exists for timeslot now and stores it into path
 int SetupPath(struct tm *now, const char *dataDir, unsigned subDir, char *path) {
-    char subDirPath[255];
+    char subDirPath[32];
     subDirPath[0] = '\0';
 
     if (subDir == 0) {
@@ -1089,7 +1089,7 @@ int SetupPath(struct tm *now, const char *dataDir, unsigned subDir, char *path) 
     }
 
     const char *subdir_format = subdir_def[subDir];
-    strftime(subDirPath, 254, subdir_format, now);
+    strftime(subDirPath, sizeof(subDirPath) - 1, subdir_format, now);
     int ret = snprintf(path, MAXPATHLEN - 1, "%s/%s", dataDir, subDirPath);
 
     // Iterate over path components, starting after dataDir
