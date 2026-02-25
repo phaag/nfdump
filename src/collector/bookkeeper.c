@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2009-2026, Peter Haag
- *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
+ *  Copyright (c) 2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -29,6 +28,8 @@
  *
  */
 
+#include "bookkeeper.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -36,554 +37,265 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ipc.h>
+#include <sys/mman.h>
 #include <sys/param.h>
-#include <sys/sem.h>
-#include <sys/shm.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
-#include "config.h"
-
-#ifndef HAVE_SEMUN
-union semun {
-    int val;               // value for SETVAL
-    struct semid_ds *buf;  // buffer for IPC_STAT & IPC_SET
-    u_short *array;        // array for GETALL & SETALL
-};
-#endif
-
-#include "bookkeeper.h"
 #include "util.h"
 
-static bookkeeper_list_t *bookkeeper_list = NULL;
-
-/* function prototypes */
-
-static key_t hash(char *str, int flag);
-
-static void sem_lock(int sem_set_id);
-
-static void sem_unlock(int sem_set_id);
-
-static inline bookkeeper_list_t *Get_bookkeeper_list_entry(bookkeeper_t *bookkeeper);
-
-/* Create shared memory object and set its size */
-
-/* hash: compute hash value of string */
-#define MULTIPLIER 37
-static key_t hash(char *str, int flag) {
-    uint32_t h;
-    unsigned char *p;
-    char cleanPath[MAXPATHLEN];
-
-    if (realpath(str, cleanPath) == NULL) {
-        return -1;
-    }
-
-    h = 0;
-    for (p = (unsigned char *)cleanPath; *p != '\0'; p++) h = MULTIPLIER * h + *p;
-
-    if (flag) {
-        h = MULTIPLIER * h + 'R';
-    }
-    // LogError("Bookeeper hash for path: '%s' -> '%s': %u flag: %i", str, cleanPath, h, flag);
-    return (key_t)h;  // or, h % ARRAY_SIZE;
-
-}  // End of hash
-
-// locks the semaphore, for exclusive access to the bookkeeping record
-static void sem_lock(int sem_set_id) {
-    struct sembuf sem_op;
-
-    /* wait on the semaphore, unless it's value is non-negative. */
-    sem_op.sem_num = 0;
-    sem_op.sem_op = -1;
-    sem_op.sem_flg = 0;
-    if (semop(sem_set_id, &sem_op, 1) == 0) return;
-
-    LogError("semop() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-
-}  // End of sem_lock
-
-// sem_unlock. un-locks the semaphore.
-static void sem_unlock(int sem_set_id) {
-    struct sembuf sem_op;
-
-    /* signal the semaphore - increase its value by one. */
-    sem_op.sem_num = 0;
-    sem_op.sem_op = 1;
-    sem_op.sem_flg = 0;
-    if (semop(sem_set_id, &sem_op, 1) == 0) return;
-
-    LogError("semop() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-
-}  // End of sem_unlock
-
-static inline bookkeeper_list_t *Get_bookkeeper_list_entry(bookkeeper_t *bookkeeper) {
-    bookkeeper_list_t *bookkeeper_list_entry;
-
-    if (bookkeeper == NULL) return NULL;
-
-    bookkeeper_list_entry = bookkeeper_list;
-    while (bookkeeper_list_entry != NULL && bookkeeper_list_entry->bookkeeper != bookkeeper) bookkeeper_list_entry = bookkeeper_list_entry->next;
-
-    return bookkeeper_list_entry;
-
-}  // End of Get_bookkeeper_list_entry
-
-int InitBookkeeper(bookkeeper_t **bookkeeper, char *path, pid_t nfcapd_pid) {
-    int sem_key, shm_key, shm_id, sem_id;
-    union semun sem_val;
-    bookkeeper_list_t **bookkeeper_list_entry;
-
-    *bookkeeper = NULL;
-
-    shm_key = hash(path, 0);
-    if (shm_key == -1) return ERR_PATHACCESS;
-
-    // check if the shared memory is already allocated
-    shm_id = shmget(shm_key, sizeof(bookkeeper_t), 0600);
-
-    if (shm_id >= 0) {
-        // the segment already exists. Either a running process is active
-        // or an unclean shutdown happened
-
-        // map the segment and check the record
-        *bookkeeper = (bookkeeper_t *)shmat(shm_id, NULL, 0);
-        if (*bookkeeper == (bookkeeper_t *)-1) {
-            LogError("shmat() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return ERR_FAILED;
+static int book_lock(int fd) {
+    struct flock fl = {.l_type = F_WRLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 0};
+    while (fcntl(fd, F_SETLKW, &fl) == -1) {
+        if (errno != EINTR) {
+            LogError("fcntl() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return -1;
         }
-        if ((*bookkeeper)->nfcapd_pid <= 0) {
-            // rubbish or invalid pid of nfcapd process.
-            // Assume unclean shutdown or something else. We clean up and take this record.
-            memset((void *)(*bookkeeper), 0, sizeof(bookkeeper_t));
-        } else {
-            // check if the process created this record is still alive
-            int ret = kill((*bookkeeper)->nfcapd_pid, 0);
-            if (ret == -1) {
-                switch (errno) {
-                    case ESRCH:
-                        // process does not exist, we can clean up this record and use it
-                        memset((void *)(*bookkeeper), 0, sizeof(bookkeeper_t));
-                        break;
-                    case EPERM:
-                        // A process exists, but we are not allowed to signal this process
-                        LogError("Another collector with pid %i but different user ID is already running, and configured for '%s'",
-                                 (*bookkeeper)->nfcapd_pid, path);
-                        *bookkeeper = NULL;
-                        return ERR_EXISTS;
-                        break;
-                    default:
-                        // This should never happen, but catch it anyway
-                        LogError("semop() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-                        *bookkeeper = NULL;
-                        return ERR_FAILED;
-                }
-            } else {
-                // process exists;
-                LogError("Another collector with pid %i is already running, and configured for '%s'", (*bookkeeper)->nfcapd_pid, path);
-                *bookkeeper = NULL;
-                return ERR_EXISTS;
-            }
-            // if we pass this point, we have recycled an existing record
-        }
-    } else {
-        // no valid shared segment was found
-        switch (errno) {
-            case ENOENT:
-                // this is ok - no shared segemtn exists, we can create a new one below
-                break;
-            case EACCES:
-                // there is such a segment, but we are not allowed to get it
-                // Assume it's another nfcapd
-                LogError("Access denied to collector bookkeeping record.");
-                return ERR_EXISTS;
-                break;
-            default:
-                // This should never happen, but catch it anyway
-                LogError("semop() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-                return ERR_FAILED;
-        }
-        // we now create a new segment, this should not fail now
-        shm_id = shmget(shm_key, sizeof(bookkeeper_t), IPC_CREAT | 0600);
-        if (shm_id == -1) {
-            // but did anyway - give up
-            LogError("shmget() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return ERR_FAILED;
-        }
-        *bookkeeper = (bookkeeper_t *)shmat(shm_id, NULL, 0);
-        if ((*bookkeeper) == (bookkeeper_t *)-1) {
-            LogError("shmget() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return ERR_FAILED;
-        }
-        memset((void *)(*bookkeeper), 0, sizeof(bookkeeper_t));
     }
-    // at this point we now have a valid record and can proceed
-    (*bookkeeper)->nfcapd_pid = nfcapd_pid;
-    (*bookkeeper)->sequence++;
+    return 0;
+}  // End of book_lock
 
-    // create semaphore
+static int book_unlock(int fd) {
+    struct flock fl = {.l_type = F_UNLCK, .l_whence = SEEK_SET, .l_start = 0, .l_len = 0};
+    return fcntl(fd, F_SETLK, &fl);
+}  // End of book_unlock
 
-    sem_key = hash(path, 1);
-    // this should never fail, as we already got a key for the shared memory
-    if (sem_key == -1) {
-        // .. but catch it anyway .. and release shared memory. something is fishy
-        struct shmid_ds buf;
-        shmdt((void *)(*bookkeeper));
-        shmctl(shm_id, IPC_RMID, &buf);
-        return ERR_FAILED;
-    }
+// open the book from th collector
+book_handle_t *book_open(const char *flowdir, pid_t pid) {
+    char path[PATH_MAX];
 
-    // get the semaphore
-    sem_id = semget(sem_key, 1, IPC_CREAT | 0600);
-    if (sem_id == -1) {
-        struct shmid_ds buf;
+    snprintf(path, sizeof(path), "%s/.nfcapd.book", flowdir);
 
-        // this should not have failed
-        LogError("semget() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-
-        // release shared memory
-        shmdt((void *)(*bookkeeper));
-        shmctl(shm_id, IPC_RMID, &buf);
-        return ERR_FAILED;
-    }
-
-    // initialize the semaphore
-    sem_val.val = 1;
-    if (semctl(sem_id, 0, SETVAL, sem_val) == -1) {
-        struct shmid_ds buf;
-
-        // this should not have failed
-        LogError("semctl() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-
-        // release shared memory
-        shmdt((void *)(*bookkeeper));
-        shmctl(shm_id, IPC_RMID, &buf);
-        return ERR_FAILED;
-    }
-
-    bookkeeper_list_entry = &bookkeeper_list;
-    while (*bookkeeper_list_entry != NULL) bookkeeper_list_entry = &((*bookkeeper_list_entry)->next);
-
-    (*bookkeeper_list_entry) = (bookkeeper_list_t *)malloc(sizeof(bookkeeper_list_t));
-    if (!*bookkeeper_list_entry) {
-        struct shmid_ds buf;
-
+    book_handle_t *book_handle = calloc(1, sizeof(book_handle_t));
+    if (!book_handle) {
         LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        shmdt((void *)(*bookkeeper));
-        shmctl(shm_id, IPC_RMID, &buf);
-        semctl(sem_id, 0, IPC_RMID);
-        return ERR_FAILED;
+        return BOOK_FAILED;
     }
-    memset((void *)*bookkeeper_list_entry, 0, sizeof(bookkeeper_list_t));
 
-    (*bookkeeper_list_entry)->shm_id = shm_id;
-    (*bookkeeper_list_entry)->sem_id = sem_id;
-    (*bookkeeper_list_entry)->bookkeeper = *bookkeeper;
-    (*bookkeeper_list_entry)->next = NULL;
+    book_handle->fd = open(path, O_RDWR | O_CREAT, 0644);
+    if (book_handle->fd < 0) {
+        free(book_handle);
+        LogError("open() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return BOOK_FAILED;
+    }
 
-    // we are done
-    return BOOKKEEPER_OK;
+    if (book_lock(book_handle->fd) < 0) {
+        close(book_handle->fd);
+        free(book_handle);
+        return BOOK_FAILED;
+    }
 
-}  // End of InitBookkeeper
-
-int AccessBookkeeper(bookkeeper_t **bookkeeper, char *path) {
-    bookkeeper_list_t **bookkeeper_list_entry;
-    int sem_key, shm_key, shm_id, sem_id;
-
-    *bookkeeper = NULL;
-
-    shm_key = hash(path, 0);
-    if (shm_key == -1) return ERR_PATHACCESS;
-
-    // check if the shared memory is already allocated
-    shm_id = shmget(shm_key, sizeof(bookkeeper_t), 0600);
-
-    if (shm_id < 0) {
-        // the segment does not exists. Check why
-
-        switch (errno) {
-            case ENOENT:
-                // no shared segemtn exists.
-                return ERR_NOTEXISTS;
-                break;
-            case EACCES:
-                // there is such a segment, but we are not allowed to get it
-                // Assume it's another nfcapd
-                LogError("Access denied to collector bookkeeping record.");
-                return ERR_FAILED;
-                break;
-            default:
-                // This should never happen, but catch it anyway
-                LogError("semop() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-                return ERR_FAILED;
+    struct stat st;
+    fstat(book_handle->fd, &st);
+    if (st.st_size != sizeof(bookkeeper_t)) {
+        // new file or corrupt file
+        if (ftruncate(book_handle->fd, sizeof(bookkeeper_t)) < 0) {
+            book_unlock(book_handle->fd);
+            close(book_handle->fd);
+            free(book_handle);
+            LogError("ftruncate() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return BOOK_FAILED;
         }
-        // not reached
-    }
-    // at this point we now have a valid record and can proceed
-
-    // create semaphore
-    sem_key = hash(path, 1);
-    // this should never fail, as we already got a key for the shared memory
-    if (sem_key == -1) {
-        // .. but catch it anyway .. and release shared memory. something is fishy
-        return ERR_FAILED;
     }
 
-    // get the semaphore
-    sem_id = semget(sem_key, 1, 0600);
-    if (sem_id == -1) {
-        // this should not have failed
-        LogError("semget() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    book_handle->bookkeeper = mmap(NULL, sizeof(bookkeeper_t), PROT_READ | PROT_WRITE, MAP_SHARED, book_handle->fd, 0);
 
-        return ERR_FAILED;
+    if (book_handle->bookkeeper == MAP_FAILED) {
+        book_unlock(book_handle->fd);
+        close(book_handle->fd);
+        free(book_handle);
+        LogError("mmap() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return BOOK_FAILED;
     }
 
-    // map the shared segment
-    *bookkeeper = (bookkeeper_t *)shmat(shm_id, NULL, 0);
-    if (*bookkeeper == (bookkeeper_t *)-1) {
-        LogError("shmat() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-        return ERR_FAILED;
+    if (book_handle->bookkeeper->magic != BOOK_MAGIC) {
+        memset(book_handle->bookkeeper, 0, sizeof(bookkeeper_t));
+        book_handle->bookkeeper->magic = BOOK_MAGIC;
+        book_handle->bookkeeper->version = BOOK_VERSION;
     }
 
-    bookkeeper_list_entry = &bookkeeper_list;
-    while (*bookkeeper_list_entry != NULL && (*bookkeeper_list_entry)->bookkeeper != NULL) bookkeeper_list_entry = &((*bookkeeper_list_entry)->next);
+    if (book_handle->bookkeeper->version != BOOK_VERSION) {
+        LogError("Found unknown version for bookkeeper: %u", book_handle->bookkeeper->version);
+        munmap(book_handle->bookkeeper, sizeof(bookkeeper_t));
+        book_unlock(book_handle->fd);
+        close(book_handle->fd);
+        free(book_handle);
+        return BOOK_FAILED;
+    }
 
-    // allocate new slot, else use unused slot
-    if (*bookkeeper_list_entry == NULL) {
-        (*bookkeeper_list_entry) = (bookkeeper_list_t *)malloc(sizeof(bookkeeper_list_t));
-        if (!*bookkeeper_list_entry) {
-            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return ERR_FAILED;
+    // enforce single collector
+    if (book_handle->bookkeeper->nfcapd_pid > 0) {
+        if (kill(book_handle->bookkeeper->nfcapd_pid, 0) == 0 || errno == EPERM) {
+            LogError("Another collector with pid %i is already running, and configured for '%s'", book_handle->bookkeeper->nfcapd_pid, flowdir);
+            book_unlock(book_handle->fd);
+            munmap(book_handle->bookkeeper, sizeof(bookkeeper_t));
+            close(book_handle->fd);
+            free(book_handle);
+            return BOOK_EXISTS;
         }
-        memset((void *)*bookkeeper_list_entry, 0, sizeof(bookkeeper_list_t));
     }
 
-    (*bookkeeper_list_entry)->shm_id = shm_id;
-    (*bookkeeper_list_entry)->sem_id = sem_id;
-    (*bookkeeper_list_entry)->bookkeeper = *bookkeeper;
-    (*bookkeeper_list_entry)->next = NULL;
+    book_handle->bookkeeper->nfcapd_pid = pid;
+    book_handle->bookkeeper->sequence++;
 
-    return BOOKKEEPER_OK;
+    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_SYNC);
+    book_unlock(book_handle->fd);
 
-}  // End of AccessBookkeeper
+    return book_handle;
+}  // End of book_open
 
-void ReleaseBookkeeper(bookkeeper_t *bookkeeper, int destroy) {
-    bookkeeper_list_t *bookkeeper_list_entry;
-    struct shmid_ds buf;
+void book_close(book_handle_t *book_handle) {
+    if (!book_handle) return;
 
-    if (!bookkeeper) return;
+    if (book_handle->bookkeeper) munmap(book_handle->bookkeeper, sizeof(bookkeeper_t));
+    if (book_handle->fd >= 0) close(book_handle->fd);
+    free(book_handle);
+}  // End of book_close
 
-    bookkeeper_list_entry = Get_bookkeeper_list_entry(bookkeeper);
-    if (!bookkeeper_list_entry) {
-        // this should never happen
-        LogError("Software error in %s line %d: %s", __FILE__, __LINE__, "Entry not found in list");
-        return;
+// access the book from nfexpire
+book_handle_t *book_attach(const char *flowdir) {
+    char path[PATH_MAX];
+
+    snprintf(path, sizeof(path), "%s/.nfcapd.book", flowdir);
+
+    book_handle_t *book_handle = calloc(1, sizeof(book_handle_t));
+    if (!book_handle) {
+        LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return BOOK_FAILED;
     }
 
-    // detach from my process addr space memory
-    if (shmdt((void *)bookkeeper) == -1) {
-        // ups ..
-        LogError("shmdt() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-    }
-    bookkeeper = NULL;
-
-    if (destroy == 0) {
-        // Entry no longer valid
-        bookkeeper_list_entry->bookkeeper = NULL;
-        bookkeeper_list_entry->shm_id = 0;
-        bookkeeper_list_entry->sem_id = 0;
-        return;
+    book_handle->fd = open(path, O_RDWR);
+    if (book_handle->fd < 0) {
+        if (errno != ENOENT) LogError("open() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        free(book_handle);
+        return BOOK_NOT_EXISTS;
     }
 
-    // prevent other processes to access the share memory, while we are removing it
-    // try to clean up.
-    sem_lock(bookkeeper_list_entry->sem_id);
-    if (shmctl(bookkeeper_list_entry->shm_id, IPC_RMID, &buf)) {
-        // ups ..
-        LogError("shmctl() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-    }
-    sem_unlock(bookkeeper_list_entry->sem_id);
-
-    if (semctl(bookkeeper_list_entry->sem_id, 0, IPC_RMID) == -1) {
-        // ups ..
-        LogError("semctl() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    struct stat st;
+    if (fstat(book_handle->fd, &st) < 0 || st.st_size != sizeof(bookkeeper_t)) {
+        LogError("File size error of nfbook file");
+        close(book_handle->fd);
+        free(book_handle);
+        return BOOK_FAILED;
     }
 
-    // Entry no longer valid
-    bookkeeper_list_entry->bookkeeper = NULL;
-    bookkeeper_list_entry->shm_id = 0;
-    bookkeeper_list_entry->sem_id = 0;
+    book_handle->bookkeeper = mmap(NULL, sizeof(bookkeeper_t), PROT_READ | PROT_WRITE, MAP_SHARED, book_handle->fd, 0);
 
-}  // End of ReleaseBookkeeper
-
-int LookBooks(bookkeeper_t *bookkeeper) {
-    bookkeeper_list_t *bookkeeper_list_entry;
-
-    if (!bookkeeper) return 0;
-
-    bookkeeper_list_entry = Get_bookkeeper_list_entry(bookkeeper);
-    if (!bookkeeper_list_entry) {
-        // this should never happen
-        LogError("Software error in %s line %d: %s", __FILE__, __LINE__, "Entry not found in list");
-        return 1;
+    if (book_handle->bookkeeper == MAP_FAILED) {
+        close(book_handle->fd);
+        free(book_handle);
+        LogError("mmap() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        return BOOK_FAILED;
     }
 
-    sem_lock(bookkeeper_list_entry->sem_id);
-
-    return 0;
-
-}  // End of LookBooks
-
-int UnlookBooks(bookkeeper_t *bookkeeper) {
-    bookkeeper_list_t *bookkeeper_list_entry;
-
-    if (!bookkeeper) return 0;
-
-    bookkeeper_list_entry = Get_bookkeeper_list_entry(bookkeeper);
-    if (!bookkeeper_list_entry) {
-        // this should never happen
-        LogError("Software error in %s line %d: %s", __FILE__, __LINE__, "Entry not found in list");
-        return 1;
+    if (book_handle->bookkeeper->magic != BOOK_MAGIC) {
+        LogError("File %s is not a valid nfbook file", path);
+        munmap(book_handle->bookkeeper, sizeof(bookkeeper_t));
+        close(book_handle->fd);
+        free(book_handle);
+        return BOOK_FAILED;
     }
 
-    sem_unlock(bookkeeper_list_entry->sem_id);
-
-    return 0;
-
-}  // End of UnlookBooks
-
-void ClearBooks(bookkeeper_t *bookkeeper, bookkeeper_t *tmp_books) {
-    bookkeeper_list_t *bookkeeper_list_entry;
-
-    if (!bookkeeper) return;
-
-    bookkeeper_list_entry = Get_bookkeeper_list_entry(bookkeeper);
-    if (!bookkeeper_list_entry) {
-        // this should never happen
-        LogError("Software error in %s line %d: %s", __FILE__, __LINE__, "Entry not found in list");
-        return;
+    if (book_handle->bookkeeper->version != BOOK_VERSION) {
+        LogError("Found unknown version for bookkeeper: %u", book_handle->bookkeeper->version);
+        munmap(book_handle->bookkeeper, sizeof(bookkeeper_t));
+        close(book_handle->fd);
+        free(book_handle);
+        return BOOK_FAILED;
     }
 
-    sem_lock(bookkeeper_list_entry->sem_id);
-    // backup copy
-    if (tmp_books != NULL) {
-        memcpy((void *)tmp_books, (void *)bookkeeper, sizeof(bookkeeper_t));
-    }
-    bookkeeper->first = 0;
-    bookkeeper->last = 0;
-    bookkeeper->numfiles = 0;
-    bookkeeper->filesize = 0;
-    bookkeeper->sequence++;
-    sem_unlock(bookkeeper_list_entry->sem_id);
+    return book_handle;
+}  // End of book_attach
 
-}  // End of ClearBooks
+// collector rotate cycle
+void book_update(book_handle_t *book_handle, time_t when, uint64_t size) {
+    book_lock(book_handle->fd);
 
-uint64_t BookSequence(bookkeeper_t *bookkeeper) {
-    bookkeeper_list_t *bookkeeper_list_entry;
+    if (book_handle->bookkeeper->first == 0) book_handle->bookkeeper->first = when;
+
+    book_handle->bookkeeper->last = when;
+    book_handle->bookkeeper->numfiles++;
+    book_handle->bookkeeper->filesize += size;
+    book_handle->bookkeeper->sequence++;
+
+    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_ASYNC);
+
+    book_unlock(book_handle->fd);
+}  // End of book_update
+
+// nfexpire set parameters
+void book_set_limits(book_handle_t *book_handle, time_t lifetime, uint64_t maxsize) {
+    book_lock(book_handle->fd);
+
+    book_handle->bookkeeper->max_lifetime = lifetime;
+    book_handle->bookkeeper->max_filesize = maxsize;
+    book_handle->bookkeeper->sequence++;
+
+    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_ASYNC);
+
+    book_unlock(book_handle->fd);
+}  // End of book_set_limits
+
+// clear books and return current book, if provided
+void book_clear(book_handle_t *book_handle, bookkeeper_t *bookkeeper) {
+    book_lock(book_handle->fd);
+
+    if (bookkeeper) memcpy(bookkeeper, book_handle->bookkeeper, sizeof(bookkeeper_t));
+    book_handle->bookkeeper->first = 0;
+    book_handle->bookkeeper->last = 0;
+    book_handle->bookkeeper->numfiles = 0;
+    book_handle->bookkeeper->filesize = 0;
+    book_handle->bookkeeper->sequence++;
+
+    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_SYNC);
+
+    book_unlock(book_handle->fd);
+}  // End of book_clear
+
+// for sequence check
+uint64_t book_sequence(book_handle_t *book_handle) {
     uint64_t seq;
 
-    if (!bookkeeper) return 0;
-
-    bookkeeper_list_entry = Get_bookkeeper_list_entry(bookkeeper);
-    if (!bookkeeper_list_entry) {
-        // this should never happen
-        LogError("Software error in %s line %d: %s", __FILE__, __LINE__, "Entry not found in list");
-        return 0;
-    }
-
-    sem_lock(bookkeeper_list_entry->sem_id);
-    seq = bookkeeper->sequence;
-    sem_unlock(bookkeeper_list_entry->sem_id);
+    book_lock(book_handle->fd);
+    seq = book_handle->bookkeeper->sequence;
+    book_unlock(book_handle->fd);
 
     return seq;
+}  // End of book_sequence
 
-}  // End of BookSequence
-
-void UpdateBooks(bookkeeper_t *bookkeeper, time_t when, uint64_t size) {
-    bookkeeper_list_t *bookkeeper_list_entry;
-
-    if (!bookkeeper) return;
-
-    bookkeeper_list_entry = Get_bookkeeper_list_entry(bookkeeper);
-    if (!bookkeeper_list_entry) {
-        // this should never happen
-        LogError("Software error in %s line %d: %s", __FILE__, __LINE__, "Entry not found in list");
+void book_print(book_handle_t *book_handle) {
+    if (!book_handle) {
+        LogError("No bookkeeper record available");
         return;
     }
 
-    sem_lock(bookkeeper_list_entry->sem_id);
-    if (bookkeeper->first == 0) bookkeeper->first = when;
+    bookkeeper_t bookkeeper = {0};
+    book_lock(book_handle->fd);
+    memcpy(&bookkeeper, book_handle->bookkeeper, sizeof(bookkeeper_t));
+    book_unlock(book_handle->fd);
 
-    bookkeeper->last = when;
-    bookkeeper->numfiles++;
-    bookkeeper->filesize += size;
-    bookkeeper->sequence++;
-    sem_unlock(bookkeeper_list_entry->sem_id);
+    printf("Collector process: %lu\n", (unsigned long)bookkeeper.nfcapd_pid);
+    printf("Record sequence  : %llu\n", (unsigned long long)bookkeeper.sequence);
 
-}  // End of UpdateBooks
-
-void UpdateBooksParam(bookkeeper_t *bookkeeper, time_t lifetime, uint64_t maxsize) {
-    bookkeeper_list_t *bookkeeper_list_entry;
-
-    if (!bookkeeper) return;
-
-    bookkeeper_list_entry = Get_bookkeeper_list_entry(bookkeeper);
-    if (!bookkeeper_list_entry) {
-        // this should never happen
-        LogError("Software error in %s line %d: %s", __FILE__, __LINE__, "Entry not found in list");
-        return;
-    }
-
-    sem_lock(bookkeeper_list_entry->sem_id);
-    bookkeeper->max_lifetime = lifetime;
-    bookkeeper->max_filesize = maxsize;
-    bookkeeper->sequence++;
-    sem_unlock(bookkeeper_list_entry->sem_id);
-
-}  // End of UpdateBooksParam
-
-void PrintBooks(bookkeeper_t *bookkeeper) {
-    bookkeeper_list_t *bookkeeper_list_entry;
-    struct tm *ts;
-    time_t t;
     char string[32];
-
-    if (!bookkeeper) {
-        printf("No bookkeeper record available!\n");
-        return;
-    }
-
-    bookkeeper_list_entry = Get_bookkeeper_list_entry(bookkeeper);
-    if (!bookkeeper_list_entry) {
-        // this should never happen
-        LogError("Software error in %s line %d: %s", __FILE__, __LINE__, "Entry not found in list");
-        return;
-    }
-
-    sem_lock(bookkeeper_list_entry->sem_id);
-    printf("Collector process: %lu\n", (unsigned long)bookkeeper->nfcapd_pid);
-    printf("Record sequence  : %llu\n", (unsigned long long)bookkeeper->sequence);
-
-    t = bookkeeper->first;
-    ts = localtime(&t);
+    struct tm local_ts;
+    struct tm *ts;
+    time_t t = bookkeeper.first;
+    ts = localtime_r(&t, &local_ts);
     strftime(string, 31, "%Y-%m-%d %H:%M:%S", ts);
     string[31] = '\0';
-    printf("First           : %s\n", bookkeeper->first ? string : "<not set>");
+    printf("First           : %s\n", bookkeeper.first ? string : "<not set>");
 
-    t = bookkeeper->last;
-    ts = localtime(&t);
+    t = bookkeeper.last;
+    ts = localtime_r(&t, &local_ts);
     strftime(string, 31, "%Y-%m-%d %H:%M:%S", ts);
     string[31] = '\0';
-    printf("Last            : %s\n", bookkeeper->last ? string : "<not set>");
-    printf("Number of files : %llu\n", (unsigned long long)bookkeeper->numfiles);
-    printf("Total file size : %llu\n", (unsigned long long)bookkeeper->filesize);
-    printf("Max file size   : %llu\n", (unsigned long long)bookkeeper->max_filesize);
-    printf("Max life time   : %llu\n", (unsigned long long)bookkeeper->max_lifetime);
-    sem_unlock(bookkeeper_list_entry->sem_id);
+    printf("Last            : %s\n", bookkeeper.last ? string : "<not set>");
+    printf("Number of files : %llu\n", (unsigned long long)bookkeeper.numfiles);
+    printf("Total file size : %llu\n", (unsigned long long)bookkeeper.filesize);
+    printf("Max file size   : %llu\n", (unsigned long long)bookkeeper.max_filesize);
+    printf("Max life time   : %llu\n", (unsigned long long)bookkeeper.max_lifetime);
 
-}  // End of PrintBooks
+}  // End of book_print

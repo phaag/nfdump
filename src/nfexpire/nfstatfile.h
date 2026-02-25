@@ -34,12 +34,8 @@
 #ifndef _NFSTATFILE_H
 #define _NFSTATFILE_H 1
 
-#include <sys/types.h>
-
-#include "config.h"
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
+#include <sys/types.h>
 
 typedef struct dirstat_s {
     uint64_t first;  // for more easy parsing and assigning, take a uint64_t also for the time_t type

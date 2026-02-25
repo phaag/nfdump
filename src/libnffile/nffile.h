@@ -238,11 +238,11 @@ typedef struct message_rotate_s {
 typedef struct nffile_backend_ctx_s {
     char Ident[IDENTLEN];  // source identifier
 
-    bookkeeper_t *bookkeeper;  // legacy nfsen bookkeeper - may get removed in future
-    char *datadir;             // base dir to store flow files
-    char *tmpFileName;         // name of tmp collection file
-    uint32_t subdir;           // index of sub dir layout - see nffile.h
-    nffile_t *nffile;          // nffile handle
+    book_handle_t *book_handle;  // book_handle for statistics of all files
+    char *datadir;               // base dir to store flow files
+    char *tmpFileName;           // name of tmp collection file
+    uint32_t subdir;             // index of sub dir layout - see nffile.h
+    nffile_t *nffile;            // nffile handle
 
     // const args
     char *time_extension;  // parameter passing

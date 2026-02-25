@@ -37,61 +37,54 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "config.h"
+#define BOOK_MAGIC 0x4E46424B /* "NFBK" */
+#define BOOK_VERSION 1
 
-enum { BOOKKEEPER_OK = 0, ERR_FAILED, ERR_NOTEXISTS, ERR_PATHACCESS, ERR_EXISTS };
+#define STAT_BLOCK_SIZE 512ULL
 
-#define DETACH_ONLY 0
-#define DESTROY_BOOKKEEPER 1
+typedef struct {
+    uint32_t magic;
+    uint32_t version;
 
-typedef struct bookkeeper_s {
-    // collector infos
     pid_t nfcapd_pid;
-
-    // track info
     uint64_t sequence;
 
-    // file infos
     time_t first;
     time_t last;
+
     uint64_t numfiles;
     uint64_t filesize;
+
     uint64_t max_filesize;
     uint64_t max_lifetime;
 
 } bookkeeper_t;
 
-// All bookkeepers are put into a linked list, to have all the shm_id,sem_id
-typedef struct bookkeeper_list_s {
-    struct bookkeeper_list_s *next;
+_Static_assert(sizeof(bookkeeper_t) % 8 == 0, "Unexpected struct layout");
 
+#define BOOK_FAILED ((book_handle_t *)-1)
+#define BOOK_EXISTS ((book_handle_t *)-2)
+#define BOOK_NOT_EXISTS ((book_handle_t *)-3)
+
+typedef struct {
+    int fd;
     bookkeeper_t *bookkeeper;
+} book_handle_t;
 
-    // shared parameters
-    int sem_id;
-    int shm_id;
+book_handle_t *book_open(const char *flowdir, pid_t pid);
 
-} bookkeeper_list_t;
+void book_close(book_handle_t *book_handle);
 
-/* function prototypes */
-int InitBookkeeper(bookkeeper_t **bookkeeper, char *path, pid_t nfcapd_pid);
+book_handle_t *book_attach(const char *flowdir);
 
-int AccessBookkeeper(bookkeeper_t **bookkeeper, char *path);
+void book_update(book_handle_t *book_handle, time_t when, uint64_t size);
 
-void ReleaseBookkeeper(bookkeeper_t *bookkeeper, int destroy);
+void book_set_limits(book_handle_t *book_handle, time_t lifetime, uint64_t maxsize);
 
-void ClearBooks(bookkeeper_t *bookkeeper, bookkeeper_t *tmp_books);
+void book_clear(book_handle_t *book_handle, bookkeeper_t *bookkeeper);
 
-int LookBooks(bookkeeper_t *bookkeeper);
+uint64_t book_sequence(book_handle_t *book_handle);
 
-int UnlookBooks(bookkeeper_t *bookkeeper);
-
-uint64_t BookSequence(bookkeeper_t *bookkeeper);
-
-void UpdateBooks(bookkeeper_t *bookkeeper, time_t when, uint64_t size);
-
-void UpdateBooksParam(bookkeeper_t *bookkeeper, time_t lifetime, uint64_t maxsize);
-
-void PrintBooks(bookkeeper_t *bookkeeper);
+void book_print(book_handle_t *book_handle);
 
 #endif  //_BOOKKEEPER_H

@@ -41,11 +41,9 @@
 
 #include "bookkeeper.h"
 #include "collector.h"
-#include "expire.h"
 #include "flowsource.h"
 #include "launch.h"
 #include "nffile.h"
-#include "nfstatfile.h"
 #include "util.h"
 
 static noreturn void *nffile_backend_thread(void *arg);
@@ -54,8 +52,9 @@ static noreturn void *nffile_backend_thread(void *arg);
 // return err status - 1 on error, 0 otherwise
 int Init_nffile_backend(FlowSource_t *fs, const nffile_backend_ctx_t *init_nffile_ctx) {
     nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)fs->backend_ctx;
-    if (InitBookkeeper(&nffile_ctx->bookkeeper, nffile_ctx->datadir, getpid()) != BOOKKEEPER_OK) {
-        LogError("initialize bookkeeper failed");
+    book_handle_t *book_handle = book_open(nffile_ctx->datadir, getpid());
+    if (book_handle == BOOK_FAILED || book_handle == BOOK_EXISTS) {
+        LogError("Initialize bookkeeper failed");
         return 1;
     }
 
@@ -101,17 +100,9 @@ void close_nffile_backend(FlowSource_t *fs, int expire) {
     fs->tid = 0;
 
     nffile_backend_ctx_t *nffile_ctx = (nffile_backend_ctx_t *)fs->backend_ctx;
-    if (nffile_ctx->bookkeeper) {
-        dirstat_t *dirstat;
-        // if we do not auto expire and there is a stat file, update the stats before we leave
-        if (expire == 0 && ReadStatInfo(nffile_ctx->datadir, &dirstat, LOCK_IF_EXISTS) == STATFILE_OK) {
-            UpdateDirStat(dirstat, nffile_ctx->bookkeeper);
-            WriteStatInfo(dirstat);
-            LogVerbose("Updating statinfo in directory '%s'", nffile_ctx->datadir);
-        }
-
-        ReleaseBookkeeper(nffile_ctx->bookkeeper, DESTROY_BOOKKEEPER);
-        nffile_ctx->bookkeeper = NULL;
+    if (nffile_ctx->book_handle) {
+        book_close(nffile_ctx->book_handle);
+        nffile_ctx->book_handle = NULL;
     }
     free(nffile_ctx->datadir);
     free(nffile_ctx->tmpFileName);
@@ -208,7 +199,7 @@ static int BackendRotateCycle(nffile_backend_ctx_t *nffile_ctx, dataBlock_t *dat
 
         // Update books
         stat(nfcapd_filename, &fstat);
-        UpdateBooks(nffile_ctx->bookkeeper, cycle_message.when, (uint64_t)(512U * fstat.st_blocks));
+        book_update(nffile_ctx->book_handle, cycle_message.when, (uint64_t)(STAT_BLOCK_SIZE * fstat.st_blocks));
     }
 
     if (nffile_ctx->msgQueue) {

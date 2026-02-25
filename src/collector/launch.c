@@ -52,7 +52,6 @@
 #include "config.h"
 #include "nfdump.h"
 #include "nffile.h"
-#include "nfstatfile.h"
 #include "util.h"
 
 #define LAUNCH_NULL 0
@@ -417,6 +416,7 @@ static void *launcher_thread_main(void *arg) {
             int err = 0;
             if (launcher_ctx->cmd_expire) err += launch(launcher_ctx->cmd_expire, msg);
             if (launcher_ctx->cmd_template) err += launch(launcher_ctx->cmd_template, msg);
+            (void)err;
         } else {
             LogError("Skip unknown msg: %u", msg->type);
         }

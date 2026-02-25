@@ -734,22 +734,3 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
     }
 
 }  // End of ExpireProfile
-
-void UpdateDirStat(dirstat_t *dirstat, bookkeeper_t *books) {
-    if (books->numfiles) {
-        /* prevent some faults and duplicates:
-         * book records can never be timewise smaller than directory records => fishy!
-         * in case book records == directory records, the user stopped and restarted nfcapd
-         * this is not necessarily wrong, but results in overwriting an existing file
-         * which results in wrong stats => rescan needed
-         */
-        if (books->last <= dirstat->last || books->first <= dirstat->first) {
-            dirstat->status = FORCE_REBUILD;
-            return;
-        }
-        dirstat->last = books->last;
-        dirstat->numfiles += books->numfiles;
-        dirstat->filesize += books->filesize;
-    }
-
-}  // End of UpdateDirStat

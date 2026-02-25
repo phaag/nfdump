@@ -50,8 +50,7 @@ typedef struct channel_s {
     struct channel_s *next;
     char *datadir;
     dirstat_t *dirstat;
-    bookkeeper_t *books;
-    int books_stat;
+    book_handle_t *book_handle;
     int do_rescan;
     int status;
     FTS *fts;
@@ -69,7 +68,5 @@ void RescanDir(char *dir, dirstat_t *dirstat);
 void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife, uint32_t runtime);
 
 void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize, uint64_t maxlife, uint32_t runtime);
-
-void UpdateDirStat(dirstat_t *dirstat, bookkeeper_t *books);
 
 #endif  //_EXPIRE_H

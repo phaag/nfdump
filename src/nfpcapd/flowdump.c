@@ -320,14 +320,11 @@ static inline int CloseFlowFile(flowParam_t *flowParam, time_t timestamp) {
     // otherwise, we will loose flows and can not continue collecting new flows
     if (RenameAppend(nffile_ctx->nffile->fileName, fileName) < 0) {
         LogError("Ident: %s, Can't rename dump file: %s", fs->Ident, strerror(errno));
-        LogError("Ident: %s, Serious Problem! Fix manually", fs->Ident);
-        // we do not update the books here, as the file failed to rename properly
-        // otherwise the books may be wrong
     } else {
         struct stat fstat;
         // Update books
         stat(fileName, &fstat);
-        UpdateBooks(nffile_ctx->bookkeeper, timestamp, 512 * fstat.st_blocks);
+        book_update(nffile_ctx->book_handle, timestamp, STAT_BLOCK_SIZE * fstat.st_blocks);
     }
     LogInfo("Ident: '%s' Flows: %llu, Packets: %llu, Bytes: %llu", fs->Ident, (unsigned long long)fs->stat_record.numflows,
             (unsigned long long)fs->stat_record.numpackets, (unsigned long long)fs->stat_record.numbytes);

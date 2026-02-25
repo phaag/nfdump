@@ -1,11 +1,11 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../collector/
+AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../nfexpire/
 AM_CPPFLAGS += -I../libnfdump -I../libnfdump/maxmind -I../libnfdump/tor -I../inline 
 AM_CPPFLAGS += $(RRD_CFLAGS)
 
 bin_PROGRAMS = nfprofile nftrack
 
-nfstatfile = ../collector/nfstatfile.c ../collector/nfstatfile.h
+nfstatfile = ../nfexpire/nfstatfile.c ../nfexpire/nfstatfile.h
 
 nfprofile_SOURCES = nfprofile.c profile.c profile.h $(nfstatfile) 
 nfprofile_LDADD = -lnfdump -lnffile $(RRD_LIBS)

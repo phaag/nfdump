@@ -64,7 +64,6 @@
 #include "conf/nfconf.h"
 #include "config.h"
 #include "daemon.h"
-#include "expire.h"
 #include "flist.h"
 #include "flowdump.h"
 #include "flowhash.h"
@@ -73,7 +72,6 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfnet.h"
-#include "nfstatfile.h"
 #include "pcapdump.h"
 #include "pcaproc.h"
 #include "pidfile.h"
@@ -185,7 +183,6 @@ int main(int argc, char *argv[]) {
     unsigned subdir_index, compress, expire, cache_size;
     unsigned activeTimeout, inactiveTimeout, metricInterval;
     int verbose, numWorkers;
-    dirstat_t *dirstat;
     repeater_t *sendHost;
     time_t t_win;
     char *device, *pcapfile, *filter, *datadir, *pcap_datadir, *pidfile, *configFile, *options;
