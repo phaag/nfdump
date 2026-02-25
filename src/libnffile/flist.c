@@ -1121,6 +1121,7 @@ int SetupPath(struct tm *now, const char *dataDir, unsigned subDir, char *path) 
 
     // add final '/'
     path[ret++] = '/';
+    path[ret] = '\0';
 
     return ret;
 }  // End of SetupPath
