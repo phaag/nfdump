@@ -894,8 +894,8 @@ int main(int argc, char **argv) {
     }
 
     launcher_ctx_t *launcher_ctx = NULL;
-    if (launch_process) {
-        launcher_ctx = LauncherInit(launch_process);
+    if (launch_process || expire) {
+        launcher_ctx = LauncherInit(launch_process, expire);
     }
 
     if (!Init_v1(verbose) || !Init_v5_v7(verbose, sampling_rate) || !Init_pcapd(verbose) || !Init_v9(verbose, sampling_rate, extensionList) ||

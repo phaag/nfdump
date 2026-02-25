@@ -855,8 +855,8 @@ int main(int argc, char **argv) {
     }
 
     launcher_ctx_t *launcher_ctx = NULL;
-    if (launch_process) {
-        launcher_ctx = LauncherInit(launch_process);
+    if (launch_process || expire) {
+        launcher_ctx = LauncherInit(launch_process, expire);
     }
 
     if (!Init_sflow(verbose, extensionList)) {

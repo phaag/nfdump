@@ -267,6 +267,13 @@ AM_COND_IF([BUILD_NFPCAPD],
 		[AM_CONDITIONAL(BSDBPF, false) AM_CONDITIONAL(TPACKETV3, false) AM_CONDITIONAL(PLAINPCAP, false)],
 )
 
+if test "x$prefix" = "xNONE"; then
+    prefix="$ac_default_prefix"
+fi
+
+AC_DEFINE_UNQUOTED([INSTALL_PREFIX], ["$prefix"], [Installation prefix])
+
+
 AS_IF([test x$enable_nfprofile = xyes], [
 	# --- check for rrd library
   AX_CHECK_LIB_GENERIC([RRD], [rrd.h], [rrd],

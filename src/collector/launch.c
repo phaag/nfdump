@@ -48,10 +48,8 @@
 #include <sys/uio.h>
 #include <sys/wait.h>
 
-#include "bookkeeper.h"
 #include "collector.h"
 #include "config.h"
-#include "expire.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfstatfile.h"
@@ -86,8 +84,6 @@ typedef struct launcher_args_s {
 
 extern char **environ;
 
-static void do_expire(char *datadir);
-
 static char *cmd_expand(const char *cmd, const launcher_msg_t *msg);
 
 static char **cmd_parse(char *cmd);
@@ -95,77 +91,6 @@ static char **cmd_parse(char *cmd);
 static int cmd_execute(char **args);
 
 static int launch(const char *command, launcher_msg_t *msg);
-
-static void do_expire(char *datadir) {
-    bookkeeper_t *books;
-    dirstat_t *dirstat, oldstat;
-    int ret, bookkeeper_stat, do_rescan;
-
-    LogInfo("Run expire on '%s'", datadir);
-
-    do_rescan = 0;
-    ret = ReadStatInfo(datadir, &dirstat, CREATE_AND_LOCK);
-    switch (ret) {
-        case STATFILE_OK:
-            break;
-        case ERR_NOSTATFILE:
-            dirstat->low_water = 95;
-        case FORCE_REBUILD:
-            LogInfo("Force rebuild stat record");
-            do_rescan = 1;
-            break;
-        case ERR_FAIL:
-            LogError("expire failed: can't read stat record");
-            return;
-            /* not reached */
-            break;
-        default:
-            LogError("expire failed: unexpected return code %i reading stat record", ret);
-            return;
-            /* not reached */
-    }
-
-    bookkeeper_stat = AccessBookkeeper(&books, datadir);
-    if (do_rescan) {
-        RescanDir(datadir, dirstat);
-        if (bookkeeper_stat == BOOKKEEPER_OK) {
-            ClearBooks(books, NULL);
-            // release the books below
-        }
-    }
-
-    if (bookkeeper_stat == BOOKKEEPER_OK) {
-        bookkeeper_t tmp_books;
-        ClearBooks(books, &tmp_books);
-        UpdateDirStat(dirstat, &tmp_books);
-        ReleaseBookkeeper(books, DETACH_ONLY);
-    } else {
-        LogError("Error %i: can't access book keeping records", ret);
-    }
-
-    LogInfo("Limits: Filesize %s, Lifetime %s, Watermark: %llu%%", dirstat->max_size ? ScaleValue(dirstat->max_size) : "<none>",
-            dirstat->max_lifetime ? ScaleTime(dirstat->max_lifetime) : "<none>", (unsigned long long)dirstat->low_water);
-
-    LogInfo("Current size: %s, Current lifetime: %s, Number of files: %llu", ScaleValue(dirstat->filesize), ScaleTime(dirstat->last - dirstat->first),
-            (unsigned long long)dirstat->numfiles);
-
-    oldstat = *dirstat;
-    if (dirstat->max_size || dirstat->max_lifetime) ExpireDir(datadir, dirstat, dirstat->max_size, dirstat->max_lifetime, 0);
-    WriteStatInfo(dirstat);
-
-    if ((oldstat.numfiles - dirstat->numfiles) > 0) {
-        LogInfo("expire completed");
-        LogInfo("   expired files: %llu", (unsigned long long)(oldstat.numfiles - dirstat->numfiles));
-        LogInfo("   expired time slot: %s", ScaleTime(dirstat->first - oldstat.first));
-        LogInfo("   expired file size: %s", ScaleValue(oldstat.filesize - dirstat->filesize));
-        LogInfo("New size: %s, New lifetime: %s, Number of files: %llu", ScaleValue(dirstat->filesize), ScaleTime(dirstat->last - dirstat->first),
-                (unsigned long long)dirstat->numfiles);
-    } else {
-        LogInfo("expire completed - nothing to expire.");
-    }
-    ReleaseStatInfo(dirstat);
-
-}  // End of do_expire
 
 /*
  * Expand % placeholders in command string
@@ -338,7 +263,7 @@ static int cmd_execute(char **args) {
         return 0;
     }
 
-    posix_spawnattr_t attr;
+    posix_spawnattr_t attr = {0};
     posix_spawnattr_init(&attr);
 
     sigset_t empty;
@@ -346,8 +271,11 @@ static int cmd_execute(char **args) {
     posix_spawnattr_setsigmask(&attr, &empty);
     posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSIGMASK);
 
+    dbg_printf("Run command %s with environment:\n", args[0]);
+    dbg(for (char **e = environ; *e; e++) printf("ENV: %s\n", *e));
+
     pid_t pid;
-    int rc = posix_spawn(&pid, args[0], NULL, &attr, args, environ);
+    int rc = posix_spawnp(&pid, args[0], NULL, &attr, args, environ);
 
     posix_spawnattr_destroy(&attr);
 
@@ -486,7 +414,9 @@ static void *launcher_thread_main(void *arg) {
 
         if (msg->type == LAUNCH_EXEC) {
             LogVerbose("Launcher: process next message");
-            int err = launch(launcher_ctx->cmd_template, msg);
+            int err = 0;
+            if (launcher_ctx->cmd_expire) err += launch(launcher_ctx->cmd_expire, msg);
+            if (launcher_ctx->cmd_template) err += launch(launcher_ctx->cmd_template, msg);
         } else {
             LogError("Skip unknown msg: %u", msg->type);
         }
@@ -498,7 +428,7 @@ static void *launcher_thread_main(void *arg) {
     return NULL;
 }  // End of launcher_thread_main
 
-launcher_ctx_t *LauncherInit(char *command) {
+launcher_ctx_t *LauncherInit(char *command, int expire) {
     dbg_printf("%s() Start\n", __func__);
     launcher_ctx_t *launcher_ctx = calloc(1, sizeof(launcher_ctx_t));
     if (!launcher_ctx) {
@@ -509,7 +439,16 @@ launcher_ctx_t *LauncherInit(char *command) {
     atomic_store(&launcher_ctx->done, 0);
     launcher_ctx->cmd_template = command;
     launcher_ctx->msgQueue = queue_init(1024);
-
+    if (expire) {
+        size_t len = strlen(INSTALL_PREFIX) + strlen("/bin/nfexpire -e %d") + 1;
+        launcher_ctx->cmd_expire = malloc(len);
+        if (!launcher_ctx->cmd_expire) {
+            LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return NULL;
+        }
+        snprintf(launcher_ctx->cmd_expire, len, "%s%s", INSTALL_PREFIX, "/bin/nfexpire -e %d");
+        dbg_printf("nfexpire expanded to %s\n", launcher_ctx->cmd_expire);
+    }
     return launcher_ctx;
 }  // End of LauncherInit
 
@@ -547,7 +486,8 @@ void LauncherShutdown(launcher_ctx_t *launcher_ctx) {
         pthread_join(launcher_ctx->rtid, NULL);
     }
     queue_free(launcher_ctx->msgQueue);
-    free(launcher_ctx->cmd_template);
+    if (launcher_ctx->cmd_template) free(launcher_ctx->cmd_template);
+    if (launcher_ctx->cmd_expire) free(launcher_ctx->cmd_expire);
     free(launcher_ctx);
 
 }  // End of LauncherShutdown

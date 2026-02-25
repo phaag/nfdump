@@ -50,9 +50,10 @@ typedef struct launcher_ctx_s {
     pthread_t rtid;      // tid of reaper thread
     char *extension;     // nfcapd time extension format
     char *cmd_template;  // command to be executed
+    char *cmd_expire;    // expire template
 } launcher_ctx_t;
 
-launcher_ctx_t *LauncherInit(char *command);
+launcher_ctx_t *LauncherInit(char *command, int expire);
 
 pthread_t LauncherStart(launcher_ctx_t *launcher_ctx);
 
