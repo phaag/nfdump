@@ -1211,9 +1211,10 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
     format_number(bps, bps_str, outputParams->printPlain, FIXED_WIDTH);
 
     time_t first = statRecord->msecFirst / 1000LL;
-    struct tm *tbuff = localtime(&first);
+    struct tm tbuff_buf;
+    struct tm *tbuff = localtime_r(&first, &tbuff_buf);
     if (!tbuff) {
-        LogError("localtime() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        LogError("localtime_r() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
     char datestr[64];
@@ -1383,12 +1384,13 @@ static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_
     }
 
     time_t when = statRecord->msecFirst / 1000LL;
-    struct tm *ts = localtime(&when);
+    struct tm ts_buf;
+    struct tm *ts = localtime_r(&when, &ts_buf);
     char datestrFirst[64];
     strftime(datestrFirst, 63, "%Y-%m-%dT%H:%M:%S", ts);
 
     when = statRecord->msecLast / 1000LL;
-    ts = localtime(&when);
+    ts = localtime_r(&when, &ts_buf);
     char datestrLast[64];
     strftime(datestrLast, 63, "%Y-%m-%dT%H:%M:%S", ts);
 
@@ -1490,7 +1492,8 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t 
     }
 
     time_t when = statRecord->msecFirst / 1000;
-    struct tm *tbuff = localtime(&when);
+    struct tm tbuff_buf;
+    struct tm *tbuff = localtime_r(&when, &tbuff_buf);
     if (!tbuff) {
         perror("Error time convert");
         exit(250);
@@ -1499,7 +1502,7 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t 
     strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
     when = statRecord->msecLast / 1000;
-    tbuff = localtime(&when);
+    tbuff = localtime_r(&when, &tbuff_buf);
     if (!tbuff) {
         perror("Error time convert");
         exit(250);

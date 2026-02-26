@@ -417,7 +417,8 @@ int main(int argc, char **argv) {
             unlink(pidfile);
             exit(255);
         }
-        t1 = localtime(&when);
+        struct tm t1_buf;
+        t1 = localtime_r(&when, &t1_buf);
         strftime(datestr, 63, "%b %d %Y %T", t1);
         LogInfo("Last Update: %i, %s\n", (int)when, datestr);
         unlink(pidfile);

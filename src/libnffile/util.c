@@ -556,18 +556,19 @@ char *TimeString(uint64_t msecStart, uint64_t msecEnd) {
 
     if (msecStart) {
         time_t secs = msecStart / 1000;
-        struct tm *tbuff = localtime(&secs);
+        struct tm tbuff_buf;
+        struct tm *tbuff = localtime_r(&secs, &tbuff_buf);
         if (!tbuff) {
-            LogError("localtime() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            LogError("localtime_r() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return "Error time convert";
         }
         char t1[64];
         strftime(t1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
 
         secs = msecEnd / 1000;
-        tbuff = localtime(&secs);
+        tbuff = localtime_r(&secs, &tbuff_buf);
         if (!tbuff) {
-            LogError("localtime() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            LogError("localtime_r() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return "Error time convert";
         }
         char t2[64];
@@ -582,10 +583,11 @@ char *TimeString(uint64_t msecStart, uint64_t msecEnd) {
 }
 
 char *UNIX2ISO(time_t t) {
+    struct tm when_buf;
     struct tm *when;
     static char timestring[32];
 
-    when = localtime(&t);
+    when = localtime_r(&t, &when_buf);
     when->tm_isdst = -1;
     snprintf(timestring, 31, "%4i%02i%02i%02i%02i%02i", when->tm_year + 1900, when->tm_mon + 1, when->tm_mday, when->tm_hour, when->tm_min,
              when->tm_sec);

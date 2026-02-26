@@ -671,7 +671,8 @@ static char *stringEXnselCommon(char *streamPtr, void *extensionRecord) {
     if (when == 0) {
         strncpy(datestr, "<unknown>", 63);
     } else {
-        struct tm *ts = localtime(&when);
+        struct tm ts_buf;
+        struct tm *ts = localtime_r(&when, &ts_buf);
         strftime(datestr, 63, "%Y-%m-%dT%H:%M:%S", ts);
     }
 
@@ -760,7 +761,8 @@ static char *stringEXnatCommon(char *streamPtr, void *extensionRecord) {
     if (when == 0) {
         strncpy(datestr, "<unknown>", 63);
     } else {
-        struct tm *ts = localtime(&when);
+        struct tm ts_buf;
+        struct tm *ts = localtime_r(&when, &ts_buf);
         strftime(datestr, 63, "%Y-%m-%dT%H:%M:%S", ts);
     }
 

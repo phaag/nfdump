@@ -1826,7 +1826,8 @@ static void readFlowSample_http(SFSample *sample, uint32_t tag) {
 
         time_t now = time(NULL);
         char nowstr[200];
-        strftime(nowstr, 200, "%d/%b/%Y:%H:%M:%S %z", localtime(&now)); /* there seems to be no simple portable equivalent to %z */
+        struct tm now_buf;
+        strftime(nowstr, 200, "%d/%b/%Y:%H:%M:%S %z", localtime_r(&now, &now_buf)); /* there seems to be no simple portable equivalent to %z */
         /* should really be: snprintf(sfCLF.http_log, SFLFMT_CLF_MAX_LINE,...) but snprintf() is not always available */
         printf("- %s [%s] \"%s %s HTTP/%u.%u\" %u " PRIu64 " \"%s\" \"%s\"", authuser[0] ? authuser : "-", nowstr, SFHTTP_method_names[method],
                uri[0] ? uri : "-", protocol / 1000, protocol % 1000, status, resp_bytes, referrer[0] ? referrer : "-",

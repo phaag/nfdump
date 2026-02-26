@@ -1677,7 +1677,8 @@ int QueryFile(char *filename, int verbose) {
             fileHeader.creator = CREATOR_UNKNOWN;
         }
 
-        struct tm *tbuff = localtime(&fileHeader.created);
+        struct tm tbuff_buf;
+        struct tm *tbuff = localtime_r(&fileHeader.created, &tbuff_buf);
         char t1[64];
         strftime(t1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
         printf("Created    : %s\n", t1);
@@ -2119,7 +2120,8 @@ void PrintGNUplotSumStat(nffile_t *nffile) {
     if (dateString) {
         dateString += 7;
         time_t when = ISO2UNIX(dateString);
-        struct tm *ts = localtime(&when);
+        struct tm ts_buf;
+        struct tm *ts = localtime_r(&when, &ts_buf);
         char datestr[64];
         strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", ts);
         printf("%s,%llu,%llu,%llu\n", datestr, (long long unsigned)nffile->stat_record->numflows, (long long unsigned)nffile->stat_record->numpackets,

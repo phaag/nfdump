@@ -80,7 +80,8 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, void
         if (when == 0) {
             strncpy(datestr1, "0000-00-00 00:00:00", 63);
         } else {
-            struct tm *ts = localtime(&when);
+            struct tm ts_buf;
+            struct tm *ts = localtime_r(&when, &ts_buf);
             strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
         }
         fprintf(stream, "  Event time   =      %13llu [%s.%03llu]\n", (long long unsigned)eventTime, datestr1, eventTime % 1000LL);
@@ -90,7 +91,8 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, void
         if (when == 0) {
             strncpy(datestr1, "0000-00-00 00:00:00", 63);
         } else {
-            struct tm *ts = localtime(&when);
+            struct tm ts_buf;
+            struct tm *ts = localtime_r(&when, &ts_buf);
             strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
         }
 
@@ -98,7 +100,8 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, void
         if (when == 0) {
             strncpy(datestr2, "0000-00-00 00:00:00", 63);
         } else {
-            struct tm *ts = localtime(&when);
+            struct tm ts_buf;
+            struct tm *ts = localtime_r(&when, &ts_buf);
             strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
         }
 
@@ -111,7 +114,8 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, void
 
     if (genericFlow->msecReceived) {
         time_t when = genericFlow->msecReceived / 1000LL;
-        struct tm *ts = localtime(&when);
+        struct tm ts_buf;
+        struct tm *ts = localtime_r(&when, &ts_buf);
         strftime(datestr3, 63, "%Y-%m-%d %H:%M:%S", ts);
     } else {
         datestr3[0] = '0';
@@ -574,7 +578,8 @@ static void stringsEXnselCommon(FILE *stream, void *extensionRecord) {
     if (when == 0) {
         strncpy(datestr, "0000-00-00 00:00:00", 63);
     } else {
-        struct tm *ts = localtime(&when);
+        struct tm ts_buf;
+        struct tm *ts = localtime_r(&when, &ts_buf);
         strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", ts);
     }
     fprintf(stream,

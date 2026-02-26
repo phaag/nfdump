@@ -367,10 +367,11 @@ data_row *RRD_GetDataRow(char *path, time_t when) {
 
     last = RRD_LastUpdate(path);
     if (when > last) {
-        t1 = localtime(&when);
+        struct tm t1_buf, t2_buf;
+        t1 = localtime_r(&when, &t1_buf);
         strftime(datestr1, 63, "%b %d %Y %T", t1);
 
-        t2 = localtime(&last);
+        t2 = localtime_r(&last, &t2_buf);
         strftime(datestr2, 63, "%b %d %Y %T", t2);
 
         fprintf(stderr, "Error get data: Requested time slot '%s' later then last available time slot '%s'\n", datestr1, datestr2);

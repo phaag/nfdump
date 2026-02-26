@@ -366,15 +366,16 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
             // this means all files will get expired - are you sure ?
             char *s, s1[32], s2[32];
             time_t t;
+            struct tm when_buf;
             struct tm *when;
 
             t = t_expire;
-            when = localtime(&t);
+            when = localtime_r(&t, &when_buf);
             strftime(s1, 31, "%Y-%m-%d %H:%M:%S", when);
             s1[31] = '\0';
 
             t = dirstat->last;
-            when = localtime(&t);
+            when = localtime_r(&t, &when_buf);
             strftime(s2, 31, "%Y-%m-%d %H:%M:%S", when);
             s2[31] = '\0';
 
