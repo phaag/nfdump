@@ -480,7 +480,8 @@ int ConfSetUint64(option_t *optionList, char *key, uint64_t valUint64) {
 int scanOptions(option_t *optionList, char *options) {
     if (options == NULL) return 1;
 
-    char *option = strtok(options, ",");
+    char *saveptr;
+    char *option = strtok_r(options, ",", &saveptr);
     while (option != NULL) {
         int valBool = 1;
         char *eq = strchr(option, '=');
@@ -501,7 +502,7 @@ int scanOptions(option_t *optionList, char *options) {
             LogError("Unknown option: %s", option);
             return 0;
         }
-        option = strtok(NULL, ",");
+        option = strtok_r(NULL, ",", &saveptr);
     }
     return 1;
 

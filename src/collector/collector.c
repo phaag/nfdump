@@ -257,10 +257,11 @@ static uint32_t ParseIPlist(const char *ipListStr, struct ipList_s *ipList) {
     if (ipList == NULL) {
         // pass 1: count just the number of IPs
 
-        char *tok = strtok(s, ";");
+        char *saveptr;
+        char *tok = strtok_r(s, ";", &saveptr);
         while (tok) {
             count++;
-            tok = strtok(NULL, ";");
+            tok = strtok_r(NULL, ";", &saveptr);
         }
         free(s);
 
@@ -268,7 +269,8 @@ static uint32_t ParseIPlist(const char *ipListStr, struct ipList_s *ipList) {
     }
 
     // pass 2 - parse the IP addresses and store them in ipList
-    for (char *tok = strtok(s, ";"); tok != NULL; tok = strtok(NULL, ";")) {
+    char *saveptr;
+    for (char *tok = strtok_r(s, ";", &saveptr); tok != NULL; tok = strtok_r(NULL, ";", &saveptr)) {
         // CIDR?
         char *slash = strchr(tok, '/');
         ip128_t mask = {0};

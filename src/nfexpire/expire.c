@@ -357,9 +357,11 @@ void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife
 
         time_t t_watermark = now - (time_t)((maxlife * dirstat->low_water) / 100);
 
-        dbg_printf("Expire files before %s", ctime(&t_expire));
+        dbg(char ctime_buf1[26]);
+        dbg(char ctime_buf2[26]);
+        dbg_printf("Expire files before %s", ctime_r(&t_expire, ctime_buf1));
         expire_timelimit = strdup(UNIX2ISO(t_watermark));
-        dbg_printf("down to %s", ctime(&t_watermark));
+        dbg_printf("down to %s", ctime_r(&t_watermark, ctime_buf2));
         dbg_printf("Diff: %li\n", t_watermark - t_expire);
 
         if (dirstat->last < t_expire && (isatty(STDIN_FILENO))) {
@@ -567,7 +569,8 @@ void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize
         time_t t_watermark = now - (time_t)((maxlife * current_stat->low_water) / 100);
 
         expire_timelimit = strdup(UNIX2ISO(t_watermark));
-        dbg_printf("down to %s", ctime(&t_watermark));
+        dbg(char ctime_buf[26]);
+        dbg_printf("down to %s", ctime_r(&t_watermark, ctime_buf));
     }
 
     size_done = maxsize == 0 || current_stat->filesize < maxsize;

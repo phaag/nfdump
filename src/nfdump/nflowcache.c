@@ -1173,7 +1173,8 @@ char *ParseAggregateMask(char *print_format, char *arg) {
     uint64_t v6Mask[2] = {0xffffffffffffffffLL, 0xffffffffffffffffLL};
     // separate tokens
     char *aggrStr = strdup(arg);
-    char *p = strtok(aggrStr, ",");
+    char *saveptr;
+    char *p = strtok_r(aggrStr, ",", &saveptr);
     while (p) {
         uint32_t has_mask = 0;
         // check for subnet bits
@@ -1276,7 +1277,7 @@ char *ParseAggregateMask(char *print_format, char *arg) {
             index++;
         } while (aggregationTable[index].aggrElement && (strcasecmp(p, aggregationTable[index].aggrElement) == 0));
 
-        p = strtok(NULL, ",");
+        p = strtok_r(NULL, ",", &saveptr);
     }
 
     if (elementCount == 0) {

@@ -574,7 +574,9 @@ int LookupHost(char *hostname, char *port, struct sockaddr_in *addr) {
             struct sockaddr_in *sa = (struct sockaddr_in *)res->ai_addr;
             *addr = *sa;  // copies sin_addr and sin_port correctly
             freeaddrinfo(res0);
-            dbg_printf("Resolved %s:%s → %s:%u\n", hostname, port, inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
+            char ip_str[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &addr->sin_addr, ip_str, sizeof(ip_str));
+            dbg_printf("Resolved %s:%s → %s:%u\n", hostname, port, ip_str, ntohs(addr->sin_port));
             return 0;
         }
         res = res->ai_next;

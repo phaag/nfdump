@@ -464,6 +464,7 @@ static void *worker_thread(void *arg) {
         }  // for all records
 
         dbg_printf("Worker %i: datablock completed. Records processed: %u\n", self, recordCount);
+        (void)recordCount;
 
     SKIP:
         // Done

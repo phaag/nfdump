@@ -364,7 +364,8 @@ static void run_network(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffile
 
         // rotation check
         if (now >= next_rotate || done) {
-            dbg_printf("Periodic cycle - done: %u, for slot: %s\n", done, ctime(&t_start));
+            dbg(char ctime_buf[26]);
+            dbg_printf("Periodic cycle - done: %u, for slot: %s\n", done, ctime_r(&t_start, ctime_buf));
 
             if (!PeriodicCycle(ctx, t_start, done)) {
                 LogError("run loop terminated due to serious errors");
@@ -435,7 +436,8 @@ static void run_file_mode(collector_ctx_t *ctx, const nffile_backend_ctx_t *nffi
 
         /* Phase 2: Check rotation condition */
         if (now >= next_rotate || done) {
-            dbg_printf("Periodic cycle - done: %u, for slot: %s\n", done, ctime(&t_start));
+            dbg(char ctime_buf[26]);
+            dbg_printf("Periodic cycle - done: %u, for slot: %s\n", done, ctime_r(&t_start, ctime_buf));
 
             if (!PeriodicCycle(ctx, t_start, done)) {
                 LogError("run loop terminated due to serious errors");

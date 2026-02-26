@@ -254,34 +254,38 @@ int UpdateStat(data_row *row, time_t when) {
     }
 
     if (stat_header.av_num > MAX_SLOTS) {
+        char ctime_buf[26];
         LogError("Too many slots aggregated: %i. Expected max. %i", stat_header.av_num, MAX_SLOTS);
         LogError("Stat: Num : %i", stat_header.av_num);
-        LogError("Stat: last: %s", ctime(&stat_header.last));
+        LogError("Stat: last: %s", ctime_r(&stat_header.last, ctime_buf));
         // should not happen - anyway consider stat record to be corrupt - > clear
         ClearStat();
     }
 
     last_rrd = RRD_LastUpdate(dbpath);
     if (stat_header.last && (last_rrd != stat_header.last)) {
+        char ctime_buf1[26], ctime_buf2[26];
         LogError("RRD and stat record out of sync. %i != %i", last_rrd, stat_header.last);
         LogError("Stat: Num : %i", stat_header.av_num);
-        LogError("Stat: last: %s", ctime(&stat_header.last));
-        LogError("RRD : last: %s", ctime(&last_rrd));
+        LogError("Stat: last: %s", ctime_r(&stat_header.last, ctime_buf1));
+        LogError("RRD : last: %s", ctime_r(&last_rrd, ctime_buf2));
         // should not happen - anyway consider stat record to be corrupt - > clear
         ClearStat();
     }
 
     if (stat_header.last && ((when - (300 * MAX_SLOTS)) > stat_header.last)) {
+        char ctime_buf[26];
         LogError("Last stat update too far in the past -> clear stat record");
         LogError("Stat: Num : %i", stat_header.av_num);
-        LogError("Stat: last: %s", ctime(&stat_header.last));
+        LogError("Stat: last: %s", ctime_r(&stat_header.last, ctime_buf));
         // last update too far in the past -> clear stat record
         ClearStat();
     }
     if (stat_header.last && (when - stat_header.last) > 1800) {
+        char ctime_buf[26];
         LogError("Last stat update too far in the past -> clear stat record");
         LogError("Stat: Num : %i", stat_header.av_num);
-        LogError("Stat: last: %s", ctime(&stat_header.last));
+        LogError("Stat: last: %s", ctime_r(&stat_header.last, ctime_buf));
         // last update too far in the past -> clear stat record
         ClearStat();
     }
@@ -301,7 +305,8 @@ int UpdateStat(data_row *row, time_t when) {
                 LogError("Failed to fetch RRD datarow");
                 break;
             }
-            LogInfo("Remove stat line %s\n", ctime(&tslot));
+            char ctime_buf[26];
+            LogInfo("Remove stat line %s\n", ctime_r(&tslot, ctime_buf));
             for (pnum = 0; pnum < NUMPORTS; pnum++) {
                 for (p = 0; p < 2; p++) {
                     for (t = 0; t < 3; t++) {
@@ -325,8 +330,9 @@ int UpdateStat(data_row *row, time_t when) {
     stat_header.last = when;
     dirty = 1;
 
+    char ctime_buf[26];
     LogInfo("UpdateStat: Num : %i\n", stat_header.av_num);
-    LogInfo("UpdateStat: last: %s\n", ctime(&stat_header.last));
+    LogInfo("UpdateStat: last: %s\n", ctime_r(&stat_header.last, ctime_buf));
 
     return 1;
 

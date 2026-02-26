@@ -120,8 +120,15 @@ void SetPriv(char *userid, char *groupid) {
     }
 
     if (userid) {
-        pw_entry = getpwnam(userid);
-        newuid = pw_entry ? pw_entry->pw_uid : atol(userid);
+        struct passwd pw_buf;
+        char pw_strbuf[1024];
+        struct passwd *pw_result = NULL;
+        if (getpwnam_r(userid, &pw_buf, pw_strbuf, sizeof(pw_strbuf), &pw_result) == 0 && pw_result) {
+            pw_entry = pw_result;
+            newuid = pw_entry->pw_uid;
+        } else {
+            newuid = atol(userid);
+        }
 
         if (newuid == 0) {
             LogError("Invalid user '%s'", userid);
@@ -130,8 +137,15 @@ void SetPriv(char *userid, char *groupid) {
     }
 
     if (groupid) {
-        gr_entry = getgrnam(groupid);
-        newgid = gr_entry ? gr_entry->gr_gid : atol(groupid);
+        struct group gr_buf;
+        char gr_strbuf[1024];
+        struct group *gr_result = NULL;
+        if (getgrnam_r(groupid, &gr_buf, gr_strbuf, sizeof(gr_strbuf), &gr_result) == 0 && gr_result) {
+            gr_entry = gr_result;
+            newgid = gr_entry->gr_gid;
+        } else {
+            newgid = atol(groupid);
+        }
 
         if (newgid == 0) {
             LogError("Invalid group '%s'", groupid);
