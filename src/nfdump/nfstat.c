@@ -1211,13 +1211,13 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
     format_number(bps, bps_str, outputParams->printPlain, FIXED_WIDTH);
 
     time_t first = statRecord->msecFirst / 1000LL;
-    struct tm *tbuff = localtime(&first);
-    if (!tbuff) {
-        LogError("localtime() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+    struct tm tbuff;
+    if (!localtime_r(&first, &tbuff)) {
+        LogError("localtime_r() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
         return;
     }
     char datestr[64];
-    strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", tbuff);
+    strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", &tbuff);
 
     char *protoStr;
     switch (order_proto) {
@@ -1383,14 +1383,15 @@ static void PrintJsonStatLine(char *statName, stat_record_t *stat, outputParams_
     }
 
     time_t when = statRecord->msecFirst / 1000LL;
-    struct tm *ts = localtime(&when);
+    struct tm ts;
+    localtime_r(&when, &ts);
     char datestrFirst[64];
-    strftime(datestrFirst, 63, "%Y-%m-%dT%H:%M:%S", ts);
+    strftime(datestrFirst, 63, "%Y-%m-%dT%H:%M:%S", &ts);
 
     when = statRecord->msecLast / 1000LL;
-    ts = localtime(&when);
+    localtime_r(&when, &ts);
     char datestrLast[64];
-    strftime(datestrLast, 63, "%Y-%m-%dT%H:%M:%S", ts);
+    strftime(datestrLast, 63, "%Y-%m-%dT%H:%M:%S", &ts);
 
     if (outputParams->hasGeoDB && type == IS_IPADDR) {
         printf(
@@ -1490,22 +1491,21 @@ static void PrintCvsStatLine(stat_record_t *stat, int printPlain, SortElement_t 
     }
 
     time_t when = statRecord->msecFirst / 1000;
-    struct tm *tbuff = localtime(&when);
-    if (!tbuff) {
+    struct tm tbuff;
+    if (!localtime_r(&when, &tbuff)) {
         perror("Error time convert");
         exit(250);
     }
     char datestr1[64];
-    strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
+    strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", &tbuff);
 
     when = statRecord->msecLast / 1000;
-    tbuff = localtime(&when);
-    if (!tbuff) {
+    if (!localtime_r(&when, &tbuff)) {
         perror("Error time convert");
         exit(250);
     }
     char datestr2[64];
-    strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
+    strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", &tbuff);
 
     printf("%s,%s,%.3f,%s,%s,%" PRIu64 ",%.1f,%" PRIu64 ",%.1f,%" PRIu64 ",%.1f,%" PRIu64 ",%" PRIu64 ",%u\n", datestr1, datestr2, duration,
            order_proto ? ProtoString(hashKey->proto, printPlain) : "any", valstr, count_flows, flows_percent, count_packets, packets_percent,

@@ -260,7 +260,7 @@ int main(int argc, char **argv) {
     unsigned int lastupdate;
     data_row *port_table;
     time_t when;
-    struct tm *t1;
+    struct tm t1;
     flist_t flist;
 
     memset((void *)&flist, 0, sizeof(flist));
@@ -417,8 +417,8 @@ int main(int argc, char **argv) {
             unlink(pidfile);
             exit(255);
         }
-        t1 = localtime(&when);
-        strftime(datestr, 63, "%b %d %Y %T", t1);
+        localtime_r(&when, &t1);
+        strftime(datestr, 63, "%b %d %Y %T", &t1);
         LogInfo("Last Update: %i, %s\n", (int)when, datestr);
         unlink(pidfile);
         exit(0);

@@ -1310,9 +1310,10 @@ static char *String_EventTime(char *streamPtr, recordHandle_t *recordHandle) {
 
     if (msecEvent) {
         time_t tt = msecEvent / 1000LL;
-        struct tm *ts = localtime(&tt);
+        struct tm ts;
+        localtime_r(&tt, &ts);
         char s[128];
-        strftime(s, 128, "%Y-%m-%d %H:%M:%S", ts);
+        strftime(s, 128, "%Y-%m-%d %H:%M:%S", &ts);
         s[127] = '\0';
         ptrdiff_t lenStream = STREAMLEN(streamPtr);
         size_t len = snprintf(streamPtr, lenStream, "%s.%03llu", s, msecEvent % 1000LL);

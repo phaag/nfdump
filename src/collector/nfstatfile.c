@@ -505,19 +505,19 @@ int ReleaseStatInfo(dirstat_t *dirstat) {
 }  // End of ReleaseStatInfo
 
 void PrintDirStat(dirstat_t *dirstat) {
-    struct tm *ts;
+    struct tm ts;
     time_t t;
     char string[32];
 
     t = dirstat->first;
-    ts = localtime(&t);
-    strftime(string, 31, "%Y-%m-%d %H:%M:%S", ts);
+    localtime_r(&t, &ts);
+    strftime(string, 31, "%Y-%m-%d %H:%M:%S", &ts);
     string[31] = '\0';
     printf("First:     %s\n", string);
 
     t = dirstat->last;
-    ts = localtime(&t);
-    strftime(string, 31, "%Y-%m-%d %H:%M:%S", ts);
+    localtime_r(&t, &ts);
+    strftime(string, 31, "%Y-%m-%d %H:%M:%S", &ts);
     string[31] = '\0';
     printf("Last:      %s\n", string);
 

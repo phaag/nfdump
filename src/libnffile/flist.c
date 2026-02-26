@@ -29,6 +29,7 @@
  *
  */
 
+#include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
@@ -1043,15 +1044,16 @@ static char *VerifyFileRange(char *path, char *last_file) {
 
 static char *GuessSubDir(char *channeldir, char *filename) {
     char s[MAXPATHLEN];
-    struct tm *t_tm;
+    struct tm t_tm = {0};
 
     dbg_printf("GuessSubDir() for file: %s in path: %s\n", filename, channeldir);
 
     size_t len = strlen(filename);
+    assert(len == 19);
     if ((len == 19 || len == 21) && (strncmp(filename, "nfcapd.", 7) == 0)) {
         char *p = &filename[7];
         time_t t = ISO2UNIX(p);
-        t_tm = localtime(&t);
+        localtime_r(&t, &t_tm);
     } else
         return NULL;
 
@@ -1062,7 +1064,7 @@ static char *GuessSubDir(char *channeldir, char *filename) {
         char const *sub_fmt = subdir_def[i];
         char subpath[255];
         struct stat stat_buf;
-        strftime(subpath, 254, sub_fmt, t_tm);
+        strftime(subpath, 254, sub_fmt, &t_tm);
         subpath[254] = '\0';
 
         snprintf(s, MAXPATHLEN - 1, "%s/%s/%s", channeldir, subpath, filename);

@@ -69,6 +69,7 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, void
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)extensionRecord;
 
     char datestr1[64], datestr2[64], datestr3[64];
+    struct tm ts;
 
     if (TestFlag(recordHandle->recordHeaderV3->flags, V3_FLAG_EVENT)) {
         EXnselCommon_t *nselCommon = (EXnselCommon_t *)recordHandle->extensionList[EXnselCommonID];
@@ -80,8 +81,8 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, void
         if (when == 0) {
             strncpy(datestr1, "0000-00-00 00:00:00", 63);
         } else {
-            struct tm *ts = localtime(&when);
-            strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
+            localtime_r(&when, &ts);
+            strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", &ts);
         }
         fprintf(stream, "  Event time   =      %13llu [%s.%03llu]\n", (long long unsigned)eventTime, datestr1, eventTime % 1000LL);
 
@@ -90,16 +91,16 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, void
         if (when == 0) {
             strncpy(datestr1, "0000-00-00 00:00:00", 63);
         } else {
-            struct tm *ts = localtime(&when);
-            strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
+            localtime_r(&when, &ts);
+            strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", &ts);
         }
 
         when = genericFlow->msecLast / 1000LL;
         if (when == 0) {
             strncpy(datestr2, "0000-00-00 00:00:00", 63);
         } else {
-            struct tm *ts = localtime(&when);
-            strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
+            localtime_r(&when, &ts);
+            strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", &ts);
         }
 
         fprintf(stream,
@@ -111,8 +112,8 @@ static void stringEXgenericFlow(FILE *stream, recordHandle_t *recordHandle, void
 
     if (genericFlow->msecReceived) {
         time_t when = genericFlow->msecReceived / 1000LL;
-        struct tm *ts = localtime(&when);
-        strftime(datestr3, 63, "%Y-%m-%d %H:%M:%S", ts);
+        localtime_r(&when, &ts);
+        strftime(datestr3, 63, "%Y-%m-%d %H:%M:%S", &ts);
     } else {
         datestr3[0] = '0';
         datestr3[1] = '\0';
@@ -574,8 +575,9 @@ static void stringsEXnselCommon(FILE *stream, void *extensionRecord) {
     if (when == 0) {
         strncpy(datestr, "0000-00-00 00:00:00", 63);
     } else {
-        struct tm *ts = localtime(&when);
-        strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", ts);
+        struct tm ts;
+        localtime_r(&when, &ts);
+        strftime(datestr, 63, "%Y-%m-%d %H:%M:%S", &ts);
     }
     fprintf(stream,
             "  connect ID   =         %10u\n"

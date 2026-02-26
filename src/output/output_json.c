@@ -700,8 +700,9 @@ static char *stringEXnselCommon(char *streamPtr, void *extensionRecord) {
     if (when == 0) {
         strncpy(datestr, "<unknown>", 63);
     } else {
-        struct tm *ts = localtime(&when);
-        strftime(datestr, 63, "%Y-%m-%dT%H:%M:%S", ts);
+        struct tm ts;
+        localtime_r(&when, &ts);
+        strftime(datestr, 63, "%Y-%m-%dT%H:%M:%S", &ts);
     }
 
     AddElementU32("connect_id", nselCommon->connID);
@@ -789,8 +790,9 @@ static char *stringEXnatCommon(char *streamPtr, void *extensionRecord) {
     if (when == 0) {
         strncpy(datestr, "<unknown>", 63);
     } else {
-        struct tm *ts = localtime(&when);
-        strftime(datestr, 63, "%Y-%m-%dT%H:%M:%S", ts);
+        struct tm ts;
+        localtime_r(&when, &ts);
+        strftime(datestr, 63, "%Y-%m-%dT%H:%M:%S", &ts);
     }
 
     AddElementU32("nat_event_id", natCommon->natEvent);

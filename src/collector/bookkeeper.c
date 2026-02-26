@@ -549,7 +549,7 @@ void UpdateBooksParam(bookkeeper_t *bookkeeper, time_t lifetime, uint64_t maxsiz
 
 void PrintBooks(bookkeeper_t *bookkeeper) {
     bookkeeper_list_t *bookkeeper_list_entry;
-    struct tm *ts;
+    struct tm ts;
     time_t t;
     char string[32];
 
@@ -570,14 +570,14 @@ void PrintBooks(bookkeeper_t *bookkeeper) {
     printf("Record sequence  : %llu\n", (unsigned long long)bookkeeper->sequence);
 
     t = bookkeeper->first;
-    ts = localtime(&t);
-    strftime(string, 31, "%Y-%m-%d %H:%M:%S", ts);
+    localtime_r(&t, &ts);
+    strftime(string, 31, "%Y-%m-%d %H:%M:%S", &ts);
     string[31] = '\0';
     printf("First           : %s\n", bookkeeper->first ? string : "<not set>");
 
     t = bookkeeper->last;
-    ts = localtime(&t);
-    strftime(string, 31, "%Y-%m-%d %H:%M:%S", ts);
+    localtime_r(&t, &ts);
+    strftime(string, 31, "%Y-%m-%d %H:%M:%S", &ts);
     string[31] = '\0';
     printf("Last            : %s\n", bookkeeper->last ? string : "<not set>");
     printf("Number of files : %llu\n", (unsigned long long)bookkeeper->numfiles);

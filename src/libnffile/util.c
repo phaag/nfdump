@@ -556,22 +556,21 @@ char *TimeString(uint64_t msecStart, uint64_t msecEnd) {
 
     if (msecStart) {
         time_t secs = msecStart / 1000;
-        struct tm *tbuff = localtime(&secs);
-        if (!tbuff) {
-            LogError("localtime() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return "Error time convert";
+        struct tm tbuff;
+        if (!localtime_r(&secs, &tbuff)) {
+            LogError("localtime_r() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return "0000-00-00 00:00:00";
         }
         char t1[64];
-        strftime(t1, 63, "%Y-%m-%d %H:%M:%S", tbuff);
+        strftime(t1, 63, "%Y-%m-%d %H:%M:%S", &tbuff);
 
         secs = msecEnd / 1000;
-        tbuff = localtime(&secs);
-        if (!tbuff) {
-            LogError("localtime() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return "Error time convert";
+        if (!localtime_r(&secs, &tbuff)) {
+            LogError("localtime_r() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+            return "0000-00-00 00:00:00";
         }
         char t2[64];
-        strftime(t2, 63, "%Y-%m-%d %H:%M:%S", tbuff);
+        strftime(t2, 63, "%Y-%m-%d %H:%M:%S", &tbuff);
 
         snprintf(datestr, 254, "%s.%03d - %s.%03d", t1, (int)(msecStart % 1000), t2, (int)(msecEnd % 1000));
     } else {
@@ -582,87 +581,72 @@ char *TimeString(uint64_t msecStart, uint64_t msecEnd) {
 }
 
 char *UNIX2ISO(time_t t) {
-    struct tm *when;
+    struct tm when;
     static char timestring[32];
 
-    when = localtime(&t);
-    when->tm_isdst = -1;
-    snprintf(timestring, 31, "%4i%02i%02i%02i%02i%02i", when->tm_year + 1900, when->tm_mon + 1, when->tm_mday, when->tm_hour, when->tm_min,
-             when->tm_sec);
+    localtime_r(&t, &when);
+    when.tm_isdst = -1;
+    snprintf(timestring, 31, "%4i%02i%02i%02i%02i%02i", when.tm_year + 1900, when.tm_mon + 1, when.tm_mday, when.tm_hour, when.tm_min, when.tm_sec);
     timestring[31] = '\0';
 
     return timestring;
 
 }  // End of UNIX2ISO
 
-time_t ISO2UNIX(char *timestring) {
-    char c, *p;
-    struct tm when;
-    time_t t;
-
-    // let localtime fill in all default fields such as summer time, TZ etc.
-    t = time(NULL);
-    localtime_r(&t, &when);
-    when.tm_sec = 0;
-    when.tm_wday = 0;
-    when.tm_yday = 0;
-    when.tm_isdst = -1;
+// convert yyyyMMddhhmm[ss] -> time_t
+time_t ISO2UNIX(const char *timestring) {
+    if (!timestring) {
+        LogError("NULL time string");
+        return (time_t)-1;
+    }
 
     size_t len = strlen(timestring);
     if (len != 12 && len != 14) {
-        LogError("Wrong time format '%s'\n", timestring);
-        return 0;
+        LogError("Wrong time format '%s'", timestring);
+        return (time_t)-1;
     }
-    // 2019 05 05 12 00 (10)
-    // year
-    p = timestring;
-    c = p[4];
-    p[4] = '\0';
-    when.tm_year = atoi(p) - 1900;
-    p[4] = c;
 
-    // month
-    p += 4;
-    c = p[2];
-    p[2] = '\0';
-    when.tm_mon = atoi(p) - 1;
-    p[2] = c;
+    // ensure all characters are digits
+    for (size_t i = 0; i < len; i++) {
+        if (!isdigit((unsigned char)timestring[i])) {
+            LogError("Invalid character in time string '%s'", timestring);
+            return (time_t)-1;
+        }
+    }
 
-    // day
-    p += 2;
-    c = p[2];
-    p[2] = '\0';
-    when.tm_mday = atoi(p);
-    p[2] = c;
+    struct tm when = {0};
 
-    // hour
-    p += 2;
-    c = p[2];
-    p[2] = '\0';
-    when.tm_hour = atoi(p);
-    p[2] = c;
-
-    // minute
-    p += 2;
-    c = p[2];
-    p[2] = '\0';
-    when.tm_min = atoi(p);
-    p[2] = c;
+    // parse manually without modifying input
+    when.tm_year = (timestring[0] - '0') * 1000 + (timestring[1] - '0') * 100 + (timestring[2] - '0') * 10 + (timestring[3] - '0') - 1900;
+    when.tm_mon = ((timestring[4] - '0') * 10 + (timestring[5] - '0')) - 1;
+    when.tm_mday = (timestring[6] - '0') * 10 + (timestring[7] - '0');
+    when.tm_hour = (timestring[8] - '0') * 10 + (timestring[9] - '0');
+    when.tm_min = (timestring[10] - '0') * 10 + (timestring[11] - '0');
+    when.tm_sec = 0;
 
     if (len == 14) {
-        p += 2;
-        when.tm_sec = atoi(p);
+        when.tm_sec = (timestring[12] - '0') * 10 + (timestring[13] - '0');
     }
 
-    t = mktime(&when);
-    if (t == -1) {
-        LogError("Failed to convert string '%s'\n", timestring);
-        return 0;
-    } else {
-        // printf("%s %s", timestring, ctime(&t));
-        return t;
+    when.tm_isdst = -1;  // let mktime determine DST
+
+    // range validation
+    if (when.tm_mon < 0 || when.tm_mon > 11 || when.tm_mday < 1 || when.tm_mday > 31 || when.tm_hour < 0 || when.tm_hour > 23 || when.tm_min < 0 ||
+        when.tm_min > 59 || when.tm_sec < 0 || when.tm_sec > 60) {
+        LogError("Out-of-range values in '%s'", timestring);
+        return (time_t)-1;
     }
 
+    // comment
+    // pthread_mutex_lock(&mktime_mutex);
+    time_t t = mktime(&when);
+    // pthread_mutex_unlock(&mktime_mutex);
+    if (t == (time_t)-1) {
+        LogError("Failed to convert string '%s'", timestring);
+        return (time_t)-1;
+    }
+
+    return t;
 }  // End of ISO2UNIX
 
 long getTick(void) {

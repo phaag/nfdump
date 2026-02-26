@@ -99,27 +99,27 @@ static void print_record(recordHandle_t *recordHandle) {
     if (genericFlow == NULL || ipv4Flow == NULL) return;
 
     char datestr1[64], datestr2[64], datestr3[64];
-    struct tm *ts;
+    struct tm ts;
     time_t when = genericFlow->msecFirst / 1000LL;
     if (when == 0) {
         strncpy(datestr1, "<unknown>", 63);
     } else {
-        ts = localtime(&when);
-        strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", ts);
+        localtime_r(&when, &ts);
+        strftime(datestr1, 63, "%Y-%m-%d %H:%M:%S", &ts);
     }
 
     when = genericFlow->msecLast / 1000LL;
     if (when == 0) {
         strncpy(datestr2, "<unknown>", 63);
     } else {
-        ts = localtime(&when);
-        strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", ts);
+        localtime_r(&when, &ts);
+        strftime(datestr2, 63, "%Y-%m-%d %H:%M:%S", &ts);
     }
 
     if (genericFlow->msecReceived) {
         when = genericFlow->msecReceived / 1000LL;
-        ts = localtime(&when);
-        strftime(datestr3, 63, "%Y-%m-%d %H:%M:%S", ts);
+        localtime_r(&when, &ts);
+        strftime(datestr3, 63, "%Y-%m-%d %H:%M:%S", &ts);
     } else {
         datestr3[0] = '0';
         datestr3[1] = '\0';

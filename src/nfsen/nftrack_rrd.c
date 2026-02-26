@@ -347,7 +347,7 @@ int RRD_StoreDataRow(char *path, char *iso_time, data_row *row) {
 
 data_row *RRD_GetDataRow(char *path, time_t when) {
     time_t last, frag;
-    struct tm *t1, *t2;
+    struct tm t1, t2;
     struct stat statbuf;
     char datestr1[64], datestr2[64], rrd_filename[1024];
     char *rrd_arg[10];
@@ -367,11 +367,11 @@ data_row *RRD_GetDataRow(char *path, time_t when) {
 
     last = RRD_LastUpdate(path);
     if (when > last) {
-        t1 = localtime(&when);
-        strftime(datestr1, 63, "%b %d %Y %T", t1);
+        localtime_r(&when, &t1);
+        strftime(datestr1, 63, "%b %d %Y %T", &t1);
 
-        t2 = localtime(&last);
-        strftime(datestr2, 63, "%b %d %Y %T", t2);
+        localtime_r(&last, &t2);
+        strftime(datestr2, 63, "%b %d %Y %T", &t2);
 
         fprintf(stderr, "Error get data: Requested time slot '%s' later then last available time slot '%s'\n", datestr1, datestr2);
 

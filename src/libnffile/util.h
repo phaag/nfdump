@@ -140,7 +140,7 @@ char *TimeString(uint64_t msecStart, uint64_t msecEnd);
 
 char *UNIX2ISO(time_t t);
 
-time_t ISO2UNIX(char *timestring);
+time_t ISO2UNIX(const char *timestring);
 
 uint64_t ParseTime8601(const char *s);
 

@@ -417,9 +417,10 @@ int RotateCycle(const collector_ctx_t *ctx, post_args_t *post_args, time_t t_sta
 static int RunCycle(time_t t_start, const char *time_extension, const collector_ctx_t *ctx, int *pfd, int done, uint32_t creator,
                     uint32_t compression, uint32_t encryption) {
     // periodic file rotation
-    struct tm *now = localtime(&t_start);
+    struct tm now;
+    localtime_r(&t_start, &now);
     char fmt[32];
-    strftime(fmt, sizeof(fmt), time_extension, now);
+    strftime(fmt, sizeof(fmt), time_extension, &now);
 
     dbg_printf("Enter RunCycle\n");
 
@@ -431,7 +432,7 @@ static int RunCycle(time_t t_start, const char *time_extension, const collector_
         char nfcapd_filename[MAXPATHLEN];
         nfcapd_filename[0] = '\0';
 
-        int pos = SetupPath(now, fs->datadir, fs->subdir, nfcapd_filename);
+        int pos = SetupPath(&now, fs->datadir, fs->subdir, nfcapd_filename);
         char *p = nfcapd_filename + (ptrdiff_t)pos;
         snprintf(p, MAXPATHLEN - pos - 1, "nfcapd.%s", fmt);
         nfcapd_filename[MAXPATHLEN - 1] = '\0';

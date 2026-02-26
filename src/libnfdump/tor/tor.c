@@ -70,9 +70,10 @@ int Init_TorLookup(void) {
 }  // End of Init_TorLookup
 
 static char *tmString(time_t time, char *buff, size_t len) {
-    struct tm *tmTime = localtime(&time);
-    snprintf(buff, len, "%4d-%02d-%02d %02d:%02d:%02d", tmTime->tm_year + 1900, tmTime->tm_mon + 1, tmTime->tm_mday, tmTime->tm_hour, tmTime->tm_min,
-             tmTime->tm_sec);
+    struct tm tmTime;
+    localtime_r(&time, &tmTime);
+    snprintf(buff, len, "%4d-%02d-%02d %02d:%02d:%02d", tmTime.tm_year + 1900, tmTime.tm_mon + 1, tmTime.tm_mday, tmTime.tm_hour, tmTime.tm_min,
+             tmTime.tm_sec);
     return buff;
 }
 
