@@ -100,8 +100,8 @@ unsigned int InitChannels(char *profile_datadir, char *profile_statdir, profile_
     num_channels = 0;
     profile_param = profile_list;
     while (profile_param) {
-        LogInfo("Setup channel '%s' in profile '%s' group '%s', channellist '%s'", profile_param->channelname, profile_param->profilename,
-                profile_param->profilegroup, profile_param->channel_sourcelist);
+        LogInfo("Setup channel '%s' in profile '%s' group '%s', channellist '%s' for file '%s'", profile_param->channelname,
+                profile_param->profilename, profile_param->profilegroup, profile_param->channel_sourcelist, filename);
 
         SetupProfileChannels(profile_datadir, profile_statdir, profile_param, subdir_index, filterfile, filename, verify_only, compress);
 
@@ -255,9 +255,10 @@ static void SetupProfileChannels(char *profile_datadir, char *profile_statdir, p
         if (strlen(filename) == 19 && (strncmp(filename, "nfcapd.", 7) == 0)) {
             char *p = &filename[7];  // points to ISO timestamp in filename
             time_t t = ISO2UNIX(p);
-            struct tm *t_tm = localtime(&t);
+            struct tm t_tm = {0};
+            localtime_r(&t, &t_tm);
 
-            SetupPath(t_tm, dataDir, subdir_index, path);
+            SetupPath(&t_tm, dataDir, subdir_index, path);
 
         } else {
             strncpy(path, dataDir, MAXPATHLEN - 1);

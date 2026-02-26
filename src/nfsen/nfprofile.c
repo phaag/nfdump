@@ -327,11 +327,14 @@ static void process_data(profile_channel_info_t *channels, unsigned int numChann
 
         // get next block while worker are processing the previous one
         nextBlock = ReadBlock(nffile, NULL);
+
+        // wait for all workers, work done on this block
+        pthread_controller_wait(barrier);
+
         if (nextBlock == NULL) {
             DisposeFile(nffile);
         }
-        // wait for all workers, work done on this block
-        pthread_controller_wait(barrier);
+
         // free processed block
         FreeDataBlock(dataBlock);
 

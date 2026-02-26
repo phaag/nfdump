@@ -595,6 +595,7 @@ char *UNIX2ISO(time_t t) {
 
 }  // End of UNIX2ISO
 
+// yyyy-MM-ddThh:mm:ss.s
 time_t ISO2UNIX(char *timestring) {
     char c, *p;
     struct tm when;

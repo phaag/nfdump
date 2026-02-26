@@ -1043,7 +1043,7 @@ static char *VerifyFileRange(char *path, char *last_file) {
 
 static char *GuessSubDir(char *channeldir, char *filename) {
     char s[MAXPATHLEN];
-    struct tm *t_tm;
+    struct tm t_tm = {0};
 
     dbg_printf("GuessSubDir() for file: %s in path: %s\n", filename, channeldir);
 
@@ -1051,7 +1051,7 @@ static char *GuessSubDir(char *channeldir, char *filename) {
     if ((len == 19 || len == 21) && (strncmp(filename, "nfcapd.", 7) == 0)) {
         char *p = &filename[7];
         time_t t = ISO2UNIX(p);
-        t_tm = localtime(&t);
+        localtime_r(&t, &t_tm);
     } else
         return NULL;
 
@@ -1062,7 +1062,7 @@ static char *GuessSubDir(char *channeldir, char *filename) {
         char const *sub_fmt = subdir_def[i];
         char subpath[255];
         struct stat stat_buf;
-        strftime(subpath, 254, sub_fmt, t_tm);
+        strftime(subpath, 254, sub_fmt, &t_tm);
         subpath[254] = '\0';
 
         snprintf(s, MAXPATHLEN - 1, "%s/%s/%s", channeldir, subpath, filename);
@@ -1081,45 +1081,44 @@ static char *GuessSubDir(char *channeldir, char *filename) {
 // make sure, that path with subdir exists for timeslot now and stores it into path
 int SetupPath(struct tm *now, const char *dataDir, unsigned subDir, char *path) {
     char subDirPath[32];
-    subDirPath[0] = '\0';
 
     if (subDir == 0) {
         // no subdir - just return the path
-        return snprintf(path, MAXPATHLEN - 1, "%s/", dataDir);
+        int ret = snprintf(path, MAXPATHLEN, "%s/", dataDir);
+        if (ret < 0 || (size_t)ret >= MAXPATHLEN) return 0;
+        return ret;
     }
 
-    const char *subdir_format = subdir_def[subDir];
-    strftime(subDirPath, sizeof(subDirPath) - 1, subdir_format, now);
-    int ret = snprintf(path, MAXPATHLEN - 1, "%s/%s", dataDir, subDirPath);
+    const char *fmt = subdir_def[subDir];
+    if (strftime(subDirPath, sizeof(subDirPath), fmt, now) == 0) return 0;
 
-    // Iterate over path components, starting after dataDir
-    char *p = path + strlen(dataDir);
+    int ret = snprintf(path, MAXPATHLEN, "%s/%s", dataDir, subDirPath);
+    if (ret < 0 || (size_t)ret >= MAXPATHLEN) return 0;
 
-    /* Skip possible '/' between basePath and subPath */
-    if (*p == '/') p++;
-
-    for (; *p; p++) {
+    for (char *p = path + 1; *p; ++p) {
         if (*p == '/') {
             *p = '\0';
 
             if (mkdir(path, 0755) != 0) {
                 if (errno != EEXIST) return 0;
+
+                struct stat st;
+                if (stat(path, &st) < 0 || !S_ISDIR(st.st_mode)) return 0;
             }
 
             *p = '/';
         }
     }
 
-    /* Create final directory */
-    if (mkdir(path, 0755) != 0) {
-        if (errno != EEXIST) {
-            // if directories can not be created, return base directory
-            LogError("mkdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
-            return snprintf(path, MAXPATHLEN - 1, "%s/", dataDir);
-        }
+    if (mkdir(path, 0755) != 0 && errno != EEXIST) {
+        LogError("mkdir() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
+        int ret = snprintf(path, MAXPATHLEN, "%s/", dataDir);
+        if (ret < 0 || (size_t)ret >= MAXPATHLEN) return 0;
+        return ret;
     }
 
-    // add final '/'
+    if ((size_t)ret + 1 >= MAXPATHLEN) return 0;
+
     path[ret++] = '/';
     path[ret] = '\0';
 
