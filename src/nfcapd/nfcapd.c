@@ -697,8 +697,8 @@ int main(int argc, char **argv) {
                 break;
             case 't':
                 twin = atoi(optarg);
-                if (twin < 2) {
-                    LogError("time interval <= 2s not allowed");
+                if (twin < 1) {
+                    LogError("time interval <= 1s not allowed");
                     exit(EXIT_FAILURE);
                 }
                 if (twin < 60) {
