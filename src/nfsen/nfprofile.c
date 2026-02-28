@@ -48,6 +48,7 @@
 #include "conf/nfconf.h"
 #include "filter/filter.h"
 #include "flist.h"
+#include "logging.h"
 #include "maxmind.h"
 #include "nbar.h"
 #include "nfdump.h"

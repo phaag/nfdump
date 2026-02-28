@@ -51,6 +51,7 @@
 #endif
 
 #include "conf/nfconf.h"
+#include "logging.h"
 #include "nffile.h"
 #include "tor/tor.h"
 #include "util.h"

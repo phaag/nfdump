@@ -46,6 +46,7 @@
 
 #include "config.h"
 #include "flist.h"
+#include "logging.h"
 #include "nffile.h"
 #include "packet_pcap.h"
 #include "queue.h"

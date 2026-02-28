@@ -64,6 +64,7 @@
 #include "bookkeeper.h"
 #include "expire.h"
 #include "nfstatfile.h"
+#include "logging.h"
 #include "util.h"
 
 static void usage(char *name);

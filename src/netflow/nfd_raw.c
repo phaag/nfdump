@@ -49,6 +49,7 @@
 #include "nfnet.h"
 #include "nfxV3.h"
 #include "output_short.h"
+#include "logging.h"
 #include "util.h"
 
 /* module limited globals */

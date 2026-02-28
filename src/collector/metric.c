@@ -50,6 +50,7 @@
 #include "config.h"
 #include "nffile.h"
 #include "nfxV3.h"
+#include "logging.h"
 #include "util.h"
 
 static char *socket_path = NULL;

@@ -40,6 +40,7 @@
 #include "khash.h"
 #include "maxmind.h"
 #include "mmhash.h"
+#include "logging.h"
 #include "util.h"
 
 #define kh_hash_func(key) (khint32_t)(key.key)

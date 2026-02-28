@@ -34,6 +34,7 @@
 #define ALIGN_MASK 0xFFFFFFFC
 #endif
 
+#include "logging.h"
 #include "spin_lock.h"
 
 #define GetLock(a) spin_lock(((a)->lock))

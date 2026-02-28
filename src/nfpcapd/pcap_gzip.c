@@ -42,6 +42,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "logging.h"
 #include "packet_pcap.h"
 #include "util.h"
 #include "zlib.h"

@@ -46,6 +46,7 @@
 
 #include "config.h"
 #include "netflow/ipfix.h"
+#include "logging.h"
 #include "util.h"
 #include "yaf_reader.h"
 

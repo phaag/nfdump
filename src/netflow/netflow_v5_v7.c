@@ -53,6 +53,7 @@
 #include "nfnet.h"
 #include "nfxV3.h"
 #include "output_short.h"
+#include "logging.h"
 #include "util.h"
 
 #define NETFLOW_V5_HEADER_LENGTH 24

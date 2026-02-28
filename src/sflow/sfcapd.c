@@ -66,6 +66,7 @@
 #include "flowsource.h"
 #include "ip128.h"
 #include "launch.h"
+#include "logging.h"
 #include "metric.h"
 #include "nfdump.h"
 #include "nffile.h"

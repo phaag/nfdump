@@ -41,6 +41,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include "logging.h"
 #include "util.h"
 
 static pid_t read_pid(char *pidfile);

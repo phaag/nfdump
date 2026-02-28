@@ -33,6 +33,7 @@
 
 #include "dns/dns.h"
 #include "dns/mappings.h"
+#include "logging.h"
 #include "util.h"
 
 /************************************************************************/

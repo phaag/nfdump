@@ -40,18 +40,6 @@
 
 #include "config.h"
 
-#ifdef DEVEL
-#include <assert.h>
-#include <stdio.h>
-#define dbg_printf(...) printf(__VA_ARGS__)
-#define dbg_assert(a) assert(a)
-#define dbg(a) a
-#else
-#define dbg_printf(...) /* printf(__VA_ARGS__) */
-#define dbg_assert(a)   /* assert(a) */
-#define dbg(a)          /* a */
-#endif
-
 #define UNUSED(expr)  \
     do {              \
         (void)(expr); \
@@ -87,10 +75,6 @@ typedef uint32_t pointer_addr_t;
 #define likely(x) __builtin_expect((x), 1)
 #define unlikely(x) __builtin_expect((x), 0)
 
-#define SYSLOG_FACILITY "daemon"
-#define NOSYSLOG 0
-#define MAXVERBOSE 4
-
 typedef struct stringlist_s {
     char **list;
     uint32_t num_strings;
@@ -116,18 +100,6 @@ int CheckPath(const char *path, unsigned type);
 #define PATH_OK 2
 int TestPath(const char *path, unsigned type);
 
-int ParseVerbose(int verbose, const char *arg);
-
-void EndLog(void);
-
-int InitLog(unsigned want_syslog, const char *name, char *facility, int verbose_log);
-
-void LogError(char *format, ...);
-
-void LogInfo(char *format, ...);
-
-void LogVerbose(char *format, ...);
-
 void ClearStringList(stringlist_t *sl);
 
 void FreeStringList(stringlist_t *sl);
@@ -140,7 +112,7 @@ char *TimeString(uint64_t msecStart, uint64_t msecEnd);
 
 char *UNIX2ISO(time_t t);
 
-time_t ISO2UNIX(char *timestring);
+time_t ISO2UNIX(const char *timestring);
 
 uint64_t ParseTime8601(const char *s);
 

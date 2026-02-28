@@ -64,6 +64,7 @@
 #include <unistd.h>
 
 #include "pcap_reader.h"
+#include "logging.h"
 #include "util.h"
 
 // define potential missing types

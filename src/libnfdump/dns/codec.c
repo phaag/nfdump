@@ -53,6 +53,7 @@
 #include <string.h>
 
 #include "codec.h"
+#include "logging.h"
 #include "util.h"
 
 #if defined(__clang__)

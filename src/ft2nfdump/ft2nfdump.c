@@ -54,6 +54,7 @@
 #include "nffile.h"
 #include "nfxV3.h"
 #include "output_short.h"
+#include "logging.h"
 #include "util.h"
 #include "version.h"
 

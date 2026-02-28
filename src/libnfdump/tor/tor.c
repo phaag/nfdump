@@ -40,6 +40,7 @@
 #include "nffile.h"
 #include "nffileV2.h"
 #include "nfxV3.h"
+#include "logging.h"
 #include "util.h"
 
 // include after

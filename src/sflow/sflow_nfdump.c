@@ -54,6 +54,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "logging.h"
 #include "metric.h"
 #include "nfdump.h"
 #include "nfxV3.h"

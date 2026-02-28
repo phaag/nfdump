@@ -73,6 +73,7 @@
 #include "output.h"
 #include "ssl/ssl.h"
 #include "tor/tor.h"
+#include "logging.h"
 #include "util.h"
 #include "version.h"
 

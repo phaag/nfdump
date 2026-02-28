@@ -44,6 +44,7 @@
 
 #include "config.h"
 #include "ip128.h"
+#include "logging.h"
 #include "util.h"
 
 static void freeFlowSource(FlowSource_t *fs);

@@ -45,6 +45,7 @@
 #include "config.h"
 #include "khash.h"
 #include "nfxV3.h"
+#include "logging.h"
 #include "util.h"
 
 typedef struct AppInfoHash_s {

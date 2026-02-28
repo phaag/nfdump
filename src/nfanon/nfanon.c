@@ -58,6 +58,7 @@
 #include "nffile.h"
 #include "nfxV3.h"
 #include "panonymizer.h"
+#include "logging.h"
 #include "util.h"
 
 #define MAXANONWORKERS 8

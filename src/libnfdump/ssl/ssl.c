@@ -38,6 +38,7 @@
 #include <unistd.h>
 
 #include "stream.h"
+#include "logging.h"
 #include "util.h"
 
 // array handling

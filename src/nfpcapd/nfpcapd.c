@@ -68,6 +68,7 @@
 #include "flowdump.h"
 #include "flowhash.h"
 #include "flowsend.h"
+#include "logging.h"
 #include "metric.h"
 #include "nfdump.h"
 #include "nffile.h"

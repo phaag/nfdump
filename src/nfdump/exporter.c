@@ -44,6 +44,7 @@
 
 #include "nfdump.h"
 #include "nfxV3.h"
+#include "logging.h"
 #include "util.h"
 
 // exporter local variables

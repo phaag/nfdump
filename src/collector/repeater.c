@@ -41,10 +41,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "daemon.h"
+#include "logging.h"
 #include "nfnet.h"
-#include "privsep.h"
 #include "queue.h"
 #include "util.h"
 

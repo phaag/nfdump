@@ -36,6 +36,7 @@
 #include <string.h>
 
 #include "kbtree.h"
+#include "logging.h"
 #include "util.h"
 
 typedef struct nameNode_s {

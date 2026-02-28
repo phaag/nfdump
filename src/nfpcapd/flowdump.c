@@ -52,6 +52,7 @@
 #include "exporter.h"
 #include "flist.h"
 #include "ip128.h"
+#include "logging.h"
 #include "metric.h"
 #include "nfdump.h"
 #include "nffile.h"

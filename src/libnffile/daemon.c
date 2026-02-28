@@ -44,6 +44,7 @@
 #define _GNU_SOURCE
 #include <unistd.h>
 
+#include "logging.h"
 #include "util.h"
 
 void daemonize(void) {

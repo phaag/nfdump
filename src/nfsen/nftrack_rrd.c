@@ -44,6 +44,7 @@
 #include <unistd.h>
 
 #include "config.h"
+#include "logging.h"
 #include "nftrack_stat.h"
 #include "rrd.h"
 #include "util.h"

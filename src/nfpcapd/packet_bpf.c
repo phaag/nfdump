@@ -51,6 +51,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "logging.h"
 #include "packet_pcap.h"
 #include "pcapdump.h"
 #include "pcaproc.h"

@@ -48,6 +48,7 @@
 #include "config.h"
 #include "filter/filter.h"
 #include "flist.h"
+#include "logging.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "rbtree.h"

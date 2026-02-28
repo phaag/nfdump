@@ -40,6 +40,7 @@
 #include <sys/types.h>
 
 #include "nfdump.h"
+#include "logging.h"
 #include "util.h"
 
 // sub template IDs

@@ -3,6 +3,7 @@ BUILT_SOURCES = vcs_track.h
 AM_CPPFLAGS = -I.. -I../include -I../inline -I../nfdump/compat_1_6_x  -Iconf -Icompress -DSYSCONFDIR='"$(sysconfdir)"'
 
 # libnffile sources
+logging = logging.c logging.h
 util = util.c util.h
 pidfile = pidfile.c pidfile.h
 compress = compress/minilzo.c compress/minilzo.h compress/lzoconf.h compress/lzodefs.h 
@@ -27,7 +28,7 @@ vcs_track.h: Makefile
 	./gen_version.sh @PACKAGE_VERSION@
 
 lib_LTLIBRARIES = libnffile.la
-libnffile_la_SOURCES = $(conf) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(barrier) $(version) vcs_track.h
+libnffile_la_SOURCES = $(conf) $(logging) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(barrier) $(version) vcs_track.h
 libnffile_la_CFLAGS = $(LZ4_CFLAGS) $(ZSTD_CFLAGS) $(BZ2_CFLAGS)
 libnffile_la_LIBADD = $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBATOMIC) $(RAND_LIBS)
 libnffile_la_LDFLAGS = -release @VERSION@

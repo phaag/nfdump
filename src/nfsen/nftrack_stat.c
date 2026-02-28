@@ -43,6 +43,7 @@
 #include <unistd.h>
 
 #include "config.h"
+#include "logging.h"
 #include "nftrack_rrd.h"
 #include "util.h"
 

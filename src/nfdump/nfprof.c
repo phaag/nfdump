@@ -41,6 +41,7 @@
 #include <sys/types.h>
 
 #include "config.h"
+#include "logging.h"
 #include "util.h"
 
 /*

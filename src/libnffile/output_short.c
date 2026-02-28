@@ -41,6 +41,7 @@
 #include <time.h>
 
 #include "config.h"
+#include "logging.h"
 #include "nfdump.h"
 #include "nfxV3.h"
 #include "userio.h"

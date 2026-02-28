@@ -47,6 +47,7 @@
 #include "config.h"
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
+#include "logging.h"
 #include "maxmind/maxmind.h"
 #include "nfdump.h"
 #include "nffile.h"

@@ -50,6 +50,7 @@
 #include "config.h"
 #include "exporter.h"
 #include "filter/filter.h"
+#include "logging.h"
 #include "maxmind/maxmind.h"
 #include "memhandle.h"
 #include "nfdump.h"

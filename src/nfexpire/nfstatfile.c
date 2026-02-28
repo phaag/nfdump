@@ -50,6 +50,7 @@
 #include <stdint.h>
 #endif
 
+#include "logging.h"
 #include "nfstatfile.h"
 #include "util.h"
 

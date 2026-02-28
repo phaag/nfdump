@@ -33,6 +33,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "logging.h"
 #include "util.h"
 
 // byte stream stream struct

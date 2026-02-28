@@ -34,6 +34,8 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include "logging.h"
+
 typedef struct uint16Array_s {
     uint32_t numElements;
     uint16_t *array;

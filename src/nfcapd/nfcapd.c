@@ -78,6 +78,7 @@
 #include "nfxV3.h"
 #include "pidfile.h"
 #include "repeater.h"
+#include "logging.h"
 #include "util.h"
 #include "version.h"
 #include "yaf_reader.h"

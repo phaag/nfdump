@@ -52,6 +52,7 @@
 #include "config.h"
 #include "nfdump.h"
 #include "nffile.h"
+#include "logging.h"
 #include "util.h"
 
 #define LAUNCH_NULL 0

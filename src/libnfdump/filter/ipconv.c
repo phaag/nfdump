@@ -42,6 +42,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include "logging.h"
 #include "util.h"
 
 static int lookup_host(const char *hostname, ipStack_t *ipStack);

@@ -64,6 +64,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "logging.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"

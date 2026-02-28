@@ -39,6 +39,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include "logging.h"
 #include "maxmind/mmhash.h"
 #include "mmcreate.h"
 #include "util.h"

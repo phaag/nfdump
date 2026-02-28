@@ -43,6 +43,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "logging.h"
 #include "util.h"
 
 /* local function prototypes */

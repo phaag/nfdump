@@ -51,6 +51,7 @@
 #endif
 
 #include "toml.h"
+#include "logging.h"
 #include "util.h"
 
 #define NFCONF_FILE SYSCONFDIR "/nfdump.conf"

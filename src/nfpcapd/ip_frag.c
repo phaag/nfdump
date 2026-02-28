@@ -40,6 +40,7 @@
 
 #include "config.h"
 #include "ip128.h"
+#include "logging.h"
 #include "nfdump.h"
 #include "util.h"
 

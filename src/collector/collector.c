@@ -58,6 +58,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"
+#include "logging.h"
 #include "util.h"
 
 typedef struct finaliseArgs_s {

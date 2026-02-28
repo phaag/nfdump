@@ -43,6 +43,7 @@
 #include <unistd.h>
 
 // #include "exporter.h"
+#include "logging.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"

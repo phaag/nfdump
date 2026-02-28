@@ -39,6 +39,7 @@
 #include <strings.h>
 
 #include "conf/nfconf.h"
+#include "logging.h"
 #include "nfdump.h"
 #include "output_csv.h"
 #include "output_fmt.h"

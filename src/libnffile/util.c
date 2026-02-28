@@ -29,19 +29,14 @@
  *
  */
 
-#ifndef SYSLOG_NAMES
-#define SYSLOG_NAMES 1
-#endif
-
 #include "util.h"
+
+#include "logging.h"
 
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
 #include <limits.h>
-#include <stdarg.h>
-#include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/param.h>
@@ -50,29 +45,11 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <syslog.h>
 #include <time.h>
 #include <unistd.h>
 
-/* Global vars */
-
-static unsigned verbose = 1;
-
 /* Function prototypes */
 static int check_number(char *s, size_t len);
-
-static int use_syslog = 0;
-
-#ifdef sun
-struct _code {
-    char *c_name;
-    int c_val;
-} facilitynames[] = {{"auth", LOG_AUTH},     {"cron", LOG_CRON},     {"daemon", LOG_DAEMON}, {"kern", LOG_KERN},
-                     {"lpr", LOG_LPR},       {"mail", LOG_MAIL},     {"news", LOG_NEWS},     {"security", LOG_AUTH}, /* DEPRECATED */
-                     {"syslog", LOG_SYSLOG}, {"user", LOG_USER},     {"uucp", LOG_UUCP},     {"local0", LOG_LOCAL0},
-                     {"local1", LOG_LOCAL1}, {"local2", LOG_LOCAL2}, {"local3", LOG_LOCAL3}, {"local4", LOG_LOCAL4},
-                     {"local5", LOG_LOCAL5}, {"local6", LOG_LOCAL6}, {"local7", LOG_LOCAL7}, {NULL, -1}};
-#endif
 
 /* Functions */
 
@@ -181,158 +158,6 @@ int CheckPath(const char *path, unsigned type) {
     }
     return ret == 2 ? 1 : 0;
 }  // End of CheckPath
-
-int ParseVerbose(int verbose, const char *arg) {
-    if (verbose >= 0) {
-        printf("Verbose log level already set to %d\n", verbose);
-        return -2;
-    }
-    if (verbose < 0) verbose = 0;
-
-    if (arg == NULL) {
-        printf("Verbose argument requires a number\n");
-        return -2;
-    }
-    // handle -v...
-    size_t len = strlen(arg);
-    if (len != 1) {
-        printf("Invalid verbose level: %s\n", arg);
-        return -2;
-    }
-
-    char c = arg[0];
-    if (!isdigit(c)) {
-        printf("Invalid verbose level: %s\n", arg);
-        return -2;
-    }
-
-    verbose = atoi(arg);
-    if (verbose < 0 || verbose > MAXVERBOSE) {
-        printf("Verbose log level allowed between 0..%d\n", MAXVERBOSE);
-        return -2;
-    }
-
-    return verbose;
-}  // End of ParseVerbose
-
-void EndLog(void) {
-    if (use_syslog) closelog();
-}  // End of CloseLog
-
-int InitLog(unsigned want_syslog, const char *name, char *facility, int verbose_log) {
-    int i;
-
-#ifdef DEVEL
-    verbose_log = MAXVERBOSE;
-    want_syslog = NOSYSLOG;
-#endif
-
-    // if not set - defaults to 1
-    if (verbose_log < 0) verbose_log = 1;
-
-    verbose = verbose_log;
-    if (want_syslog == NOSYSLOG) {
-        use_syslog = 0;
-        if (verbose) {
-            LogInfo("Verbose log level: %u", verbose);
-        }
-        return 1;
-    }
-
-    if (!facility || strlen(facility) > 32) {
-        fprintf(stderr, "Invalid syslog facility name '%s'!\n", facility);
-        return 0;
-    }
-
-    i = 0;
-    while (facilitynames[i].c_name && strcasecmp(facilitynames[i].c_name, facility) != 0) {
-        i++;
-    }
-
-    if (facilitynames[i].c_name == NULL) {
-        fprintf(stderr, "Invalid syslog facility name '%s'!\n", facility);
-        return 0;
-    }
-
-    const char *logname;
-    if ((logname = strrchr(name, '/')) != 0) {
-        logname++;
-    } else {
-        logname = name;
-    }
-    openlog(logname, LOG_CONS | LOG_PID, facilitynames[i].c_val);
-    use_syslog = 1;
-
-    if (verbose) {
-        LogInfo("Verbose log level: %u", verbose);
-    }
-
-    return 1;
-
-}  // End of InitLog
-
-/*
- * some modules are needed for daemon code as well as normal stdio code
- * therefore a generic LogError is defined, which maps in this case
- * to stderr
- */
-void LogError(char *format, ...) {
-    va_list var_args;
-    char string[512];
-
-    if (use_syslog) {
-        va_start(var_args, format);
-        vsnprintf(string, 511, format, var_args);
-        va_end(var_args);
-        syslog(LOG_ERR, "%s", string);
-        dbg_printf("%s\n", string);
-    } else {
-        va_start(var_args, format);
-        vsnprintf(string, 511, format, var_args);
-        fprintf(stderr, "%s\n", string);
-        va_end(var_args);
-    }
-
-}  // End of LogError
-
-void LogInfo(char *format, ...) {
-    va_list var_args;
-    char string[512];
-
-    if (use_syslog) {
-        va_start(var_args, format);
-        vsnprintf(string, 511, format, var_args);
-        va_end(var_args);
-        syslog(LOG_INFO, "%s", string);
-        dbg_printf("%s\n", string);
-    } else if (verbose) {
-        va_start(var_args, format);
-        vsnprintf(string, 511, format, var_args);
-        fprintf(stderr, "%s\n", string);
-        va_end(var_args);
-    }
-
-}  // End of LogInfo
-
-void LogVerbose(char *format, ...) {
-    va_list var_args;
-    char string[512];
-    if (verbose > 1) {
-        if (use_syslog) {
-            va_start(var_args, format);
-            vsnprintf(string, 511, format, var_args);
-            va_end(var_args);
-            syslog(LOG_INFO, "%s", string);
-            dbg_printf("%s\n", string);
-        } else {
-            va_start(var_args, format);
-            vsnprintf(string, 511, format, var_args);
-            fprintf(stderr, "%s\n", string);
-            va_end(var_args);
-        }
-    }
-
-}  // End of LogVerbose
 
 static int check_number(char *s, size_t len) {
     size_t l = strlen(s);
@@ -598,74 +423,59 @@ char *UNIX2ISO(time_t t) {
 }  // End of UNIX2ISO
 
 // yyyy-MM-ddThh:mm:ss.s
-time_t ISO2UNIX(char *timestring) {
-    char c, *p;
-    struct tm when;
-    time_t t;
-
-    // let localtime fill in all default fields such as summer time, TZ etc.
-    t = time(NULL);
-    localtime_r(&t, &when);
-    when.tm_sec = 0;
-    when.tm_wday = 0;
-    when.tm_yday = 0;
-    when.tm_isdst = -1;
+time_t ISO2UNIX(const char *timestring) {
+    if (!timestring) {
+        LogError("NULL time string");
+        return (time_t)-1;
+    }
 
     size_t len = strlen(timestring);
     if (len != 12 && len != 14) {
-        LogError("Wrong time format '%s'\n", timestring);
-        return 0;
+        LogError("Wrong time format '%s'", timestring);
+        return (time_t)-1;
     }
-    // 2019 05 05 12 00 (10)
-    // year
-    p = timestring;
-    c = p[4];
-    p[4] = '\0';
-    when.tm_year = atoi(p) - 1900;
-    p[4] = c;
 
-    // month
-    p += 4;
-    c = p[2];
-    p[2] = '\0';
-    when.tm_mon = atoi(p) - 1;
-    p[2] = c;
+    // ensure all characters are digits
+    for (size_t i = 0; i < len; i++) {
+        if (!isdigit((unsigned char)timestring[i])) {
+            LogError("Invalid character in time string '%s'", timestring);
+            return (time_t)-1;
+        }
+    }
 
-    // day
-    p += 2;
-    c = p[2];
-    p[2] = '\0';
-    when.tm_mday = atoi(p);
-    p[2] = c;
+    struct tm when = {0};
 
-    // hour
-    p += 2;
-    c = p[2];
-    p[2] = '\0';
-    when.tm_hour = atoi(p);
-    p[2] = c;
-
-    // minute
-    p += 2;
-    c = p[2];
-    p[2] = '\0';
-    when.tm_min = atoi(p);
-    p[2] = c;
+    // parse manually without modifying input
+    when.tm_year = (timestring[0] - '0') * 1000 + (timestring[1] - '0') * 100 + (timestring[2] - '0') * 10 + (timestring[3] - '0') - 1900;
+    when.tm_mon = ((timestring[4] - '0') * 10 + (timestring[5] - '0')) - 1;
+    when.tm_mday = (timestring[6] - '0') * 10 + (timestring[7] - '0');
+    when.tm_hour = (timestring[8] - '0') * 10 + (timestring[9] - '0');
+    when.tm_min = (timestring[10] - '0') * 10 + (timestring[11] - '0');
+    when.tm_sec = 0;
 
     if (len == 14) {
-        p += 2;
-        when.tm_sec = atoi(p);
+        when.tm_sec = (timestring[12] - '0') * 10 + (timestring[13] - '0');
     }
 
-    t = mktime(&when);
-    if (t == -1) {
-        LogError("Failed to convert string '%s'\n", timestring);
-        return 0;
-    } else {
-        // printf("%s %s", timestring, ctime(&t));
-        return t;
+    when.tm_isdst = -1;  // let mktime determine DST
+
+    // range validation
+    if (when.tm_mon < 0 || when.tm_mon > 11 || when.tm_mday < 1 || when.tm_mday > 31 || when.tm_hour < 0 || when.tm_hour > 23 || when.tm_min < 0 ||
+        when.tm_min > 59 || when.tm_sec < 0 || when.tm_sec > 60) {
+        LogError("Out-of-range values in '%s'", timestring);
+        return (time_t)-1;
     }
 
+    // comment
+    // pthread_mutex_lock(&mktime_mutex);
+    time_t t = mktime(&when);
+    // pthread_mutex_unlock(&mktime_mutex);
+    if (t == (time_t)-1) {
+        LogError("Failed to convert string '%s'", timestring);
+        return (time_t)-1;
+    }
+
+    return t;
 }  // End of ISO2UNIX
 
 long getTick(void) {

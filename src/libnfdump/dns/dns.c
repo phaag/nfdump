@@ -38,6 +38,7 @@
 
 #include "codec.h"
 #include "mappings.h"
+#include "logging.h"
 #include "util.h"
 
 void *dnsPayloadDecode(const void *inPayload, const uint32_t inPayloadLength) {

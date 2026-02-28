@@ -64,6 +64,7 @@
 #include <stdint.h>
 #endif
 
+#include "logging.h"
 #include "nfdump.h"
 #include "sflow.h" /* sFlow v5 */
 #include "sflow_nfdump.h"

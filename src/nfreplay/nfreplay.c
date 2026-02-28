@@ -56,6 +56,7 @@
 
 #include "filter/filter.h"
 #include "flist.h"
+#include "logging.h"
 #include "nbar.h"
 #include "nfd_raw.h"
 #include "nfdump.h"

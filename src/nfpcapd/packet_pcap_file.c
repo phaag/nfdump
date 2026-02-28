@@ -70,6 +70,7 @@
 #endif
 
 #include "flowhash.h"
+#include "logging.h"
 #include "nffile.h"
 #include "packet_pcap.h"
 #include "pcapdump.h"

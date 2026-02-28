@@ -40,6 +40,7 @@
 #include "nfdump_1_6_x.h"
 #include "nffile.h"
 #include "nffileV2.h"
+#include "logging.h"
 #include "util.h"
 
 static void UpdateStat(stat_record_t *s, stat_recordV1_t *sv1) {

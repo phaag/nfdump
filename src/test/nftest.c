@@ -49,6 +49,7 @@
 #include "filter/filter.h"
 #include "ja3/ja3.h"
 #include "ja4/ja4.h"
+#include "logging.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nfxV3.h"

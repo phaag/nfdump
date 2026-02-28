@@ -37,6 +37,7 @@
 #include "nfdump_1_6_x.h"
 #include "nffileV2.h"
 #include "nfx.h"
+#include "logging.h"
 #include "util.h"
 
 static extension_map_list_t *extension_map_list = NULL;

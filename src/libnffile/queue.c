@@ -43,6 +43,7 @@
 #include <unistd.h>
 
 #include "config.h"
+#include "logging.h"
 #include "util.h"
 
 queue_t *queue_init(size_t length) {

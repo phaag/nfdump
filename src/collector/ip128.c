@@ -39,6 +39,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
+#include "logging.h"
 #include "util.h"
 
 char *ip128_2_str(const ip128_t *ip, char *ipstr) {

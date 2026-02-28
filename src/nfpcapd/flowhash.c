@@ -45,6 +45,7 @@
 #include <unistd.h>
 
 #include "config.h"
+#include "logging.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "util.h"

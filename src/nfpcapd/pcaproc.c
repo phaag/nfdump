@@ -66,6 +66,7 @@
 #include "flowhash.h"
 #include "ip128.h"
 #include "ip_frag.h"
+#include "logging.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "nflog.h"

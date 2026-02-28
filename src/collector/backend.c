@@ -43,6 +43,7 @@
 #include "collector.h"
 #include "flowsource.h"
 #include "launch.h"
+#include "logging.h"
 #include "nffile.h"
 #include "util.h"
 

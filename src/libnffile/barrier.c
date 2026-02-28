@@ -44,6 +44,7 @@
 #include "barrier.h"
 #include "nfconf.h"
 #include "nfdump.h"
+#include "logging.h"
 #include "util.h"
 
 // get decent number of workers depending

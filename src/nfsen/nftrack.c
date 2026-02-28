@@ -51,6 +51,7 @@
 #include "exporter.h"
 #include "filter/filter.h"
 #include "flist.h"
+#include "logging.h"
 #include "nbar.h"
 #include "nfdump.h"
 #include "nffile.h"

@@ -41,6 +41,7 @@
 #include "digest/sha256.h"
 #include "ja4.h"
 #include "ssl/ssl.h"
+#include "logging.h"
 #include "util.h"
 
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))

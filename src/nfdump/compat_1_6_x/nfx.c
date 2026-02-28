@@ -43,6 +43,7 @@
 
 #include "nfdump.h"
 #include "nffile.h"
+#include "logging.h"
 #include "util.h"
 
 /* global vars */

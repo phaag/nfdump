@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2022, Peter Haag
+ *  Copyright (c) 2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -28,54 +28,35 @@
  *
  */
 
-#ifndef _PRIVSEP_H
-#define _PRIVSEP_H 1
+#ifndef _LOGGING_H
+#define _LOGGING_H 1
 
-#include <pthread.h>
-#include <stdint.h>
-#include <unistd.h>
+#define SYSLOG_FACILITY "daemon"
+#define NOSYSLOG 0
+#define MAXVERBOSE 4
 
-typedef struct message_s {
-    uint16_t type;
-    uint16_t length;
-} message_t;
-
-typedef struct messageList {
-    struct messageList *next;
-    message_t *message;
-} messageList_t;
-
-typedef struct messageQueue_s {
-    messageList_t *head;
-    messageList_t *tail;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-    uint32_t length;
-} messageQueue_t;
-
-#define PRIVMSG_NULL 0
-#define PRIVMSG_LAUNCH 1
-#define PRIVMSG_REPEAT 2
-#define PRIVMSG_EXIT 0xFFFF
-#define PRIVMSG_FLUSH 0xFFFE
-
-typedef void (*messageFunc_t)(message_t *, void *);
-
-typedef struct thread_arg_s {
-    messageFunc_t messageFunc;
-    void *extraArg;
-} thread_arg_t;
-
-void *pipeReader(void *arg);
-
-messageQueue_t *NewMessageQueue(void);
-
-void pushMessage(messageQueue_t *messageQueue, message_t *message);
-
-void pushMessageFunc(message_t *message, void *extraArg);
-
-message_t *getMessage(messageQueue_t *messageQueue);
-
-int PrivsepFork(int argc, char **argv, pid_t *child_pid, char *privname);
-
+#ifdef DEVEL
+#include <assert.h>
+#include <stdio.h>
+#define dbg_printf(...) printf(__VA_ARGS__)
+#define dbg_assert(a) assert(a)
+#define dbg(a) a
+#else
+#define dbg_printf(...) /* printf(__VA_ARGS__) */
+#define dbg_assert(a)   /* assert(a) */
+#define dbg(a)          /* a */
 #endif
+
+int ParseVerbose(int verbose, const char *arg);
+
+void EndLog(void);
+
+int InitLog(unsigned want_syslog, const char *name, char *facility, int verbose_log);
+
+void LogError(char *format, ...);
+
+void LogInfo(char *format, ...);
+
+void LogVerbose(char *format, ...);
+
+#endif  // _LOGGING_H

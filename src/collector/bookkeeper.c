@@ -44,6 +44,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "logging.h"
 #include "util.h"
 
 static int book_lock(int fd) {

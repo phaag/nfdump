@@ -40,6 +40,7 @@
 
 #include "digest/md5.h"
 #include "ssl/ssl.h"
+#include "logging.h"
 #include "util.h"
 
 #define CheckStringSize(s, l)                                                   \

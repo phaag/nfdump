@@ -82,6 +82,7 @@
 #include "nfdump.h"
 #include "nfdump_1_6_x.h"
 #include "nffileV2.h"
+#include "logging.h"
 #include "util.h"
 
 // LZO params

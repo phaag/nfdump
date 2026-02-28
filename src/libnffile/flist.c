@@ -62,6 +62,7 @@
 #include "nfdump.h"
 #include "nffile.h"
 #include "queue.h"
+#include "logging.h"
 #include "util.h"
 
 /*

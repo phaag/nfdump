@@ -41,6 +41,7 @@
 #include <sys/types.h>
 #include <time.h>
 
+#include "logging.h"
 #include "nfxV3.h"
 #include "output_csv.h"
 #include "output_util.h"

@@ -50,6 +50,7 @@
 #include "config.h"
 #include "exporter.h"
 #include "flowdump.h"
+#include "logging.h"
 #include "metric.h"
 #include "nfd_raw.h"
 #include "nfdump.h"
