@@ -50,15 +50,53 @@
 #include "logging.h"
 #include "util.h"
 
-static const double _1K = 1024.0;
-static const double _1M = 1024.0 * 1024.0;
-static const double _1G = 1024.0 * 1024.0 * 1024.0;
-static const double _1T = 1024.0 * 1024.0 * 1024.0 * 1024.0;
+typedef struct {
+    double factor;
+    const char *unit;
+} ScaleStep;
 
-static const double _1min = 60.0;
-static const double _1hour = 3600.0;
-static const double _1day = 86400.0;
-static const double _1week = 604800.0;
+static const ScaleStep SIZE_STEPS[] = {
+    {1099511627776.0, "TB"},  // 1024^4
+    {1073741824.0, "GB"},     // 1024^3
+    {1048576.0, "MB"},        // 1024^2
+    {1024.0, "KB"},           // 1024^1
+    {1.0, "B"},               // 1024^0
+    {0.0, NULL}               // Sentinel
+};
+
+static const ScaleStep TIME_STEPS[] = {
+    {604800.0, "weeks"},  // weeks
+    {86400.0, "days"},    // days
+    {3600.0, "hours"},    // hours
+    {60.0, "min"},        // minutes
+    {1.0, "sec"},         // seconds
+    {0.0, NULL}           // Sentinel
+};
+
+// Internal helper to handle the formatting logic
+static char *FormatScaled(char *buf, size_t len, uint64_t v, const ScaleStep *steps) {
+    double f = (double)v;
+
+    for (int i = 0; steps[i].unit != NULL; ++i) {
+        if (f >= steps[i].factor) {
+            if (steps[i].factor > 1.0) {
+                snprintf(buf, len, "%llu = %.1f %s", (unsigned long long)v, f / steps[i].factor, steps[i].unit);
+            } else {
+                snprintf(buf, len, "%llu %s", (unsigned long long)v, steps[i].unit);
+            }
+            return buf;
+        }
+    }
+
+    // Fix 3: Handle the 0 case specifically
+    snprintf(buf, len, "0 %s", steps[4].unit);  // Usually "B" or "sec"
+    return buf;
+}  // End of FormatScaled
+
+// Thread-safe versions requiring a buffer
+char *ScaleValue(char *buf, size_t len, uint64_t v) { return FormatScaled(buf, len, v, SIZE_STEPS); }
+
+char *ScaleTime(char *buf, size_t len, uint64_t v) { return FormatScaled(buf, len, v, TIME_STEPS); }
 
 static int SetFileLock(int fd) {
     struct flock fl;
@@ -85,48 +123,6 @@ static int ReleaseFileLock(int fd) {
     return fcntl(fd, F_SETLK, &fl); /* set the region to unlocked */
 
 }  // End of SetFileLock
-
-char *ScaleValue(uint64_t v) {
-    double f = v;
-    static char s[64];
-
-    if (f < _1K) {  // 1 K 1024
-        snprintf(s, 63, "%llu B", (unsigned long long)v);
-    } else if (f < _1M) {
-        snprintf(s, 63, "%llu = %.1f KB", (unsigned long long)v, f / _1K);
-    } else if (f < _1G) {
-        snprintf(s, 63, "%llu = %.1f MB", (unsigned long long)v, f / _1M);
-    } else if (f < _1T) {
-        snprintf(s, 63, "%llu = %.1f GB", (unsigned long long)v, f / _1G);
-    } else {  // everything else in T
-        snprintf(s, 63, "%llu = %.1f TB", (unsigned long long)v, f / _1T);
-    }
-    s[63] = '\0';
-
-    return s;
-
-}  // End of ScaleValue
-
-char *ScaleTime(uint64_t v) {
-    double f = v;
-    static char s[64];
-
-    if (f < _1min) {
-        snprintf(s, 63, "%llu sec", (unsigned long long)v);
-    } else if (f < _1hour) {
-        snprintf(s, 63, "%llu = %.1f min", (unsigned long long)v, f / _1min);
-    } else if (f < _1day) {
-        snprintf(s, 63, "%llu = %.1f hours", (unsigned long long)v, f / _1hour);
-    } else if (f < _1week) {
-        snprintf(s, 63, "%llu = %.1f days", (unsigned long long)v, f / _1day);
-    } else {  // everything else in weeks
-        snprintf(s, 63, "%llu = %.1f weeks", (unsigned long long)v, f / _1week);
-    }
-    s[63] = '\0';
-
-    return s;
-
-}  // End of ScaleValue
 
 int WriteStatInfo(channel_t *channel) {
     char stat_file[MAXPATHLEN];

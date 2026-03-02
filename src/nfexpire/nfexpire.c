@@ -347,7 +347,7 @@ int main(int argc, char **argv) {
     if (do_expire) {
         uint32_t expired_files = 0;
         uint64_t expired_size = 0;
-        time_t first = channel->bookkeeper.first;
+        time_t expired_time;
 
         int ok = 0;
         if (is_profile) {
@@ -361,11 +361,13 @@ int main(int argc, char **argv) {
             expired_files = channel->expired_files;
             expired_size = channel->expired_size;
         }
+        expired_time = channel->expired_time;
         // Report, what we have done
         LogInfo("Expire %s:", ok ? "successfully terminated" : "failed");
         LogInfo("Expired files:      %llu", (unsigned long long)(expired_files));
-        LogInfo("Expired file size:  %s", ScaleValue(expired_size));
-        LogInfo("Expired time range: %s", ScaleTime(first - channel->bookkeeper.first));
+        char string[64];
+        LogInfo("Expired file size:  %s", ScaleValue(string, sizeof(string), expired_size));
+        LogInfo("Expired time range: %s", ScaleTime(string, sizeof(string), expired_time));
     }
 
     if (do_update_param) {

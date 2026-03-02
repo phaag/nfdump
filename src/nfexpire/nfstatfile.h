@@ -39,9 +39,9 @@
 
 #include "expire.h"
 
-char *ScaleValue(uint64_t v);
+char *ScaleValue(char *buf, size_t len, uint64_t v);
 
-char *ScaleTime(uint64_t v);
+char *ScaleTime(char *buf, size_t len, uint64_t v);
 
 int WriteStatInfo(channel_t *channel);
 

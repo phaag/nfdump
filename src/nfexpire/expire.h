@@ -49,9 +49,10 @@ typedef struct channel_s {
     struct channel_s *next;
     char *datadir;               // channel directory
     book_handle_t *book_handle;  // handle to books
-    bookkeeper_t bookkeeper;     // snapshot while expiring files
+    int dirfd;                   // reference to open channel dir
     uint64_t expired_size;       // expired size of file blocks
     uint64_t expired_files;      // expired files
+    time_t expired_time;         // time span expired
 } channel_t;
 
 int ParseSizeDef(const char *s, uint64_t *value);
