@@ -44,29 +44,24 @@
 #endif
 
 #include "bookkeeper.h"
-#include "nfstatfile.h"
 
 typedef struct channel_s {
     struct channel_s *next;
-    char *datadir;
-    dirstat_t *dirstat;
-    book_handle_t *book_handle;
-    int do_rescan;
-    int status;
-    FTS *fts;
-    FTSENT *ftsent;
+    char *datadir;               // channel directory
+    book_handle_t *book_handle;  // handle to books
+    bookkeeper_t bookkeeper;     // snapshot while expiring files
+    uint64_t expired_size;       // expired size of file blocks
+    uint64_t expired_files;      // expired files
 } channel_t;
 
-enum { OK = 0, NOFILES };
+int ParseSizeDef(const char *s, uint64_t *value);
 
-uint64_t ParseSizeDef(char *s, uint64_t *value);
+int ParseTimeDef(const char *s, time_t *value);
 
-uint64_t ParseTimeDef(char *s, uint64_t *value);
+int RescanDir(const channel_t *channel);
 
-void RescanDir(char *dir, dirstat_t *dirstat);
+int ExpireDir(channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low_water, time_t runtime, int dryrun);
 
-void ExpireDir(char *dir, dirstat_t *dirstat, uint64_t maxsize, uint64_t maxlife, uint32_t runtime);
-
-void ExpireProfile(channel_t *channel, dirstat_t *current_stat, uint64_t maxsize, uint64_t maxlife, uint32_t runtime);
+int ExpireProfile(const char *profile, channel_t *channel, uint64_t maxsize, time_t maxlife, uint32_t low_water, uint32_t runtime, int dryrun);
 
 #endif  //_EXPIRE_H

@@ -37,7 +37,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "collector/bookkeeper.h"
+#include "bookkeeper.h"
 #include "nfdump.h"
 #include "nffileV2.h"
 #include "queue.h"

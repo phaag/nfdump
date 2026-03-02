@@ -23,12 +23,13 @@ output = userio.c userio.h output_short.c output_short.h
 daemon = daemon.c daemon.h 
 version = version.c version.h
 barrier = barrier.c barrier.h
+bookkeeper = bookkeeper.c bookkeeper.h
 
 vcs_track.h: Makefile
 	./gen_version.sh @PACKAGE_VERSION@
 
 lib_LTLIBRARIES = libnffile.la
-libnffile_la_SOURCES = $(conf) $(logging) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(barrier) $(version) vcs_track.h
+libnffile_la_SOURCES = $(conf) $(logging) $(util) $(pidfile) $(compress) $(nffile) $(nflist) $(filter) $(output) $(regex) $(daemon) $(barrier) $(bookkeeper) $(version) vcs_track.h
 libnffile_la_CFLAGS = $(LZ4_CFLAGS) $(ZSTD_CFLAGS) $(BZ2_CFLAGS)
 libnffile_la_LIBADD = $(LZ4_LIBS) $(ZSTD_LIBS) $(BZ2_LIBS) $(LIBATOMIC) $(RAND_LIBS)
 libnffile_la_LDFLAGS = -release @VERSION@

@@ -112,6 +112,7 @@ book_handle_t *book_open(const char *flowdir, pid_t pid) {
     }
 
     if (book_handle->bookkeeper->magic != BOOK_MAGIC) {
+        // new file - initialise bookkeeper
         memset(book_handle->bookkeeper, 0, sizeof(bookkeeper_t));
         book_handle->bookkeeper->magic = BOOK_MAGIC;
         book_handle->bookkeeper->version = BOOK_VERSION;
@@ -227,33 +228,66 @@ void book_update(book_handle_t *book_handle, time_t when, uint64_t size) {
 }  // End of book_update
 
 // nfexpire set parameters
-void book_set_limits(book_handle_t *book_handle, time_t lifetime, uint64_t maxsize) {
+void book_set_limits(book_handle_t *book_handle, time_t lifetime, uint64_t maxsize, uint32_t watermark) {
     book_lock(book_handle->fd);
 
-    book_handle->bookkeeper->max_lifetime = lifetime;
-    book_handle->bookkeeper->max_filesize = maxsize;
-    book_handle->bookkeeper->sequence++;
+    if (lifetime) book_handle->bookkeeper->max_lifetime = lifetime;
+    if (maxsize) book_handle->bookkeeper->max_filesize = maxsize;
+    if (watermark) book_handle->bookkeeper->sequence++;
 
     msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_ASYNC);
 
     book_unlock(book_handle->fd);
 }  // End of book_set_limits
 
-// clear books and return current book, if provided
-void book_clear(book_handle_t *book_handle, bookkeeper_t *bookkeeper) {
+// return current book - no changes - no sequence update
+void book_get(book_handle_t *book_handle, bookkeeper_t *bookkeeper) {
     book_lock(book_handle->fd);
 
     if (bookkeeper) memcpy(bookkeeper, book_handle->bookkeeper, sizeof(bookkeeper_t));
-    book_handle->bookkeeper->first = 0;
-    book_handle->bookkeeper->last = 0;
-    book_handle->bookkeeper->numfiles = 0;
-    book_handle->bookkeeper->filesize = 0;
-    book_handle->bookkeeper->sequence++;
-
-    msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_SYNC);
 
     book_unlock(book_handle->fd);
-}  // End of book_clear
+
+}  // End of book_get
+
+// set new bookkeeper record, if both sequence numbers are identical
+int book_set(book_handle_t *book_handle, bookkeeper_t *bookkeeper) {
+    if (bookkeeper == NULL) return 0;
+    book_lock(book_handle->fd);
+
+    int ok = 0;
+    if (book_handle->bookkeeper->sequence == bookkeeper->sequence) {
+        memcpy(book_handle->bookkeeper, bookkeeper, sizeof(bookkeeper_t));
+        book_handle->bookkeeper->sequence++;
+        msync(book_handle->bookkeeper, sizeof(bookkeeper_t), MS_SYNC);
+        ok = 1;
+    }
+
+    book_unlock(book_handle->fd);
+
+    return ok;
+}  // End of book_set
+
+// nfexpire removes old files, nfcapd potentially adds new files
+// they do not interfer - therefor update cummulativ
+int book_expire(book_handle_t *book_handle, time_t first, uint32_t expired_files, uint64_t expired_size) {
+    book_lock(book_handle->fd);
+
+    bookkeeper_t *bookkeeper = book_handle->bookkeeper;
+    // check for error condition
+    int ok = 0;
+    if (first < bookkeeper->first || expired_files > bookkeeper->numfiles || expired_size > bookkeeper->filesize) {
+        ok = 0;
+    } else {
+        bookkeeper->first = first;
+        bookkeeper->numfiles -= expired_files;
+        bookkeeper->filesize -= expired_size;
+        ok = 1;
+    }
+    book_unlock(book_handle->fd);
+    return ok;
+
+}  // End of book_expire
 
 // for sequence check
 uint64_t book_sequence(book_handle_t *book_handle) {
@@ -265,38 +299,3 @@ uint64_t book_sequence(book_handle_t *book_handle) {
 
     return seq;
 }  // End of book_sequence
-
-void book_print(book_handle_t *book_handle) {
-    if (!book_handle) {
-        LogError("No bookkeeper record available");
-        return;
-    }
-
-    bookkeeper_t bookkeeper = {0};
-    book_lock(book_handle->fd);
-    memcpy(&bookkeeper, book_handle->bookkeeper, sizeof(bookkeeper_t));
-    book_unlock(book_handle->fd);
-
-    printf("Collector process: %lu\n", (unsigned long)bookkeeper.nfcapd_pid);
-    printf("Record sequence  : %llu\n", (unsigned long long)bookkeeper.sequence);
-
-    char string[32];
-    struct tm local_ts;
-    struct tm *ts;
-    time_t t = bookkeeper.first;
-    ts = localtime_r(&t, &local_ts);
-    strftime(string, 31, "%Y-%m-%d %H:%M:%S", ts);
-    string[31] = '\0';
-    printf("First           : %s\n", bookkeeper.first ? string : "<not set>");
-
-    t = bookkeeper.last;
-    ts = localtime_r(&t, &local_ts);
-    strftime(string, 31, "%Y-%m-%d %H:%M:%S", ts);
-    string[31] = '\0';
-    printf("Last            : %s\n", bookkeeper.last ? string : "<not set>");
-    printf("Number of files : %llu\n", (unsigned long long)bookkeeper.numfiles);
-    printf("Total file size : %llu\n", (unsigned long long)bookkeeper.filesize);
-    printf("Max file size   : %llu\n", (unsigned long long)bookkeeper.max_filesize);
-    printf("Max life time   : %llu\n", (unsigned long long)bookkeeper.max_lifetime);
-
-}  // End of book_print

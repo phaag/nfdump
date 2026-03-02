@@ -45,12 +45,14 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "bookkeeper.h"
 #include "config.h"
 #include "filter/filter.h"
 #include "flist.h"
 #include "logging.h"
 #include "nfdump.h"
 #include "nffile.h"
+#include "nfstatfile.h"
 #include "rbtree.h"
 #include "util.h"
 
@@ -328,20 +330,19 @@ void UpdateChannels(time_t tslot) {
     for (unsigned num = 0; num < num_channels; num++) {
         if (profile_channels[num].ofile) {
             struct stat fstat;
-            dirstat_t *dirstat;
             stat(profile_channels[num].ofile, &fstat);
-            ReadStatInfo(profile_channels[num].dirstat_path, &dirstat, CREATE_AND_LOCK);
 
             if (rename(profile_channels[num].ofile, profile_channels[num].wfile) < 0) {
                 LogError("Failed to rename file %s to %s: %s\n", profile_channels[num].ofile, profile_channels[num].wfile, strerror(errno));
-            } else if (dirstat && (uint64_t)tslot > dirstat->last) {
-                dirstat->filesize += 512 * fstat.st_blocks;
-                dirstat->numfiles++;
-                dirstat->last = tslot;
-            }
-
-            if (dirstat) {
-                WriteStatInfo(dirstat);
+            } else {
+                book_handle_t *book_handle = book_attach(profile_channels[num].dirstat_path);
+                if (book_handle != BOOK_FAILED && book_handle != BOOK_NOT_EXISTS) {
+                    uint64_t file_size = 512LL * fstat.st_blocks;
+                    book_update(NULL, tslot, file_size);
+                    channel_t channel = {.book_handle = book_handle};
+                    WriteStatInfo(&channel);
+                    book_close(book_handle);
+                }
             }
         }
         if (((profile_channels[num].type & 0x8) == 0) && tslot > 0) {

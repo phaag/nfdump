@@ -37,42 +37,12 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-typedef struct dirstat_s {
-    uint64_t first;  // for more easy parsing and assigning, take a uint64_t also for the time_t type
-    uint64_t last;
-    uint64_t numfiles;
-    uint64_t filesize;
-    uint64_t max_size;
-    uint64_t max_lifetime;
-    uint64_t low_water;
-    uint64_t status;
-} dirstat_t;
-
-typedef struct dirstat_env_s {
-    dirstat_t *dirstat;
-    int fd;
-    char *filename;
-    int index;
-} dirstat_env_t;
-
-enum { STATFILE_OK = 0, ERR_FAIL, ERR_NOSTATFILE, FORCE_REBUILD };
-
-#define READ_ONLY 0
-#define CREATE_AND_LOCK 1
-#define LOCK_IF_EXISTS 2
-
-#define stat_filename ".nfstat"
+#include "expire.h"
 
 char *ScaleValue(uint64_t v);
 
 char *ScaleTime(uint64_t v);
 
-void PrintDirStat(dirstat_t *dirstat);
-
-int ReadStatInfo(char *dirname, dirstat_t **dirstat_p, int lock);
-
-int WriteStatInfo(dirstat_t *dirstat);
-
-int ReleaseStatInfo(dirstat_t *dirstat);
+int WriteStatInfo(channel_t *channel);
 
 #endif  //_NFSTATFILE_H

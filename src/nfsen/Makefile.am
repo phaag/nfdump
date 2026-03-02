@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../nfexpire/
+AM_CPPFLAGS = -I.. -I../include -I../libnffile -I../nfexpire/ -I../collector
 AM_CPPFLAGS += -I../libnfdump -I../libnfdump/maxmind -I../libnfdump/tor -I../inline 
 AM_CPPFLAGS += $(RRD_CFLAGS)
 

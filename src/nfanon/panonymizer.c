@@ -1,6 +1,5 @@
 /*
- *  Copyright (c) 2014, Peter Haag
- *  Copyright (c) 2009, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -71,19 +70,16 @@
  *
  */
 
+#include "panonymizer.h"
+
 #include <ctype.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
 
-#include "config.h"
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
-#include "panonymizer.h"
+#include "rijndael.h"
 
 static uint8_t m_key[16];  // 128 bit secret key
 static uint8_t m_pad[16];  // 128 bit secret pad
@@ -175,7 +171,7 @@ uint32_t anonymize(const uint32_t orig_addr) {
     return result ^ orig_addr;
 }
 
-/* little endian CPU's are boring! - but give it a try
+/* little endian CPUs are boring! - but give it a try
  * orig_addr is a ptr to memory, return by inet_pton for IPv6
  * anon_addr return the result in the same order
  */

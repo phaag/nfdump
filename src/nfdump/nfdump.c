@@ -58,6 +58,7 @@
 #include "filter/filter.h"
 #include "flist.h"
 #include "ifvrf.h"
+#include "logging.h"
 #include "maxmind/maxmind.h"
 #include "nbar.h"
 #include "netflow_v5_v7.h"
@@ -73,7 +74,6 @@
 #include "output.h"
 #include "ssl/ssl.h"
 #include "tor/tor.h"
-#include "logging.h"
 #include "util.h"
 #include "version.h"
 
@@ -1202,7 +1202,7 @@ int main(int argc, char **argv) {
     // Modify compression
     if (ModifyCompress >= 0) {
         if (!flist.single_file && !flist.multiple_files) {
-            LogError("Expected -r <file> or -R <dir> to change compression\n");
+            LogError("Expected -r <file> or -R <dir> to change compression");
             exit(EXIT_FAILURE);
         }
         ModifyCompressFile(ModifyCompress);
@@ -1217,7 +1217,7 @@ int main(int argc, char **argv) {
 
     if (print_stat) {
         if (!flist.single_file && !flist.multiple_files && !flist.multiple_dirs) {
-            LogError("Expect data file(s).\n");
+            LogError("Expect data file(s)");
             exit(EXIT_FAILURE);
         }
 
@@ -1225,7 +1225,7 @@ int main(int argc, char **argv) {
         sum_stat.msecFirstSeen = 0x7fffffffffffffff;
         nffile_t *nffile = GetNextFile();
         if (!nffile) {
-            LogError("Error open file: %s\n", strerror(errno));
+            LogError("Error open file: %s", strerror(errno));
             exit(250);
         }
         char *ident = NULL;

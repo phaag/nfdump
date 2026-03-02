@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2024, Peter Haag
+ *  Copyright (c) 2024-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -32,12 +32,8 @@
 #define _NFFILEV2_H 1
 
 #include <stddef.h>
-#include <sys/types.h>
-
-#include "config.h"
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
+#include <sys/types.h>
 
 #include "vcs_track.h"
 

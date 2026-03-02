@@ -37,27 +37,28 @@
 #include <time.h>
 #include <unistd.h>
 
-#define BOOK_MAGIC 0x4E46424B /* "NFBK" */
-#define BOOK_VERSION 1
-
 #define STAT_BLOCK_SIZE 512ULL
 
 typedef struct {
-    uint32_t magic;
-    uint32_t version;
-
-    pid_t nfcapd_pid;
-    uint64_t sequence;
-
-    time_t first;
-    time_t last;
-
-    uint64_t numfiles;
-    uint64_t filesize;
-
-    uint64_t max_filesize;
-    uint64_t max_lifetime;
-
+// file header
+#define BOOK_MAGIC 0x4E46424B  // "NFBK"
+    uint32_t magic;            // identify this file
+#define BOOK_VERSION 1
+    uint32_t version;       // version of this file
+                            // collector
+    pid_t nfcapd_pid;       // nfcapd process, if a collector is running
+    uint64_t sequence;      // book sequence
+                            // timestamps
+    time_t first;           // timestamp of first file
+    time_t last;            // timestamp of last file
+                            // sum
+    uint64_t numfiles;      // total number of files
+    uint64_t filesize;      // total file size in disk blocks
+                            // limits
+    uint64_t max_filesize;  // maximum file size
+    time_t max_lifetime;    // maximum livetime in s
+    uint32_t watermark;     // low water mark, if expiring files
+    uint32_t dirty;         // dirty flag
 } bookkeeper_t;
 
 _Static_assert(sizeof(bookkeeper_t) % 8 == 0, "Unexpected struct layout");
@@ -79,12 +80,14 @@ book_handle_t *book_attach(const char *flowdir);
 
 void book_update(book_handle_t *book_handle, time_t when, uint64_t size);
 
-void book_set_limits(book_handle_t *book_handle, time_t lifetime, uint64_t maxsize);
+void book_set_limits(book_handle_t *book_handle, time_t lifetime, uint64_t maxsize, uint32_t watermark);
 
-void book_clear(book_handle_t *book_handle, bookkeeper_t *bookkeeper);
+void book_get(book_handle_t *book_handle, bookkeeper_t *bookkeeper);
+
+int book_set(book_handle_t *book_handle, bookkeeper_t *bookkeeper);
+
+int book_expire(book_handle_t *book_handle, time_t first, uint32_t expired_files, uint64_t expired_size);
 
 uint64_t book_sequence(book_handle_t *book_handle);
-
-void book_print(book_handle_t *book_handle);
 
 #endif  //_BOOKKEEPER_H

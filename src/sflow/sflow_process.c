@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2017-2025, Peter Haag
+ *  Copyright (c) 2017-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -41,6 +41,8 @@
 /* Copyright (c) 2002-2011 InMon Corp. Licensed under the terms of the InMon sFlow licence: */
 /* http://www.inmon.com/technology/sflowlicense.txt */
 
+#include "sflow_process.h"
+
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
@@ -49,6 +51,7 @@
 #include <netinet/in.h>
 #include <setjmp.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -58,17 +61,10 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "config.h"
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "logging.h"
 #include "nfdump.h"
 #include "sflow.h" /* sFlow v5 */
 #include "sflow_nfdump.h"
-#include "sflow_process.h"
 #include "sflow_v2v4.h" /* sFlow v2/4 */
 #include "util.h"
 

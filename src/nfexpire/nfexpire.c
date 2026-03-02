@@ -34,6 +34,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -57,21 +58,11 @@
 #define fts_set fts_set_compat
 #endif
 
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
 #include "bookkeeper.h"
 #include "expire.h"
-#include "nfstatfile.h"
 #include "logging.h"
+#include "nfstatfile.h"
 #include "util.h"
-
-static void usage(char *name);
-
-static void CheckDataDir(char *datadir);
-
-static channel_t *GetChannelList(char *datadir, int is_profile, int do_rescan);
 
 static void usage(char *name) {
     printf(
@@ -79,6 +70,7 @@ static void usage(char *name) {
         "-h\t\tThis text\n"
         "-l datadir\tList stat from directory\n"
         "-e datadir\tExpire data in directory\n"
+        "-n\t\tdryrun mode. Do not delete but report\n"
         "-r datadir\tRescan data directory\n"
         "-u datadir\tUpdate expire params from collector logging at <datadir>\n"
         "-s size\t\tmax size: scales b bytes, k kilo, m mega, g giga t tera\n"
@@ -89,37 +81,10 @@ static void usage(char *name) {
 
 }  // End of usage
 
-static void CheckDataDir(char *datadir) {
-    if (datadir) {
-        LogError("Only one option allowed out of -l -e -r -u or -p");
-        exit(250);
-    }
-}  // End of CheckDataDir
-
-static void UpdateDirStat(dirstat_t *dirstat, bookkeeper_t *books) {
-    if (books->numfiles) {
-        /* prevent some faults and duplicates:
-         * book records can never be timewise smaller than directory records => fishy!
-         * in case book records == directory records, the user stopped and restarted nfcapd
-         * this is not necessarily wrong, but results in overwriting an existing file
-         * which results in wrong stats => rescan needed
-         */
-        if (books->last <= dirstat->last || books->first <= dirstat->first) {
-            dirstat->status = FORCE_REBUILD;
-            return;
-        }
-        dirstat->last = books->last;
-        dirstat->numfiles += books->numfiles;
-        dirstat->filesize += books->filesize;
-    }
-
-}  // End of UpdateDirStat
-
-static channel_t *GetChannelList(char *datadir, int is_profile, int do_rescan) {
+static channel_t *GetChannelList(char *datadir, int is_profile) {
     channel_t **c, *channel;
     stringlist_t dirlist = {0};
     struct stat stat_buf;
-    int i;
 
     // Generate list of directories
     if (is_profile) {
@@ -152,42 +117,28 @@ static channel_t *GetChannelList(char *datadir, int is_profile, int do_rescan) {
 
     channel = NULL;
     c = &channel;
-    for (i = 0; i < dirlist.num_strings; i++) {
-        int ret;
-
-        *c = (channel_t *)malloc(sizeof(channel_t));
+    for (int i = 0; i < (int)dirlist.num_strings; i++) {
+        *c = (channel_t *)calloc(1, sizeof(channel_t));
         if (!*c) {
             LogError("malloc() error in %s line %d: %s", __FILE__, __LINE__, strerror(errno));
             return NULL;
         }
-        memset((void *)*c, 0, sizeof(channel_t));
         (*c)->next = NULL;
         (*c)->datadir = dirlist.list[i];
-        (*c)->do_rescan = do_rescan;
 
-        ret = ReadStatInfo((*c)->datadir, &(*c)->dirstat, CREATE_AND_LOCK);
-        switch (ret) {
-            case FORCE_REBUILD:
-                printf("Force rebuild requested by stat record in %s\n", (*c)->datadir);
-                (*c)->do_rescan = 1;  // file corrupt - rescan
-                break;
-            case STATFILE_OK:
-                break;
-            case ERR_NOSTATFILE:  // first rescan before expire, if no file exists
-                if (do_rescan == 0) {
-                    printf("Force rebuild to create stat record in %s\n", (*c)->datadir);
-                    (*c)->do_rescan = 1;
-                }  // else do_rescan is already set - do not report
-                break;
-            default:
-                exit(250);
+        book_handle_t *book_handle = book_attach((*c)->datadir);
+        if (BOOK_NOT_EXISTS) {
+            // no existing bookkeeper - create a new one
+            book_handle = book_open((*c)->datadir, 0);
+            if (book_handle == BOOK_FAILED) {
+                book_handle = NULL;
+                LogError("Failed to initialize bookkeeper for %s", (*c)->datadir);
+                exit(EXIT_FAILURE);
+            }
         }
 
-        (*c)->book_handle = book_attach((*c)->datadir);
-        if ((*c)->book_handle == BOOK_FAILED) {
-            LogError("Failed to access bookkeeping record");
-            exit(250);
-        }
+        // valid bookkeeper
+        (*c)->book_handle = book_handle;
 
         c = &(*c)->next;
     }
@@ -196,87 +147,159 @@ static channel_t *GetChannelList(char *datadir, int is_profile, int do_rescan) {
 
 }  // End of GetChannelList
 
+static int VerifyChannels(const channel_t *channel, int do_rescan) {
+    // process do_rescan, if needed
+    const channel_t *current_channel = channel;
+    while (current_channel) {
+        if (do_rescan || current_channel->book_handle->bookkeeper->dirty) {
+            // A rescan is needed, if no book file exists or the book is dirty for some reason
+            int maxTries = 3;
+            int ok = 0;
+            do {
+                LogInfo("Re-scanning files in %s .. ", current_channel->datadir);
+                ok = RescanDir(current_channel);
+                if (!ok) {
+                    LogVerbose("Failed to rescan directory: %s", current_channel->datadir);
+                }
+                maxTries--;
+            } while (ok == 0 && maxTries > 0);
+
+            if (maxTries == 0) {
+                LogError("Could not rescan directory %s", current_channel->datadir);
+                return 0;
+            }
+
+            LogInfo("Updated bookkeeping for %s", current_channel->datadir);
+        }
+        current_channel = current_channel->next;
+    }
+
+    return 1;
+}  // End of VerifyChannels
+
+static void PrintBookKeeper(bookkeeper_t *bookkeeper) {
+    if (!bookkeeper) {
+        LogError("No bookkeeper record available");
+        return;
+    }
+
+    printf("Collector pid   : %lu\n", (unsigned long)bookkeeper->nfcapd_pid);
+    printf("Record sequence : %llu\n", (unsigned long long)bookkeeper->sequence);
+
+    char string[32];
+    struct tm local_ts;
+    struct tm *ts;
+    time_t t = bookkeeper->first;
+    ts = localtime_r(&t, &local_ts);
+    strftime(string, 31, "%Y-%m-%d %H:%M:%S", ts);
+    string[31] = '\0';
+    printf("First           : %s\n", bookkeeper->first ? string : "<not set>");
+
+    t = bookkeeper->last;
+    ts = localtime_r(&t, &local_ts);
+    strftime(string, 31, "%Y-%m-%d %H:%M:%S", ts);
+    string[31] = '\0';
+    printf("Last            : %s\n", bookkeeper->last ? string : "<not set>");
+    printf("Number of files : %llu\n", (unsigned long long)bookkeeper->numfiles);
+    printf("Total file size : %llu\n", (unsigned long long)bookkeeper->filesize);
+    printf("Max file size   : %llu\n", (unsigned long long)bookkeeper->max_filesize);
+    printf("Max life time   : %llu\n", (unsigned long long)bookkeeper->max_lifetime);
+    printf("Watermark       : %llu\n", (unsigned long long)bookkeeper->watermark);
+    printf("Dirty           : %llu\n", (unsigned long long)bookkeeper->dirty);
+
+}  // End of PrintBookKeeper
+
 int main(int argc, char **argv) {
-    struct stat fstat;
-    int c, maxsize_set, maxlife_set;
-    int do_rescan, do_expire, do_list, print_stat, do_update_param, print_books, is_profile, nfsen_format;
+    int do_rescan, do_expire, print_stat, do_update_param, is_profile, nfsen_format;
     char *datadir;
-    uint64_t maxsize, lifetime, low_water;
     uint32_t runtime;
     channel_t *channel, *current_channel;
 
+    time_t maxlife = 0;
+    uint64_t maxsize = 0;
+    uint64_t low_water = 0;
     datadir = NULL;
-    maxsize = lifetime = 0;
+    int dryrun = 0;
     do_rescan = 0;
     do_expire = 0;
-    do_list = 0;
     do_update_param = 0;
     is_profile = 0;
     print_stat = 0;
-    print_books = 0;
-    maxsize_set = 0;
-    maxlife_set = 0;
-    low_water = 0;
     nfsen_format = 0;
     runtime = 0;
 
-    while ((c = getopt(argc, argv, "e:hl:L:T:Ypr:s:t:u:w:")) != EOF) {
+    int c;
+    while ((c = getopt(argc, argv, "e:hl:nT:Ypr:s:t:u:w:")) != EOF) {
         switch (c) {
             case 'h':
                 usage(argv[0]);
                 exit(0);
                 break;
             case 'l':
-                CheckDataDir(datadir);
-                datadir = optarg;
-                do_list = 1;
-                print_stat = 1;
-                break;
-            case 'L':
-                CheckDataDir(datadir);
+                if (TestPath(optarg, S_IFDIR) != PATH_OK) {
+                    LogError("No such directory: %s", optarg);
+                }
                 datadir = optarg;
                 print_stat = 1;
-                print_books = 1;
                 break;
             case 'p':
                 is_profile = 1;
                 break;
             case 'r':
-                CheckDataDir(datadir);
+                if (TestPath(optarg, S_IFDIR) != PATH_OK) {
+                    LogError("No such directory: %s", optarg);
+                }
+                datadir = optarg;
                 do_rescan = 1;
                 print_stat = 1;
-                datadir = optarg;
                 break;
             case 'e':
-                CheckDataDir(datadir);
+                if (TestPath(optarg, S_IFDIR) != PATH_OK) {
+                    LogError("No such directory: %s", optarg);
+                }
                 datadir = optarg;
                 do_expire = 1;
                 print_stat = 1;
                 break;
+            case 'n':
+                dryrun = 1;
+                break;
             case 's':
+                if (maxsize) {
+                    LogError("Max size already set");
+                    exit(EXIT_FAILURE);
+                }
                 if (ParseSizeDef(optarg, &maxsize) == 0) exit(250);
-                maxsize_set = 1;
                 break;
             case 't':
-                if (ParseTimeDef(optarg, &lifetime) == 0) exit(250);
-                maxlife_set = 1;
+                CheckArgLen(optarg, 32);
+                if (maxlife) {
+                    LogError("Max lifetime already set");
+                    exit(EXIT_FAILURE);
+                }
+                if (ParseTimeDef(optarg, &maxlife) == 0) exit(250);
                 break;
             case 'u':
-                CheckDataDir(datadir);
+                if (TestPath(optarg, S_IFDIR) != PATH_OK) {
+                    LogError("No such directory: %s", optarg);
+                }
                 datadir = optarg;
                 do_update_param = 1;
                 break;
             case 'w':
-                low_water = strtoll(optarg, NULL, 10);
-                if (low_water > 100) {
-                    LogError("Water mark > 100%%");
-                    exit(250);
+                if (low_water) {
+                    LogError("Low water already set");
+                    exit(EXIT_FAILURE);
                 }
-                if (low_water == 0) low_water = 100;
+                low_water = strtoll(optarg, NULL, 10);
+                if (low_water <= 0 || low_water >= 100) {
+                    LogError("Low water mark needs to be a 0 < value < 100%%");
+                    exit(EXIT_FAILURE);
+                }
                 break;
             case 'T':
                 runtime = strtoll(optarg, NULL, 10);
-                if (runtime > 3600) {
+                if (runtime < 0 || runtime > 3600) {
                     LogError("Runtime > 3600 (1h)");
                     exit(250);
                 }
@@ -296,203 +319,97 @@ int main(int argc, char **argv) {
         LogError("Data directory %s", datadir);
         LogError("realpath() in %s:%d: %s", __FILE__, __LINE__, strerror(errno));
         usage(argv[0]);
-        exit(250);
+        exit(EXIT_FAILURE);
     }
 
-    stat(datadir, &fstat);
-    if (!(fstat.st_mode & S_IFDIR)) {
-        LogError("No such directory: %s", datadir);
-        exit(250);
+    if (TestPath(datadir, S_IFDIR) != PATH_OK) {
+        LogError("Not a directory: %s", datadir);
+        exit(EXIT_FAILURE);
     }
 
-    channel = GetChannelList(datadir, is_profile, do_rescan);
-    // GetChannelList(datadir, is_profile, do_rescan);
+    channel = GetChannelList(datadir, is_profile);
     if (!channel) {
-        exit(250);
+        LogError("Failed to get channel list");
+        exit(EXIT_FAILURE);
     }
 
-    // printf("Size: %llu, time: %llu\n", maxsize, lifetime);
-
-    // update water mark only, when not listing
-    if (!is_profile && !do_list && low_water) channel->dirstat->low_water = low_water;
-
-    /* process do_list first: if the UpdateBookStat results in a FORCE_REBUILD,
-     * this will immediately done afterwards
-     * do_expire will need accurate books as well, so update the books here as well
-     */
-    if (do_list || do_expire) {
-        current_channel = channel;
-        while (current_channel) {
-            if (current_channel->book_handle != BOOK_NOT_EXISTS) {
-                bookkeeper_t tmp_books = {0};
-                LogInfo("Include nfcapd bookkeeping record in %s\n", current_channel->datadir);
-                book_clear(current_channel->book_handle, &tmp_books);
-                UpdateDirStat(current_channel->dirstat, &tmp_books);
-                if (current_channel->dirstat->status == FORCE_REBUILD) current_channel->do_rescan = 1;
-            }
-            current_channel = current_channel->next;
-        }
+    if (!VerifyChannels(channel, do_rescan)) {
+        LogError("Failed to verify channels");
+        exit(EXIT_FAILURE);
     }
 
-    // process do_rescan: make sure stats are up to date, if required
-    current_channel = channel;
-    while (current_channel) {
-        if (current_channel->do_rescan) {
-            int i;
-            uint64_t last_sequence;
-
-            /* detect new files: If nfcapd adds a new file while we are rescanning the directory
-             * this results in inconsistent data for the rescan. Therefore check at the begin and end
-             * of the rescan for the sequence number, which reflects the access/change to the bookkeeping record
-             * It's assumed, that such an event does not occur more than once. However, loop 3 times max
-             */
-            for (i = 0; i < 3; i++) {
-                last_sequence = book_sequence(current_channel->book_handle);
-                LogInfo("Scanning files in %s .. ", current_channel->datadir);
-                RescanDir(current_channel->datadir, current_channel->dirstat);
-                if (current_channel->dirstat->numfiles == 0) {  // nothing found
-                    current_channel->status = NOFILES;
-                }
-                if (book_sequence(current_channel->book_handle) == last_sequence) break;
-                LogInfo("Rescan again, due to file changes in directory");
-            }
-            if (book_sequence(current_channel->book_handle) != last_sequence) {
-                LogError("Could not safely rescan the directory. Data is not consistent");
-                book_close(current_channel->book_handle);
-                current_channel->book_handle = NULL;
-                if (current_channel->status == OK) WriteStatInfo(current_channel->dirstat);
-                exit(250);
-            }
-            printf("done.\n");
-            if (current_channel->book_handle != BOOK_NOT_EXISTS) {
-                LogInfo("Updating nfcapd bookkeeping records");
-                book_clear(channel->book_handle, NULL);
-            }
-        }
-        current_channel = current_channel->next;
+    if (dryrun && runtime) {
+        LogInfo("Disable timeout for dryrun");
+        runtime = 0;
     }
 
     // now process do_expire if required
     if (do_expire) {
-        dirstat_t old_stat, current_stat;
+        uint32_t expired_files = 0;
+        uint64_t expired_size = 0;
+        time_t first = channel->bookkeeper.first;
 
+        int ok = 0;
         if (is_profile) {
-            current_stat.status = 0;
-            current_stat.max_lifetime = lifetime;
-            current_stat.max_size = maxsize;
-            current_stat.low_water = low_water ? low_water : 98;
-
-            // sum up all channels in the profile
-            current_channel = channel;
-            current_stat.numfiles = current_channel->dirstat->numfiles;
-            current_stat.filesize = current_channel->dirstat->filesize;
-            current_stat.first = current_channel->dirstat->first;
-            current_stat.last = current_channel->dirstat->last;
-            current_channel = current_channel->next;
-            while (current_channel) {
-                current_stat.numfiles += current_channel->dirstat->numfiles;
-                current_stat.filesize += current_channel->dirstat->filesize;
-                if (current_channel->dirstat->first && (current_channel->dirstat->first < current_stat.first))
-                    current_stat.first = current_channel->dirstat->first;
-                if (current_channel->dirstat->last > current_stat.last) current_stat.last = current_channel->dirstat->last;
-
-                current_channel = current_channel->next;
+            ok = ExpireProfile("Profile", channel, maxsize, maxlife, low_water, runtime, dryrun);
+            for (channel_t *ch = channel; ch; ch = ch->next) {
+                expired_files += ch->expired_files;
+                expired_size += ch->expired_size;
             }
-            old_stat = current_stat;
-            ExpireProfile(channel, &current_stat, maxsize, lifetime, runtime);
-
         } else {
-            // cmd args override dirstat values
-            if (maxsize_set)
-                channel->dirstat->max_size = maxsize;
-            else
-                maxsize = channel->dirstat->max_size;
-            if (maxlife_set)
-                channel->dirstat->max_lifetime = lifetime;
-            else
-                lifetime = channel->dirstat->max_lifetime;
-
-            old_stat = *(channel->dirstat);
-            ExpireDir(channel->datadir, channel->dirstat, maxsize, lifetime, runtime);
-            current_stat = *(channel->dirstat);
+            ok = ExpireDir(channel, maxsize, maxlife, low_water, runtime, dryrun);
+            expired_files = channel->expired_files;
+            expired_size = channel->expired_size;
         }
         // Report, what we have done
-        printf("Expired files:      %llu\n", (unsigned long long)(old_stat.numfiles - current_stat.numfiles));
-        printf("Expired file size:  %s\n", ScaleValue(old_stat.filesize - current_stat.filesize));
-        printf("Expired time range: %s\n\n", ScaleTime(current_stat.first - old_stat.first));
+        LogInfo("Expire %s:", ok ? "successfully terminated" : "failed");
+        LogInfo("Expired files:      %llu", (unsigned long long)(expired_files));
+        LogInfo("Expired file size:  %s", ScaleValue(expired_size));
+        LogInfo("Expired time range: %s", ScaleTime(first - channel->bookkeeper.first));
     }
 
-    if (!is_profile && do_update_param) {
-        if (channel->book_handle == BOOK_NOT_EXISTS) {
-            if (maxsize_set) channel->dirstat->max_size = maxsize;
-            if (maxlife_set) channel->dirstat->max_lifetime = lifetime;
-            print_stat = 1;
-        } else {
-            if (maxsize_set)
-                channel->dirstat->max_size = maxsize;
-            else
-                maxsize = channel->dirstat->max_size;
-            if (maxlife_set)
-                channel->dirstat->max_lifetime = lifetime;
-            else
-                lifetime = channel->dirstat->max_lifetime;
-            printf("Update collector process running for directory: '%s'\n", datadir);
-            book_update(channel->book_handle, (time_t)lifetime, maxsize);
-            print_stat = 1;
+    if (do_update_param) {
+        if (is_profile) {
+            LogError("nfexpire cannot update profile parameters");
+            exit(EXIT_FAILURE);
         }
-
-        if (channel->status == OK || channel->status == NOFILES) WriteStatInfo(channel->dirstat);
-    }
-
-    if (!is_profile && print_books) {
-        if (channel->book_handle == BOOK_NOT_EXISTS) {
-            printf("No collector process running for directory: '%s'\n", channel->datadir);
-        } else {
-            book_print(channel->book_handle);
-        }
+        // single flow directory
+        LogInfo("Update expire settings for %d", channel->datadir);
+        book_set_limits(channel->book_handle, maxlife, maxsize, low_water);
+        print_stat = 1;
     }
 
     if (print_stat) {
+        bookkeeper_t bookkeeper;
         if (is_profile) {
-            dirstat_t current_stat;
-
-            current_stat.status = 0;
-            current_stat.max_lifetime = lifetime;
-            current_stat.max_size = maxsize;
-            current_stat.low_water = low_water ? low_water : 98;
-
-            // sum up all channels in the profile
-            current_channel = channel;
-            current_stat.numfiles = current_channel->dirstat->numfiles;
-            current_stat.filesize = current_channel->dirstat->filesize;
-            current_stat.first = current_channel->dirstat->first;
-            current_stat.last = current_channel->dirstat->last;
-            current_channel = current_channel->next;
-            while (current_channel) {
-                current_stat.numfiles += current_channel->dirstat->numfiles;
-                current_stat.filesize += current_channel->dirstat->filesize;
-                if (current_channel->dirstat->first && (current_channel->dirstat->first < current_stat.first))
-                    current_stat.first = current_channel->dirstat->first;
-                if (current_channel->dirstat->last > current_stat.last) current_stat.last = current_channel->dirstat->last;
-
-                current_channel = current_channel->next;
+            bookkeeper_t total_bookkeeper = {0};
+            for (channel_t *ch = channel; ch; ch = ch->next) {
+                book_get(ch->book_handle, &bookkeeper);
+                total_bookkeeper.filesize += bookkeeper.filesize;
+                if (total_bookkeeper.first == 0 || bookkeeper.first < total_bookkeeper.first) total_bookkeeper.first = bookkeeper.first;
+                if (total_bookkeeper.last == 0 || bookkeeper.last > total_bookkeeper.last) total_bookkeeper.last = bookkeeper.last;
             }
+
             if (nfsen_format) {
-                printf("Stat|%llu|%llu|%llu\n", (unsigned long long)current_stat.filesize, (unsigned long long)current_stat.first,
-                       (unsigned long long)current_stat.last);
+                printf("Stat|%llu|%llu|%llu\n", (unsigned long long)total_bookkeeper.filesize, (unsigned long long)total_bookkeeper.first,
+                       (unsigned long long)total_bookkeeper.last);
             } else
-                PrintDirStat(&current_stat);
-        } else if (nfsen_format)
-            printf("Stat|%llu|%llu|%llu\n", (unsigned long long)channel->dirstat->filesize, (unsigned long long)channel->dirstat->first,
-                   (unsigned long long)channel->dirstat->last);
-        else
-            PrintDirStat(channel->dirstat);
+                PrintBookKeeper(&total_bookkeeper);
+        } else if (nfsen_format) {
+            printf("Stat|%llu|%llu|%llu\n", (unsigned long long)channel->book_handle->bookkeeper->filesize,
+                   (unsigned long long)channel->book_handle->bookkeeper->first, (unsigned long long)channel->book_handle->bookkeeper->last);
+        } else {
+            book_get(channel->book_handle, &bookkeeper);
+            PrintBookKeeper(&bookkeeper);
+        }
     }
 
     current_channel = channel;
     while (current_channel) {
         book_close(current_channel->book_handle);
-        if (current_channel->status == OK) WriteStatInfo(current_channel->dirstat);
+        if (is_profile)
+            // write legacu .nfsts file
+            WriteStatInfo(NULL);
 
         current_channel = current_channel->next;
     }

@@ -73,12 +73,8 @@
 #ifndef _PANONYMIZER_H_
 #define _PANONYMIZER_H_ 1
 
-#include <sys/types.h>
-
-#include "config.h"
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
+#include <sys/types.h>
 
 #include "rijndael.h"
 

@@ -98,18 +98,13 @@
 // and on 128 bit blocks
 //
 
+#include "rijndael.h"
+
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/types.h>
-
-#include "config.h"
-
-#ifdef HAVE_STDINT_H
-#include <stdint.h>
-#endif
-
-#include "rijndael.h"
 
 static uint8_t S[256] = {
     99,  124, 119, 123, 242, 107, 111, 197, 48,  1,   103, 43,  254, 215, 171, 118, 202, 130, 201, 125, 250, 89,  71,  240, 173, 212, 162, 175, 156,

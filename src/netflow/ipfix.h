@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2023, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  All rights reserved.
  *
  *  Redistribution and use in source and binary forms, with or without
@@ -31,12 +31,8 @@
 #ifndef _IPFIX_H
 #define _IPFIX_H 1
 
-#include <sys/types.h>
-
-#include "config.h"
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
+#include <sys/types.h>
 
 #include "collector.h"
 

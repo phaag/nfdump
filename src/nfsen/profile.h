@@ -32,8 +32,8 @@
 #ifndef _PROFILE_H
 #define _PROFILE_H 1
 
+#include "bookkeeper.h"
 #include "nffile.h"
-#include "nfstatfile.h"
 
 typedef struct profile_param_info_s {
     struct profile_param_info_s *next;
@@ -58,7 +58,7 @@ typedef struct profile_channel_info_s {
     dataBlock_t *dataBlock;
     stat_record_t stat_record;
     int type;
-    dirstat_t *dirstat;
+    bookkeeper_t bookkeeper;
 } profile_channel_info_t;
 
 profile_channel_info_t *GetProfiles(void);
