@@ -118,16 +118,15 @@ uint64_t ParseTime8601(const char *s);
 
 long getTick(void);
 
-char *DurationString(uint64_t duration);
+#define PRINT_PLAIN 1
+#define PRINT_SCALED 0
+char *ScaleDuration(char *string, size_t len, uint64_t duration, int plain, int width);
 
-#define DONT_SCALE_NUMBER 0
-#define DO_SCALE_NUMBER 1
-#define FIXED_WIDTH 1
 #define VAR_LENGTH 0
+#define LENGTH_5 5
+char *ScaleByteValue(char *string, size_t len, uint64_t value, int plain, int width);
 
-#define NUMBER_STRING_SIZE 32
-typedef char numStr[NUMBER_STRING_SIZE];
-void format_number(uint64_t num, numStr s, int plain, int fixed_width);
+char *ScaleCountValue(char *string, size_t len, uint64_t value, int plain, int width);
 
 void Setv6Mode(int mode);
 

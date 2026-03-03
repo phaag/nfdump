@@ -1,5 +1,5 @@
 /*
- *  Copyright (c) 2009-2025, Peter Haag
+ *  Copyright (c) 2009-2026, Peter Haag
  *  Copyright (c) 2004-2008, SWITCH - Teleinformatikdienste fuer Lehre und Forschung
  *  All rights reserved.
  *
@@ -29,6 +29,8 @@
  *
  */
 
+/* legacy code for NfSen */
+
 #include "nfstatfile.h"
 
 #include <errno.h>
@@ -49,54 +51,6 @@
 #include "expire.h"
 #include "logging.h"
 #include "util.h"
-
-typedef struct {
-    double factor;
-    const char *unit;
-} ScaleStep;
-
-static const ScaleStep SIZE_STEPS[] = {
-    {1099511627776.0, "TB"},  // 1024^4
-    {1073741824.0, "GB"},     // 1024^3
-    {1048576.0, "MB"},        // 1024^2
-    {1024.0, "KB"},           // 1024^1
-    {1.0, "B"},               // 1024^0
-    {0.0, NULL}               // Sentinel
-};
-
-static const ScaleStep TIME_STEPS[] = {
-    {604800.0, "weeks"},  // weeks
-    {86400.0, "days"},    // days
-    {3600.0, "hours"},    // hours
-    {60.0, "min"},        // minutes
-    {1.0, "sec"},         // seconds
-    {0.0, NULL}           // Sentinel
-};
-
-// Internal helper to handle the formatting logic
-static char *FormatScaled(char *buf, size_t len, uint64_t v, const ScaleStep *steps) {
-    double f = (double)v;
-
-    for (int i = 0; steps[i].unit != NULL; ++i) {
-        if (f >= steps[i].factor) {
-            if (steps[i].factor > 1.0) {
-                snprintf(buf, len, "%llu = %.1f %s", (unsigned long long)v, f / steps[i].factor, steps[i].unit);
-            } else {
-                snprintf(buf, len, "%llu %s", (unsigned long long)v, steps[i].unit);
-            }
-            return buf;
-        }
-    }
-
-    // Fix 3: Handle the 0 case specifically
-    snprintf(buf, len, "0 %s", steps[4].unit);  // Usually "B" or "sec"
-    return buf;
-}  // End of FormatScaled
-
-// Thread-safe versions requiring a buffer
-char *ScaleValue(char *buf, size_t len, uint64_t v) { return FormatScaled(buf, len, v, SIZE_STEPS); }
-
-char *ScaleTime(char *buf, size_t len, uint64_t v) { return FormatScaled(buf, len, v, TIME_STEPS); }
 
 static int SetFileLock(int fd) {
     struct flock fl;
@@ -191,53 +145,3 @@ int WriteStatInfo(channel_t *channel) {
     return 1;
 
 }  // End of WriteStatInfo
-
-/*
-void PrintDirStat(dirstat_t *dirstat) {
-    struct tm ts_buf;
-    struct tm *ts;
-    time_t t;
-    char string[32];
-
-    t = dirstat->first;
-    ts = localtime_r(&t, &ts_buf);
-    strftime(string, 31, "%Y-%m-%d %H:%M:%S", ts);
-    string[31] = '\0';
-    printf("First:     %s\n", string);
-
-    t = dirstat->last;
-    ts = localtime_r(&t, &ts_buf);
-    strftime(string, 31, "%Y-%m-%d %H:%M:%S", ts);
-    string[31] = '\0';
-    printf("Last:      %s\n", string);
-
-    printf("Lifetime:  %s\n", ScaleTime(dirstat->last - dirstat->first));
-
-    printf("Numfiles:  %llu\n", (unsigned long long)dirstat->numfiles);
-    printf("Filesize:  %s\n", ScaleValue(dirstat->filesize));
-
-    if (dirstat->max_size)
-    printf("Max Size:  %s\n", ScaleValue(dirstat->max_size));
-    else
-    printf("Max Size:  <none>\n");
-
-    if (dirstat->max_lifetime)
-    printf("Max Life:  %s\n", ScaleTime(dirstat->max_lifetime));
-    else
-    printf("Max Life:  <none>\n");
-
-    printf("Watermark: %llu%%\n", (unsigned long long)dirstat->low_water);
-
-    switch (dirstat->status) {
-        case STATFILE_OK:
-        printf("Status:    OK\n");
-        break;
-        case FORCE_REBUILD:
-        printf("Status:    Force rebuild\n");
-        break;
-        default:
-        printf("Status:    Unexpected: %llu\n", (unsigned long long)dirstat->status);
-        break;
-    }
-}  // End of PrintDirStat
-*/

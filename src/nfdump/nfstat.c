@@ -115,7 +115,7 @@ static struct StatParameter_s {
     func_preproc preprocess;  // function to pre-process data
 } const StatParameters[] = {
     // flow record stat
-    {"record", "", {0, 0, 0, 0}, 0},
+    {"record", "", {0, 0, 0, 0}, 0, NULL},
 
     {"srcip", "Src IP Addr", {EXipv4FlowID, OFFsrc4Addr, SIZEsrc4Addr, AF_INET}, IS_IPADDR, NULL},
     {"srcip", NULL, {EXipv6FlowID, OFFsrc6Addr, SIZEsrc6Addr, AF_INET6}, IS_IPADDR, NULL},
@@ -1174,10 +1174,10 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
             count_bytes = statRecord->inBytes + statRecord->outBytes;
             break;
     }
-    numStr flows_str, byte_str, packets_str;
-    format_number(count_flows, flows_str, outputParams->printPlain, FIXED_WIDTH);
-    format_number(count_packets, packets_str, outputParams->printPlain, FIXED_WIDTH);
-    format_number(count_bytes, byte_str, outputParams->printPlain, FIXED_WIDTH);
+    char flows_str[32], byte_str[32], packets_str[32];
+    ScaleCountValue(flows_str, sizeof(flows_str), count_flows, outputParams->printPlain, LENGTH_5);
+    ScaleCountValue(packets_str, sizeof(packets_str), count_packets, outputParams->printPlain, outputParams->printPlain ? 10 : 5);
+    ScaleByteValue(byte_str, sizeof(byte_str), count_bytes, outputParams->printPlain, outputParams->printPlain ? 10 : 5);
 
     double flows_percent = stat->numflows ? (double)(count_flows * 100) / (double)stat->numflows : 0;
     double packets_percent, bytes_percent;
@@ -1207,9 +1207,9 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
         bpp = count_bytes / count_packets;
     }
 
-    numStr pps_str, bps_str;
-    format_number(pps, pps_str, outputParams->printPlain, FIXED_WIDTH);
-    format_number(bps, bps_str, outputParams->printPlain, FIXED_WIDTH);
+    char pps_str[32], bps_str[32];
+    ScaleCountValue(pps_str, sizeof(pps_str), pps, outputParams->printPlain, LENGTH_5);
+    ScaleByteValue(bps_str, sizeof(bps_str), bps, outputParams->printPlain, LENGTH_5);
 
     time_t first = statRecord->msecFirst / 1000LL;
     struct tm tbuff_buf;
@@ -1233,12 +1233,8 @@ static void PrintStatLine(stat_record_t *stat, outputParams_t *outputParams, Sor
             protoStr = "any";
     }
     char dStr[64];
-    if (outputParams->printPlain)
-        snprintf(dStr, 64, "%16.3f", duration);
-    else {
-        uint64_t durationMsec = statRecord->msecLast - statRecord->msecFirst;
-        snprintf(dStr, 64, "%s", DurationString(durationMsec));
-    }
+    uint64_t durationMsec = statRecord->msecLast - statRecord->msecFirst;
+    ScaleDuration(dStr, sizeof(dStr), durationMsec, outputParams->printPlain, 16);
 
     if (Getv6Mode() && (type == IS_IPADDR)) {
         printf("%s.%03u %9s %-5s %s%43s %8s(%4.1f) %8s(%4.1f) %8s(%4.1f) %8s %8s %5u\n", datestr, (unsigned)(statRecord->msecFirst % 1000), dStr,
@@ -1539,27 +1535,28 @@ void PrintElementStat(stat_record_t *sum_stat, outputParams_t *outputParams, Rec
                     } else {
                         printf("Top %s ordered by %s:\n", StatParameters[stat].HeaderInfo, orderByTable[order_index].string);
                     }
+                    const char *space = outputParams->printPlain ? "  " : "";
                     if (Getv6Mode() && (type == IS_IPADDR)) {
                         printf(
-                            "Date first seen             Duration     Proto %43s    Flows(%%)     Packets(%%)       Bytes(%%)         pps      "
+                            "Date first seen             Duration     Proto %43s    Flows(%%)     %sPackets(%%)       %sBytes(%%)         pps      "
                             "bps   "
                             "bpp\n",
-                            StatParameters[stat].HeaderInfo);
+                            StatParameters[stat].HeaderInfo, space, space);
                     } else {
                         if (outputParams->hasGeoDB) {
                             printf(
-                                "Date first seen             Duration     Proto %21s    Flows(%%)     Packets(%%)       Bytes(%%)         pps    "
+                                "Date first seen             Duration     Proto %21s    Flows(%%)     %sPackets(%%)      %sBytes(%%)         pps    "
                                 "  "
                                 "bps   "
                                 "bpp\n",
-                                StatParameters[stat].HeaderInfo);
+                                StatParameters[stat].HeaderInfo, space, space);
                         } else {
                             printf(
-                                "Date first seen             Duration     Proto %17s    Flows(%%)     Packets(%%)       Bytes(%%)         pps    "
+                                "Date first seen             Duration     Proto %17s    Flows(%%)     %sPackets(%%)       %sBytes(%%)         pps    "
                                 "  "
                                 "bps   "
                                 "bpp\n",
-                                StatParameters[stat].HeaderInfo);
+                                StatParameters[stat].HeaderInfo, space, space);
                         }
                     }
                 }

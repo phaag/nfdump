@@ -72,7 +72,7 @@ static int max_token_index = 0;
 static int token_index = 0;
 
 #define BLOCK_SIZE 32
-
+#define NUMBER_WIDTH 8
 static int max_format_index = 0;
 
 static int long_v6 = 0;
@@ -1396,12 +1396,9 @@ static void String_EventTime(FILE *stream, recordHandle_t *recordHandle) {
 }  // End of String_EventTime
 
 static void String_Duration(FILE *stream, recordHandle_t *recordHandle) {
-    if (printPlain) {
-        fprintf(stream, "%16.3f", (double)duration / 1000.0);
-    } else {
-        char *s = DurationString(duration);
-        fprintf(stream, "%s", s);
-    }
+    char string[128];
+    ScaleDuration(string, sizeof(string), duration, printPlain, printPlain ? 16 : VAR_LENGTH);
+    fputs(string, stream);
 }  // End of String_Duration
 
 static void String_Duration_Seconds(FILE *stream, recordHandle_t *recordHandle) {
@@ -1850,9 +1847,9 @@ static void String_InPackets(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     uint64_t packets = genericFlow ? genericFlow->inPackets : 0;
 
-    numStr packetString;
-    format_number(packets, packetString, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", packetString);
+    char string[64];
+    ScaleCountValue(string, sizeof(string), packets, printPlain, NUMBER_WIDTH);
+    fputs(string, stream);
 
 }  // End of String_InPackets
 
@@ -1860,9 +1857,9 @@ static void String_OutPackets(FILE *stream, recordHandle_t *recordHandle) {
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
     uint64_t packets = cntFlow ? cntFlow->outPackets : 0;
 
-    numStr packetString;
-    format_number(packets, packetString, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", packetString);
+    char string[64];
+    ScaleCountValue(string, sizeof(string), packets, printPlain, NUMBER_WIDTH);
+    fputs(string, stream);
 
 }  // End of String_OutPackets
 
@@ -1870,9 +1867,9 @@ static void String_InBytes(FILE *stream, recordHandle_t *recordHandle) {
     EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)recordHandle->extensionList[EXgenericFlowID];
     uint64_t bytes = genericFlow ? genericFlow->inBytes : 0;
 
-    numStr byteString;
-    format_number(bytes, byteString, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", byteString);
+    char string[64];
+    ScaleByteValue(string, sizeof(string), bytes, printPlain, NUMBER_WIDTH);
+    fputs(string, stream);
 
 }  // End of String_InBytes
 
@@ -1880,9 +1877,9 @@ static void String_OutBytes(FILE *stream, recordHandle_t *recordHandle) {
     EXcntFlow_t *cntFlow = (EXcntFlow_t *)recordHandle->extensionList[EXcntFlowID];
     uint64_t bytes = cntFlow ? cntFlow->outBytes : 0;
 
-    numStr byteString;
-    format_number(bytes, byteString, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", byteString);
+    char string[64];
+    ScaleByteValue(string, sizeof(string), bytes, printPlain, NUMBER_WIDTH);
+    fputs(string, stream);
 
 }  // End of String_OutBytes
 
@@ -2276,9 +2273,9 @@ static void String_bps(FILE *stream, recordHandle_t *recordHandle) {
         bps = (1000 * (inBytes << 3) / duration);  // bits per second. ( >> 3 ) -> * 8 to convert octets into bits
     }
 
-    numStr bpsString;
-    format_number(bps, bpsString, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", bpsString);
+    char string[32];
+    ScaleByteValue(string, sizeof(string), bps, printPlain, NUMBER_WIDTH);
+    fputs(string, stream);
 
 }  // End of String_bps
 
@@ -2291,9 +2288,9 @@ static void String_pps(FILE *stream, recordHandle_t *recordHandle) {
         pps = 1000 * inPackets / duration;  // packets per second
     }
 
-    numStr ppsString;
-    format_number(pps, ppsString, printPlain, FIXED_WIDTH);
-    fprintf(stream, "%8s", ppsString);
+    char string[32];
+    ScaleCountValue(string, sizeof(string), pps, printPlain, NUMBER_WIDTH);
+    fputs(string, stream);
 
 }  // End of String_Duration
 

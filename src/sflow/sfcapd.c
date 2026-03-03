@@ -551,6 +551,7 @@ int main(int argc, char **argv) {
 #else
             case 'f':
             case 'd':
+                (void)pcap_file;
                 LogError("Reading data from pcap file/device not compiled! Option ignored!");
                 break;
 #endif

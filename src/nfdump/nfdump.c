@@ -205,7 +205,7 @@ static void usage(char *name) {
 static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParams) {
     static double duration;
     uint64_t bps, pps, bpp;
-    numStr byte_str, packet_str, bps_str, pps_str, bpp_str;
+    char byte_str[32], packet_str[32], bps_str[32], pps_str[32], bpp_str[32];
 
     bps = pps = bpp = 0;
     if (stat_record->msecLastSeen) {
@@ -225,11 +225,11 @@ static void PrintSummary(stat_record_t *stat_record, outputParams_t *outputParam
         printf("%llu,%llu,%llu,%llu,%llu,%llu\n", (long long unsigned)stat_record->numflows, (long long unsigned)stat_record->numbytes,
                (long long unsigned)stat_record->numpackets, (long long unsigned)bps, (long long unsigned)pps, (long long unsigned)bpp);
     } else {
-        format_number(stat_record->numbytes, byte_str, outputParams->printPlain, VAR_LENGTH);
-        format_number(stat_record->numpackets, packet_str, outputParams->printPlain, VAR_LENGTH);
-        format_number(bps, bps_str, outputParams->printPlain, VAR_LENGTH);
-        format_number(pps, pps_str, outputParams->printPlain, VAR_LENGTH);
-        format_number(bpp, bpp_str, outputParams->printPlain, VAR_LENGTH);
+        ScaleByteValue(byte_str, sizeof(byte_str), stat_record->numbytes, outputParams->printPlain, VAR_LENGTH);
+        ScaleCountValue(packet_str, sizeof(packet_str), stat_record->numpackets, outputParams->printPlain, VAR_LENGTH);
+        ScaleByteValue(bps_str, sizeof(bps_str), bps, outputParams->printPlain, VAR_LENGTH);
+        ScaleCountValue(pps_str, sizeof(pps_str), pps, outputParams->printPlain, VAR_LENGTH);
+        ScaleByteValue(bpp_str, sizeof(bpp_str), bpp, outputParams->printPlain, VAR_LENGTH);
         printf(
             "Summary: total flows: %llu, total bytes: %s, total packets: %s, avg bps: %s, avg pps: "
             "%s, avg bpp: %s\n",
@@ -667,7 +667,7 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
 
         dbg_printf("processData() Next block: %d, Records: %u\n", numBlocks, dataBlock->NumRecords);
 
-        for (int i = 0; i < dataBlock->NumRecords && !abortProcessing; i++) {
+        for (int i = 0; i < (int)dataBlock->NumRecords && !abortProcessing; i++) {
             recordCounter++;
             // process records
             switch (record_ptr->type) {
@@ -1385,12 +1385,14 @@ int main(int argc, char **argv) {
                 if (t_lastMsec == 0) {
                     printf("Time window: <unknown>\n");
                 } else {
+                    char string[128];
                     if (flist.timeWindow) {
                         if (flist.timeWindow->msecFirst && (flist.timeWindow->msecFirst > t_firstMsec)) t_firstMsec = flist.timeWindow->msecFirst;
                         if (flist.timeWindow->msecLast && (flist.timeWindow->msecLast < t_lastMsec)) t_lastMsec = flist.timeWindow->msecLast;
                     }
                     uint64_t durationMsec = t_lastMsec - t_firstMsec;
-                    printf("Time window: %s, Duration:%s\n", TimeString(t_firstMsec, t_lastMsec), DurationString(durationMsec));
+                    printf("Time window: %s, Duration: %s\n", TimeString(t_firstMsec, t_lastMsec),
+                           ScaleDuration(string, sizeof(string), durationMsec, outputParams->printPlain, VAR_LENGTH));
                 }
                 printf("Total records processed: %" PRIu64 ", passed: %" PRIu64 ", Blocks skipped: %u, Bytes read: %llu\n", totalRecords, totalPassed,
                        skippedBlocks, (unsigned long long)total_bytes);

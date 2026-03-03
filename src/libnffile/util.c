@@ -31,8 +31,6 @@
 
 #include "util.h"
 
-#include "logging.h"
-
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
@@ -48,8 +46,33 @@
 #include <time.h>
 #include <unistd.h>
 
+#include "logging.h"
+
 /* Function prototypes */
 static int check_number(char *s, size_t len);
+
+typedef struct scal_steps_s {
+    double factor;
+    const char *scale;
+} scale_steps_t;
+
+// factor table for biinary counting
+static const scale_steps_t bin_scale_steps[] = {
+    {1099511627776.0, "T"},  // 1024^4
+    {1073741824.0, "G"},     // 1024^3
+    {1048576.0, "M"},        // 1024^2
+    {1024.0, "K"},           // 1024^1
+    {1.0, ""},               // 1024^0
+    {0.0, NULL}              // Sentinel
+};
+
+// factor table for SI counting
+static const scale_steps_t si_scale_steps[] = {{1000000000000.0, "T"},  // 1000^4
+                                               {1000000000.0, "G"},     // 1000^3
+                                               {1000000.0, "M"},        // 1000^2
+                                               {1000.0, "k"},           // 1000^1
+                                               {1.0, ""},               // 1000^0 Base (no unit)
+                                               {0.0, NULL}};            // Sentinel
 
 /* Functions */
 
@@ -486,10 +509,12 @@ long getTick(void) {
     return theTick;
 }
 
-char *DurationString(uint64_t duration) {
-    static char s[128];
+// convert duration in msec into literal string
+char *ScaleDuration(char *string, size_t len, uint64_t duration, int plain, int width) {
     if (duration == 0) {
-        strncpy(s, "    00:00:00.000", 128);
+        strncpy(string, "    00:00:00.000", len);
+    } else if (plain) {
+        snprintf(string, len, "%*.3f", width, (double)duration / 1000.0);
     } else {
         int msec = duration % 1000;
         duration /= 1000;
@@ -501,13 +526,13 @@ char *DurationString(uint64_t duration) {
         sum += 60 * min;
         int sec = duration - sum;
         if (days == 0)
-            snprintf(s, 128, "    %02d:%02d:%02d.%03d", hours, min, sec, msec);
+            snprintf(string, len, "%s%02d:%02d:%02d.%03d", width ? "    " : "", hours, min, sec, msec);
         else
-            snprintf(s, 128, "%2dd %02d:%02d:%02d.%03d", days, hours, min, sec, msec);
+            snprintf(string, len, "%2dd %02d:%02d:%02d.%03d", days, hours, min, sec, msec);
     }
-    s[127] = '\0';
-    return s;
-}  // End of DurationString
+    string[len - 1] = '\0';
+    return string;
+}  // End of ScaleDuration
 
 void InsertString(stringlist_t *sl, const char *s) {
     if (sl->num_strings == sl->capacity) {
@@ -538,37 +563,39 @@ void FreeStringList(stringlist_t *sl) {
     free(sl);
 }  // End of ClearStringList
 
-void format_number(uint64_t num, numStr s, int plain, int fixed_width) {
-    double f = num;
+// Internal helper to handle the formatting logic
+static char *FormatNumber(char *string, size_t len, const scale_steps_t *scale, uint64_t num, int plain, int width) {
+    double f = (double)num;
 
     if (plain) {
-        snprintf(s, 31, "%llu", (long long unsigned)num);
-    } else {
-        if (f >= _1TB) {
-            if (fixed_width)
-                snprintf(s, NUMBER_STRING_SIZE - 1, "%5.1f T", f / _1TB);
-            else
-                snprintf(s, NUMBER_STRING_SIZE - 1, "%.1f T", f / _1TB);
-        } else if (f >= _1GB) {
-            if (fixed_width)
-                snprintf(s, NUMBER_STRING_SIZE - 1, "%5.1f G", f / _1GB);
-            else
-                snprintf(s, NUMBER_STRING_SIZE - 1, "%.1f G", f / _1GB);
-        } else if (f >= _1MB) {
-            if (fixed_width)
-                snprintf(s, NUMBER_STRING_SIZE - 1, "%5.1f M", f / _1MB);
-            else
-                snprintf(s, NUMBER_STRING_SIZE - 1, "%.1f M", f / _1MB);
-        } else {
-            if (fixed_width)
-                snprintf(s, NUMBER_STRING_SIZE - 1, "%4.0f", f);
-            else
-                snprintf(s, NUMBER_STRING_SIZE - 1, "%.0f", f);
+        snprintf(string, len, "%*llu", width, (long long unsigned)num);
+        return string;
+    }
+    for (int i = 0; scale[i].scale != NULL; ++i) {
+        if (f >= scale[i].factor) {
+            if (scale[i].factor > 1.0) {
+                snprintf(string, len, "%*.1f%s", width, f / scale[i].factor, scale[i].scale);
+            } else {
+                snprintf(string, len, "%*llu", width + 1, (unsigned long long)num);
+            }
+            return string;
         }
-        s[NUMBER_STRING_SIZE - 1] = '\0';
     }
 
-}  // End of format_number
+    // just in case ..
+    snprintf(string, len, "%*llu", width + 1, 0ULL);
+    return string;
+}  // End of FormatNumber
+
+char *ScaleByteValue(char *string, size_t len, uint64_t value, int plain, int width) {
+    //
+    return FormatNumber(string, len, si_scale_steps, value, plain, width);
+}  // End of ScaleByteValue
+
+char *ScaleCountValue(char *string, size_t len, uint64_t value, int plain, int width) {
+    //
+    return FormatNumber(string, len, bin_scale_steps, value, plain, width);
+}  // End of ScaleCountValue
 
 void inet_ntop_mask(uint32_t ipv4, int mask, char *s, socklen_t sSize) {
     if (mask) {

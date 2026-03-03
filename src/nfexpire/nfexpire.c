@@ -365,9 +365,9 @@ int main(int argc, char **argv) {
         // Report, what we have done
         LogInfo("Expire %s:", ok ? "successfully terminated" : "failed");
         LogInfo("Expired files:      %llu", (unsigned long long)(expired_files));
-        char string[64];
-        LogInfo("Expired file size:  %s", ScaleValue(string, sizeof(string), expired_size));
-        LogInfo("Expired time range: %s", ScaleTime(string, sizeof(string), expired_time));
+        char string[128];
+        LogInfo("Expired file size:  %sB", ScaleByteValue(string, sizeof(string), expired_size, PRINT_SCALED, 0));
+        LogInfo("Expired time range: %s", ScaleDuration(string, sizeof(string), expired_time, PRINT_SCALED, VAR_LENGTH));
     }
 
     if (do_update_param) {
@@ -410,7 +410,7 @@ int main(int argc, char **argv) {
     while (current_channel) {
         book_close(current_channel->book_handle);
         if (is_profile)
-            // write legacu .nfsts file
+            // write legacy .nfsts file
             WriteStatInfo(NULL);
 
         current_channel = current_channel->next;
