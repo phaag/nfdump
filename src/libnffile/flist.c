@@ -59,10 +59,10 @@
 #endif
 
 #include "flist.h"
+#include "logging.h"
 #include "nfdump.h"
 #include "nffile.h"
 #include "queue.h"
-#include "logging.h"
 #include "util.h"
 
 /*
@@ -799,11 +799,9 @@ static int GetFileList(stringlist_t *source_dirs, flist_t *flist) {
             case FTS_F:
                 // file entry
 
-                // skip stat file
-                if (strcmp(ftsent->fts_name, ".nfstat") == 0 || strncmp(ftsent->fts_name, NF_TMPFILE, strlen(NF_TMPFILE)) == 0) continue;
-                if (strstr(ftsent->fts_name, ".stat") != NULL) continue;
-                // skip OSX DS_Store files
-                if (strstr(ftsent->fts_name, ".DS_Store") != NULL) continue;
+                // skip all . files
+                if (ftsent->fts_name[0] == '.') continue;
+                if (strncmp(ftsent->fts_name, NF_TMPFILE, strlen(NF_TMPFILE)) == 0) continue;
                 // skip pcap file
                 if (strstr(ftsent->fts_name, "pcap") != NULL) continue;
 

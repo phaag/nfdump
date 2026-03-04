@@ -66,6 +66,7 @@ int Init_nffile_backend(FlowSource_t *fs, const nffile_backend_ctx_t *init_nffil
     nffile_ctx->msgQueue = init_nffile_ctx->msgQueue;
     nffile_ctx->pfd = init_nffile_ctx->pfd;
     nffile_ctx->blockQueue = queue_init(64);
+    nffile_ctx->book_handle = book_handle;
     fs->blockQueue = nffile_ctx->blockQueue;
 
     // return err if no queue
