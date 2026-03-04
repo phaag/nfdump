@@ -1207,7 +1207,7 @@ Flow Record:
   RecordCount  =                 35
   Ident        =          TestFlows
   Flags        =               0x00 NETFLOW v10, Unsampled
-  Elements     =                 18: 1 2 4 5 7 8 10 12 14 15 16 17 20 22 25 26 38 42 
+  Elements     =                 19: 1 2 4 5 7 8 10 12 14 15 16 17 20 22 25 26 38 42 
   size         =                412
   engine type  =                 34
   engine ID    =                 35
