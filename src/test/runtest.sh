@@ -37,6 +37,7 @@ export TZ
 NFDUMP="../nfdump/nfdump -G none"
 NFCAPD="../nfcapd/nfcapd"
 NFREPLAY="../nfreplay/nfreplay"
+NFEXPIRE="../nfexpire/nfexpire"
 
 $NFDUMP -r dummy_flows.nf -q -o raw >test.1.out
 diff -u test.1.out nftest.1.out
@@ -70,6 +71,7 @@ diff -u test.5.out test.5-2.out
 # create testdir dir for flow replay
 if [ -d testdir ]; then
 	rm -f testdir/*
+	rm -f testdir/.nfcapd.book
 	rmdir testdir
 fi
 mkdir testdir
@@ -98,12 +100,14 @@ fi
 
 $NFDUMP -r dummy_flows.nf -q -o extended -6 'packets > 0' >test.6-1.out
 $NFDUMP -r testdir/nfcapd.* -q -o extended -6 >test.6-2.out
+$NFEXPIRE -l testdir 
 
 diff test.6-1.out test.6-2.out
 
 # Test proper AppendRename
 # Start nfcapd on localhost and replay flows
 rm -f testdir/nfcapd.*
+rm -f testdir/.nfcapd.book
 echo
 echo -n Starting nfcapd ...
 $NFCAPD -p 65530 -w testdir -D -P testdir/pidfile -I TestIdent -t 3600 -z=lz4
@@ -159,6 +163,7 @@ $NFDUMP -r dummy_flows.nf -O tstart -w test.8.flows.nf 'host 172.16.2.66'
 $NFDUMP -q -r test.9.flows.nf -o raw >test.9.out
 $NFDUMP -r testdir/nfcapd.* -i NewIdent
 rm -f testdir/nfcapd.* test*.out test*.flows.nf dummy_flows.nf
+rm -f testdir/.nfcapd.book
 [ -d testdir ] && rmdir testdir
 [ -d memck.$$ ] && rm -rf memck.$$
 

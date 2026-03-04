@@ -85,7 +85,6 @@ static inline void ResolveMultipleIPrecords(recordHandle_t *handle, recordHeader
         elementHeader_t *elementHeader = (elementHeader_t *)(skipElement - sizeof(elementHeader_t));
         elementHeader->type = EXnull;
         handle->extensionList[skipID] = NULL;
-        recordHeaderV3->numElements--;
     }
 
 #ifdef DEVEL
@@ -117,7 +116,9 @@ static inline int MapRecordHandle(recordHandle_t *handle, recordHeaderV3_t *reco
         if (elementHeader->type == 0) {
             // Skip this record - advance to next record
             elementHeader = (elementHeader_t *)((void *)elementHeader + elementHeader->length);
+            handle->slackElements++;
             num++;
+            dbg_printf("Skip EXnull, size: %u\n", elementHeader->length);
             continue;
         }
         if (elementHeader->type < MAXEXTENSIONS) {

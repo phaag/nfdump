@@ -65,17 +65,19 @@
 
 static void DisableExtension(void *element) {
     elementHeader_t *elementHeader = (elementHeader_t *)(element - sizeof(elementHeader_t));
+    dbg_printf("Element: %p, Disable type %u, length: %u\n", element, elementHeader->type, elementHeader->length);
     elementHeader->type = EXnull;
 }  // End of DisableExtension
 
 static void EnableExtension(void *element, uint16_t elementID) {
     elementHeader_t *elementHeader = (elementHeader_t *)(element - sizeof(elementHeader_t));
     elementHeader->type = elementID;
+    dbg_printf("Element: %p, Enable type %u, length: %u\n", element, elementHeader->type, elementHeader->length);
 }  // End of EnableExtension
 
 static void DumpRecord(recordHandle_t *recordHandle) {
     recordHeaderV3_t *recordHeaderV3 = recordHandle->recordHeaderV3;
-    printf("V3 Record - Elements: %u, Size: %u:\n", recordHeaderV3->numElements, recordHeaderV3->size);
+    printf("V3 Record - Elements: %u, Size: %u\n", recordHeaderV3->numElements, recordHeaderV3->size);
     ptrdiff_t recordSize = recordHeaderV3->size;
     void *eor = (void *)recordHeaderV3 + recordSize;
     DumpHex(stdout, (void *)recordHeaderV3, sizeof(recordHeaderV3_t));

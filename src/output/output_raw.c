@@ -907,9 +907,8 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
     char elementString[MAXEXTENSIONS * 5];
 
     elementString[0] = '\0';
-    for (int i = 1; i < MAXEXTENSIONS; i++) {
+    for (int i = 1; i < MAXEXTENSIONS; i++)
         if (recordHandle->extensionList[i]) snprintf(elementString + strlen(elementString), sizeof(elementString) - strlen(elementString), "%u ", i);
-    }
 
     char *type;
     char version[8];
@@ -946,14 +945,14 @@ void raw_record(FILE *stream, recordHandle_t *recordHandle, outputParams_t *outp
 
     fprintf(stream,
             "  Flags        =               0x%.2x %s%s%s, %s\n"
-            "  Elements     =              %5u: %s\n"
+            "  Elements     =            %5u/%u: %s\n"
             "  size         =              %5u\n"
             "  engine type  =              %5u\n"
             "  engine ID    =              %5u\n"
             "  export sysid =              %5u\n",
             recordHeaderV3->flags, type, version, TestFlag(recordHeaderV3->flags, V3_FLAG_ANON) ? " Anonymized" : "",
-            TestFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED) ? "Sampled" : "Unsampled", recordHeaderV3->numElements, elementString,
-            recordHeaderV3->size, recordHeaderV3->engineType, recordHeaderV3->engineID, recordHeaderV3->exporterID);
+            TestFlag(recordHeaderV3->flags, V3_FLAG_SAMPLED) ? "Sampled" : "Unsampled", recordHeaderV3->numElements, recordHandle->slackElements,
+            elementString, recordHeaderV3->size, recordHeaderV3->engineType, recordHeaderV3->engineID, recordHeaderV3->exporterID);
 
     /* XXX
         if (r->label) {
