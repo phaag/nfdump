@@ -530,7 +530,7 @@ void StoreSflowRecord(SFSample *sample, FlowSource_t *fs) {
     stat_record->numpackets += genericFlow->inPackets;
     stat_record->numbytes += genericFlow->inBytes;
 
-    uint32_t exporterIdent = MetricExpporterID(recordHeader);
+    uint32_t exporterIdent = MetricExporterID(recordHeader);
     UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
 
     if (PrintRecord) {

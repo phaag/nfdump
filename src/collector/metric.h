@@ -79,5 +79,5 @@ void UpdateMetric(char *ident, uint32_t exporterID, EXgenericFlow_t *genericFlow
 
 void *MetricThread(void *arg);
 
-#define MetricExpporterID(r) (((uint32_t)(r)->exporterID << 16UL) | ((uint32_t)(r)->engineType << 8UL) | (uint32_t)(r)->engineID)
+#define MetricExporterID(r) (((uint32_t)(r)->exporterID << 16UL) | ((uint32_t)(r)->engineType << 8UL) | (uint32_t)(r)->engineID)
 #endif

@@ -50,9 +50,9 @@
  *
  * Principal layout, recognized as LAYOUT_VERSION_2:
  *
- *   +-----------+-------------+-------------+-------------+-----+-------------+
- *   |Fileheader | datablock 0 | datablock 1 | datablock 2 | ... | datablock n |
- *   +-----------+-------------+-------------+-------------+-----+-------------+
+ *   +-----------+-------------+-------------+-----+-------------+-------------+
+ *   |Fileheader | datablock 0 | datablock 1 | ... | datablock n | Appdx block |
+ *   +-----------+-------------+-------------+-----+-------------+-------------+
  */
 
 typedef struct fileHeaderV2_s {
@@ -150,11 +150,6 @@ typedef struct recordHeader_s {
     uint16_t type;  // type of data
     uint16_t size;  // size of record including this header
 } recordHeader_t;
-
-#define PushRecord(p, h, t)                  \
-    recordHeader_t *h = (recordHeader_t *)p; \
-    h->type = t;                             \
-    h->size = sizeof(recordHeader_t);
 
 #define TYPE_IDENT 0x8001
 #define TYPE_STAT 0x8002

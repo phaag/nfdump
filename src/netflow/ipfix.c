@@ -1502,7 +1502,7 @@ static void Process_ipfix_data(exporter_entry_t *exporter_entry, uint32_t Export
             fs->nffile->stat_record->numpackets += genericFlow->inPackets;
             fs->nffile->stat_record->numbytes += genericFlow->inBytes;
 
-            uint32_t exporterIdent = MetricExpporterID(recordHeaderV3);
+            uint32_t exporterIdent = MetricExporterID(recordHeaderV3);
             UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
         }
 

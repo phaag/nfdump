@@ -1240,7 +1240,7 @@ static inline void Process_v9_data(exporter_entry_t *exporter_entry, void *data_
             fs->nffile->stat_record->numpackets += genericFlow->inPackets;
             fs->nffile->stat_record->numbytes += genericFlow->inBytes;
 
-            uint32_t exporterIdent = MetricExpporterID(recordHeaderV3);
+            uint32_t exporterIdent = MetricExporterID(recordHeaderV3);
             UpdateMetric(fs->nffile->ident, exporterIdent, genericFlow);
         }
 
