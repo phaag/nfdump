@@ -552,9 +552,13 @@ static void *filterThread(void *arg) {
                 case NbarRecordType:
                 case IfNameRecordType:
                 case VrfNameRecordType:
+                case SlackRecord:
                     // Silently skip exporter/sampler records
                     break;
 
+                case V4Record:
+                    LogError("Cannot process new v4 flow record");
+                    break;
                 default: {
                     LogError("Skip unknown record: %" PRIu64 " type %i", recordCounter, record_ptr->type);
                 }
@@ -755,8 +759,11 @@ static stat_record_t process_data(void *engine, int processMode, char *wfile, Re
                 case CommonRecordV0Type:
                     LogError("Skip lagecy record type: %d", record_ptr->type);
                     break;
+                case V4Record:
+                    LogError("Cannot process new v4 flow record");
+                    break;
                 default: {
-                    LogError("Skip unknown record type %i\n", record_ptr->type);
+                    LogError("Skip unknown record type %i", record_ptr->type);
                 }
             }
         NEXT:

@@ -52,6 +52,7 @@
 
 // Identifier for new V3Record
 #define V3Record 11
+#define V4Record 16
 
 // record type definition
 #define NbarRecordType 12
@@ -60,7 +61,7 @@
 
 #define SamplerRecordType 15
 
-#define MaxRecordID 15
+#define MaxRecordID 16
 
 // array record types
 // maxmind
@@ -72,5 +73,7 @@
 #define ASOrgtreeElementID 7
 // tor
 #define TorTreeElementID 6
+
+#define SlackRecord 256
 
 #endif

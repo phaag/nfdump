@@ -1885,7 +1885,7 @@ int QueryFile(char *filename, int verbose) {
                     return 0;
                 }
 
-                if (recordHeader->type > MaxRecordID && recordHeader->type < 32767) {
+                if (recordHeader->type != SlackRecord && recordHeader->type > MaxRecordID && recordHeader->type < 32767) {
                     LogError("Unknown record type %u", recordHeader->type);
                 }
 
@@ -1896,6 +1896,9 @@ int QueryFile(char *filename, int verbose) {
                             printf(" ** malformed **");
                         }
                     }
+                    if (recordHeader->type == V4Record) {
+                        printf(" skip V4 record");
+                    }
                     if (recordHeader->type == TYPE_IDENT) {
                         char *ident = (char *)((char *)recordHeader + sizeof(record_header_t));
                         size_t len = strlen(ident);
@@ -1905,6 +1908,10 @@ int QueryFile(char *filename, int verbose) {
                             printf("  Ident: %s", ident);
                         }
                     }
+                    if (recordHeader->type == SlackRecord) {
+                        printf(" slac record");
+                    }
+
                     printf("\n");
                 }
                 blockSize += recordHeader->size;

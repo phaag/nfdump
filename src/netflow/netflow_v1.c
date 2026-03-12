@@ -291,10 +291,16 @@ void Process_v1(void *in_buff, ssize_t in_buff_cnt, FlowSource_t *fs) {
             // router IP
             if (fs->sa_family == PF_INET6) {
                 PushExtension(recordHeader, EXipReceivedV6, ipReceivedV6);
-                memcpy((void *)ipReceivedV6->ip, fs->ipAddr.bytes, 16);
+                uint64_t *ipv6 = (uint64_t *)fs->ipAddr.bytes;
+                ipReceivedV6->ip[0] = ntohll(ipv6[0]);
+                ipReceivedV6->ip[1] = ntohll(ipv6[1]);
+                dbg_printf("Add IPv6 route IP extension\n");
             } else {
                 PushExtension(recordHeader, EXipReceivedV4, ipReceivedV4);
-                memcpy(&ipReceivedV4->ip, fs->ipAddr.bytes + 12, 4);
+                uint32_t ip;
+                memcpy(&ip, fs->ipAddr.bytes + 12, 4);
+                ipReceivedV4->ip = ntohl(ip);
+                dbg_printf("Add IPv4 route IP extension\n");
             }
 
             // Update stats
