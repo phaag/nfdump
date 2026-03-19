@@ -250,12 +250,11 @@ static void stringsEXflowMisc(FILE *stream, record_map_t *r) {
         inet_ntop_mask(ipv4Flow->dstAddr, flowMisc->dstMask, dnet, sizeof(dnet));
     }
 
-    EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)r->offsetMap[EXgenericFlowID];
     uint32_t fwdStatus = 0;
-    uint32_t tos = 0;
-    if (genericFlow) {
+    elementHeader = r->offsetMap[EXgenericFlowID];
+    if (elementHeader) {
+        EXgenericFlow_t *genericFlow = (EXgenericFlow_t *)((void *)elementHeader + sizeof(elementHeader_t));
         fwdStatus = genericFlow->fwdStatus;
-        tos = genericFlow->srcTos;
     }
 
     fprintf(stream,
@@ -268,8 +267,8 @@ static void stringsEXflowMisc(FILE *stream, record_map_t *r) {
             "  direction    =               %3u\n"
             "  biFlow Dir   =              0x%.2x\n"
             "  end reason   =              0x%.2x\n",
-            flowMisc->input, flowMisc->output, flowMisc->srcMask, snet, flowMisc->srcMask, flowMisc->dstMask, dnet, flowMisc->dstMask, fwdStatus, tos,
-            flowMisc->dir, flowMisc->biFlowDir, flowMisc->flowEndReason);
+            flowMisc->input, flowMisc->output, flowMisc->srcMask, snet, flowMisc->srcMask, flowMisc->dstMask, dnet, flowMisc->dstMask, fwdStatus,
+            flowMisc->dstTos, flowMisc->dir, flowMisc->biFlowDir, flowMisc->flowEndReason);
 
 }  // End of stringsEXflowMisc
 

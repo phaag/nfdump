@@ -1048,14 +1048,23 @@ static char *GuessSubDir(char *channeldir, char *filename) {
 
     dbg_printf("GuessSubDir() for file: %s in path: %s\n", filename, channeldir);
 
-    size_t len = strlen(filename);
-    assert(len == 19);
-    if ((len == 19 || len == 21) && (strncmp(filename, "nfcapd.", 7) == 0)) {
-        char *p = &filename[7];
-        time_t t = ISO2UNIX(p);
-        localtime_r(&t, &t_tm);
-    } else
+    // filename may be a plain file name (nfcapd.YYYYMMDDhhmm[ss]) OR a relative path
+    // like 2026/01/13/nfcapd.YYYYMMDDhhmm. We only parse the basename, but we must
+    // preserve any relative prefix when probing for files.
+    char *slash = strrchr(filename, '/');
+    const char *base = slash ? slash + 1 : filename;
+
+    // prefix is the directory part inside 'filename' (relative path), without trailing '/'
+    size_t prefix_len = slash ? (size_t)(slash - filename) : 0;
+
+    size_t len = strlen(base);
+    if (!((len == 19 || len == 21) && (strncmp(base, "nfcapd.", 7) == 0))) {
         return NULL;
+    }
+
+    char *p = &filename[7];
+    time_t t = ISO2UNIX(p);
+    localtime_r(&t, &t_tm);
 
     unsigned i = 0;
     // if the file exists, it must be in any of the possible subdirs
@@ -1067,7 +1076,15 @@ static char *GuessSubDir(char *channeldir, char *filename) {
         strftime(subpath, 254, sub_fmt, &t_tm);
         subpath[254] = '\0';
 
-        snprintf(s, MAXPATHLEN - 1, "%s/%s/%s", channeldir, subpath, filename);
+        if (prefix_len) {
+            // Probe: <channeldir>/<subpath>/<prefix>/<base>
+            // Example: live/profileA/<guessed>/<2026/01/13>/<nfcapd...>
+            snprintf(s, MAXPATHLEN - 1, "%s/%s/%.*s/%s", channeldir, subpath, (int)prefix_len, filename, base);
+        } else {
+            // Probe: <channeldir>/<subpath>/<base>
+            snprintf(s, MAXPATHLEN - 1, "%s/%s/%s", channeldir, subpath, base);
+        }
+
         if (stat(s, &stat_buf) == 0 && S_ISREG(stat_buf.st_mode)) {
             // found file in subdir
             dbg_printf("GuessSubDir() found: %s\n", subpath);
