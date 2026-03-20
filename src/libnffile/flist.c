@@ -1062,8 +1062,10 @@ static char *GuessSubDir(char *channeldir, char *filename) {
         return NULL;
     }
 
-    char *p = &filename[7];
+    const char *p = base + 7;
     time_t t = ISO2UNIX(p);
+    if (t == (time_t)-1) return NULL;
+
     localtime_r(&t, &t_tm);
 
     unsigned i = 0;
