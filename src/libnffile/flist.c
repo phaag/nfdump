@@ -1068,35 +1068,48 @@ static char *GuessSubDir(char *channeldir, char *filename) {
 
     localtime_r(&t, &t_tm);
 
-    unsigned i = 0;
     // if the file exists, it must be in any of the possible subdirs
     // so try one after the next - one will match
-    while (subdir_def[i]) {
+    for (unsigned i = 0; subdir_def[i]; i++) {
         char const *sub_fmt = subdir_def[i];
         char subpath[255];
         struct stat stat_buf;
-        strftime(subpath, 254, sub_fmt, &t_tm);
-        subpath[254] = '\0';
+
+        strftime(subpath, sizeof(subpath), sub_fmt, &t_tm);
+        subpath[sizeof(subpath) - 1] = '\0';
 
         if (prefix_len) {
+            int pre = prefix_len > INT_MAX ? INT_MAX : (int)prefix_len;
+
             // Probe: <channeldir>/<subpath>/<prefix>/<base>
             // Example: live/profileA/<guessed>/<2026/01/13>/<nfcapd...>
-            snprintf(s, MAXPATHLEN - 1, "%s/%s/%.*s/%s", channeldir, subpath, (int)prefix_len, filename, base);
+            int n = snprintf(s, sizeof(s), "%s/%s/%.*s/%s", channeldir, subpath, pre, filename, base);
+            s[sizeof(s) - 1] = '\0';
+            if (n > 0 && (size_t)n < sizeof(s) && stat(s, &stat_buf) == 0 && S_ISREG(stat_buf.st_mode)) {
+                dbg_printf("GuessSubDir() found: %s\n", subpath);
+                return strdup(subpath);
+            }
+
+            // Optional but recommended:
+            // Also probe without the prefix, in case the provided prefix is not part of the on-disk hierarchy
+            n = snprintf(s, sizeof(s), "%s/%s/%s", channeldir, subpath, base);
+            s[sizeof(s) - 1] = '\0';
+            if (n > 0 && (size_t)n < sizeof(s) && stat(s, &stat_buf) == 0 && S_ISREG(stat_buf.st_mode)) {
+                dbg_printf("GuessSubDir() found: %s\n", subpath);
+                return strdup(subpath);
+            }
         } else {
             // Probe: <channeldir>/<subpath>/<base>
-            snprintf(s, MAXPATHLEN - 1, "%s/%s/%s", channeldir, subpath, base);
+            int n = snprintf(s, sizeof(s), "%s/%s/%s", channeldir, subpath, base);
+            s[sizeof(s) - 1] = '\0';
+            if (n > 0 && (size_t)n < sizeof(s) && stat(s, &stat_buf) == 0 && S_ISREG(stat_buf.st_mode)) {
+                dbg_printf("GuessSubDir() found: %s\n", subpath);
+                return strdup(subpath);
+            }
         }
-
-        if (stat(s, &stat_buf) == 0 && S_ISREG(stat_buf.st_mode)) {
-            // found file in subdir
-            dbg_printf("GuessSubDir() found: %s\n", subpath);
-            return strdup(subpath);
-        }
-        i++;
     }
 
     return NULL;
-
 }  // End of GuessSubDir
 
 // make sure, that path with subdir exists for timeslot now and stores it into path
